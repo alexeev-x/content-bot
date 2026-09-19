@@ -1,6 +1,7 @@
 import { env, SELF } from 'cloudflare:test';
 import { describe, expect, it } from 'vitest';
 import { onTelegram, ownerMessage, telegramCalls, topicsRespond, webhookRequest } from './telegram-mock';
+import { defaultSections } from 'src/core/sections';
 
 describe('восстановление апдейта', () => {
   it('сохраняет вход и тему при отказе приветствия; повтор не создаёт вторую тему', async () => {
@@ -14,7 +15,7 @@ describe('восстановление апдейта', () => {
     expect(await env.DB.prepare('SELECT COUNT(*) AS n FROM sections').first()).toEqual({ n: 1 });
     onTelegram('sendMessage', (_payload, index) => ({ ok: true, result: { message_id: index } }));
     expect((await SELF.fetch(webhookRequest(update))).status).toBe(200);
-    expect(telegramCalls('createForumTopic')).toHaveLength(4);
+    expect(telegramCalls('createForumTopic')).toHaveLength(defaultSections.length);
   });
   it('не подтверждает занятую обработку, но восстанавливает просроченную аренду', async () => {
     topicsRespond();
