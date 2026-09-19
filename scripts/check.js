@@ -29,7 +29,11 @@ let failed = false;
 
 for (const [title, command, args] of steps) {
   console.log(`\n▸ ${title}`);
-  const result = spawnSync(command, args, { cwd: ROOT, stdio: 'inherit', shell: false });
+  const result = spawnSync(command, args, {
+    cwd: ROOT,
+    stdio: 'inherit',
+    shell: process.platform === 'win32' && command.endsWith('.cmd'),
+  });
   if (result.status !== 0) failed = true;
 }
 
