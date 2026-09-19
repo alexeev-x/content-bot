@@ -1,0 +1,10 @@
+# Скопируй в .dev.vars и заполни. .dev.vars в .gitignore — не коммить.
+# Для dev заводим ОТДЕЛЬНОГО бота: у бота один webhook, делить токен с production нельзя.
+BOT_TOKEN=
+OWNER_TELEGRAM_ID=
+TELEGRAM_WEBHOOK_SECRET=
+
+# Необязательно. Ответ getMe одной строкой — чтобы grammY не спрашивал его у Telegram
+# на каждом холодном старте. Получить: curl https://api.telegram.org/bot<TOKEN>/getMe
+# Если не уверен — оставь пустым, всё работает и без него.
+BOT_INFO=
