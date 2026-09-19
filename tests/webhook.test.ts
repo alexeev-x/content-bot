@@ -8,6 +8,18 @@ const countUpdates = async () => {
 };
 
 describe('webhook', () => {
+  it('не принимает владельца в групповом чате', async () => {
+    const update = ownerMessage(7, '/start');
+    update.message.chat = { id: -100, type: 'supergroup' };
+    expect((await SELF.fetch(webhookRequest(update))).status).toBe(200);
+    expect(await countUpdates()).toBe(0);
+    expect(telegramCalls('createForumTopic')).toHaveLength(0);
+  });
+
+  it('возвращает 400 для некорректного тела', async () => {
+    expect((await SELF.fetch(webhookRequest({ update_id: 'bad' }))).status).toBe(400);
+    expect(await countUpdates()).toBe(0);
+  });
   it('не пускает без заголовка с секретом', async () => {
     const response = await SELF.fetch(webhookRequest(ownerMessage(1, '/start'), null));
 

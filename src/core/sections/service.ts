@@ -1,7 +1,7 @@
 import type { SectionDefinition } from 'src/const/sections';
 import type { TelegramApi } from 'src/core/telegram';
 import { logger } from 'src/lib/logger';
-import { findSectionByThreadId, listSections, saveSection } from './queries';
+import { findSectionByThreadId, listSections, markSectionIntroduced, saveSection } from './queries';
 import type { SectionRow } from './table';
 
 type Deps = {
@@ -13,9 +13,6 @@ type Deps = {
 
 /** Что знает о разделе внешний потребитель: название, назначение и тема. */
 export type SectionView = { key: string; title: string; intro: string; threadId: number };
-
-/** Все разделы на месте. Живёт на изоляте, не в диалоге: это кэш, а не состояние переписки. */
-let complete = false;
 
 export const createSections = ({ d1, telegram, catalog }: Deps) => {
   const intros = new Map(catalog.map((item) => [item.key, item.intro]));
@@ -45,34 +42,34 @@ export const createSections = ({ d1, telegram, catalog }: Deps) => {
       return row && toView(row);
     },
 
-    /**
-     * Доводит набор тем до каталога: чего нет — создаёт, что есть — оставляет. Идемпотентно.
-     *
-     * Вызывается на каждый апдейт, поэтому результат запоминаем на изолят: холодный старт делает
-     * один SELECT, дальнейшие сообщения — ни одного. Заодно сужается окно, в котором два
-     * одновременных апдейта могли бы создать по теме каждый.
-     *
-     * ⚠️ Создание темы и запись в D1 — не одна транзакция: упадём между ними, и останется
-     * осиротевшая тема. Лечится таблицей заданий на этапе 2, отдельного костыля здесь не строим.
-     */
+    /** Вход допускает только личный чат владельца. Журнал Telegram сериализует создание тем. */
     ensure: async (chatId: number): Promise<void> => {
-      if (complete) return;
-
-      const known = new Set((await listSections(d1)).map((row) => row.key));
+      const known = new Map((await listSections(d1)).map((row) => [row.key, row]));
 
       for (const definition of catalog) {
-        if (known.has(definition.key)) continue;
-
-        const topic = await telegram.createTopic({ chatId, name: definition.title, iconColor: definition.color });
-
-        // Пустая тема выглядит как ошибка: сразу пишем, зачем она.
-        await telegram.sendMessage({ chatId, text: definition.intro, threadId: topic.threadId });
-        await saveSection(d1, { key: definition.key, threadId: topic.threadId, title: definition.title });
-
-        logger.info('section created', { key: definition.key, threadId: topic.threadId });
+        let row = known.get(definition.key);
+        const operationKey = `section:${chatId}:${definition.key}`;
+        if (!row) {
+          const topic = await telegram.createTopic({
+            chatId,
+            name: definition.title,
+            iconColor: definition.color,
+            operationKey: `${operationKey}:create`,
+          });
+          row = await saveSection(d1, { key: definition.key, threadId: topic.threadId, title: definition.title });
+          logger.info('section created', { key: definition.key, threadId: topic.threadId });
+        }
+        // Сохраняем известную тему ДО приветствия: его сбой не создаст другую тему.
+        if (!row.introduced) {
+          await telegram.sendMessage({
+            chatId,
+            text: definition.intro,
+            threadId: row.threadId,
+            operationKey: `${operationKey}:intro`,
+          });
+          await markSectionIntroduced(d1, definition.key);
+        }
       }
-
-      complete = true;
     },
   };
 };

@@ -15,8 +15,9 @@
  * Отдельный скрипт, а не цепочка через && или concurrently: одинаково работает в zsh и PowerShell.
  */
 import { spawn, spawnSync } from 'node:child_process';
-import { join } from 'node:path';
 import { readDevVars, ROOT } from './dev-vars.js';
+import { deliverUpdates } from './deliver-updates.js';
+import { toolPath } from './tool-path.js';
 
 const IS_WINDOWS = process.platform === 'win32';
 const POLL_SECONDS = 30;
@@ -27,7 +28,7 @@ const port = portIndex === -1 ? '8787' : (args[portIndex + 1] ?? '8787');
 const withBot = !args.includes('--no-bot');
 const baseUrl = `http://127.0.0.1:${port}`;
 
-const wrangler = join(ROOT, 'node_modules', '.bin', IS_WINDOWS ? 'wrangler.cmd' : 'wrangler');
+const wrangler = toolPath('wrangler');
 const children = new Set();
 
 const log = (label, color, line) => process.stdout.write(`\x1b[${color}m${label}\x1b[0m ${line}\n`);
@@ -50,19 +51,26 @@ for (const signal of ['SIGINT', 'SIGTERM']) {
 
 // Миграции прогоняем сами: иначе после git pull код ждёт таблицу, которой ещё нет.
 // Операция идемпотентная — применённое повторно не применяется.
-spawnSync(wrangler, ['d1', 'migrations', 'apply', 'DB', '--env', 'dev', '--local'], {
-  cwd: ROOT,
-  stdio: 'ignore',
-  shell: IS_WINDOWS,
-});
+const migration = spawnSync(
+  process.execPath,
+  [wrangler, 'd1', 'migrations', 'apply', 'DB', '--env', 'dev', '--local'],
+  {
+    cwd: ROOT,
+    stdio: 'inherit',
+  },
+);
+if (migration.status !== 0) process.exit(migration.status ?? 1);
 
-const worker = spawn(wrangler, ['dev', '--env', 'dev', '--port', port], {
+const worker = spawn(process.execPath, [wrangler, 'dev', '--env', 'dev', '--port', port], {
   cwd: ROOT,
-  shell: IS_WINDOWS,
   stdio: ['ignore', 'pipe', 'pipe'],
 });
 
 children.add(worker);
+worker.on('error', () => {
+  stopAll();
+  process.exit(1);
+});
 
 for (const stream of [worker.stdout, worker.stderr]) {
   stream?.on('data', (chunk) => {
@@ -117,7 +125,7 @@ const waitForWorker = async () => {
   while (Date.now() < deadline) {
     try {
       // Годится любой ответ, в том числе 404: важно лишь, что воркер принимает соединения.
-      await fetch(baseUrl);
+      await fetch(baseUrl, { signal: AbortSignal.timeout(2000) });
       return true;
     } catch {
       // воркер ещё поднимается
@@ -177,9 +185,8 @@ while (true) {
     continue;
   }
 
-  for (const update of updates) {
-    offset = update.update_id + 1;
-
+  const previousOffset = offset;
+  offset = await deliverUpdates(updates, offset, async (update) => {
     try {
       const response = await fetch(`${baseUrl}/telegram/webhook`, {
         method: 'POST',
@@ -188,9 +195,12 @@ while (true) {
         signal: AbortSignal.timeout(60_000),
       });
 
-      log('[bot]   ', '36', `${update.update_id}  ${response.status}  ${update.message?.text ?? '(без текста)'}`);
+      log('[bot]   ', '36', `${update.update_id}  ${response.status}`);
+      if (!response.ok) throw new Error('Доставка не подтверждена');
     } catch {
       log('[bot]   ', '31', `${update.update_id}  воркер не ответил`);
+      throw new Error('Доставка не подтверждена');
     }
-  }
+  });
+  if (updates.length && offset === previousOffset) await new Promise((done) => setTimeout(done, 3000));
 }

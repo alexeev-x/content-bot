@@ -18,6 +18,7 @@
     "cf-typegen": "wrangler types --env dev --env-interface CloudflareBindings",
     "db:generate": "drizzle-kit generate",
     "bot": "node scripts/bot.js",
+    "recover": "node scripts/recovery.js",
     "prepare": "husky",
     "postinstall": "wrangler types --env dev --env-interface CloudflareBindings"
   },

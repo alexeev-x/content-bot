@@ -1,66 +1,44 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { createHttpClient } from 'src/lib/api';
 
-/**
- * Транспорт передаём аргументом. Глобальный fetch здесь подменять нельзя: через него работает
- * и рантайм, и сам тестовый раннер — подмена вешает прогон (проверено, 17 минут).
- */
-const transport = (responses: (() => Response)[]) => {
-  const calls: string[] = [];
-
-  const send = (async (input: RequestInfo | URL) => {
-    calls.push(String(input));
-    return responses[Math.min(calls.length - 1, responses.length - 1)]!();
-  }) as typeof globalThis.fetch;
-
-  return { send, calls };
-};
-
-const json = (status: number, body: unknown) =>
-  new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
-
-describe('HTTP-клиент внешних сервисов', () => {
-  it('повторяет 429 и отдаёт успешный ответ', async () => {
-    const { send, calls } = transport([() => json(429, { ok: false }), () => json(200, { result: 'готово' })]);
-
-    const result = await createHttpClient('https://x.test', { fetch: send }).post<{ result: string }>('m', {});
-
-    expect(result.result).toBe('готово');
-    expect(calls).toHaveLength(2);
-  });
-
-  it('повторяет 5xx в пределах лимита и отдаёт последний ответ', async () => {
-    const { send, calls } = transport([() => json(500, { description: 'boom' })]);
-
-    const result = await createHttpClient('https://x.test', { retries: 2, fetch: send }).post<{
-      description: string;
-    }>('m', {});
-
-    // Три попытки: первая и два повтора. Дальше не долбим — повтор маскировал бы поломку.
-    expect(calls).toHaveLength(3);
-    expect(result.description).toBe('boom');
-  });
-
-  it('НЕ повторяет 400: ошибка сервиса детерминирована', async () => {
-    const { send, calls } = transport([() => json(400, { description: 'Bad Request' })]);
-
-    await createHttpClient('https://x.test', { fetch: send }).post('m', {});
-
-    expect(calls).toHaveLength(1);
-  });
-
-  it('сетевой сбой повторяет и в конце бросает retryable-ошибку', async () => {
-    const calls: string[] = [];
-    const send = (async () => {
-      calls.push('x');
-      throw Object.assign(new Error('network'), { name: 'TypeError' });
-    }) as typeof globalThis.fetch;
-
-    await expect(createHttpClient('https://x.test', { retries: 1, fetch: send }).post('m', {})).rejects.toMatchObject({
-      code: 'upstream_failed',
-      retryable: true,
+describe('безопасность повторов HTTP', () => {
+  it('не повторяет POST после потери ответа: действие могло выполниться', async () => {
+    const send = vi.fn<typeof fetch>().mockRejectedValue(new TypeError('response lost'));
+    await expect(createHttpClient('https://x.test', { fetch: send }).post('send', {})).rejects.toMatchObject({
+      code: 'outcome_unknown',
+      retryable: false,
     });
-
-    expect(calls).toHaveLength(2);
+    expect(send).toHaveBeenCalledTimes(1);
+  });
+  it('не повторяет изменяющий POST после 500', async () => {
+    const send = vi.fn<typeof fetch>().mockResolvedValue(new Response('{}', { status: 500 }));
+    await expect(createHttpClient('https://x.test', { fetch: send }).post('send', {})).rejects.toMatchObject({
+      code: 'outcome_unknown',
+    });
+    expect(send).toHaveBeenCalledTimes(1);
+  });
+  it('ограниченно повторяет запрос с явной гарантией идемпотентности', async () => {
+    const send = vi
+      .fn<typeof fetch>()
+      .mockRejectedValueOnce(new TypeError('network'))
+      .mockResolvedValue(new Response('{"ok":true}'));
+    await expect(
+      createHttpClient('https://x.test', { fetch: send }).post('read', {}, { idempotent: true }),
+    ).resolves.toEqual({ ok: true });
+    expect(send).toHaveBeenCalledTimes(2);
+  });
+  it('не сокращает длинный Retry-After до короткого ожидания', async () => {
+    const send = vi
+      .fn<typeof fetch>()
+      .mockResolvedValue(new Response('{}', { status: 429, headers: { 'retry-after': '60' } }));
+    await expect(
+      createHttpClient('https://x.test', { fetch: send }).post('read', {}, { idempotent: true }),
+    ).rejects.toMatchObject({ retryable: true, retryAfterMs: 60_000 });
+    expect(send).toHaveBeenCalledTimes(1);
+  });
+  it('не повторяет 400', async () => {
+    const send = vi.fn<typeof fetch>().mockResolvedValue(new Response('{"error":true}', { status: 400 }));
+    await createHttpClient('https://x.test', { fetch: send }).post('read', {}, { idempotent: true });
+    expect(send).toHaveBeenCalledTimes(1);
   });
 });

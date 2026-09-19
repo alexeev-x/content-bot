@@ -1,67 +1,55 @@
-import { AppError } from './errors';
-import { logger } from './logger';
+import { AppError, isAppError } from './errors';
 
 type ClientOptions = {
-  /** Сколько ждать ответ. Зависший вызов не должен держать обработчик до его таймаута. */
   timeoutMs?: number;
-  /** Сколько раз повторить при сетевом сбое. Ответы сервиса не повторяем: они детерминированы. */
   retries?: number;
-  /**
-   * Транспорт. Подменяется в тестах: глобальный fetch подменять нельзя — через него работает
-   * и сам рантайм, и тестовый раннер, и подмена вешает прогон.
-   */
   fetch?: typeof globalThis.fetch;
+  signal?: AbortSignal;
 };
 
-const isNetworkFailure = (error: unknown) =>
-  error instanceof Error &&
-  (error.name === 'TimeoutError' || error.name === 'AbortError' || error.name === 'TypeError');
-
-/** 429 и 5xx — временные: сервис жив, но сейчас не может. Остальные коды повторять бессмысленно. */
-const isTransientStatus = (status: number) => status === 429 || status >= 500;
-
-/** Площадки просят подождать конкретное время — уважаем, но не дольше разумного. */
-const retryDelayMs = (response: globalThis.Response, attempt: number) => {
-  const header = Number(response.headers.get('retry-after'));
-  const requested = Number.isFinite(header) ? header * 1000 : 0;
-  return Math.min(Math.max(requested, 300 * (attempt + 1)), 10_000);
-};
-
-const wait = (ms: number) => new Promise((done) => setTimeout(done, ms));
-
-/**
- * Базовый клиент внешнего сервиса: таймаут, повтор сетевого сбоя, единый формат ошибки.
- * Домена не знает — поверх него строятся клиенты в core (Telegram, ИИ, площадки).
- */
+/** Повтор POST разрешён только при гарантии идемпотентности со стороны вызывающего кода. */
 export const createHttpClient = (
   baseUrl: string,
-  { timeoutMs = 15_000, retries = 2, fetch: send = globalThis.fetch }: ClientOptions = {},
+  { timeoutMs = 15_000, retries = 2, fetch: send = globalThis.fetch, signal }: ClientOptions = {},
 ) => ({
-  post: async <T>(path: string, body: unknown): Promise<T> => {
+  post: async (path: string, body: unknown, { idempotent = false } = {}): Promise<unknown> => {
+    const serialized = JSON.stringify(body);
     for (let attempt = 0; ; attempt += 1) {
+      signal?.throwIfAborted();
       try {
         const response = await send(`${baseUrl}/${path}`, {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
-          body: JSON.stringify(body),
-          signal: AbortSignal.timeout(timeoutMs),
+          body: serialized,
+          signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(timeoutMs)]) : AbortSignal.timeout(timeoutMs),
         });
-
-        if (isTransientStatus(response.status) && attempt < retries) {
-          const delay = retryDelayMs(response, attempt);
-          logger.warn('upstream retry', { path, status: response.status, attempt: attempt + 1, delay });
-          await wait(delay);
-          continue;
+        if (response.status >= 500) {
+          await response.body?.cancel();
+          throw new AppError(idempotent ? 'upstream_failed' : 'outcome_unknown', 'Upstream result is unavailable', {
+            retryable: idempotent,
+          });
         }
-
-        return (await response.json()) as T;
-      } catch (error) {
-        if (!isNetworkFailure(error) || attempt >= retries) {
-          throw new AppError('upstream_failed', `Request to ${path} failed`, { retryable: true, cause: error });
+        if (response.status === 429 && idempotent) {
+          const raw = response.headers.get('retry-after');
+          const seconds = raw === null ? NaN : Number(raw);
+          const delay = Number.isFinite(seconds) ? seconds * 1000 : Math.max(0, Date.parse(raw ?? '') - Date.now());
+          await response.body?.cancel();
+          throw new AppError('upstream_failed', 'Upstream rate limit', {
+            retryable: true,
+            retryAfterMs: Number.isFinite(delay) ? delay : 0,
+          });
         }
-
-        logger.warn('upstream retry', { path, attempt: attempt + 1 });
-        await wait(300 * (attempt + 1));
+        return (await response.json()) as unknown;
+      } catch (cause) {
+        const error = isAppError(cause)
+          ? cause
+          : new AppError(idempotent ? 'upstream_failed' : 'outcome_unknown', 'Upstream result is unavailable', {
+              retryable: idempotent,
+              cause,
+            });
+        if (!idempotent || !error.retryable || error.retryAfterMs > 1000 || attempt >= retries || signal?.aborted)
+          throw error;
+        await new Promise((done) => setTimeout(done, Math.max(error.retryAfterMs, 100 * (attempt + 1))));
       }
     }
   },

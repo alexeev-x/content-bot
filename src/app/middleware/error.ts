@@ -10,6 +10,8 @@ const httpStatusByCode: Record<ErrorCode, 400 | 401 | 500 | 502 | 503> = {
   not_configured: 503,
   upstream_failed: 502,
   internal: 500,
+  operation_busy: 503,
+  outcome_unknown: 503,
 };
 
 /** Единый формат ошибки наружу. Причину и стек оставляем в логах, а не в ответе. */
@@ -27,7 +29,7 @@ export const errorHandler: ErrorHandler<AppEnv> = (error, c) => {
   logger.error('unhandled error', {
     requestId: c.get('requestId'),
     path: c.req.path,
-    message: error instanceof Error ? error.message : 'unknown',
+    name: error.name,
   });
   return c.json({ code: 'internal', message: 'Internal error' }, 500);
 };

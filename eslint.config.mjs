@@ -1,4 +1,5 @@
 import { readdirSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 
 import js from '@eslint/js';
 import prettier from 'eslint-config-prettier';
@@ -6,19 +7,20 @@ import importPlugin from 'eslint-plugin-import-x';
 import tseslint from 'typescript-eslint';
 
 /** Имена модулей читаем с диска: новый модуль получает свою зону автоматически. */
-const featureNames = (() => {
+const moduleNames = (() => {
   try {
-    return readdirSync('./src/features', { withFileTypes: true })
+    return readdirSync(new URL('./src/modules', import.meta.url), { withFileTypes: true })
       .filter((entry) => entry.isDirectory())
       .map((entry) => entry.name);
-  } catch {
+  } catch (error) {
+    if (error.code !== 'ENOENT') throw error;
     return [];
   }
 })();
 
-const LEVEL_ZERO = ['./src/types', './src/const'];
-const ABOVE_LIB = ['./src/core', './src/features', './src/app', './src/index.ts'];
-const ABOVE_CORE = ['./src/features', './src/app', './src/index.ts'];
+const LEVEL_ZERO = ['./src/types', './src/const', './src/schemas'];
+const ABOVE_LIB = ['./src/core', './src/modules', './src/app', './src/index.ts'];
+const ABOVE_CORE = ['./src/modules', './src/app', './src/index.ts'];
 
 /**
  * Слои строгие: импорт только вниз и никогда вбок.
@@ -42,20 +44,20 @@ const layerZones = [
   },
   {
     target: './src/app',
-    from: './src/features',
+    from: ['./src/modules', './src/index.ts'],
     message: 'app — вход в приложение, он не знает о фичах. Объяви порт и свяжи в src/index.ts.',
   },
   {
-    target: './src/features',
-    from: './src/app',
+    target: './src/modules',
+    from: ['./src/app', './src/index.ts'],
     message: 'Фича не зависит от входа: её можно поднять из очереди и cron, а не только из Telegram.',
   },
 ];
 
 /** Фича не видит соседей: связывание — только в src/index.ts через порты. */
-const siblingZones = featureNames.map((name) => ({
-  target: `./src/features/${name}`,
-  from: './src/features',
+const siblingZones = moduleNames.map((name) => ({
+  target: `./src/modules/${name}`,
+  from: './src/modules',
   except: [`./${name}`],
   message: `Фича «${name}» не может импортировать соседа. Объяви порт в потребителе и свяжи в src/index.ts.`,
 }));
@@ -71,7 +73,10 @@ export default tseslint.config(
       'import-x/resolver': { typescript: { project: './tsconfig.json' } },
     },
     rules: {
-      'import-x/no-restricted-paths': ['error', { zones: [...layerZones, ...siblingZones] }],
+      'import-x/no-restricted-paths': [
+        'error',
+        { basePath: fileURLToPath(new URL('.', import.meta.url)), zones: [...layerZones, ...siblingZones] },
+      ],
       'import-x/no-cycle': 'error',
       'import-x/no-duplicates': 'error',
       'import-x/order': [

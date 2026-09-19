@@ -11,13 +11,21 @@ export const findSectionByThreadId = async (d1: D1Database, threadId: number): P
 };
 
 /** Тему могли пересоздать — тогда у того же раздела новый thread_id. */
-export const saveSection = async (d1: D1Database, row: Omit<SectionRow, 'createdAt'>): Promise<SectionRow> => {
+export const saveSection = async (
+  d1: D1Database,
+  row: Omit<SectionRow, 'createdAt' | 'introduced'>,
+): Promise<SectionRow> => {
   const [saved] = await drizzle(d1)
     .insert(sections)
-    .values({ ...row, createdAt: Date.now() })
-    .onConflictDoUpdate({ target: sections.key, set: { threadId: row.threadId, title: row.title } })
+    .values({ ...row, introduced: false, createdAt: Date.now() })
+    .onConflictDoNothing()
     .returning();
 
-  if (!saved) throw new AppError('internal', 'Section was not saved');
-  return saved;
+  const existing = saved ?? (await findSectionByThreadId(d1, row.threadId));
+  if (!existing || existing.key !== row.key) throw new AppError('internal', 'Section was not saved');
+  return existing;
+};
+
+export const markSectionIntroduced = async (d1: D1Database, key: string) => {
+  await drizzle(d1).update(sections).set({ introduced: true }).where(eq(sections.key, key));
 };

@@ -1,8 +1,16 @@
-export type ErrorCode = 'unauthorized' | 'bad_request' | 'not_configured' | 'upstream_failed' | 'internal';
+export type ErrorCode =
+  | 'unauthorized'
+  | 'bad_request'
+  | 'not_configured'
+  | 'upstream_failed'
+  | 'internal'
+  | 'operation_busy'
+  | 'outcome_unknown';
 
 type AppErrorOptions = {
   /** Есть ли смысл повторить: решает очередь и планировщик. */
   retryable?: boolean;
+  retryAfterMs?: number;
   cause?: unknown;
 };
 
@@ -21,12 +29,14 @@ export class AppError extends Error {
   readonly [APP_ERROR] = true;
   readonly code: ErrorCode;
   readonly retryable: boolean;
+  readonly retryAfterMs: number;
 
   constructor(code: ErrorCode, message: string, options: AppErrorOptions = {}) {
     super(message, { cause: options.cause });
     this.name = 'AppError';
     this.code = code;
     this.retryable = options.retryable ?? false;
+    this.retryAfterMs = options.retryAfterMs ?? 0;
   }
 }
 

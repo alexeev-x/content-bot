@@ -6,12 +6,12 @@
  * Порядок важен: если выкатить код раньше схемы, он обратится к таблице, которой ещё нет.
  */
 import { spawnSync } from 'node:child_process';
-import { dirname, join, resolve } from 'node:path';
+import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { toolPath } from './tool-path.js';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const IS_WINDOWS = process.platform === 'win32';
-const wrangler = join(ROOT, 'node_modules', '.bin', IS_WINDOWS ? 'wrangler.cmd' : 'wrangler');
+const wrangler = toolPath('wrangler');
 
 const env = process.argv[2];
 
@@ -27,6 +27,6 @@ const steps = [
 
 for (const [title, args] of steps) {
   console.log(`\n▸ ${title} (${env})`);
-  const result = spawnSync(wrangler, args, { cwd: ROOT, stdio: 'inherit', shell: IS_WINDOWS });
+  const result = spawnSync(process.execPath, [wrangler, ...args], { cwd: ROOT, stdio: 'inherit' });
   if (result.status !== 0) process.exit(result.status ?? 1);
 }

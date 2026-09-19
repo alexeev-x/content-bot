@@ -1,4 +1,5 @@
-import { webhookCallback } from 'grammy';
+import { BotError, webhookCallback } from 'grammy';
+import { z } from 'zod';
 import { configSchema } from 'src/app/config';
 import { telegramAuth } from 'src/app/middleware/telegram-auth';
 import type { Sections } from 'src/core/sections';
@@ -22,11 +23,30 @@ const readConfig = (env: Env) => {
   return parsed.data;
 };
 
-export const createTelegramRouter = (buildDeps: (env: Env) => TelegramDeps) =>
+const updateEnvelope = z.object({ update_id: z.number().int().nonnegative() });
+
+export const createTelegramRouter = (buildDeps: (env: Env, updateId: number, signal: AbortSignal) => TelegramDeps) =>
   createRouter().post('/webhook', telegramAuth, async (c) => {
-    const bot = await createBot({ config: readConfig(c.env), d1: c.env.DB, ...buildDeps(c.env) });
+    const parsed = updateEnvelope.safeParse(
+      await c.req.raw
+        .clone()
+        .json()
+        .catch(() => null),
+    );
+    if (!parsed.success) throw new AppError('bad_request', 'Invalid Telegram update');
+    const bot = await createBot({
+      config: readConfig(c.env),
+      d1: c.env.DB,
+      ...buildDeps(c.env, parsed.data.update_id, AbortSignal.timeout(45_000)),
+    });
 
     // Дефолт grammY в 10 секунд слишком жёсткий для холодного старта, а Telegram считает
     // доставку неудачной примерно через минуту — держимся ниже этого порога.
-    return webhookCallback(bot, 'hono', { timeoutMilliseconds: 50_000 })(c);
+    try {
+      return await webhookCallback(bot, 'hono', { timeoutMilliseconds: 50_000 })(c);
+    } catch (error) {
+      // В webhook-режиме grammY оборачивает ошибку, bot.catch относится к long polling.
+      if (error instanceof BotError) throw error.error;
+      throw error;
+    }
   });

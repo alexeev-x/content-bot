@@ -10,6 +10,7 @@ export const sections = sqliteTable('sections', {
   threadId: integer('thread_id').notNull().unique(),
   title: text('title').notNull(),
   createdAt: integer('created_at').notNull(),
+  introduced: integer('introduced', { mode: 'boolean' }).notNull().default(true),
 });
 
 export type SectionRow = typeof sections.$inferSelect;

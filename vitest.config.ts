@@ -38,5 +38,5 @@ export default defineConfig({
   resolve: {
     alias: [{ find: /^src\//, replacement: `${fileURLToPath(new URL('./src', import.meta.url))}/` }],
   },
-  test: { setupFiles: ['./tests/setup.ts'] },
+  test: { include: ['tests/**/*.test.ts'], setupFiles: ['./tests/setup.ts'] },
 });

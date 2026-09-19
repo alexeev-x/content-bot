@@ -26,6 +26,7 @@ const call = async (method, body) => {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify(body ?? {}),
+    signal: AbortSignal.timeout(15_000),
   });
   const payload = await response.json();
   if (!payload.ok) throw new Error(`${method}: ${payload.description ?? 'неизвестная ошибка'}`);
@@ -80,7 +81,9 @@ if (topicIndex !== -1) {
   }
 
   await call('deleteForumTopic', { chat_id: chatId, message_thread_id: threadId });
-  console.log(`Тема ${threadId} удалена вместе со всей перепиской. Раздел вернёт /setup — пустым.`);
+  console.log(
+    `Тема ${threadId} удалена вместе со всей перепиской. Запись D1 и журнал нужно сверить вручную по docs/recovery.md; /setup не пересоздаёт удалённые темы.`,
+  );
   process.exit(0);
 }
 

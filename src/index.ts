@@ -18,8 +18,8 @@ app.onError(errorHandler);
 // Единственное место, где вход и фичи знают друг о друге: фичи отдают сюда команды и разделы.
 app.route(
   '/telegram',
-  createTelegramRouter((env) => {
-    const telegram = createTelegramApi(env.BOT_TOKEN);
+  createTelegramRouter((env, updateId, signal) => {
+    const telegram = createTelegramApi(env.BOT_TOKEN, { d1: env.DB, scope: `update:${updateId}`, signal });
     // Разделы объявляют фичи-владельцы; пока фич нет — набор по умолчанию.
     const sections = createSections({ d1: env.DB, telegram, catalog: [...defaultSections] });
 

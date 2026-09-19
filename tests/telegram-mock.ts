@@ -8,7 +8,10 @@ import { vi } from 'vitest';
 const API = 'https://api.telegram.org/';
 
 type Call = Record<string, unknown>;
-type Handler = (payload: Call, index: number) => { ok: true; result: unknown } | { ok: false; description: string };
+type Envelope =
+  | { ok: true; result: unknown }
+  | { ok: false; error_code: number; description?: string; parameters?: { retry_after: number } };
+type Handler = (payload: Call, index: number) => Envelope | Promise<Envelope>;
 
 const handlers = new Map<string, Handler>();
 const calls = new Map<string, Call[]>();
@@ -35,7 +38,9 @@ export const installTelegramMock = () => {
     calls.set(method, recorded);
 
     const handler = handlers.get(method);
-    const body = handler ? handler(payload, recorded.length) : { ok: true, result: {} };
+    const body = handler
+      ? await handler(payload, recorded.length)
+      : { ok: true, result: { message_id: recorded.length } };
 
     return new Response(JSON.stringify(body), { headers: { 'content-type': 'application/json' } });
   });

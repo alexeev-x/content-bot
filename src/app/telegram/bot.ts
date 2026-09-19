@@ -4,10 +4,11 @@ import type { Config } from 'src/app/config';
 import { findCommandSpec, isCommandAvailable } from 'src/const/commands';
 import type { Sections } from 'src/core/sections';
 import type { TelegramApi } from 'src/core/telegram';
+import { AppError, isAppError } from 'src/lib/errors';
 import { logger } from 'src/lib/logger';
 import type { BotCommand } from 'src/types/bot';
 import { createController } from './controller';
-import { claimUpdate, releaseUpdate } from './queries';
+import { claimUpdate, finishUpdate } from './queries';
 
 type Deps = {
   config: Config;
@@ -34,7 +35,7 @@ const notHere = (titles: readonly string[]) =>
  */
 export const createBot = async ({ config, d1, telegram, sections, commands }: Deps) => {
   const botInfo = config.BOT_INFO ?? cachedBotInfo;
-  const bot = new Bot(config.BOT_TOKEN, { botInfo });
+  const bot = new Bot(config.BOT_TOKEN, { botInfo, client: { timeoutSeconds: 10 } });
 
   if (!botInfo) {
     await bot.init();
@@ -43,29 +44,33 @@ export const createBot = async ({ config, d1, telegram, sections, commands }: De
 
   // Бот личный: чужие апдейты молча игнорируем, не раскрывая факт существования бота.
   bot.use(async (ctx, next) => {
-    if (ctx.from?.id !== config.OWNER_TELEGRAM_ID) {
+    if (
+      ctx.from?.id !== config.OWNER_TELEGRAM_ID ||
+      ctx.chat?.type !== 'private' ||
+      ctx.chat.id !== config.OWNER_TELEGRAM_ID
+    ) {
       logger.warn('update from stranger ignored', { updateId: ctx.update.update_id });
       return;
     }
     await next();
   });
 
-  // Отметку ставим ДО работы, иначе два одновременных дубля обработаются оба.
-  // Если работа не удалась — снимаем, чтобы повторная доставка сработала, а сообщение не пропало.
-  // Полноценно это решает таблица заданий на этапе 2: падать и повторяться будет задание.
+  // Сохраняем вход и аренду обработки. После аварии повтор продолжит подтверждённые шаги.
   bot.use(async (ctx, next) => {
-    if (!(await claimUpdate(d1, ctx.update.update_id))) {
+    const owner = crypto.randomUUID();
+    const state = await claimUpdate(d1, ctx.update.update_id, JSON.stringify(ctx.update), owner);
+    if (state === 'done') {
       logger.info('duplicate update skipped', { updateId: ctx.update.update_id });
       return;
     }
+    if (state === 'busy') throw new AppError('operation_busy', 'Update is being processed', { retryable: true });
 
     try {
       await next();
+      await finishUpdate(d1, ctx.update.update_id, owner);
     } catch (error) {
-      // Сбой снятия отметки не должен подменить исходную ошибку: иначе причина потеряется,
-      // а в логах останется жалоба на базу вместо настоящей поломки.
-      await releaseUpdate(d1, ctx.update.update_id).catch((cause) =>
-        logger.error('failed to release update', { updateId: ctx.update.update_id, cause: String(cause) }),
+      await finishUpdate(d1, ctx.update.update_id, owner, isAppError(error) ? error.code : 'internal').catch(() =>
+        logger.error('failed to release update lease', { updateId: ctx.update.update_id }),
       );
 
       throw error;
@@ -111,13 +116,11 @@ export const createBot = async ({ config, d1, telegram, sections, commands }: De
 
   bot.on('message:text', onText);
 
-  // Ошибку логируем и пробрасываем дальше. Проглотить её нельзя: Telegram получил бы 200,
-  // повторной доставки не случилось бы, а отметку дедупа мы к этому моменту уже сняли —
-  // сообщение исчезло бы бесследно.
+  // Не подтверждаем незавершённую работу. Тексты внешних ошибок могут содержать секреты.
   bot.catch(({ error, ctx }) => {
     logger.error('bot handler failed', {
       updateId: ctx.update.update_id,
-      message: error instanceof Error ? error.message : 'unknown',
+      code: isAppError(error) ? error.code : 'internal',
     });
 
     throw error;

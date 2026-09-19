@@ -20,5 +20,5 @@
     "noEmit": true,
     "skipLibCheck": true
   },
-  "include": ["src/**/*.ts", "scripts/**/*.js", "worker-configuration.d.ts"]
+  "include": ["src/**/*.ts", "worker-configuration.d.ts"]
 }
