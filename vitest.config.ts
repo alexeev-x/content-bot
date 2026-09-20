@@ -18,6 +18,7 @@ export default defineConfig({
           // Секреты фиктивные: исходящие вызовы перехватываются, наружу ничего не уходит.
           BOT_TOKEN: '1:test',
           OWNER_TELEGRAM_ID: '100',
+          OPENAI_API_KEY: '',
           TELEGRAM_WEBHOOK_SECRET: '0123456789abcdef0123456789abcdef0123456789',
           BOT_INFO: JSON.stringify({
             id: 1,

@@ -29,6 +29,20 @@
       "when": 1789908189070,
       "tag": "0003_confused_siren",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1789911534125,
+      "tag": "0004_serious_tyger_tiger",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1789912449323,
+      "tag": "0005_thin_lord_hawal",
+      "breakpoints": true
     }
   ]
 }

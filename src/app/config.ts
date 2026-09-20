@@ -35,7 +35,10 @@ export const configSchema = z.object({
   OWNER_TELEGRAM_ID: z.coerce.number().int().positive(),
   TELEGRAM_WEBHOOK_SECRET: z.string().min(32),
   /** Необязателен до первого запроса к редактору. */
-  OPENAI_API_KEY: z.string().min(1).optional(),
+  OPENAI_API_KEY: z.preprocess(
+    (value) => (typeof value === 'string' && !value.trim() ? undefined : value),
+    z.string().min(1).optional(),
+  ),
   /** Необязательна: без неё grammY один раз за изолят сходит в getMe сам. */
   BOT_INFO: z
     .string()

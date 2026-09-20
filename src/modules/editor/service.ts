@@ -1,179 +1,121 @@
 import { AppError, isAppError } from 'src/lib/errors';
+import { logger } from 'src/lib/logger';
+import { editorInstructions } from './prompt';
 import {
+  claimConversation,
+  commitReply,
   completeGeneration,
+  currentMaterial,
   findGenerationBySource,
-  findMaterialBySource,
   listAuthorExamples,
   listMemory,
   listRubrics,
   monthGenerationCost,
+  readConversation,
+  recentDialogue,
+  releaseConversation,
   reserveGeneration,
-  saveAssistantVersion,
-  saveMaterial,
-  saveMemory,
   seedRubrics,
 } from './queries';
-import type { TextMessage } from './schema';
-import type { GeneratedMaterial, Rubric, SavedMaterial, TextGenerator } from './types';
+import { editorReplyFormat, editorReplySchema, textMessageSchema, type EditorReply, type TextMessage } from './schema';
+import type { GeneratedMaterial, Rubric, TextGenerator } from './types';
 
 type Deps = { d1: D1Database; generator: TextGenerator };
 
 const monthlyLimitMicros = 15_000_000;
 const monthlyWarningMicros = 12_000_000;
-const inputTokenCostMicros = 2;
-const outputTokenCostMicros = 12;
-const maxOutputTokenCostMicros = 1_200 * outputTokenCostMicros;
-
+// Верхняя оценка по самому дорогому доступному Standard-тарифу, включая длинный контекст.
+const reserveInputRate = 20;
+const reserveOutputRate = 75;
 const initialRubrics: readonly Rubric[] = [
   {
     key: 'teach-feeding',
     title: 'Учу фидить в Доту',
-    instructions: 'Начинай с серьёзной и открытой фразы-крючка, затем рассказывай, как фидить.',
+    instructions: 'Серьёзный крючок, затем сатирический антисовет про фид и узнаваемую ошибку игрока.',
   },
   {
     key: 'learning-dota',
     title: 'Учусь играть в Доту',
-    instructions: 'Мысли по герою и процессу обучения; структура не повторяет рубрику про фид.',
+    instructions: 'Наблюдения по герою, трудности и выводы из обучения. Не смешивать с сатирой про фид.',
   },
 ];
 
-const exampleMarker = /сохрани\s+(?:это\s+)?как\s+пример/i;
-const directivePadding = /^[\s:—-]+/;
-
-const textForMaterial = (text: string, kind: 'draft' | 'author_example') => {
-  if (kind === 'draft') return text;
-
-  const marker = exampleMarker.exec(text);
-  if (!marker || marker.index === undefined) return text;
-  const after = text
-    .slice(marker.index + marker[0].length)
-    .replace(directivePadding, '')
-    .trim();
-  if (after) return after;
-  return (
-    text
-      .slice(0, marker.index)
-      .replace(/^это\s+мой\s+(?:готовый\s+)?текст[\s,:—-]*/i, '')
-      .trim() || text
-  );
-};
-
-const isGenerationRequest = (text: string) => /придумай|напиши|сделай|перепиши|подготовь/i.test(text);
-
 const monthKeyFor = (now: Date) => `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, '0')}`;
 
-const costMicros = (inputTokens: number, outputTokens: number) =>
-  inputTokens * inputTokenCostMicros + outputTokens * outputTokenCostMicros;
+const parseDecision = (raw: string): EditorReply => {
+  let value: unknown;
+  try {
+    value = JSON.parse(raw);
+  } catch {
+    throw new AppError('outcome_unknown', 'Ответ редактора не является JSON');
+  }
+  const parsed = editorReplySchema.safeParse(value);
+  if (!parsed.success) throw new AppError('outcome_unknown', 'Ответ редактора не прошёл проверку');
+  return parsed.data;
+};
 
 export const createEditorService = ({ d1, generator }: Deps) => {
-  const ensureRubrics = async () => seedRubrics(d1, initialRubrics);
-
   const rubrics = async (): Promise<Rubric[]> => {
-    await ensureRubrics();
+    await seedRubrics(d1, initialRubrics);
     return listRubrics(d1);
   };
 
-  const matchingRubric = (text: string, items: readonly Rubric[]) =>
-    items.find((item) => text.toLocaleLowerCase('ru').includes(item.title.toLocaleLowerCase('ru')));
-
-  return {
-    rubrics,
-    remember: async ({ chatId, messageId, value }: { chatId: number; messageId: number; value: string }) => {
-      const trimmed = value.trim();
-      if (!trimmed) throw new AppError('bad_request', 'Memory rule is empty');
-      await saveMemory(d1, {
-        id: crypto.randomUUID(),
-        sourceChatId: chatId,
-        sourceMessageId: messageId,
-        scope: 'global',
-        rubricKey: null,
-        value: trimmed,
-        sourceMaterialId: null,
-      });
-    },
-    memory: async () => listMemory(d1),
-    saveText: async (input: TextMessage): Promise<SavedMaterial> => {
-      const items = await rubrics();
-      const rubric = matchingRubric(input.text, items);
-      const kind = exampleMarker.test(input.text) ? 'author_example' : 'draft';
-      const content = textForMaterial(input.text, kind);
-      const existing = await findMaterialBySource(d1, input.chatId, input.messageId);
-      const material = await saveMaterial(
-        d1,
-        existing ?? {
-          id: crypto.randomUUID(),
-          sourceChatId: input.chatId,
-          sourceMessageId: input.messageId,
-          threadId: input.threadId,
-          rubricKey: rubric?.key ?? null,
-          kind,
-          createdAt: Date.now(),
-        },
-        content,
+  const generate = async (rawInput: TextMessage): Promise<GeneratedMaterial | { notConfigured: true }> => {
+    const parsed = textMessageSchema.safeParse(rawInput);
+    if (!parsed.success) throw new AppError('bad_request', 'Сообщение редактора не прошло проверку');
+    const input = parsed.data;
+    const existing = await findGenerationBySource(d1, input.chatId, input.messageId);
+    if (existing?.state === 'succeeded' && existing.responseText) return { text: existing.responseText, reused: true };
+    if (existing)
+      throw new AppError(
+        existing.state === 'failed' ? 'bad_request' : 'outcome_unknown',
+        'Запрос уже был принят; повторный вызов ИИ запрещён',
       );
-      return { id: material.id, kind: material.kind, ...(rubric ? { rubric } : {}) };
-    },
-    generate: async (
-      input: TextMessage,
-    ): Promise<GeneratedMaterial | { rubricRequired: true } | { notConfigured: true }> => {
-      if (!generator.configured) return { notConfigured: true };
-      const material = await (async () => {
-        return await (async () => {
-          const items = await rubrics();
-          const rubric = matchingRubric(input.text, items);
-          const existing = await findMaterialBySource(d1, input.chatId, input.messageId);
-          const row = await saveMaterial(
-            d1,
-            existing ?? {
-              id: crypto.randomUUID(),
-              sourceChatId: input.chatId,
-              sourceMessageId: input.messageId,
-              threadId: input.threadId,
-              rubricKey: rubric?.key ?? null,
-              kind: 'draft' as const,
-              createdAt: Date.now(),
-            },
-            input.text,
-          );
-          return { row, rubric };
-        })();
-      })();
-      if (!material.rubric) return { rubricRequired: true };
+    if (!generator.configured) return { notConfigured: true };
 
-      const existing = await findGenerationBySource(d1, input.chatId, input.messageId);
-      if (existing?.state === 'succeeded' && existing.responseText)
-        return { text: existing.responseText, reused: true };
-      if (existing)
-        throw new AppError(
-          existing.state === 'failed' ? 'bad_request' : 'outcome_unknown',
-          existing.state === 'failed'
-            ? 'Этот запрос уже завершился ошибкой. Отправь его новым сообщением.'
-            : 'Исход предыдущего запроса неизвестен. Не повторяю платную генерацию вслепую.',
-        );
-
-      const [memory, examples] = await Promise.all([listMemory(d1), listAuthorExamples(d1, material.rubric.key)]);
-      const instructions = [
-        'Ты редактор контента автора о Dota 2. Пиши по-русски.',
-        `Рубрика «${material.rubric.title}»: ${material.rubric.instructions}`,
-        'Не выдумывай от лица автора личный опыт, матчи, ранг, факты или свежие новости.',
-        'Если пользователь просит идеи — дай несколько коротких вариантов. Если просит готовый текст — дай готовый текст.',
-        memory.length
-          ? `Постоянные правила автора:\n${memory
-              .slice(0, 12)
-              .map((item) => `- ${item.value}`)
-              .join('\n')}`
-          : '',
-        examples.length
-          ? `Авторские примеры для ориентира:\n${examples.map((item, index) => `${index + 1}. ${item.slice(0, 3_000)}`).join('\n')}`
-          : '',
-      ]
-        .filter(Boolean)
-        .join('\n\n');
-      const prompt = input.text.slice(0, 20_000);
-      const reservedCostMicros = Math.max(
-        30_000,
-        (instructions.length + prompt.length) * inputTokenCostMicros + maxOutputTokenCostMicros,
-      );
+    const token = crypto.randomUUID();
+    if (!(await claimConversation(d1, input, token)))
+      throw new AppError('operation_busy', 'Редактор ещё отвечает на предыдущее сообщение');
+    try {
+      const [items, memory, history, conversation] = await Promise.all([
+        rubrics(),
+        listMemory(d1),
+        recentDialogue(d1, input),
+        readConversation(d1, input.chatId, input.threadId),
+      ]);
+      const activeMaterial = await currentMaterial(d1, conversation?.materialId);
+      const exampleGroups = await Promise.all([
+        ...items.map(async (rubric) => ({ rubricKey: rubric.key, texts: await listAuthorExamples(d1, rubric.key) })),
+        (async () => ({ rubricKey: null, texts: await listAuthorExamples(d1, null) }))(),
+      ]);
+      const visibleMemory = memory.slice(0, 24);
+      const context = {
+        currentMessage: input.text,
+        history: history
+          .reverse()
+          .map((turn) => ({ user: turn.user.slice(0, 2000), assistant: turn.assistant?.slice(0, 2500) })),
+        currentMaterial: activeMaterial
+          ? { content: activeMaterial.content.slice(0, 12000), rubricKey: conversation?.rubricKey }
+          : null,
+        legacyPending: { draft: conversation?.draftText?.slice(0, 5000), task: conversation?.taskText?.slice(0, 1000) },
+        rubrics: items,
+        memory: visibleMemory.map((item) => ({
+          id: item.id,
+          scope: item.scope,
+          rubricKey: item.rubricKey,
+          value: item.value.slice(0, 1000),
+        })),
+        examples: exampleGroups.map((group) => ({
+          ...group,
+          texts: group.texts.slice(0, 2).map((text) => text.slice(0, 2000)),
+        })),
+      };
+      const prompt = JSON.stringify(context);
+      // UTF-8 байты — консервативная верхняя оценка числа токенов; учитываем схему и накладные расходы.
+      const inputBytes = new TextEncoder().encode(
+        editorInstructions + prompt + JSON.stringify(editorReplyFormat),
+      ).length;
+      const reservedCostMicros = (inputBytes + 1024) * reserveInputRate + 2400 * reserveOutputRate;
       const now = Date.now();
       const id = crypto.randomUUID();
       const reservation = await reserveGeneration(
@@ -182,9 +124,11 @@ export const createEditorService = ({ d1, generator }: Deps) => {
           id,
           sourceChatId: input.chatId,
           sourceMessageId: input.messageId,
-          materialId: material.row.id,
+          threadId: input.threadId,
+          materialId: null,
+          decisionText: null,
           monthKey: monthKeyFor(new Date(now)),
-          requestText: prompt,
+          requestText: input.text,
           state: 'calling',
           reservedCostMicros,
           chargedCostMicros: reservedCostMicros,
@@ -197,56 +141,84 @@ export const createEditorService = ({ d1, generator }: Deps) => {
         monthlyLimitMicros,
       );
       if (!reservation)
-        throw new AppError('bad_request', 'Месячный бюджет ИИ $15 исчерпан. Запрос сохранён без запуска.');
-      if (reservation.id !== id) throw new AppError('operation_busy', 'Этот запрос уже обрабатывается.');
+        throw new AppError('budget_exhausted', 'Недостаточно месячного бюджета для безопасного резерва');
+      if (reservation.id !== id) throw new AppError('operation_busy', 'Этот запрос уже принят');
 
-      let result: Awaited<ReturnType<TextGenerator['generate']>>;
+      let result: Awaited<ReturnType<TextGenerator['generate']>> | undefined;
       try {
-        result = await generator.generate({ instructions, prompt });
+        result = await generator.generate({ instructions: editorInstructions, prompt, format: editorReplyFormat });
+        const decision = parseDecision(result.text);
+        const invalid = () => {
+          throw new AppError('outcome_unknown', 'Редактор предложил недопустимое действие');
+        };
+        if (decision.rubricKey && !items.some((item) => item.key === decision.rubricKey)) invalid();
+        if (decision.memoryId && !visibleMemory.some((item) => item.id === decision.memoryId)) invalid();
+        const persistentAction = ['save_draft', 'save_example', 'remember', 'forget'].includes(decision.action);
+        if (persistentAction && (!decision.evidence || !input.text.includes(decision.evidence))) invalid();
+        if (['material', 'save_draft', 'save_example', 'remember'].includes(decision.action) && !decision.content)
+          invalid();
+        if (decision.action === 'remember' && (decision.content?.length ?? 0) > 1000) invalid();
+        if (decision.action === 'forget' && !decision.memoryId) invalid();
+        if (
+          decision.action === 'save_example' &&
+          ![input.text, ...history.map((turn) => turn.user), conversation?.draftText ?? ''].some((source) =>
+            source.includes(decision.content ?? '\u0000'),
+          )
+        )
+          invalid();
+        if (decision.continuesMaterial && (!activeMaterial || decision.action !== 'material')) invalid();
+        if (decision.continuesMaterial && decision.rubricKey !== conversation?.rubricKey) invalid();
+        const writesMaterial = ['material', 'save_draft', 'save_example'].includes(decision.action);
+        const materialId = writesMaterial
+          ? decision.continuesMaterial
+            ? (activeMaterial?.materialId ?? null)
+            : crypto.randomUUID()
+          : null;
+        const text =
+          decision.action === 'material' && decision.content
+            ? `${decision.reply}\n\n${decision.content}`
+            : decision.reply;
+        const chargedCost =
+          result.costMicros ??
+          Math.ceil(result.inputTokens * reserveInputRate + result.outputTokens * reserveOutputRate);
+        const committed = await commitReply(d1, input, token, decision, {
+          generationId: id,
+          materialId,
+          continuing: decision.continuesMaterial,
+          cost: chargedCost,
+          inputTokens: result.inputTokens,
+          outputTokens: result.outputTokens,
+          responseText: text,
+        });
+        if (!committed) throw new AppError('outcome_unknown', 'Аренда диалога истекла до сохранения');
       } catch (error) {
-        const unknown = isAppError(error) && error.code === 'outcome_unknown';
+        const unknown = result !== undefined || !isAppError(error) || error.code === 'outcome_unknown';
         await completeGeneration(d1, {
           id,
           state: unknown ? 'unknown' : 'failed',
           chargedCostMicros: unknown ? reservedCostMicros : 0,
-          inputTokens: null,
-          outputTokens: null,
+          inputTokens: result?.inputTokens ?? null,
+          outputTokens: result?.outputTokens ?? null,
           responseText: null,
         });
         throw error;
       }
-
-      const chargedCost = costMicros(result.inputTokens, result.outputTokens);
-      try {
-        await saveAssistantVersion(d1, material.row.id, result.text);
-        await completeGeneration(d1, {
-          id,
-          state: 'succeeded',
-          chargedCostMicros: chargedCost,
-          inputTokens: result.inputTokens,
-          outputTokens: result.outputTokens,
-          responseText: result.text,
-        });
-        const usedCost = await monthGenerationCost(d1, monthKeyFor(new Date(now)));
-        return {
-          text: result.text,
-          reused: false,
-          ...(usedCost >= monthlyWarningMicros ? { budgetWarning: true } : {}),
-        };
-      } catch (error) {
-        await completeGeneration(d1, {
-          id,
-          state: 'unknown',
-          chargedCostMicros: reservedCostMicros,
-          inputTokens: result.inputTokens,
-          outputTokens: result.outputTokens,
-          responseText: result.text,
-        });
-        throw error;
-      }
-    },
-    isGenerationRequest,
+      const saved = await findGenerationBySource(d1, input.chatId, input.messageId);
+      if (!saved?.responseText) throw new AppError('outcome_unknown', 'Нет сохранённого ответа');
+      const cost = await monthGenerationCost(d1, monthKeyFor(new Date(now)));
+      return {
+        text: saved.responseText,
+        reused: false,
+        ...(cost >= monthlyWarningMicros ? { budgetWarning: true } : {}),
+      };
+    } finally {
+      await releaseConversation(d1, input, token).catch(() =>
+        logger.warn('editor conversation release failed', { messageId: input.messageId }),
+      );
+    }
   };
+
+  return { generate, rubrics, memory: () => listMemory(d1) };
 };
 
 export type EditorService = ReturnType<typeof createEditorService>;

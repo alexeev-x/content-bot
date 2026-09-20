@@ -7,6 +7,7 @@ import type { AppEnv } from 'src/types/env';
 const httpStatusByCode: Record<ErrorCode, 400 | 401 | 500 | 502 | 503> = {
   unauthorized: 401,
   bad_request: 400,
+  budget_exhausted: 400,
   not_configured: 503,
   upstream_failed: 502,
   internal: 500,

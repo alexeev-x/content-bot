@@ -11,86 +11,33 @@ export const createEditor = ({ d1, telegram, generator }: Deps) => {
   const editor = createEditorService({ d1, generator });
   const textHandler: BotTextHandler = async (input) => {
     if (input.section?.key !== 'editor') return false;
-
-    const normalized = input.text.trim();
-    if (/^запомни\s+/i.test(normalized)) {
-      await editor.remember({
-        chatId: input.chatId,
-        messageId: input.messageId,
-        value: normalized.replace(/^запомни\s+/i, ''),
-      });
+    let text: string;
+    try {
+      const result = await editor.generate(input);
+      text =
+        'notConfigured' in result
+          ? 'Я пока не подключён к ИИ и не могу разобрать твою мысль. Добавь OPENAI_API_KEY в .dev.vars и перезапусти pnpm dev — тогда сможем общаться свободно.'
+          : result.text + (result.budgetWarning ? '\n\n⚠️ Учтённые расходы ИИ достигли $12 из $15 за месяц.' : '');
+    } catch (error) {
+      text =
+        isAppError(error) && error.code === 'outcome_unknown'
+          ? 'Не удалось получить надёжный ответ. Автоматически повторять платный запрос не буду. Твоё сообщение осталось в журнале — попробуй позже новым сообщением.'
+          : isAppError(error) && error.code === 'operation_busy'
+            ? 'Я ещё работаю над предыдущим сообщением. Дождись ответа и повтори эту мысль, чтобы мы не перепутали правки.'
+            : isAppError(error) && error.code === 'budget_exhausted'
+              ? 'На этот запрос не хватает оставшегося месячного бюджета ИИ. Платный вызов не запускал.'
+              : 'Сейчас не получилось ответить. Попробуй чуть позже — бот продолжает работать.';
+    }
+    // Длинная статья отправляется частями; транспорт сохраняет отдельный ключ для каждой отправки.
+    const chars = Array.from(text);
+    for (let offset = 0; offset < chars.length; offset += 1700) {
       await telegram.sendMessage({
         chatId: input.chatId,
         threadId: input.threadId,
-        text: 'Запомнил это как постоянное правило стиля.',
+        text: chars.slice(offset, offset + 1700).join(''),
       });
-      return true;
     }
-    if (/^(?:что\s+ты\s+запомнил|покажи\s+память)$/i.test(normalized)) {
-      const memory = await editor.memory();
-      await telegram.sendMessage({
-        chatId: input.chatId,
-        threadId: input.threadId,
-        text: memory.length
-          ? ['Память о стиле:', ...memory.map((item) => `• ${item.value}`)].join('\n')
-          : 'Пока нет сохранённых правил.',
-      });
-      return true;
-    }
-    if (/^(?:рубрики|какиеs+уs+меняs+рубрики)$/i.test(normalized)) {
-      const rubrics = await editor.rubrics();
-      await telegram.sendMessage({
-        chatId: input.chatId,
-        threadId: input.threadId,
-        text: rubrics.map((item) => `• ${item.title}`).join('\n'),
-      });
-      return true;
-    }
-
-    if (editor.isGenerationRequest(normalized)) {
-      let result;
-      try {
-        result = await editor.generate(input);
-      } catch (error) {
-        const text =
-          isAppError(error) && error.code === 'outcome_unknown'
-            ? 'Не удалось понять, успел ли ИИ выполнить запрос. Ничего не повторяю автоматически, чтобы не получить двойной расход.'
-            : isAppError(error) && error.code === 'operation_busy'
-              ? 'Этот запрос ещё обрабатывается. Подожди немного и отправь новый, если ответа не будет.'
-              : 'Не получилось получить ответ от ИИ. Твой запрос сохранён; попробуй отправить его новым сообщением позже.';
-        await telegram.sendMessage({ chatId: input.chatId, threadId: input.threadId, text });
-        return true;
-      }
-      await telegram.sendMessage({
-        chatId: input.chatId,
-        threadId: input.threadId,
-        text:
-          'notConfigured' in result
-            ? 'Генерация пока выключена: добавь OPENAI_API_KEY в .dev.vars и перезапусти pnpm dev.'
-            : 'rubricRequired' in result
-              ? 'Для этой задачи укажи рубрику: «Учу фидить в Доту» или «Учусь играть в Доту». Напишу после этого.'
-              : [
-                  result.text,
-                  result.reused ? '\n\nПоказываю сохранённый результат этого запроса.' : '',
-                  result.budgetWarning ? '\n\n⚠️ Расход ИИ за текущий месяц достиг $12 из $15.' : '',
-                ].join(''),
-      });
-      return true;
-    }
-
-    const material = await editor.saveText(input);
-    const label = material.kind === 'author_example' ? 'авторский пример' : 'черновик';
-    await telegram.sendMessage({
-      chatId: input.chatId,
-      threadId: input.threadId,
-      text: [
-        `Сохранил как ${label}.`,
-        material.rubric ? `Рубрика: ${material.rubric.title}.` : 'Рубрика пока не выбрана.',
-        'Напиши «запомни …», чтобы добавить постоянное правило, или /rubrics, чтобы посмотреть рубрики.',
-      ].join('\n'),
-    });
     return true;
   };
-
   return { sections: editorSections, commands: [], textHandler };
 };

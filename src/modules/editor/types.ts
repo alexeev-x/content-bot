@@ -13,10 +13,15 @@ export type SavedMaterial = {
 /** Порт принадлежит редактору: ему нужен текст и usage, а не детали конкретного провайдера. */
 export type TextGenerator = {
   configured: boolean;
-  generate: (input: { instructions: string; prompt: string }) => Promise<{
+  generate: (input: {
+    instructions: string;
+    prompt: string;
+    format?: { name: string; schema: Record<string, unknown> };
+  }) => Promise<{
     text: string;
     inputTokens: number;
     outputTokens: number;
+    costMicros?: number;
   }>;
 };
 

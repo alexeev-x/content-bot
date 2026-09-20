@@ -1,4 +1,4 @@
-import { integer, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core';
+import { index, integer, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core';
 
 /** Рубрики и их правила принадлежат редактору: пока у них нет другого потребителя. */
 export const editorRubrics = sqliteTable('editor_rubrics', {
@@ -60,7 +60,9 @@ export const editorGenerations = sqliteTable(
     id: text('id').primaryKey(),
     sourceChatId: integer('source_chat_id').notNull(),
     sourceMessageId: integer('source_message_id').notNull(),
-    materialId: text('material_id').notNull(),
+    materialId: text('material_id'),
+    threadId: integer('thread_id'),
+    decisionText: text('decision_text'),
     monthKey: text('month_key').notNull(),
     requestText: text('request_text').notNull(),
     state: text('state', { enum: ['calling', 'succeeded', 'failed', 'unknown'] }).notNull(),
@@ -72,10 +74,33 @@ export const editorGenerations = sqliteTable(
     createdAt: integer('created_at').notNull(),
     updatedAt: integer('updated_at').notNull(),
   },
-  (table) => [uniqueIndex('editor_generations_source_message_unique').on(table.sourceChatId, table.sourceMessageId)],
+  (table) => [
+    uniqueIndex('editor_generations_source_message_unique').on(table.sourceChatId, table.sourceMessageId),
+    index('editor_generations_history').on(table.sourceChatId, table.threadId, table.sourceMessageId),
+    index('editor_generations_month').on(table.monthKey),
+  ],
+);
+
+/** Незавершённый разговор: черновик и задача живут между двумя обычными сообщениями автора. */
+export const editorConversations = sqliteTable(
+  'editor_conversations',
+  {
+    id: text('id').primaryKey(),
+    chatId: integer('chat_id').notNull(),
+    threadId: integer('thread_id').notNull(),
+    draftText: text('draft_text'),
+    taskText: text('task_text'),
+    materialId: text('material_id'),
+    rubricKey: text('rubric_key'),
+    lockToken: text('lock_token'),
+    lockUntil: integer('lock_until').notNull().default(0),
+    updatedAt: integer('updated_at').notNull(),
+  },
+  (table) => [uniqueIndex('editor_conversations_chat_thread_unique').on(table.chatId, table.threadId)],
 );
 
 export type EditorRubricRow = typeof editorRubrics.$inferSelect;
 export type EditorMaterialRow = typeof editorMaterials.$inferSelect;
 export type EditorMemoryRow = typeof editorMemory.$inferSelect;
 export type EditorGenerationRow = typeof editorGenerations.$inferSelect;
+export type EditorConversationRow = typeof editorConversations.$inferSelect;

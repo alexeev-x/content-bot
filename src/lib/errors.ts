@@ -1,6 +1,7 @@
 export type ErrorCode =
   | 'unauthorized'
   | 'bad_request'
+  | 'budget_exhausted'
   | 'not_configured'
   | 'upstream_failed'
   | 'internal'
