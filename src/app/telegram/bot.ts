@@ -6,7 +6,7 @@ import type { Sections } from 'src/core/sections';
 import type { TelegramApi } from 'src/core/telegram';
 import { AppError, isAppError } from 'src/lib/errors';
 import { logger } from 'src/lib/logger';
-import type { BotCommand } from 'src/types/bot';
+import type { BotCommand, BotTextHandler } from 'src/types/bot';
 import { createController } from './controller';
 import { claimUpdate, finishUpdate } from './queries';
 
@@ -17,6 +17,7 @@ type Deps = {
   sections: Sections;
   /** Команды модулей-владельцев. Телеграм-модуль их только регистрирует. */
   commands: BotCommand[];
+  textHandlers: BotTextHandler[];
 };
 
 /**
@@ -33,7 +34,7 @@ const notHere = (titles: readonly string[]) =>
  * grammY здесь отвечает только за разбор апдейта и маршрутизацию команд.
  * Всё исходящее идёт через core/telegram — та же отправка работает из очереди и cron.
  */
-export const createBot = async ({ config, d1, telegram, sections, commands }: Deps) => {
+export const createBot = async ({ config, d1, telegram, sections, commands, textHandlers }: Deps) => {
   const botInfo = config.BOT_INFO ?? cachedBotInfo;
   const bot = new Bot(config.BOT_TOKEN, { botInfo, client: { timeoutSeconds: 10 } });
 
@@ -85,7 +86,7 @@ export const createBot = async ({ config, d1, telegram, sections, commands }: De
     await next();
   });
 
-  const { own, onText } = createController({ telegram, sections });
+  const { own, onText } = createController({ telegram, sections, textHandlers });
 
   for (const { name, handle } of [...own, ...commands]) {
     bot.command(name, async (ctx) => {

@@ -21,3 +21,15 @@ export type BotCommand = {
   name: string;
   handle: (input: CommandInput) => Promise<void>;
 };
+
+/** Обычное текстовое сообщение, очищенное от деталей grammY для продуктовых модулей. */
+export type TextMessageInput = {
+  chatId: number;
+  messageId: number;
+  threadId: number;
+  section?: SectionRef;
+  text: string;
+};
+
+/** Возвращает true, когда модуль принял сообщение и сформировал ответ. */
+export type BotTextHandler = (input: TextMessageInput) => Promise<boolean>;

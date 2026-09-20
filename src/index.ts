@@ -2,8 +2,9 @@ import { Hono } from 'hono';
 import { errorHandler } from 'src/app/middleware/error';
 import { requestLogger } from 'src/app/middleware/logger';
 import { createTelegramRouter } from 'src/app/telegram';
-import { createSections, defaultSections } from 'src/core/sections';
+import { createSections } from 'src/core/sections';
 import { createTelegramApi } from 'src/core/telegram';
+import { createEditor } from 'src/modules/editor';
 import type { AppEnv } from 'src/types/env';
 
 /**
@@ -20,14 +21,15 @@ app.route(
   '/telegram',
   createTelegramRouter((env, updateId, signal) => {
     const telegram = createTelegramApi(env.BOT_TOKEN, { d1: env.DB, scope: `update:${updateId}`, signal });
-    // Разделы объявляют фичи-владельцы; пока фич нет — набор по умолчанию.
-    const sections = createSections({ d1: env.DB, telegram, catalog: [...defaultSections] });
+    // Разделы и команды объявляет их продуктовый владелец; здесь только связываем зависимости.
+    const editor = createEditor({ d1: env.DB, telegram });
+    const sections = createSections({ d1: env.DB, telegram, catalog: [...editor.sections] });
 
     return {
       telegram,
       sections,
-      // Команды продуктовых фич приходят сюда же: [...createRubricCommands({ ... })]
-      commands: [],
+      commands: [...editor.commands],
+      textHandlers: [editor.textHandler],
     };
   }),
 );

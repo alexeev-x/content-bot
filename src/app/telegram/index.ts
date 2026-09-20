@@ -6,7 +6,7 @@ import type { Sections } from 'src/core/sections';
 import type { TelegramApi } from 'src/core/telegram';
 import { AppError } from 'src/lib/errors';
 import { createRouter } from 'src/lib/router';
-import type { BotCommand } from 'src/types/bot';
+import type { BotCommand, BotTextHandler } from 'src/types/bot';
 import type { Env } from 'src/types/env';
 import { createBot } from './bot';
 
@@ -15,6 +15,7 @@ export type TelegramDeps = {
   telegram: TelegramApi;
   sections: Sections;
   commands: BotCommand[];
+  textHandlers: BotTextHandler[];
 };
 
 const readConfig = (env: Env) => {

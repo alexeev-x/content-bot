@@ -1,7 +1,7 @@
 import type { SectionDefinition } from 'src/const/sections';
 import type { TelegramApi } from 'src/core/telegram';
 import { logger } from 'src/lib/logger';
-import { findSectionByThreadId, listSections, markSectionIntroduced, saveSection } from './queries';
+import { findSectionByThreadId, listSections, markSectionIntroduced, renameSection, saveSection } from './queries';
 import type { SectionRow } from './table';
 
 type Deps = {
@@ -16,6 +16,7 @@ export type SectionView = { key: string; title: string; intro: string; threadId:
 
 export const createSections = ({ d1, telegram, catalog }: Deps) => {
   const intros = new Map(catalog.map((item) => [item.key, item.intro]));
+  const helpTexts = new Map(catalog.map((item) => [item.key, item.help]));
 
   const toView = (row: SectionRow): SectionView => ({
     key: row.key,
@@ -30,6 +31,9 @@ export const createSections = ({ d1, telegram, catalog }: Deps) => {
 
     /** Назначение раздела по ключу — из каталога, без обращения к базе. */
     intro: async (key: string): Promise<string> => intros.get(key) ?? '',
+
+    /** Подробная справка раздела приходит от модуля-владельца через каталог. */
+    help: async (key: string): Promise<string> => helpTexts.get(key) ?? '',
 
     /** Названия разделов для сообщений пользователю: ключи вроде «editor» ему ничего не говорят. */
     titlesOf: async (keys: readonly string[]): Promise<string[]> =>
@@ -58,6 +62,17 @@ export const createSections = ({ d1, telegram, catalog }: Deps) => {
           });
           row = await saveSection(d1, { key: definition.key, threadId: topic.threadId, title: definition.title });
           logger.info('section created', { key: definition.key, threadId: topic.threadId });
+        }
+        if (row.title !== definition.title) {
+          await telegram.editTopic({
+            chatId,
+            threadId: row.threadId,
+            name: definition.title,
+            operationKey: `${operationKey}:rename:${definition.title}`,
+          });
+          await renameSection(d1, definition.key, definition.title);
+          row = { ...row, title: definition.title };
+          logger.info('section renamed', { key: definition.key, threadId: row.threadId });
         }
         // Сохраняем известную тему ДО приветствия: его сбой не создаст другую тему.
         if (!row.introduced) {

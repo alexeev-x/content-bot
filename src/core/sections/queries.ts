@@ -29,3 +29,7 @@ export const saveSection = async (
 export const markSectionIntroduced = async (d1: D1Database, key: string) => {
   await drizzle(d1).update(sections).set({ introduced: true }).where(eq(sections.key, key));
 };
+
+export const renameSection = async (d1: D1Database, key: string, title: string) => {
+  await drizzle(d1).update(sections).set({ title }).where(eq(sections.key, key));
+};

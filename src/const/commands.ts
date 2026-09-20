@@ -9,6 +9,8 @@ export const command = {
   start: 'start',
   help: 'help',
   setup: 'setup',
+  rubrics: 'rubrics',
+  memory: 'memory',
 } as const;
 
 export type CommandSpec = {
@@ -25,6 +27,8 @@ export type CommandSpec = {
 export const menuCommands: readonly CommandSpec[] = [
   { name: command.help, description: 'Что бот умеет и где мы сейчас' },
   { name: command.setup, description: 'Показать разделы бота' },
+  { name: command.rubrics, description: 'Показать рубрики текстов', sections: ['editor'] },
+  { name: command.memory, description: 'Показать память о стиле', sections: ['editor'] },
 ];
 
 export const findCommandSpec = (name: string): CommandSpec | undefined =>

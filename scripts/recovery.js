@@ -66,10 +66,13 @@ if (command === 'list') {
     result = { message_id: positive(args[3]) };
   } else
     throw new Error('Укажи подтверждённый --thread-id, --message-id или --not-sent; инструкция в docs/recovery.md');
-  const changed = query(
+  query(
     `UPDATE telegram_operations SET state = ${quote(result ? 'succeeded' : 'retry')}, result = ${result ? quote(JSON.stringify(result)) : 'NULL'}, not_before = 0, updated_at = ${Date.now()} WHERE key = ${quote(id)} AND state = ${quote(row.state)} AND updated_at = ${row.updated_at}`,
   );
-  if (changed.meta.changes !== 1) throw new Error('Состояние изменилось параллельно; перечитай список');
+  const [verified] = query(`SELECT state,result FROM telegram_operations WHERE key = ${quote(id)}`).results;
+  const expectedState = result ? 'succeeded' : 'retry';
+  if (verified?.state !== expectedState || verified.result !== (result ? JSON.stringify(result) : null))
+    throw new Error('Состояние изменилось параллельно; перечитай список');
   console.log('Результат сверки сохранён. Теперь можно повторить незавершённый апдейт.');
 } else {
   console.log(

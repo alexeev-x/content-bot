@@ -1,7 +1,8 @@
 import { z } from 'zod';
 import type { IconColor } from 'src/const/sections';
 import { createHttpClient } from 'src/lib/api';
-import { AppError } from 'src/lib/errors';
+import { AppError, isAppError } from 'src/lib/errors';
+import { logger } from 'src/lib/logger';
 import { executeOperation } from './operations';
 
 const envelope = z.discriminatedUnion('ok', [
@@ -14,9 +15,11 @@ const envelope = z.discriminatedUnion('ok', [
 ]);
 const topicSchema = z.object({ message_thread_id: z.number().int().positive(), name: z.string() });
 const messageSchema = z.object({ message_id: z.number().int() });
+const updatedSchema = z.literal(true);
 
 export type SendMessage = { chatId: number; text: string; threadId?: number; operationKey?: string };
 export type CreateTopic = { chatId: number; name: string; iconColor?: IconColor; operationKey: string };
+export type EditTopic = { chatId: number; threadId: number; name: string; operationKey: string };
 export type Topic = { threadId: number; name: string };
 
 /** Общий транспорт и журнал Bot API. scope — стабильный ключ сценария, а не HTTP-запроса. */
@@ -35,18 +38,37 @@ export const createTelegramApi = (
     // Истёкший бюджет до резервирования не создаёт неопределённой операции.
     if (signal?.aborted) throw new AppError('operation_busy', 'Processing deadline reached', { retryable: true });
     return executeOperation(d1, key ?? `${scope}:${sequence++}:${method}`, method, payload, async () => {
-      const parsed = envelope.safeParse(await http.post(method, payload));
-      if (!parsed.success) throw new AppError('outcome_unknown', 'Invalid Telegram response');
+      let response: unknown;
+      try {
+        response = await http.post(method, payload);
+      } catch (error) {
+        logger.warn('telegram operation result unavailable', {
+          method,
+          code: isAppError(error) ? error.code : 'internal',
+        });
+        throw error;
+      }
+      const parsed = envelope.safeParse(response);
+      if (!parsed.success) {
+        logger.warn('telegram response envelope is invalid', { method });
+        throw new AppError('outcome_unknown', 'Invalid Telegram response');
+      }
       if (!parsed.data.ok) {
         const code = parsed.data.error_code;
-        if (code >= 500) throw new AppError('outcome_unknown', 'Telegram result is unavailable');
+        if (code >= 500) {
+          logger.warn('telegram operation result unavailable', { method, code });
+          throw new AppError('outcome_unknown', 'Telegram result is unavailable');
+        }
         throw new AppError('upstream_failed', 'Telegram rejected the operation', {
           retryable: code === 429,
           retryAfterMs: (parsed.data.parameters?.retry_after ?? 1) * 1000,
         });
       }
       const result = schema.safeParse(parsed.data.result);
-      if (!result.success) throw new AppError('outcome_unknown', 'Invalid Telegram result');
+      if (!result.success) {
+        logger.warn('telegram response result is invalid', { method });
+        throw new AppError('outcome_unknown', 'Invalid Telegram result');
+      }
       return result.data;
     });
   };
@@ -59,6 +81,9 @@ export const createTelegramApi = (
         await call('createForumTopic', { chat_id: chatId, name, icon_color: iconColor }, topicSchema, operationKey),
       );
       return { threadId: topic.message_thread_id, name: topic.name };
+    },
+    editTopic: async ({ chatId, threadId, name, operationKey }: EditTopic): Promise<void> => {
+      await call('editForumTopic', { chat_id: chatId, message_thread_id: threadId, name }, updatedSchema, operationKey);
     },
   };
 };
