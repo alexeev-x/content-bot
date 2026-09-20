@@ -161,13 +161,13 @@ log('[bot]   ', '36', `@${me.username} -> ${baseUrl}/telegram/webhook`);
 
 let offset = 0;
 
-while (true) {
+while (!worker.killed) {
   let updates;
 
   try {
     updates = await callTelegram(
       'getUpdates',
-      { offset, timeout: POLL_SECONDS, allowed_updates: ['message'] },
+      { offset, timeout: POLL_SECONDS, allowed_updates: ['message', 'callback_query'] },
       (POLL_SECONDS + 10) * 1000,
     );
   } catch (error) {
@@ -187,20 +187,22 @@ while (true) {
 
   const previousOffset = offset;
   offset = await deliverUpdates(updates, offset, async (update) => {
+    let response;
+
     try {
-      const response = await fetch(`${baseUrl}/telegram/webhook`, {
+      response = await fetch(`${baseUrl}/telegram/webhook`, {
         method: 'POST',
         headers: { 'content-type': 'application/json', 'X-Telegram-Bot-Api-Secret-Token': secret },
         body: JSON.stringify(update),
         signal: AbortSignal.timeout(60_000),
       });
-
-      log('[bot]   ', '36', `${update.update_id}  ${response.status}`);
-      if (!response.ok) throw new Error('Доставка не подтверждена');
     } catch {
       log('[bot]   ', '31', `${update.update_id}  воркер не ответил`);
       throw new Error('Доставка не подтверждена');
     }
+
+    log('[bot]   ', '36', `${update.update_id}  ${response.status}`);
+    if (!response.ok) throw new Error('Доставка не подтверждена');
   });
   if (updates.length && offset === previousOffset) await new Promise((done) => setTimeout(done, 3000));
 }

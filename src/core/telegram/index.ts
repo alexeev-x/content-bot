@@ -17,9 +17,17 @@ const topicSchema = z.object({ message_thread_id: z.number().int().positive(), n
 const messageSchema = z.object({ message_id: z.number().int() });
 const updatedSchema = z.literal(true);
 
-export type SendMessage = { chatId: number; text: string; threadId?: number; operationKey?: string };
+export type InlineKeyboard = { inline_keyboard: { text: string; callback_data: string }[][] };
+export type SendMessage = {
+  chatId: number;
+  text: string;
+  threadId?: number;
+  operationKey?: string;
+  replyMarkup?: InlineKeyboard;
+};
 export type CreateTopic = { chatId: number; name: string; iconColor?: IconColor; operationKey: string };
 export type EditTopic = { chatId: number; threadId: number; name: string; operationKey: string };
+export type EditMessage = { chatId: number; messageId: number; text: string; replyMarkup?: InlineKeyboard };
 export type Topic = { threadId: number; name: string };
 
 /** Общий транспорт и журнал Bot API. scope — стабильный ключ сценария, а не HTTP-запроса. */
@@ -73,8 +81,13 @@ export const createTelegramApi = (
     });
   };
   return {
-    sendMessage: async ({ chatId, text, threadId, operationKey }: SendMessage): Promise<void> => {
-      await call('sendMessage', { chat_id: chatId, text, message_thread_id: threadId }, messageSchema, operationKey);
+    sendMessage: async ({ chatId, text, threadId, operationKey, replyMarkup }: SendMessage): Promise<void> => {
+      await call(
+        'sendMessage',
+        { chat_id: chatId, text, message_thread_id: threadId, ...(replyMarkup ? { reply_markup: replyMarkup } : {}) },
+        messageSchema,
+        operationKey,
+      );
     },
     createTopic: async ({ chatId, name, iconColor, operationKey }: CreateTopic): Promise<Topic> => {
       const topic = topicSchema.parse(
@@ -84,6 +97,13 @@ export const createTelegramApi = (
     },
     editTopic: async ({ chatId, threadId, name, operationKey }: EditTopic): Promise<void> => {
       await call('editForumTopic', { chat_id: chatId, message_thread_id: threadId, name }, updatedSchema, operationKey);
+    },
+    editMessage: async ({ chatId, messageId, text, replyMarkup }: EditMessage): Promise<void> => {
+      await call(
+        'editMessageText',
+        { chat_id: chatId, message_id: messageId, text, ...(replyMarkup ? { reply_markup: replyMarkup } : {}) },
+        messageSchema,
+      );
     },
   };
 };

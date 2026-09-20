@@ -58,8 +58,7 @@ const textForMaterial = (text: string, kind: 'draft' | 'author_example') => {
   );
 };
 
-const isGenerationRequest = (text: string) =>
-  /\b(?:придумай|напиши|сделай|перепиши|подготовь|сценарий|пост|рилс|ролик)\b/i.test(text);
+const isGenerationRequest = (text: string) => /придумай|напиши|сделай|перепиши|подготовь/i.test(text);
 
 const monthKeyFor = (now: Date) => `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, '0')}`;
 
@@ -114,9 +113,12 @@ export const createEditorService = ({ d1, generator }: Deps) => {
       );
       return { id: material.id, kind: material.kind, ...(rubric ? { rubric } : {}) };
     },
-    generate: async (input: TextMessage): Promise<GeneratedMaterial | { rubricRequired: true }> => {
+    generate: async (
+      input: TextMessage,
+    ): Promise<GeneratedMaterial | { rubricRequired: true } | { notConfigured: true }> => {
+      if (!generator.configured) return { notConfigured: true };
       const material = await (async () => {
-        const saved = await (async () => {
+        return await (async () => {
           const items = await rubrics();
           const rubric = matchingRubric(input.text, items);
           const existing = await findMaterialBySource(d1, input.chatId, input.messageId);
@@ -135,7 +137,6 @@ export const createEditorService = ({ d1, generator }: Deps) => {
           );
           return { row, rubric };
         })();
-        return saved;
       })();
       if (!material.rubric) return { rubricRequired: true };
 

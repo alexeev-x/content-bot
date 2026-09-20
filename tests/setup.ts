@@ -25,6 +25,7 @@ beforeEach(async () => {
     env.DB.prepare('DELETE FROM editor_memory'),
     env.DB.prepare('DELETE FROM editor_generations'),
     env.DB.prepare('DELETE FROM editor_rubrics'),
+    env.DB.prepare('DELETE FROM settings_ai'),
     env.DB.prepare('DELETE FROM telegram_operations'),
     env.DB.prepare('DELETE FROM telegram_updates'),
     env.DB.prepare('DELETE FROM sections'),

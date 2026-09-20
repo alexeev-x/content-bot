@@ -1,7 +1,7 @@
 import { env, SELF } from 'cloudflare:test';
 import { describe, expect, it } from 'vitest';
 import { createEditorService } from 'src/modules/editor/service';
-import { ownerMessage, telegramCalls, topicsRespond, webhookRequest } from './telegram-mock';
+import { ownerCallback, ownerMessage, telegramCalls, topicsRespond, webhookRequest } from './telegram-mock';
 
 describe('редактор текстов', () => {
   it('сохраняет текст автора один раз и привязывает названную рубрику', async () => {
@@ -58,7 +58,7 @@ describe('редактор текстов', () => {
     const help = telegramCalls('sendMessage').at(-1)?.text;
     expect(help).toContain('Тексты: что можно делать сейчас');
     expect(help).toContain('Сохрани как пример');
-    expect(help).toContain('/rubrics');
+    expect(help).toContain('Какие у меня рубрики');
   });
 
   it('оставляет общий /help справкой по боту, а не по текстам', async () => {
@@ -78,6 +78,7 @@ describe('редактор текстов', () => {
     const editor = createEditorService({
       d1: env.DB,
       generator: {
+        configured: true,
         generate: async () => {
           calls += 1;
           return { text: 'Готовый сценарий без выдуманных фактов.', inputTokens: 400, outputTokens: 200 };
@@ -107,5 +108,44 @@ describe('редактор текстов', () => {
     ).toEqual({
       n: 1,
     });
+  });
+
+  it('распознаёт русскую просьбу о генерации, а не сохраняет её как обычный черновик', () => {
+    const editor = createEditorService({
+      d1: env.DB,
+      generator: {
+        configured: true,
+        generate: async () => ({ text: 'Не используется в этой проверке.', inputTokens: 0, outputTokens: 0 }),
+      },
+    });
+
+    expect(editor.isGenerationRequest('Придумай темы для Учу фидить в Доту')).toBe(true);
+  });
+
+  it('объясняет отсутствие ключа ИИ в чате и подтверждает update', async () => {
+    topicsRespond();
+    await SELF.fetch(webhookRequest(ownerMessage(60, '/start')));
+
+    const response = await SELF.fetch(webhookRequest(ownerMessage(61, 'Придумай темы для Учу фидить в Доту', 1001)));
+
+    expect(response.status).toBe(200);
+    expect(telegramCalls('sendMessage').at(-1)?.text).toContain('OPENAI_API_KEY');
+  });
+
+  it('меняет глобальную модель и reasoning через callback-кнопки', async () => {
+    topicsRespond();
+    expect((await SELF.fetch(webhookRequest(ownerMessage(70, '/settings')))).status).toBe(200);
+    expect(telegramCalls('sendMessage').at(-1)?.reply_markup).toBeTruthy();
+
+    expect((await SELF.fetch(webhookRequest(ownerCallback(71, 'settings:model:gpt-5.6-luna')))).status).toBe(200);
+    expect((await SELF.fetch(webhookRequest(ownerCallback(72, 'settings:effort:high:gpt-5.6-luna')))).status).toBe(200);
+    expect((await SELF.fetch(webhookRequest(ownerCallback(73, 'settings:confirm:gpt-5.6-luna:high')))).status).toBe(
+      200,
+    );
+    expect(await env.DB.prepare("SELECT model, effort FROM settings_ai WHERE key = 'default'").first()).toEqual({
+      model: 'gpt-5.6-luna',
+      effort: 'high',
+    });
+    expect(telegramCalls('editMessageText').at(-1)?.text).toContain('Сохранено для всего бота');
   });
 });

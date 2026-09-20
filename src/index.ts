@@ -6,6 +6,7 @@ import { createOpenAiTextGenerator } from 'src/core/ai';
 import { createSections } from 'src/core/sections';
 import { createTelegramApi } from 'src/core/telegram';
 import { createEditor } from 'src/modules/editor';
+import { createSettings } from 'src/modules/settings';
 import type { AppEnv } from 'src/types/env';
 
 /**
@@ -23,15 +24,17 @@ app.route(
   createTelegramRouter((env, updateId, signal) => {
     const telegram = createTelegramApi(env.BOT_TOKEN, { d1: env.DB, scope: `update:${updateId}`, signal });
     // Разделы и команды объявляет их продуктовый владелец; здесь только связываем зависимости.
-    const generator = createOpenAiTextGenerator({ apiKey: env.OPENAI_API_KEY, signal });
+    const settings = createSettings({ d1: env.DB, telegram });
+    const generator = createOpenAiTextGenerator({ apiKey: env.OPENAI_API_KEY, signal, settings: settings.ai });
     const editor = createEditor({ d1: env.DB, telegram, generator });
     const sections = createSections({ d1: env.DB, telegram, catalog: [...editor.sections] });
 
     return {
       telegram,
       sections,
-      commands: [...editor.commands],
+      commands: [...settings.commands, ...editor.commands],
       textHandlers: [editor.textHandler],
+      callbackHandlers: settings.callbackHandlers,
     };
   }),
 );

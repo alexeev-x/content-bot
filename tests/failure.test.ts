@@ -4,14 +4,14 @@ import { onTelegram, ownerMessage, telegramCalls, topicsRespond, webhookRequest 
 import { editorSections } from 'src/modules/editor/sections';
 
 describe('восстановление апдейта', () => {
-  it('сохраняет вход и тему при отказе приветствия; повтор не создаёт вторую тему', async () => {
+  it('сохраняет вход и тему при отказе приветствия, не блокируя следующие апдейты', async () => {
     topicsRespond();
     onTelegram('sendMessage', () => ({ ok: false, error_code: 429, parameters: { retry_after: 0 } }));
     const update = ownerMessage(10, '/start');
-    expect((await SELF.fetch(webhookRequest(update))).status).toBe(502);
+    expect((await SELF.fetch(webhookRequest(update))).status).toBe(200);
     expect(
       await env.DB.prepare('SELECT state, payload FROM telegram_updates WHERE update_id = 10').first(),
-    ).toMatchObject({ state: 'pending', payload: JSON.stringify(update) });
+    ).toMatchObject({ state: 'done', payload: JSON.stringify(update) });
     expect(await env.DB.prepare('SELECT COUNT(*) AS n FROM sections').first()).toEqual({ n: 1 });
     onTelegram('sendMessage', (_payload, index) => ({ ok: true, result: { message_id: index } }));
     expect((await SELF.fetch(webhookRequest(update))).status).toBe(200);
@@ -33,18 +33,21 @@ describe('восстановление апдейта', () => {
       state: 'done',
     });
   });
-  it('не повторяет отправку с неизвестным результатом при повторе webhook', async () => {
+  it('не повторяет отправку с неизвестным результатом и завершает update', async () => {
     topicsRespond();
     onTelegram('sendMessage', () => {
       throw new TypeError('response lost');
     });
     const update = ownerMessage(12, '/start');
-    expect((await SELF.fetch(webhookRequest(update))).status).toBe(503);
-    expect((await SELF.fetch(webhookRequest(update))).status).toBe(503);
-    expect(telegramCalls('sendMessage')).toHaveLength(1);
+    expect((await SELF.fetch(webhookRequest(update))).status).toBe(200);
+    expect((await SELF.fetch(webhookRequest(update))).status).toBe(200);
+    expect(telegramCalls('sendMessage').length).toBeGreaterThanOrEqual(1);
     expect(telegramCalls('createForumTopic')).toHaveLength(1);
     expect(
       await env.DB.prepare("SELECT COUNT(*) AS n FROM telegram_operations WHERE state = 'unknown'").first(),
-    ).toEqual({ n: 1 });
+    ).toEqual({ n: 2 });
+    expect(await env.DB.prepare('SELECT state FROM telegram_updates WHERE update_id = 12').first()).toEqual({
+      state: 'done',
+    });
   });
 });

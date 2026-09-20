@@ -17,6 +17,7 @@ export type TextGeneration = {
 };
 
 export type TextGenerator = {
+  configured: boolean;
   generate: (input: { instructions: string; prompt: string }) => Promise<TextGeneration>;
 };
 
@@ -24,12 +25,19 @@ export type TextGenerator = {
 export const createOpenAiTextGenerator = ({
   apiKey,
   signal,
+  model = 'gpt-5.6-luna',
+  effort = 'low',
+  settings,
 }: {
   apiKey?: string;
   signal?: AbortSignal;
+  model?: string;
+  effort?: string;
+  settings?: () => Promise<{ model: string; effort: string }>;
 }): TextGenerator => {
   if (!apiKey) {
     return {
+      configured: false,
       generate: async () => {
         throw new AppError('not_configured', 'Для генерации не настроен OPENAI_API_KEY');
       },
@@ -43,11 +51,14 @@ export const createOpenAiTextGenerator = ({
   });
 
   return {
+    configured: true,
     generate: async ({ instructions, prompt }) => {
+      const selected = settings ? await settings() : { model, effort };
       const raw = await client.post(
         'responses',
         {
-          model: 'gpt-5.6-terra',
+          model: selected.model,
+          reasoning: { effort: selected.effort },
           instructions,
           input: prompt,
           max_output_tokens: 1200,

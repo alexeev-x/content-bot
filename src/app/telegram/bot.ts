@@ -6,7 +6,7 @@ import type { Sections } from 'src/core/sections';
 import type { TelegramApi } from 'src/core/telegram';
 import { AppError, isAppError } from 'src/lib/errors';
 import { logger } from 'src/lib/logger';
-import type { BotCommand, BotTextHandler } from 'src/types/bot';
+import type { BotCallbackHandler, BotCommand, BotTextHandler } from 'src/types/bot';
 import { createController } from './controller';
 import { claimUpdate, finishUpdate } from './queries';
 
@@ -18,6 +18,7 @@ type Deps = {
   /** Команды модулей-владельцев. Телеграм-модуль их только регистрирует. */
   commands: BotCommand[];
   textHandlers: BotTextHandler[];
+  callbackHandlers: BotCallbackHandler[];
 };
 
 /**
@@ -30,11 +31,20 @@ let cachedBotInfo: UserFromGetMe | undefined;
 const notHere = (titles: readonly string[]) =>
   `Эта команда работает в других разделах: ${titles.join(', ')}. Открой нужный и повтори.`;
 
+const errorNotice = (error: unknown) => {
+  if (!isAppError(error))
+    return 'Что-то пошло не так. Запрос не выполнен, но бот продолжает работать. Попробуй ещё раз.';
+  if (error.code === 'outcome_unknown')
+    return 'Не удалось понять, выполнился ли запрос. Я не повторяю его автоматически, чтобы не создать дубль.';
+  if (error.code === 'not_configured') return 'Эта функция пока не настроена. Проверь настройки и повтори запрос.';
+  return 'Не получилось выполнить запрос. Попробуй ещё раз позже.';
+};
+
 /**
  * grammY здесь отвечает только за разбор апдейта и маршрутизацию команд.
  * Всё исходящее идёт через core/telegram — та же отправка работает из очереди и cron.
  */
-export const createBot = async ({ config, d1, telegram, sections, commands, textHandlers }: Deps) => {
+export const createBot = async ({ config, d1, telegram, sections, commands, textHandlers, callbackHandlers }: Deps) => {
   const botInfo = config.BOT_INFO ?? cachedBotInfo;
   const bot = new Bot(config.BOT_TOKEN, { botInfo, client: { timeoutSeconds: 10 } });
 
@@ -70,11 +80,21 @@ export const createBot = async ({ config, d1, telegram, sections, commands, text
       await next();
       await finishUpdate(d1, ctx.update.update_id, owner);
     } catch (error) {
-      await finishUpdate(d1, ctx.update.update_id, owner, isAppError(error) ? error.code : 'internal').catch(() =>
-        logger.error('failed to release update lease', { updateId: ctx.update.update_id }),
+      const chatId = ctx.chat?.id;
+      if (chatId !== undefined) {
+        await telegram
+          .sendMessage({
+            chatId,
+            threadId: ctx.message?.message_thread_id,
+            text: errorNotice(error),
+            operationKey: `update:${ctx.update.update_id}:error-notice`,
+          })
+          .catch(() => logger.error('failed to send error notice', { updateId: ctx.update.update_id }));
+      }
+      // Ошибка одного сообщения не должна запирать long polling бесконечными повторами.
+      await finishUpdate(d1, ctx.update.update_id, owner).catch(() =>
+        logger.error('failed to finish failed update', { updateId: ctx.update.update_id }),
       );
-
-      throw error;
     }
   });
 
@@ -116,6 +136,25 @@ export const createBot = async ({ config, d1, telegram, sections, commands, text
   }
 
   bot.on('message:text', onText);
+  bot.on('callback_query:data', async (ctx) => {
+    const message = ctx.callbackQuery.message;
+    if (!message) return;
+    for (const handle of callbackHandlers) {
+      if (
+        await handle({
+          callbackId: ctx.callbackQuery.id,
+          chatId: message.chat.id,
+          messageId: message.message_id,
+          threadId: message.message_thread_id,
+          data: ctx.callbackQuery.data,
+        })
+      ) {
+        await ctx.answerCallbackQuery();
+        logger.info('callback handled', { updateId: ctx.update.update_id });
+        return;
+      }
+    }
+  });
 
   // Не подтверждаем незавершённую работу. Тексты внешних ошибок могут содержать секреты.
   bot.catch(({ error, ctx }) => {

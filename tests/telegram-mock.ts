@@ -82,3 +82,19 @@ export const ownerMessage = (updateId: number, text: string, threadId?: number) 
     ...(text.startsWith('/') ? { entities: [{ offset: 0, length: text.length, type: 'bot_command' }] } : {}),
   },
 });
+
+export const ownerCallback = (updateId: number, data: string) => ({
+  update_id: updateId,
+  callback_query: {
+    id: `callback-${updateId}`,
+    from: { id: 100, is_bot: false, first_name: 'Owner' },
+    data,
+    message: {
+      message_id: updateId,
+      date: 1,
+      chat: { id: 100, type: 'private' },
+      from: { id: 1, is_bot: true, first_name: 'Bot' },
+      text: 'Настройки',
+    },
+  },
+});

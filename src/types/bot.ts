@@ -33,3 +33,11 @@ export type TextMessageInput = {
 
 /** Возвращает true, когда модуль принял сообщение и сформировал ответ. */
 export type BotTextHandler = (input: TextMessageInput) => Promise<boolean>;
+
+export type BotCallbackHandler = (input: {
+  callbackId: string;
+  chatId: number;
+  messageId: number;
+  threadId?: number;
+  data: string;
+}) => Promise<boolean>;
