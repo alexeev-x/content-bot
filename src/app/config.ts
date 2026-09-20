@@ -34,6 +34,8 @@ export const configSchema = z.object({
   BOT_TOKEN: z.string().min(1),
   OWNER_TELEGRAM_ID: z.coerce.number().int().positive(),
   TELEGRAM_WEBHOOK_SECRET: z.string().min(32),
+  /** Необязателен до первого запроса к редактору. */
+  OPENAI_API_KEY: z.string().min(1).optional(),
   /** Необязательна: без неё grammY один раз за изолят сходит в getMe сам. */
   BOT_INFO: z
     .string()

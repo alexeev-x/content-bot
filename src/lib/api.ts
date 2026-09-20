@@ -5,12 +5,13 @@ type ClientOptions = {
   retries?: number;
   fetch?: typeof globalThis.fetch;
   signal?: AbortSignal;
+  headers?: HeadersInit;
 };
 
 /** Повтор POST разрешён только при гарантии идемпотентности со стороны вызывающего кода. */
 export const createHttpClient = (
   baseUrl: string,
-  { timeoutMs = 15_000, retries = 2, fetch: send = globalThis.fetch, signal }: ClientOptions = {},
+  { timeoutMs = 15_000, retries = 2, fetch: send = globalThis.fetch, signal, headers }: ClientOptions = {},
 ) => ({
   post: async (path: string, body: unknown, { idempotent = false } = {}): Promise<unknown> => {
     const serialized = JSON.stringify(body);
@@ -19,7 +20,7 @@ export const createHttpClient = (
       try {
         const response = await send(`${baseUrl}/${path}`, {
           method: 'POST',
-          headers: { 'content-type': 'application/json' },
+          headers: { ...headers, 'content-type': 'application/json' },
           body: serialized,
           signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(timeoutMs)]) : AbortSignal.timeout(timeoutMs),
         });

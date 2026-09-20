@@ -1,5 +1,6 @@
 import { env, SELF } from 'cloudflare:test';
 import { describe, expect, it } from 'vitest';
+import { createEditorService } from 'src/modules/editor/service';
 import { ownerMessage, telegramCalls, topicsRespond, webhookRequest } from './telegram-mock';
 
 describe('редактор текстов', () => {
@@ -70,5 +71,41 @@ describe('редактор текстов', () => {
     expect(help).toContain('Общие команды:');
     expect(help).toContain('/setup');
     expect(help).not.toContain('Сохрани как пример');
+  });
+
+  it('сохраняет результат генерации и не оплачивает повтор того же update', async () => {
+    let calls = 0;
+    const editor = createEditorService({
+      d1: env.DB,
+      generator: {
+        generate: async () => {
+          calls += 1;
+          return { text: 'Готовый сценарий без выдуманных фактов.', inputTokens: 400, outputTokens: 200 };
+        },
+      },
+    });
+    const input = {
+      chatId: 1,
+      messageId: 50,
+      threadId: 1001,
+      text: 'Напиши сценарий про Пуджа для Учу фидить в Доту',
+    };
+
+    const first = await editor.generate(input);
+    const second = await editor.generate(input);
+
+    expect(first).toEqual({ text: 'Готовый сценарий без выдуманных фактов.', reused: false });
+    expect(second).toEqual({ text: 'Готовый сценарий без выдуманных фактов.', reused: true });
+    expect(calls).toBe(1);
+    expect(
+      await env.DB.prepare(
+        'SELECT state, input_tokens, output_tokens, charged_cost_micros FROM editor_generations',
+      ).first(),
+    ).toEqual({ state: 'succeeded', input_tokens: 400, output_tokens: 200, charged_cost_micros: 3200 });
+    expect(
+      await env.DB.prepare("SELECT COUNT(*) AS n FROM editor_material_versions WHERE source = 'assistant'").first(),
+    ).toEqual({
+      n: 1,
+    });
   });
 });

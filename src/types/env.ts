@@ -3,6 +3,7 @@ export type Secrets = {
   BOT_TOKEN: string;
   OWNER_TELEGRAM_ID: string;
   TELEGRAM_WEBHOOK_SECRET: string;
+  OPENAI_API_KEY?: string;
 };
 
 /**

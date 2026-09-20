@@ -53,6 +53,29 @@ export const editorMemory = sqliteTable(
   (table) => [uniqueIndex('editor_memory_source_message_unique').on(table.sourceChatId, table.sourceMessageId)],
 );
 
+/** Состояние платной генерации хранится отдельно от материала: неизвестный исход нельзя повторять вслепую. */
+export const editorGenerations = sqliteTable(
+  'editor_generations',
+  {
+    id: text('id').primaryKey(),
+    sourceChatId: integer('source_chat_id').notNull(),
+    sourceMessageId: integer('source_message_id').notNull(),
+    materialId: text('material_id').notNull(),
+    monthKey: text('month_key').notNull(),
+    requestText: text('request_text').notNull(),
+    state: text('state', { enum: ['calling', 'succeeded', 'failed', 'unknown'] }).notNull(),
+    reservedCostMicros: integer('reserved_cost_micros').notNull(),
+    chargedCostMicros: integer('charged_cost_micros').notNull(),
+    inputTokens: integer('input_tokens'),
+    outputTokens: integer('output_tokens'),
+    responseText: text('response_text'),
+    createdAt: integer('created_at').notNull(),
+    updatedAt: integer('updated_at').notNull(),
+  },
+  (table) => [uniqueIndex('editor_generations_source_message_unique').on(table.sourceChatId, table.sourceMessageId)],
+);
+
 export type EditorRubricRow = typeof editorRubrics.$inferSelect;
 export type EditorMaterialRow = typeof editorMaterials.$inferSelect;
 export type EditorMemoryRow = typeof editorMemory.$inferSelect;
+export type EditorGenerationRow = typeof editorGenerations.$inferSelect;
