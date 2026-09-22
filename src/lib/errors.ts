@@ -1,17 +1,8 @@
-export type ErrorCode =
-  | 'unauthorized'
-  | 'bad_request'
-  | 'budget_exhausted'
-  | 'not_configured'
-  | 'upstream_failed'
-  | 'internal'
-  | 'operation_busy'
-  | 'outcome_unknown';
+export type ErrorCode = 'unauthorized' | 'bad_request' | 'not_configured' | 'internal';
 
 type AppErrorOptions = {
-  /** Есть ли смысл повторить: решает очередь и планировщик. */
+  /** Есть ли смысл повторить: решает вход, а позже — очередь и планировщик. */
   retryable?: boolean;
-  retryAfterMs?: number;
   cause?: unknown;
 };
 
@@ -23,21 +14,19 @@ type AppErrorOptions = {
 const APP_ERROR = Symbol.for('content-bot.AppError');
 
 /**
- * Единственная ошибка, которую бросает приложение. Транспорта не знает: её кидают и обработчик
- * webhook, и очередь, и cron. Как превратить код в HTTP-статус, решает вход (app/middleware).
+ * Единственная ошибка, которую бросает приложение. Транспорта не знает: её кидает и HTTP-обработчик,
+ * и будущие очередь с cron. Как превратить код в HTTP-статус, решает вход (app/middleware).
  */
 export class AppError extends Error {
   readonly [APP_ERROR] = true;
   readonly code: ErrorCode;
   readonly retryable: boolean;
-  readonly retryAfterMs: number;
 
   constructor(code: ErrorCode, message: string, options: AppErrorOptions = {}) {
     super(message, { cause: options.cause });
     this.name = 'AppError';
     this.code = code;
     this.retryable = options.retryable ?? false;
-    this.retryAfterMs = options.retryAfterMs ?? 0;
   }
 }
 

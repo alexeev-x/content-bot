@@ -1,17 +1,9 @@
-/** Секреты. В wrangler.jsonc их нет — задаются через `wrangler secret put` и .dev.vars. */
-export type Secrets = {
-  BOT_TOKEN: string;
-  OWNER_TELEGRAM_ID: string;
-  TELEGRAM_WEBHOOK_SECRET: string;
-  OPENAI_API_KEY?: string;
-};
-
 /**
- * Биндинги из wrangler.jsonc (сгенерированы `pnpm cf-typegen`) + секреты.
- * Типы генерируются для `--env dev`: биндинги, объявленные внутри env, иначе стали бы
- * опциональными. Формы dev и production держим одинаковыми — деплой всегда с явным окружением.
+ * Биндинги из wrangler.jsonc (сгенерированы `pnpm cf-typegen`) плюс секреты.
+ * Ни того, ни другого пока нет: секрет объявляется здесь же, когда появляется код, которому
+ * он нужен, и задаётся через `wrangler secret put` и `.dev.vars` — никогда через `vars`.
  */
-export type Env = CloudflareBindings & Secrets;
+export type Env = CloudflareBindings;
 
 /** Значения, которые middleware кладёт в контекст запроса. */
 export type Variables = {

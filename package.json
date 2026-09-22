@@ -16,9 +16,6 @@
     "deploy:dev": "node scripts/deploy.js dev",
     "deploy:prod": "node scripts/deploy.js production",
     "cf-typegen": "wrangler types --env dev --env-interface CloudflareBindings",
-    "db:generate": "drizzle-kit generate",
-    "bot": "node scripts/bot.js",
-    "recover": "node scripts/recovery.js",
     "prepare": "husky",
     "postinstall": "wrangler types --env dev --env-interface CloudflareBindings"
   },
@@ -30,16 +27,12 @@
     "*.{js,json,jsonc,md}": "prettier --write"
   },
   "dependencies": {
-    "drizzle-orm": "^0.45.2",
-    "grammy": "^1.46.0",
-    "hono": "^4.13.8",
-    "zod": "^4.6.5"
+    "hono": "^4.13.8"
   },
   "devDependencies": {
     "@cloudflare/vitest-plugin": "^1.1.13",
     "@eslint/js": "^10.0.1",
     "@types/node": "^26.6.2",
-    "drizzle-kit": "^0.31.10",
     "eslint": "^10.11.0",
     "eslint-config-prettier": "^10.1.8",
     "eslint-import-resolver-typescript": "^4.4.5",

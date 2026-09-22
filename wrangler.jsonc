@@ -12,32 +12,14 @@
     },
   },
   // Верхний уровень — база, напрямую не деплоится: всегда --env dev / --env production.
-  // ⚠️ Биндинги окружениями НЕ наследуются — дублируем в каждый env.
-  // Добавляем по мере появления функции: Queues, R2 и Durable Object появятся на своих этапах.
+  // ⚠️ Биндинги окружениями НЕ наследуются — когда появятся, дублируем в каждый env.
+  // Спекулятивных биндингов не держим: биндинг появляется вместе с функцией, которой он нужен.
   "env": {
     "dev": {
       "name": "content-bot-dev",
-      "d1_databases": [
-        {
-          "binding": "DB",
-          "database_name": "content-bot-dev",
-          // Создать: pnpm exec wrangler d1 create content-bot-dev — и вставить сюда выданный id.
-          "database_id": "REPLACE_WITH_DEV_DATABASE_ID",
-          "migrations_dir": "migrations",
-        },
-      ],
     },
     "production": {
       "name": "content-bot-prod",
-      "d1_databases": [
-        {
-          "binding": "DB",
-          "database_name": "content-bot-prod",
-          // Создать: pnpm exec wrangler d1 create content-bot-prod — и вставить сюда выданный id.
-          "database_id": "REPLACE_WITH_PROD_DATABASE_ID",
-          "migrations_dir": "migrations",
-        },
-      ],
     },
   },
 }

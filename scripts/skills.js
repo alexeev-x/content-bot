@@ -11,7 +11,7 @@
  */
 import { mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
-import { ROOT } from './dev-vars.js';
+import { ROOT } from './root.js';
 
 const SOURCE = join(ROOT, 'docs', 'skills');
 const TARGETS = ['.claude/skills', '.agents/skills'];

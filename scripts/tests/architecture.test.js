@@ -23,13 +23,13 @@ test('реальная конфигурация запрещает обходы 
     };
     const moduleA = dirs[0];
     const moduleB = dirs[1].split(sep).at(-1);
-    await check(join(moduleA, 'service.ts'), "import 'src/app/config';", true);
+    await check(join(moduleA, 'service.ts'), "import 'src/app/middleware/error';", true);
     await check(join(moduleA, 'service.ts'), `export * from '../${moduleB}/service';`, true);
-    await check(join(root, 'src/app/config.ts'), `import 'src/modules/${moduleB}/service';`, true);
-    await check(join(root, 'src/lib/probe.ts'), "import '../core/telegram';", true);
+    await check(join(root, 'src/app/middleware/probe.ts'), `import 'src/modules/${moduleB}/service';`, true);
+    await check(join(root, 'src/lib/probe.ts'), "import '../app/middleware/error';", true);
     await check(join(root, 'src/schemas/probe.ts'), "import '../lib/errors';", true);
     await check(join(moduleA, 'service.ts'), "import '../../index';", true);
-    await check(join(moduleA, 'service.ts'), "import 'src/core/telegram';", false);
+    await check(join(moduleA, 'service.ts'), "import 'src/lib/errors';", false);
     await check(join(root, 'src/index.ts'), `import 'src/modules/${moduleB}/service';`, false);
   } finally {
     for (const dir of dirs) {

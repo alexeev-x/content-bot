@@ -1,9 +1,10 @@
 #!/usr/bin/env node
 /**
- * Деплой окружения: сначала миграции D1, потом воркер.
+ * Деплой окружения: пока это только воркер.
  *   pnpm deploy:dev   /  pnpm deploy:prod
  *
- * Порядок важен: если выкатить код раньше схемы, он обратится к таблице, которой ещё нет.
+ * Появится хранилище — его миграции встают сюда ПЕРЕД деплоем: выкатить код раньше схемы значит
+ * обратиться к таблице, которой ещё нет.
  */
 import { spawnSync } from 'node:child_process';
 import { dirname, resolve } from 'node:path';
@@ -20,10 +21,7 @@ if (env !== 'dev' && env !== 'production') {
   process.exit(1);
 }
 
-const steps = [
-  ['Миграции D1', ['d1', 'migrations', 'apply', 'DB', '--env', env, '--remote']],
-  ['Деплой воркера', ['deploy', '--env', env]],
-];
+const steps = [['Деплой воркера', ['deploy', '--env', env]]];
 
 for (const [title, args] of steps) {
   console.log(`\n▸ ${title} (${env})`);

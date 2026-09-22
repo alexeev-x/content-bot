@@ -1,35 +1,13 @@
-import { applyD1Migrations, env } from 'cloudflare:test';
-import type { D1Migration } from 'cloudflare:test';
-import { beforeAll, beforeEach } from 'vitest';
-import { installTelegramMock } from './telegram-mock';
+import { vi } from 'vitest';
+import { beforeEach } from 'vitest';
 
-declare global {
-  // Расширение внешнего namespace Cloudflare — обязательная форма объявления биндингов.
-  // eslint-disable-next-line @typescript-eslint/no-namespace
-  namespace Cloudflare {
-    interface Env {
-      TEST_MIGRATIONS: D1Migration[];
-    }
-  }
-}
-
-beforeAll(async () => {
-  await applyD1Migrations(env.DB, env.TEST_MIGRATIONS);
-});
-
-beforeEach(async () => {
-  // Текущая версия плагина изолирует файлы, но не очищает D1 между тестами файла.
-  await env.DB.batch([
-    env.DB.prepare('DELETE FROM editor_material_versions'),
-    env.DB.prepare('DELETE FROM editor_materials'),
-    env.DB.prepare('DELETE FROM editor_memory'),
-    env.DB.prepare('DELETE FROM editor_generations'),
-    env.DB.prepare('DELETE FROM editor_conversations'),
-    env.DB.prepare('DELETE FROM editor_rubrics'),
-    env.DB.prepare('DELETE FROM settings_ai'),
-    env.DB.prepare('DELETE FROM telegram_operations'),
-    env.DB.prepare('DELETE FROM telegram_updates'),
-    env.DB.prepare('DELETE FROM sections'),
-  ]);
-  installTelegramMock();
+/**
+ * Тест не должен незаметно сходить в сеть: тестовый прогон подхватывает настоящий `.dev.vars`,
+ * поэтому любой исходящий запрос роняем. Появится внешний клиент — здесь встанет его перехват.
+ */
+beforeEach(() => {
+  vi.stubGlobal('fetch', async (input: RequestInfo | URL) => {
+    const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
+    throw new Error(`Неожиданный исходящий запрос: ${url}`);
+  });
 });
