@@ -8,18 +8,18 @@
     "logs": {
       "enabled": true,
       "head_sampling_rate": 1,
-      "invocation_logs": false,
-    },
+      "invocation_logs": false
+    }
   },
   // Верхний уровень — база, напрямую не деплоится: всегда --env dev / --env production.
   // ⚠️ Биндинги окружениями НЕ наследуются — когда появятся, дублируем в каждый env.
   // Спекулятивных биндингов не держим: биндинг появляется вместе с функцией, которой он нужен.
   "env": {
     "dev": {
-      "name": "content-bot-dev",
+      "name": "content-bot-dev"
     },
     "production": {
-      "name": "content-bot-prod",
-    },
-  },
+      "name": "content-bot-prod"
+    }
+  }
 }

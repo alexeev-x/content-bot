@@ -4,5 +4,11 @@
   "printWidth": 120,
   "tabWidth": 2,
   "arrowParens": "always",
-  "endOfLine": "lf"
+  "endOfLine": "lf",
+  "overrides": [
+    {
+      "files": "*.jsonc",
+      "options": { "trailingComma": "none" }
+    }
+  ]
 }
