@@ -1,55 +1,46 @@
 # ALEXEEV Content Bot / Studio
 
-**Status:** architecture and starter skeleton, NOT production. Only `GET /api/v1/health` and an admin placeholder work. Canon: `docs/BACKEND_ARCHITECTURE.md`, `docs/FRONTEND_ARCHITECTURE.md`, `docs/API_CONTRACTS.md`, `AGENTS.md`.
+**Status:** development scaffold, not production publishing. The current code has the SPA bootstrap, backend Hono/grammY/Cron scaffolding, initial domain modules and Zod contracts. An endpoint, module or test existing does **not** imply that authentication, durable scheduling or public Telegram sending is complete. Track the evidence-based stages in `docs/IMPLEMENTATION_PLAN.md`.
 
-## Structure
+## Canonical structure
 ```text
-apps/                all product code
-├── frontend/        admin UI: React + TypeScript + Vite
-├── backend/         Cloudflare Worker: Hono, D1, Cron, bot (grammY)
-└── contracts/       shared Zod API schemas (the only link frontend ↔ backend)
-docs/                architecture and decisions (in English)
-.agents/             roles, skills and scripts of AI agents (source for .claude/ and .codex/)
+apps/frontend/      React SPA, TanStack Router/Query, React Aria + CSS Modules; same Worker deployment
+apps/backend/       Cloudflare Worker, Hono, grammY inbound bot, D1 and scheduled handler
+apps/contracts/     Shared Zod wire contracts; no business logic
+.agents/            SINGLE source for role prompts, skills, hooks and tooling
+.claude/, .codex/   Generated/adapter layers from .agents; do not edit role copies
+ docs/              Approved decisions, architecture, API, page map, implementation state
 ```
 
-## Commands
+**Precedence:** `docs/DECISIONS.md` (owner decisions) → root and area `AGENTS.md` → relevant canonical architecture/contract → scoped skills in `.agents/`. If documents disagree with actual code, record the discrepancy; never silently claim planned features are implemented. Obsolete `agents/*.md` files are migration pointers only.
+
+## Local commands
 ```bash
-npm ci                    # install from the lockfile (Node from .nvmrc); `npm install` also sets up git hooks
-npm run dev               # the whole app locally: SPA + API + bot webhook + Cron, one process (Vite + Cloudflare plugin)
-npm run dev:backend       # the Worker alone (API, webhook, Cron) via wrangler dev on http://localhost:8790
-npm run preview           # production build served locally
-npm run db:migrate:local  # apply D1 migrations to the local database
-npm run verify            # everything CI checks (format, lint, docs, types, architecture, tests, build)
-npm run deploy:check      # build + dry-run deploy (nothing is uploaded)
-npm run deploy            # OWNER ONLY: build + deploy the single production Worker
-npm run db:migrate:remote # OWNER ONLY: apply migrations to the production D1 (take a Time Travel bookmark first)
-npm run agents:sync       # after editing .agents/roles or .agents/skills
-npm run metrics           # tokens and cost per agent session
+npm ci --ignore-scripts
+npm run dev               # SPA + Worker via Cloudflare Vite plugin
+npm run dev:backend       # standalone Worker at localhost:8790
+npm run db:migrate:local
+npm run verify            # format, lint, docs/agent sync, tooling tests, types, architecture, app tests, build
+npm run verify:changed    # subset relevant to unpushed/uncommitted changes
+npm run agents:sync       # regenerate Claude/Codex adapters after editing .agents
+npm run agents:check      # detect generated-adapter drift
+npm run check:docs        # instruction budgets, paths, links
+npm run metrics           # collected agent-session usage (if hooks were active)
+npm run deploy:check      # build + dry-run only
 ```
+Use the Node version from `.nvmrc`. `npm ci --ignore-scripts` does not set up Husky hooks; use the owner-approved local setup where appropriate. Commands and status must be reported from an **actual run**; their presence in package.json is not proof they passed.
 
-Local URLs: `npm run dev` prints the address (Vite, usually http://localhost:5173). Useful checks: `/api/v1/health`; trigger the Cron handler with `curl http://localhost:5173/cdn-cgi/handler/scheduled` (or port 8790 for `dev:backend`).
+## Agent workflow
+- Claude Code and Codex read root `AGENTS.md`; area instructions apply to `apps/{backend,frontend,contracts}`. Their source role prompts live in `.agents/roles`, procedures in `.agents/skills`. Claude/Codex adapters are generated with `npm run agents:sync` and checked in CI.
+- For multi-area work invoke `orchestrate`; for small single-area work the main agent can do it without spawning the whole team. Product analyst, design-system, frontend, backend, researcher and independent QA are demand-driven roles.
+- Every agent receives one bounded task packet (goal, owned paths, acceptance, minimal references); never pass the entire chat or all architecture documents by default. After two failed repair rounds on the same error, escalate instead of looping.
+- Hook policies block dangerous commands and try to verify builders on stop; **confirm hooks are enabled in the actual tool**. QA/CI and manual sign-off remain mandatory where appropriate.
+- Evidence-based Done: each criterion has a test/check outcome; `not_run` is explicit; no phantom green CI and no invented token savings. `npm run metrics` is useful only when relevant hooks actually collected data.
 
-First production deploy (owner): `npx wrangler login`; `npx wrangler d1 create content-bot` and put the id into `apps/backend/wrangler.jsonc`; set `OWNER_TELEGRAM_ID` and `BOT_INFO` (see `apps/backend/.dev.vars.example`); set secrets with `npx wrangler secret put TELEGRAM_BOT_TOKEN` (and the others from `apps/backend/.dev.vars.example`); `npm run db:migrate:remote`; `npm run deploy`.
+## Git and release
+The current `develop` instruction set records owner-managed commits directly on `develop`, with `main` updated only through an owner-controlled release PR; this conflicts with the earlier requested `feat/* → develop → main` convention. **Do not silently change either rule:** use a feature PR for this documentation synchronization and have the owner reconcile the permanent contributor workflow. Never push directly to `main`, force-push, run remote migrations or deploy as an agent.
 
-Git hooks (husky): pre-commit formats and lints only the staged files (Prettier + Oxlint autofix); pre-push runs `npm run verify:changed` — only the checks the unpushed changes touch (a frontend file ≈ 5 s, a doc ≈ 0.3 s; shared configs trigger the full set). CI always runs the full `npm run verify`.
+## Runtime security and deployment
+Single Worker serves SPA, `/api/v1/*` and `/webhooks/telegram`; Cron drives due work and reconcile; **Queue only after measurement**, not part of the current MVP. D1 is the source of truth; any possibly sent but unconfirmed Telegram request becomes `unknown`, with manual reconciliation and no automatic retry. In Mini App, server verifies `initData`; in browser, Telegram OIDC; short-lived Bearer token in memory. Bot secrets live only in Worker secrets. No separate staging environment is currently configured: use a **dedicated test bot/channel and isolated local D1** for checks and never test production sending implicitly.
 
-## Working with AI agents
-- **Claude Code** and **Codex** read the same `AGENTS.md`, area rules (`apps/backend/AGENTS.md`, …), roles and skills. Details — `docs/AGENT_ORCHESTRATION.md`.
-- Large task: in Claude — `/orchestrate <what is needed>`, in Codex — `$orchestrate <what is needed>`. Targeted task: just ask or name a role («пусть backend …», «проверь через qa-security»).
-- Agents talk to the owner in Russian.
-- Do not create a root `CLAUDE.md`: otherwise Claude stops reading `AGENTS.md`.
-
-### How to set a task so it is cheap and good
-1. **A result, not actions:** "the operator sees a list of publications with statuses and can filter unknown", not "make a table".
-2. **One task — one session — one commit to `develop`.** Start from a clean working tree and commit after a green `npm run verify`; do not mix unrelated changes.
-3. **Acceptance criteria** (at least 2–3 given/when/then items) — the agent verifies against them, not "by eye".
-4. **A new session for a new task** (`/clear` in Claude, a new session in Codex) — the old conversation does not drag along and does not spend tokens.
-5. **Plan first for large work** (planning mode), edits after the plan is agreed.
-6. **Do not accept "done" without the `npm run verify` output** and a list of what was not run.
-7. **Do not change instructions, settings and hooks in the middle of a working session** — they sit in the cached prefix, and an edit re-reads the whole context at full price.
-8. **Look at `npm run metrics`** before changing models or roles: decisions by data, not by feel.
-9. **Codex:** run `/hooks` once and trust the project's `.codex/` layer, otherwise the guard hooks will not load.
-10. **A repeated request → a skill.** If you explain the same thing to the agent a second time, it is a candidate for `.agents/skills/`.
-
-## Security
-Secrets only in Worker secrets; do not commit `.env*`/`.dev.vars`; on `unknown` from Telegram — manual reconciliation, never an automatic retry; separate staging bot, channel and D1.
+Production operations are OWNER ONLY: `npm run db:migrate:remote`, `npm run deploy` and secret changes. A verified Time Travel bookmark precedes remote migrations. Do not claim the application is production-ready before the release criteria in `docs/IMPLEMENTATION_PLAN.md` are met.
