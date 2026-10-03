@@ -1,40 +1,37 @@
-# ALEXEEV — мультиагентная разработка v1.0
+# ALEXEEV — Agent Runtime Contract v2 (03.10.2026)
 
-## Цель и статус
-Это **спецификация процесса**, не утверждение о существовании запущенной платформы агентов. Главный Orchestrator — единственная роль, видящая общую карту проекта и решения владельца. Он выдаёт минимальные work packets, управляет зависимостями, изменениями API и проверками. Нельзя передавать специалистам весь чат, полные документы и чужой код по умолчанию.
+**Статус:** полноценная спецификация процесса; исполняемый оркестратор и действующие API инструментов ещё должны быть реализованы. Краткие роли: agents/*.md. Figma полностью исключена.
 
-## Агенты
-| Агент | Входной контекст | Выход | Чего не получает |
-|---|---|---|---|
-| Orchestrator | цели, roadmap, модульная карта, статусы, ADR | task DAG, packets, решение о merge | продакшен-секреты |
-| Product Analyst | цель, текущие routes, ограничения продукта | user stories, page map, acceptance criteria | детали реализации внутренних адаптеров |
-| Design System | page map, brand constraints, UI inventory | CSS tokens, component contracts, states, responsive/accessibility spec | SQL, Telegram secrets, backend internals |
-| Backend | use case, API contract, owned modules, invariants | ports/adapters, migrations, тесты, API | подробный код чужих UI-features |
-| Frontend | page spec, tokens/components, API DTO и mock fixtures | isolated feature, accessible screens/tests | Worker internals и лишние документы |
-| QA/Security | story, acceptance criteria, diff, contracts, threat model | reproducible findings, tests, release verdict | секреты и нерелевантная история чата |
+## 1. Модель работы
+Один Orchestrator управляет DAG задач с типизированными handoffs. У каждого task ровно один agent owner и изолированный scope файлов. Специалист не читает весь репозиторий или историю разговоров. Code reviews и детерминированные tools предпочтительнее дополнительного AI-агента там, где они решают проблему.
 
-## Контракт задания
-Каждый пакет содержит: `task_id`, `goal`, `role`, `owner_paths`, `dependency_ids`, `required_documents`, `allowed_interfaces`, `input_fixtures`, `acceptance_criteria`, `token_budget`, `exit_artifacts`. Не более нескольких релевантных файлов; агент может запросить конкретный дополнительный файл с обоснованием. Полный монорепозиторий допустим только для оркестратора/архитектурного аудита.
+## 2. Ролевая матрица
+| Роль | Отвечает за | Допустимый контекст | Выход | Граница |
+|---|---|---|---|---|
+| Orchestrator | triage, DAG, ownership, routing, gates, PR | roadmap, ADR, module map, task summaries | scoped packets, verdict | не изменяет main автоматически |
+| Analyst | story, routes, permissions, acceptance | user goal, existing page map, public DTO | story spec, state matrix | не проектирует SQL |
+| Design System | semantic tokens, primitives, visual QA | story/page spec, tokens, shared UI | tokens + components + screenshot criteria | никакой Figma |
+| Frontend | React feature UI и tests | story, tokens, DTO, fixtures, owner paths | working feature + test evidence | не импортирует Worker internals |
+| Backend | use cases, D1, Queue/Cron, API | relevant backend docs, module, contract | domain code + migrations/tests | не получает UI source по умолчанию |
+| QA/Security | independent risk checks and review | acceptance, diff, contracts, threat model | evidence + PASS/FAIL | не подтверждает тесты без логов |
 
-## Жизненный цикл
-1. Intake: сформулировать конечный пользовательский результат и ограничения бюджета/безопасности.
-2. Analysis: аналитик описывает маршруты, состояния и критерии проверки. Оркестратор фиксирует вертикальные срезы и DAG.
-3. Contract-first: backend/frontend согласовывают Zod/DTO, error states, idempotency, auth до параллельной реализации.
-4. Design-in-code: дизайнер коммитит tokens/primitives/story examples; **никакой Figma**.
-5. Execution: backend и frontend работают в отдельных рабочих ветках/областях; оркестратор объединяет только через публичные интерфейсы. Если токены не готовы, frontend работает с семантическими переменными, не придумывая локальную тему.
-6. QA: typecheck, lint, architecture, unit, integration, E2E, security; отрицательные сценарии обязательны. Ошибка возвращается конкретному владельцу.
-7. Review: оркестратор сверяет контракт, тесты, docs и фактический diff, затем предлагает PR; производство/необратимые действия только по утверждению владельца.
+## 3. Task packet и handoff (machine readable)
+Задания хранятся как JSON или YAML рядом с task state: `task_id`, `goal`, `role`, `owner_paths`, `required_refs`, `dependencies`, `acceptance_criteria`, `budget.max_tokens`, `budget.max_retries`, `risk`, `branch`, `expected_artifacts`. Статусы `QUEUED→READY→RUNNING→REVIEW→DONE`; `BLOCKED`/ `FAILED` отдельно; таймаут не трактуется как успех. Handoff: changed files, contract delta, actual commands/results, known risks, next dependencies, token usage if provider exposes it.
 
-## Передача результатов и экономия токенов
-Агент возвращает компактный handoff: `task_id`, `paths_changed`, `contract_delta`, `tests_run/results`, `known_risks`, `next_dependency`. Передаются diff/typed DTO и сжатое резюме, а не логи целиком. Stable system rules кэшировать, длинные артефакты хранить файлами, контекст выдавать retrieval по owner_paths. Оркестратор прерывает повторяющиеся циклы исправлений и эскалирует спор о контракте.
+## 4. DAG и гонки
+Если API контракт не утверждён — backend/frontend не должны самостоятельно придумывать несовместимые формы. После Contract Gate backend + frontend параллельно на разных paths, design готовит shared tokens перед новыми UI примитивами. Владение общими файлами: packages/contracts — отдельный contract task; token CSS — design; cross-cutting migration — backend; CI — orchestrator назначает одного owner. Конфликт paths → сериализовать или отдельный интеграционный task; никаких двух конкурирующих writes.
 
-## Дисциплина безопасности
-Агенты не получают реальные ключи; PR не публикует автоматически в Telegram; запрещён auto-retry unknown send; новые платные сервисы требуют решения владельца. Не верить отчёту агента о тестировании без логов CI, не считать созданные документы готовым кодом.
+## 5. Context boundary и стоимость
+Всегда передавать role prompt + один task packet + минимальные immutable contracts + конкретные owner files. Дополнительные файлы — через CONTEXT_REQUEST с причиной, объёмом и одобрением оркестратора. Длинные логи хранить как artifacts и передавать только строки ошибок/ссылки. Cache stable instructions, не переотправлять транскрипты. Adaptive model routing допускается только с измерением токенов, числа retry, CI pass rate и исправлений. Максимум две автопопытки на конкретный failing test, затем escalation.
 
-## Примеры задач
-- `ANA-01`: карта экранов MVP → `DES-01`, `API-01`.
-- `DES-01`: tokens, примитивы, mobile/error states → `FE-01`.
-- `API-01`: identity/content/publication DTO → `BE-01`, `FE-01`.
-- `BE-01`: auth/drafts/job state → `QA-01`.
-- `FE-01`: editor/calendar/incidents → `QA-01`.
-- `QA-01`: staging E2E, unknown Telegram, duplicate Queue → owner sign-off.
+## 6. Execution + review
+Intake → analyst если requirements неясны → task DAG → contract gate → scoped worktrees/branches → deterministic typecheck/lint/architecture/unit/integration → QA risk review → PR feat/* в develop. Review обязателен для security/publishing; малый docs-only change не запускает весь конвейер. Нет автослияния без разрешения владельца. main только проверенный релиз.
+
+## 7. Система ошибок
+Контракт расходится: пометить оба затронутых task BLOCKED, вернуть к владельцу contracts. Нет тестов: status NOT_VERIFIED и конкретная missing command. Подозрение на утечку секретов: прекратить работу, удалить секрет из diff и поднять security incident; настоящие токены не выводить в отчёт. Unknown Telegram send: никаких blind retry и автоматического release.
+
+## 8. Измерения
+Записывать на каждый task: input/output tokens (если доступны), model, wall time, work retries, total spend, first-pass tests, defects discovered post-merge, ручные вмешательства. Сравнивать на одинаковом наборе задач и считать cost per accepted task, а не только токены первого ответа. Не заявлять проценты экономии без эксперимента.
+
+## 9. Граница текущей реализации
+Данный markdown задаёт поведение агентов, но не запускает их. Следующий самостоятельный feature должен реализовать runner, task store, policy enforcement и интеграционные тесты; до этого Orchestrator — процедурная роль разработчика/AI, а не автоматическая служба.
