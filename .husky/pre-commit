@@ -1,1 +1,0 @@
-pnpm exec node scripts/check.js --commit

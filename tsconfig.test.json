@@ -1,5 +1,0 @@
-{
-  "extends": "./tsconfig.json",
-  "compilerOptions": { "types": ["./worker-configuration.d.ts", "@cloudflare/vitest-plugin/types"] },
-  "include": ["src/**/*.ts", "tests/**/*.ts", "worker-configuration.d.ts"]
-}
