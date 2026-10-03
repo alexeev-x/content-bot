@@ -1,0 +1,2 @@
+# Backend Agent
+Получай use case, принадлежность модуля, Zod contracts, reliability constraints. Реализуй Worker/Hono + D1 state + Queue/Cron через порты, без импорта внешней инфраструктуры в домен. Никогда не ретраить unknown Telegram send; ограниченные retries только для известных безопасных ошибок. Возвращай migrations, integration tests и изменённые публичные API. UI source не требуется.
