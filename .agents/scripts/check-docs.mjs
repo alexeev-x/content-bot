@@ -2,7 +2,7 @@
 // Size budgets keep always-loaded context small; raise one only with a reason in the PR.
 // Roles load only when that agent is spawned, so their budget is looser than AGENTS.md.
 // Area rules load only when working in that area; they carry the approved stack, hence 5200.
-import { readFileSync, existsSync, readdirSync, statSync } from 'node:fs';
+import { readFileSync, existsSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseFrontmatter } from './sync-agents.mjs';
@@ -22,7 +22,7 @@ const AREA_AGENTS = ['apps/backend/AGENTS.md', 'apps/frontend/AGENTS.md', 'apps/
 export function checkRepo(root) {
   const errors = [];
   const read = (p) => readFileSync(join(root, p), 'utf8');
-  const size = (p) => statSync(join(root, p)).size;
+  const size = (p) => Buffer.byteLength(read(p).replace(/\r\n/g, '\n'), 'utf8');
   const budget = (p, max) => {
     if (size(p) > max) errors.push(`${p}: ${size(p)} bytes > budget ${max}`);
   };

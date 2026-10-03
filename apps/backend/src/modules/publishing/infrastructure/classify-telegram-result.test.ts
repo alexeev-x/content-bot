@@ -95,6 +95,20 @@ describe('classifyTelegramError', () => {
 });
 
 describe('classifySendResult', () => {
+  it.each([1, Number.MAX_SAFE_INTEGER])('positive safe integer message_id %i is sent', (id) => {
+    expect(classifySendResult({ message_id: id })).toEqual({
+      kind: 'sent',
+      externalMessageId: String(id),
+    });
+  });
+
+  it.each([0, -1, 1.5, Number.MAX_SAFE_INTEGER + 1, NaN, Infinity])(
+    'invalid message_id %s is unknown',
+    (id) => {
+      expect(classifySendResult({ message_id: id })).toEqual({ kind: 'unknown', reason: 'ok_without_message_id' });
+    },
+  );
+
   it('a message with message_id is sent', () => {
     expect(classifySendResult({ message_id: 55, chat: { id: 1 } })).toEqual({
       kind: 'sent',

@@ -6,8 +6,13 @@ import { telegramWebhook } from './bot/webhook-route';
 import { createContainer } from './container';
 import type { AppBindings } from './env';
 
-function errorBody(code: ApiErrorDto['error']['code'], message: string, requestId: string): ApiErrorDto {
-  return { error: { code, message, requestId } };
+function errorBody(
+  code: ApiErrorDto['error']['code'],
+  message: string,
+  requestId: string,
+  details?: ApiErrorDto['error']['details'],
+): ApiErrorDto {
+  return { error: { code, message, requestId, ...(details === undefined ? {} : { details }) } };
 }
 
 export function createApp() {
@@ -47,7 +52,7 @@ export function createApp() {
   app.onError((error, c) => {
     const requestId = c.get('requestId');
     if (error instanceof AppError) {
-      return c.json(errorBody(error.code, error.message, requestId), error.status);
+      return c.json(errorBody(error.code, error.message, requestId, error.details), error.status);
     }
     if (error instanceof HTTPException) {
       const code = apiErrorCodeForStatus(error.status);

@@ -24,9 +24,14 @@ After editing roles or skills: `npm run agents:sync`. CI (`npm run agents:check`
 | frontend | UI features | sonnet |
 | backend | API, D1, Cron, bot and Telegram | sonnet, effort high |
 | researcher | research and comparisons by primary sources; read-only | sonnet |
-| qa-security | independent acceptance; mandatory for publishing/auth/migrations/contracts | opus |
+| qa-security | independent review: one integrated R2 review; mandatory for R3 security, permissions, migrations and publishing | opus |
 
 There is no separate architect: architectural decisions are made by the orchestrator, changes to approved decisions by the owner, and boundary violations are caught by deterministic checks. Codex adapters do not pin a model (they inherit from the session), they set only reasoning effort and sandbox.
+
+### Risk-based QA and verification
+Classify the final changed behavior, not the number of lines. R0 (non-behavioral docs/formatting) and R1 (clear, reversible, single-area changes) do not launch independent QA by default. R2 (contracts, multi-area integration, shared primitives or verification infrastructure) gets one independent review of the integrated diff. R3 (auth, permissions, sessions, migrations/data integrity, publishing side effects, secrets or production-related configuration) requires independent QA before acceptance. Raise risk when the scope grows or impact is uncertain. Related low-risk work can share one final check; related R2 work can share one integrated review.
+
+The implementer runs focused tests while working. The main session owns the R0/R1 final gate; a successful stop-hook `verify:changed` can satisfy only that scoped gate when its result covers the final unchanged worktree. For R2/R3, QA owns one full local `npm run verify` and the relevant integration or failure tests; a scoped hook result never substitutes for the full suite. Reuse a prior full-suite result only when that exact command passed for the exact unchanged worktree and its output is available. Changed code, failed checks, timeouts or incomplete coverage require rerunning only the affected required check. CI remains an independent full check. Deterministic format, type, architecture and regression commands do not require an AI reviewer.
 
 ## Token savings without loss of quality
 1. **Context layers.** Always: root `AGENTS.md` (~5 KB). Per area: `<area>/AGENTS.md` (~1–3.5 KB). Role: ~2 KB. Procedures are skills, their body is loaded only when invoked. Large architecture documents — only the needed section by link. Previously every agent was required to read ~69 KB of documents.
@@ -43,13 +48,13 @@ Scripts in `.agents/hooks/`, wired into `.claude/settings.json` and `.codex/hook
 | Hook | What it does | Token cost |
 |---|---|---|
 | `guard-command` (PreToolUse) | blocks deploy/rollback, `--remote`, changes to wrangler secrets, force-push, push/commit to `main`, reading `.env`/`.dev.vars` | 0 |
-| `verify-on-stop` (Stop/SubagentStop) | at the end of a turn, only if files changed since the last green run, runs `npm run verify`; on red it does not let the building agent finish (at most 2 times per state); does not touch read-only roles | 0 on green; ≤ 25 lines on red |
+| `verify-on-stop` (Stop/SubagentStop) | on a changed worktree, runs `npm run verify:changed`; caches a passing worktree hash and bounds repeated blocks; does not launch an AI reviewer | no model usage |
 | `log-usage` (Stop/SubagentStop, Claude) | writes session and subagent tokens to `.agent-metrics/sessions/` | 0 |
 
 Codex loads project hooks only after trusting the `.codex/` layer (the `/hooks` command). Disable the check on stop: `AGENT_VERIFY_ON_STOP=0`. The hook also triggers on command text (for example, a heredoc containing a forbidden phrase) — this is a deliberate over-precaution; write such text via a file.
 
 ## Measurement
-`npm run metrics` — a per-session table: output, cache read/write, fresh input and relative cost (input 1, cache write 1.25, cache read 0.1, output 5; exact prices — per the model's price list). Comparing configurations: 8–10 identical tasks × 3 runs per variant, a fresh session, the same model; savings count only if the `verify` pass rate and the number of turns did not drop. A gain < 10% is considered noise.
+`npm run metrics` summarizes Claude Code token counts with relative token-price weights; it does not measure Codex Plus allowance. For Plus, record the displayed five-hour and weekly remaining percentages and reset times before and after comparable real tasks, along with models/reasoning/speed, retries, agent launches, acceptance and first-pass CI in `.agent-metrics/log.jsonl` (see `.agents/skills/orchestrate/references/metrics.md`). Keep unavailable values null; do not convert API/token prices or sum parent and subagent percentages. Do not repeat tasks solely to benchmark quota.
 
 ## What we checked and do not adopt (03.10.2026)
 - RTK (command output compression, "up to 90%"): independent Quesma test — task cost +1…+17%, quality −1–2%, one version had infinite loops. Instead — our `verify`, which shortens output but writes the full log to `.logs/verify.log`.
@@ -60,5 +65,5 @@ Codex loads project hooks only after trusting the `.codex/` layer (the `/hooks` 
 - The main real saving is prompt caching (cache read ≈ 0.1 of the price) and short context: in the agent setup session cache read is 24.4 million tokens versus 228 tokens of fresh input.
 
 ## Process
-Request → classification → (analyst) → contract → backend ∥ frontend in separate worktrees when paths do not overlap → `npm run verify` → qa-security → owner's commit to `develop`; release — PR `develop` → `main`. Merge and release to `main` — owner only.
+Request → risk classification → (analyst when requirements are unclear) → contract → backend ∥ frontend in separate worktrees when paths do not overlap → one final gate owned by the main session for R0/R1 or QA for R2/R3 → qa-security only for R2/R3 → owner's commit to `develop`; release — PR `develop` → `main`. Merge and release to `main` — owner only.
 Built-in `isolation: worktree` in Claude Code creates the worktree from the default branch (`main`), so for parallel work the orchestrator creates the worktree from `develop` manually (`references/parallel-worktrees.md` in skill `orchestrate`).

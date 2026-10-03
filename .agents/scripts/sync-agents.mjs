@@ -31,7 +31,9 @@ const BANNER =
   'GENERATED from .agents/roles/{name}.md by .agents/scripts/sync-agents.mjs. Edit the source, then run `npm run agents:sync`.';
 
 export function parseFrontmatter(text, file = 'input') {
-  const match = /^---\n([\s\S]*?)\n---\n([\s\S]*)$/.exec(text);
+  // Agent sources are edited on Windows too; normalize line endings before parsing and rendering.
+  const normalized = text.replace(/\r\n/g, '\n');
+  const match = /^---\n([\s\S]*?)\n---\n([\s\S]*)$/.exec(normalized);
   if (!match) throw new Error(`${file}: missing frontmatter`);
   const meta = {};
   for (const line of match[1].split('\n')) {

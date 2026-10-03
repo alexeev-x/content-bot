@@ -12,7 +12,7 @@
     "preview": "npm run preview -w @alexeev/frontend",
     "build": "npm run build --workspaces --if-present",
     "typecheck": "npm run typecheck --workspaces --if-present",
-    "test": "node --test '.agents/scripts/*.test.mjs'",
+    "test": "node --test \".agents/scripts/*.test.mjs\"",
     "test:apps": "npm run test --workspaces --if-present",
     "lint": "oxlint",
     "format": "prettier --write .",

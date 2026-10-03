@@ -16,7 +16,7 @@ function findColorLiterals(css) {
 
 const stylesheets = readdirSync(SRC, { recursive: true, encoding: 'utf8' })
   .filter((f) => f.endsWith('.css'))
-  .map((f) => ({ path: relative(SRC, join(SRC, f)), css: readFileSync(join(SRC, f), 'utf8') }));
+  .map((f) => ({ path: relative(SRC, join(SRC, f)).replaceAll('\\', '/'), css: readFileSync(join(SRC, f), 'utf8') }));
 
 test('detects hex and colour functions but ignores comments and var()', () => {
   assert.deepEqual(findColorLiterals('a { color: #fff; background: oklch(0.5 0 0); }'), ['#fff', 'oklch(']);

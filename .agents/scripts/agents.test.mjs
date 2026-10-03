@@ -23,6 +23,11 @@ test('parses frontmatter, unquotes values and rejects YAML-unsafe ones', () => {
   assert.throws(() => parseFrontmatter('---\nname: x\ndescription: d: with colon\n---\nB\n'), /quote the value/);
 });
 
+test('parses CRLF frontmatter without changing the generated instructions', () => {
+  const lf = '---\nname: example\ndescription: "Example"\n---\nBody\n';
+  assert.deepEqual(parseFrontmatter(lf.replaceAll('\n', '\r\n')), parseFrontmatter(lf));
+});
+
 test('rejects unknown, missing and mismatched role fields', () => {
   assert.throws(() => validateRole({ ...meta, colour: 'red' }, 'backend.md'), /unknown field/);
   assert.throws(() => validateRole({ ...meta, effort: '' }, 'backend.md'), /missing "effort"/);

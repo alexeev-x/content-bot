@@ -4,10 +4,11 @@
 //
 // `--changed` checks only what the current changes touch (pre-push hook, agent stop hook):
 // commits not yet pushed + uncommitted work. CI always runs the full set.
-import { spawnSync, execFileSync } from 'node:child_process';
+import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { runCommand, commandOutput } from './run-command.mjs';
 
 // Fast, cheap checks first so a failure costs the least time.
 export const STEPS = [
@@ -29,11 +30,11 @@ const INSTRUCTIONS = /^(AGENTS\.md|README\.md|docs\/|\.agents\/|\.claude\/|\.cod
 const PRETTIER_FILES = /\.(ts|tsx|js|mjs|cjs|json|jsonc|css)$/;
 const LINT_FILES = /\.(ts|tsx|js|mjs|cjs)$/;
 
-export function planSteps(files) {
+export function planSteps(files, { existingFiles = files } = {}) {
   if (files.some((f) => GLOBAL.test(f))) return STEPS;
   const steps = [];
-  const pretty = files.filter((f) => PRETTIER_FILES.test(f));
-  const lintable = files.filter((f) => LINT_FILES.test(f));
+  const pretty = existingFiles.filter((f) => PRETTIER_FILES.test(f));
+  const lintable = existingFiles.filter((f) => LINT_FILES.test(f));
   const contracts = files.some((f) => f.startsWith('apps/contracts/'));
   const backend = contracts || files.some((f) => f.startsWith('apps/backend/'));
   const frontend = contracts || files.some((f) => f.startsWith('apps/frontend/'));
@@ -68,7 +69,7 @@ export function relevantLines(output) {
   return (hits.length ? hits : lines).slice(-MAX_LINES);
 }
 
-function changedFiles(root) {
+export function changedFiles(root) {
   const git = (...args) => execFileSync('git', args, { cwd: root, encoding: 'utf8' });
   let base = null;
   for (const ref of ['@{upstream}', 'origin/develop']) {
@@ -79,22 +80,22 @@ function changedFiles(root) {
       // try the next candidate
     }
   }
-  const committed = base ? git('diff', '--name-only', `${base}...HEAD`) : '';
-  const working = git('status', '--porcelain', '--untracked-files=all')
-    .split('\n')
+  const committed = base ? git('diff', '--name-only', '-z', '--no-renames', `${base}...HEAD`) : '';
+  const working = git('status', '--porcelain', '-z', '--no-renames', '--untracked-files=all')
+    .split('\0')
     .filter(Boolean)
-    .map((l) => l.slice(3).split(' -> ').pop());
-  const all = new Set([...committed.split('\n').filter(Boolean), ...working]);
-  // Deleted files can't be formatted or linted; their absence is caught by typecheck/tests.
-  return { base, files: [...all].filter((f) => existsSync(join(root, f))) };
+    .map((l) => l.slice(3));
+  const files = [...new Set([...committed.split('\0').filter(Boolean), ...working])];
+  // Keep deletions for area selection, but never pass missing paths to formatters/linters.
+  return { base, files, existingFiles: files.filter((f) => existsSync(join(root, f))) };
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const root = join(fileURLToPath(import.meta.url), '../../..');
   let steps = STEPS;
   if (process.argv.includes('--changed')) {
-    const { base, files } = changedFiles(root);
-    steps = base === null ? STEPS : planSteps(files);
+    const { base, files, existingFiles } = changedFiles(root);
+    steps = base === null ? STEPS : planSteps(files, { existingFiles });
     console.log(
       base === null
         ? 'verify --changed: no upstream found, running the full set'
@@ -104,8 +105,8 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   let log = '';
   let failed = 0;
   for (const [name, [cmd, ...args]] of steps) {
-    const run = spawnSync(cmd, args, { cwd: root, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
-    const out = `${run.stdout ?? ''}${run.stderr ?? ''}`;
+    const run = runCommand(cmd, args, { cwd: root, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
+    const out = commandOutput(run);
     log += `\n===== ${name}: ${cmd} ${args.join(' ')} (exit ${run.status})\n${out}`;
     if (run.status === 0) {
       console.log(`✓ ${name}`);

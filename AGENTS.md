@@ -61,7 +61,7 @@ Write tersely: no preamble, no restating the task, no recap of a visible diff. C
 Work directly on `develop`: it is the development environment (there are no other stands). `main` holds releases and changes only through a release PR from `develop`, opened by the owner. The owner commits and pushes: leave the task's changes ready (verified, `git status` shows only task files) and propose a commit message. Never commit or push to `main`, never force-push. A SQL change needs a migration. A contract change updates `contracts`, the backend, the frontend and the contract tests in the same PR.
 
 ## Done means verified
-Run `npm run verify` plus the tests of the area you touched. To the owner: a short Russian summary. A subagent reports to the orchestrator in this format, listing only what actually ran:
+Follow the risk gate in `.agents/skills/orchestrate/SKILL.md`. Run required checks and report actual results. To the owner: short Russian summary. Subagents report:
 ```json
 {"task_id":"","state":"DONE|BLOCKED|FAILED|NOT_VERIFIED","changed_paths":[],"contract_changes":[],"checks":[{"cmd":"","result":"passed|failed|not_run","evidence":"last relevant lines"}],"risks":[],"next":[]}
 ```

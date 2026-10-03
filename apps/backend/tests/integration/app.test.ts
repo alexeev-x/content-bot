@@ -4,6 +4,7 @@ import { HTTPException } from 'hono/http-exception';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createApp } from '../../src/app/create-app';
 import type { AppEnv } from '../../src/app/env';
+import { AppError } from '../../src/shared/app-error';
 
 const BASE = 'https://content-bot.test';
 
@@ -31,6 +32,59 @@ describe('Worker fetch', () => {
 
     expect(response.status).toBe(401);
     expect(apiErrorSchema.parse(await response.json()).error.code).toBe('UNAUTHORIZED');
+  });
+});
+
+describe('AppError mapping', () => {
+  it('preserves optional details and requestId in the contract error response', async () => {
+    const app = createApp();
+    app.get('/api/v1/app-error', () => {
+      throw new AppError('CONFLICT', 'Request already in flight', { reason: 'IN_FLIGHT' });
+    });
+
+    const response = await app.request('/api/v1/app-error');
+
+    expect(response.status).toBe(409);
+    expect(apiErrorSchema.parse(await response.json()).error).toEqual({
+      code: 'CONFLICT',
+      message: 'Request already in flight',
+      requestId: response.headers.get('x-request-id'),
+      details: { reason: 'IN_FLIGHT' },
+    });
+  });
+
+  it('omits details when the AppError does not define them', async () => {
+    const app = createApp();
+    app.get('/api/v1/app-error', () => {
+      throw new AppError('FORBIDDEN', 'Access denied');
+    });
+
+    const response = await app.request('/api/v1/app-error');
+
+    expect(response.status).toBe(403);
+    expect(apiErrorSchema.parse(await response.json()).error).toEqual({
+      code: 'FORBIDDEN',
+      message: 'Access denied',
+      requestId: response.headers.get('x-request-id'),
+    });
+  });
+
+  it('redacts unexpected error messages and details', async () => {
+    const app = createApp();
+    app.get('/api/v1/unexpected-error', () => {
+      throw Object.assign(new Error('private diagnostic'), { details: { reason: 'private diagnostic' } });
+    });
+
+    const response = await app.request('/api/v1/unexpected-error');
+    const body: unknown = await response.json();
+
+    expect(response.status).toBe(500);
+    expect(apiErrorSchema.parse(body).error).toEqual({
+      code: 'UNAVAILABLE',
+      message: 'Internal error',
+      requestId: response.headers.get('x-request-id'),
+    });
+    expect(JSON.stringify(body)).not.toContain('private diagnostic');
   });
 });
 

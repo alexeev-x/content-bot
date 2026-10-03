@@ -30,12 +30,14 @@ function classifyApiError(error: GrammyError): SendOutcome {
   return { kind: 'unknown', reason: `telegram_http_${code}` };
 }
 
-// A successful sendMessage/sendPhoto result must carry message_id; without it we cannot prove
+// A successful sendMessage/sendPhoto result must carry a positive safe integer message_id; otherwise we cannot prove
 // what was published, so it is `unknown` rather than `sent`.
 export function classifySendResult(result: unknown): SendOutcome {
   if (typeof result === 'object' && result !== null && 'message_id' in result) {
     const id = result.message_id;
-    if (typeof id === 'number' && Number.isInteger(id)) return { kind: 'sent', externalMessageId: String(id) };
+    if (typeof id === 'number' && Number.isSafeInteger(id) && id > 0) {
+      return { kind: 'sent', externalMessageId: String(id) };
+    }
   }
   return { kind: 'unknown', reason: 'ok_without_message_id' };
 }
