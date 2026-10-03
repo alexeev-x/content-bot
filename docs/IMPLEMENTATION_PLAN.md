@@ -30,6 +30,6 @@
 - [ ] TikTok/YouTube only after relevant API access and platform review/limits are verified.
 
 ## Release ownership
-Agents must never deploy, migrate remote D1 or change production secrets. The owner controls production release and any `develop → main` release PR. Until a new explicit decision, the current develop documents describe owner-driven commits on develop; branch/PR policy disagreements are listed for owner reconciliation rather than silently rewritten by an agent.
+Agents must never deploy, migrate remote D1 or change production secrets. The owner controls production release and any `develop → main` release PR. The authoritative `develop` policy is owner-managed commits directly on `develop`; `main` receives only owner-controlled release PRs. Documentation-sync branches are exceptional review artifacts, not a change to the permanent workflow.
 
 **Release bar:** real CI results, authenticated Worker + test Telegram bot E2E, secret audit, failed-Cron recovery and manual `unknown` runbook. The 1,000 jobs/day figure is a *target*, not verified capacity. The exact Free-tier limits require up-to-date measurement and verification.
