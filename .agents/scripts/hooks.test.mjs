@@ -7,7 +7,7 @@ import { sumTranscript } from '../hooks/log-usage.mjs';
 test('guard blocks owner-only and destructive commands', () => {
   for (const cmd of [
     'npx wrangler deploy', 'npx wrangler d1 migrations apply content-bot --remote', 'wrangler secret put TELEGRAM_BOT_TOKEN',
-    'npx wrangler versions deploy', 'git push --force origin feat/x', 'git push -f', 'git push origin develop',
+    'npx wrangler versions deploy', 'git push --force origin feat/x', 'git push -f', 'git push origin main',
     'git push origin HEAD:main', 'cat apps/backend/.dev.vars', 'head .env.production', 'rm -rf ~', 'npm publish',
   ]) assert.ok(decide(cmd), `should block: ${cmd}`);
 });
@@ -15,10 +15,10 @@ test('guard blocks owner-only and destructive commands', () => {
 test('guard allows normal work and blocks commits only on protected branches', () => {
   for (const cmd of [
     'npm run verify', 'npx wrangler d1 migrations apply content-bot --local', 'npx wrangler dev', 'npx wrangler types',
-    'git push -u origin feat/agent-system', 'git status', 'rm -rf apps/frontend/dist', 'cat .env.example.md',
+    'git push origin develop', 'git push -u origin feat/agent-system', 'git status', 'rm -rf apps/frontend/dist', 'cat .env.example.md',
   ]) assert.equal(decide(cmd), null, `should allow: ${cmd}`);
-  assert.ok(decide('git commit -m x', 'develop'));
-  assert.equal(decide('git commit -m x', 'feat/x'), null);
+  assert.ok(decide('git commit -m x', 'main'));
+  assert.equal(decide('git commit -m x', 'develop'), null);
 });
 
 test('verify-on-stop blocks at most twice and respects Codex stop_hook_active', () => {

@@ -30,6 +30,6 @@ Load skills by trigger:
 - Every acceptance criterion has evidence: a test name or command output.
 - Replaying the same request, Cron tick or queue message causes no second side effect.
 - Every external call has a timeout and classified outcomes. Errors carry stable codes plus `requestId`. Nothing secret reaches logs.
-- `git status --porcelain` and `git diff --name-only develop...HEAD` show only files inside your owned paths. No TODOs, debug logs or commented-out code.
+- `git status --porcelain` shows only files inside your owned paths. No TODOs, debug logs or commented-out code.
 - Report in the format from root AGENTS.md. List anything you could not run as `not_run`.
 '''

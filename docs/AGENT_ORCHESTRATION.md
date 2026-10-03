@@ -41,7 +41,7 @@
 Скрипты в `.agents/hooks/`, подключены в `.claude/settings.json` и `.codex/hooks.json`. Правило в тексте модель может проигнорировать, хук — нет.
 | Хук | Что делает | Стоимость в токенах |
 |---|---|---|
-| `guard-command` (PreToolUse) | блокирует deploy/rollback, `--remote`, изменение секретов wrangler, force-push, push/commit в `main`/`develop`, чтение `.env`/`.dev.vars` | 0 |
+| `guard-command` (PreToolUse) | блокирует deploy/rollback, `--remote`, изменение секретов wrangler, force-push, push/commit в `main`, чтение `.env`/`.dev.vars` | 0 |
 | `verify-on-stop` (Stop/SubagentStop) | в конце хода, только если файлы изменились с прошлого зелёного прогона, запускает `npm run verify`; при красном не даёт строящему агенту завершиться (не более 2 раз на одно состояние); read-only роли не трогает | 0 при зелёном; ≤ 25 строк при красном |
 | `log-usage` (Stop/SubagentStop, Claude) | пишет токены сессии и субагентов в `.agent-metrics/sessions/` | 0 |
 
@@ -59,5 +59,5 @@ Codex загружает хуки проекта только после дов�
 - Главная реальная экономия — кэш промптов (чтение кэша ≈ 0,1 цены) и короткий контекст: в сессии настройки агентов чтение кэша — 24,4 млн токенов против 228 токенов свежего ввода.
 
 ## Процесс
-Запрос → классификация → (analyst) → контракт → backend ∥ frontend в отдельных worktree при непересекающихся путях → `npm run verify` → qa-security → PR `feat/<slug>` → `develop`. Слияние и релиз в `main` — только владелец.
-Встроенный `isolation: worktree` в Claude Code создаёт worktree от ветки по умолчанию (`main`), поэтому для фич оркестратор создаёт worktree от `feat/<slug>` вручную.
+Запрос → классификация → (analyst) → контракт → backend ∥ frontend в отдельных worktree при непересекающихся путях → `npm run verify` → qa-security → коммит владельца в `develop`; релиз — PR `develop` → `develop`. Слияние и релиз в `main` — только владелец.
+Встроенный `isolation: worktree` в Claude Code создаёт worktree от ветки по умолчанию (`main`), поэтому для параллельной работы оркестратор создаёт worktree от `develop` вручную (`references/parallel-worktrees.md` в skill `orchestrate`).

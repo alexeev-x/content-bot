@@ -34,7 +34,7 @@ Turn a request into a plan without a question round when defaults exist. Before 
 | unclear requirements | product-analyst first |
 
 ## 2. Plan
-- Branch from develop: `git switch develop && git pull --ff-only && git switch -c feat/<english-slug>`.
+- Work on develop: `git switch develop && git pull --ff-only`. Start from a clean tree (`git status` empty) so the task's changes are easy to review and, if needed, to set aside with `git stash -u` (recoverable).
 - Cut the smallest vertical slices. Each task has one owner role and a set of `owned_paths` that no other task shares.
 - Order: contract → (backend ∥ frontend) → review. Run tasks in parallel only when their paths don't overlap and the contract is fixed. Serialize these files: `apps/contracts/**`, migrations, `container.ts`, the router, the token file.
 
@@ -53,10 +53,10 @@ constraints: [no new dependencies, Free-plan limits]
 Send paths and sections, never pasted documents, the transcript, or other roles' code.
 
 ## 4. Parallel work
-See `references/parallel-worktrees.md`. Claude's built-in `isolation: worktree` branches from `main`, so don't use it for feature work.
+See `references/parallel-worktrees.md`. Claude's built-in `isolation: worktree` branches from `main`, so don't use it; create worktrees from `develop` yourself.
 
 ## 5. Gates
-1. Scope: `git diff --name-only develop...HEAD` must stay within the packets' `owned_paths`. Any file outside them goes back to its role.
+1. Scope: `git status --porcelain` must show only files within the packets' `owned_paths`. Any file outside them goes back to its role.
 2. Run `npm run verify` plus the area tests, and read the failures yourself.
 3. Send qa-security only the acceptance criteria, the diff range and the check output.
 
@@ -66,8 +66,6 @@ See `references/parallel-worktrees.md`. Claude's built-in `isolation: worktree` 
 - Re-review covers only the listed defect ids.
 
 ## 7. Deliver
-- Commit with conventional messages.
-- Push `feat/<slug>` and open a PR into `develop` with `gh pr create --base develop`, or give the compare URL.
-- The PR body contains the goal, each acceptance criterion with pass/fail, the commands run with their results, risks, and the `not_run` items.
-- Never merge, never touch `main`.
+- Don't commit or push: the owner does. Hand over a conventional commit message and a short Russian summary: the goal, each acceptance criterion with pass/fail, the commands run with results, risks, and `not_run` items.
+- A release is a PR `develop → main` opened by the owner (body per `.github/pull_request_template.md`). Never touch `main`.
 - Log metrics as described in `references/metrics.md`.

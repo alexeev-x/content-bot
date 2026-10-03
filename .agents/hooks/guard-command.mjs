@@ -9,7 +9,7 @@ export const RULES = [
   [/\bwrangler\b[^|;&]*\bsecret\b/, 'Secrets are set by the owner (`wrangler secret put` deploys immediately).'],
   [/\bwrangler\b[^|;&]*--remote\b/, 'Remote D1/R2/KV commands touch real data; use --local.'],
   [/\bgit\s+push\b[^|;&]*(\s--force\b|\s-f\b|--force-with-lease)/, 'Force-push is forbidden.'],
-  [/\bgit\s+push\b[^|;&]*\s(origin\s+)?(HEAD:)?(main|develop)\b/, 'Never push to main/develop directly; open a PR from feat/*.'],
+  [/\bgit\s+push\b[^|;&]*\s(origin\s+)?(HEAD:)?main\b/, 'Never push to main; releases go through a PR from develop.'],
   [/\bnpm\s+publish\b/, 'Publishing packages is not part of this project.'],
   [/(^|[\s;&|])(cat|less|more|head|tail|bat)\s+[^|;&]*(\.dev\.vars|\.env(\.[\w-]+)?)(\s|$)/, 'Secret files must not be read into the transcript.'],
   [/\brm\s+-[a-z]*r[a-z]*f?[a-z]*\s+(\/|~|\$HOME|\.\.)(\s|\/?$)/, 'Recursive delete of a root, home or parent directory.'],
@@ -21,8 +21,8 @@ function currentBranch(cwd) {
 
 export function decide(command, branch = '') {
   for (const [re, reason] of RULES) if (re.test(command)) return reason;
-  if (/\bgit\s+(commit|merge|rebase)\b/.test(command) && ['main', 'develop'].includes(branch)) {
-    return `You are on ${branch}. Create feat/<slug> from develop first.`;
+  if (/\bgit\s+(commit|merge|rebase)\b/.test(command) && branch === 'main') {
+    return 'You are on main. Work on develop; main changes only through a release PR.';
   }
   return null;
 }

@@ -10,7 +10,7 @@
 | 03.10.2026 | Внешний вид: спокойный монохром, тёмная и светлая темы, без ярких акцентов; цвет только для ошибок и `unknown` | `docs/FRONTEND_ARCHITECTURE.md` §10 |
 | 03.10.2026 | Код продукта в `apps/{frontend,backend,contracts}`; агентная инфраструктура в `.agents/` | `README.md` |
 | 03.10.2026 | Агенты: один источник для Claude Code и Codex (`.agents/` → генерация адаптеров) | `docs/AGENT_ORCHESTRATION.md` |
-| 03.10.2026 | Git: `main` — релизы, `develop` — интеграция, `feat/<slug>` → PR в `develop`; без автослияния | `AGENTS.md` |
+| 03.10.2026 | Git: работа прямо в `develop` (это среда разработки, других стендов нет); `main` — релизы через PR `develop → main`; коммитит и пушит владелец | `AGENTS.md` |
 | 03.10.2026 | `unknown` от Telegram — только ручная сверка, никакого автоповтора | skill `publishing-reliability` |
 | 03.10.2026 | Без платных AI/рендер-API и платных тарифов без отдельного решения владельца | `AGENTS.md` |
 | 03.10.2026 | Экономия токенов: RTK, caveman-прокси, claude-context, context-mode не используем (обоснование и замеры) | `docs/AGENT_ORCHESTRATION.md` |
