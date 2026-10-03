@@ -67,4 +67,3 @@ test('secret file patterns are ignored while example templates remain trackable'
   for (const path of ['.env.example', 'apps/backend/.dev.vars.example'])
     assert.equal(ignored(path), false, `must keep template trackable: ${path}`);
 });
-
