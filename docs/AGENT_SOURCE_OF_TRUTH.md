@@ -1,6 +1,6 @@
 # Agent source of truth and migration map
 
-There is **one authoritative agent system**, not parallel prompts maintained in different folders.
+There is **one authoritative agent system**, not parallel prompts maintained in different folders. Current GitHub `develop` is authoritative over earlier chat-generated plans; recorded owner decisions live in `docs/DECISIONS.md`. The active Git process is owner-managed changes on `develop`, and release PRs from `develop` to `main`.
 
 | Purpose | Authoritative location | Generated or legacy |
 |---|---|---|
