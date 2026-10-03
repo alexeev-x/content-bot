@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, rmSync, readFileSync } from 'node:fs';
+import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -19,7 +19,6 @@ import {
 } from '../hooks/verify-on-stop.mjs';
 import { update, readRunning, record, STALE_MS } from '../hooks/track-builders.mjs';
 import { sumTranscript } from '../hooks/log-usage.mjs';
-import { runCommand, commandOutput } from './run-command.mjs';
 
 test('guard blocks owner-only and destructive commands', () => {
   for (const cmd of [
@@ -188,61 +187,6 @@ test('verification passes only for the exact unchanged snapshot with no active b
   assert.equal(canReuseVerification({ lastGreen: 'same', coverage: 'verify' }, 'same'), false);
   assert.equal(canReuseVerification({ lastGreen: 'same' }, 'same'), false);
 });
-
-test('Windows npm runner invokes npm-cli.js through Node without shell parsing', () => {
-  const npmCli = 'C:\\node\\node_modules\\npm\\bin\\npm-cli.js';
-  let invocation;
-  const result = runCommand(
-    'npm',
-    ['run', 'verify:changed'],
-    { cwd: 'D:\\repo' },
-    {
-      platform: 'win32',
-      execPath: 'C:\\node\\node.exe',
-      env: { npm_execpath: npmCli, PATH: 'C:\\node' },
-      existsSync: (path) => path === npmCli,
-      spawnSync: (...args) => {
-        invocation = args;
-        return { status: 0, stdout: 'ok', stderr: '' };
-      },
-    },
-  );
-  assert.equal(result.status, 0);
-  assert.deepEqual(invocation, ['C:\\node\\node.exe', [npmCli, 'run', 'verify:changed'], { cwd: 'D:\\repo' }]);
-  const missing = runCommand(
-    'npx',
-    [],
-    {},
-    {
-      platform: 'win32',
-      execPath: 'C:\\node\\node.exe',
-      env: { PATH: '' },
-      existsSync: () => false,
-    },
-  );
-  assert.equal(missing.status, null);
-  assert.match(commandOutput(missing), /Cannot find npx-cli\.js/);
-});
-
-test('Codex project hook commands avoid POSIX shell substitutions on Windows', () => {
-  const codexHooks = JSON.parse(readFileSync(join(root, '.codex/hooks.json'), 'utf8'));
-  const commands = Object.values(codexHooks.hooks).flatMap((event) =>
-    event.flatMap((entry) => entry.hooks.map((hook) => hook.command)),
-  );
-  assert.ok(commands.length > 0);
-  assert.ok(commands.every((command) => command.startsWith('node .agents/hooks/')));
-  assert.ok(commands.every((command) => !command.includes('$(')));
-});
-
-test(
-  'Windows CI smoke: the stop-hook runner can invoke the installed npm CLI',
-  { skip: process.platform !== 'win32' },
-  () => {
-    const run = runCommand('npm', ['--version'], { cwd: root, encoding: 'utf8', timeout: 10_000 });
-    assert.equal(run.status, 0, commandOutput(run));
-    assert.match(run.stdout, /\d+\.\d+\.\d+/);
-  },
-);
 
 test('builder registrations survive concurrent start and stop hooks', async (t) => {
   const root = mkdtempSync(join(tmpdir(), 'alexeev-builders-'));

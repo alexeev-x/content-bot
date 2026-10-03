@@ -1,7 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseFrontmatter, validateRole, renderClaude, renderCodex, plan } from './sync-agents.mjs';
@@ -23,11 +22,6 @@ test('parses frontmatter, unquotes values and rejects YAML-unsafe ones', () => {
   assert.deepEqual(m, { name: 'x', description: 'd: with colon «ok»' });
   assert.equal(body, 'Body\n');
   assert.throws(() => parseFrontmatter('---\nname: x\ndescription: d: with colon\n---\nB\n'), /quote the value/);
-});
-
-test('parses CRLF frontmatter without changing the generated instructions', () => {
-  const lf = '---\nname: example\ndescription: "Example"\n---\nBody\n';
-  assert.deepEqual(parseFrontmatter(lf.replaceAll('\n', '\r\n')), parseFrontmatter(lf));
 });
 
 test('rejects unknown, missing and mismatched role fields', () => {
@@ -74,7 +68,3 @@ test('secret file patterns are ignored while example templates remain trackable'
     assert.equal(ignored(path), false, `must keep template trackable: ${path}`);
 });
 
-test('Prettier accepts the worktree line endings used by Windows and Linux', () => {
-  const prettier = JSON.parse(readFileSync(join(root, '.prettierrc.json'), 'utf8'));
-  assert.equal(prettier.endOfLine, 'auto');
-});

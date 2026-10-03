@@ -4,9 +4,9 @@ description: "How to write and run tests: Worker integration tests with the Clou
 ---
 # Testing
 
-Rule zero: a test proves user-visible or state-visible behavior. A bug fix starts with a failing test. Never weaken an assertion, add retries or skip a test to make it pass.
+Rule zero: test in proportion to risk. Do not add tests for copy, cosmetic styles or simple reversible UI changes. Add focused regression tests for fragile logic and bugs whose recurrence matters; require success, failure and concurrency coverage for security, data integrity and publishing. Never weaken an existing useful assertion just to make it pass.
 
-## Layers (most tests at the top)
+## Layers (choose only those needed for the risk)
 | Layer | Tool | Asserts |
 |---|---|---|
 | Unit | Vitest | pure domain: state machine, mapping, validation |
@@ -26,12 +26,12 @@ Rule zero: a test proves user-visible or state-visible behavior. A bug fix start
 ## Frontend component tests
 - Query priority: `getByRole` → `getByLabelText` → `getByText` → `getByTestId` (last resort). Interact with `userEvent.setup()`.
 - MSW v2: `http.get('/api/v1/…', () => HttpResponse.json(dto))`, and `server.listen({ onUnhandledRequest: 'error' })` so a forgotten handler fails loudly. Build fixtures from the `apps/contracts` types.
-- Cover each page-spec state, keyboard flow, 409 keeping local edits, and that `unknown` disables actions. Don't assert CSS classes or internal state.
+- Test critical interactions and failure states when they carry real user or data risk: for example, 409 retaining local edits or `unknown` disabling unsafe actions. Do not add a test per visual state, copy change or CSS class.
 
 ## Determinism
 No real network, no real time (fake timers or `page.clock`), no order dependence, and stable ids in fixtures. A flaky test is a bug: fix or quarantine it with an issue, never auto-retry it.
 
 ## Tooling not installed yet
-When you first add a runner, pin exact versions in the lockfile, add `test:unit`, `test:integration` and `test:e2e` scripts, add them to `npm run verify` and CI, and update `apps/*/AGENTS.md` commands in the same PR. Until then, report these checks as `not_run`.
+Install a test runner only when the risk requires that layer; pin versions in the lockfile and add only the necessary script/check. Never add an entire testing tier solely for coverage or tooling completeness. Report required checks that were not run as `not_run`.
 
 Sources: `references/sources.md`.

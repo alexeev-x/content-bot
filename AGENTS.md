@@ -48,7 +48,7 @@ Write tersely: no preamble, no restating the task, no recap of a visible diff. C
 - Agents never deploy, run `--remote` D1 commands, or change secrets (`wrangler secret put/delete` deploys immediately). The owner runs these.
 - Hooks only inspect command text; isolate agent sessions from production credentials and access.
 - No paid AI providers, render APIs or paid cloud tiers without an explicit owner decision.
-- No empty scaffolding: new modules ship with behavior, error handling, tests and docs.
+- No empty scaffolding: ship behavior and error handling; test fragile or critical paths; update affected docs.
 
 ## TypeScript style (all packages)
 - `strict`; no `any`; `!` only in bootstrap; parse external `unknown` with Zod. Named exports, kebab-case files, `PascalCase.tsx` components; one responsibility per file.

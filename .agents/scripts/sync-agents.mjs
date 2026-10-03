@@ -170,7 +170,7 @@ function run(root, check) {
   const problems = [];
   for (const [path, content] of files) {
     const abs = join(root, path);
-    const current = existsSync(abs) ? readFileSync(abs, 'utf8') : null;
+    const current = existsSync(abs) ? readFileSync(abs, 'utf8').replace(/\r\n/g, '\n') : null;
     if (current === content) continue;
     if (check) problems.push(`out of date: ${path}`);
     else {
