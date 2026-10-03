@@ -1,22 +1,43 @@
 # ALEXEEV Content Bot / Studio
 
-**Состояние:** архитектурный комплект и стартовый каркас для реализации, НЕ развёрнутое production-приложение. Канон: `docs/BACKEND_ARCHITECTURE.md`, `docs/FRONTEND_ARCHITECTURE.md`, `docs/API_CONTRACTS.md`, `AGENTS.md`. Все промежуточные документы не являются источником требований.
+**Состояние:** архитектура и стартовый каркас, НЕ production. Работают только `GET /api/v1/health` и заглушка админки. Канон: `docs/BACKEND_ARCHITECTURE.md`, `docs/FRONTEND_ARCHITECTURE.md`, `docs/API_CONTRACTS.md`, `AGENTS.md`.
 
-## Стек
-- Backend: модульный монолит TypeScript + Hono на Cloudflare Workers; D1 как источник истины, Queue и Cron для фоновых заданий, R2 для медиа при необходимости.
-- Frontend: React + TypeScript + Vite на Pages; одна кодовая база, web shell и Telegram Mini App shell, Pages Function как BFF через Service Binding.
-- Shared: `packages/contracts` — API DTO и Zod, никаких общих бизнес-объектов.
-- UI: **без Figma**; дизайн-токены, библиотека примитивов, кодовые спецификации страниц и Playwright screenshots.
-- AI-разработка: единый Orchestrator распределяет задачи между Product Analyst, Design System, Frontend, Backend и QA/Security. Контекст минимален для каждой роли.
+## Структура
+```text
+apps/                весь продуктовый код
+├── frontend/        админка: React + TypeScript + Vite
+├── backend/         Cloudflare Worker: Hono, D1, Cron/Queue, Telegram
+└── contracts/       общие Zod-схемы API (единственная связь frontend ↔ backend)
+docs/                архитектура и решения (на русском)
+.agents/             роли, skills и скрипты AI-агентов (источник для .claude/ и .codex/)
+```
 
-## Порядок работы
-1. Начинать с `AGENTS.md`, `docs/AGENT_ORCHESTRATION.md`, `docs/IMPLEMENTATION_PLAN.md`.
-2. Оркестратор разбивает user story на независимые вертикальные срезы и назначает зависимости. Analyst определяет страницы и acceptance criteria, Design готовит токены/компоненты, Backend и Frontend работают по общему API-контракту.
-3. QA выполняет контрактные/интеграционные/E2E/безопасностные проверки. Оркестратор принимает только проверенный результат с доказательствами.
-4. Не начинать реальные публикации без секретов, staging, ручной сверки unknown и подтверждённого теста end-to-end.
+## Команды
+```bash
+npm ci            # установка по lockfile (Node из .nvmrc)
+npm run verify    # всё, что проверяет CI: docs, агенты, тесты, typecheck, build
+npm run dev -w @alexeev/frontend
+npm run dev -w @alexeev/backend
+npm run agents:sync   # после правки .agents/roles или .agents/skills
+npm run metrics       # токены и стоимость по сессиям агентов
+```
 
-## Как начать
-`npm install` → `npm run typecheck` → `npm test` → `npm run build` после внедрения первого вертикального среза. В текущем комплекте это целевые команды: отсутствие или неисправность команды — блокер, а не повод объявить работу выполненной. Не создавать фиктивные green tests.
+## Работа с AI-агентами
+- **Claude Code** и **Codex** читают один и тот же `AGENTS.md`, правила областей (`apps/backend/AGENTS.md`, …), роли и skills. Подробно — `docs/AGENT_ORCHESTRATION.md`.
+- Большая задача: в Claude — `/orchestrate <что нужно>`, в Codex — `$orchestrate <что нужно>`. Точечная задача: просто попросите или назовите роль («пусть backend …», «проверь через qa-security»).
+- Не создавайте корневой `CLAUDE.md`: иначе Claude перестанет читать `AGENTS.md`.
+
+### Как ставить задачу, чтобы было дёшево и качественно
+1. **Результат, а не действия:** «оператор видит список публикаций со статусами и может отфильтровать unknown», а не «сделай таблицу».
+2. **Одна задача — одна ветка `feat/*` — один PR.** Не смешивайте несвязанные изменения.
+3. **Критерии приёмки** (хотя бы 2–3 пункта «дано/когда/тогда») — агент проверяет по ним, а не «на глаз».
+4. **Новая сессия на новую задачу** (`/clear` в Claude, новая сессия в Codex) — старая переписка не тянется за собой и не тратит токены.
+5. **Сначала план для крупного** (режим планирования), правки — после согласования плана.
+6. **Не принимайте «готово» без вывода `npm run verify`** и списка того, что не запускалось.
+7. **Не меняйте инструкции, настройки и хуки посреди рабочей сессии** — они лежат в кэшированном префиксе, и правка перечитывает весь контекст по полной цене.
+8. **Смотрите `npm run metrics`**, прежде чем менять модели или роли: решения по данным, а не по ощущениям.
+9. **Codex:** один раз выполните `/hooks` и доверьте слой `.codex/` проекта, иначе защитные хуки не загрузятся.
+10. **Повторяющаяся просьба → skill.** Если объясняете агенту одно и то же второй раз — это кандидат в `.agents/skills/`.
 
 ## Безопасность
-Не хранить секреты в Git, передавать Telegram bot token только в Worker bindings, не делать автоматический retry при `unknown` Telegram send, использовать отдельные staging-ресурсы.
+Секреты только в Worker secrets; не коммитить `.env*`/`.dev.vars`; при `unknown` от Telegram — ручная сверка, никакого автоповтора; отдельные staging-бот, канал и D1.

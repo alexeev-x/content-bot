@@ -34,90 +34,90 @@ Telegram — **интеграция**, а не общий бизнес-моду�
 ```text
 content-bot/
 ├── apps/
-│   ├── admin/                           # фронтенд: см. FRONTEND_ARCHITECTURE.md
-│   └── api/
-│       ├── src/
-│       │   ├── index.ts                 # только fetch / scheduled / queue
-│       │   ├── app/
-│       │   │   ├── create-app.ts        # middleware + маршруты Hono
-│       │   │   ├── container.ts         # явная сборка зависимостей
-│       │   │   ├── routes.ts            # /api/v1/* + /webhooks/telegram
-│       │   │   ├── job-handlers.ts      # whitelist типов заданий
-│       │   │   ├── env.ts               # типы и проверка настроек
-│       │   │   └── workflows/
-│       │   │       └── publish-hero-digest.ts
-│       │   ├── modules/
-│       │   │   ├── content/
-│       │   │   │   ├── index.ts         # публичные типы и use-case API
-│       │   │   │   ├── domain/post.ts
-│       │   │   │   ├── application/create-draft.ts
-│       │   │   │   ├── application/update-draft.ts
-│       │   │   │   ├── application/repository.ts  # порт хранилища
-│       │   │   │   ├── infrastructure/d1-post-repository.ts
-│       │   │   │   ├── http/routes.ts
-│       │   │   │   └── tests/
-│       │   │   ├── publishing/
-│       │   │   │   ├── index.ts
-│       │   │   │   ├── domain/publication.ts
-│       │   │   │   ├── domain/state-machine.ts
-│       │   │   │   ├── application/ports.ts
-│       │   │   │   ├── application/schedule.ts
-│       │   │   │   ├── application/dispatch.ts
-│       │   │   │   ├── application/resolve-unknown.ts
-│       │   │   │   ├── jobs/scan-due.ts
-│       │   │   │   ├── jobs/handle-job.ts
-│       │   │   │   ├── jobs/reconcile.ts
-│       │   │   │   ├── infrastructure/d1-publication-repository.ts
-│       │   │   │   ├── infrastructure/telegram-publication-transport.ts
-│       │   │   │   ├── http/routes.ts
-│       │   │   │   └── tests/
-│       │   │   ├── dota-data/
-│       │   │   │   ├── index.ts
-│       │   │   │   ├── domain/hero-stats.ts
-│       │   │   │   ├── application/provider.ts
-│       │   │   │   ├── application/get-hero-stats.ts
-│       │   │   │   ├── infrastructure/d1-stats-cache.ts
-│       │   │   │   ├── infrastructure/provider-registry.ts
-│       │   │   │   └── tests/
-│       │   │   ├── media/
-│       │   │   │   ├── index.ts
-│       │   │   │   ├── application/card-renderer.ts
-│       │   │   │   ├── application/upload-hero-art.ts
-│       │   │   │   ├── infrastructure/r2-media-store.ts
-│       │   │   │   ├── infrastructure/html-card-renderer.ts
-│       │   │   │   ├── http/routes.ts
-│       │   │   │   └── tests/
-│       │   │   └── identity/
-│       │   │       ├── index.ts
-│       │   │       ├── application/request-login.ts
-│       │   │       ├── application/verify-login.ts
-│       │   │       ├── application/verify-session.ts
-│       │   │       ├── infrastructure/d1-session-repository.ts
-│       │   │       ├── http/auth-routes.ts
-│       │   │       └── tests/
-│       │   ├── integrations/
-│       │   │   ├── telegram/telegram-api-client.ts
-│       │   │   ├── telegram/webhook-handler.ts
-│       │   │   └── dota/opendota-client.ts
-│       │   ├── platform/
-│       │   │   ├── database/d1.ts
-│       │   │   ├── queue/cloudflare-queue.ts
-│       │   │   ├── storage/r2.ts
-│       │   │   ├── http/fetch-with-timeout.ts
-│       │   │   ├── security/csrf.ts
-│       │   │   ├── security/allowlist.ts
-│       │   │   ├── logging/structured-logger.ts
-│       │   │   ├── observability/incident-repository.ts
-│       │   │   └── clock/clock.ts
-│       │   └── shared/
-│       │       ├── app-error.ts
-│       │       └── result.ts
-│       ├── migrations/
-│       ├── tests/integration/
-│       ├── tests/architecture/
-│       ├── wrangler.jsonc
-│       └── vitest.config.ts
-├── packages/contracts/                  # схемы и DTO для админки/API
+│   ├── frontend/                       # фронтенд: см. FRONTEND_ARCHITECTURE.md
+│   ├── backend/
+│   │   ├── src/
+│   │   │   ├── index.ts                 # только fetch / scheduled / queue
+│   │   │   ├── app/
+│   │   │   │   ├── create-app.ts        # middleware + маршруты Hono
+│   │   │   │   ├── container.ts         # явная сборка зависимостей
+│   │   │   │   ├── routes.ts            # /api/v1/* + /webhooks/telegram
+│   │   │   │   ├── job-handlers.ts      # whitelist типов заданий
+│   │   │   │   ├── env.ts               # типы и проверка настроек
+│   │   │   │   └── workflows/
+│   │   │   │       └── publish-hero-digest.ts
+│   │   │   ├── modules/
+│   │   │   │   ├── content/
+│   │   │   │   │   ├── index.ts         # публичные типы и use-case API
+│   │   │   │   │   ├── domain/post.ts
+│   │   │   │   │   ├── application/create-draft.ts
+│   │   │   │   │   ├── application/update-draft.ts
+│   │   │   │   │   ├── application/repository.ts  # порт хранилища
+│   │   │   │   │   ├── infrastructure/d1-post-repository.ts
+│   │   │   │   │   ├── http/routes.ts
+│   │   │   │   │   └── tests/
+│   │   │   │   ├── publishing/
+│   │   │   │   │   ├── index.ts
+│   │   │   │   │   ├── domain/publication.ts
+│   │   │   │   │   ├── domain/state-machine.ts
+│   │   │   │   │   ├── application/ports.ts
+│   │   │   │   │   ├── application/schedule.ts
+│   │   │   │   │   ├── application/dispatch.ts
+│   │   │   │   │   ├── application/resolve-unknown.ts
+│   │   │   │   │   ├── jobs/scan-due.ts
+│   │   │   │   │   ├── jobs/handle-job.ts
+│   │   │   │   │   ├── jobs/reconcile.ts
+│   │   │   │   │   ├── infrastructure/d1-publication-repository.ts
+│   │   │   │   │   ├── infrastructure/telegram-publication-transport.ts
+│   │   │   │   │   ├── http/routes.ts
+│   │   │   │   │   └── tests/
+│   │   │   │   ├── dota-data/
+│   │   │   │   │   ├── index.ts
+│   │   │   │   │   ├── domain/hero-stats.ts
+│   │   │   │   │   ├── application/provider.ts
+│   │   │   │   │   ├── application/get-hero-stats.ts
+│   │   │   │   │   ├── infrastructure/d1-stats-cache.ts
+│   │   │   │   │   ├── infrastructure/provider-registry.ts
+│   │   │   │   │   └── tests/
+│   │   │   │   ├── media/
+│   │   │   │   │   ├── index.ts
+│   │   │   │   │   ├── application/card-renderer.ts
+│   │   │   │   │   ├── application/upload-hero-art.ts
+│   │   │   │   │   ├── infrastructure/r2-media-store.ts
+│   │   │   │   │   ├── infrastructure/html-card-renderer.ts
+│   │   │   │   │   ├── http/routes.ts
+│   │   │   │   │   └── tests/
+│   │   │   │   └── identity/
+│   │   │   │       ├── index.ts
+│   │   │   │       ├── application/request-login.ts
+│   │   │   │       ├── application/verify-login.ts
+│   │   │   │       ├── application/verify-session.ts
+│   │   │   │       ├── infrastructure/d1-session-repository.ts
+│   │   │   │       ├── http/auth-routes.ts
+│   │   │   │       └── tests/
+│   │   │   ├── integrations/
+│   │   │   │   ├── telegram/telegram-api-client.ts
+│   │   │   │   ├── telegram/webhook-handler.ts
+│   │   │   │   └── dota/opendota-client.ts
+│   │   │   ├── platform/
+│   │   │   │   ├── database/d1.ts
+│   │   │   │   ├── queue/cloudflare-queue.ts
+│   │   │   │   ├── storage/r2.ts
+│   │   │   │   ├── http/fetch-with-timeout.ts
+│   │   │   │   ├── security/csrf.ts
+│   │   │   │   ├── security/allowlist.ts
+│   │   │   │   ├── logging/structured-logger.ts
+│   │   │   │   ├── observability/incident-repository.ts
+│   │   │   │   └── clock/clock.ts
+│   │   │   └── shared/
+│   │   │       ├── app-error.ts
+│   │   │       └── result.ts
+│   │   ├── migrations/
+│   │   ├── tests/integration/
+│   │   ├── tests/architecture/
+│   │   ├── wrangler.jsonc
+│   │   └── vitest.config.ts
+│   └── contracts/                      # схемы и DTO для админки/API
 ├── docs/                                # этот документ, фронтенд, безопасность
 ├── AGENTS.md
 └── package.json                         # npm workspaces; versions locked
@@ -187,6 +187,7 @@ UPDATE jobs
 SET status = 'claimed', attempts = attempts + 1,
     lease_until = ?1, updated_at = ?2
 WHERE id = ?3 AND status IN ('queued', 'retry_wait')
+  AND run_at <= ?2
   AND (lease_until IS NULL OR lease_until < ?2)
 RETURNING id, publication_id, attempts;
 ```
@@ -255,7 +256,7 @@ Workers могут повторно использовать isolate. Запре
 
 ## 12. Внешние контракты для фронтенда
 
-Все admin endpoints `/api/v1/*` возвращают стабильные JSON DTO. Общие типы и Zod-схемы — `packages/contracts` без зависимостей от Hono, Cloudflare или React. При breaking change добавлять версию API/параметры совместимости; сервер не должен ломать развёрнутую вчера админку. Для конкурентных правок черновика — `revision`/`If-Match`, ответ `409 CONFLICT` при устаревшем сохранении. Все списки с курсорной пагинацией; UTC timestamp в ISO-8601; ошибка: `{error:{code,message,requestId,details?}}`. Документ интерфейса — `docs/API_CONTRACTS.md`.
+Все admin endpoints `/api/v1/*` возвращают стабильные JSON DTO. Общие типы и Zod-схемы — `contracts` без зависимостей от Hono, Cloudflare или React. При breaking change добавлять версию API/параметры совместимости; сервер не должен ломать развёрнутую вчера админку. Для конкурентных правок черновика — `revision`/`If-Match`, ответ `409 CONFLICT` при устаревшем сохранении. Все списки с курсорной пагинацией; UTC timestamp в ISO-8601; ошибка: `{error:{code,message,requestId,details?}}`. Документ интерфейса — `docs/API_CONTRACTS.md`.
 
 ## 13. Изменение и удаление модулей
 

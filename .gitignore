@@ -6,3 +6,8 @@ coverage/
 !.env.example
 .wrangler/
 .DS_Store
+
+.agent-metrics/
+.idea/
+*.tsbuildinfo
+.logs/

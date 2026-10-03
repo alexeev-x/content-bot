@@ -1,0 +1,13 @@
+# Sources (checked 2026-10-03)
+- WAI-ARIA APG patterns (dialog, tabs, menu button, combobox, disclosure, table): https://www.w3.org/WAI/ARIA/apg/patterns/
+- Using ARIA (first rule): https://www.w3.org/TR/using-aria/
+- WCAG 2.2: https://www.w3.org/TR/WCAG22/ · Status messages 4.1.3: https://www.w3.org/WAI/WCAG22/Understanding/status-messages.html · Use of color: https://www.w3.org/WAI/WCAG22/Understanding/use-of-color.html
+- GOV.UK error summary / error message / dates: https://design-system.service.gov.uk/components/error-summary/ · https://design-system.service.gov.uk/components/error-message/ · https://design-system.service.gov.uk/patterns/dates/
+- NN/g: error messages https://www.nngroup.com/articles/error-message-guidelines/ · confirmation dialogs https://www.nngroup.com/articles/confirmation-dialog/ · empty states https://www.nngroup.com/articles/empty-state-interface-design/ · 10 heuristics https://www.nngroup.com/articles/ten-usability-heuristics/
+- WAI tables tutorial: https://www.w3.org/WAI/tutorials/tables/
+- React: https://react.dev/learn/you-might-not-need-an-effect · https://react.dev/reference/react/useOptimistic
+- TanStack Query v5: https://tanstack.com/query/v5/docs/framework/react/overview · TkDodo: https://tkdodo.eu/blog/practical-react-query · https://tkdodo.eu/blog/effective-react-query-keys
+- Material 3 dark color/elevation (token guidance): https://m3.material.io/styles/color/system/how-the-system-works
+- Design Tokens (DTCG 2025.10): https://www.designtokens.org/
+- Intl.DateTimeFormat: https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Intl/DateTimeFormat
+- Telegram Mini Apps (theme, safe areas, initData): https://core.telegram.org/bots/webapps

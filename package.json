@@ -4,17 +4,22 @@
   "version": "0.1.0",
   "type": "module",
   "workspaces": [
-    "apps/*",
-    "packages/*"
+    "apps/*"
   ],
   "scripts": {
     "typecheck": "npm run typecheck --workspaces --if-present",
     "build": "npm run build --workspaces --if-present",
-    "test": "node --test tests/*.test.mjs",
-    "lint": "node scripts/check-architecture.mjs",
-    "test:architecture": "node scripts/check-architecture.mjs"
+    "test": "node --test '.agents/scripts/*.test.mjs'",
+    "check:docs": "node .agents/scripts/check-docs.mjs",
+    "agents:sync": "node .agents/scripts/sync-agents.mjs",
+    "agents:check": "node .agents/scripts/sync-agents.mjs --check",
+    "verify": "node .agents/scripts/verify.mjs",
+    "metrics": "node .agents/scripts/metrics.mjs"
   },
   "devDependencies": {
     "typescript": "~5.9.3"
+  },
+  "engines": {
+    "node": ">=22"
   }
 }

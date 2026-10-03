@@ -1,37 +1,63 @@
-# ALEXEEV — Agent Runtime Contract v2 (03.10.2026)
+# Мультиагентная разработка — как устроено
 
-**Статус:** полноценная спецификация процесса; исполняемый оркестратор и действующие API инструментов ещё должны быть реализованы. Краткие роли: agents/*.md. Figma полностью исключена.
+**Обновлено:** 03.10.2026. Работает в Claude Code и Codex из одного источника. Собственный runner/task store не пишем: используем встроенных субагентов, skills, git worktree и CI.
 
-## 1. Модель работы
-Один Orchestrator управляет DAG задач с типизированными handoffs. У каждого task ровно один agent owner и изолированный scope файлов. Специалист не читает весь репозиторий или историю разговоров. Code reviews и детерминированные tools предпочтительнее дополнительного AI-агента там, где они решают проблему.
+## Где что лежит
+| Что | Источник (редактировать здесь) | Что генерируется |
+|---|---|---|
+| Общие правила | `AGENTS.md` (корень) | — (оба инструмента читают нативно) |
+| Принятые и открытые решения | `docs/DECISIONS.md` | — |
+| Правила областей и стиль кода | `apps/backend/AGENTS.md`, `apps/frontend/AGENTS.md`, `apps/contracts/AGENTS.md` | — |
+| Роли | `.agents/roles/<role>.md` | `.claude/agents/<role>.md`, `.codex/agents/<role>.toml` |
+| Процедуры (skills) | `.agents/skills/<name>/SKILL.md` | симлинки `.claude/skills/<name>` |
 
-## 2. Ролевая матрица
-| Роль | Отвечает за | Допустимый контекст | Выход | Граница |
-|---|---|---|---|---|
-| Orchestrator | triage, DAG, ownership, routing, gates, PR | roadmap, ADR, module map, task summaries | scoped packets, verdict | не изменяет main автоматически |
-| Analyst | story, routes, permissions, acceptance | user goal, existing page map, public DTO | story spec, state matrix | не проектирует SQL |
-| Design System | semantic tokens, primitives, visual QA | story/page spec, tokens, shared UI | tokens + components + screenshot criteria | никакой Figma |
-| Frontend | React feature UI и tests | story, tokens, DTO, fixtures, owner paths | working feature + test evidence | не импортирует Worker internals |
-| Backend | use cases, D1, Queue/Cron, API | relevant backend docs, module, contract | domain code + migrations/tests | не получает UI source по умолчанию |
-| QA/Security | independent risk checks and review | acceptance, diff, contracts, threat model | evidence + PASS/FAIL | не подтверждает тесты без логов |
+После правки ролей или skills: `npm run agents:sync`. CI (`npm run agents:check`) падает, если адаптеры разошлись с источником. `npm run check:docs` следит за бюджетами размеров инструкций, битыми ссылками и устаревшими путями.
 
-## 3. Task packet и handoff (machine readable)
-Задания хранятся как JSON или YAML рядом с task state: `task_id`, `goal`, `role`, `owner_paths`, `required_refs`, `dependencies`, `acceptance_criteria`, `budget.max_tokens`, `budget.max_retries`, `risk`, `branch`, `expected_artifacts`. Статусы `QUEUED→READY→RUNNING→REVIEW→DONE`; `BLOCKED`/ `FAILED` отдельно; таймаут не трактуется как успех. Handoff: changed files, contract delta, actual commands/results, known risks, next dependencies, token usage if provider exposes it.
+**Важно для Claude Code:** не создавайте `CLAUDE.md` в корне. При его наличии Claude перестаёт читать `AGENTS.md` (и вложенные `apps/backend/AGENTS.md` и т.д.). Нужна версия Claude Code с поддержкой AGENTS.md (v2.1.277+). Личный `CLAUDE.local.md` тоже отключает чтение `AGENTS.md`.
 
-## 4. DAG и гонки
-Если API контракт не утверждён — backend/frontend не должны самостоятельно придумывать несовместимые формы. После Contract Gate backend + frontend параллельно на разных paths, design готовит shared tokens перед новыми UI примитивами. Владение общими файлами: packages/contracts — отдельный contract task; token CSS — design; cross-cutting migration — backend; CI — orchestrator назначает одного owner. Конфликт paths → сериализовать или отдельный интеграционный task; никаких двух конкурирующих writes.
+## Роли
+| Роль | Когда | Модель (Claude) |
+|---|---|---|
+| Orchestrator — основная сессия + skill `orchestrate` | любая задача из нескольких шагов/ролей | выбирает владелец сессии |
+| product-analyst | только при неясных требованиях | sonnet |
+| design-system | нужен новый токен/примитив или визуальный аудит | sonnet |
+| frontend | UI-фичи | sonnet |
+| backend | API, D1, Cron/Queue, Telegram | sonnet, effort high |
+| qa-security | независимая приёмка; обязательна для publishing/auth/миграций/контрактов | opus |
 
-## 5. Context boundary и стоимость
-Всегда передавать role prompt + один task packet + минимальные immutable contracts + конкретные owner files. Дополнительные файлы — через CONTEXT_REQUEST с причиной, объёмом и одобрением оркестратора. Длинные логи хранить как artifacts и передавать только строки ошибок/ссылки. Cache stable instructions, не переотправлять транскрипты. Adaptive model routing допускается только с измерением токенов, числа retry, CI pass rate и исправлений. Максимум две автопопытки на конкретный failing test, затем escalation.
+Отдельного архитектора нет: архитектурные решения принимает оркестратор, изменения утверждённых решений — владелец, нарушения границ ловят детерминированные проверки. Codex-адаптеры модель не фиксируют (наследуют от сессии), задают только reasoning effort и sandbox.
 
-## 6. Execution + review
-Intake → analyst если requirements неясны → task DAG → contract gate → scoped worktrees/branches → deterministic typecheck/lint/architecture/unit/integration → QA risk review → PR feat/* в develop. Review обязателен для security/publishing; малый docs-only change не запускает весь конвейер. Нет автослияния без разрешения владельца. main только проверенный релиз.
+## Экономия токенов без потери качества
+1. **Слои контекста.** Всегда: корневой `AGENTS.md` (~5 КБ). По области: `<area>/AGENTS.md` (~1–3,5 КБ). Роль: ~2 КБ. Процедуры — skills, их тело загружается только при вызове. Большие архитектурные документы — только нужный раздел по ссылке. Раньше каждый агент был обязан прочитать ~69 КБ документов.
+2. **Агенту передаётся task packet** (цель, пути, критерии, ссылки), а не переписка и не копии документов.
+3. **Отчёт агента** — короткий JSON из `AGENTS.md`; логи — только релевантные строки.
+4. **Инструкции на английском** (меньше токенов на ту же мысль); человеческая архитектурная документация и общение с владельцем — на русском.
+5. **Стабильный префикс** для кэша: в `AGENTS.md` нет дат, статусов задач и прочего, что часто меняется.
+6. **Детерминированные проверки вместо LLM** (типы, сборка, бюджеты, синхронизация адаптеров). Дальше: ESLint, dependency-cruiser, Vitest, Playwright, gitleaks.
+7. **Ограничение циклов:** maxTurns у ролей; два неудачных исправления одной ошибки → эскалация владельцу.
+8. **Измерение:** `.agent-metrics/log.jsonl` по каждой задаче (см. skill `orchestrate`). Проценты экономии не заявляем без сравнения на одинаковом наборе задач.
 
-## 7. Система ошибок
-Контракт расходится: пометить оба затронутых task BLOCKED, вернуть к владельцу contracts. Нет тестов: status NOT_VERIFIED и конкретная missing command. Подозрение на утечку секретов: прекратить работу, удалить секрет из diff и поднять security incident; настоящие токены не выводить в отчёт. Unknown Telegram send: никаких blind retry и автоматического release.
+## Автоматические ограничители (хуки, общие для Claude и Codex)
+Скрипты в `.agents/hooks/`, подключены в `.claude/settings.json` и `.codex/hooks.json`. Правило в тексте модель может проигнорировать, хук — нет.
+| Хук | Что делает | Стоимость в токенах |
+|---|---|---|
+| `guard-command` (PreToolUse) | блокирует deploy/rollback, `--remote`, изменение секретов wrangler, force-push, push/commit в `main`/`develop`, чтение `.env`/`.dev.vars` | 0 |
+| `verify-on-stop` (Stop/SubagentStop) | в конце хода, только если файлы изменились с прошлого зелёного прогона, запускает `npm run verify`; при красном не даёт строящему агенту завершиться (не более 2 раз на одно состояние); read-only роли не трогает | 0 при зелёном; ≤ 25 строк при красном |
+| `log-usage` (Stop/SubagentStop, Claude) | пишет токены сессии и субагентов в `.agent-metrics/sessions/` | 0 |
 
-## 8. Измерения
-Записывать на каждый task: input/output tokens (если доступны), model, wall time, work retries, total spend, first-pass tests, defects discovered post-merge, ручные вмешательства. Сравнивать на одинаковом наборе задач и считать cost per accepted task, а не только токены первого ответа. Не заявлять проценты экономии без эксперимента.
+Codex загружает хуки проекта только после доверия к слою `.codex/` (команда `/hooks`). Отключить проверку при остановке: `AGENT_VERIFY_ON_STOP=0`. Хук срабатывает и на текст команды (например, heredoc с запрещённой фразой) — это осознанная перестраховка; пишите такой текст через файл.
 
-## 9. Граница текущей реализации
-Данный markdown задаёт поведение агентов, но не запускает их. Следующий самостоятельный feature должен реализовать runner, task store, policy enforcement и интеграционные тесты; до этого Orchestrator — процедурная роль разработчика/AI, а не автоматическая служба.
+## Измерение
+`npm run metrics` — таблица по сессиям: вывод, чтение/запись кэша, свежий ввод и относительная стоимость (вход 1, запись кэша 1,25, чтение кэша 0,1, вывод 5; точные цены — по прайсу модели). Сравнение конфигураций: 8–10 одинаковых задач × 3 прогона на вариант, свежая сессия, та же модель; экономия засчитывается, только если не упали прохождение `verify` и число ходов. Выигрыш < 10% считаем шумом.
+
+## Что проверили и не берём (03.10.2026)
+- RTK (сжатие вывода команд, «до 90%»): независимый тест Quesma — стоимость задачи +1…+17%, качество −1–2%, была версия с бесконечными циклами. Вместо него — наш `verify`, который сокращает вывод, но пишет полный лог в `.logs/verify.log`.
+- Caveman (сверхкраткие ответы, «−65%»): JetBrains на 82 задачах — −8,5% вывода без изменения качества. Взяли облегчённые правила краткости в `AGENTS.md`, без skill и прокси (у прокси телеметрия по умолчанию).
+- claude-context (векторный поиск): нужен платный внешний API, код уходит наружу — против правил проекта.
+- context-mode: лицензия ELv2, отдельное хранилище состояния, 98% — пример лучшего случая.
+- Serena (LSP-инструменты): возможный эксперимент, когда кода станет много; сейчас репозиторий маленький.
+- Главная реальная экономия — кэш промптов (чтение кэша ≈ 0,1 цены) и короткий контекст: в сессии настройки агентов чтение кэша — 24,4 млн токенов против 228 токенов свежего ввода.
+
+## Процесс
+Запрос → классификация → (analyst) → контракт → backend ∥ frontend в отдельных worktree при непересекающихся путях → `npm run verify` → qa-security → PR `feat/<slug>` → `develop`. Слияние и релиз в `main` — только владелец.
+Встроенный `isolation: worktree` в Claude Code создаёт worktree от ветки по умолчанию (`main`), поэтому для фич оркестратор создаёт worktree от `feat/<slug>` вручную.

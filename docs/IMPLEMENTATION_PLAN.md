@@ -3,7 +3,9 @@
 **Проверено:** существует утверждённый технический дизайн; код из прежнего GitHub main был удалён коммитом `e627801`. Этот PR восстанавливает документацию и правила разработки, а не объявляет готовый production-продукт.
 
 ## Gate 0: repository/bootstrap
-- [ ] npm workspaces (apps/admin, apps/api, packages/contracts); pinned lockfile; CI команды должны реально существовать.
+- [x] npm workspaces (`frontend`, `backend`, `contracts`); lockfile; CI на `npm ci` с реально существующими командами (`npm run verify`).
+- [x] Агентная система для Claude Code и Codex из одного источника (`.agents/`), проверки синхронизации и бюджетов инструкций.
+- [ ] Quality gates: ESLint, Prettier, dependency-cruiser, Vitest (+ workers pool), stylelint-запрет цветов вне токенов, gitleaks, npm audit.
 - [ ] Wrangler bindings в staging: D1, Queue producer/consumer, Cron, при необходимости R2; secrets отдельно от Git.
 - [ ] Protected main, GitHub Actions typecheck/lint/architecture/unit/integration/build; deploy staging.
 
