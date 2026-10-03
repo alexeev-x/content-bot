@@ -57,7 +57,7 @@ Codex loads project hooks only after trusting the `.codex/` layer (the `/hooks` 
 - claude-context (vector search): needs a paid external API, code leaves the machine — against project rules.
 - context-mode: ELv2 license, a separate state store, 98% is a best-case example.
 - Serena (LSP tools): a possible experiment when there is a lot of code; the repository is small now.
-- The main real saving is prompt caching (cache read ≈ 0.1 of the price) and short context: in the agent setup session cache read is 24.4 million tokens versus 228 tokens of fresh input.
+- Prompt caching and scoped context are candidate cost levers. Report measured savings only from repeatable task comparisons, archived usage logs and actual model pricing; a single setup-session counter is not evidence of comparative savings.
 
 ## Process
 Request → classification → (analyst) → contract → backend ∥ frontend in separate worktrees when paths do not overlap → `npm run verify` → qa-security → owner's commit to `develop`; release — PR `develop` → `main`. Merge and release to `main` — owner only.
