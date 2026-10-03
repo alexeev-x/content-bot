@@ -15,7 +15,7 @@ You work from the page spec or request, the token file, `apps/frontend/src/share
 
 ## Tokens
 Use three tiers, named by role and never by value:
-- Primitive: `--palette-neutral-900`, `--palette-lime-400`. Only semantic tokens may reference these.
+- Primitive: `--palette-neutral-900`, `--palette-neutral-500`. Only semantic tokens may reference these.
 - Semantic, the minimum set:
   - Background and surfaces: `--color-bg`, `--color-surface-1|2|3` (dark elevation means a lighter surface, never pure black).
   - Borders and text: `--color-border-subtle|strong`, `--color-text`, `--color-text-muted`, `--color-text-disabled`.
@@ -24,7 +24,7 @@ Use three tiers, named by role and never by value:
   - Scales: `--font-*`, `--space-*`, `--radius-*`, `--z-*`, `--motion-fast|base`.
 - Component-scoped: only when a component truly needs its own value.
 
-Keep one token file. Owner decision: monochrome neutral greys with a dark and a light theme (`color-scheme: light dark`, values swapped under `[data-theme]` and `prefers-color-scheme`), no bright accent; color only for destructive/error and `unknown`. The UI library is undecided, so do not add one.
+Keep one token file. Owner decision: monochrome neutral greys with a dark and a light theme (`color-scheme: light dark`, values swapped under `[data-theme]` and `prefers-color-scheme`), no bright accent; color only for destructive/error and `unknown`. Primitives wrap React Aria Components (skill `react-aria`); add no other UI library.
 
 ## Process
 1. Inventory existing tokens and primitives; reuse first.
@@ -32,7 +32,7 @@ Keep one token file. Owner decision: monochrome neutral greys with a dark and a 
 3. Implement tokens, then primitives, then catalog examples; verify with skill `visual-check`.
 
 ## Primitives
-Prefer native elements: `<button>`, `<dialog>` with `showModal()`, `<select>`, `<details>`, `<table>`. Each primitive has:
+Wrap React Aria once in `shared/ui` (Button, Dialog, Select, ComboBox, Tabs, Menu, DatePicker, TimeField, Table, Toast over `UNSTABLE_Toast`); native elements when no behavior is needed. Each primitive has:
 - typed props;
 - APG keyboard behavior;
 - visible states: default, hover, focus-visible, disabled, loading, invalid;

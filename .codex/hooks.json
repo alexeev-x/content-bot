@@ -2,10 +2,57 @@
   "description": "Project hooks shared with Claude Code (.agents/hooks). Loaded only after you trust the project .codex/ layer (/hooks).",
   "hooks": {
     "PreToolUse": [
-      { "matcher": "^Bash$", "hooks": [{ "type": "command", "command": "node \"$(git rev-parse --show-toplevel)/.agents/hooks/guard-command.mjs\"", "statusMessage": "Checking command against project rules", "timeout": 10 }] }
+      {
+        "matcher": "^Bash$",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$(git rev-parse --show-toplevel)/.agents/hooks/guard-command.mjs\"",
+            "statusMessage": "Checking command against project rules",
+            "timeout": 10
+          }
+        ]
+      }
     ],
     "Stop": [
-      { "hooks": [{ "type": "command", "command": "node \"$(git rev-parse --show-toplevel)/.agents/hooks/verify-on-stop.mjs\"", "statusMessage": "Running npm run verify", "timeout": 320 }] }
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$(git rev-parse --show-toplevel)/.agents/hooks/verify-on-stop.mjs\"",
+            "statusMessage": "Running npm run verify",
+            "timeout": 320
+          }
+        ]
+      }
+    ],
+    "SubagentStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$(git rev-parse --show-toplevel)/.agents/hooks/track-builders.mjs\"",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "SubagentStop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$(git rev-parse --show-toplevel)/.agents/hooks/verify-on-stop.mjs\"",
+            "statusMessage": "Running npm run verify",
+            "timeout": 320
+          },
+          {
+            "type": "command",
+            "command": "node \"$(git rev-parse --show-toplevel)/.agents/hooks/track-builders.mjs\"",
+            "timeout": 10
+          }
+        ]
+      }
     ]
   }
 }

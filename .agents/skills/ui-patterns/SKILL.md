@@ -7,7 +7,7 @@ description: "Interaction patterns for the admin UI: modal dialog, destructive c
 Foundation: use a native element first and ARIA only when nothing native fits (no ARIA beats bad ARIA). A `<button>` acts; a link navigates. Never put `onClick` on a `div`.
 
 ## Modal dialog
-- Use `<dialog>` with `showModal()`: it gives an inert background, Esc and the top layer for free. Set `aria-labelledby` to the title.
+- Use the `shared/ui` Dialog (React Aria `Modal` + `Dialog`): it handles the inert background, Esc and focus. Give it a heading (`slot="title"`); destructive confirmations use `role="alertdialog"`.
 - Initial focus goes to the least destructive control, or to the title when the content is long. Focus returns to the trigger on close. Never nest dialogs.
 
 ## Destructive or irreversible action
@@ -16,7 +16,7 @@ Foundation: use a native element first and ARIA only when nothing native fits (n
 - Show the result only after the server confirms it. No optimistic success.
 
 ## Toast and live status
-- Results use `role="status"` (polite). Use `role="alert"` only for blocking failures. Render the live region before inserting text into it.
+- Use the `shared/ui` Toast (our wrapper over React Aria `UNSTABLE_Toast`, isolated so its API can change in one place). Results use `role="status"` (polite). Use `role="alert"` only for blocking failures. Render the live region before inserting text into it.
 - Error toasts don't auto-dismiss and can be dismissed. A toast is never the only way to recover: persistent state belongs on the page.
 
 ## Forms
@@ -26,7 +26,7 @@ Foundation: use a native element first and ARIA only when nothing native fits (n
 - A message says what is wrong and how to fix it, in plain Russian: «Введите время публикации в будущем», not «Invalid date».
 
 ## Data tables
-- Use a real `<table>` with `<caption>`, `<th scope>`. No ARIA grid; there is no cell-level keyboard model here.
+- Use the `shared/ui` Table (React Aria `Table`, sortable columns built in) or a real `<table>` with `<caption>`, `<th scope>`. No hand-made ARIA grid.
 - A sortable column has a `<button>` inside its `<th>`. Only the sorted column carries `aria-sort`.
 - Page and filters live in the URL (back button works, links are shareable). Use pages, not infinite scroll, for operator lists.
 - At 375 px, switch to cards, or scroll inside a labeled `role="region" tabindex="0"` wrapper. Never hide columns silently.
@@ -43,7 +43,7 @@ Foundation: use a native element first and ARIA only when nothing native fits (n
 
 ## Date, time and timezone
 - Store UTC. Display in an explicit zone with its offset: «14:30, Europe/Chisinau (UTC+3)».
-- Input with `<input type="datetime-local">` or separate date and time fields. Show the resulting UTC as a hint. Validate that the time is in the future, and warn about DST gaps and overlaps.
+- Input with the `shared/ui` DatePicker/TimeField (React Aria + `ZonedDateTime` from `@internationalized/date`, `I18nProvider locale="ru-RU"`). Show the resulting UTC as a hint. Validate that the time is in the future, and warn about DST gaps and overlaps.
 - Format with `Intl.DateTimeFormat` and an explicit `timeZone`. Never write a bare "local time".
 
 ## Tabs, menus, disclosure

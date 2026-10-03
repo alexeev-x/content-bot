@@ -10,14 +10,16 @@ Rule zero: a test proves user-visible or state-visible behavior. A bug fix start
 | Layer | Tool | Asserts |
 |---|---|---|
 | Unit | Vitest | pure domain: state machine, mapping, validation |
-| Worker integration | Vitest + `@cloudflare/vitest-plugin` (the older `vitest-pool-workers` setup is legacy) | real routes and handlers against local D1 with real migrations |
+| Worker integration | Vitest 4.1 + `@cloudflare/vitest-plugin` (supports Vitest `^4.1` only; `vitest-pool-workers` is deprecated) — one Vitest 4.1 for the whole repo | real routes and handlers against local D1 with real migrations |
 | Contract | Worker integration | real responses parse with `apps/contracts` schemas |
-| Component | Vitest + Testing Library + MSW v2 | what the user sees and can do |
+| Component | Vitest 4.1 + Testing Library + MSW 2 | what the user sees and can do |
 | E2E | Playwright | a few critical flows: login, schedule, unknown, 409, mobile |
 
 ## Backend integration
 - Follow the Cloudflare Vitest integration docs for the current config. Read the migrations with `readD1Migrations` and apply them in setup with `applyD1Migrations`, so tests run on the real schema. Storage is isolated per test file.
-- Test HTTP through the app (`app.request()` or the Worker fetch). Test `scheduled`/`queue` by calling the exported handlers with a fake controller/batch and context.
+- Test HTTP through the app (`app.request()` or the Worker fetch). Test `scheduled` with the plugin's `createScheduledController` / `createExecutionContext` / `waitOnExecutionContext`. Storage is isolated per test file, not per test: reset tables in `beforeEach`.
+- Don't intercept the network inside workerd (`@msw/cloudflare` needs MSW 3): fake Telegram through ports instead.
+- Mini App and login: generate a valid `initData` signed with a test bot token; test expired, tampered and foreign-ID cases.
 - Inject a fake clock and a scripted Telegram transport (`ok`, `429 retry_after`, `400`, `403`, `timeout-after-send`, `ok-without-id`). Don't stub D1: assert its rows.
 - Race tests: run the competing operations with `Promise.all` on the same D1 and assert exactly one wins (`changes === 1`) and exactly one send happens.
 

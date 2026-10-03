@@ -1,38 +1,118 @@
 // Token-lean verification: prints one line per step and only the relevant lines of failures.
 // The full output goes to .logs/verify.log, which agents read only when the summary is not enough.
 // Nothing is filtered from the log itself, so no error line is ever lost.
-import { spawnSync } from 'node:child_process';
-import { mkdirSync, writeFileSync } from 'node:fs';
+//
+// `--changed` checks only what the current changes touch (pre-push hook, agent stop hook):
+// commits not yet pushed + uncommitted work. CI always runs the full set.
+import { spawnSync, execFileSync } from 'node:child_process';
+import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+// Fast, cheap checks first so a failure costs the least time.
 export const STEPS = [
-  ['docs', ['run', 'check:docs']],
-  ['agents', ['run', 'agents:check']],
-  ['tests', ['test']],
-  ['typecheck', ['run', 'typecheck']],
-  ['build', ['run', 'build']],
+  ['format', ['npm', 'run', 'format:check']],
+  ['lint', ['npm', 'run', 'lint']],
+  ['docs', ['npm', 'run', 'check:docs']],
+  ['agents', ['npm', 'run', 'agents:check']],
+  ['tooling-tests', ['npm', 'test']],
+  ['typecheck', ['npm', 'run', 'typecheck']],
+  ['architecture', ['npm', 'run', 'depcruise']],
+  ['app-tests', ['npm', 'run', 'test:apps']],
+  ['build', ['npm', 'run', 'build']],
 ];
-const RELEVANT = /error|fail|✖|not ok|assert|expected|budget|missing|stale|unknown skill|out of date|TS\d{4}|cannot find/i;
+
+// Changes here can affect everything, so they trigger the full set.
+const GLOBAL =
+  /^(package(-lock)?\.json|\.nvmrc|\.oxlintrc\.json|\.prettierrc\.json|\.prettierignore|\.dependency-cruiser\.cjs|apps\/[^/]+\/(package\.json|tsconfig\.json|vite(st)?\.config\.ts|wrangler\.jsonc))$/;
+const INSTRUCTIONS = /^(AGENTS\.md|README\.md|docs\/|\.agents\/|\.claude\/|\.codex\/|apps\/[^/]+\/AGENTS\.md$)/;
+const PRETTIER_FILES = /\.(ts|tsx|js|mjs|cjs|json|jsonc|css)$/;
+const LINT_FILES = /\.(ts|tsx|js|mjs|cjs)$/;
+
+export function planSteps(files) {
+  if (files.some((f) => GLOBAL.test(f))) return STEPS;
+  const steps = [];
+  const pretty = files.filter((f) => PRETTIER_FILES.test(f));
+  const lintable = files.filter((f) => LINT_FILES.test(f));
+  const contracts = files.some((f) => f.startsWith('apps/contracts/'));
+  const backend = contracts || files.some((f) => f.startsWith('apps/backend/'));
+  const frontend = contracts || files.some((f) => f.startsWith('apps/frontend/'));
+  if (pretty.length) steps.push(['format', ['npx', 'prettier', '--check', '--ignore-unknown', ...pretty]]);
+  if (lintable.length) steps.push(['lint', ['npx', 'oxlint', ...lintable]]);
+  if (files.some((f) => INSTRUCTIONS.test(f))) {
+    steps.push(
+      ['docs', ['npm', 'run', 'check:docs']],
+      ['agents', ['npm', 'run', 'agents:check']],
+      ['tooling-tests', ['npm', 'test']],
+    );
+  }
+  if (contracts) steps.push(['contracts-typecheck', ['npm', 'run', 'typecheck', '-w', '@alexeev/contracts']]);
+  if (backend) steps.push(['backend-typecheck', ['npm', 'run', 'typecheck', '-w', '@alexeev/backend']]);
+  if (frontend) steps.push(['frontend-typecheck', ['npm', 'run', 'typecheck', '-w', '@alexeev/frontend']]);
+  if (backend || frontend) steps.push(['architecture', ['npm', 'run', 'depcruise']]);
+  if (backend) steps.push(['backend-tests', ['npm', 'run', 'test', '-w', '@alexeev/backend']]);
+  if (frontend) steps.push(['frontend-tests', ['npm', 'run', 'test', '-w', '@alexeev/frontend']]);
+  // The frontend build bundles the Worker too, so it also proves the backend still deploys.
+  if (backend || frontend) steps.push(['build', ['npm', 'run', 'build', '-w', '@alexeev/frontend']]);
+  return steps;
+}
+
+const RELEVANT =
+  /error|fail|✖|not ok|assert|expected|budget|missing|stale|unknown skill|out of date|TS\d{4}|cannot find|\[warn\]/i;
 export const MAX_LINES = 20;
 
 export function relevantLines(output) {
   const lines = output.split('\n').filter((l) => l.trim());
-  const hits = lines.filter((l) => RELEVANT.test(l) && !/^\s*[✔✓]/.test(l));
+  // npm's own 'Lifecycle script failed' lines repeat on every failure and hide the real cause.
+  const hits = lines.filter((l) => RELEVANT.test(l) && !/^\s*[✔✓]/.test(l) && !/^npm (error|ERR)/.test(l.trim()));
   return (hits.length ? hits : lines).slice(-MAX_LINES);
+}
+
+function changedFiles(root) {
+  const git = (...args) => execFileSync('git', args, { cwd: root, encoding: 'utf8' });
+  let base = null;
+  for (const ref of ['@{upstream}', 'origin/develop']) {
+    try {
+      base = git('merge-base', 'HEAD', ref).trim();
+      break;
+    } catch {
+      // try the next candidate
+    }
+  }
+  const committed = base ? git('diff', '--name-only', `${base}...HEAD`) : '';
+  const working = git('status', '--porcelain', '--untracked-files=all')
+    .split('\n')
+    .filter(Boolean)
+    .map((l) => l.slice(3).split(' -> ').pop());
+  const all = new Set([...committed.split('\n').filter(Boolean), ...working]);
+  // Deleted files can't be formatted or linted; their absence is caught by typecheck/tests.
+  return { base, files: [...all].filter((f) => existsSync(join(root, f))) };
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const root = join(fileURLToPath(import.meta.url), '../../..');
+  let steps = STEPS;
+  if (process.argv.includes('--changed')) {
+    const { base, files } = changedFiles(root);
+    steps = base === null ? STEPS : planSteps(files);
+    console.log(
+      base === null
+        ? 'verify --changed: no upstream found, running the full set'
+        : `verify --changed: ${files.length} changed file(s), ${steps.length} step(s)`,
+    );
+  }
   let log = '';
   let failed = 0;
-  for (const [name, args] of STEPS) {
-    const run = spawnSync('npm', args, { cwd: root, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
+  for (const [name, [cmd, ...args]] of steps) {
+    const run = spawnSync(cmd, args, { cwd: root, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
     const out = `${run.stdout ?? ''}${run.stderr ?? ''}`;
-    log += `\n===== ${name}: npm ${args.join(' ')} (exit ${run.status})\n${out}`;
-    if (run.status === 0) { console.log(`✓ ${name}`); continue; }
+    log += `\n===== ${name}: ${cmd} ${args.join(' ')} (exit ${run.status})\n${out}`;
+    if (run.status === 0) {
+      console.log(`✓ ${name}`);
+      continue;
+    }
     failed++;
-    console.log(`✗ ${name} (npm ${args.join(' ')})`);
+    console.log(`✗ ${name} (${cmd} ${args.slice(0, 4).join(' ')}${args.length > 4 ? ' …' : ''})`);
     for (const line of relevantLines(out)) console.log(`  ${line.trim().slice(0, 300)}`);
   }
   mkdirSync(join(root, '.logs'), { recursive: true });

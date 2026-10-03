@@ -1,18 +1,19 @@
 # apps/backend/ — Cloudflare Worker rules
 
-Stack: TypeScript, Hono, Zod 4, Cloudflare Workers (D1, Cron; Queue and R2 only where the architecture calls for them). Canonical design: `docs/BACKEND_ARCHITECTURE.md`. Open only the section you need: §2 boundaries, §5 publishing, §6 data, §8 security, §11 tests.
+Stack (owner decision 03.10.2026): TypeScript, Hono 4 + `@hono/zod-validator`, Zod 4 schemas from `apps/contracts`, Cloudflare Workers (static assets for the SPA, D1, Cron; Queue and R2 only after measurement), grammY for the bot and sending, D1 via plain SQL (`prepare().bind()`, no ORM), Vitest 4.1 + `@cloudflare/vitest-plugin`. Canonical design: `docs/BACKEND_ARCHITECTURE.md`. Open only the section you need: §2 boundaries, §5 publishing, §6 data, §8 security, §11 tests.
 
 ## Structure
-- `src/index.ts` exports `fetch`, `scheduled` and `queue`, each delegating to `src/app/*`.
+- `src/index.ts` exports `fetch` (SPA assets, `/api/v1/*`, `/webhooks/telegram`) and `scheduled` (Cron: reconcile → dispatch), each delegating to `src/app/*`.
 - `src/app/`:
   - `create-app.ts`: Hono, middleware, `onError`.
   - `container.ts`: manual wiring per request.
-  - `routes.ts`.
+  - `routes.ts`, `scheduled.ts`.
+  - `bot/`: the Telegram inbound adapter (grammY `Bot`, commands). An entry point like routes and Cron: it calls module public APIs only, answers only `OWNER_TELEGRAM_ID`, and no module imports it.
   - `env.ts`: types from `wrangler types`.
 - `src/modules/<capability>/`: `index.ts` is the only public entry. Start flat (`service.ts` + test). Split into `domain/`, `application/` (use cases, ports), `infrastructure/` and `http/` only once complexity is real.
-- `src/integrations/<vendor>/`: thin HTTP clients that make no business decisions.
+- `src/integrations/<vendor>/`: thin vendor clients (e.g. grammY `Api` without auto-retry); no business decisions, no module imports. Mapping to our types lives in the module's `infrastructure/`.
 - `src/platform/`: D1 helpers, clock, logger, fetch-with-timeout, security middleware.
-- Cross-module flows go in `src/app/workflows/`. A port belongs to the module that consumes it.
+- Modules never import each other (dependency-cruiser enforces it). A module that needs another module's data declares a port in its own `application/ports.ts`; `app/container.ts` wires it to the other module's public API. Flows spanning modules go in `src/app/workflows/`.
 
 ## Code style
 - Handlers stay thin: parse the input with the `contracts` schema, call one use case, return a DTO. Compose sub-apps with `app.route()`. Write handlers inline, not as controller classes, so Hono keeps the types. No SQL or business rules in route files.
@@ -35,10 +36,14 @@ Stack: TypeScript, Hono, Zod 4, Cloudflare Workers (D1, Cron; Queue and R2 only 
 - Atomic multi-statement changes go through `db.batch([...])`, which rolls back as a unit. There are no interactive transactions, so never read-modify-write across awaits without a guarding condition.
 - Timestamps are UTC epoch milliseconds (`INTEGER`). Schema changes follow the skill `d1-migration`.
 
-## Queue consumer (if used)
-Call `msg.ack()` or `msg.retry({ delaySeconds })` per message. Never throw for one bad message: throwing redelivers the whole batch. Set `max_retries`. A dead-letter queue is optional (architecture §5); without one, an exhausted message must end in a visible `failed` job and incident.
+## Telegram (grammY)
+- Webhook: `webhookCallback(bot, "cloudflare-mod")` with `secretToken`; pass `botInfo` from config so no `getMe` runs per request. Dedupe `update_id` in D1; reply fast and hand slow work to a D1 job.
+- Sending goes only through the `PublicationTransport` adapter, which turns every grammY result into a `SendOutcome` (`sent` / `rate_limited` / `rejected` / `unknown`). Never install `@grammyjs/auto-retry` or retry an `HttpError`/5xx/timeout.
+
+## Queue consumer (only if a Queue is added later)
+Call `msg.ack()` or `msg.retry({ delaySeconds })` per message. Never throw for one bad message: throwing redelivers the whole batch. Set `max_retries`. A dead-letter queue is optional; without one, an exhausted message must end in a visible `failed` job and incident.
 
 ## Security and tests
-Auth, CSRF, webhook and input rules: skill `api-security`. Note that `hono/csrf` alone does not protect JSON requests. Test harness and patterns: skill `testing`. Publishing logic: skill `publishing-reliability`.
+Auth (Telegram ID: Mini App `initData`, browser OpenID Connect, Bearer session token), webhook and input rules: skill `api-security`. Test harness and patterns: skill `testing`. Publishing logic: skill `publishing-reliability`.
 
-Commands today: `npm run typecheck -w @alexeev/backend`, `npm run dev -w @alexeev/backend`. No unit/integration runner is installed yet; report those checks as `not_run`.
+Commands: `npm run typecheck|test -w @alexeev/backend` (Vitest 4.1 in workerd), `npm run dev:backend` (Worker alone on :8790), `npm run dev` (with the SPA). Trigger Cron locally: `/cdn-cgi/handler/scheduled`.

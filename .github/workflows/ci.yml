@@ -13,8 +13,7 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
       - run: npm ci --ignore-scripts
-      - run: npm run check:docs
-      - run: npm run agents:check
-      - run: npm test
-      - run: npm run typecheck
-      - run: npm run build
+      # Same command as the pre-push hook: format, lint, docs, agents, types, architecture, tests, build.
+      - run: npm run verify
+      - if: failure()
+        run: cat .logs/verify.log

@@ -11,15 +11,33 @@ export const RULES = [
   [/\bgit\s+push\b[^|;&]*(\s--force\b|\s-f\b|--force-with-lease)/, 'Force-push is forbidden.'],
   [/\bgit\s+push\b[^|;&]*\s(origin\s+)?(HEAD:)?main\b/, 'Never push to main; releases go through a PR from develop.'],
   [/\bnpm\s+publish\b/, 'Publishing packages is not part of this project.'],
-  [/(^|[\s;&|])(cat|less|more|head|tail|bat)\s+[^|;&]*(\.dev\.vars|\.env(\.[\w-]+)?)(\s|$)/, 'Secret files must not be read into the transcript.'],
-  [/\brm\s+-[a-z]*r[a-z]*f?[a-z]*\s+(\/|~|\$HOME|\.\.)(\s|\/?$)/, 'Recursive delete of a root, home or parent directory.'],
+  [/\bnpm\s+run\s+(deploy(?!:check)|db:migrate:remote)\b/, 'Deploys and remote migrations are run by the owner.'],
+  [
+    /(^|[\s;&|])(cat|less|more|head|tail|bat)\s+[^|;&]*(\.dev\.vars|\.env(\.[\w-]+)?)(\s|$)/,
+    'Secret files must not be read into the transcript.',
+  ],
+  [
+    /\brm\s+-[a-z]*r[a-z]*f?[a-z]*\s+(\/|~|\$HOME|\.\.)(\s|\/?$)/,
+    'Recursive delete of a root, home or parent directory.',
+  ],
 ];
 
 function currentBranch(cwd) {
-  try { return execFileSync('git', ['branch', '--show-current'], { cwd, encoding: 'utf8' }).trim(); } catch { return ''; }
+  try {
+    return execFileSync('git', ['branch', '--show-current'], { cwd, encoding: 'utf8' }).trim();
+  } catch {
+    return '';
+  }
 }
 
-export function decide(command, branch = '') {
+// Heredoc bodies are data written to files, not commands; checking them causes false blocks.
+export function stripHeredocs(command) {
+  return command.replace(/<<-?\s*['"]?(\w+)['"]?[^\n]*\n[\s\S]*?\n\1(?=\n|$)/g, '<<heredoc');
+}
+
+export function decide(rawCommand, branch = '') {
+  const command = stripHeredocs(rawCommand);
+  if (/\bwrangler\b[^|;&]*\bdeploy\b[^|;&]*--dry-run\b/.test(command)) return null;
   for (const [re, reason] of RULES) if (re.test(command)) return reason;
   if (/\bgit\s+(commit|merge|rebase)\b/.test(command) && branch === 'main') {
     return 'You are on main. Work on develop; main changes only through a release PR.';
@@ -34,6 +52,14 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const command = input.tool_input?.command ?? '';
   const reason = command ? decide(command, currentBranch(input.cwd ?? process.cwd())) : null;
   if (reason) {
-    process.stdout.write(JSON.stringify({ hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'deny', permissionDecisionReason: `Blocked by .agents/hooks/guard-command.mjs: ${reason}` } }));
+    process.stdout.write(
+      JSON.stringify({
+        hookSpecificOutput: {
+          hookEventName: 'PreToolUse',
+          permissionDecision: 'deny',
+          permissionDecisionReason: `Blocked by .agents/hooks/guard-command.mjs: ${reason}`,
+        },
+      }),
+    );
   }
 }

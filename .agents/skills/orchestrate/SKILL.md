@@ -20,7 +20,7 @@ Turn a request into a plan without a question round when defaults exist. Before 
 ## Token hygiene
 - One task per session; start a fresh session for an unrelated task. Before a long continuation, compact with a focus line ("keep: task packet, failing check, decisions").
 - Never edit AGENTS.md, skills, settings, hooks or MCP config in the middle of a working session: they sit in the cached prefix, and changing them re-bills the whole context.
-- Push noisy exploration (wide searches, long logs) into a subagent so only its summary returns.
+- Push noisy work (wide searches, long logs) into the owning role agent or `researcher` so only its summary returns.
 - Compare configurations with `npm run metrics` (fed by the usage hook), not with impressions.
 
 ## 1. Classify
@@ -32,6 +32,9 @@ Turn a request into a plan without a question round when defaults exist. Before 
 | API or data change | contract step → backend ∥ frontend |
 | publishing / auth / migration / security | as above, plus qa-security (mandatory) |
 | unclear requirements | product-analyst first |
+| research, comparison, "is this true" | researcher (read-only; give the question, constraints, word limit) |
+
+Code, docs and reviews go only through the project roles above. Built-in helpers (`Explore`, `Plan`) are fine for read-only support; global agents are denied. Do mechanical edits yourself.
 
 ## 2. Plan
 - Work on develop: `git switch develop && git pull --ff-only`. Start from a clean tree (`git status` empty) so the task's changes are easy to review and, if needed, to set aside with `git stash -u` (recoverable).

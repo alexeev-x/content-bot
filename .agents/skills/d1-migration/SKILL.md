@@ -11,7 +11,7 @@ description: "How to change the D1 (SQLite) schema safely — numbered migration
    - Enums are `CHECK(status IN (...))`. Times are `INTEGER` epoch ms (UTC). IDs are `TEXT` UUIDs. Use `NOT NULL` with defaults wherever possible.
 4. **Dedup lives in constraints, not code:** `UNIQUE` on `dedupe_key`, `idempotency_key`, `update_id`.
 5. **Indexes:**
-   - Every new query path gets an index whose leftmost columns match `WHERE`, then `ORDER BY` (e.g. `(status, run_at, id)`). A partial index (`WHERE status IN ('queued','retry_wait')`) suits a hot queue scan.
+   - Every new query path gets an index whose leftmost columns match `WHERE`, then `ORDER BY` (e.g. `(status, run_at, id)`). A partial index (`WHERE status IN ('pending','retry_wait')`) suits a hot queue scan.
    - Verify with `EXPLAIN QUERY PLAN`: the expected output is `SEARCH … USING INDEX`. Run `PRAGMA optimize` after adding indexes.
 6. **Limits to design for:**
    - 100 KB per statement and 100 bound parameters.
@@ -24,7 +24,7 @@ description: "How to change the D1 (SQLite) schema safely — numbered migration
    - `npx wrangler d1 migrations create <db-name> <title>`
    - `npx wrangler d1 migrations apply <db-name> --local`
 
-   Agents never run `--remote` against production. Staging or production applies are run by the owner, after creating a Time Travel bookmark for risky changes.
+   Agents never run `--remote` against production. Remote applies are run by the owner, after creating a Time Travel bookmark for risky changes.
 8. **Tests:** integration tests apply every migration to an empty local D1 (`applyD1Migrations`, see skill `testing`). A migration that rewrites data gets a test with representative rows.
 9. **Deleting a module's data** happens only after its code has been removed and deployed, in its own migration PR.
 

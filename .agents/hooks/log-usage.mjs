@@ -12,7 +12,11 @@ export function sumTranscript(text) {
   for (const line of text.split('\n')) {
     if (!line.includes('"usage"')) continue;
     let entry;
-    try { entry = JSON.parse(line); } catch { continue; }
+    try {
+      entry = JSON.parse(line);
+    } catch {
+      continue;
+    }
     const msg = entry.message;
     if (!msg?.usage || !msg.id) continue;
     seen.set(msg.id, { model: msg.model, usage: msg.usage }); // streamed chunks repeat the id; keep the last
@@ -34,11 +38,25 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const main = sumTranscript(readFileSync(input.transcript_path, 'utf8'));
   const subDir = join(input.transcript_path.replace(/\.jsonl$/, ''), 'subagents');
   const subagents = existsSync(subDir)
-    ? Object.fromEntries(readdirSync(subDir).filter((f) => f.endsWith('.jsonl')).map((f) => [f.replace(/\.jsonl$/, ''), sumTranscript(readFileSync(join(subDir, f), 'utf8'))]))
+    ? Object.fromEntries(
+        readdirSync(subDir)
+          .filter((f) => f.endsWith('.jsonl'))
+          .map((f) => [f.replace(/\.jsonl$/, ''), sumTranscript(readFileSync(join(subDir, f), 'utf8'))]),
+      )
     : {};
-  const root = execFileSync('git', ['rev-parse', '--show-toplevel'], { cwd: input.cwd ?? process.cwd(), encoding: 'utf8' }).trim();
+  const root = execFileSync('git', ['rev-parse', '--show-toplevel'], {
+    cwd: input.cwd ?? process.cwd(),
+    encoding: 'utf8',
+  }).trim();
   const branch = execFileSync('git', ['branch', '--show-current'], { cwd: root, encoding: 'utf8' }).trim();
   const dir = join(root, '.agent-metrics', 'sessions');
   mkdirSync(dir, { recursive: true });
-  writeFileSync(join(dir, `${input.session_id}.json`), JSON.stringify({ session_id: input.session_id, branch, updated: new Date().toISOString(), main, subagents }, null, 2));
+  writeFileSync(
+    join(dir, `${input.session_id}.json`),
+    JSON.stringify(
+      { session_id: input.session_id, branch, updated: new Date().toISOString(), main, subagents },
+      null,
+      2,
+    ),
+  );
 }

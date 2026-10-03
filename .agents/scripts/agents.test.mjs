@@ -6,7 +6,15 @@ import { parseFrontmatter, validateRole, renderClaude, renderCodex, plan } from 
 import { checkRepo } from './check-docs.mjs';
 
 const root = join(fileURLToPath(import.meta.url), '../../..');
-const meta = { name: 'backend', description: 'Says "hi" \\ ok', claude_model: 'sonnet', claude_tools: 'Read, Bash', effort: 'high', codex_sandbox: 'workspace-write', area_rules: 'apps/backend/AGENTS.md' };
+const meta = {
+  name: 'backend',
+  description: 'Says "hi" \\ ok',
+  claude_model: 'sonnet',
+  claude_tools: 'Read, Bash',
+  effort: 'high',
+  codex_sandbox: 'workspace-write',
+  area_rules: 'apps/backend/AGENTS.md',
+};
 
 test('parses frontmatter, unquotes values and rejects YAML-unsafe ones', () => {
   const { meta: m, body } = parseFrontmatter('---\nname: x\ndescription: "d: with colon «ok»"\n---\nBody\n');

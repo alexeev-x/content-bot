@@ -1,18 +1,18 @@
-# MVP page map — аналитический baseline
+# MVP page map — analytical baseline
 
-Этот список исходно зафиксирован архитектурой фронтенда; аналитик уточняет при реализации каждой user story. 
+This list was originally fixed by the frontend architecture; the analyst refines it while implementing each user story. 
 
-| Путь | Задача | Критичные состояния |
+| Path | Task | Critical states |
 |---|---|---|
-| /login | Одноразовый вход | invalid/expired code, rate limit |
-| / | Здоровье задач, публикации, инциденты | stale/partial data |
-| /posts | Фильтр и поиск черновиков | empty/error/forbidden |
-| /posts/new | Новый черновик | dirty/validation |
-| /posts/:id | Редактор, ревизии, preview | conflict 409, unsaved |
-| /calendar | Планировать/переносить/отменять | timezone/DST, unsafe retry |
-| /media | Исходники и шаблоны | upload validation/failure |
-| /incidents | Unknown Telegram, ошибка и ручная сверка | no optimistic success |
-| /settings | Каналы, график, роли | permission denied |
+| /login | «Войти через Telegram» (in the Mini App, sign-in is automatic) | foreign Telegram ID (403), sign-in cancelled, expired session |
+| / | Job health, publications, incidents | stale/partial data |
+| /posts | Filter and search drafts | empty/error/forbidden |
+| /posts/new | New draft | dirty/validation |
+| /posts/:id | Editor, revisions, preview | conflict 409, unsaved |
+| /calendar | Schedule/reschedule/cancel | timezone/DST, unsafe retry |
+| /media | Sources and templates | upload validation/failure |
+| /incidents | Unknown Telegram, error and manual reconciliation | no optimistic success |
+| /settings | Channels, group, schedule | save error, revision conflict |
 | /* | 404 | return to safe navigation |
 
-Веб и Telegram Mini App — две оболочки одной кодовой базы; сложная видеозагрузка может открывать полноценный браузер.
+The web app and the Telegram Mini App are the same admin panel (see `FRONTEND_ARCHITECTURE.md` §16); the 375 px mobile width is the primary screen. Complex video upload may open a full browser.

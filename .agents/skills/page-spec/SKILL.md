@@ -41,6 +41,8 @@ Canonical status mapping (the only source for labels and status tokens):
 | `retry_wait` | «Повтор по расписанию» | `retry` |
 | `failed` | «Ошибка» | `failed` |
 | `unknown` | «Требует проверки» | `unknown` |
-| `cancelled` | «Отменено» | `muted` | Errors show short text plus the `requestId`, never a bare HTTP code. Interaction details are in skill `ui-patterns`.
+| `cancelled` | «Отменено» | `muted` |
+
+Errors show short text plus the `requestId`, never a bare HTTP code. Interaction details are in skill `ui-patterns`.
 
 Before you finish: every matrix row is filled or `n/a`, each action states its retry safety, and every acceptance criterion is testable.

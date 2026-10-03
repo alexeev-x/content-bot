@@ -10,7 +10,7 @@ Adapted from obra/superpowers `systematic-debugging` (MIT; see `references/sourc
 - Read the whole error: message, stack trace, file:line, code. Errors often name the fix.
 - Reproduce it reliably and write down the exact steps. If you can't reproduce it, gather more data rather than guessing.
 - Check what changed: `git diff HEAD`, `git log -5`, dependency or config changes, environment differences (local vs CI, `--local` vs remote D1, Node version).
-- In a multi-layer flow (UI → BFF/Worker → use case → D1 → Telegram), log or assert what enters and leaves each boundary once, find the layer where good data turns bad, and investigate only there.
+- In a multi-layer flow (UI → Worker (Hono) → use case → D1 → Telegram), log or assert what enters and leaves each boundary once, find the layer where good data turns bad, and investigate only there.
 - Trace a bad value back to where it originates and fix it there.
 
 ## 2. Compare

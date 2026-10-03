@@ -1,0 +1,90 @@
+// Architecture rules enforced without an LLM (docs/BACKEND_ARCHITECTURE.md §2, docs/FRONTEND_ARCHITECTURE.md §2).
+/** @type {import('dependency-cruiser').IConfiguration} */
+module.exports = {
+  forbidden: [
+    { name: 'no-circular', severity: 'error', from: {}, to: { circular: true } },
+    {
+      name: 'no-module-to-module',
+      comment: 'Backend modules never import each other; app/ wires them through ports in container.ts.',
+      severity: 'error',
+      from: { path: '^apps/backend/src/modules/([^/]+)/' },
+      to: { path: '^apps/backend/src/modules/', pathNot: '^apps/backend/src/modules/$1/' },
+    },
+    {
+      name: 'app-uses-module-index-only',
+      comment: 'app/ imports a module only through its public index.ts.',
+      severity: 'error',
+      from: { path: '^apps/backend/src/(app|index\\.ts)' },
+      to: { path: '^apps/backend/src/modules/[^/]+/', pathNot: '^apps/backend/src/modules/[^/]+/index\\.ts$' },
+    },
+    {
+      name: 'domain-stays-pure',
+      comment: 'Domain code never imports infrastructure, integrations, platform or HTTP.',
+      severity: 'error',
+      from: { path: '^apps/backend/src/modules/[^/]+/domain/' },
+      to: { path: '(/infrastructure/|/http/|^apps/backend/src/(integrations|platform)/|node_modules/(hono|grammy)/)' },
+    },
+    {
+      name: 'modules-never-import-app',
+      comment: 'app/ (routes, bot, Cron, container) depends on modules, never the other way round.',
+      severity: 'error',
+      from: { path: '^apps/backend/src/modules/' },
+      to: { path: '^apps/backend/src/app/' },
+    },
+    {
+      name: 'integrations-know-no-modules',
+      comment: 'Low-level clients (grammY etc.) make no business decisions and import no module.',
+      severity: 'error',
+      from: { path: '^apps/backend/src/integrations/' },
+      to: { path: '^apps/backend/src/(modules|app)/' },
+    },
+    {
+      name: 'platform-is-generic',
+      comment: 'platform/ and shared/ hold generic helpers only.',
+      severity: 'error',
+      from: { path: '^apps/backend/src/(platform|shared)/' },
+      to: { path: '^apps/backend/src/(modules|app|integrations)/' },
+    },
+    {
+      name: 'features-via-index-only',
+      comment: 'Pages, routes and app/ use a feature only through its public index.ts.',
+      severity: 'error',
+      from: { path: '^apps/frontend/src/(pages|routes|app)/' },
+      to: { path: '^apps/frontend/src/features/[^/]+/', pathNot: '^apps/frontend/src/features/[^/]+/index\\.tsx?$' },
+    },
+    {
+      name: 'shared-is-generic',
+      comment: 'shared/ never depends on features, pages, routes or app.',
+      severity: 'error',
+      from: { path: '^apps/frontend/src/shared/' },
+      to: { path: '^apps/frontend/src/(features|pages|routes|app)/' },
+    },
+    {
+      name: 'no-feature-to-feature',
+      comment: 'Frontend features never import each other; pages and app/ compose them.',
+      severity: 'error',
+      from: { path: '^apps/frontend/src/features/([^/]+)/' },
+      to: { path: '^apps/frontend/src/features/', pathNot: '^apps/frontend/src/features/$1/' },
+    },
+    {
+      name: 'contracts-are-leaf',
+      comment: 'apps/contracts depends only on zod.',
+      severity: 'error',
+      from: { path: '^apps/contracts/' },
+      to: { path: '^apps/(frontend|backend)/' },
+    },
+    {
+      name: 'no-frontend-backend-coupling',
+      comment: 'The SPA and the Worker share only apps/contracts.',
+      severity: 'error',
+      from: { path: '^apps/frontend/src/' },
+      to: { path: '^apps/backend/' },
+    },
+  ],
+  options: {
+    doNotFollow: { path: 'node_modules' },
+    exclude: { path: '(dist|node_modules|worker-configuration\\.d\\.ts|routeTree\\.gen\\.ts)' },
+    tsPreCompilationDeps: true,
+    enhancedResolveOptions: { exportsFields: ['exports'], conditionNames: ['import', 'require', 'node', 'default'] },
+  },
+};

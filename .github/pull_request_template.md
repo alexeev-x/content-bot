@@ -1,17 +1,17 @@
-## Цель
-<!-- Релизный PR: develop → main. Что входит в релиз и как проверено. -->
+## Goal
+<!-- Release PR: develop → main. What is in the release and how it was verified. -->
 
-## Критерии приёмки
-- [ ] <!-- Given / When / Then — passed / failed / not_run + доказательство -->
+## Acceptance criteria
+- [ ] <!-- Given / When / Then — passed / failed / not_run + evidence -->
 
-## Проверки (что реально запускалось)
+## Checks (what was actually run)
 - [ ] `npm run verify` —
-- [ ] тесты затронутой области —
+- [ ] tests of the affected area —
 
-## Контракты, миграции, безопасность
-- Контракт API изменён: нет / да (contracts + backend + frontend + контрактные тесты)
-- SQL-миграция: нет / да
-- Затронуты publishing / auth / секреты: нет / да → нужен review qa-security
+## Contracts, migrations, security
+- API contract changed: no / yes (contracts + backend + frontend + contract tests)
+- SQL migration: no / yes
+- publishing / auth / secrets affected: no / yes → qa-security review required
 
-## Не запускалось и риски
-<!-- not_run с причиной; открытые вопросы к владельцу -->
+## Not run and risks
+<!-- not_run with a reason; open questions for the owner -->

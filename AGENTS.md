@@ -6,9 +6,9 @@ Shared by Claude Code and Codex, loaded into every agent: keep it short. Talk to
 
 ## Layout
 - `apps/frontend/` — React + Vite admin SPA. Rules: `apps/frontend/AGENTS.md`.
-- `apps/backend/` — Hono on Cloudflare Workers (`fetch` / `scheduled` / `queue`); D1 is the source of truth. Rules: `apps/backend/AGENTS.md`.
+- `apps/backend/` — Hono on Cloudflare Workers (`fetch` / `scheduled`); D1 is the source of truth. Rules: `apps/backend/AGENTS.md`.
 - `apps/contracts/` — Zod DTOs shared by both sides. Rules: `apps/contracts/AGENTS.md`.
-- `docs/` — canonical architecture (Russian). Open only the section you need.
+- `docs/` — canonical architecture. Open only the section you need.
 - `.agents/` — role sources (`roles/`), skills (`skills/`), tooling (`scripts/`). `.claude/` and `.codex/` are generated from it: edit sources, then `npm run agents:sync`.
 
 ## Load context on demand, never everything
@@ -19,41 +19,40 @@ Shared by Claude Code and Codex, loaded into every agent: keep it short. Talk to
 | `apps/contracts/**` or any request/response shape | skill `contract-change` |
 | publications, jobs, Cron, Queue, Telegram send | skill `publishing-reliability` |
 | SQL or migrations | skill `d1-migration` |
-| auth, sessions, CSRF, webhook, uploads | skill `api-security` |
+| auth, sessions, Mini App, webhook, uploads | skill `api-security` |
 | writing or fixing tests | skill `testing` |
 | a bug, failing test or CI failure | skill `debugging` |
 | Worker runtime, bindings, config, Wrangler commands | skills `workers-best-practices`, `wrangler` (official Cloudflare) |
-| a page, its states, accessibility | skill `page-spec`, skill `ui-patterns` |
+| a page, its states, accessibility | skills `page-spec`, `ui-patterns`, `react-aria` |
 | tokens, primitives, look and feel, UI copy | skill `visual-design` |
 | visual verification in a browser | skill `visual-check` |
-| a task spanning several roles or steps | skill `orchestrate` |
 
-Codex loads only the AGENTS.md files between the repo root and its working directory: open area files yourself. Claude Code loads them when it reads files in that area. Search with `rg` and read the specific lines you need, not whole large files. Don't reread files you have. `npm run verify` prints only failures; open `.logs/verify.log` only if the summary is not enough.
+Codex doesn't auto-load area AGENTS.md files: open them yourself (Claude Code loads them on read). Search with `rg`; read the lines you need, not whole files. Don't reread files. `npm run verify` prints only failures; open `.logs/verify.log` only if the summary is not enough.
 
 Write tersely: no preamble, no restating the task, no recap of a visible diff. Code, commands and error text stay exact.
 
 ## Working with the owner
-- Decide, don't quiz: pick the conventional default, say it in one line with the reason, and proceed. Escalate only owner-level choices (publishing behavior, access, money, changing a recorded decision), batched, each with your recommended default.
+- Main session only (not subagents): you orchestrate every owner request; the owner never types a command. Small single-area edits: do yourself; larger: follow skill `orchestrate`.
+- Decide, don't quiz: pick the conventional default, state it with the reason, proceed. Escalate only owner-level choices (publishing, access, money, a recorded decision), batched, with your recommended default.
 - Recorded decisions live in `docs/DECISIONS.md`; don't relitigate them unprompted.
-- Do only what the task asks: no unrequested features, refactors or abstractions.
+- Do only what the task asks: no unrequested features, refactors or abstractions. Never claim 1 000 jobs/day before a load test.
 
 ## Non-negotiables
 - Modular monolith: one Worker, one D1, one Cron (plus one Queue only where the architecture says so). No microservices, generic repositories, event bus, service locator or DI container; `apps/backend/src/app/container.ts` wires adapters by hand.
-- Other modules are imported only through their `index.ts`. No cycles. Domain code never imports infrastructure.
+- Modules never import each other; only `app/` (routes, bot, Cron, workflows, `container.ts`) connects them via each module's `index.ts` and consumer-owned ports. No cycles; domain never imports infrastructure.
 - No mutable module-level state holding user, request or job data. Bound payload sizes, batches, concurrency and timeouts.
-- Publishing safety: D1 owns state and dedup. Queue delivery is at-least-once. A Telegram send that may have happened but is unconfirmed becomes `unknown` and needs manual reconciliation; it is never retried automatically.
-- Secrets (bot token, API keys) live only in Worker secrets. They never go into the frontend, git, logs or reports. Staging has its own bot, channel and D1.
-- The server re-validates every input with Zod and re-checks the session, permissions and CSRF/Origin. Client validation is UX only.
+- Publishing safety: D1 owns state and dedup. Cron ticks may overlap or repeat, so every claim is conditional. A Telegram send that may have happened but is unconfirmed becomes `unknown` and needs manual reconciliation; it is never retried automatically.
+- Secrets (bot token, API keys) live only in Worker secrets, never in the frontend, git, logs or reports. Tests use a separate Telegram bot and channel (no staging).
+- The server re-validates every input with Zod and re-checks the session token and the owner's Telegram ID. Client validation is UX only.
 - Design exists only as code: tokens, primitives and browser screenshots. Figma is excluded (owner decision 03.10.2026); never propose it.
 - Agents never deploy, run `--remote` D1 commands, or change secrets (`wrangler secret put/delete` deploys immediately). The owner runs these.
 - No paid AI providers, render APIs or paid cloud tiers without an explicit owner decision.
-- No empty scaffolding: a new module ships with behavior, error/empty handling, tests and doc updates.
-- Never claim 1 000 jobs/day before a load test.
+- No empty scaffolding: new modules ship with behavior, error handling, tests and docs.
 
 ## TypeScript style (all packages)
 - `strict`; no `any`; `!` only in bootstrap code; external data is `unknown` until parsed with Zod.
 - Named exports. Files are kebab-case; React components are `PascalCase.tsx`. One responsibility per file.
-- Errors carry a stable `code` (see `contracts`). Never swallow an error. Never log secrets, one-time codes or raw payloads.
+- Errors carry a stable `code` (see `contracts`). Never swallow an error. Never log secrets, `initData`, OIDC codes or raw payloads.
 - Store time as UTC; convert to a timezone only in the UI.
 - Comments say why, not what; match surrounding code.
 - Each new dependency needs a reason in the PR and goes into the lockfile. Prefer platform APIs.

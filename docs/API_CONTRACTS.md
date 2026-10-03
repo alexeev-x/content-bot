@@ -1,20 +1,29 @@
-# CONTENT-BOT — СВЯЗЬ FRONTEND / BACKEND
+# CONTENT-BOT — FRONTEND / BACKEND INTEGRATION
 
-**Единственный источник контрактов:** `contracts`, без зависимостей от React, Hono и Cloudflare. Это проект будущих контрактов, а не уже запущенный API.
+**Single source of contracts:** `contracts`, with no dependencies on React, Hono or Cloudflare. This is a design of future contracts, not an already running API.
 
-## Сеть и аутентификация
+## Network and authentication
 
 ```text
-Browser /api/v1/* -> Pages Function (same-origin)
-                   -> Service Binding Worker
-                   -> Backend (cookie auth, role, CSRF, rate limits)
+Browser / Telegram Mini App → /api/v1/*  (same Worker and origin, no BFF)
+                            → Hono: Bearer token → permissions (owner's Telegram ID)
+Telegram                    → /webhooks/telegram (secret header, no session)
 ```
 
-**Авторизационный сценарий:** Telegram allowlist -> запрос OTP -> сервер отправляет код в личный Telegram -> пользователь вводит его в форме -> сервер выдаёт случайную HttpOnly+Secure+SameSite сессию -> React получает `/auth/me`. Не выдавать bot token и session token браузеру. `/webhooks/telegram` — отдельный путь с заголовком Telegram secret token, никакой общей логики cookie auth.
+**One identity — the owner's Telegram ID.** Sign-in endpoints:
 
-**CSRF:** для POST/PATCH/DELETE сервер выдаёт токен в аутентифицированном ответе `GET /api/v1/auth/csrf`, клиент передаёт `X-CSRF-Token`, сервер сверяет токен и Origin. Сессии — серверные, с TTL и возможностью отзыва. BFF не доверяет пользовательским заголовкам `X-Admin-*`.
+| Method and path | Input | Response |
+|---|---|---|
+| `POST /api/v1/auth/telegram` | `{ initData }` from `Telegram.WebApp` | `200 { accessToken, expiresAt }`; 401 — invalid signature or `auth_date` older than 15 minutes; 403 — not the owner |
+| `GET /api/v1/auth/oidc/start` | — | 302 to `oauth.telegram.org/auth` (Authorization Code + PKCE, `state`, `nonce`) |
+| `GET /api/v1/auth/oidc/callback` | `code`, `state` | `id_token` verification; refresh cookie (`HttpOnly; Secure; SameSite=Lax`, path `/api/v1/auth`); 302 to the app |
+| `POST /api/v1/auth/refresh` | browser: refresh cookie; Mini App: the current valid Bearer; `Origin` is always checked | `200 { accessToken, expiresAt }` (token 60 min; Mini App session ≤ 12 h, browser refresh cookie — 30 days with rotation) |
+| `POST /api/v1/auth/logout` | Bearer + refresh cookie, if present; `Origin` is checked | 204; session and cookie removed on the server |
+| `GET /api/v1/auth/me` | Bearer | `{ telegramId, name }` |
 
-## Общие DTO и ответы
+All other `/api/v1/*` endpoints require `Authorization: Bearer <accessToken>`. The client keeps the token in memory only. The main API does not accept cookies, so no CSRF token is needed; the cookie endpoints `/api/v1/auth/*` are protected by an `Origin` check. The bot token and session tokens never reach the browser, except the short-lived access token.
+
+## Common DTOs and responses
 
 ```ts
 export type ApiErrorCode =
@@ -41,7 +50,7 @@ export interface PostDto {
   title: string;
   body: string;
   revision: number;
-  status: 'draft' | 'approved' | 'scheduled';
+  status: 'draft' | 'approved'; // editorial only; scheduling lives in publications
   updatedAt: string; // UTC ISO8601
 }
 
@@ -52,7 +61,7 @@ export type PublicationStatus =
 export interface PublicationDto {
   id: string;
   postId: string;
-  channelId: string;
+  destinationId: string; // channel or group
   status: PublicationStatus;
   scheduledAt: string;
   externalMessageId?: string;
@@ -61,54 +70,55 @@ export interface PublicationDto {
 }
 ```
 
-`PublicationStatus` — **пользовательская проекция** нескольких внутренних job-состояний; не делать интерфейс зависимым от внутренних полей SQL.
+`PublicationStatus` is a **user-facing projection** of several internal job states; do not make the interface depend on internal SQL fields.
 
-## Черновик и конкурирующие правки
+## Draft and concurrent edits
 
 ```http
 POST /api/v1/posts
 Content-Type: application/json
-X-CSRF-Token: <csrf>
+Authorization: Bearer <accessToken>
 
 {"title":"Герой дня","body":"..."}
 ```
 
-Ответ `201 Created` с `PostDto`. Редактирование `PATCH /api/v1/posts/{id}` + `If-Match: <revision>`. Если другой редактор сохранил изменения — `409 CONFLICT`, UI сохраняет локальные правки и предлагает сравнение. `POST /api/v1/posts/{id}/approve` явно меняет редакторский статус.
+The response is `201 Created` with `PostDto`. Editing is `PATCH /api/v1/posts/{id}` with the current revision (how it is passed is an open question in `DECISIONS.md`). If another editor saved changes — `409 CONFLICT`; the UI keeps the local edits and offers a comparison. `POST /api/v1/posts/{id}/approve` explicitly changes the editorial status.
 
-## Планирование и отправка
+## Scheduling and sending
 
 ```http
 POST /api/v1/publications
 Content-Type: application/json
-X-CSRF-Token: <csrf>
+Authorization: Bearer <accessToken>
+Idempotency-Key: <uuid>
 
 {
   "postId":"uuid",
   "revision":3,
-  "channelId":"my-channel",
+  "destinationId":"channel-or-group-id",
   "scheduledAt":"2026-10-05T12:00:00Z",
   "timezone":"Europe/Chisinau"
 }
 ```
 
-Ответ `202 Accepted` + `PublicationDto(status="scheduled")`. Это НЕ утверждение, что пост опубликован. После подтверждения Telegram `GET /api/v1/publications/{id}` вернёт `sent` с `externalMessageId`. Заголовок `Idempotency-Key` обязателен (без него — 400 `VALIDATION_ERROR`); сервер хранит ключ и хэш тела в D1 (повтор с другим телом — 409 `CONFLICT`), чтобы клиентский повтор запроса не создавал вторую запланированную публикацию. Внешняя отправка Telegram при неопределённом ответе остаётся `unknown`, несмотря на внутренние ключи.
+The response is `202 Accepted` + `PublicationDto(status="scheduled")`. This is NOT a claim that the post has been published. After Telegram confirms, `GET /api/v1/publications/{id}` returns `sent` with `externalMessageId`. The `Idempotency-Key` header is mandatory (without it — 400 `VALIDATION_ERROR`); the server stores the key and the body hash in D1 (a repeat with a different body — 409 `CONFLICT`), so that a client retry does not create a second scheduled publication. An external Telegram send with an indeterminate response stays `unknown`, despite the internal keys.
 
-`POST /api/v1/publications/{id}/retry` разрешён **только** для статуса, который backend признал безопасным для повтора. `unknown` невозможно принудительно отправить этим методом — сначала `POST /api/v1/publications/{id}/resolve-unknown` с документированной ручной сверкой и аудиторским следом.
+`POST /api/v1/publications/{id}/retry` is allowed **only** for a status that the backend has deemed safe to retry. `unknown` cannot be force-sent with this method — first call `POST /api/v1/publications/{id}/resolve-unknown` with the documented manual reconcile and an audit trail.
 
-## Наблюдаемость
+## Observability
 
-`GET /api/v1/dashboard`, `GET /api/v1/incidents?cursor=...`, `GET /api/v1/jobs?status=...`, `GET /api/v1/health` (приватный расширенный health, без утечки данных публике). Список инцидентов должен иметь `requestId`, `jobId`, `component`, `errorCode`, `occurredAt`, `status`, `attemptCount`. Ошибки изменяющих запросов возвращают единый `ApiErrorDto`.
+`GET /api/v1/dashboard`, `GET /api/v1/incidents?cursor=...`, `GET /api/v1/jobs?status=...`, `GET /api/v1/health` (private extended health, with no data leaked to the public). The incident list must have `requestId`, `jobId`, `component`, `errorCode`, `occurredAt`, `status`, `attemptCount`. Errors of mutating requests return a single `ApiErrorDto`.
 
-## Медиа и превью
+## Media and preview
 
-`POST /api/v1/media/uploads` — ограниченный загрузочный маршрут (или двухэтапный поток при переходе на direct upload), `GET /api/v1/media?cursor=...`, `POST /api/v1/media/preview` — авторизованная асинхронная генерация фактической карточки тем же рендерером, что production. Большой `blob` никогда не передавать через JSON/base64. Каждый медиа-объект содержит `owner`, `mime`, `size`, `sha256`, `storageKey` и аудит.
+`POST /api/v1/media/uploads` — a bounded upload route (or a two-step flow when moving to direct upload), `GET /api/v1/media?cursor=...`, `POST /api/v1/media/preview` — authorized asynchronous generation of the actual card with the same renderer as production. Never pass a large `blob` through JSON/base64. Each media object contains `owner`, `mime`, `size`, `sha256`, `storageKey` and an audit.
 
-## Обязательные контрактные тесты
+## Mandatory contract tests
 
-1. API DTO в реальном ответе совпадает с Zod-схемой `contracts`.
-2. Unauthorized: 401 и отсутствие приватных данных; forbidden: 403; invalid CSRF: 403.
-3. Одновременное редактирование: 409 без потери локального черновика.
-4. Повторное создание с одинаковым Idempotency-Key не дублирует намерение публикации.
-5. `202` не воспринимается UI как `sent`.
-6. `unknown` блокирует автоматическое повторение и требует ручной сверки.
-7. Смена версии DTO поддерживает одновременно frontend текущего и предыдущего деплоя или проходит согласованным релизом.
+1. The API DTO in a real response matches the `contracts` Zod schema.
+2. Without a token or with an expired one — 401 with no private data; another Telegram ID — 403; forged `initData`/`id_token` — 401; `refresh` with a foreign `Origin` — 403.
+3. Concurrent editing: 409 without losing the local draft.
+4. Repeated creation with the same Idempotency-Key does not duplicate the publication intent.
+5. `202` is not treated by the UI as `sent`.
+6. `unknown` blocks automatic retry and requires manual reconcile.
+7. A DTO version change supports the frontend of both the current and the previous deploy at the same time, or goes out as a coordinated release.

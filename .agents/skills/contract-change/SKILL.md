@@ -14,7 +14,7 @@ description: "Procedure for adding or changing an API endpoint, request/response
    ```ts
    export const createPublicationInputSchema = z.strictObject({
      postId: z.uuid(), revision: z.number().int().nonnegative(),
-     channelId: z.string().min(1), scheduledAt: z.iso.datetime(), timezone: z.string().min(1),
+     destinationId: z.string().min(1), scheduledAt: z.iso.datetime(), timezone: z.string().min(1),
    });
    // POST /api/v1/publications, header Idempotency-Key → 202 PublicationDto(status 'scheduled')
    // errors: VALIDATION_ERROR 400, CONFLICT 409 (stale revision / same key in flight), UNAUTHORIZED, FORBIDDEN

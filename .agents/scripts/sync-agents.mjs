@@ -2,38 +2,68 @@
 //   .agents/roles/<role>.md         -> .claude/agents/<role>.md, .codex/agents/<role>.toml
 //   .agents/skills/<name>/      -> .claude/skills/<name> (symlink)
 // `--check` verifies adapters are up to date without writing (used in CI).
-import { readFileSync, writeFileSync, readdirSync, existsSync, mkdirSync, rmSync, lstatSync, readlinkSync, symlinkSync } from 'node:fs';
+import {
+  readFileSync,
+  writeFileSync,
+  readdirSync,
+  existsSync,
+  mkdirSync,
+  rmSync,
+  lstatSync,
+  readlinkSync,
+  symlinkSync,
+} from 'node:fs';
 import { join, basename } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const ROLE_FIELDS = ['name', 'description', 'claude_model', 'claude_tools', 'effort', 'max_turns', 'codex_sandbox', 'area_rules'];
+const ROLE_FIELDS = [
+  'name',
+  'description',
+  'claude_model',
+  'claude_tools',
+  'effort',
+  'max_turns',
+  'codex_sandbox',
+  'area_rules',
+];
 const REQUIRED = ['name', 'description', 'claude_model', 'claude_tools', 'effort', 'codex_sandbox'];
-const BANNER = 'GENERATED from .agents/roles/{name}.md by .agents/scripts/sync-agents.mjs. Edit the source, then run `npm run agents:sync`.';
+const BANNER =
+  'GENERATED from .agents/roles/{name}.md by .agents/scripts/sync-agents.mjs. Edit the source, then run `npm run agents:sync`.';
 
 export function parseFrontmatter(text, file = 'input') {
   const match = /^---\n([\s\S]*?)\n---\n([\s\S]*)$/.exec(text);
   if (!match) throw new Error(`${file}: missing frontmatter`);
   const meta = {};
   for (const line of match[1].split('\n')) {
-    if (!line.trim()) continue;
-    const kv = /^([a-z_]+):\s*(.*)$/.exec(line);
+    // Nested YAML (indented lines, e.g. `metadata:` maps in upstream skills) is not needed by our tooling.
+    if (!line.trim() || /^\s/.test(line)) continue;
+    const kv = /^([a-z_-]+):\s*(.*)$/.exec(line);
     if (!kv) throw new Error(`${file}: bad frontmatter line "${line}"`);
     const raw = kv[2].trim();
     // Keep frontmatter valid YAML for Claude Code and Codex: values with ": " or " #" must be quoted.
-    if (!raw.startsWith('"') && /: | #/.test(raw)) throw new Error(`${file}: quote the value of "${kv[1]}" (contains ": " or " #")`);
+    if (!raw.startsWith('"') && /: | #/.test(raw))
+      throw new Error(`${file}: quote the value of "${kv[1]}" (contains ": " or " #")`);
     meta[kv[1]] = raw.startsWith('"') ? JSON.parse(raw) : raw;
   }
   return { meta, body: match[2].trim() + '\n' };
 }
 
 export function validateRole(meta, file) {
-  for (const key of Object.keys(meta)) if (!ROLE_FIELDS.includes(key)) throw new Error(`${file}: unknown field "${key}"`);
+  for (const key of Object.keys(meta))
+    if (!ROLE_FIELDS.includes(key)) throw new Error(`${file}: unknown field "${key}"`);
   for (const key of REQUIRED) if (!meta[key]) throw new Error(`${file}: missing "${key}"`);
   if (meta.name !== basename(file, '.md')) throw new Error(`${file}: name must match file name`);
 }
 
 export function renderClaude(meta, body) {
-  const lines = ['---', `name: ${meta.name}`, `description: ${JSON.stringify(meta.description)}`, `tools: ${meta.claude_tools}`, `model: ${meta.claude_model}`, `effort: ${meta.effort}`];
+  const lines = [
+    '---',
+    `name: ${meta.name}`,
+    `description: ${JSON.stringify(meta.description)}`,
+    `tools: ${meta.claude_tools}`,
+    `model: ${meta.claude_model}`,
+    `effort: ${meta.effort}`,
+  ];
   if (meta.max_turns) lines.push(`maxTurns: ${meta.max_turns}`);
   lines.push('---', `<!-- ${BANNER.replace('{name}', meta.name)} -->`, '');
   // Claude Code loads <area>/AGENTS.md automatically when it reads files there, so no extra read is requested.
@@ -63,13 +93,18 @@ export function renderCodex(meta, body) {
 export function plan(root) {
   const files = new Map();
   const links = new Map();
-  for (const file of readdirSync(join(root, '.agents/roles')).filter((f) => f.endsWith('.md')).sort()) {
-    const { meta, body } = parseFrontmatter(readFileSync(join(root, '.agents/roles', file), 'utf8'), `.agents/roles/${file}`);
+  for (const file of readdirSync(join(root, '.agents/roles'))
+    .filter((f) => f.endsWith('.md'))
+    .toSorted()) {
+    const { meta, body } = parseFrontmatter(
+      readFileSync(join(root, '.agents/roles', file), 'utf8'),
+      `.agents/roles/${file}`,
+    );
     validateRole(meta, file);
     files.set(`.claude/agents/${meta.name}.md`, renderClaude(meta, body));
     files.set(`.codex/agents/${meta.name}.toml`, renderCodex(meta, body));
   }
-  for (const name of readdirSync(join(root, '.agents/skills')).sort()) {
+  for (const name of readdirSync(join(root, '.agents/skills')).toSorted()) {
     if (!existsSync(join(root, '.agents/skills', name, 'SKILL.md'))) continue;
     links.set(`.claude/skills/${name}`, `../../.agents/skills/${name}`);
   }
@@ -78,7 +113,11 @@ export function plan(root) {
 
 function generatedIn(root, dir, ext) {
   const abs = join(root, dir);
-  return existsSync(abs) ? readdirSync(abs).filter((f) => f.endsWith(ext)).map((f) => `${dir}/${f}`) : [];
+  return existsSync(abs)
+    ? readdirSync(abs)
+        .filter((f) => f.endsWith(ext))
+        .map((f) => `${dir}/${f}`)
+    : [];
 }
 
 function run(root, check) {
@@ -89,18 +128,29 @@ function run(root, check) {
     const current = existsSync(abs) ? readFileSync(abs, 'utf8') : null;
     if (current === content) continue;
     if (check) problems.push(`out of date: ${path}`);
-    else { mkdirSync(join(abs, '..'), { recursive: true }); writeFileSync(abs, content); }
+    else {
+      mkdirSync(join(abs, '..'), { recursive: true });
+      writeFileSync(abs, content);
+    }
   }
   for (const [path, target] of links) {
     const abs = join(root, path);
     const ok = existsSync(abs) && lstatSync(abs).isSymbolicLink() && readlinkSync(abs) === target;
     if (ok) continue;
     if (check) problems.push(`missing symlink: ${path} -> ${target}`);
-    else { mkdirSync(join(abs, '..'), { recursive: true }); rmSync(abs, { recursive: true, force: true }); symlinkSync(target, abs); }
+    else {
+      mkdirSync(join(abs, '..'), { recursive: true });
+      rmSync(abs, { recursive: true, force: true });
+      symlinkSync(target, abs);
+    }
   }
-  const stale = [...generatedIn(root, '.claude/agents', '.md'), ...generatedIn(root, '.codex/agents', '.toml')].filter((p) => !files.has(p));
+  const stale = [...generatedIn(root, '.claude/agents', '.md'), ...generatedIn(root, '.codex/agents', '.toml')].filter(
+    (p) => !files.has(p),
+  );
   const skillsDir = join(root, '.claude/skills');
-  if (existsSync(skillsDir)) for (const name of readdirSync(skillsDir)) if (!links.has(`.claude/skills/${name}`)) stale.push(`.claude/skills/${name}`);
+  if (existsSync(skillsDir))
+    for (const name of readdirSync(skillsDir))
+      if (!links.has(`.claude/skills/${name}`)) stale.push(`.claude/skills/${name}`);
   for (const path of stale) {
     if (check) problems.push(`stale generated file: ${path}`);
     else rmSync(join(root, path), { recursive: true, force: true });

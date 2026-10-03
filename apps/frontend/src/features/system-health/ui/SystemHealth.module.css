@@ -1,0 +1,24 @@
+.muted {
+  color: var(--color-text-muted);
+}
+.error {
+  display: grid;
+  justify-items: start;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border-radius: var(--radius-1);
+  background: var(--color-error-bg);
+  color: var(--color-error);
+}
+.list {
+  display: grid;
+  gap: var(--space-3);
+  margin: 0;
+}
+.list dt {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+.list dd {
+  margin: 0;
+}

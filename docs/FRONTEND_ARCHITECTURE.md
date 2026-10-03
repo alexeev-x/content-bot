@@ -1,35 +1,42 @@
-# CONTENT-BOT — ФИНАЛЬНАЯ АРХИТЕКТУРА FRONTEND v1.0
+# CONTENT-BOT — FINAL FRONTEND ARCHITECTURE v1.0
 
-**Дата:** 03.10.2026 · **Статус:** утверждённое техническое направление; приложение ещё не реализовано · **Продукт:** админка ALEXEEV Studio (рабочее имя), `apps/frontend/` в `content-bot`. Бэкенд: `docs/BACKEND_ARCHITECTURE.md`.
+**Date:** 03.10.2026 · **Status:** approved technical direction; the application is not yet implemented · **Product:** ALEXEEV Studio admin panel (working name), `apps/frontend/` in `content-bot`. Backend: `docs/BACKEND_ARCHITECTURE.md`.
 
-> Для наших задач нужен **быстрый SPA-интерфейс оператора**, не публичный SEO-сайт. SSR, Next.js, микрофронтенды и тяжёлый глобальный state management на старте не нужны. Цель — безопасно управлять публикациями и видеть реальные сбои, в том числе с телефона.
+> Our tasks need a **fast operator SPA interface**, not a public SEO site. SSR, Next.js, micro-frontends and heavy global state management are not needed at the start. The goal is to manage publications safely and to see real failures, including from a phone.
 
-## 1. Выбранный стек и правила замены
+## 0. Approved stack (owner decision 03.10.2026)
 
-| Задача | Решение | Причина |
+Chosen by three criteria: AI-friendliness (llms.txt, markdown documentation, official skills/MCP, API stability), documentation quality, flexibility. Replaces the table rows of §1 and the Pages/BFF scheme from §1 and §6.
+
+| Layer | Choice | Fallback |
 |---|---|---|
-| Основа | React + TypeScript strict + Vite | простой SPA, быстрая сборка, локальные тесты |
-| Размещение | Cloudflare Pages | независимый деплой, preview для PR |
-| BFF | Pages Function `/api/*` + Service Binding к Worker | единый домен, нет токенов бота и CORS-логики в браузере |
-| Роутер | React Router | nested layout, ленивая загрузка экранов |
-| Server state | TanStack Query | кэш, загрузка/ошибки, refetch по необходимости, invalidation |
-| Формы | React Hook Form + Zod | типизация, явные ошибки, редкие ререндеры |
-| UI | CSS variables + небольшая собственная библиотека примитивов | единый стиль и замена без переписывания всех экранов |
-| Даты | `Intl.DateTimeFormat` (таймзона пользователя) | хранение в UTC, без тяжёлой библиотеки до необходимости |
-| Unit/Component | Vitest + React Testing Library + MSW | пользовательское поведение, замена реального API |
-| E2E | Playwright | реальные сценарии входа, редактора, ошибок и мобильной ширины |
-| Контроль границ | dependency-cruiser + ESLint | запрещённые импорты и циклы |
+| UI components | React Aria Components, wrapped in `shared/ui` | HeroUI v3 |
+| Styles | CSS Modules + CSS variables (monochrome, dark/light themes) | Tailwind v4 |
+| Router | TanStack Router (typed search params via Zod) | React Router 8 |
+| Server state | TanStack Query v5 | SWR |
+| Forms | React Hook Form 7 + Zod 4 (`^7`, v8 is in beta) | TanStack Form |
+| Tables | React Aria Table / `<table>` + TanStack Table v9 for columns and sorting | custom table |
+| Dates | `@internationalized/date` + `Intl` | date-fns 4 + tz |
+| Texts | typed dictionary `ru.ts` + `Intl`, no i18n library | Lingui |
+| Global state | none | Zustand |
+| Build and hosting | Vite 8 + `@cloudflare/vite-plugin`; one Worker serves the SPA, `/api/*` and the bot webhook (no Pages and no BFF) | — |
+| Telegram Mini App | the same SPA; a thin typed wrapper over `window.Telegram.WebApp` (no third-party SDK), see §16 | `@tma.js/sdk` |
+| Sign-in | Mini App — `initData`; browser — «Войти через Telegram» (OpenID Connect); token in memory, in `Authorization: Bearer` | — |
+| TypeScript | 6.x; move to 7.1 once linters get the API | TS 7 via compatibility package |
+| Linter / formatter | Oxlint + Prettier | Biome |
+| Tests | Vitest 4.1 (one version across the whole repository until the Cloudflare plugin supports 5) + Testing Library + MSW 2; Playwright + axe (`verify:e2e`) | — |
+| Module boundaries | dependency-cruiser | — |
 
-Выбор библиотек — техническое решение для старта, не лицензионная или ценовая гарантия на будущее. Зафиксировать конкретные версии в lockfile после создания репозитория; не ставить latest вслепую.
+## 1. Library replacement rules
 
-## 2. Архитектура по функциональным областям
+The choice of libraries is a technical decision for the start, not a license or pricing guarantee for the future. Pin specific versions in the lockfile after the repository is created; do not install latest blindly.
 
-Не создаём одну гигантскую папку `components/` со всем кодом, но и не копируем полностью сложную Feature-Sliced Design со множеством искусственных слоёв. Используем облегчённую feature-first структуру:
+## 2. Architecture by functional area
+
+We do not create one giant `components/` folder with all the code, but we also do not fully copy the complex Feature-Sliced Design with many artificial layers. We use a lightweight feature-first structure:
 
 ```text
 apps/frontend/
-├── functions/
-│   └── api/[[path]].ts               # BFF; same-origin -> Service Binding
 ├── public/
 │   └── icons/
 ├── src/
@@ -43,9 +50,9 @@ apps/frontend/
 │   │   │   ├── AuthLayout.tsx
 │   │   │   └── PageErrorBoundary.tsx
 │   │   └── styles/
-│   │       ├── tokens.css            # цвета, интервалы, типографика
+│   │       ├── tokens.css            # colors, spacing, typography
 │   │       └── global.css
-│   ├── pages/                         # сборка экранов, минимум бизнес-логики
+│   ├── pages/                         # screen assembly, minimal business logic
 │   │   ├── dashboard/DashboardPage.tsx
 │   │   ├── posts/PostsPage.tsx
 │   │   ├── editor/PostEditorPage.tsx
@@ -54,10 +61,10 @@ apps/frontend/
 │   │   ├── incidents/IncidentsPage.tsx
 │   │   ├── settings/SettingsPage.tsx
 │   │   └── login/LoginPage.tsx
-│   ├── features/                      # функциональные срезы
+│   ├── features/                      # functional slices
 │   │   ├── posts/
-│   │   │   ├── index.ts              # публичный API feature
-│   │   │   ├── api/posts-api.ts      # API-функции из общего client
+│   │   │   ├── index.ts              # public API of the feature
+│   │   │   ├── api/posts-api.ts      # API functions from the shared client
 │   │   │   ├── api/posts-queries.ts  # query keys, query/mutation hooks
 │   │   │   ├── model/editor-schema.ts
 │   │   │   ├── model/use-post-editor.ts
@@ -70,17 +77,17 @@ apps/frontend/
 │   │   ├── monitoring/ ...
 │   │   ├── auth/ ...
 │   │   └── settings/ ...
-│   ├── entities/                      # реальные общие сущности, создавать по факту
+│   ├── entities/                      # real shared entities, create as needed
 │   │   ├── post/ ...
 │   │   └── incident/ ...
 │   ├── shared/
 │   │   ├── api/
-│   │   │   ├── http-client.ts        # fetch, credentials, CSRF, requestId
+│   │   │   ├── http-client.ts        # fetch, Bearer token, re-sign-in on 401, requestId
 │   │   │   ├── api-errors.ts
 │   │   │   └── query-keys.ts
 │   │   ├── ui/                        # Button, Input, Dialog, Toast, DataTable
 │   │   ├── lib/                       # format-date, format-error, download
-│   │   └── hooks/                     # только действительно общие хуки
+│   │   └── hooks/                     # only truly shared hooks
 │   └── test/
 │       ├── setup.ts
 │       ├── msw-handlers.ts
@@ -99,37 +106,37 @@ apps/contracts/
 └── package.json
 ```
 
-**Правила импортов:** `app` подключает страницы и providers; `pages` композируют `features`, `entities`, `shared`; одна feature не импортирует внутренности другой. Если двум функциям нужен один тип — вынести реальную общую сущность в `entities` или `contracts`, но не делать `shared` свалкой бизнес-логики. Публичные экспорты через `index.ts`, запрет deep imports. Все графы зависимостей проверяет CI.
+**Import rules:** `app` wires up pages and providers; `pages` compose `features`, `entities`, `shared`; one feature does not import the internals of another. If two features need the same type — move a real shared entity into `entities` or `contracts`, but do not turn `shared` into a dumping ground for business logic. Public exports go through `index.ts`; deep imports are forbidden. CI checks all dependency graphs.
 
-## 3. Структура одной feature на примере `posts`
+## 3. Structure of a single feature, using `posts` as an example
 
-- `api/posts-api.ts`: тонкие функции `listPosts`, `getPost`, `createDraft`, `saveRevision`, `schedulePost`, возвращают DTO; никаких импортов React.
-- `api/posts-queries.ts`: `queryOptions`, `useMutation`, `invalidateQueries` только после успешного серверного ответа. Для важных операций (publish/retry) **не делать optimistic success**.
-- `model/editor-schema.ts`: Zod-схема редакторской формы, отличная от серверного DTO только там, где есть UI-специфика; не дублировать серверную бизнес-валидацию.
-- `model/use-post-editor.ts`: жизненный цикл черновика, dirty state, версия ревизии, контроль конфликта 409.
-- `ui/PostEditor.tsx`: поля формы + доступность, никаких прямых `fetch`.
-- `ui/UnsavedChangesGuard.tsx`: навигационная защита при несохранённых изменениях.
-- `tests/`: поведение редактора, состояния loading/error/conflict/unknown.
+- `api/posts-api.ts`: thin functions `listPosts`, `getPost`, `createDraft`, `saveRevision`, `schedulePost`, returning DTOs; no React imports.
+- `api/posts-queries.ts`: `queryOptions`, `useMutation`, `invalidateQueries` only after a successful server response. For important operations (publish/retry) **do not do optimistic success**.
+- `model/editor-schema.ts`: Zod schema of the editor form, differing from the server DTO only where there is UI specificity; do not duplicate server business validation.
+- `model/use-post-editor.ts`: draft lifecycle, dirty state, revision version, handling of the 409 conflict.
+- `ui/PostEditor.tsx`: form fields + accessibility, no direct `fetch`.
+- `ui/UnsavedChangesGuard.tsx`: navigation guard for unsaved changes.
+- `tests/`: editor behavior, loading/error/conflict/unknown states.
 
-Удаление feature должно потребовать правку только `app/router.tsx`, `app/navigation.ts` и соответствующего среза. Не создавать перекрёстные импорты календаря из внутренностей редактора: календарь работает с теми же публичными DTO API.
+Removing a feature should require changes only to `app/router.tsx`, `app/navigation.ts` and the corresponding slice. Do not create cross-imports of the calendar from the editor's internals: the calendar works with the same public API DTOs.
 
-## 4. Правильное разделение состояния
+## 4. Proper state separation
 
-| Состояние | Где хранить | Пример |
+| State | Where to store | Example |
 |---|---|---|
-| Серверное | TanStack Query | публикации, список героев, инциденты, профили |
-| URL | React Router search params | фильтр `?status=failed`, страница, поиск, период |
-| Форма | React Hook Form | заголовок, текст, герой, время, медиа |
-| Кратковременное UI | локальный `useState` | модальное окно, вкладка, фокус |
-| Учетная запись | `GET /api/v1/auth/me` + Query | отображение пользователя и прав; сервер всегда перепроверяет |
-| Пользовательские настройки | серверная БД через API | timezone, включенные рубрики; локально только внешний вид |
+| Server | TanStack Query | publications, list of heroes, incidents, profiles |
+| URL | TanStack Router search params (route Zod schema) | filter `?status=failed`, page, search, period |
+| Form | React Hook Form | title, text, hero, time, media |
+| Transient UI | local `useState` | modal window, tab, focus |
+| Account | `GET /api/v1/auth/me` + Query | displaying the user and permissions; the server always re-checks |
+| User settings | server DB via API | timezone, enabled rubrics; only appearance is local |
 
-Не копировать серверные объекты в Zustand/Redux/Context без реальной необходимости. Не делать `useEffect` для вычисляемых из props значений. Избегать цепочек `useEffect -> setState -> useEffect`. Context допустим для лёгкой темы/доступности, но не как универсальная шина событий.
+Do not copy server objects into Zustand/Redux/Context without real need. Do not use `useEffect` for values computed from props. Avoid `useEffect -> setState -> useEffect` chains. Context is acceptable for a lightweight theme/accessibility, but not as a universal event bus.
 
-У Query по умолчанию данные считаются устаревшими сразу, а неактивные запросы обычно удерживаются в памяти пять минут и повторно запрашиваются при фокусе/переподключении. Задать явный `staleTime` для списков/справочников; на экране инцидентов включать polling 15–30 секунд **только когда вкладка видима**, на остальных экранах polling не использовать. Ограничить параметры пагинации (например, 25–50 записей) и объём кэшируемых изображений. UI нельзя превращать в копию D1 в оперативной памяти.
+By default, Query treats data as stale immediately, inactive queries are usually kept in memory for five minutes and are refetched on focus/reconnect. Set an explicit `staleTime` for lists/reference data; on the incidents screen enable 15–30 second polling **only when the tab is visible**, and do not use polling on other screens. Limit pagination parameters (for example, 25–50 records) and the volume of cached images. The UI must not become an in-memory copy of D1.
 
 ```ts
-// features/posts/api/posts-queries.ts — пример
+// features/posts/api/posts-queries.ts — example
 export const postKeys = {
   all: ['posts'] as const,
   list: (filters: PostFilters) => ['posts', 'list', filters] as const,
@@ -148,152 +155,159 @@ export function useSavePost() {
 }
 ```
 
-## 5. Общий API-контракт и защита от рассинхронизации
+## 5. Shared API contract and protection against desynchronization
 
-`contracts` содержит версии общих Zod-схем и TypeScript DTO (JSON-only). Это **не** общий код бизнес-логики и не ORM. Frontend и backend импортируют одни типы для ответов и запросов, но сервер самостоятельно валидирует каждое изменение.
+`contracts` contains versions of shared Zod schemas and TypeScript DTOs (JSON-only). This is **not** shared business-logic code and not an ORM. Frontend and backend import the same types for responses and requests, but the server validates every change independently.
 
-Пример: `PostDto`, `CreateDraftInput`, `SaveRevisionInput`, `PublicationDto`, `IncidentDto`, `ApiErrorDto`, `PagedResult<T>`. `GET /api/v1/posts?cursor=...`, `POST /api/v1/posts`, `PATCH /api/v1/posts/:id` с `If-Match: revision`, `POST /api/v1/publications/:id/retry` — только подтверждённая безопасная операция.
+Examples: `PostDto`, `CreateDraftInput`, `SaveRevisionInput`, `PublicationDto`, `IncidentDto`, `ApiErrorDto`, `PageDto<T>`. `GET /api/v1/posts?cursor=...`, `POST /api/v1/posts`, `PATCH /api/v1/posts/:id` with a revision (409 on a stale one), `POST /api/v1/publications/:id/retry` — only a confirmed safe operation.
 
 ```ts
 // apps/contracts/src/posts.ts
 import { z } from 'zod';
 
 export const postDtoSchema = z.object({
-  id: z.string().uuid(),
+  id: z.uuid(),
   title: z.string(),
   body: z.string(),
   revision: z.number().int().nonnegative(),
   status: z.enum(['draft', 'approved', 'scheduled']),
-  updatedAt: z.string().datetime(),
+  updatedAt: z.iso.datetime(),
 });
 export type PostDto = z.infer<typeof postDtoSchema>;
 ```
 
-`ApiError` — стабильные коды: `UNAUTHORIZED`, `FORBIDDEN`, `VALIDATION_ERROR`, `CONFLICT`, `RATE_LIMIT`, `UNAVAILABLE`, `UNKNOWN_SEND_RESULT`; текст сообщения может локализоваться, код не меняется. UI для 401 ведёт на вход; 403 показывает отсутствие права; 409 оставляет локальные правки и открывает диалог сравнения версий; 429 показывает время повторной попытки; 500/503 показывают requestId и кнопку повторить **только безопасный запрос**.
+`ApiError` — stable codes: `UNAUTHORIZED`, `FORBIDDEN`, `VALIDATION_ERROR`, `CONFLICT`, `NOT_FOUND`, `RATE_LIMIT`, `UNAVAILABLE`, `UNKNOWN_SEND_RESULT`; the message text may be localized, the code does not change. The UI for 401 leads to sign-in; 403 shows the lack of permission; 409 keeps local edits and opens a version comparison dialog; 429 shows the retry time; 500/503 show the requestId and a retry button **only for a safe request**.
 
-## 6. Сетевой слой и безопасность
-
-Схема:
+## 6. Network layer and security
 
 ```text
-Browser -> https://admin-host/api/v1/*
-        -> Pages Function same-origin BFF
-        -> Service Binding
-        -> Backend Worker /api/v1/* (server session + role check)
-        -> D1 / Queue / R2
+Browser or Telegram Mini App → https://<domain>/api/v1/*   (same Worker, same origin)
+                             → Hono: Bearer token check → modules → D1
 ```
 
-BFF пробрасывает строго разрешённые пути/методы и безопасные заголовки; не превращать в открытый HTTP-прокси и не доверять произвольному `X-Admin-Id`. На сервере всегда проверять сессию и права. Бот-токен и API-ключи сторонних источников — только server-side; `import.meta.env.VITE_*` всегда публичен, секреты туда НЕ помещать. HttpOnly+Secure+SameSite session cookie, серверная CSRF и Origin-проверка, короткая жизнь одноразового login code, ограничение попыток. Logout инвалидирует сессию и очищает query cache. Не сохранять сессию в `localStorage`, не внедрять HTML из внешних новостей через `dangerouslySetInnerHTML` без отдельной sanitizer/strict allowlist; по умолчанию отображать текст.
+**Sign-in (one identity — the owner's Telegram ID):**
+- **Mini App:** on launch the client sends `Telegram.WebApp.initData` to `POST /api/v1/auth/telegram` and receives an access token (60 minutes). While the token is valid, the client renews it via `POST /api/v1/auth/refresh` with the current token; a Mini App session lives no longer than 12 hours. `initData` is valid for sign-in only 15 minutes after launch, so after the session expires the Mini App must be opened from the bot again.
+- **Browser:** `/login` with the «Войти через Telegram» button → redirect to the official Telegram OpenID Connect → `/api/v1/auth/oidc/callback` → the server sets the refresh cookie → the client calls `POST /api/v1/auth/refresh` and receives an access token.
+
+**Storage:** the access token is **in memory only** (module `shared/api/session.ts`), never in `localStorage`/`sessionStorage`. Reason: the Telegram Web Mini App runs inside a frame where third-party cookies are blocked, so a cookie cannot be the basis. The refresh cookie (`HttpOnly; Secure; SameSite=Lax`, path `/api/v1/auth`) exists only in the browser scenario.
 
 ```ts
-// shared/api/http-client.ts — компактный пример
+// shared/api/http-client.ts — compact example
 export async function apiRequest<T>(path: string, init: RequestInit = {}): Promise<T> {
   const response = await fetch(`/api/v1${path}`, {
     ...init,
-    credentials: 'same-origin',
-    headers: {
-      Accept: 'application/json',
-      ...init.headers,
-    },
+    headers: { Accept: 'application/json', Authorization: `Bearer ${session.accessToken()}`, ...init.headers },
   });
+  if (response.status === 401) return session.reauthenticate().then(() => apiRequest<T>(path, init)); // once
   if (!response.ok) throw await mapApiError(response);
   return response.json() as Promise<T>;
 }
 ```
 
-Пример не включает CSRF-header: production client обязан взять token, выданный защищённым `/auth/csrf`, и передавать его для изменяющих методов. Не вставлять произвольную переменную `X-CSRF-Token`, если сервер ещё не реализован; контракт разрабатывается и тестируется одновременно с бекендом.
+The main API does not accept cookies, so a CSRF token is not needed; the server protects the `/api/v1/auth/*` endpoints that use cookies by checking `Origin`. The bot token and third-party API keys exist only on the server; `import.meta.env.VITE_*` is always public. Logout deletes the session on the server and clears the Query cache. Do not inject HTML from external sources via `dangerouslySetInnerHTML`; show text by default. Re-authentication on 401 — at most one attempt, then the sign-in screen (in the Mini App — the message «откройте заново из бота»).
 
-## 7. Маршруты, загрузка и отказоустойчивость экранов
+## 7. Routes, loading and screen fault tolerance
 
 ```text
-/login                  вход и одноразовый код
-/                       overview / health / ближайшие публикации
-/posts                  список публикаций с фильтром
-/posts/new              новый черновик
-/posts/:id              редактор и история ревизий
-/calendar               расписание, перенести/отменить
-/media                  галерея героев, исходники, шаблоны
-/incidents              ошибки, повторы, unknown Telegram
-/settings               расписание и права
+/login                  «Войти через Telegram» (in the Mini App sign-in is automatic)
+/                       overview / health / upcoming publications
+/posts                  list of publications with a filter
+/posts/new              new draft
+/posts/:id              editor and revision history
+/calendar               schedule, reschedule/cancel
+/media                  gallery of heroes, sources, templates
+/incidents              errors, retries, unknown Telegram
+/settings               channels, group and schedule
 /*                      NotFound
 ```
 
-Ленивая загрузка по маршрутам (`React.lazy` или lazy route modules), общий лёгкий layout. У каждого независимого экрана `loading`, `empty`, `error`, `unauthorized`, `ready`; отдельные error boundaries предотвращают обрушение всей админки, но не заменяют обработку HTTP-ошибок. Таблицы с пагинацией и доступными клавиатурными действиями; не загружать все 10 000 строк в память. Для dashboard разрешён частичный результат: поломка графика не должна скрывать критическую ошибку отправки. Вкладка incidents должна показывать stale-метку времени последнего обновления.
+Lazy loading per route (`React.lazy` or lazy route modules), a shared lightweight layout. Every independent screen has `loading`, `empty`, `error`, `unauthorized`, `ready`; separate error boundaries prevent the whole admin panel from crashing, but do not replace HTTP error handling. Tables with pagination and accessible keyboard actions; do not load all 10,000 rows into memory. A partial result is allowed for the dashboard: a broken chart must not hide a critical send error. The incidents tab must show a stale label with the time of the last update.
 
-## 8. Превью изображений и работа с медиа
+## 8. Image previews and media handling
 
-- Исходные изображения героев предоставляет владелец; редактор загружает их с проверкой типа, веса и допустимого разрешения. Не класть blob/base64 в localStorage и TanStack Query.
-- Для превью файлов использовать `URL.createObjectURL(file)` только до загрузки и обязательно `URL.revokeObjectURL()` при замене/размонтировании, чтобы не удерживать память.
-- Медиатека — пагинация + серверные миниатюры; `loading="lazy"` для списков, отдельные full-size файлы только по запросу. Информация в D1, бинарные объекты в R2.
-- Превью окончательной карточки должно использовать **тот же серверный рендерер/шаблон**, что и публикация: `POST /api/v1/media/preview`, а не отдельную копию верстки в браузере. Для ускорения локально можно показать приблизительный макет, но перед публикацией отображать фактическое PNG. Рендер тяжёлых карточек асинхронно, защищён от злоупотребления и лимитирован квотами.
-- При недоступности рендера отображать fallback и явно отметить, что картинка не создана; не выдавать пример за реальный результат.
+- Source hero images are provided by the owner; the editor uploads them with checks of type, size and allowed resolution. Do not put blob/base64 in localStorage or TanStack Query.
+- For file previews use `URL.createObjectURL(file)` only before upload and always call `URL.revokeObjectURL()` on replacement/unmount so as not to hold memory.
+- Media library — pagination + server thumbnails; `loading="lazy"` for lists, separate full-size files only on request. Metadata in D1, binary objects in R2.
+- The preview of the final card must use **the same server renderer/template** as the publication: `POST /api/v1/media/preview`, not a separate copy of the markup in the browser. For speed, an approximate mockup may be shown locally, but before publication the actual PNG must be displayed. Rendering of heavy cards is asynchronous, protected against abuse and limited by quotas.
+- If the renderer is unavailable, show a fallback and explicitly mark that the image was not created; do not present a sample as the real result.
 
-## 9. Редактор и календарь без потери данных
+## 9. Editor and calendar without data loss
 
-- React Hook Form держит локальные значения, сервер получает только `Save`/контролируемый debounce **черновиков**; не отправлять запрос на каждую клавишу.
-- При изменении поля выставить dirty flag и включить предупреждение при навигации/закрытии. `beforeunload` не гарантирован на мобильных: дополнительно кнопка «Сохранить», статус последних правок и локальный in-memory буфер до закрытия страницы (без обещания восстановления после краша).
-- Для конкурирующих правок `revision`/`If-Match`; ответ 409 не перезаписывает данные другого редактора, предлагает сравнить/перезагрузить.
-- Публикация — отдельная двухэтапная операция: preview -> explicit confirm -> сервер создаёт `publication`/job. UI не показывает «Опубликовано» пока backend не вернул `sent` и `externalMessageId`; после 202 Accepted — подпись возвращённого статуса (обычно «Запланировано») и фоновые обновления.
-- Отмена/retry недоступны при `unknown` до ручной проверки. Для неизвестного результата — отдельный экран инцидента и понятное предупреждение о риске дубля.
-- В календаре все даты пользовательские, сервер получает UTC ISO 8601 и явный IANA timezone (например, `Europe/Chisinau`), учитываем DST. Не полагаться на текстовые даты из locale браузера.
+- React Hook Form holds local values; the server receives only `Save`/a controlled debounce of **drafts**; do not send a request on every keystroke.
+- On a field change set the dirty flag and enable a warning on navigation/close. `beforeunload` is not guaranteed on mobile: additionally a «Сохранить» button, the status of the latest edits, and a local in-memory buffer until the page is closed (without promising recovery after a crash).
+- For concurrent edits — a revision; a 409 response does not overwrite another editor's data and offers to compare/reload.
+- Publication is a separate two-step operation: preview -> explicit confirm -> the server creates a `publication`/job. The UI does not show «Опубликовано» until the backend returns `sent` and `externalMessageId`; after 202 Accepted — the label of the returned status (usually «Запланировано») and background updates.
+- Cancel/retry are unavailable for `unknown` until manual verification. For an unknown result — a separate incident screen and a clear warning about the risk of a duplicate.
+- In the calendar all dates are user dates, the server receives UTC ISO 8601 and an explicit IANA timezone (for example, `Europe/Chisinau`), DST is taken into account. Do not rely on text dates from the browser locale.
 
-## 10. UI/UX и дизайн-система
+## 10. UI/UX and design system
 
-- **Решение владельца 03.10.2026:** спокойный монохром — тёмная и светлая темы на нейтральных серых, без ярких/фирменных акцентов; цвет только для ошибок/деструктивных действий и `unknown`, всегда вместе с текстом и иконкой. Тема по `prefers-color-scheme` + ручной переключатель. **UI-библиотека не выбрана** — сравнение (React Aria Components, HeroUI, Base UI и др.) будет рассмотрено отдельно; до решения библиотеки не устанавливать.
-- Токены `--color-bg`, `--color-surface`, `--color-text`, `--color-accent`, `--space-*`, `--radius-*` и типографика в `app/styles/tokens.css`; кнопки и поля через `shared/ui`.
-- На desktop: боковая навигация, плотные таблицы и двухпанельный редактор. На mobile: компактная навигация, таблицы превращаются в карточки/доступную горизонтальную прокрутку, основные действия остаются доступными.
-- Доступность: WCAG 2.2 AA как целевой ориентир; интерактивы достижимы с клавиатуры, видимый фокус, семантические `label`, корректная структура заголовков, цвет не единственный маркер статуса, диалоги управляют фокусом. Для ошибок формы `aria-describedby`; для фонового обновления — умеренное `aria-live`, без постоянных оповещений.
-- Пользовательские статусы: «Запланировано», «В очереди», «Публикуется», «Опубликовано», «Повтор по расписанию», «Ошибка», «Требует проверки», «Отменено». Каноническое соответствие `PublicationStatus` → подпись → группа токенов — skill `page-spec`. Не показывать HTTP 503 как единственное объяснение человеку — дать короткий текст плюс requestId.
+- **Owner decision 03.10.2026:** calm monochrome — dark and light themes on neutral grays, without bright/brand accents; color only for errors/destructive actions and `unknown`, always together with text and an icon. Theme by `prefers-color-scheme` + a manual switch. Components — React Aria Components in `shared/ui` (see §0).
+- Tokens `--color-bg`, `--color-surface`, `--color-text`, `--color-accent`, `--space-*`, `--radius-*` and typography in `app/styles/tokens.css`; buttons and fields via `shared/ui`.
+- On desktop: side navigation, dense tables and a two-pane editor. On mobile: compact navigation, tables turn into cards/accessible horizontal scrolling, the main actions remain available.
+- Accessibility: WCAG 2.2 AA as the target; interactive elements are keyboard-reachable, visible focus, semantic `label`, correct heading structure, color is not the only status marker, dialogs manage focus. For form errors `aria-describedby`; for background updates — moderate `aria-live`, without constant announcements.
+- User-facing statuses: «Запланировано», «В очереди», «Публикуется», «Опубликовано», «Повтор по расписанию», «Ошибка», «Требует проверки», «Отменено». The canonical mapping `PublicationStatus` → label → token group is in the skill `page-spec`. Do not show HTTP 503 as the only explanation to a person — give a short text plus the requestId.
 
-## 11. Производительность и утечки памяти
+## 11. Performance and memory leaks
 
-- Route lazy load, дерево импортов без тяжёлых SDK на главном экране. Проверять размер Vite bundle по build report; большие зависимости подключать только на нужном маршруте.
-- `useEffect` только для связи с внешними системами; timers/subscriptions/AbortController обязательно очищать на unmount. Polling останавливается при скрытой вкладке и размонтировании экрана; не создавать параллельные интервалы.
-- Большие списки серверно пагинируются; при необходимости виртуализация только для реально больших экранов. Не применять `useMemo`/`useCallback` повсюду без профилирования.
-- Canvas/image object URLs чистить; превью не держат полноразмерные изображения в состоянии компонентов. Не загружать сразу все hero-art из R2.
-- Ошибка сети не должна запускать бесконечный refetch. Для мутаций (особенно publish/retry) по умолчанию `retry: false`. Read-only запросы — ограниченный retry с backoff и явными исключениями для 401/403/400.
+- Route lazy load, an import tree without heavy SDKs on the main screen. Check the Vite bundle size from the build report; load large dependencies only on the route that needs them.
+- `useEffect` only for connecting to external systems; timers/subscriptions/AbortController must be cleaned up on unmount. Polling stops when the tab is hidden and when the screen unmounts; do not create parallel intervals.
+- Large lists are paginated on the server; virtualization only for truly large screens when needed. Do not apply `useMemo`/`useCallback` everywhere without profiling.
+- Clean up canvas/image object URLs; previews do not hold full-size images in component state. Do not load all hero-art from R2 at once.
+- A network error must not trigger an infinite refetch. For mutations (especially publish/retry) `retry: false` by default. Read-only queries — limited retry with backoff and explicit exceptions for 401/403/400.
 
-## 12. Тесты frontend и интеграция
+## 12. Frontend tests and integration
 
-- Unit: форматирование даты/UTC, mapping API errors, Zod схемы форм, чистые функции фильтров.
-- Component (RTL + MSW): пустой список, loading/error, login, editor validation, 409 conflict, сохранение с пересозданием компонента, failed/unknown action restrictions.
-- E2E (Playwright): одноразовый вход, создание черновика, preview, безопасное планирование, сбой очереди, неизвестный результат Telegram, журнал инцидентов, logout, mobile viewport, базовая клавиатура. Все тесты изолированы, Telegram мокируется или используется staging.
-- Контрактные тесты: `contracts` импортируются API и админкой; fixtures соответствуют продовым DTO. CORS/CSRF и `Set-Cookie` проверять интеграционными тестами BFF+Worker.
-- CI: `typecheck`, `eslint`, dependency-cruiser, `vitest`, `vite build`, Playwright smoke на preview/staging. A11y: axe в критичных формах/диалогах + ручной keyboard smoke.
-- Не тестировать внутренний `useState` и CSS-классы как основное подтверждение качества; проверять пользовательские действия и видимые результаты.
+- Unit: date/UTC formatting, API error mapping, form Zod schemas, pure filter functions.
+- Component (RTL + MSW): empty list, loading/error, login, editor validation, 409 conflict, saving with component re-creation, failed/unknown action restrictions.
+- E2E (Playwright): Telegram sign-in (browser and Mini App with a mocked environment), draft creation, preview, safe scheduling, unknown Telegram result, incident log, logout, mobile viewport, basic keyboard. All tests are isolated, Telegram is mocked.
+- Contract tests: `contracts` are imported by the API and the admin panel; fixtures match production DTOs. The Bearer token, the refresh cookie and the `Origin` check on `/api/v1/auth/*` are verified by Worker integration tests.
+- CI: `npm run verify` (Oxlint, Prettier, `tsc`, dependency-cruiser, Vitest, `vite build`); Playwright — `verify:e2e`. A11y: axe in critical forms/dialogs + a manual keyboard smoke.
+- Do not test internal `useState` and CSS classes as the main evidence of quality; verify user actions and visible results.
 
-## 13. Правила добавления/удаления frontend feature
+## 13. Rules for adding/removing a frontend feature
 
-1. Публичный контракт API и пользовательский сценарий, затем feature с необходимым минимумом файлов.
-2. Реализовать `loading`, `empty`, `error`, `success` и все права/неуспехи серверных ответов.
-3. По возможности не менять layout/router вне регистрации ссылки и lazy route.
-4. Запрещены deep imports между feature; общая логика выносится в `entities/shared` только при реальном повторном использовании.
-5. Чтобы удалить feature — выключить/скрыть маршрут и навигацию; убрать зависимые query keys; убедиться, что нет других импортов; удалить файлы; прогнать architecture + component + E2E.
+1. Public API contract and user scenario first, then the feature with the necessary minimum of files.
+2. Implement `loading`, `empty`, `error`, `success` and all permissions/failures of server responses.
+3. Where possible, do not change layout/router beyond registering a link and a lazy route.
+4. Deep imports between features are forbidden; shared logic is moved to `entities/shared` only on real reuse.
+5. To remove a feature — disable/hide the route and navigation; remove dependent query keys; make sure there are no other imports; delete the files; run architecture + component + E2E.
 
-## 14. Приёмка frontend первой версии
+## 14. Acceptance of the first frontend version
 
-- Все основные экраны доступны на desktop/mobile, есть понятные состояния loading/empty/error.
-- Неавторизованный пользователь не видит приватные данные; при истечении сессии React корректно очищает чувствительный кэш и направляет на вход.
-- Нельзя случайно потерять редактируемый черновик при обычной навигации, а конфликт версий не приводит к молчаливому перезаписыванию.
-- Админка показывает реальное состояние API/Queue/Cron, явный `unknown`, requestId и безопасную кнопку retry.
-- После `202 Accepted` интерфейс не сообщает «Опубликовано» раньше подтверждения Telegram.
-- Нет секретов в Vite сборке, нет бесконечных polling или утечки object URLs, CI и базовые E2E зелёные.
-- Рендер карточек согласован с backend; API содержит версию/ревизию контента и предоставляет контрактное тестирование.
+- All main screens are available on desktop/mobile, with clear loading/empty/error states.
+- An unauthenticated user does not see private data; when the session expires React correctly clears the sensitive cache and redirects to sign-in.
+- An editable draft cannot be accidentally lost during ordinary navigation, and a version conflict does not lead to silent overwriting.
+- The admin panel shows the real state of the API and Cron (time of the last tick), an explicit `unknown`, the requestId and a safe retry button.
+- After `202 Accepted` the interface does not report «Опубликовано» before Telegram confirms.
+- No secrets in the Vite build, no infinite polling or object URL leaks, CI and basic E2E are green.
+- Card rendering is consistent with the backend; the API contains a content version/revision and provides contract testing.
 
-## 15. Первоисточники по frontend
+## 15. Primary sources for frontend
 
 - React, Choosing State Structure: https://react.dev/learn/choosing-the-state-structure
 - React, You Might Not Need an Effect: https://react.dev/learn/you-might-not-need-an-effect
 - TanStack Query, Important Defaults: https://tanstack.com/query/latest/docs/framework/react/guides/important-defaults
-- React Router, Routing: https://reactrouter.com/start/declarative/routing
-- Cloudflare Pages, Service bindings: https://developers.cloudflare.com/pages/functions/bindings/
+- TanStack Router (search params): https://tanstack.com/router/latest/docs/framework/react/guide/search-params
+- Cloudflare Workers static assets (SPA): https://developers.cloudflare.com/workers/static-assets/
+- Telegram Mini Apps: https://core.telegram.org/bots/webapps · Log in with Telegram: https://core.telegram.org/bots/telegram-login
 - Testing Library, guiding principles: https://testing-library.com/docs/guiding-principles/
 - Playwright, Best Practices: https://playwright.dev/docs/best-practices
 - OWASP, CSRF prevention: https://cheatsheetseries.owasp.org/cheatsheets/Cross-Site_Request_Forgery_Prevention_Cheat_Sheet.html
 - dependency-cruiser: https://github.com/sverweij/dependency-cruiser
 
-**Это проектная документация. Фактическая производительность, доступность и безопасность подтверждаются только после реализации и тестов.**
+**This is design documentation. Actual performance, accessibility and security are confirmed only after implementation and tests.**
 
-## Решение владельца 03.10.2026: Figma полностью исключена
+## 16. Telegram Mini App (the same admin panel)
 
-Ни проектирование, ни реализация, ни приёмка не зависят от Figma. Источник дизайна — version-controlled tokens.css, documented component API, story examples и спецификации пользовательских сценариев/страниц. Агент-дизайнер создаёт и корректирует их непосредственно в репозитории; frontend собирает интерфейс из primitives. Проверка — браузерные screenshots и accessibility tests, без промежуточного экспорта макетов. См. docs/DESIGN_SYSTEM_NO_FIGMA.md.
+The admin panel opens both as a regular website and as a Mini App from the bot (menu button, direct link `t.me/<bot>?startapp=<parameter>`). There is no separate version.
+
+- **Wrapper `shared/telegram/`:** a thin typed module over `window.Telegram.WebApp` (the official script `telegram-web-app.js` is included in `<head>` before the bundle). The Mini App indicator is a non-empty `initData`; do not detect by User-Agent. All other code works only through the wrapper, so it is easy to replace in tests.
+- **Launch parameters** are read from `Telegram.WebApp` (the script parses `location.hash` itself), not from the router URL.
+- **Theme:** light/dark by Telegram `colorScheme` (event `themeChanged`); the palette remains our monochrome one, we do not copy Telegram colors.
+- **Safe areas:** padding `max(env(safe-area-inset-*), var(--tg-content-safe-area-inset-*))`; the height of bottom panels — by `viewportStableHeight`. On launch `ready()` and `expand()`; we do not use fullscreen mode.
+- **Native elements** (with an `isVersionAtLeast` check): the «Back» button — when router history exists; close confirmation is enabled while the form is dirty; the main button — «Сохранить» in forms; subscriptions are removed on unmount.
+- **Mobile layout is primary:** 375 px is the main screen, not a cut-down one.
+- **Tests:** Playwright mocks `window.Telegram.WebApp` via `addInitScript` and generates a signed `initData` with a test bot token; real Telegram is not needed for tests. Manual verification on a device — through the Telegram test environment or an HTTPS tunnel.
+
+## Owner decision 03.10.2026: Figma is fully excluded

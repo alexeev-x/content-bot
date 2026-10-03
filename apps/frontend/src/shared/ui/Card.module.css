@@ -1,0 +1,13 @@
+.card {
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-2);
+  padding: var(--space-4);
+}
+.title {
+  font-size: var(--font-size-lg);
+  margin-bottom: var(--space-3);
+}

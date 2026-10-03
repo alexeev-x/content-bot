@@ -15,7 +15,7 @@ The product is a content-operations desk for a Telegram channel about Dota 2: an
    - Type: one family, or two clearly different ones, with a scale and their roles.
    - Layout: a one-sentence concept plus an ASCII wireframe for 375 px and 1280 px, with alignment.
    - Principles: 2–3 rules that make this UI specific.
-2. Review the plan against the brief. For each part that is a generic default you would produce for any admin, revise it and say what changed and why. Only then write tokens and code. The owner's explicit choices always win (for example, the dark theme and the brand accent).
+2. Review the plan against the brief. For each part that is a generic default you would produce for any admin, revise it and say what changed and why. Only then write tokens and code. The owner's explicit choices always win (for example, monochrome with dark and light themes).
 
 ## Defaults to avoid unless chosen on purpose
 These are the common tells of generated UIs:
@@ -25,7 +25,7 @@ These are the common tells of generated UIs:
 - A fade-and-slide entrance on every section and a hover animation on every card.
 
 ## Owner decision (03.10.2026): monochrome
-A calm monochrome UI with a dark and a light theme: neutral greys, no bright or brand accent, easy on the eyes. Color appears only where it carries meaning (destructive actions and errors, and the `unknown` warning), always paired with text and an icon. Theme follows `prefers-color-scheme` with a manual switch (stored locally; it is a UI preference). The UI component library is not chosen yet (see `docs/FRONTEND_ARCHITECTURE.md`); never install one on your own.
+A calm monochrome UI with a dark and a light theme: neutral greys, no bright or brand accent, easy on the eyes. Color appears only where it carries meaning (destructive actions and errors, and the `unknown` warning), always paired with text and an icon. Theme follows `prefers-color-scheme` with a manual switch (stored locally; it is a UI preference). Components are React Aria Components wrapped in `shared/ui`, styled with CSS Modules over the tokens; add no other UI library.
 
 ## Principles
 - **Spend boldness in one place**, for example the publication timeline or the status system. Keep everything else quiet. Before finishing, remove one decorative element.

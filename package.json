@@ -7,19 +7,46 @@
     "apps/*"
   ],
   "scripts": {
-    "typecheck": "npm run typecheck --workspaces --if-present",
+    "dev": "npm run dev -w @alexeev/frontend",
+    "dev:backend": "npm run dev -w @alexeev/backend",
+    "preview": "npm run preview -w @alexeev/frontend",
     "build": "npm run build --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present",
     "test": "node --test '.agents/scripts/*.test.mjs'",
+    "test:apps": "npm run test --workspaces --if-present",
+    "lint": "oxlint",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "depcruise": "depcruise apps --config .dependency-cruiser.cjs",
+    "db:migrate:local": "npm run db:migrate:local -w @alexeev/backend",
+    "db:migrate:remote": "npm run db:migrate:remote -w @alexeev/backend",
+    "deploy:check": "npm run build -w @alexeev/frontend && npm run deploy:check -w @alexeev/frontend",
+    "deploy": "npm run build -w @alexeev/frontend && npm run deploy -w @alexeev/frontend",
     "check:docs": "node .agents/scripts/check-docs.mjs",
     "agents:sync": "node .agents/scripts/sync-agents.mjs",
     "agents:check": "node .agents/scripts/sync-agents.mjs --check",
+    "metrics": "node .agents/scripts/metrics.mjs",
     "verify": "node .agents/scripts/verify.mjs",
-    "metrics": "node .agents/scripts/metrics.mjs"
+    "prepare": "husky",
+    "verify:changed": "node .agents/scripts/verify.mjs --changed"
   },
   "devDependencies": {
-    "typescript": "~5.9.3"
+    "dependency-cruiser": "^18.5.0",
+    "husky": "^9.1.7",
+    "lint-staged": "^17.0.0",
+    "oxlint": "^1.86.0",
+    "prettier": "^3.9.9",
+    "typescript": "~6.0.3",
+    "vitest": "~4.1.11"
   },
   "engines": {
-    "node": ">=22"
+    "node": ">=22.12"
+  },
+  "lint-staged": {
+    "*.{ts,tsx,js,mjs,cjs}": [
+      "oxlint --fix",
+      "prettier --write"
+    ],
+    "*.{json,jsonc,css}": "prettier --write"
   }
 }

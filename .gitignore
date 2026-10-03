@@ -11,3 +11,5 @@ coverage/
 .idea/
 *.tsbuildinfo
 .logs/
+worker-configuration.d.ts
+.dev.vars
