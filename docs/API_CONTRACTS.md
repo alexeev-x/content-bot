@@ -1,6 +1,6 @@
 # CONTENT-BOT — FRONTEND / BACKEND INTEGRATION
 
-**Single source of contracts:** `contracts`, with no dependencies on React, Hono or Cloudflare. This is a design of future contracts, not an already running API.
+**Single source of contracts:** `apps/contracts`, with no dependencies on React, Hono or Cloudflare. Initial Zod schemas exist in `apps/contracts/src/`; most API endpoints and complete publishing flows remain planned, not operational.
 
 ## Network and authentication
 
