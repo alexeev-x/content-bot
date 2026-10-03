@@ -1,6 +1,6 @@
 # CONTENT-BOT — FINAL FRONTEND ARCHITECTURE v1.0
 
-**Date:** 03.10.2026 · **Status:** approved technical direction; the application is not yet implemented · **Product:** ALEXEEV Studio admin panel (working name), `apps/frontend/` in `content-bot`. Backend: `docs/BACKEND_ARCHITECTURE.md`.
+**Date:** 03.10.2026 · **Status:** approved direction with a partial implementation (React/Vite/TanStack bootstrap and theme; complete operator screens and publication workflows still pending) · **Product:** ALEXEEV Studio admin panel (working name), `apps/frontend/` in `content-bot`. Backend: `docs/BACKEND_ARCHITECTURE.md`.
 
 > Our tasks need a **fast operator SPA interface**, not a public SEO site. SSR, Next.js, micro-frontends and heavy global state management are not needed at the start. The goal is to manage publications safely and to see real failures, including from a phone.
 
