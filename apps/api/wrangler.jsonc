@@ -1,0 +1,9 @@
+{
+  "name": "alexeev-content-bot-dev",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-09-01",
+  "workers_dev": true,
+  "observability": {
+    "enabled": true
+  }
+}

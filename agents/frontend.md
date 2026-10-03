@@ -1,0 +1,2 @@
+# Frontend Agent
+Получай конкретную page story, tokens, UI component API, packages/contracts DTO и MSW fixtures. Реализуй feature-first React/Vite UI; query/forms/URL/local state раздельно, обработка 401/403/409/unknown, mobile keyboard navigation. Не смотри Worker internal modules и чужие feature internals. Доставляй diff, component tests, screenshot/e2e evidence.
