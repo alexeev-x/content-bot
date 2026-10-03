@@ -1,0 +1,4 @@
+# Reviewed false positives (fingerprints): a docs anti-pattern example and dummy test fixtures.
+a1e2b3bdf4e9030cba7b8ae01249e2002d9d3709:.agents/skills/workers-best-practices/references/configuration.md:generic-api-key:82
+1f4198e71af1820cf5f9da21d3098a91974c6732:tests/telegram-mock.ts:generic-api-key:55
+1f4198e71af1820cf5f9da21d3098a91974c6732:vitest.config.ts:generic-api-key:21

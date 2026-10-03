@@ -7,7 +7,7 @@
     "build": "tsc -b && vite build",
     "preview": "vite build && vite preview",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run",
+    "test": "vitest run && node --test scripts/*.test.mjs",
     "deploy": "wrangler deploy",
     "deploy:check": "wrangler deploy --dry-run"
   },

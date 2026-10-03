@@ -17,3 +17,13 @@ jobs:
       - run: npm run verify
       - if: failure()
         run: cat .logs/verify.log
+      # Production dependencies only: a dev-tool advisory must not block a release.
+      - run: npm audit --omit=dev --audit-level=high
+  secrets:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      # The whole history: a token committed and later deleted is still leaked.
+      - run: docker run --rm -v "$PWD:/repo" zricethezav/gitleaks:v8.30.1 git /repo --redact --no-banner

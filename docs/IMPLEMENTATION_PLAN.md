@@ -5,9 +5,10 @@
 ## Gate 0: repository/bootstrap
 - [x] npm workspaces (`frontend`, `backend`, `contracts`); lockfile; CI running `npm ci` with commands that actually exist (`npm run verify`).
 - [x] Agent system for Claude Code and Codex from a single source (`.agents/`), sync checks and instruction budgets.
-- [ ] Quality gates: ESLint, Prettier, dependency-cruiser, Vitest (+ workers pool), stylelint ban on colors outside tokens, gitleaks, npm audit.
-- [ ] Wrangler: static assets (SPA), D1, Cron; secrets (bot token, OIDC) are set by the owner; no staging.
-- [ ] Protected main, GitHub Actions `npm run verify`; production deploy at the owner's button press (migrations → code).
+- [x] Quality gates: Prettier + Oxlint (decision 03.10.2026, replaces ESLint), dependency-cruiser, Vitest (+ Cloudflare workers pool), colour literals only in `tokens.css` (a frontend test instead of stylelint), `npm audit` (production deps) and gitleaks (full history) in CI.
+- [x] Wrangler: one Worker serves the SPA (static assets), the API, D1 and Cron; checked locally with `npm run dev:backend` (health, SPA fallback, Cron handler).
+- [x] GitHub Actions: `npm run verify`, `npm audit`, gitleaks on every push to `develop`/`main` and every PR.
+- [ ] Owner: create the D1 database and put its id into `apps/backend/wrangler.jsonc`; set `OWNER_TELEGRAM_ID` and secrets; protect `main` (require the CI checks) in GitHub settings. Production deploy at the owner's button press (migrations → code).
 
 ## Gate 1: safe Telegram MVP
 - [ ] Contracts: auth, posts, publication, incident; 401/403/409/429/unknown.
