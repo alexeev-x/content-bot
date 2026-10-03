@@ -13,7 +13,7 @@ A short list of accepted decisions. An agent does not propose an alternative to 
 | 03.10.2026 | The admin UI is one SPA: website and Telegram Mini App; no third-party SDK | `docs/FRONTEND_ARCHITECTURE.md` §16 |
 | 03.10.2026 | The bot is personal: commands only from the owner; the bot is an inbound adapter `app/bot` in the same Worker; an administrator of the owner's group with minimal rights; collecting data from the group — later | `docs/BACKEND_ARCHITECTURE.md` §2 |
 | 03.10.2026 | All documentation and agent instructions are in English; the owner is addressed in Russian; end-user UI copy is Russian | `AGENTS.md` |
-| 03.10.2026 | Uniform code style regardless of which AI writes it: Prettier + Oxlint via husky/lint-staged on commit, `npm run verify` on push and in CI | `README.md` |
+| 03.10.2026 | Uniform code style regardless of which AI writes it: Prettier + Oxlint via Husky/lint-staged on commit, `npm run verify:changed` on pre-push, and full `npm run verify` in GitHub CI | `README.md` |
 | 03.10.2026 | Architecture skeleton created up front at the owner's request (exception to "no empty scaffolding"); skeleton files still contain minimal working, tested code | `apps/` |
 | 03.10.2026 | Work is done only by project agents (orchestrator + backend, frontend, design-system, product-analyst, qa-security, researcher); built-in Claude Code helpers (Explore, Plan, general-purpose) allowed for read-only support; generic global agents denied in `.claude/settings.json`; no separate text-editor role | `docs/AGENT_ORCHESTRATION.md` |
 | 03.10.2026 | Strict backend module boundaries: modules do not import each other; only `app/` wires them (ports + `container.ts`); enforced by dependency-cruiser | `docs/BACKEND_ARCHITECTURE.md` §2 |

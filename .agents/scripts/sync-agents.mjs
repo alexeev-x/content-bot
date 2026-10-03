@@ -1,18 +1,9 @@
 // Generates runtime adapters from the single source of truth:
 //   .agents/roles/<role>.md         -> .claude/agents/<role>.md, .codex/agents/<role>.toml
-//   .agents/skills/<name>/      -> .claude/skills/<name> (symlink)
-// `--check` verifies adapters are up to date without writing (used in CI).
-import {
-  readFileSync,
-  writeFileSync,
-  readdirSync,
-  existsSync,
-  mkdirSync,
-  rmSync,
-  lstatSync,
-  readlinkSync,
-  symlinkSync,
-} from 'node:fs';
+//   .agents/skills/<name>/**         -> .claude/skills/<name>/** (checked generated copies)
+// Checked copies work with Windows checkouts that materialize Git symlinks as text files.
+// `--check` verifies all generated content without writing (used in CI).
+import { readFileSync, writeFileSync, readdirSync, existsSync, mkdirSync, rmSync, lstatSync } from 'node:fs';
 import { join, basename } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -94,7 +85,7 @@ export function renderCodex(meta, body) {
 
 export function plan(root) {
   const files = new Map();
-  const links = new Map();
+  const skills = new Map();
   for (const file of readdirSync(join(root, '.agents/roles'))
     .filter((f) => f.endsWith('.md'))
     .toSorted()) {
@@ -107,10 +98,20 @@ export function plan(root) {
     files.set(`.codex/agents/${meta.name}.toml`, renderCodex(meta, body));
   }
   for (const name of readdirSync(join(root, '.agents/skills')).toSorted()) {
-    if (!existsSync(join(root, '.agents/skills', name, 'SKILL.md'))) continue;
-    links.set(`.claude/skills/${name}`, `../../.agents/skills/${name}`);
+    const source = join(root, '.agents/skills', name);
+    if (!existsSync(join(source, 'SKILL.md'))) continue;
+    const collect = (dir, relative = '') => {
+      for (const entry of readdirSync(dir, { withFileTypes: true }).toSorted((a, b) => a.name.localeCompare(b.name))) {
+        const abs = join(dir, entry.name);
+        const child = relative ? `${relative}/${entry.name}` : entry.name;
+        if (entry.isSymbolicLink()) throw new Error(`Skill source may not contain symlinks: ${abs}`);
+        if (entry.isDirectory()) collect(abs, child);
+        else if (entry.isFile()) skills.set(`.claude/skills/${name}/${child}`, readFileSync(abs));
+      }
+    };
+    collect(source);
   }
-  return { files, links };
+  return { files, skills };
 }
 
 function generatedIn(root, dir, ext) {
@@ -122,8 +123,50 @@ function generatedIn(root, dir, ext) {
     : [];
 }
 
+function skillFilesIn(root) {
+  const base = '.claude/skills';
+  const files = [];
+  const collect = (dir, relative) => {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      const abs = join(dir, entry.name);
+      const path = `${relative}/${entry.name}`;
+      if (entry.isDirectory()) collect(abs, path);
+      else files.push(path);
+    }
+  };
+  const abs = join(root, base);
+  if (existsSync(abs)) {
+    for (const entry of readdirSync(abs, { withFileTypes: true })) {
+      const path = `${base}/${entry.name}`;
+      const child = join(abs, entry.name);
+      if (entry.isDirectory() && !entry.isSymbolicLink()) collect(child, path);
+      else files.push(path);
+    }
+  }
+  return files;
+}
+
+function prepareSkillDirectories(root, skills, check, problems) {
+  const names = new Set([...skills.keys()].map((path) => path.split('/')[2]));
+  for (const name of names) {
+    const abs = join(root, '.claude/skills', name);
+    let info;
+    try {
+      info = lstatSync(abs);
+    } catch {
+      info = null;
+    }
+    if (info?.isDirectory() && !info.isSymbolicLink()) continue;
+    if (check) problems.push(`skill adapter must be a generated directory: .claude/skills/${name}`);
+    else {
+      if (info) rmSync(abs, { recursive: true, force: true });
+      mkdirSync(abs, { recursive: true });
+    }
+  }
+}
+
 function run(root, check) {
-  const { files, links } = plan(root);
+  const { files, skills } = plan(root);
   const problems = [];
   for (const [path, content] of files) {
     const abs = join(root, path);
@@ -135,24 +178,23 @@ function run(root, check) {
       writeFileSync(abs, content);
     }
   }
-  for (const [path, target] of links) {
+  prepareSkillDirectories(root, skills, check, problems);
+  for (const [path, content] of skills) {
     const abs = join(root, path);
-    const ok = existsSync(abs) && lstatSync(abs).isSymbolicLink() && readlinkSync(abs) === target;
-    if (ok) continue;
-    if (check) problems.push(`missing symlink: ${path} -> ${target}`);
+    const dir = join(abs, '..');
+    const current = existsSync(abs) ? readFileSync(abs) : null;
+    if (current?.equals(content)) continue;
+    if (check) problems.push(`${current ? 'out of date' : 'missing'}: ${path}`);
     else {
-      mkdirSync(join(abs, '..'), { recursive: true });
-      rmSync(abs, { recursive: true, force: true });
-      symlinkSync(target, abs);
+      mkdirSync(dir, { recursive: true });
+      writeFileSync(abs, content);
     }
   }
-  const stale = [...generatedIn(root, '.claude/agents', '.md'), ...generatedIn(root, '.codex/agents', '.toml')].filter(
-    (p) => !files.has(p),
-  );
-  const skillsDir = join(root, '.claude/skills');
-  if (existsSync(skillsDir))
-    for (const name of readdirSync(skillsDir))
-      if (!links.has(`.claude/skills/${name}`)) stale.push(`.claude/skills/${name}`);
+  const stale = [
+    ...generatedIn(root, '.claude/agents', '.md'),
+    ...generatedIn(root, '.codex/agents', '.toml'),
+    ...skillFilesIn(root),
+  ].filter((p) => !files.has(p) && !skills.has(p));
   for (const path of stale) {
     if (check) problems.push(`stale generated file: ${path}`);
     else rmSync(join(root, path), { recursive: true, force: true });
@@ -161,7 +203,7 @@ function run(root, check) {
     console.error(problems.join('\n') + '\nRun `npm run agents:sync`.');
     process.exit(1);
   }
-  console.log(`${check ? 'Checked' : 'Synced'} ${files.size} agent adapters and ${links.size} skill links.`);
+  console.log(`${check ? 'Checked' : 'Synced'} ${files.size} agent adapters and ${skills.size} skill files.`);
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {

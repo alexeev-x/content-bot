@@ -9,7 +9,7 @@
 | Accepted and open decisions | `docs/DECISIONS.md` | — |
 | Area rules and code style | `apps/backend/AGENTS.md`, `apps/frontend/AGENTS.md`, `apps/contracts/AGENTS.md` | — |
 | Roles | `.agents/roles/<role>.md` | `.claude/agents/<role>.md`, `.codex/agents/<role>.toml` |
-| Procedures (skills) | `.agents/skills/<name>/SKILL.md` | symlinks `.claude/skills/<name>` |
+| Procedures (skills) | `.agents/skills/<name>/**` | generated, content-checked copies in `.claude/skills/<name>/**` |
 
 After editing roles or skills: `npm run agents:sync`. CI (`npm run agents:check`) fails if the adapters diverge from the source. `npm run check:docs` watches instruction size budgets, broken links and stale paths.
 
@@ -44,14 +44,14 @@ The implementer runs focused tests while working. The main session owns the R0/R
 8. **Measurement:** `.agent-metrics/log.jsonl` per task (see skill `orchestrate`). We do not claim savings percentages without a comparison on the same set of tasks.
 
 ## Automatic guards (hooks, shared by Claude and Codex)
-Scripts in `.agents/hooks/`, wired into `.claude/settings.json` and `.codex/hooks.json`. A rule in text can be ignored by the model; a hook cannot.
+Scripts in `.agents/hooks/`, wired into `.claude/settings.json` and `.codex/hooks.json`. Hooks are best-effort guardrails: they must be enabled/trusted, inspect submitted command text only, and do not replace OS permissions or an isolated environment without production credentials. Claude project hooks are applied when project settings are accepted; Codex project hooks require trusting the project hook definitions. Command wrappers, aliases or hidden script behavior may evade lexical checks.
 | Hook | What it does | Token cost |
 |---|---|---|
-| `guard-command` (PreToolUse) | blocks deploy/rollback, `--remote`, changes to wrangler secrets, force-push, push/commit to `main`, reading `.env`/`.dev.vars` | 0 |
-| `verify-on-stop` (Stop/SubagentStop) | on a changed worktree, runs `npm run verify:changed`; caches a passing worktree hash and bounds repeated blocks; does not launch an AI reviewer | no model usage |
+| `guard-command` (PreToolUse) | rejects known deploy/remote/secrets/force-push/main-push commands and common secret-file reads; best-effort only, not a security boundary | 0 |
+| `verify-on-stop` (Stop/SubagentStop) | runs `npm run verify:changed` through the Windows-safe runner; reuses only an unchanged snapshot and does not cache if files change or another builder remains active | no model usage |
 | `log-usage` (Stop/SubagentStop, Claude) | writes session and subagent tokens to `.agent-metrics/sessions/` | 0 |
 
-Codex loads project hooks only after trusting the `.codex/` layer (the `/hooks` command). Disable the check on stop: `AGENT_VERIFY_ON_STOP=0`. The hook also triggers on command text (for example, a heredoc containing a forbidden phrase) — this is a deliberate over-precaution; write such text via a file.
+Codex loads project hooks only after the owner trusts the project hook definitions. Claude and Codex hook payloads differ; shared scripts accept known agent-type field variants. Disable verify-on-stop with `AGENT_VERIFY_ON_STOP=0`. Neither hooks nor prompt rules restrict production access by themselves; owner-controlled sandbox and credential isolation are required.
 
 ## Measurement
 `npm run metrics` summarizes Claude Code token counts with relative token-price weights; it does not measure Codex Plus allowance. For Plus, record the displayed five-hour and weekly remaining percentages and reset times before and after comparable real tasks, along with models/reasoning/speed, retries, agent launches, acceptance and first-pass CI in `.agent-metrics/log.jsonl` (see `.agents/skills/orchestrate/references/metrics.md`). Keep unavailable values null; do not convert API/token prices or sum parent and subagent percentages. Do not repeat tasks solely to benchmark quota.
@@ -65,5 +65,5 @@ Codex loads project hooks only after trusting the `.codex/` layer (the `/hooks` 
 - The main real saving is prompt caching (cache read ≈ 0.1 of the price) and short context: in the agent setup session cache read is 24.4 million tokens versus 228 tokens of fresh input.
 
 ## Process
-Request → risk classification → (analyst when requirements are unclear) → contract → backend ∥ frontend in separate worktrees when paths do not overlap → one final gate owned by the main session for R0/R1 or QA for R2/R3 → qa-security only for R2/R3 → owner's commit to `develop`; release — PR `develop` → `main`. Merge and release to `main` — owner only.
+Request → risk classification → (analyst when requirements are unclear) → contract → backend ∥ frontend in separate worktrees when paths do not overlap → one final gate owned by the main session for R0/R1 or QA for R2/R3 → qa-security only for R2/R3 → owner's commit and push to `develop`; GitHub CI runs full verification on pushes to `develop`/`main` and pull requests. There is no deployment workflow or staging environment; production deployment and remote migrations are manual owner actions. Release to `main` is a PR from `develop`.
 Built-in `isolation: worktree` in Claude Code creates the worktree from the default branch (`main`), so for parallel work the orchestrator creates the worktree from `develop` manually (`references/parallel-worktrees.md` in skill `orchestrate`).

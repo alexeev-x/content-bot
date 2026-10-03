@@ -25,12 +25,15 @@ export const STEPS = [
 
 // Changes here can affect everything, so they trigger the full set.
 const GLOBAL =
-  /^(package(-lock)?\.json|\.nvmrc|\.oxlintrc\.json|\.prettierrc\.json|\.prettierignore|\.dependency-cruiser\.cjs|apps\/[^/]+\/(package\.json|tsconfig\.json|vite(st)?\.config\.ts|wrangler\.jsonc))$/;
-const INSTRUCTIONS = /^(AGENTS\.md|README\.md|docs\/|\.agents\/|\.claude\/|\.codex\/|apps\/[^/]+\/AGENTS\.md$)/;
+  /^(package(-lock)?\.json|\.nvmrc|\.oxlintrc\.json|\.prettierrc\.json|\.prettierignore|\.dependency-cruiser\.cjs|\.gitleaks(?:\.toml|ignore)?|\.github\/workflows\/.*|apps\/[^/]+\/(package\.json|tsconfig\.json|vite(st)?\.config\.ts|wrangler\.jsonc))$/;
+const INSTRUCTIONS =
+  /^(AGENTS\.md|README\.md|docs\/|\.agents\/|\.claude\/|\.codex\/|\.husky\/|apps\/[^/]+\/AGENTS\.md$)/;
 const PRETTIER_FILES = /\.(ts|tsx|js|mjs|cjs|json|jsonc|css)$/;
 const LINT_FILES = /\.(ts|tsx|js|mjs|cjs)$/;
 
 export function planSteps(files, { existingFiles = files } = {}) {
+  files = files.map((file) => file.replaceAll('\\', '/'));
+  existingFiles = existingFiles.map((file) => file.replaceAll('\\', '/'));
   if (files.some((f) => GLOBAL.test(f))) return STEPS;
   const steps = [];
   const pretty = existingFiles.filter((f) => PRETTIER_FILES.test(f));
@@ -80,11 +83,13 @@ export function changedFiles(root) {
       // try the next candidate
     }
   }
-  const committed = base ? git('diff', '--name-only', '-z', '--no-renames', `${base}...HEAD`) : '';
+  const committed = base
+    ? git('diff', '--name-only', '-z', '--no-renames', `${base}...HEAD`).replaceAll('\\', '/')
+    : '';
   const working = git('status', '--porcelain', '-z', '--no-renames', '--untracked-files=all')
     .split('\0')
     .filter(Boolean)
-    .map((l) => l.slice(3));
+    .map((l) => l.slice(3).replaceAll('\\', '/'));
   const files = [...new Set([...committed.split('\0').filter(Boolean), ...working])];
   // Keep deletions for area selection, but never pass missing paths to formatters/linters.
   return { base, files, existingFiles: files.filter((f) => existsSync(join(root, f))) };

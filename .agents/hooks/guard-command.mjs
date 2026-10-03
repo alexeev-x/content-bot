@@ -1,20 +1,57 @@
-// PreToolUse hook (Claude Code + Codex): hard-blocks commands that AGENTS.md reserves for the owner.
-// Instructions can be ignored by a model; a hook cannot. Output format is shared by both tools.
+// PreToolUse hook (Claude Code + Codex): best-effort command guard, not a security boundary.
+// Enforce production access with the host sandbox and credentials policy as well.
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 export const RULES = [
-  [/\bwrangler\b[^|;&]*\b(deploy|publish|rollback|delete)\b/, 'Deploys, rollbacks and deletes are run by the owner.'],
-  [/\bwrangler\b[^|;&]*\bversions\s+(deploy|secret)\b/, 'Version deploys and versioned secrets are run by the owner.'],
-  [/\bwrangler\b[^|;&]*\bsecret\b/, 'Secrets are set by the owner (`wrangler secret put` deploys immediately).'],
-  [/\bwrangler\b[^|;&]*--remote\b/, 'Remote D1/R2/KV commands touch real data; use --local.'],
-  [/\bgit\s+push\b[^|;&]*(\s--force\b|\s-f\b|--force-with-lease)/, 'Force-push is forbidden.'],
-  [/\bgit\s+push\b[^|;&]*\s(origin\s+)?(HEAD:)?main\b/, 'Never push to main; releases go through a PR from develop.'],
-  [/\bnpm\s+publish\b/, 'Publishing packages is not part of this project.'],
-  [/\bnpm\s+run\s+(deploy(?!:check)|db:migrate:remote)\b/, 'Deploys and remote migrations are run by the owner.'],
   [
-    /(^|[\s;&|])(cat|less|more|head|tail|bat)\s+[^|;&]*(\.dev\.vars|\.env(\.[\w-]+)?)(\s|$)/,
-    'Secret files must not be read into the transcript.',
+    /\bwrangler(?:\.cmd)?\b[^\r\n]*\b(deploy|publish|rollback|delete)\b/i,
+    'Deploys, rollbacks and deletes are run by the owner.',
+  ],
+  [
+    /\bwrangler(?:\.cmd)?\b[^\r\n]*\bversions\s+(deploy|secret)\b/i,
+    'Version deploys and versioned secrets are run by the owner.',
+  ],
+  [
+    /\bwrangler(?:\.cmd)?\b[^\r\n]*\bsecret\b/i,
+    'Secrets are set by the owner (`wrangler secret put` deploys immediately).',
+  ],
+  [/\bwrangler(?:\.cmd)?\b[^\r\n]*--remote\b/i, 'Remote D1/R2/KV commands touch real data; use --local.'],
+  [
+    /\bgit(?:\.exe)?\b[^\r\n]*\bpush\b[^\r\n]*(?:--force(?:-with-lease)?(?:=\S*)?|(?:^|\s)-f(?:\s|$))/i,
+    'Force-push is forbidden.',
+  ],
+  [
+    /\bgit(?:\.exe)?\b[^\r\n]*\bpush\b[^\r\n]*(?:\+?)(?:HEAD:)?(?:refs\/heads\/)?main(?:\s|$|:)/i,
+    'Never push to main; releases go through a PR from develop.',
+  ],
+  [
+    /\bgit(?:\.exe)?\b[^\r\n]*\bpush\b[^\r\n]*--(?:all|mirror)\b/i,
+    'Bulk pushes can update protected branches; use a reviewed release PR.',
+  ],
+  [
+    /\b(?:npm(?:\.cmd)?|pnpm(?:\.cmd)?|yarn|bun)\b[^\r\n]*\bpublish\b/i,
+    'Publishing packages is not part of this project.',
+  ],
+  [
+    /\b(?:npm(?:\.cmd)?|pnpm(?:\.cmd)?|yarn|bun)\b[^\r\n]*\brun\s+(?:(?:--workspace|-w)\s+\S+\s+|--workspace=\S+\s+|--if-present\s+)*(?:deploy(?!:check)\b|db:migrate:remote\b)/i,
+    'Deploys and remote migrations are run by the owner.',
+  ],
+  [
+    /(?:^|[\s"'`=])(?:[^\s"'`]*[\\/])?\.env(?:\.[\w.-]+)?(?=$|[\s"'`,;])/i,
+    'Secret files must not be read or copied into the transcript.',
+  ],
+  [
+    /(?:^|[\s"'`=])(?:[^\s"'`]*[\\/])?\.dev\.vars(?:\.[\w.-]+)?(?=$|[\s"'`,;])/i,
+    'Secret files must not be read or copied into the transcript.',
+  ],
+  [
+    /\b(?:powershell|pwsh)\b[^\r\n]*-(?:encodedcommand|enc)\b/i,
+    'Encoded PowerShell commands cannot be safely inspected.',
+  ],
+  [
+    /\b(?:remove-item|ri|rm|rmdir|rd|del)\b(?=[^\r\n]*-(?:recurse|r)\b)(?=[^\r\n]*-(?:force|f)\b)[^\r\n]*(?:[a-z]:[\\/](?:["'`\s]|$)|%userprofile%(?:[\\/]|["'`\s]|$)|\$env:userprofile\b|\$home\b|~[\\/])/i,
+    'Recursive delete of a drive root or user home directory.',
   ],
   [
     /\brm\s+-[a-z]*r[a-z]*f?[a-z]*\s+(\/|~|\$HOME|\.\.)(\s|\/?$)/,
@@ -36,8 +73,12 @@ export function stripHeredocs(command) {
 }
 
 export function decide(rawCommand, branch = '') {
-  const command = stripHeredocs(rawCommand);
-  if (/\bwrangler\b[^|;&]*\bdeploy\b[^|;&]*--dry-run\b/.test(command)) return null;
+  const command = stripHeredocs(rawCommand)
+    .replace(/(?:^|[\s"'`=])(?:[^\s"'`]*[\\/])?\.env\.example(?:\.md)?(?=$|[\s"'`,;])/gi, ' <env-example>')
+    .replace(/(?:^|[\s"'`=])(?:[^\s"'`]*[\\/])?\.dev\.vars\.example(?=$|[\s"'`,;])/gi, ' <dev-vars-example>');
+  // Permit only the standalone explicit dry-run form. A prefix exception allowed
+  // `wrangler deploy --dry-run; wrangler deploy` to bypass every rule.
+  if (/^\s*(?:npx\s+)?wrangler(?:\.cmd)?\s+deploy\s+--dry-run\s*$/i.test(command)) return null;
   for (const [re, reason] of RULES) if (re.test(command)) return reason;
   if (/\bgit\s+(commit|merge|rebase)\b/.test(command) && branch === 'main') {
     return 'You are on main. Work on develop; main changes only through a release PR.';

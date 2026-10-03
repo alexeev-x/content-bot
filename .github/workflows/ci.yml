@@ -3,7 +3,21 @@ on:
   pull_request:
   push:
     branches: [main, develop]
+permissions:
+  contents: read
 jobs:
+  windows-tooling:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - run: npm test
+      - run: npm run agents:check
+      - run: npm run check:docs
   verify:
     runs-on: ubuntu-latest
     steps:
@@ -13,7 +27,7 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
       - run: npm ci --ignore-scripts
-      # Same command as the pre-push hook: format, lint, docs, agents, types, architecture, tests, build.
+      # Full independent gate; the local pre-push hook runs only the affected checks.
       - run: npm run verify
       - if: failure()
         run: cat .logs/verify.log

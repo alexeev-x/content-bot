@@ -46,16 +46,14 @@ Write tersely: no preamble, no restating the task, no recap of a visible diff. C
 - The server re-validates every input with Zod and re-checks the session token and the owner's Telegram ID. Client validation is UX only.
 - Design exists only as code: tokens, primitives and browser screenshots. Figma is excluded (owner decision 03.10.2026); never propose it.
 - Agents never deploy, run `--remote` D1 commands, or change secrets (`wrangler secret put/delete` deploys immediately). The owner runs these.
+- Hooks only inspect command text; isolate agent sessions from production credentials and access.
 - No paid AI providers, render APIs or paid cloud tiers without an explicit owner decision.
 - No empty scaffolding: new modules ship with behavior, error handling, tests and docs.
 
 ## TypeScript style (all packages)
-- `strict`; no `any`; `!` only in bootstrap code; external data is `unknown` until parsed with Zod.
-- Named exports. Files are kebab-case; React components are `PascalCase.tsx`. One responsibility per file.
-- Errors carry a stable `code` (see `contracts`). Never swallow an error. Never log secrets, `initData`, OIDC codes or raw payloads.
-- Store time as UTC; convert to a timezone only in the UI.
-- Comments say why, not what; match surrounding code.
-- Each new dependency needs a reason in the PR and goes into the lockfile. Prefer platform APIs.
+- `strict`; no `any`; `!` only in bootstrap; parse external `unknown` with Zod. Named exports, kebab-case files, `PascalCase.tsx` components; one responsibility per file.
+- Errors use stable `code`s, are never swallowed, and logs omit secrets, `initData`, OIDC codes and raw payloads. Store UTC; convert timezones in the UI.
+- Comments explain why. New dependencies need a PR reason and lockfile entry; prefer platform APIs.
 
 ## Git
 Work directly on `develop`: it is the development environment (there are no other stands). `main` holds releases and changes only through a release PR from `develop`, opened by the owner. The owner commits and pushes: leave the task's changes ready (verified, `git status` shows only task files) and propose a commit message. Never commit or push to `main`, never force-push. A SQL change needs a migration. A contract change updates `contracts`, the backend, the frontend and the contract tests in the same PR.

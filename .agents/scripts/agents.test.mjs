@@ -1,5 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseFrontmatter, validateRole, renderClaude, renderCodex, plan } from './sync-agents.mjs';
@@ -50,8 +52,29 @@ test('Codex adapter escapes TOML strings and points to area rules', () => {
 });
 
 test('repository adapters and docs are consistent', () => {
-  const { files, links } = plan(root);
+  const { files, skills } = plan(root);
   assert.ok(files.has('.codex/agents/qa-security.toml'));
-  assert.ok(links.has('.claude/skills/orchestrate'));
+  assert.ok(skills.has('.claude/skills/orchestrate/SKILL.md'));
+  assert.ok(skills.has('.claude/skills/orchestrate/references/risk-qa.md'));
   assert.deepEqual(checkRepo(root), []);
+});
+
+test('secret file patterns are ignored while example templates remain trackable', () => {
+  const ignored = (path) => {
+    try {
+      execFileSync('git', ['check-ignore', '--no-index', '--quiet', path], { cwd: root });
+      return true;
+    } catch {
+      return false;
+    }
+  };
+  for (const path of ['.env', '.env.local', 'apps/backend/.env.production', '.dev.vars', 'apps/backend/.dev.vars.prod'])
+    assert.equal(ignored(path), true, `must ignore ${path}`);
+  for (const path of ['.env.example', 'apps/backend/.dev.vars.example'])
+    assert.equal(ignored(path), false, `must keep template trackable: ${path}`);
+});
+
+test('Prettier accepts the worktree line endings used by Windows and Linux', () => {
+  const prettier = JSON.parse(readFileSync(join(root, '.prettierrc.json'), 'utf8'));
+  assert.equal(prettier.endOfLine, 'auto');
 });

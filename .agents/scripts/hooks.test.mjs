@@ -1,9 +1,25 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { spawn } from 'node:child_process';
+import { execFileSync } from 'node:child_process';
+import { mkdtempSync, rmSync, readFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+const root = join(fileURLToPath(import.meta.url), '../../..');
 import { decide } from '../hooks/guard-command.mjs';
-import { shouldBlock, appliesTo, mainBlocksInWindow, MAIN_WINDOW_MS, othersRunning } from '../hooks/verify-on-stop.mjs';
-import { update, readRunning } from '../hooks/track-builders.mjs';
+import {
+  shouldBlock,
+  appliesTo,
+  mainBlocksInWindow,
+  MAIN_WINDOW_MS,
+  othersRunning,
+  exactVerificationResult,
+  canReuseVerification,
+} from '../hooks/verify-on-stop.mjs';
+import { update, readRunning, record, STALE_MS } from '../hooks/track-builders.mjs';
 import { sumTranscript } from '../hooks/log-usage.mjs';
+import { runCommand, commandOutput } from './run-command.mjs';
 
 test('guard blocks owner-only and destructive commands', () => {
   for (const cmd of [
@@ -13,11 +29,21 @@ test('guard blocks owner-only and destructive commands', () => {
     'npx wrangler versions deploy',
     'git push --force origin feat/x',
     'git push -f',
+    'git -C . push --force-with-lease origin feat/x',
     'git push origin main',
     'git push origin HEAD:main',
+    'git push origin +HEAD:refs/heads/main',
+    'wrangler deploy --dry-run; wrangler deploy',
+    'npm run deploy:check && npm.cmd run deploy',
+    'powershell -Command "wrangler deploy"',
+    'npm exec -- wrangler d1 migrations apply content-bot --remote',
+    'Get-Content apps/backend/.dev.vars',
+    'type .env.local',
     'cat apps/backend/.dev.vars',
     'head .env.production',
     'rm -rf ~',
+    'Remove-Item C:\\ -Recurse -Force',
+    'Remove-Item $env:USERPROFILE -Force -Recurse',
     'npm publish',
   ])
     assert.ok(decide(cmd), `should block: ${cmd}`);
@@ -40,10 +66,25 @@ test('guard allows normal work and blocks commits only on protected branches', (
   assert.ok(decide('npm run db:migrate:remote'));
   assert.equal(decide('npm run deploy:check'), null);
   assert.equal(decide('npx wrangler deploy --dry-run'), null);
+  assert.equal(decide('cat .env.example.md'), null);
+  assert.equal(decide('Get-Content apps/backend/.dev.vars.example'), null);
   assert.equal(decide("cat > f.jsonc <<'EOF'\n// owner runs wrangler deploy later\nEOF\nls"), null);
   assert.ok(decide("cat <<'EOF'\nx\nEOF\nnpx wrangler deploy"));
   assert.ok(decide('git commit -m x', 'main'));
   assert.equal(decide('git commit -m x', 'develop'), null);
+});
+
+test('command hook emits a machine-readable denial without running the command', () => {
+  const guard = fileURLToPath(new URL('../hooks/guard-command.mjs', import.meta.url));
+  const result = execFileSync(process.execPath, [guard], {
+    cwd: root,
+    encoding: 'utf8',
+    input: JSON.stringify({ cwd: root, tool_input: { command: 'wrangler deploy --dry-run; wrangler deploy' } }),
+  });
+  const output = JSON.parse(result);
+  assert.equal(output.hookSpecificOutput.hookEventName, 'PreToolUse');
+  assert.equal(output.hookSpecificOutput.permissionDecision, 'deny');
+  assert.match(output.hookSpecificOutput.permissionDecisionReason, /owner/);
 });
 
 test('main session blocks are counted per 30-minute window', () => {
@@ -126,8 +167,120 @@ test('verify waits while builders run and tracks only builder agents', () => {
   assert.deepEqual(readRunning('/nonexistent-root'), {});
 });
 
+test('verification passes only for the exact unchanged snapshot with no active builder', () => {
+  assert.equal(
+    exactVerificationResult({ status: 0, beforeHash: 'same', afterHash: 'same', otherBuildersRunning: false }),
+    true,
+  );
+  assert.equal(
+    exactVerificationResult({ status: 0, beforeHash: 'before', afterHash: 'after', otherBuildersRunning: false }),
+    false,
+  );
+  assert.equal(
+    exactVerificationResult({ status: 0, beforeHash: 'same', afterHash: 'same', otherBuildersRunning: true }),
+    false,
+  );
+  assert.equal(
+    exactVerificationResult({ status: null, beforeHash: 'same', afterHash: 'same', otherBuildersRunning: false }),
+    false,
+  );
+  assert.equal(canReuseVerification({ lastGreen: 'same', coverage: 'verify:changed' }, 'same'), true);
+  assert.equal(canReuseVerification({ lastGreen: 'same', coverage: 'verify' }, 'same'), false);
+  assert.equal(canReuseVerification({ lastGreen: 'same' }, 'same'), false);
+});
+
+test('Windows npm runner invokes npm-cli.js through Node without shell parsing', () => {
+  const npmCli = 'C:\\node\\node_modules\\npm\\bin\\npm-cli.js';
+  let invocation;
+  const result = runCommand(
+    'npm',
+    ['run', 'verify:changed'],
+    { cwd: 'D:\\repo' },
+    {
+      platform: 'win32',
+      execPath: 'C:\\node\\node.exe',
+      env: { npm_execpath: npmCli, PATH: 'C:\\node' },
+      existsSync: (path) => path === npmCli,
+      spawnSync: (...args) => {
+        invocation = args;
+        return { status: 0, stdout: 'ok', stderr: '' };
+      },
+    },
+  );
+  assert.equal(result.status, 0);
+  assert.deepEqual(invocation, ['C:\\node\\node.exe', [npmCli, 'run', 'verify:changed'], { cwd: 'D:\\repo' }]);
+  const missing = runCommand(
+    'npx',
+    [],
+    {},
+    {
+      platform: 'win32',
+      execPath: 'C:\\node\\node.exe',
+      env: { PATH: '' },
+      existsSync: () => false,
+    },
+  );
+  assert.equal(missing.status, null);
+  assert.match(commandOutput(missing), /Cannot find npx-cli\.js/);
+});
+
+test('Codex project hook commands avoid POSIX shell substitutions on Windows', () => {
+  const codexHooks = JSON.parse(readFileSync(join(root, '.codex/hooks.json'), 'utf8'));
+  const commands = Object.values(codexHooks.hooks).flatMap((event) =>
+    event.flatMap((entry) => entry.hooks.map((hook) => hook.command)),
+  );
+  assert.ok(commands.length > 0);
+  assert.ok(commands.every((command) => command.startsWith('node .agents/hooks/')));
+  assert.ok(commands.every((command) => !command.includes('$(')));
+});
+
+test(
+  'Windows CI smoke: the stop-hook runner can invoke the installed npm CLI',
+  { skip: process.platform !== 'win32' },
+  () => {
+    const run = runCommand('npm', ['--version'], { cwd: root, encoding: 'utf8', timeout: 10_000 });
+    assert.equal(run.status, 0, commandOutput(run));
+    assert.match(run.stdout, /\d+\.\d+\.\d+/);
+  },
+);
+
+test('builder registrations survive concurrent start and stop hooks', async (t) => {
+  const root = mkdtempSync(join(tmpdir(), 'alexeev-builders-'));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  execFileSync('git', ['init', '-q'], { cwd: root });
+  const script = fileURLToPath(new URL('../hooks/track-builders.mjs', import.meta.url));
+  const send = (event, agentId) =>
+    new Promise((resolve, reject) => {
+      const child = spawn(process.execPath, [script], { cwd: root, stdio: ['pipe', 'ignore', 'pipe'] });
+      let stderr = '';
+      child.stderr.setEncoding('utf8').on('data', (chunk) => (stderr += chunk));
+      child.once('error', reject);
+      child.once('close', (code) => (code === 0 ? resolve() : reject(new Error(stderr || `exit ${code}`))));
+      child.stdin.end(JSON.stringify({ hook_event_name: event, agent_id: agentId, agent_type: 'backend' }));
+    });
+  const ids = Array.from({ length: 12 }, (_, i) => `builder-${i}`);
+
+  await Promise.all(ids.map((id) => send('SubagentStart', id)));
+  assert.deepEqual(Object.keys(readRunning(root)).sort(), [...ids].sort());
+  await Promise.all(ids.slice(0, 7).map((id) => send('SubagentStop', id)));
+  assert.deepEqual(Object.keys(readRunning(root)).sort(), ids.slice(7).sort());
+});
+
+test('stale builder registrations are ignored and a new start replaces them', () => {
+  const root = mkdtempSync(join(tmpdir(), 'alexeev-stale-builder-'));
+  try {
+    const now = Date.now();
+    record(root, { event: 'SubagentStart', agentId: 'builder', agentType: 'backend' }, now - STALE_MS - 1);
+    assert.deepEqual(readRunning(root, now), {});
+    record(root, { event: 'SubagentStart', agentId: 'builder', agentType: 'backend' }, now);
+    assert.deepEqual(readRunning(root, now), { builder: now });
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
 import { planSteps, STEPS } from './verify.mjs';
-const names = (files) => planSteps(files).map(([n]) => n);
+const names = (files, options) => planSteps(files, options).map(([n]) => n);
 
 test('verify --changed runs only what the changes touch', () => {
   assert.deepEqual(names(['apps/frontend/src/pages/LoginPage.tsx']), [
@@ -149,6 +302,15 @@ test('verify --changed runs only what the changes touch', () => {
   assert.ok(names(['apps/contracts/src/posts.ts']).includes('frontend-tests'));
   assert.ok(names(['apps/contracts/src/posts.ts']).includes('backend-tests'));
   assert.deepEqual(names(['docs/DECISIONS.md']), ['docs', 'agents', 'tooling-tests']);
+  assert.deepEqual(names(['apps\\backend\\src\\deleted.ts'], { existingFiles: [] }), [
+    'backend-typecheck',
+    'architecture',
+    'backend-tests',
+    'build',
+  ]);
+  assert.equal(names(['package-lock.json'], { existingFiles: [] }).length, STEPS.length);
+  assert.equal(names(['.github/workflows/ci.yml']).length, STEPS.length);
+  assert.deepEqual(names(['.husky/pre-push']), ['docs', 'agents', 'tooling-tests']);
   assert.equal(planSteps(['package.json']), STEPS);
   assert.equal(planSteps(['apps/backend/wrangler.jsonc']), STEPS);
   assert.deepEqual(names([]), []);

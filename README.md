@@ -31,7 +31,7 @@ Local URLs: `npm run dev` prints the address (Vite, usually http://localhost:517
 
 First production deploy (owner): `npx wrangler login`; `npx wrangler d1 create content-bot` and put the id into `apps/backend/wrangler.jsonc`; set `OWNER_TELEGRAM_ID` and `BOT_INFO` (see `apps/backend/.dev.vars.example`); set secrets with `npx wrangler secret put TELEGRAM_BOT_TOKEN` (and the others from `apps/backend/.dev.vars.example`); `npm run db:migrate:remote`; `npm run deploy`.
 
-Git hooks (husky): pre-commit formats and lints only the staged files (Prettier + Oxlint autofix); pre-push runs `npm run verify:changed` — only the checks the unpushed changes touch (a frontend file ≈ 5 s, a doc ≈ 0.3 s; shared configs trigger the full set). CI always runs the full `npm run verify`.
+Git hooks (Husky): `npm run prepare` installs the repository hooks in the local Git checkout. Pre-commit formats and lints staged files (Prettier + Oxlint autofix); pre-push runs `npm run verify:changed` for checks touched by unpushed changes. Hooks can be bypassed or left uninstalled, so GitHub CI independently runs full `npm run verify` on pushes to `develop`/`main` and pull requests. CI does not deploy.
 
 ## Working with AI agents
 - **Claude Code** and **Codex** read the same `AGENTS.md`, area rules (`apps/backend/AGENTS.md`, …), roles and skills. Details — `docs/AGENT_ORCHESTRATION.md`.
@@ -52,4 +52,4 @@ Git hooks (husky): pre-commit formats and lints only the staged files (Prettier 
 10. **A repeated request → a skill.** If you explain the same thing to the agent a second time, it is a candidate for `.agents/skills/`.
 
 ## Security
-Secrets only in Worker secrets; do not commit `.env*`/`.dev.vars`; on `unknown` from Telegram — manual reconciliation, never an automatic retry; separate staging bot, channel and D1.
+Secrets only in Worker secrets; do not commit `.env*`/`.dev.vars`; on `unknown` from Telegram — manual reconciliation, never an automatic retry. There is no separate staging environment; tests use fakes or local resources and must not target production Telegram destinations or remote D1.
