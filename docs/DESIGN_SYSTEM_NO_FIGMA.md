@@ -1,18 +1,19 @@
-# ALEXEEV — design in code only
+# ALEXEEV — design exclusively in code
 
-**Owner decision 03.10.2026: Figma is not needed at all.** Exclude Figma tasks, exports, licenses and handoff. Single source of truth: `apps/frontend/src/app/styles/tokens.css` (until the move — `apps/frontend/src/tokens.css`, a single source), `apps/frontend/src/shared/ui`, and the pages and their states in the repository.
+**Owner decision, 2026-10-03:** Figma is entirely excluded; no mockups, exports, paid seats or intermediate handoff. The current source of tokens remains `apps/frontend/src/tokens.css` until the single planned move to `apps/frontend/src/app/styles/tokens.css`; never maintain both as independent sources.
 
-## Designer artifacts
-1. `tokens.css`: semantic colors, type scale, spacing, radius, elevation, motion, breakpoint usage; light/dark and Telegram theme mapping where needed.
-2. Primitives: Button, Input, Select, Dialog, Toast, StatusBadge, Table, Tabs, and error/empty states. A component has public props, keyboard behavior, and loading/disabled/invalid examples.
-3. `docs/PAGE_MAP.md`: routes, actions, loading/empty/error/401/403/409/unknown states and mobile layout.
-4. Screenshot acceptance reference from a real browser render, Playwright diff on stable fixture data.
+## Approved design direction
+- **Visual language:** calm monochrome, light/dark themes, no bright brand accents. Use color for errors, destructive actions and the `unknown` state, always with text/icon. The old acid/green placeholder palette is not the approved final design.
+- **Component foundation:** React Aria Components wrapped in `apps/frontend/src/shared/ui`, styled with CSS Modules and semantic CSS variables. No second general-purpose UI library. Use native elements when appropriate.
+- **Frontend infrastructure:** TanStack Router + Query; React Hook Form and Zod; responsive web SPA and Telegram Mini App served by the **same Worker**.
 
-## Handoff to frontend
-Analyst → page spec → Design System Agent (tokens + reusable components) → Frontend (feature composition) → QA (browser screenshots + accessibility). Frontend never waits for a drawn mockup; if a component is missing, it proposes a contract to the designer. Do not use random hex values in each feature. Keep the brand accent as a variable until the owner explicitly approves the color.
+## Designer's deliverables
+1. Version-controlled semantic tokens: bg/surface/text/focus/status, typography, spacing, radius, motion, density, contrast and theme. Do not introduce arbitrary per-page hex values.
+2. Typed, accessible primitives: input, button, dialog, toast, selectable lists, tables and status/empty/error states **only when a real screen requires them**. React Aria state attributes and accessibility behavior are part of the component contract.
+3. Page states and mobile behavior from `docs/PAGE_MAP.md` and the `page-spec` skill; design role owns tokens/primitives, frontend owns feature composition.
+4. Actual browser screenshots of stable fixtures at 375 px and 1280 px; Playwright/axe and keyboard checks. The planned `/__catalog` development route may expose all primitive states without Storybook when implemented; do not claim it exists before testing.
 
-## Quality
-Contrast and keyboard access per WCAG 2.2 AA as a target; focus, aria, Telegram Mini App safe areas, mobile/desktop, reduced motion, touch target sizes. Screenshot diff complements semantic tests but does not replace them.
+## Execution
+Main-session orchestrator → product-analyst only if requirements unclear → design-system if tokens or primitives are missing → frontend → deterministic checks and targeted QA. Do not serialize independent backend/frontend work once the shared contract is fixed.
 
-## Executable artifacts (for agents)
-The `design-system` role (`.agents/roles/design-system.md`); visual direction — skill `visual-design` (adapted from Anthropic `frontend-design`); interaction patterns — skill `ui-patterns`; page specification — skill `page-spec`; visual verification — skill `visual-check`. Owner decision: monochrome dark and light themes without bright accents; the current palette (`#0c0c0d` + `#d5f15b`) is to be replaced. The UI library will be chosen separately. Component catalog — the dev route `/__catalog` with all primitive states (no Storybook, so that screenshots and axe check the same components as in the product). Component styles — CSS Modules, only via tokens.
+**Authoritative agent instructions:** `.agents/roles/design-system.md` and skills `visual-design`, `ui-patterns`, `page-spec`, `visual-check`, `react-aria`. `.claude/` and `.codex/` are generated adapters; never maintain standalone copies in `agents/`.
