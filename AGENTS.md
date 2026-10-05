@@ -42,13 +42,13 @@ Write tersely: no preamble, no restating the task, no recap of a visible diff. C
 - Modules never import each other; only `app/` (routes, bot, Cron, workflows, `container.ts`) connects them via each module's `index.ts` and consumer-owned ports. No cycles; domain never imports infrastructure.
 - No mutable module-level state holding user, request or job data. Bound payload sizes, batches, concurrency and timeouts.
 - Publishing safety: D1 owns state and dedup. Cron ticks may overlap or repeat, so every claim is conditional. A Telegram send that may have happened but is unconfirmed becomes `unknown` and needs manual reconciliation; it is never retried automatically.
-- Secrets live only in Worker secrets, never frontend/git/logs/reports. Tests use a separate bot/channel. Docs/tests use `<PLACEHOLDER>`; Gitleaks exceptions are path+pattern, never commit-SHA fingerprints.
+- Secrets only in Worker secrets, never frontend, Git, logs or reports. Tests use a separate bot/channel. Docs/tests use `<PLACEHOLDER>`; Gitleaks exceptions use path+pattern, never commit SHA.
 - The server re-validates every input with Zod and re-checks the session token and the owner's Telegram ID. Client validation is UX only.
 - Design exists only as code: tokens, primitives and browser screenshots. Figma is excluded (owner decision 03.10.2026); never propose it.
 - Agents never deploy, run `--remote` D1 commands, or change secrets (`wrangler secret put/delete` deploys immediately). The owner runs these.
 - Hooks only inspect command text; isolate agent sessions from production credentials and access.
 - No paid AI providers, render APIs or paid cloud tiers without an explicit owner decision.
-- No empty scaffolding: ship behavior/error handling; test critical paths; behavior/config changes update affected docs/examples/setup in the same change.
+- No empty scaffolding: ship behavior/error handling; test critical paths; sync affected docs/examples/setup with behavior/config changes.
 
 ## TypeScript style (all packages)
 - `strict`; no `any`; `!` only in bootstrap; parse external `unknown` with Zod. Named exports, kebab-case files, `PascalCase.tsx` components; one responsibility per file.
