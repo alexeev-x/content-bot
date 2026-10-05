@@ -19,7 +19,7 @@ const botInfoSchema = z.looseObject({
   has_topics_enabled: flag,
   allows_users_to_create_topics: flag,
   can_manage_bots: flag,
-  supports_join_request_queries: flag,
+  supports_join_request_queries: flag
 });
 
 export interface BotConfig {

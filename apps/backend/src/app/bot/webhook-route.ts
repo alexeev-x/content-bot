@@ -20,11 +20,11 @@ export const telegramWebhook = new Hono<AppBindings>().post(
           error: {
             code: 'VALIDATION_ERROR' as const,
             message: 'Request body is too large',
-            requestId: c.get('requestId'),
-          },
+            requestId: c.get('requestId')
+          }
         },
-        413,
-      ),
+        413
+      )
   }),
   async (c) => {
     // Authenticate first: without a configured secret there is no valid one, so an anonymous
@@ -44,9 +44,9 @@ export const telegramWebhook = new Hono<AppBindings>().post(
         component: 'bot',
         operation: 'handle_update',
         requestId: c.get('requestId'),
-        errorCode: error.error instanceof Error ? error.error.name : 'unknown',
+        errorCode: error.error instanceof Error ? error.error.name : 'unknown'
       });
     });
     return webhookCallback(bot, 'cloudflare-mod', { secretToken: config.webhookSecret })(c.req.raw);
-  },
+  }
 );

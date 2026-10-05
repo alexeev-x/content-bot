@@ -8,9 +8,9 @@ export function createQueryClient(): QueryClient {
         staleTime: 30_000,
         // refetchIntervalInBackground stays at its default (false): polling stops in hidden tabs.
         retry: (failureCount, error) =>
-          failureCount < 1 && !(error instanceof ApiError && error.status >= 400 && error.status < 500),
+          failureCount < 1 && !(error instanceof ApiError && error.status >= 400 && error.status < 500)
       },
-      mutations: { retry: false },
-    },
+      mutations: { retry: false }
+    }
   });
 }

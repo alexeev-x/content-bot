@@ -6,5 +6,5 @@ import { NotFoundPage } from '../pages/NotFoundPage';
 export const Route = createRootRoute({
   component: AppLayout,
   notFoundComponent: NotFoundPage,
-  errorComponent: RouteError,
+  errorComponent: RouteError
 });

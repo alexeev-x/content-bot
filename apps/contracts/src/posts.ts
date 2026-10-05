@@ -9,6 +9,6 @@ export const postSchema = z.object({
   body: z.string(),
   revision: z.number().int().nonnegative(),
   status: postStatusSchema,
-  updatedAt: z.iso.datetime(),
+  updatedAt: z.iso.datetime()
 });
 export type PostDto = z.infer<typeof postSchema>;

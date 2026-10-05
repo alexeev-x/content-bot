@@ -49,7 +49,7 @@ export async function mapApiError(response: Response): Promise<ApiError> {
     code: codeFromStatus(response.status),
     status: response.status,
     message: `HTTP ${response.status}`,
-    requestId: response.headers.get('x-request-id') ?? undefined,
+    requestId: response.headers.get('x-request-id') ?? undefined
   });
 }
 

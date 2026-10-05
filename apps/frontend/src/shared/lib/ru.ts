@@ -8,12 +8,12 @@ export const ru = {
     calendar: 'Календарь',
     media: 'Медиа',
     incidents: 'Инциденты',
-    settings: 'Настройки',
+    settings: 'Настройки'
   },
   theme: { label: 'Тема', light: 'Светлая', dark: 'Тёмная', system: 'Системная' },
   inDevelopment: {
     title: 'Раздел в разработке',
-    description: 'Здесь пока нет данных и действий. Ничего не отправляется и не сохраняется.',
+    description: 'Здесь пока нет данных и действий. Ничего не отправляется и не сохраняется.'
   },
   pages: {
     dashboard: 'Обзор',
@@ -25,11 +25,11 @@ export const ru = {
     incidents: 'Инциденты',
     settings: 'Настройки',
     login: 'Вход',
-    notFound: 'Страница не найдена',
+    notFound: 'Страница не найдена'
   },
   login: {
     button: 'Войти через Telegram',
-    explanation: 'Авторизация ещё не реализована, поэтому вход пока недоступен.',
+    explanation: 'Авторизация ещё не реализована, поэтому вход пока недоступен.'
   },
   notFound: { description: 'Такого адреса нет в админке.', back: 'К обзору' },
   health: {
@@ -41,12 +41,12 @@ export const ru = {
     service: 'Сервис',
     checkedAt: 'Проверено',
     publishingDisabled: 'Публикация отключена',
-    publishingEnabled: 'Публикация включена',
+    publishingEnabled: 'Публикация включена'
   },
   routeError: {
     title: 'Что-то пошло не так',
     description: 'Страницу не удалось показать. Попробуйте ещё раз.',
-    requestId: 'Идентификатор запроса',
+    requestId: 'Идентификатор запроса'
   },
-  common: { retry: 'Повторить' },
+  common: { retry: 'Повторить' }
 } as const;

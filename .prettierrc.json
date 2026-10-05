@@ -1,6 +1,12 @@
 {
   "singleQuote": true,
   "printWidth": 120,
-  "trailingComma": "all",
-  "endOfLine": "auto"
+  "trailingComma": "none",
+  "endOfLine": "auto",
+  "overrides": [
+    {
+      "files": ".agents/**/*.mjs",
+      "options": { "trailingComma": "all" }
+    }
+  ]
 }

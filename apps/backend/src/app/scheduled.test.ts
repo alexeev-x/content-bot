@@ -16,7 +16,7 @@ describe('handleScheduled', () => {
       component: 'scheduled',
       operation: 'tick',
       cron: '* * * * *',
-      at: 1_700_000_000_000,
+      at: 1_700_000_000_000
     });
   });
 });

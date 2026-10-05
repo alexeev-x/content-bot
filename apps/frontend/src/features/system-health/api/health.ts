@@ -4,13 +4,13 @@ import { apiRequest } from '../../../shared/api/http-client';
 
 export const healthKeys = {
   all: ['health'] as const,
-  detail: () => [...healthKeys.all, 'detail'] as const,
+  detail: () => [...healthKeys.all, 'detail'] as const
 };
 
 export function healthQueryOptions() {
   return queryOptions({
     queryKey: healthKeys.detail(),
     queryFn: ({ signal }) => apiRequest('/api/v1/health', healthSchema, { signal }),
-    staleTime: 30_000,
+    staleTime: 30_000
   });
 }

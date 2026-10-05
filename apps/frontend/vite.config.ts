@@ -9,6 +9,6 @@ export default defineConfig({
   plugins: [
     tanstackRouter({ target: 'react', autoCodeSplitting: true }),
     react(),
-    cloudflare({ configPath: '../backend/wrangler.jsonc' }),
-  ],
+    cloudflare({ configPath: '../backend/wrangler.jsonc' })
+  ]
 });

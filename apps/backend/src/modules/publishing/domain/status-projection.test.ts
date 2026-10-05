@@ -15,7 +15,7 @@ const rows: [string, JobSnapshot, PublicationStatus][] = [
   ['retry_wait', { status: 'retry_wait', runAt: NOW + 30_000, sendStartedAt: NOW - 4 }, 'retry_wait'],
   ['failed', { status: 'failed', runAt: NOW - 5, sendStartedAt: NOW - 4 }, 'failed'],
   ['unknown', { status: 'unknown', runAt: NOW - 5, sendStartedAt: NOW - 4 }, 'unknown'],
-  ['cancelled', { status: 'cancelled', runAt: NOW + 10, sendStartedAt: null }, 'cancelled'],
+  ['cancelled', { status: 'cancelled', runAt: NOW + 10, sendStartedAt: null }, 'cancelled']
 ];
 
 describe('projectPublicationStatus', () => {

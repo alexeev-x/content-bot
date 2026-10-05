@@ -4,7 +4,7 @@ import { classifySendResult, classifyTelegramError } from './classify-telegram-r
 
 function apiError(error_code: number, description: string, parameters: Record<string, number> = {}) {
   return new GrammyError(description, { ok: false, error_code, description, parameters }, 'sendMessage', {
-    chat_id: '-100',
+    chat_id: '-100'
   });
 }
 
@@ -12,20 +12,20 @@ describe('classifyTelegramError', () => {
   it('429 with retry_after is rate_limited', () => {
     expect(classifyTelegramError(apiError(429, 'Too Many Requests: retry after 7', { retry_after: 7 }))).toEqual({
       kind: 'rate_limited',
-      retryAfterSec: 7,
+      retryAfterSec: 7
     });
   });
 
   it('429 without retry_after is unknown, not a guessed delay', () => {
     expect(classifyTelegramError(apiError(429, 'Too Many Requests'))).toEqual({
       kind: 'unknown',
-      reason: 'telegram_http_429',
+      reason: 'telegram_http_429'
     });
   });
 
   it('400 with migrate_to_chat_id is CHAT_MIGRATED', () => {
     const error = apiError(400, 'Bad Request: group chat was upgraded to a supergroup chat', {
-      migrate_to_chat_id: -1001234567890,
+      migrate_to_chat_id: -1001234567890
     });
     expect(classifyTelegramError(error)).toEqual({ kind: 'rejected', code: 'CHAT_MIGRATED' });
   });
@@ -33,7 +33,7 @@ describe('classifyTelegramError', () => {
   it.each([
     'Bad Request: message text is empty',
     "Bad Request: can't parse entities: Unsupported start tag",
-    'Bad Request: message caption is too long',
+    'Bad Request: message caption is too long'
   ])('400 "%s" is CONTENT_INVALID', (description) => {
     expect(classifyTelegramError(apiError(400, description))).toEqual({ kind: 'rejected', code: 'CONTENT_INVALID' });
   });
@@ -41,45 +41,45 @@ describe('classifyTelegramError', () => {
   it('400 chat not found is DESTINATION_UNAVAILABLE', () => {
     expect(classifyTelegramError(apiError(400, 'Bad Request: chat not found'))).toEqual({
       kind: 'rejected',
-      code: 'DESTINATION_UNAVAILABLE',
+      code: 'DESTINATION_UNAVAILABLE'
     });
   });
 
   it.each([
     'Bad Request: not enough rights to send text messages to the chat',
-    'Bad Request: need administrator rights in the channel chat',
+    'Bad Request: need administrator rights in the channel chat'
   ])('400 permission problem "%s" is DESTINATION_UNAVAILABLE, not CONTENT_INVALID', (description) => {
     expect(classifyTelegramError(apiError(400, description))).toEqual({
       kind: 'rejected',
-      code: 'DESTINATION_UNAVAILABLE',
+      code: 'DESTINATION_UNAVAILABLE'
     });
   });
 
   it('403 is DESTINATION_UNAVAILABLE', () => {
     expect(classifyTelegramError(apiError(403, 'Forbidden: bot was kicked from the channel chat'))).toEqual({
       kind: 'rejected',
-      code: 'DESTINATION_UNAVAILABLE',
+      code: 'DESTINATION_UNAVAILABLE'
     });
   });
 
   it('an unrecognised 400 stays unknown rather than being guessed', () => {
     expect(classifyTelegramError(apiError(400, 'Bad Request: something new'))).toEqual({
       kind: 'unknown',
-      reason: 'telegram_http_400',
+      reason: 'telegram_http_400'
     });
   });
 
   it.each([500, 502, 503])('%i is unknown', (code) => {
     expect(classifyTelegramError(apiError(code, 'Internal Server Error'))).toEqual({
       kind: 'unknown',
-      reason: `telegram_http_${code}`,
+      reason: `telegram_http_${code}`
     });
   });
 
   it('HttpError (network failure) is unknown', () => {
     expect(classifyTelegramError(new HttpError('Network request failed', new Error('boom')))).toEqual({
       kind: 'unknown',
-      reason: 'network_error',
+      reason: 'network_error'
     });
   });
 
@@ -98,7 +98,7 @@ describe('classifySendResult', () => {
   it.each([1, Number.MAX_SAFE_INTEGER])('positive safe integer message_id %i is sent', (id) => {
     expect(classifySendResult({ message_id: id })).toEqual({
       kind: 'sent',
-      externalMessageId: String(id),
+      externalMessageId: String(id)
     });
   });
 
@@ -109,7 +109,7 @@ describe('classifySendResult', () => {
   it('a message with message_id is sent', () => {
     expect(classifySendResult({ message_id: 55, chat: { id: 1 } })).toEqual({
       kind: 'sent',
-      externalMessageId: '55',
+      externalMessageId: '55'
     });
   });
 

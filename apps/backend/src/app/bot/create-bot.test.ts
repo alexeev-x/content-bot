@@ -9,7 +9,7 @@ const baseEnv = {
   OWNER_TELEGRAM_ID: '4242',
   TELEGRAM_BOT_TOKEN: '123456:TEST',
   TELEGRAM_WEBHOOK_SECRET: 'hook-secret',
-  BOT_INFO: JSON.stringify(BOT_INFO),
+  BOT_INFO: JSON.stringify(BOT_INFO)
 } as AppEnv;
 
 describe('readBotConfig', () => {
@@ -26,7 +26,7 @@ describe('readBotConfig', () => {
     ['BOT_INFO not JSON', { BOT_INFO: '{oops' }],
     ['BOT_INFO without username', { BOT_INFO: JSON.stringify({ id: 1, is_bot: true, first_name: 'Bot' }) }],
     ['empty owner id', { OWNER_TELEGRAM_ID: '' }],
-    ['non-numeric owner id', { OWNER_TELEGRAM_ID: 'alex' }],
+    ['non-numeric owner id', { OWNER_TELEGRAM_ID: 'alex' }]
   ])('returns null for %s', (_name, patch) => {
     expect(readBotConfig({ ...baseEnv, ...patch } as AppEnv)).toBeNull();
   });
@@ -41,8 +41,8 @@ function startUpdate(fromId: number): Update {
       chat: { id: fromId, type: 'private', first_name: 'X' },
       from: { id: fromId, is_bot: false, first_name: 'X' },
       text: '/start',
-      entities: [{ type: 'bot_command', offset: 0, length: 6 }],
-    },
+      entities: [{ type: 'bot_command', offset: 0, length: 6 }]
+    }
   };
 }
 
