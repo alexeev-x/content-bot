@@ -1,0 +1,58 @@
+{
+  "description": "Project hooks shared with Claude Code from .agents/hooks. Codex runs them only after the owner trusts the project hooks.",
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "^Bash$",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node .agents/hooks/guard-command.mjs",
+            "statusMessage": "Checking command against project rules",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node .agents/hooks/verify-on-stop.mjs",
+            "statusMessage": "Running npm run verify:changed",
+            "timeout": 320
+          }
+        ]
+      }
+    ],
+    "SubagentStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node .agents/hooks/track-builders.mjs",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "SubagentStop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node .agents/hooks/verify-on-stop.mjs",
+            "statusMessage": "Running npm run verify:changed",
+            "timeout": 320
+          },
+          {
+            "type": "command",
+            "command": "node .agents/hooks/track-builders.mjs",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  }
+}

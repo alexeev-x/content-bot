@@ -1,0 +1,50 @@
+// One Worker serves the admin SPA (static assets built by Vite in apps/frontend),
+// the admin API (/api/v1/*), the Telegram webhook (/webhooks/*) and the Cron dispatcher.
+{
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "name": "content-bot",
+  "main": "./src/index.ts",
+  "compatibility_date": "2026-10-03",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": false,
+  "observability": { "enabled": true },
+  "assets": {
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/api/*", "/webhooks/*"],
+  },
+  "triggers": { "crons": ["* * * * *"] },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "content-bot",
+      // Placeholder for local/default development. Remote D1 bindings are environment-specific
+      // and will be added separately for dev and production after those databases are provisioned.
+      "database_id": "00000000-0000-0000-0000-000000000000",
+      "migrations_dir": "migrations",
+    },
+  ],
+  "vars": {
+    // The only Telegram user allowed to use the admin, the Mini App and bot commands.
+    "OWNER_TELEGRAM_ID": "",
+  },
+
+  // Cloudflare Vite plugin selects these at build time via CLOUDFLARE_ENV.
+  // Bindings such as vars/D1 are not inherited by named environments, so each environment
+  // explicitly owns its runtime configuration.
+  "env": {
+    "dev": {
+      "name": "content-bot-dev",
+      "workers_dev": true,
+      "vars": {
+        "OWNER_TELEGRAM_ID": "",
+      },
+    },
+    "production": {
+      "name": "content-bot-production",
+      "workers_dev": true,
+      "vars": {
+        "OWNER_TELEGRAM_ID": "",
+      },
+    },
+  },
+}
