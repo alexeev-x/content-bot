@@ -42,7 +42,7 @@ Write tersely: no preamble, no restating the task, no recap of a visible diff. C
 - Modules never import each other; only `app/` (routes, bot, Cron, workflows, `container.ts`) connects them via each module's `index.ts` and consumer-owned ports. No cycles; domain never imports infrastructure.
 - No mutable module-level state holding user, request or job data. Bound payload sizes, batches, concurrency and timeouts.
 - Publishing safety: D1 owns state and dedup. Cron ticks may overlap or repeat, so every claim is conditional. A Telegram send that may have happened but is unconfirmed becomes `unknown` and needs manual reconciliation; it is never retried automatically.
-- Secrets only in Worker secrets; never Git, logs, reports or frontend. Tests use separate bot/channel. Docs/tests use placeholders; Gitleaks exceptions: path+pattern, never commit SHA.
+- Secrets only in Worker secrets; never Git, logs or frontend. Tests use separate bot/channel. Use placeholders; Gitleaks exceptions: path+pattern, never commit SHA.
 - The server re-validates every input with Zod and re-checks the session token and the owner's Telegram ID. Client validation is UX only.
 - Design exists only as code: tokens, primitives and browser screenshots. Figma is excluded (owner decision 03.10.2026); never propose it.
 - Agents never deploy, run `--remote` D1 commands, or change secrets (`wrangler secret put/delete` deploys immediately). The owner runs these.
