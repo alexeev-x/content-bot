@@ -15,9 +15,9 @@ paths = [
   '''(^|/)\.agents/skills/workers-best-practices/references/configuration\.md$''',
   '''(^|/)\.claude/skills/workers-best-practices/references/configuration\.md$''',
 ]
-regexTarget = "secret"
+regexTarget = "line"
 regexes = [
-  '''abc123''',
+  '''API_KEY.*abc123''',
 ]
 
 [[allowlists]]
@@ -30,6 +30,6 @@ paths = [
 ]
 regexTarget = "line"
 regexes = [
-  '''const SECRET = '[0-9]{10}[a-z0-9]{32}' ''',
-  '''TELEGRAM_WEBHOOK_SECRET:\s*'[0-9]{10}[a-z0-9]{32}' ''',
+  '''const SECRET = '[0-9]{10}[a-z0-9]{32}'[;,]?''',
+  '''TELEGRAM_WEBHOOK_SECRET:\s*'[0-9]{10}[a-z0-9]{32}'[;,]?''',
 ]

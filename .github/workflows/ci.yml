@@ -29,7 +29,7 @@ jobs:
         with:
           fetch-depth: 0
       # The whole history: a token committed and later deleted is still leaked.
-      - run: docker run --rm -v "$PWD:/repo" zricethezav/gitleaks:v8.30.1 git /repo --config /repo/.gitleaks.toml --redact --no-banner
+      - run: docker run --rm -v "$PWD:/repo" zricethezav/gitleaks:v8.30.1 git /repo --config /repo/.gitleaks.toml --redact --verbose --no-banner
 
   deploy:
     if: github.event_name == 'push'
