@@ -79,7 +79,7 @@ Anti-pattern:
 ```jsonc
 {
   "vars": {
-    "API_KEY": "sk-live-abc123..."  // Secret in version control
+    "API_KEY": "<YOUR_SECRET_HERE>"  // Never put a real or realistic-looking secret in version control
   }
 }
 ```

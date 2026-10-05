@@ -35,3 +35,4 @@ A short list of accepted decisions. An agent does not propose an alternative to 
 | Publication status labels | table in skill `page-spec` |
 | Repeated `Idempotency-Key` with a different body | 409 `CONFLICT` with `details.reason` |
 | Stale draft revision | revision in the request body → 409 (no `If-Match` header) |
+| 05.10.2026 | Secret scanning is full-history Gitleaks with repository config `.gitleaks.toml`; docs/tests use obvious placeholders; false positives may be ignored only by narrow path + pattern rules, never by commit-SHA fingerprints | `.gitleaks.toml`, `.github/workflows/ci.yml`, `README.md` |

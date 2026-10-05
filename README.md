@@ -21,7 +21,7 @@ npm run preview           # production build served locally
 npm run db:migrate:local  # apply D1 migrations to the local database
 npm run verify            # everything CI checks (format, lint, docs, types, architecture, tests, build)
 npm run deploy:check      # build + dry-run deploy (nothing is uploaded)
-npm run deploy            # OWNER ONLY: build + deploy the single production Worker
+npm run deploy            # manual deploy helper; normal remote deploys happen only in GitHub CI
 npm run db:migrate:remote # OWNER ONLY: apply migrations to the production D1 (take a Time Travel bookmark first)
 npm run agents:sync       # after editing .agents/roles or .agents/skills
 npm run metrics           # tokens and cost per agent session
@@ -29,9 +29,9 @@ npm run metrics           # tokens and cost per agent session
 
 Local URLs: `npm run dev` prints the address (Vite, usually http://localhost:5173). Useful checks: `/api/v1/health`; trigger the Cron handler with `curl http://localhost:5173/cdn-cgi/handler/scheduled` (or port 8790 for `dev:backend`).
 
-First production deploy (owner): `npx wrangler login`; `npx wrangler d1 create content-bot` and put the id into `apps/backend/wrangler.jsonc`; set `OWNER_TELEGRAM_ID` and `BOT_INFO` (see `apps/backend/.dev.vars.example`); set secrets with `npx wrangler secret put TELEGRAM_BOT_TOKEN` (and the others from `apps/backend/.dev.vars.example`); `npm run db:migrate:remote`; `npm run deploy`.
+Cloudflare deploys are branch-driven: after the owner provisions each environment's D1/vars/secrets, a green push to `develop` deploys `content-bot-dev`; a green push to `main` deploys `content-bot-production`. Remote D1 migrations remain an explicit owner action before code that depends on them is released.
 
-Git hooks (Husky): `npm run prepare` installs the repository hooks in the local Git checkout. Pre-commit formats and lints staged files (Prettier + Oxlint autofix); pre-push runs `npm run verify:changed` for checks touched by unpushed changes. Hooks can be bypassed or left uninstalled, so GitHub CI independently runs full `npm run verify` on pushes to `develop`/`main` and pull requests. CI does not deploy.
+Git hooks (Husky): `npm run prepare` installs the repository hooks in the local Git checkout. Pre-commit formats and lints staged files (Prettier + Oxlint autofix); pre-push runs `npm run verify:changed` for checks touched by unpushed changes. Hooks can be bypassed or left uninstalled, so GitHub CI independently runs full `npm run verify` plus a full-history Gitleaks scan on pushes to `develop`/`main` and pull requests. After all checks are green, push events deploy `develop` to `content-bot-dev` and `main` to `content-bot-production`; pull requests never deploy.
 
 ## Working with AI agents
 - **Claude Code** and **Codex** read the same `AGENTS.md`, area rules (`apps/backend/AGENTS.md`, …), roles and skills. Details — `docs/AGENT_ORCHESTRATION.md`.
@@ -52,4 +52,4 @@ Git hooks (Husky): `npm run prepare` installs the repository hooks in the local 
 10. **A repeated request → a skill.** If you explain the same thing to the agent a second time, it is a candidate for `.agents/skills/`.
 
 ## Security
-Secrets only in Worker secrets; do not commit `.env*`/`.dev.vars`; on `unknown` from Telegram — manual reconciliation, never an automatic retry. There is no separate staging environment; tests use fakes or local resources and must not target production Telegram destinations or remote D1.
+Secrets only in Worker secrets; do not commit `.env*`/`.dev.vars`. CI scans the full Git history with Gitleaks using `.gitleaks.toml`. Documentation and tests must use obvious placeholders such as `<YOUR_SECRET_HERE>`, never realistic-looking fake credentials. Reviewed false positives use narrow path + pattern allowlists; commit-SHA fingerprints are forbidden because merges create new fingerprints. On `unknown` from Telegram — manual reconciliation, never an automatic retry. There is no separate staging environment; tests use fakes or local resources and must not target production Telegram destinations or remote D1.

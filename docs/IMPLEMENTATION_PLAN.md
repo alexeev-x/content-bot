@@ -5,9 +5,9 @@
 ## Gate 0: repository/bootstrap
 - [x] npm workspaces (`frontend`, `backend`, `contracts`); lockfile; CI running `npm ci` with commands that actually exist (`npm run verify`).
 - [x] Agent system for Claude Code and Codex from a single source (`.agents/`), sync checks and instruction budgets.
-- [x] Quality gates: Prettier + Oxlint (decision 03.10.2026, replaces ESLint), dependency-cruiser, Vitest (+ Cloudflare workers pool), colour literals only in `tokens.css` (a frontend test instead of stylelint), `npm audit` (production deps) and gitleaks (full history) in CI.
+- [x] Quality gates: Prettier + Oxlint (decision 03.10.2026, replaces ESLint), dependency-cruiser, Vitest (+ Cloudflare workers pool), colour literals only in `tokens.css` (a frontend test instead of stylelint), `npm audit` (production deps) and Gitleaks (full history) in CI with a stable `.gitleaks.toml`; reviewed false positives are path+pattern scoped, never commit-SHA fingerprints.
 - [x] Wrangler: one Worker serves the SPA (static assets), the API, D1 and Cron; checked locally with `npm run dev:backend` (health, SPA fallback, Cron handler).
-- [x] GitHub Actions: `npm run verify`, `npm audit`, gitleaks on every push to `develop`/`main` and every PR.
+- [x] GitHub Actions: `npm run verify`, `npm audit`, Gitleaks with `.gitleaks.toml` on every push to `develop`/`main` and every PR.
 - [x] GitHub Actions: after green checks, a push to `develop` deploys `content-bot-dev`, a push to `main` deploys `content-bot-production`.
 - [ ] Owner: create the dev and production D1 databases and add their bindings under `env.dev` / `env.production` in `apps/backend/wrangler.jsonc` (D1 and vars are not inherited by environments); set `OWNER_TELEGRAM_ID` per environment and secrets; protect `main` (require the CI checks) and require approval for the `production` GitHub environment.
 
