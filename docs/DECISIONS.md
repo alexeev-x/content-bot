@@ -21,10 +21,11 @@ A short list of accepted decisions. An agent does not propose an alternative to 
 | 03.10.2026 | Product code in `apps/{frontend,backend,contracts}`; agent infrastructure in `.agents/` | `README.md` |
 | 03.10.2026 | Agents: one source for Claude Code and Codex (`.agents/` → generated adapters) | `docs/AGENT_ORCHESTRATION.md` |
 | 03.10.2026 | Git: work directly in `develop` (shipped to the dev Worker, see 05.10.2026); `main` — releases via a `develop → main` PR; the owner commits and pushes | `AGENTS.md` |
-| 05.10.2026 | CI deploys after green checks: `develop` → Worker `content-bot-dev`, `main` → `content-bot-production` (Wrangler environments selected via `CLOUDFLARE_ENV`); each environment owns its D1 and vars; remote migrations stay manual owner actions | `.github/workflows/ci.yml`, `apps/backend/wrangler.jsonc` |
+| 05.10.2026 | CI deploys after green checks: `develop` → Worker `dev` (`dev.alexeevs.workers.dev`), `main` → Worker `app` (`app.alexeevs.workers.dev`) via `CLOUDFLARE_ENV`; each environment owns its D1 and vars; remote migrations stay manual owner actions | `.github/workflows/ci.yml`, `apps/backend/wrangler.jsonc` |
 | 03.10.2026 | `unknown` from Telegram — manual reconciliation only, never an automatic retry | skill `publishing-reliability` |
 | 03.10.2026 | No paid AI/render APIs and no paid plans without a separate owner decision | `AGENTS.md` |
 | 03.10.2026 | Token savings: RTK, the caveman proxy, claude-context, context-mode are not used (rationale and measurements) | `docs/AGENT_ORCHESTRATION.md` |
+| 05.10.2026 | Secret scanning is full-history Gitleaks with repository config `.gitleaks.toml`; docs/tests use obvious placeholders; false positives may be ignored only by narrow path + pattern rules, never by commit-SHA fingerprints | `.gitleaks.toml`, `.github/workflows/ci.yml`, `README.md` |
 
 ## Awaiting owner decision
 | Question | Default recommendation |
@@ -35,4 +36,3 @@ A short list of accepted decisions. An agent does not propose an alternative to 
 | Publication status labels | table in skill `page-spec` |
 | Repeated `Idempotency-Key` with a different body | 409 `CONFLICT` with `details.reason` |
 | Stale draft revision | revision in the request body → 409 (no `If-Match` header) |
-| 05.10.2026 | Secret scanning is full-history Gitleaks with repository config `.gitleaks.toml`; docs/tests use obvious placeholders; false positives may be ignored only by narrow path + pattern rules, never by commit-SHA fingerprints | `.gitleaks.toml`, `.github/workflows/ci.yml`, `README.md` |
