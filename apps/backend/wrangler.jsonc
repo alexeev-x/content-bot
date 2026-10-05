@@ -12,7 +12,8 @@
     "not_found_handling": "single-page-application",
     "run_worker_first": ["/api/*", "/webhooks/*"],
   },
-  "triggers": { "crons": ["* * * * *"] },
+  // An empty list removes existing Cron Triggers on the next deployment.
+  "triggers": { "crons": [] },
   "d1_databases": [
     {
       "binding": "DB",
