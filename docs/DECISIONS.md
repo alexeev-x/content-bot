@@ -20,7 +20,8 @@ A short list of accepted decisions. An agent does not propose an alternative to 
 | 03.10.2026 | Look and feel: calm monochrome, dark and light themes, no bright accents; color only for errors and `unknown` | `docs/FRONTEND_ARCHITECTURE.md` §10 |
 | 03.10.2026 | Product code in `apps/{frontend,backend,contracts}`; agent infrastructure in `.agents/` | `README.md` |
 | 03.10.2026 | Agents: one source for Claude Code and Codex (`.agents/` → generated adapters) | `docs/AGENT_ORCHESTRATION.md` |
-| 03.10.2026 | Git: work directly in `develop` (this is the development environment, there are no other environments); `main` — releases via a `develop → main` PR; the owner commits and pushes | `AGENTS.md` |
+| 03.10.2026 | Git: work directly in `develop` (shipped to the dev Worker, see 05.10.2026); `main` — releases via a `develop → main` PR; the owner commits and pushes | `AGENTS.md` |
+| 05.10.2026 | CI deploys after green checks: `develop` → Worker `content-bot-dev`, `main` → `content-bot-production` (Wrangler environments selected via `CLOUDFLARE_ENV`); each environment owns its D1 and vars; remote migrations stay manual owner actions | `.github/workflows/ci.yml`, `apps/backend/wrangler.jsonc` |
 | 03.10.2026 | `unknown` from Telegram — manual reconciliation only, never an automatic retry | skill `publishing-reliability` |
 | 03.10.2026 | No paid AI/render APIs and no paid plans without a separate owner decision | `AGENTS.md` |
 | 03.10.2026 | Token savings: RTK, the caveman proxy, claude-context, context-mode are not used (rationale and measurements) | `docs/AGENT_ORCHESTRATION.md` |
@@ -29,6 +30,7 @@ A short list of accepted decisions. An agent does not propose an alternative to 
 | Question | Default recommendation |
 |---|---|
 | Text generation via AI | not in the MVP |
+| Dota 2 patch posts published without owner confirmation (`docs/PATCH_AUTOMATION_PLAN_DRAFT.md`) | after the MVP; until then patch posts go through owner confirmation, no paid AI/render APIs |
 | Session lifetime | token 60 min; Mini App ≤ 12 h; refresh cookie in the browser 30 days |
 | Publication status labels | table in skill `page-spec` |
 | Repeated `Idempotency-Key` with a different body | 409 `CONFLICT` with `details.reason` |

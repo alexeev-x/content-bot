@@ -35,6 +35,8 @@ jobs:
     if: github.event_name == 'push'
     needs: [verify, secrets]
     runs-on: ubuntu-latest
+    # GitHub environments scope the Cloudflare secrets and let the owner require approval for production.
+    environment: ${{ github.ref_name == 'main' && 'production' || 'dev' }}
     concurrency:
       group: cloudflare-deploy-${{ github.ref_name }}
       cancel-in-progress: false

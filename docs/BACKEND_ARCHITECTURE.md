@@ -36,7 +36,7 @@ Do not use at the start: microservices, Redis, Kafka, Kubernetes, CQRS/Event Sou
 | Tests | Vitest 4.1 + `@cloudflare/vitest-plugin`, real D1 migrations, fake Telegram via a port | Vitest 5 — until supported in the Cloudflare plugin |
 | Local development | `vite dev` with `@cloudflare/vite-plugin`, `.dev.vars`, `wrangler types` | — |
 | Observability | Workers Logs + `incidents` table in D1 | third-party SDKs until real traffic appears (fallback — Sentry) |
-| Deploy | one production Worker + one D1; GitHub Actions on the owner's button press: migrations → deploy; Time Travel bookmark before migration | agents never deploy |
+| Deploy | Workers `content-bot-dev` (from `develop`) and `content-bot-production` (from `main`), each with its own D1; GitHub Actions deploys after green checks; the owner applies remote migrations before pushing code that needs them; Time Travel bookmark before migration | agents never deploy |
 
 ## 2. Boundaries: who owns what
 
