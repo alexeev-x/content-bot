@@ -28,7 +28,7 @@ function validFields(overrides: Record<string, string> = {}): Record<string, str
     auth_date: String(NOW_SEC - 60),
     query_id: 'AAH-test',
     user: JSON.stringify({ id: OWNER_ID, first_name: 'Alex', username: 'alex' }),
-    ...overrides,
+    ...overrides
   };
 }
 
@@ -41,7 +41,7 @@ describe('verifyInitData', () => {
       auth_date: '1790942340',
       query_id: 'AAH-test',
       user: '{"id":4242,"first_name":"Alex","username":"alex"}',
-      hash: 'c3d19fc6946a2cc27604384c8e619fcecdc03bd075408861f4d64bc68c25be8d',
+      hash: 'c3d19fc6946a2cc27604384c8e619fcecdc03bd075408861f4d64bc68c25be8d'
     }).toString();
 
     const result = await verify(initData, 1790942400 * 1000);
@@ -54,7 +54,7 @@ describe('verifyInitData', () => {
     expect(result).toEqual({
       ok: true,
       user: { id: OWNER_ID, first_name: 'Alex', username: 'alex' },
-      authDate: NOW_SEC - 60,
+      authDate: NOW_SEC - 60
     });
   });
 
@@ -92,7 +92,7 @@ describe('verifyInitData', () => {
     ['no hash', async () => new URLSearchParams(validFields()).toString()],
     ['non-hex hash', async () => `${new URLSearchParams(validFields()).toString()}&hash=zz`],
     ['duplicated key', async () => `${await signInitData(validFields())}&auth_date=1`],
-    ['oversized', async () => `a=${'x'.repeat(9000)}`],
+    ['oversized', async () => `a=${'x'.repeat(9000)}`]
   ])('treats %s as malformed', async (_name, build) => {
     expect(await verify(await build())).toEqual({ ok: false, reason: 'MALFORMED' });
   });
@@ -107,7 +107,7 @@ describe('verifyInitData', () => {
       initData: await signInitData(validFields(), ''),
       botToken: '',
       ownerTelegramId: OWNER_ID,
-      now: NOW,
+      now: NOW
     });
     expect(result).toEqual({ ok: false, reason: 'MALFORMED' });
   });

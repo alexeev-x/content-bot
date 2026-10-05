@@ -4,12 +4,12 @@ import { type Container, createContainer } from './container';
 // today a tick only leaves a trace so the trigger is observable.
 export async function handleScheduled(
   controller: ScheduledController,
-  container: Container = createContainer(),
+  container: Container = createContainer()
 ): Promise<void> {
   container.logger.info({
     component: 'scheduled',
     operation: 'tick',
     cron: controller.cron,
-    at: controller.scheduledTime,
+    at: controller.scheduledTime
   });
 }

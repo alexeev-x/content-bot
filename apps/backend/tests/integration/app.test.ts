@@ -49,7 +49,7 @@ describe('AppError mapping', () => {
       code: 'CONFLICT',
       message: 'Request already in flight',
       requestId: response.headers.get('x-request-id'),
-      details: { reason: 'IN_FLIGHT' },
+      details: { reason: 'IN_FLIGHT' }
     });
   });
 
@@ -65,7 +65,7 @@ describe('AppError mapping', () => {
     expect(apiErrorSchema.parse(await response.json()).error).toEqual({
       code: 'FORBIDDEN',
       message: 'Access denied',
-      requestId: response.headers.get('x-request-id'),
+      requestId: response.headers.get('x-request-id')
     });
   });
 
@@ -82,7 +82,7 @@ describe('AppError mapping', () => {
     expect(apiErrorSchema.parse(body).error).toEqual({
       code: 'UNAVAILABLE',
       message: 'Internal error',
-      requestId: response.headers.get('x-request-id'),
+      requestId: response.headers.get('x-request-id')
     });
     expect(JSON.stringify(body)).not.toContain('private diagnostic');
   });
@@ -93,7 +93,7 @@ describe('HTTPException mapping', () => {
     [405, 'VALIDATION_ERROR'],
     [409, 'CONFLICT'],
     [429, 'RATE_LIMIT'],
-    [502, 'UNAVAILABLE'],
+    [502, 'UNAVAILABLE']
   ] as const)('status %i keeps its status and carries code %s', async (status, code) => {
     const app = createApp();
     app.get('/api/v1/http-error', () => {
@@ -116,21 +116,21 @@ describe('Telegram webhook with a configured bot', () => {
     OWNER_TELEGRAM_ID: '4242',
     TELEGRAM_BOT_TOKEN: '123456:TEST',
     TELEGRAM_WEBHOOK_SECRET: 'hook-secret',
-    BOT_INFO: JSON.stringify({ id: 1, is_bot: true, first_name: 'Bot', username: 'content_bot' }),
+    BOT_INFO: JSON.stringify({ id: 1, is_bot: true, first_name: 'Bot', username: 'content_bot' })
   } as AppEnv;
 
   const post = (headers: Record<string, string>, body: unknown = { update_id: 1 }) =>
     createApp().request(
       '/webhooks/telegram',
       { method: 'POST', headers: { 'content-type': 'application/json', ...headers }, body: JSON.stringify(body) },
-      env,
+      env
     );
 
   it('answers 503 only after the secret is proven, when the rest of the bot config is missing', async () => {
     const response = await createApp().request(
       '/webhooks/telegram',
       { method: 'POST', headers: { 'x-telegram-bot-api-secret-token': 'hook-secret' }, body: '{}' },
-      { ...env, TELEGRAM_BOT_TOKEN: undefined } as AppEnv,
+      { ...env, TELEGRAM_BOT_TOKEN: undefined } as AppEnv
     );
 
     expect(response.status).toBe(503);
@@ -155,8 +155,8 @@ describe('Telegram webhook with a configured bot', () => {
         chat: { id: 777, type: 'private', first_name: 'Eve' },
         from: { id: 777, is_bot: false, first_name: 'Eve' },
         text: '/start',
-        entities: [{ type: 'bot_command', offset: 0, length: 6 }],
-      },
+        entities: [{ type: 'bot_command', offset: 0, length: 6 }]
+      }
     };
 
     const fetchSpy = vi.spyOn(globalThis, 'fetch');

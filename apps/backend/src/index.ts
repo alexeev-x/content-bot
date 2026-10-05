@@ -5,5 +5,5 @@ const app = createApp();
 
 export default {
   fetch: app.fetch,
-  scheduled: (controller) => handleScheduled(controller),
+  scheduled: (controller) => handleScheduled(controller)
 } satisfies ExportedHandler<Env>;

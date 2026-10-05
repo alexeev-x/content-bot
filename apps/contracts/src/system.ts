@@ -5,6 +5,6 @@ export const healthSchema = z.object({
   status: z.literal('ok'),
   service: z.string(),
   publishingEnabled: z.boolean(),
-  time: z.iso.datetime(),
+  time: z.iso.datetime()
 });
 export type HealthDto = z.infer<typeof healthSchema>;

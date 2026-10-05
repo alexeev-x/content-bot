@@ -3,5 +3,5 @@ export type {
   InitDataFailure,
   TelegramUser,
   VerifyInitDataInput,
-  VerifyInitDataResult,
+  VerifyInitDataResult
 } from './application/verify-init-data';

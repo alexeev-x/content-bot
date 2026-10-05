@@ -16,7 +16,7 @@ function renderHealth() {
   render(
     <QueryClientProvider client={client}>
       <SystemHealth />
-    </QueryClientProvider>,
+    </QueryClientProvider>
   );
 }
 
@@ -24,7 +24,7 @@ const body = (publishingEnabled: boolean) => ({
   status: 'ok',
   service: 'content-bot',
   publishingEnabled,
-  time: '2026-10-03T10:00:00.000Z',
+  time: '2026-10-03T10:00:00.000Z'
 });
 
 describe('SystemHealth', () => {
@@ -39,9 +39,7 @@ describe('SystemHealth', () => {
   it('shows an error with retry on 503 and recovers', async () => {
     let fail = true;
     server.use(
-      http.get('*/api/v1/health', () =>
-        fail ? HttpResponse.json({}, { status: 503 }) : HttpResponse.json(body(true)),
-      ),
+      http.get('*/api/v1/health', () => (fail ? HttpResponse.json({}, { status: 503 }) : HttpResponse.json(body(true))))
     );
     renderHealth();
     expect(await screen.findByRole('alert')).toBeTruthy();

@@ -25,6 +25,6 @@ export function createLogger(write: (line: string) => void = (line) => console.l
   return {
     info: (event) => emit('info', event),
     warn: (event) => emit('warn', event),
-    error: (event) => emit('error', event),
+    error: (event) => emit('error', event)
   };
 }

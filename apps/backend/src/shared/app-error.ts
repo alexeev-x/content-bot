@@ -9,7 +9,7 @@ const statusByCode: Record<ApiErrorCode, ContentfulStatusCode> = {
   NOT_FOUND: 404,
   RATE_LIMIT: 429,
   UNAVAILABLE: 503,
-  UNKNOWN_SEND_RESULT: 409,
+  UNKNOWN_SEND_RESULT: 409
 };
 
 // The only error type use cases throw on purpose; `onError` maps it to ApiErrorDto.
@@ -19,7 +19,7 @@ export class AppError extends Error {
   constructor(
     readonly code: ApiErrorCode,
     message: string,
-    readonly details?: Record<string, string>,
+    readonly details?: Record<string, string>
   ) {
     super(message);
     this.name = 'AppError';

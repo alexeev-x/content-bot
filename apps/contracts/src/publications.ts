@@ -10,6 +10,6 @@ export const publicationStatusSchema = z.enum([
   'retry_wait',
   'failed',
   'unknown',
-  'cancelled',
+  'cancelled'
 ]);
 export type PublicationStatus = z.infer<typeof publicationStatusSchema>;

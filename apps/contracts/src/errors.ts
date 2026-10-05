@@ -8,7 +8,7 @@ export const apiErrorCodeSchema = z.enum([
   'NOT_FOUND',
   'RATE_LIMIT',
   'UNAVAILABLE',
-  'UNKNOWN_SEND_RESULT',
+  'UNKNOWN_SEND_RESULT'
 ]);
 export type ApiErrorCode = z.infer<typeof apiErrorCodeSchema>;
 
@@ -17,7 +17,7 @@ export const apiErrorSchema = z.object({
     code: apiErrorCodeSchema,
     message: z.string(),
     requestId: z.string(),
-    details: z.record(z.string(), z.string()).optional(),
-  }),
+    details: z.record(z.string(), z.string()).optional()
+  })
 });
 export type ApiErrorDto = z.infer<typeof apiErrorSchema>;

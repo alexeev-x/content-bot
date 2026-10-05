@@ -10,7 +10,7 @@ function errorBody(
   code: ApiErrorDto['error']['code'],
   message: string,
   requestId: string,
-  details?: ApiErrorDto['error']['details'],
+  details?: ApiErrorDto['error']['details']
 ): ApiErrorDto {
   return { error: { code, message, requestId, ...(details === undefined ? {} : { details }) } };
 }
@@ -31,7 +31,7 @@ export function createApp() {
       operation: `${c.req.method} ${c.req.routePath}`,
       requestId,
       status: c.res.status,
-      durationMs: container.clock.now() - startedAt,
+      durationMs: container.clock.now() - startedAt
     });
   });
 
@@ -40,7 +40,7 @@ export function createApp() {
       status: 'ok',
       service: 'content-bot',
       publishingEnabled: false,
-      time: new Date(c.get('container').clock.now()).toISOString(),
+      time: new Date(c.get('container').clock.now()).toISOString()
     };
     return c.json(body);
   });
@@ -62,7 +62,7 @@ export function createApp() {
       component: 'http',
       operation: `${c.req.method} ${c.req.routePath}`,
       requestId,
-      errorCode: error.name,
+      errorCode: error.name
     });
     return c.json(errorBody('UNAVAILABLE', 'Internal error', requestId), 500);
   });
