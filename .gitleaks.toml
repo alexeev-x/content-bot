@@ -1,0 +1,35 @@
+title = "ALEXEEV Content Bot secret scanning"
+
+[extend]
+useDefault = true
+
+# Historical false positives remain in Git history after the source text is cleaned.
+# Keep exceptions stable across merges: no commit-SHA fingerprints are allowed.
+# Current docs/tests must use obvious placeholders instead of secret-shaped dummy values.
+
+[[allowlists]]
+description = "Historical Workers documentation anti-pattern example"
+targetRules = ["generic-api-key"]
+condition = "AND"
+paths = [
+  '''(^|/)\.agents/skills/workers-best-practices/references/configuration\.md$''',
+  '''(^|/)\.claude/skills/workers-best-practices/references/configuration\.md$''',
+]
+regexTarget = "line"
+regexes = [
+  '''API_KEY.*abc123''',
+]
+
+[[allowlists]]
+description = "Historical dummy Telegram webhook secret from the pre-workspace test layout"
+targetRules = ["generic-api-key"]
+condition = "AND"
+paths = [
+  '''(^|/)tests/telegram-mock\.ts$''',
+  '''(^|/)vitest\.config\.ts$''',
+]
+regexTarget = "line"
+regexes = [
+  '''const SECRET = '[0-9]{10}[a-z0-9]{32}'[;,]?''',
+  '''TELEGRAM_WEBHOOK_SECRET:\s*'[0-9]{10}[a-z0-9]{32}'[;,]?''',
+]

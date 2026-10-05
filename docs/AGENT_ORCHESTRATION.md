@@ -39,7 +39,7 @@ The implementer runs focused tests while working. The main session owns the R0/R
 3. **The agent's report** is a short JSON from `AGENTS.md`; logs — only the relevant lines.
 4. **Instructions in English** (fewer tokens for the same idea); all documentation is in English too; only communication with the owner and end-user UI copy are Russian.
 5. **A stable prefix** for the cache: `AGENTS.md` contains no dates, task statuses or other frequently changing content.
-6. **Deterministic checks instead of LLM** (types, build, budgets, adapter sync). Next: ESLint, dependency-cruiser, Vitest, Playwright, gitleaks.
+6. **Deterministic checks instead of LLM**: Prettier, Oxlint, types, dependency-cruiser, Vitest, build, budgets, adapter sync and full-history Gitleaks. Next: Playwright.
 7. **Loop limits:** maxTurns on roles; two failed fixes of the same error → escalation to the owner.
 8. **Measurement:** `.agent-metrics/log.jsonl` per task (see skill `orchestrate`). We do not claim savings percentages without a comparison on the same set of tasks.
 
