@@ -29,9 +29,9 @@ npm run metrics           # tokens and cost per agent session
 
 Local URLs: `npm run dev` prints the address (Vite, usually http://localhost:5173). Useful checks: `/api/v1/health`; trigger the Cron handler with `curl http://localhost:5173/cdn-cgi/handler/scheduled` (or port 8790 for `dev:backend`).
 
-Cloudflare deploys are branch-driven: after the owner provisions each environment's D1/vars/secrets, a green push to `develop` deploys `content-bot-dev`; a green push to `main` deploys `content-bot-production`. Remote D1 migrations remain an explicit owner action before code that depends on them is released.
+Cloudflare deploys are branch-driven: after the owner provisions each environment's D1/vars/secrets, a green push to `develop` deploys Worker `dev` (`dev.alexeevs.workers.dev`); a green push to `main` deploys Worker `app` (`app.alexeevs.workers.dev`). Remote D1 migrations remain an explicit owner action before code that depends on them is released.
 
-Git hooks (Husky): `npm run prepare` installs the repository hooks in the local Git checkout. Pre-commit formats and lints staged files (Prettier + Oxlint autofix); pre-push runs `npm run verify:changed` for checks touched by unpushed changes. Hooks can be bypassed or left uninstalled, so GitHub CI independently runs full `npm run verify` plus a full-history Gitleaks scan on pushes to `develop`/`main` and pull requests. After all checks are green, push events deploy `develop` to `content-bot-dev` and `main` to `content-bot-production`; pull requests never deploy.
+Git hooks (Husky): `npm run prepare` installs the repository hooks in the local Git checkout. Pre-commit formats and lints staged files (Prettier + Oxlint autofix); pre-push runs `npm run verify:changed` for checks touched by unpushed changes. Hooks can be bypassed or left uninstalled, so GitHub CI independently runs full `npm run verify` plus a full-history Gitleaks scan on pushes to `develop`/`main` and pull requests. After all checks are green, push events deploy `develop` to `dev` and `main` to `app`; pull requests never deploy.
 
 ## Working with AI agents
 - **Claude Code** and **Codex** read the same `AGENTS.md`, area rules (`apps/backend/AGENTS.md`, …), roles and skills. Details — `docs/AGENT_ORCHESTRATION.md`.

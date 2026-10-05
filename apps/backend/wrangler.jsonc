@@ -34,14 +34,14 @@
   // explicitly owns its runtime configuration.
   "env": {
     "dev": {
-      "name": "content-bot-dev",
+      "name": "dev",
       "workers_dev": true,
       "vars": {
         "OWNER_TELEGRAM_ID": ""
       }
     },
     "production": {
-      "name": "content-bot-production",
+      "name": "app",
       "workers_dev": true,
       "vars": {
         "OWNER_TELEGRAM_ID": ""

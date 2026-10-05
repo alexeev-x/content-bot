@@ -30,13 +30,13 @@ Do not use at the start: microservices, Redis, Kafka, Kubernetes, CQRS/Event Sou
 |---|---|---|
 | HTTP | Hono 4 + `@hono/zod-validator`; schemas — Zod 4 from `apps/contracts` | Hono RPC (couples the frontend to backend types, requires identical versions), OpenAPI (no external consumers) |
 | Data | D1: SQL via `prepare().bind()`, small typed helpers, row parsing via Zod; migrations — SQL files for `wrangler d1 migrations` | ORM: the job-claim SQL must be explicit; Drizzle 1.0 is still RC (fallback — Drizzle 0.45 only for types and simple CRUD) |
-| Background jobs | Cron once a minute, small batches | Durable Object alarms and Workflows: they automatically retry steps on failure, which contradicts the `unknown` rule; Queue — after measurements |
+| Background jobs | Cron dispatcher with small batches; remote Cron trigger stays disabled until the scheduler is implemented, then production cadence is configured explicitly | Durable Object alarms and Workflows: they automatically retry steps on failure, which contradicts the `unknown` rule; Queue — after measurements |
 | Telegram | grammY: commands (`webhookCallback(bot, "cloudflare-mod")`, `botInfo` from settings) and sending (`bot.api`) through the publication adapter | the `@grammyjs/auto-retry` plugin — forbidden (it retries network errors) |
 | Sign-in | Owner's Telegram ID: Mini App — `initData` (HMAC), browser — Telegram OpenID Connect; session token in a header | custom OTP codes and passwords; Cloudflare Access (does not work inside Telegram) |
 | Tests | Vitest 4.1 + `@cloudflare/vitest-plugin`, real D1 migrations, fake Telegram via a port | Vitest 5 — until supported in the Cloudflare plugin |
 | Local development | `vite dev` with `@cloudflare/vite-plugin`, `.dev.vars`, `wrangler types` | — |
 | Observability | Workers Logs + `incidents` table in D1 | third-party SDKs until real traffic appears (fallback — Sentry) |
-| Deploy | Workers `content-bot-dev` (from `develop`) and `content-bot-production` (from `main`), each with its own D1; GitHub Actions deploys after green checks; the owner applies remote migrations before pushing code that needs them; Time Travel bookmark before migration | agents never deploy |
+| Deploy | Workers `dev` (from `develop`, `dev.alexeevs.workers.dev`) and `app` (from `main`, `app.alexeevs.workers.dev`), each with its own D1; GitHub Actions deploys after green checks; the owner applies remote migrations before pushing code that needs them; Time Travel bookmark before migration | agents never deploy |
 
 ## 2. Boundaries: who owns what
 

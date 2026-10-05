@@ -56,7 +56,7 @@ Write tersely: no preamble, no restating the task, no recap of a visible diff. C
 - Comments explain why. New dependencies need a PR reason and lockfile entry; prefer platform APIs.
 
 ## Git
-Work directly on `develop`: CI deploys it to `content-bot-dev`. `main` holds releases (deployed to `content-bot-production`) and changes only through a release PR from `develop`, opened by the owner. The owner commits and pushes: leave the task's changes ready (verified, `git status` shows only task files) and propose a commit message. Never commit or push to `main`, never force-push. A SQL change needs a migration. A contract change updates `contracts`, the backend, the frontend and the contract tests in the same PR.
+Work directly on `develop`: CI deploys it to Worker `dev`. `main` holds releases (deployed to Worker `app`) and changes only through a release PR from `develop`, opened by the owner. The owner commits and pushes: leave the task's changes ready (verified, `git status` shows only task files) and propose a commit message. Never commit or push to `main`, never force-push. A SQL change needs a migration. A contract change updates `contracts`, the backend, the frontend and the contract tests in the same PR.
 
 ## Done means verified
 Follow the risk gate in `.agents/skills/orchestrate/SKILL.md`. Run required checks and report actual results. To the owner: short Russian summary. Subagents report:
