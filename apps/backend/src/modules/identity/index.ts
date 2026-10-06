@@ -7,5 +7,11 @@ export type {
 } from './application/verify-init-data';
 export { authenticateOwner } from './application/authenticate-owner';
 export type { AuthenticatedActor, AuthenticateDeps } from './application/authenticate-owner';
+export { signInWithTelegram } from './application/sign-in-with-telegram';
+export type { IssuedAccessToken, SignInDeps } from './application/sign-in-with-telegram';
+export { refreshBrowserSession, refreshMiniAppSession } from './application/refresh-session';
+export type { IssuedBrowserTokens, RefreshDeps } from './application/refresh-session';
+export { logout } from './application/logout';
+export type { LogoutDeps } from './application/logout';
 export type { ActiveSession, SessionStore } from './application/ports';
 export { createD1SessionStore } from './infrastructure/d1-session-store';

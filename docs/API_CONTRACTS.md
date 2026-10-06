@@ -21,6 +21,8 @@ Telegram                    → /webhooks/telegram (secret header, no session)
 | `POST /api/v1/auth/logout` | Bearer + refresh cookie, if present; `Origin` is checked | 204; session and cookie removed on the server |
 | `GET /api/v1/auth/me` | Bearer | `{ telegramId, name }` |
 
+Implemented today: `POST /api/v1/auth/telegram`, `POST /api/v1/auth/refresh`, `POST /api/v1/auth/logout`, `GET /api/v1/auth/me` (schemas: `apps/contracts/src/auth.ts`); the OIDC endpoints come next. Sign-in and refresh are rate-limited per client (`429` `RATE_LIMIT` with `Retry-After`). The browser refresh cookie is `refresh_token`, rotated on every use; presenting an already-rotated token revokes the whole session, so the SPA must run one refresh at a time. A browser session ends after 90 days at most, a Mini App session after 12 hours.
+
 All other `/api/v1/*` endpoints require `Authorization: Bearer <accessToken>`. The client keeps the token in memory only. The main API does not accept cookies, so no CSRF token is needed; the cookie endpoints `/api/v1/auth/*` are protected by an `Origin` check. The bot token and session tokens never reach the browser, except the short-lived access token.
 
 ## Common DTOs and responses

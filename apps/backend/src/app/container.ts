@@ -9,6 +9,8 @@ import {
   type PostSource,
   type PublicationRepository
 } from '../modules/publishing';
+import { createD1RateLimiter, type RateLimiter } from '../platform/rate-limit/d1-rate-limiter';
+import { randomToken } from '../platform/security/random-token';
 import { createLogger, type Logger } from '../platform/logging/logger';
 import { AppError } from '../shared/app-error';
 
@@ -18,12 +20,14 @@ export interface Container {
   clock: Clock;
   logger: Logger;
   sessions: SessionStore;
+  rateLimiter: RateLimiter;
   posts: PostRepository;
   idempotency: IdempotencyGate;
   destinations: DestinationRepository;
   publications: PublicationRepository;
   postSource: PostSource;
   newId: () => string;
+  newToken: () => string;
 }
 
 // `DB` is absent in a deployment whose D1 database has not been provisioned yet. Health must
@@ -39,6 +43,9 @@ export function createContainer(env: { DB?: D1Database }, overrides: { clock?: C
     logger: createLogger(),
     get sessions() {
       return createD1SessionStore(db());
+    },
+    get rateLimiter() {
+      return createD1RateLimiter(db());
     },
     get posts() {
       return createD1PostRepository(db());
@@ -62,6 +69,7 @@ export function createContainer(env: { DB?: D1Database }, overrides: { clock?: C
         }
       };
     },
-    newId: () => crypto.randomUUID()
+    newId: () => crypto.randomUUID(),
+    newToken: randomToken
   };
 }

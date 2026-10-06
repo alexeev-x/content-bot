@@ -1,10 +1,11 @@
 import { sha256Hex } from '../../../platform/security/sha256';
-import { timingSafeEqualStrings } from '../../../platform/security/timing-safe-equal';
 import { AppError } from '../../../shared/app-error';
-import type { SessionStore } from './ports';
+import { isOwner } from './owner';
+import type { ActiveSession, SessionStore } from './ports';
 
 export interface AuthenticatedActor {
   telegramId: string;
+  session: ActiveSession;
 }
 
 export interface AuthenticateDeps {
@@ -30,9 +31,6 @@ export async function authenticateOwner(
   const session = await deps.sessions.findActiveByTokenHash(await sha256Hex(token), deps.now);
   if (session === null) throw new AppError('UNAUTHORIZED', 'Authentication required');
 
-  const owner = (deps.ownerTelegramId ?? '').trim();
-  if (owner === '' || !timingSafeEqualStrings(session.telegramId, owner)) {
-    throw new AppError('FORBIDDEN', 'Access denied');
-  }
-  return { telegramId: session.telegramId };
+  if (!isOwner(session.telegramId, deps.ownerTelegramId)) throw new AppError('FORBIDDEN', 'Access denied');
+  return { telegramId: session.telegramId, session };
 }

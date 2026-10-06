@@ -3,7 +3,17 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { createApp } from '../../src/app/create-app';
 import type { AppEnv } from '../../src/app/env';
 import { testDb } from '../helpers/db';
-import { createApi, fakeClock, OWNER_ID, OWNER_TOKEN, resetDb, seedSession, START } from '../helpers/harness';
+import { APP_ORIGIN, initDataFields, seedBrowserSession, signInitData } from '../helpers/auth';
+import {
+  createApi,
+  fakeClock,
+  OWNER_ID,
+  OWNER_TOKEN,
+  resetDb,
+  seedSession,
+  START,
+  TEST_BOT_TOKEN
+} from '../helpers/harness';
 import { seedApprovedPost, seedDestination } from '../helpers/publishing';
 
 // Free plan: 50 D1 queries per invocation. Each endpoint's D1 round trips (a batch is one) are
@@ -63,20 +73,25 @@ beforeEach(async () => {
 
 async function measure(
   path: string,
-  init: { method?: string; json?: unknown; headers?: Record<string, string> } = {}
+  init: { method?: string; json?: unknown; headers?: Record<string, string>; token?: string | null } = {}
 ): Promise<{ status: number; body: unknown; counter: Counter }> {
   const counter = { roundTrips: 0, statements: 0 };
   const app = createApp({ clock: fakeClock() });
-  const env = { DB: countingDb(testDb(), counter), OWNER_TELEGRAM_ID: OWNER_ID } as AppEnv;
+  const env = {
+    DB: countingDb(testDb(), counter),
+    OWNER_TELEGRAM_ID: OWNER_ID,
+    TELEGRAM_BOT_TOKEN: TEST_BOT_TOKEN
+  } as AppEnv;
   const headers = new Headers(init.headers);
-  headers.set('authorization', `Bearer ${OWNER_TOKEN}`);
+  if (init.token !== null) headers.set('authorization', `Bearer ${init.token ?? OWNER_TOKEN}`);
   if (init.json !== undefined) headers.set('content-type', 'application/json');
   const response = await app.request(
     path,
     { method: init.method, headers, body: init.json === undefined ? undefined : JSON.stringify(init.json) },
     env
   );
-  return { status: response.status, body: await response.json(), counter };
+  const text = await response.text();
+  return { status: response.status, body: text === '' ? null : (JSON.parse(text) as unknown), counter };
 }
 
 describe('D1 round trips per request (session lookup included)', () => {
@@ -136,5 +151,65 @@ describe('D1 round trips per request (session lookup included)', () => {
     const cancelled = await measure(`/api/v1/publications/${id}/cancel`, { method: 'POST', json: { revision: 1 } });
     expect(cancelled.status).toBe(200);
     expect(cancelled.counter).toEqual({ roundTrips: 2, statements: 5 });
+  });
+});
+
+describe('D1 round trips of the auth endpoints', () => {
+  it('sign-in, me, refresh and logout', async () => {
+    const signedIn = await measure('/api/v1/auth/telegram', {
+      method: 'POST',
+      token: null,
+      json: { initData: await signInitData(initDataFields()) }
+    });
+    expect(signedIn.status).toBe(200);
+    expect(signedIn.counter).toEqual({ roundTrips: 2, statements: 3 }); // rate limit batch of 2, insert
+    const access = (signedIn.body as { accessToken: string }).accessToken;
+
+    expect((await measure('/api/v1/auth/me', { token: access })).counter.roundTrips).toBe(1);
+
+    const refreshed = await measure('/api/v1/auth/refresh', {
+      method: 'POST',
+      token: access,
+      headers: { origin: APP_ORIGIN }
+    });
+    expect(refreshed.status).toBe(200);
+    expect(refreshed.counter).toEqual({ roundTrips: 3, statements: 4 }); // rate limit batch of 2, session, rotate
+
+    const loggedOut = await measure('/api/v1/auth/logout', {
+      method: 'POST',
+      token: (refreshed.body as { accessToken: string }).accessToken,
+      headers: { origin: APP_ORIGIN }
+    });
+    expect(loggedOut.status).toBe(204);
+    expect(loggedOut.counter).toEqual({ roundTrips: 2, statements: 2 }); // session, revoke
+  });
+
+  it('browser refresh and logout by cookie', async () => {
+    await seedBrowserSession({ accessToken: 'a'.repeat(43), refreshToken: 'r'.repeat(43) });
+    const refreshed = await measure('/api/v1/auth/refresh', {
+      method: 'POST',
+      token: null,
+      headers: { origin: APP_ORIGIN, cookie: `refresh_token=${'r'.repeat(43)}` }
+    });
+    expect(refreshed.status).toBe(200);
+    expect(refreshed.counter).toEqual({ roundTrips: 3, statements: 7 }); // rate limit batch of 2, token+session, batch of 4
+
+    const replay = await measure('/api/v1/auth/refresh', {
+      method: 'POST',
+      token: null,
+      headers: { origin: APP_ORIGIN, cookie: `refresh_token=${'r'.repeat(43)}` }
+    });
+    expect(replay.status).toBe(401);
+    expect(replay.counter).toEqual({ roundTrips: 3, statements: 4 }); // rate limit batch of 2, token+session, revoke
+
+    await resetDb();
+    await seedBrowserSession({ accessToken: 'a'.repeat(43), refreshToken: 'r'.repeat(43) });
+    const loggedOut = await measure('/api/v1/auth/logout', {
+      method: 'POST',
+      token: null,
+      headers: { origin: APP_ORIGIN, cookie: `refresh_token=${'r'.repeat(43)}` }
+    });
+    expect(loggedOut.status).toBe(204);
+    expect(loggedOut.counter).toEqual({ roundTrips: 2, statements: 2 });
   });
 });

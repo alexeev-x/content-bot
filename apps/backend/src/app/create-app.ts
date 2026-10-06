@@ -6,10 +6,21 @@ import { telegramWebhook } from './bot/webhook-route';
 import type { Clock } from '../platform/clock';
 import { createContainer } from './container';
 import type { AppBindings } from './env';
+import { authRoutes } from './auth-routes';
 import { destinationsRoutes } from './destinations-routes';
 import { postsRoutes } from './posts-routes';
 import { publicationsRoutes } from './publications-routes';
 import { requireOwner } from './require-owner';
+
+// Reachable without a session. Sign-in, refresh and logout authenticate themselves with the
+// initData signature, the Bearer token or the refresh cookie, so a stricter guard in front of them
+// would make signing in impossible.
+const PUBLIC_ROUTES = new Set([
+  'GET /api/v1/health',
+  'POST /api/v1/auth/telegram',
+  'POST /api/v1/auth/refresh',
+  'POST /api/v1/auth/logout'
+]);
 
 function errorBody(
   code: ApiErrorDto['error']['code'],
@@ -31,6 +42,10 @@ export function createApp(options: { clock?: Clock } = {}) {
     c.set('container', container);
     c.header('x-request-id', requestId);
     await next();
+    c.header('x-content-type-options', 'nosniff');
+    c.header('referrer-policy', 'no-referrer');
+    // Everything under /api/v1 answers one private owner; a browser or proxy must not keep a copy.
+    if (c.req.path.startsWith('/api/v1/') && c.req.path !== '/api/v1/health') c.header('cache-control', 'no-store');
     container.logger.info({
       component: 'http',
       operation: `${c.req.method} ${c.req.routePath}`,
@@ -50,9 +65,12 @@ export function createApp(options: { clock?: Clock } = {}) {
     return c.json(body);
   });
 
-  // Everything under /api/v1 needs the owner's session except the health probe, so a new route
-  // is closed by default and a missing handler answers 401 rather than revealing what exists.
-  app.use('/api/v1/*', (c, next) => (c.req.path === '/api/v1/health' ? next() : requireOwner(c, next)));
+  // Everything under /api/v1 needs the owner's session except the public routes above, so a new
+  // route is closed by default and a missing handler answers 401 rather than revealing what exists.
+  app.use('/api/v1/*', (c, next) =>
+    PUBLIC_ROUTES.has(`${c.req.method} ${c.req.path}`) ? next() : requireOwner(c, next)
+  );
+  app.route('/api/v1/auth', authRoutes);
   app.route('/api/v1/posts', postsRoutes);
   app.route('/api/v1/destinations', destinationsRoutes);
   app.route('/api/v1/publications', publicationsRoutes);

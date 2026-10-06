@@ -37,14 +37,14 @@
       "name": "dev",
       "workers_dev": true,
       "vars": {
-        "OWNER_TELEGRAM_ID": ""
+        "OWNER_TELEGRAM_ID": "768918661"
       }
     },
     "production": {
       "name": "app",
       "workers_dev": true,
       "vars": {
-        "OWNER_TELEGRAM_ID": ""
+        "OWNER_TELEGRAM_ID": "768918661"
       }
     }
   }

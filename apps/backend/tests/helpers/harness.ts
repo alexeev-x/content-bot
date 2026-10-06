@@ -38,6 +38,8 @@ export async function resetDb(): Promise<void> {
       'audit_log',
       'idempotency_keys',
       'posts',
+      'rate_limits',
+      'refresh_tokens',
       'sessions'
     ].map((table) => db.prepare(`DELETE FROM ${table}`))
   );
@@ -75,10 +77,18 @@ export interface Api {
 }
 
 // A new app per test with an injected clock, running against the real migrated D1.
-export function createApi(options: { ownerTelegramId?: string; clock?: FakeClock } = {}): Api {
+export const TEST_BOT_TOKEN = '123456:TEST-BOT-TOKEN-PLACEHOLDER';
+
+export function createApi(
+  options: { ownerTelegramId?: string; clock?: FakeClock; botToken?: string | null } = {}
+): Api {
   const clock = options.clock ?? fakeClock();
   const app = createApp({ clock });
-  const env = { DB: testDb(), OWNER_TELEGRAM_ID: options.ownerTelegramId ?? OWNER_ID } as AppEnv;
+  const env = {
+    DB: testDb(),
+    OWNER_TELEGRAM_ID: options.ownerTelegramId ?? OWNER_ID,
+    ...(options.botToken === null ? {} : { TELEGRAM_BOT_TOKEN: options.botToken ?? TEST_BOT_TOKEN })
+  } as AppEnv;
   return {
     clock,
     request(path, init = {}) {
