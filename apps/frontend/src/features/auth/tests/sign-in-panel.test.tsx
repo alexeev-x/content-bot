@@ -57,6 +57,17 @@ describe('login widget', () => {
     expect(screen.getByText('Загружаем кнопку входа через Telegram…')).toBeTruthy();
   });
 
+  it('keeps the loading iframe invisible in the skeleton slot and shows it once Telegram is ready', () => {
+    renderPanel();
+    const host = widgetScript()!.parentElement!;
+    const placeholder = screen.getByText('Загружаем кнопку входа через Telegram…').closest('[aria-busy="true"]')!;
+    expect(placeholder.parentElement).toBe(host.parentElement);
+    expect(host.hasAttribute('data-loading')).toBe(true);
+    ready();
+    expect(host.hasAttribute('data-loading')).toBe(false);
+    expect(screen.queryByText('Загружаем кнопку входа через Telegram…')).toBeNull();
+  });
+
   it('posts the user object unchanged and stores the session in memory', async () => {
     let body: unknown;
     server.use(

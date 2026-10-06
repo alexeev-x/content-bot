@@ -1,15 +1,13 @@
 // Windows cannot exec npm.cmd directly. Run npm's JavaScript entry point without a shell:
 // changed filenames remain arguments, not shell syntax.
-import { spawnSync } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { delimiter, dirname, join, win32 } from 'node:path';
 
-export function runCommand(command, args, options = {}, runtime = {}) {
+/** The executable and arguments to spawn, or an error when npm's entry point cannot be found. */
+export function resolveCommand(command, args, runtime = {}) {
   const platform = runtime.platform ?? process.platform;
-  const spawn = runtime.spawnSync ?? spawnSync;
-  if (platform !== 'win32' || !['npm', 'npx'].includes(command)) {
-    return spawn(command, args, options);
-  }
+  if (platform !== 'win32' || !['npm', 'npx'].includes(command)) return { file: command, args };
   const pathApi = platform === 'win32' ? win32 : { dirname, join };
   const entry = `${command}-cli.js`;
   const env = runtime.env ?? process.env;
@@ -22,8 +20,29 @@ export function runCommand(command, args, options = {}, runtime = {}) {
     ),
   ];
   const cli = [...new Set(candidates)].find((path) => (runtime.existsSync ?? existsSync)(path));
-  if (!cli) return { status: null, error: new Error(`Cannot find ${entry}; install npm alongside Node.js.`) };
-  return spawn(execPath, [cli, ...args], options);
+  if (!cli) return { error: new Error(`Cannot find ${entry}; install npm alongside Node.js.`) };
+  return { file: execPath, args: [cli, ...args] };
+}
+
+export function runCommand(command, args, options = {}, runtime = {}) {
+  const resolved = resolveCommand(command, args, runtime);
+  if (resolved.error) return { status: null, error: resolved.error };
+  return (runtime.spawnSync ?? spawnSync)(resolved.file, resolved.args, options);
+}
+
+/** Same as runCommand, but lets several commands run at once. Resolves with spawnSync's result shape. */
+export function runCommandAsync(command, args, options = {}, runtime = {}) {
+  const resolved = resolveCommand(command, args, runtime);
+  if (resolved.error) return Promise.resolve({ status: null, error: resolved.error });
+  return new Promise((resolve) => {
+    const child = spawn(resolved.file, resolved.args, { ...options, stdio: ['ignore', 'pipe', 'pipe'] });
+    let stdout = '';
+    let stderr = '';
+    child.stdout.setEncoding('utf8').on('data', (chunk) => (stdout += chunk));
+    child.stderr.setEncoding('utf8').on('data', (chunk) => (stderr += chunk));
+    child.on('error', (error) => resolve({ status: null, stdout, stderr, error }));
+    child.on('close', (status) => resolve({ status, stdout, stderr }));
+  });
 }
 
 export const commandOutput = (run) =>

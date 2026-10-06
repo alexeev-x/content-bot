@@ -6,7 +6,7 @@ import { useDocumentTitle } from '../app/use-document-title';
 import { AuthLoadingScreen, MiniAppSignIn, NoAccessState, SignInPanel } from '../features/auth';
 import { ru } from '../shared/lib/ru';
 import { isInsideTelegram } from '../shared/telegram/web-app';
-import { Banner, Button, Card, PageHeader } from '../shared/ui';
+import { Banner, Button, Card, PageHeader, Spinner } from '../shared/ui';
 import styles from './LoginPage.module.css';
 
 type Props = {
@@ -33,7 +33,13 @@ export function LoginPage({ redirect }: Props) {
   } else if (insideTelegram) {
     body = <MiniAppSignIn isSigningIn={auth.status === 'checking'} error={auth.error} onRetry={auth.retry} />;
   } else if (auth.status === 'checking') {
-    body = <AuthLoadingScreen label={ru.auth.checking} />;
+    // Inline and as tall as the Telegram button that replaces it: a full-screen loader here made the card jump.
+    body = (
+      <p className={styles.checking}>
+        <Spinner size={20} label={false} />
+        <output>{ru.auth.checking}</output>
+      </p>
+    );
   } else {
     body = (
       <div className={styles.stack}>

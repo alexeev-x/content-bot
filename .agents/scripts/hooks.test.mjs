@@ -268,3 +268,9 @@ test('verify --changed runs only what the changes touch', () => {
   assert.equal(planSteps(['apps/backend/wrangler.jsonc']), STEPS);
   assert.deepEqual(names([]), []);
 });
+
+test('verify runs both app test suites and builds once, the frontend way', () => {
+  // The root `build` would re-run every workspace typecheck that the typecheck step already covers.
+  assert.equal(STEPS.filter(([name]) => name === 'build').length, 1);
+  assert.ok(STEPS.some(([name]) => name === 'backend-tests') && STEPS.some(([name]) => name === 'frontend-tests'));
+});

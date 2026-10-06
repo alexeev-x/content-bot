@@ -102,14 +102,17 @@ export function TelegramLoginWidget({ botUsername, onUser, onCancel }: Props) {
           {ru.login.widgetFailedBody}
         </Banner>
       ) : null}
-      {state === 'loading' ? (
-        <div className={styles.placeholder} aria-busy="true">
-          <Skeleton width={238} height={40} radius="var(--radius-2)" />
-          <VisuallyHidden>{ru.login.widgetLoading}</VisuallyHidden>
-        </div>
-      ) : null}
-      {/* Owned by the widget script: React renders no children here, so it never fights the injected iframe. */}
-      <div ref={hostRef} className={styles.host} hidden={state === 'failed'} />
+      {/* The skeleton and the loading iframe share one cell, so the button replaces it without a layout jump. */}
+      <div className={styles.slot} hidden={state === 'failed'}>
+        {state === 'loading' ? (
+          <div className={styles.placeholder} aria-busy="true">
+            <Skeleton width={238} height={40} radius="var(--radius-2)" />
+            <VisuallyHidden>{ru.login.widgetLoading}</VisuallyHidden>
+          </div>
+        ) : null}
+        {/* Owned by the widget script: React renders no children here, so it never fights the injected iframe. */}
+        <div ref={hostRef} className={styles.host} data-loading={state === 'loading' || undefined} />
+      </div>
     </div>
   );
 }

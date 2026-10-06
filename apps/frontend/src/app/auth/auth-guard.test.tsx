@@ -101,6 +101,27 @@ describe('auth guard', () => {
     expect(screen.queryByText('Страница постов')).toBeNull();
   });
 
+  it('reports the session check on /login inside the sign-in card, not as a full-screen loader', async () => {
+    let release = () => {};
+    const held = new Promise<void>((resolve) => (release = resolve));
+    server.use(
+      http.post('*/api/v1/auth/refresh', async () => {
+        await held;
+        return HttpResponse.json(errorBody('UNAUTHORIZED'), { status: 401 });
+      })
+    );
+    renderApp('/login');
+    try {
+      expect(await screen.findByRole('heading', { name: 'Вход' })).toBeTruthy();
+      expect(screen.getByRole('status').textContent).toBe('Проверяем вход…');
+      expect(document.querySelector('[aria-busy="true"]')).toBeNull();
+    } finally {
+      // Settle the check so no request outlives the test.
+      release();
+    }
+    expect(await screen.findByText('Загружаем кнопку входа через Telegram…')).toBeTruthy();
+  });
+
   it('restores a browser session with exactly one refresh call and shows the owner name and server appearance', async () => {
     let refreshes = 0;
     server.use(

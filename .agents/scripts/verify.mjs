@@ -4,13 +4,18 @@
 //
 // `--changed` checks only what the current changes touch (pre-push hook, agent stop hook):
 // commits not yet pushed + uncommitted work. CI always runs the full set.
+//
+// Steps are independent and run at once: the total is the slowest step, not the sum.
 import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { runCommand, commandOutput } from './run-command.mjs';
+import { runCommandAsync, commandOutput } from './run-command.mjs';
 
-// Fast, cheap checks first so a failure costs the least time.
+// The frontend build bundles the Worker too, so it also proves the backend still deploys. Plain `vite build`:
+// the typecheck steps already run tsc.
+const BUILD = ['build', ['npm', 'exec', '-w', '@alexeev/frontend', '--', 'vite', 'build']];
+
 export const STEPS = [
   ['format', ['npm', 'run', 'format:check']],
   ['lint', ['npm', 'run', 'lint']],
@@ -19,8 +24,9 @@ export const STEPS = [
   ['tooling-tests', ['npm', 'test']],
   ['typecheck', ['npm', 'run', 'typecheck']],
   ['architecture', ['npm', 'run', 'depcruise']],
-  ['app-tests', ['npm', 'run', 'test:apps']],
-  ['build', ['npm', 'run', 'build']],
+  ['backend-tests', ['npm', 'run', 'test', '-w', '@alexeev/backend']],
+  ['frontend-tests', ['npm', 'run', 'test', '-w', '@alexeev/frontend']],
+  BUILD,
 ];
 
 // Changes here can affect everything, so they trigger the full set.
@@ -56,8 +62,7 @@ export function planSteps(files, { existingFiles = files } = {}) {
   if (backend || frontend) steps.push(['architecture', ['npm', 'run', 'depcruise']]);
   if (backend) steps.push(['backend-tests', ['npm', 'run', 'test', '-w', '@alexeev/backend']]);
   if (frontend) steps.push(['frontend-tests', ['npm', 'run', 'test', '-w', '@alexeev/frontend']]);
-  // The frontend build bundles the Worker too, so it also proves the backend still deploys.
-  if (backend || frontend) steps.push(['build', ['npm', 'run', 'build', '-w', '@alexeev/frontend']]);
+  if (backend || frontend) steps.push(BUILD);
   return steps;
 }
 
@@ -107,20 +112,24 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
         : `verify --changed: ${files.length} changed file(s), ${steps.length} step(s)`,
     );
   }
-  let log = '';
-  let failed = 0;
-  for (const [name, [cmd, ...args]] of steps) {
-    const run = runCommand(cmd, args, { cwd: root, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
-    const out = commandOutput(run);
-    log += `\n===== ${name}: ${cmd} ${args.join(' ')} (exit ${run.status})\n${out}`;
-    if (run.status === 0) {
-      console.log(`✓ ${name}`);
-      continue;
-    }
-    failed++;
-    console.log(`✗ ${name} (${cmd} ${args.slice(0, 4).join(' ')}${args.length > 4 ? ' …' : ''})`);
-    for (const line of relevantLines(out)) console.log(`  ${line.trim().slice(0, 300)}`);
-  }
+  const runs = await Promise.all(
+    steps.map(async ([name, [cmd, ...args]]) => {
+      const started = Date.now();
+      const run = await runCommandAsync(cmd, args, { cwd: root });
+      const seconds = Math.round((Date.now() - started) / 1000);
+      const out = commandOutput(run);
+      if (run.status === 0) {
+        console.log(`✓ ${name} (${seconds}s)`);
+      } else {
+        console.log(`✗ ${name} (${seconds}s; ${cmd} ${args.slice(0, 4).join(' ')}${args.length > 4 ? ' …' : ''})`);
+        for (const line of relevantLines(out)) console.log(`  ${line.trim().slice(0, 300)}`);
+      }
+      return { name, cmd, args, status: run.status, out };
+    }),
+  );
+  // The log keeps the plan's order, whatever order the steps finished in.
+  const log = runs.map((r) => `\n===== ${r.name}: ${r.cmd} ${r.args.join(' ')} (exit ${r.status})\n${r.out}`).join('');
+  const failed = runs.filter((r) => r.status !== 0).length;
   mkdirSync(join(root, '.logs'), { recursive: true });
   writeFileSync(join(root, '.logs/verify.log'), log);
   console.log(failed ? `verify: ${failed} step(s) failed — full log: .logs/verify.log` : 'verify: all green');

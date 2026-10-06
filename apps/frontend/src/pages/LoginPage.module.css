@@ -54,3 +54,11 @@
   font-size: var(--font-size-sm);
   text-align: center;
 }
+.checking {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+  min-height: 40px;
+  color: var(--color-text-muted);
+}

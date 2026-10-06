@@ -61,8 +61,9 @@ jobs:
             echo "CLOUDFLARE_ENV=dev" >> "$GITHUB_ENV"
           fi
 
+      # Plain `vite build`: the verify job already type-checked this commit.
       - name: Build for Cloudflare
-        run: npm run build -w @alexeev/frontend
+        run: npm exec -w @alexeev/frontend -- vite build
 
       - name: Deploy Worker
         run: npm run deploy -w @alexeev/frontend

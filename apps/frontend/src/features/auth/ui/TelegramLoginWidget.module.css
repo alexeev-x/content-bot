@@ -4,8 +4,20 @@
   gap: var(--space-3);
   width: 100%;
 }
-.root > :first-child:not(.host):not(.placeholder) {
+.root > :first-child:not(.slot) {
   justify-self: stretch;
+}
+.slot {
+  display: grid;
+  place-items: center;
+  max-width: 100%;
+  min-height: 40px;
+}
+.slot[hidden] {
+  display: none;
+}
+.slot > * {
+  grid-area: 1 / 1;
 }
 .placeholder {
   display: grid;
@@ -15,8 +27,8 @@
   display: flex;
   justify-content: center;
   max-width: 100%;
-  min-height: 40px;
 }
-.host[hidden] {
-  display: none;
+/* The iframe keeps loading while invisible: it must exist to post `ready`. */
+.host[data-loading] {
+  visibility: hidden;
 }
