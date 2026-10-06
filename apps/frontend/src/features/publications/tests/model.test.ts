@@ -1,5 +1,5 @@
 import { publicationStatusSchema } from '@alexeev/contracts';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { ApiError } from '../../../shared/api/http-client';
 import { formatShort, utcOffsetLabel } from '../model/format-time';
 import { describeActionError, explainErrorCode } from '../model/publication-errors';
@@ -56,6 +56,16 @@ describe('time formatting', () => {
     expect(utcOffsetLabel(new Date('2026-07-01T09:00:00Z'), 'Europe/Chisinau')).toBe('UTC+3');
     expect(utcOffsetLabel(new Date('2026-01-01T09:00:00Z'), 'Europe/Chisinau')).toBe('UTC+2');
     expect(utcOffsetLabel(new Date('2026-10-07T09:00:00Z'), 'UTC')).toBe('UTC');
+  });
+  it('prints a zero offset as UTC even when ICU spells it GMT+00:00', () => {
+    const spy = vi
+      .spyOn(Intl.DateTimeFormat.prototype, 'formatToParts')
+      .mockReturnValue([{ type: 'timeZoneName', value: 'GMT+00:00' }]);
+    try {
+      expect(utcOffsetLabel(new Date('2026-10-07T09:00:00Z'), 'UTC')).toBe('UTC');
+    } finally {
+      spy.mockRestore();
+    }
   });
   it('formats in the explicit zone, not the machine zone', () => {
     expect(formatShort('2026-10-07T21:30:00Z', 'Asia/Tokyo')).toContain('06:30');

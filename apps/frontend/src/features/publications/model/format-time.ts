@@ -10,7 +10,8 @@ export function utcOffsetLabel(instant: Date, timeZone: string): string {
     .formatToParts(instant)
     .find((item) => item.type === 'timeZoneName')?.value;
   const match = part ? /^GMT(?:([+-])(\d{2}):(\d{2}))?$/.exec(part) : null;
-  if (!match || match[1] === undefined) return 'UTC';
+  // ICU versions differ: UTC itself comes back as either `GMT` or `GMT+00:00`.
+  if (!match || match[1] === undefined || (match[2] === '00' && match[3] === '00')) return 'UTC';
   const hours = String(Number(match[2]));
   return match[3] === '00' ? `UTC${match[1]}${hours}` : `UTC${match[1]}${hours}:${match[3]}`;
 }
