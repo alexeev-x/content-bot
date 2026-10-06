@@ -9,7 +9,8 @@ export const telegramSignInInputSchema = z.strictObject({
 export type TelegramSignInInput = z.infer<typeof telegramSignInInputSchema>;
 
 // POST /api/v1/auth/telegram-widget — browser sign-in with the Telegram Login Widget user object
-// (data-onauth callback, so the signed data never appears in a URL). The server checks the widget
+// (the widget's auth_user postMessage from the oauth.telegram.org iframe, so the signed data never
+// appears in a URL and the page needs no 'unsafe-eval'). The server checks the widget
 // hash with the bot token, auth_date ≤ 15 minutes, the owner ID, and accepts each hash only once.
 // Origin must be the app origin. → 200 AccessTokenDto + refresh cookie.
 // Errors: VALIDATION_ERROR 400 or 413, UNAUTHORIZED 401 (bad, stale or reused signature),

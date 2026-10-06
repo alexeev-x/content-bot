@@ -1,0 +1,8 @@
+.text {
+  margin: 0;
+}
+.request {
+  margin: var(--space-1) 0 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+}

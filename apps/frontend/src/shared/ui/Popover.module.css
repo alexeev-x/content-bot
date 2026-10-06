@@ -1,0 +1,21 @@
+.popover {
+  z-index: var(--z-overlay);
+  max-width: min(360px, calc(100vw - 2 * var(--space-4)));
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-2);
+  background: var(--color-surface-1);
+  box-shadow: var(--shadow-pop);
+}
+.popover[data-entering] {
+  animation: pop var(--motion-fast) ease-out;
+}
+.dialog {
+  padding: var(--space-4);
+  outline: none;
+}
+@keyframes pop {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}

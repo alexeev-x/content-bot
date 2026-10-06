@@ -11,7 +11,7 @@ One identity everywhere: the owner's Telegram ID (`OWNER_TELEGRAM_ID`, a Worker 
 - Require fresh `auth_date` (≤ 15 minutes) and `user.id === OWNER_TELEGRAM_ID`; otherwise 401/403. Never trust `initDataUnsafe`. Never log `initData`.
 
 ## Browser sign-in (Telegram Login Widget, `POST /api/v1/auth/telegram-widget`)
-- Owner decision 06.10.2026: the classic Login Widget (BotFather → bot → Login Widget domain), callback mode `data-onauth`; the client POSTs the user object as JSON. No OIDC client credentials exist for this bot.
+- Owner decision 06.10.2026: the classic Login Widget (BotFather → bot → Login Widget domain), the client receives the widget's `auth_user` message from the `oauth.telegram.org` iframe (exact origin and iframe-window check; not `data-onauth`, which needs `unsafe-eval`) and POSTs the user object as JSON. No OIDC client credentials exist for this bot.
 - Verify per Telegram: secret key = `SHA256(bot_token)`; data-check-string = every received field except `hash`, sorted, `key=value` joined by `\n`; compare hex HMAC-SHA256 in constant time. Every received field must be hashed: refuse an own `__proto__` key and lone surrogates (both would let a different payload share a signature).
 - `auth_date` ≤ 15 minutes, `id === OWNER_TELEGRAM_ID`, Origin = app origin, each hash accepted once (D1 claim in the same batch as the session).
 - OIDC (`oauth.telegram.org`, Authorization Code + PKCE, `id` claim — not `sub` — is the user id) may replace the widget later without changing sessions.

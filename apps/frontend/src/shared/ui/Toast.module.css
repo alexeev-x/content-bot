@@ -1,0 +1,98 @@
+.region {
+  position: fixed;
+  right: var(--space-4);
+  bottom: calc(var(--space-4) + max(env(safe-area-inset-bottom), var(--tg-content-safe-area-inset-bottom, 0px)));
+  z-index: var(--z-toast);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  width: min(380px, calc(100vw - 2 * var(--space-4)));
+  outline: none;
+}
+/* Above the bottom tab bar on narrow screens. */
+@media (max-width: 859px) {
+  .region {
+    right: var(--space-4);
+    left: var(--space-4);
+    width: auto;
+    bottom: calc(
+      var(--size-nav) + var(--space-3) + max(env(safe-area-inset-bottom), var(--tg-content-safe-area-inset-bottom, 0px))
+    );
+  }
+}
+.toast {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-3) var(--space-3) var(--space-4);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-2);
+  background: var(--color-surface-3);
+  box-shadow: var(--shadow-pop);
+  outline: none;
+}
+.toast[data-animation='entering'] {
+  animation: enter var(--motion-base) ease-out;
+}
+.toast[data-animation='exiting'] {
+  animation: enter var(--motion-fast) ease-in reverse;
+}
+.toast[data-focus-visible] {
+  outline: var(--focus-ring-width) solid var(--color-focus-ring);
+  outline-offset: 2px;
+}
+.icon {
+  flex: none;
+  margin-top: 2px;
+  color: var(--color-text-muted);
+}
+.toast[data-tone='success'] .icon {
+  color: var(--color-status-done-fg);
+}
+.toast[data-tone='error'] {
+  border-color: var(--color-status-failed-fg);
+}
+.toast[data-tone='error'] .icon {
+  color: var(--color-status-failed-fg);
+}
+.content {
+  display: grid;
+  flex: 1;
+  gap: 2px;
+  min-width: 0;
+}
+.title {
+  font-weight: var(--font-weight-semibold);
+}
+.description {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+  overflow-wrap: anywhere;
+}
+.close {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: var(--size-target);
+  height: var(--size-target);
+  margin: calc(-1 * var(--space-2)) 0;
+  border: 0;
+  border-radius: var(--radius-1);
+  background: none;
+  color: var(--color-text-muted);
+  cursor: pointer;
+}
+.close[data-hovered] {
+  color: var(--color-text);
+  background: var(--color-surface-2);
+}
+.close[data-focus-visible] {
+  outline: var(--focus-ring-width) solid var(--color-focus-ring);
+  outline-offset: -2px;
+}
+@keyframes enter {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+}

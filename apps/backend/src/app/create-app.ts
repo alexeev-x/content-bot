@@ -3,8 +3,7 @@ import { Hono } from 'hono';
 import { HTTPException } from 'hono/http-exception';
 import { apiErrorCodeForStatus, AppError } from '../shared/app-error';
 import { telegramWebhook } from './bot/webhook-route';
-import type { Clock } from '../platform/clock';
-import { createContainer } from './container';
+import { type ContainerOverrides, createContainer } from './container';
 import type { AppBindings } from './env';
 import { authRoutes } from './auth-routes';
 import { destinationsRoutes } from './destinations-routes';
@@ -33,7 +32,7 @@ function errorBody(
   return { error: { code, message, requestId, ...(details === undefined ? {} : { details }) } };
 }
 
-export function createApp(options: { clock?: Clock } = {}) {
+export function createApp(options: Pick<ContainerOverrides, 'clock' | 'telegramChatApi'> = {}) {
   const app = new Hono<AppBindings>();
 
   app.use('*', async (c, next) => {
@@ -85,6 +84,7 @@ export function createApp(options: { clock?: Clock } = {}) {
   app.onError((error, c) => {
     const requestId = c.get('requestId');
     if (error instanceof AppError) {
+      if (error.retryAfterSec !== undefined) c.header('retry-after', String(error.retryAfterSec));
       return c.json(errorBody(error.code, error.message, requestId, error.details), error.status);
     }
     if (error instanceof HTTPException) {

@@ -1,7 +1,15 @@
 export type { DispatchRepository, PostRevisionSource, PublicationTransport, SendOutcome } from './application/ports';
-export type { DestinationRepository, IdempotencyGate, PostSource, PublicationRepository } from './application/ports';
+export type {
+  ChatInspection,
+  ChatInspector,
+  DestinationRepository,
+  IdempotencyGate,
+  PostSource,
+  PublicationRepository
+} from './application/ports';
 export { cancelPublication, reschedulePublication } from './application/change-publication';
 export { updateDestination } from './application/change-destination';
+export { checkDestination } from './application/check-destination';
 export { createDestination } from './application/create-destination';
 export { createPublication } from './application/create-publication';
 export { getDestination, listDestinations } from './application/read-destinations';
@@ -18,3 +26,5 @@ export type { ReconcileDeps, ReconcileSummary } from './application/reconcile-ex
 export { createD1DispatchRepository } from './infrastructure/d1-dispatch-repository';
 export { createTelegramPublicationTransport } from './infrastructure/telegram-publication-transport';
 export type { TelegramSender } from './infrastructure/telegram-publication-transport';
+export { createTelegramChatInspector } from './infrastructure/telegram-chat-inspector';
+export type { TelegramChatReader } from './infrastructure/telegram-chat-inspector';

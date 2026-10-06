@@ -52,7 +52,7 @@
       ],
       "vars": {
         "OWNER_TELEGRAM_ID": "768918661",
-        "PUBLISHING_ENABLED": "false"
+        "PUBLISHING_ENABLED": "true"
       }
     },
     "production": {

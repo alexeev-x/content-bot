@@ -29,6 +29,9 @@ export const DEFAULT_APPEARANCE: Appearance = {
   customPresets: []
 };
 
+/** Fired on `window` after a persisted applyAppearance, so useTheme re-reads the stored mode. */
+export const APPEARANCE_APPLIED_EVENT = 'appearance-applied';
+
 const STORAGE_KEY = 'ui-theme'; // UI preference only, never a token
 const APPEARANCE_KEY = 'ui-appearance'; // last applied accents: a flash-avoiding cache, the server is the truth
 
@@ -135,6 +138,7 @@ export function applyAppearance(appearance: Appearance, options: { persist?: boo
   if (options.persist ?? true) {
     writePreference(appearance.themeMode);
     writeCachedAppearance(appearance);
+    window.dispatchEvent(new Event(APPEARANCE_APPLIED_EVENT));
   }
 }
 
@@ -152,9 +156,13 @@ export function useTheme() {
     const media = typeof window.matchMedia === 'function' ? window.matchMedia('(prefers-color-scheme: light)') : null;
     media?.addEventListener('change', update);
     const offTelegram = subscribeThemeChanged(update);
+    // The server appearance (applied after sign-in) can change the stored mode behind this hook's back.
+    const reread = () => setPreferenceState(readPreference());
+    window.addEventListener(APPEARANCE_APPLIED_EVENT, reread);
     return () => {
       media?.removeEventListener('change', update);
       offTelegram();
+      window.removeEventListener(APPEARANCE_APPLIED_EVENT, reread);
     };
   }, []);
 

@@ -1,0 +1,17 @@
+.state {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+.state[data-state='saved'] svg {
+  color: var(--color-status-done-fg);
+}
+.state[data-state='dirty'],
+.state[data-state='failed'] {
+  color: var(--color-text);
+}
+.state[data-state='failed'] svg {
+  color: var(--color-status-unknown-fg);
+}

@@ -6,9 +6,19 @@
   justify-items: start;
   gap: var(--space-2);
   padding: var(--space-6);
-  border: 1px dashed var(--color-border-subtle);
-  border-radius: var(--radius-2);
+  border: 1px dashed var(--color-border-strong);
+  border-radius: var(--radius-3);
   background: var(--color-surface-1);
+}
+.icon {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  margin-bottom: var(--space-1);
+  border-radius: var(--radius-2);
+  background: var(--color-surface-3);
+  color: var(--color-text-muted);
 }
 .title {
   font-size: var(--font-size-lg);

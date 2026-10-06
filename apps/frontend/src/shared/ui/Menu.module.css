@@ -1,0 +1,59 @@
+.popover {
+  z-index: var(--z-overlay);
+  min-width: 200px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-2);
+  background: var(--color-surface-1);
+  box-shadow: var(--shadow-pop);
+}
+.popover[data-entering] {
+  animation: pop var(--motion-fast) ease-out;
+}
+.menu {
+  display: grid;
+  gap: 2px;
+  padding: var(--space-1);
+  outline: none;
+}
+.item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: var(--size-target);
+  padding: 0 var(--space-3);
+  border-radius: var(--radius-1);
+  color: var(--color-text);
+  cursor: pointer;
+  outline: none;
+}
+.item[data-focused],
+.item[data-hovered] {
+  background: var(--color-surface-3);
+}
+.item[data-focus-visible] {
+  outline: var(--focus-ring-width) solid var(--color-focus-ring);
+  outline-offset: -2px;
+}
+.item[data-tone='danger'] {
+  color: var(--color-danger);
+}
+.item[data-disabled] {
+  color: var(--color-text-disabled);
+  cursor: not-allowed;
+}
+.itemLabel {
+  flex: 1;
+}
+.check {
+  visibility: hidden;
+  color: var(--color-accent-text);
+}
+.item[data-selected] .check {
+  visibility: visible;
+}
+@keyframes pop {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}

@@ -9,6 +9,8 @@ import {
 import { useState } from 'react';
 import { createIdempotencyTracker } from '../../../shared/api/idempotency';
 import { nextCursor } from '../../../shared/api/query-string';
+import { isInProgress } from '../model/publication-view';
+import { listEnabledDestinations } from './destination-options';
 import {
   cancelPublication,
   createPublication,
@@ -31,6 +33,7 @@ export const publicationKeys = {
 
 // Status changes in the background (cron, queue), so keep lists fresher than reference data.
 const STALE_TIME = 15_000;
+export const PUBLICATION_POLL_MS = 15_000;
 
 export function publicationsInfiniteQueryOptions(filters: PublicationFilters = {}) {
   return infiniteQueryOptions({
@@ -42,11 +45,42 @@ export function publicationsInfiniteQueryOptions(filters: PublicationFilters = {
   });
 }
 
-export function publicationQueryOptions(id: string) {
+/** One page of the list; the cursor lives in the URL, so back/forward and shared links work. */
+export function publicationsPageQueryOptions(
+  filters: PublicationFilters = {},
+  cursor?: string,
+  pollMs: number = PUBLICATION_POLL_MS
+) {
+  return queryOptions({
+    queryKey: [...publicationKeys.lists(), 'page', filters, cursor ?? null] as const,
+    queryFn: ({ signal }) => listPublications(filters, cursor, signal),
+    staleTime: STALE_TIME,
+    // Poll only while a visible row can still change; the default refetchIntervalInBackground (false) stops it in hidden tabs.
+    refetchInterval: (query) => (query.state.data?.items.some((item) => isInProgress(item.status)) ? pollMs : false)
+  });
+}
+
+/** Detail; pass `pollMs` to keep an open drawer fresh while the publication is not final. */
+export function publicationQueryOptions(id: string, pollMs?: number) {
   return queryOptions({
     queryKey: publicationKeys.detail(id),
     queryFn: ({ signal }) => getPublication(id, signal),
-    staleTime: STALE_TIME
+    staleTime: STALE_TIME,
+    ...(pollMs === undefined
+      ? {}
+      : {
+          refetchInterval: (query: { state: { data: PublicationDto | undefined } }) =>
+            query.state.data && isInProgress(query.state.data.status) ? pollMs : false
+        })
+  });
+}
+
+/** Channels the owner can publish to; own key and fetcher so this feature never imports the destinations feature. */
+export function publishDestinationsQueryOptions() {
+  return queryOptions({
+    queryKey: [...publicationKeys.all, 'destination-options'] as const,
+    queryFn: ({ signal }) => listEnabledDestinations(signal),
+    staleTime: 60_000
   });
 }
 
@@ -67,6 +101,18 @@ export function useCreatePublication() {
       tracker.release(key);
       return created;
     },
+    retry: false,
+    onSuccess: (publication) => {
+      applyServerPublication(queryClient, publication);
+    }
+  });
+}
+
+/** Create with a caller-owned Idempotency-Key (the publish intent keeps it across remounts and reloads). */
+export function useSubmitPublication() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ input, key }: { input: CreatePublicationBody; key: string }) => createPublication(input, key),
     retry: false,
     onSuccess: (publication) => {
       applyServerPublication(queryClient, publication);

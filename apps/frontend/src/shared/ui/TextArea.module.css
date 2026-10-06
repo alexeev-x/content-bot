@@ -1,0 +1,10 @@
+.area {
+  min-height: 7rem;
+  padding: var(--space-3);
+  resize: vertical;
+  line-height: var(--line-height-body);
+}
+.over {
+  color: var(--color-danger);
+  font-weight: var(--font-weight-semibold);
+}

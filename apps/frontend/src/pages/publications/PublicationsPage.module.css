@@ -1,0 +1,30 @@
+.filters {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 240px)) auto;
+  align-items: end;
+  gap: var(--space-3);
+  margin-bottom: var(--space-3);
+}
+.note {
+  margin: 0 0 var(--space-4);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+}
+.results {
+  display: grid;
+  gap: var(--space-4);
+}
+.pager {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}
+@media (max-width: 859px) {
+  .filters {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .pager > * {
+    flex: 1 1 auto;
+  }
+}

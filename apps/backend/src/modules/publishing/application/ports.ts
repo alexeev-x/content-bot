@@ -1,5 +1,6 @@
 import type { DestinationKind, PublicationStatus } from '@alexeev/contracts';
 import type { IdempotencyClaim } from '../../../platform/idempotency/d1-idempotency-store';
+import type { PostingProblem } from '../domain/bot-posting-rights';
 import type { SchedulablePost } from '../domain/schedulable';
 import type { JobSnapshot } from '../domain/status-projection';
 
@@ -154,7 +155,25 @@ export interface DestinationChange {
   now: number;
 }
 
+/** What Telegram says about a chat the owner may add, and whether this bot can post there. */
+export interface ChatInspection {
+  /** Canonical numeric id. */
+  chatId: string;
+  username: string | null;
+  title: string;
+  kind: DestinationKind;
+  botCanPost: boolean;
+  problem: PostingProblem | null;
+}
+
+export interface ChatInspector {
+  /** Read-only. Throws `AppError`: NOT_FOUND CHAT_NOT_FOUND, VALIDATION_ERROR NOT_A_CHANNEL_OR_GROUP, RATE_LIMIT, UNAVAILABLE. */
+  inspect(chatId: string): Promise<ChatInspection>;
+}
+
 export interface DestinationRepository {
+  /** The destination saved under the numeric chat id or the `@username` (case-insensitive), or null. */
+  findIdByChat(chat: { chatId: string; username: string | null }): Promise<string | null>;
   /**
    * Writes the destination, the audit row and the idempotency result in one batch.
    * `claim_lost`: the idempotency claim is no longer ours and nothing was written.

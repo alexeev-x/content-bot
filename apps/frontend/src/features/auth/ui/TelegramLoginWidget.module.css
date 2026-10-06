@@ -1,0 +1,22 @@
+.root {
+  display: grid;
+  justify-items: center;
+  gap: var(--space-3);
+  width: 100%;
+}
+.root > :first-child:not(.host):not(.placeholder) {
+  justify-self: stretch;
+}
+.placeholder {
+  display: grid;
+  place-items: center;
+}
+.host {
+  display: flex;
+  justify-content: center;
+  max-width: 100%;
+  min-height: 40px;
+}
+.host[hidden] {
+  display: none;
+}

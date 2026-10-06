@@ -1,0 +1,69 @@
+.loading,
+.section {
+  display: grid;
+  gap: var(--space-3);
+}
+.heading {
+  margin: 0;
+  font-size: var(--font-size-md);
+}
+.details {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: var(--space-2) var(--space-4);
+  margin: 0;
+  font-size: var(--font-size-sm);
+}
+.details dt {
+  color: var(--color-text-muted);
+}
+.details dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.id {
+  font-size: var(--font-size-xs);
+}
+.muted {
+  color: var(--color-text-muted);
+}
+.note,
+.hint {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+}
+.link {
+  color: var(--color-accent-text);
+  font-weight: var(--font-weight-semibold);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.link:focus-visible {
+  border-radius: var(--radius-1);
+  outline: var(--focus-ring-width) solid var(--color-focus-ring);
+  outline-offset: var(--focus-ring-offset);
+}
+.noticeText {
+  margin: 0 0 var(--space-2);
+}
+.noticeStrong {
+  margin: var(--space-3) 0 var(--space-1);
+  font-weight: var(--font-weight-semibold);
+}
+.steps {
+  margin: 0;
+  padding-left: var(--space-5);
+}
+.actions {
+  display: flex;
+  flex: 1;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+@media (max-width: 859px) {
+  .actions > :is(button, span) {
+    flex: 1 1 auto;
+  }
+}

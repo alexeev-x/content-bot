@@ -20,3 +20,20 @@ export function createTelegramApi(token: string): TelegramSendApi {
     sendMessage: (chatId, text, other, signal) => api.sendMessage(chatId, text, other, signal as never)
   };
 }
+
+// The three read calls a destination check needs. Answers stay `unknown`: the publishing module
+// parses what it relies on, so a changed Bot API shape fails closed instead of being trusted.
+export interface TelegramChatReadApi {
+  getChat(chatId: string, signal: AbortSignal): Promise<unknown>;
+  getMe(signal: AbortSignal): Promise<unknown>;
+  getChatMember(chatId: string, userId: number, signal: AbortSignal): Promise<unknown>;
+}
+
+export function createTelegramChatReadApi(token: string): TelegramChatReadApi {
+  const api = new Api(token);
+  return {
+    getChat: (chatId, signal) => api.getChat(chatId, signal as never),
+    getMe: (signal) => api.getMe(signal as never),
+    getChatMember: (chatId, userId, signal) => api.getChatMember(chatId, userId, signal as never)
+  };
+}

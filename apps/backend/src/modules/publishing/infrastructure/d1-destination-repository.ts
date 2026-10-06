@@ -90,6 +90,15 @@ export function createD1DestinationRepository(db: D1Database): DestinationReposi
       }
     },
 
+    async findIdByChat({ chatId, username }) {
+      // chat_id is COLLATE NOCASE, so `IN` matches a @username in any letter case and uses the unique index.
+      const row = await db
+        .prepare('SELECT id FROM destinations WHERE chat_id IN (?1, ?2) ORDER BY created_at, id LIMIT 1')
+        .bind(chatId, username === null ? chatId : `@${username}`)
+        .first<{ id: string }>();
+      return row === null ? null : row.id;
+    },
+
     async findById(id) {
       const row = await db
         .prepare(`SELECT ${DESTINATION_COLUMNS} FROM destinations WHERE id = ?1`)

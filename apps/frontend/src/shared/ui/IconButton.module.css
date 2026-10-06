@@ -1,0 +1,57 @@
+.button {
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  width: var(--size-target);
+  height: var(--size-target);
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: var(--radius-2);
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition:
+    background-color var(--motion-fast),
+    color var(--motion-fast);
+}
+.button[data-size='sm'] {
+  width: 36px;
+  height: 36px;
+}
+@media (pointer: coarse), (max-width: 859px) {
+  .button[data-size='sm'] {
+    width: var(--size-target);
+    height: var(--size-target);
+  }
+}
+.button[data-variant='secondary'] {
+  border-color: var(--color-border-strong);
+  background: var(--color-surface-1);
+  color: var(--color-text);
+}
+.button[data-variant='danger'] {
+  color: var(--color-danger);
+}
+.button[data-hovered] {
+  background: var(--color-surface-3);
+  color: var(--color-text);
+}
+.button[data-variant='danger'][data-hovered] {
+  background: var(--color-status-failed-bg);
+  color: var(--color-danger);
+}
+.button[data-pressed] {
+  background: var(--color-surface-3);
+}
+.button[data-focus-visible] {
+  outline: var(--focus-ring-width) solid var(--color-focus-ring);
+  outline-offset: var(--focus-ring-offset);
+}
+.button[data-disabled] {
+  color: var(--color-text-disabled);
+  cursor: not-allowed;
+  background: transparent;
+}
+.button[data-pending] {
+  cursor: progress;
+}

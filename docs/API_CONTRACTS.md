@@ -15,7 +15,7 @@ Telegram                    → /webhooks/telegram (secret header, no session)
 | Method and path | Input | Response |
 |---|---|---|
 | `POST /api/v1/auth/telegram` | `{ initData }` from `Telegram.WebApp` | `200 { accessToken, expiresAt }`; 401 — invalid signature or `auth_date` older than 15 minutes; 403 — not the owner |
-| `POST /api/v1/auth/telegram-widget` | Telegram Login Widget user object from the `data-onauth` callback | `200 { accessToken, expiresAt }` + refresh cookie (`HttpOnly; Secure; SameSite=Lax`, path `/api/v1/auth`); 401 — invalid, stale (> 15 min) or reused signature; 403 — not the owner or foreign `Origin` |
+| `POST /api/v1/auth/telegram-widget` | Telegram Login Widget user object from the widget's `auth_user` message from the `oauth.telegram.org` iframe (exact origin and iframe-window check; not `data-onauth`, which needs `unsafe-eval`), passed unchanged | `200 { accessToken, expiresAt }` + refresh cookie (`HttpOnly; Secure; SameSite=Lax`, path `/api/v1/auth`); 401 — invalid, stale (> 15 min) or reused signature; 403 — not the owner or foreign `Origin` |
 | `POST /api/v1/auth/refresh` | browser: refresh cookie; Mini App: the current valid Bearer; `Origin` is always checked | `200 { accessToken, expiresAt }` (token 60 min; Mini App session ≤ 12 h, browser refresh cookie — 30 days with rotation) |
 | `POST /api/v1/auth/logout` | Bearer + refresh cookie, if present; `Origin` is checked | 204; session and cookie removed on the server |
 | `GET /api/v1/auth/me` | Bearer | `{ telegramId, name }` |
@@ -120,6 +120,7 @@ Schemas and per-endpoint error codes: `apps/contracts/src/publications.ts`, `app
 | Endpoint | Meaning |
 |---|---|
 | `POST /api/v1/destinations` | Add a Telegram channel or group (`Idempotency-Key` required); a chat id already in use is `409` `CHAT_ID_TAKEN` |
+| `POST /api/v1/destinations/check` | Before saving: Telegram title and type of the chat, whether this environment's bot can post there (`problem`: not a member / not an admin / cannot post), the canonical numeric id, and whether it is already added. Nothing is stored; 20 checks per 10 minutes |
 | `GET /api/v1/destinations`, `GET /api/v1/destinations/{id}` | Destinations ordered by title, optional `enabled` filter |
 | `PATCH /api/v1/destinations/{id}` | Rename, change chat id (group migrated to a supergroup), enable/disable; current `revision` in the body |
 | `POST /api/v1/publications` | Schedule an approved post revision to an enabled destination. A time up to 5 minutes in the past means "send now"; more than 366 days ahead is `400` `SCHEDULE_OUT_OF_RANGE`. A draft is `409` `POST_NOT_APPROVED`, a newer post revision `409` `STALE_REVISION`, a disabled destination `409` `DESTINATION_DISABLED` |

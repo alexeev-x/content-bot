@@ -11,14 +11,19 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as _catalogRouteImport } from './routes/[_][_]catalog'
+import { Route as AutomationsRouteImport } from './routes/automations'
 import { Route as CalendarRouteImport } from './routes/calendar'
 import { Route as IncidentsRouteImport } from './routes/incidents'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as MediaRouteImport } from './routes/media'
+import { Route as PublicationsRouteImport } from './routes/publications'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as PostsIndexRouteImport } from './routes/posts/index'
 import { Route as PostsIdRouteImport } from './routes/posts/$id'
 import { Route as PostsNewRouteImport } from './routes/posts/new'
+import { Route as SettingsIndexRouteImport } from './routes/settings.index'
+import { Route as SettingsAppearanceRouteImport } from './routes/settings.appearance'
+import { Route as SettingsChannelsRouteImport } from './routes/settings.channels'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -28,6 +33,11 @@ const IndexRoute = IndexRouteImport.update({
 const _catalogRoute = _catalogRouteImport.update({
   id: '/__catalog',
   path: '/__catalog',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AutomationsRoute = AutomationsRouteImport.update({
+  id: '/automations',
+  path: '/automations',
   getParentRoute: () => rootRouteImport,
 } as any)
 const CalendarRoute = CalendarRouteImport.update({
@@ -50,6 +60,11 @@ const MediaRoute = MediaRouteImport.update({
   path: '/media',
   getParentRoute: () => rootRouteImport,
 } as any)
+const PublicationsRoute = PublicationsRouteImport.update({
+  id: '/publications',
+  path: '/publications',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const SettingsRoute = SettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
@@ -70,91 +85,136 @@ const PostsNewRoute = PostsNewRouteImport.update({
   path: '/posts/new',
   getParentRoute: () => rootRouteImport,
 } as any)
+const SettingsIndexRoute = SettingsIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => SettingsRoute,
+} as any)
+const SettingsAppearanceRoute = SettingsAppearanceRouteImport.update({
+  id: '/appearance',
+  path: '/appearance',
+  getParentRoute: () => SettingsRoute,
+} as any)
+const SettingsChannelsRoute = SettingsChannelsRouteImport.update({
+  id: '/channels',
+  path: '/channels',
+  getParentRoute: () => SettingsRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/__catalog': typeof _catalogRoute
+  '/automations': typeof AutomationsRoute
   '/calendar': typeof CalendarRoute
   '/incidents': typeof IncidentsRoute
   '/login': typeof LoginRoute
   '/media': typeof MediaRoute
-  '/settings': typeof SettingsRoute
+  '/publications': typeof PublicationsRoute
+  '/settings': typeof SettingsRouteWithChildren
   '/posts/$id': typeof PostsIdRoute
   '/posts/new': typeof PostsNewRoute
+  '/settings/appearance': typeof SettingsAppearanceRoute
+  '/settings/channels': typeof SettingsChannelsRoute
   '/posts/': typeof PostsIndexRoute
+  '/settings/': typeof SettingsIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/__catalog': typeof _catalogRoute
+  '/automations': typeof AutomationsRoute
   '/calendar': typeof CalendarRoute
   '/incidents': typeof IncidentsRoute
   '/login': typeof LoginRoute
   '/media': typeof MediaRoute
-  '/settings': typeof SettingsRoute
+  '/publications': typeof PublicationsRoute
   '/posts/$id': typeof PostsIdRoute
   '/posts/new': typeof PostsNewRoute
+  '/settings/appearance': typeof SettingsAppearanceRoute
+  '/settings/channels': typeof SettingsChannelsRoute
   '/posts': typeof PostsIndexRoute
+  '/settings': typeof SettingsIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/__catalog': typeof _catalogRoute
+  '/automations': typeof AutomationsRoute
   '/calendar': typeof CalendarRoute
   '/incidents': typeof IncidentsRoute
   '/login': typeof LoginRoute
   '/media': typeof MediaRoute
-  '/settings': typeof SettingsRoute
+  '/publications': typeof PublicationsRoute
+  '/settings': typeof SettingsRouteWithChildren
   '/posts/$id': typeof PostsIdRoute
   '/posts/new': typeof PostsNewRoute
+  '/settings/appearance': typeof SettingsAppearanceRoute
+  '/settings/channels': typeof SettingsChannelsRoute
   '/posts/': typeof PostsIndexRoute
+  '/settings/': typeof SettingsIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
     | '/__catalog'
+    | '/automations'
     | '/calendar'
     | '/incidents'
     | '/login'
     | '/media'
+    | '/publications'
     | '/settings'
     | '/posts/$id'
     | '/posts/new'
+    | '/settings/appearance'
+    | '/settings/channels'
     | '/posts/'
+    | '/settings/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/__catalog'
+    | '/automations'
     | '/calendar'
     | '/incidents'
     | '/login'
     | '/media'
-    | '/settings'
+    | '/publications'
     | '/posts/$id'
     | '/posts/new'
+    | '/settings/appearance'
+    | '/settings/channels'
     | '/posts'
+    | '/settings'
   id:
     | '__root__'
     | '/'
     | '/__catalog'
+    | '/automations'
     | '/calendar'
     | '/incidents'
     | '/login'
     | '/media'
+    | '/publications'
     | '/settings'
     | '/posts/$id'
     | '/posts/new'
+    | '/settings/appearance'
+    | '/settings/channels'
     | '/posts/'
+    | '/settings/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   _catalogRoute: typeof _catalogRoute
+  AutomationsRoute: typeof AutomationsRoute
   CalendarRoute: typeof CalendarRoute
   IncidentsRoute: typeof IncidentsRoute
   LoginRoute: typeof LoginRoute
   MediaRoute: typeof MediaRoute
-  SettingsRoute: typeof SettingsRoute
+  PublicationsRoute: typeof PublicationsRoute
+  SettingsRoute: typeof SettingsRouteWithChildren
   PostsIdRoute: typeof PostsIdRoute
   PostsNewRoute: typeof PostsNewRoute
   PostsIndexRoute: typeof PostsIndexRoute
@@ -174,6 +234,13 @@ declare module '@tanstack/react-router' {
       path: '/__catalog'
       fullPath: '/__catalog'
       preLoaderRoute: typeof _catalogRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/automations': {
+      id: '/automations'
+      path: '/automations'
+      fullPath: '/automations'
+      preLoaderRoute: typeof AutomationsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/calendar': {
@@ -204,6 +271,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof MediaRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/publications': {
+      id: '/publications'
+      path: '/publications'
+      fullPath: '/publications'
+      preLoaderRoute: typeof PublicationsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/settings': {
       id: '/settings'
       path: '/settings'
@@ -232,17 +306,56 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PostsNewRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/settings/': {
+      id: '/settings/'
+      path: '/'
+      fullPath: '/settings/'
+      preLoaderRoute: typeof SettingsIndexRouteImport
+      parentRoute: typeof SettingsRoute
+    }
+    '/settings/appearance': {
+      id: '/settings/appearance'
+      path: '/appearance'
+      fullPath: '/settings/appearance'
+      preLoaderRoute: typeof SettingsAppearanceRouteImport
+      parentRoute: typeof SettingsRoute
+    }
+    '/settings/channels': {
+      id: '/settings/channels'
+      path: '/channels'
+      fullPath: '/settings/channels'
+      preLoaderRoute: typeof SettingsChannelsRouteImport
+      parentRoute: typeof SettingsRoute
+    }
   }
 }
+
+interface SettingsRouteChildren {
+  SettingsAppearanceRoute: typeof SettingsAppearanceRoute
+  SettingsChannelsRoute: typeof SettingsChannelsRoute
+  SettingsIndexRoute: typeof SettingsIndexRoute
+}
+
+const SettingsRouteChildren: SettingsRouteChildren = {
+  SettingsAppearanceRoute: SettingsAppearanceRoute,
+  SettingsChannelsRoute: SettingsChannelsRoute,
+  SettingsIndexRoute: SettingsIndexRoute,
+}
+
+const SettingsRouteWithChildren = SettingsRoute._addFileChildren(
+  SettingsRouteChildren,
+)
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   _catalogRoute: _catalogRoute,
+  AutomationsRoute: AutomationsRoute,
   CalendarRoute: CalendarRoute,
   IncidentsRoute: IncidentsRoute,
   LoginRoute: LoginRoute,
   MediaRoute: MediaRoute,
-  SettingsRoute: SettingsRoute,
+  PublicationsRoute: PublicationsRoute,
+  SettingsRoute: SettingsRouteWithChildren,
   PostsIdRoute: PostsIdRoute,
   PostsNewRoute: PostsNewRoute,
   PostsIndexRoute: PostsIndexRoute,

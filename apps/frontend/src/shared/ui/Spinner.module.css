@@ -1,0 +1,19 @@
+.spinner {
+  display: inline-flex;
+  flex: none;
+  color: currentColor;
+}
+.svg {
+  animation: spin 800ms linear infinite;
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  /* A static partial ring still reads as "busy" without rotation. */
+  .svg {
+    animation: none;
+  }
+}

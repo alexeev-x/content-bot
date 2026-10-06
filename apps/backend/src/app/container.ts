@@ -7,7 +7,9 @@ import {
   createD1DestinationRepository,
   createD1DispatchRepository,
   createD1PublicationRepository,
+  createTelegramChatInspector,
   createTelegramPublicationTransport,
+  type ChatInspector,
   type DestinationRepository,
   type DispatchRepository,
   type PostRevisionSource,
@@ -15,11 +17,16 @@ import {
   type PublicationRepository,
   type PublicationTransport
 } from '../modules/publishing';
-import { createTelegramApi } from '../integrations/telegram/telegram-api';
+import {
+  createTelegramApi,
+  createTelegramChatReadApi,
+  type TelegramChatReadApi
+} from '../integrations/telegram/telegram-api';
 import { purgeExpiredPlatformRows } from '../platform/housekeeping/d1-purge';
 import { createD1RateLimiter, type RateLimiter } from '../platform/rate-limit/d1-rate-limiter';
 import { randomToken } from '../platform/security/random-token';
 import { createLogger, type Logger } from '../platform/logging/logger';
+import { z } from 'zod';
 import { AppError } from '../shared/app-error';
 
 // The only place where real implementations are wired. It grows together with the modules
@@ -41,6 +48,8 @@ export interface Container {
   postRevisions: PostRevisionSource;
   /** Built on first use from TELEGRAM_BOT_TOKEN; asking for it without the token is a 503. */
   transport: PublicationTransport;
+  /** Read-only Telegram lookups for the destination check; asking for it without the token is a 503. */
+  chatInspector: ChatInspector;
   housekeeping: {
     purgeExpired(input: { now: number; limit: number }): Promise<{ idempotencyKeys: number; rateLimits: number }>;
   };
@@ -55,14 +64,35 @@ export interface Container {
 export interface ContainerEnv {
   DB?: D1Database;
   TELEGRAM_BOT_TOKEN?: string;
+  /** JSON of the Bot API `getMe` result; its `id` saves a `getMe` call per destination check. */
+  BOT_INFO?: string;
   /** Kill switch: only the exact string "true" lets the dispatcher claim jobs. */
   PUBLISHING_ENABLED?: string;
 }
 
-export function createContainer(
-  env: ContainerEnv,
-  overrides: { clock?: Clock; transport?: PublicationTransport; random?: () => number; newId?: () => string } = {}
-): Container {
+export interface ContainerOverrides {
+  clock?: Clock;
+  transport?: PublicationTransport;
+  /** Replaces the Bot API read calls (tests script it; nothing reaches the network). */
+  telegramChatApi?: TelegramChatReadApi;
+  random?: () => number;
+  newId?: () => string;
+}
+
+const botIdSchema = z.object({ id: z.number().int().positive() });
+
+// A missing or malformed BOT_INFO is not an error here: the check then asks Telegram with `getMe`.
+function configuredBotId(raw: string | undefined): number | null {
+  if (raw === undefined) return null;
+  try {
+    const parsed = botIdSchema.safeParse(JSON.parse(raw));
+    return parsed.success ? parsed.data.id : null;
+  } catch {
+    return null;
+  }
+}
+
+export function createContainer(env: ContainerEnv, overrides: ContainerOverrides = {}): Container {
   // A token that is only whitespace (a pasted secret with a stray newline) is no token.
   const botToken = (): string => (env.TELEGRAM_BOT_TOKEN ?? '').trim();
   const db = (): D1Database => {
@@ -121,6 +151,15 @@ export function createContainer(
       const token = botToken();
       if (token === '') throw new AppError('UNAVAILABLE', 'Telegram bot is not configured');
       return createTelegramPublicationTransport(createTelegramApi(token));
+    },
+    get chatInspector(): ChatInspector {
+      let reader = overrides.telegramChatApi;
+      if (reader === undefined) {
+        const token = botToken();
+        if (token === '') throw new AppError('UNAVAILABLE', 'Telegram bot is not configured');
+        reader = createTelegramChatReadApi(token);
+      }
+      return createTelegramChatInspector({ reader, botId: configuredBotId(env.BOT_INFO), logger: createLogger() });
     },
     get housekeeping() {
       return { purgeExpired: (input: { now: number; limit: number }) => purgeExpiredPlatformRows(db(), input) };

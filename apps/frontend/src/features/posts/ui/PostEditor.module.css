@@ -1,0 +1,116 @@
+.editor {
+  display: grid;
+  gap: var(--space-4);
+  min-width: 0;
+}
+.meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-4);
+  outline: none;
+}
+.muted {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+.bannerActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+.panes {
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);
+  gap: var(--space-5);
+  align-items: start;
+}
+.tabsRoot {
+  min-width: 0;
+}
+/* Inactive tab panes stay mounted (the form keeps its focus and scroll) but leave layout and the tab order. */
+.tabsRoot [inert] {
+  display: none;
+}
+.previewColumn {
+  display: grid;
+  gap: var(--space-4);
+  min-width: 0;
+}
+@media (min-width: 860px) {
+  .previewColumn {
+    position: sticky;
+    top: calc(var(--size-target) + var(--space-6) + var(--space-4));
+  }
+}
+.fields {
+  display: grid;
+  gap: var(--space-4);
+}
+.length {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: var(--space-1) var(--space-3);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+}
+.length[data-over] {
+  color: var(--color-danger);
+}
+.previewBody {
+  display: grid;
+  gap: var(--space-3);
+}
+.note {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+}
+.note svg {
+  flex: none;
+  margin-top: 1px;
+}
+.note[data-over] {
+  color: var(--color-danger);
+}
+.actionBar {
+  position: sticky;
+  bottom: var(--space-4);
+  z-index: var(--z-sticky);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-3);
+  background: color-mix(in srgb, var(--color-surface-1) 92%, transparent);
+  box-shadow: var(--shadow-card);
+  backdrop-filter: blur(14px);
+}
+.shortcut {
+  margin-left: auto;
+  color: var(--color-text-muted);
+  font: var(--font-size-xs) var(--font-mono);
+}
+@media (max-width: 859px) {
+  .panes {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  /* Sits above the bottom tab bar. */
+  .actionBar {
+    bottom: calc(
+      var(--size-nav) + var(--space-3) + max(env(safe-area-inset-bottom), var(--tg-content-safe-area-inset-bottom, 0px))
+    );
+  }
+  .actionBar > button {
+    flex: 1 1 0;
+  }
+  .shortcut {
+    display: none;
+  }
+}

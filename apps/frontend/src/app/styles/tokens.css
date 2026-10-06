@@ -309,16 +309,3 @@
   --color-status-unknown-fg: #745700;
   --color-status-unknown-bg: rgba(230, 190, 20, 0.2);
 }
-
-/* Transitional aliases for stylesheets outside shared/ui that still use the old names
-   (app/layouts, pages). Delete once they are re-pointed. */
-:root {
-  --color-surface: var(--color-surface-1);
-  --color-surface-raised: var(--color-surface-3);
-  --color-border: var(--color-border-subtle);
-  --color-action-bg: var(--color-accent);
-  --color-action-text: var(--color-on-accent);
-  --color-focus: var(--color-focus-ring);
-  --color-error: var(--color-danger);
-  --color-error-bg: var(--color-status-failed-bg);
-}

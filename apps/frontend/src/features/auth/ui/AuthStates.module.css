@@ -1,0 +1,11 @@
+.screen {
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: var(--space-3);
+  min-height: 100dvh;
+  color: var(--color-text-muted);
+}
+.label {
+  font-size: var(--font-size-sm);
+}
