@@ -31,6 +31,8 @@ export async function resetDb(): Promise<void> {
   // Children first: jobs reference publications, which reference posts, revisions and destinations.
   await db.batch(
     [
+      'incidents',
+      'job_attempts',
       'jobs',
       'publications',
       'destinations',
@@ -81,13 +83,14 @@ export interface Api {
 export const TEST_BOT_TOKEN = '123456:TEST-BOT-TOKEN-PLACEHOLDER';
 
 export function createApi(
-  options: { ownerTelegramId?: string; clock?: FakeClock; botToken?: string | null } = {}
+  options: { ownerTelegramId?: string; clock?: FakeClock; botToken?: string | null; publishingEnabled?: string } = {}
 ): Api {
   const clock = options.clock ?? fakeClock();
   const app = createApp({ clock });
   const env = {
     DB: testDb(),
     OWNER_TELEGRAM_ID: options.ownerTelegramId ?? OWNER_ID,
+    ...(options.publishingEnabled === undefined ? {} : { PUBLISHING_ENABLED: options.publishingEnabled }),
     ...(options.botToken === null ? {} : { TELEGRAM_BOT_TOKEN: options.botToken ?? TEST_BOT_TOKEN })
   } as AppEnv;
   return {

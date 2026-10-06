@@ -41,6 +41,8 @@ export interface PostRepository {
    */
   create(input: NewPost): Promise<boolean>;
   findById(id: string): Promise<PostRecord | null>;
+  /** The stored snapshot of one revision, or null when it does not exist. */
+  findRevision(postId: string, revision: number): Promise<{ title: string; body: string } | null>;
   list(query: ListPostsQuery): Promise<PostRecord[]>;
   /** Null when the guard (revision matches and the post is a draft) did not hold. */
   update(change: PostChange & { title?: string; body?: string }): Promise<PostRecord | null>;

@@ -94,6 +94,14 @@ export function createD1PostRepository(db: D1Database): PostRepository {
       return row === null ? null : toRecord(row);
     },
 
+    // A revision is an immutable snapshot (primary key post_id + revision): what a publication sends.
+    async findRevision(postId, revision) {
+      return db
+        .prepare('SELECT title, body FROM post_revisions WHERE post_id = ?1 AND revision = ?2')
+        .bind(postId, revision)
+        .first<{ title: string; body: string }>();
+    },
+
     async list(query) {
       const { results } = await db
         .prepare(listPostsSql(query))

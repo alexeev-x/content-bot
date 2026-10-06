@@ -62,3 +62,33 @@ describe('create guard', () => {
     }
   });
 });
+
+describe('findRevision', () => {
+  it('returns the stored snapshot of the asked revision, not the latest one, and null for a missing one', async () => {
+    const db = testDb();
+    const id = crypto.randomUUID();
+    await db.batch([
+      db
+        .prepare(
+          "INSERT INTO posts (id, title, body, status, revision, created_at, updated_at) VALUES (?1, 'New', 'Newer body', 'approved', 1, ?2, ?2)"
+        )
+        .bind(id, START),
+      db
+        .prepare(
+          "INSERT INTO post_revisions (post_id, revision, title, body, status, created_at) VALUES (?1, 0, 'Old', 'Old body', 'draft', ?2)"
+        )
+        .bind(id, START),
+      db
+        .prepare(
+          "INSERT INTO post_revisions (post_id, revision, title, body, status, created_at) VALUES (?1, 1, 'New', 'Newer body', 'approved', ?2)"
+        )
+        .bind(id, START)
+    ]);
+    const repo = createD1PostRepository(db);
+
+    expect(await repo.findRevision(id, 0)).toEqual({ title: 'Old', body: 'Old body' });
+    expect(await repo.findRevision(id, 1)).toEqual({ title: 'New', body: 'Newer body' });
+    expect(await repo.findRevision(id, 2)).toBeNull();
+    expect(await repo.findRevision(crypto.randomUUID(), 0)).toBeNull();
+  });
+});

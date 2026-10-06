@@ -79,4 +79,10 @@ export interface SessionStore {
     now: number;
   }): Promise<boolean>;
   revoke(sessionIds: readonly string[], now: number): Promise<void>;
+  /**
+   * Hourly cleanup, at most `limit` rows per table (sessions: per reason, revoked or expired): spent Login Widget signatures, then sessions that
+   * can no longer be used (revoked, or past both token and hard expiry) together with their refresh
+   * tokens, which have no ON DELETE. Rows younger than `graceMs` past their end are kept for diagnosis.
+   */
+  purgeEnded(input: { now: number; limit: number; graceMs: number }): Promise<{ signIns: number; sessions: number }>;
 }

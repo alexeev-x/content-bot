@@ -12,21 +12,25 @@
     "not_found_handling": "single-page-application",
     "run_worker_first": ["/api/*", "/webhooks/*"]
   },
-  // An empty list removes existing Cron Triggers on the next deployment.
+  // An empty list removes existing Cron Triggers on the next deployment. Each environment states
+  // its own list, so what is scheduled never depends on how Wrangler inherits `triggers`.
   "triggers": { "crons": [] },
   "d1_databases": [
     {
       "binding": "DB",
       "database_name": "content-bot",
-      // Placeholder for local/default development. Remote D1 bindings are environment-specific
-      // and will be added separately for dev and production after those databases are provisioned.
+      // Placeholder for local development and tests only. Bindings are not inherited by named
+      // environments: env.dev and env.production declare their own databases below.
       "database_id": "00000000-0000-0000-0000-000000000000",
       "migrations_dir": "migrations"
     }
   ],
   "vars": {
     // The only Telegram user allowed to use the admin, the Mini App and bot commands.
-    "OWNER_TELEGRAM_ID": ""
+    "OWNER_TELEGRAM_ID": "",
+    // Kill switch of the Cron dispatcher: only the exact string "true" lets it claim jobs.
+    // Reconcile of expired leases and cleanup run regardless. The owner flips it per environment.
+    "PUBLISHING_ENABLED": "false"
   },
 
   // Cloudflare Vite plugin selects these at build time via CLOUDFLARE_ENV.
@@ -36,15 +40,37 @@
     "dev": {
       "name": "dev",
       "workers_dev": true,
+      // Every minute, UTC. The dispatcher stays off until PUBLISHING_ENABLED is "true".
+      "triggers": { "crons": ["* * * * *"] },
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "content-db-dev",
+          "database_id": "c54dffdc-61d1-45dc-a483-773303ba9019",
+          "migrations_dir": "migrations"
+        }
+      ],
       "vars": {
-        "OWNER_TELEGRAM_ID": "768918661"
+        "OWNER_TELEGRAM_ID": "768918661",
+        "PUBLISHING_ENABLED": "false"
       }
     },
     "production": {
       "name": "app",
       "workers_dev": true,
+      // No Cron Trigger in production yet: it is enabled with the first release that publishes.
+      "triggers": { "crons": [] },
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "content-db-prod",
+          "database_id": "18d701c9-ba51-4668-b811-618ad3867670",
+          "migrations_dir": "migrations"
+        }
+      ],
       "vars": {
-        "OWNER_TELEGRAM_ID": "768918661"
+        "OWNER_TELEGRAM_ID": "768918661",
+        "PUBLISHING_ENABLED": "false"
       }
     }
   }

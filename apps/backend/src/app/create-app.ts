@@ -60,7 +60,7 @@ export function createApp(options: { clock?: Clock } = {}) {
     const body: HealthDto = {
       status: 'ok',
       service: 'content-bot',
-      publishingEnabled: false,
+      publishingEnabled: c.get('container').publishing.enabled,
       time: new Date(c.get('container').clock.now()).toISOString()
     };
     return c.json(body);

@@ -9,10 +9,37 @@
 4. Screenshot acceptance reference from a real browser render, Playwright diff on stable fixture data.
 
 ## Handoff to frontend
-Analyst → page spec → Design System Agent (tokens + reusable components) → Frontend (feature composition) → QA (browser screenshots + accessibility). Frontend never waits for a drawn mockup; if a component is missing, it proposes a contract to the designer. Do not use random hex values in each feature. Keep the brand accent as a variable until the owner explicitly approves the color.
+Analyst → page spec → Design System Agent (tokens + reusable components) → Frontend (feature composition) → QA (browser screenshots + accessibility). Frontend never waits for a drawn mockup; if a component is missing, it proposes a contract to the designer. Do not use random hex values in each feature. The accent is always a token (`--color-accent*`), switched per theme by the appearance setting; features never hard-code it.
 
 ## Quality
 Contrast and keyboard access per WCAG 2.2 AA as a target; focus, aria, Telegram Mini App safe areas, mobile/desktop, reduced motion, touch target sizes. Screenshot diff complements semantic tests but does not replace them.
 
 ## Executable artifacts (for agents)
-The `design-system` role (`.agents/roles/design-system.md`); visual direction — skill `visual-design` (adapted from Anthropic `frontend-design`); interaction patterns — skill `ui-patterns`; page specification — skill `page-spec`; visual verification — skill `visual-check`. Owner decision: monochrome dark and light themes without bright accents; the current palette (`#0c0c0d` + `#d5f15b`) is to be replaced. The UI library will be chosen separately. Component catalog — the dev route `/__catalog` with all primitive states (no Storybook, so that screenshots and axe check the same components as in the product). Component styles — CSS Modules, only via tokens.
+The `design-system` role (`.agents/roles/design-system.md`); visual direction — skill `visual-design` (adapted from Anthropic `frontend-design`); interaction patterns — skill `ui-patterns`; page specification — skill `page-spec`; visual verification — skill `visual-check`. Visual direction: § Approved visual direction below. The UI library will be chosen separately. Component catalog — the dev route `/__catalog` with all primitive states (no Storybook, so that screenshots and axe check the same components as in the product). Component styles — CSS Modules, only via tokens.
+
+## Approved visual direction (owner decision 06.10.2026)
+Reference: `docs/design/studio-reference.html` (open in a browser; static prototype with example data, not product code; `?theme=light|dark`, `?accent=cobalt|indigo|copper|orchid|mono`) and its screenshots `docs/design/studio-{dashboard,editor}-{light,dark}.png` (1280 px, accent cobalt). Chosen from three live options (editorial, control room, modern): **option C "modern"** with the **cobalt** accent. Rejected: the editorial serif look, the dark instrument-panel look, the lime accent.
+
+**Look.** Soft surfaces, rounded cards with a light shadow, sticky blurred top bar, left sidebar on desktop and a bottom tab bar (4 items + «Ещё» sheet) below 860 px; KPI tiles with small sparklines on the dashboard; the editor shows the form next to a sticky live Telegram preview; the publication detail is a drawer (full-screen sheet on mobile) with the attempts timeline and the manual reconciliation choice. Tables become cards on mobile, the week calendar becomes a day agenda. Targets ≥ 44 px on mobile.
+
+**Type.** Onest (UI, Cyrillic) — headings weight 650, letter-spacing −0.02em; JetBrains Mono for times, ids, revisions and counters (tabular numerals).
+
+**Shape and space.** Radius 8 / 12 / 18 px and pill; spacing 4 / 8 / 12 / 16 / 20 / 24 / 32 px; motion 120 / 200 ms, off under `prefers-reduced-motion`.
+
+**Accent.** One accent, used only for primary buttons, the selected navigation item, the focus ring, links and sparklines. Status colors never depend on it.
+
+| Preset | Light: accent / on-accent / accent text + ring | Dark: accent / on-accent / accent text + ring |
+|---|---|---|
+| `cobalt` (default) | `#1D4ED8` / `#FFFFFF` / `#1D4ED8` | `#6C93FF` / `#06112E` / `#9DB8FF` |
+| `indigo` | `#4F46C8` / `#FFFFFF` / `#4F46C8` | `#8F88F2` / `#110F2B` / `#B0AAFF` |
+| `copper` | `#B4531C` / `#FFFFFF` / `#A04512` | `#E58A4E` / `#1F0E03` / `#F2A674` |
+| `orchid` | `#B0206F` / `#FFFFFF` / `#B0206F` | `#E879B9` / `#2A0518` / `#F59AD0` |
+| `mono` | `#14170F` / `#FFFFFF` / `#14170F` | `#EDEFE9` / `#0D0E0C` / `#EDEFE9` |
+
+Custom presets (Settings → Appearance, up to 10): one base color + a name; the light/dark accent shades are derived from it with lightness adjusted to keep WCAG AA for on-accent text and the focus ring; a warning (not a block) when the hue is close to the failed or unknown status colors.
+
+**Statuses.** Pill = icon + text + tinted fill + 1 px ring; color is never the only signal. Labels and the status → token mapping are canonical in skill `page-spec` (the prototype uses illustrative labels). Hues: failed red, unknown amber, retry cyan, sent green, others neutral; with cobalt/indigo the «sending» pill is neutral slate, with copper «unknown» moves to gold — the prototype CSS holds the exact values per theme.
+
+**Neutrals.** The prototype neutrals carry a slight green tint chosen for the rejected lime accent; retune their hue bias to neutral/cool for cobalt when moving them into `tokens.css`, keeping the same contrast steps.
+
+Deviations from this direction need an owner decision; refine values in `tokens.css`, not per feature.

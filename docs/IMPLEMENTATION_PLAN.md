@@ -31,7 +31,7 @@ Goal: prove that both Cloudflare environments can support real development safel
 
 This is the first implementation milestone because the current placeholder UI is not an acceptable base for the product.
 
-- [ ] Replace the current visual layer with the approved modern monochrome design direction.
+- [ ] Replace the current visual layer with the approved «modern» direction (cobalt accent, switchable presets) — `docs/DESIGN_SYSTEM_NO_FIGMA.md` § Approved visual direction.
 - [ ] Move/finalize semantic design tokens: typography, spacing, radii, surfaces, borders, elevation, motion, dark/light themes and responsive layout rules.
 - [ ] Build production primitives in `shared/ui`: Button, IconButton, Input, Textarea, Select, SearchField, Tabs, Dialog, Drawer, Popover, Tooltip, Toast, StatusBadge, DataTable, Skeleton, EmptyState, ErrorState and destructive confirmation.
 - [ ] Build the real application shell: desktop sidebar, compact/mobile navigation, page header, command/search entry point, account/environment indicator and responsive content layout.

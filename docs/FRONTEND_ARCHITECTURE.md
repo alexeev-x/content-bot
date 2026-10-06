@@ -11,7 +11,7 @@ Chosen by three criteria: AI-friendliness (llms.txt, markdown documentation, off
 | Layer | Choice | Fallback |
 |---|---|---|
 | UI components | React Aria Components, wrapped in `shared/ui` | HeroUI v3 |
-| Styles | CSS Modules + CSS variables (monochrome, dark/light themes) | Tailwind v4 |
+| Styles | CSS Modules + CSS variables (dark/light themes, switchable accent presets) | Tailwind v4 |
 | Router | TanStack Router (typed search params via Zod) | React Router 8 |
 | Server state | TanStack Query v5 | SWR |
 | Forms | React Hook Form 7 + Zod 4 (`^7`, v8 is in beta) | TanStack Form |
@@ -250,7 +250,7 @@ Lazy loading per route (`React.lazy` or lazy route modules), a shared lightweigh
 
 ## 10. UI/UX and design system
 
-- **Owner decisions 03.10.2026 + 06.10.2026:** calm monochrome — dark and light themes on neutral grays, without bright/brand accents; color only for errors/destructive actions and `unknown`, always together with text and an icon. The current placeholder UI is explicitly not an acceptance reference: the first frontend milestone is a modern visual redesign with deliberate typography, spacing, density, navigation and responsive composition. Theme by `prefers-color-scheme` + a manual switch. Components — React Aria Components in `shared/ui` (see §0).
+- **Owner decision 06.10.2026 (supersedes the 03.10.2026 monochrome rule):** approved direction «modern» with one accent, cobalt by default — `docs/DESIGN_SYSTEM_NO_FIGMA.md` § Approved visual direction, reference `docs/design/studio-reference.html`. The accent is chosen per theme in Settings → Appearance (presets or custom), stored on the server; status colors always come with text and an icon. The current placeholder UI is explicitly not an acceptance reference: the first frontend milestone is a modern visual redesign with deliberate typography, spacing, density, navigation and responsive composition. Theme by `prefers-color-scheme` + a manual switch. Components — React Aria Components in `shared/ui` (see §0).
 - Tokens `--color-bg`, `--color-surface`, `--color-text`, `--color-accent`, `--space-*`, `--radius-*` and typography in `app/styles/tokens.css`; buttons and fields via `shared/ui`.
 - On desktop: side navigation, dense tables and a two-pane editor. On mobile: compact navigation, tables turn into cards/accessible horizontal scrolling, the main actions remain available.
 - Accessibility: WCAG 2.2 AA as the target; interactive elements are keyboard-reachable, visible focus, semantic `label`, correct heading structure, color is not the only status marker, dialogs manage focus. For form errors `aria-describedby`; for background updates — moderate `aria-live`, without constant announcements.
@@ -312,7 +312,7 @@ The admin panel opens both as a regular website and as a Mini App from the bot (
 
 - **Wrapper `shared/telegram/`:** a thin typed module over `window.Telegram.WebApp` (the official script `telegram-web-app.js` is included in `<head>` before the bundle). The Mini App indicator is a non-empty `initData`; do not detect by User-Agent. All other code works only through the wrapper, so it is easy to replace in tests.
 - **Launch parameters** are read from `Telegram.WebApp` (the script parses `location.hash` itself), not from the router URL.
-- **Theme:** light/dark by Telegram `colorScheme` (event `themeChanged`); the palette remains our monochrome one, we do not copy Telegram colors.
+- **Theme:** light/dark by Telegram `colorScheme` (event `themeChanged`); the palette remains ours (neutrals + the owner's accent preset), we do not copy Telegram colors.
 - **Safe areas:** padding `max(env(safe-area-inset-*), var(--tg-content-safe-area-inset-*))`; the height of bottom panels — by `viewportStableHeight`. On launch `ready()` and `expand()`; we do not use fullscreen mode.
 - **Native elements** (with an `isVersionAtLeast` check): the «Back» button — when router history exists; close confirmation is enabled while the form is dirty; the main button — «Сохранить» in forms; subscriptions are removed on unmount.
 - **Mobile layout is primary:** 375 px is the main screen, not a cut-down one.

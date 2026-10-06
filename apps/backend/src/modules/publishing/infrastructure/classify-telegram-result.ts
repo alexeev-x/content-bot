@@ -3,7 +3,8 @@ import type { SendOutcome } from '../application/ports';
 
 // Permission wording also contains "text" ("not enough rights to send text messages"), so it is checked first.
 const DESTINATION_ERROR = /chat not found|not enough rights|have no rights|administrator rights/i;
-const CONTENT_ERROR = /text|caption|entities/i;
+// "message is too long" carries none of the other words, yet it is the content's fault.
+const CONTENT_ERROR = /text|caption|entities|too long/i;
 
 // Telegram has no idempotency for sendMessage/sendPhoto: unless the Bot API clearly says
 // "refused", the safe answer is `unknown` (manual reconcile), never an automatic retry.
@@ -26,6 +27,9 @@ function classifyApiError(error: GrammyError): SendOutcome {
     if (DESTINATION_ERROR.test(error.description)) return { kind: 'rejected', code: 'DESTINATION_UNAVAILABLE' };
     if (CONTENT_ERROR.test(error.description)) return { kind: 'rejected', code: 'CONTENT_INVALID' };
   }
+  // The Bot API answers 401 (and 404 for a malformed path) when the token is wrong: Telegram refused
+  // before doing anything, so this is a definite refusal that needs the owner, not an unknown send.
+  if (code === 401 || code === 404) return { kind: 'rejected', code: 'BOT_UNAUTHORIZED' };
   if (code === 403) return { kind: 'rejected', code: 'DESTINATION_UNAVAILABLE' };
   return { kind: 'unknown', reason: `telegram_http_${code}` };
 }

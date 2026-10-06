@@ -7,11 +7,93 @@ import type { JobSnapshot } from '../domain/status-projection';
 export type SendOutcome =
   | { kind: 'sent'; externalMessageId: string }
   | { kind: 'rate_limited'; retryAfterSec: number } // 429: Telegram refused, nothing was published
-  | { kind: 'rejected'; code: 'CHAT_MIGRATED' | 'CONTENT_INVALID' | 'DESTINATION_UNAVAILABLE' }
+  | { kind: 'rejected'; code: 'CHAT_MIGRATED' | 'CONTENT_INVALID' | 'DESTINATION_UNAVAILABLE' | 'BOT_UNAUTHORIZED' }
   | { kind: 'unknown'; reason: string }; // timeout, network, 5xx, ok without message_id
 
 export interface PublicationTransport {
+  /** `text` is Telegram HTML (see domain/format-message.ts); the adapter owns parse mode, previews and the timeout. */
   send(input: { chatId: string; text: string; imageKey?: string }): Promise<SendOutcome>;
+}
+
+/** The approved revision a publication sends; `app/container.ts` backs it with the content module. */
+export interface PostRevisionSource {
+  findRevision(postId: string, revision: number): Promise<{ title: string; body: string } | null>;
+}
+
+export interface ClaimedJob {
+  jobId: string;
+  publicationId: string | null;
+  /** jobs.attempts after the claim: identifies this attempt in every later guarded write. */
+  attempt: number;
+}
+
+export interface DispatchTarget {
+  postId: string;
+  postRevision: number;
+  chatId: string;
+  destinationEnabled: boolean;
+}
+
+export interface ExpiredClaim {
+  jobId: string;
+  publicationId: string | null;
+  attempt: number;
+  sendStartedAt: number | null;
+  /** The job's last write (the claim, or the send mark): when the attempt began, approximately. */
+  startedAt: number;
+}
+
+export type ResolvedJobStatus = 'succeeded' | 'failed' | 'unknown' | 'retry_wait';
+
+export interface JobIncident {
+  id: string;
+  kind: 'publish_failed' | 'publish_unknown';
+  code: string;
+  details: Record<string, string | number>;
+}
+
+/** Everything one guarded batch writes when an attempt ends. */
+export interface JobResolution {
+  jobId: string;
+  publicationId: string | null;
+  attempt: number;
+  startedAt: number;
+  finishedAt: number;
+  status: ResolvedJobStatus;
+  /** Only for `retry_wait`. */
+  runAt?: number;
+  attemptOutcome: 'sent' | 'rate_limited' | 'rejected' | 'unknown' | 'skipped' | 'lease_expired';
+  errorCode: string | null;
+  retryAfterSec: number | null;
+  externalMessageId: string | null;
+  incident: JobIncident | null;
+  auditAction: string;
+}
+
+export interface ExpiredResolution {
+  resolution: JobResolution;
+  /** What reconcile saw: the guard demands the same send mark state at write time. */
+  sendStarted: boolean;
+}
+
+export interface DispatchRepository {
+  /** Due `pending`/`retry_wait` publish jobs, oldest `run_at` first. */
+  findDueJobIds(now: number, limit: number): Promise<string[]>;
+  /** The conditional claim of docs/BACKEND_ARCHITECTURE.md §5; null when another tick (or the owner) won. */
+  claim(jobId: string, now: number, leaseUntil: number): Promise<ClaimedJob | null>;
+  loadTarget(publicationId: string): Promise<DispatchTarget | null>;
+  /**
+   * The confirmed "about to call Telegram" mark. False when the job is no longer ours, the mark is
+   * already set, or the lease would not outlive the send: the caller must not send.
+   */
+  markSendStarted(input: { jobId: string; attempt: number; now: number; minLeaseUntil: number }): Promise<boolean>;
+  /** True when the job and its attempt row already show this resolution (a write that committed but threw). */
+  outcomeInPlace(resolution: JobResolution): Promise<boolean>;
+  /** One batch (attempt row, incident, publication, audit, job), guarded by `claimed` and the same attempt. */
+  resolve(resolution: JobResolution): Promise<boolean>;
+  findExpiredClaims(now: number, limit: number): Promise<ExpiredClaim[]>;
+  /** One batch for all of them; each is guarded by an expired lease, the same attempt and the same send mark. */
+  resolveExpired(items: readonly ExpiredResolution[], now: number): Promise<boolean[]>;
 }
 
 /** What publishing needs to know about a post; `app/container.ts` backs it with the content module. */

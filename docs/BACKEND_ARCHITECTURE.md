@@ -194,6 +194,41 @@ Both are one `batch()` and race the dispatcher's claim on the same row, so the j
 
 Creating a publication is one batch guarded in SQL: the publication insert needs the post still approved at the expected revision and the destination still enabled (`WHERE EXISTS` on `posts` and `destinations`, a read-only reference to the content tables the FK already implies), and every later statement (job, audit, completing the idempotency key) keys off the publication row, so a concurrent change writes nothing. `publications.scheduled_at` is the owner's intent; `jobs.run_at` is when the dispatcher may act (it diverges on `retry_wait`). `jobs.publication_scheduled_at` is a copy of `scheduled_at` used only as the sort key of the status-filtered list (index `jobs_status_scheduled_idx`, so a rare status never reads the history of sent ones); create and reschedule write it in the same batch. Reconcile reads `jobs_claimed_lease (status, lease_until) WHERE status = 'claimed'`. The due scan must repeat the `jobs_due` predicate literally (`status IN ('pending','retry_wait')`); `status = 'pending'` alone is not recognised as implying it and loses the index.
 
+### The Cron tick as built (stage 4a)
+
+`scheduled` → `app/scheduled.ts`, once a minute (`"* * * * *"`, UTC). Steps run in this order and each is isolated: a failing step is logged with a stable `errorCode`, the later ones still run, and the tick ends with an error so the Cron invocation shows as failed.
+
+1. **Reconcile** (always, even with the kill switch off). One read through `jobs_claimed_lease` (`status = 'claimed' AND lease_until < now`, 1 row per tick), then one guarded batch for them. Without `send_started_at`: `retry_wait` with `run_at = now + backoff + jitter`, or `failed` / `RETRIES_EXHAUSTED` + incident once the attempts are used up (a Worker that keeps dying cannot loop for ever). With `send_started_at`: `unknown` + incident `SEND_UNCONFIRMED`. Each attempt that has no row gets one (`outcome` `lease_expired` or `unknown`; its `started_at` is the job's last write, so approximate). Every statement is guarded by the same conditions as the job update (`status = 'claimed'`, the same `attempts`, the lease expired, the same send-mark state): a dispatcher that finishes between the read and the write wins and reconcile writes nothing.
+2. **Dispatch** (only when `PUBLISHING_ENABLED` is exactly `"true"` and `TELEGRAM_BOT_TOKEN` is set; a missing or whitespace-only token logs `BOT_TOKEN_MISSING` every tick and claims nothing). One due scan for up to **3** jobs, then each job to the end before the next one:
+   - the due scan repeats the `jobs_due` predicate literally in two branches (`pending`, `retry_wait`), each `ORDER BY run_at, id LIMIT n`, merged oldest-first. A single `IN` with one `ORDER BY` would read every due row to sort it; this reads at most 2 x n whatever the backlog;
+   - conditional claim (SQL above, lease 2 min, `changes === 1`); `RETURNING` gives the attempt number that guards every later write;
+   - load the publication's destination (`publications JOIN destinations`) and the post revision snapshot `post_revisions (post_id, revision)` at `publications.post_revision`, through the consumer-owned `PostRevisionSource` port wired in `container.ts` to the content module;
+   - refusals before any send: destination disabled → `failed` `DESTINATION_DISABLED`; revision missing, text empty or over 4096 characters after parsing → `failed` `CONTENT_INVALID`; publication missing → `failed` `PUBLICATION_MISSING`. Each writes the attempt row (`outcome = 'skipped'`), the incident, `publications.last_error_code` and the audit row in one guarded batch and never calls Telegram;
+   - `send_started_at` in its own statement, `WHERE status = 'claimed' AND send_started_at IS NULL AND attempts = ? AND lease_until >= now + 15 s`. The last condition makes the lease outlive the call (timeout 10 s) and the outcome write; if it is not met (or `changes !== 1`) nothing is sent and reconcile recovers the job. Only a confirmed mark allows the call;
+   - one `PublicationTransport.send` (grammY `Api` without auto-retry, `AbortSignal.timeout(10 s)`), never throws: an unexpected throw is also `unknown`;
+   - one guarded batch for the outcome (attempt row, incident, publication, audit, then the job update last), guarded by `status = 'claimed'` and the same attempt; if the first write throws, the job and its attempt row are re-read: a write that committed and lost its response counts as applied, otherwise it is repeated once (guarded, so a repeat cannot duplicate). One such retry is allowed per tick; the next failing write ends the tick (the job is recovered by reconcile). If a write is not applied, reconcile resolved the job first and its state stands.
+
+   | Outcome | job | attempt `outcome` / `error_code` | incident |
+   |---|---|---|---|
+   | sent | `succeeded`, `publications.external_message_id` | `sent` | no |
+   | 429 | `retry_wait`, `run_at = now + max(retry_after, backoff) + jitter (0-5 s)`, `send_started_at` cleared | `rate_limited` / `RATE_LIMITED` | no |
+   | 429 on attempt 5 (`MAX_ATTEMPTS`) | `failed` | `rate_limited` / `RETRIES_EXHAUSTED` | `publish_failed` |
+   | 400 migrate / content / 403 / chat not found | `failed` | `rejected` / `CHAT_MIGRATED`, `CONTENT_INVALID`, `DESTINATION_UNAVAILABLE` | `publish_failed` |
+   | 401 / 404 from the Bot API (wrong token) | `failed`, and the tick stops dispatching | `rejected` / `BOT_UNAUTHORIZED` | `publish_failed` |
+   | timeout, network, 5xx, unparsable, ok without id, transport threw | `unknown`, never retried automatically | `unknown` / `SEND_UNCONFIRMED` (the reason is in the incident `details`) | `publish_unknown` |
+
+3. **Cleanup**, only on the tick whose scheduled time has UTC minute 0 (read from `controller.scheduledTime`; no state between invocations). Per table at most 100 rows: expired `idempotency_keys`, old `rate_limits` windows, expired `widget_sign_ins`, and ended sessions (revoked, or past both token and hard expiry, 24 h grace) with their `refresh_tokens` deleted first (no `ON DELETE`). Two round trips (platform tables, identity tables). `job_attempts`, `incidents` and `audit_log` are not purged yet (retention policy pending).
+
+**Message format.** One Telegram text message with `parse_mode: 'HTML'`: `<b>title</b>`, a blank line, the body; every `&`, `<`, `>` and `"` of user text is escaped; `link_preview_options.is_disabled = true` is explicit. Length is measured on the parsed text (title, separator, body; UTF-16 code units, which never undercount) against 4096. Photos are not sent yet.
+
+**Idle tick.** With nothing expired and nothing due the tick is two indexed `SELECT`s (one when publishing is off), no token lookup, no Telegram call, no write, one log line. Cleanup is not part of it (hourly only). The test pins the query count and a small `rows_read` over 300 finished jobs.
+
+**Budget per invocation** (Free: 50 D1 queries and 50 subrequests). Per job: 5 round trips (claim, target, revision, send mark, outcome batch), at most 9 statements, 1 subrequest. True worst tick (1 reconciled claim with an incident, 3 jobs that all end with an incident, one outcome-write retry with its re-read, hourly cleanup): 22 round trips and 45 statements, 3 subrequests, so it fits 50 even if every statement of a batch were counted as a query (unverified; the repo counts a batch as one). A test pins these numbers. Calculation, not a load test.
+
+**Wrong token.** A 401/404 fails the job that met it (`BOT_UNAUTHORIZED` + incident) and ends the tick's dispatching, but the next tick will fail the next due job the same way until the token is fixed: switch `PUBLISHING_ENABLED` off first, then fix the secret.
+
+**Settings.** `PUBLISHING_ENABLED` (var in `wrangler.jsonc`, per environment; anything but `"true"` is off; `/api/v1/health` `publishingEnabled` reports the effective state, switch on and token present), secret `TELEGRAM_BOT_TOKEN`. Cron Triggers are declared per environment (`triggers.crons`: `dev` every minute, `production` `[]`), so what runs does not depend on how Wrangler inherits `triggers`; `vars` are not inherited and are repeated per environment.
+
 ## 6. Data and migrations
 
 Core MVP tables: `sessions` (token hash, Telegram ID, expiry), `posts`, `post_revisions`, `idempotency_keys` (scope = Telegram ID, UNIQUE with the key; an in-flight claim is a 60 s lease, a completed one replays for 24 h), `audit_log` (metadata only, written in the same batch as the change), `destinations` (channel/group, chat id), `publications` (+ `idempotency_key` and body hash, UNIQUE), `jobs`, `job_attempts`, `incidents`, `telegram_updates` (`update_id` PRIMARY KEY — protection against webhook repeats), `settings`. Later: `media_assets`, `heroes`, `hero_stats_snapshots`. The owner's Telegram ID is a Worker setting (`OWNER_TELEGRAM_ID`), not a table. UTC timestamps (epoch ms) in the DB; time zone only in the UI and schedule settings.
@@ -218,6 +253,8 @@ CREATE TABLE jobs (
 );
 CREATE INDEX jobs_due ON jobs(status, run_at, id) WHERE status IN ('pending','retry_wait');
 ```
+
+`job_attempts (job_id, attempt)` is the audit of finished attempts: `started_at`, `finished_at`, `outcome` (`sent`, `rate_limited`, `rejected`, `unknown`, `skipped`, `lease_expired`), `error_code`, `retry_after` (seconds), `external_message_id`; the primary key makes a replayed write fail instead of duplicating. `incidents (id)`: `kind` (`publish_failed`, `publish_unknown`), `publication_id`, `job_id`, `code`, `created_at`, `resolved_at`, `details` (valid JSON, at most 1 KB, metadata only); `incidents_open_idx` is partial on `resolved_at IS NULL`. Both are written in the same batch as the job's new state (migration 0005, which also adds `sessions_expires_idx` and the partial `sessions_revoked_idx` for the hourly cleanup).
 
 In SQL migrations follow expand → migrate → contract (skill `d1-migration`). Removing a business module: stop creating its jobs; cancel/complete existing ones; remove the public registration and pass CI; drop the old tables in a **separate** migration after verification.
 
@@ -265,6 +302,8 @@ Workers may reuse an isolate. Mutable globals `currentUser`, `job`, `request`, a
 ## 10. Observability and incidents
 
 Every HTTP request and job has a `requestId`/`jobId`; logs are structured JSON: `timestamp`, `component`, `operation`, `durationMs`, `status`, `errorCode`, `retryable`, `attempt`; no raw webhook body and no secrets. Important `incidents` in D1 with bounded history and a grouping mechanism. The admin UI shows: the last successful Cron, jobs by status, errors over 24 hours, Cron lag (time since the last successful tick), attempts, the `unknown` state, results of manual actions. Aggregate successes and delete old ones per a retention policy. If the Telegram error notification itself fails, save the incident in D1 without infinite recursion.
+
+As built: the dispatcher logs one JSON line per job (`component: 'dispatcher'`, `jobId`, `attempt`, `status`, `errorCode`, `durationMs`), reconcile one per resolved claim, and every tick one summary line (`component: 'scheduled'`, `status`, `durationMs`, `counts`). Only these fields exist in the logger type: no token, chat text, post text or Telegram body can reach a log line. A failed or `unknown` job always has an `incidents` row written in the same batch as the state change (nothing fails silently); the incident carries a code and bounded metadata, and its notification to the owner is not built yet (the open list is the source). Cron lag is visible from the tick lines.
 
 ## 11. Testing and quality gates
 

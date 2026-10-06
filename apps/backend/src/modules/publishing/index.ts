@@ -1,4 +1,4 @@
-export type { PublicationTransport, SendOutcome } from './application/ports';
+export type { DispatchRepository, PostRevisionSource, PublicationTransport, SendOutcome } from './application/ports';
 export type { DestinationRepository, IdempotencyGate, PostSource, PublicationRepository } from './application/ports';
 export { cancelPublication, reschedulePublication } from './application/change-publication';
 export { updateDestination } from './application/change-destination';
@@ -11,3 +11,10 @@ export type { JobSnapshot, JobState } from './domain/status-projection';
 export { classifySendResult, classifyTelegramError } from './infrastructure/classify-telegram-result';
 export { createD1DestinationRepository } from './infrastructure/d1-destination-repository';
 export { createD1PublicationRepository } from './infrastructure/d1-publication-repository';
+export { dispatchDueJobs } from './application/dispatch-due-jobs';
+export type { DispatchDeps, DispatchSummary } from './application/dispatch-due-jobs';
+export { reconcileExpiredJobs } from './application/reconcile-expired-jobs';
+export type { ReconcileDeps, ReconcileSummary } from './application/reconcile-expired-jobs';
+export { createD1DispatchRepository } from './infrastructure/d1-dispatch-repository';
+export { createTelegramPublicationTransport } from './infrastructure/telegram-publication-transport';
+export type { TelegramSender } from './infrastructure/telegram-publication-transport';

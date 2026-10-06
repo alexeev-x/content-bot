@@ -22,7 +22,8 @@ npm run db:migrate:local  # apply D1 migrations to the local database
 npm run verify            # everything CI checks (format, lint, docs, types, architecture, tests, build)
 npm run deploy:check      # build + dry-run deploy (nothing is uploaded)
 npm run deploy            # manual deploy helper; normal remote deploys happen only in GitHub CI
-npm run db:migrate:remote # OWNER ONLY: apply migrations to the production D1 (take a Time Travel bookmark first)
+npm run db:migrate:dev   # OWNER ONLY: apply migrations to the dev D1 (content-db-dev); or GitHub Actions → "D1 migrations"
+npm run db:migrate:prod  # OWNER ONLY: apply migrations to the production D1 (content-db-prod; take a Time Travel bookmark first)
 npm run agents:sync       # after editing .agents/roles or .agents/skills
 npm run metrics           # tokens and cost per agent session
 ```
@@ -35,7 +36,7 @@ The canonical project environment template is the root `.env.example`. Keep **de
 
 The Cloudflare Worker currently reads local runtime secrets from `apps/backend/.dev.vars`, so copy the Telegram values from the root template there when running the Worker locally. Both `.env` and `.dev.vars` are gitignored. `BOT_INFO` is not required: bot identity is derived from `TELEGRAM_BOT_TOKEN` through Telegram `getMe` when the bot integration is initialized.
 
-Cloudflare deploys are branch-driven: after the owner provisions each environment's D1/vars/secrets, a green push to `develop` deploys Worker `dev` (`dev.alexeevs.workers.dev`); a green push to `main` deploys Worker `app` (`app.alexeevs.workers.dev`). Remote D1 migrations remain an explicit owner action before code that depends on them is released.
+Cloudflare deploys are branch-driven: after the owner provisions each environment's D1/vars/secrets, a green push to `develop` deploys Worker `dev` (`dev.alexeevs.workers.dev`); a green push to `main` deploys Worker `app` (`app.alexeevs.workers.dev`). Remote D1 migrations remain an explicit owner action before code that depends on them is released. Apply every pending migration to an environment's D1 before setting its `PUBLISHING_ENABLED` to `"true"`: the dispatcher writes `job_attempts` (migration 0005) after each send.
 
 Git hooks (Husky): `npm run prepare` installs the repository hooks in the local Git checkout. Pre-commit formats and lints staged files (Prettier + Oxlint autofix); pre-push runs `npm run verify:changed` for checks touched by unpushed changes. Hooks can be bypassed or left uninstalled, so GitHub CI independently runs full `npm run verify` plus a full-history Gitleaks scan on pushes to `develop`/`main` and pull requests. After all checks are green, push events deploy `develop` to `dev` and `main` to `app`; pull requests never deploy.
 

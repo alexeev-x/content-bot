@@ -38,7 +38,7 @@ Stack (owner decision 03.10.2026; each library is added in the PR that first nee
 `VITE_*` values are public, so no secrets go there. Never use `dangerouslySetInnerHTML` for external content. The access token lives only in memory: never `localStorage`/`sessionStorage`. Logout clears the query cache.
 
 ## Telegram Mini App
-The same SPA runs in a browser and as a Mini App. Only `src/shared/telegram/` touches `window.Telegram.WebApp` (inside Telegram = non-empty `initData`; never sniff the User-Agent). Theme follows Telegram `colorScheme` with our monochrome palette; pad with `max(env(safe-area-inset-*), var(--tg-content-safe-area-inset-*))`; BackButton follows router history; closing confirmation while a form is dirty; unsubscribe on unmount; guard features with `isVersionAtLeast`. Details: `docs/FRONTEND_ARCHITECTURE.md` §16.
+The same SPA runs in a browser and as a Mini App. Only `src/shared/telegram/` touches `window.Telegram.WebApp` (inside Telegram = non-empty `initData`; never sniff the User-Agent). Theme follows Telegram `colorScheme` with our palette (neutrals + the owner's accent preset); pad with `max(env(safe-area-inset-*), var(--tg-content-safe-area-inset-*))`; BackButton follows router history; closing confirmation while a form is dirty; unsubscribe on unmount; guard features with `isVersionAtLeast`. Details: `docs/FRONTEND_ARCHITECTURE.md` §16.
 
 ## Tests and commands
 Tests follow the skill `testing` (Testing Library queries: `getByRole` first, `getByTestId` last, with `userEvent`). Visual and accessibility checks follow the skill `visual-check`. Commands: `npm run dev|build|typecheck -w @alexeev/frontend`.

@@ -34,8 +34,12 @@ export const RULES = [
     'Publishing packages is not part of this project.',
   ],
   [
-    /\b(?:npm(?:\.cmd)?|pnpm(?:\.cmd)?|yarn|bun)\b[^\r\n]*\brun\s+(?:(?:--workspace|-w)\s+\S+\s+|--workspace=\S+\s+|--if-present\s+)*(?:deploy(?!:check)\b|db:migrate:remote\b)/i,
+    /\b(?:npm(?:\.cmd)?|pnpm(?:\.cmd)?|yarn|bun)\b[^\r\n]*\brun\s+(?:(?:--workspace|-w)\s+\S+\s+|--workspace=\S+\s+|--if-present\s+)*(?:deploy(?!:check)\b|db:migrate:(?:remote|dev|prod)\b)/i,
     'Deploys and remote migrations are run by the owner.',
+  ],
+  [
+    /\bgh(?:\.exe)?\b[^\r\n]*\b(?:workflow\s+(?:run|enable)|run\s+rerun)\b|\bgh(?:\.exe)?\b[^\r\n]*\bapi\b[^\r\n]*\/(?:dispatches|rerun(?:-failed-jobs)?)\b/i,
+    'Starting GitHub workflows (deploys, D1 migrations) is an owner action.',
   ],
   [
     /(?:^|[\s"'`=])(?:[^\s"'`]*[\\/])?\.env(?:\.[\w.-]+)?(?=$|[\s"'`,;])/i,

@@ -17,7 +17,7 @@ A short list of accepted decisions. An agent does not propose an alternative to 
 | 03.10.2026 | Architecture skeleton created up front at the owner's request (exception to "no empty scaffolding"); skeleton files still contain minimal working, tested code | `apps/` |
 | 03.10.2026 | Work is done only by project agents (orchestrator + backend, frontend, design-system, product-analyst, qa-security, researcher); built-in Claude Code helpers (Explore, Plan, general-purpose) allowed for read-only support; generic global agents denied in `.claude/settings.json`; no separate text-editor role | `docs/AGENT_ORCHESTRATION.md` |
 | 03.10.2026 | Strict backend module boundaries: modules do not import each other; only `app/` wires them (ports + `container.ts`); enforced by dependency-cruiser | `docs/BACKEND_ARCHITECTURE.md` §2 |
-| 03.10.2026 | Look and feel: calm monochrome, dark and light themes, no bright accents; color only for errors and `unknown` | `docs/FRONTEND_ARCHITECTURE.md` §10 |
+| 03.10.2026 | Look and feel: calm monochrome, dark and light themes, no bright accents; color only for errors and `unknown` (superseded 06.10.2026: «modern» with a cobalt accent, see below) | `docs/FRONTEND_ARCHITECTURE.md` §10 |
 | 03.10.2026 | Product code in `apps/{frontend,backend,contracts}`; agent infrastructure in `.agents/` | `README.md` |
 | 03.10.2026 | Agents: one source for Claude Code and Codex (`.agents/` → generated adapters) | `docs/AGENT_ORCHESTRATION.md` |
 | 03.10.2026 | Git: work directly in `develop` (shipped to the dev Worker, see 05.10.2026); `main` — releases via a `develop → main` PR; the owner commits and pushes | `AGENTS.md` |
@@ -31,6 +31,8 @@ A short list of accepted decisions. An agent does not propose an alternative to 
 | 06.10.2026 | Order changed: the backend (server) is built first, the redesign comes after it; supersedes "modern redesign first" above | `docs/IMPLEMENTATION_PLAN.md` |
 | 06.10.2026 | Stale draft revision: the revision travels in the request body; a stale one is 409 `CONFLICT` with `details.reason = STALE_REVISION` (no `If-Match` header / 412) | `apps/contracts/src/posts.ts`, `docs/API_CONTRACTS.md` |
 | 06.10.2026 | Browser sign-in uses the classic Telegram Login Widget (`data-onauth`, hash checked with the bot token, one-time use) instead of OpenID Connect: BotFather shows only the domain for this bot, no client credentials | `docs/API_CONTRACTS.md`, skill `api-security` |
+| 06.10.2026 | Visual direction: option C "modern" from the design comparison (soft cards, KPI tiles with sparklines, sidebar + mobile bottom nav, Onest + JetBrains Mono); accent **cobalt** by default. Supersedes the 03.10.2026 "monochrome only" rule: one accent is allowed for primary actions, selection, focus, links and charts; status colors still always come with text + icon | design comparison artifact (option C); `docs/DESIGN_SYSTEM_NO_FIGMA.md` |
+| 06.10.2026 | The owner can change the accent palette in Settings → Appearance, separately for the light and the dark theme, from curated presets (cobalt, indigo, copper, orchid, mono) or up to 10 custom presets the owner creates with a color picker; a custom preset stores one base color and a name, and the light/dark accent shades are derived from it with lightness adjusted to keep WCAG AA contrast (a warning, not a block, when it is close to the failed/unknown status hues); stored on the server so browser and Mini App match | `apps/contracts/src/settings.ts` |
 
 ## Awaiting owner decision
 | Question | Default recommendation |

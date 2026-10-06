@@ -23,6 +23,19 @@ interface RefreshRow {
 // a Cron job and no request pays for an unbounded delete.
 const SIGN_IN_PURGE_BATCH = 20;
 
+// Sessions the hourly cleanup may delete (?1 = cutoff, ?2 = limit per reason): revoked, or past both
+// the access token and the hard expiry. One indexed, individually ordered and limited branch per
+// reason (a plain OR would walk the whole table), so the refresh-token delete and the session
+// delete of one batch pick the same rows. A session that is both is listed twice, which IN does
+// not mind.
+export const ENDED_SESSIONS_SQL = `SELECT id FROM (
+    SELECT id FROM sessions WHERE revoked_at IS NOT NULL AND revoked_at <= ?1 ORDER BY revoked_at, id LIMIT ?2
+  )
+  UNION ALL
+  SELECT id FROM (
+    SELECT id FROM sessions WHERE expires_at <= ?1 AND hard_expires_at <= ?1 ORDER BY expires_at, id LIMIT ?2
+  )`;
+
 export function createD1SessionStore(db: D1Database): SessionStore {
   return {
     async findActiveByTokenHash(tokenHash, now): Promise<ActiveSession | null> {
@@ -186,6 +199,25 @@ export function createD1SessionStore(db: D1Database): SessionStore {
           db.prepare('UPDATE sessions SET revoked_at = ?1 WHERE id = ?2 AND revoked_at IS NULL').bind(now, id)
         )
       );
+    },
+
+    // One batch: the refresh tokens of the ended sessions go first (their foreign key has no cascade),
+    // then the sessions themselves. Both statements pick the same rows: each branch has a total
+    // order and the sessions do not change between them.
+    async purgeEnded({ now, limit, graceMs }) {
+      const cutoff = now - graceMs;
+      const ended = ENDED_SESSIONS_SQL;
+      const [signIns, , sessions] = await db.batch([
+        db
+          .prepare(
+            `DELETE FROM widget_sign_ins WHERE hash_sha256 IN
+               (SELECT hash_sha256 FROM widget_sign_ins WHERE expires_at <= ?1 ORDER BY expires_at LIMIT ?2)`
+          )
+          .bind(now, limit),
+        db.prepare(`DELETE FROM refresh_tokens WHERE session_id IN (${ended})`).bind(cutoff, limit),
+        db.prepare(`DELETE FROM sessions WHERE id IN (${ended})`).bind(cutoff, limit)
+      ]);
+      return { signIns: signIns?.meta.changes ?? 0, sessions: sessions?.meta.changes ?? 0 };
     }
   };
 }
