@@ -3,8 +3,11 @@ import { Hono } from 'hono';
 import { HTTPException } from 'hono/http-exception';
 import { apiErrorCodeForStatus, AppError } from '../shared/app-error';
 import { telegramWebhook } from './bot/webhook-route';
+import type { Clock } from '../platform/clock';
 import { createContainer } from './container';
 import type { AppBindings } from './env';
+import { postsRoutes } from './posts-routes';
+import { requireOwner } from './require-owner';
 
 function errorBody(
   code: ApiErrorDto['error']['code'],
@@ -15,12 +18,12 @@ function errorBody(
   return { error: { code, message, requestId, ...(details === undefined ? {} : { details }) } };
 }
 
-export function createApp() {
+export function createApp(options: { clock?: Clock } = {}) {
   const app = new Hono<AppBindings>();
 
   app.use('*', async (c, next) => {
     const requestId = crypto.randomUUID();
-    const container = createContainer();
+    const container = createContainer(c.env, options);
     const startedAt = container.clock.now();
     c.set('requestId', requestId);
     c.set('container', container);
@@ -44,6 +47,11 @@ export function createApp() {
     };
     return c.json(body);
   });
+
+  // Everything under /api/v1 needs the owner's session except the health probe, so a new route
+  // is closed by default and a missing handler answers 401 rather than revealing what exists.
+  app.use('/api/v1/*', (c, next) => (c.req.path === '/api/v1/health' ? next() : requireOwner(c, next)));
+  app.route('/api/v1/posts', postsRoutes);
 
   app.route('/webhooks', telegramWebhook);
 

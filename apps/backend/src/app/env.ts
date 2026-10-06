@@ -12,5 +12,5 @@ export type AppEnv = Env & {
 
 export type AppBindings = {
   Bindings: AppEnv;
-  Variables: { requestId: string; container: Container };
+  Variables: { requestId: string; container: Container; actor: { telegramId: string } };
 };

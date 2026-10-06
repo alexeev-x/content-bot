@@ -29,6 +29,7 @@ A short list of accepted decisions. An agent does not propose an alternative to 
 | 06.10.2026 | ALEXEEV Studio is the primary full product control plane, not a minimal admin MVP: modern redesign first, then complete content, publication/calendar, automation, source/media/template, operations, analytics and settings capabilities; browser and Mini App keep feature parity | `docs/IMPLEMENTATION_PLAN.md`, `docs/PAGE_MAP.md`, `docs/FRONTEND_ARCHITECTURE.md` |
 | 06.10.2026 | The `studio-reference` visual direction is withdrawn. A modern dashboard look will be picked later from Figma dashboard templates (figma.com/templates/dashboard-designs); this reopens the 03.10.2026 Figma exclusion for that choice only, and the design docs are updated when the design stage starts | this table |
 | 06.10.2026 | Order changed: the backend (server) is built first, the redesign comes after it; supersedes "modern redesign first" above | `docs/IMPLEMENTATION_PLAN.md` |
+| 06.10.2026 | Stale draft revision: the revision travels in the request body; a stale one is 409 `CONFLICT` with `details.reason = STALE_REVISION` (no `If-Match` header / 412) | `apps/contracts/src/posts.ts`, `docs/API_CONTRACTS.md` |
 
 ## Awaiting owner decision
 | Question | Default recommendation |
@@ -38,4 +39,3 @@ A short list of accepted decisions. An agent does not propose an alternative to 
 | Session lifetime | token 60 min; Mini App ≤ 12 h; refresh cookie in the browser 30 days |
 | Publication status labels | table in skill `page-spec` |
 | Repeated `Idempotency-Key` with a different body | 409 `CONFLICT` with `details.reason` |
-| Stale draft revision | revision in the request body → 409 (no `If-Match` header) |
