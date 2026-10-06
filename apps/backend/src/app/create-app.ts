@@ -11,6 +11,7 @@ import { destinationsRoutes } from './destinations-routes';
 import { postsRoutes } from './posts-routes';
 import { publicationsRoutes } from './publications-routes';
 import { requireOwner } from './require-owner';
+import { settingsRoutes } from './settings-routes';
 
 // Reachable without a session. Sign-in, refresh and logout authenticate themselves with the
 // initData or widget signature, the Bearer token or the refresh cookie, so a stricter guard in front of them
@@ -75,6 +76,7 @@ export function createApp(options: { clock?: Clock } = {}) {
   app.route('/api/v1/posts', postsRoutes);
   app.route('/api/v1/destinations', destinationsRoutes);
   app.route('/api/v1/publications', publicationsRoutes);
+  app.route('/api/v1/settings', settingsRoutes);
 
   app.route('/webhooks', telegramWebhook);
 

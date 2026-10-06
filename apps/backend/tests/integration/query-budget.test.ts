@@ -130,6 +130,25 @@ describe('D1 round trips per request (session lookup included)', () => {
     expect(patched.counter).toEqual({ roundTrips: 2, statements: 3 }); // session, batch of 2
   });
 
+  it('appearance settings', async () => {
+    const doc = {
+      revision: 0,
+      themeMode: 'dark',
+      lightAccent: { kind: 'preset', id: 'indigo' },
+      darkAccent: { kind: 'preset', id: 'mono' },
+      customPresets: []
+    };
+    expect((await measure('/api/v1/settings/appearance')).counter.roundTrips).toBe(2); // session, read
+
+    const first = await measure('/api/v1/settings/appearance', { method: 'PUT', json: doc });
+    expect(first.status).toBe(200);
+    expect(first.counter).toEqual({ roundTrips: 3, statements: 4 }); // session, read, batch of 2
+
+    const stale = await measure('/api/v1/settings/appearance', { method: 'PUT', json: doc });
+    expect(stale.status).toBe(409);
+    expect(stale.counter.roundTrips).toBe(2); // session, read: a stale revision never reaches the write
+  });
+
   it('publications', async () => {
     const created = await measure('/api/v1/publications', {
       method: 'POST',

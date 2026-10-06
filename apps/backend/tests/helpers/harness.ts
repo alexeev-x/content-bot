@@ -38,6 +38,7 @@ export async function resetDb(): Promise<void> {
       'destinations',
       'post_revisions',
       'audit_log',
+      'settings',
       'idempotency_keys',
       'posts',
       'rate_limits',

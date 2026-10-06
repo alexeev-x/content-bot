@@ -3,7 +3,7 @@
 Stack (owner decision 03.10.2026; each library is added in the PR that first needs it): React 19 + Vite 8, TypeScript 6 (7 after 7.1); React Aria Components wrapped in `shared/ui` (skill `react-aria`); CSS Modules + tokens; TanStack Router (Zod `validateSearch`) + TanStack Query v5; React Hook Form 7 + `zodResolver`; TanStack Table v9 only for column/sort logic; `@internationalized/date` + `Intl`; a typed `ru.ts` copy dictionary, no i18n library; no global store; Vitest 4.1 + Testing Library + MSW 2; Playwright + axe. TanStack packages ship agent skills in `node_modules/@tanstack/*/skills/`: read the relevant SKILL.md (Table: v9 APIs only, never v8). Canonical design: `docs/FRONTEND_ARCHITECTURE.md` (§2 structure, §4 state, §6 network, §9 editor, §10 UI).
 
 ## Structure
-- `src/app/`: router, providers, layouts, `styles/tokens.css`, global CSS. The single token source still lives at `src/tokens.css` until the design-system foundation task moves it.
+- `src/app/`: router, providers, layouts, `styles/tokens.css`, global CSS. `styles/tokens.css` is the single token source (theme + accent selected by `app/theme.ts`).
 - `src/pages/<page>/`: composes features and holds no data logic.
 - `src/features/<feature>/`: `index.ts` (public API), `api/` (fetchers + `queryOptions` factories + hooks), `model/` (form schema, hooks), `ui/`, `tests/`. A feature never imports another feature; pages and `app/` compose features.
 - `src/shared/`: `api/http-client.ts`, `ui/` primitives (owned by design-system), `lib/`. No business logic here.

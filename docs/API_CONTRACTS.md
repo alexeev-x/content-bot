@@ -131,6 +131,17 @@ Reschedule and cancel carry the publication `revision`; a stale one is `409` `ST
 
 `POST /api/v1/publications/{id}/retry` is allowed **only** for a status that the backend has deemed safe to retry. `unknown` cannot be force-sent with this method — first call `POST /api/v1/publications/{id}/resolve-unknown` with the documented manual reconcile and an audit trail.
 
+## Owner settings
+
+Schemas and error codes: `apps/contracts/src/settings.ts`.
+
+| Endpoint | Meaning |
+|---|---|
+| `GET /api/v1/settings/appearance` | Theme mode (system/light/dark), accent for the light and the dark theme (a built-in preset or a custom one), up to 10 custom presets (name + base color). Never saved → defaults (system, cobalt/cobalt, no custom presets, revision 0) |
+| `PUT /api/v1/settings/appearance` | Replaces the whole document; the current `revision` goes in the body. Stale → `409` `STALE_REVISION`; an accent pointing to a custom preset that is not in the list → `400` `UNKNOWN_CUSTOM_PRESET`; repeated preset id → `400` `DUPLICATE_PRESET_ID`; body over 8 KB → `413` |
+
+The light and dark accent shades of a custom preset are derived on the client from its base color; the server stores only the base color.
+
 ## Observability
 
 `GET /api/v1/dashboard`, `GET /api/v1/incidents?cursor=...`, `GET /api/v1/jobs?status=...`, `GET /api/v1/health` (private extended health, with no data leaked to the public). The incident list must have `requestId`, `jobId`, `component`, `errorCode`, `occurredAt`, `status`, `attemptCount`. Errors of mutating requests return a single `ApiErrorDto`.

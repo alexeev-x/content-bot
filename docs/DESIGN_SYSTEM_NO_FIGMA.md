@@ -1,6 +1,6 @@
 # ALEXEEV — design in code only
 
-**Owner decision 03.10.2026: Figma is not needed at all.** Exclude Figma tasks, exports, licenses and handoff. Single source of truth: `apps/frontend/src/app/styles/tokens.css` (until the move — `apps/frontend/src/tokens.css`, a single source), `apps/frontend/src/shared/ui`, and the pages and their states in the repository.
+**Owner decision 03.10.2026: Figma is not needed at all.** Exclude Figma tasks, exports, licenses and handoff. Single source of truth: `apps/frontend/src/app/styles/tokens.css`, `apps/frontend/src/shared/ui`, and the pages and their states in the repository.
 
 ## Designer artifacts
 1. `tokens.css`: semantic colors, type scale, spacing, radius, elevation, motion, breakpoint usage; light/dark and Telegram theme mapping where needed.
@@ -43,3 +43,11 @@ Custom presets (Settings → Appearance, up to 10): one base color + a name; the
 **Neutrals.** The prototype neutrals carry a slight green tint chosen for the rejected lime accent; retune their hue bias to neutral/cool for cobalt when moving them into `tokens.css`, keeping the same contrast steps.
 
 Deviations from this direction need an owner decision; refine values in `tokens.css`, not per feature.
+
+## Token layer as built (`apps/frontend/src/app/styles/tokens.css`)
+- Selection by attributes on `<html>` (or any wrapper): `data-theme="light|dark"`, `data-accent-light` / `data-accent-dark` = `cobalt|indigo|copper|orchid|mono|custom`. No attributes = dark + cobalt. `custom` reads `--custom-{light,dark}-{accent,accent-hover,accent-text,accent-soft,on-accent,focus-ring,accent-glow}`, which `src/app/theme.ts` injects from `shared/lib/color` `deriveAccent` (lightness moved until on-accent ≥ 4.5:1, accent text ≥ 4.5:1 and focus ring ≥ 3:1 on every surface of the theme). `applyAppearance()` applies it; the last appearance is cached in `localStorage` (`ui-appearance`, `ui-theme`) and replayed before React renders; the server setting stays the source of truth.
+- Colors: `--color-bg`, `--color-surface-1|2|3`, `--color-border-subtle|strong`, `--color-text`, `-muted`, `-disabled`, `--color-danger`, `--color-scrim`, `--color-grid`; accent `--color-accent`, `-hover`, `-text`, `-soft`, `-glow`, `--color-on-accent`, `--color-focus-ring`; status `--color-status-{pending,active,done,retry,failed,unknown,muted}-{fg,bg,ring}`; Telegram preview `--color-chat-bg`, `--color-bubble`, `-text`, `-meta`, `-link`; shadows `--shadow-card`, `--shadow-pop`.
+- Scales: `--font-body|mono`, `--font-size-2xs|xs|sm|md|lg|xl|display`, `--font-weight-*`, `--letter-spacing-heading|display`, `--space-1..8` (1,2,3,4,5,6,8), `--radius-1|2|3|pill` (8/12/18/999), `--size-target` 44, `--size-target-min` 24, `--motion-fast|base` (0 under reduced motion), `--z-sticky|nav|overlay|modal|toast`.
+- Deviations from the prototype, with reasons: neutrals retuned from green tint to cool grey (hue ~265) for cobalt, same lightness steps; dark `--color-border-strong` raised to `#747a86` because the prototype's `#4a5045` was 2.2:1 and input borders need ≥ 3:1; `--color-status-pending-*` is the prototype's «scheduled» pair; custom accents always use the slate «active» status. `tokens.test.ts` measures every preset and status from the real file.
+- Fonts: Onest and JetBrains Mono are self-hosted through `@fontsource-variable/*` (Cyrillic subsets, bundled by Vite). The CSP `default-src 'self'` stays unchanged, no third-party font request.
+- `/__catalog` (dev only, 404 in production) shows all tokens in both themes; the route file is `routes/[_][_]catalog.tsx` because TanStack Router treats a leading `__` as a pathless layout.

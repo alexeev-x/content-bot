@@ -1,55 +1,324 @@
-/* Single token source. Monochrome: neutral greys only; colour is reserved for error and `unknown`. */
+/*
+  Single token source (approved «modern» direction, docs/DESIGN_SYSTEM_NO_FIGMA.md).
+  Three tiers: raw values live only inside the theme blocks below; components use the semantic
+  `--color-*` names. Colour literals are allowed in this file only (scripts/colors-only-in-tokens.test.mjs).
+
+  Theme selection is by attributes, on <html> or on any wrapper (the catalog nests themes):
+    data-theme="light|dark"
+    data-accent-light="cobalt|indigo|copper|orchid|mono|custom"   (used while data-theme=light)
+    data-accent-dark="cobalt|indigo|copper|orchid|mono|custom"    (used while data-theme=dark)
+  `custom` reads --custom-{light,dark}-* injected by src/app/theme.ts from shared/lib/color.
+  No attributes = dark + cobalt, the default.
+
+  Neutrals: the prototype carried a green tint picked for the rejected lime accent. They are retuned
+  to a faintly cool grey (hue ~265, chroma <= 0.01) that sits calmly beside cobalt, with the same
+  lightness steps, so every contrast step of the prototype is kept (checked in src/app/styles/tokens.test.ts).
+*/
 :root {
+  /* type */
+  --font-body: 'Onest Variable', 'Onest', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: 'JetBrains Mono Variable', 'JetBrains Mono', ui-monospace, Menlo, Consolas, monospace;
+  --font-size-2xs: 0.75rem;
+  --font-size-xs: 0.8125rem;
+  --font-size-sm: 0.875rem;
+  --font-size-md: 0.9375rem;
+  --font-size-lg: 1.125rem;
+  --font-size-xl: clamp(1.5rem, 4vw, 1.75rem);
+  --font-size-display: 2.125rem;
+  --font-weight-regular: 400;
+  --font-weight-medium: 550;
+  --font-weight-semibold: 600;
+  --font-weight-heading: 650;
+  --letter-spacing-heading: -0.02em;
+  --letter-spacing-display: -0.03em;
+  --line-height-body: 1.5;
+  --line-height-heading: 1.2;
+
+  /* space, radius, size */
   --space-1: 4px;
   --space-2: 8px;
   --space-3: 12px;
   --space-4: 16px;
+  --space-5: 20px;
   --space-6: 24px;
   --space-8: 32px;
   --radius-1: 8px;
   --radius-2: 12px;
+  --radius-3: 18px;
+  --radius-pill: 999px;
   --size-target: 44px;
+  --size-target-min: 24px;
   --size-sidebar: 240px;
-  --font-body: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
-  --font-size-sm: 0.875rem;
-  --font-size-md: 1rem;
-  --font-size-lg: 1.25rem;
-  --font-size-xl: clamp(1.5rem, 4vw, 2rem);
+  --size-nav: 64px;
+
+  /* focus: 2px ring in --color-focus-ring */
   --focus-ring-width: 2px;
   --focus-ring-offset: 2px;
+
+  /* motion: collapsed to 0 under prefers-reduced-motion below */
+  --motion-fast: 120ms;
+  --motion-base: 200ms;
+
+  /* stacking */
+  --z-sticky: 10;
+  --z-nav: 20;
+  --z-overlay: 30;
+  --z-modal: 40;
+  --z-toast: 50;
 }
 
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --motion-fast: 0ms;
+    --motion-base: 0ms;
+  }
+}
+
+/* ===== Neutrals, statuses, chat: dark (also the default) ===== */
 :root,
-:root[data-theme='dark'] {
+[data-theme='dark'] {
   color-scheme: dark;
-  --color-bg: #0e0e0f;
-  --color-surface: #18181a;
-  --color-surface-raised: #232326;
-  --color-border: #3a3a3f;
-  --color-text: #f2f2f3;
-  --color-text-muted: #a4a4ab;
-  --color-action-bg: #f2f2f3;
-  --color-action-text: #0e0e0f;
-  --color-focus: #f2f2f3;
-  --color-error: #ff8a80;
-  --color-error-bg: #2e1b1a;
-  --color-unknown: #ffc66d;
-  --color-unknown-bg: #2e2514;
+  --color-bg: #0d0e10;
+  --color-surface-1: #151619;
+  --color-surface-2: #1c1e22;
+  --color-surface-3: #25272c;
+  --color-border-subtle: #2a2d33;
+  --color-border-strong: #747a86;
+  --color-text: #eceef2;
+  --color-text-muted: #a0a4ad;
+  --color-text-disabled: #6a6e77;
+  --color-danger: #ff7a7a;
+  --color-scrim: rgba(0, 0, 0, 0.6);
+  --color-grid: rgba(255, 255, 255, 0.06);
+  --shadow-card: 0 1px 0 rgba(255, 255, 255, 0.04) inset, 0 8px 24px rgba(0, 0, 0, 0.35);
+  --shadow-pop: 0 24px 60px rgba(0, 0, 0, 0.6);
+
+  --color-status-pending-fg: #b9c3d6;
+  --color-status-pending-bg: rgba(150, 170, 205, 0.14);
+  --color-status-active-fg: #8fb8ff;
+  --color-status-active-bg: rgba(110, 160, 255, 0.15);
+  --color-status-done-fg: #5be3a0;
+  --color-status-done-bg: rgba(60, 214, 140, 0.14);
+  --color-status-retry-fg: #5cd6ec;
+  --color-status-retry-bg: rgba(60, 200, 230, 0.14);
+  --color-status-failed-fg: #ff8c8c;
+  --color-status-failed-bg: rgba(255, 100, 100, 0.15);
+  --color-status-unknown-fg: #ffb454;
+  --color-status-unknown-bg: rgba(255, 170, 60, 0.16);
+  --color-status-muted-fg: #a0a4ad;
+  --color-status-muted-bg: rgba(160, 164, 173, 0.13);
+
+  --color-chat-bg: #0e1621;
+  --color-bubble: #182533;
+  --color-bubble-text: #e8eef4;
+  --color-bubble-meta: #7f91a4;
+  --color-bubble-link: #6ab3f3;
 }
 
-:root[data-theme='light'] {
+/* ===== Light ===== */
+[data-theme='light'] {
   color-scheme: light;
-  --color-bg: #f6f6f7;
-  --color-surface: #ffffff;
-  --color-surface-raised: #ececee;
-  --color-border: #c9c9ce;
-  --color-text: #151517;
-  --color-text-muted: #55555c;
-  --color-action-bg: #151517;
-  --color-action-text: #ffffff;
-  --color-focus: #151517;
-  --color-error: #b3261e;
-  --color-error-bg: #fbeceb;
-  --color-unknown: #8a5300;
-  --color-unknown-bg: #fdf1dc;
+  --color-bg: #f3f4f6;
+  --color-surface-1: #ffffff;
+  --color-surface-2: #f7f8fa;
+  --color-surface-3: #eceef2;
+  --color-border-subtle: #e1e4ea;
+  --color-border-strong: #7e8491;
+  --color-text: #14161a;
+  --color-text-muted: #565b66;
+  --color-text-disabled: #8a8f9a;
+  --color-danger: #b42323;
+  --color-scrim: rgba(20, 22, 26, 0.45);
+  --color-grid: rgba(20, 22, 26, 0.07);
+  --shadow-card: 0 1px 2px rgba(20, 22, 26, 0.06), 0 8px 24px rgba(20, 22, 26, 0.06);
+  --shadow-pop: 0 24px 60px rgba(20, 22, 26, 0.22);
+
+  --color-status-pending-fg: #3b4a66;
+  --color-status-pending-bg: rgba(70, 100, 160, 0.11);
+  --color-status-active-fg: #1c4fb5;
+  --color-status-active-bg: rgba(40, 100, 230, 0.11);
+  --color-status-done-fg: #0b6b3b;
+  --color-status-done-bg: rgba(20, 150, 80, 0.13);
+  --color-status-retry-fg: #0a6478;
+  --color-status-retry-bg: rgba(0, 150, 180, 0.12);
+  --color-status-failed-fg: #a71d1d;
+  --color-status-failed-bg: rgba(210, 40, 40, 0.1);
+  --color-status-unknown-fg: #8a4b00;
+  --color-status-unknown-bg: rgba(240, 150, 20, 0.17);
+  --color-status-muted-fg: #565b66;
+  --color-status-muted-bg: rgba(86, 91, 102, 0.11);
+
+  --color-chat-bg: #d3dde7;
+  --color-bubble: #ffffff;
+  --color-bubble-text: #14161a;
+  --color-bubble-meta: #66768a;
+  --color-bubble-link: #1b6fc2;
+}
+
+/* The 1px status ring follows each status foreground, whichever accent override applied. */
+:root,
+[data-theme] {
+  --color-status-pending-ring: color-mix(in srgb, var(--color-status-pending-fg) 40%, transparent);
+  --color-status-active-ring: color-mix(in srgb, var(--color-status-active-fg) 40%, transparent);
+  --color-status-done-ring: color-mix(in srgb, var(--color-status-done-fg) 40%, transparent);
+  --color-status-retry-ring: color-mix(in srgb, var(--color-status-retry-fg) 40%, transparent);
+  --color-status-failed-ring: color-mix(in srgb, var(--color-status-failed-fg) 40%, transparent);
+  --color-status-unknown-ring: color-mix(in srgb, var(--color-status-unknown-fg) 40%, transparent);
+  --color-status-muted-ring: color-mix(in srgb, var(--color-status-muted-fg) 40%, transparent);
+}
+
+/* ===== Accents: five presets x two themes. Used only for primary buttons, selected navigation,
+   focus ring, links and sparklines. ===== */
+[data-theme='light']:not([data-accent-light]),
+[data-theme='light'][data-accent-light='cobalt'] {
+  --color-accent: #1d4ed8;
+  --color-on-accent: #ffffff;
+  --color-accent-hover: #1a43ba;
+  --color-accent-text: #1d4ed8;
+  --color-accent-soft: rgba(29, 78, 216, 0.09);
+  --color-focus-ring: #1d4ed8;
+  --color-accent-glow: rgba(29, 78, 216, 0.35);
+}
+[data-theme='light'][data-accent-light='indigo'] {
+  --color-accent: #4f46c8;
+  --color-on-accent: #ffffff;
+  --color-accent-hover: #433bae;
+  --color-accent-text: #4f46c8;
+  --color-accent-soft: rgba(79, 70, 200, 0.09);
+  --color-focus-ring: #4f46c8;
+  --color-accent-glow: rgba(79, 70, 200, 0.35);
+}
+[data-theme='light'][data-accent-light='copper'] {
+  --color-accent: #b4531c;
+  --color-on-accent: #ffffff;
+  --color-accent-hover: #9c4616;
+  --color-accent-text: #a04512;
+  --color-accent-soft: rgba(180, 83, 28, 0.09);
+  --color-focus-ring: #a04512;
+  --color-accent-glow: rgba(180, 83, 28, 0.35);
+}
+[data-theme='light'][data-accent-light='orchid'] {
+  --color-accent: #b0206f;
+  --color-on-accent: #ffffff;
+  --color-accent-hover: #951a5e;
+  --color-accent-text: #b0206f;
+  --color-accent-soft: rgba(176, 32, 111, 0.09);
+  --color-focus-ring: #b0206f;
+  --color-accent-glow: rgba(176, 32, 111, 0.35);
+}
+[data-theme='light'][data-accent-light='mono'] {
+  --color-accent: #14170f;
+  --color-on-accent: #ffffff;
+  --color-accent-hover: #2e3328;
+  --color-accent-text: #14170f;
+  --color-accent-soft: rgba(20, 23, 15, 0.08);
+  --color-focus-ring: #14170f;
+  --color-accent-glow: rgba(20, 23, 15, 0.25);
+}
+:root:not([data-theme]),
+[data-theme='dark']:not([data-accent-dark]),
+[data-theme='dark'][data-accent-dark='cobalt'] {
+  --color-accent: #6c93ff;
+  --color-on-accent: #06112e;
+  --color-accent-hover: #86a6ff;
+  --color-accent-text: #9db8ff;
+  --color-accent-soft: rgba(108, 147, 255, 0.15);
+  --color-focus-ring: #9db8ff;
+  --color-accent-glow: rgba(108, 147, 255, 0.4);
+}
+[data-theme='dark'][data-accent-dark='indigo'] {
+  --color-accent: #8f88f2;
+  --color-on-accent: #110f2b;
+  --color-accent-hover: #a29cf7;
+  --color-accent-text: #b0aaff;
+  --color-accent-soft: rgba(143, 136, 242, 0.15);
+  --color-focus-ring: #b0aaff;
+  --color-accent-glow: rgba(143, 136, 242, 0.4);
+}
+[data-theme='dark'][data-accent-dark='copper'] {
+  --color-accent: #e58a4e;
+  --color-on-accent: #1f0e03;
+  --color-accent-hover: #ee9c66;
+  --color-accent-text: #f2a674;
+  --color-accent-soft: rgba(229, 138, 78, 0.15);
+  --color-focus-ring: #f2a674;
+  --color-accent-glow: rgba(229, 138, 78, 0.4);
+}
+[data-theme='dark'][data-accent-dark='orchid'] {
+  --color-accent: #e879b9;
+  --color-on-accent: #2a0518;
+  --color-accent-hover: #ef93c8;
+  --color-accent-text: #f59ad0;
+  --color-accent-soft: rgba(232, 121, 185, 0.15);
+  --color-focus-ring: #f59ad0;
+  --color-accent-glow: rgba(232, 121, 185, 0.4);
+}
+[data-theme='dark'][data-accent-dark='mono'] {
+  --color-accent: #edefe9;
+  --color-on-accent: #0d0e0c;
+  --color-accent-hover: #ffffff;
+  --color-accent-text: #edefe9;
+  --color-accent-soft: rgba(237, 239, 233, 0.1);
+  --color-focus-ring: #edefe9;
+  --color-accent-glow: rgba(237, 239, 233, 0.18);
+}
+
+/* ===== Custom presets: values derived in TS (shared/lib/color) and injected as --custom-* ===== */
+[data-theme='light'][data-accent-light='custom'] {
+  --color-accent: var(--custom-light-accent);
+  --color-on-accent: var(--custom-light-on-accent);
+  --color-accent-hover: var(--custom-light-accent-hover);
+  --color-accent-text: var(--custom-light-accent-text);
+  --color-accent-soft: var(--custom-light-accent-soft);
+  --color-focus-ring: var(--custom-light-focus-ring);
+  --color-accent-glow: var(--custom-light-accent-glow);
+}
+[data-theme='dark'][data-accent-dark='custom'] {
+  --color-accent: var(--custom-dark-accent);
+  --color-on-accent: var(--custom-dark-on-accent);
+  --color-accent-hover: var(--custom-dark-accent-hover);
+  --color-accent-text: var(--custom-dark-accent-text);
+  --color-accent-soft: var(--custom-dark-accent-soft);
+  --color-focus-ring: var(--custom-dark-focus-ring);
+  --color-accent-glow: var(--custom-dark-accent-glow);
+}
+
+/* ===== Status overrides where an accent would collide with a status hue.
+   Active (sending) turns slate next to blue/violet accents and custom ones (unknown hue);
+   unknown turns gold next to copper. ===== */
+[data-theme='dark'][data-accent-dark='cobalt'],
+[data-theme='dark'][data-accent-dark='indigo'],
+[data-theme='dark'][data-accent-dark='custom'],
+:root:not([data-theme]),
+[data-theme='dark']:not([data-accent-dark]) {
+  --color-status-active-fg: #c3cad6;
+  --color-status-active-bg: rgba(190, 200, 215, 0.15);
+}
+[data-theme='light'][data-accent-light='cobalt'],
+[data-theme='light'][data-accent-light='indigo'],
+[data-theme='light'][data-accent-light='custom'],
+[data-theme='light']:not([data-accent-light]) {
+  --color-status-active-fg: #3c4554;
+  --color-status-active-bg: rgba(70, 80, 95, 0.12);
+}
+[data-theme='dark'][data-accent-dark='copper'] {
+  --color-status-unknown-fg: #f2d14f;
+  --color-status-unknown-bg: rgba(240, 205, 60, 0.16);
+}
+[data-theme='light'][data-accent-light='copper'] {
+  --color-status-unknown-fg: #745700;
+  --color-status-unknown-bg: rgba(230, 190, 20, 0.2);
+}
+
+/* Transitional aliases for stylesheets outside shared/ui that still use the old names
+   (app/layouts, pages). Delete once they are re-pointed. */
+:root {
+  --color-surface: var(--color-surface-1);
+  --color-surface-raised: var(--color-surface-3);
+  --color-border: var(--color-border-subtle);
+  --color-action-bg: var(--color-accent);
+  --color-action-text: var(--color-on-accent);
+  --color-focus: var(--color-focus-ring);
+  --color-error: var(--color-danger);
+  --color-error-bg: var(--color-status-failed-bg);
 }

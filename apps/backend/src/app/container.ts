@@ -1,5 +1,6 @@
 import { createD1PostRepository, type IdempotencyGate, type PostRepository } from '../modules/content';
 import { createD1SessionStore, type SessionStore } from '../modules/identity';
+import { createD1SettingsRepository, type SettingsRepository } from '../modules/settings';
 import { type Clock, systemClock } from '../platform/clock';
 import { createIdempotencyStore } from '../platform/idempotency/d1-idempotency-store';
 import {
@@ -30,6 +31,7 @@ export interface Container {
   rateLimiter: RateLimiter;
   posts: PostRepository;
   idempotency: IdempotencyGate;
+  settings: SettingsRepository;
   destinations: DestinationRepository;
   publications: PublicationRepository;
   postSource: PostSource;
@@ -81,6 +83,9 @@ export function createContainer(
     },
     get idempotency() {
       return createIdempotencyStore(db());
+    },
+    get settings() {
+      return createD1SettingsRepository(db());
     },
     get destinations() {
       return createD1DestinationRepository(db());
