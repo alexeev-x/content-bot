@@ -17,6 +17,9 @@ export default defineConfig({
     __APP_ENV__: JSON.stringify(process.env['CLOUDFLARE_ENV'] ?? ''),
     __TELEGRAM_BOT_USERNAME__: JSON.stringify(telegramBotUsername)
   },
+  // Small font subsets would be inlined as `data:` URLs, which the CSP (`public/_headers`, no font-src) blocks.
+  // Keep fonts as same-origin files instead of loosening the policy.
+  build: { assetsInlineLimit: (file) => (/\.(woff2?|ttf|otf)$/.test(file) ? false : undefined) },
   plugins: [
     tanstackRouter({ target: 'react', autoCodeSplitting: true }),
     react(),
