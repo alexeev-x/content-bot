@@ -18,8 +18,8 @@ describe('Worker fetch', () => {
     expect(body).toMatchObject({ status: 'ok', service: 'content-bot', publishingEnabled: false });
   });
 
-  it('answers unknown /api/v1/* with a JSON NOT_FOUND carrying the requestId', async () => {
-    const response = await exports.default.fetch(`${BASE}/api/v1/nope`);
+  it('answers an unknown route outside /api/v1 with a JSON NOT_FOUND carrying the requestId', async () => {
+    const response = await exports.default.fetch(`${BASE}/api/nope`);
 
     expect(response.status).toBe(404);
     const body = apiErrorSchema.parse(await response.json());
@@ -38,11 +38,11 @@ describe('Worker fetch', () => {
 describe('AppError mapping', () => {
   it('preserves optional details and requestId in the contract error response', async () => {
     const app = createApp();
-    app.get('/api/v1/app-error', () => {
+    app.get('/internal/app-error', () => {
       throw new AppError('CONFLICT', 'Request already in flight', { reason: 'IN_FLIGHT' });
     });
 
-    const response = await app.request('/api/v1/app-error');
+    const response = await app.request('/internal/app-error');
 
     expect(response.status).toBe(409);
     expect(apiErrorSchema.parse(await response.json()).error).toEqual({
@@ -55,11 +55,11 @@ describe('AppError mapping', () => {
 
   it('omits details when the AppError does not define them', async () => {
     const app = createApp();
-    app.get('/api/v1/app-error', () => {
+    app.get('/internal/app-error', () => {
       throw new AppError('FORBIDDEN', 'Access denied');
     });
 
-    const response = await app.request('/api/v1/app-error');
+    const response = await app.request('/internal/app-error');
 
     expect(response.status).toBe(403);
     expect(apiErrorSchema.parse(await response.json()).error).toEqual({
@@ -71,11 +71,11 @@ describe('AppError mapping', () => {
 
   it('redacts unexpected error messages and details', async () => {
     const app = createApp();
-    app.get('/api/v1/unexpected-error', () => {
+    app.get('/internal/unexpected-error', () => {
       throw Object.assign(new Error('private diagnostic'), { details: { reason: 'private diagnostic' } });
     });
 
-    const response = await app.request('/api/v1/unexpected-error');
+    const response = await app.request('/internal/unexpected-error');
     const body: unknown = await response.json();
 
     expect(response.status).toBe(500);
@@ -96,11 +96,11 @@ describe('HTTPException mapping', () => {
     [502, 'UNAVAILABLE']
   ] as const)('status %i keeps its status and carries code %s', async (status, code) => {
     const app = createApp();
-    app.get('/api/v1/http-error', () => {
+    app.get('/internal/http-error', () => {
       throw new HTTPException(status);
     });
 
-    const response = await app.request('/api/v1/http-error');
+    const response = await app.request('/internal/http-error');
 
     expect(response.status).toBe(status);
     expect(apiErrorSchema.parse(await response.json()).error.code).toBe(code);

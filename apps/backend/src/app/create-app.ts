@@ -3,8 +3,26 @@ import { Hono } from 'hono';
 import { HTTPException } from 'hono/http-exception';
 import { apiErrorCodeForStatus, AppError } from '../shared/app-error';
 import { telegramWebhook } from './bot/webhook-route';
+import type { Clock } from '../platform/clock';
 import { createContainer } from './container';
 import type { AppBindings } from './env';
+import { authRoutes } from './auth-routes';
+import { destinationsRoutes } from './destinations-routes';
+import { postsRoutes } from './posts-routes';
+import { publicationsRoutes } from './publications-routes';
+import { requireOwner } from './require-owner';
+import { settingsRoutes } from './settings-routes';
+
+// Reachable without a session. Sign-in, refresh and logout authenticate themselves with the
+// initData or widget signature, the Bearer token or the refresh cookie, so a stricter guard in front of them
+// would make signing in impossible.
+const PUBLIC_ROUTES = new Set([
+  'GET /api/v1/health',
+  'POST /api/v1/auth/telegram',
+  'POST /api/v1/auth/telegram-widget',
+  'POST /api/v1/auth/refresh',
+  'POST /api/v1/auth/logout'
+]);
 
 function errorBody(
   code: ApiErrorDto['error']['code'],
@@ -15,17 +33,21 @@ function errorBody(
   return { error: { code, message, requestId, ...(details === undefined ? {} : { details }) } };
 }
 
-export function createApp() {
+export function createApp(options: { clock?: Clock } = {}) {
   const app = new Hono<AppBindings>();
 
   app.use('*', async (c, next) => {
     const requestId = crypto.randomUUID();
-    const container = createContainer();
+    const container = createContainer(c.env, options);
     const startedAt = container.clock.now();
     c.set('requestId', requestId);
     c.set('container', container);
     c.header('x-request-id', requestId);
     await next();
+    c.header('x-content-type-options', 'nosniff');
+    c.header('referrer-policy', 'no-referrer');
+    // Everything under /api/v1 answers one private owner; a browser or proxy must not keep a copy.
+    if (c.req.path.startsWith('/api/v1/') && c.req.path !== '/api/v1/health') c.header('cache-control', 'no-store');
     container.logger.info({
       component: 'http',
       operation: `${c.req.method} ${c.req.routePath}`,
@@ -39,11 +61,22 @@ export function createApp() {
     const body: HealthDto = {
       status: 'ok',
       service: 'content-bot',
-      publishingEnabled: false,
+      publishingEnabled: c.get('container').publishing.enabled,
       time: new Date(c.get('container').clock.now()).toISOString()
     };
     return c.json(body);
   });
+
+  // Everything under /api/v1 needs the owner's session except the public routes above, so a new
+  // route is closed by default and a missing handler answers 401 rather than revealing what exists.
+  app.use('/api/v1/*', (c, next) =>
+    PUBLIC_ROUTES.has(`${c.req.method} ${c.req.path}`) ? next() : requireOwner(c, next)
+  );
+  app.route('/api/v1/auth', authRoutes);
+  app.route('/api/v1/posts', postsRoutes);
+  app.route('/api/v1/destinations', destinationsRoutes);
+  app.route('/api/v1/publications', publicationsRoutes);
+  app.route('/api/v1/settings', settingsRoutes);
 
   app.route('/webhooks', telegramWebhook);
 

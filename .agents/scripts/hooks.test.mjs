@@ -63,6 +63,15 @@ test('guard allows normal work and blocks commits only on protected branches', (
     assert.equal(decide(cmd), null, `should allow: ${cmd}`);
   assert.ok(decide('npm run deploy'));
   assert.ok(decide('npm run db:migrate:remote'));
+  assert.ok(decide('npm run db:migrate:dev'));
+  assert.ok(decide('gh workflow run "D1 migrations" -f environment=production --ref main'));
+  assert.ok(decide('gh workflow run db-migrate.yml -f environment=dev'));
+  assert.ok(decide('gh api -X POST repos/o/r/actions/workflows/db-migrate.yml/dispatches -f ref=develop'));
+  assert.ok(decide('gh run rerun 123'));
+  assert.equal(decide('gh run list'), null);
+  assert.equal(decide('gh workflow list'), null);
+  assert.ok(decide('npm run db:migrate:prod -w @alexeev/backend'));
+  assert.equal(decide('npm run db:migrate:local'), null);
   assert.equal(decide('npm run deploy:check'), null);
   assert.equal(decide('npx wrangler deploy --dry-run'), null);
   assert.equal(decide('cat .env.example.md'), null);

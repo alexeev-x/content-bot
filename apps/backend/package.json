@@ -9,7 +9,8 @@
     "build": "npm run typecheck",
     "test": "vitest run",
     "db:migrate:local": "wrangler d1 migrations apply content-bot --local",
-    "db:migrate:remote": "wrangler d1 migrations apply content-bot --remote"
+    "db:migrate:dev": "wrangler d1 migrations apply content-db-dev --remote --env dev",
+    "db:migrate:prod": "wrangler d1 migrations apply content-db-prod --remote --env production"
   },
   "dependencies": {
     "@alexeev/contracts": "*",

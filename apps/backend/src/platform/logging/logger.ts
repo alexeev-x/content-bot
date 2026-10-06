@@ -9,6 +9,9 @@ export interface LogEvent {
   status?: string | number;
   errorCode?: string;
   durationMs?: number;
+  attempt?: number;
+  /** Counters only (numbers), so a payload cannot smuggle text into a log line. */
+  counts?: Record<string, number>;
   cron?: string;
   at?: number;
 }

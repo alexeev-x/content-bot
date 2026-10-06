@@ -33,7 +33,8 @@ describe('classifyTelegramError', () => {
   it.each([
     'Bad Request: message text is empty',
     "Bad Request: can't parse entities: Unsupported start tag",
-    'Bad Request: message caption is too long'
+    'Bad Request: message caption is too long',
+    'Bad Request: message is too long'
   ])('400 "%s" is CONTENT_INVALID', (description) => {
     expect(classifyTelegramError(apiError(400, description))).toEqual({ kind: 'rejected', code: 'CONTENT_INVALID' });
   });
@@ -60,6 +61,13 @@ describe('classifyTelegramError', () => {
       kind: 'rejected',
       code: 'DESTINATION_UNAVAILABLE'
     });
+  });
+
+  it.each([
+    [401, 'Unauthorized'],
+    [404, 'Not Found']
+  ])('%i from the Bot API means the token is wrong: BOT_UNAUTHORIZED, a definite refusal', (code, description) => {
+    expect(classifyTelegramError(apiError(code, description))).toEqual({ kind: 'rejected', code: 'BOT_UNAUTHORIZED' });
   });
 
   it('an unrecognised 400 stays unknown rather than being guessed', () => {

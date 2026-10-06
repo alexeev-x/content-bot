@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as _catalogRouteImport } from './routes/[_][_]catalog'
 import { Route as CalendarRouteImport } from './routes/calendar'
 import { Route as IncidentsRouteImport } from './routes/incidents'
 import { Route as LoginRouteImport } from './routes/login'
@@ -22,6 +23,11 @@ import { Route as PostsNewRouteImport } from './routes/posts/new'
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const _catalogRoute = _catalogRouteImport.update({
+  id: '/__catalog',
+  path: '/__catalog',
   getParentRoute: () => rootRouteImport,
 } as any)
 const CalendarRoute = CalendarRouteImport.update({
@@ -67,6 +73,7 @@ const PostsNewRoute = PostsNewRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/__catalog': typeof _catalogRoute
   '/calendar': typeof CalendarRoute
   '/incidents': typeof IncidentsRoute
   '/login': typeof LoginRoute
@@ -78,6 +85,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/__catalog': typeof _catalogRoute
   '/calendar': typeof CalendarRoute
   '/incidents': typeof IncidentsRoute
   '/login': typeof LoginRoute
@@ -90,6 +98,7 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/__catalog': typeof _catalogRoute
   '/calendar': typeof CalendarRoute
   '/incidents': typeof IncidentsRoute
   '/login': typeof LoginRoute
@@ -103,6 +112,7 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/__catalog'
     | '/calendar'
     | '/incidents'
     | '/login'
@@ -114,6 +124,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/__catalog'
     | '/calendar'
     | '/incidents'
     | '/login'
@@ -125,6 +136,7 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
+    | '/__catalog'
     | '/calendar'
     | '/incidents'
     | '/login'
@@ -137,6 +149,7 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  _catalogRoute: typeof _catalogRoute
   CalendarRoute: typeof CalendarRoute
   IncidentsRoute: typeof IncidentsRoute
   LoginRoute: typeof LoginRoute
@@ -154,6 +167,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/__catalog': {
+      id: '/__catalog'
+      path: '/__catalog'
+      fullPath: '/__catalog'
+      preLoaderRoute: typeof _catalogRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/calendar': {
@@ -217,6 +237,7 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  _catalogRoute: _catalogRoute,
   CalendarRoute: CalendarRoute,
   IncidentsRoute: IncidentsRoute,
   LoginRoute: LoginRoute,

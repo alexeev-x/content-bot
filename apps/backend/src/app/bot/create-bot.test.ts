@@ -19,6 +19,11 @@ describe('readBotConfig', () => {
     expect(config?.botInfo.username).toBe('content_bot');
   });
 
+  it('accepts a 16-digit owner id', () => {
+    const config = readBotConfig({ ...baseEnv, OWNER_TELEGRAM_ID: '1234567890123456' } as AppEnv);
+    expect(config?.ownerId).toBe(1_234_567_890_123_456);
+  });
+
   it.each([
     ['no token', { TELEGRAM_BOT_TOKEN: undefined }],
     ['no secret', { TELEGRAM_WEBHOOK_SECRET: undefined }],
@@ -26,7 +31,8 @@ describe('readBotConfig', () => {
     ['BOT_INFO not JSON', { BOT_INFO: '{oops' }],
     ['BOT_INFO without username', { BOT_INFO: JSON.stringify({ id: 1, is_bot: true, first_name: 'Bot' }) }],
     ['empty owner id', { OWNER_TELEGRAM_ID: '' }],
-    ['non-numeric owner id', { OWNER_TELEGRAM_ID: 'alex' }]
+    ['non-numeric owner id', { OWNER_TELEGRAM_ID: 'alex' }],
+    ['owner id beyond the safe integer range', { OWNER_TELEGRAM_ID: '9007199254740993' }]
   ])('returns null for %s', (_name, patch) => {
     expect(readBotConfig({ ...baseEnv, ...patch } as AppEnv)).toBeNull();
   });

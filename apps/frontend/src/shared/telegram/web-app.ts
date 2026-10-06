@@ -18,6 +18,12 @@ export function isInsideTelegram(): boolean {
   return typeof initData === 'string' && initData.length > 0;
 }
 
+/** Raw initData for sign-in; undefined outside Telegram (never send an empty value). */
+export function getInitData(): string | undefined {
+  const initData = getWebApp()?.initData;
+  return typeof initData === 'string' && initData.length > 0 ? initData : undefined;
+}
+
 /** Tells Telegram the app is ready and expands it. No fullscreen mode. No-op outside Telegram. */
 export function initTelegram(): void {
   if (!isInsideTelegram()) return;

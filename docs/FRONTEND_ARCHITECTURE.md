@@ -2,7 +2,7 @@
 
 **Date:** 03.10.2026 · **Status:** approved technical direction; the application is not yet implemented · **Product:** ALEXEEV Studio admin panel (working name), `apps/frontend/` in `content-bot`. Backend: `docs/BACKEND_ARCHITECTURE.md`.
 
-> Our tasks need a **fast operator SPA interface**, not a public SEO site. SSR, Next.js, micro-frontends and heavy global state management are not needed at the start. The goal is to manage publications safely and to see real failures, including from a phone.
+> ALEXEEV Studio is the **primary full product control plane**, not a public SEO site and not a reduced admin MVP. SSR, Next.js, micro-frontends and heavy global state management are not needed at the start. The interface must provide polished browser/mobile control over content, publications, automations, sources/media/templates, operations, settings and analytics while preserving publishing safety.
 
 ## 0. Approved stack (owner decision 03.10.2026)
 
@@ -11,7 +11,7 @@ Chosen by three criteria: AI-friendliness (llms.txt, markdown documentation, off
 | Layer | Choice | Fallback |
 |---|---|---|
 | UI components | React Aria Components, wrapped in `shared/ui` | HeroUI v3 |
-| Styles | CSS Modules + CSS variables (monochrome, dark/light themes) | Tailwind v4 |
+| Styles | CSS Modules + CSS variables (dark/light themes, switchable accent presets) | Tailwind v4 |
 | Router | TanStack Router (typed search params via Zod) | React Router 8 |
 | Server state | TanStack Query v5 | SWR |
 | Forms | React Hook Form 7 + Zod 4 (`^7`, v8 is in beta) | TanStack Form |
@@ -21,7 +21,7 @@ Chosen by three criteria: AI-friendliness (llms.txt, markdown documentation, off
 | Global state | none | Zustand |
 | Build and hosting | Vite 8 + `@cloudflare/vite-plugin`; one Worker serves the SPA, `/api/*` and the bot webhook (no Pages and no BFF) | — |
 | Telegram Mini App | the same SPA; a thin typed wrapper over `window.Telegram.WebApp` (no third-party SDK), see §16 | `@tma.js/sdk` |
-| Sign-in | Mini App — `initData`; browser — «Войти через Telegram» (OpenID Connect); token in memory, in `Authorization: Bearer` | — |
+| Sign-in | Mini App — `initData`; browser — «Войти через Telegram» (Telegram Login Widget); token in memory, in `Authorization: Bearer` | — |
 | TypeScript | 6.x; move to 7.1 once linters get the API | TS 7 via compatibility package |
 | Linter / formatter | Oxlint + Prettier | Biome |
 | Tests | Vitest 4.1 (one version across the whole repository until the Cloudflare plugin supports 5) + Testing Library + MSW 2; Playwright + axe (`verify:e2e`) | — |
@@ -187,7 +187,7 @@ Browser or Telegram Mini App → https://<domain>/api/v1/*   (same Worker, same 
 
 **Sign-in (one identity — the owner's Telegram ID):**
 - **Mini App:** on launch the client sends `Telegram.WebApp.initData` to `POST /api/v1/auth/telegram` and receives an access token (60 minutes). While the token is valid, the client renews it via `POST /api/v1/auth/refresh` with the current token; a Mini App session lives no longer than 12 hours. `initData` is valid for sign-in only 15 minutes after launch, so after the session expires the Mini App must be opened from the bot again.
-- **Browser:** `/login` with the «Войти через Telegram» button → redirect to the official Telegram OpenID Connect → `/api/v1/auth/oidc/callback` → the server sets the refresh cookie → the client calls `POST /api/v1/auth/refresh` and receives an access token.
+- **Browser:** `/login` embeds the official Telegram Login Widget (`telegram.org/js/telegram-widget.js`, callback mode `data-onauth`, never `data-auth-url`, so the signed data never lands in a URL) → the client POSTs the whole user object unchanged as JSON to `POST /api/v1/auth/telegram-widget` → the server answers with an access token and sets the refresh cookie. Later renewals use `POST /api/v1/auth/refresh` with the cookie, one request at a time (a parallel refresh with a rotated cookie revokes the session). CSP for `/login` must allow the widget script and its `oauth.telegram.org` frame.
 
 **Storage:** the access token is **in memory only** (module `shared/api/session.ts`), never in `localStorage`/`sessionStorage`. Reason: the Telegram Web Mini App runs inside a frame where third-party cookies are blocked, so a cookie cannot be the basis. The refresh cookie (`HttpOnly; Secure; SameSite=Lax`, path `/api/v1/auth`) exists only in the browser scenario.
 
@@ -209,15 +209,23 @@ The main API does not accept cookies, so a CSRF token is not needed; the server 
 ## 7. Routes, loading and screen fault tolerance
 
 ```text
-/login                  «Войти через Telegram» (in the Mini App sign-in is automatic)
-/                       overview / health / upcoming publications
-/posts                  list of publications with a filter
-/posts/new              new draft
-/posts/:id              editor and revision history
+/login                  owner sign-in (Mini App sign-in is automatic)
+/                       dashboard: activity, upcoming publications, automation health
+/posts                  content library
+/posts/new              full content editor
+/posts/:id              editor, revisions, preview and publication history
+/publications           publication history/control
+/publications/:id       publication timeline and reconciliation
 /calendar               schedule, reschedule/cancel
-/media                  gallery of heroes, sources, templates
-/incidents              errors, retries, unknown Telegram
-/settings               channels, group and schedule
+/automations            rubrics and automation health/control
+/automations/:id        rubric rules, sources and run history
+/sources                source health/provenance
+/media                  media library
+/templates              visual templates
+/jobs                   execution history
+/incidents              errors and unknown Telegram reconciliation
+/analytics              publishing/automation/content intelligence
+/settings/*             channels, integrations, defaults, appearance
 /*                      NotFound
 ```
 
@@ -242,7 +250,7 @@ Lazy loading per route (`React.lazy` or lazy route modules), a shared lightweigh
 
 ## 10. UI/UX and design system
 
-- **Owner decision 03.10.2026:** calm monochrome — dark and light themes on neutral grays, without bright/brand accents; color only for errors/destructive actions and `unknown`, always together with text and an icon. Theme by `prefers-color-scheme` + a manual switch. Components — React Aria Components in `shared/ui` (see §0).
+- **Owner decision 06.10.2026 (supersedes the 03.10.2026 monochrome rule):** approved direction «modern» with one accent, cobalt by default — `docs/DESIGN_SYSTEM_NO_FIGMA.md` § Approved visual direction, reference `docs/design/studio-reference.html`. The accent is chosen per theme in Settings → Appearance (presets or custom), stored on the server; status colors always come with text and an icon. The current placeholder UI is explicitly not an acceptance reference: the first frontend milestone is a modern visual redesign with deliberate typography, spacing, density, navigation and responsive composition. Theme by `prefers-color-scheme` + a manual switch. Components — React Aria Components in `shared/ui` (see §0).
 - Tokens `--color-bg`, `--color-surface`, `--color-text`, `--color-accent`, `--space-*`, `--radius-*` and typography in `app/styles/tokens.css`; buttons and fields via `shared/ui`.
 - On desktop: side navigation, dense tables and a two-pane editor. On mobile: compact navigation, tables turn into cards/accessible horizontal scrolling, the main actions remain available.
 - Accessibility: WCAG 2.2 AA as the target; interactive elements are keyboard-reachable, visible focus, semantic `label`, correct heading structure, color is not the only status marker, dialogs manage focus. For form errors `aria-describedby`; for background updates — moderate `aria-live`, without constant announcements.
@@ -275,7 +283,7 @@ Lazy loading per route (`React.lazy` or lazy route modules), a shared lightweigh
 
 ## 14. Acceptance of the first frontend version
 
-- All main screens are available on desktop/mobile, with clear loading/empty/error states.
+- All routes in `docs/PAGE_MAP.md` are available on desktop/mobile with clear loading/empty/error states; mobile keeps operational feature parity.
 - An unauthenticated user does not see private data; when the session expires React correctly clears the sensitive cache and redirects to sign-in.
 - An editable draft cannot be accidentally lost during ordinary navigation, and a version conflict does not lead to silent overwriting.
 - The admin panel shows the real state of the API and Cron (time of the last tick), an explicit `unknown`, the requestId and a safe retry button.
@@ -304,7 +312,7 @@ The admin panel opens both as a regular website and as a Mini App from the bot (
 
 - **Wrapper `shared/telegram/`:** a thin typed module over `window.Telegram.WebApp` (the official script `telegram-web-app.js` is included in `<head>` before the bundle). The Mini App indicator is a non-empty `initData`; do not detect by User-Agent. All other code works only through the wrapper, so it is easy to replace in tests.
 - **Launch parameters** are read from `Telegram.WebApp` (the script parses `location.hash` itself), not from the router URL.
-- **Theme:** light/dark by Telegram `colorScheme` (event `themeChanged`); the palette remains our monochrome one, we do not copy Telegram colors.
+- **Theme:** light/dark by Telegram `colorScheme` (event `themeChanged`); the palette remains ours (neutrals + the owner's accent preset), we do not copy Telegram colors.
 - **Safe areas:** padding `max(env(safe-area-inset-*), var(--tg-content-safe-area-inset-*))`; the height of bottom panels — by `viewportStableHeight`. On launch `ready()` and `expand()`; we do not use fullscreen mode.
 - **Native elements** (with an `isVersionAtLeast` check): the «Back» button — when router history exists; close confirmation is enabled while the form is dirty; the main button — «Сохранить» in forms; subscriptions are removed on unmount.
 - **Mobile layout is primary:** 375 px is the main screen, not a cut-down one.

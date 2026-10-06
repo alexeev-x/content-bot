@@ -1,3 +1,5 @@
+@import '@fontsource-variable/onest/index.css';
+@import '@fontsource-variable/jetbrains-mono/index.css';
 @import './tokens.css';
 
 * {
@@ -6,13 +8,17 @@
 html {
   font-family: var(--font-body);
   font-size: 16px;
-  line-height: 1.5;
+  line-height: var(--line-height-body);
+  -webkit-text-size-adjust: 100%;
 }
 body {
   margin: 0;
   background: var(--color-bg);
   color: var(--color-text);
+  font-size: var(--font-size-md);
   min-height: 100vh;
+  font-feature-settings: 'ss01', 'cv11';
+  -webkit-font-smoothing: antialiased;
 }
 h1,
 h2,
@@ -20,7 +26,37 @@ h3,
 p {
   margin: 0;
 }
+h1,
+h2,
+h3 {
+  font-weight: var(--font-weight-heading);
+  letter-spacing: var(--letter-spacing-heading);
+}
+button,
+input,
+select,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+code,
+kbd,
+.mono {
+  font-family: var(--font-mono);
+  font-size: 0.86em;
+  font-variant-numeric: tabular-nums;
+}
 :focus-visible {
-  outline: var(--focus-ring-width) solid var(--color-focus);
+  outline: var(--focus-ring-width) solid var(--color-focus-ring);
   outline-offset: var(--focus-ring-offset);
+}
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
