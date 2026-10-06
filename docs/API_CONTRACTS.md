@@ -143,6 +143,15 @@ Schemas and error codes: `apps/contracts/src/settings.ts`.
 
 The light and dark accent shades of a custom preset are derived on the client from its base color; the server stores only the base color.
 
+## Bot connection
+
+Schemas and error codes: `apps/contracts/src/bot.ts`.
+
+| Endpoint | Meaning |
+|---|---|
+| `GET /api/v1/bot/status` | Which bot settings are missing on this Worker (names only), the bot username, the URL this Worker expects, and Telegram's webhook info: the current URL, whether it points here, pending updates and the last error. Changes nothing |
+| `POST /api/v1/bot/connect` | The Worker registers its own webhook with the token and secret it already holds, removes stale command lists, and sets the owner-chat commands and the menu button. Safe to repeat. Returns the fresh status. With missing settings → `503` `BOT_NOT_CONFIGURED` |
+
 ## Observability
 
 `GET /api/v1/dashboard`, `GET /api/v1/incidents?cursor=...`, `GET /api/v1/jobs?status=...`, `GET /api/v1/health` (private extended health, with no data leaked to the public). The incident list must have `requestId`, `jobId`, `component`, `errorCode`, `occurredAt`, `status`, `attemptCount`. Errors of mutating requests return a single `ApiErrorDto`.

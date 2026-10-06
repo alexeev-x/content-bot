@@ -19,7 +19,9 @@ import {
 } from '../modules/publishing';
 import {
   createTelegramApi,
+  createTelegramBotAdminApi,
   createTelegramChatReadApi,
+  type TelegramBotAdminApi,
   type TelegramChatReadApi
 } from '../integrations/telegram/telegram-api';
 import { purgeExpiredPlatformRows } from '../platform/housekeeping/d1-purge';
@@ -50,6 +52,8 @@ export interface Container {
   transport: PublicationTransport;
   /** Read-only Telegram lookups for the destination check; asking for it without the token is a 503. */
   chatInspector: ChatInspector;
+  /** Webhook, command and menu calls of the bot; asking for it without the token is a 503. */
+  botAdminApi: TelegramBotAdminApi;
   housekeeping: {
     purgeExpired(input: { now: number; limit: number }): Promise<{ idempotencyKeys: number; rateLimits: number }>;
   };
@@ -75,6 +79,8 @@ export interface ContainerOverrides {
   transport?: PublicationTransport;
   /** Replaces the Bot API read calls (tests script it; nothing reaches the network). */
   telegramChatApi?: TelegramChatReadApi;
+  /** Replaces the Bot API webhook/command calls (tests script it; nothing reaches the network). */
+  telegramBotAdminApi?: TelegramBotAdminApi;
   random?: () => number;
   newId?: () => string;
 }
@@ -160,6 +166,12 @@ export function createContainer(env: ContainerEnv, overrides: ContainerOverrides
         reader = createTelegramChatReadApi(token);
       }
       return createTelegramChatInspector({ reader, botId: configuredBotId(env.BOT_INFO), logger: createLogger() });
+    },
+    get botAdminApi(): TelegramBotAdminApi {
+      if (overrides.telegramBotAdminApi !== undefined) return overrides.telegramBotAdminApi;
+      const token = botToken();
+      if (token === '') throw new AppError('UNAVAILABLE', 'Telegram bot is not configured');
+      return createTelegramBotAdminApi(token);
     },
     get housekeeping() {
       return { purgeExpired: (input: { now: number; limit: number }) => purgeExpiredPlatformRows(db(), input) };

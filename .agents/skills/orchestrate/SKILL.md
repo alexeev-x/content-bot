@@ -28,6 +28,7 @@ Follow the root owner-interaction and recorded-decision rules.
 |---|---|
 | docs only | yourself → `npm run check:docs` |
 | one area, clear spec | one role (or yourself) → checks |
+| new screen, flow or navigation; "awkward to use" | ux-designer (flow spec) → frontend |
 | UI with new visuals | design-system (only for missing tokens/primitives) → frontend |
 | API or data change | contract step → backend ∥ frontend |
 | contract, integration, verification infrastructure (R2) | one owner per path; qa-security reviews the integrated diff |

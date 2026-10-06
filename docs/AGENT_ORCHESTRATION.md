@@ -20,6 +20,7 @@ After editing roles or skills: `npm run agents:sync`. CI (`npm run agents:check`
 |---|---|---|
 | Orchestrator — main session + skill `orchestrate` | any task with several steps/roles | chosen by the session owner |
 | product-analyst | only when requirements are unclear | sonnet |
+| ux-designer | navigation, user flows and interaction of a screen before it is built or when it is awkward to use | sonnet |
 | design-system | a new token/primitive is needed or a visual audit | sonnet |
 | frontend | UI features | sonnet |
 | backend | API, D1, Cron, bot and Telegram | sonnet, effort high |

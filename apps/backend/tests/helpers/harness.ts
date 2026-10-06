@@ -1,4 +1,4 @@
-import type { TelegramChatReadApi } from '../../src/integrations/telegram/telegram-api';
+import type { TelegramBotAdminApi, TelegramChatReadApi } from '../../src/integrations/telegram/telegram-api';
 import { createApp } from '../../src/app/create-app';
 import type { AppEnv } from '../../src/app/env';
 import type { Clock } from '../../src/platform/clock';
@@ -91,16 +91,19 @@ export function createApi(
     botToken?: string | null;
     publishingEnabled?: string;
     chatApi?: TelegramChatReadApi;
+    botAdminApi?: TelegramBotAdminApi;
+    webhookSecret?: string;
     botInfo?: string;
   } = {}
 ): Api {
   const clock = options.clock ?? fakeClock();
-  const app = createApp({ clock, telegramChatApi: options.chatApi });
+  const app = createApp({ clock, telegramChatApi: options.chatApi, telegramBotAdminApi: options.botAdminApi });
   const env = {
     DB: testDb(),
     OWNER_TELEGRAM_ID: options.ownerTelegramId ?? OWNER_ID,
     ...(options.publishingEnabled === undefined ? {} : { PUBLISHING_ENABLED: options.publishingEnabled }),
     ...(options.botInfo === undefined ? {} : { BOT_INFO: options.botInfo }),
+    ...(options.webhookSecret === undefined ? {} : { TELEGRAM_WEBHOOK_SECRET: options.webhookSecret }),
     ...(options.botToken === null ? {} : { TELEGRAM_BOT_TOKEN: options.botToken ?? TEST_BOT_TOKEN })
   } as AppEnv;
   return {

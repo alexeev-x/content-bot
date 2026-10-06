@@ -37,3 +37,51 @@ export function createTelegramChatReadApi(token: string): TelegramChatReadApi {
     getChatMember: (chatId, userId, signal) => api.getChatMember(chatId, userId, signal as never)
   };
 }
+
+export interface BotCommandDescription {
+  command: string;
+  description: string;
+}
+
+// What registering the bot needs. Answers stay `unknown`: the caller parses what it relies on.
+// `deleteMyCommands` takes a scope and a language because Telegram keeps one list per pair, and a
+// list left by an older bot would shadow the one this bot sets.
+export interface TelegramBotAdminApi {
+  getWebhookInfo(signal: AbortSignal): Promise<unknown>;
+  setWebhook(
+    input: { url: string; secretToken: string; allowedUpdates: ('message' | 'callback_query')[] },
+    signal: AbortSignal
+  ): Promise<unknown>;
+  deleteMyCommands(input: { scope?: 'all_private_chats'; languageCode?: 'ru' }, signal: AbortSignal): Promise<unknown>;
+  setChatCommands(chatId: number, commands: BotCommandDescription[], signal: AbortSignal): Promise<unknown>;
+  setChatMenuWebApp(chatId: number, input: { text: string; url: string }, signal: AbortSignal): Promise<unknown>;
+}
+
+export function createTelegramBotAdminApi(token: string): TelegramBotAdminApi {
+  const api = new Api(token);
+  return {
+    getWebhookInfo: (signal) => api.getWebhookInfo(signal as never),
+    // Pending updates are dropped: an old backlog (for example from a previous bot) is not this bot's to answer.
+    setWebhook: ({ url, secretToken, allowedUpdates }, signal) =>
+      api.setWebhook(
+        url,
+        { secret_token: secretToken, drop_pending_updates: true, allowed_updates: allowedUpdates },
+        signal as never
+      ),
+    deleteMyCommands: ({ scope, languageCode }, signal) =>
+      api.deleteMyCommands(
+        {
+          ...(scope === undefined ? {} : { scope: { type: scope } }),
+          ...(languageCode === undefined ? {} : { language_code: languageCode })
+        },
+        signal as never
+      ),
+    setChatCommands: (chatId, commands, signal) =>
+      api.setMyCommands(commands, { scope: { type: 'chat', chat_id: chatId } }, signal as never),
+    setChatMenuWebApp: (chatId, { text, url }, signal) =>
+      api.setChatMenuButton(
+        { chat_id: chatId, menu_button: { type: 'web_app', text, web_app: { url } } },
+        signal as never
+      )
+  };
+}

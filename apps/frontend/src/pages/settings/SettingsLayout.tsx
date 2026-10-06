@@ -11,6 +11,9 @@ export function SettingsLayout() {
         <Link to="/settings/channels" className={styles.link}>
           {ru.settings.channels}
         </Link>
+        <Link to="/settings/bot" className={styles.link}>
+          {ru.settings.bot}
+        </Link>
         <Link to="/settings/appearance" className={styles.link}>
           {ru.settings.appearance}
         </Link>

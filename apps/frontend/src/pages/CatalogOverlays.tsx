@@ -3,6 +3,8 @@ import {
   Button,
   ConfirmDialog,
   Dialog,
+  Disclosure,
+  DisclosureGroup,
   Drawer,
   IconButton,
   Menu,
@@ -97,6 +99,16 @@ export function CatalogOverlays() {
           Error toast
         </Button>
       </div>
+
+      <h3 className={styles.group}>Disclosure</h3>
+      <DisclosureGroup defaultExpandedKeys={['open']}>
+        <Disclosure id="open" title="Открытый раздел">
+          Содержимое показывается по требованию.
+        </Disclosure>
+        <Disclosure id="closed" title="Свёрнутый раздел">
+          Второй раздел можно открыть одновременно с первым.
+        </Disclosure>
+      </DisclosureGroup>
 
       <h3 className={styles.group}>Menu, popover, tooltip</h3>
       <div className={styles.row}>

@@ -30,6 +30,8 @@ const memberSchema = z.object({
 });
 
 const CHAT_NOT_FOUND = /chat not found|PEER_ID_INVALID/i;
+// A public channel answers getChat to anyone, but refuses getChatMember to a bot that is not its administrator.
+const MEMBER_LIST_INACCESSIBLE = /member list is inaccessible/i;
 // Telegram caps retry_after far above what a person should wait for a form; the header stays sane.
 const MAX_RETRY_AFTER_SEC = 3_600;
 
@@ -107,7 +109,21 @@ export function createTelegramChatInspector(deps: {
         deps.botId ?? (await call('check_destination.get_me', (signal) => reader.getMe(signal), botSchema)).id;
       const member = await call(
         'check_destination.get_chat_member',
-        (signal) => reader.getChatMember(canonicalId, botId, signal),
+        async (signal) => {
+          try {
+            return await reader.getChatMember(canonicalId, botId, signal);
+          } catch (error) {
+            // A bot cannot join a channel as a plain subscriber, so "not an administrator" means "not there".
+            if (
+              error instanceof GrammyError &&
+              error.error_code === 400 &&
+              MEMBER_LIST_INACCESSIBLE.test(error.description)
+            ) {
+              return { status: 'left' };
+            }
+            throw error;
+          }
+        },
         memberSchema
       );
 

@@ -22,6 +22,9 @@
   background: var(--color-surface-1);
   box-shadow: var(--shadow-pop);
 }
+.wide {
+  width: min(880px, 100%);
+}
 .modal[data-entering] {
   animation: rise var(--motion-base) ease-out;
 }

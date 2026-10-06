@@ -135,8 +135,9 @@ export const ru = {
   settings: {
     navLabel: 'Разделы настроек',
     channels: 'Каналы',
+    bot: 'Бот',
     appearance: 'Оформление',
-    description: 'Каналы публикации и внешний вид админки.'
+    description: 'Каналы публикации, бот и внешний вид админки.'
   },
   appearance: {
     title: 'Оформление',
@@ -177,6 +178,8 @@ export const ru = {
     previewLabel: 'Предпросмотр',
     previewLight: 'светлая тема',
     previewDark: 'тёмная тема',
+    previewLightTitle: 'Как будет в светлой теме',
+    previewDarkTitle: 'Как будет в тёмной теме',
     previewNavSelected: 'Выбранный раздел',
     previewNavOther: 'Другой раздел',
     previewPrimary: 'Главная кнопка',

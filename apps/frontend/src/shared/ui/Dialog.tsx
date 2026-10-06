@@ -14,10 +14,21 @@ type Props = {
   footer?: ReactNode;
   /** `alertdialog` for confirmations that need an explicit answer (no backdrop dismiss). */
   role?: 'dialog' | 'alertdialog';
+  /** `wide` for dialogs that lay out content side by side on desktop; phones get the full width either way. */
+  size?: 'default' | 'wide';
 };
 
 /** Modal dialog: inert background, focus trap, Esc, focus back to the trigger (React Aria Modal). Never nest dialogs. */
-export function Dialog({ isOpen, onOpenChange, title, description, children, footer, role = 'dialog' }: Props) {
+export function Dialog({
+  isOpen,
+  onOpenChange,
+  title,
+  description,
+  children,
+  footer,
+  role = 'dialog',
+  size = 'default'
+}: Props) {
   return (
     <ModalOverlay
       isOpen={isOpen}
@@ -25,7 +36,7 @@ export function Dialog({ isOpen, onOpenChange, title, description, children, foo
       isDismissable={role === 'dialog'}
       className={styles.overlay}
     >
-      <Modal className={styles.modal}>
+      <Modal className={size === 'wide' ? `${styles.modal} ${styles.wide}` : styles.modal}>
         <AriaDialog role={role} className={styles.dialog}>
           {({ close }) => (
             <>

@@ -186,6 +186,50 @@ Analytics is part of the product, not an afterthought.
 - [ ] Load test the actual expected workload before claiming 1,000 jobs/day or changing architecture.
 - [ ] Release through `develop → main` PR; production deploy only after all gates pass.
 
+## Owner queue (06.10.2026)
+
+Next work agreed with the owner. It goes before the remaining items of "Immediate execution order" below. Each step ships contracts, backend, UI, tests and docs together. R3 steps (migration, publishing, uploads) need a qa-security review.
+
+1. **Mobile P0 and Telegram Mini App.** Spec: `docs/stories/mobile-layout.md` §5, items 1, 2, 5, 6 and 9:
+   - no horizontal scroll at 320/375/390, with a check in CI;
+   - the theme control fits on a phone;
+   - the Telegram BackButton, closing confirmation and swipes, Telegram colors, and safe areas;
+   - no duplicate top bar inside Telegram.
+1a. **Bot as the entry point, R3 (webhook, Mini App auth).** Today the bot only answers `/start` with "Бот на связи".
+   - `/start` answers with a "Открыть студию" `web_app` button, and the owner's chat gets a menu button that opens the Mini App. The URL comes from config.
+   - Owner-only commands, registered with `setMyCommands` for the owner's chat: `/today` (today's plan and results), `/next` (the next 5 publications) and `/status` (publishing on or off, the last Cron run, problems). Each answer has a button that opens the matching screen through `startapp`.
+   - Alerts to the owner when a publication is `failed` or `unknown` or a channel loses bot rights, with an "Открыть" button.
+   - A text the owner sends or forwards to the bot becomes a draft with its formatting kept. The bot answers "Черновик создан" and offers "Открыть".
+   - Webhook registration and a check of its status are documented for the owner. The owner runs `setWebhook`, since it uses the webhook secret.
+1b. **Density revision.** Spec: `docs/DESIGN_SYSTEM_NO_FIGMA.md` § Density revision. The design-system role updates the tokens (radii, control and row heights by pointer type, accent usage) and the shell (sidebar width, groups, active state, collapse to icons, fluid content), and reduces card chrome in the primitives. Frontend then re-composes the existing screens: Posts, Publications, Settings as master/detail. Checked with screenshots at 1280 and 375 px in both themes and an axe scan. It comes before the editor and the tables, so they are built once in the new look.
+2. **Leaving the editor without thinking.** Autosave of drafts with an indicator; a confirmation only when a save failed (`docs/stories/posts-lifecycle.md` §4). Frontend only.
+3. **Rich text, R3.**
+   - The body and the title are edited in a Telegram-compatible editor: bold, italic, underline, strikethrough, spoiler, link, code, quote, and lists rendered as "• " or "1. " lines.
+   - Stored as text plus Telegram entities and sent with `entities`, not HTML.
+   - The title is bold by default and editable.
+   - Includes a migration of existing posts, a preview "as in the channel", and a UTF-16 length counter.
+   - The editor library is picked by researcher (TipTap vs Lexical).
+4. **Post lifecycle, R3.** Spec: `docs/stories/posts-lifecycle.md`.
+   - Every delete is confirmed. Selecting several rows and deleting them at once works in Posts and Archive.
+   - Cancel and reschedule are reachable from the list row and the post page.
+   - Records of final publications can be removed.
+   - Archive: a post moves there after a send when no publication is still active. It can be restored, and Cron purges it 30 days after `archivedAt`.
+   - The admin never deletes channel messages.
+5. **Tables.** Server-side search, filters (status, channel, period) and sorting for Posts and Publications. The state lives in the URL, with quick filters, a column choice and a filter sheet on mobile. Indexes are checked with EXPLAIN. A ux-designer spec comes first.
+6. **Dashboard «Сегодня».** 3–5 decisions and one main signal, no KPI wall. One aggregate endpoint. Blocks:
+   - needs attention: `unknown`, failed, stuck in the queue, a channel that lost bot rights, publishing disabled;
+   - today in the owner's timezone;
+   - next 5 publications;
+   - approved but not scheduled;
+   - recently sent;
+   - the last Cron run.
+7. **Images, R3, after the owner enables R2 (one bucket for dev, one for production).**
+   - One JPEG, PNG or WebP per post, up to 10 MB, with the type checked by magic bytes.
+   - Stored in R2 with metadata in D1, and sent with `sendPhoto`.
+   - With an image attached, the caption limit of 1024 is enforced in the editor.
+   - Albums and a long text with an image come later.
+8. **Mobile P1/P2.** The rest of `docs/stories/mobile-layout.md` §5: a BottomSheet primitive, a full-screen editor on phone, MainButton, and visual baselines.
+
 ## Immediate execution order
 
 The next development sequence is fixed as:

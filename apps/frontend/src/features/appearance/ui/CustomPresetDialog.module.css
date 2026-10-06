@@ -1,8 +1,27 @@
+.layout {
+  display: grid;
+  gap: var(--space-4);
+  align-items: start;
+}
+.fields {
+  display: grid;
+  min-width: 0;
+  gap: var(--space-4);
+}
 .form {
   display: grid;
   gap: var(--space-4);
 }
-.previews {
-  display: grid;
-  gap: var(--space-3);
+.dot {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--color-accent);
+  box-shadow: 0 0 0 1px var(--color-border-strong);
+}
+@media (min-width: 760px) {
+  .layout {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
 }

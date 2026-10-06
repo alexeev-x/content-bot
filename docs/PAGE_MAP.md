@@ -11,6 +11,7 @@ The regular browser app and Telegram Mini App are the same SPA. Mobile at 375 px
 | `/login` | Owner sign-in | Telegram Login Widget; Mini App automatic sign-in | cancelled, expired, 401, foreign owner 403 |
 | `/` | Dashboard | upcoming publications, recent activity, automation health, incidents, stale sources, quick actions | partial/stale data, component failure |
 | `/posts` | Content library | search/filter/sort, drafts/approved content, rubric/source/destination, navigate to revisions | empty, error, stale |
+| `/posts?view=archive` | Posts archive | published posts kept 30 days, restore, delete now; leave-free editor, delete post, cancel/remove publication (spec: `docs/stories/posts-lifecycle.md`) | empty, error, 30-day expiry, unknown not deletable |
 | `/posts/new` | New content | full editor, source/rubric, media, destination, preview, save/approve/schedule | dirty, validation, preview failure |
 | `/posts/:id` | Content Studio | edit, revision history/diff, real preview, publication history, source provenance | 409 conflict, unsaved, stale revision |
 | `/publications` | Publication control | all sends/schedules, filters, status, destination, Telegram message id, safe actions | sending, retry_wait, failed, unknown |
@@ -28,6 +29,7 @@ The regular browser app and Telegram Mini App are the same SPA. Mobile at 375 px
 | `/settings/channels` | Destinations | Telegram channels/groups, defaults, health and permissions | missing permissions, unreachable destination |
 | `/settings/integrations` | Integrations | bot/webhook/source connection health without exposing secrets | disconnected, invalid configuration |
 | `/settings/appearance` | Appearance | dark/light/system theme and display preferences | local fallback |
+| all routes at 375 px (Mini App) | Mobile layout | audit, layout system and backlog for phone/Telegram Mini App (spec: `docs/stories/mobile-layout.md`) | overflow, keyboard, safe area, Telegram BackButton/MainButton |
 | `/*` | Not found | safe navigation back to Studio | — |
 
 ## Cross-page product requirements

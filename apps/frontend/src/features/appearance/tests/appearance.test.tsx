@@ -86,6 +86,14 @@ describe('appearance editor', () => {
     await user.type(within(dialog).getByRole('textbox', { name: /Название/ }), 'Алый');
     fireEvent.change(within(dialog).getByRole('textbox', { name: 'Базовый цвет' }), { target: { value: '#e03a2e' } });
     expect(await within(dialog).findByText('Цвет похож на статус «Ошибка»')).toBeTruthy();
+    // Previews start collapsed so the dialog stays short; each theme opens on demand, both may stay open.
+    expect(within(dialog).queryAllByRole('group', { name: /Предпросмотр/ })).toHaveLength(0);
+    const lightToggle = within(dialog).getByRole('button', { name: 'Как будет в светлой теме' });
+    const darkToggle = within(dialog).getByRole('button', { name: 'Как будет в тёмной теме' });
+    expect(lightToggle.getAttribute('aria-expanded')).toBe('false');
+    await user.click(lightToggle);
+    await user.click(darkToggle);
+    expect(lightToggle.getAttribute('aria-expanded')).toBe('true');
     expect(within(dialog).getAllByRole('group', { name: /Предпросмотр/ })).toHaveLength(2);
     await user.click(within(dialog).getByRole('button', { name: 'Добавить цвет' }));
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());

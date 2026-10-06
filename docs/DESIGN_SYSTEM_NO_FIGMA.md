@@ -17,6 +17,15 @@ Contrast and keyboard access per WCAG 2.2 AA as a target; focus, aria, Telegram 
 ## Executable artifacts (for agents)
 The `design-system` role (`.agents/roles/design-system.md`); visual direction — skill `visual-design` (adapted from Anthropic `frontend-design`); interaction patterns — skill `ui-patterns`; page specification — skill `page-spec`; visual verification — skill `visual-check`. Visual direction: § Approved visual direction below. The UI library will be chosen separately. Component catalog — the dev route `/__catalog` with all primitive states (no Storybook, so that screenshots and axe check the same components as in the product). Component styles — CSS Modules, only via tokens.
 
+## Density revision (owner decision 06.10.2026, supersedes parts of option C below)
+A work tool, not a showcase. Where this section conflicts with "Approved visual direction" below, this section wins. Fonts, accent presets, statuses, the mobile bottom bar and 44 px mobile targets stay as they are.
+- **Sidebar** 210–220 px with groups (Работа / Аналитика / Система), collapsible to icons with tooltips. The active item is a thin accent mark plus a very light background, not a filled accent block.
+- **Accent** on about 5% of the interface: the primary action, focus, the selected item and charts. No large accent fills.
+- **Desktop density** (fine pointer only): fields 34–36 px, table rows 40 px, radii 7–9 px. Touch and the Mini App keep targets of at least 44 px.
+- **Fewer cards.** Tables are a working surface with thin dividers. Content is fluid: tables and operational screens use almost the full width, while the editor keeps a comfortable text measure with an inspector on the right.
+- **Composition per page:** Posts like a spreadsheet or database; Editor as a document plus inspector; Publications as a dense table plus drawer; Settings as two-column master/detail without large cards; Dashboard as «Сегодня», with 3–5 decisions, the next publications and one main signal, and no wall of KPI tiles.
+- **Entity navigation:** the post page carries tabs «Текст · Публикации · История»; more tabs (assets, analytics, comments) appear only when their data exists. War Room, Radar, Video Studio and Analytics compositions are future direction; no empty screens are built for them.
+
 ## Approved visual direction (owner decision 06.10.2026)
 Reference: `docs/design/studio-reference.html` (open in a browser; static prototype with example data, not product code; `?theme=light|dark`, `?accent=cobalt|indigo|copper|orchid|mono`) and its screenshots `docs/design/studio-{dashboard,editor}-{light,dark}.png` (1280 px, accent cobalt). Chosen from three live options (editorial, control room, modern): **option C "modern"** with the **cobalt** accent. Rejected: the editorial serif look, the dark instrument-panel look, the lime accent.
 

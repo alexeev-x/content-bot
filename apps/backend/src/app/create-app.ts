@@ -6,6 +6,7 @@ import { telegramWebhook } from './bot/webhook-route';
 import { type ContainerOverrides, createContainer } from './container';
 import type { AppBindings } from './env';
 import { authRoutes } from './auth-routes';
+import { botRoutes } from './bot-routes';
 import { destinationsRoutes } from './destinations-routes';
 import { postsRoutes } from './posts-routes';
 import { publicationsRoutes } from './publications-routes';
@@ -32,7 +33,7 @@ function errorBody(
   return { error: { code, message, requestId, ...(details === undefined ? {} : { details }) } };
 }
 
-export function createApp(options: Pick<ContainerOverrides, 'clock' | 'telegramChatApi'> = {}) {
+export function createApp(options: Pick<ContainerOverrides, 'clock' | 'telegramChatApi' | 'telegramBotAdminApi'> = {}) {
   const app = new Hono<AppBindings>();
 
   app.use('*', async (c, next) => {
@@ -76,6 +77,7 @@ export function createApp(options: Pick<ContainerOverrides, 'clock' | 'telegramC
   app.route('/api/v1/destinations', destinationsRoutes);
   app.route('/api/v1/publications', publicationsRoutes);
   app.route('/api/v1/settings', settingsRoutes);
+  app.route('/api/v1/bot', botRoutes);
 
   app.route('/webhooks', telegramWebhook);
 

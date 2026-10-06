@@ -4,7 +4,9 @@ import { bodyLimit } from 'hono/body-limit';
 import { timingSafeEqualStrings } from '../../platform/security/timing-safe-equal';
 import { AppError } from '../../shared/app-error';
 import type { AppBindings } from '../env';
+import { appOriginOf } from './app-origin';
 import { createBot, readBotConfig } from './create-bot';
+import { createTelegramCaller } from './telegram-call';
 
 const MAX_UPDATE_BYTES = 256 * 1024;
 const SECRET_HEADER = 'x-telegram-bot-api-secret-token';
@@ -38,9 +40,14 @@ export const telegramWebhook = new Hono<AppBindings>().post(
     const config = readBotConfig(c.env);
     if (!config) throw new AppError('UNAVAILABLE', 'Telegram bot is not configured');
 
-    const bot = createBot(config);
+    const container = c.get('container');
+    const bot = createBot(config, {
+      appOrigin: appOriginOf(c.req.url),
+      adminApi: container.botAdminApi,
+      call: createTelegramCaller({ logger: container.logger, requestId: c.get('requestId') })
+    });
     bot.catch((error) => {
-      c.get('container').logger.error({
+      container.logger.error({
         component: 'bot',
         operation: 'handle_update',
         requestId: c.get('requestId'),

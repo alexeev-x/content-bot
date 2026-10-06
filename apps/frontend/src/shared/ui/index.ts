@@ -11,6 +11,7 @@ export { DataTable } from './DataTable';
 export type { DataColumn, RowSelection, TableSort } from './DataTable';
 export { DateTimeField, TimeField } from './DateTimeField';
 export { Dialog } from './Dialog';
+export { Disclosure, DisclosureGroup } from './Disclosure';
 export { Drawer } from './Drawer';
 export { EmptyState } from './EmptyState';
 export { ErrorState } from './ErrorState';

@@ -134,6 +134,34 @@ describe('createTelegramChatInspector', () => {
     expect(api.calls).toHaveLength(1);
   });
 
+  it('reads "member list is inaccessible" for a public channel as the bot not being there, not as UNAVAILABLE', async () => {
+    const api = fakeChatApi({
+      chat: channelChat(),
+      member: () => {
+        throw apiError(400, 'Bad Request: member list is inaccessible');
+      }
+    });
+
+    const result = await createTelegramChatInspector({ reader: api, botId: 42, logger: silent() }).inspect('@dev_news');
+
+    expect(result).toMatchObject({ kind: 'channel', botCanPost: false, problem: 'BOT_NOT_MEMBER' });
+  });
+
+  it('keeps any other getChatMember 400 as UNAVAILABLE', async () => {
+    const api = fakeChatApi({
+      chat: channelChat(),
+      member: () => {
+        throw apiError(400, 'Bad Request: something else');
+      }
+    });
+
+    const error = await failureOf(
+      createTelegramChatInspector({ reader: api, botId: 42, logger: silent() }).inspect('@dev_news')
+    );
+
+    expect(error).toMatchObject({ code: 'UNAVAILABLE', status: 503 });
+  });
+
   it('asks getChatMember with the canonical id from getChat, not the typed @username', async () => {
     const api = fakeChatApi({ chat: channelChat({ id: -1005550001 }) });
 
