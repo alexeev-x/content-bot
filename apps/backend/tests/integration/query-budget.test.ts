@@ -3,7 +3,14 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { createApp } from '../../src/app/create-app';
 import type { AppEnv } from '../../src/app/env';
 import { testDb } from '../helpers/db';
-import { APP_ORIGIN, initDataFields, seedBrowserSession, signInitData } from '../helpers/auth';
+import {
+  APP_ORIGIN,
+  initDataFields,
+  seedBrowserSession,
+  signInitData,
+  signWidgetData,
+  widgetFields
+} from '../helpers/auth';
 import {
   createApi,
   fakeClock,
@@ -182,6 +189,38 @@ describe('D1 round trips of the auth endpoints', () => {
     });
     expect(loggedOut.status).toBe(204);
     expect(loggedOut.counter).toEqual({ roundTrips: 2, statements: 2 }); // session, revoke
+  });
+
+  it('widget sign-in, its replay, and the cookie refresh that follows', async () => {
+    const signed = await signWidgetData(widgetFields());
+    const headers = { origin: APP_ORIGIN };
+
+    const signedIn = await measure('/api/v1/auth/telegram-widget', {
+      method: 'POST',
+      token: null,
+      headers,
+      json: signed
+    });
+    expect(signedIn.status).toBe(200);
+    expect(signedIn.counter).toEqual({ roundTrips: 2, statements: 6 }); // rate limit batch of 2, batch of 4
+
+    const replay = await measure('/api/v1/auth/telegram-widget', {
+      method: 'POST',
+      token: null,
+      headers,
+      json: signed
+    });
+    expect(replay.status).toBe(401);
+    expect(replay.counter).toEqual({ roundTrips: 2, statements: 6 }); // same batch, claim ignored
+
+    const forged = await measure('/api/v1/auth/telegram-widget', {
+      method: 'POST',
+      token: null,
+      headers,
+      json: { ...signed, hash: '0'.repeat(64) }
+    });
+    expect(forged.status).toBe(401);
+    expect(forged.counter).toEqual({ roundTrips: 1, statements: 2 }); // rate limit only: no write for a bad signature
   });
 
   it('browser refresh and logout by cookie', async () => {

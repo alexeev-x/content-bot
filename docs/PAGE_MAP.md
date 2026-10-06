@@ -8,7 +8,7 @@ The regular browser app and Telegram Mini App are the same SPA. Mobile at 375 px
 
 | Path | Product responsibility | Core capabilities | Critical states |
 |---|---|---|---|
-| `/login` | Owner sign-in | Telegram OIDC; Mini App automatic sign-in | cancelled, expired, 401, foreign owner 403 |
+| `/login` | Owner sign-in | Telegram Login Widget; Mini App automatic sign-in | cancelled, expired, 401, foreign owner 403 |
 | `/` | Dashboard | upcoming publications, recent activity, automation health, incidents, stale sources, quick actions | partial/stale data, component failure |
 | `/posts` | Content library | search/filter/sort, drafts/approved content, rubric/source/destination, navigate to revisions | empty, error, stale |
 | `/posts/new` | New content | full editor, source/rubric, media, destination, preview, save/approve/schedule | dirty, validation, preview failure |

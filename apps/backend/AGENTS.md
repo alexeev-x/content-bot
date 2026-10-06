@@ -44,6 +44,6 @@ Stack (owner decision 03.10.2026): TypeScript, Hono 4 + `@hono/zod-validator`, Z
 Call `msg.ack()` or `msg.retry({ delaySeconds })` per message. Never throw for one bad message: throwing redelivers the whole batch. Set `max_retries`. A dead-letter queue is optional; without one, an exhausted message must end in a visible `failed` job and incident.
 
 ## Security and tests
-Auth (Telegram ID: Mini App `initData`, browser OpenID Connect, Bearer session token), webhook and input rules: skill `api-security`. Test harness and patterns: skill `testing`. Publishing logic: skill `publishing-reliability`.
+Auth (Telegram ID: Mini App `initData`, browser Telegram Login Widget, Bearer session token), webhook and input rules: skill `api-security`. Test harness and patterns: skill `testing`. Publishing logic: skill `publishing-reliability`.
 
 Commands: `npm run typecheck|test -w @alexeev/backend` (Vitest 4.1 in workerd), `npm run dev:backend` (Worker alone on :8790), `npm run dev` (with the SPA). Trigger Cron locally: `/cdn-cgi/handler/scheduled`.

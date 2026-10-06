@@ -1,6 +1,7 @@
 import { Bot, type Context, type NextFunction } from 'grammy';
 import type { UserFromGetMe } from 'grammy/types';
 import { z } from 'zod';
+import { parseOwnerTelegramId } from '../../modules/identity';
 import type { AppEnv } from '../env';
 
 // Identity fields are required; capability flags only describe the bot and default to false,
@@ -31,8 +32,9 @@ export interface BotConfig {
 
 // Returns null while any required setting is missing or malformed: the webhook then answers 503.
 export function readBotConfig(env: AppEnv): BotConfig | null {
+  const ownerId = parseOwnerTelegramId(env.OWNER_TELEGRAM_ID);
   const { TELEGRAM_BOT_TOKEN: token, TELEGRAM_WEBHOOK_SECRET: webhookSecret, BOT_INFO: botInfoRaw } = env;
-  if (!token || !webhookSecret || !botInfoRaw || !/^[1-9]\d{0,14}$/.test(env.OWNER_TELEGRAM_ID)) return null;
+  if (!token || !webhookSecret || !botInfoRaw || ownerId === null) return null;
 
   let botInfoJson: unknown;
   try {
@@ -43,7 +45,7 @@ export function readBotConfig(env: AppEnv): BotConfig | null {
   const botInfo = botInfoSchema.safeParse(botInfoJson);
   if (!botInfo.success) return null;
 
-  return { token, webhookSecret, botInfo: botInfo.data, ownerId: Number(env.OWNER_TELEGRAM_ID) };
+  return { token, webhookSecret, botInfo: botInfo.data, ownerId };
 }
 
 // The bot is personal: updates from anyone but the owner are dropped without an answer.

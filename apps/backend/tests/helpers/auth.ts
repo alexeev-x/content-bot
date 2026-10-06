@@ -32,10 +32,42 @@ export function initDataFields(
   };
 }
 
+async function sha256Bytes(text: string): Promise<Uint8Array> {
+  return new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text)));
+}
+
+export type WidgetFields = Record<string, string | number | boolean>;
+
+// Signs a Login Widget payload per https://core.telegram.org/widgets/login-legacy, written
+// independently of the verifier. `signedExtra` is signed but not sent; `unsignedExtra` is sent but
+// not signed.
+export async function signWidgetData(
+  fields: WidgetFields,
+  options: { botToken?: string; unsignedExtra?: WidgetFields; omitFromHash?: string[] } = {}
+): Promise<WidgetFields> {
+  const entries = Object.entries(fields).filter(([key]) => !(options.omitFromHash ?? []).includes(key));
+  // oxlint-disable-next-line unicorn/no-array-sort -- sorts a fresh copy; toSorted is outside the ES2022 lib
+  entries.sort(([a], [b]) => (a < b ? -1 : 1));
+  const dataCheckString = entries.map(([key, value]) => `${key}=${String(value)}`).join('\n');
+  const secret = await sha256Bytes(options.botToken ?? TEST_BOT_TOKEN);
+  const hash = [...(await hmac(secret, dataCheckString))].map((byte) => byte.toString(16).padStart(2, '0')).join('');
+  return { ...fields, ...options.unsignedExtra, hash };
+}
+
+export function widgetFields(overrides: WidgetFields = {}, now = START): WidgetFields {
+  return {
+    id: Number(OWNER_ID),
+    first_name: 'Alex',
+    last_name: 'Abby',
+    username: 'alex',
+    auth_date: Math.floor(now / 1000) - 60,
+    ...overrides
+  };
+}
+
 export const APP_ORIGIN = 'http://localhost';
 
-// A browser session as the OIDC callback will create it later: inserted directly, independent of
-// the code under test.
+// A browser session inserted directly, independent of the code under test.
 export async function seedBrowserSession(options: {
   accessToken: string;
   refreshToken: string;

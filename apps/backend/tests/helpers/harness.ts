@@ -39,6 +39,7 @@ export async function resetDb(): Promise<void> {
       'idempotency_keys',
       'posts',
       'rate_limits',
+      'widget_sign_ins',
       'refresh_tokens',
       'sessions'
     ].map((table) => db.prepare(`DELETE FROM ${table}`))

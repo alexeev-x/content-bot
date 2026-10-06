@@ -15,13 +15,12 @@ Telegram                    → /webhooks/telegram (secret header, no session)
 | Method and path | Input | Response |
 |---|---|---|
 | `POST /api/v1/auth/telegram` | `{ initData }` from `Telegram.WebApp` | `200 { accessToken, expiresAt }`; 401 — invalid signature or `auth_date` older than 15 minutes; 403 — not the owner |
-| `GET /api/v1/auth/oidc/start` | — | 302 to `oauth.telegram.org/auth` (Authorization Code + PKCE, `state`, `nonce`) |
-| `GET /api/v1/auth/oidc/callback` | `code`, `state` | `id_token` verification; refresh cookie (`HttpOnly; Secure; SameSite=Lax`, path `/api/v1/auth`); 302 to the app |
+| `POST /api/v1/auth/telegram-widget` | Telegram Login Widget user object from the `data-onauth` callback | `200 { accessToken, expiresAt }` + refresh cookie (`HttpOnly; Secure; SameSite=Lax`, path `/api/v1/auth`); 401 — invalid, stale (> 15 min) or reused signature; 403 — not the owner or foreign `Origin` |
 | `POST /api/v1/auth/refresh` | browser: refresh cookie; Mini App: the current valid Bearer; `Origin` is always checked | `200 { accessToken, expiresAt }` (token 60 min; Mini App session ≤ 12 h, browser refresh cookie — 30 days with rotation) |
 | `POST /api/v1/auth/logout` | Bearer + refresh cookie, if present; `Origin` is checked | 204; session and cookie removed on the server |
 | `GET /api/v1/auth/me` | Bearer | `{ telegramId, name }` |
 
-Implemented today: `POST /api/v1/auth/telegram`, `POST /api/v1/auth/refresh`, `POST /api/v1/auth/logout`, `GET /api/v1/auth/me` (schemas: `apps/contracts/src/auth.ts`); the OIDC endpoints come next. Sign-in and refresh are rate-limited per client (`429` `RATE_LIMIT` with `Retry-After`). The browser refresh cookie is `refresh_token`, rotated on every use; presenting an already-rotated token revokes the whole session, so the SPA must run one refresh at a time. A browser session ends after 90 days at most, a Mini App session after 12 hours.
+Implemented today: `POST /api/v1/auth/telegram`, `POST /api/v1/auth/refresh`, `POST /api/v1/auth/logout`, `GET /api/v1/auth/me` (schemas: `apps/contracts/src/auth.ts`); `POST /api/v1/auth/telegram-widget` is the browser sign-in (owner decision 06.10.2026: the classic Login Widget, because BotFather offers no OIDC client credentials for the bot; OIDC can replace it later without changing sessions). Sign-in and refresh are rate-limited per client (`429` `RATE_LIMIT` with `Retry-After`). The browser refresh cookie is `refresh_token`, rotated on every use; presenting an already-rotated token revokes the whole session, so the SPA must run one refresh at a time. A browser session ends after 90 days at most, a Mini App session after 12 hours.
 
 All other `/api/v1/*` endpoints require `Authorization: Bearer <accessToken>`. The client keeps the token in memory only. The main API does not accept cookies, so no CSRF token is needed; the cookie endpoints `/api/v1/auth/*` are protected by an `Origin` check. The bot token and session tokens never reach the browser, except the short-lived access token.
 

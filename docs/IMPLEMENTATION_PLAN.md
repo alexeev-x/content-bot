@@ -44,7 +44,7 @@ This is the first implementation milestone because the current placeholder UI is
 
 ## Stage 2 — identity, session and secure operator access
 
-- [ ] Browser sign-in through Telegram OIDC.
+- [ ] Browser sign-in through the Telegram Login Widget (backend done; `/login` page pending).
 - [ ] Telegram Mini App sign-in through verified `initData`.
 - [ ] Owner-only authorization using `OWNER_TELEGRAM_ID`.
 - [ ] In-memory access token, browser refresh-cookie flow, logout and cache clearing.

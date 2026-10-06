@@ -19,6 +19,10 @@ interface RefreshRow {
   hard_expires_at: number;
 }
 
+// Expired signatures are deleted a few at a time by each sign-in, so the table stays small without
+// a Cron job and no request pays for an unbounded delete.
+const SIGN_IN_PURGE_BATCH = 20;
+
 export function createD1SessionStore(db: D1Database): SessionStore {
   return {
     async findActiveByTokenHash(tokenHash, now): Promise<ActiveSession | null> {
@@ -58,6 +62,50 @@ export function createD1SessionStore(db: D1Database): SessionStore {
           session.hardExpiresAt
         )
         .run();
+    },
+
+    // The claim is the only decision point: INSERT OR IGNORE on the primary key of the signature.
+    // The session and the refresh token are inserted only while the claim row carries this
+    // request's session id, so the loser of a race (or a replay) changes nothing and gets false.
+    async createBrowserSessionOnce({ session, refreshTokenHash, refreshExpiresAt, signInKey, signInExpiresAt }) {
+      const claimed = `EXISTS (SELECT 1 FROM widget_sign_ins WHERE hash_sha256 = ?1 AND session_id = ?2)`;
+      const [, claim] = await db.batch([
+        db
+          .prepare(
+            `DELETE FROM widget_sign_ins WHERE hash_sha256 IN
+               (SELECT hash_sha256 FROM widget_sign_ins WHERE expires_at <= ?1 LIMIT ${SIGN_IN_PURGE_BATCH})`
+          )
+          .bind(session.createdAt),
+        db
+          .prepare(
+            `INSERT OR IGNORE INTO widget_sign_ins (hash_sha256, session_id, created_at, expires_at)
+             VALUES (?1, ?2, ?3, ?4)`
+          )
+          .bind(signInKey, session.id, session.createdAt, signInExpiresAt),
+        db
+          .prepare(
+            `INSERT INTO sessions (id, token_hash, telegram_id, kind, name, created_at, expires_at, hard_expires_at)
+             SELECT ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9 WHERE ${claimed}`
+          )
+          .bind(
+            signInKey,
+            session.id,
+            session.tokenHash,
+            session.telegramId,
+            session.kind,
+            session.name,
+            session.createdAt,
+            session.expiresAt,
+            session.hardExpiresAt
+          ),
+        db
+          .prepare(
+            `INSERT INTO refresh_tokens (token_hash, session_id, created_at, expires_at)
+             SELECT ?3, ?2, ?4, ?5 WHERE ${claimed}`
+          )
+          .bind(signInKey, session.id, refreshTokenHash, session.createdAt, refreshExpiresAt)
+      ]);
+      return claim?.meta.changes === 1;
     },
 
     async rotateAccessToken({ sessionId, oldTokenHash, newTokenHash, newExpiresAt, now }) {

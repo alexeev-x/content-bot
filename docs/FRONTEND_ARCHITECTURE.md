@@ -21,7 +21,7 @@ Chosen by three criteria: AI-friendliness (llms.txt, markdown documentation, off
 | Global state | none | Zustand |
 | Build and hosting | Vite 8 + `@cloudflare/vite-plugin`; one Worker serves the SPA, `/api/*` and the bot webhook (no Pages and no BFF) | — |
 | Telegram Mini App | the same SPA; a thin typed wrapper over `window.Telegram.WebApp` (no third-party SDK), see §16 | `@tma.js/sdk` |
-| Sign-in | Mini App — `initData`; browser — «Войти через Telegram» (OpenID Connect); token in memory, in `Authorization: Bearer` | — |
+| Sign-in | Mini App — `initData`; browser — «Войти через Telegram» (Telegram Login Widget); token in memory, in `Authorization: Bearer` | — |
 | TypeScript | 6.x; move to 7.1 once linters get the API | TS 7 via compatibility package |
 | Linter / formatter | Oxlint + Prettier | Biome |
 | Tests | Vitest 4.1 (one version across the whole repository until the Cloudflare plugin supports 5) + Testing Library + MSW 2; Playwright + axe (`verify:e2e`) | — |
@@ -187,7 +187,7 @@ Browser or Telegram Mini App → https://<domain>/api/v1/*   (same Worker, same 
 
 **Sign-in (one identity — the owner's Telegram ID):**
 - **Mini App:** on launch the client sends `Telegram.WebApp.initData` to `POST /api/v1/auth/telegram` and receives an access token (60 minutes). While the token is valid, the client renews it via `POST /api/v1/auth/refresh` with the current token; a Mini App session lives no longer than 12 hours. `initData` is valid for sign-in only 15 minutes after launch, so after the session expires the Mini App must be opened from the bot again.
-- **Browser:** `/login` with the «Войти через Telegram» button → redirect to the official Telegram OpenID Connect → `/api/v1/auth/oidc/callback` → the server sets the refresh cookie → the client calls `POST /api/v1/auth/refresh` and receives an access token.
+- **Browser:** `/login` embeds the official Telegram Login Widget (`telegram.org/js/telegram-widget.js`, callback mode `data-onauth`, never `data-auth-url`, so the signed data never lands in a URL) → the client POSTs the whole user object unchanged as JSON to `POST /api/v1/auth/telegram-widget` → the server answers with an access token and sets the refresh cookie. Later renewals use `POST /api/v1/auth/refresh` with the cookie, one request at a time (a parallel refresh with a rotated cookie revokes the session). CSP for `/login` must allow the widget script and its `oauth.telegram.org` frame.
 
 **Storage:** the access token is **in memory only** (module `shared/api/session.ts`), never in `localStorage`/`sessionStorage`. Reason: the Telegram Web Mini App runs inside a frame where third-party cookies are blocked, so a cookie cannot be the basis. The refresh cookie (`HttpOnly; Secure; SameSite=Lax`, path `/api/v1/auth`) exists only in the browser scenario.
 

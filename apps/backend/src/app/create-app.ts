@@ -13,11 +13,12 @@ import { publicationsRoutes } from './publications-routes';
 import { requireOwner } from './require-owner';
 
 // Reachable without a session. Sign-in, refresh and logout authenticate themselves with the
-// initData signature, the Bearer token or the refresh cookie, so a stricter guard in front of them
+// initData or widget signature, the Bearer token or the refresh cookie, so a stricter guard in front of them
 // would make signing in impossible.
 const PUBLIC_ROUTES = new Set([
   'GET /api/v1/health',
   'POST /api/v1/auth/telegram',
+  'POST /api/v1/auth/telegram-widget',
   'POST /api/v1/auth/refresh',
   'POST /api/v1/auth/logout'
 ]);

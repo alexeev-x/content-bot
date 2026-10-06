@@ -22,6 +22,16 @@ export interface NewSession {
   hardExpiresAt: number;
 }
 
+export interface NewBrowserSession {
+  session: NewSession;
+  refreshTokenHash: string;
+  refreshExpiresAt: number;
+  /** SHA-256 hex of the widget signature this sign-in consumes; it can be consumed once. */
+  signInKey: string;
+  /** Until when the signature is remembered. */
+  signInExpiresAt: number;
+}
+
 export interface RefreshTokenRecord {
   sessionId: string;
   telegramId: string;
@@ -37,6 +47,12 @@ export interface SessionStore {
   /** A session that is not revoked and not expired at `now`, found by the SHA-256 hash of its token. */
   findActiveByTokenHash(tokenHash: string, now: number): Promise<ActiveSession | null>;
   create(session: NewSession): Promise<void>;
+  /**
+   * One atomic step: consumes `signInKey`, creates the session and its first refresh token. False
+   * when the key was consumed before: nothing was created, so a replay (sequential or concurrent)
+   * can never mint a second session.
+   */
+  createBrowserSessionOnce(input: NewBrowserSession): Promise<boolean>;
   /**
    * Swaps the access token of a live Mini App session. False when `oldTokenHash` is no longer the
    * session's token or the session ended: another request won, so the caller must not retry.

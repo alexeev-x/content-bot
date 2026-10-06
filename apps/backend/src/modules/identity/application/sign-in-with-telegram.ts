@@ -1,6 +1,7 @@
 import { sha256Hex } from '../../../platform/security/sha256';
 import { AppError } from '../../../shared/app-error';
 import { displayName } from './display-name';
+import { parseOwnerTelegramId } from './owner';
 import type { SessionStore } from './ports';
 import { ACCESS_TOKEN_TTL_MS, MINIAPP_SESSION_MAX_MS } from './session-policy';
 import { verifyInitData } from './verify-init-data';
@@ -22,17 +23,14 @@ export interface IssuedAccessToken {
   expiresAt: number;
 }
 
-const OWNER_ID = /^[1-9]\d{0,14}$/;
-
 // One signature failure never tells the caller which check failed.
 export async function signInWithTelegram(deps: SignInDeps, initData: string): Promise<IssuedAccessToken> {
   if (deps.botToken === undefined || deps.botToken === '') {
     throw new AppError('UNAVAILABLE', 'Sign-in is not configured');
   }
-  const owner = (deps.ownerTelegramId ?? '').trim();
   // Telegram user ids are positive, so 0 matches nobody: with no owner a valid signature ends in
   // 403 and a forged one still in 401.
-  const ownerTelegramId = OWNER_ID.test(owner) ? Number(owner) : 0;
+  const ownerTelegramId = parseOwnerTelegramId(deps.ownerTelegramId) ?? 0;
 
   const result = await verifyInitData({ initData, botToken: deps.botToken, ownerTelegramId, now: deps.now });
   if (!result.ok) {
