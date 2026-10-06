@@ -2,7 +2,7 @@
 
 **Date:** 03.10.2026 · **Status:** approved technical direction; the application is not yet implemented · **Product:** ALEXEEV Studio admin panel (working name), `apps/frontend/` in `content-bot`. Backend: `docs/BACKEND_ARCHITECTURE.md`.
 
-> Our tasks need a **fast operator SPA interface**, not a public SEO site. SSR, Next.js, micro-frontends and heavy global state management are not needed at the start. The goal is to manage publications safely and to see real failures, including from a phone.
+> ALEXEEV Studio is the **primary full product control plane**, not a public SEO site and not a reduced admin MVP. SSR, Next.js, micro-frontends and heavy global state management are not needed at the start. The interface must provide polished browser/mobile control over content, publications, automations, sources/media/templates, operations, settings and analytics while preserving publishing safety.
 
 ## 0. Approved stack (owner decision 03.10.2026)
 
@@ -209,15 +209,23 @@ The main API does not accept cookies, so a CSRF token is not needed; the server 
 ## 7. Routes, loading and screen fault tolerance
 
 ```text
-/login                  «Войти через Telegram» (in the Mini App sign-in is automatic)
-/                       overview / health / upcoming publications
-/posts                  list of publications with a filter
-/posts/new              new draft
-/posts/:id              editor and revision history
+/login                  owner sign-in (Mini App sign-in is automatic)
+/                       dashboard: activity, upcoming publications, automation health
+/posts                  content library
+/posts/new              full content editor
+/posts/:id              editor, revisions, preview and publication history
+/publications           publication history/control
+/publications/:id       publication timeline and reconciliation
 /calendar               schedule, reschedule/cancel
-/media                  gallery of heroes, sources, templates
-/incidents              errors, retries, unknown Telegram
-/settings               channels, group and schedule
+/automations            rubrics and automation health/control
+/automations/:id        rubric rules, sources and run history
+/sources                source health/provenance
+/media                  media library
+/templates              visual templates
+/jobs                   execution history
+/incidents              errors and unknown Telegram reconciliation
+/analytics              publishing/automation/content intelligence
+/settings/*             channels, integrations, defaults, appearance
 /*                      NotFound
 ```
 
@@ -242,7 +250,7 @@ Lazy loading per route (`React.lazy` or lazy route modules), a shared lightweigh
 
 ## 10. UI/UX and design system
 
-- **Owner decision 03.10.2026:** calm monochrome — dark and light themes on neutral grays, without bright/brand accents; color only for errors/destructive actions and `unknown`, always together with text and an icon. Theme by `prefers-color-scheme` + a manual switch. Components — React Aria Components in `shared/ui` (see §0).
+- **Owner decisions 03.10.2026 + 06.10.2026:** calm monochrome — dark and light themes on neutral grays, without bright/brand accents; color only for errors/destructive actions and `unknown`, always together with text and an icon. The current placeholder UI is explicitly not an acceptance reference: the first frontend milestone is a modern visual redesign with deliberate typography, spacing, density, navigation and responsive composition. Theme by `prefers-color-scheme` + a manual switch. Components — React Aria Components in `shared/ui` (see §0).
 - Tokens `--color-bg`, `--color-surface`, `--color-text`, `--color-accent`, `--space-*`, `--radius-*` and typography in `app/styles/tokens.css`; buttons and fields via `shared/ui`.
 - On desktop: side navigation, dense tables and a two-pane editor. On mobile: compact navigation, tables turn into cards/accessible horizontal scrolling, the main actions remain available.
 - Accessibility: WCAG 2.2 AA as the target; interactive elements are keyboard-reachable, visible focus, semantic `label`, correct heading structure, color is not the only status marker, dialogs manage focus. For form errors `aria-describedby`; for background updates — moderate `aria-live`, without constant announcements.
@@ -275,7 +283,7 @@ Lazy loading per route (`React.lazy` or lazy route modules), a shared lightweigh
 
 ## 14. Acceptance of the first frontend version
 
-- All main screens are available on desktop/mobile, with clear loading/empty/error states.
+- All routes in `docs/PAGE_MAP.md` are available on desktop/mobile with clear loading/empty/error states; mobile keeps operational feature parity.
 - An unauthenticated user does not see private data; when the session expires React correctly clears the sensitive cache and redirects to sign-in.
 - An editable draft cannot be accidentally lost during ordinary navigation, and a version conflict does not lead to silent overwriting.
 - The admin panel shows the real state of the API and Cron (time of the last tick), an explicit `unknown`, the requestId and a safe retry button.

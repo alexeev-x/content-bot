@@ -26,6 +26,7 @@ A short list of accepted decisions. An agent does not propose an alternative to 
 | 03.10.2026 | No paid AI/render APIs and no paid plans without a separate owner decision | `AGENTS.md` |
 | 03.10.2026 | Token savings: RTK, the caveman proxy, claude-context, context-mode are not used (rationale and measurements) | `docs/AGENT_ORCHESTRATION.md` |
 | 05.10.2026 | Secret scanning is full-history Gitleaks with repository config `.gitleaks.toml`; docs/tests use obvious placeholders; false positives may be ignored only by narrow path + pattern rules, never by commit-SHA fingerprints | `.gitleaks.toml`, `.github/workflows/ci.yml`, `README.md` |
+| 06.10.2026 | ALEXEEV Studio is the primary full product control plane, not a minimal admin MVP: modern redesign first, then complete content, publication/calendar, automation, source/media/template, operations, analytics and settings capabilities; browser and Mini App keep feature parity | `docs/IMPLEMENTATION_PLAN.md`, `docs/PAGE_MAP.md`, `docs/FRONTEND_ARCHITECTURE.md` |
 
 ## Awaiting owner decision
 | Question | Default recommendation |
