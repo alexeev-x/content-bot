@@ -232,7 +232,7 @@ test('stale builder registrations are ignored and a new start replaces them', ()
   }
 });
 
-import { planSteps, STEPS } from './verify.mjs';
+import { planSteps, selectSteps, STEPS } from './verify.mjs';
 const names = (files, options) => planSteps(files, options).map(([n]) => n);
 
 test('verify --changed runs only what the changes touch', () => {
@@ -273,4 +273,16 @@ test('verify runs both app test suites and builds once, the frontend way', () =>
   // The root `build` would re-run every workspace typecheck that the typecheck step already covers.
   assert.equal(STEPS.filter(([name]) => name === 'build').length, 1);
   assert.ok(STEPS.some(([name]) => name === 'backend-tests') && STEPS.some(([name]) => name === 'frontend-tests'));
+});
+
+test('verify --only/--skip pick steps by name and reject unknown names', () => {
+  const pick = (...argv) => selectSteps(STEPS, ['node', 'verify.mjs', ...argv]).map(([n]) => n);
+  assert.equal(pick().length, STEPS.length);
+  assert.deepEqual(pick('--only', 'backend-tests'), ['backend-tests']);
+  const rest = pick('--skip', 'backend-tests,frontend-tests');
+  assert.ok(!rest.includes('backend-tests') && !rest.includes('frontend-tests'));
+  // The CI jobs together cover the whole set.
+  assert.equal(rest.length + 2, STEPS.length);
+  assert.throws(() => pick('--only', 'backend-test'), /needs step names/);
+  assert.throws(() => pick('--skip'), /needs step names/);
 });

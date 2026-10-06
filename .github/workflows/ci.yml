@@ -6,8 +6,22 @@ on:
 permissions:
   contents: read
 jobs:
+  # Full independent gate (the local pre-push hook runs only the affected checks), split across runners:
+  # on one small runner the two test suites and tsc starve each other for CPU. Together the parts cover
+  # every verify step (see the --only/--skip test in .agents/scripts/hooks.test.mjs).
   verify:
+    name: verify (${{ matrix.part }})
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - part: checks
+            steps: --skip backend-tests,frontend-tests
+          - part: backend-tests
+            steps: --only backend-tests
+          - part: frontend-tests
+            steps: --only frontend-tests
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -15,12 +29,12 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
       - run: npm ci --ignore-scripts
-      # Full independent gate; the local pre-push hook runs only the affected checks.
-      - run: npm run verify
+      - run: npm run verify -- ${{ matrix.steps }}
       - if: failure()
         run: cat .logs/verify.log
       # Production dependencies only: a dev-tool advisory must not block a release.
-      - run: npm audit --omit=dev --audit-level=high
+      - if: matrix.part == 'checks'
+        run: npm audit --omit=dev --audit-level=high
 
   secrets:
     runs-on: ubuntu-latest

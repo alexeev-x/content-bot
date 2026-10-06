@@ -4,6 +4,8 @@
 //
 // `--changed` checks only what the current changes touch (pre-push hook, agent stop hook):
 // commits not yet pushed + uncommitted work. CI always runs the full set.
+// `--only a,b` / `--skip a,b` pick steps of the full set by name: CI runs the slow test suites on separate
+// runners, so each gets the whole machine.
 //
 // Steps are independent and run at once: the total is the slowest step, not the sum.
 import { execFileSync } from 'node:child_process';
@@ -100,9 +102,26 @@ export function changedFiles(root) {
   return { base, files, existingFiles: files.filter((f) => existsSync(join(root, f))) };
 }
 
+/** Applies `--only` / `--skip`; an unknown step name is an error, so a typo never skips a check silently. */
+export function selectSteps(steps, argv) {
+  const list = (flag) => {
+    const index = argv.indexOf(flag);
+    if (index === -1) return null;
+    const names = (argv[index + 1] ?? '').split(',').filter(Boolean);
+    const unknown = names.filter((name) => !steps.some(([step]) => step === name));
+    if (!names.length || unknown.length) {
+      throw new Error(`${flag} needs step names from: ${steps.map(([step]) => step).join(', ')}`);
+    }
+    return names;
+  };
+  const only = list('--only');
+  const skip = list('--skip');
+  return steps.filter(([name]) => (!only || only.includes(name)) && !skip?.includes(name));
+}
+
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const root = join(fileURLToPath(import.meta.url), '../../..');
-  let steps = STEPS;
+  let steps = selectSteps(STEPS, process.argv);
   if (process.argv.includes('--changed')) {
     const { base, files, existingFiles } = changedFiles(root);
     steps = base === null ? STEPS : planSteps(files, { existingFiles });
