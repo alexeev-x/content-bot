@@ -2,6 +2,13 @@ import { createD1PostRepository, type IdempotencyGate, type PostRepository } fro
 import { createD1SessionStore, type SessionStore } from '../modules/identity';
 import { type Clock, systemClock } from '../platform/clock';
 import { createIdempotencyStore } from '../platform/idempotency/d1-idempotency-store';
+import {
+  createD1DestinationRepository,
+  createD1PublicationRepository,
+  type DestinationRepository,
+  type PostSource,
+  type PublicationRepository
+} from '../modules/publishing';
 import { createLogger, type Logger } from '../platform/logging/logger';
 import { AppError } from '../shared/app-error';
 
@@ -13,6 +20,9 @@ export interface Container {
   sessions: SessionStore;
   posts: PostRepository;
   idempotency: IdempotencyGate;
+  destinations: DestinationRepository;
+  publications: PublicationRepository;
+  postSource: PostSource;
   newId: () => string;
 }
 
@@ -35,6 +45,22 @@ export function createContainer(env: { DB?: D1Database }, overrides: { clock?: C
     },
     get idempotency() {
       return createIdempotencyStore(db());
+    },
+    get destinations() {
+      return createD1DestinationRepository(db());
+    },
+    get publications() {
+      return createD1PublicationRepository(db());
+    },
+    // publishing asks for a post's state through its own port; only this wiring knows the content module.
+    get postSource(): PostSource {
+      const posts = createD1PostRepository(db());
+      return {
+        async findState(postId) {
+          const post = await posts.findById(postId);
+          return post === null ? null : { status: post.status, revision: post.revision };
+        }
+      };
     },
     newId: () => crypto.randomUUID()
   };

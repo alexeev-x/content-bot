@@ -114,6 +114,20 @@ Idempotency-Key: <uuid>
 
 The response is `202 Accepted` + `PublicationDto(status="scheduled")`. This is NOT a claim that the post has been published. After Telegram confirms, `GET /api/v1/publications/{id}` returns `sent` with `externalMessageId`. The `Idempotency-Key` header is mandatory (without it — 400 `VALIDATION_ERROR`); the server stores the key and the body hash in D1 (a repeat with a different body — 409 `CONFLICT`), so that a client retry does not create a second scheduled publication. An external Telegram send with an indeterminate response stays `unknown`, despite the internal keys.
 
+Schemas and per-endpoint error codes: `apps/contracts/src/publications.ts`, `apps/contracts/src/destinations.ts`.
+
+| Endpoint | Meaning |
+|---|---|
+| `POST /api/v1/destinations` | Add a Telegram channel or group (`Idempotency-Key` required); a chat id already in use is `409` `CHAT_ID_TAKEN` |
+| `GET /api/v1/destinations`, `GET /api/v1/destinations/{id}` | Destinations ordered by title, optional `enabled` filter |
+| `PATCH /api/v1/destinations/{id}` | Rename, change chat id (group migrated to a supergroup), enable/disable; current `revision` in the body |
+| `POST /api/v1/publications` | Schedule an approved post revision to an enabled destination. A time up to 5 minutes in the past means "send now"; more than 366 days ahead is `400` `SCHEDULE_OUT_OF_RANGE`. A draft is `409` `POST_NOT_APPROVED`, a newer post revision `409` `STALE_REVISION`, a disabled destination `409` `DESTINATION_DISABLED` |
+| `GET /api/v1/publications`, `GET /api/v1/publications/{id}` | Latest scheduled time first; filters `status`, `postId`, `destinationId` |
+| `POST /api/v1/publications/{id}/reschedule` | New time, only before sending starts (`scheduled`, `queued`, `retry_wait`); otherwise `409` `NOT_RESCHEDULABLE` |
+| `POST /api/v1/publications/{id}/cancel` | Only before sending starts; otherwise `409` `NOT_CANCELLABLE`. A send in progress or with an `unknown` result is never cancelled here |
+
+Reschedule and cancel carry the publication `revision`; a stale one is `409` `STALE_REVISION`.
+
 `POST /api/v1/publications/{id}/retry` is allowed **only** for a status that the backend has deemed safe to retry. `unknown` cannot be force-sent with this method — first call `POST /api/v1/publications/{id}/resolve-unknown` with the documented manual reconcile and an audit trail.
 
 ## Observability

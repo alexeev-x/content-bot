@@ -28,11 +28,18 @@ export function fakeClock(start = START): FakeClock {
 
 export async function resetDb(): Promise<void> {
   const db = testDb();
-  // Children first: post_revisions references posts.
+  // Children first: jobs reference publications, which reference posts, revisions and destinations.
   await db.batch(
-    ['post_revisions', 'audit_log', 'idempotency_keys', 'posts', 'sessions'].map((table) =>
-      db.prepare(`DELETE FROM ${table}`)
-    )
+    [
+      'jobs',
+      'publications',
+      'destinations',
+      'post_revisions',
+      'audit_log',
+      'idempotency_keys',
+      'posts',
+      'sessions'
+    ].map((table) => db.prepare(`DELETE FROM ${table}`))
   );
 }
 

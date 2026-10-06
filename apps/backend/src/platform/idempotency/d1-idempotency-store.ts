@@ -82,17 +82,23 @@ export function ownsClaimSql(first: number): string {
 }
 
 // The last statement of the batch that performs the work, so the result is stored atomically with it.
+// `requires` is for work that can be refused by its own guard without failing the batch: the key
+// is completed only while that SQL holds, so a refused write never leaves a stored success behind.
+// Its parameters are numbered from ?8.
 export function completeIdempotencyStatement(
   db: D1Database,
   ref: IdempotencyKeyRef,
   response: { status: number; body: string },
-  completedAt: number
+  completedAt: number,
+  requires?: { sql: string; bindings: (string | number)[] }
 ): D1PreparedStatement {
   return db
     .prepare(
       `UPDATE idempotency_keys
        SET status = 'completed', response_status = ?5, response_body = ?6, expires_at = ?7
-       WHERE scope = ?1 AND key = ?2 AND request_hash = ?3 AND created_at = ?4 AND status = 'in_flight'`
+       WHERE scope = ?1 AND key = ?2 AND request_hash = ?3 AND created_at = ?4 AND status = 'in_flight'${
+         requires === undefined ? '' : ` AND ${requires.sql}`
+       }`
     )
     .bind(
       ref.scope,
@@ -101,6 +107,7 @@ export function completeIdempotencyStatement(
       ref.claimedAt,
       response.status,
       response.body,
-      completedAt + IDEMPOTENCY_TTL_MS
+      completedAt + IDEMPOTENCY_TTL_MS,
+      ...(requires?.bindings ?? [])
     );
 }

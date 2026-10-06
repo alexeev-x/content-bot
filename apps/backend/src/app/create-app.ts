@@ -6,7 +6,9 @@ import { telegramWebhook } from './bot/webhook-route';
 import type { Clock } from '../platform/clock';
 import { createContainer } from './container';
 import type { AppBindings } from './env';
+import { destinationsRoutes } from './destinations-routes';
 import { postsRoutes } from './posts-routes';
+import { publicationsRoutes } from './publications-routes';
 import { requireOwner } from './require-owner';
 
 function errorBody(
@@ -52,6 +54,8 @@ export function createApp(options: { clock?: Clock } = {}) {
   // is closed by default and a missing handler answers 401 rather than revealing what exists.
   app.use('/api/v1/*', (c, next) => (c.req.path === '/api/v1/health' ? next() : requireOwner(c, next)));
   app.route('/api/v1/posts', postsRoutes);
+  app.route('/api/v1/destinations', destinationsRoutes);
+  app.route('/api/v1/publications', publicationsRoutes);
 
   app.route('/webhooks', telegramWebhook);
 
