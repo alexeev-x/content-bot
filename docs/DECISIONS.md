@@ -27,7 +27,8 @@ A short list of accepted decisions. An agent does not propose an alternative to 
 | 03.10.2026 | Token savings: RTK, the caveman proxy, claude-context, context-mode are not used (rationale and measurements) | `docs/AGENT_ORCHESTRATION.md` |
 | 05.10.2026 | Secret scanning is full-history Gitleaks with repository config `.gitleaks.toml`; docs/tests use obvious placeholders; false positives may be ignored only by narrow path + pattern rules, never by commit-SHA fingerprints | `.gitleaks.toml`, `.github/workflows/ci.yml`, `README.md` |
 | 06.10.2026 | ALEXEEV Studio is the primary full product control plane, not a minimal admin MVP: modern redesign first, then complete content, publication/calendar, automation, source/media/template, operations, analytics and settings capabilities; browser and Mini App keep feature parity | `docs/IMPLEMENTATION_PLAN.md`, `docs/PAGE_MAP.md`, `docs/FRONTEND_ARCHITECTURE.md` |
-| 06.10.2026 | Visual direction: dense operator layout on desktop (Linear/Plain-like) + large touch targets on phone/Mini App; Onest, monochrome, sidebar + mobile tab bar, no shadows except overlays | `docs/DESIGN_SYSTEM_NO_FIGMA.md`, `docs/design/studio-reference.html` |
+| 06.10.2026 | The `studio-reference` visual direction is withdrawn. A modern dashboard look will be picked later from Figma dashboard templates (figma.com/templates/dashboard-designs); this reopens the 03.10.2026 Figma exclusion for that choice only, and the design docs are updated when the design stage starts | this table |
+| 06.10.2026 | Order changed: the backend (server) is built first, the redesign comes after it; supersedes "modern redesign first" above | `docs/IMPLEMENTATION_PLAN.md` |
 
 ## Awaiting owner decision
 | Question | Default recommendation |

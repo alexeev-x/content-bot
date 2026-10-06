@@ -24,9 +24,8 @@ These are the common tells of generated UIs:
 - Template chrome: an ALL-CAPS tracked eyebrow above every heading, meta joined with « · », a monospace face for small labels, «→» appended to buttons, numbered markers on content that is not a sequence, one highlighted word in a headline.
 - A fade-and-slide entrance on every section and a hover animation on every card.
 
-## Owner decisions: monochrome (03.10.2026) and direction (06.10.2026)
-Neutral greys, dark and light themes, no brand accent; color only for errors/destructive actions and `unknown`, always with text and an icon. Theme follows `prefers-color-scheme` plus a stored manual switch. React Aria Components wrapped in `shared/ui`, CSS Modules over tokens; no other UI library.
-The approved direction is binding: follow `docs/DESIGN_SYSTEM_NO_FIGMA.md` § Approved visual direction and match `docs/design/studio-reference.html` (dense desktop, large touch targets on phone). Your plan refines it; it never proposes a new direction.
+## Owner decision (03.10.2026): monochrome
+A calm monochrome UI with a dark and a light theme: neutral greys, no bright or brand accent, easy on the eyes. Color appears only where it carries meaning (destructive actions and errors, and the `unknown` warning), always paired with text and an icon. Theme follows `prefers-color-scheme` with a manual switch (stored locally; it is a UI preference). Components are React Aria Components wrapped in `shared/ui`, styled with CSS Modules over the tokens; add no other UI library.
 
 ## Principles
 - **Spend boldness in one place**, for example the publication timeline or the status system. Keep everything else quiet. Before finishing, remove one decorative element.
