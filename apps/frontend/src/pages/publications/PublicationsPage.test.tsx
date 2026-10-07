@@ -79,7 +79,12 @@ function serveList(handler: (url: URL, call: number) => { items: PublicationDto[
   return urls;
 }
 
-type RenderOptions = { initial?: PublicationsSearch; pollMs?: number; onOpenPosts?: () => void };
+type RenderOptions = {
+  initial?: PublicationsSearch;
+  pollMs?: number;
+  onOpenPosts?: () => void;
+  onCreatePost?: () => void;
+};
 
 async function renderPage(options: RenderOptions = {}) {
   const client = createTestQueryClient();
@@ -90,6 +95,7 @@ async function renderPage(options: RenderOptions = {}) {
         search={search}
         onSearchChange={(patch) => setSearch((previous) => ({ ...previous, ...patch }))}
         onOpenPosts={options.onOpenPosts ?? (() => undefined)}
+        onCreatePost={options.onCreatePost ?? (() => undefined)}
         {...(options.pollMs ? { pollMs: options.pollMs } : {})}
       />
     );
