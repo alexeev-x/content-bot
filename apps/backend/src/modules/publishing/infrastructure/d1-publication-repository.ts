@@ -80,6 +80,12 @@ export function listPublicationsSql(query: ListPublicationsQuery): { sql: string
     conditions.push('p.destination_id = ?');
     bindings.push(query.destinationId);
   }
+  if (query.q !== undefined) {
+    conditions.push(
+      "EXISTS (SELECT 1 FROM posts search_post WHERE search_post.id = p.post_id AND (instr(lower(search_post.title), lower(?)) > 0 OR instr(lower(search_post.body), lower(?)) > 0))"
+    );
+    bindings.push(query.q, query.q);
+  }
   if (query.status !== undefined) {
     const condition = jobConditionForStatus(query.status);
     conditions.push(condition.sql);
