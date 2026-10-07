@@ -110,14 +110,15 @@ export function PublicationsPage({ search, onSearchChange, onOpenPosts, onCreate
         <ListError error={list.error} onRetry={() => void list.refetch()} />
       ) : (
         <div className={styles.results}>
-          <PublicationTable
-            rows={items}
-            isLoading={list.isPending}
-            post={post}
-            channel={channel}
-            activeId={search.id}
-            onOpen={(id) => onSearchChange({ id })}
-            emptyState={
+          <div className={styles.tableSurface}>
+            <PublicationTable
+              rows={items}
+              isLoading={list.isPending}
+              post={post}
+              channel={channel}
+              activeId={search.id}
+              onOpen={(id) => onSearchChange({ id })}
+              emptyState={
               hasFilters || search.cursor ? (
                 <EmptyState
                   icon="search"
@@ -137,8 +138,9 @@ export function PublicationsPage({ search, onSearchChange, onOpenPosts, onCreate
                   action={<Button onPress={onOpenPosts}>{copy.states.emptyAction}</Button>}
                 />
               )
-            }
-          />
+              }
+            />
+          </div>
           {search.cursor || list.data?.nextCursor ? (
             <nav className={styles.pager} aria-label={copy.pagination.label}>
               {search.cursor ? (
