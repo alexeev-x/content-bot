@@ -69,6 +69,25 @@
   color: var(--color-text-muted);
   overflow-wrap: anywhere;
 }
+.action {
+  flex: none;
+  min-height: var(--size-target);
+  padding: 0 var(--space-3);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-1);
+  background: none;
+  color: var(--color-text);
+  font: inherit;
+  font-weight: var(--font-weight-semibold);
+  cursor: pointer;
+}
+.action[data-hovered] {
+  background: var(--color-surface-2);
+}
+.action[data-focus-visible] {
+  outline: var(--focus-ring-width) solid var(--color-focus-ring);
+  outline-offset: 2px;
+}
 .close {
   display: grid;
   flex: none;

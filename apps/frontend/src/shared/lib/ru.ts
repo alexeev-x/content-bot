@@ -13,7 +13,10 @@ export const ru = {
     settings: 'Настройки',
     more: 'Ещё',
     moreTitle: 'Разделы',
-    incidentsBadge: (count: number) => `Открытых инцидентов: ${count}`
+    incidentsBadge: (count: number) => `Открытых инцидентов: ${count}`,
+    groups: { work: 'Работа', analytics: 'Аналитика', system: 'Система' },
+    collapse: 'Свернуть меню',
+    expand: 'Развернуть меню'
   },
   shell: {
     skipLink: 'Перейти к содержимому',
@@ -67,7 +70,19 @@ export const ru = {
     paused: 'На паузе',
     stale: 'Источник устарел'
   },
-  theme: { label: 'Тема', light: 'Светлая', dark: 'Тёмная', system: 'Системная' },
+  theme: {
+    label: 'Тема',
+    light: 'Светлая',
+    dark: 'Тёмная',
+    system: 'Системная',
+    toDark: 'Включить тёмную тему',
+    toLight: 'Включить светлую тему',
+    nowDark: 'Тёмная тема',
+    nowLight: 'Светлая тема',
+    saveFailed: 'Не удалось сохранить тему. Вернули прежнюю.',
+    loadFailed: 'Не удалось загрузить оформление',
+    retry: 'Повторить'
+  },
   inDevelopment: {
     title: 'Раздел в разработке',
     description: 'Здесь пока нет данных и действий. Ничего не отправляется и не сохраняется.'
@@ -129,13 +144,13 @@ export const ru = {
     unavailableTitle: 'Не удалось проверить вход',
     unavailableDescription: 'Сервер не ответил. Данные не потеряны: повторите проверку.',
     ownerMenu: 'Меню владельца',
-    appearance: 'Оформление',
     logout: 'Выйти'
   },
   settings: {
     navLabel: 'Разделы настроек',
     channels: 'Каналы',
     appearance: 'Оформление',
+    back: 'Настройки',
     description: 'Каналы публикации и внешний вид админки.'
   },
   appearance: {
@@ -143,6 +158,7 @@ export const ru = {
     description: 'Режим темы и акцентный цвет. Настройки хранятся на сервере: в браузере и в Mini App они одинаковы.',
     modeTitle: 'Режим темы',
     modeHint: 'Системная тема следует настройке устройства или Telegram.',
+    nowTag: 'Сейчас',
     lightTitle: 'Светлая тема',
     darkTitle: 'Тёмная тема',
     accentLabel: 'Акцентный цвет',
@@ -221,7 +237,18 @@ export const ru = {
     leaveCancel: 'Остаться'
   },
   notFound: { description: 'Такого адреса нет в админке.', back: 'К обзору' },
+  systemStatus: {
+    title: 'Состояние системы',
+    allOk: 'Всё работает',
+    checkedAt: (time: string) => `Проверено ${time}`,
+    attention: (count: number) => `Требует внимания: ${count}`,
+    sort: 'Разобраться',
+    checkFailed: 'Не удалось проверить',
+    serviceFailed: 'Не удалось проверить сервис',
+    loading: 'Проверяем состояние системы…'
+  },
   health: {
+    publishing: 'Публикация',
     title: 'Состояние сервиса',
     loading: 'Проверяем сервис…',
     error: 'Не удалось получить состояние сервиса.',

@@ -12,7 +12,8 @@ import { Icon, type IconName } from './Icon';
 import styles from './Toast.module.css';
 
 export type ToastTone = 'info' | 'success' | 'error';
-export type ToastContentValue = { title: string; description?: string; tone: ToastTone };
+export type ToastAction = { label: string; onPress: () => void };
+export type ToastContentValue = { title: string; description?: string; tone: ToastTone; action?: ToastAction };
 
 const ICONS: Record<ToastTone, IconName> = { info: 'info', success: 'check-circle', error: 'x-circle' };
 // Results are polite status messages; only a failure that needs the owner stays until dismissed (WCAG 2.2.1).
@@ -25,7 +26,11 @@ const ToastContext = createContext<ToastApi | null>(null);
 export function ToastProvider({ children }: { children: ReactNode }) {
   const [queue] = useState(() => new ToastQueue<ToastContentValue>({ maxVisibleToasts: 3 }));
   const api = useMemo<ToastApi>(
-    () => ({ show: (toast) => queue.add(toast, { timeout: AUTO_DISMISS_MS[toast.tone] }) }),
+    () => ({
+      show: (toast) =>
+        // A toast with an action stays until dismissed: a timer must not take the button away (WCAG 2.2.1).
+        queue.add(toast, { timeout: toast.action ? undefined : AUTO_DISMISS_MS[toast.tone] })
+    }),
     [queue]
   );
   return (
@@ -45,6 +50,17 @@ export function ToastProvider({ children }: { children: ReactNode }) {
                 </Text>
               ) : null}
             </ToastContent>
+            {toast.content.action ? (
+              <Button
+                className={styles.action}
+                onPress={() => {
+                  toast.content.action?.onPress();
+                  queue.close(toast.key);
+                }}
+              >
+                {toast.content.action.label}
+              </Button>
+            ) : null}
             <Button slot="close" aria-label={ru.ui.dismiss} className={styles.close}>
               <Icon name="x" size={18} />
             </Button>

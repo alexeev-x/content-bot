@@ -3,6 +3,5 @@
   gap: var(--space-4);
 }
 .lead {
-  max-width: 64ch;
   color: var(--color-text-muted);
 }

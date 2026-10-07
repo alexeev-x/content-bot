@@ -1,14 +1,17 @@
 import { useBlocker } from '@tanstack/react-router';
 import { ApiError } from '../../../shared/api/http-client';
+import { useClosingConfirmation } from '../../../shared/telegram/use-closing-confirmation';
 import { ru } from '../../../shared/lib/ru';
 import {
   Banner,
   Button,
-  Card,
   ConfirmDialog,
   ErrorState,
+  Radio,
+  RadioGroup,
   SegmentedControl,
   Skeleton,
+  useMediaQuery,
   useToast,
   VisuallyHidden,
   type SegmentOption
@@ -22,6 +25,7 @@ import {
   type AppearanceValue
 } from '../model/appearance-value';
 import { useAppearanceEditor } from '../model/use-appearance-editor';
+import { useScreenTheme } from '../model/use-screen-theme';
 import { AccentPicker } from './AccentPicker';
 import { AccentPreview } from './AccentPreview';
 import styles from './AppearanceEditor.module.css';
@@ -50,15 +54,9 @@ function Loading() {
   return (
     <div aria-busy="true" className={styles.grid}>
       <VisuallyHidden>{ru.ui.loading}</VisuallyHidden>
-      <Card>
-        <Skeleton height={44} />
-      </Card>
-      <Card>
-        <Skeleton height={220} />
-      </Card>
-      <Card>
-        <Skeleton height={220} />
-      </Card>
+      <Skeleton height={44} />
+      <Skeleton height={220} />
+      <Skeleton height={220} />
     </div>
   );
 }
@@ -66,11 +64,15 @@ function Loading() {
 export function AppearanceEditor({ preview }: Props) {
   const editor = useAppearanceEditor({ preview });
   const toast = useToast();
+  const screenTheme = useScreenTheme();
+  // Three segments with icons do not fit a 375 px phone: stack them as radios there instead of scrolling sideways.
+  const stackedMode = useMediaQuery('(max-width: 479px)');
   const blocker = useBlocker({
     shouldBlockFn: () => editor.isDirty,
     enableBeforeUnload: () => editor.isDirty,
     withResolver: true
   });
+  useClosingConfirmation(editor.isDirty);
 
   if (editor.isLoading) return <Loading />;
   if (editor.loadError || !editor.value) {
@@ -124,23 +126,42 @@ export function AppearanceEditor({ preview }: Props) {
         </Banner>
       ) : null}
 
-      <Card title={ru.appearance.modeTitle}>
+      <section className={styles.section}>
+        <h3 className={styles.sectionTitle}>{ru.appearance.modeTitle}</h3>
         <div className={styles.mode}>
-          <SegmentedControl
-            label={ru.appearance.modeTitle}
-            options={MODES}
-            value={value.themeMode}
-            onChange={(id) => editor.edit((current) => setThemeMode(current, id as ThemeMode))}
-          />
+          {stackedMode ? (
+            <RadioGroup
+              label={ru.appearance.modeTitle}
+              value={value.themeMode}
+              onChange={(id) => editor.edit((current) => setThemeMode(current, id as ThemeMode))}
+            >
+              {MODES.map((mode) => (
+                <Radio key={mode.id} value={mode.id}>
+                  {mode.label}
+                </Radio>
+              ))}
+            </RadioGroup>
+          ) : (
+            <SegmentedControl
+              label={ru.appearance.modeTitle}
+              options={MODES}
+              value={value.themeMode}
+              onChange={(id) => editor.edit((current) => setThemeMode(current, id as ThemeMode))}
+            />
+          )}
           <p className={styles.hint}>{ru.appearance.modeHint}</p>
         </div>
-      </Card>
+      </section>
 
       <div className={styles.themes}>
         {(['light', 'dark'] as const).map((theme) => {
           const ref = theme === 'light' ? value.lightAccent : value.darkAccent;
           return (
-            <Card key={theme} title={theme === 'light' ? ru.appearance.lightTitle : ru.appearance.darkTitle}>
+            <section key={theme} className={styles.section}>
+              <h3 className={styles.sectionTitle}>
+                {theme === 'light' ? ru.appearance.lightTitle : ru.appearance.darkTitle}
+                {theme === screenTheme ? <span className={styles.now}>{ru.appearance.nowTag}</span> : null}
+              </h3>
               <div className={styles.stack}>
                 <AccentPicker
                   theme={theme}
@@ -151,7 +172,7 @@ export function AppearanceEditor({ preview }: Props) {
                 />
                 <AccentPreview theme={theme} accent={sourceOf(ref, value)} />
               </div>
-            </Card>
+            </section>
           );
         })}
       </div>

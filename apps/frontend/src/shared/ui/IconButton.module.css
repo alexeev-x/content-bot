@@ -2,8 +2,8 @@
   display: inline-grid;
   flex: none;
   place-items: center;
-  width: var(--size-target);
-  height: var(--size-target);
+  width: var(--size-control);
+  height: var(--size-control);
   padding: 0;
   border: 1px solid transparent;
   border-radius: var(--radius-2);
@@ -15,8 +15,8 @@
     color var(--motion-fast);
 }
 .button[data-size='sm'] {
-  width: 36px;
-  height: 36px;
+  width: var(--size-control-sm);
+  height: var(--size-control-sm);
 }
 @media (pointer: coarse), (max-width: 859px) {
   .button[data-size='sm'] {

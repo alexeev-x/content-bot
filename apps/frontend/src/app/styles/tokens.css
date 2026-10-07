@@ -42,13 +42,21 @@
   --space-5: 20px;
   --space-6: 24px;
   --space-8: 32px;
-  --radius-1: 8px;
-  --radius-2: 12px;
-  --radius-3: 18px;
+  --radius-1: 7px;
+  --radius-2: 8px;
+  --radius-3: 9px;
   --radius-pill: 999px;
   --size-target: 44px;
   --size-target-min: 24px;
-  --size-sidebar: 240px;
+  --size-sidebar: 216px;
+  --size-sidebar-collapsed: 56px;
+  /* Fine pointer (desktop mouse): compact work-tool sizes. Touch and narrow screens override below. */
+  --size-control: 36px;
+  --size-control-sm: 30px;
+  --size-row: 40px;
+  --size-topbar: 48px;
+  /* Reading width a page opts into with the .reading-width class. */
+  --measure-reading: 760px;
   --size-nav: 64px;
 
   /* focus: 2px ring in --color-focus-ring */
@@ -65,6 +73,17 @@
   --z-overlay: 30;
   --z-modal: 40;
   --z-toast: 50;
+}
+
+/* Touch and the Mini App keep 44 px targets (WCAG 2.5.8 AAA / project choice). */
+@media (pointer: coarse), (max-width: 859px) {
+  :root,
+  [data-theme] {
+    --size-control: var(--size-target);
+    --size-control-sm: var(--size-target);
+    --size-row: 52px;
+    --size-topbar: 56px;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -90,7 +109,8 @@
   --color-danger: #ff7a7a;
   --color-scrim: rgba(0, 0, 0, 0.6);
   --color-grid: rgba(255, 255, 255, 0.06);
-  --shadow-card: 0 1px 0 rgba(255, 255, 255, 0.04) inset, 0 8px 24px rgba(0, 0, 0, 0.35);
+  --shadow-card: none;
+  --color-selected-bg: var(--color-surface-2);
   --shadow-pop: 0 24px 60px rgba(0, 0, 0, 0.6);
 
   --color-status-pending-fg: #b9c3d6;
@@ -130,7 +150,8 @@
   --color-danger: #b42323;
   --color-scrim: rgba(20, 22, 26, 0.45);
   --color-grid: rgba(20, 22, 26, 0.07);
-  --shadow-card: 0 1px 2px rgba(20, 22, 26, 0.06), 0 8px 24px rgba(20, 22, 26, 0.06);
+  --shadow-card: none;
+  --color-selected-bg: var(--color-surface-2);
   --shadow-pop: 0 24px 60px rgba(20, 22, 26, 0.22);
 
   --color-status-pending-fg: #3b4a66;

@@ -22,7 +22,8 @@
 }
 .panes {
   display: grid;
-  grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);
+  /* The text column keeps a reading measure; the inspector (preview) takes the rest. */
+  grid-template-columns: minmax(0, var(--measure-reading)) minmax(280px, 1fr);
   gap: var(--space-5);
   align-items: start;
 }
@@ -41,7 +42,7 @@
 @media (min-width: 860px) {
   .previewColumn {
     position: sticky;
-    top: calc(var(--size-target) + var(--space-6) + var(--space-4));
+    top: calc(var(--size-topbar) + var(--space-6) + var(--space-4));
   }
 }
 .fields {
@@ -79,7 +80,7 @@
 }
 .actionBar {
   position: sticky;
-  bottom: var(--space-4);
+  bottom: max(var(--space-4), env(safe-area-inset-bottom), var(--tg-content-safe-area-inset-bottom, 0px));
   z-index: var(--z-sticky);
   display: flex;
   flex-wrap: wrap;

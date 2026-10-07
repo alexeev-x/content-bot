@@ -40,8 +40,8 @@
   display: grid;
   flex: none;
   place-items: center;
-  width: var(--size-target);
-  height: calc(var(--size-target) - 2px);
+  width: var(--size-control);
+  height: calc(var(--size-control) - 2px);
   border: 0;
   border-radius: var(--radius-2);
   background: none;
@@ -86,8 +86,8 @@
 .nav {
   display: grid;
   place-items: center;
-  width: var(--size-target);
-  height: var(--size-target);
+  width: var(--size-control);
+  height: var(--size-control);
   border: 0;
   border-radius: var(--radius-1);
   background: none;
@@ -117,8 +117,8 @@
 .cell {
   display: grid;
   place-items: center;
-  width: var(--size-target);
-  height: var(--size-target);
+  width: var(--size-control);
+  height: var(--size-control);
   margin: 1px;
   border-radius: var(--radius-1);
   font-variant-numeric: tabular-nums;

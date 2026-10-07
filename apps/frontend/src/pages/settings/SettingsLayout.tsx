@@ -1,21 +1,78 @@
-import { Link, Outlet } from '@tanstack/react-router';
+import { Link, Outlet, useRouterState } from '@tanstack/react-router';
+import { useEffect, useRef } from 'react';
 import { ru } from '../../shared/lib/ru';
-import { PageHeader } from '../../shared/ui';
+import { isInsideTelegram } from '../../shared/telegram/web-app';
+import { Icon, PageHeader, useMediaQuery } from '../../shared/ui';
 import styles from './SettingsLayout.module.css';
 
+const SECTIONS = [
+  { to: '/settings/channels', label: ru.settings.channels },
+  { to: '/settings/appearance', label: ru.settings.appearance }
+] as const;
+
+type SectionPath = (typeof SECTIONS)[number]['to'];
+
+/** Settings as master/detail: a section list beside the detail on wide screens, list and detail as two screens on narrow ones. */
 export function SettingsLayout() {
+  const wide = useMediaQuery('(min-width: 860px)');
+  const pathname = useRouterState({ select: (state) => state.location.pathname });
+  const section = SECTIONS.find((candidate) => pathname.startsWith(candidate.to));
+  const atList = section === undefined;
+  const showList = wide || atList;
+  const rows = useRef(new Map<SectionPath, HTMLAnchorElement>());
+  const lastOpened = useRef<SectionPath | null>(null);
+
+  // Declared before the focus effect below, which reads it.
+  useEffect(() => {
+    if (section) lastOpened.current = section.to;
+  }, [section]);
+
+  // Coming back to the list (back link, Telegram BackButton, browser Back) lands on the row that was open.
+  // Deferred a tick: the shell moves focus to <main> on every route change and would otherwise win.
+  useEffect(() => {
+    if (wide || !atList || !lastOpened.current) return;
+    const row = rows.current.get(lastOpened.current);
+    const timer = window.setTimeout(() => row?.focus(), 0);
+    return () => window.clearTimeout(timer);
+  }, [wide, atList]);
+
   return (
     <>
-      <PageHeader title={ru.pages.settings} description={ru.settings.description} />
-      <nav aria-label={ru.settings.navLabel} className={styles.nav}>
-        <Link to="/settings/channels" className={styles.link}>
-          {ru.settings.channels}
+      {!wide && section && !isInsideTelegram() ? (
+        <Link to="/settings" className={styles.back}>
+          <Icon name="chevron-left" size={16} />
+          {ru.settings.back}
         </Link>
-        <Link to="/settings/appearance" className={styles.link}>
-          {ru.settings.appearance}
-        </Link>
-      </nav>
-      <Outlet />
+      ) : null}
+      <PageHeader title={wide || atList ? ru.pages.settings : (section?.label ?? ru.pages.settings)} />
+      <div className={styles.layout} data-wide={wide || undefined}>
+        {showList ? (
+          <nav aria-label={ru.settings.navLabel} className={styles.nav}>
+            {SECTIONS.map((item) => (
+              <Link
+                key={item.to}
+                to={item.to}
+                className={styles.link}
+                ref={(node) => {
+                  if (node) rows.current.set(item.to, node);
+                  else rows.current.delete(item.to);
+                }}
+              >
+                <span>{item.label}</span>
+                {wide ? null : <Icon name="chevron-right" size={18} />}
+              </Link>
+            ))}
+          </nav>
+        ) : null}
+        {atList ? (
+          <Outlet />
+        ) : (
+          <section className={styles.detail} aria-label={section.label}>
+            {wide ? <h2 className={styles.detailTitle}>{section.label}</h2> : null}
+            <Outlet />
+          </section>
+        )}
+      </div>
     </>
   );
 }

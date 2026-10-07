@@ -2,7 +2,8 @@ import { useQuery } from '@tanstack/react-query';
 import { Navigate, Outlet, useRouterState } from '@tanstack/react-router';
 import { useAuth } from '../auth';
 import { ApiError } from '../../shared/api/http-client';
-import { useAppearanceSync } from '../../features/appearance';
+import { useTelegramChrome } from '../use-telegram-chrome';
+import { ThemeToggle, useAppearanceSync } from '../../features/appearance';
 import { AuthLoadingScreen, AuthUnavailableState, NoAccessState, meQueryOptions } from '../../features/auth';
 import { ru } from '../../shared/lib/ru';
 import { applyAppearance, useTheme, type Appearance } from '../theme';
@@ -14,6 +15,8 @@ import { NAV_ITEMS } from './nav-items';
 const BARE_PATHS = ['/login', '/__catalog'];
 
 const applyServerAppearance = (value: Appearance) => applyAppearance(value);
+// The theme button shows its result before the server confirms; only the server answer is persisted.
+const previewAppearance = (value: Appearance) => applyAppearance(value, { persist: false });
 
 function titleFor(pathname: string): string {
   if (pathname.startsWith('/settings/appearance')) return ru.appearance.title;
@@ -29,14 +32,19 @@ function SignedInLayout() {
   const me = useQuery(meQueryOptions());
   useAppearanceSync(applyServerAppearance);
   // Follows the OS or Telegram scheme while the mode is «system».
-  useTheme();
+  const { resolved } = useTheme();
+  useTelegramChrome(resolved);
   useDocumentTitle(titleFor(pathname));
 
   if (me.error instanceof ApiError && me.error.status === 403) {
     return <NoAccessState onAction={() => void auth.logout()} />;
   }
   return (
-    <AppShell ownerName={me.data?.name} onLogout={() => void auth.logout()}>
+    <AppShell
+      ownerName={me.data?.name}
+      onLogout={() => void auth.logout()}
+      topBarTools={<ThemeToggle preview={previewAppearance} />}
+    >
       <Outlet />
     </AppShell>
   );

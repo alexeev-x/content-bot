@@ -9,8 +9,8 @@
 }
 .picker {
   flex: none;
-  width: var(--size-target);
-  height: var(--size-target);
+  width: var(--size-control);
+  height: var(--size-control);
   padding: 0;
   border: 1px solid var(--color-border-strong);
   border-radius: var(--radius-2);

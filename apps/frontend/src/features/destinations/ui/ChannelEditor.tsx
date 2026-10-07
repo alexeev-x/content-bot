@@ -4,6 +4,7 @@ import { useIsFetching, useQueryClient } from '@tanstack/react-query';
 import { useRef, useState } from 'react';
 import { Controller, useForm, useWatch } from 'react-hook-form';
 import { z } from 'zod';
+import { useClosingConfirmation } from '../../../shared/telegram/use-closing-confirmation';
 import { Banner, Button, Switch, TextField, useToast } from '../../../shared/ui';
 import { destinationKeys, useUpdateDestination } from '../api/destinations-queries';
 import { displayChatId, parseChatId } from '../model/chat-id';
@@ -59,6 +60,7 @@ export function ChannelEditor({ destination, onOpenOther, onRightsKnown }: Props
   const refreshing = useIsFetching({ queryKey: destinationKeys.detail(destination.id) }) > 0;
   const busy = saveMutation.isPending || toggleMutation.isPending || chatMutation.isPending;
   const titleDirty = watchedTitle.trim() !== destination.title;
+  useClosingConfirmation(titleDirty);
 
   // A stale revision means somebody else changed the channel: fetch the current one and show both sides.
   function handleFailure(error: unknown, remember: (failure: RequestFailure) => void) {

@@ -1,10 +1,9 @@
 .wrap {
   min-width: 0;
   overflow-x: auto;
-  border: 1px solid var(--color-border-subtle);
-  border-radius: var(--radius-3);
-  background: var(--color-surface-1);
-  box-shadow: var(--shadow-card);
+  /* A working surface, not a card: only a thin rule above and below. */
+  border-top: 1px solid var(--color-border-subtle);
+  border-bottom: 1px solid var(--color-border-subtle);
 }
 .table {
   width: 100%;
@@ -12,11 +11,12 @@
   outline: none;
 }
 .head {
-  background: var(--color-surface-2);
+  background: transparent;
 }
 .column,
 .selectCell {
-  padding: var(--space-3) var(--space-4);
+  height: var(--size-control);
+  padding: 0 var(--space-3);
   border-bottom: 1px solid var(--color-border-subtle);
   color: var(--color-text-muted);
   font-size: var(--font-size-xs);
@@ -58,7 +58,7 @@
   background: var(--color-surface-2);
 }
 .row[data-selected] {
-  background: var(--color-accent-soft);
+  background: var(--color-selected-bg);
 }
 .row[data-focus-visible] {
   outline: var(--focus-ring-width) solid var(--color-focus-ring);
@@ -70,8 +70,8 @@
 }
 .cell,
 .selectCell {
-  min-height: var(--size-target);
-  padding: var(--space-3) var(--space-4);
+  height: var(--size-row);
+  padding: 0 var(--space-3);
   border-bottom: 1px solid var(--color-border-subtle);
   vertical-align: middle;
   outline: none;
@@ -81,7 +81,7 @@
   border-bottom: 0;
 }
 .selectCell {
-  width: 52px;
+  width: 44px;
 }
 .empty {
   padding: var(--space-6);
@@ -91,10 +91,12 @@
 /* Narrow screens: one card per row, no hidden columns. */
 .cards {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--space-3);
 }
 .list {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--space-3);
   margin: 0;
   padding: 0;
@@ -102,6 +104,7 @@
 }
 .card {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--space-3);
   padding: var(--space-4);
   border: 1px solid var(--color-border-subtle);
@@ -111,7 +114,7 @@
 }
 .card[data-selected] {
   border-color: var(--color-accent-text);
-  background: var(--color-accent-soft);
+  background: var(--color-selected-bg);
 }
 .cardHead {
   display: flex;

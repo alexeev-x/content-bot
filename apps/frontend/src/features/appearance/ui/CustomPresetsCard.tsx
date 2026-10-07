@@ -1,7 +1,7 @@
 import { CUSTOM_PRESETS_MAX, type CustomPresetDto } from '@alexeev/contracts';
 import { useState } from 'react';
 import { ru } from '../../../shared/lib/ru';
-import { Button, Card, ConfirmDialog, IconButton } from '../../../shared/ui';
+import { Button, ConfirmDialog, IconButton } from '../../../shared/ui';
 import { presetUsage, type AppearanceValue } from '../model/appearance-value';
 import { AccentSwatch } from './AccentSwatch';
 import styles from './CustomPresetsCard.module.css';
@@ -23,9 +23,9 @@ export function CustomPresetsCard({ value, onAdd, onUpdate, onRemove }: Props) {
   const usage = removing ? presetUsage(value, removing.id) : [];
 
   return (
-    <Card
-      title={ru.appearance.customTitle}
-      actions={
+    <section className={styles.section}>
+      <header className={styles.header}>
+        <h3 className={styles.title}>{ru.appearance.customTitle}</h3>
         <Button
           size="sm"
           variant="secondary"
@@ -35,8 +35,7 @@ export function CustomPresetsCard({ value, onAdd, onUpdate, onRemove }: Props) {
         >
           {ru.appearance.addColor}
         </Button>
-      }
-    >
+      </header>
       <p className={styles.hint}>
         {atLimit
           ? ru.appearance.customLimit(CUSTOM_PRESETS_MAX)
@@ -96,6 +95,6 @@ export function CustomPresetsCard({ value, onAdd, onUpdate, onRemove }: Props) {
           setRemoving(null);
         }}
       />
-    </Card>
+    </section>
   );
 }

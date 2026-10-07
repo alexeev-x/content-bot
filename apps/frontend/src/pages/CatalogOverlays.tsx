@@ -98,6 +98,19 @@ export function CatalogOverlays() {
         >
           Error toast
         </Button>
+        <Button
+          size="sm"
+          variant="ghost"
+          onPress={() =>
+            toast.show({
+              tone: 'error',
+              title: 'Не удалось сохранить тему. Вернули прежнюю.',
+              action: { label: 'Повторить', onPress: () => undefined }
+            })
+          }
+        >
+          Toast with action
+        </Button>
       </div>
 
       <h3 className={styles.group}>Disclosure</h3>

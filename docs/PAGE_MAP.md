@@ -9,7 +9,7 @@ The regular browser app and Telegram Mini App are the same SPA. Mobile at 375 px
 | Path | Product responsibility | Core capabilities | Critical states |
 |---|---|---|---|
 | `/login` | Owner sign-in | Telegram Login Widget; Mini App automatic sign-in | cancelled, expired, 401, foreign owner 403 |
-| `/` | Dashboard | upcoming publications, recent activity, automation health, incidents, stale sources, quick actions | partial/stale data, component failure |
+| `/` | Dashboard | system status strip (one line when healthy, one banner row on problems; spec: `docs/stories/dashboard-system-status.md`), upcoming publications, recent activity, automation health, incidents, stale sources, quick actions | partial/stale data, component failure |
 | `/posts` | Content library | search/filter/sort, drafts/approved content, rubric/source/destination, navigate to revisions | empty, error, stale |
 | `/posts?view=archive` | Posts archive | published posts kept 30 days, restore, delete now; leave-free editor, delete post, cancel/remove publication (spec: `docs/stories/posts-lifecycle.md`) | empty, error, 30-day expiry, unknown not deletable |
 | `/posts/new` | New content | full editor, source/rubric, media, destination, preview, save/approve/schedule | dirty, validation, preview failure |

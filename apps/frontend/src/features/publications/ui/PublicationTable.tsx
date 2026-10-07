@@ -62,7 +62,14 @@ export function PublicationTable({ rows, postTitle, channel, onOpen, isLoading, 
         id: 'post',
         header: copy.list.columns.post,
         isRowHeader: true,
-        cell: (row) => <span className={styles.title}>{postTitle(row) ?? copy.list.unknownPost}</span>
+        cell: (row) => {
+          const title = postTitle(row) ?? copy.list.unknownPost;
+          return (
+            <span className={styles.title} title={title}>
+              {title}
+            </span>
+          );
+        }
       },
       {
         id: 'status',
@@ -72,7 +79,16 @@ export function PublicationTable({ rows, postTitle, channel, onOpen, isLoading, 
       {
         id: 'channel',
         header: copy.list.columns.channel,
-        cell: (row) => channel(row)?.title ?? <span className={styles.muted}>{copy.list.unknownChannel}</span>
+        cell: (row) => {
+          const title = channel(row)?.title;
+          return title ? (
+            <span className={styles.channel} title={title}>
+              {title}
+            </span>
+          ) : (
+            <span className={styles.muted}>{copy.list.unknownChannel}</span>
+          );
+        }
       },
       {
         id: 'time',

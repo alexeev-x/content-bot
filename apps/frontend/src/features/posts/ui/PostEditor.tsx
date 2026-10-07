@@ -14,6 +14,7 @@ import {
   useMediaQuery,
   VisuallyHidden
 } from '../../../shared/ui';
+import { useClosingConfirmation } from '../../../shared/telegram/use-closing-confirmation';
 import { useLeaveGuard } from '../model/use-leave-guard';
 import { usePostEditor } from '../model/use-post-editor';
 import { useSaveShortcut } from '../model/use-save-shortcut';
@@ -46,6 +47,7 @@ export function PostEditor({ post, onCreated, approvedActions, aside }: Props) {
   const narrow = useMediaQuery(NARROW);
   const navigate = useNavigate();
   const blocker = useLeaveGuard(dirtyRef);
+  useClosingConfirmation(editor.dirty && !editor.readOnly);
   const statusRef = useRef<HTMLDivElement>(null);
   const [compareOpen, setCompareOpen] = useState(false);
   const [approveOpen, setApproveOpen] = useState(false);
@@ -159,7 +161,7 @@ export function PostEditor({ post, onCreated, approvedActions, aside }: Props) {
         </div>
       ) : (
         <div className={styles.panes}>
-          {fields}
+          <div className="reading-width">{fields}</div>
           {preview}
         </div>
       )}

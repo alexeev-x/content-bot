@@ -21,7 +21,7 @@ export { IconButton } from './IconButton';
 export { KpiTile } from './KpiTile';
 export { Menu } from './Menu';
 export type { MenuEntry } from './Menu';
-export { PageHeader } from './PageHeader';
+export { PageHeader, PageHeaderTools } from './PageHeader';
 export { Popover } from './Popover';
 export { Radio, RadioGroup } from './RadioGroup';
 export { SearchField } from './SearchField';

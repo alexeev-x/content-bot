@@ -2,7 +2,7 @@
   display: inline-flex;
   align-items: center;
   gap: var(--space-3);
-  min-height: var(--size-target);
+  min-height: var(--size-control);
   cursor: pointer;
 }
 .track {

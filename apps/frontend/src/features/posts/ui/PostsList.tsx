@@ -52,7 +52,7 @@ export function PostsList({ status, query, onStatusChange, onQueryChange, onOpen
       header: copy.columns.title,
       isRowHeader: true,
       cell: (post) => (
-        <span className={styles.titleCell}>
+        <span className={styles.titleCell} title={post.title.trim() || copy.untitled}>
           <strong className={styles.title}>{post.title.trim() || copy.untitled}</strong>
           <span className={styles.excerpt}>{excerptOf(post.body) || copy.emptyBody}</span>
         </span>

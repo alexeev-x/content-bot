@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { AddChannelDialog, ChannelDrawer, ChannelsList, channelsCopy } from '../../features/destinations';
-import { Button, Card } from '../../shared/ui';
+import { Button } from '../../shared/ui';
+import styles from './ChannelsPage.module.css';
 
 type Props = {
   /** The channel open in the drawer; lives in the URL so the view is linkable and Back closes it. */
@@ -19,16 +20,12 @@ export function ChannelsPage({ selectedId, onSelect }: Props) {
 
   return (
     <>
-      <Card
-        title={channelsCopy.title}
-        actions={
-          <Button icon="plus" onPress={() => setAdding(true)}>
-            {channelsCopy.add}
-          </Button>
-        }
-      >
-        <ChannelsList rights={rights} onOpen={onSelect} onAdd={() => setAdding(true)} />
-      </Card>
+      <div className={styles.toolbar}>
+        <Button icon="plus" onPress={() => setAdding(true)}>
+          {channelsCopy.add}
+        </Button>
+      </div>
+      <ChannelsList rights={rights} onOpen={onSelect} onAdd={() => setAdding(true)} />
       <AddChannelDialog
         isOpen={adding}
         onOpenChange={setAdding}

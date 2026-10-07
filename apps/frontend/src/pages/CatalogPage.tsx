@@ -9,6 +9,7 @@ import {
 import type { ColorTheme } from '../shared/lib/color';
 import { SegmentedControl, ToastProvider } from '../shared/ui';
 import { CatalogButtons } from './CatalogButtons';
+import { CatalogDensity } from './CatalogDensity';
 import { CatalogDisplay } from './CatalogDisplay';
 import { CatalogForms } from './CatalogForms';
 import { CatalogOverlays } from './CatalogOverlays';
@@ -38,6 +39,7 @@ function PrimitivePanel({ theme, accent }: { theme: ColorTheme; accent: string }
           <CatalogForms />
           <CatalogOverlays />
           <CatalogDisplay />
+          <CatalogDensity />
         </ToastProvider>
       </div>
     </section>

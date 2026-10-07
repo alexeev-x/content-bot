@@ -1,12 +1,14 @@
 import { Link, useRouterState, type LinkProps } from '@tanstack/react-router';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { Button as AriaButton } from 'react-aria-components';
+import { Button as AriaButton, Focusable } from 'react-aria-components';
 import { ru } from '../../shared/lib/ru';
-import { Drawer, Icon, VisuallyHidden } from '../../shared/ui';
+import { isInsideTelegram } from '../../shared/telegram/web-app';
+import { Drawer, Icon, IconButton, PageHeaderTools, Tooltip, VisuallyHidden } from '../../shared/ui';
 import { readAppEnvironment, showEnvironmentBadge } from '../environment';
 import styles from './AppShell.module.css';
-import { NAV_ITEMS, type NavItem } from './nav-items';
+import { NAV_GROUP_ORDER, NAV_ITEMS, type NavItem } from './nav-items';
 import { OwnerMenu } from './OwnerMenu';
+import { useSidebarCollapsed } from './use-sidebar-collapsed';
 
 type Props = {
   children: ReactNode;
@@ -18,6 +20,8 @@ type Props = {
   onLogout?: () => void;
   /** Opens the command palette. Without it the search entry is a disabled placeholder. */
   onOpenSearch?: () => void;
+  /** Slot left of the owner menu in the top bar (the theme toggle); built by the frontend role. */
+  topBarTools?: ReactNode;
 };
 
 function EnvBadge() {
@@ -47,22 +51,66 @@ const target = (item: NavItem) => item.to as LinkProps['to'];
 function NavLink({
   item,
   incidentsCount,
-  onNavigate
+  onNavigate,
+  iconOnly = false
 }: {
   item: NavItem;
   incidentsCount: number;
   onNavigate?: () => void;
+  /** Collapsed sidebar: the label stays for assistive tech and moves into a tooltip. */
+  iconOnly?: boolean;
 }) {
-  return (
+  const link = (
     <Link to={target(item)} activeOptions={{ exact: item.exact ?? false }} className={styles.link} onClick={onNavigate}>
       <Icon name={item.icon} size={20} />
-      <span className={styles.linkLabel}>{item.label}</span>
+      <span className={iconOnly ? styles.linkLabelHidden : styles.linkLabel}>{item.label}</span>
       {item.badge === 'incidents' && incidentsCount > 0 ? <NavBadge count={incidentsCount} /> : null}
     </Link>
   );
+  return iconOnly ? (
+    <Tooltip content={item.label}>
+      <Focusable>{link}</Focusable>
+    </Tooltip>
+  ) : (
+    link
+  );
 }
 
-export function AppShell({ children, incidentsCount = 0, ownerName, onLogout, onOpenSearch }: Props) {
+function SidebarNav({ incidentsCount, collapsed }: { incidentsCount: number; collapsed: boolean }) {
+  return (
+    <nav aria-label={ru.nav.label} className={styles.nav}>
+      {NAV_GROUP_ORDER.map((group) => {
+        const items = NAV_ITEMS.filter((item) => item.group === group);
+        if (items.length === 0) return null;
+        const label = ru.nav.groups[group];
+        return (
+          <fieldset key={group} aria-label={label} className={styles.group}>
+            <span className={collapsed ? styles.groupRule : styles.groupLabel} aria-hidden="true">
+              {collapsed ? '' : label}
+            </span>
+            {items.map((item) => (
+              <NavLink key={item.to} item={item} incidentsCount={incidentsCount} iconOnly={collapsed} />
+            ))}
+          </fieldset>
+        );
+      })}
+    </nav>
+  );
+}
+
+/** Static sidebar for the dev catalog: same classes and nav as the real shell, no sticky positioning. */
+export function SidebarPreview({ collapsed }: { collapsed: boolean }) {
+  return (
+    <div className={styles.preview} data-sidebar={collapsed ? 'collapsed' : 'expanded'}>
+      <aside className={styles.side}>
+        <SidebarNav incidentsCount={2} collapsed={collapsed} />
+      </aside>
+    </div>
+  );
+}
+
+export function AppShell({ children, incidentsCount = 0, ownerName, onLogout, onOpenSearch, topBarTools }: Props) {
+  const [collapsed, toggleCollapsed] = useSidebarCollapsed();
   const [moreOpen, setMoreOpen] = useState(false);
   const mainRef = useRef<HTMLElement>(null);
   const pathname = useRouterState({ select: (state) => state.location.pathname });
@@ -90,9 +138,27 @@ export function AppShell({ children, incidentsCount = 0, ownerName, onLogout, on
   const primary = NAV_ITEMS.filter((item) => item.primary);
   const secondary = NAV_ITEMS.filter((item) => !item.primary);
   const owner = ownerName?.trim() || ru.shell.ownerFallback;
+  // Telegram draws its own header: the app top bar goes and its tools move into each page header.
+  const miniApp = isInsideTelegram();
+  const tools = miniApp ? (
+    <>
+      <IconButton
+        label={ru.shell.searchPlaceholder}
+        icon="search"
+        isDisabled={!onOpenSearch}
+        {...(onOpenSearch ? { onPress: onOpenSearch } : {})}
+      />
+      {topBarTools}
+      <OwnerMenu ownerName={ownerName} onLogout={onLogout} iconOnly />
+    </>
+  ) : null;
 
   return (
-    <div className={styles.shell}>
+    <div
+      className={styles.shell}
+      data-mini-app={miniApp || undefined}
+      data-sidebar={collapsed ? 'collapsed' : 'expanded'}
+    >
       <a
         className={styles.skip}
         href="#main"
@@ -116,11 +182,15 @@ export function AppShell({ children, incidentsCount = 0, ownerName, onLogout, on
           </span>
           <EnvBadge />
         </div>
-        <nav aria-label={ru.nav.label} className={styles.nav}>
-          {NAV_ITEMS.map((item) => (
-            <NavLink key={item.to} item={item} incidentsCount={incidentsCount} />
-          ))}
-        </nav>
+        <SidebarNav incidentsCount={incidentsCount} collapsed={collapsed} />
+        <div className={styles.collapse}>
+          <IconButton
+            size="sm"
+            label={collapsed ? ru.nav.expand : ru.nav.collapse}
+            icon={collapsed ? 'chevron-right' : 'chevron-left'}
+            onPress={toggleCollapsed}
+          />
+        </div>
         <div className={styles.owner}>
           <span className={styles.avatar} aria-hidden="true">
             {owner.slice(0, 1).toUpperCase()}
@@ -133,28 +203,31 @@ export function AppShell({ children, incidentsCount = 0, ownerName, onLogout, on
       </aside>
 
       <div className={styles.column}>
-        <header className={styles.top}>
-          <div className={styles.topBrand}>
-            <span className={styles.logo} aria-hidden="true">
-              A
-            </span>
-            <EnvBadge />
-          </div>
-          <AriaButton
-            className={styles.search}
-            isDisabled={!onOpenSearch}
-            onPress={onOpenSearch}
-            aria-label={ru.shell.searchPlaceholder}
-          >
-            <Icon name="search" size={18} />
-            <span className={styles.searchText}>{ru.shell.searchPlaceholder}</span>
-            {onOpenSearch ? <kbd className={styles.kbd}>⌘K</kbd> : null}
-          </AriaButton>
-          <span className={styles.spacer} />
-          <OwnerMenu ownerName={ownerName} onLogout={onLogout} />
-        </header>
+        {miniApp ? null : (
+          <header className={styles.top}>
+            <div className={styles.topBrand}>
+              <span className={styles.logo} aria-hidden="true">
+                A
+              </span>
+              <EnvBadge />
+            </div>
+            <AriaButton
+              className={styles.search}
+              isDisabled={!onOpenSearch}
+              onPress={onOpenSearch}
+              aria-label={ru.shell.searchPlaceholder}
+            >
+              <Icon name="search" size={18} />
+              <span className={styles.searchText}>{ru.shell.searchPlaceholder}</span>
+              {onOpenSearch ? <kbd className={styles.kbd}>⌘K</kbd> : null}
+            </AriaButton>
+            <span className={styles.spacer} />
+            {topBarTools}
+            <OwnerMenu ownerName={ownerName} onLogout={onLogout} />
+          </header>
+        )}
         <main id="main" ref={mainRef} tabIndex={-1} className={styles.main}>
-          {children}
+          <PageHeaderTools value={tools}>{children}</PageHeaderTools>
         </main>
       </div>
 

@@ -8,7 +8,7 @@ const preview = (value: AppearanceValue) => applyAppearance(value, { persist: fa
 
 export function AppearancePage() {
   return (
-    <div className={styles.page}>
+    <div className={`reading-width ${styles.page}`}>
       <p className={styles.lead}>{ru.appearance.description}</p>
       <AppearanceEditor preview={preview} />
     </div>

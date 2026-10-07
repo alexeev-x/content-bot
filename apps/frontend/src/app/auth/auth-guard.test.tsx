@@ -13,6 +13,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
 import { LoginPage } from '../../pages/LoginPage';
 import { clearSession, getAccessToken } from '../../shared/api/session';
+import { ToastProvider } from '../../shared/ui';
 import { errorBody } from '../../test/fixtures';
 import { server, setupMswServer } from '../../test/msw';
 import { createTestQueryClient } from '../../test/query-wrapper';
@@ -41,7 +42,9 @@ function renderApp(initial: string) {
   const view = render(
     <QueryClientProvider client={client}>
       <AuthProvider>
-        <RouterProvider router={router} />
+        <ToastProvider>
+          <RouterProvider router={router} />
+        </ToastProvider>
       </AuthProvider>
     </QueryClientProvider>
   );

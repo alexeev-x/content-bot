@@ -1,8 +1,20 @@
 .title {
   display: block;
-  max-width: 36ch;
   overflow: hidden;
   font-weight: var(--font-weight-semibold);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* The post column takes all the width the other columns leave and clips its text: the table never outgrows the page. */
+td:has(> .title) {
+  width: 100%;
+  min-width: 16ch;
+  max-width: 0;
+}
+.channel {
+  display: block;
+  max-width: min(28ch, 20vw);
+  overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -24,4 +36,14 @@
 }
 .time {
   white-space: nowrap;
+}
+
+/* In a card the title wraps: a nowrap title cannot shrink inside a grid and widens the page. */
+@media (max-width: 859px) {
+  .title,
+  .channel {
+    max-width: none;
+    overflow-wrap: anywhere;
+    white-space: normal;
+  }
 }

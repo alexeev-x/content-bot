@@ -60,3 +60,9 @@ kbd,
     scroll-behavior: auto !important;
   }
 }
+
+/* A page opts into a comfortable text measure (editor, settings); everything else is fluid. */
+.reading-width {
+  width: 100%;
+  max-width: var(--measure-reading);
+}
