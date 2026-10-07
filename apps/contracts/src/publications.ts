@@ -127,6 +127,7 @@ export const listPublicationsQuerySchema = pageQuerySchema.extend({
   status: publicationStatusSchema.optional(),
   postId: z.uuid().optional(),
   destinationId: z.uuid().optional(),
+  q: z.string().trim().min(1).max(200).optional(),
   from: z.iso.datetime().optional(),
   to: z.iso.datetime().optional(),
   order: z.enum(['asc', 'desc']).default('desc')
