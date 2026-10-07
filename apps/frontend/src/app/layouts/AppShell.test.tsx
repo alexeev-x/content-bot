@@ -13,7 +13,8 @@ import { readAppEnvironment, showEnvironmentBadge } from '../environment';
 import { AppShell } from './AppShell';
 
 function renderShell(
-  props: { incidentsCount?: number; onLogout?: () => void; ownerName?: string; topBarTools?: ReactNode } = {}
+  props: { incidentsCount?: number; onLogout?: () => void; ownerName?: string; topBarTools?: ReactNode } = {},
+  path = '/'
 ) {
   const root = createRootRoute({
     component: () => (
@@ -23,9 +24,10 @@ function renderShell(
     )
   });
   const index = createRoute({ getParentRoute: () => root, path: '/' });
+  const editor = createRoute({ getParentRoute: () => root, path: '/posts/$id' });
   const router = createRouter({
-    routeTree: root.addChildren([index]),
-    history: createMemoryHistory({ initialEntries: ['/'] })
+    routeTree: root.addChildren([index, editor]),
+    history: createMemoryHistory({ initialEntries: [path] })
   });
   return render(<RouterProvider router={router} />);
 }
@@ -42,17 +44,12 @@ describe('AppShell', () => {
     expect(await screen.findByRole('main')).toBeTruthy();
     expect(screen.getByRole('link', { name: 'Перейти к содержимому' })).toBeTruthy();
     const nav = screen.getAllByRole('navigation', { name: 'Основная навигация' })[0]!;
-    for (const label of [
-      'Главная',
-      'Посты',
-      'Публикации',
-      'Календарь',
-      'Автоматизации',
-      'Медиа',
-      'Инциденты',
-      'Настройки'
-    ]) {
+    for (const label of ['Главная', 'Посты', 'Публикации', 'Настройки']) {
       expect(within(nav).getByRole('link', { name: new RegExp(label) })).toBeTruthy();
+    }
+    // Sections that are still «Раздел в разработке» stubs are not offered (their routes stay).
+    for (const label of ['Календарь', 'Автоматизации', 'Медиа', 'Инциденты']) {
+      expect(within(nav).queryByRole('link', { name: new RegExp(label) })).toBeNull();
     }
     expect(
       within(nav)
@@ -93,13 +90,27 @@ describe('AppShell', () => {
     expect(document.activeElement).toBe(screen.getByRole('main'));
   });
 
-  it('shows the incidents count with a text alternative only when there are incidents', async () => {
-    const { unmount } = renderShell();
+  it('shows no incidents count while the incidents section is not offered', async () => {
+    renderShell({ incidentsCount: 3 });
     await screen.findByRole('main');
     expect(screen.queryByText('Открытых инцидентов: 3')).toBeNull();
-    unmount();
-    renderShell({ incidentsCount: 3 });
-    expect((await screen.findAllByText('Открытых инцидентов: 3')).length).toBeGreaterThan(0);
+  });
+
+  it('names the owner once: in the top-bar menu, not again in the sidebar', async () => {
+    renderShell({ ownerName: 'Алекс' });
+    await screen.findByRole('main');
+    expect(screen.queryByText('Владелец')).toBeNull();
+    expect(document.querySelector('aside')?.textContent).not.toContain('Алекс');
+  });
+
+  it('marks the shell while the post editor is open so phones show one bottom layer', async () => {
+    renderShell({}, '/posts/abc');
+    await screen.findByRole('main');
+    expect(document.querySelector('[data-editor]')).not.toBeNull();
+    cleanup();
+    renderShell();
+    await screen.findByRole('main');
+    expect(document.querySelector('[data-editor]')).toBeNull();
   });
 
   it('shows the DEV badge outside production', async () => {

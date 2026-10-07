@@ -37,6 +37,21 @@ describe('appearance editor', () => {
     await waitFor(() => expect(screen.queryByText(/Есть несохранённые изменения/)).toBeNull());
   });
 
+  it('offers colours as swatch radios, names the selected one and keeps «Свой цвет» at the md size', async () => {
+    server.use(getAppearance(appearance()));
+    const user = userEvent.setup();
+    renderEditor();
+    await lightGroup();
+    expect(within(groups()[0]!).getAllByRole('radio')).toHaveLength(5);
+    expect(within(groups()[0]!).getByRole('radio', { name: 'Кобальт' })).toHaveProperty('checked', true);
+    expect(screen.getByRole('button', { name: 'Свой цвет' }).getAttribute('data-size')).toBe('md');
+    await pickLight(user, /Медь/);
+    expect(within(groups()[0]!).getByRole('radio', { name: 'Медь' })).toHaveProperty('checked', true);
+    // Nothing is stored by picking: Save and Cancel stay (owner decision).
+    expect(screen.getByRole('button', { name: 'Сохранить' }).hasAttribute('disabled')).toBe(false);
+    expect(screen.getByRole('button', { name: 'Отменить изменения' })).toBeTruthy();
+  });
+
   it('keeps local edits on 409 and lets the operator reload the other version explicitly', async () => {
     server.use(getAppearance(appearance({ revision: 1 })), putConflict());
     const user = userEvent.setup();

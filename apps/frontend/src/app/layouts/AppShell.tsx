@@ -135,19 +135,16 @@ export function AppShell({ children, incidentsCount = 0, ownerName, onLogout, on
     return () => window.removeEventListener('keydown', onKey);
   }, [onOpenSearch]);
 
+  // The post editor owns the bottom edge on phones (its sticky action bar), so the tab bar steps aside there.
+  const editorOpen = /^\/posts\/[^/]+/.test(pathname);
   const primary = NAV_ITEMS.filter((item) => item.primary);
   const secondary = NAV_ITEMS.filter((item) => !item.primary);
-  const owner = ownerName?.trim() || ru.shell.ownerFallback;
   // Telegram draws its own header: the app top bar goes and its tools move into each page header.
   const miniApp = isInsideTelegram();
   const tools = miniApp ? (
     <>
-      <IconButton
-        label={ru.shell.searchPlaceholder}
-        icon="search"
-        isDisabled={!onOpenSearch}
-        {...(onOpenSearch ? { onPress: onOpenSearch } : {})}
-      />
+      {/* No disabled placeholder in the cramped Telegram header: search appears once it works. */}
+      {onOpenSearch ? <IconButton label={ru.shell.searchPlaceholder} icon="search" onPress={onOpenSearch} /> : null}
       {topBarTools}
       <OwnerMenu ownerName={ownerName} onLogout={onLogout} iconOnly />
     </>
@@ -157,6 +154,7 @@ export function AppShell({ children, incidentsCount = 0, ownerName, onLogout, on
     <div
       className={styles.shell}
       data-mini-app={miniApp || undefined}
+      data-editor={editorOpen || undefined}
       data-sidebar={collapsed ? 'collapsed' : 'expanded'}
     >
       <a
@@ -190,15 +188,6 @@ export function AppShell({ children, incidentsCount = 0, ownerName, onLogout, on
             icon={collapsed ? 'chevron-right' : 'chevron-left'}
             onPress={toggleCollapsed}
           />
-        </div>
-        <div className={styles.owner}>
-          <span className={styles.avatar} aria-hidden="true">
-            {owner.slice(0, 1).toUpperCase()}
-          </span>
-          <span className={styles.ownerText}>
-            <strong>{owner}</strong>
-            {ownerName?.trim() ? <small>{ru.shell.ownerRole}</small> : null}
-          </span>
         </div>
       </aside>
 
@@ -243,7 +232,7 @@ export function AppShell({ children, incidentsCount = 0, ownerName, onLogout, on
         >
           <Icon name="menu" size={22} />
           <span className={styles.linkLabel}>{ru.nav.more}</span>
-          {incidentsCount > 0 ? (
+          {incidentsCount > 0 && secondary.some((item) => item.badge === 'incidents') ? (
             <span className={styles.dot}>
               <VisuallyHidden>{ru.nav.incidentsBadge(incidentsCount)}</VisuallyHidden>
             </span>

@@ -7,8 +7,6 @@ import {
   Button,
   ConfirmDialog,
   ErrorState,
-  Radio,
-  RadioGroup,
   SegmentedControl,
   Skeleton,
   useMediaQuery,
@@ -38,6 +36,8 @@ const MODES: readonly SegmentOption[] = [
   { id: 'light', label: ru.theme.light, icon: 'sun' },
   { id: 'dark', label: ru.theme.dark, icon: 'moon' }
 ];
+// Three icon segments do not fit a 375 px phone; the labels alone do.
+const MODES_PLAIN: readonly SegmentOption[] = MODES.map(({ id, label }) => ({ id, label }));
 
 type Props = {
   /** Applies a value to the document without persisting it; must be a stable function. */
@@ -65,8 +65,7 @@ export function AppearanceEditor({ preview }: Props) {
   const editor = useAppearanceEditor({ preview });
   const toast = useToast();
   const screenTheme = useScreenTheme();
-  // Three segments with icons do not fit a 375 px phone: stack them as radios there instead of scrolling sideways.
-  const stackedMode = useMediaQuery('(max-width: 479px)');
+  const phone = useMediaQuery('(max-width: 479px)');
   const blocker = useBlocker({
     shouldBlockFn: () => editor.isDirty,
     enableBeforeUnload: () => editor.isDirty,
@@ -129,26 +128,13 @@ export function AppearanceEditor({ preview }: Props) {
       <section className={styles.section}>
         <h3 className={styles.sectionTitle}>{ru.appearance.modeTitle}</h3>
         <div className={styles.mode}>
-          {stackedMode ? (
-            <RadioGroup
-              label={ru.appearance.modeTitle}
-              value={value.themeMode}
-              onChange={(id) => editor.edit((current) => setThemeMode(current, id as ThemeMode))}
-            >
-              {MODES.map((mode) => (
-                <Radio key={mode.id} value={mode.id}>
-                  {mode.label}
-                </Radio>
-              ))}
-            </RadioGroup>
-          ) : (
-            <SegmentedControl
-              label={ru.appearance.modeTitle}
-              options={MODES}
-              value={value.themeMode}
-              onChange={(id) => editor.edit((current) => setThemeMode(current, id as ThemeMode))}
-            />
-          )}
+          <SegmentedControl
+            label={ru.appearance.modeTitle}
+            options={phone ? MODES_PLAIN : MODES}
+            value={value.themeMode}
+            fullWidth={phone}
+            onChange={(id) => editor.edit((current) => setThemeMode(current, id as ThemeMode))}
+          />
           <p className={styles.hint}>{ru.appearance.modeHint}</p>
         </div>
       </section>

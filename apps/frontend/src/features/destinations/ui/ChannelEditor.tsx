@@ -283,7 +283,7 @@ export function ChannelEditor({ destination, onOpenOther, onRightsKnown }: Props
             {rights.waitSeconds > 0 ? channelsCopy.failure.retryIn(rights.waitSeconds) : copy.checkRights}
           </Button>
           {changing ? null : (
-            <Button variant="ghost" onPress={() => setChanging(true)}>
+            <Button variant="secondary" icon="edit" onPress={() => setChanging(true)}>
               {copy.changeChat}
             </Button>
           )}
@@ -338,7 +338,7 @@ export function ChannelEditor({ destination, onOpenOther, onRightsKnown }: Props
               >
                 {copy.applyChat}
               </Button>
-              <Button variant="ghost" isDisabled={chatMutation.isPending} onPress={closeChange}>
+              <Button variant="secondary" isDisabled={chatMutation.isPending} onPress={closeChange}>
                 {copy.cancelChange}
               </Button>
             </div>

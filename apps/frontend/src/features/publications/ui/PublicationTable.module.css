@@ -38,12 +38,18 @@ td:has(> .title) {
   white-space: nowrap;
 }
 
-/* In a card the title wraps: a nowrap title cannot shrink inside a grid and widens the page. */
+/* On a phone the title and channel wrap (a nowrap text cannot shrink inside the row and widens the page)
+   but stop at two lines with an ellipsis; the full text stays in `title`. */
 @media (max-width: 859px) {
   .title,
   .channel {
+    display: -webkit-box;
     max-width: none;
+    overflow: hidden;
     overflow-wrap: anywhere;
     white-space: normal;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
   }
 }

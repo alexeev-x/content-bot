@@ -122,7 +122,7 @@ describe('auth guard', () => {
       // Settle the check so no request outlives the test.
       release();
     }
-    expect(await screen.findByText('Загружаем кнопку входа через Telegram…')).toBeTruthy();
+    expect(await screen.findByText('Загрузка входа…')).toBeTruthy();
   });
 
   it('restores a browser session with exactly one refresh call and shows the owner name and server appearance', async () => {
@@ -138,7 +138,7 @@ describe('auth guard', () => {
     expect(await screen.findByRole('heading', { name: 'Страница постов' })).toBeTruthy();
     expect(refreshes).toBe(1);
     expect(getAccessToken()).toBe('restored');
-    expect((await screen.findAllByText('Owner')).length).toBeGreaterThan(0);
+    expect((await screen.findAllByRole('button', { name: 'Меню владельца: Owner' })).length).toBeGreaterThan(0);
     await waitFor(() => expect(document.documentElement.dataset['accentLight']).toBe('indigo'));
     expect(document.title).toContain('ALEXEEV Studio');
   });

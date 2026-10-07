@@ -66,3 +66,23 @@ kbd,
   width: 100%;
   max-width: var(--measure-reading);
 }
+
+/* Everything that reacts to a click shows the hand cursor (owner request 07.10.2026); disabled shows that it does not. */
+a[href],
+button:not(:disabled),
+summary,
+label[for],
+[role='button']:not([aria-disabled='true']),
+[role='link'],
+[role='tab']:not([aria-disabled='true']),
+[role='menuitem']:not([aria-disabled='true']),
+[role='menuitemradio']:not([aria-disabled='true']),
+[role='option']:not([aria-disabled='true']),
+[role='radio']:not([aria-disabled='true']),
+[role='switch']:not([aria-disabled='true']) {
+  cursor: pointer;
+}
+button:disabled,
+[aria-disabled='true'] {
+  cursor: not-allowed;
+}

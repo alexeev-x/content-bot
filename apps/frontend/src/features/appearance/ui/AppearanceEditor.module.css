@@ -60,9 +60,22 @@
   color: var(--color-text-muted);
   font-size: var(--font-size-sm);
 }
-@media (max-width: 1099px) {
+@media (max-width: 719px) {
   .themes {
     grid-template-columns: minmax(0, 1fr);
+  }
+}
+/* Phone: the swatch rows and the live page already show the accent; the inert sample only adds height. */
+@media (max-width: 859px) {
+  .grid {
+    gap: var(--space-3);
+  }
+  .mode {
+    display: grid;
+    min-width: 0;
+  }
+  .stack > :not(:first-child) {
+    display: none;
   }
 }
 @media (max-width: 480px) {

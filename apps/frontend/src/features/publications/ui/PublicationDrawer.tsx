@@ -107,6 +107,7 @@ export function PublicationDrawer({
         <CancelPublicationDialog
           publication={publication}
           postTitle={title}
+          destinationTitle={destinationTitle}
           onOpenChange={(open) => setDialog(open ? 'cancel' : null)}
         />
       ) : null}

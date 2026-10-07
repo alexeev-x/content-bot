@@ -18,7 +18,7 @@ export function useBotCheck(): StatusCheck {
   const connect = useConnectBot();
   const toast = useToast();
   const name = w.title;
-  const details = createElement(BotConnection);
+  const details = createElement(BotConnection, { hideState: true });
 
   const runConnect = () =>
     connect.mutate(undefined, {

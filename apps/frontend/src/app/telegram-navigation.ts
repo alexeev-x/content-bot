@@ -1,6 +1,6 @@
-import { NAV_ITEMS } from './layouts/nav-items';
+import { NAV_ROOT_PATHS } from './layouts/nav-items';
 
-const TAB_ROOTS: ReadonlySet<string> = new Set(NAV_ITEMS.map((item) => item.to));
+const TAB_ROOTS: ReadonlySet<string> = new Set(NAV_ROOT_PATHS);
 
 const normalize = (pathname: string) => (pathname.length > 1 ? pathname.replace(/\/+$/, '') : pathname);
 

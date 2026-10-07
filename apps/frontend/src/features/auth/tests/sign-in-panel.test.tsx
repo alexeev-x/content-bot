@@ -54,18 +54,18 @@ describe('login widget', () => {
     expect(script.dataset['telegramLogin']).toBe('test_bot');
     expect(script.hasAttribute('data-auth-url')).toBe(false);
     expect(script.hasAttribute('data-onauth')).toBe(false);
-    expect(screen.getByText('Загружаем кнопку входа через Telegram…')).toBeTruthy();
+    expect(screen.getByText('Загрузка входа…')).toBeTruthy();
   });
 
-  it('keeps the loading iframe invisible in the skeleton slot and shows it once Telegram is ready', () => {
+  it('keeps the loading iframe invisible behind the visible «Загрузка входа…» text and shows it once Telegram is ready', () => {
     renderPanel();
     const host = widgetScript()!.parentElement!;
-    const placeholder = screen.getByText('Загружаем кнопку входа через Telegram…').closest('[aria-busy="true"]')!;
+    const placeholder = screen.getByText('Загрузка входа…').closest('[aria-busy="true"]')!;
     expect(placeholder.parentElement).toBe(host.parentElement);
     expect(host.hasAttribute('data-loading')).toBe(true);
     ready();
     expect(host.hasAttribute('data-loading')).toBe(false);
-    expect(screen.queryByText('Загружаем кнопку входа через Telegram…')).toBeNull();
+    expect(screen.queryByText('Загрузка входа…')).toBeNull();
   });
 
   it('posts the user object unchanged and stores the session in memory', async () => {

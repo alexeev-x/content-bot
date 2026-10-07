@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { ru } from '../../../shared/lib/ru';
-import { Banner, Button, Skeleton, VisuallyHidden } from '../../../shared/ui';
+import { Banner, Button } from '../../../shared/ui';
 import styles from './TelegramLoginWidget.module.css';
 
 const WIDGET_SRC = 'https://telegram.org/js/telegram-widget.js?22';
@@ -102,12 +102,11 @@ export function TelegramLoginWidget({ botUsername, onUser, onCancel }: Props) {
           {ru.login.widgetFailedBody}
         </Banner>
       ) : null}
-      {/* The skeleton and the loading iframe share one cell, so the button replaces it without a layout jump. */}
+      {/* The loading text and the loading iframe share one cell, so the button replaces it without a layout jump. */}
       <div className={styles.slot} hidden={state === 'failed'}>
         {state === 'loading' ? (
           <div className={styles.placeholder} aria-busy="true">
-            <Skeleton width={238} height={40} radius="var(--radius-2)" />
-            <VisuallyHidden>{ru.login.widgetLoading}</VisuallyHidden>
+            {ru.login.widgetLoading}
           </div>
         ) : null}
         {/* Owned by the widget script: React renders no children here, so it never fights the injected iframe. */}

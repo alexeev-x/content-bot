@@ -74,6 +74,7 @@ export function PublicationTable({ rows, postTitle, channel, onOpen, isLoading, 
       {
         id: 'status',
         header: copy.list.columns.status,
+        compactSlot: 'trailing',
         cell: (row) => <StatusBadge status={displayStatus(row)} />
       },
       {
@@ -113,6 +114,7 @@ export function PublicationTable({ rows, postTitle, channel, onOpen, isLoading, 
       columns={columns}
       rows={rows}
       getRowId={(row) => row.id}
+      density="compact"
       onRowAction={onOpen}
       isLoading={isLoading ?? false}
       emptyState={emptyState}

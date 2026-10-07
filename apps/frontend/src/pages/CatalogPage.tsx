@@ -12,6 +12,7 @@ import { CatalogButtons } from './CatalogButtons';
 import { CatalogDensity } from './CatalogDensity';
 import { CatalogDisplay } from './CatalogDisplay';
 import { CatalogForms } from './CatalogForms';
+import { CatalogStatus } from './CatalogStatus';
 import { CatalogOverlays } from './CatalogOverlays';
 import { PRESETS, scope, TokenPanel } from './CatalogTokens';
 import styles from './CatalogPage.module.css';
@@ -40,6 +41,7 @@ function PrimitivePanel({ theme, accent }: { theme: ColorTheme; accent: string }
           <CatalogOverlays />
           <CatalogDisplay />
           <CatalogDensity />
+          <CatalogStatus />
         </ToastProvider>
       </div>
     </section>

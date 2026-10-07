@@ -12,7 +12,7 @@ type Props = {
   tone?: BannerTone;
   title: string;
   children?: ReactNode;
-  /** A Button or link for the one recovery action. */
+  /** The one recovery action, a visible Button (secondary, size sm on desktop); sits right of the text and wraps below it on narrow screens. */
   action?: ReactNode;
   onDismiss?: () => void;
 };
@@ -25,8 +25,8 @@ export function Banner({ tone = 'info', title, children, action, onDismiss }: Pr
       <div className={styles.content}>
         <strong className={styles.title}>{title}</strong>
         {children ? <div className={styles.body}>{children}</div> : null}
-        {action ? <div className={styles.action}>{action}</div> : null}
       </div>
+      {action ? <div className={styles.action}>{action}</div> : null}
       {onDismiss ? <IconButton label={ru.ui.close} icon="x" size="sm" showTooltip={false} onPress={onDismiss} /> : null}
     </div>
   );

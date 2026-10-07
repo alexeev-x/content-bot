@@ -1,10 +1,10 @@
 import type { AccentRef, CustomPresetDto } from '@alexeev/contracts';
+import { useLayoutEffect, useRef, useState } from 'react';
+import { deriveAccent } from '../../../shared/lib/color';
 import { ru } from '../../../shared/lib/ru';
-import { Radio, RadioGroup } from '../../../shared/ui';
+import { SwatchRadio, SwatchRadioGroup } from '../../../shared/ui';
 import type { ThemeName } from '../model/appearance-value';
-import { AccentSwatch } from './AccentSwatch';
-import styles from './AccentPicker.module.css';
-import type { AccentSource } from './ThemeScope';
+import { ThemeScope } from './ThemeScope';
 
 const PRESET_IDS = ['cobalt', 'indigo', 'copper', 'orchid', 'mono'] as const;
 
@@ -25,39 +25,68 @@ type Props = {
   onChange: (ref: AccentRef) => void;
 };
 
-/** One radio card per preset (and per custom colour), each with a swatch drawn in this theme. */
+/**
+ * One row of colour swatches per theme (presets, then custom colours). Preset colours live only in tokens.css, so a
+ * hidden probe scoped to this theme reads the resolved accent; custom colours are derived with the same function
+ * the live theme uses.
+ */
 export function AccentPicker({ theme, label, value, customPresets, onChange }: Props) {
-  const source = (preset: CustomPresetDto): AccentSource => ({ kind: 'custom', baseColor: preset.baseColor });
+  const probes = useRef<HTMLSpanElement>(null);
+  const [presetColors, setPresetColors] = useState<Readonly<Record<string, string>>>({});
+
+  useLayoutEffect(() => {
+    const root = probes.current;
+    if (!root) return;
+    const next: Record<string, string> = {};
+    for (const probe of root.querySelectorAll<HTMLElement>('[data-preset]')) {
+      const scoped = probe.firstElementChild;
+      if (scoped && probe.dataset.preset) {
+        next[probe.dataset.preset] = getComputedStyle(scoped).getPropertyValue('--color-accent').trim();
+      }
+    }
+    setPresetColors(next);
+  }, [theme]);
+
+  const selected =
+    value.kind === 'preset'
+      ? ru.appearance.presets[value.id as (typeof PRESET_IDS)[number]]
+      : customPresets.find((preset) => preset.id === value.id)?.name;
+
   return (
-    <RadioGroup
-      label={label}
-      variant="card"
-      value={keyOf(value)}
-      onChange={(key) => {
-        const ref = parseKey(key);
-        if (ref) onChange(ref);
-      }}
-    >
-      {PRESET_IDS.map((id) => (
-        <Radio
-          key={id}
-          value={`preset:${id}`}
-          {...(id === 'cobalt' ? { description: ru.appearance.defaultPreset } : {})}
-        >
-          <span className={styles.option}>
-            <AccentSwatch theme={theme} accent={{ kind: 'preset', id }} />
-            {ru.appearance.presets[id]}
+    <>
+      <SwatchRadioGroup
+        label={label}
+        {...(selected ? { description: selected } : {})}
+        value={keyOf(value)}
+        onChange={(key) => {
+          const ref = parseKey(key);
+          if (ref) onChange(ref);
+        }}
+      >
+        {PRESET_IDS.map((id) => (
+          <SwatchRadio
+            key={id}
+            value={`preset:${id}`}
+            name={ru.appearance.presets[id]}
+            color={presetColors[id] ?? 'transparent'}
+          />
+        ))}
+        {customPresets.map((preset) => (
+          <SwatchRadio
+            key={preset.id}
+            value={`custom:${preset.id}`}
+            name={preset.name}
+            color={deriveAccent(preset.baseColor, theme).accent}
+          />
+        ))}
+      </SwatchRadioGroup>
+      <span ref={probes} hidden aria-hidden="true">
+        {PRESET_IDS.map((id) => (
+          <span key={id} data-preset={id}>
+            <ThemeScope as="span" theme={theme} accent={{ kind: 'preset', id }} />
           </span>
-        </Radio>
-      ))}
-      {customPresets.map((preset) => (
-        <Radio key={preset.id} value={`custom:${preset.id}`} description={ru.appearance.customTag}>
-          <span className={styles.option}>
-            <AccentSwatch theme={theme} accent={source(preset)} />
-            {preset.name}
-          </span>
-        </Radio>
-      ))}
-    </RadioGroup>
+        ))}
+      </span>
+    </>
   );
 }

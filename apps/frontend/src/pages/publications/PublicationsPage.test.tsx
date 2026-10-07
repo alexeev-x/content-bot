@@ -18,6 +18,7 @@ import { ToastProvider } from '../../shared/ui';
 import { accessToken, destination, errorBody, ids, post, publication } from '../../test/fixtures';
 import { server, setupMswServer } from '../../test/msw';
 import { createTestQueryClient } from '../../test/query-wrapper';
+import { clearViewport, setViewport } from '../../test/viewport';
 import { PublicationsPage } from './PublicationsPage';
 import type { PublicationsSearch } from './search';
 
@@ -29,6 +30,7 @@ beforeEach(() => {
 afterEach(() => {
   cleanup();
   restoreVisibility();
+  clearViewport();
 });
 
 const OTHER_POST = '11111111-1111-4111-8111-222222222222';
@@ -172,6 +174,28 @@ describe('PublicationsPage list', () => {
     await waitFor(() => expect(urls.at(-1)?.searchParams.get('status')).toBeNull());
     expect(urls.at(-1)?.searchParams.get('destinationId')).toBeNull();
     expect(screen.queryByRole('button', { name: 'Сбросить фильтры' })).toBeNull();
+  });
+
+  it('on a phone keeps the filters in a sheet behind a counted button and lists compact rows', async () => {
+    setViewport(375);
+    server.use(
+      http.get('*/api/v1/destinations', () => HttpResponse.json({ items: [destination()], nextCursor: null }))
+    );
+    const urls = serveList(() => ({ items: [rows.scheduled] }));
+    servePosts();
+    const { user } = await renderPage();
+    const list = await screen.findByRole('list', { name: 'Список публикаций' });
+    expect(list.parentElement?.getAttribute('data-density')).toBe('compact');
+    expect(screen.queryByRole('button', { name: /^Статус/ })).toBeNull();
+
+    await user.click(screen.getByRole('button', { name: 'Фильтры' }));
+    const sheet = await screen.findByRole('dialog', { name: 'Фильтры' });
+    await user.click(within(sheet).getByRole('button', { name: /Статус/ }));
+    await user.click(await screen.findByRole('option', { name: 'Ошибка' }));
+    await waitFor(() => expect(urls.at(-1)?.searchParams.get('status')).toBe('failed'));
+    await user.click(within(sheet).getByRole('button', { name: 'Готово' }));
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Фильтры' })).toBeNull());
+    expect(screen.getByRole('button', { name: 'Фильтры (1)' })).toBeTruthy();
   });
 
   it('pages with the opaque cursor and returns to the start', async () => {

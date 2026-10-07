@@ -23,7 +23,8 @@
   --font-size-sm: 0.875rem;
   --font-size-md: 0.9375rem;
   --font-size-lg: 1.125rem;
-  --font-size-xl: clamp(1.5rem, 4vw, 1.75rem);
+  /* Page title: 24 px on desktop, 18 px under the touch/narrow query below. */
+  --font-size-xl: 1.5rem;
   --font-size-display: 2.125rem;
   --font-weight-regular: 400;
   --font-weight-medium: 550;
@@ -53,7 +54,10 @@
   /* Fine pointer (desktop mouse): compact work-tool sizes. Touch and narrow screens override below. */
   --size-control: 36px;
   --size-control-sm: 30px;
-  --size-row: 40px;
+  /* Buttons: md for toolbars, footers and dialogs; sm inside rows and popovers. A button beside a field uses the field height. */
+  --size-button: 32px;
+  --size-button-sm: 28px;
+  --size-row: 48px;
   --size-topbar: 48px;
   /* Reading width a page opts into with the .reading-width class. */
   --measure-reading: 760px;
@@ -81,6 +85,9 @@
   [data-theme] {
     --size-control: var(--size-target);
     --size-control-sm: var(--size-target);
+    --size-button: var(--size-target);
+    --size-button-sm: var(--size-target);
+    --font-size-xl: 1.125rem;
     --size-row: 52px;
     --size-topbar: 56px;
   }

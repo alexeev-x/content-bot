@@ -5,11 +5,11 @@ import { Icon, type IconName } from './Icon';
 import { Spinner } from './Spinner';
 
 export type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger';
-export type ButtonSize = 'sm' | 'md';
+export type ButtonSize = 'sm' | 'md' | 'field';
 
 type Props = Omit<AriaButtonProps, 'children' | 'className' | 'isPending'> & {
   variant?: ButtonVariant;
-  /** `md` is 44 px; `sm` is 36 px on a precise pointer and 44 px on touch and narrow screens. */
+  /** `md` 32 px (toolbars, form footers, dialogs); `sm` 28 px (inside rows, popovers, banners); `field` = field height (36 px) beside an input. All are 44 px on touch and narrow screens. */
   size?: ButtonSize;
   /** Keeps the label, shows a spinner and ignores presses (aria-disabled, so focus is not lost). */
   isLoading?: boolean;

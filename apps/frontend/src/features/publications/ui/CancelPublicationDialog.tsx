@@ -1,22 +1,24 @@
 import type { PublicationDto } from '@alexeev/contracts';
 import { useQueryClient } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
-import { Button, Dialog, useToast } from '../../../shared/ui';
+import { Button, Dialog, Disclosure, useToast } from '../../../shared/ui';
 import { publicationKeys, useCancelPublication } from '../api/publications-queries';
-import { browserTimeZone, formatShort } from '../model/format-time';
+import { browserTimeZone, formatShort, formatUtc } from '../model/format-time';
 import { publicationActions } from '../model/publication-actions';
 import { describeActionError, isTerminalForAction, type ActionError } from '../model/publication-errors';
 import { ActionErrorBanner } from './ActionErrorBanner';
 import { copy } from './copy';
+import styles from './CancelPublicationDialog.module.css';
 
 type Props = {
   publication: PublicationDto;
   postTitle: string;
+  destinationTitle: string | undefined;
   onOpenChange: (open: boolean) => void;
 };
 
 /** Destructive confirmation (alertdialog): names the post and the time, and the safe answer takes the initial focus. */
-export function CancelPublicationDialog({ publication, postTitle, onOpenChange }: Props) {
+export function CancelPublicationDialog({ publication, postTitle, destinationTitle, onOpenChange }: Props) {
   const zone = useMemo(() => browserTimeZone(), []);
   const toast = useToast();
   const queryClient = useQueryClient();
@@ -51,7 +53,11 @@ export function CancelPublicationDialog({ publication, postTitle, onOpenChange }
       isOpen
       onOpenChange={onOpenChange}
       role="alertdialog"
-      title={copy.cancelDialog.title(postTitle, formatShort(publication.scheduledAt, zone))}
+      title={copy.cancelDialog.title(
+        postTitle,
+        destinationTitle ?? copy.list.unknownChannel,
+        formatShort(publication.scheduledAt, zone)
+      )}
       description={copy.cancelDialog.description}
       footer={
         <>
@@ -67,6 +73,16 @@ export function CancelPublicationDialog({ publication, postTitle, onOpenChange }
       }
     >
       {shownFailure ? <ActionErrorBanner error={shownFailure} /> : null}
+      <Disclosure id="cancel-details" title={copy.cancelDialog.details}>
+        <dl className={styles.facts}>
+          <dt>{copy.drawer.publicationId}</dt>
+          <dd className="mono">{publication.id}</dd>
+          <dt>{copy.drawer.utc}</dt>
+          <dd className="mono">{formatUtc(publication.scheduledAt)}</dd>
+          <dt>{copy.cancelDialog.revision}</dt>
+          <dd className="mono">{publication.revision}</dd>
+        </dl>
+      </Disclosure>
     </Dialog>
   );
 }

@@ -130,6 +130,7 @@ function AddChannelFlow({ isOpen, onOpenChange, onCreated, onOpenExisting }: Pro
         </div>
         <Button
           variant="secondary"
+          size="field"
           className={styles.checkButton}
           isLoading={check.isChecking}
           isDisabled={check.waitSeconds > 0}

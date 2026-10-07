@@ -120,8 +120,13 @@ describe('PublicationDrawer cancel', () => {
     );
     const { drawer, user } = await openDrawer();
     await user.click(await within(drawer).findByRole('button', { name: 'Отменить' }));
-    const confirm = await screen.findByRole('alertdialog', { name: /Отменить публикацию «Герой дня» на/ });
+    const confirm = await screen.findByRole('alertdialog', { name: /Отменить публикацию «Герой дня» в «[^»]+» на/ });
     expect(document.activeElement).toBe(within(confirm).getByRole('button', { name: 'Не отменять' }));
+    // Technical data is folded, not first-level.
+    const details = within(confirm).getByRole('button', { name: 'Подробности' });
+    expect(details.getAttribute('aria-expanded')).toBe('false');
+    await user.click(details);
+    expect(within(confirm).getByText('Ревизия')).toBeTruthy();
     await user.click(within(confirm).getByRole('button', { name: 'Отменить публикацию' }));
 
     await waitFor(() => expect(body).toEqual({ revision: 2 }));

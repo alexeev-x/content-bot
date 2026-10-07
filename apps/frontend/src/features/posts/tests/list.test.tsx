@@ -9,6 +9,7 @@ import { clearSession, setSession } from '../../../shared/api/session';
 import { accessToken, ids, post } from '../../../test/fixtures';
 import { failWith, server, setupMswServer } from '../../../test/msw';
 import { createTestQueryClient } from '../../../test/query-wrapper';
+import { clearViewport, setViewport } from '../../../test/viewport';
 import { PostsList } from '../index';
 import { formatRelative } from '../model/format-time';
 
@@ -17,7 +18,10 @@ beforeEach(() => {
   clearSession();
   setSession(accessToken());
 });
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  clearViewport();
+});
 
 const onOpen = vi.fn();
 const onCreate = vi.fn();
@@ -63,6 +67,20 @@ describe('posts list states', () => {
     expect(within(table).getByText('Черновик')).toBeTruthy();
     expect(within(table).getByText('ред. 4')).toBeTruthy();
     expect(table.querySelector('time[datetime][title]')).toBeTruthy();
+  });
+
+  it('on a phone draws compact rows with the status beside the title', async () => {
+    setViewport(375);
+    server.use(
+      http.get('*/api/v1/posts', () =>
+        HttpResponse.json({ items: [post({ title: 'Герой дня', revision: 4 })], nextCursor: null })
+      )
+    );
+    render(<Harness />);
+    await screen.findByText('Герой дня');
+    const list = screen.getByRole('list', { name: 'Список постов' });
+    expect(list.parentElement?.getAttribute('data-density')).toBe('compact');
+    expect(within(list).getByText('Черновик')).toBeTruthy();
   });
 
   it('opens a post from its row with the keyboard', async () => {

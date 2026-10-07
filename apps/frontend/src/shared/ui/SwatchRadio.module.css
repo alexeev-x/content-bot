@@ -1,0 +1,74 @@
+.group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  --swatch: 28px;
+  --swatch-hit: 32px;
+}
+@media (pointer: coarse), (max-width: 859px) {
+  .group {
+    --swatch-hit: var(--size-target);
+  }
+}
+.label {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+}
+.description {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+}
+.options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0;
+}
+/* The radio box is the hit area (32 px, 44 px on touch); the visible disc stays 28 px. */
+.swatch {
+  display: grid;
+  place-items: center;
+  width: var(--swatch-hit);
+  height: var(--swatch-hit);
+  border-radius: 50%;
+  cursor: pointer;
+  outline: none;
+}
+.disc {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: var(--swatch);
+  height: var(--swatch);
+  border-radius: 50%;
+  /* A hairline keeps pale swatches visible on a light surface and dark ones on a dark surface. */
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-text) 25%, transparent);
+  transition: transform var(--motion-fast);
+}
+.mark {
+  display: none;
+  width: 16px;
+  height: 16px;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--color-surface-1);
+  color: var(--color-text);
+}
+.swatch[data-hovered] .disc {
+  transform: scale(1.08);
+}
+.swatch[data-selected] .disc {
+  box-shadow:
+    0 0 0 2px var(--color-surface-1),
+    0 0 0 4px var(--color-text);
+}
+.swatch[data-selected] .mark {
+  display: grid;
+}
+.swatch[data-focus-visible] .disc {
+  outline: var(--focus-ring-width) solid var(--color-focus-ring);
+  outline-offset: 5px;
+}
+.swatch[data-disabled] {
+  opacity: 0.4;
+  cursor: not-allowed;
+}

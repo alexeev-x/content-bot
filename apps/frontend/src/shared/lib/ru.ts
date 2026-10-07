@@ -25,7 +25,6 @@ export const ru = {
     themeMenu: 'Тема оформления',
     envBadge: 'DEV',
     envLabel: 'Среда разработки: действия не затрагивают боевой канал',
-    ownerRole: 'Владелец',
     ownerFallback: 'Владелец'
   },
   ui: {
@@ -105,7 +104,7 @@ export const ru = {
     title: 'Вход',
     description: 'Доступ к админке только у владельца. Войдите через Telegram.',
     note: 'Вход запоминается на этом устройстве. Выйти можно в меню владельца.',
-    widgetLoading: 'Загружаем кнопку входа через Telegram…',
+    widgetLoading: 'Загрузка входа…',
     widgetFailedTitle: 'Не удалось загрузить вход через Telegram',
     widgetFailedBody:
       'Скрипт или окно Telegram не загрузились. Отключите блокировщик рекламы или VPN для этой страницы и повторите.',
@@ -239,10 +238,8 @@ export const ru = {
   notFound: { description: 'Такого адреса нет в админке.', back: 'К обзору' },
   systemStatus: {
     title: 'Состояние системы',
-    allOk: 'Всё работает',
-    checkedAt: (time: string) => `Проверено ${time}`,
+    allOk: 'Сервис и бот работают',
     attention: (count: number) => `Требует внимания: ${count}`,
-    sort: 'Разобраться',
     checkFailed: 'Не удалось проверить',
     serviceFailed: 'Не удалось проверить сервис',
     loading: 'Проверяем состояние системы…'

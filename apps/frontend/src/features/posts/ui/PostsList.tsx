@@ -58,7 +58,12 @@ export function PostsList({ status, query, onStatusChange, onQueryChange, onOpen
         </span>
       )
     },
-    { id: 'status', header: copy.columns.status, cell: (post) => <StatusBadge status={post.status} /> },
+    {
+      id: 'status',
+      header: copy.columns.status,
+      compactSlot: 'trailing',
+      cell: (post) => <StatusBadge status={post.status} />
+    },
     {
       id: 'updated',
       header: copy.columns.updated,
@@ -130,6 +135,7 @@ export function PostsList({ status, query, onStatusChange, onQueryChange, onOpen
           rows={rows}
           getRowId={(post) => post.id}
           isLoading={result.isPending}
+          density="compact"
           onRowAction={onOpen}
         />
       )}

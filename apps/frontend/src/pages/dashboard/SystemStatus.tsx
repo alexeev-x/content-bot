@@ -1,10 +1,10 @@
-import { useState, type ReactNode } from 'react';
+import { useState } from 'react';
 import { useBotCheck } from '../../features/bot';
 import { useServiceChecks } from '../../features/system-health';
 import { ru } from '../../shared/lib/ru';
-import type { CheckTone, StatusCheck } from '../../shared/lib/status-check';
+import type { StatusCheck } from '../../shared/lib/status-check';
 import { isInsideTelegram } from '../../shared/telegram/web-app';
-import { Button, Drawer, Icon, Popover, Skeleton, useMediaQuery, VisuallyHidden } from '../../shared/ui';
+import { Button, Drawer, Popover, Skeleton, StatusChip, useMediaQuery, VisuallyHidden } from '../../shared/ui';
 import styles from './SystemStatus.module.css';
 
 const timeFormatter = new Intl.DateTimeFormat('ru-RU', { timeStyle: 'short' });
@@ -36,7 +36,7 @@ function Details({ checks }: { checks: readonly StatusCheck[] }) {
   );
 }
 
-/** One strip instead of cards: a quiet line when healthy, one row with the action on a problem, details on demand. */
+/** A status chip for the page header: the overall state and check time; details on demand, the single fix beside it. */
 export function SystemStatus() {
   const service = useServiceChecks();
   const bot = useBotCheck();
@@ -44,104 +44,62 @@ export function SystemStatus() {
   const wide = useMediaQuery('(min-width: 768px)');
   // Telegram's own chrome and phones use the bottom sheet; a popover would hang off the screen edge there.
   const sheet = !wide || isInsideTelegram();
-  const [sheetOpen, setSheetOpen] = useState(false);
+  const [open, setOpen] = useState(false);
 
   const problems = checks.filter((check) => check.tone === 'warning' || check.tone === 'danger');
   const loading = checks.some((check) => check.tone === 'loading');
-  const tone: CheckTone = problems.some((check) => check.tone === 'danger')
-    ? 'danger'
-    : problems.length > 0
-      ? 'warning'
-      : 'ok';
   const only = problems.length === 1 ? problems[0] : undefined;
-  const details = <Details checks={checks} />;
+  const tone = problems.some((check) => check.tone === 'danger') ? 'danger' : problems.length > 0 ? 'warning' : 'ok';
+  const time = service.checkedAt ? timeFormatter.format(new Date(service.checkedAt)) : undefined;
 
-  // The element that opens the details: a popover trigger on desktop, a sheet opener on phones.
-  const opener = (content: ReactNode, className: string | undefined) => {
-    const button = (
-      <Button
-        variant="ghost"
-        size="sm"
-        {...(className ? { className } : {})}
-        {...(sheet
-          ? { 'aria-haspopup': 'dialog' as const, 'aria-expanded': sheetOpen, onPress: () => setSheetOpen(true) }
-          : {})}
-      >
-        {content}
-      </Button>
-    );
-    return sheet ? (
-      button
-    ) : (
-      <Popover trigger={button} label={ru.systemStatus.title} placement="bottom start">
-        <div className={styles.popover}>{details}</div>
-      </Popover>
-    );
-  };
+  const label = only
+    ? (only.headline ?? only.summary)
+    : problems.length > 1
+      ? ru.systemStatus.attention(problems.length)
+      : ru.systemStatus.allOk;
 
-  let body: ReactNode;
-  let announcement = '';
   if (problems.length === 0 && loading) {
-    body = (
-      <div className={styles.strip} data-tone="loading" aria-busy="true">
-        <Skeleton height={20} width={160} />
+    return (
+      <div className={styles.root} aria-busy="true">
+        <Skeleton height={28} width={200} radius="var(--radius-pill)" />
         <VisuallyHidden>{ru.systemStatus.loading}</VisuallyHidden>
-      </div>
-    );
-  } else if (problems.length === 0) {
-    announcement = ru.systemStatus.allOk;
-    const checkedAt = service.checkedAt ? timeFormatter.format(new Date(service.checkedAt)) : undefined;
-    body = (
-      <div className={styles.strip} data-tone="ok">
-        {opener(
-          <>
-            <span className={styles.dot} data-tone="ok" aria-hidden="true" />
-            <span className={styles.text}>{ru.systemStatus.allOk}</span>
-          </>,
-          styles.line
-        )}
-        {wide && checkedAt ? <span className={styles.checked}>{ru.systemStatus.checkedAt(checkedAt)}</span> : null}
-      </div>
-    );
-  } else if (only) {
-    const headline = only.headline ?? only.summary;
-    announcement = headline;
-    body = (
-      <div className={styles.strip} data-tone={tone}>
-        {opener(
-          <>
-            <Icon name="alert" size={18} className={styles.icon} />
-            <span className={styles.text}>{headline}</span>
-          </>,
-          styles.line
-        )}
-        {only.action ? (
-          <Button size="sm" isLoading={only.action.isLoading ?? false} onPress={only.action.onPress}>
-            {only.action.label}
-          </Button>
-        ) : null}
-      </div>
-    );
-  } else {
-    const headline = ru.systemStatus.attention(problems.length);
-    announcement = headline;
-    body = (
-      <div className={styles.strip} data-tone={tone}>
-        <Icon name="alert" size={18} className={styles.icon} />
-        <span className={styles.text}>{headline}</span>
-        {opener(ru.systemStatus.sort, styles.sort)}
       </div>
     );
   }
 
+  const chipProps = {
+    tone,
+    label,
+    ...(time ? { time } : {}),
+    'aria-label': time ? `${label}, ${time}` : label
+  } as const;
+  const details = <Details checks={checks} />;
+
   return (
-    <section aria-label={ru.systemStatus.title}>
-      {body}
+    <section className={styles.root} aria-label={ru.systemStatus.title}>
+      {sheet ? (
+        <StatusChip {...chipProps} aria-haspopup="dialog" aria-expanded={open} onPress={() => setOpen(true)} />
+      ) : (
+        <Popover
+          trigger={<StatusChip {...chipProps} />}
+          label={ru.systemStatus.title}
+          placement="bottom end"
+          isOpen={open}
+          onOpenChange={setOpen}
+        >
+          <div className={styles.popover}>{details}</div>
+        </Popover>
+      )}
+      {only?.action ? (
+        <Button size="sm" isLoading={only.action.isLoading ?? false} onPress={only.action.onPress}>
+          {only.action.label}
+        </Button>
+      ) : null}
       <VisuallyHidden>
-        <output>{announcement}</output>
+        <output>{label}</output>
       </VisuallyHidden>
       {sheet ? (
-        <Drawer variant="bottom" title={ru.systemStatus.title} isOpen={sheetOpen} onOpenChange={setSheetOpen}>
+        <Drawer variant="bottom" title={ru.systemStatus.title} isOpen={open} onOpenChange={setOpen}>
           {details}
         </Drawer>
       ) : null}

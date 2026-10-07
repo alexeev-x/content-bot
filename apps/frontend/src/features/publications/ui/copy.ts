@@ -17,7 +17,10 @@ export const copy = {
     channel: 'Канал',
     allStatuses: 'Все статусы',
     allChannels: 'Все каналы',
-    reset: 'Сбросить фильтры'
+    reset: 'Сбросить фильтры',
+    open: (count: number) => (count > 0 ? `Фильтры (${count})` : 'Фильтры'),
+    sheetTitle: 'Фильтры',
+    done: 'Готово'
   },
   pagination: {
     label: 'Страницы списка',
@@ -231,7 +234,9 @@ export const copy = {
     toastBody: (when: string) => `Новое время: ${when}.`
   },
   cancelDialog: {
-    title: (post: string, when: string) => `Отменить публикацию «${post}» на ${when}?`,
+    title: (post: string, channel: string, when: string) => `Отменить публикацию «${post}» в «${channel}» на ${when}?`,
+    details: 'Подробности',
+    revision: 'Ревизия',
     description:
       'Сообщение не будет отправлено. Это действие нельзя отменить: чтобы опубликовать пост снова, создайте новую публикацию.',
     confirm: 'Отменить публикацию',

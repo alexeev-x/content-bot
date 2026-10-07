@@ -4,7 +4,7 @@
   min-height: 100dvh;
   padding: max(var(--space-4), env(safe-area-inset-top), var(--tg-content-safe-area-inset-top, 0px)) var(--space-4)
     max(var(--space-4), env(safe-area-inset-bottom), var(--tg-content-safe-area-inset-bottom, 0px));
-  background: radial-gradient(60rem 30rem at 50% -10%, var(--color-accent-soft), transparent 70%), var(--color-bg);
+  background: var(--color-bg);
 }
 .panel {
   display: grid;
@@ -26,7 +26,6 @@
   background: var(--color-accent);
   color: var(--color-on-accent);
   font-weight: 700;
-  box-shadow: 0 4px 14px var(--color-accent-glow);
 }
 .brandText {
   display: grid;

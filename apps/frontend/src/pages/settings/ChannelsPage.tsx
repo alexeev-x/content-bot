@@ -21,7 +21,7 @@ export function ChannelsPage({ selectedId, onSelect }: Props) {
   return (
     <>
       <div className={styles.toolbar}>
-        <Button icon="plus" onPress={() => setAdding(true)}>
+        <Button variant="secondary" icon="plus" onPress={() => setAdding(true)}>
           {channelsCopy.add}
         </Button>
       </div>

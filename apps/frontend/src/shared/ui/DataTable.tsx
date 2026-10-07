@@ -27,6 +27,8 @@ export type DataColumn<T> = {
   isRowHeader?: boolean;
   allowsSorting?: boolean;
   align?: 'start' | 'end';
+  /** `density="compact"` on narrow screens: `trailing` puts the cell (a status) at the right of the title; the other columns form one meta line. */
+  compactSlot?: 'trailing';
 };
 
 export type RowSelection = 'all' | ReadonlySet<string>;
@@ -47,6 +49,8 @@ type Props<T> = {
   isLoading?: boolean;
   /** Shown instead of the rows when `rows` is empty; use EmptyState. */
   emptyState?: ReactNode;
+  /** Narrow screens only. `compact` draws a list row (title, one meta line, optional trailing status, divider) instead of a card with label: value pairs; wide screens are unchanged. */
+  density?: 'default' | 'compact';
 };
 
 const SKELETON_ROWS = 5;
@@ -143,7 +147,11 @@ function Grid<T>({
                 </Row>
               ))
             : rows.map((row) => (
-                <Row key={getRowId(row)} id={getRowId(row)} className={styles.row}>
+                <Row
+                  key={getRowId(row)}
+                  id={getRowId(row)}
+                  className={onRowAction ? `${styles.row} ${styles.actionRow}` : styles.row}
+                >
                   {selectionMode === 'multiple' ? (
                     <Cell className={styles.selectCell}>
                       <Checkbox slot="selection" />
@@ -174,10 +182,13 @@ function CardList<T>({
   onRowAction,
   isLoading,
   emptyState,
+  density = 'default',
   ...rest
 }: Props<T>) {
+  const compact = density === 'compact';
   const titleColumn = columns.find((column) => column.isRowHeader) ?? columns[0];
-  const detailColumns = columns.filter((column) => column !== titleColumn);
+  const trailingColumn = compact ? columns.find((column) => column.compactSlot === 'trailing') : undefined;
+  const detailColumns = columns.filter((column) => column !== titleColumn && column !== trailingColumn);
   const sortable = columns.filter((column) => column.allowsSorting);
   const sortOptions = sortable.flatMap((column) => [
     { id: `${column.id}:ascending`, label: `${column.header}, ${ru.ui.sortAsc}` },
@@ -192,7 +203,7 @@ function CardList<T>({
   };
 
   return (
-    <div className={styles.cards} aria-busy={isLoading || undefined}>
+    <div className={styles.cards} data-density={density} aria-busy={isLoading || undefined}>
       {sortable.length > 0 && sort && onSortChange ? (
         <Select
           label={ru.ui.sortBy}
@@ -209,7 +220,7 @@ function CardList<T>({
           {Array.from({ length: 3 }, (_, index) => (
             <li key={index} className={styles.card}>
               <Skeleton height={18} width="60%" />
-              <Skeleton lines={2} height={14} />
+              {compact ? <Skeleton height={14} width="40%" /> : <Skeleton lines={2} height={14} />}
             </li>
           ))}
         </ul>
@@ -237,6 +248,7 @@ function CardList<T>({
                   ) : (
                     <div className={styles.cardTitle}>{title}</div>
                   )}
+                  {trailingColumn ? <div className={styles.trailing}>{trailingColumn.cell(row)}</div> : null}
                 </div>
                 <dl className={styles.details}>
                   {detailColumns.map((column) => (

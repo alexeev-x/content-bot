@@ -102,11 +102,9 @@
   .panes {
     grid-template-columns: minmax(0, 1fr);
   }
-  /* Sits above the bottom tab bar. */
+  /* The shell hides its tab bar while the editor is open, so this is the only bottom layer. */
   .actionBar {
-    bottom: calc(
-      var(--size-nav) + var(--space-3) + max(env(safe-area-inset-bottom), var(--tg-content-safe-area-inset-bottom, 0px))
-    );
+    bottom: max(var(--space-3), env(safe-area-inset-bottom), var(--tg-content-safe-area-inset-bottom, 0px));
   }
   .actionBar > button {
     flex: 1 1 0;

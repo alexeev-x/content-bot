@@ -12,7 +12,8 @@ import styles from './BotConnection.module.css';
 
 const copy = botCopy;
 
-export function BotConnection() {
+/** `hideState`: the host already prints the state (the dashboard status list), so it is shown once. */
+export function BotConnection({ hideState = false }: { hideState?: boolean }) {
   const query = useQuery(botStatusQueryOptions());
   const connect = useConnectBot();
   const toast = useToast();
@@ -57,10 +58,12 @@ export function BotConnection() {
 
   return (
     <div className={styles.stack}>
-      <div className={styles.head}>
-        <StatusBadge status={BADGE[state]} />
-        <p className={styles.headline}>{copy.state[state]}</p>
-      </div>
+      {hideState ? null : (
+        <div className={styles.head}>
+          <StatusBadge status={BADGE[state]} />
+          <p className={styles.headline}>{copy.state[state]}</p>
+        </div>
+      )}
 
       {notConfigured ? (
         <>

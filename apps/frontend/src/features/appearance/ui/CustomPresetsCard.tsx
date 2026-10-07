@@ -26,13 +26,7 @@ export function CustomPresetsCard({ value, onAdd, onUpdate, onRemove }: Props) {
     <section className={styles.section}>
       <header className={styles.header}>
         <h3 className={styles.title}>{ru.appearance.customTitle}</h3>
-        <Button
-          size="sm"
-          variant="secondary"
-          icon="plus"
-          isDisabled={atLimit}
-          onPress={() => setDialog({ kind: 'create' })}
-        >
+        <Button variant="secondary" icon="plus" isDisabled={atLimit} onPress={() => setDialog({ kind: 'create' })}>
           {ru.appearance.addColor}
         </Button>
       </header>

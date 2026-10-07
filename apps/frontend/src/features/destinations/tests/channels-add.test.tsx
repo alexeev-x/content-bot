@@ -196,11 +196,27 @@ describe('add channel', () => {
     expect(saveButton(dialog).hasAttribute('disabled')).toBe(false);
   });
 
+  it('keeps «Добавить канал» secondary and md when the list is not empty, and the check button field-sized', async () => {
+    server.use(
+      http.get('*/api/v1/destinations', () => HttpResponse.json({ items: [destination()], nextCursor: null }))
+    );
+    const { user } = renderChannels();
+    await screen.findByRole('list', { name: 'Список каналов' });
+    const add = screen.getByRole('button', { name: 'Добавить канал' });
+    expect(add.getAttribute('data-variant')).toBe('secondary');
+    expect(add.getAttribute('data-size')).toBe('md');
+    await user.click(add);
+    const dialog = await screen.findByRole('dialog', { name: 'Добавить канал' });
+    expect(within(dialog).getByRole('button', { name: 'Проверить' }).getAttribute('data-size')).toBe('field');
+  });
+
   it('shows the empty state with a call to action when there are no channels', async () => {
     server.use(http.get('*/api/v1/destinations', () => HttpResponse.json({ items: [], nextCursor: null })));
     const { user } = renderChannels();
     expect(await screen.findByText('Каналов пока нет')).toBeTruthy();
     const buttons = screen.getAllByRole('button', { name: 'Добавить канал' });
+    // The page toolbar is secondary; the only primary «Добавить канал» is the empty state's call to action.
+    expect(buttons.map((button) => button.getAttribute('data-variant'))).toEqual(['secondary', 'primary']);
     await user.click(buttons[buttons.length - 1]!);
     expect(await screen.findByRole('dialog', { name: 'Добавить канал' })).toBeTruthy();
   });

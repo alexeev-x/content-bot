@@ -1,7 +1,8 @@
+import { useState } from 'react';
 import { publicationStatusSchema, type DestinationDto, type PublicationStatus } from '@alexeev/contracts';
 import { publicationCopy } from '../../features/publications';
 import { ru } from '../../shared/lib/ru';
-import { Button, Select } from '../../shared/ui';
+import { Button, Drawer, Select, useMediaQuery } from '../../shared/ui';
 import styles from './PublicationsPage.module.css';
 
 const ALL = 'all';
@@ -28,9 +29,13 @@ export function PublicationsFilters({
   onReset
 }: Props) {
   const copy = publicationCopy.filters;
-  const hasFilters = status !== undefined || channel !== undefined;
-  return (
-    <div className={styles.filters}>
+  const narrow = useMediaQuery('(max-width: 859px)');
+  const [open, setOpen] = useState(false);
+  const activeCount = (status !== undefined ? 1 : 0) + (channel !== undefined ? 1 : 0);
+  const hasFilters = activeCount > 0;
+
+  const fields = (
+    <>
       <Select
         label={copy.status}
         value={status ?? ALL}
@@ -49,6 +54,39 @@ export function PublicationsFilters({
         ]}
         onChange={(id) => onChannelChange(id === ALL ? undefined : id)}
       />
+    </>
+  );
+
+  // Phones: two stacked selects would cost ~150 px before the first row, so they live in a bottom sheet.
+  if (narrow) {
+    return (
+      <>
+        <div className={styles.filterBar}>
+          <Button variant="secondary" icon="settings" onPress={() => setOpen(true)}>
+            {copy.open(activeCount)}
+          </Button>
+          {hasFilters ? (
+            <Button variant="ghost" icon="x" onPress={onReset}>
+              {copy.reset}
+            </Button>
+          ) : null}
+        </div>
+        <Drawer
+          variant="bottom"
+          title={copy.sheetTitle}
+          isOpen={open}
+          onOpenChange={setOpen}
+          footer={<Button onPress={() => setOpen(false)}>{copy.done}</Button>}
+        >
+          <div className={styles.sheetFields}>{fields}</div>
+        </Drawer>
+      </>
+    );
+  }
+
+  return (
+    <div className={styles.filters}>
+      {fields}
       {hasFilters ? (
         <Button variant="ghost" icon="x" onPress={onReset}>
           {copy.reset}

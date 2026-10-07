@@ -3,9 +3,9 @@
   align-items: center;
   justify-content: center;
   gap: var(--space-2);
-  min-height: var(--size-control);
-  min-width: var(--size-control);
-  padding: 0 var(--space-5);
+  min-height: var(--size-button);
+  min-width: var(--size-button);
+  padding: 0 var(--space-4);
   border: 1px solid var(--color-border-strong);
   border-radius: var(--radius-2);
   background: var(--color-surface-1);
@@ -23,16 +23,15 @@
     box-shadow var(--motion-fast);
 }
 .button[data-size='sm'] {
-  min-height: var(--size-control-sm);
-  padding: 0 var(--space-3);
+  min-height: var(--size-button-sm);
+  padding: 0 10px;
   font-size: var(--font-size-sm);
 }
-/* 44 px primary/mobile target by project choice: small buttons grow on touch and narrow screens. */
-@media (pointer: coarse), (max-width: 859px) {
-  .button[data-size='sm'] {
-    min-height: var(--size-target);
-  }
+/* Beside a text field: same height as the field. */
+.button[data-size='field'] {
+  min-height: var(--size-control);
 }
+/* Touch and narrow screens: --size-button* resolve to 44 px in tokens.css, so every size keeps the 44 px target. */
 .button[data-full] {
   width: 100%;
 }

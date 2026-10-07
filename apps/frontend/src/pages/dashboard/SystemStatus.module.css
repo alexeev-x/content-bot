@@ -1,65 +1,9 @@
-.strip {
+.root {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: var(--space-3);
+  gap: var(--space-2);
   min-width: 0;
-  min-height: var(--size-row);
-}
-/* A problem turns the quiet line into one tinted row; it never grows past one line. */
-.strip[data-tone='warning'],
-.strip[data-tone='danger'] {
-  padding: 0 var(--space-3);
-  border: 1px solid;
-  border-radius: var(--radius-2);
-}
-.strip[data-tone='warning'] {
-  border-color: var(--color-status-unknown-ring);
-  background: var(--color-status-unknown-bg);
-}
-.strip[data-tone='danger'] {
-  border-color: var(--color-status-failed-ring);
-  background: var(--color-status-failed-bg);
-}
-.strip[data-tone='warning'] .icon {
-  color: var(--color-status-unknown-fg);
-}
-.strip[data-tone='danger'] .icon {
-  color: var(--color-status-failed-fg);
-}
-.icon {
-  flex: none;
-}
-.line {
-  flex: 1 1 auto;
-  justify-content: flex-start;
-  min-width: 0;
-  color: var(--color-text-muted);
-}
-.strip[data-tone='warning'] .line,
-.strip[data-tone='danger'] .line {
-  color: var(--color-text);
-  font-weight: var(--font-weight-medium);
-}
-.text {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-/* The count row has static text and one opener button on the right. */
-.strip > .text {
-  flex: 1 1 auto;
-  color: var(--color-text);
-  font-weight: var(--font-weight-medium);
-}
-.sort {
-  flex: none;
-}
-.checked {
-  flex: none;
-  color: var(--color-text-muted);
-  font-family: var(--font-mono);
-  font-size: var(--font-size-xs);
 }
 .dot {
   flex: none;
