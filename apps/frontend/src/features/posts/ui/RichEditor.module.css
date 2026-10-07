@@ -30,6 +30,7 @@
 }
 .box:focus-within .content {
   border-color: var(--color-focus-ring);
+  box-shadow: 0 0 0 1px var(--color-focus-ring);
 }
 .box[data-invalid] .content {
   border-color: var(--color-danger);
@@ -70,9 +71,7 @@
   outline: none;
 }
 .content :global(.tiptap:focus-visible) {
-  outline: var(--focus-ring-width) solid var(--color-focus-ring);
-  outline-offset: -2px;
-  border-radius: var(--radius-2);
+  outline: none;
 }
 .content :global(.tiptap p) {
   margin: 0;
