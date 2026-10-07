@@ -1,53 +1,64 @@
-# Админка локально без входа через Telegram
+# Local development without Telegram sign-in
 
-Как открыть админку на своём компьютере (Windows, macOS), смотреть экраны и делать скриншоты, не входя через Telegram.
+One command, `npm run dev`, on Windows or macOS starts the admin, the API, the bot webhook and Cron, and signs you straight into the admin as the owner, without Telegram.
 
-## Почему обычный вход на localhost не работает
+## Why the normal sign-in fails on localhost
 
-Вход в браузере идёт через Telegram Login Widget. Telegram пускает только с домена, который привязан к боту в BotFather (`/setdomain`). У dev-бота `@dota_content_dev_bot` это домен dev-окружения, а `localhost` Telegram не принимает: виджет пишет «Bot domain invalid» или ничего не делает. Менять домен бота не нужно, иначе сломается вход на dev.
+Browser sign-in uses the Telegram Login Widget. Telegram accepts it only on the domain linked to the bot in BotFather (`/setdomain`) and refuses `localhost`: the widget shows "Bot domain invalid" or does nothing. Do not change the bot's domain: that breaks sign-in on dev.
 
-Поэтому локально админка открывается с подставным API: фейковая сессия владельца и тестовые посты, каналы и публикации из `apps/frontend/e2e/support/mock-api.ts`. Настоящий Worker, D1 и Telegram не участвуют.
+So on `npm run dev` the Telegram sign-in is replaced by a local one: the page asks the local server for an owner session (`OWNER_TELEGRAM_ID`). The owner menu shows the name «Локальная разработка».
 
-## Что установить один раз
+## One-time setup
 
-1. **Node.js 24** (версия из `.nvmrc`) — https://nodejs.org, установщик LTS 24.x.
-2. **Google Chrome** — обычный, браузер для Playwright скачивать не нужно.
-3. В папке проекта (PowerShell или терминал WebStorm):
+1. **Node.js 24** (the version in `.nvmrc`): https://nodejs.org, the 24.x installer.
+2. In the project folder (PowerShell, the macOS terminal or the WebStorm terminal):
 
    ```powershell
    npm ci
    ```
 
-Файлы `.env` и `apps/backend/.dev.vars` для этого режима не нужны.
-
-## Открыть админку и кликать самому
-
-Из корня проекта:
+## Run
 
 ```powershell
-npm run explore
+npm run dev
 ```
 
-Через 10–30 секунд откроется окно Chrome со страницей «Посты», уже «войденным» как владелец. Дальше можно ходить по всем разделам, менять ширину окна, делать скриншоты любым инструментом (`Win + Shift + S` на Windows). Чтобы проверить мобильный вид, открой DevTools (`F12`) → переключатель устройства (`Ctrl + Shift + M`) → ширина 375.
+The command first applies pending migrations to the local database, then runs everything in one process. Open the address it prints (usually http://localhost:5173): you are already in the admin. Code changes reload live. Stop with `Ctrl + C`.
 
-Закрой окно браузера — команда завершится сама. Код при этом можно править: страница обновляется на лету, как в обычном `npm run dev`.
+The data is real but local: posts, channels and settings live in `apps/backend/.wrangler/state` on your machine and are not connected to dev or production. Logout works; reloading the page signs you in again.
 
-## Скриншоты автоматически
+## Bot and sending to Telegram (optional)
 
-Готовые сценарии сами снимают экраны на ширине 1280 и 375 px:
+Without a bot token the admin works but shows «Бот не настроен», and sending to channels is unavailable. To try the bot locally, copy the Telegram values from the root `.env.example` into `apps/backend/.dev.vars` and use the token of the **dev bot and a test channel**, never production ones. `.dev.vars` is gitignored.
 
-```powershell
-mkdir shots
-$env:SHOTS_DIR = "$PWD\shots"
-$env:E2E_SHOT_DIR = "$PWD\shots"
-npm run test:e2e -w @alexeev/frontend
-```
+Scheduled sending is off locally: `PUBLISHING_ENABLED` in `apps/backend/wrangler.jsonc` is `"false"`.
 
-Картинки появятся в папке `shots`. Она не коммитится — не добавляй её в Git. На macOS вместо строк с `$env:` пиши `export SHOTS_DIR="$PWD/shots" E2E_SHOT_DIR="$PWD/shots"`.
+## Why this is safe for dev and production
 
-## Ограничения и частые проблемы
+- The local sign-in exists only under `npm run dev`. A build (`vite build`, CI, deploy) removes the code entirely: neither the Worker bundle nor the admin bundle contains it.
+- Even if it got there, the server answers only requests to `localhost`, `127.0.0.1` or `[::1]`, while dev and production run on their own domains.
+- Never start the dev server with `--host`: it would listen on the network, and anyone there could send `Host: localhost` and get an owner session on your local database.
 
-- **Данные ненастоящие.** Это всегда один и тот же набор тестовых постов и каналов; ничего не сохраняется между запусками.
-- **Действия, которых нет в подставном API, дают ошибку** (например, создание или отправка поста): ответ `404 not mocked`. Это ожидаемо, а не баг страницы. Нужен экран после такого действия — попроси агента добавить ответ в `mock-api.ts`.
-- **Окно не открылось, ошибка про Chrome** — установи Google Chrome или обнови его.
-- **Нужна проверка с настоящими данными и входом** — открой dev-окружение в браузере и войди через Telegram; там последний задеплоенный `develop`, а не локальные правки.
+## Screenshots on fixed test data
+
+For repeatable screenshots there is a mock-API mode: always the same posts and channels, no database. It needs a regular Google Chrome.
+
+- `npm run explore` opens Chrome on the Posts page. Browse and capture screens (`Win + Shift + S` on Windows, `Cmd + Shift + 4` on macOS). Close the window to end the command.
+- The existing scenarios capture screens at 1280 and 375 px into a `shots` folder:
+
+  ```powershell
+  mkdir shots
+  $env:SHOTS_DIR = "$PWD\shots"
+  $env:E2E_SHOT_DIR = "$PWD\shots"
+  npm run test:e2e -w @alexeev/frontend
+  ```
+
+  On macOS replace the `$env:` lines with `export SHOTS_DIR="$PWD/shots" E2E_SHOT_DIR="$PWD/shots"`. Do not commit `shots`.
+
+In this mode actions missing from the mock API (for example creating a post) answer `404 not mocked`. That is expected; use `npm run dev` for real actions.
+
+## Common problems
+
+- **Port 5173 is busy**: Vite picks the next free port. Open the address the command prints.
+- **`Owner is not configured` (503)**: `OWNER_TELEGRAM_ID` in `apps/backend/wrangler.jsonc` is empty.
+- **You need the real Telegram sign-in**: open the dev environment in the browser. It runs the last deployed `develop`, not your local changes.

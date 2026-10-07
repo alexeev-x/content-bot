@@ -3,6 +3,7 @@ export {
   fetchMe,
   logoutRequest,
   refreshSession,
+  signInLocally,
   signInWithMiniApp,
   signInWithWidget
 } from './api/auth-api';

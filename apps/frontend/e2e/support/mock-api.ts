@@ -133,6 +133,10 @@ export async function mockApi(page: Page): Promise<void> {
   await page.route('**/api/v1/auth/refresh', (route) =>
     json(route, { accessToken: 'access-e2e', expiresAt: '2030-01-01T00:00:00.000Z' })
   );
+  // `npm run dev` signs in through this route instead of the refresh cookie (src/app/auth/bootstrap.ts).
+  await page.route('**/api/v1/auth/local', (route) =>
+    json(route, { accessToken: 'access-e2e', expiresAt: '2030-01-01T00:00:00.000Z' })
+  );
   await page.route('**/api/v1/auth/telegram', (route) =>
     json(route, { accessToken: 'access-e2e', expiresAt: '2030-01-01T00:00:00.000Z' })
   );

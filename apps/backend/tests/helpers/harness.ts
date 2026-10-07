@@ -5,6 +5,7 @@ import type {
 } from '../../src/integrations/telegram/telegram-api';
 import { createApp } from '../../src/app/create-app';
 import type { AppEnv } from '../../src/app/env';
+import { mountLocalSignIn } from '../../src/app/local-sign-in-route';
 import type { Clock } from '../../src/platform/clock';
 import { sha256Hex } from '../../src/platform/security/sha256';
 import { testDb } from './db';
@@ -123,6 +124,8 @@ export function createApi(
     ownerMessenger?: TelegramOwnerMessageApi;
     /** Replaces the test database, for example with a metered one. */
     db?: D1Database;
+    /** Mounts the `npm run dev` sign-in (app/local-sign-in-route.ts), as src/index.ts does on the dev server. */
+    localSignIn?: boolean;
   } = {}
 ): Api {
   const messenger = fakeOwnerMessenger();
@@ -131,7 +134,8 @@ export function createApi(
     clock,
     telegramChatApi: options.chatApi,
     telegramBotAdminApi: options.botAdminApi,
-    ownerMessenger: options.ownerMessenger ?? (options.botToken === null ? undefined : messenger)
+    ownerMessenger: options.ownerMessenger ?? (options.botToken === null ? undefined : messenger),
+    ...(options.localSignIn === true ? { mountBeforeGuard: mountLocalSignIn } : {})
   });
   const env = {
     DB: options.db ?? testDb(),

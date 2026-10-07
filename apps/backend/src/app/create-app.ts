@@ -34,7 +34,10 @@ function errorBody(
 }
 
 export function createApp(
-  options: Pick<ContainerOverrides, 'clock' | 'telegramChatApi' | 'telegramBotAdminApi' | 'ownerMessenger'> = {}
+  options: Pick<ContainerOverrides, 'clock' | 'telegramChatApi' | 'telegramBotAdminApi' | 'ownerMessenger'> & {
+    /** Routes registered before the session guard: the `npm run dev` sign-in (local-sign-in-route.ts). */
+    mountBeforeGuard?: (app: Hono<AppBindings>) => void;
+  } = {}
 ) {
   const app = new Hono<AppBindings>();
 
@@ -68,6 +71,8 @@ export function createApp(
     };
     return c.json(body);
   });
+
+  options.mountBeforeGuard?.(app);
 
   // Everything under /api/v1 needs the owner's session except the public routes above, so a new
   // route is closed by default and a missing handler answers 401 rather than revealing what exists.

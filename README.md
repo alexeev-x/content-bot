@@ -15,7 +15,7 @@ docs/                architecture and decisions (in English)
 ## Commands
 ```bash
 npm ci                    # install from the lockfile (Node from .nvmrc); `npm install` also sets up git hooks
-npm run dev               # the whole app locally: SPA + API + bot webhook + Cron, one process (Vite + Cloudflare plugin)
+npm run dev               # the whole app locally: SPA + API + bot webhook + Cron, one process (Vite + Cloudflare plugin); applies local migrations first and signs the owner in without Telegram (docs/LOCAL_PREVIEW.md)
 npm run dev:backend       # the Worker alone (API, webhook, Cron) via wrangler dev on http://localhost:8790
 npm run preview           # production build served locally
 npm run explore           # admin in Chrome with a mock API, no Telegram sign-in (docs/LOCAL_PREVIEW.md)

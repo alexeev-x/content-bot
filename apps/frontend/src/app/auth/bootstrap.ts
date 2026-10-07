@@ -1,7 +1,10 @@
-import { signInWithMiniApp, refreshSession } from '../../features/auth';
+import { refreshSession, signInLocally, signInWithMiniApp } from '../../features/auth';
 import { ApiError } from '../../shared/api/http-client';
 import { getAccessToken } from '../../shared/api/session';
 import { isInsideTelegram } from '../../shared/telegram/web-app';
+
+// True on `npm run dev` only (vite.config.ts); a build gets `false`, tests nothing.
+declare const __LOCAL_SIGN_IN__: boolean | undefined;
 
 export type BootResult =
   | { kind: 'done'; /** 401 from sign-in: the session could not be restored. */ error?: ApiError }
@@ -16,6 +19,9 @@ export async function bootstrapSession(): Promise<BootResult> {
   if (getAccessToken() !== null) return { kind: 'done' };
   try {
     if (isInsideTelegram()) await signInWithMiniApp();
+    // `npm run dev`: a fresh owner session on every load, without the Telegram widget, which refuses localhost.
+    // The constant is written out here so a build, where it is `false`, drops this branch entirely.
+    else if (typeof __LOCAL_SIGN_IN__ === 'boolean' && __LOCAL_SIGN_IN__) await signInLocally();
     else await refreshSession();
     return { kind: 'done' };
   } catch (error) {

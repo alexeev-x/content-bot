@@ -7,7 +7,9 @@
     "apps/*"
   ],
   "scripts": {
+    "predev": "npm run db:migrate:local",
     "dev": "npm run dev -w @alexeev/frontend",
+    "predev:backend": "npm run db:migrate:local",
     "dev:backend": "npm run dev -w @alexeev/backend",
     "explore": "npm run explore -w @alexeev/frontend",
     "preview": "npm run preview -w @alexeev/frontend",
