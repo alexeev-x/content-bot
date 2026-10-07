@@ -194,6 +194,12 @@ describe('PublicationsPage list', () => {
     upcoming.view.unmount();
     cleanup();
 
+    const errors = await renderPage({ initial: { view: 'errors' } });
+    await screen.findByRole('grid', { name: 'Список публикаций' });
+    expect(urls.at(-1)?.searchParams.get('status')).toBe('failed');
+    errors.view.unmount();
+    cleanup();
+
     await renderPage({ initial: { view: 'today' } });
     await screen.findByRole('grid', { name: 'Список публикаций' });
     const latest = urls.at(-1);
