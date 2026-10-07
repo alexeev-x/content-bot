@@ -50,7 +50,14 @@ export function PublicationsPage({ search, onSearchChange, onOpenPosts, pollMs }
   const openDestination = openRow ? channel(openRow) : undefined;
 
   const reset = () =>
-    onSearchChange({ view: undefined, status: undefined, channel: undefined, post: undefined, order: undefined, cursor: undefined });
+    onSearchChange({
+      view: undefined,
+      status: undefined,
+      channel: undefined,
+      post: undefined,
+      order: undefined,
+      cursor: undefined
+    });
 
   return (
     <>
