@@ -10,6 +10,7 @@ export const publicationsSearchSchema = z.object({
   status: publicationStatusSchema.optional().catch(undefined),
   post: z.uuid().optional().catch(undefined),
   channel: z.uuid().optional().catch(undefined),
+  q: z.string().trim().min(1).max(200).optional().catch(undefined),
   order: z.enum(['asc', 'desc']).optional().catch(undefined),
   cursor: z.string().min(1).max(512).optional().catch(undefined),
   id: z.uuid().optional().catch(undefined)
