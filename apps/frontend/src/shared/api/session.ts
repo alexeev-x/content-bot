@@ -11,6 +11,30 @@ export const ACCESS_TOKEN_TTL_MS = 60 * 60_000;
 // Bumped on every change: lets in-flight work tell whether the session it started from is still current.
 let generation = 0;
 const listeners = new Set<() => void>();
+const SESSION_HINT_KEY = 'alexeev.has-session';
+
+function writeSessionHint(present: boolean): void {
+  if (typeof window === 'undefined') return;
+  try {
+    if (present) window.localStorage.setItem(SESSION_HINT_KEY, '1');
+    else window.localStorage.removeItem(SESSION_HINT_KEY);
+  } catch {
+    // Storage can be unavailable (privacy mode, embedded contexts). Auth still works from the HttpOnly cookie.
+  }
+}
+
+/**
+ * Non-sensitive UX hint only. It never grants access and never contains credentials.
+ * The server still decides whether the HttpOnly refresh cookie represents a valid session.
+ */
+export function hasSessionHint(): boolean {
+  if (typeof window === 'undefined') return false;
+  try {
+    return window.localStorage.getItem(SESSION_HINT_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
 
 function notify(): void {
   for (const listener of listeners) listener();
@@ -52,11 +76,13 @@ export function setSession(next: AccessTokenDto, options: SetSessionOptions = {}
   receivedAt = performance.now();
   renewable = options.renewable ?? true;
   session = { accessToken: next.accessToken, expiresAt: next.expiresAt };
+  writeSessionHint(true);
   notify();
 }
 
 /** Logout and failed re-authentication both end here. */
 export function clearSession(): void {
+  writeSessionHint(false);
   if (session === null) return;
   session = null;
   generation += 1;
