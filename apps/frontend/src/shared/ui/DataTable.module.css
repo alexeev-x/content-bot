@@ -64,8 +64,12 @@
 .row[data-hovered] {
   background: var(--color-surface-2);
 }
-.row[data-selected] {
+.row[data-selected],
+.row[data-active] {
   background: var(--color-selected-bg);
+}
+.row[data-active] {
+  box-shadow: inset 2px 0 0 var(--color-accent);
 }
 .row[data-focus-visible] {
   outline: var(--focus-ring-width) solid var(--color-focus-ring);
@@ -119,7 +123,8 @@
   background: var(--color-surface-1);
   box-shadow: var(--shadow-card);
 }
-.card[data-selected] {
+.card[data-selected],
+.card[data-active] {
   border-color: var(--color-accent-text);
   background: var(--color-selected-bg);
 }
@@ -191,7 +196,8 @@
   border-radius: 0;
   background: transparent;
 }
-.cards[data-density='compact'] .card[data-selected] {
+.cards[data-density='compact'] .card[data-selected],
+.cards[data-density='compact'] .card[data-active] {
   background: var(--color-selected-bg);
 }
 .cards[data-density='compact'] .cardAction {
