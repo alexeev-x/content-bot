@@ -3,38 +3,270 @@ on:
   pull_request:
   push:
     branches: [main, develop]
+
 permissions:
   contents: read
+
+# A newer develop/PR commit makes the older run useless. Production is never cancelled mid-flight.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref_name != 'main' }}
+
 jobs:
-  # Full independent gate (the local pre-push hook runs only the affected checks), split across runners:
-  # on one small runner the two test suites and tsc starve each other for CPU. Together the parts cover
-  # every verify step (see the --only/--skip test in .agents/scripts/hooks.test.mjs).
-  verify:
-    name: verify (${{ matrix.part }})
+  changes:
+    name: plan
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - part: checks
-            steps: --skip backend-tests,frontend-tests
-          - part: backend-tests
-            steps: --only backend-tests
-          - part: frontend-tests
-            steps: --only frontend-tests
+    outputs:
+      base: ${{ steps.plan.outputs.base }}
+      initial: ${{ steps.plan.outputs.initial }}
+      frontend: ${{ steps.plan.outputs.frontend }}
+      backend: ${{ steps.plan.outputs.backend }}
+      deploy: ${{ steps.plan.outputs.deploy }}
+      needs_deps: ${{ steps.plan.outputs.needs_deps }}
+      audit: ${{ steps.plan.outputs.audit }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 1
+      - id: plan
+        shell: bash
+        env:
+          BEFORE: ${{ github.event.before }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set -euo pipefail
+
+          INITIAL=false
+          if [[ -n "${PR_BASE:-}" ]]; then
+            BASE="$PR_BASE"
+          elif [[ -n "${BEFORE:-}" && ! "$BEFORE" =~ ^0+$ ]]; then
+            BASE="$BEFORE"
+          else
+            BASE=""
+            INITIAL=true
+          fi
+
+          if [[ -n "$BASE" ]]; then
+            git fetch --no-tags --depth=1 origin "$BASE" || true
+            FILES="$(git diff --name-only --no-renames "$BASE" HEAD)"
+          else
+            FILES="$(git ls-tree -r --name-only HEAD)"
+          fi
+
+          FRONTEND=false
+          BACKEND=false
+          DEPLOY=false
+          NEEDS_DEPS=false
+          AUDIT=false
+
+          while IFS= read -r file; do
+            [[ -z "$file" ]] && continue
+            case "$file" in
+              apps/contracts/*)
+                FRONTEND=true
+                BACKEND=true
+                DEPLOY=true
+                NEEDS_DEPS=true
+                ;;
+              apps/frontend/*)
+                FRONTEND=true
+                DEPLOY=true
+                NEEDS_DEPS=true
+                ;;
+              apps/backend/*)
+                BACKEND=true
+                DEPLOY=true
+                NEEDS_DEPS=true
+                ;;
+              package.json|package-lock.json|.nvmrc)
+                FRONTEND=true
+                BACKEND=true
+                DEPLOY=true
+                NEEDS_DEPS=true
+                AUDIT=true
+                ;;
+              .github/workflows/*|.dependency-cruiser.cjs|.oxlintrc.json|.prettierrc.json|.prettierignore|.gitleaks.toml|.gitleaksignore)
+                FRONTEND=true
+                BACKEND=true
+                NEEDS_DEPS=true
+                ;;
+            esac
+            case "$file" in
+              apps/*/package.json)
+                AUDIT=true
+                ;;
+            esac
+          done <<< "$FILES"
+
+          # Keep production exactly as strict as before; only develop/PRs become path-aware.
+          if [[ "$GITHUB_REF_NAME" == "main" ]]; then
+            FRONTEND=true
+            BACKEND=true
+            DEPLOY=true
+            NEEDS_DEPS=true
+            AUDIT=true
+          fi
+
+          {
+            echo "base=$BASE"
+            echo "initial=$INITIAL"
+            echo "frontend=$FRONTEND"
+            echo "backend=$BACKEND"
+            echo "deploy=$DEPLOY"
+            echo "needs_deps=$NEEDS_DEPS"
+            echo "audit=$AUDIT"
+          } >> "$GITHUB_OUTPUT"
+
+          echo "Changed files:"
+          printf '%s\n' "$FILES"
+          echo "Plan: frontend=$FRONTEND backend=$BACKEND deploy=$DEPLOY deps=$NEEDS_DEPS"
+
+  checks:
+    name: verify (checks)
+    needs: changes
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 1
+
       - uses: actions/setup-node@v4
         with:
           node-version-file: .nvmrc
           cache: npm
-      - run: npm ci --ignore-scripts
-      - run: npm run verify -- ${{ matrix.steps }}
+
+      - name: Restore installed dependencies
+        if: needs.changes.outputs.needs_deps == 'true'
+        id: modules
+        uses: actions/cache@v4
+        with:
+          path: |
+            node_modules
+            apps/*/node_modules
+          key: node-modules-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('.nvmrc', 'package-lock.json') }}
+
+      - name: Install dependencies
+        if: needs.changes.outputs.needs_deps == 'true' && steps.modules.outputs.cache-hit != 'true'
+        run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Verify affected checks
+        shell: bash
+        env:
+          BASE: ${{ needs.changes.outputs.base }}
+          INITIAL: ${{ needs.changes.outputs.initial }}
+          DEPLOY: ${{ needs.changes.outputs.deploy }}
+        run: |
+          set -euo pipefail
+          if [[ "$GITHUB_REF_NAME" == "main" || "$INITIAL" == "true" ]]; then
+            npm run verify -- --skip backend-tests,frontend-tests
+          else
+            git fetch --no-tags --depth=1 origin "$BASE" || true
+            SKIP="backend-tests,frontend-tests"
+            # The deploy job performs the same Vite/Worker build on develop, so do not build it twice.
+            if [[ "$GITHUB_EVENT_NAME" == "push" && "$GITHUB_REF_NAME" == "develop" && "$DEPLOY" == "true" ]]; then
+              SKIP="$SKIP,build"
+            fi
+            npm run verify:changed -- --base "$BASE" --skip "$SKIP"
+          fi
+
+      # This Node-only CSS policy test used to be chained after the frontend Vitest suite.
+      - name: Frontend file-policy tests
+        if: needs.changes.outputs.frontend == 'true'
+        run: node --test apps/frontend/scripts/*.test.mjs
+
       - if: failure()
-        run: cat .logs/verify.log
-      # Production dependencies only: a dev-tool advisory must not block a release.
-      - if: matrix.part == 'checks'
+        run: test -f .logs/verify.log && cat .logs/verify.log || true
+
+      # Audit when dependency manifests changed and always before production.
+      - name: Audit production dependencies
+        if: needs.changes.outputs.audit == 'true'
         run: npm audit --omit=dev --audit-level=high
+
+  frontend-shards:
+    name: frontend tests ${{ matrix.shard }}/4
+    needs: changes
+    if: needs.changes.outputs.frontend == 'true'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: true
+      matrix:
+        shard: [1, 2, 3, 4]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - id: modules
+        uses: actions/cache@v4
+        with:
+          path: |
+            node_modules
+            apps/*/node_modules
+          key: node-modules-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('.nvmrc', 'package-lock.json') }}
+      - if: steps.modules.outputs.cache-hit != 'true'
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: npm exec -w @alexeev/frontend -- vitest run --shard=${{ matrix.shard }}/4
+
+  backend-shards:
+    name: backend tests ${{ matrix.shard }}/4
+    needs: changes
+    if: needs.changes.outputs.backend == 'true'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: true
+      matrix:
+        shard: [1, 2, 3, 4]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - id: modules
+        uses: actions/cache@v4
+        with:
+          path: |
+            node_modules
+            apps/*/node_modules
+          key: node-modules-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('.nvmrc', 'package-lock.json') }}
+      - if: steps.modules.outputs.cache-hit != 'true'
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: npm exec -w @alexeev/backend -- vitest run --shard=${{ matrix.shard }}/4
+
+  frontend-tests:
+    name: verify (frontend-tests)
+    needs: [changes, frontend-shards]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Collect frontend shards
+        env:
+          NEEDED: ${{ needs.changes.outputs.frontend }}
+          RESULT: ${{ needs.frontend-shards.result }}
+        run: |
+          if [[ "$NEEDED" != "true" ]]; then exit 0; fi
+          [[ "$RESULT" == "success" ]]
+
+  backend-tests:
+    name: verify (backend-tests)
+    needs: [changes, backend-shards]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Collect backend shards
+        env:
+          NEEDED: ${{ needs.changes.outputs.backend }}
+          RESULT: ${{ needs.backend-shards.result }}
+        run: |
+          if [[ "$NEEDED" != "true" ]]; then exit 0; fi
+          [[ "$RESULT" == "success" ]]
 
   secrets:
     runs-on: ubuntu-latest
@@ -42,18 +274,26 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      # The whole history: a token committed and later deleted is still leaked.
+      # Keep the full-history secret gate; it runs in parallel and is not the critical path.
       - run: docker run --rm -v "$PWD:/repo" zricethezav/gitleaks:v8.30.1 git /repo --config /repo/.gitleaks.toml --redact --verbose --no-banner
 
   deploy:
-    if: github.event_name == 'push'
-    needs: [verify, secrets]
+    if: >-
+      ${{
+        always() &&
+        github.event_name == 'push' &&
+        needs.changes.outputs.deploy == 'true' &&
+        needs.checks.result == 'success' &&
+        needs.frontend-tests.result == 'success' &&
+        needs.backend-tests.result == 'success' &&
+        needs.secrets.result == 'success'
+      }}
+    needs: [changes, checks, frontend-tests, backend-tests, secrets]
     runs-on: ubuntu-latest
-    # GitHub environments scope the Cloudflare secrets and let the owner require approval for production.
     environment: ${{ github.ref_name == 'main' && 'production' || 'dev' }}
     concurrency:
       group: cloudflare-deploy-${{ github.ref_name }}
-      cancel-in-progress: false
+      cancel-in-progress: ${{ github.ref_name == 'develop' }}
     env:
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
@@ -63,9 +303,16 @@ jobs:
         with:
           node-version-file: .nvmrc
           cache: npm
-      - run: npm ci --ignore-scripts
+      - id: modules
+        uses: actions/cache@v4
+        with:
+          path: |
+            node_modules
+            apps/*/node_modules
+          key: node-modules-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('.nvmrc', 'package-lock.json') }}
+      - if: steps.modules.outputs.cache-hit != 'true'
+        run: npm ci --ignore-scripts --no-audit --no-fund
 
-      # The Cloudflare Vite plugin resolves the named environment at build time.
       - name: Select Cloudflare environment
         shell: bash
         run: |
@@ -75,7 +322,6 @@ jobs:
             echo "CLOUDFLARE_ENV=dev" >> "$GITHUB_ENV"
           fi
 
-      # Plain `vite build`: the verify job already type-checked this commit.
       - name: Build for Cloudflare
         run: npm exec -w @alexeev/frontend -- vite build
 
