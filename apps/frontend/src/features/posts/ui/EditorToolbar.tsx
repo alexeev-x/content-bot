@@ -176,10 +176,13 @@ export function EditorToolbar({ editor, onLink, onCodeLanguage }: Props) {
   ];
 
   if (compact) {
-    const primary = [...groups[0].slice(0, 4), ...groups[2], groups[1][3], groups[0][5]].filter(
+    const formatting = groups[0]!;
+    const code = groups[1]!;
+    const lists = groups[2]!;
+    const primary = [...formatting.slice(0, 4), ...lists, code[3], formatting[5]].filter(
       (item): item is Item => item !== undefined
     );
-    const more = [groups[0][4], ...groups[1].slice(0, 3)].filter((item): item is Item => item !== undefined);
+    const more = [formatting[4], ...code.slice(0, 3)].filter((item): item is Item => item !== undefined);
     return (
       <>
         <Toolbar aria-label={copy.label} className={`${styles.toolbar} ${styles.compactToolbar}`}>
