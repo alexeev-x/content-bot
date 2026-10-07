@@ -1,6 +1,6 @@
 # ALEXEEV Content Bot / Studio
 
-**Status:** architecture and starter skeleton, NOT production. Only `GET /api/v1/health` and an admin placeholder work. Canon: `docs/BACKEND_ARCHITECTURE.md`, `docs/FRONTEND_ARCHITECTURE.md`, `docs/API_CONTRACTS.md`, `AGENTS.md`.
+**Status:** in development, NOT production. What works and what is next: `docs/IMPLEMENTATION_PLAN.md`. Canon: `docs/BACKEND_ARCHITECTURE.md`, `docs/FRONTEND_ARCHITECTURE.md`, `docs/API_CONTRACTS.md`, `AGENTS.md`.
 
 ## Structure
 ```text

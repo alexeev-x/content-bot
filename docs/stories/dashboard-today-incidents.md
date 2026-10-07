@@ -1,6 +1,6 @@
 # Dashboard «Обзор» and «Инциденты»: one control desk
 
-Owner (paraphrased from Russian): fill the empty dashboard and the placeholder «Инциденты» as one control desk: what goes out today, what broke, what needs my attention. One owner, Telegram channels. Status: spec for review, not validated with users. Related: `docs/stories/dashboard-system-status.md` (strip), `docs/IMPLEMENTATION_PLAN.md` step 6 («Сегодня», no KPI wall), `docs/PAGE_MAP.md` rows `/` and `/incidents`.
+Owner (paraphrased from Russian): fill the empty dashboard and the placeholder «Инциденты» as one control desk: what goes out today, what broke, what needs my attention. One owner, Telegram channels. Status: spec for review, not validated with users. Related: `docs/stories/dashboard-system-status.md` (strip), `docs/IMPLEMENTATION_PLAN.md` step 4 (dashboard; «Сегодня», no KPI wall), `docs/PAGE_MAP.md` rows `/` and `/incidents`.
 
 ## User story
 As the owner I open `/` and within one screen see what is still going out today, which publications or checks need me, and what happened last; from there I reach the exact place to fix each problem. `/incidents` is the full list behind the «Требует внимания» block, with history.

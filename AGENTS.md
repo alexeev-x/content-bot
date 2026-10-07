@@ -2,7 +2,7 @@
 
 Shared by Claude Code and Codex, loaded into every agent: keep it short. Talk to the owner in Russian; code, identifiers, commits and branch names are English.
 
-**Status:** scaffold. Working today: `GET /api/v1/health`, a placeholder admin page, three Zod schemas. Auth, D1, Cron/Queue and Telegram sending are not implemented — never describe planned parts as working.
+**Status:** in development, not in production. State and queue: `docs/IMPLEMENTATION_PLAN.md`; the publishing engine is not yet verified live. Never describe planned parts as working.
 
 ## Layout
 - `apps/frontend/` — React + Vite admin SPA. Rules: `apps/frontend/AGENTS.md`.
