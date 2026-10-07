@@ -101,13 +101,27 @@ export function AttentionBlock({ rows, total, checking, onOpenPublication }: Pro
   if (rows.length === 0) {
     // The block keeps its title when empty, so the page keeps one layout from loading to loaded.
     return (
-      <Block title={copy.attention.title}>
+      <Block
+        title={copy.attention.title}
+        action={
+          <Link to="/incidents" className={styles.cardLink}>
+            Инциденты
+          </Link>
+        }
+      >
         <p className={styles.emptyLine}>{checking ? copy.attention.checking : copy.attention.clear}</p>
       </Block>
     );
   }
   return (
-    <Block title={copy.attention.title}>
+    <Block
+      title={copy.attention.title}
+      action={
+        <Link to="/incidents" className={styles.cardLink}>
+          Инциденты
+        </Link>
+      }
+    >
       <ul className={styles.list}>
         {rows.map((row) => (
           <RowView key={row.key} row={row} onOpenPublication={onOpenPublication} />
