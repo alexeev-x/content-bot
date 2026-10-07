@@ -37,6 +37,7 @@ export function PublicationsPage({ search, onSearchChange, onOpenPosts, onCreate
     search.view !== undefined ||
     search.status !== undefined ||
     search.channel !== undefined ||
+    search.q !== undefined ||
     search.post !== undefined ||
     search.order !== undefined;
   const announcement = useStatusAnnouncement(items);
@@ -55,6 +56,7 @@ export function PublicationsPage({ search, onSearchChange, onOpenPosts, onCreate
       view: undefined,
       status: undefined,
       channel: undefined,
+      q: undefined,
       post: undefined,
       order: undefined,
       cursor: undefined
@@ -75,6 +77,7 @@ export function PublicationsPage({ search, onSearchChange, onOpenPosts, onCreate
         view={search.view}
         status={search.status}
         channel={search.channel}
+        q={search.q}
         order={search.order}
         destinations={destinationList}
         onViewChange={(view) =>
@@ -87,6 +90,7 @@ export function PublicationsPage({ search, onSearchChange, onOpenPosts, onCreate
         }
         onStatusChange={(status) => onSearchChange({ status, view: undefined, cursor: undefined })}
         onChannelChange={(next) => onSearchChange({ channel: next, cursor: undefined })}
+        onQueryChange={(q) => onSearchChange({ q, cursor: undefined })}
         onOrderChange={(order) => onSearchChange({ order, cursor: undefined })}
         onReset={reset}
       />
