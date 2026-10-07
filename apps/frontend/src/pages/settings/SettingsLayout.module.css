@@ -71,6 +71,23 @@
   gap: var(--space-4);
   min-width: 0;
 }
+.detailHeader {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  min-height: var(--size-control);
+}
+/* Filled by a section page through <SectionActions>; empty sections keep the row as it was. */
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+.actions:empty {
+  display: none;
+}
 .detailTitle {
   margin: 0;
   font-size: var(--font-size-lg);

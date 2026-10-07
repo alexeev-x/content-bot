@@ -117,13 +117,7 @@ function Grid<T>({
                     {column.header}
                     {allowsSorting ? (
                       <Icon
-                        name={
-                          sortDirection === 'descending'
-                            ? 'arrow-down'
-                            : sortDirection === 'ascending'
-                              ? 'arrow-up'
-                              : 'chevron-down'
-                        }
+                        name={sortDirection === 'ascending' ? 'arrow-up' : 'arrow-down'}
                         size={14}
                         className={sortDirection ? styles.sortActive : styles.sortIdle}
                       />

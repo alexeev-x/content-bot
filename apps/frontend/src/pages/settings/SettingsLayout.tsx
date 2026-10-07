@@ -1,8 +1,9 @@
 import { Link, Outlet, useRouterState } from '@tanstack/react-router';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ru } from '../../shared/lib/ru';
 import { isInsideTelegram } from '../../shared/telegram/web-app';
 import { Icon, PageHeader, useMediaQuery } from '../../shared/ui';
+import { SectionActionsSlot } from './section-actions';
 import styles from './SettingsLayout.module.css';
 
 const SECTIONS = [
@@ -21,6 +22,8 @@ export function SettingsLayout() {
   const showList = wide || atList;
   const rows = useRef(new Map<SectionPath, HTMLAnchorElement>());
   const lastOpened = useRef<SectionPath | null>(null);
+  const [actionsSlot, setActionsSlot] = useState<HTMLElement | null>(null);
+  const slot = section ? <span ref={setActionsSlot} className={styles.actions} /> : null;
 
   // Declared before the focus effect below, which reads it.
   useEffect(() => {
@@ -44,7 +47,10 @@ export function SettingsLayout() {
           {ru.settings.back}
         </Link>
       ) : null}
-      <PageHeader title={wide || atList ? ru.pages.settings : (section?.label ?? ru.pages.settings)} />
+      <PageHeader
+        title={wide || atList ? ru.pages.settings : (section?.label ?? ru.pages.settings)}
+        actions={wide ? undefined : slot}
+      />
       <div className={styles.layout} data-wide={wide || undefined}>
         {showList ? (
           <nav aria-label={ru.settings.navLabel} className={styles.nav}>
@@ -68,8 +74,15 @@ export function SettingsLayout() {
           <Outlet />
         ) : (
           <section className={styles.detail} aria-label={section.label}>
-            {wide ? <h2 className={styles.detailTitle}>{section.label}</h2> : null}
-            <Outlet />
+            {wide ? (
+              <div className={styles.detailHeader}>
+                <h2 className={styles.detailTitle}>{section.label}</h2>
+                {slot}
+              </div>
+            ) : null}
+            <SectionActionsSlot.Provider value={actionsSlot}>
+              <Outlet />
+            </SectionActionsSlot.Provider>
           </section>
         )}
       </div>

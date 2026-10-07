@@ -37,11 +37,18 @@
   color: var(--color-text);
 }
 .sortMark {
-  color: var(--color-text-disabled);
-  font-size: var(--font-size-2xs);
+  flex: none;
+  color: var(--color-text-muted);
+  /* Faint at rest, so sortable columns read as such on touch screens, which have no hover. */
+  opacity: 0.4;
+}
+.sortButton:hover .sortMark,
+.sortButton:focus-visible .sortMark {
+  opacity: 0.8;
 }
 .th[aria-sort] .sortMark {
   color: var(--color-accent-text);
+  opacity: 1;
 }
 .th[data-align='end'] .sortButton {
   justify-content: flex-end;

@@ -1,4 +1,12 @@
-import { getLocalTimeZone, now, Time, toTime, toZoned, type ZonedDateTime } from '@internationalized/date';
+import {
+  DateFormatter,
+  getLocalTimeZone,
+  now,
+  Time,
+  toTime,
+  toZoned,
+  type ZonedDateTime
+} from '@internationalized/date';
 import {
   Button,
   Calendar,
@@ -17,10 +25,6 @@ import {
   Label,
   Popover,
   Provider,
-  Tab,
-  TabList,
-  TabPanel,
-  Tabs,
   Text,
   TimeField as AriaTimeField
 } from 'react-aria-components';
@@ -45,6 +49,7 @@ function utcText(value: ZonedDateTime): string {
 }
 
 const QUICK_MINUTES = [0, 15, 30, 45];
+const DAY_MONTH = new DateFormatter(LOCALE, { day: 'numeric', month: 'long' });
 
 /** Next quarter hour strictly after `from`, so a fresh value is round and never already past. */
 function defaultTime(from: ZonedDateTime): Time {
@@ -54,10 +59,10 @@ function defaultTime(from: ZonedDateTime): Time {
   return new Time(Math.floor(rounded / 60) % 24, rounded % 60);
 }
 
-type TimePanelProps = { timeZone: string; minValue: ZonedDateTime | undefined };
+type TimePanelProps = { timeZone: string; minValue: ZonedDateTime | undefined; offset: string };
 
 /** Touch-first time entry inside the popover: large typed field, ±1 h / ±5 min steppers, quarter-hour chips. */
-function TimePanel({ timeZone, minValue }: TimePanelProps) {
+function TimePanel({ timeZone, minValue, offset }: TimePanelProps) {
   const state = useContext(DatePickerStateContext);
   const raw = state?.timeValue;
   const time = raw ? new Time(raw.hour, raw.minute) : null;
@@ -69,6 +74,12 @@ function TimePanel({ timeZone, minValue }: TimePanelProps) {
     }
   }, [state, minValue, timeZone]);
   if (!state) return null;
+  const zone = timeZone || getLocalTimeZone();
+  // The bottom sheet covers the field, so the picked value is repeated here in one line.
+  const picked =
+    state.dateValue && time
+      ? `${DAY_MONTH.format(state.dateValue.toDate(zone))}, ${String(time.hour).padStart(2, '0')}:${String(time.minute).padStart(2, '0')} (${offset})`
+      : null;
   const step = (field: 'hour' | 'minute', amount: number) => {
     const base = time ?? defaultTime(minValue ?? now(timeZone || getLocalTimeZone()));
     state.setTimeValue(base.cycle(field, amount, { hourCycle: 24 }));
@@ -132,9 +143,14 @@ function TimePanel({ timeZone, minValue }: TimePanelProps) {
             </Button>
           ))}
         </fieldset>
-        <Button className={dateStyles.done} onPress={() => state.setOpen(false)}>
-          {ru.ui.done}
-        </Button>
+        <div className={dateStyles.footer}>
+          <output className={dateStyles.picked} aria-live="polite">
+            {picked ? ru.ui.pickedValue(picked) : ''}
+          </output>
+          <Button className={dateStyles.done} onPress={() => state.setOpen(false)}>
+            {ru.ui.done}
+          </Button>
+        </div>
       </section>
     </Provider>
   );
@@ -227,23 +243,10 @@ export function DateTimeField({
         <FieldError className={styles.error}>{errorMessage}</FieldError>
         <Popover className={dateStyles.popover} offset={8}>
           <Dialog className={dateStyles.dialog}>
-            <div className={dateStyles.desktopLayout}>
+            {/* Calendar and time side by side on desktop, stacked in the phone's bottom sheet. */}
+            <div className={dateStyles.layout}>
               <CalendarPanel />
-              <TimePanel timeZone={timeZone} minValue={minValue} />
-            </div>
-            <div className={dateStyles.mobileLayout}>
-              <Tabs aria-label={ru.ui.dateTimeTabs}>
-                <TabList>
-                  <Tab id="date">{ru.ui.dateTab}</Tab>
-                  <Tab id="time">{ru.ui.timeSection}</Tab>
-                </TabList>
-                <TabPanel id="date">
-                  <CalendarPanel />
-                </TabPanel>
-                <TabPanel id="time">
-                  <TimePanel timeZone={timeZone} minValue={minValue} />
-                </TabPanel>
-              </Tabs>
+              <TimePanel timeZone={timeZone} minValue={minValue} offset={offsetLabel(offset)} />
             </div>
           </Dialog>
         </Popover>

@@ -74,14 +74,11 @@
   padding: var(--space-3);
   outline: none;
 }
-.desktopLayout {
+.layout {
   display: grid;
   grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr);
   align-items: start;
   gap: var(--space-4);
-}
-.mobileLayout {
-  display: none;
 }
 .calendar {
   display: grid;
@@ -169,9 +166,6 @@
 .time {
   display: grid;
   gap: var(--space-2);
-  margin-top: var(--space-3);
-  padding-top: var(--space-3);
-  border-top: 1px solid var(--color-border-subtle);
 }
 .timeField {
   display: grid;
@@ -238,13 +232,14 @@
   color: var(--color-text-muted);
   font-size: var(--font-size-sm);
 }
+/* Mouse-sized beside the calendar; the bottom sheet below raises them to touch size. */
 .step,
 .chip,
 .done {
   display: grid;
   place-items: center;
-  min-width: var(--size-target);
-  min-height: var(--size-target);
+  min-width: var(--size-control);
+  min-height: var(--size-control);
   border: 1px solid var(--color-border-strong);
   border-radius: var(--radius-2);
   background: var(--color-surface-2);
@@ -277,6 +272,17 @@
   background: var(--color-accent);
   color: var(--color-on-accent);
 }
+.footer {
+  display: grid;
+  gap: var(--space-2);
+}
+.picked {
+  min-height: 1.4em;
+  color: var(--color-text);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  font-variant-numeric: tabular-nums;
+}
 .done {
   border-color: var(--color-accent);
   background: var(--color-accent);
@@ -291,6 +297,8 @@
 .dialog {
   min-height: 0;
   overflow-y: auto;
+  /* Scrolling the sheet never scrolls the page behind it. */
+  overscroll-behavior: contain;
 }
 @media (pointer: coarse), (max-width: 859px) {
   /* Bottom sheet: the anchored position would squeeze header + grid + time into the space above or below the field.
@@ -309,11 +317,14 @@
     max-height: 90dvh;
     padding-bottom: max(var(--space-3), env(safe-area-inset-bottom));
   }
-  .desktopLayout {
-    display: none;
+  .layout {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-3);
   }
-  .mobileLayout {
-    display: block;
+  /* Stacked under the calendar: a rule separates the two steps. */
+  .time {
+    padding-top: var(--space-3);
+    border-top: 1px solid var(--color-border-subtle);
   }
   .calendar,
   .time {
@@ -341,5 +352,18 @@
   }
   .cell {
     width: min(var(--size-control), calc((100vw - 3 * var(--space-4)) / 7 - 2px));
+  }
+  .step,
+  .chip,
+  .done {
+    min-width: var(--size-target);
+    min-height: var(--size-target);
+  }
+  /* On a short screen the time panel is below the fold: the value and «Готово» stay reachable at the bottom. */
+  .footer {
+    position: sticky;
+    bottom: calc(-1 * max(var(--space-3), env(safe-area-inset-bottom)));
+    padding-block: var(--space-2) max(var(--space-3), env(safe-area-inset-bottom));
+    background: var(--color-surface-1);
   }
 }

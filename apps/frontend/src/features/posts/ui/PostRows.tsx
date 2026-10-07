@@ -227,9 +227,12 @@ function Grid(props: Inner) {
                 >
                   <button type="button" className={styles.sortButton} onClick={() => props.onSortChange(key)}>
                     {label}
-                    <span className={styles.sortMark} aria-hidden="true">
-                      {active ? (props.sort?.direction === 'ascending' ? '↑' : '↓') : '↕'}
-                    </span>
+                    {/* Always in the layout, so the label never shifts; an inactive column shows it on hover only. */}
+                    <Icon
+                      name={active && props.sort?.direction === 'ascending' ? 'arrow-up' : 'arrow-down'}
+                      size={14}
+                      className={styles.sortMark}
+                    />
                   </button>
                 </th>
               );

@@ -45,10 +45,17 @@
   gap: var(--space-1);
 }
 .sortActive {
+  flex: none;
   color: var(--color-accent-text);
 }
+/* Faint at rest, so sortable columns read as such on touch screens, which have no hover. */
 .sortIdle {
-  opacity: 0.5;
+  flex: none;
+  opacity: 0.4;
+}
+.column[data-hovered] .sortIdle,
+.column[data-focus-visible] .sortIdle {
+  opacity: 0.8;
 }
 .row {
   outline: none;

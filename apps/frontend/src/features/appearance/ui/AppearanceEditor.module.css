@@ -65,6 +65,8 @@
   }
 }
 @media (max-width: 480px) {
+  /* The button row takes the full width too, so stacked buttons line up with the content edge. */
+  .actions,
   .actions > * {
     flex: 1 1 100%;
   }
