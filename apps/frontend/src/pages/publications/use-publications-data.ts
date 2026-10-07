@@ -24,6 +24,7 @@ export function usePublicationsData(search: PublicationsSearch, pollMs?: number)
     ...(today ? today : {}),
     ...(view === 'upcoming' && !search.status ? { status: 'scheduled' as const } : {}),
     ...(view === 'recent' && !search.status ? { status: 'sent' as const } : {}),
+    ...(view === 'errors' && !search.status ? { status: 'failed' as const } : {}),
     order: search.order ?? (view === 'upcoming' ? 'asc' : 'desc')
   };
   const list = useQuery(publicationsPageQueryOptions(filters, search.cursor, pollMs));
