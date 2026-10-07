@@ -1,8 +1,8 @@
 import type { Editor } from '@tiptap/core';
 import { useEditorState } from '@tiptap/react';
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { Button, Separator, ToggleButton, Toolbar } from 'react-aria-components';
-import { Icon, Tooltip } from '../../../shared/ui';
+import { Drawer, Icon, Tooltip, useMediaQuery } from '../../../shared/ui';
 import { toggleListPrefix } from '../model/list-prefix';
 import { postsCopy } from './copy';
 import styles from './EditorToolbar.module.css';
@@ -36,6 +36,8 @@ type Item = {
  * and focus: it acts on the text, and focus returns to the editor after the dialogs close.
  */
 export function EditorToolbar({ editor, onLink, onCodeLanguage }: Props) {
+  const compact = useMediaQuery('(max-width: 859px), (pointer: coarse)');
+  const [moreOpen, setMoreOpen] = useState(false);
   const state = useEditorState({
     editor,
     selector: ({ editor: current }) => ({
@@ -172,6 +174,86 @@ export function EditorToolbar({ editor, onLink, onCodeLanguage }: Props) {
       }
     ]
   ];
+
+  if (compact) {
+    const primary = [...groups[0].slice(0, 4), ...groups[2], groups[1][3], groups[0][5]].filter(
+      (item): item is Item => item !== undefined
+    );
+    const more = [groups[0][4], ...groups[1].slice(0, 3)].filter((item): item is Item => item !== undefined);
+    return (
+      <>
+        <Toolbar aria-label={copy.label} className={`${styles.toolbar} ${styles.compactToolbar}`}>
+          <div className={styles.mobileRow} role="presentation">
+            {primary.map((item) => {
+              const common = {
+                className: styles.button,
+                'aria-label': item.label,
+                'aria-keyshortcuts': item.aria,
+                isDisabled: item.isDisabled,
+                preventFocusOnPress: true
+              };
+              return item.pressable ? (
+                <ToggleButton
+                  key={item.id}
+                  {...common}
+                  isSelected={item.isActive === true}
+                  onChange={() => item.onPress()}
+                >
+                  {item.glyph}
+                </ToggleButton>
+              ) : (
+                <Button key={item.id} {...common} onPress={item.onPress}>
+                  {item.glyph}
+                </Button>
+              );
+            })}
+            <Button
+              className={`${styles.button} ${styles.moreButton}`}
+              aria-label="Ещё форматирование"
+              preventFocusOnPress
+              onPress={() => setMoreOpen(true)}
+            >
+              <Icon name="more" size={19} />
+            </Button>
+          </div>
+        </Toolbar>
+        <Drawer variant="bottom" title="Форматирование" isOpen={moreOpen} onOpenChange={setMoreOpen}>
+          <div className={styles.moreList}>
+            {more.map((item) =>
+              item.pressable ? (
+                <ToggleButton
+                  key={item.id}
+                  className={styles.moreAction}
+                  isSelected={item.isActive === true}
+                  isDisabled={item.isDisabled}
+                  onChange={() => {
+                    item.onPress();
+                    setMoreOpen(false);
+                  }}
+                >
+                  <span className={styles.moreGlyph}>{item.glyph}</span>
+                  <span>{item.label}</span>
+                </ToggleButton>
+              ) : (
+                <Button
+                  key={item.id}
+                  className={styles.moreAction}
+                  isDisabled={item.isDisabled}
+                  onPress={() => {
+                    item.onPress();
+                    setMoreOpen(false);
+                  }}
+                >
+                  <span className={styles.moreGlyph}>{item.glyph}</span>
+                  <span>{item.label}</span>
+                </Button>
+              )
+            )}
+          </div>
+        </Drawer>
+      </>
+    );
+  }
 
   return (
     <Toolbar aria-label={copy.label} className={styles.toolbar}>
