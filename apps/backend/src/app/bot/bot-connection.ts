@@ -1,10 +1,14 @@
 import type { BotStatusDto } from '@alexeev/contracts';
 import { z } from 'zod';
+import type { Clock } from '../../platform/clock';
+import type { Logger } from '../../platform/logging/logger';
 import type { TelegramBotAdminApi } from '../../integrations/telegram/telegram-api';
 import { AppError } from '../../shared/app-error';
 import type { AppEnv } from '../env';
 import { webhookUrlFor } from './app-origin';
-import { inspectBotSetup } from './create-bot';
+import { botInfoSchema } from './bot-info';
+import type { BotIdentityStore } from './bot-identity-store';
+import { type BotSetup, inspectBotSetup, loadBotSetup } from './create-bot';
 import { configureOwnerChat } from './owner-chat';
 import type { TelegramCaller } from './telegram-call';
 
@@ -37,14 +41,24 @@ export interface BotConnectionDeps {
   /** Resolved only once the settings are complete, so a Worker without a token never builds it. */
   api: () => TelegramBotAdminApi;
   call: TelegramCaller;
+  /** Where connect stores the bot identity that Telegram answers with. */
+  identity: BotIdentityStore;
+  clock: Clock;
+  logger: Logger;
+  requestId?: string;
 }
 
-// Reads Telegram's webhook info; changes nothing. Without complete settings Telegram is not asked.
+// Reads Telegram's webhook info; changes nothing. Without the complete settings Telegram is not asked.
+// The bot identity is not needed to read it, so a bot that was never connected still shows its webhook.
 export async function getBotStatus(deps: BotConnectionDeps): Promise<BotStatusDto> {
-  const { env, appOrigin, call } = deps;
-  const setup = inspectBotSetup(env);
+  return statusOf(deps, await loadBotSetup(deps.env, deps.identity, deps));
+}
+
+async function statusOf(deps: BotConnectionDeps, setup: BotSetup): Promise<BotStatusDto> {
+  const { appOrigin, call } = deps;
   const expectedUrl = webhookUrlFor(appOrigin);
-  if (setup.config === null) {
+  const { settings } = setup;
+  if (settings === null) {
     return { missing: setup.missing, botUsername: setup.botUsername, expectedUrl, webhook: null };
   }
 
@@ -54,7 +68,7 @@ export async function getBotStatus(deps: BotConnectionDeps): Promise<BotStatusDt
     (signal) => api.getWebhookInfo(signal),
     webhookInfoSchema
   );
-  const shownUrl = redactToken(info.url, setup.config.token);
+  const shownUrl = redactToken(info.url, settings.token);
   const lastErrorAt =
     info.last_error_date === undefined || info.last_error_date === 0
       ? null
@@ -69,28 +83,31 @@ export async function getBotStatus(deps: BotConnectionDeps): Promise<BotStatusDt
       pendingUpdateCount: info.pending_update_count,
       lastErrorAt,
       lastErrorMessage: info.last_error_message
-        ? redactToken(info.last_error_message, setup.config.token).slice(0, MAX_ERROR_MESSAGE)
+        ? redactToken(info.last_error_message, settings.token).slice(0, MAX_ERROR_MESSAGE)
         : null
     }
   };
 }
 
-// Registers this Worker's own webhook and the owner's chat setup, then reports the fresh status.
-// Sequential on purpose: if a step fails the earlier ones stay set, and pressing the button again
-// repeats them all with the same values.
+// Asks Telegram who the bot is and stores the answer, registers this Worker's own webhook and the
+// owner's chat setup, then reports the fresh status. Sequential on purpose: if a step fails the earlier
+// ones stay set, and pressing the button again repeats them all with the same values. `getMe` comes
+// first and its failure stores nothing, so the webhook is never registered for an unknown bot.
 export async function connectBot(deps: BotConnectionDeps): Promise<BotStatusDto> {
   const { env, appOrigin, call } = deps;
-  const { config } = inspectBotSetup(env);
-  if (config === null) {
+  const { settings } = await loadBotSetup(env, deps.identity, deps);
+  if (settings === null) {
     throw new AppError('UNAVAILABLE', 'Telegram bot is not configured', { reason: 'BOT_NOT_CONFIGURED' });
   }
 
   const api = deps.api();
+  const me = await call.read('bot_connect.get_me', (signal) => api.getMe(signal), botInfoSchema);
+  await deps.identity.save(me, deps.clock.now());
   await call.act('bot_connect.set_webhook', (signal) =>
     api.setWebhook(
       {
         url: webhookUrlFor(appOrigin),
-        secretToken: config.webhookSecret,
+        secretToken: settings.webhookSecret,
         allowedUpdates: ['message', 'callback_query']
       },
       signal
@@ -101,7 +118,8 @@ export async function connectBot(deps: BotConnectionDeps): Promise<BotStatusDto>
   // default ("Determining list of commands" in the Bot API). The owner's own list (set below, in the
   // chat scope) therefore wins over every broader list; only the chat+language one, which an older
   // bot may have left, would still shadow it, so it is deleted too. The broader lists are cleared so
-  // no other chat or language shows stale commands. Nine Telegram requests in all, under the limit of ten.
+  // no other chat or language shows stale commands. Ten Telegram requests in all (with `getMe` and the
+  // status read), the most a single connect may use.
   const stale = [
     { label: 'default_commands', input: {} },
     { label: 'private_chat_commands', input: { scope: 'all_private_chats' as const } },
@@ -109,12 +127,12 @@ export async function connectBot(deps: BotConnectionDeps): Promise<BotStatusDto>
     { label: 'private_chat_ru_commands', input: { scope: 'all_private_chats' as const, languageCode: 'ru' as const } },
     {
       label: 'owner_chat_ru_commands',
-      input: { scope: { chatId: config.ownerId }, languageCode: 'ru' as const }
+      input: { scope: { chatId: settings.ownerId }, languageCode: 'ru' as const }
     }
   ];
   for (const { label, input } of stale) {
     await call.act(`bot_connect.delete_${label}`, (signal) => api.deleteMyCommands(input, signal));
   }
-  await configureOwnerChat({ api, call }, { ownerId: config.ownerId, appOrigin });
-  return getBotStatus(deps);
+  await configureOwnerChat({ api, call }, { ownerId: settings.ownerId, appOrigin });
+  return statusOf(deps, inspectBotSetup(env, me));
 }

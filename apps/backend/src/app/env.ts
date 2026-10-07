@@ -7,7 +7,7 @@ import type { Container } from './container';
 export type AppEnv = Env & {
   TELEGRAM_BOT_TOKEN?: string;
   TELEGRAM_WEBHOOK_SECRET?: string;
-  /** JSON of the Bot API `getMe` result, so grammY never calls getMe per request. */
+  /** Optional override: JSON of the Bot API `getMe` result. Without it the identity stored by connect is used. */
   BOT_INFO?: string;
 };
 

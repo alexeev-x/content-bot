@@ -1,7 +1,8 @@
 import { ApiError } from '../../../shared/api/http-client';
 import { classifyApiError } from '../../../shared/api/error-kind';
 
-export type ConnectFailureKind = 'not_configured' | 'rate_limited' | 'unavailable' | 'forbidden' | 'unexpected';
+export type ConnectFailureKind =
+  'not_configured' | 'migration_pending' | 'rate_limited' | 'unavailable' | 'forbidden' | 'unexpected';
 export type ConnectFailure = {
   kind: ConnectFailureKind;
   retryAfterSeconds: number | undefined;
@@ -14,6 +15,9 @@ export function describeConnectFailure(error: unknown): ConnectFailure {
   const requestId = error instanceof ApiError ? error.requestId : undefined;
   if (error instanceof ApiError && error.reason === 'BOT_NOT_CONFIGURED') {
     return { kind: 'not_configured', retryAfterSeconds: undefined, requestId };
+  }
+  if (error instanceof ApiError && error.reason === 'MIGRATION_PENDING') {
+    return { kind: 'migration_pending', retryAfterSeconds: undefined, requestId };
   }
   switch (classifyApiError(error)) {
     case 'rate_limited':

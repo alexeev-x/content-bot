@@ -25,7 +25,7 @@ The regular browser app and Telegram Mini App are the same SPA. Mobile at 375 px
 | `/jobs` | Execution history | scheduler/automation jobs, status, duration, attempts, request/job ids | stuck, retry_wait, failed |
 | `/incidents` | Operational incidents | errors, unknown Telegram sends, manual reconciliation, audit history | no optimistic success, stale telemetry |
 | `/analytics` | Content intelligence | period/rubric/destination filters, publishing reliability, automation funnel, comparisons | incomplete period, missing source data |
-| `/settings` | Product settings | overview of channels, integrations, automation defaults, timezone, appearance | save conflict/error |
+| `/settings` | Product settings | master/detail: «Каналы», «Оформление» (sections added only when built); phone: list then detail; theme/accent quick control lives in the top bar (spec: `docs/stories/settings.md`) | save conflict/error, quick-save revert |
 | `/settings/channels` | Destinations | Telegram channels/groups, defaults, health and permissions | missing permissions, unreachable destination |
 | `/settings/integrations` | Integrations | bot/webhook/source connection health without exposing secrets | disconnected, invalid configuration |
 | `/settings/appearance` | Appearance | dark/light/system theme and display preferences | local fallback |

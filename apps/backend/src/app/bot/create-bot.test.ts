@@ -1,10 +1,11 @@
-import type { Update } from 'grammy/types';
+import type { Update, UserFromGetMe } from 'grammy/types';
 import { describe, expect, it } from 'vitest';
 import type { AppEnv } from '../env';
 import { apiError } from '../../../tests/helpers/fake-chat-api';
 import { fakeBotAdminApi, type Failures } from '../../../tests/helpers/fake-bot-admin-api';
 import type { LogEvent } from '../../platform/logging/logger';
-import { type BotConfig, createBot, inspectBotSetup, readBotConfig } from './create-bot';
+import type { BotIdentityStore } from './bot-identity-store';
+import { type BotConfig, createBot, inspectBotSetup, loadBotSetup } from './create-bot';
 import { createTelegramCaller } from './telegram-call';
 
 const BOT_INFO = { id: 1, is_bot: true, first_name: 'Bot', username: 'content_bot' };
@@ -15,6 +16,8 @@ const baseEnv = {
   TELEGRAM_WEBHOOK_SECRET: 'hook-secret',
   BOT_INFO: JSON.stringify(BOT_INFO)
 } as AppEnv;
+
+const readBotConfig = (env: AppEnv, stored: UserFromGetMe | null = null) => inspectBotSetup(env, stored).config;
 
 describe('readBotConfig', () => {
   it('builds a config from complete settings', () => {
@@ -86,15 +89,104 @@ async function run(fromId: number, failures: Failures = {}, adminApi = fakeBotAd
   return { calls, adminCalls: adminApi.calls, events, background, settleBackground };
 }
 
+const STORED = { id: 123456, is_bot: true, first_name: 'Stored', username: 'stored_bot' } as UserFromGetMe;
+
+function countingStore(row: UserFromGetMe | null): BotIdentityStore & { loads: number } {
+  const store = {
+    loads: 0,
+    load() {
+      store.loads += 1;
+      return Promise.resolve(row);
+    },
+    save: () => Promise.resolve()
+  };
+  return store;
+}
+
+function recordingLog() {
+  const events: LogEvent[] = [];
+  const logger = { info: () => {}, warn: (e: LogEvent) => events.push(e), error: (e: LogEvent) => events.push(e) };
+  return { events, log: { logger, requestId: 'req-1' } };
+}
+
+describe('loadBotSetup', () => {
+  it('reads the store only when BOT_INFO is absent', async () => {
+    const store = countingStore(STORED);
+    const { log, events } = recordingLog();
+    expect((await loadBotSetup(baseEnv, store, log)).botUsername).toBe('content_bot');
+    expect((await loadBotSetup({ ...baseEnv, BOT_INFO: '{oops' } as AppEnv, store, log)).missing).toEqual(['BOT_INFO']);
+    expect(store.loads).toBe(0);
+    expect((await loadBotSetup({ ...baseEnv, BOT_INFO: undefined } as AppEnv, store, log)).botUsername).toBe(
+      'stored_bot'
+    );
+    expect(store.loads).toBe(1);
+    expect(events).toEqual([]);
+  });
+
+  it('logs only a stable code when the stored identity belongs to another bot than the token', async () => {
+    const { log, events } = recordingLog();
+    const setup = await loadBotSetup(
+      { ...baseEnv, BOT_INFO: undefined } as AppEnv,
+      countingStore({ ...STORED, id: 999 }),
+      log
+    );
+    expect(setup.config).toBeNull();
+    expect(events).toEqual([
+      { component: 'bot', operation: 'bot_identity.load', requestId: 'req-1', errorCode: 'BOT_IDENTITY_MISMATCH' }
+    ]);
+  });
+});
+
 describe('inspectBotSetup', () => {
   it('lists every missing setting by name', () => {
-    const setup = inspectBotSetup({ OWNER_TELEGRAM_ID: 'x' } as AppEnv);
+    const setup = inspectBotSetup({ OWNER_TELEGRAM_ID: 'x' } as AppEnv, null);
     expect(setup.config).toBeNull();
-    expect(setup.missing).toEqual(['TELEGRAM_BOT_TOKEN', 'TELEGRAM_WEBHOOK_SECRET', 'BOT_INFO', 'OWNER_TELEGRAM_ID']);
+    expect(setup.missing).toEqual(['TELEGRAM_BOT_TOKEN', 'TELEGRAM_WEBHOOK_SECRET', 'OWNER_TELEGRAM_ID']);
+  });
+
+  it('does not list an absent BOT_INFO, but still has no config without any identity', () => {
+    const setup = inspectBotSetup({ ...baseEnv, BOT_INFO: undefined } as AppEnv, null);
+    expect(setup.missing).toEqual([]);
+    expect(setup.settings).toMatchObject({ token: '123456:TEST', ownerId: 4242 });
+    expect(setup.config).toBeNull();
+    expect(setup.botUsername).toBeNull();
+  });
+
+  it('reports a malformed BOT_INFO and blocks the config', () => {
+    const setup = inspectBotSetup({ ...baseEnv, BOT_INFO: '{oops' } as AppEnv, STORED);
+    expect(setup.missing).toEqual(['BOT_INFO']);
+    expect(setup.settings).toBeNull();
+    expect(setup.config).toBeNull();
+  });
+
+  it('takes the identity from the stored row when BOT_INFO is absent', () => {
+    const setup = inspectBotSetup({ ...baseEnv, BOT_INFO: undefined } as AppEnv, STORED);
+    expect(setup.missing).toEqual([]);
+    expect(setup.config?.botInfo.username).toBe('stored_bot');
+    expect(setup.botUsername).toBe('stored_bot');
+  });
+
+  it('prefers a valid BOT_INFO over the stored row', () => {
+    expect(inspectBotSetup(baseEnv, STORED).config?.botInfo.username).toBe('content_bot');
+  });
+
+  it('ignores a stored identity of another bot than the token belongs to', () => {
+    const other = { ...STORED, id: 999 };
+    const setup = inspectBotSetup({ ...baseEnv, BOT_INFO: undefined } as AppEnv, other);
+    expect(setup.config).toBeNull();
+    expect(setup.botUsername).toBeNull();
+  });
+
+  it('does not use a stored identity when the token carries no bot id', () => {
+    const env = { ...baseEnv, BOT_INFO: undefined, TELEGRAM_BOT_TOKEN: 'not-a-token' } as AppEnv;
+    const setup = inspectBotSetup(env, STORED);
+    expect(setup.config).toBeNull();
+    expect(setup.botUsername).toBeNull();
+    expect(inspectBotSetup({ ...env, TELEGRAM_BOT_TOKEN: undefined } as AppEnv, STORED).botUsername).toBeNull();
   });
 
   it('treats a whitespace-only token as missing and trims a padded one', () => {
-    expect(inspectBotSetup({ ...baseEnv, TELEGRAM_BOT_TOKEN: ' \n' } as AppEnv).missing).toEqual([
+    expect(inspectBotSetup({ ...baseEnv, TELEGRAM_BOT_TOKEN: ' \n' } as AppEnv, null).missing).toEqual([
       'TELEGRAM_BOT_TOKEN'
     ]);
     expect(readBotConfig({ ...baseEnv, TELEGRAM_BOT_TOKEN: '123456:TEST\n' } as AppEnv)?.token).toBe('123456:TEST');

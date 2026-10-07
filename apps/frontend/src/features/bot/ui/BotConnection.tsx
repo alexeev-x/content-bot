@@ -34,9 +34,16 @@ export function BotConnection() {
   }
   if (query.isError) {
     const forbidden = classifyApiError(query.error) === 'forbidden';
+    const migration = describeConnectFailure(query.error).kind === 'migration_pending';
     return (
       <ErrorState
-        message={forbidden ? copy.forbidden : copy.error}
+        message={
+          forbidden
+            ? copy.forbidden
+            : migration
+              ? `${copy.failure.migration_pending.title}. ${copy.failure.migration_pending.body}`
+              : copy.error
+        }
         requestId={query.error instanceof ApiError ? query.error.requestId : undefined}
         {...(forbidden ? {} : { onRetry: () => void query.refetch() })}
       />

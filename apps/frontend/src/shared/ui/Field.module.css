@@ -42,9 +42,12 @@
 .input[data-hovered] {
   border-color: var(--color-text-muted);
 }
+/* A click into a field marks it with the border alone; the thick ring is for keyboard focus only. */
 .input[data-focused],
-.input[data-focus-visible],
 .input[data-focus-within] {
+  border-color: var(--color-focus-ring);
+}
+.input[data-focus-visible] {
   border-color: var(--color-focus-ring);
   outline: var(--focus-ring-width) solid var(--color-focus-ring);
   outline-offset: 0;

@@ -34,6 +34,8 @@
 }
 .input[data-focused] {
   border-color: var(--color-focus-ring);
+}
+.input[data-focus-visible] {
   outline: var(--focus-ring-width) solid var(--color-focus-ring);
 }
 .input[data-disabled] {

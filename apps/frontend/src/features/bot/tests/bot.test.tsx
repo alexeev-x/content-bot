@@ -3,9 +3,9 @@ import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { http, HttpResponse } from 'msw';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { BotPage } from '../../../pages/settings/BotPage';
 import { clearSession, setSession } from '../../../shared/api/session';
 import { ToastProvider } from '../../../shared/ui';
+import { BotConnection } from '../ui/BotConnection';
 import { accessToken } from '../../../test/fixtures';
 import { failWith, server, setupMswServer } from '../../../test/msw';
 import { createTestQueryClient, createWrapper } from '../../../test/query-wrapper';
@@ -45,7 +45,7 @@ function renderBot() {
   render(
     <Wrapper>
       <ToastProvider>
-        <BotPage />
+        <BotConnection />
       </ToastProvider>
     </Wrapper>
   );
@@ -53,11 +53,10 @@ function renderBot() {
 }
 
 describe('bot connection', () => {
-  it('shows the username and a connected bot with a secondary reconnect', async () => {
+  it('shows a connected bot with a secondary reconnect', async () => {
     serve(status());
     renderBot();
     expect(await screen.findByText('Подключён')).toBeTruthy();
-    expect(screen.getByText('@alexeev_bot: подключение к Telegram.')).toBeTruthy();
     expect((screen.getByRole('button', { name: 'Переподключить' }) as HTMLButtonElement).disabled).toBe(false);
   });
 
@@ -197,5 +196,16 @@ describe('bot connection', () => {
     expect(await screen.findByText('Подождите примерно 12 с и повторите.')).toBeTruthy();
     await new Promise((resolve) => setTimeout(resolve, 100));
     expect(statusCalls).toBe(1);
+  });
+});
+
+describe('bot connection details', () => {
+  it('explains a pending migration on the status request', async () => {
+    server.use(
+      failWith('get', '/api/v1/bot/status', { status: 503, code: 'UNAVAILABLE', reason: 'MIGRATION_PENDING' })
+    );
+    renderBot();
+    expect(await screen.findByText(/Нужно применить миграцию базы/)).toBeTruthy();
+    expect(screen.getByText(/D1 migrations/)).toBeTruthy();
   });
 });

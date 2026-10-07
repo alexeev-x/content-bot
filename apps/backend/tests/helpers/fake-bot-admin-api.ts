@@ -9,7 +9,20 @@ export interface FakeBotAdminApi extends TelegramBotAdminApi {
 
 export type Failures = Partial<Record<keyof TelegramBotAdminApi, () => never>>;
 
-export function fakeBotAdminApi(script: { webhookInfo?: unknown; failures?: Failures } = {}): FakeBotAdminApi {
+// What Telegram answers for the test bot: its id is the one in the harness token (`123456:...`).
+export const FAKE_BOT_ME = {
+  id: 123456,
+  is_bot: true,
+  first_name: 'Bot',
+  username: 'content_bot',
+  can_join_groups: true,
+  can_read_all_group_messages: false,
+  supports_inline_queries: false
+};
+
+export function fakeBotAdminApi(
+  script: { me?: unknown; webhookInfo?: unknown; failures?: Failures } = {}
+): FakeBotAdminApi {
   const calls: string[] = [];
   const sent: unknown[] = [];
   const run = (name: keyof TelegramBotAdminApi, line: string, payload: unknown, answer: unknown = true) => {
@@ -25,6 +38,7 @@ export function fakeBotAdminApi(script: { webhookInfo?: unknown; failures?: Fail
   return {
     calls,
     sent,
+    getMe: () => run('getMe', 'getMe', null, script.me ?? FAKE_BOT_ME),
     getWebhookInfo: () =>
       run('getWebhookInfo', 'getWebhookInfo', null, script.webhookInfo ?? { url: '', pending_update_count: 0 }),
     setWebhook: (input) => run('setWebhook', `setWebhook ${input.url}`, input),

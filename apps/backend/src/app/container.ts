@@ -24,6 +24,7 @@ import {
   type TelegramBotAdminApi,
   type TelegramChatReadApi
 } from '../integrations/telegram/telegram-api';
+import { type BotIdentityStore, createD1BotIdentityStore } from './bot/bot-identity-store';
 import { purgeExpiredPlatformRows } from '../platform/housekeeping/d1-purge';
 import { createD1RateLimiter, type RateLimiter } from '../platform/rate-limit/d1-rate-limiter';
 import { randomToken } from '../platform/security/random-token';
@@ -54,6 +55,8 @@ export interface Container {
   chatInspector: ChatInspector;
   /** Webhook, command and menu calls of the bot; asking for it without the token is a 503. */
   botAdminApi: TelegramBotAdminApi;
+  /** The bot's own identity (`getMe`), stored by connect; read by the webhook instead of calling Telegram. */
+  botIdentity: BotIdentityStore;
   housekeeping: {
     purgeExpired(input: { now: number; limit: number }): Promise<{ idempotencyKeys: number; rateLimits: number }>;
   };
@@ -68,7 +71,7 @@ export interface Container {
 export interface ContainerEnv {
   DB?: D1Database;
   TELEGRAM_BOT_TOKEN?: string;
-  /** JSON of the Bot API `getMe` result; its `id` saves a `getMe` call per destination check. */
+  /** Optional override: JSON of the Bot API `getMe` result. Without it connect stores the identity in D1. */
   BOT_INFO?: string;
   /** Kill switch: only the exact string "true" lets the dispatcher claim jobs. */
   PUBLISHING_ENABLED?: string;
@@ -172,6 +175,14 @@ export function createContainer(env: ContainerEnv, overrides: ContainerOverrides
       const token = botToken();
       if (token === '') throw new AppError('UNAVAILABLE', 'Telegram bot is not configured');
       return createTelegramBotAdminApi(token);
+    },
+    // Resolved per call: a BOT_INFO override never touches the database, so a Worker without one still answers.
+    get botIdentity(): BotIdentityStore {
+      const logger = createLogger();
+      return {
+        load: () => createD1BotIdentityStore(db(), logger).load(),
+        save: (info, now) => createD1BotIdentityStore(db(), logger).save(info, now)
+      };
     },
     get housekeeping() {
       return { purgeExpired: (input: { now: number; limit: number }) => purgeExpiredPlatformRows(db(), input) };

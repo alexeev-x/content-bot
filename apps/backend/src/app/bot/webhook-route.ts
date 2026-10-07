@@ -5,7 +5,7 @@ import { timingSafeEqualStrings } from '../../platform/security/timing-safe-equa
 import { AppError } from '../../shared/app-error';
 import type { AppBindings } from '../env';
 import { appOriginOf } from './app-origin';
-import { createBot, readBotConfig } from './create-bot';
+import { createBot, loadBotSetup } from './create-bot';
 import { createTelegramCaller } from './telegram-call';
 
 const MAX_UPDATE_BYTES = 256 * 1024;
@@ -37,10 +37,14 @@ export const telegramWebhook = new Hono<AppBindings>().post(
       throw new AppError('UNAUTHORIZED', 'Invalid webhook secret');
     }
 
-    const config = readBotConfig(c.env);
+    // The identity is a BOT_INFO override or the row connect stored: one lookup, never a getMe per update.
+    const container = c.get('container');
+    const { config } = await loadBotSetup(c.env, container.botIdentity, {
+      logger: container.logger,
+      requestId: c.get('requestId')
+    });
     if (!config) throw new AppError('UNAVAILABLE', 'Telegram bot is not configured');
 
-    const container = c.get('container');
     const bot = createBot(config, {
       appOrigin: appOriginOf(c.req.url),
       adminApi: container.botAdminApi,

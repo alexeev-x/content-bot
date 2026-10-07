@@ -6,8 +6,7 @@
   text-align: left;
   cursor: pointer;
 }
-.trigger[data-focus-visible],
-.trigger[data-focused] {
+.trigger[data-focus-visible] {
   border-color: var(--color-focus-ring);
   outline: var(--focus-ring-width) solid var(--color-focus-ring);
 }

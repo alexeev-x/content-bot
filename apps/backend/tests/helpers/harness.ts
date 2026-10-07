@@ -40,6 +40,7 @@ export async function resetDb(): Promise<void> {
       'post_revisions',
       'audit_log',
       'settings',
+      'bot_identity',
       'idempotency_keys',
       'posts',
       'rate_limits',
@@ -48,6 +49,17 @@ export async function resetDb(): Promise<void> {
       'sessions'
     ].map((table) => db.prepare(`DELETE FROM ${table}`))
   );
+}
+
+export async function seedBotIdentity(info: unknown, botId = 123456): Promise<void> {
+  await testDb()
+    .prepare('INSERT INTO bot_identity (id, bot_id, info, updated_at) VALUES (1, ?1, ?2, ?3)')
+    .bind(botId, JSON.stringify(info), START)
+    .run();
+}
+
+export async function readBotIdentityRow(): Promise<{ bot_id: number; info: string; updated_at: number } | null> {
+  return testDb().prepare('SELECT bot_id, info, updated_at FROM bot_identity WHERE id = 1').first();
 }
 
 export async function seedSession(options: {

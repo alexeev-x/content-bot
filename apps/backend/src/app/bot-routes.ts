@@ -8,7 +8,7 @@ import { rateLimit } from './rate-limit';
 import { limitBody, validated } from './validation';
 
 const MAX_BODY_BYTES = 1024;
-// Connecting is seven Telegram requests, a status check one; both are pressed by hand.
+// Connecting is ten Telegram requests, a status check one; both are pressed by hand.
 const CONNECT_LIMIT = 10;
 const STATUS_LIMIT = 60;
 const WINDOW_MS = 10 * 60 * 1000;
@@ -20,7 +20,11 @@ function connectionDeps(c: Context<AppBindings>): BotConnectionDeps {
     appOrigin: appOriginOf(c.req.url),
     // Resolved lazily: without a token the status is answered without building a Telegram client.
     api: () => container.botAdminApi,
-    call: createTelegramCaller({ logger: container.logger, requestId: c.get('requestId') })
+    call: createTelegramCaller({ logger: container.logger, requestId: c.get('requestId') }),
+    identity: container.botIdentity,
+    clock: container.clock,
+    logger: container.logger,
+    requestId: c.get('requestId')
   };
 }
 

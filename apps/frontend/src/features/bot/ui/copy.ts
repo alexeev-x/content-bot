@@ -1,7 +1,5 @@
-// Copy of the Settings → Бот screen, kept beside the feature like the channels copy.
+// Copy of the dashboard bot widget and its details drawer, kept beside the feature like the channels copy.
 export const botCopy = {
-  title: 'Бот',
-  descriptionWith: (username: string) => `@${username}: подключение к Telegram.`,
   info: 'Подключение регистрирует адрес этого сервера в Telegram, ставит кнопку «Студия» в меню бота и убирает старые команды. Секреты не покидают сервер.',
   loading: 'Загружаем состояние бота…',
   error: 'Не удалось получить состояние бота. Повторите запрос.',
@@ -32,6 +30,10 @@ export const botCopy = {
       title: 'Бот не настроен',
       body: 'На сервере не хватает настроек. Задайте их и обновите состояние.'
     },
+    migration_pending: {
+      title: 'Нужно применить миграцию базы',
+      body: 'GitHub → Actions → D1 migrations → Run workflow (dev)'
+    },
     rate_limited: { title: 'Слишком частые запросы' },
     unavailable: {
       title: 'Telegram не ответил',
@@ -41,5 +43,20 @@ export const botCopy = {
     unexpected: { title: 'Не удалось подключить бота', body: 'Что-то пошло не так. Повторите попытку.' }
   },
   wait: (seconds: number) => `Подождите примерно ${seconds} с и повторите.`,
-  retry: 'Повторить'
+  retry: 'Повторить',
+  widget: {
+    title: 'Бот',
+    loading: 'Загружаем состояние бота…',
+    statusError: 'Не удалось получить статус бота',
+    details: 'Подробнее',
+    detailsTitle: 'Бот',
+    connect: 'Подключить',
+    reconnect: 'Подключить заново',
+    healthy: (username: string | null) => (username ? `Бот @${username}` : 'Бот'),
+    notConfigured: 'Бот не настроен',
+    notConnected: 'Бот не подключён',
+    otherAddress: 'Подключён к другому адресу',
+    deliveryError: 'Ошибка доставки',
+    missing: (names: string) => `Не заданы: ${names}`
+  }
 } as const;

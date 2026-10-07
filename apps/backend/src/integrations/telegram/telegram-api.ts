@@ -47,6 +47,7 @@ export interface BotCommandDescription {
 // `deleteMyCommands` takes a scope and a language because Telegram keeps one list per pair, and a
 // list left by an older bot would shadow the one this bot sets.
 export interface TelegramBotAdminApi {
+  getMe(signal: AbortSignal): Promise<unknown>;
   getWebhookInfo(signal: AbortSignal): Promise<unknown>;
   setWebhook(
     input: { url: string; secretToken: string; allowedUpdates: ('message' | 'callback_query')[] },
@@ -63,6 +64,7 @@ export interface TelegramBotAdminApi {
 export function createTelegramBotAdminApi(token: string): TelegramBotAdminApi {
   const api = new Api(token);
   return {
+    getMe: (signal) => api.getMe(signal as never),
     getWebhookInfo: (signal) => api.getWebhookInfo(signal as never),
     // Pending updates are dropped: an old backlog (for example from a previous bot) is not this bot's to answer.
     setWebhook: ({ url, secretToken, allowedUpdates }, signal) =>

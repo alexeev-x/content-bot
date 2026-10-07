@@ -1,14 +1,17 @@
 import { botStatusSchema } from '@alexeev/contracts';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { testDb } from '../helpers/db';
 import { expectError } from '../helpers/expect-error';
 import { apiError, networkError } from '../helpers/fake-chat-api';
-import { type FakeBotAdminApi, type Failures, fakeBotAdminApi } from '../helpers/fake-bot-admin-api';
+import { FAKE_BOT_ME, type FakeBotAdminApi, type Failures, fakeBotAdminApi } from '../helpers/fake-bot-admin-api';
 import {
   type Api,
   createApi,
   OWNER_ID,
   OWNER_TOKEN,
+  readBotIdentityRow,
   resetDb,
+  seedBotIdentity,
   seedSession,
   START,
   TEST_BOT_TOKEN
@@ -37,7 +40,7 @@ afterEach(() => {
 });
 
 function use(
-  script: { webhookInfo?: unknown; failures?: Failures } = {},
+  script: { me?: unknown; webhookInfo?: unknown; failures?: Failures } = {},
   options: Parameters<typeof createApi>[0] = {}
 ): void {
   telegram = fakeBotAdminApi(script);
@@ -79,6 +82,30 @@ describe('GET /api/v1/bot/status', () => {
       expectedUrl: EXPECTED_URL,
       webhook: null
     });
+    expect(telegram.calls).toEqual([]);
+  });
+
+  it('lists nothing and shows the webhook when BOT_INFO was never set and connect never ran', async () => {
+    use({ webhookInfo: NO_HOOK }, { botInfo: undefined });
+    expect(await parsed(await status())).toEqual({
+      missing: [],
+      botUsername: null,
+      expectedUrl: EXPECTED_URL,
+      webhook: { url: null, pointsHere: false, pendingUpdateCount: 0, lastErrorAt: null, lastErrorMessage: null }
+    });
+    expect(telegram.calls).toEqual(['getWebhookInfo']);
+  });
+
+  it('takes the bot username from the stored identity when BOT_INFO is absent', async () => {
+    await seedBotIdentity(FAKE_BOT_ME);
+    use({ webhookInfo: NO_HOOK }, { botInfo: undefined });
+    expect(await parsed(await status())).toMatchObject({ missing: [], botUsername: 'content_bot' });
+  });
+
+  it('still reports a malformed BOT_INFO even when an identity is stored', async () => {
+    await seedBotIdentity(FAKE_BOT_ME);
+    use({}, { botInfo: '{oops' });
+    expect(await parsed(await status())).toMatchObject({ missing: ['BOT_INFO'], botUsername: null, webhook: null });
     expect(telegram.calls).toEqual([]);
   });
 
@@ -183,6 +210,7 @@ describe('POST /api/v1/bot/connect', () => {
     const body = await parsed(await connect());
 
     expect(telegram.calls).toEqual([
+      'getMe',
       `setWebhook ${EXPECTED_URL}`,
       'deleteMyCommands default -',
       'deleteMyCommands all_private_chats -',
@@ -193,15 +221,72 @@ describe('POST /api/v1/bot/connect', () => {
       `setChatMenuWebApp ${OWNER_ID} Студия ${ORIGIN}/`,
       'getWebhookInfo'
     ]);
-    expect(telegram.sent[0]).toEqual({
+    expect(telegram.sent[1]).toEqual({
       url: EXPECTED_URL,
       secretToken: WEBHOOK_SECRET,
       allowedUpdates: ['message', 'callback_query']
     });
-    expect(telegram.sent[6]).toEqual([{ command: 'start', description: 'Открыть студию' }]);
+    expect(telegram.sent[7]).toEqual([{ command: 'start', description: 'Открыть студию' }]);
     expect(telegram.calls.length).toBeLessThanOrEqual(10);
-    expect(telegram.sent[5]).toEqual({ scope: { chatId: Number(OWNER_ID) }, languageCode: 'ru' });
+    expect(telegram.sent[6]).toEqual({ scope: { chatId: Number(OWNER_ID) }, languageCode: 'ru' });
     expect(body.webhook?.pointsHere).toBe(true);
+  });
+
+  it('asks getMe first and stores the identity when BOT_INFO is not set', async () => {
+    use({ webhookInfo: { url: EXPECTED_URL, pending_update_count: 0 } }, { botInfo: undefined });
+    const body = await parsed(await connect());
+
+    expect(telegram.calls[0]).toBe('getMe');
+    expect(telegram.calls.length).toBeLessThanOrEqual(10);
+    expect(body).toMatchObject({ missing: [], botUsername: 'content_bot' });
+    const row = await readBotIdentityRow();
+    expect(row).toMatchObject({ bot_id: 123456, updated_at: START });
+    expect(JSON.parse(row?.info ?? '')).toMatchObject({ id: 123456, username: 'content_bot' });
+  });
+
+  it('keeps a single identity row when connect is pressed again', async () => {
+    use({ webhookInfo: NO_HOOK }, { botInfo: undefined });
+    await connect();
+    await connect();
+    const count = await testDb().prepare('SELECT COUNT(*) AS n FROM bot_identity').first<{ n: number }>();
+    expect(count?.n).toBe(1);
+  });
+
+  it('stores nothing and registers nothing when getMe fails: 429 and 503', async () => {
+    use(
+      {
+        failures: {
+          getMe: () => {
+            throw apiError(429, 'Too Many Requests: retry after 5', { retry_after: 5 });
+          }
+        }
+      },
+      { botInfo: undefined }
+    );
+    const limited = await connect();
+    await expectError(limited, 429, 'RATE_LIMIT');
+    expect(limited.headers.get('retry-after')).toBe('5');
+
+    use(
+      {
+        failures: {
+          getMe: () => {
+            throw networkError();
+          }
+        }
+      },
+      { botInfo: undefined }
+    );
+    await expectError(await connect(), 503, 'UNAVAILABLE');
+    expect(telegram.calls).toEqual(['getMe']);
+    expect(await readBotIdentityRow()).toBeNull();
+  });
+
+  it('stores nothing when getMe answers in an unexpected shape', async () => {
+    use({ me: { ok: true } }, { botInfo: undefined });
+    await expectError(await connect(), 503, 'UNAVAILABLE');
+    expect(telegram.calls).toEqual(['getMe']);
+    expect(await readBotIdentityRow()).toBeNull();
   });
 
   it('is safe to repeat: the second press sets the same values', async () => {
@@ -235,7 +320,7 @@ describe('POST /api/v1/bot/connect', () => {
     const response = await connect();
     await expectError(response, 429, 'RATE_LIMIT');
     expect(response.headers.get('retry-after')).toBe('3');
-    expect(telegram.calls).toEqual([`setWebhook ${EXPECTED_URL}`]);
+    expect(telegram.calls).toEqual(['getMe', `setWebhook ${EXPECTED_URL}`]);
   });
 
   it('answers 503 on a network error mid-way and does not continue', async () => {
@@ -247,7 +332,7 @@ describe('POST /api/v1/bot/connect', () => {
       }
     });
     await expectError(await connect(), 503, 'UNAVAILABLE');
-    expect(telegram.calls).toEqual([`setWebhook ${EXPECTED_URL}`, 'deleteMyCommands default -']);
+    expect(telegram.calls).toEqual(['getMe', `setWebhook ${EXPECTED_URL}`, 'deleteMyCommands default -']);
   });
 
   it('answers 401 without a session and 400 for an unknown field', async () => {
@@ -301,7 +386,7 @@ describe('POST /api/v1/bot/connect', () => {
       json: {},
       token: OWNER_TOKEN
     });
-    expect(telegram.calls[0]).toBe(`setWebhook ${EXPECTED_URL}`);
+    expect(telegram.calls[1]).toBe(`setWebhook ${EXPECTED_URL}`);
   });
 
   it('never exposes the token or the webhook secret in a response or a log line', async () => {
@@ -380,6 +465,60 @@ describe('POST /webhooks/telegram /start', () => {
       `setChatCommands ${OWNER_ID} start`,
       `setChatMenuWebApp ${OWNER_ID} Студия ${ORIGIN}/`
     ]);
+  });
+
+  it('answers /start with only the stored identity, no BOT_INFO', async () => {
+    await seedBotIdentity(FAKE_BOT_ME);
+    use({}, { botInfo: undefined });
+    const fetched = vi
+      .spyOn(globalThis, 'fetch')
+      .mockImplementation(() => Promise.resolve(Response.json({ ok: true, result: { message_id: 1 } })));
+    const response = await api.request(`${ORIGIN}/webhooks/telegram`, {
+      method: 'POST',
+      token: null,
+      json: startUpdate(),
+      headers: { 'x-telegram-bot-api-secret-token': WEBHOOK_SECRET }
+    });
+    await Promise.all(api.background);
+
+    expect(response.status).toBe(200);
+    // One sendMessage and no getMe: grammY was given the identity instead of asking for it.
+    expect(fetched.mock.calls.map(([input]) => String(input instanceof Request ? input.url : input))).toEqual([
+      expect.stringContaining('/sendMessage')
+    ]);
+    expect(telegram.calls).toEqual([
+      `setChatCommands ${OWNER_ID} start`,
+      `setChatMenuWebApp ${OWNER_ID} Студия ${ORIGIN}/`
+    ]);
+  });
+
+  it('answers 503 and calls Telegram not at all when neither BOT_INFO nor a stored identity exists', async () => {
+    use({}, { botInfo: undefined });
+    const fetched = vi.spyOn(globalThis, 'fetch');
+    const response = await api.request(`${ORIGIN}/webhooks/telegram`, {
+      method: 'POST',
+      token: null,
+      json: startUpdate(),
+      headers: { 'x-telegram-bot-api-secret-token': WEBHOOK_SECRET }
+    });
+    await expectError(response, 503, 'UNAVAILABLE');
+    expect(fetched).not.toHaveBeenCalled();
+    expect(telegram.calls).toEqual([]);
+  });
+
+  it('answers 503 when the stored identity belongs to another bot than the token', async () => {
+    await seedBotIdentity({ ...FAKE_BOT_ME, id: 777 }, 777);
+    use({}, { botInfo: undefined });
+    const fetched = vi.spyOn(globalThis, 'fetch');
+    const response = await api.request(`${ORIGIN}/webhooks/telegram`, {
+      method: 'POST',
+      token: null,
+      json: startUpdate(),
+      headers: { 'x-telegram-bot-api-secret-token': WEBHOOK_SECRET }
+    });
+    await expectError(response, 503, 'UNAVAILABLE');
+    expect(fetched).not.toHaveBeenCalled();
+    expect(logLines.some((line) => line.includes('"errorCode":"BOT_IDENTITY_MISMATCH"'))).toBe(true);
   });
 
   it('answers 200 with exactly one reply while the owner chat setup is slow and then hangs', async () => {
@@ -478,5 +617,58 @@ describe('POST /webhooks/telegram /start', () => {
     await expectError(response, 503, 'UNAVAILABLE');
     expect(fetched).not.toHaveBeenCalled();
     expect(telegram.calls).toEqual([]);
+  });
+});
+
+describe('stored identity problems', () => {
+  it('logs a stable code, not the payload, for a stored row that is no longer a bot identity', async () => {
+    await seedBotIdentity({ leaked: 'PAYLOAD-MARKER' });
+    use({}, { botInfo: undefined });
+    const body = await parsed(await status());
+    expect(body.botUsername).toBeNull();
+    expect(logLines.some((line) => line.includes('"errorCode":"BOT_IDENTITY_CORRUPT"'))).toBe(true);
+    expect(logLines.join('\n')).not.toContain('PAYLOAD-MARKER');
+  });
+});
+
+describe('before migration 0007 is applied', () => {
+  const OFF = 'bot_identity_pending_test';
+  beforeEach(async () => {
+    await testDb().prepare(`ALTER TABLE bot_identity RENAME TO ${OFF}`).run();
+  });
+  afterEach(async () => {
+    await testDb().prepare(`ALTER TABLE ${OFF} RENAME TO bot_identity`).run();
+  });
+
+  async function expectPending(response: Response): Promise<void> {
+    await expectError(response, 503, 'UNAVAILABLE', { reason: 'MIGRATION_PENDING' });
+    expect(logLines.some((line) => line.includes('"errorCode":"MIGRATION_PENDING"'))).toBe(true);
+  }
+
+  it('answers 503 MIGRATION_PENDING on status', async () => {
+    use({}, { botInfo: undefined });
+    await expectPending(await status());
+  });
+
+  it('answers 503 MIGRATION_PENDING on connect without calling Telegram', async () => {
+    use({}, { botInfo: undefined });
+    await expectPending(await connect());
+    expect(telegram.calls).toEqual([]);
+  });
+
+  it('answers 503 MIGRATION_PENDING on the webhook', async () => {
+    use({}, { botInfo: undefined });
+    const response = await api.request(`${ORIGIN}/webhooks/telegram`, {
+      method: 'POST',
+      token: null,
+      json: startUpdate(),
+      headers: { 'x-telegram-bot-api-secret-token': WEBHOOK_SECRET }
+    });
+    await expectPending(response);
+  });
+
+  it('keeps answering with a BOT_INFO override, which never reads the table', async () => {
+    use({ webhookInfo: NO_HOOK });
+    await parsed(await status());
   });
 });

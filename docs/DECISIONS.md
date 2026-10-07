@@ -38,6 +38,7 @@ A short list of accepted decisions. An agent does not propose an alternative to 
 | 06.10.2026 | Deleting or archiving a post or publication in the admin never deletes the message from the Telegram channel; deleting from the channel is a separate, later decision | `docs/stories/posts-lifecycle.md` |
 | 06.10.2026 | Every delete in the admin asks for confirmation; lists of posts (including the Archive) and final publications support selecting several rows and deleting them at once | `docs/stories/posts-lifecycle.md` §5, §6a |
 | 06.10.2026 | Density revision supersedes the look of option C "modern": narrow grouped sidebar with a subtle active state, accent on about 5% of the UI, dense desktop controls (34–36 px fields, 40 px rows, 7–9 px radii; mobile keeps 44 px), fewer cards, fluid tables, editor as a document with an inspector, «Сегодня» dashboard without a KPI wall, composition per page; the accent presets and the Appearance settings stay | `docs/DESIGN_SYSTEM_NO_FIGMA.md` § Density revision |
+| 07.10.2026 | A top-bar button toggles light ↔ dark from any screen and saves at once; accent and style changes stay in Settings → Оформление and need an explicit Save; Settings becomes master/detail (Каналы, Оформление); bot status lives on the dashboard, not in Settings | `docs/stories/settings.md` |
 
 ## Awaiting owner decision
 | Question | Default recommendation |
