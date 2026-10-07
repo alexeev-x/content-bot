@@ -176,6 +176,40 @@ describe('PublicationsPage list', () => {
     expect(screen.queryByRole('button', { name: 'Сбросить фильтры' })).toBeNull();
   });
 
+  it('maps the URL presets to server-side publication filters', async () => {
+    servePosts();
+    const urls = serveList(() => ({ items: [rows.scheduled] }));
+
+    const recent = await renderPage({ initial: { view: 'recent' } });
+    await screen.findByRole('grid', { name: 'Список публикаций' });
+    expect(urls.at(-1)?.searchParams.get('status')).toBe('sent');
+    expect(urls.at(-1)?.searchParams.get('order')).toBe('desc');
+    recent.view.unmount();
+    cleanup();
+
+    const upcoming = await renderPage({ initial: { view: 'upcoming' } });
+    await screen.findByRole('grid', { name: 'Список публикаций' });
+    expect(urls.at(-1)?.searchParams.get('status')).toBe('scheduled');
+    expect(urls.at(-1)?.searchParams.get('order')).toBe('asc');
+    upcoming.view.unmount();
+    cleanup();
+
+    const errors = await renderPage({ initial: { view: 'errors' } });
+    await screen.findByRole('grid', { name: 'Список публикаций' });
+    expect(urls.at(-1)?.searchParams.get('status')).toBe('failed');
+    errors.view.unmount();
+    cleanup();
+
+    await renderPage({ initial: { view: 'today' } });
+    await screen.findByRole('grid', { name: 'Список публикаций' });
+    const latest = urls.at(-1);
+    expect(latest?.searchParams.get('from')).toBeTruthy();
+    expect(latest?.searchParams.get('to')).toBeTruthy();
+    expect(Date.parse(latest?.searchParams.get('from') ?? '')).toBeLessThan(
+      Date.parse(latest?.searchParams.get('to') ?? '')
+    );
+  });
+
   it('on a phone keeps the filters in a sheet behind a counted button and lists compact rows', async () => {
     setViewport(375);
     server.use(

@@ -20,6 +20,9 @@ export async function listPublications(
     status: query.status,
     postId: query.postId,
     destinationId: query.destinationId,
+    from: query.from === undefined ? undefined : Date.parse(query.from),
+    to: query.to === undefined ? undefined : Date.parse(query.to),
+    order: query.order,
     after: key === undefined ? undefined : { scheduledAt: key[0], id: key[1] },
     limit: query.limit + 1,
     now: deps.now

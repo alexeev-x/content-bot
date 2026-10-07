@@ -32,7 +32,12 @@ export function PublicationsPage({ search, onSearchChange, onOpenPosts, pollMs }
   useDocumentTitle(copy.list.title);
   const { list, destinationList, postTitle, channel } = usePublicationsData(search, pollMs);
   const items = list.data?.items ?? [];
-  const hasFilters = search.status !== undefined || search.channel !== undefined || search.post !== undefined;
+  const hasFilters =
+    search.view !== undefined ||
+    search.status !== undefined ||
+    search.channel !== undefined ||
+    search.post !== undefined ||
+    search.order !== undefined;
   const announcement = useStatusAnnouncement(items);
   // The offset is read once per visit: it only changes at a DST switch, and render must stay pure.
   const [zoneNote] = useState(() => {
@@ -44,17 +49,36 @@ export function PublicationsPage({ search, onSearchChange, onOpenPosts, pollMs }
   const openRow = search.id ? items.find((item) => item.id === search.id) : undefined;
   const openDestination = openRow ? channel(openRow) : undefined;
 
-  const reset = () => onSearchChange({ status: undefined, channel: undefined, post: undefined, cursor: undefined });
+  const reset = () =>
+    onSearchChange({
+      view: undefined,
+      status: undefined,
+      channel: undefined,
+      post: undefined,
+      order: undefined,
+      cursor: undefined
+    });
 
   return (
     <>
       <PageHeader title={copy.list.title} description={copy.list.description} />
       <PublicationsFilters
+        view={search.view}
         status={search.status}
         channel={search.channel}
+        order={search.order}
         destinations={destinationList}
-        onStatusChange={(status) => onSearchChange({ status, cursor: undefined })}
+        onViewChange={(view) =>
+          onSearchChange({
+            view,
+            status: undefined,
+            order: undefined,
+            cursor: undefined
+          })
+        }
+        onStatusChange={(status) => onSearchChange({ status, view: undefined, cursor: undefined })}
         onChannelChange={(next) => onSearchChange({ channel: next, cursor: undefined })}
+        onOrderChange={(order) => onSearchChange({ order, cursor: undefined })}
         onReset={reset}
       />
       {search.post ? (

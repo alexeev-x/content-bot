@@ -85,16 +85,28 @@ export function listPublicationsSql(query: ListPublicationsQuery): { sql: string
     conditions.push(condition.sql);
     if (condition.usesNow) bindings.push(query.now);
   }
+  if (query.from !== undefined) {
+    conditions.push(`${scheduledAt} >= ?`);
+    bindings.push(query.from);
+  }
+  if (query.to !== undefined) {
+    conditions.push(`${scheduledAt} < ?`);
+    bindings.push(query.to);
+  }
+  const order = query.order ?? 'desc';
   if (query.after !== undefined) {
-    // The leading range lets the index seek straight to the cursor; the OR only breaks ties among
-    // rows that share the cursor's timestamp.
-    conditions.push(`${scheduledAt} <= ?`, `(${scheduledAt} < ? OR ${id} < ?)`);
+    const comparison = order === 'asc' ? '>' : '<';
+    conditions.push(
+      `${scheduledAt} ${order === 'asc' ? '>=' : '<='} ?`,
+      `(${scheduledAt} ${comparison} ? OR ${id} ${comparison} ?)`
+    );
     bindings.push(query.after.scheduledAt, query.after.scheduledAt, query.after.id);
   }
   bindings.push(query.limit);
   const where = conditions.length === 0 ? '' : ` WHERE ${conditions.join(' AND ')}`;
+  const direction = order === 'asc' ? 'ASC' : 'DESC';
   return {
-    sql: `SELECT ${PUBLICATION_COLUMNS} ${byJobs ? FROM_JOBS : FROM_PUBLICATIONS}${where} ORDER BY ${scheduledAt} DESC, ${id} DESC LIMIT ?`,
+    sql: `SELECT ${PUBLICATION_COLUMNS} ${byJobs ? FROM_JOBS : FROM_PUBLICATIONS}${where} ORDER BY ${scheduledAt} ${direction}, ${id} ${direction} LIMIT ?`,
     bindings
   };
 }

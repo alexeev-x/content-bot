@@ -7,11 +7,25 @@ import { publicationsPageQueryOptions, type PublicationFilters } from '../../fea
 import type { PublicationsSearch } from './search';
 
 /** Composes the three features the list needs: publications, the posts they belong to and the channels they go to. */
+function todayRange() {
+  const now = new Date();
+  const from = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const to = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+  return { from: from.toISOString(), to: to.toISOString() };
+}
+
 export function usePublicationsData(search: PublicationsSearch, pollMs?: number) {
+  const view = search.view;
+  const today = view === 'today' ? todayRange() : undefined;
   const filters: PublicationFilters = {
     ...(search.status ? { status: search.status } : {}),
     ...(search.post ? { postId: search.post } : {}),
-    ...(search.channel ? { destinationId: search.channel } : {})
+    ...(search.channel ? { destinationId: search.channel } : {}),
+    ...(today ? today : {}),
+    ...(view === 'upcoming' && !search.status ? { status: 'scheduled' as const } : {}),
+    ...(view === 'recent' && !search.status ? { status: 'sent' as const } : {}),
+    ...(view === 'errors' && !search.status ? { status: 'failed' as const } : {}),
+    order: search.order ?? (view === 'upcoming' ? 'asc' : 'desc')
   };
   const list = useQuery(publicationsPageQueryOptions(filters, search.cursor, pollMs));
   const destinations = useInfiniteQuery(destinationsInfiniteQueryOptions());

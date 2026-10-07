@@ -126,7 +126,10 @@ export type ResolveUnknownOutcome = ResolveUnknownPublicationInput['outcome'];
 export const listPublicationsQuerySchema = pageQuerySchema.extend({
   status: publicationStatusSchema.optional(),
   postId: z.uuid().optional(),
-  destinationId: z.uuid().optional()
+  destinationId: z.uuid().optional(),
+  from: z.iso.datetime().optional(),
+  to: z.iso.datetime().optional(),
+  order: z.enum(['asc', 'desc']).default('desc')
 });
 export type ListPublicationsQuery = z.infer<typeof listPublicationsQuerySchema>;
 
