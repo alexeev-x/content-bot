@@ -9,6 +9,7 @@ type SummaryItem = {
   detail: string;
   icon: 'calendar' | 'alert' | 'clock' | 'send';
   to: '/publications' | '/incidents';
+  view?: 'today' | 'upcoming' | 'recent';
   tone?: 'attention' | 'ok';
 };
 
@@ -27,7 +28,8 @@ export function SummaryCards({ todayTotal, attentionTotal, nextLabel, recentCoun
       value: String(todayTotal),
       detail: 'Запланировано и отправлено',
       icon: 'calendar',
-      to: '/publications'
+      to: '/publications',
+      view: 'today'
     },
     {
       key: 'attention',
@@ -44,7 +46,8 @@ export function SummaryCards({ todayTotal, attentionTotal, nextLabel, recentCoun
       value: nextLabel,
       detail: nextLabel === '—' ? 'Пока ничего не запланировано' : 'Следующая по расписанию',
       icon: 'clock',
-      to: '/publications'
+      to: '/publications',
+      view: 'upcoming'
     },
     {
       key: 'recent',
@@ -52,7 +55,8 @@ export function SummaryCards({ todayTotal, attentionTotal, nextLabel, recentCoun
       value: String(recentCount),
       detail: 'Последние публикации',
       icon: 'send',
-      to: '/publications'
+      to: '/publications',
+      view: 'recent'
     }
   ];
 
@@ -62,6 +66,7 @@ export function SummaryCards({ todayTotal, attentionTotal, nextLabel, recentCoun
         <Link
           key={item.key}
           to={item.to}
+          search={item.to === '/publications' && item.view ? { view: item.view } : undefined}
           className={styles.summaryCard}
           data-tone={item.tone ?? 'neutral'}
           aria-label={`${item.label}: ${item.value}`}
