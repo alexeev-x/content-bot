@@ -223,7 +223,7 @@ function PublicationBody({ publication, postTitle, postBody, destinationTitle, c
                 {copy.drawer.details}
               </h3>
               <dl className={styles.details}>
-                <dt>{'Статус'}</dt>
+                <dt>Статус</dt>
                 <dd>
                   <StatusBadge status={shown} />
                 </dd>
@@ -280,7 +280,10 @@ function PublicationBody({ publication, postTitle, postBody, destinationTitle, c
         <TabPanel id="stats">
           <div className={styles.futurePanel}>
             <strong>Статистика публикации</strong>
-            <p>Появится после подключения Telegram Analytics. Сейчас сервер не хранит метрики просмотров и вовлечённости.</p>
+            <p>
+              Появится после подключения Telegram Analytics. Сейчас сервер не хранит метрики просмотров и
+              вовлечённости.
+            </p>
           </div>
         </TabPanel>
 
