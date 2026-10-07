@@ -35,7 +35,7 @@ Already implemented:
 - DEV and production have separate D1 bindings.
 - DEV Cron exists; production Cron remains deliberately controlled until production release.
 - CI performs verification, secret scanning and branch-driven deploys.
-- CI on develop is being optimized around affected areas, parallel test shards, stale-run cancellation and dependency reuse. Production remains the strict gate.
+- CI on develop and pull requests checks only the areas a push/PR touches, shards the Vitest suites across runners, cancels stale runs and reuses installed dependencies; every deploy ends with a `/api/v1/health` smoke check. `main` (production) always runs the full set.
 - Secrets are not stored in Git.
 
 ### 2.2 Authentication and owner access
@@ -89,6 +89,7 @@ Existing technical safety that must remain:
 - ambiguous result becomes UNKNOWN.
 - manual reconciliation.
 - attempts and incidents.
+- private owner alert for each publication incident: claimed in D1 first, sent once to the owner's bot chat, never retried, never to a content channel (`apps/backend/src/app/notifications/alert-owner-of-incidents.ts`). Dedupe/grouping/recovery alerts from §3.9 are not built yet.
 
 ### 2.5 Current pages
 
@@ -602,6 +603,14 @@ Telegram publishing strategy:
 - store every resulting Telegram message id.
 
 Caption/text limits are capability-specific and validated before approval/publish. Do not hard-code one global 4096 limit for every media mode.
+
+Platform limits that shape the design (checked 07.10.2026 against core.telegram.org/bots/api and developers.cloudflare.com/workers/platform/limits; re-check before implementation):
+
+- Bot API multipart upload: photo ≤ 10 MB (width + height ≤ 10000, ratio ≤ 20); video and animation ≤ 50 MB. Sending by URL is lower (photo 5 MB, other 20 MB), so files are uploaded from R2, not passed as URLs.
+- `sendMediaGroup` takes 2–10 items of photo, video, document or audio; animation/GIF cannot be in an album. First release: a GIF together with other media is rejected at preflight, not sent as a sequence, so a half-sent post cannot happen.
+- Caption is 0–1024 characters after entity parsing; a text message is 4096.
+- A Worker isolate has 128 MB of memory. `FormData` takes only strings and Blobs, so it buffers the file: a 50 MB video fits once but not concurrently. Bound media sends to one per invocation, or build a streamed multipart body with a known length (FixedLengthStream) — prove Telegram accepts it before relying on it.
+- Inbound request body ≤ 100 MB on the Free plan, which bounds an upload through the Worker; larger files would need direct-to-R2 upload (a separate decision).
 
 ### 5.5 Media failure handling
 
@@ -1513,13 +1522,18 @@ Do not spend another phase rebuilding this foundation. Only fix concrete regress
 
 Primary goal: make creation good enough for daily use.
 
-Deliver:
+Ships in two slices, each releasable on its own; 1b starts only after 1a is in DEV.
+
+Phase 1a — editor (queue items 1–2):
 
 - rich Telegram-aware editor.
 - entities storage and preview.
 - autosave.
 - revision history UI.
 - useful post actions.
+
+Phase 1b — manual media (queue items 3–4):
+
 - manual multi-file upload.
 - R2 storage.
 - photo/GIF/video preview.
@@ -1732,32 +1746,34 @@ Before production is considered ready:
 
 ## 28. Near-term execution queue
 
-This is the actionable queue from the master roadmap.
+This is the actionable queue from the master roadmap. Whoever starts or finishes an item updates its status here (`not started` / `in progress` / `done`) in the same change.
 
-1. Content Studio rich editor and Telegram entities.
-2. Autosave and revision history UI.
-3. Manual multi-media model, R2 upload and preview.
-4. Telegram multi-media publishing and publication_messages.
-5. Post actions/archive UX.
-6. Owner timezone.
-7. Overview/Decision Center v2.
-8. Publications v2.
-9. Server-side Posts/Publications queries.
-10. Calendar.
-11. Analytics snapshot schema and Studio-owned Telegram analytics.
-12. Telegram native statistics feasibility proof.
-13. Sources registry.
-14. Dota News / Pulse.
-15. Dota Event + patch parser.
-16. Hero statistics + Hero Movers.
-17. Treasure/Cosmetics.
-18. Watchlists + private owner bot alerts.
-19. Automation Center.
-20. Analytics v2.
-21. Media Library.
-22. Platform expansion.
-23. Automated media pipeline.
-24. Production release.
+| # | Item | Status |
+|---|---|---|
+| 1 | Content Studio rich editor and Telegram entities | not started |
+| 2 | Autosave and revision history UI | not started |
+| 3 | Manual multi-media model, R2 upload and preview | not started |
+| 4 | Telegram multi-media publishing and publication_messages | not started |
+| 5 | Post actions/archive UX | in progress (Archive tab exists, see §2.5) |
+| 6 | Owner timezone | not started |
+| 7 | Overview/Decision Center v2 | not started |
+| 8 | Publications v2 | not started |
+| 9 | Server-side Posts/Publications queries | not started |
+| 10 | Calendar | not started |
+| 11 | Analytics snapshot schema and Studio-owned Telegram analytics | not started |
+| 12 | Telegram native statistics feasibility proof | not started |
+| 13 | Sources registry | not started |
+| 14 | Dota News / Pulse | not started |
+| 15 | Dota Event + patch parser | not started |
+| 16 | Hero statistics + Hero Movers | not started |
+| 17 | Treasure/Cosmetics | not started |
+| 18 | Watchlists + private owner bot alerts | not started |
+| 19 | Automation Center | not started |
+| 20 | Analytics v2 | not started |
+| 21 | Media Library | not started |
+| 22 | Platform expansion | not started |
+| 23 | Automated media pipeline | not started |
+| 24 | Production release | not started |
 
 A task lower in the list may be pulled earlier only when it does not destabilize or duplicate an unfinished dependency above it.
 

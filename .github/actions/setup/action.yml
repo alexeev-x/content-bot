@@ -1,0 +1,20 @@
+name: Setup Node and dependencies
+description: Node from .nvmrc plus installed node_modules restored from cache; npm ci only on a cache miss.
+runs:
+  using: composite
+  steps:
+    # No `cache: npm` here: the restored node_modules makes ~/.npm redundant, and downloading both
+    # cost every job extra seconds. A miss (lockfile change) installs from the registry once.
+    - uses: actions/setup-node@v4
+      with:
+        node-version-file: .nvmrc
+    - id: modules
+      uses: actions/cache@v4
+      with:
+        path: |
+          node_modules
+          apps/*/node_modules
+        key: node-modules-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('.nvmrc', 'package-lock.json') }}
+    - if: steps.modules.outputs.cache-hit != 'true'
+      shell: bash
+      run: npm ci --ignore-scripts --no-audit --no-fund
