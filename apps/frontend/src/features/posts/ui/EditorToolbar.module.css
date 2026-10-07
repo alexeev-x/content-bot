@@ -65,10 +65,87 @@
 .spoilerGlyph {
   font-size: var(--font-size-sm);
 }
-/* Touch and narrow screens: 44 px targets, wrapped onto a second row instead of scrolling the page. */
+.compactToolbar {
+  flex-wrap: nowrap;
+  overflow: hidden;
+  padding: var(--space-1);
+}
+.mobileRow {
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+  gap: var(--space-1);
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+.mobileRow::-webkit-scrollbar {
+  display: none;
+}
+.moreButton {
+  flex: none;
+  position: sticky;
+  right: 0;
+  z-index: 1;
+  background: var(--color-surface-2);
+  box-shadow: -8px 0 12px var(--color-surface-2);
+}
+.moreList {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-2);
+}
+.moreAction {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+  min-height: var(--size-target);
+  padding: var(--space-3);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-2);
+  background: var(--color-surface-2);
+  color: var(--color-text);
+  font: inherit;
+  text-align: left;
+}
+.moreAction[data-hovered],
+.moreAction[data-pressed] {
+  background: var(--color-surface-3);
+}
+.moreAction[data-selected] {
+  border-color: var(--color-accent);
+  background: var(--color-accent-soft);
+  color: var(--color-accent-text);
+}
+.moreAction[data-focus-visible] {
+  outline: var(--focus-ring-width) solid var(--color-focus-ring);
+  outline-offset: var(--focus-ring-offset);
+}
+.moreAction[data-disabled] {
+  color: var(--color-text-disabled);
+}
+.moreGlyph {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  width: var(--size-control-sm);
+  height: var(--size-control-sm);
+}
+
+/* Mobile: one compact writing toolbar. Secondary formatting moves to the bottom sheet instead of wrapping. */
 @media (pointer: coarse), (max-width: 859px) {
+  .toolbar {
+    flex-wrap: nowrap;
+    gap: var(--space-1);
+  }
   .button {
+    flex: none;
     width: var(--size-target);
     height: var(--size-target);
+  }
+  .separator {
+    display: none;
   }
 }
