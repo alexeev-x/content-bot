@@ -95,7 +95,10 @@ export function changedFiles(root, requestedBase = null) {
   let base = null;
   if (requestedBase) {
     try {
-      base = git('merge-base', 'HEAD', requestedBase).trim();
+      // CI passes the exact "before"/PR-base commit. Use it directly: shallow checkouts do not
+      // necessarily have enough ancestry for merge-base even after fetching that single commit.
+      git('cat-file', '-e', `${requestedBase}^{commit}`);
+      base = requestedBase;
     } catch {
       // A missing CI base must fall back to the full set rather than silently under-check the commit.
       base = null;
@@ -110,9 +113,8 @@ export function changedFiles(root, requestedBase = null) {
       }
     }
   }
-  const committed = base
-    ? git('diff', '--name-only', '-z', '--no-renames', `${base}...HEAD`).replaceAll('\\', '/')
-    : '';
+  const range = requestedBase && base ? `${base}..HEAD` : base ? `${base}...HEAD` : null;
+  const committed = range ? git('diff', '--name-only', '-z', '--no-renames', range).replaceAll('\\', '/') : '';
   const working = git('status', '--porcelain', '-z', '--no-renames', '--untracked-files=all')
     .split('\0')
     .filter(Boolean)
