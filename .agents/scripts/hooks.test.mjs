@@ -281,7 +281,16 @@ test('verify --only/--skip pick steps by name and reject unknown names', () => {
   assert.deepEqual(pick('--only', 'backend-tests'), ['backend-tests']);
   const rest = pick('--skip', 'backend-tests,frontend-tests');
   assert.ok(!rest.includes('backend-tests') && !rest.includes('frontend-tests'));
-  // The CI jobs together cover the whole set.
+  // CI may filter a changed-file plan while naming a globally-known step that is absent from that plan.
+  const frontendPlan = planSteps(['apps/frontend/src/pages/LoginPage.tsx']);
+  const changedRest = selectSteps(
+    frontendPlan,
+    ['node', 'verify.mjs', '--skip', 'backend-tests,frontend-tests'],
+    STEPS,
+  ).map(([name]) => name);
+  assert.ok(!changedRest.includes('frontend-tests'));
+  assert.ok(changedRest.includes('frontend-typecheck'));
+  // The CI jobs together cover the whole full set.
   assert.equal(rest.length + 2, STEPS.length);
   assert.throws(() => pick('--only', 'backend-test'), /needs step names/);
   assert.throws(() => pick('--skip'), /needs step names/);
