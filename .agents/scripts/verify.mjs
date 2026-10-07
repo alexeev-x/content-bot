@@ -2,10 +2,10 @@
 // The full output goes to .logs/verify.log, which agents read only when the summary is not enough.
 // Nothing is filtered from the log itself, so no error line is ever lost.
 //
-// `--changed` checks only what the current changes touch (pre-push hook, agent stop hook):
-// commits not yet pushed + uncommitted work. CI always runs the full set.
-// `--only a,b` / `--skip a,b` pick steps of the full set by name: CI runs the slow test suites on separate
-// runners, so each gets the whole machine.
+// `--changed` checks only what the current changes touch (pre-push hook, agent stop hook, CI):
+// commits not yet pushed + uncommitted work locally; CI can pass `--base <sha>` for its exact push/PR range.
+// `--only a,b` / `--skip a,b` filter either the full plan or the changed-file plan. CI shards the slow test
+// suites across runners and keeps the rest of the affected verification here.
 //
 // Light steps run at once; heavy ones (tsc, test pools, build) run one after another alongside them, because
 // all of them together exhaust a 16 GB laptop's memory and macOS starts force-quitting apps.
@@ -90,15 +90,24 @@ export function relevantLines(output) {
   return (hits.length ? hits : lines).slice(-MAX_LINES);
 }
 
-export function changedFiles(root) {
+export function changedFiles(root, requestedBase = null) {
   const git = (...args) => execFileSync('git', args, { cwd: root, encoding: 'utf8' });
   let base = null;
-  for (const ref of ['@{upstream}', 'origin/develop']) {
+  if (requestedBase) {
     try {
-      base = git('merge-base', 'HEAD', ref).trim();
-      break;
+      base = git('merge-base', 'HEAD', requestedBase).trim();
     } catch {
-      // try the next candidate
+      // A missing CI base must fall back to the full set rather than silently under-check the commit.
+      base = null;
+    }
+  } else {
+    for (const ref of ['@{upstream}', 'origin/develop']) {
+      try {
+        base = git('merge-base', 'HEAD', ref).trim();
+        break;
+      } catch {
+        // try the next candidate
+      }
     }
   }
   const committed = base
@@ -114,14 +123,14 @@ export function changedFiles(root) {
 }
 
 /** Applies `--only` / `--skip`; an unknown step name is an error, so a typo never skips a check silently. */
-export function selectSteps(steps, argv) {
+export function selectSteps(steps, argv, knownSteps = STEPS) {
   const list = (flag) => {
     const index = argv.indexOf(flag);
     if (index === -1) return null;
     const names = (argv[index + 1] ?? '').split(',').filter(Boolean);
-    const unknown = names.filter((name) => !steps.some(([step]) => step === name));
+    const unknown = names.filter((name) => !knownSteps.some(([step]) => step === name));
     if (!names.length || unknown.length) {
-      throw new Error(`${flag} needs step names from: ${steps.map(([step]) => step).join(', ')}`);
+      throw new Error(`${flag} needs step names from: ${knownSteps.map(([step]) => step).join(', ')}`);
     }
     return names;
   };
@@ -132,16 +141,20 @@ export function selectSteps(steps, argv) {
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const root = join(fileURLToPath(import.meta.url), '../../..');
-  let steps = selectSteps(STEPS, process.argv);
+  const baseIndex = process.argv.indexOf('--base');
+  if (baseIndex !== -1 && !process.argv[baseIndex + 1]) throw new Error('--base needs a git ref or SHA');
+  const requestedBase = baseIndex === -1 ? null : process.argv[baseIndex + 1];
+  let steps = STEPS;
   if (process.argv.includes('--changed')) {
-    const { base, files, existingFiles } = changedFiles(root);
+    const { base, files, existingFiles } = changedFiles(root, requestedBase);
     steps = base === null ? STEPS : planSteps(files, { existingFiles });
     console.log(
       base === null
-        ? 'verify --changed: no upstream found, running the full set'
-        : `verify --changed: ${files.length} changed file(s), ${steps.length} step(s)`,
+        ? 'verify --changed: no usable base found, running the full set'
+        : `verify --changed: ${files.length} changed file(s), ${steps.length} planned step(s)`,
     );
   }
+  steps = selectSteps(steps, process.argv, STEPS);
   const runStep = async ([name, [cmd, ...args]]) => {
     const started = Date.now();
     const run = await runCommandAsync(cmd, args, { cwd: root });
