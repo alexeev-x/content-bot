@@ -123,25 +123,25 @@ export function PublicationsPage({ search, onSearchChange, onOpenPosts, onCreate
               activeId={search.id}
               onOpen={(id) => onSearchChange({ id })}
               emptyState={
-              hasFilters || search.cursor ? (
-                <EmptyState
-                  icon="search"
-                  title={copy.states.filteredTitle}
-                  description={copy.states.filteredDescription}
-                  action={
-                    <Button variant="secondary" onPress={reset}>
-                      {copy.filters.reset}
-                    </Button>
-                  }
-                />
-              ) : (
-                <EmptyState
-                  icon="send"
-                  title={copy.states.emptyTitle}
-                  description={copy.states.emptyDescription}
-                  action={<Button onPress={onOpenPosts}>{copy.states.emptyAction}</Button>}
-                />
-              )
+                hasFilters || search.cursor ? (
+                  <EmptyState
+                    icon="search"
+                    title={copy.states.filteredTitle}
+                    description={copy.states.filteredDescription}
+                    action={
+                      <Button variant="secondary" onPress={reset}>
+                        {copy.filters.reset}
+                      </Button>
+                    }
+                  />
+                ) : (
+                  <EmptyState
+                    icon="send"
+                    title={copy.states.emptyTitle}
+                    description={copy.states.emptyDescription}
+                    action={<Button onPress={onOpenPosts}>{copy.states.emptyAction}</Button>}
+                  />
+                )
               }
             />
           </div>
