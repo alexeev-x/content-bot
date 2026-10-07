@@ -14,7 +14,9 @@ export function resolveCommand(command, args, runtime = {}) {
   const execPath = runtime.execPath ?? process.execPath;
   const searchPath = env.PATH ?? '';
   const candidates = [
-    ...(env.npm_execpath ? [env.npm_execpath, pathApi.join(pathApi.dirname(env.npm_execpath), entry)] : []),
+    ...(env.npm_execpath
+      ? [...(command === 'npm' ? [env.npm_execpath] : []), pathApi.join(pathApi.dirname(env.npm_execpath), entry)]
+      : []),
     ...[pathApi.dirname(execPath), ...searchPath.split(platform === 'win32' ? ';' : delimiter)].map((dir) =>
       pathApi.join(dir, 'node_modules', 'npm', 'bin', entry),
     ),
