@@ -13,7 +13,7 @@ import { buildQuery, DEFAULT_PAGE_SIZE } from '../../../shared/api/query-string'
 
 export type PublicationFilters = Pick<
   z.input<typeof listPublicationsQuerySchema>,
-  'status' | 'postId' | 'destinationId'
+  'status' | 'postId' | 'destinationId' | 'from' | 'to' | 'order'
 >;
 export type CreatePublicationBody = z.input<typeof createPublicationInputSchema>;
 export type ReschedulePublicationBody = z.input<typeof reschedulePublicationInputSchema>;
@@ -25,6 +25,9 @@ export function listPublications(filters: PublicationFilters, cursor: string | u
     status: filters.status,
     postId: filters.postId,
     destinationId: filters.destinationId,
+    from: filters.from,
+    to: filters.to,
+    order: filters.order,
     cursor,
     limit: DEFAULT_PAGE_SIZE
   });
