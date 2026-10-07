@@ -61,6 +61,7 @@
   --size-topbar: 48px;
   /* Reading width a page opts into with the .reading-width class. */
   --measure-reading: 760px;
+  --measure-dashboard: 1280px;
   --size-nav: 64px;
 
   /* focus: 2px ring in --color-focus-ring */
