@@ -45,7 +45,8 @@ export function usePublicationsData(search: PublicationsSearch, pollMs?: number)
   );
   const destinationById = useMemo(() => new Map(destinationList.map((item) => [item.id, item])), [destinationList]);
 
-  const postTitle = useCallback((row: PublicationDto) => postById.get(row.postId)?.title, [postById]);
+  const post = useCallback((row: PublicationDto) => postById.get(row.postId), [postById]);
+  const postTitle = useCallback((row: PublicationDto) => post(row)?.title, [post]);
   const channel = useCallback(
     (row: PublicationDto) => {
       const found = destinationById.get(row.destinationId);
@@ -54,5 +55,5 @@ export function usePublicationsData(search: PublicationsSearch, pollMs?: number)
     [destinationById]
   );
 
-  return { list, destinationList, postTitle, channel };
+  return { list, destinationList, post, postTitle, channel };
 }
