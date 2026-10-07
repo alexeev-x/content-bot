@@ -1,7 +1,7 @@
 import { publicationStatusSchema } from '@alexeev/contracts';
 import { z } from 'zod';
 
-export const publicationViewSchema = z.enum(['today', 'upcoming', 'recent']);
+export const publicationViewSchema = z.enum(['today', 'upcoming', 'recent', 'errors']);
 export type PublicationView = z.infer<typeof publicationViewSchema>;
 
 /** URL state of /publications: presets, filters, page cursor and the open drawer. */
