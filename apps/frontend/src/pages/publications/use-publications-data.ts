@@ -21,6 +21,7 @@ export function usePublicationsData(search: PublicationsSearch, pollMs?: number)
     ...(search.status ? { status: search.status } : {}),
     ...(search.post ? { postId: search.post } : {}),
     ...(search.channel ? { destinationId: search.channel } : {}),
+    ...(search.q ? { q: search.q } : {}),
     ...(today ? today : {}),
     ...(view === 'upcoming' && !search.status ? { status: 'scheduled' as const } : {}),
     ...(view === 'recent' && !search.status ? { status: 'sent' as const } : {}),
