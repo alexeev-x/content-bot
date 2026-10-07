@@ -113,15 +113,8 @@ export function changedFiles(root, requestedBase = null) {
       }
     }
   }
-  const committed = base
-    ? git(
-        'diff',
-        '--name-only',
-        '-z',
-        '--no-renames',
-        requestedBase ? `${base}..HEAD` : `${base}...HEAD`,
-      ).replaceAll('\\', '/')
-    : '';
+  const range = requestedBase && base ? `${base}..HEAD` : base ? `${base}...HEAD` : null;
+  const committed = range ? git('diff', '--name-only', '-z', '--no-renames', range).replaceAll('\\', '/') : '';
   const working = git('status', '--porcelain', '-z', '--no-renames', '--untracked-files=all')
     .split('\0')
     .filter(Boolean)
