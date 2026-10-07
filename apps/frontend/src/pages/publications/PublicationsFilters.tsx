@@ -28,7 +28,8 @@ const presets: readonly { id: PublicationView | 'all'; label: string }[] = [
   { id: 'all', label: 'Все' },
   { id: 'today', label: 'Сегодня' },
   { id: 'upcoming', label: 'Запланированные' },
-  { id: 'recent', label: 'Отправленные' }
+  { id: 'recent', label: 'Отправленные' },
+  { id: 'errors', label: 'Ошибки' }
 ];
 
 export function PublicationsFilters({
