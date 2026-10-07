@@ -176,9 +176,14 @@ describe('PublicationsPage list', () => {
     await waitFor(() => expect(urls.at(-1)?.searchParams.get('destinationId')).toBe(SECOND_DESTINATION));
     expect(urls.at(-1)?.searchParams.get('status')).toBe('failed');
 
+    const search = screen.getByRole('searchbox', { name: 'Поиск публикаций' });
+    await user.type(search, 'мета{Enter}');
+    await waitFor(() => expect(urls.at(-1)?.searchParams.get('q')).toBe('мета'));
+
     await user.click(screen.getByRole('button', { name: 'Сбросить фильтры' }));
     await waitFor(() => expect(urls.at(-1)?.searchParams.get('status')).toBeNull());
     expect(urls.at(-1)?.searchParams.get('destinationId')).toBeNull();
+    expect(urls.at(-1)?.searchParams.get('q')).toBeNull();
     expect(screen.queryByRole('button', { name: 'Сбросить фильтры' })).toBeNull();
   });
 
