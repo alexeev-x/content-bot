@@ -11,6 +11,8 @@ type Props = {
   rows: readonly AttentionRow[];
   /** Server count of open incidents and stuck sends (capped at 99 = "99 or more"); the list shows at most 5. */
   total: number;
+  /** A system check has not answered yet: the block says so instead of «Всё под контролем». */
+  checking: boolean;
   onOpenPublication: (publicationId: string) => void;
 };
 
@@ -30,7 +32,7 @@ function RowView({ row, onOpenPublication }: { row: AttentionRow; onOpenPublicat
       <Row
         layout="inline"
         badge={<Tag label={copy.attention.systemTag} />}
-        title={`${check.name}: ${check.summary}`}
+        title={check.headline ?? `${check.name}: ${check.summary}`}
         trail={
           check.action ? (
             <Button size="sm" isLoading={check.action.isLoading ?? false} onPress={check.action.onPress}>
@@ -95,8 +97,15 @@ function OpenButton({ label, aria, onPress }: { label: string; aria: string; onP
 }
 
 /** Unknown and failed publications, failing checks and stuck sends in severity order; one line when nothing needs a human. */
-export function AttentionBlock({ rows, total, onOpenPublication }: Props) {
-  if (rows.length === 0) return <p className={styles.clear}>{copy.attention.clear}</p>;
+export function AttentionBlock({ rows, total, checking, onOpenPublication }: Props) {
+  if (rows.length === 0) {
+    // The block keeps its title when empty, so the page keeps one layout from loading to loaded.
+    return (
+      <Block title={copy.attention.title}>
+        <p className={styles.emptyLine}>{checking ? copy.attention.checking : copy.attention.clear}</p>
+      </Block>
+    );
+  }
   return (
     <Block title={copy.attention.title}>
       <ul className={styles.list}>

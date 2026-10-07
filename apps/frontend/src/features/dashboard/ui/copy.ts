@@ -4,6 +4,7 @@ export const copy = {
   attention: {
     title: 'Требует внимания',
     clear: 'Всё под контролем',
+    checking: 'Проверяем систему…',
     allIncidents: (total: number) => (total > 0 ? `Все инциденты (${total >= 99 ? '99+' : total})` : 'Все инциденты'),
     check: 'Проверить',
     open: 'Открыть',
@@ -23,13 +24,8 @@ export const copy = {
     showAll: 'Показать все',
     unknownTitle: 'Без названия'
   },
-  upcoming: { title: 'Ближайшие' },
-  recent: { title: 'Недавно отправлено', openInTelegram: 'Открыть в Telegram' },
-  empty: {
-    title: 'Пока нет публикаций',
-    description: 'Создайте пост и запланируйте отправку в канал.',
-    action: 'Создать пост'
-  },
+  upcoming: { title: 'Ближайшие', empty: 'Дальше ничего не запланировано' },
+  recent: { title: 'Недавно отправлено', empty: 'Пока ничего не отправлено', openInTelegram: 'Открыть в Telegram' },
   error: {
     title: 'Не удалось загрузить обзор',
     message: 'Данные не получены. Ничего не изменилось. Повторите запрос.',

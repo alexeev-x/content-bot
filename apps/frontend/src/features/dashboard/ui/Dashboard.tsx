@@ -3,7 +3,7 @@ import type { UseQueryResult } from '@tanstack/react-query';
 import { ApiError } from '../../../shared/api/http-client';
 import { classifyApiError } from '../../../shared/api/error-kind';
 import type { StatusCheck } from '../../../shared/lib/status-check';
-import { Banner, Button, EmptyState, ErrorState } from '../../../shared/ui';
+import { Banner, Button, ErrorState } from '../../../shared/ui';
 import { attentionRows } from '../model/attention-rows';
 import { AttentionBlock } from './AttentionBlock';
 import { copy } from './copy';
@@ -21,10 +21,9 @@ type Props = {
   zoneNote: string;
   onOpenPublication: (publicationId: string) => void;
   onSchedule: () => void;
-  onCreatePost: () => void;
 };
 
-export function Dashboard({ query, checks, zoneNote, onOpenPublication, onSchedule, onCreatePost }: Props) {
+export function Dashboard({ query, checks, zoneNote, onOpenPublication, onSchedule }: Props) {
   if (query.isPending) return <DashboardSkeleton />;
 
   if (!query.data) {
@@ -44,19 +43,8 @@ export function Dashboard({ query, checks, zoneNote, onOpenPublication, onSchedu
 
   const data = query.data;
   const rows = attentionRows(data.attention, checks);
-  const nothingAtAll =
-    rows.length === 0 && data.todayTotal === 0 && data.upcoming.length === 0 && data.recentSent.length === 0;
-
-  if (nothingAtAll) {
-    return (
-      <EmptyState
-        icon="send"
-        title={copy.empty.title}
-        description={copy.empty.description}
-        action={<Button onPress={onCreatePost}>{copy.empty.action}</Button>}
-      />
-    );
-  }
+  // Until every system check has answered, «Всё под контролем» would be a guess.
+  const checking = checks.some((check) => check.tone === 'loading');
 
   return (
     <div className={styles.root}>
@@ -73,7 +61,12 @@ export function Dashboard({ query, checks, zoneNote, onOpenPublication, onSchedu
       ) : null}
       <div className={styles.columns}>
         <div className={styles.column}>
-          <AttentionBlock rows={rows} total={data.attentionTotal} onOpenPublication={onOpenPublication} />
+          <AttentionBlock
+            rows={rows}
+            total={data.attentionTotal}
+            checking={checking}
+            onOpenPublication={onOpenPublication}
+          />
           <TodayBlock items={data.today} total={data.todayTotal} zoneNote={zoneNote} onSchedule={onSchedule} />
         </div>
         <div className={styles.column}>

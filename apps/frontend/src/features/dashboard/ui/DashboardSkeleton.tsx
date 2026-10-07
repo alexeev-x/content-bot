@@ -15,7 +15,7 @@ function SkeletonRows({ count }: { count: number }) {
   );
 }
 
-/** One placeholder per block at the height of the real rows, so nothing jumps when the data arrives. */
+/** The same four blocks as the loaded page with a short placeholder each: a quiet day must not look like a collapse. */
 export function DashboardSkeleton() {
   return (
     <div className={styles.root} aria-busy="true">
@@ -25,18 +25,18 @@ export function DashboardSkeleton() {
       <div className={styles.columns}>
         <div className={styles.column}>
           <Block title={copy.attention.title}>
-            <SkeletonRows count={2} />
+            <SkeletonRows count={1} />
           </Block>
           <Block title={copy.today.title}>
-            <SkeletonRows count={4} />
+            <SkeletonRows count={2} />
           </Block>
         </div>
         <div className={styles.column}>
           <Block title={copy.upcoming.title}>
-            <SkeletonRows count={3} />
+            <SkeletonRows count={2} />
           </Block>
           <Block title={copy.recent.title}>
-            <SkeletonRows count={3} />
+            <SkeletonRows count={2} />
           </Block>
         </div>
       </div>

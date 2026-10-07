@@ -158,26 +158,41 @@ describe('dashboard blocks', () => {
     serveDashboard(dashboard({ attention: [unknownAttention()], attentionTotal: 1 }));
     await renderDashboard();
     const block = await screen.findByRole('region', { name: 'Требует внимания' });
-    expect(await within(block).findByText(/Бот: /)).toBeTruthy();
+    // The row reads the check's headline, not «Бот: Бот …».
+    expect(await within(block).findByText(/^Бот /)).toBeTruthy();
     expect(within(block).getByRole('button', { name: 'Подключить' })).toBeTruthy();
     // The strip keeps its chip but not a second «Подключить».
     expect(screen.getAllByRole('button', { name: 'Подключить' })).toHaveLength(1);
   });
 
-  it('shows one muted line, no list, when nothing needs attention', async () => {
+  it('says «Проверяем систему…» until the bot check answers, never a premature «Всё под контролем»', async () => {
     serveDashboard(dashboard({ today: [todayRow()], todayTotal: 1 }));
-    await renderDashboard();
-    expect(await screen.findByText('Всё под контролем')).toBeTruthy();
-    expect(screen.queryByRole('region', { name: 'Требует внимания' })).toBeNull();
+    // The bot status never answers in this test.
+    server.use(http.get('*/api/v1/bot/status', () => new Promise<Response>(() => {})));
+    // Not renderDashboard: the status strip stays busy while the check is pending.
+    await renderPage(<DashboardPage />);
+    expect(await screen.findByText('Проверяем систему…')).toBeTruthy();
+    const block = screen.getByRole('region', { name: 'Требует внимания' });
+    expect(within(block).queryByText('Всё под контролем')).toBeNull();
   });
 
-  it('offers «Запланировать» when nothing is planned today and hides empty side blocks', async () => {
+  it('keeps the block with one muted line, no list, when nothing needs attention', async () => {
+    serveDashboard(dashboard({ today: [todayRow()], todayTotal: 1 }));
+    await renderDashboard();
+    const block = await screen.findByRole('region', { name: 'Требует внимания' });
+    expect(await within(block).findByText('Всё под контролем')).toBeTruthy();
+    expect(within(block).queryByRole('list')).toBeNull();
+  });
+
+  it('offers «Запланировать» when nothing is planned today; an empty side block says so', async () => {
     serveDashboard(dashboard({ recentSent: [sentRow()] }));
     const user = userEvent.setup();
     const { router } = await renderDashboard();
     const today = await screen.findByRole('region', { name: 'Сегодня' });
     expect(within(today).getByText('На сегодня ничего не запланировано')).toBeTruthy();
-    expect(screen.queryByRole('region', { name: 'Ближайшие' })).toBeNull();
+    const upcoming = screen.getByRole('region', { name: 'Ближайшие' });
+    expect(within(upcoming).getByText('Дальше ничего не запланировано')).toBeTruthy();
+    expect(within(upcoming).queryByRole('list')).toBeNull();
     await user.click(within(today).getByRole('button', { name: 'Запланировать' }));
     await waitFor(() => expect(router.state.location.pathname).toBe('/posts'));
   });
@@ -205,13 +220,17 @@ describe('dashboard blocks', () => {
     expect(links[0]?.getAttribute('rel')).toBe('noopener noreferrer');
   });
 
-  it('shows «Пока нет публикаций» with «Создать пост» on a new install', async () => {
+  it('a new install keeps all four blocks, each with its own empty line, so the page never changes shape', async () => {
     serveDashboard(dashboard());
     const user = userEvent.setup();
     const { router } = await renderDashboard();
-    expect(await screen.findByText('Пока нет публикаций')).toBeTruthy();
-    await user.click(screen.getByRole('button', { name: 'Создать пост' }));
-    await waitFor(() => expect(router.state.location.pathname).toBe('/posts/new'));
+    const upcoming = await screen.findByRole('region', { name: 'Ближайшие' });
+    expect(within(upcoming).getByText('Дальше ничего не запланировано')).toBeTruthy();
+    const recent = screen.getByRole('region', { name: 'Недавно отправлено' });
+    expect(within(recent).getByText('Пока ничего не отправлено')).toBeTruthy();
+    expect(screen.getByRole('region', { name: 'Требует внимания' })).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: 'Запланировать' }));
+    await waitFor(() => expect(router.state.location.pathname).toBe('/posts'));
   });
 });
 
@@ -223,7 +242,6 @@ describe('dashboard failures', () => {
     expect(await screen.findByText('Не удалось загрузить обзор')).toBeTruthy();
     expect(screen.getByText('req-test-1')).toBeTruthy();
     expect(screen.queryByRole('region', { name: 'Сегодня' })).toBeNull();
-    expect(screen.queryByText('Пока нет публикаций')).toBeNull();
     serveDashboard(dashboard({ today: [todayRow()], todayTotal: 1 }));
     await user.click(screen.getByRole('button', { name: 'Повторить' }));
     expect(await screen.findByRole('region', { name: 'Сегодня' })).toBeTruthy();

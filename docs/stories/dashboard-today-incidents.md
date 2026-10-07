@@ -45,7 +45,8 @@ Heading order: H1, then H2 per block. Each block is a `section` with `aria-label
 | State | Trigger | User sees | Actions | Focus |
 |---|---|---|---|---|
 | loading | first fetch | skeleton per block (same heights), `aria-busy` | none | unchanged |
-| empty (new install) | all blocks empty | «Пока нет публикаций» + «Создать пост» | create post | unchanged |
+| empty (new install) | all blocks empty | all four blocks stay, each with its own muted line («Всё под контролем», «На сегодня ничего не запланировано» + «Запланировать», «Дальше ничего не запланировано», «Пока ничего не отправлено»); the page keeps one shape from skeleton to data | schedule | unchanged |
+| checks pending | dashboard loaded, a system check not answered | «Требует внимания» reads «Проверяем систему…», never a premature «Всё под контролем» | — | unchanged |
 | empty (nothing today) | «Сегодня» 0 | «На сегодня ничего не запланировано» + «Запланировать» | go to posts | unchanged |
 | partial/stale | refetch fails after data was shown | old data kept with line «Данные устарели · Обновить», `role="status"` | retry (safe GET) | unchanged |
 | error | first fetch 5xx/network | «Не удалось загрузить обзор» + requestId | «Повторить» | message |

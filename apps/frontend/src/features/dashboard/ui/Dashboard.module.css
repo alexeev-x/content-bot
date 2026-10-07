@@ -47,11 +47,6 @@
   color: var(--color-text-muted);
   font-size: var(--font-size-xs);
 }
-.clear {
-  margin: 0;
-  color: var(--color-text-muted);
-}
-
 .list {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
@@ -170,6 +165,7 @@
   outline-offset: var(--focus-ring-offset);
 }
 .emptyLine {
+  margin: 0;
   display: flex;
   flex-wrap: wrap;
   align-items: center;

@@ -38,7 +38,6 @@ export function DashboardPage({ pollMs }: Props) {
         zoneNote={zoneNote}
         onOpenPublication={(id) => void navigate({ to: '/publications', search: { id } })}
         onSchedule={() => void navigate({ to: '/posts' })}
-        onCreatePost={() => void navigate({ to: '/posts/new' })}
       />
     </>
   );
