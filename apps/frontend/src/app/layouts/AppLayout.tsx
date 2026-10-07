@@ -13,6 +13,7 @@ import { applyAppearance, useTheme, type Appearance } from '../theme';
 import { useDocumentTitle } from '../use-document-title';
 import { AppShell } from './AppShell';
 import { NAV_ITEMS } from './nav-items';
+import styles from './AppLayout.module.css';
 
 // The sign-in page and the dev catalog use the full viewport: no navigation around them.
 const BARE_PATHS = ['/login', '/__catalog'];
@@ -34,8 +35,10 @@ function SessionRestoreShell({ pathname }: { pathname: string }) {
   return (
     <AppShell>
       <PageHeader title={titleFor(pathname)} />
-      <div aria-busy="true" style={{ display: 'grid', gap: 'var(--space-4)' }}>
-        <Skeleton height="var(--size-control)" width="min(22rem, 75%)" />
+      <div aria-busy="true" className={styles.restore}>
+        <div className={styles.restoreTitle}>
+          <Skeleton height="var(--size-control)" />
+        </div>
         <Skeleton height="8rem" />
         <Skeleton height="8rem" />
       </div>
