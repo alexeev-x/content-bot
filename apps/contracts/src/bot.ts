@@ -13,7 +13,7 @@ export const botSettingSchema = z.enum([
 export type BotSetting = z.infer<typeof botSettingSchema>;
 
 export const botWebhookSchema = z.object({
-  /** Where Telegram sends updates now; null when no webhook is registered. */
+  /** Where Telegram sends updates now; null when no webhook is registered. A bot token in it is shown as `***`. */
   url: z.string().nullable(),
   /** The registered URL is this Worker's own `/webhooks/telegram`. */
   pointsHere: z.boolean(),

@@ -29,7 +29,11 @@ export function fakeBotAdminApi(script: { webhookInfo?: unknown; failures?: Fail
       run('getWebhookInfo', 'getWebhookInfo', null, script.webhookInfo ?? { url: '', pending_update_count: 0 }),
     setWebhook: (input) => run('setWebhook', `setWebhook ${input.url}`, input),
     deleteMyCommands: (input) =>
-      run('deleteMyCommands', `deleteMyCommands ${input.scope ?? 'default'} ${input.languageCode ?? '-'}`, input),
+      run(
+        'deleteMyCommands',
+        `deleteMyCommands ${typeof input.scope === 'object' ? `chat ${input.scope.chatId}` : (input.scope ?? 'default')} ${input.languageCode ?? '-'}`,
+        input
+      ),
     setChatCommands: (chatId, commands) =>
       run('setChatCommands', `setChatCommands ${chatId} ${commands.map((c) => c.command).join(',')}`, commands),
     setChatMenuWebApp: (chatId, input) =>

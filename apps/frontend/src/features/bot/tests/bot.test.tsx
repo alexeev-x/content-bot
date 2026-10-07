@@ -159,4 +159,43 @@ describe('bot connection', () => {
     await user.click(await screen.findByRole('button', { name: 'Подключить бота' }));
     expect(await screen.findByText(/не хватает настроек/)).toBeTruthy();
   });
+
+  it('renders a webhook url with a redacted token', async () => {
+    serve(status({ webhook: webhook({ url: 'https://api.example.test/bot***/hook', pointsHere: false }) }));
+    renderBot();
+    expect(await screen.findByText('https://api.example.test/bot***/hook')).toBeTruthy();
+  });
+
+  it('refetches the status after a failed connect and shows the new state', async () => {
+    let statusCalls = 0;
+    server.use(
+      http.get('*/api/v1/bot/status', () => {
+        statusCalls += 1;
+        return HttpResponse.json(
+          statusCalls === 1 ? status() : status({ missing: ['BOT_INFO'], botUsername: null, webhook: null })
+        );
+      }),
+      failWith('post', '/api/v1/bot/connect', { status: 503, code: 'UNAVAILABLE', reason: 'BOT_NOT_CONFIGURED' })
+    );
+    const { user } = renderBot();
+    await user.click(await screen.findByRole('button', { name: 'Переподключить' }));
+    expect(await screen.findByText('Не заданы или заданы неверно: BOT_INFO')).toBeTruthy();
+    expect(statusCalls).toBe(2);
+  });
+
+  it('does not refetch the status after a 429', async () => {
+    let statusCalls = 0;
+    server.use(
+      http.get('*/api/v1/bot/status', () => {
+        statusCalls += 1;
+        return HttpResponse.json(unconnected());
+      }),
+      failWith('post', '/api/v1/bot/connect', { status: 429, code: 'RATE_LIMIT', headers: { 'Retry-After': '12' } })
+    );
+    const { user } = renderBot();
+    await user.click(await screen.findByRole('button', { name: 'Подключить бота' }));
+    expect(await screen.findByText('Подождите примерно 12 с и повторите.')).toBeTruthy();
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    expect(statusCalls).toBe(1);
+  });
 });

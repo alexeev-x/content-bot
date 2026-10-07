@@ -9,6 +9,19 @@ import { configureOwnerChat } from './owner-chat';
 import type { TelegramCaller } from './telegram-call';
 
 const MAX_ERROR_MESSAGE = 500;
+const REDACTED = '***';
+// Telegram's own URL shape for a token: /bot<id>:<secret>. Catches a token this Worker no longer holds.
+const TOKEN_IN_PATH = /bot\d+(?::|%3A)[\w%-]+/gi;
+
+// A webhook URL registered by an older setup can carry the token in its path, and the status is
+// shown to the owner, so the token never leaves in it.
+function redactToken(text: string, token: string): string {
+  let result = text;
+  for (const form of new Set([token, encodeURIComponent(token)])) {
+    if (form !== '') result = result.split(form).join(REDACTED);
+  }
+  return result.replace(TOKEN_IN_PATH, `bot${REDACTED}`);
+}
 
 const webhookInfoSchema = z.object({
   url: z.string(),
@@ -41,6 +54,7 @@ export async function getBotStatus(deps: BotConnectionDeps): Promise<BotStatusDt
     (signal) => api.getWebhookInfo(signal),
     webhookInfoSchema
   );
+  const shownUrl = redactToken(info.url, setup.config.token);
   const lastErrorAt =
     info.last_error_date === undefined || info.last_error_date === 0
       ? null
@@ -50,11 +64,13 @@ export async function getBotStatus(deps: BotConnectionDeps): Promise<BotStatusDt
     botUsername: setup.botUsername,
     expectedUrl,
     webhook: {
-      url: info.url === '' ? null : info.url,
+      url: shownUrl === '' ? null : shownUrl,
       pointsHere: info.url === expectedUrl,
       pendingUpdateCount: info.pending_update_count,
       lastErrorAt,
-      lastErrorMessage: info.last_error_message?.slice(0, MAX_ERROR_MESSAGE) ?? null
+      lastErrorMessage: info.last_error_message
+        ? redactToken(info.last_error_message, setup.config.token).slice(0, MAX_ERROR_MESSAGE)
+        : null
     }
   };
 }
@@ -80,12 +96,25 @@ export async function connectBot(deps: BotConnectionDeps): Promise<BotStatusDto>
       signal
     )
   );
-  // Lists left by an older bot take precedence over the one set for the owner's chat below.
-  await call.act('bot_connect.delete_default_commands', (signal) => api.deleteMyCommands({}, signal));
-  await call.act('bot_connect.delete_private_chat_commands', (signal) =>
-    api.deleteMyCommands({ scope: 'all_private_chats' }, signal)
-  );
-  await call.act('bot_connect.delete_ru_commands', (signal) => api.deleteMyCommands({ languageCode: 'ru' }, signal));
+  // Telegram keeps one command list per (scope, language) and, in a private chat, shows the most
+  // specific one: chat+language, chat, all_private_chats+language, all_private_chats, default+language,
+  // default ("Determining list of commands" in the Bot API). The owner's own list (set below, in the
+  // chat scope) therefore wins over every broader list; only the chat+language one, which an older
+  // bot may have left, would still shadow it, so it is deleted too. The broader lists are cleared so
+  // no other chat or language shows stale commands. Nine Telegram requests in all, under the limit of ten.
+  const stale = [
+    { label: 'default_commands', input: {} },
+    { label: 'private_chat_commands', input: { scope: 'all_private_chats' as const } },
+    { label: 'ru_commands', input: { languageCode: 'ru' as const } },
+    { label: 'private_chat_ru_commands', input: { scope: 'all_private_chats' as const, languageCode: 'ru' as const } },
+    {
+      label: 'owner_chat_ru_commands',
+      input: { scope: { chatId: config.ownerId }, languageCode: 'ru' as const }
+    }
+  ];
+  for (const { label, input } of stale) {
+    await call.act(`bot_connect.delete_${label}`, (signal) => api.deleteMyCommands(input, signal));
+  }
   await configureOwnerChat({ api, call }, { ownerId: config.ownerId, appOrigin });
   return getBotStatus(deps);
 }

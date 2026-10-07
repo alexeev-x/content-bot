@@ -58,15 +58,22 @@ function startUpdate(fromId: number): Update {
   };
 }
 
-async function run(fromId: number, failures: Failures = {}) {
+async function run(fromId: number, failures: Failures = {}, adminApi = fakeBotAdminApi({ failures })) {
   const config = readBotConfig(baseEnv) as BotConfig;
-  const adminApi = fakeBotAdminApi({ failures });
+  const background: Promise<unknown>[] = [];
   const events: LogEvent[] = [];
   const logger = { info: () => {}, warn: (e: LogEvent) => events.push(e), error: (e: LogEvent) => events.push(e) };
   const bot = createBot(config, {
     appOrigin: 'https://studio.example.com',
     adminApi,
-    call: createTelegramCaller({ logger })
+    call: createTelegramCaller({ logger }),
+    waitUntil: (work) => background.push(work),
+    onError: (error) =>
+      events.push({
+        component: 'bot',
+        operation: 'handle_update',
+        errorCode: error instanceof Error ? error.name : 'unknown'
+      })
   });
   const calls: { method: string; payload: unknown }[] = [];
   bot.api.config.use((_prev, method, payload) => {
@@ -74,7 +81,9 @@ async function run(fromId: number, failures: Failures = {}) {
     return Promise.resolve({ ok: true, result: true } as never);
   });
   await bot.handleUpdate(startUpdate(fromId));
-  return { calls, adminCalls: adminApi.calls, events };
+  // What the Worker keeps running after the webhook has answered.
+  const settleBackground = () => Promise.all(background);
+  return { calls, adminCalls: adminApi.calls, events, background, settleBackground };
 }
 
 describe('inspectBotSetup', () => {
@@ -94,7 +103,8 @@ describe('inspectBotSetup', () => {
 
 describe('bot', () => {
   it('answers /start from the owner with the studio button and refreshes the owner chat', async () => {
-    const { calls, adminCalls } = await run(4242);
+    const { calls, adminCalls, settleBackground } = await run(4242);
+    await settleBackground();
     expect(calls).toHaveLength(1);
     expect(calls[0]).toMatchObject({
       method: 'sendMessage',
@@ -113,11 +123,12 @@ describe('bot', () => {
   });
 
   it('still replies when setting the commands fails, and logs a stable code', async () => {
-    const { calls, adminCalls, events } = await run(4242, {
+    const { calls, adminCalls, events, settleBackground } = await run(4242, {
       setChatCommands: () => {
         throw apiError(400, 'Bad Request: secret-text');
       }
     });
+    await expect(settleBackground()).resolves.toBeDefined();
     expect(calls).toHaveLength(1);
     expect(calls[0]?.method).toBe('sendMessage');
     expect(adminCalls).toEqual(['setChatCommands 4242 start']);
@@ -126,9 +137,22 @@ describe('bot', () => {
     ]);
   });
 
+  it('answers /start without waiting for the owner chat setup, which never finishes here', async () => {
+    const hanging = new Promise<never>(() => {});
+    const adminApi = {
+      ...fakeBotAdminApi(),
+      setChatCommands: () => hanging,
+      setChatMenuWebApp: () => hanging
+    };
+    const { calls, background } = await run(4242, {}, adminApi);
+    expect(calls.map((call) => call.method)).toEqual(['sendMessage']);
+    expect(background).toHaveLength(1);
+  });
+
   it('ignores everyone else silently', async () => {
-    const { calls, adminCalls } = await run(777);
+    const { calls, adminCalls, background } = await run(777);
     expect(calls).toEqual([]);
     expect(adminCalls).toEqual([]);
+    expect(background).toEqual([]);
   });
 });

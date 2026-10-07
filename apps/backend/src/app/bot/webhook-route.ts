@@ -44,15 +44,16 @@ export const telegramWebhook = new Hono<AppBindings>().post(
     const bot = createBot(config, {
       appOrigin: appOriginOf(c.req.url),
       adminApi: container.botAdminApi,
-      call: createTelegramCaller({ logger: container.logger, requestId: c.get('requestId') })
-    });
-    bot.catch((error) => {
-      container.logger.error({
-        component: 'bot',
-        operation: 'handle_update',
-        requestId: c.get('requestId'),
-        errorCode: error.error instanceof Error ? error.error.name : 'unknown'
-      });
+      call: createTelegramCaller({ logger: container.logger, requestId: c.get('requestId') }),
+      waitUntil: (work) => c.executionCtx.waitUntil(work),
+      onError: (error) => {
+        container.logger.error({
+          component: 'bot',
+          operation: 'handle_update',
+          requestId: c.get('requestId'),
+          errorCode: error instanceof Error ? error.name : 'unknown'
+        });
+      }
     });
     return webhookCallback(bot, 'cloudflare-mod', { secretToken: config.webhookSecret })(c.req.raw);
   }

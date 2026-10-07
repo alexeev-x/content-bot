@@ -13,10 +13,6 @@
   font-size: var(--font-size-md);
   font-weight: var(--font-weight-medium);
 }
-.list {
-  margin: 0;
-  padding-left: var(--space-5);
-}
 .muted {
   margin: 0;
   color: var(--color-text-muted);

@@ -52,7 +52,10 @@ export interface TelegramBotAdminApi {
     input: { url: string; secretToken: string; allowedUpdates: ('message' | 'callback_query')[] },
     signal: AbortSignal
   ): Promise<unknown>;
-  deleteMyCommands(input: { scope?: 'all_private_chats'; languageCode?: 'ru' }, signal: AbortSignal): Promise<unknown>;
+  deleteMyCommands(
+    input: { scope?: 'all_private_chats' | { chatId: number }; languageCode?: 'ru' },
+    signal: AbortSignal
+  ): Promise<unknown>;
   setChatCommands(chatId: number, commands: BotCommandDescription[], signal: AbortSignal): Promise<unknown>;
   setChatMenuWebApp(chatId: number, input: { text: string; url: string }, signal: AbortSignal): Promise<unknown>;
 }
@@ -71,7 +74,11 @@ export function createTelegramBotAdminApi(token: string): TelegramBotAdminApi {
     deleteMyCommands: ({ scope, languageCode }, signal) =>
       api.deleteMyCommands(
         {
-          ...(scope === undefined ? {} : { scope: { type: scope } }),
+          ...(scope === undefined
+            ? {}
+            : {
+                scope: typeof scope === 'string' ? { type: scope } : { type: 'chat' as const, chat_id: scope.chatId }
+              }),
           ...(languageCode === undefined ? {} : { language_code: languageCode })
         },
         signal as never

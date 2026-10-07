@@ -93,26 +93,47 @@ export interface BotRuntime {
   /** Used by /start to refresh the owner's commands and menu button. */
   adminApi: TelegramBotAdminApi;
   call: TelegramCaller;
+  /** Keeps work alive after the webhook answered (the request's `ctx.waitUntil`). */
+  waitUntil: (work: Promise<unknown>) => void;
+  /** Records a failed update (stable code only); the webhook still answers 200. */
+  onError: (error: unknown) => void;
 }
+
+// Every Bot API call of the reply path gives up after this long, so the whole handler stays well
+// under the webhook's 10 s deadline (grammY's own default is 500 s).
+const REPLY_TIMEOUT_SECONDS = 4;
 
 // Built per request: no user or update state lives in module scope.
 export function createBot(config: BotConfig, runtime: BotRuntime): Bot {
-  const bot = new Bot(config.token, { botInfo: config.botInfo });
+  const bot = new Bot(config.token, {
+    botInfo: config.botInfo,
+    client: { timeoutSeconds: REPLY_TIMEOUT_SECONDS }
+  });
+  // First, so it sees every failure. `bot.catch` is not used by webhooks: `handleUpdate` rethrows,
+  // the webhook would answer 500 and Telegram would redeliver an update whose reply may already be
+  // out. A /start the owner did not get is simply sent again by the owner.
+  bot.use(async (_ctx, next) => {
+    try {
+      await next();
+    } catch (error) {
+      runtime.onError(error);
+    }
+  });
   bot.use(ownerOnly(config.ownerId));
   bot.command('start', async (ctx) => {
     await ctx.reply('Студия на связи. Откройте её кнопкой ниже.', {
       reply_markup: new InlineKeyboard().webApp('Открыть студию', `${runtime.appOrigin}/`)
     });
-    // Best effort: the reply above is what the owner needs. A failure is already logged by the
-    // caller with a stable code and must not turn the update into a webhook error.
-    try {
-      await configureOwnerChat(
+    // Best effort and off the webhook's path: the reply above is what the owner needs. Awaiting two
+    // more Telegram calls here could outlast the webhook deadline, answer 500 after the reply was
+    // sent, and make Telegram redeliver the update (a second reply). A failure is already logged by
+    // `call` with a stable code, so it is only kept from becoming an unhandled rejection.
+    runtime.waitUntil(
+      configureOwnerChat(
         { api: runtime.adminApi, call: runtime.call },
         { ownerId: config.ownerId, appOrigin: runtime.appOrigin }
-      );
-    } catch {
-      // Logged inside `call`.
-    }
+      ).catch(() => undefined)
+    );
   });
   return bot;
 }

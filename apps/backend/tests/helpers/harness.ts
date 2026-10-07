@@ -78,6 +78,8 @@ export async function seedSession(options: {
 
 export interface Api {
   clock: FakeClock;
+  /** Work the app handed to `ctx.waitUntil`, i.e. what runs after a response was sent. */
+  background: Promise<unknown>[];
   request(path: string, init?: RequestInit & { token?: string | null; json?: unknown }): Promise<Response>;
 }
 
@@ -106,8 +108,16 @@ export function createApi(
     ...(options.webhookSecret === undefined ? {} : { TELEGRAM_WEBHOOK_SECRET: options.webhookSecret }),
     ...(options.botToken === null ? {} : { TELEGRAM_BOT_TOKEN: options.botToken ?? TEST_BOT_TOKEN })
   } as AppEnv;
+  const background: Promise<unknown>[] = [];
+  const executionCtx = {
+    waitUntil: (work: Promise<unknown>) => {
+      background.push(work);
+    },
+    passThroughOnException: () => {}
+  };
   return {
     clock,
+    background,
     request(path, init = {}) {
       const { token = OWNER_TOKEN, json, headers, ...rest } = init;
       const merged = new Headers(headers);
@@ -117,7 +127,8 @@ export function createApi(
         app.request(
           path,
           { ...rest, headers: merged, body: json === undefined ? rest.body : JSON.stringify(json) },
-          env
+          env,
+          executionCtx as never
         )
       );
     }

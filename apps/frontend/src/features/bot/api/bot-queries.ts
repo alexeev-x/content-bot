@@ -1,4 +1,5 @@
 import { queryOptions, useMutation, useQueryClient } from '@tanstack/react-query';
+import { describeConnectFailure } from '../model/connect-failure';
 import { connectBot, getBotStatus } from './bot-api';
 
 export const botKeys = {
@@ -23,6 +24,12 @@ export function useConnectBot() {
     // The response is the new status; written only after the server confirmed it.
     onSuccess: (status) => {
       queryClient.setQueryData(botKeys.status(), status);
+    },
+    // A failed connect may have changed Telegram partway (setWebhook done, a later step failed), and
+    // BOT_NOT_CONFIGURED means the cached "configured" state is stale. Only a rate limit changed nothing.
+    onError: (error) => {
+      if (describeConnectFailure(error).kind === 'rate_limited') return;
+      void queryClient.invalidateQueries({ queryKey: botKeys.status() });
     }
   });
 }

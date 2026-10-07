@@ -53,6 +53,20 @@ async function parsed(response: Response) {
   return botStatusSchema.parse(await response.json());
 }
 
+function startUpdate() {
+  return {
+    update_id: 1,
+    message: {
+      message_id: 10,
+      date: 1,
+      chat: { id: Number(OWNER_ID), type: 'private', first_name: 'X' },
+      from: { id: Number(OWNER_ID), is_bot: false, first_name: 'X' },
+      text: '/start',
+      entities: [{ type: 'bot_command', offset: 0, length: 6 }]
+    }
+  };
+}
+
 const NO_HOOK = { url: '', pending_update_count: 0 };
 
 describe('GET /api/v1/bot/status', () => {
@@ -173,6 +187,8 @@ describe('POST /api/v1/bot/connect', () => {
       'deleteMyCommands default -',
       'deleteMyCommands all_private_chats -',
       'deleteMyCommands default ru',
+      'deleteMyCommands all_private_chats ru',
+      `deleteMyCommands chat ${OWNER_ID} ru`,
       `setChatCommands ${OWNER_ID} start`,
       `setChatMenuWebApp ${OWNER_ID} Студия ${ORIGIN}/`,
       'getWebhookInfo'
@@ -182,7 +198,9 @@ describe('POST /api/v1/bot/connect', () => {
       secretToken: WEBHOOK_SECRET,
       allowedUpdates: ['message', 'callback_query']
     });
-    expect(telegram.sent[4]).toEqual([{ command: 'start', description: 'Открыть студию' }]);
+    expect(telegram.sent[6]).toEqual([{ command: 'start', description: 'Открыть студию' }]);
+    expect(telegram.calls.length).toBeLessThanOrEqual(10);
+    expect(telegram.sent[5]).toEqual({ scope: { chatId: Number(OWNER_ID) }, languageCode: 'ru' });
     expect(body.webhook?.pointsHere).toBe(true);
   });
 
@@ -239,6 +257,34 @@ describe('POST /api/v1/bot/connect', () => {
     expect(telegram.calls).toEqual([]);
   });
 
+  it('answers 400 without calling Telegram when the body is missing, not JSON or not an object', async () => {
+    use();
+    const post = (init: RequestInit & { json?: unknown }) =>
+      api.request(`${ORIGIN}/api/v1/bot/connect`, { method: 'POST', ...init });
+    await expectError(await post({}), 400, 'VALIDATION_ERROR');
+    await expectError(
+      await post({
+        body: new URLSearchParams({ a: 'b' }),
+        headers: { 'content-type': 'application/x-www-form-urlencoded' }
+      }),
+      400,
+      'VALIDATION_ERROR'
+    );
+    await expectError(await post({ body: '{}', headers: { 'content-type': 'text/plain' } }), 400, 'VALIDATION_ERROR');
+    await expectError(await post({ json: [] }), 400, 'VALIDATION_ERROR');
+    expect(telegram.calls).toEqual([]);
+  });
+
+  it('still accepts a JSON content type with a charset', async () => {
+    use({ webhookInfo: NO_HOOK });
+    const response = await api.request(`${ORIGIN}/api/v1/bot/connect`, {
+      method: 'POST',
+      body: '{}',
+      headers: { 'content-type': 'application/json; charset=utf-8' }
+    });
+    expect(response.status).toBe(200);
+  });
+
   it('answers 413 for an oversized body', async () => {
     use();
     const response = await api.request(`${ORIGIN}/api/v1/bot/connect`, {
@@ -278,6 +324,36 @@ describe('POST /api/v1/bot/connect', () => {
     }
     expect(logLines.some((line) => line.includes('telegram_http_400'))).toBe(true);
   });
+
+  it('redacts the token from a webhook URL registered by an older setup', async () => {
+    const encoded = encodeURIComponent(TEST_BOT_TOKEN);
+    const urls = [
+      `https://old.example.com/bot${TEST_BOT_TOKEN}/hook`,
+      `https://old.example.com/bot${encoded}/hook`,
+      'https://old.example.com/bot987654:OtherTokenFromAnOlderBot-0123456789abcdef/hook'
+    ];
+    for (const url of urls) {
+      use({
+        webhookInfo: {
+          url,
+          pending_update_count: 0,
+          last_error_message: `Wrong response from https://old.example.com/bot${TEST_BOT_TOKEN}/hook`
+        }
+      });
+      const text = await (await status()).text();
+      expect(text).not.toContain(TEST_BOT_TOKEN);
+      expect(text).not.toContain(encoded);
+      expect(text).not.toContain('OtherTokenFromAnOlder');
+      const body = botStatusSchema.parse(JSON.parse(text));
+      expect(body.webhook).toMatchObject({ pointsHere: false });
+      expect(body.webhook?.url).toBe('https://old.example.com/bot***/hook');
+    }
+  });
+
+  it('computes pointsHere before redacting', async () => {
+    use({ webhookInfo: { url: EXPECTED_URL, pending_update_count: 0 } });
+    expect((await parsed(await status())).webhook).toMatchObject({ url: EXPECTED_URL, pointsHere: true });
+  });
 });
 
 describe('POST /webhooks/telegram /start', () => {
@@ -288,21 +364,10 @@ describe('POST /webhooks/telegram /start', () => {
       sent.push({ url: String(input instanceof Request ? input.url : input), body: String(init?.body ?? '') });
       return Promise.resolve(Response.json({ ok: true, result: { message_id: 1 } }));
     });
-    const update = {
-      update_id: 1,
-      message: {
-        message_id: 10,
-        date: 1,
-        chat: { id: Number(OWNER_ID), type: 'private', first_name: 'X' },
-        from: { id: Number(OWNER_ID), is_bot: false, first_name: 'X' },
-        text: '/start',
-        entities: [{ type: 'bot_command', offset: 0, length: 6 }]
-      }
-    };
     const response = await api.request(`${ORIGIN}/webhooks/telegram`, {
       method: 'POST',
       token: null,
-      json: update,
+      json: startUpdate(),
       headers: { 'x-telegram-bot-api-secret-token': WEBHOOK_SECRET }
     });
 
@@ -310,10 +375,95 @@ describe('POST /webhooks/telegram /start', () => {
     expect(sent).toHaveLength(1);
     expect(sent[0]?.url).toContain('/sendMessage');
     expect(sent[0]?.body).toContain(`${ORIGIN}/`);
+    await Promise.all(api.background);
     expect(telegram.calls).toEqual([
       `setChatCommands ${OWNER_ID} start`,
       `setChatMenuWebApp ${OWNER_ID} Студия ${ORIGIN}/`
     ]);
+  });
+
+  it('answers 200 with exactly one reply while the owner chat setup is slow and then hangs', async () => {
+    const hanging = new Promise<never>(() => {});
+    let finishCommands: () => void = () => {};
+    telegram = {
+      ...fakeBotAdminApi(),
+      setChatCommands: () =>
+        new Promise((resolve) => {
+          finishCommands = () => resolve(true);
+        }),
+      setChatMenuWebApp: () => hanging
+    };
+    api = createApi({ botInfo: BOT_INFO, webhookSecret: WEBHOOK_SECRET, botAdminApi: telegram });
+    const sent: string[] = [];
+    vi.spyOn(globalThis, 'fetch').mockImplementation((input) => {
+      sent.push(String(input instanceof Request ? input.url : input));
+      return Promise.resolve(Response.json({ ok: true, result: { message_id: 1 } }));
+    });
+
+    const response = await api.request(`${ORIGIN}/webhooks/telegram`, {
+      method: 'POST',
+      token: null,
+      json: startUpdate(),
+      headers: { 'x-telegram-bot-api-secret-token': WEBHOOK_SECRET }
+    });
+    finishCommands();
+
+    expect(response.status).toBe(200);
+    expect(sent.filter((url) => url.endsWith('/sendMessage'))).toHaveLength(1);
+    expect(api.background).toHaveLength(1);
+  });
+
+  it('logs a stable code when the owner chat setup fails after the reply, and still answers 200', async () => {
+    use({
+      failures: {
+        setChatCommands: () => {
+          throw apiError(400, `Bad Request: bot${TEST_BOT_TOKEN}`);
+        }
+      }
+    });
+    vi.spyOn(globalThis, 'fetch').mockImplementation(() =>
+      Promise.resolve(Response.json({ ok: true, result: { message_id: 1 } }))
+    );
+    const response = await api.request(`${ORIGIN}/webhooks/telegram`, {
+      method: 'POST',
+      token: null,
+      json: startUpdate(),
+      headers: { 'x-telegram-bot-api-secret-token': WEBHOOK_SECRET }
+    });
+    await Promise.all(api.background);
+
+    expect(response.status).toBe(200);
+    expect(
+      logLines.some((line) => line.includes('owner_chat.set_commands') && line.includes('telegram_http_400'))
+    ).toBe(true);
+    expect(logLines.join('\n')).not.toContain(TEST_BOT_TOKEN);
+  });
+
+  it('answers 200 and bounds the reply when Telegram does not answer it', async () => {
+    use();
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    try {
+      vi.spyOn(globalThis, 'fetch').mockImplementation(
+        (_input, init) =>
+          new Promise((_resolve, reject) => {
+            init?.signal?.addEventListener('abort', () => reject(new Error('aborted')));
+          })
+      );
+      const pending = api.request(`${ORIGIN}/webhooks/telegram`, {
+        method: 'POST',
+        token: null,
+        json: startUpdate(),
+        headers: { 'x-telegram-bot-api-secret-token': WEBHOOK_SECRET }
+      });
+      await vi.advanceTimersByTimeAsync(4_500);
+      expect((await pending).status).toBe(200);
+    } finally {
+      vi.useRealTimers();
+    }
+    expect(telegram.calls).toEqual([]);
+    expect(api.background).toEqual([]);
+    expect(logLines.some((line) => line.includes('handle_update') && line.includes('"errorCode"'))).toBe(true);
+    expect(logLines.join('\n')).not.toContain(TEST_BOT_TOKEN);
   });
 
   it('answers 503 and does nothing when the secret is malformed, even if the header matches it', async () => {

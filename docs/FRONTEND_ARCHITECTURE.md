@@ -111,7 +111,7 @@ apps/contracts/
 ## 3. Structure of a single feature, using `posts` as an example
 
 - `api/posts-api.ts`: thin functions `listPosts`, `getPost`, `createDraft`, `saveRevision`, `schedulePost`, returning DTOs; no React imports.
-- `api/posts-queries.ts`: `queryOptions`, `useMutation`, `invalidateQueries` only after a successful server response. For important operations (publish/retry) **do not do optimistic success**.
+- `api/posts-queries.ts`: `queryOptions`, `useMutation`, `invalidateQueries` only after a successful server response. Exception: after a failed mutation whose server side may have partly changed (e.g. bot connect), re-read the affected query; this is a refetch of server state, never an optimistic write. For important operations (publish/retry) **do not do optimistic success**.
 - `model/editor-schema.ts`: Zod schema of the editor form, differing from the server DTO only where there is UI specificity; do not duplicate server business validation.
 - `model/use-post-editor.ts`: draft lifecycle, dirty state, revision version, handling of the 409 conflict.
 - `ui/PostEditor.tsx`: form fields + accessibility, no direct `fetch`.
