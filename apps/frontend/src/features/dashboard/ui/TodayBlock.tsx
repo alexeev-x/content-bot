@@ -22,7 +22,7 @@ export function TodayBlock({ items, total, zoneNote, onSchedule }: Props) {
       title={copy.today.title}
       note={zoneNote}
       action={
-        <Link to="/publications" className={styles.cardLink}>
+        <Link to="/publications" search={{ view: 'today' }} className={styles.cardLink}>
           Все публикации
         </Link>
       }
@@ -45,11 +45,13 @@ export function TodayBlock({ items, total, zoneNote, onSchedule }: Props) {
                 title={item.postTitle}
                 channel={item.destinationName}
                 trail={<StatusBadge status={item.status} />}
+                to="/publications"
+                search={{ id: item.publicationId, view: 'today' }}
               />
             ))}
           </ul>
           {total > items.length ? (
-            <Link to="/publications" className={styles.more}>
+            <Link to="/publications" search={{ view: 'today' }} className={styles.more}>
               {copy.today.showAll}
             </Link>
           ) : null}
