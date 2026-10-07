@@ -2,51 +2,255 @@
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   gap: var(--space-5);
+  width: 100%;
+  max-width: var(--measure-dashboard);
+  margin-inline: auto;
   min-width: 0;
-}
-.columns {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: var(--space-5);
-  min-width: 0;
-}
-.column {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  align-content: start;
-  gap: var(--space-5);
-  min-width: 0;
-}
-@media (min-width: 1100px) {
-  .columns {
-    grid-template-columns: minmax(0, 13fr) minmax(0, 7fr);
-    gap: var(--space-6);
-  }
 }
 
-.block {
+.summaryGrid {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  gap: var(--space-1);
+  gap: var(--space-3);
+}
+
+.summaryCard {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+  padding: var(--space-4);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-3);
+  background: var(--color-surface-1);
+  box-shadow: var(--shadow-card);
+}
+
+.summaryIcon {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: var(--size-control);
+  height: var(--size-control);
+  border-radius: var(--radius-2);
+  background: var(--color-accent-soft);
+  color: var(--color-accent-text);
+}
+
+.summaryCard[data-tone='attention'] .summaryIcon {
+  background: var(--color-status-failed-bg);
+  color: var(--color-status-failed-fg);
+}
+
+.summaryCard[data-tone='ok'] .summaryIcon {
+  background: var(--color-status-done-bg);
+  color: var(--color-status-done-fg);
+}
+
+.summaryBody {
+  display: grid;
   min-width: 0;
 }
+
+.summaryLabel {
+  overflow: hidden;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.summaryValue {
+  margin-top: var(--space-1);
+  overflow: hidden;
+  color: var(--color-text);
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
+  line-height: var(--line-height-heading);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.summaryDetail {
+  margin-top: var(--space-1);
+  overflow: hidden;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-2xs);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dashboardGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+.attentionCell,
+.dotaCell,
+.todayCell,
+.analyticsCell,
+.upcomingCell,
+.watchlistCell,
+.recentCell {
+  min-width: 0;
+}
+
+.block,
+.previewCard {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-3);
+  min-width: 0;
+  height: 100%;
+  padding: var(--space-4);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-3);
+  background: var(--color-surface-1);
+  box-shadow: var(--shadow-card);
+}
+
 .blockHead {
   display: flex;
   flex-wrap: wrap;
   align-items: baseline;
   justify-content: space-between;
   gap: var(--space-1) var(--space-3);
-  padding-bottom: var(--space-2);
-  border-bottom: 1px solid var(--color-border-strong);
+  padding-bottom: var(--space-3);
+  border-bottom: 1px solid var(--color-border-subtle);
 }
-.blockTitle {
+
+.blockTitle,
+.previewTitle {
+  margin: 0;
   font-size: var(--font-size-md);
   font-weight: var(--font-weight-semibold);
+  line-height: var(--line-height-heading);
 }
+
 .note {
   color: var(--color-text-muted);
   font-size: var(--font-size-xs);
 }
+
+.previewHead {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.previewTitleLine {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--color-text);
+}
+
+.previewTitleLine > svg {
+  color: var(--color-accent-text);
+}
+
+.previewDescription {
+  margin: var(--space-1) 0 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+}
+
+.previewBadge {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--size-target-min);
+  padding-inline: var(--space-2);
+  border-radius: var(--radius-pill);
+  background: var(--color-status-pending-bg);
+  color: var(--color-status-pending-fg);
+  font-size: var(--font-size-2xs);
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.previewList {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.previewRow {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: var(--space-3);
+  align-items: center;
+  min-width: 0;
+  padding: var(--space-3);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-2);
+  background: var(--color-surface-2);
+}
+
+.previewMarker {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--size-target-min);
+  padding-inline: var(--space-2);
+  border-radius: var(--radius-pill);
+  background: var(--color-accent-soft);
+  color: var(--color-accent-text);
+  font-size: var(--font-size-2xs);
+  font-weight: var(--font-weight-medium);
+}
+
+.previewRow div {
+  display: grid;
+  min-width: 0;
+}
+
+.previewRow strong,
+.watchItem strong {
+  overflow: hidden;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.previewRow div > span,
+.watchItem span,
+.metric span,
+.metric small {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-2xs);
+}
+
+.metricGrid,
+.watchGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-2);
+}
+
+.metric,
+.watchItem {
+  display: grid;
+  min-width: 0;
+  padding: var(--space-3);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-2);
+  background: var(--color-surface-2);
+}
+
+.metric strong {
+  margin-block: var(--space-1);
+  color: var(--color-text);
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
+}
+
 .list {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
@@ -54,22 +258,30 @@
   padding: 0;
   list-style: none;
 }
-/* One divider style: a hairline between rows. */
+
 .row,
 .skeletonRow {
   border-bottom: 1px solid var(--color-border-subtle);
 }
+
+.row:last-child,
+.skeletonRow:last-child {
+  border-bottom: 0;
+}
+
 .skeletonRow {
   padding-block: var(--space-1);
 }
+
 .row {
   display: flex;
   align-items: center;
   gap: var(--space-3);
   min-width: 0;
   min-height: calc(var(--size-button) + var(--space-1) * 2);
-  padding-block: var(--space-1);
+  padding-block: var(--space-2);
 }
+
 .time {
   flex: none;
   min-width: 5.5ch;
@@ -78,21 +290,25 @@
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
+
 .badge {
   flex: none;
 }
+
 .main {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   flex: 1 1 0;
   min-width: 0;
 }
+
 .titleLine {
   display: flex;
   align-items: baseline;
   gap: var(--space-3);
   min-width: 0;
 }
+
 .title {
   min-width: 0;
   overflow: hidden;
@@ -100,6 +316,7 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
 .channel {
   flex: 0 1 auto;
   min-width: 0;
@@ -110,14 +327,17 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
 .hint {
   color: var(--color-text-muted);
   font-size: var(--font-size-xs);
 }
+
 .trail {
   flex: none;
   margin-left: auto;
 }
+
 .tag {
   display: inline-flex;
   align-items: center;
@@ -132,15 +352,16 @@
   white-space: nowrap;
 }
 
-/* Right column: the channel sits under the title. */
 .row[data-layout='stacked'] .titleLine {
   flex-direction: column;
   align-items: stretch;
   gap: 0;
 }
+
 .row[data-layout='stacked'] .channel {
   max-width: 100%;
 }
+
 .row[data-layout='stacked'] .time {
   min-width: 9ch;
 }
@@ -155,15 +376,18 @@
   text-decoration: underline;
   text-underline-offset: 3px;
 }
+
 .more {
   justify-self: start;
 }
+
 .more:focus-visible,
 .external:focus-visible {
   border-radius: var(--radius-1);
   outline: var(--focus-ring-width) solid var(--color-focus-ring);
   outline-offset: var(--focus-ring-offset);
 }
+
 .emptyLine {
   margin: 0;
   display: flex;
@@ -171,13 +395,78 @@
   align-items: center;
   justify-content: space-between;
   gap: var(--space-3);
-  padding-block: var(--space-2);
+  min-height: var(--size-row);
   color: var(--color-text-muted);
 }
 
-/* Phone: time and badge on the first line; the title under them with the action or status at its right. Every
-   block reads the same way, nothing clips to a few letters, and the first line fits a 320px screen. */
+@media (min-width: 640px) {
+  .summaryGrid,
+  .metricGrid,
+  .watchGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .metricGrid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1100px) {
+  .summaryGrid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .dashboardGrid {
+    grid-template-columns: minmax(0, 11fr) minmax(0, 9fr);
+    grid-template-areas:
+      'attention dota'
+      'today dota'
+      'upcoming analytics'
+      'recent watchlist';
+    gap: var(--space-4);
+    align-items: stretch;
+  }
+
+  .attentionCell {
+    grid-area: attention;
+  }
+
+  .dotaCell {
+    grid-area: dota;
+  }
+
+  .todayCell {
+    grid-area: today;
+  }
+
+  .analyticsCell {
+    grid-area: analytics;
+  }
+
+  .upcomingCell {
+    grid-area: upcoming;
+  }
+
+  .watchlistCell {
+    grid-area: watchlist;
+  }
+
+  .recentCell {
+    grid-area: recent;
+  }
+}
+
 @media (max-width: 639px) {
+  .root {
+    gap: var(--space-4);
+  }
+
+  .summaryCard,
+  .block,
+  .previewCard {
+    padding: var(--space-3);
+  }
+
   .row {
     display: grid;
     grid-template-columns: auto minmax(0, 1fr) auto;
@@ -187,28 +476,35 @@
     column-gap: var(--space-3);
     padding-block: var(--space-2);
   }
+
   .time {
     grid-area: time;
   }
+
   .badge {
     grid-area: badge;
     justify-self: start;
   }
+
   .main {
     grid-area: main;
   }
+
   .trail {
     grid-area: trail;
     align-self: center;
   }
+
   .row .titleLine {
     flex-direction: column;
     align-items: stretch;
     gap: 0;
   }
+
   .row .channel {
     max-width: 100%;
   }
+
   .row[data-layout='stacked'] .time {
     min-width: 0;
   }
