@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { publicationStatusSchema, type DestinationDto, type PublicationStatus } from '@alexeev/contracts';
 import { publicationCopy } from '../../features/publications';
 import { ru } from '../../shared/lib/ru';
@@ -51,8 +51,6 @@ export function PublicationsFilters({
   const copy = publicationCopy.filters;
   const narrow = useMediaQuery('(max-width: 859px)');
   const [open, setOpen] = useState(false);
-  const [queryDraft, setQueryDraft] = useState(q ?? '');
-  useEffect(() => setQueryDraft(q ?? ''), [q]);
   const activeCount =
     (view !== undefined ? 1 : 0) +
     (status !== undefined ? 1 : 0) +
@@ -116,15 +114,12 @@ export function PublicationsFilters({
 
       <div className={styles.searchRow}>
         <SearchField
+          key={q ?? ''}
           label="Поиск публикаций"
           placeholder="Поиск по заголовку и тексту…"
-          value={queryDraft}
-          onChange={setQueryDraft}
+          defaultValue={q ?? ''}
           onSubmit={(value) => onQueryChange(value.trim() || undefined)}
-          onClear={() => {
-            setQueryDraft('');
-            onQueryChange(undefined);
-          }}
+          onClear={() => onQueryChange(undefined)}
         />
       </div>
 
