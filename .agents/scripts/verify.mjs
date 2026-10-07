@@ -114,7 +114,13 @@ export function changedFiles(root, requestedBase = null) {
     }
   }
   const committed = base
-    ? git('diff', '--name-only', '-z', '--no-renames', requestedBase ? `${base}..HEAD` : `${base}...HEAD`).replaceAll('\\', '/')
+    ? git(
+        'diff',
+        '--name-only',
+        '-z',
+        '--no-renames',
+        requestedBase ? `${base}..HEAD` : `${base}...HEAD`,
+      ).replaceAll('\\', '/')
     : '';
   const working = git('status', '--porcelain', '-z', '--no-renames', '--untracked-files=all')
     .split('\0')
