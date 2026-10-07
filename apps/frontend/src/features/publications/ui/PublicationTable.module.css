@@ -1,3 +1,25 @@
+.postCell {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+}
+.postMark {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  width: 36px;
+  height: 36px;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-2);
+  background: var(--color-surface-2);
+  color: var(--color-accent-text);
+}
+.postText {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
 .title {
   display: block;
   overflow: hidden;
@@ -5,18 +27,38 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-/* The post column takes all the width the other columns leave and clips its text: the table never outgrows the page. */
-td:has(> .title) {
+.excerpt {
+  display: block;
+  max-width: 48ch;
+  overflow: hidden;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+td:has(> .postCell) {
   width: 100%;
-  min-width: 16ch;
+  min-width: 24ch;
   max-width: 0;
 }
 .channel {
-  display: block;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
   max-width: min(28ch, 20vw);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+.channelIcon {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-pill);
+  background: var(--color-accent-soft);
+  color: var(--color-accent-text);
 }
 .muted {
   color: var(--color-text-muted);
@@ -36,13 +78,16 @@ td:has(> .title) {
 }
 .time {
   white-space: nowrap;
+  color: var(--color-text-muted);
 }
 
-/* On a phone the title and channel wrap (a nowrap text cannot shrink inside the row and widens the page)
-   but stop at two lines with an ellipsis; the full text stays in `title`. */
 @media (max-width: 859px) {
+  .postMark {
+    display: none;
+  }
   .title,
-  .channel {
+  .channel,
+  .excerpt {
     display: -webkit-box;
     max-width: none;
     overflow: hidden;
@@ -52,9 +97,12 @@ td:has(> .title) {
     -webkit-line-clamp: 2;
     line-clamp: 2;
   }
+  .excerpt {
+    -webkit-line-clamp: 1;
+    line-clamp: 1;
+  }
 }
 
-/* Touch target 44px without growing the card: the extra height is cancelled by a negative margin. */
 @media (pointer: coarse), (max-width: 859px) {
   .link {
     min-height: var(--size-target);

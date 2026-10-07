@@ -1,6 +1,6 @@
-import type { PublicationDto } from '@alexeev/contracts';
+import type { PostDto, PublicationDto } from '@alexeev/contracts';
 import { useMemo, type ReactNode } from 'react';
-import { DataTable, StatusBadge, type DataColumn } from '../../../shared/ui';
+import { DataTable, Icon, StatusBadge, type DataColumn } from '../../../shared/ui';
 import { browserTimeZone, formatShort } from '../model/format-time';
 import { displayStatus, messageLink } from '../model/publication-view';
 import { copy } from './copy';
@@ -10,15 +10,15 @@ export type PublicationChannel = { title: string; chatId: string };
 
 type Props = {
   rows: readonly PublicationDto[];
-  /** Titles come from the page (posts and destinations are other features), `undefined` while unknown. */
-  postTitle: (publication: PublicationDto) => string | undefined;
+  /** Post details come from the page because posts are a separate feature. */
+  post: (publication: PublicationDto) => PostDto | undefined;
   channel: (publication: PublicationDto) => PublicationChannel | undefined;
   onOpen: (publicationId: string) => void;
+  activeId?: string | undefined;
   isLoading?: boolean;
   emptyState?: ReactNode;
 };
 
-// A press on the link must not also open the drawer behind the row's own press handling.
 const keepPress = {
   onPointerDown: (event: { stopPropagation: () => void }) => event.stopPropagation(),
   onPointerUp: (event: { stopPropagation: () => void }) => event.stopPropagation(),
@@ -54,43 +54,29 @@ function MessageCell({
   );
 }
 
-export function PublicationTable({ rows, postTitle, channel, onOpen, isLoading, emptyState }: Props) {
+function PostCell({ value }: { value: PostDto | undefined }) {
+  if (!value) return <span className={styles.muted}>{copy.list.unknownPost}</span>;
+  return (
+    <span className={styles.postCell}>
+      <span className={styles.postMark} aria-hidden="true">
+        <Icon name="file" size={18} />
+      </span>
+      <span className={styles.postText}>
+        <strong className={styles.title} title={value.title}>
+          {value.title}
+        </strong>
+        <span className={styles.excerpt} title={value.body}>
+          {value.body || 'Без текста'}
+        </span>
+      </span>
+    </span>
+  );
+}
+
+export function PublicationTable({ rows, post, channel, onOpen, activeId, isLoading, emptyState }: Props) {
   const zone = useMemo(() => browserTimeZone(), []);
   const columns = useMemo<DataColumn<PublicationDto>[]>(
     () => [
-      {
-        id: 'post',
-        header: copy.list.columns.post,
-        isRowHeader: true,
-        cell: (row) => {
-          const title = postTitle(row) ?? copy.list.unknownPost;
-          return (
-            <span className={styles.title} title={title}>
-              {title}
-            </span>
-          );
-        }
-      },
-      {
-        id: 'status',
-        header: copy.list.columns.status,
-        compactSlot: 'trailing',
-        cell: (row) => <StatusBadge status={displayStatus(row)} />
-      },
-      {
-        id: 'channel',
-        header: copy.list.columns.channel,
-        cell: (row) => {
-          const title = channel(row)?.title;
-          return title ? (
-            <span className={styles.channel} title={title}>
-              {title}
-            </span>
-          ) : (
-            <span className={styles.muted}>{copy.list.unknownChannel}</span>
-          );
-        }
-      },
       {
         id: 'time',
         header: copy.list.columns.time,
@@ -101,13 +87,43 @@ export function PublicationTable({ rows, postTitle, channel, onOpen, isLoading, 
         )
       },
       {
+        id: 'post',
+        header: copy.list.columns.post,
+        isRowHeader: true,
+        cell: (row) => <PostCell value={post(row)} />
+      },
+      {
+        id: 'channel',
+        header: copy.list.columns.channel,
+        cell: (row) => {
+          const title = channel(row)?.title;
+          return title ? (
+            <span className={styles.channel} title={title}>
+              <span className={styles.channelIcon} aria-hidden="true">
+                <Icon name="send" size={15} />
+              </span>
+              {title}
+            </span>
+          ) : (
+            <span className={styles.muted}>{copy.list.unknownChannel}</span>
+          );
+        }
+      },
+      {
+        id: 'status',
+        header: copy.list.columns.status,
+        compactSlot: 'trailing',
+        cell: (row) => <StatusBadge status={displayStatus(row)} />
+      },
+      {
         id: 'message',
         header: copy.list.columns.message,
         cell: (row) => <MessageCell publication={row} channel={channel(row)} />
       }
     ],
-    [postTitle, channel, zone]
+    [post, channel, zone]
   );
+
   return (
     <DataTable
       aria-label={copy.list.tableLabel}
@@ -116,6 +132,7 @@ export function PublicationTable({ rows, postTitle, channel, onOpen, isLoading, 
       getRowId={(row) => row.id}
       density="compact"
       onRowAction={onOpen}
+      activeId={activeId}
       isLoading={isLoading ?? false}
       emptyState={emptyState}
     />

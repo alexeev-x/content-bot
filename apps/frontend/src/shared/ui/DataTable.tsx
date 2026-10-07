@@ -46,6 +46,8 @@ type Props<T> = {
   selected?: RowSelection;
   onSelectionChange?: (selection: RowSelection) => void;
   onRowAction?: (id: string) => void;
+  /** One row can be highlighted as the object currently open in an inspector. */
+  activeId?: string;
   isLoading?: boolean;
   /** Shown instead of the rows when `rows` is empty; use EmptyState. */
   emptyState?: ReactNode;
@@ -76,6 +78,7 @@ function Grid<T>({
   selected,
   onSelectionChange,
   onRowAction,
+  activeId,
   isLoading,
   emptyState,
   ...rest
@@ -145,6 +148,7 @@ function Grid<T>({
                   key={getRowId(row)}
                   id={getRowId(row)}
                   className={onRowAction ? `${styles.row} ${styles.actionRow}` : styles.row}
+                  data-active={activeId === getRowId(row) || undefined}
                 >
                   {selectionMode === 'multiple' ? (
                     <Cell className={styles.selectCell}>
@@ -174,6 +178,7 @@ function CardList<T>({
   selected,
   onSelectionChange,
   onRowAction,
+  activeId,
   isLoading,
   emptyState,
   density = 'default',
@@ -226,7 +231,12 @@ function CardList<T>({
             const id = getRowId(row);
             const title = titleColumn?.cell(row);
             return (
-              <li key={id} className={styles.card} data-selected={isSelected(id) || undefined}>
+              <li
+                key={id}
+                className={styles.card}
+                data-selected={isSelected(id) || undefined}
+                data-active={activeId === id || undefined}
+              >
                 <div className={styles.cardHead}>
                   {selectionMode === 'multiple' ? (
                     <Checkbox

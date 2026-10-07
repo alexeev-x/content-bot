@@ -20,6 +20,7 @@ export async function listPublications(
     status: query.status,
     postId: query.postId,
     destinationId: query.destinationId,
+    q: query.q,
     from: query.from === undefined ? undefined : Date.parse(query.from),
     to: query.to === undefined ? undefined : Date.parse(query.to),
     order: query.order,

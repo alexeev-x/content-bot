@@ -183,6 +183,20 @@ describe('constraints', () => {
   });
 });
 
+describe('publication text search', () => {
+  it('matches the linked post title or body and excludes non-matches', async () => {
+    await seedPost();
+    await seedDestination();
+    const repo = createD1PublicationRepository(testDb());
+    const input = await newPublication();
+    await repo.create(input);
+
+    expect((await repo.list({ q: 't', limit: 21, now: NOW })).map((row) => row.id)).toEqual([input.id]);
+    expect((await repo.list({ q: 'b', limit: 21, now: NOW })).map((row) => row.id)).toEqual([input.id]);
+    expect(await repo.list({ q: 'missing', limit: 21, now: NOW })).toEqual([]);
+  });
+});
+
 describe('publication list query plans', () => {
   const after = { scheduledAt: NOW, id: CURSOR_ID };
   const base = { limit: 21, now: NOW };

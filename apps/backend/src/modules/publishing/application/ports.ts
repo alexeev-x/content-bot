@@ -258,6 +258,7 @@ export interface ListPublicationsQuery {
   status?: PublicationStatus;
   postId?: string;
   destinationId?: string;
+  q?: string;
   /** Inclusive UTC lower bound for scheduledAt. */
   from?: number;
   /** Exclusive UTC upper bound for scheduledAt. */

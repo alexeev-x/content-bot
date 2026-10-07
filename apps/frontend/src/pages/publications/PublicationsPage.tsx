@@ -22,20 +22,22 @@ type Props = {
   /** Merges into the URL search; filters and the page cursor are history entries, the drawer id too. */
   onSearchChange: (patch: Partial<PublicationsSearch>, options?: { replace?: boolean }) => void;
   onOpenPosts: () => void;
+  onCreatePost: () => void;
   /** Test hook: poll interval in ms (production uses the feature default of 15 s). */
   pollMs?: number;
 };
 
 const copy = publicationCopy;
 
-export function PublicationsPage({ search, onSearchChange, onOpenPosts, pollMs }: Props) {
+export function PublicationsPage({ search, onSearchChange, onOpenPosts, onCreatePost, pollMs }: Props) {
   useDocumentTitle(copy.list.title);
-  const { list, destinationList, postTitle, channel } = usePublicationsData(search, pollMs);
+  const { list, destinationList, post, postTitle, channel } = usePublicationsData(search, pollMs);
   const items = list.data?.items ?? [];
   const hasFilters =
     search.view !== undefined ||
     search.status !== undefined ||
     search.channel !== undefined ||
+    search.q !== undefined ||
     search.post !== undefined ||
     search.order !== undefined;
   const announcement = useStatusAnnouncement(items);
@@ -54,6 +56,7 @@ export function PublicationsPage({ search, onSearchChange, onOpenPosts, pollMs }
       view: undefined,
       status: undefined,
       channel: undefined,
+      q: undefined,
       post: undefined,
       order: undefined,
       cursor: undefined
@@ -61,11 +64,20 @@ export function PublicationsPage({ search, onSearchChange, onOpenPosts, pollMs }
 
   return (
     <>
-      <PageHeader title={copy.list.title} description={copy.list.description} />
+      <PageHeader
+        title={copy.list.title}
+        description={copy.list.description}
+        actions={
+          <Button icon="plus" onPress={onCreatePost}>
+            Создать публикацию
+          </Button>
+        }
+      />
       <PublicationsFilters
         view={search.view}
         status={search.status}
         channel={search.channel}
+        q={search.q}
         order={search.order}
         destinations={destinationList}
         onViewChange={(view) =>
@@ -78,6 +90,7 @@ export function PublicationsPage({ search, onSearchChange, onOpenPosts, pollMs }
         }
         onStatusChange={(status) => onSearchChange({ status, view: undefined, cursor: undefined })}
         onChannelChange={(next) => onSearchChange({ channel: next, cursor: undefined })}
+        onQueryChange={(q) => onSearchChange({ q, cursor: undefined })}
         onOrderChange={(order) => onSearchChange({ order, cursor: undefined })}
         onReset={reset}
       />
@@ -101,34 +114,37 @@ export function PublicationsPage({ search, onSearchChange, onOpenPosts, pollMs }
         <ListError error={list.error} onRetry={() => void list.refetch()} />
       ) : (
         <div className={styles.results}>
-          <PublicationTable
-            rows={items}
-            isLoading={list.isPending}
-            postTitle={postTitle}
-            channel={channel}
-            onOpen={(id) => onSearchChange({ id })}
-            emptyState={
-              hasFilters || search.cursor ? (
-                <EmptyState
-                  icon="search"
-                  title={copy.states.filteredTitle}
-                  description={copy.states.filteredDescription}
-                  action={
-                    <Button variant="secondary" onPress={reset}>
-                      {copy.filters.reset}
-                    </Button>
-                  }
-                />
-              ) : (
-                <EmptyState
-                  icon="send"
-                  title={copy.states.emptyTitle}
-                  description={copy.states.emptyDescription}
-                  action={<Button onPress={onOpenPosts}>{copy.states.emptyAction}</Button>}
-                />
-              )
-            }
-          />
+          <div className={styles.tableSurface}>
+            <PublicationTable
+              rows={items}
+              isLoading={list.isPending}
+              post={post}
+              channel={channel}
+              activeId={search.id}
+              onOpen={(id) => onSearchChange({ id })}
+              emptyState={
+                hasFilters || search.cursor ? (
+                  <EmptyState
+                    icon="search"
+                    title={copy.states.filteredTitle}
+                    description={copy.states.filteredDescription}
+                    action={
+                      <Button variant="secondary" onPress={reset}>
+                        {copy.filters.reset}
+                      </Button>
+                    }
+                  />
+                ) : (
+                  <EmptyState
+                    icon="send"
+                    title={copy.states.emptyTitle}
+                    description={copy.states.emptyDescription}
+                    action={<Button onPress={onOpenPosts}>{copy.states.emptyAction}</Button>}
+                  />
+                )
+              }
+            />
+          </div>
           {search.cursor || list.data?.nextCursor ? (
             <nav className={styles.pager} aria-label={copy.pagination.label}>
               {search.cursor ? (
@@ -157,6 +173,7 @@ export function PublicationsPage({ search, onSearchChange, onOpenPosts, pollMs }
         }}
         placeholder={openRow}
         postTitle={openRow ? postTitle(openRow) : undefined}
+        postBody={openRow ? post(openRow)?.body : undefined}
         destinationTitle={openDestination?.title}
         chatId={openDestination?.chatId}
         pollMs={pollMs}
