@@ -82,7 +82,8 @@ export function listPublicationsSql(query: ListPublicationsQuery): { sql: string
   }
   if (query.q !== undefined) {
     conditions.push(
-      "EXISTS (SELECT 1 FROM posts search_post WHERE search_post.id = p.post_id AND (instr(lower(search_post.title), lower(?)) > 0 OR instr(lower(search_post.body), lower(?)) > 0))"
+      'EXISTS (SELECT 1 FROM posts search_post WHERE search_post.id = p.post_id ' +
+        'AND (instr(lower(search_post.title), lower(?)) > 0 OR instr(lower(search_post.body), lower(?)) > 0))'
     );
     bindings.push(query.q, query.q);
   }
