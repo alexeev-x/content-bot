@@ -359,6 +359,18 @@
   flex: 1 1 0;
   min-width: 0;
 }
+.rowLink {
+  color: inherit;
+  text-decoration: none;
+  border-radius: var(--radius-1);
+}
+.rowLink:hover .title {
+  color: var(--color-accent-text);
+}
+.rowLink:focus-visible {
+  outline: var(--focus-ring-width) solid var(--color-focus-ring);
+  outline-offset: var(--focus-ring-offset);
+}
 
 .titleLine {
   display: flex;
