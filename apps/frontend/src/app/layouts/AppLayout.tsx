@@ -80,7 +80,11 @@ export function AppLayout() {
 
   switch (auth.status) {
     case 'checking':
-      return hasSessionHint() ? <SessionRestoreShell pathname={pathname} /> : <AuthLoadingScreen label={ru.auth.checking} />;
+      return hasSessionHint() ? (
+        <SessionRestoreShell pathname={pathname} />
+      ) : (
+        <AuthLoadingScreen label={ru.auth.checking} />
+      );
     case 'anonymous': {
       const back = auth.signedOutByUser || href === '/' ? {} : { redirect: href };
       return <Navigate to="/login" search={back} replace />;
