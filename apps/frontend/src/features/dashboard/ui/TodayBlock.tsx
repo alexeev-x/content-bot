@@ -18,7 +18,15 @@ type Props = {
 /** Today's timeline, earliest first; sent rows stay with «Опубликовано» so the day reads as a whole. */
 export function TodayBlock({ items, total, zoneNote, onSchedule }: Props) {
   return (
-    <Block title={copy.today.title} note={zoneNote}>
+    <Block
+      title={copy.today.title}
+      note={zoneNote}
+      action={
+        <Link to="/publications" className={styles.cardLink}>
+          Все публикации
+        </Link>
+      }
+    >
       {items.length === 0 ? (
         <div className={styles.emptyLine}>
           <p>{copy.today.empty}</p>
