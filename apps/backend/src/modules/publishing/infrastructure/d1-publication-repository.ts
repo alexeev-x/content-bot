@@ -93,17 +93,18 @@ export function listPublicationsSql(query: ListPublicationsQuery): { sql: string
     conditions.push(`${scheduledAt} < ?`);
     bindings.push(query.to);
   }
+  const order = query.order ?? 'desc';
   if (query.after !== undefined) {
-    const comparison = query.order === 'asc' ? '>' : '<';
+    const comparison = order === 'asc' ? '>' : '<';
     conditions.push(
-      `${scheduledAt} ${query.order === 'asc' ? '>=' : '<='} ?`,
+      `${scheduledAt} ${order === 'asc' ? '>=' : '<='} ?`,
       `(${scheduledAt} ${comparison} ? OR ${id} ${comparison} ?)`
     );
     bindings.push(query.after.scheduledAt, query.after.scheduledAt, query.after.id);
   }
   bindings.push(query.limit);
   const where = conditions.length === 0 ? '' : ` WHERE ${conditions.join(' AND ')}`;
-  const direction = query.order === 'asc' ? 'ASC' : 'DESC';
+  const direction = order === 'asc' ? 'ASC' : 'DESC';
   return {
     sql: `SELECT ${PUBLICATION_COLUMNS} ${byJobs ? FROM_JOBS : FROM_PUBLICATIONS}${where} ORDER BY ${scheduledAt} ${direction}, ${id} ${direction} LIMIT ?`,
     bindings
