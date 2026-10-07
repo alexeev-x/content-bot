@@ -262,7 +262,7 @@ export interface ListPublicationsQuery {
   from?: number;
   /** Exclusive UTC upper bound for scheduledAt. */
   to?: number;
-  order: 'asc' | 'desc';
+  order?: 'asc' | 'desc';
   after?: { scheduledAt: number; id: string };
   limit: number;
   /** Separates `scheduled` from `queued` for pending jobs. */
