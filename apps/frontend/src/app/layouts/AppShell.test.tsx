@@ -44,26 +44,24 @@ describe('AppShell', () => {
     expect(await screen.findByRole('main')).toBeTruthy();
     expect(screen.getByRole('link', { name: 'Перейти к содержимому' })).toBeTruthy();
     const nav = screen.getAllByRole('navigation', { name: 'Основная навигация' })[0]!;
-    for (const label of ['Главная', 'Посты', 'Публикации', 'Настройки']) {
+    for (const label of ['Обзор', 'Посты', 'Публикации', 'Настройки']) {
       expect(within(nav).getByRole('link', { name: new RegExp(label) })).toBeTruthy();
     }
     // Sections that are still «Раздел в разработке» stubs are not offered (their routes stay).
-    for (const label of ['Календарь', 'Автоматизации', 'Медиа', 'Инциденты']) {
+    for (const label of ['Календарь', 'Автоматизации', 'Медиа']) {
       expect(within(nav).queryByRole('link', { name: new RegExp(label) })).toBeNull();
     }
-    expect(
-      within(nav)
-        .getByRole('link', { name: /Главная/ })
-        .getAttribute('aria-current')
-    ).toBe('page');
+    expect(within(nav).getByRole('link', { name: /Обзор/ }).getAttribute('aria-current')).toBe('page');
   });
 
-  it('groups the sidebar and renders only groups that have items', async () => {
+  it('lists the sidebar items in order with no group headings', async () => {
     renderShell();
     await screen.findByRole('main');
-    expect(screen.getByRole('group', { name: 'Работа' })).toBeTruthy();
-    expect(screen.getByRole('group', { name: 'Система' })).toBeTruthy();
-    expect(screen.queryByRole('group', { name: 'Аналитика' })).toBeNull();
+    expect(screen.queryByRole('group')).toBeNull();
+    for (const heading of ['Работа', 'Аналитика', 'Система']) expect(screen.queryByText(heading)).toBeNull();
+    const side = document.querySelector('aside');
+    const names = [...(side?.querySelectorAll('nav a') ?? [])].map((link) => link.textContent);
+    expect(names).toEqual(['Обзор', 'Посты', 'Публикации', 'Инциденты', 'Настройки']);
   });
 
   it('collapses the sidebar to icons, keeps link names and remembers the choice', async () => {
@@ -90,10 +88,18 @@ describe('AppShell', () => {
     expect(document.activeElement).toBe(screen.getByRole('main'));
   });
 
-  it('shows no incidents count while the incidents section is not offered', async () => {
+  it('shows the open incidents count on the incidents item, capped at 99+, and hides it at 0', async () => {
     renderShell({ incidentsCount: 3 });
     await screen.findByRole('main');
-    expect(screen.queryByText('Открытых инцидентов: 3')).toBeNull();
+    expect(screen.getAllByText('3 требуют внимания').length).toBeGreaterThan(0);
+    cleanup();
+    renderShell({ incidentsCount: 99 });
+    await screen.findByRole('main');
+    expect(screen.getAllByText('99+ требуют внимания').length).toBeGreaterThan(0);
+    cleanup();
+    renderShell({ incidentsCount: 0 });
+    await screen.findByRole('main');
+    expect(screen.queryByText(/требуют внимания/)).toBeNull();
   });
 
   it('names the owner once: in the top-bar menu, not again in the sidebar', async () => {
@@ -138,7 +144,7 @@ describe('AppShell', () => {
     await user.click(await screen.findByRole('button', { name: 'Ещё' }));
     const sheet = screen.getByRole('dialog', { name: 'Разделы' });
     expect(within(sheet).getByRole('link', { name: /Настройки/ })).toBeTruthy();
-    expect(within(sheet).queryByRole('link', { name: /Главная/ })).toBeNull();
+    expect(within(sheet).queryByRole('link', { name: /Обзор/ })).toBeNull();
   });
 });
 

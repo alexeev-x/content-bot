@@ -6,7 +6,7 @@ import { isInsideTelegram } from '../../shared/telegram/web-app';
 import { Drawer, Icon, IconButton, PageHeaderTools, Tooltip, VisuallyHidden } from '../../shared/ui';
 import { readAppEnvironment, showEnvironmentBadge } from '../environment';
 import styles from './AppShell.module.css';
-import { NAV_GROUP_ORDER, NAV_ITEMS, type NavItem } from './nav-items';
+import { NAV_ITEMS, type NavItem } from './nav-items';
 import { OwnerMenu } from './OwnerMenu';
 import { useSidebarCollapsed } from './use-sidebar-collapsed';
 
@@ -38,7 +38,7 @@ function EnvBadge() {
 function NavBadge({ count }: { count: number }) {
   return (
     <span className={styles.count}>
-      <span aria-hidden="true">{count}</span>
+      <span aria-hidden="true">{count >= 99 ? '99+' : count}</span>
       <VisuallyHidden>{ru.nav.incidentsBadge(count)}</VisuallyHidden>
     </span>
   );
@@ -79,21 +79,14 @@ function NavLink({
 function SidebarNav({ incidentsCount, collapsed }: { incidentsCount: number; collapsed: boolean }) {
   return (
     <nav aria-label={ru.nav.label} className={styles.nav}>
-      {NAV_GROUP_ORDER.map((group) => {
-        const items = NAV_ITEMS.filter((item) => item.group === group);
-        if (items.length === 0) return null;
-        const label = ru.nav.groups[group];
-        return (
-          <fieldset key={group} aria-label={label} className={styles.group}>
-            <span className={collapsed ? styles.groupRule : styles.groupLabel} aria-hidden="true">
-              {collapsed ? '' : label}
-            </span>
-            {items.map((item) => (
-              <NavLink key={item.to} item={item} incidentsCount={incidentsCount} iconOnly={collapsed} />
-            ))}
-          </fieldset>
-        );
-      })}
+      {NAV_ITEMS.filter((item) => !item.pinned).map((item) => (
+        <NavLink key={item.to} item={item} incidentsCount={incidentsCount} iconOnly={collapsed} />
+      ))}
+      <div className={styles.pinned}>
+        {NAV_ITEMS.filter((item) => item.pinned).map((item) => (
+          <NavLink key={item.to} item={item} incidentsCount={incidentsCount} iconOnly={collapsed} />
+        ))}
+      </div>
     </nav>
   );
 }

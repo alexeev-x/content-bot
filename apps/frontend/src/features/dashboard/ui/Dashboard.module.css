@@ -1,0 +1,203 @@
+.root {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-5);
+  min-width: 0;
+}
+.columns {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-5);
+  min-width: 0;
+}
+.column {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-content: start;
+  gap: var(--space-5);
+  min-width: 0;
+}
+@media (min-width: 1100px) {
+  .columns {
+    grid-template-columns: minmax(0, 13fr) minmax(0, 7fr);
+    gap: var(--space-6);
+  }
+}
+
+.block {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-1);
+  min-width: 0;
+}
+.blockHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-1) var(--space-3);
+  padding-bottom: var(--space-2);
+  border-bottom: 1px solid var(--color-border-strong);
+}
+.blockTitle {
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-semibold);
+}
+.note {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+}
+.clear {
+  margin: 0;
+  color: var(--color-text-muted);
+}
+
+.list {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+/* One divider style: a hairline between rows. */
+.row,
+.skeletonRow {
+  border-bottom: 1px solid var(--color-border-subtle);
+}
+.skeletonRow {
+  padding-block: var(--space-1);
+}
+.row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+  min-height: calc(var(--size-button) + var(--space-1) * 2);
+  padding-block: var(--space-1);
+}
+.time {
+  flex: none;
+  min-width: 5.5ch;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.badge {
+  flex: none;
+}
+.main {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  flex: 1 1 0;
+  min-width: 0;
+}
+.titleLine {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-3);
+  min-width: 0;
+}
+.title {
+  min-width: 0;
+  overflow: hidden;
+  font-weight: var(--font-weight-medium);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.channel {
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 40%;
+  overflow: hidden;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.hint {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+}
+.trail {
+  flex: none;
+  margin-left: auto;
+}
+.tag {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: 2px var(--space-2);
+  border-radius: var(--radius-pill);
+  background: var(--color-status-unknown-bg);
+  box-shadow: inset 0 0 0 1px var(--color-status-unknown-ring);
+  color: var(--color-status-unknown-fg);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+  white-space: nowrap;
+}
+
+/* Right column: the channel sits under the title. */
+.row[data-layout='stacked'] .titleLine {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0;
+}
+.row[data-layout='stacked'] .channel {
+  max-width: 100%;
+}
+.row[data-layout='stacked'] .time {
+  min-width: 9ch;
+}
+
+.more,
+.external {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--size-button);
+  color: var(--color-accent-text);
+  font-size: var(--font-size-sm);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.more {
+  justify-self: start;
+}
+.more:focus-visible,
+.external:focus-visible {
+  border-radius: var(--radius-1);
+  outline: var(--focus-ring-width) solid var(--color-focus-ring);
+  outline-offset: var(--focus-ring-offset);
+}
+.emptyLine {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding-block: var(--space-2);
+  color: var(--color-text-muted);
+}
+
+/* Phone: time and badge on the first line, the title under them, the action stays at the right of the row. */
+@media (max-width: 639px) {
+  .row {
+    flex-wrap: wrap;
+    row-gap: 0;
+  }
+  .row[data-layout='inline'] .main {
+    order: 3;
+    flex-basis: 100%;
+  }
+  .row[data-layout='inline'] .trail {
+    order: 2;
+  }
+  .row[data-layout='inline'] .titleLine {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0;
+  }
+  .row[data-layout='inline'] .channel {
+    max-width: 100%;
+  }
+}

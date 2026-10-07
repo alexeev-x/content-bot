@@ -6,6 +6,8 @@ export default defineConfig({
   plugins: [react()],
   test: {
     environment: 'jsdom',
-    include: ['src/**/*.test.{ts,tsx}']
+    include: ['src/**/*.test.{ts,tsx}'],
+    // jsdom workers are memory-heavy; the default (one per core) overloads a 16 GB laptop.
+    maxWorkers: process.env.CI ? undefined : 4
   }
 });

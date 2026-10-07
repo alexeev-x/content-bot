@@ -36,8 +36,13 @@ function Details({ checks }: { checks: readonly StatusCheck[] }) {
   );
 }
 
+type Props = {
+  /** The failing checks are listed with their own action elsewhere on the page, so the strip keeps only its count line. */
+  actionListedBelow?: boolean;
+};
+
 /** A status chip for the page header: the overall state and check time; details on demand, the single fix beside it. */
-export function SystemStatus() {
+export function SystemStatus({ actionListedBelow = false }: Props) {
   const service = useServiceChecks();
   const bot = useBotCheck();
   const checks = [...service.checks, bot];
@@ -90,7 +95,7 @@ export function SystemStatus() {
           <div className={styles.popover}>{details}</div>
         </Popover>
       )}
-      {only?.action ? (
+      {only?.action && !actionListedBelow ? (
         <Button size="sm" isLoading={only.action.isLoading ?? false} onPress={only.action.onPress}>
           {only.action.label}
         </Button>

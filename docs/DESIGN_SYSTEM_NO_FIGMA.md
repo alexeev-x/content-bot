@@ -19,7 +19,7 @@ The `design-system` role (`.agents/roles/design-system.md`); visual direction �
 
 ## Density revision (owner decision 06.10.2026, supersedes parts of option C below)
 A work tool, not a showcase. Where this section conflicts with "Approved visual direction" below, this section wins. Fonts, accent presets, statuses, the mobile bottom bar and 44 px mobile targets stay as they are.
-- **Sidebar** 210–220 px with groups (Работа / Аналитика / Система), collapsible to icons with tooltips. The active item is a thin accent mark plus a very light background, not a filled accent block.
+- **Sidebar** 210–220 px: one flat list without group headings, «Настройки» pinned at the bottom next to the account (owner decision 07.10.2026), collapsible to icons with tooltips. The active item is a thin accent mark plus a very light background, not a filled accent block.
 - **Accent** on about 5% of the interface: the primary action, focus, the selected item and charts. No large accent fills.
 - **Desktop density** (fine pointer only): fields 34–36 px, table rows 48 px (raised from 40 at the owner's request, 07.10.2026), radii 7–9 px. Everything clickable shows the pointer cursor. Touch and the Mini App keep targets of at least 44 px.
 - **Fewer cards.** Tables are a working surface with thin dividers. Content is fluid: tables and operational screens use almost the full width, while the editor keeps a comfortable text measure with an inspector on the right.

@@ -5,6 +5,8 @@ import { defineConfig } from '@playwright/test';
 export default defineConfig({
   testDir: './e2e',
   fullyParallel: true,
+  // Each worker is a full Chrome; more than two plus the dev server overloads a 16 GB laptop.
+  workers: 2,
   reporter: 'list',
   outputDir: '../../.logs/e2e-results',
   use: { baseURL: 'http://localhost:5199', channel: 'chrome' },

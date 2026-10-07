@@ -120,6 +120,49 @@ const publications = [
   )
 ].map((item) => (item.status === 'unknown' ? { ...item, revision: 4, lastErrorCode: 'SEND_UNCONFIRMED' } : item));
 
+export const incidentIds = {
+  unknown: '44444444-4444-4444-8444-000000000001',
+  failed: '44444444-4444-4444-8444-000000000002',
+  failedLong: '44444444-4444-4444-8444-000000000003'
+} as const;
+const UNKNOWN_PUBLICATION = '33333333-3333-4333-8333-555555555555';
+const SOON = '2026-10-07T06:00:00.000Z';
+const inPublication = (id: string, status: string, postTitle: string, destinationName: string) => ({
+  id,
+  status,
+  postTitle,
+  destinationName,
+  scheduledAt: SOON
+});
+const incidents = (): Array<Record<string, unknown>> => [
+  {
+    id: incidentIds.unknown,
+    kind: 'publish_unknown',
+    code: 'SEND_UNCONFIRMED',
+    occurredAt: '2026-10-07T06:05:00.000Z',
+    jobId: '66666666-6666-4666-8666-000000000001',
+    attemptCount: 1,
+    publication: inPublication(UNKNOWN_PUBLICATION, 'unknown', 'Короткий пост', LONG_CHANNEL_TITLE)
+  },
+  {
+    id: incidentIds.failed,
+    kind: 'publish_failed',
+    code: 'DESTINATION_UNAVAILABLE',
+    occurredAt: '2026-10-07T05:30:00.000Z',
+    jobId: '66666666-6666-4666-8666-000000000002',
+    attemptCount: 3,
+    publication: inPublication(ids.publication, 'failed', 'Итоги недели', 'Dota Studio')
+  },
+  {
+    id: incidentIds.failedLong,
+    kind: 'publish_failed',
+    code: 'CONTENT_INVALID',
+    occurredAt: '2026-10-06T15:00:00.000Z',
+    attemptCount: 1,
+    publication: inPublication(ids.publication, 'failed', LONG_POST_TITLE, UNBROKEN)
+  }
+];
+
 const json = (route: Route, body: unknown, status = 200) =>
   route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) });
 const page_ = <T>(items: T[]) => ({ items, nextCursor: null });
@@ -210,6 +253,104 @@ export async function mockApi(page: Page): Promise<void> {
     const wanted = route.request().url().split('/').pop()?.split('?')[0];
     return json(route, store.find((item) => item['id'] === wanted) ?? store[0]);
   });
+  // Per-test incidents: the same store backs the dashboard, the list and the badge, as the server would.
+  const incidentStore = incidents();
+  const openIncidents = () => incidentStore.filter((item) => item['resolvedAt'] === undefined);
+  await page.route(/\/api\/v1\/incidents(\?.*)?$/, (route) => {
+    const params = new URL(route.request().url()).searchParams;
+    const state = params.get('state') ?? 'open';
+    const kind = params.get('kind');
+    const limit = Number(params.get('limit') ?? 25);
+    const items = incidentStore
+      .filter((item) => (state === 'open') === (item['resolvedAt'] === undefined))
+      .filter((item) => !kind || item['kind'] === kind)
+      .slice(0, limit);
+    return json(route, { items, nextCursor: null, openCount: openIncidents().length });
+  });
+  await page.route(/\/api\/v1\/incidents\/[^/?]+\/resolve$/, (route) => {
+    const wanted = route.request().url().split('/').slice(-2)[0];
+    const found = incidentStore.find((item) => item['id'] === wanted);
+    if (!found) return json(route, { error: { code: 'NOT_FOUND', message: 'missing', requestId: 'req-e2e' } }, 404);
+    if (found['kind'] === 'publish_unknown') {
+      return json(
+        route,
+        { error: { code: 'CONFLICT', message: 'x', requestId: 'req-e2e', details: { reason: 'USE_RESOLVE_UNKNOWN' } } },
+        409
+      );
+    }
+    found['resolvedAt'] ??= '2026-10-07T07:10:00.000Z';
+    return json(route, found);
+  });
+  await page.route(/\/api\/v1\/dashboard(\?.*)?$/, (route) => {
+    const open = openIncidents();
+    const attention = [
+      ...open.filter((item) => item['kind'] === 'publish_unknown'),
+      ...open.filter((item) => item['kind'] === 'publish_failed')
+    ].map((item) => {
+      const publication = item['publication'] as ReturnType<typeof inPublication>;
+      return {
+        kind: item['kind'] === 'publish_unknown' ? 'unknown' : 'failed',
+        publicationId: publication.id,
+        incidentId: item['id'],
+        code: item['code'],
+        postTitle: publication.postTitle,
+        destinationName: publication.destinationName,
+        scheduledAt: publication.scheduledAt,
+        occurredAt: item['occurredAt']
+      };
+    });
+    const row = (id: string, at: string, status: string, postTitle: string, destinationName: string) => ({
+      publicationId: id,
+      scheduledAt: at,
+      status,
+      postTitle,
+      destinationName
+    });
+    return json(route, {
+      attention: attention.slice(0, 5),
+      attentionTotal: Math.min(attention.length, 99),
+      today: [
+        row('33333333-3333-4333-8333-000000000a01', SOON, 'sent', 'Утренние новости', 'Dota Studio'),
+        row(
+          '33333333-3333-4333-8333-000000000a02',
+          '2026-10-07T11:00:00.000Z',
+          'scheduled',
+          LONG_POST_TITLE,
+          LONG_CHANNEL_TITLE
+        ),
+        row('33333333-3333-4333-8333-000000000a03', '2026-10-07T15:30:00.000Z', 'queued', UNBROKEN, UNBROKEN)
+      ],
+      todayTotal: 3,
+      upcoming: [
+        row(
+          '33333333-3333-4333-8333-000000000b01',
+          '2026-10-08T09:00:00.000Z',
+          'scheduled',
+          LONG_POST_TITLE,
+          'Dota Studio'
+        ),
+        row('33333333-3333-4333-8333-000000000b02', '2026-10-09T12:30:00.000Z', 'scheduled', 'Разбор патча', UNBROKEN)
+      ],
+      recentSent: [
+        {
+          ...row('33333333-3333-4333-8333-000000000a01', SOON, 'sent', 'Утренние новости', 'Dota Studio'),
+          sentAt: '2026-10-07T06:00:05.000Z',
+          messageUrl: 'https://t.me/dota_studio/4821'
+        },
+        {
+          ...row(
+            '33333333-3333-4333-8333-000000000c01',
+            '2026-10-06T09:00:00.000Z',
+            'sent',
+            'Итоги недели',
+            LONG_CHANNEL_TITLE
+          ),
+          sentAt: '2026-10-06T09:00:07.000Z'
+        }
+      ],
+      generatedAt: '2026-10-07T07:00:00.000Z'
+    });
+  });
   await page.route(/\/api\/v1\/publications\/[^/?]+\/resolve-unknown$/, (route) => {
     const wanted = route.request().url().split('/').slice(-2)[0];
     const found = store.find((item) => item['id'] === wanted);
@@ -234,6 +375,11 @@ export async function mockApi(page: Page): Promise<void> {
             }
           : { status: 'cancelled' };
     Object.assign(found, next, { revision: body.revision + 1, updatedAt: T });
+    for (const incident of incidentStore) {
+      const linked = incident['publication'] as { id: string } | undefined;
+      if (linked?.id === wanted && incident['resolvedAt'] === undefined)
+        incident['resolvedAt'] = '2026-10-07T07:10:00.000Z';
+    }
     return json(route, found);
   });
 }

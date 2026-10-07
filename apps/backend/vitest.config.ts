@@ -14,6 +14,8 @@ export default defineConfig(async () => {
     ],
     test: {
       include: ['src/**/*.test.ts', 'tests/**/*.test.ts'],
+      // Each worker is a separate workerd process; the default (one per core) overloads a 16 GB laptop.
+      maxWorkers: process.env.CI ? undefined : 3,
       setupFiles: ['./tests/setup/apply-migrations.ts']
     }
   };

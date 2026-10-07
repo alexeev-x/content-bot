@@ -47,7 +47,7 @@ Code, docs and reviews go only through the project roles above. Built-in helpers
 Send only the goal, owned paths, needed context links, acceptance criteria and constraints. Do not paste documents, the transcript or other roles' code.
 
 ## 4. Parallel work
-See `references/parallel-worktrees.md`. Parallelize only independent paths, using worktrees based on `develop`.
+See `references/parallel-worktrees.md`. Parallelize only independent paths, using worktrees based on `develop`. At most two builders at once, and never two heavy suites (`npm run verify`, vitest, Playwright, `vite build`) at the same time: the owner's 16 GB laptop runs out of memory. Parallel builders run focused tests only; the full verify runs once, after they finish.
 
 ## 5. Gates
 1. Scope: `git status --porcelain` must show only files within the packets' `owned_paths`. Any file outside them goes back to its role.

@@ -1,5 +1,7 @@
 export type {
+  DashboardRepository,
   DispatchRepository,
+  IncidentRepository,
   PostRevisionSource,
   PublicationTransport,
   RaisedIncident,
@@ -25,6 +27,9 @@ export { createDestination } from './application/create-destination';
 export { createPublication } from './application/create-publication';
 export { getDestination, listDestinations } from './application/read-destinations';
 export { getPublication, listPublications } from './application/read-publications';
+export { readDashboard } from './application/read-dashboard';
+export { listIncidents } from './application/read-incidents';
+export { resolveIncident } from './application/resolve-incident';
 export { projectPublicationStatus } from './domain/status-projection';
 export type { JobSnapshot, JobState } from './domain/status-projection';
 export { classifySendResult, classifyTelegramError } from './infrastructure/classify-telegram-result';
@@ -34,6 +39,8 @@ export { dispatchDueJobs } from './application/dispatch-due-jobs';
 export type { DispatchDeps, DispatchSummary } from './application/dispatch-due-jobs';
 export { reconcileExpiredJobs } from './application/reconcile-expired-jobs';
 export type { ReconcileDeps, ReconcileSummary } from './application/reconcile-expired-jobs';
+export { createD1DashboardRepository } from './infrastructure/d1-dashboard-repository';
+export { createD1IncidentRepository } from './infrastructure/d1-incident-repository';
 export { createD1DispatchRepository } from './infrastructure/d1-dispatch-repository';
 export { createTelegramPublicationTransport } from './infrastructure/telegram-publication-transport';
 export type { TelegramSender } from './infrastructure/telegram-publication-transport';

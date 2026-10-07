@@ -95,30 +95,15 @@
 }
 .nav {
   display: flex;
-  flex-direction: column;
-  gap: var(--space-4);
-}
-.group {
-  min-width: 0;
-  margin: 0;
-  padding: 0;
-  border: 0;
-  display: flex;
+  flex: 1;
   flex-direction: column;
   gap: 2px;
 }
-.groupLabel {
-  padding: 0 var(--space-3) var(--space-1);
-  color: var(--color-text-muted);
-  font-size: var(--font-size-2xs);
-  font-weight: var(--font-weight-semibold);
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-}
-.groupRule {
-  height: 1px;
-  margin: 0 var(--space-2) var(--space-1);
-  background: var(--color-border-subtle);
+/* Settings sits at the bottom of the sidebar, above the collapse control. */
+.pinned {
+  display: flex;
+  flex-direction: column;
+  margin-top: auto;
 }
 /* The label stays in the accessibility tree when the sidebar is collapsed to icons. */
 .linkLabelHidden {
@@ -190,7 +175,6 @@
 .collapse {
   display: flex;
   justify-content: flex-end;
-  margin-top: auto;
 }
 
 /* ===== Column: top bar + content ===== */

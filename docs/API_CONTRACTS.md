@@ -171,7 +171,15 @@ Schemas and error codes: `apps/contracts/src/bot.ts`.
 
 ## Observability
 
-`GET /api/v1/dashboard`, `GET /api/v1/incidents?cursor=...`, `GET /api/v1/jobs?status=...`, `GET /api/v1/health` (private extended health, with no data leaked to the public). The incident list must have `requestId`, `jobId`, `component`, `errorCode`, `occurredAt`, `status`, `attemptCount`. Errors of mutating requests return a single `ApiErrorDto`.
+Schemas and error codes: `apps/contracts/src/dashboard.ts`, `apps/contracts/src/incidents.ts`.
+
+| Endpoint | Meaning |
+|---|---|
+| `GET /api/v1/dashboard?from&to` | The owner's day in one read. `from` (inclusive) and `to` (exclusive) are the UTC instants of the owner's "today" as the client computed them (UTC `Z` datetimes, `to` after `from`, at most 48 h apart; otherwise `400`). Returns `attention` (at most 5 rows: `unknown`, then `failed`, then `stuck` = scheduled/queued more than 10 minutes past due) with `attentionTotal` (capped at 99), `today` (at most 8, earliest first, cancelled left out) with `todayTotal` (capped at 100), `upcoming` (next 5 waiting after `to`), `recentSent` (last 5 sent, with `sentAt` and a `messageUrl` only for a destination saved with a public `@username`) and `generatedAt`. Post titles are cut to 120 characters; no post body and no incident `details`. Read-only |
+| `GET /api/v1/incidents?state&kind&cursor&limit` | Incidents with their publication inline. `state` `open` (default) or `resolved`; `kind` `publish_failed` or `publish_unknown`; `limit` default 25, at most 50. Open: newest first by `occurredAt`; resolved: most recently closed first by `resolvedAt`. `openCount` is the number of open incidents (all kinds, whatever the filter), capped at 99 (99 means "99 or more"), for the sidebar badge |
+| `POST /api/v1/incidents/{id}/resolve` | Acknowledges a `publish_failed` incident (no body). Returns the incident with `resolvedAt`. Idempotent: a repeat is `200` with the same row and no second audit row. Does not touch the publication, never retries or republishes. A `publish_unknown` incident is `409` `CONFLICT` `USE_RESOLVE_UNKNOWN` (close it with `resolve-unknown`); an unknown id is `404` |
+
+`GET /api/v1/jobs?status=...` and the private extended health are not built. An incident has no `requestId` (Cron raises it, not a request); it carries `jobId` and `attemptCount`. Errors of mutating requests return a single `ApiErrorDto`.
 
 ## Media and preview
 

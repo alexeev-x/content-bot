@@ -342,3 +342,86 @@ export interface PublicationRepository {
   /** Counts of the publications scheduled in [from, to), read from at most RANGE_SUMMARY_ROWS of them. */
   summarizeRange(range: { from: number; to: number; now: number }): Promise<RangeSummary>;
 }
+
+/** The publication an incident is about, as one row of the incident list shows it. */
+export interface IncidentPublication {
+  id: string;
+  /** Truncated by the repository. */
+  postTitle: string;
+  destinationName: string;
+  /** UTC epoch milliseconds. */
+  scheduledAt: number;
+  job: JobSnapshot;
+}
+
+export interface IncidentRecord {
+  id: string;
+  kind: JobIncident['kind'];
+  code: string;
+  /** UTC epoch milliseconds. */
+  createdAt: number;
+  resolvedAt: number | null;
+  jobId: string | null;
+  attemptCount: number;
+  publication: IncidentPublication | null;
+}
+
+export interface ListIncidentsQuery {
+  state: 'open' | 'resolved';
+  kind?: JobIncident['kind'];
+  /** Open: after (createdAt, id); resolved: after (resolvedAt, id). */
+  after?: { at: number; id: string };
+  limit: number;
+}
+
+export interface IncidentRepository {
+  /** One batch: the page (read as `limit` rows, the caller asks for one more) and the capped open count. */
+  list(query: ListIncidentsQuery): Promise<{ items: IncidentRecord[]; openCount: number }>;
+  /**
+   * Acknowledges a `publish_failed` incident that is still open and writes one audit row, in one
+   * guarded batch; any other state changes nothing. Returns the incident as it stands after the batch
+   * (so a repeat answers with the same row), or null when it does not exist.
+   */
+  acknowledgeFailed(input: { id: string; actor: string; now: number }): Promise<IncidentRecord | null>;
+}
+
+export interface DashboardPublicationRow {
+  publicationId: string;
+  /** UTC epoch milliseconds. */
+  scheduledAt: number;
+  /** Truncated by the repository. */
+  postTitle: string;
+  destinationName: string;
+  job: JobSnapshot;
+}
+
+/** An open incident (with its publication, absent in the unreachable case of none) or a stuck publication (no incident). */
+export interface DashboardAttentionRow {
+  incident: { id: string; kind: JobIncident['kind']; code: string; createdAt: number } | null;
+  publication: DashboardPublicationRow | null;
+}
+
+export interface DashboardSentRow extends DashboardPublicationRow {
+  /** The publication's last write: the confirmation of the send. */
+  updatedAt: number;
+  externalMessageId: string | null;
+  /** The destination's chat id as saved: a numeric id or a public `@username`. */
+  chatId: string;
+}
+
+/** What the five dashboard statements return; the use case projects statuses and builds links. */
+export interface DashboardSnapshot {
+  attention: DashboardAttentionRow[];
+  /** Open incidents, counted up to a cap. */
+  openIncidents: number;
+  stuck: number;
+  today: DashboardPublicationRow[];
+  todayTotal: number;
+  upcoming: DashboardPublicationRow[];
+  recentSent: DashboardSentRow[];
+}
+
+export interface DashboardRepository {
+  /** Exactly one batch of five bounded statements. */
+  read(range: { from: number; to: number; stuckBefore: number }): Promise<DashboardSnapshot>;
+}

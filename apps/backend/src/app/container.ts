@@ -10,14 +10,18 @@ import { createD1SettingsRepository, type SettingsRepository } from '../modules/
 import { type Clock, systemClock } from '../platform/clock';
 import { createIdempotencyStore } from '../platform/idempotency/d1-idempotency-store';
 import {
+  createD1DashboardRepository,
   createD1DestinationRepository,
   createD1DispatchRepository,
+  createD1IncidentRepository,
   createD1PublicationRepository,
   createTelegramChatInspector,
   createTelegramPublicationTransport,
   type ChatInspector,
+  type DashboardRepository,
   type DestinationRepository,
   type DispatchRepository,
+  type IncidentRepository,
   type PostRevisionSource,
   type PostSource,
   type PublicationRepository,
@@ -58,6 +62,10 @@ export interface Container {
   settings: SettingsRepository;
   destinations: DestinationRepository;
   publications: PublicationRepository;
+  /** Incident list and acknowledgement (migrations 0005, 0010). */
+  incidents: IncidentRepository;
+  /** The owner's overview: one batch of bounded reads. */
+  dashboard: DashboardRepository;
   postSource: PostSource;
   /** Whether the Cron dispatcher may claim jobs: PUBLISHING_ENABLED is "true" and the bot token is set. */
   publishing: { enabled: boolean; blockedBy?: 'bot_token_missing' };
@@ -163,6 +171,12 @@ export function createContainer(env: ContainerEnv, overrides: ContainerOverrides
     },
     get publications() {
       return createD1PublicationRepository(db());
+    },
+    get incidents() {
+      return createD1IncidentRepository(db());
+    },
+    get dashboard() {
+      return createD1DashboardRepository(db());
     },
     // publishing asks for a post's state through its own port; only this wiring knows the content module.
     get postSource(): PostSource {

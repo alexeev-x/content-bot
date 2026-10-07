@@ -4,6 +4,7 @@ import { useAuth } from '../auth';
 import { ApiError } from '../../shared/api/http-client';
 import { useTelegramChrome } from '../use-telegram-chrome';
 import { ThemeToggle, useAppearanceSync } from '../../features/appearance';
+import { useOpenIncidentCount } from '../../features/incidents';
 import { AuthLoadingScreen, AuthUnavailableState, NoAccessState, meQueryOptions } from '../../features/auth';
 import { ru } from '../../shared/lib/ru';
 import { applyAppearance, useTheme, type Appearance } from '../theme';
@@ -19,6 +20,7 @@ const applyServerAppearance = (value: Appearance) => applyAppearance(value);
 const previewAppearance = (value: Appearance) => applyAppearance(value, { persist: false });
 
 function titleFor(pathname: string): string {
+  if (pathname === '/') return ru.pages.dashboard;
   if (pathname.startsWith('/settings/appearance')) return ru.appearance.title;
   const item = NAV_ITEMS.find((candidate) =>
     candidate.to === '/' ? pathname === '/' : pathname.startsWith(candidate.to)
@@ -30,6 +32,7 @@ function SignedInLayout() {
   const pathname = useRouterState({ select: (state) => state.location.pathname });
   const auth = useAuth();
   const me = useQuery(meQueryOptions());
+  const incidentsCount = useOpenIncidentCount();
   useAppearanceSync(applyServerAppearance);
   // Follows the OS or Telegram scheme while the mode is «system».
   const { resolved } = useTheme();
@@ -41,6 +44,7 @@ function SignedInLayout() {
   }
   return (
     <AppShell
+      incidentsCount={incidentsCount}
       ownerName={me.data?.name}
       onLogout={() => void auth.logout()}
       topBarTools={<ThemeToggle preview={previewAppearance} />}

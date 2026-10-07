@@ -7,7 +7,8 @@
 // `--only a,b` / `--skip a,b` pick steps of the full set by name: CI runs the slow test suites on separate
 // runners, so each gets the whole machine.
 //
-// Steps are independent and run at once: the total is the slowest step, not the sum.
+// Light steps run at once; heavy ones (tsc, test pools, build) run one after another alongside them, because
+// all of them together exhaust a 16 GB laptop's memory and macOS starts force-quitting apps.
 import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -17,6 +18,16 @@ import { runCommandAsync, commandOutput } from './run-command.mjs';
 // The frontend build bundles the Worker too, so it also proves the backend still deploys. Plain `vite build`:
 // the typecheck steps already run tsc.
 const BUILD = ['build', ['npm', 'exec', '-w', '@alexeev/frontend', '--', 'vite', 'build']];
+
+const HEAVY = new Set([
+  'typecheck',
+  'contracts-typecheck',
+  'backend-typecheck',
+  'frontend-typecheck',
+  'backend-tests',
+  'frontend-tests',
+  'build',
+]);
 
 export const STEPS = [
   ['format', ['npm', 'run', 'format:check']],
@@ -131,21 +142,30 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
         : `verify --changed: ${files.length} changed file(s), ${steps.length} step(s)`,
     );
   }
-  const runs = await Promise.all(
-    steps.map(async ([name, [cmd, ...args]]) => {
-      const started = Date.now();
-      const run = await runCommandAsync(cmd, args, { cwd: root });
-      const seconds = Math.round((Date.now() - started) / 1000);
-      const out = commandOutput(run);
-      if (run.status === 0) {
-        console.log(`✓ ${name} (${seconds}s)`);
-      } else {
-        console.log(`✗ ${name} (${seconds}s; ${cmd} ${args.slice(0, 4).join(' ')}${args.length > 4 ? ' …' : ''})`);
-        for (const line of relevantLines(out)) console.log(`  ${line.trim().slice(0, 300)}`);
-      }
-      return { name, cmd, args, status: run.status, out };
-    }),
-  );
+  const runStep = async ([name, [cmd, ...args]]) => {
+    const started = Date.now();
+    const run = await runCommandAsync(cmd, args, { cwd: root });
+    const seconds = Math.round((Date.now() - started) / 1000);
+    const out = commandOutput(run);
+    if (run.status === 0) {
+      console.log(`✓ ${name} (${seconds}s)`);
+    } else {
+      console.log(`✗ ${name} (${seconds}s; ${cmd} ${args.slice(0, 4).join(' ')}${args.length > 4 ? ' …' : ''})`);
+      for (const line of relevantLines(out)) console.log(`  ${line.trim().slice(0, 300)}`);
+    }
+    return { name, cmd, args, status: run.status, out };
+  };
+  const runHeavy = async () => {
+    const results = [];
+    for (const step of steps.filter(([name]) => HEAVY.has(name))) results.push(await runStep(step));
+    return results;
+  };
+  const [light, heavy] = await Promise.all([
+    Promise.all(steps.filter(([name]) => !HEAVY.has(name)).map(runStep)),
+    runHeavy(),
+  ]);
+  const byName = new Map([...light, ...heavy].map((r) => [r.name, r]));
+  const runs = steps.map(([name]) => byName.get(name));
   // The log keeps the plan's order, whatever order the steps finished in.
   const log = runs.map((r) => `\n===== ${r.name}: ${r.cmd} ${r.args.join(' ')} (exit ${r.status})\n${r.out}`).join('');
   const failed = runs.filter((r) => r.status !== 0).length;

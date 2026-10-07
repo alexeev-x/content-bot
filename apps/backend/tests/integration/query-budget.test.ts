@@ -251,6 +251,34 @@ describe('D1 round trips per request (session lookup included)', () => {
   });
 });
 
+describe('D1 round trips of the overview endpoints', () => {
+  it('dashboard, incident list and acknowledging an incident', async () => {
+    const range = `from=${encodeURIComponent(new Date(START - 12 * 60 * MINUTE).toISOString())}&to=${encodeURIComponent(new Date(START + 12 * 60 * MINUTE).toISOString())}`;
+    const dashboard = await measure(`/api/v1/dashboard?${range}`);
+    expect(dashboard.status).toBe(200);
+    expect(dashboard.counter).toEqual({ roundTrips: 2, statements: 1 + 5 }); // session, batch of 5
+
+    const incidentId = crypto.randomUUID();
+    await testDb()
+      .prepare(
+        `INSERT INTO incidents (id, kind, code, created_at, owner_notified_at)
+         VALUES (?1, 'publish_failed', 'DESTINATION_UNAVAILABLE', ?2, ?2)`
+      )
+      .bind(incidentId, START)
+      .run();
+    const list = await measure('/api/v1/incidents?limit=50');
+    expect(list.status).toBe(200);
+    expect(list.counter).toEqual({ roundTrips: 2, statements: 1 + 2 }); // session, batch of page and open count
+
+    const resolved = await measure(`/api/v1/incidents/${incidentId}/resolve`, { method: 'POST' });
+    expect(resolved.status).toBe(200);
+    expect(resolved.counter).toEqual({ roundTrips: 2, statements: 1 + 3 }); // session, batch of update, audit, read
+    const again = await measure(`/api/v1/incidents/${incidentId}/resolve`, { method: 'POST' });
+    expect(again.status).toBe(200);
+    expect(again.counter).toEqual({ roundTrips: 2, statements: 1 + 3 });
+  });
+});
+
 describe('D1 round trips of the auth endpoints', () => {
   it('sign-in, me, refresh and logout', async () => {
     const signedIn = await measure('/api/v1/auth/telegram', {

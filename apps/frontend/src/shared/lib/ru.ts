@@ -3,7 +3,7 @@ export const ru = {
   appName: 'ALEXEEV Studio',
   nav: {
     label: 'Основная навигация',
-    dashboard: 'Главная',
+    dashboard: 'Обзор',
     posts: 'Посты',
     publications: 'Публикации',
     calendar: 'Календарь',
@@ -13,8 +13,8 @@ export const ru = {
     settings: 'Настройки',
     more: 'Ещё',
     moreTitle: 'Разделы',
-    incidentsBadge: (count: number) => `Открытых инцидентов: ${count}`,
-    groups: { work: 'Работа', analytics: 'Аналитика', system: 'Система' },
+    /** `count` is capped at 99 by the server: 99 means «99 or more». */
+    incidentsBadge: (count: number) => `${count >= 99 ? '99+' : count} требуют внимания`,
     collapse: 'Свернуть меню',
     expand: 'Развернуть меню'
   },

@@ -7,7 +7,9 @@ import { type ContainerOverrides, createContainer } from './container';
 import type { AppBindings } from './env';
 import { authRoutes } from './auth-routes';
 import { botRoutes } from './bot-routes';
+import { dashboardRoutes } from './dashboard-routes';
 import { destinationsRoutes } from './destinations-routes';
+import { incidentsRoutes } from './incidents-routes';
 import { postsRoutes } from './posts-routes';
 import { publicationsRoutes } from './publications-routes';
 import { requireOwner } from './require-owner';
@@ -83,6 +85,8 @@ export function createApp(
   app.route('/api/v1/posts', postsRoutes);
   app.route('/api/v1/destinations', destinationsRoutes);
   app.route('/api/v1/publications', publicationsRoutes);
+  app.route('/api/v1/dashboard', dashboardRoutes);
+  app.route('/api/v1/incidents', incidentsRoutes);
   app.route('/api/v1/settings', settingsRoutes);
   app.route('/api/v1/bot', botRoutes);
 
