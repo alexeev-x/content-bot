@@ -1,4 +1,5 @@
 import type { DashboardPublicationDto, DashboardSentDto } from '@alexeev/contracts';
+import { Link } from '@tanstack/react-router';
 import { formatDayClock } from '../../../shared/lib/clock';
 import { StatusBadge } from '../../../shared/ui';
 import { Block } from './Block';
@@ -9,7 +10,14 @@ import { Row } from './Row';
 /** The next publications after today. Always shown, so the page keeps one layout; «Сегодня» carries the call to action. */
 export function UpcomingBlock({ items }: { items: readonly DashboardPublicationDto[] }) {
   return (
-    <Block title={copy.upcoming.title}>
+    <Block
+      title={copy.upcoming.title}
+      action={
+        <Link to="/publications" className={styles.cardLink}>
+          Все публикации
+        </Link>
+      }
+    >
       {items.length === 0 ? (
         <p className={styles.emptyLine}>{copy.upcoming.empty}</p>
       ) : (
@@ -33,7 +41,14 @@ export function UpcomingBlock({ items }: { items: readonly DashboardPublicationD
 /** The last sent publications; the Telegram link exists only when the server could build a public one. */
 export function RecentSentBlock({ items }: { items: readonly DashboardSentDto[] }) {
   return (
-    <Block title={copy.recent.title}>
+    <Block
+      title={copy.recent.title}
+      action={
+        <Link to="/publications" className={styles.cardLink}>
+          Все публикации
+        </Link>
+      }
+    >
       {items.length === 0 ? (
         <p className={styles.emptyLine}>{copy.recent.empty}</p>
       ) : (
