@@ -1,21 +1,31 @@
-import type { PublicationDto } from '@alexeev/contracts';
+import type { PublicationDto, ResolveUnknownOutcome } from '@alexeev/contracts';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
 import { useMemo, useState } from 'react';
 import { ApiError } from '../../../shared/api/http-client';
 import { classifyApiError } from '../../../shared/api/error-kind';
-import { Banner, Button, Drawer, ErrorState, Skeleton, StatusBadge, Timeline, Tooltip } from '../../../shared/ui';
+import {
+  Banner,
+  Button,
+  Drawer,
+  ErrorState,
+  Skeleton,
+  StatusBadge,
+  Timeline,
+  VisuallyHidden
+} from '../../../shared/ui';
 import { PUBLICATION_POLL_MS, publicationQueryOptions } from '../api/publications-queries';
 import { browserTimeZone, formatLong, formatUtc, formatWithZone, utcOffsetLabel } from '../model/format-time';
 import { publicationActions } from '../model/publication-actions';
 import { explainErrorCode } from '../model/publication-errors';
 import { buildTimeline } from '../model/publication-timeline';
-import { displayStatus, messageLink } from '../model/publication-view';
+import { channelLink, displayStatus, messageLink } from '../model/publication-view';
 import { CancelPublicationDialog } from './CancelPublicationDialog';
 import { copy } from './copy';
 import styles from './PublicationDrawer.module.css';
 import { PublicationPipeline } from './PublicationPipeline';
 import { RescheduleDialog } from './RescheduleDialog';
+import { ResolveUnknownDialog } from './ResolveUnknownDialog';
 
 type Props = {
   /** The publication to show; null keeps the drawer closed. */
@@ -44,7 +54,7 @@ function hasFooter(publication: PublicationDto): boolean {
   );
 }
 
-type OpenDialog = 'reschedule' | 'cancel' | null;
+type OpenDialog = 'reschedule' | 'cancel' | `resolve-${ResolveUnknownOutcome}` | null;
 
 export function PublicationDrawer({
   publicationId,
@@ -103,6 +113,16 @@ export function PublicationDrawer({
       {publication && dialog === 'reschedule' ? (
         <RescheduleDialog publication={publication} onOpenChange={(open) => setDialog(open ? 'reschedule' : null)} />
       ) : null}
+      {publication && dialog?.startsWith('resolve-') ? (
+        <ResolveUnknownDialog
+          outcome={dialog.slice('resolve-'.length) as ResolveUnknownOutcome}
+          publication={publication}
+          chatId={chatId}
+          onOpenChange={(open) => {
+            if (!open) setDialog(null);
+          }}
+        />
+      ) : null}
       {publication && dialog === 'cancel' ? (
         <CancelPublicationDialog
           publication={publication}
@@ -147,7 +167,7 @@ function PublicationBody({ publication, postTitle, destinationTitle, chatId }: B
 
   return (
     <>
-      <StatusNotice publication={publication} />
+      <StatusNotice publication={publication} chatId={chatId} />
       <section className={styles.section} aria-label={copy.drawer.pipeline}>
         <PublicationPipeline status={shown} />
       </section>
@@ -223,18 +243,19 @@ function PublicationBody({ publication, postTitle, destinationTitle, chatId }: B
 }
 
 /** The one block that explains the current state when it needs a decision or an explanation. */
-function StatusNotice({ publication }: { publication: PublicationDto }) {
+function StatusNotice({ publication, chatId }: { publication: PublicationDto; chatId: string | undefined }) {
   const reason = publication.lastErrorCode ? explainErrorCode(publication.lastErrorCode) : undefined;
   if (publication.status === 'unknown') {
+    const channelHref = chatId ? channelLink(chatId) : undefined;
     return (
-      <Banner tone="warning" title={copy.drawer.unknownTitle}>
-        <p className={styles.noticeText}>{copy.drawer.unknownBody}</p>
+      <Banner tone="warning" title={copy.resolve.explainTitle}>
+        <p className={styles.noticeText}>{copy.resolve.explain}</p>
         {reason ? <p className={styles.noticeText}>{reason}</p> : null}
-        <p className={styles.noticeStrong}>{copy.drawer.unknownStepsLabel}</p>
-        <ol className={styles.steps}>
-          <li>{copy.drawer.unknownStep1}</li>
-          <li>{copy.drawer.unknownStep2}</li>
-        </ol>
+        {channelHref ? (
+          <a className={styles.link} href={channelHref} target="_blank" rel="noopener noreferrer">
+            {copy.resolve.openChannel}
+          </a>
+        ) : null}
       </Banner>
     );
   }
@@ -267,7 +288,7 @@ function StatusNotice({ publication }: { publication: PublicationDto }) {
 type ActionsProps = {
   publication: PublicationDto;
   isFresh: boolean;
-  onOpenDialog: (dialog: 'reschedule' | 'cancel') => void;
+  onOpenDialog: (dialog: Exclude<OpenDialog, null>) => void;
 };
 
 function DrawerActions({ publication, isFresh, onOpenDialog }: ActionsProps) {
@@ -275,14 +296,25 @@ function DrawerActions({ publication, isFresh, onOpenDialog }: ActionsProps) {
 
   if (actions.needsReconciliation) {
     return (
-      <div className={styles.actions}>
-        <Tooltip content={copy.drawer.reconcileHint}>
-          <Button variant="secondary" icon="check-circle" isDisabled>
-            {copy.drawer.reconcile}
-          </Button>
-        </Tooltip>
-        <p className={styles.hint}>{copy.drawer.reconcileHint}</p>
-      </div>
+      <fieldset className={`${styles.actions} ${styles.choices}`}>
+        <legend>
+          <VisuallyHidden>{copy.resolve.choicesLabel}</VisuallyHidden>
+        </legend>
+        <Button
+          variant="secondary"
+          icon="check-circle"
+          isDisabled={!isFresh}
+          onPress={() => onOpenDialog('resolve-sent')}
+        >
+          {copy.resolve.choiceSent}
+        </Button>
+        <Button variant="secondary" icon="send" isDisabled={!isFresh} onPress={() => onOpenDialog('resolve-resend')}>
+          {copy.resolve.choiceResend}
+        </Button>
+        <Button variant="danger" icon="x-circle" isDisabled={!isFresh} onPress={() => onOpenDialog('resolve-cancel')}>
+          {copy.resolve.choiceCancel}
+        </Button>
+      </fieldset>
     );
   }
   if (!actions.canReschedule && !actions.canCancel) {

@@ -95,6 +95,31 @@ export const cancelPublicationInputSchema = z.strictObject({
 });
 export type CancelPublicationInput = z.infer<typeof cancelPublicationInputSchema>;
 
+// Telegram message id as the owner reads it in the channel link (t.me/<channel>/<id>): a positive integer.
+const telegramMessageIdSchema = z.string().regex(/^[1-9]\d{0,15}$/, { error: 'Telegram message id' });
+
+// POST /api/v1/publications/{id}/resolve-unknown → 200 PublicationDto with revision + 1.
+// Manual reconciliation of an `unknown` send, after the owner checked the channel; never automatic.
+// - `sent`: the message is in the channel → status 'sent' with this externalMessageId.
+// - `resend`: the message is not in the channel → status 'scheduled' at scheduledAt ('queued' when it is already due) (same range rules as create:
+//   up to 5 min in the past means "send now", more than 366 days ahead is SCHEDULE_OUT_OF_RANGE).
+// - `cancel`: the message is not in the channel and should not go out → status 'cancelled'.
+// The revision guards a double press or two tabs: only the first answer applies, the second gets STALE_REVISION or
+// NOT_UNKNOWN. Errors: VALIDATION_ERROR 400 (SCHEDULE_OUT_OF_RANGE) or 413, NOT_FOUND 404, CONFLICT 409
+// (details.reason STALE_REVISION | NOT_UNKNOWN), UNAUTHORIZED 401, FORBIDDEN 403.
+export const resolveUnknownPublicationInputSchema = z.discriminatedUnion('outcome', [
+  z.strictObject({ outcome: z.literal('sent'), revision: revisionSchema, externalMessageId: telegramMessageIdSchema }),
+  z.strictObject({
+    outcome: z.literal('resend'),
+    revision: revisionSchema,
+    scheduledAt: z.iso.datetime(),
+    timezone: timezoneSchema
+  }),
+  z.strictObject({ outcome: z.literal('cancel'), revision: revisionSchema })
+]);
+export type ResolveUnknownPublicationInput = z.infer<typeof resolveUnknownPublicationInputSchema>;
+export type ResolveUnknownOutcome = ResolveUnknownPublicationInput['outcome'];
+
 // GET /api/v1/publications?status&postId&destinationId&cursor&limit → 200 PublicationPageDto,
 // latest scheduledAt first. GET /api/v1/publications/{id} → 200 PublicationDto or NOT_FOUND 404.
 // Errors: VALIDATION_ERROR 400, UNAUTHORIZED 401, FORBIDDEN 403.

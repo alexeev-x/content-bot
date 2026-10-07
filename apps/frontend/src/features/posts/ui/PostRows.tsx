@@ -9,7 +9,7 @@ import { postsCopy } from './copy';
 import { PostStateBadge } from './PostStateBadge';
 import styles from './PostRows.module.css';
 
-export type RowAction = 'delete' | 'restore';
+export type RowAction = 'delete' | 'restore' | 'reconcile';
 
 type Props = {
   mode: 'live' | 'archive';
@@ -59,14 +59,19 @@ function menuFor(post: PostDto, mode: Props['mode'], onAction: Props['onAction']
             isDisabled: true
           }
         : { id: 'delete', label: copy.actions.delete, icon: 'trash', tone: 'danger' };
+  const reconcile: MenuEntry = { id: 'reconcile', label: copy.actions.reconcile, icon: 'check-circle' };
   const items: MenuEntry[] =
-    mode === 'archive' ? [{ id: 'restore', label: copy.actions.restore, icon: 'retry' }, del] : [del];
+    mode === 'archive'
+      ? [{ id: 'restore', label: copy.actions.restore, icon: 'retry' }, del]
+      : block === 'unknown'
+        ? [reconcile, del]
+        : [del];
   return (
     <span className={styles.interactive}>
       <Menu
         label={copy.actions.rowMenu(titleOf(post))}
         items={items}
-        onAction={(id) => onAction(post, id === 'restore' ? 'restore' : 'delete')}
+        onAction={(id) => onAction(post, id === 'restore' || id === 'reconcile' ? id : 'delete')}
       />
     </span>
   );

@@ -58,6 +58,7 @@ export const postsCopy = {
     deleteBlocked: (reason: string) => `Удалить: ${reason}`,
     blockedInProgress: 'идёт отправка',
     blockedUnknown: 'нужна сверка результата',
+    reconcile: 'Сверить результат',
     restore: 'Вернуть из архива',
     deleteNow: 'Удалить сейчас',
     pageMenu: 'Действия с постом'

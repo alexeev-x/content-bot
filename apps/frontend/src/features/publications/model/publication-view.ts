@@ -31,6 +31,13 @@ export function messageLink(chatId: string, externalMessageId: string): string |
   return privateChat ? `https://t.me/c/${privateChat[1]}/${externalMessageId}` : undefined;
 }
 
+/** Link that opens the channel itself, so the owner can check whether the message is there. */
+export function channelLink(chatId: string): string | undefined {
+  if (/^@[A-Za-z][A-Za-z0-9_]{4,31}$/.test(chatId)) return `https://t.me/${chatId.slice(1)}`;
+  const privateChat = /^-100(\d{1,13})$/.exec(chatId);
+  return privateChat ? `https://t.me/c/${privateChat[1]}/1` : undefined;
+}
+
 export type StepState = 'done' | 'current' | 'upcoming' | 'skipped' | 'final';
 export type PipelineStepId = 'scheduled' | 'queued' | 'sending' | 'result';
 export type PipelineStep = { id: PipelineStepId; state: StepState };

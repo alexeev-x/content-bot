@@ -93,7 +93,7 @@ Backend safety and its full operator UI are delivered together.
 - [ ] Network/ambiguous result → `unknown`, never automatic resend.
 - [ ] `/publications`: complete history/filter/detail/actions.
 - [ ] `/calendar`: create, move, reschedule and cancel safely with timezone/DST handling.
-- [ ] Manual reconciliation flow for `unknown`.
+- [x] Manual reconciliation flow for `unknown` (`POST /publications/{id}/resolve-unknown`, drawer actions).
 - [ ] First real E2E: create in Studio → publish with dev bot → receive Telegram message → show confirmed state in Studio → repeat request does not duplicate it.
 
 **Exit:** manual publishing is production-safe and fully manageable through the admin panel.

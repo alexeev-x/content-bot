@@ -90,7 +90,9 @@ const posts = [
       }
     )
   }),
-  post('11111111-1111-4111-8111-333333333333', 'Короткий пост'),
+  post('11111111-1111-4111-8111-333333333333', 'Короткий пост', 'approved', {
+    publicationSummary: summary({ unknown: 1 })
+  }),
   post('11111111-1111-4111-8111-444444444444', 'Идёт отправка', 'approved', {
     publicationSummary: summary({ sending: 1 })
   })
@@ -116,7 +118,7 @@ const publications = [
     'unknown',
     '2026-10-04T09:00:00.000Z'
   )
-];
+].map((item) => (item.status === 'unknown' ? { ...item, revision: 4, lastErrorCode: 'SEND_UNCONFIRMED' } : item));
 
 const json = (route: Route, body: unknown, status = 200) =>
   route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) });
@@ -193,6 +195,45 @@ export async function mockApi(page: Page): Promise<void> {
   );
   await page.route(/\/api\/v1\/destinations(\?.*)?$/, (route) => json(route, page_(destinations)));
   await page.route(/\/api\/v1\/destinations\/[^/?]+$/, (route) => json(route, destinations[0]));
-  await page.route(/\/api\/v1\/publications(\?.*)?$/, (route) => json(route, page_(publications)));
-  await page.route(/\/api\/v1\/publications\/[^/?]+$/, (route) => json(route, publications[0]));
+  // Per-test copy: resolving an `unknown` publication changes what the next read returns, as the server would.
+  const store: Array<Record<string, unknown>> = publications.map((item) => ({ ...item }));
+  await page.route(/\/api\/v1\/publications(\?.*)?$/, (route) => {
+    const params = new URL(route.request().url()).searchParams;
+    const items = store.filter(
+      (item) =>
+        (!params.get('status') || item['status'] === params.get('status')) &&
+        (!params.get('postId') || item['postId'] === params.get('postId'))
+    );
+    return json(route, page_(items));
+  });
+  await page.route(/\/api\/v1\/publications\/[^/?]+$/, (route) => {
+    const wanted = route.request().url().split('/').pop()?.split('?')[0];
+    return json(route, store.find((item) => item['id'] === wanted) ?? store[0]);
+  });
+  await page.route(/\/api\/v1\/publications\/[^/?]+\/resolve-unknown$/, (route) => {
+    const wanted = route.request().url().split('/').slice(-2)[0];
+    const found = store.find((item) => item['id'] === wanted);
+    const body = route.request().postDataJSON() as {
+      outcome: string;
+      revision: number;
+      externalMessageId?: string;
+      scheduledAt?: string;
+    };
+    const error = (code: string, reason: string, status: number) =>
+      json(route, { error: { code, message: reason, requestId: 'req-e2e', details: { reason } } }, status);
+    if (!found) return json(route, { error: { code: 'NOT_FOUND', message: 'missing', requestId: 'req-e2e' } }, 404);
+    if (found['status'] !== 'unknown') return error('CONFLICT', 'NOT_UNKNOWN', 409);
+    if (found['revision'] !== body.revision) return error('CONFLICT', 'STALE_REVISION', 409);
+    const next =
+      body.outcome === 'sent'
+        ? { status: 'sent', externalMessageId: body.externalMessageId }
+        : body.outcome === 'resend'
+          ? {
+              status: Date.parse(String(body.scheduledAt)) > Date.now() ? 'scheduled' : 'queued',
+              scheduledAt: body.scheduledAt
+            }
+          : { status: 'cancelled' };
+    Object.assign(found, next, { revision: body.revision + 1, updatedAt: T });
+    return json(route, found);
+  });
 }

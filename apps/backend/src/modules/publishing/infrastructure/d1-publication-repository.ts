@@ -270,17 +270,22 @@ export function createD1PublicationRepository(db: D1Database): PublicationReposi
   // The job statement runs first and decides, with the publication revision in its guard evaluated
   // before anything in the batch has changed. The next statement bumps the revision only when the
   // job statement changed a row (`changes()` is that statement's count), and so does the audit row
-  // after it. Reordering these statements breaks that chain. The last statement reads the result
+  // after it; the statements in `after` follow the audit row, whose count is 1 exactly when the change
+  // applied. Reordering these statements breaks that chain. The last statement reads the result
   // inside the same batch, so a refusal can be explained from the state it was decided on.
   async function changeJob(args: {
     id: string;
     expectedRevision: number;
     actor: string;
     now: number;
-    action: 'publication.reschedule' | 'publication.cancel';
+    action: 'publication.reschedule' | 'publication.cancel' | 'publication.resolve_unknown';
     jobStatement: D1PreparedStatement;
     /** Extra columns for the publication row; `sql` ends with a comma and numbers from ?4. */
     publicationSet: { sql: string; bindings: (string | number)[] };
+    /** Metadata for the audit row next to the new revision; never message text. */
+    auditDetails?: Record<string, string | number>;
+    /** Run only when the change applied, after the audit row. Must not end in another statement's count. */
+    after?: D1PreparedStatement[];
   }): Promise<PublicationChangeOutcome> {
     const { id, expectedRevision, actor, now, action } = args;
     const results = await db.batch<PublicationRow>([
@@ -296,10 +301,11 @@ export function createD1PublicationRepository(db: D1Database): PublicationReposi
           `INSERT INTO audit_log (actor_telegram_id, action, entity_type, entity_id, created_at, details)
            SELECT ?1, ?2, 'publication', ?3, ?4, ?5 WHERE changes() = 1`
         )
-        .bind(actor, action, id, now, JSON.stringify({ revision: expectedRevision + 1 })),
+        .bind(actor, action, id, now, JSON.stringify({ revision: expectedRevision + 1, ...args.auditDetails })),
+      ...(args.after ?? []),
       selectOne(id)
     ]);
-    const row = results[3]?.results[0];
+    const row = results.at(-1)?.results[0];
     // The job statement decides; the publication statement's own count is not used because the
     // scheduled_at trigger adds its job update to the count D1 reports for it.
     return { applied: results[0]?.meta.changes === 1, current: row === undefined ? null : toRecord(row) };
@@ -434,6 +440,71 @@ export function createD1PublicationRepository(db: D1Database): PublicationReposi
           .bind(change.id, change.expectedRevision, change.now),
         publicationSet: { sql: '', bindings: [] }
       });
+    },
+
+    resolveUnknown(change) {
+      const { resolution } = change;
+      const jobGuard = `publication_id = ?1 AND kind = 'publish' AND status = 'unknown'
+               AND EXISTS (SELECT 1 FROM publications WHERE id = ?1 AND revision = ?2)`;
+      const common = {
+        id: change.id,
+        expectedRevision: change.expectedRevision,
+        actor: change.actor,
+        now: change.now,
+        action: 'publication.resolve_unknown' as const,
+        // After the audit row, so `changes() = 1` still means "the change applied". `max` keeps the
+        // `resolved_at >= created_at` check true if the clocks of two isolates disagree.
+        after: [
+          db
+            .prepare(
+              `UPDATE incidents SET resolved_at = max(created_at, ?2)
+               WHERE job_id = (SELECT id FROM jobs WHERE publication_id = ?1 AND kind = 'publish')
+                 AND resolved_at IS NULL AND changes() = 1`
+            )
+            .bind(change.id, change.now)
+        ]
+      };
+      // `send_started_at` stays as evidence for `sent` and `cancel`; a resend clears it because the
+      // owner saw the message is not in the channel, and the next claim must be able to set it again.
+      // `attempts` is never reset: job_attempts is keyed by it, so the next claim adds a row.
+      switch (resolution.outcome) {
+        case 'sent':
+          return changeJob({
+            ...common,
+            jobStatement: db
+              .prepare(`UPDATE jobs SET status = 'succeeded', lease_until = NULL, updated_at = ?3 WHERE ${jobGuard}`)
+              .bind(change.id, change.expectedRevision, change.now),
+            publicationSet: {
+              sql: 'external_message_id = ?4, last_error_code = NULL,',
+              bindings: [resolution.externalMessageId]
+            },
+            auditDetails: { outcome: 'sent', externalMessageId: resolution.externalMessageId }
+          });
+        case 'resend':
+          return changeJob({
+            ...common,
+            jobStatement: db
+              .prepare(
+                `UPDATE jobs SET status = 'pending', run_at = ?3, lease_until = NULL, send_started_at = NULL,
+                   updated_at = ?4 WHERE ${jobGuard}`
+              )
+              .bind(change.id, change.expectedRevision, resolution.scheduledAt, change.now),
+            publicationSet: {
+              sql: 'scheduled_at = ?4, timezone = ?5, last_error_code = NULL,',
+              bindings: [resolution.scheduledAt, resolution.timezone]
+            },
+            auditDetails: { outcome: 'resend', scheduledAt: resolution.scheduledAt, timezone: resolution.timezone }
+          });
+        case 'cancel':
+          return changeJob({
+            ...common,
+            jobStatement: db
+              .prepare(`UPDATE jobs SET status = 'cancelled', lease_until = NULL, updated_at = ?3 WHERE ${jobGuard}`)
+              .bind(change.id, change.expectedRevision, change.now),
+            publicationSet: { sql: '', bindings: [] },
+            auditDetails: { outcome: 'cancel' }
+          });
+      }
     }
   };
 }

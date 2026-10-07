@@ -2,7 +2,7 @@ import { ApiError } from '../../../shared/api/http-client';
 import { classifyApiError, type ApiErrorKind } from '../../../shared/api/error-kind';
 import { copy } from '../ui/copy';
 
-export type ActionContext = 'create' | 'reschedule' | 'cancel';
+export type ActionContext = 'create' | 'reschedule' | 'cancel' | 'resolve';
 export type ErrorTone = 'info' | 'warning' | 'error' | 'conflict';
 
 /** `post_archived` is 409 POST_ARCHIVED of POST /publications, which the shared classifier does not know. */
@@ -55,6 +55,8 @@ export function describeActionError(error: unknown, context: ActionContext): Act
       return make('conflict', e.notReschedulable);
     case 'not_cancellable':
       return make('conflict', e.notCancellable);
+    case 'not_unknown':
+      return make('conflict', e.notUnknown);
     case 'not_found':
       return make('error', e.notFoundDetail);
     case 'forbidden':
@@ -69,7 +71,7 @@ export function describeActionError(error: unknown, context: ActionContext): Act
 
 /** Kinds after which the action can never succeed as typed: submit stays disabled until the owner changes something. */
 export function isTerminalForAction(kind: ActionErrorKind): boolean {
-  return kind === 'not_cancellable' || kind === 'not_reschedulable' || kind === 'not_found';
+  return kind === 'not_cancellable' || kind === 'not_reschedulable' || kind === 'not_unknown' || kind === 'not_found';
 }
 
 /** Short explanation of `lastErrorCode`; an unknown code is shown raw next to a neutral sentence. */

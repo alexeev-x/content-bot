@@ -22,6 +22,7 @@ export type ApiErrorKind =
   | 'destination_disabled'
   | 'not_cancellable'
   | 'not_reschedulable'
+  | 'not_unknown'
   | 'chat_id_taken'
   | 'unknown_send_result'
   | 'unexpected';
@@ -40,6 +41,7 @@ const REASONS: Partial<Record<ApiError['code'], Record<string, ApiErrorKind>>> =
     DESTINATION_DISABLED: 'destination_disabled',
     NOT_CANCELLABLE: 'not_cancellable',
     NOT_RESCHEDULABLE: 'not_reschedulable',
+    NOT_UNKNOWN: 'not_unknown',
     CHAT_ID_TAKEN: 'chat_id_taken'
   }
 };

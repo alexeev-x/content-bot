@@ -4,7 +4,8 @@ import {
   type cancelPublicationInputSchema,
   type createPublicationInputSchema,
   type listPublicationsQuerySchema,
-  type reschedulePublicationInputSchema
+  type reschedulePublicationInputSchema,
+  type resolveUnknownPublicationInputSchema
 } from '@alexeev/contracts';
 import type { z } from 'zod';
 import { apiRequest } from '../../../shared/api/http-client';
@@ -17,6 +18,7 @@ export type PublicationFilters = Pick<
 export type CreatePublicationBody = z.input<typeof createPublicationInputSchema>;
 export type ReschedulePublicationBody = z.input<typeof reschedulePublicationInputSchema>;
 export type CancelPublicationBody = z.input<typeof cancelPublicationInputSchema>;
+export type ResolveUnknownBody = z.input<typeof resolveUnknownPublicationInputSchema>;
 
 export function listPublications(filters: PublicationFilters, cursor: string | undefined, signal?: AbortSignal) {
   const query = buildQuery({
@@ -51,6 +53,14 @@ export function reschedulePublication(id: string, input: ReschedulePublicationBo
 
 export function cancelPublication(id: string, input: CancelPublicationBody) {
   return apiRequest(`/api/v1/publications/${encodeURIComponent(id)}/cancel`, publicationSchema, {
+    method: 'POST',
+    body: input
+  });
+}
+
+/** Manual reconciliation of an `unknown` send; the owner checked the channel first. Never retried automatically. */
+export function resolveUnknownPublication(id: string, input: ResolveUnknownBody) {
+  return apiRequest(`/api/v1/publications/${encodeURIComponent(id)}/resolve-unknown`, publicationSchema, {
     method: 'POST',
     body: input
   });

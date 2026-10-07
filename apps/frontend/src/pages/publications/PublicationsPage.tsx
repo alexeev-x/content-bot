@@ -32,7 +32,7 @@ export function PublicationsPage({ search, onSearchChange, onOpenPosts, pollMs }
   useDocumentTitle(copy.list.title);
   const { list, destinationList, postTitle, channel } = usePublicationsData(search, pollMs);
   const items = list.data?.items ?? [];
-  const hasFilters = search.status !== undefined || search.channel !== undefined;
+  const hasFilters = search.status !== undefined || search.channel !== undefined || search.post !== undefined;
   const announcement = useStatusAnnouncement(items);
   // The offset is read once per visit: it only changes at a DST switch, and render must stay pure.
   const [zoneNote] = useState(() => {
@@ -44,7 +44,7 @@ export function PublicationsPage({ search, onSearchChange, onOpenPosts, pollMs }
   const openRow = search.id ? items.find((item) => item.id === search.id) : undefined;
   const openDestination = openRow ? channel(openRow) : undefined;
 
-  const reset = () => onSearchChange({ status: undefined, channel: undefined, cursor: undefined });
+  const reset = () => onSearchChange({ status: undefined, channel: undefined, post: undefined, cursor: undefined });
 
   return (
     <>
@@ -57,6 +57,14 @@ export function PublicationsPage({ search, onSearchChange, onOpenPosts, pollMs }
         onChannelChange={(next) => onSearchChange({ channel: next, cursor: undefined })}
         onReset={reset}
       />
+      {search.post ? (
+        <p className={styles.note}>
+          {copy.list.onePost}{' '}
+          <Button variant="ghost" size="sm" onPress={() => onSearchChange({ post: undefined, cursor: undefined })}>
+            {copy.list.allPosts}
+          </Button>
+        </p>
+      ) : null}
       <p className={styles.note}>
         {zoneNote}
         {polling ? ` ${copy.states.polling}` : ''}

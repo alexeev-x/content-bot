@@ -16,6 +16,7 @@ import { PostsList, type PostsView } from '../index';
 
 export const onOpen = vi.fn();
 export const onCreate = vi.fn();
+export const onReconcile = vi.fn();
 
 function Harness({ initialView }: { initialView: PostsView }) {
   const [view, setView] = useState<PostsView>(initialView);
@@ -28,6 +29,7 @@ function Harness({ initialView }: { initialView: PostsView }) {
       onQueryChange={setQuery}
       onOpen={onOpen}
       onCreate={onCreate}
+      onReconcile={onReconcile}
     />
   );
 }

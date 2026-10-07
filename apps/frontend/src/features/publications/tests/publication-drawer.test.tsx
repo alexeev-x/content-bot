@@ -79,15 +79,12 @@ describe('PublicationDrawer states', () => {
     expect(within(drawer).queryByRole('button', { name: /Повторить|Отменить|Перенести/ })).toBeNull();
   });
 
-  it('unknown: warns about duplicates, has no retry, cancel or reschedule, and shows reconcile disabled', async () => {
+  it('unknown: explains, has no plain retry, cancel or reschedule, and offers the reconciliation choices', async () => {
     serveDetail(publication({ status: 'unknown', lastErrorCode: 'SEND_UNCONFIRMED', revision: 4 }));
     const { drawer } = await openDrawer();
-    expect(await within(drawer).findByText('Не удалось подтвердить отправку')).toBeTruthy();
-    expect(within(drawer).getByText(/создать дубль в канале/)).toBeTruthy();
-    expect(within(drawer).queryByRole('button', { name: /Повторить|Отменить|Перенести/ })).toBeNull();
-    const reconcile = within(drawer).getByRole('button', { name: 'Сверить вручную' });
-    expect(reconcile.hasAttribute('disabled')).toBe(true);
-    expect(within(drawer).getAllByText(/появится вместе с экраном «Инциденты»/).length).toBeGreaterThan(0);
+    expect(await within(drawer).findByText('Отправка не подтверждена')).toBeTruthy();
+    expect(within(drawer).queryByRole('button', { name: /^(Повторить|Отменить|Перенести)$/ })).toBeNull();
+    expect(within(drawer).getByRole('button', { name: 'Пост вышел' })).toBeTruthy();
   });
 
   it('sending: shows the in-progress hint instead of actions', async () => {

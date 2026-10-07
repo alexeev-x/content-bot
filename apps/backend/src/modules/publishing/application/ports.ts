@@ -273,6 +273,14 @@ export interface PublicationRescheduleChange extends PublicationChange {
   timezone: string;
 }
 
+/** What the owner found in the channel for an `unknown` send. */
+export type PublicationUnknownResolution =
+  | { outcome: 'sent'; externalMessageId: string }
+  | { outcome: 'resend'; scheduledAt: number; timezone: string }
+  | { outcome: 'cancel' };
+
+export type PublicationResolveUnknownChange = PublicationChange & { resolution: PublicationUnknownResolution };
+
 /** `current` is read in the same atomic batch as the write, so it explains why `applied` is false. */
 export interface PublicationChangeOutcome {
   applied: boolean;
@@ -319,6 +327,11 @@ export interface PublicationRepository {
   list(query: ListPublicationsQuery): Promise<PublicationRecord[]>;
   reschedule(change: PublicationRescheduleChange): Promise<PublicationChangeOutcome>;
   cancel(change: PublicationChange): Promise<PublicationChangeOutcome>;
+  /**
+   * Manual reconciliation: applies only to a job in `unknown` and a publication at the expected
+   * revision, and also closes the open incidents of the job. Never sends anything.
+   */
+  resolveUnknown(change: PublicationResolveUnknownChange): Promise<PublicationChangeOutcome>;
   /**
    * One grouped read for up to 100 posts. Posts without publications are absent from the map. `now`
    * separates `scheduled` from `queued`.

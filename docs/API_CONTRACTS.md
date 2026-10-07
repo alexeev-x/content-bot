@@ -143,8 +143,9 @@ Schemas and per-endpoint error codes: `apps/contracts/src/publications.ts`, `app
 | `GET /api/v1/publications`, `GET /api/v1/publications/{id}` | Latest scheduled time first; filters `status`, `postId`, `destinationId` |
 | `POST /api/v1/publications/{id}/reschedule` | New time, only before sending starts (`scheduled`, `queued`, `retry_wait`); otherwise `409` `NOT_RESCHEDULABLE` |
 | `POST /api/v1/publications/{id}/cancel` | Only before sending starts; otherwise `409` `NOT_CANCELLABLE`. A send in progress or with an `unknown` result is never cancelled here |
+| `POST /api/v1/publications/{id}/resolve-unknown` | Manual reconciliation of an `unknown` send after the owner checked the channel: `sent` (with the Telegram message id) → `sent`; `resend` (new time, same range rules as create) → `scheduled`, or `queued` when the time is already due; `cancel` → `cancelled`. Writes an audit row and closes the open `SEND_UNCONFIRMED` incident. Any other status is `409` `NOT_UNKNOWN` |
 
-Reschedule and cancel carry the publication `revision`; a stale one is `409` `STALE_REVISION`.
+Reschedule, cancel and resolve-unknown carry the publication `revision`; a stale one is `409` `STALE_REVISION`, so a double press or a second tab applies once.
 
 `POST /api/v1/publications/{id}/retry` is allowed **only** for a status that the backend has deemed safe to retry. `unknown` cannot be force-sent with this method — first call `POST /api/v1/publications/{id}/resolve-unknown` with the documented manual reconcile and an audit trail.
 

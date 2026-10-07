@@ -857,7 +857,8 @@ describe('publication routes are owner-only', () => {
     ['GET', '/api/v1/publications'],
     ['GET', `/api/v1/publications/${id}`],
     ['POST', `/api/v1/publications/${id}/reschedule`],
-    ['POST', `/api/v1/publications/${id}/cancel`]
+    ['POST', `/api/v1/publications/${id}/cancel`],
+    ['POST', `/api/v1/publications/${id}/resolve-unknown`]
   ];
 
   it.each(routes)('%s %s answers 401 without a token and 403 for another user', async (method, path) => {

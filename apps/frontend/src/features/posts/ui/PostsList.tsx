@@ -41,6 +41,8 @@ type Props = {
   onQueryChange: (query: string) => void;
   onOpen: (id: string) => void;
   onCreate: () => void;
+  /** Opens the reconciliation of this post's `unknown` publication (the page resolves which one). */
+  onReconcile: (postId: string) => void;
 };
 
 const copy = postsCopy.list;
@@ -78,7 +80,7 @@ function sortOptionsFor(view: PostsView): SelectOption[] {
   ];
 }
 
-export function PostsList({ view, query, onViewChange, onQueryChange, onOpen, onCreate }: Props) {
+export function PostsList({ view, query, onViewChange, onQueryChange, onOpen, onCreate, onReconcile }: Props) {
   const now = useNow();
   const narrow = useMediaQuery(NARROW);
   const rootRef = useRef<HTMLElement>(null);
@@ -172,6 +174,10 @@ export function PostsList({ view, query, onViewChange, onQueryChange, onOpen, on
 
   function onAction(post: PostDto, action: RowAction) {
     setNotice(null);
+    if (action === 'reconcile') {
+      onReconcile(post.id);
+      return;
+    }
     if (action === 'delete') {
       setDeleteTargets([deleteTargetOf(post)]);
       return;

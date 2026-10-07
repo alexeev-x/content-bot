@@ -2,7 +2,8 @@ import {
   cancelPublicationInputSchema,
   createPublicationInputSchema,
   listPublicationsQuerySchema,
-  reschedulePublicationInputSchema
+  reschedulePublicationInputSchema,
+  resolveUnknownPublicationInputSchema
 } from '@alexeev/contracts';
 import { type Context, Hono } from 'hono';
 import { z } from 'zod';
@@ -11,7 +12,8 @@ import {
   createPublication,
   getPublication,
   listPublications,
-  reschedulePublication
+  reschedulePublication,
+  resolveUnknownPublication
 } from '../modules/publishing';
 import { AppError } from '../shared/app-error';
 import { appOriginOf } from './bot/app-origin';
@@ -107,6 +109,20 @@ export const publicationsRoutes = new Hono<AppBindings>()
     async (c) => {
       const container = c.get('container');
       const publication = await cancelPublication(
+        { repo: container.publications, now: container.clock.now() },
+        { actor: c.get('actor').telegramId, id: publicationId(c.req.valid('param').id), input: c.req.valid('json') }
+      );
+      return c.json(publication);
+    }
+  )
+  .post(
+    '/:id/resolve-unknown',
+    limitBody(MAX_BODY_BYTES),
+    validated('param', idParamSchema),
+    validated('json', resolveUnknownPublicationInputSchema),
+    async (c) => {
+      const container = c.get('container');
+      const publication = await resolveUnknownPublication(
         { repo: container.publications, now: container.clock.now() },
         { actor: c.get('actor').telegramId, id: publicationId(c.req.valid('param').id), input: c.req.valid('json') }
       );

@@ -9,7 +9,7 @@ The regular browser app and Telegram Mini App are the same SPA. Mobile at 375 px
 | Path | Product responsibility | Core capabilities | Critical states |
 |---|---|---|---|
 | `/login` | Owner sign-in | Telegram Login Widget; Mini App automatic sign-in | cancelled, expired, 401, foreign owner 403 |
-| `/` | Dashboard | system status strip (one line when healthy, one banner row on problems; spec: `docs/stories/dashboard-system-status.md`), upcoming publications, recent activity, automation health, incidents, stale sources, quick actions | partial/stale data, component failure |
+| `/` | Dashboard | system status strip (one line when healthy, one banner row on problems; spec: `docs/stories/dashboard-system-status.md`; «Сегодня» and «Требует внимания» blocks: `docs/stories/dashboard-today-incidents.md`), upcoming publications, recent activity, automation health, incidents, stale sources, quick actions | partial/stale data, component failure |
 | `/posts` | Content library | search/filter/sort, drafts/approved content, rubric/source/destination, navigate to revisions | empty, error, stale |
 | `/posts?view=archive` | Posts archive | published posts kept 30 days, restore, delete now; leave-free editor, delete post, cancel/remove publication (spec: `docs/stories/posts-lifecycle.md`) | empty, error, 30-day expiry, unknown not deletable |
 | `/posts/new` | New content | full editor, source/rubric, media, destination, preview, save/approve/schedule | dirty, validation, preview failure |
@@ -23,7 +23,7 @@ The regular browser app and Telegram Mini App are the same SPA. Mobile at 375 px
 | `/media` | Media library | upload, search/filter, metadata, preview, usage history, source/rights | validation, upload failure, unavailable object |
 | `/templates` | Visual templates | card templates, versions, preview, active/default state | renderer unavailable, invalid template |
 | `/jobs` | Execution history | scheduler/automation jobs, status, duration, attempts, request/job ids | stuck, retry_wait, failed |
-| `/incidents` | Operational incidents | errors, unknown Telegram sends, manual reconciliation, audit history | no optimistic success, stale telemetry |
+| `/incidents` | Operational incidents (spec: `docs/stories/dashboard-today-incidents.md`) | errors, unknown Telegram sends, manual reconciliation, audit history | no optimistic success, stale telemetry |
 | `/analytics` | Content intelligence | period/rubric/destination filters, publishing reliability, automation funnel, comparisons | incomplete period, missing source data |
 | `/settings` | Product settings | master/detail: «Каналы», «Оформление» (sections added only when built); phone: list then detail; theme/accent quick control lives in the top bar (spec: `docs/stories/settings.md`) | save conflict/error, quick-save revert |
 | `/settings/channels` | Destinations | Telegram channels/groups, defaults, health and permissions | missing permissions, unreachable destination |

@@ -22,6 +22,7 @@ import {
   TEST_BOT_TOKEN
 } from '../helpers/harness';
 import { fakeOwnerMessenger } from '../helpers/fake-owner-messenger';
+import { fakeTransport, makeTick, seedDueJob } from '../helpers/dispatch';
 import { seedApprovedPost, seedDestination } from '../helpers/publishing';
 
 // Free plan: 50 D1 queries per invocation. Each endpoint's D1 round trips (a batch is one) are
@@ -227,6 +228,26 @@ describe('D1 round trips per request (session lookup included)', () => {
     const cancelled = await measure(`/api/v1/publications/${id}/cancel`, { method: 'POST', json: { revision: 1 } });
     expect(cancelled.status).toBe(200);
     expect(cancelled.counter).toEqual({ roundTrips: 2, statements: 5 });
+  });
+
+  it('resolving an unknown send', async () => {
+    const seeding = createApi({ clock: fakeClock() });
+    const { publicationId } = await seedDueJob(seeding);
+    await makeTick({ clock: seeding.clock, transport: fakeTransport({ kind: 'unknown', reason: 'timeout' }) }).run();
+
+    const resolved = await measure(`/api/v1/publications/${publicationId}/resolve-unknown`, {
+      method: 'POST',
+      json: { outcome: 'sent', revision: 0, externalMessageId: '9001' }
+    });
+
+    expect(resolved.status).toBe(200);
+    expect(resolved.counter).toEqual({ roundTrips: 2, statements: 6 }); // session, batch of 5
+    const again = await measure(`/api/v1/publications/${publicationId}/resolve-unknown`, {
+      method: 'POST',
+      json: { outcome: 'sent', revision: 0, externalMessageId: '9001' }
+    });
+    expect(again.status).toBe(409);
+    expect(again.counter).toEqual({ roundTrips: 2, statements: 6 });
   });
 });
 

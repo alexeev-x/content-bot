@@ -10,6 +10,7 @@ import type { PublicationsSearch } from './search';
 export function usePublicationsData(search: PublicationsSearch, pollMs?: number) {
   const filters: PublicationFilters = {
     ...(search.status ? { status: search.status } : {}),
+    ...(search.post ? { postId: search.post } : {}),
     ...(search.channel ? { destinationId: search.channel } : {})
   };
   const list = useQuery(publicationsPageQueryOptions(filters, search.cursor, pollMs));

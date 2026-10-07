@@ -2,7 +2,8 @@ export type {
   CancelPublicationBody,
   CreatePublicationBody,
   PublicationFilters,
-  ReschedulePublicationBody
+  ReschedulePublicationBody,
+  ResolveUnknownBody
 } from './api/publications-api';
 export {
   PUBLICATION_POLL_MS,
@@ -12,7 +13,8 @@ export {
   publicationsPageQueryOptions,
   useCancelPublication,
   useCreatePublication,
-  useReschedulePublication
+  useReschedulePublication,
+  useResolveUnknownPublication
 } from './api/publications-queries';
 export { isConfirmedSent, publicationActions, type PublicationActions } from './model/publication-actions';
 export { browserTimeZone, formatWithZone, utcOffsetLabel } from './model/format-time';

@@ -9,6 +9,7 @@ type Props = {
   onQueryChange: (query: string) => void;
   onOpen: (id: string) => void;
   onCreate: () => void;
+  onReconcile: (postId: string) => void;
 };
 
 export function PostsPage({ onCreate, ...list }: Props) {

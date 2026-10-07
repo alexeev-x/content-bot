@@ -17,10 +17,12 @@ import {
   getPublication,
   listPublications,
   reschedulePublication,
+  resolveUnknownPublication,
   type CancelPublicationBody,
   type CreatePublicationBody,
   type PublicationFilters,
-  type ReschedulePublicationBody
+  type ReschedulePublicationBody,
+  type ResolveUnknownBody
 } from './publications-api';
 
 export const publicationKeys = {
@@ -133,6 +135,15 @@ export function useCancelPublication() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: ({ id, input }: { id: string; input: CancelPublicationBody }) => cancelPublication(id, input),
+    retry: false,
+    onSuccess: (publication) => applyServerPublication(queryClient, publication)
+  });
+}
+
+export function useResolveUnknownPublication() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, input }: { id: string; input: ResolveUnknownBody }) => resolveUnknownPublication(id, input),
     retry: false,
     onSuccess: (publication) => applyServerPublication(queryClient, publication)
   });

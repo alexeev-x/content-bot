@@ -7,7 +7,7 @@ import { clearSession, setSession } from '../../../shared/api/session';
 import { accessToken, archivedPost, errorBody, ids, post, postPage, postWith } from '../../../test/fixtures';
 import { server, setupMswServer } from '../../../test/msw';
 import { clearViewport, setViewport } from '../../../test/viewport';
-import { onCreate, onOpen, renderList } from './list-harness';
+import { onCreate, onOpen, onReconcile, renderList } from './list-harness';
 
 setupMswServer();
 beforeEach(() => {
@@ -15,6 +15,7 @@ beforeEach(() => {
   setSession(accessToken());
   onOpen.mockClear();
   onCreate.mockClear();
+  onReconcile.mockClear();
 });
 afterEach(() => {
   cleanup();
@@ -169,6 +170,24 @@ describe('deleting one post', () => {
     await user.keyboard('{Escape}');
     const box = screen.getByRole('checkbox', { name: 'Пост «Идёт» нельзя выбрать: идёт отправка' });
     expect((box as HTMLInputElement).disabled).toBe(true);
+  });
+
+  it('offers «Сверить результат» only for a post with an unknown publication and opens its reconciliation', async () => {
+    const user = userEvent.setup();
+    serve({
+      live: [
+        postWith({ scheduled: 1 }, { id: id(1), title: 'План' }),
+        postWith({ unknown: 1 }, { id: id(2), title: 'Сверка' })
+      ],
+      archive: []
+    });
+    renderList();
+    await openMenu(user, 'План');
+    expect(screen.queryByRole('menuitem', { name: 'Сверить результат' })).toBeNull();
+    await user.keyboard('{Escape}');
+    await openMenu(user, 'Сверка');
+    await user.click(await screen.findByRole('menuitem', { name: 'Сверить результат' }));
+    expect(onReconcile).toHaveBeenCalledWith(id(2));
   });
 
   it.each([
