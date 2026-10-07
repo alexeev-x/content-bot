@@ -11,6 +11,10 @@ import {
   ErrorState,
   Skeleton,
   StatusBadge,
+  Tab,
+  TabList,
+  TabPanel,
+  Tabs,
   Timeline,
   VisuallyHidden
 } from '../../../shared/ui';
@@ -35,6 +39,7 @@ type Props = {
   /** The list row, shown instantly while the detail loads (actions stay off until the server copy arrives). */
   placeholder?: PublicationDto | undefined;
   postTitle?: string | undefined;
+  postBody?: string | undefined;
   destinationTitle?: string | undefined;
   /** Telegram chat id of the destination: builds the link to the sent message. */
   chatId?: string | undefined;
@@ -62,6 +67,7 @@ export function PublicationDrawer({
   onOpenChange,
   placeholder,
   postTitle,
+  postBody,
   destinationTitle,
   chatId,
   pollMs = PUBLICATION_POLL_MS
@@ -96,6 +102,7 @@ export function PublicationDrawer({
           <PublicationBody
             publication={publication}
             postTitle={postTitle}
+            postBody={postBody}
             destinationTitle={destinationTitle}
             chatId={chatId}
           />
@@ -153,11 +160,12 @@ function DetailError({ error, onRetry }: { error: Error; onRetry: () => void }) 
 type BodyProps = {
   publication: PublicationDto;
   postTitle: string | undefined;
+  postBody: string | undefined;
   destinationTitle: string | undefined;
   chatId: string | undefined;
 };
 
-function PublicationBody({ publication, postTitle, destinationTitle, chatId }: BodyProps) {
+function PublicationBody({ publication, postTitle, postBody, destinationTitle, chatId }: BodyProps) {
   const zone = useMemo(() => browserTimeZone(), []);
   const shown = displayStatus(publication);
   const confirmedId = shown === 'sent' ? publication.externalMessageId : undefined;
@@ -168,76 +176,129 @@ function PublicationBody({ publication, postTitle, destinationTitle, chatId }: B
   return (
     <>
       <StatusNotice publication={publication} chatId={chatId} />
+
+      <section className={styles.hero}>
+        <div className={styles.heroIcon} aria-hidden="true">
+          <span>А</span>
+        </div>
+        <div className={styles.heroText}>
+          <strong>{postTitle ?? copy.drawer.openPost}</strong>
+          <span>{postBody || 'Без текста'}</span>
+        </div>
+      </section>
+
+      <div className={styles.quickActions}>
+        <Link to="/posts/$id" params={{ id: publication.postId }} className={styles.secondaryAction}>
+          Редактировать
+        </Link>
+        {href ? (
+          <a className={styles.primaryAction} href={href} target="_blank" rel="noopener noreferrer">
+            Открыть в Telegram
+          </a>
+        ) : null}
+      </div>
+
       <section className={styles.section} aria-label={copy.drawer.pipeline}>
         <PublicationPipeline status={shown} />
       </section>
 
-      <section className={styles.section} aria-labelledby="pub-details">
-        <h3 id="pub-details" className={styles.heading}>
-          {copy.drawer.details}
-        </h3>
-        <dl className={styles.details}>
-          <dt>{copy.drawer.post}</dt>
-          <dd>
-            <Link to="/posts/$id" params={{ id: publication.postId }} className={styles.link}>
-              {postTitle ?? copy.drawer.openPost}
-            </Link>
-            <span className={styles.muted}> · {copy.drawer.revision(publication.postRevision)}</span>
-          </dd>
-          <dt>{copy.drawer.channel}</dt>
-          <dd>{destinationTitle ?? copy.list.unknownChannel}</dd>
-          <dt>{copy.drawer.scheduledAt}</dt>
-          <dd>
-            {formatLong(publication.scheduledAt, publication.timezone)}
-            <span className={`${styles.muted} mono`}>
-              {' '}
-              {publication.timezone} ({utcOffsetLabel(new Date(publication.scheduledAt), publication.timezone)})
-            </span>
-          </dd>
-          {sameZone ? null : (
-            <>
-              <dt>{copy.drawer.yourZone}</dt>
-              <dd className="mono">{formatWithZone(publication.scheduledAt, zone)}</dd>
-            </>
-          )}
-          <dt>{copy.drawer.utc}</dt>
-          <dd className="mono">{formatUtc(publication.scheduledAt)}</dd>
-          <dt>{copy.drawer.message}</dt>
-          <dd>
-            {confirmedId ? (
-              href ? (
-                <a className={styles.link} href={href} target="_blank" rel="noopener noreferrer">
-                  {copy.drawer.openInTelegram}
-                  <span className="mono"> · № {confirmedId}</span>
-                </a>
-              ) : (
-                <span className="mono">№ {confirmedId}</span>
-              )
-            ) : (
-              <span className={styles.muted}>{copy.drawer.messageNone}</span>
-            )}
-          </dd>
-          {publication.lastErrorCode ? (
-            <>
-              <dt>{copy.drawer.errorCode}</dt>
-              <dd className="mono">{publication.lastErrorCode}</dd>
-            </>
-          ) : null}
-          <dt>{copy.drawer.publicationId}</dt>
-          <dd className={`mono ${styles.id}`}>{publication.id}</dd>
-        </dl>
-      </section>
+      <Tabs defaultSelectedKey="content">
+        <TabList aria-label="Раздел публикации">
+          <Tab id="content">Контент</Tab>
+          <Tab id="stats">Статистика</Tab>
+          <Tab id="logs">Логи</Tab>
+        </TabList>
 
-      <section className={styles.section} aria-labelledby="pub-timeline">
-        <h3 id="pub-timeline" className={styles.heading}>
-          {copy.drawer.attempts}
-        </h3>
-        <p className={styles.note}>
-          {copy.drawer.timelineZone(zone, utcOffsetLabel(new Date(publication.updatedAt), zone))}
-        </p>
-        <Timeline aria-label={copy.drawer.attempts} items={timeline} />
-        <p className={styles.note}>{copy.drawer.attemptsNote}</p>
-      </section>
+        <TabPanel id="content">
+          <div className={styles.tabContent}>
+            <section className={styles.section} aria-labelledby="pub-text">
+              <h3 id="pub-text" className={styles.heading}>
+                Текст
+              </h3>
+              <p className={styles.postBody}>{postBody || 'Текст поста недоступен.'}</p>
+            </section>
+
+            <section className={styles.section} aria-labelledby="pub-details">
+              <h3 id="pub-details" className={styles.heading}>
+                {copy.drawer.details}
+              </h3>
+              <dl className={styles.details}>
+                <dt>{'Статус'}</dt>
+                <dd>
+                  <StatusBadge status={shown} />
+                </dd>
+                <dt>{copy.drawer.post}</dt>
+                <dd>
+                  <Link to="/posts/$id" params={{ id: publication.postId }} className={styles.link}>
+                    {postTitle ?? copy.drawer.openPost}
+                  </Link>
+                  <span className={styles.muted}> · {copy.drawer.revision(publication.postRevision)}</span>
+                </dd>
+                <dt>{copy.drawer.channel}</dt>
+                <dd>{destinationTitle ?? copy.list.unknownChannel}</dd>
+                <dt>{copy.drawer.scheduledAt}</dt>
+                <dd>
+                  {formatLong(publication.scheduledAt, publication.timezone)}
+                  <span className={styles.muted}>
+                    {' '}
+                    {publication.timezone} ({utcOffsetLabel(new Date(publication.scheduledAt), publication.timezone)})
+                  </span>
+                </dd>
+                {sameZone ? null : (
+                  <>
+                    <dt>{copy.drawer.yourZone}</dt>
+                    <dd className="mono">{formatWithZone(publication.scheduledAt, zone)}</dd>
+                  </>
+                )}
+                <dt>{copy.drawer.utc}</dt>
+                <dd className="mono">{formatUtc(publication.scheduledAt)}</dd>
+                <dt>{copy.drawer.message}</dt>
+                <dd>
+                  {confirmedId ? (
+                    href ? (
+                      <a className={styles.link} href={href} target="_blank" rel="noopener noreferrer">
+                        {copy.drawer.openInTelegram}
+                        <span className="mono"> · № {confirmedId}</span>
+                      </a>
+                    ) : (
+                      <span className="mono">№ {confirmedId}</span>
+                    )
+                  ) : (
+                    <span className={styles.muted}>{copy.drawer.messageNone}</span>
+                  )}
+                </dd>
+                {publication.lastErrorCode ? (
+                  <>
+                    <dt>{copy.drawer.errorCode}</dt>
+                    <dd className="mono">{publication.lastErrorCode}</dd>
+                  </>
+                ) : null}
+              </dl>
+            </section>
+          </div>
+        </TabPanel>
+
+        <TabPanel id="stats">
+          <div className={styles.futurePanel}>
+            <strong>Статистика публикации</strong>
+            <p>Появится после подключения Telegram Analytics. Сейчас сервер не хранит метрики просмотров и вовлечённости.</p>
+          </div>
+        </TabPanel>
+
+        <TabPanel id="logs">
+          <div className={styles.tabContent}>
+            <p className={styles.note}>
+              {copy.drawer.timelineZone(zone, utcOffsetLabel(new Date(publication.updatedAt), zone))}
+            </p>
+            <Timeline aria-label={copy.drawer.attempts} items={timeline} />
+            <p className={styles.note}>{copy.drawer.attemptsNote}</p>
+            <p className={styles.idLine}>
+              <span>Publication ID</span>
+              <code>{publication.id}</code>
+            </p>
+          </div>
+        </TabPanel>
+      </Tabs>
     </>
   );
 }
