@@ -13,6 +13,10 @@
   flex: 1 1 260px;
   max-width: 460px;
 }
+.sortControl {
+  flex: 0 1 260px;
+  min-width: 0;
+}
 .muted {
   color: var(--color-text-muted);
   font-size: var(--font-size-sm);
@@ -34,6 +38,9 @@
   .search {
     flex-basis: 100%;
     max-width: none;
+  }
+  .sortControl {
+    flex: 1 1 100%;
   }
   .footer > button {
     flex: 1 1 100%;

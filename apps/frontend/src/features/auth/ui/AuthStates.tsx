@@ -34,11 +34,18 @@ export function NoAccessState({ onAction }: { onAction: () => void }) {
 export function AuthUnavailableState({ error, onRetry }: { error: unknown; onRetry: () => void }) {
   const requestId = error instanceof ApiError ? error.requestId : undefined;
   return (
-    <ErrorState
-      title={ru.auth.unavailableTitle}
-      message={ru.auth.unavailableDescription}
-      {...(requestId ? { requestId } : {})}
-      onRetry={onRetry}
-    />
+    <main className={styles.unavailableScreen}>
+      <ErrorState
+        title={ru.auth.unavailableTitle}
+        message={ru.auth.unavailableDescription}
+        {...(requestId ? { requestId } : {})}
+        actionPlacement="after-title"
+        action={
+          <Button variant="secondary" icon="retry" onPress={onRetry}>
+            {ru.auth.retry}
+          </Button>
+        }
+      />
+    </main>
   );
 }

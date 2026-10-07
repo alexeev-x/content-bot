@@ -19,6 +19,33 @@
   text-align: left;
   white-space: nowrap;
 }
+.sortButton {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: flex-start;
+  gap: var(--space-1);
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: inherit;
+  cursor: pointer;
+}
+.sortButton:hover {
+  color: var(--color-text);
+}
+.sortMark {
+  color: var(--color-text-disabled);
+  font-size: var(--font-size-2xs);
+}
+.th[aria-sort] .sortMark {
+  color: var(--color-accent-text);
+}
+.th[data-align='end'] .sortButton {
+  justify-content: flex-end;
+}
 .th[data-align='end'],
 .td[data-align='end'] {
   text-align: right;

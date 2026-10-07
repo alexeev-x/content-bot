@@ -4,6 +4,7 @@ import { Checkbox, Icon, Menu, Skeleton, VisuallyHidden, type MenuEntry } from '
 import { excerptOf } from '../model/excerpt';
 import { formatExact, formatRelative } from '../model/format-time';
 import { ARCHIVE_WARNING_DAYS, daysLeftOf, deleteBlockOf, listStateOf, type DeleteBlock } from '../model/post-state';
+import type { PostSort, PostSortKey } from '../model/post-sort';
 import { postsCopy } from './copy';
 import { PostStateBadge } from './PostStateBadge';
 import styles from './PostRows.module.css';
@@ -14,6 +15,8 @@ type Props = {
   mode: 'live' | 'archive';
   label: string;
   rows: readonly PostDto[];
+  sort: PostSort;
+  onSortChange: (key: PostSortKey) => void;
   now: number;
   isLoading: boolean;
   narrow: boolean;
@@ -180,13 +183,18 @@ function LeftCell({ post, now }: { post: PostDto; now: number }) {
 function Grid(props: Inner) {
   const { mode, rows, now, isLoading, selectable } = props;
   const live = mode === 'live';
-  const cols = live
-    ? [copy.list.columns.title, copy.list.columns.status, copy.list.columns.updated, copy.list.columns.revision]
+  const cols: { key: PostSortKey; label: string }[] = live
+    ? [
+        { key: 'title', label: copy.list.columns.title },
+        { key: 'status', label: copy.list.columns.status },
+        { key: 'updated', label: copy.list.columns.updated },
+        { key: 'revision', label: copy.list.columns.revision }
+      ]
     : [
-        copy.archive.columns.title,
-        copy.archive.columns.channels,
-        copy.archive.columns.sentAt,
-        copy.archive.columns.left
+        { key: 'title', label: copy.archive.columns.title },
+        { key: 'channels', label: copy.archive.columns.channels },
+        { key: 'sentAt', label: copy.archive.columns.sentAt },
+        { key: 'left', label: copy.archive.columns.left }
       ];
   return (
     <div className={styles.wrap} aria-busy={isLoading || undefined}>
@@ -207,11 +215,25 @@ function Grid(props: Inner) {
                 />
               </th>
             ) : null}
-            {cols.map((name, index) => (
-              <th key={name} scope="col" className={styles.th} data-align={live && index === 3 ? 'end' : undefined}>
-                {name}
-              </th>
-            ))}
+            {cols.map(({ key, label }, index) => {
+              const active = props.sort?.key === key;
+              return (
+                <th
+                  key={key}
+                  scope="col"
+                  className={styles.th}
+                  data-align={live && index === 3 ? 'end' : undefined}
+                  aria-sort={active ? props.sort?.direction : undefined}
+                >
+                  <button type="button" className={styles.sortButton} onClick={() => props.onSortChange(key)}>
+                    {label}
+                    <span className={styles.sortMark} aria-hidden="true">
+                      {active ? (props.sort?.direction === 'ascending' ? '↑' : '↓') : '↕'}
+                    </span>
+                  </button>
+                </th>
+              );
+            })}
             <th scope="col" className={styles.th}>
               <VisuallyHidden>{copy.list.columns.actions}</VisuallyHidden>
             </th>

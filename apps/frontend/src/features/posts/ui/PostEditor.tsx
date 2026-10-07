@@ -59,6 +59,7 @@ export function PostEditor({ post, onCreated, approvedActions, aside }: Props) {
   // An archived post is read-only and its page explains why; the approved notice and the publish action do not apply.
   const isArchived = baseline?.archivedAt != null;
   const hasConflict = conflict !== null;
+  const showApprovedPreview = isApproved && !isArchived && !hasConflict;
   const canSave = !editor.readOnly && !hasConflict && (editor.isNew || editor.dirty);
   const canApprove = !editor.isNew && !editor.readOnly && !hasConflict && editor.overflow === 0;
 
@@ -85,7 +86,7 @@ export function PostEditor({ post, onCreated, approvedActions, aside }: Props) {
     />
   );
   const preview = (
-    <div className={styles.previewColumn}>
+    <div className={`${styles.previewColumn} ${showApprovedPreview ? styles.previewStandalone : styles.previewInPane}`}>
       <PostPreview title={editor.title} body={editor.body} length={editor.length} />
       {aside}
     </div>
@@ -140,7 +141,9 @@ export function PostEditor({ post, onCreated, approvedActions, aside }: Props) {
         </Banner>
       ) : null}
 
-      {narrow ? (
+      {showApprovedPreview ? (
+        preview
+      ) : narrow ? (
         <div className={styles.tabsRoot}>
           <Tabs>
             <TabList aria-label={copy.tabs.label}>

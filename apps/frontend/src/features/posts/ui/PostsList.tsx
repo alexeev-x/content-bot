@@ -7,6 +7,7 @@ import {
   Button,
   EmptyState,
   ErrorState,
+  Select,
   SearchField,
   SelectionBar,
   Tab,
@@ -15,10 +16,13 @@ import {
   Tabs,
   useMediaQuery
 } from '../../../shared/ui';
+import type { SelectOption } from '../../../shared/ui';
+import { ru } from '../../../shared/lib/ru';
 import { postsInfiniteQueryOptions } from '../api/posts-queries';
 import { filterPostsByText } from '../model/excerpt';
 import { refusalText, type LifecycleNotice } from '../model/lifecycle-notices';
 import { deleteBlockOf } from '../model/post-state';
+import { nextPostSort, sortPosts, type PostSort, type PostSortKey, type SortDirection } from '../model/post-sort';
 import { useNow } from '../model/use-now';
 import { useRestoreActions } from '../model/use-restore';
 import { useSelection } from '../model/use-selection';
@@ -50,6 +54,30 @@ function filtersFor(view: PostsView) {
   return view === 'drafts' ? ({ view: 'live', status: 'draft' } as const) : ({ view: 'live' } as const);
 }
 
+function sortOptionsFor(view: PostsView): SelectOption[] {
+  const columns: { key: PostSortKey; label: string }[] =
+    view === 'archive'
+      ? [
+          { key: 'title', label: postsCopy.archive.columns.title },
+          { key: 'channels', label: postsCopy.archive.columns.channels },
+          { key: 'sentAt', label: postsCopy.archive.columns.sentAt },
+          { key: 'left', label: postsCopy.archive.columns.left }
+        ]
+      : [
+          { key: 'title', label: copy.columns.title },
+          { key: 'status', label: copy.columns.status },
+          { key: 'updated', label: copy.columns.updated },
+          { key: 'revision', label: copy.columns.revision }
+        ];
+  return [
+    { id: 'none', label: 'По умолчанию' },
+    ...columns.flatMap(({ key, label }) => [
+      { id: `${key}:ascending`, label: `${label} — ${ru.ui.sortAsc}` },
+      { id: `${key}:descending`, label: `${label} — ${ru.ui.sortDesc}` }
+    ])
+  ];
+}
+
 export function PostsList({ view, query, onViewChange, onQueryChange, onOpen, onCreate }: Props) {
   const now = useNow();
   const narrow = useMediaQuery(NARROW);
@@ -67,6 +95,23 @@ export function PostsList({ view, query, onViewChange, onQueryChange, onOpen, on
   const [lastCount, setLastCount] = useState<number | undefined>(undefined);
   if (fresh !== undefined && fresh !== lastCount) setLastCount(fresh);
   const archivedCount = fresh ?? lastCount;
+  const [sortState, setSortState] = useState<{ view: PostsView; sort: PostSort }>({ view, sort: null });
+  const sort = sortState.view === view ? sortState.sort : null;
+  const sortedRows = useMemo(() => sortPosts(rows, sort), [rows, sort]);
+  const sortOptions = useMemo(() => sortOptionsFor(view), [view]);
+  const sortValue = sort ? `${sort.key}:${sort.direction}` : 'none';
+  const onSortChange = (key: PostSortKey) => setSortState({ view, sort: nextPostSort(sort, key) });
+  const onMobileSortChange = (value: string) => {
+    if (!sortOptions.some((option) => option.id === value)) return;
+    if (value === 'none') {
+      setSortState({ view, sort: null });
+      return;
+    }
+    const [key, direction] = value.split(':');
+    if (key && direction) {
+      setSortState({ view, sort: { key: key as PostSortKey, direction: direction as SortDirection } });
+    }
+  };
 
   const selection = useSelection(view);
   const [selectMode, setSelectMode] = useState(false);
@@ -88,8 +133,8 @@ export function PostsList({ view, query, onViewChange, onQueryChange, onOpen, on
 
   const selectedPosts = useMemo(() => loaded.filter((post) => selection.has(post.id)), [loaded, selection]);
   const selectableRows = useMemo(
-    () => rows.filter((post) => isArchive || deleteBlockOf(post) === null),
-    [rows, isArchive]
+    () => sortedRows.filter((post) => isArchive || deleteBlockOf(post) === null),
+    [sortedRows, isArchive]
   );
   const selectedVisible = selectableRows.filter((post) => selection.has(post.id)).length;
   const allState = selectedVisible === 0 ? 'none' : selectedVisible === selectableRows.length ? 'all' : 'some';
@@ -104,11 +149,11 @@ export function PostsList({ view, query, onViewChange, onQueryChange, onOpen, on
       focusAfter.current = null;
       button.focus();
     }
-  }, [rows]);
+  }, [sortedRows]);
 
   const neighbourOf = (id: string): string | null => {
-    const index = rows.findIndex((post) => post.id === id);
-    return (rows[index + 1] ?? rows[index - 1])?.id ?? null;
+    const index = sortedRows.findIndex((post) => post.id === id);
+    return (sortedRows[index + 1] ?? sortedRows[index - 1])?.id ?? null;
   };
 
   const refOf = (post: PostDto) => ({ id: post.id, revision: post.revision });
@@ -215,6 +260,11 @@ export function PostsList({ view, query, onViewChange, onQueryChange, onOpen, on
                   onChange={onQueryChange}
                 />
               </div>
+              {narrow && sortedRows.length > 0 ? (
+                <div className={styles.sortControl}>
+                  <Select label={ru.ui.sortBy} options={sortOptions} value={sortValue} onChange={onMobileSortChange} />
+                </div>
+              ) : null}
               {narrow && rows.length > 0 ? (
                 <Button
                   variant="secondary"
@@ -249,7 +299,9 @@ export function PostsList({ view, query, onViewChange, onQueryChange, onOpen, on
               <PostRows
                 mode={isArchive ? 'archive' : 'live'}
                 label={isArchive ? postsCopy.archive.tableLabel : copy.tableLabel}
-                rows={rows}
+                rows={sortedRows}
+                sort={sort}
+                onSortChange={onSortChange}
                 now={now}
                 isLoading={result.isPending}
                 narrow={narrow}
@@ -279,6 +331,7 @@ export function PostsList({ view, query, onViewChange, onQueryChange, onOpen, on
             {!result.isPending && !result.isError ? (
               <div className={styles.footer}>
                 <output className={styles.muted}>{copy.loaded(loaded.length)}</output>
+                {sort && result.hasNextPage ? <span className={styles.muted}>{copy.sortLoadedOnly}</span> : null}
                 {query.trim() !== '' && result.hasNextPage ? (
                   <span className={styles.muted}>{copy.searchScope}</span>
                 ) : null}

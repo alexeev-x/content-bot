@@ -191,7 +191,7 @@ describe('auth guard', () => {
     server.use(failing('/api/v1/auth/refresh', 503, 'UNAVAILABLE'));
     renderApp('/posts');
     expect(await screen.findByText('Не удалось проверить вход')).toBeTruthy();
-    expect(screen.getByRole('button', { name: 'Повторить' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Повторить вход' })).toBeTruthy();
   });
 
   it('leaves /login for the requested page once signed in, and ignores a foreign redirect', async () => {

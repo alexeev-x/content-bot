@@ -151,7 +151,7 @@ describe('409 STALE_REVISION', () => {
 });
 
 describe('approve', () => {
-  it('confirms, approves with the saved revision, then locks the editor and shows the publish action', async () => {
+  it('confirms, approves with the saved revision, hides the editor, and shows the publish action', async () => {
     const user = userEvent.setup();
     const approvals: unknown[] = [];
     server.use(
@@ -169,7 +169,9 @@ describe('approve', () => {
     await user.click(within(dialog).getByRole('button', { name: 'Одобрить пост' }));
     await waitFor(() => expect(approvals).toEqual([{ revision: 0 }]));
     expect(await screen.findByText('Пост одобрен и закрыт для правок')).toBeTruthy();
-    expect(bodyBox().hasAttribute('readonly')).toBe(true);
+    expect(screen.queryByRole('textbox', { name: 'Заголовок' })).toBeNull();
+    expect(screen.queryByRole('textbox', { name: 'Текст' })).toBeNull();
+    expect(screen.getByRole('figure', { name: 'Предпросмотр в Telegram' })).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Сохранить' })).toBeNull();
   });
 
@@ -194,7 +196,9 @@ describe('approve', () => {
     server.use(http.get('*/api/v1/posts/:id', () => HttpResponse.json(post({ status: 'approved', revision: 2 }))));
     renderEditorApp(`/posts/${ids.post}`, () => <button type="button">Опубликовать</button>);
     expect(await screen.findByText('Пост одобрен и закрыт для правок')).toBeTruthy();
-    expect(titleBox().hasAttribute('readonly')).toBe(true);
+    expect(screen.queryByRole('textbox', { name: /Заголовок/ })).toBeNull();
+    expect(screen.queryByRole('textbox', { name: 'Текст' })).toBeNull();
+    expect(screen.getByRole('figure', { name: 'Предпросмотр в Telegram' })).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Опубликовать' })).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Одобрить' })).toBeNull();
   });

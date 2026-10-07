@@ -24,6 +24,12 @@ function Harness({ initial }: { initial: ZonedDateTime | null }) {
 
 const out = () => screen.getByTestId('out').textContent;
 
+function firstCalendarButton(dialog: HTMLElement, name: RegExp): HTMLElement {
+  const button = within(dialog).getAllByRole('button', { name }).at(0);
+  if (!button) throw new Error(`No calendar button matched ${name}`);
+  return button;
+}
+
 describe('DateTimeField time picker', () => {
   it('sets hour and minute by taps and keeps the time when the date changes', async () => {
     const user = userEvent.setup();
@@ -38,7 +44,7 @@ describe('DateTimeField time picker', () => {
     await user.click(within(dialog).getByRole('button', { name: 'Минуты: 45' }));
     expect(out()).toContain('2027-03-10T15:45');
 
-    await user.click(within(dialog).getByRole('button', { name: /15 марта/ }));
+    await user.click(firstCalendarButton(dialog, /15 марта/));
     expect(out()).toContain('2027-03-15T15:45');
 
     await user.click(within(dialog).getByRole('button', { name: 'Готово' }));
@@ -53,7 +59,7 @@ describe('DateTimeField time picker', () => {
     const dialog = await screen.findByRole('dialog');
     expect(within(dialog).getByRole('group', { name: 'Время' }).textContent).toContain('10:00');
     await user.click(within(dialog).getByRole('button', { name: 'Минуты: 30' }));
-    await user.click(within(dialog).getByRole('button', { name: /20 октября/ }));
+    await user.click(firstCalendarButton(dialog, /20 октября/));
     expect(out()).toContain('2026-10-20T10:30:00+03:00[Europe/Chisinau]');
   });
 

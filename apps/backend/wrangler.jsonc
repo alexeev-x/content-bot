@@ -27,7 +27,7 @@
   ],
   "vars": {
     // The only Telegram user allowed to use the admin, the Mini App and bot commands.
-    "OWNER_TELEGRAM_ID": "",
+    "OWNER_TELEGRAM_ID": "768918661",
     // Kill switch of the Cron dispatcher: only the exact string "true" lets it claim jobs.
     // Reconcile of expired leases and cleanup run regardless. The owner flips it per environment.
     "PUBLISHING_ENABLED": "false"

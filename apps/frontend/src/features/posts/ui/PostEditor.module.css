@@ -39,8 +39,12 @@
   gap: var(--space-4);
   min-width: 0;
 }
+.previewStandalone {
+  width: 100%;
+  max-width: var(--measure-reading);
+}
 @media (min-width: 860px) {
-  .previewColumn {
+  .previewInPane {
     position: sticky;
     top: calc(var(--size-topbar) + var(--space-6) + var(--space-4));
   }

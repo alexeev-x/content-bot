@@ -45,6 +45,8 @@ export const ru = {
     pickColor: 'Выбрать цвет',
     invalidHex: 'Введите цвет в формате #RRGGBB',
     timeZone: (zone: string, offset: string) => `Часовой пояс: ${zone} (${offset})`,
+    dateTimeTabs: 'Выбор даты и времени',
+    dateTab: 'Дата',
     timeSection: 'Время',
     hours: 'Часы',
     minutes: 'Минуты',
@@ -119,7 +121,7 @@ export const ru = {
     widgetLoading: 'Загрузка входа…',
     widgetFailedTitle: 'Не удалось загрузить вход через Telegram',
     widgetFailedBody:
-      'Скрипт или окно Telegram не загрузились. Отключите блокировщик рекламы или VPN для этой страницы и повторите.',
+      'Telegram не ответил. Проверьте доступ к telegram.org и oauth.telegram.org. При локальном запуске проверьте, что домен входа привязан к боту в настройках Telegram Login Widget у @BotFather.',
     botMissingTitle: 'Не задан бот для входа',
     botMissingBody:
       'В сборке нет имени бота для Telegram Login Widget. Задайте его в apps/frontend/vite.config.ts (TELEGRAM_BOT_USERNAMES) и пересоберите.',
@@ -152,8 +154,9 @@ export const ru = {
     noAccessTitle: 'Нет доступа',
     noAccessDescription: 'Админка доступна только владельцу, а этот аккаунт Telegram им не является.',
     noAccessAction: 'Войти другим аккаунтом',
+    retry: 'Повторить вход',
     unavailableTitle: 'Не удалось проверить вход',
-    unavailableDescription: 'Сервер не ответил. Данные не потеряны: повторите проверку.',
+    unavailableDescription: 'Сервер не ответил. Если проблема останется, попробуйте позже.',
     ownerMenu: 'Меню владельца',
     logout: 'Выйти'
   },

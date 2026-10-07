@@ -263,6 +263,9 @@
   padding: var(--space-6);
   outline: none;
 }
+.main:focus-visible {
+  outline: none;
+}
 
 /* Mini App: no top bar, so the content clears Telegram's content-safe inset itself. */
 .shell[data-mini-app] .main {

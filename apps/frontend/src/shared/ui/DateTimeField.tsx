@@ -17,6 +17,10 @@ import {
   Label,
   Popover,
   Provider,
+  Tab,
+  TabList,
+  TabPanel,
+  Tabs,
   Text,
   TimeField as AriaTimeField
 } from 'react-aria-components';
@@ -136,6 +140,25 @@ function TimePanel({ timeZone, minValue }: TimePanelProps) {
   );
 }
 
+function CalendarPanel() {
+  return (
+    <Calendar className={dateStyles.calendar}>
+      <header className={dateStyles.calendarHeader}>
+        <Button slot="previous" className={dateStyles.nav}>
+          <Icon name="chevron-left" size={18} />
+        </Button>
+        <Heading className={dateStyles.month} />
+        <Button slot="next" className={dateStyles.nav}>
+          <Icon name="chevron-right" size={18} />
+        </Button>
+      </header>
+      <CalendarGrid className={dateStyles.grid}>
+        {(date) => <CalendarCell date={date} className={dateStyles.cell} />}
+      </CalendarGrid>
+    </Calendar>
+  );
+}
+
 type Props = {
   label: string;
   value: ZonedDateTime | null;
@@ -204,21 +227,24 @@ export function DateTimeField({
         <FieldError className={styles.error}>{errorMessage}</FieldError>
         <Popover className={dateStyles.popover} offset={8}>
           <Dialog className={dateStyles.dialog}>
-            <Calendar className={dateStyles.calendar}>
-              <header className={dateStyles.calendarHeader}>
-                <Button slot="previous" className={dateStyles.nav}>
-                  <Icon name="chevron-left" size={18} />
-                </Button>
-                <Heading className={dateStyles.month} />
-                <Button slot="next" className={dateStyles.nav}>
-                  <Icon name="chevron-right" size={18} />
-                </Button>
-              </header>
-              <CalendarGrid className={dateStyles.grid}>
-                {(date) => <CalendarCell date={date} className={dateStyles.cell} />}
-              </CalendarGrid>
-            </Calendar>
-            <TimePanel timeZone={timeZone} minValue={minValue} />
+            <div className={dateStyles.desktopLayout}>
+              <CalendarPanel />
+              <TimePanel timeZone={timeZone} minValue={minValue} />
+            </div>
+            <div className={dateStyles.mobileLayout}>
+              <Tabs aria-label={ru.ui.dateTimeTabs}>
+                <TabList>
+                  <Tab id="date">{ru.ui.dateTab}</Tab>
+                  <Tab id="time">{ru.ui.timeSection}</Tab>
+                </TabList>
+                <TabPanel id="date">
+                  <CalendarPanel />
+                </TabPanel>
+                <TabPanel id="time">
+                  <TimePanel timeZone={timeZone} minValue={minValue} />
+                </TabPanel>
+              </Tabs>
+            </div>
           </Dialog>
         </Popover>
       </DatePicker>

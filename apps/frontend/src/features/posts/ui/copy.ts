@@ -22,6 +22,8 @@ export const postsCopy = {
     untitled: 'Без названия',
     emptyBody: 'Текст не заполнен',
     loaded: (count: number) => `Загружено постов: ${count}`,
+    sortLoadedOnly:
+      'Сортировка применяется к уже загруженным постам. Загрузите остальные, чтобы включить их в порядок.',
     loadMore: 'Показать ещё',
     loadingMore: 'Загружаем…',
     loadMoreFailed: 'Не удалось загрузить следующие посты.',
