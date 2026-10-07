@@ -125,6 +125,28 @@ describe('auth guard', () => {
     expect(await screen.findByText('Загрузка входа…')).toBeTruthy();
   });
 
+  it('keeps the app shell visible while a known browser session is restored', async () => {
+    window.localStorage.setItem('alexeev.has-session', '1');
+    let release = () => {};
+    const held = new Promise<void>((resolve) => (release = resolve));
+    server.use(
+      http.post('*/api/v1/auth/refresh', async () => {
+        await held;
+        return HttpResponse.json({ accessToken: 'restored', expiresAt: '2099-01-01T00:00:00.000Z' });
+      })
+    );
+
+    renderApp('/posts');
+    try {
+      expect(await screen.findByText('ALEXEEV')).toBeTruthy();
+      expect(screen.queryByText('Проверяем вход…')).toBeNull();
+      expect(document.querySelector('[aria-busy="true"]')).not.toBeNull();
+    } finally {
+      release();
+    }
+    expect(await screen.findByRole('heading', { name: 'Страница постов' })).toBeTruthy();
+  });
+
   it('restores a browser session with exactly one refresh call and shows the owner name and server appearance', async () => {
     let refreshes = 0;
     server.use(
