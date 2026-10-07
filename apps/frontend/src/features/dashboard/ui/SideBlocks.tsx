@@ -13,7 +13,7 @@ export function UpcomingBlock({ items }: { items: readonly DashboardPublicationD
     <Block
       title={copy.upcoming.title}
       action={
-        <Link to="/publications" className={styles.cardLink}>
+        <Link to="/publications" search={{ view: 'upcoming' }} className={styles.cardLink}>
           Все публикации
         </Link>
       }
@@ -30,6 +30,8 @@ export function UpcomingBlock({ items }: { items: readonly DashboardPublicationD
               title={item.postTitle}
               channel={item.destinationName}
               trail={<StatusBadge status={item.status} />}
+              to="/publications"
+              search={{ id: item.publicationId, view: 'upcoming' }}
             />
           ))}
         </ul>
@@ -44,7 +46,7 @@ export function RecentSentBlock({ items }: { items: readonly DashboardSentDto[] 
     <Block
       title={copy.recent.title}
       action={
-        <Link to="/publications" className={styles.cardLink}>
+        <Link to="/publications" search={{ view: 'recent' }} className={styles.cardLink}>
           Все публикации
         </Link>
       }
@@ -60,6 +62,8 @@ export function RecentSentBlock({ items }: { items: readonly DashboardSentDto[] 
               time={<time dateTime={item.sentAt}>{formatDayClock(item.sentAt)}</time>}
               title={item.postTitle}
               channel={item.destinationName}
+              to="/publications"
+              search={{ id: item.publicationId, view: 'recent' }}
               trail={
                 item.messageUrl ? (
                   <a
