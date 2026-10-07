@@ -22,15 +22,16 @@ type Props = {
   /** Merges into the URL search; filters and the page cursor are history entries, the drawer id too. */
   onSearchChange: (patch: Partial<PublicationsSearch>, options?: { replace?: boolean }) => void;
   onOpenPosts: () => void;
+  onCreatePost: () => void;
   /** Test hook: poll interval in ms (production uses the feature default of 15 s). */
   pollMs?: number;
 };
 
 const copy = publicationCopy;
 
-export function PublicationsPage({ search, onSearchChange, onOpenPosts, pollMs }: Props) {
+export function PublicationsPage({ search, onSearchChange, onOpenPosts, onCreatePost, pollMs }: Props) {
   useDocumentTitle(copy.list.title);
-  const { list, destinationList, postTitle, channel } = usePublicationsData(search, pollMs);
+  const { list, destinationList, post, postTitle, channel } = usePublicationsData(search, pollMs);
   const items = list.data?.items ?? [];
   const hasFilters =
     search.view !== undefined ||
@@ -61,7 +62,15 @@ export function PublicationsPage({ search, onSearchChange, onOpenPosts, pollMs }
 
   return (
     <>
-      <PageHeader title={copy.list.title} description={copy.list.description} />
+      <PageHeader
+        title={copy.list.title}
+        description={copy.list.description}
+        actions={
+          <Button icon="plus" onPress={onCreatePost}>
+            Создать публикацию
+          </Button>
+        }
+      />
       <PublicationsFilters
         view={search.view}
         status={search.status}
@@ -104,8 +113,9 @@ export function PublicationsPage({ search, onSearchChange, onOpenPosts, pollMs }
           <PublicationTable
             rows={items}
             isLoading={list.isPending}
-            postTitle={postTitle}
+            post={post}
             channel={channel}
+            activeId={search.id}
             onOpen={(id) => onSearchChange({ id })}
             emptyState={
               hasFilters || search.cursor ? (
@@ -157,6 +167,7 @@ export function PublicationsPage({ search, onSearchChange, onOpenPosts, pollMs }
         }}
         placeholder={openRow}
         postTitle={openRow ? postTitle(openRow) : undefined}
+        postBody={openRow ? post(openRow)?.body : undefined}
         destinationTitle={openDestination?.title}
         chatId={openDestination?.chatId}
         pollMs={pollMs}
