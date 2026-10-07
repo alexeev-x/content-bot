@@ -1,8 +1,8 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { publicationStatusSchema, type DestinationDto, type PublicationStatus } from '@alexeev/contracts';
 import { publicationCopy } from '../../features/publications';
 import { ru } from '../../shared/lib/ru';
-import { Button, Drawer, Select, useMediaQuery, VisuallyHidden } from '../../shared/ui';
+import { Button, Drawer, SearchField, Select, useMediaQuery, VisuallyHidden } from '../../shared/ui';
 import styles from './PublicationsPage.module.css';
 import type { PublicationView } from './search';
 
@@ -15,11 +15,13 @@ type Props = {
   view: PublicationView | undefined;
   status: PublicationStatus | undefined;
   channel: string | undefined;
+  q: string | undefined;
   order: 'asc' | 'desc' | undefined;
   destinations: readonly DestinationDto[];
   onViewChange: (view: PublicationView | undefined) => void;
   onStatusChange: (status: PublicationStatus | undefined) => void;
   onChannelChange: (channel: string | undefined) => void;
+  onQueryChange: (q: string | undefined) => void;
   onOrderChange: (order: 'asc' | 'desc') => void;
   onReset: () => void;
 };
@@ -36,21 +38,26 @@ export function PublicationsFilters({
   view,
   status,
   channel,
+  q,
   order,
   destinations,
   onViewChange,
   onStatusChange,
   onChannelChange,
+  onQueryChange,
   onOrderChange,
   onReset
 }: Props) {
   const copy = publicationCopy.filters;
   const narrow = useMediaQuery('(max-width: 859px)');
   const [open, setOpen] = useState(false);
+  const [queryDraft, setQueryDraft] = useState(q ?? '');
+  useEffect(() => setQueryDraft(q ?? ''), [q]);
   const activeCount =
     (view !== undefined ? 1 : 0) +
     (status !== undefined ? 1 : 0) +
     (channel !== undefined ? 1 : 0) +
+    (q !== undefined ? 1 : 0) +
     (order !== undefined ? 1 : 0);
   const hasFilters = activeCount > 0;
 
@@ -106,6 +113,20 @@ export function PublicationsFilters({
           );
         })}
       </fieldset>
+
+      <div className={styles.searchRow}>
+        <SearchField
+          label="Поиск публикаций"
+          placeholder="Поиск по заголовку и тексту…"
+          value={queryDraft}
+          onChange={setQueryDraft}
+          onSubmit={(value) => onQueryChange(value.trim() || undefined)}
+          onClear={() => {
+            setQueryDraft('');
+            onQueryChange(undefined);
+          }}
+        />
+      </div>
 
       {narrow ? (
         <>
