@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { publicationStatusSchema, type DestinationDto, type PublicationStatus } from '@alexeev/contracts';
 import { publicationCopy } from '../../features/publications';
 import { ru } from '../../shared/lib/ru';
-import { Button, Drawer, Select, useMediaQuery } from '../../shared/ui';
+import { Button, Drawer, Select, useMediaQuery, VisuallyHidden } from '../../shared/ui';
 import styles from './PublicationsPage.module.css';
 import type { PublicationView } from './search';
 
@@ -87,7 +87,10 @@ export function PublicationsFilters({
 
   return (
     <section className={styles.filterPanel} aria-label="Фильтры публикаций">
-      <div className={styles.presets} role="group" aria-label="Быстрые фильтры">
+      <fieldset className={styles.presets}>
+        <VisuallyHidden>
+          <legend>Быстрые фильтры</legend>
+        </VisuallyHidden>
         {presets.map((preset) => {
           const selected = preset.id === 'all' ? view === undefined : view === preset.id;
           return (
@@ -101,7 +104,7 @@ export function PublicationsFilters({
             </Button>
           );
         })}
-      </div>
+      </fieldset>
 
       {narrow ? (
         <>
