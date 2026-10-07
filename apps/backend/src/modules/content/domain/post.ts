@@ -1,9 +1,13 @@
+import type { PostEntity } from '@alexeev/contracts';
+
 export type PostStatus = 'draft' | 'approved';
 
 export interface Post {
   id: string;
   title: string;
   body: string;
+  /** Telegram entities of `body` in their normal form; offsets are UTF-16 code units. */
+  entities: PostEntity[];
   revision: number;
   status: PostStatus;
   /** UTC epoch milliseconds; null while the post is live. */

@@ -100,7 +100,10 @@ export function PostEditor({ post, onCreated, approvedActions, aside }: Props) {
   const fields = (
     <PostFields
       control={editor.form.control}
+      setValue={editor.form.setValue}
       title={editor.title}
+      body={editor.body}
+      entities={editor.entities}
       isReadOnly={editor.readOnly}
       isNew={editor.isNew}
       length={editor.length}
@@ -109,7 +112,7 @@ export function PostEditor({ post, onCreated, approvedActions, aside }: Props) {
   );
   const preview = (
     <div className={`${styles.previewColumn} ${showApprovedPreview ? styles.previewStandalone : styles.previewInPane}`}>
-      <PostPreview title={editor.title} body={editor.body} length={editor.length} />
+      <PostPreview title={editor.title} body={editor.body} entities={editor.entities} length={editor.length} />
       {aside}
     </div>
   );

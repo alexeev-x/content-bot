@@ -1,3 +1,4 @@
+import { type PostEntity, postEntityListSchema } from '@alexeev/contracts';
 import { completeIdempotencyStatement, ownsClaimSql } from '../../../platform/idempotency/d1-idempotency-store';
 import type { ListPostsQuery, PostChange, PostRecord, PostRepository } from '../application/ports';
 import type { PostStatus } from '../domain/post';
@@ -6,6 +7,8 @@ interface PostRow {
   id: string;
   title: string;
   body: string;
+  /** JSON list of entities, always valid and within the cap (CHECK in migration 0011). */
+  entities: string;
   status: PostStatus;
   revision: number;
   archived_at: number | null;
@@ -13,13 +16,20 @@ interface PostRow {
   updated_at: number;
 }
 
-const POST_COLUMNS = 'id, title, body, status, revision, archived_at, created_at, updated_at';
+const POST_COLUMNS = 'id, title, body, entities, status, revision, archived_at, created_at, updated_at';
+
+// Every write goes through the contract schemas, so a stored list that does not parse is damaged data:
+// it fails loudly instead of being sent or shown with other offsets.
+function parseEntities(stored: string): PostEntity[] {
+  return postEntityListSchema.parse(JSON.parse(stored));
+}
 
 function toRecord(row: PostRow): PostRecord {
   return {
     id: row.id,
     title: row.title,
     body: row.body,
+    entities: parseEntities(row.entities),
     status: row.status,
     revision: row.revision,
     archivedAt: row.archived_at,
@@ -69,19 +79,20 @@ export function createD1PostRepository(db: D1Database): PostRepository {
   return {
     async create({ record, actor, idempotency, response }) {
       const claim = [idempotency.scope, idempotency.key, idempotency.requestHash, idempotency.claimedAt];
+      const entities = JSON.stringify(record.entities);
       const results = await db.batch([
         db
           .prepare(
-            `INSERT INTO posts (id, title, body, status, revision, created_at, updated_at)
-             SELECT ?1, ?2, ?3, 'draft', 0, ?4, ?4 WHERE ${ownsClaimSql(5)}`
+            `INSERT INTO posts (id, title, body, entities, status, revision, created_at, updated_at)
+             SELECT ?1, ?2, ?3, ?4, 'draft', 0, ?5, ?5 WHERE ${ownsClaimSql(6)}`
           )
-          .bind(record.id, record.title, record.body, record.createdAt, ...claim),
+          .bind(record.id, record.title, record.body, entities, record.createdAt, ...claim),
         db
           .prepare(
-            `INSERT INTO post_revisions (post_id, revision, title, body, status, created_at)
-             SELECT ?1, 0, ?2, ?3, 'draft', ?4 WHERE ${ownsClaimSql(5)}`
+            `INSERT INTO post_revisions (post_id, revision, title, body, entities, status, created_at)
+             SELECT ?1, 0, ?2, ?3, ?4, 'draft', ?5 WHERE ${ownsClaimSql(6)}`
           )
-          .bind(record.id, record.title, record.body, record.createdAt, ...claim),
+          .bind(record.id, record.title, record.body, entities, record.createdAt, ...claim),
         db
           .prepare(
             `INSERT INTO audit_log (actor_telegram_id, action, entity_type, entity_id, created_at, details)
@@ -100,10 +111,11 @@ export function createD1PostRepository(db: D1Database): PostRepository {
 
     // A revision is an immutable snapshot (primary key post_id + revision): what a publication sends.
     async findRevision(postId, revision) {
-      return db
-        .prepare('SELECT title, body FROM post_revisions WHERE post_id = ?1 AND revision = ?2')
+      const row = await db
+        .prepare('SELECT title, body, entities FROM post_revisions WHERE post_id = ?1 AND revision = ?2')
         .bind(postId, revision)
-        .first<{ title: string; body: string }>();
+        .first<{ title: string; body: string; entities: string }>();
+      return row === null ? null : { title: row.title, body: row.body, entities: parseEntities(row.entities) };
     },
 
     async list(query) {
@@ -122,21 +134,28 @@ export function createD1PostRepository(db: D1Database): PostRepository {
     },
 
     async update(change) {
-      const fields = [...(change.title === undefined ? [] : ['title']), ...(change.body === undefined ? [] : ['body'])];
+      const fields = [
+        ...(change.title === undefined ? [] : ['title']),
+        ...(change.body === undefined ? [] : ['body']),
+        ...(change.entities === undefined ? [] : ['entities'])
+      ];
+      const entities = change.entities === undefined ? null : JSON.stringify(change.entities);
       const results = await db.batch<PostRow>([
         db
           .prepare(
-            `INSERT INTO post_revisions (post_id, revision, title, body, status, created_at)
-             SELECT id, revision + 1, COALESCE(?3, title), COALESCE(?4, body), status, ?5 FROM posts WHERE ${GUARD}`
+            `INSERT INTO post_revisions (post_id, revision, title, body, entities, status, created_at)
+             SELECT id, revision + 1, COALESCE(?3, title), COALESCE(?4, body), COALESCE(?5, entities), status, ?6
+             FROM posts WHERE ${GUARD}`
           )
-          .bind(change.id, change.expectedRevision, change.title ?? null, change.body ?? null, change.now),
+          .bind(change.id, change.expectedRevision, change.title ?? null, change.body ?? null, entities, change.now),
         auditStatement(db, 'post.update', change, { revision: change.expectedRevision + 1, fields }),
         db
           .prepare(
-            `UPDATE posts SET title = COALESCE(?3, title), body = COALESCE(?4, body), revision = revision + 1, updated_at = ?5
+            `UPDATE posts SET title = COALESCE(?3, title), body = COALESCE(?4, body), entities = COALESCE(?5, entities),
+               revision = revision + 1, updated_at = ?6
              WHERE ${GUARD} RETURNING ${POST_COLUMNS}`
           )
-          .bind(change.id, change.expectedRevision, change.title ?? null, change.body ?? null, change.now)
+          .bind(change.id, change.expectedRevision, change.title ?? null, change.body ?? null, entities, change.now)
       ]);
       const row = results[2]?.results[0];
       return row === undefined ? null : toRecord(row);
@@ -146,8 +165,8 @@ export function createD1PostRepository(db: D1Database): PostRepository {
       const results = await db.batch<PostRow>([
         db
           .prepare(
-            `INSERT INTO post_revisions (post_id, revision, title, body, status, created_at)
-             SELECT id, revision + 1, title, body, 'approved', ?3 FROM posts WHERE ${GUARD}`
+            `INSERT INTO post_revisions (post_id, revision, title, body, entities, status, created_at)
+             SELECT id, revision + 1, title, body, entities, 'approved', ?3 FROM posts WHERE ${GUARD}`
           )
           .bind(change.id, change.expectedRevision, change.now),
         db

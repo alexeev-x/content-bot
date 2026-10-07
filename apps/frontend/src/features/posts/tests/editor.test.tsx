@@ -18,6 +18,26 @@ afterEach(cleanup);
 const titleBox = () => screen.getByRole('textbox', { name: /Заголовок/ });
 const bodyBox = () => screen.getByRole('textbox', { name: 'Текст' });
 
+/** user-event puts the caret at the start of a contenteditable (it keeps the end of a textarea): move it by hand. */
+async function typeAtEnd(user: ReturnType<typeof userEvent.setup>, text: string) {
+  const box = bodyBox();
+  box.focus();
+  const selection = window.getSelection();
+  selection?.selectAllChildren(box);
+  selection?.collapseToEnd();
+  await user.keyboard(text);
+}
+
+// Ctrl+A goes through ProseMirror's own keymap; a DOM selection (user.clear) reaches the editor state only on a
+// later selectionchange, so under load the typed text landed before the old one.
+async function replaceBody(user: ReturnType<typeof userEvent.setup>, text: string) {
+  const box = bodyBox();
+  box.focus();
+  await user.keyboard('{Control>}a{/Control}');
+  await user.paste(text);
+  await waitFor(() => expect(box.textContent).toBe(text));
+}
+
 async function openExisting(overrides = {}) {
   server.use(http.get('*/api/v1/posts/:id', () => HttpResponse.json(post(overrides))));
   const app = renderEditorApp(`/posts/${ids.post}`);
@@ -43,7 +63,7 @@ describe('create', () => {
     await waitFor(() => expect(router.state.location.pathname).toBe(`/posts/${ids.post}`));
     expect(seen).toHaveLength(1);
     expect(seen[0]?.key).toBeTruthy();
-    expect(seen[0]?.body).toEqual({ title: 'Новый', body: 'Текст' });
+    expect(seen[0]?.body).toEqual({ title: 'Новый', body: 'Текст', entities: [] });
     // The leave guard did not interrupt the navigation that follows a successful create.
     expect(screen.queryByRole('alertdialog')).toBeNull();
     expect(await screen.findByText(/Сохранено в/)).toBeTruthy();
@@ -64,7 +84,7 @@ describe('create', () => {
     expect(await screen.findByText('Введите заголовок')).toBeTruthy();
     expect(titleBox().getAttribute('aria-invalid')).toBe('true');
     expect(calls).toBe(0);
-    expect((bodyBox() as HTMLTextAreaElement).value).toBe('Только текст');
+    expect(bodyBox().textContent).toBe('Только текст');
   });
 });
 
@@ -96,11 +116,10 @@ describe('save', () => {
       })
     );
     const { router } = await openExisting();
-    await user.clear(bodyBox());
-    await user.type(bodyBox(), 'Правка');
+    await replaceBody(user, 'Правка');
     await user.click(screen.getByRole('button', { name: 'Сохранить и выйти' }));
     await waitFor(() => expect(router.state.location.pathname).toBe('/posts'));
-    expect(bodies).toEqual([{ revision: 0, body: 'Правка' }]);
+    expect(bodies).toEqual([{ revision: 0, body: 'Правка', entities: [] }]);
     expect(screen.queryByRole('alertdialog')).toBeNull();
   });
 
@@ -116,15 +135,14 @@ describe('save', () => {
       })
     );
     const { router } = await openExisting();
-    await user.clear(bodyBox());
-    await user.type(bodyBox(), 'Правка');
+    await replaceBody(user, 'Правка');
     await user.click(screen.getByRole('button', { name: 'Сохранить и выйти' }));
     await waitFor(() => expect(complete).toBeDefined());
-    await user.type(bodyBox(), '!');
+    await typeAtEnd(user, '!');
     complete?.();
     await waitFor(() => expect(screen.getByText('Есть несохранённые изменения')).toBeTruthy());
     expect(router.state.location.pathname).toBe(`/posts/${ids.post}`);
-    expect((bodyBox() as HTMLTextAreaElement).value).toBe('Правка!');
+    expect(bodyBox().textContent).toBe('Правка!');
   });
 
   it('saves only the changed field with the baseline revision on Ctrl+S, and keeps focus-free status text', async () => {
@@ -137,11 +155,10 @@ describe('save', () => {
       })
     );
     await openExisting();
-    await user.clear(bodyBox());
-    await user.type(bodyBox(), 'Правка');
+    await replaceBody(user, 'Правка');
     expect(screen.getByText('Есть несохранённые изменения')).toBeTruthy();
     await user.keyboard('{Control>}s{/Control}');
-    await waitFor(() => expect(bodies).toEqual([{ revision: 0, body: 'Правка' }]));
+    await waitFor(() => expect(bodies).toEqual([{ revision: 0, body: 'Правка', entities: [] }]));
     expect(await screen.findByText(/Сохранено в/)).toBeTruthy();
     expect(screen.getByText('Ревизия 1')).toBeTruthy();
   });
@@ -150,12 +167,12 @@ describe('save', () => {
     const user = userEvent.setup();
     await openExisting();
     server.use(failWith('patch', `/api/v1/posts/${ids.post}`, { status: 503, code: 'UNAVAILABLE' }));
-    await user.type(bodyBox(), ' дополнение');
+    await typeAtEnd(user, ' дополнение');
     await user.click(screen.getByRole('button', { name: 'Сохранить и выйти' }));
     const alert = await screen.findByRole('alert');
     expect(alert.textContent).toContain('req-test-1');
     expect(alert.textContent).toContain('Ваш текст остался в редакторе');
-    expect((bodyBox() as HTMLTextAreaElement).value).toBe('Текст поста дополнение');
+    expect(bodyBox().textContent).toBe('Текст поста дополнение');
     expect(screen.getByText('Не сохранено')).toBeTruthy();
   });
 });
@@ -177,13 +194,12 @@ describe('409 STALE_REVISION', () => {
           : HttpResponse.json(post({ revision: 4, body: 'Мой текст' }));
       })
     );
-    await user.clear(bodyBox());
-    await user.type(bodyBox(), 'Мой текст');
+    await replaceBody(user, 'Мой текст');
     await user.click(screen.getByRole('button', { name: 'Сохранить и выйти' }));
 
     const banner = await screen.findByText('Пост уже изменён в другом месте');
     expect(banner).toBeTruthy();
-    expect((bodyBox() as HTMLTextAreaElement).value).toBe('Мой текст');
+    expect(bodyBox().textContent).toBe('Мой текст');
 
     await user.click(await screen.findByRole('button', { name: 'Показать серверную версию' }));
     const dialog = await screen.findByRole('dialog', { name: 'Сравнение версий' });
@@ -199,8 +215,8 @@ describe('409 STALE_REVISION', () => {
 
     await waitFor(() =>
       expect(patches).toEqual([
-        { revision: 0, body: 'Мой текст' },
-        { revision: 3, title: 'Заголовок', body: 'Мой текст' }
+        { revision: 0, body: 'Мой текст', entities: [] },
+        { revision: 3, title: 'Заголовок', body: 'Мой текст', entities: [] }
       ])
     );
     await waitFor(() => expect(screen.queryByText('Пост уже изменён в другом месте')).toBeNull());
@@ -268,11 +284,12 @@ describe('approve', () => {
       failWith('patch', `/api/v1/posts/${ids.post}`, { status: 409, code: 'CONFLICT', reason: 'NOT_EDITABLE' }),
       http.get('*/api/v1/posts/:id', () => HttpResponse.json(post({ status: 'approved', revision: 1 })))
     );
-    await user.type(bodyBox(), '!');
+    await typeAtEnd(user, '!');
     await user.click(screen.getByRole('button', { name: 'Сохранить и выйти' }));
     expect(await screen.findByText('Пост уже одобрен в другом месте')).toBeTruthy();
-    expect((bodyBox() as HTMLTextAreaElement).value).toBe('Текст поста!');
-    expect(bodyBox().hasAttribute('readonly')).toBe(true);
+    expect(bodyBox().textContent).toBe('Текст поста!');
+    expect(bodyBox().getAttribute('aria-readonly')).toBe('true');
+    expect(bodyBox().getAttribute('contenteditable')).toBe('false');
   });
 });
 
@@ -280,12 +297,12 @@ describe('leave guard', () => {
   it('asks before leaving with unsaved text; staying keeps the text, leaving navigates', async () => {
     const user = userEvent.setup();
     const { router } = await openExisting();
-    await user.type(bodyBox(), '!');
+    await typeAtEnd(user, '!');
     await user.click(screen.getByRole('link', { name: 'Уйти' }));
     const dialog = await screen.findByRole('alertdialog', { name: 'Выйти без сохранения?' });
     await user.click(within(dialog).getByRole('button', { name: 'Остаться' }));
     expect(router.state.location.pathname).toBe(`/posts/${ids.post}`);
-    expect((bodyBox() as HTMLTextAreaElement).value).toBe('Текст поста!');
+    expect(bodyBox().textContent).toBe('Текст поста!');
 
     await user.click(screen.getByRole('link', { name: 'Уйти' }));
     await user.click(
@@ -302,7 +319,7 @@ describe('leave guard', () => {
     const clean = new Event('beforeunload', { cancelable: true });
     window.dispatchEvent(clean);
     expect(clean.defaultPrevented).toBe(false);
-    await user.type(bodyBox(), '!');
+    await typeAtEnd(user, '!');
     const dirty = new Event('beforeunload', { cancelable: true });
     window.dispatchEvent(dirty);
     expect(dirty.defaultPrevented).toBe(true);

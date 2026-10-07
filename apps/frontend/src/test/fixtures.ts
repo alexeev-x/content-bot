@@ -58,6 +58,7 @@ export const post = (overrides: Partial<PostDto> = {}): PostDto => ({
   id: ids.post,
   title: 'Заголовок',
   body: 'Текст поста',
+  entities: [],
   revision: 0,
   status: 'draft',
   archivedAt: null,

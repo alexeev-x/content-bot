@@ -31,6 +31,7 @@ export function toPostDto(record: PostRecord, summary: PostPublicationSummary = 
     id: record.id,
     title: record.title,
     body: record.body,
+    entities: record.entities,
     revision: record.revision,
     status: record.status,
     archivedAt: record.archivedAt === null ? null : iso(record.archivedAt),

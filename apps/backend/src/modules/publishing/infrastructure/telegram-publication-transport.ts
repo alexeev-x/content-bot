@@ -1,3 +1,4 @@
+import type { PostEntity } from '@alexeev/contracts';
 import type { PublicationTransport } from '../application/ports';
 import { SEND_TIMEOUT_MS } from '../domain/dispatch-policy';
 import { classifySendResult, classifyTelegramError } from './classify-telegram-result';
@@ -7,27 +8,27 @@ export interface TelegramSender {
   sendMessage(
     chatId: string,
     text: string,
-    other: { parse_mode: 'HTML'; link_preview_options: { is_disabled: boolean } },
+    other: { entities: PostEntity[]; link_preview_options: { is_disabled: boolean } },
     signal: AbortSignal
   ): Promise<unknown>;
 }
 
 // Never throws: every answer, error and timeout becomes a SendOutcome, so "unclear means unknown"
-// is visible in the types (docs/BACKEND_ARCHITECTURE.md §4). The text is HTML made by
-// formatPublicationText; link previews are switched off explicitly so a pasted link never turns
-// a curated post into a surprise card.
+// is visible in the types (docs/BACKEND_ARCHITECTURE.md §4). The message is plain text plus the
+// entities made by formatPublicationText, with no parse_mode; link previews are switched off
+// explicitly so a pasted link never turns a curated post into a surprise card.
 export function createTelegramPublicationTransport(
   sender: TelegramSender,
   timeoutMs: number = SEND_TIMEOUT_MS
 ): PublicationTransport {
   return {
-    async send({ chatId, text }) {
+    async send({ chatId, text, entities }) {
       const signal = AbortSignal.timeout(timeoutMs);
       try {
         const message = await sender.sendMessage(
           chatId,
           text,
-          { parse_mode: 'HTML', link_preview_options: { is_disabled: true } },
+          { entities, link_preview_options: { is_disabled: true } },
           signal
         );
         return classifySendResult(message);

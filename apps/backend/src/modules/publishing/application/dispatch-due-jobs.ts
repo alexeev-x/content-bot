@@ -1,3 +1,4 @@
+import type { PostEntity } from '@alexeev/contracts';
 import type { Clock } from '../../../platform/clock';
 import type { Logger } from '../../../platform/logging/logger';
 import { attemptsExhausted, DISPATCH_BATCH, LEASE_MS, minLeaseForSend, retryRunAt } from '../domain/dispatch-policy';
@@ -141,14 +142,18 @@ async function dispatchJob(deps: DispatchDeps, jobId: string, budget: TickBudget
     return 'not_sent';
   }
 
-  const outcome = await sendOnce(deps, target.chatId, message.html);
+  const outcome = await sendOnce(deps, target.chatId, message);
   return resolveSent(deps, budget, claimed, startedAt, context, outcome);
 }
 
 // The transport must not throw, but a throw after the mark is exactly the ambiguous case.
-async function sendOnce(deps: DispatchDeps, chatId: string, text: string): Promise<SendOutcome> {
+async function sendOnce(
+  deps: DispatchDeps,
+  chatId: string,
+  message: { text: string; entities: PostEntity[] }
+): Promise<SendOutcome> {
   try {
-    return await deps.transport.send({ chatId, text });
+    return await deps.transport.send({ chatId, text: message.text, entities: message.entities });
   } catch {
     return { kind: 'unknown', reason: 'transport_threw' };
   }

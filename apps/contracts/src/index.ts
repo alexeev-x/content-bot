@@ -5,6 +5,7 @@ export * from './destinations';
 export * from './errors';
 export * from './incidents';
 export * from './pagination';
+export * from './post-entities';
 export * from './posts';
 export * from './publications';
 export * from './settings';

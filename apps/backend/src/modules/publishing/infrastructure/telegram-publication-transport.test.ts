@@ -1,3 +1,4 @@
+import type { PostEntity } from '@alexeev/contracts';
 import { GrammyError, HttpError } from 'grammy';
 import { describe, expect, it } from 'vitest';
 import { createTelegramPublicationTransport, type TelegramSender } from './telegram-publication-transport';
@@ -19,15 +20,18 @@ const apiError = (code: number, description: string, parameters: Record<string, 
   });
 
 describe('the Telegram transport adapter', () => {
-  it('sends HTML with link previews explicitly disabled and returns the message id', async () => {
+  it('sends plain text with its entities, no parse_mode and link previews disabled, and returns the message id', async () => {
     const sender = senderOf(() => Promise.resolve({ message_id: 12 }));
+    const entities: PostEntity[] = [
+      { type: 'bold', offset: 0, length: 1 },
+      { type: 'text_link', offset: 2, length: 3, url: 'https://example.com/a' }
+    ];
 
-    const outcome = await createTelegramPublicationTransport(sender).send({ chatId: '-100', text: '<b>x</b>' });
+    const outcome = await createTelegramPublicationTransport(sender).send({ chatId: '-100', text: 'x <b>', entities });
 
     expect(outcome).toEqual({ kind: 'sent', externalMessageId: '12' });
-    expect(sender.requests).toEqual([
-      ['-100', '<b>x</b>', { parse_mode: 'HTML', link_preview_options: { is_disabled: true } }]
-    ]);
+    expect(sender.requests).toEqual([['-100', 'x <b>', { entities, link_preview_options: { is_disabled: true } }]]);
+    expect(sender.requests[0]?.[2]).not.toHaveProperty('parse_mode');
   });
 
   it('hands the sender a signal that aborts at the timeout, and reports the timeout as unknown', async () => {
@@ -41,7 +45,7 @@ describe('the Telegram transport adapter', () => {
         })
     );
 
-    const outcome = await createTelegramPublicationTransport(sender, 10).send({ chatId: '1', text: 't' });
+    const outcome = await createTelegramPublicationTransport(sender, 10).send({ chatId: '1', text: 't', entities: [] });
 
     expect(received).toBeInstanceOf(AbortSignal);
     expect(outcome).toEqual({ kind: 'unknown', reason: 'timeout' });
@@ -55,15 +59,17 @@ describe('the Telegram transport adapter', () => {
   ])('maps %# to its outcome and never throws', async (error, expected) => {
     const sender = senderOf(() => Promise.reject(error));
 
-    await expect(createTelegramPublicationTransport(sender).send({ chatId: '1', text: 't' })).resolves.toEqual(
-      expected
-    );
+    await expect(
+      createTelegramPublicationTransport(sender).send({ chatId: '1', text: 't', entities: [] })
+    ).resolves.toEqual(expected);
   });
 
   it('an ok answer without a message id is unknown, not sent', async () => {
     const sender = senderOf(() => Promise.resolve({ chat: { id: 1 } }));
 
-    await expect(createTelegramPublicationTransport(sender).send({ chatId: '1', text: 't' })).resolves.toEqual({
+    await expect(
+      createTelegramPublicationTransport(sender).send({ chatId: '1', text: 't', entities: [] })
+    ).resolves.toEqual({
       kind: 'unknown',
       reason: 'ok_without_message_id'
     });

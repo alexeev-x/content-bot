@@ -46,13 +46,19 @@ const tickWith = (
 ) => makeTick({ clock, transport, ...extra });
 
 describe('a due job is sent once and recorded', () => {
-  it('sends the escaped HTML message to the destination and marks everything in D1', async () => {
+  it('sends the plain text with a bold title entity to the destination and marks everything in D1', async () => {
     const { publicationId, jobId, chatId } = await seedDueJob(api);
     const transport = fakeTransport(SENT);
 
     await tickWith(transport).run();
 
-    expect(transport.calls).toEqual([{ chatId, text: '<b>Patch 7.40</b>\n\nBody text' }]);
+    expect(transport.calls).toEqual([
+      {
+        chatId,
+        text: 'Patch 7.40\n\nBody text',
+        entities: [{ type: 'bold', offset: 0, length: 'Patch 7.40'.length }]
+      }
+    ]);
     const job = await jobOf(publicationId);
     expect(job).toMatchObject({ status: 'succeeded', attempts: 1, lease_until: null });
     expect(job.send_started_at).toBe(START);
@@ -119,7 +125,7 @@ describe('a due job is sent once and recorded', () => {
     expect(transport.calls).toHaveLength(1);
   });
 
-  it('escapes <, > and & (and quotes) in the post, so user text can never become markup', async () => {
+  it('sends <, > and & (and quotes) as plain characters, so user text can never become markup', async () => {
     const post = await seedApprovedPost(api, 'Tom & Jerry <b>');
     await testDb()
       .prepare("UPDATE post_revisions SET body = ?1 WHERE post_id = ?2 AND status = 'approved'")
@@ -145,7 +151,8 @@ describe('a due job is sent once and recorded', () => {
     expect(transport.calls).toEqual([
       {
         chatId: '-1001',
-        text: '<b>Tom &amp; Jerry &lt;b&gt;</b>\n\n1 &lt; 2 &gt; 0 &amp;&amp; &quot;quoted&quot; &lt;script&gt;'
+        text: 'Tom & Jerry <b>\n\n1 < 2 > 0 && "quoted" <script>',
+        entities: [{ type: 'bold', offset: 0, length: 'Tom & Jerry <b>'.length }]
       }
     ]);
   });
@@ -499,7 +506,11 @@ describe('what Telegram answers', () => {
 
     expect(job.status).toBe('succeeded');
     expect((await publicationOf(publicationId)).external_message_id).toBe('321');
-    expect(sender.requests[0]?.other).toEqual({ parse_mode: 'HTML', link_preview_options: { is_disabled: true } });
+    expect(sender.requests[0]?.other).toEqual({
+      entities: [{ type: 'bold', offset: 0, length: 'Patch 7.40'.length }],
+      link_preview_options: { is_disabled: true }
+    });
+    expect(sender.requests[0]?.other).not.toHaveProperty('parse_mode');
   });
 
   it('429: retry_wait at retry_after, send mark cleared, no incident', async () => {

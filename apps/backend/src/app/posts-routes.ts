@@ -5,6 +5,7 @@ import {
   createPostInputSchema,
   deletePostInputSchema,
   listPostsQuerySchema,
+  POST_ENTITY_ISSUE_CODES,
   restorePostInputSchema,
   updatePostInputSchema
 } from '@alexeev/contracts';
@@ -17,7 +18,8 @@ import type { AppBindings } from './env';
 import { limitBody, validated } from './validation';
 import { restoreAndReadPost } from './workflows/restore-post';
 
-// Worst case a 4096-character body is six bytes per character once JSON-escaped.
+// Worst valid post request: 12 288 body bytes (4096 characters of three-byte UTF-8), 600 title bytes and up to
+// 16 384 bytes of entities (POST_ENTITIES_JSON_MAX, ASCII only) plus keys: about 29.4 KB, so 32 KB is enough.
 const MAX_BODY_BYTES = 32 * 1024;
 
 const idempotencyHeaderSchema = z.object({ 'idempotency-key': z.string().min(1).max(255) });
@@ -35,7 +37,7 @@ export const postsRoutes = new Hono<AppBindings>()
     '/',
     limitBody(MAX_BODY_BYTES),
     validated('header', idempotencyHeaderSchema),
-    validated('json', createPostInputSchema),
+    validated('json', createPostInputSchema, { reasons: POST_ENTITY_ISSUE_CODES }),
     async (c) => {
       const container = c.get('container');
       const post = await createPost(
@@ -102,7 +104,7 @@ export const postsRoutes = new Hono<AppBindings>()
     '/:id',
     limitBody(MAX_BODY_BYTES),
     validated('param', idParamSchema),
-    validated('json', updatePostInputSchema),
+    validated('json', updatePostInputSchema, { reasons: POST_ENTITY_ISSUE_CODES }),
     async (c) => {
       const container = c.get('container');
       const post = await updatePost(

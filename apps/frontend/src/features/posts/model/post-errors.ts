@@ -10,6 +10,18 @@ function messageFor(kind: ApiErrorKind): string {
   switch (kind) {
     case 'validation':
       return copy.validation;
+    case 'entities_too_many':
+      return copy.entitiesTooMany;
+    case 'entities_too_large':
+      return copy.entitiesTooLarge;
+    case 'entities_out_of_range':
+      return copy.entitiesOutOfRange;
+    case 'entities_split_surrogate':
+      return copy.entitiesSplitSurrogate;
+    case 'entities_invalid_nesting':
+      return copy.entitiesInvalidNesting;
+    case 'entities_required':
+      return copy.entitiesRequired;
     case 'payload_too_large':
       return copy.tooLarge;
     case 'unavailable':

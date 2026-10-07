@@ -305,7 +305,7 @@ describe('PATCH /api/v1/posts/:id', () => {
     expect(updated.createdAt).toBe(created.createdAt);
     expect(updated.updatedAt).toBe(new Date(START + 5_000).toISOString());
 
-    const second = await patch(created.id, { revision: 1, body: '' });
+    const second = await patch(created.id, { revision: 1, body: '', entities: [] });
     expect(postSchema.parse(await second.json())).toMatchObject({ title: 'New', body: '', revision: 2 });
 
     const revisions = await testDb()
@@ -322,7 +322,7 @@ describe('PATCH /api/v1/posts/:id', () => {
       .all();
     expect(audit.results).toEqual([
       { action: 'post.update', details: '{"revision":1,"fields":["title"]}' },
-      { action: 'post.update', details: '{"revision":2,"fields":["body"]}' }
+      { action: 'post.update', details: '{"revision":2,"fields":["body","entities"]}' }
     ]);
   });
 
@@ -379,13 +379,13 @@ describe('PATCH /api/v1/posts/:id', () => {
 
   it.each([
     ['a NUL title', { revision: 0, title: '\u0000' }],
-    ['a control character in the body', { revision: 0, body: 'a\u0007b' }],
-    ['lone surrogates in the body', { revision: 0, body: '\ud800\ud800\ud800' }],
+    ['a control character in the body', { revision: 0, body: 'a\u0007b', entities: [] }],
+    ['lone surrogates in the body', { revision: 0, body: '\ud800\ud800\ud800', entities: [] }],
     ['nothing to update', { revision: 0 }],
     ['a missing revision', { title: 'T' }],
     ['a negative revision', { revision: -1, title: 'T' }],
     ['a blank title', { revision: 0, title: ' ' }],
-    ['an oversized body', { revision: 0, body: 'b'.repeat(4097) }],
+    ['an oversized body', { revision: 0, body: 'b'.repeat(4097), entities: [] }],
     ['a status change', { revision: 0, title: 'T', status: 'approved' }]
   ])('answers 400 for %s', async (_name, json) => {
     const created = await create({ title: 'T' });
@@ -419,7 +419,7 @@ describe('POST /api/v1/posts/:id/approve', () => {
 
   it('answers 409 STALE_REVISION for an old revision', async () => {
     const created = await create({ title: 'T', body: 'x' });
-    await patch(created.id, { revision: 0, body: 'y' });
+    await patch(created.id, { revision: 0, body: 'y', entities: [] });
 
     await expectError(await approve(created.id, { revision: 0 }), 409, 'CONFLICT', { reason: 'STALE_REVISION' });
   });
@@ -449,7 +449,7 @@ describe('POST /api/v1/posts/:id/approve', () => {
     const created = await create({ title: 'T', body: 'x' });
 
     const responses = await Promise.all([
-      patch(created.id, { revision: 0, body: 'y' }),
+      patch(created.id, { revision: 0, body: 'y', entities: [] }),
       approve(created.id, { revision: 0 })
     ]);
 

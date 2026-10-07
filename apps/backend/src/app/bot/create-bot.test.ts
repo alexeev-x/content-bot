@@ -408,7 +408,7 @@ describe('drafts from messages', () => {
 
     expect(setup.drafts).toEqual([
       {
-        input: { title: 'Релиз 7.40 🚀', body: 'Новые герои 👩‍💻 и баланс\n- первое\n- второе' },
+        input: { title: 'Релиз 7.40 🚀', body: 'Новые герои 👩‍💻 и баланс\n- первое\n- второе', entities: [] },
         key: 'tg-update-100'
       }
     ]);
@@ -429,7 +429,7 @@ describe('drafts from messages', () => {
   it('a single line is the title with an empty body', async () => {
     const setup = harness();
     await runUpdates([textUpdate(4242, '  Просто строка  ')], { setup });
-    expect(setup.drafts[0]?.input).toEqual({ title: 'Просто строка', body: '' });
+    expect(setup.drafts[0]?.input).toEqual({ title: 'Просто строка', body: '', entities: [] });
   });
 
   it('cuts a first line longer than the title limit between whole characters and keeps the rest in the body', async () => {

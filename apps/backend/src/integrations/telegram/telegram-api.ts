@@ -1,11 +1,13 @@
+import type { PostEntity } from '@alexeev/contracts';
 import { Api } from 'grammy';
 
-// The one call publishing needs, typed with the platform's AbortSignal.
+// The one call publishing needs, typed with the platform's AbortSignal. The text goes out as plain text with
+// explicit entities and never with a parse_mode: nothing in a post can be read as markup.
 export interface TelegramSendApi {
   sendMessage(
     chatId: string,
     text: string,
-    other: { parse_mode: 'HTML'; link_preview_options: { is_disabled: boolean } },
+    other: { entities: PostEntity[]; link_preview_options: { is_disabled: boolean } },
     signal: AbortSignal
   ): Promise<unknown>;
 }

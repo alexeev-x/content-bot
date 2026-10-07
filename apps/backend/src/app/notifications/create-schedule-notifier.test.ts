@@ -37,7 +37,7 @@ function deps(overrides: Partial<ScheduleNotifierDeps>): ScheduleNotifierDeps {
     messenger: fakeOwnerMessenger(),
     ownerChatId: '4242',
     appOrigin: 'https://studio.example.dev',
-    posts: () => ({ findRevision: () => Promise.resolve({ title: 'Patch', body: SECRET_BODY }) }),
+    posts: () => ({ findRevision: () => Promise.resolve({ title: 'Patch', body: SECRET_BODY, entities: [] }) }),
     destinations: () => ({ findById: () => Promise.resolve(null) }),
     logger,
     requestId: 'req-1',

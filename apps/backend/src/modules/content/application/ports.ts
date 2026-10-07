@@ -1,4 +1,4 @@
-import type { PublicationStatus } from '@alexeev/contracts';
+import type { PostEntity, PublicationStatus } from '@alexeev/contracts';
 import type { IdempotencyClaim } from '../../../platform/idempotency/d1-idempotency-store';
 import type { Post, PostStatus } from '../domain/post';
 
@@ -60,12 +60,15 @@ export interface PostRepository {
   create(input: NewPost): Promise<boolean>;
   findById(id: string): Promise<PostRecord | null>;
   /** The stored snapshot of one revision, or null when it does not exist. */
-  findRevision(postId: string, revision: number): Promise<{ title: string; body: string } | null>;
+  findRevision(
+    postId: string,
+    revision: number
+  ): Promise<{ title: string; body: string; entities: PostEntity[] } | null>;
   list(query: ListPostsQuery): Promise<PostRecord[]>;
   /** How many posts are in the archive (it only holds the retention period, so the count is small). */
   countArchived(): Promise<number>;
   /** Null when the guard (revision matches and the post is a draft) did not hold. */
-  update(change: PostChange & { title?: string; body?: string }): Promise<PostRecord | null>;
+  update(change: PostChange & { title?: string; body?: string; entities?: PostEntity[] }): Promise<PostRecord | null>;
   /** Null when the guard (revision matches and the post is a draft) did not hold. */
   approve(change: PostChange): Promise<PostRecord | null>;
 }

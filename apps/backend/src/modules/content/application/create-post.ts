@@ -21,15 +21,23 @@ export interface CreatePostCommand {
 export async function createPost(deps: CreatePostDeps, command: CreatePostCommand): Promise<PostDto> {
   const { actor, idempotencyKey, input } = command;
   // Field order is fixed here, so equal payloads always hash equally.
-  const requestHash = await sha256Hex(JSON.stringify({ title: input.title, body: input.body }));
+  // Entities join the hash only when there are some, so a key claimed before they existed still replays.
+  const requestHash = await sha256Hex(
+    JSON.stringify(
+      input.entities.length === 0
+        ? { title: input.title, body: input.body }
+        : { title: input.title, body: input.body, entities: input.entities }
+    )
+  );
   const ref = { scope: actor, key: idempotencyKey, requestHash, claimedAt: deps.now };
 
   const claim = await deps.idempotency.claim(actor, idempotencyKey, requestHash, deps.now);
   switch (claim.kind) {
     case 'replay':
-      // A response stored before the archive fields existed lacks them; a new post is never archived and
-      // has no publications, so the defaults are exactly what it would carry now.
+      // A response stored before the archive or entity fields existed lacks them; a new post is never archived,
+      // has no publications and (before entities existed) plain text, so the defaults are exactly what it would carry now.
       return postSchema.parse({
+        entities: [],
         archivedAt: null,
         autoDeleteAt: null,
         publicationSummary: emptySummary(),
@@ -49,6 +57,7 @@ export async function createPost(deps: CreatePostDeps, command: CreatePostComman
     id: deps.newId(),
     title: input.title,
     body: input.body,
+    entities: input.entities,
     status: 'draft',
     archivedAt: null,
     revision: 0,

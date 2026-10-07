@@ -1,4 +1,4 @@
-import type { DestinationKind, PublicationDto, PublicationStatus } from '@alexeev/contracts';
+import type { DestinationKind, PostEntity, PublicationDto, PublicationStatus } from '@alexeev/contracts';
 import type { IdempotencyClaim } from '../../../platform/idempotency/d1-idempotency-store';
 import type { PostingProblem } from '../domain/bot-posting-rights';
 import type { SchedulablePost } from '../domain/schedulable';
@@ -12,8 +12,8 @@ export type SendOutcome =
   | { kind: 'unknown'; reason: string }; // timeout, network, 5xx, ok without message_id
 
 export interface PublicationTransport {
-  /** `text` is Telegram HTML (see domain/format-message.ts); the adapter owns parse mode, previews and the timeout. */
-  send(input: { chatId: string; text: string; imageKey?: string }): Promise<SendOutcome>;
+  /** `text` is plain text and `entities` its UTF-16 ranges (see domain/format-message.ts); the adapter owns previews and the timeout. */
+  send(input: { chatId: string; text: string; entities: PostEntity[]; imageKey?: string }): Promise<SendOutcome>;
 }
 
 /**
@@ -28,7 +28,10 @@ export interface ScheduleNotifier {
 
 /** The approved revision a publication sends; `app/container.ts` backs it with the content module. */
 export interface PostRevisionSource {
-  findRevision(postId: string, revision: number): Promise<{ title: string; body: string } | null>;
+  findRevision(
+    postId: string,
+    revision: number
+  ): Promise<{ title: string; body: string; entities: PostEntity[] } | null>;
 }
 
 export interface ClaimedJob {

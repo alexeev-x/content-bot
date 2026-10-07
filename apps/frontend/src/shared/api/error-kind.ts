@@ -8,6 +8,12 @@ export type ApiErrorKind =
   | 'payload_too_large'
   | 'validation'
   | 'empty_body'
+  | 'entities_too_many'
+  | 'entities_too_large'
+  | 'entities_out_of_range'
+  | 'entities_split_surrogate'
+  | 'entities_invalid_nesting'
+  | 'entities_required'
   | 'schedule_out_of_range'
   | 'not_found'
   | 'post_not_found'
@@ -29,7 +35,16 @@ export type ApiErrorKind =
 
 // Only the code/reason pairings documented in apps/contracts refine a code.
 const REASONS: Partial<Record<ApiError['code'], Record<string, ApiErrorKind>>> = {
-  VALIDATION_ERROR: { EMPTY_BODY: 'empty_body', SCHEDULE_OUT_OF_RANGE: 'schedule_out_of_range' },
+  VALIDATION_ERROR: {
+    EMPTY_BODY: 'empty_body',
+    SCHEDULE_OUT_OF_RANGE: 'schedule_out_of_range',
+    ENTITIES_TOO_MANY: 'entities_too_many',
+    ENTITIES_TOO_LARGE: 'entities_too_large',
+    ENTITIES_OUT_OF_RANGE: 'entities_out_of_range',
+    ENTITIES_SPLIT_SURROGATE: 'entities_split_surrogate',
+    ENTITIES_INVALID_NESTING: 'entities_invalid_nesting',
+    ENTITIES_REQUIRED: 'entities_required'
+  },
   NOT_FOUND: { POST_NOT_FOUND: 'post_not_found', DESTINATION_NOT_FOUND: 'destination_not_found' },
   CONFLICT: {
     STALE_REVISION: 'stale_revision',

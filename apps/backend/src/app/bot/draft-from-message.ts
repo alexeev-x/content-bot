@@ -5,8 +5,8 @@ export type DraftFromMessage =
 
 const ELLIPSIS = '…';
 
-// Posts store plain text only (a title and a body, no Telegram entities): bold, links and the rest of
-// the message's formatting are not kept until rich text (plan step 3) exists. The text itself is kept
+// A draft from a message is plain text with no entities: bold, links and the rest of the message's
+// formatting are not carried over (the schema's default is an empty entity list). The text itself is kept
 // whole: the first line becomes the title and everything after it the body. A first line longer than the
 // title allows is cut at the limit (never between the two halves of an emoji) and the remainder of that
 // line stays at the start of the body, so no character is lost.

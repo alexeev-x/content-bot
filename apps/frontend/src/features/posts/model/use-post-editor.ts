@@ -28,8 +28,12 @@ type Options = {
   onCreated?: ((post: PostDto) => void) | undefined;
 };
 
-const EMPTY: PostFormValues = { title: '', body: '' };
-const valuesOf = (post: PostDto | null): PostFormValues => (post ? { title: post.title, body: post.body } : EMPTY);
+const EMPTY: PostFormValues = { title: '', body: '', entities: [] };
+const valuesOf = (post: PostDto | null): PostFormValues =>
+  post ? { title: post.title, body: post.body, entities: post.entities } : EMPTY;
+// Entities are always in the contract's normal form on both sides, so a plain JSON comparison is exact.
+const sameEntities = (a: PostFormValues['entities'], b: PostFormValues['entities']) =>
+  JSON.stringify(a) === JSON.stringify(b);
 
 /**
  * Editor state machine. The baseline is the last server-confirmed post; it only moves on a server success or an
@@ -54,10 +58,13 @@ export function usePostEditor({ post, onCreated, rootRef, dirtyRef }: Options) {
     mode: 'onSubmit',
     reValidateMode: 'onChange'
   });
-  const [title = '', body = ''] = useWatch({ control: form.control, name: ['title', 'body'] });
+  const [title = '', body = '', entities = []] = useWatch({
+    control: form.control,
+    name: ['title', 'body', 'entities']
+  });
 
   const base = valuesOf(baseline);
-  const dirty = title !== base.title || body !== base.body;
+  const dirty = title !== base.title || body !== base.body || !sameEntities(entities, base.entities);
   const readOnly = baseline?.status === 'approved' || conflict?.kind === 'locked';
   const isSaving = create.isPending || update.isPending;
   const isApproving = approve.isPending;
@@ -88,7 +95,9 @@ export function usePostEditor({ post, onCreated, rootRef, dirtyRef }: Options) {
     const current = form.getValues();
     form.reset({
       title: submitted === null || current.title === submitted.title ? saved.title : current.title,
-      body: submitted === null || current.body === submitted.body ? saved.body : current.body
+      body: submitted === null || current.body === submitted.body ? saved.body : current.body,
+      entities:
+        submitted === null || sameEntities(current.entities, submitted.entities) ? saved.entities : current.entities
     });
     setFailed(false);
     setNotice(null);
@@ -125,19 +134,25 @@ export function usePostEditor({ post, onCreated, rootRef, dirtyRef }: Options) {
     const submitted = form.getValues();
     try {
       if (baseline === null) {
-        const created = await create.mutateAsync({ title: submitted.title, body: submitted.body });
+        const created = await create.mutateAsync({
+          title: submitted.title,
+          body: submitted.body,
+          entities: submitted.entities
+        });
         // The navigation that follows must not trip the leave guard for the draft we just stored.
         dirtyRef.current = false;
         adopt(created, submitted);
         onCreated?.(created);
         return created;
       }
+      const textChanged = submitted.body !== base.body || !sameEntities(submitted.entities, base.entities);
       const saved = await update.mutateAsync({
         id: baseline.id,
         input: {
           revision: baseline.revision,
           ...(submitted.title !== base.title ? { title: submitted.title } : {}),
-          ...(submitted.body !== base.body ? { body: submitted.body } : {})
+          // The server refuses a body without its entities, and offsets only mean something next to their text.
+          ...(textChanged ? { body: submitted.body, entities: submitted.entities } : {})
         }
       });
       adopt(saved, submitted);
@@ -160,7 +175,12 @@ export function usePostEditor({ post, onCreated, rootRef, dirtyRef }: Options) {
       }
       const saved = await update.mutateAsync({
         id: baseline.id,
-        input: { revision: fresh.revision, title: submitted.title, body: submitted.body }
+        input: {
+          revision: fresh.revision,
+          title: submitted.title,
+          body: submitted.body,
+          entities: submitted.entities
+        }
       });
       setConflict(null);
       adopt(saved, submitted);
@@ -209,6 +229,7 @@ export function usePostEditor({ post, onCreated, rootRef, dirtyRef }: Options) {
     form,
     title,
     body,
+    entities,
     baseline,
     isNew: baseline === null,
     dirty,

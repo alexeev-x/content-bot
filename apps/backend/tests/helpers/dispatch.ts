@@ -1,3 +1,4 @@
+import type { PostEntity } from '@alexeev/contracts';
 import { GrammyError, HttpError } from 'grammy';
 import { createContainer, type Container } from '../../src/app/container';
 import { handleScheduled } from '../../src/app/scheduled';
@@ -18,6 +19,7 @@ export const HOURLY_TICK = START;
 export interface SentCall {
   chatId: string;
   text: string;
+  entities: PostEntity[];
 }
 
 // A scripted transport: answers come off the queue (the last one repeats). Records every send.
@@ -31,7 +33,7 @@ export function fakeTransport(...script: SendOutcome[]): FakeTransport {
   return {
     calls,
     send(input) {
-      calls.push({ chatId: input.chatId, text: input.text });
+      calls.push({ chatId: input.chatId, text: input.text, entities: input.entities });
       const next = script[Math.min(index, script.length - 1)] ?? { kind: 'sent', externalMessageId: '1' };
       index += 1;
       return Promise.resolve(next);

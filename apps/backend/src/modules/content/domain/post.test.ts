@@ -5,6 +5,7 @@ const draft: Post = {
   id: 'p1',
   title: 'T',
   body: 'Hello',
+  entities: [],
   revision: 3,
   status: 'draft',
   archivedAt: null,

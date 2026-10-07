@@ -32,10 +32,11 @@ const summary = (counts: Partial<typeof NO_COUNTS> = {}, extra: Record<string, u
   ...extra
 });
 
-const post = (id: string, title: string, status = 'draft', extra: Record<string, unknown> = {}) => ({
+export const post = (id: string, title: string, status = 'draft', extra: Record<string, unknown> = {}) => ({
   id,
   title,
   body: 'Текст поста. '.repeat(40),
+  entities: [],
   revision: 0,
   status,
   archivedAt: null,

@@ -91,6 +91,18 @@ Existing technical safety that must remain:
 - attempts and incidents.
 - private owner alert for each publication incident: claimed in D1 first, sent once to the owner's bot chat, never retried, never to a content channel (`apps/backend/src/app/notifications/alert-owner-of-incidents.ts`). Dedupe/grouping/recovery alerts from §3.9 are not built yet.
 
+### 2.4.1 Rich editor and Telegram entities (queue item 1)
+
+Built 07.10.2026, not yet validated by the owner in DEV:
+
+- post body stored as plain text plus Telegram entities (UTF-16 offsets) on posts and revisions (migration 0011); the approved revision freezes them.
+- server validation of entities: range, surrogate pairs, Telegram nesting rules, at most 100; staggered bold/italic/underline/strikethrough/spoiler are split into nested pieces.
+- publications send `text` + `entities` instead of HTML parse mode; the title stays bold; old posts look the same.
+- TipTap editor: bold, italic, underline, strikethrough, spoiler, link, inline code, code block, quote; lists as plain «• » / «1. » text; desktop and mobile toolbars; Ctrl/⌘ shortcuts.
+- Telegram preview renders the entities.
+
+Known limits: the 409 compare dialog compares plain text only; owner bot notices still use HTML parse mode; the mobile toolbar wraps to three rows.
+
 ### 2.5 Current pages
 
 Current visible product:
@@ -166,8 +178,8 @@ Ships in two slices, each releasable on its own; 1b starts only after 1a and Pha
 
 Phase 1a — editor (queue items 1–2):
 
-- rich Telegram-aware editor.
-- entities storage and preview.
+- rich Telegram-aware editor — built (§2.4.1).
+- entities storage and preview — built (§2.4.1).
 - autosave.
 - revision history UI.
 - useful post actions.
@@ -409,7 +421,7 @@ This is the actionable queue from the master roadmap. Whoever starts or finishes
 
 | # | Item | Status |
 |---|---|---|
-| 1 | Content Studio rich editor and Telegram entities | not started |
+| 1 | Content Studio rich editor and Telegram entities | done (awaiting owner DEV check) |
 | 2 | Autosave and revision history UI | not started |
 | 3 | Dota update watcher: official sources, D1 dedup (Phase 1D) | not started |
 | 4 | Dota update → template draft + private owner alert (Phase 1D) | not started |

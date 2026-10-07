@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { pageQuerySchema, pageSchema } from './pagination';
+import { normalizeAndCheckEntities, normalizeEntities, postEntityListSchema, postEntitySchema } from './post-entities';
 import { publicationStatusSchema } from './publications';
 import { cleanText } from './text';
 
@@ -42,6 +43,8 @@ export const postSchema = z.object({
   id: z.uuid(),
   title: z.string(),
   body: z.string(),
+  /** Telegram entities of `body` (UTF-16 offsets), in the normal form of `normalizeEntities`; empty for plain text. */
+  entities: z.array(postEntitySchema),
   revision: revisionSchema,
   status: postStatusSchema,
   /** Set while the post is in the archive (sent, nothing left to send); null for a live post. */
@@ -55,26 +58,49 @@ export const postSchema = z.object({
 export type PostDto = z.infer<typeof postSchema>;
 
 // POST /api/v1/posts, header Idempotency-Key (required) → 201 PostDto (revision 0, status 'draft').
-// Errors: VALIDATION_ERROR 400 (body or missing key) or 413 (request over 32 KB), CONFLICT 409 (details.reason
-// IDEMPOTENCY_KEY_REUSED | IN_FLIGHT), UNAUTHORIZED 401, FORBIDDEN 403.
-export const createPostInputSchema = z.strictObject({
-  title: titleSchema,
-  body: bodySchema.default('')
-});
+// `entities` (default none) are checked against `body` and stored in their normal form (see post-entities.ts).
+// Errors: VALIDATION_ERROR 400 (body, missing key, or details.reason ENTITIES_* when the entity list does not
+// fit the body) or 413 (request over 32 KB), CONFLICT 409 (details.reason IDEMPOTENCY_KEY_REUSED | IN_FLIGHT),
+// UNAUTHORIZED 401, FORBIDDEN 403.
+export const createPostInputSchema = z
+  .strictObject({
+    title: titleSchema,
+    body: bodySchema.default(''),
+    entities: postEntityListSchema.default([])
+  })
+  .transform((input, ctx) => ({ ...input, entities: normalizeAndCheckEntities(input.body, input.entities, ctx) }));
 export type CreatePostInput = z.infer<typeof createPostInputSchema>;
 
 // PATCH /api/v1/posts/{id} → 200 PostDto with revision + 1.
 // The revision travels in the body; a stale one is 409, never a silent overwrite.
-// Errors: VALIDATION_ERROR 400 or 413 (request over 32 KB), NOT_FOUND 404, CONFLICT 409
-// (details.reason STALE_REVISION | NOT_EDITABLE), UNAUTHORIZED 401, FORBIDDEN 403.
+// `entities` replaces the whole list. A new `body` must come with its `entities` (send [] for plain text):
+// offsets of the old list would point into other text, so a body alone is VALIDATION_ERROR with
+// details.reason ENTITIES_REQUIRED, never a silent keep. `entities` alone is allowed (formatting change)
+// and is checked against the stored body by the server. A title-only update keeps both.
+// Errors: VALIDATION_ERROR 400 (details.reason ENTITIES_REQUIRED | ENTITIES_*) or 413 (request over 32 KB),
+// NOT_FOUND 404, CONFLICT 409 (details.reason STALE_REVISION | NOT_EDITABLE), UNAUTHORIZED 401, FORBIDDEN 403.
 export const updatePostInputSchema = z
   .strictObject({
     revision: revisionSchema,
     title: titleSchema.optional(),
-    body: bodySchema.optional()
+    body: bodySchema.optional(),
+    entities: postEntityListSchema.optional()
   })
-  .refine((input) => input.title !== undefined || input.body !== undefined, {
+  .refine((input) => input.title !== undefined || input.body !== undefined || input.entities !== undefined, {
     error: 'Nothing to update'
+  })
+  .transform((input, ctx) => {
+    const { entities, body } = input;
+    if (body !== undefined && entities === undefined) {
+      ctx.addIssue({ code: 'custom', message: 'ENTITIES_REQUIRED', path: ['entities'] });
+      return input;
+    }
+    if (entities === undefined) return input;
+    // Without a body here, the stored one is the reference and only the server has it.
+    return {
+      ...input,
+      entities: body === undefined ? normalizeEntities(entities) : normalizeAndCheckEntities(body, entities, ctx)
+    };
   });
 export type UpdatePostInput = z.infer<typeof updatePostInputSchema>;
 

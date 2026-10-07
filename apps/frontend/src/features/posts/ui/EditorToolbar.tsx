@@ -1,0 +1,208 @@
+import type { Editor } from '@tiptap/core';
+import { useEditorState } from '@tiptap/react';
+import type { ReactNode } from 'react';
+import { Button, Separator, ToggleButton, Toolbar } from 'react-aria-components';
+import { Icon, Tooltip } from '../../../shared/ui';
+import { toggleListPrefix } from '../model/list-prefix';
+import { postsCopy } from './copy';
+import styles from './EditorToolbar.module.css';
+
+type Props = {
+  editor: Editor;
+  onLink: () => void;
+  onCodeLanguage: () => void;
+};
+
+const copy = postsCopy.editor.toolbar;
+const isMac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.userAgent);
+const MOD = isMac ? '⌘' : 'Ctrl';
+
+type Item = {
+  id: string;
+  label: string;
+  /** Shown in the tooltip and announced through aria-keyshortcuts. */
+  keys?: string;
+  aria?: string;
+  glyph: ReactNode;
+  isActive?: boolean;
+  isDisabled?: boolean;
+  /** Toggle buttons expose their state; the list buttons and the language button are plain actions. */
+  pressable?: boolean;
+  onPress: () => void;
+};
+
+/**
+ * Formatting toolbar (WAI-ARIA toolbar: one tab stop, arrows move). Pressing a button keeps the editor's selection
+ * and focus: it acts on the text, and focus returns to the editor after the dialogs close.
+ */
+export function EditorToolbar({ editor, onLink, onCodeLanguage }: Props) {
+  const state = useEditorState({
+    editor,
+    selector: ({ editor: current }) => ({
+      bold: current.isActive('bold'),
+      italic: current.isActive('italic'),
+      underline: current.isActive('underline'),
+      strike: current.isActive('strike'),
+      spoiler: current.isActive('spoiler'),
+      link: current.isActive('link'),
+      code: current.isActive('code'),
+      codeBlock: current.isActive('codeBlock'),
+      quote: current.isActive('blockquote')
+    })
+  });
+  const run = (action: () => unknown) => () => {
+    action();
+    editor.commands.focus();
+  };
+
+  const groups: Item[][] = [
+    [
+      {
+        id: 'bold',
+        label: copy.bold,
+        keys: `${MOD}+B`,
+        aria: 'Control+B Meta+B',
+        glyph: <strong>B</strong>,
+        isActive: state.bold,
+        pressable: true,
+        onPress: run(() => editor.chain().focus().toggleBold().run())
+      },
+      {
+        id: 'italic',
+        label: copy.italic,
+        keys: `${MOD}+I`,
+        aria: 'Control+I Meta+I',
+        glyph: <em>I</em>,
+        isActive: state.italic,
+        pressable: true,
+        onPress: run(() => editor.chain().focus().toggleItalic().run())
+      },
+      {
+        id: 'underline',
+        label: copy.underline,
+        keys: `${MOD}+U`,
+        aria: 'Control+U Meta+U',
+        glyph: <u>U</u>,
+        isActive: state.underline,
+        pressable: true,
+        onPress: run(() => editor.chain().focus().toggleUnderline().run())
+      },
+      {
+        id: 'strike',
+        label: copy.strike,
+        keys: `${MOD}+Shift+X`,
+        aria: 'Control+Shift+X Meta+Shift+X',
+        glyph: <s>S</s>,
+        isActive: state.strike,
+        pressable: true,
+        onPress: run(() => editor.chain().focus().toggleStrike().run())
+      },
+      {
+        id: 'spoiler',
+        label: copy.spoiler,
+        keys: `${MOD}+Shift+P`,
+        aria: 'Control+Shift+P Meta+Shift+P',
+        glyph: <span className={styles.spoilerGlyph}>▒</span>,
+        isActive: state.spoiler,
+        pressable: true,
+        onPress: run(() => editor.chain().focus().toggleSpoiler().run())
+      },
+      {
+        id: 'link',
+        label: copy.link,
+        keys: `${MOD}+K`,
+        aria: 'Control+K Meta+K',
+        glyph: <Icon name="link" size={18} />,
+        isActive: state.link,
+        pressable: true,
+        onPress: onLink
+      }
+    ],
+    [
+      {
+        id: 'code',
+        label: copy.code,
+        keys: `${MOD}+E`,
+        aria: 'Control+E Meta+E',
+        glyph: <span className={styles.mono}>{'<>'}</span>,
+        isActive: state.code,
+        pressable: true,
+        onPress: run(() => editor.chain().focus().toggleCode().run())
+      },
+      {
+        id: 'codeBlock',
+        label: copy.codeBlock,
+        keys: `${MOD}+Alt+C`,
+        aria: 'Control+Alt+C Meta+Alt+C',
+        glyph: <span className={styles.mono}>{'{ }'}</span>,
+        isActive: state.codeBlock,
+        pressable: true,
+        onPress: run(() => editor.chain().focus().toggleCodeBlock().run())
+      },
+      {
+        id: 'codeLanguage',
+        label: copy.codeLanguage,
+        glyph: <span className={styles.mono}>{'</>'}</span>,
+        isDisabled: !state.codeBlock,
+        onPress: onCodeLanguage
+      },
+      {
+        id: 'quote',
+        label: copy.quote,
+        keys: `${MOD}+Shift+9`,
+        aria: 'Control+Shift+9 Meta+Shift+9',
+        glyph: <span aria-hidden="true">“</span>,
+        isActive: state.quote,
+        pressable: true,
+        onPress: run(() => editor.chain().focus().toggleBlockquote().run())
+      }
+    ],
+    [
+      {
+        id: 'bulletList',
+        label: copy.bulletList,
+        glyph: <span aria-hidden="true">•</span>,
+        onPress: run(() => toggleListPrefix(editor, 'bullet'))
+      },
+      {
+        id: 'numberedList',
+        label: copy.numberedList,
+        glyph: <span className={styles.mono}>1.</span>,
+        onPress: run(() => toggleListPrefix(editor, 'numbered'))
+      }
+    ]
+  ];
+
+  return (
+    <Toolbar aria-label={copy.label} className={styles.toolbar}>
+      {groups.map((group, index) => (
+        <div key={group[0]?.id} className={styles.group} role="presentation">
+          {index > 0 ? <Separator orientation="vertical" className={styles.separator} /> : null}
+          {group.map((item) => {
+            const common = {
+              className: styles.button,
+              'aria-label': item.label,
+              'aria-keyshortcuts': item.aria,
+              isDisabled: item.isDisabled,
+              preventFocusOnPress: true
+            };
+            const button = item.pressable ? (
+              <ToggleButton {...common} isSelected={item.isActive === true} onChange={() => item.onPress()}>
+                {item.glyph}
+              </ToggleButton>
+            ) : (
+              <Button {...common} onPress={item.onPress}>
+                {item.glyph}
+              </Button>
+            );
+            return (
+              <Tooltip key={item.id} content={item.keys ? copy.shortcut(item.label, item.keys) : item.label}>
+                {button}
+              </Tooltip>
+            );
+          })}
+        </div>
+      ))}
+    </Toolbar>
+  );
+}
