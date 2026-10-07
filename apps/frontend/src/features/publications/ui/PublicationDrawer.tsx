@@ -188,11 +188,20 @@ function PublicationBody({ publication, postTitle, postBody, destinationTitle, c
       </section>
 
       <div className={styles.quickActions}>
-        <Link to="/posts/$id" params={{ id: publication.postId }} className={styles.secondaryAction}>
+        <Link
+          to="/posts/$id"
+          params={{ id: publication.postId }}
+          className={styles.secondaryAction}
+        >
           Редактировать
         </Link>
         {href ? (
-          <a className={styles.primaryAction} href={href} target="_blank" rel="noopener noreferrer">
+          <a
+            className={styles.primaryAction}
+            href={href}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
             Открыть в Telegram
           </a>
         ) : null}
@@ -229,7 +238,11 @@ function PublicationBody({ publication, postTitle, postBody, destinationTitle, c
                 </dd>
                 <dt>{copy.drawer.post}</dt>
                 <dd>
-                  <Link to="/posts/$id" params={{ id: publication.postId }} className={styles.link}>
+                  <Link
+                    to="/posts/$id"
+                    params={{ id: publication.postId }}
+                    className={styles.link}
+                  >
                     {postTitle ?? copy.drawer.openPost}
                   </Link>
                   <span className={styles.muted}> · {copy.drawer.revision(publication.postRevision)}</span>
@@ -256,7 +269,12 @@ function PublicationBody({ publication, postTitle, postBody, destinationTitle, c
                 <dd>
                   {confirmedId ? (
                     href ? (
-                      <a className={styles.link} href={href} target="_blank" rel="noopener noreferrer">
+                      <a
+                        className={styles.link}
+                        href={href}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
                         Сообщение <span className="mono">№ {confirmedId}</span>
                       </a>
                     ) : (
@@ -281,8 +299,9 @@ function PublicationBody({ publication, postTitle, postBody, destinationTitle, c
           <div className={styles.futurePanel}>
             <strong>Статистика публикации</strong>
             <p>
-              Появится после подключения Telegram Analytics. Сейчас сервер не хранит метрики просмотров и
-              вовлечённости.
+              {
+                'Появится после подключения Telegram Analytics. Сейчас сервер не хранит метрики просмотров и вовлечённости.'
+              }
             </p>
           </div>
         </TabPanel>
