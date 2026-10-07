@@ -5,6 +5,7 @@ import { clearSession, setSession } from '../../../shared/api/session';
 import { accessToken } from '../../../test/fixtures';
 import { failWith, server, setupMswServer } from '../../../test/msw';
 import { createWrapper } from '../../../test/query-wrapper';
+import { openIncidentCountQueryOptions } from '../api/incidents-queries';
 import { useOpenIncidentCount } from '../model/use-open-incident-count';
 import { incidentPage, failedIncident } from '../../../test/incident-fixtures';
 
@@ -15,6 +16,10 @@ beforeEach(() => {
 });
 
 describe('open incident count (sidebar badge)', () => {
+  it('never polls: the badge is on every page, and polling is allowed only on the incidents screen', () => {
+    expect(openIncidentCountQueryOptions().refetchInterval).toBeUndefined();
+  });
+
   it('reads openCount from a one-row page', async () => {
     const urls: URL[] = [];
     server.use(

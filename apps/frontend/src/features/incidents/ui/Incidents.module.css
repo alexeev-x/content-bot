@@ -68,9 +68,13 @@
   gap: var(--space-2);
   justify-content: flex-end;
 }
-.notice,
-.details {
+.notice {
   grid-column: 1 / -1;
+  margin: 0;
+}
+/* Under the title column, so the disclosure reads as part of its row. */
+.details {
+  grid-column: 2 / -1;
   margin: 0;
 }
 .notice {
@@ -92,10 +96,24 @@
 .summary {
   display: inline-flex;
   align-items: center;
+  gap: var(--space-1);
   min-height: var(--size-target-min);
-  color: var(--color-text-muted);
-  font-size: var(--font-size-xs);
+  color: var(--color-accent-text);
+  font-size: var(--font-size-sm);
   cursor: pointer;
+}
+/* `display: inline-flex` drops the native marker, so the open/closed state is drawn here. */
+.summary::before {
+  content: '';
+  width: 0.4em;
+  height: 0.4em;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  transform: rotate(-45deg);
+  transition: transform var(--motion-fast);
+}
+.details[open] > .summary::before {
+  transform: rotate(45deg);
 }
 .detailLine {
   display: flex;
@@ -153,6 +171,9 @@
   }
   .actions {
     grid-area: actions;
+  }
+  .details {
+    grid-column: 1 / -1;
   }
   .actions > * {
     flex: 1 1 0;

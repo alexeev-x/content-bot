@@ -28,14 +28,17 @@ export function incidentsInfiniteQueryOptions(filters: IncidentFilters, pollMs: 
   });
 }
 
-/** The sidebar badge: `openCount` of a one-row page, so the cost is the same single statement for any list size. */
-export function openIncidentCountQueryOptions(pollMs: number = INCIDENT_POLL_MS) {
+/**
+ * The sidebar badge: `openCount` of a one-row page, so the cost is the same single statement for any list size.
+ * It sits on every page, so it never polls (only the incidents screen and the dashboard do): it refreshes on focus
+ * once stale and after a resolve invalidates `incidentKeys.all`.
+ */
+export function openIncidentCountQueryOptions(staleMs: number = INCIDENT_POLL_MS) {
   return queryOptions({
     queryKey: incidentKeys.openCount(),
     queryFn: ({ signal }) => listIncidents({ state: 'open' }, undefined, signal, 1),
     select: (page) => page.openCount,
-    staleTime: pollMs,
-    refetchInterval: pollMs
+    staleTime: staleMs
   });
 }
 

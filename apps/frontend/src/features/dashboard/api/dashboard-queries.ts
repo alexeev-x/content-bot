@@ -9,7 +9,7 @@ export const dashboardKeys = {
 export const DASHBOARD_POLL_MS = 60_000;
 
 /**
- * The dashboard is the only read that polls outside the incidents screen. TanStack's default
+ * Besides the incidents screen, the dashboard is the only read that polls (the sidebar badge does not). TanStack's default
  * `refetchIntervalInBackground: false` pauses it in a hidden tab. `staleTime: 0` makes a return to the page refetch,
  * while the cached data stays on screen.
  */

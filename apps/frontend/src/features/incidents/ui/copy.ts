@@ -7,7 +7,7 @@ export const copy = {
     resolved: 'Закрытые',
     all: 'Все',
     unknown: 'Требуют проверки',
-    failed: 'Ошибки отправки',
+    failed: 'Ошибки',
     reset: 'Сбросить фильтры'
   },
   kind: { publish_unknown: 'Требует проверки', publish_failed: 'Ошибка' },

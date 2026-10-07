@@ -73,7 +73,7 @@ export function Dashboard({ query, checks, zoneNote, onOpenPublication, onSchedu
       ) : null}
       <div className={styles.columns}>
         <div className={styles.column}>
-          <AttentionBlock rows={rows} onOpenPublication={onOpenPublication} />
+          <AttentionBlock rows={rows} total={data.attentionTotal} onOpenPublication={onOpenPublication} />
           <TodayBlock items={data.today} total={data.todayTotal} zoneNote={zoneNote} onSchedule={onSchedule} />
         </div>
         <div className={styles.column}>

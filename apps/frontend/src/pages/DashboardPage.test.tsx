@@ -110,6 +110,13 @@ describe('dashboard blocks', () => {
     expect(to.getTime() - from.getTime()).toBeLessThanOrEqual(25 * 3_600_000);
   });
 
+  it('«Все инциденты» carries the server total, so rows hidden beyond the first five are visible as a number', async () => {
+    serveDashboard(dashboard({ attention: [unknownAttention()], attentionTotal: 99 }));
+    await renderDashboard();
+    const block = await screen.findByRole('region', { name: 'Требует внимания' });
+    expect(within(block).getByRole('link', { name: 'Все инциденты (99+)' })).toBeTruthy();
+  });
+
   it('lists an unknown publication under «Требует внимания» with only «Проверить», which opens the drawer link', async () => {
     serveDashboard(dashboard({ attention: [unknownAttention()], attentionTotal: 1 }));
     const user = userEvent.setup();
@@ -118,7 +125,7 @@ describe('dashboard blocks', () => {
     expect(within(block).getByText('Требует проверки')).toBeTruthy();
     expect(within(block).getByText('Возможен дубль при повторной отправке')).toBeTruthy();
     expect(screen.queryByRole('button', { name: /Повторить|Отменить|Отправить снова/ })).toBeNull();
-    expect(within(block).getByRole('link', { name: 'Все инциденты' })).toBeTruthy();
+    expect(within(block).getByRole('link', { name: 'Все инциденты (1)' })).toBeTruthy();
     await user.click(within(block).getByRole('button', { name: /^Проверить/ }));
     await waitFor(() => expect(router.state.location.pathname).toBe('/publications'));
     expect(router.state.location.search).toMatchObject({ id: dash.pubUnknown });

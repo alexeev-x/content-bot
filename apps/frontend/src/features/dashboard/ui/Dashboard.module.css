@@ -179,25 +179,41 @@
   color: var(--color-text-muted);
 }
 
-/* Phone: time and badge on the first line, the title under them, the action stays at the right of the row. */
+/* Phone: time and badge on the first line; the title under them with the action or status at its right. Every
+   block reads the same way, nothing clips to a few letters, and the first line fits a 320px screen. */
 @media (max-width: 639px) {
   .row {
-    flex-wrap: wrap;
-    row-gap: 0;
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    grid-template-areas:
+      'time badge badge'
+      'main main trail';
+    column-gap: var(--space-3);
+    padding-block: var(--space-2);
   }
-  .row[data-layout='inline'] .main {
-    order: 3;
-    flex-basis: 100%;
+  .time {
+    grid-area: time;
   }
-  .row[data-layout='inline'] .trail {
-    order: 2;
+  .badge {
+    grid-area: badge;
+    justify-self: start;
   }
-  .row[data-layout='inline'] .titleLine {
+  .main {
+    grid-area: main;
+  }
+  .trail {
+    grid-area: trail;
+    align-self: center;
+  }
+  .row .titleLine {
     flex-direction: column;
     align-items: stretch;
     gap: 0;
   }
-  .row[data-layout='inline'] .channel {
+  .row .channel {
     max-width: 100%;
+  }
+  .row[data-layout='stacked'] .time {
+    min-width: 0;
   }
 }

@@ -35,7 +35,7 @@ Permissions: owner only; 401 → login, 403 → «Нет доступа», no da
 ### Blocks, in order
 1. **System strip** (existing). When «Требует внимания» has items, the strip keeps only its healthy/count line (as the strip story says).
 2. **«Требует внимания»** (hidden when empty; one line «Всё под контролем» appears instead, muted). A flat list, no cards, max 5 rows + link «Все инциденты (N)». Item sources, severity order: `unknown` publications (danger) → `failed` publications / open `publish_failed` incidents (danger) → failing system checks from the strip (warning, bot not connected etc.) → publications stuck: `scheduled`/`queued` with `scheduledAt` more than 10 min in the past (warning; a Cron or kill-switch symptom). Row: status badge (label from mapping, never colour alone), post title (1 line, ellipsis), channel name, time, one action button. Actions: unknown → «Проверить» → `/publications?id=<id>`; failed → «Открыть» → `/publications?id=<id>`; check → its own strip action; stuck → «Открыть». One incident and its publication show as one row (dedupe by publication).
-3. **«Сегодня»**: publications with `scheduledAt` inside today in the owner's timezone, ascending, max 8 rows, then «Показать все» → `/publications` filtered to today. Row: time `14:30`, title, channel, status badge. Sent ones stay in the list with «Опубликовано» (so the day reads as a timeline). Empty: «На сегодня ничего не запланировано» + button «Запланировать» → `/posts`.
+3. **«Сегодня»**: publications with `scheduledAt` inside today in the owner's timezone, ascending, max 8 rows, then «Показать все» → `/publications` (shipped unfiltered: the publications list has no date filter yet; filtering to today needs a contract change in its own story). Row: time `14:30`, title, channel, status badge. Sent ones stay in the list with «Опубликовано» (so the day reads as a timeline). Empty: «На сегодня ничего не запланировано» + button «Запланировать» → `/posts`.
 4. **«Ближайшие»**: next 5 publications after today (`scheduled`/`queued`/`retry_wait`), date + time + title + channel. Shown only if non-empty; no empty state of its own (the «Сегодня» empty state carries the call to action).
 5. **«Недавно отправлено»**: last 5 `sent` publications (time, title, channel, link «Открыть в Telegram» only when a public `t.me` link can be built; otherwise none). Hidden when empty.
 
@@ -68,7 +68,7 @@ H1 «Обзор» · «Требует внимания» · «Сегодня» �
 Purpose: complete list of problems that need or needed a human, with the shortest path to fix each.
 Title/H1: «Инциденты — ALEXEEV Studio»; sidebar item shows the open count (`aria-label` «N требуют внимания»), hidden at 0.
 Data: `IncidentPageDto`; the linked publication summary comes inline (no per-row fetch).
-Filters (URL state `?state=open|resolved&kind=...`): segmented «Открытые · Закрытые» (default Открытые); type chips «Все · Требуют проверки · Ошибки отправки». Cursor pagination, 25 per page, «Показать ещё».
+Filters (URL state `?state=open|resolved&kind=...`): segmented «Открытые · Закрытые» (default Открытые); type chips «Все · Требуют проверки · Ошибки». Cursor pagination, 25 per page, «Показать ещё».
 
 ### Row anatomy
 Line 1: type badge («Требует проверки» for `publish_unknown`, «Ошибка» for `publish_failed`), post title. Line 2 (muted): channel · reason text mapped from `code` · `occurredAt` in owner zone · attempts «попыток: N». Right: one primary action. Closed rows show «Закрыт 14:40» and, for unknown, the outcome is read from the publication status (no extra field). `requestId` and `jobId` are in an expandable «Детали» line (copyable), never raw `details` JSON.
@@ -104,7 +104,7 @@ Polling: 30 s only while the tab is visible (FRONTEND_ARCHITECTURE §state), pau
 - 375: each incident is a two-line row (no card chrome), action buttons 44 px full row width under the text when two actions exist; filters: segmented control full width, type chips horizontally scrollable inside their own container only.
 
 ### Copy (ru)
-H1 «Инциденты» · «Открытые» · «Закрытые» · «Все» · «Требуют проверки» · «Ошибки отправки» · «Проверить» · «Открыть» · «Закрыть» · «Закрыт 14:40» · «Детали» · «Показать ещё» · «Сбросить фильтры» · «К публикациям». Toast on close: «Инцидент закрыт».
+H1 «Инциденты» · «Открытые» · «Закрытые» · «Все» · «Требуют проверки» · «Ошибки» · «Проверить» · «Открыть» · «Закрыть» · «Закрыт 14:40» · «Детали» · «Показать ещё» · «Сбросить фильтры» · «К публикациям». Toast on close: «Инцидент закрыт».
 
 ## API needs (data and operations)
 Reuse: `PublicationStatus`, page/cursor DTO, `ApiErrorDto`, `resolve-unknown`. New contracts via skill `contract-change` (contracts, backend, frontend, contract tests in one PR).
@@ -129,7 +129,7 @@ Security: server revalidates all input with Zod and the owner session; `details`
 9. Given data was shown and the next refetch fails, Then old data stays and «Данные устарели · Обновить» appears with `role="status"`.
 10. Given 375 px width, Then `/` and `/incidents` have no horizontal page scroll, all actions are ≥44 px high, and the block order is unchanged.
 11. Given any dashboard request, Then it issues one D1 batch of at most 5 statements, each with LIMIT, and the EXPLAIN test shows no full scan of `publications` or `incidents`; the response contains no post body and no incident `details`.
-12. Given 30 open incidents, Then `/incidents` shows 25, «Показать ещё» loads the rest by cursor without duplicates, and the sidebar badge reads «30» capped at «99».
+12. Given 30 open incidents, Then `/incidents` shows 25, «Показать ещё» loads the rest by cursor without duplicates, and the sidebar badge reads «30»; at the cap the server returns 99 meaning "99 or more" and the badge reads «99+».
 
 ## Open questions (recommended default)
 1. Does «Закрыть» on failed incidents need an owner-confirmed outcome (note field)? Default: no, one tap; the audit row records who and when.

@@ -9,6 +9,8 @@ import { Row } from './Row';
 
 type Props = {
   rows: readonly AttentionRow[];
+  /** Server count of open incidents and stuck sends (capped at 99 = "99 or more"); the list shows at most 5. */
+  total: number;
   onOpenPublication: (publicationId: string) => void;
 };
 
@@ -93,7 +95,7 @@ function OpenButton({ label, aria, onPress }: { label: string; aria: string; onP
 }
 
 /** Unknown and failed publications, failing checks and stuck sends in severity order; one line when nothing needs a human. */
-export function AttentionBlock({ rows, onOpenPublication }: Props) {
+export function AttentionBlock({ rows, total, onOpenPublication }: Props) {
   if (rows.length === 0) return <p className={styles.clear}>{copy.attention.clear}</p>;
   return (
     <Block title={copy.attention.title}>
@@ -103,7 +105,7 @@ export function AttentionBlock({ rows, onOpenPublication }: Props) {
         ))}
       </ul>
       <Link to="/incidents" className={styles.more}>
-        {copy.attention.allIncidents}
+        {copy.attention.allIncidents(total)}
       </Link>
     </Block>
   );

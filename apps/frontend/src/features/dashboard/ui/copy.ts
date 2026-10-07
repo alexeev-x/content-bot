@@ -4,7 +4,7 @@ export const copy = {
   attention: {
     title: 'Требует внимания',
     clear: 'Всё под контролем',
-    allIncidents: 'Все инциденты',
+    allIncidents: (total: number) => (total > 0 ? `Все инциденты (${total >= 99 ? '99+' : total})` : 'Все инциденты'),
     check: 'Проверить',
     open: 'Открыть',
     unknownHint: 'Возможен дубль при повторной отправке',
