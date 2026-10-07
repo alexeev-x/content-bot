@@ -1,3 +1,4 @@
+import { Link } from '@tanstack/react-router';
 import { Icon } from '../../../shared/ui';
 import styles from './Dashboard.module.css';
 
@@ -7,6 +8,7 @@ type SummaryItem = {
   value: string;
   detail: string;
   icon: 'calendar' | 'alert' | 'clock' | 'send';
+  to: '/publications' | '/incidents';
   tone?: 'attention' | 'ok';
 };
 
@@ -24,7 +26,8 @@ export function SummaryCards({ todayTotal, attentionTotal, nextLabel, recentCoun
       label: 'Публикации сегодня',
       value: String(todayTotal),
       detail: 'Запланировано и отправлено',
-      icon: 'calendar'
+      icon: 'calendar',
+      to: '/publications'
     },
     {
       key: 'attention',
@@ -32,6 +35,7 @@ export function SummaryCards({ todayTotal, attentionTotal, nextLabel, recentCoun
       value: String(attentionTotal),
       detail: attentionTotal > 0 ? 'Нужно проверить' : 'Всё под контролем',
       icon: 'alert',
+      to: '/incidents',
       tone: attentionTotal > 0 ? 'attention' : 'ok'
     },
     {
@@ -39,34 +43,39 @@ export function SummaryCards({ todayTotal, attentionTotal, nextLabel, recentCoun
       label: 'Ближайшая публикация',
       value: nextLabel,
       detail: nextLabel === '—' ? 'Пока ничего не запланировано' : 'Следующая по расписанию',
-      icon: 'clock'
+      icon: 'clock',
+      to: '/publications'
     },
     {
       key: 'recent',
       label: 'Недавно отправлено',
       value: String(recentCount),
       detail: 'Последние публикации',
-      icon: 'send'
+      icon: 'send',
+      to: '/publications'
     }
   ];
 
   return (
     <section className={styles.summaryGrid} aria-label="Сводка">
       {items.map((item) => (
-        <article
+        <Link
           key={item.key}
+          to={item.to}
           className={styles.summaryCard}
           data-tone={item.tone ?? 'neutral'}
+          aria-label={`${item.label}: ${item.value}`}
         >
           <span className={styles.summaryIcon} aria-hidden="true">
             <Icon name={item.icon} size={20} />
           </span>
-          <div className={styles.summaryBody}>
+          <span className={styles.summaryBody}>
             <span className={styles.summaryLabel}>{item.label}</span>
             <strong className={styles.summaryValue}>{item.value}</strong>
             <span className={styles.summaryDetail}>{item.detail}</span>
-          </div>
-        </article>
+          </span>
+          <Icon className={styles.summaryArrow} name="chevron-right" size={16} />
+        </Link>
       ))}
     </section>
   );
