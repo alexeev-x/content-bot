@@ -95,7 +95,10 @@ export function changedFiles(root, requestedBase = null) {
   let base = null;
   if (requestedBase) {
     try {
-      base = git('merge-base', 'HEAD', requestedBase).trim();
+      // CI passes the exact "before"/PR-base commit. Use it directly: shallow checkouts do not
+      // necessarily have enough ancestry for merge-base even after fetching that single commit.
+      git('cat-file', '-e', `${requestedBase}^{commit}`);
+      base = requestedBase;
     } catch {
       // A missing CI base must fall back to the full set rather than silently under-check the commit.
       base = null;
