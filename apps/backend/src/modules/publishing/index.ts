@@ -1,11 +1,21 @@
-export type { DispatchRepository, PostRevisionSource, PublicationTransport, SendOutcome } from './application/ports';
+export type {
+  DispatchRepository,
+  PostRevisionSource,
+  PublicationTransport,
+  RaisedIncident,
+  RangeSummary,
+  SendOutcome,
+  UpcomingPublication
+} from './application/ports';
 export type {
   ChatInspection,
   ChatInspector,
   DestinationRepository,
   IdempotencyGate,
+  PostPublicationSummary,
   PostSource,
-  PublicationRepository
+  PublicationRepository,
+  ScheduleNotifier
 } from './application/ports';
 export { cancelPublication, reschedulePublication } from './application/change-publication';
 export { updateDestination } from './application/change-destination';

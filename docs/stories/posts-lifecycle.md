@@ -1,6 +1,6 @@
 # Posts lifecycle: leave, delete, cancel, archive
 
-Status: spec for review (UX). Not implemented. Owner words: leaving the editor forces a save/approve decision; wants to delete posts, delete or cancel publications; published posts go to an Archive for ~30 days, then are deleted.
+Status: spec for review (UX). Server side of the Archive and of post deletion (single and bulk, restore, Cron archive and 30-day purge) implemented 07.10.2026 (`docs/BACKEND_ARCHITECTURE.md` §5 "Post lifecycle as built"); not implemented: any UI, autosave, unapprove, removing single publication records, bulk delete of publications. Owner words: leaving the editor forces a save/approve decision; wants to delete posts, delete or cancel publications; published posts go to an Archive for ~30 days, then are deleted.
 
 ## 1. Audit (severity 0 none … 4 blocker)
 
@@ -148,9 +148,9 @@ Owner decision 06.10.2026: the owner can select several rows and delete them at 
 ## 10. Open owner decisions
 
 1. **Decided (owner, 06.10.2026):** deleting or archiving in the admin never touches the Telegram channel (no deleteMessage). Dialogs state it. A separate "Удалить из канала" action is possible future scope, not part of this spec.
-2. **Archive trigger:** at least one sent and none active (recommended) vs. all publications sent.
-3. **30-day clock** from `archivedAt` (recommended) vs. from first send time.
-4. **Restore from archive** (recommended yes) vs. none.
+2. **Archive trigger:** at least one sent and none active (recommended) vs. all publications sent. Adopted default (orchestrator, 07.10.2026): at least one sent and none active.
+3. **30-day clock** from `archivedAt` (recommended) vs. from first send time. Adopted default (orchestrator, 07.10.2026): from `archivedAt`.
+4. **Restore from archive** (recommended yes) vs. none. Adopted default (orchestrator, 07.10.2026): yes, back to `approved`, nothing is sent.
 5. **Decided (owner, 06.10.2026):** every delete is confirmed; bulk select + delete is required, especially in the Archive (§6a).
 6. **Allow unapprove** (recommended yes, when nothing sent/active).
-7. Retention of `unknown`-linked data: keep until reconciled (recommended).
+7. Retention of `unknown`-linked data: keep until reconciled (recommended). Adopted default (orchestrator, 07.10.2026): keep; a post with an `unknown` or in-flight publication is never deleted or purged.

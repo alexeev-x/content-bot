@@ -1,6 +1,6 @@
 .pipeline {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(min-content, 1fr));
   gap: var(--space-1);
   margin: 0;
   padding: 0;
@@ -79,7 +79,8 @@
   font-size: var(--font-size-xs);
   font-weight: var(--font-weight-medium);
   line-height: 1.25;
-  overflow-wrap: anywhere;
+  overflow-wrap: normal;
+  hyphens: none;
 }
 .step[data-state='final'] .label,
 .step[data-state='current'] .label {

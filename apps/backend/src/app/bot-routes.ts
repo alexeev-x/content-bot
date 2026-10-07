@@ -22,6 +22,7 @@ function connectionDeps(c: Context<AppBindings>): BotConnectionDeps {
     api: () => container.botAdminApi,
     call: createTelegramCaller({ logger: container.logger, requestId: c.get('requestId') }),
     identity: container.botIdentity,
+    appState: container.systemState,
     clock: container.clock,
     logger: container.logger,
     requestId: c.get('requestId')

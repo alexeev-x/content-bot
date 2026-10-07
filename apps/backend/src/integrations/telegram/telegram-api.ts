@@ -94,3 +94,30 @@ export function createTelegramBotAdminApi(token: string): TelegramBotAdminApi {
       )
   };
 }
+
+// One message to the owner's private chat with a single Mini App button. Answers stay `unknown`:
+// the caller only needs to know whether Telegram accepted it.
+export interface TelegramOwnerMessageApi {
+  sendMessageWithWebAppButton(
+    chatId: string,
+    input: { html: string; button: { text: string; url: string } },
+    signal: AbortSignal
+  ): Promise<unknown>;
+}
+
+export function createTelegramOwnerMessageApi(token: string): TelegramOwnerMessageApi {
+  const api = new Api(token);
+  return {
+    sendMessageWithWebAppButton: (chatId, { html, button }, signal) =>
+      api.sendMessage(
+        chatId,
+        html,
+        {
+          parse_mode: 'HTML',
+          link_preview_options: { is_disabled: true },
+          reply_markup: { inline_keyboard: [[{ text: button.text, web_app: { url: button.url } }]] }
+        },
+        signal as never
+      )
+  };
+}

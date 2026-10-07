@@ -1,11 +1,10 @@
-import { postStatusSchema } from '@alexeev/contracts';
 import { createFileRoute, useNavigate } from '@tanstack/react-router';
 import { z } from 'zod';
 import { PostsPage } from '../../pages/posts/PostsPage';
 
-// Filters live in the URL (back button, shareable); a broken value falls back to «all».
+// The tab and the search live in the URL (back button, shareable); a broken value falls back to «Все».
 const searchSchema = z.object({
-  status: postStatusSchema.optional().catch(undefined),
+  view: z.enum(['all', 'drafts', 'archive']).optional().catch(undefined),
   q: z.string().optional().catch(undefined)
 });
 
@@ -15,14 +14,15 @@ export const Route = createFileRoute('/posts/')({
 });
 
 function PostsRoute() {
-  const { status, q } = Route.useSearch();
+  const { view, q } = Route.useSearch();
   const setSearch = Route.useNavigate();
   const navigate = useNavigate();
   return (
     <PostsPage
-      status={status}
+      view={view ?? 'all'}
       query={q ?? ''}
-      onStatusChange={(next) => void setSearch({ search: (prev) => ({ ...prev, status: next }), replace: true })}
+      // The search text is not carried across tabs: the new tab starts unfiltered.
+      onViewChange={(next) => void setSearch({ search: { view: next === 'all' ? undefined : next }, replace: true })}
       onQueryChange={(next) =>
         void setSearch({ search: (prev) => ({ ...prev, q: next === '' ? undefined : next }), replace: true })
       }

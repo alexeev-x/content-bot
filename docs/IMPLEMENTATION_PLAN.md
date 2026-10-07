@@ -196,10 +196,10 @@ Next work agreed with the owner. It goes before the remaining items of "Immediat
    - the Telegram BackButton, closing confirmation and swipes, Telegram colors, and safe areas;
    - no duplicate top bar inside Telegram.
 1a. **Bot as the entry point, R3 (webhook, Mini App auth).** Today the bot only answers `/start` with "Бот на связи".
-   - `/start` answers with a "Открыть студию" `web_app` button, and the owner's chat gets a menu button that opens the Mini App. The URL comes from config.
-   - Owner-only commands, registered with `setMyCommands` for the owner's chat: `/today` (today's plan and results), `/next` (the next 5 publications) and `/status` (publishing on or off, the last Cron run, problems). Each answer has a button that opens the matching screen through `startapp`.
-   - Alerts to the owner when a publication is `failed` or `unknown` or a channel loses bot rights, with an "Открыть" button.
-   - A text the owner sends or forwards to the bot becomes a draft with its formatting kept. The bot answers "Черновик создан" and offers "Открыть".
+   - `/start` answers with a "Открыть студию" `web_app` button, and the owner's chat gets a menu button that opens the Mini App. As built: the URL is the Worker's own request origin, stored by `/start` or Connect (safer than a config value).
+   - Owner-only commands, registered with `setMyCommands` for the owner's chat: `/today` (today's plan and results), `/next` (the next 5 publications) and `/status` (publishing on or off, the last Cron run, problems). Each answer has a button that opens the matching screen (as built: `web_app` buttons with direct URLs instead of `startapp`).
+   - Alerts to the owner when a publication is `failed` or `unknown` or a channel loses bot rights, with an "Открыть" button. As built: lost rights surface only as a failed send (`DESTINATION_UNAVAILABLE`); there is no periodic rights check.
+   - A text the owner sends or forwards to the bot becomes a draft with its formatting kept (as built: plain text only; formatting is deferred to step 3, when posts store entities). The bot answers "Черновик создан" and offers "Открыть".
    - Webhook registration and a check of its status are documented for the owner. The owner runs `setWebhook`, since it uses the webhook secret.
 1b. **Density revision.** Spec: `docs/DESIGN_SYSTEM_NO_FIGMA.md` § Density revision. The design-system role updates the tokens (radii, control and row heights by pointer type, accent usage) and the shell (sidebar width, groups, active state, collapse to icons, fluid content), and reduces card chrome in the primitives. Frontend then re-composes the existing screens: Posts, Publications, Settings as master/detail. Checked with screenshots at 1280 and 375 px in both themes and an axe scan. It comes before the editor and the tables, so they are built once in the new look.
 2. **Leaving the editor without thinking.** Autosave of drafts with an indicator; a confirmation only when a save failed (`docs/stories/posts-lifecycle.md` §4). Frontend only.
@@ -208,7 +208,7 @@ Next work agreed with the owner. It goes before the remaining items of "Immediat
    - Stored as text plus Telegram entities and sent with `entities`, not HTML.
    - The title is bold by default and editable.
    - Includes a migration of existing posts, a preview "as in the channel", and a UTF-16 length counter.
-   - The editor library is picked by researcher (TipTap vs Lexical).
+   - Editor library: TipTap 3 (ProseMirror, MIT), individual extensions only, no `starter-kit`; own pure text+entities ⇄ document mapper with a round-trip property test (researcher, 07.10.2026: mark model fits overlapping entities, spoiler is a small custom mark, 3.x vs Lexical 0.x). Needs a manual pass on a real Android/iOS Telegram WebView with the Russian keyboard.
 4. **Post lifecycle, R3.** Spec: `docs/stories/posts-lifecycle.md`.
    - Every delete is confirmed. Selecting several rows and deleting them at once works in Posts and Archive.
    - Cancel and reschedule are reachable from the list row and the post page.

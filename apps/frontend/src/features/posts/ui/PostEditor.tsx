@@ -56,6 +56,8 @@ export function PostEditor({ post, onCreated, approvedActions, aside }: Props) {
   useSaveShortcut(() => void editor.save());
 
   const isApproved = baseline?.status === 'approved';
+  // An archived post is read-only and its page explains why; the approved notice and the publish action do not apply.
+  const isArchived = baseline?.archivedAt != null;
   const hasConflict = conflict !== null;
   const canSave = !editor.readOnly && !hasConflict && (editor.isNew || editor.dirty);
   const canApprove = !editor.isNew && !editor.readOnly && !hasConflict && editor.overflow === 0;
@@ -124,7 +126,7 @@ export function PostEditor({ post, onCreated, approvedActions, aside }: Props) {
           ) : null}
         </Banner>
       ) : null}
-      {isApproved && !hasConflict ? (
+      {isApproved && !isArchived && !hasConflict ? (
         <Banner
           tone="info"
           title={copy.approved.readOnlyTitle}
@@ -168,7 +170,7 @@ export function PostEditor({ post, onCreated, approvedActions, aside }: Props) {
 
       <div className={styles.actionBar}>
         {isApproved ? (
-          baseline && approvedActions ? (
+          baseline && approvedActions && !isArchived ? (
             approvedActions(baseline)
           ) : null
         ) : (

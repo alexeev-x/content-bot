@@ -8,6 +8,7 @@ import type {
   JobResolution,
   PostRevisionSource,
   PublicationTransport,
+  RaisedIncident,
   SendOutcome
 } from './ports';
 
@@ -31,14 +32,24 @@ export interface DispatchSummary {
   unknown: number;
   notSent: number;
   errors: number;
+  /** The incidents this tick wrote, for the owner alert; the caller sends it after the tick's state is stored. */
+  raised: RaisedIncident[];
 }
 
 type JobResult = 'lost' | 'sent' | 'retry_wait' | 'failed' | 'unknown' | 'not_sent' | 'failed_halt';
 
 // Outcome-write retries one tick may spend. A hiccup in D1 usually affects the next write too, and
 // each retry costs queries of the invocation's budget (docs/BACKEND_ARCHITECTURE.md §5).
+// `raised` collects the incidents whose write was applied.
 interface TickBudget {
   writeRetries: number;
+  raised: RaisedIncident[];
+}
+
+// What the owner alert can say about a job, filled in as the dispatcher loads it.
+interface AlertContext {
+  postTitle: string | null;
+  channelTitle: string | null;
 }
 
 // One tick's dispatch (docs/BACKEND_ARCHITECTURE.md §5): a small batch of due jobs, each handled
@@ -54,11 +65,12 @@ export async function dispatchDueJobs(deps: DispatchDeps): Promise<DispatchSumma
     failed: 0,
     unknown: 0,
     notSent: 0,
-    errors: 0
+    errors: 0,
+    raised: []
   };
   const jobIds = await deps.repo.findDueJobIds(deps.clock.now(), DISPATCH_BATCH);
   summary.due = jobIds.length;
-  const budget: TickBudget = { writeRetries: 1 };
+  const budget: TickBudget = { writeRetries: 1, raised: summary.raised };
 
   for (const jobId of jobIds) {
     const startedAt = deps.clock.now();
@@ -99,15 +111,18 @@ async function dispatchJob(deps: DispatchDeps, jobId: string, budget: TickBudget
   // Another tick or the owner's cancel got there first: nothing to do and nothing to undo.
   if (claimed === null) return 'lost';
 
-  const refuse = (code: string, reason: string) => refused(deps, budget, claimed, startedAt, code, reason);
+  const context: AlertContext = { postTitle: null, channelTitle: null };
+  const refuse = (code: string, reason: string) => refused(deps, budget, claimed, startedAt, context, code, reason);
 
   if (claimed.publicationId === null) return refuse('PUBLICATION_MISSING', 'job_without_publication');
   const target = await repo.loadTarget(claimed.publicationId);
   if (target === null) return refuse('PUBLICATION_MISSING', 'publication_not_found');
+  context.channelTitle = target.destinationTitle;
   if (!target.destinationEnabled) return refuse('DESTINATION_DISABLED', 'destination_disabled');
 
   const revision = await deps.posts.findRevision(target.postId, target.postRevision);
   if (revision === null) return refuse('CONTENT_INVALID', 'revision_missing');
+  context.postTitle = revision.title;
   const message = formatPublicationText(revision);
   if (!message.ok) return refuse('CONTENT_INVALID', message.reason.toLowerCase());
 
@@ -127,7 +142,7 @@ async function dispatchJob(deps: DispatchDeps, jobId: string, budget: TickBudget
   }
 
   const outcome = await sendOnce(deps, target.chatId, message.html);
-  return resolveSent(deps, budget, claimed, startedAt, outcome);
+  return resolveSent(deps, budget, claimed, startedAt, context, outcome);
 }
 
 // The transport must not throw, but a throw after the mark is exactly the ambiguous case.
@@ -145,19 +160,27 @@ async function refused(
   budget: TickBudget,
   claimed: ClaimedJob,
   startedAt: number,
+  context: AlertContext,
   code: string,
   reason: string
 ): Promise<JobResult> {
   const finishedAt = deps.clock.now();
   const resolution = baseResolution(claimed, startedAt, finishedAt);
-  await write(deps, budget, claimed, startedAt, {
-    ...resolution,
-    status: 'failed',
-    attemptOutcome: 'skipped',
-    errorCode: code,
-    incident: failedIncident(deps, code, { attempt: claimed.attempt, reason }),
-    auditAction: 'job.failed'
-  });
+  await write(
+    deps,
+    budget,
+    claimed,
+    startedAt,
+    {
+      ...resolution,
+      status: 'failed',
+      attemptOutcome: 'skipped',
+      errorCode: code,
+      incident: failedIncident(deps, code, { attempt: claimed.attempt, reason }),
+      auditAction: 'job.failed'
+    },
+    context
+  );
   return 'failed';
 }
 
@@ -166,14 +189,16 @@ async function resolveSent(
   budget: TickBudget,
   claimed: ClaimedJob,
   startedAt: number,
+  context: AlertContext,
   outcome: SendOutcome
 ): Promise<JobResult> {
   const finishedAt = deps.clock.now();
   const base = baseResolution(claimed, startedAt, finishedAt);
+  const put = (resolution: JobResolution) => write(deps, budget, claimed, startedAt, resolution, context);
 
   switch (outcome.kind) {
     case 'sent':
-      await write(deps, budget, claimed, startedAt, {
+      await put({
         ...base,
         status: 'succeeded',
         attemptOutcome: 'sent',
@@ -185,7 +210,7 @@ async function resolveSent(
     case 'rate_limited': {
       // Telegram refused: nothing was posted, so a retry is safe, up to the attempt cap.
       if (attemptsExhausted(claimed.attempt)) {
-        await write(deps, budget, claimed, startedAt, {
+        await put({
           ...base,
           status: 'failed',
           attemptOutcome: 'rate_limited',
@@ -196,7 +221,7 @@ async function resolveSent(
         });
         return 'failed';
       }
-      await write(deps, budget, claimed, startedAt, {
+      await put({
         ...base,
         status: 'retry_wait',
         runAt: retryRunAt({
@@ -214,7 +239,7 @@ async function resolveSent(
     }
 
     case 'rejected':
-      await write(deps, budget, claimed, startedAt, {
+      await put({
         ...base,
         status: 'failed',
         attemptOutcome: 'rejected',
@@ -226,7 +251,7 @@ async function resolveSent(
 
     case 'unknown':
       // It may have been posted: a human reconciles it, it is never retried automatically.
-      await write(deps, budget, claimed, startedAt, {
+      await put({
         ...base,
         status: 'unknown',
         attemptOutcome: 'unknown',
@@ -282,7 +307,8 @@ async function write(
   budget: TickBudget,
   claimed: ClaimedJob,
   startedAt: number,
-  resolution: JobResolution
+  resolution: JobResolution,
+  context: AlertContext
 ): Promise<void> {
   let applied: boolean;
   try {
@@ -293,8 +319,20 @@ async function write(
     applied = (await deps.repo.outcomeInPlace(resolution)) || (await deps.repo.resolve(resolution));
   }
   // Not applied means reconcile resolved the job first (the lease ran out mid-send): its state stands.
-  if (applied) log(deps, claimed, startedAt, resolution.status, resolution.errorCode ?? undefined);
-  else log(deps, claimed, startedAt, resolution.status, 'OUTCOME_NOT_APPLIED', 'warn');
+  if (applied) {
+    log(deps, claimed, startedAt, resolution.status, resolution.errorCode ?? undefined);
+    // Only a write that took effect raised its incident: a lost one belongs to reconcile, which reports it.
+    if (resolution.incident !== null) {
+      budget.raised.push({
+        id: resolution.incident.id,
+        kind: resolution.incident.kind,
+        code: resolution.incident.code,
+        publicationId: resolution.publicationId,
+        postTitle: context.postTitle,
+        channelTitle: context.channelTitle
+      });
+    }
+  } else log(deps, claimed, startedAt, resolution.status, 'OUTCOME_NOT_APPLIED', 'warn');
 }
 
 function log(

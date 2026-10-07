@@ -1,4 +1,4 @@
-import type { DestinationKind, PublicationStatus } from '@alexeev/contracts';
+import type { DestinationKind, PublicationDto, PublicationStatus } from '@alexeev/contracts';
 import type { IdempotencyClaim } from '../../../platform/idempotency/d1-idempotency-store';
 import type { PostingProblem } from '../domain/bot-posting-rights';
 import type { SchedulablePost } from '../domain/schedulable';
@@ -14,6 +14,16 @@ export type SendOutcome =
 export interface PublicationTransport {
   /** `text` is Telegram HTML (see domain/format-message.ts); the adapter owns parse mode, previews and the timeout. */
   send(input: { chatId: string; text: string; imageKey?: string }): Promise<SendOutcome>;
+}
+
+/**
+ * Tells the owner that a publication was scheduled or moved. It is not the publishing transport and
+ * never touches job state. Called once, after the D1 write that made the change, and never for a
+ * replay. An implementation must not throw or block: the change already happened.
+ */
+export interface ScheduleNotifier {
+  scheduled(publication: PublicationDto): void;
+  rescheduled(publication: PublicationDto): void;
 }
 
 /** The approved revision a publication sends; `app/container.ts` backs it with the content module. */
@@ -32,6 +42,7 @@ export interface DispatchTarget {
   postId: string;
   postRevision: number;
   chatId: string;
+  destinationTitle: string;
   destinationEnabled: boolean;
 }
 
@@ -51,6 +62,20 @@ export interface JobIncident {
   kind: 'publish_failed' | 'publish_unknown';
   code: string;
   details: Record<string, string | number>;
+}
+
+/**
+ * An incident whose write was applied, handed back to the caller so the owner can be told after the
+ * state change. The titles are what the dispatcher already had in hand (null when the incident came
+ * before they were loaded, or from reconcile, which loads nothing): telling the owner costs no extra read.
+ */
+export interface RaisedIncident {
+  id: string;
+  kind: JobIncident['kind'];
+  code: string;
+  publicationId: string | null;
+  postTitle: string | null;
+  channelTitle: string | null;
 }
 
 /** Everything one guarded batch writes when an attempt ends. */
@@ -95,6 +120,14 @@ export interface DispatchRepository {
   findExpiredClaims(now: number, limit: number): Promise<ExpiredClaim[]>;
   /** One batch for all of them; each is guarded by an expired lease, the same attempt and the same send mark. */
   resolveExpired(items: readonly ExpiredResolution[], now: number): Promise<boolean[]>;
+  /**
+   * The conditional claim of the owner alert: sets `owner_notified_at` where it is still NULL and
+   * returns the ids this call set. An id missing from the result was claimed by another tick (or does
+   * not exist): the caller must not alert for it. One statement for all ids.
+   */
+  claimOwnerNotices(incidentIds: readonly string[], now: number): Promise<string[]>;
+  /** How many incidents are unresolved, counted up to `limit` (so the read is bounded). */
+  countOpenIncidents(limit: number): Promise<number>;
 }
 
 /** What publishing needs to know about a post; `app/container.ts` backs it with the content module. */
@@ -246,6 +279,35 @@ export interface PublicationChangeOutcome {
   current: PublicationRecord | null;
 }
 
+/** What one post's publications amount to (the read model behind the post list and the delete dialog). */
+export interface PostPublicationSummary {
+  counts: Record<PublicationStatus, number>;
+  /** The earliest `scheduledAt` among scheduled, queued and retry_wait publications, and where it goes. */
+  nextScheduled: { scheduledAt: number; destinationId: string } | null;
+  /** The latest time a publication of the post was confirmed sent. */
+  lastSentAt: number | null;
+  /** Destinations of publications that are live or went out (not failed, not cancelled), by title. */
+  destinations: { id: string; title: string }[];
+}
+
+/** A publication that is waiting to be sent, with what a one-line summary needs. */
+export interface UpcomingPublication {
+  id: string;
+  postId: string;
+  postRevision: number;
+  destinationTitle: string;
+  /** UTC epoch milliseconds. */
+  scheduledAt: number;
+  timezone: string;
+}
+
+/** What the publications scheduled inside one time range amount to. */
+export interface RangeSummary {
+  counts: Record<PublicationStatus, number>;
+  /** The earliest `scheduledAt` among the waiting ones (scheduled, queued, retry_wait). */
+  nextWaitingAt: number | null;
+}
+
 export interface PublicationRepository {
   /**
    * Writes publication, job, audit row and the idempotency result in one batch, guarded by the
@@ -257,4 +319,13 @@ export interface PublicationRepository {
   list(query: ListPublicationsQuery): Promise<PublicationRecord[]>;
   reschedule(change: PublicationRescheduleChange): Promise<PublicationChangeOutcome>;
   cancel(change: PublicationChange): Promise<PublicationChangeOutcome>;
+  /**
+   * One grouped read for up to 100 posts. Posts without publications are absent from the map. `now`
+   * separates `scheduled` from `queued`.
+   */
+  summarizeByPost(postIds: readonly string[], now: number): Promise<Map<string, PostPublicationSummary>>;
+  /** The next jobs to run (pending or retry_wait), earliest first; at most `limit`. */
+  listUpcoming(limit: number): Promise<UpcomingPublication[]>;
+  /** Counts of the publications scheduled in [from, to), read from at most RANGE_SUMMARY_ROWS of them. */
+  summarizeRange(range: { from: number; to: number; now: number }): Promise<RangeSummary>;
 }

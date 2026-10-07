@@ -1,7 +1,12 @@
 .group {
   display: flex;
+  min-width: 0;
   align-items: center;
   padding: 0 0 0 var(--space-3);
+}
+.description {
+  flex-wrap: wrap;
+  min-width: 0;
 }
 .input {
   display: flex;
@@ -146,4 +151,176 @@
 }
 .cell[data-unavailable] {
   text-decoration: line-through;
+}
+
+/* Time section of the popover. Coarse pointer / narrow screens: 44 px targets via --size-control. */
+.time {
+  display: grid;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--color-border-subtle);
+}
+.timeField {
+  display: grid;
+  gap: var(--space-1);
+}
+.timeLabel {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+}
+.timeInput {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-1);
+  min-height: var(--size-target);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-2);
+  background: var(--color-surface-2);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-lg);
+  font-variant-numeric: tabular-nums;
+}
+.timeInput:focus-within {
+  outline: var(--focus-ring-width) solid var(--color-focus-ring);
+  outline-offset: 1px;
+}
+.timeSegment {
+  min-width: var(--space-8);
+  padding: var(--space-1);
+  text-align: center;
+  border-radius: var(--radius-1);
+  outline: none;
+  caret-color: transparent;
+}
+.timeSegment[data-type='literal'] {
+  min-width: 0;
+  padding: 0;
+}
+.timeSegment[data-focused] {
+  background: var(--color-accent);
+  color: var(--color-on-accent);
+}
+.steppers {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+.stepper,
+.quick {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.stepper {
+  display: flex;
+  flex: 1 1 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-1);
+}
+.stepLabel {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+.step,
+.chip,
+.done {
+  display: grid;
+  place-items: center;
+  min-width: var(--size-target);
+  min-height: var(--size-target);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-2);
+  background: var(--color-surface-2);
+  color: var(--color-text);
+  font-size: var(--font-size-md);
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+.step[data-hovered],
+.chip[data-hovered] {
+  background: var(--color-surface-3);
+}
+.step[data-pressed],
+.chip[data-pressed] {
+  background: var(--color-surface-3);
+}
+.step[data-focus-visible],
+.chip[data-focus-visible],
+.done[data-focus-visible] {
+  outline: var(--focus-ring-width) solid var(--color-focus-ring);
+  outline-offset: 2px;
+}
+.quick {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--space-2);
+}
+.chip[data-selected] {
+  border-color: var(--color-accent);
+  background: var(--color-accent);
+  color: var(--color-on-accent);
+}
+.done {
+  border-color: var(--color-accent);
+  background: var(--color-accent);
+  color: var(--color-on-accent);
+  font-weight: var(--font-weight-medium);
+}
+.popover {
+  display: flex;
+  flex-direction: column;
+  max-width: calc(100vw - var(--space-4));
+}
+/* The popover's max-height tracks the free viewport space; a short window scrolls inside instead of clipping. */
+.dialog {
+  min-height: 0;
+  overflow-y: auto;
+}
+@media (pointer: coarse), (max-width: 859px) {
+  /* Bottom sheet: the anchored position would squeeze header + grid + time into the space above or below the field.
+     !important beats the inline top/left/max-height React Aria computes. */
+  .popover {
+    position: fixed !important;
+    inset: auto 0 0 !important;
+    width: auto;
+    max-width: none;
+    max-height: 100dvh !important;
+    border-width: 1px 0 0;
+    border-radius: var(--radius-2) var(--radius-2) 0 0;
+  }
+  .dialog {
+    padding-bottom: max(var(--space-3), env(safe-area-inset-bottom));
+  }
+  .calendar,
+  .time {
+    justify-self: center;
+    width: 100%;
+    max-width: 22rem;
+  }
+  .input {
+    flex-wrap: nowrap;
+  }
+  .segment {
+    min-width: 0;
+    min-height: var(--size-target);
+    padding: 0 2px;
+    line-height: var(--size-target);
+    white-space: nowrap;
+  }
+  .segment[data-type='literal'] {
+    min-width: 0;
+    padding: 0;
+  }
+  /* The zone is already named in the description under the field; the suffix only forces a second line. */
+  .segment[data-type='timeZoneName'] {
+    display: none;
+  }
+  .cell {
+    width: min(var(--size-control), calc((100vw - 3 * var(--space-4)) / 7 - 2px));
+  }
 }

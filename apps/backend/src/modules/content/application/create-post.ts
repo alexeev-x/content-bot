@@ -1,7 +1,8 @@
 import { type CreatePostInput, type PostDto, postSchema } from '@alexeev/contracts';
+import { z } from 'zod';
 import { sha256Hex } from '../../../platform/security/sha256';
 import { AppError } from '../../../shared/app-error';
-import { toPostDto } from './post-dto';
+import { emptySummary, toPostDto } from './post-dto';
 import type { IdempotencyGate, PostRecord, PostRepository } from './ports';
 
 export interface CreatePostDeps {
@@ -26,7 +27,14 @@ export async function createPost(deps: CreatePostDeps, command: CreatePostComman
   const claim = await deps.idempotency.claim(actor, idempotencyKey, requestHash, deps.now);
   switch (claim.kind) {
     case 'replay':
-      return postSchema.parse(JSON.parse(claim.responseBody));
+      // A response stored before the archive fields existed lacks them; a new post is never archived and
+      // has no publications, so the defaults are exactly what it would carry now.
+      return postSchema.parse({
+        archivedAt: null,
+        autoDeleteAt: null,
+        publicationSummary: emptySummary(),
+        ...z.record(z.string(), z.unknown()).parse(JSON.parse(claim.responseBody))
+      });
     case 'reused':
       throw new AppError('CONFLICT', 'Idempotency-Key was already used with a different payload', {
         reason: 'IDEMPOTENCY_KEY_REUSED'
@@ -42,6 +50,7 @@ export async function createPost(deps: CreatePostDeps, command: CreatePostComman
     title: input.title,
     body: input.body,
     status: 'draft',
+    archivedAt: null,
     revision: 0,
     createdAt: deps.now,
     updatedAt: deps.now

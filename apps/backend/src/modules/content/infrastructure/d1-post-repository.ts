@@ -8,11 +8,12 @@ interface PostRow {
   body: string;
   status: PostStatus;
   revision: number;
+  archived_at: number | null;
   created_at: number;
   updated_at: number;
 }
 
-const POST_COLUMNS = 'id, title, body, status, revision, created_at, updated_at';
+const POST_COLUMNS = 'id, title, body, status, revision, archived_at, created_at, updated_at';
 
 function toRecord(row: PostRow): PostRecord {
   return {
@@ -21,28 +22,31 @@ function toRecord(row: PostRow): PostRecord {
     body: row.body,
     status: row.status,
     revision: row.revision,
+    archivedAt: row.archived_at,
     createdAt: row.created_at,
     updatedAt: row.updated_at
   };
 }
 
-// Newest update first. Each shape matches one index (posts_status_updated_idx / posts_updated_idx)
-// so SQLite walks the index in order and never sorts. Only constant fragments are joined; every
-// value is bound.
-export function listPostsSql(query: Pick<ListPostsQuery, 'status' | 'after'>): string {
-  const conditions: string[] = [];
+// Live view: newest update first over posts that are not archived. The two live shapes walk
+// posts_updated_idx / posts_status_updated_idx in order and skip archived rows on the way (at most
+// the retention period's worth, never a sort). Archive view: most recently archived first over the
+// partial posts_archive_idx. Only constant fragments are joined; every value is bound.
+export function listPostsSql(query: Pick<ListPostsQuery, 'view' | 'status' | 'after'>): string {
+  const archive = query.view === 'archive';
+  const sortKey = archive ? 'archived_at' : 'updated_at';
+  const conditions: string[] = [archive ? 'archived_at IS NOT NULL' : 'archived_at IS NULL'];
   if (query.status !== undefined) conditions.push('status = ?');
-  // The leading range on updated_at is what lets the index seek straight to the cursor; the OR
+  // The leading range on the sort key is what lets the index seek straight to the cursor; the OR
   // only breaks ties among rows that share the cursor's timestamp.
-  if (query.after !== undefined) conditions.push('updated_at <= ?', '(updated_at < ? OR id < ?)');
-  const where = conditions.length === 0 ? '' : ` WHERE ${conditions.join(' AND ')}`;
-  return `SELECT ${POST_COLUMNS} FROM posts${where} ORDER BY updated_at DESC, id DESC LIMIT ?`;
+  if (query.after !== undefined) conditions.push(`${sortKey} <= ?`, `(${sortKey} < ? OR id < ?)`);
+  return `SELECT ${POST_COLUMNS} FROM posts WHERE ${conditions.join(' AND ')} ORDER BY ${sortKey} DESC, id DESC LIMIT ?`;
 }
 
 function listBindings(query: ListPostsQuery): (string | number)[] {
   const values: (string | number)[] = [];
   if (query.status !== undefined) values.push(query.status);
-  if (query.after !== undefined) values.push(query.after.updatedAt, query.after.updatedAt, query.after.id);
+  if (query.after !== undefined) values.push(query.after.at, query.after.at, query.after.id);
   values.push(query.limit);
   return values;
 }
@@ -108,6 +112,13 @@ export function createD1PostRepository(db: D1Database): PostRepository {
         .bind(...listBindings(query))
         .all<PostRow>();
       return results.map(toRecord);
+    },
+
+    async countArchived() {
+      const row = await db
+        .prepare('SELECT count(*) AS n FROM posts WHERE archived_at IS NOT NULL')
+        .first<{ n: number }>();
+      return row?.n ?? 0;
     },
 
     async update(change) {

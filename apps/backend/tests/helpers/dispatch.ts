@@ -5,7 +5,10 @@ import type { PublicationTransport, SendOutcome } from '../../src/modules/publis
 import { createTelegramPublicationTransport, type TelegramSender } from '../../src/modules/publishing';
 import { createLogger } from '../../src/platform/logging/logger';
 import { testDb } from './db';
-import { type Api, type FakeClock, START } from './harness';
+import { fakeBotAdminApi } from './fake-bot-admin-api';
+import { fakeChatApi } from './fake-chat-api';
+import { fakeOwnerMessenger, type FakeOwnerMessenger } from './fake-owner-messenger';
+import { type Api, type FakeClock, OWNER_ID, START } from './harness';
 import { seedApprovedPost, seedDestination, seedPublication } from './publishing';
 
 // START is minute 0 of an hour (the cleanup tick); this one is not.
@@ -88,9 +91,13 @@ export interface TickOptions {
   random?: () => number;
   /** Wraps the real container, for racing, metering or failing a part of it. */
   tweak?: (container: Container) => Container;
+  /** Replaces the recording fake that stands for the owner's chat. Without a token the container has none. */
+  ownerMessenger?: FakeOwnerMessenger;
 }
 
 export interface Tick {
+  /** What reached the owner's chat. */
+  ownerMessages: FakeOwnerMessenger['sent'];
   container: Container;
   logs: Record<string, unknown>[];
   run(): Promise<void>;
@@ -98,13 +105,24 @@ export interface Tick {
 
 export function makeTick(options: TickOptions): Tick {
   const logs: Record<string, unknown>[] = [];
+  const messenger = options.ownerMessenger ?? fakeOwnerMessenger();
   const base = createContainer(
     {
       DB: options.db ?? testDb(),
+      OWNER_TELEGRAM_ID: OWNER_ID,
       PUBLISHING_ENABLED: options.publishing ?? 'true',
       ...(options.token === null ? {} : { TELEGRAM_BOT_TOKEN: options.token ?? '123456:TEST-BOT-TOKEN-PLACEHOLDER' })
     },
-    { clock: options.clock, transport: options.transport, random: options.random ?? (() => 0) }
+    {
+      clock: options.clock,
+      transport: options.transport,
+      random: options.random ?? (() => 0),
+      // Without a token the real Telegram clients refuse to be built; spreading the container below
+      // reads every getter, so the ones a tick never uses are replaced by inert fakes.
+      ...(options.token === null
+        ? { telegramChatApi: fakeChatApi({ chat: {} }), telegramBotAdminApi: fakeBotAdminApi() }
+        : { ownerMessenger: messenger })
+    }
   );
   // Spreading reads every getter once: all of them are resolvable in tests.
   const logger = createLogger((line) => logs.push(JSON.parse(line) as Record<string, unknown>));
@@ -113,7 +131,7 @@ export function makeTick(options: TickOptions): Tick {
     cron: '* * * * *',
     scheduledTime: options.scheduledTime ?? MINUTE_TICK
   } as ScheduledController;
-  return { container, logs, run: () => handleScheduled(controller, container) };
+  return { container, logs, ownerMessages: messenger.sent, run: () => handleScheduled(controller, container) };
 }
 
 /** One counter of the tick's summary log line (0 when the tick did not report it). */

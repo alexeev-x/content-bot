@@ -13,15 +13,48 @@ export const ids = {
   publication: '33333333-3333-4333-8333-333333333333'
 } as const;
 
-const post = (id: string, title: string, status = 'draft') => ({
+const NO_COUNTS = {
+  scheduled: 0,
+  queued: 0,
+  preparing: 0,
+  sending: 0,
+  sent: 0,
+  retry_wait: 0,
+  failed: 0,
+  unknown: 0,
+  cancelled: 0
+};
+const summary = (counts: Partial<typeof NO_COUNTS> = {}, extra: Record<string, unknown> = {}) => ({
+  counts: { ...NO_COUNTS, ...counts },
+  nextScheduled: null,
+  lastSentAt: null,
+  destinations: [],
+  ...extra
+});
+
+const post = (id: string, title: string, status = 'draft', extra: Record<string, unknown> = {}) => ({
   id,
   title,
   body: 'Текст поста. '.repeat(40),
   revision: 0,
   status,
+  archivedAt: null,
+  autoDeleteAt: null,
+  publicationSummary: summary(),
   createdAt: T,
-  updatedAt: T
+  updatedAt: T,
+  ...extra
 });
+const archived = (n: number, title: string, daysLeft: number) =>
+  post(`11111111-1111-4111-8111-0000000000a${n}`, title, 'approved', {
+    revision: 3,
+    archivedAt: '2026-10-05T09:00:00.000Z',
+    autoDeleteAt: new Date(Date.now() + daysLeft * 86_400_000).toISOString(),
+    publicationSummary: summary(
+      { sent: 1 },
+      { lastSentAt: '2026-10-05T09:00:00.000Z', destinations: [{ id: ids.destination, title: LONG_CHANNEL_TITLE }] }
+    )
+  });
 const destination = (id: string, title: string, chatId: string) => ({
   id,
   title,
@@ -48,9 +81,21 @@ const publication = (id: string, postId: string, destinationId: string, status: 
 
 const posts = [
   post(ids.post, LONG_POST_TITLE),
-  post('11111111-1111-4111-8111-222222222222', UNBROKEN, 'approved'),
-  post('11111111-1111-4111-8111-333333333333', 'Короткий пост')
+  post('11111111-1111-4111-8111-222222222222', UNBROKEN, 'approved', {
+    publicationSummary: summary(
+      { scheduled: 1 },
+      {
+        nextScheduled: { scheduledAt: '2026-10-08T09:00:00.000Z', destinationId: ids.destination },
+        destinations: [{ id: ids.destination, title: LONG_CHANNEL_TITLE }]
+      }
+    )
+  }),
+  post('11111111-1111-4111-8111-333333333333', 'Короткий пост'),
+  post('11111111-1111-4111-8111-444444444444', 'Идёт отправка', 'approved', {
+    publicationSummary: summary({ sending: 1 })
+  })
 ];
+const archivedPosts = [archived(1, LONG_POST_TITLE, 20), archived(2, 'Итоги недели', 2), archived(3, UNBROKEN, 12)];
 const destinations = [
   destination(ids.destination, LONG_CHANNEL_TITLE, '-1001234567890'),
   destination(ids.destination2, UNBROKEN, '-1009876543210')
@@ -121,8 +166,27 @@ export async function mockApi(page: Page): Promise<void> {
     }
     return json(route, appearance);
   });
-  await page.route(/\/api\/v1\/posts(\?.*)?$/, (route) => json(route, page_(posts)));
-  await page.route(/\/api\/v1\/posts\/[^/?]+$/, (route) => json(route, posts[0]));
+  await page.route(/\/api\/v1\/posts(\?.*)?$/, (route) => {
+    const view = new URL(route.request().url()).searchParams.get('view');
+    return json(route, { ...page_(view === 'archive' ? archivedPosts : posts), archivedCount: archivedPosts.length });
+  });
+  await page.route(/\/api\/v1\/posts\/[^/?]+$/, (route) => {
+    const wanted = route.request().url().split('/').pop()?.split('?')[0];
+    return json(route, [...posts, ...archivedPosts].find((item) => item.id === wanted) ?? posts[0]);
+  });
+  await page.route(/\/api\/v1\/posts\/delete$/, async (route) => {
+    const { items } = route.request().postDataJSON() as { items: Array<{ id: string }> };
+    return json(route, {
+      items: items.map((item) => ({ id: item.id, outcome: 'deleted', cancelledPublications: [] }))
+    });
+  });
+  await page.route(/\/api\/v1\/posts\/restore$/, async (route) => {
+    const { items } = route.request().postDataJSON() as { items: Array<{ id: string }> };
+    return json(route, { items: items.map((item) => ({ id: item.id, outcome: 'restored' })) });
+  });
+  await page.route(/\/api\/v1\/posts\/[^/?]+\/delete$/, (route) =>
+    json(route, { id: route.request().url().split('/').slice(-2)[0], cancelledPublications: [] })
+  );
   await page.route(/\/api\/v1\/destinations(\?.*)?$/, (route) => json(route, page_(destinations)));
   await page.route(/\/api\/v1\/destinations\/[^/?]+$/, (route) => json(route, destinations[0]));
   await page.route(/\/api\/v1\/publications(\?.*)?$/, (route) => json(route, page_(publications)));

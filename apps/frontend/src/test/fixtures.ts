@@ -4,6 +4,7 @@ import type {
   DestinationDto,
   MeDto,
   PostDto,
+  PostPublicationSummary,
   PublicationDto,
   TelegramWidgetSignInInput
 } from '@alexeev/contracts';
@@ -34,12 +35,34 @@ export const widgetUser: TelegramWidgetSignInInput = {
   language_code: 'ru'
 };
 
+export const emptySummary = (overrides: Partial<PostPublicationSummary> = {}): PostPublicationSummary => ({
+  counts: {
+    scheduled: 0,
+    queued: 0,
+    preparing: 0,
+    sending: 0,
+    sent: 0,
+    retry_wait: 0,
+    failed: 0,
+    unknown: 0,
+    cancelled: 0
+  },
+  nextScheduled: null,
+  lastSentAt: null,
+  destinations: [],
+  ...overrides
+});
+
+/** A live draft with no publications; archived posts pass `archivedAt` and `autoDeleteAt`. */
 export const post = (overrides: Partial<PostDto> = {}): PostDto => ({
   id: ids.post,
   title: 'Заголовок',
   body: 'Текст поста',
   revision: 0,
   status: 'draft',
+  archivedAt: null,
+  autoDeleteAt: null,
+  publicationSummary: emptySummary(),
   createdAt: T,
   updatedAt: T,
   ...overrides
@@ -74,3 +97,42 @@ export const publication = (overrides: Partial<PublicationDto> = {}): Publicatio
 export const errorBody = (code: ApiErrorCode, details?: Record<string, string>) => ({
   error: { code, message: `${code} message`, requestId: 'req-test-1', ...(details ? { details } : {}) }
 });
+
+/** A page of posts as GET /posts returns it, with the archive size. */
+export const postPage = (items: PostDto[], options: { nextCursor?: string | null; archivedCount?: number } = {}) => ({
+  items,
+  nextCursor: options.nextCursor ?? null,
+  archivedCount: options.archivedCount ?? 0
+});
+
+const inHours = (hours: number) => new Date(Date.now() + hours * 3_600_000).toISOString();
+
+/** A post with the given publication counts; `nextScheduled` and `destinations` follow from them. */
+export const postWith = (
+  counts: Partial<PostPublicationSummary['counts']>,
+  overrides: Partial<PostDto> = {}
+): PostDto => {
+  const waiting = (counts.scheduled ?? 0) + (counts.queued ?? 0) + (counts.retry_wait ?? 0);
+  const summary = emptySummary({
+    counts: { ...emptySummary().counts, ...counts },
+    nextScheduled: waiting > 0 ? { scheduledAt: '2026-10-08T09:00:00.000Z', destinationId: ids.destination } : null,
+    destinations: [{ id: ids.destination, title: 'Канал' }]
+  });
+  return post({ status: 'approved', revision: 2, publicationSummary: summary, ...overrides });
+};
+
+/** An archived post that is deleted automatically `days` days from now. */
+export const archivedPost = (overrides: Partial<PostDto> = {}, days = 20): PostDto =>
+  postWith(
+    { sent: 1 },
+    {
+      archivedAt: '2026-10-05T09:00:00.000Z',
+      autoDeleteAt: inHours(days * 24),
+      ...overrides,
+      publicationSummary: emptySummary({
+        counts: { ...emptySummary().counts, sent: 1 },
+        lastSentAt: '2026-10-05T09:00:00.000Z',
+        destinations: [{ id: ids.destination, title: 'Канал' }]
+      })
+    }
+  );

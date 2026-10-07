@@ -12,12 +12,20 @@ import { nextCursor } from '../../../shared/api/query-string';
 import {
   approvePost,
   createPost,
+  deletePost,
+  deletePosts,
   getPost,
   listPosts,
+  restorePost,
+  restorePosts,
   updatePost,
   type ApprovePostBody,
+  type BulkDeletePostsBody,
+  type BulkRestorePostsBody,
   type CreatePostBody,
+  type DeletePostBody,
   type PostFilters,
+  type RestorePostBody,
   type UpdatePostBody
 } from './posts-api';
 
@@ -87,5 +95,62 @@ export function useApprovePost() {
     mutationFn: ({ id, input }: { id: string; input: ApprovePostBody }) => approvePost(id, input),
     retry: false,
     onSuccess: (post) => applyServerPost(queryClient, post)
+  });
+}
+
+// A deleted post takes its publication records with it, so publication lists and details go stale too. The key is
+// the publications feature's public root key; features never import each other.
+const PUBLICATIONS_KEY = ['publications'] as const;
+
+function forgetPosts(queryClient: QueryClient, ids: readonly string[]): void {
+  for (const id of ids) queryClient.removeQueries({ queryKey: postKeys.detail(id) });
+  void queryClient.invalidateQueries({ queryKey: postKeys.lists() });
+  void queryClient.invalidateQueries({ queryKey: PUBLICATIONS_KEY });
+}
+
+/** Nothing leaves the cache before the server answers: lists are refetched, never edited. */
+export function useDeletePost() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, input }: { id: string; input: DeletePostBody }) => deletePost(id, input),
+    retry: false,
+    onSuccess: (result) => forgetPosts(queryClient, [result.id])
+  });
+}
+
+/** Per-post outcomes: only the posts the server reports as deleted are forgotten. */
+export function useBulkDeletePosts() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: BulkDeletePostsBody) => deletePosts(input),
+    retry: false,
+    onSuccess: (result) =>
+      forgetPosts(
+        queryClient,
+        result.items.filter((item) => item.outcome === 'deleted').map((item) => item.id)
+      )
+  });
+}
+
+export function useRestorePost() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, input }: { id: string; input: RestorePostBody }) => restorePost(id, input),
+    retry: false,
+    onSuccess: (post) => applyServerPost(queryClient, post)
+  });
+}
+
+export function useBulkRestorePosts() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: BulkRestorePostsBody) => restorePosts(input),
+    retry: false,
+    onSuccess: (result) => {
+      for (const item of result.items) {
+        if (item.outcome === 'restored') void queryClient.invalidateQueries({ queryKey: postKeys.detail(item.id) });
+      }
+      void queryClient.invalidateQueries({ queryKey: postKeys.lists() });
+    }
   });
 }

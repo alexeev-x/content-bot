@@ -5,8 +5,11 @@ import { copy } from '../ui/copy';
 export type ActionContext = 'create' | 'reschedule' | 'cancel';
 export type ErrorTone = 'info' | 'warning' | 'error' | 'conflict';
 
+/** `post_archived` is 409 POST_ARCHIVED of POST /publications, which the shared classifier does not know. */
+export type ActionErrorKind = ApiErrorKind | 'post_archived';
+
 export type ActionError = {
-  kind: ApiErrorKind;
+  kind: ActionErrorKind;
   tone: ErrorTone;
   title: string;
   body: string;
@@ -15,7 +18,10 @@ export type ActionError = {
 
 /** Plain-Russian text for a failed publication action; the caller keeps whatever the owner typed. */
 export function describeActionError(error: unknown, context: ActionContext): ActionError {
-  const kind = classifyApiError(error);
+  const kind: ActionErrorKind =
+    error instanceof ApiError && error.code === 'CONFLICT' && error.reason === 'POST_ARCHIVED'
+      ? 'post_archived'
+      : classifyApiError(error);
   const requestId = error instanceof ApiError ? error.requestId : undefined;
   const make = (tone: ErrorTone, text: { title: string; body: string }): ActionError => ({
     kind,
@@ -27,6 +33,8 @@ export function describeActionError(error: unknown, context: ActionContext): Act
   switch (kind) {
     case 'post_not_approved':
       return make('error', e.postNotApproved);
+    case 'post_archived':
+      return make('conflict', e.postArchived);
     case 'stale_revision':
       return make('conflict', context === 'create' ? e.stale : e.staleDetail);
     case 'destination_disabled':
@@ -60,7 +68,7 @@ export function describeActionError(error: unknown, context: ActionContext): Act
 }
 
 /** Kinds after which the action can never succeed as typed: submit stays disabled until the owner changes something. */
-export function isTerminalForAction(kind: ApiErrorKind): boolean {
+export function isTerminalForAction(kind: ActionErrorKind): boolean {
   return kind === 'not_cancellable' || kind === 'not_reschedulable' || kind === 'not_found';
 }
 

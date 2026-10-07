@@ -1,11 +1,13 @@
+import type { CreatePostInput } from '@alexeev/contracts';
 import type { Update, UserFromGetMe } from 'grammy/types';
 import { describe, expect, it } from 'vitest';
 import type { AppEnv } from '../env';
 import { apiError } from '../../../tests/helpers/fake-chat-api';
-import { fakeBotAdminApi, type Failures } from '../../../tests/helpers/fake-bot-admin-api';
+import { type FakeBotAdminApi, fakeBotAdminApi, type Failures } from '../../../tests/helpers/fake-bot-admin-api';
 import type { LogEvent } from '../../platform/logging/logger';
 import type { BotIdentityStore } from './bot-identity-store';
-import { type BotConfig, createBot, inspectBotSetup, loadBotSetup } from './create-bot';
+import { type BotConfig, type BotRuntime, createBot, inspectBotSetup, loadBotSetup } from './create-bot';
+import type { OwnerReply } from './owner-reports';
 import { createTelegramCaller } from './telegram-call';
 
 const BOT_INFO = { id: 1, is_bot: true, first_name: 'Bot', username: 'content_bot' };
@@ -61,7 +63,59 @@ function startUpdate(fromId: number): Update {
   };
 }
 
-async function run(fromId: number, failures: Failures = {}, adminApi = fakeBotAdminApi({ failures })) {
+interface Harness {
+  drafts: { input: CreatePostInput; key: string }[];
+  seen: Set<number>;
+  origins: string[];
+  runtime: Partial<BotRuntime>;
+}
+
+const answer = (text: string): OwnerReply => ({
+  html: text,
+  button: { text: `button of ${text}`, url: `https://studio.example.com/${text}` }
+});
+
+function harness(overrides: Partial<BotRuntime> = {}): Harness {
+  const drafts: Harness['drafts'] = [];
+  const seen = new Set<number>();
+  const origins: string[] = [];
+  return {
+    drafts,
+    seen,
+    origins,
+    runtime: {
+      clock: { now: () => 1_000 },
+      updates: {
+        claim: (updateId) => {
+          const first = !seen.has(updateId);
+          seen.add(updateId);
+          return Promise.resolve(first);
+        }
+      },
+      reports: {
+        today: () => Promise.resolve(answer('today')),
+        next: () => Promise.resolve(answer('next')),
+        status: () => Promise.resolve(answer('status'))
+      },
+      createDraft: (input, key) => {
+        drafts.push({ input, key });
+        return Promise.resolve({ id: `post-${drafts.length}` });
+      },
+      rememberAppOrigin: (origin) => {
+        origins.push(origin);
+        return Promise.resolve();
+      },
+      ...overrides
+    }
+  };
+}
+
+async function runUpdates(
+  updates: Update[],
+  options: { failures?: Failures; adminApi?: FakeBotAdminApi; chatType?: string; setup?: Harness } = {}
+) {
+  const adminApi = options.adminApi ?? fakeBotAdminApi({ failures: options.failures ?? {} });
+  const setup = options.setup ?? harness();
   const config = readBotConfig(baseEnv) as BotConfig;
   const background: Promise<unknown>[] = [];
   const events: LogEvent[] = [];
@@ -76,17 +130,22 @@ async function run(fromId: number, failures: Failures = {}, adminApi = fakeBotAd
         component: 'bot',
         operation: 'handle_update',
         errorCode: error instanceof Error ? error.name : 'unknown'
-      })
+      }),
+    ...(setup.runtime as Omit<BotRuntime, 'appOrigin' | 'adminApi' | 'call' | 'waitUntil' | 'onError'>)
   });
-  const calls: { method: string; payload: unknown }[] = [];
+  const calls: { method: string; payload: Record<string, unknown> }[] = [];
   bot.api.config.use((_prev, method, payload) => {
-    calls.push({ method, payload });
+    calls.push({ method, payload: payload as Record<string, unknown> });
     return Promise.resolve({ ok: true, result: true } as never);
   });
-  await bot.handleUpdate(startUpdate(fromId));
+  for (const update of updates) await bot.handleUpdate(update);
   // What the Worker keeps running after the webhook has answered.
   const settleBackground = () => Promise.all(background);
-  return { calls, adminCalls: adminApi.calls, events, background, settleBackground };
+  return { calls, adminCalls: adminApi.calls, events, background, settleBackground, setup };
+}
+
+async function run(fromId: number, failures: Failures = {}, adminApi = fakeBotAdminApi({ failures })) {
+  return runUpdates([startUpdate(fromId)], { adminApi });
 }
 
 const STORED = { id: 123456, is_bot: true, first_name: 'Stored', username: 'stored_bot' } as UserFromGetMe;
@@ -209,7 +268,7 @@ describe('bot', () => {
       }
     });
     expect(adminCalls).toEqual([
-      'setChatCommands 4242 start',
+      'setChatCommands 4242 start,today,next,status',
       'setChatMenuWebApp 4242 Студия https://studio.example.com/'
     ]);
   });
@@ -223,7 +282,7 @@ describe('bot', () => {
     await expect(settleBackground()).resolves.toBeDefined();
     expect(calls).toHaveLength(1);
     expect(calls[0]?.method).toBe('sendMessage');
-    expect(adminCalls).toEqual(['setChatCommands 4242 start']);
+    expect(adminCalls).toEqual(['setChatCommands 4242 start,today,next,status']);
     expect(events).toEqual([
       { component: 'telegram', operation: 'owner_chat.set_commands', status: 503, errorCode: 'telegram_http_400' }
     ]);
@@ -246,5 +305,217 @@ describe('bot', () => {
     expect(calls).toEqual([]);
     expect(adminCalls).toEqual([]);
     expect(background).toEqual([]);
+  });
+});
+
+function textUpdate(
+  fromId: number,
+  text: string,
+  extra: { updateId?: number; chatType?: 'private' | 'group'; forwarded?: boolean; command?: boolean } = {}
+): Update {
+  const chatType = extra.chatType ?? 'private';
+  return {
+    update_id: extra.updateId ?? 100,
+    message: {
+      message_id: 10,
+      date: 1,
+      chat:
+        chatType === 'private'
+          ? { id: fromId, type: 'private', first_name: 'X' }
+          : { id: -5, type: 'group', title: 'G' },
+      from: { id: fromId, is_bot: false, first_name: 'X' },
+      text,
+      ...(extra.command === true
+        ? { entities: [{ type: 'bot_command' as const, offset: 0, length: text.length }] }
+        : {}),
+      ...(extra.forwarded === true
+        ? {
+            forward_origin: {
+              type: 'channel' as const,
+              date: 1,
+              chat: { id: -100, type: 'channel' as const, title: 'C' },
+              message_id: 3
+            }
+          }
+        : {})
+    }
+  } as Update;
+}
+
+const sentMessages = (calls: { method: string }[]) => calls.filter((call) => call.method === 'sendMessage');
+
+describe('owner commands', () => {
+  it.each([
+    ['today', 'https://studio.example.com/today'],
+    ['next', 'https://studio.example.com/next'],
+    ['status', 'https://studio.example.com/status']
+  ])('/%s answers with its report as HTML and one Mini App button', async (command, url) => {
+    const { calls } = await runUpdates([textUpdate(4242, `/${command}`, { command: true })]);
+
+    expect(calls).toHaveLength(1);
+    expect(calls[0]).toMatchObject({
+      method: 'sendMessage',
+      payload: {
+        chat_id: 4242,
+        text: command,
+        parse_mode: 'HTML',
+        link_preview_options: { is_disabled: true },
+        reply_markup: { inline_keyboard: [[{ text: `button of ${command}`, web_app: { url } }]] }
+      }
+    });
+  });
+
+  it('answers a failed read with a plain message, logs a stable code and no payload', async () => {
+    const setup = harness({
+      reports: {
+        today: () => Promise.reject(new Error('D1 down: secret-detail')),
+        next: () => Promise.reject(new Error('x')),
+        status: () => Promise.reject(new Error('x'))
+      }
+    });
+    const { calls, events } = await runUpdates([textUpdate(4242, '/today', { command: true })], { setup });
+
+    expect(calls).toHaveLength(1);
+    expect(calls[0]).toMatchObject({
+      method: 'sendMessage',
+      payload: { text: 'Не удалось получить данные. Попробуйте ещё раз.' }
+    });
+    expect(events).toEqual([{ component: 'bot', operation: 'handle_update', errorCode: 'Error' }]);
+    expect(JSON.stringify(events)).not.toContain('secret-detail');
+  });
+
+  it('remembers the origin on /start for the alerts of Cron', async () => {
+    const setup = harness();
+    const { settleBackground } = await runUpdates([startUpdate(4242)], { setup });
+    await settleBackground();
+    expect(setup.origins).toEqual(['https://studio.example.com']);
+  });
+
+  it('still configures the owner chat when the origin cannot be stored', async () => {
+    const setup = harness({ rememberAppOrigin: () => Promise.reject(new Error('no such table')) });
+    const { settleBackground, adminCalls, events } = await runUpdates([startUpdate(4242)], { setup });
+    await settleBackground();
+    expect(adminCalls).toHaveLength(2);
+    expect(events).toEqual([{ component: 'bot', operation: 'handle_update', errorCode: 'Error' }]);
+  });
+});
+
+describe('drafts from messages', () => {
+  it('turns a forwarded text into a draft, keeps emoji whole and replies with an Open button', async () => {
+    const text = 'Релиз 7.40 🚀\n\nНовые герои 👩‍💻 и баланс\n- первое\n- второе';
+    const setup = harness();
+    const { calls } = await runUpdates([textUpdate(4242, text, { forwarded: true })], { setup });
+
+    expect(setup.drafts).toEqual([
+      {
+        input: { title: 'Релиз 7.40 🚀', body: 'Новые герои 👩‍💻 и баланс\n- первое\n- второе' },
+        key: 'tg-update-100'
+      }
+    ]);
+    expect(sentMessages(calls)).toHaveLength(1);
+    expect(calls[0]).toMatchObject({
+      method: 'sendMessage',
+      payload: {
+        chat_id: 4242,
+        text: 'Черновик создан',
+        reply_markup: {
+          inline_keyboard: [[{ text: 'Открыть', web_app: { url: 'https://studio.example.com/posts/post-1' } }]]
+        }
+      }
+    });
+    expect(calls[0]?.payload).not.toHaveProperty('parse_mode');
+  });
+
+  it('a single line is the title with an empty body', async () => {
+    const setup = harness();
+    await runUpdates([textUpdate(4242, '  Просто строка  ')], { setup });
+    expect(setup.drafts[0]?.input).toEqual({ title: 'Просто строка', body: '' });
+  });
+
+  it('cuts a first line longer than the title limit between whole characters and keeps the rest in the body', async () => {
+    // 199 units of text, then an emoji (two units) that would straddle the 199-unit cut.
+    const line = `${'а'.repeat(198)}🚀${'б'.repeat(50)}`;
+    const setup = harness();
+    await runUpdates([textUpdate(4242, `${line}\nвторая строка`)], { setup });
+
+    const input = setup.drafts[0]?.input;
+    expect(input?.title.length).toBeLessThanOrEqual(200);
+    expect(input?.title.endsWith('…')).toBe(true);
+    // Whole code points on both sides of the cut, and nothing lost.
+    expect(input?.title).toBe(`${'а'.repeat(198)}…`);
+    expect(input?.body).toBe(`🚀${'б'.repeat(50)}\nвторая строка`);
+    expect(`${input?.title.slice(0, -1)}${input?.body.split('\n')[0]}`).toBe(line);
+  });
+
+  it('refuses a body over the contract limit without creating a draft, counting UTF-16 units', async () => {
+    // 2049 emoji are 4098 UTF-16 units: more than 4096 although fewer than 4096 code points.
+    const text = `Заголовок\n${'😀'.repeat(2049)}`;
+    const setup = harness();
+    const { calls } = await runUpdates([textUpdate(4242, text)], { setup });
+
+    expect(setup.drafts).toEqual([]);
+    expect(calls).toHaveLength(1);
+    expect(calls[0]).toMatchObject({ payload: { text: 'Текст длиннее 4096 символов, черновик не создан.' } });
+  });
+
+  it('accepts a body of exactly 4096 units', async () => {
+    const setup = harness();
+    await runUpdates([textUpdate(4242, `T\n${'😀'.repeat(2048)}`)], { setup });
+    expect(setup.drafts).toHaveLength(1);
+  });
+
+  it('refuses text with a control character', async () => {
+    const setup = harness();
+    const { calls } = await runUpdates([textUpdate(4242, 'Заголовок\nтекст\u0007')], { setup });
+    expect(setup.drafts).toEqual([]);
+    expect(calls[0]).toMatchObject({ payload: { text: 'Текст содержит недопустимые символы, черновик не создан.' } });
+  });
+
+  it('processes a repeated update_id once: one draft, one reply', async () => {
+    const setup = harness();
+    const same = textUpdate(4242, 'Один раз', { updateId: 555 });
+    const { calls } = await runUpdates([same, same], { setup });
+
+    expect(setup.drafts).toHaveLength(1);
+    expect(sentMessages(calls)).toHaveLength(1);
+  });
+
+  it('does not make a post of an unknown command', async () => {
+    const setup = harness();
+    const { calls } = await runUpdates([textUpdate(4242, '/unknown', { command: true })], { setup });
+    expect(setup.drafts).toEqual([]);
+    expect(calls).toEqual([]);
+  });
+
+  it('answers a failed save and logs a stable code', async () => {
+    const setup = harness({ createDraft: () => Promise.reject(new Error('D1 down')) });
+    const { calls, events } = await runUpdates([textUpdate(4242, 'Текст')], { setup });
+
+    expect(calls).toHaveLength(1);
+    expect(calls[0]).toMatchObject({ payload: { text: 'Не удалось создать черновик. Отправьте текст ещё раз.' } });
+    expect(events).toEqual([{ component: 'bot', operation: 'handle_update', errorCode: 'Error' }]);
+  });
+});
+
+describe('who the bot answers', () => {
+  it.each([
+    ['a command', '/today', true],
+    ['a text', 'Привет', false]
+  ])('ignores %s from anyone but the owner: no reply, no draft, no stored update id', async (_name, text, command) => {
+    const setup = harness();
+    const { calls, adminCalls, background } = await runUpdates([textUpdate(777, text, { command })], { setup });
+
+    expect(calls).toEqual([]);
+    expect(adminCalls).toEqual([]);
+    expect(background).toEqual([]);
+    expect(setup.drafts).toEqual([]);
+    expect(setup.seen.size).toBe(0);
+  });
+
+  it('ignores the owner in a group chat', async () => {
+    const setup = harness();
+    const { calls } = await runUpdates([textUpdate(4242, 'Привет', { chatType: 'group' })], { setup });
+    expect(calls).toEqual([]);
+    expect(setup.drafts).toEqual([]);
   });
 });

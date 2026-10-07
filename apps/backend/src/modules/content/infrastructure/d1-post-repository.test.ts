@@ -5,23 +5,29 @@ import { createD1PostRepository, listPostsSql } from './d1-post-repository';
 
 beforeEach(resetDb);
 
-const after = { updatedAt: START, id: '0b1f6c52-8d3e-4a47-9a35-2f6f0c1d7e90' };
+const after = { at: START, id: '0b1f6c52-8d3e-4a47-9a35-2f6f0c1d7e90' };
 
 describe('list query plans', () => {
   // A SCAN of the table or a TEMP B-TREE would mean the list sorts or reads everything.
   it.each([
-    ['no filter, first page', {}, ['SCAN posts USING INDEX posts_updated_idx']],
-    ['status filter, first page', { status: 'draft' as const }, ['SEARCH posts USING INDEX posts_status_updated_idx']],
-    ['no filter, next page', { after }, ['SEARCH posts USING INDEX posts_updated_idx']],
+    ['live, no filter, first page', { view: 'live' as const }, ['SCAN posts USING INDEX posts_updated_idx']],
     [
-      'status filter, next page',
-      { status: 'approved' as const, after },
+      'live, status filter, first page',
+      { view: 'live' as const, status: 'draft' as const },
       ['SEARCH posts USING INDEX posts_status_updated_idx']
-    ]
+    ],
+    ['live, no filter, next page', { view: 'live' as const, after }, ['SEARCH posts USING INDEX posts_updated_idx']],
+    [
+      'live, status filter, next page',
+      { view: 'live' as const, status: 'approved' as const, after },
+      ['SEARCH posts USING INDEX posts_status_updated_idx']
+    ],
+    ['archive, first page', { view: 'archive' as const }, ['USING INDEX posts_archive_idx']],
+    ['archive, next page', { view: 'archive' as const, after }, ['SEARCH posts USING INDEX posts_archive_idx']]
   ])('%s walks an index without sorting', async (_name, query, expected) => {
     const bindings: (string | number)[] = [];
     if ('status' in query) bindings.push(query.status);
-    if ('after' in query) bindings.push(query.after.updatedAt, query.after.updatedAt, query.after.id);
+    if ('after' in query) bindings.push(query.after.at, query.after.at, query.after.id);
     bindings.push(21);
 
     const { results } = await testDb()
@@ -32,6 +38,14 @@ describe('list query plans', () => {
     const plan = results.map((row) => row.detail).join('\n');
     for (const fragment of expected) expect(plan).toContain(fragment);
     expect(plan).not.toContain('TEMP B-TREE');
+  });
+
+  it('counts the archive from its partial index', async () => {
+    const { results } = await testDb()
+      .prepare('EXPLAIN QUERY PLAN SELECT count(*) AS n FROM posts WHERE archived_at IS NOT NULL')
+      .all<{ detail: string }>();
+
+    expect(results.map((row) => row.detail).join('\n')).toContain('posts_archive_idx');
   });
 });
 
@@ -46,6 +60,7 @@ describe('create guard', () => {
         title: 'T',
         body: '',
         status: 'draft',
+        archivedAt: null,
         revision: 0,
         createdAt: START,
         updatedAt: START

@@ -2,7 +2,7 @@ import { act, renderHook, waitFor } from '@testing-library/react';
 import { http, HttpResponse } from 'msw';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { clearSession, setSession } from '../../../shared/api/session';
-import { accessToken, errorBody, ids, post } from '../../../test/fixtures';
+import { accessToken, errorBody, ids, post, postPage } from '../../../test/fixtures';
 import { failWith, server, setupMswServer } from '../../../test/msw';
 import { createTestQueryClient, createWrapper } from '../../../test/query-wrapper';
 import { postKeys, postsInfiniteQueryOptions, useCreatePost, useUpdatePost } from '../index';
@@ -113,8 +113,8 @@ describe('cursor pagination', () => {
         cursors.push(cursor);
         expect(url.searchParams.get('status')).toBe('draft');
         return cursor === null
-          ? HttpResponse.json({ items: [post()], nextCursor: 'opaque-cursor' })
-          : HttpResponse.json({ items: [post({ id: ids.post2 })], nextCursor: null });
+          ? HttpResponse.json(postPage([post()], { nextCursor: 'opaque-cursor' }))
+          : HttpResponse.json(postPage([post({ id: ids.post2 })]));
       })
     );
     const { result } = renderHook(() => useInfiniteQuery(postsInfiniteQueryOptions({ status: 'draft' })), {

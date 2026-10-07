@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { pageQuerySchema, pageSchema } from './pagination';
+import { publicationStatusSchema } from './publications';
 import { cleanText } from './text';
 
 // Editorial state only; scheduling and delivery live in publications.
@@ -23,12 +24,31 @@ const bodySchema = z
   .refine(cleanText(true), { error: 'Body contains forbidden characters' });
 const revisionSchema = z.number().int().nonnegative();
 
+// What the post's publications amount to, so a list row needs no second request. Counts use the
+// user-facing PublicationStatus and always carry every status (zero included). A draft has none.
+export const POST_SUMMARY_DESTINATIONS_MAX = 20;
+export const postPublicationSummarySchema = z.object({
+  counts: z.record(publicationStatusSchema, z.number().int().nonnegative()),
+  /** The earliest `scheduledAt` among scheduled, queued and retry_wait publications, and where it goes. */
+  nextScheduled: z.object({ scheduledAt: z.iso.datetime(), destinationId: z.uuid() }).nullable(),
+  /** When the latest publication was confirmed sent. */
+  lastSentAt: z.iso.datetime().nullable(),
+  /** Destinations of the publications that are live or went out (not failed or cancelled), by title, at most 20. */
+  destinations: z.array(z.object({ id: z.uuid(), title: z.string() })).max(POST_SUMMARY_DESTINATIONS_MAX)
+});
+export type PostPublicationSummary = z.infer<typeof postPublicationSummarySchema>;
+
 export const postSchema = z.object({
   id: z.uuid(),
   title: z.string(),
   body: z.string(),
   revision: revisionSchema,
   status: postStatusSchema,
+  /** Set while the post is in the archive (sent, nothing left to send); null for a live post. */
+  archivedAt: z.iso.datetime().nullable(),
+  /** `archivedAt` + the retention period (30 days, server setting); null for a live post. */
+  autoDeleteAt: z.iso.datetime().nullable(),
+  publicationSummary: postPublicationSummarySchema,
   createdAt: z.iso.datetime(),
   updatedAt: z.iso.datetime()
 });
@@ -66,14 +86,122 @@ export const approvePostInputSchema = z.strictObject({
 });
 export type ApprovePostInput = z.infer<typeof approvePostInputSchema>;
 
-// GET /api/v1/posts?status&cursor&limit → 200 PostPageDto, newest update first.
+// GET /api/v1/posts?view&status&cursor&limit → 200 PostPageDto.
+// view=live (default): posts that are not archived, newest update first. view=archive: archived posts,
+// most recently archived first. `archivedCount` is the size of the archive whatever the view and page,
+// so the Archive tab badge needs no extra request; it is cheap because the archive only holds the
+// last 30 days.
 // Errors: VALIDATION_ERROR 400 (bad query or cursor), UNAUTHORIZED 401, FORBIDDEN 403.
+export const postViewSchema = z.enum(['live', 'archive']);
+export type PostView = z.infer<typeof postViewSchema>;
+
 export const listPostsQuerySchema = pageQuerySchema.extend({
-  status: postStatusSchema.optional()
+  status: postStatusSchema.optional(),
+  view: postViewSchema.default('live')
 });
 export type ListPostsQuery = z.infer<typeof listPostsQuerySchema>;
 
-export const postPageSchema = pageSchema(postSchema);
+export const postPageSchema = pageSchema(postSchema).extend({ archivedCount: z.number().int().nonnegative() });
 export type PostPageDto = z.infer<typeof postPageSchema>;
 
 // GET /api/v1/posts/{id} → 200 PostDto. Errors: NOT_FOUND 404, UNAUTHORIZED 401, FORBIDDEN 403.
+
+// Deleting and restoring posts. The post is removed for good together with its publication records
+// (and their attempts and incidents); a message already sent to a channel is never touched.
+// Every operation carries the post revision, so a post edited elsewhere is not removed blindly.
+const postRefSchema = z.strictObject({ id: z.uuid(), revision: revisionSchema });
+export type PostRef = z.infer<typeof postRefSchema>;
+
+export const POST_BULK_MAX = 100;
+const bulkPostsInputSchema = z.strictObject({
+  items: z
+    .array(postRefSchema)
+    .min(1)
+    .max(POST_BULK_MAX)
+    .refine((items) => new Set(items.map((item) => item.id)).size === items.length, { error: 'DUPLICATE_IDS' })
+});
+
+// Why a post was not deleted. PUBLICATION_IN_PROGRESS: a publication is being prepared or sent right
+// now. PUBLICATION_UNKNOWN: a send may have happened and has not been reconciled (until then the post
+// and everything linked to it stay). NOT_FOUND also covers "already deleted", so a retry is harmless.
+export const postDeleteRefusalSchema = z.enum([
+  'NOT_FOUND',
+  'STALE_REVISION',
+  'PUBLICATION_IN_PROGRESS',
+  'PUBLICATION_UNKNOWN'
+]);
+export type PostDeleteRefusal = z.infer<typeof postDeleteRefusalSchema>;
+
+export const postRestoreRefusalSchema = z.enum(['NOT_FOUND', 'STALE_REVISION', 'NOT_ARCHIVED']);
+export type PostRestoreRefusal = z.infer<typeof postRestoreRefusalSchema>;
+
+/** A publication that was still waiting (scheduled, queued, retry_wait) and went away with its post. */
+export const cancelledPublicationSchema = z.object({
+  id: z.uuid(),
+  destinationId: z.uuid(),
+  scheduledAt: z.iso.datetime()
+});
+export type CancelledPublicationDto = z.infer<typeof cancelledPublicationSchema>;
+
+// POST /api/v1/posts/{id}/delete → 200 DeletePostResultDto. Waiting publications are cancelled and removed
+// in the same atomic write; nothing is sent for them afterwards.
+// Errors: VALIDATION_ERROR 400 or 413, NOT_FOUND 404, CONFLICT 409 (details.reason STALE_REVISION |
+// PUBLICATION_IN_PROGRESS | PUBLICATION_UNKNOWN; the last two add details.publicationId),
+// UNAUTHORIZED 401, FORBIDDEN 403.
+export const deletePostInputSchema = z.strictObject({ revision: revisionSchema });
+export type DeletePostInput = z.infer<typeof deletePostInputSchema>;
+
+export const deletePostResultSchema = z.object({
+  id: z.uuid(),
+  cancelledPublications: z.array(cancelledPublicationSchema)
+});
+export type DeletePostResultDto = z.infer<typeof deletePostResultSchema>;
+
+// POST /api/v1/posts/delete (1 to 100 posts, no repeated id) → 200 BulkDeletePostsResultDto with one entry
+// per requested post, in request order. The whole request is 200 even when every post is refused:
+// each post is decided on its own, atomically with its publications, and one refusal never blocks the rest.
+// Errors: VALIDATION_ERROR 400 (details.reason DUPLICATE_IDS) or 413, UNAUTHORIZED 401, FORBIDDEN 403.
+export const bulkDeletePostsInputSchema = bulkPostsInputSchema;
+export type BulkDeletePostsInput = z.infer<typeof bulkDeletePostsInputSchema>;
+
+export const bulkDeletePostsResultSchema = z.object({
+  items: z.array(
+    z.discriminatedUnion('outcome', [
+      z.object({
+        id: z.uuid(),
+        outcome: z.literal('deleted'),
+        cancelledPublications: z.array(cancelledPublicationSchema)
+      }),
+      z.object({
+        id: z.uuid(),
+        outcome: z.literal('refused'),
+        reason: postDeleteRefusalSchema,
+        /** The publication that blocks the delete (PUBLICATION_IN_PROGRESS | PUBLICATION_UNKNOWN). */
+        publicationId: z.uuid().optional()
+      })
+    ])
+  )
+});
+export type BulkDeletePostsResultDto = z.infer<typeof bulkDeletePostsResultSchema>;
+
+// POST /api/v1/posts/{id}/restore → 200 PostDto: out of the archive, `approved`, same revision, at the top of
+// the live list. Nothing is sent or scheduled by it.
+// Errors: VALIDATION_ERROR 400 or 413, NOT_FOUND 404, CONFLICT 409 (details.reason STALE_REVISION |
+// NOT_ARCHIVED), UNAUTHORIZED 401, FORBIDDEN 403.
+export const restorePostInputSchema = z.strictObject({ revision: revisionSchema });
+export type RestorePostInput = z.infer<typeof restorePostInputSchema>;
+
+// POST /api/v1/posts/restore (1 to 100 posts) → 200 BulkRestorePostsResultDto, per post like the bulk delete.
+// Errors: as the bulk delete.
+export const bulkRestorePostsInputSchema = bulkPostsInputSchema;
+export type BulkRestorePostsInput = z.infer<typeof bulkRestorePostsInputSchema>;
+
+export const bulkRestorePostsResultSchema = z.object({
+  items: z.array(
+    z.discriminatedUnion('outcome', [
+      z.object({ id: z.uuid(), outcome: z.literal('restored') }),
+      z.object({ id: z.uuid(), outcome: z.literal('refused'), reason: postRestoreRefusalSchema })
+    ])
+  )
+});
+export type BulkRestorePostsResultDto = z.infer<typeof bulkRestorePostsResultSchema>;

@@ -7,7 +7,9 @@ import { installFakeTelegram } from './support/telegram';
 const ROUTES = [
   '/',
   '/posts',
+  '/posts?view=archive',
   '/posts/new',
+  '/posts/11111111-1111-4111-8111-0000000000a1',
   `/posts/${ids.post}`,
   '/publications',
   '/calendar',
@@ -67,6 +69,45 @@ for (const miniApp of [false, true]) {
   }
 }
 
+// Mobile audit 07.10.2026: controls that clipped or wrapped badly at 320px.
+test.describe('mobile 320px control fit', () => {
+  test.use({ viewport: { width: 320, height: 640 }, isMobile: true, hasTouch: true });
+
+  test('editor counters stay on one line and the back link is a 44px target', async ({ page }) => {
+    await mockApi(page);
+    await page.goto('/posts/new');
+    const counter = page.locator('main .mono', { hasText: '/ 4096' }).first();
+    await expect(counter).toBeVisible();
+    // The span stretches to its sibling's height, so count the rendered line boxes of its text instead.
+    const lines = await counter.evaluate((element) => {
+      const range = document.createRange();
+      range.selectNodeContents(element);
+      return range.getClientRects().length;
+    });
+    expect(lines).toBe(1);
+    const back = page.getByRole('link', { name: 'Все посты' });
+    expect((await back.boundingBox())!.height).toBeGreaterThanOrEqual(44);
+  });
+
+  test('pipeline labels in the publication drawer are never split inside a word', async ({ page }) => {
+    await mockApi(page);
+    await page.goto('/publications');
+    await page
+      .getByRole('button', { name: /Пост недоступен|Очень длинный/ })
+      .first()
+      .click();
+    const drawer = page.getByRole('dialog');
+    await expect(drawer).toBeVisible();
+    const labels = drawer.getByRole('list', { name: 'Этапы публикации' }).getByRole('listitem');
+    await expect(labels.first()).toBeVisible();
+    // One line at font-size xs is ~15px; a label split mid-word takes two.
+    const heights = await labels.evaluateAll((items) =>
+      items.map((item) => (item.children[1] as HTMLElement).getBoundingClientRect().height)
+    );
+    expect(Math.max(...heights)).toBeLessThan(20);
+  });
+});
+
 // Density revision: working tables are fluid at desktop width. A long title or channel name is clipped with an
 // ellipsis inside its cell; neither the page nor the table's own scroller may scroll sideways, and the time
 // column stays visible.
@@ -78,7 +119,7 @@ test.describe('desktop 1280px', () => {
       await mockApi(page);
       await page.goto(route);
       await expect(page.locator('main h1').first()).toBeVisible();
-      await expect(page.getByRole('grid').first()).toBeVisible();
+      await expect(page.getByRole(route === '/posts' ? 'table' : 'grid').first()).toBeVisible();
       await page.waitForLoadState('networkidle');
       const overflow = await page.evaluate(() => {
         const scrollers = [...document.querySelectorAll<HTMLElement>('main *')].filter((element) => {

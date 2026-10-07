@@ -2,26 +2,8 @@ import { useBlocker } from '@tanstack/react-router';
 import { ApiError } from '../../../shared/api/http-client';
 import { useClosingConfirmation } from '../../../shared/telegram/use-closing-confirmation';
 import { ru } from '../../../shared/lib/ru';
-import {
-  Banner,
-  Button,
-  ConfirmDialog,
-  ErrorState,
-  SegmentedControl,
-  Skeleton,
-  useMediaQuery,
-  useToast,
-  VisuallyHidden,
-  type SegmentOption
-} from '../../../shared/ui';
-import {
-  addPreset,
-  removePreset,
-  setAccent,
-  setThemeMode,
-  updatePreset,
-  type AppearanceValue
-} from '../model/appearance-value';
+import { Banner, Button, ConfirmDialog, ErrorState, Skeleton, useToast, VisuallyHidden } from '../../../shared/ui';
+import { addPreset, removePreset, setAccent, updatePreset, type AppearanceValue } from '../model/appearance-value';
 import { useAppearanceEditor } from '../model/use-appearance-editor';
 import { useScreenTheme } from '../model/use-screen-theme';
 import { AccentPicker } from './AccentPicker';
@@ -29,15 +11,7 @@ import { AccentPreview } from './AccentPreview';
 import styles from './AppearanceEditor.module.css';
 import { CustomPresetsCard } from './CustomPresetsCard';
 import { type AccentSource } from './ThemeScope';
-import type { AccentRef, ThemeMode } from '@alexeev/contracts';
-
-const MODES: readonly SegmentOption[] = [
-  { id: 'system', label: ru.theme.system, icon: 'monitor' },
-  { id: 'light', label: ru.theme.light, icon: 'sun' },
-  { id: 'dark', label: ru.theme.dark, icon: 'moon' }
-];
-// Three icon segments do not fit a 375 px phone; the labels alone do.
-const MODES_PLAIN: readonly SegmentOption[] = MODES.map(({ id, label }) => ({ id, label }));
+import type { AccentRef } from '@alexeev/contracts';
 
 type Props = {
   /** Applies a value to the document without persisting it; must be a stable function. */
@@ -54,7 +28,6 @@ function Loading() {
   return (
     <div aria-busy="true" className={styles.grid}>
       <VisuallyHidden>{ru.ui.loading}</VisuallyHidden>
-      <Skeleton height={44} />
       <Skeleton height={220} />
       <Skeleton height={220} />
     </div>
@@ -65,7 +38,6 @@ export function AppearanceEditor({ preview }: Props) {
   const editor = useAppearanceEditor({ preview });
   const toast = useToast();
   const screenTheme = useScreenTheme();
-  const phone = useMediaQuery('(max-width: 479px)');
   const blocker = useBlocker({
     shouldBlockFn: () => editor.isDirty,
     enableBeforeUnload: () => editor.isDirty,
@@ -124,20 +96,6 @@ export function AppearanceEditor({ preview }: Props) {
           ) : null}
         </Banner>
       ) : null}
-
-      <section className={styles.section}>
-        <h3 className={styles.sectionTitle}>{ru.appearance.modeTitle}</h3>
-        <div className={styles.mode}>
-          <SegmentedControl
-            label={ru.appearance.modeTitle}
-            options={phone ? MODES_PLAIN : MODES}
-            value={value.themeMode}
-            fullWidth={phone}
-            onChange={(id) => editor.edit((current) => setThemeMode(current, id as ThemeMode))}
-          />
-          <p className={styles.hint}>{ru.appearance.modeHint}</p>
-        </div>
-      </section>
 
       <div className={styles.themes}>
         {(['light', 'dark'] as const).map((theme) => {

@@ -1,11 +1,15 @@
 import { completeIdempotencyStatement, ownsClaimSql } from '../../../platform/idempotency/d1-idempotency-store';
+import type { PublicationStatus } from '@alexeev/contracts';
 import type {
   ListPublicationsQuery,
+  PostPublicationSummary,
   PublicationChangeOutcome,
   PublicationRecord,
-  PublicationRepository
+  PublicationRepository,
+  RangeSummary,
+  UpcomingPublication
 } from '../application/ports';
-import type { JobState } from '../domain/status-projection';
+import { type JobState, projectPublicationStatus } from '../domain/status-projection';
 import { jobConditionForStatus } from './publication-status-sql';
 
 interface PublicationRow {
@@ -95,6 +99,170 @@ export function listPublicationsSql(query: ListPublicationsQuery): { sql: string
   };
 }
 
+interface SummaryRow {
+  post_id: string;
+  destination_id: string;
+  destination_title: string;
+  job_status: JobState;
+  in_future: number | null;
+  not_started: number | null;
+  n: number;
+  first_scheduled_at: number;
+  last_update: number;
+}
+
+// One group per post, destination and job state. `in_future` / `not_started` are set only where the
+// projection looks at them (pending / claimed), so they split no other group. The post ids come as one
+// JSON array: a single bound parameter however many posts the page holds (D1 allows 100 per statement).
+export const SUMMARY_SQL = `
+  SELECT p.post_id AS post_id, p.destination_id AS destination_id, d.title AS destination_title,
+         j.status AS job_status,
+         CASE WHEN j.status = 'pending' THEN j.run_at > ?2 END AS in_future,
+         CASE WHEN j.status = 'claimed' THEN j.send_started_at IS NULL END AS not_started,
+         count(*) AS n, min(p.scheduled_at) AS first_scheduled_at, max(j.updated_at) AS last_update
+  FROM publications p
+  JOIN jobs j ON j.publication_id = p.id AND j.kind = 'publish'
+  JOIN destinations d ON d.id = p.destination_id
+  WHERE p.post_id IN (SELECT value FROM json_each(?1))
+  GROUP BY p.post_id, p.destination_id, j.status, in_future, not_started`;
+
+const WAITING: readonly PublicationStatus[] = ['scheduled', 'queued', 'retry_wait'];
+const NOT_DELIVERED: readonly PublicationStatus[] = ['failed', 'cancelled'];
+
+function emptyCounts(): Record<PublicationStatus, number> {
+  return {
+    scheduled: 0,
+    queued: 0,
+    preparing: 0,
+    sending: 0,
+    sent: 0,
+    retry_wait: 0,
+    failed: 0,
+    unknown: 0,
+    cancelled: 0
+  };
+}
+
+export function summarizeRows(rows: readonly SummaryRow[], now: number): Map<string, PostPublicationSummary> {
+  const summaries = new Map<string, PostPublicationSummary>();
+  const destinations = new Map<string, Map<string, string>>();
+  for (const row of rows) {
+    // Only whether the run time is after `now`, and whether the send mark is set, matter to the projection.
+    const status = projectPublicationStatus(
+      {
+        status: row.job_status,
+        runAt: row.in_future === 1 ? now + 1 : now,
+        sendStartedAt: row.not_started === 1 ? null : now
+      },
+      now
+    );
+    let summary = summaries.get(row.post_id);
+    if (summary === undefined) {
+      summary = { counts: emptyCounts(), nextScheduled: null, lastSentAt: null, destinations: [] };
+      summaries.set(row.post_id, summary);
+      destinations.set(row.post_id, new Map());
+    }
+    summary.counts[status] += row.n;
+    if (WAITING.includes(status)) {
+      const next = summary.nextScheduled;
+      if (
+        next === null ||
+        row.first_scheduled_at < next.scheduledAt ||
+        (row.first_scheduled_at === next.scheduledAt && row.destination_id < next.destinationId)
+      ) {
+        summary.nextScheduled = { scheduledAt: row.first_scheduled_at, destinationId: row.destination_id };
+      }
+    }
+    if (status === 'sent' && (summary.lastSentAt === null || row.last_update > summary.lastSentAt)) {
+      summary.lastSentAt = row.last_update;
+    }
+    if (!NOT_DELIVERED.includes(status)) destinations.get(row.post_id)?.set(row.destination_id, row.destination_title);
+  }
+  for (const [postId, summary] of summaries) {
+    summary.destinations = [...(destinations.get(postId) ?? [])]
+      .map(([id, title]) => ({ id, title }))
+      .sort((a, b) => a.title.localeCompare(b.title) || a.id.localeCompare(b.id));
+  }
+  return summaries;
+}
+
+// The next jobs to run. Like the due scan, each branch repeats the partial index predicate and seeks
+// one status, so both walk jobs_due in (run_at, id) order and stop after `limit` rows; the outer query
+// merges at most 2 x limit rows. Joined to the publication and its channel by primary key afterwards.
+const UPCOMING_BRANCH = (status: string) => `SELECT id, run_at, publication_id FROM jobs
+    WHERE status IN ('pending', 'retry_wait') AND status = '${status}' AND kind = 'publish'
+    ORDER BY run_at, id LIMIT ?1`;
+
+export const UPCOMING_SQL = `
+  WITH next_jobs AS (
+    SELECT id, run_at, publication_id FROM (
+      SELECT id, run_at, publication_id FROM (${UPCOMING_BRANCH('pending')})
+      UNION ALL
+      SELECT id, run_at, publication_id FROM (${UPCOMING_BRANCH('retry_wait')})
+    ) ORDER BY run_at, id LIMIT ?1
+  )
+  SELECT p.id AS id, p.post_id AS post_id, p.post_revision AS post_revision, p.scheduled_at AS scheduled_at,
+         p.timezone AS timezone, d.title AS destination_title
+  FROM next_jobs n
+  JOIN publications p ON p.id = n.publication_id
+  JOIN destinations d ON d.id = p.destination_id
+  ORDER BY n.run_at, n.id`;
+
+interface UpcomingRow {
+  id: string;
+  post_id: string;
+  post_revision: number;
+  scheduled_at: number;
+  timezone: string;
+  destination_title: string;
+}
+
+/** One day of publications is far below this; the cap only bounds the read if something goes wrong. */
+export const RANGE_SUMMARY_ROWS = 500;
+
+// The same grouping as SUMMARY_SQL, over the publications scheduled in a range: publications_scheduled_idx
+// gives the range in order and the inner LIMIT bounds what is read.
+export const RANGE_SUMMARY_SQL = `
+  SELECT status AS job_status, in_future, not_started, count(*) AS n, min(scheduled_at) AS first_scheduled_at
+  FROM (
+    SELECT j.status AS status,
+           CASE WHEN j.status = 'pending' THEN j.run_at > ?3 END AS in_future,
+           CASE WHEN j.status = 'claimed' THEN j.send_started_at IS NULL END AS not_started,
+           p.scheduled_at AS scheduled_at
+    FROM publications p CROSS JOIN jobs j ON j.publication_id = p.id AND j.kind = 'publish'
+    WHERE p.scheduled_at >= ?1 AND p.scheduled_at < ?2
+    ORDER BY p.scheduled_at DESC LIMIT ${RANGE_SUMMARY_ROWS}
+  )
+  GROUP BY status, in_future, not_started`;
+
+interface RangeRow {
+  job_status: JobState;
+  in_future: number | null;
+  not_started: number | null;
+  n: number;
+  first_scheduled_at: number;
+}
+
+export function summarizeRangeRows(rows: readonly RangeRow[], now: number): RangeSummary {
+  const counts = emptyCounts();
+  let nextWaitingAt: number | null = null;
+  for (const row of rows) {
+    const status = projectPublicationStatus(
+      {
+        status: row.job_status,
+        runAt: row.in_future === 1 ? now + 1 : now,
+        sendStartedAt: row.not_started === 1 ? null : now
+      },
+      now
+    );
+    counts[status] += row.n;
+    if (WAITING.includes(status) && (nextWaitingAt === null || row.first_scheduled_at < nextWaitingAt)) {
+      nextWaitingAt = row.first_scheduled_at;
+    }
+  }
+  return { counts, nextWaitingAt };
+}
+
 export function createD1PublicationRepository(db: D1Database): PublicationRepository {
   const selectOne = (id: string) =>
     db.prepare(`SELECT ${PUBLICATION_COLUMNS} ${FROM_PUBLICATIONS} WHERE p.id = ?1`).bind(id);
@@ -155,7 +323,7 @@ export function createD1PublicationRepository(db: D1Database): PublicationReposi
                (id, post_id, post_revision, destination_id, scheduled_at, timezone, revision, created_at, updated_at)
              SELECT ?1, ?2, ?3, ?4, ?5, ?6, 0, ?7, ?7
              WHERE ${ownsClaimSql(8)}
-               AND EXISTS (SELECT 1 FROM posts WHERE id = ?2 AND revision = ?3 AND status = 'approved')
+               AND EXISTS (SELECT 1 FROM posts WHERE id = ?2 AND revision = ?3 AND status = 'approved' AND archived_at IS NULL)
                AND EXISTS (SELECT 1 FROM destinations WHERE id = ?4 AND enabled = 1)`
           )
           .bind(
@@ -211,6 +379,29 @@ export function createD1PublicationRepository(db: D1Database): PublicationReposi
         .bind(...bindings)
         .all<PublicationRow>();
       return results.map(toRecord);
+    },
+
+    async summarizeByPost(postIds, now) {
+      if (postIds.length === 0) return new Map();
+      const { results } = await db.prepare(SUMMARY_SQL).bind(JSON.stringify(postIds), now).all<SummaryRow>();
+      return summarizeRows(results, now);
+    },
+
+    async listUpcoming(limit) {
+      const { results } = await db.prepare(UPCOMING_SQL).bind(limit).all<UpcomingRow>();
+      return results.map((row): UpcomingPublication => ({
+        id: row.id,
+        postId: row.post_id,
+        postRevision: row.post_revision,
+        destinationTitle: row.destination_title,
+        scheduledAt: row.scheduled_at,
+        timezone: row.timezone
+      }));
+    },
+
+    async summarizeRange({ from, to, now }) {
+      const { results } = await db.prepare(RANGE_SUMMARY_SQL).bind(from, to, now).all<RangeRow>();
+      return summarizeRangeRows(results, now);
     },
 
     reschedule(change) {

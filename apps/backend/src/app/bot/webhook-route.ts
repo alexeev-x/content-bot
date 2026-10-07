@@ -1,11 +1,13 @@
 import { webhookCallback } from 'grammy';
 import { Hono } from 'hono';
 import { bodyLimit } from 'hono/body-limit';
+import { createPost } from '../../modules/content';
 import { timingSafeEqualStrings } from '../../platform/security/timing-safe-equal';
 import { AppError } from '../../shared/app-error';
 import type { AppBindings } from '../env';
 import { appOriginOf } from './app-origin';
 import { createBot, loadBotSetup } from './create-bot';
+import { createOwnerReports } from './owner-reports';
 import { createTelegramCaller } from './telegram-call';
 
 const MAX_UPDATE_BYTES = 256 * 1024;
@@ -45,8 +47,38 @@ export const telegramWebhook = new Hono<AppBindings>().post(
     });
     if (!config) throw new AppError('UNAVAILABLE', 'Telegram bot is not configured');
 
+    const appOrigin = appOriginOf(c.req.url);
+    // Built when a command asks, so an update that needs no report never reaches for the stores.
+    const reports = () =>
+      createOwnerReports({
+        clock: container.clock,
+        appOrigin,
+        publications: container.publications,
+        incidents: container.dispatchJobs,
+        posts: container.postRevisions,
+        cron: container.systemState,
+        publishing: container.publishing
+      });
     const bot = createBot(config, {
-      appOrigin: appOriginOf(c.req.url),
+      appOrigin,
+      clock: container.clock,
+      updates: { claim: (updateId, now) => container.webhookUpdates.claim(updateId, now) },
+      reports: {
+        today: () => reports().today(),
+        next: () => reports().next(),
+        status: () => reports().status()
+      },
+      createDraft: async (input, idempotencyKey) =>
+        createPost(
+          {
+            repo: container.posts,
+            idempotency: container.idempotency,
+            now: container.clock.now(),
+            newId: container.newId
+          },
+          { actor: String(config.ownerId), idempotencyKey, input }
+        ),
+      rememberAppOrigin: (origin) => container.systemState.rememberAppOrigin(origin, container.clock.now()),
       adminApi: container.botAdminApi,
       call: createTelegramCaller({ logger: container.logger, requestId: c.get('requestId') }),
       waitUntil: (work) => c.executionCtx.waitUntil(work),

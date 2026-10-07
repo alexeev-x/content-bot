@@ -53,3 +53,11 @@ td:has(> .title) {
     line-clamp: 2;
   }
 }
+
+/* Touch target 44px without growing the card: the extra height is cancelled by a negative margin. */
+@media (pointer: coarse), (max-width: 859px) {
+  .link {
+    min-height: var(--size-target);
+    margin-block: calc((var(--size-target-min) - var(--size-target)) / 2);
+  }
+}

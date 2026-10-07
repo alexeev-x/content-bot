@@ -2,6 +2,7 @@ import { type PublicationDto, publicationPageSchema, publicationSchema } from '@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { sha256Hex } from '../../src/platform/security/sha256';
 import { testDb } from '../helpers/db';
+import { fakeOwnerMessenger } from '../helpers/fake-owner-messenger';
 import { expectError } from '../helpers/expect-error';
 import { type Api, createApi, fakeClock, OWNER_ID, OWNER_TOKEN, resetDb, seedSession, START } from '../helpers/harness';
 import {
@@ -883,5 +884,130 @@ describe('seedPublication helper', () => {
     });
 
     expect(created.status).toBe('scheduled');
+  });
+});
+
+describe('owner notice when a publication is scheduled or moved', () => {
+  const ORIGIN = 'http://localhost';
+
+  it('sends exactly one message with the post, the channel, the time and the deep link button', async () => {
+    const scheduledAt = START + 3 * 60 * MINUTE;
+    const publication = await scheduleOk({ scheduledAt: iso(scheduledAt), timezone: 'Europe/Moscow' });
+    await api.settle();
+
+    expect(api.ownerMessages).toHaveLength(1);
+    const [message] = api.ownerMessages;
+    expect(message?.chatId).toBe(OWNER_ID);
+    expect(message?.html).toContain('<b>Публикация запланирована</b>');
+    expect(message?.html).toContain('Пост: Patch 7.40');
+    expect(message?.html).toContain('Канал: Main channel');
+    expect(message?.html).toContain(`(Europe/Moscow)`);
+    expect(message?.button).toEqual({ text: 'Подробнее', url: `${ORIGIN}/publications?id=${publication.id}` });
+  });
+
+  it('escapes a post title that looks like markup', async () => {
+    const post = await seedApprovedPost(api, '<b>Boom</b> & <a href="x">link</a>');
+    await scheduleOk({ postId: post.id, revision: post.revision });
+    await api.settle();
+
+    const html = api.ownerMessages[0]?.html ?? '';
+    expect(html).toContain('Пост: &lt;b&gt;Boom&lt;/b&gt; &amp; &lt;a href=&quot;x&quot;&gt;link&lt;/a&gt;');
+    expect(html.match(/<[^>]+>/g)).toEqual(['<b>', '</b>']);
+  });
+
+  it('does not send a second message for an idempotent replay', async () => {
+    const first = await schedule({}, 'same-key');
+    const replay = await schedule({}, 'same-key');
+    await api.settle();
+
+    expect(first.status).toBe(202);
+    expect(replay.status).toBe(202);
+    expect(api.ownerMessages).toHaveLength(1);
+    expect(await count('publications')).toBe(1);
+  });
+
+  it('sends nothing for a refused request', async () => {
+    const response = await schedule({ scheduledAt: iso(START + 400 * DAY) });
+    await api.settle();
+
+    expect(response.status).toBe(400);
+    expect(api.ownerMessages).toEqual([]);
+  });
+
+  it('sends nothing for a publication that is due now', async () => {
+    const publication = await scheduleOk({ scheduledAt: iso(START) });
+    await api.settle();
+
+    expect(publication.status).toBe('queued');
+    expect(api.ownerMessages).toEqual([]);
+  });
+
+  it('still answers 202 and stores everything when Telegram refuses the notice', async () => {
+    api = createApi({
+      clock: fakeClock(),
+      ownerMessenger: fakeOwnerMessenger({ fail: () => new Error('chat not found') })
+    });
+    const response = await schedule();
+    await api.settle();
+
+    expect(response.status).toBe(202);
+    const publication = publicationSchema.parse(await response.json());
+    expect(await jobOf(publication.id)).toMatchObject({ status: 'pending', attempts: 0 });
+  });
+
+  it('answers 202 without a bot token and sends nothing', async () => {
+    api = createApi({ clock: fakeClock(), botToken: null });
+    const response = await schedule();
+    await api.settle();
+
+    expect(response.status).toBe(202);
+    expect(await count('publications')).toBe(1);
+  });
+
+  it('does not touch the job state while announcing', async () => {
+    const publication = await scheduleOk();
+    const before = await jobOf(publication.id);
+    await api.settle();
+
+    expect(await jobOf(publication.id)).toEqual(before);
+    expect(await count('job_attempts')).toBe(0);
+  });
+
+  it('announces a reschedule with the new time and the same button', async () => {
+    const publication = await scheduleOk();
+    await api.settle();
+    api.ownerMessages.length = 0;
+
+    const response = await reschedule(publication.id, {
+      revision: 0,
+      scheduledAt: iso(START + 5 * 60 * MINUTE),
+      timezone: 'Asia/Tokyo'
+    });
+    await api.settle();
+
+    expect(response.status).toBe(200);
+    expect(api.ownerMessages).toHaveLength(1);
+    const [message] = api.ownerMessages;
+    expect(message?.html).toContain('<b>Публикация перенесена</b>');
+    expect(message?.html).toContain('(Asia/Tokyo)');
+    expect(message?.button.url).toBe(`${ORIGIN}/publications?id=${publication.id}`);
+  });
+
+  it('sends nothing when a reschedule is refused or moves the publication to now', async () => {
+    const publication = await scheduleOk();
+    await api.settle();
+    api.ownerMessages.length = 0;
+
+    const stale = await reschedule(publication.id, {
+      revision: 9,
+      scheduledAt: iso(START + 5 * 60 * MINUTE),
+      timezone: 'UTC'
+    });
+    const now = await reschedule(publication.id, { revision: 0, scheduledAt: iso(START), timezone: 'UTC' });
+    await api.settle();
+
+    expect(stale.status).toBe(409);
+    expect(now.status).toBe(200);
+    expect(api.ownerMessages).toEqual([]);
   });
 });

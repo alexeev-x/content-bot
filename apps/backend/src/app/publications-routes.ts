@@ -4,7 +4,7 @@ import {
   listPublicationsQuerySchema,
   reschedulePublicationInputSchema
 } from '@alexeev/contracts';
-import { Hono } from 'hono';
+import { type Context, Hono } from 'hono';
 import { z } from 'zod';
 import {
   cancelPublication,
@@ -14,7 +14,9 @@ import {
   reschedulePublication
 } from '../modules/publishing';
 import { AppError } from '../shared/app-error';
+import { appOriginOf } from './bot/app-origin';
 import type { AppBindings } from './env';
+import { createScheduleNotifier } from './notifications/create-schedule-notifier';
 import { limitBody, validated } from './validation';
 
 const MAX_BODY_BYTES = 8 * 1024;
@@ -26,6 +28,22 @@ const idParamSchema = z.object({ id: z.string() });
 function publicationId(raw: string): string {
   if (!z.uuid().safeParse(raw).success) throw new AppError('NOT_FOUND', 'Publication not found');
   return raw;
+}
+
+// Built per request: the origin comes from the request, and the messenger and stores are resolved
+// only when a notice is really sent.
+function scheduleNotifier(c: Context<AppBindings>) {
+  const container = c.get('container');
+  return createScheduleNotifier({
+    messenger: container.ownerMessenger,
+    ownerChatId: c.get('actor').telegramId,
+    appOrigin: appOriginOf(c.req.url),
+    posts: () => container.postRevisions,
+    destinations: () => container.destinations,
+    logger: container.logger,
+    requestId: c.get('requestId'),
+    waitUntil: (work) => c.executionCtx.waitUntil(work)
+  });
 }
 
 export const publicationsRoutes = new Hono<AppBindings>()
@@ -42,6 +60,7 @@ export const publicationsRoutes = new Hono<AppBindings>()
           destinations: container.destinations,
           posts: container.postSource,
           idempotency: container.idempotency,
+          notifier: scheduleNotifier(c),
           now: container.clock.now(),
           newId: container.newId
         },
@@ -74,7 +93,7 @@ export const publicationsRoutes = new Hono<AppBindings>()
     async (c) => {
       const container = c.get('container');
       const publication = await reschedulePublication(
-        { repo: container.publications, now: container.clock.now() },
+        { repo: container.publications, notifier: scheduleNotifier(c), now: container.clock.now() },
         { actor: c.get('actor').telegramId, id: publicationId(c.req.valid('param').id), input: c.req.valid('json') }
       );
       return c.json(publication);

@@ -1,14 +1,15 @@
-// The cursor is opaque to clients: base64url of "<updatedAt>:<id>". It is decoded strictly and
+// The cursor is opaque to clients: base64url of "<sort key>:<id>". It is decoded strictly and
 // re-encoded to prove it is canonical, so a malformed cursor is a 400 and never reaches SQL.
 const PAYLOAD = /^(\d{1,16}):([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/;
 
+// The sort key is `updatedAt` in the live view and `archivedAt` in the archive.
 export interface PostCursor {
-  updatedAt: number;
+  at: number;
   id: string;
 }
 
 export function encodeCursor(cursor: PostCursor): string {
-  return btoa(`${cursor.updatedAt}:${cursor.id}`).replaceAll('+', '-').replaceAll('/', '_').replaceAll('=', '');
+  return btoa(`${cursor.at}:${cursor.id}`).replaceAll('+', '-').replaceAll('/', '_').replaceAll('=', '');
 }
 
 export function decodeCursor(value: string): PostCursor | null {
@@ -20,7 +21,7 @@ export function decodeCursor(value: string): PostCursor | null {
   }
   const match = PAYLOAD.exec(payload);
   if (match === null) return null;
-  const cursor = { updatedAt: Number(match[1]), id: match[2] as string };
-  if (!Number.isSafeInteger(cursor.updatedAt) || encodeCursor(cursor) !== value) return null;
+  const cursor = { at: Number(match[1]), id: match[2] as string };
+  if (!Number.isSafeInteger(cursor.at) || encodeCursor(cursor) !== value) return null;
   return cursor;
 }

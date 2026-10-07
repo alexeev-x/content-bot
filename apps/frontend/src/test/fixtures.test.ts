@@ -4,13 +4,25 @@ import {
   apiErrorSchema,
   destinationSchema,
   meSchema,
+  postPageSchema,
   postSchema,
   publicationSchema,
   publicationStatusSchema,
   telegramWidgetSignInInputSchema
 } from '@alexeev/contracts';
 import { describe, expect, it } from 'vitest';
-import { accessToken, destination, errorBody, me, post, publication, widgetUser } from './fixtures';
+import {
+  accessToken,
+  archivedPost,
+  destination,
+  errorBody,
+  me,
+  post,
+  postPage,
+  postWith,
+  publication,
+  widgetUser
+} from './fixtures';
 
 describe('fixtures match the contract schemas', () => {
   it('parses every DTO fixture', () => {
@@ -18,6 +30,9 @@ describe('fixtures match the contract schemas', () => {
     expect(meSchema.safeParse(me).success).toBe(true);
     expect(postSchema.safeParse(post()).success).toBe(true);
     expect(postSchema.safeParse(post({ status: 'approved', revision: 1 })).success).toBe(true);
+    expect(postSchema.safeParse(postWith({ scheduled: 2, unknown: 1 })).success).toBe(true);
+    expect(postSchema.safeParse(archivedPost()).success).toBe(true);
+    expect(postPageSchema.safeParse(postPage([post()], { archivedCount: 3 })).success).toBe(true);
     expect(destinationSchema.safeParse(destination()).success).toBe(true);
     expect(publicationSchema.safeParse(publication()).success).toBe(true);
   });

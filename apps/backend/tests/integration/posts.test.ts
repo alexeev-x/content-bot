@@ -513,7 +513,7 @@ describe('GET /api/v1/posts', () => {
   it('returns an empty page for an empty table', async () => {
     const response = await api.request('/api/v1/posts');
 
-    expect(postPageSchema.parse(await response.json())).toEqual({ items: [], nextCursor: null });
+    expect(postPageSchema.parse(await response.json())).toEqual({ items: [], nextCursor: null, archivedCount: 0 });
   });
 
   it('walks more items than the limit without gaps or duplicates, newest first', async () => {

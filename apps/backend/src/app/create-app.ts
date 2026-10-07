@@ -33,7 +33,9 @@ function errorBody(
   return { error: { code, message, requestId, ...(details === undefined ? {} : { details }) } };
 }
 
-export function createApp(options: Pick<ContainerOverrides, 'clock' | 'telegramChatApi' | 'telegramBotAdminApi'> = {}) {
+export function createApp(
+  options: Pick<ContainerOverrides, 'clock' | 'telegramChatApi' | 'telegramBotAdminApi' | 'ownerMessenger'> = {}
+) {
   const app = new Hono<AppBindings>();
 
   app.use('*', async (c, next) => {

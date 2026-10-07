@@ -63,7 +63,8 @@ export type PublicationDto = z.infer<typeof publicationSchema>;
 // scheduledAt in the past (up to 5 min) means "send now"; later than 366 days ahead is refused.
 // Errors: VALIDATION_ERROR 400 (details.reason SCHEDULE_OUT_OF_RANGE) or 413, NOT_FOUND 404
 // (details.reason POST_NOT_FOUND | DESTINATION_NOT_FOUND), CONFLICT 409 (details.reason
-// STALE_REVISION | POST_NOT_APPROVED | DESTINATION_DISABLED | IDEMPOTENCY_KEY_REUSED | IN_FLIGHT),
+// STALE_REVISION | POST_NOT_APPROVED | POST_ARCHIVED | DESTINATION_DISABLED | IDEMPOTENCY_KEY_REUSED |
+// IN_FLIGHT),
 // UNAUTHORIZED 401, FORBIDDEN 403.
 export const createPublicationInputSchema = z.strictObject({
   postId: z.uuid(),

@@ -1,5 +1,11 @@
-import { createD1PostRepository, type IdempotencyGate, type PostRepository } from '../modules/content';
-import { createD1SessionStore, type SessionStore } from '../modules/identity';
+import {
+  createD1PostRepository,
+  type IdempotencyGate,
+  type PostPublicationSummarySource,
+  type PostRepository
+} from '../modules/content';
+import { createD1LifecycleRepository, type LifecycleRepository } from '../modules/lifecycle';
+import { createD1SessionStore, parseOwnerTelegramId, type SessionStore } from '../modules/identity';
 import { createD1SettingsRepository, type SettingsRepository } from '../modules/settings';
 import { type Clock, systemClock } from '../platform/clock';
 import { createIdempotencyStore } from '../platform/idempotency/d1-idempotency-store';
@@ -21,10 +27,14 @@ import {
   createTelegramApi,
   createTelegramBotAdminApi,
   createTelegramChatReadApi,
+  createTelegramOwnerMessageApi,
   type TelegramBotAdminApi,
-  type TelegramChatReadApi
+  type TelegramChatReadApi,
+  type TelegramOwnerMessageApi
 } from '../integrations/telegram/telegram-api';
 import { type BotIdentityStore, createD1BotIdentityStore } from './bot/bot-identity-store';
+import { createD1UpdateDedup, type UpdateDedup } from './bot/update-dedup';
+import { createD1SystemState, type SystemStateStore } from './system-state';
 import { purgeExpiredPlatformRows } from '../platform/housekeeping/d1-purge';
 import { createD1RateLimiter, type RateLimiter } from '../platform/rate-limit/d1-rate-limiter';
 import { randomToken } from '../platform/security/random-token';
@@ -40,6 +50,10 @@ export interface Container {
   sessions: SessionStore;
   rateLimiter: RateLimiter;
   posts: PostRepository;
+  /** Publication facts of posts for the post list; the content module asks for them through its own port. */
+  postSummaries: PostPublicationSummarySource;
+  /** Archive, restore, delete and purge of posts; the one place that changes posts and publications together. */
+  lifecycle: LifecycleRepository;
   idempotency: IdempotencyGate;
   settings: SettingsRepository;
   destinations: DestinationRepository;
@@ -55,8 +69,16 @@ export interface Container {
   chatInspector: ChatInspector;
   /** Webhook, command and menu calls of the bot; asking for it without the token is a 503. */
   botAdminApi: TelegramBotAdminApi;
+  /** Owner notices (a publication was scheduled or moved); null without a bot token, which only skips them. */
+  ownerMessenger: TelegramOwnerMessageApi | null;
+  /** The owner's Telegram ID as a chat id (a private chat has the user's id); null when OWNER_TELEGRAM_ID is not valid. */
+  ownerChatId: string | null;
   /** The bot's own identity (`getMe`), stored by connect; read by the webhook instead of calling Telegram. */
   botIdentity: BotIdentityStore;
+  /** The last Cron run and this Worker's public origin (migration 0009). */
+  systemState: SystemStateStore;
+  /** Webhook update ids already seen (migration 0009): a replayed update is not processed twice. */
+  webhookUpdates: UpdateDedup;
   housekeeping: {
     purgeExpired(input: { now: number; limit: number }): Promise<{ idempotencyKeys: number; rateLimits: number }>;
   };
@@ -75,6 +97,7 @@ export interface ContainerEnv {
   BOT_INFO?: string;
   /** Kill switch: only the exact string "true" lets the dispatcher claim jobs. */
   PUBLISHING_ENABLED?: string;
+  OWNER_TELEGRAM_ID?: string;
 }
 
 export interface ContainerOverrides {
@@ -84,6 +107,8 @@ export interface ContainerOverrides {
   telegramChatApi?: TelegramChatReadApi;
   /** Replaces the Bot API webhook/command calls (tests script it; nothing reaches the network). */
   telegramBotAdminApi?: TelegramBotAdminApi;
+  /** Replaces the owner notice sender (tests record it; nothing reaches the network). */
+  ownerMessenger?: TelegramOwnerMessageApi;
   random?: () => number;
   newId?: () => string;
 }
@@ -120,6 +145,13 @@ export function createContainer(env: ContainerEnv, overrides: ContainerOverrides
     get posts() {
       return createD1PostRepository(db());
     },
+    get postSummaries(): PostPublicationSummarySource {
+      const publications = createD1PublicationRepository(db());
+      return { summarize: (postIds, now) => publications.summarizeByPost(postIds, now) };
+    },
+    get lifecycle() {
+      return createD1LifecycleRepository(db());
+    },
     get idempotency() {
       return createIdempotencyStore(db());
     },
@@ -138,7 +170,9 @@ export function createContainer(env: ContainerEnv, overrides: ContainerOverrides
       return {
         async findState(postId) {
           const post = await posts.findById(postId);
-          return post === null ? null : { status: post.status, revision: post.revision };
+          return post === null
+            ? null
+            : { status: post.status, revision: post.revision, archived: post.archivedAt !== null };
         }
       };
     },
@@ -175,6 +209,22 @@ export function createContainer(env: ContainerEnv, overrides: ContainerOverrides
       const token = botToken();
       if (token === '') throw new AppError('UNAVAILABLE', 'Telegram bot is not configured');
       return createTelegramBotAdminApi(token);
+    },
+    // Unlike the other Telegram clients, a missing token is not a 503: a notice is a courtesy.
+    get ownerMessenger(): TelegramOwnerMessageApi | null {
+      if (overrides.ownerMessenger !== undefined) return overrides.ownerMessenger;
+      const token = botToken();
+      return token === '' ? null : createTelegramOwnerMessageApi(token);
+    },
+    get ownerChatId(): string | null {
+      const ownerId = parseOwnerTelegramId(env.OWNER_TELEGRAM_ID);
+      return ownerId === null ? null : String(ownerId);
+    },
+    get systemState(): SystemStateStore {
+      return createD1SystemState(db());
+    },
+    get webhookUpdates(): UpdateDedup {
+      return createD1UpdateDedup(db());
     },
     // Resolved per call: a BOT_INFO override never touches the database, so a Worker without one still answers.
     get botIdentity(): BotIdentityStore {

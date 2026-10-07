@@ -8,7 +8,8 @@ import type {
   IdempotencyGate,
   PostSource,
   PublicationRecord,
-  PublicationRepository
+  PublicationRepository,
+  ScheduleNotifier
 } from './ports';
 import { scheduleOutOfRange, scheduleRefusal } from './publication-errors';
 import { toPublicationDto } from './publication-dto';
@@ -18,6 +19,7 @@ export interface CreatePublicationDeps {
   destinations: DestinationRepository;
   posts: PostSource;
   idempotency: IdempotencyGate;
+  notifier: ScheduleNotifier;
   now: number;
   newId: () => string;
 }
@@ -84,7 +86,12 @@ export async function createPublication(
         idempotency: ref,
         response: { status: 202, body: JSON.stringify(publication) }
       });
-      if (written) return publication;
+      if (written) {
+        // Only a write that happened tells the owner; a replay never reaches this line. A publication
+        // that is already due is sent right away, so there is nothing to announce.
+        if (publication.status === 'scheduled') deps.notifier.scheduled(publication);
+        return publication;
+      }
 
       // The write is guarded by the post and destination state, so a change between our read and
       // the write refuses it. Read again to say what changed; if nothing did, our claim was lost.

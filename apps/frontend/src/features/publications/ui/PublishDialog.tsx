@@ -272,14 +272,16 @@ function PublishDialogBody({ post, isOpen, onOpenChange, onPublished }: Props) {
               tone={visibleFailure.tone}
               title={visibleFailure.title}
               action={
-                visibleFailure.kind === 'stale_revision' ? (
+                visibleFailure.kind === 'stale_revision' || visibleFailure.kind === 'post_archived' ? (
                   <Button
                     variant="secondary"
                     size="sm"
                     icon="retry"
                     onPress={() => void queryClient.invalidateQueries({ queryKey: ['posts'] })}
                   >
-                    {copy.errors.stale.action}
+                    {visibleFailure.kind === 'post_archived'
+                      ? copy.errors.postArchived.action
+                      : copy.errors.stale.action}
                   </Button>
                 ) : visibleFailure.kind === 'unavailable' ? (
                   <Link to={PUBLICATIONS_PATH} className={styles.link}>

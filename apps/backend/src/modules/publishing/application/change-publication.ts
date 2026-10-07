@@ -2,7 +2,7 @@ import type { CancelPublicationInput, PublicationDto, ReschedulePublicationInput
 import { AppError } from '../../../shared/app-error';
 import { isBeforeSend } from '../domain/job-transitions';
 import { isInScheduleWindow } from '../domain/schedule-window';
-import type { PublicationChangeOutcome, PublicationRepository } from './ports';
+import type { PublicationChangeOutcome, PublicationRepository, ScheduleNotifier } from './ports';
 import { publicationNotFound, scheduleOutOfRange, staleRevision } from './publication-errors';
 import { toPublicationDto } from './publication-dto';
 
@@ -11,8 +11,12 @@ export interface ChangePublicationDeps {
   now: number;
 }
 
+export interface ReschedulePublicationDeps extends ChangePublicationDeps {
+  notifier: ScheduleNotifier;
+}
+
 export async function reschedulePublication(
-  deps: ChangePublicationDeps,
+  deps: ReschedulePublicationDeps,
   command: { actor: string; id: string; input: ReschedulePublicationInput }
 ): Promise<PublicationDto> {
   const { actor, id, input } = command;
@@ -27,7 +31,17 @@ export async function reschedulePublication(
     actor,
     now: deps.now
   });
-  return resolve(deps, outcome, input.revision, 'NOT_RESCHEDULABLE', 'The publication can no longer be rescheduled');
+  const publication = resolve(
+    deps,
+    outcome,
+    input.revision,
+    'NOT_RESCHEDULABLE',
+    'The publication can no longer be rescheduled'
+  );
+  // `resolve` throws unless the batch applied the change, so this runs once per real move. Moving
+  // a publication to "now" sends it right away: nothing to announce.
+  if (publication.status === 'scheduled') deps.notifier.rescheduled(publication);
+  return publication;
 }
 
 export async function cancelPublication(

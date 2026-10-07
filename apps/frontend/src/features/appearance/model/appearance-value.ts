@@ -29,9 +29,9 @@ export function toValue(dto: AppearanceDto): AppearanceValue {
 
 const sameRef = (a: AccentRef, b: AccentRef) => a.kind === b.kind && a.id === b.id;
 
+/** The theme mode is not editable here (the top bar toggle owns it), so it never counts as a difference. */
 export function isSameValue(a: AppearanceValue, b: AppearanceValue): boolean {
   return (
-    a.themeMode === b.themeMode &&
     sameRef(a.lightAccent, b.lightAccent) &&
     sameRef(a.darkAccent, b.darkAccent) &&
     a.customPresets.length === b.customPresets.length &&
@@ -46,11 +46,6 @@ export function isSameValue(a: AppearanceValue, b: AppearanceValue): boolean {
     })
   );
 }
-
-export const setThemeMode = (value: AppearanceValue, themeMode: ThemeMode): AppearanceValue => ({
-  ...value,
-  themeMode
-});
 
 export const setAccent = (value: AppearanceValue, theme: ThemeName, accent: AccentRef): AppearanceValue =>
   theme === 'light' ? { ...value, lightAccent: accent } : { ...value, darkAccent: accent };

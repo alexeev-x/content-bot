@@ -12,13 +12,15 @@ import { ToastProvider } from '../../../shared/ui';
 import { createTestQueryClient } from '../../../test/query-wrapper';
 import type { AppearanceValue } from '../model/appearance-value';
 import { AppearanceEditor } from '../ui/AppearanceEditor';
+import { ThemeToggle } from '../ui/ThemeToggle';
 
-export function renderEditor() {
+export function renderEditor(withToggle = false) {
   const preview = vi.fn<(value: AppearanceValue) => void>();
   const client = createTestQueryClient();
   const root = createRootRoute({
     component: () => (
       <ToastProvider>
+        {withToggle ? <ThemeToggle preview={preview} /> : null}
         <AppearanceEditor preview={preview} />
       </ToastProvider>
     )

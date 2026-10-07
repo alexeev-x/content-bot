@@ -6,6 +6,8 @@ export interface Post {
   body: string;
   revision: number;
   status: PostStatus;
+  /** UTC epoch milliseconds; null while the post is live. */
+  archivedAt: number | null;
   /** UTC epoch milliseconds. */
   updatedAt: number;
 }

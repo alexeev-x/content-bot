@@ -2,7 +2,12 @@ import type { TelegramBotAdminApi } from '../../integrations/telegram/telegram-a
 import type { TelegramCaller } from './telegram-call';
 
 // Only commands the bot really answers are registered.
-const OWNER_COMMANDS = [{ command: 'start', description: 'Открыть студию' }];
+export const OWNER_COMMANDS = [
+  { command: 'start', description: 'Открыть студию' },
+  { command: 'today', description: 'План и итоги на сегодня' },
+  { command: 'next', description: 'Ближайшие 5 публикаций' },
+  { command: 'status', description: 'Публикация, Cron и проблемы' }
+];
 const MENU_BUTTON_TEXT = 'Студия';
 
 // The owner's private chat: its command list and the menu button that opens the studio. Sets the

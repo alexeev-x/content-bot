@@ -52,6 +52,9 @@ export interface PostDto {
   body: string;
   revision: number;
   status: 'draft' | 'approved'; // editorial only; scheduling lives in publications
+  archivedAt: string | null; // set while the post is in the archive
+  autoDeleteAt: string | null; // archivedAt + 30 days (server setting)
+  publicationSummary: PostPublicationSummary; // counts by status, next waiting time, last sent time, destinations
   updatedAt: string; // UTC ISO8601
 }
 
@@ -89,10 +92,23 @@ Schemas and per-endpoint error codes: `apps/contracts/src/posts.ts`.
 | Endpoint | Meaning |
 |---|---|
 | `POST /api/v1/posts` | Create a draft; `201` with `PostDto`. `Idempotency-Key` is required: a repeat with the same body replays the first response, a different body or a request still in flight is `409` |
-| `GET /api/v1/posts` | Newest update first, keyset pagination (`cursor`, `limit` ≤ 100), optional `status` filter |
-| `GET /api/v1/posts/{id}` | One post |
+| `GET /api/v1/posts` | Keyset pagination (`cursor`, `limit` ≤ 100), optional `status` filter, `view` = `live` (default, newest update first) or `archive` (most recently archived first). Every page carries `archivedCount`, the size of the archive, for the tab badge |
+| `GET /api/v1/posts/{id}` | One post, with its `publicationSummary` |
 | `PATCH /api/v1/posts/{id}` | Edit a draft; the current `revision` goes in the body. Stale revision → `409` `STALE_REVISION`; approved post → `409` `NOT_EDITABLE` |
 | `POST /api/v1/posts/{id}/approve` | Draft → approved with the current `revision`; empty body → `400` `EMPTY_BODY` |
+
+### Archive and deleting posts
+
+A post moves to the archive by itself (Cron) once it has a sent publication and nothing left to send (`scheduled`, `queued`, `preparing`, `sending`, `retry_wait`, `unknown`); it is deleted by itself 30 days after `archivedAt`. A post with an `unknown` or in-flight publication is never deleted, by Cron or by hand. Deleting never removes anything from a Telegram channel. Schemas and per-endpoint error codes: `apps/contracts/src/posts.ts`.
+
+| Endpoint | Meaning |
+|---|---|
+| `POST /api/v1/posts/{id}/delete` | Delete one post with its publication records; waiting publications (`scheduled`, `queued`, `retry_wait`) are cancelled in the same atomic write and listed in the answer. `409` `PUBLICATION_IN_PROGRESS` (a publication is preparing or sending) or `PUBLICATION_UNKNOWN` (result not reconciled), both with the publication id; stale `revision` is `409` `STALE_REVISION` |
+| `POST /api/v1/posts/delete` | The same for 1 to 100 posts, each with its own `revision`. Always `200` with one result per post, in request order: `deleted` (with the cancelled publications) or `refused` with a reason (`NOT_FOUND` also means already deleted, `STALE_REVISION`, `PUBLICATION_IN_PROGRESS`, `PUBLICATION_UNKNOWN`). A repeated id is `400` `DUPLICATE_IDS` |
+| `POST /api/v1/posts/{id}/restore` | Archive → live: the post is `approved` again with the same `revision` and nothing is sent. `409` `NOT_ARCHIVED` or `STALE_REVISION` |
+| `POST /api/v1/posts/restore` | The same for 1 to 100 posts, per-post results (`restored` or `refused` with `NOT_FOUND`, `NOT_ARCHIVED`, `STALE_REVISION`) |
+
+Scheduling a publication for an archived post is `409` `POST_ARCHIVED`: restore it first. A restored post is archived again only after a publication is sent after the restore.
 
 A request body over 32 KB is `413` `VALIDATION_ERROR`. Title and body reject control characters (the body keeps tabs and line breaks) and broken Unicode. Every change stores a revision snapshot and an audit entry. On `409` the UI keeps the local edits and offers a comparison.
 

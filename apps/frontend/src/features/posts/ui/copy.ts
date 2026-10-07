@@ -2,15 +2,22 @@
 export const postsCopy = {
   list: {
     title: 'Посты',
-    description: 'Черновики и одобренные посты, сначала недавно изменённые.',
+    description: 'Черновики, одобренные и запланированные посты, сначала недавно изменённые.',
     create: 'Новый пост',
     searchLabel: 'Поиск по загруженным постам',
     searchPlaceholder: 'Поиск по названию и тексту',
     searchScope: 'Поиск идёт только по уже загруженным постам.',
-    statusFilter: 'Статус',
-    allStatuses: 'Все',
+    tabs: { label: 'Раздел постов', all: 'Все', drafts: 'Черновики', archive: 'Архив' },
     tableLabel: 'Список постов',
-    columns: { title: 'Пост', status: 'Статус', updated: 'Изменён', revision: 'Ревизия' },
+    columns: { title: 'Пост', status: 'Статус', updated: 'Изменён', revision: 'Ревизия', actions: 'Действия' },
+    state: {
+      draft: 'Черновик',
+      approved: 'Утверждён',
+      scheduled: 'Запланирован',
+      sending: 'Отправляется',
+      unknown: 'Нужна сверка'
+    },
+    scheduledAt: (time: string) => `на ${time}`,
     revision: (revision: number) => `ред. ${revision}`,
     untitled: 'Без названия',
     emptyBody: 'Текст не заполнен',
@@ -27,6 +34,112 @@ export const postsCopy = {
     errorMessage: 'Список не получен. Проверьте соединение и повторите.',
     forbiddenTitle: 'Нет доступа',
     forbiddenMessage: 'У этой учётной записи нет доступа к постам.'
+  },
+  archive: {
+    tableLabel: 'Архив постов',
+    note: 'Опубликованные посты хранятся здесь 30 дней, затем удаляются.',
+    columns: { title: 'Название', channels: 'Каналы', sentAt: 'Опубликовано', left: 'Осталось' },
+    noChannels: 'Нет данных о каналах',
+    daysLeft: (days: number) => `Удалится через ${days} дн.`,
+    lastDays: (days: number) => `Удалится через ${days} дн.`,
+    lastDaysHint: 'Скоро удалится',
+    emptyTitle: 'Архив пуст',
+    emptyDescription: 'Здесь появятся посты после публикации. Они хранятся 30 дней.',
+    filteredEmptyTitle: 'В архиве нет таких постов',
+    filteredEmptyDescription: 'Измените запрос или сбросьте поиск.',
+    errorTitle: 'Не удалось загрузить архив',
+    errorMessage: 'Архив не получен. Проверьте соединение и повторите.'
+  },
+  actions: {
+    rowMenu: (title: string) => `Действия с постом «${title}»`,
+    delete: 'Удалить',
+    deleteBlocked: (reason: string) => `Удалить: ${reason}`,
+    blockedInProgress: 'идёт отправка',
+    blockedUnknown: 'нужна сверка результата',
+    restore: 'Вернуть из архива',
+    deleteNow: 'Удалить сейчас',
+    pageMenu: 'Действия с постом'
+  },
+  selection: {
+    select: 'Выбрать',
+    done: 'Готово',
+    row: (title: string) => `Выбрать пост «${title}»`,
+    blockedRow: (title: string, reason: string) => `Пост «${title}» нельзя выбрать: ${reason}`,
+    all: 'Выбрать все загруженные посты',
+    bar: 'Выбранные посты',
+    selected: (count: number) => `Выбрано: ${count}`,
+    limit: (max: number) => `Не больше ${max} за раз.`,
+    clear: 'Снять выделение',
+    delete: 'Удалить',
+    restore: 'Вернуть из архива',
+    failedReason: (reason: string) => `Не удалось: ${reason}`
+  },
+  deleteDialog: {
+    titleOne: (title: string) => `Удалить пост «${title}»?`,
+    titleMany: (count: string) => `Удалить ${count}?`,
+    channelsKept: 'Сообщения в каналах не удаляются.',
+    irreversible: 'Восстановить нельзя.',
+    plain: 'Пост будет удалён без возможности восстановления.',
+    withRecords: 'Пост и записи о его публикациях будут удалены без возможности восстановления.',
+    cancelling: (count: number) => `Будут отменены запланированные публикации: ${count}.`,
+    cancellingFirst: (channel: string | undefined, time: string) => `Первая: ${channel ? `${channel}, ` : ''}${time}.`,
+    recordsMany: 'Будут удалены посты и записи об их публикациях.',
+    confirmOne: 'Удалить',
+    confirmMany: (count: string) => `Удалить ${count}`,
+    pending: 'Удаляем…',
+    keep: 'Не удалять',
+    retry: 'Повторить'
+  },
+  lifecycle: {
+    deleted: (title: string) => `Пост «${title}» удалён`,
+    deletedAll: (count: number) => `Удалено: ${count}`,
+    deletedSome: (done: number, total: number, failed: number) => `Удалено: ${done} из ${total}. Не удалось: ${failed}`,
+    deletedNone: (failed: number) => `Ничего не удалено. Не удалось: ${failed}`,
+    restored: 'Пост возвращён из архива',
+    restoredAll: (count: number) => `Возвращено: ${count}`,
+    restoredSome: (done: number, total: number, failed: number) =>
+      `Возвращено: ${done} из ${total}. Не удалось: ${failed}`,
+    restoredNone: (failed: number) => `Ничего не возвращено. Не удалось: ${failed}`,
+    show: 'Показать',
+    refused: {
+      NOT_FOUND: 'пост уже удалён',
+      STALE_REVISION: 'пост изменился, проверьте и повторите',
+      PUBLICATION_IN_PROGRESS: 'идёт отправка',
+      PUBLICATION_UNKNOWN: 'нужна сверка результата',
+      NOT_ARCHIVED: 'пост уже не в архиве'
+    },
+    notices: {
+      stale: { title: 'Состояние поста изменилось', body: 'Обновили данные. Проверьте пост и повторите действие.' },
+      inProgress: {
+        title: 'Идёт отправка',
+        body: 'Пока публикация отправляется, пост удалить нельзя. Дождитесь результата и повторите.'
+      },
+      unknown: {
+        title: 'Нужна сверка результата',
+        body: 'Неизвестно, ушло ли сообщение в канал. Пока результат не сверен, пост удалить нельзя.'
+      },
+      notFound: { title: 'Пост уже удалён', body: 'Обновили список.' },
+      notArchived: { title: 'Пост уже не в архиве', body: 'Обновили данные.' },
+      openPublication: 'Открыть публикацию',
+      requestId: 'Идентификатор запроса'
+    },
+    errors: {
+      deleteTitle: 'Не удалось удалить',
+      restoreTitle: 'Не удалось вернуть из архива',
+      validation: 'Сервер не принял запрос.',
+      unavailable: 'Сервер сейчас недоступен.',
+      rate: 'Слишком много запросов. Повторите чуть позже.',
+      forbidden: 'Нет доступа к этому действию.',
+      generic: 'Что-то пошло не так.',
+      nothingRemoved: 'Ничего не удалено.',
+      nothingRestored: 'Ничего не изменено.'
+    }
+  },
+  archived: {
+    title: 'Пост в архиве',
+    body: (date: string) => `Пост в архиве. Удалится ${date}.`,
+    readOnly: 'Текст нельзя изменить. Чтобы вернуться к работе над постом, верните его из архива.',
+    restoreFailedTitle: 'Не удалось вернуть из архива'
   },
   editor: {
     newTitle: 'Новый пост',

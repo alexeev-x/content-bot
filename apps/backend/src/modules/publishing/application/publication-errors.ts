@@ -25,6 +25,8 @@ export function scheduleRefusal(reason: ScheduleRefusal): AppError {
       return new AppError('NOT_FOUND', 'Destination not found', { reason });
     case 'POST_NOT_APPROVED':
       return new AppError('CONFLICT', 'Only an approved post can be scheduled', { reason });
+    case 'POST_ARCHIVED':
+      return new AppError('CONFLICT', 'An archived post must be restored before it is scheduled', { reason });
     case 'STALE_REVISION':
       return new AppError('CONFLICT', 'The post is not at this revision', { reason });
     case 'DESTINATION_DISABLED':

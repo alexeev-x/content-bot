@@ -5,6 +5,7 @@ import type { Logger } from '../../platform/logging/logger';
 import type { TelegramBotAdminApi } from '../../integrations/telegram/telegram-api';
 import { AppError } from '../../shared/app-error';
 import type { AppEnv } from '../env';
+import type { SystemStateStore } from '../system-state';
 import { webhookUrlFor } from './app-origin';
 import { botInfoSchema } from './bot-info';
 import type { BotIdentityStore } from './bot-identity-store';
@@ -43,6 +44,8 @@ export interface BotConnectionDeps {
   call: TelegramCaller;
   /** Where connect stores the bot identity that Telegram answers with. */
   identity: BotIdentityStore;
+  /** Connect also keeps this Worker's origin, which Cron's owner alerts need for their buttons. */
+  appState: Pick<SystemStateStore, 'rememberAppOrigin'>;
   clock: Clock;
   logger: Logger;
   requestId?: string;
@@ -134,5 +137,17 @@ export async function connectBot(deps: BotConnectionDeps): Promise<BotStatusDto>
     await call.act(`bot_connect.delete_${label}`, (signal) => api.deleteMyCommands(input, signal));
   }
   await configureOwnerChat({ api, call }, { ownerId: settings.ownerId, appOrigin });
+  // Everything Telegram needed is already set, so a store that cannot take the origin (a deployment
+  // before migration 0009) does not turn the connect into a failure; /start stores it again.
+  try {
+    await deps.appState.rememberAppOrigin(appOrigin, deps.clock.now());
+  } catch {
+    deps.logger.warn({
+      component: 'bot',
+      operation: 'bot_connect.remember_origin',
+      ...(deps.requestId === undefined ? {} : { requestId: deps.requestId }),
+      errorCode: 'APP_ORIGIN_NOT_STORED'
+    });
+  }
   return statusOf(deps, inspectBotSetup(env, me));
 }

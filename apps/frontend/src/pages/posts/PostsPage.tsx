@@ -1,12 +1,11 @@
-import type { PostStatus } from '@alexeev/contracts';
-import { PostsList, postsCopy } from '../../features/posts';
+import { PostsList, postsCopy, type PostsView } from '../../features/posts';
 import { Button, PageHeader } from '../../shared/ui';
 import { useDocumentTitle } from './use-document-title';
 
 type Props = {
-  status: PostStatus | undefined;
+  view: PostsView;
   query: string;
-  onStatusChange: (status: PostStatus | undefined) => void;
+  onViewChange: (view: PostsView) => void;
   onQueryChange: (query: string) => void;
   onOpen: (id: string) => void;
   onCreate: () => void;

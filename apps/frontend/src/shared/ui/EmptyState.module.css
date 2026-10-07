@@ -30,3 +30,11 @@
 .action {
   margin-top: var(--space-3);
 }
+/* A plain link as the action still needs a 44px touch target on a phone. */
+@media (pointer: coarse), (max-width: 859px) {
+  .action > a {
+    display: inline-flex;
+    align-items: center;
+    min-height: var(--size-target);
+  }
+}

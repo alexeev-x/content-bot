@@ -152,6 +152,7 @@ describe('PublishDialog', () => {
 
   it.each([
     ['POST_NOT_APPROVED', 409, 'CONFLICT', 'Пост не утверждён'],
+    ['POST_ARCHIVED', 409, 'CONFLICT', 'Пост в архиве'],
     ['STALE_REVISION', 409, 'CONFLICT', 'Пост изменился'],
     ['DESTINATION_DISABLED', 409, 'CONFLICT', 'Канал отключён'],
     ['SCHEDULE_OUT_OF_RANGE', 400, 'VALIDATION_ERROR', 'Время вне допустимого диапазона'],
@@ -167,6 +168,9 @@ describe('PublishDialog', () => {
     expect(within(dialog).getByRole('button', { name: /Канал/ }).textContent).toContain('Канал');
     if (reason === 'STALE_REVISION') {
       expect(within(dialog).getByRole('button', { name: 'Загрузить актуальную версию' })).toBeTruthy();
+    }
+    if (reason === 'POST_ARCHIVED') {
+      expect(within(dialog).getByRole('button', { name: 'Обновить пост' })).toBeTruthy();
     }
     // The submit button is usable again: the owner can correct and resend.
     expect(within(dialog).getByRole('button', { name: 'Отправить сейчас' }).getAttribute('aria-disabled')).not.toBe(

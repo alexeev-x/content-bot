@@ -13,36 +13,6 @@
   flex: 1 1 260px;
   max-width: 460px;
 }
-.titleCell {
-  display: flex;
-  align-items: baseline;
-  gap: var(--space-3);
-  min-width: 0;
-}
-.title {
-  flex: 0 1 auto;
-  min-width: 0;
-  max-width: 60%;
-  overflow: hidden;
-  font-weight: var(--font-weight-semibold);
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.excerpt {
-  flex: 1 1 0;
-  min-width: 0;
-  overflow: hidden;
-  color: var(--color-text-muted);
-  font-size: var(--font-size-sm);
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-/* The title column takes all the width the other columns leave and clips its text, so the table never outgrows the page. */
-td:has(> .titleCell) {
-  width: 100%;
-  min-width: 16ch;
-  max-width: 0;
-}
 .muted {
   color: var(--color-text-muted);
   font-size: var(--font-size-sm);
@@ -60,25 +30,7 @@ td:has(> .titleCell) {
 .footer > button {
   margin-left: auto;
 }
-/* Cards on narrow screens: the text wraps instead of clipping. */
 @media (max-width: 859px) {
-  .titleCell {
-    flex-direction: column;
-    gap: 2px;
-  }
-  .title {
-    max-width: none;
-    overflow-wrap: anywhere;
-    white-space: normal;
-  }
-  .excerpt {
-    display: -webkit-box;
-    line-clamp: 2;
-    -webkit-line-clamp: 2;
-    -webkit-box-orient: vertical;
-    overflow-wrap: anywhere;
-    white-space: normal;
-  }
   .search {
     flex-basis: 100%;
     max-width: none;
@@ -89,6 +41,22 @@ td:has(> .titleCell) {
   }
 }
 
-.time {
-  white-space: nowrap;
+.panel {
+  display: grid;
+  gap: var(--space-4);
+  min-width: 0;
+}
+.note {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+.count {
+  min-width: 20px;
+  padding: 0 var(--space-1);
+  border-radius: var(--radius-pill);
+  background: var(--color-surface-3);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+  text-align: center;
 }

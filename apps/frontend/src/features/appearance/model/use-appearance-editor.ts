@@ -1,8 +1,8 @@
 import type { AppearanceDto } from '@alexeev/contracts';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ApiError } from '../../../shared/api/http-client';
-import { appearanceQueryOptions, useSaveAppearance } from '../api/appearance-queries';
+import { appearanceKeys, appearanceQueryOptions, useSaveAppearance } from '../api/appearance-queries';
 import { isSameValue, toValue, type AppearanceValue } from './appearance-value';
 
 type Options = {
@@ -27,6 +27,7 @@ export function problemOf(error: unknown): SaveProblem {
  * answer. Edits survive a 409 until the operator explicitly reloads or re-bases them.
  */
 export function useAppearanceEditor({ preview }: Options) {
+  const queryClient = useQueryClient();
   const query = useQuery(appearanceQueryOptions());
   const save = useSaveAppearance();
   const server: AppearanceDto | undefined = query.data;
@@ -37,9 +38,13 @@ export function useAppearanceEditor({ preview }: Options) {
   const [reloadFailed, setReloadFailed] = useState(false);
 
   const serverValue = useMemo(() => (server ? toValue(server) : null), [server]);
-  const current = draft ?? serverValue;
+  // The toggle in the top bar owns themeMode: the draft always shows the server's current one, never a copy.
+  const serverMode = serverValue?.themeMode;
+  const current = useMemo(
+    () => (serverValue ? (draft && serverMode ? { ...draft, themeMode: serverMode } : serverValue) : null),
+    [draft, serverValue, serverMode]
+  );
   const isDirty = draft !== null && serverValue !== null && !isSameValue(draft, serverValue);
-  const revision = baseRevision ?? server?.revision ?? 0;
 
   // Live preview of the draft on the real document.
   useEffect(() => {
@@ -76,8 +81,27 @@ export function useAppearanceEditor({ preview }: Options) {
   const submit = useCallback(async () => {
     if (!draft || !isDirty) return;
     setProblem(null);
+    const send = (base: AppearanceDto, revisionToSend: number) =>
+      save.mutateAsync({
+        ...draft,
+        customPresets: [...draft.customPresets],
+        themeMode: base.themeMode,
+        revision: revisionToSend
+      });
     try {
-      await save.mutateAsync({ revision, ...draft, customPresets: [...draft.customPresets] });
+      // themeMode comes from the freshest cache value: a toggle may have saved after the draft began.
+      const latest = queryClient.getQueryData<AppearanceDto>(appearanceKeys.detail()) ?? server;
+      if (!latest) return;
+      try {
+        await send(latest, baseRevision ?? latest.revision);
+      } catch (error) {
+        if (!(error instanceof ApiError && error.status === 409)) throw error;
+        // A toggle save racing this one only moved revision and themeMode: rebase silently. A real
+        // change from another device is left to the explicit conflict banner.
+        const fresh = await queryClient.fetchQuery({ ...appearanceQueryOptions(), staleTime: 0 });
+        if (!isSameValue(toValue(fresh), toValue(latest)) || baseRevision !== null) throw error;
+        await send(fresh, fresh.revision);
+      }
       setDraft(null);
       setBaseRevision(null);
       return 'saved' as const;
@@ -86,7 +110,7 @@ export function useAppearanceEditor({ preview }: Options) {
       setRequestId(error instanceof ApiError ? error.requestId : undefined);
       return 'failed' as const;
     }
-  }, [draft, isDirty, revision, save]);
+  }, [draft, isDirty, baseRevision, queryClient, server, save]);
 
   /** 409: take the other device's version and drop the local edits (an explicit choice). */
   const reloadFromServer = useCallback(async () => {

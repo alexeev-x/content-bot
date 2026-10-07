@@ -1,3 +1,4 @@
+import type { PublicationStatus } from '@alexeev/contracts';
 import type { IdempotencyClaim } from '../../../platform/idempotency/d1-idempotency-store';
 import type { Post, PostStatus } from '../domain/post';
 
@@ -22,9 +23,26 @@ export interface NewPost {
 }
 
 export interface ListPostsQuery {
+  /** `live` is every post that is not archived, by update time; `archive` the archived ones, by archive time. */
+  view: 'live' | 'archive';
   status?: PostStatus;
-  after?: { updatedAt: number; id: string };
+  /** The sort key of the last row of the previous page (`updatedAt`, or `archivedAt` in the archive) and its id. */
+  after?: { at: number; id: string };
   limit: number;
+}
+
+/** What a post's publications amount to; the shape `app/container.ts` backs with the publishing module. */
+export interface PostPublicationSummary {
+  counts: Record<PublicationStatus, number>;
+  /** The earliest `scheduledAt` among publications that are still waiting, and its destination. */
+  nextScheduled: { scheduledAt: number; destinationId: string } | null;
+  lastSentAt: number | null;
+  destinations: { id: string; title: string }[];
+}
+
+export interface PostPublicationSummarySource {
+  /** Posts without publications are absent from the map. `now` separates `scheduled` from `queued`. */
+  summarize(postIds: readonly string[], now: number): Promise<Map<string, PostPublicationSummary>>;
 }
 
 export interface PostChange {
@@ -44,6 +62,8 @@ export interface PostRepository {
   /** The stored snapshot of one revision, or null when it does not exist. */
   findRevision(postId: string, revision: number): Promise<{ title: string; body: string } | null>;
   list(query: ListPostsQuery): Promise<PostRecord[]>;
+  /** How many posts are in the archive (it only holds the retention period, so the count is small). */
+  countArchived(): Promise<number>;
   /** Null when the guard (revision matches and the post is a draft) did not hold. */
   update(change: PostChange & { title?: string; body?: string }): Promise<PostRecord | null>;
   /** Null when the guard (revision matches and the post is a draft) did not hold. */

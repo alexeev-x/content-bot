@@ -1,5 +1,7 @@
 import { cleanup, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { http, HttpResponse } from 'msw';
+import { errorBody } from '../../../test/fixtures';
 import { afterEach, describe, expect, it } from 'vitest';
 import { server, setupMswServer } from '../../../test/msw';
 import { appearance, customPreset, getAppearance, putAppearance, putConflict } from './fixtures';
@@ -180,7 +182,6 @@ describe('appearance editor', () => {
   });
 
   it('shows a retryable error with the request id when loading fails', async () => {
-    const { http, HttpResponse } = await import('msw');
     server.use(
       http.get('*/api/v1/settings/appearance', () =>
         HttpResponse.json({ error: { code: 'UNAVAILABLE', message: 'x', requestId: 'req-77' } }, { status: 503 })
@@ -190,5 +191,85 @@ describe('appearance editor', () => {
     expect(await screen.findByText('Не удалось загрузить оформление')).toBeTruthy();
     expect(screen.getByText('req-77')).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Повторить' })).toBeTruthy();
+  });
+
+  describe('with the top bar toggle', () => {
+    const toggleName = /Включить (светлую|тёмную) тему/;
+
+    it('has no theme mode control', async () => {
+      server.use(getAppearance(appearance({ themeMode: 'system' })));
+      renderEditor();
+      await lightGroup();
+      expect(screen.queryByText('Режим темы')).toBeNull();
+      expect(screen.queryByRole('radio', { name: 'Системная' })).toBeNull();
+    });
+
+    it('saves the theme the toggle saved, not a stale copy', async () => {
+      let body: Record<string, unknown> | undefined;
+      server.use(getAppearance(appearance({ themeMode: 'dark', revision: 1 })));
+      const user = userEvent.setup();
+      renderEditor(true);
+      await pickLight(user, /Индиго/);
+      server.use(
+        putAppearance((b) => {
+          body = b as Record<string, unknown>;
+        })
+      );
+      await user.click(await screen.findByRole('button', { name: toggleName }));
+      await waitFor(() => expect(body).toBeDefined());
+      expect(body).toMatchObject({ themeMode: 'light', revision: 1 });
+      body = undefined;
+      await user.click(screen.getByRole('button', { name: 'Сохранить' }));
+      await waitFor(() => expect(body).toBeDefined());
+      expect(body).toMatchObject({
+        themeMode: 'light',
+        revision: 2,
+        lightAccent: { kind: 'preset', id: 'indigo' }
+      });
+    });
+
+    it('keeps both the unsaved accent and the toggled theme when the save races the toggle (409)', async () => {
+      const bodies: Record<string, unknown>[] = [];
+      server.use(getAppearance(appearance({ themeMode: 'dark', revision: 1 })));
+      const user = userEvent.setup();
+      renderEditor(true);
+      await pickLight(user, /Медь/);
+      // The toggle's save lands first on the server; the editor still holds revision 1 in its request.
+      server.use(
+        http.put('*/api/v1/settings/appearance', async ({ request }) => {
+          const body = (await request.json()) as Record<string, unknown> & { revision: number };
+          bodies.push(body);
+          if (body.revision !== 2)
+            return HttpResponse.json(errorBody('CONFLICT', { reason: 'STALE_REVISION' }), { status: 409 });
+          return HttpResponse.json({ ...body, revision: 3, updatedAt: '2026-10-06T09:00:00.000Z' });
+        }),
+        getAppearance(appearance({ themeMode: 'light', revision: 2 }))
+      );
+      await user.click(screen.getByRole('button', { name: 'Сохранить' }));
+      expect(await screen.findByText('Оформление сохранено')).toBeTruthy();
+      expect(bodies.at(-1)).toMatchObject({
+        themeMode: 'light',
+        revision: 2,
+        lightAccent: { kind: 'preset', id: 'copper' }
+      });
+    });
+
+    it('does not lose the unsaved accent when the toggle saves meanwhile', async () => {
+      server.use(getAppearance(appearance({ themeMode: 'dark', revision: 1 })), putAppearance());
+      const user = userEvent.setup();
+      const { client, preview } = renderEditor(true);
+      await pickLight(user, /Медь/);
+      await user.click(await screen.findByRole('button', { name: toggleName }));
+      await waitFor(() =>
+        expect(client.getQueryData<{ themeMode: string }>(['appearance', 'detail'])).toMatchObject({
+          themeMode: 'light'
+        })
+      );
+      expect(preview).toHaveBeenLastCalledWith(
+        expect.objectContaining({ themeMode: 'light', lightAccent: { kind: 'preset', id: 'copper' } })
+      );
+      expect(within(groups()[0]!).getByRole('radio', { name: /Медь/ })).toHaveProperty('checked', true);
+      expect(screen.getByRole('button', { name: 'Сохранить' }).hasAttribute('disabled')).toBe(false);
+    });
   });
 });

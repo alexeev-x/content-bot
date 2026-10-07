@@ -2,7 +2,7 @@ import { http, HttpResponse, type HttpHandler } from 'msw';
 import { setupServer } from 'msw/node';
 import { afterAll, afterEach, beforeAll } from 'vitest';
 import type { ApiErrorCode } from '@alexeev/contracts';
-import { accessToken, destination, errorBody, me, post, publication } from './fixtures';
+import { accessToken, destination, errorBody, me, post, postPage, publication } from './fixtures';
 
 const page = <T>(items: T[]) => ({ items, nextCursor: null });
 
@@ -14,7 +14,7 @@ export const handlers: HttpHandler[] = [
   http.post('*/api/v1/auth/logout', () => new HttpResponse(null, { status: 204 })),
   http.get('*/api/v1/auth/me', () => HttpResponse.json(me)),
 
-  http.get('*/api/v1/posts', () => HttpResponse.json(page([post()]))),
+  http.get('*/api/v1/posts', () => HttpResponse.json(postPage([post()]))),
   http.post('*/api/v1/posts', () => HttpResponse.json(post(), { status: 201 })),
   http.get('*/api/v1/posts/:id', () => HttpResponse.json(post())),
   http.patch('*/api/v1/posts/:id', () => HttpResponse.json(post({ revision: 1 }))),

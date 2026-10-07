@@ -1,5 +1,6 @@
 import { botStatusSchema } from '@alexeev/contracts';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { OWNER_COMMANDS } from '../../src/app/bot/owner-chat';
 import { testDb } from '../helpers/db';
 import { expectError } from '../helpers/expect-error';
 import { apiError, networkError } from '../helpers/fake-chat-api';
@@ -217,7 +218,7 @@ describe('POST /api/v1/bot/connect', () => {
       'deleteMyCommands default ru',
       'deleteMyCommands all_private_chats ru',
       `deleteMyCommands chat ${OWNER_ID} ru`,
-      `setChatCommands ${OWNER_ID} start`,
+      `setChatCommands ${OWNER_ID} start,today,next,status`,
       `setChatMenuWebApp ${OWNER_ID} Студия ${ORIGIN}/`,
       'getWebhookInfo'
     ]);
@@ -226,7 +227,7 @@ describe('POST /api/v1/bot/connect', () => {
       secretToken: WEBHOOK_SECRET,
       allowedUpdates: ['message', 'callback_query']
     });
-    expect(telegram.sent[7]).toEqual([{ command: 'start', description: 'Открыть студию' }]);
+    expect(telegram.sent[7]).toEqual(OWNER_COMMANDS);
     expect(telegram.calls.length).toBeLessThanOrEqual(10);
     expect(telegram.sent[6]).toEqual({ scope: { chatId: Number(OWNER_ID) }, languageCode: 'ru' });
     expect(body.webhook?.pointsHere).toBe(true);
@@ -462,7 +463,7 @@ describe('POST /webhooks/telegram /start', () => {
     expect(sent[0]?.body).toContain(`${ORIGIN}/`);
     await Promise.all(api.background);
     expect(telegram.calls).toEqual([
-      `setChatCommands ${OWNER_ID} start`,
+      `setChatCommands ${OWNER_ID} start,today,next,status`,
       `setChatMenuWebApp ${OWNER_ID} Студия ${ORIGIN}/`
     ]);
   });
@@ -487,7 +488,7 @@ describe('POST /webhooks/telegram /start', () => {
       expect.stringContaining('/sendMessage')
     ]);
     expect(telegram.calls).toEqual([
-      `setChatCommands ${OWNER_ID} start`,
+      `setChatCommands ${OWNER_ID} start,today,next,status`,
       `setChatMenuWebApp ${OWNER_ID} Студия ${ORIGIN}/`
     ]);
   });

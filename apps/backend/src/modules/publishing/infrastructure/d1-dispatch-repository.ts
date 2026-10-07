@@ -146,6 +146,7 @@ interface TargetRow {
   post_id: string;
   post_revision: number;
   chat_id: string;
+  title: string;
   enabled: number;
 }
 
@@ -205,7 +206,7 @@ export function createD1DispatchRepository(db: D1Database): DispatchRepository {
     async loadTarget(publicationId): Promise<DispatchTarget | null> {
       const row = await db
         .prepare(
-          `SELECT p.post_id, p.post_revision, d.chat_id, d.enabled
+          `SELECT p.post_id, p.post_revision, d.chat_id, d.title, d.enabled
            FROM publications p JOIN destinations d ON d.id = p.destination_id
            WHERE p.id = ?1`
         )
@@ -216,6 +217,7 @@ export function createD1DispatchRepository(db: D1Database): DispatchRepository {
         postId: row.post_id,
         postRevision: row.post_revision,
         chatId: row.chat_id,
+        destinationTitle: row.title,
         destinationEnabled: row.enabled === 1
       };
     },
@@ -275,6 +277,30 @@ export function createD1DispatchRepository(db: D1Database): DispatchRepository {
         offset += group.length;
         return results[offset - 1]?.meta.changes === 1;
       });
+    },
+
+    // The id list is bound as one JSON array (one parameter, however many ids), and the UPDATE decides
+    // per row: only a row whose owner_notified_at is still NULL is changed and returned.
+    async claimOwnerNotices(incidentIds, now) {
+      if (incidentIds.length === 0) return [];
+      const { results } = await db
+        .prepare(
+          `UPDATE incidents SET owner_notified_at = ?1
+           WHERE id IN (SELECT value FROM json_each(?2)) AND owner_notified_at IS NULL
+           RETURNING id`
+        )
+        .bind(now, JSON.stringify(incidentIds))
+        .all<{ id: string }>();
+      return results.map((row) => row.id);
+    },
+
+    // Walks incidents_open_idx and stops after `limit` rows.
+    async countOpenIncidents(limit) {
+      const row = await db
+        .prepare('SELECT count(*) AS n FROM (SELECT 1 FROM incidents WHERE resolved_at IS NULL LIMIT ?1)')
+        .bind(limit)
+        .first<{ n: number }>();
+      return row?.n ?? 0;
     }
   };
 }

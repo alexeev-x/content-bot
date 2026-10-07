@@ -20,6 +20,11 @@
   font-size: var(--font-size-xs);
   color: var(--color-text-muted);
 }
+/* The counter stays on one line; the helper text beside it is the part that wraps. */
+.description > :global(.mono) {
+  flex: none;
+  white-space: nowrap;
+}
 .error {
   font-size: var(--font-size-xs);
   color: var(--color-danger);

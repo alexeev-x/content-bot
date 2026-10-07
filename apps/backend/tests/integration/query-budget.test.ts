@@ -21,6 +21,7 @@ import {
   START,
   TEST_BOT_TOKEN
 } from '../helpers/harness';
+import { fakeOwnerMessenger } from '../helpers/fake-owner-messenger';
 import { seedApprovedPost, seedDestination } from '../helpers/publishing';
 
 // Free plan: 50 D1 queries per invocation. Each endpoint's D1 round trips (a batch is one) are
@@ -83,7 +84,7 @@ async function measure(
   init: { method?: string; json?: unknown; headers?: Record<string, string>; token?: string | null } = {}
 ): Promise<{ status: number; body: unknown; counter: Counter }> {
   const counter = { roundTrips: 0, statements: 0 };
-  const app = createApp({ clock: fakeClock() });
+  const app = createApp({ clock: fakeClock(), ownerMessenger: fakeOwnerMessenger() });
   const env = {
     DB: countingDb(testDb(), counter),
     OWNER_TELEGRAM_ID: OWNER_ID,
@@ -92,16 +93,65 @@ async function measure(
   const headers = new Headers(init.headers);
   if (init.token !== null) headers.set('authorization', `Bearer ${init.token ?? OWNER_TOKEN}`);
   if (init.json !== undefined) headers.set('content-type', 'application/json');
+  // The owner notice runs after the response but inside the same invocation, so its reads count too.
+  const background: Promise<unknown>[] = [];
+  const executionCtx = {
+    waitUntil: (work: Promise<unknown>) => background.push(work),
+    passThroughOnException: () => {}
+  };
   const response = await app.request(
     path,
     { method: init.method, headers, body: init.json === undefined ? undefined : JSON.stringify(init.json) },
-    env
+    env,
+    executionCtx as never
   );
   const text = await response.text();
+  await Promise.allSettled(background);
   return { status: response.status, body: text === '' ? null : (JSON.parse(text) as unknown), counter };
 }
 
 describe('D1 round trips per request (session lookup included)', () => {
+  it('posts, their archive and deletion', async () => {
+    // session, list and archive count (side by side), publication summaries of the approved posts
+    expect((await measure('/api/v1/posts?limit=100')).counter.roundTrips).toBe(4);
+    expect((await measure('/api/v1/posts?view=archive&limit=100')).counter.roundTrips).toBe(2 + 0 + 1);
+    expect((await measure(`/api/v1/posts/${postId}`)).counter.roundTrips).toBe(3); // session, post, summary
+
+    const draft = await measure('/api/v1/posts', {
+      method: 'POST',
+      headers: { 'idempotency-key': 'budget-3' },
+      json: { title: 'Draft' }
+    });
+    const draftId = (draft.body as { id: string }).id;
+    const deleted = await measure(`/api/v1/posts/${draftId}/delete`, { method: 'POST', json: { revision: 0 } });
+    expect(deleted.status).toBe(200);
+    // session, then one batch: waiting report, audit, five child deletes, the post, the state read
+    expect(deleted.counter).toEqual({ roundTrips: 2, statements: 1 + 9 });
+
+    const bulkDeleted = await measure('/api/v1/posts/delete', {
+      method: 'POST',
+      json: { items: [{ id: postId, revision: 1 }] }
+    });
+    expect(bulkDeleted.status).toBe(200);
+    expect(bulkDeleted.counter).toEqual({ roundTrips: 2, statements: 1 + 9 });
+
+    const bulkRestored = await measure('/api/v1/posts/restore', {
+      method: 'POST',
+      json: { items: [{ id: postId, revision: 1 }] }
+    });
+    expect(bulkRestored.status).toBe(200);
+    expect(bulkRestored.counter).toEqual({ roundTrips: 2, statements: 1 + 3 }); // session, batch of 3
+  });
+
+  it('restoring one archived post', async () => {
+    await testDb().prepare('UPDATE posts SET archived_at = ?1 WHERE id = ?2').bind(START, postId).run();
+
+    const restored = await measure(`/api/v1/posts/${postId}/restore`, { method: 'POST', json: { revision: 1 } });
+
+    expect(restored.status).toBe(200);
+    expect(restored.counter.roundTrips).toBe(1 + 1 + 2); // session, batch of 3, then post and summary
+  });
+
   it('destinations', async () => {
     const created = await measure('/api/v1/destinations', {
       method: 'POST',
@@ -162,8 +212,8 @@ describe('D1 round trips per request (session lookup included)', () => {
       }
     });
     expect(created.status).toBe(202);
-    // session, claim, post, destination, batch of 4
-    expect(created.counter).toEqual({ roundTrips: 5, statements: 8 });
+    // session, claim, post, destination, batch of 4; then the owner notice reads the revision and the destination
+    expect(created.counter).toEqual({ roundTrips: 7, statements: 10 });
     const id = publicationSchema.parse(created.body).id;
 
     expect((await measure('/api/v1/publications?limit=100&status=scheduled')).counter.roundTrips).toBe(2);
@@ -173,7 +223,7 @@ describe('D1 round trips per request (session lookup included)', () => {
       json: { revision: 0, scheduledAt: new Date(START + 20 * MINUTE).toISOString(), timezone: 'UTC' }
     });
     expect(moved.status).toBe(200);
-    expect(moved.counter).toEqual({ roundTrips: 2, statements: 5 }); // session, batch of 4
+    expect(moved.counter).toEqual({ roundTrips: 4, statements: 7 }); // session, batch of 4, notice reads (2)
     const cancelled = await measure(`/api/v1/publications/${id}/cancel`, { method: 'POST', json: { revision: 1 } });
     expect(cancelled.status).toBe(200);
     expect(cancelled.counter).toEqual({ roundTrips: 2, statements: 5 });

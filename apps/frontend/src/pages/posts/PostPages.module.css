@@ -57,3 +57,16 @@
   color: var(--color-text-muted);
   font-size: var(--font-size-sm);
 }
+@media (pointer: coarse), (max-width: 859px) {
+  .back {
+    min-height: var(--size-target);
+    margin-bottom: 0;
+  }
+}
+
+/* Two banner actions wrap instead of pushing the page wider than a phone. */
+.archiveActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}

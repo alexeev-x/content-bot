@@ -1,4 +1,4 @@
-import { CalendarDateTime, Time, ZonedDateTime, toZoned } from '@internationalized/date';
+import { CalendarDateTime, Time, ZonedDateTime, now, toZoned } from '@internationalized/date';
 import { useState } from 'react';
 import {
   Checkbox,
@@ -38,6 +38,7 @@ export function CatalogForms() {
   const [segment, setSegment] = useState('week');
   const [color, setColor] = useState('#0f9d8a');
   const [when, setWhen] = useState<ZonedDateTime | null>(toZoned(new CalendarDateTime(2026, 10, 7, 14, 30), ZONE));
+  const [later, setLater] = useState<ZonedDateTime | null>(null);
   const [time, setTime] = useState<Time | null>(new Time(10, 0));
   const [plan, setPlan] = useState('now');
 
@@ -136,7 +137,14 @@ export function CatalogForms() {
         />
         <ColorField label="Disabled color" value="#1d4ed8" onChange={() => undefined} isDisabled />
         <DateTimeField label="Publish at" value={when} onChange={setWhen} timeZone={ZONE} />
-        <DateTimeField label="Publish at, empty" value={null} onChange={() => undefined} timeZone={ZONE} isRequired />
+        <DateTimeField
+          label="Publish at, empty (default time, minValue now)"
+          value={later}
+          onChange={setLater}
+          timeZone={ZONE}
+          minValue={now(ZONE)}
+          isRequired
+        />
         <DateTimeField
           label="Publish at, invalid"
           value={when}

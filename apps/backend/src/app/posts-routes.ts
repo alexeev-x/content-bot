@@ -1,15 +1,21 @@
 import {
   approvePostInputSchema,
+  bulkDeletePostsInputSchema,
+  bulkRestorePostsInputSchema,
   createPostInputSchema,
+  deletePostInputSchema,
   listPostsQuerySchema,
+  restorePostInputSchema,
   updatePostInputSchema
 } from '@alexeev/contracts';
 import { Hono } from 'hono';
 import { z } from 'zod';
 import { approvePost, createPost, getPost, listPosts, updatePost } from '../modules/content';
+import { deletePost, deletePosts, restorePosts } from '../modules/lifecycle';
 import { AppError } from '../shared/app-error';
 import type { AppBindings } from './env';
 import { limitBody, validated } from './validation';
+import { restoreAndReadPost } from './workflows/restore-post';
 
 // Worst case a 4096-character body is six bytes per character once JSON-escaped.
 const MAX_BODY_BYTES = 32 * 1024;
@@ -49,11 +55,48 @@ export const postsRoutes = new Hono<AppBindings>()
     }
   )
   .get('/', validated('query', listPostsQuerySchema), async (c) => {
-    return c.json(await listPosts({ repo: c.get('container').posts }, c.req.valid('query')));
+    const container = c.get('container');
+    return c.json(
+      await listPosts(
+        { repo: container.posts, summaries: container.postSummaries, now: container.clock.now() },
+        c.req.valid('query')
+      )
+    );
   })
+  .post(
+    '/delete',
+    limitBody(MAX_BODY_BYTES),
+    validated('json', bulkDeletePostsInputSchema, { reasons: ['DUPLICATE_IDS'] }),
+    async (c) => {
+      const container = c.get('container');
+      return c.json(
+        await deletePosts(
+          { repo: container.lifecycle, now: container.clock.now() },
+          { actor: c.get('actor').telegramId, items: c.req.valid('json').items }
+        )
+      );
+    }
+  )
+  .post(
+    '/restore',
+    limitBody(MAX_BODY_BYTES),
+    validated('json', bulkRestorePostsInputSchema, { reasons: ['DUPLICATE_IDS'] }),
+    async (c) => {
+      const container = c.get('container');
+      return c.json(
+        await restorePosts(
+          { repo: container.lifecycle, now: container.clock.now() },
+          { actor: c.get('actor').telegramId, items: c.req.valid('json').items }
+        )
+      );
+    }
+  )
   .get('/:id', validated('param', idParamSchema), async (c) => {
+    const container = c.get('container');
     const id = postId(c.req.valid('param').id);
-    return c.json(await getPost({ repo: c.get('container').posts }, id));
+    return c.json(
+      await getPost({ repo: container.posts, summaries: container.postSummaries, now: container.clock.now() }, id)
+    );
   })
   .patch(
     '/:id',
@@ -79,6 +122,47 @@ export const postsRoutes = new Hono<AppBindings>()
       const post = await approvePost(
         { repo: container.posts, now: container.clock.now() },
         { actor: c.get('actor').telegramId, id: postId(c.req.valid('param').id), input: c.req.valid('json') }
+      );
+      return c.json(post);
+    }
+  )
+  .post(
+    '/:id/delete',
+    limitBody(MAX_BODY_BYTES),
+    validated('param', idParamSchema),
+    validated('json', deletePostInputSchema),
+    async (c) => {
+      const container = c.get('container');
+      const result = await deletePost(
+        { repo: container.lifecycle, now: container.clock.now() },
+        {
+          actor: c.get('actor').telegramId,
+          id: postId(c.req.valid('param').id),
+          revision: c.req.valid('json').revision
+        }
+      );
+      return c.json(result);
+    }
+  )
+  .post(
+    '/:id/restore',
+    limitBody(MAX_BODY_BYTES),
+    validated('param', idParamSchema),
+    validated('json', restorePostInputSchema),
+    async (c) => {
+      const container = c.get('container');
+      const post = await restoreAndReadPost(
+        {
+          lifecycle: container.lifecycle,
+          posts: container.posts,
+          summaries: container.postSummaries,
+          now: container.clock.now()
+        },
+        {
+          actor: c.get('actor').telegramId,
+          id: postId(c.req.valid('param').id),
+          revision: c.req.valid('json').revision
+        }
       );
       return c.json(post);
     }

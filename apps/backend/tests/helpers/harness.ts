@@ -1,9 +1,14 @@
-import type { TelegramBotAdminApi, TelegramChatReadApi } from '../../src/integrations/telegram/telegram-api';
+import type {
+  TelegramBotAdminApi,
+  TelegramChatReadApi,
+  TelegramOwnerMessageApi
+} from '../../src/integrations/telegram/telegram-api';
 import { createApp } from '../../src/app/create-app';
 import type { AppEnv } from '../../src/app/env';
 import type { Clock } from '../../src/platform/clock';
 import { sha256Hex } from '../../src/platform/security/sha256';
 import { testDb } from './db';
+import { type FakeOwnerMessenger, fakeOwnerMessenger } from './fake-owner-messenger';
 
 export const OWNER_ID = '4242';
 export const OWNER_TOKEN = 'owner-token-0000000000000000000000000000000';
@@ -41,6 +46,8 @@ export async function resetDb(): Promise<void> {
       'audit_log',
       'settings',
       'bot_identity',
+      'system_state',
+      'webhook_updates',
       'idempotency_keys',
       'posts',
       'rate_limits',
@@ -92,6 +99,10 @@ export interface Api {
   clock: FakeClock;
   /** Work the app handed to `ctx.waitUntil`, i.e. what runs after a response was sent. */
   background: Promise<unknown>[];
+  /** Notices that would reach the owner's chat (the fake that replaced Telegram). */
+  ownerMessages: FakeOwnerMessenger['sent'];
+  /** Waits until everything handed to `waitUntil` so far has ended. */
+  settle(): Promise<void>;
   request(path: string, init?: RequestInit & { token?: string | null; json?: unknown }): Promise<Response>;
 }
 
@@ -108,12 +119,22 @@ export function createApi(
     botAdminApi?: TelegramBotAdminApi;
     webhookSecret?: string;
     botInfo?: string;
+    /** Replaces the default recording fake. Without a bot token the real container path (no messenger) is used. */
+    ownerMessenger?: TelegramOwnerMessageApi;
+    /** Replaces the test database, for example with a metered one. */
+    db?: D1Database;
   } = {}
 ): Api {
+  const messenger = fakeOwnerMessenger();
   const clock = options.clock ?? fakeClock();
-  const app = createApp({ clock, telegramChatApi: options.chatApi, telegramBotAdminApi: options.botAdminApi });
+  const app = createApp({
+    clock,
+    telegramChatApi: options.chatApi,
+    telegramBotAdminApi: options.botAdminApi,
+    ownerMessenger: options.ownerMessenger ?? (options.botToken === null ? undefined : messenger)
+  });
   const env = {
-    DB: testDb(),
+    DB: options.db ?? testDb(),
     OWNER_TELEGRAM_ID: options.ownerTelegramId ?? OWNER_ID,
     ...(options.publishingEnabled === undefined ? {} : { PUBLISHING_ENABLED: options.publishingEnabled }),
     ...(options.botInfo === undefined ? {} : { BOT_INFO: options.botInfo }),
@@ -130,6 +151,10 @@ export function createApi(
   return {
     clock,
     background,
+    ownerMessages: messenger.sent,
+    async settle() {
+      await Promise.allSettled(background);
+    },
     request(path, init = {}) {
       const { token = OWNER_TOKEN, json, headers, ...rest } = init;
       const merged = new Headers(headers);

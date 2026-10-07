@@ -1,12 +1,23 @@
 import type { PostDto, PublicationDto } from '@alexeev/contracts';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { displayStatus, PublishDialog } from '../../features/publications';
-import { PostEditor, postQueryOptions, postsCopy } from '../../features/posts';
+import {
+  DeletePostsDialog,
+  deleteBlockOf,
+  deleteTargetOf,
+  formatExact,
+  LifecycleBanner,
+  PostEditor,
+  postQueryOptions,
+  postsCopy,
+  useRestoreActions,
+  type LifecycleNotice
+} from '../../features/posts';
 import { classifyApiError } from '../../shared/api/error-kind';
 import { ApiError } from '../../shared/api/http-client';
-import { Button, Card, ErrorState, PageHeader, Skeleton, StatusBadge } from '../../shared/ui';
+import { Banner, Button, Card, ErrorState, Menu, PageHeader, Skeleton, StatusBadge } from '../../shared/ui';
 import { BackToPosts } from './BackToPosts';
 import { PostPublications } from './PostPublications';
 import styles from './PostPages.module.css';
@@ -60,15 +71,102 @@ export function PostEditPage({ id }: Props) {
     );
   }
 
+  return <LoadedPost post={query.data} />;
+}
+
+function LoadedPost({ post }: { post: PostDto }) {
+  const id = post.id;
+  const navigate = useNavigate();
+  const [notice, setNotice] = useState<LifecycleNotice | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const headerRef = useRef<HTMLDivElement>(null);
+  const restore = useRestoreActions({ onNotice: setNotice });
+  const isArchived = post.archivedAt !== null;
+  const block = deleteBlockOf(post);
+  const date = post.autoDeleteAt ? formatExact(post.autoDeleteAt) : '';
+
+  async function restoreHere() {
+    setNotice(null);
+    // The page re-renders as a live post once the server-confirmed post lands in the cache.
+    if (await restore.restoreOne({ id, revision: post.revision })) {
+      queueMicrotask(() => {
+        const heading = headerRef.current?.querySelector('h1');
+        heading?.setAttribute('tabindex', '-1');
+        heading?.focus();
+      });
+    }
+  }
+
   return (
     <>
-      <div>
+      <div ref={headerRef}>
         <BackToPosts />
-        <PageHeader title={query.data.title.trim() || copy.editor.untitled} />
+        <PageHeader
+          title={post.title.trim() || copy.editor.untitled}
+          actions={
+            isArchived ? undefined : (
+              <Menu
+                label={copy.actions.pageMenu}
+                items={[
+                  {
+                    id: 'delete',
+                    label: block
+                      ? copy.actions.deleteBlocked(
+                          block === 'unknown' ? copy.actions.blockedUnknown : copy.actions.blockedInProgress
+                        )
+                      : copy.actions.delete,
+                    icon: 'trash',
+                    tone: 'danger',
+                    isDisabled: block !== null
+                  }
+                ]}
+                onAction={() => {
+                  setNotice(null);
+                  setDeleting(true);
+                }}
+              />
+            )
+          }
+        />
       </div>
+      {notice ? <LifecycleBanner notice={notice} onDismiss={() => setNotice(null)} /> : null}
+      {isArchived ? (
+        <Banner
+          tone="info"
+          title={copy.archived.body(date)}
+          action={
+            <div className={styles.archiveActions}>
+              <Button
+                size="sm"
+                variant="secondary"
+                icon="retry"
+                isLoading={restore.isPending}
+                onPress={() => void restoreHere()}
+              >
+                {copy.actions.restore}
+              </Button>
+              <Button size="sm" variant="danger" icon="trash" onPress={() => setDeleting(true)}>
+                {copy.actions.deleteNow}
+              </Button>
+            </div>
+          }
+        >
+          {copy.archived.readOnly}
+        </Banner>
+      ) : null}
+      {deleting ? (
+        <DeletePostsDialog
+          targets={[deleteTargetOf(post)]}
+          onOpenChange={(open) => {
+            if (!open) setDeleting(false);
+          }}
+          onDone={() => void navigate({ to: '/posts', search: {} })}
+          onNotice={setNotice}
+        />
+      ) : null}
       <PostEditor
-        key={id}
-        post={query.data}
+        key={`${id}:${post.archivedAt ?? 'live'}`}
+        post={post}
         approvedActions={(post) => <PublishAction post={post} />}
         aside={<PostPublications postId={id} />}
       />
