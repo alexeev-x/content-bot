@@ -257,8 +257,7 @@ function PublicationBody({ publication, postTitle, postBody, destinationTitle, c
                   {confirmedId ? (
                     href ? (
                       <a className={styles.link} href={href} target="_blank" rel="noopener noreferrer">
-                        {copy.drawer.openInTelegram}
-                        <span className="mono"> · № {confirmedId}</span>
+                        Сообщение <span className="mono">№ {confirmedId}</span>
                       </a>
                     ) : (
                       <span className="mono">№ {confirmedId}</span>
