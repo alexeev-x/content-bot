@@ -165,6 +165,8 @@ type BodyProps = {
   chatId: string | undefined;
 };
 
+// Prettier-ignore keeps the inspector's deliberately grouped JSX layout readable.
+// prettier-ignore
 function PublicationBody({ publication, postTitle, postBody, destinationTitle, chatId }: BodyProps) {
   const zone = useMemo(() => browserTimeZone(), []);
   const shown = displayStatus(publication);
