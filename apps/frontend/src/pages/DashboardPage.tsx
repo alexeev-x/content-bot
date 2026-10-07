@@ -6,7 +6,7 @@ import { browserTimeZone, utcOffsetLabel } from '../features/publications';
 import { useServiceChecks } from '../features/system-health';
 import { useDocumentTitle } from '../app/use-document-title';
 import { ru } from '../shared/lib/ru';
-import { PageHeader } from '../shared/ui';
+import { Button, PageHeader } from '../shared/ui';
 import { SystemStatus } from './dashboard/SystemStatus';
 
 type Props = {
@@ -21,17 +21,24 @@ export function DashboardPage({ pollMs }: Props) {
   const service = useServiceChecks();
   const bot = useBotCheck();
   const checks = [...service.checks, bot];
-  // The offset is read once per visit: it only changes at a DST switch, and render must stay pure.
   const [zoneNote] = useState(() => {
     const zone = browserTimeZone();
     return `${zone}, ${utcOffsetLabel(new Date(), zone)}`;
   });
-  // A failing check is listed under «Требует внимания», so the strip keeps only its count line then.
   const listed = dashboard.data !== undefined && attentionRows(dashboard.data.attention, checks).length > 0;
 
   return (
     <>
-      <PageHeader title={ru.pages.dashboard} actions={<SystemStatus actionListedBelow={listed} />} />
+      <PageHeader
+        title={ru.pages.dashboard}
+        description="Центр управления контентом, публикациями и состоянием системы."
+        actions={
+          <>
+            <SystemStatus actionListedBelow={listed} />
+            <Button onPress={() => void navigate({ to: '/posts/new' })}>Новый пост</Button>
+          </>
+        }
+      />
       <Dashboard
         query={dashboard}
         checks={checks}
