@@ -20,7 +20,7 @@ afterEach(() => {
 });
 
 describe('Mini App sign-in', () => {
-  it('sends initData and stores the session in memory only', async () => {
+  it('sends initData, keeps credentials in memory and stores only the non-sensitive session hint', async () => {
     setInitData('query_id=1&hash=abc');
     let body: unknown;
     server.use(
@@ -33,7 +33,8 @@ describe('Mini App sign-in', () => {
     expect(body).toEqual({ initData: 'query_id=1&hash=abc' });
     expect(getAccessToken()).toBe('mini');
     expect(getSessionExpiresAt()).toBe('2026-10-06T10:00:00.000Z');
-    expect(window.localStorage.length).toBe(0);
+    expect(window.localStorage.getItem('alexeev.has-session')).toBe('1');
+    expect(window.localStorage.length).toBe(1);
     expect(window.sessionStorage.length).toBe(0);
   });
 
