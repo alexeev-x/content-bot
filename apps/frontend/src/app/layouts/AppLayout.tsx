@@ -2,11 +2,13 @@ import { useQuery } from '@tanstack/react-query';
 import { Navigate, Outlet, useRouterState } from '@tanstack/react-router';
 import { useAuth } from '../auth';
 import { ApiError } from '../../shared/api/http-client';
+import { hasSessionHint } from '../../shared/api/session';
 import { useTelegramChrome } from '../use-telegram-chrome';
 import { ThemeToggle, useAppearanceSync } from '../../features/appearance';
 import { useOpenIncidentCount } from '../../features/incidents';
 import { AuthLoadingScreen, AuthUnavailableState, NoAccessState, meQueryOptions } from '../../features/auth';
 import { ru } from '../../shared/lib/ru';
+import { PageHeader, Skeleton } from '../../shared/ui';
 import { applyAppearance, useTheme, type Appearance } from '../theme';
 import { useDocumentTitle } from '../use-document-title';
 import { AppShell } from './AppShell';
@@ -26,6 +28,19 @@ function titleFor(pathname: string): string {
     candidate.to === '/' ? pathname === '/' : pathname.startsWith(candidate.to)
   );
   return item?.label ?? ru.appName;
+}
+
+function SessionRestoreShell({ pathname }: { pathname: string }) {
+  return (
+    <AppShell>
+      <PageHeader title={titleFor(pathname)} />
+      <div aria-busy="true" style={{ display: 'grid', gap: 'var(--space-4)' }}>
+        <Skeleton height="var(--size-control)" width="min(22rem, 75%)" />
+        <Skeleton height="8rem" />
+        <Skeleton height="8rem" />
+      </div>
+    </AppShell>
+  );
 }
 
 function SignedInLayout() {
@@ -62,7 +77,7 @@ export function AppLayout() {
 
   switch (auth.status) {
     case 'checking':
-      return <AuthLoadingScreen label={ru.auth.checking} />;
+      return hasSessionHint() ? <SessionRestoreShell pathname={pathname} /> : <AuthLoadingScreen label={ru.auth.checking} />;
     case 'anonymous': {
       const back = auth.signedOutByUser || href === '/' ? {} : { redirect: href };
       return <Navigate to="/login" search={back} replace />;
