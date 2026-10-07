@@ -25,7 +25,7 @@ beforeEach(() => {
 });
 
 describe('posts list states', () => {
-  it('shows a busy skeleton while loading, then rows with title, excerpt, badge, relative time and revision', async () => {
+  it('shows a busy skeleton while loading, then rows without the internal revision', async () => {
     server.use(
       http.get('*/api/v1/posts', () =>
         HttpResponse.json(
@@ -44,7 +44,8 @@ describe('posts list states', () => {
     expect(within(table).getByText('Длинный текст про героя')).toBeTruthy();
     expect(within(table).getByText('Текст не заполнен')).toBeTruthy();
     expect(within(table).getByText('Черновик')).toBeTruthy();
-    expect(within(table).getByText('ред. 4')).toBeTruthy();
+    expect(within(table).queryByRole('columnheader', { name: /Ревизия/ })).toBeNull();
+    expect(within(table).queryByText('ред. 4')).toBeNull();
     expect(table.querySelector('time[datetime][title]')).toBeTruthy();
   });
 
@@ -58,6 +59,7 @@ describe('posts list states', () => {
     const list = screen.getByRole('list', { name: 'Список постов' });
     expect(within(list).getByText('Черновик')).toBeTruthy();
     expect(within(list).getByRole('button', { name: 'Герой дня' })).toBeTruthy();
+    expect(within(list).queryByText('ред. 4')).toBeNull();
   });
 
   it('opens a post from its row with the keyboard', async () => {

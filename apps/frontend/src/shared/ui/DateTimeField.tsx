@@ -1,21 +1,12 @@
-import {
-  DateFormatter,
-  getLocalTimeZone,
-  now,
-  Time,
-  toTime,
-  toZoned,
-  type ZonedDateTime
-} from '@internationalized/date';
+import { DateFormatter, getLocalTimeZone, now, toZoned, type Time, type ZonedDateTime } from '@internationalized/date';
 import {
   Button,
   Calendar,
   CalendarCell,
   CalendarGrid,
+  CalendarStateContext,
   DateInput,
-  ButtonContext,
   DatePicker,
-  DatePickerStateContext,
   DateSegment,
   Dialog,
   FieldError,
@@ -24,17 +15,19 @@ import {
   I18nProvider,
   Label,
   Popover,
-  Provider,
   Text,
   TimeField as AriaTimeField
 } from 'react-aria-components';
-import { useContext, useEffect } from 'react';
+import { useContext, useState } from 'react';
+import { nextQuarterHour } from '../lib/next-quarter-hour';
 import { ru } from '../lib/ru';
+import { DateTimePickerTimePanel } from './DateTimePickerTimePanel';
+import { Icon } from './Icon';
 import styles from './Field.module.css';
 import dateStyles from './DateTimeField.module.css';
-import { Icon } from './Icon';
 
 const LOCALE = 'ru-RU';
+const MONTH_NAME = new DateFormatter(LOCALE, { month: 'long', timeZone: 'UTC' });
 
 function offsetLabel(offsetMs: number): string {
   const sign = offsetMs < 0 ? '-' : '+';
@@ -48,111 +41,53 @@ function utcText(value: ZonedDateTime): string {
   return `${value.toDate().toISOString().slice(0, 16).replace('T', ' ')} UTC`;
 }
 
-const QUICK_MINUTES = [0, 15, 30, 45];
-const DAY_MONTH = new DateFormatter(LOCALE, { day: 'numeric', month: 'long' });
-
-/** Next quarter hour strictly after `from`, so a fresh value is round and never already past. */
-function defaultTime(from: ZonedDateTime): Time {
-  const t = toTime(from);
-  const total = t.hour * 60 + t.minute + 1;
-  const rounded = Math.ceil(total / 15) * 15;
-  return new Time(Math.floor(rounded / 60) % 24, rounded % 60);
+function PickerGroup({
+  label,
+  value,
+  zone,
+  offset
+}: {
+  label: string;
+  value: ZonedDateTime | null;
+  zone: string;
+  offset: string;
+}) {
+  const date = value
+    ? new DateFormatter(LOCALE, { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: zone }).format(
+        value.toDate()
+      )
+    : null;
+  const time = value
+    ? new DateFormatter(LOCALE, { hour: '2-digit', minute: '2-digit', hourCycle: 'h23', timeZone: zone }).format(
+        value.toDate()
+      )
+    : null;
+  const formatted = date && time ? `${date} · ${time}` : ru.ui.selectDateTime;
+  return (
+    <Group className={`${styles.input} ${dateStyles.group}`}>
+      <Button
+        className={dateStyles.fieldButton}
+        aria-label={`${ru.ui.openCalendar}: ${label}, ${formatted} (${offset})`}
+      >
+        <span>{formatted}</span>
+        <span className={dateStyles.fieldOffset}>({offset})</span>
+        <Icon name="calendar" size={18} className={dateStyles.fieldIcon} />
+      </Button>
+    </Group>
+  );
 }
 
-type TimePanelProps = { timeZone: string; minValue: ZonedDateTime | undefined; offset: string };
-
-/** Touch-first time entry inside the popover: large typed field, ±1 h / ±5 min steppers, quarter-hour chips. */
-function TimePanel({ timeZone, minValue, offset }: TimePanelProps) {
-  const state = useContext(DatePickerStateContext);
-  const raw = state?.timeValue;
-  const time = raw ? new Time(raw.hour, raw.minute) : null;
-  useEffect(() => {
-    // Seed the time once on open: choosing a date alone never commits a value without a time.
-    if (state && !state.timeValue) {
-      const base = minValue ?? now(timeZone || getLocalTimeZone());
-      state.setTimeValue(defaultTime(base));
-    }
-  }, [state, minValue, timeZone]);
+function CalendarMonthHeading() {
+  const state = useContext(CalendarStateContext);
   if (!state) return null;
-  const zone = timeZone || getLocalTimeZone();
-  // The bottom sheet covers the field, so the picked value is repeated here in one line.
-  const picked =
-    state.dateValue && time
-      ? `${DAY_MONTH.format(state.dateValue.toDate(zone))}, ${String(time.hour).padStart(2, '0')}:${String(time.minute).padStart(2, '0')} (${offset})`
-      : null;
-  const step = (field: 'hour' | 'minute', amount: number) => {
-    const base = time ?? defaultTime(minValue ?? now(timeZone || getLocalTimeZone()));
-    state.setTimeValue(base.cycle(field, amount, { hourCycle: 24 }));
-  };
-  const setMinute = (minute: number) => {
-    const base = time ?? defaultTime(minValue ?? now(timeZone || getLocalTimeZone()));
-    state.setTimeValue(base.set({ minute }));
-  };
+  const visibleMonth = state.visibleRange.start;
   return (
-    <Provider values={[[ButtonContext, {}]]}>
-      <section className={dateStyles.time} aria-label={ru.ui.timeSection}>
-        <AriaTimeField
-          value={time}
-          onChange={(next) => {
-            if (next) state.setTimeValue(next);
-          }}
-          hourCycle={24}
-          granularity="minute"
-          shouldForceLeadingZeros
-          className={dateStyles.timeField}
-        >
-          <Label className={dateStyles.timeLabel}>{ru.ui.timeSection}</Label>
-          <DateInput className={dateStyles.timeInput}>
-            {(segment) => <DateSegment segment={segment} className={dateStyles.timeSegment} />}
-          </DateInput>
-        </AriaTimeField>
-        <div className={dateStyles.steppers}>
-          <fieldset className={dateStyles.stepper} aria-label={ru.ui.hours}>
-            <Button className={dateStyles.step} aria-label={ru.ui.hourMinus} onPress={() => step('hour', -1)}>
-              −
-            </Button>
-            <span className={dateStyles.stepLabel} aria-hidden="true">
-              {ru.ui.hoursShort}
-            </span>
-            <Button className={dateStyles.step} aria-label={ru.ui.hourPlus} onPress={() => step('hour', 1)}>
-              +
-            </Button>
-          </fieldset>
-          <fieldset className={dateStyles.stepper} aria-label={ru.ui.minutes}>
-            <Button className={dateStyles.step} aria-label={ru.ui.minuteMinus} onPress={() => step('minute', -5)}>
-              −
-            </Button>
-            <span className={dateStyles.stepLabel} aria-hidden="true">
-              {ru.ui.minutesShort}
-            </span>
-            <Button className={dateStyles.step} aria-label={ru.ui.minutePlus} onPress={() => step('minute', 5)}>
-              +
-            </Button>
-          </fieldset>
-        </div>
-        <fieldset className={dateStyles.quick} aria-label={ru.ui.quickMinutes}>
-          {QUICK_MINUTES.map((minute) => (
-            <Button
-              key={minute}
-              className={dateStyles.chip}
-              aria-label={ru.ui.setMinutes(minute)}
-              data-selected={time?.minute === minute ? true : undefined}
-              onPress={() => setMinute(minute)}
-            >
-              {`:${String(minute).padStart(2, '0')}`}
-            </Button>
-          ))}
-        </fieldset>
-        <div className={dateStyles.footer}>
-          <output className={dateStyles.picked} aria-live="polite">
-            {picked ? ru.ui.pickedValue(picked) : ''}
-          </output>
-          <Button className={dateStyles.done} onPress={() => state.setOpen(false)}>
-            {ru.ui.done}
-          </Button>
-        </div>
-      </section>
-    </Provider>
+    <>
+      <Heading className={dateStyles.screenReaderOnly} />
+      <span className={dateStyles.month} aria-hidden="true">
+        {MONTH_NAME.format(visibleMonth.toDate('UTC'))} {visibleMonth.year}
+      </span>
+    </>
   );
 }
 
@@ -163,12 +98,12 @@ function CalendarPanel() {
         <Button slot="previous" className={dateStyles.nav}>
           <Icon name="chevron-left" size={18} />
         </Button>
-        <Heading className={dateStyles.month} />
+        <CalendarMonthHeading />
         <Button slot="next" className={dateStyles.nav}>
           <Icon name="chevron-right" size={18} />
         </Button>
       </header>
-      <CalendarGrid className={dateStyles.grid}>
+      <CalendarGrid className={dateStyles.grid} weekdayStyle="short">
         {(date) => <CalendarCell date={date} className={dateStyles.cell} />}
       </CalendarGrid>
     </Calendar>
@@ -179,17 +114,15 @@ type Props = {
   label: string;
   value: ZonedDateTime | null;
   onChange: (value: ZonedDateTime | null) => void;
-  /** IANA zone the owner schedules in; shown as the explicit label «Часовой пояс: Europe/Moscow (UTC+3)». */
   timeZone: string;
   description?: string;
   errorMessage?: string;
   isDisabled?: boolean;
   isRequired?: boolean;
-  /** Earliest allowed value, so the calendar greys out the past. */
   minValue?: ZonedDateTime;
 };
 
-/** Date + time (minute granularity, 24 h) in an explicit zone. Storage stays UTC; the UTC value is shown as a hint. */
+/** A scheduled instant is edited as a draft until Done; dismissing the popover discards it. */
 export function DateTimeField({
   label,
   value,
@@ -202,19 +135,54 @@ export function DateTimeField({
   minValue
 }: Props) {
   const zone = timeZone || getLocalTimeZone();
-  const offset = (value ?? now(zone)).offset;
+  const [isOpen, setIsOpen] = useState(false);
+  const [draft, setDraft] = useState<ZonedDateTime | null>(null);
+  const shown = isOpen ? draft : value;
+  const offset = offsetLabel((shown ?? now(zone)).offset);
+
+  function constrain(candidate: ZonedDateTime): ZonedDateTime {
+    if (!minValue) return candidate;
+    const current = now(zone);
+    const lowerBound = minValue.toDate().getTime() > current.toDate().getTime() ? minValue : current;
+    return candidate.toDate().getTime() <= lowerBound.toDate().getTime() ? nextQuarterHour(lowerBound) : candidate;
+  }
+
+  function normalize(next: ZonedDateTime | null): ZonedDateTime | null {
+    if (next === null) return null;
+    return constrain('timeZone' in next ? next : toZoned(next, zone));
+  }
+
+  function confirm(candidate?: ZonedDateTime) {
+    const chosen = constrain(candidate ?? draft ?? nextQuarterHour(now(zone)));
+    onChange(chosen);
+    setIsOpen(false);
+    setDraft(null);
+  }
+
+  function cancel() {
+    setIsOpen(false);
+    setDraft(null);
+  }
+
   return (
     <I18nProvider locale={LOCALE}>
       <DatePicker
-        value={value}
+        value={shown}
         onChange={(next) => {
-          // An empty picker commits a zone-less CalendarDateTime; pin it to the schedule zone.
-          if (next === null) onChange(null);
-          else if ('timeZone' in next) onChange(next);
-          else onChange(toZoned(next, zone));
+          const chosen = normalize(next);
+          if (isOpen) setDraft(chosen);
+          else onChange(chosen);
+        }}
+        isOpen={isOpen}
+        onOpenChange={(open) => {
+          if (open) {
+            setDraft(value ?? nextQuarterHour(now(zone)));
+            setIsOpen(true);
+          } else cancel();
         }}
         granularity="minute"
         hourCycle={24}
+        hideTimeZone
         shouldCloseOnSelect={false}
         placeholderValue={now(zone)}
         minValue={minValue}
@@ -225,28 +193,27 @@ export function DateTimeField({
         className={styles.field}
       >
         <Label className={styles.label}>{label}</Label>
-        <Group className={`${styles.input} ${dateStyles.group}`}>
-          <DateInput className={dateStyles.input}>
-            {(segment) => <DateSegment segment={segment} className={dateStyles.segment} />}
-          </DateInput>
-          <Button className={dateStyles.trigger}>
-            <Icon name="calendar" size={18} />
-          </Button>
-        </Group>
+        <PickerGroup label={label} value={shown} zone={zone} offset={offset} />
         <Text slot="description" className={`${styles.description} ${dateStyles.description}`}>
           <span>
-            {ru.ui.timeZone(timeZone, offsetLabel(offset))}
+            {ru.ui.timeZone(zone, offset)}
             {description ? ` · ${description}` : ''}
           </span>
           {value ? <span className="mono">{ru.ui.utcHint(utcText(value))}</span> : null}
         </Text>
         <FieldError className={styles.error}>{errorMessage}</FieldError>
-        <Popover className={dateStyles.popover} offset={8}>
+        <Popover className={dateStyles.popover} placement="bottom" shouldFlip={false} offset={8}>
           <Dialog className={dateStyles.dialog}>
-            {/* Calendar and time side by side on desktop, stacked in the phone's bottom sheet. */}
             <div className={dateStyles.layout}>
               <CalendarPanel />
-              <TimePanel timeZone={timeZone} minValue={minValue} offset={offsetLabel(offset)} />
+              <DateTimePickerTimePanel
+                value={draft ?? nextQuarterHour(now(zone))}
+                onChange={(next) => setDraft(constrain(next))}
+                onConfirm={confirm}
+                onCancel={cancel}
+                offset={offset}
+                minValue={minValue}
+              />
             </div>
           </Dialog>
         </Popover>

@@ -68,8 +68,7 @@ function sortOptionsFor(view: PostsView): SelectOption[] {
       : [
           { key: 'title', label: copy.columns.title },
           { key: 'status', label: copy.columns.status },
-          { key: 'updated', label: copy.columns.updated },
-          { key: 'revision', label: copy.columns.revision }
+          { key: 'updated', label: copy.columns.updated }
         ];
   return [
     { id: 'none', label: 'По умолчанию' },

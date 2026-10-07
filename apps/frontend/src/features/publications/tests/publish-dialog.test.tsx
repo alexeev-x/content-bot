@@ -8,7 +8,7 @@ import { clearSession, setSession } from '../../../shared/api/session';
 import { accessToken, destination, errorBody, ids, post, publication } from '../../../test/fixtures';
 import { server, setupMswServer } from '../../../test/msw';
 import { PublishDialog } from '../index';
-import { publishFormSchema } from '../model/publish-form';
+import { defaultScheduledAt, publishFormSchema } from '../model/publish-form';
 import { renderInApp } from './harness';
 
 setupMswServer();
@@ -118,7 +118,7 @@ describe('PublishDialog', () => {
     expect(screen.queryByText('Опубликовано')).toBeNull();
   });
 
-  it('schedules for a later time: the default is a future full hour and the summary shows zone and UTC', async () => {
+  it('schedules for a later time: the default is a future quarter hour and the summary shows zone and UTC', async () => {
     const sent = captureCreate(() => accepted());
     const { user, dialog } = await open();
     await user.click(within(dialog).getByRole('radio', { name: 'Запланировать' }));
@@ -129,7 +129,7 @@ describe('PublishDialog', () => {
     await waitFor(() => expect(sent).toHaveLength(1));
     const at = Date.parse(String(sent[0]?.body['scheduledAt']));
     expect(at).toBeGreaterThan(Date.now());
-    expect(new Date(at).getUTCMinutes() % 30).toBe(0);
+    expect(new Date(at).getUTCMinutes() % 15).toBe(0);
     expect(await screen.findByText(/Сервер принял заявку\. Отправка:/)).toBeTruthy();
   });
 
@@ -256,6 +256,13 @@ describe('publishFormSchema', () => {
 
   it('ignores the time field for «Сейчас»', () => {
     expect(publishFormSchema.safeParse({ ...base, mode: 'now', scheduledAt: null }).success).toBe(true);
+  });
+
+  it('suggests the next quarter-hour for a new schedule', () => {
+    vi.useFakeTimers({ toFake: ['Date'], now: new Date('2026-10-07T10:27:00Z') });
+    expect(defaultScheduledAt('Europe/Chisinau').toString()).toContain('T13:30');
+    vi.setSystemTime(new Date('2026-10-07T10:52:00Z'));
+    expect(defaultScheduledAt('Europe/Chisinau').toString()).toContain('T14:00');
   });
 });
 

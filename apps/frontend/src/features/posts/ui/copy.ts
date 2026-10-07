@@ -9,7 +9,7 @@ export const postsCopy = {
     searchScope: 'Поиск идёт только по уже загруженным постам.',
     tabs: { label: 'Раздел постов', all: 'Все', drafts: 'Черновики', archive: 'Архив' },
     tableLabel: 'Список постов',
-    columns: { title: 'Пост', status: 'Статус', updated: 'Изменён', revision: 'Ревизия', actions: 'Действия' },
+    columns: { title: 'Пост', status: 'Статус', updated: 'Изменён', actions: 'Действия' },
     state: {
       draft: 'Черновик',
       approved: 'Утверждён',
@@ -18,7 +18,6 @@ export const postsCopy = {
       unknown: 'Нужна сверка'
     },
     scheduledAt: (time: string) => `на ${time}`,
-    revision: (revision: number) => `ред. ${revision}`,
     untitled: 'Без названия',
     emptyBody: 'Текст не заполнен',
     loaded: (count: number) => `Загружено постов: ${count}`,
@@ -163,8 +162,10 @@ export const postsCopy = {
       `Сообщение длиннее лимита Telegram на ${over}. Черновик сохранить можно, но одобрить и отправить нельзя.`,
     revision: (revision: number) => `Ревизия ${revision}`,
     save: 'Сохранить',
+    saveAndExit: 'Сохранить и выйти',
     create: 'Создать черновик',
     saveHint: 'Ctrl/⌘+S',
+    saveInPlaceHint: 'Ctrl/⌘+S — сохранить без выхода',
     approve: 'Одобрить',
     approveFirstSave: 'Сначала сохраните черновик',
     saveState: {

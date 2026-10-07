@@ -243,6 +243,7 @@ Lazy loading per route (`React.lazy` or lazy route modules), a shared lightweigh
 
 - React Hook Form holds local values; the server receives only `Save`/a controlled debounce of **drafts**; do not send a request on every keystroke.
 - On a field change set the dirty flag and enable a warning on navigation/close. `beforeunload` is not guaranteed on mobile: additionally a «Сохранить» button, the status of the latest edits, and a local in-memory buffer until the page is closed (without promising recovery after a crash).
+- In the current post editor, a newly created draft opens its detail page so it can be approved immediately. For an existing draft, «Сохранить и выйти» returns to `/posts` only after a confirmed save (or without a request when nothing changed); Ctrl/⌘+S saves in place. Errors and newer edits made during a request keep the editor open.
 - For concurrent edits — a revision; a 409 response does not overwrite another editor's data and offers to compare/reload.
 - Publication is a separate two-step operation: preview -> explicit confirm -> the server creates a `publication`/job. The UI does not show «Опубликовано» until the backend returns `sent` and `externalMessageId`; after 202 Accepted — the label of the returned status (usually «Запланировано») and background updates.
 - Cancel/retry are unavailable for `unknown` until manual verification. For an unknown result — a separate incident screen and a clear warning about the risk of a duplicate.

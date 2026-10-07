@@ -69,6 +69,64 @@ describe('create', () => {
 });
 
 describe('save', () => {
+  it('leaves a clean draft for the posts list without another request', async () => {
+    const user = userEvent.setup();
+    let patches = 0;
+    server.use(
+      http.patch('*/api/v1/posts/:id', () => {
+        patches += 1;
+        return HttpResponse.json(post({ revision: 1 }));
+      })
+    );
+    const { router } = await openExisting();
+    const saveAndExit = screen.getByRole('button', { name: 'Сохранить и выйти' });
+    expect(saveAndExit.hasAttribute('disabled')).toBe(false);
+    await user.click(saveAndExit);
+    await waitFor(() => expect(router.state.location.pathname).toBe('/posts'));
+    expect(patches).toBe(0);
+  });
+
+  it('saves a changed draft before leaving for the posts list', async () => {
+    const user = userEvent.setup();
+    const bodies: unknown[] = [];
+    server.use(
+      http.patch('*/api/v1/posts/:id', async ({ request }) => {
+        bodies.push(await request.json());
+        return HttpResponse.json(post({ revision: 1, body: 'Правка' }));
+      })
+    );
+    const { router } = await openExisting();
+    await user.clear(bodyBox());
+    await user.type(bodyBox(), 'Правка');
+    await user.click(screen.getByRole('button', { name: 'Сохранить и выйти' }));
+    await waitFor(() => expect(router.state.location.pathname).toBe('/posts'));
+    expect(bodies).toEqual([{ revision: 0, body: 'Правка' }]);
+    expect(screen.queryByRole('alertdialog')).toBeNull();
+  });
+
+  it('stays in the editor if newer text was entered while saving', async () => {
+    const user = userEvent.setup();
+    let complete: (() => void) | undefined;
+    server.use(
+      http.patch('*/api/v1/posts/:id', async () => {
+        await new Promise<void>((resolve) => {
+          complete = resolve;
+        });
+        return HttpResponse.json(post({ revision: 1, body: 'Правка' }));
+      })
+    );
+    const { router } = await openExisting();
+    await user.clear(bodyBox());
+    await user.type(bodyBox(), 'Правка');
+    await user.click(screen.getByRole('button', { name: 'Сохранить и выйти' }));
+    await waitFor(() => expect(complete).toBeDefined());
+    await user.type(bodyBox(), '!');
+    complete?.();
+    await waitFor(() => expect(screen.getByText('Есть несохранённые изменения')).toBeTruthy());
+    expect(router.state.location.pathname).toBe(`/posts/${ids.post}`);
+    expect((bodyBox() as HTMLTextAreaElement).value).toBe('Правка!');
+  });
+
   it('saves only the changed field with the baseline revision on Ctrl+S, and keeps focus-free status text', async () => {
     const user = userEvent.setup();
     const bodies: unknown[] = [];
@@ -93,7 +151,7 @@ describe('save', () => {
     await openExisting();
     server.use(failWith('patch', `/api/v1/posts/${ids.post}`, { status: 503, code: 'UNAVAILABLE' }));
     await user.type(bodyBox(), ' дополнение');
-    await user.click(screen.getByRole('button', { name: 'Сохранить' }));
+    await user.click(screen.getByRole('button', { name: 'Сохранить и выйти' }));
     const alert = await screen.findByRole('alert');
     expect(alert.textContent).toContain('req-test-1');
     expect(alert.textContent).toContain('Ваш текст остался в редакторе');
@@ -121,7 +179,7 @@ describe('409 STALE_REVISION', () => {
     );
     await user.clear(bodyBox());
     await user.type(bodyBox(), 'Мой текст');
-    await user.click(screen.getByRole('button', { name: 'Сохранить' }));
+    await user.click(screen.getByRole('button', { name: 'Сохранить и выйти' }));
 
     const banner = await screen.findByText('Пост уже изменён в другом месте');
     expect(banner).toBeTruthy();
@@ -172,7 +230,7 @@ describe('approve', () => {
     expect(screen.queryByRole('textbox', { name: 'Заголовок' })).toBeNull();
     expect(screen.queryByRole('textbox', { name: 'Текст' })).toBeNull();
     expect(screen.getByRole('figure', { name: 'Предпросмотр в Telegram' })).toBeTruthy();
-    expect(screen.queryByRole('button', { name: 'Сохранить' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Сохранить и выйти' })).toBeNull();
   });
 
   it('shows EMPTY_BODY under the body field and keeps the post a draft', async () => {
@@ -211,7 +269,7 @@ describe('approve', () => {
       http.get('*/api/v1/posts/:id', () => HttpResponse.json(post({ status: 'approved', revision: 1 })))
     );
     await user.type(bodyBox(), '!');
-    await user.click(screen.getByRole('button', { name: 'Сохранить' }));
+    await user.click(screen.getByRole('button', { name: 'Сохранить и выйти' }));
     expect(await screen.findByText('Пост уже одобрен в другом месте')).toBeTruthy();
     expect((bodyBox() as HTMLTextAreaElement).value).toBe('Текст поста!');
     expect(bodyBox().hasAttribute('readonly')).toBe(true);
@@ -268,7 +326,7 @@ describe('limits and preview', () => {
     await user.click(bodyBox());
     await user.paste('b'.repeat(POST_BODY_MAX - 5));
     expect(await screen.findByText(/Сообщение длиннее лимита Telegram на 6/)).toBeTruthy();
-    expect(screen.getByRole('button', { name: 'Сохранить' }).hasAttribute('disabled')).toBe(false);
+    expect(screen.getByRole('button', { name: 'Сохранить и выйти' }).hasAttribute('disabled')).toBe(false);
     expect(screen.getByRole('button', { name: 'Одобрить' }).hasAttribute('disabled')).toBe(true);
   });
 

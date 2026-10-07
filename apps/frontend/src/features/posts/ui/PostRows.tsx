@@ -192,8 +192,7 @@ function Grid(props: Inner) {
     ? [
         { key: 'title', label: copy.list.columns.title },
         { key: 'status', label: copy.list.columns.status },
-        { key: 'updated', label: copy.list.columns.updated },
-        { key: 'revision', label: copy.list.columns.revision }
+        { key: 'updated', label: copy.list.columns.updated }
       ]
     : [
         { key: 'title', label: copy.archive.columns.title },
@@ -220,16 +219,10 @@ function Grid(props: Inner) {
                 />
               </th>
             ) : null}
-            {cols.map(({ key, label }, index) => {
+            {cols.map(({ key, label }) => {
               const active = props.sort?.key === key;
               return (
-                <th
-                  key={key}
-                  scope="col"
-                  className={styles.th}
-                  data-align={live && index === 3 ? 'end' : undefined}
-                  aria-sort={active ? props.sort?.direction : undefined}
-                >
+                <th key={key} scope="col" className={styles.th} aria-sort={active ? props.sort?.direction : undefined}>
                   <button type="button" className={styles.sortButton} onClick={() => props.onSortChange(key)}>
                     {label}
                     {/* Always in the layout, so the label never shifts; an inactive column shows it on hover only. */}
@@ -278,9 +271,6 @@ function Grid(props: Inner) {
                       </td>
                       <td className={styles.td}>
                         <UpdatedCell post={post} now={now} />
-                      </td>
-                      <td className={styles.td} data-align="end">
-                        <span className={`mono ${styles.muted}`}>{copy.list.revision(post.revision)}</span>
                       </td>
                     </>
                   ) : (
@@ -351,7 +341,6 @@ function Cards(props: Inner) {
                   {live ? (
                     <>
                       <UpdatedCell post={post} now={now} />
-                      <span className="mono">{copy.list.revision(post.revision)}</span>
                     </>
                   ) : (
                     <>

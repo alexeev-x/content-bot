@@ -57,8 +57,13 @@ export function renderEditorApp(
     path: '/calendar',
     component: () => <p>Другая страница</p>
   });
+  const posts = createRoute({
+    getParentRoute: () => root,
+    path: '/posts',
+    component: () => <h1>Все посты</h1>
+  });
   const router = createRouter({
-    routeTree: root.addChildren([newRoute, editRoute, elsewhere]),
+    routeTree: root.addChildren([newRoute, editRoute, posts, elsewhere]),
     history: options.browserHistory
       ? (window.history.replaceState(null, '', initial), createBrowserHistory())
       : createMemoryHistory({ initialEntries: [initial] })

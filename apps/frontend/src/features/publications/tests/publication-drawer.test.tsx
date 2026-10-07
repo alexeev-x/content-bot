@@ -209,11 +209,13 @@ describe('PublicationDrawer reschedule', () => {
     const dialog = await screen.findByRole('dialog', { name: 'Перенести публикацию' });
     expect(within(dialog).getByText(/Часовой пояс:/)).toBeTruthy();
     expect(within(dialog).getByText(/В UTC:/)).toBeTruthy();
-    // Hour segment: change it so the request proves the typed value, not the old one, is sent.
-    const hour = within(dialog).getAllByRole('spinbutton')[3];
-    if (!hour) throw new Error('hour segment missing');
-    await user.click(hour);
-    await user.keyboard('07');
+    await user.click(within(dialog).getByRole('button', { name: /Открыть календарь/ }));
+    const picker = (await screen.findAllByRole('dialog')).at(-1);
+    if (!picker) throw new Error('date-time picker missing');
+    const hour = within(picker).getByRole('textbox', { name: 'Часы' });
+    await user.clear(hour);
+    await user.type(hour, '07');
+    await user.click(within(picker).getByRole('button', { name: 'Готово' }));
     await user.click(within(dialog).getByRole('button', { name: 'Перенести' }));
 
     await waitFor(() => expect(body['revision']).toBe(2));
@@ -237,10 +239,13 @@ describe('PublicationDrawer reschedule', () => {
     const { drawer, user } = await openDrawer();
     await user.click(await within(drawer).findByRole('button', { name: 'Перенести' }));
     const dialog = await screen.findByRole('dialog', { name: 'Перенести публикацию' });
-    const hour = within(dialog).getAllByRole('spinbutton')[3];
-    if (!hour) throw new Error('hour segment missing');
-    await user.click(hour);
-    await user.keyboard('06');
+    await user.click(within(dialog).getByRole('button', { name: /Открыть календарь/ }));
+    const picker = (await screen.findAllByRole('dialog')).at(-1);
+    if (!picker) throw new Error('date-time picker missing');
+    const hour = within(picker).getByRole('textbox', { name: 'Часы' });
+    await user.clear(hour);
+    await user.type(hour, '06');
+    await user.click(within(picker).getByRole('button', { name: 'Готово' }));
     await user.click(within(dialog).getByRole('button', { name: 'Перенести' }));
 
     expect(await within(dialog).findByText('Публикация изменилась')).toBeTruthy();

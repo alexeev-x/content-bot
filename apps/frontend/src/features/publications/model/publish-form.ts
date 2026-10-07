@@ -1,5 +1,6 @@
 import { now, type ZonedDateTime } from '@internationalized/date';
 import { z } from 'zod';
+import { nextQuarterHour } from '../../../shared/lib/next-quarter-hour';
 import { copy } from '../ui/copy';
 
 export const MAX_DAYS_AHEAD = 366;
@@ -29,7 +30,7 @@ export const publishFormSchema = z
 
 export type PublishFormValues = z.infer<typeof publishFormSchema>;
 
-/** Next full hour in the operator's zone: a sensible starting point for «Запланировать». */
+/** Suggest the next quarter-hour in the operator's zone for a new scheduled publication. */
 export function defaultScheduledAt(timeZone: string): ZonedDateTime {
-  return now(timeZone).add({ hours: 1 }).set({ minute: 0, second: 0, millisecond: 0 });
+  return nextQuarterHour(now(timeZone));
 }

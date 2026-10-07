@@ -60,8 +60,30 @@ export function PostEditor({ post, onCreated, approvedActions, aside }: Props) {
   const isArchived = baseline?.archivedAt != null;
   const hasConflict = conflict !== null;
   const showApprovedPreview = isApproved && !isArchived && !hasConflict;
-  const canSave = !editor.readOnly && !hasConflict && (editor.isNew || editor.dirty);
-  const canApprove = !editor.isNew && !editor.readOnly && !hasConflict && editor.overflow === 0;
+  const canSave = !editor.readOnly && !hasConflict && !editor.isSaving && !editor.isApproving;
+  const canApprove =
+    !editor.isNew &&
+    !editor.readOnly &&
+    !hasConflict &&
+    !editor.isSaving &&
+    !editor.isApproving &&
+    editor.overflow === 0;
+
+  async function saveAndExit() {
+    if (editor.isNew) {
+      await editor.save();
+      return;
+    }
+    if (editor.dirty) {
+      const saved = await editor.save();
+      if (!saved) return;
+      const current = editor.form.getValues();
+      // If the operator kept typing during the request, leave the newer text in the editor.
+      if (current.title !== saved.title || current.body !== saved.body) return;
+      dirtyRef.current = false;
+    }
+    await navigate({ to: '/posts' });
+  }
 
   async function confirmApprove() {
     const approved = await editor.approvePost();
@@ -183,9 +205,9 @@ export function PostEditor({ post, onCreated, approvedActions, aside }: Props) {
               icon="check"
               isLoading={editor.isSaving}
               isDisabled={!canSave}
-              onPress={() => void editor.save()}
+              onPress={() => void saveAndExit()}
             >
-              {editor.isNew ? copy.create : copy.save}
+              {editor.isNew ? copy.create : copy.saveAndExit}
             </Button>
             {!editor.isNew ? (
               <Button
@@ -196,7 +218,7 @@ export function PostEditor({ post, onCreated, approvedActions, aside }: Props) {
                 {copy.approve}
               </Button>
             ) : null}
-            <span className={styles.shortcut}>{copy.saveHint}</span>
+            <span className={styles.shortcut}>{editor.isNew ? copy.saveHint : copy.saveInPlaceHint}</span>
           </>
         )}
       </div>

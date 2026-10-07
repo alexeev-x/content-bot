@@ -2,7 +2,8 @@
   display: flex;
   min-width: 0;
   align-items: center;
-  padding: 0 0 0 var(--space-3);
+  padding-left: var(--space-3);
+  cursor: pointer;
 }
 .description {
   flex-wrap: wrap;
@@ -18,12 +19,12 @@
 }
 .segment {
   display: inline-block;
-  min-width: 24px;
-  min-height: 24px;
+  min-width: var(--size-target-min);
+  min-height: var(--size-target-min);
   padding: 2px 3px;
   line-height: 20px;
   text-align: center;
-  border-radius: 4px;
+  border-radius: var(--radius-1);
   outline: none;
   caret-color: transparent;
 }
@@ -41,28 +42,46 @@
 .segment[data-disabled] {
   color: var(--color-text-disabled);
 }
-.trigger {
-  display: grid;
+.fieldOffset {
   flex: none;
-  place-items: center;
-  width: var(--size-control);
-  height: calc(var(--size-control) - 2px);
+  color: var(--color-text-muted);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-sm);
+}
+.fieldButton {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  min-width: 0;
+  min-height: var(--size-control);
+  padding-right: var(--space-2);
   border: 0;
   border-radius: var(--radius-2);
   background: none;
-  color: var(--color-text-muted);
+  color: var(--color-text);
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  text-align: left;
   cursor: pointer;
 }
-.trigger[data-hovered] {
-  color: var(--color-text);
+.fieldButton[data-hovered] {
+  background: var(--color-surface-2);
 }
-.trigger[data-focus-visible] {
+.fieldButton[data-focus-visible] {
   outline: var(--focus-ring-width) solid var(--color-focus-ring);
-  outline-offset: -4px;
+  outline-offset: -2px;
+}
+.fieldIcon {
+  flex: none;
+  margin-left: auto;
+  color: var(--color-text-muted);
 }
 .popover {
-  z-index: var(--z-overlay);
-  width: 36rem;
+  z-index: calc(var(--z-modal) + 1);
+  display: flex;
+  flex-direction: column;
+  width: 40rem;
   max-width: calc(100vw - 2 * var(--space-4));
   border: 1px solid var(--color-border-strong);
   border-radius: var(--radius-2);
@@ -71,19 +90,21 @@
 }
 .dialog {
   width: 100%;
-  padding: var(--space-3);
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: var(--space-4);
   outline: none;
 }
 .layout {
   display: grid;
-  grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr);
-  align-items: start;
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
   gap: var(--space-4);
 }
 .calendar {
   display: grid;
-  gap: var(--space-2);
-  width: 100%;
+  align-content: start;
+  gap: var(--space-3);
   min-width: 0;
 }
 .calendarHeader {
@@ -94,11 +115,22 @@
 }
 .month {
   margin: 0;
-  font-size: var(--font-size-md);
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
+  text-align: center;
   text-transform: capitalize;
+}
+.screenReaderOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
 .nav {
   display: grid;
+  flex: none;
   place-items: center;
   width: var(--size-control);
   height: var(--size-control);
@@ -120,21 +152,24 @@
   outline-offset: -2px;
 }
 .grid {
+  width: 100%;
   border-collapse: collapse;
 }
 .grid th {
-  padding-bottom: var(--space-1);
+  padding-bottom: var(--space-2);
   color: var(--color-text-muted);
   font-size: var(--font-size-xs);
   font-weight: var(--font-weight-medium);
+  text-transform: capitalize;
 }
 .cell {
   display: grid;
   place-items: center;
   width: var(--size-control);
   height: var(--size-control);
-  margin: 1px;
+  margin: 1px auto;
   border-radius: var(--radius-1);
+  color: var(--color-text);
   font-variant-numeric: tabular-nums;
   cursor: pointer;
   outline: none;
@@ -143,7 +178,7 @@
   background: var(--color-surface-3);
 }
 .cell[data-outside-month] {
-  display: none;
+  color: var(--color-text-muted);
 }
 .cell[data-selected] {
   background: var(--color-accent);
@@ -161,179 +196,218 @@
 .cell[data-unavailable] {
   text-decoration: line-through;
 }
-
-/* Time section of the popover. Coarse pointer / narrow screens: 44 px targets via --size-control. */
 .time {
   display: grid;
-  gap: var(--space-2);
+  align-content: start;
+  gap: var(--space-3);
+  min-width: 0;
+  padding-left: var(--space-4);
+  border-left: 1px solid var(--color-border-subtle);
 }
-.timeField {
-  display: grid;
-  gap: var(--space-1);
-}
-.timeLabel {
-  color: var(--color-text-muted);
-  font-size: var(--font-size-xs);
-  font-weight: var(--font-weight-medium);
-}
-.timeInput {
+.timeHeader {
   display: flex;
   align-items: center;
-  justify-content: center;
-  gap: var(--space-1);
-  min-height: var(--size-target);
+  justify-content: space-between;
+  gap: var(--space-2);
+  min-height: var(--size-control);
+  font-weight: var(--font-weight-semibold);
+}
+.zone {
+  display: block;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-regular);
+}
+.clock {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  gap: var(--space-2);
+}
+.timeUnit {
+  display: grid;
+  justify-items: center;
+  min-width: 0;
   border: 1px solid var(--color-border-strong);
   border-radius: var(--radius-2);
   background: var(--color-surface-2);
-  font-family: var(--font-mono);
-  font-size: var(--font-size-lg);
-  font-variant-numeric: tabular-nums;
 }
-.timeInput:focus-within {
+.timeArrow {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  min-height: var(--size-control-sm);
+  border: 0;
+  background: none;
+  color: var(--color-text);
+  cursor: pointer;
+}
+.timeArrow[data-hovered] {
+  background: var(--color-surface-3);
+}
+.timeArrow[data-focus-visible] {
   outline: var(--focus-ring-width) solid var(--color-focus-ring);
-  outline-offset: 1px;
+  outline-offset: -2px;
 }
-.timeSegment {
-  min-width: var(--space-8);
-  padding: var(--space-1);
-  text-align: center;
-  border-radius: var(--radius-1);
-  outline: none;
-  caret-color: transparent;
-}
-.timeSegment[data-type='literal'] {
+.timeValue {
+  width: 100%;
   min-width: 0;
   padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--color-text);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-semibold);
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  outline: none;
 }
-.timeSegment[data-focused] {
-  background: var(--color-accent);
-  color: var(--color-on-accent);
+.timeValue:focus-visible {
+  outline: var(--focus-ring-width) solid var(--color-focus-ring);
+  outline-offset: -2px;
 }
-.steppers {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2);
+.colon {
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-semibold);
 }
-.stepper,
 .quick {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--space-2);
   min-width: 0;
   margin: 0;
   padding: 0;
   border: 0;
 }
-.stepper {
-  display: flex;
-  flex: 1 1 0;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-1);
-}
-.stepLabel {
+.quickLabel {
+  grid-column: 1 / -1;
+  margin-bottom: var(--space-2);
+  padding: 0;
   color: var(--color-text-muted);
   font-size: var(--font-size-sm);
 }
-/* Mouse-sized beside the calendar; the bottom sheet below raises them to touch size. */
-.step,
 .chip,
-.done {
+.done,
+.cancel {
   display: grid;
   place-items: center;
-  min-width: var(--size-control);
+  min-width: 0;
   min-height: var(--size-control);
+  padding-inline: var(--space-2);
   border: 1px solid var(--color-border-strong);
   border-radius: var(--radius-2);
   background: var(--color-surface-2);
   color: var(--color-text);
-  font-size: var(--font-size-md);
+  font-size: var(--font-size-sm);
   font-variant-numeric: tabular-nums;
   cursor: pointer;
 }
-.step[data-hovered],
-.chip[data-hovered] {
+.chip[data-hovered],
+.cancel[data-hovered] {
   background: var(--color-surface-3);
 }
-.step[data-pressed],
-.chip[data-pressed] {
-  background: var(--color-surface-3);
-}
-.step[data-focus-visible],
-.chip[data-focus-visible],
-.done[data-focus-visible] {
-  outline: var(--focus-ring-width) solid var(--color-focus-ring);
-  outline-offset: 2px;
-}
-.quick {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: var(--space-2);
-}
-.chip[data-selected] {
-  border-color: var(--color-accent);
-  background: var(--color-accent);
-  color: var(--color-on-accent);
-}
-.footer {
-  display: grid;
-  gap: var(--space-2);
-}
-.picked {
-  min-height: 1.4em;
-  color: var(--color-text);
-  font-size: var(--font-size-sm);
-  font-weight: var(--font-weight-medium);
-  font-variant-numeric: tabular-nums;
-}
+.chip[data-selected],
 .done {
   border-color: var(--color-accent);
   background: var(--color-accent);
   color: var(--color-on-accent);
+}
+.chip[data-disabled] {
+  border-color: var(--color-border-subtle);
+  background: var(--color-surface-2);
+  color: var(--color-text-disabled);
+  cursor: not-allowed;
+}
+.chip[data-focus-visible],
+.done[data-focus-visible],
+.cancel[data-focus-visible] {
+  outline: var(--focus-ring-width) solid var(--color-focus-ring);
+  outline-offset: 2px;
+}
+.footer {
+  position: sticky;
+  bottom: 0;
+  z-index: 1;
+  display: grid;
+  gap: var(--space-3);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--color-border-subtle);
+  background: var(--color-surface-1);
+}
+.picked {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  gap: var(--space-2);
+  font-size: var(--font-size-sm);
+  font-variant-numeric: tabular-nums;
+}
+.picked > span {
+  display: grid;
+  gap: var(--space-1);
+}
+.pickedLabel {
+  color: var(--color-text-muted);
+}
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}
+.done,
+.cancel {
+  min-width: var(--space-8);
+  padding-inline: var(--space-3);
   font-weight: var(--font-weight-medium);
 }
-.popover {
-  display: flex;
-  flex-direction: column;
-}
-/* The popover's max-height tracks the free viewport space; a short window scrolls inside instead of clipping. */
-.dialog {
-  min-height: 0;
-  overflow-y: auto;
-  /* Scrolling the sheet never scrolls the page behind it. */
-  overscroll-behavior: contain;
+@media (pointer: fine) and (min-width: 860px) {
+  .dialog {
+    padding: var(--space-3);
+  }
+  .time {
+    gap: var(--space-1);
+    padding-left: var(--space-3);
+  }
+  .timeArrow {
+    min-height: var(--space-6);
+  }
+  .footer {
+    gap: var(--space-1);
+    padding-top: var(--space-1);
+  }
+  .picked > span {
+    gap: 0;
+  }
 }
 @media (pointer: coarse), (max-width: 859px) {
-  /* Bottom sheet: the anchored position would squeeze header + grid + time into the space above or below the field.
-     !important beats the inline top/left/max-height React Aria computes. */
   .popover {
     position: fixed !important;
     inset: auto 0 0 !important;
     width: 100vw !important;
     max-width: none;
-    max-height: 90dvh !important;
+    max-height: 100dvh !important;
     border-width: 1px 0 0;
     border-radius: var(--radius-2) var(--radius-2) 0 0;
   }
   .dialog {
-    width: 100%;
-    max-height: 90dvh;
+    max-height: 100dvh;
     padding-bottom: max(var(--space-3), env(safe-area-inset-bottom));
   }
   .layout {
     grid-template-columns: minmax(0, 1fr);
     gap: var(--space-3);
   }
-  /* Stacked under the calendar: a rule separates the two steps. */
-  .time {
-    padding-top: var(--space-3);
-    border-top: 1px solid var(--color-border-subtle);
-  }
   .calendar,
   .time {
-    margin-inline: auto;
     width: 100%;
-    max-width: 22rem;
+    margin-inline: auto;
   }
-  .input {
-    flex-wrap: nowrap;
+  .time {
+    padding-top: var(--space-3);
+    padding-left: 0;
+    border-top: 1px solid var(--color-border-subtle);
+    border-left: 0;
   }
   .segment {
     min-width: 0;
@@ -343,23 +417,30 @@
     white-space: nowrap;
   }
   .segment[data-type='literal'] {
-    min-width: 0;
     padding: 0;
-  }
-  /* The zone is already named in the description under the field; the suffix only forces a second line. */
-  .segment[data-type='timeZoneName'] {
-    display: none;
   }
   .cell {
     width: min(var(--size-control), calc((100vw - 3 * var(--space-4)) / 7 - 2px));
   }
-  .step,
+  .clock {
+    grid-template-columns: minmax(0, 6.5rem) auto minmax(0, 6.5rem);
+    justify-content: center;
+  }
+  .timeArrow {
+    display: none;
+  }
+  .timeValue,
   .chip,
   .done {
-    min-width: var(--size-target);
     min-height: var(--size-target);
   }
-  /* On a short screen the time panel is below the fold: the value and «Готово» stay reachable at the bottom. */
+  .cancel {
+    display: none;
+  }
+  .actions,
+  .done {
+    width: 100%;
+  }
   .footer {
     position: sticky;
     bottom: calc(-1 * max(var(--space-3), env(safe-area-inset-bottom)));

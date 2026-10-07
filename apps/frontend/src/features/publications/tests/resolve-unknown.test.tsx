@@ -252,21 +252,29 @@ describe('outcome «Не вышел — отправить снова»', () => 
     expect(screen.queryByText('Опубликовано')).toBeNull();
   });
 
-  it('sends a typed time, not the default', async () => {
+  it('sends a selected date, not the default', async () => {
     serveDetail(unknown());
     const bodies = serveResolve((body) =>
       HttpResponse.json(publication({ status: 'scheduled', scheduledAt: String(body['scheduledAt']), revision: 5 }))
     );
     const { drawer, user } = await openChoice('Не вышел — отправить снова');
     const dialog = await screen.findByRole('dialog', { name: 'Отправить снова' });
-    const year = within(dialog).getAllByRole('spinbutton')[2];
-    if (!year) throw new Error('year segment missing');
-    const next = new Date().getFullYear() + 1;
-    await user.click(year);
-    await user.keyboard(String(next));
+    await user.click(within(dialog).getByRole('button', { name: /Открыть календарь/ }));
+    const picker = (await screen.findAllByRole('dialog')).at(-1);
+    if (!picker) throw new Error('date-time picker missing');
+    const nextMonth = within(picker).getAllByRole('button', { name: /Далее/ }).at(0);
+    if (!nextMonth) throw new Error('next month button missing');
+    await user.click(nextMonth);
+    const day = within(picker).getAllByRole('button', { name: /20 / }).at(0);
+    if (!day) throw new Error('day 20 missing');
+    await user.click(day);
+    await user.click(within(picker).getByRole('button', { name: 'Готово' }));
     await user.click(within(dialog).getByRole('button', { name: 'Отправить снова' }));
     await waitFor(() => expect(bodies).toHaveLength(1));
-    expect(new Date(String(bodies[0]?.['scheduledAt'])).getFullYear()).toBe(next);
+    const expected = new Date();
+    expected.setMonth(expected.getMonth() + 1, 20);
+    expect(new Date(String(bodies[0]?.['scheduledAt'])).getMonth()).toBe(expected.getMonth());
+    expect(new Date(String(bodies[0]?.['scheduledAt'])).getDate()).toBe(20);
     expect((await screen.findAllByText(/Запланировано на/)).length).toBeGreaterThan(0);
     await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Отправить снова' })).toBeNull());
     expect(within(drawer).getAllByText('Запланировано').length).toBeGreaterThan(0);
@@ -279,15 +287,22 @@ describe('outcome «Не вышел — отправить снова»', () => 
     );
     const { user } = await openChoice('Не вышел — отправить снова');
     const dialog = await screen.findByRole('dialog', { name: 'Отправить снова' });
-    const year = within(dialog).getAllByRole('spinbutton')[2];
-    if (!year) throw new Error('year segment missing');
-    const next = String(new Date().getFullYear() + 1);
-    await user.click(year);
-    await user.keyboard(next);
+    const field = within(dialog).getByRole('button', { name: /Открыть календарь/ });
+    await user.click(field);
+    const picker = (await screen.findAllByRole('dialog')).at(-1);
+    if (!picker) throw new Error('date-time picker missing');
+    const nextMonth = within(picker).getAllByRole('button', { name: /Далее/ }).at(0);
+    if (!nextMonth) throw new Error('next month button missing');
+    await user.click(nextMonth);
+    const day = within(picker).getAllByRole('button', { name: /20 / }).at(0);
+    if (!day) throw new Error('day 20 missing');
+    await user.click(day);
+    await user.click(within(picker).getByRole('button', { name: 'Готово' }));
+    const selected = field.textContent;
     await user.click(within(dialog).getByRole('button', { name: 'Отправить снова' }));
     expect(await within(dialog).findByText(/Выберите время в будущем, но не дальше чем на 366 дней/)).toBeTruthy();
     expect(within(dialog).queryByText('Время вне допустимого диапазона')).toBeNull();
-    expect(within(dialog).getAllByRole('spinbutton')[2]?.textContent).toBe(next);
+    expect(field.textContent).toBe(selected);
   });
 
   it('NOT_UNKNOWN and STALE_REVISION keep the dialog and its content', async () => {
