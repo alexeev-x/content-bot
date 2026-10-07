@@ -8,6 +8,7 @@
     "preview": "vite build && vite preview",
     "typecheck": "tsc --noEmit",
     "test:e2e": "playwright test",
+    "explore": "playwright test --config playwright.explore.config.ts",
     "test": "vitest run && node --test scripts/*.test.mjs",
     "deploy": "wrangler deploy",
     "deploy:check": "wrangler deploy --dry-run"

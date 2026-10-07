@@ -18,6 +18,7 @@ npm ci                    # install from the lockfile (Node from .nvmrc); `npm i
 npm run dev               # the whole app locally: SPA + API + bot webhook + Cron, one process (Vite + Cloudflare plugin)
 npm run dev:backend       # the Worker alone (API, webhook, Cron) via wrangler dev on http://localhost:8790
 npm run preview           # production build served locally
+npm run explore           # admin in Chrome with a mock API, no Telegram sign-in (docs/LOCAL_PREVIEW.md)
 npm run db:migrate:local  # apply D1 migrations to the local database
 npm run verify            # everything CI checks (format, lint, docs, types, architecture, tests, build)
 npm run deploy:check      # build + dry-run deploy (nothing is uploaded)
