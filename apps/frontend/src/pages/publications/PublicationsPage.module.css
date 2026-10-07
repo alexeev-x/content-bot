@@ -1,6 +1,16 @@
+.filterPanel {
+  display: grid;
+  gap: var(--space-3);
+  margin-bottom: var(--space-3);
+}
+.presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
 .filters {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 240px)) auto;
+  grid-template-columns: repeat(3, minmax(0, 220px)) auto;
   align-items: end;
   gap: var(--space-3);
   margin-bottom: var(--space-3);
@@ -32,6 +42,18 @@
   gap: var(--space-4);
 }
 @media (max-width: 859px) {
+  .presets {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    padding-bottom: var(--space-1);
+    scrollbar-width: none;
+  }
+  .presets::-webkit-scrollbar {
+    display: none;
+  }
+  .presets > * {
+    flex: none;
+  }
   .pager > * {
     flex: 1 1 auto;
   }
