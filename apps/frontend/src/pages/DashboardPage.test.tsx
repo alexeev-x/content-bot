@@ -214,10 +214,10 @@ describe('dashboard blocks', () => {
     );
     await renderDashboard();
     const recent = await screen.findByRole('region', { name: 'Недавно отправлено' });
-    const links = within(recent).getAllByRole('link');
-    expect(links).toHaveLength(1);
-    expect(links[0]?.getAttribute('href')).toBe('https://t.me/dota_studio/4821');
-    expect(links[0]?.getAttribute('rel')).toBe('noopener noreferrer');
+    const telegramLink = within(recent).getByRole('link', { name: /Открыть в Telegram/ });
+    expect(telegramLink.getAttribute('href')).toBe('https://t.me/dota_studio/4821');
+    expect(telegramLink.getAttribute('rel')).toBe('noopener noreferrer');
+    expect(within(recent).getByRole('link', { name: 'Все публикации' })).toBeTruthy();
   });
 
   it('a new install keeps all four blocks, each with its own empty line, so the page never changes shape', async () => {
