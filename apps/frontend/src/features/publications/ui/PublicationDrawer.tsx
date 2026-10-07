@@ -299,9 +299,8 @@ function PublicationBody({ publication, postTitle, postBody, destinationTitle, c
           <div className={styles.futurePanel}>
             <strong>Статистика публикации</strong>
             <p>
-              {
-                'Появится после подключения Telegram Analytics. Сейчас сервер не хранит метрики просмотров и вовлечённости.'
-              }
+              <span>Появится после подключения Telegram Analytics.</span>{' '}
+              <span>Сейчас сервер не хранит метрики просмотров и вовлечённости.</span>
             </p>
           </div>
         </TabPanel>
