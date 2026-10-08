@@ -367,10 +367,7 @@ function PublishDialogBody({ post, isOpen, onOpenChange, onPublished }: Props) {
             </h3>
             <dl className={styles.list}>
               <dt>{copy.publish.summaryWhat}</dt>
-              <dd>
-                {post.title}
-                <span className={styles.muted}> · {copy.publish.revision(post.revision)}</span>
-              </dd>
+              <dd>{post.title}</dd>
               <dt>{copy.publish.summaryWhere}</dt>
               <dd>{selected ? selected.title : copy.publish.summaryNoChannel}</dd>
               <dt>{copy.publish.summaryWhen}</dt>

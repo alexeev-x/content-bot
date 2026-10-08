@@ -213,7 +213,7 @@ The main API does not accept cookies, so a CSRF token is not needed; the server 
 /                       dashboard: customizable widget grid (layout stored server-side; react-grid-layout loaded lazily, edit mode only)
 /posts                  content library
 /posts/new              full content editor
-/posts/:id              editor, revisions, preview and publication history
+/posts/:id              editor, preview and publication history
 /publications           publication history/control
 /publications/:id       publication timeline and reconciliation (today the drawer at `/publications?id=<id>`: «Пост вышел» / «Не вышел — отправить снова» / «Не вышел — отменить» → `POST …/resolve-unknown`, never optimistic)
 /calendar               schedule, reschedule/cancel

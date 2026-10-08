@@ -123,7 +123,7 @@ describe('PublicationDrawer cancel', () => {
     const details = within(confirm).getByRole('button', { name: 'Подробности' });
     expect(details.getAttribute('aria-expanded')).toBe('false');
     await user.click(details);
-    expect(within(confirm).getByText('Ревизия')).toBeTruthy();
+    expect(within(confirm).queryByText('Ревизия')).toBeNull();
     await user.click(within(confirm).getByRole('button', { name: 'Отменить публикацию' }));
 
     await waitFor(() => expect(body).toEqual({ revision: 2 }));

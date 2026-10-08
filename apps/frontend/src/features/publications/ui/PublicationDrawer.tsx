@@ -219,7 +219,6 @@ function PublicationBody({ publication, postTitle, postBody, destinationTitle, c
           <Link to="/posts/$id" params={{ id: publication.postId }} className={styles.link}>
             {postTitle ?? copy.drawer.openPost}
           </Link>
-          <span className={styles.muted}> · {copy.drawer.revision(publication.postRevision)}</span>
         </Fact>
         {confirmedId ? (
           <Fact term={copy.drawer.message}>

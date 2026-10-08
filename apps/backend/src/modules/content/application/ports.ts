@@ -7,17 +7,6 @@ export interface PostRecord extends Post {
   createdAt: number;
 }
 
-export interface PostRevisionRecord {
-  postId: string;
-  revision: number;
-  title: string;
-  body: string;
-  entities: PostEntity[];
-  status: PostStatus;
-  /** UTC epoch milliseconds. */
-  createdAt: number;
-}
-
 export interface IdempotencyRef {
   scope: string;
   key: string;
@@ -75,8 +64,6 @@ export interface PostRepository {
     postId: string,
     revision: number
   ): Promise<{ title: string; body: string; entities: PostEntity[] } | null>;
-  /** Newest revision first; `beforeRevision` is exclusive. */
-  listRevisions(postId: string, beforeRevision: number | undefined, limit: number): Promise<PostRevisionRecord[]>;
   list(query: ListPostsQuery): Promise<PostRecord[]>;
   /** How many posts are in the archive (it only holds the retention period, so the count is small). */
   countArchived(): Promise<number>;

@@ -79,8 +79,6 @@ export function CancelPublicationDialog({ publication, postTitle, destinationTit
           <dd className="mono">{publication.id}</dd>
           <dt>{copy.drawer.utc}</dt>
           <dd className="mono">{formatUtc(publication.scheduledAt)}</dd>
-          <dt>{copy.cancelDialog.revision}</dt>
-          <dd className="mono">{publication.revision}</dd>
         </dl>
       </Disclosure>
     </Dialog>

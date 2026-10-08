@@ -24,7 +24,6 @@ import { ConflictBanner } from './ConflictBanner';
 import { postsCopy } from './copy';
 import { PostFields } from './PostFields';
 import { PostPreview } from './PostPreview';
-import { PostRevisionHistory } from './PostRevisionHistory';
 import styles from './PostEditor.module.css';
 import { SaveIndicator } from './SaveIndicator';
 
@@ -54,7 +53,6 @@ export function PostEditor({ post, onCreated, approvedActions, aside }: Props) {
   const [compareOpen, setCompareOpen] = useState(false);
   const [approveOpen, setApproveOpen] = useState(false);
   const [overwriteOpen, setOverwriteOpen] = useState(false);
-  const [historyOpen, setHistoryOpen] = useState(false);
 
   useSaveShortcut(() => void editor.save());
   useAutosave({
@@ -139,11 +137,6 @@ export function PostEditor({ post, onCreated, approvedActions, aside }: Props) {
     <div ref={rootRef} className={styles.editor}>
       <div ref={statusRef} tabIndex={-1} className={styles.meta}>
         <StatusBadge status={baseline?.status ?? 'draft'} />
-        {baseline ? (
-          <Button variant="ghost" size="sm" aria-label={copy.history.open} onPress={() => setHistoryOpen(true)}>
-            <span className="mono">{copy.revision(baseline.revision)}</span>
-          </Button>
-        ) : null}
         <SaveIndicator state={editor.saveState} savedAt={baseline?.updatedAt} />
         {editor.saveState === 'failed' && !editor.readOnly && !hasConflict ? (
           <Button variant="ghost" size="sm" icon="retry" onPress={() => void editor.save()}>
@@ -260,9 +253,6 @@ export function PostEditor({ post, onCreated, approvedActions, aside }: Props) {
         )}
       </div>
 
-      {baseline ? (
-        <PostRevisionHistory postId={baseline.id} isOpen={historyOpen} onOpenChange={setHistoryOpen} />
-      ) : null}
       <CompareDialog
         isOpen={compareOpen}
         onOpenChange={setCompareOpen}

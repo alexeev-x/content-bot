@@ -99,7 +99,6 @@ export const copy = {
     summaryNoChannel: 'Канал не выбран',
     summaryNoTime: 'Время не выбрано',
     previewTitle: 'Так увидят подписчики',
-    revision: (revision: number) => `ред. ${revision}`,
     submitNow: 'Отправить сейчас',
     submitLater: 'Запланировать',
     cancel: 'Отмена',
@@ -204,7 +203,6 @@ export const copy = {
     techTitle: 'Технические данные',
     post: 'Пост',
     openPost: 'Открыть пост',
-    revision: (revision: number) => `ред. ${revision}`,
     channel: 'Канал',
     scheduledAt: 'Запланировано на',
     inZone: (zone: string) => `в часовом поясе ${zone}`,
@@ -326,7 +324,6 @@ export const copy = {
   cancelDialog: {
     title: (post: string, channel: string, when: string) => `Отменить публикацию «${post}» в «${channel}» на ${when}?`,
     details: 'Подробности',
-    revision: 'Ревизия',
     description:
       'Сообщение не будет отправлено. Это действие нельзя отменить: чтобы опубликовать пост снова, создайте новую публикацию.',
     confirm: 'Отменить публикацию',

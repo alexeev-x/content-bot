@@ -2,7 +2,7 @@
 
 Part of the master plan; status, order and the queue live in `docs/IMPLEMENTATION_PLAN.md`. Section numbers are the plan's own, so `§N` references stay valid.
 
-08.10.2026: rich Telegram editor is built. Existing saved drafts now autosave after a 1.2 s quiet period; invalid drafts do not autosave, a failed save preserves local edits and stops the retry loop until the text changes or the owner presses Retry, and 409 still requires an explicit conflict decision. The editor exposes a read-only, cursor-paginated history of immutable stored revisions. New-post creation remains explicit; autosave starts after the draft exists on the server. Useful post actions are still open.
+08.10.2026: rich Telegram editor is built. Existing saved drafts autosave after a 1.2 s quiet period; invalid drafts do not autosave, a failed save preserves local edits and stops the retry loop until the text changes or the owner presses Retry, and 409 still requires an explicit conflict decision. New-post creation remains explicit; autosave starts after the draft exists on the server. Useful post actions are still open.
 
 ## 3.1 Content Studio
 
@@ -14,7 +14,6 @@ Capabilities:
 - rich text editing.
 - Telegram entities.
 - autosave.
-- revisions.
 - approval.
 - duplicate.
 - archive / restore / permanent delete under safe rules.
@@ -44,9 +43,9 @@ Add over time:
 
 Later, when TikTok/YouTube variants exist, the broader concept may be named Content Unit in product language, while database migrations can remain incremental.
 
-## 4.2 Revisions
+## 4.2 Internal publication snapshot
 
-A revision freezes all publish-relevant content:
+Approval freezes all publish-relevant content:
 
 - title.
 - body.
@@ -54,7 +53,7 @@ A revision freezes all publish-relevant content:
 - ordered media references.
 - relevant rendering settings.
 
-Approval points to a frozen revision. A publication must always reference the exact approved revision it is sending.
+Approval points to a frozen snapshot. A publication must always reference the exact approved snapshot it is sending. The revision number also guards against stale concurrent edits.
 
 ## 4.3 Media
 

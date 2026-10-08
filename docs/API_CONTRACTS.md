@@ -95,7 +95,6 @@ Schemas and per-endpoint error codes: `apps/contracts/src/posts.ts`.
 | `POST /api/v1/posts` | Create a draft; `201` with `PostDto`. `Idempotency-Key` is required: a repeat with the same body replays the first response, a different body or a request still in flight is `409` |
 | `GET /api/v1/posts` | Keyset pagination (`cursor`, `limit` ≤ 100), optional `status` filter, `view` = `live` (default, newest update first) or `archive` (most recently archived first). Every page carries `archivedCount`, the size of the archive, for the tab badge |
 | `GET /api/v1/posts/{id}` | One post, with its `publicationSummary` |
-| `GET /api/v1/posts/{id}/revisions` | Immutable revision snapshots, newest first, with bounded cursor pagination. Used by the editor history; malformed cursor → `400`, missing post → `404` |
 | `PATCH /api/v1/posts/{id}` | Edit a draft; the current `revision` goes in the body. A new `body` must come with its `entities` (`[]` for plain text), otherwise `400` `ENTITIES_REQUIRED`: old offsets would point into other text. `entities` alone is allowed and is checked against the stored body. Stale revision → `409` `STALE_REVISION`; approved post → `409` `NOT_EDITABLE` |
 | `POST /api/v1/posts/{id}/approve` | Draft → approved with the current `revision`; empty body → `400` `EMPTY_BODY` |
 

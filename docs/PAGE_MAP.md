@@ -13,7 +13,7 @@ The regular browser app and Telegram Mini App are the same SPA. Mobile at 375 px
 | `/posts` | Content library | one live search field (client-side over loaded rows), sort by column header (phone: sort sheet), drafts/approved content; server-side search, rubric/source/destination filters later | empty, error, stale |
 | `/posts?view=archive` | Posts archive | published posts kept 30 days, restore, delete now; leave-free editor, delete post, cancel/remove publication (spec: `docs/stories/posts-lifecycle.md`) | empty, error, 30-day expiry, unknown not deletable |
 | `/posts/new` | New content | full editor, source/rubric, media, destination, preview, save/approve/schedule | dirty, validation, preview failure |
-| `/posts/:id` | Content Studio | edit, revision history/diff, real preview, publication history, source provenance | 409 conflict, unsaved, stale revision |
+| `/posts/:id` | Content Studio | edit, real preview, publication history, source provenance | 409 conflict, unsaved, stale revision |
 | `/publications` | Publication control | tabs Все / Запланированные / Отправленные / Ошибки (no «Сегодня» until a date-range filter exists), live client-side search and sort over loaded pages, «Опубликовать пост» picker, inspector, status, destination, Telegram message id, safe actions | sending, retry_wait, failed, unknown |
 | `/publications/:id` | Publication detail | timeline, attempt/audit detail, linked post, Telegram result, reconciliation | unknown, unsafe retry, partial telemetry |
 | `/calendar` | Scheduling | day/week/month views, schedule/reschedule/cancel, filters by destination/rubric | timezone/DST, collision, unsafe action |

@@ -140,7 +140,7 @@ Each system's target design lives in its own file. Open only the one you need.
 
 | Sections | Covers | File |
 |---|---|---|
-| §3.1, §4.1, §4.2, §4.3, §5, §6 | editor, autosave, revisions, post actions, manual media, posts list | `docs/plan/content-studio.md` |
+| §3.1, §4.1, §4.2, §4.3, §5, §6 | editor, autosave, internal publication snapshot, post actions, manual media, posts list | `docs/plan/content-studio.md` |
 | §3.2, §4.4, §7, §10 | publication results, Publications Center, owner timezone | `docs/plan/publications.md` |
 | §3.3, §9 | calendar views and actions | `docs/plan/calendar.md` |
 | §3.4, §8, §16 | Decision Center / Overview, global search | `docs/plan/overview-search.md` |
@@ -184,7 +184,6 @@ Phase 1a — editor (queue items 1–2):
 - rich Telegram-aware editor — built (§2.4.1).
 - entities storage and preview — built (§2.4.1).
 - autosave — built, awaiting owner DEV check.
-- revision history UI — built, awaiting owner DEV check.
 - useful post actions.
 
 Phase 1b — manual media (queue items 6–7):
@@ -425,7 +424,7 @@ This is the actionable queue from the master roadmap. Whoever starts or finishes
 | # | Item | Status |
 |---|---|---|
 | 1 | Content Studio rich editor and Telegram entities | done (awaiting owner DEV check) |
-| 2 | Autosave and revision history UI | done (awaiting owner DEV check) |
+| 2 | Autosave | done (awaiting owner DEV check) |
 | 3 | Dota update watcher: official sources, D1 dedup (Phase 1D) | not started |
 | 4 | Dota update → template draft + private owner alert (Phase 1D) | not started |
 | 5 | Patch summary from confirmed changes (Phase 1D) | not started |

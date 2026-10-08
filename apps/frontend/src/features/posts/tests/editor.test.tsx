@@ -162,7 +162,7 @@ describe('save', () => {
       timeout: 2_500
     });
     expect(await screen.findByText(/Сохранено в/)).toBeTruthy();
-    expect(screen.getByText('Ревизия 1')).toBeTruthy();
+    expect(screen.queryByText('Ревизия 1')).toBeNull();
     expect(router.state.location.pathname).toBe(`/posts/${ids.post}`);
   });
 
@@ -181,7 +181,7 @@ describe('save', () => {
     await user.keyboard('{Control>}s{/Control}');
     await waitFor(() => expect(bodies).toEqual([{ revision: 0, body: 'Правка', entities: [] }]));
     expect(await screen.findByText(/Сохранено в/)).toBeTruthy();
-    expect(screen.getByText('Ревизия 1')).toBeTruthy();
+    expect(screen.queryByText('Ревизия 1')).toBeNull();
   });
 
   it('shows a persistent error with the requestId and keeps the text when the server is down', async () => {
@@ -241,49 +241,23 @@ describe('409 STALE_REVISION', () => {
       ])
     );
     await waitFor(() => expect(screen.queryByText('Пост уже изменён в другом месте')).toBeNull());
-    expect(screen.getByText('Ревизия 4')).toBeTruthy();
+    expect(screen.queryByRole('dialog')).toBeNull();
   });
 });
 
-describe('revision history', () => {
-  it('opens the immutable revision list and lets the owner inspect an older snapshot', async () => {
-    const user = userEvent.setup();
+describe('revision history removal', () => {
+  it('does not show history controls or request prior snapshots', async () => {
+    let historyRequests = 0;
     server.use(
-      http.get('*/api/v1/posts/:id/revisions', () =>
-        HttpResponse.json({
-          items: [
-            {
-              postId: ids.post,
-              revision: 2,
-              title: 'Текущий',
-              body: 'Новый текст',
-              entities: [],
-              status: 'draft',
-              createdAt: '2026-10-06T09:02:00.000Z'
-            },
-            {
-              postId: ids.post,
-              revision: 1,
-              title: 'Старый',
-              body: 'Старый текст',
-              entities: [],
-              status: 'draft',
-              createdAt: '2026-10-06T09:01:00.000Z'
-            }
-          ],
-          nextCursor: null
-        })
-      )
+      http.get('*/api/v1/posts/:id/revisions', () => {
+        historyRequests += 1;
+        return HttpResponse.json({ items: [], nextCursor: null });
+      })
     );
-    await openExisting({ revision: 2, title: 'Текущий', body: 'Новый текст' });
+    await openExisting();
 
-    await user.click(screen.getByRole('button', { name: 'Открыть историю изменений' }));
-    const drawer = await screen.findByRole('dialog', { name: 'История изменений' });
-    expect(within(drawer).getByText('Новый текст')).toBeTruthy();
-
-    await user.click(within(drawer).getByRole('button', { name: /Ревизия 1/ }));
-    expect(within(drawer).getByText('Старый текст')).toBeTruthy();
-    expect(within(drawer).getByRole('heading', { name: 'Старый' })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /истори|ревизи/i })).toBeNull();
+    expect(historyRequests).toBe(0);
   });
 });
 

@@ -159,13 +159,13 @@ export function CatalogForms() {
       <Tabs defaultSelectedKey="post">
         <TabList aria-label="Post sections">
           <Tab id="post">Post</Tab>
-          <Tab id="history">History</Tab>
+          <Tab id="preview">Preview</Tab>
           <Tab id="locked" isDisabled>
             Disabled
           </Tab>
         </TabList>
         <TabPanel id="post">Editor content.</TabPanel>
-        <TabPanel id="history">Revision history.</TabPanel>
+        <TabPanel id="preview">Post preview.</TabPanel>
       </Tabs>
     </>
   );
