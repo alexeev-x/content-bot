@@ -26,12 +26,12 @@
   background: var(--color-surface-2);
 }
 .item[data-selected='true'] {
-  border-color: var(--color-accent-border);
+  border-color: var(--color-accent);
   background: var(--color-accent-soft);
 }
 .item:focus-visible {
-  outline: var(--focus-ring);
-  outline-offset: var(--focus-offset);
+  outline: var(--focus-ring-width) solid var(--color-focus-ring);
+  outline-offset: var(--focus-ring-offset);
 }
 .itemMeta {
   color: var(--color-text-muted);
