@@ -84,7 +84,7 @@ describe('archive tab', () => {
     const table = await screen.findByRole('grid', { name: 'Архив постов' });
     await within(table).findByText('Итоги');
     expect(gets).toContain('archive');
-    expect(screen.getByText(/Посты попадают сюда автоматически.*Архив хранится 30 дней/)).toBeTruthy();
+    expect(screen.getByText(/пост попадает в архив на 30 дней/)).toBeTruthy();
     expect(within(table).getAllByText('Канал').length).toBe(2);
     expect(within(table).getByText('Удалится через 20 дн.')).toBeTruthy();
     // The last days carry a warning icon and the same text, so colour is not the only signal.
