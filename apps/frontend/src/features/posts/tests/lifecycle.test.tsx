@@ -7,7 +7,7 @@ import { clearSession, setSession } from '../../../shared/api/session';
 import { accessToken, archivedPost, errorBody, ids, post, postPage, postWith } from '../../../test/fixtures';
 import { server, setupMswServer } from '../../../test/msw';
 import { clearViewport, setViewport } from '../../../test/viewport';
-import { onCreate, onOpen, onReconcile, renderList } from './list-harness';
+import { onCreate, onOpen, onOpenPublications, onReconcile, renderList } from './list-harness';
 
 setupMswServer();
 beforeEach(() => {
@@ -15,6 +15,7 @@ beforeEach(() => {
   setSession(accessToken());
   onOpen.mockClear();
   onCreate.mockClear();
+  onOpenPublications.mockClear();
   onReconcile.mockClear();
 });
 afterEach(() => {
@@ -171,6 +172,33 @@ describe('deleting one post', () => {
     await user.click(screen.getByRole('button', { name: 'Выбрать' }));
     const box = within(await screen.findByRole('row', { name: /Идёт/ })).getByRole('checkbox');
     expect((box as HTMLInputElement).disabled).toBe(true);
+  });
+
+  it('offers open, duplicate and Publications actions without copying workflow state', async () => {
+    const user = userEvent.setup();
+    serve({ live: [post({ id: id(1), title: 'Черновик А', body: 'Текст' })], archive: [] });
+    let createdBody: unknown;
+    server.use(
+      http.post('*/api/v1/posts', async ({ request }) => {
+        createdBody = await request.json();
+        return HttpResponse.json(post({ id: id(9), title: 'Черновик А', body: 'Текст' }), { status: 201 });
+      })
+    );
+    renderList();
+
+    await openMenu(user, 'Черновик А');
+    await user.click(await screen.findByRole('menuitem', { name: 'Открыть публикации' }));
+    expect(onOpenPublications).toHaveBeenCalledWith(id(1));
+
+    await openMenu(user, 'Черновик А');
+    await user.click(await screen.findByRole('menuitem', { name: 'Дублировать' }));
+    await waitFor(() => expect(onOpen).toHaveBeenCalledWith(id(9)));
+    expect(createdBody).toMatchObject({ title: 'Черновик А', body: 'Текст' });
+    expect(await screen.findByText('Копия сохранена как новый черновик')).toBeTruthy();
+
+    await openMenu(user, 'Черновик А');
+    await user.click(await screen.findByRole('menuitem', { name: 'Открыть' }));
+    expect(onOpen).toHaveBeenCalledWith(id(1));
   });
 
   it('offers «Сверить результат» only for a post with an unknown publication and opens its reconciliation', async () => {
