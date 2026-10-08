@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { dateChipText, nextPublication, untilDetail, untilShort } from '../model/format';
+import { dateChipText, nextPublication, recentTime, fullTime, untilDetail, untilShort } from '../model/format';
 
 // Local-time dates keep the expectations independent of the machine's zone.
 const NOW = new Date(2026, 9, 7, 21, 5);
@@ -8,6 +8,14 @@ const at = (day: number, hour: number, minute = 0) => new Date(2026, 9, day, hou
 describe('dashboard time formats', () => {
   it('writes the date chip with minute precision and a capitalised weekday', () => {
     expect(dateChipText(NOW)).toBe('Ср, 7 окт. 2026 · 21:05');
+  });
+
+  it('writes a past time compactly: clock today, «вчера, …» yesterday, the date for older', () => {
+    expect(recentTime(at(7, 12), NOW)).toBe('12:00');
+    expect(recentTime(at(6, 18, 30), NOW)).toBe('вчера, 18:30');
+    expect(recentTime(at(6, 0, 5), NOW)).toBe('вчера, 00:05');
+    expect(recentTime(at(5, 23, 59), NOW)).toBe('5 окт.');
+    expect(fullTime(at(6, 18, 30))).toMatch(/2026.*18:30.*(GMT|UTC)/);
   });
 
   it('shortens a distance to minutes, hours or days', () => {

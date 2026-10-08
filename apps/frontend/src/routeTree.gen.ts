@@ -31,92 +31,92 @@ import { Route as SettingsChannelsRouteImport } from './routes/settings.channels
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
-  getParentRoute: () => rootRouteImport
+  getParentRoute: () => rootRouteImport,
 } as any);
 const _catalogRoute = _catalogRouteImport.update({
   id: '/__catalog',
   path: '/__catalog',
-  getParentRoute: () => rootRouteImport
+  getParentRoute: () => rootRouteImport,
 } as any);
 const _protoRoute = _protoRouteImport.update({
   id: '/__proto',
   path: '/__proto',
-  getParentRoute: () => rootRouteImport
+  getParentRoute: () => rootRouteImport,
 } as any);
 const AutomationsRoute = AutomationsRouteImport.update({
   id: '/automations',
   path: '/automations',
-  getParentRoute: () => rootRouteImport
+  getParentRoute: () => rootRouteImport,
 } as any);
 const CalendarRoute = CalendarRouteImport.update({
   id: '/calendar',
   path: '/calendar',
-  getParentRoute: () => rootRouteImport
+  getParentRoute: () => rootRouteImport,
 } as any);
 const IncidentsRoute = IncidentsRouteImport.update({
   id: '/incidents',
   path: '/incidents',
-  getParentRoute: () => rootRouteImport
+  getParentRoute: () => rootRouteImport,
 } as any);
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
   path: '/login',
-  getParentRoute: () => rootRouteImport
+  getParentRoute: () => rootRouteImport,
 } as any);
 const MediaRoute = MediaRouteImport.update({
   id: '/media',
   path: '/media',
-  getParentRoute: () => rootRouteImport
+  getParentRoute: () => rootRouteImport,
 } as any);
 const PublicationsRoute = PublicationsRouteImport.update({
   id: '/publications',
   path: '/publications',
-  getParentRoute: () => rootRouteImport
+  getParentRoute: () => rootRouteImport,
 } as any);
 const SettingsRoute = SettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
-  getParentRoute: () => rootRouteImport
+  getParentRoute: () => rootRouteImport,
 } as any);
 const _protoIndexRoute = _protoIndexRouteImport.update({
   id: '/',
   path: '/',
-  getParentRoute: () => _protoRoute
+  getParentRoute: () => _protoRoute,
 } as any);
 const _protoSplatRoute = _protoSplatRouteImport.update({
   id: '/$',
   path: '/$',
-  getParentRoute: () => _protoRoute
+  getParentRoute: () => _protoRoute,
 } as any);
 const PostsIndexRoute = PostsIndexRouteImport.update({
   id: '/posts/',
   path: '/posts/',
-  getParentRoute: () => rootRouteImport
+  getParentRoute: () => rootRouteImport,
 } as any);
 const PostsIdRoute = PostsIdRouteImport.update({
   id: '/posts/$id',
   path: '/posts/$id',
-  getParentRoute: () => rootRouteImport
+  getParentRoute: () => rootRouteImport,
 } as any);
 const PostsNewRoute = PostsNewRouteImport.update({
   id: '/posts/new',
   path: '/posts/new',
-  getParentRoute: () => rootRouteImport
+  getParentRoute: () => rootRouteImport,
 } as any);
 const SettingsIndexRoute = SettingsIndexRouteImport.update({
   id: '/',
   path: '/',
-  getParentRoute: () => SettingsRoute
+  getParentRoute: () => SettingsRoute,
 } as any);
 const SettingsAppearanceRoute = SettingsAppearanceRouteImport.update({
   id: '/appearance',
   path: '/appearance',
-  getParentRoute: () => SettingsRoute
+  getParentRoute: () => SettingsRoute,
 } as any);
 const SettingsChannelsRoute = SettingsChannelsRouteImport.update({
   id: '/channels',
   path: '/channels',
-  getParentRoute: () => SettingsRoute
+  getParentRoute: () => SettingsRoute,
 } as any);
 
 export interface FileRoutesByFullPath {
@@ -393,10 +393,11 @@ interface _protoRouteChildren {
 
 const _protoRouteChildren: _protoRouteChildren = {
   _protoSplatRoute: _protoSplatRoute,
-  _protoIndexRoute: _protoIndexRoute
+  _protoIndexRoute: _protoIndexRoute,
 };
 
-const _protoRouteWithChildren = _protoRoute._addFileChildren(_protoRouteChildren);
+const _protoRouteWithChildren =
+  _protoRoute._addFileChildren(_protoRouteChildren);
 
 interface SettingsRouteChildren {
   SettingsAppearanceRoute: typeof SettingsAppearanceRoute;
@@ -407,10 +408,12 @@ interface SettingsRouteChildren {
 const SettingsRouteChildren: SettingsRouteChildren = {
   SettingsAppearanceRoute: SettingsAppearanceRoute,
   SettingsChannelsRoute: SettingsChannelsRoute,
-  SettingsIndexRoute: SettingsIndexRoute
+  SettingsIndexRoute: SettingsIndexRoute,
 };
 
-const SettingsRouteWithChildren = SettingsRoute._addFileChildren(SettingsRouteChildren);
+const SettingsRouteWithChildren = SettingsRoute._addFileChildren(
+  SettingsRouteChildren,
+);
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
@@ -425,6 +428,8 @@ const rootRouteChildren: RootRouteChildren = {
   SettingsRoute: SettingsRouteWithChildren,
   PostsIdRoute: PostsIdRoute,
   PostsNewRoute: PostsNewRoute,
-  PostsIndexRoute: PostsIndexRoute
+  PostsIndexRoute: PostsIndexRoute,
 };
-export const routeTree = rootRouteImport._addFileChildren(rootRouteChildren)._addFileTypes<FileRouteTypes>();
+export const routeTree = rootRouteImport
+  ._addFileChildren(rootRouteChildren)
+  ._addFileTypes<FileRouteTypes>();

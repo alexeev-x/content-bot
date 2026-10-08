@@ -1,8 +1,8 @@
 import type { DashboardPublicationDto, DashboardSentDto } from '@alexeev/contracts';
 import { Link } from '@tanstack/react-router';
 import { formatClock, formatDayClock } from '../../../shared/lib/clock';
-import { Button, PanelList, PanelRow, RowCard, StatusBadge } from '../../../shared/ui';
-import { otherDay, untilShort } from '../model/format';
+import { Button, Icon, PanelList, PanelRow, RowCard, StatusBadge, VisuallyHidden } from '../../../shared/ui';
+import { fullTime, recentTime, untilShort } from '../model/format';
 import { copy } from './copy';
 import styles from './Dashboard.module.css';
 import { EmptyLine, PanelLink, RowTile, Section, SkeletonRows, TableSkeleton, TimeCell } from './DashboardPanel';
@@ -173,6 +173,16 @@ export function UpcomingPanel({ items, narrow, capacity, now, onOpenPublication,
   );
 }
 
+/** Pinned under the list so a short list does not end in a blank area. */
+function RecentFooter() {
+  return (
+    <Link to="/publications" search={{ view: 'recent' }} className={styles.recentFooter}>
+      {copy.recent.allFooter}
+      <Icon name="chevron-right" size={14} />
+    </Link>
+  );
+}
+
 type RecentProps = {
   items: readonly DashboardSentDto[] | undefined;
   narrow: boolean;
@@ -186,90 +196,91 @@ export function RecentPanel({ items, narrow, capacity, now, onOpenPublication }:
   const reserve = capacity ?? (narrow ? 2 : 5);
   const shown = items?.slice(0, reserve);
   return (
-    <Section
-      area="recent"
-      title={copy.recent.title}
-      action={<PanelLink to="/publications" search={{ view: 'recent' }} text={copy.recent.all} />}
-      rows={reserve}
-      busy={items === undefined}
-    >
+    <Section area="recent" title={copy.recent.title} rows={reserve} busy={items === undefined}>
       {shown === undefined ? (
         narrow ? (
           <SkeletonRows count={reserve} />
         ) : (
-          <TableSkeleton rows={reserve} />
+          <TableSkeleton rows={reserve} footer />
         )
       ) : shown.length === 0 ? (
         <EmptyLine text={copy.recent.empty} />
       ) : narrow ? (
-        <PanelList aria-label={copy.recent.title}>
-          {shown.map((item) => (
-            <RowCard
-              key={item.publicationId}
-              title={item.postTitle}
-              media={<RowTile size={44} />}
-              meta={<PhoneMeta status={item.status} text={formatDayClock(item.sentAt)} />}
-              onPress={() => onOpenPublication(item.publicationId)}
-            />
-          ))}
-        </PanelList>
-      ) : (
-        <table className={styles.recent} aria-label={copy.recent.title}>
-          <thead>
-            <tr>
-              <th scope="col">{copy.recent.time}</th>
-              <th scope="col">{copy.recent.post}</th>
-              <th scope="col">{copy.recent.status}</th>
-              <th scope="col" className={styles.num}>
-                {copy.recent.link}
-              </th>
-            </tr>
-          </thead>
-          <tbody>
+        <>
+          <PanelList aria-label={copy.recent.title}>
             {shown.map((item) => (
-              <tr key={item.publicationId}>
-                <td className={styles.mono}>
-                  <time dateTime={item.sentAt}>
-                    {otherDay(item.sentAt, now) ? formatDayClock(item.sentAt) : formatClock(item.sentAt)}
-                  </time>
-                </td>
-                <td>
-                  <span className={styles.recentTitle}>
-                    <RowTile size={32} />
-                    <Link
-                      to="/publications"
-                      search={{ id: item.publicationId }}
-                      className={styles.rowMain}
-                      title={`${item.postTitle} · ${item.destinationName}`}
-                    >
-                      {item.postTitle}
-                    </Link>
-                  </span>
-                </td>
-                <td>
-                  <StatusBadge status={item.status} />
-                </td>
-                <td className={styles.num}>
-                  {item.messageUrl ? (
-                    <a
-                      className={styles.external}
-                      href={item.messageUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      aria-label={`${copy.recent.openInTelegram}: «${item.postTitle}»`}
-                    >
-                      {copy.recent.openInTelegram}
-                    </a>
-                  ) : (
-                    <span className={styles.mono} title={copy.noData}>
-                      —
-                    </span>
-                  )}
-                </td>
-              </tr>
+              <RowCard
+                key={item.publicationId}
+                title={item.postTitle}
+                media={<RowTile size={44} />}
+                meta={<PhoneMeta status={item.status} text={recentTime(item.sentAt, now)} />}
+                onPress={() => onOpenPublication(item.publicationId)}
+              />
             ))}
-          </tbody>
-        </table>
+          </PanelList>
+          <RecentFooter />
+        </>
+      ) : (
+        <>
+          <table className={styles.recent} aria-label={copy.recent.title}>
+            <thead>
+              <tr>
+                <th scope="col">{copy.recent.time}</th>
+                <th scope="col">{copy.recent.post}</th>
+                <th scope="col">{copy.recent.status}</th>
+                <th scope="col" className={styles.num}>
+                  {copy.recent.link}
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {shown.map((item) => (
+                <tr key={item.publicationId}>
+                  <td className={styles.mono}>
+                    <time dateTime={item.sentAt} title={fullTime(item.sentAt)}>
+                      {recentTime(item.sentAt, now)}
+                      <VisuallyHidden>{`, ${fullTime(item.sentAt)}`}</VisuallyHidden>
+                    </time>
+                  </td>
+                  <td>
+                    <span className={styles.recentTitle}>
+                      <RowTile size={32} />
+                      <Link
+                        to="/publications"
+                        search={{ id: item.publicationId }}
+                        className={styles.rowMain}
+                        title={`${item.postTitle} · ${item.destinationName}`}
+                      >
+                        {item.postTitle}
+                      </Link>
+                    </span>
+                  </td>
+                  <td>
+                    <StatusBadge status={item.status} />
+                  </td>
+                  <td className={styles.num}>
+                    {item.messageUrl ? (
+                      <a
+                        className={styles.external}
+                        href={item.messageUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        aria-label={`${copy.recent.openInTelegram}: «${item.postTitle}»`}
+                      >
+                        {copy.recent.openInTelegram}
+                      </a>
+                    ) : (
+                      <span className={styles.mono} title={copy.noData}>
+                        —
+                      </span>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <RecentFooter />
+        </>
       )}
     </Section>
   );

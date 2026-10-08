@@ -23,7 +23,10 @@ export function DashboardSkeleton({ zoneNote = '' }: { zoneNote?: string }) {
         onNewPost: ignore,
         onOpenPosts: ignore,
         onOpenPost: ignore,
-        onAddChannel: ignore
+        onAddChannel: ignore,
+        onQuickNewPost: ignore,
+        onQuickPublish: ignore,
+        onQuickAddChannel: ignore
       }}
     />
   );

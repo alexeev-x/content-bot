@@ -28,6 +28,10 @@ export type PageBindings = {
   onOpenPosts: () => void;
   onOpenPost: (postId: string) => void;
   onAddChannel: () => void;
+  /** Quick actions do their work in place: the page opens its own dialogs (features never import each other). */
+  onQuickNewPost: () => void;
+  onQuickPublish: () => void;
+  onQuickAddChannel: () => void;
 };
 
 type Props = PageBindings & {
@@ -35,8 +39,6 @@ type Props = PageBindings & {
   /** Starts editing with the default layout / with the catalog open; absent while no revision is known. */
   onResetLayout?: () => void;
   onAddWidget?: () => void;
-  /** Quick small/large toggle of the widget headers. */
-  sizeToggle?: { onToggle: (widgetId: string) => void; pending: boolean };
   /** Shown above the grid (e.g. the layout conflict banner). */
   notice?: ReactNode;
 };
@@ -53,9 +55,11 @@ export function Dashboard({
   onOpenPosts,
   onOpenPost,
   onAddChannel,
+  onQuickNewPost,
+  onQuickPublish,
+  onQuickAddChannel,
   onResetLayout,
   onAddWidget,
-  sizeToggle,
   notice
 }: Props) {
   const wantsDay = widgets.some((widget) => readsDashboard(widget.type));
@@ -108,7 +112,6 @@ export function Dashboard({
         loading={wantsDay && query.isPending}
         banner={banner}
         zoneNote={zoneNote}
-        {...(sizeToggle ? { sizeToggle } : {})}
         env={{
           view,
           services,
@@ -117,7 +120,10 @@ export function Dashboard({
           onNewPost,
           onOpenPosts,
           onOpenPost,
-          onAddChannel
+          onAddChannel,
+          onQuickNewPost,
+          onQuickPublish,
+          onQuickAddChannel
         }}
       />
       {widgets.length === 0 ? (

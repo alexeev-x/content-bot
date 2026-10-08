@@ -76,7 +76,7 @@ export const WIDGETS: Record<DashboardWidgetType, WidgetDef> = {
     title: 'Последние публикации',
     description: 'Что ушло в каналы последним, со ссылкой в Telegram.',
     icon: 'send',
-    size: { w: 8, h: 5 },
+    size: { w: 8, h: 4 },
     min: { w: 4, h: 3 }
   },
   drafts: {
@@ -96,7 +96,7 @@ export const WIDGETS: Record<DashboardWidgetType, WidgetDef> = {
   channels: {
     title: 'Каналы',
     description: 'Подключённые каналы и состояние бота.',
-    icon: 'link',
+    icon: 'channel',
     size: { w: 4, h: 3 },
     min: { w: 3, h: 3 }
   },

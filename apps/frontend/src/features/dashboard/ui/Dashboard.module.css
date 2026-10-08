@@ -158,6 +158,7 @@
 .cell[data-area='recent'] {
   --row-h: 44px;
   --head-h: 32px;
+  --foot-h: 40px;
 }
 .cell li {
   position: relative;
@@ -173,6 +174,9 @@
 /* On a phone a widget has natural height, so the skeleton reserves its expected rows; in the grid the cell is the box. */
 .grid[data-phone] .cell[aria-busy='true'] .fill {
   min-height: calc(var(--rows) * var(--row-h) + var(--head-h));
+}
+.grid[data-phone] .cell[data-area='recent'][aria-busy='true'] .fill {
+  min-height: calc(var(--rows) * var(--row-h) + var(--head-h) + var(--foot-h));
 }
 .fill > ul {
   flex: none;
@@ -392,9 +396,11 @@
 }
 .recent th:first-child,
 .recent td:first-child {
-  /* «7 окт., 09:00» in the mono face plus the left pad: 112 px clipped the minutes. */
-  width: 136px;
+  /* «вчера, 18:30» is the longest value; the time is secondary, the freed width goes to the title. */
+  width: 96px;
+  padding-right: 0;
   padding-left: var(--space-4);
+  font-size: var(--font-size-xs);
   white-space: nowrap;
 }
 .recent th:nth-child(3),
@@ -413,6 +419,25 @@
   color: var(--color-text-muted);
   font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
+}
+.recentFooter {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-1);
+  min-height: var(--foot-h);
+  margin-top: auto;
+  padding: 0 var(--space-4);
+  border-top: 1px solid var(--color-border-subtle);
+  color: var(--color-accent-text);
+  font-size: var(--font-size-xs);
+  text-decoration: none;
+}
+.recentFooter:hover {
+  text-decoration: underline;
+}
+.skTableFoot {
+  height: var(--foot-h);
 }
 .recentTitle {
   display: flex;
@@ -652,21 +677,5 @@
   .quick {
     flex-direction: row;
     flex-wrap: wrap;
-  }
-}
-
-/* The quick size button sits at the right edge of a panel header: seen on hover and focus, always reachable. */
-.sizeToggle {
-  display: inline-flex;
-  opacity: 0;
-  transition: opacity var(--motion-fast);
-}
-.cell:hover .sizeToggle,
-.cell:focus-within .sizeToggle {
-  opacity: 1;
-}
-@media (hover: none) {
-  .sizeToggle {
-    opacity: 1;
   }
 }

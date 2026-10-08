@@ -152,6 +152,13 @@ export const postsCopy = {
     readOnly: 'Текст нельзя изменить. Чтобы вернуться к работе над постом, верните его из архива.',
     restoreFailedTitle: 'Не удалось вернуть из архива'
   },
+  quick: {
+    title: 'Новый пост',
+    description: 'Черновик сохранится без публикации.',
+    saveDraft: 'Сохранить черновик',
+    openInEditor: 'Открыть в редакторе',
+    cancel: 'Отмена'
+  },
   editor: {
     newTitle: 'Новый пост',
     untitled: 'Без названия',

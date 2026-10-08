@@ -48,7 +48,7 @@ export function ChannelCard({ collapsed }: { collapsed: boolean }) {
       data-collapsed={collapsed || undefined}
     >
       <span className={styles.avatar} data-empty={channel ? undefined : ''}>
-        <Icon name="send" size={16} />
+        <Icon name="channel" size={16} />
       </span>
       {collapsed ? null : (
         <>

@@ -42,6 +42,7 @@ export const copy = {
   recent: {
     title: 'Последние публикации',
     all: 'Все публикации',
+    allFooter: 'Все публикации',
     empty: 'Пока ничего не отправлено',
     time: 'Время',
     post: 'Пост',
@@ -99,7 +100,9 @@ export const copy = {
     title: 'Быстрые действия',
     newPost: 'Новый пост',
     publish: 'Опубликовать пост',
-    addChannel: 'Добавить канал'
+    addChannel: 'Добавить канал',
+    draftSaved: 'Черновик сохранён',
+    open: 'Открыть'
   },
   empty: {
     title: 'Обзор пуст',
@@ -111,7 +114,6 @@ export const copy = {
     retry: 'Повторить'
   },
   customize: 'Настроить',
-  size: { expand: 'Развернуть', collapse: 'Свернуть' },
   edit: {
     toolbar: 'Настройка обзора',
     done: 'Готово',

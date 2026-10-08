@@ -15,7 +15,9 @@ type Props = {
   /** Open incidents, from the incidents feature. Hidden when 0 or undefined. */
   incidentsCount?: number;
   /** Signed-in owner; the shell never reads the session itself. */
-  ownerName?: string;
+  ownerName?: string | undefined;
+  /** The owner name is still loading: the menu shows a placeholder, not «Владелец». */
+  ownerLoading?: boolean;
   /** Signs the owner out; without it the owner menu has no «Выйти». */
   onLogout?: () => void;
   /** Opens the command palette. Without it the search entry is a disabled placeholder. */
@@ -137,6 +139,7 @@ export function AppShell({
   children,
   incidentsCount = 0,
   ownerName,
+  ownerLoading = false,
   onLogout,
   onOpenSearch,
   topBarTools,
@@ -183,7 +186,7 @@ export function AppShell({
       {/* No disabled placeholder in the cramped Telegram header: search appears once it works. */}
       {onOpenSearch ? <IconButton label={ru.shell.searchPlaceholder} icon="search" onPress={onOpenSearch} /> : null}
       {topBarTools}
-      <OwnerMenu ownerName={ownerName} onLogout={onLogout} iconOnly />
+      <OwnerMenu ownerName={ownerName} onLogout={onLogout} isLoading={ownerLoading} iconOnly />
     </>
   ) : null;
 
@@ -254,7 +257,7 @@ export function AppShell({
             </AriaButton>
             <span className={styles.spacer} />
             {topBarTools}
-            <OwnerMenu ownerName={ownerName} onLogout={onLogout} />
+            <OwnerMenu ownerName={ownerName} onLogout={onLogout} isLoading={ownerLoading} />
           </header>
         )}
         <main id="main" ref={mainRef} tabIndex={-1} className={styles.main}>

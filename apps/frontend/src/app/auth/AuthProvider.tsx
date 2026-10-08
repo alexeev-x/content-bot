@@ -4,6 +4,7 @@ import { useLogout } from '../../features/auth';
 import { getAccessToken, subscribeSession } from '../../shared/api/session';
 import { AuthContext, type AuthContextValue, type AuthStatus } from './auth-context';
 import { bootstrapSession, type BootResult } from './bootstrap';
+import { clearOwnerName } from '../layouts/owner-name-cache';
 
 const hasSessionSnapshot = () => getAccessToken() !== null;
 
@@ -26,6 +27,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     let active = true;
     void (pending.current ?? run()).then((result) => {
+      // The session could not be restored: forget the remembered name so the sign-in screen shows no stale owner.
+      if (result.kind === 'done' && result.error) clearOwnerName();
       if (active) setBoot(result);
     });
     return () => {
@@ -37,7 +40,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // session's data in the cache.
   const hadSession = useRef(hasSession);
   useEffect(() => {
-    if (hadSession.current && !hasSession) queryClient.clear();
+    if (hadSession.current && !hasSession) {
+      queryClient.clear();
+      clearOwnerName();
+    }
     hadSession.current = hasSession;
   }, [hasSession, queryClient]);
 

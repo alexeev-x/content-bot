@@ -24,7 +24,8 @@ export default defineConfig(({ command }) => ({
   // Keep fonts as same-origin files instead of loosening the policy.
   build: { assetsInlineLimit: (file) => (/\.(woff2?|ttf|otf)$/.test(file) ? false : undefined) },
   plugins: [
-    tanstackRouter({ target: 'react', autoCodeSplitting: true }),
+    // Same style as the committed routeTree.gen.ts, so a build or dev run does not rewrite it.
+    tanstackRouter({ target: 'react', autoCodeSplitting: true, quoteStyle: 'single', semicolons: true }),
     react(),
     // The local D1 lives next to wrangler.jsonc, where `npm run db:migrate:local` and `npm run dev:backend` keep it.
     cloudflare({ configPath: '../backend/wrangler.jsonc', persistState: { path: '../backend/.wrangler/state' } })

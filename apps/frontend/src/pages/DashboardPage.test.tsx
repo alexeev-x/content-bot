@@ -214,12 +214,7 @@ describe('dashboard blocks', () => {
     expect(within(block).getByText('Требует проверки')).toBeTruthy();
     expect(within(block).getByText(/Telegram не ответил\. Сообщение могло уйти\./)).toBeTruthy();
     expect(screen.queryByRole('button', { name: /Повторить|Отменить|Отправить снова|Перенести/ })).toBeNull();
-    // The row action plus the header's quick size button.
-    expect(
-      within(block)
-        .getAllByRole('button')
-        .map((button) => button.getAttribute('aria-label') ?? button.textContent)
-    ).toEqual(['Свернуть: Требует внимания', 'Проверить: «Итоги недели»']);
+    expect(within(block).getAllByRole('button')).toHaveLength(1);
     expect(within(block).getByRole('link', { name: /^Все инциденты/ })).toBeTruthy();
     await user.click(within(block).getByRole('button', { name: /^Проверить/ }));
     await waitFor(() => expect(router.state.location.pathname).toBe('/publications'));
@@ -315,7 +310,11 @@ describe('dashboard blocks', () => {
     const telegramLink = within(recent).getByRole('link', { name: /Открыть в Telegram/ });
     expect(telegramLink.getAttribute('href')).toBe('https://t.me/dota_studio/4821');
     expect(telegramLink.getAttribute('rel')).toBe('noopener noreferrer');
-    expect(within(recent).getByRole('link', { name: /^Все публикации/ })).toBeTruthy();
+    expect(
+      within(recent)
+        .getByRole('link', { name: /^Все публикации/ })
+        .getAttribute('href')
+    ).toContain('view=recent');
     expect(within(recent).getAllByRole('row')).toHaveLength(3);
   });
 

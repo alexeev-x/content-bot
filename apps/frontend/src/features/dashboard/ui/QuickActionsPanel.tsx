@@ -5,22 +5,22 @@ import { Section } from './DashboardPanel';
 
 type Props = {
   onNewPost: () => void;
-  onOpenPosts: () => void;
+  onPublish: () => void;
   onAddChannel: () => void;
 };
 
 /** Three entry points; they stack in a narrow widget and sit in a row in a wide one. */
-export function QuickActionsPanel({ onNewPost, onOpenPosts, onAddChannel }: Props) {
+export function QuickActionsPanel({ onNewPost, onPublish, onAddChannel }: Props) {
   return (
     <Section area="quick-actions" title={copy.quick.title} rows={2}>
       <div className={styles.quick}>
         <Button icon="plus" onPress={onNewPost}>
           {copy.quick.newPost}
         </Button>
-        <Button variant="secondary" icon="send" onPress={onOpenPosts}>
+        <Button variant="secondary" icon="send" onPress={onPublish}>
           {copy.quick.publish}
         </Button>
-        <Button variant="secondary" icon="link" onPress={onAddChannel}>
+        <Button variant="secondary" icon="channel" onPress={onAddChannel}>
           {copy.quick.addChannel}
         </Button>
       </div>

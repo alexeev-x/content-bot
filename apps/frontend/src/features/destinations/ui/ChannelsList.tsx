@@ -50,7 +50,7 @@ export function ChannelsList({ rights, onOpen, onAdd }: Props) {
     return (
       <Panel reserveRows={3}>
         <EmptyState
-          icon="send"
+          icon="channel"
           title={copy.empty.title}
           description={copy.empty.description}
           action={

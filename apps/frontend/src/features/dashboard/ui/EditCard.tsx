@@ -4,7 +4,7 @@ import { Icon } from '../../../shared/ui';
 import { WIDGETS } from '../model/widget-catalog';
 import type { WidgetAction } from '../model/use-layout-editor';
 import { copy } from './copy';
-import { EditingContext } from './size-toggle-context';
+import { EditingContext } from './editing-context';
 import styles from './DashboardEditor.module.css';
 import { WidgetMenu } from './WidgetMenu';
 

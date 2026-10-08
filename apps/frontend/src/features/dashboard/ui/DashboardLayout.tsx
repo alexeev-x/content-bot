@@ -8,9 +8,6 @@ import styles from './Dashboard.module.css';
 import { DateChip } from './DateChip';
 import { WidgetBody } from './WidgetBody';
 import { WidgetGrid } from './WidgetGrid';
-import { SizeToggleContext } from './size-toggle-context';
-import { isSmall } from '../model/size-toggle';
-import { WIDGETS } from '../model/widget-catalog';
 import type { WidgetEnv } from './widget-env';
 
 type LayoutProps = {
@@ -21,15 +18,13 @@ type LayoutProps = {
   loading: boolean;
   banner?: ReactNode;
   zoneNote: string;
-  /** The quick size button of the widget headers (view mode on a desktop); absent in the skeleton. */
-  sizeToggle?: { onToggle: (widgetId: string) => void; pending: boolean };
 };
 
 /**
  * One layout for loading and loaded: the skeleton is this same tree without data, so nothing jumps when the
  * response arrives (docs/design/README.md §6). Each widget sits at its saved cell; on a phone they stack in order.
  */
-export function DashboardLayout({ widgets, env, loading, banner, zoneNote, sizeToggle }: LayoutProps) {
+export function DashboardLayout({ widgets, env, loading, banner, zoneNote }: LayoutProps) {
   const phone = useMediaQuery(PHONE_QUERY);
   const now = useNow();
   const full: WidgetEnv = { ...env, now, phone };
@@ -43,22 +38,7 @@ export function DashboardLayout({ widgets, env, loading, banner, zoneNote, sizeT
       {banner}
       <DateChip placement="below" zoneNote={zoneNote} />
       <WidgetGrid widgets={widgets} phone={phone} label={copy.edit.gridLabel}>
-        {(widget) => (
-          <SizeToggleContext
-            value={
-              sizeToggle && !phone && !widget.type.startsWith('kpi-')
-                ? {
-                    title: WIDGETS[widget.type].title,
-                    large: !isSmall(widget),
-                    pending: sizeToggle.pending,
-                    onToggle: () => sizeToggle.onToggle(widget.id)
-                  }
-                : null
-            }
-          >
-            <WidgetBody widget={widget} env={full} />
-          </SizeToggleContext>
-        )}
+        {(widget) => <WidgetBody widget={widget} env={full} />}
       </WidgetGrid>
     </div>
   );

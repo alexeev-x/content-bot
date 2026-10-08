@@ -16,4 +16,8 @@ export type WidgetEnv = {
   onOpenPosts: () => void;
   onOpenPost: (postId: string) => void;
   onAddChannel: () => void;
+  /** Quick actions do their work in place: the page opens its own dialogs (features never import each other). */
+  onQuickNewPost: () => void;
+  onQuickPublish: () => void;
+  onQuickAddChannel: () => void;
 };

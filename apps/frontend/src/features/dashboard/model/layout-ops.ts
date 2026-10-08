@@ -131,15 +131,6 @@ export function moveStep(
 export const move = (widgets: Widgets, id: string, direction: Direction): DashboardWidget[] =>
   moveStep(widgets, id, direction).widgets;
 
-/** Gives a widget an exact size (shifting it left to stay inside the grid); the others reflow without overlaps. */
-export function resizeTo(widgets: Widgets, id: string, size: { w: number; h: number }): DashboardWidget[] {
-  const me = widgets.find((item) => item.id === id);
-  if (!me) return [...widgets];
-  const w = Math.min(COLS, size.w);
-  const h = Math.min(DASHBOARD_WIDGET_MAX_HEIGHT, size.h);
-  return compact(replace(widgets, id, { w, h, x: Math.min(me.x, COLS - w) }));
-}
-
 /** One step of width or height within the widget's minimum and the grid. */
 export function resize(widgets: Widgets, id: string, step: ResizeStep): DashboardWidget[] {
   const me = widgets.find((item) => item.id === id);

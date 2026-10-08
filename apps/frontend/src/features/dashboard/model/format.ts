@@ -43,6 +43,29 @@ export function otherDay(iso: string, now: Date): string | undefined {
   return at >= startOfDay(now) && at < startOfDay(now, 1) ? undefined : dayMonth.format(new Date(iso));
 }
 
+const fullFormat = new Intl.DateTimeFormat(LOCALE, {
+  day: 'numeric',
+  month: 'short',
+  year: 'numeric',
+  hour: '2-digit',
+  minute: '2-digit',
+  hourCycle: 'h23',
+  timeZoneName: 'short'
+});
+
+/** Compact time of a past event: «12:00» today, «вчера, 18:30», «6 окт.» for anything older. */
+export function recentTime(iso: string, now: Date): string {
+  const at = Date.parse(iso);
+  if (at >= startOfDay(now)) return formatClock(iso);
+  if (at >= startOfDay(now, -1)) return `вчера, ${formatClock(iso)}`;
+  return dayMonth.format(new Date(iso));
+}
+
+/** «6 окт. 2026 г., 12:00 GMT+3»: the full moment with its zone, for the tooltip and the accessible text. */
+export function fullTime(iso: string): string {
+  return fullFormat.format(new Date(iso));
+}
+
 const PENDING = new Set(['scheduled', 'queued', 'retry_wait']);
 
 /** The next publication still ahead of `now`: today's rows first, then the following days. */

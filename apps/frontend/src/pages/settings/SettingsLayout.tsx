@@ -7,7 +7,7 @@ import { SectionActionsSlot } from './section-actions';
 import styles from './SettingsLayout.module.css';
 
 const SECTIONS = [
-  { to: '/settings/channels', label: ru.settings.channels, icon: 'send' },
+  { to: '/settings/channels', label: ru.settings.channels, icon: 'channel' },
   { to: '/settings/appearance', label: ru.settings.appearance, icon: 'sparkle' }
 ] as const satisfies readonly { to: string; label: string; icon: IconName }[];
 

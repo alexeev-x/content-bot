@@ -22,6 +22,7 @@ const ROW = 56;
 const CARD = 96;
 const TABLE_ROW = 44;
 const TABLE_HEAD = 32;
+const TABLE_FOOT = 40;
 
 /**
  * One widget's content. It adapts to its box: narrow = compact (cards, short labels), wide = details, and the
@@ -83,7 +84,7 @@ export function WidgetBody({ widget, env }: Props) {
         />
       );
     case 'recent': {
-      const tableRows = narrow ? rows : fit(TABLE_ROW, TABLE_HEAD);
+      const tableRows = narrow ? fit(CARD, TABLE_FOOT) : fit(TABLE_ROW, TABLE_HEAD + TABLE_FOOT);
       return (
         <RecentPanel
           items={dashboard?.recentSent}
@@ -122,7 +123,11 @@ export function WidgetBody({ widget, env }: Props) {
       return skeleton ? <IncidentsPanel summary={undefined} /> : <IncidentsWidget now={now} />;
     case 'quick-actions':
       return (
-        <QuickActionsPanel onNewPost={env.onNewPost} onOpenPosts={env.onOpenPosts} onAddChannel={env.onAddChannel} />
+        <QuickActionsPanel
+          onNewPost={env.onQuickNewPost}
+          onPublish={env.onQuickPublish}
+          onAddChannel={env.onQuickAddChannel}
+        />
       );
   }
 }

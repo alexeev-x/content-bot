@@ -7,8 +7,8 @@ export const DEFAULT_WIDGETS: readonly DashboardWidget[] = [
   { id: 'system', type: 'system', x: 8, y: 2, w: 4, h: 4 },
   { id: 'today', type: 'today', x: 0, y: 6, w: 8, h: 4 },
   { id: 'upcoming', type: 'upcoming', x: 8, y: 6, w: 4, h: 4 },
-  { id: 'recent', type: 'recent', x: 0, y: 10, w: 8, h: 5 },
+  { id: 'recent', type: 'recent', x: 0, y: 10, w: 8, h: 4 },
   { id: 'drafts', type: 'drafts', x: 8, y: 10, w: 4, h: 5 },
-  { id: 'week', type: 'week', x: 0, y: 15, w: 8, h: 3 },
+  { id: 'week', type: 'week', x: 0, y: 14, w: 8, h: 3 },
   { id: 'quick-actions', type: 'quick-actions', x: 8, y: 15, w: 4, h: 3 }
 ];

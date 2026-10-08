@@ -1,7 +1,10 @@
 import { useNavigate } from '@tanstack/react-router';
+import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
 import { useDocumentTitle } from '../app/use-document-title';
 import { useBotCheck } from '../features/bot';
+import { AddChannelDialog } from '../features/destinations';
+import { QuickPostDialog } from '../features/posts';
 import {
   Dashboard,
   DashboardEditor,
@@ -12,14 +15,16 @@ import {
   useDashboardLayout,
   useDashboardQuery,
   useLayoutEditor,
-  useSizeToggle,
+  widgetKeys,
+  dashboardKeys,
   type PageBindings,
   type ServiceRow
 } from '../features/dashboard';
 import { browserTimeZone, utcOffsetLabel } from '../features/publications';
 import { checkWord, isSwitchedOff, useServiceChecks } from '../features/system-health';
 import { ru } from '../shared/lib/ru';
-import { Banner, Button, PageHeader } from '../shared/ui';
+import { Banner, Button, PageHeader, useToast } from '../shared/ui';
+import { PublishPostDialog } from './publications/PublishPostDialog';
 
 type Props = {
   /** Test hook: dashboard poll interval in ms (production uses the 60 s default). */
@@ -31,10 +36,20 @@ const CUSTOMIZE_ID = 'dashboard-customize';
 export function DashboardPage({ pollMs }: Props) {
   useDocumentTitle(ru.pages.dashboard);
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const toast = useToast();
+  const [quick, setQuick] = useState<'post' | 'publish' | 'channel' | null>(null);
+  const closeQuick = (open: boolean) => {
+    if (!open) setQuick(null);
+  };
+  // The widgets read their own cached lists; refresh them only after the server confirmed the change.
+  const refreshWidgets = () => {
+    void queryClient.invalidateQueries({ queryKey: widgetKeys.all });
+    void queryClient.invalidateQueries({ queryKey: dashboardKeys.all });
+  };
   const layout = useDashboardLayout();
   const editor = useLayoutEditor({ current: layout.widgets, revision: layout.revision });
   // The day summary is read only while the page (or the draft being edited) has widgets that need it.
-  const sizeToggle = useSizeToggle({ current: layout.widgets, revision: layout.revision });
   const wantsDay = layout.settled && (editor.draft ?? layout.widgets).some((widget) => readsDashboard(widget.type));
   const dashboard = useDashboardQuery(pollMs, wantsDay);
   const service = useServiceChecks();
@@ -69,7 +84,10 @@ export function DashboardPage({ pollMs }: Props) {
     onNewPost: () => void navigate({ to: '/posts/new' }),
     onOpenPosts: () => void navigate({ to: '/posts' }),
     onOpenPost: (id) => void navigate({ to: '/posts/$id', params: { id } }),
-    onAddChannel: () => void navigate({ to: '/settings/channels' })
+    onAddChannel: () => void navigate({ to: '/settings/channels' }),
+    onQuickNewPost: () => setQuick('post'),
+    onQuickPublish: () => setQuick('publish'),
+    onQuickAddChannel: () => setQuick('channel')
   };
   const layoutFailed = layout.query.isError && !layout.query.data;
 
@@ -123,20 +141,6 @@ export function DashboardPage({ pollMs }: Props) {
         <Dashboard
           widgets={layout.widgets}
           {...bindings}
-          sizeToggle={{ onToggle: (id) => void sizeToggle.toggle(id), pending: sizeToggle.pending }}
-          notice={
-            sizeToggle.conflict ? (
-              <Banner
-                tone="conflict"
-                title={dashboardCopy.edit.conflictTitle}
-                action={
-                  <Button size="sm" variant="secondary" onPress={() => void sizeToggle.reload()}>
-                    {dashboardCopy.edit.reload}
-                  </Button>
-                }
-              />
-            ) : null
-          }
           {...(layout.revision === undefined
             ? {}
             : {
@@ -145,6 +149,42 @@ export function DashboardPage({ pollMs }: Props) {
               })}
         />
       )}
+      <QuickPostDialog
+        isOpen={quick === 'post'}
+        onOpenChange={closeQuick}
+        onSaved={(post) => {
+          refreshWidgets();
+          toast.show({
+            tone: 'success',
+            title: dashboardCopy.quick.draftSaved,
+            action: {
+              label: dashboardCopy.quick.open,
+              onPress: () => void navigate({ to: '/posts/$id', params: { id: post.id } })
+            }
+          });
+        }}
+        onSavedAndOpen={(post) => {
+          refreshWidgets();
+          void navigate({ to: '/posts/$id', params: { id: post.id } });
+        }}
+      />
+      <PublishPostDialog
+        isOpen={quick === 'publish'}
+        onOpenChange={closeQuick}
+        onOpenPosts={() => {
+          setQuick(null);
+          void navigate({ to: '/posts' });
+        }}
+      />
+      <AddChannelDialog
+        isOpen={quick === 'channel'}
+        onOpenChange={closeQuick}
+        onCreated={refreshWidgets}
+        onOpenExisting={(id) => {
+          setQuick(null);
+          void navigate({ to: '/settings/channels', search: { channel: id } });
+        }}
+      />
     </>
   );
 }

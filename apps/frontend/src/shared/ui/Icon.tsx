@@ -38,6 +38,8 @@ const PATHS = {
   edit: 'M4 20h4L19 9l-4-4L4 16zM13 7l4 4',
   sparkle: 'M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z',
   menu: 'M4 6h16M4 12h16M4 18h16',
+  // A broadcast channel (megaphone): kept apart from «send», which means a publication.
+  channel: 'M3 10.5v3a1 1 0 0 0 1 1h2.5L12 19V5L6.5 9.5H4a1 1 0 0 0-1 1zM15.5 9a4 4 0 0 1 0 6M18.5 6a8 8 0 0 1 0 12',
   filter: 'M4 5h16l-6 7.5V19l-4 2v-8.5z',
   link: 'M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1',
   palette:
@@ -48,8 +50,6 @@ const PATHS = {
   copy: 'M9 9h10a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H9a1 1 0 0 1-1-1V10a1 1 0 0 1 1-1zM16 9V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3',
   download: 'M12 4v11M7 11l5 5 5-5M5 20h14',
   upload: 'M12 16V5M7 9l5-5 5 5M5 20h14',
-  maximize: 'M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5',
-  minimize: 'M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5',
   grip: 'M9 5v.01M15 5v.01M9 12v.01M15 12v.01M9 19v.01M15 19v.01',
   external: 'M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5'
 } as const;

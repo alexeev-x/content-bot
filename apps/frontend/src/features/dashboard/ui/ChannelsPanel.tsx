@@ -67,7 +67,7 @@ export function ChannelsPanel({ channels, failed, onRetry, bot, capacity, onAddC
           ) : (
             shown.map((channel) => (
               <PanelRow key={channel.id}>
-                <MediaTile size={32} icon="send" />
+                <MediaTile size={32} icon="channel" />
                 <div className={styles.titleBlock}>
                   <span className={styles.rowText} title={channel.title}>
                     {channel.title}

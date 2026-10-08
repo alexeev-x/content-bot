@@ -1,4 +1,5 @@
 export { dashboardKeys, dashboardQueryOptions, DASHBOARD_POLL_MS } from './api/dashboard-queries';
+export { widgetKeys } from './api/widget-queries';
 export { dashboardLayoutKeys, dashboardLayoutQueryOptions } from './api/layout-queries';
 export { attentionRows } from './model/attention-rows';
 export type { ServiceRow } from './model/service-rows';
@@ -15,4 +16,3 @@ export { copy as dashboardCopy } from './ui/copy';
 export { DEFAULT_WIDGETS } from './model/default-layout';
 export { readCachedLayout } from './model/layout-cache';
 export { sequence } from './model/layout-ops';
-export { useSizeToggle } from './model/use-size-toggle';

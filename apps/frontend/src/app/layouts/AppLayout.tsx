@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { Navigate, Outlet, useRouterState } from '@tanstack/react-router';
+import { useEffect, useState } from 'react';
 import { useAuth } from '../auth';
 import { ApiError } from '../../shared/api/http-client';
 import { useTelegramChrome } from '../use-telegram-chrome';
@@ -11,6 +12,7 @@ import { Skeleton } from '../../shared/ui';
 import { applyAppearance, useTheme, type Appearance } from '../theme';
 import { useDocumentTitle } from '../use-document-title';
 import { AppShell } from './AppShell';
+import { readOwnerName, writeOwnerName } from './owner-name-cache';
 import { ChannelCard } from './ChannelCard';
 import styles from './AppShell.module.css';
 import { NAV_ITEMS } from './nav-items';
@@ -39,6 +41,11 @@ function SignedInLayout() {
   const pathname = useRouterState({ select: (state) => state.location.pathname });
   const auth = useAuth();
   const me = useQuery(meQueryOptions());
+  const [cachedName] = useState(readOwnerName);
+  const confirmedName = me.data?.name;
+  useEffect(() => {
+    if (confirmedName) writeOwnerName(confirmedName);
+  }, [confirmedName]);
   const incidentsCount = useOpenIncidentCount();
   useAppearanceSync(applyServerAppearance);
   // Follows the OS or Telegram scheme while the mode is «system».
@@ -52,7 +59,8 @@ function SignedInLayout() {
   return (
     <AppShell
       incidentsCount={incidentsCount}
-      ownerName={me.data?.name}
+      ownerName={me.data?.name ?? cachedName}
+      ownerLoading={me.isPending}
       onLogout={() => void auth.logout()}
       topBarTools={
         <>
@@ -81,6 +89,8 @@ function RestoringLayout({ pathname }: { pathname: string }) {
   useDocumentTitle(title);
   return (
     <AppShell
+      ownerName={readOwnerName()}
+      ownerLoading
       topBarTools={
         <>
           <Skeleton width={128} height={28} radius="var(--radius-pill)" />
