@@ -2,7 +2,7 @@
 
 Part of the master plan; status, order and the queue live in `docs/IMPLEMENTATION_PLAN.md`. Section numbers are the plan's own, so `§N` references stay valid.
 
-08.10.2026: rich Telegram editor is built. Existing saved drafts now autosave after a 1.2 s quiet period; invalid drafts do not autosave, a failed save preserves local edits and stops the retry loop until the text changes or the owner presses Retry, and 409 still requires an explicit conflict decision. The editor exposes a read-only, cursor-paginated history of immutable stored revisions. New-post creation remains explicit; autosave starts after the draft exists on the server. Useful post actions are still open.
+08.10.2026: rich Telegram editor is built. Existing saved drafts now autosave after a 1.2 s quiet period; invalid drafts do not autosave, a failed save preserves local edits and stops the retry loop until the text changes or the owner presses Retry, and 409 still requires an explicit conflict decision. The editor exposes a read-only, cursor-paginated history of immutable stored revisions. New-post creation remains explicit; autosave starts after the draft exists on the server. Useful post actions are built: open, duplicate, manual archive/restore, permanent delete under lifecycle rules and deep-links to the post's publications. Manual archive refuses scheduled/retry, in-progress or unknown publication work instead of cancelling it silently.
 
 ## 3.1 Content Studio
 
