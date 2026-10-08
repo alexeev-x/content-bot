@@ -140,12 +140,7 @@ export function PostEditor({ post, onCreated, approvedActions, aside }: Props) {
       <div ref={statusRef} tabIndex={-1} className={styles.meta}>
         <StatusBadge status={baseline?.status ?? 'draft'} />
         {baseline ? (
-          <Button
-            variant="ghost"
-            size="sm"
-            aria-label={copy.history.open}
-            onPress={() => setHistoryOpen(true)}
-          >
+          <Button variant="ghost" size="sm" aria-label={copy.history.open} onPress={() => setHistoryOpen(true)}>
             <span className="mono">{copy.revision(baseline.revision)}</span>
           </Button>
         ) : null}
@@ -266,11 +261,7 @@ export function PostEditor({ post, onCreated, approvedActions, aside }: Props) {
       </div>
 
       {baseline ? (
-        <PostRevisionHistory
-          postId={baseline.id}
-          isOpen={historyOpen}
-          onOpenChange={setHistoryOpen}
-        />
+        <PostRevisionHistory postId={baseline.id} isOpen={historyOpen} onOpenChange={setHistoryOpen} />
       ) : null}
       <CompareDialog
         isOpen={compareOpen}
