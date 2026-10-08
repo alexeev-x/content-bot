@@ -1,4 +1,11 @@
-import { apiErrorSchema, type ApiErrorDto, type PostDto, postPageSchema, postSchema } from '@alexeev/contracts';
+import {
+  apiErrorSchema,
+  type ApiErrorDto,
+  type PostDto,
+  postPageSchema,
+  postRevisionPageSchema,
+  postSchema
+} from '@alexeev/contracts';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { sha256Hex } from '../../src/platform/security/sha256';
 import { testDb } from '../helpers/db';
@@ -287,6 +294,42 @@ describe('GET /api/v1/posts/:id', () => {
   it('answers 404 for an unknown id and for a malformed one', async () => {
     await expectError(await api.request(`/api/v1/posts/${crypto.randomUUID()}`), 404, 'NOT_FOUND');
     await expectError(await api.request('/api/v1/posts/not-a-uuid'), 404, 'NOT_FOUND');
+  });
+});
+
+describe('GET /api/v1/posts/:id/revisions', () => {
+  it('returns immutable revisions newest first and paginates without duplicates', async () => {
+    const clock = fakeClock();
+    api = createApi({ clock });
+    const created = await create({ title: 'R0', body: 'zero' });
+    clock.advance(1_000);
+    await patch(created.id, { revision: 0, title: 'R1' });
+    clock.advance(1_000);
+    await patch(created.id, { revision: 1, body: 'two', entities: [] });
+
+    const firstResponse = await api.request(`/api/v1/posts/${created.id}/revisions?limit=2`);
+    expect(firstResponse.status).toBe(200);
+    const first = postRevisionPageSchema.parse(await firstResponse.json());
+    expect(first.items.map((item) => item.revision)).toEqual([2, 1]);
+    expect(first.items[0]).toMatchObject({ postId: created.id, title: 'R1', body: 'two', status: 'draft' });
+    expect(first.nextCursor).not.toBeNull();
+
+    const secondResponse = await api.request(
+      `/api/v1/posts/${created.id}/revisions?limit=2&cursor=${encodeURIComponent(first.nextCursor!)}`
+    );
+    const second = postRevisionPageSchema.parse(await secondResponse.json());
+    expect(second.items.map((item) => item.revision)).toEqual([0]);
+    expect(second.nextCursor).toBeNull();
+  });
+
+  it('answers 404 for a missing post and 400 for a malformed cursor', async () => {
+    await expectError(await api.request(`/api/v1/posts/${crypto.randomUUID()}/revisions`), 404, 'NOT_FOUND');
+    const created = await create({ title: 'T' });
+    await expectError(
+      await api.request(`/api/v1/posts/${created.id}/revisions?cursor=%21%21%21`),
+      400,
+      'VALIDATION_ERROR'
+    );
   });
 });
 
