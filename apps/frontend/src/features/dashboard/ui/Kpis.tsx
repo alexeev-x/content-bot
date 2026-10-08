@@ -16,6 +16,8 @@ type Item = {
   link?: { to: '/incidents' } | { to: '/publications'; search: { view?: 'recent' } | { id: string } };
 };
 
+export type KpiKey = 'today' | 'sent' | 'attention' | 'next';
+
 function items(view: DashboardView, now: Date): Item[] {
   const { dashboard, attentionCount, sentToday } = view;
   const next = nextPublication(dashboard.today, dashboard.upcoming, now);
@@ -91,11 +93,26 @@ function KpiSkeleton({ kpi }: { kpi: { label: string; short: string } }) {
   );
 }
 
-/** Four tiles of the same fixed height; while loading each keeps its label and swaps value and detail for skeletons. */
-export function Kpis({ view, now }: { view: DashboardView | undefined; now: Date }) {
-  const loaded = view ? items(view, now) : undefined;
+const KEYS: readonly KpiKey[] = ['today', 'sent', 'attention', 'next'];
+
+type KpisProps = {
+  view: DashboardView | undefined;
+  now: Date;
+  /** One tile (the single-KPI widgets) instead of all four. */
+  only?: KpiKey;
+};
+
+/** Four tiles filling their widget; while loading each keeps its label and swaps value and detail for skeletons. */
+export function Kpis({ view, now, only }: KpisProps) {
+  const keys = only ? [only] : KEYS;
+  const loaded = view ? items(view, now).filter((item) => keys.includes(item.key as KpiKey)) : undefined;
+  const Tag = only ? 'div' : 'section';
   return (
-    <section className={styles.kpis} aria-label={copy.kpi.label}>
+    <Tag
+      className={styles.kpis}
+      data-single={only ? '' : undefined}
+      {...(only ? {} : { 'aria-label': copy.kpi.label })}
+    >
       {loaded
         ? loaded.map((item) => {
             const link = item.link;
@@ -121,9 +138,7 @@ export function Kpis({ view, now }: { view: DashboardView | undefined; now: Date
               </Link>
             );
           })
-        : [copy.kpi.today, copy.kpi.sent, copy.kpi.attention, copy.kpi.next].map((kpi) => (
-            <KpiSkeleton key={kpi.label} kpi={kpi} />
-          ))}
-    </section>
+        : keys.map((key) => <KpiSkeleton key={key} kpi={copy.kpi[key]} />)}
+    </Tag>
   );
 }

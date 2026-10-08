@@ -1,11 +1,14 @@
 import { cleanup, render, screen } from '@testing-library/react';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { renderPage } from '../../test/render-app';
 import { clearViewport, setViewport } from '../../test/viewport';
 import { RouteSkeleton } from './RouteSkeleton';
 
 afterEach(() => {
   cleanup();
   clearViewport();
+  window.localStorage.clear();
+  vi.restoreAllMocks();
 });
 
 describe('RouteSkeleton', () => {
@@ -36,5 +39,22 @@ describe('RouteSkeleton', () => {
     render(<RouteSkeleton pathname="/posts" title="Посты" />);
     expect(screen.getByRole('list', { name: 'Список постов' })).toBeTruthy();
     expect(screen.queryByRole('grid')).toBeNull();
+  });
+
+  it('draws the cached Обзор layout, or the default without one, and asks the network for nothing', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch');
+    await renderPage(<RouteSkeleton pathname="/" title="Обзор" />);
+    expect(document.querySelector('[data-widget="kpi-summary"]')).not.toBeNull();
+    expect(document.querySelectorAll('[data-widget]')).toHaveLength(9);
+    cleanup();
+
+    const saved = { revision: 2, widgets: [{ id: 'today', type: 'today', x: 4, y: 0, w: 8, h: 4 }] };
+    window.localStorage.setItem('ui-dashboard-layout', JSON.stringify(saved));
+    await renderPage(<RouteSkeleton pathname="/" title="Обзор" />);
+    const widgets = [...document.querySelectorAll<HTMLElement>('[data-widget]')];
+    expect(widgets.map((item) => item.dataset['widget'])).toEqual(['today']);
+    expect([widgets[0]?.style.gridColumn, widgets[0]?.style.gridRow]).toEqual(['5 / span 8', '1 / span 4']);
+    expect(document.querySelector('[aria-busy="true"]')).not.toBeNull();
+    expect(fetchSpy).not.toHaveBeenCalled();
   });
 });

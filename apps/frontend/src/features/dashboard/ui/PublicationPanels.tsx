@@ -42,14 +42,16 @@ type TodayProps = {
   /** Server count of the day (capped at 100); the list shows only the first rows. */
   total: number;
   narrow: boolean;
+  /** Rows that fit the widget (the grid height); without it the phone and desktop defaults apply. */
+  capacity?: number;
   now: Date;
   onOpenPublication: Open;
   onNewPost: () => void;
 };
 
 /** Today's timeline, earliest first. A sent row says «Опубликовано» only because the server said `sent`. */
-export function TodayPanel({ items, total, narrow, now, onOpenPublication, onNewPost }: TodayProps) {
-  const reserve = narrow ? 2 : 4;
+export function TodayPanel({ items, total, narrow, capacity, now, onOpenPublication, onNewPost }: TodayProps) {
+  const reserve = capacity ?? (narrow ? 2 : 4);
   const shown = items?.slice(0, reserve);
   return (
     <Section
@@ -105,14 +107,15 @@ export function TodayPanel({ items, total, narrow, now, onOpenPublication, onNew
 type UpcomingProps = {
   items: readonly DashboardPublicationDto[] | undefined;
   narrow: boolean;
+  capacity?: number;
   now: Date;
   onOpenPublication: Open;
   onCreate: () => void;
 };
 
 /** The next publications after today, with the time left. */
-export function UpcomingPanel({ items, narrow, now, onOpenPublication, onCreate }: UpcomingProps) {
-  const reserve = narrow ? 2 : 4;
+export function UpcomingPanel({ items, narrow, capacity, now, onOpenPublication, onCreate }: UpcomingProps) {
+  const reserve = capacity ?? (narrow ? 2 : 4);
   const shown = items?.slice(0, reserve);
   return (
     <Section
@@ -173,13 +176,14 @@ export function UpcomingPanel({ items, narrow, now, onOpenPublication, onCreate 
 type RecentProps = {
   items: readonly DashboardSentDto[] | undefined;
   narrow: boolean;
+  capacity?: number;
   now: Date;
   onOpenPublication: Open;
 };
 
 /** The last sent publications; the Telegram link exists only when the server could build a public one. */
-export function RecentPanel({ items, narrow, now, onOpenPublication }: RecentProps) {
-  const reserve = narrow ? 2 : 5;
+export function RecentPanel({ items, narrow, capacity, now, onOpenPublication }: RecentProps) {
+  const reserve = capacity ?? (narrow ? 2 : 5);
   const shown = items?.slice(0, reserve);
   return (
     <Section

@@ -9,7 +9,8 @@ type Props = Omit<AriaButtonProps, 'children' | 'className' | 'isPending' | 'ari
   label: string;
   icon: IconName;
   variant?: 'ghost' | 'secondary' | 'danger';
-  size?: 'sm' | 'md';
+  /** `target` is always 44 px (edit-mode controls); `sm` is 44 px only on touch and narrow screens. */
+  size?: 'sm' | 'md' | 'target';
   isLoading?: boolean;
   showTooltip?: boolean;
   className?: string;

@@ -1,77 +1,45 @@
+import type { DashboardWidget } from '@alexeev/contracts';
 import type { ReactNode } from 'react';
-import { useMediaQuery, VisuallyHidden } from '../../../shared/ui';
+import { PHONE_QUERY } from '../model/geometry';
 import { useNow } from '../model/use-now';
-import { AttentionPanel } from './AttentionPanel';
+import { useMediaQuery, VisuallyHidden } from '../../../shared/ui';
 import { copy } from './copy';
 import styles from './Dashboard.module.css';
 import { DateChip } from './DateChip';
-import { Kpis } from './Kpis';
-import { RecentPanel, TodayPanel, UpcomingPanel } from './PublicationPanels';
-import { SystemPanel } from './SystemPanel';
-import type { DashboardView } from './view-model';
-
-/** The phone layout: the single breakpoint of the shell (tab bar, one column). */
-export const NARROW_QUERY = '(max-width: 859px)';
+import { WidgetBody } from './WidgetBody';
+import { WidgetGrid } from './WidgetGrid';
+import type { WidgetEnv } from './widget-env';
 
 type LayoutProps = {
-  /** Undefined while loading: every panel renders its header and same-height skeleton rows. */
-  view?: DashboardView;
+  widgets: readonly DashboardWidget[];
+  /** Everything the widgets need except the clock and the viewport, which the layout owns. */
+  env: Omit<WidgetEnv, 'now' | 'phone'>;
+  /** The `/dashboard` day is still loading: the root says so and its widgets draw skeletons. */
+  loading: boolean;
   banner?: ReactNode;
   zoneNote: string;
-  onOpenPublication: (publicationId: string) => void;
-  onNewPost: () => void;
-  onOpenPosts: () => void;
 };
 
 /**
  * One layout for loading and loaded: the skeleton is this same tree without data, so nothing jumps when the
- * response arrives (docs/design/README.md §6). Main row: attention and today left, system and upcoming right;
- * the last sent publications run full width below. Phone: one column in the order of the cells below.
+ * response arrives (docs/design/README.md §6). Each widget sits at its saved cell; on a phone they stack in order.
  */
-export function DashboardLayout({ view, banner, zoneNote, onOpenPublication, onNewPost, onOpenPosts }: LayoutProps) {
-  const narrow = useMediaQuery(NARROW_QUERY);
+export function DashboardLayout({ widgets, env, loading, banner, zoneNote }: LayoutProps) {
+  const phone = useMediaQuery(PHONE_QUERY);
   const now = useNow();
-  const dashboard = view?.dashboard;
+  const full: WidgetEnv = { ...env, now, phone };
   return (
-    <div className={styles.root} aria-busy={view === undefined || undefined}>
-      {view === undefined ? (
+    <div className={styles.root} aria-busy={loading || undefined}>
+      {loading ? (
         <VisuallyHidden>
           <output>{copy.loading}</output>
         </VisuallyHidden>
       ) : null}
       {banner}
       <DateChip placement="below" zoneNote={zoneNote} />
-      <Kpis view={view} now={now} />
-
-      <div className={styles.layout}>
-        <div className={styles.main}>
-          <AttentionPanel
-            rows={view?.rows}
-            total={view?.attentionCount ?? 0}
-            checking={view?.checking ?? false}
-            narrow={narrow}
-            now={now}
-            onOpenPublication={onOpenPublication}
-          />
-          <TodayPanel
-            items={dashboard?.today}
-            total={dashboard?.todayTotal ?? 0}
-            narrow={narrow}
-            now={now}
-            onOpenPublication={onOpenPublication}
-            onNewPost={onNewPost}
-          />
-          <SystemPanel services={view?.services} />
-          <UpcomingPanel
-            items={dashboard?.upcoming}
-            narrow={narrow}
-            now={now}
-            onOpenPublication={onOpenPublication}
-            onCreate={onOpenPosts}
-          />
-          <RecentPanel items={dashboard?.recentSent} narrow={narrow} now={now} onOpenPublication={onOpenPublication} />
-        </div>
-      </div>
+      <WidgetGrid widgets={widgets} phone={phone} label={copy.edit.gridLabel}>
+        {(widget) => <WidgetBody widget={widget} env={full} />}
+      </WidgetGrid>
     </div>
   );
 }

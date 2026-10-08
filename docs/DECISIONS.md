@@ -44,6 +44,7 @@ A short list of accepted decisions. An agent does not propose an alternative to 
 | 07.10.2026 | Everything is tested only in DEV; production is not prepared or released until the owner says DEV is ready | `docs/IMPLEMENTATION_PLAN.md` Phase 10 |
 | 07.10.2026 | The end goal is a server that prepares content itself. First step: Phase 1D — the server watches official Dota sources and turns a new update into a template draft with a private owner alert; it runs after Phase 1a; publishing still needs owner approval | `docs/IMPLEMENTATION_PLAN.md` Phase 1D |
 | 08.10.2026 | Admin design approved: `UX_SPEC.md` + the `/__proto` prototype are the design source; reference images removed; real pages follow the prototype; preview pages stay DEV-only | `docs/design/README.md`, `docs/design/UX_SPEC.md` |
+| 08.10.2026 | Обзор is a customizable widget grid (react-grid-layout v2 in edit mode only); layout stored server-side per owner with revision/409 | `apps/contracts/src/dashboard-layout.ts`, `docs/API_CONTRACTS.md` |
 
 ## Awaiting owner decision
 | Question | Default recommendation |

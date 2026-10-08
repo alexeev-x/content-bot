@@ -1,4 +1,4 @@
-import type { DashboardDto } from '@alexeev/contracts';
+import type { DashboardDto, DashboardWidget } from '@alexeev/contracts';
 import type { UseQueryResult } from '@tanstack/react-query';
 import { ApiError } from '../../../shared/api/http-client';
 import { classifyApiError } from '../../../shared/api/error-kind';
@@ -6,11 +6,15 @@ import type { StatusCheck } from '../../../shared/lib/status-check';
 import { Banner, Button, ErrorState } from '../../../shared/ui';
 import { attentionRows } from '../model/attention-rows';
 import type { ServiceRow } from '../model/service-rows';
+import { readsDashboard } from '../model/widget-catalog';
 import { copy } from './copy';
+import styles from './Dashboard.module.css';
 import { DashboardLayout } from './DashboardLayout';
-import { DashboardSkeleton } from './DashboardSkeleton';
+import { EmptyWidgets } from './EmptyWidgets';
+import type { WidgetEnv } from './widget-env';
 
 type Props = {
+  widgets: readonly DashboardWidget[];
   /** From `useDashboardQuery`: the page owns it, because the status strip reacts to the same data. */
   query: UseQueryResult<DashboardDto>;
   /** The system checks of the status strip; the failing ones are listed under «Требует внимания». */
@@ -22,59 +26,103 @@ type Props = {
   onOpenPublication: (publicationId: string) => void;
   onNewPost: () => void;
   onOpenPosts: () => void;
+  onOpenPost: (postId: string) => void;
+  onAddChannel: () => void;
+  /** Starts editing with the default layout / with the catalog open; absent while no revision is known. */
+  onResetLayout?: () => void;
+  onAddWidget?: () => void;
 };
 
-export function Dashboard({ query, checks, services, zoneNote, onOpenPublication, onNewPost, onOpenPosts }: Props) {
-  if (query.isPending) return <DashboardSkeleton zoneNote={zoneNote} />;
+/** The view mode: the saved widgets, with the day summary read once for all the widgets that need it. */
+export function Dashboard({
+  widgets,
+  query,
+  checks,
+  services,
+  zoneNote,
+  onOpenPublication,
+  onNewPost,
+  onOpenPosts,
+  onOpenPost,
+  onAddChannel,
+  onResetLayout,
+  onAddWidget
+}: Props) {
+  const wantsDay = widgets.some((widget) => readsDashboard(widget.type));
+  const failed = wantsDay && !query.data && !query.isPending;
+  // A failed day summary replaces only the widgets that read it, never a block of zeros; the rest stay.
+  const visible = failed ? widgets.filter((widget) => !readsDashboard(widget.type)) : widgets;
 
-  if (!query.data) {
+  let view: WidgetEnv['view'];
+  let failure = null;
+  if (query.data) {
+    const rows = attentionRows(query.data.attention, checks);
+    const problems = checks.filter((check) => check.tone === 'warning' || check.tone === 'danger').length;
+    view = {
+      dashboard: query.data,
+      rows,
+      attentionCount: Math.min(99, query.data.attentionTotal + problems),
+      checking: checks.some((check) => check.tone === 'loading'),
+      services,
+      sentToday: query.data.today.filter((item) => item.status === 'sent').length
+    };
+  } else if (failed) {
     if (classifyApiError(query.error) === 'forbidden') {
-      return <ErrorState title={copy.error.forbiddenTitle} message={copy.error.forbiddenMessage} />;
+      failure = <ErrorState title={copy.error.forbiddenTitle} message={copy.error.forbiddenMessage} />;
+    } else {
+      const requestId = query.error instanceof ApiError ? query.error.requestId : undefined;
+      failure = (
+        <ErrorState
+          title={copy.error.title}
+          message={copy.error.message}
+          {...(requestId ? { requestId } : {})}
+          onRetry={() => void query.refetch()}
+        />
+      );
     }
-    const requestId = query.error instanceof ApiError ? query.error.requestId : undefined;
-    return (
-      <ErrorState
-        title={copy.error.title}
-        message={copy.error.message}
-        {...(requestId ? { requestId } : {})}
-        onRetry={() => void query.refetch()}
-      />
-    );
   }
 
-  const data = query.data;
-  const rows = attentionRows(data.attention, checks);
-  const checking = checks.some((check) => check.tone === 'loading');
-  const problems = checks.filter((check) => check.tone === 'warning' || check.tone === 'danger').length;
-  const view = {
-    dashboard: data,
-    rows,
-    attentionCount: Math.min(99, data.attentionTotal + problems),
-    checking,
-    services,
-    sentToday: data.today.filter((item) => item.status === 'sent').length
-  };
+  const banner = (
+    <>
+      {failure ? <div className={styles.failure}>{failure}</div> : null}
+      {query.data && query.isRefetchError ? (
+        <Banner
+          tone="warning"
+          title={copy.stale.title}
+          action={
+            <Button size="sm" variant="secondary" isLoading={query.isFetching} onPress={() => void query.refetch()}>
+              {copy.stale.refresh}
+            </Button>
+          }
+        />
+      ) : null}
+    </>
+  );
 
   return (
-    <DashboardLayout
-      banner={
-        query.isRefetchError ? (
-          <Banner
-            tone="warning"
-            title={copy.stale.title}
-            action={
-              <Button size="sm" variant="secondary" isLoading={query.isFetching} onPress={() => void query.refetch()}>
-                {copy.stale.refresh}
-              </Button>
-            }
-          />
-        ) : null
-      }
-      view={view}
-      zoneNote={zoneNote}
-      onOpenPublication={onOpenPublication}
-      onNewPost={onNewPost}
-      onOpenPosts={onOpenPosts}
-    />
+    <>
+      <DashboardLayout
+        widgets={visible}
+        loading={wantsDay && query.isPending}
+        banner={banner}
+        zoneNote={zoneNote}
+        env={{
+          view,
+          services,
+          skeleton: false,
+          onOpenPublication,
+          onNewPost,
+          onOpenPosts,
+          onOpenPost,
+          onAddChannel
+        }}
+      />
+      {widgets.length === 0 ? (
+        <EmptyWidgets
+          {...(onResetLayout ? { onReset: onResetLayout } : {})}
+          {...(onAddWidget ? { onAdd: onAddWidget } : {})}
+        />
+      ) : null}
+    </>
   );
 }

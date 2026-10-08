@@ -5,10 +5,23 @@ import { formatClock } from '../../../shared/lib/clock';
 import { otherDay } from '../model/format';
 import styles from './Dashboard.module.css';
 
-export type PanelArea = 'attention' | 'today' | 'upcoming' | 'recent' | 'system';
+export type PanelArea =
+  | 'attention'
+  | 'today'
+  | 'upcoming'
+  | 'recent'
+  | 'system'
+  | 'drafts'
+  | 'week'
+  | 'channels'
+  | 'incidents'
+  | 'quick-actions';
 
 type PanelLinkProps = { text: string } & (
-  { to: '/incidents' } | { to: '/publications'; search: { view?: 'upcoming' | 'recent' } }
+  | { to: '/incidents' }
+  | { to: '/settings/channels' }
+  | { to: '/publications'; search: { view?: 'upcoming' | 'recent' } }
+  | { to: '/posts'; search: { view?: 'drafts' } }
 );
 
 /** The «Все …» link of a panel header. */
@@ -19,9 +32,16 @@ export function PanelLink(props: PanelLinkProps) {
       <Icon name="chevron-right" size={14} />
     </>
   );
-  return props.to === '/incidents' ? (
-    <Link to="/incidents">{body}</Link>
-  ) : (
+  if (props.to === '/incidents') return <Link to="/incidents">{body}</Link>;
+  if (props.to === '/settings/channels') return <Link to="/settings/channels">{body}</Link>;
+  if (props.to === '/posts') {
+    return (
+      <Link to="/posts" search={props.search}>
+        {body}
+      </Link>
+    );
+  }
+  return (
     <Link to="/publications" search={props.search}>
       {body}
     </Link>

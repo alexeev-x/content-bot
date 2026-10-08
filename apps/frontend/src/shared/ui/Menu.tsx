@@ -19,6 +19,8 @@ type Props = {
   /** With a text the trigger is a labelled button with a chevron; without it, a «more» icon button. */
   triggerText?: string;
   triggerIcon?: IconName;
+  /** Size of the icon trigger; `target` is a fixed 44 px (edit-mode controls). */
+  triggerSize?: 'sm' | 'md' | 'target';
   onAction?: (id: string) => void;
   /** Single selection renders a check (theme, view mode); `none` is a plain action menu. */
   selectionMode?: 'none' | 'single';
@@ -33,6 +35,7 @@ export function Menu({
   items,
   triggerText,
   triggerIcon = 'more',
+  triggerSize = 'md',
   onAction,
   selectionMode = 'none',
   selectedId,
@@ -49,7 +52,7 @@ export function Menu({
           <Icon name="chevron-down" size={16} />
         </Button>
       ) : (
-        <IconButton label={label} icon={triggerIcon} showTooltip={false} />
+        <IconButton label={label} icon={triggerIcon} size={triggerSize} showTooltip={false} />
       )}
       <Popover placement={placement} offset={6} className={styles.popover}>
         <AriaMenu

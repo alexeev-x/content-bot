@@ -46,6 +46,7 @@ export async function resetDb(): Promise<void> {
       'post_revisions',
       'audit_log',
       'settings',
+      'dashboard_layout',
       'bot_identity',
       'system_state',
       'webhook_updates',

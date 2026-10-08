@@ -27,7 +27,15 @@ export async function renderPage(ui: ReactNode, client = createTestQueryClient()
   const page = createRoute({ getParentRoute: () => root, path: '/', component: () => ui });
   const stub = (path: string) => createRoute({ getParentRoute: () => root, path, component: () => <p>{path}</p> });
   const router = createRouter({
-    routeTree: root.addChildren([page, stub('/incidents'), stub('/publications'), stub('/posts'), stub('/posts/new')]),
+    routeTree: root.addChildren([
+      page,
+      stub('/incidents'),
+      stub('/publications'),
+      stub('/posts'),
+      stub('/posts/new'),
+      stub('/posts/$id'),
+      stub('/settings/channels')
+    ]),
     history: createMemoryHistory({ initialEntries: ['/'] })
   });
   await router.load();

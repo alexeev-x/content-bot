@@ -31,7 +31,11 @@ export const handlers: HttpHandler[] = [
   http.post('*/api/v1/publications/:id/reschedule', () => HttpResponse.json(publication({ revision: 1 }))),
   http.post('*/api/v1/publications/:id/cancel', () =>
     HttpResponse.json(publication({ revision: 1, status: 'cancelled' }))
-  )
+  ),
+
+  // Never saved: the Обзор applies its default layout.
+  http.get('*/api/v1/settings/dashboard-layout', () => HttpResponse.json({ revision: 0, widgets: [] })),
+  http.get('*/api/v1/incidents', () => HttpResponse.json({ items: [], nextCursor: null, openCount: 0 }))
 ];
 
 export const server = setupServer(...handlers);

@@ -18,6 +18,10 @@
   width: var(--size-control-sm);
   height: var(--size-control-sm);
 }
+.button[data-size='target'] {
+  width: var(--size-target);
+  height: var(--size-target);
+}
 @media (pointer: coarse), (max-width: 859px) {
   .button[data-size='sm'] {
     width: var(--size-target);

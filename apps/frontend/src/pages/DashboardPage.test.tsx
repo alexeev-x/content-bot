@@ -121,7 +121,8 @@ describe('dashboard blocks', () => {
       })
     );
     await renderPage(<DashboardPage />);
-    await waitFor(() => expect(document.querySelectorAll('[data-area]').length).toBe(5));
+    // The default layout has eight panels with a data-area: the five former ones plus drafts, week and quick actions.
+    await waitFor(() => expect(document.querySelectorAll('[data-area]').length).toBe(8));
     const loading = reserved();
     expect(Object.values(loading).every((rows) => Number(rows) > 0)).toBe(true);
     // Every panel draws its skeleton rows while loading.

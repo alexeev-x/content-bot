@@ -200,6 +200,20 @@ describe('D1 round trips per request (session lookup included)', () => {
     expect(stale.counter.roundTrips).toBe(2); // session, read: a stale revision never reaches the write
   });
 
+  it('dashboard layout', async () => {
+    const doc = { revision: 0, widgets: [{ id: 'a', type: 'today', x: 0, y: 0, w: 6, h: 2 }] };
+    const path = '/api/v1/settings/dashboard-layout';
+    expect((await measure(path)).counter.roundTrips).toBe(2); // session, read
+
+    const first = await measure(path, { method: 'PUT', json: doc });
+    expect(first.status).toBe(200);
+    expect(first.counter).toEqual({ roundTrips: 3, statements: 4 }); // session, read, batch of 2
+
+    const stale = await measure(path, { method: 'PUT', json: doc });
+    expect(stale.status).toBe(409);
+    expect(stale.counter.roundTrips).toBe(2); // session, read: a stale revision never reaches the write
+  });
+
   it('publications', async () => {
     const created = await measure('/api/v1/publications', {
       method: 'POST',

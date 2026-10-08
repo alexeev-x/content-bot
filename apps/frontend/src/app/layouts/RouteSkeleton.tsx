@@ -76,6 +76,7 @@ export function RouteSkeleton({ pathname, title }: Props) {
           actions={
             <>
               <Skeleton width={196} height="var(--size-control)" radius="var(--radius-2)" />
+              <Skeleton width={128} height="var(--size-button)" radius="var(--radius-2)" />
               <Skeleton width={136} height="var(--size-button)" radius="var(--radius-2)" />
             </>
           }

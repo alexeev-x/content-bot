@@ -13,6 +13,8 @@ type Props = {
   /** A system check has not answered yet: the panel says so instead of «Всё под контролем». */
   checking: boolean;
   narrow: boolean;
+  /** Rows that fit the widget (the grid height); without it the phone and desktop defaults apply. */
+  capacity?: number;
   now: Date;
   onOpenPublication: (publicationId: string) => void;
 };
@@ -143,8 +145,8 @@ function PhoneRow({ view, onOpen }: { view: View; onOpen: (id: string) => void }
 }
 
 /** Unknown and failed publications, failing checks and stuck sends in severity order; one line when nothing needs a human. */
-export function AttentionPanel({ rows, total, checking, narrow, now, onOpenPublication }: Props) {
-  const reserve = narrow ? 2 : 3;
+export function AttentionPanel({ rows, total, checking, narrow, capacity, now, onOpenPublication }: Props) {
+  const reserve = capacity ?? (narrow ? 2 : 3);
   const views = rows?.slice(0, reserve).map((row) => toView(row, onOpenPublication));
   return (
     <Section

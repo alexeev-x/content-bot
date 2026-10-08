@@ -6,7 +6,12 @@ import {
 } from '../modules/content';
 import { createD1LifecycleRepository, type LifecycleRepository } from '../modules/lifecycle';
 import { createD1SessionStore, parseOwnerTelegramId, type SessionStore } from '../modules/identity';
-import { createD1SettingsRepository, type SettingsRepository } from '../modules/settings';
+import {
+  createD1DashboardLayoutRepository,
+  createD1SettingsRepository,
+  type DashboardLayoutRepository,
+  type SettingsRepository
+} from '../modules/settings';
 import { type Clock, systemClock } from '../platform/clock';
 import { createIdempotencyStore } from '../platform/idempotency/d1-idempotency-store';
 import {
@@ -60,6 +65,8 @@ export interface Container {
   lifecycle: LifecycleRepository;
   idempotency: IdempotencyGate;
   settings: SettingsRepository;
+  /** The owner's Обзор widget layout (migration 0012). */
+  dashboardLayout: DashboardLayoutRepository;
   destinations: DestinationRepository;
   publications: PublicationRepository;
   /** Incident list and acknowledgement (migrations 0005, 0010). */
@@ -165,6 +172,9 @@ export function createContainer(env: ContainerEnv, overrides: ContainerOverrides
     },
     get settings() {
       return createD1SettingsRepository(db());
+    },
+    get dashboardLayout() {
+      return createD1DashboardLayoutRepository(db());
     },
     get destinations() {
       return createD1DestinationRepository(db());

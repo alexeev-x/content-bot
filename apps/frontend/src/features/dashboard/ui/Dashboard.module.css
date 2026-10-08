@@ -27,11 +27,15 @@
   align-self: flex-start;
 }
 
-/* ===== KPI strip: 4 x 96 px (phone 2 x 88 px) ===== */
+/* ===== KPI tiles fill their widget; the strip is 4 across (a single-KPI widget is one tile, phone 2 x 88 px) ===== */
 .kpis {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: var(--space-5);
+  gap: var(--grid-gap, var(--space-4));
+  height: 100%;
+}
+.kpis[data-single] {
+  grid-template-columns: minmax(0, 1fr);
 }
 .kpi {
   position: relative;
@@ -39,8 +43,10 @@
   align-items: center;
   gap: var(--space-3);
   min-width: 0;
-  height: 96px;
+  height: 100%;
   padding: 0 var(--space-4);
+  /* A tile narrower than its content drops the secondary parts (see the container query below). */
+  container-type: inline-size;
   border: 1px solid var(--color-border-subtle);
   border-radius: var(--radius-2);
   background: var(--color-surface-1);
@@ -104,36 +110,35 @@
   opacity: 1;
 }
 
-/* ===== Layout: attention + today | system + upcoming, recent below; phone = one column in cell order ===== */
-.layout {
+/* ===== Widget grid: 12 columns, 56 px rows, 16 px gap; the geometry constants come from model/geometry.ts ===== */
+.grid {
   display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: var(--space-5);
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  grid-auto-rows: var(--dash-row);
+  gap: var(--dash-gap);
+  min-width: 0;
 }
-.main {
-  /* Panels sit in pairs so each pair shares one height and the edges line up, whatever the content. */
-  display: grid;
-  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
-  grid-template-areas:
-    'attention system'
-    'today upcoming'
-    'recent recent';
-  gap: var(--space-5);
+.item {
+  /* A widget adapts to its own width, not the viewport: tiles and rows query this container. */
+  container-type: inline-size;
+  min-width: 0;
+  min-height: 0;
 }
-.main > [data-area='attention'] {
-  grid-area: attention;
+.item > * {
+  height: 100%;
 }
-.main > [data-area='system'] {
-  grid-area: system;
+.grid[data-phone] {
+  display: flex;
+  flex-direction: column;
 }
-.main > [data-area='today'] {
-  grid-area: today;
+.grid[data-phone] > .item {
+  flex: none;
 }
-.main > [data-area='upcoming'] {
-  grid-area: upcoming;
+.grid[data-phone] > .item > * {
+  height: auto;
 }
-.main > [data-area='recent'] {
-  grid-area: recent;
+.failure {
+  min-width: 0;
 }
 .cell {
   --row-h: 56px;
@@ -141,31 +146,18 @@
   display: grid;
   min-width: 0;
 }
-.cell[data-area='system'] {
+.cell[data-area='system'],
+.cell[data-area='channels'] {
   --row-h: 48px;
 }
 /* Loaded service rows (PanelRow, 56 px by default) must match the skeleton rows. */
-.cell[data-area='system'] li {
+.cell[data-area='system'] li,
+.cell[data-area='channels'] li {
   min-height: var(--row-h);
 }
 .cell[data-area='recent'] {
   --row-h: 44px;
   --head-h: 32px;
-}
-.cell[data-area='attention'] {
-  order: 1;
-}
-.cell[data-area='today'] {
-  order: 2;
-}
-.cell[data-area='upcoming'] {
-  order: 3;
-}
-.cell[data-area='recent'] {
-  order: 4;
-}
-.cell[data-area='system'] {
-  order: 5;
 }
 .cell li {
   position: relative;
@@ -176,32 +168,24 @@
   flex: 1;
   flex-direction: column;
   min-width: 0;
+  min-height: 0;
 }
-/* Rows are reserved only while loading (skeleton = the expected rows); loaded panels fit their content. */
-.cell[aria-busy='true'] .fill {
+/* On a phone a widget has natural height, so the skeleton reserves its expected rows; in the grid the cell is the box. */
+.grid[data-phone] .cell[aria-busy='true'] .fill {
   min-height: calc(var(--rows) * var(--row-h) + var(--head-h));
 }
 .fill > ul {
   flex: none;
 }
-
-@media (max-width: 1199px) {
-  .layout {
-    display: flex;
-    flex-direction: column;
-  }
-  .main {
-    display: contents;
-  }
-  .cell {
-    flex: none;
-  }
-}
-
-@media (max-width: 1099px) {
+@container (max-width: 200px) {
   .kpiIcon,
-  .kpiChevron {
+  .kpiChevron,
+  .kpiDetail,
+  .full {
     display: none;
+  }
+  .short {
+    display: inline;
   }
 }
 
@@ -514,6 +498,9 @@
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: var(--space-3);
   }
+  .kpis[data-single] {
+    grid-template-columns: minmax(0, 1fr);
+  }
   .kpi {
     height: 88px;
     padding: 0 var(--space-3);
@@ -544,5 +531,126 @@
   }
   .cell li {
     position: static;
+  }
+}
+
+/* ===== New widgets ===== */
+.listEmpty {
+  list-style: none;
+}
+.weekBody {
+  display: grid;
+  flex: 1;
+  gap: var(--space-2);
+  align-content: center;
+  padding: var(--space-3) var(--space-4);
+}
+.week {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.weekItem {
+  min-width: 0;
+}
+.weekDay {
+  display: grid;
+  gap: 2px;
+  justify-items: center;
+  min-height: var(--size-target);
+  padding: var(--space-2) var(--space-1);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-2);
+  color: var(--color-text);
+  text-decoration: none;
+}
+.weekDay:hover {
+  border-color: var(--color-border-strong);
+}
+.weekDay:focus-visible {
+  outline: var(--focus-ring-width) solid var(--color-focus-ring);
+  outline-offset: var(--focus-ring-offset);
+}
+.weekDay[data-today] {
+  background: var(--color-accent-soft);
+}
+.weekName {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-2xs);
+  text-transform: uppercase;
+}
+.weekDate {
+  font-size: var(--font-size-xs);
+  font-variant-numeric: tabular-nums;
+}
+.weekCount {
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-semibold);
+  font-variant-numeric: tabular-nums;
+}
+.weekDay[data-empty] .weekCount {
+  color: var(--color-text-muted);
+  font-weight: var(--font-weight-regular);
+}
+.weekHint {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+}
+.incidentBody {
+  display: grid;
+  flex: 1;
+  gap: var(--space-3);
+  align-content: center;
+  padding: var(--space-3) var(--space-4);
+}
+.incidentFigures {
+  display: flex;
+  gap: var(--space-5);
+  margin: 0;
+}
+.incidentFigures dt {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+}
+.incidentFigures dd {
+  margin: 0;
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-semibold);
+  font-variant-numeric: tabular-nums;
+}
+.incidentLatest {
+  display: grid;
+  min-width: 0;
+  min-height: var(--size-target);
+  align-content: center;
+  color: inherit;
+  text-decoration: none;
+}
+.incidentLatest:hover .rowText {
+  text-decoration: underline;
+}
+.incidentLatest:focus-visible {
+  outline: var(--focus-ring-width) solid var(--color-focus-ring);
+  outline-offset: var(--focus-ring-offset);
+}
+.quick {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--space-2);
+  justify-content: center;
+  padding: var(--space-3) var(--space-4);
+}
+.quick > * {
+  justify-content: flex-start;
+}
+@container (min-width: 520px) {
+  .quick {
+    flex-direction: row;
+    flex-wrap: wrap;
   }
 }

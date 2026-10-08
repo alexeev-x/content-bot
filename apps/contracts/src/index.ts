@@ -1,6 +1,7 @@
 export * from './auth';
 export * from './bot';
 export * from './dashboard';
+export * from './dashboard-layout';
 export * from './destinations';
 export * from './errors';
 export * from './incidents';
