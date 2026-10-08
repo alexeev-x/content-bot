@@ -49,7 +49,8 @@ export const postsCopy = {
   },
   archive: {
     tableLabel: 'Архив постов',
-    note: 'Опубликованные посты хранятся здесь 30 дней, затем удаляются.',
+    note:
+      'Посты попадают сюда автоматически после завершённой отправки или вручную через действие «Архивировать». Архив хранится 30 дней, затем пост удаляется.',
     columns: { title: 'Название', channels: 'Каналы', sentAt: 'Опубликовано', left: 'Осталось' },
     noChannels: 'Нет данных о каналах',
     daysLeft: (days: number) => `Удалится через ${days} дн.`,
@@ -62,6 +63,12 @@ export const postsCopy = {
   },
   actions: {
     rowMenu: (title: string) => `Действия с постом «${title}»`,
+    open: 'Открыть',
+    duplicate: 'Дублировать',
+    archive: 'Архивировать',
+    publications: 'Открыть публикации',
+    duplicateErrorTitle: 'Не удалось создать копию',
+    duplicateErrorBody: 'Исходный пост не изменён. Повторите действие.',
     delete: 'Удалить',
     deleteBlocked: (reason: string) => `Удалить: ${reason}`,
     blockedInProgress: 'идёт отправка',
@@ -106,6 +113,7 @@ export const postsCopy = {
     deletedAll: (count: number) => `Удалено: ${count}`,
     deletedSome: (done: number, total: number, failed: number) => `Удалено: ${done} из ${total}. Не удалось: ${failed}`,
     deletedNone: (failed: number) => `Ничего не удалено. Не удалось: ${failed}`,
+    archived: 'Пост перемещён в архив',
     restored: 'Пост возвращён из архива',
     restoredAll: (count: number) => `Возвращено: ${count}`,
     restoredSome: (done: number, total: number, failed: number) =>
@@ -115,27 +123,35 @@ export const postsCopy = {
     refused: {
       NOT_FOUND: 'пост уже удалён',
       STALE_REVISION: 'пост изменился, проверьте и повторите',
+      PUBLICATION_PENDING: 'есть запланированная публикация',
       PUBLICATION_IN_PROGRESS: 'идёт отправка',
       PUBLICATION_UNKNOWN: 'нужна сверка результата',
+      ALREADY_ARCHIVED: 'пост уже в архиве',
       NOT_ARCHIVED: 'пост уже не в архиве'
     },
     notices: {
       stale: { title: 'Состояние поста изменилось', body: 'Обновили данные. Проверьте пост и повторите действие.' },
+      pending: {
+        title: 'Есть активная публикация',
+        body: 'Сначала отмените запланированную публикацию или дождитесь её завершения, затем архивируйте пост.'
+      },
       inProgress: {
         title: 'Идёт отправка',
-        body: 'Пока публикация отправляется, пост удалить нельзя. Дождитесь результата и повторите.'
+        body: 'Пока публикация отправляется, пост нельзя архивировать или удалить. Дождитесь результата и повторите.'
       },
       unknown: {
         title: 'Нужна сверка результата',
         body: 'Неизвестно, ушло ли сообщение в канал. Пока результат не сверен, пост удалить нельзя.'
       },
       notFound: { title: 'Пост уже удалён', body: 'Обновили список.' },
+      alreadyArchived: { title: 'Пост уже в архиве', body: 'Обновили данные.' },
       notArchived: { title: 'Пост уже не в архиве', body: 'Обновили данные.' },
       openPublication: 'Открыть публикацию',
       requestId: 'Идентификатор запроса'
     },
     errors: {
       deleteTitle: 'Не удалось удалить',
+      archiveTitle: 'Не удалось архивировать',
       restoreTitle: 'Не удалось вернуть из архива',
       validation: 'Сервер не принял запрос.',
       unavailable: 'Сервер сейчас недоступен.',
@@ -143,6 +159,7 @@ export const postsCopy = {
       forbidden: 'Нет доступа к этому действию.',
       generic: 'Что-то пошло не так.',
       nothingRemoved: 'Ничего не удалено.',
+      nothingArchived: 'Пост остался в текущем разделе.',
       nothingRestored: 'Ничего не изменено.'
     }
   },
