@@ -1,5 +1,6 @@
 import type { PostRevisionDto } from '@alexeev/contracts';
 import { useInfiniteQuery } from '@tanstack/react-query';
+import { useState } from 'react';
 import { ApiError } from '../../../shared/api/http-client';
 import { Button, Drawer, ErrorState, Skeleton, StatusBadge } from '../../../shared/ui';
 import { postRevisionsInfiniteQueryOptions } from '../api/posts-queries';
@@ -20,7 +21,8 @@ export function PostRevisionHistory({ postId, isOpen, onOpenChange }: Props) {
     enabled: isOpen
   });
   const revisions = result.data?.pages.flatMap((page) => page.items) ?? [];
-  const selected = revisions[0];
+  const [selectedRevision, setSelectedRevision] = useState<number | null>(null);
+  const selected = revisions.find((revision) => revision.revision === selectedRevision) ?? revisions[0];
 
   return (
     <Drawer isOpen={isOpen} onOpenChange={onOpenChange} title={postsCopy.editor.history.title}>
@@ -45,6 +47,7 @@ export function PostRevisionHistory({ postId, isOpen, onOpenChange }: Props) {
           hasNextPage={result.hasNextPage}
           isFetchingNextPage={result.isFetchingNextPage}
           onLoadMore={() => void result.fetchNextPage()}
+          onSelect={setSelectedRevision}
         />
       )}
     </Drawer>
@@ -56,22 +59,31 @@ function RevisionContent({
   selected,
   hasNextPage,
   isFetchingNextPage,
-  onLoadMore
+  onLoadMore,
+  onSelect
 }: {
   revisions: PostRevisionDto[];
   selected: PostRevisionDto | undefined;
   hasNextPage: boolean;
   isFetchingNextPage: boolean;
   onLoadMore: () => void;
+  onSelect: (revision: number) => void;
 }) {
   return (
     <div className={styles.layout}>
       <div className={styles.list} aria-label={postsCopy.editor.history.listLabel}>
         {revisions.map((revision) => (
-          <article key={revision.revision} className={styles.item} data-selected={revision === selected}>
+          <button
+            key={revision.revision}
+            type="button"
+            className={styles.item}
+            data-selected={revision === selected}
+            aria-pressed={revision === selected}
+            onClick={() => onSelect(revision.revision)}
+          >
             <strong>{postsCopy.editor.revision(revision.revision)}</strong>
             <span className={styles.itemMeta}>{formatExact(revision.createdAt)}</span>
-          </article>
+          </button>
         ))}
       </div>
       {selected ? (
