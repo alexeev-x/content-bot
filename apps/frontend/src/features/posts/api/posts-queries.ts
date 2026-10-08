@@ -11,6 +11,7 @@ import { createIdempotencyTracker } from '../../../shared/api/idempotency';
 import { nextCursor } from '../../../shared/api/query-string';
 import {
   approvePost,
+  archivePost,
   createPost,
   deletePost,
   deletePosts,
@@ -21,6 +22,7 @@ import {
   restorePosts,
   updatePost,
   type ApprovePostBody,
+  type ArchivePostBody,
   type BulkDeletePostsBody,
   type BulkRestorePostsBody,
   type CreatePostBody,
@@ -141,6 +143,15 @@ export function useBulkDeletePosts() {
         queryClient,
         result.items.filter((item) => item.outcome === 'deleted').map((item) => item.id)
       )
+  });
+}
+
+export function useArchivePost() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, input }: { id: string; input: ArchivePostBody }) => archivePost(id, input),
+    retry: false,
+    onSuccess: (post) => applyServerPost(queryClient, post)
   });
 }
 
