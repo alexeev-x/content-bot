@@ -88,11 +88,6 @@ const RESTORE_STATE = `SELECT json_extract(je.value, '$.id') AS id, po.id IS NOT
     po.archived_at IS NOT NULL AS archived
   FROM json_each(?1) je LEFT JOIN posts po ON po.id = json_extract(je.value, '$.id')`;
 
-const MANUAL_ARCHIVE_BLOCKER = `SELECT pu.id AS publication_id, j.status AS status
-  FROM publications pu JOIN jobs j ON j.publication_id = pu.id
-  WHERE pu.post_id = po.id AND j.status IN ('pending', 'retry_wait', 'claimed', 'unknown')
-  ORDER BY (j.status = 'unknown') DESC, (j.status = 'claimed') DESC, pu.scheduled_at, pu.id LIMIT 1`;
-
 const MANUAL_ARCHIVE_TARGET = `WITH target(id) AS (
   SELECT po.id FROM posts po
   WHERE po.id = ?1 AND po.revision = ?2 AND po.archived_at IS NULL
@@ -108,8 +103,14 @@ const MANUAL_ARCHIVE_POST = `${MANUAL_ARCHIVE_TARGET}
   UPDATE posts SET archived_at = ?3, updated_at = ?3 WHERE id IN (SELECT id FROM target) RETURNING id`;
 
 const MANUAL_ARCHIVE_STATE = `SELECT po.id AS id, po.revision AS revision, po.archived_at IS NOT NULL AS archived,
-    (SELECT publication_id FROM (${MANUAL_ARCHIVE_BLOCKER})) AS blocker_publication_id,
-    (SELECT status FROM (${MANUAL_ARCHIVE_BLOCKER})) AS blocker_status
+    (SELECT pu.id FROM publications pu JOIN jobs j ON j.publication_id = pu.id
+      WHERE pu.post_id = po.id AND j.status IN ('pending', 'retry_wait', 'claimed', 'unknown')
+      ORDER BY (j.status = 'unknown') DESC, (j.status = 'claimed') DESC, pu.scheduled_at, pu.id LIMIT 1)
+      AS blocker_publication_id,
+    (SELECT j.status FROM publications pu JOIN jobs j ON j.publication_id = pu.id
+      WHERE pu.post_id = po.id AND j.status IN ('pending', 'retry_wait', 'claimed', 'unknown')
+      ORDER BY (j.status = 'unknown') DESC, (j.status = 'claimed') DESC, pu.scheduled_at, pu.id LIMIT 1)
+      AS blocker_status
   FROM posts po WHERE po.id = ?1`;
 
 // Qualifies for the archive: a publication was sent after the last restore, and nothing is left to
