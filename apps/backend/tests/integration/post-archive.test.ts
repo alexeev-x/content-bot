@@ -62,6 +62,9 @@ async function list(query = ''): Promise<PostPageDto> {
   return postPageSchema.parse(await response.json());
 }
 
+const archive = (id: string, revision: number) =>
+  api.request(`/api/v1/posts/${id}/archive`, { method: 'POST', json: { revision } });
+
 const restore = (id: string, revision: number) =>
   api.request(`/api/v1/posts/${id}/restore`, { method: 'POST', json: { revision } });
 
@@ -363,6 +366,80 @@ describe('the Cron archive step', () => {
 
     await expectError(response, 409, 'CONFLICT', { reason: 'POST_ARCHIVED' });
     expect(await count('publications')).toBe(1);
+  });
+});
+
+describe('manual archive', () => {
+  it('archives a draft without changing its revision or editorial status', async () => {
+    const response = await api.request('/api/v1/posts', {
+      method: 'POST',
+      headers: { 'idempotency-key': 'manual-archive-draft' },
+      json: { title: 'Draft' }
+    });
+    expect(response.status).toBe(201);
+    const draft = postSchema.parse(await response.json());
+
+    clock.advance(MINUTE);
+    const archivedResponse = await archive(draft.id, draft.revision);
+
+    expect(archivedResponse.status).toBe(200);
+    expect(postSchema.parse(await archivedResponse.json())).toMatchObject({
+      id: draft.id,
+      status: 'draft',
+      revision: draft.revision,
+      archivedAt: isoAt(clock.now()),
+      autoDeleteAt: isoAt(clock.now() + ARCHIVE_RETENTION_MS)
+    });
+    expect(await count('audit_log', `action = 'post.archive' AND details = '{"reason":"manual"}'`)).toBe(1);
+    expect((await list()).items).toEqual([]);
+    expect((await list('?view=archive')).items.map((post) => post.id)).toEqual([draft.id]);
+  });
+
+  it('refuses a stale revision, a second archive and an unknown post', async () => {
+    const post = await seedApprovedPost(api);
+
+    await expectError(await archive(post.id, post.revision + 1), 409, 'CONFLICT', { reason: 'STALE_REVISION' });
+    expect((await archive(post.id, post.revision)).status).toBe(200);
+    await expectError(await archive(post.id, post.revision), 409, 'CONFLICT', { reason: 'ALREADY_ARCHIVED' });
+    await expectError(await archive(crypto.randomUUID(), 0), 404, 'NOT_FOUND');
+
+    expect(await count('audit_log', `action = 'post.archive' AND details = '{"reason":"manual"}'`)).toBe(1);
+  });
+
+  it('does not silently cancel a scheduled publication', async () => {
+    const post = await seedApprovedPost(api);
+    const destination = await seedDestination(api);
+    const publication = await seedPublication(api, {
+      postId: post.id,
+      revision: post.revision,
+      destinationId: destination.id,
+      scheduledAt: isoAt(START + 60 * MINUTE)
+    });
+
+    await expectError(await archive(post.id, post.revision), 409, 'CONFLICT', {
+      reason: 'PUBLICATION_PENDING',
+      publicationId: publication.id
+    });
+
+    expect((await getPost(api, post.id)).archivedAt).toBeNull();
+    expect((await jobOf(publication.id)).status).toBe('pending');
+    expect(await count('audit_log', `action = 'post.archive' AND details = '{"reason":"manual"}'`)).toBe(0);
+  });
+
+  it.each([
+    ['claimed', 'PUBLICATION_IN_PROGRESS', "status = 'claimed', lease_until = ?2", [START + 10 * MINUTE]],
+    ['unknown', 'PUBLICATION_UNKNOWN', "status = 'unknown', send_started_at = ?2", [START]]
+  ] as const)('refuses a %s publication', async (_status, reason, update, bindings) => {
+    const seeded = await seedDueJob(api);
+    await setJob(seeded.publicationId, update, ...bindings);
+    const post = await getPost(api, seeded.postId);
+
+    await expectError(await archive(post.id, post.revision), 409, 'CONFLICT', {
+      reason,
+      publicationId: seeded.publicationId
+    });
+
+    expect((await getPost(api, post.id)).archivedAt).toBeNull();
   });
 });
 
