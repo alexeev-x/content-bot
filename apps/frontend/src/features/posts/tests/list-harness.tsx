@@ -16,11 +16,21 @@ import { PostsList, type PostsView } from '../index';
 
 export const onOpen = vi.fn();
 export const onCreate = vi.fn();
+export const onOpenPublications = vi.fn();
 export const onReconcile = vi.fn();
 
 function Harness({ initialView }: { initialView: PostsView }) {
   const [view, setView] = useState<PostsView>(initialView);
-  return <PostsList view={view} onViewChange={setView} onOpen={onOpen} onCreate={onCreate} onReconcile={onReconcile} />;
+  return (
+    <PostsList
+      view={view}
+      onViewChange={setView}
+      onOpen={onOpen}
+      onCreate={onCreate}
+      onOpenPublications={onOpenPublications}
+      onReconcile={onReconcile}
+    />
+  );
 }
 
 /** The list inside a router (banners link to /publications) and the toast region. */
