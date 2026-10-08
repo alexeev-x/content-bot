@@ -25,10 +25,12 @@ import {
 } from '../../../shared/ui';
 import type { RowSelection, SelectOption } from '../../../shared/ui';
 import { ru } from '../../../shared/lib/ru';
-import { postsInfiniteQueryOptions } from '../api/posts-queries';
+import { postsInfiniteQueryOptions, useCreatePost } from '../api/posts-queries';
+import { duplicateTitle } from '../model/duplicate-title';
 import { refusalText, type LifecycleNotice } from '../model/lifecycle-notices';
 import { deleteBlockOf } from '../model/post-state';
 import { sortPosts, type PostSort, type PostSortKey, type SortDirection } from '../model/post-sort';
+import { useArchiveAction } from '../model/use-archive';
 import { useNow } from '../model/use-now';
 import { useRestoreActions } from '../model/use-restore';
 import { useSelection } from '../model/use-selection';
@@ -46,6 +48,8 @@ type Props = {
   onViewChange: (view: PostsView) => void;
   onOpen: (id: string) => void;
   onCreate: () => void;
+  /** Opens all publications of this post. */
+  onPublications: (postId: string) => void;
   /** Opens the reconciliation of this post's `unknown` publication (the page resolves which one). */
   onReconcile: (postId: string) => void;
 };
@@ -83,7 +87,7 @@ function sortOptionsFor(view: PostsView): SelectOption[] {
   ];
 }
 
-export function PostsList({ view, onViewChange, onOpen, onCreate, onReconcile }: Props) {
+export function PostsList({ view, onViewChange, onOpen, onCreate, onPublications, onReconcile }: Props) {
   const now = useNow();
   const narrow = useMediaQuery(NARROW);
   const rootRef = useRef<HTMLElement>(null);
@@ -132,6 +136,7 @@ export function PostsList({ view, onViewChange, onOpen, onCreate, onReconcile }:
   });
   const reasons = reasonState.view === view ? reasonState.map : new Map<string, Reason>();
   const [deleteTargets, setDeleteTargets] = useState<DeleteTarget[] | null>(null);
+  const duplicate = useCreatePost();
 
   const showFailures = () => {
     const id = firstFailed.current;
@@ -140,6 +145,7 @@ export function PostsList({ view, onViewChange, onOpen, onCreate, onReconcile }:
     target?.focus();
   };
   const restore = useRestoreActions({ onNotice: setNotice, onShowFailures: showFailures });
+  const archive = useArchiveAction({ onNotice: setNotice });
 
   const selectedPosts = useMemo(() => loaded.filter((post) => selection.has(post.id)), [loaded, selection]);
   const selectableRows = useMemo(
@@ -202,8 +208,38 @@ export function PostsList({ view, onViewChange, onOpen, onCreate, onReconcile }:
 
   function onAction(post: PostDto, action: RowAction) {
     setNotice(null);
+    if (action === 'publications') {
+      onPublications(post.id);
+      return;
+    }
     if (action === 'reconcile') {
       onReconcile(post.id);
+      return;
+    }
+    if (action === 'duplicate') {
+      if (duplicate.isPending) return;
+      void duplicate
+        .mutateAsync({
+          title: duplicateTitle(post.title),
+          body: post.body,
+          entities: post.entities
+        })
+        .then((created) => onOpen(created.id))
+        .catch((error) =>
+          setNotice({
+            tone: 'error',
+            title: postsCopy.actions.duplicateErrorTitle,
+            body: postsCopy.actions.duplicateErrorBody,
+            requestId: error instanceof ApiError ? error.requestId : undefined
+          })
+        );
+      return;
+    }
+    if (action === 'archive') {
+      const next = neighbourOf(post.id);
+      void archive.archiveOne(refOf(post)).then((ok) => {
+        if (ok) focusAfter.current = next;
+      });
       return;
     }
     if (action === 'delete') {
