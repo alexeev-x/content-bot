@@ -36,6 +36,7 @@ function PostsRoute() {
       onViewChange={(next) => void setSearch({ search: { view: next === 'all' ? undefined : next }, replace: true })}
       onOpen={(id) => void navigate({ to: '/posts/$id', params: { id } })}
       onCreate={() => void navigate({ to: '/posts/new' })}
+      onPublications={(post) => void navigate({ to: '/publications', search: { post } })}
       onReconcile={(post) => void reconcile(post)}
     />
   );
