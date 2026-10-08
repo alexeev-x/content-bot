@@ -62,6 +62,11 @@ export const postsCopy = {
   },
   actions: {
     rowMenu: (title: string) => `Действия с постом «${title}»`,
+    open: 'Открыть',
+    duplicate: 'Дублировать',
+    duplicateDone: 'Копия сохранена как новый черновик',
+    duplicateFailed: 'Не удалось создать копию поста',
+    openPublications: 'Открыть публикации',
     delete: 'Удалить',
     deleteBlocked: (reason: string) => `Удалить: ${reason}`,
     blockedInProgress: 'идёт отправка',
