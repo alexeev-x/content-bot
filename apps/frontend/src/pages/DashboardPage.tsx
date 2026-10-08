@@ -88,7 +88,6 @@ export function DashboardPage({ pollMs }: Props) {
                   variant="secondary"
                   icon="settings"
                   aria-label={dashboardCopy.customize}
-                  title={dashboardCopy.customize}
                   isDisabled={layout.revision === undefined}
                   onPress={() => editor.startEdit()}
                 />
