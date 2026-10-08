@@ -3,6 +3,16 @@ import { completeIdempotencyStatement, ownsClaimSql } from '../../../platform/id
 import type { ListPostsQuery, PostChange, PostRecord, PostRepository } from '../application/ports';
 import type { PostStatus } from '../domain/post';
 
+interface PostRevisionRow {
+  post_id: string;
+  revision: number;
+  title: string;
+  body: string;
+  entities: string;
+  status: PostStatus;
+  created_at: number;
+}
+
 interface PostRow {
   id: string;
   title: string;
@@ -116,6 +126,29 @@ export function createD1PostRepository(db: D1Database): PostRepository {
         .bind(postId, revision)
         .first<{ title: string; body: string; entities: string }>();
       return row === null ? null : { title: row.title, body: row.body, entities: parseEntities(row.entities) };
+    },
+
+    async listRevisions(postId, beforeRevision, limit) {
+      const before = beforeRevision ?? Number.MAX_SAFE_INTEGER;
+      const { results } = await db
+        .prepare(
+          `SELECT post_id, revision, title, body, entities, status, created_at
+           FROM post_revisions
+           WHERE post_id = ?1 AND revision < ?2
+           ORDER BY revision DESC
+           LIMIT ?3`
+        )
+        .bind(postId, before, limit)
+        .all<PostRevisionRow>();
+      return results.map((row) => ({
+        postId: row.post_id,
+        revision: row.revision,
+        title: row.title,
+        body: row.body,
+        entities: parseEntities(row.entities),
+        status: row.status,
+        createdAt: row.created_at
+      }));
     },
 
     async list(query) {
