@@ -49,6 +49,15 @@
 .panel {
   padding: 0 var(--space-3) var(--space-3);
 }
+
+/* A collapsed disclosure must have no layout box at all.
+   React Aria keeps the panel mounted for state/accessibility, so its padding otherwise leaves
+   a visible strip under the trigger even though the content itself is hidden. */
+.panel[hidden],
+.disclosure:not([data-expanded]) .panel {
+  display: none;
+  padding: 0;
+}
 @media (prefers-reduced-motion: reduce) {
   .chevron {
     transition: none;
