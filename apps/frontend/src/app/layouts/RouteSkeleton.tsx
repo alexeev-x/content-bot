@@ -1,5 +1,6 @@
 import { DashboardSkeleton } from '../../features/dashboard';
-import { browserTimeZone, utcOffsetLabel } from '../../features/publications';
+import { PostsSkeleton } from '../../features/posts';
+import { browserTimeZone, PublicationsSkeleton, utcOffsetLabel } from '../../features/publications';
 import { ru } from '../../shared/lib/ru';
 import { PageHeader, Skeleton, VisuallyHidden } from '../../shared/ui';
 import styles from './RouteSkeleton.module.css';
@@ -34,6 +35,18 @@ export function RouteSkeleton({ pathname, title }: Props) {
           }
         />
         <DashboardSkeleton zoneNote={zoneNote()} />
+      </>
+    );
+  }
+  const page = pathname.replace(/\/+$/, '');
+  if (page === '/posts' || page === '/publications') {
+    return (
+      <>
+        <PageHeader
+          title={title}
+          actions={<Skeleton width={150} height="var(--size-button)" radius="var(--radius-2)" />}
+        />
+        {page === '/posts' ? <PostsSkeleton /> : <PublicationsSkeleton />}
       </>
     );
   }
