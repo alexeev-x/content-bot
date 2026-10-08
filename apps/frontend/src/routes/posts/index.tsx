@@ -7,6 +7,7 @@ import { PostsPage } from '../../pages/posts/PostsPage';
 // The tab and the search live in the URL (back button, shareable); a broken value falls back to «Все».
 const searchSchema = z.object({
   view: z.enum(['all', 'drafts', 'archive']).optional().catch(undefined),
+  status: z.enum(['draft', 'approved', 'scheduled', 'sending', 'unknown']).optional().catch(undefined),
   q: z.string().optional().catch(undefined)
 });
 
@@ -16,7 +17,7 @@ export const Route = createFileRoute('/posts/')({
 });
 
 function PostsRoute() {
-  const { view, q } = Route.useSearch();
+  const { view, q, status } = Route.useSearch();
   const setSearch = Route.useNavigate();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -34,8 +35,15 @@ function PostsRoute() {
     <PostsPage
       view={view ?? 'all'}
       query={q ?? ''}
-      // The search text is not carried across tabs: the new tab starts unfiltered.
+      status={status ?? 'all'}
+      // The search text and the status are not carried across tabs: the new tab starts unfiltered.
       onViewChange={(next) => void setSearch({ search: { view: next === 'all' ? undefined : next }, replace: true })}
+      onStatusChange={(next) =>
+        void setSearch({
+          search: (prev) => ({ ...prev, status: next === 'all' ? undefined : (next as typeof status) }),
+          replace: true
+        })
+      }
       onQueryChange={(next) =>
         void setSearch({ search: (prev) => ({ ...prev, q: next === '' ? undefined : next }), replace: true })
       }

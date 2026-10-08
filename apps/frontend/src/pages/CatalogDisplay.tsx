@@ -6,12 +6,21 @@ import {
   DataTable,
   EmptyState,
   ErrorState,
+  Icon,
   KpiTile,
+  Panel,
+  PanelList,
+  PanelRow,
+  SearchField,
+  SegmentedControl,
+  Select,
   Skeleton,
   Spinner,
   StatusBadge,
   TelegramPreview,
   Timeline,
+  Toolbar,
+  ToolbarGrow,
   type DataColumn,
   type RowSelection,
   type StatusKey,
@@ -137,12 +146,49 @@ export function CatalogDisplay() {
         <Card title="Card title" actions={<a href="#catalog">Все</a>}>
           <p>Card content on surface-1.</p>
         </Card>
-        <EmptyState
-          icon="file"
-          title="Постов пока нет"
-          description="Создайте первый черновик, чтобы запланировать публикацию."
-          action={<Button icon="plus">Новый пост</Button>}
-        />
+        <Panel
+          title="Посты"
+          icon={<Icon name="file" size={16} />}
+          note="Europe/Moscow"
+          action={<a href="#catalog">Все</a>}
+          reserveRows={3}
+        >
+          <EmptyState
+            icon="file"
+            title="Постов пока нет"
+            description="Создайте первый черновик, чтобы запланировать публикацию."
+            action={<Button icon="plus">Новый пост</Button>}
+          />
+        </Panel>
+        <Panel title="Panel list" headingLevel={3}>
+          <PanelList>
+            <PanelRow>Row flush to the panel edges</PanelRow>
+            <PanelRow>Rows split by 1px rules</PanelRow>
+          </PanelList>
+        </Panel>
+        <Toolbar label="Filters">
+          <ToolbarGrow>
+            <SearchField label="Search" value="" onChange={() => undefined} />
+          </ToolbarGrow>
+          <Select
+            label="Status"
+            options={[
+              { id: 'all', label: 'Все' },
+              { id: 'sent', label: 'Отправлено' }
+            ]}
+            value="all"
+            onChange={() => undefined}
+          />
+          <SegmentedControl
+            label="View"
+            options={[
+              { id: 'list', label: 'Список' },
+              { id: 'cal', label: 'Календарь' }
+            ]}
+            value="list"
+            onChange={() => undefined}
+          />
+        </Toolbar>
         <ErrorState
           message="Сервер не ответил. Попробуйте ещё раз."
           requestId="req_8f3a2c1d"
@@ -188,7 +234,14 @@ export function CatalogDisplay() {
           onSelectionChange={setSelected}
           onRowAction={() => undefined}
         />
-        <DataTable aria-label="Loading publications" columns={COLUMNS} rows={[]} getRowId={(row) => row.id} isLoading />
+        <DataTable
+          aria-label="Loading publications"
+          columns={COLUMNS}
+          rows={[]}
+          getRowId={(row) => row.id}
+          isLoading
+          loadingRows={3}
+        />
         <DataTable
           aria-label="No publications"
           columns={COLUMNS}

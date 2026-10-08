@@ -4,51 +4,79 @@
   gap: var(--space-4);
   min-width: 0;
 }
+/* View tabs: an underline row. SegmentedControl is the boxed switch, so the two never look alike. */
 .list {
   display: flex;
   gap: var(--space-1);
+  max-width: 100%;
   overflow-x: auto;
   overflow-y: hidden;
   border-bottom: 1px solid var(--color-border-subtle);
+  scrollbar-width: none;
 }
 .tab {
   position: relative;
   display: inline-flex;
+  flex: none;
   align-items: center;
   gap: var(--space-2);
   min-height: var(--size-control);
-  padding: 0 var(--space-4);
+  padding: 0 var(--space-3);
+  border-radius: var(--radius-1) var(--radius-1) 0 0;
   color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
   font-weight: var(--font-weight-medium);
   white-space: nowrap;
   cursor: pointer;
   outline: none;
-  transition: color var(--motion-fast);
+  transition:
+    background-color var(--motion-fast),
+    color var(--motion-fast);
+}
+/* The selected mark sits on the list rule: 2px accent, no box. */
+.tab::after {
+  content: '';
+  position: absolute;
+  right: var(--space-2);
+  bottom: -1px;
+  left: var(--space-2);
+  height: 2px;
+  border-radius: var(--radius-pill);
+  background: transparent;
 }
 .tab[data-hovered] {
+  background: var(--color-surface-2);
   color: var(--color-text);
 }
 .tab[data-selected] {
   color: var(--color-text);
 }
 .tab[data-selected]::after {
-  content: '';
-  position: absolute;
-  right: var(--space-3);
-  bottom: -1px;
-  left: var(--space-3);
-  height: 3px;
-  border-radius: 3px 3px 0 0;
   background: var(--color-accent);
 }
 .tab[data-focus-visible] {
-  border-radius: var(--radius-1);
   outline: var(--focus-ring-width) solid var(--color-focus-ring);
   outline-offset: -2px;
 }
 .tab[data-disabled] {
+  background: none;
   color: var(--color-text-disabled);
   cursor: not-allowed;
+}
+/* A count after the label: muted pill, text carries the number. */
+.tab :global(.tab-count) {
+  min-width: 20px;
+  padding: 1px 6px;
+  border-radius: var(--radius-pill);
+  background: var(--color-surface-3);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-2xs);
+  font-weight: var(--font-weight-semibold);
+  line-height: 1.4;
+  text-align: center;
+}
+.tab[data-selected] :global(.tab-count) {
+  color: var(--color-text);
 }
 .panel {
   outline: none;

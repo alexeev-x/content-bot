@@ -5,8 +5,10 @@ import { useDocumentTitle } from './use-document-title';
 type Props = {
   view: PostsView;
   query: string;
+  status: string;
   onViewChange: (view: PostsView) => void;
   onQueryChange: (query: string) => void;
+  onStatusChange: (status: string) => void;
   onOpen: (id: string) => void;
   onCreate: () => void;
   onReconcile: (postId: string) => void;
@@ -18,7 +20,6 @@ export function PostsPage({ onCreate, ...list }: Props) {
     <>
       <PageHeader
         title={postsCopy.list.title}
-        description={postsCopy.list.description}
         actions={
           <Button icon="plus" onPress={onCreate}>
             {postsCopy.list.create}

@@ -39,7 +39,7 @@ describe('posts list states', () => {
     renderList();
     await waitFor(() => expect(document.querySelector('[aria-busy="true"]')).toBeTruthy());
     await screen.findByText('Герой дня');
-    const table = screen.getByRole('table', { name: 'Список постов' });
+    const table = screen.getByRole('grid', { name: 'Список постов' });
     expect(within(table).getByText('Герой дня')).toBeTruthy();
     expect(within(table).getByText('Длинный текст про героя')).toBeTruthy();
     expect(within(table).getByText('Текст не заполнен')).toBeTruthy();
@@ -58,14 +58,14 @@ describe('posts list states', () => {
     await screen.findByText('Герой дня');
     const list = screen.getByRole('list', { name: 'Список постов' });
     expect(within(list).getByText('Черновик')).toBeTruthy();
-    expect(within(list).getByRole('button', { name: 'Герой дня' })).toBeTruthy();
+    expect(within(list).getByRole('button', { name: /^Герой дня/ })).toBeTruthy();
     expect(within(list).queryByText('ред. 4')).toBeNull();
   });
 
   it('opens a post from its row with the keyboard', async () => {
     const user = userEvent.setup();
     renderList();
-    const open = await screen.findByRole('button', { name: 'Заголовок' });
+    const open = await screen.findByRole('row', { name: /Заголовок/ });
     open.focus();
     await user.keyboard('{Enter}');
     expect(onOpen).toHaveBeenCalledWith(ids.post);
@@ -110,7 +110,7 @@ describe('filter, search and pagination', () => {
       })
     );
     renderList();
-    await screen.findByRole('table', { name: 'Список постов' });
+    await screen.findByRole('grid', { name: 'Список постов' });
     await user.click(screen.getByRole('tab', { name: 'Черновики' }));
     expect(await screen.findByText('Нет постов с такими условиями')).toBeTruthy();
     expect(requests).toEqual(['live/null', 'live/draft']);
@@ -134,13 +134,15 @@ describe('filter, search and pagination', () => {
     );
     renderList();
     await screen.findByText('Альфа');
-    await user.type(screen.getByRole('searchbox', { name: 'Поиск по загруженным постам' }), 'бет');
+    await user.click(screen.getByRole('button', { name: 'Поиск по постам' }));
+    await user.type(await screen.findByRole('searchbox', { name: 'Название или текст' }), 'бет');
+    await user.click(document.body);
     expect(screen.queryByText('Альфа')).toBeNull();
     expect(screen.getByText('Бета')).toBeTruthy();
-    expect(screen.getByText('Поиск идёт только по уже загруженным постам.')).toBeTruthy();
+    expect(screen.getByText(/Поиск идёт только по уже загруженным постам\./)).toBeTruthy();
     await user.click(screen.getByRole('button', { name: 'Показать ещё' }));
     await waitFor(() => expect(cursors).toEqual([null, 'c2']));
-    expect(await screen.findByText('Загружено постов: 3')).toBeTruthy();
+    expect(await screen.findByText('Загружено 3 из 3')).toBeTruthy();
   });
 });
 

@@ -76,8 +76,17 @@ async function renderDashboard(pollMs?: number) {
   return view;
 }
 
+/** Rows each panel reserves: the `--rows` of its body (skeleton and loaded share it). */
+const reserved = () =>
+  Object.fromEntries(
+    [...document.querySelectorAll<HTMLElement>('[data-area]')].map((cell) => [
+      cell.dataset['area'],
+      (cell.querySelector('[style*="--rows"]') as HTMLElement | null)?.style.getPropertyValue('--rows')
+    ])
+  );
+
 describe('dashboard blocks', () => {
-  it('shows a busy skeleton per block first, then today as a timeline with labels, zone and offset', async () => {
+  it('shows a busy skeleton per block first, then today as a timeline with times, status labels and the zone in the date chip', async () => {
     serveDashboard(
       dashboard({
         today: [sentRow(), todayRow()],
@@ -95,8 +104,86 @@ describe('dashboard blocks', () => {
     expect(rows[0]?.textContent).toContain('Опубликовано');
     expect(rows[1]?.textContent).toContain('18:00');
     expect(rows[1]?.textContent).toContain('Запланировано');
-    expect(within(today).getByText('Europe/Chisinau, UTC+3')).toBeTruthy();
-    expect(document.querySelector('[aria-busy="true"]')).toBeNull();
+    // The scheduled row never claims «Опубликовано»: only the server's `sent` does.
+    expect(rows[1]?.textContent).not.toContain('Опубликовано');
+    expect(document.querySelector('[title="Europe/Chisinau, UTC+3"]')).not.toBeNull();
+  });
+
+  it('skeleton panels reserve the same rows as the loaded panels, so nothing jumps when the data arrives', async () => {
+    const gate = { resolve: () => {}, promise: Promise.resolve() };
+    gate.promise = new Promise<void>((resolve) => {
+      gate.resolve = resolve;
+    });
+    server.use(
+      http.get('*/api/v1/dashboard', async () => {
+        await gate.promise;
+        return HttpResponse.json(dashboard({ today: [todayRow()], todayTotal: 1 }));
+      })
+    );
+    await renderPage(<DashboardPage />);
+    await waitFor(() => expect(document.querySelectorAll('[data-area]').length).toBe(5));
+    const loading = reserved();
+    expect(Object.values(loading).every((rows) => Number(rows) > 0)).toBe(true);
+    // Every panel draws its skeleton rows while loading.
+    expect(document.querySelectorAll('[data-area="today"] [aria-hidden="true"] li').length).toBe(
+      Number(loading['today'])
+    );
+    gate.resolve();
+    await screen.findByText('Вечерний разбор');
+    expect(reserved()).toEqual(loading);
+  });
+
+  it('on a phone every list reserves and shows at most two rows, with phone cards instead of a table', async () => {
+    setViewport(375);
+    serveDashboard(
+      dashboard({
+        today: [
+          todayRow(),
+          todayRow({ publicationId: dash.pubSent, postTitle: 'Второй' }),
+          todayRow({ publicationId: dash.pubFailed, postTitle: 'Третий' })
+        ],
+        todayTotal: 3,
+        recentSent: [sentRow(), sentRow({ publicationId: dash.pubLater }), sentRow({ publicationId: dash.pubFailed })]
+      })
+    );
+    const user = userEvent.setup();
+    const { router } = await renderDashboard();
+    const today = await screen.findByRole('region', { name: 'Сегодня' });
+    expect(within(today).getAllByRole('listitem')).toHaveLength(2);
+    const recent = screen.getByRole('region', { name: 'Последние публикации' });
+    expect(within(recent).queryByRole('table')).toBeNull();
+    expect(within(recent).getAllByRole('listitem')).toHaveLength(2);
+    await user.click(within(today).getByRole('button', { name: /Вечерний разбор/ }));
+    await waitFor(() => expect(router.state.location.pathname).toBe('/publications'));
+  });
+
+  it('shows four KPI values: day total, sent, attention and the next pending publication with its own link', async () => {
+    const soon = new Date(Date.now() + 3 * 3_600_000).toISOString();
+    serveDashboard(
+      dashboard({
+        today: [sentRow(), todayRow({ scheduledAt: soon })],
+        todayTotal: 2,
+        attention: [unknownAttention()],
+        attentionTotal: 1
+      })
+    );
+    await renderDashboard();
+    const kpis = within(await screen.findByRole('region', { name: 'Сводка' }));
+    expect(kpis.getByRole('link', { name: /Публикации сегодня.*2/ })).toBeTruthy();
+    expect(kpis.getByRole('link', { name: /Отправлено в каналы.*1/ })).toBeTruthy();
+    expect(kpis.getByRole('link', { name: /Требует внимания.*1/ })).toBeTruthy();
+    const next = kpis.getByRole('link', { name: /Ближайшая публикация/ });
+    expect(next.textContent).toMatch(/\d{2}:\d{2}/);
+    expect(next.textContent).toContain('Через');
+    expect(next.getAttribute('href')).toContain(`id=${dash.pubLater}`);
+  });
+
+  it('a KPI without data shows a dash and is not a link', async () => {
+    serveDashboard(dashboard());
+    await renderDashboard();
+    const kpis = within(await screen.findByRole('region', { name: 'Сводка' }));
+    expect(kpis.queryByRole('link', { name: /Ближайшая публикация/ })).toBeNull();
+    expect(kpis.getByText('Нет запланированных')).toBeTruthy();
   });
 
   it('asks for the local day: from and to are local midnights', async () => {
@@ -110,11 +197,12 @@ describe('dashboard blocks', () => {
     expect(to.getTime() - from.getTime()).toBeLessThanOrEqual(25 * 3_600_000);
   });
 
-  it('«Все инциденты» carries the server total, so rows hidden beyond the first five are visible as a number', async () => {
+  it('the attention count carries the server total, so rows hidden beyond the listed ones are visible as a number', async () => {
     serveDashboard(dashboard({ attention: [unknownAttention()], attentionTotal: 99 }));
     await renderDashboard();
     const block = await screen.findByRole('region', { name: 'Требует внимания' });
-    expect(within(block).getByRole('link', { name: 'Все инциденты (99+)' })).toBeTruthy();
+    expect(within(block).getByText('99+')).toBeTruthy();
+    expect(within(block).getByRole('link', { name: /^Все инциденты/ })).toBeTruthy();
   });
 
   it('lists an unknown publication under «Требует внимания» with only «Проверить», which opens the drawer link', async () => {
@@ -123,9 +211,10 @@ describe('dashboard blocks', () => {
     const { router } = await renderDashboard();
     const block = await screen.findByRole('region', { name: 'Требует внимания' });
     expect(within(block).getByText('Требует проверки')).toBeTruthy();
-    expect(within(block).getByText('Возможен дубль при повторной отправке')).toBeTruthy();
-    expect(screen.queryByRole('button', { name: /Повторить|Отменить|Отправить снова/ })).toBeNull();
-    expect(within(block).getByRole('link', { name: 'Все инциденты (1)' })).toBeTruthy();
+    expect(within(block).getByText(/Telegram не ответил\. Сообщение могло уйти\./)).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /Повторить|Отменить|Отправить снова|Перенести/ })).toBeNull();
+    expect(within(block).getAllByRole('button')).toHaveLength(1);
+    expect(within(block).getByRole('link', { name: /^Все инциденты/ })).toBeTruthy();
     await user.click(within(block).getByRole('button', { name: /^Проверить/ }));
     await waitFor(() => expect(router.state.location.pathname).toBe('/publications'));
     expect(router.state.location.search).toMatchObject({ id: dash.pubUnknown });
@@ -184,23 +273,26 @@ describe('dashboard blocks', () => {
     expect(within(block).queryByRole('list')).toBeNull();
   });
 
-  it('offers «Запланировать» when nothing is planned today; an empty side block says so', async () => {
+  it('offers «Новый пост» when nothing is planned today; an empty side block says so and points to the posts', async () => {
     serveDashboard(dashboard({ recentSent: [sentRow()] }));
     const user = userEvent.setup();
     const { router } = await renderDashboard();
     const today = await screen.findByRole('region', { name: 'Сегодня' });
-    expect(within(today).getByText('На сегодня ничего не запланировано')).toBeTruthy();
+    expect(within(today).getByText('На сегодня публикаций нет')).toBeTruthy();
     const upcoming = screen.getByRole('region', { name: 'Ближайшие' });
-    expect(within(upcoming).getByText('Дальше ничего не запланировано')).toBeTruthy();
+    expect(within(upcoming).getByText('Ничего не запланировано')).toBeTruthy();
     expect(within(upcoming).queryByRole('list')).toBeNull();
-    await user.click(within(today).getByRole('button', { name: 'Запланировать' }));
+    await user.click(within(upcoming).getByRole('button', { name: 'Опубликовать пост' }));
     await waitFor(() => expect(router.state.location.pathname).toBe('/posts'));
   });
 
-  it('shows «Показать все» only when today holds more than the listed rows', async () => {
-    serveDashboard(dashboard({ today: [todayRow()], todayTotal: 12 }));
+  it('opens the publication from a row link; the count chip shows 100+ for a capped day', async () => {
+    serveDashboard(dashboard({ today: [todayRow()], todayTotal: 100 }));
     await renderDashboard();
-    expect(await screen.findByRole('link', { name: 'Показать все' })).toBeTruthy();
+    const today = await screen.findByRole('region', { name: 'Сегодня' });
+    expect(within(today).getByText('100+')).toBeTruthy();
+    const row = within(today).getByRole('link', { name: /Вечерний разбор/ });
+    expect(row.getAttribute('href')).toContain(`id=${dash.pubLater}`);
   });
 
   it('links to Telegram only for a sent publication that has a public message url', async () => {
@@ -213,24 +305,37 @@ describe('dashboard blocks', () => {
       })
     );
     await renderDashboard();
-    const recent = await screen.findByRole('region', { name: 'Недавно отправлено' });
+    const recent = await screen.findByRole('region', { name: 'Последние публикации' });
     const telegramLink = within(recent).getByRole('link', { name: /Открыть в Telegram/ });
     expect(telegramLink.getAttribute('href')).toBe('https://t.me/dota_studio/4821');
     expect(telegramLink.getAttribute('rel')).toBe('noopener noreferrer');
-    expect(within(recent).getByRole('link', { name: 'Все публикации' })).toBeTruthy();
+    expect(within(recent).getByRole('link', { name: /^Все публикации/ })).toBeTruthy();
+    expect(within(recent).getAllByRole('row')).toHaveLength(3);
   });
 
-  it('a new install keeps all four blocks, each with its own empty line, so the page never changes shape', async () => {
+  it('a new install keeps every panel with its own empty line, so the page never changes shape', async () => {
     serveDashboard(dashboard());
     const user = userEvent.setup();
     const { router } = await renderDashboard();
     const upcoming = await screen.findByRole('region', { name: 'Ближайшие' });
-    expect(within(upcoming).getByText('Дальше ничего не запланировано')).toBeTruthy();
-    const recent = screen.getByRole('region', { name: 'Недавно отправлено' });
+    expect(within(upcoming).getByText('Ничего не запланировано')).toBeTruthy();
+    const recent = screen.getByRole('region', { name: 'Последние публикации' });
     expect(within(recent).getByText('Пока ничего не отправлено')).toBeTruthy();
+    expect(screen.getByRole('region', { name: 'Система' })).toBeTruthy();
     expect(screen.getByRole('region', { name: 'Требует внимания' })).toBeTruthy();
-    await user.click(screen.getByRole('button', { name: 'Запланировать' }));
-    await waitFor(() => expect(router.state.location.pathname).toBe('/posts'));
+    const today = screen.getByRole('region', { name: 'Сегодня' });
+    await user.click(within(today).getByRole('button', { name: 'Новый пост' }));
+    await waitFor(() => expect(router.state.location.pathname).toBe('/posts/new'));
+  });
+
+  it('«Система» lists one line per real check with one word and no invented latency', async () => {
+    serveDashboard(dashboard());
+    await renderDashboard();
+    const system = await screen.findByRole('region', { name: 'Система' });
+    await waitFor(() => expect(within(system).getAllByRole('listitem')).toHaveLength(3));
+    const rows = within(system).getAllByRole('listitem');
+    expect(rows.map((row) => row.textContent)).toEqual(['СервисРаботает', 'ПубликацияОтключена', 'БотРаботает']);
+    expect(system.textContent).not.toMatch(/мс|ms/);
   });
 });
 

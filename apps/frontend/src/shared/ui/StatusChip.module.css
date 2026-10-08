@@ -71,3 +71,25 @@
 .chip[aria-expanded='true'] .chevron {
   transform: rotate(180deg);
 }
+
+/* Phone top bar: only the dot or icon stays visible; the text remains the accessible name. */
+@media (max-width: 519px) {
+  .chip {
+    justify-content: center;
+    width: var(--size-target);
+    height: var(--size-target);
+    padding: 0;
+  }
+  .label,
+  .time {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+  }
+  .chevron {
+    display: none;
+  }
+}

@@ -1,5 +1,5 @@
 import type { IncidentKind, IncidentState } from '@alexeev/contracts';
-import { SegmentedControl, type SegmentOption } from '../../../shared/ui';
+import { SegmentedControl, Toolbar, type SegmentOption } from '../../../shared/ui';
 import { copy } from './copy';
 import styles from './Incidents.module.css';
 
@@ -25,7 +25,7 @@ const isKind = (id: string): id is IncidentKind => id === 'publish_unknown' || i
 
 export function IncidentFilters({ state, kind, onStateChange, onKindChange }: Props) {
   return (
-    <div className={styles.filters}>
+    <Toolbar label={copy.filters.group}>
       <SegmentedControl
         label={copy.filters.state}
         options={STATE_OPTIONS}
@@ -44,6 +44,6 @@ export function IncidentFilters({ state, kind, onStateChange, onKindChange }: Pr
           onChange={(id) => onKindChange(isKind(id) ? id : undefined)}
         />
       </div>
-    </div>
+    </Toolbar>
   );
 }

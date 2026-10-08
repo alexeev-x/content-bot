@@ -1,92 +1,80 @@
-import type { DashboardDto } from '@alexeev/contracts';
 import type { ReactNode } from 'react';
-import { VisuallyHidden } from '../../../shared/ui';
-import type { AttentionRow } from '../model/attention-rows';
-import { AttentionBlock } from './AttentionBlock';
+import { useMediaQuery, VisuallyHidden } from '../../../shared/ui';
+import { useNow } from '../model/use-now';
+import { AttentionPanel } from './AttentionPanel';
 import { copy } from './copy';
 import styles from './Dashboard.module.css';
-import { AnalyticsPreview, DotaPulsePreview, WatchlistPreview } from './PreviewBlocks';
-import { RecentSentBlock, UpcomingBlock } from './SideBlocks';
-import { SummaryCards } from './SummaryCards';
-import { TodayBlock } from './TodayBlock';
+import { DateChip } from './DateChip';
+import { Kpis } from './Kpis';
+import { RecentPanel, TodayPanel, UpcomingPanel } from './PublicationPanels';
+import { SystemPanel } from './SystemPanel';
+import type { DashboardView } from './view-model';
 
-type Loaded = { dashboard: DashboardDto; rows: readonly AttentionRow[]; checking: boolean; nextLabel: string };
+/** The phone layout: the single breakpoint of the shell (tab bar, one column). */
+export const NARROW_QUERY = '(max-width: 859px)';
 
 type LayoutProps = {
   /** Undefined while loading: every panel renders its header and same-height skeleton rows. */
-  data?: Loaded;
+  view?: DashboardView;
   banner?: ReactNode;
   zoneNote: string;
   onOpenPublication: (publicationId: string) => void;
-  onSchedule: () => void;
+  onNewPost: () => void;
+  onOpenPosts: () => void;
 };
 
 /**
  * One layout for loading and loaded: the skeleton is this same tree without data, so nothing jumps when the
- * response arrives (docs/design/README.md §6).
+ * response arrives (docs/design/README.md §6). Main row: attention and today left, system and upcoming right;
+ * the last sent publications run full width below. Phone: one column in the order of the cells below.
  */
-export function DashboardLayout({ data, banner, zoneNote, onOpenPublication, onSchedule }: LayoutProps) {
-  const dashboard = data?.dashboard;
+export function DashboardLayout({ view, banner, zoneNote, onOpenPublication, onNewPost, onOpenPosts }: LayoutProps) {
+  const narrow = useMediaQuery(NARROW_QUERY);
+  const now = useNow();
+  const dashboard = view?.dashboard;
   return (
-    <div className={styles.root} aria-busy={data === undefined || undefined}>
-      {data === undefined ? (
+    <div className={styles.root} aria-busy={view === undefined || undefined}>
+      {view === undefined ? (
         <VisuallyHidden>
           <output>{copy.loading}</output>
         </VisuallyHidden>
       ) : null}
       {banner}
+      <DateChip placement="below" zoneNote={zoneNote} />
+      <Kpis view={view} now={now} />
 
-      <SummaryCards
-        {...(data && dashboard
-          ? {
-              values: {
-                todayTotal: dashboard.todayTotal,
-                attentionTotal: data.rows.length,
-                nextLabel: data.nextLabel,
-                recentCount: dashboard.recentSent.length
-              }
-            }
-          : {})}
-      />
-
-      <div className={styles.dashboardGrid}>
-        <div className={styles.attentionCell}>
-          <AttentionBlock
-            rows={data?.rows}
-            total={dashboard?.attentionTotal ?? 0}
-            checking={data?.checking ?? false}
-            onOpenPublication={onOpenPublication}
-          />
+      <div className={styles.layout}>
+        <div className={styles.main}>
+          <div className={styles.left}>
+            <AttentionPanel
+              rows={view?.rows}
+              total={view?.attentionCount ?? 0}
+              checking={view?.checking ?? false}
+              narrow={narrow}
+              now={now}
+              onOpenPublication={onOpenPublication}
+            />
+            <TodayPanel
+              items={dashboard?.today}
+              total={dashboard?.todayTotal ?? 0}
+              narrow={narrow}
+              now={now}
+              onOpenPublication={onOpenPublication}
+              onNewPost={onNewPost}
+            />
+          </div>
+          <div className={styles.right}>
+            <SystemPanel services={view?.services} />
+            <UpcomingPanel
+              items={dashboard?.upcoming}
+              narrow={narrow}
+              now={now}
+              onOpenPublication={onOpenPublication}
+              onCreate={onOpenPosts}
+            />
+          </div>
         </div>
-
-        <div className={styles.dotaCell}>
-          <DotaPulsePreview />
-        </div>
-
-        <div className={styles.todayCell}>
-          <TodayBlock
-            items={dashboard?.today}
-            total={dashboard?.todayTotal ?? 0}
-            zoneNote={zoneNote}
-            onSchedule={onSchedule}
-          />
-        </div>
-
-        <div className={styles.analyticsCell}>
-          <AnalyticsPreview />
-        </div>
-
-        <div className={styles.upcomingCell}>
-          <UpcomingBlock items={dashboard?.upcoming} />
-        </div>
-
-        <div className={styles.watchlistCell}>
-          <WatchlistPreview />
-        </div>
-
-        <div className={styles.recentCell}>
-          <RecentSentBlock items={dashboard?.recentSent} />
-        </div>
+        <RecentPanel items={dashboard?.recentSent} narrow={narrow} now={now} onOpenPublication={onOpenPublication} />
       </div>
     </div>
   );

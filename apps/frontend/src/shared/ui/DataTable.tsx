@@ -26,6 +26,8 @@ export type DataColumn<T> = {
   /** The cell that names the row: the card title on narrow screens and the row header for screen readers. */
   isRowHeader?: boolean;
   allowsSorting?: boolean;
+  /** Wide screens: a ColumnFilter (search or filter) after the header label. */
+  headerControl?: ReactNode;
   align?: 'start' | 'end';
   /** `density="compact"` on narrow screens: `trailing` puts the cell (a status) at the right of the title; the other columns form one meta line. */
   compactSlot?: 'trailing';
@@ -46,16 +48,26 @@ type Props<T> = {
   selected?: RowSelection;
   onSelectionChange?: (selection: RowSelection) => void;
   onRowAction?: (id: string) => void;
+  /** Rows that cannot be selected (they stay openable); the checkbox of such a row is disabled. */
+  disabledIds?: ReadonlySet<string>;
   /** One row can be highlighted as the object currently open in an inspector. */
   activeId?: string;
   isLoading?: boolean;
+  /** Skeleton rows drawn while `isLoading` (same height and columns as data rows, so nothing shifts). Default 5. */
+  loadingRows?: number;
   /** Shown instead of the rows when `rows` is empty; use EmptyState. */
   emptyState?: ReactNode;
   /** Narrow screens only. `compact` draws a list row (title, one meta line, optional trailing status, divider) instead of a card with label: value pairs; wide screens are unchanged. */
   density?: 'default' | 'compact';
+  /** Wide screens: drop the table's own border and surface when it sits inside a Panel (no box in a box). */
+  flush?: boolean;
+  /** Wide screens: `tall` (56 px) for two-line cells (title plus excerpt), identical for skeleton and data rows. */
+  rowHeight?: 'default' | 'tall';
 };
 
 const SKELETON_ROWS = 5;
+const SKELETON_CARDS = 3;
+const SKELETON_WIDTHS = [64, 48, 72, 40] as const;
 const NARROW = '(max-width: 859px)';
 
 function toSelection(keys: Selection): RowSelection {
@@ -78,23 +90,34 @@ function Grid<T>({
   selected,
   onSelectionChange,
   onRowAction,
+  disabledIds,
   activeId,
   isLoading,
+  loadingRows: loadingCount = SKELETON_ROWS,
   emptyState,
+  flush,
+  rowHeight,
   ...rest
 }: Props<T>) {
   const descriptor: SortDescriptor | undefined = sort ? { column: sort.column, direction: sort.direction } : undefined;
   const loadingRows = useMemo(
-    () => Array.from({ length: SKELETON_ROWS }, (_, index) => ({ id: `skeleton-${index}` })),
-    []
+    () => Array.from({ length: loadingCount }, (_, index) => ({ id: `skeleton-${index}` })),
+    [loadingCount]
   );
   return (
-    <div className={styles.wrap} aria-busy={isLoading || undefined}>
+    <div
+      className={styles.wrap}
+      data-flush={flush || undefined}
+      data-rows={rowHeight}
+      aria-busy={isLoading || undefined}
+    >
       <Table
         aria-label={rest['aria-label']}
         className={styles.table}
         selectionMode={selectionMode}
         selectedKeys={selected as Selection | undefined}
+        disabledKeys={disabledIds}
+        disabledBehavior="selection"
         onSelectionChange={(keys) => onSelectionChange?.(toSelection(keys))}
         sortDescriptor={descriptor}
         onSortChange={(next) => onSortChange?.({ column: String(next.column), direction: next.direction })}
@@ -125,6 +148,7 @@ function Grid<T>({
                         className={sortDirection ? styles.sortActive : styles.sortIdle}
                       />
                     ) : null}
+                    {column.headerControl ?? null}
                   </span>
                 )}
               </Column>
@@ -136,9 +160,9 @@ function Grid<T>({
             ? loadingRows.map((row) => (
                 <Row key={row.id} id={row.id} className={styles.row}>
                   {selectionMode === 'multiple' ? <Cell className={styles.cell} /> : null}
-                  {columns.map((column) => (
+                  {columns.map((column, index) => (
                     <Cell key={column.id} className={styles.cell}>
-                      <Skeleton height={14} width="70%" />
+                      <Skeleton height={12} width={`${SKELETON_WIDTHS[index % SKELETON_WIDTHS.length]}%`} />
                     </Cell>
                   ))}
                 </Row>
@@ -180,6 +204,7 @@ function CardList<T>({
   onRowAction,
   activeId,
   isLoading,
+  loadingRows: loadingCount,
   emptyState,
   density = 'default',
   ...rest
@@ -216,7 +241,7 @@ function CardList<T>({
       ) : null}
       {isLoading ? (
         <ul className={styles.list} aria-label={rest['aria-label']}>
-          {Array.from({ length: 3 }, (_, index) => (
+          {Array.from({ length: Math.min(loadingCount ?? SKELETON_CARDS, SKELETON_CARDS) }, (_, index) => (
             <li key={index} className={styles.card}>
               <Skeleton height={18} width="60%" />
               {compact ? <Skeleton height={14} width="40%" /> : <Skeleton lines={2} height={14} />}

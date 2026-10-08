@@ -1,160 +1,165 @@
-import { useState } from 'react';
 import { publicationStatusSchema, type DestinationDto, type PublicationStatus } from '@alexeev/contracts';
+import { useState } from 'react';
 import { publicationCopy } from '../../features/publications';
 import { ru } from '../../shared/lib/ru';
-import { Button, Drawer, SearchField, Select, useMediaQuery, VisuallyHidden } from '../../shared/ui';
-import styles from './PublicationsPage.module.css';
-import type { PublicationView } from './search';
+import {
+  ColumnFilter,
+  FilterButton,
+  FilterSheet,
+  PhoneToolbar,
+  PhoneToolbarSearch,
+  Radio,
+  RadioGroup,
+  SearchField,
+  Select
+} from '../../shared/ui';
 
 const ALL = 'all';
+const copy = publicationCopy.filters;
 const FILTERABLE: readonly PublicationStatus[] = publicationStatusSchema.options.filter(
   (status) => status !== 'preparing'
 );
 
-type Props = {
-  view: PublicationView | undefined;
-  status: PublicationStatus | undefined;
-  channel: string | undefined;
-  q: string | undefined;
-  order: 'asc' | 'desc' | undefined;
-  destinations: readonly DestinationDto[];
-  onViewChange: (view: PublicationView | undefined) => void;
-  onStatusChange: (status: PublicationStatus | undefined) => void;
-  onChannelChange: (channel: string | undefined) => void;
-  onQueryChange: (q: string | undefined) => void;
-  onOrderChange: (order: 'asc' | 'desc') => void;
-  onReset: () => void;
-};
+export type Order = 'asc' | 'desc';
 
-const presets: readonly { id: PublicationView | 'all'; label: string }[] = [
-  { id: 'all', label: 'Все' },
-  { id: 'today', label: 'Сегодня' },
-  { id: 'upcoming', label: 'Запланированные' },
-  { id: 'recent', label: 'Отправленные' },
-  { id: 'errors', label: 'Ошибки' }
+export const statusOptions = [
+  { id: ALL, label: copy.allStatuses },
+  ...FILTERABLE.map((item) => ({ id: item, label: ru.status[item] }))
+];
+export const channelOptionsOf = (destinations: readonly DestinationDto[]) => [
+  { id: ALL, label: copy.allChannels },
+  ...destinations.map((item) => ({ id: item.id, label: item.title }))
+];
+const orderOptions = [
+  { id: 'desc', label: copy.sortNewest },
+  { id: 'asc', label: copy.sortOldest }
 ];
 
-export function PublicationsFilters({
-  view,
-  status,
-  channel,
-  q,
-  order,
-  destinations,
-  onViewChange,
-  onStatusChange,
-  onChannelChange,
-  onQueryChange,
-  onOrderChange,
-  onReset
-}: Props) {
-  const copy = publicationCopy.filters;
-  const narrow = useMediaQuery('(max-width: 859px)');
-  const [open, setOpen] = useState(false);
-  const activeCount =
-    (view !== undefined ? 1 : 0) +
-    (status !== undefined ? 1 : 0) +
-    (channel !== undefined ? 1 : 0) +
-    (q !== undefined ? 1 : 0) +
-    (order !== undefined ? 1 : 0);
-  const hasFilters = activeCount > 0;
+type SearchProps = { q: string | undefined; onChange: (q: string | undefined) => void };
 
-  const fields = (
-    <>
-      <Select
-        label={copy.status}
-        value={status ?? ALL}
-        options={[
-          { id: ALL, label: copy.allStatuses },
-          ...FILTERABLE.map((item) => ({ id: item, label: ru.status[item] }))
-        ]}
-        onChange={(id) => onStatusChange(id === ALL ? undefined : (id as PublicationStatus))}
-      />
-      <Select
-        label={copy.channel}
-        value={channel ?? ALL}
-        options={[
-          { id: ALL, label: copy.allChannels },
-          ...destinations.map((item) => ({ id: item.id, label: item.title }))
-        ]}
-        onChange={(id) => onChannelChange(id === ALL ? undefined : id)}
-      />
-      <Select
-        label="Сортировка"
-        value={order ?? (view === 'upcoming' ? 'asc' : 'desc')}
-        options={[
-          { id: 'desc', label: 'Сначала новые' },
-          { id: 'asc', label: 'Сначала ближайшие' }
-        ]}
-        onChange={(id) => onOrderChange(id as 'asc' | 'desc')}
-      />
-    </>
-  );
-
+/** Desktop: the search sits in the «Пост» column header and is sent on Enter, so a keystroke is not a request. */
+export function SearchFilter({ q, onChange }: SearchProps) {
   return (
-    <section className={styles.filterPanel} aria-label="Фильтры публикаций">
-      <fieldset className={styles.presets}>
-        <VisuallyHidden>
-          <legend>Быстрые фильтры</legend>
-        </VisuallyHidden>
-        {presets.map((preset) => {
-          const selected = preset.id === 'all' ? view === undefined : view === preset.id;
-          return (
-            <Button
-              key={preset.id}
-              size="sm"
-              variant={selected ? 'primary' : 'secondary'}
-              onPress={() => onViewChange(preset.id === 'all' ? undefined : preset.id)}
-            >
-              {preset.label}
-            </Button>
-          );
-        })}
-      </fieldset>
-
-      <div className={styles.searchRow}>
-        <SearchField
-          key={q ?? ''}
-          label="Поиск публикаций"
-          placeholder="Поиск по заголовку и тексту…"
-          defaultValue={q ?? ''}
-          onSubmit={(value) => onQueryChange(value.trim() || undefined)}
-          onClear={() => onQueryChange(undefined)}
-        />
-      </div>
-
-      {narrow ? (
-        <>
-          <div className={styles.filterBar}>
-            <Button variant="secondary" icon="settings" onPress={() => setOpen(true)}>
-              {copy.open(activeCount)}
-            </Button>
-            {hasFilters ? (
-              <Button variant="ghost" icon="x" onPress={onReset}>
-                {copy.reset}
-              </Button>
-            ) : null}
-          </div>
-          <Drawer
-            variant="bottom"
-            title={copy.sheetTitle}
-            isOpen={open}
-            onOpenChange={setOpen}
-            footer={<Button onPress={() => setOpen(false)}>{copy.done}</Button>}
-          >
-            <div className={styles.sheetFields}>{fields}</div>
-          </Drawer>
-        </>
-      ) : (
-        <div className={styles.filters}>
-          {fields}
-          {hasFilters ? (
-            <Button variant="ghost" icon="x" onPress={onReset}>
-              {copy.reset}
-            </Button>
-          ) : null}
-        </div>
-      )}
-    </section>
+    <ColumnFilter label={copy.searchFilter} icon="search" isActive={q !== undefined}>
+      <SearchField
+        key={q ?? ''}
+        label={copy.searchField}
+        placeholder={copy.searchHint}
+        defaultValue={q ?? ''}
+        // The owner opened the search popover on purpose: its only field takes focus.
+        // eslint-disable-next-line jsx-a11y/no-autofocus
+        autoFocus
+        onSubmit={(value) => onChange(value.trim() || undefined)}
+        onClear={() => onChange(undefined)}
+      />
+    </ColumnFilter>
   );
 }
+
+type PickProps = { label: string; filterLabel: string; value: string | undefined; options: readonly { id: string; label: string }[]; onChange: (value: string | undefined) => void };
+
+/** Desktop: one-of-many filter in a column header (status, channel). */
+export function PickFilter({ label, filterLabel, value, options, onChange }: PickProps) {
+  return (
+    <ColumnFilter label={filterLabel} isActive={value !== undefined}>
+      <RadioGroup label={label} value={value ?? ALL} onChange={(id) => onChange(id === ALL ? undefined : id)}>
+        {options.map((option) => (
+          <Radio key={option.id} value={option.id}>
+            {option.label}
+          </Radio>
+        ))}
+      </RadioGroup>
+    </ColumnFilter>
+  );
+}
+
+type PhoneProps = {
+  q: string | undefined;
+  status: PublicationStatus | undefined;
+  channel: string | undefined;
+  order: Order | undefined;
+  defaultOrder: Order;
+  destinations: readonly DestinationDto[];
+  isLoading: boolean;
+  onQueryChange: (q: string | undefined) => void;
+  onApply: (next: { status: PublicationStatus | undefined; channel: string | undefined; order: Order | undefined }) => void;
+};
+
+/** Phone: search plus «Фильтры (N)»; status, channel and the sort are applied together from the sheet. */
+export function PhoneFilters({
+  q,
+  status,
+  channel,
+  order,
+  defaultOrder,
+  destinations,
+  isLoading,
+  onQueryChange,
+  onApply
+}: PhoneProps) {
+  const [open, setOpen] = useState(false);
+  const [draft, setDraft] = useState({ status: ALL, channel: ALL, order: defaultOrder as string });
+  const count = (status ? 1 : 0) + (channel ? 1 : 0) + (order ? 1 : 0);
+  const draftCount =
+    (draft.status !== ALL ? 1 : 0) + (draft.channel !== ALL ? 1 : 0) + (draft.order !== defaultOrder ? 1 : 0);
+  return (
+    <>
+      <PhoneToolbar>
+        <PhoneToolbarSearch>
+          <SearchField
+            key={q ?? ''}
+            label={copy.searchLabel}
+            placeholder={copy.phoneSearch}
+            defaultValue={q ?? ''}
+            isDisabled={isLoading}
+            onSubmit={(value) => onQueryChange(value.trim() || undefined)}
+            onClear={() => onQueryChange(undefined)}
+          />
+        </PhoneToolbarSearch>
+        <FilterButton
+          count={count}
+          isDisabled={isLoading}
+          onPress={() => {
+            setDraft({ status: status ?? ALL, channel: channel ?? ALL, order: order ?? defaultOrder });
+            setOpen(true);
+          }}
+        />
+      </PhoneToolbar>
+      <FilterSheet
+        isOpen={open}
+        onOpenChange={setOpen}
+        count={draftCount}
+        onReset={() => setDraft({ status: ALL, channel: ALL, order: defaultOrder })}
+        onApply={() => {
+          onApply({
+            status: draft.status === ALL ? undefined : (draft.status as PublicationStatus),
+            channel: draft.channel === ALL ? undefined : draft.channel,
+            order: draft.order === defaultOrder ? undefined : (draft.order as Order)
+          });
+          setOpen(false);
+        }}
+      >
+        <Select
+          label={copy.status}
+          options={statusOptions}
+          value={draft.status}
+          onChange={(value) => setDraft({ ...draft, status: value })}
+        />
+        <Select
+          label={copy.channel}
+          options={channelOptionsOf(destinations)}
+          value={draft.channel}
+          onChange={(value) => setDraft({ ...draft, channel: value })}
+        />
+        <Select
+          label={copy.sort}
+          options={orderOptions}
+          value={draft.order}
+          onChange={(value) => setDraft({ ...draft, order: value })}
+        />
+      </FilterSheet>
+    </>
+  );
+}
+
+export { orderOptions };

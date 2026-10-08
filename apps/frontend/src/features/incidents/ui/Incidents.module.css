@@ -1,10 +1,3 @@
-.filters {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-3);
-  min-width: 0;
-}
 .chips {
   max-width: 100%;
   min-width: 0;
@@ -16,6 +9,7 @@
   display: grid;
   grid-template-columns: max-content minmax(0, 1fr) minmax(0, 18ch) max-content max-content;
   column-gap: var(--space-4);
+  min-width: 0;
   margin: 0;
   padding: 0;
   list-style: none;
@@ -26,9 +20,12 @@
   grid-template-columns: subgrid;
   align-items: center;
   min-width: 0;
-  min-height: calc(var(--size-button) + var(--space-1) * 2);
-  padding-block: var(--space-1);
+  min-height: var(--panel-row);
+  padding: var(--space-2) var(--space-4);
   border-bottom: 1px solid var(--color-border-subtle);
+}
+.row:last-child {
+  border-bottom: 0;
 }
 .text {
   display: grid;
@@ -137,8 +134,19 @@
   display: grid;
 }
 .skeletonRow {
-  padding-block: var(--space-1);
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  min-height: var(--panel-row);
+  padding: var(--space-2) var(--space-4);
   border-bottom: 1px solid var(--color-border-subtle);
+}
+.skeletonRow:last-child {
+  border-bottom: 0;
+}
+.skeletonText {
+  flex: 1 1 0;
+  min-width: 0;
 }
 
 /* Phone: a two-line row without card chrome; the actions go full width under the text. */
@@ -186,4 +194,11 @@
     -webkit-line-clamp: 2;
     line-clamp: 2;
   }
+}
+
+.skeletonFilters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-bottom: var(--space-2);
 }

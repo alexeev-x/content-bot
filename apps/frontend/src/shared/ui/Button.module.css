@@ -5,12 +5,13 @@
   gap: var(--space-2);
   min-height: var(--size-button);
   min-width: var(--size-button);
-  padding: 0 var(--space-4);
+  padding: 0 var(--space-3);
   border: 1px solid var(--color-border-strong);
   border-radius: var(--radius-2);
   background: var(--color-surface-1);
   color: var(--color-text);
   font: inherit;
+  font-size: var(--font-size-sm);
   font-weight: var(--font-weight-medium);
   line-height: 1.2;
   text-decoration: none;
@@ -24,8 +25,8 @@
 }
 .button[data-size='sm'] {
   min-height: var(--size-button-sm);
-  padding: 0 10px;
-  font-size: var(--font-size-sm);
+  padding: 0 var(--space-2);
+  font-size: var(--font-size-xs);
 }
 /* Beside a text field: same height as the field. */
 .button[data-size='field'] {

@@ -8,6 +8,7 @@ type Props = {
   children: ReactNode;
 };
 
+/** The quiet panel surface with padded content; use Panel when rows should run flush to the edges. */
 export function Card({ title, actions, children }: Props) {
   return (
     <section className={styles.card}>

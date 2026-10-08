@@ -15,7 +15,7 @@ export function EmptyState({ title, description, icon, action }: Props) {
     <div className={styles.empty}>
       {icon ? (
         <span className={styles.icon}>
-          <Icon name={icon} size={22} />
+          <Icon name={icon} size={20} />
         </span>
       ) : null}
       <h2 className={styles.title}>{title}</h2>

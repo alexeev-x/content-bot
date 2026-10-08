@@ -1,6 +1,23 @@
 import type { PostDto } from '@alexeev/contracts';
-import { useRef, type ReactNode } from 'react';
-import { Checkbox, Icon, Menu, Skeleton, VisuallyHidden, type MenuEntry } from '../../../shared/ui';
+import type { ReactNode } from 'react';
+import {
+  Checkbox,
+  ColumnFilter,
+  DataTable,
+  Icon,
+  MediaTile,
+  Menu,
+  PanelList,
+  PhoneSkeletonRows,
+  RadioGroup,
+  Radio,
+  RowCard,
+  SearchField,
+  type DataColumn,
+  type MenuEntry,
+  type RowSelection,
+  type TableSort
+} from '../../../shared/ui';
 import { excerptOf } from '../model/excerpt';
 import { formatExact, formatRelative } from '../model/format-time';
 import { ARCHIVE_WARNING_DAYS, daysLeftOf, deleteBlockOf, listStateOf, type DeleteBlock } from '../model/post-state';
@@ -10,30 +27,45 @@ import { PostStateBadge } from './PostStateBadge';
 import styles from './PostRows.module.css';
 
 export type RowAction = 'delete' | 'restore' | 'reconcile';
+export type StatusOption = { id: string; label: string };
 
 type Props = {
   mode: 'live' | 'archive';
   label: string;
   rows: readonly PostDto[];
   sort: PostSort;
-  onSortChange: (key: PostSortKey) => void;
+  onSortChange: (sort: NonNullable<PostSort>) => void;
   now: number;
   isLoading: boolean;
   narrow: boolean;
-  /** Checkboxes are shown (always on desktop, after «Выбрать» on a phone). */
+  /** Checkboxes are shown (after «Выбрать»). */
   selectable: boolean;
   isSelected: (id: string) => boolean;
   allState: 'none' | 'some' | 'all';
-  onToggle: (post: PostDto, on: boolean, shift: boolean) => void;
+  /** The table reports the whole selection of the loaded rows; the list diffs it against its own. */
+  onSelectionChange: (selection: RowSelection) => void;
+  onToggle: (post: PostDto, on: boolean) => void;
   onToggleAll: (on: boolean) => void;
   /** Why a row could not be deleted or restored in the last bulk run. */
   reasons: ReadonlyMap<string, string>;
+  /** Header filters of the desktop table. */
+  query: string;
+  onQueryChange: (query: string) => void;
+  /** Absent in the views where the status is fixed (drafts, archive). */
+  status?: { value: string; options: readonly StatusOption[]; onChange: (value: string) => void };
   onOpen: (id: string) => void;
   onAction: (post: PostDto, action: RowAction) => void;
 };
 
 const copy = postsCopy;
+export const POST_ROW_LOADING = 8;
 const titleOf = (post: PostDto) => post.title.trim() || copy.list.untitled;
+const shortFormat = new Intl.DateTimeFormat('ru-RU', {
+  day: 'numeric',
+  month: 'short',
+  hour: '2-digit',
+  minute: '2-digit'
+});
 
 function blockText(block: DeleteBlock): string {
   return block === 'unknown' ? copy.actions.blockedUnknown : copy.actions.blockedInProgress;
@@ -42,8 +74,6 @@ function blockText(block: DeleteBlock): string {
 export function PostRows(props: Props) {
   return props.narrow ? <Cards {...props} /> : <Grid {...props} />;
 }
-
-type Inner = Props;
 
 function menuFor(post: PostDto, mode: Props['mode'], onAction: Props['onAction']): ReactNode {
   const block = deleteBlockOf(post);
@@ -67,56 +97,20 @@ function menuFor(post: PostDto, mode: Props['mode'], onAction: Props['onAction']
         ? [reconcile, del]
         : [del];
   return (
-    <span className={styles.interactive}>
-      <Menu
-        label={copy.actions.rowMenu(titleOf(post))}
-        items={items}
-        onAction={(id) => onAction(post, id === 'restore' || id === 'reconcile' ? id : 'delete')}
-      />
-    </span>
+    <Menu
+      label={copy.actions.rowMenu(titleOf(post))}
+      items={items}
+      onAction={(id) => onAction(post, id === 'restore' || id === 'reconcile' ? id : 'delete')}
+    />
   );
 }
 
-function SelectBox({ post, props }: { post: PostDto; props: Inner }) {
-  const shift = useRef(false);
-  const block = props.mode === 'live' ? deleteBlockOf(post) : null;
-  const title = titleOf(post);
+function Failure({ reason }: { reason: string }) {
   return (
-    <span
-      className={styles.interactive}
-      title={block ? blockText(block) : undefined}
-      // The shift state is read by the change handler that React fires from this same click.
-      onClickCapture={(event) => {
-        shift.current = event.shiftKey;
-      }}
-    >
-      <Checkbox
-        aria-label={block ? copy.selection.blockedRow(title, blockText(block)) : copy.selection.row(title)}
-        isDisabled={block !== null}
-        isSelected={props.isSelected(post.id)}
-        onChange={(on) => props.onToggle(post, on, shift.current)}
-      />
+    <span className={styles.reason}>
+      <Icon name="alert" size={14} />
+      {copy.selection.failedReason(reason)}
     </span>
-  );
-}
-
-function TitleBlock({ post, props, stacked }: { post: PostDto; props: Inner; stacked: boolean }) {
-  const reason = props.reasons.get(post.id);
-  return (
-    <>
-      <span className={stacked ? undefined : styles.titleCell}>
-        <button type="button" className={styles.open} onClick={() => props.onOpen(post.id)}>
-          {titleOf(post)}
-        </button>
-        {stacked ? null : <span className={styles.excerpt}>{excerptOf(post.body) || copy.list.emptyBody}</span>}
-      </span>
-      {reason ? (
-        <span className={styles.reason}>
-          <Icon name="alert" size={14} />
-          {copy.selection.failedReason(reason)}
-        </span>
-      ) : null}
-    </>
   );
 }
 
@@ -133,13 +127,6 @@ function StateCell({ post }: { post: PostDto }) {
     </span>
   );
 }
-
-const shortFormat = new Intl.DateTimeFormat('ru-RU', {
-  day: 'numeric',
-  month: 'short',
-  hour: '2-digit',
-  minute: '2-digit'
-});
 
 function UpdatedCell({ post, now }: { post: PostDto; now: number }) {
   return (
@@ -172,8 +159,7 @@ function SentCell({ post }: { post: PostDto }) {
 function LeftCell({ post, now }: { post: PostDto; now: number }) {
   if (post.autoDeleteAt === null) return <span className={styles.muted}>—</span>;
   const days = daysLeftOf(post.autoDeleteAt, now);
-  const last = days <= ARCHIVE_WARNING_DAYS;
-  return last ? (
+  return days <= ARCHIVE_WARNING_DAYS ? (
     <span className={styles.warn} title={formatExact(post.autoDeleteAt)}>
       <Icon name="alert" size={14} />
       {copy.archive.lastDays(days)}
@@ -185,174 +171,196 @@ function LeftCell({ post, now }: { post: PostDto; now: number }) {
   );
 }
 
-function Grid(props: Inner) {
-  const { mode, rows, now, isLoading, selectable } = props;
+const toTableSort = (sort: PostSort): TableSort | undefined =>
+  sort ? { column: sort.key, direction: sort.direction } : undefined;
+
+function Grid(props: Props) {
+  const { mode, rows, now, isLoading, selectable, query } = props;
   const live = mode === 'live';
-  const cols: { key: PostSortKey; label: string }[] = live
-    ? [
-        { key: 'title', label: copy.list.columns.title },
-        { key: 'status', label: copy.list.columns.status },
-        { key: 'updated', label: copy.list.columns.updated }
-      ]
-    : [
-        { key: 'title', label: copy.archive.columns.title },
-        { key: 'channels', label: copy.archive.columns.channels },
-        { key: 'sentAt', label: copy.archive.columns.sentAt },
-        { key: 'left', label: copy.archive.columns.left }
-      ];
+  const head = live ? copy.list.columns : copy.archive.columns;
+  const blocked = new Set(
+    live ? rows.filter((post) => deleteBlockOf(post) !== null).map((post) => post.id) : []
+  );
+  const columns: DataColumn<PostDto>[] = [
+    {
+      id: 'title',
+      header: head.title,
+      isRowHeader: true,
+      allowsSorting: true,
+      headerControl: (
+        <ColumnFilter label={copy.list.filters.searchFilter} icon="search" isActive={query.trim() !== ''}>
+          <SearchField
+            label={copy.list.filters.searchField}
+            placeholder={copy.list.filters.searchHint}
+            value={query}
+            // The owner opened the search popover on purpose: its only field takes focus.
+            // eslint-disable-next-line jsx-a11y/no-autofocus
+            autoFocus
+            onChange={props.onQueryChange}
+          />
+        </ColumnFilter>
+      ),
+      cell: (post) => {
+        const reason = props.reasons.get(post.id);
+        return (
+          <span className={styles.cellMedia} data-post-id={post.id}>
+            <MediaTile size={40} />
+            <span className={styles.cellTitle}>
+              <strong className={styles.title}>{titleOf(post)}</strong>
+              {reason ? (
+                <Failure reason={reason} />
+              ) : (
+                <span className={styles.excerpt}>{excerptOf(post.body) || copy.list.emptyBody}</span>
+              )}
+            </span>
+          </span>
+        );
+      }
+    },
+    ...(live
+      ? ([
+          {
+            id: 'status',
+            header: copy.list.columns.status,
+            ...(props.status
+              ? {
+                  headerControl: (
+                    <ColumnFilter label={copy.list.filters.statusFilter} isActive={props.status.value !== 'all'}>
+                      <RadioGroup
+                        label={copy.list.filters.status}
+                        value={props.status.value}
+                        onChange={props.status.onChange}
+                      >
+                        {props.status.options.map((option) => (
+                          <Radio key={option.id} value={option.id}>
+                            {option.label}
+                          </Radio>
+                        ))}
+                      </RadioGroup>
+                    </ColumnFilter>
+                  )
+                }
+              : {}),
+            cell: (post: PostDto) => <StateCell post={post} />
+          },
+          {
+            id: 'updated',
+            header: copy.list.columns.updated,
+            allowsSorting: true,
+            cell: (post: PostDto) => <UpdatedCell post={post} now={now} />
+          }
+        ] satisfies DataColumn<PostDto>[])
+      : ([
+          { id: 'channels', header: copy.archive.columns.channels, cell: (post: PostDto) => <ChannelsCell post={post} /> },
+          {
+            id: 'sentAt',
+            header: copy.archive.columns.sentAt,
+            allowsSorting: true,
+            cell: (post: PostDto) => <SentCell post={post} />
+          },
+          {
+            id: 'left',
+            header: copy.archive.columns.left,
+            allowsSorting: true,
+            cell: (post: PostDto) => <LeftCell post={post} now={now} />
+          }
+        ] satisfies DataColumn<PostDto>[])),
+    {
+      id: 'menu',
+      header: copy.list.columns.actions,
+      align: 'end',
+      cell: (post) => menuFor(post, mode, props.onAction)
+    }
+  ];
+  const sort = toTableSort(props.sort);
   return (
-    <div className={styles.wrap} aria-busy={isLoading || undefined}>
-      <table className={styles.table}>
-        <caption>
-          <VisuallyHidden>{props.label}</VisuallyHidden>
-        </caption>
-        <thead>
-          <tr>
-            {selectable ? (
-              <th scope="col" className={`${styles.th} ${styles.selectCol}`}>
-                <Checkbox
-                  aria-label={copy.selection.all}
-                  isSelected={props.allState === 'all'}
-                  isIndeterminate={props.allState === 'some'}
-                  isDisabled={isLoading || rows.length === 0}
-                  onChange={props.onToggleAll}
-                />
-              </th>
-            ) : null}
-            {cols.map(({ key, label }) => {
-              const active = props.sort?.key === key;
-              return (
-                <th key={key} scope="col" className={styles.th} aria-sort={active ? props.sort?.direction : undefined}>
-                  <button type="button" className={styles.sortButton} onClick={() => props.onSortChange(key)}>
-                    {label}
-                    {/* Always in the layout, so the label never shifts; an inactive column shows it on hover only. */}
-                    <Icon
-                      name={active && props.sort?.direction === 'ascending' ? 'arrow-up' : 'arrow-down'}
-                      size={14}
-                      className={styles.sortMark}
-                    />
-                  </button>
-                </th>
-              );
-            })}
-            <th scope="col" className={styles.th}>
-              <VisuallyHidden>{copy.list.columns.actions}</VisuallyHidden>
-            </th>
-          </tr>
-        </thead>
-        <tbody>
-          {isLoading
-            ? Array.from({ length: 5 }, (_, index) => (
-                <tr key={`skeleton-${index}`}>
-                  <td className={styles.td} colSpan={cols.length + 2}>
-                    <Skeleton height={14} width="70%" />
-                  </td>
-                </tr>
-              ))
-            : rows.map((post) => (
-                <tr
-                  key={post.id}
-                  className={styles.row}
-                  data-post-id={post.id}
-                  data-selected={props.isSelected(post.id) || undefined}
-                >
-                  {selectable ? (
-                    <td className={`${styles.td} ${styles.selectCol}`}>
-                      <SelectBox post={post} props={props} />
-                    </td>
-                  ) : null}
-                  <td className={`${styles.td} ${styles.titleCol}`}>
-                    <TitleBlock post={post} props={props} stacked={false} />
-                  </td>
-                  {live ? (
-                    <>
-                      <td className={styles.td}>
-                        <StateCell post={post} />
-                      </td>
-                      <td className={styles.td}>
-                        <UpdatedCell post={post} now={now} />
-                      </td>
-                    </>
-                  ) : (
-                    <>
-                      <td className={styles.td}>
-                        <ChannelsCell post={post} />
-                      </td>
-                      <td className={styles.td}>
-                        <SentCell post={post} />
-                      </td>
-                      <td className={styles.td}>
-                        <LeftCell post={post} now={now} />
-                      </td>
-                    </>
-                  )}
-                  <td className={`${styles.td} ${styles.actionCol}`}>{menuFor(post, mode, props.onAction)}</td>
-                </tr>
-              ))}
-        </tbody>
-      </table>
-    </div>
+    <DataTable
+      flush
+      rowHeight="tall"
+      aria-label={props.label}
+      columns={columns}
+      rows={rows}
+      getRowId={(post) => post.id}
+      isLoading={isLoading}
+      loadingRows={POST_ROW_LOADING}
+      {...(sort ? { sort } : {})}
+      onSortChange={(next) => props.onSortChange({ key: next.column as PostSortKey, direction: next.direction })}
+      selectionMode={selectable ? 'multiple' : 'none'}
+      selected={new Set(rows.filter((post) => props.isSelected(post.id)).map((post) => post.id))}
+      onSelectionChange={props.onSelectionChange}
+      disabledIds={blocked}
+      {...(selectable ? {} : { onRowAction: props.onOpen })}
+    />
   );
 }
 
-function Cards(props: Inner) {
+function Cards(props: Props) {
   const { mode, rows, now, isLoading, selectable } = props;
   const live = mode === 'live';
+  if (isLoading) return <PhoneSkeletonRows label={props.label} />;
   return (
-    <div aria-busy={isLoading || undefined}>
-      {selectable && !isLoading && rows.length > 0 ? (
-        <Checkbox
-          aria-label={copy.selection.all}
-          isSelected={props.allState === 'all'}
-          isIndeterminate={props.allState === 'some'}
-          onChange={props.onToggleAll}
-        >
-          {copy.selection.all}
-        </Checkbox>
+    <>
+      {selectable && rows.length > 0 ? (
+        <div className={styles.selectAll}>
+          <Checkbox
+            isSelected={props.allState === 'all'}
+            isIndeterminate={props.allState === 'some'}
+            onChange={props.onToggleAll}
+          >
+            {copy.selection.all}
+          </Checkbox>
+        </div>
       ) : null}
-      <ul className={styles.list} aria-label={props.label}>
-        {isLoading
-          ? Array.from({ length: 3 }, (_, index) => (
-              <li key={`skeleton-${index}`} className={styles.skeletonRow}>
-                <Skeleton height={18} width="60%" />
-                <Skeleton height={14} width="40%" />
-              </li>
-            ))
-          : rows.map((post) => (
-              <li
-                key={post.id}
-                className={styles.item}
-                data-post-id={post.id}
-                data-selected={props.isSelected(post.id) || undefined}
-              >
-                <div className={styles.head}>
-                  {selectable ? <SelectBox post={post} props={props} /> : null}
-                  <div className={styles.cardMain}>
-                    <TitleBlock post={post} props={props} stacked />
-                  </div>
-                  {live ? (
-                    <div className={styles.trail}>
-                      <StateCell post={post} />
-                    </div>
-                  ) : null}
-                  {menuFor(post, mode, props.onAction)}
-                </div>
-                <div className={styles.meta}>
-                  {live ? (
-                    <>
-                      <UpdatedCell post={post} now={now} />
-                    </>
-                  ) : (
-                    <>
-                      <LeftCell post={post} now={now} />
-                      <SentCell post={post} />
-                      <ChannelsCell post={post} />
-                    </>
-                  )}
-                </div>
-              </li>
-            ))}
-      </ul>
-    </div>
+      <PanelList aria-label={props.label}>
+        {rows.map((post) => {
+          const block = live ? deleteBlockOf(post) : null;
+          const reason = props.reasons.get(post.id);
+          const daysLeft = post.autoDeleteAt === null ? null : daysLeftOf(post.autoDeleteAt, now);
+          const state = listStateOf(post);
+          return (
+            <RowCard
+              key={post.id}
+              title={titleOf(post)}
+              media={<MediaTile size={44} />}
+              {...(live ? { status: <PostStateBadge post={post} /> } : {})}
+              meta={
+                live
+                  ? state.kind === 'scheduled' && state.at
+                    ? copy.list.sendAt(shortFormat.format(new Date(state.at)))
+                    : formatRelative(post.updatedAt, now)
+                  : daysLeft === null
+                    ? copy.archive.noChannels
+                    : copy.archive.daysLeft(daysLeft)
+              }
+              {...(reason
+                ? { warning: copy.selection.failedReason(reason) }
+                : block === 'unknown'
+                  ? { warning: copy.list.checkResult }
+                  : !live && daysLeft !== null && daysLeft <= ARCHIVE_WARNING_DAYS
+                    ? { warning: copy.archive.lastDaysHint }
+                    : {})}
+              isActive={props.isSelected(post.id)}
+              onPress={() => (selectable ? props.onToggle(post, !props.isSelected(post.id)) : props.onOpen(post.id))}
+              {...(selectable
+                ? {
+                    leading: (
+                      <Checkbox
+                        aria-label={
+                          block
+                            ? copy.selection.blockedRow(titleOf(post), blockText(block))
+                            : copy.selection.row(titleOf(post))
+                        }
+                        isDisabled={block !== null}
+                        isSelected={props.isSelected(post.id)}
+                        onChange={(on) => props.onToggle(post, on)}
+                      />
+                    )
+                  }
+                : { menu: menuFor(post, mode, props.onAction) })}
+            />
+          );
+        })}
+      </PanelList>
+    </>
   );
 }

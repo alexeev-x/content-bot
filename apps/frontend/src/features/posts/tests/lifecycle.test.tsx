@@ -60,7 +60,7 @@ describe('state of a row comes from the publication summary', () => {
       archive: []
     });
     renderList();
-    const table = await screen.findByRole('table', { name: 'Список постов' });
+    const table = await screen.findByRole('grid', { name: 'Список постов' });
     await within(table).findByText('План');
     expect(within(table).getByText('Запланирован')).toBeTruthy();
     expect(table.querySelector('time[datetime="2026-10-08T09:00:00.000Z"]')).toBeTruthy();
@@ -81,7 +81,7 @@ describe('archive tab', () => {
     const tab = await screen.findByRole('tab', { name: /Архив/ });
     await waitFor(() => expect(tab.textContent).toContain('2'));
     await user.click(tab);
-    const table = await screen.findByRole('table', { name: 'Архив постов' });
+    const table = await screen.findByRole('grid', { name: 'Архив постов' });
     await within(table).findByText('Итоги');
     expect(gets).toContain('archive');
     expect(screen.getByText('Опубликованные посты хранятся здесь 30 дней, затем удаляются.')).toBeTruthy();
@@ -168,7 +168,8 @@ describe('deleting one post', () => {
       (await screen.findByRole('menuitem', { name: 'Удалить: нужна сверка результата' })).getAttribute('aria-disabled')
     ).toBe('true');
     await user.keyboard('{Escape}');
-    const box = screen.getByRole('checkbox', { name: 'Пост «Идёт» нельзя выбрать: идёт отправка' });
+    await user.click(screen.getByRole('button', { name: 'Выбрать' }));
+    const box = within(await screen.findByRole('row', { name: /Идёт/ })).getByRole('checkbox');
     expect((box as HTMLInputElement).disabled).toBe(true);
   });
 
@@ -263,8 +264,10 @@ describe('bulk selection in the archive', () => {
   ];
 
   async function select(user: ReturnType<typeof userEvent.setup>, ...titles: string[]) {
+    const start = await screen.findByRole('button', { name: 'Выбрать' });
+    await user.click(start);
     for (const title of titles)
-      await user.click(await screen.findByRole('checkbox', { name: `Выбрать пост «${title}»` }));
+      await user.click(within(await screen.findByRole('row', { name: new RegExp(title) })).getByRole('checkbox'));
   }
 
   it('deletes 3 selected posts after confirming «Удалить 3 поста» and toasts «Удалено: 3»', async () => {
@@ -318,7 +321,7 @@ describe('bulk selection in the archive', () => {
     await user.click(within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Удалить 3 поста' }));
     expect(await screen.findByText('Удалено: 2 из 3. Не удалось: 1')).toBeTruthy();
     expect(await screen.findByText('Не удалось: идёт отправка')).toBeTruthy();
-    const kept = await screen.findByRole('checkbox', { name: 'Выбрать пост «Два»' });
+    const kept = within(await screen.findByRole('row', { name: /Два/ })).getByRole('checkbox');
     expect((kept as HTMLInputElement).checked).toBe(true);
     expect(within(screen.getByRole('toolbar')).getByText('Выбрано: 1')).toBeTruthy();
   });
@@ -371,12 +374,13 @@ describe('bulk selection in the archive', () => {
     renderList('archive');
     await select(user, 'Один');
     await user.keyboard('{Shift>}');
-    await user.click(screen.getByRole('checkbox', { name: 'Выбрать пост «Три»' }));
+    await user.click(within(screen.getByRole('row', { name: /Три/ })).getByRole('checkbox'));
     await user.keyboard('{/Shift}');
     expect(within(screen.getByRole('toolbar')).getByText('Выбрано: 3')).toBeTruthy();
     await user.keyboard('{Escape}');
     await waitFor(() => expect(screen.queryByRole('toolbar')).toBeNull());
-    await user.click(screen.getByRole('checkbox', { name: 'Выбрать все загруженные посты' }));
+    await user.click(screen.getByRole('button', { name: 'Выбрать' }));
+    await user.click(await screen.findByRole('checkbox', { name: 'Выбрать все' }));
     expect(within(screen.getByRole('toolbar')).getByText('Выбрано: 3')).toBeTruthy();
     await user.click(within(screen.getByRole('toolbar')).getByRole('button', { name: 'Снять выделение' }));
     expect(screen.queryByRole('toolbar')).toBeNull();
@@ -399,7 +403,7 @@ describe('phone', () => {
     const user = userEvent.setup();
     serve({ live: [post({ id: id(1), title: 'Черновик А' })], archive: [] });
     renderList();
-    await screen.findByRole('button', { name: 'Черновик А' });
+    await screen.findByRole('button', { name: /^Черновик А/ });
     expect(screen.queryByRole('checkbox')).toBeNull();
     await user.click(screen.getByRole('button', { name: 'Выбрать' }));
     await user.click(await screen.findByRole('checkbox', { name: 'Выбрать пост «Черновик А»' }));

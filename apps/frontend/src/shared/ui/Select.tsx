@@ -28,6 +28,8 @@ type Props = Omit<
   description?: string;
   errorMessage?: string;
   placeholder?: string;
+  /** Toolbar style: the label sits inside the field as a prefix («Статус: Все») and stays the accessible name. */
+  inlineLabel?: boolean;
 };
 
 export function Select({
@@ -38,6 +40,7 @@ export function Select({
   description,
   errorMessage,
   placeholder,
+  inlineLabel = false,
   isInvalid,
   ...rest
 }: Props) {
@@ -50,10 +53,15 @@ export function Select({
       }}
       isInvalid={isInvalid || Boolean(errorMessage)}
       placeholder={placeholder ?? ru.ui.selectPlaceholder}
-      className={styles.field}
+      className={inlineLabel ? `${styles.field} ${selectStyles.inline}` : styles.field}
     >
-      <Label className={styles.label}>{label}</Label>
+      <Label className={inlineLabel ? selectStyles.hiddenLabel : styles.label}>{label}</Label>
       <Button className={`${styles.input} ${selectStyles.trigger}`}>
+        {inlineLabel ? (
+          <span className={selectStyles.prefix} aria-hidden="true">
+            {label}:
+          </span>
+        ) : null}
         <SelectValue className={selectStyles.value} />
         <Icon name="chevron-down" size={18} className={selectStyles.chevron} />
       </Button>

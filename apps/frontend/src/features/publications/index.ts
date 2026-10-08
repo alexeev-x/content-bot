@@ -21,5 +21,11 @@ export { browserTimeZone, formatWithZone, utcOffsetLabel } from './model/format-
 export { displayStatus, isInProgress } from './model/publication-view';
 export { copy as publicationCopy } from './ui/copy';
 export { PublicationDrawer } from './ui/PublicationDrawer';
-export { PublicationTable, type PublicationChannel } from './ui/PublicationTable';
+export { PublicationsSkeleton } from './ui/PublicationsSkeleton';
+export {
+  PublicationTable,
+  PUBLICATION_ROW_LOADING,
+  type PublicationChannel,
+  type PublicationOrder
+} from './ui/PublicationTable';
 export { PublishDialog } from './ui/PublishDialog';

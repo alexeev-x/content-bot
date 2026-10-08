@@ -1,6 +1,7 @@
 export const copy = {
   loading: 'Загружаем инциденты…',
   filters: {
+    group: 'Фильтры инцидентов',
     state: 'Состояние',
     kind: 'Тип',
     open: 'Открытые',

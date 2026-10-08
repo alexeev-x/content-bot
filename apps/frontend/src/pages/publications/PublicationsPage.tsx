@@ -1,5 +1,5 @@
 import type { PublicationStatus } from '@alexeev/contracts';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { ApiError } from '../../shared/api/http-client';
 import { classifyApiError } from '../../shared/api/error-kind';
 import {
@@ -10,31 +10,61 @@ import {
   publicationCopy,
   utcOffsetLabel
 } from '../../features/publications';
-import { Button, EmptyState, ErrorState, PageHeader, VisuallyHidden } from '../../shared/ui';
-import styles from './PublicationsPage.module.css';
-import { PublicationsFilters } from './PublicationsFilters';
-import type { PublicationsSearch } from './search';
+import {
+  AppliedChips,
+  Button,
+  EmptyState,
+  ErrorState,
+  FooterLine,
+  PageHeader,
+  Panel,
+  Tab,
+  TabList,
+  Tabs,
+  VisuallyHidden,
+  useMediaQuery,
+  type FilterChip
+} from '../../shared/ui';
+import {
+  channelOptionsOf,
+  orderOptions,
+  PhoneFilters,
+  PickFilter,
+  SearchFilter,
+  statusOptions,
+  type Order
+} from './PublicationsFilters';
+import { PublishPostDialog } from './PublishPostDialog';
+import type { PublicationsSearch, PublicationView } from './search';
 import { useDocumentTitle } from './use-document-title';
+import styles from './PublicationsPage.module.css';
 import { usePublicationsData } from './use-publications-data';
 
 type Props = {
   search: PublicationsSearch;
-  /** Merges into the URL search; filters and the page cursor are history entries, the drawer id too. */
+  /** Merges into the URL search; filters are history entries, the open drawer id too. */
   onSearchChange: (patch: Partial<PublicationsSearch>, options?: { replace?: boolean }) => void;
   onOpenPosts: () => void;
-  onCreatePost: () => void;
   /** Test hook: poll interval in ms (production uses the feature default of 15 s). */
   pollMs?: number;
 };
 
 const copy = publicationCopy;
+const NARROW = '(max-width: 859px)';
+const CLEARED: Partial<PublicationsSearch> = {
+  status: undefined,
+  channel: undefined,
+  q: undefined,
+  post: undefined,
+  order: undefined
+};
 
-export function PublicationsPage({ search, onSearchChange, onOpenPosts, onCreatePost, pollMs }: Props) {
+export function PublicationsPage({ search, onSearchChange, onOpenPosts, pollMs }: Props) {
   useDocumentTitle(copy.list.title);
-  const { list, destinationList, post, postTitle, channel } = usePublicationsData(search, pollMs);
-  const items = list.data?.items ?? [];
+  const narrow = useMediaQuery(NARROW);
+  const { list, items, destinationList, post, postTitle, channel } = usePublicationsData(search, pollMs);
+  const [publishOpen, setPublishOpen] = useState(false);
   const hasFilters =
-    search.view !== undefined ||
     search.status !== undefined ||
     search.channel !== undefined ||
     search.q !== undefined ||
@@ -44,126 +74,178 @@ export function PublicationsPage({ search, onSearchChange, onOpenPosts, onCreate
   // The offset is read once per visit: it only changes at a DST switch, and render must stay pure.
   const [zoneNote] = useState(() => {
     const zone = browserTimeZone();
-    return copy.drawer.timelineZone(zone, utcOffsetLabel(new Date(), zone));
+    return `${zone}, ${utcOffsetLabel(new Date(), zone)}`;
   });
   const polling = items.some((item) => isInProgress(item.status));
 
   const openRow = search.id ? items.find((item) => item.id === search.id) : undefined;
   const openDestination = openRow ? channel(openRow) : undefined;
+  const view = search.view ?? 'all';
+  const defaultOrder: Order = search.view === 'upcoming' ? 'asc' : 'desc';
+  const order = search.order ?? defaultOrder;
+  const channelOptions = useMemo(() => channelOptionsOf(destinationList), [destinationList]);
 
-  const reset = () =>
-    onSearchChange({
-      view: undefined,
-      status: undefined,
-      channel: undefined,
-      q: undefined,
-      post: undefined,
-      order: undefined,
-      cursor: undefined
-    });
+  const resetFilters = () => onSearchChange({ ...CLEARED });
+  const resetAll = () => onSearchChange({ ...CLEARED, view: undefined });
+  const ready = !list.isPending && !list.isError;
+  const emptyFiltered = hasFilters || search.view !== undefined;
+
+  const chips: FilterChip[] = [
+    ...(search.status
+      ? [{ id: 'status', label: `${copy.filters.status}: ${statusOptions.find((o) => o.id === search.status)?.label}` }]
+      : []),
+    ...(search.channel
+      ? [{ id: 'channel', label: `${copy.filters.channel}: ${channelOptions.find((o) => o.id === search.channel)?.label ?? ''}` }]
+      : []),
+    ...(search.order ? [{ id: 'order', label: orderOptions.find((o) => o.id === search.order)?.label ?? '' }] : [])
+  ];
+  const removeChip = (id: string) =>
+    onSearchChange(id === 'status' ? { status: undefined } : id === 'channel' ? { channel: undefined } : { order: undefined });
+
+  const footer = list.isPending ? (
+    <FooterLine text={copy.states.loading} />
+  ) : ready && items.length > 0 ? (
+    <FooterLine
+      text={`${copy.list.loaded(items.length, Boolean(list.hasNextPage))}${polling ? ` · ${copy.list.updating}` : ''}`}
+      action={
+        list.hasNextPage ? (
+          <Button variant="ghost" size="sm" isLoading={list.isFetchingNextPage} onPress={() => void list.fetchNextPage()}>
+            {copy.list.loadMore}
+          </Button>
+        ) : undefined
+      }
+    />
+  ) : undefined;
 
   return (
     <>
       <PageHeader
         title={copy.list.title}
-        description={copy.list.description}
         actions={
-          <Button icon="plus" onPress={onCreatePost}>
-            Создать публикацию
+          <Button icon="send" onPress={() => setPublishOpen(true)}>
+            {copy.list.publishPost}
           </Button>
         }
       />
-      <PublicationsFilters
-        view={search.view}
-        status={search.status}
-        channel={search.channel}
-        q={search.q}
-        order={search.order}
-        destinations={destinationList}
-        onViewChange={(view) =>
-          onSearchChange({
-            view,
-            status: undefined,
-            order: undefined,
-            cursor: undefined
-          })
-        }
-        onStatusChange={(status) => onSearchChange({ status, view: undefined, cursor: undefined })}
-        onChannelChange={(next) => onSearchChange({ channel: next, cursor: undefined })}
-        onQueryChange={(q) => onSearchChange({ q, cursor: undefined })}
-        onOrderChange={(order) => onSearchChange({ order, cursor: undefined })}
-        onReset={reset}
-      />
-      {search.post ? (
-        <p className={styles.note}>
-          {copy.list.onePost}{' '}
-          <Button variant="ghost" size="sm" onPress={() => onSearchChange({ post: undefined, cursor: undefined })}>
-            {copy.list.allPosts}
-          </Button>
-        </p>
-      ) : null}
-      <p className={styles.note}>
-        {zoneNote}
-        {polling ? ` ${copy.states.polling}` : ''}
-      </p>
-      <VisuallyHidden>
-        <output aria-live="polite">{announcement}</output>
-      </VisuallyHidden>
+      <div className={styles.page}>
+        <Tabs
+          selectedKey={view}
+          onSelectionChange={(key) =>
+            onSearchChange({
+              view: key === 'all' ? undefined : (key as PublicationView),
+              status: undefined,
+              order: undefined
+            })
+          }
+        >
+          <TabList aria-label={copy.tabs.label}>
+            <Tab id="all">{copy.tabs.all}</Tab>
+            <Tab id="upcoming">{narrow ? copy.tabs.upcomingShort : copy.tabs.upcoming}</Tab>
+            <Tab id="recent">{narrow ? copy.tabs.recentShort : copy.tabs.recent}</Tab>
+            <Tab id="errors">{copy.tabs.errors}</Tab>
+          </TabList>
+        </Tabs>
+        {search.post ? (
+          <p className={styles.note}>
+            {copy.list.onePost}{' '}
+            <Button variant="ghost" size="sm" onPress={() => onSearchChange({ post: undefined })}>
+              {copy.list.allPosts}
+            </Button>
+          </p>
+        ) : null}
+        <VisuallyHidden>
+          <output aria-live="polite">{announcement}</output>
+        </VisuallyHidden>
 
-      {list.isError ? (
-        <ListError error={list.error} onRetry={() => void list.refetch()} />
-      ) : (
-        <div className={styles.results}>
-          <div className={styles.tableSurface}>
-            <PublicationTable
-              rows={items}
-              isLoading={list.isPending}
-              post={post}
-              channel={channel}
-              activeId={search.id}
-              onOpen={(id) => onSearchChange({ id })}
-              emptyState={
-                hasFilters || search.cursor ? (
-                  <EmptyState
-                    icon="search"
-                    title={copy.states.filteredTitle}
-                    description={copy.states.filteredDescription}
-                    action={
-                      <Button variant="secondary" onPress={reset}>
-                        {copy.filters.reset}
-                      </Button>
-                    }
-                  />
-                ) : (
-                  <EmptyState
-                    icon="send"
-                    title={copy.states.emptyTitle}
-                    description={copy.states.emptyDescription}
-                    action={<Button onPress={onOpenPosts}>{copy.states.emptyAction}</Button>}
-                  />
-                )
-              }
-            />
-          </div>
-          {search.cursor || list.data?.nextCursor ? (
-            <nav className={styles.pager} aria-label={copy.pagination.label}>
-              {search.cursor ? (
-                <Button variant="secondary" icon="chevron-left" onPress={() => onSearchChange({ cursor: undefined })}>
-                  {copy.pagination.first}
-                </Button>
-              ) : null}
-              {list.data?.nextCursor ? (
-                <Button
-                  variant="secondary"
-                  onPress={() => onSearchChange({ cursor: list.data?.nextCursor ?? undefined })}
-                >
-                  {copy.pagination.next}
-                </Button>
-              ) : null}
-            </nav>
-          ) : null}
-        </div>
-      )}
+        {list.isError ? (
+          <ListError error={list.error} onRetry={() => void list.refetch()} />
+        ) : (
+          <Panel
+            title={narrow ? copy.list.title : copy.list.panel[view]}
+            note={zoneNote}
+            {...(!narrow && hasFilters
+              ? {
+                  action: (
+                    <Button variant="ghost" size="sm" icon="x" onPress={resetFilters}>
+                      {copy.filters.reset}
+                    </Button>
+                  )
+                }
+              : {})}
+            {...(ready && items.length > 0 ? {} : { reserveRows: narrow ? 6 : 8 })}
+            {...(footer ? { footer } : {})}
+          >
+            {narrow ? (
+              <PhoneFilters
+                q={search.q}
+                status={search.status}
+                channel={search.channel}
+                order={search.order}
+                defaultOrder={defaultOrder}
+                destinations={destinationList}
+                isLoading={list.isPending}
+                onQueryChange={(q) => onSearchChange({ q })}
+                onApply={(next) => onSearchChange(next)}
+              />
+            ) : null}
+            {narrow && ready && items.length > 0 ? <AppliedChips chips={chips} onRemove={removeChip} /> : null}
+            {ready && items.length === 0 ? (
+              emptyFiltered ? (
+                <EmptyState
+                  icon="search"
+                  title={copy.states.filteredTitle}
+                  description={copy.states.filteredDescription}
+                  action={
+                    <Button variant="secondary" onPress={resetAll}>
+                      {copy.filters.reset}
+                    </Button>
+                  }
+                />
+              ) : (
+                <EmptyState
+                  icon="send"
+                  title={copy.states.emptyTitle}
+                  description={copy.states.emptyDescription}
+                  action={<Button onPress={onOpenPosts}>{copy.states.emptyAction}</Button>}
+                />
+              )
+            ) : (
+              <PublicationTable
+                narrow={narrow}
+                rows={items}
+                isLoading={list.isPending}
+                post={post}
+                channel={channel}
+                activeId={search.id}
+                onOpen={(id) => onSearchChange({ id })}
+                order={order}
+                onOrderChange={(next) => onSearchChange({ order: next })}
+                controls={{
+                  post: <SearchFilter q={search.q} onChange={(q) => onSearchChange({ q })} />,
+                  channel: (
+                    <PickFilter
+                      label={copy.filters.channel}
+                      filterLabel={copy.filters.channelFilter}
+                      value={search.channel}
+                      options={channelOptions}
+                      onChange={(next) => onSearchChange({ channel: next })}
+                    />
+                  ),
+                  status: (
+                    <PickFilter
+                      label={copy.filters.status}
+                      filterLabel={copy.filters.statusFilter}
+                      value={search.status}
+                      options={statusOptions}
+                      onChange={(next) => onSearchChange({ status: next as PublicationStatus | undefined, view: undefined })}
+                    />
+                  )
+                }}
+              />
+            )}
+          </Panel>
+        )}
+      </div>
 
       <PublicationDrawer
         publicationId={search.id ?? null}
@@ -178,6 +260,7 @@ export function PublicationsPage({ search, onSearchChange, onOpenPosts, onCreate
         chatId={openDestination?.chatId}
         pollMs={pollMs}
       />
+      <PublishPostDialog isOpen={publishOpen} onOpenChange={setPublishOpen} onOpenPosts={onOpenPosts} />
     </>
   );
 }

@@ -13,7 +13,14 @@ import styles from './Toast.module.css';
 
 export type ToastTone = 'info' | 'success' | 'error';
 export type ToastAction = { label: string; onPress: () => void };
-export type ToastContentValue = { title: string; description?: string; tone: ToastTone; action?: ToastAction };
+export type ToastContentValue = {
+  title: string;
+  description?: string;
+  tone: ToastTone;
+  action?: ToastAction;
+  /** Milliseconds before it closes; a toast with an action stays until closed unless this is set (undo toasts). */
+  timeout?: number;
+};
 
 const ICONS: Record<ToastTone, IconName> = { info: 'info', success: 'check-circle', error: 'x-circle' };
 // Results are polite status messages; only a failure that needs the owner stays until dismissed (WCAG 2.2.1).
@@ -29,7 +36,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     () => ({
       show: (toast) =>
         // A toast with an action stays until dismissed: a timer must not take the button away (WCAG 2.2.1).
-        queue.add(toast, { timeout: toast.action ? undefined : AUTO_DISMISS_MS[toast.tone] })
+        queue.add(toast, { timeout: toast.timeout ?? (toast.action ? undefined : AUTO_DISMISS_MS[toast.tone]) })
     }),
     [queue]
   );

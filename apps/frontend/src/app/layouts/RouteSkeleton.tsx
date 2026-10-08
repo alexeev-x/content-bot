@@ -26,7 +26,12 @@ export function RouteSkeleton({ pathname, title }: Props) {
         <PageHeader
           title={title}
           description={ru.dashboard.description}
-          actions={<Skeleton width={200} height="var(--size-button)" radius="var(--radius-2)" />}
+          actions={
+            <>
+              <Skeleton width={196} height="var(--size-control)" radius="var(--radius-2)" />
+              <Skeleton width={136} height="var(--size-button)" radius="var(--radius-2)" />
+            </>
+          }
         />
         <DashboardSkeleton zoneNote={zoneNote()} />
       </>

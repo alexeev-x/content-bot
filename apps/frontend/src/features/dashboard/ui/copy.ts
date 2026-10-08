@@ -1,31 +1,55 @@
 // Copy of the dashboard blocks. Publication status labels are canonical in shared/lib/ru.ts (skill page-spec).
 export const copy = {
   loading: 'Загружаем обзор…',
+  newPost: 'Новый пост',
+  noData: 'Нет данных',
+  kpi: {
+    label: 'Сводка',
+    today: { label: 'Публикации сегодня', short: 'Сегодня', detail: 'Запланировано и отправлено' },
+    sent: { label: 'Отправлено в каналы', short: 'Отправлено', detail: 'Успешных публикаций' },
+    attention: { label: 'Требует внимания', short: 'Внимание', detail: 'Инциденты и ошибки' },
+    next: { label: 'Ближайшая публикация', short: 'Ближайшая', detail: 'Нет запланированных' }
+  },
   attention: {
     title: 'Требует внимания',
     clear: 'Всё под контролем',
     checking: 'Проверяем систему…',
-    allIncidents: (total: number) => (total > 0 ? `Все инциденты (${total >= 99 ? '99+' : total})` : 'Все инциденты'),
+    all: 'Все инциденты',
     check: 'Проверить',
     open: 'Открыть',
-    unknownHint: 'Возможен дубль при повторной отправке',
+    unknownTag: 'Требует проверки',
+    unknownReason: 'Telegram не ответил. Сообщение могло уйти.',
+    failedTag: 'Ошибка публикации',
+    failedReason: 'Публикация не ушла.',
     stuckTag: 'Просрочено',
-    stuckHint: 'Время прошло, а отправка не началась',
-    failedHint: 'Публикация не ушла',
+    stuckReason: 'Время прошло, а отправка не началась.',
     systemTag: 'Система',
-    openLabel: (title: string) => `Открыть: «${title}»`,
-    checkLabel: (title: string) => `Проверить: «${title}»`
+    checkLabel: (title: string) => `Проверить: «${title}»`,
+    openLabel: (title: string) => `Открыть: «${title}»`
   },
   today: {
     title: 'Сегодня',
-    zone: (zone: string, offset: string) => `${zone}, ${offset}`,
-    empty: 'На сегодня ничего не запланировано',
-    schedule: 'Запланировать',
-    showAll: 'Показать все',
-    unknownTitle: 'Без названия'
+    all: 'Все публикации',
+    empty: 'На сегодня публикаций нет'
   },
-  upcoming: { title: 'Ближайшие', empty: 'Дальше ничего не запланировано' },
-  recent: { title: 'Недавно отправлено', empty: 'Пока ничего не отправлено', openInTelegram: 'Открыть в Telegram' },
+  upcoming: {
+    title: 'Ближайшие',
+    all: 'Все запланированные',
+    allShort: 'Все',
+    empty: 'Ничего не запланировано',
+    create: 'Опубликовать пост'
+  },
+  recent: {
+    title: 'Последние публикации',
+    all: 'Все публикации',
+    empty: 'Пока ничего не отправлено',
+    time: 'Время',
+    post: 'Пост',
+    status: 'Статус',
+    link: 'Ссылка',
+    openInTelegram: 'Открыть в Telegram'
+  },
+  system: { title: 'Система', empty: 'Нет данных о системе' },
   error: {
     title: 'Не удалось загрузить обзор',
     message: 'Данные не получены. Ничего не изменилось. Повторите запрос.',

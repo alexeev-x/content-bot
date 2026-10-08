@@ -6,11 +6,11 @@
 
 The primary external visual/UX orientation is now **Cloudflare Dashboard**: calm operational density, restrained dark surfaces, thin borders, compact controls, structural skeletons that preserve final geometry, collapsible navigation/panels, data-first tables and command-style search.
 
-Canonical design guidance and the current reference pack live in **[`docs/design/README.md`](design/README.md)**. The 40-reference coverage target is in **[`docs/design/MOCKUP_MATRIX.md`](design/MOCKUP_MATRIX.md)**.
+Canonical design guidance (approved 08.10.2026) lives in **[`docs/design/README.md`](design/README.md)** and **[`docs/design/UX_SPEC.md`](design/UX_SPEC.md)**; the clickable prototype is at `/__proto` (dev-only).
 
 Where the older “Modern SaaS” prototype below conflicts with the newer direction in visual mood, glow, card treatment, density, skeleton behavior or navigation collapse, the **07.10.2026 Cloudflare-oriented direction wins**. Existing semantic tokens, accessibility requirements, statuses and real product behavior remain authoritative until deliberately changed in code.
 
-Important correction: exploratory mockups may contain future/demo labels. **AI/LLM product functionality is not in current scope** and must not be inferred from any old reference image.
+Important correction: the prototype contains demo labels. **AI/LLM product functionality is not in current scope** and must not be inferred from any demo content.
 
 ## Designer artifacts
 1. `tokens.css`: semantic colors, type scale, spacing, radius, elevation, motion, breakpoint usage; light/dark and Telegram theme mapping where needed.

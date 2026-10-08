@@ -4,6 +4,7 @@ export const postsCopy = {
     title: 'Посты',
     description: 'Черновики, одобренные и запланированные посты, сначала недавно изменённые.',
     create: 'Новый пост',
+    toolbarLabel: 'Поиск и сортировка постов',
     searchLabel: 'Поиск по загруженным постам',
     searchPlaceholder: 'Поиск по названию и тексту',
     searchScope: 'Поиск идёт только по уже загруженным постам.',
@@ -20,7 +21,21 @@ export const postsCopy = {
     scheduledAt: (time: string) => `на ${time}`,
     untitled: 'Без названия',
     emptyBody: 'Текст не заполнен',
-    loaded: (count: number) => `Загружено постов: ${count}`,
+    // The API has no total: the count is «N из N» only when the last page is in.
+    loaded: (count: number, hasMore: boolean) => (hasMore ? `Загружено ${count}` : `Загружено ${count} из ${count}`),
+    sendAt: (time: string) => `Отправка ${time}`,
+    checkResult: 'Проверьте результат',
+    panel: { all: 'Все посты', drafts: 'Черновики', archive: 'Архив' },
+    filters: {
+      all: 'Все',
+      status: 'Статус',
+      statusFilter: 'Фильтр по статусу',
+      searchFilter: 'Поиск по постам',
+      searchField: 'Название или текст',
+      searchHint: 'Что ищем?',
+      phoneSearch: 'Поиск',
+      sortDefault: 'По умолчанию'
+    },
     sortLoadedOnly:
       'Сортировка применяется к уже загруженным постам. Загрузите остальные, чтобы включить их в порядок.',
     loadMore: 'Показать ещё',

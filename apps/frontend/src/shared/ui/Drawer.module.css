@@ -128,3 +128,20 @@
     transform: translateY(100%);
   }
 }
+
+/* Bottom sheet grabber: a visual cue only, the close button stays the keyboard way out. */
+.overlay[data-variant='bottom'] .header {
+  position: relative;
+  padding-top: calc(var(--space-4) + 6px);
+}
+.overlay[data-variant='bottom'] .header::before {
+  content: '';
+  position: absolute;
+  top: 8px;
+  left: 50%;
+  width: 36px;
+  height: 4px;
+  border-radius: var(--radius-pill);
+  background: var(--color-border-strong);
+  transform: translateX(-50%);
+}

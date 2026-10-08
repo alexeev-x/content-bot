@@ -1,9 +1,9 @@
 .tile {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 2px;
   min-width: 0;
-  padding: var(--space-5);
+  padding: var(--space-3) var(--space-4);
   border: 1px solid var(--color-border-subtle);
   border-radius: var(--radius-3);
   background: var(--color-surface-1);
@@ -17,7 +17,7 @@
   font-size: var(--font-size-xs);
 }
 .value {
-  font-size: var(--font-size-display);
+  font-size: 1.625rem;
   font-weight: var(--font-weight-heading);
   letter-spacing: var(--letter-spacing-display);
   line-height: 1.1;
@@ -43,10 +43,10 @@
 }
 @media (max-width: 859px) {
   .tile {
-    padding: var(--space-4);
+    padding: var(--space-3);
   }
   .value {
-    font-size: 1.75rem;
+    font-size: 1.5rem;
   }
   .footer {
     flex-direction: column;

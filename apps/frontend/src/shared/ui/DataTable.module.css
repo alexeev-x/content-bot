@@ -1,9 +1,10 @@
 .wrap {
   min-width: 0;
   overflow-x: auto;
-  /* A working surface, not a card: only a thin rule above and below. */
-  border-top: 1px solid var(--color-border-subtle);
-  border-bottom: 1px solid var(--color-border-subtle);
+  /* The quiet panel surface; the header row and rows run flush to its edges. */
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-2);
+  background: var(--color-surface-1);
 }
 .table {
   width: 100%;
@@ -11,13 +12,14 @@
   outline: none;
 }
 .head {
-  background: transparent;
+  background: var(--color-surface-2);
 }
 .column,
 .selectCell {
-  height: var(--size-control);
-  padding: 0 var(--space-3);
+  height: var(--size-row);
+  padding: 0 var(--space-4);
   border-bottom: 1px solid var(--color-border-subtle);
+  background: var(--color-surface-2);
   color: var(--color-text-muted);
   font-size: var(--font-size-xs);
   font-weight: var(--font-weight-semibold);
@@ -66,9 +68,7 @@
 }
 .row[data-selected],
 .row[data-active] {
-  background: var(--color-selected-bg);
-}
-.row[data-active] {
+  background: var(--color-accent-soft);
   box-shadow: inset 2px 0 0 var(--color-accent);
 }
 .row[data-focus-visible] {
@@ -82,7 +82,7 @@
 .cell,
 .selectCell {
   height: var(--size-row);
-  padding: 0 var(--space-3);
+  padding: 0 var(--space-4);
   border-bottom: 1px solid var(--color-border-subtle);
   vertical-align: middle;
   outline: none;
@@ -93,9 +93,10 @@
 }
 .selectCell {
   width: 44px;
+  padding-inline: var(--space-3);
 }
 .empty {
-  padding: var(--space-6);
+  padding: var(--space-4);
   color: var(--color-text-muted);
 }
 
@@ -119,14 +120,13 @@
   gap: var(--space-3);
   padding: var(--space-4);
   border: 1px solid var(--color-border-subtle);
-  border-radius: var(--radius-3);
+  border-radius: var(--radius-2);
   background: var(--color-surface-1);
-  box-shadow: var(--shadow-card);
 }
 .card[data-selected],
 .card[data-active] {
   border-color: var(--color-accent-text);
-  background: var(--color-selected-bg);
+  background: var(--color-accent-soft);
 }
 .cardHead {
   display: flex;
@@ -198,7 +198,7 @@
 }
 .cards[data-density='compact'] .card[data-selected],
 .cards[data-density='compact'] .card[data-active] {
-  background: var(--color-selected-bg);
+  background: var(--color-accent-soft);
 }
 .cards[data-density='compact'] .cardAction {
   min-height: var(--size-target-min);
@@ -246,4 +246,14 @@
 }
 .cards[data-density='compact'] .detail dd {
   text-align: left;
+}
+
+.wrap[data-flush] {
+  border: 0;
+  border-radius: 0;
+  background: none;
+}
+.wrap[data-rows='tall'] .cell,
+.wrap[data-rows='tall'] .selectCell {
+  height: 56px;
 }

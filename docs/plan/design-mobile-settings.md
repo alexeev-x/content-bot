@@ -38,15 +38,7 @@ Target geometry, adjusted by visual testing:
 - restrained radii.
 - content width determined by screen purpose, not one global max-width.
 
-Repository design references should eventually live under:
-
-- docs/design/references/dashboard/
-- docs/design/references/posts/
-- docs/design/references/editor/
-- docs/design/references/publications/
-- docs/design/references/dota/
-- docs/design/references/analytics/
-- docs/design/references/settings/
+Design reference: `docs/design/UX_SPEC.md` and the prototype at `/__proto` (approved 08.10.2026).
 
 Each major visual redesign gets screenshot references at desktop and mobile before or with implementation.
 

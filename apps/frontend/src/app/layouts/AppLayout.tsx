@@ -7,12 +7,15 @@ import { ThemeToggle, useAppearanceSync } from '../../features/appearance';
 import { useOpenIncidentCount } from '../../features/incidents';
 import { AuthUnavailableState, NoAccessState, meQueryOptions } from '../../features/auth';
 import { ru } from '../../shared/lib/ru';
+import { Skeleton } from '../../shared/ui';
 import { applyAppearance, useTheme, type Appearance } from '../theme';
 import { useDocumentTitle } from '../use-document-title';
 import { AppShell } from './AppShell';
+import { ChannelCard } from './ChannelCard';
 import styles from './AppShell.module.css';
 import { NAV_ITEMS } from './nav-items';
 import { RouteSkeleton } from './RouteSkeleton';
+import { SystemStatusChip } from './SystemStatusChip';
 
 // The sign-in page and the dev catalog use the full viewport: no navigation around them.
 const BARE_PATHS = ['/login', '/__catalog'];
@@ -20,6 +23,8 @@ const BARE_PATHS = ['/login', '/__catalog'];
 const applyServerAppearance = (value: Appearance) => applyAppearance(value);
 // The theme button shows its result before the server confirms; only the server answer is persisted.
 const previewAppearance = (value: Appearance) => applyAppearance(value, { persist: false });
+
+const channelCard = (collapsed: boolean) => <ChannelCard collapsed={collapsed} />;
 
 function titleFor(pathname: string): string {
   if (pathname === '/') return ru.pages.dashboard;
@@ -49,7 +54,18 @@ function SignedInLayout() {
       incidentsCount={incidentsCount}
       ownerName={me.data?.name}
       onLogout={() => void auth.logout()}
-      topBarTools={<ThemeToggle preview={previewAppearance} />}
+      topBarTools={
+        <>
+          <SystemStatusChip />
+          <ThemeToggle preview={previewAppearance} />
+        </>
+      }
+      sidebarFooter={channelCard}
+      moreExtra={
+        <div className={styles.moreExtra}>
+          <ChannelCard collapsed={false} />
+        </div>
+      }
     >
       <Outlet />
     </AppShell>
@@ -64,7 +80,19 @@ function RestoringLayout({ pathname }: { pathname: string }) {
   const title = titleFor(pathname);
   useDocumentTitle(title);
   return (
-    <AppShell topBarTools={<span className={styles.toolSpace} aria-hidden="true" />}>
+    <AppShell
+      topBarTools={
+        <>
+          <Skeleton width={128} height={28} radius="var(--radius-pill)" />
+          <span className={styles.toolSpace} aria-hidden="true" />
+        </>
+      }
+      sidebarFooter={
+        <div className={styles.channelSpace} aria-hidden="true">
+          <Skeleton width={28} height={28} radius="var(--radius-pill)" />
+        </div>
+      }
+    >
       <RouteSkeleton pathname={pathname} title={title} />
     </AppShell>
   );
@@ -74,7 +102,7 @@ export function AppLayout() {
   const pathname = useRouterState({ select: (state) => state.location.pathname });
   const href = useRouterState({ select: (state) => state.location.href });
   const auth = useAuth();
-  if (BARE_PATHS.includes(pathname)) return <Outlet />;
+  if (BARE_PATHS.includes(pathname) || pathname.startsWith('/__proto')) return <Outlet />;
 
   switch (auth.status) {
     case 'checking':

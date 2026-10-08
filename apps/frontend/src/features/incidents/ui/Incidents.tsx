@@ -3,11 +3,12 @@ import { useInfiniteQuery } from '@tanstack/react-query';
 import { useMemo } from 'react';
 import { classifyApiError } from '../../../shared/api/error-kind';
 import { ApiError } from '../../../shared/api/http-client';
-import { Banner, Button, EmptyState, ErrorState, Skeleton, VisuallyHidden } from '../../../shared/ui';
+import { Banner, Button, EmptyState, ErrorState, Panel } from '../../../shared/ui';
 import { incidentsInfiniteQueryOptions } from '../api/incidents-queries';
 import { copy } from './copy';
 import { IncidentFilters } from './IncidentFilters';
 import { IncidentRow } from './IncidentRow';
+import { IncidentsListSkeleton } from './IncidentsSkeleton';
 import styles from './Incidents.module.css';
 
 type Props = {
@@ -55,16 +56,7 @@ export function Incidents({
     return (
       <>
         {filters}
-        <div className={styles.skeleton} aria-busy="true">
-          <VisuallyHidden>
-            <output>{copy.loading}</output>
-          </VisuallyHidden>
-          {Array.from({ length: 5 }, (_, index) => (
-            <div key={index} className={styles.skeletonRow}>
-              <Skeleton height="var(--size-button)" />
-            </div>
-          ))}
-        </div>
+        <IncidentsListSkeleton />
       </>
     );
   }
@@ -102,7 +94,8 @@ export function Incidents({
         />
       ) : null}
       {items.length === 0 ? (
-        kind ? (
+        <Panel>
+        {kind ? (
           <EmptyState
             icon="search"
             title={copy.states.emptyFiltered}
@@ -125,14 +118,17 @@ export function Incidents({
           />
         ) : (
           <EmptyState icon="clock" title={copy.states.emptyResolved} />
-        )
+        )}
+        </Panel>
       ) : (
         <>
-          <ul className={styles.list} aria-label={copy.states.listLabel}>
-            {items.map((incident) => (
-              <IncidentRow key={incident.id} incident={incident} onOpenPublication={onOpenPublication} />
-            ))}
-          </ul>
+          <Panel>
+            <ul className={styles.list} aria-label={copy.states.listLabel}>
+              {items.map((incident) => (
+                <IncidentRow key={incident.id} incident={incident} onOpenPublication={onOpenPublication} />
+              ))}
+            </ul>
+          </Panel>
           {query.hasNextPage ? (
             <div className={styles.more}>
               <Button

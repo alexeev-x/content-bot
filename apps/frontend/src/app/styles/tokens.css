@@ -59,9 +59,13 @@
   --size-button-sm: 28px;
   --size-row: 48px;
   --size-topbar: 48px;
+  /* Tabs and segmented controls: items inside a compact bordered group. */
+  --size-tab: 32px;
   /* Reading width a page opts into with the .reading-width class. */
   --measure-reading: 760px;
   --measure-dashboard: 1280px;
+  /* Widest content column of the shell: keeps wide tables readable on large monitors. */
+  --measure-content: 1440px;
   --size-nav: 64px;
 
   /* focus: 2px ring in --color-focus-ring */
@@ -91,6 +95,7 @@
     --font-size-xl: 1.125rem;
     --size-row: 52px;
     --size-topbar: 56px;
+    --size-tab: var(--size-target);
   }
 }
 

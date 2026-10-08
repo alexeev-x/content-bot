@@ -1,133 +1,27 @@
-/* Rows of the posts lists: a real table on wide screens, a list of compact rows on narrow ones. Tokens only. */
-.wrap {
-  min-width: 0;
-  overflow-x: auto;
-  border-top: 1px solid var(--color-border-subtle);
-  border-bottom: 1px solid var(--color-border-subtle);
-}
-.table {
-  width: 100%;
-  border-collapse: collapse;
-}
-.th {
-  height: var(--size-control);
-  padding: 0 var(--space-3);
-  border-bottom: 1px solid var(--color-border-subtle);
-  color: var(--color-text-muted);
-  font-size: var(--font-size-xs);
-  font-weight: var(--font-weight-semibold);
-  text-align: left;
-  white-space: nowrap;
-}
-.sortButton {
+/* Cells of the posts table (desktop) and lines of the phone rows. Tokens only. */
+.cellMedia {
   display: flex;
-  width: 100%;
   align-items: center;
-  justify-content: flex-start;
-  gap: var(--space-1);
-  padding: 0;
-  border: 0;
-  background: none;
-  color: inherit;
-  font: inherit;
-  text-align: inherit;
-  cursor: pointer;
-}
-.sortButton:hover {
-  color: var(--color-text);
-}
-.sortMark {
-  flex: none;
-  color: var(--color-text-muted);
-  /* Faint at rest, so sortable columns read as such on touch screens, which have no hover. */
-  opacity: 0.4;
-}
-.sortButton:hover .sortMark,
-.sortButton:focus-visible .sortMark {
-  opacity: 0.8;
-}
-.th[aria-sort] .sortMark {
-  color: var(--color-accent-text);
-  opacity: 1;
-}
-.th[data-align='end'] .sortButton {
-  justify-content: flex-end;
-}
-.th[data-align='end'],
-.td[data-align='end'] {
-  text-align: right;
-}
-.row {
-  position: relative;
-}
-.row:hover {
-  background: var(--color-surface-2);
-}
-.row[data-selected] {
-  background: var(--color-selected-bg);
-}
-.row:has(.open:focus-visible) {
-  outline: var(--focus-ring-width) solid var(--color-focus-ring);
-  outline-offset: -2px;
-}
-.td {
-  height: var(--size-row);
-  padding: 0 var(--space-3);
-  border-bottom: 1px solid var(--color-border-subtle);
-  vertical-align: middle;
-}
-.row:last-child .td {
-  border-bottom: 0;
-}
-.selectCol {
-  width: 52px;
-}
-.titleCol {
-  width: 100%;
-  min-width: 16ch;
-  max-width: 0;
-}
-.actionCol {
-  width: 1%;
-  text-align: right;
-}
-.titleCell {
-  display: flex;
-  align-items: baseline;
   gap: var(--space-3);
   min-width: 0;
+  max-width: 60ch;
 }
-.open {
-  flex: 0 1 auto;
+.cellTitle {
+  display: grid;
+  gap: 2px;
   min-width: 0;
-  max-width: 60%;
-  padding: 0;
+  max-width: 52ch;
+}
+.title {
   overflow: hidden;
-  border: 0;
-  background: none;
-  color: inherit;
-  font: inherit;
-  font-weight: var(--font-weight-semibold);
-  text-align: left;
+  font-weight: var(--font-weight-medium);
   text-overflow: ellipsis;
   white-space: nowrap;
-  cursor: pointer;
-}
-/* The whole row is the target, not only the title text. */
-.open::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-}
-.open:focus-visible {
-  outline: none;
 }
 .excerpt {
-  flex: 1 1 0;
-  min-width: 0;
   overflow: hidden;
   color: var(--color-text-muted);
-  font-size: var(--font-size-sm);
+  font-size: var(--font-size-xs);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -136,7 +30,7 @@
   align-items: center;
   gap: var(--space-1);
   color: var(--color-danger);
-  font-size: var(--font-size-sm);
+  font-size: var(--font-size-xs);
 }
 .muted {
   color: var(--color-text-muted);
@@ -160,11 +54,6 @@
   align-items: center;
   gap: var(--space-1) var(--space-2);
 }
-/* Controls sit above the row-wide open overlay. */
-.interactive {
-  position: relative;
-  z-index: 1;
-}
 .channels {
   display: block;
   max-width: 28ch;
@@ -172,66 +61,16 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-
-.list {
-  display: grid;
-  margin: 0;
-  padding: 0;
-  border-top: 1px solid var(--color-border-subtle);
-  list-style: none;
-}
-.item {
-  position: relative;
-  display: grid;
-  gap: 2px;
-  padding: var(--space-2) var(--space-1);
+.selectAll {
+  padding: var(--space-2) var(--space-4);
   border-bottom: 1px solid var(--color-border-subtle);
 }
-.item[data-selected] {
-  background: var(--color-selected-bg);
-}
-.item:has(.open:focus-visible) {
-  outline: var(--focus-ring-width) solid var(--color-focus-ring);
-  outline-offset: -2px;
-}
-.head {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-}
-.item .open {
-  max-width: none;
-  min-height: var(--size-target);
-  font-size: var(--font-size-md);
-}
-.trail {
-  flex: none;
-}
-.meta {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0 var(--space-3);
-  color: var(--color-text-muted);
-  font-size: var(--font-size-xs);
-}
-.skeletonRow {
-  display: grid;
-  gap: var(--space-2);
-  padding: var(--space-3) var(--space-1);
-  border-bottom: 1px solid var(--color-border-subtle);
+.reasonRow {
+  padding: 0 var(--space-4) var(--space-2);
 }
 
-.cardMain {
-  display: grid;
-  flex: 1;
-  min-width: 0;
-}
-.cardMain .open {
-  display: -webkit-box;
-  min-width: 0;
-  line-clamp: 2;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow-wrap: anywhere;
-  white-space: normal;
+@media (max-width: 859px) {
+  .cellTitle {
+    max-width: none;
+  }
 }

@@ -13,6 +13,7 @@ export {
 } from './api/posts-queries';
 export { PostEditor } from './ui/PostEditor';
 export { PostsList } from './ui/PostsList';
+export { PostsSkeleton } from './ui/PostsSkeleton';
 export { postsCopy } from './ui/copy';
 export { formatClock, formatExact } from './model/format-time';
 export { DeletePostsDialog, deleteTargetOf } from './ui/DeletePostsDialog';
