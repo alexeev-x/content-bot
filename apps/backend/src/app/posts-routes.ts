@@ -4,6 +4,7 @@ import {
   bulkRestorePostsInputSchema,
   createPostInputSchema,
   deletePostInputSchema,
+  listPostRevisionsQuerySchema,
   listPostsQuerySchema,
   POST_ENTITY_ISSUE_CODES,
   restorePostInputSchema,
@@ -11,7 +12,7 @@ import {
 } from '@alexeev/contracts';
 import { Hono } from 'hono';
 import { z } from 'zod';
-import { approvePost, createPost, getPost, listPosts, updatePost } from '../modules/content';
+import { approvePost, createPost, getPost, getPostRevisions, listPosts, updatePost } from '../modules/content';
 import { deletePost, deletePosts, restorePosts } from '../modules/lifecycle';
 import { AppError } from '../shared/app-error';
 import type { AppBindings } from './env';
@@ -91,6 +92,16 @@ export const postsRoutes = new Hono<AppBindings>()
           { actor: c.get('actor').telegramId, items: c.req.valid('json').items }
         )
       );
+    }
+  )
+  .get(
+    '/:id/revisions',
+    validated('param', idParamSchema),
+    validated('query', listPostRevisionsQuerySchema),
+    async (c) => {
+      const container = c.get('container');
+      const id = postId(c.req.valid('param').id);
+      return c.json(await getPostRevisions({ repo: container.posts }, id, c.req.valid('query')));
     }
   )
   .get('/:id', validated('param', idParamSchema), async (c) => {
