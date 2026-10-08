@@ -209,3 +209,4 @@ Schemas and error codes: `apps/contracts/src/dashboard.ts`, `apps/contracts/src/
 5. `202` is not treated by the UI as `sent`.
 6. `unknown` blocks automatic retry and requires manual reconcile.
 7. A DTO version change supports the frontend of both the current and the previous deploy at the same time, or goes out as a coordinated release.
+\n- `POST /api/v1/posts/{id}/archive` — manually archive a live post when no publication can still send; revision-guarded.\n
