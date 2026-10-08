@@ -12,12 +12,13 @@ import {
   PostEditor,
   postQueryOptions,
   postsCopy,
+  useDuplicatePost,
   useRestoreActions,
   type LifecycleNotice
 } from '../../features/posts';
 import { classifyApiError } from '../../shared/api/error-kind';
 import { ApiError } from '../../shared/api/http-client';
-import { Banner, Button, Card, ErrorState, Menu, PageHeader, Skeleton, StatusBadge } from '../../shared/ui';
+import { Banner, Button, Card, ErrorState, Menu, PageHeader, Skeleton, StatusBadge, useToast } from '../../shared/ui';
 import { BackToPosts } from './BackToPosts';
 import { PostPublications } from './PostPublications';
 import styles from './PostPages.module.css';
@@ -77,6 +78,8 @@ export function PostEditPage({ id }: Props) {
 function LoadedPost({ post }: { post: PostDto }) {
   const id = post.id;
   const navigate = useNavigate();
+  const toast = useToast();
+  const duplicate = useDuplicatePost();
   const [notice, setNotice] = useState<LifecycleNotice | null>(null);
   const [deleting, setDeleting] = useState(false);
   const headerRef = useRef<HTMLDivElement>(null);
@@ -104,28 +107,46 @@ function LoadedPost({ post }: { post: PostDto }) {
         <PageHeader
           title={post.title.trim() || copy.editor.untitled}
           actions={
-            isArchived ? undefined : (
-              <Menu
-                label={copy.actions.pageMenu}
-                items={[
-                  {
-                    id: 'delete',
-                    label: block
-                      ? copy.actions.deleteBlocked(
-                          block === 'unknown' ? copy.actions.blockedUnknown : copy.actions.blockedInProgress
-                        )
-                      : copy.actions.delete,
-                    icon: 'trash',
-                    tone: 'danger',
-                    isDisabled: block !== null
-                  }
-                ]}
-                onAction={() => {
-                  setNotice(null);
-                  setDeleting(true);
-                }}
-              />
-            )
+            <Menu
+              label={copy.actions.pageMenu}
+              items={[
+                { id: 'duplicate', label: copy.actions.duplicate, icon: 'plus', isDisabled: duplicate.isPending },
+                { id: 'publications', label: copy.actions.openPublications, icon: 'send' },
+                ...(isArchived
+                  ? []
+                  : [
+                      {
+                        id: 'delete',
+                        label: block
+                          ? copy.actions.deleteBlocked(
+                              block === 'unknown' ? copy.actions.blockedUnknown : copy.actions.blockedInProgress
+                            )
+                          : copy.actions.delete,
+                        icon: 'trash' as const,
+                        tone: 'danger' as const,
+                        isDisabled: block !== null
+                      }
+                    ])
+              ]}
+              onAction={(action) => {
+                setNotice(null);
+                if (action === 'publications') {
+                  void navigate({ to: '/publications', search: { post: id } });
+                  return;
+                }
+                if (action === 'duplicate') {
+                  void duplicate
+                    .duplicate(post)
+                    .then((created) => {
+                      toast.show({ tone: 'success', title: copy.actions.duplicateDone });
+                      void navigate({ to: '/posts/$id', params: { id: created.id } });
+                    })
+                    .catch(() => toast.show({ tone: 'error', title: copy.actions.duplicateFailed }));
+                  return;
+                }
+                setDeleting(true);
+              }}
+            />
           }
         />
       </div>
