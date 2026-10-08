@@ -7,11 +7,14 @@ import {
   DeletePostsDialog,
   deleteBlockOf,
   deleteTargetOf,
+  duplicateTitle,
   formatExact,
   LifecycleBanner,
   PostEditor,
   postQueryOptions,
   postsCopy,
+  useArchiveAction,
+  useCreatePost,
   useRestoreActions,
   type LifecycleNotice
 } from '../../features/posts';
@@ -81,6 +84,8 @@ function LoadedPost({ post }: { post: PostDto }) {
   const [deleting, setDeleting] = useState(false);
   const headerRef = useRef<HTMLDivElement>(null);
   const restore = useRestoreActions({ onNotice: setNotice });
+  const archive = useArchiveAction({ onNotice: setNotice });
+  const duplicate = useCreatePost();
   const isArchived = post.archivedAt !== null;
   const block = deleteBlockOf(post);
   const date = post.autoDeleteAt ? formatExact(post.autoDeleteAt) : '';
@@ -104,28 +109,68 @@ function LoadedPost({ post }: { post: PostDto }) {
         <PageHeader
           title={post.title.trim() || copy.editor.untitled}
           actions={
-            isArchived ? undefined : (
-              <Menu
-                label={copy.actions.pageMenu}
-                items={[
-                  {
-                    id: 'delete',
-                    label: block
-                      ? copy.actions.deleteBlocked(
-                          block === 'unknown' ? copy.actions.blockedUnknown : copy.actions.blockedInProgress
-                        )
-                      : copy.actions.delete,
-                    icon: 'trash',
-                    tone: 'danger',
-                    isDisabled: block !== null
-                  }
-                ]}
-                onAction={() => {
-                  setNotice(null);
-                  setDeleting(true);
-                }}
-              />
-            )
+            <Menu
+              label={copy.actions.pageMenu}
+              items={[
+                ...(!isArchived
+                  ? [
+                      {
+                        id: 'archive',
+                        label: copy.actions.archive,
+                        icon: 'download' as const
+                      }
+                    ]
+                  : []),
+                { id: 'duplicate', label: copy.actions.duplicate, icon: 'copy' as const },
+                { id: 'publications', label: copy.actions.publications, icon: 'send' as const },
+                ...(!isArchived
+                  ? [
+                      {
+                        id: 'delete',
+                        label: block
+                          ? copy.actions.deleteBlocked(
+                              block === 'unknown' ? copy.actions.blockedUnknown : copy.actions.blockedInProgress
+                            )
+                          : copy.actions.delete,
+                        icon: 'trash' as const,
+                        tone: 'danger' as const,
+                        isDisabled: block !== null
+                      }
+                    ]
+                  : [])
+              ]}
+              onAction={(action) => {
+                setNotice(null);
+                if (action === 'publications') {
+                  void navigate({ to: '/publications', search: { post: id } });
+                  return;
+                }
+                if (action === 'duplicate') {
+                  if (duplicate.isPending) return;
+                  void duplicate
+                    .mutateAsync({
+                      title: duplicateTitle(post.title),
+                      body: post.body,
+                      entities: post.entities
+                    })
+                    .then((created) => navigate({ to: '/posts/$id', params: { id: created.id } }))
+                    .catch((error) =>
+                      setNotice({
+                        tone: 'error',
+                        title: copy.actions.duplicateErrorTitle,
+                        body: copy.actions.duplicateErrorBody,
+                        requestId: error instanceof ApiError ? error.requestId : undefined
+                      })
+                    );
+                  return;
+                }
+                if (action === 'archive') {
+                  void archive.archiveOne({ id, revision: post.revision });
+                  return;
+                }
+                setDeleting(true);
+              }}
+            />
           }
         />
       </div>
