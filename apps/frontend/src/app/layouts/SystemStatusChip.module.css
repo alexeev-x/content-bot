@@ -1,8 +1,6 @@
 .root {
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
-  gap: var(--space-2);
   min-width: 0;
 }
 .dot {
@@ -10,7 +8,7 @@
   width: 8px;
   height: 8px;
   border-radius: var(--radius-pill);
-  background: var(--color-text-muted);
+  background: var(--color-status-muted-fg);
 }
 .dot[data-tone='ok'] {
   background: var(--color-status-done-fg);
@@ -27,7 +25,7 @@
 .list {
   display: grid;
   gap: var(--space-3);
-  margin: 0;
+  margin: 0 0 var(--space-3);
   padding: 0;
   list-style: none;
 }
@@ -43,15 +41,25 @@
   gap: var(--space-2) var(--space-3);
 }
 .name {
-  font-weight: var(--font-weight-medium);
-}
-.summary {
   flex: 1 1 8ch;
   min-width: 0;
   color: var(--color-text-muted);
   font-size: var(--font-size-sm);
+}
+.word {
+  min-width: 0;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
   overflow-wrap: anywhere;
 }
 .more {
   padding-left: var(--space-4);
+}
+.checked {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+}
+.checked time {
+  font-family: var(--font-mono);
 }

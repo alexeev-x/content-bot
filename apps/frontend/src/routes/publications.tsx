@@ -17,7 +17,6 @@ function PublicationsRoute() {
         void navigate({ search: (previous) => ({ ...previous, ...patch }), replace: options?.replace ?? false })
       }
       onOpenPosts={() => void navigate({ to: '/posts' })}
-      onCreatePost={() => void navigate({ to: '/posts/new' })}
     />
   );
 }

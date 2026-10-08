@@ -1,111 +1,52 @@
-.postCell {
+.cellMedia {
   display: flex;
   align-items: center;
   gap: var(--space-3);
   min-width: 0;
+  max-width: 60ch;
 }
-.postMark {
-  display: inline-grid;
-  place-items: center;
-  flex: none;
-  width: 36px;
-  height: 36px;
-  border: 1px solid var(--color-border-subtle);
-  border-radius: var(--radius-2);
-  background: var(--color-surface-2);
-  color: var(--color-accent-text);
-}
-.postText {
+.cellTitle {
   display: grid;
-  min-width: 0;
   gap: 2px;
+  min-width: 0;
+  max-width: 52ch;
 }
 .title {
-  display: block;
   overflow: hidden;
-  font-weight: var(--font-weight-semibold);
+  font-weight: var(--font-weight-medium);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 .excerpt {
-  display: block;
-  max-width: 48ch;
   overflow: hidden;
   color: var(--color-text-muted);
   font-size: var(--font-size-xs);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-td:has(> .postCell) {
-  width: 100%;
-  min-width: 24ch;
-  max-width: 0;
-}
 .channel {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-2);
-  max-width: min(28ch, 20vw);
+  display: block;
+  max-width: 26ch;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.channelIcon {
-  display: inline-grid;
-  place-items: center;
-  flex: none;
-  width: 28px;
-  height: 28px;
-  border-radius: var(--radius-pill);
-  background: var(--color-accent-soft);
-  color: var(--color-accent-text);
+.time {
+  white-space: nowrap;
 }
 .muted {
   color: var(--color-text-muted);
 }
 .link {
-  display: inline-flex;
-  align-items: center;
-  min-height: var(--size-target-min);
   color: var(--color-accent-text);
+  text-decoration: none;
+}
+.link:hover {
   text-decoration: underline;
-  text-underline-offset: 3px;
-}
-.link:focus-visible {
-  border-radius: var(--radius-1);
-  outline: var(--focus-ring-width) solid var(--color-focus-ring);
-  outline-offset: var(--focus-ring-offset);
-}
-.time {
-  white-space: nowrap;
-  color: var(--color-text-muted);
 }
 
 @media (max-width: 859px) {
-  .postMark {
-    display: none;
-  }
-  .title,
-  .channel,
-  .excerpt {
-    display: -webkit-box;
+  .cellTitle {
     max-width: none;
-    overflow: hidden;
-    overflow-wrap: anywhere;
-    white-space: normal;
-    -webkit-box-orient: vertical;
-    -webkit-line-clamp: 2;
-    line-clamp: 2;
-  }
-  .excerpt {
-    -webkit-line-clamp: 1;
-    line-clamp: 1;
-  }
-}
-
-@media (pointer: coarse), (max-width: 859px) {
-  .link {
-    min-height: var(--size-target);
-    margin-block: calc((var(--size-target-min) - var(--size-target)) / 2);
   }
 }

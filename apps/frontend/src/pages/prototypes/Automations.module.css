@@ -1,0 +1,52 @@
+.lastRun {
+  display: grid;
+  gap: var(--space-1);
+  justify-items: start;
+}
+.fill {
+  display: grid;
+  place-items: center;
+  min-height: 360px;
+}
+.switchRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  font-size: var(--font-size-sm);
+}
+.does {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding-left: var(--space-5);
+  font-size: var(--font-size-sm);
+}
+.logs {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.logs li {
+  display: grid;
+  gap: 2px;
+  padding: var(--space-2) 0;
+  border-bottom: 1px solid var(--color-border-subtle);
+  font-size: var(--font-size-sm);
+}
+.logTop {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+.logTop > :last-child {
+  margin-left: auto;
+}
+
+.name {
+  min-width: 150px;
+}
+.cron {
+  white-space: nowrap;
+}

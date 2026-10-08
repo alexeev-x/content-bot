@@ -1,0 +1,40 @@
+.trigger {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  width: var(--size-target-min);
+  height: var(--size-target-min);
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-1);
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  opacity: 0.7;
+}
+.trigger[data-hovered],
+.trigger[data-pressed],
+.trigger[data-active] {
+  opacity: 1;
+}
+.trigger[data-hovered] {
+  background: var(--color-surface-3);
+  color: var(--color-text);
+}
+.trigger[data-active] {
+  background: var(--color-accent-soft);
+  color: var(--color-accent-text);
+}
+.trigger[data-focus-visible] {
+  outline: var(--focus-ring-width) solid var(--color-focus-ring);
+  outline-offset: 1px;
+}
+.trigger[data-disabled] {
+  cursor: default;
+  opacity: 0.4;
+}
+.body {
+  display: grid;
+  gap: var(--space-3);
+  min-width: 240px;
+}

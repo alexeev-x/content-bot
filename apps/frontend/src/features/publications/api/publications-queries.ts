@@ -37,13 +37,19 @@ export const publicationKeys = {
 const STALE_TIME = 15_000;
 export const PUBLICATION_POLL_MS = 15_000;
 
-export function publicationsInfiniteQueryOptions(filters: PublicationFilters = {}) {
+/** Pages accumulate under «Показать ещё»; pass `pollMs` to refresh the loaded pages while a row can still change. */
+export function publicationsInfiniteQueryOptions(filters: PublicationFilters = {}, pollMs?: number) {
   return infiniteQueryOptions({
     queryKey: publicationKeys.list(filters),
     queryFn: ({ pageParam, signal }) => listPublications(filters, pageParam, signal),
     initialPageParam: undefined as string | undefined,
     getNextPageParam: nextCursor,
-    staleTime: STALE_TIME
+    staleTime: STALE_TIME,
+    // The default refetchIntervalInBackground (false) stops polling in a hidden tab.
+    refetchInterval: (query) =>
+      pollMs !== undefined && query.state.data?.pages.some((page) => page.items.some((item) => isInProgress(item.status)))
+        ? pollMs
+        : false
   });
 }
 

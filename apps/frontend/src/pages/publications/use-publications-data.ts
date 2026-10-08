@@ -1,38 +1,46 @@
 import type { DestinationDto, PostDto, PublicationDto } from '@alexeev/contracts';
-import { useInfiniteQuery, useQueries, useQuery } from '@tanstack/react-query';
+import { useInfiniteQuery, useQueries } from '@tanstack/react-query';
 import { useCallback, useMemo } from 'react';
 import { destinationsInfiniteQueryOptions } from '../../features/destinations';
 import { postQueryOptions } from '../../features/posts';
-import { publicationsPageQueryOptions, type PublicationFilters } from '../../features/publications';
+import {
+  PUBLICATION_POLL_MS,
+  publicationsInfiniteQueryOptions,
+  type PublicationFilters
+} from '../../features/publications';
 import type { PublicationsSearch } from './search';
 
 /** Composes the three features the list needs: publications, the posts they belong to and the channels they go to. */
-function todayRange() {
-  const now = new Date();
-  const from = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const to = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
-  return { from: from.toISOString(), to: to.toISOString() };
-}
-
 export function usePublicationsData(search: PublicationsSearch, pollMs?: number) {
   const view = search.view;
-  const today = view === 'today' ? todayRange() : undefined;
   const filters: PublicationFilters = {
     ...(search.status ? { status: search.status } : {}),
     ...(search.post ? { postId: search.post } : {}),
     ...(search.channel ? { destinationId: search.channel } : {}),
     ...(search.q ? { q: search.q } : {}),
-    ...(today ? today : {}),
     ...(view === 'upcoming' && !search.status ? { status: 'scheduled' as const } : {}),
     ...(view === 'recent' && !search.status ? { status: 'sent' as const } : {}),
     ...(view === 'errors' && !search.status ? { status: 'failed' as const } : {}),
     order: search.order ?? (view === 'upcoming' ? 'asc' : 'desc')
   };
-  const list = useQuery(publicationsPageQueryOptions(filters, search.cursor, pollMs));
+  const list = useInfiniteQuery(publicationsInfiniteQueryOptions(filters, pollMs ?? PUBLICATION_POLL_MS));
   const destinations = useInfiniteQuery(destinationsInfiniteQueryOptions());
-  const items = list.data?.items;
+  // Polling refetches every loaded page; a row that moved between pages must still appear once.
+  const items = useMemo(() => {
+    const seen = new Set<string>();
+    const rows: PublicationDto[] = [];
+    for (const page of list.data?.pages ?? []) {
+      for (const item of page.items) {
+        if (!seen.has(item.id)) {
+          seen.add(item.id);
+          rows.push(item);
+        }
+      }
+    }
+    return rows;
+  }, [list.data]);
 
-  const postIds = useMemo(() => [...new Set((items ?? []).map((item) => item.postId))], [items]);
+  const postIds = useMemo(() => [...new Set(items.map((item) => item.postId))], [items]);
   const posts = useQueries({ queries: postIds.map((id) => postQueryOptions(id)) });
   const postById = useMemo(() => {
     const map = new Map<string, PostDto>();
@@ -56,5 +64,5 @@ export function usePublicationsData(search: PublicationsSearch, pollMs?: number)
     [destinationById]
   );
 
-  return { list, destinationList, post, postTitle, channel };
+  return { list, items, destinationList, post, postTitle, channel };
 }

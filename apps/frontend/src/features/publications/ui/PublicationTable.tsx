@@ -1,12 +1,24 @@
 import type { PostDto, PublicationDto } from '@alexeev/contracts';
 import { useMemo, type ReactNode } from 'react';
-import { DataTable, Icon, StatusBadge, type DataColumn } from '../../../shared/ui';
+import {
+  DataTable,
+  MediaTile,
+  PanelList,
+  PhoneSkeletonRows,
+  RowCard,
+  StatusBadge,
+  type DataColumn
+} from '../../../shared/ui';
 import { browserTimeZone, formatShort } from '../model/format-time';
 import { displayStatus, messageLink } from '../model/publication-view';
 import { copy } from './copy';
 import styles from './PublicationTable.module.css';
 
 export type PublicationChannel = { title: string; chatId: string };
+export type PublicationOrder = 'asc' | 'desc';
+
+/** Rows drawn while the list loads: the same geometry as the loaded table. */
+export const PUBLICATION_ROW_LOADING = 8;
 
 type Props = {
   rows: readonly PublicationDto[];
@@ -16,7 +28,11 @@ type Props = {
   onOpen: (publicationId: string) => void;
   activeId?: string | undefined;
   isLoading?: boolean;
-  emptyState?: ReactNode;
+  /** Desktop: sort by time, and the filter controls that sit in the column headers. */
+  order?: PublicationOrder;
+  onOrderChange?: (order: PublicationOrder) => void;
+  controls?: { post?: ReactNode; channel?: ReactNode; status?: ReactNode };
+  narrow?: boolean;
 };
 
 const keepPress = {
@@ -28,6 +44,8 @@ const keepPress = {
   onKeyDown: (event: { stopPropagation: () => void }) => event.stopPropagation(),
   onKeyUp: (event: { stopPropagation: () => void }) => event.stopPropagation()
 };
+
+const flat = (body: string) => body.replace(/\s+/g, ' ').trim().slice(0, 140);
 
 function MessageCell({
   publication,
@@ -55,31 +73,41 @@ function MessageCell({
 }
 
 function PostCell({ value }: { value: PostDto | undefined }) {
-  if (!value) return <span className={styles.muted}>{copy.list.unknownPost}</span>;
-  return (
-    <span className={styles.postCell}>
-      <span className={styles.postMark} aria-hidden="true">
-        <Icon name="file" size={18} />
+  if (!value) {
+    return (
+      <span className={styles.cellMedia}>
+        <MediaTile size={40} icon="send" />
+        <span className={styles.muted}>{copy.list.unknownPost}</span>
       </span>
-      <span className={styles.postText}>
+    );
+  }
+  return (
+    <span className={styles.cellMedia}>
+      <MediaTile size={40} />
+      <span className={styles.cellTitle}>
         <strong className={styles.title} title={value.title}>
           {value.title}
         </strong>
         <span className={styles.excerpt} title={value.body}>
-          {value.body || 'Без текста'}
+          {flat(value.body) || copy.list.noText}
         </span>
       </span>
     </span>
   );
 }
 
-export function PublicationTable({ rows, post, channel, onOpen, activeId, isLoading, emptyState }: Props) {
+export function PublicationTable(props: Props) {
+  return props.narrow ? <Cards {...props} /> : <Grid {...props} />;
+}
+
+function Grid({ rows, post, channel, onOpen, activeId, isLoading, order, onOrderChange, controls }: Props) {
   const zone = useMemo(() => browserTimeZone(), []);
   const columns = useMemo<DataColumn<PublicationDto>[]>(
     () => [
       {
         id: 'time',
         header: copy.list.columns.time,
+        allowsSorting: true,
         cell: (row) => (
           <time className={`mono ${styles.time}`} dateTime={row.scheduledAt}>
             {formatShort(row.scheduledAt, zone)}
@@ -90,18 +118,17 @@ export function PublicationTable({ rows, post, channel, onOpen, activeId, isLoad
         id: 'post',
         header: copy.list.columns.post,
         isRowHeader: true,
+        ...(controls?.post ? { headerControl: controls.post } : {}),
         cell: (row) => <PostCell value={post(row)} />
       },
       {
         id: 'channel',
         header: copy.list.columns.channel,
+        ...(controls?.channel ? { headerControl: controls.channel } : {}),
         cell: (row) => {
           const title = channel(row)?.title;
           return title ? (
             <span className={styles.channel} title={title}>
-              <span className={styles.channelIcon} aria-hidden="true">
-                <Icon name="send" size={15} />
-              </span>
               {title}
             </span>
           ) : (
@@ -112,7 +139,7 @@ export function PublicationTable({ rows, post, channel, onOpen, activeId, isLoad
       {
         id: 'status',
         header: copy.list.columns.status,
-        compactSlot: 'trailing',
+        ...(controls?.status ? { headerControl: controls.status } : {}),
         cell: (row) => <StatusBadge status={displayStatus(row)} />
       },
       {
@@ -121,20 +148,48 @@ export function PublicationTable({ rows, post, channel, onOpen, activeId, isLoad
         cell: (row) => <MessageCell publication={row} channel={channel(row)} />
       }
     ],
-    [post, channel, zone]
+    [post, channel, zone, controls]
   );
 
   return (
     <DataTable
+      flush
+      rowHeight="tall"
       aria-label={copy.list.tableLabel}
       columns={columns}
       rows={rows}
       getRowId={(row) => row.id}
-      density="compact"
       onRowAction={onOpen}
       activeId={activeId}
       isLoading={isLoading ?? false}
-      emptyState={emptyState}
+      loadingRows={PUBLICATION_ROW_LOADING}
+      {...(order ? { sort: { column: 'time', direction: order === 'asc' ? 'ascending' : 'descending' } } : {})}
+      onSortChange={(next) => onOrderChange?.(next.direction === 'ascending' ? 'asc' : 'desc')}
     />
+  );
+}
+
+function Cards({ rows, post, channel, onOpen, activeId, isLoading }: Props) {
+  const zone = useMemo(() => browserTimeZone(), []);
+  if (isLoading) return <PhoneSkeletonRows label={copy.list.tableLabel} />;
+  return (
+    <PanelList aria-label={copy.list.tableLabel}>
+      {rows.map((row) => {
+        const status = displayStatus(row);
+        const place = channel(row)?.title ?? copy.list.unknownChannel;
+        return (
+          <RowCard
+            key={row.id}
+            title={post(row)?.title ?? copy.list.unknownPost}
+            media={<MediaTile size={44} />}
+            status={<StatusBadge status={status} />}
+            meta={`${formatShort(row.scheduledAt, zone)} · ${place}`}
+            {...(status === 'unknown' ? { warning: copy.list.checkChannel } : {})}
+            isActive={activeId === row.id}
+            onPress={() => onOpen(row.id)}
+          />
+        );
+      })}
+    </PanelList>
   );
 }

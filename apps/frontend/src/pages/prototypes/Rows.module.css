@@ -1,0 +1,61 @@
+.incident {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-4);
+  width: 100%;
+  padding: var(--space-2) 0;
+}
+.incidentMain {
+  display: grid;
+  flex: 1;
+  gap: var(--space-2);
+  min-width: 0;
+}
+.incidentHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+}
+.incidentTitle {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-weight: var(--font-weight-medium);
+}
+.reason {
+  margin: 0;
+  color: var(--color-text);
+  font-size: var(--font-size-sm);
+}
+.meta {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+}
+.incidentActions {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--space-2);
+}
+.detail {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--font-size-xs);
+}
+.detail code {
+  font-family: var(--font-mono);
+}
+@media (max-width: 859px) {
+  .incident {
+    flex-direction: column;
+    padding: var(--space-3) 0;
+  }
+  .incidentActions {
+    width: 100%;
+  }
+  .incidentActions > button:first-child {
+    flex: 1;
+  }
+}
