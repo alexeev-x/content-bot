@@ -45,8 +45,14 @@ async function renderPage() {
     validateSearch: (search: Record<string, unknown>) => search,
     component: () => <h1>Посты</h1>
   });
+  const publications = createRoute({
+    getParentRoute: () => root,
+    path: '/publications',
+    validateSearch: (search: Record<string, unknown>) => search,
+    component: () => <h1>Публикации</h1>
+  });
   const router = createRouter({
-    routeTree: root.addChildren([page, list]),
+    routeTree: root.addChildren([page, list, publications]),
     history: createMemoryHistory({ initialEntries: [`/posts/${ids.post}`] })
   });
   render(
@@ -70,7 +76,7 @@ describe('archived post page', () => {
     expect(screen.getByRole('button', { name: 'Удалить сейчас' })).toBeTruthy();
     expect((screen.getByRole('textbox', { name: /Заголовок/ }) as HTMLInputElement).readOnly).toBe(true);
     expect(screen.queryByRole('button', { name: 'Опубликовать' })).toBeNull();
-    expect(screen.queryByRole('button', { name: 'Действия с постом' })).toBeNull();
+    expect(screen.getByRole('button', { name: 'Действия с постом' })).toBeTruthy();
   });
 
   it('restores from the banner and then shows a live approved post', async () => {
@@ -123,5 +129,31 @@ describe('live post page', () => {
     expect(
       (await screen.findByRole('menuitem', { name: 'Удалить: идёт отправка' })).getAttribute('aria-disabled')
     ).toBe('true');
+  });
+
+  it('duplicates the post as a new draft and opens it', async () => {
+    serve(() => post({ id: ids.post, title: 'Оригинал', body: 'Текст' }));
+    let body: unknown;
+    server.use(
+      http.post('*/api/v1/posts', async ({ request }) => {
+        body = await request.json();
+        return HttpResponse.json(post({ id: ids.post2, title: 'Оригинал', body: 'Текст' }), { status: 201 });
+      })
+    );
+    const { user, router } = await renderPage();
+    await user.click(await screen.findByRole('button', { name: 'Действия с постом' }));
+    await user.click(await screen.findByRole('menuitem', { name: 'Дублировать' }));
+    await waitFor(() => expect(router.state.location.pathname).toBe(`/posts/${ids.post2}`));
+    expect(body).toMatchObject({ title: 'Оригинал', body: 'Текст' });
+    expect(await screen.findByText('Копия сохранена как новый черновик')).toBeTruthy();
+  });
+
+  it('opens Publications already filtered to this post', async () => {
+    serve(() => post({ id: ids.post, title: 'Оригинал' }));
+    const { user, router } = await renderPage();
+    await user.click(await screen.findByRole('button', { name: 'Действия с постом' }));
+    await user.click(await screen.findByRole('menuitem', { name: 'Открыть публикации' }));
+    await waitFor(() => expect(router.state.location.pathname).toBe('/publications'));
+    expect(router.state.location.search).toMatchObject({ post: ids.post });
   });
 });
