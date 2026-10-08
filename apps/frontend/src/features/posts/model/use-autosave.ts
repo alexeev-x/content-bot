@@ -19,7 +19,11 @@ export function useAutosave({ enabled, changeKey, onSave }: Options): void {
 
   useEffect(() => {
     if (!enabled) return;
-    const timer = window.setTimeout(() => saveRef.current(), AUTOSAVE_DELAY_MS);
+    const timer = window.setTimeout(() => {
+      // Reading the snapshot makes the content dependency explicit: a different snapshot cancels this timer.
+      void changeKey;
+      saveRef.current();
+    }, AUTOSAVE_DELAY_MS);
     return () => window.clearTimeout(timer);
   }, [enabled, changeKey]);
 }
