@@ -15,6 +15,7 @@ import {
   deletePost,
   deletePosts,
   getPost,
+  listPostRevisions,
   listPosts,
   restorePost,
   restorePosts,
@@ -34,7 +35,8 @@ export const postKeys = {
   lists: () => [...postKeys.all, 'list'] as const,
   list: (filters: PostFilters) => [...postKeys.lists(), filters] as const,
   details: () => [...postKeys.all, 'detail'] as const,
-  detail: (id: string) => [...postKeys.details(), id] as const
+  detail: (id: string) => [...postKeys.details(), id] as const,
+  revisions: (id: string) => [...postKeys.detail(id), 'revisions'] as const
 };
 
 export function postsInfiniteQueryOptions(filters: PostFilters = {}) {
@@ -51,6 +53,16 @@ export function postQueryOptions(id: string) {
   return queryOptions({
     queryKey: postKeys.detail(id),
     queryFn: ({ signal }) => getPost(id, signal),
+    staleTime: 30_000
+  });
+}
+
+export function postRevisionsInfiniteQueryOptions(id: string) {
+  return infiniteQueryOptions({
+    queryKey: postKeys.revisions(id),
+    queryFn: ({ pageParam, signal }) => listPostRevisions(id, pageParam, undefined, signal),
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: nextCursor,
     staleTime: 30_000
   });
 }
