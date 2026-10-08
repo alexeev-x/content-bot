@@ -1,5 +1,6 @@
 import {
   approvePostInputSchema,
+  archivePostInputSchema,
   bulkDeletePostsInputSchema,
   bulkRestorePostsInputSchema,
   createPostInputSchema,
@@ -17,6 +18,7 @@ import { deletePost, deletePosts, restorePosts } from '../modules/lifecycle';
 import { AppError } from '../shared/app-error';
 import type { AppBindings } from './env';
 import { limitBody, validated } from './validation';
+import { archiveAndReadPost } from './workflows/archive-post';
 import { restoreAndReadPost } from './workflows/restore-post';
 
 // Worst valid post request: 12 288 body bytes (4096 characters of three-byte UTF-8), 600 title bytes and up to
@@ -155,6 +157,29 @@ export const postsRoutes = new Hono<AppBindings>()
         }
       );
       return c.json(result);
+    }
+  )
+  .post(
+    '/:id/archive',
+    limitBody(MAX_BODY_BYTES),
+    validated('param', idParamSchema),
+    validated('json', archivePostInputSchema),
+    async (c) => {
+      const container = c.get('container');
+      const post = await archiveAndReadPost(
+        {
+          lifecycle: container.lifecycle,
+          posts: container.posts,
+          summaries: container.postSummaries,
+          now: container.clock.now()
+        },
+        {
+          actor: c.get('actor').telegramId,
+          id: postId(c.req.valid('param').id),
+          revision: c.req.valid('json').revision
+        }
+      );
+      return c.json(post);
     }
   )
   .post(
