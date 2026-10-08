@@ -104,6 +104,34 @@ describe('auth guard', () => {
     expect(screen.queryByText('Страница постов')).toBeNull();
   });
 
+  it('shows the shell and the route skeleton while a reload restores the session, and sends nothing but the refresh', async () => {
+    let release = () => {};
+    const held = new Promise<void>((resolve) => (release = resolve));
+    const paths: string[] = [];
+    server.events.on('request:start', ({ request }) => {
+      paths.push(new URL(request.url).pathname);
+    });
+    server.use(
+      http.post('*/api/v1/auth/refresh', async () => {
+        await held;
+        return HttpResponse.json(errorBody('UNAUTHORIZED'), { status: 401 });
+      })
+    );
+    renderApp('/posts');
+    try {
+      expect((await screen.findAllByRole('navigation', { name: 'Основная навигация' })).length).toBeGreaterThan(0);
+      expect(screen.getByRole('heading', { level: 1 }).textContent).toBe('Посты');
+      expect(document.querySelector('[aria-busy="true"]')).not.toBeNull();
+      expect(screen.queryByText('Проверяем вход…')).toBeNull();
+      expect(screen.queryByText('Страница постов')).toBeNull();
+      expect(paths).toEqual(['/api/v1/auth/refresh']);
+    } finally {
+      release();
+      server.events.removeAllListeners();
+    }
+    expect(await screen.findByRole('heading', { name: 'Вход' })).toBeTruthy();
+  });
+
   it('reports the session check on /login inside the sign-in card, not as a full-screen loader', async () => {
     let release = () => {};
     const held = new Promise<void>((resolve) => (release = resolve));

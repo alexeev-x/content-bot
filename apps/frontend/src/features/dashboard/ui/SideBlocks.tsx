@@ -5,20 +5,26 @@ import { StatusBadge } from '../../../shared/ui';
 import { Block } from './Block';
 import { copy } from './copy';
 import styles from './Dashboard.module.css';
-import { Row } from './Row';
+import { Row, SkeletonRows } from './Row';
+
+/** Rows each list panel keeps while loading or empty. */
+const LIST_RESERVE = 3;
 
 /** The next publications after today. Always shown, so the page keeps one layout; «Сегодня» carries the call to action. */
-export function UpcomingBlock({ items }: { items: readonly DashboardPublicationDto[] }) {
+export function UpcomingBlock({ items }: { items: readonly DashboardPublicationDto[] | undefined }) {
   return (
     <Block
       title={copy.upcoming.title}
+      reserveRows={LIST_RESERVE}
       action={
         <Link to="/publications" search={{ view: 'upcoming' }} className={styles.cardLink}>
           Все публикации
         </Link>
       }
     >
-      {items.length === 0 ? (
+      {items === undefined ? (
+        <SkeletonRows count={LIST_RESERVE} />
+      ) : items.length === 0 ? (
         <p className={styles.emptyLine}>{copy.upcoming.empty}</p>
       ) : (
         <ul className={styles.list}>
@@ -41,17 +47,20 @@ export function UpcomingBlock({ items }: { items: readonly DashboardPublicationD
 }
 
 /** The last sent publications; the Telegram link exists only when the server could build a public one. */
-export function RecentSentBlock({ items }: { items: readonly DashboardSentDto[] }) {
+export function RecentSentBlock({ items }: { items: readonly DashboardSentDto[] | undefined }) {
   return (
     <Block
       title={copy.recent.title}
+      reserveRows={LIST_RESERVE}
       action={
         <Link to="/publications" search={{ view: 'recent' }} className={styles.cardLink}>
           Все публикации
         </Link>
       }
     >
-      {items.length === 0 ? (
+      {items === undefined ? (
+        <SkeletonRows count={LIST_RESERVE} />
+      ) : items.length === 0 ? (
         <p className={styles.emptyLine}>{copy.recent.empty}</p>
       ) : (
         <ul className={styles.list}>

@@ -1,0 +1,54 @@
+import { DashboardSkeleton } from '../../features/dashboard';
+import { browserTimeZone, utcOffsetLabel } from '../../features/publications';
+import { ru } from '../../shared/lib/ru';
+import { PageHeader, Skeleton, VisuallyHidden } from '../../shared/ui';
+import styles from './RouteSkeleton.module.css';
+
+type Props = {
+  pathname: string;
+  /** The page title the route will render, so the header does not change when the page arrives. */
+  title: string;
+};
+
+function zoneNote(): string {
+  const zone = browserTimeZone();
+  return `${zone}, ${utcOffsetLabel(new Date(), zone)}`;
+}
+
+/**
+ * What a signed-in reload shows while the session is restored in the background: the route's own skeleton
+ * where it exists, otherwise a generic page frame. No page renders yet, so no request leaves without a token.
+ */
+export function RouteSkeleton({ pathname, title }: Props) {
+  if (pathname === '/') {
+    return (
+      <>
+        <PageHeader
+          title={title}
+          description={ru.dashboard.description}
+          actions={<Skeleton width={200} height="var(--size-button)" radius="var(--radius-2)" />}
+        />
+        <DashboardSkeleton zoneNote={zoneNote()} />
+      </>
+    );
+  }
+  return (
+    <div aria-busy="true">
+      <VisuallyHidden>
+        <output>{ru.shell.loadingPage}</output>
+      </VisuallyHidden>
+      <PageHeader title={title} />
+      <div className={styles.panel} aria-hidden="true">
+        <div className={styles.head}>
+          <Skeleton width="30%" height="1em" />
+        </div>
+        {Array.from({ length: 6 }, (_, index) => (
+          <div key={index} className={styles.row}>
+            <Skeleton width={index % 2 === 0 ? '55%' : '40%'} height="1em" />
+            <Skeleton width={88} height="var(--size-target-min)" radius="var(--radius-pill)" />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}

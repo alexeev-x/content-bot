@@ -5,12 +5,14 @@ import { ApiError } from '../../shared/api/http-client';
 import { useTelegramChrome } from '../use-telegram-chrome';
 import { ThemeToggle, useAppearanceSync } from '../../features/appearance';
 import { useOpenIncidentCount } from '../../features/incidents';
-import { AuthLoadingScreen, AuthUnavailableState, NoAccessState, meQueryOptions } from '../../features/auth';
+import { AuthUnavailableState, NoAccessState, meQueryOptions } from '../../features/auth';
 import { ru } from '../../shared/lib/ru';
 import { applyAppearance, useTheme, type Appearance } from '../theme';
 import { useDocumentTitle } from '../use-document-title';
 import { AppShell } from './AppShell';
+import styles from './AppShell.module.css';
 import { NAV_ITEMS } from './nav-items';
+import { RouteSkeleton } from './RouteSkeleton';
 
 // The sign-in page and the dev catalog use the full viewport: no navigation around them.
 const BARE_PATHS = ['/login', '/__catalog'];
@@ -54,6 +56,20 @@ function SignedInLayout() {
   );
 }
 
+/**
+ * A reload restores the session in the background: the shell and the route skeleton show at once instead of a
+ * full-screen «Проверяем вход…» (docs/design/README.md §6). Nothing that needs the session renders here.
+ */
+function RestoringLayout({ pathname }: { pathname: string }) {
+  const title = titleFor(pathname);
+  useDocumentTitle(title);
+  return (
+    <AppShell topBarTools={<span className={styles.toolSpace} aria-hidden="true" />}>
+      <RouteSkeleton pathname={pathname} title={title} />
+    </AppShell>
+  );
+}
+
 export function AppLayout() {
   const pathname = useRouterState({ select: (state) => state.location.pathname });
   const href = useRouterState({ select: (state) => state.location.href });
@@ -62,7 +78,7 @@ export function AppLayout() {
 
   switch (auth.status) {
     case 'checking':
-      return <AuthLoadingScreen label={ru.auth.checking} />;
+      return <RestoringLayout pathname={pathname} />;
     case 'anonymous': {
       const back = auth.signedOutByUser || href === '/' ? {} : { redirect: href };
       return <Navigate to="/login" search={back} replace />;

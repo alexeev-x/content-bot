@@ -1,5 +1,6 @@
 import { Link, type LinkProps } from '@tanstack/react-router';
 import type { ReactNode } from 'react';
+import { Skeleton } from '../../../shared/ui';
 import styles from './Dashboard.module.css';
 
 type Props = {
@@ -45,5 +46,26 @@ export function Row({ layout, time, badge, title, channel, hint, trail, to, sear
       )}
       {trail ? <span className={styles.trail}>{trail}</span> : null}
     </li>
+  );
+}
+
+/** Placeholder rows with the real row height and column rhythm (time, title, status), hidden from assistive tech. */
+export function SkeletonRows({ count }: { count: number }) {
+  return (
+    <ul className={styles.list} aria-hidden="true">
+      {Array.from({ length: count }, (_, index) => (
+        <li key={index} className={styles.row}>
+          <span className={styles.time}>
+            <Skeleton width="5ch" height="1em" />
+          </span>
+          <span className={styles.main}>
+            <Skeleton width={index % 2 === 0 ? '62%' : '48%'} height="1em" />
+          </span>
+          <span className={styles.trail}>
+            <Skeleton width={88} height="var(--size-target-min)" radius="var(--radius-pill)" />
+          </span>
+        </li>
+      ))}
+    </ul>
   );
 }

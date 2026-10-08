@@ -5,10 +5,14 @@ import type { AttentionRow } from '../model/attention-rows';
 import { Block } from './Block';
 import { copy } from './copy';
 import styles from './Dashboard.module.css';
-import { Row } from './Row';
+import { Row, SkeletonRows } from './Row';
+
+/** Rows the panel keeps while loading or when nothing needs a human. */
+const ATTENTION_RESERVE = 2;
 
 type Props = {
-  rows: readonly AttentionRow[];
+  /** Undefined while the dashboard loads: the panel shows skeleton rows in the same geometry. */
+  rows: readonly AttentionRow[] | undefined;
   /** Server count of open incidents and stuck sends (capped at 99 = "99 or more"); the list shows at most 5. */
   total: number;
   /** A system check has not answered yet: the block says so instead of «Всё под контролем». */
@@ -98,38 +102,33 @@ function OpenButton({ label, aria, onPress }: { label: string; aria: string; onP
 
 /** Unknown and failed publications, failing checks and stuck sends in severity order; one line when nothing needs a human. */
 export function AttentionBlock({ rows, total, checking, onOpenPublication }: Props) {
-  if (rows.length === 0) {
-    // The block keeps its title when empty, so the page keeps one layout from loading to loaded.
-    return (
-      <Block
-        title={copy.attention.title}
-        action={
-          <Link to="/incidents" className={styles.cardLink}>
-            Инциденты
-          </Link>
-        }
-      >
-        <p className={styles.emptyLine}>{checking ? copy.attention.checking : copy.attention.clear}</p>
-      </Block>
-    );
-  }
+  // The panel keeps its title and link in every state, so the page keeps one layout from loading to loaded.
   return (
     <Block
       title={copy.attention.title}
+      reserveRows={ATTENTION_RESERVE}
       action={
         <Link to="/incidents" className={styles.cardLink}>
           Инциденты
         </Link>
       }
     >
-      <ul className={styles.list}>
-        {rows.map((row) => (
-          <RowView key={row.key} row={row} onOpenPublication={onOpenPublication} />
-        ))}
-      </ul>
-      <Link to="/incidents" className={styles.more}>
-        {copy.attention.allIncidents(total)}
-      </Link>
+      {rows === undefined ? (
+        <SkeletonRows count={ATTENTION_RESERVE} />
+      ) : rows.length === 0 ? (
+        <p className={styles.emptyLine}>{checking ? copy.attention.checking : copy.attention.clear}</p>
+      ) : (
+        <>
+          <ul className={styles.list}>
+            {rows.map((row) => (
+              <RowView key={row.key} row={row} onOpenPublication={onOpenPublication} />
+            ))}
+          </ul>
+          <Link to="/incidents" className={styles.more}>
+            {copy.attention.allIncidents(total)}
+          </Link>
+        </>
+      )}
     </Block>
   );
 }

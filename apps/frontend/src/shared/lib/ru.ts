@@ -20,6 +20,7 @@ export const ru = {
   },
   shell: {
     skipLink: 'Перейти к содержимому',
+    loadingPage: 'Загружаем страницу…',
     searchPlaceholder: 'Найти пост или публикацию',
     searchUnavailable: 'Поиск появится позже',
     themeMenu: 'Тема оформления',
@@ -101,6 +102,9 @@ export const ru = {
   inDevelopment: {
     title: 'Раздел в разработке',
     description: 'Здесь пока нет данных и действий. Ничего не отправляется и не сохраняется.'
+  },
+  dashboard: {
+    description: 'Центр управления контентом, публикациями и состоянием системы.'
   },
   pages: {
     dashboard: 'Обзор',

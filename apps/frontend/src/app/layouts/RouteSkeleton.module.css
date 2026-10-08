@@ -1,0 +1,25 @@
+.panel {
+  overflow: hidden;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-2);
+  background: var(--color-surface-1);
+}
+
+.head,
+.row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  min-height: var(--size-row);
+  padding-inline: var(--space-4);
+  border-bottom: 1px solid var(--color-border-subtle);
+}
+
+.head {
+  background: var(--color-surface-2);
+}
+
+.row:last-child {
+  border-bottom: 0;
+}

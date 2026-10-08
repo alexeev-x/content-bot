@@ -1,5 +1,5 @@
 import { Link } from '@tanstack/react-router';
-import { Icon } from '../../../shared/ui';
+import { Icon, Skeleton } from '../../../shared/ui';
 import styles from './Dashboard.module.css';
 
 type SummaryItem = {
@@ -13,14 +13,21 @@ type SummaryItem = {
   tone?: 'attention' | 'ok';
 };
 
-type Props = {
+type Values = {
   todayTotal: number;
   attentionTotal: number;
   nextLabel: string;
   recentCount: number;
 };
 
-export function SummaryCards({ todayTotal, attentionTotal, nextLabel, recentCount }: Props) {
+/** Without values (loading) every cell keeps its label and swaps the value and detail for same-height skeletons. */
+type Props = { values?: Values };
+
+const LOADING: Values = { todayTotal: 0, attentionTotal: 0, nextLabel: '—', recentCount: 0 };
+
+export function SummaryCards({ values }: Props) {
+  const loading = values === undefined;
+  const { todayTotal, attentionTotal, nextLabel, recentCount } = values ?? LOADING;
   const items: readonly SummaryItem[] = [
     {
       key: 'today',
@@ -38,7 +45,7 @@ export function SummaryCards({ todayTotal, attentionTotal, nextLabel, recentCoun
       detail: attentionTotal > 0 ? 'Нужно проверить' : 'Всё под контролем',
       icon: 'alert',
       to: '/incidents',
-      tone: attentionTotal > 0 ? 'attention' : 'ok'
+      ...(loading ? {} : { tone: attentionTotal > 0 ? ('attention' as const) : ('ok' as const) })
     },
     {
       key: 'next',
@@ -61,7 +68,7 @@ export function SummaryCards({ todayTotal, attentionTotal, nextLabel, recentCoun
   ];
 
   return (
-    <section className={styles.summaryGrid} aria-label="Сводка">
+    <section className={styles.summaryGrid} aria-label="Сводка" aria-busy={loading || undefined}>
       {items.map((item) => (
         <Link
           key={item.key}
@@ -69,17 +76,19 @@ export function SummaryCards({ todayTotal, attentionTotal, nextLabel, recentCoun
           search={item.to === '/publications' && item.view ? { view: item.view } : undefined}
           className={styles.summaryCard}
           data-tone={item.tone ?? 'neutral'}
-          aria-label={`${item.label}: ${item.value}`}
+          aria-label={loading ? item.label : `${item.label}: ${item.value}`}
         >
-          <span className={styles.summaryIcon} aria-hidden="true">
-            <Icon name={item.icon} size={20} />
+          <span className={styles.summaryLabel}>
+            <Icon name={item.icon} size={16} />
+            <span className={styles.summaryLabelText}>{item.label}</span>
+            <Icon className={styles.summaryArrow} name="chevron-right" size={16} />
           </span>
-          <span className={styles.summaryBody}>
-            <span className={styles.summaryLabel}>{item.label}</span>
-            <strong className={styles.summaryValue}>{item.value}</strong>
-            <span className={styles.summaryDetail}>{item.detail}</span>
+          <strong className={styles.summaryValue}>
+            {loading ? <Skeleton width="2.5em" height="1.2em" /> : item.value}
+          </strong>
+          <span className={styles.summaryDetail}>
+            {loading ? <Skeleton width="70%" height="1.5em" /> : item.detail}
           </span>
-          <Icon className={styles.summaryArrow} name="chevron-right" size={16} />
         </Link>
       ))}
     </section>

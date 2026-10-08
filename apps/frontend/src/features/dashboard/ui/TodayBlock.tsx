@@ -5,10 +5,14 @@ import { Button, StatusBadge } from '../../../shared/ui';
 import { Block } from './Block';
 import { copy } from './copy';
 import styles from './Dashboard.module.css';
-import { Row } from './Row';
+import { Row, SkeletonRows } from './Row';
+
+/** Rows the panel keeps while loading or empty. */
+const TODAY_RESERVE = 3;
 
 type Props = {
-  items: readonly DashboardPublicationDto[];
+  /** Undefined while the dashboard loads: the panel shows skeleton rows in the same geometry. */
+  items: readonly DashboardPublicationDto[] | undefined;
   total: number;
   /** «Europe/Chisinau, UTC+3»: shown once in the block header. */
   zoneNote: string;
@@ -21,13 +25,16 @@ export function TodayBlock({ items, total, zoneNote, onSchedule }: Props) {
     <Block
       title={copy.today.title}
       note={zoneNote}
+      reserveRows={TODAY_RESERVE}
       action={
         <Link to="/publications" search={{ view: 'today' }} className={styles.cardLink}>
           Все публикации
         </Link>
       }
     >
-      {items.length === 0 ? (
+      {items === undefined ? (
+        <SkeletonRows count={TODAY_RESERVE} />
+      ) : items.length === 0 ? (
         <div className={styles.emptyLine}>
           <p>{copy.today.empty}</p>
           <Button size="sm" onPress={onSchedule}>

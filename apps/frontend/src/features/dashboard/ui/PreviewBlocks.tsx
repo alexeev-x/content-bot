@@ -1,5 +1,8 @@
 import { Icon } from '../../../shared/ui';
+import { Block } from './Block';
 import styles from './Dashboard.module.css';
+
+// Static mock-ups of planned panels: they need no data, so the loading skeleton renders them as they are.
 
 function PreviewBadge() {
   return <span className={styles.previewBadge}>Превью</span>;
@@ -7,49 +10,42 @@ function PreviewBadge() {
 
 export function DotaPulsePreview() {
   return (
-    <section className={styles.previewCard} aria-labelledby="dashboard-dota-pulse">
-      <div className={styles.previewHead}>
-        <div>
-          <div className={styles.previewTitleLine}>
-            <Icon name="zap" size={18} />
-            <h2 id="dashboard-dota-pulse" className={styles.previewTitle}>Dota Pulse</h2>
-            <PreviewBadge />
-          </div>
-          <p className={styles.previewDescription}>Будущий блок событий Dota. Сейчас показан макет данных.</p>
-        </div>
-      </div>
-      <ul className={styles.previewList}>
+    <Block title="Dota Pulse" icon={<Icon name="zap" size={16} />} marker={<PreviewBadge />}>
+      <p className={styles.previewDescription}>Будущий блок событий Dota. Сейчас показан макет данных.</p>
+      <ul className={styles.list}>
         <li className={styles.previewRow}>
           <span className={styles.previewMarker}>Патч</span>
-          <div><strong>Новое обновление Dota</strong><span>Официальные изменения и patch notes</span></div>
+          <div>
+            <strong>Новое обновление Dota</strong>
+            <span>Официальные изменения и patch notes</span>
+          </div>
         </li>
         <li className={styles.previewRow}>
           <span className={styles.previewMarker}>Сундук</span>
-          <div><strong>Новый treasure / наборы</strong><span>Сеты, герои, редкости и официальный источник</span></div>
+          <div>
+            <strong>Новый treasure / наборы</strong>
+            <span>Сеты, герои, редкости и официальный источник</span>
+          </div>
         </li>
         <li className={styles.previewRow}>
           <span className={styles.previewMarker}>Мета</span>
-          <div><strong>Изменения героев</strong><span>Winrate / pickrate после обновления</span></div>
+          <div>
+            <strong>Изменения героев</strong>
+            <span>Winrate / pickrate после обновления</span>
+          </div>
         </li>
       </ul>
-    </section>
+    </Block>
   );
 }
 
 export function AnalyticsPreview() {
   return (
-    <section className={styles.previewCard} aria-labelledby="dashboard-analytics-preview">
-      <div className={styles.previewHead}>
-        <div>
-          <div className={styles.previewTitleLine}>
-            <Icon name="arrow-up" size={18} />
-            <h2 id="dashboard-analytics-preview" className={styles.previewTitle}>Аналитика канала</h2>
-            <PreviewBadge />
-          </div>
-          <p className={styles.previewDescription}>Макет будущей Telegram-аналитики. Цифры не являются реальными данными.</p>
-        </div>
-      </div>
-      <div className={styles.metricGrid} aria-label="Пример будущих метрик">
+    <Block title="Аналитика канала" icon={<Icon name="arrow-up" size={16} />} marker={<PreviewBadge />}>
+      <p className={styles.previewDescription}>
+        Макет будущей Telegram-аналитики. Цифры не являются реальными данными.
+      </p>
+      <div className={styles.cellGrid} aria-label="Пример будущих метрик">
         <div className={styles.metric}>
           <span>Просмотры</span>
           <strong>—</strong>
@@ -66,28 +62,28 @@ export function AnalyticsPreview() {
           <small>Только доступные данные</small>
         </div>
       </div>
-    </section>
+    </Block>
   );
 }
 
 export function WatchlistPreview() {
   return (
-    <section className={styles.previewCard} aria-labelledby="dashboard-watchlist-preview">
-      <div className={styles.previewHead}>
-        <div>
-          <div className={styles.previewTitleLine}>
-            <Icon name="search" size={18} />
-            <h2 id="dashboard-watchlist-preview" className={styles.previewTitle}>Отслеживание</h2>
-            <PreviewBadge />
-          </div>
-          <p className={styles.previewDescription}>Будущие watchlists для героев, предметов и событий.</p>
+    <Block title="Отслеживание" icon={<Icon name="search" size={16} />} marker={<PreviewBadge />}>
+      <p className={styles.previewDescription}>Будущие watchlists для героев, предметов и событий.</p>
+      <div className={styles.cellGrid}>
+        <div className={styles.watchItem}>
+          <strong>Tidehunter</strong>
+          <span>Герой</span>
+        </div>
+        <div className={styles.watchItem}>
+          <strong>Сундуки</strong>
+          <span>Cosmetics</span>
+        </div>
+        <div className={styles.watchItem}>
+          <strong>Патчи</strong>
+          <span>События</span>
         </div>
       </div>
-      <div className={styles.watchGrid}>
-        <div className={styles.watchItem}><strong>Tidehunter</strong><span>Герой</span></div>
-        <div className={styles.watchItem}><strong>Сундуки</strong><span>Cosmetics</span></div>
-        <div className={styles.watchItem}><strong>Патчи</strong><span>События</span></div>
-      </div>
-    </section>
+    </Block>
   );
 }

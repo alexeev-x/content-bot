@@ -6,14 +6,9 @@ import { formatDayClock } from '../../../shared/lib/clock';
 import type { StatusCheck } from '../../../shared/lib/status-check';
 import { Banner, Button, ErrorState } from '../../../shared/ui';
 import { attentionRows } from '../model/attention-rows';
-import { AttentionBlock } from './AttentionBlock';
 import { copy } from './copy';
-import styles from './Dashboard.module.css';
+import { DashboardLayout } from './DashboardLayout';
 import { DashboardSkeleton } from './DashboardSkeleton';
-import { AnalyticsPreview, DotaPulsePreview, WatchlistPreview } from './PreviewBlocks';
-import { RecentSentBlock, UpcomingBlock } from './SideBlocks';
-import { SummaryCards } from './SummaryCards';
-import { TodayBlock } from './TodayBlock';
 
 type Props = {
   /** From `useDashboardQuery`: the page owns it, because the status strip reacts to the same data. */
@@ -27,7 +22,7 @@ type Props = {
 };
 
 export function Dashboard({ query, checks, zoneNote, onOpenPublication, onSchedule }: Props) {
-  if (query.isPending) return <DashboardSkeleton />;
+  if (query.isPending) return <DashboardSkeleton zoneNote={zoneNote} />;
 
   if (!query.data) {
     if (classifyApiError(query.error) === 'forbidden') {
@@ -50,60 +45,24 @@ export function Dashboard({ query, checks, zoneNote, onOpenPublication, onSchedu
   const nextLabel = data.upcoming[0] ? formatDayClock(data.upcoming[0].scheduledAt) : '—';
 
   return (
-    <div className={styles.root}>
-      {query.isRefetchError ? (
-        <Banner
-          tone="warning"
-          title={copy.stale.title}
-          action={
-            <Button size="sm" variant="secondary" isLoading={query.isFetching} onPress={() => void query.refetch()}>
-              {copy.stale.refresh}
-            </Button>
-          }
-        />
-      ) : null}
-
-      <SummaryCards
-        todayTotal={data.todayTotal}
-        attentionTotal={rows.length}
-        nextLabel={nextLabel}
-        recentCount={data.recentSent.length}
-      />
-
-      <div className={styles.dashboardGrid}>
-        <div className={styles.attentionCell}>
-          <AttentionBlock
-            rows={rows}
-            total={data.attentionTotal}
-            checking={checking}
-            onOpenPublication={onOpenPublication}
+    <DashboardLayout
+      banner={
+        query.isRefetchError ? (
+          <Banner
+            tone="warning"
+            title={copy.stale.title}
+            action={
+              <Button size="sm" variant="secondary" isLoading={query.isFetching} onPress={() => void query.refetch()}>
+                {copy.stale.refresh}
+              </Button>
+            }
           />
-        </div>
-
-        <div className={styles.dotaCell}>
-          <DotaPulsePreview />
-        </div>
-
-        <div className={styles.todayCell}>
-          <TodayBlock items={data.today} total={data.todayTotal} zoneNote={zoneNote} onSchedule={onSchedule} />
-        </div>
-
-        <div className={styles.analyticsCell}>
-          <AnalyticsPreview />
-        </div>
-
-        <div className={styles.upcomingCell}>
-          <UpcomingBlock items={data.upcoming} />
-        </div>
-
-        <div className={styles.watchlistCell}>
-          <WatchlistPreview />
-        </div>
-
-        <div className={styles.recentCell}>
-          <RecentSentBlock items={data.recentSent} />
-        </div>
-      </div>
-    </div>
+        ) : null
+      }
+      data={{ dashboard: data, rows, checking, nextLabel }}
+      zoneNote={zoneNote}
+      onOpenPublication={onOpenPublication}
+      onSchedule={onSchedule}
+    />
   );
 }

@@ -31,7 +31,7 @@ export function DashboardPage({ pollMs }: Props) {
     <>
       <PageHeader
         title={ru.pages.dashboard}
-        description="Центр управления контентом, публикациями и состоянием системы."
+        description={ru.dashboard.description}
         actions={
           <>
             <SystemStatus actionListedBelow={listed} />
