@@ -7,6 +7,7 @@ type Props = {
   onViewChange: (view: PostsView) => void;
   onOpen: (id: string) => void;
   onCreate: () => void;
+  onOpenPublications: (postId: string) => void;
   onReconcile: (postId: string) => void;
 };
 
