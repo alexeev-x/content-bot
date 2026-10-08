@@ -105,11 +105,10 @@ export function DashboardPage({ pollMs }: Props) {
                   id={CUSTOMIZE_ID}
                   variant="secondary"
                   icon="settings"
+                  aria-label={dashboardCopy.customize}
                   isDisabled={layout.revision === undefined}
                   onPress={() => editor.startEdit()}
-                >
-                  {dashboardCopy.customize}
-                </Button>
+                />
               </>
             )}
           </>
