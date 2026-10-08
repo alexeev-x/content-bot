@@ -74,37 +74,25 @@ function menuFor(post: PostDto, mode: Props['mode'], onAction: Props['onAction']
             isDisabled: true
           }
         : { id: 'delete', label: copy.actions.delete, icon: 'trash', tone: 'danger' };
-  const reconcile: MenuEntry = { id: 'reconcile', label: copy.actions.reconcile, icon: 'check-circle' };
   const common: MenuEntry[] = [
     { id: 'duplicate', label: copy.actions.duplicate, icon: 'copy' },
     { id: 'publications', label: copy.actions.publications, icon: 'send' }
   ];
-  const items: MenuEntry[] =
-    mode === 'archive'
-      ? [{ id: 'restore', label: copy.actions.restore, icon: 'retry' }, ...common, del]
-      : block === 'unknown'
-        ? [reconcile, ...common, del]
-        : [
-            { id: 'archive', label: copy.actions.archive, icon: 'download' },
-            ...common,
-            del
-          ];
+
+  let items: MenuEntry[];
+  if (mode === 'archive') {
+    items = [{ id: 'restore', label: copy.actions.restore, icon: 'retry' }, ...common, del];
+  } else if (block === 'unknown') {
+    items = [{ id: 'reconcile', label: copy.actions.reconcile, icon: 'check-circle' }, ...common, del];
+  } else {
+    items = [{ id: 'archive', label: copy.actions.archive, icon: 'download' }, ...common, del];
+  }
+
   return (
     <Menu
       label={copy.actions.rowMenu(titleOf(post))}
       items={items}
-      onAction={(id) =>
-        onAction(
-          post,
-          id === 'archive' ||
-            id === 'duplicate' ||
-            id === 'publications' ||
-            id === 'restore' ||
-            id === 'reconcile'
-            ? id
-            : 'delete'
-        )
-      }
+      onAction={(id) => onAction(post, id as RowAction)}
     />
   );
 }
