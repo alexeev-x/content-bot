@@ -1,8 +1,8 @@
-# ALEXEEV Studio — mockup matrix
+# ALEXEEV Studio — visual reference coverage map
 
-The target reference pack is **40 useful screens/states**, not 40 arbitrary decorative images. Each mockup should demonstrate a real layout decision or state that frontend can implement.
+This map is a **brainstorming and review aid**, not a requirement to create 40 mockups or reproduce any pictured screen. The images currently in `references/` are exploratory inspiration only. Use the areas below to notice possible workflows and compositions; decide what to build from current product requirements, contracts and page specifications.
 
-## Desktop target: 33 references
+## Desktop areas that may benefit from visual references
 
 | Area | Reference 1 | Reference 2 | Reference 3 |
 |---|---|---|---|
@@ -18,7 +18,7 @@ The target reference pack is **40 useful screens/states**, not 40 arbitrary deco
 | Sources & Dota | Event feed | Source health | Stale/error/watchlist |
 | Settings | Channels | Appearance | Notifications/timezone |
 
-## Mobile target: 7 references
+## Mobile areas that may benefit from visual references
 
 1. Overview / attention.
 2. Publications list + filters.
@@ -28,11 +28,11 @@ The target reference pack is **40 useful screens/states**, not 40 arbitrary deco
 6. Automations / Cron list.
 7. Global search / command palette.
 
-Total: **40 references**.
+The counts are illustrative coverage ideas, not deliverables or acceptance criteria.
 
-## Every important page should also define states
+## Product page states
 
-Not every state needs a standalone image, but the page spec must account for:
+References can suggest states worth considering, but they do not define a page's required behavior. For implementation, use the current product requirements and the page-spec skill to decide which states apply. Common cases include:
 
 - loading / skeleton;
 - empty;
@@ -45,19 +45,19 @@ Not every state needs a standalone image, but the page spec must account for:
 - long text and no-media content;
 - realistic worst-case table values.
 
-## Reference quality checklist
+## Questions for reviewing a reference
 
-Before a mockup is accepted:
+When an image or mockup is useful to a design discussion, consider:
 
 - [ ] Cloudflare-like calm density, not neon.
 - [ ] Accent is sparse.
 - [ ] No unnecessary glow.
 - [ ] Text-only rows look intentional.
 - [ ] Media-rich rows do not make text rows appear broken.
-- [ ] Sidebar collapse control exists on desktop shell references.
-- [ ] Skeleton can use exactly the same geometry.
+- [ ] Would a collapse control or skeleton pattern help this screen?
+- [ ] Could loading preserve the section's general shape and avoid a distracting jump?
 - [ ] Tables have a clear filter/search model.
 - [ ] Inspector has a clear close/collapse behavior.
-- [ ] Mobile is recomposed, not merely scaled.
+- [ ] If mobile is in scope, could the layout be adapted for it instead of simply scaled?
 - [ ] Demo/future data is visibly marked when needed.
 - [ ] No AI functionality is implied.

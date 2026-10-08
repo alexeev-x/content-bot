@@ -2,15 +2,15 @@
 
 > **Status:** design direction / implementation reference, not a pixel-perfect product specification.
 >
-> **Owner direction, 07.10.2026:** Cloudflare Dashboard is the primary visual and UX orientation for ALEXEEV Studio: calm operational dark UI, high information density, stable layouts, structural skeletons, compact controls, collapsible navigation and data-first pages.
+> **Owner direction, 08.10.2026:** Cloudflare Dashboard and the supplied ALEXEEV images are references, not strict foundations or screen specifications. The owner likes Cloudflare's convenient bottom-anchored sidebar collapse, smooth transition, polished skeletons and stable section heights. Consider these qualities while keeping the approved modern/cobalt identity and adapting each screen to its actual needs.
 >
 > The product model, API capabilities, security rules and the current master plan remain authoritative. Mock data in reference images is illustrative only.
 
 ## 1. Why this document exists
 
-ALEXEEV Studio should be designed as one coherent working tool before more product screens are implemented. The references in this directory define the visual language, recurring interaction patterns and target page compositions so frontend work does not redesign each screen independently.
+ALEXEEV Studio should feel like one coherent working tool. The references in this directory offer visual inspiration and examples to consider; they do not define required page compositions, controls, behavior or content. Adapt useful ideas to the current product and screen rather than reproducing an image.
 
-The goal is **not to copy Cloudflare branding or reproduce its product**. We use Cloudflare Dashboard as a reference for:
+The goal is **not to copy Cloudflare branding or reproduce its product**. Cloudflare Dashboard is one reference that can suggest:
 
 - information density and hierarchy;
 - restrained dark surfaces and thin borders;
@@ -27,14 +27,14 @@ ALEXEEV keeps its own identity, product terminology, typography, content workflo
 
 ## 2. North-star visual style
 
-The target is **Calm Operations / restrained Cloudflare-like dark**.
+The direction is **Calm Operations with ALEXEEV's approved modern/cobalt identity**. Cloudflare and ALEXEEV images can inform restraint, hierarchy and composition, but neither is a strict behavioral or pixel-level implementation contract.
 
-Avoid the earlier “neon dashboard” tendency. Generated mockups in the reference board intentionally explore ideas, but their saturation is **not** the final color target.
+The exploratory ALEXEEV screenshots use stronger blues, glow and status colors than the product should. Keep the cobalt accent from the approved design system, but apply it selectively. Use semantic status colors only where they communicate real state.
 
 ### Visual rules
 
-- Background and most surfaces are neutral/cool dark, not blue-glowing.
-- Accent appears on roughly **<5% of the visible UI**: primary action, focus, selected item, selected chart series and important links.
+- Background and most surfaces are quiet cool neutrals. Blue belongs to the cobalt accent, not a full-screen glow or gradient.
+- Accent stays sparse (about **5% of the interface**): primary action, focus, selection, links and a meaningful chart series.
 - No decorative glow around cards, buttons or the logo.
 - No large gradients.
 - Borders are thin and do most of the structural work.
@@ -60,28 +60,20 @@ Desktop is a professional work surface:
 
 ## 3. Reference images
 
-The exploratory board below collects concepts already discussed for Overview, Posts, Editor, Publications, Incidents, Analytics, Calendar, Media, Automations and Mobile.
+The supplied image pack contains exploratory ALEXEEV screens, a mobile board and Cloudflare Dashboard captures. They are visual references only; ideas from them may be adapted where useful. The index and image links are in [references/README.md](./references/README.md).
 
-![ALEXEEV exploratory design board](./references/alexeev-design-reference-board.webp)
-
-These are **references**, not implementation screenshots. They can include fields, metrics or content that are not implemented yet.
-
-The Cloudflare-like search palette reference is stored separately:
-
-![Cloudflare search reference](./references/cloudflare-search-reference.webp)
-
-See [references/README.md](./references/README.md) for the reference policy.
+These are **references**, not implementation screenshots. They can show planned screens, invented content, demo metrics or behavior that the current product does not support.
 
 ## 4. Application shell
 
 ### Desktop sidebar
 
-Use a persistent left sidebar similar in behavior to Cloudflare:
+One useful option is a persistent left sidebar. Adapt it to the screen and navigation needs:
 
 - expanded mode shows icon + label;
 - collapsed mode becomes a compact icon rail;
-- the **collapse/expand arrow is fixed at the bottom of the sidebar**;
-- collapse/expand is animated with restrained motion and must not reload the route;
+- the owner likes a collapse/expand control at the bottom of the sidebar with a smooth transition; treat this as a preference, not a fixed placement requirement;
+- if navigation collapses, keep the transition calm, respect reduced motion and avoid losing the current route;
 - active navigation uses a small accent mark and a subtle background, not a large bright fill;
 - badges may show actionable counts (for example incidents), but should not become decorative counters everywhere;
 - nested navigation is allowed when it materially improves discoverability;
@@ -172,9 +164,9 @@ Deep-link to exact objects where possible so browser reload/back/forward preserv
 
 ## 6. Loading and structural skeletons
 
-This is a high-priority design rule.
+This is a preferred loading approach based on the references, not a requirement to force every page into fixed dimensions. Preserve the general shape where it helps the page feel steady and keep skeletons appropriate to the real content.
 
-**Loading must preserve the geometry of the final page.**
+The Cloudflare examples show one way to make loading feel polished: present structure early, then let data replace the skeleton with little unnecessary layout shift.
 
 Bad:
 
@@ -197,11 +189,12 @@ final panel geometry
 same geometry with real data
 ```
 
-Rules:
+Useful options to consider:
 
 - tables skeletonize the real number/shape of visible columns;
 - chart skeletons keep the same chart height, header and legend area;
 - an inspector skeleton keeps the same width as the loaded inspector;
+- panels reserve the height and width expected by their loaded content where practical;
 - cards/panels keep their expected minimum height;
 - lists use realistic row skeletons rather than generic grey blocks;
 - partial loading should not blank the whole route;
@@ -321,6 +314,8 @@ Common tabs:
 Only show a tab when its data exists or the mockup clearly marks it as future/Preview.
 
 ## 10. Page direction
+
+The following are starting points for design exploration, not prescribed screen layouts. Apply only the composition and controls that suit current scope and page requirements.
 
 ### Overview
 
@@ -635,4 +630,4 @@ These references guide composition and UX, but the implementation source of trut
 
 When a mockup conflicts with real platform capability or security, product correctness wins.
 
-When an older visual document conflicts with this 07.10.2026 direction, **this document wins for visual mood, density and loading behavior**.
+The approved modern/cobalt identity remains the recorded direction. References in this document may be adapted and do not override current product behavior, scope, API capability or explicit page requirements.
