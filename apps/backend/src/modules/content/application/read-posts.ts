@@ -49,7 +49,6 @@ export async function getPost(deps: ReadPostsDeps, id: string): Promise<PostDto>
   return toPostDto(record, summaries.get(record.id) ?? emptySummary());
 }
 
-
 export async function getPostRevisions(
   deps: Pick<ReadPostsDeps, 'repo'>,
   id: string,
@@ -58,9 +57,12 @@ export async function getPostRevisions(
   const post = await deps.repo.findById(id);
   if (post === null) throw notFound();
 
-  const before = query.cursor === undefined ? undefined : decodeRevisionCursor(query.cursor);
-  if (query.cursor !== undefined && before === null)
-    throw new AppError('VALIDATION_ERROR', 'Invalid revision cursor', { field: 'cursor' });
+  let before: number | undefined;
+  if (query.cursor !== undefined) {
+    const decoded = decodeRevisionCursor(query.cursor);
+    if (decoded === null) throw new AppError('VALIDATION_ERROR', 'Invalid revision cursor', { field: 'cursor' });
+    before = decoded;
+  }
 
   const rows = await deps.repo.listRevisions(id, before, query.limit + 1);
   const page = rows.slice(0, query.limit);
