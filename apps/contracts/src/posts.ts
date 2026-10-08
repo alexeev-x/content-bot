@@ -57,6 +57,24 @@ export const postSchema = z.object({
 });
 export type PostDto = z.infer<typeof postSchema>;
 
+export const postRevisionSchema = z.object({
+  postId: z.uuid(),
+  revision: revisionSchema,
+  title: z.string(),
+  body: z.string(),
+  entities: z.array(postEntitySchema),
+  status: postStatusSchema,
+  createdAt: z.iso.datetime()
+});
+export type PostRevisionDto = z.infer<typeof postRevisionSchema>;
+
+// GET /api/v1/posts/{id}/revisions?cursor&limit → newest revision first.
+// The cursor is opaque; a missing post is 404, a malformed cursor is 400.
+export const listPostRevisionsQuerySchema = pageQuerySchema;
+export type ListPostRevisionsQuery = z.infer<typeof listPostRevisionsQuerySchema>;
+export const postRevisionPageSchema = pageSchema(postRevisionSchema);
+export type PostRevisionPageDto = z.infer<typeof postRevisionPageSchema>;
+
 // POST /api/v1/posts, header Idempotency-Key (required) → 201 PostDto (revision 0, status 'draft').
 // `entities` (default none) are checked against `body` and stored in their normal form (see post-entities.ts).
 // Errors: VALIDATION_ERROR 400 (body, missing key, or details.reason ENTITIES_* when the entity list does not
