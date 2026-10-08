@@ -67,7 +67,7 @@ export function usePostEditor({ post, onCreated, rootRef, dirtyRef }: Options) {
   const dirty = title !== base.title || body !== base.body || !sameEntities(entities, base.entities);
   const changeKey = JSON.stringify([title, body, entities]);
   const failed = failedKey === changeKey;
-  const readOnly = baseline?.status === 'approved' || conflict?.kind === 'locked';
+  const readOnly = baseline?.status === 'approved' || baseline?.archivedAt != null || conflict?.kind === 'locked';
   const isSaving = create.isPending || update.isPending;
   const isApproving = approve.isPending;
   const isBusy = isSaving || isApproving;
