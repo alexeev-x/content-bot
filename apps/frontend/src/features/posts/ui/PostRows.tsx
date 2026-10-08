@@ -23,7 +23,7 @@ import { PostStateBadge } from './PostStateBadge';
 import styles from './PostRows.module.css';
 import { postRowText, shortFormat } from './row-text';
 
-export type RowAction = 'delete' | 'restore' | 'reconcile';
+export type RowAction = 'open' | 'duplicate' | 'publications' | 'delete' | 'restore' | 'reconcile';
 
 type Props = {
   mode: 'live' | 'archive';
@@ -75,17 +75,29 @@ function menuFor(post: PostDto, mode: Props['mode'], onAction: Props['onAction']
           }
         : { id: 'delete', label: copy.actions.delete, icon: 'trash', tone: 'danger' };
   const reconcile: MenuEntry = { id: 'reconcile', label: copy.actions.reconcile, icon: 'check-circle' };
+  const useful: MenuEntry[] = [
+    { id: 'open', label: copy.actions.open, icon: 'file' },
+    { id: 'duplicate', label: copy.actions.duplicate, icon: 'plus' },
+    { id: 'publications', label: copy.actions.openPublications, icon: 'send' }
+  ];
   const items: MenuEntry[] =
     mode === 'archive'
-      ? [{ id: 'restore', label: copy.actions.restore, icon: 'retry' }, del]
+      ? [...useful, { id: 'restore', label: copy.actions.restore, icon: 'retry' }, del]
       : block === 'unknown'
-        ? [reconcile, del]
-        : [del];
+        ? [...useful, reconcile, del]
+        : [...useful, del];
   return (
     <Menu
       label={copy.actions.rowMenu(titleOf(post))}
       items={items}
-      onAction={(id) => onAction(post, id === 'restore' || id === 'reconcile' ? id : 'delete')}
+      onAction={(id) =>
+        onAction(
+          post,
+          id === 'open' || id === 'duplicate' || id === 'publications' || id === 'restore' || id === 'reconcile'
+            ? id
+            : 'delete'
+        )
+      }
     />
   );
 }
