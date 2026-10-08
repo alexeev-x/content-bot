@@ -145,6 +145,27 @@ describe('save', () => {
     expect(bodyBox().textContent).toBe('Правка!');
   });
 
+  it('autosaves a valid existing draft after editing without leaving the page', async () => {
+    const user = userEvent.setup();
+    const bodies: unknown[] = [];
+    server.use(
+      http.patch('*/api/v1/posts/:id', async ({ request }) => {
+        bodies.push(await request.json());
+        return HttpResponse.json(post({ revision: 1, body: 'Автосохранено' }));
+      })
+    );
+    const { router } = await openExisting();
+
+    await replaceBody(user, 'Автосохранено');
+
+    await waitFor(() => expect(bodies).toEqual([{ revision: 0, body: 'Автосохранено', entities: [] }]), {
+      timeout: 2_500
+    });
+    expect(await screen.findByText(/Сохранено в/)).toBeTruthy();
+    expect(screen.getByText('Ревизия 1')).toBeTruthy();
+    expect(router.state.location.pathname).toBe(`/posts/${ids.post}`);
+  });
+
   it('saves only the changed field with the baseline revision on Ctrl+S, and keeps focus-free status text', async () => {
     const user = userEvent.setup();
     const bodies: unknown[] = [];
@@ -221,6 +242,48 @@ describe('409 STALE_REVISION', () => {
     );
     await waitFor(() => expect(screen.queryByText('Пост уже изменён в другом месте')).toBeNull());
     expect(screen.getByText('Ревизия 4')).toBeTruthy();
+  });
+});
+
+describe('revision history', () => {
+  it('opens the immutable revision list and lets the owner inspect an older snapshot', async () => {
+    const user = userEvent.setup();
+    server.use(
+      http.get('*/api/v1/posts/:id/revisions', () =>
+        HttpResponse.json({
+          items: [
+            {
+              postId: ids.post,
+              revision: 2,
+              title: 'Текущий',
+              body: 'Новый текст',
+              entities: [],
+              status: 'draft',
+              createdAt: '2026-10-06T09:02:00.000Z'
+            },
+            {
+              postId: ids.post,
+              revision: 1,
+              title: 'Старый',
+              body: 'Старый текст',
+              entities: [],
+              status: 'draft',
+              createdAt: '2026-10-06T09:01:00.000Z'
+            }
+          ],
+          nextCursor: null
+        })
+      )
+    );
+    await openExisting({ revision: 2, title: 'Текущий', body: 'Новый текст' });
+
+    await user.click(screen.getByRole('button', { name: 'Открыть историю изменений' }));
+    const drawer = await screen.findByRole('dialog', { name: 'История изменений' });
+    expect(within(drawer).getByText('Новый текст')).toBeTruthy();
+
+    await user.click(within(drawer).getByRole('button', { name: /Ревизия 1/ }));
+    expect(within(drawer).getByText('Старый текст')).toBeTruthy();
+    expect(within(drawer).getByRole('heading', { name: 'Старый' })).toBeTruthy();
   });
 });
 
