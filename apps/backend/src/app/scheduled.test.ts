@@ -72,6 +72,7 @@ function probe(
     lifecycle,
     postRevisions: { findRevision: () => Promise.reject(new Error('unexpected')) },
     transport: { send: () => Promise.reject(new Error('unexpected')) },
+    dotaWatcher: { sync: () => Promise.resolve({ inserted: 0, fetched: 0 }) },
     sessions: {
       purgeEnded: () => {
         calls.push('purge sessions');

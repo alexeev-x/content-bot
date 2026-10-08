@@ -99,7 +99,9 @@ Known free sources (checked 07.10.2026, no key needed):
 
 - Steam News API `GetNewsForApp` (appid 570): JSON news with a stable `gid`. It mixes Valve announcements with third-party feeds (e.g. PlayGround.ru), so only the official feed counts as a source; the rest is ignored.
 - `dota2.com/datafeed/patchnoteslist`: list of patches with number and timestamp; per-patch notes from the same datafeed give hero/item changes in structured form.
-- Both are unofficial-in-contract endpoints: a shape change must raise a source incident, never a guessed draft.
+- Both are unofficial-in-contract endpoints: shape drift fails closed and is logged; source incident handling belongs to queue item 4. Never generate a guessed draft.
+
+Implemented in queue item 3 (backend only): the once-a-minute Cron polls these two fixed hosts only on exact five-minute UTC slots. Responses are bounded and strictly validated before any D1 write; a failure or shape drift rejects the whole sync. The Steam feed is additionally filtered to `steam_community_announcements`; patch records come only from the official Dota patch list. D1 uses `(source_key, external_id)` uniqueness and atomically seeds each source's first successful snapshot as baseline, so later inserts are distinguishable from historical records. This slice creates no drafts, alerts, UI or R2 objects; incident/alert handling remains queue item 4.
 
 ### 12.2 Patch Parser
 

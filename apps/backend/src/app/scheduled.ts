@@ -7,6 +7,7 @@ import {
 import { dispatchDueJobs, type RaisedIncident, reconcileExpiredJobs } from '../modules/publishing';
 import type { Container } from './container';
 import { alertOwnerOfIncidents } from './notifications/alert-owner-of-incidents';
+import { DotaWatchError } from '../modules/dota';
 
 // Per table and per hourly tick; leftovers wait for the next hour.
 export const CLEANUP_LIMIT = 100;
@@ -31,6 +32,7 @@ type TickContainer = Pick<
   | 'systemState'
   | 'random'
   | 'newId'
+  | 'dotaWatcher'
 >;
 
 // Cron entry point, once a minute (docs/BACKEND_ARCHITECTURE.md §5). Ticks may overlap or repeat:
@@ -45,8 +47,9 @@ type TickContainer = Pick<
 //      state is kept between invocations
 //   6. alert: the owner hears about the incidents steps 1 and 2 wrote, after their state is stored
 //      (best effort, nothing is retried; a tick without incidents spends nothing here)
-//   7. heartbeat: one upsert that records this run for the owner's /status
-// An idle tick therefore costs three indexed reads that find no rows and the heartbeat's one write.
+//   7. dota watch: only on five-minute UTC boundaries, after publication work and alerts; bounded fetches
+//      and one atomic D1 batch seed/deduplicate source records without touching publication state
+//   8. heartbeat: one upsert that records this run for the owner's /status
 export async function handleScheduled(controller: ScheduledController, container: TickContainer): Promise<void> {
   const { clock, logger } = container;
   const startedAt = clock.now();
@@ -64,7 +67,12 @@ export async function handleScheduled(controller: ScheduledController, container
         component: 'scheduled',
         operation,
         status: 'error',
-        errorCode: error instanceof Error ? error.name : 'unknown',
+        errorCode:
+          error instanceof DotaWatchError
+            ? `${error.code}_${error.sourceKey}`
+            : error instanceof Error
+              ? error.name
+              : 'unknown',
         durationMs: clock.now() - stepStartedAt
       });
     }
@@ -165,6 +173,15 @@ export async function handleScheduled(controller: ScheduledController, container
       raised
     );
     Object.assign(counts, { alertsSent: alerts.sent, alertsFailed: alerts.failed });
+  }
+
+  // Run after the publication pipeline and its alerts: feed ingestion never delays dispatch or
+  // changes publication state. It runs only on exact five-minute UTC slots.
+  if (controller.scheduledTime % (5 * 60_000) === 0) {
+    await step('dota-watch', async () => {
+      const summary = await container.dotaWatcher.sync({ detectedAt: clock.now() });
+      return { dotaFeedsFetched: summary.fetched, dotaItemsInserted: summary.inserted };
+    });
   }
 
   const durationMs = clock.now() - startedAt;

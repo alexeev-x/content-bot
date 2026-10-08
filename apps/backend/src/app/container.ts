@@ -50,6 +50,12 @@ import { randomToken } from '../platform/security/random-token';
 import { createLogger, type Logger } from '../platform/logging/logger';
 import { z } from 'zod';
 import { AppError } from '../shared/app-error';
+import {
+  createD1DotaWatcherRepository,
+  createOfficialDotaFetcher,
+  syncDotaUpdates,
+  type DotaSourceFetcher
+} from '../modules/dota';
 
 // The only place where real implementations are wired. It grows together with the modules
 // (repositories, transports); nothing is registered here before it exists.
@@ -94,6 +100,8 @@ export interface Container {
   systemState: SystemStateStore;
   /** Webhook update ids already seen (migration 0009): a replayed update is not processed twice. */
   webhookUpdates: UpdateDedup;
+  /** Polls the two fixed official Dota feeds and persists deduped source items. */
+  dotaWatcher: { sync(input: { detectedAt: number }): Promise<{ inserted: number; fetched: number }> };
   housekeeping: {
     purgeExpired(input: { now: number; limit: number }): Promise<{ idempotencyKeys: number; rateLimits: number }>;
   };
@@ -126,6 +134,10 @@ export interface ContainerOverrides {
   ownerMessenger?: TelegramOwnerMessageApi;
   random?: () => number;
   newId?: () => string;
+  /** Replaces the fixed-host feed fetcher for deterministic Cron tests. */
+  dotaFetcher?: DotaSourceFetcher;
+  /** Replaces the watcher when a test is focused on unrelated scheduled work. */
+  dotaWatcher?: Container['dotaWatcher'];
 }
 
 const botIdSchema = z.object({ id: z.number().int().positive() });
@@ -249,6 +261,14 @@ export function createContainer(env: ContainerEnv, overrides: ContainerOverrides
     },
     get webhookUpdates(): UpdateDedup {
       return createD1UpdateDedup(db());
+    },
+    get dotaWatcher() {
+      if (overrides.dotaWatcher !== undefined) return overrides.dotaWatcher;
+      const repo = createD1DotaWatcherRepository(db());
+      return {
+        sync: ({ detectedAt }: { detectedAt: number }) =>
+          syncDotaUpdates({ fetcher: overrides.dotaFetcher ?? createOfficialDotaFetcher(), repo, detectedAt })
+      };
     },
     // Resolved per call: a BOT_INFO override never touches the database, so a Worker without one still answers.
     get botIdentity(): BotIdentityStore {
