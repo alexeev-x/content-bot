@@ -111,20 +111,29 @@
   gap: var(--space-5);
 }
 .main {
+  /* Panels sit in pairs so each pair shares one height and the edges line up, whatever the content. */
   display: grid;
   grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+  grid-template-areas:
+    'attention system'
+    'today upcoming'
+    'recent recent';
   gap: var(--space-5);
 }
-.left,
-.right {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-5);
-  min-width: 0;
+.main > [data-area='attention'] {
+  grid-area: attention;
 }
-.left > [data-area='today'],
-.right > [data-area='upcoming'] {
-  flex: 1;
+.main > [data-area='system'] {
+  grid-area: system;
+}
+.main > [data-area='today'] {
+  grid-area: today;
+}
+.main > [data-area='upcoming'] {
+  grid-area: upcoming;
+}
+.main > [data-area='recent'] {
+  grid-area: recent;
 }
 .cell {
   --row-h: 56px;
@@ -167,6 +176,9 @@
   flex: 1;
   flex-direction: column;
   min-width: 0;
+}
+/* Rows are reserved only while loading (skeleton = the expected rows); loaded panels fit their content. */
+.cell[aria-busy='true'] .fill {
   min-height: calc(var(--rows) * var(--row-h) + var(--head-h));
 }
 .fill > ul {
@@ -178,9 +190,7 @@
     display: flex;
     flex-direction: column;
   }
-  .main,
-  .left,
-  .right {
+  .main {
     display: contents;
   }
   .cell {
@@ -310,14 +320,13 @@
   white-space: nowrap;
 }
 .empty {
+  /* One quiet row: the text on the left, an optional small action on the right. */
   display: flex;
-  flex: 1;
-  flex-direction: column;
   align-items: center;
-  justify-content: center;
+  justify-content: space-between;
   gap: var(--space-3);
-  padding: var(--space-4);
-  text-align: center;
+  min-height: var(--row-h);
+  padding: var(--space-2) var(--space-4);
 }
 .empty p {
   display: inline-flex;
@@ -399,7 +408,8 @@
 }
 .recent th:first-child,
 .recent td:first-child {
-  width: 112px;
+  /* «7 окт., 09:00» in the mono face plus the left pad: 112 px clipped the minutes. */
+  width: 136px;
   padding-left: var(--space-4);
   white-space: nowrap;
 }

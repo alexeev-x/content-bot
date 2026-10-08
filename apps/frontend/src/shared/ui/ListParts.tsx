@@ -27,13 +27,29 @@ export function PhoneSkeletonRows({ count = 6, label }: { count?: number; label:
   );
 }
 
-type FilterButtonProps = { count: number; onPress: () => void; isDisabled?: boolean };
+type FilterButtonProps = {
+  count: number;
+  onPress: () => void;
+  isDisabled?: boolean;
+  /** A sheet that holds only the sort: the button is named after it and shows the current order, not a count. */
+  sort?: { label: string; value: string; spoken: string };
+};
 
 /** Phone: opens the filter sheet; the count shows how many filters are on. */
-export function FilterButton({ count, onPress, isDisabled }: FilterButtonProps) {
+export function FilterButton({ count, onPress, isDisabled, sort }: FilterButtonProps) {
   return (
-    <Button variant="secondary" icon="settings" onPress={onPress} isDisabled={isDisabled ?? false}>
-      Фильтры{count > 0 ? ` (${count})` : ''}
+    <Button
+      variant="secondary"
+      icon="settings"
+      onPress={onPress}
+      isDisabled={isDisabled ?? false}
+      {...(sort ? { 'aria-label': `${sort.label}: ${sort.spoken}` } : {})}
+    >
+      {sort
+        ? // Phone width goes to the search field: the button shows only the order («Время ↓»); its full name is the
+          // aria-label. Without a value it falls back to the word «Сортировка».
+          (sort.value ?? sort.label)
+        : `Фильтры${count > 0 ? ` (${count})` : ''}`}
     </Button>
   );
 }
@@ -42,17 +58,27 @@ type SheetProps = {
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
   count: number;
+  /** Defaults to «Фильтры»; a sort-only sheet is named «Сортировка». */
+  title?: string;
   onReset: () => void;
   onApply: () => void;
   children: ReactNode;
 };
 
 /** Phone filter sheet: every filter and the sort in one place, applied together. */
-export function FilterSheet({ isOpen, onOpenChange, count, onReset, onApply, children }: SheetProps) {
+export function FilterSheet({
+  isOpen,
+  onOpenChange,
+  count,
+  title = 'Фильтры',
+  onReset,
+  onApply,
+  children
+}: SheetProps) {
   return (
     <Drawer
       variant="bottom"
-      title={count > 0 ? `Фильтры (${count})` : 'Фильтры'}
+      title={count > 0 ? `${title} (${count})` : title}
       isOpen={isOpen}
       onOpenChange={onOpenChange}
       footer={

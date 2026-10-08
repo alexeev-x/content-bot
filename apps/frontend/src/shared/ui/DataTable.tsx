@@ -41,6 +41,8 @@ type Props<T> = {
   columns: readonly DataColumn<T>[];
   rows: readonly T[];
   getRowId: (row: T) => string;
+  /** The text of a whole row (every column): the accessible text value of the row. */
+  getRowText?: (row: T) => string;
   /** Sorting itself is the caller's job (server-side or TanStack Table); this component only shows and reports it. */
   sort?: TableSort;
   onSortChange?: (sort: TableSort) => void;
@@ -84,6 +86,7 @@ function Grid<T>({
   columns,
   rows,
   getRowId,
+  getRowText,
   sort,
   onSortChange,
   selectionMode = 'none',
@@ -171,6 +174,7 @@ function Grid<T>({
                 <Row
                   key={getRowId(row)}
                   id={getRowId(row)}
+                  {...(getRowText ? { textValue: getRowText(row) } : {})}
                   className={onRowAction ? `${styles.row} ${styles.actionRow}` : styles.row}
                   data-active={activeId === getRowId(row) || undefined}
                 >

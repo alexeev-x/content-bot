@@ -66,7 +66,7 @@ export function TodayPanel({ items, total, narrow, now, onOpenPublication, onNew
         <EmptyLine
           text={copy.today.empty}
           action={
-            <Button size="sm" icon="plus" onPress={onNewPost}>
+            <Button size="sm" variant="ghost" icon="plus" onPress={onNewPost}>
               {copy.newPost}
             </Button>
           }
@@ -134,7 +134,7 @@ export function UpcomingPanel({ items, narrow, now, onOpenPublication, onCreate 
         <EmptyLine
           text={copy.upcoming.empty}
           action={
-            <Button size="sm" variant="secondary" onPress={onCreate}>
+            <Button size="sm" variant="ghost" onPress={onCreate}>
               {copy.upcoming.create}
             </Button>
           }

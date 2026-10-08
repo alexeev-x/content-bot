@@ -149,7 +149,7 @@ describe('PublicationsPage list', () => {
     expect(await screen.findByText(/, UTC/)).toBeTruthy();
   });
 
-  it('puts status, channel and search into the column headers, sends them to the server and can clear them', async () => {
+  it('searches the loaded rows by post, status label and channel while typing, without a request per keystroke', async () => {
     server.use(
       http.get('*/api/v1/destinations', () =>
         HttpResponse.json({
@@ -158,32 +158,67 @@ describe('PublicationsPage list', () => {
         })
       )
     );
-    const urls = serveList(() => ({ items: [rows.scheduled] }));
+    const urls = serveList(() => ({
+      items: [rows.scheduled, { ...rows.sent, destinationId: SECOND_DESTINATION }]
+    }));
     servePosts();
     const { user } = await renderPage();
-    await screen.findByRole('grid', { name: 'Список публикаций' });
+    const table = await screen.findByRole('grid', { name: 'Список публикаций' });
+    await within(table).findByText('Мета недели');
+    await within(table).findByText('Новости');
+    const requests = urls.length;
+    const field = screen.getByRole('searchbox', { name: 'Поиск по загруженным публикациям' });
 
-    await user.click(screen.getByRole('button', { name: 'Фильтр по статусу' }));
-    await user.click(await screen.findByRole('radio', { name: 'Ошибка' }));
-    await waitFor(() => expect(urls.at(-1)?.searchParams.get('status')).toBe('failed'));
-    await user.click(document.body);
+    // By post title, ignoring case.
+    await user.type(field, 'МЕТА');
+    expect(within(table).queryByText('Герой дня')).toBeNull();
+    expect(within(table).getByText('Мета недели')).toBeTruthy();
 
-    await user.click(screen.getByRole('button', { name: 'Фильтр по каналу' }));
-    await user.click(await screen.findByRole('radio', { name: 'Новости' }));
-    await waitFor(() => expect(urls.at(-1)?.searchParams.get('destinationId')).toBe(SECOND_DESTINATION));
-    expect(urls.at(-1)?.searchParams.get('status')).toBe('failed');
-    await user.click(document.body);
+    // By the status label the owner sees.
+    await user.clear(field);
+    await user.type(field, 'запланировано');
+    expect(within(table).getByText('Герой дня')).toBeTruthy();
+    expect(within(table).queryByText('Мета недели')).toBeNull();
 
-    await user.click(screen.getByRole('button', { name: 'Поиск по публикациям' }));
-    await user.type(await screen.findByRole('searchbox', { name: 'Название поста' }), 'мета{Enter}');
-    await waitFor(() => expect(urls.at(-1)?.searchParams.get('q')).toBe('мета'));
-    await user.click(document.body);
+    // By channel name.
+    await user.clear(field);
+    await user.type(field, 'новости');
+    expect(within(table).queryByText('Герой дня')).toBeNull();
+    expect(within(table).getByText('Мета недели')).toBeTruthy();
 
-    await user.click(screen.getByRole('button', { name: 'Сбросить фильтры' }));
-    // The unfiltered list is already cached, so the proof is on screen: no reset button, no active filters.
-    await waitFor(() => expect(screen.queryByRole('button', { name: 'Сбросить фильтры' })).toBeNull());
-    expect(screen.getByRole('button', { name: 'Фильтр по статусу' })).toBeTruthy();
-    expect(screen.getByRole('button', { name: 'Фильтр по каналу' })).toBeTruthy();
+    expect(urls.length).toBe(requests);
+    expect(urls.every((url) => !url.searchParams.has('q'))).toBe(true);
+  });
+
+  it('moves into the rows with Arrow Down, shows «Ничего не найдено» with a way back, and clearing restores the rows', async () => {
+    serveList(() => ({ items: [rows.scheduled, rows.sent] }));
+    servePosts();
+    const { user } = await renderPage();
+    const table = await screen.findByRole('grid', { name: 'Список публикаций' });
+    await within(table).findByText('Мета недели');
+    const field = screen.getByRole('searchbox', { name: 'Поиск по загруженным публикациям' });
+
+    await user.click(field);
+    await user.keyboard('{ArrowDown}');
+    //
+    // Real focus moves into the first row, so Enter opens it and the arrows walk the rows.
+    expect(document.activeElement?.getAttribute('role')).toBe('row');
+    expect(document.activeElement?.textContent).toContain('Герой дня');
+
+    await user.type(field, 'такого нет');
+    expect(await screen.findByText('Ничего не найдено')).toBeTruthy();
+    // The field's own clear button has the same name; the empty state's button comes last.
+    await user.click(screen.getAllByRole('button', { name: 'Очистить поиск' }).at(-1) as HTMLElement);
+    expect(await screen.findByRole('grid', { name: 'Список публикаций' })).toBeTruthy();
+    expect(screen.getByText('Герой дня')).toBeTruthy();
+    expect(screen.getByText('Мета недели')).toBeTruthy();
+    expect((screen.getByRole('searchbox') as HTMLInputElement).value).toBe('');
+
+    // Esc clears the text.
+    await user.type(screen.getByRole('searchbox'), 'мета');
+    expect(screen.queryByText('Герой дня')).toBeNull();
+    await user.keyboard('{Escape}');
+    expect(await screen.findByText('Герой дня')).toBeTruthy();
   });
 
   it('sorts by time from the column header', async () => {
@@ -235,27 +270,41 @@ describe('PublicationsPage list', () => {
     expect(publicationsSearchSchema.parse({ view: 'bogus' }).view).toBeUndefined();
   });
 
-  it('on a phone keeps the filters in a sheet behind a counted button and lists rows with the same height', async () => {
-    setViewport(375);
-    server.use(
-      http.get('*/api/v1/destinations', () => HttpResponse.json({ items: [destination()], nextCursor: null }))
-    );
+  it('opens old ?status=, ?channel= and ?q= links without a crash and without sending them to the server', async () => {
+    const old = publicationsSearchSchema.parse({ status: 'failed', channel: 'nope', q: 'мета', order: 'asc' });
+    expect(old).toEqual({ order: 'asc' });
+    servePosts();
     const urls = serveList(() => ({ items: [rows.scheduled] }));
+    await renderPage({ initial: old });
+    expect(await screen.findByRole('grid', { name: 'Список публикаций' })).toBeTruthy();
+    const url = urls.at(-1);
+    expect(url?.searchParams.has('status')).toBe(false);
+    expect(url?.searchParams.has('q')).toBe(false);
+    expect(url?.searchParams.has('destinationId')).toBe(false);
+  });
+
+  it('on a phone searches the cards with the same text and keeps only the sort in the sheet', async () => {
+    setViewport(375);
+    const urls = serveList(() => ({ items: [rows.scheduled, rows.sent] }));
     servePosts();
     const { user } = await renderPage();
     expect(await screen.findByRole('button', { name: /^Герой дня/ })).toBeTruthy();
+    expect(await screen.findByRole('button', { name: /^Мета недели/ })).toBeTruthy();
     expect(screen.getByRole('list', { name: 'Список публикаций' })).toBeTruthy();
-    expect(screen.queryByRole('button', { name: 'Фильтр по статусу' })).toBeNull();
+    const requests = urls.length;
 
-    await user.click(screen.getByRole('button', { name: 'Фильтры' }));
-    const sheet = await screen.findByRole('dialog', { name: 'Фильтры' });
-    await user.click(within(sheet).getByRole('button', { name: /Статус/ }));
-    await user.click(await screen.findByRole('option', { name: 'Ошибка' }));
+    await user.type(screen.getByRole('searchbox', { name: 'Поиск по загруженным публикациям' }), 'опубликовано');
+    expect(screen.queryByRole('button', { name: /^Герой дня/ })).toBeNull();
+    expect(screen.getByRole('button', { name: /^Мета недели/ })).toBeTruthy();
+    expect(urls.length).toBe(requests);
+
+    await user.click(screen.getByRole('button', { name: /^Сортировка/ }));
+    const sheet = await screen.findByRole('dialog', { name: 'Сортировка' });
+    expect(within(sheet).queryByRole('button', { name: /Статус|Канал/ })).toBeNull();
+    await user.click(within(sheet).getByRole('button', { name: /Сортировка/ }));
+    await user.click(await screen.findByRole('option', { name: 'Сначала старые' }));
     await user.click(within(sheet).getByRole('button', { name: 'Показать результаты' }));
-    await waitFor(() => expect(urls.at(-1)?.searchParams.get('status')).toBe('failed'));
-    await waitFor(() => expect(screen.queryByRole('dialog', { name: /Фильтры/ })).toBeNull());
-    expect(screen.getByRole('button', { name: 'Фильтры (1)' })).toBeTruthy();
-    expect(screen.getByRole('button', { name: /Статус: Ошибка/ })).toBeTruthy();
+    await waitFor(() => expect(urls.at(-1)?.searchParams.get('order')).toBe('asc'));
   });
 
   it('loads the next page by cursor under «Показать ещё» and keeps the loaded rows', async () => {
@@ -306,9 +355,9 @@ describe('PublicationsPage list', () => {
     view.unmount();
     cleanup();
 
-    await renderPage({ initial: { status: 'failed' } });
+    await renderPage({ initial: { view: 'errors' } });
     expect(await screen.findByText('Ничего не найдено')).toBeTruthy();
-    expect(screen.getAllByRole('button', { name: 'Сбросить фильтры' }).length).toBeGreaterThan(0);
+    expect(screen.getAllByRole('button', { name: 'Показать все публикации' }).length).toBeGreaterThan(0);
   });
 
   it('shows a skeleton busy region while loading, then an error with the request id and a safe retry', async () => {

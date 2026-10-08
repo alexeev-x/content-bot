@@ -19,6 +19,7 @@ export {
 export { isConfirmedSent, publicationActions, type PublicationActions } from './model/publication-actions';
 export { browserTimeZone, formatWithZone, utcOffsetLabel } from './model/format-time';
 export { displayStatus, isInProgress } from './model/publication-view';
+export { publicationRowText } from './model/row-text';
 export { copy as publicationCopy } from './ui/copy';
 export { PublicationDrawer } from './ui/PublicationDrawer';
 export { PublicationsSkeleton } from './ui/PublicationsSkeleton';

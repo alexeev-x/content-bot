@@ -1,10 +1,9 @@
 import type { PostDto, PostDeleteRefusal, PostRestoreRefusal } from '@alexeev/contracts';
 import { useInfiniteQuery } from '@tanstack/react-query';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { classifyApiError } from '../../../shared/api/error-kind';
 import { ApiError } from '../../../shared/api/http-client';
 import {
-  AppliedChips,
   Button,
   EmptyState,
   ErrorState,
@@ -15,19 +14,20 @@ import {
   PhoneToolbar,
   PhoneToolbarSearch,
   SearchField,
+  TableSearch,
   Select,
   SelectionBar,
   Tab,
   TabList,
   Tabs,
-  useMediaQuery
+  useMediaQuery,
+  useRowSearch
 } from '../../../shared/ui';
-import type { FilterChip, RowSelection, SelectOption } from '../../../shared/ui';
+import type { RowSelection, SelectOption } from '../../../shared/ui';
 import { ru } from '../../../shared/lib/ru';
 import { postsInfiniteQueryOptions } from '../api/posts-queries';
-import { filterPostsByText } from '../model/excerpt';
 import { refusalText, type LifecycleNotice } from '../model/lifecycle-notices';
-import { deleteBlockOf, listStateOf } from '../model/post-state';
+import { deleteBlockOf } from '../model/post-state';
 import { sortPosts, type PostSort, type PostSortKey, type SortDirection } from '../model/post-sort';
 import { useNow } from '../model/use-now';
 import { useRestoreActions } from '../model/use-restore';
@@ -35,19 +35,15 @@ import { useSelection } from '../model/use-selection';
 import { postsCopy } from './copy';
 import { deleteTargetOf, DeletePostsDialog, type DeleteOutcome, type DeleteTarget } from './DeletePostsDialog';
 import { LifecycleBanner } from './LifecycleBanner';
-import { PostRows, type RowAction, type StatusOption } from './PostRows';
+import { PostRows, type RowAction } from './PostRows';
 import styles from './PostsList.module.css';
+import { postRowText } from './row-text';
 
 export type PostsView = 'all' | 'drafts' | 'archive';
 
 type Props = {
   view: PostsView;
-  query: string;
-  /** `all` or a list state (`draft`, `approved`, `scheduled`, `sending`, `unknown`); kept in the URL by the route. */
-  status: string;
   onViewChange: (view: PostsView) => void;
-  onQueryChange: (query: string) => void;
-  onStatusChange: (status: string) => void;
   onOpen: (id: string) => void;
   onCreate: () => void;
   /** Opens the reconciliation of this post's `unknown` publication (the page resolves which one). */
@@ -57,14 +53,6 @@ type Props = {
 const copy = postsCopy.list;
 const NARROW = '(max-width: 859px)';
 const VIEWS: readonly PostsView[] = ['all', 'drafts', 'archive'];
-const STATUS_OPTIONS: readonly StatusOption[] = [
-  { id: 'all', label: copy.filters.all },
-  { id: 'draft', label: copy.state.draft },
-  { id: 'approved', label: copy.state.approved },
-  { id: 'scheduled', label: copy.state.scheduled },
-  { id: 'sending', label: copy.state.sending },
-  { id: 'unknown', label: copy.state.unknown }
-];
 const PANEL_TITLE = { all: copy.panel.all, drafts: copy.panel.drafts, archive: copy.panel.archive } as const;
 
 type Reason = { reason: PostDeleteRefusal | PostRestoreRefusal; text: string };
@@ -95,37 +83,22 @@ function sortOptionsFor(view: PostsView): SelectOption[] {
   ];
 }
 
-export function PostsList({
-  view,
-  query,
-  status,
-  onViewChange,
-  onQueryChange,
-  onStatusChange,
-  onOpen,
-  onCreate,
-  onReconcile
-}: Props) {
+export function PostsList({ view, onViewChange, onOpen, onCreate, onReconcile }: Props) {
   const now = useNow();
   const narrow = useMediaQuery(NARROW);
   const rootRef = useRef<HTMLElement>(null);
   const focusAfter = useRef<string | null>(null);
   const firstFailed = useRef<string | null>(null);
   const isArchive = view === 'archive';
+  // The search covers the loaded rows only and is not carried across tabs.
+  const [query, setQuery] = useState('');
   const result = useInfiniteQuery(postsInfiniteQueryOptions(filtersFor(view)));
   const loaded = useMemo(() => result.data?.pages.flatMap((page) => page.items) ?? [], [result.data]);
-  // The status filter exists only where the status varies (the «Все» tab); a stale URL value is ignored elsewhere.
-  const activeStatus = view === 'all' ? status : 'all';
-  const rows = useMemo(
-    () =>
-      filterPostsByText(loaded, query).filter(
-        (post) => activeStatus === 'all' || listStateOf(post).kind === activeStatus
-      ),
-    [loaded, query, activeStatus]
-  );
-  const isFiltered = query.trim() !== '' || activeStatus !== 'all';
+  const textOf = useCallback((post: PostDto) => postRowText(post, now), [now]);
+  const rows = useRowSearch(loaded, textOf, query);
+  const isSearching = query.trim() !== '';
   // An empty «Черновики» tab reads as a narrowed list (with a way back to «Все»), not as «no posts at all».
-  const emptyIsFiltered = isFiltered || view === 'drafts';
+  const emptyIsFiltered = isSearching || view === 'drafts';
 
   // The archive size rides on every page; keep the last known value while another tab is loading.
   const fresh = result.data?.pages[0]?.archivedCount;
@@ -291,11 +264,11 @@ export function PostsList({
 
   const reasonText = useMemo(() => new Map([...reasons].map(([id, item]) => [id, item.text])), [reasons]);
   const copyFor = isArchive ? postsCopy.archive : copy;
-  const reset = () => {
+  const clearSearch = () => setQuery('');
+  const showAll = () => {
     clearSelection();
+    setQuery('');
     onViewChange('all');
-    onQueryChange('');
-    onStatusChange('all');
   };
   const ready = !result.isPending && !result.isError;
   const hasRows = rows.length > 0;
@@ -326,25 +299,12 @@ export function PostsList({
     if (removed.length > 0) selection.remove(removed.map((post) => post.id));
   }
 
-  // Phone: one sheet for the status and the sort, applied together; desktop uses the column headers.
+  // Phone: the sheet holds only the sort (search is the field above); desktop sorts by the column headers.
   const [sheetOpen, setSheetOpen] = useState(false);
-  const [draft, setDraft] = useState({ status: 'all', sort: 'none' });
-  const filtersCount = (activeStatus !== 'all' ? 1 : 0) + (sort ? 1 : 0);
-  const draftCount = (draft.status !== 'all' ? 1 : 0) + (draft.sort !== 'none' ? 1 : 0);
-  const chips: FilterChip[] = [
-    ...(activeStatus !== 'all'
-      ? [
-          {
-            id: 'status',
-            label: `${copy.filters.status}: ${STATUS_OPTIONS.find((option) => option.id === activeStatus)?.label ?? ''}`
-          }
-        ]
-      : []),
-    ...(sort ? [{ id: 'sort', label: sortOptions.find((option) => option.id === sortValue)?.label ?? '' }] : [])
-  ];
-  const removeChip = (id: string) => (id === 'status' ? onStatusChange('all') : onMobileSortChange('none'));
-  const rowStatus =
-    view === 'all' ? { value: activeStatus, options: STATUS_OPTIONS, onChange: onStatusChange } : undefined;
+  const [draftSort, setDraftSort] = useState('none');
+  const sortLabel = sortOptions.find((option) => option.id === sortValue)?.label ?? copy.filters.sortDefault;
+  const columnLabel = sortOptions.find((option) => option.id === `${sort?.key}:ascending`)?.label.split(' — ')[0];
+  const sortShort = sort && columnLabel ? `${columnLabel} ${sort.direction === 'ascending' ? '↑' : '↓'}` : '';
 
   const panelAction = selectMode ? (
     <Button variant="ghost" size="sm" onPress={clearSelection}>
@@ -352,23 +312,30 @@ export function PostsList({
     </Button>
   ) : (
     <>
-      {!narrow && isFiltered ? (
-        <Button variant="ghost" size="sm" icon="x" onPress={reset}>
-          {copy.resetFilters}
-        </Button>
-      ) : null}
       {ready && hasRows ? (
         <Button variant="ghost" size="sm" icon="check-circle" onPress={() => setSelectMode(true)}>
           {postsCopy.selection.select}
         </Button>
       ) : null}
+      {/* Desktop: an always-visible field, not a popover behind an icon (owner, 08.10.2026). */}
+      {narrow ? null : (
+        <span className={styles.headerSearch}>
+          <SearchField
+            label={copy.searchLabel}
+            placeholder={copy.filters.searchHint}
+            value={query}
+            isDisabled={result.isPending}
+            onChange={setQuery}
+          />
+        </span>
+      )}
     </>
   );
 
   const loadedText = [
     copy.loaded(loaded.length, result.hasNextPage),
     sort && result.hasNextPage ? copy.sortLoadedOnly : null,
-    query.trim() !== '' && result.hasNextPage ? copy.searchScope : null
+    isSearching && result.hasNextPage ? copy.searchScope : null
   ]
     .filter(Boolean)
     .join(' · ');
@@ -398,6 +365,7 @@ export function PostsList({
         selectedKey={view}
         onSelectionChange={(key) => {
           clearSelection();
+          setQuery('');
           onViewChange(key as PostsView);
         }}
       >
@@ -418,80 +386,91 @@ export function PostsList({
       {result.isError ? (
         <ListError error={result.error} isArchive={isArchive} onRetry={() => void result.refetch()} />
       ) : (
-        <Panel
-          title={PANEL_TITLE[view]}
-          action={panelAction}
-          {...(ready && hasRows ? {} : { reserveRows: narrow ? 6 : 8 })}
-          {...(footer ? { footer } : {})}
-        >
-          {narrow ? (
-            <PhoneToolbar>
-              <PhoneToolbarSearch>
-                <SearchField
-                  label={copy.searchLabel}
-                  placeholder={copy.filters.phoneSearch}
-                  value={query}
+        <Wrap narrow={narrow}>
+          <Panel
+            title={PANEL_TITLE[view]}
+            action={panelAction}
+            {...(ready && hasRows ? {} : { reserveRows: narrow ? 6 : 8 })}
+            {...(footer ? { footer } : {})}
+          >
+            {narrow ? (
+              <PhoneToolbar>
+                <PhoneToolbarSearch>
+                  <SearchField
+                    label={copy.searchLabel}
+                    placeholder={copy.filters.phoneSearch}
+                    value={query}
+                    isDisabled={result.isPending}
+                    onChange={setQuery}
+                  />
+                </PhoneToolbarSearch>
+                <FilterButton
+                  count={0}
+                  sort={{ label: copy.filters.sort, value: sortShort, spoken: sortLabel }}
                   isDisabled={result.isPending}
-                  onChange={onQueryChange}
+                  onPress={() => {
+                    setDraftSort(sortValue);
+                    setSheetOpen(true);
+                  }}
                 />
-              </PhoneToolbarSearch>
-              <FilterButton
-                count={filtersCount}
-                isDisabled={result.isPending}
-                onPress={() => {
-                  setDraft({ status: activeStatus, sort: sortValue });
-                  setSheetOpen(true);
-                }}
+              </PhoneToolbar>
+            ) : null}
+            {ready && !hasRows ? (
+              <EmptyState
+                icon={emptyIsFiltered ? 'search' : isArchive ? 'clock' : 'file'}
+                title={
+                  isSearching ? copy.searchEmptyTitle : emptyIsFiltered ? copy.filteredEmptyTitle : copyFor.emptyTitle
+                }
+                description={
+                  isSearching
+                    ? copy.searchEmptyDescription
+                    : emptyIsFiltered
+                      ? copy.filteredEmptyDescription
+                      : copyFor.emptyDescription
+                }
+                action={
+                  isSearching ? (
+                    <Button variant="secondary" onPress={clearSearch}>
+                      {ru.ui.clearSearch}
+                    </Button>
+                  ) : emptyIsFiltered ? (
+                    <Button variant="secondary" onPress={showAll}>
+                      {copy.showAll}
+                    </Button>
+                  ) : isArchive ? undefined : (
+                    <Button icon="plus" onPress={onCreate}>
+                      {copy.create}
+                    </Button>
+                  )
+                }
               />
-            </PhoneToolbar>
-          ) : null}
-          {narrow && ready && hasRows ? <AppliedChips chips={chips} onRemove={removeChip} /> : null}
-          {ready && !hasRows ? (
-            <EmptyState
-              icon={emptyIsFiltered ? 'search' : isArchive ? 'clock' : 'file'}
-              title={emptyIsFiltered ? copyFor.filteredEmptyTitle : copyFor.emptyTitle}
-              description={emptyIsFiltered ? copyFor.filteredEmptyDescription : copyFor.emptyDescription}
-              action={
-                emptyIsFiltered ? (
-                  <Button variant="secondary" onPress={reset}>
-                    {copy.resetFilters}
-                  </Button>
-                ) : isArchive ? undefined : (
-                  <Button icon="plus" onPress={onCreate}>
-                    {copy.create}
-                  </Button>
-                )
-              }
-            />
-          ) : (
-            <PostRows
-              mode={isArchive ? 'archive' : 'live'}
-              label={isArchive ? postsCopy.archive.tableLabel : copy.tableLabel}
-              rows={sortedRows}
-              sort={sort}
-              onSortChange={onSortChange}
-              now={now}
-              isLoading={result.isPending}
-              narrow={narrow}
-              selectable={selectable}
-              isSelected={selection.has}
-              allState={allState}
-              onSelectionChange={onTableSelection}
-              onToggle={(post, on) => selection.toggle({ id: post.id, revision: post.revision }, on)}
-              onToggleAll={(on) =>
-                on
-                  ? selection.setAll(selectableRows.map((row) => ({ id: row.id, revision: row.revision })))
-                  : selection.remove(selectableRows.map((row) => row.id))
-              }
-              reasons={reasonText}
-              query={query}
-              onQueryChange={onQueryChange}
-              {...(rowStatus ? { status: rowStatus } : {})}
-              onOpen={onOpen}
-              onAction={onAction}
-            />
-          )}
-        </Panel>
+            ) : (
+              <PostRows
+                mode={isArchive ? 'archive' : 'live'}
+                label={isArchive ? postsCopy.archive.tableLabel : copy.tableLabel}
+                rows={sortedRows}
+                sort={sort}
+                onSortChange={onSortChange}
+                now={now}
+                isLoading={result.isPending}
+                narrow={narrow}
+                selectable={selectable}
+                isSelected={selection.has}
+                allState={allState}
+                onSelectionChange={onTableSelection}
+                onToggle={(post, on) => selection.toggle({ id: post.id, revision: post.revision }, on)}
+                onToggleAll={(on) =>
+                  on
+                    ? selection.setAll(selectableRows.map((row) => ({ id: row.id, revision: row.revision })))
+                    : selection.remove(selectableRows.map((row) => row.id))
+                }
+                reasons={reasonText}
+                onOpen={onOpen}
+                onAction={onAction}
+              />
+            )}
+          </Panel>
+        </Wrap>
       )}
 
       {selectedPosts.length > 0 || selectMode ? (
@@ -531,28 +510,15 @@ export function PostsList({
       <FilterSheet
         isOpen={sheetOpen}
         onOpenChange={setSheetOpen}
-        count={draftCount}
-        onReset={() => setDraft({ status: 'all', sort: 'none' })}
+        count={0}
+        title={copy.filters.sort}
+        onReset={() => setDraftSort('none')}
         onApply={() => {
-          onStatusChange(draft.status);
-          onMobileSortChange(draft.sort);
+          onMobileSortChange(draftSort);
           setSheetOpen(false);
         }}
       >
-        {view === 'all' ? (
-          <Select
-            label={copy.filters.status}
-            options={STATUS_OPTIONS}
-            value={draft.status}
-            onChange={(value) => setDraft({ ...draft, status: value })}
-          />
-        ) : null}
-        <Select
-          label={ru.ui.sortBy}
-          options={sortOptions}
-          value={draft.sort}
-          onChange={(value) => setDraft({ ...draft, sort: value })}
-        />
+        <Select label={ru.ui.sortBy} options={sortOptions} value={draftSort} onChange={setDraftSort} />
       </FilterSheet>
 
       {deleteTargets ? (
@@ -588,4 +554,9 @@ function ListError({ error, isArchive, onRetry }: { error: unknown; isArchive: b
       onRetry={onRetry}
     />
   );
+}
+
+/** Desktop only: the field in the panel header and the table below it share the Arrow Down shortcut. */
+function Wrap({ narrow, children }: { narrow: boolean; children: ReactNode }) {
+  return narrow ? <>{children}</> : <TableSearch>{children}</TableSearch>;
 }

@@ -28,6 +28,8 @@ export { Popover } from './Popover';
 export { Radio, RadioGroup } from './RadioGroup';
 export { RowCard } from './RowCard';
 export { SearchField } from './SearchField';
+export { TableSearch } from './TableSearch';
+export { useRowSearch } from './use-row-search';
 export { SelectionBar } from './SelectionBar';
 export { SegmentedControl } from './SegmentedControl';
 export type { SegmentOption } from './SegmentedControl';

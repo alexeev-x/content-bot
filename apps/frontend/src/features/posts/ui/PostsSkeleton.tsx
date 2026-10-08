@@ -50,7 +50,12 @@ export function PostsSkeleton() {
               <PhoneToolbarSearch>
                 <SearchField label={copy.searchLabel} placeholder={copy.filters.phoneSearch} isDisabled />
               </PhoneToolbarSearch>
-              <FilterButton count={0} isDisabled onPress={noop} />
+              <FilterButton
+                count={0}
+                sort={{ label: copy.filters.sort, value: '', spoken: '' }}
+                isDisabled
+                onPress={noop}
+              />
             </PhoneToolbar>
             <PhoneSkeletonRows label={copy.tableLabel} />
           </>

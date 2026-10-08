@@ -1,5 +1,5 @@
 import type { PostDto, PublicationDto } from '@alexeev/contracts';
-import { useMemo, type ReactNode } from 'react';
+import { useMemo } from 'react';
 import {
   DataTable,
   MediaTile,
@@ -28,10 +28,11 @@ type Props = {
   onOpen: (publicationId: string) => void;
   activeId?: string | undefined;
   isLoading?: boolean;
-  /** Desktop: sort by time, and the filter controls that sit in the column headers. */
+  /** The text of a whole row, which the search of the panel matches (see `publicationRowText`). */
+  rowText?: (publication: PublicationDto) => string;
+  /** Desktop: sort by time. */
   order?: PublicationOrder;
   onOrderChange?: (order: PublicationOrder) => void;
-  controls?: { post?: ReactNode; channel?: ReactNode; status?: ReactNode };
   narrow?: boolean;
 };
 
@@ -100,7 +101,7 @@ export function PublicationTable(props: Props) {
   return props.narrow ? <Cards {...props} /> : <Grid {...props} />;
 }
 
-function Grid({ rows, post, channel, onOpen, activeId, isLoading, order, onOrderChange, controls }: Props) {
+function Grid({ rows, post, channel, onOpen, activeId, isLoading, rowText, order, onOrderChange }: Props) {
   const zone = useMemo(() => browserTimeZone(), []);
   const columns = useMemo<DataColumn<PublicationDto>[]>(
     () => [
@@ -118,13 +119,11 @@ function Grid({ rows, post, channel, onOpen, activeId, isLoading, order, onOrder
         id: 'post',
         header: copy.list.columns.post,
         isRowHeader: true,
-        ...(controls?.post ? { headerControl: controls.post } : {}),
         cell: (row) => <PostCell value={post(row)} />
       },
       {
         id: 'channel',
         header: copy.list.columns.channel,
-        ...(controls?.channel ? { headerControl: controls.channel } : {}),
         cell: (row) => {
           const title = channel(row)?.title;
           return title ? (
@@ -139,7 +138,6 @@ function Grid({ rows, post, channel, onOpen, activeId, isLoading, order, onOrder
       {
         id: 'status',
         header: copy.list.columns.status,
-        ...(controls?.status ? { headerControl: controls.status } : {}),
         cell: (row) => <StatusBadge status={displayStatus(row)} />
       },
       {
@@ -148,7 +146,7 @@ function Grid({ rows, post, channel, onOpen, activeId, isLoading, order, onOrder
         cell: (row) => <MessageCell publication={row} channel={channel(row)} />
       }
     ],
-    [post, channel, zone, controls]
+    [post, channel, zone]
   );
 
   return (
@@ -159,6 +157,7 @@ function Grid({ rows, post, channel, onOpen, activeId, isLoading, order, onOrder
       columns={columns}
       rows={rows}
       getRowId={(row) => row.id}
+      {...(rowText ? { getRowText: rowText } : {})}
       onRowAction={onOpen}
       activeId={activeId}
       isLoading={isLoading ?? false}

@@ -17,3 +17,9 @@
   font-size: var(--font-size-xs);
   text-align: center;
 }
+
+/* Desktop search in the panel header: always visible, wide enough for a post title. */
+.headerSearch {
+  display: block;
+  width: 280px;
+}

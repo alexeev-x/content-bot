@@ -44,7 +44,11 @@
   text-overflow: ellipsis;
 }
 .action {
+  /* Several controls (reset, select, search) stay on one line, so the header never changes height. */
+  display: flex;
   flex: none;
+  align-items: center;
+  gap: var(--space-2);
   color: var(--color-text-muted);
   font-size: var(--font-size-xs);
 }

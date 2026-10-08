@@ -2,17 +2,13 @@ import type { PostDto } from '@alexeev/contracts';
 import type { ReactNode } from 'react';
 import {
   Checkbox,
-  ColumnFilter,
   DataTable,
   Icon,
   MediaTile,
   Menu,
   PanelList,
   PhoneSkeletonRows,
-  RadioGroup,
-  Radio,
   RowCard,
-  SearchField,
   type DataColumn,
   type MenuEntry,
   type RowSelection,
@@ -25,9 +21,9 @@ import type { PostSort, PostSortKey } from '../model/post-sort';
 import { postsCopy } from './copy';
 import { PostStateBadge } from './PostStateBadge';
 import styles from './PostRows.module.css';
+import { postRowText, shortFormat } from './row-text';
 
 export type RowAction = 'delete' | 'restore' | 'reconcile';
-export type StatusOption = { id: string; label: string };
 
 type Props = {
   mode: 'live' | 'archive';
@@ -48,11 +44,6 @@ type Props = {
   onToggleAll: (on: boolean) => void;
   /** Why a row could not be deleted or restored in the last bulk run. */
   reasons: ReadonlyMap<string, string>;
-  /** Header filters of the desktop table. */
-  query: string;
-  onQueryChange: (query: string) => void;
-  /** Absent in the views where the status is fixed (drafts, archive). */
-  status?: { value: string; options: readonly StatusOption[]; onChange: (value: string) => void };
   onOpen: (id: string) => void;
   onAction: (post: PostDto, action: RowAction) => void;
 };
@@ -60,12 +51,6 @@ type Props = {
 const copy = postsCopy;
 export const POST_ROW_LOADING = 8;
 const titleOf = (post: PostDto) => post.title.trim() || copy.list.untitled;
-const shortFormat = new Intl.DateTimeFormat('ru-RU', {
-  day: 'numeric',
-  month: 'short',
-  hour: '2-digit',
-  minute: '2-digit'
-});
 
 function blockText(block: DeleteBlock): string {
   return block === 'unknown' ? copy.actions.blockedUnknown : copy.actions.blockedInProgress;
@@ -175,7 +160,7 @@ const toTableSort = (sort: PostSort): TableSort | undefined =>
   sort ? { column: sort.key, direction: sort.direction } : undefined;
 
 function Grid(props: Props) {
-  const { mode, rows, now, isLoading, selectable, query } = props;
+  const { mode, rows, now, isLoading, selectable } = props;
   const live = mode === 'live';
   const head = live ? copy.list.columns : copy.archive.columns;
   const blocked = new Set(live ? rows.filter((post) => deleteBlockOf(post) !== null).map((post) => post.id) : []);
@@ -185,19 +170,6 @@ function Grid(props: Props) {
       header: head.title,
       isRowHeader: true,
       allowsSorting: true,
-      headerControl: (
-        <ColumnFilter label={copy.list.filters.searchFilter} icon="search" isActive={query.trim() !== ''}>
-          <SearchField
-            label={copy.list.filters.searchField}
-            placeholder={copy.list.filters.searchHint}
-            value={query}
-            // The owner opened the search popover on purpose: its only field takes focus.
-            // eslint-disable-next-line jsx-a11y/no-autofocus
-            autoFocus
-            onChange={props.onQueryChange}
-          />
-        </ColumnFilter>
-      ),
       cell: (post) => {
         const reason = props.reasons.get(post.id);
         return (
@@ -220,25 +192,6 @@ function Grid(props: Props) {
           {
             id: 'status',
             header: copy.list.columns.status,
-            ...(props.status
-              ? {
-                  headerControl: (
-                    <ColumnFilter label={copy.list.filters.statusFilter} isActive={props.status.value !== 'all'}>
-                      <RadioGroup
-                        label={copy.list.filters.status}
-                        value={props.status.value}
-                        onChange={props.status.onChange}
-                      >
-                        {props.status.options.map((option) => (
-                          <Radio key={option.id} value={option.id}>
-                            {option.label}
-                          </Radio>
-                        ))}
-                      </RadioGroup>
-                    </ColumnFilter>
-                  )
-                }
-              : {}),
             cell: (post: PostDto) => <StateCell post={post} />
           },
           {
@@ -283,6 +236,7 @@ function Grid(props: Props) {
       columns={columns}
       rows={rows}
       getRowId={(post) => post.id}
+      getRowText={(post) => postRowText(post, now)}
       isLoading={isLoading}
       loadingRows={POST_ROW_LOADING}
       {...(sort ? { sort } : {})}

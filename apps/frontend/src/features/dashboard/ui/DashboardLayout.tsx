@@ -45,36 +45,32 @@ export function DashboardLayout({ view, banner, zoneNote, onOpenPublication, onN
 
       <div className={styles.layout}>
         <div className={styles.main}>
-          <div className={styles.left}>
-            <AttentionPanel
-              rows={view?.rows}
-              total={view?.attentionCount ?? 0}
-              checking={view?.checking ?? false}
-              narrow={narrow}
-              now={now}
-              onOpenPublication={onOpenPublication}
-            />
-            <TodayPanel
-              items={dashboard?.today}
-              total={dashboard?.todayTotal ?? 0}
-              narrow={narrow}
-              now={now}
-              onOpenPublication={onOpenPublication}
-              onNewPost={onNewPost}
-            />
-          </div>
-          <div className={styles.right}>
-            <SystemPanel services={view?.services} />
-            <UpcomingPanel
-              items={dashboard?.upcoming}
-              narrow={narrow}
-              now={now}
-              onOpenPublication={onOpenPublication}
-              onCreate={onOpenPosts}
-            />
-          </div>
+          <AttentionPanel
+            rows={view?.rows}
+            total={view?.attentionCount ?? 0}
+            checking={view?.checking ?? false}
+            narrow={narrow}
+            now={now}
+            onOpenPublication={onOpenPublication}
+          />
+          <TodayPanel
+            items={dashboard?.today}
+            total={dashboard?.todayTotal ?? 0}
+            narrow={narrow}
+            now={now}
+            onOpenPublication={onOpenPublication}
+            onNewPost={onNewPost}
+          />
+          <SystemPanel services={view?.services} />
+          <UpcomingPanel
+            items={dashboard?.upcoming}
+            narrow={narrow}
+            now={now}
+            onOpenPublication={onOpenPublication}
+            onCreate={onOpenPosts}
+          />
+          <RecentPanel items={dashboard?.recentSent} narrow={narrow} now={now} onOpenPublication={onOpenPublication} />
         </div>
-        <RecentPanel items={dashboard?.recentSent} narrow={narrow} now={now} onOpenPublication={onOpenPublication} />
       </div>
     </div>
   );

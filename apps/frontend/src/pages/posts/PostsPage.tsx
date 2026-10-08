@@ -4,11 +4,7 @@ import { useDocumentTitle } from './use-document-title';
 
 type Props = {
   view: PostsView;
-  query: string;
-  status: string;
   onViewChange: (view: PostsView) => void;
-  onQueryChange: (query: string) => void;
-  onStatusChange: (status: string) => void;
   onOpen: (id: string) => void;
   onCreate: () => void;
   onReconcile: (postId: string) => void;

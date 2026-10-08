@@ -14,13 +14,10 @@ import type { PublicationsSearch } from './search';
 export function usePublicationsData(search: PublicationsSearch, pollMs?: number) {
   const view = search.view;
   const filters: PublicationFilters = {
-    ...(search.status ? { status: search.status } : {}),
     ...(search.post ? { postId: search.post } : {}),
-    ...(search.channel ? { destinationId: search.channel } : {}),
-    ...(search.q ? { q: search.q } : {}),
-    ...(view === 'upcoming' && !search.status ? { status: 'scheduled' as const } : {}),
-    ...(view === 'recent' && !search.status ? { status: 'sent' as const } : {}),
-    ...(view === 'errors' && !search.status ? { status: 'failed' as const } : {}),
+    ...(view === 'upcoming' ? { status: 'scheduled' as const } : {}),
+    ...(view === 'recent' ? { status: 'sent' as const } : {}),
+    ...(view === 'errors' ? { status: 'failed' as const } : {}),
     order: search.order ?? (view === 'upcoming' ? 'asc' : 'desc')
   };
   const list = useInfiniteQuery(publicationsInfiniteQueryOptions(filters, pollMs ?? PUBLICATION_POLL_MS));
@@ -64,5 +61,5 @@ export function usePublicationsData(search: PublicationsSearch, pollMs?: number)
     [destinationById]
   );
 
-  return { list, items, destinationList, post, postTitle, channel };
+  return { list, items, post, postTitle, channel };
 }
