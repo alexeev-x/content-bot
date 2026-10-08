@@ -40,11 +40,11 @@ Target geometry, adjusted by visual testing:
 
 Design reference: `docs/design/UX_SPEC.md` and the prototype at `/__proto` (approved 08.10.2026).
 
-Each major visual redesign gets screenshot references at desktop and mobile before or with implementation.
+Each major visual redesign gets screenshot references across the canonical responsive viewport matrix in `docs/design/UX_SPEC.md` §1 (phone, tablet portrait/landscape, laptop, desktop), not just one desktop and one mobile width.
 
 ## 23. Mobile / Telegram Mini App
 
-Acceptance width starts at 375/390 px.
+Phone-first work must also remain usable on tablet, laptop and desktop: all routes pass the canonical viewport matrix and no-overflow rules in `docs/design/UX_SPEC.md` §1. The widths below describe phone-specific behavior, not the whole product acceptance range.
 
 Required parity:
 

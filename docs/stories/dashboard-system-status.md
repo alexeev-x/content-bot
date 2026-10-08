@@ -25,6 +25,8 @@ Rows: «Сервис» (API, версия), «Бот» (@username / причин
 ## Fit with «Сегодня»
 Strip stays first. The same checks feed «Требует внимания»: each failing check = one item (title, one action) in that block, so the strip drops its row there when the block exists and keeps only the healthy/count line. Data comes from one `useSystemStatus()` aggregating checks; no new layout rewrite. No KPI cards.
 
+Responsive acceptance follows the full viewport matrix in `docs/design/UX_SPEC.md` §1. The phone/tablet and desktop widths below describe the composition examples for this widget; intermediate widths must reflow without clipping, overflow or overlapping controls.
+
 ## Phone 375 / Mini App
 Strip full width, 44 px tap target (line padded to 44 px hit area, 32 px visual). Problem row: text truncated, action button 44 px, right-aligned; never wraps to two rows. Telegram chrome: sheet respects safe area; native Back closes the sheet before navigating. Parity with web: same component, same copy.
 

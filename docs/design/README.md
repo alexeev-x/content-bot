@@ -19,5 +19,6 @@ Where they disagree, `UX_SPEC.md` wins for layout and patterns; publishing-safet
 - Status colours are muted and semantic; status is never colour only (text + icon).
 - Skeletons keep the final geometry (header, toolbar, row count, row height, thumbnail boxes), so data arrival never shifts the layout.
 - Density: desktop controls 34-36 px, rows 40-48 px, sidebar about 216-224 px (rail 56-64 px); touch targets 44 px.
+- Responsive acceptance covers phone, tablet portrait/landscape, laptop and large desktop widths (320-1920 px+), not only the legacy 375/1280 screenshot pair. The canonical viewport matrix, 860 px composition breakpoint and no-overflow rules are in [`UX_SPEC.md` §1](UX_SPEC.md).
 - The colour constructor stays: 5 presets per theme plus up to 10 custom colours, light and dark separately (`docs/stories/settings.md`).
 - No Figma; design exists only as code (`docs/DESIGN_SYSTEM_NO_FIGMA.md`).

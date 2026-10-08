@@ -4,7 +4,7 @@ Status: **Approved 08.10.2026** (owner approved this spec and the prototype at `
 
 Inputs: `docs/design/README.md` (Calm Operations visual rules), `docs/PAGE_MAP.md`, `docs/stories/{mobile-layout,settings,posts-lifecycle,dashboard-today-incidents,dashboard-system-status,review-2026-10-07-ux}.md`, current screenshots (dark/light x 1440/375, mock data; names below like `dark-375-posts`). Where this spec and an older story disagree, this spec wins for layout/patterns; publishing-safety rules in the stories stay authoritative.
 
-Conventions: phone = below 860 px (the single existing breakpoint; design at 375, test 320). Desktop = 860 px and above, drawn at 1440. Targets 44 px on touch and in the Mini App, 34-36 px for a fine pointer. RU copy is final unless marked `(draft)`.
+Conventions: responsive behavior is required on every route from 320 px phone widths through tablets, laptops and large desktop screens (1920 px+); no device class is out of scope. QA viewport matrix: 320, 375, 390, 768 (tablet portrait), 1024 (tablet landscape/small laptop), 1280 (laptop), 1440 and 1920 px (large desktop), plus intermediate widths where layouts change. The existing 860 px breakpoint switches compact navigation/list composition to desktop composition; it is not a device boundary, and layouts must interpolate cleanly on both sides. Use available width and input capability (touch targets 44 px on touch and in the Mini App, 34-36 px for a fine pointer), not device-name assumptions. No horizontal page overflow, clipped content, inaccessible controls or overlapping sticky UI at any tested width. RU copy is final unless marked `(draft)`.
 
 ---
 
@@ -27,14 +27,14 @@ Conventions: phone = below 860 px (the single existing breakpoint; design at 375
 
 **Purpose / primary task:** move between work areas and see what needs attention without losing place.
 
-### 1.1 Desktop (>= 860 px)
+### 1.1 Desktop composition (>= 860 px; adapt fluidly for laptop and large desktop)
 - Sidebar 216-224 px expanded / 56-64 px collapsed rail. Collapse control **bottom-anchored** (owner likes it), 200 ms width transition, `prefers-reduced-motion` = instant; state persisted; current route never lost. Order: Обзор, Посты, Публикации, Инциденты (badge = open incidents count, the only badge), Настройки pinned bottom. Active = 2 px accent edge + subtle bg. Collapsed rail: icons with tooltips + `aria-label`.
 - Top bar (thin, 48 px): left = search trigger (field-looking, shows `Ctrl K`), right = read-only timezone chip («Europe/Chisinau (UTC+3)»), environment chip (DEV, always visible on dev), system-status chip (see 2.7), theme toggle, owner menu (`Выйти` only). Not a second dashboard.
 - Sidebar bottom: card «Подключённый канал» (avatar, name, state chip, subscribers line «—» until an API exists) above «Свернуть меню»; collapsed rail: avatar with tooltip (3.1).
 - Search: **today the field is a disabled placeholder unless wired**. Spec: the trigger opens a command palette (navigate-only: Посты, Публикации, Инциденты, Настройки; recents). **API need**: server search over posts/publications for entity results; until then the palette lists destinations + recent routes only, or the trigger is hidden (no disabled placeholder; mobile-layout M8).
 - Sticky: sidebar and top bar. Page content scrolls; page header does not stick on desktop.
 
-### 1.2 Phone (< 860 px)
+### 1.2 Compact composition (< 860 px; phone and narrow/tablet portrait widths)
 - Bottom tab bar, 4 tabs + «Ещё»: **Обзор, Посты, Публикации, Инциденты (badge dot/number), Ещё**. «Ещё» sheet: «Подключённый канал» card on top (moved from the sidebar), Настройки, theme, Выйти, (Later: Календарь, Медиа, Автоматизации when built). Reason: Календарь is a stub; Инциденты is a daily "resolve" task and an `unknown` is time-sensitive (wasted tap otherwise). 48 px high, labels always visible, 11.5-12 px min, no wrap at 320.
 - Top app bar (browser only): logo, DEV, search icon, theme, owner menu. **Inside Telegram: hidden**; search and theme move into the page header's overflow (Ещё sheet holds theme).
 - Detail/edit routes (`/posts/new`, `/posts/:id`, Settings detail) hide the tab bar (full-screen) and show a back chevron (44 px) in the header; Mini App uses BackButton instead.

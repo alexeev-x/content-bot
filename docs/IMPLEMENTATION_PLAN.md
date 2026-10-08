@@ -20,7 +20,7 @@ These decisions are already made and should not be re-opened unless the owner ex
 - No AI/LLM/generative features are part of the active roadmap. No AI recommendations, AI scoring, AI scripts, generative images, AI comment classification, AI agents or AI orchestration are to be built in the phases below.
 - Dota intelligence is deterministic: source ingestion, parsing, normalization, comparisons, thresholds, rules, filters, watchlists and explicit provenance.
 - Design is implemented in code. Figma is not required. Canonical visual sources are tokens, primitives, real pages and browser screenshot references stored in the repository.
-- Desktop and mobile/Telegram Mini App are first-class. Mobile does not become a read-only version.
+- Phone, tablet, laptop, desktop and Telegram Mini App are first-class; every route remains fully operational and adapts to available space. Required responsive checks and widths are defined in `docs/design/UX_SPEC.md` §1; mobile is not a read-only version.
 - D1 remains the operational source of truth. R2 is introduced for media objects when the media phase begins.
 - A feature is not complete because a route exists. It is complete only when the real backend, real UI, validation, error states, tests and operational behavior exist.
 
@@ -205,7 +205,7 @@ Definition of Done:
 - preview matches publish strategy.
 - every sent Telegram message id is stored.
 - failure mid-sequence cannot be reported as full success.
-- 375/390 and 1280/1440 screenshots verified.
+- Responsive screenshots and overflow checks verified at 320, 375, 390, 768, 1024, 1280, 1440 and 1920 px, plus intermediate widths around layout changes (contract: `docs/design/UX_SPEC.md` §1).
 
 Owner prerequisite:
 

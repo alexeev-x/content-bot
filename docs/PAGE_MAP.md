@@ -2,7 +2,7 @@
 
 The admin panel is the primary control plane for the whole ALEXEEV content system. It is not a minimal operations dashboard. Every automated or manual capability should be inspectable and controllable here unless exposing it would weaken security (for example, raw secrets stay in Cloudflare).
 
-The regular browser app and Telegram Mini App are the same SPA. Mobile at 375 px is fully capable; desktop at 1280+ px uses the extra space for denser navigation, tables, split views and inspectors.
+The regular browser app and Telegram Mini App are the same SPA. Every route must work from 320 px phones through tablets, laptops and large desktops (1920 px+), with the same operational capabilities. Use available space progressively: compact composition below the existing 860 px breakpoint, denser navigation/tables/split views only when they fit above it. Validate all routes at 320, 375, 390, 768, 1024, 1280, 1440 and 1920 px, including intermediate widths around layout changes. No horizontal page overflow, clipped controls/content or overlapping fixed elements. The canonical responsive contract is in `docs/design/UX_SPEC.md` §1.
 
 ## Primary navigation
 
@@ -29,7 +29,7 @@ The regular browser app and Telegram Mini App are the same SPA. Mobile at 375 px
 | `/settings/channels` | Destinations | Telegram channels/groups, defaults, health and permissions | missing permissions, unreachable destination |
 | `/settings/integrations` | Integrations | bot/webhook/source connection health without exposing secrets | disconnected, invalid configuration |
 | `/settings/appearance` | Appearance | dark/light/system theme and display preferences | local fallback |
-| all routes at 375 px (Mini App) | Mobile layout | audit, layout system and backlog for phone/Telegram Mini App (spec: `docs/stories/mobile-layout.md`) | overflow, keyboard, safe area, Telegram BackButton/MainButton |
+| all routes at phone/tablet/laptop/desktop widths | Responsive layout | audit, layout system and backlog for phone/Telegram Mini App (spec: `docs/stories/mobile-layout.md`; responsive contract: `docs/design/UX_SPEC.md` §1) | overflow, keyboard, safe area, Telegram BackButton/MainButton, clipped/overlapping UI |
 | `/*` | Not found | safe navigation back to Studio | — |
 
 ## Cross-page product requirements
@@ -56,7 +56,7 @@ The approved design (08.10.2026, `docs/design/UX_SPEC.md`, live prototype at `/_
 - polished dark and light themes;
 - responsive navigation and content composition;
 - real empty/error/permission states;
-- browser screenshot references at 375 px and 1280/1440 px;
+- browser screenshot/overflow checks at 320, 375, 390, 768, 1024, 1280, 1440 and 1920 px (and intermediate widths around breakpoints);
 - WCAG 2.2 AA target and keyboard-complete critical flows.
 
 Canonical implementation sources remain `apps/frontend/src/app/styles/tokens.css`, `apps/frontend/src/shared/ui` and real route code; no Figma artifact is introduced.

@@ -38,9 +38,9 @@ Fetched this session: Telegram Mini Apps docs, https://core.telegram.org/bots/we
 - Bottom sheets for secondary tasks, full screen for forms with a keyboard: Material 3 bottom sheets https://m3.material.io/components/bottom-sheets/overview; NN/g on mobile forms and sticky bars (https://www.nngroup.com/articles/mobile-navigation-patterns/).
 - Scheduler/admin apps (Buffer, Later, Telegram's own @BotFather-style Mini Apps, Shopify mobile admin) share one pattern: bottom tabs, a list of cards with a status chip and one time line, tap opens a detail screen (not a drawer), one primary action pinned at the bottom of the detail. Pattern knowledge, no fresh capture; treat as a hypothesis.
 
-## 4. Mobile layout system (proposal)
+## 4. Mobile layout system (phone/tablet compact composition)
 
-- Breakpoints: keep one: phone/tablet below 860px (already `max-width: 859px` everywhere), desktop above. Do not add more; design at 375 and test 320 (no horizontal scroll, WCAG 1.4.10).
+- This story owns the compact phone/tablet behavior; it does not define the full responsive product acceptance. Keep the existing 860 px breakpoint for compact vs desktop composition, but do not label every width below it a phone: tablet portrait and narrow windows also use this composition and must remain usable. All routes must additionally pass laptop, tablet-landscape and large-desktop checks in the canonical matrix in `docs/design/UX_SPEC.md` §1. Keep layouts fluid between breakpoints and prevent horizontal page scroll (WCAG 1.4.10).
 - Navigation: keep the bottom tab bar (Главная, Посты, Публикации, Календарь, Ещё). Reason: thumb reach, matches Telegram and platform guidelines, already built, parity with desktop items via «Ещё». Hamburger menu rejected: hides destinations.
 - Page header on phone: inside Telegram drop the app top bar (Telegram already shows the title bar and close/back); keep search and owner menu as icons inside the page header row. In a browser keep the slim top bar. Page title `h1` one line, ellipsis, details via `title`; actions as icon buttons or one primary button.
 - Lists: always cards below 860px, fixed anatomy: title (2 lines max), status chip, one meta line (time, channel). Details as a bottom sheet (<=85dvh) for quick look, a route for anything with edit. Cards and grid tracks use `minmax(0, 1fr)`; no `nowrap` text in a card.
@@ -56,7 +56,7 @@ Per-screen (frontend): everything in the backlog below that is a single page fix
 ## 5. Backlog (one task each)
 
 P0 unusable
-1. [frontend] Fix M1: `minmax(0,1fr)` tracks in `DataTable` cards, drop `nowrap`/`max-width:36ch` in cards, filter selects `width:100%`; add a Playwright/axe check `scrollWidth === clientWidth` at 320/375/390 for every route. Re-verify drawer (M2).
+1. [frontend] Fix M1: `minmax(0,1fr)` tracks in `DataTable` cards, drop `nowrap`/`max-width:36ch` in cards, filter selects `width:100%`; add a Playwright/axe check `scrollWidth === clientWidth` at the compact widths and complete viewport matrix in `docs/design/UX_SPEC.md` for every route. Re-verify drawer (M2).
 2. [frontend] Fix M4: theme control readable without hidden scroll (stack on phone or shorter labels).
 
 P1 painful
@@ -75,4 +75,4 @@ P2 polish
 13. [frontend] Dashboard phone composition once data exists (M11).
 14. [frontend] Visual baselines at 375/390 light+dark for all routes in CI container (skill `visual-check`).
 
-Given/When/Then (acceptance for items 1-2): Given any route at 320, 375 or 390px, When it loads with long titles and channel names, Then the page has no horizontal scroll, no text clipped by the viewport, and every control is reachable without sideways scroll.
+Given/When/Then (acceptance for items 1-2): Given any route at each width in the canonical matrix in `docs/design/UX_SPEC.md` and long titles/channel names, When it loads, Then the page has no horizontal scroll, no text clipped by the viewport, no overlapping fixed UI, and every control is reachable without sideways scroll.

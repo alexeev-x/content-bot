@@ -59,6 +59,8 @@ Time: every time shows `14:30` plus the zone and UTC offset once in the block he
 Refresh: refetch on focus and every 60 s only while the tab is visible and the dashboard is open; no polling elsewhere.
 
 ### Responsive
+
+The 1280 px and phone widths below are composition examples, not the entire acceptance range. Both dashboard and incidents must pass the phone/tablet/laptop/desktop viewport matrix and no-overflow rules in `docs/design/UX_SPEC.md` §1.
 - 1280: two columns. Left (≈65%): «Требует внимания», «Сегодня». Right: «Ближайшие», «Недавно отправлено». Dense 40 px rows, no cards, one divider style.
 - 375 / Mini App: single column in the same order; rows 44 px, title ellipsis, action as a 44 px button aligned right; time column stays left. 320 px: no horizontal scroll, action moves under the title only when the title would be under 12 characters.
 
@@ -101,6 +103,8 @@ Code → reason (ru): `SEND_UNCONFIRMED` «Ответ Telegram не получе
 Polling: 30 s only while the tab is visible (FRONTEND_ARCHITECTURE §state), paused otherwise.
 
 ### Responsive
+
+Use the same full viewport matrix and no-overflow acceptance in `docs/design/UX_SPEC.md` §1; the examples below are not an exhaustive device list.
 - 1280: table-like list, columns: type, post+reason, channel, time, action; 40 px rows; filters on one line above.
 - 375: each incident is a two-line row (no card chrome), action buttons 44 px full row width under the text when two actions exist; filters: segmented control full width, type chips horizontally scrollable inside their own container only.
 

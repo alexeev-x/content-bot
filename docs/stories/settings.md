@@ -1,5 +1,7 @@
 # Settings rework: theme in one click, master/detail sections
 
+Responsive acceptance for settings follows `docs/design/UX_SPEC.md` §1 across phone, tablet portrait/landscape, laptop and desktop widths. The phone/desktop examples below are composition references, not the full test matrix.
+
 Status: audit + spec for review (UX). Expert review, not validated with users. Owner words: «саму страницу настроек надо переработать, ибо чтобы цвет поменять надо туда зайти». Related: § Density revision in `docs/DESIGN_SYSTEM_NO_FIGMA.md` (Settings = two-column master/detail without large cards); the bot status leaves Settings for a dashboard widget (separate task), so «Бот» is removed here. Code was read, not run; no screenshots.
 
 ## 1. Cognitive walkthrough (today)
