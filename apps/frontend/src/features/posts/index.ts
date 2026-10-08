@@ -5,6 +5,7 @@ export {
   postQueryOptions,
   postsInfiniteQueryOptions,
   useApprovePost,
+  useArchivePost,
   useBulkDeletePosts,
   useCreatePost,
   useDeletePost,
@@ -18,6 +19,7 @@ export { postsCopy } from './ui/copy';
 export { formatClock, formatExact } from './model/format-time';
 export { DeletePostsDialog, deleteTargetOf } from './ui/DeletePostsDialog';
 export { LifecycleBanner } from './ui/LifecycleBanner';
+export { useArchiveAction } from './model/use-archive';
 export { useRestoreActions } from './model/use-restore';
 export type { LifecycleNotice } from './model/lifecycle-notices';
 export { deleteBlockOf } from './model/post-state';
