@@ -425,7 +425,7 @@ This is the actionable queue from the master roadmap. Whoever starts or finishes
 |---|---|---|
 | 1 | Content Studio rich editor and Telegram entities | done (awaiting owner DEV check) |
 | 2 | Autosave | done (awaiting owner DEV check) |
-| 3 | Dota update watcher: official sources, D1 dedup (Phase 1D) | in progress |
+| 3 | Dota update watcher: official sources, D1 dedup (Phase 1D) | done (deployed to DEV, smoke-check passed) |
 | 4 | Dota update → template draft + private owner alert (Phase 1D) | not started |
 | 5 | Patch summary from confirmed changes (Phase 1D) | not started |
 | 6 | Manual multi-media model, R2 upload and preview | not started |
