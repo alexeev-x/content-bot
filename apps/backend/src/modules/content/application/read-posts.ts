@@ -1,6 +1,12 @@
-import type { ListPostsQuery, PostDto, PostPageDto } from '@alexeev/contracts';
+import type {
+  ListPostRevisionsQuery,
+  ListPostsQuery,
+  PostDto,
+  PostPageDto,
+  PostRevisionPageDto
+} from '@alexeev/contracts';
 import { AppError } from '../../../shared/app-error';
-import { decodeCursor, encodeCursor } from './cursor';
+import { decodeCursor, decodeRevisionCursor, encodeCursor, encodeRevisionCursor } from './cursor';
 import { emptySummary, toPostDto } from './post-dto';
 import type { PostPublicationSummarySource, PostRepository } from './ports';
 import { notFound } from './post-errors';
@@ -41,4 +47,36 @@ export async function getPost(deps: ReadPostsDeps, id: string): Promise<PostDto>
   if (record === null) throw notFound();
   const summaries = await deps.summaries.summarize(record.status === 'approved' ? [record.id] : [], deps.now);
   return toPostDto(record, summaries.get(record.id) ?? emptySummary());
+}
+
+export async function getPostRevisions(
+  deps: Pick<ReadPostsDeps, 'repo'>,
+  id: string,
+  query: ListPostRevisionsQuery
+): Promise<PostRevisionPageDto> {
+  const post = await deps.repo.findById(id);
+  if (post === null) throw notFound();
+
+  let before: number | undefined;
+  if (query.cursor !== undefined) {
+    const decoded = decodeRevisionCursor(query.cursor);
+    if (decoded === null) throw new AppError('VALIDATION_ERROR', 'Invalid revision cursor', { field: 'cursor' });
+    before = decoded;
+  }
+
+  const rows = await deps.repo.listRevisions(id, before, query.limit + 1);
+  const page = rows.slice(0, query.limit);
+  const last = page.at(-1);
+  return {
+    items: page.map((revision) => ({
+      postId: revision.postId,
+      revision: revision.revision,
+      title: revision.title,
+      body: revision.body,
+      entities: revision.entities,
+      status: revision.status,
+      createdAt: new Date(revision.createdAt).toISOString()
+    })),
+    nextCursor: rows.length > query.limit && last !== undefined ? encodeRevisionCursor(last.revision) : null
+  };
 }

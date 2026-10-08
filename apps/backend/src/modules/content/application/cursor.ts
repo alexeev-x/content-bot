@@ -25,3 +25,23 @@ export function decodeCursor(value: string): PostCursor | null {
   if (!Number.isSafeInteger(cursor.at) || encodeCursor(cursor) !== value) return null;
   return cursor;
 }
+
+const REVISION_PAYLOAD = /^r:(\d{1,10})$/;
+
+export function encodeRevisionCursor(revision: number): string {
+  return btoa(`r:${revision}`).replaceAll('+', '-').replaceAll('/', '_').replaceAll('=', '');
+}
+
+export function decodeRevisionCursor(value: string): number | null {
+  let payload: string;
+  try {
+    payload = atob(value.replaceAll('-', '+').replaceAll('_', '/'));
+  } catch {
+    return null;
+  }
+  const match = REVISION_PAYLOAD.exec(payload);
+  if (match === null) return null;
+  const revision = Number(match[1]);
+  if (!Number.isSafeInteger(revision) || revision < 0 || encodeRevisionCursor(revision) !== value) return null;
+  return revision;
+}

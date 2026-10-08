@@ -3,12 +3,14 @@ import {
   bulkRestorePostsResultSchema,
   deletePostResultSchema,
   postPageSchema,
+  postRevisionPageSchema,
   postSchema,
   type approvePostInputSchema,
   type bulkDeletePostsInputSchema,
   type bulkRestorePostsInputSchema,
   type createPostInputSchema,
   type deletePostInputSchema,
+  type listPostRevisionsQuerySchema,
   type listPostsQuerySchema,
   type restorePostInputSchema,
   type updatePostInputSchema
@@ -18,6 +20,7 @@ import { apiRequest } from '../../../shared/api/http-client';
 import { buildQuery, DEFAULT_PAGE_SIZE } from '../../../shared/api/query-string';
 
 export type PostFilters = Pick<z.input<typeof listPostsQuerySchema>, 'status' | 'view'>;
+export type PostRevisionQuery = z.input<typeof listPostRevisionsQuerySchema>;
 export type DeletePostBody = z.input<typeof deletePostInputSchema>;
 export type RestorePostBody = z.input<typeof restorePostInputSchema>;
 export type BulkDeletePostsBody = z.input<typeof bulkDeletePostsInputSchema>;
@@ -33,6 +36,16 @@ export function listPosts(filters: PostFilters, cursor: string | undefined, sign
 
 export function getPost(id: string, signal?: AbortSignal) {
   return apiRequest(`/api/v1/posts/${encodeURIComponent(id)}`, postSchema, { signal });
+}
+
+export function listPostRevisions(
+  id: string,
+  cursor: string | undefined,
+  limit = DEFAULT_PAGE_SIZE,
+  signal?: AbortSignal
+) {
+  const query = buildQuery({ cursor, limit });
+  return apiRequest(`/api/v1/posts/${encodeURIComponent(id)}/revisions${query}`, postRevisionPageSchema, { signal });
 }
 
 export function createPost(input: CreatePostBody, idempotencyKey: string) {

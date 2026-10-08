@@ -226,6 +226,16 @@ export const postsCopy = {
     messageTooLong: (over: number) =>
       `Сообщение длиннее лимита Telegram на ${over}. Черновик сохранить можно, но одобрить и отправить нельзя.`,
     revision: (revision: number) => `Ревизия ${revision}`,
+    history: {
+      title: 'История изменений',
+      open: 'Открыть историю изменений',
+      listLabel: 'Ревизии поста',
+      previewLabel: 'Содержимое выбранной ревизии',
+      empty: 'История изменений пока пуста.',
+      loadMore: 'Показать ещё',
+      errorTitle: 'Не удалось загрузить историю',
+      errorMessage: 'Ревизии не получены. Повторите безопасную загрузку.'
+    },
     save: 'Сохранить',
     saveAndExit: 'Сохранить и выйти',
     create: 'Создать черновик',

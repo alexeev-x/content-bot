@@ -48,7 +48,7 @@ export function usePostEditor({ post, onCreated, rootRef, dirtyRef }: Options) {
   const [baseline, setBaseline] = useState<PostDto | null>(post ?? null);
   const [conflict, setConflict] = useState<EditorConflict | null>(null);
   const [notice, setNotice] = useState<EditorNotice | null>(null);
-  const [failed, setFailed] = useState(false);
+  const [failedKey, setFailedKey] = useState<string | null>(null);
   const [justApproved, setJustApproved] = useState(false);
   const [focusTick, setFocusTick] = useState(0);
 
@@ -65,6 +65,8 @@ export function usePostEditor({ post, onCreated, rootRef, dirtyRef }: Options) {
 
   const base = valuesOf(baseline);
   const dirty = title !== base.title || body !== base.body || !sameEntities(entities, base.entities);
+  const changeKey = JSON.stringify([title, body, entities]);
+  const failed = failedKey === changeKey;
   const readOnly = baseline?.status === 'approved' || conflict?.kind === 'locked';
   const isSaving = create.isPending || update.isPending;
   const isApproving = approve.isPending;
@@ -99,7 +101,7 @@ export function usePostEditor({ post, onCreated, rootRef, dirtyRef }: Options) {
       entities:
         submitted === null || sameEntities(current.entities, submitted.entities) ? saved.entities : current.entities
     });
-    setFailed(false);
+    setFailedKey(null);
     setNotice(null);
   }
 
@@ -117,7 +119,7 @@ export function usePostEditor({ post, onCreated, rootRef, dirtyRef }: Options) {
     const kind = classifyApiError(error);
     if (id !== null && kind === 'stale_revision') return loadServerVersion(id, 'stale');
     if (id !== null && (kind === 'not_editable' || kind === 'already_approved')) return loadServerVersion(id, 'locked');
-    setFailed(true);
+    setFailedKey(changeKey);
     setNotice(toEditorNotice(error, noticeTitle));
   }
 
@@ -234,6 +236,15 @@ export function usePostEditor({ post, onCreated, rootRef, dirtyRef }: Options) {
     isNew: baseline === null,
     dirty,
     readOnly,
+    changeKey,
+    canAutosave:
+      baseline !== null &&
+      dirty &&
+      !readOnly &&
+      conflict === null &&
+      !isBusy &&
+      !failed &&
+      postFormSchema.safeParse({ title, body, entities }).success,
     saveState,
     isSaving,
     isApproving,
