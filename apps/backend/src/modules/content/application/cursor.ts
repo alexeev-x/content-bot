@@ -26,7 +26,6 @@ export function decodeCursor(value: string): PostCursor | null {
   return cursor;
 }
 
-
 const REVISION_PAYLOAD = /^r:(\d{1,10})$/;
 
 export function encodeRevisionCursor(revision: number): string {
