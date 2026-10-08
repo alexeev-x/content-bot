@@ -80,20 +80,15 @@ export function DashboardPage({ pollMs }: Props) {
           <>
             <DateChip placement="header" zoneNote={zoneNote} />
             {editor.editing ? null : (
-              <>
-                <Button
-                  id={CUSTOMIZE_ID}
-                  variant="secondary"
-                  icon="settings"
-                  isDisabled={layout.revision === undefined}
-                  onPress={() => editor.startEdit()}
-                >
-                  {dashboardCopy.customize}
-                </Button>
-                <Button icon="plus" onPress={() => void navigate({ to: '/posts/new' })}>
-                  Новый пост
-                </Button>
-              </>
+              <Button
+                id={CUSTOMIZE_ID}
+                variant="secondary"
+                icon="settings"
+                aria-label={dashboardCopy.customize}
+                title={dashboardCopy.customize}
+                isDisabled={layout.revision === undefined}
+                onPress={() => editor.startEdit()}
+              />
             )}
           </>
         }
