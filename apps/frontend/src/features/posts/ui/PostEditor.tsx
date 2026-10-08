@@ -15,6 +15,7 @@ import {
   VisuallyHidden
 } from '../../../shared/ui';
 import { useClosingConfirmation } from '../../../shared/telegram/use-closing-confirmation';
+import { useAutosave } from '../model/use-autosave';
 import { useLeaveGuard } from '../model/use-leave-guard';
 import { usePostEditor } from '../model/use-post-editor';
 import { useSaveShortcut } from '../model/use-save-shortcut';
@@ -23,6 +24,7 @@ import { ConflictBanner } from './ConflictBanner';
 import { postsCopy } from './copy';
 import { PostFields } from './PostFields';
 import { PostPreview } from './PostPreview';
+import { PostRevisionHistory } from './PostRevisionHistory';
 import styles from './PostEditor.module.css';
 import { SaveIndicator } from './SaveIndicator';
 
@@ -52,8 +54,14 @@ export function PostEditor({ post, onCreated, approvedActions, aside }: Props) {
   const [compareOpen, setCompareOpen] = useState(false);
   const [approveOpen, setApproveOpen] = useState(false);
   const [overwriteOpen, setOverwriteOpen] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
 
   useSaveShortcut(() => void editor.save());
+  useAutosave({
+    enabled: editor.canAutosave,
+    changeKey: editor.changeKey,
+    onSave: () => void editor.save()
+  });
 
   const isApproved = baseline?.status === 'approved';
   // An archived post is read-only and its page explains why; the approved notice and the publish action do not apply.
@@ -132,11 +140,21 @@ export function PostEditor({ post, onCreated, approvedActions, aside }: Props) {
       <div ref={statusRef} tabIndex={-1} className={styles.meta}>
         <StatusBadge status={baseline?.status ?? 'draft'} />
         {baseline ? (
-          <>
-            <span className={`mono ${styles.muted}`}>{copy.revision(baseline.revision)}</span>
-          </>
+          <Button
+            variant="ghost"
+            size="sm"
+            aria-label={copy.history.open}
+            onPress={() => setHistoryOpen(true)}
+          >
+            <span className="mono">{copy.revision(baseline.revision)}</span>
+          </Button>
         ) : null}
         <SaveIndicator state={editor.saveState} savedAt={baseline?.updatedAt} />
+        {editor.saveState === 'failed' && !editor.readOnly && !hasConflict ? (
+          <Button variant="ghost" size="sm" icon="retry" onPress={() => void editor.save()}>
+            {copy.errors.retry}
+          </Button>
+        ) : null}
         <VisuallyHidden>
           <output>{editor.justApproved ? copy.approved.announce : ''}</output>
         </VisuallyHidden>
@@ -247,6 +265,13 @@ export function PostEditor({ post, onCreated, approvedActions, aside }: Props) {
         )}
       </div>
 
+      {baseline ? (
+        <PostRevisionHistory
+          postId={baseline.id}
+          isOpen={historyOpen}
+          onOpenChange={setHistoryOpen}
+        />
+      ) : null}
       <CompareDialog
         isOpen={compareOpen}
         onOpenChange={setCompareOpen}
