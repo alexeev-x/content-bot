@@ -23,7 +23,7 @@
 .panes {
   display: grid;
   /* The text column keeps a reading measure; the inspector (preview) takes the rest. */
-  grid-template-columns: minmax(0, var(--measure-reading)) minmax(280px, 1fr);
+  grid-template-columns: minmax(0, var(--measure-reading)) minmax(300px, 380px);
   gap: var(--space-5);
   align-items: start;
 }
@@ -52,6 +52,13 @@
 .fields {
   display: grid;
   gap: var(--space-4);
+  padding: var(--space-4);
+}
+.overLimit {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  font-weight: var(--font-weight-semibold);
 }
 .length {
   display: flex;
@@ -67,6 +74,7 @@
 .previewBody {
   display: grid;
   gap: var(--space-3);
+  padding: var(--space-4);
 }
 .note {
   display: flex;

@@ -517,9 +517,7 @@ export function PostsList({
             isDisabled={selectedPosts.length === 0}
             onPress={() => {
               setNotice(null);
-              setDeleteTargets(
-                selectedPosts.map((post) => ({ ...deleteTargetOf(post), revision: revisionFor(post) }))
-              );
+              setDeleteTargets(selectedPosts.map((post) => ({ ...deleteTargetOf(post), revision: revisionFor(post) })));
             }}
           >
             {postsCopy.selection.delete}

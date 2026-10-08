@@ -2,7 +2,7 @@ import type { IncidentDto } from '@alexeev/contracts';
 import { Link } from '@tanstack/react-router';
 import { ApiError } from '../../../shared/api/http-client';
 import { formatDayClock } from '../../../shared/lib/clock';
-import { Button, StatusBadge, useToast } from '../../../shared/ui';
+import { Button, Icon, PanelRow, StatusBadge, useToast } from '../../../shared/ui';
 import { useResolveIncident } from '../api/incidents-queries';
 import { incidentReason } from '../model/incident-view';
 import { CopyButton } from './CopyButton';
@@ -44,68 +44,69 @@ export function IncidentRow({ incident, onOpenPublication }: Props) {
   if (incident.resolvedAt) reasonParts.push(copy.row.closedAt(formatDayClock(incident.resolvedAt)));
 
   return (
-    <li className={styles.row}>
-      <span className={styles.kind}>
-        <StatusBadge status={isUnknown ? 'unknown' : 'failed'} />
-      </span>
-      <span className={styles.text}>
-        <span className={styles.title} title={title}>
-          {title}
-        </span>
-        <span className={styles.meta}>{reasonParts.join(' · ')}</span>
-        {isOpen && isUnknown ? <span className={styles.warning}>{copy.row.unknownWarning}</span> : null}
-      </span>
-      <span className={styles.channel} title={publication?.destinationName}>
-        {publication?.destinationName}
-      </span>
-      <time className={styles.time} dateTime={incident.occurredAt}>
-        {formatDayClock(incident.occurredAt)}
-      </time>
-      <span className={styles.actions}>
-        {publication ? (
-          <Button
-            variant="secondary"
-            size="sm"
-            aria-label={isOpen && isUnknown ? copy.row.checkLabel(title) : copy.row.openLabel(title)}
-            onPress={() => onOpenPublication(publication.id)}
-          >
-            {isOpen && isUnknown ? copy.row.check : copy.row.open}
-          </Button>
-        ) : null}
-        {isOpen && !isUnknown ? (
-          <Button
-            variant="secondary"
-            size="sm"
-            aria-label={copy.row.closeLabel(title)}
-            isLoading={resolve.isPending}
-            onPress={close}
-          >
-            {copy.row.close}
-          </Button>
-        ) : null}
-      </span>
-      {needsResolveUnknown ? (
-        <p className={styles.notice} role="alert">
-          {copy.resolve.useResolveUnknown}
-          {publication ? (
-            <>
-              {' '}
-              <Link to="/publications" search={{ id: publication.id }} className={styles.link}>
-                {copy.resolve.useResolveUnknownLink}
-              </Link>
-            </>
+    <PanelRow>
+      <div className={styles.incident}>
+        <div className={styles.main}>
+          <div className={styles.head}>
+            <StatusBadge status={isUnknown ? 'unknown' : 'failed'} />
+            <strong className={styles.title}>{title}</strong>
+          </div>
+          <p className={styles.reason}>{reasonParts.join(' · ')}</p>
+          {isOpen && isUnknown ? (
+            <p className={styles.warning}>
+              <Icon name="alert" size={14} />
+              {copy.row.unknownWarning}
+            </p>
           ) : null}
-        </p>
-      ) : null}
-      {incident.jobId ? (
-        <details className={styles.details}>
-          <summary className={styles.summary}>{copy.row.details}</summary>
-          <p className={styles.detailLine}>
-            {copy.row.jobId}: <code>{incident.jobId}</code>
-            <CopyButton value={incident.jobId} label={copy.row.jobId} />
-          </p>
-        </details>
-      ) : null}
-    </li>
+          <span className={styles.meta}>
+            {publication?.destinationName ? <span>{publication.destinationName} · </span> : null}
+            <time dateTime={incident.occurredAt}>{formatDayClock(incident.occurredAt)}</time>
+          </span>
+          {needsResolveUnknown ? (
+            <p className={styles.notice} role="alert">
+              {copy.resolve.useResolveUnknown}
+              {publication ? (
+                <>
+                  {' '}
+                  <Link to="/publications" search={{ id: publication.id }} className={styles.link}>
+                    {copy.resolve.useResolveUnknownLink}
+                  </Link>
+                </>
+              ) : null}
+            </p>
+          ) : null}
+          {incident.jobId ? (
+            <details className={styles.details}>
+              <summary className={styles.summary}>{copy.row.details}</summary>
+              <p className={styles.detailLine}>
+                {copy.row.jobId}: <code>{incident.jobId}</code>
+                <CopyButton value={incident.jobId} label={copy.row.jobId} />
+              </p>
+            </details>
+          ) : null}
+        </div>
+        <div className={styles.actions}>
+          {publication ? (
+            <Button
+              variant={isOpen && isUnknown ? 'primary' : 'secondary'}
+              aria-label={isOpen && isUnknown ? copy.row.checkLabel(title) : copy.row.openLabel(title)}
+              onPress={() => onOpenPublication(publication.id)}
+            >
+              {isOpen && isUnknown ? copy.row.check : copy.row.open}
+            </Button>
+          ) : null}
+          {isOpen && !isUnknown ? (
+            <Button
+              variant="ghost"
+              aria-label={copy.row.closeLabel(title)}
+              isLoading={resolve.isPending}
+              onPress={close}
+            >
+              {copy.row.close}
+            </Button>
+          ) : null}
+        </div>
+      </div>
+    </PanelRow>
   );
 }

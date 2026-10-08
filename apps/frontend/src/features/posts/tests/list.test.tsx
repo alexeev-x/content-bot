@@ -146,6 +146,51 @@ describe('filter, search and pagination', () => {
   });
 });
 
+describe('header filters', () => {
+  it('filters the loaded posts by status from the column header and resets from the panel header', async () => {
+    const user = userEvent.setup();
+    server.use(
+      http.get('*/api/v1/posts', () =>
+        HttpResponse.json(
+          postPage([post({ title: 'Черновик А' }), post({ id: ids.post2, title: 'Одобрен Б', status: 'approved' })])
+        )
+      )
+    );
+    renderList();
+    await screen.findByText('Черновик А');
+    await user.click(screen.getByRole('button', { name: 'Фильтр по статусу' }));
+    await user.click(await screen.findByRole('radio', { name: 'Утверждён' }));
+    await user.click(document.body);
+    expect(screen.queryByText('Черновик А')).toBeNull();
+    expect(screen.getByText('Одобрен Б')).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: 'Сбросить фильтры' }));
+    expect(await screen.findByText('Черновик А')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Сбросить фильтры' })).toBeNull();
+  });
+
+  it('on a phone applies the status and the sort from one sheet and shows the chips', async () => {
+    setViewport(375);
+    const user = userEvent.setup();
+    server.use(
+      http.get('*/api/v1/posts', () =>
+        HttpResponse.json(
+          postPage([post({ title: 'Черновик А' }), post({ id: ids.post2, title: 'Одобрен Б', status: 'approved' })])
+        )
+      )
+    );
+    renderList();
+    await screen.findByText('Черновик А');
+    await user.click(screen.getByRole('button', { name: 'Фильтры' }));
+    const sheet = await screen.findByRole('dialog', { name: 'Фильтры' });
+    await user.click(within(sheet).getByRole('button', { name: /Статус/ }));
+    await user.click(await screen.findByRole('option', { name: 'Утверждён' }));
+    await user.click(within(sheet).getByRole('button', { name: 'Показать результаты' }));
+    await waitFor(() => expect(screen.queryByText('Черновик А')).toBeNull());
+    expect(screen.getByRole('button', { name: 'Фильтры (1)' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: /Статус: Утверждён/ })).toBeTruthy();
+  });
+});
+
 describe('formatRelative', () => {
   const now = Date.parse('2026-10-06T12:00:00.000Z');
   it('uses minutes, hours and days, and the date after a week', () => {

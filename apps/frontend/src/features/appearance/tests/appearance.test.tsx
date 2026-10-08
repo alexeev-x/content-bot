@@ -28,7 +28,7 @@ describe('appearance editor', () => {
     const user = userEvent.setup();
     const { preview } = renderEditor();
     await lightGroup();
-    expect(screen.getByRole('button', { name: 'Сохранить' }).hasAttribute('disabled')).toBe(true);
+    expect(screen.queryByRole('button', { name: 'Сохранить' })).toBeNull();
     await pickLight(user, /Индиго/);
     expect(preview).toHaveBeenLastCalledWith(
       expect.objectContaining({ lightAccent: { kind: 'preset', id: 'indigo' } })

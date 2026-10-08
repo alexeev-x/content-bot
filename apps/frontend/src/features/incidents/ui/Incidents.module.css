@@ -1,83 +1,76 @@
-.chips {
-  max-width: 100%;
-  min-width: 0;
-  overflow-x: auto;
-}
-
-/* Table-like list: the columns live on the list and every row takes them over (subgrid), so they line up. */
-.list {
+.page {
   display: grid;
-  grid-template-columns: max-content minmax(0, 1fr) minmax(0, 18ch) max-content max-content;
-  column-gap: var(--space-4);
+  gap: var(--space-4);
   min-width: 0;
-  margin: 0;
-  padding: 0;
-  list-style: none;
 }
-.row {
-  display: grid;
-  grid-column: 1 / -1;
-  grid-template-columns: subgrid;
+.toolbar {
+  display: flex;
   align-items: center;
-  min-width: 0;
-  min-height: var(--panel-row);
+  gap: var(--space-2);
+  min-height: 56px;
   padding: var(--space-2) var(--space-4);
   border-bottom: 1px solid var(--color-border-subtle);
 }
-.row:last-child {
-  border-bottom: 0;
+
+/* One row: text column grows, the single safe action sits at the right (under the text on a phone). */
+.incident {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-4);
+  width: 100%;
+  min-width: 0;
+  padding: var(--space-2) 0;
 }
-.text {
+.main {
   display: grid;
+  flex: 1;
+  gap: var(--space-1);
   min-width: 0;
 }
-.title {
-  overflow: hidden;
-  font-weight: var(--font-weight-medium);
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-3);
 }
-.meta,
-.channel,
-.time {
-  color: var(--color-text-muted);
+.title {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-weight: var(--font-weight-medium);
+}
+.reason,
+.warning,
+.notice {
+  margin: 0;
   font-size: var(--font-size-sm);
 }
-.meta {
-  overflow-wrap: anywhere;
-}
-.channel {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.time {
-  white-space: nowrap;
-  font-variant-numeric: tabular-nums;
-}
 .warning {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
   color: var(--color-status-unknown-fg);
   font-size: var(--font-size-xs);
   font-weight: var(--font-weight-medium);
 }
+.meta {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
 .actions {
   display: flex;
+  flex: none;
+  align-items: center;
   gap: var(--space-2);
-  justify-content: flex-end;
 }
 .notice {
-  grid-column: 1 / -1;
-  margin: 0;
-}
-/* Under the title column, so the disclosure reads as part of its row. */
-.details {
-  grid-column: 2 / -1;
-  margin: 0;
-}
-.notice {
-  padding: var(--space-2) 0;
+  padding: var(--space-1) 0;
   color: var(--color-status-failed-fg);
-  font-size: var(--font-size-sm);
+}
+.details {
+  margin: 0;
 }
 .link {
   color: var(--color-accent-text);
@@ -125,80 +118,44 @@
   font-family: var(--font-mono);
   overflow-wrap: anywhere;
 }
-.more {
-  display: flex;
-  justify-content: center;
-  padding-top: var(--space-3);
-}
-.skeleton {
-  display: grid;
-}
+
+/* Skeleton = the loaded row geometry. */
 .skeletonRow {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
+  justify-content: space-between;
   gap: var(--space-4);
-  min-height: var(--panel-row);
-  padding: var(--space-2) var(--space-4);
-  border-bottom: 1px solid var(--color-border-subtle);
+  width: 100%;
+  padding: var(--space-2) 0;
 }
-.skeletonRow:last-child {
-  border-bottom: 0;
-}
-.skeletonText {
-  flex: 1 1 0;
+.skeletonMain {
+  display: grid;
+  flex: 1;
+  gap: var(--space-2);
   min-width: 0;
 }
+.skeletonHead {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+.skeletonHead > :last-child {
+  flex: 1;
+}
 
-/* Phone: a two-line row without card chrome; the actions go full width under the text. */
 @media (max-width: 859px) {
-  .list {
-    display: block;
-  }
-  .row {
-    grid-template-columns: minmax(0, 1fr) auto;
-    grid-template-areas:
-      'kind time'
-      'text text'
-      'channel channel'
-      'actions actions';
-    row-gap: var(--space-1);
-    padding-block: var(--space-2);
-  }
-  .kind {
-    grid-area: kind;
-    justify-self: start;
-  }
-  .time {
-    grid-area: time;
-  }
-  .text {
-    grid-area: text;
-  }
-  .channel {
-    grid-area: channel;
+  .incident,
+  .skeletonRow {
+    flex-direction: column;
+    padding: var(--space-3) 0;
   }
   .actions {
-    grid-area: actions;
-  }
-  .details {
-    grid-column: 1 / -1;
+    width: 100%;
   }
   .actions > * {
     flex: 1 1 0;
   }
-  .title {
-    white-space: normal;
-    overflow-wrap: anywhere;
-    display: -webkit-box;
-    -webkit-box-orient: vertical;
-    -webkit-line-clamp: 2;
-    line-clamp: 2;
+  .toolbar {
+    padding-inline: var(--space-3);
   }
-}
-
-.skeletonFilters {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2);
-  margin-bottom: var(--space-2);
 }

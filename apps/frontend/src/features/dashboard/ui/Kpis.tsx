@@ -13,7 +13,7 @@ type Item = {
   value: string;
   detail: string;
   icon: IconName;
-  link?: { to: '/incidents' } | { to: '/publications'; search: { view: 'today' | 'recent' } | { id: string } };
+  link?: { to: '/incidents' } | { to: '/publications'; search: { view?: 'recent' } | { id: string } };
 };
 
 function items(view: DashboardView, now: Date): Item[] {
@@ -25,7 +25,8 @@ function items(view: DashboardView, now: Date): Item[] {
       ...copy.kpi.today,
       value: dashboard.todayTotal >= 100 ? '100+' : String(dashboard.todayTotal),
       icon: 'file',
-      link: { to: '/publications', search: { view: 'today' } }
+      // No «today» view on Публикации (needs an API date range): the full list, newest first.
+      link: { to: '/publications', search: {} }
     },
     {
       key: 'sent',

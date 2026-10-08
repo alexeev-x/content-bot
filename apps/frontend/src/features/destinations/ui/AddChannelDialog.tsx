@@ -49,6 +49,7 @@ function AddChannelFlow({ isOpen, onOpenChange, onCreated, onOpenExisting }: Pro
   const { result } = check;
   const title = titleDraft ?? truncateTitle(result?.title ?? '');
   const canSave = result !== null && result.botCanPost && result.alreadyAddedId === null && isValidTitle(title);
+  const step = check.isChecking ? 1 : result !== null ? 2 : 0;
   const titleInvalid = result !== null && titleTouched && !isValidTitle(title);
 
   function runCheck() {
@@ -114,6 +115,16 @@ function AddChannelFlow({ isOpen, onOpenChange, onCreated, onOpenExisting }: Pro
 
   const body = (
     <form id={FORM_ID} className={styles.form} onSubmit={submit} noValidate>
+      <ol className={styles.steps} aria-label={copy.steps.label}>
+        {[copy.steps.input, copy.steps.check, copy.steps.save].map((label, index) => (
+          <li key={label} aria-current={index === step ? 'step' : undefined}>
+            {index + 1}. {label}
+          </li>
+        ))}
+      </ol>
+      <Banner tone="info" title={copy.prereqTitle}>
+        {copy.prereqBody}
+      </Banner>
       <div className={styles.lookup}>
         <div ref={fieldRef} className={styles.field}>
           <TextField

@@ -4,87 +4,6 @@
   display: grid;
   gap: var(--space-3);
 }
-.hero {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-  padding: var(--space-3);
-  border: 1px solid var(--color-border-subtle);
-  border-radius: var(--radius-3);
-  background: var(--color-surface-2);
-}
-.heroIcon {
-  display: grid;
-  place-items: center;
-  flex: none;
-  width: 56px;
-  height: 56px;
-  border-radius: var(--radius-2);
-  background: var(--color-accent-soft);
-  color: var(--color-accent-text);
-  font-size: var(--font-size-lg);
-  font-weight: var(--font-weight-semibold);
-}
-.heroText {
-  display: grid;
-  min-width: 0;
-  gap: var(--space-1);
-}
-.heroText strong,
-.heroText span {
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.heroText strong {
-  white-space: nowrap;
-}
-.heroText span {
-  display: -webkit-box;
-  color: var(--color-text-muted);
-  font-size: var(--font-size-sm);
-  overflow-wrap: anywhere;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-  line-clamp: 2;
-}
-.quickActions {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--space-2);
-}
-.secondaryAction,
-.primaryAction {
-  display: inline-flex;
-  min-height: var(--size-button);
-  align-items: center;
-  justify-content: center;
-  padding: 0 var(--space-3);
-  border-radius: var(--radius-2);
-  font-size: var(--font-size-sm);
-  font-weight: var(--font-weight-semibold);
-  text-decoration: none;
-}
-.secondaryAction {
-  border: 1px solid var(--color-border-subtle);
-  background: var(--color-surface-2);
-  color: var(--color-text);
-}
-.primaryAction {
-  border: 1px solid var(--color-accent);
-  background: var(--color-accent);
-  color: var(--color-on-accent);
-}
-.secondaryAction:hover {
-  background: var(--color-surface-3);
-}
-.primaryAction:hover {
-  background: var(--color-accent-hover);
-}
-.secondaryAction:focus-visible,
-.primaryAction:focus-visible {
-  outline: var(--focus-ring-width) solid var(--color-focus-ring);
-  outline-offset: var(--focus-ring-offset);
-}
 .heading {
   margin: 0;
   font-size: var(--font-size-md);
@@ -97,50 +16,6 @@
   background: var(--color-surface-2);
   white-space: pre-wrap;
   overflow-wrap: anywhere;
-}
-.details {
-  display: grid;
-  grid-template-columns: max-content minmax(0, 1fr);
-  gap: var(--space-2) var(--space-4);
-  margin: 0;
-  font-size: var(--font-size-sm);
-}
-.details dt {
-  color: var(--color-text-muted);
-}
-.details dd {
-  margin: 0;
-  overflow-wrap: anywhere;
-}
-.id {
-  font-size: var(--font-size-xs);
-}
-.idLine {
-  display: grid;
-  gap: var(--space-1);
-  margin: 0;
-  padding-top: var(--space-3);
-  border-top: 1px solid var(--color-border-subtle);
-  color: var(--color-text-muted);
-  font-size: var(--font-size-xs);
-}
-.idLine code {
-  color: var(--color-text);
-  overflow-wrap: anywhere;
-}
-.futurePanel {
-  display: grid;
-  gap: var(--space-2);
-  padding: var(--space-4);
-  border: 1px dashed var(--color-border-strong);
-  border-radius: var(--radius-3);
-  color: var(--color-text-muted);
-}
-.futurePanel strong {
-  color: var(--color-text);
-}
-.futurePanel p {
-  margin: 0;
 }
 .muted {
   color: var(--color-text-muted);
@@ -165,14 +40,6 @@
 .noticeText {
   margin: 0 0 var(--space-2);
 }
-.noticeStrong {
-  margin: var(--space-3) 0 var(--space-1);
-  font-weight: var(--font-weight-semibold);
-}
-.steps {
-  margin: 0;
-  padding-left: var(--space-5);
-}
 .actions {
   display: flex;
   flex: 1;
@@ -186,26 +53,34 @@
   padding: 0;
   border: 0;
 }
+.stack {
+  display: grid;
+  gap: var(--space-4);
+}
+.facts {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+}
+.fact {
+  display: grid;
+  grid-template-columns: 96px minmax(0, 1fr);
+  gap: var(--space-3);
+  font-size: var(--font-size-sm);
+}
+.fact dt {
+  color: var(--color-text-muted);
+}
+.fact dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.code {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-xs);
+}
 @media (max-width: 859px) {
   .actions > :is(button, span) {
     flex: 1 1 auto;
-  }
-  .heroIcon {
-    width: 48px;
-    height: 48px;
-  }
-  .quickActions {
-    grid-template-columns: minmax(0, 1fr);
-  }
-  .secondaryAction,
-  .primaryAction {
-    min-height: var(--size-target);
-  }
-  .details {
-    grid-template-columns: minmax(0, 1fr);
-    gap: var(--space-1);
-  }
-  .details dd {
-    margin-bottom: var(--space-2);
   }
 }

@@ -1,7 +1,7 @@
 import { useInfiniteQuery } from '@tanstack/react-query';
 import { ApiError } from '../../../shared/api/http-client';
 import { classifyApiError } from '../../../shared/api/error-kind';
-import { Button, EmptyState, ErrorState, Skeleton } from '../../../shared/ui';
+import { Button, EmptyState, ErrorState, Panel, Skeleton } from '../../../shared/ui';
 import { destinationsInfiniteQueryOptions } from '../api/destinations-queries';
 import { ChannelRow } from './ChannelRow';
 import { channelsCopy } from './copy';
@@ -21,14 +21,17 @@ export function ChannelsList({ rights, onOpen, onAdd }: Props) {
 
   if (query.isPending) {
     return (
-      <output className={styles.skeleton} aria-busy="true" aria-label={copy.loading}>
-        {[0, 1, 2].map((key) => (
-          <div key={key} className={styles.skeletonRow}>
-            <Skeleton width={40} height={40} radius="var(--radius-pill)" />
-            <Skeleton lines={2} height={14} />
-          </div>
-        ))}
-      </output>
+      <Panel reserveRows={3}>
+        <output className={styles.skeleton} aria-busy="true" aria-label={copy.loading}>
+          {[0, 1, 2].map((key) => (
+            <div key={key} className={styles.skeletonRow}>
+              <Skeleton width={40} height={40} radius="var(--radius-pill)" />
+              <Skeleton lines={2} height={14} />
+              <Skeleton width={88} height={22} radius="var(--radius-pill)" />
+            </div>
+          ))}
+        </output>
+      </Panel>
     );
   }
   if (query.isError) {
@@ -45,31 +48,35 @@ export function ChannelsList({ rights, onOpen, onAdd }: Props) {
   const items = query.data.pages.flatMap((page) => page.items);
   if (items.length === 0) {
     return (
-      <EmptyState
-        icon="send"
-        title={copy.empty.title}
-        description={copy.empty.description}
-        action={
-          <Button icon="plus" onPress={onAdd}>
-            {channelsCopy.add}
-          </Button>
-        }
-      />
+      <Panel reserveRows={3}>
+        <EmptyState
+          icon="send"
+          title={copy.empty.title}
+          description={copy.empty.description}
+          action={
+            <Button icon="plus" onPress={onAdd}>
+              {channelsCopy.add}
+            </Button>
+          }
+        />
+      </Panel>
     );
   }
 
   return (
     <>
-      <ul className={styles.list} aria-label={copy.label}>
-        {items.map((destination) => (
-          <ChannelRow
-            key={destination.id}
-            destination={destination}
-            botCanPost={rights[destination.id]}
-            onOpen={onOpen}
-          />
-        ))}
-      </ul>
+      <Panel>
+        <ul className={styles.list} aria-label={copy.label}>
+          {items.map((destination) => (
+            <ChannelRow
+              key={destination.id}
+              destination={destination}
+              botCanPost={rights[destination.id]}
+              onOpen={onOpen}
+            />
+          ))}
+        </ul>
+      </Panel>
       {query.hasNextPage ? (
         <div className={styles.more}>
           {query.isFetchNextPageError ? <p role="alert">{copy.loadMoreFailed}</p> : null}

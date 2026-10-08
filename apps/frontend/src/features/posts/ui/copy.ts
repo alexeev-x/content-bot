@@ -208,7 +208,14 @@ export const postsCopy = {
       linkTitle: (href: string) => `Ссылка: ${href}`,
       spoilerHidden: 'Скрытый текст, нажмите, чтобы показать'
     },
-    tabs: { label: 'Режим редактора', edit: 'Текст', preview: 'Превью' },
+    tabs: {
+      label: 'Режим редактора',
+      sideLabel: 'Боковая панель поста',
+      edit: 'Текст',
+      preview: 'Превью',
+      publications: 'Публикации'
+    },
+    overLimit: 'Лимит превышен',
     previewHeading: 'Так увидят в Telegram',
     previewEmpty: 'Здесь появится ваш пост',
     previewNote:

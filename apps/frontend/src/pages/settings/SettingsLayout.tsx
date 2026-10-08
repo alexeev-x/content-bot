@@ -2,14 +2,14 @@ import { Link, Outlet, useRouterState } from '@tanstack/react-router';
 import { useEffect, useRef, useState } from 'react';
 import { ru } from '../../shared/lib/ru';
 import { isInsideTelegram } from '../../shared/telegram/web-app';
-import { Icon, PageHeader, useMediaQuery } from '../../shared/ui';
+import { Icon, PageHeader, useMediaQuery, type IconName } from '../../shared/ui';
 import { SectionActionsSlot } from './section-actions';
 import styles from './SettingsLayout.module.css';
 
 const SECTIONS = [
-  { to: '/settings/channels', label: ru.settings.channels },
-  { to: '/settings/appearance', label: ru.settings.appearance }
-] as const;
+  { to: '/settings/channels', label: ru.settings.channels, icon: 'send' },
+  { to: '/settings/appearance', label: ru.settings.appearance, icon: 'sparkle' }
+] as const satisfies readonly { to: string; label: string; icon: IconName }[];
 
 type SectionPath = (typeof SECTIONS)[number]['to'];
 
@@ -64,7 +64,8 @@ export function SettingsLayout() {
                   else rows.current.delete(item.to);
                 }}
               >
-                <span>{item.label}</span>
+                <Icon name={item.icon} size={18} />
+                <span className={styles.label}>{item.label}</span>
                 {wide ? null : <Icon name="chevron-right" size={18} />}
               </Link>
             ))}

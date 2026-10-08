@@ -95,12 +95,19 @@ export function PublicationsPage({ search, onSearchChange, onOpenPosts, pollMs }
       ? [{ id: 'status', label: `${copy.filters.status}: ${statusOptions.find((o) => o.id === search.status)?.label}` }]
       : []),
     ...(search.channel
-      ? [{ id: 'channel', label: `${copy.filters.channel}: ${channelOptions.find((o) => o.id === search.channel)?.label ?? ''}` }]
+      ? [
+          {
+            id: 'channel',
+            label: `${copy.filters.channel}: ${channelOptions.find((o) => o.id === search.channel)?.label ?? ''}`
+          }
+        ]
       : []),
     ...(search.order ? [{ id: 'order', label: orderOptions.find((o) => o.id === search.order)?.label ?? '' }] : [])
   ];
   const removeChip = (id: string) =>
-    onSearchChange(id === 'status' ? { status: undefined } : id === 'channel' ? { channel: undefined } : { order: undefined });
+    onSearchChange(
+      id === 'status' ? { status: undefined } : id === 'channel' ? { channel: undefined } : { order: undefined }
+    );
 
   const footer = list.isPending ? (
     <FooterLine text={copy.states.loading} />
@@ -109,7 +116,12 @@ export function PublicationsPage({ search, onSearchChange, onOpenPosts, pollMs }
       text={`${copy.list.loaded(items.length, Boolean(list.hasNextPage))}${polling ? ` · ${copy.list.updating}` : ''}`}
       action={
         list.hasNextPage ? (
-          <Button variant="ghost" size="sm" isLoading={list.isFetchingNextPage} onPress={() => void list.fetchNextPage()}>
+          <Button
+            variant="ghost"
+            size="sm"
+            isLoading={list.isFetchingNextPage}
+            onPress={() => void list.fetchNextPage()}
+          >
             {copy.list.loadMore}
           </Button>
         ) : undefined
@@ -237,7 +249,9 @@ export function PublicationsPage({ search, onSearchChange, onOpenPosts, pollMs }
                       filterLabel={copy.filters.statusFilter}
                       value={search.status}
                       options={statusOptions}
-                      onChange={(next) => onSearchChange({ status: next as PublicationStatus | undefined, view: undefined })}
+                      onChange={(next) =>
+                        onSearchChange({ status: next as PublicationStatus | undefined, view: undefined })
+                      }
                     />
                   )
                 }}

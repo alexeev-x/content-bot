@@ -3,13 +3,28 @@ import { useInfiniteQuery } from '@tanstack/react-query';
 import { useMemo } from 'react';
 import { classifyApiError } from '../../../shared/api/error-kind';
 import { ApiError } from '../../../shared/api/http-client';
-import { Banner, Button, EmptyState, ErrorState, Panel } from '../../../shared/ui';
+import {
+  AppliedChips,
+  Banner,
+  Button,
+  EmptyState,
+  ErrorState,
+  FooterLine,
+  Panel,
+  PanelList,
+  Tab,
+  TabList,
+  Tabs,
+  useMediaQuery
+} from '../../../shared/ui';
 import { incidentsInfiniteQueryOptions } from '../api/incidents-queries';
 import { copy } from './copy';
 import { IncidentFilters } from './IncidentFilters';
 import { IncidentRow } from './IncidentRow';
 import { IncidentsListSkeleton } from './IncidentsSkeleton';
 import styles from './Incidents.module.css';
+
+const NARROW = '(max-width: 859px)';
 
 type Props = {
   state: IncidentState;
@@ -23,6 +38,8 @@ type Props = {
   pollMs?: number;
 };
 
+const kindLabel = (kind: IncidentKind) => (kind === 'publish_unknown' ? copy.filters.unknown : copy.filters.failed);
+
 export function Incidents({
   state,
   kind,
@@ -32,6 +49,7 @@ export function Incidents({
   onOpenPublications,
   pollMs
 }: Props) {
+  const narrow = useMediaQuery(NARROW);
   const query = useInfiniteQuery(incidentsInfiniteQueryOptions({ state, kind }, pollMs));
   // Polling refetches every loaded page; a row that moved between pages must still appear once.
   const items = useMemo<IncidentDto[]>(() => {
@@ -48,40 +66,61 @@ export function Incidents({
     return rows;
   }, [query.data]);
 
-  const filters = (
-    <IncidentFilters state={state} kind={kind} onStateChange={onStateChange} onKindChange={onKindChange} />
+  const tabs = (
+    <Tabs selectedKey={state} onSelectionChange={(key) => onStateChange(key === 'resolved' ? 'resolved' : 'open')}>
+      <TabList aria-label={copy.filters.state}>
+        <Tab id="open">{copy.filters.open}</Tab>
+        <Tab id="resolved">{copy.filters.resolved}</Tab>
+      </TabList>
+    </Tabs>
   );
+  const filters = (
+    <IncidentFilters kind={kind} narrow={narrow} isDisabled={query.isPending} onKindChange={onKindChange} />
+  );
+  const title = state === 'open' ? copy.panel.open : copy.panel.resolved;
 
-  if (query.isPending) {
-    return (
-      <>
-        {filters}
-        <IncidentsListSkeleton />
-      </>
-    );
-  }
-
-  if (!query.data) {
+  if (!query.isPending && !query.data) {
     if (classifyApiError(query.error) === 'forbidden') {
       return <ErrorState title={copy.states.forbiddenTitle} message={copy.states.forbiddenMessage} />;
     }
     const requestId = query.error instanceof ApiError ? query.error.requestId : undefined;
     return (
-      <>
-        {filters}
+      <div className={styles.page}>
+        {tabs}
         <ErrorState
           title={copy.states.errorTitle}
           message={copy.states.errorMessage}
           {...(requestId ? { requestId } : {})}
           onRetry={() => void query.refetch()}
         />
-      </>
+      </div>
     );
   }
 
+  const ready = query.data !== undefined;
+  const footer = !ready ? (
+    <FooterLine text={copy.loading} />
+  ) : items.length > 0 ? (
+    <FooterLine
+      text={copy.states.loaded(items.length, Boolean(query.hasNextPage))}
+      action={
+        query.hasNextPage ? (
+          <Button
+            variant="ghost"
+            size="sm"
+            isLoading={query.isFetchingNextPage}
+            onPress={() => void query.fetchNextPage()}
+          >
+            {copy.states.more}
+          </Button>
+        ) : undefined
+      }
+    />
+  ) : undefined;
+
   return (
-    <>
-      {filters}
+    <div className={styles.page}>
+      {tabs}
       {query.isRefetchError ? (
         <Banner
           tone="warning"
@@ -93,55 +132,64 @@ export function Incidents({
           }
         />
       ) : null}
-      {items.length === 0 ? (
-        <Panel>
-        {kind ? (
-          <EmptyState
-            icon="search"
-            title={copy.states.emptyFiltered}
-            action={
-              <Button variant="secondary" onPress={() => onKindChange(undefined)}>
-                {copy.filters.reset}
-              </Button>
+      <Panel
+        title={title}
+        {...(!narrow && kind
+          ? {
+              action: (
+                <Button variant="ghost" size="sm" icon="x" onPress={() => onKindChange(undefined)}>
+                  {copy.filters.reset}
+                </Button>
+              )
             }
+          : {})}
+        {...(ready && items.length > 0 ? {} : { reserveRows: narrow ? 5 : 6 })}
+        {...(footer ? { footer } : {})}
+      >
+        {filters}
+        {narrow && kind ? (
+          <AppliedChips
+            chips={[{ id: 'kind', label: `${copy.filters.kind}: ${kindLabel(kind)}` }]}
+            onRemove={() => onKindChange(undefined)}
           />
-        ) : state === 'open' ? (
-          <EmptyState
-            icon="check-circle"
-            title={copy.states.emptyOpenTitle}
-            description={copy.states.emptyOpenDescription}
-            action={
-              <Button variant="secondary" onPress={onOpenPublications}>
-                {copy.states.emptyOpenAction}
-              </Button>
-            }
-          />
+        ) : null}
+        {!ready ? (
+          <div aria-busy="true">
+            <IncidentsListSkeleton />
+          </div>
+        ) : items.length === 0 ? (
+          kind ? (
+            <EmptyState
+              icon="search"
+              title={copy.states.emptyFiltered}
+              action={
+                <Button variant="secondary" onPress={() => onKindChange(undefined)}>
+                  {copy.filters.reset}
+                </Button>
+              }
+            />
+          ) : state === 'open' ? (
+            <EmptyState
+              icon="check-circle"
+              title={copy.states.emptyOpenTitle}
+              description={copy.states.emptyOpenDescription}
+              action={
+                <Button variant="secondary" onPress={onOpenPublications}>
+                  {copy.states.emptyOpenAction}
+                </Button>
+              }
+            />
+          ) : (
+            <EmptyState icon="clock" title={copy.states.emptyResolved} />
+          )
         ) : (
-          <EmptyState icon="clock" title={copy.states.emptyResolved} />
+          <PanelList aria-label={copy.states.listLabel}>
+            {items.map((incident) => (
+              <IncidentRow key={incident.id} incident={incident} onOpenPublication={onOpenPublication} />
+            ))}
+          </PanelList>
         )}
-        </Panel>
-      ) : (
-        <>
-          <Panel>
-            <ul className={styles.list} aria-label={copy.states.listLabel}>
-              {items.map((incident) => (
-                <IncidentRow key={incident.id} incident={incident} onOpenPublication={onOpenPublication} />
-              ))}
-            </ul>
-          </Panel>
-          {query.hasNextPage ? (
-            <div className={styles.more}>
-              <Button
-                variant="secondary"
-                isLoading={query.isFetchingNextPage}
-                onPress={() => void query.fetchNextPage()}
-              >
-                {copy.states.more}
-              </Button>
-            </div>
-          ) : null}
-        </>
-      )}
-    </>
+      </Panel>
+    </div>
   );
 }

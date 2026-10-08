@@ -189,6 +189,13 @@
   --color-bubble-link: #1b6fc2;
 }
 
+/* Over media (thumbnails, image placeholders): the image decides the backdrop, so these do not follow the theme. */
+:root,
+[data-theme] {
+  --color-on-media: rgba(255, 255, 255, 0.82);
+  --color-media-ring: rgba(255, 255, 255, 0.06);
+}
+
 /* The 1px status ring follows each status foreground, whichever accent override applied. */
 :root,
 [data-theme] {

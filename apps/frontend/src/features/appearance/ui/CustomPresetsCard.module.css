@@ -1,17 +1,14 @@
 .hint {
-  margin-bottom: var(--space-3);
+  margin: 0;
   color: var(--color-text-muted);
   font-size: var(--font-size-sm);
 }
 .empty {
-  padding: var(--space-4);
-  border: 1px dashed var(--color-border-strong);
-  border-radius: var(--radius-2);
+  margin: 0;
+  padding: var(--space-3) var(--space-4);
   color: var(--color-text-muted);
 }
 .list {
-  display: grid;
-  gap: var(--space-2);
   margin: 0;
   padding: 0;
   list-style: none;
@@ -21,10 +18,11 @@
   align-items: center;
   gap: var(--space-3);
   min-height: 56px;
-  padding: var(--space-2) var(--space-3);
-  border: 1px solid var(--color-border-subtle);
-  border-radius: var(--radius-2);
-  background: var(--color-surface-2);
+  padding: var(--space-2) 0;
+  border-bottom: 1px solid var(--color-border-subtle);
+}
+.row:last-child {
+  border-bottom: 0;
 }
 .swatches {
   display: flex;
@@ -43,9 +41,8 @@
 }
 .section {
   display: grid;
-  gap: var(--space-3);
-  padding-top: var(--space-4);
-  border-top: 1px solid var(--color-border-subtle);
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
 }
 .header {
   display: flex;
@@ -53,9 +50,4 @@
   align-items: center;
   justify-content: space-between;
   gap: var(--space-2) var(--space-3);
-}
-.title {
-  margin: 0;
-  font-size: var(--font-size-md);
-  font-weight: var(--font-weight-semibold);
 }

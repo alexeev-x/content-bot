@@ -79,7 +79,7 @@ describe('incident rows', () => {
     serveIncidents(() => incidentPage([failedIncident()]));
     await renderPage(<Harness initial={incidentsSearchSchema.parse({})} />);
     expect(document.querySelector('[aria-busy="true"]')).not.toBeNull();
-    expect(document.querySelectorAll('[aria-busy="true"] > div')).toHaveLength(5);
+    expect(document.querySelectorAll('[aria-busy="true"] li')).toHaveLength(5);
     await screen.findByText('Герой дня');
   });
 
@@ -251,12 +251,13 @@ describe('incident list states', () => {
     );
     const user = userEvent.setup();
     await renderIncidents();
-    await user.click(screen.getByRole('radio', { name: 'Требуют проверки' }));
+    await user.click(screen.getByRole('button', { name: /Тип/ }));
+    await user.click(await screen.findByRole('option', { name: 'Требуют проверки' }));
     expect(await screen.findByText('Ничего не найдено по фильтру')).toBeTruthy();
     expect(urls.at(-1)?.searchParams.get('kind')).toBe('publish_unknown');
-    await user.click(screen.getByRole('button', { name: 'Сбросить фильтры' }));
+    await user.click(screen.getAllByRole('button', { name: 'Сбросить фильтры' })[0]!);
     expect(await screen.findByText('Герой дня')).toBeTruthy();
-    await user.click(screen.getByRole('radio', { name: 'Закрытые' }));
+    await user.click(screen.getByRole('tab', { name: 'Закрытые' }));
     await waitFor(() => expect(urls.at(-1)?.searchParams.get('state')).toBe('resolved'));
   });
 
@@ -266,7 +267,7 @@ describe('incident list states', () => {
     await renderIncidents();
     expect(screen.getByText('Открытых инцидентов нет')).toBeTruthy();
     expect(screen.getByRole('button', { name: 'К публикациям' })).toBeTruthy();
-    await user.click(screen.getByRole('radio', { name: 'Закрытые' }));
+    await user.click(screen.getByRole('tab', { name: 'Закрытые' }));
     expect(await screen.findByText('История пуста')).toBeTruthy();
   });
 

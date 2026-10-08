@@ -110,10 +110,20 @@ export function PostEditor({ post, onCreated, approvedActions, aside }: Props) {
       overflow={editor.overflow}
     />
   );
-  const preview = (
+  const previewPanel = (
+    <PostPreview title={editor.title} body={editor.body} entities={editor.entities} length={editor.length} />
+  );
+  // Desktop: the right column switches between the Telegram preview and this post's publications.
+  const side = (
     <div className={`${styles.previewColumn} ${showApprovedPreview ? styles.previewStandalone : styles.previewInPane}`}>
-      <PostPreview title={editor.title} body={editor.body} entities={editor.entities} length={editor.length} />
-      {aside}
+      <Tabs>
+        <TabList aria-label={copy.tabs.sideLabel}>
+          <Tab id="preview">{copy.tabs.preview}</Tab>
+          {aside ? <Tab id="pubs">{postsCopy.publications.title}</Tab> : null}
+        </TabList>
+        <TabPanel id="preview">{previewPanel}</TabPanel>
+        {aside ? <TabPanel id="pubs">{aside}</TabPanel> : null}
+      </Tabs>
     </div>
   );
 
@@ -167,7 +177,7 @@ export function PostEditor({ post, onCreated, approvedActions, aside }: Props) {
       ) : null}
 
       {showApprovedPreview ? (
-        preview
+        side
       ) : narrow ? (
         <div className={styles.tabsRoot}>
           <Tabs>
@@ -180,19 +190,30 @@ export function PostEditor({ post, onCreated, approvedActions, aside }: Props) {
                 <Icon name="send" size={16} />
                 {copy.tabs.preview}
               </Tab>
+              {aside ? (
+                <Tab id="pubs">
+                  <Icon name="calendar" size={16} />
+                  {copy.tabs.publications}
+                </Tab>
+              ) : null}
             </TabList>
             <TabPanel id="edit" shouldForceMount>
               {fields}
             </TabPanel>
             <TabPanel id="preview" shouldForceMount>
-              {preview}
+              <div className={styles.previewColumn}>{previewPanel}</div>
             </TabPanel>
+            {aside ? (
+              <TabPanel id="pubs">
+                <div className={styles.previewColumn}>{aside}</div>
+              </TabPanel>
+            ) : null}
           </Tabs>
         </div>
       ) : (
         <div className={styles.panes}>
           <div className="reading-width">{fields}</div>
-          {preview}
+          {side}
         </div>
       )}
 

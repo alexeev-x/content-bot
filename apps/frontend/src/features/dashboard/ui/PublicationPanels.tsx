@@ -56,7 +56,7 @@ export function TodayPanel({ items, total, narrow, now, onOpenPublication, onNew
       area="today"
       title={copy.today.title}
       {...(items ? { count: total >= 100 ? '100+' : String(total) } : {})}
-      action={<PanelLink to="/publications" search={{ view: 'today' }} text={copy.today.all} />}
+      action={<PanelLink to="/publications" search={{}} text={copy.today.all} />}
       rows={reserve}
       busy={items === undefined}
     >

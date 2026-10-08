@@ -1,5 +1,5 @@
 import type { PostEntity } from '@alexeev/contracts';
-import { Card, Icon, TelegramPreview } from '../../../shared/ui';
+import { Icon, Panel, TelegramPreview } from '../../../shared/ui';
 import { MESSAGE_LIMIT } from '../model/message-length';
 import { previewMessage } from '../model/preview-message';
 import { postsCopy } from './copy';
@@ -15,7 +15,7 @@ export function PostPreview({ title, body, entities, length }: Props) {
   const isEmpty = title.trim() === '' && body === '';
   const message = previewMessage(title, body, entities);
   return (
-    <Card title={copy.previewHeading}>
+    <Panel>
       <div className={styles.previewBody}>
         {isEmpty ? (
           <TelegramPreview body={copy.previewEmpty} />
@@ -27,9 +27,11 @@ export function PostPreview({ title, body, entities, length }: Props) {
           <span>{copy.previewNote}</span>
         </p>
         <p className={styles.note} data-over={length > MESSAGE_LIMIT || undefined}>
+          {length > MESSAGE_LIMIT ? <Icon name="alert" size={16} /> : null}
           <span className="mono">{copy.messageLength(length, MESSAGE_LIMIT)}</span>
+          {length > MESSAGE_LIMIT ? <span>{copy.overLimit}</span> : null}
         </p>
       </div>
-    </Card>
+    </Panel>
   );
 }

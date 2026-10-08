@@ -178,9 +178,7 @@ function Grid(props: Props) {
   const { mode, rows, now, isLoading, selectable, query } = props;
   const live = mode === 'live';
   const head = live ? copy.list.columns : copy.archive.columns;
-  const blocked = new Set(
-    live ? rows.filter((post) => deleteBlockOf(post) !== null).map((post) => post.id) : []
-  );
+  const blocked = new Set(live ? rows.filter((post) => deleteBlockOf(post) !== null).map((post) => post.id) : []);
   const columns: DataColumn<PostDto>[] = [
     {
       id: 'title',
@@ -251,7 +249,11 @@ function Grid(props: Props) {
           }
         ] satisfies DataColumn<PostDto>[])
       : ([
-          { id: 'channels', header: copy.archive.columns.channels, cell: (post: PostDto) => <ChannelsCell post={post} /> },
+          {
+            id: 'channels',
+            header: copy.archive.columns.channels,
+            cell: (post: PostDto) => <ChannelsCell post={post} />
+          },
           {
             id: 'sentAt',
             header: copy.archive.columns.sentAt,

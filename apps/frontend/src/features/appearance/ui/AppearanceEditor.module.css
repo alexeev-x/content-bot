@@ -5,7 +5,6 @@
 .themes {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--space-4);
 }
 .stack {
   display: grid;
@@ -20,8 +19,10 @@
   display: grid;
   gap: var(--space-3);
   min-width: 0;
-  padding-top: var(--space-4);
-  border-top: 1px solid var(--color-border-subtle);
+  padding: var(--space-3) var(--space-4);
+}
+.section + .section {
+  border-left: 1px solid var(--color-border-subtle);
 }
 .sectionTitle {
   display: flex;
@@ -36,14 +37,21 @@
   font-size: var(--font-size-xs);
   font-weight: var(--font-weight-medium);
 }
-.footer {
+/* Only while there is something to save: sticky above the phone tab bar, like the prototype. */
+.bar {
+  position: sticky;
+  bottom: var(--space-4);
+  z-index: var(--z-sticky);
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: var(--space-3);
-  padding-top: var(--space-4);
-  border-top: 1px solid var(--color-border-subtle);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-2);
+  background: var(--color-surface-2);
+  box-shadow: var(--shadow-pop);
 }
 .status {
   min-height: 1.5em;
@@ -53,6 +61,13 @@
 @media (max-width: 719px) {
   .themes {
     grid-template-columns: minmax(0, 1fr);
+  }
+  .section + .section {
+    border-top: 1px solid var(--color-border-subtle);
+    border-left: 0;
+  }
+  .bar {
+    bottom: calc(var(--size-nav) + var(--space-3) + env(safe-area-inset-bottom));
   }
 }
 /* Phone: the swatch rows and the live page already show the accent; the inert sample only adds height. */

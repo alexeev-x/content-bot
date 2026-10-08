@@ -1,6 +1,6 @@
 import { normalizeEntities, POST_BODY_MAX, POST_TITLE_MAX, validatePostEntities } from '@alexeev/contracts';
 import { Controller, type Control, type UseFormSetValue } from 'react-hook-form';
-import { Card, TextField } from '../../../shared/ui';
+import { Icon, Panel, TextField } from '../../../shared/ui';
 import { MESSAGE_LIMIT } from '../model/message-length';
 import type { PostFormValues } from '../model/post-form';
 import { postsCopy } from './copy';
@@ -25,7 +25,7 @@ export function PostFields({ control, setValue, title, body, entities, isReadOnl
   // Shown as soon as the marks cannot be written as Telegram entities, not only after a failed save.
   const entityIssue = validatePostEntities(body, normalizeEntities(entities));
   return (
-    <Card>
+    <Panel>
       <div className={styles.fields}>
         <Controller
           control={control}
@@ -74,9 +74,15 @@ export function PostFields({ control, setValue, title, body, entities, isReadOnl
         />
         <p className={styles.length} data-over={overflow > 0 || undefined}>
           <span className="mono">{copy.messageLength(length, MESSAGE_LIMIT)}</span>
+          {overflow > 0 ? (
+            <span className={styles.overLimit}>
+              <Icon name="alert" size={14} />
+              {copy.overLimit}
+            </span>
+          ) : null}
           <span>{copy.messageLengthHelp}</span>
         </p>
       </div>
-    </Card>
+    </Panel>
   );
 }

@@ -72,13 +72,7 @@ export function FilterSheet({ isOpen, onOpenChange, count, onReset, onApply, chi
 export type FilterChip = { id: string; label: string };
 
 /** Echo of the applied filters: removable, shown only while a filter is on. Never navigation. */
-export function AppliedChips({
-  chips,
-  onRemove
-}: {
-  chips: readonly FilterChip[];
-  onRemove: (id: string) => void;
-}) {
+export function AppliedChips({ chips, onRemove }: { chips: readonly FilterChip[]; onRemove: (id: string) => void }) {
   if (chips.length === 0) return null;
   return (
     <ul className={styles.chips} aria-label="Применённые фильтры">

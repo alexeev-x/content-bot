@@ -8,7 +8,7 @@ import styles from './Dashboard.module.css';
 export type PanelArea = 'attention' | 'today' | 'upcoming' | 'recent' | 'system';
 
 type PanelLinkProps = { text: string } & (
-  { to: '/incidents' } | { to: '/publications'; search: { view: 'today' | 'upcoming' | 'recent' } }
+  { to: '/incidents' } | { to: '/publications'; search: { view?: 'upcoming' | 'recent' } }
 );
 
 /** The «Все …» link of a panel header. */

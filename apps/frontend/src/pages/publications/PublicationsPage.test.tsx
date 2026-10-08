@@ -15,12 +15,12 @@ import { useState } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { clearSession, setSession } from '../../shared/api/session';
 import { ToastProvider } from '../../shared/ui';
-import { accessToken, destination, errorBody, ids, post, publication } from '../../test/fixtures';
+import { accessToken, destination, errorBody, ids, post, postPage, publication } from '../../test/fixtures';
 import { server, setupMswServer } from '../../test/msw';
 import { createTestQueryClient } from '../../test/query-wrapper';
 import { clearViewport, setViewport } from '../../test/viewport';
 import { PublicationsPage } from './PublicationsPage';
-import type { PublicationsSearch } from './search';
+import { publicationsSearchSchema, type PublicationsSearch } from './search';
 
 setupMswServer();
 beforeEach(() => {
@@ -83,7 +83,6 @@ type RenderOptions = {
   initial?: PublicationsSearch;
   pollMs?: number;
   onOpenPosts?: () => void;
-  onCreatePost?: () => void;
 };
 
 async function renderPage(options: RenderOptions = {}) {
@@ -95,7 +94,6 @@ async function renderPage(options: RenderOptions = {}) {
         search={search}
         onSearchChange={(patch) => setSearch((previous) => ({ ...previous, ...patch }))}
         onOpenPosts={options.onOpenPosts ?? (() => undefined)}
-        onCreatePost={options.onCreatePost ?? (() => undefined)}
         {...(options.pollMs ? { pollMs: options.pollMs } : {})}
       />
     );
@@ -145,13 +143,13 @@ describe('PublicationsPage list', () => {
     expect(within(table).getByText('Запланировано')).toBeTruthy();
   });
 
-  it('shows the operator time zone with its offset above the list', async () => {
+  it('shows the operator time zone with its offset in the panel header', async () => {
     serveList(() => ({ items: [rows.scheduled] }));
     await renderPage();
-    expect(await screen.findByText(/Время в вашем часовом поясе: .+ \(UTC/)).toBeTruthy();
+    expect(await screen.findByText(/, UTC/)).toBeTruthy();
   });
 
-  it('puts status and channel filters into the search, resets the cursor and can clear them', async () => {
+  it('puts status, channel and search into the column headers, sends them to the server and can clear them', async () => {
     server.use(
       http.get('*/api/v1/destinations', () =>
         HttpResponse.json({
@@ -162,29 +160,49 @@ describe('PublicationsPage list', () => {
     );
     const urls = serveList(() => ({ items: [rows.scheduled] }));
     servePosts();
-    const { user } = await renderPage({ initial: { cursor: 'abc' } });
+    const { user } = await renderPage();
     await screen.findByRole('grid', { name: 'Список публикаций' });
-    expect(urls.at(-1)?.searchParams.get('cursor')).toBe('abc');
 
-    await user.click(screen.getByRole('button', { name: /Статус/ }));
-    await user.click(await screen.findByRole('option', { name: 'Ошибка' }));
+    await user.click(screen.getByRole('button', { name: 'Фильтр по статусу' }));
+    await user.click(await screen.findByRole('radio', { name: 'Ошибка' }));
     await waitFor(() => expect(urls.at(-1)?.searchParams.get('status')).toBe('failed'));
-    expect(urls.at(-1)?.searchParams.get('cursor')).toBeNull();
+    await user.click(document.body);
 
-    await user.click(screen.getByRole('button', { name: /Канал/ }));
-    await user.click(await screen.findByRole('option', { name: 'Новости' }));
+    await user.click(screen.getByRole('button', { name: 'Фильтр по каналу' }));
+    await user.click(await screen.findByRole('radio', { name: 'Новости' }));
     await waitFor(() => expect(urls.at(-1)?.searchParams.get('destinationId')).toBe(SECOND_DESTINATION));
     expect(urls.at(-1)?.searchParams.get('status')).toBe('failed');
+    await user.click(document.body);
 
-    const search = screen.getByRole('searchbox', { name: 'Поиск публикаций' });
-    await user.type(search, 'мета{Enter}');
+    await user.click(screen.getByRole('button', { name: 'Поиск по публикациям' }));
+    await user.type(await screen.findByRole('searchbox', { name: 'Название поста' }), 'мета{Enter}');
     await waitFor(() => expect(urls.at(-1)?.searchParams.get('q')).toBe('мета'));
+    await user.click(document.body);
 
     await user.click(screen.getByRole('button', { name: 'Сбросить фильтры' }));
-    await waitFor(() => expect(urls.at(-1)?.searchParams.get('status')).toBeNull());
-    expect(urls.at(-1)?.searchParams.get('destinationId')).toBeNull();
-    expect(urls.at(-1)?.searchParams.get('q')).toBeNull();
-    expect(screen.queryByRole('button', { name: 'Сбросить фильтры' })).toBeNull();
+    // The unfiltered list is already cached, so the proof is on screen: no reset button, no active filters.
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'Сбросить фильтры' })).toBeNull());
+    expect(screen.getByRole('button', { name: 'Фильтр по статусу' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Фильтр по каналу' })).toBeTruthy();
+  });
+
+  it('sorts by time from the column header', async () => {
+    servePosts();
+    const urls = serveList(() => ({ items: [rows.scheduled] }));
+    const { user } = await renderPage();
+    await user.click(await screen.findByRole('columnheader', { name: /Время/ }));
+    await waitFor(() => expect(urls.at(-1)?.searchParams.get('order')).toBe('asc'));
+  });
+
+  it('switches tabs, which map to the server status', async () => {
+    servePosts();
+    const urls = serveList(() => ({ items: [rows.scheduled] }));
+    const { user } = await renderPage();
+    await screen.findByRole('grid', { name: 'Список публикаций' });
+    await user.click(screen.getByRole('tab', { name: 'Ошибки' }));
+    await waitFor(() => expect(urls.at(-1)?.searchParams.get('status')).toBe('failed'));
+    expect(screen.getByRole('tab', { name: 'Ошибки' }).getAttribute('aria-selected')).toBe('true');
+    expect(screen.queryByRole('tab', { name: 'Сегодня' })).toBeNull();
   });
 
   it('maps the URL presets to server-side publication filters', async () => {
@@ -210,18 +228,14 @@ describe('PublicationsPage list', () => {
     expect(urls.at(-1)?.searchParams.get('status')).toBe('failed');
     errors.view.unmount();
     cleanup();
-
-    await renderPage({ initial: { view: 'today' } });
-    await screen.findByRole('grid', { name: 'Список публикаций' });
-    const latest = urls.at(-1);
-    expect(latest?.searchParams.get('from')).toBeTruthy();
-    expect(latest?.searchParams.get('to')).toBeTruthy();
-    expect(Date.parse(latest?.searchParams.get('from') ?? '')).toBeLessThan(
-      Date.parse(latest?.searchParams.get('to') ?? '')
-    );
   });
 
-  it('on a phone keeps the filters in a sheet behind a counted button and lists compact rows', async () => {
+  it('opens an old ?view=today link as «Все»', () => {
+    expect(publicationsSearchSchema.parse({ view: 'today' }).view).toBeUndefined();
+    expect(publicationsSearchSchema.parse({ view: 'bogus' }).view).toBeUndefined();
+  });
+
+  it('on a phone keeps the filters in a sheet behind a counted button and lists rows with the same height', async () => {
     setViewport(375);
     server.use(
       http.get('*/api/v1/destinations', () => HttpResponse.json({ items: [destination()], nextCursor: null }))
@@ -229,21 +243,22 @@ describe('PublicationsPage list', () => {
     const urls = serveList(() => ({ items: [rows.scheduled] }));
     servePosts();
     const { user } = await renderPage();
-    const list = await screen.findByRole('list', { name: 'Список публикаций' });
-    expect(list.parentElement?.getAttribute('data-density')).toBe('compact');
-    expect(screen.queryByRole('button', { name: /^Статус/ })).toBeNull();
+    expect(await screen.findByRole('button', { name: /^Герой дня/ })).toBeTruthy();
+    expect(screen.getByRole('list', { name: 'Список публикаций' })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Фильтр по статусу' })).toBeNull();
 
     await user.click(screen.getByRole('button', { name: 'Фильтры' }));
     const sheet = await screen.findByRole('dialog', { name: 'Фильтры' });
     await user.click(within(sheet).getByRole('button', { name: /Статус/ }));
     await user.click(await screen.findByRole('option', { name: 'Ошибка' }));
+    await user.click(within(sheet).getByRole('button', { name: 'Показать результаты' }));
     await waitFor(() => expect(urls.at(-1)?.searchParams.get('status')).toBe('failed'));
-    await user.click(within(sheet).getByRole('button', { name: 'Готово' }));
-    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Фильтры' })).toBeNull());
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: /Фильтры/ })).toBeNull());
     expect(screen.getByRole('button', { name: 'Фильтры (1)' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: /Статус: Ошибка/ })).toBeTruthy();
   });
 
-  it('pages with the opaque cursor and returns to the start', async () => {
+  it('loads the next page by cursor under «Показать ещё» and keeps the loaded rows', async () => {
     servePosts();
     const urls = serveList((url) =>
       url.searchParams.get('cursor') === 'next-1'
@@ -251,14 +266,34 @@ describe('PublicationsPage list', () => {
         : { items: [rows.scheduled], nextCursor: 'next-1' }
     );
     const { user } = await renderPage();
-    await user.click(await screen.findByRole('button', { name: 'Дальше' }));
+    expect(await screen.findByText(/^Загружено 1/)).toBeTruthy();
+    await user.click(await screen.findByRole('button', { name: 'Показать ещё' }));
     await waitFor(() => expect(urls.at(-1)?.searchParams.get('cursor')).toBe('next-1'));
     expect(await screen.findByText('Мета недели')).toBeTruthy();
-    expect(screen.queryByRole('button', { name: 'Дальше' })).toBeNull();
-    await user.click(screen.getByRole('button', { name: 'К началу списка' }));
-    // The first page is served from the cache, so the proof is on screen, not in a new request.
-    expect(await screen.findByRole('button', { name: 'Дальше' })).toBeTruthy();
     expect(screen.getByText('Герой дня')).toBeTruthy();
+    expect(await screen.findByText(/^Загружено 2 из 2/)).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Показать ещё' })).toBeNull();
+  });
+
+  it('«Опубликовать пост» offers approved posts, then opens the publish dialog', async () => {
+    server.use(
+      http.get('*/api/v1/posts', ({ request }) =>
+        HttpResponse.json(
+          postPage(new URL(request.url).searchParams.get('status') === 'approved' ? [post({ status: 'approved' })] : [])
+        )
+      ),
+      http.get('*/api/v1/destinations', () => HttpResponse.json({ items: [destination()], nextCursor: null }))
+    );
+    serveList(() => ({ items: [rows.scheduled] }));
+    servePosts();
+    const { user } = await renderPage();
+    await user.click(await screen.findByRole('button', { name: 'Опубликовать пост' }));
+    const picker = await screen.findByRole('dialog', { name: 'Какой пост опубликовать?' });
+    expect(within(picker).getByRole('button', { name: 'Дальше' }).hasAttribute('disabled')).toBe(true);
+    await user.click(await within(picker).findByRole('button', { name: /Пост/ }));
+    await user.click(await screen.findByRole('option', { name: 'Заголовок' }));
+    await user.click(within(picker).getByRole('button', { name: 'Дальше' }));
+    expect(await screen.findByRole('dialog', { name: 'Опубликовать пост' })).toBeTruthy();
   });
 
   it('distinguishes «no publications yet» from «filters hide everything»', async () => {

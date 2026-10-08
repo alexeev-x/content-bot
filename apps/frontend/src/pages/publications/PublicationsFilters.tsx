@@ -56,7 +56,13 @@ export function SearchFilter({ q, onChange }: SearchProps) {
   );
 }
 
-type PickProps = { label: string; filterLabel: string; value: string | undefined; options: readonly { id: string; label: string }[]; onChange: (value: string | undefined) => void };
+type PickProps = {
+  label: string;
+  filterLabel: string;
+  value: string | undefined;
+  options: readonly { id: string; label: string }[];
+  onChange: (value: string | undefined) => void;
+};
 
 /** Desktop: one-of-many filter in a column header (status, channel). */
 export function PickFilter({ label, filterLabel, value, options, onChange }: PickProps) {
@@ -82,7 +88,11 @@ type PhoneProps = {
   destinations: readonly DestinationDto[];
   isLoading: boolean;
   onQueryChange: (q: string | undefined) => void;
-  onApply: (next: { status: PublicationStatus | undefined; channel: string | undefined; order: Order | undefined }) => void;
+  onApply: (next: {
+    status: PublicationStatus | undefined;
+    channel: string | undefined;
+    order: Order | undefined;
+  }) => void;
 };
 
 /** Phone: search plus «Фильтры (N)»; status, channel and the sort are applied together from the sheet. */

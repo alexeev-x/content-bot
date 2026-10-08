@@ -10,10 +10,10 @@
   align-items: center;
   gap: var(--space-4);
   width: 100%;
-  min-height: var(--size-row);
-  padding: var(--space-3) var(--space-2);
+  min-height: 72px;
+  padding: var(--space-3) var(--space-4);
   border: 0;
-  border-radius: var(--radius-2);
+  border-radius: 0;
   background: transparent;
   color: inherit;
   font: inherit;
@@ -45,7 +45,7 @@
   min-width: 0;
 }
 .title {
-  font-weight: var(--font-weight-semibold);
+  font-weight: var(--font-weight-medium);
   overflow-wrap: anywhere;
 }
 .meta {

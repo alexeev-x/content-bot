@@ -47,7 +47,8 @@ export function publicationsInfiniteQueryOptions(filters: PublicationFilters = {
     staleTime: STALE_TIME,
     // The default refetchIntervalInBackground (false) stops polling in a hidden tab.
     refetchInterval: (query) =>
-      pollMs !== undefined && query.state.data?.pages.some((page) => page.items.some((item) => isInProgress(item.status)))
+      pollMs !== undefined &&
+      query.state.data?.pages.some((page) => page.items.some((item) => isInProgress(item.status)))
         ? pollMs
         : false
   });

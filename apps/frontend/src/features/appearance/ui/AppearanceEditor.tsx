@@ -2,7 +2,16 @@ import { useBlocker } from '@tanstack/react-router';
 import { ApiError } from '../../../shared/api/http-client';
 import { useClosingConfirmation } from '../../../shared/telegram/use-closing-confirmation';
 import { ru } from '../../../shared/lib/ru';
-import { Banner, Button, ConfirmDialog, ErrorState, Skeleton, useToast, VisuallyHidden } from '../../../shared/ui';
+import {
+  Banner,
+  Button,
+  ConfirmDialog,
+  ErrorState,
+  Panel,
+  Skeleton,
+  useToast,
+  VisuallyHidden
+} from '../../../shared/ui';
 import { addPreset, removePreset, setAccent, updatePreset, type AppearanceValue } from '../model/appearance-value';
 import { useAppearanceEditor } from '../model/use-appearance-editor';
 import { useScreenTheme } from '../model/use-screen-theme';
@@ -28,8 +37,8 @@ function Loading() {
   return (
     <div aria-busy="true" className={styles.grid}>
       <VisuallyHidden>{ru.ui.loading}</VisuallyHidden>
-      <Skeleton height={220} />
-      <Skeleton height={220} />
+      <Skeleton height={200} radius="var(--radius-2)" />
+      <Skeleton height={160} radius="var(--radius-2)" />
     </div>
   );
 }
@@ -97,48 +106,54 @@ export function AppearanceEditor({ preview }: Props) {
         </Banner>
       ) : null}
 
-      <div className={styles.themes}>
-        {(['light', 'dark'] as const).map((theme) => {
-          const ref = theme === 'light' ? value.lightAccent : value.darkAccent;
-          return (
-            <section key={theme} className={styles.section}>
-              <h3 className={styles.sectionTitle}>
-                {theme === 'light' ? ru.appearance.lightTitle : ru.appearance.darkTitle}
-                {theme === screenTheme ? <span className={styles.now}>{ru.appearance.nowTag}</span> : null}
-              </h3>
-              <div className={styles.stack}>
-                <AccentPicker
-                  theme={theme}
-                  label={ru.appearance.accentLabel}
-                  value={ref}
-                  customPresets={value.customPresets}
-                  onChange={(next) => editor.edit((current) => setAccent(current, theme, next))}
-                />
-                <AccentPreview theme={theme} accent={sourceOf(ref, value)} />
-              </div>
-            </section>
-          );
-        })}
-      </div>
-
-      <CustomPresetsCard
-        value={value}
-        onAdd={(preset) => editor.edit((current) => addPreset(current, preset))}
-        onUpdate={(preset) => editor.edit((current) => updatePreset(current, preset))}
-        onRemove={(id) => editor.edit((current) => removePreset(current, id))}
-      />
-
-      <div className={styles.footer}>
-        <output className={styles.status}>{editor.isDirty ? ru.appearance.unsaved : ''}</output>
-        <div className={styles.actions}>
-          <Button variant="secondary" isDisabled={!editor.isDirty || editor.isSaving} onPress={editor.discard}>
-            {ru.appearance.discard}
-          </Button>
-          <Button isDisabled={!editor.isDirty} isLoading={editor.isSaving} onPress={() => void save()}>
-            {ru.appearance.save}
-          </Button>
+      <Panel title={ru.appearance.accentLabel}>
+        <div className={styles.themes}>
+          {(['light', 'dark'] as const).map((theme) => {
+            const ref = theme === 'light' ? value.lightAccent : value.darkAccent;
+            return (
+              <section key={theme} className={styles.section}>
+                <h3 className={styles.sectionTitle}>
+                  {theme === 'light' ? ru.appearance.lightTitle : ru.appearance.darkTitle}
+                  {theme === screenTheme ? <span className={styles.now}>{ru.appearance.nowTag}</span> : null}
+                </h3>
+                <div className={styles.stack}>
+                  <AccentPicker
+                    theme={theme}
+                    label={ru.appearance.accentLabel}
+                    value={ref}
+                    customPresets={value.customPresets}
+                    onChange={(next) => editor.edit((current) => setAccent(current, theme, next))}
+                  />
+                  <AccentPreview theme={theme} accent={sourceOf(ref, value)} />
+                </div>
+              </section>
+            );
+          })}
         </div>
-      </div>
+      </Panel>
+
+      <Panel title={ru.appearance.customTitle}>
+        <CustomPresetsCard
+          value={value}
+          onAdd={(preset) => editor.edit((current) => addPreset(current, preset))}
+          onUpdate={(preset) => editor.edit((current) => updatePreset(current, preset))}
+          onRemove={(id) => editor.edit((current) => removePreset(current, id))}
+        />
+      </Panel>
+
+      {editor.isDirty || editor.isSaving ? (
+        <section className={styles.bar} aria-label={ru.appearance.unsavedRegion}>
+          <output className={styles.status}>{ru.appearance.unsaved}</output>
+          <div className={styles.actions}>
+            <Button variant="secondary" isDisabled={editor.isSaving} onPress={editor.discard}>
+              {ru.appearance.discard}
+            </Button>
+            <Button isLoading={editor.isSaving} onPress={() => void save()}>
+              {ru.appearance.save}
+            </Button>
+          </div>
+        </section>
+      ) : null}
 
       <ConfirmDialog
         isOpen={blocker.status === 'blocked'}

@@ -11,6 +11,7 @@ export const copy = {
     failed: 'Ошибки',
     reset: 'Сбросить фильтры'
   },
+  panel: { open: 'Открытые инциденты', resolved: 'Закрытые инциденты' },
   kind: { publish_unknown: 'Требует проверки', publish_failed: 'Ошибка' },
   row: {
     attempts: (count: number) => `попыток: ${count}`,
@@ -51,6 +52,7 @@ export const copy = {
     refresh: 'Обновить',
     more: 'Показать ещё',
     listLabel: 'Инциденты',
+    loaded: (count: number, more: boolean) => (more ? `Показано: ${count}, есть ещё` : `Показано: ${count}`),
     zone: (zone: string, offset: string) => `Время: ${zone}, ${offset}`
   }
 } as const;

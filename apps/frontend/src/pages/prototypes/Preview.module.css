@@ -139,7 +139,7 @@
   overflow: hidden;
   border-radius: var(--radius-1);
   background: linear-gradient(135deg, var(--thumb-a), var(--thumb-b));
-  color: rgba(255, 255, 255, 0.82);
+  color: var(--color-on-media);
   font-family: var(--font-mono);
   font-size: var(--font-size-2xs);
   font-weight: var(--font-weight-semibold);

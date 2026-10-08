@@ -2,17 +2,17 @@
 import { Link } from '@tanstack/react-router';
 import { useEffect, useState } from 'react';
 import { resolveTheme, applyAppearance } from '../../app/theme';
-import { AccentPicker } from '../../features/appearance/ui/AccentPicker';
-import { AccentPreview } from '../../features/appearance/ui/AccentPreview';
-import { CustomPresetsCard } from '../../features/appearance/ui/CustomPresetsCard';
-import type { AccentSource } from '../../features/appearance/ui/ThemeScope';
 import {
+  AccentPicker,
+  AccentPreview,
+  CustomPresetsCard,
   addPreset,
   isSameValue,
   removePreset,
   setAccent,
-  updatePreset
-} from '../../features/appearance/model/appearance-value';
+  updatePreset,
+  type AccentSource
+} from '../../features/appearance';
 import {
   Banner,
   Button,

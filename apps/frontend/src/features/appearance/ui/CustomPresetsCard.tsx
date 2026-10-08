@@ -25,16 +25,15 @@ export function CustomPresetsCard({ value, onAdd, onUpdate, onRemove }: Props) {
   return (
     <section className={styles.section}>
       <header className={styles.header}>
-        <h3 className={styles.title}>{ru.appearance.customTitle}</h3>
+        <p className={styles.hint}>
+          {atLimit
+            ? ru.appearance.customLimit(CUSTOM_PRESETS_MAX)
+            : ru.appearance.customCount(value.customPresets.length, CUSTOM_PRESETS_MAX)}
+        </p>
         <Button variant="secondary" icon="plus" isDisabled={atLimit} onPress={() => setDialog({ kind: 'create' })}>
           {ru.appearance.addColor}
         </Button>
       </header>
-      <p className={styles.hint}>
-        {atLimit
-          ? ru.appearance.customLimit(CUSTOM_PRESETS_MAX)
-          : ru.appearance.customCount(value.customPresets.length, CUSTOM_PRESETS_MAX)}
-      </p>
       {value.customPresets.length === 0 ? (
         <p className={styles.empty}>{ru.appearance.customEmpty}</p>
       ) : (
