@@ -12,6 +12,7 @@ import {
   useDashboardLayout,
   useDashboardQuery,
   useLayoutEditor,
+  useSizeToggle,
   type PageBindings,
   type ServiceRow
 } from '../features/dashboard';
@@ -33,6 +34,7 @@ export function DashboardPage({ pollMs }: Props) {
   const layout = useDashboardLayout();
   const editor = useLayoutEditor({ current: layout.widgets, revision: layout.revision });
   // The day summary is read only while the page (or the draft being edited) has widgets that need it.
+  const sizeToggle = useSizeToggle({ current: layout.widgets, revision: layout.revision });
   const wantsDay = layout.settled && (editor.draft ?? layout.widgets).some((widget) => readsDashboard(widget.type));
   const dashboard = useDashboardQuery(pollMs, wantsDay);
   const service = useServiceChecks();
@@ -90,9 +92,6 @@ export function DashboardPage({ pollMs }: Props) {
                 >
                   {dashboardCopy.customize}
                 </Button>
-                <Button icon="plus" onPress={() => void navigate({ to: '/posts/new' })}>
-                  Новый пост
-                </Button>
               </>
             )}
           </>
@@ -124,6 +123,20 @@ export function DashboardPage({ pollMs }: Props) {
         <Dashboard
           widgets={layout.widgets}
           {...bindings}
+          sizeToggle={{ onToggle: (id) => void sizeToggle.toggle(id), pending: sizeToggle.pending }}
+          notice={
+            sizeToggle.conflict ? (
+              <Banner
+                tone="conflict"
+                title={dashboardCopy.edit.conflictTitle}
+                action={
+                  <Button size="sm" variant="secondary" onPress={() => void sizeToggle.reload()}>
+                    {dashboardCopy.edit.reload}
+                  </Button>
+                }
+              />
+            ) : null
+          }
           {...(layout.revision === undefined
             ? {}
             : {

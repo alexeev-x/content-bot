@@ -123,6 +123,7 @@ export function DashboardEditor({ editor, bindings }: Props) {
           <EditGrid
             widgets={draft}
             onCommit={editor.commit}
+            onDrop={editor.drop}
             onAction={(id, action) => editor.act(id, action, false)}
             renderBody={renderBody}
           />

@@ -654,3 +654,19 @@
     flex-wrap: wrap;
   }
 }
+
+/* The quick size button sits at the right edge of a panel header: seen on hover and focus, always reachable. */
+.sizeToggle {
+  display: inline-flex;
+  opacity: 0;
+  transition: opacity var(--motion-fast);
+}
+.cell:hover .sizeToggle,
+.cell:focus-within .sizeToggle {
+  opacity: 1;
+}
+@media (hover: none) {
+  .sizeToggle {
+    opacity: 1;
+  }
+}

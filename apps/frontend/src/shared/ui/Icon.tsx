@@ -48,6 +48,8 @@ const PATHS = {
   copy: 'M9 9h10a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H9a1 1 0 0 1-1-1V10a1 1 0 0 1 1-1zM16 9V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3',
   download: 'M12 4v11M7 11l5 5 5-5M5 20h14',
   upload: 'M12 16V5M7 9l5-5 5 5M5 20h14',
+  maximize: 'M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5',
+  minimize: 'M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5',
   grip: 'M9 5v.01M15 5v.01M9 12v.01M15 12v.01M9 19v.01M15 19v.01',
   external: 'M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5'
 } as const;

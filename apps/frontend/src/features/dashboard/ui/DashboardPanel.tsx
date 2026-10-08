@@ -1,9 +1,11 @@
 import { Link } from '@tanstack/react-router';
-import type { CSSProperties, ReactNode } from 'react';
-import { Icon, MediaTile, Panel, Skeleton, type IconName } from '../../../shared/ui';
+import { useContext, type CSSProperties, type ReactNode } from 'react';
+import { Icon, IconButton, MediaTile, Panel, Skeleton, type IconName } from '../../../shared/ui';
 import { formatClock } from '../../../shared/lib/clock';
 import { otherDay } from '../model/format';
+import { copy } from './copy';
 import styles from './Dashboard.module.css';
+import { EditingContext, useSizeToggleControl } from './size-toggle-context';
 
 export type PanelArea =
   | 'attention'
@@ -62,6 +64,8 @@ type SectionProps = {
 
 /** One dashboard panel: a grid cell with a quiet 48 px strip and a body that keeps the skeleton height. */
 export function Section({ area, title, count, action, rows, busy, children }: SectionProps) {
+  const size = useSizeToggleControl();
+  const editing = useContext(EditingContext);
   return (
     <div className={styles.cell} data-area={area} aria-busy={busy || undefined}>
       <Panel
@@ -69,7 +73,24 @@ export function Section({ area, title, count, action, rows, busy, children }: Se
         title={title}
         headingLevel={2}
         marker={count !== undefined ? <span className={styles.count}>{count}</span> : undefined}
-        action={action}
+        action={
+          editing ? undefined : size ? (
+            <>
+              <span className={styles.sizeToggle}>
+                <IconButton
+                  size="sm"
+                  icon={size.large ? 'minimize' : 'maximize'}
+                  label={`${size.large ? copy.size.collapse : copy.size.expand}: ${size.title}`}
+                  isLoading={size.pending}
+                  onPress={size.onToggle}
+                />
+              </span>
+              {action}
+            </>
+          ) : (
+            action
+          )
+        }
       >
         <div className={styles.fill} style={{ '--rows': rows } as CSSProperties}>
           {children}

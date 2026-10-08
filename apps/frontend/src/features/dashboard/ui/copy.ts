@@ -111,6 +111,7 @@ export const copy = {
     retry: 'Повторить'
   },
   customize: 'Настроить',
+  size: { expand: 'Развернуть', collapse: 'Свернуть' },
   edit: {
     toolbar: 'Настройка обзора',
     done: 'Готово',
@@ -137,6 +138,7 @@ export const copy = {
     leaveTitle: 'Уйти без сохранения?',
     leaveConfirm: 'Уйти',
     discardKeep: 'Продолжить настройку',
+    swapped: (a: string, b: string) => `${a} и ${b} поменялись местами`,
     removed: (title: string) => `Виджет «${title}» удалён`,
     added: (title: string) => `Виджет «${title}» добавлен`,
     resetDone: 'Стандартная раскладка. Нажмите «Готово», чтобы сохранить.',

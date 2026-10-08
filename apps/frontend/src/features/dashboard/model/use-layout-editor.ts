@@ -10,7 +10,9 @@ import {
   add,
   describePlacement,
   layoutProblem,
-  move,
+  dropAt,
+  dropTarget,
+  moveStep,
   remove,
   resize,
   sameLayout,
@@ -131,13 +133,34 @@ export function useLayoutEditor({ current, revision }: Props) {
       }
       let next: DashboardWidget[];
       if (phone) next = shiftInSequence(draft, id, action === 'move-up' ? -1 : 1);
-      else if (action in MOVES) next = move(draft, id, MOVES[action] as Direction);
-      else next = resize(draft, id, RESIZES[action] as ResizeStep);
+      else if (action in MOVES) {
+        const step = moveStep(draft, id, MOVES[action] as Direction);
+        next = step.widgets;
+        const partner = draft.find((candidate) => candidate.id === step.partner);
+        if (partner) {
+          setDraft(next);
+          setAnnouncement(copy.edit.swapped(title, WIDGETS[partner.type].title));
+          return;
+        }
+      } else next = resize(draft, id, RESIZES[action] as ResizeStep);
       setDraft(next);
       const moved = next.find((candidate) => candidate.id === id);
       if (moved) setAnnouncement(`${title}: ${describePlacement(moved)}`);
     },
     [draft, toast]
+  );
+
+  /** A pointer drop at grid cell (x, y): onto a widget it swaps places with it, onto free space it moves there. */
+  const drop = useCallback(
+    (id: string, at: { x: number; y: number }) => {
+      if (!draft) return;
+      const target = dropTarget(draft, id, at);
+      setDraft(dropAt(draft, id, at));
+      const a = draft.find((candidate) => candidate.id === id);
+      const b = draft.find((candidate) => candidate.id === target);
+      if (a && b) setAnnouncement(copy.edit.swapped(WIDGETS[a.type].title, WIDGETS[b.type].title));
+    },
+    [draft]
   );
 
   const addWidget = useCallback(
@@ -216,6 +239,7 @@ export function useLayoutEditor({ current, revision }: Props) {
     startEdit,
     discard: close,
     commit,
+    drop,
     act,
     addWidget,
     reset,

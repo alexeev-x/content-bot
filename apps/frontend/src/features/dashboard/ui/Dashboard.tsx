@@ -1,4 +1,5 @@
 import type { DashboardDto, DashboardWidget } from '@alexeev/contracts';
+import type { ReactNode } from 'react';
 import type { UseQueryResult } from '@tanstack/react-query';
 import { ApiError } from '../../../shared/api/http-client';
 import { classifyApiError } from '../../../shared/api/error-kind';
@@ -34,6 +35,10 @@ type Props = PageBindings & {
   /** Starts editing with the default layout / with the catalog open; absent while no revision is known. */
   onResetLayout?: () => void;
   onAddWidget?: () => void;
+  /** Quick small/large toggle of the widget headers. */
+  sizeToggle?: { onToggle: (widgetId: string) => void; pending: boolean };
+  /** Shown above the grid (e.g. the layout conflict banner). */
+  notice?: ReactNode;
 };
 
 /** The view mode: the saved widgets, with the day summary read once for all the widgets that need it. */
@@ -49,7 +54,9 @@ export function Dashboard({
   onOpenPost,
   onAddChannel,
   onResetLayout,
-  onAddWidget
+  onAddWidget,
+  sizeToggle,
+  notice
 }: Props) {
   const wantsDay = widgets.some((widget) => readsDashboard(widget.type));
   const failed = wantsDay && !query.data && !query.isPending;
@@ -78,6 +85,7 @@ export function Dashboard({
 
   const banner = (
     <>
+      {notice}
       {failure ? <div className={styles.failure}>{failure}</div> : null}
       {query.data && query.isRefetchError ? (
         <Banner
@@ -100,6 +108,7 @@ export function Dashboard({
         loading={wantsDay && query.isPending}
         banner={banner}
         zoneNote={zoneNote}
+        {...(sizeToggle ? { sizeToggle } : {})}
         env={{
           view,
           services,

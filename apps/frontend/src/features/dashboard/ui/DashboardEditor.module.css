@@ -36,10 +36,13 @@
 .gridHost :global(.react-grid-item) {
   transition-duration: var(--motion-base);
 }
-.gridHost :global(.react-grid-placeholder) {
+.gridHost :global(.react-grid-item.react-grid-placeholder) {
+  border: 1px dashed var(--color-accent);
   border-radius: var(--radius-2);
   background: var(--color-accent-soft);
   opacity: 1;
+  /* The package paints it red at 20% opacity; ours follows the owner's accent and the motion tokens. */
+  transition-duration: var(--motion-fast);
 }
 .item {
   min-width: 0;
@@ -54,6 +57,10 @@
   border: 1px dashed var(--color-border-strong);
   border-radius: var(--radius-2);
   background: var(--color-surface-1);
+}
+.card[data-drop-target] {
+  border: 2px dashed var(--color-accent);
+  background: var(--color-accent-soft);
 }
 .content {
   height: 100%;

@@ -15,3 +15,4 @@ export { copy as dashboardCopy } from './ui/copy';
 export { DEFAULT_WIDGETS } from './model/default-layout';
 export { readCachedLayout } from './model/layout-cache';
 export { sequence } from './model/layout-ops';
+export { useSizeToggle } from './model/use-size-toggle';

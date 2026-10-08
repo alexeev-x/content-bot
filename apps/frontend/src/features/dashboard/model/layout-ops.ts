@@ -46,33 +46,98 @@ export function compact(widgets: Widgets): DashboardWidget[] {
 const replace = (widgets: Widgets, id: string, patch: Partial<DashboardWidget>) =>
   widgets.map((item) => (item.id === id ? { ...item, ...patch } : item));
 
-/** One step in a direction: swaps with the nearest neighbour that way, or goes to the edge when there is none. */
-export function move(widgets: Widgets, id: string, direction: Direction): DashboardWidget[] {
+/** A widget takes the other's place and the other takes its place; sizes stay, x is pulled left to fit, overlaps are resolved. */
+export function swap(widgets: Widgets, aId: string, bId: string): DashboardWidget[] {
+  const a = widgets.find((item) => item.id === aId);
+  const b = widgets.find((item) => item.id === bId);
+  if (!a || !b || a.id === b.id) return [...widgets];
+  if (sharesRows(a, b) && !sharesCols(a, b)) {
+    // Side by side: they trade ends of the span they share, so unequal widths still fit and a second swap undoes the first.
+    const [left, right] = a.x < b.x ? [a, b] : [b, a];
+    const end = right.x + right.w;
+    return compact(
+      widgets.map((item) => {
+        if (item.id === right.id) return { ...item, x: left.x };
+        if (item.id === left.id) return { ...item, x: end - left.w };
+        return item;
+      })
+    );
+  }
+  const placed = widgets.map((item) => {
+    if (item.id === a.id) return { ...item, x: Math.min(b.x, COLS - a.w), y: b.y };
+    if (item.id === b.id) return { ...item, x: Math.min(a.x, COLS - b.w), y: a.y };
+    return item;
+  });
+  return compact(placed);
+}
+
+/** The widget a dragged one would land on at (x, y): the one with the largest overlap, if any. */
+export function dropTarget(widgets: Widgets, id: string, at: { x: number; y: number }): string | undefined {
+  const me = widgets.find((item) => item.id === id);
+  if (!me) return undefined;
+  const ghost = { ...me, x: at.x, y: at.y };
+  let best: { id: string; area: number } | undefined;
+  for (const other of widgets) {
+    if (other.id === id) continue;
+    const width = Math.min(ghost.x + ghost.w, other.x + other.w) - Math.max(ghost.x, other.x);
+    const height = Math.min(ghost.y + ghost.h, other.y + other.h) - Math.max(ghost.y, other.y);
+    const area = width > 0 && height > 0 ? width * height : 0;
+    if (area > 0 && (!best || area > best.area)) best = { id: other.id, area };
+  }
+  return best?.id;
+}
+
+/** A drop at (x, y): onto a widget it swaps places with it, onto free space it moves there (snapped, then compacted). */
+export function dropAt(widgets: Widgets, id: string, at: { x: number; y: number }): DashboardWidget[] {
   const me = widgets.find((item) => item.id === id);
   if (!me) return [...widgets];
+  const target = dropTarget(widgets, id, at);
+  if (target) return swap(widgets, id, target);
+  return compact(replace(widgets, id, { x: Math.max(0, Math.min(at.x, COLS - me.w)), y: Math.max(0, at.y) }));
+}
+
+/**
+ * One step in a direction: swaps with the neighbour that way (returned as `partner`), or goes to the edge when
+ * there is none.
+ */
+export function moveStep(
+  widgets: Widgets,
+  id: string,
+  direction: Direction
+): { widgets: DashboardWidget[]; partner?: string } {
+  const me = widgets.find((item) => item.id === id);
+  if (!me) return { widgets: [...widgets] };
   const others = widgets.filter((item) => item.id !== id);
-  let next: DashboardWidget[] = [...widgets];
+  let near: DashboardWidget | undefined;
   if (direction === 'left') {
-    const near = others
-      .filter((o) => sharesRows(o, me) && o.x + o.w <= me.x)
-      .sort((a, b) => b.x + b.w - (a.x + a.w))[0];
-    if (near) next = replace(replace(widgets, id, { x: near.x }), near.id, { x: near.x + me.w });
-    else if (me.x > 0) next = replace(widgets, id, { x: 0 });
+    near = others.filter((o) => sharesRows(o, me) && o.x + o.w <= me.x).sort((a, b) => b.x + b.w - (a.x + a.w))[0];
   } else if (direction === 'right') {
-    const near = others.filter((o) => sharesRows(o, me) && o.x >= me.x + me.w).sort((a, b) => a.x - b.x)[0];
-    if (near) next = replace(replace(widgets, id, { x: near.x + near.w - me.w }), near.id, { x: me.x });
-    else if (me.x + me.w < COLS) next = replace(widgets, id, { x: COLS - me.w });
+    near = others.filter((o) => sharesRows(o, me) && o.x >= me.x + me.w).sort((a, b) => a.x - b.x)[0];
   } else if (direction === 'up') {
-    const near = others
-      .filter((o) => sharesCols(o, me) && o.y + o.h <= me.y)
-      .sort((a, b) => b.y + b.h - (a.y + a.h))[0];
-    if (near) next = replace(replace(widgets, id, { y: near.y }), near.id, { y: near.y + me.h });
+    near = others.filter((o) => sharesCols(o, me) && o.y + o.h <= me.y).sort((a, b) => b.y + b.h - (a.y + a.h))[0];
   } else {
-    const near = others.filter((o) => sharesCols(o, me) && o.y >= me.y + me.h).sort((a, b) => a.y - b.y)[0];
-    // The neighbour takes this widget's row; the widget follows right below it.
-    if (near) next = replace(replace(widgets, near.id, { y: me.y }), id, { y: me.y + near.h });
+    near = others.filter((o) => sharesCols(o, me) && o.y >= me.y + me.h).sort((a, b) => a.y - b.y)[0];
   }
-  return sameLayout(next, widgets) ? [...widgets] : compact(next);
+  if (near) {
+    const next = swap(widgets, id, near.id);
+    return sameLayout(next, widgets) ? { widgets: [...widgets] } : { widgets: next, partner: near.id };
+  }
+  let next: DashboardWidget[] = [...widgets];
+  if (direction === 'left' && me.x > 0) next = replace(widgets, id, { x: 0 });
+  else if (direction === 'right' && me.x + me.w < COLS) next = replace(widgets, id, { x: COLS - me.w });
+  return sameLayout(next, widgets) ? { widgets: [...widgets] } : { widgets: compact(next) };
+}
+
+export const move = (widgets: Widgets, id: string, direction: Direction): DashboardWidget[] =>
+  moveStep(widgets, id, direction).widgets;
+
+/** Gives a widget an exact size (shifting it left to stay inside the grid); the others reflow without overlaps. */
+export function resizeTo(widgets: Widgets, id: string, size: { w: number; h: number }): DashboardWidget[] {
+  const me = widgets.find((item) => item.id === id);
+  if (!me) return [...widgets];
+  const w = Math.min(COLS, size.w);
+  const h = Math.min(DASHBOARD_WIDGET_MAX_HEIGHT, size.h);
+  return compact(replace(widgets, id, { w, h, x: Math.min(me.x, COLS - w) }));
 }
 
 /** One step of width or height within the widget's minimum and the grid. */

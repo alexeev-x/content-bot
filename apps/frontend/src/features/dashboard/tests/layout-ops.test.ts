@@ -3,6 +3,10 @@ import { describe, expect, it } from 'vitest';
 import { DEFAULT_WIDGETS } from '../model/default-layout';
 import {
   add,
+  dropAt,
+  dropTarget,
+  moveStep,
+  swap,
   layoutProblem,
   move,
   remove,
@@ -170,5 +174,52 @@ describe('weekDays', () => {
     );
     expect(days.map((day) => day.count)).toEqual([2, 0, 1, 0, 0, 0, 0]);
     expect(days[0]?.isToday).toBe(true);
+  });
+});
+
+describe('swap and drop', () => {
+  it('swaps two widgets of equal size', () => {
+    const pair = [w('today', 0, 0, 6, 4), w('upcoming', 6, 0, 6, 4)];
+    const next = swap(pair, 'today', 'upcoming');
+    expect(at(next, 'today')).toMatchObject({ x: 6, y: 0 });
+    expect(at(next, 'upcoming')).toMatchObject({ x: 0, y: 0 });
+  });
+
+  it('swaps widgets of different sizes, pulling x left to fit, without overlaps', () => {
+    const pair = [w('attention', 0, 0, 8, 4), w('system', 8, 0, 4, 4)];
+    const next = swap(pair, 'attention', 'system');
+    expect(at(next, 'attention')).toMatchObject({ x: 4, w: 8 });
+    expect(at(next, 'system')).toMatchObject({ x: 0, w: 4 });
+    expect(layoutProblem(next)).toBeNull();
+  });
+
+  it('finds the widget with the largest overlap as the drop target', () => {
+    const items = [w('today', 0, 0, 6, 4), w('upcoming', 6, 0, 6, 4), w('recent', 0, 4, 12, 4)];
+    expect(dropTarget(items, 'today', { x: 5, y: 0 })).toBe('upcoming');
+    expect(dropTarget(items, 'today', { x: 0, y: 3 })).toBe('recent');
+    expect(dropTarget(items, 'upcoming', { x: 6, y: 0 })).toBeUndefined();
+  });
+
+  it('a drop on free space moves the widget there; on a widget it swaps', () => {
+    const items = [w('today', 0, 0, 4, 3), w('upcoming', 4, 0, 4, 3)];
+    expect(at(dropAt(items, 'today', { x: 8, y: 0 }), 'today')).toMatchObject({ x: 8, y: 0 });
+    const swapped = dropAt(items, 'today', { x: 4, y: 0 });
+    expect(at(swapped, 'upcoming')).toMatchObject({ x: 0 });
+    expect(at(swapped, 'today')).toMatchObject({ x: 4 });
+  });
+
+  it('never overlaps, whatever is swapped or dropped', () => {
+    for (const a of DEFAULT_WIDGETS) {
+      for (const b of DEFAULT_WIDGETS) {
+        expect(layoutProblem(swap(DEFAULT_WIDGETS, a.id, b.id))).toBeNull();
+        expect(layoutProblem(dropAt(DEFAULT_WIDGETS, a.id, { x: b.x, y: b.y }))).toBeNull();
+      }
+    }
+  });
+
+  it('a step swaps with the adjacent neighbour and names it', () => {
+    const pair = [w('today', 0, 0, 6, 4), w('upcoming', 6, 0, 6, 4)];
+    expect(moveStep(pair, 'today', 'right').partner).toBe('upcoming');
+    expect(moveStep([w('today', 3, 0, 4, 3)], 'today', 'left').partner).toBeUndefined();
   });
 });

@@ -4,6 +4,7 @@ import { Icon } from '../../../shared/ui';
 import { WIDGETS } from '../model/widget-catalog';
 import type { WidgetAction } from '../model/use-layout-editor';
 import { copy } from './copy';
+import { EditingContext } from './size-toggle-context';
 import styles from './DashboardEditor.module.css';
 import { WidgetMenu } from './WidgetMenu';
 
@@ -15,6 +16,8 @@ type Props = {
   draft: readonly DashboardWidget[];
   /** The real widget content, drawn at the item's current size. It is inert: editing never activates it. */
   children: ReactNode;
+  /** A dragged widget would swap places with this one if dropped now. */
+  isDropTarget?: boolean;
   /** Without it the card is the static stand-in shown while the grid chunk loads. */
   onAction?: (id: string, action: WidgetAction) => void;
 };
@@ -24,13 +27,13 @@ type Props = {
  * in it can be pressed or take focus, and the edit chrome on top: a visible drag handle, the size, the menu with
  * every operation. The 44 px resize corner is added by the grid.
  */
-export function EditCard({ widget, draft, children, onAction }: Props) {
+export function EditCard({ widget, draft, children, isDropTarget, onAction }: Props) {
   const def = WIDGETS[widget.type];
   return (
     // oxlint-disable-next-line jsx-a11y/prefer-tag-over-role
-    <div className={styles.card} role="group" aria-label={def.title}>
+    <div className={styles.card} role="group" aria-label={def.title} data-drop-target={isDropTarget || undefined}>
       <div className={styles.content} inert>
-        {children}
+        <EditingContext value>{children}</EditingContext>
       </div>
       <div className={styles.chrome}>
         <span className={`${styles.grip} ${DRAG_HANDLE_CLASS}`} aria-hidden="true" title={copy.edit.handle}>

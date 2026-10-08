@@ -214,7 +214,12 @@ describe('dashboard blocks', () => {
     expect(within(block).getByText('Требует проверки')).toBeTruthy();
     expect(within(block).getByText(/Telegram не ответил\. Сообщение могло уйти\./)).toBeTruthy();
     expect(screen.queryByRole('button', { name: /Повторить|Отменить|Отправить снова|Перенести/ })).toBeNull();
-    expect(within(block).getAllByRole('button')).toHaveLength(1);
+    // The row action plus the header's quick size button.
+    expect(
+      within(block)
+        .getAllByRole('button')
+        .map((button) => button.getAttribute('aria-label') ?? button.textContent)
+    ).toEqual(['Свернуть: Требует внимания', 'Проверить: «Итоги недели»']);
     expect(within(block).getByRole('link', { name: /^Все инциденты/ })).toBeTruthy();
     await user.click(within(block).getByRole('button', { name: /^Проверить/ }));
     await waitFor(() => expect(router.state.location.pathname).toBe('/publications'));
