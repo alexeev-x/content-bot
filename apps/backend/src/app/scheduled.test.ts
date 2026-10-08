@@ -72,7 +72,24 @@ function probe(
     lifecycle,
     postRevisions: { findRevision: () => Promise.reject(new Error('unexpected')) },
     transport: { send: () => Promise.reject(new Error('unexpected')) },
-    dotaWatcher: { sync: () => Promise.resolve({ inserted: 0, fetched: 0 }) },
+    dotaWatcher: {
+      sync: () => {
+        calls.push('dota sync');
+        return Promise.resolve({ inserted: 0, fetched: 0 });
+      }
+    },
+    dotaRepository: {
+      listDraftWork: () => Promise.resolve([]),
+      reserveDraft: () => Promise.resolve(null),
+      listOwnerAlertWork: () => Promise.resolve([]),
+      claimDraftOwnerAlert: () => Promise.resolve(false),
+      recordSourceFailure: () => Promise.resolve('incident-id'),
+      listSourceIncidentAlerts: () => Promise.resolve([]),
+      claimSourceIncidentAlert: () => Promise.resolve(null),
+      storeSync: () => Promise.resolve({ inserted: 0 })
+    },
+    posts: {},
+    idempotency: {},
     sessions: {
       purgeEnded: () => {
         calls.push('purge sessions');
@@ -138,6 +155,21 @@ describe('handleScheduled', () => {
     await handleScheduled(controller(NOT_HOUR), container);
 
     expect(calls).toEqual(['reconcile', 'archive', 'heartbeat']);
+  });
+
+  it('runs Dota only after an idle publication slot and skips the hourly housekeeping boundary', async () => {
+    const idle = probe();
+    const busy = probe({ due: ['job-1'] });
+    const hourly = probe();
+    const fiveMinute = HOUR + 5 * 60_000;
+
+    await handleScheduled(controller(fiveMinute), idle.container);
+    await handleScheduled(controller(fiveMinute), busy.container);
+    await handleScheduled(controller(HOUR), hourly.container);
+
+    expect(idle.calls).toContain('dota sync');
+    expect(busy.calls).not.toContain('dota sync');
+    expect(hourly.calls).not.toContain('dota sync');
   });
 
   it('a failing step is logged without its message, later steps still run, and the tick fails', async () => {

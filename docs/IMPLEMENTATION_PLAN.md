@@ -218,7 +218,7 @@ Primary goal: the server notices a new Dota update on its own and hands the owne
 Deliver, each step usable on its own:
 
 1. Watcher: a Cron step polls the official sources (§12.1 «Known free sources») every 5–10 minutes with finite timeouts; each item is deduplicated in D1 by its source id, so overlapping ticks never create two events.
-2. Draft + alert: a new patch or official announcement becomes a draft post from a deterministic template (title, patch number, date, official link) and the owner gets a private bot alert «Вышло обновление …, черновик готов» with a link to the draft. Publishing goes through the existing approve → publish path.
+2. Draft + alert: a new patch or official announcement becomes a draft post from a deterministic template containing the official title, published date and exact official link; the owner gets a private bot alert «Вышло обновление …, черновик готов» with a link to the draft. Publishing goes through the existing approve → publish path.
 3. Patch summary: for gameplay patches the draft lists the most important confirmed changes picked by the rules in `docs/PATCH_AUTOMATION_PLAN_DRAFT.md` §8; unknown values are never invented.
 
 Definition of Done:
@@ -426,7 +426,7 @@ This is the actionable queue from the master roadmap. Whoever starts or finishes
 | 1 | Content Studio rich editor and Telegram entities | done (awaiting owner DEV check) |
 | 2 | Autosave | done (awaiting owner DEV check) |
 | 3 | Dota update watcher: official sources, D1 dedup (Phase 1D) | done (deployed to DEV, smoke-check passed) |
-| 4 | Dota update → template draft + private owner alert (Phase 1D) | not started |
+| 4 | Dota update → template draft + private owner alert (Phase 1D) | in progress |
 | 5 | Patch summary from confirmed changes (Phase 1D) | not started |
 | 6 | Manual multi-media model, R2 upload and preview | not started |
 | 7 | Telegram multi-media publishing and publication_messages | not started |

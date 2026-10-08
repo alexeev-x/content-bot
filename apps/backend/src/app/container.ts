@@ -54,7 +54,8 @@ import {
   createD1DotaWatcherRepository,
   createOfficialDotaFetcher,
   syncDotaUpdates,
-  type DotaSourceFetcher
+  type DotaSourceFetcher,
+  type DotaWatcherRepository
 } from '../modules/dota';
 
 // The only place where real implementations are wired. It grows together with the modules
@@ -102,6 +103,8 @@ export interface Container {
   webhookUpdates: UpdateDedup;
   /** Polls the two fixed official Dota feeds and persists deduped source items. */
   dotaWatcher: { sync(input: { detectedAt: number }): Promise<{ inserted: number; fetched: number }> };
+  /** D1 state for draft reservation, Dota owner notices and deduped source incidents. */
+  dotaRepository: DotaWatcherRepository;
   housekeeping: {
     purgeExpired(input: { now: number; limit: number }): Promise<{ idempotencyKeys: number; rateLimits: number }>;
   };
@@ -136,6 +139,7 @@ export interface ContainerOverrides {
   newId?: () => string;
   /** Replaces the fixed-host feed fetcher for deterministic Cron tests. */
   dotaFetcher?: DotaSourceFetcher;
+  dotaRepository?: DotaWatcherRepository;
   /** Replaces the watcher when a test is focused on unrelated scheduled work. */
   dotaWatcher?: Container['dotaWatcher'];
 }
@@ -269,6 +273,9 @@ export function createContainer(env: ContainerEnv, overrides: ContainerOverrides
         sync: ({ detectedAt }: { detectedAt: number }) =>
           syncDotaUpdates({ fetcher: overrides.dotaFetcher ?? createOfficialDotaFetcher(), repo, detectedAt })
       };
+    },
+    get dotaRepository() {
+      return overrides.dotaRepository ?? createD1DotaWatcherRepository(db());
     },
     // Resolved per call: a BOT_INFO override never touches the database, so a Worker without one still answers.
     get botIdentity(): BotIdentityStore {

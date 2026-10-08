@@ -7,6 +7,7 @@ import {
 import { dispatchDueJobs, type RaisedIncident, reconcileExpiredJobs } from '../modules/publishing';
 import type { Container } from './container';
 import { alertOwnerOfIncidents } from './notifications/alert-owner-of-incidents';
+import { processDotaUpdates } from './workflows/process-dota-updates';
 import { DotaWatchError } from '../modules/dota';
 
 // Per table and per hourly tick; leftovers wait for the next hour.
@@ -33,6 +34,9 @@ type TickContainer = Pick<
   | 'random'
   | 'newId'
   | 'dotaWatcher'
+  | 'dotaRepository'
+  | 'posts'
+  | 'idempotency'
 >;
 
 // Cron entry point, once a minute (docs/BACKEND_ARCHITECTURE.md §5). Ticks may overlap or repeat:
@@ -47,8 +51,8 @@ type TickContainer = Pick<
 //      state is kept between invocations
 //   6. alert: the owner hears about the incidents steps 1 and 2 wrote, after their state is stored
 //      (best effort, nothing is retried; a tick without incidents spends nothing here)
-//   7. dota watch: only on five-minute UTC boundaries, after publication work and alerts; bounded fetches
-//      and one atomic D1 batch seed/deduplicate source records without touching publication state
+//   7. dota watch: on five-minute UTC boundaries after publication work, only when that tick was idle and
+//      not on the hourly housekeeping ticks; bounded work leaves the publishing D1 budget untouched
 //   8. heartbeat: one upsert that records this run for the owner's /status
 export async function handleScheduled(controller: ScheduledController, container: TickContainer): Promise<void> {
   const { clock, logger } = container;
@@ -177,10 +181,32 @@ export async function handleScheduled(controller: ScheduledController, container
 
   // Run after the publication pipeline and its alerts: feed ingestion never delays dispatch or
   // changes publication state. It runs only on exact five-minute UTC slots.
-  if (controller.scheduledTime % (5 * 60_000) === 0) {
+  const publicationIdle =
+    failures === 0 && (counts.expired ?? 0) === 0 && (counts.due ?? 0) === 0 && raised.length === 0;
+  if (controller.scheduledTime % (5 * 60_000) === 0 && minute !== 0 && minute !== PURGE_MINUTE && publicationIdle) {
     await step('dota-watch', async () => {
-      const summary = await container.dotaWatcher.sync({ detectedAt: clock.now() });
-      return { dotaFeedsFetched: summary.fetched, dotaItemsInserted: summary.inserted };
+      const summary = await processDotaUpdates({
+        sync: container.dotaWatcher.sync,
+        repo: container.dotaRepository,
+        posts: container.posts,
+        idempotency: container.idempotency,
+        actor: container.ownerChatId ?? 'system',
+        now: () => clock.now(),
+        newId: container.newId,
+        messenger: container.ownerMessenger,
+        ownerChatId: container.ownerChatId,
+        readAppOrigin: () => container.systemState.readAppOrigin(),
+        logger
+      });
+      if (summary.sourceFailures > 0) failures += 1;
+      return {
+        dotaFeedsFetched: summary.feedsFetched,
+        dotaItemsInserted: summary.itemsInserted,
+        dotaDraftsCreated: summary.draftsCreated,
+        dotaDraftAlertsSent: summary.draftAlertsSent,
+        dotaSourceAlertsSent: summary.sourceAlertsSent,
+        dotaSourceFailures: summary.sourceFailures
+      };
     });
   }
 

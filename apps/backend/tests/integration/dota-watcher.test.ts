@@ -74,6 +74,7 @@ async function storedItems(): Promise<{ source_key: string; external_id: string;
 }
 
 let clock: FakeClock;
+const WATCHER_START = START + 5 * 60_000;
 
 beforeEach(async () => {
   await clearDotaTables();
@@ -84,7 +85,7 @@ describe('Dota source watcher', () => {
   it('seeds existing official records as baseline for both feeds on the first successful sync', async () => {
     const tick = makeWatcherTick({
       clock,
-      scheduledTime: START,
+      scheduledTime: WATCHER_START,
       fetcher: scriptedFetcher({
         steam: steamPayload(steamItem('steam-1'), steamItem('third-party-1', 'playground')),
         patches: patchPayload({ patch_number: '7.41', patch_name: '7.41', patch_timestamp: 1_800_000_000 })
@@ -115,7 +116,7 @@ describe('Dota source watcher', () => {
     news.url = `https://store.steampowered.com/news/app/570/view/${news.gid}`;
     const tick = makeWatcherTick({
       clock,
-      scheduledTime: START,
+      scheduledTime: WATCHER_START,
       fetcher: scriptedFetcher({ steam: steamPayload(news), patches: patchPayload() })
     });
 
@@ -136,7 +137,7 @@ describe('Dota source watcher', () => {
     news.url = url;
     const tick = makeWatcherTick({
       clock,
-      scheduledTime: START,
+      scheduledTime: WATCHER_START,
       fetcher: scriptedFetcher({ steam: steamPayload(news), patches: patchPayload() })
     });
 
@@ -147,7 +148,7 @@ describe('Dota source watcher', () => {
   it('marks only announcements discovered after baseline as new', async () => {
     const baseline = makeWatcherTick({
       clock,
-      scheduledTime: START,
+      scheduledTime: WATCHER_START,
       fetcher: scriptedFetcher({
         steam: steamPayload(steamItem('old')),
         patches: patchPayload({ patch_number: '7.40', patch_name: '7.40', patch_timestamp: 1_799_000_000 })
@@ -157,7 +158,7 @@ describe('Dota source watcher', () => {
 
     const next = makeWatcherTick({
       clock,
-      scheduledTime: START + 5 * 60_000,
+      scheduledTime: WATCHER_START + 5 * 60_000,
       fetcher: scriptedFetcher({
         steam: steamPayload(steamItem('old'), steamItem('new')),
         patches: patchPayload(
@@ -181,16 +182,16 @@ describe('Dota source watcher', () => {
       steam: steamPayload(steamItem('same')),
       patches: patchPayload({ patch_number: '7.41', patch_name: '7.41', patch_timestamp: 1_800_000_000 })
     };
-    await makeWatcherTick({ clock, scheduledTime: START, fetcher: scriptedFetcher(payload) }).run();
-    const repeated = makeWatcherTick({ clock, scheduledTime: START, fetcher: scriptedFetcher(payload) });
+    await makeWatcherTick({ clock, scheduledTime: WATCHER_START, fetcher: scriptedFetcher(payload) }).run();
+    const repeated = makeWatcherTick({ clock, scheduledTime: WATCHER_START, fetcher: scriptedFetcher(payload) });
     await repeated.run();
     expect(repeated.logs.find((event) => event.operation === 'tick')).toMatchObject({
       counts: { dotaItemsInserted: 0 }
     });
 
     await Promise.all([
-      makeWatcherTick({ clock, scheduledTime: START + 5 * 60_000, fetcher: scriptedFetcher(payload) }).run(),
-      makeWatcherTick({ clock, scheduledTime: START + 5 * 60_000, fetcher: scriptedFetcher(payload) }).run()
+      makeWatcherTick({ clock, scheduledTime: WATCHER_START + 5 * 60_000, fetcher: scriptedFetcher(payload) }).run(),
+      makeWatcherTick({ clock, scheduledTime: WATCHER_START + 5 * 60_000, fetcher: scriptedFetcher(payload) }).run()
     ]);
     expect(await storedItems()).toHaveLength(2);
   });
@@ -198,7 +199,7 @@ describe('Dota source watcher', () => {
   it('does not write either feed when one source fails', async () => {
     const tick = makeWatcherTick({
       clock,
-      scheduledTime: START,
+      scheduledTime: WATCHER_START,
       fetcher: scriptedFetcher({
         steam: steamPayload(steamItem('must-not-insert')),
         patches: new Error('network failure')
@@ -207,7 +208,7 @@ describe('Dota source watcher', () => {
 
     await expect(tick.run()).rejects.toThrow('SCHEDULED_TICK_FAILED');
     expect(await storedItems()).toEqual([]);
-    expect(tick.logs).toContainEqual(expect.objectContaining({ operation: 'dota-watch', status: 'error' }));
+    expect(tick.logs).toContainEqual(expect.objectContaining({ operation: 'source_sync', status: 'error' }));
   });
 
   it('fails closed on malformed source shape without partial inserts', async () => {
@@ -217,21 +218,21 @@ describe('Dota source watcher', () => {
     };
     const tick = makeWatcherTick({
       clock,
-      scheduledTime: START,
+      scheduledTime: WATCHER_START,
       fetcher: scriptedFetcher({ steam: steamPayload(steamItem('must-not-insert')), patches: malformed })
     });
 
     await expect(tick.run()).rejects.toThrow('SCHEDULED_TICK_FAILED');
     expect(await storedItems()).toEqual([]);
     expect(tick.logs).toContainEqual(
-      expect.objectContaining({ operation: 'dota-watch', errorCode: 'DOTA_SOURCE_SHAPE_patch_notes' })
+      expect.objectContaining({ operation: 'source_sync', errorCode: 'DOTA_SOURCE_SHAPE_patch_notes' })
     );
   });
 
   it('rejects HTTP errors and oversized source bodies before writing either feed', async () => {
     const failedStatus = makeWatcherTick({
       clock,
-      scheduledTime: START,
+      scheduledTime: WATCHER_START,
       fetcher: {
         async fetch(source) {
           return source === 'steam_news'
@@ -245,7 +246,7 @@ describe('Dota source watcher', () => {
 
     const oversized = makeWatcherTick({
       clock,
-      scheduledTime: START,
+      scheduledTime: WATCHER_START,
       fetcher: {
         async fetch(source) {
           return source === 'steam_news'
@@ -257,18 +258,18 @@ describe('Dota source watcher', () => {
     await expect(oversized.run()).rejects.toThrow('SCHEDULED_TICK_FAILED');
     expect(await storedItems()).toEqual([]);
     expect(oversized.logs).toContainEqual(
-      expect.objectContaining({ operation: 'dota-watch', errorCode: 'DOTA_SOURCE_BODY_LIMIT_steam_news' })
+      expect.objectContaining({ operation: 'source_sync', errorCode: 'DOTA_SOURCE_BODY_LIMIT_steam_news' })
     );
   });
 
   it('polls only on exact five-minute UTC boundaries', async () => {
     const calls: DotaSourceKey[] = [];
     const fetcher = scriptedFetcher({ calls, steam: steamPayload(), patches: patchPayload() });
-    const offBoundary = makeWatcherTick({ clock, scheduledTime: START + 60_000, fetcher });
+    const offBoundary = makeWatcherTick({ clock, scheduledTime: WATCHER_START + 60_000, fetcher });
     await offBoundary.run();
     expect(calls).toEqual([]);
 
-    const onBoundary = makeWatcherTick({ clock, scheduledTime: START + 5 * 60_000, fetcher });
+    const onBoundary = makeWatcherTick({ clock, scheduledTime: WATCHER_START + 5 * 60_000, fetcher });
     await onBoundary.run();
     expect(calls).toEqual(['steam_news', 'patch_notes']);
   });
