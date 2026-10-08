@@ -183,8 +183,8 @@ Phase 1a — editor (queue items 1–2):
 
 - rich Telegram-aware editor — built (§2.4.1).
 - entities storage and preview — built (§2.4.1).
-- autosave.
-- revision history UI.
+- autosave — built, awaiting owner DEV check.
+- revision history UI — built, awaiting owner DEV check.
 - useful post actions.
 
 Phase 1b — manual media (queue items 6–7):
@@ -425,7 +425,7 @@ This is the actionable queue from the master roadmap. Whoever starts or finishes
 | # | Item | Status |
 |---|---|---|
 | 1 | Content Studio rich editor and Telegram entities | done (awaiting owner DEV check) |
-| 2 | Autosave and revision history UI | not started |
+| 2 | Autosave and revision history UI | done (awaiting owner DEV check) |
 | 3 | Dota update watcher: official sources, D1 dedup (Phase 1D) | not started |
 | 4 | Dota update → template draft + private owner alert (Phase 1D) | not started |
 | 5 | Patch summary from confirmed changes (Phase 1D) | not started |
