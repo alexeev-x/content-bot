@@ -2,6 +2,7 @@ import { AppError } from '../../../shared/app-error';
 import { SYSTEM_ACTOR } from '../domain/archive-policy';
 import type {
   CancelledPublication,
+  ArchiveItemOutcome,
   DeleteItemOutcome,
   LifecycleRepository,
   RestoreItemOutcome
@@ -87,6 +88,30 @@ const RESTORE_STATE = `SELECT json_extract(je.value, '$.id') AS id, po.id IS NOT
     po.archived_at IS NOT NULL AS archived
   FROM json_each(?1) je LEFT JOIN posts po ON po.id = json_extract(je.value, '$.id')`;
 
+const MANUAL_ARCHIVE_BLOCKER = `SELECT pu.id AS publication_id, j.status AS status
+  FROM publications pu JOIN jobs j ON j.publication_id = pu.id
+  WHERE pu.post_id = po.id AND j.status IN ('pending', 'retry_wait', 'claimed', 'unknown')
+  ORDER BY (j.status = 'unknown') DESC, (j.status = 'claimed') DESC, pu.scheduled_at, pu.id LIMIT 1`;
+
+const MANUAL_ARCHIVE_TARGET = `WITH target(id) AS (
+  SELECT po.id FROM posts po
+  WHERE po.id = ?1 AND po.revision = ?2 AND po.archived_at IS NULL
+    AND NOT EXISTS (SELECT 1 FROM publications pu JOIN jobs j ON j.publication_id = pu.id
+                    WHERE pu.post_id = po.id AND j.status IN ('pending', 'retry_wait', 'claimed', 'unknown'))
+)`;
+
+const MANUAL_ARCHIVE_AUDIT = `${MANUAL_ARCHIVE_TARGET}
+  INSERT INTO audit_log (actor_telegram_id, action, entity_type, entity_id, created_at, details)
+  SELECT ?3, 'post.archive', 'post', t.id, ?4, '{"reason":"manual"}' FROM target t`;
+
+const MANUAL_ARCHIVE_POST = `${MANUAL_ARCHIVE_TARGET}
+  UPDATE posts SET archived_at = ?3, updated_at = ?3 WHERE id IN (SELECT id FROM target) RETURNING id`;
+
+const MANUAL_ARCHIVE_STATE = `SELECT po.id AS id, po.revision AS revision, po.archived_at IS NOT NULL AS archived,
+    (SELECT publication_id FROM (${MANUAL_ARCHIVE_BLOCKER})) AS blocker_publication_id,
+    (SELECT status FROM (${MANUAL_ARCHIVE_BLOCKER})) AS blocker_status
+  FROM posts po WHERE po.id = ?1`;
+
 // Qualifies for the archive: a publication was sent after the last restore, and nothing is left to
 // send (scheduled, queued, preparing, sending, retry_wait, unknown). Failed and cancelled ones do not
 // block, but a post with only those never qualifies.
@@ -136,6 +161,14 @@ interface RestoreStateRow {
   found: number;
   revision: number | null;
   archived: number | null;
+}
+
+interface ArchiveStateRow {
+  id: string;
+  revision: number;
+  archived: number;
+  blocker_publication_id: string | null;
+  blocker_status: string | null;
 }
 
 function notApplied(): AppError {
@@ -226,6 +259,32 @@ export function createD1LifecycleRepository(db: D1Database): LifecycleRepository
         if (row.revision !== item.revision) return { id: item.id, outcome: 'refused', reason: 'STALE_REVISION' };
         throw notApplied();
       });
+    },
+
+    async archivePost({ id, revision, actor, now }): Promise<ArchiveItemOutcome> {
+      const results = await db.batch([
+        db.prepare(MANUAL_ARCHIVE_AUDIT).bind(id, revision, actor, now),
+        db.prepare(MANUAL_ARCHIVE_POST).bind(id, revision, now),
+        db.prepare(MANUAL_ARCHIVE_STATE).bind(id)
+      ]);
+      const archived = rowsOf<{ id: string }>(results[1])[0];
+      if (archived) return { id, outcome: 'archived' };
+
+      const row = rowsOf<ArchiveStateRow>(results[2])[0];
+      if (!row) return { id, outcome: 'refused', reason: 'NOT_FOUND' };
+      if (row.archived === 1) return { id, outcome: 'refused', reason: 'ALREADY_ARCHIVED' };
+
+      if (row.blocker_publication_id !== null && row.blocker_status !== null) {
+        const reason =
+          row.blocker_status === 'unknown'
+            ? 'PUBLICATION_UNKNOWN'
+            : row.blocker_status === 'claimed'
+              ? 'PUBLICATION_IN_PROGRESS'
+              : 'PUBLICATION_PENDING';
+        return { id, outcome: 'refused', reason, publicationId: row.blocker_publication_id };
+      }
+      if (row.revision !== revision) return { id, outcome: 'refused', reason: 'STALE_REVISION' };
+      throw notApplied();
     },
 
     async findArchivable({ since, limit }) {
