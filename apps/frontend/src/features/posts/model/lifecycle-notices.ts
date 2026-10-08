@@ -20,7 +20,7 @@ export type Described =
   /** Nothing is known to have changed: stay in the dialog, offer a retry. */
   | { kind: 'retry'; notice: LifecycleNotice };
 
-export type LifecycleAction = 'delete' | 'restore';
+export type LifecycleAction = 'delete' | 'archive' | 'restore';
 
 /** Maps a failed delete or restore to Russian text; 409 and 404 mean the state moved, everything else is retryable. */
 export function describeLifecycleError(error: unknown, action: LifecycleAction): Described {
@@ -33,10 +33,14 @@ export function describeLifecycleError(error: unknown, action: LifecycleAction):
     switch (error.reason) {
       case 'STALE_REVISION':
         return state('conflict', copy.notices.stale);
+      case 'PUBLICATION_PENDING':
+        return state('warning', copy.notices.pending, error.details?.['publicationId']);
       case 'PUBLICATION_IN_PROGRESS':
         return state('warning', copy.notices.inProgress, error.details?.['publicationId']);
       case 'PUBLICATION_UNKNOWN':
         return state('warning', copy.notices.unknown, error.details?.['publicationId']);
+      case 'ALREADY_ARCHIVED':
+        return state('info', copy.notices.alreadyArchived);
       case 'NOT_ARCHIVED':
         return state('info', copy.notices.notArchived);
     }
@@ -57,8 +61,19 @@ export function describeLifecycleError(error: unknown, action: LifecycleAction):
     kind: 'retry',
     notice: {
       tone: 'error',
-      title: action === 'delete' ? copy.errors.deleteTitle : copy.errors.restoreTitle,
-      body: `${message} ${action === 'delete' ? copy.errors.nothingRemoved : copy.errors.nothingRestored}`,
+      title:
+        action === 'delete'
+          ? copy.errors.deleteTitle
+          : action === 'archive'
+            ? copy.errors.archiveTitle
+            : copy.errors.restoreTitle,
+      body: `${message} ${
+        action === 'delete'
+          ? copy.errors.nothingRemoved
+          : action === 'archive'
+            ? copy.errors.nothingArchived
+            : copy.errors.nothingRestored
+      }`,
       requestId
     }
   };
