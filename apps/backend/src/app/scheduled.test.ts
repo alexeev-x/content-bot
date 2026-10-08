@@ -76,7 +76,8 @@ function probe(
       sync: () => {
         calls.push('dota sync');
         return Promise.resolve({ inserted: 0, fetched: 0 });
-      }
+      },
+      summarizePatch: () => Promise.resolve(null)
     },
     dotaRepository: {
       listDraftWork: () => Promise.resolve([]),

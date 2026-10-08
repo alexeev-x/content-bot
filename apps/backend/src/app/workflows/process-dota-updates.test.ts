@@ -9,8 +9,12 @@ import {
   DOTA_DRAFT_RECOVERY_SQL,
   DOTA_OWNER_ALERT_WORK_SQL,
   DOTA_SOURCE_INCIDENT_ALERT_SQL,
+  DOTA_PATCH_DETAIL_INCIDENT_RECOVERY_SQL,
+  DotaPatchDetailError,
   DotaWatchError,
   syncDotaUpdates,
+  summarizeOfficialPatch,
+  parsePatchNameMaps,
   type DotaSourceFetcher,
   type DotaUpdateItem
 } from '../../modules/dota';
@@ -52,6 +56,32 @@ function workflow(
     messenger?: TelegramOwnerMessageApi | null;
     readAppOrigin?: () => Promise<string | null>;
     send?: (input: { html: string; button: { text: string; url: string } }) => Promise<unknown>;
+    patchSummary?: {
+      patchNumber: string;
+      title: string;
+      themes: {
+        category: string;
+        name: string;
+        changes: string[];
+        noteCount: number;
+        numericNoteCount: number;
+        structuralNoteCount: number;
+        relativeMagnitudeScore: number;
+      }[];
+    } | null;
+    summarizePatch?: (version: string) => Promise<{
+      patchNumber: string;
+      title: string;
+      themes: {
+        category: string;
+        name: string;
+        changes: string[];
+        noteCount: number;
+        numericNoteCount: number;
+        structuralNoteCount: number;
+        relativeMagnitudeScore: number;
+      }[];
+    } | null>;
   } = {}
 ) {
   const db = testDb();
@@ -80,6 +110,7 @@ function workflow(
             await repo.storeSync({ items: [], detectedAt: START + 10 });
             return { inserted: 0, fetched: 2 };
           }),
+        summarizePatch: options.summarizePatch ?? (() => Promise.resolve(options.patchSummary ?? null)),
         repo,
         posts,
         idempotency: createIdempotencyStore(db),
@@ -113,15 +144,169 @@ describe('Dota draft scan indexes', () => {
       .prepare(`EXPLAIN QUERY PLAN ${DOTA_SOURCE_INCIDENT_ALERT_SQL}`)
       .bind(2)
       .all<{ detail: string }>();
+    const detailRecovery = await db
+      .prepare(`EXPLAIN QUERY PLAN ${DOTA_PATCH_DETAIL_INCIDENT_RECOVERY_SQL}`)
+      .all<{ detail: string }>();
     const draftPlan = draft.results.map((row) => row.detail).join('\n');
     const alertPlan = alert.results.map((row) => row.detail).join('\n');
     const recoveryPlan = recovery.results.map((row) => row.detail).join('\n');
     const incidentPlan = incident.results.map((row) => row.detail).join('\n');
+    const detailRecoveryPlan = detailRecovery.results.map((row) => row.detail).join('\n');
     expect(draftPlan).toContain('dota_draft_candidates_idx');
     expect(alertPlan).toContain('dota_draft_recovery_idx');
     expect(recoveryPlan).toContain('dota_draft_recovery_idx');
     expect(incidentPlan).toContain('dota_source_incidents_alert_idx');
-    expect(draftPlan + alertPlan + recoveryPlan + incidentPlan).not.toContain('TEMP B-TREE');
+    expect(detailRecoveryPlan).toContain('dota_patch_incidents_one_open_idx');
+    expect(draftPlan + alertPlan + recoveryPlan + incidentPlan + detailRecoveryPlan).not.toContain('TEMP B-TREE');
+  });
+});
+
+describe('summarizeOfficialPatch', () => {
+  it('groups named entities and ranks structural and combat-magnitude signals before economy/count signals', async () => {
+    const fetcher: DotaSourceFetcher = {
+      fetch: () => Promise.resolve(new Response('{}')),
+      fetchPatchNameMaps: () =>
+        Promise.resolve({
+          heroes: new Map([[1, 'Test Hero']]),
+          items: new Map([
+            [10, 'Test Item'],
+            [20, 'Neutral Item']
+          ])
+        }),
+      fetchPatchDetails: () =>
+        Promise.resolve(
+          new Response(
+            JSON.stringify({
+              patch_number: '7.41f',
+              patch_name: '7.41f',
+              general_notes: [{ title: 'Map changes', generic: [{ note: 'New map mechanic' }] }],
+              heroes: [
+                {
+                  hero_id: 1,
+                  hero_notes: [
+                    { note: 'damage increased by 10' },
+                    { note: 'movement speed adjusted' },
+                    { note: 'lifesteal reduced from 30% to 25%' }
+                  ]
+                }
+              ],
+              items: [
+                { ability_id: -1, title: 'Item notes', is_general_note: true, ability_notes: [{ note: 'header' }] },
+                { ability_id: 10, ability_notes: [{ note: 'cost increased from 10 to 20' }] }
+              ],
+              neutral_items: [{ ability_id: 20, ability_notes: [{ note: 'small change' }] }],
+              neutral_creeps: [
+                { name: 'creep', localized_name: 'Test Creep', neutral_creep_notes: [{ note: 'small change' }] }
+              ]
+            })
+          )
+        )
+    };
+
+    const summary = await summarizeOfficialPatch(fetcher, '7.41f');
+
+    expect(summary?.themes).toEqual([
+      {
+        category: 'Общие изменения',
+        name: 'Map changes',
+        changes: ['Добавлено: новая механика карты'],
+        noteCount: 1,
+        numericNoteCount: 0,
+        structuralNoteCount: 1,
+        relativeMagnitudeScore: 0
+      },
+      {
+        category: 'Герой',
+        name: 'Test Hero',
+        changes: ['Урон: +10', 'Вампиризм: 30% → 25%'],
+        noteCount: 3,
+        numericNoteCount: 2,
+        structuralNoteCount: 0,
+        relativeMagnitudeScore: 1_667
+      },
+      {
+        category: 'Предмет',
+        name: 'Test Item',
+        changes: ['Стоимость: 10 → 20'],
+        noteCount: 1,
+        numericNoteCount: 1,
+        structuralNoteCount: 0,
+        relativeMagnitudeScore: 1_000
+      }
+    ]);
+    expect(summary?.themes.some((theme) => theme.name === 'Neutral Item')).toBe(false);
+  });
+
+  it('rejects mismatched detail versions instead of summarizing another patch', async () => {
+    const fetcher: DotaSourceFetcher = {
+      fetch: () => Promise.resolve(new Response('{}')),
+      fetchPatchNameMaps: () => Promise.resolve({ heroes: new Map(), items: new Map() }),
+      fetchPatchDetails: () =>
+        Promise.resolve(new Response(JSON.stringify({ patch_number: '7.41', patch_name: '7.41', heroes: [] })))
+    };
+    await expect(summarizeOfficialPatch(fetcher, '7.41f')).rejects.toMatchObject({
+      code: 'DOTA_PATCH_DETAIL_SHAPE'
+    });
+  });
+
+  it('falls back to manual review when notes do not contain a recognized change fact', async () => {
+    const fetcher: DotaSourceFetcher = {
+      fetch: () => Promise.resolve(new Response('{}')),
+      fetchPatchNameMaps: () =>
+        Promise.resolve({
+          heroes: new Map([
+            [1, 'Hero One'],
+            [2, 'Hero Two'],
+            [3, 'Hero Three'],
+            [4, 'Hero Four'],
+            [5, 'Hero Five']
+          ]),
+          items: new Map()
+        }),
+      fetchPatchDetails: () =>
+        Promise.resolve(
+          Response.json({
+            patch_number: '7.41f',
+            patch_name: '7.41f',
+            heroes: [
+              { hero_id: 1, hero_notes: [{ note: 'Some adjusted value' }] },
+              { hero_id: 2, hero_notes: [{ note: 'Different unclear detail' }] },
+              { hero_id: 3, hero_notes: [{ note: 'A third unclear detail' }] },
+              { hero_id: 4, hero_notes: [{ note: 'Another unclear detail' }] },
+              { hero_id: 5, hero_notes: [{ note: 'One more unclear detail' }] }
+            ]
+          })
+        )
+    };
+
+    await expect(summarizeOfficialPatch(fetcher, '7.41f')).resolves.toBeNull();
+  });
+
+  it('returns no ranked themes when a changed entity has no official name mapping', async () => {
+    const fetcher: DotaSourceFetcher = {
+      fetch: () => Promise.resolve(new Response('{}')),
+      fetchPatchNameMaps: () => Promise.resolve({ heroes: new Map([[2, 'Other Hero']]), items: new Map() }),
+      fetchPatchDetails: () =>
+        Promise.resolve(
+          Response.json({
+            patch_number: '7.41f',
+            patch_name: '7.41f',
+            heroes: [{ hero_id: 1, hero_notes: [{ note: 'damage increased by 10' }] }]
+          })
+        )
+    };
+
+    await expect(summarizeOfficialPatch(fetcher, '7.41f')).resolves.toBeNull();
+  });
+
+  it('parses the official hero/item dictionaries into bounded ID maps', () => {
+    const names = parsePatchNameMaps(
+      { result: { data: { heroes: [{ id: 1, name_english_loc: 'Test Hero' }] } } },
+      { result: { data: { itemabilities: [{ id: 10, name_english_loc: 'Test Item' }] } } }
+    );
+    expect(names.heroes.get(1)).toBe('Test Hero');
+    expect(names.items.get(10)).toBe('Test Item');
+    expect(() => parsePatchNameMaps({}, {})).toThrowError('DOTA_SOURCE_SHAPE_patch_notes');
   });
 });
 
@@ -152,6 +337,208 @@ describe('processDotaUpdates', () => {
     expect(setup.calls).toHaveLength(1);
     expect(setup.calls[0]?.html).not.toContain('<b>7.40</b>');
     expect(setup.calls[0]?.button.url).toBe(`https://studio.example.com/posts/${post?.id}`);
+  });
+
+  it('adds named, ranked patch themes to the review draft without asserting change direction', async () => {
+    const repo = createD1DotaWatcherRepository(testDb());
+    const patchItem = (externalId: string) => ({
+      ...steam(externalId),
+      sourceKey: 'patch_notes' as const,
+      title: `Dota ${externalId}`,
+      sourceUrl: `https://www.dota2.com/patches/${externalId}`
+    });
+    await repo.storeSync({ items: [steam('baseline'), patchItem('baseline')], detectedAt: START });
+    await repo.storeSync({ items: [patchItem('7.41f')], detectedAt: START + 1 });
+    const setup = workflow({
+      patchSummary: {
+        patchNumber: '7.41f',
+        title: '7.41f',
+        themes: [
+          {
+            category: 'Герой',
+            name: 'Crystal Maiden',
+            changes: ['Перезарядка: 10 → 8'],
+            noteCount: 4,
+            numericNoteCount: 2,
+            structuralNoteCount: 1,
+            relativeMagnitudeScore: 0
+          },
+          {
+            category: 'Предмет',
+            name: 'Blink Dagger',
+            changes: ['Стоимость: 10 → 20'],
+            noteCount: 3,
+            numericNoteCount: 1,
+            structuralNoteCount: 0,
+            relativeMagnitudeScore: 0
+          }
+        ]
+      }
+    });
+
+    await setup.run();
+
+    const post = await testDb().prepare('SELECT body FROM posts').first<{ body: string }>();
+    expect(post?.body).toContain('— Герой — Crystal Maiden: Перезарядка: 10 → 8');
+    expect(post?.body).toContain('— Предмет — Blink Dagger: Стоимость: 10 → 20');
+    expect(post?.body).toContain('Предварительная сводка по официальным заметкам');
+    expect(post?.body).not.toContain('популяр');
+    expect(setup.calls).toHaveLength(1);
+  });
+
+  it('labels an unrankable patch draft for manual review instead of inventing themes', async () => {
+    const repo = createD1DotaWatcherRepository(testDb());
+    const patchItem = (externalId: string) => ({
+      ...steam(externalId),
+      sourceKey: 'patch_notes' as const,
+      title: `Dota ${externalId}`,
+      sourceUrl: `https://www.dota2.com/patches/${externalId}`
+    });
+    await repo.storeSync({ items: [steam('baseline'), patchItem('baseline')], detectedAt: START });
+    await repo.storeSync({ items: [patchItem('7.41f')], detectedAt: START + 1 });
+    await workflow({ patchSummary: null }).run();
+
+    const post = await testDb().prepare('SELECT body FROM posts').first<{ body: string }>();
+    expect(post?.body).toContain('Автоматическая сводка не сформирована');
+    expect(post?.body).toContain('проверьте изменения вручную');
+    expect(post?.body).toContain('Официальный источник: https://www.dota2.com/patches/7.41f');
+  });
+
+  it('holds a patch draft during detail-feed failure and preserves the incident until details recover', async () => {
+    const repo = createD1DotaWatcherRepository(testDb());
+    const patchItem = (externalId: string) => ({
+      ...steam(externalId),
+      sourceKey: 'patch_notes' as const,
+      title: `Dota ${externalId}`,
+      sourceUrl: `https://www.dota2.com/patches/${externalId}`
+    });
+    await repo.storeSync({ items: [steam('baseline'), patchItem('baseline')], detectedAt: START });
+    await repo.storeSync({ items: [patchItem('7.41f')], detectedAt: START + 1 });
+    const unavailable = workflow({
+      messenger: null,
+      summarizePatch: () => Promise.reject(new DotaPatchDetailError('DOTA_PATCH_DETAIL_SHAPE', '7.41f'))
+    });
+
+    const failed = await unavailable.run();
+
+    expect(failed.sourceFailures).toBe(1);
+    expect(await count('SELECT count(*) AS n FROM posts')).toBe(0);
+    expect(
+      await count(
+        "SELECT count(*) AS n FROM dota_source_incidents WHERE code = 'DOTA_PATCH_DETAIL_SHAPE' AND resolved_at IS NULL"
+      )
+    ).toBe(1);
+
+    const stillUnavailable = workflow({
+      messenger: null,
+      summarizePatch: () => Promise.reject(new DotaPatchDetailError('DOTA_PATCH_DETAIL_SHAPE', '7.41f'))
+    });
+    await stillUnavailable.run();
+    expect(
+      await count(
+        "SELECT count(*) AS n FROM dota_source_incidents WHERE code LIKE 'DOTA_PATCH_DETAIL_%' AND resolved_at IS NULL"
+      )
+    ).toBe(1);
+
+    const recovered = workflow({
+      patchSummary: {
+        patchNumber: '7.41f',
+        title: '7.41f',
+        themes: [
+          {
+            category: 'Герой',
+            name: 'Crystal Maiden',
+            changes: ['Cooldown: 10 → 8'],
+            noteCount: 1,
+            numericNoteCount: 0,
+            structuralNoteCount: 0,
+            relativeMagnitudeScore: 0
+          }
+        ]
+      }
+    });
+    await recovered.run();
+    expect(await count('SELECT count(*) AS n FROM posts')).toBe(1);
+    expect(
+      await count(
+        "SELECT count(*) AS n FROM dota_source_incidents WHERE code LIKE 'DOTA_PATCH_DETAIL_%' AND resolved_at IS NOT NULL"
+      )
+    ).toBe(1);
+    expect(recovered.calls).toHaveLength(2);
+    expect(recovered.calls.some((call) => call.html.includes('восстановился'))).toBe(true);
+  });
+
+  it('does not recover one patch incident when a different patch detail succeeds in the same batch', async () => {
+    const repo = createD1DotaWatcherRepository(testDb());
+    const patchItem = (externalId: string) => ({
+      ...steam(externalId),
+      sourceKey: 'patch_notes' as const,
+      title: `Dota ${externalId}`,
+      sourceUrl: `https://www.dota2.com/patches/${externalId}`
+    });
+    await repo.storeSync({ items: [steam('baseline'), patchItem('baseline')], detectedAt: START });
+    await repo.storeSync({ items: [patchItem('7.41e'), patchItem('7.41f')], detectedAt: START + 1 });
+    const mixed = workflow({
+      messenger: null,
+      summarizePatch: (version) =>
+        version === '7.41e'
+          ? Promise.reject(new DotaPatchDetailError('DOTA_PATCH_DETAIL_SHAPE', version))
+          : Promise.resolve({
+              patchNumber: version,
+              title: version,
+              themes: [
+                {
+                  category: 'Герой',
+                  name: 'Crystal Maiden',
+                  changes: ['Cooldown: 10 → 8'],
+                  noteCount: 1,
+                  numericNoteCount: 0,
+                  structuralNoteCount: 0,
+                  relativeMagnitudeScore: 0
+                }
+              ]
+            })
+    });
+
+    await mixed.run();
+
+    expect(
+      await count("SELECT count(*) AS n FROM dota_source_incidents WHERE external_id = '7.41e' AND resolved_at IS NULL")
+    ).toBe(1);
+    expect(
+      await count(
+        "SELECT count(*) AS n FROM dota_source_incidents WHERE external_id = '7.41f' AND resolved_at IS NOT NULL"
+      )
+    ).toBe(0);
+    expect(await count('SELECT count(*) AS n FROM posts')).toBe(1);
+    expect(mixed.calls).toHaveLength(0);
+
+    const recovered = workflow({
+      patchSummary: {
+        patchNumber: '7.41e',
+        title: '7.41e',
+        themes: [
+          {
+            category: 'Герой',
+            name: 'Crystal Maiden',
+            changes: ['Cooldown: 10 → 8'],
+            noteCount: 1,
+            numericNoteCount: 0,
+            structuralNoteCount: 0,
+            relativeMagnitudeScore: 0
+          }
+        ]
+      }
+    });
+    await recovered.run();
+
+    expect(
+      await count(
+        "SELECT count(*) AS n FROM dota_source_incidents WHERE external_id = '7.41e' AND resolved_at IS NOT NULL"
+      )
+    ).toBe(1);
+    expect(await count('SELECT count(*) AS n FROM posts')).toBe(2);
+    expect(recovered.calls.filter((call) => call.html.includes('восстановился'))).toHaveLength(1);
   });
 
   it('survives overlap and replay, including after idempotency retention by reusing the durable reserved id', async () => {
@@ -296,6 +683,8 @@ describe('processDotaUpdates', () => {
   it('does not partially write when one official feed fails shape validation', async () => {
     const repo = createD1DotaWatcherRepository(testDb());
     const fetcher: DotaSourceFetcher = {
+      fetchPatchDetails: () => Promise.resolve(new Response('{}')),
+      fetchPatchNameMaps: () => Promise.resolve({ heroes: new Map(), items: new Map() }),
       fetch: (source) =>
         Promise.resolve(
           new Response(
@@ -325,6 +714,8 @@ describe('processDotaUpdates', () => {
       {
         clock: { now: () => START },
         dotaFetcher: {
+          fetchPatchDetails: () => Promise.resolve(new Response('{}')),
+          fetchPatchNameMaps: () => Promise.resolve({ heroes: new Map(), items: new Map() }),
           fetch: (source) =>
             Promise.resolve(
               new Response(

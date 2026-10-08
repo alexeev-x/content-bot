@@ -69,11 +69,30 @@ export class DotaWatchError extends Error {
   }
 }
 
+export class DotaPatchDetailError extends Error {
+  constructor(
+    readonly code:
+      | 'DOTA_PATCH_DETAIL_FETCH'
+      | 'DOTA_PATCH_DETAIL_HTTP'
+      | 'DOTA_PATCH_DETAIL_BODY_LIMIT'
+      | 'DOTA_PATCH_DETAIL_JSON'
+      | 'DOTA_PATCH_DETAIL_SHAPE',
+    readonly externalId: string,
+    readonly sourceKey: 'patch_notes' = 'patch_notes'
+  ) {
+    super(code);
+    this.name = 'DotaPatchDetailError';
+  }
+}
+
 export interface DotaSourceFetcher {
   fetch(source: DotaSourceKey): Promise<Response>;
+  fetchPatchDetails(version: string): Promise<Response>;
+  fetchPatchNameMaps(): Promise<{ heroes: Map<number, string>; items: Map<number, string> }>;
 }
 
 export function createOfficialDotaFetcher(fetchImpl: typeof fetch = fetch): DotaSourceFetcher {
+  let nameMapsPromise: Promise<{ heroes: Map<number, string>; items: Map<number, string> }> | null = null;
   return {
     async fetch(source) {
       const url = source === 'steam_news' ? STEAM_NEWS_URL : PATCH_LIST_URL;
@@ -83,8 +102,408 @@ export function createOfficialDotaFetcher(fetchImpl: typeof fetch = fetch): Dota
         signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
         redirect: 'error'
       });
+    },
+    async fetchPatchDetails(version) {
+      const url = new URL('https://www.dota2.com/datafeed/patchnotes');
+      url.searchParams.set('version', version);
+      url.searchParams.set('language', 'english');
+      return fetchImpl(url, {
+        method: 'GET',
+        headers: { accept: 'application/json' },
+        signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+        redirect: 'error'
+      });
+    },
+    async fetchPatchNameMaps() {
+      const request = (url: string) =>
+        fetchImpl(url, {
+          method: 'GET',
+          headers: { accept: 'application/json' },
+          signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+          redirect: 'error'
+        });
+      if (nameMapsPromise === null) {
+        nameMapsPromise = (async () => {
+          let responses: [Response, Response];
+          try {
+            responses = await Promise.all([
+              request('https://www.dota2.com/datafeed/herolist?language=english'),
+              request('https://www.dota2.com/datafeed/itemlist?language=english')
+            ]);
+          } catch {
+            throw new DotaWatchError('DOTA_SOURCE_FETCH', 'patch_notes');
+          }
+          const [heroPayload, itemPayload] = await Promise.all([
+            readBoundedJson(responses[0], 128 * 1024, 'patch_notes'),
+            readBoundedJson(responses[1], 384 * 1024, 'patch_notes')
+          ]);
+          return parsePatchNameMaps(heroPayload, itemPayload);
+        })().catch((error: unknown) => {
+          nameMapsPromise = null;
+          throw error;
+        });
+      }
+      if (nameMapsPromise === null) throw new Error('DOTA_PATCH_NAME_MAPS_UNAVAILABLE');
+      return nameMapsPromise;
     }
   };
+}
+
+const patchNoteSchema = z.object({ note: z.string().trim().min(1).max(4_000) }).passthrough();
+const patchGroupSchema = z.object({ generic: z.array(patchNoteSchema).max(200) }).passthrough();
+const patchEntityNotesSchema = z
+  .object({
+    hero_id: z.number().int().optional(),
+    ability_id: z.number().int().optional(),
+    is_general_note: z.boolean().optional(),
+    title: z.string().max(500).optional(),
+    ability_notes: z.array(patchNoteSchema).max(200).optional(),
+    hero_notes: z.array(patchNoteSchema).max(200).optional(),
+    talent_notes: z.array(patchNoteSchema).max(200).optional(),
+    abilities: z
+      .array(z.object({ ability_notes: z.array(patchNoteSchema).max(200).optional() }).passthrough())
+      .max(200)
+      .optional()
+  })
+  .passthrough();
+const patchDetailsSchema = z
+  .object({
+    patch_number: z.string().trim().min(1).max(40),
+    patch_name: z.string().trim().min(1).max(120),
+    general_notes: z
+      .array(patchGroupSchema.extend({ title: z.string().trim().max(500).optional() }))
+      .max(100)
+      .optional(),
+    heroes: z.array(patchEntityNotesSchema).max(300).optional(),
+    items: z.array(patchEntityNotesSchema).max(300).optional(),
+    neutral_items: z.array(patchEntityNotesSchema).max(300).optional(),
+    neutral_creeps: z
+      .array(
+        z
+          .object({
+            name: z.string().trim().max(200).optional(),
+            localized_name: z.string().trim().max(200).optional(),
+            neutral_creep_notes: z.array(patchNoteSchema).max(200)
+          })
+          .passthrough()
+      )
+      .max(100)
+      .optional()
+  })
+  .passthrough();
+const patchNamesSchema = z
+  .object({
+    result: z
+      .object({
+        data: z
+          .object({
+            heroes: z
+              .array(
+                z
+                  .object({
+                    id: z.number().int(),
+                    name_english_loc: z.string().trim().min(1).max(200).optional(),
+                    name_loc: z.string().trim().min(1).max(200).optional()
+                  })
+                  .passthrough()
+              )
+              .max(200)
+              .optional(),
+            itemabilities: z
+              .array(
+                z
+                  .object({
+                    id: z.number().int(),
+                    name_english_loc: z.string().trim().min(1).max(200).optional(),
+                    name_loc: z.string().trim().min(1).max(200).optional()
+                  })
+                  .passthrough()
+              )
+              .max(700)
+              .optional()
+          })
+          .passthrough()
+      })
+      .passthrough()
+  })
+  .passthrough();
+
+export function parsePatchNameMaps(
+  heroPayload: unknown,
+  itemPayload: unknown
+): { heroes: Map<number, string>; items: Map<number, string> } {
+  const heroesParsed = patchNamesSchema.safeParse(heroPayload);
+  const itemsParsed = patchNamesSchema.safeParse(itemPayload);
+  if (
+    !heroesParsed.success ||
+    !itemsParsed.success ||
+    heroesParsed.data.result.data.heroes === undefined ||
+    itemsParsed.data.result.data.itemabilities === undefined
+  ) {
+    throw new DotaWatchError('DOTA_SOURCE_SHAPE', 'patch_notes');
+  }
+  return {
+    heroes: new Map(
+      heroesParsed.data.result.data.heroes.map((entry) => [
+        entry.id,
+        cleanPatchLabel(entry.name_english_loc ?? entry.name_loc)
+      ])
+    ),
+    items: new Map(
+      itemsParsed.data.result.data.itemabilities.map((entry) => [
+        entry.id,
+        cleanPatchLabel(entry.name_english_loc ?? entry.name_loc)
+      ])
+    )
+  };
+}
+
+export interface DotaPatchChangeTheme {
+  category: string;
+  name: string;
+  changes: string[];
+  noteCount: number;
+  numericNoteCount: number;
+  structuralNoteCount: number;
+  relativeMagnitudeScore: number;
+}
+
+export interface DotaPatchSummary {
+  patchNumber: string;
+  title: string;
+  themes: DotaPatchChangeTheme[];
+}
+
+export async function summarizeOfficialPatch(
+  fetcher: DotaSourceFetcher,
+  version: string
+): Promise<DotaPatchSummary | null> {
+  let response: Response;
+  try {
+    response = await fetcher.fetchPatchDetails(version);
+  } catch {
+    throw new DotaPatchDetailError('DOTA_PATCH_DETAIL_FETCH', version);
+  }
+  let payload: unknown;
+  try {
+    payload = await readBoundedJson(response, MAX_PATCH_BYTES, 'patch_notes');
+  } catch (error) {
+    if (!(error instanceof DotaWatchError)) throw error;
+    throw new DotaPatchDetailError(
+      error.code.replace('DOTA_SOURCE_', 'DOTA_PATCH_DETAIL_') as DotaPatchDetailError['code'],
+      version
+    );
+  }
+  const parsed = patchDetailsSchema.safeParse(payload);
+  if (!parsed.success || parsed.data.patch_number !== version)
+    throw new DotaPatchDetailError('DOTA_PATCH_DETAIL_SHAPE', version);
+
+  let nameMaps: { heroes: Map<number, string>; items: Map<number, string> };
+  try {
+    nameMaps = await fetcher.fetchPatchNameMaps();
+  } catch (error) {
+    const code = error instanceof DotaWatchError ? error.code : 'DOTA_SOURCE_FETCH';
+    throw new DotaPatchDetailError(
+      code.replace('DOTA_SOURCE_', 'DOTA_PATCH_DETAIL_') as DotaPatchDetailError['code'],
+      version
+    );
+  }
+
+  const countNotes = (notes: { note: string }[] | undefined) =>
+    (notes ?? []).filter((entry) => entry.note.trim() !== '').length;
+  const makeTheme = (
+    category: string,
+    name: string,
+    notes: { note: string }[] | undefined
+  ): DotaPatchChangeTheme | null => {
+    const texts = (notes ?? []).map((entry) => entry.note.trim()).filter(Boolean);
+    if (texts.length === 0) return null;
+    const changes = texts.map(summarizePatchNote).filter((change): change is string => change !== null);
+    return {
+      category,
+      name,
+      changes,
+      noteCount: texts.length,
+      numericNoteCount: changes.filter((change) => /\d/.test(change)).length,
+      structuralNoteCount: changes.filter((change) => change.startsWith('Добавлено:')).length,
+      relativeMagnitudeScore: texts.reduce((maximum, note) => Math.max(maximum, relativeMagnitudeScore(note)), 0)
+    };
+  };
+  const themes: DotaPatchChangeTheme[] = [];
+  let unresolvedEntities = false;
+  for (const group of parsed.data.general_notes ?? []) {
+    const theme = makeTheme(
+      'Общие изменения',
+      cleanPatchLabel(group.title) || 'Общие игровые изменения',
+      group.generic
+    );
+    if (theme !== null) themes.push(theme);
+  }
+  for (const hero of parsed.data.heroes ?? []) {
+    const notes = [
+      ...(hero.hero_notes ?? []),
+      ...(hero.talent_notes ?? []),
+      ...(hero.abilities ?? []).flatMap((ability) => ability.ability_notes ?? [])
+    ];
+    if (countNotes(notes) === 0) continue;
+    const name = cleanPatchLabel(hero.hero_id === undefined ? undefined : nameMaps.heroes.get(hero.hero_id));
+    if (name === '') {
+      unresolvedEntities = true;
+      continue;
+    }
+    const theme = makeTheme('Герой', name, notes);
+    if (theme !== null) themes.push(theme);
+  }
+  const collectItems = (entries: z.infer<typeof patchEntityNotesSchema>[], category: string) => {
+    for (const entry of entries) {
+      if (entry.ability_id === undefined || entry.ability_id === -1 || entry.is_general_note === true) continue;
+      if (countNotes(entry.ability_notes) === 0) continue;
+      const name = cleanPatchLabel(nameMaps.items.get(entry.ability_id));
+      if (name === '') {
+        unresolvedEntities = true;
+        continue;
+      }
+      const theme = makeTheme(category, name, entry.ability_notes);
+      if (theme !== null) themes.push(theme);
+    }
+  };
+  collectItems(parsed.data.items ?? [], 'Предмет');
+  collectItems(parsed.data.neutral_items ?? [], 'Нейтральный предмет');
+  for (const creep of parsed.data.neutral_creeps ?? []) {
+    const name = cleanPatchLabel(creep.localized_name) || cleanPatchLabel(creep.name);
+    if (countNotes(creep.neutral_creep_notes) === 0) continue;
+    if (name === '') {
+      unresolvedEntities = true;
+      continue;
+    }
+    const theme = makeTheme('Нейтральное существо', name, creep.neutral_creep_notes);
+    if (theme !== null) themes.push(theme);
+  }
+  themes.sort(
+    (left, right) =>
+      patchThemeScore(right) - patchThemeScore(left) ||
+      left.category.localeCompare(right.category) ||
+      left.name.localeCompare(right.name)
+  );
+  const rankedThemes = selectPatchThemes(themes);
+  return rankedThemes.length === 0 || unresolvedEntities
+    ? null
+    : { patchNumber: parsed.data.patch_number, title: parsed.data.patch_name, themes: rankedThemes };
+}
+
+const patchParameterNames: Record<string, string> = {
+  'attack range': 'Дальность атаки',
+  'attack speed': 'Скорость атаки',
+  armor: 'Броня',
+  'base damage': 'Базовый урон',
+  'cast range': 'Дальность применения',
+  'cast time': 'Время применения',
+  cooldown: 'Перезарядка',
+  cost: 'Стоимость',
+  damage: 'Урон',
+  duration: 'Длительность',
+  health: 'Здоровье',
+  lifesteal: 'Вампиризм',
+  'mana cost': 'Расход маны',
+  'mana regeneration': 'Восстановление маны',
+  'movement speed': 'Скорость передвижения',
+  range: 'Дальность',
+  'respawn time': 'Время возрождения',
+  vampirism: 'Вампиризм'
+};
+
+function summarizePatchNote(note: string): string | null {
+  if (/^new map mechanic\.?$/i.test(note.trim())) return 'Добавлено: новая механика карты';
+  const parameter = Object.keys(patchParameterNames)
+    .sort((left, right) => right.length - left.length)
+    .join('|');
+  const fromTo = note.match(
+    new RegExp(
+      `\\b(${parameter})\\s+(?:was\\s+)?(?:increased|decreased|reduced|lowered|raised|changed)\\s+from\\s+(-?\\d+(?:\\.\\d+)?%?)\\s+to\\s+(-?\\d+(?:\\.\\d+)?%?)`,
+      'i'
+    )
+  );
+  if (fromTo !== null) {
+    const label = patchParameterNames[(fromTo[1] as string).toLowerCase()];
+    return `${label}: ${fromTo[2]} → ${fromTo[3]}`;
+  }
+  const byAmount = note.match(
+    new RegExp(
+      `\\b(${parameter})\\s+(?:was\\s+)?(increased|decreased|reduced|lowered|raised)\\s+by\\s+(-?\\d+(?:\\.\\d+)?%?)`,
+      'i'
+    )
+  );
+  if (byAmount !== null) {
+    const label = patchParameterNames[(byAmount[1] as string).toLowerCase()];
+    const sign = /^(?:decreased|reduced|lowered)$/i.test(byAmount[2] as string) ? '−' : '+';
+    return `${label}: ${sign}${byAmount[3]}`;
+  }
+  return null;
+}
+
+function patchThemeScore(theme: DotaPatchChangeTheme): number {
+  return (
+    theme.structuralNoteCount * 1_000_000 +
+    theme.relativeMagnitudeScore * 10 +
+    theme.numericNoteCount * 100 +
+    Math.min(theme.noteCount, 9)
+  );
+}
+
+function relativeMagnitudeScore(note: string): number {
+  const match = note.match(/\bfrom\s+(-?\d+(?:\.\d+)?)\s*(%?)\s+to\s+(-?\d+(?:\.\d+)?)\s*(%?)/i);
+  if (match === null || match[2] !== match[4]) return 0;
+  const before = Number(match[1]);
+  const after = Number(match[3]);
+  if (!Number.isFinite(before) || !Number.isFinite(after) || before === 0) return 0;
+  const ratioScore = Math.min(10_000, Math.round((Math.abs(after - before) / Math.abs(before)) * 10_000));
+  if (/\b(gold|cost|price|recipe|shop)\b/i.test(note)) return Math.round(ratioScore / 10);
+  if (
+    /\b(damage|lifesteal|vampirism|cooldown|range|duration|armor|health|mana|attack speed|movement speed|cast time)\b/i.test(
+      note
+    )
+  ) {
+    return ratioScore;
+  }
+  return Math.round(ratioScore / 4);
+}
+
+function selectPatchThemes(themes: DotaPatchChangeTheme[]): DotaPatchChangeTheme[] {
+  const eligible = themes
+    .filter((theme) => theme.changes.length > 0)
+    .sort(
+      (left, right) =>
+        patchThemeScore(right) - patchThemeScore(left) ||
+        left.category.localeCompare(right.category) ||
+        left.name.localeCompare(right.name)
+    );
+  if (eligible.length === 0) return [];
+  const selected: DotaPatchChangeTheme[] = [];
+  const topScore = patchThemeScore(eligible[0] as DotaPatchChangeTheme);
+  const minBalancedScore = Math.ceil(topScore / 4);
+  for (const theme of eligible) {
+    if (selected.length === 4) break;
+    if (selected.some((entry) => entry.category === theme.category)) continue;
+    if (patchThemeScore(theme) >= minBalancedScore) selected.push(theme);
+  }
+  for (const theme of eligible) {
+    if (selected.length === 4) break;
+    if (!selected.some((entry) => entry.name === theme.name && entry.category === theme.category)) selected.push(theme);
+  }
+  return selected.sort(
+    (left, right) =>
+      patchThemeScore(right) - patchThemeScore(left) ||
+      left.category.localeCompare(right.category) ||
+      left.name.localeCompare(right.name)
+  );
+}
+
+function cleanPatchLabel(value: string | undefined): string {
+  return (value ?? '')
+    .replace(/<[^>]*>/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 120);
 }
 
 export interface DotaUpdateItem {
@@ -99,10 +518,12 @@ export interface DotaWatcherRepository {
   storeSync(input: { items: DotaUpdateItem[]; detectedAt: number }): Promise<{ inserted: number }>;
   recordSourceFailure(input: {
     sourceKey: DotaSourceKey;
-    code: DotaWatchError['code'];
+    code: DotaWatchError['code'] | DotaPatchDetailError['code'];
+    externalId?: string;
     detectedAt: number;
     id: string;
   }): Promise<string>;
+  resolvePatchDetailFailures(input: { externalId: string; detectedAt: number }): Promise<void>;
   listDraftWork(limit: number): Promise<DotaDraftSource[]>;
   reserveDraft(input: { sourceKey: DotaSourceKey; externalId: string; postId: string }): Promise<string | null>;
   listOwnerAlertWork(limit: number): Promise<DotaDraftSource[]>;
@@ -119,7 +540,8 @@ export interface DotaDraftSource extends DotaUpdateItem {
 export interface DotaSourceIncident {
   id: string;
   sourceKey: DotaSourceKey;
-  code: DotaWatchError['code'];
+  externalId: string | null;
+  code: DotaWatchError['code'] | DotaPatchDetailError['code'];
   resolvedAt: number | null;
 }
 
@@ -142,9 +564,19 @@ export const DOTA_OWNER_ALERT_WORK_SQL = `
   ORDER BY u.published_at, u.source_key, u.external_id LIMIT ?1`;
 
 export const DOTA_SOURCE_INCIDENT_ALERT_SQL = `
-  SELECT id, source_key, code, resolved_at FROM dota_source_incidents INDEXED BY dota_source_incidents_alert_idx
+  SELECT id, source_key, external_id, code, resolved_at FROM dota_source_incidents INDEXED BY dota_source_incidents_alert_idx
   WHERE owner_alert_claimed_at IS NULL
   ORDER BY created_at, id LIMIT ?1`;
+
+export const DOTA_PATCH_DETAIL_INCIDENT_RECOVERY_SQL = `
+  SELECT id FROM dota_source_incidents
+  WHERE source_key = 'patch_notes'
+    AND external_id IS NOT NULL
+    AND code IN (
+      'DOTA_PATCH_DETAIL_FETCH', 'DOTA_PATCH_DETAIL_HTTP', 'DOTA_PATCH_DETAIL_BODY_LIMIT',
+      'DOTA_PATCH_DETAIL_JSON', 'DOTA_PATCH_DETAIL_SHAPE'
+    )
+    AND resolved_at IS NULL`;
 
 async function readBoundedJson(response: Response, maximumBytes: number, sourceKey: DotaSourceKey): Promise<unknown> {
   if (!response.ok) throw new DotaWatchError('DOTA_SOURCE_HTTP', sourceKey);
@@ -280,7 +712,9 @@ export function createD1DotaWatcherRepository(db: D1Database): DotaWatcherReposi
       // Item writes, baseline advancement and incident recovery are one atomic source sync.
       statements.push(
         db
-          .prepare('UPDATE dota_source_incidents SET resolved_at = max(created_at, ?1) WHERE resolved_at IS NULL')
+          .prepare(
+            'UPDATE dota_source_incidents SET resolved_at = max(created_at, ?1) WHERE resolved_at IS NULL AND external_id IS NULL'
+          )
           .bind(detectedAt)
       );
       const results = await db.batch(statements);
@@ -288,21 +722,36 @@ export function createD1DotaWatcherRepository(db: D1Database): DotaWatcherReposi
       return { inserted };
     },
 
-    async recordSourceFailure({ sourceKey, code, detectedAt, id }) {
+    async recordSourceFailure({ sourceKey, code, externalId, detectedAt, id }) {
       const result = await db
         .prepare(
-          `INSERT OR IGNORE INTO dota_source_incidents (id, source_key, code, created_at)
-           VALUES (?1, ?2, ?3, ?4)`
+          `INSERT OR IGNORE INTO dota_source_incidents (id, source_key, external_id, code, created_at)
+           VALUES (?1, ?2, ?3, ?4, ?5)`
         )
-        .bind(id, sourceKey, code, detectedAt)
+        .bind(id, sourceKey, externalId ?? null, code, detectedAt)
         .run();
       if (result.meta.changes === 1) return id;
       const existing = await db
-        .prepare('SELECT id FROM dota_source_incidents WHERE source_key = ?1 AND resolved_at IS NULL')
-        .bind(sourceKey)
+        .prepare(
+          'SELECT id FROM dota_source_incidents WHERE source_key = ?1 AND external_id IS ?2 AND resolved_at IS NULL'
+        )
+        .bind(sourceKey, externalId ?? null)
         .first<{ id: string }>();
       if (existing === null) throw new Error('DOTA_INCIDENT_WRITE_FAILED');
       return existing.id;
+    },
+
+    async resolvePatchDetailFailures({ externalId, detectedAt }) {
+      await db
+        .prepare(
+          `UPDATE dota_source_incidents SET resolved_at = max(created_at, ?1)
+           WHERE source_key = 'patch_notes' AND external_id = ?2 AND code IN (
+             'DOTA_PATCH_DETAIL_FETCH', 'DOTA_PATCH_DETAIL_HTTP', 'DOTA_PATCH_DETAIL_BODY_LIMIT',
+             'DOTA_PATCH_DETAIL_JSON', 'DOTA_PATCH_DETAIL_SHAPE'
+           ) AND resolved_at IS NULL`
+        )
+        .bind(detectedAt, externalId)
+        .run();
     },
 
     async listDraftWork(limit) {
@@ -367,12 +816,14 @@ export function createD1DotaWatcherRepository(db: D1Database): DotaWatcherReposi
       const { results } = await db.prepare(DOTA_SOURCE_INCIDENT_ALERT_SQL).bind(limit).all<{
         id: string;
         source_key: DotaSourceKey;
-        code: DotaWatchError['code'];
+        external_id: string | null;
+        code: DotaWatchError['code'] | DotaPatchDetailError['code'];
         resolved_at: number | null;
       }>();
       return results.map((row) => ({
         id: row.id,
         sourceKey: row.source_key,
+        externalId: row.external_id,
         code: row.code,
         resolvedAt: row.resolved_at
       }));

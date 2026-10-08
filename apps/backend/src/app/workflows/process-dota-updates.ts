@@ -1,6 +1,12 @@
 import type { CreatePostInput } from '@alexeev/contracts';
 import type { TelegramOwnerMessageApi } from '../../integrations/telegram/telegram-api';
-import { DotaWatchError, type DotaDraftSource, type DotaWatcherRepository } from '../../modules/dota';
+import {
+  DotaPatchDetailError,
+  DotaWatchError,
+  type DotaDraftSource,
+  type DotaPatchSummary,
+  type DotaWatcherRepository
+} from '../../modules/dota';
 import { createPost, type IdempotencyGate, type PostRepository } from '../../modules/content';
 import type { Logger } from '../../platform/logging/logger';
 import { AppError } from '../../shared/app-error';
@@ -22,6 +28,7 @@ export interface DotaWorkflowSummary {
 
 export async function processDotaUpdates(deps: {
   sync: (input: { detectedAt: number }) => Promise<{ inserted: number; fetched: number }>;
+  summarizePatch: (version: string) => Promise<DotaPatchSummary | null>;
   repo: DotaWatcherRepository;
   posts: PostRepository;
   idempotency: IdempotencyGate;
@@ -77,7 +84,31 @@ export async function processDotaUpdates(deps: {
     const existing = await deps.posts.findById(reservedId);
     if (existing !== null) continue;
 
-    const input = draftInput(source);
+    let patchSummary: DotaPatchSummary | null = null;
+    if (source.sourceKey === 'patch_notes') {
+      try {
+        patchSummary = await deps.summarizePatch(source.externalId);
+        await deps.repo.resolvePatchDetailFailures({ externalId: source.externalId, detectedAt: deps.now() });
+      } catch (error) {
+        if (!(error instanceof DotaPatchDetailError)) throw error;
+        summary.sourceFailures += 1;
+        await deps.repo.recordSourceFailure({
+          sourceKey: error.sourceKey,
+          code: error.code,
+          externalId: error.externalId,
+          detectedAt: deps.now(),
+          id: deps.newId()
+        });
+        deps.logger.warn({
+          component: 'dota',
+          operation: 'patch_summary',
+          status: 'omitted',
+          errorCode: error.code
+        });
+        continue;
+      }
+    }
+    const input = draftInput(source, patchSummary);
     try {
       await createPost(
         { repo: deps.posts, idempotency: deps.idempotency, now: deps.now(), newId: () => reservedId },
@@ -107,10 +138,18 @@ export async function processDotaUpdates(deps: {
   return summary;
 }
 
-function draftInput(source: DotaDraftSource): CreatePostInput {
+function draftInput(source: DotaDraftSource, patchSummary: DotaPatchSummary | null): CreatePostInput {
   const publishedAt = new Date(source.publishedAt).toISOString();
   const title = source.title.length <= 200 ? source.title : 'Обновление Dota';
-  const body = `${source.title}\n\nОпубликовано (UTC): ${publishedAt}\nОфициальный источник: ${source.sourceUrl}`;
+  const summary =
+    source.sourceKey !== 'patch_notes'
+      ? ''
+      : patchSummary === null
+        ? '\n\nАвтоматическая сводка не сформирована: проверьте изменения вручную по официальному источнику.'
+        : `\n\nПредварительная сводка по официальным заметкам — проверьте перед публикацией:\n${patchSummary.themes
+            .map((theme) => `— ${theme.category} — ${theme.name}: ${theme.changes.join('; ')}`)
+            .join('\n')}`;
+  const body = `${source.title}${summary}\n\nОпубликовано (UTC): ${publishedAt}\nОфициальный источник: ${source.sourceUrl}`;
   return { title, body, entities: [] };
 }
 

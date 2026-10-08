@@ -53,7 +53,9 @@ import { AppError } from '../shared/app-error';
 import {
   createD1DotaWatcherRepository,
   createOfficialDotaFetcher,
+  summarizeOfficialPatch,
   syncDotaUpdates,
+  type DotaPatchSummary,
   type DotaSourceFetcher,
   type DotaWatcherRepository
 } from '../modules/dota';
@@ -102,7 +104,10 @@ export interface Container {
   /** Webhook update ids already seen (migration 0009): a replayed update is not processed twice. */
   webhookUpdates: UpdateDedup;
   /** Polls the two fixed official Dota feeds and persists deduped source items. */
-  dotaWatcher: { sync(input: { detectedAt: number }): Promise<{ inserted: number; fetched: number }> };
+  dotaWatcher: {
+    sync(input: { detectedAt: number }): Promise<{ inserted: number; fetched: number }>;
+    summarizePatch(version: string): Promise<DotaPatchSummary | null>;
+  };
   /** D1 state for draft reservation, Dota owner notices and deduped source incidents. */
   dotaRepository: DotaWatcherRepository;
   housekeeping: {
@@ -269,9 +274,10 @@ export function createContainer(env: ContainerEnv, overrides: ContainerOverrides
     get dotaWatcher() {
       if (overrides.dotaWatcher !== undefined) return overrides.dotaWatcher;
       const repo = createD1DotaWatcherRepository(db());
+      const fetcher = overrides.dotaFetcher ?? createOfficialDotaFetcher();
       return {
-        sync: ({ detectedAt }: { detectedAt: number }) =>
-          syncDotaUpdates({ fetcher: overrides.dotaFetcher ?? createOfficialDotaFetcher(), repo, detectedAt })
+        sync: ({ detectedAt }: { detectedAt: number }) => syncDotaUpdates({ fetcher, repo, detectedAt }),
+        summarizePatch: (version: string) => summarizeOfficialPatch(fetcher, version)
       };
     },
     get dotaRepository() {

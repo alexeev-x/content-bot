@@ -427,7 +427,7 @@ This is the actionable queue from the master roadmap. Whoever starts or finishes
 | 2 | Autosave | done (awaiting owner DEV check) |
 | 3 | Dota update watcher: official sources, D1 dedup (Phase 1D) | done (deployed to DEV, smoke-check passed) |
 | 4 | Dota update → template draft + private owner alert (Phase 1D) | done (deployed to DEV, smoke-check passed) |
-| 5 | Patch summary from confirmed changes (Phase 1D) | not started |
+| 5 | Patch summary from confirmed changes (Phase 1D) | in progress |
 | 6 | Manual multi-media model, R2 upload and preview | not started |
 | 7 | Telegram multi-media publishing and publication_messages | not started |
 | 8 | Post actions/archive UX | in progress (Archive tab exists, see §2.5) |

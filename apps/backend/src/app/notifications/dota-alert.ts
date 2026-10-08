@@ -28,7 +28,12 @@ export function formatDotaIncidentAlert(
   html: string;
   button: { text: string; url: string };
 } {
-  const source = incident.sourceKey === 'steam_news' ? 'Steam News' : 'Патч-ноты Dota';
+  const source =
+    incident.externalId !== null
+      ? `Патч-ноты Dota ${escapeHtml(incident.externalId)}`
+      : incident.sourceKey === 'steam_news'
+        ? 'Steam News'
+        : 'Патч-ноты Dota';
   const recovered = incident.resolvedAt !== null;
   return {
     html: recovered

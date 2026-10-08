@@ -185,8 +185,10 @@ export async function handleScheduled(controller: ScheduledController, container
     failures === 0 && (counts.expired ?? 0) === 0 && (counts.due ?? 0) === 0 && raised.length === 0;
   if (controller.scheduledTime % (5 * 60_000) === 0 && minute !== 0 && minute !== PURGE_MINUTE && publicationIdle) {
     await step('dota-watch', async () => {
+      const dotaWatcher = container.dotaWatcher;
       const summary = await processDotaUpdates({
-        sync: container.dotaWatcher.sync,
+        sync: dotaWatcher.sync,
+        summarizePatch: dotaWatcher.summarizePatch,
         repo: container.dotaRepository,
         posts: container.posts,
         idempotency: container.idempotency,

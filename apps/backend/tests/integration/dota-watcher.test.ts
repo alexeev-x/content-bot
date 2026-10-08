@@ -35,6 +35,12 @@ function scriptedFetcher(input: {
   calls?: DotaSourceKey[];
 }): DotaSourceFetcher {
   return {
+    async fetchPatchDetails(version) {
+      return Response.json({ patch_number: version, patch_name: version, heroes: [] });
+    },
+    async fetchPatchNameMaps() {
+      return { heroes: new Map(), items: new Map() };
+    },
     async fetch(source) {
       input.calls?.push(source);
       const value = source === 'steam_news' ? input.steam : input.patches;
@@ -50,6 +56,28 @@ async function clearDotaTables(): Promise<void> {
     testDb().prepare('DELETE FROM dota_source_state')
   ]);
 }
+
+describe('official patch name maps', () => {
+  it('uses the fixed Valve dictionaries once per fetcher and returns keyed names', async () => {
+    const calls: string[] = [];
+    const fetcher = createOfficialDotaFetcher(async (input) => {
+      const url = String(input);
+      calls.push(url);
+      if (url.includes('/herolist?')) {
+        return Response.json({ result: { data: { heroes: [{ id: 1, name_english_loc: 'Test Hero' }] } } });
+      }
+      return Response.json({ result: { data: { itemabilities: [{ id: 10, name_english_loc: 'Test Item' }] } } });
+    });
+
+    const [first, second] = await Promise.all([fetcher.fetchPatchNameMaps(), fetcher.fetchPatchNameMaps()]);
+
+    expect(first.heroes.get(1)).toBe('Test Hero');
+    expect(first.items.get(10)).toBe('Test Item');
+    expect(second).toBe(first);
+    expect(calls).toHaveLength(2);
+    expect(calls.every((url) => url.startsWith('https://www.dota2.com/datafeed/'))).toBe(true);
+  });
+});
 
 function makeWatcherTick(input: { clock: FakeClock; fetcher: DotaSourceFetcher; scheduledTime: number }): {
   run(): Promise<void>;
@@ -234,6 +262,12 @@ describe('Dota source watcher', () => {
       clock,
       scheduledTime: WATCHER_START,
       fetcher: {
+        async fetchPatchDetails(version) {
+          return Response.json({ patch_number: version, patch_name: version, heroes: [] });
+        },
+        async fetchPatchNameMaps() {
+          return { heroes: new Map(), items: new Map() };
+        },
         async fetch(source) {
           return source === 'steam_news'
             ? Response.json(steamPayload(steamItem('must-not-insert')))
@@ -248,6 +282,12 @@ describe('Dota source watcher', () => {
       clock,
       scheduledTime: WATCHER_START,
       fetcher: {
+        async fetchPatchDetails(version) {
+          return Response.json({ patch_number: version, patch_name: version, heroes: [] });
+        },
+        async fetchPatchNameMaps() {
+          return { heroes: new Map(), items: new Map() };
+        },
         async fetch(source) {
           return source === 'steam_news'
             ? new Response('x'.repeat(512 * 1024 + 1))
