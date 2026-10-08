@@ -21,7 +21,8 @@ import {
   TabList,
   Tabs,
   useMediaQuery,
-  useRowSearch
+  useRowSearch,
+  useToast
 } from '../../../shared/ui';
 import type { RowSelection, SelectOption } from '../../../shared/ui';
 import { ru } from '../../../shared/lib/ru';
@@ -29,6 +30,7 @@ import { postsInfiniteQueryOptions } from '../api/posts-queries';
 import { refusalText, type LifecycleNotice } from '../model/lifecycle-notices';
 import { deleteBlockOf } from '../model/post-state';
 import { sortPosts, type PostSort, type PostSortKey, type SortDirection } from '../model/post-sort';
+import { useDuplicatePost } from '../model/use-duplicate-post';
 import { useNow } from '../model/use-now';
 import { useRestoreActions } from '../model/use-restore';
 import { useSelection } from '../model/use-selection';
@@ -46,6 +48,7 @@ type Props = {
   onViewChange: (view: PostsView) => void;
   onOpen: (id: string) => void;
   onCreate: () => void;
+  onOpenPublications: (postId: string) => void;
   /** Opens the reconciliation of this post's `unknown` publication (the page resolves which one). */
   onReconcile: (postId: string) => void;
 };
@@ -83,8 +86,10 @@ function sortOptionsFor(view: PostsView): SelectOption[] {
   ];
 }
 
-export function PostsList({ view, onViewChange, onOpen, onCreate, onReconcile }: Props) {
+export function PostsList({ view, onViewChange, onOpen, onCreate, onOpenPublications, onReconcile }: Props) {
   const now = useNow();
+  const toast = useToast();
+  const duplicate = useDuplicatePost();
   const narrow = useMediaQuery(NARROW);
   const rootRef = useRef<HTMLElement>(null);
   const focusAfter = useRef<string | null>(null);
@@ -202,6 +207,24 @@ export function PostsList({ view, onViewChange, onOpen, onCreate, onReconcile }:
 
   function onAction(post: PostDto, action: RowAction) {
     setNotice(null);
+    if (action === 'open') {
+      onOpen(post.id);
+      return;
+    }
+    if (action === 'publications') {
+      onOpenPublications(post.id);
+      return;
+    }
+    if (action === 'duplicate') {
+      void duplicate
+        .duplicate(post)
+        .then((created) => {
+          toast.show({ tone: 'success', title: postsCopy.actions.duplicateDone });
+          onOpen(created.id);
+        })
+        .catch(() => toast.show({ tone: 'error', title: postsCopy.actions.duplicateFailed }));
+      return;
+    }
     if (action === 'reconcile') {
       onReconcile(post.id);
       return;
