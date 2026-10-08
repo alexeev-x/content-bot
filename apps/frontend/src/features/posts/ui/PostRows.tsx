@@ -84,7 +84,11 @@ function menuFor(post: PostDto, mode: Props['mode'], onAction: Props['onAction']
       ? [{ id: 'restore', label: copy.actions.restore, icon: 'retry' }, ...common, del]
       : block === 'unknown'
         ? [reconcile, ...common, del]
-        : [{ id: 'archive', label: copy.actions.archive, icon: 'download' }, ...common, del];
+        : [
+            { id: 'archive', label: copy.actions.archive, icon: 'download' },
+            ...common,
+            del
+          ];
   return (
     <Menu
       label={copy.actions.rowMenu(titleOf(post))}
