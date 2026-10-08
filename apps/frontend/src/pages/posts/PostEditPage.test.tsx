@@ -62,15 +62,19 @@ function serve(current: () => PostDto) {
 }
 
 describe('archived post page', () => {
-  it('is read-only with the archive banner, its date, and no publish action', async () => {
+  it('is read-only with the archive banner, no publish action, and only safe secondary actions', async () => {
     serve(() => archivedPost({ id: ids.post, title: 'Итоги' }));
-    await renderPage();
+    const { user } = await renderPage();
     expect(await screen.findByText(/Пост в архиве\. Удалится /)).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Вернуть из архива' })).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Удалить сейчас' })).toBeTruthy();
     expect((screen.getByRole('textbox', { name: /Заголовок/ }) as HTMLInputElement).readOnly).toBe(true);
     expect(screen.queryByRole('button', { name: 'Опубликовать' })).toBeNull();
-    expect(screen.queryByRole('button', { name: 'Действия с постом' })).toBeNull();
+
+    await user.click(screen.getByRole('button', { name: 'Действия с постом' }));
+    expect(await screen.findByRole('menuitem', { name: 'Дублировать' })).toBeTruthy();
+    expect(screen.getByRole('menuitem', { name: 'Открыть публикации' })).toBeTruthy();
+    expect(screen.queryByRole('menuitem', { name: 'Архивировать' })).toBeNull();
   });
 
   it('restores from the banner and then shows a live approved post', async () => {
