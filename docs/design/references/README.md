@@ -20,19 +20,10 @@ Use it as a reference for layout behavior and visual restraint:
 
 Do **not** copy Cloudflare branding, logos, proprietary illustrations or wording.
 
+
+мне понравилась https://dash.cloudflare.com/ дашборн все очень удобно в самом низу можно скрыть открыть панель плавно также блоки и у них очень красивый скелетон  блоки почти не меняют высоту все как с реальными данными в целом вот стиль имено макета а ты поросто под все наши страницы это у нас я накидаю св слеюбдующем сообщении ок?
+
 ## Files
-
-### `cloudflare-search-reference.webp`
-
-Reference for global search / command palette:
-
-- search field at top;
-- Recents;
-- grouped results;
-- arrows/Enter/Esc keyboard behavior;
-- simple row geometry;
-- scrollable result area;
-- keyboard hints in the footer.
 
 ### `alexeev-design-reference-board.webp`
 
