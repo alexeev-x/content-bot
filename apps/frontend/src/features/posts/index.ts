@@ -19,6 +19,7 @@ export { formatClock, formatExact } from './model/format-time';
 export { DeletePostsDialog, deleteTargetOf } from './ui/DeletePostsDialog';
 export { LifecycleBanner } from './ui/LifecycleBanner';
 export { useRestoreActions } from './model/use-restore';
+export { useDuplicatePost } from './model/use-duplicate-post';
 export type { LifecycleNotice } from './model/lifecycle-notices';
 export { deleteBlockOf } from './model/post-state';
 export { QuickPostDialog } from './ui/QuickPostDialog';
