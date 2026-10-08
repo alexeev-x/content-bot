@@ -235,6 +235,14 @@ export type BulkDeletePostsResultDto = z.infer<typeof bulkDeletePostsResultSchem
 export const restorePostInputSchema = z.strictObject({ revision: revisionSchema });
 export type RestorePostInput = z.infer<typeof restorePostInputSchema>;
 
+// POST /api/v1/posts/{id}/archive → 200 PostDto with archivedAt set. Manual archive never cancels or races
+// an active publication: scheduled/retry-wait, in-progress and unknown publications must be resolved first.
+// Errors: VALIDATION_ERROR 400 or 413, NOT_FOUND 404, CONFLICT 409 (details.reason STALE_REVISION |
+// ALREADY_ARCHIVED | PUBLICATION_PENDING | PUBLICATION_IN_PROGRESS | PUBLICATION_UNKNOWN; publication blockers
+// add details.publicationId), UNAUTHORIZED 401, FORBIDDEN 403.
+export const archivePostInputSchema = z.strictObject({ revision: revisionSchema });
+export type ArchivePostInput = z.infer<typeof archivePostInputSchema>;
+
 // POST /api/v1/posts/restore (1 to 100 posts) → 200 BulkRestorePostsResultDto, per post like the bulk delete.
 // Errors: as the bulk delete.
 export const bulkRestorePostsInputSchema = bulkPostsInputSchema;
