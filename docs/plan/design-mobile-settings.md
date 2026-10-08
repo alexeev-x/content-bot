@@ -4,7 +4,7 @@ Part of the master plan; status, order and the queue live in `docs/IMPLEMENTATIO
 
 ## 22. Design system and visual direction
 
-Target: Calm Intelligence.
+Target: Calm Intelligence. Approved 08.10.2026 as «Calm Operations»: `docs/design/UX_SPEC.md` and `docs/design/README.md` are the visual source; the dev-only prototype at `/__proto` mirrors it; colour constructor kept. Theme «system» mode and a real-device touch test of widget drag remain open.
 
 Principles:
 

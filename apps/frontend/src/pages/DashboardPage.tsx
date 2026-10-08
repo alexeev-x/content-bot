@@ -12,6 +12,7 @@ import {
   useDashboardLayout,
   useDashboardQuery,
   useLayoutEditor,
+  type PageBindings,
   type ServiceRow
 } from '../features/dashboard';
 import { browserTimeZone, utcOffsetLabel } from '../features/publications';
@@ -31,8 +32,8 @@ export function DashboardPage({ pollMs }: Props) {
   const navigate = useNavigate();
   const layout = useDashboardLayout();
   const editor = useLayoutEditor({ current: layout.widgets, revision: layout.revision });
-  // The day summary is read only while the page shows widgets that need it (never while editing).
-  const wantsDay = layout.settled && !editor.editing && layout.widgets.some((widget) => readsDashboard(widget.type));
+  // The day summary is read only while the page (or the draft being edited) has widgets that need it.
+  const wantsDay = layout.settled && (editor.draft ?? layout.widgets).some((widget) => readsDashboard(widget.type));
   const dashboard = useDashboardQuery(pollMs, wantsDay);
   const service = useServiceChecks();
   const bot = useBotCheck();
@@ -57,6 +58,17 @@ export function DashboardPage({ pollMs }: Props) {
     wasEditing.current = editor.editing;
   }, [editor.editing]);
 
+  const bindings: PageBindings = {
+    query: dashboard,
+    checks,
+    services,
+    zoneNote,
+    onOpenPublication: (id) => void navigate({ to: '/publications', search: { id } }),
+    onNewPost: () => void navigate({ to: '/posts/new' }),
+    onOpenPosts: () => void navigate({ to: '/posts' }),
+    onOpenPost: (id) => void navigate({ to: '/posts/$id', params: { id } }),
+    onAddChannel: () => void navigate({ to: '/settings/channels' })
+  };
   const layoutFailed = layout.query.isError && !layout.query.data;
 
   return (
@@ -105,21 +117,13 @@ export function DashboardPage({ pollMs }: Props) {
         </Banner>
       ) : null}
       {editor.editing ? (
-        <DashboardEditor editor={editor} />
+        <DashboardEditor editor={editor} bindings={bindings} />
       ) : !layout.settled ? (
         <DashboardSkeleton zoneNote={zoneNote} />
       ) : (
         <Dashboard
           widgets={layout.widgets}
-          query={dashboard}
-          checks={checks}
-          services={services}
-          zoneNote={zoneNote}
-          onOpenPublication={(id) => void navigate({ to: '/publications', search: { id } })}
-          onNewPost={() => void navigate({ to: '/posts/new' })}
-          onOpenPosts={() => void navigate({ to: '/posts' })}
-          onOpenPost={(id) => void navigate({ to: '/posts/$id', params: { id } })}
-          onAddChannel={() => void navigate({ to: '/settings/channels' })}
+          {...bindings}
           {...(layout.revision === undefined
             ? {}
             : {

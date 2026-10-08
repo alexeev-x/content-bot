@@ -209,6 +209,8 @@ A post cannot be approved while required upload state is unresolved.
 
 The current table is directionally correct and should stay dense rather than become a card grid on desktop.
 
+Delivered 08.10.2026 (DEV): one live search field and column sort over loaded rows (client-side), phone cards + sort sheet. Server-side search, total counts and URL state are still open.
+
 Required:
 
 - server-side search.

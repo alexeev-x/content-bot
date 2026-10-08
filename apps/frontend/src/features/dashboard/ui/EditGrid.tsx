@@ -1,5 +1,5 @@
 import { DASHBOARD_GRID_COLUMNS, DASHBOARD_WIDGET_MAX_HEIGHT, type DashboardWidget } from '@alexeev/contracts';
-import { useMemo } from 'react';
+import { useMemo, type ReactNode } from 'react';
 import ReactGridLayout, { verticalCompactor, type Layout } from 'react-grid-layout';
 // The package's own stylesheet places the items and the drop placeholder; it ships with this lazy chunk only.
 import 'react-grid-layout/css/styles.css';
@@ -16,13 +16,15 @@ type Props = {
   /** The grid's own final layout after a drag or a resize (never after a mere render). */
   onCommit: (widgets: readonly DashboardWidget[]) => void;
   onAction: (id: string, action: WidgetAction) => void;
+  /** The real content of a widget at its current size. */
+  renderBody: (widget: DashboardWidget) => ReactNode;
 };
 
 /**
  * Desktop edit mode: react-grid-layout with snapping to the 12 columns and 56 px rows, vertical compaction, a drag
  * handle and a 44 px resize corner. It is loaded only when the owner starts editing, so the view mode never pays for it.
  */
-export function EditGrid({ widgets, onCommit, onAction }: Props) {
+export function EditGrid({ widgets, onCommit, onAction, renderBody }: Props) {
   const { ref, width } = useElementWidth();
   const layout = useMemo<Layout>(
     () =>
@@ -75,11 +77,15 @@ export function EditGrid({ widgets, onCommit, onAction }: Props) {
           }}
           compactor={verticalCompactor}
           onDragStop={(next) => commit(next)}
+          // The content reflows while the corner is dragged, not only when it is released.
+          onResize={(next) => commit(next)}
           onResizeStop={(next) => commit(next)}
         >
           {widgets.map((widget) => (
             <div key={widget.id} className={styles.item}>
-              <EditCard widget={widget} draft={widgets} onAction={onAction} />
+              <EditCard widget={widget} draft={widgets} onAction={onAction}>
+                {renderBody(widget)}
+              </EditCard>
             </div>
           ))}
         </ReactGridLayout>

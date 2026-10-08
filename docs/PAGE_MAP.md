@@ -9,12 +9,12 @@ The regular browser app and Telegram Mini App are the same SPA. Mobile at 375 px
 | Path | Product responsibility | Core capabilities | Critical states |
 |---|---|---|---|
 | `/login` | Owner sign-in | Telegram Login Widget; Mini App automatic sign-in | cancelled, expired, 401, foreign owner 403 |
-| `/` | Dashboard | system status strip (one line when healthy, one banner row on problems; spec: `docs/stories/dashboard-system-status.md`; «Сегодня» and «Требует внимания» blocks: `docs/stories/dashboard-today-incidents.md`), upcoming publications, recent activity, automation health, incidents, stale sources, quick actions | partial/stale data, component failure |
-| `/posts` | Content library | search/filter/sort, drafts/approved content, rubric/source/destination, navigate to revisions | empty, error, stale |
+| `/` | Dashboard | customizable 12-column widget grid (edit mode, catalog, undo; layout saved per owner via `/settings/dashboard-layout`; spec: `docs/design/UX_SPEC.md` §3.1); built widgets: system status, attention, today, upcoming, recent activity, drafts, week, channels, incidents, quick actions (older specs: `docs/stories/dashboard-system-status.md`, `docs/stories/dashboard-today-incidents.md`); automation health and stale sources appear when those systems exist | partial/stale data, component failure, layout save conflict |
+| `/posts` | Content library | one live search field (client-side over loaded rows), sort by column header (phone: sort sheet), drafts/approved content; server-side search, rubric/source/destination filters later | empty, error, stale |
 | `/posts?view=archive` | Posts archive | published posts kept 30 days, restore, delete now; leave-free editor, delete post, cancel/remove publication (spec: `docs/stories/posts-lifecycle.md`) | empty, error, 30-day expiry, unknown not deletable |
 | `/posts/new` | New content | full editor, source/rubric, media, destination, preview, save/approve/schedule | dirty, validation, preview failure |
 | `/posts/:id` | Content Studio | edit, revision history/diff, real preview, publication history, source provenance | 409 conflict, unsaved, stale revision |
-| `/publications` | Publication control | all sends/schedules, filters, status, destination, Telegram message id, safe actions | sending, retry_wait, failed, unknown |
+| `/publications` | Publication control | tabs Все / Запланированные / Отправленные / Ошибки (no «Сегодня» until a date-range filter exists), live client-side search and sort over loaded pages, «Опубликовать пост» picker, inspector, status, destination, Telegram message id, safe actions | sending, retry_wait, failed, unknown |
 | `/publications/:id` | Publication detail | timeline, attempt/audit detail, linked post, Telegram result, reconciliation | unknown, unsafe retry, partial telemetry |
 | `/calendar` | Scheduling | day/week/month views, schedule/reschedule/cancel, filters by destination/rubric | timezone/DST, collision, unsafe action |
 | `/automations` | Automation Center | rubrics, enabled/paused, auto/approval mode, last/next run, health, quick pause/run | source failure, stale run, partial config |
@@ -34,7 +34,7 @@ The regular browser app and Telegram Mini App are the same SPA. Mobile at 375 px
 
 ## Cross-page product requirements
 
-- Global search/command entry should navigate quickly to content, publications, automations and settings without becoming a universal mutation console.
+- Global search/command entry (Ctrl/⌘ K) is not built yet (needs an entity-search endpoint); list pages search their loaded rows. It should navigate quickly to content, publications, automations and settings without becoming a universal mutation console.
 - Environment must be visually obvious when running on dev; production-destructive actions require explicit confirmation.
 - Every list supports bounded pagination/filtering; no route loads an unbounded D1 table.
 - Statuses are textual + iconographic; color is never the only signal.
@@ -48,7 +48,7 @@ The regular browser app and Telegram Mini App are the same SPA. Mobile at 375 px
 
 ## Visual quality bar
 
-The current placeholder UI is not an acceptance reference. The first implementation must establish a coherent modern product language before feature screens multiply:
+The approved design (08.10.2026, `docs/design/UX_SPEC.md`, live prototype at `/__proto` in DEV) is the acceptance reference. The product language it establishes:
 
 - deliberate typography and hierarchy;
 - consistent density, spacing and alignment;

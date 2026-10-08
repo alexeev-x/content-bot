@@ -125,7 +125,7 @@ Removing a feature should require changes only to `app/router.tsx`, `app/navigat
 | State | Where to store | Example |
 |---|---|---|
 | Server | TanStack Query | publications, list of heroes, incidents, profiles |
-| URL | TanStack Router search params (route Zod schema) | filter `?status=failed`, page, search, period |
+| URL | TanStack Router search params (route Zod schema) | tab `?view=`, filter `?status=failed`, page, period; the live list search box (client-side over loaded rows) is transient UI state, not URL |
 | Form | React Hook Form | title, text, hero, time, media |
 | Transient UI | local `useState` | modal window, tab, focus |
 | Account | `GET /api/v1/auth/me` + Query | displaying the user and permissions; the server always re-checks |
@@ -210,7 +210,7 @@ The main API does not accept cookies, so a CSRF token is not needed; the server 
 
 ```text
 /login                  owner sign-in (Mini App sign-in is automatic)
-/                       dashboard: activity, upcoming publications, automation health
+/                       dashboard: customizable widget grid (layout stored server-side; react-grid-layout loaded lazily, edit mode only)
 /posts                  content library
 /posts/new              full content editor
 /posts/:id              editor, revisions, preview and publication history

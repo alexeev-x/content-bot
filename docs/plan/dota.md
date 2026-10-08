@@ -2,6 +2,8 @@
 
 Part of the master plan; status, order and the queue live in `docs/IMPLEMENTATION_PLAN.md`. Section numbers are the plan's own, so `§N` references stay valid.
 
+08.10.2026: only a «Dota Pulse» mock-data preview in the dev-only prototype `/__proto` exists (UX_SPEC §8); no source ingestion yet.
+
 ## 3.5 Dota Intelligence
 
 Purpose: continuously represent what is happening in Dota as structured data.

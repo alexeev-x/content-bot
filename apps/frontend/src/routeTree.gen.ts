@@ -8,178 +8,178 @@
 // You should NOT make any changes in this file as it will be overwritten.
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
-import { Route as rootRouteImport } from './routes/__root'
-import { Route as IndexRouteImport } from './routes/index'
-import { Route as _catalogRouteImport } from './routes/[_][_]catalog'
-import { Route as _protoRouteImport } from './routes/[_][_]proto'
-import { Route as AutomationsRouteImport } from './routes/automations'
-import { Route as CalendarRouteImport } from './routes/calendar'
-import { Route as IncidentsRouteImport } from './routes/incidents'
-import { Route as LoginRouteImport } from './routes/login'
-import { Route as MediaRouteImport } from './routes/media'
-import { Route as PublicationsRouteImport } from './routes/publications'
-import { Route as SettingsRouteImport } from './routes/settings'
-import { Route as _protoIndexRouteImport } from './routes/[_][_]proto.index'
-import { Route as _protoSplatRouteImport } from './routes/[_][_]proto.$'
-import { Route as PostsIndexRouteImport } from './routes/posts/index'
-import { Route as PostsIdRouteImport } from './routes/posts/$id'
-import { Route as PostsNewRouteImport } from './routes/posts/new'
-import { Route as SettingsIndexRouteImport } from './routes/settings.index'
-import { Route as SettingsAppearanceRouteImport } from './routes/settings.appearance'
-import { Route as SettingsChannelsRouteImport } from './routes/settings.channels'
+import { Route as rootRouteImport } from './routes/__root';
+import { Route as IndexRouteImport } from './routes/index';
+import { Route as _catalogRouteImport } from './routes/[_][_]catalog';
+import { Route as _protoRouteImport } from './routes/[_][_]proto';
+import { Route as AutomationsRouteImport } from './routes/automations';
+import { Route as CalendarRouteImport } from './routes/calendar';
+import { Route as IncidentsRouteImport } from './routes/incidents';
+import { Route as LoginRouteImport } from './routes/login';
+import { Route as MediaRouteImport } from './routes/media';
+import { Route as PublicationsRouteImport } from './routes/publications';
+import { Route as SettingsRouteImport } from './routes/settings';
+import { Route as _protoIndexRouteImport } from './routes/[_][_]proto.index';
+import { Route as _protoSplatRouteImport } from './routes/[_][_]proto.$';
+import { Route as PostsIndexRouteImport } from './routes/posts/index';
+import { Route as PostsIdRouteImport } from './routes/posts/$id';
+import { Route as PostsNewRouteImport } from './routes/posts/new';
+import { Route as SettingsIndexRouteImport } from './routes/settings.index';
+import { Route as SettingsAppearanceRouteImport } from './routes/settings.appearance';
+import { Route as SettingsChannelsRouteImport } from './routes/settings.channels';
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
-  getParentRoute: () => rootRouteImport,
-} as any)
+  getParentRoute: () => rootRouteImport
+} as any);
 const _catalogRoute = _catalogRouteImport.update({
   id: '/__catalog',
   path: '/__catalog',
-  getParentRoute: () => rootRouteImport,
-} as any)
+  getParentRoute: () => rootRouteImport
+} as any);
 const _protoRoute = _protoRouteImport.update({
   id: '/__proto',
   path: '/__proto',
-  getParentRoute: () => rootRouteImport,
-} as any)
+  getParentRoute: () => rootRouteImport
+} as any);
 const AutomationsRoute = AutomationsRouteImport.update({
   id: '/automations',
   path: '/automations',
-  getParentRoute: () => rootRouteImport,
-} as any)
+  getParentRoute: () => rootRouteImport
+} as any);
 const CalendarRoute = CalendarRouteImport.update({
   id: '/calendar',
   path: '/calendar',
-  getParentRoute: () => rootRouteImport,
-} as any)
+  getParentRoute: () => rootRouteImport
+} as any);
 const IncidentsRoute = IncidentsRouteImport.update({
   id: '/incidents',
   path: '/incidents',
-  getParentRoute: () => rootRouteImport,
-} as any)
+  getParentRoute: () => rootRouteImport
+} as any);
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
   path: '/login',
-  getParentRoute: () => rootRouteImport,
-} as any)
+  getParentRoute: () => rootRouteImport
+} as any);
 const MediaRoute = MediaRouteImport.update({
   id: '/media',
   path: '/media',
-  getParentRoute: () => rootRouteImport,
-} as any)
+  getParentRoute: () => rootRouteImport
+} as any);
 const PublicationsRoute = PublicationsRouteImport.update({
   id: '/publications',
   path: '/publications',
-  getParentRoute: () => rootRouteImport,
-} as any)
+  getParentRoute: () => rootRouteImport
+} as any);
 const SettingsRoute = SettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
-  getParentRoute: () => rootRouteImport,
-} as any)
+  getParentRoute: () => rootRouteImport
+} as any);
 const _protoIndexRoute = _protoIndexRouteImport.update({
   id: '/',
   path: '/',
-  getParentRoute: () => _protoRoute,
-} as any)
+  getParentRoute: () => _protoRoute
+} as any);
 const _protoSplatRoute = _protoSplatRouteImport.update({
   id: '/$',
   path: '/$',
-  getParentRoute: () => _protoRoute,
-} as any)
+  getParentRoute: () => _protoRoute
+} as any);
 const PostsIndexRoute = PostsIndexRouteImport.update({
   id: '/posts/',
   path: '/posts/',
-  getParentRoute: () => rootRouteImport,
-} as any)
+  getParentRoute: () => rootRouteImport
+} as any);
 const PostsIdRoute = PostsIdRouteImport.update({
   id: '/posts/$id',
   path: '/posts/$id',
-  getParentRoute: () => rootRouteImport,
-} as any)
+  getParentRoute: () => rootRouteImport
+} as any);
 const PostsNewRoute = PostsNewRouteImport.update({
   id: '/posts/new',
   path: '/posts/new',
-  getParentRoute: () => rootRouteImport,
-} as any)
+  getParentRoute: () => rootRouteImport
+} as any);
 const SettingsIndexRoute = SettingsIndexRouteImport.update({
   id: '/',
   path: '/',
-  getParentRoute: () => SettingsRoute,
-} as any)
+  getParentRoute: () => SettingsRoute
+} as any);
 const SettingsAppearanceRoute = SettingsAppearanceRouteImport.update({
   id: '/appearance',
   path: '/appearance',
-  getParentRoute: () => SettingsRoute,
-} as any)
+  getParentRoute: () => SettingsRoute
+} as any);
 const SettingsChannelsRoute = SettingsChannelsRouteImport.update({
   id: '/channels',
   path: '/channels',
-  getParentRoute: () => SettingsRoute,
-} as any)
+  getParentRoute: () => SettingsRoute
+} as any);
 
 export interface FileRoutesByFullPath {
-  '/': typeof IndexRoute
-  '/__catalog': typeof _catalogRoute
-  '/__proto': typeof _protoRouteWithChildren
-  '/automations': typeof AutomationsRoute
-  '/calendar': typeof CalendarRoute
-  '/incidents': typeof IncidentsRoute
-  '/login': typeof LoginRoute
-  '/media': typeof MediaRoute
-  '/publications': typeof PublicationsRoute
-  '/settings': typeof SettingsRouteWithChildren
-  '/__proto/$': typeof _protoSplatRoute
-  '/posts/$id': typeof PostsIdRoute
-  '/posts/new': typeof PostsNewRoute
-  '/settings/appearance': typeof SettingsAppearanceRoute
-  '/settings/channels': typeof SettingsChannelsRoute
-  '/__proto/': typeof _protoIndexRoute
-  '/posts/': typeof PostsIndexRoute
-  '/settings/': typeof SettingsIndexRoute
+  '/': typeof IndexRoute;
+  '/__catalog': typeof _catalogRoute;
+  '/__proto': typeof _protoRouteWithChildren;
+  '/automations': typeof AutomationsRoute;
+  '/calendar': typeof CalendarRoute;
+  '/incidents': typeof IncidentsRoute;
+  '/login': typeof LoginRoute;
+  '/media': typeof MediaRoute;
+  '/publications': typeof PublicationsRoute;
+  '/settings': typeof SettingsRouteWithChildren;
+  '/__proto/$': typeof _protoSplatRoute;
+  '/posts/$id': typeof PostsIdRoute;
+  '/posts/new': typeof PostsNewRoute;
+  '/settings/appearance': typeof SettingsAppearanceRoute;
+  '/settings/channels': typeof SettingsChannelsRoute;
+  '/__proto/': typeof _protoIndexRoute;
+  '/posts/': typeof PostsIndexRoute;
+  '/settings/': typeof SettingsIndexRoute;
 }
 export interface FileRoutesByTo {
-  '/': typeof IndexRoute
-  '/__catalog': typeof _catalogRoute
-  '/automations': typeof AutomationsRoute
-  '/calendar': typeof CalendarRoute
-  '/incidents': typeof IncidentsRoute
-  '/login': typeof LoginRoute
-  '/media': typeof MediaRoute
-  '/publications': typeof PublicationsRoute
-  '/__proto/$': typeof _protoSplatRoute
-  '/posts/$id': typeof PostsIdRoute
-  '/posts/new': typeof PostsNewRoute
-  '/settings/appearance': typeof SettingsAppearanceRoute
-  '/settings/channels': typeof SettingsChannelsRoute
-  '/__proto': typeof _protoIndexRoute
-  '/posts': typeof PostsIndexRoute
-  '/settings': typeof SettingsIndexRoute
+  '/': typeof IndexRoute;
+  '/__catalog': typeof _catalogRoute;
+  '/automations': typeof AutomationsRoute;
+  '/calendar': typeof CalendarRoute;
+  '/incidents': typeof IncidentsRoute;
+  '/login': typeof LoginRoute;
+  '/media': typeof MediaRoute;
+  '/publications': typeof PublicationsRoute;
+  '/__proto/$': typeof _protoSplatRoute;
+  '/posts/$id': typeof PostsIdRoute;
+  '/posts/new': typeof PostsNewRoute;
+  '/settings/appearance': typeof SettingsAppearanceRoute;
+  '/settings/channels': typeof SettingsChannelsRoute;
+  '/__proto': typeof _protoIndexRoute;
+  '/posts': typeof PostsIndexRoute;
+  '/settings': typeof SettingsIndexRoute;
 }
 export interface FileRoutesById {
-  __root__: typeof rootRouteImport
-  '/': typeof IndexRoute
-  '/__catalog': typeof _catalogRoute
-  '/__proto': typeof _protoRouteWithChildren
-  '/automations': typeof AutomationsRoute
-  '/calendar': typeof CalendarRoute
-  '/incidents': typeof IncidentsRoute
-  '/login': typeof LoginRoute
-  '/media': typeof MediaRoute
-  '/publications': typeof PublicationsRoute
-  '/settings': typeof SettingsRouteWithChildren
-  '/__proto/$': typeof _protoSplatRoute
-  '/posts/$id': typeof PostsIdRoute
-  '/posts/new': typeof PostsNewRoute
-  '/settings/appearance': typeof SettingsAppearanceRoute
-  '/settings/channels': typeof SettingsChannelsRoute
-  '/__proto/': typeof _protoIndexRoute
-  '/posts/': typeof PostsIndexRoute
-  '/settings/': typeof SettingsIndexRoute
+  __root__: typeof rootRouteImport;
+  '/': typeof IndexRoute;
+  '/__catalog': typeof _catalogRoute;
+  '/__proto': typeof _protoRouteWithChildren;
+  '/automations': typeof AutomationsRoute;
+  '/calendar': typeof CalendarRoute;
+  '/incidents': typeof IncidentsRoute;
+  '/login': typeof LoginRoute;
+  '/media': typeof MediaRoute;
+  '/publications': typeof PublicationsRoute;
+  '/settings': typeof SettingsRouteWithChildren;
+  '/__proto/$': typeof _protoSplatRoute;
+  '/posts/$id': typeof PostsIdRoute;
+  '/posts/new': typeof PostsNewRoute;
+  '/settings/appearance': typeof SettingsAppearanceRoute;
+  '/settings/channels': typeof SettingsChannelsRoute;
+  '/__proto/': typeof _protoIndexRoute;
+  '/posts/': typeof PostsIndexRoute;
+  '/settings/': typeof SettingsIndexRoute;
 }
 export interface FileRouteTypes {
-  fileRoutesByFullPath: FileRoutesByFullPath
+  fileRoutesByFullPath: FileRoutesByFullPath;
   fullPaths:
     | '/'
     | '/__catalog'
@@ -198,8 +198,8 @@ export interface FileRouteTypes {
     | '/settings/channels'
     | '/__proto/'
     | '/posts/'
-    | '/settings/'
-  fileRoutesByTo: FileRoutesByTo
+    | '/settings/';
+  fileRoutesByTo: FileRoutesByTo;
   to:
     | '/'
     | '/__catalog'
@@ -216,7 +216,7 @@ export interface FileRouteTypes {
     | '/settings/channels'
     | '/__proto'
     | '/posts'
-    | '/settings'
+    | '/settings';
   id:
     | '__root__'
     | '/'
@@ -236,184 +236,181 @@ export interface FileRouteTypes {
     | '/settings/channels'
     | '/__proto/'
     | '/posts/'
-    | '/settings/'
-  fileRoutesById: FileRoutesById
+    | '/settings/';
+  fileRoutesById: FileRoutesById;
 }
 export interface RootRouteChildren {
-  IndexRoute: typeof IndexRoute
-  _catalogRoute: typeof _catalogRoute
-  _protoRoute: typeof _protoRouteWithChildren
-  AutomationsRoute: typeof AutomationsRoute
-  CalendarRoute: typeof CalendarRoute
-  IncidentsRoute: typeof IncidentsRoute
-  LoginRoute: typeof LoginRoute
-  MediaRoute: typeof MediaRoute
-  PublicationsRoute: typeof PublicationsRoute
-  SettingsRoute: typeof SettingsRouteWithChildren
-  PostsIdRoute: typeof PostsIdRoute
-  PostsNewRoute: typeof PostsNewRoute
-  PostsIndexRoute: typeof PostsIndexRoute
+  IndexRoute: typeof IndexRoute;
+  _catalogRoute: typeof _catalogRoute;
+  _protoRoute: typeof _protoRouteWithChildren;
+  AutomationsRoute: typeof AutomationsRoute;
+  CalendarRoute: typeof CalendarRoute;
+  IncidentsRoute: typeof IncidentsRoute;
+  LoginRoute: typeof LoginRoute;
+  MediaRoute: typeof MediaRoute;
+  PublicationsRoute: typeof PublicationsRoute;
+  SettingsRoute: typeof SettingsRouteWithChildren;
+  PostsIdRoute: typeof PostsIdRoute;
+  PostsNewRoute: typeof PostsNewRoute;
+  PostsIndexRoute: typeof PostsIndexRoute;
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
     '/': {
-      id: '/'
-      path: '/'
-      fullPath: '/'
-      preLoaderRoute: typeof IndexRouteImport
-      parentRoute: typeof rootRouteImport
-    }
+      id: '/';
+      path: '/';
+      fullPath: '/';
+      preLoaderRoute: typeof IndexRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
     '/__catalog': {
-      id: '/__catalog'
-      path: '/__catalog'
-      fullPath: '/__catalog'
-      preLoaderRoute: typeof _catalogRouteImport
-      parentRoute: typeof rootRouteImport
-    }
+      id: '/__catalog';
+      path: '/__catalog';
+      fullPath: '/__catalog';
+      preLoaderRoute: typeof _catalogRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
     '/__proto': {
-      id: '/__proto'
-      path: '/__proto'
-      fullPath: '/__proto'
-      preLoaderRoute: typeof _protoRouteImport
-      parentRoute: typeof rootRouteImport
-    }
+      id: '/__proto';
+      path: '/__proto';
+      fullPath: '/__proto';
+      preLoaderRoute: typeof _protoRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
     '/automations': {
-      id: '/automations'
-      path: '/automations'
-      fullPath: '/automations'
-      preLoaderRoute: typeof AutomationsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
+      id: '/automations';
+      path: '/automations';
+      fullPath: '/automations';
+      preLoaderRoute: typeof AutomationsRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
     '/calendar': {
-      id: '/calendar'
-      path: '/calendar'
-      fullPath: '/calendar'
-      preLoaderRoute: typeof CalendarRouteImport
-      parentRoute: typeof rootRouteImport
-    }
+      id: '/calendar';
+      path: '/calendar';
+      fullPath: '/calendar';
+      preLoaderRoute: typeof CalendarRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
     '/incidents': {
-      id: '/incidents'
-      path: '/incidents'
-      fullPath: '/incidents'
-      preLoaderRoute: typeof IncidentsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
+      id: '/incidents';
+      path: '/incidents';
+      fullPath: '/incidents';
+      preLoaderRoute: typeof IncidentsRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
     '/login': {
-      id: '/login'
-      path: '/login'
-      fullPath: '/login'
-      preLoaderRoute: typeof LoginRouteImport
-      parentRoute: typeof rootRouteImport
-    }
+      id: '/login';
+      path: '/login';
+      fullPath: '/login';
+      preLoaderRoute: typeof LoginRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
     '/media': {
-      id: '/media'
-      path: '/media'
-      fullPath: '/media'
-      preLoaderRoute: typeof MediaRouteImport
-      parentRoute: typeof rootRouteImport
-    }
+      id: '/media';
+      path: '/media';
+      fullPath: '/media';
+      preLoaderRoute: typeof MediaRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
     '/publications': {
-      id: '/publications'
-      path: '/publications'
-      fullPath: '/publications'
-      preLoaderRoute: typeof PublicationsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
+      id: '/publications';
+      path: '/publications';
+      fullPath: '/publications';
+      preLoaderRoute: typeof PublicationsRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
     '/settings': {
-      id: '/settings'
-      path: '/settings'
-      fullPath: '/settings'
-      preLoaderRoute: typeof SettingsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
+      id: '/settings';
+      path: '/settings';
+      fullPath: '/settings';
+      preLoaderRoute: typeof SettingsRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
     '/__proto/': {
-      id: '/__proto/'
-      path: '/'
-      fullPath: '/__proto/'
-      preLoaderRoute: typeof _protoIndexRouteImport
-      parentRoute: typeof _protoRoute
-    }
+      id: '/__proto/';
+      path: '/';
+      fullPath: '/__proto/';
+      preLoaderRoute: typeof _protoIndexRouteImport;
+      parentRoute: typeof _protoRoute;
+    };
     '/__proto/$': {
-      id: '/__proto/$'
-      path: '/$'
-      fullPath: '/__proto/$'
-      preLoaderRoute: typeof _protoSplatRouteImport
-      parentRoute: typeof _protoRoute
-    }
+      id: '/__proto/$';
+      path: '/$';
+      fullPath: '/__proto/$';
+      preLoaderRoute: typeof _protoSplatRouteImport;
+      parentRoute: typeof _protoRoute;
+    };
     '/posts/': {
-      id: '/posts/'
-      path: '/posts'
-      fullPath: '/posts/'
-      preLoaderRoute: typeof PostsIndexRouteImport
-      parentRoute: typeof rootRouteImport
-    }
+      id: '/posts/';
+      path: '/posts';
+      fullPath: '/posts/';
+      preLoaderRoute: typeof PostsIndexRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
     '/posts/$id': {
-      id: '/posts/$id'
-      path: '/posts/$id'
-      fullPath: '/posts/$id'
-      preLoaderRoute: typeof PostsIdRouteImport
-      parentRoute: typeof rootRouteImport
-    }
+      id: '/posts/$id';
+      path: '/posts/$id';
+      fullPath: '/posts/$id';
+      preLoaderRoute: typeof PostsIdRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
     '/posts/new': {
-      id: '/posts/new'
-      path: '/posts/new'
-      fullPath: '/posts/new'
-      preLoaderRoute: typeof PostsNewRouteImport
-      parentRoute: typeof rootRouteImport
-    }
+      id: '/posts/new';
+      path: '/posts/new';
+      fullPath: '/posts/new';
+      preLoaderRoute: typeof PostsNewRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
     '/settings/': {
-      id: '/settings/'
-      path: '/'
-      fullPath: '/settings/'
-      preLoaderRoute: typeof SettingsIndexRouteImport
-      parentRoute: typeof SettingsRoute
-    }
+      id: '/settings/';
+      path: '/';
+      fullPath: '/settings/';
+      preLoaderRoute: typeof SettingsIndexRouteImport;
+      parentRoute: typeof SettingsRoute;
+    };
     '/settings/appearance': {
-      id: '/settings/appearance'
-      path: '/appearance'
-      fullPath: '/settings/appearance'
-      preLoaderRoute: typeof SettingsAppearanceRouteImport
-      parentRoute: typeof SettingsRoute
-    }
+      id: '/settings/appearance';
+      path: '/appearance';
+      fullPath: '/settings/appearance';
+      preLoaderRoute: typeof SettingsAppearanceRouteImport;
+      parentRoute: typeof SettingsRoute;
+    };
     '/settings/channels': {
-      id: '/settings/channels'
-      path: '/channels'
-      fullPath: '/settings/channels'
-      preLoaderRoute: typeof SettingsChannelsRouteImport
-      parentRoute: typeof SettingsRoute
-    }
+      id: '/settings/channels';
+      path: '/channels';
+      fullPath: '/settings/channels';
+      preLoaderRoute: typeof SettingsChannelsRouteImport;
+      parentRoute: typeof SettingsRoute;
+    };
   }
 }
 
 interface _protoRouteChildren {
-  _protoSplatRoute: typeof _protoSplatRoute
-  _protoIndexRoute: typeof _protoIndexRoute
+  _protoSplatRoute: typeof _protoSplatRoute;
+  _protoIndexRoute: typeof _protoIndexRoute;
 }
 
 const _protoRouteChildren: _protoRouteChildren = {
   _protoSplatRoute: _protoSplatRoute,
-  _protoIndexRoute: _protoIndexRoute,
-}
+  _protoIndexRoute: _protoIndexRoute
+};
 
-const _protoRouteWithChildren =
-  _protoRoute._addFileChildren(_protoRouteChildren)
+const _protoRouteWithChildren = _protoRoute._addFileChildren(_protoRouteChildren);
 
 interface SettingsRouteChildren {
-  SettingsAppearanceRoute: typeof SettingsAppearanceRoute
-  SettingsChannelsRoute: typeof SettingsChannelsRoute
-  SettingsIndexRoute: typeof SettingsIndexRoute
+  SettingsAppearanceRoute: typeof SettingsAppearanceRoute;
+  SettingsChannelsRoute: typeof SettingsChannelsRoute;
+  SettingsIndexRoute: typeof SettingsIndexRoute;
 }
 
 const SettingsRouteChildren: SettingsRouteChildren = {
   SettingsAppearanceRoute: SettingsAppearanceRoute,
   SettingsChannelsRoute: SettingsChannelsRoute,
-  SettingsIndexRoute: SettingsIndexRoute,
-}
+  SettingsIndexRoute: SettingsIndexRoute
+};
 
-const SettingsRouteWithChildren = SettingsRoute._addFileChildren(
-  SettingsRouteChildren,
-)
+const SettingsRouteWithChildren = SettingsRoute._addFileChildren(SettingsRouteChildren);
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
@@ -428,8 +425,6 @@ const rootRouteChildren: RootRouteChildren = {
   SettingsRoute: SettingsRouteWithChildren,
   PostsIdRoute: PostsIdRoute,
   PostsNewRoute: PostsNewRoute,
-  PostsIndexRoute: PostsIndexRoute,
-}
-export const routeTree = rootRouteImport
-  ._addFileChildren(rootRouteChildren)
-  ._addFileTypes<FileRouteTypes>()
+  PostsIndexRoute: PostsIndexRoute
+};
+export const routeTree = rootRouteImport._addFileChildren(rootRouteChildren)._addFileTypes<FileRouteTypes>();

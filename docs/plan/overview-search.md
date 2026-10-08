@@ -8,6 +8,8 @@ Purpose: tell the owner what requires attention now.
 
 The home page is not a KPI wall and not four empty cards.
 
+Delivered 08.10.2026 (DEV): customizable widget grid with server-side layout, incidents, drafts, week, channels and quick-action widgets; Dota Pulse and channel analytics exist only as mock-data previews in the prototype `/__proto`, and «скоро» items in the widget catalog. Still open: real «Одобрены, но не запланированы», source/automation/Dota blocks, week-day click (needs publication date-range filter).
+
 Target sections:
 
 - Требует внимания.
@@ -77,7 +79,7 @@ Compact when healthy. Expanded only when something needs attention.
 
 ## 16. Global search / command entry
 
-The current disabled header search is temporary and must not remain dead UI.
+The current disabled header search is temporary and must not remain dead UI. As of 08.10.2026 it is still disabled on desktop (hidden in the phone/Mini App header); the Ctrl/⌘ K palette needs an entity-search endpoint. List pages have their own live client-side search over loaded rows.
 
 First functional scope:
 

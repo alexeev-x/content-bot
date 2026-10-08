@@ -1,3 +1,4 @@
+import type { DashboardWidget } from '@alexeev/contracts';
 import { useBlocker } from '@tanstack/react-router';
 import { lazy, Suspense, useState } from 'react';
 import { useClosingConfirmation } from '../../../shared/telegram/use-closing-confirmation';
@@ -7,7 +8,11 @@ import type { useLayoutEditor } from '../model/use-layout-editor';
 import { Banner, Button, ConfirmDialog, useMediaQuery, VisuallyHidden } from '../../../shared/ui';
 import { copy } from './copy';
 import styles from './DashboardEditor.module.css';
+import type { PageBindings } from './Dashboard';
 import { EditCard } from './EditCard';
+import { WidgetBody } from './WidgetBody';
+import { buildView } from '../model/build-view';
+import { useNow } from '../model/use-now';
 import { EmptyWidgets } from './EmptyWidgets';
 import { PhoneEditList } from './PhoneEditList';
 import { WidgetCatalog } from './WidgetCatalog';
@@ -16,14 +21,26 @@ import { WidgetGrid } from './WidgetGrid';
 // react-grid-layout and its stylesheet live in this chunk, which only the edit mode requests.
 const EditGrid = lazy(() => import('./EditGrid').then((module) => ({ default: module.EditGrid })));
 
-type Props = { editor: ReturnType<typeof useLayoutEditor> };
+type Props = { editor: ReturnType<typeof useLayoutEditor>; bindings: PageBindings };
 
 /** The edit mode: toolbar, conflict and error banners, the grid (or the phone list), the catalog and the discard confirm. */
-export function DashboardEditor({ editor }: Props) {
+export function DashboardEditor({ editor, bindings }: Props) {
+  const now = useNow();
   const phone = useMediaQuery(PHONE_QUERY);
   const [catalogOpen, setCatalogOpen] = useState(editor.catalogFirst);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const draft = editor.draft ?? [];
+  const { query, checks, services } = bindings;
+  // The real content comes from what the page already holds in the query cache; nothing is fetched for it here.
+  const env = {
+    ...bindings,
+    view: query.data ? buildView(query.data, checks, services) : undefined,
+    services,
+    skeleton: false,
+    now,
+    phone: false
+  };
+  const renderBody = (widget: DashboardWidget) => <WidgetBody widget={widget} env={env} />;
   // Leaving the page (or closing the Mini App) with unsaved edits asks first, as the appearance editor does.
   const blocker = useBlocker({
     shouldBlockFn: () => editor.isDirty,
@@ -95,11 +112,20 @@ export function DashboardEditor({ editor }: Props) {
         <Suspense
           fallback={
             <WidgetGrid widgets={draft} phone={false} label={copy.edit.gridLabel}>
-              {(widget) => <EditCard widget={widget} draft={draft} />}
+              {(widget) => (
+                <EditCard widget={widget} draft={draft}>
+                  {renderBody(widget)}
+                </EditCard>
+              )}
             </WidgetGrid>
           }
         >
-          <EditGrid widgets={draft} onCommit={editor.commit} onAction={(id, action) => editor.act(id, action, false)} />
+          <EditGrid
+            widgets={draft}
+            onCommit={editor.commit}
+            onAction={(id, action) => editor.act(id, action, false)}
+            renderBody={renderBody}
+          />
         </Suspense>
       )}
 

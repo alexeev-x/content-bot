@@ -2,6 +2,8 @@
 
 Part of the master plan; status, order and the queue live in `docs/IMPLEMENTATION_PLAN.md`. Section numbers are the plan's own, so `§N` references stay valid.
 
+08.10.2026: only a mock-data preview in the dev-only prototype `/__proto` exists (UX_SPEC §8); the real calendar needs the publication date-range filter first. The phone tab bar no longer links to the calendar stub.
+
 ## 3.3 Calendar
 
 Purpose: editorial scheduling rather than low-level job inspection.

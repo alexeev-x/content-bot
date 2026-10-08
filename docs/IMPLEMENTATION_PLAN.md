@@ -1,6 +1,6 @@
 # ALEXEEV Studio — master implementation plan
 
-**Status:** canonical execution plan, fully replaced on 07.10.2026 after a code audit, live DEV UX walkthrough and owner decisions.
+**Status:** canonical execution plan, fully replaced on 07.10.2026 after a code audit, live DEV UX walkthrough and owner decisions. Updated 08.10.2026: approved admin design applied to all current pages in DEV (§2.3, §2.5); DEV only, nothing is released to production.
 
 This document is the single roadmap for the product: what already works, what is intentionally not being built yet, and the order in which work ships. The target design of each system is split into `docs/plan/*.md` (map in §3).
 
@@ -53,12 +53,14 @@ Already implemented:
 
 Already implemented:
 
-- desktop sidebar with collapse.
-- mobile bottom navigation: Обзор, Посты, Публикации, Ещё.
-- visible DEV environment marker.
-- dark/light appearance system and accent configuration.
-- Settings master/detail pattern.
-- top search field exists but is currently disabled and therefore must either become functional or be hidden until it is functional.
+Approved 08.10.2026: `docs/design/UX_SPEC.md` (Calm Operations) plus a dev-only clickable prototype at `/__proto` (`apps/frontend/src/pages/prototypes`). Real pages were restyled to it in DEV.
+
+- desktop sidebar with collapse and a «Подключённый канал» card (subscribers «—» until an API exists).
+- top bar: read-only timezone chip, DEV marker, one system-status chip with a single «Проверено в» time, theme toggle, owner menu.
+- phone bottom tab bar: Обзор, Посты, Публикации, Инциденты, Ещё.
+- session restore renders the shell and route skeletons with stable geometry (no full-screen «Проверяем вход…»).
+- dark/light appearance system, accent presets and the colour constructor; Settings master/detail (Каналы with add-channel steps, Оформление).
+- global search (top-bar field, Ctrl/⌘ K) is still a disabled placeholder: no entity search API yet. Phone/Mini App header hides it.
 
 ### 2.4 Posts and publishing
 
@@ -107,18 +109,19 @@ Known limits: the 409 compare dialog compares plain text only; owner bot notices
 
 Current visible product:
 
-- Обзор.
-- Посты: Все / Черновики / Архив.
-- post create/edit/detail.
+- Обзор: customizable 12-column widget grid (15 widget types incl. drafts, week, channels, incidents, quick actions); edit mode (react-grid-layout v2, lazy, edit-only) with keyboard menu, catalog with «скоро» items, undo, leave guard and phone reorder; layout stored server-side (`GET/PUT /api/v1/settings/dashboard-layout`, migration 0012, revision/409). Real-touch drag in Telegram not yet tested on a device.
+- Посты: Все / Черновики / Архив; one live search field in the panel header filters loaded rows by any text; sort by column header; phone cards + sort sheet.
+- post create/edit/detail (side preview and publications panel, phone tabs).
 - Telegram preview.
 - approve and publish flow.
-- Публикации.
+- Публикации: tabs Все / Запланированные / Отправленные / Ошибки; client-side search and sort over loaded pages; «Опубликовать пост» picker; publication inspector.
 - Инциденты.
-- Настройки → Каналы.
-- Настройки → Оформление.
-- owner menu/logout.
+- Настройки → Каналы, Оформление.
+- owner menu/logout; restyled 404, in-development and error pages.
 
-Current placeholder or incomplete product areas:
+Search, «Ошибки» and counts are client-side over loaded rows only (shown as «Загружено N»); server-side versions are queue items 10–12.
+
+Current placeholder or incomplete product areas (Calendar, Automations, Media library, Dota Pulse/Sources, channel analytics exist only as mock-data previews in the dev-only prototype `/__proto`, not as product):
 
 - Calendar.
 - Automations.
@@ -429,10 +432,10 @@ This is the actionable queue from the master roadmap. Whoever starts or finishes
 | 6 | Manual multi-media model, R2 upload and preview | not started |
 | 7 | Telegram multi-media publishing and publication_messages | not started |
 | 8 | Post actions/archive UX | in progress (Archive tab exists, see §2.5) |
-| 9 | Owner timezone | not started |
-| 10 | Overview/Decision Center v2 | not started |
-| 11 | Publications v2 | not started |
-| 12 | Server-side Posts/Publications queries | not started |
+| 9 | Owner timezone | not started (top bar shows a read-only timezone chip) |
+| 10 | Overview/Decision Center v2 | in progress (widget grid + server-side layout in DEV, awaiting migration 0012 on DEV D1; real attention/today data still partly client-side; no real views/ER) |
+| 11 | Publications v2 | in progress (tabs, search, sort, inspector in DEV; needs date-range filter, multi-status «Ошибки», total counts) |
+| 12 | Server-side Posts/Publications queries | not started (search/sort/«Ошибки» are client-side over loaded pages) |
 | 13 | Calendar | not started |
 | 14 | Analytics snapshot schema and Studio-owned Telegram analytics | not started |
 | 15 | Telegram native statistics feasibility proof | not started |

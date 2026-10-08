@@ -38,6 +38,8 @@ Keep a primary message id for compatibility if useful, but the canonical result 
 
 ### 7.1 List
 
+Delivered 08.10.2026 (DEV): tabs Все / Запланированные / Отправленные / Ошибки, live search and column sort (client-side over loaded pages), «Опубликовать пост» picker, inspector. Still missing: date-range filter («Сегодня»), failed+unknown multi-status filter, total counts, server-side search/sort.
+
 Add:
 
 - search by post title/id.

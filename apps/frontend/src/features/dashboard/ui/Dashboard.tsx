@@ -4,7 +4,7 @@ import { ApiError } from '../../../shared/api/http-client';
 import { classifyApiError } from '../../../shared/api/error-kind';
 import type { StatusCheck } from '../../../shared/lib/status-check';
 import { Banner, Button, ErrorState } from '../../../shared/ui';
-import { attentionRows } from '../model/attention-rows';
+import { buildView } from '../model/build-view';
 import type { ServiceRow } from '../model/service-rows';
 import { readsDashboard } from '../model/widget-catalog';
 import { copy } from './copy';
@@ -13,8 +13,7 @@ import { DashboardLayout } from './DashboardLayout';
 import { EmptyWidgets } from './EmptyWidgets';
 import type { WidgetEnv } from './widget-env';
 
-type Props = {
-  widgets: readonly DashboardWidget[];
+export type PageBindings = {
   /** From `useDashboardQuery`: the page owns it, because the status strip reacts to the same data. */
   query: UseQueryResult<DashboardDto>;
   /** The system checks of the status strip; the failing ones are listed under «Требует внимания». */
@@ -28,6 +27,10 @@ type Props = {
   onOpenPosts: () => void;
   onOpenPost: (postId: string) => void;
   onAddChannel: () => void;
+};
+
+type Props = PageBindings & {
+  widgets: readonly DashboardWidget[];
   /** Starts editing with the default layout / with the catalog open; absent while no revision is known. */
   onResetLayout?: () => void;
   onAddWidget?: () => void;
@@ -56,16 +59,7 @@ export function Dashboard({
   let view: WidgetEnv['view'];
   let failure = null;
   if (query.data) {
-    const rows = attentionRows(query.data.attention, checks);
-    const problems = checks.filter((check) => check.tone === 'warning' || check.tone === 'danger').length;
-    view = {
-      dashboard: query.data,
-      rows,
-      attentionCount: Math.min(99, query.data.attentionTotal + problems),
-      checking: checks.some((check) => check.tone === 'loading'),
-      services,
-      sentToday: query.data.today.filter((item) => item.status === 'sent').length
-    };
+    view = buildView(query.data, checks, services);
   } else if (failed) {
     if (classifyApiError(query.error) === 'forbidden') {
       failure = <ErrorState title={copy.error.forbiddenTitle} message={copy.error.forbiddenMessage} />;

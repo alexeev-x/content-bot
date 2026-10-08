@@ -6,7 +6,7 @@ export { useDashboardLayout } from './model/use-dashboard-layout';
 export { useDashboardQuery } from './model/use-dashboard-query';
 export { useLayoutEditor } from './model/use-layout-editor';
 export { readsDashboard } from './model/widget-catalog';
-export { Dashboard } from './ui/Dashboard';
+export { Dashboard, type PageBindings } from './ui/Dashboard';
 export { DashboardEditor } from './ui/DashboardEditor';
 export { DashboardSkeleton } from './ui/DashboardSkeleton';
 export { DateChip } from './ui/DateChip';

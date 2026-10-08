@@ -2,6 +2,8 @@
 
 Part of the master plan; status, order and the queue live in `docs/IMPLEMENTATION_PLAN.md`. Section numbers are the plan's own, so `§N` references stay valid.
 
+08.10.2026: only mock-data previews of Sources and Automations in the dev-only prototype `/__proto` exist (UX_SPEC §8); nothing runs.
+
 ## 3.6 Sources
 
 Purpose: make every external input inspectable.

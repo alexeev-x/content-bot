@@ -55,15 +55,26 @@
   border-radius: var(--radius-2);
   background: var(--color-surface-1);
 }
-.head {
-  display: flex;
-  flex: none;
-  align-items: center;
-  gap: var(--space-2);
+.content {
+  height: 100%;
   min-width: 0;
-  padding-right: var(--space-1);
-  border-bottom: 1px solid var(--color-border-subtle);
+  overflow: hidden;
+  /* Under the chrome: nothing in it reacts to the pointer while editing. */
+  pointer-events: none;
+}
+.content > * {
+  height: 100%;
+}
+.chrome {
+  position: absolute;
+  top: 0;
+  right: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  border-bottom-left-radius: var(--radius-2);
   background: var(--color-surface-2);
+  box-shadow: 0 0 0 1px var(--color-border-strong);
 }
 .grip {
   display: grid;
@@ -92,18 +103,13 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.preview {
-  display: grid;
-  flex: 1;
-  gap: var(--space-2);
-  align-content: start;
-  padding: var(--space-3) var(--space-4);
-  overflow: hidden;
-}
 .size {
   position: absolute;
-  bottom: var(--space-2);
-  left: var(--space-3);
+  bottom: var(--space-1);
+  left: var(--space-2);
+  padding: 0 var(--space-1);
+  border-radius: var(--radius-1);
+  background: var(--color-surface-2);
   color: var(--color-text-muted);
   font-size: var(--font-size-2xs);
   font-variant-numeric: tabular-nums;

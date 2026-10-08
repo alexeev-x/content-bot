@@ -2,6 +2,8 @@
 
 Part of the master plan; status, order and the queue live in `docs/IMPLEMENTATION_PLAN.md`. Section numbers are the plan's own, so `§N` references stay valid.
 
+08.10.2026: Инциденты page restyled and in the phone tab bar (badge = open incidents); dedupe/grouping/recovery alerts and bot commands are still not built.
+
 ## 3.9 Incident & Alerting System
 
 Purpose: one coherent place for failures.

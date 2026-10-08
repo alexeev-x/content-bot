@@ -479,6 +479,19 @@ describe('editing on a desktop', () => {
     expect(screen.queryByRole('group', { name: 'Сегодня' })).toBeNull();
   });
 
+  it('shows the real widget content while editing, inert, and a widget added in the editor fetches once', async () => {
+    const { user, calls } = await startEditing();
+    const title = await screen.findByText('Вечерний разбор');
+    // The content is the real one and nothing in it can be pressed or focused.
+    expect(title.closest('[inert]')).not.toBeNull();
+    expect(screen.getByRole('button', { name: 'Действия: Сегодня' }).closest('[inert]')).toBeNull();
+    expect(calls.requests.filter((path) => path === '/api/v1/posts')).toHaveLength(0);
+    await user.click(screen.getByRole('button', { name: 'Добавить виджет' }));
+    await user.click(await screen.findByRole('button', { name: 'Добавить: Черновики' }));
+    await screen.findByText('Черновиков нет');
+    expect(calls.requests.filter((path) => path === '/api/v1/posts')).toHaveLength(1);
+  });
+
   it('adds from the catalog: placed widgets are not offered, planned ones are «скоро» and cannot be added', async () => {
     const { user, calls } = await startEditing();
     await user.click(screen.getByRole('button', { name: 'Добавить виджет' }));
