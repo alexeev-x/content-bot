@@ -6,6 +6,7 @@ import {
   postRevisionPageSchema,
   postSchema,
   type approvePostInputSchema,
+  type archivePostInputSchema,
   type bulkDeletePostsInputSchema,
   type bulkRestorePostsInputSchema,
   type createPostInputSchema,
@@ -28,6 +29,7 @@ export type BulkRestorePostsBody = z.input<typeof bulkRestorePostsInputSchema>;
 export type CreatePostBody = z.input<typeof createPostInputSchema>;
 export type UpdatePostBody = z.input<typeof updatePostInputSchema>;
 export type ApprovePostBody = z.input<typeof approvePostInputSchema>;
+export type ArchivePostBody = z.input<typeof archivePostInputSchema>;
 
 export function listPosts(filters: PostFilters, cursor: string | undefined, signal?: AbortSignal) {
   const query = buildQuery({ status: filters.status, view: filters.view, cursor, limit: DEFAULT_PAGE_SIZE });
@@ -73,6 +75,10 @@ export function deletePost(id: string, input: DeletePostBody) {
 
 export function deletePosts(input: BulkDeletePostsBody) {
   return apiRequest('/api/v1/posts/delete', bulkDeletePostsResultSchema, { method: 'POST', body: input });
+}
+
+export function archivePost(id: string, input: ArchivePostBody) {
+  return apiRequest(`/api/v1/posts/${encodeURIComponent(id)}/archive`, postSchema, { method: 'POST', body: input });
 }
 
 export function restorePost(id: string, input: RestorePostBody) {
