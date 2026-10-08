@@ -185,7 +185,7 @@ Phase 1a — editor (queue items 1–2):
 - entities storage and preview — built (§2.4.1).
 - autosave — built, awaiting owner DEV check.
 - revision history UI — built, awaiting owner DEV check.
-- useful post actions.
+- useful post actions — built (open, duplicate, manual archive/restore, delete and publication deep-links).
 
 Phase 1b — manual media (queue items 6–7):
 
@@ -431,7 +431,7 @@ This is the actionable queue from the master roadmap. Whoever starts or finishes
 | 5 | Patch summary from confirmed changes (Phase 1D) | not started |
 | 6 | Manual multi-media model, R2 upload and preview | not started |
 | 7 | Telegram multi-media publishing and publication_messages | not started |
-| 8 | Post actions/archive UX | in progress (Archive tab exists, see §2.5) |
+| 8 | Post actions/archive UX | done (open, duplicate, manual archive/restore, permanent delete and publication deep-links; active sends are guarded) |
 | 9 | Owner timezone | not started (top bar shows a read-only timezone chip) |
 | 10 | Overview/Decision Center v2 | in progress (widget grid + server-side layout in DEV, awaiting migration 0012 on DEV D1; real attention/today data still partly client-side; no real views/ER) |
 | 11 | Publications v2 | in progress (tabs, search, sort, inspector in DEV; needs date-range filter, multi-status «Ошибки», total counts) |
