@@ -1,53 +1,61 @@
 # Decision log
 
-A short list of accepted decisions. An agent does not propose an alternative to a recorded decision until the owner raises the question: new facts are filed as a "proposal to revisit" with a reason. Details are in the referenced documents.
+Accepted decisions that are in force. An agent does not propose an alternative to a recorded decision until the owner raises the question: new facts are filed as a "proposal to revisit" with a reason. Superseded decisions are removed (see Git history); the date is when the current form was accepted.
 
-## Accepted by the owner
+## Architecture and stack
 | Date | Decision | Details |
 |---|---|---|
 | 03.10.2026 | Modular monolith: one Worker, one D1, Cron (Queue only after measurements); no microservices | `docs/BACKEND_ARCHITECTURE.md` §1 |
-| 03.10.2026 | Figma is excluded entirely; design lives only in code (tokens, primitives, screenshots) | `docs/DESIGN_SYSTEM_NO_FIGMA.md` |
-| 03.10.2026 | Frontend stack: React Aria Components + CSS Modules, TanStack Router + Query, React Hook Form, `@internationalized/date`, Vite 8; one Worker serves the SPA and the API | `docs/FRONTEND_ARCHITECTURE.md` §0 |
-| 03.10.2026 | Backend stack: Hono + Zod contracts (no RPC/OpenAPI), D1 via SQL without an ORM, Cron only (Queue — after measurements), grammY for the bot and sending without auto-retry, Vitest 4.1 + Cloudflare plugin | `docs/BACKEND_ARCHITECTURE.md` §1 |
-| 03.10.2026 | Login: a single identity — the owner's Telegram ID; Mini App — `initData`, browser — Telegram OpenID Connect (superseded 06.10.2026: Login Widget, see below); token in memory, `Authorization: Bearer` | `docs/BACKEND_ARCHITECTURE.md` §8, skill `api-security` |
-| 03.10.2026 | The admin UI is one SPA: website and Telegram Mini App; no third-party SDK | `docs/FRONTEND_ARCHITECTURE.md` §16 |
-| 03.10.2026 | The bot is personal: commands only from the owner; the bot is an inbound adapter `app/bot` in the same Worker; an administrator of the owner's group with minimal rights; collecting data from the group — later | `docs/BACKEND_ARCHITECTURE.md` §2 |
-| 03.10.2026 | All documentation and agent instructions are in English; the owner is addressed in Russian; end-user UI copy is Russian | `AGENTS.md` |
-| 03.10.2026 | Uniform code style regardless of which AI writes it: Prettier + Oxlint via Husky/lint-staged on commit, `npm run verify:changed` on pre-push, and full `npm run verify` in GitHub CI | `README.md` |
-| 03.10.2026 | Architecture skeleton created up front at the owner's request (exception to "no empty scaffolding"); skeleton files still contain minimal working, tested code | `apps/` |
-| 03.10.2026 | Work is done only by project agents (orchestrator + backend, frontend, design-system, product-analyst, qa-security, researcher); built-in Claude Code helpers (Explore, Plan, general-purpose) allowed for read-only support; generic global agents denied in `.claude/settings.json`; no separate text-editor role | `docs/AGENT_ORCHESTRATION.md` |
 | 03.10.2026 | Strict backend module boundaries: modules do not import each other; only `app/` wires them (ports + `container.ts`); enforced by dependency-cruiser | `docs/BACKEND_ARCHITECTURE.md` §2 |
-| 03.10.2026 | Look and feel: calm monochrome, dark and light themes, no bright accents; color only for errors and `unknown` (superseded 06.10.2026: «modern» with a cobalt accent, see below) | `docs/FRONTEND_ARCHITECTURE.md` §10 |
+| 03.10.2026 | Backend stack: Hono + Zod contracts (no RPC/OpenAPI), D1 via SQL without an ORM, grammY for the bot and sending without auto-retry, Vitest 4.1 + Cloudflare plugin | `docs/BACKEND_ARCHITECTURE.md` §1 |
+| 03.10.2026 | Frontend stack: React Aria Components + CSS Modules, TanStack Router + Query, React Hook Form, `@internationalized/date`, Vite 8; one Worker serves the SPA and the API | `docs/FRONTEND_ARCHITECTURE.md` §0 |
 | 03.10.2026 | Product code in `apps/{frontend,backend,contracts}`; agent infrastructure in `.agents/` | `README.md` |
-| 03.10.2026 | Agents: one source for Claude Code and Codex (`.agents/` → generated adapters) | `docs/AGENT_ORCHESTRATION.md` |
-| 03.10.2026 | Git: work directly in `develop` (shipped to the dev Worker, see 05.10.2026); `main` — releases via a `develop → main` PR; the owner commits and pushes | `AGENTS.md` |
-| 05.10.2026 | CI deploys after green checks: `develop` → Worker `dev` (`dev.alexeevs.workers.dev`), `main` → Worker `app` (`app.alexeevs.workers.dev`) via `CLOUDFLARE_ENV`; each environment owns its D1 and vars; remote migrations stay manual owner actions | `.github/workflows/ci.yml`, `apps/backend/wrangler.jsonc` |
-| 03.10.2026 | `unknown` from Telegram — manual reconciliation only, never an automatic retry | skill `publishing-reliability` |
-| 03.10.2026 | No paid AI/render APIs and no paid plans without a separate owner decision | `AGENTS.md` |
-| 03.10.2026 | Token savings: RTK, the caveman proxy, claude-context, context-mode are not used (rationale and measurements) | `docs/AGENT_ORCHESTRATION.md` |
-| 05.10.2026 | Secret scanning is full-history Gitleaks with repository config `.gitleaks.toml`; docs/tests use obvious placeholders; false positives may be ignored only by narrow path + pattern rules, never by commit-SHA fingerprints | `.gitleaks.toml`, `.github/workflows/ci.yml`, `README.md` |
-| 06.10.2026 | ALEXEEV Studio is the primary full product control plane, not a minimal admin MVP: modern redesign first, then complete content, publication/calendar, automation, source/media/template, operations, analytics and settings capabilities; browser and Mini App keep feature parity | `docs/IMPLEMENTATION_PLAN.md`, `docs/PAGE_MAP.md`, `docs/FRONTEND_ARCHITECTURE.md` |
-| 06.10.2026 | The `studio-reference` visual direction is withdrawn. A modern dashboard look will be picked later from Figma dashboard templates (figma.com/templates/dashboard-designs); this reopens the 03.10.2026 Figma exclusion for that choice only, and the design docs are updated when the design stage starts (superseded 07.10.2026: Figma is not used at all, see below) | this table |
-| 06.10.2026 | Order changed: the backend (server) is built first, the redesign comes after it; supersedes "modern redesign first" above | `docs/IMPLEMENTATION_PLAN.md` |
-| 06.10.2026 | Stale draft revision: the revision travels in the request body; a stale one is 409 `CONFLICT` with `details.reason = STALE_REVISION` (no `If-Match` header / 412) | `apps/contracts/src/posts.ts`, `docs/API_CONTRACTS.md` |
-| 06.10.2026 | Browser sign-in uses the classic Telegram Login Widget (`data-onauth`, hash checked with the bot token, one-time use) instead of OpenID Connect: BotFather shows only the domain for this bot, no client credentials | `docs/API_CONTRACTS.md`, skill `api-security` |
-| 06.10.2026 | Visual direction: option C "modern" from the design comparison (soft cards, KPI tiles with sparklines, sidebar + mobile bottom nav, Onest + JetBrains Mono); accent **cobalt** by default. Supersedes the 03.10.2026 "monochrome only" rule: one accent is allowed for primary actions, selection, focus, links and charts; status colors still always come with text + icon | design comparison artifact (option C); `docs/DESIGN_SYSTEM_NO_FIGMA.md` |
-| 06.10.2026 | The owner can change the accent palette in Settings → Appearance, separately for the light and the dark theme, from curated presets (cobalt, indigo, copper, orchid, mono) or up to 10 custom presets the owner creates with a color picker; a custom preset stores one base color and a name, and the light/dark accent shades are derived from it with lightness adjusted to keep WCAG AA contrast (a warning, not a block, when it is close to the failed/unknown status hues); stored on the server so browser and Mini App match | `apps/contracts/src/settings.ts` |
-| 06.10.2026 | Login Widget mechanism clarified: the page does not use `data-onauth` (it requires `unsafe-eval` in CSP); it listens for the widget's `auth_user` postMessage from `oauth.telegram.org` with exact origin and source checks. Depends on Telegram's widget protocol; a change there breaks sign-in visibly, not silently insecurely (the server still verifies the hash) | `apps/frontend/src/features/auth/ui`, skill `api-security` |
-| 06.10.2026 | A `ux-designer` role is added (extends the 03.10.2026 role list): navigation, flows and interaction specs for screens, so that ordinary actions (leave, cancel, delete) never make the owner think; it writes specs, not production code | `docs/AGENT_ORCHESTRATION.md` |
-| 06.10.2026 | Deleting or archiving a post or publication in the admin never deletes the message from the Telegram channel; deleting from the channel is a separate, later decision | `docs/stories/posts-lifecycle.md` |
-| 06.10.2026 | Every delete in the admin asks for confirmation; lists of posts (including the Archive) and final publications support selecting several rows and deleting them at once | `docs/stories/posts-lifecycle.md` §5, §6a |
-| 06.10.2026 | Density revision supersedes the look of option C "modern": narrow grouped sidebar with a subtle active state, accent on about 5% of the UI, dense desktop controls (34–36 px fields, 40 px rows, 7–9 px radii; mobile keeps 44 px), fewer cards, fluid tables, editor as a document with an inspector, «Сегодня» dashboard without a KPI wall, composition per page; the accent presets and the Appearance settings stay | `docs/DESIGN_SYSTEM_NO_FIGMA.md` § Density revision |
-| 07.10.2026 | A top-bar button toggles light ↔ dark from any screen and saves at once; accent and style changes stay in Settings → Оформление and need an explicit Save; Settings becomes master/detail (Каналы, Оформление); bot status lives on the dashboard, not in Settings | `docs/stories/settings.md` |
-| 07.10.2026 | The sidebar drops group headings (Работа / Аналитика / Система): one flat list of sections, «Настройки» pinned at the bottom next to the account; supersedes "grouped sidebar" in the 06.10.2026 density revision | `docs/DESIGN_SYSTEM_NO_FIGMA.md` § Density revision |
-| 07.10.2026 | Figma is not used for anything, including picking templates; the 03.10.2026 exclusion stands in full. Supersedes the 06.10.2026 Figma-template exception | `docs/DESIGN_SYSTEM_NO_FIGMA.md` |
-| 07.10.2026 | Everything is tested only in DEV; production is not prepared or released until the owner says DEV is ready | `docs/IMPLEMENTATION_PLAN.md` Phase 10 |
-| 07.10.2026 | The end goal is a server that prepares content itself. First step: Phase 1D — the server watches official Dota sources and turns a new update into a template draft with a private owner alert; it runs after Phase 1a; publishing still needs owner approval | `docs/IMPLEMENTATION_PLAN.md` Phase 1D |
-| 08.10.2026 | Admin design approved: `UX_SPEC.md` + the `/__proto` prototype are the design source; reference images removed; real pages follow the prototype; preview pages stay DEV-only | `docs/design/README.md`, `docs/design/UX_SPEC.md` |
-| 08.10.2026 | Обзор is a customizable widget grid (react-grid-layout v2 in edit mode only); layout stored server-side per owner with revision/409 | `apps/contracts/src/dashboard-layout.ts`, `docs/API_CONTRACTS.md` |
-| 08.10.2026 | Post approval stores an immutable content snapshot; publication sends that exact approved snapshot, while the revision number guards against stale edits | `apps/backend/src/modules/content/infrastructure/d1-post-repository.ts`, `docs/plan/content-studio.md` |
 
-| 09.10.2026 | Substantive UI tasks use independent code-native clickable prototypes and separate UI QA; routine prototype/implementation approvals are autonomous and owner's approval is optional unless requested or a new owner-only decision is needed; existing tokens and `/__proto` stay canonical | `docs/AGENT_UI_WORKFLOW.md` |
+## Product
+| Date | Decision | Details |
+|---|---|---|
+| 06.10.2026 | ALEXEEV Studio is the full product control plane, not a minimal admin MVP; backend first, then the redesign and the remaining capabilities; browser and Mini App keep feature parity | `docs/IMPLEMENTATION_PLAN.md`, `docs/PAGE_MAP.md` |
+| 03.10.2026 | The admin UI is one SPA: website and Telegram Mini App; no third-party SDK | `docs/FRONTEND_ARCHITECTURE.md` §16 |
+| 03.10.2026 | The bot is personal: commands only from the owner; inbound adapter `app/bot` in the same Worker; administrator of the owner's group with minimal rights; collecting data from the group — later | `docs/BACKEND_ARCHITECTURE.md` §2 |
+| 07.10.2026 | The end goal is a server that prepares content itself. First step: Phase 1D — watch official Dota sources and turn a new update into a template draft with a private owner alert; publishing still needs owner approval | `docs/IMPLEMENTATION_PLAN.md` Phase 1D |
+| 06.10.2026 | Deleting or archiving a post or publication in the admin never deletes the message from the Telegram channel | `docs/BACKEND_ARCHITECTURE.md` §5 |
+| 06.10.2026 | Every delete asks for confirmation; post lists (including the Archive) and final publications support bulk delete | `docs/design/UX_SPEC.md` §3.2 |
+| 08.10.2026 | Обзор is a customizable widget grid (react-grid-layout v2 in edit mode only); layout stored server-side per owner with revision/409 | `apps/contracts/src/dashboard-layout.ts` |
+
+## Publishing and data
+| Date | Decision | Details |
+|---|---|---|
+| 03.10.2026 | `unknown` from Telegram — manual reconciliation only, never an automatic retry | skill `publishing-reliability` |
+| 06.10.2026 | Stale draft revision travels in the request body; a stale one is 409 `CONFLICT` with `details.reason = STALE_REVISION` (no `If-Match` / 412) | `apps/contracts/src/posts.ts`, `docs/API_CONTRACTS.md` |
+| 08.10.2026 | Post approval stores an immutable content snapshot; publication sends exactly that snapshot; the revision number guards against stale edits | `docs/plan/content-studio.md` |
+
+## Auth and security
+| Date | Decision | Details |
+|---|---|---|
+| 03.10.2026 | A single identity — the owner's Telegram ID; Mini App — `initData`; token in memory, `Authorization: Bearer` | `docs/BACKEND_ARCHITECTURE.md` §8, skill `api-security` |
+| 06.10.2026 | Browser sign-in: classic Telegram Login Widget (no OIDC: BotFather gives no client credentials for this bot). The page listens for the widget's `auth_user` postMessage from `oauth.telegram.org` with exact origin/source checks (not `data-onauth`, which needs `unsafe-eval`); the server verifies the hash, one-time use | `docs/API_CONTRACTS.md`, skill `api-security` |
+| 05.10.2026 | Secret scanning: full-history Gitleaks with `.gitleaks.toml`; placeholders in docs/tests; false positives only by narrow path + pattern rules, never commit-SHA fingerprints | `.gitleaks.toml`, `README.md` |
+| 03.10.2026 | No paid AI/render APIs and no paid plans without a separate owner decision | `AGENTS.md` |
+
+## Design
+| Date | Decision | Details |
+|---|---|---|
+| 03.10.2026 | Figma is excluded entirely (reaffirmed 07.10.2026, including picking templates); design lives only in code | `docs/design/README.md` |
+| 08.10.2026 | Admin design approved: `UX_SPEC.md` + the `/__proto` prototype are the design source; real pages follow the prototype; preview pages stay DEV-only | `docs/design/README.md`, `docs/design/UX_SPEC.md` |
+| 06.10.2026 | Accent palette per theme in Settings → Appearance: presets (cobalt default, indigo, copper, orchid, mono) or up to 10 custom presets (one base color + name; light/dark shades derived to keep WCAG AA; warning when close to failed/unknown hues); stored on the server | `apps/contracts/src/settings.ts` |
+| 07.10.2026 | A top-bar button toggles light ↔ dark and saves at once; accent changes need an explicit Save; Settings is master/detail; bot status lives on the dashboard | `docs/design/UX_SPEC.md` §3.6, §4.5 |
+| 03.10.2026 | Documentation and agent instructions are in English; the owner is addressed in Russian; UI copy is Russian | `AGENTS.md` |
+
+## Process and environments
+| Date | Decision | Details |
+|---|---|---|
+| 03.10.2026 | Git: work directly in `develop`; `main` — releases via a `develop → main` PR; the owner commits and pushes | `AGENTS.md` |
+| 05.10.2026 | CI deploys after green checks: `develop` → Worker `dev`, `main` → Worker `app`; each environment owns its D1 and vars; remote migrations stay manual owner actions | `.github/workflows/ci.yml`, `apps/backend/wrangler.jsonc` |
+| 07.10.2026 | Everything is tested only in DEV; production is not prepared or released until the owner says DEV is ready | `docs/IMPLEMENTATION_PLAN.md` Phase 10 |
+| 03.10.2026 | Uniform code style: Prettier + Oxlint via Husky/lint-staged on commit, `verify:changed` on pre-push, full `verify` in CI | `README.md` |
+| 03.10.2026 | Agents: one source for Claude Code and Codex (`.agents/` → generated adapters); work only by project roles; built-in read-only helpers allowed; generic global agents denied in `.claude/settings.json` | `docs/AGENT_ORCHESTRATION.md` |
+| 09.10.2026 | Substantive UI tasks go UX → mock-only clickable prototype → independent UI QA → implementation → UI QA; owner approval is optional unless requested or an owner-only decision is needed | `docs/AGENT_UI_WORKFLOW.md` |
+| 03.10.2026 | Token-saving tools (RTK, caveman proxy, claude-context, context-mode) are not used: measured gains were negligible or they send code to external services | — |
 
 ## Awaiting owner decision
 | Question | Default recommendation |

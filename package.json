@@ -29,7 +29,6 @@
     "check:docs": "node .agents/scripts/check-docs.mjs",
     "agents:sync": "node .agents/scripts/sync-agents.mjs",
     "agents:check": "node .agents/scripts/sync-agents.mjs --check",
-    "metrics": "node .agents/scripts/metrics.mjs",
     "verify": "node .agents/scripts/verify.mjs",
     "prepare": "husky",
     "verify:changed": "node .agents/scripts/verify.mjs --changed"

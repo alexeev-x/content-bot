@@ -20,7 +20,7 @@ These decisions are already made and should not be re-opened unless the owner ex
 - No AI/LLM/generative features are part of the active roadmap. No AI recommendations, AI scoring, AI scripts, generative images, AI comment classification, AI agents or AI orchestration are to be built in the phases below.
 - Dota intelligence is deterministic: source ingestion, parsing, normalization, comparisons, thresholds, rules, filters, watchlists and explicit provenance.
 - Design is implemented in code. Figma is not required. Canonical visual sources are tokens, primitives, real pages and browser screenshot references stored in the repository.
-- Phone, tablet, laptop, desktop and Telegram Mini App are first-class; every route remains fully operational and adapts to available space. Required responsive checks and widths are defined in `docs/design/UX_SPEC.md` §1; mobile is not a read-only version.
+- Phone, tablet, laptop, desktop and Telegram Mini App are first-class; every route remains fully operational and adapts to available space. Required responsive checks and widths are defined in `docs/design/UX_SPEC.md` Conventions; mobile is not a read-only version.
 - D1 remains the operational source of truth. R2 is introduced for media objects when the media phase begins.
 - A feature is not complete because a route exists. It is complete only when the real backend, real UI, validation, error states, tests and operational behavior exist.
 
@@ -151,7 +151,7 @@ Each system's target design lives in its own file. Open only the one you need.
 | §17, §18 | media library, later automated media pipeline | `docs/plan/media.md` |
 | §19, §20 | platform expansion, comments | `docs/plan/platforms.md` |
 | §22, §23, §24 | visual direction, Mini App, settings map | `docs/plan/design-mobile-settings.md` |
-| §26 | cross-product state, API, data, security, observability rules | `docs/plan/reliability.md` |
+| §26 | cross-product reliability rules | root `AGENTS.md` Non-negotiables and skill `publishing-reliability` |
 
 ## 27. Roadmap and dependency order
 
@@ -205,7 +205,7 @@ Definition of Done:
 - preview matches publish strategy.
 - every sent Telegram message id is stored.
 - failure mid-sequence cannot be reported as full success.
-- Responsive screenshots and overflow checks verified at 320, 375, 390, 768, 1024, 1280, 1440 and 1920 px, plus intermediate widths around layout changes (contract: `docs/design/UX_SPEC.md` §1).
+- Responsive screenshots and overflow checks pass the viewport checks in `docs/design/UX_SPEC.md` Conventions.
 
 Owner prerequisite:
 
@@ -427,9 +427,9 @@ This is the actionable queue from the master roadmap. Whoever starts or finishes
 | 2 | Autosave | done (awaiting owner DEV check) |
 | 3 | Dota update watcher: official sources, D1 dedup (Phase 1D) | done (deployed to DEV, smoke-check passed) |
 | 4 | Dota update → template draft + private owner alert (Phase 1D) | done (deployed to DEV, smoke-check passed) |
-| 5 | Patch summary from confirmed changes (Phase 1D) | in progress |
-| 6 | Manual multi-media model, R2 upload and preview | in progress |
-| 7 | Telegram multi-media publishing and publication_messages | not started |
+| 5 | Patch summary from confirmed changes (Phase 1D) | done (awaiting owner DEV check) |
+| 6 | Manual multi-media model, R2 upload and preview | done (awaiting owner DEV check) |
+| 7 | Telegram multi-media publishing (media groups, all message IDs in `external_message_ids`) | done (awaiting owner DEV check) |
 | 8 | Post actions/archive UX | in progress (Archive tab exists, see §2.5) |
 | 9 | Owner timezone | not started (top bar shows a read-only timezone chip) |
 | 10 | Overview/Decision Center v2 | in progress (widget grid + server-side layout in DEV, awaiting migration 0012 on DEV D1; real attention/today data still partly client-side; no real views/ER) |

@@ -2,8 +2,6 @@
 
 Part of the master plan; status, order and the queue live in `docs/IMPLEMENTATION_PLAN.md`. Section numbers are the plan's own, so `§N` references stay valid.
 
-08.10.2026: only a mock-data preview in the dev-only prototype `/__proto` and «—» placeholders for views/subscribers exist (UX_SPEC §8); no snapshots, views, subscribers or per-channel health API yet.
-
 ## 3.8 Analytics
 
 Purpose: preserve history and answer operational/content questions with measured data.

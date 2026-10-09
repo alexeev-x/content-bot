@@ -1,5 +1,5 @@
 /*
-  Single token source (approved «modern» direction, docs/DESIGN_SYSTEM_NO_FIGMA.md).
+  Single token source (approved «Calm Operations» direction, docs/design/README.md).
   Three tiers: raw values live only inside the theme blocks below; components use the semantic
   `--color-*` names. Colour literals are allowed in this file only (scripts/colors-only-in-tokens.test.mjs).
 

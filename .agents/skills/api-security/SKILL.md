@@ -37,7 +37,7 @@ One identity everywhere: the owner's Telegram ID (`OWNER_TELEGRAM_ID`, a Worker 
 
 ## Review checklist
 - [ ] Forged, stale (`auth_date` > 15 min) and foreign-ID `initData` are rejected — with tests.
-- [ ] `id_token` with wrong signature, `iss`, `aud`, `nonce` or expired is rejected — with tests.
+- [ ] Login Widget data with a wrong hash, stale `auth_date`, foreign ID or a reused hash is rejected — with tests.
 - [ ] Every `/api/v1/*` route except sign-in requires a valid Bearer token; 401/403 leak no data.
 - [ ] Refresh/logout with a foreign `Origin` is rejected.
 - [ ] Webhook: wrong secret rejected, `update_id` replay processed once, non-owner commands ignored.

@@ -1,6 +1,6 @@
 # CONTENT-BOT — FINAL BACKEND ARCHITECTURE v3.1
 
-**Date:** 03.10.2026 · **Status:** approved technical direction; v3.1 — stack approved by the owner on 03.10.2026 (code not yet implemented) · **Load:** up to 1,000 background jobs/day; peaks are verified by load tests · **Budget:** free quotas until measured limits are reached.
+**Date:** 03.10.2026 · **Status:** approved technical direction, implemented in DEV; sections marked "as built" describe the running code · **Load:** up to 1,000 background jobs/day; peaks are verified by load tests · **Budget:** free quotas until measured limits are reached.
 
 > This document replaces ALL interim architectures. When it conflicts with the chat or the old README, follow it, then the approved `AGENTS.md`. When decisions change, edit this document; do not create a v4 alongside it.
 
@@ -205,7 +205,7 @@ Creating a publication is one batch guarded in SQL: the publication insert needs
 
 ### Post lifecycle as built (archive, restore, delete, purge)
 
-Spec: `docs/stories/posts-lifecycle.md`. Deleting or archiving never touches the Telegram channel (owner decision 06.10.2026); nothing here calls Telegram.
+UI: `docs/design/UX_SPEC.md` §3.2. Deleting or archiving never touches the Telegram channel (owner decision 06.10.2026); nothing here calls Telegram.
 
 **Archive is a stored fact:** `posts.archived_at` (UTC ms, migration 0008), set only by the Cron archive step and cleared only by restore. `posts.restored_at` records the last restore. Editorial `status` stays `draft | approved`; an archived post is `approved`, read-only and not schedulable (`createPublication` refuses it with 409 `POST_ARCHIVED`; the publication insert is also guarded by `posts.archived_at IS NULL`, so a create racing the archive step either sees the post live or finds nothing to schedule).
 
@@ -247,7 +247,7 @@ After a publication is created for a future time, or rescheduled to one, the bot
 
 **System state (`system_state`, migration 0009).** `cron_last_run` is one upsert at the end of every tick (also a failed one); it is why an idle tick now costs 3 reads and 1 write. `app_origin` is stored by `/start` and by connect, because Cron has no request to learn the Worker's public origin from; alerts are skipped (`APP_ORIGIN_UNKNOWN`) until one of them ran. A deployment before the migration logs `heartbeat` / `ALERT_STATE_UNAVAILABLE` and keeps ticking.
 
-**Owner instructions: webhook registration and its status.** Secrets are set by the owner: `TELEGRAM_BOT_TOKEN` and `TELEGRAM_WEBHOOK_SECRET` (1-256 characters of `A-Za-z0-9_-`). Apply migration 0009 to the environment's D1 first. Then open Settings → Bot and press Connect: the Worker calls `getMe`, `setWebhook` (`<origin>/webhooks/telegram`, the secret as `secret_token`, `allowed_updates: message, callback_query`), clears stale command lists, sets the owner's commands and menu button and stores the origin. Status (`GET /api/v1/bot/status`, shown on the same page) reads `getWebhookInfo`: the expected URL, `pointsHere`, `pendingUpdateCount`, `lastErrorAt` and message. Without the UI: `curl "https://api.telegram.org/bot<TOKEN>/getWebhookInfo"` (do not paste the token anywhere shared) and, to register by hand, `curl -F url=<origin>/webhooks/telegram -F secret_token=<SECRET> -F 'allowed_updates=["message","callback_query"]' "https://api.telegram.org/bot<TOKEN>/setWebhook"`. Then send `/start` to the bot.
+**Owner instructions: webhook registration and its status.** Secrets are set by the owner: `TELEGRAM_BOT_TOKEN` and `TELEGRAM_WEBHOOK_SECRET` (1-256 characters of `A-Za-z0-9_-`). Apply migration 0009 to the environment's D1 first. Then press «Подключить бота» on Обзор (system status): the Worker calls `getMe`, `setWebhook` (`<origin>/webhooks/telegram`, the secret as `secret_token`, `allowed_updates: message, callback_query`), clears stale command lists, sets the owner's commands and menu button and stores the origin. Status (`GET /api/v1/bot/status`, shown in the system status) reads `getWebhookInfo`: the expected URL, `pointsHere`, `pendingUpdateCount`, `lastErrorAt` and message. Without the UI: `curl "https://api.telegram.org/bot<TOKEN>/getWebhookInfo"` (do not paste the token anywhere shared) and, to register by hand, `curl -F url=<origin>/webhooks/telegram -F secret_token=<SECRET> -F 'allowed_updates=["message","callback_query"]' "https://api.telegram.org/bot<TOKEN>/setWebhook"`. Then send `/start` to the bot.
 
 ### Dashboard and incidents as built
 
@@ -380,7 +380,7 @@ Workers may reuse an isolate. Mutable globals `currentUser`, `job`, `request`, a
 
 Every HTTP request and job has a `requestId`/`jobId`; logs are structured JSON: `timestamp`, `component`, `operation`, `durationMs`, `status`, `errorCode`, `retryable`, `attempt`; no raw webhook body and no secrets. Important `incidents` in D1 with bounded history and a grouping mechanism. The admin UI shows: the last successful Cron, jobs by status, errors over 24 hours, Cron lag (time since the last successful tick), attempts, the `unknown` state, results of manual actions. Aggregate successes and delete old ones per a retention policy. If the Telegram error notification itself fails, save the incident in D1 without infinite recursion.
 
-As built: the dispatcher logs one JSON line per job (`component: 'dispatcher'`, `jobId`, `attempt`, `status`, `errorCode`, `durationMs`), reconcile one per resolved claim, and every tick one summary line (`component: 'scheduled'`, `status`, `durationMs`, `counts`). Only these fields exist in the logger type: no token, chat text, post text or Telegram body can reach a log line. A failed or `unknown` job always has an `incidents` row written in the same batch as the state change (nothing fails silently); the incident carries a code and bounded metadata, and its notification to the owner is not built yet (the open list is the source). Cron lag is visible from the tick lines.
+As built: the dispatcher logs one JSON line per job (`component: 'dispatcher'`, `jobId`, `attempt`, `status`, `errorCode`, `durationMs`), reconcile one per resolved claim, and every tick one summary line (`component: 'scheduled'`, `status`, `durationMs`, `counts`). Only these fields exist in the logger type: no token, chat text, post text or Telegram body can reach a log line. A failed or `unknown` job always has an `incidents` row written in the same batch as the state change (nothing fails silently); the incident carries a code and bounded metadata, and the owner gets one private bot alert per incident (§5 "Owner alerts"). Cron lag is visible from the tick lines.
 
 ## 11. Testing and quality gates
 
@@ -388,13 +388,13 @@ As built: the dispatcher logs one JSON line per job (`component: 'dispatcher'`, 
 - Integration: Vitest 4.1 + `@cloudflare/vitest-plugin` in workerd; D1 migrations are applied via `readD1Migrations`/`applyD1Migrations`; the Cron handler is invoked through the plugin's test APIs; Telegram — a fake `PublicationTransport` and a fake grammY client via a port (we do not intercept network requests).
 - Contract: real route responses are parsed by the `apps/contracts` schemas; every `PublicationTransport` passes a shared outcome test suite.
 - Architecture: `dependency-cruiser` — no-circular, no-module-to-module (modules do not import each other), no-domain-imports-infra.
-- Failure: two Crons at once, crash after `send_started_at`, timeout/5xx/ok without `message_id` → `unknown`, 429 → `retry_wait`, 400/403 → `failed`, repeated webhook `update_id`, command not from the owner, expired/forged `initData`, invalid `id_token`, wrong webhook secret, size limit exceeded, module removal.
+- Failure: two Crons at once, crash after `send_started_at`, timeout/5xx/ok without `message_id` → `unknown`, 429 → `retry_wait`, 400/403 → `failed`, repeated webhook `update_id`, command not from the owner, expired/forged `initData`, forged/stale/reused Login Widget data, wrong webhook secret, size limit exceeded, module removal.
 - Load: 100 and 1,000 jobs/day with peaks; record CPU per tick, D1 queries, subrequests, the number of duplicates in Telegram (zero expected with normally observed responses; `unknown` — manual check).
 - CI on every push/PR: `npm ci` → `npm run verify` (lint, types, boundaries, unit/integration, build). A `qa-security` review is mandatory for migrations, sign-in, the webhook and publications.
 
 ## 12. External contracts for the frontend
 
-All admin endpoints `/api/v1/*` return stable JSON DTOs. Shared types and Zod schemas — `contracts`, with no dependencies on Hono, Cloudflare or React. On a breaking change, add an API version/compatibility parameters; the server must not break the admin UI deployed yesterday. For concurrent draft edits — `revision`, response `409 CONFLICT` on a stale save (how the revision is passed is an open question in `DECISIONS.md`). All lists use cursor pagination; UTC timestamps in ISO-8601; error: `{error:{code,message,requestId,details?}}`. The interface document is `docs/API_CONTRACTS.md`.
+All admin endpoints `/api/v1/*` return stable JSON DTOs. Shared types and Zod schemas — `contracts`, with no dependencies on Hono, Cloudflare or React. On a breaking change, add an API version/compatibility parameters; the server must not break the admin UI deployed yesterday. For concurrent draft edits — `revision`, response `409 CONFLICT` on a stale save (the revision travels in the request body, see `DECISIONS.md`). All lists use cursor pagination; UTC timestamps in ISO-8601; error: `{error:{code,message,requestId,details?}}`. The interface document is `docs/API_CONTRACTS.md`.
 
 ## 13. Changing and removing modules
 
@@ -410,7 +410,7 @@ All admin endpoints `/api/v1/*` return stable JSON DTOs. Shared types and Zod sc
 - A manually created and scheduled post to a channel and to a group works; content preview.
 - A forced double Cron tick does not produce two publications.
 - A lost Telegram confirmation → `unknown` and a visible incident in the admin UI, with no automatic resend.
-- Sign-in: in the Mini App — automatic, in the browser — via Telegram; a foreign Telegram ID gets 403; forged or expired `initData` and an invalid `id_token` are rejected.
+- Sign-in: in the Mini App — automatic, in the browser — via Telegram; a foreign Telegram ID gets 403; forged or expired `initData` and forged, stale or reused Login Widget data are rejected.
 - Webhook: wrong secret → rejection; a repeated `update_id` is processed once; commands not from the owner are ignored.
 - No secrets in the frontend build and logs; a Worker restart does not lose work.
 - Quotas are measured for 1,000 test jobs; the application does not depend on paid AI APIs.
@@ -429,5 +429,5 @@ All admin endpoints `/api/v1/*` return stable JSON DTOs. Shared types and Zod sc
 - dependency-cruiser rules: https://github.com/sverweij/dependency-cruiser/blob/main/doc/rules-reference.md
 - Martin Fowler, Monolith First: https://martinfowler.com/bliki/MonolithFirst.html
 
-**Measured performance results, real costs and the code implementation do not exist yet; this is a technical standard that must be implemented and verified.**
+**Measured performance results and real costs do not exist yet: capacity figures are calculations until a load test.**
 

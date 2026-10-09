@@ -2,8 +2,6 @@
 
 Part of the master plan; status, order and the queue live in `docs/IMPLEMENTATION_PLAN.md`. Section numbers are the plan's own, so `§N` references stay valid.
 
-08.10.2026: only a mock-data preview in the dev-only prototype `/__proto` exists (UX_SPEC §8); no media API, R2 code or thumbnails yet.
-
 ## 17. Media library
 
 After manual post uploads are stable, build /media.

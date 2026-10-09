@@ -23,7 +23,7 @@ Capabilities:
 
 The current single Telegram message id is insufficient for multiple attachments.
 
-Extend the publication result model so one publication may own one or more sent messages:
+Built as `publications.external_message_ids` (migration 0017: every message ID of a media group, the first kept in `external_message_id`). A separate `publication_messages` table is needed only if per-message metadata below becomes necessary:
 
 - publication_messages.
 - platform message id.
@@ -37,8 +37,6 @@ Keep a primary message id for compatibility if useful, but the canonical result 
 ## 7. Publications Center v2
 
 ### 7.1 List
-
-Delivered 08.10.2026 (DEV): tabs Все / Запланированные / Отправленные / Ошибки, live search and column sort (client-side over loaded pages), «Опубликовать пост» picker, inspector. Still missing: date-range filter («Сегодня»), failed+unknown multi-status filter, total counts, server-side search/sort.
 
 Add:
 

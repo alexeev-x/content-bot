@@ -2,7 +2,7 @@
 
 Shared Claude Code/Codex rules. Talk Russian; code, identifiers, commits and branches English.
 
-**Status:** in development, not in production. State and queue: `docs/IMPLEMENTATION_PLAN.md`; the core Telegram publishing path was owner-validated live in DEV on 07.10.2026. Never describe other planned parts as working.
+**Status:** in development, not in production; what works is in `docs/IMPLEMENTATION_PLAN.md`. Never describe planned parts as working.
 
 ## Layout
 - `apps/frontend/` — React + Vite admin SPA. Rules: `apps/frontend/AGENTS.md`.
@@ -10,6 +10,13 @@ Shared Claude Code/Codex rules. Talk Russian; code, identifiers, commits and bra
 - `apps/contracts/` — Zod DTOs shared by both sides. Rules: `apps/contracts/AGENTS.md`.
 - `docs/` — canonical architecture. Open only the section you need.
 - `.agents/` — role sources (`roles/`), skills (`skills/`), tooling (`scripts/`). `.claude/` and `.codex/` are generated from it: edit sources, then `npm run agents:sync`.
+
+## One fact, one place
+Edit a fact at its source; elsewhere only link to it.
+- Task flow (contract step, backend and frontend lines, gates): skill `orchestrate`; UI gates: `docs/AGENT_UI_WORKFLOW.md`.
+- Status and queue: `docs/IMPLEMENTATION_PLAN.md`. Decisions: `docs/DECISIONS.md`.
+- Screens, patterns, viewport widths: `docs/design/UX_SPEC.md`; visual direction and tokens: `docs/design/README.md`.
+- API meaning: `docs/API_CONTRACTS.md`; shapes: `apps/contracts/src`.
 
 ## Load context on demand, never everything
 | When you touch | Load |
@@ -33,10 +40,9 @@ Write tersely: no preamble, no restating the task, no recap of a visible diff. C
 
 ## Working with the owner
 - Main session only (not subagents): you orchestrate every owner request; the owner never types a command. Small single-area edits: do yourself; larger: follow skill `orchestrate`.
-- Substantive UI: follow `docs/AGENT_UI_WORKFLOW.md` (UX → prototype → ui-qa → frontend → ui-qa). QA accepts routine UI autonomously; owner-only decisions still escalate.
-- Decide defaults; escalate only owner-level publishing, access, money or recorded decisions with a recommendation.
+- Decide defaults; escalate only owner-level publishing, access, money or recorded decisions, with a recommendation.
 - Recorded decisions live in `docs/DECISIONS.md`; don't relitigate them unprompted.
-- Do only what the task asks: no unrequested features, refactors or abstractions. Never claim 1 000 jobs/day before a load test.
+- Do only what the task asks: no unrequested features, refactors or abstractions.
 
 ## Non-negotiables
 - Modular monolith: one Worker, one D1, one Cron (plus one Queue only where the architecture says so). No microservices, generic repositories, event bus, service locator or DI container; `apps/backend/src/app/container.ts` wires adapters by hand.
@@ -47,13 +53,12 @@ Write tersely: no preamble, no restating the task, no recap of a visible diff. C
 - The server re-validates every input with Zod and re-checks the session token and the owner's Telegram ID. Client validation is UX only.
 - Design exists only as code: tokens, primitives and browser screenshots. Figma is excluded (owner decision 03.10.2026); never propose it.
 - Agents never deploy, run `--remote` D1 commands, or change secrets (`wrangler secret put/delete` deploys immediately). The owner runs these.
-- Hooks only inspect command text; isolate agent sessions from production credentials and access.
 - No paid AI providers, render APIs or paid cloud tiers without an explicit owner decision.
 - No empty scaffolding: ship behavior/error handling; test critical paths; sync docs/examples/setup when behavior/config changes.
 
 ## TypeScript style (all packages)
 - `strict`; no `any`; `!` only in bootstrap; parse external `unknown` with Zod. Named exports, kebab-case files, `PascalCase.tsx` components; one responsibility per file.
-- Errors use stable `code`s, are never swallowed, and logs omit secrets, `initData`, OIDC codes and raw payloads. Store UTC; convert timezones in the UI.
+- Errors use stable `code`s, are never swallowed, and logs omit secrets, `initData`, sign-in payloads and raw payloads. Store UTC; convert timezones in the UI.
 - Comments explain why. New dependencies need a PR reason and lockfile entry; prefer platform APIs.
 
 ## Git

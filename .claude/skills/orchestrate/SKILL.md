@@ -11,19 +11,12 @@ Handle docs-only, obvious fixes and clear single-area changes in the main sessio
 
 Launch only needed roles; qa-security is not default for R0/R1.
 
-Substantive UI: `references/ui-qa-chain.md` and `docs/AGENT_UI_WORKFLOW.md`.
-
-## Risk-based QA
-Classify by behavior and consequences, not line count. Follow `references/risk-qa.md`; do not launch QA for R0/R1 by default.
-
-## Owner interaction
-Follow the root owner-interaction and recorded-decision rules.
+Substantive UI: `docs/AGENT_UI_WORKFLOW.md`.
 
 ## Token hygiene
 - One task per session; new task, new session. For long tasks, compact with a focus line ("keep: task packet, failing check, decisions").
 - Do not edit cached instructions, skills, hooks or settings mid-session; it invalidates prompt cache.
 - Delegate noisy searches and logs; return only the role's summary.
-- For Plus comparisons, record allowance as in `references/metrics.md`; do not infer it from `npm run metrics`.
 
 ## 1. Classify
 | Change | Route |
@@ -32,7 +25,7 @@ Follow the root owner-interaction and recorded-decision rules.
 | one area, clear spec | one role (or yourself) → checks |
 | substantial screen, flow, or UI references | ux-designer → ui-prototyper → ui-qa → frontend → ui-qa |
 | missing visual primitive/token | design-system (scoped request) → owning builder |
-| API or data change | contract step → backend ∥ frontend |
+| API or data change | contract step (you) → backend ∥ frontend |
 | contract, integration, verification infrastructure (R2) | one owner per path; qa-security reviews the integrated diff |
 | publishing / auth / migration / security / secrets (R3) | as above, plus mandatory qa-security before acceptance |
 | unclear requirements | product-analyst first |
@@ -43,7 +36,12 @@ Code, docs and reviews go only through the project roles above. Built-in helpers
 ## 2. Plan
 - Work on develop and check `git status`. Preserve pre-existing changes; never stash, reset or overwrite another task's work.
 - Cut the smallest vertical slices. Each task has one owner role and a set of `owned_paths` that no other task shares.
-- UI: UX → prototype → ui-qa PASS → frontend → ui-qa; backend may start after contract. Other tasks: contract → backend ∥ frontend → review. Parallelize only disjoint paths after contract. Serialize these files: `apps/contracts/**`, migrations, `container.ts`, the router, the token file.
+- **Contract step:** you (the main session) write the `apps/contracts` change with skill `contract-change` before any builder starts. Builders never edit contracts: backend answers `BLOCKED: contract`, frontend sends `CONTRACT_REQUEST`, and you update the contract.
+- **Two lines after the contract:**
+  - Backend line: backend (tests first) → its focused checks.
+  - Frontend line: plain UI → frontend; substantive UI → ux-designer → ui-prototyper → ui-qa `PROTOTYPE_PASS` → frontend → ui-qa `IMPLEMENTATION_PASS` (`docs/AGENT_UI_WORKFLOW.md`). Backend may run while UX and the prototype are in progress; frontend implementation waits for `PROTOTYPE_PASS`.
+  - Both lines join at the final gate (§5).
+- Serialize these files (one task at a time): `apps/contracts/**`, migrations, `container.ts`, the router, the token file.
 
 ## 3. Task packet
 Send only the goal, owned paths, needed context links, acceptance criteria and constraints. Do not paste documents, the transcript or other roles' code.
@@ -64,4 +62,3 @@ See `references/parallel-worktrees.md`. Parallelize only independent paths, usin
 ## 7. Deliver
 - Don't commit or push: the owner does. Hand over a conventional commit message and a short Russian summary: the goal, each acceptance criterion with pass/fail, the commands run with results, risks, and `not_run` items.
 - A release is a PR `develop → main` opened by the owner (body per `.github/pull_request_template.md`). Never touch `main`.
-- Log task outcome and available Plus allowance observations as described in `references/metrics.md`; never convert token counts or API prices into Plus usage.

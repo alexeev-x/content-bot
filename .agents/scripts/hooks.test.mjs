@@ -18,7 +18,6 @@ import {
   canReuseVerification,
 } from '../hooks/verify-on-stop.mjs';
 import { update, readRunning, record, STALE_MS } from '../hooks/track-builders.mjs';
-import { sumTranscript } from '../hooks/log-usage.mjs';
 
 test('guard blocks owner-only and destructive commands', () => {
   for (const cmd of [
@@ -115,28 +114,7 @@ test('verify-on-stop blocks at most twice and respects Codex stop_hook_active', 
   assert.equal(shouldBlock({ verifyPassed: false, blocksSoFar: 1, stopHookActive: true }), false);
 });
 
-test('usage is summed once per message id', () => {
-  const line = (id, out) =>
-    JSON.stringify({
-      message: {
-        id,
-        model: 'm',
-        usage: { input_tokens: 1, output_tokens: out, cache_creation_input_tokens: 10, cache_read_input_tokens: 100 },
-      },
-    });
-  const r = sumTranscript([line('a', 5), line('a', 7), line('b', 3), 'not json "usage"'].join('\n'));
-  assert.deepEqual(r, {
-    messages: 2,
-    models: { m: 2 },
-    input_tokens: 2,
-    output_tokens: 10,
-    cache_creation_input_tokens: 20,
-    cache_read_input_tokens: 200,
-  });
-});
-
 import { relevantLines, MAX_LINES } from './verify.mjs';
-import { summarize, units } from './metrics.mjs';
 
 test('verify keeps error lines and caps output', () => {
   const out = [
@@ -150,14 +128,6 @@ test('verify keeps error lines and caps output', () => {
   assert.ok(lines.every((l) => /error/.test(l)));
   assert.deepEqual(relevantLines('a\nb\nc'), ['a', 'b', 'c']);
   assert.deepEqual(relevantLines('✔ rejects missing fields\n✖ broken: expected 1'), ['✖ broken: expected 1']);
-});
-
-test('metrics sums main and subagents into relative cost units', () => {
-  const u = { input_tokens: 10, cache_creation_input_tokens: 100, cache_read_input_tokens: 1000, output_tokens: 20 };
-  assert.equal(units(u), 10 + 125 + 100 + 100);
-  const s = summarize({ session_id: 's', branch: 'b', updated: 't', main: u, subagents: { a: u } });
-  assert.equal(s.output_tokens, 40);
-  assert.equal(s.units, 670);
 });
 
 test('verify waits while builders run and tracks only builder agents', () => {

@@ -2,7 +2,7 @@ import AxeBuilder from '@axe-core/playwright';
 import { expect, test, type Page } from '@playwright/test';
 import { mockApi } from './support/mock-api';
 
-// Reconciliation of an `unknown` publication (docs/stories/posts-lifecycle.md §6). Set SHOTS_DIR to also save screenshots.
+// Reconciliation of an `unknown` publication (docs/design/UX_SPEC.md §4.3). Set SHOTS_DIR to also save screenshots.
 const SHOTS_DIR = process.env['SHOTS_DIR'];
 const TAGS = ['wcag2a', 'wcag2aa', 'wcag21aa', 'wcag22aa'];
 const UNKNOWN_ID = '33333333-3333-4333-8333-555555555555';

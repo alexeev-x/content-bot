@@ -1,4 +1,4 @@
-// Invented data for the experimental previews (docs/design/UX_SPEC.md §8). Nothing here reaches a network.
+// Invented data for the experimental previews (docs/design/UX_SPEC.md §6). Nothing here reaches a network.
 import { NOW } from './data';
 import type { StatusKey } from '../../shared/ui';
 

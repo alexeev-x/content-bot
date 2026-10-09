@@ -1,6 +1,6 @@
 import type { PostDto } from '@alexeev/contracts';
 
-/** The list state of a post, first match wins (docs/stories/posts-lifecycle.md §2). Archived posts only appear in the archive view. */
+/** The list state of a post, first match wins (docs/design/UX_SPEC.md §3.2). Archived posts only appear in the archive view. */
 export type PostListState =
   | { kind: 'archived' }
   | { kind: 'unknown' }

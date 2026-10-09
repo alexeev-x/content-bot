@@ -3,7 +3,7 @@ import { ru } from '../src/shared/lib/ru';
 import { ids, mockApi } from './support/mock-api';
 import { installFakeTelegram, telegramCalls } from './support/telegram';
 
-// Mini App integration (docs/stories/mobile-layout.md, items 5, 6, 9) against a fake window.Telegram.
+// Mini App integration (docs/FRONTEND_ARCHITECTURE.md §16) against a fake window.Telegram.
 // Screenshots go to E2E_SHOT_DIR when it is set (never committed).
 const SHOT_DIR = process.env['E2E_SHOT_DIR'];
 const SCREENS = [

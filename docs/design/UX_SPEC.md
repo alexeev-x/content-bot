@@ -2,9 +2,9 @@
 
 Status: **Approved 08.10.2026** (owner approved this spec and the prototype at `/__proto`; real pages follow the prototype). Expert review, not validated with users; the owner's words and the existing stories are the primary evidence. Scope: only screens and routes that exist now. Anything needing a missing API is marked **API need**; future items are marked **Later** and are never drawn as working.
 
-Inputs: `docs/design/README.md` (Calm Operations visual rules), `docs/PAGE_MAP.md`, `docs/stories/{mobile-layout,settings,posts-lifecycle,dashboard-today-incidents,dashboard-system-status,review-2026-10-07-ux}.md`, current screenshots (dark/light x 1440/375, mock data; names below like `dark-375-posts`). Where this spec and an older story disagree, this spec wins for layout/patterns; publishing-safety rules in the stories stay authoritative.
+Inputs: `docs/design/README.md` (Calm Operations visual rules) and `docs/PAGE_MAP.md`. Publishing-safety rules in `docs/BACKEND_ARCHITECTURE.md` and skill `publishing-reliability` always win.
 
-Conventions: responsive behavior is required on every route from 320 px phone widths through tablets, laptops and large desktop screens (1920 px+); no device class is out of scope. QA viewport matrix: 320, 375, 390, 768 (tablet portrait), 1024 (tablet landscape/small laptop), 1280 (laptop), 1440 and 1920 px (large desktop), plus intermediate widths where layouts change. The existing 860 px breakpoint switches compact navigation/list composition to desktop composition; it is not a device boundary, and layouts must interpolate cleanly on both sides. Use available width and input capability (touch targets 44 px on touch and in the Mini App, 34-36 px for a fine pointer), not device-name assumptions. No horizontal page overflow, clipped content, inaccessible controls or overlapping sticky UI at any tested width. RU copy is final unless marked `(draft)`.
+Conventions: responsive behavior is required on every route from 320 px phone widths through tablets, laptops and large desktop screens (1920 px+); no device class is out of scope. **Viewport checks (the only source for widths):** builders (frontend, design-system, ui-prototyper) run a quick check at **375, 1280 and 1920 px**; the independent ui-qa gate runs the **full matrix 320, 375, 390, 768 (tablet portrait), 1024 (tablet landscape/small laptop), 1280 (laptop), 1440 and 1920 px**, plus intermediate widths where layouts change. The existing 860 px breakpoint switches compact navigation/list composition to desktop composition; it is not a device boundary, and layouts must interpolate cleanly on both sides. Use available width and input capability (touch targets 44 px on touch and in the Mini App, 34-36 px for a fine pointer), not device-name assumptions. No horizontal page overflow, clipped content, inaccessible controls or overlapping sticky UI at any tested width. RU copy is final unless marked `(draft)`.
 
 ---
 
@@ -16,10 +16,10 @@ Conventions: responsive behavior is required on every route from 320 px phone wi
 4. **Desktop = DataTable inside Panel; phone = the same data as row cards inside the same Panel** (fixed anatomy: title 2 lines, status chip, one meta line, `…` menu). Detail: desktop inspector (right Drawer, URL-addressable); phone full-height bottom sheet for quick look, route for anything with editing.
 5. **Skeletons reserve final geometry** (2.6): header strip, toolbar, row count and row height are fixed, so data arrival never changes section height.
 6. **Mobile is first-class**: bottom tab bar (Обзор, Посты, Публикации, Инциденты, Ещё) replaces «Календарь» (stub) while it is not built; primary action in the thumb zone (bottom, inside the sticky action bar or FAB-less header button at top is NOT enough on lists); filters in a bottom sheet with active count; editor is full-screen with one pinned action bar.
-7. **Editor autosaves** (stories/posts-lifecycle); the primary action is «Опубликовать…» (publish now or schedule) once the post is approved, «Одобрить» before. Unknown/duplicate sends confirm and name the channel.
-8. **Theme in one press, accent by explicit Save** (stories/settings), colour constructor kept as is: 5 presets per theme + custom colours; only layout compacts (swatch row).
+7. **Editor autosaves**; the primary action is «Опубликовать…» (publish now or schedule) once the post is approved, «Одобрить» before. Unknown/duplicate sends confirm and name the channel.
+8. **Theme in one press, accent by explicit Save** (4.5), colour constructor kept as is: 5 presets per theme + custom colours; only layout compacts (swatch row).
 9. **Honest nav, composed Обзор**: nav lists only built sections (Обзор, Посты, Публикации, Инциденты, Настройки). Owner decision 08.10.2026 **reverses** the earlier single-column Обзор: Обзор follows the approved prototype composition (KPI strip, two columns, bottom row of three); Dota Pulse, Аналитика канала and Система stay on it as visibly marked **ПРЕВЬЮ** blocks with «демо» figures (3.1), never presented as real data.
-10. **Mini App parity**: same screens, same actions; Telegram BackButton replaces in-page back, MainButton carries the screen's single primary action, app top bar hidden (stories/mobile-layout §4).
+10. **Mini App parity**: same screens, same actions; Telegram BackButton replaces in-page back, MainButton carries the screen's single primary action, app top bar hidden (`docs/FRONTEND_ARCHITECTURE.md` §16).
 
 ---
 
@@ -31,7 +31,7 @@ Conventions: responsive behavior is required on every route from 320 px phone wi
 - Sidebar 216-224 px expanded / 56-64 px collapsed rail. Collapse control **bottom-anchored** (owner likes it), 200 ms width transition, `prefers-reduced-motion` = instant; state persisted; current route never lost. Order: Обзор, Посты, Публикации, Инциденты (badge = open incidents count, the only badge), Настройки pinned bottom. Active = 2 px accent edge + subtle bg. Collapsed rail: icons with tooltips + `aria-label`.
 - Top bar (thin, 48 px): left = search trigger (field-looking, shows `Ctrl K`), right = read-only timezone chip («Europe/Chisinau (UTC+3)»), environment chip (DEV, always visible on dev), system-status chip (see 2.7), theme toggle, owner menu (`Выйти` only). Not a second dashboard.
 - Sidebar bottom: card «Подключённый канал» (avatar, name, state chip, subscribers line «—» until an API exists) above «Свернуть меню»; collapsed rail: avatar with tooltip (3.1).
-- Search: **today the field is a disabled placeholder unless wired**. Spec: the trigger opens a command palette (navigate-only: Посты, Публикации, Инциденты, Настройки; recents). **API need**: server search over posts/publications for entity results; until then the palette lists destinations + recent routes only, or the trigger is hidden (no disabled placeholder; mobile-layout M8).
+- Search: **today the field is a disabled placeholder unless wired**. Spec: the trigger opens a command palette (navigate-only: Посты, Публикации, Инциденты, Настройки; recents). **API need**: server search over posts/publications for entity results; until then the palette lists destinations + recent routes only, or the trigger is hidden (no disabled placeholder).
 - Sticky: sidebar and top bar. Page content scrolls; page header does not stick on desktop.
 
 ### 1.2 Compact composition (< 860 px; phone and narrow/tablet portrait widths)
@@ -48,7 +48,7 @@ Session restore: shell + route skeleton at once (done). Offline: persistent slim
 ## 2. Pattern system (applies to every screen)
 
 ### 2.1 Page header
-`[← back, depth-2 only]  Title (h1, 1 line, ellipsis)   [primary action] [⋯]`; subtitle optional, **max one line, muted; remove explanatory paragraphs** (current Publications/Posts/Обзор subtitles are 1-2 lines of marketing; move rules into helper text where relevant). Phone: title row + primary action as a full-width-ish button only where the action is the page's point (Посты «Новый пост»); on lists the primary lives in the header at top-right as a 44 px button (icon + text, collapses to icon at 320). Focus moves to the h1 on route change.
+`[← back, depth-2 only]  Title (h1, 1 line, ellipsis)   [primary action] [⋯]`; subtitle optional, **max one line, muted; remove explanatory paragraphs** (rules go into helper text, not subtitles). Phone: title row + primary action as a full-width-ish button only where the action is the page's point (Посты «Новый пост»); on lists the primary lives in the header at top-right as a 44 px button (icon + text, collapses to icon at 320). Focus moves to the h1 on route change.
 
 ### 2.2 Which control where (decision table)
 | Need | Control | Used on | Why |
@@ -58,16 +58,16 @@ Session restore: shell + route skeleton at once (done). Offline: persistent slim
 | Narrowing a list | **Search**: one always-visible field (~280 px) in the panel header, never behind an icon, no column-header popovers or dropdown filters (owner, 08.10.2026). It filters the **loaded** rows live (no Enter, no request per keystroke) by all row text: title, excerpt, channel, the status label as the owner reads it, time; case and diacritics ignored; Arrow Down moves focus into the rows, Esc clears. A footer note says the search covers loaded rows only, with «Показать ещё». Phone = the same field above the cards, same matching. **Filters** (other screens): Select/Menu in the Toolbar, phone «Фильтры (N)» -> bottom sheet; applied filters shown as removable chips | Посты, Публикации (search only); Инциденты (Тип: Все · Требуют проверки · Ошибки) | One mental model; the search needs no mode; "chips" appear only as *applied-filter echo*, never as navigation |
 | Sort | Desktop: click the column header («Изменён», «Пост», «Время»; arrow shows direction). Phone: the button «Сортировка» (shows the current order) opens a sheet that holds only the sort | Посты, Публикации | Sort lives where the data is; no separate Sort select (owner, 08.10.2026) |
 
-Consequences for today's screens: Публикации loses pill chips (Все/Сегодня/Запланированные/Отправленные/Ошибки): first, third-fifth become **tabs**, «Сегодня» becomes a filter «Период: Сегодня» (**API need**: date range filter on `GET /publications`; until built, drop «Сегодня», it currently works only client-side over a page). Инциденты: two stacked segmented controls become one tab pair (Открытые/Закрытые) + one Select «Тип». Посты: tabs stay; the separate «Сортировка» full-width select on phone moves into the filter sheet.
+Applied: Публикации loses pill chips (Все/Сегодня/Запланированные/Отправленные/Ошибки): first, third-fifth become **tabs**, «Сегодня» becomes a filter «Период: Сегодня» (**API need**: date range filter on `GET /publications`; until built, drop «Сегодня», it currently works only client-side over a page). Инциденты: two stacked segmented controls become one tab pair (Открытые/Закрытые) + one Select «Тип». Посты: tabs stay; the separate «Сортировка» full-width select on phone moves into the filter sheet.
 
 ### 2.3 Toolbar
-Desktop: tables have no separate toolbar row — the search field sits in the panel header, sort is in the column headers (no header filters); list panels without a table (e.g. Каналы) keep a one-row toolbar `[Search] [Selects]`; selection mode (Posts) swaps the row for `SelectionBar` («Выбрано 2 · Удалить · Отмена») in the same space (no height change). Phone: row 1 `[Search field (flex)] [Сортировка button 44 px]` (screens with real filters keep `Фильтры (N)`; chips echo row only when N > 0). Table search is client-side over loaded rows, not debounced (no request); Esc clears; Enter does nothing special. Labels sit **inside** Selects (placeholder-style «Статус: все»), not above (saves ~50 px; review O3).
+Desktop: tables have no separate toolbar row — the search field sits in the panel header, sort is in the column headers (no header filters); list panels without a table (e.g. Каналы) keep a one-row toolbar `[Search] [Selects]`; selection mode (Posts) swaps the row for `SelectionBar` («Выбрано 2 · Удалить · Отмена») in the same space (no height change). Phone: row 1 `[Search field (flex)] [Сортировка button 44 px]` (screens with real filters keep `Фильтры (N)`; chips echo row only when N > 0). Table search is client-side over loaded rows, not debounced (no request); Esc clears; Enter does nothing special. Labels sit **inside** Selects (placeholder-style «Статус: все»), not above.
 
 ### 2.4 Table vs row card, inspector vs sheet
 - Desktop table: row 48 px; columns per screen (sections 3.x); row hover + keyboard focus ring; whole row opens the inspector (one `button`-semantic target, no nested links except the Telegram link); truncated cells have `title`/tooltip; `overflow-wrap:anywhere` for user strings; numeric/time columns tabular.
-- Phone row card (inside the Panel, divider-separated, no per-card border): line 1 title (max 2 lines) + status chip right; line 2 muted meta (channel · time); optional line 3 only for a warning text (`unknown`). Whole card = tap target >= 56 px; `⋯` 44 px. Tracks `minmax(0,1fr)`, no `nowrap` (mobile-layout M1).
+- Phone row card (inside the Panel, divider-separated, no per-card border): line 1 title (max 2 lines) + status chip right; line 2 muted meta (channel · time); optional line 3 only for a warning text (`unknown`). Whole card = tap target >= 56 px; `⋯` 44 px. Tracks `minmax(0,1fr)`, no `nowrap`.
 - Inspector (desktop): right drawer 440 px, URL param (`?id=`), list stays visible and keeps scroll; Esc/close returns focus to the originating row. Phone: bottom sheet <= 85 dvh with grabber, sticky safe-area footer holding the primary action. Editing flows (post, channel add) are full-screen sheets/routes with sticky footer.
-- **Thumbnails in list rows (Посты, Публикации, Обзор):** a leading media tile on every row, same size with or without media so row height never depends on it. Desktop 40 x 40, phone 44 x 44, radius 1 token (`--radius-1`), `object-fit: cover`, no border except a hairline on dark. Text-only post (or no media API yet) = the same tile with a type icon (document icon, muted) on a surface-2 background, never an empty gap or a broken image; failed image = same icon tile. Alt text empty (decorative; the title is the name). Skeleton: the tile is a fixed grey box. Compact dashboard table «Последние публикации»: 32 x 32 inside a 44 px row. Media itself is an **API need** (post media); until then every row shows the icon tile.
+- **Thumbnails in list rows (Посты, Публикации, Обзор):** a leading media tile on every row, same size with or without media so row height never depends on it. Desktop 40 x 40, phone 44 x 44, radius 1 token (`--radius-1`), `object-fit: cover`, no border except a hairline on dark. Text-only post (or no media API yet) = the same tile with a type icon (document icon, muted) on a surface-2 background, never an empty gap or a broken image; failed image = same icon tile. Alt text empty (decorative; the title is the name). Skeleton: the tile is a fixed grey box. Compact dashboard table «Последние публикации»: 32 x 32 inside a 44 px row. Post media exists (`PostDto.media`); a row without media shows the icon tile.
 - Row actions order: primary visible action only when the row is "needs me" (`Проверить`, `Открыть`); everything else in `⋯`. Same action, same name everywhere: «Открыть», «Перенести», «Отменить публикацию», «Удалить», «Проверить», «Вернуть из архива».
 
 ### 2.5 State matrix per panel (every list panel draws all of these)
@@ -119,7 +119,7 @@ Owner decision 08.10.2026: the single-column Обзор is rejected; the composi
 - **Phone reserve** (skeleton rows) = min(expected rows, 2).
 Where the bullets above or the table below conflict with this note, this note wins.
 
-**DEV-only previews, NOT built in the real app now:** the §8 pages (Аналитика, Календарь, Медиатека, Автоматизации, Источники) and the palette's mock results exist only in the prototype (`/__proto`). The real app builds only the five nav sections (Обзор, Посты, Публикации, Инциденты, Настройки); the ПРЕВЬЮ panels on Обзор stay DEV-only.
+**DEV-only previews, NOT built in the real app now:** the §6 pages (Аналитика, Календарь, Медиатека, Автоматизации, Источники) and the palette's mock results exist only in the prototype (`/__proto`). The real app builds only the five nav sections (Обзор, Посты, Публикации, Инциденты, Настройки); the ПРЕВЬЮ panels on Обзор stay DEV-only.
 - **Purpose:** open it and in one screen know what goes out today, what needs me and whether the system is alive. **Primary action:** «Новый пост» (header, desktop right of the title block; phone: header button 44 px; Mini App: MainButton **not** used, it is a hub).
 - **Header:** h1 «Обзор»; one-line subtitle «Центр управления контентом, публикациями и состоянием системы»; right: date/time chip («Вт, 7 окт. 2025 · 21:05», minute precision, owner's timezone, no seconds, not `aria-live`) then «Новый пост». Top bar (1.1) carries search `Ctrl K`, read-only timezone chip «Europe/Chisinau (UTC+3)» (display only, not a button until a timezone setting exists), «Сервисы работают» status chip (2.7), theme, owner.
 - **Desktop composition (container >= 1200 px; at 1440 the content is ~1180 px, drawn 12-col grid, 16 px gaps):**
@@ -137,7 +137,7 @@ Where the bullets above or the table below conflict with this note, this note wi
   | Preview marking | Each ПРЕВЬЮ panel: chip «ПРЕВЬЮ» in the header strip, «демо» chip on every figure group, links lead to `/preview/*`; no real write. Banner and toggle from 8.2 are dropped for Обзор: the blocks are visible by default (owner), never inside the left column or the KPI strip, never above «Требует внимания». In a production build the three ПРЕВЬЮ panels are hidden until the owner decides otherwise (DEV only until the owner says ready). |
   | «Требует проверки / Подозрительное содержимое (авто-модерация)» | AI/moderation dropped. Warning row = `unknown` («Требует проверки», reason «Telegram не ответил. Сообщение могло уйти.»), action «Проверить». Failed row: action «Открыть» (no retry exists). «Проверить» is never offered on a failed row. |
   | Status «Опубликовано» | Only when the server says `sent`. Otherwise Запланировано / Отправляется / Ошибка / Требует проверки (text + icon, never colour only). 202 never renders as published. |
-  | Thumbnails | Media does not exist yet (**API need**: post media). Prototype uses demo images; in real DEV every row is a type-icon tile (2.4) at the same height. |
+  | Thumbnails | Real rows use the post's media; a post without media shows the type-icon tile (2.4) at the same height. Prototype uses demo images. |
   | Система | Real states only where a source exists (Бот <- bot check, Очередь <- publication check, from 2.7); other rows «Нет данных» chip; latency always demo. Whole panel stays ПРЕВЬЮ. |
   | Подключённый канал | Name, avatar and state are real (channels API); subscribers line shows «—» until an API exists (prototype mock: «12 456 подписчиков» + «демо»). |
   | «Все в календаре» | Календарь not built: see bottom row above. |
@@ -155,32 +155,18 @@ Where the bullets above or the table below conflict with this note, this note wi
 - **Phone / Mini App (< 860 px):** one column in reading order (top to bottom, left to right). Edit mode is a reorderable list (drag handle with keyboard drag, or the row menu: earlier, later, remove). Rule: a reorder keeps each widget's width and height and re-flows the grid in rows in the new order (no compaction), so the desktop layout stays valid.
 - «Неделя» day links open `/publications?view=upcoming`: the list has no date filter, and the widget says so.
 
-#### Prototype brief for the UI role (Обзор)
-Real tokens and primitives, dark first, then light for populated D only. D = 1440 with sidebar expanded (also one collapsed-rail frame), M = 375 with tab bar. Mock mode: demo thumbnails (CSS/gradient or non-copyrighted images, not game art), demo figures each carrying «демо». Each frame also a real-DEV variant where noted.
-| # | State | What must be visible |
-|---|---|---|
-| 1 | Populated D | Everything in 3.1: KPI, attention (1 failed + 1 unknown), Сегодня (3 rows: sent, sent without media = icon tile, scheduled), Dota Pulse and Аналитика with ПРЕВЬЮ chips, bottom three, sidebar channel card |
-| 2 | Populated M | Order above, KPI 2 x 2, Dota Pulse 2 items, tiles without sparkline, channel card inside «Ещё» sheet (second frame) |
-| 3 | Loading skeleton D + M | Same coordinates as 1/2 (overlay check: skeleton height equals data height), thumbnail boxes fixed |
-| 4 | Empty day D + M | «Сегодня» empty with CTA, «Требует внимания» positive empty, «Ближайшие» one row, KPI zeros, no layout jump vs 1 |
-| 5 | Attention problem D + M | Service problem banner + status chip warning, 3 attention rows (failed, unknown, failed), KPI «Требует внимания 3» |
-| 6 | Unknown row D + M | Row in «Требует внимания», in «Сегодня» (chip «Требует проверки»), in `⋯` menu (only Открыть); no Повторить/Перенести/Отменить anywhere |
-| 7 | Real-DEV variant D | No media, views/ER «—», trends hidden, subscribers «—», Система with «Нет данных» chips |
-| 8 | Error D | One panel in ErrorState, others intact; KPI with «—» |
-| 9 | No channel D | Banner + «Канал не подключён» card |
-Review criteria: one primary action; status never colour-only; 44 px at M; no horizontal scroll at 320; every number from a ПРЕВЬЮ block marked «демо»; no AI wording; no «Опубликовано» on a non-`sent` row; focus ring visible.
-
 ### 3.2 Посты `/posts` (+ `?view=archive`)
 - **Purpose:** find a post and open/continue it. **Primary:** «Новый пост» (header; phone: header button).
 - **Views (tabs, URL):** Все · Черновики · Архив (count only on Архив). «Все» includes derived states with badges (Черновик, Одобрен, Запланирован + time, Отправляется, Нужна сверка).
 - **Desktop:** Header -> Tabs -> Panel{ header: title, «Выбрать», search field; DataTable (checkbox, Пост: title + one-line excerpt, Статус, Изменён, `⋯`; sort by clicking «Пост»/«Изменён») , footer «Загружено 4 · Показать ещё» (+ «Поиск идёт только по уже загруженным постам.» while a search runs and more pages exist) }. No status filter (the «Черновики» tab covers it). The count line sits in the footer, not floating below the table. Selection: row checkboxes appear in «Выбрать» mode; bulk bar replaces the toolbar.
-- **Phone:** Header + «Новый пост» -> Tabs (scrollable never needed, 3 tabs) -> Panel{ Toolbar [search][Сортировка] , cards }. «Сортировка» opens a sheet with the sort only; the search filters the cards with the same text matching as the desktop table. `Выбрать` stays in the panel header. Title column gets full width: status chip drops to the meta line when the title is 2 lines (fix «Све рх…» squeeze in `dark-375-posts`).
-- **Row `⋯`:** Открыть, Удалить; Архив: Вернуть из архива, Удалить сейчас. Delete: dialog naming count and that Telegram messages stay.
+- **Phone:** Header + «Новый пост» -> Tabs (scrollable never needed, 3 tabs) -> Panel{ Toolbar [search][Сортировка] , cards }. «Сортировка» opens a sheet with the sort only; the search filters the cards with the same text matching as the desktop table. `Выбрать` stays in the panel header. Title column gets full width: status chip drops to the meta line when the title is 2 lines.
+- **Derived list state of a post** (first match wins): archived (`archivedAt` set, only in Архив) → a publication `preparing`/`sending` «Отправляется» or `unknown` «Нужна сверка» (never archived) → a publication `scheduled`/`queued`/`retry_wait` «Запланирован» + nearest time → `approved` «Одобрен» → `draft` «Черновик». Icon plus text, never colour alone.
+- **Row `⋯`:** Открыть, Удалить; Архив: Вернуть из архива, Удалить сейчас. Every delete is confirmed: the dialog names the post (or the count), the number of scheduled publications that will be cancelled, and that Telegram messages stay. Rows with a `preparing`/`sending`/`unknown` publication cannot be deleted or selected (reason in a tooltip). Bulk: ≤ 100 per request, per-item result; a partial result toasts «Удалено: N из M. Не удалось: K» and keeps failed rows selected with their reasons. Archive rules (when a post moves there, 30-day purge, restore): `docs/BACKEND_ARCHITECTURE.md` §5 "Post lifecycle as built".
 - **States:** 2.5; empty Все: «Пока нет постов» + «Новый пост»; empty Архив: «Здесь будут опубликованные посты 30 дней».
 
 ### 3.3 Редактор поста `/posts/new`, `/posts/:id`
 - **Purpose:** write a post and send it. **Primary:** one button whose label follows state: «Одобрить» (draft, saved) -> «Опубликовать…» (approved; opens PublishDialog: channel, now/schedule). Desktop: top-right of the header. Phone/browser: pinned action bar; Mini App: MainButton with the same label (action bar hidden).
-- **Header (compact, ~56 px, replaces today's ~110 px):** `← Посты` (back, 44 px) · title (inline editable text on phone: growing textarea) · SaveIndicator («Не сохранено / Сохраняем… / Сохранено, 14:32 / Не удалось сохранить · Повторить») · status chip · `⋯` (Удалить, История правок, Вернуть в черновик when allowed). Remove «Черновик ещё не создан» and «Ревизия N» from the header (post-lifecycle A2, review P9).
+- **Header (compact, ~56 px, replaces today's ~110 px):** `← Посты` (back, 44 px) · title (inline editable text on phone: growing textarea) · SaveIndicator («Не сохранено / Сохраняем… / Сохранено, 14:32 / Не удалось сохранить · Повторить») · status chip · `⋯` (Удалить, История правок, Вернуть в черновик when allowed). Remove «Черновик ещё не создан» and «Ревизия N» from the header.
 - **Desktop 1440:** two columns: writing column (max 720 px: title, formatting toolbar, body, one counter in the field corner «0 / 4096») + right side column 360 px with tabs **Превью** (Telegram-style) · **Публикации поста** (rows: channel, short time, status chip, `⋯` Перенести/Отменить). No bottom action bar on desktop; Ctrl/Cmd+S forces a save.
 - **Phone:** full-screen (tab bar and app bar hidden). Segmented-style tabs **Текст · Превью · Публикации** under the header. Pinned action bar above the keyboard (visualViewport); the formatting toolbar becomes a single horizontally *non-scrolling* row of the 6 most-used marks + «⋯» sheet for the rest (code, quote, lists) as today. Counter on one line.
 - **Approved/archived:** read-only banner with the way out («Вернуть в черновик» / «Вернуть из архива»). `unknown`/sending publication: banner links to reconciliation.
@@ -191,7 +177,7 @@ Review criteria: one primary action; status never colour-only; 44 px at M; no ho
 - **Purpose:** find a send/schedule and act safely. **Primary:** «Опубликовать пост» in the header (renamed from «Создать публикацию»; opens PublishDialog with a post select, API exists: `postId` + `destinationId`).
 - **Views (tabs, URL):** Все · Запланированные · Отправленные · Ошибки (Ошибки = failed + unknown; badge count). The tabs map to the server status; search (post, channel, status label, time) and sort by time are the only controls: no Статус/Канал filters, search runs over loaded rows. Period «Сегодня»: **API need**.
 - **Desktop:** header -> tabs -> Panel{ Toolbar, DataTable: Время (mono, tabular) · Пост (title + excerpt) · Канал · Статус · Сообщение (Telegram id link) } , timezone note moved to the Panel header strip right («Europe/Chisinau, UTC+3»), not a paragraph.
-- **Phone:** cards: title + chip; meta `7 окт., 12:00 · Канал`; Telegram link only in sheet. Drop the avatar/icon column (it ate a line each in `dark-375-publications`).
+- **Phone:** cards: title + chip; meta `7 окт., 12:00 · Канал`; Telegram link only in sheet. Drop the avatar/icon column.
 - **Inspector / sheet:** header (title, status chip), pipeline (steps muted for future, no clock icons), facts (Канал, Время local + UTC offset, Telegram message link), linked post link, «Технические данные» disclosure (IDs, UTC, attempts, request id), footer actions by status:
   | Status | Footer |
   |---|---|
@@ -205,12 +191,13 @@ Review criteria: one primary action; status never colour-only; 44 px at M; no ho
 
 ### 3.5 Инциденты `/incidents` and reconciliation
 - **Purpose:** resolve what broke. **Primary:** the first row's action («Проверить» for `unknown`); no header primary. Badge in nav = open count.
-- **Layout (both):** header -> Tabs Открытые · Закрытые (one control) -> Panel{ Toolbar: Select «Тип» + search? (no, ≤ dozens of items: only the Select) , rows }. Rows in a Panel (today bare, `dark-1440-incidents`). Row: chip, title, reason, channel, time, actions: `unknown` -> «Проверить» (primary-looking), failed -> «Открыть» + «Закрыть». «Детали» disclosure keeps technical code + `CopyButton`.
-- **Phone:** cards as `dark-375-incidents` but one primary full-width button per card; secondary «Закрыть» as text button in `⋯`; two stacked segmented controls removed.
+- **Layout (both):** header -> Tabs Открытые · Закрытые (one control) -> Panel{ Toolbar: Select «Тип» + search? (no, ≤ dozens of items: only the Select) , rows }. Rows in a Panel. Row: chip, title, reason, channel, time, actions: `unknown` -> «Проверить» (primary-looking), failed -> «Открыть» + «Закрыть». «Детали» disclosure keeps technical code + `CopyButton`.
+- **Phone:** cards with one primary full-width button per card; secondary «Закрыть» as text button in `⋯`; two stacked segmented controls removed.
+- **Resolve semantics:** `publish_unknown` closes only through reconciliation (`resolve-unknown`), never with «Закрыть». «Закрыть» on `publish_failed` only acknowledges: it never changes the publication, retries or republishes. Closed rows: «Открыть» only, no reopen. Reason text per `code`: `apps/frontend/src/features/incidents/model/incident-view.ts`; `requestId`/`jobId` in «Детали», never raw `details`. Polling 30 s only while the tab is visible.
 - **States:** empty open: «Всё под контролем. Открытых инцидентов нет.» (positive, no CTA); closed empty: «История пуста».
 
 ### 3.6 Настройки `/settings/*`
-- **Purpose:** rare configuration. Master/detail (stories/settings): desktop list 200 px + detail; phone list -> detail with «‹ Настройки». The Settings page title is `h1` «Настройки»; section title is `h2` in the detail Panel header strip.
+- **Purpose:** rare configuration. Master/detail: desktop list 200 px + detail; phone list -> detail with «‹ Настройки». The Settings page title is `h1` «Настройки»; section title is `h2` in the detail Panel header strip.
 - **Каналы (primary: «Добавить канал», in the detail header, next to the title):** Panel list rows (avatar, name (wrap anywhere, 2 lines), ID mono muted, status chip «Работает / Нет прав / Недоступен», chevron). Row opens the channel Drawer (desktop) / sheet (phone). Add channel = dialog (desktop) / full-screen sheet (phone): step 0 hint «Сначала добавьте бота администратором канала», input, «Проверить» (Enter works), result card (name, rights), «Сохранить канал» footer (button name differs from the opener; `unknown`? n/a).
 - **Оформление (primary: none; applies instantly for theme, explicit «Сохранить» for accent as decided):** Panel 1 «Тема» segmented (Светлая · Тёмная · Системная) with three short labels; Panel 2 «Акцентный цвет»: **one swatch row per theme** (5 presets + «Свой цвет» tile + custom ones), name of selected under the row, «Сейчас» tag on the active theme; Panel 3 «Предпросмотр» (live mini UI). Footer: sticky Save/Discard only when dirty, above tab bar on phone; disabled primary keeps accent at 40%. Colour constructor (CustomPresetDialog, up to 10) unchanged. Desktop target height <= 700 px (was 1270).
 - **States:** channels loading skeleton 3 rows, error, empty («Каналов пока нет» + «Добавить канал»), channel `no rights` warning chip + «Проверить права», save conflict, quick-save revert toast.
@@ -250,96 +237,47 @@ Entry: nav badge, Обзор «Требует внимания», Инциден
 Настройки (phone: Ещё -> Настройки -> Каналы) -> «Добавить канал» -> hint (bot must be admin) -> enter `@username` or ID -> Enter/«Проверить» -> result card (OK / no rights with steps / unreachable) -> «Сохранить канал» -> sheet closes, new row highlighted 2 s, focus on it, toast «Канал добавлен». Exit: Esc/close, nothing saved. Disabled-channel toggle warns about scheduled publications (**API need**: count).
 
 ### 4.5 Change theme / accent
-- Theme: top-bar button (or «Ещё» sheet on phone) flips light/dark, saved instantly, toast on failure with «Повторить» (stories/settings). Tooltip «Тема: тёмная».
+- Theme: top-bar button (or «Ещё» sheet on phone) flips light/dark, saved instantly (409: re-apply on the newest revision once, silently), toast on failure «Не удалось сохранить тему. Вернули прежнюю.» with «Повторить». From «Системная» a press sets the opposite of the theme on screen. Tooltip «Тема: тёмная».
 - Accent: Настройки -> Оформление -> tap swatch in the active theme's row -> live preview updates -> «Сохранить» / «Отменить» appear sticky -> toast «Оформление сохранено». Leaving with unsaved accent: confirm «Выйти без сохранения?». Custom colour: «Свой цвет» -> dialog (existing) -> new swatch appears and is selected, still needs «Сохранить».
 
 ---
 
-## 5. Problems in the current screens (prioritised)
-
-Severity 0-4. Evidence = screenshot name in the scratchpad `shots/`.
-
-| # | Sev | Problem | Evidence | Fix |
-|---|---|---|---|---|
-| P1 | 4 | Three filter looks (underline tabs, pill chips, segmented) | `dark-1440-posts`, `-publications`, `-incidents` | 2.2 decision table |
-| P2 | 3 | Dashboard right column is invented "ПРЕВЬЮ" data that could pass for working product; phone scroll ~2900 px. **Owner reversed the removal (08.10.2026):** blocks are wanted | `dark-1440-home`, `dark-375-home` | Keep, but marked ПРЕВЬЮ + «демо» on every figure, phone shows 2 items (3.1) |
-| P3 | 3 | Bare tables/lists: Posts, Publications, Incidents have no Panel; Обзор and Settings do | `dark-1440-posts/-incidents` | Rule 3 |
-| P4 | 3 | Publications phone card: avatar/icon, 4 lines of mixed fonts, hard to scan; chips row wraps off screen («Отпра…») | `dark-375-publications` | Card anatomy 2.4; tabs 4 items fit |
-| P5 | 3 | Phone toolbars cost 3 full-width controls before data (search, Сортировка, Выбрать; Publications: chips, search, filters) | `dark-375-posts`, `-publications` | One search + «Фильтры (N)» row |
-| P6 | 3 | Editor header ~110 px, helper text duplicated (counter 3x: «0 / 4096», «В сообщении 0 из 4096», limit sentence), «Черновик ещё не создан» | `dark-375-posts_new`, `dark-1440-posts_new` | 3.3 compact header, one counter |
-| P7 | 3 | Editor action bar floats inside card, in-page bar plus tab bar plus Telegram bar = layers | `dark-375-posts_new` | Full-screen editor, single bar/MainButton |
-| P8 | 3 | Appearance too tall; Save/Cancel disabled looks like dead grey buttons | `dark-375-settings_appearance` | Swatch rows, sticky footer only when dirty |
-| P9 | 3 | Disabled global search field (looks broken) | all 1440 | Wire palette or hide |
-| P10 | 2 | Dashboard KPI labels truncated at 375 («Публикации с…», «Требует вним…») | `dark-375-home` | Short labels, 2 lines allowed |
-| P11 | 2 | Subtitles are paragraphs on every page | all | One line max |
-| P12 | 2 | «Создать публикацию» wording; inconsistent with post-based flow | `dark-1440-publications` | «Опубликовать пост» |
-| P13 | 2 | Incidents: two stacked segmented controls; action buttons different weights | `dark-375-incidents` | Tabs + Select; one primary per row |
-| P14 | 2 | Calendar tab in phone bar leads to a stub | `*-calendar` | Replace with Инциденты until built |
-| P15 | 2 | Posts desktop: «Загружено постов: 4» floats under table; row 2 chip+time wraps and misaligns | `dark-1440-posts` | Footer line in Panel; chip + time in one cell `nowrap` |
-| P16 | 1 | Settings desktop: wide empty area, add button far right of heading | `dark-1440-settings_channels` | Detail max-width 720, button beside heading |
-| P17 | 1 | Light theme not re-reviewed here; contrast of muted text (counters, mono time) | `light-*` | Axe pass in prototypes |
-
-(Note: tab bar appearing mid-image in 375 full-page shots is a screenshot artifact.)
-
----
-
-## 6. Prototype brief for the UI role
-
-Draw in the repo's real tokens (no Figma): HTML/React prototypes or screenshots from the dev catalog. Only what the owner needs to approve. **D** = desktop 1440, **M** = mobile 375, dark + light for the starred set, dark only otherwise.
-
-Set A, pattern anchors (dark + light, D + M):
-1. Shell: sidebar expanded and collapsed, top bar, status chip popover (healthy and problem); phone tab bar + «Ещё» sheet, theme in «Ещё».
-2. **Posts** list: loaded, loading skeleton, empty, filtered empty, selection mode; M: filter sheet open with count 2.
-3. **Публикации** list: loaded (mixed statuses incl. `unknown`), loading, error; tabs + Toolbar; inspector open for scheduled and for `unknown` (D); M: row cards, bottom sheet for scheduled and for `unknown`.
-4. **Editor**: D new post empty + approved with side panel (Превью / Публикации); M text tab with keyboard open, action bar, Превью tab; PublishDialog (now/schedule) D + M; save-failed leave dialog.
-5. **Reconciliation** of `unknown` (inspector D / sheet M) including final confirm dialog.
-6. **Обзор**: exact states in the prototype brief of 3.1 (populated, skeleton, empty day, attention problem, `unknown` row, real-DEV, error, no channel; D + M).
-Set B (dark only, then light for approval of D):
-7. **Инциденты** open/closed, empty (D + M).
-8. **Настройки**: Каналы list, add-channel flow 3 steps, channel drawer; Оформление with swatch rows, dirty footer, custom colour dialog (D + M); M settings list screen.
-9. **Вход**: default, error (403), Retry-After; 404.
-10. Mini App variant of the editor and a list (no app bar, MainButton at bottom, safe area).
-Pattern sheet (one page): tabs vs segmented vs filter button, Panel header strip, row card anatomy, status chips (text + icon), skeleton geometry overlay (final vs skeleton at the same coordinates).
-Review criteria for each: one primary action; 44 px targets at M; no horizontal scroll at 320; status never colour-only; focus ring visible; skeleton height equals data height.
-
-Open items for the owner (batched, recommended default): (a) Обзор follows the approved prototype with ПРЕВЬЮ blocks visible in DEV, hidden in production until the owner decides (default: yes; the single-column default is withdrawn); real rows show «—» for views/ER instead of demo numbers (default: yes); (b) bottom tabs Обзор/Посты/Публикации/Инциденты/Ещё instead of Календарь (default: yes); (c) header primary «Опубликовать пост» on Публикации (default: yes).
-
-## 7. API needs (listed, not designed around)
+## 5. API needs (listed, not designed around)
 Date-range filter on `GET /publications` («Сегодня»); entity search endpoint (palette); count of scheduled publications per destination (disable warning); approved -> draft («Вернуть в черновик»); hide/remove final publication records. Everything else here uses existing endpoints.
 
 ---
 
-## 8. Experimental previews (clickable explorations on mock data)
+## 6. Experimental previews (clickable explorations on mock data)
 
 Status: owner request 08.10.2026. Expert review, not validated. Previews are explorations to click through, **not product scope**: no API, no real writes, no AI/LLM (labels in images ignored), nothing here changes sections 0-7. Previews follow sections 2-3 (page anatomy, tabs vs segmented vs column filters, Panel, skeleton geometry, inspector vs sheet, phone cards).
 
-### 8.1 What to prototype (and what to skip)
+### 6.1 What to prototype (and what to skip)
 
 | # | Preview | Why it earns a slot | Route |
 |---|---|---|---|
 | 1 | **Аналитика** | Tests chart/tooltip/period patterns that every metrics view reuses | `/preview/analytics` |
 | 2 | **Календарь** | Owner's core planning task; the old Календарь tab is a stub; month/week/day/list is the richest interaction set | `/preview/calendar` |
-| 3 | **Медиатека** | Editor needs «Выбрать из медиатеки» (design README §10); grid + inspector is a new pattern | `/preview/media` |
+| 3 | **Медиатека** | Editor needs «Выбрать из медиатеки»; grid + inspector is a new pattern | `/preview/media` |
 | 4 | **Автоматизации (Cron)** | Cron table + inspector tabs + safe enable/disable is the one risky-action pattern not yet drawn | `/preview/automations` |
 | 5 | **Dota Pulse + Источники** | Deterministic feed (RSS/official sources, no AI): list of events, source health | `/preview/sources` |
-| 6 | **Палитра поиска** (Ctrl K) | Fixes P9 (disabled search); grouped results are cheap to click through | overlay, no route |
-| 7 | **Превью-блоки на Обзоре** | Dota Pulse, Аналитика канала, Система; always visible in DEV, marked ПРЕВЬЮ (3.1, 8.3 G) | `/` |
+| 6 | **Палитра поиска** (Ctrl K) | Replaces the disabled search; grouped results are cheap to click through | overlay, no route |
+| 7 | **Превью-блоки на Обзоре** | Dota Pulse, Аналитика канала, Система; always visible in DEV, marked ПРЕВЬЮ (3.1, 6.3 G) | `/` |
 
 **Skip:** «Демография» and «Лучшее время» (no data source, implies analytics intelligence); «Скачать отчёт» (no export); subscriber counts as real data (the sidebar «Подключённый канал» card itself is now in scope, 3.1; subscribers stay «—» until an API exists), multi-network switcher (VK; out of scope), «Создать публикацию» in the calendar (we use «Опубликовать пост»), AI/moderation items («авто-модерация», «Автоматическая обрезка»), «Резервное копирование» job, a separate «Правила» tab in Automations (rules are Later), Cloudflare-style metric dashboards for infrastructure.
 
-### 8.2 Navigation and marking
+### 6.2 Navigation and marking
 
 - **Desktop sidebar:** below the working items and above Настройки, one collapsible group header **«Превью»** (muted, chevron, state persisted, collapsed by default) with 5 items: Аналитика, Календарь, Медиатека, Автоматизации, Источники. Each item has a small «Превью» tag (not an icon only); collapsed rail: group shows one flask-like icon with a tooltip «Превью: экспериментальные страницы».
 - **Phone:** bottom bar unchanged; inside «Ещё» sheet a section **«Превью»** under Настройки, same 5 items. No preview item ever enters the tab bar.
 - **Marking on the page (all previews):** (1) h1 followed by a «Превью» chip; (2) a permanent slim banner under the header, not dismissable: «Превью · демо-данные. Это пример интерфейса: ничего не сохраняется и не отправляется в Telegram.» (3) every number/chart carries the fake mark: chart panel header strip shows «демо» chip; (4) every action button works locally and shows toast «Превью: действие не выполняется» when it would write (Вставить в пост, Удалить, Включить, Перенести, Загрузить).
 - **Leaving:** `← К обзору` is not needed (sidebar visible), but the banner has a text link «Закрыть превью» that goes to Обзор; Esc closes inspector/palette; the browser back works (state in URL: `?view=`, `?period=`, `?id=`). Phone: back chevron in header to «Ещё».
 - **Обзор (changed 08.10.2026):** no toggle and no group banner. The ПРЕВЬЮ blocks sit in the Обзор composition (3.1) and carry their own marking: chip «ПРЕВЬЮ» in the panel header, «демо» on figures, links to `/preview/*`. Hidden in a production build.
-- **Search palette preview** is part of the real shell trigger: results of type «Пост/Публикация» are mock rows tagged «демо» until the entity-search API exists (section 7).
+- **Search palette preview** is part of the real shell trigger: results of type «Пост/Публикация» are mock rows tagged «демо» until the entity-search API exists (§5).
 - Preview routes are unreachable in a production build (feature flag `VITE_PREVIEW=1` or dev-only); in DEV they are visible. Not in the PAGE_MAP rows of real routes.
 
-### 8.3 Specs per preview
+### 6.3 Specs per preview
 
-Common to all: anatomy per 2.1 (h1 + chip, banner, one primary action max), state switch for the UI role (8.4) lives in a dev-only floating «Состояние: Данные · Загрузка · Пусто · Ошибка» control (bottom-left, hidden in screenshots when asked). Skeleton rules 2.6 apply; Panels per rule 3; targets 44 px at 375.
+Common to all: anatomy per 2.1 (h1 + chip, banner, one primary action max), state switch lives in a dev-only floating «Состояние: Данные · Загрузка · Пусто · Ошибка» control (bottom-left, hidden in screenshots when asked). Skeleton rules 2.6 apply; Panels per rule 3; targets 44 px at 375.
 
 #### A. Аналитика `/preview/analytics`
 - **Purpose:** see how channel content performs over a period. **Primary:** none (read-only page).
@@ -363,7 +301,7 @@ Common to all: anatomy per 2.1 (h1 + chip, banner, one primary action max), stat
 - **Views (tabs, URL `?view=`):** Все · Изображения · GIF · Видео · Документы (counts); «Используется / Не используется» is a column filter / filter popover, not tabs. View mode **segmented** Сетка · Список (icons + text at phone). Sort: column header in list, «Сортировка» in filter sheet in grid. Storage usage («2.4 ГБ из 10 ГБ») is shown only in the Panel footer as a muted line with «демо».
 - **Desktop:** Toolbar (search by name/tags, segmented, Фильтры) in a Panel; grid of cards (140 px thumbnail, name 1 line, `1920 × 1080` or size meta, type badge, checkbox on hover/focus); list mode = DataTable (thumb, Название, Тип, Размер, Используется, Загружено, `⋯`). Row/card opens inspector 440 px: preview, facts, tags (chips; add/remove local), description, «Используется в (3)» as links, footer: **«Вставить в пост»** (primary), «Копировать ссылку», «Скачать», «Удалить» (danger, dialog «Удалить файл? Он используется в 3 постах» naming effect).
 - **375:** header «Загрузить»; tabs scrollable allowed here only (5 tabs; show fade + active in view); toolbar = search + Фильтры; grid 2 columns; list = row cards (thumb 56 px). Item tap -> bottom sheet with the inspector content; multi-select long-press -> SelectionBar «Выбрано 2 · Вставить в пост · Отмена».
-- **«Вставить в пост» flow (clickable):** from the library: opens a mock picker «Выберите пост» (3 drafts) -> toast «Превью: файл добавлен в пост» -> link «Открыть пост» (goes to the real editor, no changes). Reverse entry (the real use): editor «Выбрать из медиатеки» opens this page as a sheet in selection mode with «Добавить (N)» footer; prototype that as a separate state E (8.4).
+- **«Вставить в пост» flow (clickable):** from the library: opens a mock picker «Выберите пост» (3 drafts) -> toast «Превью: файл добавлен в пост» -> link «Открыть пост» (goes to the real editor, no changes). Reverse entry (the real use): editor «Выбрать из медиатеки» opens this page as a sheet in selection mode with «Добавить (N)» footer; prototype that as a separate state.
 - **States:** loading = 10 grid cards at final size / 8 table rows; empty library = EmptyState «Файлов пока нет» + «Загрузить файлы»; filtered empty = «Ничего не найдено» + «Сбросить фильтры»; unavailable object = card with broken-thumbnail placeholder + chip «Файл недоступен», inspector actions limited to «Удалить»; upload error per file; long names ellipsis with `title`.
 - **Mock data:** 24 items of common types (jpg/png/gif/mp4/pdf/svg), generic gradient thumbnails drawn in CSS (no copyrighted game art), 3 tags, 2 «Не используется», 1 unavailable.
 
@@ -382,12 +320,12 @@ Common to all: anatomy per 2.1 (h1 + chip, banner, one primary action max), stat
 - **События (desktop):** Panel list rows: type chip (Патч · Новость · Турнир), title, source, relative time, `⋯` Открыть источник (external link, mock href `#`), «Создать черновик поста» opens editor mock (new post with title prefilled — only copy of the headline, never generated text). Column filters: Тип, Источник, search in title.
 - **Источники:** table: Источник, Адрес (domain), Последняя проверка, Изменение, Статус (Доступен · Устарел · Недоступен). Inspector: allowed domains, last 5 checks, provenance line «Получено с steamcommunity.com».
 - **375:** row cards; Источники as cards with status chip; sheet detail.
-- **Same content as the Обзор widget** (8.3 G): the widget is the first 3 events and a «Все события» link here.
+- **Same content as the Обзор widget** (6.3 G): the widget is the first 3 events and a «Все события» link here.
 - **States:** loading 8 rows x 56; empty = «Новых событий нет» (positive, no CTA); filtered empty; source unreachable = chip + warning text «Источник не отвечает 2 ч, показаны данные на 06:40»; partial = events from 2 of 3 sources with a note; stale footer.
 - **Mock data:** 12 events from 3 fake-labelled sources (RSS «Dota 2 · блог», «Patch notes», «Tournaments»), real-looking but fictional titles; CSS-gradient thumbnails.
 
 #### F. Палитра поиска (Ctrl K)
-- **Purpose:** jump anywhere in two keystrokes. Per README §5; trigger is the top-bar field (desktop), search icon on phone (full-screen sheet).
+- **Purpose:** jump anywhere in two keystrokes. Trigger is the top-bar field (desktop), search icon on phone (full-screen sheet).
 - **Layout:** centred 640 px dialog (phone: full-screen), input with autofocus, **grouped results** with fixed headers: Недавнее, Разделы (Обзор, Посты, Публикации, Инциденты, Настройки, + «Превью» group items tagged), Посты (3), Публикации (3), Инциденты (2), Действия («Новый пост»). Each row: icon, label, muted secondary (status chip / channel / time), `Enter` hint on the active row; footer line «↑↓ выбрать · Enter открыть · Esc закрыть». Max 8 rows total, 3 per group.
 - **Clickable:** typing filters locally (case-insensitive, 150 ms debounce); arrow keys + Enter navigate (real routes for Разделы/Действия; entity rows open real `/posts` or `/publications?id=` only for existing mock ids, else toast); `Esc` closes and returns focus to the trigger; empty query shows Недавнее + Разделы.
 - **States:** empty query, no results («Ничего не найдено. Попробуйте название поста или канал»), loading (3 skeleton rows 48 px, only for entity groups), offline («Поиск по постам недоступен без сети», sections still work).
@@ -398,24 +336,3 @@ Common to all: anatomy per 2.1 (h1 + chip, banner, one primary action max), stat
 - **Blocks:** Dota Pulse (right column, 3 rows with image thumbnails, «Все события» -> `/preview/sources`), Аналитика канала (right column, 3 tiles with sparkline, «Все метрики» -> `/preview/analytics`), Система (bottom row, 4 rows with state + latency). Layout, heights and phone behaviour: 3.1. «Ближайшие» and «Последние публикации» are **real** blocks, not previews.
 - **States:** loading at skeleton heights (3.1), widget error inline (others stay), empty Dota Pulse «Новых событий нет».
 - **Rule:** previews never enter the KPI strip or the left column and never push «Требует внимания» down.
-
-### 8.4 Prototype brief for the UI role (exact screens and states)
-
-Draw with the repo's real tokens and primitives (Panel, DataTable, Drawer/Sheet, Tabs, Segmented, Select, Chip, Toast, Dialog, Skeleton). Dark first, light for A-D default state only. D = 1440, M = 375. Each screen needs the default state plus listed ones; preview banner + «Превью» chip on every one.
-
-| # | Screen | States to build (D + M unless noted) |
-|---|---|---|
-| 1 | Sidebar «Превью» group | collapsed group, expanded group, collapsed rail tooltip (D); «Ещё» sheet with Превью section (M) |
-| 2 | Аналитика | data (tooltip visible on hover), loading skeleton, empty period, partial error (one chart), error, period Select open; M: «Период и канал» sheet, tooltip pinned |
-| 3 | Календарь | Месяц data, Неделя, День, Список, empty month, loading grid, inspector day with 3 items, empty-day inspector, Перенести dialog (old -> new), collision chip, `unknown` item; M: День agenda with month strip, item sheet |
-| 4 | Медиатека | grid + inspector, list + inspector, upload dropzone (idle/drag/progress/one failed), empty, filtered empty, loading, unavailable file, selection mode, «Вставить в пост» picker + toast; E: editor selection-mode sheet with «Добавить (N)»; M: grid 2 col, sheet inspector |
-| 5 | Автоматизации | Задачи table + inspector Обзор / Логи / Настройки, Последние запуски tab, stop-confirm dialog, off state with banner + undo toast, stale/failed/partial rows, loading, empty, error; M: row cards, inspector sheet |
-| 6 | Dota Pulse / Источники | События list, Источники table + inspector, unreachable/stale, partial, empty, loading; M cards |
-| 7 | Палитра | empty query, typing with grouped results, no results, entity loading, offline; M full-screen |
-| 8 | Обзор | see the Обзор prototype brief in 3.1 (supersedes the earlier toggle states) |
-| 9 | Marking sheet | one page showing banner, chip, «демо» chip, toast «Превью: действие не выполняется» |
-
-Review criteria: banner and «демо» visible without scrolling on every preview; no real endpoint called (no network requests in devtools); every write-like control gives the preview toast; chart legend, tooltip and series toggles keyboard-operable; status never colour-only; 44 px at M; no horizontal scroll at 320; skeleton height equals data height; Обзор: ПРЕВЬЮ panels marked and «демо» on every figure (3.1).
-
-### 8.5 Priority and open items
-Order: 1) Календарь, 2) Медиатека, 3) Автоматизации, 4) Аналитика, 5) Палитра, 6) Dota Pulse / Источники, 7) Обзор. Обзор (3.1) is now the first prototype task by owner request; of the previews, the first three map to the owner's daily tasks and the editor's media flow, analytics and widgets are lowest-value because their data would be invented. Recommended defaults: group «Превью» in the sidebar collapsed by default; previews visible only in DEV (`VITE_PREVIEW`); drag-to-reschedule not prototyped. No API needs are created by previews; real versions would need: date-range filters, media storage/usage endpoints, automations list/toggle endpoints, source/event feed, entity search (section 7 plus new ones noted in each spec).

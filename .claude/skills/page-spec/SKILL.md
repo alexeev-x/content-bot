@@ -24,7 +24,7 @@ Permissions: who sees, who acts; what 403 shows (no data).
 | scheduled/queued | 202 accepted | the returned status label (usually «Запланировано»), never «Опубликовано» | cancel if safe | status (polite) |
 | unknown | ambiguous send | «Требует проверки», duplicate-risk warning | resolve manually | message |
 Time: show the channel/operator timezone and UTC offset ("14:30 Europe/Chisinau, UTC+3").
-Responsive: 375 px layout (cards/stacked) and 1280 px (table/two-pane); 320 px reflow without horizontal page scroll.
+Responsive: compact (< 860 px: cards/stacked) and desktop (table/two-pane) layouts; widths to check per `docs/design/UX_SPEC.md` Conventions; no horizontal page scroll down to 320 px.
 A11y: heading order; focus after navigation, submit error and dialog close; no drag-only actions (2.5.7); login allows paste and password managers (3.3.8).
 Acceptance: Given/When/Then list.
 ```

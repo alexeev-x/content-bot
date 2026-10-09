@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test';
 import { ids, mockApi } from './support/mock-api';
 import { installFakeTelegram } from './support/telegram';
 
-// WCAG 1.4.10 guard (docs/stories/mobile-layout.md, M1): no route scrolls sideways at phone widths,
+// WCAG 1.4.10 guard (docs/design/UX_SPEC.md Conventions): no route scrolls sideways at phone widths,
 // with long titles and channel names in the fixtures, in a browser and inside the Mini App.
 const ROUTES = [
   '/',

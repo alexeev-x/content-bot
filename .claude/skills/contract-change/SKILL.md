@@ -25,7 +25,7 @@ description: "Procedure for adding or changing an API endpoint, request/response
    - same key still in flight → 409 `CONFLICT`, `details.reason = "IN_FLIGHT"`;
    - missing key on an endpoint that requires it → 400 `VALIDATION_ERROR`.
 
-   Edits carry the revision and get 409 CONFLICT when it is stale (`docs/API_CONTRACTS.md`). Open question: RFC 9110 maps a failed `If-Match` *header* to 412. Settle header-412 vs body-revision-409 with the owner before the first edit endpoint, and don't mix the two.
+   Edits carry the revision in the body and get 409 `CONFLICT` with `details.reason = STALE_REVISION` when it is stale (owner decision 06.10.2026: no `If-Match` / 412).
 3. **Classify the change.**
    - Additive: a new optional field, a new endpoint.
    - Breaking: a rename, a removal, a narrowed type, a new required input, a removed enum value.

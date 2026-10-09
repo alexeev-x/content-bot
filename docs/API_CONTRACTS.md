@@ -1,6 +1,6 @@
 # CONTENT-BOT — FRONTEND / BACKEND INTEGRATION
 
-**Single source of contracts:** `contracts`, with no dependencies on React, Hono or Cloudflare. This is a design of future contracts, not an already running API.
+**Single source of contracts:** `contracts`, with no dependencies on React, Hono or Cloudflare. Implemented endpoints are listed below; the Zod schemas in `apps/contracts/src` are the source, this file explains meaning only.
 
 ## Network and authentication
 
@@ -149,7 +149,7 @@ Schemas and per-endpoint error codes: `apps/contracts/src/publications.ts`, `app
 
 Reschedule, cancel and resolve-unknown carry the publication `revision`; a stale one is `409` `STALE_REVISION`, so a double press or a second tab applies once.
 
-`POST /api/v1/publications/{id}/retry` is allowed **only** for a status that the backend has deemed safe to retry. `unknown` cannot be force-sent with this method — first call `POST /api/v1/publications/{id}/resolve-unknown` with the documented manual reconcile and an audit trail.
+There is no retry endpoint: a `failed` publication is not resent from the API, and `unknown` leaves only through `resolve-unknown`. A future retry may exist only for a status the backend deems safe, never for `unknown`.
 
 ## Owner settings
 
@@ -216,7 +216,7 @@ Upload staging and detached objects use a durable D1 cleanup queue; Cron retries
 ## Mandatory contract tests
 
 1. The API DTO in a real response matches the `contracts` Zod schema.
-2. Without a token or with an expired one — 401 with no private data; another Telegram ID — 403; forged `initData`/`id_token` — 401; `refresh` with a foreign `Origin` — 403.
+2. Without a token or with an expired one — 401 with no private data; another Telegram ID — 403; forged `initData` or Login Widget data — 401; `refresh` with a foreign `Origin` — 403.
 3. Concurrent editing: 409 without losing the local draft.
 4. Repeated creation with the same Idempotency-Key does not duplicate the publication intent.
 5. `202` is not treated by the UI as `sent`.

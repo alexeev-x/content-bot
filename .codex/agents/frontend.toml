@@ -27,6 +27,6 @@ Load skills by trigger:
 ## Before you report
 - 409 keeps local edits. `unknown` disables retry and cancel. 202 shows the returned status label (never «Опубликовано»). Nothing is optimistic.
 - Every effect cleans up. Polling stops when the tab is hidden or the component unmounts.
-- Everything works by keyboard with a visible focus and a label. Layouts work at 375 px and 1280 px. There are no raw colors.
+- Everything works by keyboard with a visible focus and a label. Layouts pass the quick check 375, 1280 and 1920 px; full matrix at the ui-qa gate (`docs/design/UX_SPEC.md` Conventions). There are no raw colors.
 - `git status --porcelain` shows only files inside your owned paths. Report in the format from root AGENTS.md, with `not_run` items listed.
 '''

@@ -4,7 +4,7 @@ Part of the master plan; status, order and the queue live in `docs/IMPLEMENTATIO
 
 ## 22. Design system and visual direction
 
-Target: Calm Intelligence. Approved 08.10.2026 as «Calm Operations»: `docs/design/UX_SPEC.md` and `docs/design/README.md` are the visual source; the dev-only prototype at `/__proto` mirrors it; colour constructor kept. Theme «system» mode and a real-device touch test of widget drag remain open.
+Approved 08.10.2026 as «Calm Operations»: `docs/design/UX_SPEC.md` and `docs/design/README.md` are the visual source; the dev-only prototype at `/__proto` mirrors it; colour constructor kept. Theme «system» mode and a real-device touch test of widget drag remain open.
 
 Principles:
 
@@ -30,21 +30,15 @@ Screen personalities:
 - Settings = master/detail.
 - Incidents = operations queue.
 
-Target geometry, adjusted by visual testing:
-
-- desktop sidebar approximately 216–224 px.
-- controls approximately 34–36 px.
-- table rows approximately 38–40 px.
-- restrained radii.
-- content width determined by screen purpose, not one global max-width.
+Geometry (sidebar, control and row sizes): `docs/design/README.md` and `docs/design/UX_SPEC.md`.
 
 Design reference: `docs/design/UX_SPEC.md` and the prototype at `/__proto` (approved 08.10.2026).
 
-Each major visual redesign gets screenshot references across the canonical responsive viewport matrix in `docs/design/UX_SPEC.md` §1 (phone, tablet portrait/landscape, laptop, desktop), not just one desktop and one mobile width.
+Each major visual redesign gets screenshot references across the canonical responsive viewport matrix in `docs/design/UX_SPEC.md` Conventions (phone, tablet portrait/landscape, laptop, desktop), not just one desktop and one mobile width.
 
 ## 23. Mobile / Telegram Mini App
 
-Phone-first work must also remain usable on tablet, laptop and desktop: all routes pass the canonical viewport matrix and no-overflow rules in `docs/design/UX_SPEC.md` §1. The widths below describe phone-specific behavior, not the whole product acceptance range.
+Phone-first work must also remain usable on tablet, laptop and desktop: all routes pass the canonical viewport matrix and no-overflow rules in `docs/design/UX_SPEC.md` Conventions. The widths below describe phone-specific behavior, not the whole product acceptance range.
 
 Required parity:
 

@@ -5,7 +5,7 @@ import { postsCopy } from './copy';
 
 const copy = postsCopy.list.state;
 
-/** The derived list state of a post (docs/stories/posts-lifecycle.md §2): icon plus text, never colour alone. */
+/** The derived list state of a post (docs/design/UX_SPEC.md §3.2): icon plus text, never colour alone. */
 export function PostStateBadge({ post }: { post: PostDto }) {
   const state = listStateOf(post);
   switch (state.kind) {

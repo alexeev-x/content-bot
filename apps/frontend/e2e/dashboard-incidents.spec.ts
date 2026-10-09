@@ -2,7 +2,7 @@ import AxeBuilder from '@axe-core/playwright';
 import { expect, test, type Page } from '@playwright/test';
 import { mockApi } from './support/mock-api';
 
-// Dashboard blocks and /incidents (docs/stories/dashboard-today-incidents.md). Set SHOTS_DIR to also save screenshots.
+// Dashboard blocks and /incidents (docs/design/UX_SPEC.md §3.1, §3.5). Set SHOTS_DIR to also save screenshots.
 const SHOTS_DIR = process.env['SHOTS_DIR'];
 const TAGS = ['wcag2a', 'wcag2aa', 'wcag21aa', 'wcag22aa'];
 const UNKNOWN_PUBLICATION = '33333333-3333-4333-8333-555555555555';

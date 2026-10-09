@@ -1,12 +1,12 @@
 # CONTENT-BOT — FINAL FRONTEND ARCHITECTURE v1.0
 
-**Date:** 03.10.2026 · **Status:** approved technical direction; the application is not yet implemented · **Product:** ALEXEEV Studio admin panel (working name), `apps/frontend/` in `content-bot`. Backend: `docs/BACKEND_ARCHITECTURE.md`.
+**Date:** 03.10.2026 · **Status:** approved technical direction, implemented in DEV; current state per page is in `docs/IMPLEMENTATION_PLAN.md` · **Product:** ALEXEEV Studio admin panel (working name), `apps/frontend/` in `content-bot`. Backend: `docs/BACKEND_ARCHITECTURE.md`.
 
 > ALEXEEV Studio is the **primary full product control plane**, not a public SEO site and not a reduced admin MVP. SSR, Next.js, micro-frontends and heavy global state management are not needed at the start. The interface must provide polished browser/mobile control over content, publications, automations, sources/media/templates, operations, settings and analytics while preserving publishing safety.
 
 ## 0. Approved stack (owner decision 03.10.2026)
 
-Chosen by three criteria: AI-friendliness (llms.txt, markdown documentation, official skills/MCP, API stability), documentation quality, flexibility. Replaces the table rows of §1 and the Pages/BFF scheme from §1 and §6.
+Chosen by three criteria: AI-friendliness (llms.txt, markdown documentation, official skills/MCP, API stability), documentation quality, flexibility.
 
 | Layer | Choice | Fallback |
 |---|---|---|
@@ -33,77 +33,18 @@ The choice of libraries is a technical decision for the start, not a license or 
 
 ## 2. Architecture by functional area
 
-We do not create one giant `components/` folder with all the code, but we also do not fully copy the complex Feature-Sliced Design with many artificial layers. We use a lightweight feature-first structure:
+We do not create one giant `components/` folder with all the code, but we also do not fully copy the complex Feature-Sliced Design with many artificial layers. The lightweight feature-first structure as built:
 
 ```text
-apps/frontend/
-├── public/
-│   └── icons/
-├── src/
-│   ├── main.tsx
-│   ├── app/
-│   │   ├── App.tsx                   # router + top-level providers
-│   │   ├── router.tsx                # lazy route definitions
-│   │   ├── query-client.ts
-│   │   ├── layouts/
-│   │   │   ├── AppLayout.tsx
-│   │   │   ├── AuthLayout.tsx
-│   │   │   └── PageErrorBoundary.tsx
-│   │   └── styles/
-│   │       ├── tokens.css            # colors, spacing, typography
-│   │       └── global.css
-│   ├── pages/                         # screen assembly, minimal business logic
-│   │   ├── dashboard/DashboardPage.tsx
-│   │   ├── posts/PostsPage.tsx
-│   │   ├── editor/PostEditorPage.tsx
-│   │   ├── calendar/CalendarPage.tsx
-│   │   ├── media/MediaPage.tsx
-│   │   ├── incidents/IncidentsPage.tsx
-│   │   ├── settings/SettingsPage.tsx
-│   │   └── login/LoginPage.tsx
-│   ├── features/                      # functional slices
-│   │   ├── posts/
-│   │   │   ├── index.ts              # public API of the feature
-│   │   │   ├── api/posts-api.ts      # API functions from the shared client
-│   │   │   ├── api/posts-queries.ts  # query keys, query/mutation hooks
-│   │   │   ├── model/editor-schema.ts
-│   │   │   ├── model/use-post-editor.ts
-│   │   │   ├── ui/PostList.tsx
-│   │   │   ├── ui/PostEditor.tsx
-│   │   │   ├── ui/UnsavedChangesGuard.tsx
-│   │   │   └── tests/
-│   │   ├── calendar/ ...
-│   │   ├── media/ ...
-│   │   ├── monitoring/ ...
-│   │   ├── auth/ ...
-│   │   └── settings/ ...
-│   ├── entities/                      # real shared entities, create as needed
-│   │   ├── post/ ...
-│   │   └── incident/ ...
-│   ├── shared/
-│   │   ├── api/
-│   │   │   ├── http-client.ts        # fetch, Bearer token, re-sign-in on 401, requestId
-│   │   │   ├── api-errors.ts
-│   │   │   └── query-keys.ts
-│   │   ├── ui/                        # Button, Input, Dialog, Toast, DataTable
-│   │   ├── lib/                       # format-date, format-error, download
-│   │   └── hooks/                     # only truly shared hooks
-│   └── test/
-│       ├── setup.ts
-│       ├── msw-handlers.ts
-│       └── fixtures.ts
-├── tests/e2e/
-├── package.json
-├── vite.config.ts
-└── tsconfig.json
-
-apps/contracts/
-├── src/index.ts
-├── src/posts.ts                   # Zod API DTO
-├── src/incidents.ts
-├── src/media.ts
-├── src/errors.ts
-└── package.json
+apps/frontend/src/
+├── main.tsx
+├── app/          # router, providers, layouts, theme, Telegram chrome, styles/tokens.css
+├── routes/       # TanStack Router file routes (lazy), generated routeTree.gen.ts
+├── pages/        # screen assembly, no data logic (posts/, publications/, incidents/, settings/, prototypes/ = dev-only /__proto)
+├── features/     # slices: index.ts, api/, model/, ui/, tests/
+├── shared/       # api/ (http-client, session), ui/ primitives, lib/, telegram/
+└── test/         # MSW, fixtures, render helpers
+apps/frontend/e2e/  # Playwright specs
 ```
 
 **Import rules:** `app` wires up pages and providers; `pages` compose `features`, `entities`, `shared`; one feature does not import the internals of another. If two features need the same type — move a real shared entity into `entities` or `contracts`, but do not turn `shared` into a dumping ground for business logic. Public exports go through `index.ts`; deep imports are forbidden. CI checks all dependency graphs.
@@ -159,22 +100,9 @@ export function useSavePost() {
 
 `contracts` contains versions of shared Zod schemas and TypeScript DTOs (JSON-only). This is **not** shared business-logic code and not an ORM. Frontend and backend import the same types for responses and requests, but the server validates every change independently.
 
-Examples: `PostDto`, `CreateDraftInput`, `SaveRevisionInput`, `PublicationDto`, `IncidentDto`, `ApiErrorDto`, `PageDto<T>`. `GET /api/v1/posts?cursor=...`, `POST /api/v1/posts`, `PATCH /api/v1/posts/:id` with a revision (409 on a stale one), `POST /api/v1/publications/:id/retry` — only a confirmed safe operation.
+Endpoints and their meaning: `docs/API_CONTRACTS.md`.
 
-```ts
-// apps/contracts/src/posts.ts
-import { z } from 'zod';
-
-export const postDtoSchema = z.object({
-  id: z.uuid(),
-  title: z.string(),
-  body: z.string(),
-  revision: z.number().int().nonnegative(),
-  status: z.enum(['draft', 'approved', 'scheduled']),
-  updatedAt: z.iso.datetime(),
-});
-export type PostDto = z.infer<typeof postDtoSchema>;
-```
+Schemas live only in `apps/contracts/src/*.ts` (for example `posts.ts`); do not copy them into docs.
 
 `ApiError` — stable codes: `UNAUTHORIZED`, `FORBIDDEN`, `VALIDATION_ERROR`, `CONFLICT`, `NOT_FOUND`, `RATE_LIMIT`, `UNAVAILABLE`, `UNKNOWN_SEND_RESULT`; the message text may be localized, the code does not change. The UI for 401 leads to sign-in; 403 shows the lack of permission; 409 keeps local edits and opens a version comparison dialog; 429 shows the retry time; 500/503 show the requestId and a retry button **only for a safe request**.
 
@@ -208,26 +136,7 @@ The main API does not accept cookies, so a CSRF token is not needed; the server 
 
 ## 7. Routes, loading and screen fault tolerance
 
-```text
-/login                  owner sign-in (Mini App sign-in is automatic)
-/                       dashboard: customizable widget grid (layout stored server-side; react-grid-layout loaded lazily, edit mode only)
-/posts                  content library
-/posts/new              full content editor
-/posts/:id              editor, preview and publication history
-/publications           publication history/control
-/publications/:id       publication timeline and reconciliation (today the drawer at `/publications?id=<id>`: «Пост вышел» / «Не вышел — отправить снова» / «Не вышел — отменить» → `POST …/resolve-unknown`, never optimistic)
-/calendar               schedule, reschedule/cancel
-/automations            rubrics and automation health/control
-/automations/:id        rubric rules, sources and run history
-/sources                source health/provenance
-/media                  media library
-/templates              visual templates
-/jobs                   execution history
-/incidents              errors and unknown Telegram reconciliation
-/analytics              publishing/automation/content intelligence
-/settings/*             channels, integrations, defaults, appearance
-/*                      NotFound
-```
+Routes and their responsibilities: `docs/PAGE_MAP.md`. Publication detail and `unknown` reconciliation are the inspector at `/publications?id=<id>` («Пост вышел» / «Не вышел — отправить снова» / «Не вышел — отменить» → `POST …/resolve-unknown`, never optimistic).
 
 Lazy loading per route (`React.lazy` or lazy route modules), a shared lightweight layout. Every independent screen has `loading`, `empty`, `error`, `unauthorized`, `ready`; separate error boundaries prevent the whole admin panel from crashing, but do not replace HTTP error handling. Tables with pagination and accessible keyboard actions; do not load all 10,000 rows into memory. A partial result is allowed for the dashboard: a broken chart must not hide a critical send error. The incidents tab must show a stale label with the time of the last update.
 
@@ -236,8 +145,7 @@ Lazy loading per route (`React.lazy` or lazy route modules), a shared lightweigh
 - Source hero images are provided by the owner; the editor uploads them with checks of type, size and allowed resolution. Do not put blob/base64 in localStorage or TanStack Query.
 - For file previews use `URL.createObjectURL(file)` only before upload and always call `URL.revokeObjectURL()` on replacement/unmount so as not to hold memory.
 - Media library — pagination + server thumbnails; `loading="lazy"` for lists, separate full-size files only on request. Metadata in D1, binary objects in R2.
-- The preview of the final card must use **the same server renderer/template** as the publication: `POST /api/v1/media/preview`, not a separate copy of the markup in the browser. For speed, an approximate mockup may be shown locally, but before publication the actual PNG must be displayed. Rendering of heavy cards is asynchronous, protected against abuse and limited by quotas.
-- If the renderer is unavailable, show a fallback and explicitly mark that the image was not created; do not present a sample as the real result.
+- Rendered cards are a later phase (automated media pipeline, not built). When they exist, the preview must use the same server renderer as the publication and never present a sample as the real result.
 
 ## 9. Editor and calendar without data loss
 
@@ -252,9 +160,9 @@ Lazy loading per route (`React.lazy` or lazy route modules), a shared lightweigh
 
 ## 10. UI/UX and design system
 
-- **Owner decision 06.10.2026 (supersedes the 03.10.2026 monochrome rule):** approved direction «modern» with one accent, cobalt by default — `docs/DESIGN_SYSTEM_NO_FIGMA.md` § Approved visual direction, reference `docs/design/studio-reference.html`. The accent is chosen per theme in Settings → Appearance (presets or custom), stored on the server; status colors always come with text and an icon. The current placeholder UI is explicitly not an acceptance reference: the first frontend milestone is a modern visual redesign with deliberate typography, spacing, density, navigation and responsive composition. Theme by `prefers-color-scheme` + a manual switch. Components — React Aria Components in `shared/ui` (see §0).
+- Visual direction and token layer: `docs/design/README.md` and `docs/design/UX_SPEC.md` (approved 08.10.2026). The accent is chosen per theme in Settings → Appearance (presets or custom), stored on the server; status colors always come with text and an icon. Theme by `prefers-color-scheme` + a manual switch. Components — React Aria Components in `shared/ui` (see §0).
 - Tokens `--color-bg`, `--color-surface`, `--color-text`, `--color-accent`, `--space-*`, `--radius-*` and typography in `app/styles/tokens.css`; buttons and fields via `shared/ui`.
-- Responsive contract: every route works on phones (320-430 px), tablets (portrait and landscape), laptops and large desktop screens (through 1920 px+); capabilities do not disappear by device class. The existing 860 px breakpoint changes compact vs desktop composition, while container width and available space determine when columns, tables and inspectors fit. At every viewport there must be no page-level horizontal overflow, clipped content/controls, or collisions between sticky UI and browser/Telegram safe areas. Use 44 px targets for touch/coarse pointers and Mini App; the exact viewport matrix and visual acceptance rules are in `docs/design/UX_SPEC.md` §1.
+- Responsive contract: every route works on phones (320-430 px), tablets (portrait and landscape), laptops and large desktop screens (through 1920 px+); capabilities do not disappear by device class. The existing 860 px breakpoint changes compact vs desktop composition, while container width and available space determine when columns, tables and inspectors fit. At every viewport there must be no page-level horizontal overflow, clipped content/controls, or collisions between sticky UI and browser/Telegram safe areas. Use 44 px targets for touch/coarse pointers and Mini App; the widths to check are in `docs/design/UX_SPEC.md` Conventions.
 - On desktop composition: side navigation, dense tables and a two-pane editor where they fit. On compact widths: compact navigation, cards or explicitly accessible horizontal scrolling for wide data, and main actions always available. Tablets and small laptops may use either composition according to available width; do not assume they are phones or desktops by device name.
 - Accessibility: WCAG 2.2 AA as the target; interactive elements are keyboard-reachable, visible focus, semantic `label`, correct heading structure, color is not the only status marker, dialogs manage focus. For form errors `aria-describedby`; for background updates — moderate `aria-live`, without constant announcements.
 - User-facing statuses: «Запланировано», «В очереди», «Публикуется», «Опубликовано», «Повтор по расписанию», «Ошибка», «Требует проверки», «Отменено». The canonical mapping `PublicationStatus` → label → token group is in the skill `page-spec`. Do not show HTTP 503 as the only explanation to a person — give a short text plus the requestId.
@@ -271,7 +179,7 @@ Lazy loading per route (`React.lazy` or lazy route modules), a shared lightweigh
 
 - Unit: date/UTC formatting, API error mapping, form Zod schemas, pure filter functions.
 - Component (RTL + MSW): empty list, loading/error, login, editor validation, 409 conflict, saving with component re-creation, failed/unknown action restrictions.
-- E2E (Playwright): Telegram sign-in (browser and Mini App with a mocked environment), draft creation, preview, safe scheduling, unknown Telegram result, incident log, logout, responsive viewport matrix from 320 through 1920 px (including phone, tablet portrait/landscape, laptop and desktop), basic keyboard. All tests are isolated, Telegram is mocked.
+- E2E (Playwright): Telegram sign-in (browser and Mini App with a mocked environment), draft creation, preview, safe scheduling, unknown Telegram result, incident log, logout, the responsive viewport matrix in `docs/design/UX_SPEC.md` Conventions, basic keyboard. All tests are isolated, Telegram is mocked.
 - Contract tests: `contracts` are imported by the API and the admin panel; fixtures match production DTOs. The Bearer token, the refresh cookie and the `Origin` check on `/api/v1/auth/*` are verified by Worker integration tests.
 - CI: `npm run verify` (Oxlint, Prettier, `tsc`, dependency-cruiser, Vitest, `vite build`); Playwright — `verify:e2e`. A11y: axe in critical forms/dialogs + a manual keyboard smoke.
 - Do not test internal `useState` and CSS classes as the main evidence of quality; verify user actions and visible results.
@@ -317,8 +225,6 @@ The admin panel opens both as a regular website and as a Mini App from the bot (
 - **Launch parameters** are read from `Telegram.WebApp` (the script parses `location.hash` itself), not from the router URL.
 - **Theme:** light/dark by Telegram `colorScheme` (event `themeChanged`); the palette remains ours (neutrals + the owner's accent preset), we do not copy Telegram colors.
 - **Safe areas:** padding `max(env(safe-area-inset-*), var(--tg-content-safe-area-inset-*))`; the height of bottom panels — by `viewportStableHeight`. On launch `ready()` and `expand()`; we do not use fullscreen mode.
-- **Native elements** (with an `isVersionAtLeast` check): the «Back» button — when router history exists; close confirmation is enabled while the form is dirty; the main button — «Сохранить» in forms; subscriptions are removed on unmount.
+- **Native elements** (with an `isVersionAtLeast` check): the «Back» button follows router history (hidden on tab roots; in-page back links are not duplicated); close confirmation is enabled while a form is dirty; vertical swipes are disabled so a swipe cannot close the app mid-edit; header, background and bottom bar colors follow our tokens; the main button carries the screen's single primary action; the app top bar is hidden inside Telegram; subscriptions are removed on unmount.
 - **Mobile layout is primary:** 375 px is the main screen, not a cut-down one.
 - **Tests:** Playwright mocks `window.Telegram.WebApp` via `addInitScript` and generates a signed `initData` with a test bot token; real Telegram is not needed for tests. Manual verification on a device — through the Telegram test environment or an HTTPS tunnel.
-
-## Owner decision 03.10.2026: Figma is fully excluded

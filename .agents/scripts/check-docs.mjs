@@ -15,7 +15,7 @@ const CANONICAL = [
   'docs/FRONTEND_ARCHITECTURE.md',
   'docs/API_CONTRACTS.md',
   'docs/AGENT_ORCHESTRATION.md',
-  'docs/DESIGN_SYSTEM_NO_FIGMA.md',
+  'docs/design/README.md',
 ];
 const AREA_AGENTS = ['apps/backend/AGENTS.md', 'apps/frontend/AGENTS.md', 'apps/contracts/AGENTS.md'];
 
@@ -30,8 +30,8 @@ export function checkRepo(root) {
   for (const p of [...CANONICAL, ...AREA_AGENTS]) if (!existsSync(join(root, p))) errors.push(`missing: ${p}`);
   if (errors.length) return errors;
 
-  if (!/Figma is not needed at all|Figma не нужна/.test(read('docs/DESIGN_SYSTEM_NO_FIGMA.md')))
-    errors.push('docs/DESIGN_SYSTEM_NO_FIGMA.md: owner decision on Figma is missing');
+  if (!/Figma is not needed at all/.test(read('docs/design/README.md')))
+    errors.push('docs/design/README.md: owner decision on Figma is missing');
   budget('AGENTS.md', BUDGET.rootAgents);
   AREA_AGENTS.forEach((p) => budget(p, BUDGET.areaAgents));
 

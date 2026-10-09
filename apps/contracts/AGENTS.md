@@ -2,7 +2,7 @@
 
 This package is the single source of the frontend/backend wire format. It depends only on `zod` and never imports Hono, React, Cloudflare or business logic. Any change here follows the skill `contract-change`.
 
-- One file per domain (`errors.ts`, `posts.ts`, `publications.ts`, …), re-exported from `src/index.ts`. Everything is in `src/index.ts` today; split it out when you add the next domain.
+- One file per domain (`errors.ts`, `posts.ts`, `publications.ts`, …), re-exported from `src/index.ts`.
 - Naming: `xxxSchema` plus `export type Xxx = z.infer<typeof xxxSchema>`. Request bodies are `XxxInput` and use `z.strictObject` so unknown keys are rejected. Responses are `XxxDto`. Lists are `PageDto<T>` = `{ items, nextCursor }`.
 - Zod 4 idioms:
   - `z.uuid()`, `z.iso.datetime()` (UTC `Z` only, by default) and `z.email()` are top-level;

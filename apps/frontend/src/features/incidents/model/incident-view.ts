@@ -1,4 +1,4 @@
-// Code → reason (ru) from docs/stories/dashboard-today-incidents.md; an unmapped code is shown as «Ошибка <code>».
+// Code → reason (ru); this map is the only source. An unmapped code is shown as «Ошибка <code>».
 const REASONS: Record<string, string> = {
   SEND_UNCONFIRMED: 'Ответ Telegram не получен, сообщение могло уйти',
   RETRIES_EXHAUSTED: 'Лимиты Telegram: попытки исчерпаны',

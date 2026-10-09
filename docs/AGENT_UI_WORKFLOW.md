@@ -1,6 +1,6 @@
 # Autonomous UI delivery workflow
 
-**Owner decision, 09.10.2026.** Applies to substantial screens, flows, redesigns and UI tasks with owner-supplied screenshots. Complements `docs/AGENT_ORCHESTRATION.md`; does not add AI features to the product.
+**Owner decision, 09.10.2026.** Applies to substantial screens, flows, redesigns and UI tasks with owner-supplied screenshots. Complements skill `orchestrate`; does not add AI features to the product.
 
 ## Core rule
 
@@ -31,7 +31,7 @@ Save accepted prototype **commit SHA + route + fixture IDs + screenshot paths + 
 
 ## UI QA evidence, not opinions
 
-Run a browser with deterministic data. Cover 320, 375, 390, 768, 1024, 1280, 1440, 1920 px and breakpoint edges (focus state permutations at representative widths); light/dark themes; navigation, errors, offline/loading/empty, media, confirm/cancel, keyboard, scroll, touch/safe areas and screen-reader semantics. Verify accessibility/axe and capture real screenshots. Browser console and network must reveal no unintended requests.
+Run a browser with deterministic data. Cover the full viewport matrix in `docs/design/UX_SPEC.md` Conventions (focus state permutations at representative widths); light/dark themes; navigation, errors, offline/loading/empty, media, confirm/cancel, keyboard, scroll, touch/safe areas and screen-reader semantics. Verify accessibility/axe and capture real screenshots. Browser console and network must reveal no unintended requests.
 
 At prototype gate, assess **structure** against owner images and **style** against tokens. At implementation gate, compare the rendered page to accepted prototype screenshots/revision and check real outcomes. Pixel-diff is supportive, not the only test. UI QA must be independent and read-only. Missing browser/reference/testing evidence yields NOT_VERIFIED, never PASS.
 

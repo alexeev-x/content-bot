@@ -2,8 +2,6 @@
 
 Part of the master plan; status, order and the queue live in `docs/IMPLEMENTATION_PLAN.md`. Section numbers are the plan's own, so `§N` references stay valid.
 
-08.10.2026: rich Telegram editor is built. Existing saved drafts autosave after a 1.2 s quiet period; invalid drafts do not autosave, a failed save preserves local edits and stops the retry loop until the text changes or the owner presses Retry, and 409 still requires an explicit conflict decision. New-post creation remains explicit; autosave starts after the draft exists on the server. Useful post actions are still open.
-
 ## 3.1 Content Studio
 
 Purpose: manually create and prepare content.
@@ -209,8 +207,6 @@ A post cannot be approved while required upload state is unresolved.
 ## 6. Posts list and server-side data UX
 
 The current table is directionally correct and should stay dense rather than become a card grid on desktop.
-
-Delivered 08.10.2026 (DEV): one live search field and column sort over loaded rows (client-side), phone cards + sort sheet. Server-side search, total counts and URL state are still open.
 
 Required:
 
