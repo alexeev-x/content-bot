@@ -20,7 +20,9 @@ After editing roles or skills: `npm run agents:sync`. CI (`npm run agents:check`
 |---|---|---|
 | Orchestrator — main session + skill `orchestrate` | any task with several steps/roles | chosen by the session owner |
 | product-analyst | only when requirements are unclear | sonnet |
-| ux-designer | navigation, user flows and interaction of a screen before it is built or when it is awkward to use | sonnet |
+| ux-designer | navigation, flows, exit/cancel/recovery spec before complex UI | sonnet |
+| ui-prototyper | mock-only clickable `/__proto` prototype from accepted UX and owner reference images | sonnet |
+| ui-qa | independent prototype + production visual/interaction QA; routine autonomous acceptance | sonnet |
 | design-system | a new token/primitive is needed or a visual audit | sonnet |
 | frontend | UI features | sonnet |
 | backend | API, D1, Cron, bot and Telegram | sonnet, effort high |
@@ -33,6 +35,9 @@ There is no separate architect: architectural decisions are made by the orchestr
 Classify the final changed behavior, not the number of lines. R0 (non-behavioral docs/formatting) and R1 (clear, reversible, single-area changes) do not launch independent QA by default. R2 (contracts, multi-area integration, shared primitives or verification infrastructure) gets one independent review of the integrated diff. R3 (auth, permissions, sessions, migrations/data integrity, publishing side effects, secrets or production-related configuration) requires independent QA before acceptance. Raise risk when the scope grows or impact is uncertain. Related low-risk work can share one final check; related R2 work can share one integrated review.
 
 The implementer runs focused tests while working. The main session owns the R0/R1 final gate; a successful stop-hook `verify:changed` can satisfy only that scoped gate when its result covers the final unchanged worktree. For R2/R3, QA owns one full local `npm run verify` and the relevant integration or failure tests; a scoped hook result never substitutes for the full suite. Reuse a prior full-suite result only when that exact command passed for the exact unchanged worktree and its output is available. Changed code, failed checks, timeouts or incomplete coverage require rerunning only the affected required check. CI remains an independent full check. Deterministic format, type, architecture and regression commands do not require an AI reviewer.
+
+## Autonomous UI acceptance
+Substantial new UI and owner-supplied UI references follow `docs/AGENT_UI_WORKFLOW.md`: ux-designer → ui-prototyper → independent ui-qa (`PROTOTYPE_PASS`) → frontend/backend → ui-qa (`IMPLEMENTATION_PASS`). QA must use real browser evidence at canonical responsive widths and approved tokens; owner approval is optional unless explicitly requested or a new owner-level product/publishing/access/money decision is needed. R2/R3 qa-security remains independent and mandatory. Prototype uses existing `/__proto`, never real APIs; frozen accepted revision is frontend's visual acceptance target.
 
 ## Token savings without loss of quality
 1. **Context layers.** Always: root `AGENTS.md` (~5 KB). Per area: `<area>/AGENTS.md` (~1–3.5 KB). Role: ~2 KB. Procedures are skills, their body is loaded only when invoked. Large architecture documents — only the needed section by link. Previously every agent was required to read ~69 KB of documents.

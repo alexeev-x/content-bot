@@ -170,7 +170,7 @@ Builder owns only these paths unless the orchestrator expands scope:
 - `apps/frontend/src/pages/prototypes/ProtoIndex.tsx` only if a new state link needs a group label
 - new files under `apps/frontend/src/pages/prototypes/` for editor-specific mock preview/source sheet only
 
-No production files under `features/posts`, `routes/posts`, `shared/ui`, tokens, API/contracts, backend or database are in builder scope. Do not modify `docs/design/UX_SPEC.md` in the prototype implementation task; this is a story handoff, not an automatic canonical-spec approval. Owner approval after seeing the prototype is needed before deciding whether the approved UX spec should change.
+No production files under `features/posts`, `routes/posts`, `shared/ui`, tokens, API/contracts, backend or database are in builder scope. Do not modify `docs/design/UX_SPEC.md` in the prototype implementation task; this is a story handoff, not an automatic canonical-spec approval. Independent ui-qa may accept this prototype and allow implementation without waiting for owner review. Any change to the canonical approved UX system, publishing policy or other owner-only decision still requires owner approval. Follow `docs/AGENT_UI_WORKFLOW.md`.
 
 ## API needs
 

@@ -2,6 +2,9 @@
 
 **Status: Approved 08.10.2026** (owner approved the clickable prototype and `UX_SPEC.md`; real pages are rebuilt to match the prototype). Reference images and mockup packs were removed; they are no longer a source.
 
+## Autonomous UI delivery
+Substantial UI changes follow `docs/AGENT_UI_WORKFLOW.md`: UX → mock-only clickable prototype in `/__proto` → independent ui-qa → production frontend → ui-qa. The existing approved 08.10 visual system remains authoritative. Owner-supplied screenshots are task layout/interaction references, not automatic overrides of tokens. Routine QA can accept a prototype without the owner; no prototype may perform real API mutations.
+
 ## Source of truth
 1. [`UX_SPEC.md`](UX_SPEC.md): patterns, screens, flows, states, copy.
 2. The prototype code at `/__proto` (dev-only): `apps/frontend/src/pages/prototypes`.
