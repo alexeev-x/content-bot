@@ -21,8 +21,8 @@ Follow the root owner-interaction and recorded-decision rules.
 
 ## Token hygiene
 - One task per session; new task, new session. For long tasks, compact with a focus line ("keep: task packet, failing check, decisions").
-- Never edit AGENTS.md, skills, settings, hooks or MCP config in the middle of a working session: they sit in the cached prefix, and changing them re-bills the whole context.
-- Push noisy work (wide searches, long logs) into the owning role agent or `researcher` so only its summary returns.
+- Do not edit cached instructions, skills, hooks or settings mid-session; it invalidates prompt cache.
+- Delegate noisy searches and logs; return only the role's summary.
 - For Plus comparisons, record allowance as in `references/metrics.md`; do not infer it from `npm run metrics`.
 
 ## 1. Classify
