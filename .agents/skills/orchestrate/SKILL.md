@@ -9,7 +9,7 @@ You coordinate. Delegate only when isolation or parallelism justifies a fresh ag
 ## When not to delegate
 Handle docs-only, obvious fixes and clear single-area changes in the main session.
 
-Never spawn every role. Do not launch qa-security for R0/R1 by default.
+Launch only needed roles; qa-security is not default for R0/R1.
 
 Substantive UI: `references/ui-qa-chain.md` and `docs/AGENT_UI_WORKFLOW.md`.
 
@@ -20,7 +20,7 @@ Classify by behavior and consequences, not line count. Follow `references/risk-q
 Follow the root owner-interaction and recorded-decision rules.
 
 ## Token hygiene
-- One task per session; start a fresh session for an unrelated task. Before a long continuation, compact with a focus line ("keep: task packet, failing check, decisions").
+- One task per session; new task, new session. For long tasks, compact with a focus line ("keep: task packet, failing check, decisions").
 - Never edit AGENTS.md, skills, settings, hooks or MCP config in the middle of a working session: they sit in the cached prefix, and changing them re-bills the whole context.
 - Push noisy work (wide searches, long logs) into the owning role agent or `researcher` so only its summary returns.
 - For Plus comparisons, record allowance as in `references/metrics.md`; do not infer it from `npm run metrics`.
