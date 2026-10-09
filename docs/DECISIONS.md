@@ -47,6 +47,8 @@ A short list of accepted decisions. An agent does not propose an alternative to 
 | 08.10.2026 | Обзор is a customizable widget grid (react-grid-layout v2 in edit mode only); layout stored server-side per owner with revision/409 | `apps/contracts/src/dashboard-layout.ts`, `docs/API_CONTRACTS.md` |
 | 08.10.2026 | Post approval stores an immutable content snapshot; publication sends that exact approved snapshot, while the revision number guards against stale edits | `apps/backend/src/modules/content/infrastructure/d1-post-repository.ts`, `docs/plan/content-studio.md` |
 
+| 09.10.2026 | Substantive UI tasks use independent code-native clickable prototypes and separate UI QA; routine prototype/implementation approvals are autonomous and owner's approval is optional unless requested or a new owner-only decision is needed; existing tokens and `/__proto` stay canonical | `docs/AGENT_UI_WORKFLOW.md` |
+
 ## Awaiting owner decision
 | Question | Default recommendation |
 |---|---|

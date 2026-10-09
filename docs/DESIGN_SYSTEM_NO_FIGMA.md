@@ -19,7 +19,7 @@ Important correction: the prototype contains demo labels. **AI/LLM product funct
 4. Screenshot acceptance reference from a real browser render, Playwright diff on stable fixture data.
 
 ## Handoff to frontend
-Analyst → page spec → Design System Agent (tokens + reusable components) → Frontend (feature composition) → QA (browser screenshots + accessibility). Frontend never waits for a drawn mockup; if a component is missing, it proposes a contract to the designer. Do not use random hex values in each feature. The accent is always a token (`--color-accent*`), switched per theme by the appearance setting; features never hard-code it.
+For substantive UI: UX Designer → UI Prototyper (clickable code-native mock using `/__proto`) → independent UI QA → Frontend → independent UI QA. Design System joins only for missing shared tokens/primitives. Lightweight changes may skip the mock gate. See `docs/AGENT_UI_WORKFLOW.md`. Never require Figma or an image export; screenshots are for reference/evidence. Do not use random hex values in each feature. The accent is always a token (`--color-accent*`), switched per theme by the appearance setting; features never hard-code it.
 
 ## Quality
 Contrast and keyboard access per WCAG 2.2 AA as a target; focus, aria, Telegram Mini App safe areas, responsive layouts across phones, tablets, laptops and desktops (320-1920 px+), reduced motion, touch target sizes. Verify the full viewport matrix and no-overflow/layout integrity defined in `docs/design/UX_SPEC.md` §1. Screenshot diff complements semantic tests but does not replace them.

@@ -9,9 +9,9 @@ You coordinate. Delegate only when isolation or parallelism justifies a fresh ag
 ## When not to delegate
 Handle docs-only, obvious fixes and clear single-area changes in the main session.
 
-Never spawn every role. Do not launch qa-security for R0/R1 by default.
+Launch only needed roles; qa-security is not default for R0/R1.
 
-Substantive UI: see `references/ui-qa-chain.md` (overrides R0/R1 QA default).
+Substantive UI: `references/ui-qa-chain.md` and `docs/AGENT_UI_WORKFLOW.md`.
 
 ## Risk-based QA
 Classify by behavior and consequences, not line count. Follow `references/risk-qa.md`; do not launch QA for R0/R1 by default.
@@ -20,9 +20,9 @@ Classify by behavior and consequences, not line count. Follow `references/risk-q
 Follow the root owner-interaction and recorded-decision rules.
 
 ## Token hygiene
-- One task per session; start a fresh session for an unrelated task. Before a long continuation, compact with a focus line ("keep: task packet, failing check, decisions").
-- Never edit AGENTS.md, skills, settings, hooks or MCP config in the middle of a working session: they sit in the cached prefix, and changing them re-bills the whole context.
-- Push noisy work (wide searches, long logs) into the owning role agent or `researcher` so only its summary returns.
+- One task per session; new task, new session. For long tasks, compact with a focus line ("keep: task packet, failing check, decisions").
+- Do not edit cached instructions, skills, hooks or settings mid-session; it invalidates prompt cache.
+- Delegate noisy searches and logs; return only the role's summary.
 - For Plus comparisons, record allowance as in `references/metrics.md`; do not infer it from `npm run metrics`.
 
 ## 1. Classify
@@ -30,8 +30,8 @@ Follow the root owner-interaction and recorded-decision rules.
 |---|---|
 | docs only | yourself → `npm run check:docs` |
 | one area, clear spec | one role (or yourself) → checks |
-| new screen, flow or navigation; "awkward to use" | ux-designer (flow spec) → frontend |
-| UI with new visuals | design-system (only for missing tokens/primitives) → frontend |
+| substantial screen, flow, or UI references | ux-designer → ui-prototyper → ui-qa → frontend → ui-qa |
+| missing visual primitive/token | design-system (scoped request) → owning builder |
 | API or data change | contract step → backend ∥ frontend |
 | contract, integration, verification infrastructure (R2) | one owner per path; qa-security reviews the integrated diff |
 | publishing / auth / migration / security / secrets (R3) | as above, plus mandatory qa-security before acceptance |
@@ -43,7 +43,7 @@ Code, docs and reviews go only through the project roles above. Built-in helpers
 ## 2. Plan
 - Work on develop and check `git status`. Preserve pre-existing changes; never stash, reset or overwrite another task's work.
 - Cut the smallest vertical slices. Each task has one owner role and a set of `owned_paths` that no other task shares.
-- Order: contract → (backend ∥ frontend) → review. Run tasks in parallel only when their paths don't overlap and the contract is fixed. Serialize these files: `apps/contracts/**`, migrations, `container.ts`, the router, the token file.
+- UI: UX → prototype → ui-qa PASS → frontend → ui-qa; backend may start after contract. Other tasks: contract → backend ∥ frontend → review. Parallelize only disjoint paths after contract. Serialize these files: `apps/contracts/**`, migrations, `container.ts`, the router, the token file.
 
 ## 3. Task packet
 Send only the goal, owned paths, needed context links, acceptance criteria and constraints. Do not paste documents, the transcript or other roles' code.
