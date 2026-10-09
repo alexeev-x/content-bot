@@ -271,7 +271,202 @@
 .editor[data-keyboard] .actionBar {
   bottom: 291px;
 }
+.editStack,
+.settings,
+.sourceContent,
+.previewStack {
+  display: grid;
+  gap: var(--space-4);
+  min-width: 0;
+}
+.mediaSection {
+  display: grid;
+  gap: var(--space-3);
+}
+.dropzone {
+  display: grid;
+  justify-items: center;
+  gap: var(--space-2);
+  padding: var(--space-6);
+  border: 1px dashed var(--color-border-strong);
+  border-radius: var(--radius-2);
+  color: var(--color-text-muted);
+  text-align: center;
+}
+.dropzone strong {
+  color: var(--color-text);
+}
+.hint,
+.sourceDescription,
+.timezone,
+.demoNote {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+:global(#root:has([data-source-picker='true']) > [data-editor='true']:last-child) {
+  display: none;
+}
+.sourceList,
+.readiness ul {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.sourceChoice {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: var(--size-target-min);
+}
+.sourceChoice img {
+  width: 56px;
+  height: 44px;
+  border-radius: var(--radius-1);
+  object-fit: cover;
+}
+.sourceChoice > span {
+  display: grid;
+  gap: var(--space-1);
+}
+.sourceChoice small,
+.mediaInfo > span,
+.mediaInfo small {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+}
+.mediaGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.mediaItem {
+  overflow: hidden;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-2);
+  background: var(--color-surface-1);
+}
+.mediaThumb,
+.previewMedia {
+  position: relative;
+  overflow: hidden;
+  background: var(--color-surface-2);
+}
+.mediaThumb img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+}
+.videoMark,
+.firstMark {
+  position: absolute;
+  top: var(--space-2);
+  left: var(--space-2);
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-1);
+  background: var(--color-surface-1);
+  color: var(--color-text);
+  font-size: var(--font-size-xs);
+}
+.firstMark {
+  right: var(--space-2);
+  left: auto;
+}
+.mediaInfo {
+  display: grid;
+  gap: var(--space-1);
+  padding: var(--space-3);
+  overflow-wrap: anywhere;
+}
+.mediaInfo progress {
+  width: 100%;
+  accent-color: var(--color-accent);
+}
+.mediaControls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1);
+  padding: 0 var(--space-2) var(--space-2);
+}
+.mediaError {
+  color: var(--color-danger) !important;
+}
+.previewMedia {
+  border-radius: var(--radius-2);
+}
+.previewMedia > img {
+  display: block;
+  width: 100%;
+  max-height: 360px;
+  object-fit: contain;
+}
+.carousel {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2);
+}
+.settingsIntro h2 {
+  margin: 0 0 var(--space-2);
+  font-size: var(--font-size-lg);
+}
+.settingsIntro p {
+  margin: 0;
+  color: var(--color-text-muted);
+}
+.readiness {
+  padding: var(--space-3);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-2);
+  background: var(--color-surface-2);
+}
+.readiness h3 {
+  margin: 0 0 var(--space-2);
+  font-size: var(--font-size-sm);
+}
+.readiness li {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--font-size-sm);
+}
+.settingsActions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+.demoResult {
+  padding: var(--space-3);
+  border-radius: var(--radius-2);
+  background: var(--color-surface-2);
+}
 @media (max-width: 859px) {
+  .mediaGrid {
+    grid-template-columns: 1fr;
+  }
+  .settingsActions {
+    display: grid;
+  }
+  .editor {
+    padding-bottom: calc(80px + env(safe-area-inset-bottom));
+  }
+}
+@media (max-width: 859px) {
+  :global([data-editor='true'] > div > header) {
+    display: none;
+  }
+  :global([data-editor='true'] > div > main) {
+    padding: 0 0 calc(var(--space-6) + var(--shell-safe-bottom));
+  }
   .header {
     display: grid;
     grid-template-columns: auto minmax(0, 1fr);

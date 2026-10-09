@@ -57,7 +57,13 @@ export const SCREENS: ProtoScreen[] = [
     states: [
       { id: 'default', label: 'Пустой', query: '' },
       { id: 'keyboard', label: 'Клавиатура (телефон)', query: 'state=keyboard' },
-      { id: 'failed', label: 'Не удалось сохранить', query: 'state=failed' }
+      { id: 'failed', label: 'Не удалось сохранить', query: 'state=failed' },
+      { id: 'media-source', label: 'Выбор источника медиа', query: 'state=media-source' },
+      { id: 'gallery', label: 'Смешанная галерея', query: 'state=gallery' },
+      { id: 'preview', label: 'Предпросмотр', query: 'state=preview' },
+      { id: 'settings', label: 'Настройки публикации', query: 'state=settings' },
+      { id: 'confirm', label: 'Финальное подтверждение', query: 'state=confirm' },
+      { id: 'upload-error', label: 'Ошибка загрузки', query: 'state=upload-error' }
     ]
   },
   {
