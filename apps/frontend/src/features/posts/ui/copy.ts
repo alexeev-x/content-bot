@@ -216,6 +216,8 @@ export const postsCopy = {
       preview: 'Превью',
       publications: 'Публикации'
     },
+    moreActions: 'Ещё',
+    previewReturn: 'Назад к редактору',
     overLimit: 'Лимит превышен',
     previewHeading: 'Так увидят в Telegram',
     previewEmpty: 'Здесь появится ваш пост',

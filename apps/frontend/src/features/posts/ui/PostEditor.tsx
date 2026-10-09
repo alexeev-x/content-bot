@@ -6,7 +6,7 @@ import {
   Button,
   ConfirmDialog,
   Icon,
-  StatusBadge,
+  Menu,
   Tab,
   TabList,
   TabPanel,
@@ -36,12 +36,13 @@ type Props = {
   approvedActions?: ((post: PostDto) => ReactNode) | undefined;
   /** Extra cards under the preview (this post's publications). */
   aside?: ReactNode;
+  headerActions?: ReactNode;
 };
 
 const copy = postsCopy.editor;
 const NARROW = '(max-width: 859px)';
 
-export function PostEditor({ post, onCreated, approvedActions, aside }: Props) {
+export function PostEditor({ post, onCreated, approvedActions, aside, headerActions }: Props) {
   const rootRef = useRef<HTMLDivElement>(null);
   const dirtyRef = useRef(false);
   const mediaWriteLockState = useRef(false);
@@ -66,6 +67,7 @@ export function PostEditor({ post, onCreated, approvedActions, aside }: Props) {
   useClosingConfirmation((editor.dirty || editor.mediaPending) && !editor.readOnly);
   const statusRef = useRef<HTMLDivElement>(null);
   const [compareOpen, setCompareOpen] = useState(false);
+  const [mobilePreviewOpen, setMobilePreviewOpen] = useState(false);
   const [approveOpen, setApproveOpen] = useState(false);
   const [overwriteOpen, setOverwriteOpen] = useState(false);
 
@@ -107,6 +109,18 @@ export function PostEditor({ post, onCreated, approvedActions, aside }: Props) {
     await navigate({ to: '/posts' });
   }
 
+  async function backToPosts() {
+    if (!editor.isNew) {
+      await saveAndExit();
+      return;
+    }
+    if (editor.dirty || editor.mediaPending) {
+      const saved = await editor.save();
+      if (!saved) return;
+    }
+    await navigate({ to: '/posts' });
+  }
+
   async function confirmApprove() {
     const approved = await editor.approvePost();
     setApproveOpen(false);
@@ -123,34 +137,34 @@ export function PostEditor({ post, onCreated, approvedActions, aside }: Props) {
   }
 
   const fields = (
-    <>
-      <PostFields
-        control={editor.form.control}
-        setValue={editor.form.setValue}
-        title={editor.title}
-        body={editor.body}
-        entities={editor.entities}
-        isReadOnly={editor.readOnly}
-        isNew={editor.isNew}
-        length={editor.length}
-        overflow={editor.overflow}
-      />
-      <PostMediaEditor
-        postId={baseline?.id ?? null}
-        revision={baseline?.revision ?? 0}
-        media={baseline?.media ?? []}
-        disabled={editor.readOnly || hasConflict}
-        mediaWriteLock={mediaWriteLock}
-        onServerChange={editor.adoptMedia}
-        onPendingChange={setMediaPending}
-        onEnsurePost={editor.ensureDraftForMedia}
-        onRevisionConflict={() => {
-          editor.markMediaConflict();
-          setCompareOpen(true);
-        }}
-        onDraftReady={(saved) => void navigate({ to: '/posts/$id', params: { id: saved.id }, replace: true })}
-      />
-    </>
+    <PostFields
+      control={editor.form.control}
+      setValue={editor.form.setValue}
+      title={editor.title}
+      body={editor.body}
+      entities={editor.entities}
+      isReadOnly={editor.readOnly}
+      isNew={editor.isNew}
+      length={editor.length}
+      overflow={editor.overflow}
+    />
+  );
+  const mediaEditor = (
+    <PostMediaEditor
+      postId={baseline?.id ?? null}
+      revision={baseline?.revision ?? 0}
+      media={baseline?.media ?? []}
+      disabled={editor.readOnly || hasConflict}
+      mediaWriteLock={mediaWriteLock}
+      onServerChange={editor.adoptMedia}
+      onPendingChange={setMediaPending}
+      onEnsurePost={editor.ensureDraftForMedia}
+      onRevisionConflict={() => {
+        editor.markMediaConflict();
+        setCompareOpen(true);
+      }}
+      onDraftReady={(saved) => void navigate({ to: '/posts/$id', params: { id: saved.id }, replace: true })}
+    />
   );
   const previewPanel = (
     <>
@@ -159,7 +173,6 @@ export function PostEditor({ post, onCreated, approvedActions, aside }: Props) {
         body={editor.body}
         entities={editor.entities}
         length={editor.length}
-        limit={editor.messageLimit}
         media={baseline?.media ?? []}
       />
     </>
@@ -183,32 +196,67 @@ export function PostEditor({ post, onCreated, approvedActions, aside }: Props) {
       approvedActions(baseline)
     ) : null
   ) : (
-    <>
-      <Button
-        variant={editor.dirty || editor.isNew ? 'primary' : 'secondary'}
-        icon="check"
-        isLoading={editor.isSaving}
-        isDisabled={!canSave}
-        onPress={() => void saveAndExit()}
-      >
-        {editor.isNew ? copy.create : copy.saveAndExit}
-      </Button>
-      <Button
-        variant={editor.dirty || editor.isNew ? 'secondary' : 'primary'}
-        isDisabled={!canApprove}
-        onPress={() => setApproveOpen(true)}
-      >
-        Настроить публикацию
-      </Button>
-      <span className={styles.shortcut}>{editor.isNew ? copy.saveHint : copy.saveInPlaceHint}</span>
-    </>
+    <Button
+      size="xl"
+      isLoading={editor.isApproving || editor.isSaving}
+      isDisabled={!canApprove}
+      onPress={() => setApproveOpen(true)}
+    >
+      Настроить публикацию
+    </Button>
   );
+  const saveButton = !isApproved ? (
+    <Button
+      variant="secondary"
+      size="sm"
+      icon="check"
+      isLoading={editor.isSaving}
+      isDisabled={!canSave}
+      onPress={() => void saveAndExit()}
+    >
+      {editor.isNew ? copy.create : copy.saveAndExit}
+    </Button>
+  ) : null;
 
   return (
     <div ref={rootRef} className={styles.editor}>
-      <div ref={statusRef} tabIndex={-1} className={styles.meta}>
-        <StatusBadge status={baseline?.status ?? 'draft'} />
-        <SaveIndicator state={editor.saveState} savedAt={baseline?.updatedAt} />
+      <header className={styles.titleRow}>
+        {narrow ? (
+          <Button
+            variant="ghost"
+            size="lg"
+            icon="arrow-left"
+            aria-label={mobilePreviewOpen ? copy.previewReturn : undefined}
+            onPress={() => {
+              if (mobilePreviewOpen) {
+                setMobilePreviewOpen(false);
+                return;
+              }
+              void backToPosts();
+            }}
+            className={styles.backButton}
+          >
+            Посты
+          </Button>
+        ) : null}
+        <div className={styles.titleCopy}>
+          <h1 ref={statusRef} tabIndex={-1}>
+            {editor.isNew ? 'Новый пост' : editor.title.trim() || copy.untitled}
+          </h1>
+          <span className={styles.saveStatus}>
+            <span className={styles.statusDot} data-state={editor.saveState} />
+            <SaveIndicator state={editor.saveState} savedAt={baseline?.updatedAt} />
+          </span>
+        </div>
+        {narrow && !showApprovedPreview ? (
+          <Menu
+            label={copy.moreActions}
+            items={[{ id: 'preview', label: copy.tabs.preview, icon: 'eye' }]}
+            onAction={() => setMobilePreviewOpen(true)}
+          />
+        ) : null}
+        {headerActions}
+        {!narrow ? saveButton : null}
         {editor.saveState === 'failed' && !editor.readOnly && !hasConflict ? (
           <Button variant="ghost" size="sm" icon="retry" onPress={() => void editor.save()}>
             {copy.errors.retry}
@@ -217,8 +265,7 @@ export function PostEditor({ post, onCreated, approvedActions, aside }: Props) {
         <VisuallyHidden>
           <output>{editor.justApproved ? copy.approved.announce : ''}</output>
         </VisuallyHidden>
-        {!narrow ? <div className={styles.desktopActions}>{actions}</div> : null}
-      </div>
+      </header>
 
       {conflict ? (
         <ConflictBanner
@@ -256,46 +303,33 @@ export function PostEditor({ post, onCreated, approvedActions, aside }: Props) {
 
       {showApprovedPreview ? (
         side
+      ) : narrow && mobilePreviewOpen ? (
+        previewPanel
       ) : narrow ? (
-        <div className={styles.tabsRoot}>
-          <Tabs>
-            <TabList aria-label={copy.tabs.label}>
-              <Tab id="edit">
-                <Icon name="edit" size={16} />
-                {copy.tabs.edit}
-              </Tab>
-              <Tab id="preview">
-                <Icon name="send" size={16} />
-                {copy.tabs.preview}
-              </Tab>
-              {aside ? (
-                <Tab id="pubs">
-                  <Icon name="calendar" size={16} />
-                  {copy.tabs.publications}
-                </Tab>
-              ) : null}
-            </TabList>
-            <TabPanel id="edit" shouldForceMount>
-              {fields}
-            </TabPanel>
-            <TabPanel id="preview" shouldForceMount>
-              <div className={styles.previewColumn}>{previewPanel}</div>
-            </TabPanel>
-            {aside ? (
-              <TabPanel id="pubs">
-                <div className={styles.previewColumn}>{aside}</div>
-              </TabPanel>
-            ) : null}
-          </Tabs>
+        <div className={styles.phoneStack}>
+          {fields}
+          {mediaEditor}
         </div>
       ) : (
         <div className={styles.panes}>
-          <div className="reading-width">{fields}</div>
+          <div className={styles.leftColumn}>
+            <div className={styles.writeCard}>{fields}</div>
+            {mediaEditor}
+          </div>
           {side}
         </div>
       )}
-
-      {narrow ? <div className={styles.actionBar}>{actions}</div> : null}
+      <footer className={narrow ? styles.actionBar : styles.footerBar}>
+        <Button variant="secondary" size="xl" icon="log-out" onPress={() => void saveAndExit()}>
+          Выйти
+        </Button>
+        {narrow ? saveButton : null}
+        <p className={styles.footerNote}>
+          <Icon name="info" size={16} />
+          Черновик сохраняется автоматически
+        </p>
+        <div className={styles.footerPrimary}>{actions}</div>
+      </footer>
 
       <CompareDialog
         isOpen={compareOpen}

@@ -1,8 +1,17 @@
 .section {
   display: grid;
   gap: var(--space-3);
-  padding: var(--space-4);
+  padding: var(--space-4) 0;
   min-width: 0;
+}
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
 .dropTarget {
   outline: var(--focus-ring-width) dashed var(--color-accent);
@@ -55,10 +64,16 @@
   justify-content: space-between;
   flex-wrap: wrap;
   gap: var(--space-3);
+  padding-inline: var(--space-4);
 }
 .heading h2 {
   margin: 0;
   font-size: var(--font-size-lg);
+}
+.mediaCount {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-regular);
 }
 .headingCopy {
   min-width: 0;
@@ -91,21 +106,48 @@
   outline: 2px solid var(--color-focus-ring);
 }
 .list {
-  display: grid;
-  gap: var(--space-2);
+  display: flex;
+  flex-wrap: nowrap;
+  gap: var(--space-3);
   margin: 0;
   padding: 0;
   list-style: none;
+  overflow-x: auto;
+  overscroll-behavior-inline: contain;
+}
+@media (min-width: 860px) {
+  .list {
+    display: grid;
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    overflow: visible;
+  }
+  .list .item,
+  .list .addItem {
+    width: 100%;
+    height: auto;
+    aspect-ratio: 1;
+  }
 }
 .item {
-  display: grid;
-  grid-template-columns: 88px minmax(0, 1fr) auto auto;
-  align-items: center;
-  gap: var(--space-3);
+  position: relative;
+  flex: none;
+  width: var(--size-media-tile);
+  height: var(--size-media-tile);
   min-width: 0;
-  padding: var(--space-2);
-  border: 1px solid var(--color-border-subtle);
-  border-radius: var(--radius-2);
+  padding: 0;
+  border-radius: var(--radius-4);
+}
+.item:focus-visible {
+  outline: var(--focus-ring-width) solid var(--color-focus-ring);
+  outline-offset: var(--focus-ring-offset);
+}
+.item[data-drop-target] {
+  outline: var(--focus-ring-width) solid var(--color-accent);
+  outline-offset: var(--focus-ring-offset);
+  background: var(--color-accent-soft);
+}
+.addItem {
+  flex: none;
 }
 .preview,
 .previewPlaceholder {
@@ -162,8 +204,18 @@
   display: grid;
   gap: var(--space-1);
   min-width: 0;
+  padding-inline: var(--space-3);
   overflow-wrap: anywhere;
   font-size: var(--font-size-sm);
+}
+.tileDetails {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
 .details span {
   color: var(--color-text-muted);
@@ -172,10 +224,30 @@
   width: 100%;
   accent-color: var(--color-accent);
 }
-.controls {
+.previewError {
+  position: absolute;
+  inset: 0;
+  z-index: var(--z-raised);
   display: flex;
   flex-wrap: wrap;
-  gap: var(--space-1);
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  padding: var(--space-2);
+  border-radius: inherit;
+  background: var(--color-media-scrim);
+  text-align: center;
+  overflow-wrap: anywhere;
+  color: var(--color-on-media-strong);
+  font-size: var(--font-size-sm);
+}
+.imageMonitor {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  opacity: 0;
+  pointer-events: none;
 }
 .error {
   margin: 0;
@@ -183,21 +255,46 @@
   font-size: var(--font-size-sm);
 }
 @media (max-width: 600px) {
+  .mediaCount {
+    display: none;
+  }
+  .section {
+    padding-inline: 0;
+  }
+  .heading {
+    padding-inline: var(--space-1);
+  }
+  .list {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-auto-rows: auto;
+    max-width: calc(var(--size-media-tile) * 3 + var(--space-3) * 2);
+    gap: var(--space-3);
+    overflow: visible;
+    margin-inline: 0;
+  }
   .item {
-    grid-template-columns: 64px minmax(0, 1fr);
-    align-items: start;
+    width: 100%;
+    height: auto;
+    aspect-ratio: 1;
   }
-  .preview,
-  .previewPlaceholder {
-    width: 64px;
-    height: 56px;
+  .addItem {
+    width: 100%;
   }
-  .controls,
-  .item > button {
+  .addItem > button {
+    width: 100%;
+    height: auto;
+    aspect-ratio: 1;
+  }
+  .details {
+    padding-inline: var(--space-3);
+  }
+  .item[data-pending] {
     grid-column: 1 / -1;
-  }
-  .controls button,
-  .item > button {
-    min-height: var(--size-target);
+    height: auto;
+    aspect-ratio: auto;
+    padding: var(--space-2);
+    border: 1px solid var(--color-border-subtle);
+    border-radius: var(--radius-3);
   }
 }

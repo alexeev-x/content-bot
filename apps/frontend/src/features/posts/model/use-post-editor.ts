@@ -1,7 +1,7 @@
 import type { PostDto } from '@alexeev/contracts';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useQueryClient } from '@tanstack/react-query';
-import { useEffect, useState, type RefObject } from 'react';
+import { useEffect, useRef, useState, type RefObject } from 'react';
 import { useForm, useWatch } from 'react-hook-form';
 import { classifyApiError } from '../../../shared/api/error-kind';
 import { postQueryOptions, useApprovePost, useCreatePost, useUpdatePost } from '../api/posts-queries';
@@ -59,6 +59,7 @@ export function usePostEditor({ post, onCreated, rootRef, dirtyRef, mediaWriteLo
   const approve = useApprovePost();
 
   const [baseline, setBaseline] = useState<PostDto | null>(post ?? null);
+  const baselineRef = useRef<PostDto | null>(post ?? null);
   const [conflict, setConflict] = useState<EditorConflict | null>(null);
   const [notice, setNotice] = useState<EditorNotice | null>(null);
   const [failedKey, setFailedKey] = useState<string | null>(null);
@@ -113,6 +114,7 @@ export function usePostEditor({ post, onCreated, rootRef, dirtyRef, mediaWriteLo
 
   /** Adopts a server post as the new baseline. A field edited while the request was in flight keeps the newer text. */
   function adopt(saved: PostDto, submitted: PostFormValues | null) {
+    baselineRef.current = saved;
     setBaseline(saved);
     const current = form.getValues();
     form.reset({
@@ -250,8 +252,10 @@ export function usePostEditor({ post, onCreated, rootRef, dirtyRef, mediaWriteLo
   }
 
   function adoptMedia(revision: number, media: PostDto['media']): void {
-    if (baseline === null) return;
-    const next = { ...baseline, revision, media };
+    const current = baselineRef.current;
+    if (current === null) return;
+    const next = { ...current, revision, media };
+    baselineRef.current = next;
     setBaseline(next);
     queryClient.setQueryData(postQueryOptions(next.id).queryKey, next);
   }

@@ -12,6 +12,7 @@ import {
   MediaAddTile,
   MediaGridTile,
   MediaListRow,
+  Panel,
   ProgressBar,
   ProgressRing,
   RatioTileGroup,
@@ -27,6 +28,17 @@ import {
 } from './index';
 
 afterEach(cleanup);
+
+describe('Panel variants', () => {
+  it('keeps the bordered surface as the default and supports a plain content group', () => {
+    const { rerender, container } = render(<Panel>Fields</Panel>);
+    const panel = container.querySelector('section');
+    expect(panel?.getAttribute('data-variant')).toBe('surface');
+
+    rerender(<Panel variant="plain">Fields</Panel>);
+    expect(panel?.getAttribute('data-variant')).toBe('plain');
+  });
+});
 
 const STAGE = { width: 400, height: 300 };
 
@@ -62,6 +74,58 @@ describe('crop frame geometry', () => {
 });
 
 describe('MediaGridTile', () => {
+  it('keeps preview and removal as separately named sibling actions', () => {
+    const { container } = render(
+      <MediaGridTile
+        label="altai_lake.jpg"
+        onPress={() => undefined}
+        onRemove={() => undefined}
+        removeLabel="Убрать из поста: altai_lake.jpg"
+      />
+    );
+    const preview = screen.getByRole('button', { name: 'altai_lake.jpg' });
+    const remove = screen.getByRole('button', { name: 'Убрать из поста: altai_lake.jpg' });
+    expect(preview.parentElement).toBe(container.firstElementChild);
+    expect(remove.parentElement).toBe(container.firstElementChild);
+    expect(preview.contains(remove)).toBe(false);
+  });
+
+  it('keeps the drag handle outside the preview hit area and independently operable', async () => {
+    const user = userEvent.setup();
+    const onPress = vi.fn();
+    const onMove = vi.fn();
+    const onRemove = vi.fn();
+    const { container } = render(
+      <MediaGridTile
+        label="altai_lake.jpg"
+        onPress={onPress}
+        handle={
+          <button type="button" aria-label="Move altai_lake.jpg" onClick={onMove}>
+            Move
+          </button>
+        }
+        onRemove={onRemove}
+        removeLabel="Remove altai_lake.jpg"
+      />
+    );
+    const preview = screen.getByRole('button', { name: 'altai_lake.jpg' });
+    const handle = screen.getByRole('button', { name: 'Move altai_lake.jpg' });
+    const remove = screen.getByRole('button', { name: 'Remove altai_lake.jpg' });
+    const tile = container.firstElementChild;
+
+    expect(tile?.getAttribute('data-has-handle')).toBe('true');
+    expect(handle.parentElement?.parentElement).toBe(tile);
+    expect(preview.parentElement).toBe(tile);
+    expect(remove.parentElement).toBe(tile);
+    expect(preview.contains(handle)).toBe(false);
+    expect(preview.contains(remove)).toBe(false);
+
+    await user.click(handle);
+    await user.click(preview);
+    await user.click(remove);
+    expect([onMove, onPress, onRemove].map((action) => action.mock.calls.length)).toEqual([1, 1, 1]);
+  });
+
   it('opens, removes and retries through named buttons', async () => {
     const user = userEvent.setup();
     const onPress = vi.fn();
@@ -104,6 +168,16 @@ describe('MediaGridTile', () => {
     rerender(<MediaGridTile label="lake.jpg" selectable isSelected={false} onSelectedChange={onSelectedChange} />);
     await user.click(screen.getByRole('button', { name: 'lake.jpg' }));
     expect(onSelectedChange).toHaveBeenCalledWith(true);
+  });
+
+  it('exposes a fluid 4:3 frame while leaving the default frame square', () => {
+    const { container, rerender } = render(<MediaGridTile label="square.jpg" fluid />);
+    const tile = container.firstElementChild;
+    expect(tile?.getAttribute('data-fluid')).toBe('true');
+    expect(tile?.getAttribute('data-aspect-ratio')).toBe('square');
+
+    rerender(<MediaGridTile label="editor_media.jpg" fluid aspectRatio="4:3" />);
+    expect(container.firstElementChild?.getAttribute('data-aspect-ratio')).toBe('4:3');
   });
 
   it('renders the add tile', async () => {

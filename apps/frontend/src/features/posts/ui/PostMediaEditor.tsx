@@ -5,11 +5,30 @@ import {
   VIDEO_MEDIA_MAX_BYTES,
   type PostMediaDto
 } from '@alexeev/contracts';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { ApiError } from '../../../shared/api/http-client';
 import type { PostDto } from '@alexeev/contracts';
 import type { PostWriteLock } from '../model/use-post-editor';
-import { Button, Dialog, Panel, SegmentedControl, Select } from '../../../shared/ui';
+import {
+  Button,
+  CropCanvas,
+  Dialog,
+  MediaAddTile,
+  MediaGridTile,
+  RatioTileGroup,
+  Select,
+  Slider,
+  useMediaQuery
+} from '../../../shared/ui';
+import {
+  CROP_RATIOS,
+  clampCropFrame,
+  cropFrameForRatio,
+  defaultCropModel,
+  exportCrop,
+  type CropModel,
+  type CropRatio
+} from '../model/crop';
 import {
   attachLibraryMedia,
   cropPostMedia,
@@ -72,9 +91,26 @@ const maxBytes = (file: File) =>
       : PHOTO_MEDIA_MAX_BYTES;
 const replaceAtLimitNotice =
   '\u0414\u043b\u044f \u0437\u0430\u043c\u0435\u043d\u044b \u0443\u0434\u0430\u043b\u0438\u0442\u0435 \u043e\u0434\u043d\u043e \u0432\u043b\u043e\u0436\u0435\u043d\u0438\u0435: \u043b\u0438\u043c\u0438\u0442 10 \u0444\u0430\u0439\u043b\u043e\u0432.';
-const mediaRules = `До ${POST_MEDIA_MAX_ITEMS} файлов: JPG, PNG и WebP — до ${PHOTO_MEDIA_MAX_BYTES / 1_000_000} МБ каждый; GIF и MP4 — до ${ANIMATION_MEDIA_MAX_BYTES / 1_000_000} МБ каждый.`;
 
-export function ServerPreview({ media, large = false }: { media: PostMediaDto; large?: boolean }) {
+export function ServerPreview({
+  media,
+  large = false,
+  gridTile = false,
+  fluid = false,
+  onOpen,
+  handle,
+  onRemove,
+  isDisabled
+}: {
+  media: PostMediaDto;
+  large?: boolean;
+  gridTile?: boolean;
+  fluid?: boolean;
+  onOpen?: () => void;
+  handle?: ReactNode;
+  onRemove?: () => void;
+  isDisabled?: boolean;
+}) {
   const [url, setUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [attempt, setAttempt] = useState(0);
@@ -104,6 +140,45 @@ export function ServerPreview({ media, large = false }: { media: PostMediaDto; l
       if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
   }, [media.id, attempt]);
+  if (gridTile) {
+    return (
+      <>
+        <MediaGridTile
+          fluid={fluid}
+          label={media.fileName}
+          src={decodeFailed ? undefined : (url ?? undefined)}
+          kind={media.kind === 'video' ? 'video' : 'image'}
+          onPress={onOpen}
+          handle={handle}
+          onRemove={onRemove}
+          removeLabel={`Убрать из поста: ${media.fileName}`}
+          isDisabled={isDisabled}
+        />
+        {url && media.kind !== 'video' && !decodeFailed ? (
+          <img
+            className={styles.imageMonitor}
+            src={url}
+            alt={media.fileName}
+            aria-hidden="true"
+            onError={() => setDecodeFailed(true)}
+          />
+        ) : null}
+        {!url && !error ? (
+          <span className={styles.srOnly} role="status">
+            Загружаем предпросмотр
+          </span>
+        ) : null}
+        {error || decodeFailed ? (
+          <div className={styles.previewError} role="status">
+            <span>{error ?? 'Не удалось показать изображение. Вложение сохранено в посте.'}</span>
+            <Button size="sm" variant="secondary" onPress={() => setAttempt((value) => value + 1)}>
+              Повторить
+            </Button>
+          </div>
+        ) : null}
+      </>
+    );
+  }
   if (!url || decodeFailed)
     return (
       <div className={`${styles.previewPlaceholder} ${large ? styles.largePreview : ''}`}>
@@ -132,51 +207,11 @@ export function ServerPreview({ media, large = false }: { media: PostMediaDto; l
 }
 
 const cropRatios = [
-  { id: 'original', label: 'Оригинал' },
-  { id: '1:1', label: '1:1' },
-  { id: '4:5', label: '4:5' },
-  { id: '16:9', label: '16:9' }
+  { id: 'original', label: 'Оригинал', shape: 4 / 3 },
+  { id: '1:1', label: '1:1', shape: 1 },
+  { id: '4:5', label: '4:5', shape: 4 / 5 },
+  { id: '16:9', label: '16:9', shape: 16 / 9 }
 ] as const;
-
-function rasterizeCrop(
-  source: HTMLImageElement,
-  ratio: string,
-  zoom: number,
-  offsetX: number,
-  offsetY: number,
-  rotation: number
-): Promise<Blob> {
-  const rotated = document.createElement('canvas');
-  const quarterTurn = Math.abs(rotation % 180) === 90;
-  rotated.width = quarterTurn ? source.naturalHeight : source.naturalWidth;
-  rotated.height = quarterTurn ? source.naturalWidth : source.naturalHeight;
-  const context = rotated.getContext('2d');
-  if (!context) return Promise.reject(new Error('Canvas is unavailable'));
-  context.translate(rotated.width / 2, rotated.height / 2);
-  context.rotate((rotation * Math.PI) / 180);
-  context.drawImage(source, -source.naturalWidth / 2, -source.naturalHeight / 2);
-
-  const [ratioW, ratioH] = ratio === 'original' ? [rotated.width, rotated.height] : ratio.split(':').map(Number);
-  if (!ratioW || !ratioH) return Promise.reject(new Error('Invalid crop ratio'));
-  const targetRatio = ratioW / ratioH;
-  const baseWidth = Math.min(rotated.width, rotated.height * targetRatio);
-  const baseHeight = baseWidth / targetRatio;
-  const cropWidth = Math.max(1, baseWidth / zoom);
-  const cropHeight = Math.max(1, baseHeight / zoom);
-  const centerX = rotated.width / 2 + ((offsetX / 100) * (rotated.width - cropWidth)) / 2;
-  const centerY = rotated.height / 2 + ((offsetY / 100) * (rotated.height - cropHeight)) / 2;
-  const left = Math.max(0, Math.min(rotated.width - cropWidth, centerX - cropWidth / 2));
-  const top = Math.max(0, Math.min(rotated.height - cropHeight, centerY - cropHeight / 2));
-  const output = document.createElement('canvas');
-  output.width = Math.round(cropWidth);
-  output.height = Math.round(cropHeight);
-  const outputContext = output.getContext('2d');
-  if (!outputContext) return Promise.reject(new Error('Canvas is unavailable'));
-  outputContext.drawImage(rotated, left, top, cropWidth, cropHeight, 0, 0, output.width, output.height);
-  return new Promise((resolve, reject) =>
-    output.toBlob((blob) => (blob ? resolve(blob) : reject(new Error('Could not encode cropped image'))), 'image/png')
-  );
-}
 
 export function PostMediaPreview({ media }: { media: PostMediaDto[] }) {
   if (!media.length) return null;
@@ -199,6 +234,20 @@ function friendlyError(error: unknown): string {
   return 'Не удалось загрузить файл. Проверьте соединение и повторите попытку.';
 }
 
+function cropErrorMessage(error: unknown): string {
+  if (error instanceof ApiError) {
+    if (error.status === 404) return 'Фото больше недоступно. Обновите редактор и выберите вложение ещё раз.';
+    if (error.status === 400)
+      return 'Не удалось обработать кадрирование. Измените область и повторите попытку; исходное вложение сохранено.';
+    if (error.status === 413)
+      return 'Кадр слишком велик для загрузки. Уменьшите область кадрирования; исходное вложение сохранено.';
+    if (error.status === 503)
+      return 'Сервис обработки фото временно недоступен. Повторите попытку позже; исходное вложение сохранено.';
+    if (error.status === 409) return 'Черновик изменился. Обновите редактор перед повторным кадрированием.';
+  }
+  return `Не удалось применить кадрирование. Исходное вложение сохранено. ${friendlyError(error)}`;
+}
+
 export function PostMediaEditor({
   postId,
   revision,
@@ -211,6 +260,7 @@ export function PostMediaEditor({
   onDraftReady,
   onRevisionConflict
 }: Props) {
+  const narrow = useMediaQuery('(max-width: 859px)');
   const [entries, setEntries] = useState<Entry[]>(() =>
     media.map((item) => ({ key: item.id, media: item, status: 'uploaded' }))
   );
@@ -250,12 +300,12 @@ export function PostMediaEditor({
   const [cropUrl, setCropUrl] = useState<string | null>(null);
   const [cropError, setCropError] = useState('');
   const [cropBusy, setCropBusy] = useState(false);
-  const [cropRatio, setCropRatio] = useState('original');
-  const [cropZoom, setCropZoom] = useState(1);
-  const [cropX, setCropX] = useState(0);
-  const [cropY, setCropY] = useState(0);
-  const [cropRotation, setCropRotation] = useState(0);
+  const [cropModel, setCropModel] = useState<CropModel>(defaultCropModel);
+  const [cropNaturalSize, setCropNaturalSize] = useState<{ width: number; height: number } | null>(null);
   const [draggedKey, setDraggedKey] = useState<string | null>(null);
+  const [keyboardDraggedKey, setKeyboardDraggedKey] = useState<string | null>(null);
+  const [keyboardTargetKey, setKeyboardTargetKey] = useState<string | null>(null);
+  const [reorderAnnouncement, setReorderAnnouncement] = useState('');
 
   function beginWrite(): boolean {
     if (!mediaWriteLock.tryAcquire()) return false;
@@ -294,10 +344,13 @@ export function PostMediaEditor({
       .then((blob) => {
         if (controller.signal.aborted) return;
         objectUrl = URL.createObjectURL(blob);
+        const probe = new Image();
+        probe.onload = () => setCropNaturalSize({ width: probe.naturalWidth, height: probe.naturalHeight });
+        probe.src = objectUrl;
         setCropUrl(objectUrl);
       })
       .catch((error: unknown) => {
-        if (!controller.signal.aborted) setCropError(friendlyError(error));
+        if (!controller.signal.aborted) setCropError(cropErrorMessage(error));
       });
     return () => {
       controller.abort();
@@ -330,6 +383,17 @@ export function PostMediaEditor({
 
   function updateEntry(key: string, update: Partial<Entry>) {
     setEntries((current) => current.map((entry) => (entry.key === key ? { ...entry, ...update } : entry)));
+  }
+
+  function openCrop(mediaItem: PostMediaDto) {
+    setCropModel(defaultCropModel());
+    setCropNaturalSize(
+      mediaItem.width && mediaItem.height ? { width: mediaItem.width, height: mediaItem.height } : null
+    );
+    setCropUrl(null);
+    setCropError('');
+    setExpandedMedia(null);
+    setCropMedia(mediaItem);
   }
 
   async function upload(entry: Entry): Promise<boolean> {
@@ -513,45 +577,22 @@ export function PostMediaEditor({
     }
   }
 
-  async function move(entry: Entry, direction: -1 | 1) {
-    if (!postId || disabled || busy || entry.status !== 'uploaded') return;
-    const uploaded = entries.filter((item): item is Entry & { media: PostMediaDto } => item.media !== undefined);
-    const index = uploaded.findIndex((item) => item.key === entry.key);
-    const target = index + direction;
-    if (target < 0 || target >= uploaded.length) return;
-    const next = [...uploaded];
-    [next[index], next[target]] = [next[target]!, next[index]!];
-    if (!beginWrite()) return;
-    setBusy(true);
-    try {
-      const result = await reorderPostMedia(
-        postId,
-        revisionRef.current,
-        next.map((item) => item.media.id)
-      );
-      const ordered = next.map((item, position) => ({ ...item.media, position }));
-      setEntries((current) => [
-        ...ordered.map((item) => ({ key: item.id, media: item, status: 'uploaded' as const })),
-        ...current.filter((item) => !item.media)
-      ]);
-      revisionRef.current = result.revision;
-      mediaRef.current = ordered;
-      onServerChange(result.revision, ordered);
-    } catch (error) {
-      if (error instanceof ApiError && error.status === 409) onRevisionConflict?.();
-      setNotice(friendlyError(error));
-    } finally {
-      setBusy(false);
-      endWrite();
-    }
-  }
-
   async function moveBefore(dragged: Entry, target: Entry) {
-    if (!postId || disabled || busy || dragged.status !== 'uploaded' || target.status !== 'uploaded') return;
+    if (
+      !postId ||
+      disabled ||
+      busy ||
+      dragged.status !== 'uploaded' ||
+      target.status !== 'uploaded' ||
+      !dragged.media ||
+      !target.media
+    )
+      return;
     const uploaded = entries.filter((item): item is Entry & { media: PostMediaDto } => item.media !== undefined);
     const next = uploaded.filter((item) => item.key !== dragged.key);
+    const draggedMedia = dragged.media;
     const targetIndex = next.findIndex((item) => item.key === target.key);
-    if (targetIndex < 0) return;
+    if (targetIndex < 0 || dragged.key === target.key) return;
     next.splice(targetIndex, 0, dragged as Entry & { media: PostMediaDto });
     if (!beginWrite()) return;
     setBusy(true);
@@ -569,6 +610,9 @@ export function PostMediaEditor({
       revisionRef.current = result.revision;
       mediaRef.current = ordered;
       onServerChange(result.revision, ordered);
+      setReorderAnnouncement(
+        `Файл ${draggedMedia.fileName} перемещён на позицию ${ordered.findIndex((item) => item.id === draggedMedia.id) + 1}`
+      );
     } catch (error) {
       if (error instanceof ApiError && error.status === 409) onRevisionConflict?.();
       setNotice(friendlyError(error));
@@ -579,33 +623,40 @@ export function PostMediaEditor({
     }
   }
 
-  async function moveToFirst(entry: Entry) {
+  function handleReorderPress(entry: Entry) {
     if (!postId || disabled || busy || entry.status !== 'uploaded' || !entry.media) return;
-    const current = entries.filter((item): item is Entry & { media: PostMediaDto } => item.media !== undefined);
-    const first = entry as Entry & { media: PostMediaDto };
-    const next = [first, ...current.filter((item) => item.key !== entry.key)];
-    if (!beginWrite()) return;
-    setBusy(true);
-    try {
-      const result = await reorderPostMedia(
-        postId,
-        revisionRef.current,
-        next.map((item) => item.media.id)
-      );
-      const ordered = next.map((item, position) => ({ ...item.media, position }));
-      setEntries((items) => [
-        ...ordered.map((item) => ({ key: item.id, media: item, status: 'uploaded' as const })),
-        ...items.filter((item) => !item.media)
-      ]);
-      revisionRef.current = result.revision;
-      mediaRef.current = ordered;
-      onServerChange(result.revision, ordered);
-    } catch (error) {
-      if (error instanceof ApiError && error.status === 409) onRevisionConflict?.();
-      setNotice(friendlyError(error));
-    } finally {
-      setBusy(false);
-      endWrite();
+    if (!keyboardDraggedKey) {
+      setKeyboardDraggedKey(entry.key);
+      setKeyboardTargetKey(entry.key);
+      setReorderAnnouncement(`Файл ${entry.media.fileName} выбран для перестановки. Используйте стрелки`);
+      return;
+    }
+    const source = entries.find((item) => item.key === keyboardDraggedKey);
+    const target = entries.find((item) => item.key === (keyboardTargetKey ?? entry.key));
+    if (source && target) void moveBefore(source, target);
+    setKeyboardDraggedKey(null);
+    setKeyboardTargetKey(null);
+  }
+
+  function handleReorderKeyDown(event: KeyboardEvent<HTMLElement>, entry: Entry) {
+    if (!postId || disabled || busy || entry.status !== 'uploaded' || !entry.media) return;
+    if (event.key === 'Escape' && keyboardDraggedKey) {
+      event.preventDefault();
+      setKeyboardDraggedKey(null);
+      setKeyboardTargetKey(null);
+      setReorderAnnouncement('Перестановка отменена');
+      return;
+    }
+    if (keyboardDraggedKey && (event.key === 'ArrowUp' || event.key === 'ArrowDown')) {
+      event.preventDefault();
+      const uploaded = entries.filter((item) => item.media);
+      const index = uploaded.findIndex((item) => item.key === (keyboardTargetKey ?? keyboardDraggedKey));
+      const nextIndex = index + (event.key === 'ArrowUp' ? -1 : 1);
+      const target = uploaded[nextIndex];
+      if (target) {
+        setKeyboardTargetKey(target.key);
+        setReorderAnnouncement(`Целевая позиция ${nextIndex + 1}: ${target.media?.fileName ?? ''}`);
+      }
     }
   }
 
@@ -619,13 +670,14 @@ export function PostMediaEditor({
       const source = new Image();
       source.src = cropUrl;
       await source.decode();
-      const blob = await rasterizeCrop(source, cropRatio, cropZoom, cropX, cropY, cropRotation);
+      const blob = await exportCrop(source, cropModel);
+      const extension = blob.type === 'image/webp' ? '.webp' : '.jpg';
       const result = await cropPostMedia(
         postId,
         cropMedia.id,
         revisionRef.current,
         blob,
-        cropMedia.fileName.replace(/\.[^.]+$/, '.png'),
+        cropMedia.fileName.replace(/\.[^.]+$/, extension),
         crypto.randomUUID()
       );
       const next = mediaRef.current.map((item) => (item.id === cropMedia.id ? result.media : item));
@@ -639,11 +691,7 @@ export function PostMediaEditor({
       );
       setCropMedia(null);
     } catch (error) {
-      setCropError(
-        error instanceof ApiError && error.status === 409
-          ? 'Черновик изменился. Сравните или обновите его перед повторным кадрированием.'
-          : `Не удалось применить кадрирование. Исходное вложение сохранено. ${friendlyError(error)}`
-      );
+      setCropError(cropErrorMessage(error));
     } finally {
       setCropBusy(false);
       setBusy(false);
@@ -727,7 +775,7 @@ export function PostMediaEditor({
     }
   };
   return (
-    <Panel>
+    <>
       <section
         className={`${styles.section} ${isDropTarget ? styles.dropTarget : ''}`}
         aria-labelledby="post-media-heading"
@@ -736,18 +784,27 @@ export function PostMediaEditor({
       >
         <div className={styles.heading}>
           <div className={styles.headingCopy}>
-            <h2 id="post-media-heading">Фото и видео</h2>
-            {postId ? <p>{mediaRules}</p> : null}
+            <h2 id="post-media-heading">
+              Фото и видео
+              {entries.length > 0 ? (
+                <span className={styles.mediaCount}>
+                  {' '}
+                  ({entries.length} {entries.length === 1 ? 'файл' : 'файлов'})
+                </span>
+              ) : null}
+            </h2>
           </div>
-          <Button
-            variant={entries.length === 0 ? 'primary' : 'secondary'}
-            icon="plus"
-            isDisabled={disabled || busy || entries.length >= POST_MEDIA_MAX_ITEMS}
-            className={isDropTarget ? styles.dropTarget : undefined}
-            onPress={() => setSourceOpen(true)}
-          >
-            {entries.length === 0 ? 'Выбрать файлы' : 'Добавить файлы'}
-          </Button>
+          {entries.length === 0 ? (
+            <Button
+              variant="primary"
+              icon="plus"
+              isDisabled={disabled || busy}
+              className={isDropTarget ? styles.dropTarget : undefined}
+              onPress={() => setSourceOpen(true)}
+            >
+              Выбрать файлы
+            </Button>
+          ) : null}
           <input
             ref={inputRef}
             className={styles.fileInput}
@@ -772,18 +829,32 @@ export function PostMediaEditor({
         ) : null}
         {entries.length ? (
           <>
-            <p className={styles.hint}>Первое фото будет первым в публикации. Отдельную обложку Telegram не задаёт.</p>
             <ol className={styles.list} aria-label="Вложения поста">
+              {entries.length < POST_MEDIA_MAX_ITEMS ? (
+                <li className={styles.addItem}>
+                  <MediaAddTile
+                    label="Добавить файлы"
+                    fluid
+                    isDisabled={disabled || busy}
+                    onPress={() => setSourceOpen(true)}
+                  />
+                </li>
+              ) : null}
               {entries.map((entry) =>
                 (() => {
                   const uploadedEntries = entries.filter((item) => item.media);
                   const uploadedIndex = uploadedEntries.findIndex((item) => item.key === entry.key);
+                  const mediaItem = entry.media;
                   return (
-                    /* oxlint-disable-next-line jsx-a11y/no-noninteractive-element-interactions -- Native draggable list item is the desktop reorder target; adjacent move-up/down buttons are keyboard alternatives. */
+                    /* oxlint-disable-next-line jsx-a11y/no-noninteractive-element-interactions -- Native draggable list item also supports the handoff's keyboard lift/move/drop model. */
                     <li
                       className={styles.item}
                       key={entry.key}
+                      data-pending={!mediaItem || undefined}
+                      aria-label={mediaItem ? `${mediaItem.fileName}, позиция ${uploadedIndex + 1}` : undefined}
+                      data-drop-target={keyboardTargetKey === entry.key || undefined}
                       draggable={Boolean(postId && entry.status === 'uploaded' && !disabled)}
+                      onKeyDown={(event) => handleReorderKeyDown(event, entry)}
                       onDragStart={() => setDraggedKey(entry.key)}
                       onDragEnd={() => setDraggedKey(null)}
                       onDragOver={(event) => {
@@ -806,9 +877,29 @@ export function PostMediaEditor({
                           />
                         )
                       ) : entry.media ? (
-                        <ServerPreview media={entry.media} />
+                        <ServerPreview
+                          media={entry.media}
+                          gridTile
+                          fluid
+                          onOpen={() => setExpandedMedia(entry.media ?? null)}
+                          onRemove={() => void remove(entry)}
+                          isDisabled={busy || disabled}
+                          handle={
+                            postId && entry.status === 'uploaded' ? (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                icon="grip"
+                                aria-label={`Переставить ${entry.media.fileName}`}
+                                aria-keyshortcuts="Space ArrowUp ArrowDown Escape"
+                                isDisabled={disabled || busy}
+                                onPress={() => handleReorderPress(entry)}
+                              />
+                            ) : undefined
+                          }
+                        />
                       ) : null}
-                      <div className={styles.details}>
+                      <div className={`${styles.details} ${mediaItem && !entry.actionError ? styles.tileDetails : ''}`}>
                         <strong>{entry.file?.name ?? entry.media?.fileName}</strong>
                         <span>
                           {entry.media?.kind === 'video' || entry.file?.type.startsWith('video/')
@@ -860,88 +951,25 @@ export function PostMediaEditor({
                           </Button>
                         ) : null}
                       </div>
-                      {entry.media ? (
-                        <div className={styles.controls}>
-                          <Button variant="ghost" size="sm" onPress={() => setExpandedMedia(entry.media ?? null)}>
-                            Увеличить
-                          </Button>
-                          {entry.media.kind === 'photo' ? (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              isDisabled={busy || disabled}
-                              onPress={() => {
-                                setCropRatio('original');
-                                setCropZoom(1);
-                                setCropX(0);
-                                setCropY(0);
-                                setCropRotation(0);
-                                setCropUrl(null);
-                                setCropError('');
-                                setCropMedia(entry.media ?? null);
-                              }}
-                            >
-                              Кадрировать
-                            </Button>
-                          ) : null}
-                          {entry.media.kind === 'photo' && uploadedIndex > 0 ? (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              isDisabled={busy || disabled}
-                              onPress={() => void moveToFirst(entry)}
-                            >
-                              Сделать первым
-                            </Button>
-                          ) : null}
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            aria-label={`Заменить ${entry.media.fileName}`}
-                            isDisabled={busy || disabled || entries.length >= POST_MEDIA_MAX_ITEMS}
-                            onPress={() => {
-                              if (inputRef.current) {
-                                inputRef.current.dataset.replaceId = entry.media?.id ?? '';
-                                inputRef.current.click();
-                              }
-                            }}
-                          >
-                            Заменить
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            aria-label={`Переместить ${entry.media.fileName} выше`}
-                            isDisabled={busy || disabled || uploadedIndex === 0}
-                            onPress={() => void move(entry, -1)}
-                          >
-                            Выше
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            aria-label={`Переместить ${entry.media.fileName} ниже`}
-                            isDisabled={busy || disabled || uploadedIndex === uploadedEntries.length - 1}
-                            onPress={() => void move(entry, 1)}
-                          >
-                            Ниже
-                          </Button>
-                        </div>
+                      {!mediaItem ? (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          aria-label={`Убрать ${entry.file?.name ?? 'файл'}`}
+                          isDisabled={busy || disabled}
+                          onPress={() => void remove(entry)}
+                        >
+                          Убрать
+                        </Button>
                       ) : null}
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        aria-label={`Убрать ${entry.file?.name ?? entry.media?.fileName ?? 'файл'}`}
-                        isDisabled={busy || disabled}
-                        onPress={() => void remove(entry)}
-                      >
-                        Убрать
-                      </Button>
                     </li>
                   );
                 })()
               )}
             </ol>
+            <span className={styles.srOnly} role="status" aria-live="polite">
+              {reorderAnnouncement}
+            </span>
             {entries.length >= POST_MEDIA_MAX_ITEMS ? <p className={styles.hint}>{replaceAtLimitNotice}</p> : null}
           </>
         ) : (
@@ -994,11 +1022,7 @@ export function PostMediaEditor({
               variant="secondary"
               isDisabled={cropBusy}
               onPress={() => {
-                setCropRatio('original');
-                setCropZoom(1);
-                setCropX(0);
-                setCropY(0);
-                setCropRotation(0);
+                setCropModel(defaultCropModel());
               }}
             >
               Сбросить
@@ -1019,72 +1043,77 @@ export function PostMediaEditor({
             {cropError}
           </p>
         ) : null}
-        {cropUrl ? (
-          <div
-            className={styles.cropCanvas}
-            style={{
-              aspectRatio:
-                cropRatio === 'original'
-                  ? `${cropMedia?.width ?? 4} / ${cropMedia?.height ?? 3}`
-                  : cropRatio.replace(':', ' / ')
+        {cropUrl && cropNaturalSize ? (
+          <span className={styles.srOnly} role="img" aria-label="Предпросмотр кадрирования" />
+        ) : null}
+        {cropUrl && cropNaturalSize ? (
+          <CropCanvas
+            src={cropUrl}
+            imageAspect={
+              cropModel.rotation % 180 === 0
+                ? cropNaturalSize.width / cropNaturalSize.height
+                : cropNaturalSize.height / cropNaturalSize.width
+            }
+            frame={cropModel.frame}
+            onFrameChange={(frame) => setCropModel((model) => ({ ...model, frame: clampCropFrame(frame, model.zoom) }))}
+            lockedRatio={CROP_RATIOS[cropModel.ratio]}
+            zoom={cropModel.zoom}
+            rotation={cropModel.rotation}
+            handle={narrow ? 'bracket' : 'square'}
+            grid="dashed"
+            labels={{
+              region: 'Область кадрирования',
+              corners: {
+                'top-left': 'Левый верхний угол кадрирования',
+                'top-right': 'Правый верхний угол кадрирования',
+                'bottom-left': 'Левый нижний угол кадрирования',
+                'bottom-right': 'Правый нижний угол кадрирования'
+              }
             }}
-          >
-            <img
-              src={cropUrl}
-              alt="Предпросмотр кадрирования"
-              style={{
-                transform: `translate(${cropX / 4}%, ${cropY / 4}%) scale(${cropZoom}) rotate(${cropRotation}deg)`
-              }}
-            />
-          </div>
+          />
         ) : (
           <p role="status">Загружаем оригинал фото…</p>
         )}
-        <SegmentedControl
-          label="Формат кадрирования"
-          value={cropRatio}
-          options={cropRatios.map((option) => ({ id: option.id, label: option.label }))}
-          onChange={setCropRatio}
-          fullWidth
+        <RatioTileGroup
+          label="Соотношение сторон"
+          value={cropModel.ratio}
+          options={cropRatios.map((option) => ({ ...option }))}
+          onChange={(value) => {
+            const ratio = value as CropRatio;
+            const natural = cropNaturalSize;
+            const aspect = natural
+              ? cropModel.rotation % 180 === 0
+                ? natural.width / natural.height
+                : natural.height / natural.width
+              : 4 / 3;
+            setCropModel((model) => ({ ...model, ratio, frame: cropFrameForRatio(ratio, aspect) }));
+          }}
         />
-        <label className={styles.cropControl}>
-          Масштаб: {cropZoom.toFixed(1)}×
-          <input
-            aria-label="Масштаб"
-            type="range"
-            min="1"
-            max="3"
-            step="0.1"
-            value={cropZoom}
-            onChange={(event) => setCropZoom(Number(event.target.value))}
-          />
-        </label>
-        <label className={styles.cropControl}>
-          Положение по горизонтали
-          <input
-            aria-label="Положение по горизонтали"
-            type="range"
-            min="-100"
-            max="100"
-            value={cropX}
-            onChange={(event) => setCropX(Number(event.target.value))}
-          />
-        </label>
-        <label className={styles.cropControl}>
-          Положение по вертикали
-          <input
-            aria-label="Положение по вертикали"
-            type="range"
-            min="-100"
-            max="100"
-            value={cropY}
-            onChange={(event) => setCropY(Number(event.target.value))}
-          />
-        </label>
+        <Slider
+          label="Масштаб"
+          value={cropModel.zoom}
+          onChange={(zoom) => setCropModel((model) => ({ ...model, zoom, frame: clampCropFrame(model.frame, zoom) }))}
+          min={0.5}
+          max={2}
+          step={0.05}
+          stepperStep={0.1}
+          decrementLabel="Уменьшить масштаб"
+          incrementLabel="Увеличить масштаб"
+          valueFormat={{ style: 'percent' }}
+        />
         <Button
           variant="secondary"
           isDisabled={cropBusy}
-          onPress={() => setCropRotation((value) => (value + 90) % 360)}
+          onPress={() => {
+            const rotation = ((cropModel.rotation + 90) % 360) as CropModel['rotation'];
+            const natural = cropNaturalSize;
+            const aspect = natural
+              ? rotation % 180 === 0
+                ? natural.width / natural.height
+                : natural.height / natural.width
+              : 4 / 3;
+            setCropModel((model) => ({ ...model, rotation, frame: cropFrameForRatio(model.ratio, aspect) }));
+          }}
         >
           Повернуть на 90°
         </Button>
@@ -1129,6 +1158,32 @@ export function PostMediaEditor({
         title={expandedMedia?.fileName ?? 'Предпросмотр медиа'}
         description="Полноразмерный предпросмотр вложения."
         size="wide"
+        footer={
+          expandedMedia ? (
+            <>
+              <Button variant="secondary" onPress={() => setExpandedMedia(null)}>
+                Закрыть
+              </Button>
+              {expandedMedia.kind === 'photo' ? (
+                <Button variant="secondary" isDisabled={busy || disabled} onPress={() => openCrop(expandedMedia)}>
+                  Кадрировать
+                </Button>
+              ) : null}
+              <Button
+                variant="secondary"
+                aria-label={`Заменить ${expandedMedia.fileName}`}
+                isDisabled={busy || disabled || entries.length >= POST_MEDIA_MAX_ITEMS}
+                onPress={() => {
+                  if (inputRef.current) inputRef.current.dataset.replaceId = expandedMedia.id;
+                  setExpandedMedia(null);
+                  inputRef.current?.click();
+                }}
+              >
+                Заменить
+              </Button>
+            </>
+          ) : null
+        }
       >
         {expandedMedia ? <ServerPreview media={expandedMedia} large /> : null}
       </Dialog>
@@ -1217,6 +1272,6 @@ export function PostMediaEditor({
           ) : null}
         </div>
       </Dialog>
-    </Panel>
+    </>
   );
 }

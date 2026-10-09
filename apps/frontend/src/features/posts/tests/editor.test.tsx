@@ -2,7 +2,7 @@ import { POST_BODY_MAX } from '@alexeev/contracts';
 import { cleanup, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { http, HttpResponse } from 'msw';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { clearSession, setSession } from '../../../shared/api/session';
 import { accessToken, errorBody, ids, post } from '../../../test/fixtures';
 import { failWith, server, setupMswServer } from '../../../test/msw';
@@ -13,7 +13,10 @@ beforeEach(() => {
   clearSession();
   setSession(accessToken());
 });
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  vi.unstubAllGlobals();
+});
 
 const titleBox = () => screen.getByRole('textbox', { name: /Заголовок/ });
 const bodyBox = () => screen.getByRole('textbox', { name: 'Текст' });
@@ -44,6 +47,57 @@ async function openExisting(overrides = {}) {
   await screen.findByRole('textbox', { name: 'Текст' });
   return app;
 }
+
+function useNarrowViewport() {
+  vi.stubGlobal('matchMedia', (query: string) => ({
+    matches: query === '(max-width: 859px)',
+    media: query,
+    onchange: null,
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+    dispatchEvent: vi.fn()
+  }));
+}
+
+describe('mobile editor navigation', () => {
+  it('keeps text, media and preview in one mobile flow and preserves editor content', async () => {
+    useNarrowViewport();
+    const user = userEvent.setup();
+    await openExisting({ body: 'Сохранённый текст' });
+
+    expect(screen.getByRole('heading', { name: 'Заголовок' })).toBeTruthy();
+    expect(screen.queryByRole('tablist')).toBeNull();
+    expect(screen.queryByRole('tab')).toBeNull();
+    const mediaHeading = screen.getByRole('heading', { name: 'Фото и видео' });
+    expect(screen.getAllByRole('heading', { name: 'Фото и видео' })).toHaveLength(1);
+    expect(screen.queryByRole('figure', { name: /Предпросмотр в Telegram/ })).toBeNull();
+    const mediaSection = mediaHeading.closest('section');
+    const mediaEditor = mediaSection?.parentElement;
+    expect(mediaEditor).toBeTruthy();
+    if (!mediaEditor) throw new Error('Media editor section is missing');
+    expect(mediaEditor.hasAttribute('hidden')).toBe(false);
+    expect(screen.getByRole('heading', { name: 'Фото и видео' })).toBeTruthy();
+    expect(screen.getAllByRole('heading', { name: 'Фото и видео' })).toHaveLength(1);
+    await user.click(bodyBox());
+    await user.keyboard('!');
+    expect(bodyBox().textContent).toContain('Сохранённый текст');
+    expect(bodyBox().textContent).toContain('!');
+  });
+
+  it('keeps typed text and stays in the editor when back navigation cannot save', async () => {
+    useNarrowViewport();
+    const user = userEvent.setup();
+    const { router } = await openExisting();
+    server.use(failWith('patch', `/api/v1/posts/${ids.post}`, { status: 503, code: 'UNAVAILABLE' }));
+
+    await typeAtEnd(user, ' важная правка');
+    await user.click(screen.getByRole('button', { name: 'Посты' }));
+
+    expect(await screen.findByRole('alert')).toBeTruthy();
+    expect(router.state.location.pathname).toBe(`/posts/${ids.post}`);
+    expect(bodyBox().textContent).toContain('важная правка');
+  });
+});
 
 describe('create', () => {
   it('does not create a draft when the blank editor is only visited', async () => {

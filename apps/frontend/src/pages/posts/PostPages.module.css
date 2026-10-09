@@ -78,6 +78,31 @@
   display: grid;
   gap: var(--space-4);
 }
+.publishGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 42fr) minmax(0, 46fr);
+  gap: var(--space-5);
+  align-items: start;
+}
+.publishSettings,
+.publishPreview {
+  display: grid;
+  gap: var(--space-3);
+  min-width: 0;
+}
+.publishSettings > h2,
+.publishPreview > h2 {
+  margin: 0;
+  font-size: var(--font-size-lg);
+}
+@media (max-width: 859px) {
+  .publishGrid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .publishPreview {
+    display: none;
+  }
+}
 .publishHeading,
 .publishActions {
   display: flex;

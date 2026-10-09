@@ -2,6 +2,8 @@ import { useId, type CSSProperties, type ElementType, type ReactNode } from 'rea
 import styles from './Panel.module.css';
 
 type Props = {
+  /** Plain content group without a card surface, for tightly composed editor fields. */
+  variant?: 'surface' | 'plain';
   /** Without a title the panel is only the bordered surface (wraps a table or a list). */
   title?: string;
   /** Heading level of the title; the dashboard uses h2 under the page h1. */
@@ -24,6 +26,7 @@ type Props = {
 
 /** The quiet bordered surface of the admin: optional header strip plus a flush body. Rows inside split by 1px rules. */
 export function Panel({
+  variant = 'surface',
   title,
   headingLevel = 2,
   icon,
@@ -39,7 +42,12 @@ export function Panel({
   const Heading = `h${headingLevel}` as ElementType;
   const body = reserveRows ? ({ '--reserve-rows': reserveRows } as CSSProperties) : undefined;
   return (
-    <section className={styles.panel} data-quiet={quiet || undefined} aria-labelledby={title ? headingId : undefined}>
+    <section
+      className={styles.panel}
+      data-variant={variant}
+      data-quiet={quiet || undefined}
+      aria-labelledby={title ? headingId : undefined}
+    >
       {title ? (
         <div className={styles.head}>
           <div className={styles.heading}>

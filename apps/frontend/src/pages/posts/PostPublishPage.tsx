@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
 import { PublicationSettings } from '../../features/publications';
 import { messageLength, PostPreview, postQueryOptions, postsCopy } from '../../features/posts';
-import { Button, ErrorState, PageHeader, Panel, Skeleton, StatusBadge, Banner } from '../../shared/ui';
+import { Button, ErrorState, IconButton, PageHeader, Panel, Skeleton, Banner } from '../../shared/ui';
 import { BackToPosts } from './BackToPosts';
 import { useDocumentTitle } from './use-document-title';
 import styles from './PostPages.module.css';
@@ -42,12 +42,19 @@ export function PostPublishPage({ id }: Props) {
   const length = messageLength(post.title, post.body);
   const limit = post.media.length > 0 ? 1024 : 4096;
   const unsupported = post.media.length > 1 && post.media.some((item) => item.kind === 'animation');
-  const ready = post.status === 'approved' && length <= limit && !unsupported;
 
   return (
     <>
-      <BackToPosts />
-      <PageHeader title="Настройки публикации" />
+      <PageHeader
+        title="Публикация"
+        actions={
+          <IconButton
+            label="Закрыть и вернуться к редактору"
+            icon="x"
+            onPress={() => void navigate({ to: '/posts/$id', params: { id } })}
+          />
+        }
+      />
       {post.status !== 'approved' ? (
         <Banner tone="warning" title="Сначала подготовьте пост">
           Черновик нельзя отправить напрямую. Вернитесь в редактор, сохраните изменения и подтвердите подготовку
@@ -69,28 +76,25 @@ export function PostPublishPage({ id }: Props) {
           Уберите GIF или создайте для него отдельную публикацию. Остальные медиа останутся в черновике.
         </Banner>
       ) : null}
-      <div className={styles.publishFlow}>
-        <div className={styles.publishHeading}>
-          <div>
-            <h2>Проверьте публикацию</h2>
-            <p className={styles.muted}>Ничего не отправится, пока вы не подтвердите действие в следующем окне.</p>
-          </div>
-          <StatusBadge status={post.status} />
-        </div>
-        <PostPreview
-          title={post.title}
-          body={post.body}
-          entities={post.entities}
-          length={length}
-          limit={limit}
-          media={post.media}
-        />
-        <div className={styles.publishActions}>
+      <div className={styles.publishGrid}>
+        <div className={styles.publishSettings}>
+          <h2>Канал</h2>
+          <PublicationSettings post={post} />
           <Button variant="secondary" onPress={() => void navigate({ to: '/posts/$id', params: { id } })}>
-            Назад к редактору
+            Назад
           </Button>
         </div>
-        {ready ? <PublicationSettings post={post} /> : null}
+        <section className={styles.publishPreview} aria-label="Предпросмотр публикации">
+          <h2>Предпросмотр публикации</h2>
+          <PostPreview
+            title={post.title}
+            body={post.body}
+            entities={post.entities}
+            length={length}
+            limit={limit}
+            media={post.media}
+          />
+        </section>
       </div>
     </>
   );

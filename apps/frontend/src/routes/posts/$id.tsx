@@ -1,4 +1,4 @@
-import { createFileRoute } from '@tanstack/react-router';
+import { createFileRoute, Outlet, useMatches } from '@tanstack/react-router';
 import { PostEditPage } from '../../pages/posts/PostEditPage';
 
 export const Route = createFileRoute('/posts/$id')({
@@ -7,5 +7,8 @@ export const Route = createFileRoute('/posts/$id')({
 
 function PostEditRoute() {
   const { id } = Route.useParams();
-  return <PostEditPage id={id} />;
+  const matches = useMatches();
+  const isEditRoute = matches.at(-1)?.routeId === '/posts/$id';
+
+  return isEditRoute ? <PostEditPage id={id} /> : <Outlet />;
 }

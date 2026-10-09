@@ -25,7 +25,7 @@ export function PostFields({ control, setValue, title, body, entities, isReadOnl
   // Shown as soon as the marks cannot be written as Telegram entities, not only after a failed save.
   const entityIssue = validatePostEntities(body, normalizeEntities(entities));
   return (
-    <Panel>
+    <Panel variant="plain">
       <div className={styles.fields}>
         <Controller
           control={control}
@@ -42,7 +42,7 @@ export function PostFields({ control, setValue, title, body, entities, isReadOnl
               isRequired
               // oxlint-disable-next-line jsx-a11y/no-autofocus
               autoFocus={isNew}
-              description={copy.titleCounter(title.trim().length, POST_TITLE_MAX)}
+              counter={copy.titleCounter(title.trim().length, POST_TITLE_MAX)}
               errorMessage={fieldState.error?.message}
             />
           )}

@@ -17,6 +17,7 @@ import {
   MediaAddTile,
   MediaGridTile,
   MediaListRow,
+  Panel,
   ProgressBar,
   Radio,
   RadioGroup,
@@ -103,6 +104,11 @@ export function CatalogEditor() {
   return (
     <div className={styles.editorGroup} data-catalog="editor">
       <h3 className={styles.group}>Editor: media tiles, rows, upload</h3>
+      <h3 className={styles.group}>Panel: surface and plain variants</h3>
+      <div className={styles.row}>
+        <Panel>Базовая поверхность</Panel>
+        <Panel variant="plain">Группа полей без карточки</Panel>
+      </div>
       <div className={styles.row}>
         <MediaAddTile label="Добавить файлы" onPress={() => undefined} />
         <MediaGridTile
@@ -159,6 +165,16 @@ export function CatalogEditor() {
         />
         <MediaGridTile label="d.jpg" src={lake} state="queued" stateLabel="В очереди" />
         <MediaGridTile label="e.jpg" />
+      </div>
+      <div className={styles.stack}>
+        <MediaGridTile label="editor_media.jpg" src={lake} fluid aspectRatio="4:3" onPress={() => undefined} />
+        <div className={styles.stack}>
+          <strong>editor_media.jpg</strong>
+          <span>Фото · 4,2 МБ</span>
+          <Button size="sm" variant="secondary" onPress={() => undefined}>
+            Кадрировать
+          </Button>
+        </div>
       </div>
       <div className={styles.stack}>
         <MediaListRow

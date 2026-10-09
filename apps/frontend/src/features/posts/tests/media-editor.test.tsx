@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ApiError } from '../../../shared/api/http-client';
@@ -99,11 +99,11 @@ describe('post media editor', () => {
         onPendingChange={vi.fn()}
       />
     );
-    await user.click(screen.getByRole('button', { name: 'Убрать locked.png' }));
+    await user.click(screen.getByRole('button', { name: 'Убрать из поста: locked.png' }));
     expect(deletePostMedia).not.toHaveBeenCalled();
     locked = false;
     vi.mocked(deletePostMedia).mockResolvedValue({ revision: 2 });
-    await user.click(screen.getByRole('button', { name: 'Убрать locked.png' }));
+    await user.click(screen.getByRole('button', { name: 'Убрать из поста: locked.png' }));
     await waitFor(() => expect(deletePostMedia).toHaveBeenCalledWith(ids.post, media.id, 1));
   });
 
@@ -129,7 +129,7 @@ describe('post media editor', () => {
     await waitFor(() => expect(listMediaLibrary).toHaveBeenCalledTimes(2));
   });
 
-  it('shows supported formats and limits before choosing files for a saved draft', () => {
+  it('keeps the compact empty-media state while retaining supported file types', () => {
     render(
       <PostMediaEditor
         postId={ids.post}
@@ -141,10 +141,11 @@ describe('post media editor', () => {
       />
     );
 
-    expect(
-      screen.getByText(/До 10 файлов: JPG, PNG и WebP — до 10 МБ каждый; GIF и MP4 — до 50 МБ каждый\./)
-    ).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Выбрать файлы' })).toBeTruthy();
+    expect(screen.getByTestId('media-file-input').getAttribute('accept')).toBe(
+      'image/jpeg,image/png,image/webp,image/gif,video/mp4'
+    );
+    expect(screen.queryByText(/До 10 файлов:/)).toBeNull();
   });
 
   it('opens a full-size preview for an attached media item', async () => {
@@ -171,8 +172,12 @@ describe('post media editor', () => {
         onPendingChange={vi.fn()}
       />
     );
-    await user.click(screen.getByRole('button', { name: 'Увеличить' }));
-    expect(await screen.findByRole('dialog', { name: 'cover.png' })).toBeTruthy();
+    const preview = screen.getByRole('button', { name: 'cover.png' });
+    preview.focus();
+    await user.keyboard('{Enter}');
+    const dialog = await screen.findByRole('dialog', { name: 'cover.png' });
+    expect(within(dialog).getByRole('button', { name: 'Кадрировать' })).toBeTruthy();
+    expect(within(dialog).getByRole('button', { name: 'Заменить cover.png' })).toBeTruthy();
     await waitFor(() => expect(getPostMediaContent).toHaveBeenCalledWith(media.id, expect.any(AbortSignal)));
   });
 
@@ -201,13 +206,54 @@ describe('post media editor', () => {
         onPendingChange={vi.fn()}
       />
     );
-    const items = screen.getByRole('list', { name: 'Вложения поста' }).querySelectorAll('li');
+    const items = screen.getByRole('list', { name: 'Вложения поста' }).querySelectorAll('li[aria-label]');
     const firstItem = items.item(0);
     const secondItem = items.item(1);
     if (!firstItem || !secondItem) throw new Error('Expected two media list items');
     fireEvent.dragStart(secondItem, { dataTransfer: { types: ['application/x-post-media'], setData: vi.fn() } });
     fireEvent.dragOver(firstItem, { dataTransfer: { types: ['application/x-post-media'] } });
     fireEvent.drop(firstItem, { dataTransfer: { types: ['application/x-post-media'], files: [] } });
+    await waitFor(() => expect(reorderPostMedia).toHaveBeenCalledWith(ids.post, 1, [second.id, first.id]));
+  });
+
+  it('keeps reorder keyboard-accessible without visible move buttons and writes only on drop', async () => {
+    const first = {
+      id: ids.post,
+      kind: 'photo' as const,
+      sourceMediaId: null,
+      fileName: 'first.png',
+      contentType: 'image/png',
+      sizeBytes: 5,
+      width: 1,
+      height: 1,
+      durationMs: null,
+      position: 0
+    };
+    const second = { ...first, id: ids.post2, fileName: 'second.png', position: 1 };
+    vi.mocked(reorderPostMedia).mockResolvedValue({ revision: 2 });
+    render(
+      <PostMediaEditor
+        postId={ids.post}
+        revision={1}
+        media={[first, second]}
+        disabled={false}
+        onServerChange={vi.fn()}
+        onPendingChange={vi.fn()}
+      />
+    );
+    expect(screen.queryByRole('button', { name: /переместить .* выше|переместить .* ниже/i })).toBeNull();
+    const dragHandle = screen.getByRole('button', { name: 'Переставить second.png' });
+    dragHandle.focus();
+    const user = userEvent.setup();
+    await user.keyboard(' ');
+    await user.keyboard('{ArrowUp}');
+    expect(reorderPostMedia).not.toHaveBeenCalled();
+    await user.keyboard('{Escape}');
+    expect(screen.getByText('Перестановка отменена')).toBeTruthy();
+    expect(reorderPostMedia).not.toHaveBeenCalled();
+    await user.keyboard(' ');
+    await user.keyboard('{ArrowUp}');
+    await user.keyboard(' ');
     await waitFor(() => expect(reorderPostMedia).toHaveBeenCalledWith(ids.post, 1, [second.id, first.id]));
   });
 
@@ -359,7 +405,7 @@ describe('post media editor', () => {
     );
     expect(onServerChange).toHaveBeenCalledWith(3, [media]);
 
-    await user.click(screen.getByRole('button', { name: 'Убрать cover.png' }));
+    await user.click(screen.getByRole('button', { name: 'Убрать из поста: cover.png' }));
     await waitFor(() => expect(onServerChange).toHaveBeenLastCalledWith(4, []));
     expect(screen.queryByText('cover.png')).toBeNull();
   });
@@ -464,7 +510,7 @@ describe('post media editor', () => {
     ]);
   });
 
-  it('explains that an attachment must be removed before replacing at the ten-file limit', () => {
+  it('explains that an attachment must be removed before replacing at the ten-file limit', async () => {
     const media = Array.from({ length: 10 }, (_, index) => ({
       id: `00000000-0000-4000-8000-${String(index + 1).padStart(12, '0')}`,
       kind: 'photo' as const,
@@ -488,7 +534,10 @@ describe('post media editor', () => {
       />
     );
 
-    const replace = screen.getByRole('button', { name: /^Заменить photo-1\.png$/ });
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: 'photo-1.png' }));
+    const dialog = await screen.findByRole('dialog', { name: 'photo-1.png' });
+    const replace = within(dialog).getByRole('button', { name: 'Заменить photo-1.png' });
     expect(replace.hasAttribute('disabled')).toBe(true);
     expect(screen.getByText(/лимит 10 файлов/)).toBeTruthy();
     expect(uploadPostMedia).not.toHaveBeenCalled();
@@ -560,7 +609,7 @@ describe('post media editor', () => {
     expect(screen.getByRole('button', { name: 'Повторить' })).toBeTruthy();
   });
 
-  it('shows a decode fallback with retry while keeping remove available', async () => {
+  it('shows the media-tile fallback while keeping remove available after an image decode failure', async () => {
     const media = {
       id: ids.post,
       sourceMediaId: null,
@@ -583,10 +632,13 @@ describe('post media editor', () => {
         onPendingChange={vi.fn()}
       />
     );
-    const preview = await screen.findByRole('img', { name: 'broken.png' });
+    await screen.findByRole('button', { name: 'broken.png' });
+    const item = screen.getByRole('listitem', { name: 'broken.png, позиция 1' });
+    const preview = item.querySelector('img[alt="broken.png"]');
+    if (!preview) throw new Error('Expected the media tile to render its photo');
     fireEvent.error(preview);
     expect(await screen.findByText(/Не удалось показать изображение/)).toBeTruthy();
-    expect(screen.getByRole('button', { name: 'Убрать broken.png' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Убрать из поста: broken.png' })).toBeTruthy();
     await userEvent.setup().click(screen.getByRole('button', { name: 'Повторить' }));
     await waitFor(() => expect(getPostMediaContent).toHaveBeenCalledTimes(2));
   });
@@ -620,7 +672,7 @@ describe('post media editor', () => {
         onRevisionConflict={onRevisionConflict}
       />
     );
-    await user.click(screen.getByRole('button', { name: 'Убрать keep.png' }));
+    await user.click(screen.getByRole('button', { name: 'Убрать из поста: keep.png' }));
     expect(await screen.findByText(/Черновик изменился\. Сравните его/)).toBeTruthy();
     expect(screen.getByText('keep.png')).toBeTruthy();
     expect(onRevisionConflict).toHaveBeenCalledOnce();
@@ -632,8 +684,8 @@ describe('post media editor', () => {
       id: ids.post,
       sourceMediaId: sourceId,
       kind: 'photo' as const,
-      fileName: 'crop.png',
-      contentType: 'image/png',
+      fileName: 'crop.jpg',
+      contentType: 'image/jpeg',
       sizeBytes: 5,
       width: 1,
       height: 1,
@@ -648,12 +700,15 @@ describe('post media editor', () => {
     Object.defineProperty(HTMLImageElement.prototype, 'naturalWidth', { configurable: true, get: () => 400 });
     Object.defineProperty(HTMLImageElement.prototype, 'naturalHeight', { configurable: true, get: () => 300 });
     vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue({
+      save: vi.fn(),
+      scale: vi.fn(),
       translate: vi.fn(),
       rotate: vi.fn(),
-      drawImage: vi.fn()
+      drawImage: vi.fn(),
+      restore: vi.fn()
     } as unknown as CanvasRenderingContext2D);
-    vi.spyOn(HTMLCanvasElement.prototype, 'toBlob').mockImplementation((callback) =>
-      callback(new Blob(['crop'], { type: 'image/png' }))
+    vi.spyOn(HTMLCanvasElement.prototype, 'toBlob').mockImplementation((callback, type) =>
+      callback(new Blob(['crop'], { type }))
     );
     const original = { ...derivative, id: sourceId, sourceMediaId: null, fileName: 'original.png' };
     const onServerChange = vi.fn();
@@ -668,7 +723,9 @@ describe('post media editor', () => {
         onPendingChange={vi.fn()}
       />
     );
-    await user.click(screen.getByRole('button', { name: 'Кадрировать' }));
+    await user.click(screen.getByRole('button', { name: 'original.png' }));
+    const previewDialog = screen.getByRole('dialog', { name: 'original.png' });
+    await user.click(within(previewDialog).getByRole('button', { name: 'Кадрировать' }));
     await screen.findByRole('img', { name: 'Предпросмотр кадрирования' });
     expect(getPostMediaContent).toHaveBeenCalledWith(sourceId, expect.any(AbortSignal));
     await user.click(screen.getByRole('button', { name: 'Готово' }));
@@ -678,7 +735,7 @@ describe('post media editor', () => {
         sourceId,
         2,
         expect.any(Blob),
-        'original.png',
+        'original.jpg',
         expect.any(String)
       )
     );
@@ -708,12 +765,15 @@ describe('post media editor', () => {
     Object.defineProperty(HTMLImageElement.prototype, 'naturalWidth', { configurable: true, get: () => 400 });
     Object.defineProperty(HTMLImageElement.prototype, 'naturalHeight', { configurable: true, get: () => 300 });
     vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue({
+      save: vi.fn(),
+      scale: vi.fn(),
       translate: vi.fn(),
       rotate: vi.fn(),
-      drawImage: vi.fn()
+      drawImage: vi.fn(),
+      restore: vi.fn()
     } as unknown as CanvasRenderingContext2D);
-    vi.spyOn(HTMLCanvasElement.prototype, 'toBlob').mockImplementation((callback) =>
-      callback(new Blob(['crop'], { type: 'image/png' }))
+    vi.spyOn(HTMLCanvasElement.prototype, 'toBlob').mockImplementation((callback, type) =>
+      callback(new Blob(['crop'], { type }))
     );
     const onServerChange = vi.fn();
     const user = userEvent.setup();
@@ -727,10 +787,12 @@ describe('post media editor', () => {
         onPendingChange={vi.fn()}
       />
     );
-    await user.click(screen.getByRole('button', { name: 'Кадрировать' }));
+    await user.click(screen.getByRole('button', { name: 'preserved.png' }));
+    const previewDialog = await screen.findByRole('dialog', { name: 'preserved.png' });
+    await user.click(within(previewDialog).getByRole('button', { name: 'Кадрировать' }));
     await screen.findByRole('img', { name: 'Предпросмотр кадрирования' });
     await user.click(screen.getByRole('button', { name: 'Готово' }));
-    expect(await screen.findByText(/Исходное вложение сохранено/)).toBeTruthy();
+    expect(await screen.findByText(/исходное вложение сохранено/i)).toBeTruthy();
     expect(screen.getByText('preserved.png')).toBeTruthy();
     expect(onServerChange).not.toHaveBeenCalled();
   });

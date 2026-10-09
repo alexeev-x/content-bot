@@ -1,7 +1,7 @@
 import type { PostDto, PublicationDto } from '@alexeev/contracts';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
-import { useRef, useState } from 'react';
+import { useState } from 'react';
 import { displayStatus, PublishDialog } from '../../features/publications';
 import {
   DeletePostsDialog,
@@ -17,7 +17,7 @@ import {
 } from '../../features/posts';
 import { classifyApiError } from '../../shared/api/error-kind';
 import { ApiError } from '../../shared/api/http-client';
-import { Banner, Button, Card, ErrorState, Menu, PageHeader, Skeleton, StatusBadge } from '../../shared/ui';
+import { Banner, Button, Card, ErrorState, Menu, Skeleton, StatusBadge } from '../../shared/ui';
 import { BackToPosts } from './BackToPosts';
 import { PostPublications } from './PostPublications';
 import styles from './PostPages.module.css';
@@ -79,7 +79,6 @@ function LoadedPost({ post }: { post: PostDto }) {
   const navigate = useNavigate();
   const [notice, setNotice] = useState<LifecycleNotice | null>(null);
   const [deleting, setDeleting] = useState(false);
-  const headerRef = useRef<HTMLDivElement>(null);
   const restore = useRestoreActions({ onNotice: setNotice });
   const isArchived = post.archivedAt !== null;
   const block = deleteBlockOf(post);
@@ -89,46 +88,42 @@ function LoadedPost({ post }: { post: PostDto }) {
     setNotice(null);
     // The page re-renders as a live post once the server-confirmed post lands in the cache.
     if (await restore.restoreOne({ id, revision: post.revision })) {
-      queueMicrotask(() => {
-        const heading = headerRef.current?.querySelector('h1');
-        heading?.setAttribute('tabindex', '-1');
-        heading?.focus();
-      });
+      queueMicrotask(() => document.querySelector<HTMLElement>('main h1')?.focus());
     }
   }
 
   return (
     <>
-      <div ref={headerRef}>
-        <BackToPosts />
-        <PageHeader
-          title={post.title.trim() || copy.editor.untitled}
-          actions={
-            isArchived ? undefined : (
-              <Menu
-                label={copy.actions.pageMenu}
-                items={[
-                  {
-                    id: 'delete',
-                    label: block
-                      ? copy.actions.deleteBlocked(
-                          block === 'unknown' ? copy.actions.blockedUnknown : copy.actions.blockedInProgress
-                        )
-                      : copy.actions.delete,
-                    icon: 'trash',
-                    tone: 'danger',
-                    isDisabled: block !== null
-                  }
-                ]}
-                onAction={() => {
-                  setNotice(null);
-                  setDeleting(true);
-                }}
-              />
-            )
-          }
-        />
-      </div>
+      <PostEditor
+        key={`${id}:${post.archivedAt ?? 'live'}`}
+        post={post}
+        approvedActions={(post) => <PublishAction post={post} />}
+        aside={<PostPublications postId={id} />}
+        headerActions={
+          isArchived ? undefined : (
+            <Menu
+              label={copy.actions.pageMenu}
+              items={[
+                {
+                  id: 'delete',
+                  label: block
+                    ? copy.actions.deleteBlocked(
+                        block === 'unknown' ? copy.actions.blockedUnknown : copy.actions.blockedInProgress
+                      )
+                    : copy.actions.delete,
+                  icon: 'trash',
+                  tone: 'danger',
+                  isDisabled: block !== null
+                }
+              ]}
+              onAction={() => {
+                setNotice(null);
+                setDeleting(true);
+              }}
+            />
+          )
+        }
+      />
       {notice ? <LifecycleBanner notice={notice} onDismiss={() => setNotice(null)} /> : null}
       {isArchived ? (
         <Banner
@@ -164,12 +159,6 @@ function LoadedPost({ post }: { post: PostDto }) {
           onNotice={setNotice}
         />
       ) : null}
-      <PostEditor
-        key={`${id}:${post.archivedAt ?? 'live'}`}
-        post={post}
-        approvedActions={(post) => <PublishAction post={post} />}
-        aside={<PostPublications postId={id} />}
-      />
     </>
   );
 }

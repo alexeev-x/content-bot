@@ -37,6 +37,8 @@ type Props = {
   handle?: ReactNode;
   /** Fills the grid cell (phone 3-column grid) instead of the fixed token size (124 px, 104 px on phone). */
   fluid?: boolean;
+  /** Image frame shape when `fluid` is enabled. Defaults to the square grid tile. */
+  aspectRatio?: 'square' | '4:3';
   isDisabled?: boolean;
 };
 
@@ -59,6 +61,7 @@ export function MediaGridTile({
   onSelectedChange,
   handle,
   fluid = false,
+  aspectRatio = 'square',
   isDisabled
 }: Props) {
   const [failedSrc, setFailedSrc] = useState<string | undefined>(undefined);
@@ -93,9 +96,12 @@ export function MediaGridTile({
     <div
       className={styles.tile}
       data-fluid={fluid || undefined}
+      data-aspect-ratio={fluid ? aspectRatio : undefined}
       data-state={state}
       data-selected={isSelected || undefined}
       data-disabled={isDisabled || undefined}
+      data-removable={Boolean(onRemove && removeLabel && !selectable) || undefined}
+      data-has-handle={Boolean(handle) || undefined}
     >
       {selectable ? (
         <ToggleButton
@@ -108,9 +114,17 @@ export function MediaGridTile({
           {picture}
         </ToggleButton>
       ) : (
-        <AriaButton aria-label={label} onPress={onPress} isDisabled={isDisabled || !onPress} className={styles.surface}>
-          {picture}
-        </AriaButton>
+        <>
+          <span className={styles.surface} aria-hidden="true">
+            {picture}
+          </span>
+          <AriaButton
+            aria-label={label}
+            onPress={onPress}
+            isDisabled={isDisabled || !onPress}
+            className={styles.previewAction}
+          />
+        </>
       )}
       {state === 'uploading' ? (
         <span className={styles.state}>

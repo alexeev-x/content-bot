@@ -85,11 +85,17 @@ for (const width of [1280, 375]) {
     test('formatted post: editor, preview, axe', async ({ page }) => {
       await page.emulateMedia({ reducedMotion: 'reduce' });
       await openFormatted(page);
-      if (width === 375) await page.getByRole('tab', { name: 'Превью' }).click();
+      if (width === 375) {
+        await page.getByRole('button', { name: 'Ещё', exact: true }).click();
+        await page.getByRole('menuitem', { name: 'Превью' }).click();
+      }
       await expect(page.getByRole('figure', { name: 'Предпросмотр в Telegram' }).locator('blockquote')).toBeVisible();
       await page.waitForLoadState('networkidle');
       await shot(page, 'preview-formatted', width);
-      if (width === 375) await page.getByRole('tab', { name: 'Текст' }).click();
+      if (width === 375) {
+        await page.getByRole('button', { name: 'Назад к редактору' }).click();
+        await expect(page.getByRole('textbox', { name: 'Текст' })).toBeVisible();
+      }
       await shot(page, 'editor-formatted', width);
       await expectNoSideScroll(page);
       await expectNoViolations(page);
@@ -190,3 +196,17 @@ test.describe('keyboard pass at 1280px', () => {
     await expectNoViolations(page);
   });
 });
+
+for (const width of [375, 1440]) {
+  test(`post publish route renders its child page at ${width}px`, async ({ page }) => {
+    await page.setViewportSize({ width, height: width === 375 ? 812 : 900 });
+    await mockApi(page);
+
+    await page.goto(`/posts/${ids.post}`);
+    await expect(page.locator('main section[aria-label]')).toHaveCount(0);
+
+    await page.goto(`/posts/${ids.post}/publish`);
+    await expect(page.locator('main h1')).toBeVisible();
+    await expect(page.locator('main section[aria-label]')).toHaveCount(2);
+  });
+}

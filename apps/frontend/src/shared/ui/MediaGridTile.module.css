@@ -1,4 +1,5 @@
 .tile {
+  --media-tile-corner-target: max(var(--size-target-min), var(--size-button-sm));
   position: relative;
   flex: none;
   width: var(--size-media-tile);
@@ -12,6 +13,9 @@
   height: auto;
   aspect-ratio: 1;
 }
+.tile[data-fluid][data-aspect-ratio='4:3'] {
+  aspect-ratio: 4 / 3;
+}
 .surface {
   position: absolute;
   inset: 0;
@@ -24,6 +28,33 @@
   color: inherit;
   cursor: pointer;
   outline: none;
+}
+.tile > span.surface {
+  pointer-events: none;
+}
+.previewAction {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  padding: 0;
+  border: 0;
+  border-radius: inherit;
+  background: transparent;
+  cursor: pointer;
+  outline: none;
+}
+.previewAction[data-disabled] {
+  cursor: default;
+}
+.previewAction[data-focus-visible] {
+  outline: var(--focus-ring-width) solid var(--color-focus-ring);
+  outline-offset: var(--focus-ring-offset);
+}
+.tile[data-removable] .previewAction {
+  inset-block-start: var(--media-tile-corner-target);
+}
+.tile[data-has-handle] .previewAction {
+  inset-block-start: var(--media-tile-corner-target);
 }
 .surface[data-disabled] {
   cursor: default;
@@ -170,18 +201,30 @@
 }
 .handle {
   position: absolute;
-  top: var(--space-1);
-  left: var(--space-1);
+  z-index: 2;
+  top: 0;
+  left: 0;
   display: grid;
+  place-items: center;
+  width: var(--media-tile-corner-target);
+  height: var(--media-tile-corner-target);
   border-radius: var(--radius-1);
   background: var(--color-media-scrim);
   color: var(--color-on-media-strong);
 }
+.handle > button {
+  width: 100%;
+  min-width: 0;
+  height: 100%;
+  min-height: 0;
+  padding: 0;
+}
 .remove {
-  /* The button is the hit area (24 px, 44 px on touch); the 22 px dot is its inner span. It sits in the corner, centred on the same point as the dot. */
+  /* The button is the hit area (24 px, 44 px on touch); the 22 px dot is its inner span. */
   position: absolute;
-  top: calc(var(--space-1) - 1px);
-  right: calc(var(--space-1) - 1px);
+  top: 0;
+  right: 0;
+  z-index: 2;
   display: grid;
   place-items: center;
   width: var(--size-target-min);
@@ -202,6 +245,9 @@
   color: var(--color-on-media-strong);
 }
 @media (pointer: coarse), (max-width: 859px) {
+  .tile {
+    --media-tile-corner-target: var(--size-target);
+  }
   .remove {
     top: calc(var(--space-1) - 11px);
     right: calc(var(--space-1) - 11px);

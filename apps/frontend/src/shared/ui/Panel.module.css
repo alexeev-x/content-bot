@@ -9,6 +9,12 @@
   border-radius: var(--radius-2);
   background: var(--color-surface-1);
 }
+.panel[data-variant='plain'] {
+  overflow: visible;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
 .head {
   display: flex;
   align-items: center;
@@ -68,6 +74,10 @@
   flex-direction: column;
   min-width: 0;
   min-height: calc(var(--reserve-rows, 0) * var(--panel-row));
+}
+.panel[data-variant='plain'] .body {
+  flex: 1 1 auto;
+  min-height: 0;
 }
 .list {
   display: grid;
