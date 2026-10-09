@@ -11,7 +11,7 @@ Shared Claude Code/Codex rules. Talk Russian; code, identifiers, commits and bra
 
 ## One fact, one place
 Edit a fact at its source; elsewhere only link to it.
-- Task flow (contract step, backend and frontend lines, gates): skill `orchestrate`; UI gates: `docs/AGENT_UI_WORKFLOW.md`.
+- Before delegation, read `.agents/roles/<role>.md` and relevant skill, not memory. UI: `docs/AGENT_UI_WORKFLOW.md`.
 - Status and queue: `docs/IMPLEMENTATION_PLAN.md`. Decisions: `docs/DECISIONS.md`.
 - Screens, patterns, viewport widths: `docs/design/UX_SPEC.md`; visual direction and tokens: `docs/design/README.md`.
 - API meaning: `docs/API_CONTRACTS.md`; shapes: `apps/contracts/src`.

@@ -48,6 +48,7 @@ interface MediaRow {
   width: number | null;
   height: number | null;
   duration_ms: number | null;
+  source_media_id: string | null;
   position: number;
 }
 
@@ -57,13 +58,13 @@ async function attachMedia(db: D1Database, posts: PostRecord[]): Promise<PostRec
   const { results } = await db
     .prepare(
       `SELECT p.id AS post_id, m.id, m.kind, m.file_name, m.content_type, m.size_bytes, m.width, m.height,
-              m.duration_ms, pm.position
+              m.duration_ms, m.source_media_id, pm.position
          FROM posts p JOIN json_each(?1) requested ON requested.value = p.id
               JOIN post_media pm ON pm.post_id = p.id JOIN media_assets m ON m.id = pm.media_id
         WHERE p.status = 'draft'
        UNION ALL
        SELECT p.id AS post_id, m.id, m.kind, m.file_name, m.content_type, m.size_bytes, m.width, m.height,
-              m.duration_ms, CAST(j.key AS INTEGER) AS position
+              m.duration_ms, m.source_media_id, CAST(j.key AS INTEGER) AS position
          FROM posts p JOIN post_revisions r ON r.post_id = p.id AND r.revision = p.revision
               JOIN json_each(r.media_json) j JOIN media_assets m ON m.id = j.value
               JOIN json_each(?1) requested ON requested.value = p.id
@@ -78,6 +79,7 @@ async function attachMedia(db: D1Database, posts: PostRecord[]): Promise<PostRec
     items.push(
       postMediaSchema.parse({
         id: row.id,
+        sourceMediaId: row.source_media_id,
         kind: row.kind,
         fileName: row.file_name,
         contentType: row.content_type,

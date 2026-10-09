@@ -1,6 +1,7 @@
 import {
   attachPostMediaResultSchema,
   changePostMediaResultSchema,
+  cropPostMediaResultSchema,
   mediaLibraryPageSchema,
   postSchema,
   uploadPostMediaResultSchema,
@@ -79,6 +80,51 @@ export function deletePostMedia(postId: string, mediaId: string, revision: numbe
       body: { revision }
     }
   );
+}
+
+export async function cropPostMedia(
+  postId: string,
+  mediaId: string,
+  revision: number,
+  file: Blob,
+  fileName: string,
+  idempotencyKey: string
+) {
+  const path = `/api/v1/posts/${encodeURIComponent(postId)}/media/${encodeURIComponent(mediaId)}/crop?revision=${revision}&fileName=${encodeURIComponent(fileName)}`;
+  const send = (): Promise<unknown> =>
+    new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open('POST', new URL(path, window.location.origin));
+      xhr.setRequestHeader('Accept', 'application/json');
+      xhr.setRequestHeader('Content-Type', file.type);
+      xhr.setRequestHeader('Idempotency-Key', idempotencyKey);
+      const token = getAccessToken();
+      if (token) xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+      xhr.addEventListener('load', () => {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          try {
+            resolve(JSON.parse(xhr.responseText) as unknown);
+          } catch {
+            reject(new Error('Unexpected response shape'));
+          }
+          return;
+        }
+        void mapApiError(
+          new Response(xhr.responseText, { status: xhr.status, headers: { 'Content-Type': 'application/json' } })
+        ).then(reject, reject);
+      });
+      xhr.addEventListener('error', () => reject(new Error('Network error')), { once: true });
+      xhr.send(file);
+    });
+  try {
+    return cropPostMediaResultSchema.parse(await send());
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 401) {
+      await apiRequest(`/api/v1/posts/${encodeURIComponent(postId)}`, postSchema);
+      return cropPostMediaResultSchema.parse(await send());
+    }
+    throw error;
+  }
 }
 
 export function reorderPostMedia(postId: string, revision: number, mediaIds: string[]) {

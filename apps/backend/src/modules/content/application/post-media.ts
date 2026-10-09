@@ -1,7 +1,10 @@
 import {
+  PHOTO_MEDIA_MAX_BYTES,
   POST_MEDIA_MAX_ITEMS,
   type PostMediaDto,
+  type CropPostMediaResultDto,
   type UploadPostMediaResultDto,
+  cropPostMediaResultSchema,
   uploadPostMediaResultSchema
 } from '@alexeev/contracts';
 import { HTTPException } from 'hono/http-exception';
@@ -10,7 +13,7 @@ import { sha256Hex } from '../../../platform/security/sha256';
 import type { MediaObjectStorage, PostMediaRepository, StoredMediaObject } from './media-ports';
 import { safeMediaFileName, streamAndValidateMedia } from './media-stream';
 
-function conflict(reason: 'STALE_REVISION' | 'NOT_EDITABLE' | 'IDEMPOTENCY_KEY_REUSED'): AppError {
+function conflict(reason: 'STALE_REVISION' | 'NOT_EDITABLE' | 'IDEMPOTENCY_KEY_REUSED' | 'IN_FLIGHT'): AppError {
   return new AppError('CONFLICT', 'The media operation conflicts with the current post state', { reason });
 }
 
@@ -125,6 +128,7 @@ export async function uploadPostMedia(
 
   const media: PostMediaDto = {
     id: mediaId,
+    sourceMediaId: null,
     kind: stream.kind,
     fileName,
     contentType: stream.contentType,
@@ -184,6 +188,213 @@ export async function uploadPostMedia(
   await removeStaged(deps.repo, deps.storage, mediaId, objectKey);
   classifyPostState(await readPostState(deps.repo, command.postId), command.revision);
   throw new AppError('CONFLICT', 'The media upload could not be attached', { reason: 'STALE_REVISION' });
+}
+
+function storedCropResult(responseBody: string): CropPostMediaResultDto {
+  try {
+    return cropPostMediaResultSchema.parse(JSON.parse(responseBody));
+  } catch {
+    throw new AppError('UNAVAILABLE', 'The stored media crop result is invalid');
+  }
+}
+
+export async function cropPostMedia(
+  deps: { repo: PostMediaRepository; storage: MediaObjectStorage; now: number; newId: () => string },
+  command: {
+    postId: string;
+    mediaId: string;
+    revision: number;
+    fileName: string;
+    contentType: string;
+    contentLength: number;
+    body: ReadableStream<Uint8Array>;
+    actor: string;
+    idempotencyKey: string;
+  }
+): Promise<CropPostMediaResultDto> {
+  const fileName = safeMediaFileName(command.fileName);
+  if (!['image/jpeg', 'image/png', 'image/webp'].includes(command.contentType))
+    throw new AppError('VALIDATION_ERROR', 'A cropped photo must be JPEG, PNG, or WebP', { reason: 'INVALID_MEDIA' });
+  if (!Number.isSafeInteger(command.contentLength) || command.contentLength <= 0)
+    throw new AppError('VALIDATION_ERROR', 'A valid Content-Length is required', { reason: 'INVALID_MEDIA' });
+  if (command.contentLength > PHOTO_MEDIA_MAX_BYTES)
+    throw new HTTPException(413, { message: 'Media file is too large' });
+
+  let existing;
+  try {
+    existing = await deps.repo.findCrop(command.postId, command.idempotencyKey);
+  } catch {
+    throw new AppError('UNAVAILABLE', 'Media crop state is unavailable');
+  }
+  if (existing?.state === 'in_flight' && existing.leaseUntil > deps.now) throw conflict('IN_FLIGHT');
+
+  const state = await readPostState(deps.repo, command.postId);
+  if (existing?.state !== 'completed') {
+    classifyCropTarget(state, command.mediaId, command.revision);
+  }
+
+  const requestId = deps.newId();
+  let ownsClaim = false;
+  if (existing?.state !== 'completed') {
+    let claim: Awaited<ReturnType<PostMediaRepository['claimCrop']>>;
+    try {
+      claim = await deps.repo.claimCrop(command.postId, command.idempotencyKey, requestId, deps.now);
+    } catch {
+      throw new AppError('UNAVAILABLE', 'Media crop could not be reserved');
+    }
+    if (claim === 'in_flight') throw conflict('IN_FLIGHT');
+    ownsClaim = claim === 'claimed';
+    if (claim === 'completed') {
+      try {
+        existing = await deps.repo.findCrop(command.postId, command.idempotencyKey);
+      } catch {
+        throw new AppError('UNAVAILABLE', 'Media crop state is unavailable');
+      }
+      if (existing?.state !== 'completed') throw new AppError('UNAVAILABLE', 'Media crop state is uncertain');
+    }
+  }
+
+  const derivativeId = deps.newId();
+  const objectKey = `media/${derivativeId}`;
+  let stagingRegistered = false;
+  let preserveStagedOnUncertainCommit = false;
+  try {
+    await deps.repo.registerStaging(derivativeId, objectKey, deps.now);
+    stagingRegistered = true;
+  } catch {
+    if (ownsClaim)
+      await deps.repo.releaseCrop(command.postId, command.idempotencyKey, requestId).catch(() => undefined);
+    throw new AppError('UNAVAILABLE', 'Media crop could not be staged');
+  }
+
+  try {
+    const streamed = await streamAndValidateMedia(
+      command.body,
+      command.contentType,
+      deps.storage,
+      objectKey,
+      command.contentLength
+    );
+    if (streamed.kind !== 'photo')
+      throw new AppError('VALIDATION_ERROR', 'Only raster photos can be cropped', { reason: 'INVALID_MEDIA' });
+    const payloadHash = await sha256Hex(
+      JSON.stringify({
+        postId: command.postId,
+        sourceMediaId: command.mediaId,
+        revision: command.revision,
+        fileName,
+        contentType: streamed.contentType,
+        sizeBytes: streamed.bytes,
+        contentSha256: streamed.sha256
+      })
+    );
+
+    if (existing?.state === 'completed') {
+      await removeStaged(deps.repo, deps.storage, derivativeId, objectKey);
+      stagingRegistered = false;
+      if (existing.payloadHash !== payloadHash) throw conflict('IDEMPOTENCY_KEY_REUSED');
+      return storedCropResult(existing.responseBody);
+    }
+
+    const source = state?.media.find(({ id }) => id === command.mediaId);
+    if (source === undefined) throw new AppError('UNAVAILABLE', 'The crop target changed unexpectedly');
+    const rootSourceMediaId = source.sourceMediaId ?? source.id;
+    const media: PostMediaDto = {
+      id: derivativeId,
+      sourceMediaId: rootSourceMediaId,
+      kind: 'photo',
+      fileName,
+      contentType: streamed.contentType,
+      sizeBytes: streamed.bytes,
+      width: streamed.width,
+      height: streamed.height,
+      durationMs: null,
+      position: source.position
+    };
+    const result = cropPostMediaResultSchema.parse({ media, revision: command.revision + 1 });
+    const responseBody = JSON.stringify(result);
+    let replaced: boolean;
+    try {
+      replaced = await deps.repo.replaceWithCrop({
+        postId: command.postId,
+        expectedRevision: command.revision,
+        actor: command.actor,
+        now: deps.now,
+        sourceMediaId: command.mediaId,
+        position: source.position,
+        requestId,
+        idempotencyKey: command.idempotencyKey,
+        payloadHash,
+        responseBody,
+        asset: {
+          ...media,
+          objectKey,
+          sha256: streamed.sha256,
+          createdAt: deps.now,
+          sourceMediaId: rootSourceMediaId
+        }
+      });
+    } catch {
+      const committed = await deps.repo.findCrop(command.postId, command.idempotencyKey).catch(() => null);
+      if (committed?.state === 'completed' && committed.payloadHash === payloadHash)
+        return storedCropResult(committed.responseBody);
+      if (committed === null) {
+        preserveStagedOnUncertainCommit = true;
+        ownsClaim = false;
+        throw new AppError('UNAVAILABLE', 'Media crop state is uncertain');
+      }
+      if (committed.state === 'in_flight' && committed.requestId === requestId) {
+        await deps.repo.releaseCrop(command.postId, command.idempotencyKey, requestId).catch(() => undefined);
+        await removeStaged(deps.repo, deps.storage, derivativeId, objectKey);
+        stagingRegistered = false;
+      }
+      throw new AppError('UNAVAILABLE', 'Media crop could not be committed');
+    }
+    if (replaced) {
+      stagingRegistered = false;
+      return result;
+    }
+
+    await deps.repo.releaseCrop(command.postId, command.idempotencyKey, requestId).catch(() => undefined);
+    await removeStaged(deps.repo, deps.storage, derivativeId, objectKey);
+    stagingRegistered = false;
+    const latest = await readPostState(deps.repo, command.postId);
+    classifyCropTarget(latest, command.mediaId, command.revision);
+    throw conflict('STALE_REVISION');
+  } catch (error) {
+    let cleanupFailed = false;
+    if (ownsClaim) {
+      try {
+        await deps.repo.releaseCrop(command.postId, command.idempotencyKey, requestId);
+      } catch {
+        cleanupFailed = true;
+      }
+    }
+    if (stagingRegistered && !preserveStagedOnUncertainCommit) {
+      try {
+        await removeStaged(deps.repo, deps.storage, derivativeId, objectKey);
+      } catch {
+        cleanupFailed = true;
+      }
+    }
+    if (cleanupFailed) throw new AppError('UNAVAILABLE', 'Temporary crop cleanup is uncertain');
+    if (error instanceof AppError || error instanceof HTTPException) throw error;
+    throw new AppError('UNAVAILABLE', 'Media crop failed');
+  }
+}
+
+function classifyCropTarget(
+  state: Awaited<ReturnType<PostMediaRepository['findPostState']>>,
+  mediaId: string,
+  revision: number
+): asserts state is NonNullable<typeof state> {
+  if (state === null) throw new AppError('NOT_FOUND', 'Post not found');
+  if (state.status !== 'draft') throw conflict('NOT_EDITABLE');
+  if (state.revision !== revision) throw conflict('STALE_REVISION');
+  const target = state.media.find(({ id }) => id === mediaId);
+  if (target === undefined) throw new AppError('NOT_FOUND', 'Media attachment not found');
+  if (target.kind !== 'photo')
+    throw new AppError('VALIDATION_ERROR', 'Only photo attachments can be cropped', { reason: 'INVALID_CROP_TARGET' });
 }
 
 export async function removePostMedia(

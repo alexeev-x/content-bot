@@ -1,6 +1,7 @@
 import {
   apiErrorSchema,
   attachPostMediaResultSchema,
+  cropPostMediaResultSchema,
   mediaLibraryPageSchema,
   postSchema,
   uploadPostMediaResultSchema
@@ -14,6 +15,7 @@ import {
   createD1PostMediaRepository,
   createD1PostRepository,
   processPostMediaCleanup,
+  cropPostMedia,
   removePostMedia,
   uploadPostMedia
 } from '../../src/modules/content';
@@ -99,7 +101,254 @@ async function upload(
   });
 }
 
+async function crop(
+  postId: string,
+  mediaId: string,
+  revision: number,
+  bytes: Uint8Array,
+  idempotencyKey: string,
+  contentType = 'image/png',
+  fileName = 'cropped.png',
+  contentLength = bytes.byteLength
+) {
+  return api.request(
+    `/api/v1/posts/${postId}/media/${mediaId}/crop?revision=${revision}&fileName=${encodeURIComponent(fileName)}`,
+    {
+      method: 'POST',
+      headers: {
+        'content-type': contentType,
+        'content-length': String(contentLength),
+        'idempotency-key': idempotencyKey
+      },
+      body: bytes
+    }
+  );
+}
+
 describe('post media upload', () => {
+  it('atomically replaces a photo with its derivative at the same position and retains the ultimate source', async () => {
+    const post = await createDraft();
+    const original = uploadPostMediaResultSchema.parse(await (await upload(post.id, 0, png(), nextKey())).json());
+    const second = uploadPostMediaResultSchema.parse(await (await upload(post.id, 1, png(4, 5), nextKey())).json());
+
+    const response = await crop(post.id, original.media.id, second.revision, png(7, 8), nextKey());
+
+    expect(response.status).toBe(200);
+    const result = cropPostMediaResultSchema.parse(await response.json());
+    expect(result.revision).toBe(second.revision + 1);
+    expect(result.media.id).not.toBe(original.media.id);
+    expect(result.media).toMatchObject({
+      sourceMediaId: original.media.id,
+      kind: 'photo',
+      position: original.media.position,
+      width: 7,
+      height: 8
+    });
+    const state = await createD1PostMediaRepository(testDb()).findPostState(post.id);
+    expect(state?.media.map(({ id, position }) => ({ id, position }))).toEqual([
+      { id: result.media.id, position: 0 },
+      { id: second.media.id, position: 1 }
+    ]);
+    const originalContent = await api.request(`/api/v1/media/${original.media.id}/content`);
+    expect(originalContent.status).toBe(200);
+    expect(new Uint8Array(await originalContent.arrayBuffer())).toEqual(png());
+    const library = mediaLibraryPageSchema.parse(await (await api.request('/api/v1/media?kind=photo&limit=10')).json());
+    expect(library.items.map(({ id }) => id)).toContain(original.media.id);
+
+    const recroppedResponse = await crop(post.id, result.media.id, result.revision, png(9, 10), nextKey());
+    expect(recroppedResponse.status).toBe(200);
+    const recropped = cropPostMediaResultSchema.parse(await recroppedResponse.json());
+    expect(recropped.media.sourceMediaId).toBe(original.media.id);
+    expect(recropped.media.sourceMediaId).not.toBe(result.media.id);
+  });
+
+  it('replaces a photo at the ten-item limit without consuming another slot', async () => {
+    const post = await createDraft();
+    const uploads = [];
+    let revision = post.revision;
+    for (let index = 0; index < 10; index += 1) {
+      const uploaded = uploadPostMediaResultSchema.parse(
+        await (await upload(post.id, revision, png(index + 2, index + 3), nextKey())).json()
+      );
+      uploads.push(uploaded.media);
+      revision = uploaded.revision;
+    }
+
+    const replaced = await crop(post.id, uploads[4]!.id, revision, png(12, 13), nextKey());
+
+    expect(replaced.status).toBe(200);
+    const result = cropPostMediaResultSchema.parse(await replaced.json());
+    expect(result.revision).toBe(revision + 1);
+    const state = await createD1PostMediaRepository(testDb()).findPostState(post.id);
+    expect(state?.media).toHaveLength(10);
+    expect(state?.media[4]).toMatchObject({ id: result.media.id, position: 4 });
+  });
+
+  it('rejects stale revisions and non-photo targets without changing the attachment', async () => {
+    const post = await createDraft();
+    const photo = uploadPostMediaResultSchema.parse(await (await upload(post.id, 0, png(), nextKey())).json());
+    const animationBytes = new Uint8Array([0x47, 0x49, 0x46, 0x38, 0x39, 0x61, 2, 0, 3, 0]);
+    const animation = uploadPostMediaResultSchema.parse(
+      await (await upload(post.id, photo.revision, animationBytes, nextKey(), 'image/gif', 'motion.gif')).json()
+    );
+
+    const stale = await crop(post.id, photo.media.id, photo.revision, png(5, 6), nextKey());
+    const nonPhoto = await crop(post.id, animation.media.id, animation.revision, png(5, 6), nextKey());
+
+    expect(stale.status).toBe(409);
+    expect(apiErrorSchema.parse(await stale.json()).error.details?.reason).toBe('STALE_REVISION');
+    expect(nonPhoto.status).toBe(400);
+    expect(apiErrorSchema.parse(await nonPhoto.json()).error.code).toBe('VALIDATION_ERROR');
+    expect((await createD1PostMediaRepository(testDb()).findPostState(post.id))?.media.map(({ id }) => id)).toEqual([
+      photo.media.id,
+      animation.media.id
+    ]);
+  });
+
+  it('rejects a bad crop signature and keeps the original attachment and object', async () => {
+    const post = await createDraft();
+    const original = uploadPostMediaResultSchema.parse(await (await upload(post.id, 0, png(), nextKey())).json());
+
+    const response = await crop(post.id, original.media.id, original.revision, png(), nextKey(), 'image/jpeg');
+
+    expect(response.status).toBe(400);
+    expect(apiErrorSchema.parse(await response.json()).error.code).toBe('VALIDATION_ERROR');
+    const tooLarge = await crop(
+      post.id,
+      original.media.id,
+      original.revision,
+      png(),
+      nextKey(),
+      'image/png',
+      'large.png',
+      10_000_001
+    );
+    expect(tooLarge.status).toBe(413);
+    expect((await createD1PostMediaRepository(testDb()).findPostState(post.id))?.media.map(({ id }) => id)).toEqual([
+      original.media.id
+    ]);
+    expect((await testMediaBucket().list({ prefix: 'media/' })).objects).toHaveLength(1);
+    expect((await testDb().prepare('SELECT count(*) AS n FROM post_media_crops').first<{ n: number }>())?.n).toBe(0);
+  });
+
+  it('cleans the staged derivative when the replacement transaction fails before commit', async () => {
+    const post = await createDraft();
+    const original = uploadPostMediaResultSchema.parse(await (await upload(post.id, 0, png(), nextKey())).json());
+    const baseRepo = createD1PostMediaRepository(testDb());
+    const failingRepo = new Proxy(baseRepo, {
+      get(target, property, receiver) {
+        if (property === 'replaceWithCrop')
+          return async () => {
+            throw new Error('simulated D1 failure');
+          };
+        return Reflect.get(target, property, receiver) as unknown;
+      }
+    });
+    const bytes = png(5, 6);
+
+    await expect(
+      cropPostMedia(
+        {
+          repo: failingRepo,
+          storage: createR2MediaStorage(testMediaBucket()),
+          now: START,
+          newId: () => crypto.randomUUID()
+        },
+        {
+          postId: post.id,
+          mediaId: original.media.id,
+          revision: original.revision,
+          fileName: 'cropped.png',
+          contentType: 'image/png',
+          contentLength: bytes.byteLength,
+          body: new Response(bytes).body as ReadableStream<Uint8Array>,
+          actor: OWNER_ID,
+          idempotencyKey: nextKey()
+        }
+      )
+    ).rejects.toMatchObject({ code: 'UNAVAILABLE' });
+    expect((await baseRepo.findPostState(post.id))?.media.map(({ id }) => id)).toEqual([original.media.id]);
+    expect((await testMediaBucket().list({ prefix: 'media/' })).objects).toHaveLength(1);
+    expect((await testDb().prepare('SELECT count(*) AS n FROM post_media_crops').first<{ n: number }>())?.n).toBe(0);
+    expect((await testDb().prepare('SELECT count(*) AS n FROM post_media_cleanup').first<{ n: number }>())?.n).toBe(0);
+  });
+
+  it('replays the same crop key and rejects a different payload or an in-flight claim', async () => {
+    const post = await createDraft();
+    const original = uploadPostMediaResultSchema.parse(await (await upload(post.id, 0, png(), nextKey())).json());
+    const idempotencyKey = nextKey();
+    const first = await crop(post.id, original.media.id, original.revision, png(5, 6), idempotencyKey);
+    const firstBody = cropPostMediaResultSchema.parse(await first.json());
+    const replay = await crop(post.id, original.media.id, original.revision, png(5, 6), idempotencyKey);
+    expect(replay.status).toBe(200);
+    expect(await replay.json()).toEqual(firstBody);
+
+    const reused = await crop(post.id, original.media.id, original.revision, png(6, 7), idempotencyKey);
+    expect(reused.status).toBe(409);
+    expect(apiErrorSchema.parse(await reused.json()).error.details?.reason).toBe('IDEMPOTENCY_KEY_REUSED');
+
+    const activeKey = nextKey();
+    const claim = await createD1PostMediaRepository(testDb()).claimCrop(post.id, activeKey, crypto.randomUUID(), START);
+    expect(claim).toBe('claimed');
+    const inFlight = await crop(post.id, firstBody.media.id, firstBody.revision, png(8, 9), activeKey);
+    expect(inFlight.status).toBe(409);
+    expect(apiErrorSchema.parse(await inFlight.json()).error.details?.reason).toBe('IN_FLIGHT');
+  });
+
+  it('keeps the original through detach and queues it after the final derivative cleanup', async () => {
+    const post = await createDraft();
+    const original = uploadPostMediaResultSchema.parse(await (await upload(post.id, 0, png(), nextKey())).json());
+    const cropBytes = png(5, 6);
+    const cropKey = nextKey();
+    const cropResponse = await crop(post.id, original.media.id, original.revision, cropBytes, cropKey);
+    const cropped = cropPostMediaResultSchema.parse(await cropResponse.json());
+    const replayBeforeDetach = await crop(post.id, original.media.id, original.revision, cropBytes, cropKey);
+    expect(replayBeforeDetach.status).toBe(200);
+    expect(await replayBeforeDetach.json()).toEqual(cropped);
+    const detached = await api.request(`/api/v1/posts/${post.id}/media/${cropped.media.id}`, {
+      method: 'DELETE',
+      json: { revision: cropped.revision }
+    });
+    expect(detached.status).toBe(200);
+    expect((await api.request(`/api/v1/media/${original.media.id}/content`)).status).toBe(200);
+    const replayAfterDetach = await crop(post.id, original.media.id, original.revision, cropBytes, cropKey);
+    expect(replayAfterDetach.status).toBe(200);
+    expect(await replayAfterDetach.json()).toEqual(cropped);
+    expect(
+      (
+        await testDb()
+          .prepare('SELECT count(*) AS n FROM post_media_cleanup WHERE media_id = ?1')
+          .bind(original.media.id)
+          .first<{ n: number }>()
+      )?.n
+    ).toBe(0);
+
+    const repo = createD1PostMediaRepository(testDb());
+    const storage = createR2MediaStorage(testMediaBucket());
+    expect((await api.request(`/api/v1/media/${original.media.id}/content`)).status).toBe(200);
+    expect(await processPostMediaCleanup({ repo, storage }, 5, START)).toEqual({ cleaned: 1, failed: 0 });
+    expect((await api.request(`/api/v1/media/${original.media.id}/content`)).status).toBe(404);
+    expect((await crop(post.id, original.media.id, original.revision, cropBytes, cropKey)).status).toBe(409);
+    expect(
+      (
+        await testDb()
+          .prepare('SELECT count(*) AS n FROM post_media_crops WHERE media_id = ?1')
+          .bind(cropped.media.id)
+          .first<{ n: number }>()
+      )?.n
+    ).toBe(0);
+    expect(await processPostMediaCleanup({ repo, storage }, 5, START)).toEqual({ cleaned: 1, failed: 0 });
+    expect((await api.request(`/api/v1/media/${original.media.id}/content`)).status).toBe(404);
+    expect(
+      (
+        await testDb()
+          .prepare('SELECT count(*) AS n FROM media_assets WHERE id = ?1')
+          .bind(original.media.id)
+          .first<{ n: number }>()
+      )?.n
+    ).toBe(0);
+  });
+
   it('streams a validated image into private R2 and attaches it with a guarded revision bump', async () => {
     const post = await createDraft();
     const response = await upload(post.id, post.revision, png(), nextKey());
@@ -223,6 +472,17 @@ describe('post media upload', () => {
       .all<{ detail: string }>();
     expect(all.results.map(({ detail }) => detail).join(' ')).toContain('media_assets_created_idx');
     expect(photos.results.map(({ detail }) => detail).join(' ')).toContain('media_assets_kind_created_idx');
+  });
+
+  it('uses the source index when checking whether a derivative retains its original', async () => {
+    const plan = await testDb()
+      .prepare(
+        'EXPLAIN QUERY PLAN SELECT EXISTS (SELECT 1 FROM media_assets derivative WHERE derivative.source_media_id = ?1)'
+      )
+      .bind(crypto.randomUUID())
+      .all<{ detail: string }>();
+
+    expect(plan.results.map(({ detail }) => detail).join(' ')).toContain('media_assets_source_idx');
   });
 
   it('hydrates media for the maximum 100-post page without exceeding D1 bind limits', async () => {

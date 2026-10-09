@@ -12,6 +12,8 @@ export const VIDEO_MEDIA_MAX_BYTES = 50_000_000;
 
 export const postMediaSchema = z.object({
   id: z.uuid(),
+  // A cropped attachment is a derived raster; null means this attachment is the original asset.
+  sourceMediaId: z.uuid().nullable(),
   kind: mediaKindSchema,
   fileName: z.string(),
   contentType: z.string(),
@@ -65,6 +67,30 @@ export const uploadPostMediaResultSchema = z.object({
   revision: z.number().int().nonnegative()
 });
 export type UploadPostMediaResultDto = z.infer<typeof uploadPostMediaResultSchema>;
+
+// POST /api/v1/posts/{postId}/media/{mediaId}/crop?revision&fileName; raw rasterized photo bytes.
+// Content-Length, photo Content-Type, and Idempotency-Key are required. The server atomically
+// replaces the existing draft photo at the same position; it does not consume another media slot.
+// The derivative points to the original asset (including when cropping an existing derivative),
+// so the original remains retained while a derivative refers to it. Crop geometry is represented
+// by the derivative bytes, not persisted separately.
+// Same key + same path/query/bytes replays the original response; a different payload with that
+// key is CONFLICT (IDEMPOTENCY_KEY_REUSED), and an in-flight request is CONFLICT (IN_FLIGHT).
+// Errors: VALIDATION_ERROR 400 (bad query, non-photo target, invalid image/signature or headers),
+// 413 (photo size limit), NOT_FOUND 404, CONFLICT 409 (STALE_REVISION | NOT_EDITABLE |
+// IDEMPOTENCY_KEY_REUSED | IN_FLIGHT), UNAVAILABLE 503 (storage failure), UNAUTHORIZED 401,
+// FORBIDDEN 403.
+export const cropPostMediaQuerySchema = z.strictObject({
+  revision: z.coerce.number().int().nonnegative(),
+  fileName: z.string().trim().min(1).max(255)
+});
+export type CropPostMediaQuery = z.infer<typeof cropPostMediaQuerySchema>;
+
+export const cropPostMediaResultSchema = z.object({
+  media: postMediaSchema,
+  revision: z.number().int().nonnegative()
+});
+export type CropPostMediaResultDto = z.infer<typeof cropPostMediaResultSchema>;
 
 // DELETE /api/v1/posts/{postId}/media/{mediaId}, JSON { revision } -> 200 { revision }.
 export const changePostMediaRevisionInputSchema = z.strictObject({ revision: z.number().int().nonnegative() });

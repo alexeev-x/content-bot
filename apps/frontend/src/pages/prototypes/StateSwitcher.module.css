@@ -50,6 +50,12 @@
   .dock[data-editor] {
     bottom: calc(96px + env(safe-area-inset-bottom));
   }
+  .dock[data-editor] .trigger {
+    width: var(--size-target);
+    min-width: var(--size-target);
+    padding-inline: 0;
+    font-size: 0;
+  }
 }
 :global(html[data-proto-shot]) .dock {
   display: none;

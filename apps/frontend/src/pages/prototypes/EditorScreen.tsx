@@ -30,9 +30,9 @@ import { useNarrow, useProtoNavigate, useProtoPath, useProtoSearch, useProtoSear
 import { useProtoStore } from './proto-store';
 import styles from './Editor.module.css';
 import thumbArcana from './assets/thumb-arcana.svg';
-import thumbPatch from './assets/thumb-patch.svg';
 import thumbHero from './assets/thumb-hero.svg';
 import thumbStream from './assets/thumb-stream.svg';
+import cropLakeDemo from './assets/crop-lake-demo.png';
 
 const LIMIT = 4096;
 type Save = 'idle' | 'dirty' | 'saving' | 'saved' | 'failed';
@@ -57,7 +57,14 @@ const LIBRARY_MEDIA: DemoMedia[] = [
     status: 'ready',
     progress: 100
   },
-  { id: 'lib-patch', name: 'patch-notes.jpg', kind: 'photo', thumbnail: thumbPatch, status: 'ready', progress: 100 },
+  {
+    id: 'lib-patch',
+    name: 'mountain-lake-demo.jpg',
+    kind: 'photo',
+    thumbnail: cropLakeDemo,
+    status: 'ready',
+    progress: 100
+  },
   {
     id: 'lib-hero-video',
     name: 'hero-teaser.mp4',
@@ -83,7 +90,11 @@ const sampleGallery = (): DemoMedia[] => [
 ];
 
 function initialDemoMedia(state: string | undefined): DemoMedia[] {
-  if (state === 'gallery' || state === 'preview' || state === 'settings' || state === 'confirm') return sampleGallery();
+  if (state === 'queue') {
+    return sampleGallery().map((item, index) => (index === 1 ? { ...item, status: 'uploading', progress: 68 } : item));
+  }
+  if (state === 'gallery' || state === 'preview' || state === 'settings' || state === 'confirm' || state === 'crop')
+    return sampleGallery();
   if (state === 'upload-error') return [{ ...LIBRARY_MEDIA[0]!, id: 'failed-thumb', status: 'failed', progress: 68 }];
   return [];
 }
@@ -132,7 +143,8 @@ function SaveIndicator({
   );
 }
 
-type SourceStep = 'sources' | 'device' | 'library';
+type SourceStep = 'sources' | 'device' | 'library' | 'recent';
+type CropRatio = 'original' | '1:1' | '4:5' | '16:9';
 
 function MediaSourcePicker({
   isOpen,
@@ -157,19 +169,42 @@ function MediaSourcePicker({
   setSelection: (ids: string[]) => void;
   onAdd: (items: DemoMedia[]) => void;
 }) {
-  const visible = LIBRARY_MEDIA.filter((item) => filter === 'all' || item.kind === filter);
-  const title = step === 'sources' ? 'Добавить медиа' : step === 'device' ? 'Демо-выбор файлов' : 'Медиабиблиотека';
+  const sourceItems = step === 'recent' ? LIBRARY_MEDIA.slice(0, 3) : LIBRARY_MEDIA;
+  const visible = sourceItems.filter((item) => filter === 'all' || item.kind === filter);
+  const title =
+    step === 'sources'
+      ? 'Добавить медиа'
+      : step === 'device'
+        ? 'Демо-выбор файлов'
+        : step === 'recent'
+          ? 'Недавние'
+          : 'Медиабиблиотека';
   const description =
     step === 'sources'
       ? 'Выберите источник. Прототип не открывает устройство и не загружает файлы.'
       : step === 'device'
         ? 'Выберите демонстрационные файлы вместо системного диалога.'
-        : 'Выберите несколько тестовых файлов из общей медиатеки.';
+        : step === 'recent'
+          ? 'Последние демонстрационные элементы из медиатеки.'
+          : 'Выберите несколько тестовых файлов из общей медиатеки.';
   const content = (
     <div className={styles.sourceContent}>
       {step === 'sources' ? (
         <>
+          {narrow && typeof navigator !== 'undefined' && 'mediaDevices' in navigator && window.isSecureContext ? (
+            <Button
+              variant="secondary"
+              icon="image"
+              onPress={() => {
+                setSelection([]);
+                setStep('device');
+              }}
+            >
+              Снять фото / видео · демо
+            </Button>
+          ) : null}
           <Button
+            variant="secondary"
             icon="upload"
             onPress={() => {
               setSelection([]);
@@ -189,10 +224,41 @@ function MediaSourcePicker({
           >
             Из медиабиблиотеки
           </Button>
+          <Button
+            variant="secondary"
+            icon="clock"
+            onPress={() => {
+              setSelection([]);
+              setFilter('all');
+              setStep('recent');
+            }}
+          >
+            Недавние
+          </Button>
           <p className={styles.hint}>Выбор локальный и существует только пока открыта вкладка прототипа.</p>
         </>
       ) : (
         <>
+          {!narrow ? (
+            <SegmentedControl
+              label="Источник медиа"
+              value={step}
+              onChange={(value) => setStep(value as SourceStep)}
+              options={[
+                { id: 'device', label: 'С компьютера' },
+                { id: 'library', label: 'Медиабиблиотека' },
+                { id: 'recent', label: 'Недавние' }
+              ]}
+              fullWidth
+            />
+          ) : null}
+          {step === 'device' ? (
+            <div className={styles.dropzone}>
+              <Icon name="upload" size={22} />
+              <strong>Перетащите файлы сюда или выберите ниже</strong>
+              <span>Выбор файлов имитируется локальными демонстрационными примерами.</span>
+            </div>
+          ) : null}
           {step === 'library' ? (
             <SegmentedControl
               label="Тип медиа"
@@ -261,14 +327,7 @@ function MediaSourcePicker({
       {content}
     </Drawer>
   ) : (
-    <Dialog
-      isOpen={isOpen}
-      onOpenChange={onOpenChange}
-      title={title}
-      description={description}
-      size="wide"
-      footer={footer}
-    >
+    <Dialog isOpen={isOpen} onOpenChange={onOpenChange} title={title} size="wide" footer={footer}>
       {content}
     </Dialog>
   );
@@ -279,13 +338,15 @@ function DemoMediaGallery({
   onMove,
   onRemove,
   onRetry,
-  onCancel
+  onCancel,
+  onCrop
 }: {
   media: DemoMedia[];
   onMove: (id: string, direction: -1 | 1) => void;
   onRemove: (id: string) => void;
   onRetry: (id: string) => void;
   onCancel: (id: string) => void;
+  onCrop: (id: string) => void;
 }) {
   if (media.length === 0) {
     return (
@@ -313,6 +374,11 @@ function DemoMediaGallery({
                 <progress aria-label={`Демо-загрузка ${item.name}`} max={100} value={item.progress} />
                 <small>{item.status === 'processing' ? 'Демо: обработка' : `Демо-загрузка · ${item.progress}%`}</small>
               </>
+            ) : null}
+            {item.kind === 'photo' && item.status === 'ready' ? (
+              <Button variant="secondary" size="sm" icon="image" onPress={() => onCrop(item.id)}>
+                Кадрировать
+              </Button>
             ) : null}
             {item.status === 'ready' ? (
               <small>
@@ -434,7 +500,9 @@ export function EditorScreen() {
   const [createdId, setCreatedId] = useState<string | null>(null);
   const id = routeId === 'new' ? createdId : routeId;
   const post = posts.find((p) => p.id === id);
-  const forcedContent = ['gallery', 'preview', 'settings', 'confirm', 'upload-error'].includes(search.state ?? '');
+  const forcedContent = ['gallery', 'preview', 'settings', 'confirm', 'upload-error', 'queue', 'crop'].includes(
+    search.state ?? ''
+  );
   const [title, setTitle] = useState(post?.title ?? (forcedContent ? 'Обновление патча 7.41' : ''));
   const [body, setBody] = useState(
     post?.body ?? (forcedContent ? 'Короткий обзор изменений и новых предметов. Подробности — в нашем разборе.' : '')
@@ -444,12 +512,17 @@ export function EditorScreen() {
   const [mobileTab, setMobileTab] = useState<Mobile>('text');
   const [view, setView] = useState<EditorView>('edit');
   const [media, setMedia] = useState<DemoMedia[]>(() => initialDemoMedia(search.state));
-  const [sourceOpen, setSourceOpen] = useState(search.state === 'media-source');
+  const [sourceOpen, setSourceOpen] = useState(['media-source', 'source-mobile'].includes(search.state ?? ''));
   const [sourceStep, setSourceStep] = useState<SourceStep>('sources');
   const [libraryFilter, setLibraryFilter] = useState<'all' | 'photo' | 'video'>('all');
   const [mediaSelection, setMediaSelection] = useState<string[]>([]);
   const [currentMedia, setCurrentMedia] = useState(0);
   const [previewOpen, setPreviewOpen] = useState(false);
+  const [cropMediaId, setCropMediaId] = useState<string | null>(null);
+  const [cropRatio, setCropRatio] = useState<CropRatio>('original');
+  const [cropZoom, setCropZoom] = useState(100);
+  const [cropRotation, setCropRotation] = useState(0);
+  const [cropCover, setCropCover] = useState(false);
   const [destinationId, setDestinationId] = useState(
     channels.find((channel) => channel.state === 'ok' && channel.enabled)?.id ?? ''
   );
@@ -477,11 +550,13 @@ export function EditorScreen() {
 
   useEffect(() => {
     const forced = search.state;
-    if (forced === 'media-source') {
+    if (forced === 'media-source' || forced === 'source-mobile') {
       setSourceOpen(true);
-      setSourceStep('sources');
+      setSourceStep(forced === 'source-mobile' || narrow ? 'sources' : 'device');
     } else if (
       forced === 'gallery' ||
+      forced === 'queue' ||
+      forced === 'crop' ||
       forced === 'preview' ||
       forced === 'settings' ||
       forced === 'confirm' ||
@@ -494,8 +569,12 @@ export function EditorScreen() {
       if (forced === 'preview') setMobileTab('preview');
       if (forced === 'settings' || forced === 'confirm') setMobileTab('settings');
       if (forced === 'confirm') setConfirmOpen(true);
+      if (forced === 'crop') {
+        setCropMediaId('draft-patch');
+        setCropRatio('4:5');
+      }
     }
-  }, [search.state]);
+  }, [search.state, narrow]);
 
   useEffect(
     () => () => {
@@ -577,6 +656,37 @@ export function EditorScreen() {
     setMedia((items) =>
       items.map((item) => (item.id === mediaId ? { ...item, status: 'cancelled', progress: 0 } : item))
     );
+  };
+
+  const closeCrop = () => {
+    setCropMediaId(null);
+    setCropRatio('original');
+    setCropZoom(100);
+    setCropRotation(0);
+    setCropCover(false);
+  };
+
+  const openCrop = (mediaId: string) => {
+    setCropMediaId(mediaId);
+    setCropRatio('original');
+    setCropZoom(100);
+    setCropRotation(0);
+    setCropCover(false);
+  };
+
+  const applyDemoCrop = () => {
+    if (cropCover && cropMediaId) {
+      setMedia((items) => {
+        const index = items.findIndex((item) => item.id === cropMediaId);
+        if (index <= 0) return items;
+        const next = [...items];
+        const [selected] = next.splice(index, 1);
+        if (selected) next.unshift(selected);
+        return next;
+      });
+      setCurrentMedia(0);
+    }
+    closeCrop();
   };
 
   // Autosave: the draft is created silently on the first non-empty text, then every pause saves it.
@@ -726,7 +836,7 @@ export function EditorScreen() {
           icon="plus"
           isDisabled={readOnly || media.length >= 10}
           onPress={() => {
-            setSourceStep('sources');
+            setSourceStep(narrow ? 'sources' : 'device');
             setSourceOpen(true);
           }}
         >
@@ -746,6 +856,7 @@ export function EditorScreen() {
           onRemove={removeDemoMedia}
           onRetry={(mediaId) => startMockUpload(mediaId)}
           onCancel={cancelDemoUpload}
+          onCrop={openCrop}
         />
         <p className={styles.demoNote}>Имена, миниатюры и прогресс — демонстрационные. Файлы не загружаются.</p>
       </div>
@@ -757,6 +868,7 @@ export function EditorScreen() {
       {writing}
       {mediaSection}
       <Button
+        className={styles.previewAction}
         variant="secondary"
         icon="image"
         onPress={() => {
@@ -1051,6 +1163,94 @@ export function EditorScreen() {
         setSelection={setMediaSelection}
         onAdd={addDemoMedia}
       />
+      <Drawer
+        isOpen={Boolean(cropMediaId)}
+        onOpenChange={(open) => {
+          if (!open) closeCrop();
+        }}
+        title="Кадрирование фото · демо"
+        variant="side"
+        footer={
+          <>
+            <Button variant="secondary" onPress={closeCrop}>
+              Отмена
+            </Button>
+            <Button onPress={applyDemoCrop}>Готово · демо</Button>
+          </>
+        }
+      >
+        <p className={styles.hint}>Изменения имитируются в прототипе; исходник медиатеки не меняется.</p>
+        {(() => {
+          const selected = media.find((item) => item.id === cropMediaId);
+          if (!selected) return <p className={styles.hint}>Фото больше не прикреплено к этому демо-посту.</p>;
+          const cropAspectRatio = cropRatio === '4:5' ? '4 / 5' : cropRatio === '16:9' ? '16 / 9' : '1 / 1';
+          return (
+            <div className={styles.cropWorkspace}>
+              <div className={styles.cropCanvas} style={{ aspectRatio: cropAspectRatio }}>
+                <img
+                  src={selected.thumbnail}
+                  alt={`Демо-кадрирование ${selected.name}`}
+                  style={{ transform: `scale(${cropZoom / 100}) rotate(${cropRotation}deg)` }}
+                />
+                <span className={styles.cropGrid} aria-hidden="true" />
+                <span className={styles.cropBadge}>Симуляция кадрирования</span>
+              </div>
+              <div className={styles.cropControls}>
+                <fieldset className={styles.cropRatios}>
+                  <legend>Формат кадра</legend>
+                  {(['original', '1:1', '4:5', '16:9'] as const).map((ratioOption) => (
+                    <button
+                      type="button"
+                      key={ratioOption}
+                      aria-pressed={cropRatio === ratioOption}
+                      onClick={() => setCropRatio(ratioOption)}
+                    >
+                      {ratioOption === 'original' ? 'Оригинал' : ratioOption}
+                    </button>
+                  ))}
+                </fieldset>
+                <label className={styles.cropCover}>
+                  <input type="checkbox" checked={cropCover} onChange={(event) => setCropCover(event.target.checked)} />
+                  <span>Использовать как обложку — переместить фото на первое место</span>
+                </label>
+                <p className={styles.hint}>
+                  У Telegram нет отдельной обложки альбома: первым будет показано первое фото.
+                </p>
+                <label className={styles.zoomControl}>
+                  <span>Масштаб · {cropZoom}%</span>
+                  <input
+                    type="range"
+                    min="100"
+                    max="200"
+                    step="5"
+                    value={cropZoom}
+                    onChange={(event) => setCropZoom(Number(event.target.value))}
+                  />
+                </label>
+                <div className={styles.cropActions} aria-label="Поворот и сброс кадрирования">
+                  <Button variant="secondary" onPress={() => setCropRotation((value) => value - 90)}>
+                    Повернуть влево
+                  </Button>
+                  <Button variant="secondary" onPress={() => setCropRotation((value) => value + 90)}>
+                    Повернуть вправо
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    onPress={() => {
+                      setCropRatio('original');
+                      setCropZoom(100);
+                      setCropRotation(0);
+                      setCropCover(false);
+                    }}
+                  >
+                    Сбросить
+                  </Button>
+                </div>
+              </div>
+            </div>
+          );
+        })()}
+      </Drawer>
       <Dialog isOpen={previewOpen} onOpenChange={setPreviewOpen} title="Предпросмотр публикации" size="wide">
         {preview}
       </Dialog>

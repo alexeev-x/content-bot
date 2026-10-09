@@ -67,29 +67,19 @@
 }
 .compactToolbar {
   flex-wrap: nowrap;
-  overflow: hidden;
+  overflow: visible;
   padding: var(--space-1);
 }
 .mobileRow {
   display: flex;
   flex: 1 1 auto;
   min-width: 0;
-  gap: var(--space-1);
-  overflow-x: auto;
-  overscroll-behavior-x: contain;
-  scrollbar-width: none;
-  -webkit-overflow-scrolling: touch;
-}
-.mobileRow::-webkit-scrollbar {
-  display: none;
+  gap: 0;
+  overflow: visible;
 }
 .moreButton {
   flex: none;
-  position: sticky;
-  right: 0;
-  z-index: 1;
   background: var(--color-surface-2);
-  box-shadow: -8px 0 12px var(--color-surface-2);
 }
 .moreList {
   display: grid;
@@ -146,8 +136,14 @@
   }
   .button {
     flex: none;
+    min-width: var(--size-target);
+    min-height: var(--size-target);
     width: var(--size-target);
     height: var(--size-target);
+  }
+  .compactToolbar {
+    gap: 0;
+    padding-inline: 0;
   }
   .separator {
     display: none;

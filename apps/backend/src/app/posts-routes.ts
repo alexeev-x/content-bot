@@ -4,6 +4,7 @@ import {
   bulkDeletePostsInputSchema,
   bulkRestorePostsInputSchema,
   changePostMediaRevisionInputSchema,
+  cropPostMediaQuerySchema,
   createPostInputSchema,
   deletePostInputSchema,
   listPostsQuerySchema,
@@ -17,6 +18,7 @@ import { Hono } from 'hono';
 import { z } from 'zod';
 import {
   attachRetainedPostMedia,
+  cropPostMedia,
   approvePost,
   createPost,
   getPost,
@@ -38,6 +40,7 @@ const MAX_BODY_BYTES = 32 * 1024;
 
 const idempotencyHeaderSchema = z.object({ 'idempotency-key': z.string().min(1).max(255) });
 const idParamSchema = z.object({ id: z.string() });
+const cropParamSchema = z.strictObject({ id: z.string(), mediaId: z.uuid() });
 
 // A malformed id cannot name a post, so it is the same 404 as an unknown one (no query is made).
 function postId(raw: string): string {
@@ -161,6 +164,40 @@ export const postsRoutes = new Hono<AppBindings>()
         }
       );
       return c.json(result, 201);
+    }
+  )
+  .post(
+    '/:id/media/:mediaId/crop',
+    validated('param', cropParamSchema),
+    validated('query', cropPostMediaQuerySchema),
+    validated('header', idempotencyHeaderSchema),
+    async (c) => {
+      const container = c.get('container');
+      const body = c.req.raw.body;
+      if (body === null)
+        throw new AppError('VALIDATION_ERROR', 'A cropped photo is required', { reason: 'EMPTY_MEDIA' });
+      if (container.mediaStorage === undefined) throw new AppError('UNAVAILABLE', 'Media storage is not configured');
+      return c.json(
+        await cropPostMedia(
+          {
+            repo: container.postMedia,
+            storage: container.mediaStorage,
+            now: container.clock.now(),
+            newId: container.newId
+          },
+          {
+            postId: postId(c.req.valid('param').id),
+            mediaId: c.req.valid('param').mediaId,
+            revision: c.req.valid('query').revision,
+            fileName: c.req.valid('query').fileName,
+            contentType: c.req.header('content-type') ?? '',
+            contentLength: Number(c.req.header('content-length')),
+            body,
+            actor: c.get('actor').telegramId,
+            idempotencyKey: c.req.valid('header')['idempotency-key']
+          }
+        )
+      );
     }
   )
   .delete(

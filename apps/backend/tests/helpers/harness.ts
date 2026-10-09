@@ -46,6 +46,7 @@ export async function resetDb(): Promise<void> {
       'destinations',
       'post_media',
       'post_media_uploads',
+      'post_media_crops',
       'post_media_cleanup',
       'media_assets',
       'post_revisions',

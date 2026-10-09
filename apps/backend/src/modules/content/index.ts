@@ -14,6 +14,7 @@ export { createD1PostRepository } from './infrastructure/d1-post-repository';
 export { createD1PostMediaRepository } from './infrastructure/d1-post-media-repository';
 export { attachRetainedPostMedia, listMediaLibrary } from './application/media-library';
 export {
+  cropPostMedia,
   getPostMediaContent,
   processPostMediaCleanup,
   removePostMedia,

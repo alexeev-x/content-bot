@@ -1,6 +1,6 @@
 import type { PostDto } from '@alexeev/contracts';
 import { useNavigate } from '@tanstack/react-router';
-import { useRef, useState, type ReactNode } from 'react';
+import { useCallback, useRef, useState, type ReactNode } from 'react';
 import {
   Banner,
   Button,
@@ -44,7 +44,21 @@ const NARROW = '(max-width: 859px)';
 export function PostEditor({ post, onCreated, approvedActions, aside }: Props) {
   const rootRef = useRef<HTMLDivElement>(null);
   const dirtyRef = useRef(false);
-  const editor = usePostEditor({ post, onCreated, rootRef, dirtyRef });
+  const mediaWriteLockState = useRef(false);
+  const mediaWriteLock = {
+    isLocked: () => mediaWriteLockState.current,
+    tryAcquire: () => {
+      if (mediaWriteLockState.current) return false;
+      mediaWriteLockState.current = true;
+      return true;
+    },
+    release: () => {
+      mediaWriteLockState.current = false;
+    }
+  };
+  const editor = usePostEditor({ post, onCreated, rootRef, dirtyRef, mediaWriteLock });
+  const setEditorMediaPending = editor.setMediaPending;
+  const setMediaPending = useCallback((pending: boolean) => setEditorMediaPending(pending), [setEditorMediaPending]);
   const { baseline, conflict, notice } = editor;
   const narrow = useMediaQuery(NARROW);
   const navigate = useNavigate();
@@ -126,9 +140,14 @@ export function PostEditor({ post, onCreated, approvedActions, aside }: Props) {
         revision={baseline?.revision ?? 0}
         media={baseline?.media ?? []}
         disabled={editor.readOnly || hasConflict}
+        mediaWriteLock={mediaWriteLock}
         onServerChange={editor.adoptMedia}
-        onPendingChange={editor.setMediaPending}
+        onPendingChange={setMediaPending}
         onEnsurePost={editor.ensureDraftForMedia}
+        onRevisionConflict={() => {
+          editor.markMediaConflict();
+          setCompareOpen(true);
+        }}
         onDraftReady={(saved) => void navigate({ to: '/posts/$id', params: { id: saved.id }, replace: true })}
       />
     </>
@@ -159,6 +178,32 @@ export function PostEditor({ post, onCreated, approvedActions, aside }: Props) {
     </div>
   );
 
+  const actions = isApproved ? (
+    baseline && approvedActions && !isArchived ? (
+      approvedActions(baseline)
+    ) : null
+  ) : (
+    <>
+      <Button
+        variant={editor.dirty || editor.isNew ? 'primary' : 'secondary'}
+        icon="check"
+        isLoading={editor.isSaving}
+        isDisabled={!canSave}
+        onPress={() => void saveAndExit()}
+      >
+        {editor.isNew ? copy.create : copy.saveAndExit}
+      </Button>
+      <Button
+        variant={editor.dirty || editor.isNew ? 'secondary' : 'primary'}
+        isDisabled={!canApprove}
+        onPress={() => setApproveOpen(true)}
+      >
+        Настроить публикацию
+      </Button>
+      <span className={styles.shortcut}>{editor.isNew ? copy.saveHint : copy.saveInPlaceHint}</span>
+    </>
+  );
+
   return (
     <div ref={rootRef} className={styles.editor}>
       <div ref={statusRef} tabIndex={-1} className={styles.meta}>
@@ -172,6 +217,7 @@ export function PostEditor({ post, onCreated, approvedActions, aside }: Props) {
         <VisuallyHidden>
           <output>{editor.justApproved ? copy.approved.announce : ''}</output>
         </VisuallyHidden>
+        {!narrow ? <div className={styles.desktopActions}>{actions}</div> : null}
       </div>
 
       {conflict ? (
@@ -249,33 +295,7 @@ export function PostEditor({ post, onCreated, approvedActions, aside }: Props) {
         </div>
       )}
 
-      <div className={styles.actionBar} data-testid="post-editor-action-bar">
-        {isApproved ? (
-          baseline && approvedActions && !isArchived ? (
-            approvedActions(baseline)
-          ) : null
-        ) : (
-          <>
-            <Button
-              variant={editor.dirty || editor.isNew ? 'primary' : 'secondary'}
-              icon="check"
-              isLoading={editor.isSaving}
-              isDisabled={!canSave}
-              onPress={() => void saveAndExit()}
-            >
-              {editor.isNew ? copy.create : copy.saveAndExit}
-            </Button>
-            <Button
-              variant={editor.dirty || editor.isNew ? 'secondary' : 'primary'}
-              isDisabled={!canApprove}
-              onPress={() => setApproveOpen(true)}
-            >
-              Настроить публикацию
-            </Button>
-            <span className={styles.shortcut}>{editor.isNew ? copy.saveHint : copy.saveInPlaceHint}</span>
-          </>
-        )}
-      </div>
+      {narrow ? <div className={styles.actionBar}>{actions}</div> : null}
 
       <CompareDialog
         isOpen={compareOpen}

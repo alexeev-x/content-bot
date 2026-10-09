@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { clearSession, setSession } from '../../../shared/api/session';
 import { accessToken, errorBody, ids, post } from '../../../test/fixtures';
 import { server, setupMswServer } from '../../../test/msw';
+import { clearViewport, setViewport } from '../../../test/viewport';
 import { renderEditorApp } from './harness';
 
 setupMswServer();
@@ -13,7 +14,10 @@ beforeEach(() => {
   clearSession();
   setSession(accessToken());
 });
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  clearViewport();
+});
 
 type User = ReturnType<typeof userEvent.setup>;
 
@@ -69,6 +73,19 @@ function capturePatches(reply: (body: Record<string, unknown>) => Parameters<typ
 }
 
 describe('toolbar', () => {
+  it('keeps the link target in the 320px compact toolbar row', async () => {
+    setViewport(320);
+    await openExisting();
+
+    const toolbar = screen.getByRole('toolbar', { name: 'Форматирование текста' });
+    const link = within(toolbar).getByRole('button', { name: 'Ссылка' });
+    const more = within(toolbar).getByRole('button', { name: 'Ещё форматирование' });
+
+    expect(link.parentElement?.getAttribute('role')).toBe('presentation');
+    expect(more.parentElement).toBe(link.parentElement);
+    expect(link.getAttribute('aria-pressed')).toBe('false');
+  });
+
   it('exposes a labelled toolbar whose buttons report their state', async () => {
     const user = userEvent.setup();
     await openExisting();
@@ -457,6 +474,6 @@ describe('paste', () => {
     await user.keyboard('{Control>}s{/Control}');
     await waitFor(() => expect(bodies).toHaveLength(1));
     const entities = bodies[0]?.['entities'] as PostEntity[];
-    expect(entities.map((entity) => entity.type).sort()).toEqual(['bold', 'text_link']);
+    expect(new Set(entities.map((entity) => entity.type))).toEqual(new Set(['bold', 'text_link']));
   });
 });

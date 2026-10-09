@@ -6,6 +6,7 @@ const SHOTS_DIR = process.env['SHOTS_DIR'];
 const TAGS = ['wcag2a', 'wcag2aa', 'wcag21aa', 'wcag22aa'];
 const media = {
   id: '44444444-4444-4444-8444-444444444444',
+  sourceMediaId: null,
   kind: 'photo',
   fileName: 'arena.png',
   contentType: 'image/png',

@@ -6,15 +6,17 @@ import { clearSession, setSession } from '../../../shared/api/session';
 import { accessToken, ids, post } from '../../../test/fixtures';
 import {
   deletePostMedia,
+  cropPostMedia,
   getPostMediaContent,
   listMediaLibrary,
   reorderPostMedia,
   uploadPostMedia
 } from '../api/post-media-api';
-import { PostMediaEditor } from '../ui/PostMediaEditor';
+import { PostMediaEditor, ServerPreview } from '../ui/PostMediaEditor';
 
 vi.mock('../api/post-media-api', () => ({
   deletePostMedia: vi.fn(),
+  cropPostMedia: vi.fn(),
   getPostMediaContent: vi.fn(),
   listMediaLibrary: vi.fn(),
   reorderPostMedia: vi.fn(),
@@ -27,9 +29,12 @@ beforeEach(() => {
   Object.defineProperty(URL, 'revokeObjectURL', { configurable: true, value: vi.fn() });
   vi.mocked(uploadPostMedia).mockReset();
   vi.mocked(deletePostMedia).mockReset();
+  vi.mocked(cropPostMedia).mockReset();
   vi.mocked(reorderPostMedia).mockReset();
   vi.mocked(listMediaLibrary).mockReset();
-  vi.mocked(getPostMediaContent).mockResolvedValue(new Blob(['private media'], { type: 'image/png' }));
+  vi.mocked(getPostMediaContent)
+    .mockReset()
+    .mockResolvedValue(new Blob(['private media'], { type: 'image/png' }));
 });
 afterEach(() => {
   cleanup();
@@ -37,6 +42,71 @@ afterEach(() => {
 });
 
 describe('post media editor', () => {
+  it('uses a temporary private-media object URL and revokes it on unmount', async () => {
+    const media = {
+      id: ids.post,
+      sourceMediaId: null,
+      kind: 'photo' as const,
+      fileName: 'private.png',
+      contentType: 'image/png',
+      sizeBytes: 5,
+      width: 1,
+      height: 1,
+      durationMs: null,
+      position: 0
+    };
+    const { unmount } = render(<ServerPreview media={media} />);
+    await screen.findByRole('img', { name: 'private.png' });
+    expect(URL.createObjectURL).toHaveBeenCalledWith(expect.any(Blob));
+    unmount();
+    expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:local-preview');
+  });
+
+  it('does not start a media mutation while another post revision write holds the lock', async () => {
+    const media = {
+      id: ids.post,
+      sourceMediaId: null,
+      kind: 'photo' as const,
+      fileName: 'locked.png',
+      contentType: 'image/png',
+      sizeBytes: 5,
+      width: 1,
+      height: 1,
+      durationMs: null,
+      position: 0
+    };
+    let locked = true;
+    const mediaWriteLock = {
+      isLocked: () => locked,
+      tryAcquire: () => {
+        if (locked) return false;
+        locked = true;
+        return true;
+      },
+      release: () => {
+        locked = false;
+      }
+    };
+    const user = userEvent.setup();
+    render(
+      <PostMediaEditor
+        postId={ids.post}
+        revision={1}
+        media={[media]}
+        disabled={false}
+        mediaWriteLock={mediaWriteLock}
+        onServerChange={vi.fn()}
+        onPendingChange={vi.fn()}
+      />
+    );
+    await user.click(screen.getByRole('button', { name: 'Убрать locked.png' }));
+    expect(deletePostMedia).not.toHaveBeenCalled();
+    locked = false;
+    vi.mocked(deletePostMedia).mockResolvedValue({ revision: 2 });
+    await user.click(screen.getByRole('button', { name: 'Убрать locked.png' }));
+    await waitFor(() => expect(deletePostMedia).toHaveBeenCalledWith(ids.post, media.id, 1));
+  });
+
   it('keeps media-library errors visible and retryable after the source picker closes', async () => {
     vi.mocked(listMediaLibrary).mockRejectedValue(new Error('offline'));
     const user = userEvent.setup();
@@ -81,6 +151,7 @@ describe('post media editor', () => {
     const media = {
       id: ids.post,
       kind: 'photo' as const,
+      sourceMediaId: null,
       fileName: 'cover.png',
       contentType: 'image/png',
       sizeBytes: 5,
@@ -109,6 +180,7 @@ describe('post media editor', () => {
     const first = {
       id: ids.post,
       kind: 'photo' as const,
+      sourceMediaId: null,
       fileName: 'first.png',
       contentType: 'image/png',
       sizeBytes: 5,
@@ -144,6 +216,7 @@ describe('post media editor', () => {
     const media = {
       id: ids.post2,
       kind: 'photo' as const,
+      sourceMediaId: null,
       fileName: 'cover.png',
       contentType: 'image/png',
       sizeBytes: 5,
@@ -257,6 +330,7 @@ describe('post media editor', () => {
     const media = {
       id: ids.post,
       kind: 'photo' as const,
+      sourceMediaId: null,
       fileName: 'cover.png',
       contentType: 'image/png',
       sizeBytes: 5,
@@ -313,6 +387,7 @@ describe('post media editor', () => {
       media: {
         id: ids.post,
         kind: 'photo',
+        sourceMediaId: null,
         fileName: 'cover.png',
         contentType: 'image/png',
         sizeBytes: 5,
@@ -348,6 +423,7 @@ describe('post media editor', () => {
     const first = {
       id: ids.post,
       kind: 'photo' as const,
+      sourceMediaId: null,
       fileName: 'first.png',
       contentType: 'image/png',
       sizeBytes: 5,
@@ -392,6 +468,7 @@ describe('post media editor', () => {
     const media = Array.from({ length: 10 }, (_, index) => ({
       id: `00000000-0000-4000-8000-${String(index + 1).padStart(12, '0')}`,
       kind: 'photo' as const,
+      sourceMediaId: null,
       fileName: `photo-${index + 1}.png`,
       contentType: 'image/png',
       sizeBytes: 5,
@@ -421,6 +498,7 @@ describe('post media editor', () => {
     const original = {
       id: ids.post,
       kind: 'photo' as const,
+      sourceMediaId: null,
       fileName: 'original.png',
       contentType: 'image/png',
       sizeBytes: 5,
@@ -455,6 +533,7 @@ describe('post media editor', () => {
     const original = {
       id: ids.post,
       kind: 'photo' as const,
+      sourceMediaId: null,
       fileName: 'private.png',
       contentType: 'image/png',
       sizeBytes: 5,
@@ -479,5 +558,180 @@ describe('post media editor', () => {
     expect(await screen.findByText(/Предпросмотр недоступен\. Запрос: preview-7/)).toBeTruthy();
     expect(screen.getByText('private.png')).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Повторить' })).toBeTruthy();
+  });
+
+  it('shows a decode fallback with retry while keeping remove available', async () => {
+    const media = {
+      id: ids.post,
+      sourceMediaId: null,
+      kind: 'photo' as const,
+      fileName: 'broken.png',
+      contentType: 'image/png',
+      sizeBytes: 5,
+      width: 1,
+      height: 1,
+      durationMs: null,
+      position: 0
+    };
+    render(
+      <PostMediaEditor
+        postId={ids.post}
+        revision={1}
+        media={[media]}
+        disabled={false}
+        onServerChange={vi.fn()}
+        onPendingChange={vi.fn()}
+      />
+    );
+    const preview = await screen.findByRole('img', { name: 'broken.png' });
+    fireEvent.error(preview);
+    expect(await screen.findByText(/Не удалось показать изображение/)).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Убрать broken.png' })).toBeTruthy();
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Повторить' }));
+    await waitFor(() => expect(getPostMediaContent).toHaveBeenCalledTimes(2));
+  });
+
+  it('keeps attachment and reports a contextual conflict when remove is stale', async () => {
+    const media = {
+      id: ids.post,
+      sourceMediaId: null,
+      kind: 'photo' as const,
+      fileName: 'keep.png',
+      contentType: 'image/png',
+      sizeBytes: 5,
+      width: 1,
+      height: 1,
+      durationMs: null,
+      position: 0
+    };
+    const onRevisionConflict = vi.fn();
+    vi.mocked(deletePostMedia).mockRejectedValue(
+      new ApiError({ code: 'CONFLICT', status: 409, message: 'stale', details: { reason: 'STALE_REVISION' } })
+    );
+    const user = userEvent.setup();
+    render(
+      <PostMediaEditor
+        postId={ids.post}
+        revision={1}
+        media={[media]}
+        disabled={false}
+        onServerChange={vi.fn()}
+        onPendingChange={vi.fn()}
+        onRevisionConflict={onRevisionConflict}
+      />
+    );
+    await user.click(screen.getByRole('button', { name: 'Убрать keep.png' }));
+    expect(await screen.findByText(/Черновик изменился\. Сравните его/)).toBeTruthy();
+    expect(screen.getByText('keep.png')).toBeTruthy();
+    expect(onRevisionConflict).toHaveBeenCalledOnce();
+  });
+
+  it('crops attached bytes and replaces only after server confirmation; recrops from source', async () => {
+    const sourceId = ids.post2;
+    const derivative = {
+      id: ids.post,
+      sourceMediaId: sourceId,
+      kind: 'photo' as const,
+      fileName: 'crop.png',
+      contentType: 'image/png',
+      sizeBytes: 5,
+      width: 1,
+      height: 1,
+      durationMs: null,
+      position: 0
+    };
+    vi.mocked(cropPostMedia).mockResolvedValue({ media: derivative, revision: 3 });
+    Object.defineProperty(HTMLImageElement.prototype, 'decode', {
+      configurable: true,
+      value: vi.fn().mockResolvedValue(undefined)
+    });
+    Object.defineProperty(HTMLImageElement.prototype, 'naturalWidth', { configurable: true, get: () => 400 });
+    Object.defineProperty(HTMLImageElement.prototype, 'naturalHeight', { configurable: true, get: () => 300 });
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue({
+      translate: vi.fn(),
+      rotate: vi.fn(),
+      drawImage: vi.fn()
+    } as unknown as CanvasRenderingContext2D);
+    vi.spyOn(HTMLCanvasElement.prototype, 'toBlob').mockImplementation((callback) =>
+      callback(new Blob(['crop'], { type: 'image/png' }))
+    );
+    const original = { ...derivative, id: sourceId, sourceMediaId: null, fileName: 'original.png' };
+    const onServerChange = vi.fn();
+    const user = userEvent.setup();
+    render(
+      <PostMediaEditor
+        postId={ids.post}
+        revision={2}
+        media={[original]}
+        disabled={false}
+        onServerChange={onServerChange}
+        onPendingChange={vi.fn()}
+      />
+    );
+    await user.click(screen.getByRole('button', { name: 'Кадрировать' }));
+    await screen.findByRole('img', { name: 'Предпросмотр кадрирования' });
+    expect(getPostMediaContent).toHaveBeenCalledWith(sourceId, expect.any(AbortSignal));
+    await user.click(screen.getByRole('button', { name: 'Готово' }));
+    await waitFor(() =>
+      expect(cropPostMedia).toHaveBeenCalledWith(
+        ids.post,
+        sourceId,
+        2,
+        expect.any(Blob),
+        'original.png',
+        expect.any(String)
+      )
+    );
+    expect(onServerChange).toHaveBeenCalledWith(3, [derivative]);
+  });
+
+  it('preserves the old attachment when crop submission fails', async () => {
+    const original = {
+      id: ids.post,
+      sourceMediaId: null,
+      kind: 'photo' as const,
+      fileName: 'preserved.png',
+      contentType: 'image/png',
+      sizeBytes: 5,
+      width: 1,
+      height: 1,
+      durationMs: null,
+      position: 0
+    };
+    vi.mocked(cropPostMedia).mockRejectedValue(
+      new ApiError({ code: 'UNAVAILABLE', status: 503, message: 'unavailable' })
+    );
+    Object.defineProperty(HTMLImageElement.prototype, 'decode', {
+      configurable: true,
+      value: vi.fn().mockResolvedValue(undefined)
+    });
+    Object.defineProperty(HTMLImageElement.prototype, 'naturalWidth', { configurable: true, get: () => 400 });
+    Object.defineProperty(HTMLImageElement.prototype, 'naturalHeight', { configurable: true, get: () => 300 });
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue({
+      translate: vi.fn(),
+      rotate: vi.fn(),
+      drawImage: vi.fn()
+    } as unknown as CanvasRenderingContext2D);
+    vi.spyOn(HTMLCanvasElement.prototype, 'toBlob').mockImplementation((callback) =>
+      callback(new Blob(['crop'], { type: 'image/png' }))
+    );
+    const onServerChange = vi.fn();
+    const user = userEvent.setup();
+    render(
+      <PostMediaEditor
+        postId={ids.post}
+        revision={2}
+        media={[original]}
+        disabled={false}
+        onServerChange={onServerChange}
+        onPendingChange={vi.fn()}
+      />
+    );
+    await user.click(screen.getByRole('button', { name: 'Кадрировать' }));
+    await screen.findByRole('img', { name: 'Предпросмотр кадрирования' });
+    await user.click(screen.getByRole('button', { name: 'Готово' }));
+    expect(await screen.findByText(/Исходное вложение сохранено/)).toBeTruthy();
+    expect(screen.getByText('preserved.png')).toBeTruthy();
+    expect(onServerChange).not.toHaveBeenCalled();
   });
 });

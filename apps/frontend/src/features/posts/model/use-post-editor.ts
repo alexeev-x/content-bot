@@ -23,9 +23,16 @@ type Options = {
   /** Owned by the component: the root the first invalid field is looked up in, and the leave-guard flag. */
   rootRef: RefObject<HTMLElement | null>;
   dirtyRef: RefObject<boolean>;
+  mediaWriteLock?: PostWriteLock;
   /** Server post for an existing record; undefined for a new draft. */
   post?: PostDto | undefined;
   onCreated?: ((post: PostDto) => void) | undefined;
+};
+
+export type PostWriteLock = {
+  isLocked: () => boolean;
+  tryAcquire: () => boolean;
+  release: () => void;
 };
 
 const EMPTY: PostFormValues = { title: '', body: '', entities: [] };
@@ -40,7 +47,12 @@ const sameEntities = (a: PostFormValues['entities'], b: PostFormValues['entities
  * Editor state machine. The baseline is the last server-confirmed post; it only moves on a server success or an
  * explicit «take the server version», never from a background refetch, so local text is never replaced silently.
  */
-export function usePostEditor({ post, onCreated, rootRef, dirtyRef }: Options) {
+export function usePostEditor({ post, onCreated, rootRef, dirtyRef, mediaWriteLock: externalMediaWriteLock }: Options) {
+  const mediaWriteLock = externalMediaWriteLock ?? {
+    isLocked: () => false,
+    tryAcquire: () => true,
+    release: () => undefined
+  };
   const queryClient = useQueryClient();
   const create = useCreatePost();
   const update = useUpdatePost();
@@ -139,66 +151,74 @@ export function usePostEditor({ post, onCreated, rootRef, dirtyRef }: Options) {
 
   /** Saves the form; resolves with the confirmed post, or null when invalid, blocked or rejected. */
   async function save(): Promise<PostDto | null> {
-    if (isBusy || readOnly || (baseline !== null && !dirty)) return null;
-    if (!(await validate())) return null;
-    const submitted = form.getValues();
+    if (isBusy || readOnly || (baseline !== null && !dirty) || !mediaWriteLock.tryAcquire()) return null;
     try {
-      if (baseline === null) {
-        const created = await create.mutateAsync({
-          title: submitted.title,
-          body: submitted.body,
-          entities: submitted.entities
-        });
-        // The navigation that follows must not trip the leave guard for the draft we just stored.
-        dirtyRef.current = false;
-        adopt(created, submitted);
-        onCreated?.(created);
-        return created;
-      }
-      const textChanged = submitted.body !== base.body || !sameEntities(submitted.entities, base.entities);
-      const saved = await update.mutateAsync({
-        id: baseline.id,
-        input: {
-          revision: baseline.revision,
-          ...(submitted.title !== base.title ? { title: submitted.title } : {}),
-          // The server refuses a body without its entities, and offsets only mean something next to their text.
-          ...(textChanged ? { body: submitted.body, entities: submitted.entities } : {})
+      if (!(await validate())) return null;
+      const submitted = form.getValues();
+      try {
+        if (baseline === null) {
+          const created = await create.mutateAsync({
+            title: submitted.title,
+            body: submitted.body,
+            entities: submitted.entities
+          });
+          // The navigation that follows must not trip the leave guard for the draft we just stored.
+          dirtyRef.current = false;
+          adopt(created, submitted);
+          onCreated?.(created);
+          return created;
         }
-      });
-      adopt(saved, submitted);
-      return saved;
-    } catch (error) {
-      handleError(error, baseline?.id ?? null, postsCopy.editor.errors.saveTitle);
-      return null;
+        const textChanged = submitted.body !== base.body || !sameEntities(submitted.entities, base.entities);
+        const saved = await update.mutateAsync({
+          id: baseline.id,
+          input: {
+            revision: baseline.revision,
+            ...(submitted.title !== base.title ? { title: submitted.title } : {}),
+            // The server refuses a body without its entities, and offsets only mean something next to their text.
+            ...(textChanged ? { body: submitted.body, entities: submitted.entities } : {})
+          }
+        });
+        adopt(saved, submitted);
+        return saved;
+      } catch (error) {
+        handleError(error, baseline?.id ?? null, postsCopy.editor.errors.saveTitle);
+        return null;
+      }
+    } finally {
+      mediaWriteLock.release();
     }
   }
 
   /** Creates a visible, editable-title draft when the first media is chosen; never sends it to Telegram. */
   async function ensureDraftForMedia(): Promise<PostDto | null> {
     if (baseline) return baseline;
-    if (isBusy || readOnly || conflict !== null) return null;
-    const submitted = form.getValues();
-    const title = submitted.title.trim() || makeDefaultTitle();
-    if (title !== submitted.title) form.setValue('title', title, { shouldDirty: true, shouldValidate: true });
-    const valid = await form.trigger();
-    if (!valid) {
-      setFocusTick((tick) => tick + 1);
-      return null;
-    }
-    const values = form.getValues();
+    if (isBusy || readOnly || conflict !== null || !mediaWriteLock.tryAcquire()) return null;
     try {
-      const created = await create.mutateAsync({ title: values.title, body: values.body, entities: values.entities });
-      adopt(created, values);
-      return created;
-    } catch (error) {
-      handleError(error, null, postsCopy.editor.errors.saveTitle);
-      return null;
+      const submitted = form.getValues();
+      const title = submitted.title.trim() || makeDefaultTitle();
+      if (title !== submitted.title) form.setValue('title', title, { shouldDirty: true, shouldValidate: true });
+      const valid = await form.trigger();
+      if (!valid) {
+        setFocusTick((tick) => tick + 1);
+        return null;
+      }
+      const values = form.getValues();
+      try {
+        const created = await create.mutateAsync({ title: values.title, body: values.body, entities: values.entities });
+        adopt(created, values);
+        return created;
+      } catch (error) {
+        handleError(error, null, postsCopy.editor.errors.saveTitle);
+        return null;
+      }
+    } finally {
+      mediaWriteLock.release();
     }
   }
 
   /** Explicit «overwrite with mine»: refetch the revision, then save on top of it. Never automatic. */
   async function overwrite(): Promise<void> {
-    if (baseline === null || isBusy || !(await validate())) return;
+    if (baseline === null || isBusy || mediaWriteLock.isLocked() || !(await validate())) return;
     const submitted = form.getValues();
     try {
       const fresh = await queryClient.fetchQuery({ ...postQueryOptions(baseline.id), staleTime: 0 });
@@ -240,9 +260,14 @@ export function usePostEditor({ post, onCreated, rootRef, dirtyRef }: Options) {
     if (conflict && baseline) loadServerVersion(baseline.id, conflict.kind);
   }
 
+  /** Starts a server comparison after a media endpoint rejects a stale post revision. */
+  function markMediaConflict(): void {
+    if (baseline) loadServerVersion(baseline.id, 'stale');
+  }
+
   /** Approves the saved text; unsaved edits are saved first so the approved revision is the one on screen. */
   async function approvePost(): Promise<PostDto | null> {
-    if (isBusy || readOnly || mediaPending) return null;
+    if (isBusy || mediaWriteLock.isLocked() || readOnly || mediaPending) return null;
     let current = baseline;
     if (current === null || dirty) {
       const saved = await save();
@@ -281,6 +306,7 @@ export function usePostEditor({ post, onCreated, rootRef, dirtyRef }: Options) {
       !readOnly &&
       conflict === null &&
       !isBusy &&
+      !mediaWriteLock.isLocked() &&
       !failed &&
       postFormSchema.safeParse({ title, body, entities }).success,
     saveState,
@@ -301,6 +327,7 @@ export function usePostEditor({ post, onCreated, rootRef, dirtyRef }: Options) {
     approvePost,
     overwrite,
     acceptServer,
-    retryServerVersion
+    retryServerVersion,
+    markMediaConflict
   };
 }

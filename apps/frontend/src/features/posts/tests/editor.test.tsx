@@ -351,6 +351,7 @@ describe('approve', () => {
       media: [
         {
           id: '11111111-1111-4111-8111-111111111111',
+          sourceMediaId: null,
           kind: 'photo',
           fileName: 'photo.jpg',
           contentType: 'image/jpeg',
