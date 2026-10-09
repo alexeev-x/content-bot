@@ -33,8 +33,8 @@ Write tersely: no preamble, no restating the task, no recap of a visible diff. C
 
 ## Working with the owner
 - Main session only (not subagents): you orchestrate every owner request; the owner never types a command. Small single-area edits: do yourself; larger: follow skill `orchestrate`.
-- Substantive UI follows `docs/AGENT_UI_WORKFLOW.md`: UX → clickable mock → independent ui-qa → production frontend → ui-qa; qa-security also checks R2/R3. Owner review is optional unless explicitly requested or an owner-level decision is needed.
-- Decide, don't quiz: pick the conventional default, state it with the reason, proceed. Escalate only owner-level choices (publishing, access, money, a recorded decision), batched, with your recommended default.
+- Substantive UI: follow `docs/AGENT_UI_WORKFLOW.md` (UX → prototype → ui-qa → frontend → ui-qa). QA accepts routine UI autonomously; owner-only decisions still escalate.
+- Decide defaults; escalate only owner-level publishing, access, money or recorded decisions with a recommendation.
 - Recorded decisions live in `docs/DECISIONS.md`; don't relitigate them unprompted.
 - Do only what the task asks: no unrequested features, refactors or abstractions. Never claim 1 000 jobs/day before a load test.
 
