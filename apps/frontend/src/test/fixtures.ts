@@ -61,6 +61,7 @@ export const post = (overrides: Partial<PostDto> = {}): PostDto => ({
   entities: [],
   revision: 0,
   status: 'draft',
+  media: [],
   archivedAt: null,
   autoDeleteAt: null,
   publicationSummary: emptySummary(),

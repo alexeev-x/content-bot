@@ -113,10 +113,10 @@ async function measure(
 
 describe('D1 round trips per request (session lookup included)', () => {
   it('posts, their archive and deletion', async () => {
-    // session, list and archive count (side by side), publication summaries of the approved posts
-    expect((await measure('/api/v1/posts?limit=100')).counter.roundTrips).toBe(4);
+    // session, list, media hydration and archive count, plus publication summaries of approved posts
+    expect((await measure('/api/v1/posts?limit=100')).counter.roundTrips).toBe(5);
     expect((await measure('/api/v1/posts?view=archive&limit=100')).counter.roundTrips).toBe(2 + 0 + 1);
-    expect((await measure(`/api/v1/posts/${postId}`)).counter.roundTrips).toBe(3); // session, post, summary
+    expect((await measure(`/api/v1/posts/${postId}`)).counter.roundTrips).toBe(4); // session, post, media, summary
 
     const draft = await measure('/api/v1/posts', {
       method: 'POST',
@@ -150,7 +150,7 @@ describe('D1 round trips per request (session lookup included)', () => {
     const restored = await measure(`/api/v1/posts/${postId}/restore`, { method: 'POST', json: { revision: 1 } });
 
     expect(restored.status).toBe(200);
-    expect(restored.counter.roundTrips).toBe(1 + 1 + 2); // session, batch of 3, then post and summary
+    expect(restored.counter.roundTrips).toBe(1 + 1 + 3); // session, batch of 3, then post, media and summary
   });
 
   it('destinations', async () => {
@@ -227,8 +227,8 @@ describe('D1 round trips per request (session lookup included)', () => {
       }
     });
     expect(created.status).toBe(202);
-    // session, claim, post, destination, batch of 4; then the owner notice reads the revision and the destination
-    expect(created.counter).toEqual({ roundTrips: 7, statements: 10 });
+    // session, claim, post, destination, batch of 4; then owner notice reads revision, media and destination
+    expect(created.counter).toEqual({ roundTrips: 8, statements: 11 });
     const id = publicationSchema.parse(created.body).id;
 
     expect((await measure('/api/v1/publications?limit=100&status=scheduled')).counter.roundTrips).toBe(2);

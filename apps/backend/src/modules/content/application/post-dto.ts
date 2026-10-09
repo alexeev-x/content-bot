@@ -34,6 +34,7 @@ export function toPostDto(record: PostRecord, summary: PostPublicationSummary = 
     entities: record.entities,
     revision: record.revision,
     status: record.status,
+    media: record.media ?? [],
     archivedAt: record.archivedAt === null ? null : iso(record.archivedAt),
     autoDeleteAt: record.archivedAt === null ? null : iso(record.archivedAt + ARCHIVE_RETENTION_MS),
     publicationSummary: {

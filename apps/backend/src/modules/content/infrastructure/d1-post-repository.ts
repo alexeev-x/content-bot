@@ -1,4 +1,4 @@
-import { type PostEntity, postEntityListSchema } from '@alexeev/contracts';
+import { type PostEntity, type PostMediaDto, postEntityListSchema, postMediaSchema } from '@alexeev/contracts';
 import { completeIdempotencyStatement, ownsClaimSql } from '../../../platform/idempotency/d1-idempotency-store';
 import type { ListPostsQuery, PostChange, PostRecord, PostRepository } from '../application/ports';
 import type { PostStatus } from '../domain/post';
@@ -36,6 +36,61 @@ function toRecord(row: PostRow): PostRecord {
     createdAt: row.created_at,
     updatedAt: row.updated_at
   };
+}
+
+interface MediaRow {
+  post_id: string;
+  id: string;
+  kind: PostMediaDto['kind'];
+  file_name: string;
+  content_type: string;
+  size_bytes: number;
+  width: number | null;
+  height: number | null;
+  duration_ms: number | null;
+  position: number;
+}
+
+async function attachMedia(db: D1Database, posts: PostRecord[]): Promise<PostRecord[]> {
+  if (posts.length === 0) return posts;
+  const ids = posts.map(({ id }) => id);
+  const { results } = await db
+    .prepare(
+      `SELECT p.id AS post_id, m.id, m.kind, m.file_name, m.content_type, m.size_bytes, m.width, m.height,
+              m.duration_ms, pm.position
+         FROM posts p JOIN json_each(?1) requested ON requested.value = p.id
+              JOIN post_media pm ON pm.post_id = p.id JOIN media_assets m ON m.id = pm.media_id
+        WHERE p.status = 'draft'
+       UNION ALL
+       SELECT p.id AS post_id, m.id, m.kind, m.file_name, m.content_type, m.size_bytes, m.width, m.height,
+              m.duration_ms, CAST(j.key AS INTEGER) AS position
+         FROM posts p JOIN post_revisions r ON r.post_id = p.id AND r.revision = p.revision
+              JOIN json_each(r.media_json) j JOIN media_assets m ON m.id = j.value
+              JOIN json_each(?1) requested ON requested.value = p.id
+        WHERE p.status = 'approved'
+        ORDER BY post_id, position`
+    )
+    .bind(JSON.stringify(ids))
+    .all<MediaRow>();
+  const mediaByPost = new Map<string, PostMediaDto[]>();
+  for (const row of results) {
+    const items = mediaByPost.get(row.post_id) ?? [];
+    items.push(
+      postMediaSchema.parse({
+        id: row.id,
+        kind: row.kind,
+        fileName: row.file_name,
+        contentType: row.content_type,
+        sizeBytes: row.size_bytes,
+        width: row.width,
+        height: row.height,
+        durationMs: row.duration_ms,
+        position: row.position
+      })
+    );
+    mediaByPost.set(row.post_id, items);
+  }
+  return posts.map((post) => ({ ...post, media: mediaByPost.get(post.id) ?? [] }));
 }
 
 // Live view: newest update first over posts that are not archived. The two live shapes walk
@@ -106,7 +161,7 @@ export function createD1PostRepository(db: D1Database): PostRepository {
 
     async findById(id) {
       const row = await db.prepare(`SELECT ${POST_COLUMNS} FROM posts WHERE id = ?1`).bind(id).first<PostRow>();
-      return row === null ? null : toRecord(row);
+      return row === null ? null : ((await attachMedia(db, [toRecord(row)]))[0] ?? null);
     },
 
     // A revision is an immutable snapshot (primary key post_id + revision): what a publication sends.
@@ -123,7 +178,7 @@ export function createD1PostRepository(db: D1Database): PostRepository {
         .prepare(listPostsSql(query))
         .bind(...listBindings(query))
         .all<PostRow>();
-      return results.map(toRecord);
+      return attachMedia(db, results.map(toRecord));
     },
 
     async countArchived() {
@@ -143,8 +198,8 @@ export function createD1PostRepository(db: D1Database): PostRepository {
       const results = await db.batch<PostRow>([
         db
           .prepare(
-            `INSERT INTO post_revisions (post_id, revision, title, body, entities, status, created_at)
-             SELECT id, revision + 1, COALESCE(?3, title), COALESCE(?4, body), COALESCE(?5, entities), status, ?6
+            `INSERT INTO post_revisions (post_id, revision, title, body, entities, status, created_at, media_json)
+             SELECT id, revision + 1, COALESCE(?3, title), COALESCE(?4, body), COALESCE(?5, entities), status, ?6, '[]'
              FROM posts WHERE ${GUARD}`
           )
           .bind(change.id, change.expectedRevision, change.title ?? null, change.body ?? null, entities, change.now),
@@ -165,8 +220,11 @@ export function createD1PostRepository(db: D1Database): PostRepository {
       const results = await db.batch<PostRow>([
         db
           .prepare(
-            `INSERT INTO post_revisions (post_id, revision, title, body, entities, status, created_at)
-             SELECT id, revision + 1, title, body, entities, 'approved', ?3 FROM posts WHERE ${GUARD}`
+            `INSERT INTO post_revisions (post_id, revision, title, body, entities, status, created_at, media_json)
+             SELECT id, revision + 1, title, body, entities, 'approved', ?3,
+                    COALESCE((SELECT json_group_array(media_id) FROM
+                      (SELECT media_id FROM post_media WHERE post_id = posts.id ORDER BY position)), '[]')
+               FROM posts WHERE ${GUARD}`
           )
           .bind(change.id, change.expectedRevision, change.now),
         db
@@ -189,7 +247,7 @@ export function createD1PostRepository(db: D1Database): PostRepository {
           .bind(change.id, change.expectedRevision, change.now)
       ]);
       const row = results[2]?.results[0];
-      return row === undefined ? null : toRecord(row);
+      return row === undefined ? null : ((await attachMedia(db, [toRecord(row)]))[0] ?? null);
     }
   };
 }

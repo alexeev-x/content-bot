@@ -9,6 +9,7 @@ import type { Container } from './container';
 import { alertOwnerOfIncidents } from './notifications/alert-owner-of-incidents';
 import { processDotaUpdates } from './workflows/process-dota-updates';
 import { DotaWatchError } from '../modules/dota';
+import { processPostMediaCleanup } from '../modules/content';
 
 // Per table and per hourly tick; leftovers wait for the next hour.
 export const CLEANUP_LIMIT = 100;
@@ -25,6 +26,8 @@ type TickContainer = Pick<
   | 'dispatchJobs'
   | 'lifecycle'
   | 'postRevisions'
+  | 'postMedia'
+  | 'mediaStorage'
   | 'transport'
   | 'sessions'
   | 'housekeeping'
@@ -133,6 +136,7 @@ export async function handleScheduled(controller: ScheduledController, container
   }
 
   const minute = new Date(controller.scheduledTime).getUTCMinutes();
+  const mediaStorage = container.mediaStorage;
 
   await step('archive', async () => {
     const { archived } = await archiveSentPosts(
@@ -146,6 +150,20 @@ export async function handleScheduled(controller: ScheduledController, container
     await step('purge', async () => {
       const { purged } = await purgeExpiredArchive({ repo: container.lifecycle, now: clock.now() });
       return { purgedPosts: purged };
+    });
+  }
+
+  // Deletion cascades leave only private object keys in a durable queue. R2 failures are retried
+  // on hourly idle ticks; reads stop resolving detached media immediately.
+  if (minute === 0 && (counts.due ?? 0) === 0 && mediaStorage !== undefined) {
+    await step('media-cleanup', async () => {
+      const result = await processPostMediaCleanup(
+        { repo: container.postMedia, storage: mediaStorage },
+        5,
+        clock.now()
+      );
+      if (result.failed > 0) failures += 1;
+      return { mediaObjectsCleaned: result.cleaned, mediaObjectCleanupFailed: result.failed };
     });
   }
 

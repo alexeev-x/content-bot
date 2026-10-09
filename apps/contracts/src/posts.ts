@@ -3,6 +3,7 @@ import { pageQuerySchema, pageSchema } from './pagination';
 import { normalizeAndCheckEntities, normalizeEntities, postEntityListSchema, postEntitySchema } from './post-entities';
 import { publicationStatusSchema } from './publications';
 import { cleanText } from './text';
+import { postMediaSchema } from './media';
 
 // Editorial state only; scheduling and delivery live in publications.
 export const postStatusSchema = z.enum(['draft', 'approved']);
@@ -47,6 +48,8 @@ export const postSchema = z.object({
   entities: z.array(postEntitySchema),
   revision: revisionSchema,
   status: postStatusSchema,
+  /** Ordered media currently attached to this draft; approved posts use their immutable revision snapshot. */
+  media: z.array(postMediaSchema).max(10).default([]),
   /** Set while the post is in the archive (sent, nothing left to send); null for a live post. */
   archivedAt: z.iso.datetime().nullable(),
   /** `archivedAt` + the retention period (30 days, server setting); null for a live post. */

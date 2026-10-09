@@ -110,6 +110,10 @@
   font: inherit;
   text-align: left;
 }
+.numberedListAction {
+  min-width: var(--size-target);
+  min-height: var(--size-target);
+}
 .moreAction[data-hovered],
 .moreAction[data-pressed] {
   background: var(--color-surface-3);

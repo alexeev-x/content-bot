@@ -5,6 +5,7 @@ export * from './dashboard-layout';
 export * from './destinations';
 export * from './errors';
 export * from './incidents';
+export * from './media';
 export * from './pagination';
 export * from './post-entities';
 export * from './posts';

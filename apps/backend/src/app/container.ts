@@ -1,7 +1,9 @@
 import {
   createD1PostRepository,
+  createD1PostMediaRepository,
   type IdempotencyGate,
   type PostPublicationSummarySource,
+  type PostMediaRepository,
   type PostRepository
 } from '../modules/content';
 import { createD1LifecycleRepository, type LifecycleRepository } from '../modules/lifecycle';
@@ -48,6 +50,7 @@ import { purgeExpiredPlatformRows } from '../platform/housekeeping/d1-purge';
 import { createD1RateLimiter, type RateLimiter } from '../platform/rate-limit/d1-rate-limiter';
 import { randomToken } from '../platform/security/random-token';
 import { createLogger, type Logger } from '../platform/logging/logger';
+import { createR2MediaStorage } from './r2-media-storage';
 import { z } from 'zod';
 import { AppError } from '../shared/app-error';
 import {
@@ -68,6 +71,8 @@ export interface Container {
   sessions: SessionStore;
   rateLimiter: RateLimiter;
   posts: PostRepository;
+  postMedia: PostMediaRepository;
+  mediaStorage: ReturnType<typeof createR2MediaStorage> | undefined;
   /** Publication facts of posts for the post list; the content module asks for them through its own port. */
   postSummaries: PostPublicationSummarySource;
   /** Archive, restore, delete and purge of posts; the one place that changes posts and publications together. */
@@ -123,6 +128,7 @@ export interface Container {
 // is a 503 instead of a crash.
 export interface ContainerEnv {
   DB?: D1Database;
+  MEDIA_BUCKET?: R2Bucket;
   TELEGRAM_BOT_TOKEN?: string;
   /** Optional override: JSON of the Bot API `getMe` result. Without it connect stores the identity in D1. */
   BOT_INFO?: string;
@@ -180,6 +186,12 @@ export function createContainer(env: ContainerEnv, overrides: ContainerOverrides
     },
     get posts() {
       return createD1PostRepository(db());
+    },
+    get postMedia() {
+      return createD1PostMediaRepository(db());
+    },
+    get mediaStorage() {
+      return env.MEDIA_BUCKET === undefined ? undefined : createR2MediaStorage(env.MEDIA_BUCKET);
     },
     get postSummaries(): PostPublicationSummarySource {
       const publications = createD1PublicationRepository(db());

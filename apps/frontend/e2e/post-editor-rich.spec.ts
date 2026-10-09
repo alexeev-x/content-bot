@@ -70,6 +70,15 @@ for (const width of [1280, 375]) {
         expect(box?.width ?? 0).toBeGreaterThanOrEqual(minimum);
         expect(box?.height ?? 0).toBeGreaterThanOrEqual(minimum);
       }
+      if (width === 375) {
+        await page.getByRole('button', { name: 'Ещё форматирование' }).click();
+        const numberedList = page.getByRole('button', { name: 'Нумерованный список' });
+        await expect(numberedList).toBeVisible();
+        const box = await numberedList.boundingBox();
+        expect(box?.width ?? 0).toBeGreaterThanOrEqual(44);
+        expect(box?.height ?? 0).toBeGreaterThanOrEqual(44);
+        await page.keyboard.press('Escape');
+      }
       await expectNoViolations(page);
     });
 

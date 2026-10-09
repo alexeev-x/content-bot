@@ -25,6 +25,7 @@
       "migrations_dir": "migrations"
     }
   ],
+  "r2_buckets": [{ "binding": "MEDIA_BUCKET", "bucket_name": "content-r2-test" }],
   "vars": {
     // The only Telegram user allowed to use the admin, the Mini App and bot commands.
     "OWNER_TELEGRAM_ID": "768918661",
@@ -50,6 +51,7 @@
           "migrations_dir": "migrations"
         }
       ],
+      "r2_buckets": [{ "binding": "MEDIA_BUCKET", "bucket_name": "content-r2-dev" }],
       "vars": {
         "OWNER_TELEGRAM_ID": "768918661",
         "PUBLISHING_ENABLED": "true"
@@ -68,6 +70,7 @@
           "migrations_dir": "migrations"
         }
       ],
+      "r2_buckets": [{ "binding": "MEDIA_BUCKET", "bucket_name": "content-r2-prod" }],
       "vars": {
         "OWNER_TELEGRAM_ID": "768918661",
         "PUBLISHING_ENABLED": "false"

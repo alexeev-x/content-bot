@@ -1,10 +1,11 @@
-import type { PostEntity, PublicationStatus } from '@alexeev/contracts';
+import type { PostEntity, PostMediaDto, PublicationStatus } from '@alexeev/contracts';
 import type { IdempotencyClaim } from '../../../platform/idempotency/d1-idempotency-store';
 import type { Post, PostStatus } from '../domain/post';
 
 export interface PostRecord extends Post {
   /** UTC epoch milliseconds. */
   createdAt: number;
+  media?: PostMediaDto[];
 }
 
 export interface IdempotencyRef {

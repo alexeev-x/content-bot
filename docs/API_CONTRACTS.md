@@ -197,7 +197,18 @@ Schemas and error codes: `apps/contracts/src/dashboard.ts`, `apps/contracts/src/
 
 ## Media and preview
 
-`POST /api/v1/media/uploads` — a bounded upload route (or a two-step flow when moving to direct upload), `GET /api/v1/media?cursor=...`, `POST /api/v1/media/preview` — authorized asynchronous generation of the actual card with the same renderer as production. Never pass a large `blob` through JSON/base64. Each media object contains `owner`, `mime`, `size`, `sha256`, `storageKey` and an audit.
+Media is attached to a draft in the post editor; there is no separate media library in this queue item. `PostDto.media` is an ordered list of server-confirmed attachments. Only the owner can upload, reorder, remove or preview them. Binary content is private in R2 and is never returned as a public URL or embedded in JSON/base64.
+
+| Endpoint | Meaning |
+|---|---|
+| `POST /api/v1/posts/{id}/media?revision={revision}&fileName={name}` | Raw file bytes with required `Content-Length`, `Content-Type` and `Idempotency-Key`; signature and actual streamed byte count are independently checked server-side. Returns the confirmed media and the incremented post revision. A stale revision is `409`; upload calls for one post are sequential. Replaying the same key and payload returns the original response until that attachment is explicitly deleted. |
+| `DELETE /api/v1/posts/{id}/media/{mediaId}` | JSON `{ revision }`; removes one draft attachment and increments revision. |
+| `PATCH /api/v1/posts/{id}/media/order` | JSON `{ revision, mediaIds }`; replaces the order only when the list is exactly the draft's current attachments and increments revision. |
+| `GET /api/v1/media/{mediaId}/content` | Owner-authorized private byte stream for preview; clients fetch with the session Bearer token and use a temporary object URL. |
+
+The editor accepts up to 10 attachments: JPEG, PNG and WebP photos (10,000,000 bytes each), GIF animation (50,000,000 bytes), and MP4 video (50,000,000 bytes). Limits are enforced against actual uploaded bytes, not only the request header. No media-list API, generated preview pipeline, transcoding or Telegram multi-media publishing is included here; album delivery belongs to queue item 7. Contract schemas and error codes are in `apps/contracts/src/media.ts`.
+
+Upload staging and detached objects use a durable D1 cleanup queue; Cron retries a bounded batch during hourly idle housekeeping ticks, while preview stops resolving as soon as an attachment is detached. This cleanup is operational and does not turn a committed detach into a failed API operation.
 
 ## Mandatory contract tests
 

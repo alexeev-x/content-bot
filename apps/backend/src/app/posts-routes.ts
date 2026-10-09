@@ -2,16 +2,28 @@ import {
   approvePostInputSchema,
   bulkDeletePostsInputSchema,
   bulkRestorePostsInputSchema,
+  changePostMediaRevisionInputSchema,
   createPostInputSchema,
   deletePostInputSchema,
   listPostsQuerySchema,
   POST_ENTITY_ISSUE_CODES,
   restorePostInputSchema,
+  reorderPostMediaInputSchema,
+  uploadPostMediaQuerySchema,
   updatePostInputSchema
 } from '@alexeev/contracts';
 import { Hono } from 'hono';
 import { z } from 'zod';
-import { approvePost, createPost, getPost, listPosts, updatePost } from '../modules/content';
+import {
+  approvePost,
+  createPost,
+  getPost,
+  listPosts,
+  removePostMedia,
+  reorderPostMedia,
+  updatePost,
+  uploadPostMedia
+} from '../modules/content';
 import { deletePost, deletePosts, restorePosts } from '../modules/lifecycle';
 import { AppError } from '../shared/app-error';
 import type { AppBindings } from './env';
@@ -100,6 +112,72 @@ export const postsRoutes = new Hono<AppBindings>()
       await getPost({ repo: container.posts, summaries: container.postSummaries, now: container.clock.now() }, id)
     );
   })
+  .post(
+    '/:id/media',
+    validated('param', idParamSchema),
+    validated('query', uploadPostMediaQuerySchema),
+    validated('header', idempotencyHeaderSchema),
+    async (c) => {
+      const container = c.get('container');
+      const body = c.req.raw.body;
+      if (body === null) throw new AppError('VALIDATION_ERROR', 'A media file is required', { reason: 'EMPTY_MEDIA' });
+      if (container.mediaStorage === undefined) throw new AppError('UNAVAILABLE', 'Media storage is not configured');
+      const result = await uploadPostMedia(
+        {
+          repo: container.postMedia,
+          storage: container.mediaStorage,
+          now: container.clock.now(),
+          newId: container.newId
+        },
+        {
+          postId: postId(c.req.valid('param').id),
+          revision: c.req.valid('query').revision,
+          fileName: c.req.valid('query').fileName,
+          contentType: c.req.header('content-type') ?? '',
+          contentLength: Number(c.req.header('content-length')),
+          body,
+          actor: c.get('actor').telegramId,
+          idempotencyKey: c.req.valid('header')['idempotency-key']
+        }
+      );
+      return c.json(result, 201);
+    }
+  )
+  .delete(
+    '/:id/media/:mediaId',
+    validated('param', z.object({ id: z.string(), mediaId: z.string() })),
+    limitBody(MAX_BODY_BYTES),
+    validated('json', changePostMediaRevisionInputSchema),
+    async (c) => {
+      const container = c.get('container');
+      return c.json(
+        await removePostMedia(
+          { repo: container.postMedia, now: container.clock.now() },
+          {
+            postId: postId(c.req.valid('param').id),
+            mediaId: c.req.valid('param').mediaId,
+            revision: c.req.valid('json').revision,
+            actor: c.get('actor').telegramId
+          }
+        )
+      );
+    }
+  )
+  .patch(
+    '/:id/media/order',
+    validated('param', idParamSchema),
+    limitBody(MAX_BODY_BYTES),
+    validated('json', reorderPostMediaInputSchema),
+    async (c) => {
+      const container = c.get('container');
+      return c.json(
+        await reorderPostMedia(
+          { repo: container.postMedia, now: container.clock.now() },
+          { postId: postId(c.req.valid('param').id), actor: c.get('actor').telegramId, ...c.req.valid('json') }
+        )
+      );
+    }
+  )
   .patch(
     '/:id',
     limitBody(MAX_BODY_BYTES),

@@ -23,6 +23,7 @@ import { CompareDialog } from './CompareDialog';
 import { ConflictBanner } from './ConflictBanner';
 import { postsCopy } from './copy';
 import { PostFields } from './PostFields';
+import { PostMediaEditor, PostMediaPreview } from './PostMediaEditor';
 import { PostPreview } from './PostPreview';
 import styles from './PostEditor.module.css';
 import { SaveIndicator } from './SaveIndicator';
@@ -48,7 +49,7 @@ export function PostEditor({ post, onCreated, approvedActions, aside }: Props) {
   const narrow = useMediaQuery(NARROW);
   const navigate = useNavigate();
   const blocker = useLeaveGuard(dirtyRef);
-  useClosingConfirmation(editor.dirty && !editor.readOnly);
+  useClosingConfirmation((editor.dirty || editor.mediaPending) && !editor.readOnly);
   const statusRef = useRef<HTMLDivElement>(null);
   const [compareOpen, setCompareOpen] = useState(false);
   const [approveOpen, setApproveOpen] = useState(false);
@@ -73,6 +74,7 @@ export function PostEditor({ post, onCreated, approvedActions, aside }: Props) {
     !hasConflict &&
     !editor.isSaving &&
     !editor.isApproving &&
+    !editor.mediaPending &&
     editor.overflow === 0;
 
   async function saveAndExit() {
@@ -104,20 +106,33 @@ export function PostEditor({ post, onCreated, approvedActions, aside }: Props) {
   }
 
   const fields = (
-    <PostFields
-      control={editor.form.control}
-      setValue={editor.form.setValue}
-      title={editor.title}
-      body={editor.body}
-      entities={editor.entities}
-      isReadOnly={editor.readOnly}
-      isNew={editor.isNew}
-      length={editor.length}
-      overflow={editor.overflow}
-    />
+    <>
+      <PostFields
+        control={editor.form.control}
+        setValue={editor.form.setValue}
+        title={editor.title}
+        body={editor.body}
+        entities={editor.entities}
+        isReadOnly={editor.readOnly}
+        isNew={editor.isNew}
+        length={editor.length}
+        overflow={editor.overflow}
+      />
+      <PostMediaEditor
+        postId={baseline?.id ?? null}
+        revision={baseline?.revision ?? 0}
+        media={baseline?.media ?? []}
+        disabled={editor.readOnly || hasConflict}
+        onServerChange={editor.adoptMedia}
+        onPendingChange={editor.setMediaPending}
+      />
+    </>
   );
   const previewPanel = (
-    <PostPreview title={editor.title} body={editor.body} entities={editor.entities} length={editor.length} />
+    <>
+      <PostPreview title={editor.title} body={editor.body} entities={editor.entities} length={editor.length} />
+      <PostMediaPreview media={baseline?.media ?? []} />
+    </>
   );
   // Desktop: the right column switches between the Telegram preview and this post's publications.
   const side = (
@@ -223,7 +238,7 @@ export function PostEditor({ post, onCreated, approvedActions, aside }: Props) {
         </div>
       )}
 
-      <div className={styles.actionBar}>
+      <div className={styles.actionBar} data-testid="post-editor-action-bar">
         {isApproved ? (
           baseline && approvedActions && !isArchived ? (
             approvedActions(baseline)

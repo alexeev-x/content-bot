@@ -10,6 +10,7 @@ import { botRoutes } from './bot-routes';
 import { dashboardRoutes } from './dashboard-routes';
 import { destinationsRoutes } from './destinations-routes';
 import { incidentsRoutes } from './incidents-routes';
+import { mediaRoutes } from './media-routes';
 import { postsRoutes } from './posts-routes';
 import { publicationsRoutes } from './publications-routes';
 import { requireOwner } from './require-owner';
@@ -83,6 +84,7 @@ export function createApp(
   );
   app.route('/api/v1/auth', authRoutes);
   app.route('/api/v1/posts', postsRoutes);
+  app.route('/api/v1/media', mediaRoutes);
   app.route('/api/v1/destinations', destinationsRoutes);
   app.route('/api/v1/publications', publicationsRoutes);
   app.route('/api/v1/dashboard', dashboardRoutes);

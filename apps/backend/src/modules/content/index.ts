@@ -10,3 +10,12 @@ export type {
   PostRepository
 } from './application/ports';
 export { createD1PostRepository } from './infrastructure/d1-post-repository';
+export { createD1PostMediaRepository } from './infrastructure/d1-post-media-repository';
+export {
+  getPostMediaContent,
+  processPostMediaCleanup,
+  removePostMedia,
+  reorderPostMedia,
+  uploadPostMedia
+} from './application/post-media';
+export type { MediaObjectStorage, PostMediaRepository, StoredMediaObject } from './application/media-ports';

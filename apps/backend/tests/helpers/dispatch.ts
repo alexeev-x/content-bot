@@ -6,6 +6,7 @@ import type { PublicationTransport, SendOutcome } from '../../src/modules/publis
 import { createTelegramPublicationTransport, type TelegramSender } from '../../src/modules/publishing';
 import { createLogger } from '../../src/platform/logging/logger';
 import { testDb } from './db';
+import { testMediaBucket } from './media-bucket';
 import { fakeBotAdminApi } from './fake-bot-admin-api';
 import { fakeChatApi } from './fake-chat-api';
 import { fakeOwnerMessenger, type FakeOwnerMessenger } from './fake-owner-messenger';
@@ -111,6 +112,7 @@ export function makeTick(options: TickOptions): Tick {
   const base = createContainer(
     {
       DB: options.db ?? testDb(),
+      MEDIA_BUCKET: testMediaBucket(),
       OWNER_TELEGRAM_ID: OWNER_ID,
       PUBLISHING_ENABLED: options.publishing ?? 'true',
       ...(options.token === null ? {} : { TELEGRAM_BOT_TOKEN: options.token ?? '123456:TEST-BOT-TOKEN-PLACEHOLDER' })

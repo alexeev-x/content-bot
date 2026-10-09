@@ -25,7 +25,7 @@ npm run dev
 
 The command first applies pending migrations to the local database, then runs everything in one process. Open the address it prints (usually http://localhost:5173): you are already in the admin. Code changes reload live. Stop with `Ctrl + C`.
 
-The data is real but local: posts, channels and settings live in `apps/backend/.wrangler/state` on your machine and are not connected to dev or production. Logout works; reloading the page signs you in again.
+The data is real but local: posts, channels and settings live in `apps/backend/.wrangler/state` on your machine; uploaded post media uses Wrangler's local R2 emulation in the same state directory. Neither is connected to dev or production. Logout works; reloading the page signs you in again.
 
 ## Bot and sending to Telegram (optional)
 

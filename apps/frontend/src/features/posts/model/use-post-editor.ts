@@ -51,6 +51,7 @@ export function usePostEditor({ post, onCreated, rootRef, dirtyRef }: Options) {
   const [failedKey, setFailedKey] = useState<string | null>(null);
   const [justApproved, setJustApproved] = useState(false);
   const [focusTick, setFocusTick] = useState(0);
+  const [mediaPending, setMediaPending] = useState(false);
 
   const form = useForm<PostFormValues>({
     resolver: zodResolver(postFormSchema),
@@ -70,11 +71,11 @@ export function usePostEditor({ post, onCreated, rootRef, dirtyRef }: Options) {
   const readOnly = baseline?.status === 'approved' || conflict?.kind === 'locked';
   const isSaving = create.isPending || update.isPending;
   const isApproving = approve.isPending;
-  const isBusy = isSaving || isApproving;
+  const isBusy = isSaving || isApproving || mediaPending;
 
   useEffect(() => {
-    dirtyRef.current = dirty && !readOnly;
-  }, [dirty, readOnly, dirtyRef]);
+    dirtyRef.current = (dirty || mediaPending) && !readOnly;
+  }, [dirty, mediaPending, readOnly, dirtyRef]);
 
   // Focus the first invalid field after the errors have rendered.
   useEffect(() => {
@@ -198,13 +199,20 @@ export function usePostEditor({ post, onCreated, rootRef, dirtyRef }: Options) {
     }
   }
 
+  function adoptMedia(revision: number, media: PostDto['media']): void {
+    if (baseline === null) return;
+    const next = { ...baseline, revision, media };
+    setBaseline(next);
+    queryClient.setQueryData(postQueryOptions(next.id).queryKey, next);
+  }
+
   function retryServerVersion(): void {
     if (conflict && baseline) loadServerVersion(baseline.id, conflict.kind);
   }
 
   /** Approves the saved text; unsaved edits are saved first so the approved revision is the one on screen. */
   async function approvePost(): Promise<boolean> {
-    if (baseline === null || isBusy || readOnly) return false;
+    if (baseline === null || isBusy || readOnly || mediaPending) return false;
     let current = baseline;
     if (dirty) {
       const saved = await save();
@@ -252,6 +260,9 @@ export function usePostEditor({ post, onCreated, rootRef, dirtyRef }: Options) {
     notice,
     dismissNotice: () => setNotice(null),
     justApproved,
+    mediaPending,
+    setMediaPending,
+    adoptMedia,
     length: messageLength(title, body),
     overflow: messageOverflow(title, body),
     save,

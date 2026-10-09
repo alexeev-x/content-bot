@@ -326,6 +326,13 @@ export async function apiRequest<T>(path: string, schema: ZodType<T>, options: R
   return parsed.data;
 }
 
+/** Authenticated binary response. The caller owns the Blob and must keep it out of query/local storage. */
+export async function apiRequestBlob(path: string, options: RequestOptions = {}): Promise<Blob> {
+  const response = await execute(path, options);
+  if (!response.ok) throw await mapApiError(response);
+  return response.blob();
+}
+
 /** For 204 endpoints (logout). */
 export async function apiRequestNoContent(path: string, options: RequestOptions = {}): Promise<void> {
   const response = await execute(path, options);

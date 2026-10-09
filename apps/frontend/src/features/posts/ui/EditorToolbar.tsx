@@ -179,10 +179,10 @@ export function EditorToolbar({ editor, onLink, onCodeLanguage }: Props) {
     const formatting = groups[0]!;
     const code = groups[1]!;
     const lists = groups[2]!;
-    const primary = [...formatting.slice(0, 4), ...lists, code[3], formatting[5]].filter(
-      (item): item is Item => item !== undefined
-    );
-    const more = [formatting[4], ...code.slice(0, 3)].filter((item): item is Item => item !== undefined);
+    // Keep the mobile row short enough that every 44px target stays fully tappable. Lists, quote and
+    // secondary code actions live in the labelled bottom drawer instead of being clipped by the scroller.
+    const primary = [...formatting.slice(0, 4), formatting[5]].filter((item): item is Item => item !== undefined);
+    const more = [formatting[4], ...code, ...lists].filter((item): item is Item => item !== undefined);
     return (
       <>
         <Toolbar aria-label={copy.label} className={`${styles.toolbar} ${styles.compactToolbar}`}>
@@ -226,7 +226,7 @@ export function EditorToolbar({ editor, onLink, onCodeLanguage }: Props) {
               item.pressable ? (
                 <ToggleButton
                   key={item.id}
-                  className={styles.moreAction}
+                  className={`${styles.moreAction} ${item.id === 'numberedList' ? styles.numberedListAction : ''}`}
                   isSelected={item.isActive === true}
                   isDisabled={item.isDisabled}
                   onChange={() => {
@@ -240,7 +240,7 @@ export function EditorToolbar({ editor, onLink, onCodeLanguage }: Props) {
               ) : (
                 <Button
                   key={item.id}
-                  className={styles.moreAction}
+                  className={`${styles.moreAction} ${item.id === 'numberedList' ? styles.numberedListAction : ''}`}
                   isDisabled={item.isDisabled}
                   onPress={() => {
                     item.onPress();

@@ -6,7 +6,7 @@
 
 ## 1. Architecture principle
 
-**Pragmatic modular monolith:** one Cloudflare Worker (Hono + TypeScript), one D1, one Cron; R2 — when media appears; Queue — only after measurements. Worker entry points:
+**Pragmatic modular monolith:** one Cloudflare Worker (Hono + TypeScript), one D1, one Cron, and a private R2 bucket per environment for media; Queue — only after measurements. Worker entry points:
 
 - `fetch` — the admin UI (SPA from static assets, `not_found_handling: "single-page-application"`), the API `/api/v1/*` and the bot webhook `/webhooks/telegram` (`run_worker_first` only for these paths);
 - `scheduled` — Cron once a minute: reconcile, then the publication dispatcher.
@@ -42,12 +42,12 @@ Do not use at the start: microservices, Redis, Kafka, Kubernetes, CQRS/Event Sou
 
 | Area | Responsibility | Forbidden |
 |---|---|---|
-| `content` | drafts, versions, publication content and format | calling Telegram, Cron, R2 directly |
+| `content` | drafts, publication content and format, plus post-attached media identity and order | calling Telegram, Cron, R2 directly |
 | `publishing` | publication, schedule, state, retries, `jobs`, destinations (channel, group) | computing Dota statistics itself, storing raw images |
 | `app/bot` (inbound adapter, not a business module) | parsing Telegram commands and button presses, replying to the owner; like HTTP routes and Cron, it calls only the public APIs of modules | business logic, direct SQL, replying to commands not from the owner; no module imports `app/bot` |
 | `identity` | the owner (Telegram ID from settings), sign-in via Mini App `initData` and the Telegram Login Widget, sessions | trusting data without signature verification, logging `initData`, tokens and codes |
 | `dota-data` (later) | fetch/normalize/cache statistics with a date and source | sending messages and managing the schedule |
-| `media` (later) | catalog of sources, upload, validation, card creation | determining post time, calling Telegram |
+| `media` (later) | a cross-post media library/catalog and card creation | determining post time, calling Telegram |
 | `app/workflows` | coordination of two or more capabilities | SQL, HTTP Bot API, dependency on internal module files |
 | `integrations` | low-level clients: Telegram (grammY), later Dota and render | making business decisions |
 | `platform` | D1, R2, clock, logger, rate limit, HTTP client, security middleware | business entities and "magic" dependencies on modules |
@@ -55,6 +55,8 @@ Do not use at the start: microservices, Redis, Kafka, Kubernetes, CQRS/Event Sou
 Telegram is an **integration**, not a business module. `publishing` owns the `PublicationTransport` port; its adapter uses the grammY `Api` and translates responses into explicit outcomes (§5). Incoming updates are parsed by the inbound adapter `app/bot` (grammY `Bot` + `webhookCallback`). It is an entry point at the same level as HTTP routes and Cron: it only understands a command and calls the public APIs of `content`/`publishing`, so business modules depend neither on the bot nor on each other beyond public `index.ts` files. The bot is personal: commands and buttons are accepted only from the owner's Telegram ID, all others are silently ignored; the command menu is set only for the owner's private chat. In the owner's group the bot is an administrator with minimal rights (sending messages and media, pinning if needed). Error notifications to the owner go through a separate `AlertNotifier` port.
 
 **Strict boundary rule (owner decision 03.10.2026): modules do not import each other.** A module's public `index.ts` is imported only by the `app/` layer: routes, `app/bot`, `scheduled.ts`, `app/workflows` and `container.ts`. If a module needs another's data, it declares a port of its own, and `container.ts` connects the other module's public API to it. Example: `publishing` declares `PostSource { findState(postId) }` (status and current revision), and `container.ts` passes a function from `content` into it — `publishing` knows nothing about `content`. A multi-module scenario goes in `app/workflows`. Deep imports and cycles are forbidden. The rule is checked by dependency-cruiser (`modules/*` → `modules/*` is an error), so a violation is caught without review. Long-running or deferred work is a job record in D1 that Cron picks up. A simple module does not grow four layers without need.
+
+Post-attached media remains part of `content`: it owns draft attachment identity, order and the immutable approved snapshot. Content declares its own object-storage port; only the `app/container.ts` composition root wires that port to the Cloudflare R2 adapter. A future `media` module is for a separate searchable media library, not a second owner of post attachments.
 
 ## 3. Target repository structure
 
@@ -284,7 +286,7 @@ A read-only look at Telegram before a destination is saved; nothing is stored, s
 
 3. **Archive** (every tick, even with the kill switch off): see "Post lifecycle as built". One indexed read of the jobs that finished inside the lookback window; only when it finds a qualifying post, one batch of two statements.
 4. **Purge** (tick of minute 30, only when nothing was due): one read; only when it finds expired posts, one batch of seven statements (audit row, five child deletes, the posts).
-5. **Cleanup**, only on the tick whose scheduled time has UTC minute 0 (read from `controller.scheduledTime`; no state between invocations). Per table at most 100 rows: expired `idempotency_keys`, old `rate_limits` windows, expired `widget_sign_ins`, and ended sessions (revoked, or past both token and hard expiry, 24 h grace) with their `refresh_tokens` deleted first (no `ON DELETE`). Two round trips (platform tables, identity tables). `job_attempts`, `incidents` and `audit_log` are not purged yet (retention policy pending).
+5. **Cleanup**, only on the tick whose scheduled time has UTC minute 0 (read from `controller.scheduledTime`; no state between invocations). Per table at most 100 rows: expired `idempotency_keys`, old `rate_limits` windows, expired `widget_sign_ins`, and ended sessions (revoked, or past both token and hard expiry, 24 h grace) with their `refresh_tokens` deleted first (no `ON DELETE`). Two round trips (platform tables, identity tables). Detached/staged private R2 media is a separate bounded batch (at most 5 objects) on an idle hourly tick; cleanup never delays publication work. `job_attempts`, `incidents` and `audit_log` are not purged yet (retention policy pending).
 
 **Message format.** One Telegram text message sent as plain `text` plus `entities`, never with a `parse_mode`: the trimmed title, a blank line, the trimmed body. The title is a `bold` entity at offset 0; the approved revision's entities are shifted by `title.length + 2` (UTF-16 units). Trimming the body's leading and trailing whitespace shifts and clips the entities the same way, and one left empty is dropped. A post without entities reads as before (bold title, same text). `link_preview_options.is_disabled = true` is explicit. Length is measured on the text (title, separator, body; UTF-16 code units, which never undercount) against 4096. Photos are not sent yet.
 

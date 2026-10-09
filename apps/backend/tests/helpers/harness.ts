@@ -9,6 +9,7 @@ import { mountLocalSignIn } from '../../src/app/local-sign-in-route';
 import type { Clock } from '../../src/platform/clock';
 import { sha256Hex } from '../../src/platform/security/sha256';
 import { testDb } from './db';
+import { testMediaBucket } from './media-bucket';
 import { type FakeOwnerMessenger, fakeOwnerMessenger } from './fake-owner-messenger';
 
 export const OWNER_ID = '4242';
@@ -43,6 +44,10 @@ export async function resetDb(): Promise<void> {
       'jobs',
       'publications',
       'destinations',
+      'post_media',
+      'post_media_uploads',
+      'post_media_cleanup',
+      'media_assets',
       'post_revisions',
       'audit_log',
       'settings',
@@ -144,6 +149,7 @@ export function createApi(
     ...(options.publishingEnabled === undefined ? {} : { PUBLISHING_ENABLED: options.publishingEnabled }),
     ...(options.botInfo === undefined ? {} : { BOT_INFO: options.botInfo }),
     ...(options.webhookSecret === undefined ? {} : { TELEGRAM_WEBHOOK_SECRET: options.webhookSecret }),
+    MEDIA_BUCKET: testMediaBucket(),
     ...(options.botToken === null ? {} : { TELEGRAM_BOT_TOKEN: options.botToken ?? TEST_BOT_TOKEN })
   } as AppEnv;
   const background: Promise<unknown>[] = [];

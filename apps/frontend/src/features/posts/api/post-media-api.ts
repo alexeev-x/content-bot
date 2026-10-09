@@ -1,0 +1,93 @@
+import {
+  changePostMediaResultSchema,
+  postSchema,
+  uploadPostMediaResultSchema,
+  type PostMediaDto
+} from '@alexeev/contracts';
+import { ApiError, apiRequest, apiRequestBlob, mapApiError } from '../../../shared/api/http-client';
+import { getAccessToken } from '../../../shared/api/session';
+
+type UploadOptions = {
+  postId: string;
+  revision: number;
+  file: File;
+  contentType: string;
+  signal: AbortSignal;
+  onProgress: (percent: number) => void;
+  idempotencyKey: string;
+};
+
+function sendUpload(options: UploadOptions, idempotencyKey: string): Promise<unknown> {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    const path = `/api/v1/posts/${encodeURIComponent(options.postId)}/media?revision=${options.revision}&fileName=${encodeURIComponent(options.file.name)}`;
+    xhr.open('POST', new URL(path, window.location.origin));
+    xhr.setRequestHeader('Accept', 'application/json');
+    xhr.setRequestHeader('Content-Type', options.contentType);
+    xhr.setRequestHeader('Idempotency-Key', idempotencyKey);
+    const token = getAccessToken();
+    if (token) xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+    xhr.upload.onprogress = (event) => {
+      if (event.lengthComputable) options.onProgress(Math.min(99, Math.round((event.loaded / event.total) * 100)));
+    };
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        try {
+          resolve(JSON.parse(xhr.responseText) as unknown);
+        } catch {
+          reject(new Error('Unexpected response shape'));
+        }
+        return;
+      }
+      void mapApiError(
+        new Response(xhr.responseText, { status: xhr.status, headers: { 'Content-Type': 'application/json' } })
+      )
+        .then(reject)
+        .catch(reject);
+    };
+    xhr.onerror = () => reject(new Error('Network error'));
+    xhr.onabort = () => reject(new DOMException('Upload cancelled', 'AbortError'));
+    options.signal.addEventListener('abort', () => xhr.abort(), { once: true });
+    xhr.send(options.file);
+  });
+}
+
+export async function uploadPostMedia(options: UploadOptions) {
+  const { idempotencyKey } = options;
+  try {
+    const response = await sendUpload(options, idempotencyKey);
+    return uploadPostMediaResultSchema.parse(response);
+  } catch (error) {
+    // Refresh the in-memory session through the standard client, then safely replay with the same key.
+    if (error instanceof ApiError && error.status === 401 && !options.signal.aborted) {
+      await apiRequest(`/api/v1/posts/${encodeURIComponent(options.postId)}`, postSchema);
+      const response = await sendUpload(options, idempotencyKey);
+      return uploadPostMediaResultSchema.parse(response);
+    }
+    throw error;
+  }
+}
+
+export function deletePostMedia(postId: string, mediaId: string, revision: number) {
+  return apiRequest(
+    `/api/v1/posts/${encodeURIComponent(postId)}/media/${encodeURIComponent(mediaId)}`,
+    changePostMediaResultSchema,
+    {
+      method: 'DELETE',
+      body: { revision }
+    }
+  );
+}
+
+export function reorderPostMedia(postId: string, revision: number, mediaIds: string[]) {
+  return apiRequest(`/api/v1/posts/${encodeURIComponent(postId)}/media/order`, changePostMediaResultSchema, {
+    method: 'PATCH',
+    body: { revision, mediaIds }
+  });
+}
+
+export function getPostMediaContent(mediaId: string, signal?: AbortSignal): Promise<Blob> {
+  return apiRequestBlob(`/api/v1/media/${encodeURIComponent(mediaId)}/content`, { signal });
+}
+
+export type { PostMediaDto };

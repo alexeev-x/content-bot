@@ -2,6 +2,10 @@
   display: grid;
   gap: var(--space-4);
   min-width: 0;
+  padding-block-end: calc(var(--size-target) + var(--space-8) + var(--space-4));
+}
+.editor :is(button, input, textarea, select, [contenteditable='true']) {
+  scroll-margin-block-end: calc(var(--size-target) + var(--space-8) + var(--space-4));
 }
 .meta {
   display: flex;

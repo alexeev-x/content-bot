@@ -159,7 +159,9 @@ describe('dashboard blocks', () => {
   });
 
   it('shows four KPI values: day total, sent, attention and the next pending publication with its own link', async () => {
-    const soon = new Date(Date.now() + 3 * 3_600_000).toISOString();
+    const now = new Date();
+    const scheduledAt = new Date(now.getTime() + 3 * 3_600_000);
+    const soon = scheduledAt.toISOString();
     serveDashboard(
       dashboard({
         today: [sentRow(), todayRow({ scheduledAt: soon })],
@@ -175,7 +177,7 @@ describe('dashboard blocks', () => {
     expect(kpis.getByRole('link', { name: /Требует внимания.*1/ })).toBeTruthy();
     const next = kpis.getByRole('link', { name: /Ближайшая публикация/ });
     expect(next.textContent).toMatch(/\d{2}:\d{2}/);
-    expect(next.textContent).toContain('Через');
+    expect(next.textContent).toContain(scheduledAt.getDate() === now.getDate() ? 'Через' : 'Завтра');
     expect(next.getAttribute('href')).toContain(`id=${dash.pubLater}`);
   });
 
