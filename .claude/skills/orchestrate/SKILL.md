@@ -4,12 +4,14 @@ description: "Orchestrator playbook for the main session: classify a request, pl
 ---
 # Orchestrate a task
 
-You are the only coordinator. Spawning an agent costs a fresh context, so delegate only when isolation or parallelism pays for it.
+You coordinate. Delegate only when isolation or parallelism justifies a fresh agent context.
 
 ## When not to delegate
 Handle docs-only, obvious fixes and clear single-area changes in the main session.
 
 Never spawn every role. Do not launch qa-security for R0/R1 by default.
+
+Substantive UI: see `references/ui-qa-chain.md` (overrides R0/R1 QA default).
 
 ## Risk-based QA
 Classify by behavior and consequences, not line count. Follow `references/risk-qa.md`; do not launch QA for R0/R1 by default.

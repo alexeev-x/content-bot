@@ -56,6 +56,7 @@ const maxBytes = (file: File) =>
       : PHOTO_MEDIA_MAX_BYTES;
 const replaceAtLimitNotice =
   '\u0414\u043b\u044f \u0437\u0430\u043c\u0435\u043d\u044b \u0443\u0434\u0430\u043b\u0438\u0442\u0435 \u043e\u0434\u043d\u043e \u0432\u043b\u043e\u0436\u0435\u043d\u0438\u0435: \u043b\u0438\u043c\u0438\u0442 10 \u0444\u0430\u0439\u043b\u043e\u0432.';
+const mediaRules = `До ${POST_MEDIA_MAX_ITEMS} файлов: JPG, PNG и WebP — до ${PHOTO_MEDIA_MAX_BYTES / 1_000_000} МБ каждый; GIF и MP4 — до ${ANIMATION_MEDIA_MAX_BYTES / 1_000_000} МБ каждый.`;
 
 export function ServerPreview({ media, large = false }: { media: PostMediaDto; large?: boolean }) {
   const [url, setUrl] = useState<string | null>(null);
@@ -354,17 +355,17 @@ export function PostMediaEditor({ postId, revision, media, disabled, onServerCha
     <Panel>
       <section className={styles.section} aria-labelledby="post-media-heading">
         <div className={styles.heading}>
-          <div>
+          <div className={styles.headingCopy}>
             <h2 id="post-media-heading">Фото и видео</h2>
-            <p>Файлы попадут в черновик только после подтверждения загрузки.</p>
+            {postId ? <p>{mediaRules}</p> : null}
           </div>
           <Button
-            variant="secondary"
+            variant={postId && entries.length === 0 ? 'primary' : 'secondary'}
             icon="plus"
             isDisabled={!postId || disabled || busy || entries.length >= POST_MEDIA_MAX_ITEMS}
             onPress={() => inputRef.current?.click()}
           >
-            Добавить файлы
+            {entries.length === 0 ? 'Выбрать файлы' : 'Добавить файлы'}
           </Button>
           <input
             ref={inputRef}
@@ -382,7 +383,15 @@ export function PostMediaEditor({ postId, revision, media, disabled, onServerCha
             }}
           />
         </div>
-        {!postId ? <p className={styles.hint}>Сначала сохраните черновик, затем добавьте файлы.</p> : null}
+        {!postId ? (
+          <div className={styles.draftGate}>
+            <strong>Сначала сохраните черновик</strong>
+            <p>
+              В новом посте загрузка пока недоступна. Нажмите «Создать черновик» внизу редактора — после сохранения
+              здесь можно будет выбрать файлы.
+            </p>
+          </div>
+        ) : null}
         {entries.length ? (
           <>
             <ol className={styles.list} aria-label="Вложения поста">
@@ -485,7 +494,9 @@ export function PostMediaEditor({ postId, revision, media, disabled, onServerCha
             {entries.length >= POST_MEDIA_MAX_ITEMS ? <p className={styles.hint}>{replaceAtLimitNotice}</p> : null}
           </>
         ) : (
-          <p className={styles.hint}>Вложений пока нет.</p>
+          <p className={styles.hint}>
+            После выбора файлы появятся здесь. Они попадут в черновик только после подтверждения загрузки.
+          </p>
         )}
         {busy && cancelController ? (
           <Button variant="ghost" size="sm" onPress={() => cancelController.abort()}>

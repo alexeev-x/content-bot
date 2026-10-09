@@ -1,6 +1,6 @@
 # ALEXEEV Content Bot — agent rules
 
-Shared by Claude Code and Codex, loaded into every agent: keep it short. Talk to the owner in Russian; code, identifiers, commits and branch names are English.
+Shared Claude Code/Codex rules. Talk Russian; code, identifiers, commits and branches English.
 
 **Status:** in development, not in production. State and queue: `docs/IMPLEMENTATION_PLAN.md`; the core Telegram publishing path was owner-validated live in DEV on 07.10.2026. Never describe other planned parts as working.
 
@@ -27,12 +27,13 @@ Shared by Claude Code and Codex, loaded into every agent: keep it short. Talk to
 | tokens, primitives, look and feel, UI copy | skill `visual-design` |
 | visual verification in a browser | skill `visual-check` |
 
-Codex doesn't auto-load area AGENTS.md files: open them yourself (Claude Code loads them on read). Search with `rg`; read the lines you need, not whole files. Don't reread files. `npm run verify` prints only failures; open `.logs/verify.log` only if the summary is not enough.
+Codex doesn't auto-load area AGENTS.md files: open them yourself. Search with `rg`; read only needed lines. `npm run verify` prints failures; open `.logs/verify.log` if needed.
 
 Write tersely: no preamble, no restating the task, no recap of a visible diff. Code, commands and error text stay exact.
 
 ## Working with the owner
 - Main session only (not subagents): you orchestrate every owner request; the owner never types a command. Small single-area edits: do yourself; larger: follow skill `orchestrate`.
+- Substantive UI flows require UX before build and independent QA before acceptance; the orchestrator owns the repair loop. See skill `orchestrate`.
 - Decide, don't quiz: pick the conventional default, state it with the reason, proceed. Escalate only owner-level choices (publishing, access, money, a recorded decision), batched, with your recommended default.
 - Recorded decisions live in `docs/DECISIONS.md`; don't relitigate them unprompted.
 - Do only what the task asks: no unrequested features, refactors or abstractions. Never claim 1 000 jobs/day before a load test.

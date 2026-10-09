@@ -15,9 +15,27 @@
   margin: 0;
   font-size: var(--font-size-lg);
 }
+.headingCopy {
+  min-width: 0;
+  flex: 1 1 16rem;
+}
 .heading p,
 .hint {
   margin: var(--space-1) 0 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+.draftGate {
+  display: grid;
+  gap: var(--space-1);
+  padding: var(--space-3);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-2);
+  background: var(--color-surface-2);
+  overflow-wrap: anywhere;
+}
+.draftGate p {
+  margin: 0;
   color: var(--color-text-muted);
   font-size: var(--font-size-sm);
 }

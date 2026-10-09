@@ -29,6 +29,41 @@ afterEach(() => {
 });
 
 describe('post media editor', () => {
+  it('shows supported formats and limits before choosing files for a saved draft', () => {
+    render(
+      <PostMediaEditor
+        postId={ids.post}
+        revision={0}
+        media={[]}
+        disabled={false}
+        onServerChange={vi.fn()}
+        onPendingChange={vi.fn()}
+      />
+    );
+
+    expect(
+      screen.getByText(/До 10 файлов: JPG, PNG и WebP — до 10 МБ каждый; GIF и MP4 — до 50 МБ каждый\./)
+    ).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Выбрать файлы' })).toBeTruthy();
+  });
+
+  it('explains that a new post must be saved before media can be selected', () => {
+    render(
+      <PostMediaEditor
+        postId={null}
+        revision={0}
+        media={[]}
+        disabled={false}
+        onServerChange={vi.fn()}
+        onPendingChange={vi.fn()}
+      />
+    );
+
+    expect(screen.getByText('Сначала сохраните черновик')).toBeTruthy();
+    expect(screen.getByText(/Нажмите «Создать черновик» внизу редактора/)).toBeTruthy();
+    expect((screen.getByRole('button', { name: 'Выбрать файлы' }) as HTMLButtonElement).disabled).toBe(true);
+  });
+
   it('keeps a failed file available for retry and never calls it uploaded', async () => {
     vi.mocked(uploadPostMedia).mockRejectedValue(
       new ApiError({ code: 'CONFLICT', status: 409, message: 'stale', details: { reason: 'STALE_REVISION' } })
