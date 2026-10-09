@@ -51,3 +51,37 @@
 .switch[data-disabled] .thumb {
   background: var(--color-text-disabled);
 }
+
+/* Row: leading icon, label (and hint), then the track pushed to the end. */
+.switch[data-variant='row'] {
+  display: flex;
+  width: 100%;
+  min-height: var(--size-row);
+  padding: var(--space-2) 0;
+}
+.switch[data-variant='row'] .track {
+  order: 3;
+  margin-left: auto;
+}
+.leading {
+  display: grid;
+  flex: none;
+  place-items: center;
+  color: var(--color-text-muted);
+}
+.rowText {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+.rowLabel {
+  font-size: var(--font-size-sm);
+}
+.rowDescription {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+}
+.switch[data-variant='row'][data-disabled] .leading,
+.switch[data-variant='row'][data-disabled] .rowDescription {
+  color: var(--color-text-disabled);
+}

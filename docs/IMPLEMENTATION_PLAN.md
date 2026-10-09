@@ -168,7 +168,7 @@ Whoever starts or finishes an item updates its status here in the same change (`
 | # | Item | Phase | Status |
 |---|---|---|---|
 | 1 | Owner DEV check of built work: rich editor, autosave, media upload and albums, Dota drafts and patch summary, owner bot commands | 1, 1D | waiting for owner |
-| 2 | Post editor redesign from the accepted prototype (`docs/stories/post-editor-prototype.md`) | 1 | in progress |
+| 2 | Post editor redesign: prototype v3 accepted 09.10.2026 (`docs/stories/post-editor-prototype.md`); next: real editor + frontend media fixes per `docs/stories/post-editor-v3-handoff.md` | 1 | in progress |
 | 3 | Post actions: duplicate, «Вернуть в черновик», remove final publication records | 1 | not started |
 | 4 | Owner timezone setting (UI, bot, Обзор, scheduling) | 2 | not started |
 | 5 | Публикации v2: periods on `from`/`to`, «Ошибки» = failed + unknown, total counts, server search in the UI | 2 | in progress |

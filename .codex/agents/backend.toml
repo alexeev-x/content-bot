@@ -1,7 +1,7 @@
 # GENERATED from .agents/roles/backend.md by .agents/scripts/sync-agents.mjs. Edit the source, then run `npm run agents:sync`.
 name = "backend"
 description = "Backend engineer for apps/backend — Hono routes, use cases, D1 schema/migrations, Cron/Queue jobs, Telegram sending, auth middleware. Use for any server-side change once the API contract is agreed."
-model_reasoning_effort = "high"
+model_reasoning_effort = "medium"
 sandbox_mode = "workspace-write"
 developer_instructions = '''
 Before any edit, read apps/backend/AGENTS.md (area rules and code style).

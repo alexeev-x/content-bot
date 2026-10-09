@@ -28,6 +28,8 @@ type Props = {
   linkBase?: string | undefined;
   /** Prototype only: hides the phone tab bar like the real editor route does. */
   editor?: boolean | undefined;
+  /** Hides the top bar; search, theme toggle and owner menu move into each page header (as in the Mini App). Default: on for the post editor routes (`/posts/new`, `/posts/$id`, `/posts/$id/publish`), off elsewhere. */
+  focused?: boolean | undefined;
   /** Prototype only: draws the Mini App variant (no top bar) without Telegram. */
   miniApp?: boolean | undefined;
   /** Extra content under the sections in the «Ещё» sheet (the «Подключённый канал» card). */
@@ -145,6 +147,7 @@ export function AppShell({
   topBarTools,
   linkBase,
   editor,
+  focused: forcedFocused,
   miniApp: forcedMiniApp,
   moreExtra,
   sidebarExtra,
@@ -181,7 +184,9 @@ export function AppShell({
   const secondary = NAV_ITEMS.filter((item) => !item.primary);
   // Telegram draws its own header: the app top bar goes and its tools move into each page header.
   const miniApp = forcedMiniApp ?? isInsideTelegram();
-  const tools = miniApp ? (
+  const focused = forcedFocused ?? editorOpen;
+  const hideTopBar = miniApp || focused;
+  const tools = hideTopBar ? (
     <>
       {/* No disabled placeholder in the cramped Telegram header: search appears once it works. */}
       {onOpenSearch ? <IconButton label={ru.shell.searchPlaceholder} icon="search" onPress={onOpenSearch} /> : null}
@@ -237,7 +242,7 @@ export function AppShell({
       </aside>
 
       <div className={styles.column}>
-        {miniApp ? null : (
+        {hideTopBar ? null : (
           <header className={styles.top}>
             <div className={styles.topBrand}>
               <span className={styles.logo} aria-hidden="true">

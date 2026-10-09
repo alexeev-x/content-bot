@@ -109,3 +109,41 @@
   background: var(--color-surface-2);
   border-color: var(--color-border-subtle);
 }
+
+/* Rows: one outlined row for the selected option, hairline dividers between the rest (publication time). */
+.group[data-variant='rows'] .options {
+  gap: 0;
+}
+.group[data-variant='rows'] .radio {
+  align-items: center;
+  min-height: var(--size-row);
+  padding: 0 var(--space-3);
+  border: 1px solid transparent;
+  border-bottom-color: var(--color-border-subtle);
+  border-radius: var(--radius-3);
+}
+.group[data-variant='rows'] .radio[data-hovered] {
+  background: var(--color-surface-2);
+}
+.group[data-variant='rows'] .radio[data-selected] {
+  border-color: var(--color-accent-text);
+  background: var(--color-accent-soft);
+}
+.group[data-variant='rows'] .dot {
+  width: 18px;
+  height: 18px;
+  margin-top: 0;
+}
+.group[data-variant='rows'] .dot::after {
+  inset: 3px;
+}
+.group[data-variant='rows'] .radio[data-focus-visible] {
+  outline: var(--focus-ring-width) solid var(--color-focus-ring);
+  outline-offset: -2px;
+}
+.group[data-variant='rows'] .radio[data-focus-visible] .dot {
+  outline: none;
+}
+.group[data-variant='rows'] .radio[data-disabled] {
+  background: none;
+}

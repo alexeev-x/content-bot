@@ -1,11 +1,25 @@
+/* A slim tab on the right edge at mid-height: it never sits on a footer, header or toast. */
 .dock {
   position: fixed;
-  right: var(--space-4);
-  bottom: var(--space-4);
+  top: 50%;
+  right: 0;
   z-index: var(--z-toast);
+  transform: translateY(-50%);
 }
-.trigger {
+button.trigger {
+  width: var(--size-target-min);
+  min-width: 0;
+  min-height: 3rem;
+  padding: 0;
+  justify-content: center;
+  border-right: 0;
+  border-radius: var(--radius-2) 0 0 var(--radius-2);
+  opacity: 0.6;
   box-shadow: var(--shadow-pop);
+}
+button.trigger:hover,
+button.trigger[data-focus-visible] {
+  opacity: 1;
 }
 .panel {
   display: grid;
@@ -59,4 +73,29 @@
 }
 :global(html[data-proto-shot]) .dock {
   display: none;
+}
+
+/* Phones: a grabber-sized tab in the top edge strip, above the header row, so it never covers content or controls. */
+@media (max-width: 859px) {
+  .dock,
+  .dock[data-editor] {
+    /* 8 px of the 24 px box sit above the screen: the visible 16 px stay clear of the header text (starts at y = 17). */
+    top: -8px;
+    right: auto;
+    bottom: auto;
+    left: 50%;
+    transform: translateX(-50%);
+  }
+  button.trigger,
+  .dock[data-editor] .trigger {
+    width: 3.5rem;
+    min-width: 0;
+    min-height: 0;
+    height: 24px;
+    padding: 0 0 var(--space-1);
+    align-items: flex-end;
+    border: 1px solid var(--color-border-strong);
+    border-top: 0;
+    border-radius: 0 0 var(--radius-2) var(--radius-2);
+  }
 }

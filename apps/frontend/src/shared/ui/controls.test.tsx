@@ -76,6 +76,25 @@ describe('TextField and TextArea', () => {
   });
 });
 
+describe('counter on the label row', () => {
+  it('announces politely only near the limit and renders a toolbar inside the box', async () => {
+    const user = userEvent.setup();
+    const { container } = render(
+      <TextArea label="Текст" limit={10} limitPlacement="label" toolbar={<button type="button">Жирный</button>} />
+    );
+    const live = container.querySelector('[aria-live="polite"]');
+    expect(live?.textContent).toBe('');
+    await user.type(screen.getByRole('textbox', { name: 'Текст' }), '123456789');
+    expect(live?.textContent).toBe('9 / 10');
+    expect(screen.getByRole('button', { name: 'Жирный' })).toBeTruthy();
+  });
+
+  it('TextField shows a custom counter slot', () => {
+    render(<TextField label="Заголовок" counter="58 / 200" />);
+    expect(screen.getByText('58 / 200')).toBeTruthy();
+  });
+});
+
 describe('SearchField', () => {
   it('clears with the button', async () => {
     const user = userEvent.setup();

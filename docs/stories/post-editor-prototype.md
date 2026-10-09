@@ -1,224 +1,312 @@
-# Post editor clickable prototype — UX handoff
+# Post editor — UX handoff v3 (reference-exact)
 
-**Status:** expert review, not validated with users. Prototype-only handoff; it does not authorize production UI changes, API calls, uploads, saves, scheduling, or Telegram sends. The owner-provided three files are references for composition, information density, media states, and interaction—not a source for colors, typography, component styles, or technical claims.
+**Status:** expert review, not validated with users. Revision v3, 09.10.2026. Replaces v1/v2 entirely. Prototype-only: it does not authorize production UI changes, real API calls, uploads, saves, scheduling or Telegram sends in `/__proto`.
 
-## Reference manifest (owner-provided, 09.10.2026)
+## 0. Governing rule
 
-| ID | Path | Screen/state represented | Required elements |
-|---|---|---|---|
-| `posts-01` | `design-refs/posts/img.png` | Desktop editor + publication settings; mobile empty editor, media grid/upload, reorder list, preview and publication settings | Two desktop screens in the existing app shell; mobile states remain a full-screen editor with reachable media, preview and publication settings. |
-| `posts-02` | `design-refs/posts/img_1.png` | Desktop media-source dialog, selected mixed queue | Sources `С компьютера / Медиабиблиотека / Недавние`; multi-file chooser/drop target; per-file thumbnail, metadata, upload progress, remove; cancel/add-to-post. |
-| `posts-03` | `design-refs/posts/img_2.png` | Mobile media source sheet + image crop screen | Camera/device/library exits; crop canvas; ratios `Оригинал / 1:1 / 4:5 / 16:9`; zoom, rotate, `Использовать как обложку`, Done/Back. |
+The three owner images are the **target screens**, reproduced visually exactly, built only from our colours, fonts and components. The owner's words: «сделать так как на картинке только с нашими цветами». The binding text is `docs/AGENT_UI_WORKFLOW.md` § Reference fidelity; it overrides everything below if they ever differ.
 
-Reference mapping is based on the actual image files above. Image measurements are visual references, not token values; prototype QA compares the relevant desktop/mobile state against the image while preserving ALEXEEV tokens and components.
+- Copy from the image: composition, grid and column proportions, the set and order of elements, element shapes (pill / square, radius, borders, dividers, cards vs plain rows), sizes, spacing, density, alignment, visible states.
+- Always ours: colours (nearest semantic token, both themes), fonts (nearest step of our type scale and weight), components (`shared/ui` primitives).
+- A shape our primitives cannot express: `UI_PRIMITIVE_REQUEST`, never local styling.
+- A control the product cannot honour yet: stays in the prototype as a working mock and is listed under `API needs`.
+- Priority when sources disagree: publishing safety and real contracts → owner images → `docs/design/UX_SPEC.md` / `docs/design/README.md`. Safety deviations are listed in §8 and nowhere else.
+- The current editor layout is **not** the target. Nothing here means "structure only" or "keep the current layout".
 
-### Reference measurements for the prototype
+## 1. Reference manifest
 
-These are approximate source-image pixels (the files are composite concept boards, not browser screenshots); normalize repeated elements and scale to the app viewport. Use only as layout measurements, not as copied CSS values.
-
-| Reference | Grid / proportions | Repeated sizes / spacing | Shape and type roles | ALEXEEV mapping |
+| ID | Path | Dimensions | Screens it owns | Width it represents |
 |---|---|---|---|---|
-| `posts-01` desktop, 1536×1024 board | Editor app frame is about 890 px wide with ~145 px nav; writing/media takes roughly 2/3 of its work area and preview 1/3. Publication screen is a separate frame with settings and preview side-by-side. | Main column gap ~14 px in source; media thumbnails ~78×78 px, repeated gap ~8 px; header/actions align to content edges. | Compact labeled controls; medium rounded fields/cards; 1-line title, compact status; preview media dominates its card. | Existing `PageHeader`, panels, fields, buttons, status tokens, spacing/radius/type-scale tokens; preserve actual shell/sidebar rules from UX_SPEC. |
-| `posts-02` desktop modal, 623×579 | One dialog, source tabs across full width; drop target above a vertical file queue; footer actions below divider. | Three source tabs ~195×55 px; drop target ~596×217 px; queue rows ~58 px with ~8 px separation. | Rounded source tabs, dashed drop target, compact per-file rows, distinct secondary cancel and primary add. | Existing Dialog, Button, Tabs/segmented primitives and semantic border/accent/status tokens; choose the nearest supported primitive, no local hex or new radii. |
-| `posts-03` mobile board, 1450×1086 | Two phone states: source bottom sheet overlays editor; crop is full-screen with image canvas taking the top half and controls below. | Source sheet starts around 60% down the phone; crop ratios in one equal-width row; zoom and rotate are separate groups; large header actions. | Full-screen crop image with rule-of-thirds grid and corner handles; source actions are tall rows with icon + title + hint. | Full-screen route/bottom sheet via shared primitives; 44 px touch targets; safe-area padding; tokens for surfaces/border/accent, typography from Onest scale. |
+| `posts-01` | `design-refs/posts/posts-01-editor-board.png` | 1536×1024 board | Desktop editor (frame x27–915, y70–530); desktop Публикация (frame x930–1515); six mobile states (1 Пустой редактор, 2 С добавленными медиа, 3 Загрузка файлов, 4 Изменение порядка, 5 Предпросмотр, 6 Публикация) | Desktop frames = **1440 px viewport**; phones = **375 px viewport** |
+| `posts-02` | `design-refs/posts/posts-02-desktop-media-crop-modals.png` | 1672×941 board | Desktop modal «Добавление медиа» (left half) and desktop modal «Кадрирование фото» (right half) | **1440 px viewport**; modals are overlays, only the modal itself is a source |
+| `posts-03` | `design-refs/posts/posts-03-mobile-sheet-crop.png` | 1448×1086 board | Mobile bottom sheet «Добавить фото и видео»; mobile full-screen «Кадрирование» | **375 px viewport** |
 
-When a screenshot does not reveal an exact CSS measurement (especially the composite mobile board), preserve its relationships and element order; the builder records concrete viewport screenshots and the QA gate checks the rendered page against those screenshots.
+Not sources (background screens, per the "images that disagree" rule): the editor behind both modals in `posts-02` (header «Все посты», chips «Не опубликовано» / «Автосохранение включено», «Шаг 5 из 6» footer, «Сохранить / Далее») and the editor behind the sheet in `posts-03`. `posts-01` owns the editor. The step counter «Шаг 5 из 6» is therefore **not built**.
 
-## Goal and source of truth
+Other widths follow `docs/design/UX_SPEC.md` Conventions: builders 375 / 1280 / 1920; QA 320, 375, 390, 768, 1024, 1280, 1440, 1920 plus widths around the 860 px breakpoint. At 1440 and 375 the prototype must match the image; elsewhere it keeps the same element set and order and interpolates proportions (desktop composition ≥ 860 px; phone composition below).
 
-Help the frontend team implement the owner-requested post editor by first making its structure and interactions inspectable in a code-native clickable prototype. Preserve the existing ALEXEEV Studio palette, design tokens, typography, shared primitives, navigation shell, and publishing-safety rules. Reuse the current `/__proto` harness and mock-only state; never import production feature components or call real endpoints.
+## 2. Measurement conventions
 
-Priority when sources disagree: this repository's [`docs/design/UX_SPEC.md`](../design/UX_SPEC.md) for ALEXEEV layout, controls, shell and accessibility; this handoff for the owner-reference-specific editor composition and prototype interactions; owner images for structure only. Current statuses and publishing safety remain governed by the contracts and `docs/BACKEND_ARCHITECTURE.md`.
+- Source px are read from the board. Scales are derived from a known element: **desktop editor (`posts-01`) ×1.62 to the 1440 viewport** (≈ 889 px frame ↔ 1440 px); **add-media / crop modal (`posts-02`) ×1.087 to a 760 px modal** (≈ 699 src ↔ 760); **phone (`posts-03`) ×0.81 to 375 pt** (phone screen ≈ 460 source px ↔ 375). `posts-01` phones are ≈ 220 source px per 375 pt: ×1.7. Values below are final measurements in target px (1440 / 760-modal / 375) and are **not** re-rounded to 4 px. QA tolerance is ±4 px on those values, or ±2 % for proportions.
+- Generated-image inconsistencies are normalized to **one value per repeated element**: thumbnail tiles all equal, toolbar buttons all equal, row pitch constant, radii one value per element class. Each deviation is in §8.
+- Each element maps to a token / primitive. Colours are never taken from the image. Font size = nearest step of the type scale; weight = nearest of our weights. Radius = nearest radius token (small controls → `--radius-sm`-class token, cards → card token; builder picks from `tokens.css`, never a literal).
+- "REQ-n" = `UI_PRIMITIVE_REQUEST` in §9. "API-n" = entry in §10. "mock" = works in prototype only.
 
-References informing interaction conventions: Telegram lets users preview, reorder, and remove selected album media before sending ([Telegram](https://telegram.org/blog/downloads-attachments-streaming?setln=en)); Later supports adding media from its library and rearranging planned posts in its mobile planner ([Later mobile app](https://help.later.com/hc/en-us/articles/360043244813-A-Guide-to-the-Later-Mobile-App)); Buffer presents creation as one place to edit a draft and attach media ([Buffer Create](https://buffer.com/create)). These inform recognizable interaction patterns, not visual styling. Expert review only; no user validation.
+## 3. Per-image element lists
 
-## Current vs target
+### 3.1 `posts-01` — Desktop 1. Редактор поста (1440)
 
-| Area | Shipped editor evidence | Target represented by owner references | Prototype decision |
+Grid: app frame = sidebar (app-wide approved width, §8 D11) + work area; **no top bar** on editor routes (§8 D11). Work area splits into **writing column (≈ 66 %)** and **preview panel (≈ 31 %)**, gap ≈ 16 px, outer padding ≈ 24 px. **The writing card ends under the text counter «272 / 4096»** (title, «Текст», toolbar, text area, counter are inside it; the editor writing surface exception in UX_SPEC §0.3 applies). The «Фото и видео» row, the thumbnail strip and the footer row sit **directly on the work surface, not inside the card**. The preview panel is its own bordered card. **The screen fits the 1440×748 frame with no page scroll:** the text area is the flexible element (takes the height left over, internal scroll), the footer row is pinned at the bottom of the work area.
+
+| # | Element, in reading order | Measurement (src → @1440) | Maps to |
 |---|---|---|---|
-| Hierarchy | [1280 screenshot](../../.logs/media-publish-qa/media-editor-1280.png) shows full application shell, compact content centered in a large canvas, edit fields and attachments in separate bordered regions; global bar crosses the screenshot. | Focused creator workspace: concise header, writing surface and preview share the desktop row; media has a clear visual gallery / upload queue. | Keep real Studio shell and tokens. Use a clear editor header and a two-column workspace: writing/media left, preview right. The screenshot is a viewport crop reference only; never emulate a global bar overlay. |
-| Media | Shipped screenshot shows an attachment row with filename and controls, but the shown fixture has no visible thumbnail; empty copy says files appear after selection. | Empty drop target, source chooser, previewable thumbnails, mixed photos/videos, per-file progress, retry/remove/reorder. | Show useful media visual states and a unified source chooser. Use mock thumbnails and explicitly synthetic progress. Never claim 50 MB or format support beyond server contract; label prototype data. |
-| Image crop | Current media DTO contains file facts and order only; it has no crop transform or source relationship (`apps/contracts/src/media.ts`). Migration `0016_post_media.sql` queues an asset for cleanup after its final post/revision reference is detached. | `posts-03` shows a crop workspace with four aspect ratios, zoom, rotation and a cover toggle. | Crop into a derived post-specific image. Preserve a durable source relationship so cleanup retains the reusable original while a derivative depends on it; preview and publish the derived bytes, not CSS-only clipping. |
-| Preview | Preview is a text card and secondary tab; no visible attached-media preview in the QA fixture. | Channel-like Telegram card with media, caption/title, album browsing, and live update. | Reuse existing `TelegramPreview` if it supports required mock media; otherwise compose with shared primitives. Do not fake channel statistics or real delivery metadata. |
-| Mobile | [375 screenshot](../../.logs/media-publish-qa/media-editor-375.png) shows shell chrome, a long text area, attachments below, and the fixed action bar; viewport capture indicates shell controls overlap editor content. | Full-screen editor, mobile media source bottom sheet, compact media grid, preview and publication setup available without desktop assumptions. | Use the UX-spec full-screen detail route, 44px touch targets, safe-area pinned actions and keyboard-aware layout. The shell's app bar/tab navigation stays hidden on editor detail routes. |
-| Workflow | Editor offers save/exit and a publication-setup action; screen B is a separate route. | References depict editor, source sheet, media-ready state, preview/settings, final readiness and confirmation affordances. | Prototype the core path across editor → media source/selection → settings/preview → explicit confirmation *as local mock navigation only*. No click may publish or persist. |
-| Visual language | Shipped screen already uses ALEXEEV tokens, controls and light theme. | Images are dark, blue-accented, denser and more decorative. | Keep current ALEXEEV light/dark themes, existing semantic accent, type scale, radii, spacing and primitives. Transfer only information hierarchy and interaction patterns; do not copy gradients, heavy nested cards, bright blue or reference-specific controls. |
+| 1 | Sidebar: logo + «Контент» row | row ≈ 56 px tall (unchanged app-wide shell, §8 D11) | Existing shell. Brand text is the real app name; image text «Контент» is not copied (shell owns it) |
+| 2 | Nav list: active item filled+bordered (accent-soft), 5 other items icon+label | row pitch ≈ 52 px; active item pill with radius, 1 px accent border | Existing shell nav active style; labels = real routes (§8 D1) |
+| 3 | Sidebar footer: avatar + «Название канала» + «N подписчиков» | block ≈ 40 → 64 px | Existing shell footer / owner block; subscribers → API-2 |
+| 4 | Title row (page header; replaces the hidden top bar, §8 D11): «Новый пост» H1 + small status dot + «Черновик сохранён 2 минуты назад» | H1 ≈ 32 px semibold; status 8 px dot + caption | `PageHeader` title + `StatusChip` (dot style) + caption; text from real autosave state |
+| 5 | Field label «Заголовок» + counter «58 / 200» right-aligned | label ≈ 14 px; counter muted | `TextField` label/counter slot (`POST_TITLE_MAX` 200) |
+| 6 | Title input, **focused look** (accent outline) in image | height 44 px, full column width | `TextField`, focus ring token |
+| 7 | Label «Текст» | — | `TextArea` label |
+| 8 | Toolbar row inside the text field: B I U S, link, bullet list, numbered list, code `<>`, quote «»; spacer; emoji; undo, redo | 12 buttons, each ≈ 36 px square, divider groups after S, after link, after quote | Format toolbar built from `IconButton` group; entities bold/italic/underline/strikethrough/text_link/code/blockquote are real (`post-entities.ts`); lists → API-5; emoji → API-6; undo/redo client-side |
+| 9 | Text area, **5 lines visible**, text colour primary; text ≈ 16–17 px at ≈ 26 px line pitch; toolbar + text box together ≈ 239 px tall at 1440×748 (the text area flexes with the frame height, internal scroll, never fewer than 5 lines at 1440×748) | text box ≈ 130 px of the 239 | `TextArea` |
+| 10 | Counter «272 / 4096» bottom-right; **the writing card ends directly under it** | muted caption | `TextArea` counter (`POST_BODY_MAX` 4096) |
+| 11 | Section header: image icon + «Фото и видео» + muted «(5 файлов)» ; right: «Упорядочить» (list icon, **soft-filled** button, no border) and «Выбрать всё» (**accent text link**) | header row ≈ 38 px; button ≈ 116×30 | On the work surface (not in the card). Section title + `Button` (soft/tonal, small) + `Button` (link, accent); «Выбрать всё» → selection mode (§5.4, API-9) |
+| 12 | Thumbnail strip: **add tile** (dashed border, «+», «Добавить файлы») then 5 media tiles | tile 120–124 px square (one value, 124), gap ≈ 12; add tile same size | Strip of `MediaGridTile` (REQ-1); add tile = dashed variant |
+| 13 | Tile overlays: top-right «×» remove (circular dark badge); bottom-left type badge (image icon or video icon + duration «01:24»); video tile has centered play circle | badge ≈ 22 px; duration chip radius pill | REQ-1 overlays; duration from `durationMs` |
+| 14 | Footer bar (below both columns, inside frame): «Выйти» (icon + label, secondary), info icon + «Черновик сохраняется автоматически», primary «К публикации →» right | «Выйти» ≈ **167×52**; «К публикации →» ≈ **233×52**; primary uses accent; row sits on the work surface, not in the card | `Button` secondary + `Button` primary + caption; **not sticky**, pinned at the bottom of the work area so the screen fits 1440×748 without scroll |
+| 15 | Preview panel header: eye-in-circle icon + «Предпросмотр»; right «×» | header ≈ 44 px | `Panel` header; «×» collapses the panel (closes preview column, state remembered; the column re-opens from a «Предпросмотр» button in the title row when closed — mock-only collapse state) |
+| 16 | Tabs «Пост» / «Альбом» (equal two-segment, active filled with accent border) | height ≈ 42 px, full panel width | `SegmentedControl` fullWidth (a mode of one view) |
+| 17 | Preview image, full panel width, ~ 4:3, with chevron-right overlay button (circular) | ≈ 340×244 | REQ-4 media preview; `IconButton` overlay |
+| 18 | Bubble text: bold title (2 lines), muted body (2 lines clipped), eye icon «0», right «сейчас» | title ≈ 16 px semibold; body ≈ 14 px | `TelegramPreview` + media slot (REQ-4); «0» and «сейчас» are static drafts values (API-3) |
 
-### Audit (expert review, not validated)
+### 3.2 `posts-01` — Desktop 2. Публикация (1440)
 
-| Screen / step | Heuristic | Evidence | Severity | Fix for prototype |
-|---|---|---|---:|---|
-| Editor / orient and begin | Match between system and real world; recognition over recall | Shipped: `media-editor-1280.png`; target image 1 header has title, draft status and autosave. | 2 | Make “Новый пост”/title, actual draft status, save status, and back-to-posts visible in one concise header. No fictitious “autosave enabled” when idle/empty. |
-| Media / add first file | Visibility of system status; user control | Shipped empty: `media-empty-1280.png`; target image 4 empty drop-zone and mobile image 2 bottom sheet. | 3 | Make upload affordance available at first visit; show source choices immediately. Drop, system picker and library are visibly distinct. Simulate file-selected state in prototype. |
-| Media / understand queue | Visibility of system status; error prevention | Shipped attachment row has filename/status/actions but no visible thumbnail in fixture; target images 1–2 show thumbnail, type, dimensions/duration and progress. | 3 | Each mock asset shows thumbnail/type, name, size, progress/state and cancel/remove; failed state includes reason + retry. Mark all metadata/progress as demo. |
-| Media / reorder and remove | User control and freedom; consistency | Target images 2, 5, 6 show reorder handle and remove; Telegram album picker supports reorder/removal. | 2 | Reorder via handle and keyboard-accessible Move up/Move down actions; remove only detaches from this draft. Update preview order immediately. |
-| Image / crop and return | User control and freedom; match between system and real world | `posts-03` crop screen; `apps/contracts/src/media.ts`; cleanup trigger in `apps/backend/migrations/0016_post_media.sql`. | 3 | Crop only photos. Offer `Оригинал`, `1:1`, `4:5`, `16:9`, zoom, rotate ±90°, reset, Cancel and `Готово`. Cancel restores the prior framing. On Done, create a derived image and replace this post attachment only after derivative upload succeeds; on failure keep the old item. The source remains available only if the backend persists the derivation relationship and cleanup treats it as a live dependency. |
-| Preview / inspect what will be sent | Match between system and real world; visibility | Target images 1, 3, 5, 6 show media and caption together; shipped fixture preview has text only. | 3 | Present title/body/media in delivery order, with previous/next for group preview and a visible type marker. No made-up views/time/channel identity. |
-| Settings / publish or schedule | User control; error prevention | UX_SPEC §4.1 and target image 3 show channel, now/schedule, readiness, final action. | 4 | Show selected channel and time zone, visibly distinguish immediate vs scheduled, summarize readiness and require a second explicit confirmation. Prototype action is mock-only. |
-| Mobile / navigate while keyboard open | Aesthetic/minimal design; accessibility | Shipped `media-editor-375.png` viewport has shell chrome overlapping editor, plus fixed bottom actions. Target image 4 is full-screen and image 2 source sheet. | 3 | Full-screen edit route; keep focused input and pinned actions above visual viewport/keyboard; source chooser is a bottom sheet; no global shell overlap. |
+Grid: same shell; work area split into **settings column (≈ 42 %)** and **preview card (≈ 46 %)**; title «Публикация» H1 at top-left, «×» top-right.
 
-### Cognitive walkthrough (pass 1: perform the owner's task)
-
-For each step, ask: will the owner try it, notice the control, link it to their goal, and see progress? `Yes` below is a design expectation to verify in the prototype, not a validated user finding. Pass 2 is the heuristic hunt in the audit table above: visibility, user control, match to real world, consistency, and error prevention.
-
-| Task step | Will try? | Notice? | Link to goal? | See progress/result? |
-|---|---|---|---|---|
-| Start writing | Yes — title/body are the natural first actions. | Yes — labeled fields at top of focused page. | Yes — title + text are explicitly grouped as post content. | Yes — save indicator moves through `Изменено` → `Сохраняем…` → `Сохранено`. |
-| Add photo/video | Yes — media is a primary part of the task. | Yes — empty drop zone and “Добавить медиа” remain visible without a saved draft. | Yes — actions name device/library sources. | Yes — chosen items appear immediately in a per-file queue with state. |
-| Review/order media | Yes — visible thumbnails invite review. | Yes — handles, type, sequence and remove affordance are on the item. | Yes — media cards sit directly in the post editor. | Yes — preview order changes alongside the grid. |
-| Preview result | Yes — preview is a named destination. | Yes — desktop side panel; mobile tab/action. | Yes — Telegram-like message shows the composed post. | Yes — text and media update live. |
-| Configure delivery | Yes — the next primary action is “Настроить публикацию”. | Yes — channel, “сейчас/по расписанию” and timezone are explicit. | Yes — readiness summary connects choices to final action. | Yes — selected mode and validation state remain visible. |
-| Confirm | Yes — explicit final button. | Yes — named confirmation dialog and effect. | Yes — dialog names channel and immediate/scheduled outcome. | Yes — demo-only result follows confirm; cancel keeps editor state. |
-
-## Flow and responsive wireframes
-
-The flow is a prototype demonstration, not production interaction:
-
-`Posts → New post → Edit title/body (mock autosave states) → Add media → Choose device/library → Queue/gallery → Preview → Publication settings → readiness → explicit confirmation dialog → mock result`
-
-At every point, back returns to the previous editor state. Leaving the editor returns to Posts; an unsaved-loss confirmation is shown only in the prototype's explicit simulated `unsaved` state. Cancel/close source sheet returns focus to “Добавить медиа”. Cancel final confirmation makes no state change. A simulated upload can be cancelled without removing already uploaded mock items. No real publish endpoint or persistence is allowed.
-
-### Desktop, target viewport 1280 px
-
-```text
-┌────────────────────── Studio shell / sidebar ──────────────────────┐
-│  ← Все посты     Новый пост · Черновик       Сохранено / Сохраняем… │
-│                                                                     │
-│  ┌────────── Writing and media (min 0, max ~720) ──┐ ┌─ Preview ─┐ │
-│  │ Заголовок                         0 / 200        │ │ Канал*    │ │
-│  │ [input]                                          │ │ [message  │ │
-│  │ Текст                                            │ │  card:    │ │
-│  │ [format toolbar]                                 │ │  media,   │ │
-│  │ [rich editor, internal scroll for long copy]     │ │  caption, │ │
-│  │                                                  │ │  controls]│ │
-│  │ Фото и видео                     [Добавить медиа]│ │           │ │
-│  │ [dropzone when empty / asset queue or grid]       │ │ [tabs:    │ │
-│  │                                                  │ │ preview / │ │
-│  └──────────────────────────────────────────────────┘ │ posts]    │ │
-│                                                       └───────────┘ │
-│  [publication setup / next step]                                    │
-└─────────────────────────────────────────────────────────────────────┘
-```
-
-Use content-first hierarchy: no mandatory progress-stepper or numbered “step 5/6”; the supplied step count is reference copy, not product architecture. At 1280 with the actual sidebar, allow columns to shrink fluidly; if they cannot meet readable minimums, stack preview after media instead of compressing controls. Header is not sticky on desktop. Keep the editor within the available page width and avoid nested-card walls.
-
-### Mobile, target viewport 375 px
-
-```text
-┌──────────── Full-screen editor route ─────────────┐
-│ ←  Новый пост / title         Черновик      ⋯     │
-│     Сохранено / Сохраняем…                        │
-│ Заголовок                              0 / 200    │
-│ [single-line / growing title field]                │
-│ Текст                                  0 / 4096   │
-│ [horizontal formatting row + more menu]            │
-│ [body editor; grows, keyboard-aware]                │
-│ Фото и видео                         [Добавить]   │
-│ [2-col media grid / upload status]                  │
-│ [Открыть предпросмотр]                              │
-│                                                    │
-│ [Сохранить/Выйти]          [Настроить публикацию]  │ ← pinned, safe-area
-└────────────────────────────────────────────────────┘
-
-Tap Добавить:
-┌──────────── dimmed editor behind ─────────────────┐
-│                 bottom sheet                      │
-│ Добавить фото и видео                              │
-│ [Снять фото/видео] (device capability only)        │
-│ [Выбрать на устройстве]                            │
-│ [Из медиабиблиотеки]                               │
-│ [Отмена]                                           │
-└────────────────────────────────────────────────────┘
-```
-
-At mobile widths, avoid showing the preview in a narrow right column. Make preview a dedicated tab/sheet or expandable section, and ensure the setting screen is a full-screen route with the preview above settings and a single pinned primary action. In Mini App, the prototype may show the corresponding BackButton/MainButton affordance, but never duplicate a browser shell bar.
-
-### Screen B — publication settings
-
-Follow `posts-01` desktop right-hand screen: a focused page headed “Публикация”; channel selection first; mutually exclusive “Опубликовать сейчас / Запланировать”; date and time only for schedule, with explicit “Europe/Chisinau (UTC+3)” display; only supported options; and an adjacent/following final Telegram preview. On mobile use one column, full-height navigation back to the same editor state, preview before the settings, and one safe-area pinned primary action. Show a readiness summary (channel, delivery time, media count, validation); unavailable channel or unfinished upload blocks the action and links to the relevant field/item. Drafts must first pass the existing explicit approval transition; after approval, publication confirmation follows the existing API path.
-
-### Crop screen — mobile and narrow layouts
-
-Follow `posts-03`: full-screen image, dimmed outside the crop rectangle, thirds grid, controls below image and persistent “Назад / Готово” header. The crop viewport updates when ratio changes, while the source image itself remains unchanged. Zoom is a labeled slider plus/minus buttons; rotation is explicit buttons, not a gesture-only affordance. “Использовать как обложку” is explained as first-in-order, not an independent Telegram cover. Desktop can use a centered dialog of the same crop workspace; Escape and “Назад” cancel and return focus to the media card’s crop action. Production crop creates a derived asset, but the existing revision-aware upload/replace flow alone is insufficient: persist the derived-to-source relationship and make cleanup retain the source while any derivative depends on it. Keep the original attachment until derivative upload succeeds; do not present crop as ready before the retention relationship is implemented.
-
-## States and actions
-
-| State | Entry / visible result | Actions and exit | Prototype behavior |
+| # | Element | Measurement | Maps to |
 |---|---|---|---|
-| Empty draft | No title/body/media; empty media dropzone; preview placeholder; status `Изменено` only after typing | Type or add media; back to Posts creates nothing | Empty default; no fake saved draft. |
-| Editing / autosave | Title/body live in editor; counter reflects Telegram message; status `Сохраняем…` then `Сохранено, 14:32` | Back returns to Posts; save action can force mocked save | Use deterministic demo clock and local in-memory state. |
-| Upload idle | Dropzone with “Перетащите файлы сюда или выберите источник”; actions “С компьютера”, “Из медиабиблиотеки” | Open native-looking mocked chooser or library sheet; drop area accepts simulated selection | Never invoke OS picker or upload. |
-| Uploading | Per-file card has thumbnail, type, progress and “Загружается…” | Cancel this item; other files continue | Progress is an authored sequence (e.g. 24 → 68 → 100%), labeled demo. |
-| Processing | File remains queued with neutral “Обрабатывается…” | Continue editing/reordering; remove from draft | Don't suggest server processing is real. |
-| Upload failed | Inline error beside file; progress stops | “Повторить” or remove | Retry returns to uploading mock state; no global alert-only. |
-| Media selected | Grid; order visible via position/handle; first item subtly marked “Первое” (avoid Telegram “обложка” claim) | Move earlier/later; remove from this post; add more; tap preview | Changes immediately reflect in preview. |
-| Library picker | Existing prototype media-library sheet; filter “Все / Фото / Видео”; multi-select; selected count; “Недавние” means newest first | “Добавить (N)” returns to editor; “Отмена” returns focus to opener | Reuse mock library state. Production can use the existing library endpoint's newest-first ordering; no separate recent store is implied. |
-| Crop image | Full-height crop workspace for one photo; selected ratio, crop bounds and live thumbnail are visible | Ratio: “Оригинал / 1:1 / 4:5 / 16:9”; zoom slider with +/- buttons; rotate 90° left/right; “Сбросить”; cover toggle; “Готово” returns to that media item. “Назад”/Cancel discards only the in-progress crop; Escape follows the same path. | Mock transform only; clearly demo. Never crop video/animation. Toggle means “show this photo first”: move it to position 1 and explain that Telegram has no independent album-cover field. Toggle off leaves order unchanged. |
-| Preview | Telegram-like post with media carousel, type/duration only when part of fixture; exact text order | Previous/next media, enlarge mock preview, back to edit | No views count, real send time or assumed channel stats. |
-| Publication setup | Channel selection, “Опубликовать сейчас” / “Запланировать”, date/time and explicit Europe/Chisinau offset; readiness summary; current editorial status visible | Back to editor preserves mock values. A draft first exposes the existing “Одобрить” confirmation; after mock approval the publication action is available. Publication confirmation names channel and effect. | Demonstrate the current two-stage lifecycle in mock state. Unsupported toggles absent. |
-| Final confirmation/result | Confirmation names channel and effect (“Опубликовать сейчас в …?” / “Запланировать на … в …?”); result states distinguish accepted/scheduled from sent | Cancel/Esc closes with focus restored. Confirm may show only a clearly labelled simulated server response; cancel never changes state. | Never call API; never label `202` as “Опубликовано”. Keep the result fixture explicit that it is demo data. |
-| Offline/save failure/conflict | Persistent inline banner or save indicator explains issue; preserve typed content | Retry mock save; conflict opens compare/update state; leave only if safe mock state says saved | Do not show success unless state switcher sets it. |
-| Loading / unavailable library | Skeleton geometry or inline library error | Safe GET-style retry only (mock) or cancel | Keep final layout geometry stable. |
-| Read-only approved/sent | Lifecycle banner explains status; editing disabled; preview available | Return to draft only when supported by current post-state fixture; navigate back | Do not invent action eligibility. |
+| 1 | H1 «Публикация», «×» close right | ≈ 32 px; no top bar (§8 D11) | `PageHeader`; «×» = back to editor, state preserved |
+| 2 | Section «Канал»; card: avatar circle «K», name «Название канала», «3 420 подписчиков», chevron-right | card ≈ 64 px tall, full column width, radius card | Channel picker row (`RowCard`-style); chevron opens destinations list from `GET /destinations`; subscribers → API-2 |
+| 3 | Section «Время публикации»; **two radio rows**: «Опубликовать сейчас» (selected: bordered accent) and «Запланировать» (plain row with divider) | each ≈ 46 px tall | `RadioGroup` card variant (REQ-9) |
+| 4 | When «Запланировать»: date field «8 окт. 2026» with calendar icon, time field «12:00» with clock icon and up/down stepper, side by side | each ≈ 224×40; **both fields stay visible in place when «Опубликовать сейчас» is selected** (disabled, showing the current date/time) | `DateTimeField` (date + time); stepper per REQ-10 |
+| 5 | ~~Section «Дополнительные настройки»~~ — **not built** (owner decision 09.10.2026, `docs/DECISIONS.md`): the section and its three switches are omitted in the prototype and the real UI; «Назад» / «Опубликовать» follow «Время публикации» | — | API-1 |
+| 6 | «← Назад» secondary button, left bottom | ≈ 150×48 | `Button` secondary + arrow icon |
+| 7 | Preview card heading «Предпросмотр публикации» | — | `Panel` header |
+| 8 | Preview image with left/right chevrons and **«1 / 5» counter pill** at bottom-center | ≈ 320×240 | REQ-4 carousel |
+| 9 | Bubble: bold title (2 lines), body (2 lines), eye «0», «сейчас» | as 3.1 #18 | `TelegramPreview` |
+| 10 | Primary «Опубликовать ➤» full preview-column width, below caption «Пост будет опубликован в выбранном канале.» | ≈ 340×48; caption ≈ 12 px centred | `Button` primary full width + caption; safety wording in §8 D2 |
 
-All action-like controls must visibly work inside the prototype. Any future operation not represented by current APIs/DTO state is a disabled/absent capability, not decorative UI.
+### 3.3 `posts-01` — Mobile 1–6 (375)
 
-## What the clickable prototype must show
+Common phone chrome: back arrow + «Новый пост» + status (dot + «Черновик сохранён» or «Сохранение…») in a 56 px header row; no shell bar (UX_SPEC §0.6). Fields sit on the plain surface — **no bordered card around each section**. Footer pinned, **one row shared by both buttons**: «Выйти» ≈ **150** + «К публикации →» ≈ **178** (fills the rest), height 44 px, safe-area padded. The status bar (9:41, signal) is device chrome and is **not** built.
 
-Desktop and mobile should demonstrate the same core story, with density adapted—not reduced capabilities:
+| State | Elements in order | Maps to |
+|---|---|---|
+| **M1 Пустой редактор** | Header; «Заголовок 0 / 200» + focused input with placeholder «Введите заголовок» (≈ 44 px); «Текст 0 / 4096» + toolbar (B I U S link bullet list; **narrower than desktop: 7 buttons, rest in overflow**) + area with placeholder «Напишите текст публикации»; «Фото и видео» row; dashed drop area ≈ 200 px tall: image icon in accent-soft square, «Добавьте фото или видео», muted «Поделитесь яркими моментами вашего путешествия», small primary «Добавить медиа» button; pinned footer | `TextField`, `TextArea`, toolbar (§3.1 #8), REQ-3 `Dropzone`, `Button` |
+| **M2 С добавленными медиа** | Header status «Черновик сохранён»; title filled «58 / 200»; text filled «272 / 4096» and full toolbar (B I U link list list ⌘ emoji undo); «Фото и видео» then **3-column grid of square tiles with × and type badges**, 2 rows (5 tiles; 3+2) | REQ-1 grid ≈ 329 wide, tile ≈ 104×104 pt, gap ≈ 13 |
+| **M3 Загрузка файлов** | As M2; header status «Сохранение…» with accent dot; grid of 3: tile 1 = **success** (green check circle, «100%»), tile 2 = video poster with progress ring «65%», tile 3 = poster with **orange** ring «60%» | REQ-1 `state` = `done` / `uploading` / `failed`; orange state is read as **failed at 60 %** with retry (§8 D4); status carried by icon + text, never colour only |
+| **M4 Изменение порядка** | Header «Новый пост» + «Черновик сохранён»; section row «Фото и видео» left, accent link «Готово (5)» right; **5 list rows**: drag handle (⠿), ≈ 70×46 landscape thumbnail (video has play + «01:24» chip), file name + muted meta (video: «video_1.mp4» + «01:24»), × at right; row pitch ≈ 52 pt (thumb 70×46), hairline dividers; pinned footer | `Panel` list rows (`ListParts`), `MediaTile` ≈ 70×46 landscape, handles = REQ-1b; Up/Down keyboard (§6.3) |
+| **M5 Предпросмотр** | Header; two-segment «Пост / Альбом» full width; preview image ≈ 343×200 with chevrons; bold title (2 lines) + body (3 lines) + eye «0» + «сейчас»; pinned footer | `SegmentedControl`, REQ-4, `TelegramPreview` |
+| **M6 Публикация** | Header «Публикация» (back arrow, no status); «Канал» + row; «Время публикации» + two radio rows («Сейчас», «Запланировать») + date and time fields on one row (visible, disabled for «Сейчас»); no «Настройки» section (owner decision 09.10.2026); pinned footer «← Назад» + «Опубликовать ➤» | same as 3.2 on one column; mobile uses the shorter image label «Сейчас» |
 
-1. Empty editor with usable text fields and ready-to-use media dropzone.
-2. Media-source sheet/menu with device and existing library options; library multi-selection and return path.
-3. Mixed media queue: queued/uploading/processing/success/failure; per-file retry/cancel/remove; multiple files and visible sequence.
-4. Loaded media grid, reorder by pointer plus keyboard-accessible move actions; removal affects the post only; first item order reflected in preview.
-5. Text-only, image+caption, video+caption, album, and mixed media preview states. Use local fixture thumbnails with clear demo data; no fabricated asset metadata claims.
-6. Screen B with channel, now/schedule, timezone and readiness; show the existing approve-then-publish/schedule sequence, explicit final confirmation, cancel and an explicitly mocked server-result state.
-7. Crop screen with the four ratios, zoom, rotate, reset/cancel/done; cover toggle behaves only as reorder-to-first and is labelled accordingly.
-8. Autosave pending/saved/failed, offline, conflict, empty/first-entry and keyboard-open states using existing prototype state switcher conventions.
-9. Existing ALEXEEV theme toggle should demonstrate both light and dark without changing token values. Prototype banner/state switcher must remain clearly visible and mock-only as required by design README.
+Mobile tile and row sizes are normalized to **one value per class**: grid ≈ 329 wide, tile 104 pt square (3 columns, gap ≈ 13), M4 list thumbnail ≈ 70×46 landscape.
 
-Do not add a new color palette or visual primitives. Reuse tokens/primitives from `apps/frontend/src/app/styles/tokens.css` and `apps/frontend/src/shared/ui`; reuse `TelegramPreview`, current app shell, and the `/__proto` store/state switcher where suitable. Prefer extending the existing prototype editor, not a second prototype framework.
+### 3.4 `posts-02` — Desktop modal «Добавление медиа» (1440)
 
-## Acceptance criteria
+Modal ≈ 698 src wide; proportions are expressed in % of modal width so the Dialog can be sized by one token (REQ-0 wide Dialog, target 760 px at 1440, max-height 90 vh, inner scroll). Backdrop = dimmed editor.
 
-- [ ] All three owner reference files map to explicit prototype states: editor/publication + six mobile states (`posts-01`), desktop source/queue (`posts-02`), mobile source/crop (`posts-03`). Each is represented at the relevant viewport, not by duplicating a whole reference image as one state.
-- [ ] At 1280 px the editor has writing/media and preview columns within the ALEXEEV Studio shell; columns stack cleanly when the available width is insufficient.
-- [ ] At 375 px the editor is full-screen without shell overlap, with a usable one-column form, mobile media source sheet, and safe-area pinned actions.
-- [ ] At 320 px there is no horizontal page overflow, clipped text, or controls below 44px on touch.
-- [ ] The blank editor has no premature “saved” status and no mock draft silently appears without user input.
-- [ ] Adding media from a source, choosing multiple library items, reordering, removing, retrying a failed item, returning from preview, and returning from settings all have visible outcomes and preserve the prototype's in-memory state.
-- [ ] The source chooser distinguishes device, existing library and recent (newest retained assets); empty/loading/error/selection states have cancel and return-focus behavior. Mobile offers camera only when device capability allows it, gallery picker, library and cancel.
-- [ ] Crop prototype demonstrates original/1:1/4:5/16:9, zoom, rotate, reset, cancel and done. Crop applies only to photos; original library fixture remains unchanged. “Use as cover” visibly moves that photo first and tells the user Telegram has no separate album-cover property.
-- [ ] The crop preview is mock-only in `/__proto`; production crop is not complete through the current upload endpoint alone. It applies the crop to real derived bytes, preserves the source asset through an explicit persisted derivation relationship and cleanup dependency, keeps the old post attachment on failure, and sends the same derivative shown in preview.
-- [ ] Title/body/media update preview in real time. Preview order matches the media order and distinguishes photo/video without fabricated stats.
-- [ ] Every write-like action is mock-only; browser network inspection shows no new request; final confirm has cancel/keyboard exit and returns focus to its trigger.
-- [ ] The prototype uses existing ALEXEEV tokens/primitives and remains recognizable in both current themes; no owner-image colors, gradients, radii or type styles are copied.
-- [ ] Focus order and headings are coherent, tabs/dialogs use existing accessible primitives, all icon actions have names, no drag-only interaction exists, and status is never communicated by color alone.
-- [ ] Builder quick-check screenshots cover 375, 1280 and 1920 px. Independent UI QA covers the full `UX_SPEC.md` matrix: 320, 375, 390, 768, 1024, 1280, 1440 and 1920 px, plus widths around any layout breakpoint. At 375 and 1280, capture default, media grid, mobile source sheet, preview, settings/confirm and error states; distinguish viewport from full-page captures.
+| # | Element | Measurement | Maps to |
+|---|---|---|---|
+| 1 | Title «Добавление медиа» left, «×» right | ≈ 26 px title | `Dialog` header |
+| 2 | **Three equal source tabs**, each a bordered tile with icon (left, in square), bold title and muted hint: «С компьютера / Загрузите файлы с устройства» (selected: accent border + accent-soft fill), «Медиабиблиотека / Ваши сохранённые файлы», «Недавние / Ранее загруженные файлы» | each ≈ 31 % width, ≈ 72 px tall, gap 2 % | Tabs with REQ-2 `SourceTab` (card tab variant); roving arrow keys |
+| 3 | Drop zone (tab 1): dashed border, radius, centered image-plus icon (≈ 36 px), bold «Перетащите фото и видео сюда», muted «или выберите файлы на устройстве», primary «Выбрать файлы» button (icon + label, **≈ 292×44**), 2-line caption with limits | ≈ 94 % wide × **≈ 257 px tall** (760 modal) | REQ-3 `Dropzone`, `Button` primary; **caption uses true limits (§8 D3)** |
+| 4 | Tab 2/3 content (not drawn in the image, same slot, same height): library grid with search-less newest-first list, kind filter, multi-select checkmarks | same area as 3 | Library list: `MediaGridTile` selectable; `GET /media` (API-7); loading/empty/error per §5 |
+| 5 | Row «Выбранные файлы (2)» left; «Очистить всё» (trash icon, bordered button) right | row ≈ 48 px | Section title + `Button` secondary small |
+| 6 | **File rows** (2 shown; same row for N): **landscape thumbnail ≈ 120×62, flush left** in the row (video has play circle), bold file name, muted «4.2 МБ • 4032 × 3024» (video adds «• 01:24»), **status column**: green check + «Готов к добавлению» **or** spinner ring + «Загрузка…» + «62 %» + progress bar under it, × at right | row ≈ **68 px tall**, gap ≈ 6 px, row bordered with radius | REQ-5 `UploadRow`, REQ-6 `ProgressBar`; `IconButton` remove |
+| 7 | Footer: «Отмена» (secondary), «+ Добавить в пост» (primary), right aligned | «Отмена» ≈ **187** wide, «Добавить в пост» ≈ **232** wide, height 44 px | `Button` secondary / primary |
 
-## Prototype builder ownership
+### 3.5 `posts-02` — Desktop modal «Кадрирование фото» (1440)
 
-Builder owns only these paths unless the orchestrator expands scope:
+| # | Element | Measurement | Maps to |
+|---|---|---|---|
+| 1 | Title «Кадрирование фото», «×» | as 3.4 #1 | `Dialog` header |
+| 2 | **Left: crop canvas** panel, rounded, image fills it; dimmed outside; crop frame white 1.5 px border; **4 square corner handles**; **rule-of-thirds grid** (dashed white lines, 2 vertical + 2 horizontal) | canvas ≈ 60 % × ≈ 420 px | REQ-7 `CropCanvas` (feature-level, uses tokens `--on-media`/overlay) |
+| 3 | **Right: «Предпросмотр» panel**: heading, preview image ≈ 206×222 of the current crop, checkbox «Использовать как обложку» + muted «Это фото будет отображаться в предпросмотре поста» | panel ≈ 36 % wide | `Panel`, `Checkbox`; semantics §8 D5, API-4 |
+| 4 | Ratio tiles: **«Оригинал» (selected: accent border + fill), «1:1», «4:5», «16:9»**, each with a shape icon (rectangle in that ratio) above label | 4 equal tiles, each ≈ 14 % × 56 px, gap ≈ 12 px | REQ-8 `RatioTile` group (toggle group); icon per ratio |
+| 5 | Row: label «Масштаб», **− button, slider with round thumb (accent filled track), + button** | row ≈ 48 px; slider ≈ 256 px wide; − / + ≈ 36 px | REQ-11 `Slider` with steppers |
+| 6 | Right of the row: rotate-left icon button, readout «0°», rotate-right icon button, «Сбросить» (bordered button) | buttons 36–44 px square (desktop pointer 36; touch 44) | `IconButton` ×2, `Button` secondary |
+| 7 | Footer: «Отмена» (secondary) and primary «Сохранить» with file icon | **both ≈ 180 px wide**, height 44 px | `Button` |
 
-- `apps/frontend/src/pages/prototypes/EditorScreen.tsx`
-- `apps/frontend/src/pages/prototypes/Editor.module.css`
-- `apps/frontend/src/pages/prototypes/registry.ts`
-- `apps/frontend/src/pages/prototypes/proto-store.tsx` only if mock behavior requires it
-- `apps/frontend/src/pages/prototypes/ProtoIndex.tsx` only if a new state link needs a group label
-- new files under `apps/frontend/src/pages/prototypes/` for editor-specific mock preview, source sheet or crop screen only
+### 3.6 `posts-03` — Mobile sheet «Добавить фото и видео» (375)
 
-No production files under `features/posts`, `routes/posts`, `shared/ui`, tokens, API/contracts, backend or database are in builder scope. Do not modify `docs/design/UX_SPEC.md` in the prototype implementation task; this is a story handoff, not an automatic canonical-spec approval. Independent ui-qa may accept this prototype and allow implementation without waiting for owner review. Any change to the canonical approved UX system, publishing policy or other owner-only decision still requires owner approval. Follow `docs/AGENT_UI_WORKFLOW.md`.
+Bottom sheet over the dimmed editor; top corners rounded, grabber bar centered at top.
 
-## API needs and production constraints
+| # | Element | Measurement | Maps to |
+|---|---|---|---|
+| 1 | Grabber | 40×4 | REQ-13 `BottomSheet` (or `Drawer` bottom placement) |
+| 2 | Title «Добавить фото и видео» | 20 pt semibold | sheet header |
+| 3 | Row «Снять фото / Открыть камеру устройства» | row **64 pt** (≥ 44), 40 pt icon circle (accent-soft) with camera icon, bold title, muted hint, right chevron | REQ-13 `ActionRow` |
+| 4 | Row «Выбрать из галереи / Фото и видео с устройства» | same | `ActionRow` |
+| 5 | Row «Открыть медиабиблиотеку / Ваши сохранённые файлы» | same; folder icon | `ActionRow` |
+| 6 | «Отмена» full-width bordered button | 48 pt | `Button` secondary |
 
-The prototype must not issue requests. It may simulate all states using deterministic fixtures. For production, the following are grounded in current contracts and must not be presented as working until the implementation is verified:
+«Снять фото» is shown always (per image); it requests the device camera through `<input capture>`; where the browser ignores `capture` it behaves as the gallery picker and the hint reads «Откроется выбор файла» (capability branch, no false promise).
 
-- **Private image/video preview:** use the owner-authorized `GET /api/v1/media/{mediaId}/content` byte stream with the in-memory session. Create an object URL from the returned `Blob` only in the browser, revoke it when the media changes or the component unmounts, and show per-item loading/error/retry states. A `blob:` URL is not a server URL and cannot be reused across browser sessions/origins; never store it in a DTO or use it as the persisted media address. A failure to fetch preview must not disable remove/reorder.
-- **Upload/remove/reorder/library attach:** these operations already exist and are revision-aware (`apps/contracts/src/media.ts`; API meaning in `docs/API_CONTRACTS.md`). Serialize writes for one post. Show success only after the server returns the new revision. If remove fails, keep the media in the post and show “Не удалось убрать файл из поста. Повторить” beside that item—not an upload error. On 409 preserve local text and explain that the post changed; reload/compare before retrying the media action. Removing an attachment must not be described as deleting the library file.
-- **Recent source:** current library GET is keyset-paginated, returns retained assets, includes `createdAt`, and backend orders newest first. “Недавние” can be a view of that existing result; do not imply it includes unretained or temporary uploads.
-- **Crop derivation and retention — API/data need:** the current upload endpoint accepts bytes/filename but cannot record that a cropped derived asset depends on a source asset. On detach of the source's last post/revision reference, migration `0016_post_media.sql` queues cleanup; therefore merely uploading a derivative and detaching its source can delete the library original. Add a persisted derivation relationship and make retention/cleanup treat that relationship as a live reference; keep the source available in the library while any derivative depends on it. Do not invent the endpoint or DTO shape in this handoff. If crop handles must reopen relative to the original, expose the required source/crop metadata via the contract as well. Until this data path exists, production crop is not ready; CSS-only preview is never sufficient.
-- **Cover semantics:** the current media contract has order but no independent cover field. Telegram displays the first item first; it does not accept this app's album-cover toggle as a separate setting. The UX therefore maps “Использовать как обложку” to moving that photo to position 1 (using existing reorder), with helper copy “Фото будет первым в публикации; отдельную обложку Telegram не задаёт.” Only one photo can be first. Do not alter library ordering.
+### 3.7 `posts-03` — Mobile «Кадрирование» (375)
 
-## Existing publication lifecycle (preserve; no new policy)
+Full-screen route, no shell bar.
 
-Screen B is a review/configuration step, not a shortcut around the existing editorial state. “К публикации” only navigates from Screen A. A draft uses the existing explicit “Одобрить” action and its confirmation; after the server returns `approved`, the publication action becomes available. The explicit “Опубликовать” / “Запланировать” confirmation then creates one publication for the chosen destination using the existing idempotency key and backend flow. Returning to Screen A preserves the same post and selected settings. A `202` is shown as accepted/queued/scheduled from the returned DTO, never as `Опубликовано`; only server-confirmed `sent` means sent. This is the current contract/model, not a new combined mutation. Follow `.agents/skills/publishing-reliability/SKILL.md` for production changes.
+| # | Element | Measurement | Maps to |
+|---|---|---|---|
+| 1 | Header: left «← Назад» (**accent** text link), centered «Кадрирование», right primary pill «Готово» | header ≈ 56 pt; «Готово» ≈ 76×44 pt | Header row; `Button` primary small |
+| 2 | **Canvas full width, ≈ 400 pt tall**: dimmed outside frame, white frame border, **corner handles (L-shaped corner brackets in this image; squares in `posts-02`)**, thirds grid lines | canvas 100 % × ≈ 400 | REQ-7 `CropCanvas`; handle shape normalized (§8 D6) |
+| 3 | Ratio tiles row: **«Ориг.» (selected), «1:1», «4:5», «16:9»**, icon above label | 4 equal ≈ 81×69 pt, gap ≈ 8 | REQ-8 `RatioTile`; short label «Ориг.» on phone, «Оригинал» ≥ 860 px |
+| 4 | Label «Масштаб» left; label «Повернуть» right; below: pill container with **− slider +**, and **two square rotate buttons** (left, right) | pill ≈ 245 pt wide; **− / + are plain small symbols** (no circles or fills); rotate buttons 44 pt | REQ-11 `Slider`, `IconButton` |
+| 5 | **Cover card**: thumbnail ≈ **72×56** of the crop, bold «Использовать как обложку» (**one line**), muted «Эта фотография будет показываться в превью публикации.» (**two lines**), switch at right | card ≈ **94 pt tall**, radius card | `Card`, `Switch`; semantics §8 D5, API-4 |
+
+Desktop and mobile crop share one state; the desktop **«Сбросить»** and angle readout **«0°»** exist on desktop only (not drawn on the phone image) — on phone «Сбросить» is a text button beside the «Повернуть» label (§8 D7).
+
+## 4. Crop interaction spec
+
+State: `ratio` (`original|1:1|4:5|16:9`), `zoom` (1.0–4.0, step 0.05), `rotation` (multiple of 90° plus fine angle readout; image shows **«0°»**, the controls only ±90°, so the readout shows 0°, 90°, 180°, 270°), `frame` (x, y, w, h in image space), `cover` (bool), `dirty`.
+
+- **Open:** from a photo tile (desktop: click the tile or «Кадрировать» in the tile menu; phone: tap tile → bottom menu «Кадрировать / Убрать из поста»). Videos and GIFs never show the entry. Starts with ratio «Оригинал», zoom 1 (slider thumb **mid-track by default**, as in the images; the zoom-to-slider mapping is the builder's), rotation 0, **an inset frame ≈ 73 % of the canvas (centred) with all four handles visible** (never flush with the canvas edge) — or, for a derivative (`sourceMediaId` set), loads the **original** (`GET /media/{sourceMediaId}/content`) so the owner can re-frame freely.
+- **Pan:** drag inside the frame moves the image under the fixed frame (frame stays inside the image after rotation and zoom; clamped, never shows empty background). Keyboard: canvas is a focusable region (`role="application"`, label «Область кадрирования»); arrow keys move 1 % of image size, Shift+arrow 10 %.
+- **Resize:** drag a corner handle to resize the frame, ratio locked unless `Оригинал` (free ratio in that mode, initial = image ratio). Handles are 12 px visible on desktop, with a 44×44 px invisible hit area on touch. Keyboard: with a handle focused (Tab cycles 4 handles, `aria-label` «Левый верхний угол» etc.), arrows resize by 1 %, Shift by 10 %. Minimum frame 10 % of the shorter image side and ≥ 320 px output on the shorter side (below that: slider and frame stop, inline caption «Слишком мелко для публикации»).
+- **Ratio tiles:** select a ratio → frame snaps to the largest centered frame of that ratio at the current zoom, with a 150 ms transition (instant under `prefers-reduced-motion`). `aria-pressed` on the active tile. Arrow keys inside the group move selection (roving).
+- **Zoom:** slider 1×–4× with − and + buttons (step 0.25 per press, 0.05 by arrow keys, Home/End), `aria-valuetext` «Масштаб 150 %». Wheel and pinch also zoom (progressive enhancement only; the slider is the accessible path). The frame stays centred on its current centre.
+- **Rotate:** left/right buttons rotate the image 90° (counter-)clockwise; readout «90°» updates; frame is re-clamped. Names: «Повернуть влево», «Повернуть вправо».
+- **Reset («Сбросить»):** restores ratio «Оригинал», zoom 1 (slider mid-track), rotation 0, the initial inset frame; disabled when already at default (`aria-disabled`, not hidden).
+- **Live preview:** the right panel / cover-card thumbnail re-renders from the same transform with ≤ 100 ms lag.
+- **Cancel / Назад / Esc / ×:** discard the in-progress crop and return focus to the tile's crop trigger. If `dirty`, the desktop modal and phone route ask nothing (nothing is lost but an unsaved crop; undo is «open again»); leaving costs nothing — consistent with "leaving is free". The attached photo is untouched until Save succeeds.
+- **Save («Сохранить» desktop / «Готово» phone):** rasterize the transform to JPEG (or PNG when the source has transparency) ≤ `PHOTO_MEDIA_MAX_BYTES` (10 000 000 B), then `POST /api/v1/posts/{id}/media/{mediaId}/crop?revision&fileName` with `Idempotency-Key` (`docs/API_CONTRACTS.md` §Media). Button shows a spinner and «Сохраняем…» and is disabled (no double submit). **Success:** the tile is replaced at the same position, `sourceMediaId` set, the dialog closes, a toast «Кадрирование сохранено» with **«Отменить»** restores the previous attachment by re-cropping from the original (undo beats confirm; works while the toast is open and also from the tile menu «Вернуть исходное»). **Failure (400/413/503/409):** dialog stays open, inline banner with the reason: 413 → «Фото после кадрирования больше 10 МБ — уменьшите масштаб», 409 `STALE_REVISION` → «Пост изменился, обновите страницу — ваши правки текста сохранены», 503 → «Не удалось сохранить. Повторить».
+- **Prototype:** all of the above works with a canvas draw on `crop-lake-demo.png`; Save writes a mock derivative into in-memory state only; no request.
+- **Touch targets:** all buttons, ratio tiles, − / +, rotate, handles' hit areas ≥ 44 px on touch (UX_SPEC); 36 px allowed for fine pointer desktop only.
+- **Cover toggle in this dialog:** see §8 D5.
+
+## 5. States per screen
+
+Widths: «D» = 1440 desktop (images), «P» = 375 phone (images); other widths per §1.
+
+### 5.1 Editor (D, P)
+| State | Visible result | Actions / exit |
+|---|---|---|
+| Empty (P: M1) | Placeholder «Введите заголовок», placeholder «Напишите текст публикации», empty dashed Dropzone with copy from M1; status pill «Черновик сохранён» is shown as in image M1; primary «К публикации →» **disabled** with reason caption «Добавьте заголовок или текст» (availability from validation) | Type → status «Изменено» → «Сохранение…» → «Черновик сохранён» (the pill already reads «Черновик сохранён» when empty) |
+| With media (D: strip, P: M2) | Strip/grid exactly as §3.1 #12 / §3.3 M2; media count in section title | Tile click → tile menu «Кадрировать / Убрать из поста»; × removes with toast «Убрано из поста» + «Отменить» (only detaches, never deletes library file) |
+| Uploading (P: M3) | Per-tile progress ring + %; uploads are **sequential per post** (server rule), queued tiles show «В очереди» | Cancel on a tile (×) stops that item; others continue |
+| Failed + retry | Tile gets warning icon + «Ошибка», plus tile menu «Повторить / Убрать»; reason line under the strip: «Не удалось загрузить файл.mp4: размер больше 50 МБ» | Retry returns to uploading; remove detaches |
+| Reorder (D: «Упорядочить», P: M4) | Strip becomes a list (D: tiles keep strip but gain drag handles and a «Готово» link; P: list view of M4); each row has handle + Up/Down buttons | Done saves order via `PATCH media/order` (§6.3) |
+| Selection («Выбрать всё») | `SelectionBar`: «Выбрано 5» + «Убрать из поста» + «Отмена» | Remove = N sequential detaches (API-9); Esc cancels |
+| Validation | Title empty / > 200, body > 4096 (counter turns error colour **plus** text «Превышено на N»), 11th file blocked with «В посте не больше 10 файлов» | Primary disabled with named reason |
+| Limit reached (10) | Add tile and «Добавить медиа» disabled, caption «Достигнут лимит: 10 файлов» | Remove one to add |
+| Save failed / offline / conflict | Banner + status «Не сохранено», typed text preserved; conflict = «Пост изменился» with «Обновить» | Retry; never blocks typing |
+| Read-only (approved/sent) | Lifecycle banner, fields disabled, toolbar disabled; preview works | Back only |
+| Loading | Skeleton with final geometry (two columns, toolbar, 5 tile placeholders) | — |
+| Long content | Title 200 chars wraps in two lines in input scroll; file names ellipsis in middle (`very_long_name…final.jpg`) with full name in `title`/tooltip | — |
+
+### 5.2 Preview (D panel, P: M5)
+Tabs «Пост» (first media, caption) and «Альбом» (all media grid as Telegram groups; caption under first). Chevrons and arrow keys navigate; «N / M» pill on carousel on the publication screen. No media: text-only bubble. Preview image load failure: placeholder tile with «Не удалось загрузить», retry; does not block remove/reorder (§10 API-8).
+
+### 5.3 Add media modal (D) and sheet (P)
+| State | Behaviour |
+|---|---|
+| Empty queue | Drop zone only; footer «Добавить в пост» disabled, «Очистить всё» absent |
+| Drag over | Drop zone border → accent, copy «Отпустите файлы» |
+| Rejected file | Row appears in error: «.pdf — формат не поддерживается» / «фото больше 10 МБ»; excluded from the count |
+| Uploading / ready | Rows as §3.4 #6; «Добавить в пост» enabled when ≥ 1 ready; with uploads in progress it stays enabled for ready ones and says «Добавить (1)» |
+| Library / Недавние tabs | Skeleton (6 tiles) → grid; empty: «Здесь пока нет файлов»; error: inline «Не удалось загрузить библиотеку. Повторить»; selection count in footer «Добавить (N)»; `Недавние` = same endpoint newest-first, first 20 |
+| Close with unfinished queue | Files already in the queue are kept in the draft's modal state for this editor session; «Отмена» discards the queue (the only real loss) after a confirm naming the count |
+| Focus | Opens on selected tab; Esc/Отмена returns focus to «Добавить файлы» tile or «Добавить медиа» |
+
+### 5.4 Crop (D modal, P route)
+Loading source image (skeleton canvas), ready, saving, save error, unsupported (video/GIF: no crop entry), minimum size reached, `prefers-reduced-motion`.
+
+### 5.5 Publication (D, P: M6)
+| State | Visible |
+|---|---|
+| Now | «Опубликовать сейчас» selected; date/time fields **stay visible in place**, disabled and showing the current date/time (as in the images); button «Опубликовать» |
+| Schedule | Date + time fields enabled, defaults to the next full hour; timezone caption under the fields; button «Запланировать» |
+| Validation | Past time (> 5 min ago) → «Время уже прошло»; > 366 days → «Не дальше чем через год»; no channel → «Выберите канал»; disabled channel → blocked with reason; unfinished upload → blocked, caption «Дождитесь загрузки файлов» linking back to the editor |
+| Draft (not approved) | Primary button is «Одобрить» in the same place (§8 D2); after mock approval it becomes «Опубликовать» |
+| Confirm | Dialog «Опубликовать сейчас в «Название канала»?» / «Запланировать на 12 окт. в 12:00 в «Название канала»?» with the effect named, «Отмена» / confirm; focus returns to the trigger |
+| Result | 202 → «Поставлено в очередь» / «Запланировано» (never «Опубликовано» until server `sent`); mock result labelled demo in the prototype |
+
+## 6. Flow
+
+`Посты → Новый пост (editor) → media modal/sheet → crop → editor → К публикации → Публикация → confirm → result`. Back from Публикация returns to the same editor state; «Выйти» returns to Посты (draft autosaved, nothing lost, no confirm). Mini App: BackButton replaces the in-page back arrow; MainButton carries «К публикации →» / «Опубликовать»; the pinned footer shows only «Выйти» (UX_SPEC §0.10).
+
+### 6.3 Reorder
+Drag-and-drop the tile/row (pointer, touch long-press) with a drop indicator — the only visible way (owner decision 09.10.2026: no «Выше» / «Ниже» buttons). Keyboard and screen-reader alternative without visible buttons: focus a tile/row, Space to lift, arrows to move, Space to drop, Esc to cancel. Live `aria-live` text «Файл 3 перемещён на позицию 2». Server write (`PATCH media/order`) after drop, serialized per post.
+
+## 7. Themes
+
+Dark theme is the image's look with our dark tokens (surface, panel, border, accent, semantic status tokens); **light theme is the identical layout with light tokens**. Image blue accents map to `--accent*`; image green (ready) and orange (warning/failed) map to `--success` / `--warning` / `--danger` tokens, always with icon and text. QA compares layout in both themes; colours are verified against tokens only.
+
+## 8. Allowed deviations (the only ones)
+
+| ID | Deviation | Reason |
+|---|---|---|
+| D1 | Sidebar labels are the real routes (Посты, Публикации…); the image's «Черновики / Запланированные / Опубликованные / Статистика» are not unbuilt nav sections | `docs/DECISIONS.md` honest nav; shell shape, density, active style and channel footer are copied |
+| D2 | The draft publication button is «Одобрить» in the same place until the server returns `approved`; then «Опубликовать» / «Запланировать» with confirm. Caption under the button names the channel and timezone «Europe/Chisinau (UTC+3)» | Publishing safety: approve-then-publish lifecycle (`publishing-reliability`), no combined mutation |
+| D3 | Dropzone caption: «Фото — JPG, PNG, WebP до 10 МБ; GIF и видео MP4 — до 50 МБ. В посте до 10 файлов.» Image text «MOV» and «50 МБ для всех» are false | `apps/contracts/src/media.ts` (`PHOTO_MEDIA_MAX_BYTES`, `VIDEO_MEDIA_MAX_BYTES`, `POST_MEDIA_MAX_ITEMS`); accepted types in `media-stream.ts` |
+| D4 | The orange ring in M3 means failed-with-retry; thumbnails normalized to equal sizes | Image inconsistent |
+| D5 | «Использовать как обложку» is built in both crop screens as drawn. Semantics: **moves this photo to position 1** (existing reorder); helper text on first hover/tap: «Фото станет первым в посте. Telegram не задаёт отдельную обложку.» Toggle off leaves order unchanged | No cover field in `postMediaSchema`; API-4 |
+| D6 | Corner handles on every crop screen are one shape (square on desktop, L-bracket on phone as drawn); both are drawn by `CropCanvas` variants | Two images draw them differently; each follows its own image |
+| D7 | Phone has «Сбросить» as a text button on the «Повернуть» label row; desktop readout «0°» absent on phone | Phone image shows no reset, the flow needs it |
+| D8 | Image counters like «58 / 200» show live values | Real data |
+| D9 | The preview panel «×» collapses the column (re-opened from the title row) | The image draws a close button without saying what it does |
+| D10 | «Шаг 5 из 6», «Сохранить / Далее» footer from `posts-02` backgrounds are not built | Not a source |
+| D11 | Shell: on editor routes (`/posts/new`, `/posts/{id}`, publication screen) the **top bar is hidden** (focused editor shell; back/title live in the page header). The sidebar stays the app-wide approved one (width and rows unchanged) although the image sidebar is wider | Orchestrator decision: one shell app-wide; the image shows no top bar |
+
+## 9. UI_PRIMITIVE_REQUESTs (to design-system via orchestrator)
+
+Until each lands, the prototype records a token delta and builds locally in prototype CSS only with tokens (no literals); production waits.
+
+| ID | Request | Used by |
+|---|---|---|
+| REQ-0 | `Dialog` wide size variant (≈ 760 px, 90 vh scroll body, header with title + «×») | add media, crop |
+| REQ-1 | `MediaGridTile` (124 px desktop / 104 pt phone square): image/poster, remove «×», type badge, duration chip, play circle, drag-handle, add-tile dashed variant, states `ready / uploading(progress ring %) / done / failed(retry)`, selectable (checkmark) | strip, grid, library, reorder |
+| REQ-1b | `MediaListRow` (handle + 44 pt thumb + name/meta + remove) | M4 reorder, file rows |
+| REQ-2 | `Tabs` card variant: icon square + title + hint, 3 equal columns | source tabs |
+| REQ-3 | `Dropzone` (dashed border, accent-on-drag, icon + title + subtitle + action slot) | M1, add media |
+| REQ-4 | `TelegramPreview` media slot with carousel chevrons, «N / M» counter pill, album grid mode | preview panel, M5, publication |
+| REQ-5 | `UploadRow` (64 px thumb, name, meta, status slot, remove) | add media queue |
+| REQ-6 | `ProgressBar` and circular progress ring | uploads |
+| REQ-7 | `CropCanvas` (feature-level component on tokens: overlay token, handle size token, grid line token) | both crops |
+| REQ-8 | `RatioTile` / toggle-group variant of `SegmentedControl` with icon above label | both crops |
+| REQ-9 | `RadioGroup` card variant (bordered selected row, dividers) | publication |
+| REQ-10 | `DateTimeField` time stepper variant (up/down) | schedule |
+| REQ-11 | `Slider` with − / + steppers | zoom |
+| REQ-13 | `BottomSheet` (grabber, title, `ActionRow` icon-circle + title + hint + chevron) | phone source sheet, tile menu |
+| REQ-14 | Rich-text `Toolbar` button group (separators, overflow for narrow widths) | text field |
+
+## 10. API needs
+
+Each element still appears in the prototype as a working mock.
+
+| ID | Element | Why it cannot be honoured today | Needed |
+|---|---|---|---|
+| API-1 | «Разрешить комментарии», «Уведомлять подписчиков», «Закрепить пост» switches | `createPublicationInputSchema` has only `postId, revision, destinationId, scheduledAt, timezone`; comments depend on channel linking, not per message | **Owner decided 09.10.2026: no switches** in prototype or implementation; revisit later as a separate decision |
+| API-2 | «N подписчиков» in sidebar footer and channel card | `destinations.ts` has no member count | Optional `memberCount` via Telegram `getChatMemberCount` |
+| API-3 | Eye «0», «сейчас» in preview | Draft has no views; «сейчас» is a prototype caption | None: show «0» and relative time; no stats claims |
+| API-4 | «Использовать как обложку» | No cover field | None for D5 mapping (reorder); separate cover = not supported by Telegram |
+| API-5 | Bullet / numbered list buttons | Telegram has no list entity | None: insert plain-text prefixes («• », «1. ») |
+| API-6 | Emoji button | No emoji picker API | None: insert Unicode via a small picker popover; entity `custom` not used |
+| API-7 | «Медиабиблиотека» / «Недавние» | Exists: `GET /media?kind&cursor&limit`, newest first, retained assets only | None; «Недавние» = first page newest-first |
+| API-8 | Thumbnails and video posters | Only full-size `GET /media/{id}/content`; DTO has no poster/thumbnail; photos up to 10 MB would load per 124 px tile | Thumbnail/poster endpoint or derivative (width ≤ 512) — recommended; until then lazy load with object URLs and revoke on unmount |
+| API-9 | «Выбрать всё» → bulk remove | One DELETE per attachment, revision increments each time | Optional bulk detach; until then sequential DELETEs with progress |
+| API-10 | Per-file upload progress % | `fetch` has no upload progress | Frontend: `XMLHttpRequest`/streaming; no API change |
+| API-11 | Crop | Exists: `POST /posts/{id}/media/{mediaId}/crop`, `sourceMediaId` retained; no persisted geometry | None. Reopening uses original via `sourceMediaId`; geometry is not restored (re-frame from scratch) |
+
+Contract facts that bind copy: photo ≤ 10 000 000 B, GIF/video ≤ 50 000 000 B, ≤ 10 attachments, title ≤ 200, body ≤ 4096. Private preview uses `GET /api/v1/media/{mediaId}/content` with the in-memory session; object URLs are revoked on change/unmount and never persisted. Upload, remove, reorder, attach are revision-aware and serialized per post; success is shown only after the server returns the new revision; remove failure keeps the media with «Не удалось убрать файл из поста. Повторить»; 409 preserves typed text and offers reload.
+
+## 11. Publication lifecycle (preserved)
+
+«К публикации» navigates only. A draft needs the existing explicit approval; after `approved`, the publication confirm creates one publication with the existing idempotency key. Returning to the editor keeps post and settings. A `202` is accepted/queued/scheduled, never «Опубликовано»; only server `sent` means sent. `unknown` sends are never auto-retried (`.agents/skills/publishing-reliability/SKILL.md`).
+
+## 12. Realistic fixtures (prototype and QA)
+
+- Five media items matching the images: real photos ≥ 1000 px wide (use `apps/frontend/src/pages/prototypes/assets/crop-lake-demo.png`, 1122×1402, plus more landscape photos of mountains, sunset, waterfall at ≥ 1600×1067), **two videos with real posters** and durations («01:24», «00:46», «00:36»), file names `altai_lake.jpg`, `sunrise_trekking.mp4`, `mountains.jpg`, `waterfall.mp4`, `lake.jpg`, plus a **long** name `Невероятные_пейзажи_Алтая_3_дня_в_горах_и_озёрах_финальная_версия_для_публикации.jpg`.
+- Title: «Невероятные пейзажи Алтая: 3 дня в горах и озёрах» (58 chars) and a 200-char variant; body ≈ 272 characters with emoji; a 4096-char variant for the counter.
+- Channel «Название канала» with a 3 420 subscribers fixture; schedule fixture «8 окт. 2026, 12:00».
+- Never a 1×1 placeholder, empty box or SVG icon in place of media; QA treats such evidence as `NOT_VERIFIED`.
+- Fixtures for each state: empty, 5 media, uploading (62 % / 65 % / 100 %), failed, reorder, preview album 1/5, publication now / schedule, validation.
+
+## 13. Acceptance criteria (Given / When / Then)
+
+1. **Element parity.** Given `posts-01` / `posts-02` / `posts-03`, when the prototype is screenshotted at 1440 (D) and 375 (P), then every element in §3 exists, in the listed order, with the listed shape; positions/sizes are within ±4 px of the normalized measurement (±2 % for proportions); deviations are only §8.
+2. **Tokens only.** Given the prototype CSS, when searched for literal colours, font sizes, radii not in `tokens.css`, then there are none; each element uses the primitive or REQ listed in §3.
+3. **Both themes.** Given the theme toggle, when switched, then layout is unchanged and only tokens differ; contrast per UX_SPEC.
+4. **Crop.** Given a photo tile, when the owner drags the image/frame, resizes corners, moves slider or ± buttons, rotates ±90°, picks each ratio, presses Сбросить, then the canvas, thirds grid and preview update as §4; **When** Отмена/Назад/Esc, **then** the attached photo is unchanged and focus returns to the trigger; **When** Сохранить/Готово, **then** a derived image replaces it at the same position (mock) with an undo toast.
+5. **Keyboard / touch.** Given no pointer, when only keys are used, then every crop interaction, reorder, tab and dialog is operable and announced; touch targets ≥ 44 px; tab order matches reading order.
+6. **Modals/sheets.** Given «Добавить медиа», when opened at 1440, then the 3-tab dialog appears; at 375, the bottom sheet with 3 rows + Отмена; Esc/Отмена restore focus.
+7. **Reorder / remove / retry.** Given 5 media, when reordered, removed or a failed tile retried, then preview order and counts update and an undo toast follows removal.
+8. **Publication.** Given the publication screen, when «Запланировать» is chosen, then date/time become editable (visible but disabled for «Сейчас»); when «Опубликовать» (after approval) is pressed, then a confirm names channel and effect; Cancel changes nothing.
+9. **Truth.** Given the Dropzone caption, then limits equal the contract (D3); no MOV, no «50 МБ для всех».
+10. **Mock-only.** Given browser network inspection of `/__proto`, then no request is made by any control.
+11. **Viewports.** Builders: 375, 1280, 1920; QA: full matrix (§1). No horizontal overflow at 320; no clipped long names.
+12. **Fixtures.** Given the screenshots, then photos are real ≥ 1000 px, videos have posters and durations, 5 items shown.
+
+## 14. Builder ownership
+
+ui-prototyper owns only `apps/frontend/src/pages/prototypes/**` (editor screens, CSS, registry, store if needed, new editor-specific mock components and assets). Not in scope: `features/`, production routes, `shared/ui`, tokens, contracts, backend. ui-prototyper writes the **reference measurement** (grid, spacing, sizes, radii, type roles, icons, chosen token or primitive) from §3 before building. Independent ui-qa checks element parity per `docs/AGENT_UI_WORKFLOW.md` § UI QA. Follow that document for gates.

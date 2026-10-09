@@ -13,7 +13,13 @@ import { readAppEnvironment, showEnvironmentBadge } from '../environment';
 import { AppShell } from './AppShell';
 
 function renderShell(
-  props: { incidentsCount?: number; onLogout?: () => void; ownerName?: string; topBarTools?: ReactNode } = {},
+  props: {
+    incidentsCount?: number;
+    onLogout?: () => void;
+    ownerName?: string;
+    topBarTools?: ReactNode;
+    focused?: boolean;
+  } = {},
   path = '/'
 ) {
   const root = createRootRoute({
@@ -117,6 +123,20 @@ describe('AppShell', () => {
     renderShell();
     await screen.findByRole('main');
     expect(document.querySelector('[data-editor]')).toBeNull();
+  });
+
+  it('hides the top bar on editor routes and keeps the owner menu in the page header tools', async () => {
+    renderShell({ ownerName: 'Алекс' }, '/posts/abc');
+    await screen.findByRole('main');
+    expect(document.querySelector('header')).toBeNull();
+    cleanup();
+    renderShell({ ownerName: 'Алекс', focused: true });
+    await screen.findByRole('main');
+    expect(document.querySelector('header')).toBeNull();
+    cleanup();
+    renderShell({ ownerName: 'Алекс' });
+    await screen.findByRole('main');
+    expect(document.querySelector('header')).not.toBeNull();
   });
 
   it('shows the DEV badge outside production', async () => {

@@ -17,6 +17,7 @@ import { AutomationsScreen } from './AutomationsScreen';
 import { PreviewPalette, type PaletteVariant } from './PreviewPalette';
 import { PreviewMoreSection, PreviewNavGroup } from './PreviewNav';
 import { EditorScreen } from './EditorScreen';
+import { PostEditorScreen } from './PostEditorScreen';
 import { PublicationsScreen } from './PublicationsScreen';
 import { SettingsScreen } from './SettingsScreens';
 import { StateSwitcher } from './StateSwitcher';
@@ -72,6 +73,7 @@ function Screen() {
   const path = useProtoPath();
   if (path === '') return <HomeScreen />;
   if (path === 'posts') return <PostsScreen />;
+  if (path === 'posts/new') return <PostEditorScreen />;
   if (path.startsWith('posts/')) return <EditorScreen />;
   if (path === 'publications') return <PublicationsScreen />;
   if (path === 'incidents') return <IncidentsScreen />;

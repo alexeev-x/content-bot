@@ -14,8 +14,11 @@ type GroupProps = Omit<RadioGroupProps, 'children' | 'className'> & {
   label: string;
   description?: string;
   errorMessage?: string;
-  /** `card` draws each option as a selectable card with room for a description. */
-  variant?: 'default' | 'card';
+  /**
+   * `card` draws each option as a selectable card with room for a description.
+   * `rows` is a compact list: the selected row is outlined in accent, the others sit on hairline dividers.
+   */
+  variant?: 'default' | 'card' | 'rows';
   children: ReactNode;
 };
 

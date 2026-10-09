@@ -18,11 +18,9 @@ export function StateSwitcher() {
     <div className={styles.dock} data-editor={path.startsWith('posts/') || undefined}>
       <Popover
         label="Состояние прототипа"
-        placement="top end"
+        placement="bottom end"
         trigger={
-          <Button variant="secondary" icon="settings" className={styles.trigger}>
-            Состояние
-          </Button>
+          <Button variant="secondary" icon="settings" className={styles.trigger} aria-label="Состояние прототипа" />
         }
       >
         <div className={styles.panel}>

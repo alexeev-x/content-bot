@@ -66,3 +66,22 @@
   color: var(--color-text-disabled);
   cursor: not-allowed;
 }
+
+/* Label row with a right-aligned slot (counter «58 / 200»). */
+.labelRow {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+.counter {
+  flex: none;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.counterOver {
+  color: var(--color-danger);
+  font-weight: var(--font-weight-semibold);
+}

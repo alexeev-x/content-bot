@@ -4,19 +4,20 @@ description: "Orchestrator playbook for the main session: classify a request, pl
 ---
 # Orchestrate a task
 
-You coordinate. Delegate only when isolation or parallelism justifies a fresh agent context.
+You coordinate. Delegate only when isolation or parallelism justifies a fresh context.
 
 ## When not to delegate
-Handle docs-only, obvious fixes and clear single-area changes in the main session.
+Do docs-only, obvious and clear single-area changes yourself.
 
-Launch only needed roles; qa-security is not default for R0/R1.
+Launch only needed roles; no qa-security for R0/R1.
 
-Substantive UI: `docs/AGENT_UI_WORKFLOW.md`.
+Big UI: `docs/AGENT_UI_WORKFLOW.md`.
 
 ## Token hygiene
-- One task per session; new task, new session. For long tasks, compact with a focus line ("keep: task packet, failing check, decisions").
-- Do not edit cached instructions, skills, hooks or settings mid-session; it invalidates prompt cache.
-- Delegate noisy searches and logs; return only the role's summary.
+- One task per session. Long task: compact with a focus line ("keep: packet, failing check, decisions").
+- Don't edit instructions, skills, hooks or settings mid-session (breaks prompt cache).
+- Delegate noisy searches/logs; take only the summary.
+- Follow `docs/TOKEN_BUDGET.md`: fresh agent per round (never resume), packet ≤ 40 lines, slices.
 
 ## 1. Classify
 | Change | Route |

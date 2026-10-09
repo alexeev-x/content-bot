@@ -2,13 +2,19 @@ import { useState } from 'react';
 import { Button, IconButton } from '../shared/ui';
 import styles from './CatalogPage.module.css';
 
-const VARIANTS = ['primary', 'secondary', 'ghost', 'danger'] as const;
+const VARIANTS = ['primary', 'secondary', 'ghost', 'danger', 'soft', 'link'] as const;
 
 export function CatalogButtons() {
   const [busy, setBusy] = useState(false);
   return (
     <>
       <h3 className={styles.group}>Buttons</h3>
+      <div className={styles.row}>
+        <Button size="xl">xl 52 px</Button>
+        <Button size="xl" variant="soft">
+          xl soft
+        </Button>
+      </div>
       {VARIANTS.map((variant) => (
         <div key={variant} className={styles.row}>
           <Button variant={variant}>{variant}</Button>

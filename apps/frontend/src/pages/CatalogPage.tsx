@@ -11,6 +11,7 @@ import { SegmentedControl, ToastProvider } from '../shared/ui';
 import { CatalogButtons } from './CatalogButtons';
 import { CatalogDensity } from './CatalogDensity';
 import { CatalogDisplay } from './CatalogDisplay';
+import { CatalogEditor } from './CatalogEditor';
 import { CatalogForms } from './CatalogForms';
 import { CatalogStatus } from './CatalogStatus';
 import { CatalogOverlays } from './CatalogOverlays';
@@ -42,6 +43,7 @@ function PrimitivePanel({ theme, accent }: { theme: ColorTheme; accent: string }
           <CatalogDisplay />
           <CatalogDensity />
           <CatalogStatus />
+          <CatalogEditor />
         </ToastProvider>
       </div>
     </section>

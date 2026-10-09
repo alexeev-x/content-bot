@@ -861,4 +861,165 @@ describe('post media upload', () => {
     expect(await processPostMediaCleanup({ repo, storage }, 5, START + 900_000)).toEqual({ cleaned: 1, failed: 0 });
     expect(await bucket.get(objectKey)).toBeNull();
   });
+
+  it('does not leave an orphan object when a slow put finishes after cleanup claimed and removed its staging row', async () => {
+    const post = await createDraft();
+    const repo = createD1PostMediaRepository(testDb());
+    const bucket = testMediaBucket();
+    const baseStorage = createR2MediaStorage(bucket);
+    const storage = {
+      ...baseStorage,
+      async put(objectKey: string, body: ReadableStream<Uint8Array>, contentType: string) {
+        await processPostMediaCleanup({ repo, storage: baseStorage }, 5, START + 900_001);
+        await baseStorage.put(objectKey, body, contentType);
+      }
+    };
+    const bytes = png();
+    const body = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(bytes);
+        controller.close();
+      }
+    });
+
+    await expect(
+      uploadPostMedia(
+        { repo, storage, now: START, newId: () => crypto.randomUUID() },
+        {
+          postId: post.id,
+          revision: 0,
+          fileName: 'slow.png',
+          contentType: 'image/png',
+          contentLength: bytes.byteLength,
+          body,
+          actor: OWNER_ID,
+          idempotencyKey: nextKey()
+        }
+      )
+    ).rejects.toMatchObject({ code: 'UNAVAILABLE' });
+    expect((await bucket.list({ prefix: 'media/' })).objects).toHaveLength(0);
+    expect((await testDb().prepare('SELECT count(*) AS n FROM media_assets').first<{ n: number }>())?.n).toBe(0);
+    expect((await testDb().prepare('SELECT count(*) AS n FROM post_media_cleanup').first<{ n: number }>())?.n).toBe(0);
+  });
+});
+
+describe('post media in every post response', () => {
+  async function draftWithMedia() {
+    const post = await createDraft();
+    const first = uploadPostMediaResultSchema.parse(await (await upload(post.id, 0, png(), nextKey())).json());
+    const second = uploadPostMediaResultSchema.parse(
+      await (await upload(post.id, first.revision, png(4, 5), nextKey())).json()
+    );
+    return { id: post.id, revision: second.revision, ids: [first.media.id, second.media.id] };
+  }
+
+  const mediaOf = (post: { media: { id: string; position: number }[] }) =>
+    post.media.map(({ id, position }) => ({ id, position }));
+
+  it('returns the attached media from a title save (PATCH)', async () => {
+    const draft = await draftWithMedia();
+
+    const response = await api.request(`/api/v1/posts/${draft.id}`, {
+      method: 'PATCH',
+      json: { revision: draft.revision, title: 'Renamed' }
+    });
+
+    expect(response.status).toBe(200);
+    const updated = postSchema.parse(await response.json());
+    expect(updated.title).toBe('Renamed');
+    expect(updated.revision).toBe(draft.revision + 1);
+    expect(mediaOf(updated)).toEqual([
+      { id: draft.ids[0], position: 0 },
+      { id: draft.ids[1], position: 1 }
+    ]);
+    const read = postSchema.parse(await (await api.request(`/api/v1/posts/${draft.id}`)).json());
+    expect(updated.media).toEqual(read.media);
+  });
+
+  it('returns the attached media from a body and entities save, then allows a reorder at that revision', async () => {
+    const draft = await draftWithMedia();
+
+    const response = await api.request(`/api/v1/posts/${draft.id}`, {
+      method: 'PATCH',
+      json: { revision: draft.revision, body: 'New body', entities: [] }
+    });
+
+    expect(response.status).toBe(200);
+    const updated = postSchema.parse(await response.json());
+    expect(updated.media.map(({ id }) => id)).toEqual(draft.ids);
+    const reorder = await api.request(`/api/v1/posts/${draft.id}/media/order`, {
+      method: 'PATCH',
+      json: { revision: updated.revision, mediaIds: updated.media.map(({ id }) => id).reverse() }
+    });
+    expect(reorder.status).toBe(200);
+  });
+
+  it('returns no media for a new post and for a save of a draft without media', async () => {
+    const post = await createDraft();
+    const response = await api.request(`/api/v1/posts/${post.id}`, {
+      method: 'PATCH',
+      json: { revision: post.revision, title: 'Still empty' }
+    });
+    expect(postSchema.parse(await response.json()).media).toEqual([]);
+  });
+
+  it('returns the snapshot media from approve', async () => {
+    const draft = await draftWithMedia();
+
+    const response = await api.request(`/api/v1/posts/${draft.id}/approve`, {
+      method: 'POST',
+      json: { revision: draft.revision }
+    });
+
+    expect(response.status).toBe(200);
+    const approved = postSchema.parse(await response.json());
+    expect(mediaOf(approved)).toEqual([
+      { id: draft.ids[0], position: 0 },
+      { id: draft.ids[1], position: 1 }
+    ]);
+  });
+
+  it('returns the snapshot media from restore of an archived approved post', async () => {
+    const draft = await draftWithMedia();
+    const approved = postSchema.parse(
+      await (
+        await api.request(`/api/v1/posts/${draft.id}/approve`, { method: 'POST', json: { revision: draft.revision } })
+      ).json()
+    );
+    await testDb().prepare('UPDATE posts SET archived_at = ?2 WHERE id = ?1').bind(draft.id, START).run();
+
+    const response = await api.request(`/api/v1/posts/${draft.id}/restore`, {
+      method: 'POST',
+      json: { revision: approved.revision }
+    });
+
+    expect(response.status).toBe(200);
+    expect(postSchema.parse(await response.json()).media.map(({ id }) => id)).toEqual(draft.ids);
+  });
+
+  it('attaches a cropped photo original from the library', async () => {
+    const source = await createDraft();
+    const original = uploadPostMediaResultSchema.parse(
+      await (await upload(source.id, source.revision, png(), nextKey())).json()
+    );
+    const cropped = cropPostMediaResultSchema.parse(
+      await (await crop(source.id, original.media.id, original.revision, png(5, 6), nextKey())).json()
+    );
+    const listing = mediaLibraryPageSchema.parse(await (await api.request('/api/v1/media?kind=all&limit=10')).json());
+    expect(listing.items.map(({ id }) => id)).toContain(original.media.id);
+    const target = await createDraft();
+
+    const response = await api.request(`/api/v1/posts/${target.id}/media/attach`, {
+      method: 'POST',
+      json: { revision: target.revision, mediaIds: [original.media.id] }
+    });
+
+    expect(response.status).toBe(200);
+    const attached = attachPostMediaResultSchema.parse(await response.json());
+    expect(attached.revision).toBe(target.revision + 1);
+    expect(attached.media.map(({ id }) => id)).toEqual([original.media.id]);
+    expect(cropped.media.sourceMediaId).toBe(original.media.id);
+    const state = await createD1PostMediaRepository(testDb()).findPostState(target.id);
+    expect(state?.media.map(({ id }) => id)).toEqual([original.media.id]);
+  });
 });

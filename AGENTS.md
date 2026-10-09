@@ -1,6 +1,6 @@
 # ALEXEEV Content Bot — agent rules
 
-Shared Claude Code/Codex rules. Talk Russian; code, identifiers, commits and branches English.
+Shared Claude Code/Codex rules. Talk Russian; code, identifiers, docs, commits and branches English.
 
 **Status:** in development, not in production; what works is in `docs/IMPLEMENTATION_PLAN.md`. Never describe planned parts as working.
 
@@ -60,7 +60,7 @@ Write tersely: no preamble, no restating the task, no recap of a visible diff. C
 - Comments explain why. New dependencies need a PR reason and lockfile entry; prefer platform APIs.
 
 ## Git
-Work directly on `develop`: CI deploys it to Worker `dev`. `main` holds releases (deployed to Worker `app`) and changes only through a release PR from `develop`, opened by the owner. The owner commits and pushes: leave the task's changes ready (verified, `git status` shows only task files). Never commit or push to `main`, never force-push. A SQL change needs a migration. A contract change updates `contracts`, the backend, the frontend and the contract tests in the same PR.
+Work on `develop` (CI deploys Worker `dev`). `main` = releases (Worker `app`), changed only by the owner's release PR from `develop`. The owner commits and pushes: leave the task's changes ready (verified, `git status` shows only task files). Never commit or push to `main`, never force-push. A SQL change needs a migration. A contract change updates `contracts`, the backend, the frontend and the contract tests in the same PR.
 
 ## Done means verified
 Follow the risk gate in skill `orchestrate`. Run required checks and report actual results.
@@ -71,4 +71,4 @@ Subagents report:
 ```json
 {"task_id":"","state":"DONE|BLOCKED|FAILED|NOT_VERIFIED","changed_paths":[],"contract_changes":[],"checks":[{"cmd":"","result":"passed|failed|not_run","evidence":"last relevant lines"}],"risks":[],"next":[]}
 ```
-Claims need fresh evidence from this session: run the command, read the output, then state the result ("should work" is not a status). Before reporting, self-check: each acceptance criterion has evidence; the diff stays in your paths; no TODOs, debug logs or commented-out code; docs are updated if behavior changed. `not_run` is never success. If a critical input is missing, return `BLOCKED` naming it; do not invent requirements. After two failed attempts on the same error, stop and report. Stay inside the paths you were assigned; to read or change anything else, ask the orchestrator with a reason.
+Report ≤ 30 lines; tables to `.logs/<task_id>/report.md`; tokens: `docs/TOKEN_BUDGET.md`. Claims need fresh evidence: run the command, read the output, then state the result ("should work" is not a status). Before reporting, self-check: each acceptance criterion has evidence; the diff stays in your paths; no TODOs, debug logs or commented-out code; docs are updated if behavior changed. `not_run` is never success. If a critical input is missing, return `BLOCKED` naming it; do not invent requirements. After two failed attempts on the same error, stop and report. Stay inside your assigned paths; for anything else, ask the orchestrator with a reason.

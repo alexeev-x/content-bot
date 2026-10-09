@@ -26,3 +26,169 @@
   font-family: var(--font-mono);
   font-size: var(--font-size-2xs);
 }
+
+/* Media slot: a 4:3 carousel (single) or a grid (album) at the top of the bubble. */
+.media {
+  position: relative;
+  margin: calc(-1 * var(--space-2)) calc(-1 * var(--space-3)) var(--space-1);
+  overflow: hidden;
+  border-radius: var(--radius-2) var(--radius-2) 0 0;
+  background: var(--color-surface-3);
+}
+.media[data-mode='single'] {
+  aspect-ratio: 4 / 3;
+}
+.slide,
+.cell {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.slide img,
+.cell img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.media[data-mode='album'] {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 2px;
+  aspect-ratio: 4 / 3;
+}
+/* Telegram groups: 1 whole, 2 side by side, 3 one wide + two, 4 a 2 x 2, 5+ two over three (the sixth and later are not drawn). */
+.media[data-mode='album'] .cell {
+  grid-column: span 3;
+}
+.media[data-mode='album'] .cell:nth-child(n + 6) {
+  display: none;
+}
+.media[data-mode='album'][data-count='1'] .cell,
+.media[data-mode='album'][data-count='3'] .cell:first-child {
+  grid-column: 1 / -1;
+}
+.media[data-mode='album'][data-count='3'] {
+  grid-template-rows: 2fr 1fr;
+}
+.media[data-mode='album'][data-count='5'] {
+  grid-template-rows: 3fr 2fr;
+}
+.media[data-mode='album'][data-count='5'] .cell:nth-child(n + 3) {
+  grid-column: span 2;
+}
+.chevron {
+  position: absolute;
+  top: 50%;
+  display: grid;
+  place-items: center;
+  width: var(--size-control);
+  height: var(--size-control);
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: var(--color-media-scrim);
+  color: var(--color-on-media-strong);
+  cursor: pointer;
+  outline: none;
+  transform: translateY(-50%);
+}
+.chevron[data-side='start'] {
+  left: var(--space-2);
+}
+.chevron[data-side='end'] {
+  right: var(--space-2);
+}
+.chevron[data-hovered] {
+  background: var(--color-text);
+  color: var(--color-bg);
+}
+.chevron[data-focus-visible] {
+  outline: var(--focus-ring-width) solid var(--color-on-media-strong);
+  outline-offset: var(--focus-ring-offset);
+  box-shadow: 0 0 0 calc(var(--focus-ring-width) + var(--focus-ring-offset)) var(--color-focus-ring);
+}
+.counter {
+  position: absolute;
+  bottom: var(--space-2);
+  left: 50%;
+  padding: 2px var(--space-3);
+  border-radius: var(--radius-pill);
+  background: var(--color-media-scrim);
+  color: var(--color-on-media-strong);
+  font-size: var(--font-size-sm);
+  font-variant-numeric: tabular-nums;
+  transform: translateX(-50%);
+}
+.broken {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  width: 100%;
+  height: 100%;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+.retry {
+  min-height: var(--size-button-sm);
+  padding: 0 var(--space-3);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-2);
+  background: var(--color-surface-1);
+  color: var(--color-text);
+  font: inherit;
+  font-size: var(--font-size-xs);
+  cursor: pointer;
+  outline: none;
+}
+.retry[data-focus-visible] {
+  outline: var(--focus-ring-width) solid var(--color-focus-ring);
+  outline-offset: var(--focus-ring-offset);
+}
+.footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+.views {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  color: var(--color-bubble-meta);
+  font-size: var(--font-size-xs);
+}
+.footer .meta {
+  justify-self: auto;
+}
+
+/* Panel: no chat background and no bubble; the preview sits straight on the card that holds it. */
+.chat[data-variant='panel'] {
+  padding: 0;
+  background: transparent;
+}
+.chat[data-variant='panel'] .bubble {
+  max-width: none;
+  padding: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--color-text);
+  gap: var(--space-2);
+}
+.chat[data-variant='panel'] .media {
+  margin: 0 0 var(--space-1);
+  border-radius: var(--radius-3);
+}
+.chat[data-variant='panel'] .title {
+  font-size: var(--font-size-md);
+}
+.chat[data-variant='panel'] .body {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+.chat[data-variant='panel'] .views,
+.chat[data-variant='panel'] .meta {
+  color: var(--color-text-muted);
+}

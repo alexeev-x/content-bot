@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
-export const BUILDER_AGENTS = new Set(['backend', 'frontend', 'design-system']);
+export const BUILDER_AGENTS = new Set(['backend', 'frontend', 'design-system', 'ui-prototyper']);
 // A crashed agent never sends SubagentStop; forget it after this long.
 export const STALE_MS = 2 * 60 * 60 * 1000;
 

@@ -28,6 +28,20 @@
   padding: 0 var(--space-2);
   font-size: var(--font-size-xs);
 }
+/* Primary CTA: 44 px on every device, wider padding, slightly larger label. */
+.button[data-size='lg'] {
+  min-height: var(--size-target);
+  padding: 0 var(--space-6);
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-semibold);
+}
+/* Editor footer CTA: 52 px. */
+.button[data-size='xl'] {
+  min-height: var(--size-button-xl);
+  padding: 0 var(--space-6);
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-semibold);
+}
 /* Beside a text field: same height as the field. */
 .button[data-size='field'] {
   min-height: var(--size-control);
@@ -65,6 +79,26 @@
   background: var(--color-surface-2);
   color: var(--color-text);
 }
+/* Tonal fill: accent text on accent-soft. */
+.button[data-variant='soft'] {
+  background: var(--color-accent-soft);
+  border-color: transparent;
+  color: var(--color-accent-text);
+}
+.button[data-variant='soft'][data-hovered] {
+  background: color-mix(in srgb, var(--color-accent-soft) 80%, var(--color-accent-text) 20%);
+}
+/* Text link: no box; keeps the button's target height. */
+.button[data-variant='link'] {
+  background: transparent;
+  border-color: transparent;
+  color: var(--color-accent-text);
+  padding-inline: var(--space-1);
+}
+.button[data-variant='link'][data-hovered] {
+  background: transparent;
+  text-decoration: underline;
+}
 .button[data-variant='danger'] {
   color: var(--color-danger);
   border-color: color-mix(in srgb, var(--color-danger) 60%, transparent);
@@ -85,7 +119,9 @@
   cursor: not-allowed;
   transform: none;
 }
-.button[data-variant='ghost'][data-disabled] {
+.button[data-variant='ghost'][data-disabled],
+.button[data-variant='link'][data-disabled],
+.button[data-variant='soft'][data-disabled] {
   background: transparent;
   border-color: transparent;
 }

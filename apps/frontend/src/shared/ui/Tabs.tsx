@@ -9,21 +9,49 @@ import {
   type TabProps,
   type TabsProps
 } from 'react-aria-components';
+import { Icon, type IconName } from './Icon';
 import styles from './Tabs.module.css';
 
-/** APG tabs: arrows move between tabs (roving tabindex), Tab enters the panel. Compose Tabs > TabList > Tab + TabPanel. */
-export function Tabs(props: Omit<TabsProps, 'className'>) {
-  return <AriaTabs {...props} className={styles.tabs} />;
+type TabsVariant = 'underline' | 'card';
+
+/**
+ * APG tabs: arrows move between tabs (roving tabindex), Tab enters the panel. Compose Tabs > TabList > Tab + TabPanel.
+ * `card`: equal-width bordered tiles, each with an icon square, a title and a hint (source pickers); pass `icon` and `hint` to Tab.
+ */
+export function Tabs({ variant = 'underline', ...props }: Omit<TabsProps, 'className'> & { variant?: TabsVariant }) {
+  return <AriaTabs {...props} data-variant={variant} className={styles.tabs} />;
 }
 
 export function TabList<T extends object>(props: Omit<TabListProps<T>, 'className'>) {
   return <AriaTabList {...props} className={styles.list} />;
 }
 
-export function Tab({ children, ...rest }: Omit<TabProps, 'className' | 'children'> & { children: ReactNode }) {
+type TabExtra = {
+  children: ReactNode;
+  /** Card variant: icon in the leading square. */
+  icon?: IconName;
+  /** Card variant: muted line under the title. */
+  hint?: string;
+};
+
+export function Tab({ children, icon, hint, ...rest }: Omit<TabProps, 'className' | 'children'> & TabExtra) {
   return (
     <AriaTab {...rest} className={styles.tab}>
-      {children}
+      {icon ? (
+        <span className={styles.tabIcon} aria-hidden="true">
+          <Icon name={icon} size={20} />
+        </span>
+      ) : null}
+      {hint ? (
+        <span className={styles.tabText}>
+          <span className={styles.tabTitle}>{children}</span>
+          <span className={styles.tabHint} title={hint}>
+            {hint}
+          </span>
+        </span>
+      ) : (
+        children
+      )}
     </AriaTab>
   );
 }

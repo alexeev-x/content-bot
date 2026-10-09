@@ -34,6 +34,9 @@
   --letter-spacing-display: -0.03em;
   --line-height-body: 1.5;
   --line-height-heading: 1.2;
+  /* Editor body text (TextArea textSize="lg"): 17 px on a 26 px pitch. */
+  --font-size-editor: 1.0625rem;
+  --line-height-editor: 26px;
 
   /* space, radius, size */
   --space-1: 4px;
@@ -46,6 +49,8 @@
   --radius-1: 7px;
   --radius-2: 8px;
   --radius-3: 9px;
+  /* Cards, media tiles, drop zones, sheets: the larger corner of the post editor (owner reference). */
+  --radius-4: 12px;
   --radius-pill: 999px;
   --size-target: 44px;
   --size-target-min: 24px;
@@ -67,6 +72,24 @@
   /* Widest content column of the shell: keeps wide tables readable on large monitors. */
   --measure-content: 1440px;
   --size-nav: 64px;
+  /* Media: strip/grid tile, list thumbnail, queue thumbnail (post editor). */
+  --size-media-tile: 124px;
+  --size-media-thumb: 44px;
+  --size-media-thumb-lg: 64px;
+  /* Landscape thumbnails of the editor rows (MediaListRow 70 x 46, UploadRow 120 x 62) and their row height. */
+  --size-media-landscape-w: 70px;
+  --size-media-landscape-h: 46px;
+  --size-upload-landscape-w: 120px;
+  --size-upload-landscape-h: 62px;
+  --size-media-row-landscape: 68px;
+  --size-button-xl: 52px;
+  --size-dropzone-action-lg: 292px;
+  /* Crop: visible corner handle (its hit area is --size-target) and the ratio tile height. */
+  --size-crop-handle: 12px;
+  --size-ratio-tile: 56px;
+  --size-action-row: 64px;
+  /* Wide media dialogs (add media, crop). */
+  --measure-dialog-media: 760px;
 
   /* focus: 2px ring in --color-focus-ring */
   --focus-ring-width: 2px;
@@ -96,6 +119,8 @@
     --size-row: 52px;
     --size-topbar: 56px;
     --size-tab: var(--size-target);
+    --size-media-tile: 104px;
+    --size-ratio-tile: 68px;
   }
 }
 
@@ -194,6 +219,17 @@
 [data-theme] {
   --color-on-media: rgba(255, 255, 255, 0.82);
   --color-media-ring: rgba(255, 255, 255, 0.06);
+  /* Badges, chips and round buttons drawn on photos and video posters. */
+  --color-media-scrim: rgba(8, 10, 14, 0.62);
+  --color-on-media-strong: #ffffff;
+  /* Crop canvas: the dimmed area outside the frame, the frame/handles, and the rule-of-thirds lines. */
+  --color-crop-dim: rgba(0, 0, 0, 0.55);
+  --color-crop-frame: #ffffff;
+  --color-crop-grid: rgba(255, 255, 255, 0.6);
+  /* Accent lifted toward white so a progress ring stays >= 3:1 on the scrim in both themes and every preset. */
+  --color-accent-on-media: color-mix(in srgb, var(--color-accent) 55%, #ffffff);
+  --color-done-on-media: color-mix(in srgb, var(--color-status-done-fg) 55%, #ffffff);
+  --color-failed-on-media: color-mix(in srgb, var(--color-status-failed-fg) 55%, #ffffff);
 }
 
 /* The 1px status ring follows each status foreground, whichever accent override applied. */

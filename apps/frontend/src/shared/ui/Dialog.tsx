@@ -14,8 +14,11 @@ type Props = {
   footer?: ReactNode;
   /** `alertdialog` for confirmations that need an explicit answer (no backdrop dismiss). */
   role?: 'dialog' | 'alertdialog';
-  /** `wide` for dialogs that lay out content side by side on desktop; phones get the full width either way. */
-  size?: 'default' | 'wide';
+  /**
+   * `wide` for dialogs that lay out content side by side on desktop; phones get the full width either way.
+   * `media` (760 px, 90 vh): header and footer stay, only the body scrolls (add media, crop).
+   */
+  size?: 'default' | 'wide' | 'media';
 };
 
 /** Modal dialog: inert background, focus trap, Esc, focus back to the trigger (React Aria Modal). Never nest dialogs. */
@@ -36,7 +39,7 @@ export function Dialog({
       isDismissable={role === 'dialog'}
       className={styles.overlay}
     >
-      <Modal className={size === 'wide' ? `${styles.modal} ${styles.wide}` : styles.modal}>
+      <Modal className={size === 'default' ? styles.modal : `${styles.modal} ${styles[size]}`}>
         <AriaDialog role={role} className={styles.dialog}>
           {({ close }) => (
             <>

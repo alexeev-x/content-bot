@@ -1,4 +1,12 @@
-import { DateFormatter, getLocalTimeZone, now, toZoned, type Time, type ZonedDateTime } from '@internationalized/date';
+import {
+  DateFormatter,
+  getLocalTimeZone,
+  now,
+  Time as TimeValue,
+  toZoned,
+  type Time,
+  type ZonedDateTime
+} from '@internationalized/date';
 import {
   Button,
   Calendar,
@@ -22,7 +30,7 @@ import { useContext, useState } from 'react';
 import { nextQuarterHour } from '../lib/next-quarter-hour';
 import { ru } from '../lib/ru';
 import { DateTimePickerTimePanel } from './DateTimePickerTimePanel';
-import { Icon } from './Icon';
+import { Icon, type IconName } from './Icon';
 import styles from './Field.module.css';
 import dateStyles from './DateTimeField.module.css';
 
@@ -91,7 +99,7 @@ function CalendarMonthHeading() {
   );
 }
 
-function CalendarPanel() {
+export function CalendarPanel() {
   return (
     <Calendar className={dateStyles.calendar}>
       <header className={dateStyles.calendarHeader}>
@@ -222,6 +230,14 @@ export function DateTimeField({
   );
 }
 
+type TimeStepper = {
+  /** Names of the up and down buttons («Время: на 5 минут позже» / «раньше»). */
+  incrementLabel: string;
+  decrementLabel: string;
+  /** Minutes added or removed per press; the hour wraps around midnight. Default 5. */
+  stepMinutes?: number;
+};
+
 type TimeProps = {
   label: string;
   value: Time | null;
@@ -229,10 +245,30 @@ type TimeProps = {
   description?: string;
   errorMessage?: string;
   isDisabled?: boolean;
+  /** Keeps the label for assistive technology only (the section heading already names the field). */
+  hideLabel?: boolean;
+  /** Icon at the end of the segments (a clock). */
+  icon?: IconName;
+  /** Stacked up/down buttons at the end of the field; the arrow keys on the segments work either way. */
+  stepper?: TimeStepper;
 };
 
 /** Time of day, 24 h, minutes. */
-export function TimeField({ label, value, onChange, description, errorMessage, isDisabled }: TimeProps) {
+export function TimeField({
+  label,
+  value,
+  onChange,
+  description,
+  errorMessage,
+  isDisabled,
+  hideLabel = false,
+  icon,
+  stepper
+}: TimeProps) {
+  const step = (direction: 1 | -1) => {
+    const base = value ?? new TimeValue(12, 0);
+    onChange(base.add({ minutes: direction * (stepper?.stepMinutes ?? 5) }));
+  };
   return (
     <I18nProvider locale={LOCALE}>
       <AriaTimeField
@@ -245,10 +281,43 @@ export function TimeField({ label, value, onChange, description, errorMessage, i
         shouldForceLeadingZeros
         className={styles.field}
       >
-        <Label className={styles.label}>{label}</Label>
-        <DateInput className={`${styles.input} ${dateStyles.input}`}>
-          {(segment) => <DateSegment segment={segment} className={dateStyles.segment} />}
-        </DateInput>
+        <Label className={hideLabel ? dateStyles.screenReaderOnly : styles.label}>{label}</Label>
+        {icon || stepper ? (
+          <Group
+            isDisabled={isDisabled}
+            isInvalid={Boolean(errorMessage)}
+            className={`${styles.input} ${dateStyles.timeBox}`}
+          >
+            <DateInput className={dateStyles.input}>
+              {(segment) => <DateSegment segment={segment} className={dateStyles.segment} />}
+            </DateInput>
+            {icon ? <Icon name={icon} size={18} className={dateStyles.fieldIcon} /> : null}
+            {stepper ? (
+              <span className={dateStyles.stepper}>
+                <Button
+                  aria-label={stepper.incrementLabel}
+                  isDisabled={isDisabled}
+                  className={dateStyles.stepButton}
+                  onPress={() => step(1)}
+                >
+                  <Icon name="chevron-up" size={14} strokeWidth={2.25} />
+                </Button>
+                <Button
+                  aria-label={stepper.decrementLabel}
+                  isDisabled={isDisabled}
+                  className={dateStyles.stepButton}
+                  onPress={() => step(-1)}
+                >
+                  <Icon name="chevron-down" size={14} strokeWidth={2.25} />
+                </Button>
+              </span>
+            ) : null}
+          </Group>
+        ) : (
+          <DateInput className={`${styles.input} ${dateStyles.input}`}>
+            {(segment) => <DateSegment segment={segment} className={dateStyles.segment} />}
+          </DateInput>
+        )}
         {description ? (
           <Text slot="description" className={styles.description}>
             {description}

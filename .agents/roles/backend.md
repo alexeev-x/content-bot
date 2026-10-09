@@ -3,7 +3,7 @@ name: backend
 description: "Backend engineer for apps/backend — Hono routes, use cases, D1 schema/migrations, Cron/Queue jobs, Telegram sending, auth middleware. Use for any server-side change once the API contract is agreed."
 claude_model: sonnet
 claude_tools: Read, Grep, Glob, Edit, Write, Bash
-effort: high
+effort: medium
 max_turns: 80
 codex_sandbox: workspace-write
 area_rules: apps/backend/AGENTS.md

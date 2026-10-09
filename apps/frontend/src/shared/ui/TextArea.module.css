@@ -8,3 +8,51 @@
   color: var(--color-danger);
   font-weight: var(--font-weight-semibold);
 }
+/* Phone editors: the box is `--area-rows` lines tall instead of 7 rem. */
+.area[data-min-rows] {
+  min-height: calc(var(--area-rows) * 1lh + 2 * var(--space-3));
+}
+/* Toolbar variant: the box carries the border, the toolbar sits on top, a hairline, then the bare text. */
+.box {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-2);
+  background: var(--color-surface-1);
+  transition: border-color var(--motion-fast);
+}
+.box:hover {
+  border-color: var(--color-text-muted);
+}
+.box:focus-within {
+  border-color: var(--color-focus-ring);
+}
+.box:has([data-focus-visible]) {
+  outline: var(--focus-ring-width) solid var(--color-focus-ring);
+  outline-offset: 0;
+}
+:global([data-invalid]) .box {
+  border-color: var(--color-danger);
+}
+:global([data-disabled]) .box {
+  background: var(--color-surface-2);
+  border-color: var(--color-border-subtle);
+}
+.toolbar {
+  padding: var(--space-1) var(--space-2);
+  border-bottom: 1px solid var(--color-border-subtle);
+}
+.bare,
+.bare[data-hovered],
+.bare[data-focused],
+.bare[data-focus-visible],
+.bare[data-invalid] {
+  border: 0;
+  border-radius: 0 0 var(--radius-2) var(--radius-2);
+  background: transparent;
+  outline: none;
+}
+.area[data-text-size='lg'] {
+  font-size: var(--font-size-editor);
+  line-height: var(--line-height-editor);
+}

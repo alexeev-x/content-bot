@@ -235,3 +235,22 @@ output.warning {
   --size-control-sm: var(--size-target);
   --size-row: 52px;
 }
+
+/* Editor primitives */
+.coverThumb {
+  display: block;
+  width: 72px;
+  height: 72px;
+  border-radius: var(--radius-2);
+  object-fit: cover;
+}
+.narrow {
+  max-width: 220px;
+}
+
+.editorGroup {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-3);
+  min-width: 0;
+}

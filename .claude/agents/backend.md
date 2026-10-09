@@ -3,7 +3,7 @@ name: backend
 description: "Backend engineer for apps/backend — Hono routes, use cases, D1 schema/migrations, Cron/Queue jobs, Telegram sending, auth middleware. Use for any server-side change once the API contract is agreed."
 tools: Read, Grep, Glob, Edit, Write, Bash
 model: sonnet
-effort: high
+effort: medium
 maxTurns: 80
 ---
 <!-- GENERATED from .agents/roles/backend.md by .agents/scripts/sync-agents.mjs. Edit the source, then run `npm run agents:sync`. -->

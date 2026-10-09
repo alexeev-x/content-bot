@@ -1,0 +1,123 @@
+.row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-2) var(--space-2) var(--space-2);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-3);
+  background: var(--color-surface-1);
+}
+.row[data-state='failed'] {
+  border-color: var(--color-status-failed-fg);
+}
+.thumb {
+  position: relative;
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: var(--size-media-thumb-lg);
+  height: var(--size-media-thumb-lg);
+  overflow: hidden;
+  border-radius: var(--radius-2);
+  background: var(--color-surface-3);
+  color: var(--color-text-muted);
+  box-shadow: inset 0 0 0 1px var(--color-media-ring);
+}
+.thumb img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.play {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--color-media-scrim);
+  color: var(--color-on-media-strong);
+  transform: translate(-50%, -50%);
+}
+.text {
+  display: grid;
+  flex: 1;
+  min-width: 0;
+  gap: 2px;
+}
+.name {
+  overflow: hidden;
+  font-weight: var(--font-weight-semibold);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.meta {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+}
+.status {
+  display: grid;
+  flex: none;
+  gap: var(--space-1);
+  width: 200px;
+  font-size: var(--font-size-xs);
+}
+.statusLine {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.statusText {
+  flex: 1;
+  min-width: 0;
+}
+.percent {
+  font-variant-numeric: tabular-nums;
+}
+.row[data-state='ready'] .statusLine {
+  color: var(--color-status-done-fg);
+}
+.row[data-state='failed'] .statusLine {
+  color: var(--color-status-failed-fg);
+}
+.row[data-state='queued'] .statusLine {
+  color: var(--color-text-muted);
+}
+.row[data-state='uploading'] .statusLine {
+  color: var(--color-accent-text);
+}
+/* Landscape thumbnail: 120 x 62, flush to the left and vertical edges of the card, so the row is ~68 px. */
+.row[data-thumb='landscape'] {
+  padding: 0 var(--space-2) 0 0;
+  overflow: hidden;
+}
+.row[data-thumb='landscape'] .thumb {
+  width: var(--size-upload-landscape-w);
+  height: var(--size-upload-landscape-h);
+  margin-block: 2px;
+  border-radius: 0 var(--radius-2) var(--radius-2) 0;
+}
+/* Phone: the status wraps under the name; the thumbnail keeps its size. */
+@media (max-width: 859px) {
+  .row {
+    flex-wrap: wrap;
+  }
+  .text {
+    flex-basis: calc(100% - var(--size-media-thumb-lg) - var(--size-target) - 2 * var(--space-3));
+  }
+  .status {
+    order: 3;
+    width: 100%;
+    padding-left: calc(var(--size-media-thumb-lg) + var(--space-3));
+  }
+  .row[data-thumb='landscape'] .text {
+    flex-basis: calc(100% - var(--size-upload-landscape-w) - var(--size-target) - 2 * var(--space-3));
+  }
+  .row[data-thumb='landscape'] .status {
+    padding-left: calc(var(--size-upload-landscape-w) + var(--space-3));
+    padding-bottom: var(--space-2);
+  }
+}

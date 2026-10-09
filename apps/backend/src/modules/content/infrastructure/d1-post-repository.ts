@@ -52,10 +52,8 @@ interface MediaRow {
   position: number;
 }
 
-async function attachMedia(db: D1Database, posts: PostRecord[]): Promise<PostRecord[]> {
-  if (posts.length === 0) return posts;
-  const ids = posts.map(({ id }) => id);
-  const { results } = await db
+function mediaStatement(db: D1Database, postIds: string[]): D1PreparedStatement {
+  return db
     .prepare(
       `SELECT p.id AS post_id, m.id, m.kind, m.file_name, m.content_type, m.size_bytes, m.width, m.height,
               m.duration_ms, m.source_media_id, pm.position
@@ -71,10 +69,12 @@ async function attachMedia(db: D1Database, posts: PostRecord[]): Promise<PostRec
         WHERE p.status = 'approved'
         ORDER BY post_id, position`
     )
-    .bind(JSON.stringify(ids))
-    .all<MediaRow>();
+    .bind(JSON.stringify(postIds));
+}
+
+function withMedia(posts: PostRecord[], rows: MediaRow[]): PostRecord[] {
   const mediaByPost = new Map<string, PostMediaDto[]>();
-  for (const row of results) {
+  for (const row of rows) {
     const items = mediaByPost.get(row.post_id) ?? [];
     items.push(
       postMediaSchema.parse({
@@ -93,6 +93,15 @@ async function attachMedia(db: D1Database, posts: PostRecord[]): Promise<PostRec
     mediaByPost.set(row.post_id, items);
   }
   return posts.map((post) => ({ ...post, media: mediaByPost.get(post.id) ?? [] }));
+}
+
+async function attachMedia(db: D1Database, posts: PostRecord[]): Promise<PostRecord[]> {
+  if (posts.length === 0) return posts;
+  const { results } = await mediaStatement(
+    db,
+    posts.map(({ id }) => id)
+  ).all<MediaRow>();
+  return withMedia(posts, results);
 }
 
 // Live view: newest update first over posts that are not archived. The two live shapes walk
@@ -234,7 +243,7 @@ export function createD1PostRepository(db: D1Database): PostRepository {
         ...(change.entities === undefined ? [] : ['entities'])
       ];
       const entities = change.entities === undefined ? null : JSON.stringify(change.entities);
-      const results = await db.batch<PostRow>([
+      const results = await db.batch<PostRow | MediaRow>([
         db
           .prepare(
             `INSERT INTO post_revisions (post_id, revision, title, body, entities, status, created_at, media_json)
@@ -249,14 +258,18 @@ export function createD1PostRepository(db: D1Database): PostRepository {
                revision = revision + 1, updated_at = ?6
              WHERE ${GUARD} RETURNING ${POST_COLUMNS}`
           )
-          .bind(change.id, change.expectedRevision, change.title ?? null, change.body ?? null, entities, change.now)
+          .bind(change.id, change.expectedRevision, change.title ?? null, change.body ?? null, entities, change.now),
+        // Read in the same batch as the write, so the media returned is the media of the revision returned.
+        mediaStatement(db, [change.id])
       ]);
-      const row = results[2]?.results[0];
-      return row === undefined ? null : toRecord(row);
+      const row = results[2]?.results[0] as PostRow | undefined;
+      return row === undefined
+        ? null
+        : (withMedia([toRecord(row)], (results[3]?.results ?? []) as MediaRow[])[0] ?? null);
     },
 
     async approve(change) {
-      const results = await db.batch<PostRow>([
+      const results = await db.batch<PostRow | MediaRow>([
         db
           .prepare(
             `INSERT INTO post_revisions (post_id, revision, title, body, entities, status, created_at, media_json)
@@ -283,10 +296,13 @@ export function createD1PostRepository(db: D1Database): PostRepository {
             `UPDATE posts SET status = 'approved', revision = revision + 1, updated_at = ?3
              WHERE ${GUARD} RETURNING ${POST_COLUMNS}`
           )
-          .bind(change.id, change.expectedRevision, change.now)
+          .bind(change.id, change.expectedRevision, change.now),
+        mediaStatement(db, [change.id])
       ]);
-      const row = results[2]?.results[0];
-      return row === undefined ? null : ((await attachMedia(db, [toRecord(row)]))[0] ?? null);
+      const row = results[2]?.results[0] as PostRow | undefined;
+      return row === undefined
+        ? null
+        : (withMedia([toRecord(row)], (results[3]?.results ?? []) as MediaRow[])[0] ?? null);
     }
   };
 }

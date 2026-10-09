@@ -1,0 +1,67 @@
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-width: 0;
+}
+.slot {
+  display: contents;
+}
+.spacer {
+  flex: 1;
+}
+.separator {
+  align-self: center;
+  width: 1px;
+  height: 20px;
+  margin: 0 var(--space-1);
+  background: var(--color-border-strong);
+}
+.button {
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  width: var(--size-control);
+  height: var(--size-control);
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-2);
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  outline: none;
+  transition:
+    background-color var(--motion-fast),
+    color var(--motion-fast);
+}
+.button[data-hovered] {
+  background: var(--color-surface-3);
+  color: var(--color-text);
+}
+.button[data-pressed] {
+  background: var(--color-surface-3);
+}
+.button[data-selected] {
+  background: var(--color-accent-soft);
+  color: var(--color-accent-text);
+}
+.button[data-focus-visible] {
+  outline: var(--focus-ring-width) solid var(--color-focus-ring);
+  outline-offset: -2px;
+}
+.button[data-disabled] {
+  background: transparent;
+  color: var(--color-text-disabled);
+  cursor: not-allowed;
+}
+
+.toolbar[data-density='compact'] {
+  gap: 2px;
+}
+.toolbar[data-density='compact'] .button {
+  width: 32px;
+  height: 32px;
+}
+.toolbar[data-density='compact'] .separator {
+  margin: 0;
+}

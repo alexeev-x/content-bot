@@ -37,6 +37,15 @@ function toMedia(row: MediaRow): PostMediaDto {
 
 const guardedPost = "id = ?1 AND revision = ?2 AND status = 'draft'";
 
+// An asset is retained, hence listed, readable and attachable, while a draft holds it, a revision snapshot
+// names it, or a derivative (a crop) keeps it as its source. Every read and the attach guard share this
+// predicate, so anything the library lists can be attached.
+function isRetainedSql(idExpression: string): string {
+  return `(EXISTS (SELECT 1 FROM post_media pm WHERE pm.media_id = ${idExpression})
+    OR EXISTS (SELECT 1 FROM post_revisions r, json_each(r.media_json) j WHERE j.value = ${idExpression})
+    OR EXISTS (SELECT 1 FROM media_assets derivative WHERE derivative.source_media_id = ${idExpression}))`;
+}
+
 export function createD1PostMediaRepository(db: D1Database): PostMediaRepository {
   return {
     async registerStaging(mediaId, objectKey, now) {
@@ -150,9 +159,7 @@ export function createD1PostMediaRepository(db: D1Database): PostMediaRepository
         .prepare(
           `SELECT m.id, m.kind, m.file_name, m.content_type, m.size_bytes, m.width, m.height, m.duration_ms, m.created_at
              FROM media_assets m
-            WHERE (EXISTS (SELECT 1 FROM post_media pm WHERE pm.media_id = m.id)
-               OR EXISTS (SELECT 1 FROM post_revisions r, json_each(r.media_json) j WHERE j.value = m.id)
-               OR EXISTS (SELECT 1 FROM media_assets derivative WHERE derivative.source_media_id = m.id))
+            WHERE ${isRetainedSql('m.id')}
                ${kindClause} ${cursorClause}
             ORDER BY m.created_at DESC, m.id DESC LIMIT ${limitPlaceholder}`
         )
@@ -181,9 +188,7 @@ export function createD1PostMediaRepository(db: D1Database): PostMediaRepository
                 m.source_media_id,
                 CAST(requested.key AS INTEGER) AS position
            FROM json_each(?1) requested JOIN media_assets m ON m.id = requested.value
-          WHERE EXISTS (SELECT 1 FROM post_media pm WHERE pm.media_id = m.id)
-             OR EXISTS (SELECT 1 FROM post_revisions r, json_each(r.media_json) j WHERE j.value = m.id)
-             OR EXISTS (SELECT 1 FROM media_assets derivative WHERE derivative.source_media_id = m.id)
+          WHERE ${isRetainedSql('m.id')}
           ORDER BY CAST(requested.key AS INTEGER)`
         )
         .bind(JSON.stringify(mediaIds))
@@ -200,9 +205,7 @@ export function createD1PostMediaRepository(db: D1Database): PostMediaRepository
         AND (SELECT count(*) FROM post_media WHERE post_id = p.id) = ${expectedCount}
         AND (SELECT count(*) FROM post_media WHERE post_id = p.id) + ${mediaIds.length} <= 10
         AND NOT EXISTS (SELECT 1 FROM json_each(?${mediaListParam}) requested WHERE NOT EXISTS (
-          SELECT 1 FROM media_assets m WHERE m.id = requested.value AND (
-            EXISTS (SELECT 1 FROM post_media retained WHERE retained.media_id = m.id) OR
-            EXISTS (SELECT 1 FROM post_revisions r, json_each(r.media_json) ref WHERE ref.value = m.id)))) )`;
+          SELECT 1 FROM media_assets m WHERE m.id = requested.value AND ${isRetainedSql('m.id')})) )`;
       const statements: D1PreparedStatement[] = [];
       for (const [index, mediaId] of mediaIds.entries()) {
         statements.push(
@@ -517,12 +520,7 @@ export function createD1PostMediaRepository(db: D1Database): PostMediaRepository
 
     async findObjectKey(mediaId) {
       const row = await db
-        .prepare(
-          `SELECT m.object_key FROM media_assets m WHERE m.id = ?1 AND (
-             EXISTS (SELECT 1 FROM post_media pm WHERE pm.media_id = m.id) OR
-             EXISTS (SELECT 1 FROM post_revisions r, json_each(r.media_json) j WHERE j.value = m.id) OR
-             EXISTS (SELECT 1 FROM media_assets derivative WHERE derivative.source_media_id = m.id))`
-        )
+        .prepare(`SELECT m.object_key FROM media_assets m WHERE m.id = ?1 AND ${isRetainedSql('m.id')}`)
         .bind(mediaId)
         .first<{ object_key: string }>();
       return row?.object_key ?? null;
@@ -555,11 +553,7 @@ export function createD1PostMediaRepository(db: D1Database): PostMediaRepository
 
     async cleanupIsReferenced(mediaId) {
       const row = await db
-        .prepare(
-          `SELECT EXISTS (SELECT 1 FROM post_media WHERE media_id = ?1) OR
-                  EXISTS (SELECT 1 FROM post_revisions r, json_each(r.media_json) j WHERE j.value = ?1) OR
-                  EXISTS (SELECT 1 FROM media_assets derivative WHERE derivative.source_media_id = ?1) AS referenced`
-        )
+        .prepare(`SELECT ${isRetainedSql('?1')} AS referenced`)
         .bind(mediaId)
         .first<{ referenced: number }>();
       return row?.referenced === 1;

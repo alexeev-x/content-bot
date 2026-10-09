@@ -183,8 +183,16 @@ export async function uploadPostMedia(
   } catch {
     throw new AppError('UNAVAILABLE', 'Media upload state is uncertain');
   }
-  if (!stagingActive)
+  if (!stagingActive) {
+    // Cleanup claimed this upload's staging row while the put was still streaming, so it may have deleted
+    // nothing; the object written afterwards belongs to no row and would never be collected.
+    try {
+      await deps.storage.delete(objectKey);
+    } catch {
+      throw new AppError('UNAVAILABLE', 'Temporary media cleanup failed');
+    }
     throw new AppError('UNAVAILABLE', 'Media upload staging expired before attachment; retry the upload');
+  }
   await removeStaged(deps.repo, deps.storage, mediaId, objectKey);
   classifyPostState(await readPostState(deps.repo, command.postId), command.revision);
   throw new AppError('CONFLICT', 'The media upload could not be attached', { reason: 'STALE_REVISION' });
