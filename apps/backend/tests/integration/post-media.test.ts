@@ -1,4 +1,10 @@
-import { apiErrorSchema, postSchema, uploadPostMediaResultSchema } from '@alexeev/contracts';
+import {
+  apiErrorSchema,
+  attachPostMediaResultSchema,
+  mediaLibraryPageSchema,
+  postSchema,
+  uploadPostMediaResultSchema
+} from '@alexeev/contracts';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { testDb } from '../helpers/db';
 import { type Api, createApi, OWNER_ID, OWNER_TOKEN, resetDb, seedSession, START } from '../helpers/harness';
@@ -117,6 +123,73 @@ describe('post media upload', () => {
     expect(content.headers.get('cache-control')).toBe('no-store');
   });
 
+  it('lists only retained assets and attaches selected library media atomically without copying it', async () => {
+    const source = await createDraft();
+    const uploaded = uploadPostMediaResultSchema.parse(
+      await (await upload(source.id, source.revision, png(), nextKey())).json()
+    );
+    const listingResponse = await api.request('/api/v1/media?kind=all&limit=10');
+    expect(listingResponse.status).toBe(200);
+    const listing = mediaLibraryPageSchema.parse(await listingResponse.json());
+    expect(listing.items.map(({ id }) => id)).toContain(uploaded.media.id);
+
+    const target = await createDraft();
+    const attachedResponse = await api.request(`/api/v1/posts/${target.id}/media/attach`, {
+      method: 'POST',
+      json: { revision: target.revision, mediaIds: [uploaded.media.id] }
+    });
+    expect(attachedResponse.status).toBe(200);
+    const attached = attachPostMediaResultSchema.parse(await attachedResponse.json());
+    expect(attached.revision).toBe(1);
+    expect(attached.media.map(({ id }) => id)).toEqual([uploaded.media.id]);
+    const snapshot = await testDb()
+      .prepare('SELECT media_json FROM post_revisions WHERE post_id = ?1 AND revision = 1')
+      .bind(target.id)
+      .first<{ media_json: string }>();
+    expect(JSON.parse(snapshot?.media_json ?? 'null')).toEqual([uploaded.media.id]);
+
+    const duplicate = await api.request(`/api/v1/posts/${target.id}/media/attach`, {
+      method: 'POST',
+      json: { revision: attached.revision, mediaIds: [uploaded.media.id] }
+    });
+    expect(duplicate.status).toBe(400);
+    expect(apiErrorSchema.parse(await duplicate.json()).error.details?.reason).toBe('DUPLICATE_MEDIA_IDS');
+  });
+
+  it('allows only one concurrent media-library attach at the same draft revision', async () => {
+    const source = await createDraft();
+    const first = uploadPostMediaResultSchema.parse(await (await upload(source.id, 0, png(), nextKey())).json());
+    const second = uploadPostMediaResultSchema.parse(await (await upload(source.id, 1, png(4, 5), nextKey())).json());
+    const firstPage = mediaLibraryPageSchema.parse(
+      await (await api.request('/api/v1/media?kind=photo&limit=1')).json()
+    );
+    expect(firstPage.nextCursor).not.toBeNull();
+    const secondPage = mediaLibraryPageSchema.parse(
+      await (await api.request(`/api/v1/media?kind=photo&limit=1&cursor=${firstPage.nextCursor}`)).json()
+    );
+    expect(firstPage.items[0]?.id).not.toBe(secondPage.items[0]?.id);
+    const target = await createDraft();
+    const results = await Promise.all(
+      [first.media.id, second.media.id].map((mediaId) =>
+        api.request(`/api/v1/posts/${target.id}/media/attach`, {
+          method: 'POST',
+          json: { revision: target.revision, mediaIds: [mediaId] }
+        })
+      )
+    );
+    expect(results.map(({ status }) => status).sort()).toEqual([200, 409]);
+    const row = await testDb()
+      .prepare('SELECT revision FROM posts WHERE id = ?1')
+      .bind(target.id)
+      .first<{ revision: number }>();
+    const count = await testDb()
+      .prepare('SELECT count(*) AS n FROM post_media WHERE post_id = ?1')
+      .bind(target.id)
+      .first<{ n: number }>();
+    expect(row?.revision).toBe(1);
+    expect(count?.n).toBe(1);
+  });
+
   it('uses the cleanup queue ordering index for bounded retry batches', async () => {
     const plan = await testDb()
       .prepare(
@@ -126,6 +199,30 @@ describe('post media upload', () => {
       .all<{ detail: string }>();
 
     expect(plan.results.map(({ detail }) => detail).join(' ')).toContain('post_media_cleanup_order_idx');
+  });
+
+  it('uses the keyset index for library pages with and without a kind filter', async () => {
+    const all = await testDb()
+      .prepare(
+        `EXPLAIN QUERY PLAN SELECT m.id FROM media_assets m
+        WHERE (EXISTS (SELECT 1 FROM post_media pm WHERE pm.media_id = m.id)
+          OR EXISTS (SELECT 1 FROM post_revisions r, json_each(r.media_json) j WHERE j.value = m.id))
+        ORDER BY m.created_at DESC, m.id DESC LIMIT ?1`
+      )
+      .bind(21)
+      .all<{ detail: string }>();
+    const photos = await testDb()
+      .prepare(
+        `EXPLAIN QUERY PLAN SELECT m.id FROM media_assets m
+        WHERE (EXISTS (SELECT 1 FROM post_media pm WHERE pm.media_id = m.id)
+          OR EXISTS (SELECT 1 FROM post_revisions r, json_each(r.media_json) j WHERE j.value = m.id))
+          AND m.kind = 'photo'
+        ORDER BY m.created_at DESC, m.id DESC LIMIT ?1`
+      )
+      .bind(21)
+      .all<{ detail: string }>();
+    expect(all.results.map(({ detail }) => detail).join(' ')).toContain('media_assets_created_idx');
+    expect(photos.results.map(({ detail }) => detail).join(' ')).toContain('media_assets_kind_created_idx');
   });
 
   it('hydrates media for the maximum 100-post page without exceeding D1 bind limits', async () => {

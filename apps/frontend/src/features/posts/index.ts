@@ -12,6 +12,8 @@ export {
   useUpdatePost
 } from './api/posts-queries';
 export { PostEditor } from './ui/PostEditor';
+export { PostPreview } from './ui/PostPreview';
+export { messageLength, MESSAGE_LIMIT } from './model/message-length';
 export { PostsList } from './ui/PostsList';
 export { PostsSkeleton } from './ui/PostsSkeleton';
 export { postsCopy } from './ui/copy';

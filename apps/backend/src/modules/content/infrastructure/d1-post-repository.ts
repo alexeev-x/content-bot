@@ -166,11 +166,48 @@ export function createD1PostRepository(db: D1Database): PostRepository {
 
     // A revision is an immutable snapshot (primary key post_id + revision): what a publication sends.
     async findRevision(postId, revision) {
-      const row = await db
-        .prepare('SELECT title, body, entities FROM post_revisions WHERE post_id = ?1 AND revision = ?2')
+      const { results } = await db
+        .prepare(
+          `SELECT r.title, r.body, r.entities, m.id, m.kind, m.file_name, m.content_type, m.object_key
+             FROM post_revisions r LEFT JOIN json_each(r.media_json) j
+             LEFT JOIN media_assets m ON m.id = j.value
+            WHERE post_id = ?1 AND revision = ?2 ORDER BY CAST(j.key AS INTEGER)`
+        )
         .bind(postId, revision)
-        .first<{ title: string; body: string; entities: string }>();
-      return row === null ? null : { title: row.title, body: row.body, entities: parseEntities(row.entities) };
+        .all<{
+          title: string;
+          body: string;
+          entities: string;
+          id: string | null;
+          kind: PostMediaDto['kind'] | null;
+          file_name: string | null;
+          content_type: string | null;
+          object_key: string | null;
+        }>();
+      const row = results[0];
+      if (row === undefined) return null;
+      return {
+        title: row.title,
+        body: row.body,
+        entities: parseEntities(row.entities),
+        media: results.flatMap((item) =>
+          item.id === null ||
+          item.kind === null ||
+          item.file_name === null ||
+          item.content_type === null ||
+          item.object_key === null
+            ? []
+            : [
+                {
+                  id: item.id,
+                  kind: item.kind,
+                  fileName: item.file_name,
+                  contentType: item.content_type,
+                  objectKey: item.object_key
+                }
+              ]
+        )
+      };
     },
 
     async list(query) {

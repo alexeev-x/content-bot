@@ -6,14 +6,26 @@ import type { JobSnapshot } from '../domain/status-projection';
 
 // The interface belongs to the consumer (docs/BACKEND_ARCHITECTURE.md §4).
 export type SendOutcome =
-  | { kind: 'sent'; externalMessageId: string }
+  | { kind: 'sent'; externalMessageIds: string[] }
   | { kind: 'rate_limited'; retryAfterSec: number } // 429: Telegram refused, nothing was published
   | { kind: 'rejected'; code: 'CHAT_MIGRATED' | 'CONTENT_INVALID' | 'DESTINATION_UNAVAILABLE' | 'BOT_UNAUTHORIZED' }
   | { kind: 'unknown'; reason: string }; // timeout, network, 5xx, ok without message_id
 
 export interface PublicationTransport {
   /** `text` is plain text and `entities` its UTF-16 ranges (see domain/format-message.ts); the adapter owns previews and the timeout. */
-  send(input: { chatId: string; text: string; entities: PostEntity[]; imageKey?: string }): Promise<SendOutcome>;
+  send(input: {
+    chatId: string;
+    text: string;
+    entities: PostEntity[];
+    media: readonly PublicationMedia[];
+  }): Promise<SendOutcome>;
+}
+
+export interface PublicationMedia {
+  kind: 'photo' | 'video' | 'animation';
+  fileName: string;
+  contentType: string;
+  body: ReadableStream<Uint8Array>;
 }
 
 /**
@@ -31,7 +43,7 @@ export interface PostRevisionSource {
   findRevision(
     postId: string,
     revision: number
-  ): Promise<{ title: string; body: string; entities: PostEntity[] } | null>;
+  ): Promise<{ title: string; body: string; entities: PostEntity[]; media: readonly PublicationMedia[] } | null>;
 }
 
 export interface ClaimedJob {
@@ -95,6 +107,7 @@ export interface JobResolution {
   errorCode: string | null;
   retryAfterSec: number | null;
   externalMessageId: string | null;
+  externalMessageIds?: readonly string[] | null;
   incident: JobIncident | null;
   auditAction: string;
 }
@@ -233,6 +246,7 @@ export interface PublicationRecord {
   timezone: string;
   revision: number;
   externalMessageId: string | null;
+  externalMessageIds?: string[] | null;
   lastErrorCode: string | null;
   createdAt: number;
   updatedAt: number;
@@ -284,7 +298,7 @@ export interface PublicationRescheduleChange extends PublicationChange {
 
 /** What the owner found in the channel for an `unknown` send. */
 export type PublicationUnknownResolution =
-  | { outcome: 'sent'; externalMessageId: string }
+  | { outcome: 'sent'; externalMessageIds: string[] }
   | { outcome: 'resend'; scheduledAt: number; timezone: string }
   | { outcome: 'cancel' };
 

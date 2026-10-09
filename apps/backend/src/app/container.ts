@@ -30,6 +30,7 @@ import {
   type DispatchRepository,
   type IncidentRepository,
   type PostRevisionSource,
+  type PublicationMedia,
   type PostSource,
   type PublicationRepository,
   type PublicationTransport
@@ -244,7 +245,27 @@ export function createContainer(env: ContainerEnv, overrides: ContainerOverrides
     },
     // publishing asks for a revision snapshot through its own port; only this wiring knows the content module.
     get postRevisions(): PostRevisionSource {
-      return createD1PostRepository(db());
+      const posts = createD1PostRepository(db());
+      const storage = env.MEDIA_BUCKET === undefined ? undefined : createR2MediaStorage(env.MEDIA_BUCKET);
+      return {
+        async findRevision(postId, revision) {
+          const snapshot = await posts.findRevision(postId, revision);
+          if (snapshot === null) return null;
+          if (snapshot.media.length > 0 && storage === undefined) return null;
+          const media: PublicationMedia[] = [];
+          for (const asset of snapshot.media) {
+            const object = await storage?.get(asset.objectKey);
+            if (object === undefined || object === null) return null;
+            media.push({
+              kind: asset.kind,
+              fileName: asset.fileName,
+              contentType: asset.contentType,
+              body: object.body
+            });
+          }
+          return { title: snapshot.title, body: snapshot.body, entities: snapshot.entities, media };
+        }
+      };
     },
     get transport(): PublicationTransport {
       if (overrides.transport !== undefined) return overrides.transport;

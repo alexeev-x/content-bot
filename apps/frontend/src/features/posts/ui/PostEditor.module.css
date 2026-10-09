@@ -5,6 +5,7 @@
   padding-block-end: calc(var(--size-target) + var(--space-8) + var(--space-4));
 }
 .editor :is(button, input, textarea, select, [contenteditable='true']) {
+  scroll-margin-block-start: calc(var(--size-topbar) + var(--space-4));
   scroll-margin-block-end: calc(var(--size-target) + var(--space-8) + var(--space-4));
 }
 .meta {
@@ -79,6 +80,19 @@
   display: grid;
   gap: var(--space-3);
   padding: var(--space-4);
+}
+.previewMedia {
+  display: grid;
+  gap: var(--space-2);
+}
+.previewMedia figure {
+  display: grid;
+  gap: var(--space-1);
+  margin: 0;
+}
+.previewMedia figcaption {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
 }
 .note {
   display: flex;

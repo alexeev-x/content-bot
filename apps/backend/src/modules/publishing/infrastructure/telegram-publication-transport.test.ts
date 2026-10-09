@@ -1,5 +1,6 @@
 import type { PostEntity } from '@alexeev/contracts';
-import { GrammyError, HttpError } from 'grammy';
+import type { InputMediaPhoto, InputMediaVideo } from '@grammyjs/types';
+import { GrammyError, HttpError, type InputFile } from 'grammy';
 import { describe, expect, it } from 'vitest';
 import { createTelegramPublicationTransport, type TelegramSender } from './telegram-publication-transport';
 
@@ -9,6 +10,22 @@ function senderOf(step: (signal: AbortSignal) => Promise<unknown>): TelegramSend
     requests,
     sendMessage(chatId, text, other, signal) {
       requests.push([chatId, text, other]);
+      return step(signal);
+    },
+    sendPhoto(chatId, photo: InputFile, other, signal) {
+      requests.push(['photo', chatId, photo, other]);
+      return step(signal);
+    },
+    sendVideo(chatId, video: InputFile, other, signal) {
+      requests.push(['video', chatId, video, other]);
+      return step(signal);
+    },
+    sendAnimation(chatId, animation: InputFile, other, signal) {
+      requests.push(['animation', chatId, animation, other]);
+      return step(signal);
+    },
+    sendMediaGroup(chatId, media: (InputMediaPhoto<InputFile> | InputMediaVideo<InputFile>)[], signal) {
+      requests.push(['group', chatId, media]);
       return step(signal);
     }
   };
@@ -20,33 +37,54 @@ const apiError = (code: number, description: string, parameters: Record<string, 
   });
 
 describe('the Telegram transport adapter', () => {
-  it('sends plain text with its entities, no parse_mode and link previews disabled, and returns the message id', async () => {
+  it('sends plain text with entities and link previews disabled', async () => {
     const sender = senderOf(() => Promise.resolve({ message_id: 12 }));
     const entities: PostEntity[] = [
       { type: 'bold', offset: 0, length: 1 },
       { type: 'text_link', offset: 2, length: 3, url: 'https://example.com/a' }
     ];
-
-    const outcome = await createTelegramPublicationTransport(sender).send({ chatId: '-100', text: 'x <b>', entities });
-
-    expect(outcome).toEqual({ kind: 'sent', externalMessageId: '12' });
+    const outcome = await createTelegramPublicationTransport(sender).send({
+      chatId: '-100',
+      text: 'x <b>',
+      entities,
+      media: []
+    });
+    expect(outcome).toEqual({ kind: 'sent', externalMessageIds: ['12'] });
     expect(sender.requests).toEqual([['-100', 'x <b>', { entities, link_preview_options: { is_disabled: true } }]]);
-    expect(sender.requests[0]?.[2]).not.toHaveProperty('parse_mode');
   });
 
-  it('hands the sender a signal that aborts at the timeout, and reports the timeout as unknown', async () => {
+  it('sends a mixed album exactly once and retains every returned message id', async () => {
+    const sender = senderOf(() => Promise.resolve([{ message_id: 20 }, { message_id: 21 }]));
+    const media = [
+      { kind: 'photo' as const, fileName: 'a.jpg', contentType: 'image/jpeg', body: new ReadableStream<Uint8Array>() },
+      { kind: 'video' as const, fileName: 'b.mp4', contentType: 'video/mp4', body: new ReadableStream<Uint8Array>() }
+    ];
+    const result = await createTelegramPublicationTransport(sender).send({
+      chatId: '-100',
+      text: 'caption',
+      entities: [],
+      media
+    });
+    expect(result).toEqual({ kind: 'sent', externalMessageIds: ['20', '21'] });
+    expect(sender.requests).toHaveLength(1);
+    expect(sender.requests[0]?.[0]).toBe('group');
+  });
+
+  it('hands the sender a timeout signal and classifies the aborted request as unknown', async () => {
     let received: AbortSignal | undefined;
     const sender = senderOf(
       (signal) =>
         new Promise((_resolve, reject) => {
           received = signal;
-          // grammY surfaces an aborted request as a network error.
           signal.addEventListener('abort', () => reject(new HttpError('Network request failed', signal.reason)));
         })
     );
-
-    const outcome = await createTelegramPublicationTransport(sender, 10).send({ chatId: '1', text: 't', entities: [] });
-
+    const outcome = await createTelegramPublicationTransport(sender, 10).send({
+      chatId: '1',
+      text: 't',
+      entities: [],
+      media: []
+    });
     expect(received).toBeInstanceOf(AbortSignal);
     expect(outcome).toEqual({ kind: 'unknown', reason: 'timeout' });
   });
@@ -56,22 +94,17 @@ describe('the Telegram transport adapter', () => {
     [apiError(403, 'Forbidden: bot was blocked'), { kind: 'rejected', code: 'DESTINATION_UNAVAILABLE' }],
     [apiError(502, 'Bad Gateway'), { kind: 'unknown', reason: 'telegram_http_502' }],
     [new HttpError('down', new Error('x')), { kind: 'unknown', reason: 'network_error' }]
-  ])('maps %# to its outcome and never throws', async (error, expected) => {
+  ])('maps API errors to their safe outcome', async (error, expected) => {
     const sender = senderOf(() => Promise.reject(error));
-
     await expect(
-      createTelegramPublicationTransport(sender).send({ chatId: '1', text: 't', entities: [] })
+      createTelegramPublicationTransport(sender).send({ chatId: '1', text: 't', entities: [], media: [] })
     ).resolves.toEqual(expected);
   });
 
-  it('an ok answer without a message id is unknown, not sent', async () => {
+  it('treats a successful response without message id as unknown', async () => {
     const sender = senderOf(() => Promise.resolve({ chat: { id: 1 } }));
-
     await expect(
-      createTelegramPublicationTransport(sender).send({ chatId: '1', text: 't', entities: [] })
-    ).resolves.toEqual({
-      kind: 'unknown',
-      reason: 'ok_without_message_id'
-    });
+      createTelegramPublicationTransport(sender).send({ chatId: '1', text: 't', entities: [], media: [] })
+    ).resolves.toEqual({ kind: 'unknown', reason: 'ok_without_message_id' });
   });
 });

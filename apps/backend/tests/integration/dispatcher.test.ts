@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
+import { postSchema, uploadPostMediaResultSchema } from '@alexeev/contracts';
 import type { Container } from '../../src/app/container';
 import { createContainer } from '../../src/app/container';
 import type { PublicationTransport } from '../../src/modules/publishing';
@@ -28,7 +29,7 @@ import {
   seedSession,
   START
 } from '../helpers/harness';
-import { claimJob, count, jobOf, seedApprovedPost, seedDestination } from '../helpers/publishing';
+import { claimJob, count, jobOf, seedApprovedPost, seedDestination, seedPublication } from '../helpers/publishing';
 
 let clock: FakeClock;
 let api: Api;
@@ -46,6 +47,108 @@ const tickWith = (
 ) => makeTick({ clock, transport, ...extra });
 
 describe('a due job is sent once and recorded', () => {
+  it('sends the approved media snapshot in order and persists every Telegram message id', async () => {
+    const created = await api.request('/api/v1/posts', {
+      method: 'POST',
+      headers: { 'idempotency-key': 'album-draft' },
+      json: { title: 'Album', body: '' }
+    });
+    expect(created.status).toBe(201);
+    const draft = postSchema.parse(await created.json());
+    const bytes = new Uint8Array([
+      0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 13, 0x49, 0x48, 0x44, 0x52, 0, 0, 0, 2, 0, 0, 0, 3, 8, 2,
+      0, 0, 0, 0, 0, 0, 0
+    ]);
+    let revision = draft.revision;
+    const uploadedIds: string[] = [];
+    for (const key of ['album-media-1', 'album-media-2']) {
+      const upload = await api.request(`/api/v1/posts/${draft.id}/media?revision=${revision}&fileName=image.png`, {
+        method: 'POST',
+        headers: new Headers({
+          'content-type': 'image/png',
+          'content-length': String(bytes.length),
+          'idempotency-key': key
+        }),
+        body: bytes
+      });
+      expect(upload.status).toBe(201);
+      const result = uploadPostMediaResultSchema.parse(await upload.json());
+      uploadedIds.push(result.media.id);
+      revision = result.revision;
+    }
+    const approvedResponse = await api.request(`/api/v1/posts/${draft.id}/approve`, {
+      method: 'POST',
+      json: { revision }
+    });
+    expect(approvedResponse.status).toBe(200);
+    const approved = postSchema.parse(await approvedResponse.json());
+    const destination = await seedDestination(api, { chatId: '-1009988776655' });
+    const publication = await seedPublication(api, {
+      postId: approved.id,
+      revision: approved.revision,
+      destinationId: destination.id,
+      scheduledAt: new Date(START).toISOString()
+    });
+    const transport = fakeTransport({ kind: 'sent', externalMessageIds: ['6001', '6002'] });
+
+    await tickWith(transport).run();
+
+    expect(transport.mediaCalls).toEqual([['photo', 'photo']]);
+    const stored = await testDb()
+      .prepare('SELECT external_message_id, external_message_ids FROM publications WHERE id = ?1')
+      .bind(publication.id)
+      .first<{ external_message_id: string | null; external_message_ids: string | null }>();
+    expect(stored).toEqual({ external_message_id: '6001', external_message_ids: '["6001","6002"]' });
+    const snapshot = await testDb()
+      .prepare('SELECT media_json FROM post_revisions WHERE post_id = ?1 AND revision = ?2')
+      .bind(approved.id, approved.revision)
+      .first<{ media_json: string }>();
+    expect(JSON.parse(snapshot?.media_json ?? 'null')).toEqual(uploadedIds);
+  });
+
+  it('refuses media captions over Telegram’s 1024-character limit before marking or calling Telegram', async () => {
+    const created = await api.request('/api/v1/posts', {
+      method: 'POST',
+      headers: { 'idempotency-key': 'long-caption-draft' },
+      json: { title: 'Title', body: 'x'.repeat(1024) }
+    });
+    const draft = postSchema.parse(await created.json());
+    const bytes = new Uint8Array([
+      0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 13, 0x49, 0x48, 0x44, 0x52, 0, 0, 0, 2, 0, 0, 0, 3, 8, 2,
+      0, 0, 0, 0, 0, 0, 0
+    ]);
+    const upload = await api.request(`/api/v1/posts/${draft.id}/media?revision=0&fileName=image.png`, {
+      method: 'POST',
+      headers: new Headers({
+        'content-type': 'image/png',
+        'content-length': String(bytes.length),
+        'idempotency-key': 'long-caption-media'
+      }),
+      body: bytes
+    });
+    expect(upload.status).toBe(201);
+    const media = uploadPostMediaResultSchema.parse(await upload.json());
+    const approvedResponse = await api.request(`/api/v1/posts/${draft.id}/approve`, {
+      method: 'POST',
+      json: { revision: media.revision }
+    });
+    const approved = postSchema.parse(await approvedResponse.json());
+    const destination = await seedDestination(api);
+    const publication = await seedPublication(api, {
+      postId: approved.id,
+      revision: approved.revision,
+      destinationId: destination.id,
+      scheduledAt: new Date(START).toISOString()
+    });
+    const transport = fakeTransport(SENT);
+
+    await tickWith(transport).run();
+
+    expect(transport.calls).toHaveLength(0);
+    expect(await jobOf(publication.id)).toMatchObject({ status: 'failed', send_started_at: null });
+    expect((await publicationOf(publication.id)).last_error_code).toBe('CONTENT_INVALID');
+  });
+
   it('sends the plain text with a bold title entity to the destination and marks everything in D1', async () => {
     const { publicationId, jobId, chatId } = await seedDueJob(api);
     const transport = fakeTransport(SENT);

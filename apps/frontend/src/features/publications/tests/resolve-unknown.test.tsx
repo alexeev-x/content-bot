@@ -125,6 +125,18 @@ describe('outcome «Пост вышел»', () => {
     await waitFor(() => expect(bodies[0]?.['externalMessageId']).toBe('77'));
   });
 
+  it('submits all message ids for an album reconciliation', async () => {
+    serveDetail(unknown());
+    const bodies = serveResolve(() =>
+      HttpResponse.json(publication({ status: 'sent', externalMessageIds: ['11', '12'], revision: 5 }))
+    );
+    const { user } = await openChoice('Пост вышел');
+    const dialog = await screen.findByRole('dialog', { name: 'Пост вышел в канале' });
+    await user.type(within(dialog).getByRole('textbox'), 'https://t.me/alexeev_chan/11\nhttps://t.me/alexeev_chan/12');
+    await user.click(within(dialog).getByRole('button', { name: 'Подтвердить публикацию' }));
+    await waitFor(() => expect(bodies).toEqual([{ outcome: 'sent', revision: 4, externalMessageIds: ['11', '12'] }]));
+  });
+
   it.each([
     ['', 'Вставьте ссылку на сообщение или его номер.'],
     ['0', 'Не удалось разобрать'],

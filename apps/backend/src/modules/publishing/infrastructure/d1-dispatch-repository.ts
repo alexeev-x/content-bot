@@ -99,9 +99,16 @@ function resolutionStatements(db: D1Database, resolution: JobResolution, guard: 
         db,
         (ours) =>
           `UPDATE publications
-           SET external_message_id = COALESCE(?2, external_message_id), last_error_code = ?3, updated_at = ?4
+           SET external_message_id = COALESCE(?2, external_message_id),
+               external_message_ids = COALESCE(?3, external_message_ids), last_error_code = ?4, updated_at = ?5
            WHERE id = ?1 AND ${ours}`,
-        [resolution.publicationId, resolution.externalMessageId, resolution.errorCode, resolution.finishedAt],
+        [
+          resolution.publicationId,
+          resolution.externalMessageId,
+          resolution.externalMessageIds == null ? null : JSON.stringify(resolution.externalMessageIds),
+          resolution.errorCode,
+          resolution.finishedAt
+        ],
         guard
       )
     );

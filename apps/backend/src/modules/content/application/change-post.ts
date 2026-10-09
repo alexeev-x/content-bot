@@ -59,7 +59,9 @@ export async function approvePost(
   if (!decision.ok && decision.reason === 'ALREADY_APPROVED') throw conflict('ALREADY_APPROVED');
   if (current.revision !== input.revision) throw conflict('STALE_REVISION');
   if (!decision.ok)
-    throw new AppError('VALIDATION_ERROR', 'A post needs a body to be approved', { reason: decision.reason });
+    throw new AppError('VALIDATION_ERROR', 'A post needs text or attached media to be approved', {
+      reason: decision.reason
+    });
 
   const approved = await deps.repo.approve({ id, expectedRevision: input.revision, actor, now: deps.now });
   if (approved !== null) return toPostDto(approved);

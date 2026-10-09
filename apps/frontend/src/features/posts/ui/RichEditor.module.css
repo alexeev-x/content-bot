@@ -63,6 +63,7 @@
   min-height: 12rem;
   max-height: 60vh;
   overflow-y: auto;
+  scroll-padding-block: var(--space-3) calc(var(--size-target) * 2 + var(--space-6) + env(safe-area-inset-bottom));
   padding: var(--space-3);
   color: var(--color-text);
   line-height: var(--line-height-body);

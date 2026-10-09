@@ -7,8 +7,16 @@ import {
 } from '@alexeev/contracts';
 import { useEffect, useRef, useState } from 'react';
 import { ApiError } from '../../../shared/api/http-client';
-import { Button, Panel } from '../../../shared/ui';
-import { deletePostMedia, getPostMediaContent, reorderPostMedia, uploadPostMedia } from '../api/post-media-api';
+import type { PostDto } from '@alexeev/contracts';
+import { Button, Dialog, Panel, Select } from '../../../shared/ui';
+import {
+  attachLibraryMedia,
+  deletePostMedia,
+  getPostMediaContent,
+  listMediaLibrary,
+  reorderPostMedia,
+  uploadPostMedia
+} from '../api/post-media-api';
 import styles from './PostMediaEditor.module.css';
 
 /* oxlint-disable jsx-a11y/media-has-caption -- Uploaded files may not contain captions; never fabricate a track. */
@@ -24,6 +32,7 @@ type Entry = {
   error?: string;
   replaceId?: string;
   idempotencyKey?: string;
+  uploadPostId?: string;
 };
 
 type Props = {
@@ -33,6 +42,8 @@ type Props = {
   disabled: boolean;
   onServerChange: (revision: number, media: PostMediaDto[]) => void;
   onPendingChange: (pending: boolean) => void;
+  onEnsurePost?: () => Promise<PostDto | null>;
+  onDraftReady?: (post: PostDto) => void;
 };
 
 const fileTypeByExtension: Record<string, string> = {
@@ -129,7 +140,16 @@ function friendlyError(error: unknown): string {
   return 'Не удалось загрузить файл. Проверьте соединение и повторите попытку.';
 }
 
-export function PostMediaEditor({ postId, revision, media, disabled, onServerChange, onPendingChange }: Props) {
+export function PostMediaEditor({
+  postId,
+  revision,
+  media,
+  disabled,
+  onServerChange,
+  onPendingChange,
+  onEnsurePost,
+  onDraftReady
+}: Props) {
   const [entries, setEntries] = useState<Entry[]>(() =>
     media.map((item) => ({ key: item.id, media: item, status: 'uploaded' }))
   );
@@ -139,15 +159,28 @@ export function PostMediaEditor({ postId, revision, media, disabled, onServerCha
   const [notice, setNotice] = useState('');
   const [cancelController, setCancelController] = useState<AbortController | null>(null);
   const cancelControllerRef = useRef<AbortController | null>(null);
+  const cancelQueueRef = useRef(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const mounted = useRef(true);
   const previewUrls = useRef(new Set<string>());
+  const [isDropTarget, setDropTarget] = useState(false);
+  const [sourceOpen, setSourceOpen] = useState(false);
+  const [libraryOpen, setLibraryOpen] = useState(false);
+  const [libraryKind, setLibraryKind] = useState<'all' | 'photo' | 'video'>('all');
+  const [libraryItems, setLibraryItems] = useState<Awaited<ReturnType<typeof listMediaLibrary>>['items']>([]);
+  const [libraryCursor, setLibraryCursor] = useState<string | null>(null);
+  const [librarySelection, setLibrarySelection] = useState<string[]>([]);
+  const [libraryBusy, setLibraryBusy] = useState(false);
+  const [libraryError, setLibraryError] = useState('');
+  const [expandedMedia, setExpandedMedia] = useState<PostMediaDto | null>(null);
+  const [draggedKey, setDraggedKey] = useState<string | null>(null);
 
   // oxlint-disable-next-line react/set-state-in-effect -- Reconcile server-confirmed media while retaining local pending uploads.
   useEffect(() => {
     mounted.current = true;
     return () => {
       mounted.current = false;
+      cancelQueueRef.current = true;
       cancelControllerRef.current?.abort();
     };
   }, []);
@@ -159,6 +192,18 @@ export function PostMediaEditor({ postId, revision, media, disabled, onServerCha
     },
     []
   );
+
+  useEffect(() => {
+    const suppressFileNavigation = (event: DragEvent) => {
+      if (Array.from(event.dataTransfer?.types ?? []).includes('Files')) event.preventDefault();
+    };
+    window.addEventListener('dragover', suppressFileNavigation);
+    window.addEventListener('drop', suppressFileNavigation);
+    return () => {
+      window.removeEventListener('dragover', suppressFileNavigation);
+      window.removeEventListener('drop', suppressFileNavigation);
+    };
+  }, []);
 
   useEffect(() => {
     // oxlint-disable-next-line react/set-state-in-effect -- Reconcile server-confirmed media while retaining local pending uploads.
@@ -175,10 +220,11 @@ export function PostMediaEditor({ postId, revision, media, disabled, onServerCha
     setEntries((current) => current.map((entry) => (entry.key === key ? { ...entry, ...update } : entry)));
   }
 
-  async function upload(entry: Entry) {
-    if (!postId || !entry.file || busy) return;
+  async function upload(entry: Entry): Promise<boolean> {
+    const activePostId = postId ?? entry.uploadPostId;
+    if (!activePostId || !entry.file || busy) return false;
     const contentType = fileType(entry.file);
-    if (!contentType) return;
+    if (!contentType) return false;
     const controller = new AbortController();
     cancelControllerRef.current = controller;
     setCancelController(controller);
@@ -187,7 +233,7 @@ export function PostMediaEditor({ postId, revision, media, disabled, onServerCha
     updateEntry(entry.key, { status: 'uploading', error: undefined, progress: 0 });
     try {
       const uploaded = await uploadPostMedia({
-        postId,
+        postId: activePostId,
         revision: revisionRef.current,
         file: entry.file,
         contentType,
@@ -214,7 +260,7 @@ export function PostMediaEditor({ postId, revision, media, disabled, onServerCha
       if (entry.replaceId) {
         const originalPosition =
           mediaRef.current.find((item) => item.id === entry.replaceId)?.position ?? uploaded.media.position;
-        const removed = await deletePostMedia(postId, entry.replaceId, nextRevision);
+        const removed = await deletePostMedia(activePostId, entry.replaceId, nextRevision);
         nextRevision = removed.revision;
         nextMedia = nextMedia.filter((item) => item.id !== entry.replaceId);
         onServerChange(nextRevision, nextMedia);
@@ -228,7 +274,7 @@ export function PostMediaEditor({ postId, revision, media, disabled, onServerCha
         if (replacement === undefined) throw new Error('Uploaded replacement is missing from the media list');
         ordered.splice(Math.max(0, newIndex), 0, replacement!);
         const reordered = await reorderPostMedia(
-          postId,
+          activePostId,
           nextRevision,
           ordered.map((item) => item.id)
         );
@@ -238,6 +284,7 @@ export function PostMediaEditor({ postId, revision, media, disabled, onServerCha
         revisionRef.current = nextRevision;
         mediaRef.current = nextMedia;
       }
+      return true;
     } catch (error) {
       if (controller.signal.aborted && entry.file)
         updateEntry(entry.key, {
@@ -248,6 +295,7 @@ export function PostMediaEditor({ postId, revision, media, disabled, onServerCha
       else if (entry.file) updateEntry(entry.key, { status: 'failed', error: friendlyError(error) });
       else if (!controller.signal.aborted)
         setNotice(`Файл загружен, но завершить замену не удалось. Проверьте список вложений. ${friendlyError(error)}`);
+      return false;
     } finally {
       if (mounted.current) {
         setBusy(false);
@@ -258,7 +306,7 @@ export function PostMediaEditor({ postId, revision, media, disabled, onServerCha
   }
 
   async function selectFiles(files: FileList | null, replaceId?: string) {
-    if (!files || !postId || disabled || busy) return;
+    if (!files || disabled || busy) return;
     if (replaceId && entries.length >= POST_MEDIA_MAX_ITEMS) {
       setNotice(replaceAtLimitNotice);
       return;
@@ -278,23 +326,44 @@ export function PostMediaEditor({ postId, revision, media, disabled, onServerCha
         .join(', ');
       setNotice(`Не добавлены: ${invalid}. Допустимы JPG, PNG, WebP (до 10 MB), GIF и MP4 (до 50 MB).`);
     }
+    let activePostId = postId;
+    let createdPost: PostDto | null = null;
+    if (!activePostId && accepted.length > 0) {
+      const post = await onEnsurePost?.();
+      if (!post) {
+        setNotice('Не удалось создать черновик. Проверьте заголовок и повторите добавление файлов.');
+        return;
+      }
+      activePostId = post.id;
+      revisionRef.current = post.revision;
+      mediaRef.current = post.media;
+      createdPost = post;
+    }
+    if (!activePostId) return;
     const fresh = accepted.map((file): Entry => ({
       key: crypto.randomUUID(),
       file,
       previewUrl: URL.createObjectURL(file),
       status: 'local',
       idempotencyKey: crypto.randomUUID(),
+      ...(postId ? {} : { uploadPostId: activePostId }),
       ...(replaceId ? { replaceId } : {})
     }));
     for (const entry of fresh) if (entry.previewUrl) previewUrls.current.add(entry.previewUrl);
     setEntries((current) => [...current, ...fresh]);
     if (inputRef.current) inputRef.current.value = '';
     // Uploads are sequential because each server-confirmed upload advances the draft revision.
-    for (const entry of fresh) await upload(entry);
+    cancelQueueRef.current = false;
+    for (const entry of fresh) {
+      if (cancelQueueRef.current || !mounted.current) break;
+      await upload(entry);
+    }
+    if (createdPost) onDraftReady?.(createdPost);
   }
 
   async function remove(entry: Entry) {
-    if (!postId || disabled || busy) return;
+    const activePostId = postId;
+    if (!activePostId || disabled || busy) return;
     if (!entry.media) {
       setEntries((current) => current.filter((item) => item.key !== entry.key));
       if (entry.previewUrl) {
@@ -305,7 +374,7 @@ export function PostMediaEditor({ postId, revision, media, disabled, onServerCha
     }
     setBusy(true);
     try {
-      const result = await deletePostMedia(postId, entry.media.id, revisionRef.current);
+      const result = await deletePostMedia(activePostId, entry.media.id, revisionRef.current);
       const next = mediaRef.current.filter((item) => item.id !== entry.media?.id);
       setEntries((current) => current.filter((item) => item.key !== entry.key));
       revisionRef.current = result.revision;
@@ -348,22 +417,124 @@ export function PostMediaEditor({ postId, revision, media, disabled, onServerCha
     }
   }
 
+  async function moveBefore(dragged: Entry, target: Entry) {
+    if (!postId || disabled || busy || dragged.status !== 'uploaded' || target.status !== 'uploaded') return;
+    const uploaded = entries.filter((item): item is Entry & { media: PostMediaDto } => item.media !== undefined);
+    const next = uploaded.filter((item) => item.key !== dragged.key);
+    const targetIndex = next.findIndex((item) => item.key === target.key);
+    if (targetIndex < 0) return;
+    next.splice(targetIndex, 0, dragged as Entry & { media: PostMediaDto });
+    setBusy(true);
+    try {
+      const result = await reorderPostMedia(
+        postId,
+        revisionRef.current,
+        next.map((item) => item.media.id)
+      );
+      const ordered = next.map((item, position) => ({ ...item.media, position }));
+      setEntries((current) => [
+        ...ordered.map((item) => ({ key: item.id, media: item, status: 'uploaded' as const })),
+        ...current.filter((item) => !item.media)
+      ]);
+      revisionRef.current = result.revision;
+      mediaRef.current = ordered;
+      onServerChange(result.revision, ordered);
+    } catch (error) {
+      setNotice(friendlyError(error));
+    } finally {
+      setBusy(false);
+      setDraggedKey(null);
+    }
+  }
+
+  async function openLibrary(kind: 'all' | 'photo' | 'video' = 'all', cursor?: string) {
+    setLibraryOpen(true);
+    setLibraryBusy(true);
+    setLibraryError('');
+    try {
+      const page = await listMediaLibrary(kind, cursor);
+      setLibraryItems((current) => (cursor ? [...current, ...page.items] : page.items));
+      setLibraryCursor(page.nextCursor);
+      setLibraryKind(kind);
+    } catch {
+      setLibraryError('Не удалось загрузить медиабиблиотеку. Повторите попытку.');
+    } finally {
+      setLibraryBusy(false);
+    }
+  }
+
+  async function attachSelected() {
+    if (librarySelection.length === 0 || busy || libraryBusy || disabled) return;
+    let activePostId = postId;
+    let createdPost: PostDto | null = null;
+    if (!activePostId) {
+      createdPost = (await onEnsurePost?.()) ?? null;
+      if (!createdPost) {
+        setLibraryError('Не удалось создать черновик. Проверьте заголовок и повторите попытку.');
+        return;
+      }
+      activePostId = createdPost.id;
+      revisionRef.current = createdPost.revision;
+      mediaRef.current = createdPost.media;
+    }
+    setLibraryBusy(true);
+    setLibraryError('');
+    try {
+      const result = await attachLibraryMedia(activePostId, revisionRef.current, librarySelection);
+      revisionRef.current = result.revision;
+      mediaRef.current = result.media;
+      onServerChange(result.revision, result.media);
+      setLibraryOpen(false);
+      setLibrarySelection([]);
+      if (createdPost) onDraftReady?.(createdPost);
+    } catch {
+      setLibraryError('Не удалось добавить выбранные файлы. Повторите попытку.');
+    } finally {
+      setLibraryBusy(false);
+    }
+  }
+
   const hasPending = entries.some((entry) => entry.status !== 'uploaded');
   const pending = hasPending || busy;
   useEffect(() => onPendingChange(pending), [pending, onPendingChange]);
+  const fileDropHandlers = {
+    onDragEnter: (event: React.DragEvent<HTMLElement>) => {
+      if (event.dataTransfer.types.includes('Files')) setDropTarget(true);
+    },
+    onDragOver: (event: React.DragEvent<HTMLElement>) => {
+      if (event.dataTransfer.types.includes('Files')) {
+        event.preventDefault();
+        setDropTarget(true);
+      }
+    },
+    onDragLeave: (event: React.DragEvent<HTMLElement>) => {
+      if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setDropTarget(false);
+    },
+    onDrop: (event: React.DragEvent<HTMLElement>) => {
+      event.preventDefault();
+      setDropTarget(false);
+      void selectFiles(event.dataTransfer.files);
+    }
+  };
   return (
     <Panel>
-      <section className={styles.section} aria-labelledby="post-media-heading">
+      <section
+        className={`${styles.section} ${isDropTarget ? styles.dropTarget : ''}`}
+        aria-labelledby="post-media-heading"
+        /* oxlint-disable-next-line jsx-a11y/no-noninteractive-element-interactions -- Drag-and-drop is an optional desktop enhancement; the file-picker button is the keyboard alternative. */
+        {...fileDropHandlers}
+      >
         <div className={styles.heading}>
           <div className={styles.headingCopy}>
             <h2 id="post-media-heading">Фото и видео</h2>
             {postId ? <p>{mediaRules}</p> : null}
           </div>
           <Button
-            variant={postId && entries.length === 0 ? 'primary' : 'secondary'}
+            variant={entries.length === 0 ? 'primary' : 'secondary'}
             icon="plus"
-            isDisabled={!postId || disabled || busy || entries.length >= POST_MEDIA_MAX_ITEMS}
-            onPress={() => inputRef.current?.click()}
+            isDisabled={disabled || busy || entries.length >= POST_MEDIA_MAX_ITEMS}
+            className={isDropTarget ? styles.dropTarget : undefined}
+            onPress={() => setSourceOpen(true)}
           >
             {entries.length === 0 ? 'Выбрать файлы' : 'Добавить файлы'}
           </Button>
@@ -383,13 +554,10 @@ export function PostMediaEditor({ postId, revision, media, disabled, onServerCha
             }}
           />
         </div>
-        {!postId ? (
-          <div className={styles.draftGate}>
-            <strong>Сначала сохраните черновик</strong>
-            <p>
-              В новом посте загрузка пока недоступна. Нажмите «Создать черновик» внизу редактора — после сохранения
-              здесь можно будет выбрать файлы.
-            </p>
+        {!postId && entries.length === 0 ? (
+          <div className={styles.dropHint}>
+            <strong>Перетащите файлы сюда или выберите источник</strong>
+            <span>Черновик создастся автоматически при первом добавлении медиа.</span>
           </div>
         ) : null}
         {entries.length ? (
@@ -400,7 +568,22 @@ export function PostMediaEditor({ postId, revision, media, disabled, onServerCha
                   const uploadedEntries = entries.filter((item) => item.media);
                   const uploadedIndex = uploadedEntries.findIndex((item) => item.key === entry.key);
                   return (
-                    <li className={styles.item} key={entry.key}>
+                    /* oxlint-disable-next-line jsx-a11y/no-noninteractive-element-interactions -- Native draggable list item is the desktop reorder target; adjacent move-up/down buttons are keyboard alternatives. */
+                    <li
+                      className={styles.item}
+                      key={entry.key}
+                      draggable={Boolean(postId && entry.status === 'uploaded' && !disabled)}
+                      onDragStart={() => setDraggedKey(entry.key)}
+                      onDragEnd={() => setDraggedKey(null)}
+                      onDragOver={(event) => {
+                        if (draggedKey && draggedKey !== entry.key) event.preventDefault();
+                      }}
+                      onDrop={(event) => {
+                        event.preventDefault();
+                        const source = entries.find((item) => item.key === draggedKey);
+                        if (source) void moveBefore(source, entry);
+                      }}
+                    >
                       {entry.previewUrl ? (
                         entry.file?.type.startsWith('video/') ? (
                           <video className={styles.preview} src={entry.previewUrl} controls preload="metadata" />
@@ -416,6 +599,16 @@ export function PostMediaEditor({ postId, revision, media, disabled, onServerCha
                       ) : null}
                       <div className={styles.details}>
                         <strong>{entry.file?.name ?? entry.media?.fileName}</strong>
+                        <span>
+                          {entry.media?.kind === 'video' || entry.file?.type.startsWith('video/')
+                            ? 'Видео'
+                            : entry.media?.kind === 'animation' || entry.file?.type === 'image/gif'
+                              ? 'GIF'
+                              : 'Фото'}
+                          {' · '}
+                          {((entry.file?.size ?? entry.media?.sizeBytes ?? 0) / 1_000_000).toFixed(1)} МБ
+                          {entry.media?.durationMs ? ` · ${Math.round(entry.media.durationMs / 1000)} с` : ''}
+                        </span>
                         {entry.status === 'local' ? <span>{entry.error ?? 'Выбрано · ещё не загружено'}</span> : null}
                         {/* oxlint-disable-next-line jsx-a11y/prefer-tag-over-role -- This status is intentionally a concise live announcement. */}
                         {entry.status === 'uploading' ? (
@@ -443,6 +636,9 @@ export function PostMediaEditor({ postId, revision, media, disabled, onServerCha
                       </div>
                       {entry.media ? (
                         <div className={styles.controls}>
+                          <Button variant="ghost" size="sm" onPress={() => setExpandedMedia(entry.media ?? null)}>
+                            Увеличить
+                          </Button>
                           <Button
                             variant="ghost"
                             size="sm"
@@ -499,7 +695,14 @@ export function PostMediaEditor({ postId, revision, media, disabled, onServerCha
           </p>
         )}
         {busy && cancelController ? (
-          <Button variant="ghost" size="sm" onPress={() => cancelController.abort()}>
+          <Button
+            variant="ghost"
+            size="sm"
+            onPress={() => {
+              cancelQueueRef.current = true;
+              cancelController.abort();
+            }}
+          >
             Отменить загрузку
           </Button>
         ) : null}
@@ -515,6 +718,134 @@ export function PostMediaEditor({ postId, revision, media, disabled, onServerCha
           </p>
         ) : null}
       </section>
+      <Dialog
+        isOpen={sourceOpen}
+        onOpenChange={setSourceOpen}
+        title="Добавить медиа"
+        description="Выберите, откуда добавить фотографии или видео."
+        footer={
+          <Button variant="secondary" onPress={() => setSourceOpen(false)}>
+            Отмена
+          </Button>
+        }
+      >
+        <div className={styles.sourceSheet}>
+          <Button
+            variant="primary"
+            onPress={() => {
+              setSourceOpen(false);
+              inputRef.current?.click();
+            }}
+          >
+            Выбрать с устройства
+          </Button>
+          <Button
+            variant="secondary"
+            onPress={() => {
+              setSourceOpen(false);
+              void openLibrary();
+            }}
+          >
+            Открыть медиабиблиотеку
+          </Button>
+        </div>
+      </Dialog>
+      <Dialog
+        isOpen={expandedMedia !== null}
+        onOpenChange={(open) => {
+          if (!open) setExpandedMedia(null);
+        }}
+        title={expandedMedia?.fileName ?? 'Предпросмотр медиа'}
+        description="Полноразмерный предпросмотр вложения."
+        size="wide"
+      >
+        {expandedMedia ? <ServerPreview media={expandedMedia} large /> : null}
+      </Dialog>
+      <Dialog
+        isOpen={libraryOpen}
+        onOpenChange={setLibraryOpen}
+        title="Медиабиблиотека"
+        description="Выберите один или несколько файлов, чтобы добавить их в публикацию без повторной загрузки."
+        size="wide"
+        footer={
+          <>
+            <Button variant="secondary" onPress={() => setLibraryOpen(false)}>
+              Отмена
+            </Button>
+            <Button
+              variant="primary"
+              isLoading={libraryBusy}
+              isDisabled={librarySelection.length === 0}
+              onPress={() => void attachSelected()}
+            >
+              Добавить выбранные ({librarySelection.length})
+            </Button>
+          </>
+        }
+      >
+        <div className={styles.library}>
+          <Select
+            label="Тип файла"
+            value={libraryKind}
+            options={[
+              { id: 'all', label: 'Все' },
+              { id: 'photo', label: 'Фото' },
+              { id: 'video', label: 'Видео' }
+            ]}
+            onChange={(value) => {
+              if (value === 'all' || value === 'photo' || value === 'video') {
+                setLibraryItems([]);
+                setLibraryCursor(null);
+                setLibrarySelection([]);
+                void openLibrary(value);
+              }
+            }}
+          />
+          {libraryError ? (
+            <div>
+              <p className={styles.error} role="alert">
+                {libraryError}
+              </p>
+              <Button variant="secondary" onPress={() => void openLibrary(libraryKind)}>
+                Повторить
+              </Button>
+            </div>
+          ) : null}
+          {libraryBusy && libraryItems.length === 0 ? <p role="status">Загружаем медиабиблиотеку…</p> : null}
+          {!libraryBusy && libraryItems.length === 0 && !libraryError ? (
+            <p>В медиабиблиотеке пока нет файлов.</p>
+          ) : null}
+          <ul className={styles.libraryList}>
+            {libraryItems.map((item) => (
+              <li key={item.id}>
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={librarySelection.includes(item.id)}
+                    onChange={(event) =>
+                      setLibrarySelection((current) =>
+                        event.target.checked ? [...current, item.id] : current.filter((id) => id !== item.id)
+                      )
+                    }
+                  />
+                  <span>
+                    {item.kind === 'video' ? 'Видео' : item.kind === 'animation' ? 'GIF' : 'Фото'} · {item.fileName}
+                  </span>
+                </label>
+              </li>
+            ))}
+          </ul>
+          {libraryCursor ? (
+            <Button
+              variant="secondary"
+              isLoading={libraryBusy}
+              onPress={() => void openLibrary(libraryKind, libraryCursor)}
+            >
+              Показать ещё
+            </Button>
+          ) : null}
+        </div>
+      </Dialog>
     </Panel>
   );
 }

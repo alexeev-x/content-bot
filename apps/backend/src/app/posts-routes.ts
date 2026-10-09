@@ -1,4 +1,5 @@
 import {
+  attachPostMediaInputSchema,
   approvePostInputSchema,
   bulkDeletePostsInputSchema,
   bulkRestorePostsInputSchema,
@@ -15,6 +16,7 @@ import {
 import { Hono } from 'hono';
 import { z } from 'zod';
 import {
+  attachRetainedPostMedia,
   approvePost,
   createPost,
   getPost,
@@ -112,6 +114,24 @@ export const postsRoutes = new Hono<AppBindings>()
       await getPost({ repo: container.posts, summaries: container.postSummaries, now: container.clock.now() }, id)
     );
   })
+  .post(
+    '/:id/media/attach',
+    validated('param', idParamSchema),
+    limitBody(MAX_BODY_BYTES),
+    validated('json', attachPostMediaInputSchema),
+    async (c) => {
+      const container = c.get('container');
+      const result = await attachRetainedPostMedia(
+        { repo: container.postMedia, now: container.clock.now() },
+        {
+          postId: postId(c.req.valid('param').id),
+          actor: c.get('actor').telegramId,
+          ...c.req.valid('json')
+        }
+      );
+      return c.json(result);
+    }
+  )
   .post(
     '/:id/media',
     validated('param', idParamSchema),

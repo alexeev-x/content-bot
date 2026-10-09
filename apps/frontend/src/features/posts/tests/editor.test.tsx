@@ -46,6 +46,77 @@ async function openExisting(overrides = {}) {
 }
 
 describe('create', () => {
+  it('does not create a draft when the blank editor is only visited', async () => {
+    let creates = 0;
+    server.use(
+      http.post('*/api/v1/posts', () => {
+        creates += 1;
+        return HttpResponse.json(post(), { status: 201 });
+      })
+    );
+    renderEditorApp('/posts/new');
+    await screen.findByRole('textbox', { name: /Заголовок/ });
+    await new Promise((resolve) => window.setTimeout(resolve, 1_400));
+    expect(creates).toBe(0);
+  });
+
+  it('autosaves a new post after the first valid title without a manual save action', async () => {
+    const user = userEvent.setup();
+    let creates = 0;
+    server.use(
+      http.post('*/api/v1/posts', () => {
+        creates += 1;
+        return HttpResponse.json(post({ title: 'Новая публикация' }), { status: 201 });
+      })
+    );
+    const { router } = renderEditorApp('/posts/new');
+    await user.type(await screen.findByRole('textbox', { name: /Заголовок/ }), 'Новая публикация');
+
+    await waitFor(() => expect(router.state.location.pathname).toBe(`/posts/${ids.post}`), { timeout: 5_000 });
+    expect(creates).toBe(1);
+  });
+
+  it('shows an editable default title and autosaves when body text is entered first', async () => {
+    const user = userEvent.setup();
+    let createdTitle: string | undefined;
+    server.use(
+      http.post('*/api/v1/posts', async ({ request }) => {
+        const input = (await request.json()) as { title: string; body: string };
+        createdTitle = input.title;
+        return HttpResponse.json(post(input), { status: 201 });
+      })
+    );
+    const { router } = renderEditorApp('/posts/new');
+    await user.type(await screen.findByRole('textbox', { name: 'Текст' }), 'Сначала текст');
+
+    await waitFor(() => expect(router.state.location.pathname).toBe(`/posts/${ids.post}`), { timeout: 5_000 });
+    expect(createdTitle).toMatch(/^Публикация от /);
+    expect((screen.getByRole('textbox', { name: /Заголовок/ }) as HTMLInputElement).value).toBe(createdTitle);
+  });
+
+  it('saves, approves and continues to publication settings only after explicit confirmation', async () => {
+    const user = userEvent.setup();
+    const calls: string[] = [];
+    server.use(
+      http.post('*/api/v1/posts', () => {
+        calls.push('create');
+        return HttpResponse.json(post({ title: 'Новый пост' }), { status: 201 });
+      }),
+      http.post('*/api/v1/posts/:id/approve', () => {
+        calls.push('approve');
+        return HttpResponse.json(post({ title: 'Новый пост', status: 'approved', revision: 1 }));
+      })
+    );
+    const { router } = renderEditorApp('/posts/new');
+    await user.type(await screen.findByRole('textbox', { name: /Заголовок/ }), 'Новый пост');
+    await user.click(screen.getByRole('button', { name: 'Настроить публикацию' }));
+    const confirmation = await screen.findByRole('alertdialog');
+    expect(calls).toEqual([]);
+    await user.click(within(confirmation).getByRole('button', { name: 'Одобрить и продолжить' }));
+    await waitFor(() => expect(router.state.location.pathname).toBe(`/posts/${ids.post}/publish`));
+    expect(calls).toEqual(['create', 'approve']);
+  });
+
   it('creates the draft on first save with an Idempotency-Key and replaces the route with /posts/:id', async () => {
     const user = userEvent.setup();
     const seen: Array<{ key: string | null; body: unknown }> = [];
@@ -79,12 +150,12 @@ describe('create', () => {
       })
     );
     renderEditorApp('/posts/new');
-    await user.type(await screen.findByRole('textbox', { name: 'Текст' }), 'Только текст');
+    await screen.findByRole('textbox', { name: /Заголовок/ });
     await user.click(screen.getByRole('button', { name: 'Создать черновик' }));
     expect(await screen.findByText('Введите заголовок')).toBeTruthy();
     expect(titleBox().getAttribute('aria-invalid')).toBe('true');
     expect(calls).toBe(0);
-    expect(bodyBox().textContent).toBe('Только текст');
+    expect(bodyBox().textContent).toBe('');
   });
 });
 
@@ -262,6 +333,43 @@ describe('revision history removal', () => {
 });
 
 describe('approve', () => {
+  it('allows a title and media without body text to continue to publication settings', async () => {
+    const user = userEvent.setup();
+    const approvals: unknown[] = [];
+    server.use(
+      http.get(
+        '*/api/v1/media/:id/content',
+        () => new HttpResponse(new Uint8Array([1]), { headers: { 'Content-Type': 'image/jpeg' } })
+      ),
+      http.post('*/api/v1/posts/:id/approve', async ({ request }) => {
+        approvals.push(await request.json());
+        return HttpResponse.json(post({ body: '', status: 'approved', revision: 1 }));
+      })
+    );
+    const { router } = await openExisting({
+      body: '',
+      media: [
+        {
+          id: '11111111-1111-4111-8111-111111111111',
+          kind: 'photo',
+          fileName: 'photo.jpg',
+          contentType: 'image/jpeg',
+          sizeBytes: 42,
+          width: 1,
+          height: 1,
+          durationMs: null,
+          position: 0
+        }
+      ]
+    });
+    await user.click(screen.getByRole('button', { name: 'Настроить публикацию' }));
+    await user.click(
+      within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Одобрить и продолжить' })
+    );
+    await waitFor(() => expect(approvals).toEqual([{ revision: 0 }]));
+    await waitFor(() => expect(router.state.location.pathname).toBe(`/posts/${ids.post}/publish`));
+  });
+
   it('confirms, approves with the saved revision, hides the editor, and shows the publish action', async () => {
     const user = userEvent.setup();
     const approvals: unknown[] = [];
@@ -272,17 +380,17 @@ describe('approve', () => {
       })
     );
     server.use(http.get('*/api/v1/posts/:id', () => HttpResponse.json(post())));
-    renderEditorApp(`/posts/${ids.post}`);
+    const app = renderEditorApp(`/posts/${ids.post}`);
     await screen.findByRole('textbox', { name: 'Текст' });
-    await user.click(screen.getByRole('button', { name: 'Одобрить' }));
+    await user.click(screen.getByRole('button', { name: 'Настроить публикацию' }));
     const dialog = await screen.findByRole('alertdialog');
     expect(approvals).toHaveLength(0);
-    await user.click(within(dialog).getByRole('button', { name: 'Одобрить пост' }));
+    await user.click(within(dialog).getByRole('button', { name: 'Одобрить и продолжить' }));
     await waitFor(() => expect(approvals).toEqual([{ revision: 0 }]));
-    expect(await screen.findByText('Пост одобрен и закрыт для правок')).toBeTruthy();
+    await waitFor(() => expect(app.router.state.location.pathname).toBe(`/posts/${ids.post}/publish`));
+    expect(await screen.findByRole('heading', { name: 'Настройки публикации' })).toBeTruthy();
     expect(screen.queryByRole('textbox', { name: 'Заголовок' })).toBeNull();
     expect(screen.queryByRole('textbox', { name: 'Текст' })).toBeNull();
-    expect(screen.getByRole('figure', { name: 'Предпросмотр в Telegram' })).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Сохранить и выйти' })).toBeNull();
   });
 
@@ -296,8 +404,10 @@ describe('approve', () => {
       })
     );
     await openExisting({ body: '' });
-    await user.click(screen.getByRole('button', { name: 'Одобрить' }));
-    await user.click(within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Одобрить пост' }));
+    await user.click(screen.getByRole('button', { name: 'Настроить публикацию' }));
+    await user.click(
+      within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Одобрить и продолжить' })
+    );
     expect(await screen.findByText('Добавьте текст поста: без него одобрить нельзя')).toBeTruthy();
     expect(bodyBox().getAttribute('aria-invalid')).toBe('true');
     expect(screen.queryByText('Пост одобрен и закрыт для правок')).toBeNull();
@@ -381,7 +491,7 @@ describe('limits and preview', () => {
     await user.paste('b'.repeat(POST_BODY_MAX - 5));
     expect(await screen.findByText(/Сообщение длиннее лимита Telegram на 6/)).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Сохранить и выйти' }).hasAttribute('disabled')).toBe(false);
-    expect(screen.getByRole('button', { name: 'Одобрить' }).hasAttribute('disabled')).toBe(true);
+    expect(screen.getByRole('button', { name: 'Настроить публикацию' }).hasAttribute('disabled')).toBe(true);
   });
 
   it('previews the title and body as plain text, so markup is shown literally', async () => {

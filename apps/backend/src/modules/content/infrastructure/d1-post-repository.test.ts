@@ -102,8 +102,8 @@ describe('findRevision', () => {
     ]);
     const repo = createD1PostRepository(db);
 
-    expect(await repo.findRevision(id, 0)).toEqual({ title: 'Old', body: 'Old body', entities: [] });
-    expect(await repo.findRevision(id, 1)).toEqual({ title: 'New', body: 'Newer body', entities: [] });
+    expect(await repo.findRevision(id, 0)).toEqual({ title: 'Old', body: 'Old body', entities: [], media: [] });
+    expect(await repo.findRevision(id, 1)).toEqual({ title: 'New', body: 'Newer body', entities: [], media: [] });
     expect(await repo.findRevision(id, 2)).toBeNull();
     expect(await repo.findRevision(crypto.randomUUID(), 0)).toBeNull();
   });

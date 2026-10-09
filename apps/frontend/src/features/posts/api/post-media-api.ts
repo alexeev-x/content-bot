@@ -1,5 +1,7 @@
 import {
+  attachPostMediaResultSchema,
   changePostMediaResultSchema,
+  mediaLibraryPageSchema,
   postSchema,
   uploadPostMediaResultSchema,
   type PostMediaDto
@@ -82,6 +84,19 @@ export function deletePostMedia(postId: string, mediaId: string, revision: numbe
 export function reorderPostMedia(postId: string, revision: number, mediaIds: string[]) {
   return apiRequest(`/api/v1/posts/${encodeURIComponent(postId)}/media/order`, changePostMediaResultSchema, {
     method: 'PATCH',
+    body: { revision, mediaIds }
+  });
+}
+
+export function listMediaLibrary(kind: 'all' | 'photo' | 'video', cursor?: string, signal?: AbortSignal) {
+  const query = new URLSearchParams({ kind, limit: '30' });
+  if (cursor) query.set('cursor', cursor);
+  return apiRequest(`/api/v1/media?${query.toString()}`, mediaLibraryPageSchema, { signal });
+}
+
+export function attachLibraryMedia(postId: string, revision: number, mediaIds: string[]) {
+  return apiRequest(`/api/v1/posts/${encodeURIComponent(postId)}/media/attach`, attachPostMediaResultSchema, {
+    method: 'POST',
     body: { revision, mediaIds }
   });
 }

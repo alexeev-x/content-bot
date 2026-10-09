@@ -69,7 +69,8 @@ export interface PublicationDto {
   destinationId: string; // channel or group
   status: PublicationStatus;
   scheduledAt: string;
-  externalMessageId?: string;
+  externalMessageId?: string; // first/only Telegram message ID; retained for compatibility
+  externalMessageIds?: string[]; // every message ID for a successful media group
   lastErrorCode?: string;
   updatedAt: string;
 }
@@ -96,7 +97,7 @@ Schemas and per-endpoint error codes: `apps/contracts/src/posts.ts`.
 | `GET /api/v1/posts` | Keyset pagination (`cursor`, `limit` ≤ 100), optional `status` filter, `view` = `live` (default, newest update first) or `archive` (most recently archived first). Every page carries `archivedCount`, the size of the archive, for the tab badge |
 | `GET /api/v1/posts/{id}` | One post, with its `publicationSummary` |
 | `PATCH /api/v1/posts/{id}` | Edit a draft; the current `revision` goes in the body. A new `body` must come with its `entities` (`[]` for plain text), otherwise `400` `ENTITIES_REQUIRED`: old offsets would point into other text. `entities` alone is allowed and is checked against the stored body. Stale revision → `409` `STALE_REVISION`; approved post → `409` `NOT_EDITABLE` |
-| `POST /api/v1/posts/{id}/approve` | Draft → approved with the current `revision`; empty body → `400` `EMPTY_BODY` |
+| `POST /api/v1/posts/{id}/approve` | Draft → approved with the current `revision`; empty body and no attached media → `400` `EMPTY_BODY` |
 
 ### Archive and deleting posts
 
@@ -130,7 +131,7 @@ Idempotency-Key: <uuid>
 }
 ```
 
-The response is `202 Accepted` + `PublicationDto(status="scheduled")`. This is NOT a claim that the post has been published. After Telegram confirms, `GET /api/v1/publications/{id}` returns `sent` with `externalMessageId`. The `Idempotency-Key` header is mandatory (without it — 400 `VALIDATION_ERROR`); the server stores the key and the body hash in D1 (a repeat with a different body — 409 `CONFLICT`), so that a client retry does not create a second scheduled publication. An external Telegram send with an indeterminate response stays `unknown`, despite the internal keys.
+The response is `202 Accepted` + `PublicationDto(status="scheduled")`. This is NOT a claim that the post has been published. After Telegram confirms, `GET /api/v1/publications/{id}` returns `sent` with `externalMessageId` (and `externalMessageIds` for a media group). The `Idempotency-Key` header is mandatory (without it — 400 `VALIDATION_ERROR`); the server stores the key and the body hash in D1 (a repeat with a different body — 409 `CONFLICT`), so that a client retry does not create a second scheduled publication. An external Telegram send with an indeterminate response stays `unknown`, despite the internal keys.
 
 Schemas and per-endpoint error codes: `apps/contracts/src/publications.ts`, `apps/contracts/src/destinations.ts`.
 
@@ -144,7 +145,7 @@ Schemas and per-endpoint error codes: `apps/contracts/src/publications.ts`, `app
 | `GET /api/v1/publications`, `GET /api/v1/publications/{id}` | Latest scheduled time first; filters `status`, `postId`, `destinationId` |
 | `POST /api/v1/publications/{id}/reschedule` | New time, only before sending starts (`scheduled`, `queued`, `retry_wait`); otherwise `409` `NOT_RESCHEDULABLE` |
 | `POST /api/v1/publications/{id}/cancel` | Only before sending starts; otherwise `409` `NOT_CANCELLABLE`. A send in progress or with an `unknown` result is never cancelled here |
-| `POST /api/v1/publications/{id}/resolve-unknown` | Manual reconciliation of an `unknown` send after the owner checked the channel: `sent` (with the Telegram message id) → `sent`; `resend` (new time, same range rules as create) → `scheduled`, or `queued` when the time is already due; `cancel` → `cancelled`. Writes an audit row and closes the open `SEND_UNCONFIRMED` incident. Any other status is `409` `NOT_UNKNOWN` |
+| `POST /api/v1/publications/{id}/resolve-unknown` | Manual reconciliation of an `unknown` send after the owner checked the channel: `sent` (with either the legacy first message ID or every Telegram message ID) → `sent`; `resend` (new time, same range rules as create) → `scheduled`, or `queued` when the time is already due; `cancel` → `cancelled`. Writes an audit row and closes the open `SEND_UNCONFIRMED` incident. Any other status is `409` `NOT_UNKNOWN` |
 
 Reschedule, cancel and resolve-unknown carry the publication `revision`; a stale one is `409` `STALE_REVISION`, so a double press or a second tab applies once.
 
@@ -197,16 +198,18 @@ Schemas and error codes: `apps/contracts/src/dashboard.ts`, `apps/contracts/src/
 
 ## Media and preview
 
-Media is attached to a draft in the post editor; there is no separate media library in this queue item. `PostDto.media` is an ordered list of server-confirmed attachments. Only the owner can upload, reorder, remove or preview them. Binary content is private in R2 and is never returned as a public URL or embedded in JSON/base64.
+Media is attached to a draft in the post editor. The library is a reusable view over retained `media_assets`, not a duplicate storage system. `PostDto.media` is an ordered list of server-confirmed attachments. Only the owner can upload, reorder, remove, select or preview them. Binary content is private in R2 and is never returned as a public URL or embedded in JSON/base64.
 
 | Endpoint | Meaning |
 |---|---|
 | `POST /api/v1/posts/{id}/media?revision={revision}&fileName={name}` | Raw file bytes with required `Content-Length`, `Content-Type` and `Idempotency-Key`; signature and actual streamed byte count are independently checked server-side. Returns the confirmed media and the incremented post revision. A stale revision is `409`; upload calls for one post are sequential. Replaying the same key and payload returns the original response until that attachment is explicitly deleted. |
 | `DELETE /api/v1/posts/{id}/media/{mediaId}` | JSON `{ revision }`; removes one draft attachment and increments revision. |
 | `PATCH /api/v1/posts/{id}/media/order` | JSON `{ revision, mediaIds }`; replaces the order only when the list is exactly the draft's current attachments and increments revision. |
+| `GET /api/v1/media?kind=all|photo|video&cursor&limit` | Owner-authorized, keyset-paginated library of retained assets referenced by a post or immutable revision. `kind` defaults to `all`; media bytes remain private. |
+| `POST /api/v1/posts/{id}/media/attach` | JSON `{ revision, mediaIds }`; appends selected library assets in request order without copying bytes. Every ID must be retained and attachable; duplicate IDs, stale revision, or exceeding 10 total items is refused. Removing the post link does not delete an asset still used elsewhere. |
 | `GET /api/v1/media/{mediaId}/content` | Owner-authorized private byte stream for preview; clients fetch with the session Bearer token and use a temporary object URL. |
 
-The editor accepts up to 10 attachments: JPEG, PNG and WebP photos (10,000,000 bytes each), GIF animation (50,000,000 bytes), and MP4 video (50,000,000 bytes). Limits are enforced against actual uploaded bytes, not only the request header. No media-list API, generated preview pipeline, transcoding or Telegram multi-media publishing is included here; album delivery belongs to queue item 7. Contract schemas and error codes are in `apps/contracts/src/media.ts`.
+The editor accepts up to 10 attachments: JPEG, PNG and WebP photos (10,000,000 bytes each), GIF animation (50,000,000 bytes), and MP4 video (50,000,000 bytes). Limits are enforced against actual uploaded bytes, not only the request header. Telegram delivery supports text-only messages, one photo/video/animation, and 2–10 photo/video albums; animation in albums and caption text over 1024 characters are rejected before sending. No text is truncated or automatically split. Contract schemas and error codes are in `apps/contracts/src/media.ts`.
 
 Upload staging and detached objects use a durable D1 cleanup queue; Cron retries a bounded batch during hourly idle housekeeping ticks, while preview stops resolving as soon as an attachment is detached. This cleanup is operational and does not turn a committed detach into a failed API operation.
 

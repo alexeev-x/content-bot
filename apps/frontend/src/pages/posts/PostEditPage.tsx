@@ -175,11 +175,12 @@ function LoadedPost({ post }: { post: PostDto }) {
 }
 
 function PublishAction({ post }: { post: PostDto }) {
+  const navigate = useNavigate();
   const [isOpen, setOpen] = useState(false);
   const [published, setPublished] = useState<PublicationDto | null>(null);
   return (
     <>
-      <Button icon="send" onPress={() => setOpen(true)}>
+      <Button icon="send" onPress={() => void navigate({ to: '/posts/$id/publish', params: { id: post.id } })}>
         {copy.publications.publish}
       </Button>
       {/* 202 is not «sent»: only the status the server returned is shown. */}

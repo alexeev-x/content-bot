@@ -45,6 +45,8 @@ type Props = {
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
   onPublished?: (publication: PublicationDto) => void;
+  initialSettings?: { destinationId: string; mode: 'now' | 'later'; scheduledAt: ZonedDateTime };
+  lockSettings?: boolean;
 };
 
 const CHANNELS_PATH = '/settings/channels' as LinkProps['to'];
@@ -56,10 +58,11 @@ const MODES = [
 
 /** Publish dialog: the post is mounted per id, so what the owner picked survives closing and reopening it. */
 export function PublishDialog(props: Props) {
-  return <PublishDialogBody key={props.post.id} {...props} />;
+  const key = `${props.post.id}:${props.initialSettings?.destinationId ?? ''}:${props.initialSettings?.mode ?? ''}:${props.initialSettings?.scheduledAt.toDate().toISOString() ?? ''}`;
+  return <PublishDialogBody key={key} {...props} />;
 }
 
-function PublishDialogBody({ post, isOpen, onOpenChange, onPublished }: Props) {
+function PublishDialogBody({ post, isOpen, onOpenChange, onPublished, initialSettings, lockSettings = false }: Props) {
   const formId = useId();
   const zone = useMemo(() => browserTimeZone(), []);
   const toast = useToast();
@@ -72,13 +75,18 @@ function PublishDialogBody({ post, isOpen, onOpenChange, onPublished }: Props) {
     openRef.current = isOpen;
   }, [isOpen]);
   const [duplicate, setDuplicate] = useState<PublishFormValues | null>(null);
+  const [confirmation, setConfirmation] = useState<PublishIntent | null>(null);
   const appliedKey = useRef<string | null>(null);
   const [memory] = useState(createIntentMemory);
   const [staleIntent, setStaleIntent] = useState<PublishIntent | null>(null);
 
   const form = useForm<PublishFormValues>({
     resolver: zodResolver(publishFormSchema),
-    defaultValues: { destinationId: '', mode: 'now', scheduledAt: defaultScheduledAt(zone) }
+    defaultValues: {
+      destinationId: initialSettings?.destinationId ?? '',
+      mode: initialSettings?.mode ?? 'now',
+      scheduledAt: initialSettings?.scheduledAt ?? defaultScheduledAt(zone)
+    }
   });
   const values = useWatch({ control: form.control });
   const mode = values.mode ?? 'now';
@@ -156,19 +164,18 @@ function PublishDialogBody({ post, isOpen, onOpenChange, onPublished }: Props) {
       setDuplicate(formValues);
       return;
     }
-    await send(
-      newIntent({
-        postId: post.id,
-        revision: post.revision,
-        destinationId: formValues.destinationId,
-        mode: formValues.mode,
-        scheduledAt:
-          formValues.mode === 'later' && formValues.scheduledAt
-            ? formValues.scheduledAt.toDate().toISOString()
-            : undefined,
-        timezone: zone
-      })
-    );
+    const intent = newIntent({
+      postId: post.id,
+      revision: post.revision,
+      destinationId: formValues.destinationId,
+      mode: formValues.mode,
+      scheduledAt:
+        formValues.mode === 'later' && formValues.scheduledAt
+          ? formValues.scheduledAt.toDate().toISOString()
+          : undefined,
+      timezone: zone
+    });
+    setConfirmation(intent);
   }
 
   // Second safety net: the same post already scheduled or published in this channel. `null` = the lookup failed.
@@ -187,7 +194,7 @@ function PublishDialogBody({ post, isOpen, onOpenChange, onPublished }: Props) {
   // An intent older than the server's 24 h key memory is no longer replay-protected: look before resending it.
   async function resendPending(intent: PublishIntent) {
     if (Date.now() - intent.createdAt < INTENT_TRUSTED_MS) {
-      await send(intent);
+      setConfirmation(intent);
       return;
     }
     const found = await hasPublication(intent.destinationId);
@@ -199,7 +206,7 @@ function PublishDialogBody({ post, isOpen, onOpenChange, onPublished }: Props) {
     } else if (found) {
       setStaleIntent(intent);
     } else {
-      await send(intent);
+      setConfirmation(intent);
     }
   }
 
@@ -317,6 +324,7 @@ function PublishDialogBody({ post, isOpen, onOpenChange, onPublished }: Props) {
                     onChange={field.onChange}
                     onBlur={field.onBlur}
                     isRequired
+                    isDisabled={lockSettings}
                     {...(fieldState.error?.message ? { errorMessage: fieldState.error.message } : {})}
                   />
                 )}
@@ -335,7 +343,7 @@ function PublishDialogBody({ post, isOpen, onOpenChange, onPublished }: Props) {
                   options={MODES}
                   value={field.value}
                   onChange={(next) => field.onChange(next)}
-                  isDisabled={Boolean(pending)}
+                  isDisabled={Boolean(pending) || lockSettings}
                   fullWidth
                 />
               </div>
@@ -354,7 +362,7 @@ function PublishDialogBody({ post, isOpen, onOpenChange, onPublished }: Props) {
                   timeZone={zone}
                   minValue={now(zone)}
                   isRequired
-                  isDisabled={Boolean(pending)}
+                  isDisabled={Boolean(pending) || lockSettings}
                   {...(fieldState.error?.message ? { errorMessage: fieldState.error.message } : {})}
                 />
               )}
@@ -402,8 +410,30 @@ function PublishDialogBody({ post, isOpen, onOpenChange, onPublished }: Props) {
           const old = staleIntent;
           setDuplicate(null);
           setStaleIntent(null);
-          if (old) void send(old);
-          else if (chosen) void start(chosen, true);
+          if (old) {
+            setConfirmation(old);
+          } else if (chosen) void start(chosen, true);
+        }}
+      />
+      <ConfirmDialog
+        isOpen={confirmation !== null}
+        onOpenChange={(open) => {
+          if (!open) setConfirmation(null);
+        }}
+        title="Подтвердить публикацию?"
+        description={
+          confirmation
+            ? `${confirmation.mode === 'now' ? 'Пост будет поставлен в очередь сейчас' : 'Пост будет запланирован'} для канала ${options.find((item) => item.id === confirmation.destinationId)?.title ?? confirmation.destinationId}${confirmation.mode === 'later' ? ` на ${formatWithZone(confirmation.scheduledAt, confirmation.timezone)}` : ''}. Повторная отправка не выполняется автоматически.`
+            : ''
+        }
+        confirmLabel={confirmation?.mode === 'later' ? 'Запланировать' : 'Поставить в очередь'}
+        cancelLabel="Вернуться к настройкам"
+        tone="default"
+        isPending={create.isPending}
+        onConfirm={() => {
+          const intent = confirmation;
+          setConfirmation(null);
+          if (intent) void send(intent);
         }}
       />
     </>

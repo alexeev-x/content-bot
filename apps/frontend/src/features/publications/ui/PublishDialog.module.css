@@ -3,6 +3,15 @@
   flex-direction: column;
   gap: var(--space-4);
 }
+.form h2 {
+  margin: 0;
+  font-size: var(--font-size-lg);
+}
+.description {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
 .group {
   display: grid;
   gap: var(--space-2);

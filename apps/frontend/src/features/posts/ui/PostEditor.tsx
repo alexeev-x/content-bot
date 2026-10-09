@@ -23,7 +23,7 @@ import { CompareDialog } from './CompareDialog';
 import { ConflictBanner } from './ConflictBanner';
 import { postsCopy } from './copy';
 import { PostFields } from './PostFields';
-import { PostMediaEditor, PostMediaPreview } from './PostMediaEditor';
+import { PostMediaEditor } from './PostMediaEditor';
 import { PostPreview } from './PostPreview';
 import styles from './PostEditor.module.css';
 import { SaveIndicator } from './SaveIndicator';
@@ -69,7 +69,7 @@ export function PostEditor({ post, onCreated, approvedActions, aside }: Props) {
   const showApprovedPreview = isApproved && !isArchived && !hasConflict;
   const canSave = !editor.readOnly && !hasConflict && !editor.isSaving && !editor.isApproving;
   const canApprove =
-    !editor.isNew &&
+    editor.title.trim().length > 0 &&
     !editor.readOnly &&
     !hasConflict &&
     !editor.isSaving &&
@@ -97,7 +97,10 @@ export function PostEditor({ post, onCreated, approvedActions, aside }: Props) {
     const approved = await editor.approvePost();
     setApproveOpen(false);
     // The button that opened the dialog is gone after approval: move focus to the announced status.
-    if (approved) statusRef.current?.focus();
+    if (approved) {
+      statusRef.current?.focus();
+      void navigate({ to: '/posts/$id/publish', params: { id: approved.id } });
+    }
   }
 
   async function confirmOverwrite() {
@@ -125,13 +128,21 @@ export function PostEditor({ post, onCreated, approvedActions, aside }: Props) {
         disabled={editor.readOnly || hasConflict}
         onServerChange={editor.adoptMedia}
         onPendingChange={editor.setMediaPending}
+        onEnsurePost={editor.ensureDraftForMedia}
+        onDraftReady={(saved) => void navigate({ to: '/posts/$id', params: { id: saved.id }, replace: true })}
       />
     </>
   );
   const previewPanel = (
     <>
-      <PostPreview title={editor.title} body={editor.body} entities={editor.entities} length={editor.length} />
-      <PostMediaPreview media={baseline?.media ?? []} />
+      <PostPreview
+        title={editor.title}
+        body={editor.body}
+        entities={editor.entities}
+        length={editor.length}
+        limit={editor.messageLimit}
+        media={baseline?.media ?? []}
+      />
     </>
   );
   // Desktop: the right column switches between the Telegram preview and this post's publications.
@@ -254,15 +265,13 @@ export function PostEditor({ post, onCreated, approvedActions, aside }: Props) {
             >
               {editor.isNew ? copy.create : copy.saveAndExit}
             </Button>
-            {!editor.isNew ? (
-              <Button
-                variant={editor.dirty ? 'secondary' : 'primary'}
-                isDisabled={!canApprove}
-                onPress={() => setApproveOpen(true)}
-              >
-                {copy.approve}
-              </Button>
-            ) : null}
+            <Button
+              variant={editor.dirty || editor.isNew ? 'secondary' : 'primary'}
+              isDisabled={!canApprove}
+              onPress={() => setApproveOpen(true)}
+            >
+              Настроить публикацию
+            </Button>
             <span className={styles.shortcut}>{editor.isNew ? copy.saveHint : copy.saveInPlaceHint}</span>
           </>
         )}
@@ -302,7 +311,11 @@ export function PostEditor({ post, onCreated, approvedActions, aside }: Props) {
           if (!open) blocker.reset?.();
         }}
         title={copy.leave.title}
-        description={copy.leave.description}
+        description={
+          editor.mediaPending
+            ? 'Есть файл, который не удалось загрузить или который ещё не сохранён на сервере. При выходе его локальная копия исчезнет — добавьте этот файл повторно. Текст и уже загруженные вложения останутся в черновике.'
+            : copy.leave.description
+        }
         confirmLabel={copy.leave.confirm}
         cancelLabel={copy.leave.cancel}
         onConfirm={() => blocker.proceed?.()}

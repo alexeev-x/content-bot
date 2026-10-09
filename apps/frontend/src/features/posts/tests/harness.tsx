@@ -52,6 +52,11 @@ export function renderEditorApp(
       return <PostEditor key={id} post={query.data} approvedActions={approvedActions} />;
     }
   });
+  const publishRoute = createRoute({
+    getParentRoute: () => root,
+    path: '/posts/$id/publish',
+    component: () => <h1>Настройки публикации</h1>
+  });
   const elsewhere = createRoute({
     getParentRoute: () => root,
     path: '/calendar',
@@ -63,7 +68,7 @@ export function renderEditorApp(
     component: () => <h1>Все посты</h1>
   });
   const router = createRouter({
-    routeTree: root.addChildren([newRoute, editRoute, posts, elsewhere]),
+    routeTree: root.addChildren([newRoute, editRoute, publishRoute, posts, elsewhere]),
     history: options.browserHistory
       ? (window.history.replaceState(null, '', initial), createBrowserHistory())
       : createMemoryHistory({ initialEntries: [initial] })

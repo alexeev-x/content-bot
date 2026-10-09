@@ -126,6 +126,13 @@ async function dispatchJob(deps: DispatchDeps, jobId: string, budget: TickBudget
   context.postTitle = revision.title;
   const message = formatPublicationText(revision);
   if (!message.ok) return refuse('CONTENT_INVALID', message.reason.toLowerCase());
+  const media = revision.media;
+  if (media.length > 10 || (media.length > 1 && media.some(({ kind }) => kind === 'animation'))) {
+    return refuse('TELEGRAM_MEDIA_UNSUPPORTED', 'unsupported_media_combination');
+  }
+  if (media.length > 0 && message.text.length > 1024) {
+    return refuse('CONTENT_INVALID', 'caption_too_long');
+  }
 
   // The mark must be confirmed before Telegram is called: if the Worker dies after the send, it
   // is the only evidence the post may be out there. Not confirmed: nothing was sent, and reconcile
@@ -142,7 +149,7 @@ async function dispatchJob(deps: DispatchDeps, jobId: string, budget: TickBudget
     return 'not_sent';
   }
 
-  const outcome = await sendOnce(deps, target.chatId, message);
+  const outcome = await sendOnce(deps, target.chatId, { ...message, media });
   return resolveSent(deps, budget, claimed, startedAt, context, outcome);
 }
 
@@ -150,10 +157,10 @@ async function dispatchJob(deps: DispatchDeps, jobId: string, budget: TickBudget
 async function sendOnce(
   deps: DispatchDeps,
   chatId: string,
-  message: { text: string; entities: PostEntity[] }
+  message: { text: string; entities: PostEntity[]; media: readonly import('./ports').PublicationMedia[] }
 ): Promise<SendOutcome> {
   try {
-    return await deps.transport.send({ chatId, text: message.text, entities: message.entities });
+    return await deps.transport.send({ chatId, text: message.text, entities: message.entities, media: message.media });
   } catch {
     return { kind: 'unknown', reason: 'transport_threw' };
   }
@@ -207,7 +214,8 @@ async function resolveSent(
         ...base,
         status: 'succeeded',
         attemptOutcome: 'sent',
-        externalMessageId: outcome.externalMessageId,
+        externalMessageId: outcome.externalMessageIds[0] ?? null,
+        externalMessageIds: outcome.externalMessageIds,
         auditAction: 'job.succeeded'
       });
       return 'sent';

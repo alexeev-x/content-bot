@@ -64,7 +64,7 @@ export interface PostRepository {
   findRevision(
     postId: string,
     revision: number
-  ): Promise<{ title: string; body: string; entities: PostEntity[] } | null>;
+  ): Promise<{ title: string; body: string; entities: PostEntity[]; media: PostRevisionMedia[] } | null>;
   list(query: ListPostsQuery): Promise<PostRecord[]>;
   /** How many posts are in the archive (it only holds the retention period, so the count is small). */
   countArchived(): Promise<number>;
@@ -72,6 +72,14 @@ export interface PostRepository {
   update(change: PostChange & { title?: string; body?: string; entities?: PostEntity[] }): Promise<PostRecord | null>;
   /** Null when the guard (revision matches and the post is a draft) did not hold. */
   approve(change: PostChange): Promise<PostRecord | null>;
+}
+
+export interface PostRevisionMedia {
+  id: string;
+  kind: PostMediaDto['kind'];
+  fileName: string;
+  contentType: string;
+  objectKey: string;
 }
 
 export interface IdempotencyGate {

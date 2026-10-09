@@ -4,6 +4,7 @@ export type {
   IncidentRepository,
   PostRevisionSource,
   PublicationTransport,
+  PublicationMedia,
   RaisedIncident,
   RangeSummary,
   SendOutcome,

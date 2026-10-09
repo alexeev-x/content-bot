@@ -74,3 +74,25 @@
 .pad {
   padding: var(--space-4);
 }
+.publishFlow {
+  display: grid;
+  gap: var(--space-4);
+}
+.publishHeading,
+.publishActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+.publishHeading h2 {
+  margin: 0;
+}
+.publishHeading p {
+  margin: var(--space-1) 0 0;
+}
+.publishActions {
+  justify-content: flex-end;
+  margin-top: var(--space-4);
+}

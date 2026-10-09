@@ -1,5 +1,6 @@
 import type { PostEntity } from '@alexeev/contracts';
-import { Api } from 'grammy';
+import { Api, type InputFile } from 'grammy';
+import type { InputMediaPhoto, InputMediaVideo } from '@grammyjs/types';
 
 // The one call publishing needs, typed with the platform's AbortSignal. The text goes out as plain text with
 // explicit entities and never with a parse_mode: nothing in a post can be read as markup.
@@ -8,6 +9,29 @@ export interface TelegramSendApi {
     chatId: string,
     text: string,
     other: { entities: PostEntity[]; link_preview_options: { is_disabled: boolean } },
+    signal: AbortSignal
+  ): Promise<unknown>;
+  sendPhoto(
+    chatId: string,
+    photo: InputFile,
+    other: { caption: string; caption_entities: PostEntity[] },
+    signal: AbortSignal
+  ): Promise<unknown>;
+  sendVideo(
+    chatId: string,
+    video: InputFile,
+    other: { caption: string; caption_entities: PostEntity[] },
+    signal: AbortSignal
+  ): Promise<unknown>;
+  sendAnimation(
+    chatId: string,
+    animation: InputFile,
+    other: { caption: string; caption_entities: PostEntity[] },
+    signal: AbortSignal
+  ): Promise<unknown>;
+  sendMediaGroup(
+    chatId: string,
+    media: (InputMediaPhoto<InputFile> | InputMediaVideo<InputFile>)[],
     signal: AbortSignal
   ): Promise<unknown>;
 }
@@ -19,7 +43,11 @@ export function createTelegramApi(token: string): TelegramSendApi {
   return {
     // grammY types `signal` with the abort-controller polyfill's AbortSignal; at runtime it is
     // handed straight to fetch, which takes the platform one.
-    sendMessage: (chatId, text, other, signal) => api.sendMessage(chatId, text, other, signal as never)
+    sendMessage: (chatId, text, other, signal) => api.sendMessage(chatId, text, other, signal as never),
+    sendPhoto: (chatId, photo, other, signal) => api.sendPhoto(chatId, photo, other, signal as never),
+    sendVideo: (chatId, video, other, signal) => api.sendVideo(chatId, video, other, signal as never),
+    sendAnimation: (chatId, animation, other, signal) => api.sendAnimation(chatId, animation, other, signal as never),
+    sendMediaGroup: (chatId, media, signal) => api.sendMediaGroup(chatId, media, undefined, signal as never)
   };
 }
 

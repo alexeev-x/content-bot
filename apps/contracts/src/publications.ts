@@ -51,6 +51,12 @@ export const publicationSchema = z.object({
   scheduledAt: z.iso.datetime(),
   timezone: z.string(),
   externalMessageId: z.string().optional(),
+  /** Every Telegram message ID from a successful send; `externalMessageId` remains the first for compatibility. */
+  externalMessageIds: z
+    .array(z.string().regex(/^[1-9]\d{0,15}$/))
+    .min(1)
+    .max(10)
+    .optional(),
   lastErrorCode: z.string().optional(),
   revision: revisionSchema,
   createdAt: z.iso.datetime(),
@@ -108,7 +114,19 @@ const telegramMessageIdSchema = z.string().regex(/^[1-9]\d{0,15}$/, { error: 'Te
 // NOT_UNKNOWN. Errors: VALIDATION_ERROR 400 (SCHEDULE_OUT_OF_RANGE) or 413, NOT_FOUND 404, CONFLICT 409
 // (details.reason STALE_REVISION | NOT_UNKNOWN), UNAUTHORIZED 401, FORBIDDEN 403.
 export const resolveUnknownPublicationInputSchema = z.discriminatedUnion('outcome', [
-  z.strictObject({ outcome: z.literal('sent'), revision: revisionSchema, externalMessageId: telegramMessageIdSchema }),
+  z
+    .strictObject({
+      outcome: z.literal('sent'),
+      revision: revisionSchema,
+      externalMessageId: telegramMessageIdSchema.optional(),
+      externalMessageIds: z.array(telegramMessageIdSchema).min(1).max(10).optional()
+    })
+    .refine(
+      (input) =>
+        (input.externalMessageId !== undefined || input.externalMessageIds !== undefined) &&
+        !(input.externalMessageId !== undefined && input.externalMessageIds !== undefined),
+      { error: 'Provide externalMessageId or externalMessageIds, but not both' }
+    ),
   z.strictObject({
     outcome: z.literal('resend'),
     revision: revisionSchema,

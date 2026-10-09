@@ -27,6 +27,7 @@ import { Route as PostsNewRouteImport } from './routes/posts/new';
 import { Route as SettingsIndexRouteImport } from './routes/settings.index';
 import { Route as SettingsAppearanceRouteImport } from './routes/settings.appearance';
 import { Route as SettingsChannelsRouteImport } from './routes/settings.channels';
+import { Route as PostsIdPublishRouteImport } from './routes/posts/$id.publish';
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -118,6 +119,11 @@ const SettingsChannelsRoute = SettingsChannelsRouteImport.update({
   path: '/channels',
   getParentRoute: () => SettingsRoute,
 } as any);
+const PostsIdPublishRoute = PostsIdPublishRouteImport.update({
+  id: '/publish',
+  path: '/publish',
+  getParentRoute: () => PostsIdRoute,
+} as any);
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute;
@@ -131,13 +137,14 @@ export interface FileRoutesByFullPath {
   '/publications': typeof PublicationsRoute;
   '/settings': typeof SettingsRouteWithChildren;
   '/__proto/$': typeof _protoSplatRoute;
-  '/posts/$id': typeof PostsIdRoute;
+  '/posts/$id': typeof PostsIdRouteWithChildren;
   '/posts/new': typeof PostsNewRoute;
   '/settings/appearance': typeof SettingsAppearanceRoute;
   '/settings/channels': typeof SettingsChannelsRoute;
   '/__proto/': typeof _protoIndexRoute;
   '/posts/': typeof PostsIndexRoute;
   '/settings/': typeof SettingsIndexRoute;
+  '/posts/$id/publish': typeof PostsIdPublishRoute;
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute;
@@ -149,13 +156,14 @@ export interface FileRoutesByTo {
   '/media': typeof MediaRoute;
   '/publications': typeof PublicationsRoute;
   '/__proto/$': typeof _protoSplatRoute;
-  '/posts/$id': typeof PostsIdRoute;
+  '/posts/$id': typeof PostsIdRouteWithChildren;
   '/posts/new': typeof PostsNewRoute;
   '/settings/appearance': typeof SettingsAppearanceRoute;
   '/settings/channels': typeof SettingsChannelsRoute;
   '/__proto': typeof _protoIndexRoute;
   '/posts': typeof PostsIndexRoute;
   '/settings': typeof SettingsIndexRoute;
+  '/posts/$id/publish': typeof PostsIdPublishRoute;
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport;
@@ -170,13 +178,14 @@ export interface FileRoutesById {
   '/publications': typeof PublicationsRoute;
   '/settings': typeof SettingsRouteWithChildren;
   '/__proto/$': typeof _protoSplatRoute;
-  '/posts/$id': typeof PostsIdRoute;
+  '/posts/$id': typeof PostsIdRouteWithChildren;
   '/posts/new': typeof PostsNewRoute;
   '/settings/appearance': typeof SettingsAppearanceRoute;
   '/settings/channels': typeof SettingsChannelsRoute;
   '/__proto/': typeof _protoIndexRoute;
   '/posts/': typeof PostsIndexRoute;
   '/settings/': typeof SettingsIndexRoute;
+  '/posts/$id/publish': typeof PostsIdPublishRoute;
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath;
@@ -198,7 +207,8 @@ export interface FileRouteTypes {
     | '/settings/channels'
     | '/__proto/'
     | '/posts/'
-    | '/settings/';
+    | '/settings/'
+    | '/posts/$id/publish';
   fileRoutesByTo: FileRoutesByTo;
   to:
     | '/'
@@ -216,7 +226,8 @@ export interface FileRouteTypes {
     | '/settings/channels'
     | '/__proto'
     | '/posts'
-    | '/settings';
+    | '/settings'
+    | '/posts/$id/publish';
   id:
     | '__root__'
     | '/'
@@ -236,7 +247,8 @@ export interface FileRouteTypes {
     | '/settings/channels'
     | '/__proto/'
     | '/posts/'
-    | '/settings/';
+    | '/settings/'
+    | '/posts/$id/publish';
   fileRoutesById: FileRoutesById;
 }
 export interface RootRouteChildren {
@@ -250,7 +262,7 @@ export interface RootRouteChildren {
   MediaRoute: typeof MediaRoute;
   PublicationsRoute: typeof PublicationsRoute;
   SettingsRoute: typeof SettingsRouteWithChildren;
-  PostsIdRoute: typeof PostsIdRoute;
+  PostsIdRoute: typeof PostsIdRouteWithChildren;
   PostsNewRoute: typeof PostsNewRoute;
   PostsIndexRoute: typeof PostsIndexRoute;
 }
@@ -383,6 +395,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SettingsChannelsRouteImport;
       parentRoute: typeof SettingsRoute;
     };
+    '/posts/$id/publish': {
+      id: '/posts/$id/publish';
+      path: '/publish';
+      fullPath: '/posts/$id/publish';
+      preLoaderRoute: typeof PostsIdPublishRouteImport;
+      parentRoute: typeof PostsIdRoute;
+    };
   }
 }
 
@@ -415,6 +434,17 @@ const SettingsRouteWithChildren = SettingsRoute._addFileChildren(
   SettingsRouteChildren,
 );
 
+interface PostsIdRouteChildren {
+  PostsIdPublishRoute: typeof PostsIdPublishRoute;
+}
+
+const PostsIdRouteChildren: PostsIdRouteChildren = {
+  PostsIdPublishRoute: PostsIdPublishRoute,
+};
+
+const PostsIdRouteWithChildren =
+  PostsIdRoute._addFileChildren(PostsIdRouteChildren);
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   _catalogRoute: _catalogRoute,
@@ -426,7 +456,7 @@ const rootRouteChildren: RootRouteChildren = {
   MediaRoute: MediaRoute,
   PublicationsRoute: PublicationsRoute,
   SettingsRoute: SettingsRouteWithChildren,
-  PostsIdRoute: PostsIdRoute,
+  PostsIdRoute: PostsIdRouteWithChildren,
   PostsNewRoute: PostsNewRoute,
   PostsIndexRoute: PostsIndexRoute,
 };

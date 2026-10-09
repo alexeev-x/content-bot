@@ -1,4 +1,9 @@
-import { type PostMediaDto, postMediaSchema } from '@alexeev/contracts';
+import {
+  type MediaLibraryItemDto,
+  type PostMediaDto,
+  mediaLibraryItemSchema,
+  postMediaSchema
+} from '@alexeev/contracts';
 import type { MediaPostState, PostMediaRepository, StoredUpload } from '../application/media-ports';
 
 interface MediaRow {
@@ -11,6 +16,7 @@ interface MediaRow {
   height: number | null;
   duration_ms: number | null;
   position: number;
+  created_at?: number;
 }
 
 function toMedia(row: MediaRow): PostMediaDto {
@@ -69,6 +75,110 @@ export function createD1PostMediaRepository(db: D1Database): PostMediaRepository
         .bind(postId)
         .all<MediaRow>();
       return { revision: post.revision, status: post.status, media: results.map(toMedia) };
+    },
+
+    async listLibrary({ kind, after, limit }): Promise<MediaLibraryItemDto[]> {
+      const kindClause =
+        kind === 'all' ? '' : kind === 'photo' ? "AND m.kind = 'photo'" : "AND m.kind IN ('video', 'animation')";
+      const cursorClause = after === undefined ? '' : 'AND (m.created_at < ?1 OR (m.created_at = ?1 AND m.id < ?2))';
+      const bindings: (string | number)[] = [];
+      if (after !== undefined) bindings.push(after.createdAt, after.id);
+      bindings.push(limit + 1);
+      const limitPlaceholder = `?${bindings.length}`;
+      const { results } = await db
+        .prepare(
+          `SELECT m.id, m.kind, m.file_name, m.content_type, m.size_bytes, m.width, m.height, m.duration_ms, m.created_at
+             FROM media_assets m
+            WHERE (EXISTS (SELECT 1 FROM post_media pm WHERE pm.media_id = m.id)
+               OR EXISTS (SELECT 1 FROM post_revisions r, json_each(r.media_json) j WHERE j.value = m.id))
+               ${kindClause} ${cursorClause}
+            ORDER BY m.created_at DESC, m.id DESC LIMIT ${limitPlaceholder}`
+        )
+        .bind(...bindings)
+        .all<MediaRow>();
+      return results.map((row) =>
+        mediaLibraryItemSchema.parse({
+          id: row.id,
+          kind: row.kind,
+          fileName: row.file_name,
+          contentType: row.content_type,
+          sizeBytes: row.size_bytes,
+          width: row.width,
+          height: row.height,
+          durationMs: row.duration_ms,
+          createdAt: new Date(row.created_at ?? 0).toISOString()
+        })
+      );
+    },
+
+    async findRetainedMedia(mediaIds) {
+      if (mediaIds.length === 0) return [];
+      const { results } = await db
+        .prepare(
+          `SELECT m.id, m.kind, m.file_name, m.content_type, m.size_bytes, m.width, m.height, m.duration_ms,
+                CAST(requested.key AS INTEGER) AS position
+           FROM json_each(?1) requested JOIN media_assets m ON m.id = requested.value
+          WHERE EXISTS (SELECT 1 FROM post_media pm WHERE pm.media_id = m.id)
+             OR EXISTS (SELECT 1 FROM post_revisions r, json_each(r.media_json) j WHERE j.value = m.id)
+          ORDER BY CAST(requested.key AS INTEGER)`
+        )
+        .bind(JSON.stringify(mediaIds))
+        .all<MediaRow>();
+      return results.map(toMedia);
+    },
+
+    async attachRetained({ postId, expectedRevision, actor, now, currentIds, mediaIds }) {
+      const fullIds = [...currentIds, ...mediaIds];
+      const guard = (
+        mediaListParam: number,
+        expectedCount: number
+      ) => `EXISTS (SELECT 1 FROM posts p WHERE p.id = ?1 AND p.revision = ?2 AND p.status = 'draft'
+        AND (SELECT count(*) FROM post_media WHERE post_id = p.id) = ${expectedCount}
+        AND (SELECT count(*) FROM post_media WHERE post_id = p.id) + ${mediaIds.length} <= 10
+        AND NOT EXISTS (SELECT 1 FROM json_each(?${mediaListParam}) requested WHERE NOT EXISTS (
+          SELECT 1 FROM media_assets m WHERE m.id = requested.value AND (
+            EXISTS (SELECT 1 FROM post_media retained WHERE retained.media_id = m.id) OR
+            EXISTS (SELECT 1 FROM post_revisions r, json_each(r.media_json) ref WHERE ref.value = m.id)))) )`;
+      const statements: D1PreparedStatement[] = [];
+      for (const [index, mediaId] of mediaIds.entries()) {
+        statements.push(
+          db
+            .prepare(
+              `INSERT INTO post_media (post_id, media_id, position)
+             SELECT ?1, ?3, ${currentIds.length + index} WHERE ${guard(4, currentIds.length + index)}`
+            )
+            .bind(postId, expectedRevision, mediaId, JSON.stringify(mediaIds))
+        );
+      }
+      statements.push(
+        db
+          .prepare(
+            `INSERT INTO post_revisions (post_id, revision, title, body, entities, status, created_at, media_json)
+          SELECT id, revision + 1, title, body, entities, status, ?3, ?4 FROM posts WHERE ${guard(5, fullIds.length)}`
+          )
+          .bind(postId, expectedRevision, now, JSON.stringify(fullIds), JSON.stringify(mediaIds)),
+        db
+          .prepare(
+            `INSERT INTO audit_log (actor_telegram_id, action, entity_type, entity_id, created_at, details)
+          SELECT ?3, 'post.media.attach_library', 'post', id, ?4, ?5 FROM posts WHERE ${guard(6, fullIds.length)}`
+          )
+          .bind(
+            postId,
+            expectedRevision,
+            actor,
+            now,
+            JSON.stringify({ revision: expectedRevision + 1, mediaIds }),
+            JSON.stringify(mediaIds)
+          ),
+        db
+          .prepare(
+            `UPDATE posts SET revision = revision + 1, updated_at = ?3 WHERE id = ?1 AND revision = ?2 AND status = 'draft'
+          AND ${guard(4, fullIds.length)}`
+          )
+          .bind(postId, expectedRevision, now, JSON.stringify(mediaIds))
+      );
+      const results = await db.batch(statements);
+      return results.at(-1)?.meta.changes === 1;
     },
 
     async attach(input) {

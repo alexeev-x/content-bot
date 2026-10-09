@@ -71,6 +71,7 @@ describe('POST /api/v1/publications/{id}/resolve-unknown: sent', () => {
       id: publicationId,
       status: 'sent',
       externalMessageId: '9001',
+      externalMessageIds: ['9001'],
       revision: 1,
       updatedAt: iso(clock.now())
     });
@@ -87,9 +88,27 @@ describe('POST /api/v1/publications/{id}/resolve-unknown: sent', () => {
     expect(incidents[0]).toMatchObject({ kind: 'publish_unknown', resolved_at: clock.now() });
     const audit = await auditOf(publicationId);
     expect(audit.map((row) => [row.actor_telegram_id, JSON.parse(row.details)])).toEqual([
-      ['4242', { revision: 1, outcome: 'sent', externalMessageId: '9001' }]
+      ['4242', { revision: 1, outcome: 'sent', externalMessageIds: '9001' }]
     ]);
     expect(await attemptsOf(jobId)).toMatchObject([{ attempt: 1, outcome: 'unknown' }]);
+  });
+
+  it('stores every manually reconciled album id and keeps the legacy first id', async () => {
+    const { publicationId } = await seedUnknown();
+    const response = await resolve(publicationId, {
+      outcome: 'sent',
+      revision: 0,
+      externalMessageIds: ['9001', '9002']
+    });
+    expect(response.status).toBe(200);
+    const dto = publicationSchema.parse(await response.json());
+    expect(dto.externalMessageId).toBe('9001');
+    expect(dto.externalMessageIds).toEqual(['9001', '9002']);
+    const row = await testDb()
+      .prepare('SELECT external_message_id, external_message_ids FROM publications WHERE id = ?1')
+      .bind(publicationId)
+      .first<{ external_message_id: string | null; external_message_ids: string | null }>();
+    expect(row).toEqual({ external_message_id: '9001', external_message_ids: '["9001","9002"]' });
   });
 
   it('never sends again, and the next tick archives the post like after a normal send', async () => {
@@ -151,7 +170,7 @@ describe('POST /api/v1/publications/{id}/resolve-unknown: resend', () => {
     expect(transport.calls).toHaveLength(1);
 
     clock.set(at);
-    const resent = fakeTransport({ kind: 'sent', externalMessageId: '5150' });
+    const resent = fakeTransport({ kind: 'sent', externalMessageIds: ['5150'] });
     await tick(resent);
 
     expect(resent.calls).toHaveLength(1);

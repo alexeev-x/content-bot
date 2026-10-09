@@ -3,13 +3,20 @@ import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ApiError } from '../../../shared/api/http-client';
 import { clearSession, setSession } from '../../../shared/api/session';
-import { accessToken, ids } from '../../../test/fixtures';
-import { deletePostMedia, getPostMediaContent, reorderPostMedia, uploadPostMedia } from '../api/post-media-api';
+import { accessToken, ids, post } from '../../../test/fixtures';
+import {
+  deletePostMedia,
+  getPostMediaContent,
+  listMediaLibrary,
+  reorderPostMedia,
+  uploadPostMedia
+} from '../api/post-media-api';
 import { PostMediaEditor } from '../ui/PostMediaEditor';
 
 vi.mock('../api/post-media-api', () => ({
   deletePostMedia: vi.fn(),
   getPostMediaContent: vi.fn(),
+  listMediaLibrary: vi.fn(),
   reorderPostMedia: vi.fn(),
   uploadPostMedia: vi.fn()
 }));
@@ -21,6 +28,7 @@ beforeEach(() => {
   vi.mocked(uploadPostMedia).mockReset();
   vi.mocked(deletePostMedia).mockReset();
   vi.mocked(reorderPostMedia).mockReset();
+  vi.mocked(listMediaLibrary).mockReset();
   vi.mocked(getPostMediaContent).mockResolvedValue(new Blob(['private media'], { type: 'image/png' }));
 });
 afterEach(() => {
@@ -29,6 +37,28 @@ afterEach(() => {
 });
 
 describe('post media editor', () => {
+  it('keeps media-library errors visible and retryable after the source picker closes', async () => {
+    vi.mocked(listMediaLibrary).mockRejectedValue(new Error('offline'));
+    const user = userEvent.setup();
+    render(
+      <PostMediaEditor
+        postId={ids.post}
+        revision={0}
+        media={[]}
+        disabled={false}
+        onServerChange={vi.fn()}
+        onPendingChange={vi.fn()}
+      />
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Выбрать файлы' }));
+    await user.click(await screen.findByRole('button', { name: 'Открыть медиабиблиотеку' }));
+    expect((await screen.findByRole('alert')).textContent).toContain('Не удалось загрузить медиабиблиотеку');
+    expect(screen.getByRole('button', { name: 'Повторить' })).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: 'Повторить' }));
+    await waitFor(() => expect(listMediaLibrary).toHaveBeenCalledTimes(2));
+  });
+
   it('shows supported formats and limits before choosing files for a saved draft', () => {
     render(
       <PostMediaEditor
@@ -47,7 +77,85 @@ describe('post media editor', () => {
     expect(screen.getByRole('button', { name: 'Выбрать файлы' })).toBeTruthy();
   });
 
-  it('explains that a new post must be saved before media can be selected', () => {
+  it('opens a full-size preview for an attached media item', async () => {
+    const media = {
+      id: ids.post,
+      kind: 'photo' as const,
+      fileName: 'cover.png',
+      contentType: 'image/png',
+      sizeBytes: 5,
+      width: 1,
+      height: 1,
+      durationMs: null,
+      position: 0
+    };
+    const user = userEvent.setup();
+    render(
+      <PostMediaEditor
+        postId={ids.post}
+        revision={1}
+        media={[media]}
+        disabled={false}
+        onServerChange={vi.fn()}
+        onPendingChange={vi.fn()}
+      />
+    );
+    await user.click(screen.getByRole('button', { name: 'Увеличить' }));
+    expect(await screen.findByRole('dialog', { name: 'cover.png' })).toBeTruthy();
+    await waitFor(() => expect(getPostMediaContent).toHaveBeenCalledWith(media.id, expect.any(AbortSignal)));
+  });
+
+  it('persists desktop drag-and-drop media reorder through the server API', async () => {
+    const first = {
+      id: ids.post,
+      kind: 'photo' as const,
+      fileName: 'first.png',
+      contentType: 'image/png',
+      sizeBytes: 5,
+      width: 1,
+      height: 1,
+      durationMs: null,
+      position: 0
+    };
+    const second = { ...first, id: ids.post2, fileName: 'second.png', position: 1 };
+    vi.mocked(reorderPostMedia).mockResolvedValue({ revision: 2 });
+    render(
+      <PostMediaEditor
+        postId={ids.post}
+        revision={1}
+        media={[first, second]}
+        disabled={false}
+        onServerChange={vi.fn()}
+        onPendingChange={vi.fn()}
+      />
+    );
+    const items = screen.getByRole('list', { name: 'Вложения поста' }).querySelectorAll('li');
+    const firstItem = items.item(0);
+    const secondItem = items.item(1);
+    if (!firstItem || !secondItem) throw new Error('Expected two media list items');
+    fireEvent.dragStart(secondItem, { dataTransfer: { types: ['application/x-post-media'], setData: vi.fn() } });
+    fireEvent.dragOver(firstItem, { dataTransfer: { types: ['application/x-post-media'] } });
+    fireEvent.drop(firstItem, { dataTransfer: { types: ['application/x-post-media'], files: [] } });
+    await waitFor(() => expect(reorderPostMedia).toHaveBeenCalledWith(ids.post, 1, [second.id, first.id]));
+  });
+
+  it('creates a technical draft before uploading media when a new post has no server id', async () => {
+    const draft = post({ title: 'Публикация от 09.10.2026' });
+    const media = {
+      id: ids.post2,
+      kind: 'photo' as const,
+      fileName: 'cover.png',
+      contentType: 'image/png',
+      sizeBytes: 5,
+      width: 1,
+      height: 1,
+      durationMs: null,
+      position: 0
+    };
+    const ensurePost = vi.fn().mockResolvedValue(draft);
+    const onDraftReady = vi.fn();
+    vi.mocked(uploadPostMedia).mockResolvedValue({ media, revision: 1 });
+    const user = userEvent.setup();
     render(
       <PostMediaEditor
         postId={null}
@@ -56,12 +164,68 @@ describe('post media editor', () => {
         disabled={false}
         onServerChange={vi.fn()}
         onPendingChange={vi.fn()}
+        onEnsurePost={ensurePost}
+        onDraftReady={onDraftReady}
       />
     );
 
-    expect(screen.getByText('Сначала сохраните черновик')).toBeTruthy();
-    expect(screen.getByText(/Нажмите «Создать черновик» внизу редактора/)).toBeTruthy();
-    expect((screen.getByRole('button', { name: 'Выбрать файлы' }) as HTMLButtonElement).disabled).toBe(true);
+    await user.upload(screen.getByTestId('media-file-input'), new File(['image'], 'cover.png', { type: 'image/png' }));
+    await waitFor(() => expect(uploadPostMedia).toHaveBeenCalledWith(expect.objectContaining({ postId: draft.id })));
+    expect(ensurePost).toHaveBeenCalledTimes(1);
+    expect(onDraftReady).toHaveBeenCalledWith(draft);
+  });
+
+  it('promotes a new draft even when its first upload fails so it is not stranded at /posts/new', async () => {
+    const draft = post({ title: 'Публикация от 09.10.2026' });
+    const ensurePost = vi.fn().mockResolvedValue(draft);
+    const onDraftReady = vi.fn();
+    vi.mocked(uploadPostMedia).mockRejectedValue(new Error('offline'));
+    const user = userEvent.setup();
+    render(
+      <PostMediaEditor
+        postId={null}
+        revision={0}
+        media={[]}
+        disabled={false}
+        onServerChange={vi.fn()}
+        onPendingChange={vi.fn()}
+        onEnsurePost={ensurePost}
+        onDraftReady={onDraftReady}
+      />
+    );
+
+    await user.upload(screen.getByTestId('media-file-input'), new File(['image'], 'cover.png', { type: 'image/png' }));
+    await waitFor(() => expect(onDraftReady).toHaveBeenCalledWith(draft));
+    expect(await screen.findByRole('button', { name: 'Повторить' })).toBeTruthy();
+  });
+
+  it('does not start the next queued file after cancelling the active upload', async () => {
+    vi.mocked(uploadPostMedia).mockImplementation(
+      ({ signal }) =>
+        new Promise((_, reject) => {
+          signal.addEventListener('abort', () => reject(new Error('cancelled')), { once: true });
+        })
+    );
+    const user = userEvent.setup();
+    render(
+      <PostMediaEditor
+        postId={ids.post}
+        revision={1}
+        media={[]}
+        disabled={false}
+        onServerChange={vi.fn()}
+        onPendingChange={vi.fn()}
+      />
+    );
+    await user.upload(screen.getByTestId('media-file-input'), [
+      new File(['first'], 'first.png', { type: 'image/png' }),
+      new File(['second'], 'second.png', { type: 'image/png' })
+    ]);
+    await waitFor(() => expect(uploadPostMedia).toHaveBeenCalledTimes(1));
+    await user.click(screen.getByRole('button', { name: 'Отменить загрузку' }));
+    await waitFor(() => expect(screen.getAllByRole('button', { name: 'Загрузить' })).toHaveLength(2));
+    expect(uploadPostMedia).toHaveBeenCalledTimes(1);
+    expect(screen.getByText('second.png')).toBeTruthy();
   });
 
   it('keeps a failed file available for retry and never calls it uploaded', async () => {

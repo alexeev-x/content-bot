@@ -1,4 +1,4 @@
-import type { PostMediaDto } from '@alexeev/contracts';
+import type { MediaLibraryItemDto, PostMediaDto } from '@alexeev/contracts';
 
 export interface MediaAssetInput extends Omit<PostMediaDto, 'position'> {
   objectKey: string;
@@ -22,6 +22,20 @@ export interface PostMediaRepository {
   removeStaging(mediaId: string): Promise<void>;
   findUpload(postId: string, idempotencyKey: string): Promise<StoredUpload | null>;
   findPostState(postId: string): Promise<MediaPostState | null>;
+  listLibrary(input: {
+    kind: 'all' | 'photo' | 'video';
+    after?: { createdAt: number; id: string };
+    limit: number;
+  }): Promise<MediaLibraryItemDto[]>;
+  findRetainedMedia(mediaIds: string[]): Promise<PostMediaDto[]>;
+  attachRetained(input: {
+    postId: string;
+    expectedRevision: number;
+    actor: string;
+    now: number;
+    currentIds: string[];
+    mediaIds: string[];
+  }): Promise<boolean>;
   attach(input: {
     postId: string;
     expectedRevision: number;

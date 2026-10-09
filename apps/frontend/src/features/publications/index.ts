@@ -30,3 +30,4 @@ export {
   type PublicationOrder
 } from './ui/PublicationTable';
 export { PublishDialog } from './ui/PublishDialog';
+export { PublicationSettings } from './ui/PublicationSettings';

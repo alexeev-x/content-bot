@@ -3,7 +3,7 @@ import { now, type ZonedDateTime } from '@internationalized/date';
 import { useQueryClient } from '@tanstack/react-query';
 import { useId, useMemo, useState } from 'react';
 import { ru } from '../../../shared/lib/ru';
-import { Button, DateTimeField, Dialog, TextField, useToast } from '../../../shared/ui';
+import { Button, DateTimeField, Dialog, TextArea, useToast } from '../../../shared/ui';
 import type { ResolveUnknownBody } from '../api/publications-api';
 import { publicationKeys, useResolveUnknownPublication } from '../api/publications-queries';
 import { browserTimeZone, formatWithZone } from '../model/format-time';
@@ -65,12 +65,18 @@ export function ResolveUnknownDialog({ outcome, publication, chatId, onOpenChang
   const [fieldError, setFieldError] = useState<string | undefined>();
   const [failure, setFailure] = useState<ActionError | null>(null);
   const isUnknown = publication.status === 'unknown';
-  const parsed = parseMessageRef(link, chatId);
+  const parsedRefs = link
+    .split(/\r?\n/)
+    .map((value) => value.trim())
+    .filter(Boolean)
+    .map((value) => parseMessageRef(value, chatId));
 
   function linkProblem(): string | undefined {
-    if (parsed.ok) return undefined;
-    if (parsed.reason === 'empty') return text.sent.needValue;
-    return parsed.reason === 'channel' ? text.sent.wrongChannel : text.sent.badFormat;
+    if (parsedRefs.length === 0) return text.sent.needValue;
+    if (parsedRefs.length > 10) return 'Можно указать не более 10 сообщений одной альбомной публикации.';
+    const invalid = parsedRefs.find((item) => !item.ok);
+    if (!invalid) return undefined;
+    return invalid.reason === 'channel' ? text.sent.wrongChannel : text.sent.badFormat;
   }
 
   function buildInput(): ResolveUnknownBody | null {
@@ -79,7 +85,15 @@ export function ResolveUnknownDialog({ outcome, publication, chatId, onOpenChang
     if (outcome === 'sent') {
       const problem = linkProblem();
       setFieldError(problem);
-      return parsed.ok ? { outcome, revision, externalMessageId: parsed.id } : null;
+      if (problem) return null;
+      const ids = parsedRefs.flatMap((item) => (item.ok ? [item.id] : []));
+      if (new Set(ids).size !== ids.length) {
+        setFieldError('Идентификаторы сообщений должны быть разными.');
+        return null;
+      }
+      return ids.length === 1
+        ? { outcome, revision, externalMessageId: ids[0] }
+        : { outcome, revision, externalMessageIds: ids };
     }
     const problem = touched ? validateTime(when) : undefined;
     setFieldError(problem);
@@ -204,9 +218,9 @@ export function ResolveUnknownDialog({ outcome, publication, chatId, onOpenChang
       >
         {banner}
         {isSent ? (
-          <TextField
+          <TextArea
             label={text.sent.field}
-            description={text.sent.hint}
+            description={`${text.sent.hint}. Для альбома укажите все ссылки или ID, по одному на строку (до 10).`}
             placeholder={text.sent.placeholder}
             value={link}
             onChange={(next) => {
@@ -216,7 +230,7 @@ export function ResolveUnknownDialog({ outcome, publication, chatId, onOpenChang
             isRequired
             isDisabled={!isUnknown}
             autoComplete="off"
-            inputMode="url"
+            rows={3}
             {...(fieldError ? { errorMessage: fieldError } : {})}
           />
         ) : (
@@ -236,7 +250,13 @@ export function ResolveUnknownDialog({ outcome, publication, chatId, onOpenChang
           />
         )}
         {isSent
-          ? summary(parsed.ok ? text.sent.summary(parsed.id) : text.sent.summaryEmpty)
+          ? summary(
+              parsedRefs.length === 1 && parsedRefs[0]?.ok
+                ? text.sent.summary(parsedRefs[0].id)
+                : parsedRefs.length > 1
+                  ? `Будут записаны ${parsedRefs.length} ID сообщений альбома. Повторной отправки не будет.`
+                  : text.sent.summaryEmpty
+            )
           : summary(text.resend.summary(touched && when ? formatWithZone(when.toDate().toISOString(), zone) : null))}
       </form>
     </Dialog>

@@ -26,23 +26,27 @@ export interface SentCall {
 // A scripted transport: answers come off the queue (the last one repeats). Records every send.
 export interface FakeTransport extends PublicationTransport {
   calls: SentCall[];
+  mediaCalls: string[][];
 }
 
 export function fakeTransport(...script: SendOutcome[]): FakeTransport {
   const calls: SentCall[] = [];
+  const mediaCalls: string[][] = [];
   let index = 0;
   return {
     calls,
+    mediaCalls,
     send(input) {
       calls.push({ chatId: input.chatId, text: input.text, entities: input.entities });
-      const next = script[Math.min(index, script.length - 1)] ?? { kind: 'sent', externalMessageId: '1' };
+      mediaCalls.push(input.media.map(({ kind }) => kind));
+      const next = script[Math.min(index, script.length - 1)] ?? { kind: 'sent', externalMessageIds: ['1'] };
       index += 1;
       return Promise.resolve(next);
     }
   };
 }
 
-export const SENT: SendOutcome = { kind: 'sent', externalMessageId: '4242' };
+export const SENT: SendOutcome = { kind: 'sent', externalMessageIds: ['4242'] };
 
 export function grammyError(code: number, description: string, parameters: Record<string, number> = {}): GrammyError {
   return new GrammyError(description, { ok: false, error_code: code, description, parameters }, 'sendMessage', {
@@ -71,6 +75,42 @@ export function fakeSender(step: SenderStep): FakeSender {
         new Promise<never>((_resolve, reject) => {
           signal.addEventListener('abort', () => reject(signal.reason as Error), { once: true });
         })
+      ]);
+    },
+    sendPhoto(chatId, photo, other, signal) {
+      requests.push({ chatId, text: 'photo', other });
+      return Promise.race([
+        step(),
+        new Promise<never>((_resolve, reject) =>
+          signal.addEventListener('abort', () => reject(signal.reason as Error), { once: true })
+        )
+      ]);
+    },
+    sendVideo(chatId, video, other, signal) {
+      requests.push({ chatId, text: 'video', other });
+      return Promise.race([
+        step(),
+        new Promise<never>((_resolve, reject) =>
+          signal.addEventListener('abort', () => reject(signal.reason as Error), { once: true })
+        )
+      ]);
+    },
+    sendAnimation(chatId, animation, other, signal) {
+      requests.push({ chatId, text: 'animation', other });
+      return Promise.race([
+        step(),
+        new Promise<never>((_resolve, reject) =>
+          signal.addEventListener('abort', () => reject(signal.reason as Error), { once: true })
+        )
+      ]);
+    },
+    sendMediaGroup(chatId, media, signal) {
+      requests.push({ chatId, text: 'group', other: media });
+      return Promise.race([
+        step(),
+        new Promise<never>((_resolve, reject) =>
+          signal.addEventListener('abort', () => reject(signal.reason as Error), { once: true })
+        )
       ]);
     }
   };

@@ -21,6 +21,7 @@ interface PublicationRow {
   timezone: string;
   revision: number;
   external_message_id: string | null;
+  external_message_ids: string | null;
   last_error_code: string | null;
   created_at: number;
   updated_at: number;
@@ -30,7 +31,7 @@ interface PublicationRow {
 }
 
 const PUBLICATION_COLUMNS = `p.id, p.post_id, p.post_revision, p.destination_id, p.scheduled_at, p.timezone,
-  p.revision, p.external_message_id, p.last_error_code, p.created_at, p.updated_at,
+  p.revision, p.external_message_id, p.external_message_ids, p.last_error_code, p.created_at, p.updated_at,
   j.status AS job_status, j.run_at AS job_run_at, j.send_started_at AS job_send_started_at`;
 // CROSS JOIN pins SQLite's order: the left table is walked through its keyset index and the other
 // one is looked up by key, instead of scanning one side and sorting.
@@ -47,6 +48,7 @@ function toRecord(row: PublicationRow): PublicationRecord {
     timezone: row.timezone,
     revision: row.revision,
     externalMessageId: row.external_message_id,
+    externalMessageIds: row.external_message_ids === null ? null : (JSON.parse(row.external_message_ids) as string[]),
     lastErrorCode: row.last_error_code,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -494,10 +496,10 @@ export function createD1PublicationRepository(db: D1Database): PublicationReposi
               .prepare(`UPDATE jobs SET status = 'succeeded', lease_until = NULL, updated_at = ?3 WHERE ${jobGuard}`)
               .bind(change.id, change.expectedRevision, change.now),
             publicationSet: {
-              sql: 'external_message_id = ?4, last_error_code = NULL,',
-              bindings: [resolution.externalMessageId]
+              sql: 'external_message_id = ?4, external_message_ids = ?5, last_error_code = NULL,',
+              bindings: [resolution.externalMessageIds[0] ?? '', JSON.stringify(resolution.externalMessageIds)]
             },
-            auditDetails: { outcome: 'sent', externalMessageId: resolution.externalMessageId }
+            auditDetails: { outcome: 'sent', externalMessageIds: resolution.externalMessageIds.join(',') }
           });
         case 'resend':
           return changeJob({

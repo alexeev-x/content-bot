@@ -7,10 +7,12 @@ export type {
   IdempotencyGate,
   PostPublicationSummary,
   PostPublicationSummarySource,
+  PostRevisionMedia,
   PostRepository
 } from './application/ports';
 export { createD1PostRepository } from './infrastructure/d1-post-repository';
 export { createD1PostMediaRepository } from './infrastructure/d1-post-media-repository';
+export { attachRetainedPostMedia, listMediaLibrary } from './application/media-library';
 export {
   getPostMediaContent,
   processPostMediaCleanup,

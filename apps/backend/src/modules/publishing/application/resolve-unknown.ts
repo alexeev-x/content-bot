@@ -13,7 +13,7 @@ export interface ResolveUnknownDeps {
 function toResolution(input: ResolveUnknownPublicationInput): PublicationUnknownResolution {
   switch (input.outcome) {
     case 'sent':
-      return { outcome: 'sent', externalMessageId: input.externalMessageId };
+      return { outcome: 'sent', externalMessageIds: input.externalMessageIds ?? [input.externalMessageId ?? ''] };
     case 'resend':
       return { outcome: 'resend', scheduledAt: Date.parse(input.scheduledAt), timezone: input.timezone };
     case 'cancel':

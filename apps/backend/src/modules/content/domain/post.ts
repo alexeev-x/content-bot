@@ -1,4 +1,4 @@
-import type { PostEntity } from '@alexeev/contracts';
+import type { PostEntity, PostMediaDto } from '@alexeev/contracts';
 
 export type PostStatus = 'draft' | 'approved';
 
@@ -23,8 +23,8 @@ export function canEdit(post: Post): boolean {
   return post.status === 'draft';
 }
 
-export function approve(post: Post, now: number): ApproveResult {
+export function approve(post: Post & { media?: PostMediaDto[] }, now: number): ApproveResult {
   if (post.status === 'approved') return { ok: false, reason: 'ALREADY_APPROVED' };
-  if (post.body.trim() === '') return { ok: false, reason: 'EMPTY_BODY' };
+  if (post.body.trim() === '' && (post.media?.length ?? 0) === 0) return { ok: false, reason: 'EMPTY_BODY' };
   return { ok: true, post: { ...post, status: 'approved', updatedAt: now } };
 }

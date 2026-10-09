@@ -29,6 +29,7 @@ type Options = {
 };
 
 const EMPTY: PostFormValues = { title: '', body: '', entities: [] };
+const makeDefaultTitle = () => `Публикация от ${new Intl.DateTimeFormat('ru-RU').format(new Date())}`;
 const valuesOf = (post: PostDto | null): PostFormValues =>
   post ? { title: post.title, body: post.body, entities: post.entities } : EMPTY;
 // Entities are always in the contract's normal form on both sides, so a plain JSON comparison is exact.
@@ -63,6 +64,12 @@ export function usePostEditor({ post, onCreated, rootRef, dirtyRef }: Options) {
     control: form.control,
     name: ['title', 'body', 'entities']
   });
+
+  useEffect(() => {
+    if (baseline === null && body.trim().length > 0 && title.trim().length === 0) {
+      form.setValue('title', makeDefaultTitle(), { shouldDirty: true, shouldValidate: true });
+    }
+  }, [baseline, body, form, title]);
 
   const base = valuesOf(baseline);
   const dirty = title !== base.title || body !== base.body || !sameEntities(entities, base.entities);
@@ -166,6 +173,29 @@ export function usePostEditor({ post, onCreated, rootRef, dirtyRef }: Options) {
     }
   }
 
+  /** Creates a visible, editable-title draft when the first media is chosen; never sends it to Telegram. */
+  async function ensureDraftForMedia(): Promise<PostDto | null> {
+    if (baseline) return baseline;
+    if (isBusy || readOnly || conflict !== null) return null;
+    const submitted = form.getValues();
+    const title = submitted.title.trim() || makeDefaultTitle();
+    if (title !== submitted.title) form.setValue('title', title, { shouldDirty: true, shouldValidate: true });
+    const valid = await form.trigger();
+    if (!valid) {
+      setFocusTick((tick) => tick + 1);
+      return null;
+    }
+    const values = form.getValues();
+    try {
+      const created = await create.mutateAsync({ title: values.title, body: values.body, entities: values.entities });
+      adopt(created, values);
+      return created;
+    } catch (error) {
+      handleError(error, null, postsCopy.editor.errors.saveTitle);
+      return null;
+    }
+  }
+
   /** Explicit «overwrite with mine»: refetch the revision, then save on top of it. Never automatic. */
   async function overwrite(): Promise<void> {
     if (baseline === null || isBusy || !(await validate())) return;
@@ -211,19 +241,19 @@ export function usePostEditor({ post, onCreated, rootRef, dirtyRef }: Options) {
   }
 
   /** Approves the saved text; unsaved edits are saved first so the approved revision is the one on screen. */
-  async function approvePost(): Promise<boolean> {
-    if (baseline === null || isBusy || readOnly || mediaPending) return false;
+  async function approvePost(): Promise<PostDto | null> {
+    if (isBusy || readOnly || mediaPending) return null;
     let current = baseline;
-    if (dirty) {
+    if (current === null || dirty) {
       const saved = await save();
-      if (saved === null) return false;
+      if (saved === null) return null;
       current = saved;
     }
     try {
       const approved = await approve.mutateAsync({ id: current.id, input: { revision: current.revision } });
       adopt(approved, null);
       setJustApproved(true);
-      return true;
+      return approved;
     } catch (error) {
       if (classifyApiError(error) === 'empty_body') {
         form.setError('body', { type: 'server', message: postsCopy.editor.validation.emptyBody });
@@ -231,7 +261,7 @@ export function usePostEditor({ post, onCreated, rootRef, dirtyRef }: Options) {
       } else {
         handleError(error, current.id, postsCopy.editor.errors.approveTitle);
       }
-      return false;
+      return null;
     }
   }
 
@@ -246,7 +276,7 @@ export function usePostEditor({ post, onCreated, rootRef, dirtyRef }: Options) {
     readOnly,
     changeKey,
     canAutosave:
-      baseline !== null &&
+      (baseline !== null || title.trim().length > 0) &&
       dirty &&
       !readOnly &&
       conflict === null &&
@@ -264,8 +294,10 @@ export function usePostEditor({ post, onCreated, rootRef, dirtyRef }: Options) {
     setMediaPending,
     adoptMedia,
     length: messageLength(title, body),
-    overflow: messageOverflow(title, body),
+    messageLimit: baseline?.media.length ? 1024 : 4096,
+    overflow: messageOverflow(title, body, baseline?.media.length ? 1024 : 4096),
     save,
+    ensureDraftForMedia,
     approvePost,
     overwrite,
     acceptServer,
