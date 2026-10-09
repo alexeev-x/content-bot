@@ -16,3 +16,5 @@ worker-configuration.d.ts
 .dev.vars.*
 !.dev.vars.example
 .tanstack/
+design-refs/*
+!design-refs/README.md

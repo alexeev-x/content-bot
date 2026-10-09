@@ -5,9 +5,7 @@ Shared Claude Code/Codex rules. Talk Russian; code, identifiers, commits and bra
 **Status:** in development, not in production; what works is in `docs/IMPLEMENTATION_PLAN.md`. Never describe planned parts as working.
 
 ## Layout
-- `apps/frontend/` — React + Vite admin SPA. Rules: `apps/frontend/AGENTS.md`.
-- `apps/backend/` — Hono on Cloudflare Workers (`fetch` / `scheduled`); D1 is the source of truth. Rules: `apps/backend/AGENTS.md`.
-- `apps/contracts/` — Zod DTOs shared by both sides. Rules: `apps/contracts/AGENTS.md`.
+- `apps/frontend/` (React SPA), `apps/backend/` (Hono Worker, D1), `apps/contracts/` (shared Zod DTOs); each has its own `AGENTS.md`.
 - `docs/` — canonical architecture. Open only the section you need.
 - `.agents/` — role sources (`roles/`), skills (`skills/`), tooling (`scripts/`). `.claude/` and `.codex/` are generated from it: edit sources, then `npm run agents:sync`.
 
@@ -29,7 +27,7 @@ Edit a fact at its source; elsewhere only link to it.
 | auth, sessions, Mini App, webhook, uploads | skill `api-security` |
 | writing or fixing tests | skill `testing` |
 | a bug, failing test or CI failure | skill `debugging` |
-| Worker runtime, bindings, config, Wrangler commands | skills `workers-best-practices`, `wrangler` (official Cloudflare) |
+| Worker runtime, bindings, config, Wrangler commands | skills `workers-best-practices`, `wrangler` |
 | a page, its states, accessibility | skills `page-spec`, `ui-patterns`, `react-aria` |
 | tokens, primitives, look and feel, UI copy | skill `visual-design` |
 | visual verification in a browser | skill `visual-check` |
@@ -62,10 +60,14 @@ Write tersely: no preamble, no restating the task, no recap of a visible diff. C
 - Comments explain why. New dependencies need a PR reason and lockfile entry; prefer platform APIs.
 
 ## Git
-Work directly on `develop`: CI deploys it to Worker `dev`. `main` holds releases (deployed to Worker `app`) and changes only through a release PR from `develop`, opened by the owner. The owner commits and pushes: leave the task's changes ready (verified, `git status` shows only task files) and propose a commit message. Never commit or push to `main`, never force-push. A SQL change needs a migration. A contract change updates `contracts`, the backend, the frontend and the contract tests in the same PR.
+Work directly on `develop`: CI deploys it to Worker `dev`. `main` holds releases (deployed to Worker `app`) and changes only through a release PR from `develop`, opened by the owner. The owner commits and pushes: leave the task's changes ready (verified, `git status` shows only task files). Never commit or push to `main`, never force-push. A SQL change needs a migration. A contract change updates `contracts`, the backend, the frontend and the contract tests in the same PR.
 
 ## Done means verified
-Follow the risk gate in `.agents/skills/orchestrate/SKILL.md`. Run required checks and report actual results. To the owner: short Russian summary. Subagents report:
+Follow the risk gate in skill `orchestrate`. Run required checks and report actual results.
+
+Main session's final message, in order: short Russian summary of what was done and check results; only if a file was added to `apps/backend/migrations/`, its number and that the owner applies it to DEV D1 (Actions → D1 migrations) before pushing; last, the commit message in a code block.
+
+Subagents report:
 ```json
 {"task_id":"","state":"DONE|BLOCKED|FAILED|NOT_VERIFIED","changed_paths":[],"contract_changes":[],"checks":[{"cmd":"","result":"passed|failed|not_run","evidence":"last relevant lines"}],"risks":[],"next":[]}
 ```

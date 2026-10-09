@@ -60,5 +60,5 @@ See `references/parallel-worktrees.md`. Parallelize only independent paths, usin
 - Re-review covers only the listed defect ids.
 
 ## 7. Deliver
-- Don't commit or push: the owner does. Hand over a conventional commit message and a short Russian summary: the goal, each acceptance criterion with pass/fail, the commands run with results, risks, and `not_run` items.
+- Don't commit or push: the owner does. End with the final message from root AGENTS.md: Russian summary (goal, each acceptance criterion pass/fail, commands run, risks, `not_run`), the migration note only when a migration was added, and the conventional commit message last.
 - A release is a PR `develop → main` opened by the owner (body per `.github/pull_request_template.md`). Never touch `main`.

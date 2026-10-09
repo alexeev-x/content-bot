@@ -2,7 +2,7 @@
 
 **Status: Approved 08.10.2026** (owner approved the clickable prototype and `UX_SPEC.md`; real pages are rebuilt to match the prototype). Reference images and mockup packs were removed; they are no longer a source.
 
-Substantive UI work follows `docs/AGENT_UI_WORKFLOW.md`.
+Substantive UI work follows `docs/AGENT_UI_WORKFLOW.md`. Owner reference images are reproduced visually exactly (layout, element shapes, sizes, spacing) with our colours, fonts and components (§ Reference fidelity there).
 
 ## Source of truth
 1. [`UX_SPEC.md`](UX_SPEC.md): patterns, screens, flows, states, copy.

@@ -23,9 +23,19 @@ The UI prototyper cannot touch `apps/frontend/src/features/`, production routes,
 
 ## Reference and acceptance sources
 
-Order: security/publishing safety and actual contracts → approved `docs/design/UX_SPEC.md` and `docs/design/README.md` → task UX/accepted prototype → owner images for layout and interactions. Owner screenshots **do not override application palette, typography or tokens** unless the owner explicitly changes the theme standard.
+Order: security/publishing safety and actual contracts → task UX → owner reference images → approved `docs/design/UX_SPEC.md` and `docs/design/README.md`.
 
-Each task packet records `reference ID → accessible path → screen/state → required elements`. Images in another chat are NOT guaranteed available to a coding agent. Missing image means reference-specific visual claim cannot pass: request it or mark NOT_RUN; do not invent visual similarity. If no reference was supplied, use the canonical current app design and its approved prototype.
+### Reference fidelity (owner decision 09.10.2026)
+An owner image (found or generated) is reproduced **visually exactly, built from our system**:
+- **Copy from the image:** composition and grid, column proportions, the set and order of elements, element shapes (pill vs square, radius, borders, dividers, cards vs plain rows), sizes of blocks, controls, media and icons, spacing and density, alignment, visible states.
+- **Always ours:** colours (each mapped to the nearest semantic token, both themes), fonts (nearest step of our type scale and weight), components (`shared/ui` primitives and existing feature components).
+- **Our system cannot express a shape or size:** never style it locally; send `UI_PRIMITIVE_REQUEST` (new primitive variant or token) to design-system through the orchestrator and record it as a token delta until it lands.
+- Generated images are often inconsistent (uneven spacing, garbled text, impossible sizes): normalize to one value per repeated element and list each deviation. An image usually shows one width; other widths follow `UX_SPEC.md` rules.
+
+### Reference intake
+- The owner drops image files into the chat (file path visible) or into `design-refs/<task>/` (gitignored). A clipboard-only image is visible to the main session but not to subagents: the orchestrator asks for the file instead of describing it.
+- The task packet records `reference ID → path → screen/state → width the image represents → required elements`. A missing image means its visual claims cannot pass: request it or mark NOT_RUN; never invent similarity. No reference: use the current app design and its approved prototype.
+- Before building, ui-prototyper writes a **reference measurement** in the handoff: grid and columns, spacing, element sizes, radii, type size/weight per text role, icon sizes, and the token or primitive chosen for each.
 
 Save accepted prototype **commit SHA + route + fixture IDs + screenshot paths + allowable deviations** in the handoff. Changed design requires a new revision and repeated prototype check. User-facing demo route exists only when the code is actually running; do not invent a live URL.
 
@@ -33,7 +43,7 @@ Save accepted prototype **commit SHA + route + fixture IDs + screenshot paths + 
 
 Run a browser with deterministic data. Cover the full viewport matrix in `docs/design/UX_SPEC.md` Conventions (focus state permutations at representative widths); light/dark themes; navigation, errors, offline/loading/empty, media, confirm/cancel, keyboard, scroll, touch/safe areas and screen-reader semantics. Verify accessibility/axe and capture real screenshots. Browser console and network must reveal no unintended requests.
 
-At prototype gate, assess **structure** against owner images and **style** against tokens. At implementation gate, compare the rendered page to accepted prototype screenshots/revision and check real outcomes. Pixel-diff is supportive, not the only test. UI QA must be independent and read-only. Missing browser/reference/testing evidence yields NOT_VERIFIED, never PASS.
+At prototype gate, screenshot the prototype at the width each image represents and compare side by side and as an overlay: element set, order and shapes must match; positions and sizes within ±4 px of the measurement (after the documented normalizations); colours, fonts and components are checked against tokens and `shared/ui`, not against the image. At implementation gate, compare the rendered page to accepted prototype screenshots/revision and check real outcomes. Pixel-diff is supportive, not the only test. UI QA must be independent and read-only. Missing browser/reference/testing evidence yields NOT_VERIFIED, never PASS.
 
 Each defect: `UI-001 | gate | severity | screen/state/viewport | expected | actual | evidence | owning role`.
 - Missing/awkward action or flow → ux-designer.

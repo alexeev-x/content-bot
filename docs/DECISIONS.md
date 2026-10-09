@@ -55,6 +55,7 @@ Accepted decisions that are in force. An agent does not propose an alternative t
 | 03.10.2026 | Uniform code style: Prettier + Oxlint via Husky/lint-staged on commit, `verify:changed` on pre-push, full `verify` in CI | `README.md` |
 | 03.10.2026 | Agents: one source for Claude Code and Codex (`.agents/` → generated adapters); work only by project roles; built-in read-only helpers allowed; generic global agents denied in `.claude/settings.json` | `docs/AGENT_ORCHESTRATION.md` |
 | 09.10.2026 | Substantive UI tasks go UX → mock-only clickable prototype → independent UI QA → implementation → UI QA; owner approval is optional unless requested or an owner-only decision is needed | `docs/AGENT_UI_WORKFLOW.md` |
+| 09.10.2026 | Owner reference images are reproduced visually exactly (composition, element shapes, sizes, spacing) using our colours, fonts and components; a shape our system lacks becomes a new primitive variant or token, never local CSS | `docs/AGENT_UI_WORKFLOW.md` § Reference fidelity |
 | 03.10.2026 | Token-saving tools (RTK, caveman proxy, claude-context, context-mode) are not used: measured gains were negligible or they send code to external services | — |
 
 ## Awaiting owner decision
