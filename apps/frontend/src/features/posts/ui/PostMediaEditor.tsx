@@ -11,13 +11,25 @@ import type { PostDto } from '@alexeev/contracts';
 import type { PostWriteLock } from '../model/use-post-editor';
 import {
   Button,
+  ActionRow,
+  BottomSheet,
   CropCanvas,
   Dialog,
+  Dropzone,
+  IconButton,
+  Icon,
   MediaAddTile,
   MediaGridTile,
+  Panel,
   RatioTileGroup,
   Select,
   Slider,
+  Switch,
+  Tab,
+  TabList,
+  TabPanel,
+  Tabs,
+  UploadRow,
   useMediaQuery
 } from '../../../shared/ui';
 import {
@@ -49,6 +61,7 @@ type Entry = {
   file?: File;
   previewUrl?: string;
   status: 'uploaded' | 'local' | 'uploading' | 'failed';
+  rejected?: boolean;
   progress?: number;
   error?: string;
   actionError?: string;
@@ -67,6 +80,7 @@ type Props = {
   onPendingChange: (pending: boolean) => void;
   onEnsurePost?: () => Promise<PostDto | null>;
   onDraftReady?: (post: PostDto) => void;
+  onMediaSaved?: () => void;
   onRevisionConflict?: () => void;
 };
 
@@ -224,6 +238,49 @@ export function PostMediaPreview({ media }: { media: PostMediaDto[] }) {
   );
 }
 
+function LibraryTile({
+  item,
+  selected,
+  disabled,
+  onSelectedChange
+}: {
+  item: Awaited<ReturnType<typeof listMediaLibrary>>['items'][number];
+  selected: boolean;
+  disabled: boolean;
+  onSelectedChange: (selected: boolean) => void;
+}) {
+  const [src, setSrc] = useState<string>();
+  useEffect(() => {
+    const controller = new AbortController();
+    let objectUrl: string | undefined;
+    void getPostMediaContent(item.id, controller.signal)
+      .then((blob) => {
+        if (controller.signal.aborted) return;
+        objectUrl = URL.createObjectURL(blob);
+        setSrc(objectUrl);
+      })
+      .catch(() => undefined);
+    return () => {
+      controller.abort();
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [item.id]);
+  return (
+    <div className={styles.libraryTile}>
+      <MediaGridTile
+        label={item.fileName}
+        src={src}
+        kind={item.kind === 'video' ? 'video' : 'image'}
+        selectable
+        isSelected={selected}
+        onSelectedChange={onSelectedChange}
+        isDisabled={disabled}
+      />
+      <span title={item.fileName}>{item.fileName}</span>
+    </div>
+  );
+}
+
 function friendlyError(error: unknown): string {
   if (error instanceof ApiError) {
     if (error.status === 413) return 'Файл слишком большой или превышен лимит вложений.';
@@ -235,6 +292,8 @@ function friendlyError(error: unknown): string {
 }
 
 function cropErrorMessage(error: unknown): string {
+  if (error instanceof Error && error.message === 'crop-too-large')
+    return 'Кадр слишком велик для загрузки. Уменьшите область кадрирования; исходное вложение сохранено.';
   if (error instanceof ApiError) {
     if (error.status === 404) return 'Фото больше недоступно. Обновите редактор и выберите вложение ещё раз.';
     if (error.status === 400)
@@ -242,7 +301,7 @@ function cropErrorMessage(error: unknown): string {
     if (error.status === 413)
       return 'Кадр слишком велик для загрузки. Уменьшите область кадрирования; исходное вложение сохранено.';
     if (error.status === 503)
-      return 'Сервис обработки фото временно недоступен. Повторите попытку позже; исходное вложение сохранено.';
+      return 'Не удалось сохранить кадрирование: сервис временно недоступен. Повторите попытку позже; исходное вложение сохранено.';
     if (error.status === 409) return 'Черновик изменился. Обновите редактор перед повторным кадрированием.';
   }
   return `Не удалось применить кадрирование. Исходное вложение сохранено. ${friendlyError(error)}`;
@@ -258,6 +317,7 @@ export function PostMediaEditor({
   onPendingChange,
   onEnsurePost,
   onDraftReady,
+  onMediaSaved,
   onRevisionConflict
 }: Props) {
   const narrow = useMediaQuery('(max-width: 859px)');
@@ -284,11 +344,13 @@ export function PostMediaEditor({
   const cancelControllerRef = useRef<AbortController | null>(null);
   const cancelQueueRef = useRef(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
   const mounted = useRef(true);
   const previewUrls = useRef(new Set<string>());
   const [isDropTarget, setDropTarget] = useState(false);
   const [sourceOpen, setSourceOpen] = useState(false);
-  const [libraryOpen, setLibraryOpen] = useState(false);
+  const [sourceTab, setSourceTab] = useState<'device' | 'library' | 'recent'>('device');
+  const [confirmDiscardQueue, setConfirmDiscardQueue] = useState(false);
   const [libraryKind, setLibraryKind] = useState<'all' | 'photo' | 'video'>('all');
   const [libraryItems, setLibraryItems] = useState<Awaited<ReturnType<typeof listMediaLibrary>>['items']>([]);
   const [libraryCursor, setLibraryCursor] = useState<string | null>(null);
@@ -301,6 +363,8 @@ export function PostMediaEditor({
   const [cropError, setCropError] = useState('');
   const [cropBusy, setCropBusy] = useState(false);
   const [cropModel, setCropModel] = useState<CropModel>(defaultCropModel);
+  const [cropCover, setCropCover] = useState(false);
+  const [mobileMediaCollapsed, setMobileMediaCollapsed] = useState(false);
   const [cropNaturalSize, setCropNaturalSize] = useState<{ width: number; height: number } | null>(null);
   const [draggedKey, setDraggedKey] = useState<string | null>(null);
   const [keyboardDraggedKey, setKeyboardDraggedKey] = useState<string | null>(null);
@@ -387,6 +451,7 @@ export function PostMediaEditor({
 
   function openCrop(mediaItem: PostMediaDto) {
     setCropModel(defaultCropModel());
+    setCropCover(mediaItem.position === 0);
     setCropNaturalSize(
       mediaItem.width && mediaItem.height ? { width: mediaItem.width, height: mediaItem.height } : null
     );
@@ -394,6 +459,57 @@ export function PostMediaEditor({
     setCropError('');
     setExpandedMedia(null);
     setCropMedia(mediaItem);
+  }
+
+  async function setCropAsCover(isSelected: boolean) {
+    if (!isSelected) {
+      setCropCover(false);
+      return;
+    }
+    if (!cropMedia || cropMedia.position === 0) {
+      setCropCover(true);
+      return;
+    }
+    if (!postId || disabled || busy) return;
+    const ordered = [...mediaRef.current].sort((left, right) => left.position - right.position);
+    const selected = ordered.find((item) => item.id === cropMedia.id);
+    if (!selected || !beginWrite()) return;
+    setCropCover(true);
+    setBusy(true);
+    try {
+      const next = [selected, ...ordered.filter((item) => item.id !== selected.id)];
+      const result = await reorderPostMedia(
+        postId,
+        revisionRef.current,
+        next.map((item) => item.id)
+      );
+      const updated = next.map((item, position) => ({ ...item, position }));
+      setEntries((current) => [
+        ...updated.map((item) => ({ key: item.id, media: item, status: 'uploaded' as const })),
+        ...current.filter((item) => !item.media)
+      ]);
+      revisionRef.current = result.revision;
+      mediaRef.current = updated;
+      onServerChange(result.revision, updated);
+    } catch (error) {
+      setCropCover(false);
+      if (error instanceof ApiError && error.status === 409) onRevisionConflict?.();
+      setCropError(`Не удалось сделать фото первым в посте. ${friendlyError(error)}`);
+    } finally {
+      setBusy(false);
+      endWrite();
+    }
+  }
+
+  function rotateCrop(delta: -90 | 90) {
+    const rotation = ((cropModel.rotation + delta + 360) % 360) as CropModel['rotation'];
+    const natural = cropNaturalSize;
+    const aspect = natural
+      ? rotation % 180 === 0
+        ? natural.width / natural.height
+        : natural.height / natural.width
+      : 4 / 3;
+    setCropModel((model) => ({ ...model, rotation, frame: cropFrameForRatio(model.ratio, aspect) }));
   }
 
   async function upload(entry: Entry): Promise<boolean> {
@@ -483,14 +599,14 @@ export function PostMediaEditor({
     }
   }
 
-  async function selectFiles(files: FileList | null, replaceId?: string) {
+  async function selectFiles(files: FileList | File[] | null, replaceId?: string) {
     if (!files || disabled || busy) return;
     if (replaceId && entries.length >= POST_MEDIA_MAX_ITEMS) {
       setNotice(replaceAtLimitNotice);
       return;
     }
     const chosen = Array.from(files);
-    const currentCount = entries.filter((entry) => !replaceId || entry.key !== replaceId).length;
+    const currentCount = entries.filter((entry) => !entry.rejected && (!replaceId || entry.key !== replaceId)).length;
     const typeAndSizeOk = chosen.filter(
       (file) => fileType(file) !== null && file.size > 0 && file.size <= maxBytes(file)
     );
@@ -504,44 +620,79 @@ export function PostMediaEditor({
         .join(', ');
       setNotice(`Не добавлены: ${invalid}. Допустимы JPG, PNG, WebP (до 10 MB), GIF и MP4 (до 50 MB).`);
     }
-    let activePostId = postId;
-    let createdPost: PostDto | null = null;
-    if (!activePostId && accepted.length > 0) {
-      const post = await onEnsurePost?.();
-      if (!post) {
-        setNotice('Не удалось создать черновик. Проверьте заголовок и повторите добавление файлов.');
-        return;
-      }
-      activePostId = post.id;
-      revisionRef.current = post.revision;
-      mediaRef.current = post.media;
-      createdPost = post;
-    }
-    if (!activePostId) return;
     const fresh = accepted.map((file): Entry => ({
       key: crypto.randomUUID(),
       file,
       previewUrl: URL.createObjectURL(file),
       status: 'local',
       idempotencyKey: crypto.randomUUID(),
-      ...(postId ? {} : { uploadPostId: activePostId }),
       ...(replaceId ? { replaceId } : {})
     }));
-    for (const entry of fresh) if (entry.previewUrl) previewUrls.current.add(entry.previewUrl);
-    setEntries((current) => [...current, ...fresh]);
+    const rejected = chosen
+      .filter((file) => !accepted.includes(file))
+      .map((file): Entry => ({
+        key: crypto.randomUUID(),
+        file,
+        previewUrl: URL.createObjectURL(file),
+        status: 'failed',
+        rejected: true,
+        error: !typeAndSizeOk.includes(file)
+          ? `${file.name} — формат или размер не поддерживается.`
+          : 'Достигнут лимит: в посте может быть не больше 10 файлов.'
+      }));
+    if (rejected.length > 0)
+      setNotice('Часть файлов не добавлена. Проверьте отмеченные строки; они не входят в лимит.');
+    for (const entry of [...fresh, ...rejected]) if (entry.previewUrl) previewUrls.current.add(entry.previewUrl);
+    setEntries((current) => [...current, ...fresh, ...rejected]);
+    setSourceOpen(true);
     if (inputRef.current) inputRef.current.value = '';
+    setSourceTab('device');
+  }
+
+  async function uploadSelected() {
+    if (busy || disabled) return;
+    const queued = entries.filter(
+      (entry) => !entry.media && entry.file && !entry.rejected && entry.status !== 'uploading'
+    );
+    let activePostId = postId;
+    let createdPost: PostDto | null = null;
+    if (!activePostId && queued.length > 0) {
+      createdPost = (await onEnsurePost?.()) ?? null;
+      if (!createdPost) {
+        setNotice('Не удалось создать черновик. Проверьте заголовок и повторите добавление файлов.');
+        return;
+      }
+      activePostId = createdPost.id;
+      revisionRef.current = createdPost.revision;
+      mediaRef.current = createdPost.media;
+    }
+    if (!activePostId) return;
     // Uploads are sequential because each server-confirmed upload advances the draft revision.
     cancelQueueRef.current = false;
-    for (const entry of fresh) {
-      if (cancelQueueRef.current || !mounted.current) break;
-      await upload(entry);
+    let allUploaded = true;
+    for (const entry of queued) {
+      if (cancelQueueRef.current || !mounted.current) {
+        allUploaded = false;
+        break;
+      }
+      allUploaded = (await upload({ ...entry, uploadPostId: activePostId })) && allUploaded;
     }
-    if (createdPost) onDraftReady?.(createdPost);
+    if (allUploaded && queued.length > 0) setSourceOpen(false);
+    if (createdPost) {
+      if (allUploaded && queued.length > 0) onMediaSaved?.();
+      onDraftReady?.(createdPost);
+    }
+  }
+
+  async function retryQueued(entry: Entry): Promise<void> {
+    const uploaded = await upload(entry);
+    const otherQueuedFiles = entries.some((item) => !item.media && item.key !== entry.key);
+    if (uploaded && !otherQueuedFiles) setSourceOpen(false);
   }
 
   async function remove(entry: Entry) {
     const activePostId = postId;
-    if (!activePostId || disabled || busy) return;
+    if (disabled || busy) return;
     if (!entry.media) {
       setEntries((current) => current.filter((item) => item.key !== entry.key));
       if (entry.previewUrl) {
@@ -550,6 +701,7 @@ export function PostMediaEditor({
       }
       return;
     }
+    if (!activePostId) return;
     updateEntry(entry.key, { actionError: undefined });
     if (!beginWrite()) return;
     setBusy(true);
@@ -691,6 +843,7 @@ export function PostMediaEditor({
       );
       setCropMedia(null);
     } catch (error) {
+      if (error instanceof ApiError && error.status === 409) onRevisionConflict?.();
       setCropError(cropErrorMessage(error));
     } finally {
       setCropBusy(false);
@@ -699,8 +852,13 @@ export function PostMediaEditor({
     }
   }
 
-  async function openLibrary(kind: 'all' | 'photo' | 'video' = 'all', cursor?: string) {
-    setLibraryOpen(true);
+  async function openLibrary(
+    kind: 'all' | 'photo' | 'video' = 'all',
+    cursor?: string,
+    tab: 'library' | 'recent' = sourceTab === 'recent' ? 'recent' : 'library'
+  ) {
+    setSourceOpen(true);
+    setSourceTab(tab);
     setLibraryBusy(true);
     setLibraryError('');
     try {
@@ -718,6 +876,11 @@ export function PostMediaEditor({
 
   async function attachSelected() {
     if (librarySelection.length === 0 || busy || libraryBusy || disabled) return;
+    const available = POST_MEDIA_MAX_ITEMS - entries.filter((entry) => !entry.rejected).length;
+    if (librarySelection.length > available) {
+      setLibraryError(`Можно добавить ещё ${Math.max(0, available)} файлов. Уберите часть выбранных файлов.`);
+      return;
+    }
     let activePostId = postId;
     let createdPost: PostDto | null = null;
     if (!activePostId) {
@@ -739,9 +902,13 @@ export function PostMediaEditor({
       revisionRef.current = result.revision;
       mediaRef.current = result.media;
       onServerChange(result.revision, result.media);
-      setLibraryOpen(false);
+      setSourceOpen(false);
       setLibrarySelection([]);
-      if (createdPost) onDraftReady?.(createdPost);
+      setLibrarySelection([]);
+      if (createdPost) {
+        onMediaSaved?.();
+        onDraftReady?.(createdPost);
+      }
     } catch (error) {
       if (error instanceof ApiError && error.status === 409) onRevisionConflict?.();
       setLibraryError('Не удалось добавить выбранные файлы. Повторите попытку.');
@@ -752,7 +919,136 @@ export function PostMediaEditor({
     }
   }
 
-  const hasPending = entries.some((entry) => entry.status !== 'uploaded');
+  function requestSourceClose() {
+    const unfinished = entries.filter((entry) => !entry.media).length;
+    if (unfinished > 0) {
+      setConfirmDiscardQueue(true);
+      return;
+    }
+    setSourceOpen(false);
+  }
+
+  function discardQueuedFiles() {
+    setEntries((current) => current.filter((entry) => entry.media));
+    for (const entry of entries) {
+      if (!entry.media && entry.previewUrl) {
+        URL.revokeObjectURL(entry.previewUrl);
+        previewUrls.current.delete(entry.previewUrl);
+      }
+    }
+    setLibrarySelection([]);
+    setConfirmDiscardQueue(false);
+    setSourceOpen(false);
+  }
+
+  function renderQueueRow(entry: Entry) {
+    const file = entry.file;
+    const state = entry.status === 'local' ? 'ready' : entry.status === 'uploading' ? 'uploading' : 'failed';
+    const statusLabel = entry.rejected
+      ? (entry.error ?? 'Файл не поддерживается')
+      : entry.status === 'uploading'
+        ? 'Загрузка…'
+        : entry.status === 'failed'
+          ? (entry.error ?? 'Не удалось загрузить файл')
+          : 'Готов к добавлению';
+    return (
+      <div className={styles.queueRow} key={entry.key}>
+        <UploadRow
+          name={file?.name ?? 'Файл'}
+          meta={file ? `${(file.size / 1_000_000).toFixed(1)} МБ` : ''}
+          src={entry.previewUrl}
+          kind={file?.type.startsWith('video/') ? 'video' : 'image'}
+          state={state}
+          progress={entry.progress}
+          statusLabel={statusLabel}
+          thumb="landscape"
+          removeLabel={`Убрать ${file?.name ?? 'файл'}`}
+          onRemove={() => void remove(entry)}
+        />
+        {entry.status === 'failed' && !entry.rejected ? (
+          <Button variant="secondary" size="sm" isDisabled={busy || disabled} onPress={() => void retryQueued(entry)}>
+            Повторить
+          </Button>
+        ) : null}
+      </div>
+    );
+  }
+
+  const queuedEntries = entries.filter((entry) => !entry.media);
+  const readyQueueCount = queuedEntries.filter((entry) => !entry.rejected && entry.status !== 'uploading').length;
+  const libraryPanel = (
+    <div className={styles.library}>
+      <Select
+        label="Тип файла"
+        value={libraryKind}
+        options={[
+          { id: 'all', label: 'Все' },
+          { id: 'photo', label: 'Фото' },
+          { id: 'video', label: 'Видео' }
+        ]}
+        onChange={(value) => {
+          if (value === 'all' || value === 'photo' || value === 'video') {
+            setLibraryItems([]);
+            setLibraryCursor(null);
+            setLibrarySelection([]);
+            void openLibrary(value, undefined, sourceTab === 'recent' ? 'recent' : 'library');
+          }
+        }}
+      />
+      {libraryError ? (
+        <div>
+          <p className={styles.error} role="alert">
+            {libraryError}
+          </p>
+          <Button
+            variant="secondary"
+            onPress={() => void openLibrary(libraryKind, undefined, sourceTab === 'recent' ? 'recent' : 'library')}
+          >
+            Повторить
+          </Button>
+        </div>
+      ) : null}
+      {libraryBusy && libraryItems.length === 0 ? <p role="status">Загружаем медиабиблиотеку…</p> : null}
+      {!libraryBusy && libraryItems.length === 0 && !libraryError ? <p>Здесь пока нет файлов.</p> : null}
+      <ul className={styles.libraryGrid} aria-busy={libraryBusy} aria-label="Файлы медиабиблиотеки">
+        {libraryBusy && libraryItems.length === 0
+          ? Array.from({ length: 6 }, (_, index) => (
+              <li key={`skeleton-${index}`} className={styles.librarySkeleton} aria-hidden="true" />
+            ))
+          : null}
+        {libraryItems.map((item) => {
+          const selected = librarySelection.includes(item.id);
+          const alreadyAttached = entries.some((entry) => entry.media?.id === item.id);
+          const atLimit = entries.filter((entry) => !entry.rejected).length >= POST_MEDIA_MAX_ITEMS;
+          return (
+            <li key={item.id}>
+              <LibraryTile
+                item={item}
+                selected={selected}
+                disabled={busy || disabled || alreadyAttached || (atLimit && !selected)}
+                onSelectedChange={(nextSelected) =>
+                  setLibrarySelection((current) =>
+                    nextSelected ? [...current, item.id] : current.filter((id) => id !== item.id)
+                  )
+                }
+              />
+            </li>
+          );
+        })}
+      </ul>
+      {libraryCursor ? (
+        <Button
+          variant="secondary"
+          isLoading={libraryBusy}
+          onPress={() => void openLibrary(libraryKind, libraryCursor)}
+        >
+          Показать ещё
+        </Button>
+      ) : null}
+    </div>
+  );
+
+  const hasPending = entries.some((entry) => !entry.rejected && entry.status !== 'uploaded');
   const pending = hasPending || busy;
   useEffect(() => onPendingChange(pending), [pending, onPendingChange]);
   const fileDropHandlers = {
@@ -774,10 +1070,13 @@ export function PostMediaEditor({
       void selectFiles(event.dataTransfer.files);
     }
   };
+  const sectionEntries = entries.filter((entry) => !entry.rejected && (!sourceOpen || entry.media !== undefined));
+  const sectionEntryCount = entries.filter((entry) => !entry.rejected).length;
   return (
     <>
       <section
         className={`${styles.section} ${isDropTarget ? styles.dropTarget : ''}`}
+        data-collapsed={narrow && mobileMediaCollapsed ? '' : undefined}
         aria-labelledby="post-media-heading"
         /* oxlint-disable-next-line jsx-a11y/no-noninteractive-element-interactions -- Drag-and-drop is an optional desktop enhancement; the file-picker button is the keyboard alternative. */
         {...fileDropHandlers}
@@ -785,26 +1084,26 @@ export function PostMediaEditor({
         <div className={styles.heading}>
           <div className={styles.headingCopy}>
             <h2 id="post-media-heading">
+              <Icon name="image" size={20} />
               Фото и видео
-              {entries.length > 0 ? (
+              {sectionEntryCount > 0 ? (
                 <span className={styles.mediaCount}>
                   {' '}
-                  ({entries.length} {entries.length === 1 ? 'файл' : 'файлов'})
+                  ({sectionEntryCount} {sectionEntryCount === 1 ? 'файл' : 'файлов'})
                 </span>
               ) : null}
             </h2>
           </div>
-          {entries.length === 0 ? (
-            <Button
-              variant="primary"
-              icon="plus"
-              isDisabled={disabled || busy}
-              className={isDropTarget ? styles.dropTarget : undefined}
-              onPress={() => setSourceOpen(true)}
-            >
-              Выбрать файлы
-            </Button>
-          ) : null}
+          <button
+            type="button"
+            className={styles.mobileCollapse}
+            aria-label={mobileMediaCollapsed ? 'Развернуть раздел Фото и видео' : 'Свернуть раздел Фото и видео'}
+            aria-expanded={!mobileMediaCollapsed}
+            aria-controls="post-media-content"
+            onClick={() => setMobileMediaCollapsed((collapsed) => !collapsed)}
+          >
+            <Icon name={mobileMediaCollapsed ? 'chevron-down' : 'chevron-up'} size={20} />
+          </button>
           <input
             ref={inputRef}
             className={styles.fileInput}
@@ -820,199 +1119,215 @@ export function PostMediaEditor({
               void selectFiles(event.currentTarget.files, replaceId);
             }}
           />
+          <input
+            ref={cameraInputRef}
+            className={styles.fileInput}
+            type="file"
+            accept="image/jpeg,image/png,image/webp,image/gif,video/mp4"
+            capture="environment"
+            aria-hidden="true"
+            tabIndex={-1}
+            onChange={(event) => void selectFiles(event.currentTarget.files)}
+          />
         </div>
-        {!postId && entries.length === 0 ? (
-          <div className={styles.dropHint}>
-            <strong>Перетащите файлы сюда или выберите источник</strong>
-            <span>Черновик создастся автоматически при первом добавлении медиа.</span>
-          </div>
-        ) : null}
-        {entries.length ? (
-          <>
-            <ol className={styles.list} aria-label="Вложения поста">
-              {entries.length < POST_MEDIA_MAX_ITEMS ? (
-                <li className={styles.addItem}>
-                  <MediaAddTile
-                    label="Добавить файлы"
-                    fluid
-                    isDisabled={disabled || busy}
-                    onPress={() => setSourceOpen(true)}
-                  />
-                </li>
-              ) : null}
-              {entries.map((entry) =>
-                (() => {
-                  const uploadedEntries = entries.filter((item) => item.media);
-                  const uploadedIndex = uploadedEntries.findIndex((item) => item.key === entry.key);
-                  const mediaItem = entry.media;
-                  return (
-                    /* oxlint-disable-next-line jsx-a11y/no-noninteractive-element-interactions -- Native draggable list item also supports the handoff's keyboard lift/move/drop model. */
-                    <li
-                      className={styles.item}
-                      key={entry.key}
-                      data-pending={!mediaItem || undefined}
-                      aria-label={mediaItem ? `${mediaItem.fileName}, позиция ${uploadedIndex + 1}` : undefined}
-                      data-drop-target={keyboardTargetKey === entry.key || undefined}
-                      draggable={Boolean(postId && entry.status === 'uploaded' && !disabled)}
-                      onKeyDown={(event) => handleReorderKeyDown(event, entry)}
-                      onDragStart={() => setDraggedKey(entry.key)}
-                      onDragEnd={() => setDraggedKey(null)}
-                      onDragOver={(event) => {
-                        if (draggedKey && draggedKey !== entry.key) event.preventDefault();
-                      }}
-                      onDrop={(event) => {
-                        event.preventDefault();
-                        const source = entries.find((item) => item.key === draggedKey);
-                        if (source) void moveBefore(source, entry);
-                      }}
-                    >
-                      {entry.previewUrl ? (
-                        entry.file?.type.startsWith('video/') ? (
-                          <video className={styles.preview} src={entry.previewUrl} controls preload="metadata" />
-                        ) : (
-                          <img
-                            className={styles.preview}
-                            src={entry.previewUrl}
-                            alt={`Предпросмотр: ${entry.file?.name ?? 'файл'}`}
+        <div id="post-media-content" className={styles.mediaContent}>
+          {sectionEntries.length ? (
+            <>
+              <ol className={styles.list} aria-label="Вложения поста">
+                {sectionEntryCount < POST_MEDIA_MAX_ITEMS ? (
+                  <li className={styles.addItem}>
+                    <MediaAddTile
+                      label="Добавить файлы"
+                      fluid
+                      isDisabled={disabled || busy}
+                      onPress={() => setSourceOpen(true)}
+                    />
+                  </li>
+                ) : null}
+                {sectionEntries.map((entry) =>
+                  (() => {
+                    const uploadedEntries = entries.filter((item) => item.media);
+                    const uploadedIndex = uploadedEntries.findIndex((item) => item.key === entry.key);
+                    const mediaItem = entry.media;
+                    return (
+                      /* oxlint-disable-next-line jsx-a11y/no-noninteractive-element-interactions -- Native draggable list item also supports the handoff's keyboard lift/move/drop model. */
+                      <li
+                        className={styles.item}
+                        key={entry.key}
+                        data-pending={!mediaItem || undefined}
+                        aria-label={mediaItem ? `${mediaItem.fileName}, позиция ${uploadedIndex + 1}` : undefined}
+                        data-drop-target={keyboardTargetKey === entry.key || undefined}
+                        draggable={Boolean(postId && entry.status === 'uploaded' && !disabled)}
+                        onKeyDown={(event) => handleReorderKeyDown(event, entry)}
+                        onDragStart={() => setDraggedKey(entry.key)}
+                        onDragEnd={() => setDraggedKey(null)}
+                        onDragOver={(event) => {
+                          if (draggedKey && draggedKey !== entry.key) event.preventDefault();
+                        }}
+                        onDrop={(event) => {
+                          event.preventDefault();
+                          const source = entries.find((item) => item.key === draggedKey);
+                          if (source) void moveBefore(source, entry);
+                        }}
+                      >
+                        {entry.previewUrl ? (
+                          entry.file?.type.startsWith('video/') ? (
+                            <video className={styles.preview} src={entry.previewUrl} controls preload="metadata" />
+                          ) : (
+                            <img
+                              className={styles.preview}
+                              src={entry.previewUrl}
+                              alt={`Предпросмотр: ${entry.file?.name ?? 'файл'}`}
+                            />
+                          )
+                        ) : entry.media ? (
+                          <ServerPreview
+                            media={entry.media}
+                            gridTile
+                            fluid
+                            onOpen={() => setExpandedMedia(entry.media ?? null)}
+                            onRemove={() => void remove(entry)}
+                            isDisabled={busy || disabled}
+                            handle={
+                              postId && entry.status === 'uploaded' ? (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  icon="grip"
+                                  aria-label={`Переставить ${entry.media.fileName}`}
+                                  aria-keyshortcuts="Space ArrowUp ArrowDown Escape"
+                                  isDisabled={disabled || busy}
+                                  onPress={() => handleReorderPress(entry)}
+                                />
+                              ) : undefined
+                            }
                           />
-                        )
-                      ) : entry.media ? (
-                        <ServerPreview
-                          media={entry.media}
-                          gridTile
-                          fluid
-                          onOpen={() => setExpandedMedia(entry.media ?? null)}
-                          onRemove={() => void remove(entry)}
-                          isDisabled={busy || disabled}
-                          handle={
-                            postId && entry.status === 'uploaded' ? (
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                icon="grip"
-                                aria-label={`Переставить ${entry.media.fileName}`}
-                                aria-keyshortcuts="Space ArrowUp ArrowDown Escape"
-                                isDisabled={disabled || busy}
-                                onPress={() => handleReorderPress(entry)}
-                              />
-                            ) : undefined
-                          }
-                        />
-                      ) : null}
-                      <div className={`${styles.details} ${mediaItem && !entry.actionError ? styles.tileDetails : ''}`}>
-                        <strong>{entry.file?.name ?? entry.media?.fileName}</strong>
-                        <span>
-                          {entry.media?.kind === 'video' || entry.file?.type.startsWith('video/')
-                            ? 'Видео'
-                            : entry.media?.kind === 'animation' || entry.file?.type === 'image/gif'
-                              ? 'GIF'
-                              : 'Фото'}
-                          {' · '}
-                          {((entry.file?.size ?? entry.media?.sizeBytes ?? 0) / 1_000_000).toFixed(1)} МБ
-                          {entry.media?.durationMs ? ` · ${Math.round(entry.media.durationMs / 1000)} с` : ''}
-                        </span>
-                        {entry.status === 'local' ? <span>{entry.error ?? 'Выбрано · ещё не загружено'}</span> : null}
-                        {/* oxlint-disable-next-line jsx-a11y/prefer-tag-over-role -- This status is intentionally a concise live announcement. */}
-                        {entry.actionError ? (
-                          <span className={styles.error} role="alert">
-                            {entry.actionError}
-                          </span>
                         ) : null}
-                        {entry.actionError ? (
+                        <div
+                          className={`${styles.details} ${mediaItem && !entry.actionError ? styles.tileDetails : ''}`}
+                        >
+                          <strong>{entry.file?.name ?? entry.media?.fileName}</strong>
+                          <span>
+                            {entry.media?.kind === 'video' || entry.file?.type.startsWith('video/')
+                              ? 'Видео'
+                              : entry.media?.kind === 'animation' || entry.file?.type === 'image/gif'
+                                ? 'GIF'
+                                : 'Фото'}
+                            {' · '}
+                            {((entry.file?.size ?? entry.media?.sizeBytes ?? 0) / 1_000_000).toFixed(1)} МБ
+                            {entry.media?.durationMs ? ` · ${Math.round(entry.media.durationMs / 1000)} с` : ''}
+                          </span>
+                          {entry.status === 'local' ? <span>{entry.error ?? 'Выбрано · ещё не загружено'}</span> : null}
+                          {/* oxlint-disable-next-line jsx-a11y/prefer-tag-over-role -- This status is intentionally a concise live announcement. */}
+                          {entry.actionError ? (
+                            <span className={styles.error} role="alert">
+                              {entry.actionError}
+                            </span>
+                          ) : null}
+                          {entry.actionError ? (
+                            <Button
+                              variant="secondary"
+                              size="sm"
+                              isDisabled={disabled || busy}
+                              onPress={() => void remove(entry)}
+                            >
+                              Повторить удаление
+                            </Button>
+                          ) : null}
+                          {entry.status === 'uploading' ? (
+                            <span role="status">Загрузка: {entry.progress ?? 0}%</span>
+                          ) : null}
+                          {entry.status === 'failed' ? <span className={styles.error}>{entry.error}</span> : null}
+                          {entry.status === 'uploaded' ? <span>Загружено на сервер</span> : null}
+                          {entry.status === 'uploading' ? (
+                            <progress
+                              aria-label={`Загрузка ${entry.file?.name ?? ''}`}
+                              max={100}
+                              value={entry.progress ?? 0}
+                            />
+                          ) : null}
+                          {entry.status === 'failed' ? (
+                            <Button variant="secondary" size="sm" onPress={() => void upload(entry)}>
+                              Повторить
+                            </Button>
+                          ) : null}
+                          {entry.status === 'local' ? (
+                            <Button variant="secondary" size="sm" onPress={() => void upload(entry)}>
+                              Загрузить
+                            </Button>
+                          ) : null}
+                        </div>
+                        {!mediaItem ? (
                           <Button
-                            variant="secondary"
+                            variant="ghost"
                             size="sm"
-                            isDisabled={disabled || busy}
+                            aria-label={`Убрать ${entry.file?.name ?? 'файл'}`}
+                            isDisabled={busy || disabled}
                             onPress={() => void remove(entry)}
                           >
-                            Повторить удаление
+                            Убрать
                           </Button>
                         ) : null}
-                        {entry.status === 'uploading' ? (
-                          <span role="status">Загрузка: {entry.progress ?? 0}%</span>
-                        ) : null}
-                        {entry.status === 'failed' ? <span className={styles.error}>{entry.error}</span> : null}
-                        {entry.status === 'uploaded' ? <span>Загружено на сервер</span> : null}
-                        {entry.status === 'uploading' ? (
-                          <progress
-                            aria-label={`Загрузка ${entry.file?.name ?? ''}`}
-                            max={100}
-                            value={entry.progress ?? 0}
-                          />
-                        ) : null}
-                        {entry.status === 'failed' ? (
-                          <Button variant="secondary" size="sm" onPress={() => void upload(entry)}>
-                            Повторить
-                          </Button>
-                        ) : null}
-                        {entry.status === 'local' ? (
-                          <Button variant="secondary" size="sm" onPress={() => void upload(entry)}>
-                            Загрузить
-                          </Button>
-                        ) : null}
-                      </div>
-                      {!mediaItem ? (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          aria-label={`Убрать ${entry.file?.name ?? 'файл'}`}
-                          isDisabled={busy || disabled}
-                          onPress={() => void remove(entry)}
-                        >
-                          Убрать
-                        </Button>
-                      ) : null}
-                    </li>
-                  );
-                })()
-              )}
-            </ol>
-            <span className={styles.srOnly} role="status" aria-live="polite">
-              {reorderAnnouncement}
-            </span>
-            {entries.length >= POST_MEDIA_MAX_ITEMS ? <p className={styles.hint}>{replaceAtLimitNotice}</p> : null}
-          </>
-        ) : (
-          <p className={styles.hint}>
-            После выбора файлы появятся здесь. Они попадут в черновик только после подтверждения загрузки.
-          </p>
-        )}
-        {busy && cancelController ? (
-          <Button
-            variant="ghost"
-            size="sm"
-            onPress={() => {
-              cancelQueueRef.current = true;
-              cancelController.abort();
-            }}
-          >
-            Отменить загрузку
-          </Button>
-        ) : null}
-        {notice ? (
-          <p className={styles.error} role="alert">
-            {notice}
-          </p>
-        ) : null}
-        {/* oxlint-disable-next-line jsx-a11y/prefer-tag-over-role -- The pending approval explanation is a live status. */}
-        {pending ? (
-          <p className={styles.hint} role="status">
-            Завершите загрузку или уберите файл — до этого пост нельзя одобрить.
-          </p>
-        ) : null}
+                      </li>
+                    );
+                  })()
+                )}
+              </ol>
+              <span className={styles.srOnly} role="status" aria-live="polite">
+                {reorderAnnouncement}
+              </span>
+              {sectionEntryCount >= POST_MEDIA_MAX_ITEMS ? <p className={styles.hint}>{replaceAtLimitNotice}</p> : null}
+            </>
+          ) : (
+            <div className={styles.emptyDropzone}>
+              <span className={styles.emptyDropzoneIcon} aria-hidden="true">
+                <Icon name="image-plus" size={28} />
+              </span>
+              <strong>Добавьте фото или видео</strong>
+              <span>Поделитесь яркими моментами вашего путешествия</span>
+              <Button
+                variant="primary"
+                size="sm"
+                icon="plus"
+                isDisabled={disabled || busy}
+                onPress={() => setSourceOpen(true)}
+              >
+                Добавить медиа
+              </Button>
+            </div>
+          )}
+          {busy && cancelController ? (
+            <Button
+              variant="ghost"
+              size="sm"
+              onPress={() => {
+                cancelQueueRef.current = true;
+                cancelController.abort();
+              }}
+            >
+              Отменить загрузку
+            </Button>
+          ) : null}
+          {notice ? (
+            <p className={styles.error} role="alert">
+              {notice}
+            </p>
+          ) : null}
+          {/* oxlint-disable-next-line jsx-a11y/prefer-tag-over-role -- The pending approval explanation is a live status. */}
+          {pending ? (
+            <p className={styles.hint} role="status">
+              Завершите загрузку или уберите файл — до этого пост нельзя одобрить.
+            </p>
+          ) : null}
+        </div>
       </section>
       <Dialog
         isOpen={cropMedia !== null}
         onOpenChange={(open) => {
           if (!open && !cropBusy) setCropMedia(null);
         }}
-        title="Кадрирование фото"
-        description={
-          cropMedia?.sourceMediaId
-            ? 'Редактируется исходное фото. Библиотечный оригинал останется без изменений.'
-            : 'Изменения применяются как отдельное фото; исходный файл останется в медиабиблиотеке.'
-        }
-        size="wide"
+        title={narrow ? 'Кадрирование' : 'Кадрирование фото'}
+        size="media"
         footer={
           <>
             <Button variant="secondary" isDisabled={cropBusy} onPress={() => setCropMedia(null)}>
@@ -1029,15 +1344,34 @@ export function PostMediaEditor({
             </Button>
             <Button
               variant="primary"
+              icon="file"
               isLoading={cropBusy}
-              isDisabled={!cropUrl || Boolean(cropError)}
+              isDisabled={!cropUrl || disabled}
               onPress={() => void applyCrop()}
             >
-              Готово
+              Сохранить
             </Button>
           </>
         }
       >
+        <span className={styles.cropDialogMarker} aria-hidden="true" />
+        {narrow ? (
+          <div className={styles.cropMobileHeader}>
+            <Button variant="ghost" size="md" icon="chevron-left" onPress={() => setCropMedia(null)}>
+              Назад
+            </Button>
+            <strong>Кадрирование</strong>
+            <Button
+              variant="primary"
+              size="md"
+              isLoading={cropBusy}
+              isDisabled={!cropUrl || disabled || busy}
+              onPress={() => void applyCrop()}
+            >
+              Готово
+            </Button>
+          </div>
+        ) : null}
         {cropError ? (
           <p className={styles.error} role="alert">
             {cropError}
@@ -1046,38 +1380,84 @@ export function PostMediaEditor({
         {cropUrl && cropNaturalSize ? (
           <span className={styles.srOnly} role="img" aria-label="Предпросмотр кадрирования" />
         ) : null}
-        {cropUrl && cropNaturalSize ? (
-          <CropCanvas
-            src={cropUrl}
-            imageAspect={
-              cropModel.rotation % 180 === 0
-                ? cropNaturalSize.width / cropNaturalSize.height
-                : cropNaturalSize.height / cropNaturalSize.width
-            }
-            frame={cropModel.frame}
-            onFrameChange={(frame) => setCropModel((model) => ({ ...model, frame: clampCropFrame(frame, model.zoom) }))}
-            lockedRatio={CROP_RATIOS[cropModel.ratio]}
-            zoom={cropModel.zoom}
-            rotation={cropModel.rotation}
-            handle={narrow ? 'bracket' : 'square'}
-            grid="dashed"
-            labels={{
-              region: 'Область кадрирования',
-              corners: {
-                'top-left': 'Левый верхний угол кадрирования',
-                'top-right': 'Правый верхний угол кадрирования',
-                'bottom-left': 'Левый нижний угол кадрирования',
-                'bottom-right': 'Правый нижний угол кадрирования'
-              }
-            }}
-          />
-        ) : (
-          <p role="status">Загружаем оригинал фото…</p>
-        )}
+        <div className={styles.cropWorkspace}>
+          {cropUrl && cropNaturalSize ? (
+            <div className={styles.cropStage}>
+              <CropCanvas
+                src={cropUrl}
+                imageAspect={
+                  cropModel.rotation % 180 === 0
+                    ? cropNaturalSize.width / cropNaturalSize.height
+                    : cropNaturalSize.height / cropNaturalSize.width
+                }
+                frame={cropModel.frame}
+                onFrameChange={(frame) =>
+                  setCropModel((model) => ({ ...model, frame: clampCropFrame(frame, model.zoom) }))
+                }
+                lockedRatio={CROP_RATIOS[cropModel.ratio]}
+                zoom={cropModel.zoom}
+                rotation={cropModel.rotation}
+                handle={narrow ? 'bracket' : 'square'}
+                grid="dashed"
+                height={narrow ? 'min(50dvh, 25rem)' : 'clamp(280px, 52vh, 420px)'}
+                labels={{
+                  region: 'Область кадрирования',
+                  corners: {
+                    'top-left': 'Левый верхний угол кадрирования',
+                    'top-right': 'Правый верхний угол кадрирования',
+                    'bottom-left': 'Левый нижний угол кадрирования',
+                    'bottom-right': 'Правый нижний угол кадрирования'
+                  }
+                }}
+              />
+            </div>
+          ) : (
+            <p role="status">Загружаем оригинал фото…</p>
+          )}
+          {!narrow && cropUrl && cropNaturalSize ? (
+            <div className={styles.cropPreviewPane}>
+              <Panel title="Предпросмотр" headingLevel={3}>
+                <div className={styles.cropPreviewContent}>
+                  <div
+                    className={styles.cropPreviewImage}
+                    style={{
+                      aspectRatio: String(
+                        CROP_RATIOS[cropModel.ratio] ?? cropNaturalSize.width / cropNaturalSize.height
+                      )
+                    }}
+                  >
+                    <img
+                      src={cropUrl}
+                      alt=""
+                      style={{
+                        objectPosition: `${(cropModel.frame.x + cropModel.frame.w / 2) * 100}% ${(cropModel.frame.y + cropModel.frame.h / 2) * 100}%`,
+                        transform: `rotate(${cropModel.rotation}deg) scale(${cropModel.zoom})`
+                      }}
+                    />
+                  </div>
+                  <Switch
+                    isSelected={cropCover}
+                    isDisabled={cropBusy || busy || disabled}
+                    onChange={(selected) => void setCropAsCover(selected)}
+                  >
+                    Использовать как обложку
+                  </Switch>
+                  <p className={styles.cropPreviewHint}>Это фото будет отображаться в предпросмотре поста.</p>
+                  <p className={styles.cropPreviewHint}>
+                    Фото станет первым в посте. Telegram не задаёт отдельную обложку.
+                  </p>
+                </div>
+              </Panel>
+            </div>
+          ) : null}
+        </div>
         <RatioTileGroup
           label="Соотношение сторон"
           value={cropModel.ratio}
-          options={cropRatios.map((option) => ({ ...option }))}
+          options={cropRatios.map((option) => ({
+            ...option,
+            label: narrow && option.id === 'original' ? 'Ориг.' : option.label
+          }))}
           onChange={(value) => {
             const ratio = value as CropRatio;
             const natural = cropNaturalSize;
@@ -1089,67 +1469,313 @@ export function PostMediaEditor({
             setCropModel((model) => ({ ...model, ratio, frame: cropFrameForRatio(ratio, aspect) }));
           }}
         />
-        <Slider
-          label="Масштаб"
-          value={cropModel.zoom}
-          onChange={(zoom) => setCropModel((model) => ({ ...model, zoom, frame: clampCropFrame(model.frame, zoom) }))}
-          min={0.5}
-          max={2}
-          step={0.05}
-          stepperStep={0.1}
-          decrementLabel="Уменьшить масштаб"
-          incrementLabel="Увеличить масштаб"
-          valueFormat={{ style: 'percent' }}
-        />
-        <Button
-          variant="secondary"
-          isDisabled={cropBusy}
-          onPress={() => {
-            const rotation = ((cropModel.rotation + 90) % 360) as CropModel['rotation'];
-            const natural = cropNaturalSize;
-            const aspect = natural
-              ? rotation % 180 === 0
-                ? natural.width / natural.height
-                : natural.height / natural.width
-              : 4 / 3;
-            setCropModel((model) => ({ ...model, rotation, frame: cropFrameForRatio(model.ratio, aspect) }));
-          }}
-        >
-          Повернуть на 90°
-        </Button>
+        <div className={styles.cropControlRow}>
+          <Slider
+            label="Масштаб"
+            value={cropModel.zoom}
+            onChange={(zoom) => setCropModel((model) => ({ ...model, zoom, frame: clampCropFrame(model.frame, zoom) }))}
+            min={1}
+            max={4}
+            step={0.05}
+            stepperStep={0.25}
+            stepperStyle={narrow ? 'plain' : 'round'}
+            pill={narrow}
+            decrementLabel="Уменьшить масштаб"
+            incrementLabel="Увеличить масштаб"
+            valueFormat={{ style: 'percent' }}
+          />
+          <div className={styles.cropRotate}>
+            <div className={styles.cropRotateHeading}>
+              <span>Повернуть</span>
+              {!narrow ? <span aria-live="polite">{cropModel.rotation}°</span> : null}
+              {narrow ? (
+                <Button variant="ghost" size="sm" onPress={() => setCropModel(defaultCropModel())}>
+                  Сбросить
+                </Button>
+              ) : null}
+            </div>
+            <div className={styles.cropRotateButtons}>
+              <IconButton
+                label="Повернуть влево"
+                icon="rotate-left"
+                variant="secondary"
+                size="target"
+                isDisabled={cropBusy}
+                onPress={() => rotateCrop(-90)}
+              />
+              <IconButton
+                label="Повернуть вправо"
+                icon="rotate-right"
+                variant="secondary"
+                size="target"
+                isDisabled={cropBusy}
+                onPress={() => rotateCrop(90)}
+              />
+            </div>
+          </div>
+        </div>
+        {narrow ? (
+          <div className={styles.cropCover}>
+            <Switch
+              variant="row"
+              isSelected={cropCover}
+              isDisabled={cropBusy || busy || disabled}
+              onChange={(selected) => void setCropAsCover(selected)}
+              leading={cropUrl ? <img className={styles.cropCoverThumb} src={cropUrl} alt="" /> : undefined}
+              description="Эта фотография будет показываться в превью публикации."
+            >
+              Использовать как обложку
+            </Switch>
+            <p>Фото станет первым в посте. Telegram не задаёт отдельную обложку.</p>
+          </div>
+        ) : null}
       </Dialog>
       <Dialog
-        isOpen={sourceOpen}
-        onOpenChange={setSourceOpen}
-        title="Добавить медиа"
-        description="Выберите, откуда добавить фотографии или видео."
+        isOpen={sourceOpen && !narrow}
+        onOpenChange={(open) => (open ? setSourceOpen(true) : requestSourceClose())}
+        title="Добавление медиа"
+        description="Выберите файлы с устройства или из сохранённых медиа."
+        size="media"
         footer={
-          <Button variant="secondary" onPress={() => setSourceOpen(false)}>
-            Отмена
-          </Button>
+          confirmDiscardQueue ? (
+            <div className={styles.discardPrompt} role="alertdialog" aria-label="Удалить выбранные файлы?">
+              <span>
+                Отменить выбор {queuedEntries.length} {queuedEntries.length === 1 ? 'файла' : 'файлов'}?
+              </span>
+              <Button variant="secondary" onPress={() => setConfirmDiscardQueue(false)}>
+                Продолжить выбор
+              </Button>
+              <Button variant="primary" onPress={discardQueuedFiles}>
+                Отменить и удалить очередь
+              </Button>
+            </div>
+          ) : (
+            <>
+              <Button variant="secondary" onPress={requestSourceClose}>
+                Отмена
+              </Button>
+              {sourceTab === 'device' ? (
+                <Button
+                  variant="primary"
+                  isLoading={busy}
+                  isDisabled={readyQueueCount === 0 || disabled}
+                  onPress={() => void uploadSelected()}
+                >
+                  Добавить в пост{readyQueueCount > 0 ? ` (${readyQueueCount})` : ''}
+                </Button>
+              ) : (
+                <Button
+                  variant="primary"
+                  isLoading={libraryBusy}
+                  isDisabled={librarySelection.length === 0 || disabled}
+                  onPress={() => void attachSelected()}
+                >
+                  Добавить в пост{librarySelection.length > 0 ? ` (${librarySelection.length})` : ''}
+                </Button>
+              )}
+            </>
+          )
         }
       >
-        <div className={styles.sourceSheet}>
-          <Button
-            variant="primary"
-            onPress={() => {
-              setSourceOpen(false);
-              inputRef.current?.click();
+        <span className={styles.sourceDialogMarker} aria-hidden="true" />
+        {confirmDiscardQueue ? null : (
+          <Tabs
+            variant="card"
+            selectedKey={sourceTab}
+            onSelectionChange={(key) => {
+              if (key === 'device') setSourceTab('device');
+              if (key === 'library' || key === 'recent') {
+                setSourceTab(key);
+                if (libraryItems.length === 0 || libraryKind !== 'all') {
+                  setLibraryItems([]);
+                  setLibraryCursor(null);
+                  setLibrarySelection([]);
+                  void openLibrary('all', undefined, key);
+                }
+              }
             }}
           >
-            Выбрать с устройства
-          </Button>
-          <Button
-            variant="secondary"
-            onPress={() => {
-              setSourceOpen(false);
-              void openLibrary();
-            }}
-          >
-            Открыть медиабиблиотеку
-          </Button>
-        </div>
+            <TabList aria-label="Источник медиа">
+              <Tab id="device" icon="laptop" hint="Загрузите файлы с устройства">
+                С компьютера
+              </Tab>
+              <Tab id="library" icon="folder" hint="Ваши сохранённые файлы">
+                Медиабиблиотека
+              </Tab>
+              <Tab id="recent" icon="clock" hint="Ранее загруженные файлы">
+                Недавние
+              </Tab>
+            </TabList>
+            <TabPanel id="device">
+              <div className={styles.deviceSource}>
+                <Dropzone
+                  title="Перетащите фото и видео сюда"
+                  subtitle="или выберите файлы на устройстве"
+                  dropLabel="Отпустите файлы"
+                  actionLabel="Выбрать файлы"
+                  actionIcon="upload"
+                  actionSize="lg"
+                  size="lg"
+                  accept={['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'video/mp4']}
+                  onFiles={(files) => void selectFiles(files)}
+                  isDisabled={busy || disabled}
+                >
+                  Фото — JPG, PNG, WebP до 10 МБ; GIF и видео MP4 — до 50 МБ. В посте до 10 файлов.
+                </Dropzone>
+                {queuedEntries.length > 0 ? (
+                  <div className={styles.queue}>
+                    <div className={styles.queueHeading}>
+                      <strong>Выбранные файлы ({queuedEntries.length})</strong>
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        isDisabled={busy}
+                        onPress={() => {
+                          for (const entry of queuedEntries)
+                            if (entry.previewUrl) URL.revokeObjectURL(entry.previewUrl);
+                          setEntries((current) => current.filter((entry) => entry.media));
+                        }}
+                      >
+                        Очистить всё
+                      </Button>
+                    </div>
+                    {queuedEntries.map((entry) => renderQueueRow(entry))}
+                    {busy && cancelController ? (
+                      <Button
+                        variant="secondary"
+                        onPress={() => {
+                          cancelQueueRef.current = true;
+                          cancelController.abort();
+                        }}
+                      >
+                        Отменить загрузку
+                      </Button>
+                    ) : null}
+                  </div>
+                ) : null}
+              </div>
+            </TabPanel>
+            <TabPanel id="library">{libraryPanel}</TabPanel>
+            <TabPanel id="recent">{libraryPanel}</TabPanel>
+          </Tabs>
+        )}
+        {notice ? (
+          <p className={styles.error} role="alert">
+            {notice}
+          </p>
+        ) : null}
+        {librarySelection.length > 0 && sourceTab !== 'device' ? (
+          <p className={styles.hint}>Выбрано файлов: {librarySelection.length}</p>
+        ) : null}
       </Dialog>
+      <BottomSheet
+        isOpen={sourceOpen && narrow}
+        onOpenChange={(open) => (open ? setSourceOpen(true) : requestSourceClose())}
+        title="Добавить фото и видео"
+        footer={
+          confirmDiscardQueue ? (
+            <div className={styles.discardPrompt} role="alertdialog" aria-label="Удалить выбранные файлы?">
+              <span>
+                Отменить выбор {queuedEntries.length} {queuedEntries.length === 1 ? 'файла' : 'файлов'}?
+              </span>
+              <Button variant="secondary" onPress={() => setConfirmDiscardQueue(false)}>
+                Продолжить выбор
+              </Button>
+              <Button variant="primary" onPress={discardQueuedFiles}>
+                Отменить и удалить очередь
+              </Button>
+            </div>
+          ) : (
+            <div className={styles.mobileFooter}>
+              <Button variant="secondary" onPress={requestSourceClose}>
+                Отмена
+              </Button>
+              {sourceTab === 'device' ? (
+                <Button
+                  variant="primary"
+                  isLoading={busy}
+                  isDisabled={readyQueueCount === 0 || disabled}
+                  onPress={() => void uploadSelected()}
+                >
+                  Добавить в пост{readyQueueCount > 0 ? ` (${readyQueueCount})` : ''}
+                </Button>
+              ) : (
+                <Button
+                  variant="primary"
+                  isLoading={libraryBusy}
+                  isDisabled={librarySelection.length === 0 || disabled}
+                  onPress={() => void attachSelected()}
+                >
+                  Добавить в пост{librarySelection.length > 0 ? ` (${librarySelection.length})` : ''}
+                </Button>
+              )}
+            </div>
+          )
+        }
+      >
+        {confirmDiscardQueue ? null : sourceTab === 'device' ? (
+          <div className={styles.mobileSource}>
+            <ActionRow
+              icon="camera"
+              title="Снять фото"
+              hint="Откроется камера устройства"
+              onPress={() => cameraInputRef.current?.click()}
+              isDisabled={busy || disabled}
+            />
+            <ActionRow
+              icon="image"
+              title="Выбрать из галереи"
+              hint="Фото и видео с устройства"
+              onPress={() => inputRef.current?.click()}
+              isDisabled={busy || disabled}
+            />
+            <ActionRow
+              icon="folder"
+              title="Открыть медиабиблиотеку"
+              hint="Ваши сохранённые файлы"
+              onPress={() => void openLibrary('all', undefined, 'library')}
+              isDisabled={busy || disabled}
+            />
+            {queuedEntries.length > 0 ? (
+              <div className={styles.uploadQueue}>
+                <div className={styles.queueHeading}>
+                  <strong>Выбранные файлы ({queuedEntries.length})</strong>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    isDisabled={busy}
+                    onPress={() => {
+                      for (const entry of queuedEntries) if (entry.previewUrl) URL.revokeObjectURL(entry.previewUrl);
+                      setEntries((current) => current.filter((entry) => entry.media));
+                    }}
+                  >
+                    Очистить всё
+                  </Button>
+                </div>
+                {queuedEntries.map(renderQueueRow)}
+                {busy && cancelController ? (
+                  <Button
+                    variant="secondary"
+                    onPress={() => {
+                      cancelQueueRef.current = true;
+                      cancelController.abort();
+                    }}
+                  >
+                    Отменить загрузку
+                  </Button>
+                ) : null}
+              </div>
+            ) : null}
+          </div>
+        ) : (
+          <div className={styles.mobileSource}>
+            <Button variant="secondary" onPress={() => setSourceTab('device')}>
+              Назад к источникам
+            </Button>
+            {libraryPanel}
+          </div>
+        )}
+      </BottomSheet>
       <Dialog
         isOpen={expandedMedia !== null}
         onOpenChange={(open) => {
@@ -1186,91 +1812,6 @@ export function PostMediaEditor({
         }
       >
         {expandedMedia ? <ServerPreview media={expandedMedia} large /> : null}
-      </Dialog>
-      <Dialog
-        isOpen={libraryOpen}
-        onOpenChange={setLibraryOpen}
-        title="Медиабиблиотека"
-        description="Выберите один или несколько файлов, чтобы добавить их в публикацию без повторной загрузки."
-        size="wide"
-        footer={
-          <>
-            <Button variant="secondary" onPress={() => setLibraryOpen(false)}>
-              Отмена
-            </Button>
-            <Button
-              variant="primary"
-              isLoading={libraryBusy}
-              isDisabled={librarySelection.length === 0}
-              onPress={() => void attachSelected()}
-            >
-              Добавить выбранные ({librarySelection.length})
-            </Button>
-          </>
-        }
-      >
-        <div className={styles.library}>
-          <Select
-            label="Тип файла"
-            value={libraryKind}
-            options={[
-              { id: 'all', label: 'Все' },
-              { id: 'photo', label: 'Фото' },
-              { id: 'video', label: 'Видео' }
-            ]}
-            onChange={(value) => {
-              if (value === 'all' || value === 'photo' || value === 'video') {
-                setLibraryItems([]);
-                setLibraryCursor(null);
-                setLibrarySelection([]);
-                void openLibrary(value);
-              }
-            }}
-          />
-          {libraryError ? (
-            <div>
-              <p className={styles.error} role="alert">
-                {libraryError}
-              </p>
-              <Button variant="secondary" onPress={() => void openLibrary(libraryKind)}>
-                Повторить
-              </Button>
-            </div>
-          ) : null}
-          {libraryBusy && libraryItems.length === 0 ? <p role="status">Загружаем медиабиблиотеку…</p> : null}
-          {!libraryBusy && libraryItems.length === 0 && !libraryError ? (
-            <p>В медиабиблиотеке пока нет файлов.</p>
-          ) : null}
-          <ul className={styles.libraryList}>
-            {libraryItems.map((item) => (
-              <li key={item.id}>
-                <label>
-                  <input
-                    type="checkbox"
-                    checked={librarySelection.includes(item.id)}
-                    onChange={(event) =>
-                      setLibrarySelection((current) =>
-                        event.target.checked ? [...current, item.id] : current.filter((id) => id !== item.id)
-                      )
-                    }
-                  />
-                  <span>
-                    {item.kind === 'video' ? 'Видео' : item.kind === 'animation' ? 'GIF' : 'Фото'} · {item.fileName}
-                  </span>
-                </label>
-              </li>
-            ))}
-          </ul>
-          {libraryCursor ? (
-            <Button
-              variant="secondary"
-              isLoading={libraryBusy}
-              onPress={() => void openLibrary(libraryKind, libraryCursor)}
-            >
-              Показать ещё
-            </Button>
-          ) : null}
-        </div>
       </Dialog>
     </>
   );

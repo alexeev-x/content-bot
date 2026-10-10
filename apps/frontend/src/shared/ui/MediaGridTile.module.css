@@ -51,10 +51,10 @@
   outline-offset: var(--focus-ring-offset);
 }
 .tile[data-removable] .previewAction {
-  inset-block-start: var(--media-tile-corner-target);
+  clip-path: inset(var(--media-tile-corner-target) 0 0);
 }
 .tile[data-has-handle] .previewAction {
-  inset-block-start: var(--media-tile-corner-target);
+  clip-path: inset(var(--media-tile-corner-target) 0 0);
 }
 .surface[data-disabled] {
   cursor: default;

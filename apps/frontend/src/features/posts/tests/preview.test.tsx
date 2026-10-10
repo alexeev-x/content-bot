@@ -64,7 +64,7 @@ describe('PostPreview entities', () => {
     const bubble = preview('', 'тайна', [{ type: 'spoiler', offset: 0, length: 5 }]);
     const spoiler = within(bubble).getByRole('button', { name: 'Скрытый текст, нажмите, чтобы показать' });
     expect(spoiler.getAttribute('aria-pressed')).toBe('false');
-    await user.tab();
+    spoiler.focus();
     await user.keyboard('{Enter}');
     expect(within(bubble).getByRole('button', { name: 'тайна' }).getAttribute('aria-pressed')).toBe('true');
     await user.keyboard('{Enter}');

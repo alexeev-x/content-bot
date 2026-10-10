@@ -16,6 +16,12 @@ beforeEach(() => {
   setSession(accessToken());
   setViewport(1280);
   server.use(
+    http.get('*/api/v1/settings/dashboard-layout', () =>
+      HttpResponse.json({
+        revision: 1,
+        widgets: [{ id: 'quick-actions', type: 'quick-actions', x: 0, y: 0, w: 12, h: 2 }]
+      })
+    ),
     http.get('*/api/v1/dashboard', () => HttpResponse.json(dashboard())),
     http.get('*/api/v1/health', () =>
       HttpResponse.json({

@@ -36,6 +36,8 @@ export type PageBindings = {
 
 type Props = PageBindings & {
   widgets: readonly DashboardWidget[];
+  /** True only while no saved owner layout exists. */
+  defaultOverview?: boolean;
   /** Starts editing with the default layout / with the catalog open; absent while no revision is known. */
   onResetLayout?: () => void;
   onAddWidget?: () => void;
@@ -46,6 +48,7 @@ type Props = PageBindings & {
 /** The view mode: the saved widgets, with the day summary read once for all the widgets that need it. */
 export function Dashboard({
   widgets,
+  defaultOverview = false,
   query,
   checks,
   services,
@@ -109,6 +112,7 @@ export function Dashboard({
     <>
       <DashboardLayout
         widgets={visible}
+        defaultOverview={defaultOverview}
         loading={wantsDay && query.isPending}
         banner={banner}
         zoneNote={zoneNote}

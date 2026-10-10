@@ -64,6 +64,17 @@
   }
 }
 
+/* At narrow phone widths, keep the shell tools beside the title and move actions below them. */
+@media (max-width: 400px) {
+  .header {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  .actions {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+}
+
 .titleRow {
   display: flex;
   flex-wrap: wrap;

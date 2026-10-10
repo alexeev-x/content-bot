@@ -110,13 +110,10 @@ describe('phone order', () => {
     expect(sequence(DEFAULT_WIDGETS).map((item) => item.id)).toEqual([
       'kpi-summary',
       'attention',
-      'system',
       'today',
       'upcoming',
       'recent',
-      'drafts',
-      'week',
-      'quick-actions'
+      'system'
     ]);
   });
 

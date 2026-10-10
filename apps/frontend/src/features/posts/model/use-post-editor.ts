@@ -194,7 +194,8 @@ export function usePostEditor({ post, onCreated, rootRef, dirtyRef, mediaWriteLo
   /** Creates a visible, editable-title draft when the first media is chosen; never sends it to Telegram. */
   async function ensureDraftForMedia(): Promise<PostDto | null> {
     if (baseline) return baseline;
-    if (isBusy || readOnly || conflict !== null || !mediaWriteLock.tryAcquire()) return null;
+    // A queued local file marks media pending before confirmation; that state must not block its own draft creation.
+    if (isSaving || isApproving || readOnly || conflict !== null || !mediaWriteLock.tryAcquire()) return null;
     try {
       const submitted = form.getValues();
       const title = submitted.title.trim() || makeDefaultTitle();
@@ -258,6 +259,14 @@ export function usePostEditor({ post, onCreated, rootRef, dirtyRef, mediaWriteLo
     baselineRef.current = next;
     setBaseline(next);
     queryClient.setQueryData(postQueryOptions(next.id).queryKey, next);
+  }
+
+  /** Media-only changes are server-confirmed before their new-post redirect; retain any text typed meanwhile. */
+  function syncLeaveGuardAfterMediaSave(): void {
+    const current = form.getValues();
+    const saved = valuesOf(baselineRef.current);
+    dirtyRef.current =
+      current.title !== saved.title || current.body !== saved.body || !sameEntities(current.entities, saved.entities);
   }
 
   function retryServerVersion(): void {
@@ -332,6 +341,7 @@ export function usePostEditor({ post, onCreated, rootRef, dirtyRef, mediaWriteLo
     overwrite,
     acceptServer,
     retryServerVersion,
-    markMediaConflict
+    markMediaConflict,
+    syncLeaveGuardAfterMediaSave
   };
 }

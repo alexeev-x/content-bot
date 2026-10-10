@@ -121,8 +121,8 @@ describe('dashboard blocks', () => {
       })
     );
     await renderPage(<DashboardPage />);
-    // The default layout has eight panels with a data-area: the five former ones plus drafts, week and quick actions.
-    await waitFor(() => expect(document.querySelectorAll('[data-area]').length).toBe(8));
+    // The current default layout has five data panels; KPI summary is not a data-area panel.
+    await waitFor(() => expect(document.querySelectorAll('[data-area]').length).toBe(5));
     const loading = reserved();
     expect(Object.values(loading).every((rows) => Number(rows) > 0)).toBe(true);
     // Every panel draws its skeleton rows while loading.
@@ -299,6 +299,14 @@ describe('dashboard blocks', () => {
   });
 
   it('links to Telegram only for a sent publication that has a public message url', async () => {
+    server.use(
+      http.get('*/api/v1/settings/dashboard-layout', () =>
+        HttpResponse.json({
+          revision: 1,
+          widgets: [{ id: 'recent', type: 'recent', x: 0, y: 0, w: 8, h: 4 }]
+        })
+      )
+    );
     serveDashboard(
       dashboard({
         recentSent: [

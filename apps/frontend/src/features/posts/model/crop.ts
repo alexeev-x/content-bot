@@ -1,3 +1,4 @@
+import { PHOTO_MEDIA_MAX_BYTES } from '@alexeev/contracts';
 import { fitFrame, type CropFrame } from '../../../shared/ui';
 
 export type CropRatio = 'original' | '1:1' | '4:5' | '16:9';
@@ -73,11 +74,13 @@ export function renderCrop(
 
 export async function exportCrop(image: HTMLImageElement, model: CropModel): Promise<Blob> {
   const canvas = document.createElement('canvas');
-  for (const type of ['image/jpeg', 'image/webp']) {
-    for (const quality of [0.9, 0.8, 0.7, 0.6]) {
-      renderCrop(image, model, canvas, 2048);
-      const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, type, quality));
-      if (blob && blob.size <= 10_000_000) return blob;
+  for (let maxSide = 2048; maxSide >= 512; maxSide = Math.round(maxSide * 0.75)) {
+    renderCrop(image, model, canvas, maxSide);
+    for (const type of ['image/jpeg', 'image/webp']) {
+      for (const quality of [0.9, 0.8, 0.7, 0.6]) {
+        const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, type, quality));
+        if (blob?.type === type && blob.size <= PHOTO_MEDIA_MAX_BYTES) return blob;
+      }
     }
   }
   throw new Error('crop-too-large');

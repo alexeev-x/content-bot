@@ -302,9 +302,7 @@ export function PostsList({ view, onViewChange, onOpen, onCreate, onReconcile }:
   // Phone: the sheet holds only the sort (search is the field above); desktop sorts by the column headers.
   const [sheetOpen, setSheetOpen] = useState(false);
   const [draftSort, setDraftSort] = useState('none');
-  const sortLabel = sortOptions.find((option) => option.id === sortValue)?.label ?? copy.filters.sortDefault;
-  const columnLabel = sortOptions.find((option) => option.id === `${sort?.key}:ascending`)?.label.split(' — ')[0];
-  const sortShort = sort && columnLabel ? `${columnLabel} ${sort.direction === 'ascending' ? '↑' : '↓'}` : '';
+  const activeFilterCount = sort === null ? 0 : 1;
 
   const panelAction = selectMode ? (
     <Button variant="ghost" size="sm" onPress={clearSelection}>
@@ -312,6 +310,11 @@ export function PostsList({ view, onViewChange, onOpen, onCreate, onReconcile }:
     </Button>
   ) : (
     <>
+      {!narrow && isSearching ? (
+        <Button variant="ghost" size="sm" icon="x" onPress={clearSearch}>
+          {ru.ui.clearSearch}
+        </Button>
+      ) : null}
       {ready && hasRows ? (
         <Button variant="ghost" size="sm" icon="check-circle" onPress={() => setSelectMode(true)}>
           {postsCopy.selection.select}
@@ -405,8 +408,7 @@ export function PostsList({ view, onViewChange, onOpen, onCreate, onReconcile }:
                   />
                 </PhoneToolbarSearch>
                 <FilterButton
-                  count={0}
-                  sort={{ label: copy.filters.sort, value: sortShort, spoken: sortLabel }}
+                  count={activeFilterCount}
                   isDisabled={result.isPending}
                   onPress={() => {
                     setDraftSort(sortValue);
@@ -510,7 +512,7 @@ export function PostsList({ view, onViewChange, onOpen, onCreate, onReconcile }:
       <FilterSheet
         isOpen={sheetOpen}
         onOpenChange={setSheetOpen}
-        count={0}
+        count={activeFilterCount}
         title={copy.filters.sort}
         onReset={() => setDraftSort('none')}
         onApply={() => {

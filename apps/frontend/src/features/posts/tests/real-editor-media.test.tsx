@@ -54,18 +54,42 @@ describe('real post editor media adoption', () => {
     vi.mocked(uploadPostMedia).mockImplementation(async ({ postId, revision }) => {
       expect(postId).toBe(ids.post);
       expect(revision).toBe(0);
+      serverPost = { ...serverPost, revision: 1, media: [attached] };
       return { media: attached, revision: 1 };
     });
 
+    const revisions: number[] = [];
+    server.use(
+      http.patch('*/api/v1/posts/:id', async ({ request }) => {
+        const input = (await request.json()) as { revision: number; title?: string };
+        revisions.push(input.revision);
+        serverPost = { ...serverPost, title: input.title ?? serverPost.title, revision: input.revision + 1 };
+        return HttpResponse.json(serverPost);
+      })
+    );
+
     const user = userEvent.setup();
-    const { client } = renderEditorApp('/posts/new');
+    const { client, router } = renderEditorApp('/posts/new');
     const image = new File([new Uint8Array(147_294)], attached.fileName, { type: 'image/jpeg' });
+    await user.click(await screen.findByRole('button', { name: 'Добавить медиа' }));
     await user.upload(await screen.findByTestId('media-file-input'), image);
+    expect(await screen.findByText(attached.fileName)).toBeTruthy();
+    expect(await screen.findByText('Готов к добавлению')).toBeTruthy();
+    const addToPostLabel = await screen.findByText('Добавить в пост (1)');
+    const addToPost = addToPostLabel.closest('button');
+    if (!addToPost) throw new Error('Add-to-post action must be a button');
+    await user.click(addToPost);
 
     await waitFor(() => expect(uploadPostMedia).toHaveBeenCalled());
+    await waitFor(() => expect(router.state.location.pathname).toBe(`/posts/${ids.post}`));
     await screen.findByText('altai_lake.jpg');
     expect(screen.getByText('Загружено на сервер')).toBeTruthy();
     expect(client.getQueryData(['posts', 'detail', ids.post])).toMatchObject({ revision: 1, media: [attached] });
+    const title = screen.getByRole('textbox', { name: /Заголовок/ });
+    await user.clear(title);
+    await user.type(title, 'Следующая правка');
+    await waitFor(() => expect(revisions).toEqual([1]), { timeout: 5_000 });
+    expect(client.getQueryData(['posts', 'detail', ids.post])).toMatchObject({ revision: 2, media: [attached] });
     expect(uploadPostMedia).toHaveBeenCalledTimes(1);
   });
 });

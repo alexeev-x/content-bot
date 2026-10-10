@@ -19,6 +19,8 @@ type Props = {
   reserveRows?: number;
   /** Quiet header: no tint and no rule under it, for dense dashboards. */
   quiet?: boolean;
+  /** Makes an internally scrollable body keyboard-focusable. */
+  scrollableBody?: boolean;
   /** One quiet line under the rows: count, «Показать ещё», stale note. Always render it so the height does not change on load. */
   footer?: ReactNode;
   children: ReactNode;
@@ -35,6 +37,7 @@ export function Panel({
   action,
   reserveRows,
   quiet,
+  scrollableBody = false,
   footer,
   children
 }: Props) {
@@ -61,7 +64,13 @@ export function Panel({
           {action ? <div className={styles.action}>{action}</div> : null}
         </div>
       ) : null}
-      <div className={styles.body} style={body}>
+      <div
+        className={styles.body}
+        style={body}
+        role={scrollableBody ? 'region' : undefined}
+        aria-labelledby={scrollableBody && title ? headingId : undefined}
+        tabIndex={scrollableBody ? 0 : undefined}
+      >
         {children}
       </div>
       {footer ? <div className={styles.footer}>{footer}</div> : null}

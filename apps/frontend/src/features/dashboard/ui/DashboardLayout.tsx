@@ -18,13 +18,14 @@ type LayoutProps = {
   loading: boolean;
   banner?: ReactNode;
   zoneNote: string;
+  defaultOverview?: boolean;
 };
 
 /**
  * One layout for loading and loaded: the skeleton is this same tree without data, so nothing jumps when the
  * response arrives (docs/design/README.md §6). Each widget sits at its saved cell; on a phone they stack in order.
  */
-export function DashboardLayout({ widgets, env, loading, banner, zoneNote }: LayoutProps) {
+export function DashboardLayout({ widgets, env, loading, banner, zoneNote, defaultOverview = false }: LayoutProps) {
   const phone = useMediaQuery(PHONE_QUERY);
   const now = useNow();
   const full: WidgetEnv = { ...env, now, phone };
@@ -37,7 +38,7 @@ export function DashboardLayout({ widgets, env, loading, banner, zoneNote }: Lay
       ) : null}
       {banner}
       <DateChip placement="below" zoneNote={zoneNote} />
-      <WidgetGrid widgets={widgets} phone={phone} label={copy.edit.gridLabel}>
+      <WidgetGrid widgets={widgets} phone={phone} defaultOverview={defaultOverview} label={copy.edit.gridLabel}>
         {(widget) => <WidgetBody widget={widget} env={full} />}
       </WidgetGrid>
     </div>

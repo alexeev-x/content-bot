@@ -212,7 +212,7 @@ describe('save', () => {
     await user.type(await screen.findByRole('textbox', { name: /Заголовок/ }), 'Новый');
     await user.click(bodyBox());
     await user.keyboard('{Control>}b{/Control}жирно');
-    await user.click(screen.getByRole('button', { name: 'Создать черновик' }));
+    await user.keyboard('{Control>}s{/Control}');
     await waitFor(() => expect(seen).toHaveLength(1));
     expect(seen[0]).toEqual({
       title: 'Новый',

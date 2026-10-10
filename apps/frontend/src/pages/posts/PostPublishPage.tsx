@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
 import { PublicationSettings } from '../../features/publications';
 import { messageLength, PostPreview, postQueryOptions, postsCopy } from '../../features/posts';
-import { Button, ErrorState, IconButton, PageHeader, Panel, Skeleton, Banner } from '../../shared/ui';
+import { Button, ErrorState, IconButton, PageHeader, Panel, Skeleton, Banner, useMediaQuery } from '../../shared/ui';
 import { BackToPosts } from './BackToPosts';
 import { useDocumentTitle } from './use-document-title';
 import styles from './PostPages.module.css';
@@ -12,6 +12,7 @@ type Props = { id: string };
 export function PostPublishPage({ id }: Props) {
   const query = useQuery(postQueryOptions(id));
   const navigate = useNavigate();
+  const narrow = useMediaQuery('(max-width: 859px)');
   useDocumentTitle(query.data ? `Публикация: ${query.data.title}` : 'Настройки публикации');
 
   if (query.isPending) {
@@ -47,10 +48,11 @@ export function PostPublishPage({ id }: Props) {
     <>
       <PageHeader
         title="Публикация"
+        tools={null}
         actions={
           <IconButton
             label="Закрыть и вернуться к редактору"
-            icon="x"
+            icon={narrow ? 'arrow-left' : 'x'}
             onPress={() => void navigate({ to: '/posts/$id', params: { id } })}
           />
         }
@@ -76,16 +78,8 @@ export function PostPublishPage({ id }: Props) {
           Уберите GIF или создайте для него отдельную публикацию. Остальные медиа останутся в черновике.
         </Banner>
       ) : null}
-      <div className={styles.publishGrid}>
-        <div className={styles.publishSettings}>
-          <h2>Канал</h2>
-          <PublicationSettings post={post} />
-          <Button variant="secondary" onPress={() => void navigate({ to: '/posts/$id', params: { id } })}>
-            Назад
-          </Button>
-        </div>
-        <section className={styles.publishPreview} aria-label="Предпросмотр публикации">
-          <h2>Предпросмотр публикации</h2>
+      <div>
+        <PublicationSettings post={post} onBack={() => void navigate({ to: '/posts/$id', params: { id } })}>
           <PostPreview
             title={post.title}
             body={post.body}
@@ -94,7 +88,7 @@ export function PostPublishPage({ id }: Props) {
             limit={limit}
             media={post.media}
           />
-        </section>
+        </PublicationSettings>
       </div>
     </>
   );

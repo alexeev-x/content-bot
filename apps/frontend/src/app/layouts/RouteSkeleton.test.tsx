@@ -45,7 +45,7 @@ describe('RouteSkeleton', () => {
     const fetchSpy = vi.spyOn(globalThis, 'fetch');
     await renderPage(<RouteSkeleton pathname="/" title="Обзор" />);
     expect(document.querySelector('[data-widget="kpi-summary"]')).not.toBeNull();
-    expect(document.querySelectorAll('[data-widget]')).toHaveLength(9);
+    expect(document.querySelectorAll('[data-widget]')).toHaveLength(8);
     cleanup();
 
     const saved = { revision: 2, widgets: [{ id: 'today', type: 'today', x: 4, y: 0, w: 8, h: 4 }] };

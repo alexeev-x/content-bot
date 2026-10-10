@@ -107,7 +107,7 @@ describe('post media editor', () => {
     await waitFor(() => expect(deletePostMedia).toHaveBeenCalledWith(ids.post, media.id, 1));
   });
 
-  it('keeps media-library errors visible and retryable after the source picker closes', async () => {
+  it('keeps media-library errors visible and retryable in the source dialog', async () => {
     vi.mocked(listMediaLibrary).mockRejectedValue(new Error('offline'));
     const user = userEvent.setup();
     render(
@@ -121,8 +121,8 @@ describe('post media editor', () => {
       />
     );
 
-    await user.click(screen.getByRole('button', { name: 'Выбрать файлы' }));
-    await user.click(await screen.findByRole('button', { name: 'Открыть медиабиблиотеку' }));
+    await user.click(screen.getByRole('button', { name: 'Добавить медиа' }));
+    await user.click(await screen.findByRole('tab', { name: /Медиабиблиотека/ }));
     expect((await screen.findByRole('alert')).textContent).toContain('Не удалось загрузить медиабиблиотеку');
     expect(screen.getByRole('button', { name: 'Повторить' })).toBeTruthy();
     await user.click(screen.getByRole('button', { name: 'Повторить' }));
@@ -141,7 +141,7 @@ describe('post media editor', () => {
       />
     );
 
-    expect(screen.getByRole('button', { name: 'Выбрать файлы' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Добавить медиа' })).toBeTruthy();
     expect(screen.getByTestId('media-file-input').getAttribute('accept')).toBe(
       'image/jpeg,image/png,image/webp,image/gif,video/mp4'
     );
@@ -289,6 +289,7 @@ describe('post media editor', () => {
     );
 
     await user.upload(screen.getByTestId('media-file-input'), new File(['image'], 'cover.png', { type: 'image/png' }));
+    await user.click(await screen.findByRole('button', { name: 'Добавить в пост (1)' }));
     await waitFor(() => expect(uploadPostMedia).toHaveBeenCalledWith(expect.objectContaining({ postId: draft.id })));
     expect(ensurePost).toHaveBeenCalledTimes(1);
     expect(onDraftReady).toHaveBeenCalledWith(draft);
@@ -314,6 +315,7 @@ describe('post media editor', () => {
     );
 
     await user.upload(screen.getByTestId('media-file-input'), new File(['image'], 'cover.png', { type: 'image/png' }));
+    await user.click(await screen.findByRole('button', { name: 'Добавить в пост (1)' }));
     await waitFor(() => expect(onDraftReady).toHaveBeenCalledWith(draft));
     expect(await screen.findByRole('button', { name: 'Повторить' })).toBeTruthy();
   });
@@ -340,9 +342,10 @@ describe('post media editor', () => {
       new File(['first'], 'first.png', { type: 'image/png' }),
       new File(['second'], 'second.png', { type: 'image/png' })
     ]);
+    await user.click(await screen.findByRole('button', { name: 'Добавить в пост (2)' }));
     await waitFor(() => expect(uploadPostMedia).toHaveBeenCalledTimes(1));
     await user.click(screen.getByRole('button', { name: 'Отменить загрузку' }));
-    await waitFor(() => expect(screen.getAllByRole('button', { name: 'Загрузить' })).toHaveLength(2));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Добавить в пост (2)' })).toBeTruthy());
     expect(uploadPostMedia).toHaveBeenCalledTimes(1);
     expect(screen.getByText('second.png')).toBeTruthy();
   });
@@ -364,6 +367,7 @@ describe('post media editor', () => {
     );
     const file = new File(['image'], 'cover.png', { type: 'image/png' });
     await user.upload(screen.getByTestId('media-file-input'), file);
+    await user.click(await screen.findByRole('button', { name: 'Добавить в пост (1)' }));
 
     expect(await screen.findByText(/Черновик изменился/)).toBeTruthy();
     expect(screen.getByText(/Черновик изменился/)).toBeTruthy();
@@ -399,6 +403,7 @@ describe('post media editor', () => {
       />
     );
     await user.upload(screen.getByTestId('media-file-input'), new File(['image'], 'cover.png', { type: 'image/png' }));
+    await user.click(await screen.findByRole('button', { name: 'Добавить в пост (1)' }));
     await screen.findByText('Загружено на сервер');
     expect(uploadPostMedia).toHaveBeenCalledWith(
       expect.objectContaining({ postId: ids.post, revision: 2, file: expect.any(File) })
@@ -424,7 +429,8 @@ describe('post media editor', () => {
     fireEvent.change(screen.getByTestId('media-file-input'), {
       target: { files: [new File(['movie'], 'clip.png', { type: 'video/webm' })] }
     });
-    expect((await screen.findByRole('alert')).textContent).toMatch(/clip.png.*JPG, PNG, WebP/);
+    expect((await screen.findByRole('alert')).textContent).toMatch(/часть файлов не добавлена/i);
+    expect(screen.getByText('clip.png — формат или размер не поддерживается.')).toBeTruthy();
     expect(uploadPostMedia).not.toHaveBeenCalled();
   });
 
@@ -457,6 +463,7 @@ describe('post media editor', () => {
     fireEvent.change(screen.getByTestId('media-file-input'), {
       target: { files: [new File(['image'], 'cover.png')] }
     });
+    await userEvent.setup().click(await screen.findByRole('button', { name: 'Добавить в пост (1)' }));
 
     await waitFor(() =>
       expect(uploadPostMedia).toHaveBeenCalledWith(
@@ -503,6 +510,7 @@ describe('post media editor', () => {
     const input = screen.getByTestId('media-file-input') as HTMLInputElement;
     input.dataset.replaceId = first.id;
     await user.upload(input, new File(['replacement'], 'replacement.png', { type: 'image/png' }));
+    await user.click(await screen.findByRole('button', { name: 'Добавить в пост (1)' }));
     await waitFor(() => expect(reorderPostMedia).toHaveBeenCalledWith(ids.post, 4, [replacement.id, second.id]));
     expect(onServerChange).toHaveBeenLastCalledWith(5, [
       { ...replacement, position: 0 },
@@ -573,6 +581,7 @@ describe('post media editor', () => {
     const input = screen.getByTestId('media-file-input') as HTMLInputElement;
     input.dataset.replaceId = original.id;
     await user.upload(input, new File(['new'], 'new.png', { type: 'image/png' }));
+    await user.click(await screen.findByRole('button', { name: 'Добавить в пост (1)' }));
     expect(await screen.findByText(/Не удалось загрузить файл/)).toBeTruthy();
     expect(screen.getByText('original.png')).toBeTruthy();
     expect(deletePostMedia).not.toHaveBeenCalled();
@@ -728,7 +737,7 @@ describe('post media editor', () => {
     await user.click(within(previewDialog).getByRole('button', { name: 'Кадрировать' }));
     await screen.findByRole('img', { name: 'Предпросмотр кадрирования' });
     expect(getPostMediaContent).toHaveBeenCalledWith(sourceId, expect.any(AbortSignal));
-    await user.click(screen.getByRole('button', { name: 'Готово' }));
+    await user.click(screen.getByRole('button', { name: 'Сохранить' }));
     await waitFor(() =>
       expect(cropPostMedia).toHaveBeenCalledWith(
         ids.post,
@@ -791,7 +800,7 @@ describe('post media editor', () => {
     const previewDialog = await screen.findByRole('dialog', { name: 'preserved.png' });
     await user.click(within(previewDialog).getByRole('button', { name: 'Кадрировать' }));
     await screen.findByRole('img', { name: 'Предпросмотр кадрирования' });
-    await user.click(screen.getByRole('button', { name: 'Готово' }));
+    await user.click(screen.getByRole('button', { name: 'Сохранить' }));
     expect(await screen.findByText(/исходное вложение сохранено/i)).toBeTruthy();
     expect(screen.getByText('preserved.png')).toBeTruthy();
     expect(onServerChange).not.toHaveBeenCalled();

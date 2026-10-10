@@ -226,7 +226,7 @@ describe('search', () => {
     expect(screen.queryByText('Черновик А')).toBeNull();
     expect(screen.getByText('Одобрен Б')).toBeTruthy();
 
-    await user.click(screen.getByRole('button', { name: /^Сортировка/ }));
+    await user.click(screen.getByRole('button', { name: /Фильтры/ }));
     const sheet = await screen.findByRole('dialog', { name: 'Сортировка' });
     expect(within(sheet).queryByRole('button', { name: /Статус/ })).toBeNull();
     expect(within(sheet).getByRole('button', { name: /Сортировка/ })).toBeTruthy();

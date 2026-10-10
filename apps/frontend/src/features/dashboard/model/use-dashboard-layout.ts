@@ -26,6 +26,7 @@ export function useDashboardLayout() {
   return {
     query,
     widgets,
+    isDefault: server ? server.revision === 0 : cached === null,
     /**
      * The layout is known well enough to start reading widget data: the server answered, a cached copy exists,
      * or the load failed and the default stands in. Before that the default is only a guess, so nothing is requested

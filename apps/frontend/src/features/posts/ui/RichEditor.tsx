@@ -2,6 +2,7 @@ import type { PostEntity } from '@alexeev/contracts';
 import { EditorContent } from '@tiptap/react';
 import { useId, useState } from 'react';
 import { ru } from '../../../shared/lib/ru';
+import { VisuallyHidden } from '../../../shared/ui';
 import type { RichValue } from '../model/entities-doc';
 import { parseLinkInput } from '../model/link-url';
 import { useRichEditor } from '../model/use-rich-editor';
@@ -36,7 +37,6 @@ export function RichEditor({
   limit
 }: Props) {
   const id = useId();
-  const labelId = `${id}-label`;
   const descriptionId = `${id}-description`;
   const errorId = `${id}-error`;
   const [linkStart, setLinkStart] = useState<LinkDialogStart | null>(null);
@@ -51,7 +51,7 @@ export function RichEditor({
     attributes: {
       role: 'textbox',
       'aria-multiline': 'true',
-      'aria-labelledby': labelId,
+      'aria-label': label,
       'aria-describedby': errorMessage ? `${descriptionId} ${errorId}` : descriptionId,
       ...(errorMessage ? { 'aria-invalid': 'true' } : {}),
       ...(isReadOnly ? { 'aria-readonly': 'true' } : {}),
@@ -98,8 +98,9 @@ export function RichEditor({
 
   return (
     <div className={styles.field}>
-      <span id={labelId} className={styles.label}>
-        {label}
+      <span className={styles.label}>
+        <span>{label}</span>
+        <span className={`${styles.labelCounter} mono`}>{ru.ui.counter(body.length, limit)}</span>
       </span>
       <div className={styles.box} data-invalid={errorMessage ? '' : undefined} data-readonly={isReadOnly || undefined}>
         {editor && !isReadOnly ? (
@@ -112,7 +113,7 @@ export function RichEditor({
         <EditorContent editor={editor} className={styles.content} />
       </div>
       <p id={descriptionId} className={styles.description}>
-        <span>{description}</span>
+        <VisuallyHidden>{description}</VisuallyHidden>
         <span className={`mono ${body.length > limit ? styles.over : ''}`}>{ru.ui.counter(body.length, limit)}</span>
       </p>
       <p id={errorId} className={styles.error} role={errorMessage ? 'alert' : undefined}>

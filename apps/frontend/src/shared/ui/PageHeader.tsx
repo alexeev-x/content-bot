@@ -7,6 +7,8 @@ type Props = {
   actions?: ReactNode;
   /** A small badge after the title (e.g. «Превью»). */
   marker?: ReactNode;
+  /** Explicitly suppresses shell tools for a focused route with its own reference header. */
+  tools?: ReactNode | null;
 };
 
 const PageHeaderToolsContext = createContext<ReactNode>(null);
@@ -14,8 +16,9 @@ const PageHeaderToolsContext = createContext<ReactNode>(null);
 /** Icon tools (search, owner menu) that every PageHeader below renders in its title row; the shell sets them. */
 export const PageHeaderTools = PageHeaderToolsContext.Provider;
 
-export function PageHeader({ title, description, actions, marker }: Props) {
-  const tools = useContext(PageHeaderToolsContext);
+export function PageHeader({ title, description, actions, marker, tools: toolsOverride }: Props) {
+  const contextualTools = useContext(PageHeaderToolsContext);
+  const tools = toolsOverride === undefined ? contextualTools : toolsOverride;
   return (
     <header className={styles.header}>
       <div className={styles.text}>

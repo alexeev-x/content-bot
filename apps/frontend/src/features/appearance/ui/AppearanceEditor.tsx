@@ -1,4 +1,7 @@
 import { useBlocker } from '@tanstack/react-router';
+import type { AppearanceDto, ThemeMode } from '@alexeev/contracts';
+import { useQueryClient } from '@tanstack/react-query';
+import { useState } from 'react';
 import { ApiError } from '../../../shared/api/http-client';
 import { useClosingConfirmation } from '../../../shared/telegram/use-closing-confirmation';
 import { ru } from '../../../shared/lib/ru';
@@ -8,13 +11,22 @@ import {
   ConfirmDialog,
   ErrorState,
   Panel,
+  SegmentedControl,
   Skeleton,
   useToast,
   VisuallyHidden
 } from '../../../shared/ui';
-import { addPreset, removePreset, setAccent, updatePreset, type AppearanceValue } from '../model/appearance-value';
+import {
+  addPreset,
+  removePreset,
+  setAccent,
+  toValue,
+  updatePreset,
+  type AppearanceValue
+} from '../model/appearance-value';
 import { useAppearanceEditor } from '../model/use-appearance-editor';
 import { useScreenTheme } from '../model/use-screen-theme';
+import { appearanceKeys, appearanceQueryOptions, useSaveAppearance } from '../api/appearance-queries';
 import { AccentPicker } from './AccentPicker';
 import { AccentPreview } from './AccentPreview';
 import styles from './AppearanceEditor.module.css';
@@ -47,6 +59,9 @@ export function AppearanceEditor({ preview }: Props) {
   const editor = useAppearanceEditor({ preview });
   const toast = useToast();
   const screenTheme = useScreenTheme();
+  const queryClient = useQueryClient();
+  const saveAppearance = useSaveAppearance();
+  const [selectedMode, setSelectedMode] = useState<ThemeMode | null>(null);
   const blocker = useBlocker({
     shouldBlockFn: () => editor.isDirty,
     enableBeforeUnload: () => editor.isDirty,
@@ -69,6 +84,35 @@ export function AppearanceEditor({ preview }: Props) {
   }
 
   const value = editor.value;
+  const themeMode = selectedMode ?? value.themeMode;
+  const changeThemeMode = async (mode: string) => {
+    if (mode !== 'light' && mode !== 'dark' && mode !== 'system') return;
+    const nextMode: ThemeMode = mode;
+    const base = queryClient.getQueryData<AppearanceDto>(appearanceKeys.detail());
+    if (!base || base.themeMode === nextMode || saveAppearance.isPending) return;
+    setSelectedMode(nextMode);
+    preview({ ...value, themeMode: nextMode });
+    const send = (current: AppearanceDto) =>
+      saveAppearance.mutateAsync({
+        ...toValue(current),
+        customPresets: [...current.customPresets],
+        revision: current.revision,
+        themeMode: nextMode
+      });
+    try {
+      try {
+        await send(base);
+      } catch (error) {
+        if (!(error instanceof ApiError && error.status === 409)) throw error;
+        await send(await queryClient.fetchQuery({ ...appearanceQueryOptions(), staleTime: 0 }));
+      }
+    } catch {
+      const latest = queryClient.getQueryData<AppearanceDto>(appearanceKeys.detail());
+      if (latest) preview({ ...value, themeMode: latest.themeMode });
+      setSelectedMode(null);
+      toast.show({ tone: 'error', title: ru.theme.saveFailed });
+    }
+  };
   const save = async () => {
     const result = await editor.submit();
     if (result === 'saved') toast.show({ tone: 'success', title: ru.appearance.savedToast });
@@ -106,6 +150,23 @@ export function AppearanceEditor({ preview }: Props) {
         </Banner>
       ) : null}
 
+      <Panel title={ru.theme.label}>
+        <div className={styles.themeMode}>
+          <SegmentedControl
+            label={ru.theme.label}
+            isDisabled={saveAppearance.isPending}
+            value={themeMode}
+            onChange={(mode) => void changeThemeMode(mode)}
+            options={[
+              { id: 'light', label: ru.theme.light, icon: 'sun' },
+              { id: 'dark', label: ru.theme.dark, icon: 'moon' },
+              { id: 'system', label: ru.theme.system, icon: 'monitor' }
+            ]}
+          />
+          <p className={styles.hint}>Применяется сразу, сохранять не нужно.</p>
+        </div>
+      </Panel>
+
       <Panel title={ru.appearance.accentLabel}>
         <div className={styles.themes}>
           {(['light', 'dark'] as const).map((theme) => {
@@ -124,21 +185,29 @@ export function AppearanceEditor({ preview }: Props) {
                     customPresets={value.customPresets}
                     onChange={(next) => editor.edit((current) => setAccent(current, theme, next))}
                   />
-                  <AccentPreview theme={theme} accent={sourceOf(ref, value)} />
                 </div>
               </section>
             );
           })}
         </div>
+
+        <div className={styles.customPresets}>
+          <CustomPresetsCard
+            value={value}
+            onAdd={(preset) => editor.edit((current) => addPreset(current, preset))}
+            onUpdate={(preset) => editor.edit((current) => updatePreset(current, preset))}
+            onRemove={(id) => editor.edit((current) => removePreset(current, id))}
+          />
+        </div>
       </Panel>
 
-      <Panel title={ru.appearance.customTitle}>
-        <CustomPresetsCard
-          value={value}
-          onAdd={(preset) => editor.edit((current) => addPreset(current, preset))}
-          onUpdate={(preset) => editor.edit((current) => updatePreset(current, preset))}
-          onRemove={(id) => editor.edit((current) => removePreset(current, id))}
-        />
+      <Panel title={ru.appearance.previewLabel}>
+        <div className={styles.previewPanel}>
+          <AccentPreview
+            theme={screenTheme}
+            accent={sourceOf(screenTheme === 'light' ? value.lightAccent : value.darkAccent, value)}
+          />
+        </div>
       </Panel>
 
       {editor.isDirty || editor.isSaving ? (

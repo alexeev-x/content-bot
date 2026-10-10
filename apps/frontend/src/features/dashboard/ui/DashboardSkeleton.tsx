@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { DEFAULT_WIDGETS } from '../model/default-layout';
 import { initialWidgets } from '../model/use-dashboard-layout';
 import { DashboardLayout } from './DashboardLayout';
 
@@ -13,6 +14,7 @@ export function DashboardSkeleton({ zoneNote = '' }: { zoneNote?: string }) {
   return (
     <DashboardLayout
       widgets={widgets}
+      defaultOverview={widgets === DEFAULT_WIDGETS}
       loading
       zoneNote={zoneNote}
       env={{

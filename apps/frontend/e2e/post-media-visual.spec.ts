@@ -1,11 +1,16 @@
 import AxeBuilder from '@axe-core/playwright';
 import { cropPostMediaResultSchema } from '@alexeev/contracts';
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 import { readFileSync } from 'node:fs';
 import { ids, mockApi, post } from './support/mock-api';
 
 const SHOTS_DIR = process.env['SHOTS_DIR'];
 const TAGS = ['wcag2a', 'wcag2aa', 'wcag21aa', 'wcag22aa'];
+
+async function expectNoAxeViolations(page: Page) {
+  const result = await new AxeBuilder({ page }).withTags(TAGS).analyze();
+  expect(result.violations.map((item) => item.id)).toEqual([]);
+}
 const realPhoto = readFileSync(new URL('../src/pages/prototypes/assets/photo-altai.jpg', import.meta.url));
 const photoFixtures = [
   { fileName: 'altai_lake.jpg', bytes: realPhoto },
@@ -41,9 +46,9 @@ const media = {
   durationMs: null,
   position: 0
 };
-for (const width of [320, 375, 1280]) {
+for (const width of [320, 375, 1280, 1440]) {
   test(`server-confirmed attachment editor at ${width}px`, async ({ page }) => {
-    await page.setViewportSize({ width, height: width === 1280 ? 800 : 812 });
+    await page.setViewportSize({ width, height: width >= 1280 ? 900 : 812 });
     await page.emulateMedia({ reducedMotion: 'reduce' });
     const pageErrors: string[] = [];
     page.on('pageerror', (error) => pageErrors.push(error.message));
@@ -94,9 +99,11 @@ for (const width of [320, 375, 1280]) {
     await expect(page.getByRole('heading', { name: 'Фото и видео' })).toBeVisible();
     if (width < 860) {
       await expect(page.getByRole('tab')).toHaveCount(0);
+      await expect(page.getByRole('heading', { name: 'Новый пост' })).toBeVisible();
+      if (width === 375) await expect(page.getByText('Черновик сохранён')).toBeVisible();
       await expect(page.getByRole('textbox', { name: 'Заголовок' })).toBeVisible();
       await expect(page.getByRole('textbox', { name: 'Текст' })).toBeVisible();
-      const primaryAction = page.getByRole('button', { name: /настроить публикацию/i });
+      const primaryAction = page.getByRole('button', { name: /к публикации/i });
       await expect(primaryAction).toBeInViewport();
       const actionBox = await primaryAction.boundingBox();
       expect(actionBox?.x).toBeGreaterThanOrEqual(0);
@@ -106,10 +113,27 @@ for (const width of [320, 375, 1280]) {
     await expect(page.getByText('Загружено на сервер')).toBeVisible();
     const tile = page.getByRole('button', { name: 'altai_lake.jpg', exact: true });
     await expect(tile).toBeVisible();
+    if (SHOTS_DIR && width === 1280)
+      await page.screenshot({ path: `${SHOTS_DIR}/media-editor-1280-attachment.png`, fullPage: true });
     const tileBox = await tile.boundingBox();
     expect(tileBox).not.toBeNull();
     if (width === 375) expect(Math.abs((tileBox?.width ?? 0) - 104)).toBeLessThanOrEqual(6);
-    if (width === 1280) expect(Math.abs((tileBox?.width ?? 0) - 124)).toBeLessThanOrEqual(1);
+    if (width === 1280) {
+      const layout = await page
+        .locator('section[aria-labelledby="post-media-heading"] ol')
+        .first()
+        .evaluate((grid) => {
+          const bounds = grid.getBoundingClientRect();
+          const style = getComputedStyle(grid);
+          return { width: bounds.width, columns: style.gridTemplateColumns, gap: style.columnGap };
+        });
+      const columns = layout.columns.split(' ');
+      expect(columns).toHaveLength(6);
+      expect(
+        Math.abs((tileBox?.width ?? 0) - Number.parseFloat(columns[0] ?? '0')),
+        JSON.stringify({ tile: tileBox, grid: layout })
+      ).toBeLessThanOrEqual(1);
+    }
     if (width === 320) expect(tileBox?.width ?? 0).toBeLessThanOrEqual(104);
     expect(Math.abs((tileBox?.width ?? 0) - (tileBox?.height ?? 0))).toBeLessThanOrEqual(1);
     const editorTitle = page.locator('main h1');
@@ -122,7 +146,7 @@ for (const width of [320, 375, 1280]) {
       .toBeGreaterThanOrEqual(1000);
     if (width === 375) {
       if (SHOTS_DIR) await page.screenshot({ path: `${SHOTS_DIR}/media-editor-375.png`, fullPage: true });
-      const primaryAction = page.getByRole('button', { name: /настроить публикацию/i });
+      const primaryAction = page.getByRole('button', { name: /к публикации/i });
       await expect(primaryAction).toBeInViewport();
       await expect(page.getByRole('button', { name: /сохранить и выйти/i })).toHaveCount(0);
       await expect(
@@ -136,13 +160,18 @@ for (const width of [320, 375, 1280]) {
       expect(actionBox).not.toBeNull();
       expect(footerBox).not.toBeNull();
       expect((actionBox?.y ?? 0) + (actionBox?.height ?? 0)).toBeLessThanOrEqual((footerBox?.y ?? 0) - 4);
-      await tile.focus();
+    }
+    if (width !== 320) {
+      await tile.click();
       const openPreview = page.getByRole('button', { name: 'altai_lake.jpg', exact: true });
       await expect(openPreview).toBeVisible();
-      await openPreview.focus();
-      await page.keyboard.press('Enter');
       const previewDialog = page.getByRole('dialog', { name: 'altai_lake.jpg' });
       await expect(previewDialog).toBeVisible();
+      await page.waitForFunction(() =>
+        [...document.querySelectorAll('[role="dialog"]')].every((dialog) =>
+          dialog.getAnimations().every((animation) => animation.playState === 'finished')
+        )
+      );
       const cropAction = previewDialog.getByRole('button', { name: 'Кадрировать' });
       const replaceAction = previewDialog.getByRole('button', { name: 'Заменить altai_lake.jpg' });
       await expect(cropAction).toBeVisible();
@@ -150,7 +179,7 @@ for (const width of [320, 375, 1280]) {
       const [cropBounds, replaceBounds] = await Promise.all([cropAction.boundingBox(), replaceAction.boundingBox()]);
       expect(cropBounds).not.toBeNull();
       expect(replaceBounds).not.toBeNull();
-      if (cropBounds && replaceBounds) {
+      if (width === 375 && cropBounds && replaceBounds) {
         expect(cropBounds.width).toBeGreaterThanOrEqual(44);
         expect(cropBounds.height).toBeGreaterThanOrEqual(44);
         expect(replaceBounds.width).toBeGreaterThanOrEqual(44);
@@ -167,16 +196,41 @@ for (const width of [320, 375, 1280]) {
         expect(overlaps).toBe(false);
       }
       await cropAction.click();
-      const cropDialog = page.getByRole('dialog', { name: 'Кадрирование фото' });
+      const cropDialog = page.getByRole('dialog', {
+        name: width < 600 ? 'Кадрирование' : 'Кадрирование фото'
+      });
       await expect(cropDialog).toBeVisible();
-      const originalRatio = cropDialog.getByRole('radio', { name: 'Оригинал' });
+      if (width >= 860) {
+        await expect(cropDialog.getByRole('heading', { name: 'Предпросмотр' })).toBeVisible();
+      } else {
+        await expect(cropDialog.getByRole('heading', { name: 'Предпросмотр' })).toHaveCount(0);
+      }
+      await page.waitForFunction(() =>
+        [...document.querySelectorAll('[role="dialog"]')].every((dialog) =>
+          dialog.getAnimations().every((animation) => animation.playState === 'finished')
+        )
+      );
+      if (SHOTS_DIR && Number(width) !== 320) await page.screenshot({ path: `${SHOTS_DIR}/crop-media-${width}.png` });
+      if (Number(width) !== 320) {
+        const cropAxe = await new AxeBuilder({ page }).withTags(TAGS).analyze();
+        expect(cropAxe.violations.map((item) => item.id)).toEqual([]);
+      }
+      if (width === 375) {
+        const cropFrame = await cropDialog.boundingBox();
+        expect(cropFrame).not.toBeNull();
+        expect(Math.abs((cropFrame?.x ?? -1) - 0)).toBeLessThanOrEqual(1);
+        expect(Math.abs((cropFrame?.y ?? -1) - 0)).toBeLessThanOrEqual(1);
+        expect(Math.abs((cropFrame?.width ?? 0) - 375)).toBeLessThanOrEqual(1);
+        expect(Math.abs((cropFrame?.height ?? 0) - 812)).toBeLessThanOrEqual(1);
+      }
+      const originalRatio = cropDialog.getByRole('radio', { name: /Ориг/ });
       const squareRatio = cropDialog.getByRole('radio', { name: '1:1' });
       await originalRatio.focus();
       await page.keyboard.press('ArrowRight');
       await expect(squareRatio).toBeChecked();
       const cropResponse = page.waitForResponse((response) => response.url().includes(`/media/${media.id}/crop?`));
       const cropRequest = page.waitForRequest((request) => request.url().includes(`/media/${media.id}/crop?`));
-      await cropDialog.getByRole('button', { name: 'Готово' }).click();
+      await cropDialog.getByRole('button', { name: width < 600 ? 'Готово' : 'Сохранить' }).click();
       const request = await cropRequest;
       const response = await cropResponse;
       expect(response.status()).toBe(200);
@@ -202,9 +256,21 @@ for (const width of [320, 375, 1280]) {
       expect(Math.abs(dimensions.width / dimensions.height - 1)).toBeLessThanOrEqual(0.01);
       await expect(cropDialog).toBeHidden();
       await expect(page.locator('[data-live-announcer] [role="log"] [role="img"]')).toHaveCount(0, { timeout: 8000 });
+      if (width === 375) {
+        await page.getByRole('button', { name: 'Добавить файлы' }).click();
+        const sourceSheet = page.getByRole('dialog', { name: 'Добавить фото и видео' });
+        await expect(sourceSheet).toBeVisible();
+        await expect(sourceSheet.getByRole('button', { name: /Снять фото/ })).toBeVisible();
+        await expect(sourceSheet.getByRole('button', { name: /Выбрать из галереи/ })).toBeVisible();
+        await expect(sourceSheet.getByRole('button', { name: /Открыть медиабиблиотеку/ })).toBeVisible();
+        if (SHOTS_DIR) await page.screenshot({ path: `${SHOTS_DIR}/media-source-sheet-375.png` });
+        await expectNoAxeViolations(page);
+        await page.keyboard.press('Escape');
+        await expect(sourceSheet).toBeHidden();
+      }
     }
 
-    const addMedia = page.locator('section[aria-labelledby="post-media-heading"] button').first();
+    const addMedia = page.locator('section[aria-labelledby="post-media-heading"] [class*="addItem"] button').first();
     await addMedia.focus();
     await expect(addMedia).toBeFocused();
     const focusNotObscured = await page.evaluate(() => {
@@ -305,6 +371,22 @@ for (const width of [375, 1440]) {
       const carousel = page.getByRole('region', { name: 'Медиа поста' });
       await expect(carousel).toHaveAttribute('aria-roledescription', 'carousel');
       await expect(carousel.getByText('1 / 5')).toBeVisible();
+      const mode = page.getByRole('radiogroup', { name: 'Режим предпросмотра' });
+      await mode.getByRole('radio', { name: 'Пост' }).focus();
+      await page.keyboard.press('ArrowRight');
+      await expect(carousel).toHaveAttribute('data-mode', 'album');
+      const albumImages = carousel.locator('img');
+      await expect(albumImages).toHaveCount(5);
+      for (const image of await albumImages.all()) {
+        await expect
+          .poll(() => image.evaluate((node: HTMLImageElement) => node.naturalWidth))
+          .toBeGreaterThanOrEqual(1000);
+        const box = await image.boundingBox();
+        expect(box?.width ?? 0).toBeGreaterThan(24);
+        expect(box?.height ?? 0).toBeGreaterThan(24);
+      }
+      if (SHOTS_DIR) await page.screenshot({ path: `${SHOTS_DIR}/media-album-preview-1440.png`, fullPage: true });
+      await page.keyboard.press('ArrowLeft');
       await page.getByRole('button', { name: 'Следующее фото' }).click();
       await expect(carousel.getByText('2 / 5')).toBeVisible();
       await page.getByRole('button', { name: 'Предыдущее фото' }).click();
@@ -315,7 +397,7 @@ for (const width of [375, 1440]) {
       await expect(page.getByRole('tab')).toHaveCount(0);
       await expect(page.getByRole('textbox', { name: 'Заголовок' })).toBeVisible();
       await expect(page.getByRole('textbox', { name: 'Текст' })).toBeVisible();
-      await expect(page.getByRole('button', { name: /настроить публикацию/i })).toBeInViewport();
+      await expect(page.getByRole('button', { name: /к публикации/i })).toBeInViewport();
       const lastTile = page.getByRole('button', { name: 'waterfall.jpg', exact: true });
       await lastTile.focus();
       const removeButton = page.getByRole('button', { name: 'Убрать из поста: waterfall.jpg' });
@@ -429,7 +511,18 @@ for (const width of [375, 1280]) {
     );
     await page.goto(`/posts/${ids.post}`);
     await expect(page.locator('#post-media-heading')).toBeVisible();
-    await expect(page.locator('section[aria-labelledby="post-media-heading"] p').last()).toBeVisible();
+    const emptyZone = page.locator('section[aria-labelledby="post-media-heading"]');
+    if (width === 375) {
+      await expect(page.getByRole('button', { name: 'Все посты' })).toBeVisible();
+      await expect(page.getByText(/Доступно форматирование Telegram/)).toBeAttached();
+      const collapse = page.getByRole('button', { name: 'Свернуть раздел Фото и видео' });
+      await collapse.click();
+      await expect(page.locator('#post-media-content')).toBeHidden();
+      await page.getByRole('button', { name: 'Развернуть раздел Фото и видео' }).click();
+      await expect(page.locator('#post-media-content')).toBeVisible();
+    }
+    await expect(emptyZone.getByText('Добавьте фото или видео')).toBeVisible();
+    await expect(emptyZone.getByRole('button', { name: 'Добавить медиа' })).toBeVisible();
 
     const { scrollWidth, clientWidth } = await page.evaluate(() => ({
       scrollWidth: document.documentElement.scrollWidth,
@@ -442,5 +535,99 @@ for (const width of [375, 1280]) {
     ).toEqual([]);
     if (SHOTS_DIR) await page.screenshot({ path: `${SHOTS_DIR}/media-empty-${width}.png`, fullPage: true });
     expect(pageErrors).toEqual([]);
+  });
+}
+
+for (const width of [375, 1440]) {
+  test(`device media queue confirms upload at ${width}px`, async ({ page }) => {
+    await page.setViewportSize({ width, height: width === 1440 ? 900 : 812 });
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    const pageErrors: string[] = [];
+    page.on('pageerror', (error) => pageErrors.push(error.message));
+    await mockApi(page);
+    await page.route(new RegExp(`/api/v1/posts/${ids.post}$`), (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(post(ids.post, 'Media queue fixture', 'draft', { media: [] }))
+      })
+    );
+    const uploadedMedia = {
+      ...media,
+      id: '77777777-7777-4777-8777-777777777777',
+      fileName: 'queue-lake.jpg',
+      sizeBytes: realPhoto.byteLength,
+      width: 1600,
+      height: 1200,
+      position: 0
+    };
+    let attempts = 0;
+    await page.route(new RegExp(`/api/v1/posts/${ids.post}/media\\?`), async (route) => {
+      attempts += 1;
+      if (attempts === 1) {
+        await route.fulfill({
+          status: 503,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            error: { code: 'UNAVAILABLE', message: 'Storage unavailable', requestId: 'upload-1' }
+          })
+        });
+        return;
+      }
+      await route.fulfill({
+        status: 201,
+        contentType: 'application/json',
+        body: JSON.stringify({ media: uploadedMedia, revision: 2 })
+      });
+    });
+    await page.route('**/api/v1/media/77777777-7777-4777-8777-777777777777/content', (route) =>
+      route.fulfill({ status: 200, contentType: 'image/jpeg', body: realPhoto })
+    );
+    await page.goto(`/posts/${ids.post}`);
+    await page.getByRole('button', { name: 'Добавить медиа' }).click();
+    if (width === 1440) {
+      const dialog = page.getByRole('dialog', { name: 'Добавление медиа' });
+      await expect(dialog.getByRole('tab', { name: /С компьютера/ })).toBeVisible();
+      await expect(dialog.getByRole('tab', { name: /Медиабиблиотека/ })).toBeVisible();
+      await expect(dialog.getByRole('tab', { name: /Недавние/ })).toBeVisible();
+      await dialog.getByRole('tab', { name: /С компьютера/ }).press('Enter');
+    } else {
+      const sheet = page.getByRole('dialog', { name: 'Добавить фото и видео' });
+      await expect(sheet.getByRole('button', { name: /Снять фото/ })).toBeVisible();
+      await expect(sheet.getByRole('button', { name: /Выбрать из галереи/ })).toBeVisible();
+      await expect(sheet.getByRole('button', { name: /Открыть медиабиблиотеку/ })).toBeVisible();
+      await sheet.getByRole('button', { name: /Выбрать из галереи/ }).click();
+    }
+    await page.getByTestId('media-file-input').setInputFiles({
+      name: 'queue-lake.jpg',
+      mimeType: 'image/jpeg',
+      buffer: realPhoto
+    });
+    const overlay = page.getByRole('dialog', { name: width === 1440 ? 'Добавление медиа' : 'Добавить фото и видео' });
+    await expect(overlay.getByText('queue-lake.jpg').first()).toBeVisible();
+    await expect(overlay.getByText('Готов к добавлению')).toBeVisible();
+    expect(attempts).toBe(0);
+    if (SHOTS_DIR) await page.screenshot({ path: `${SHOTS_DIR}/media-source-queue-${width}.png`, fullPage: true });
+    await overlay.getByRole('button', { name: 'Добавить в пост (1)' }).click();
+    await expect(overlay.getByRole('button', { name: 'Повторить' })).toBeVisible();
+    await expect(overlay.getByText(/Не удалось загрузить файл/)).toBeVisible();
+    expect(attempts).toBe(1);
+    if (SHOTS_DIR) await page.screenshot({ path: `${SHOTS_DIR}/media-source-error-${width}.png`, fullPage: true });
+    await overlay.getByRole('button', { name: 'Повторить' }).click();
+    await expect(page.getByRole('dialog', { name: /Добавление медиа|Добавить фото и видео/ })).toBeHidden();
+    await expect(page.getByRole('button', { name: 'queue-lake.jpg', exact: true })).toBeVisible();
+    const uploadedTile = page.getByRole('button', { name: 'queue-lake.jpg', exact: true });
+    await expect(uploadedTile).toBeVisible();
+    const uploadedImage = page
+      .locator('section[aria-labelledby="post-media-heading"] ol li')
+      .filter({ has: uploadedTile })
+      .locator('img')
+      .first();
+    await expect
+      .poll(() => uploadedImage.evaluate((image: HTMLImageElement) => image.naturalWidth))
+      .toBeGreaterThanOrEqual(1000);
+    expect(attempts).toBe(2);
+    expect(pageErrors).toEqual([]);
+    if (SHOTS_DIR) await page.screenshot({ path: `${SHOTS_DIR}/media-source-confirmed-${width}.png`, fullPage: true });
   });
 }

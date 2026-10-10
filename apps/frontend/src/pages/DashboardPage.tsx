@@ -99,6 +99,9 @@ export function DashboardPage({ pollMs }: Props) {
         actions={
           <>
             <DateChip placement="header" zoneNote={zoneNote} />
+            <Button icon="plus" onPress={() => void navigate({ to: '/posts/new' })}>
+              Новый пост
+            </Button>
             {editor.editing ? null : (
               <>
                 <Button
@@ -139,6 +142,7 @@ export function DashboardPage({ pollMs }: Props) {
       ) : (
         <Dashboard
           widgets={layout.widgets}
+          defaultOverview={layout.isDefault}
           {...bindings}
           {...(layout.revision === undefined
             ? {}

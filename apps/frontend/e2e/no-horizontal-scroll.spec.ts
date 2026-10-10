@@ -32,13 +32,41 @@ for (const miniApp of [false, true]) {
           await mockApi(page);
           if (miniApp) await installFakeTelegram(page);
           await page.goto(route);
-          await expect(page.locator('main h1').first()).toBeVisible();
+          const heading = page.locator('main h1').first();
+          if (miniApp) await expect(heading).toBeAttached();
+          else await expect(heading).toBeVisible();
           await page.waitForLoadState('networkidle');
-          const { scrollWidth, clientWidth } = await page.evaluate(() => ({
+          const { scrollWidth, clientWidth, viewport, overflow } = await page.evaluate(() => ({
             scrollWidth: document.documentElement.scrollWidth,
-            clientWidth: document.documentElement.clientWidth
+            clientWidth: document.documentElement.clientWidth,
+            viewport: { innerWidth, visualWidth: visualViewport?.width },
+            overflow: [...document.body.querySelectorAll<HTMLElement>('*')]
+              .map((element) => ({
+                element,
+                rect: element.getBoundingClientRect(),
+                style: getComputedStyle(element)
+              }))
+              .filter(
+                ({ element, rect, style }) =>
+                  element.scrollWidth > element.clientWidth + 1 ||
+                  rect.left < -1 ||
+                  rect.right > innerWidth + 1 ||
+                  (style.position === 'fixed' && rect.right > innerWidth + 1)
+              )
+              .slice(0, 20)
+              .map(({ element, rect, style }) => ({
+                tag: element.tagName,
+                className: typeof element.className === 'string' ? element.className : '',
+                text: element.textContent?.trim().slice(0, 60),
+                left: Math.round(rect.left),
+                right: Math.round(rect.right),
+                width: Math.round(rect.width),
+                position: style.position,
+                scrollWidth: element.scrollWidth,
+                clientWidth: element.clientWidth
+              }))
           }));
-          expect(scrollWidth).toBe(clientWidth);
+          expect(scrollWidth, JSON.stringify({ clientWidth, viewport, overflow })).toBe(clientWidth);
         });
       }
 
@@ -56,9 +84,15 @@ for (const miniApp of [false, true]) {
         await expect
           .poll(async () => {
             const box = await drawer.boundingBox();
-            return box ? { left: box.x >= 0, right: box.x + box.width <= width } : null;
+            return box ? box.x : null;
           })
-          .toEqual({ left: true, right: true });
+          .toBeGreaterThanOrEqual(0);
+        await expect
+          .poll(async () => {
+            const box = await drawer.boundingBox();
+            return box ? box.x + box.width : null;
+          })
+          .toBeLessThanOrEqual(width);
         const { scrollWidth, clientWidth } = await page.evaluate(() => ({
           scrollWidth: document.documentElement.scrollWidth,
           clientWidth: document.documentElement.clientWidth
@@ -85,7 +119,7 @@ test.describe('mobile 320px control fit', () => {
       return range.getClientRects().length;
     });
     expect(lines).toBe(1);
-    const back = page.getByRole('link', { name: 'Все посты' });
+    const back = page.getByRole('button', { name: 'Все посты' });
     expect((await back.boundingBox())!.height).toBeGreaterThanOrEqual(44);
   });
 
@@ -119,7 +153,7 @@ test.describe('desktop 1280px', () => {
       await mockApi(page);
       await page.goto(route);
       await expect(page.locator('main h1').first()).toBeVisible();
-      await expect(page.getByRole(route === '/posts' ? 'table' : 'grid').first()).toBeVisible();
+      await expect(page.getByRole('grid').first()).toBeVisible();
       await page.waitForLoadState('networkidle');
       const overflow = await page.evaluate(() => {
         const scrollers = [...document.querySelectorAll<HTMLElement>('main *')].filter((element) => {

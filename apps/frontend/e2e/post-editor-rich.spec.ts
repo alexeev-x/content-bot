@@ -1,5 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, test, type Page } from '@playwright/test';
+import { readFileSync } from 'node:fs';
 import { ids, mockApi, post } from './support/mock-api';
 
 // Rich post editor (docs/plan/content-studio.md §5.1). Set SHOTS_DIR to also save screenshots.
@@ -19,6 +20,24 @@ const FORMATTED = post(ids.post, 'Итоги недели', 'draft', {
     { type: 'pre', offset: 78, length: 10, language: 'ts' }
   ]
 });
+const publicationPhotos = [
+  ['66666666-6666-4666-8666-000000000001', 'altai_lake.jpg', 'photo-altai.jpg'],
+  ['66666666-6666-4666-8666-000000000002', 'blue_lake.jpg', 'photo-lake.jpg'],
+  ['66666666-6666-4666-8666-000000000003', 'mountains.jpg', 'photo-mountains.jpg'],
+  ['66666666-6666-4666-8666-000000000004', 'sunset.jpg', 'poster-sunset.jpg'],
+  ['66666666-6666-4666-8666-000000000005', 'waterfall.jpg', 'poster-waterfall.jpg']
+].map(([id, fileName, asset], position) => ({
+  id,
+  sourceMediaId: null,
+  kind: 'photo',
+  fileName,
+  contentType: 'image/jpeg',
+  sizeBytes: readFileSync(new URL(`../src/pages/prototypes/assets/${asset}`, import.meta.url)).byteLength,
+  width: 4032,
+  height: 3024,
+  durationMs: null,
+  position
+}));
 
 async function shot(page: Page, name: string, width: number) {
   if (SHOTS_DIR) await page.screenshot({ path: `${SHOTS_DIR}/${name}-${width}.png`, fullPage: true });
@@ -58,6 +77,14 @@ for (const width of [1280, 375]) {
       await mockApi(page);
       await page.goto('/posts/new');
       await expect(page.getByRole('toolbar', { name: 'Форматирование текста' })).toBeVisible();
+      if (width === 1280) {
+        const previewHeading = page.getByRole('heading', { name: 'Предпросмотр' });
+        await expect(previewHeading).toBeVisible();
+        await page.getByRole('button', { name: 'Свернуть предпросмотр' }).click();
+        await expect(previewHeading).toHaveCount(0);
+        await page.getByRole('button', { name: 'Предпросмотр' }).click();
+        await expect(previewHeading).toBeVisible();
+      }
       await page.waitForLoadState('networkidle');
       await shot(page, 'editor-empty', width);
       await expectNoSideScroll(page);
@@ -90,8 +117,15 @@ for (const width of [1280, 375]) {
         await page.getByRole('menuitem', { name: 'Превью' }).click();
       }
       await expect(page.getByRole('figure', { name: 'Предпросмотр в Telegram' }).locator('blockquote')).toBeVisible();
+      const previewMode = page.getByRole('radiogroup', { name: 'Режим предпросмотра' });
+      await expect(previewMode).toBeVisible();
       await page.waitForLoadState('networkidle');
       await shot(page, 'preview-formatted', width);
+      await previewMode.getByRole('radio', { name: 'Пост' }).focus();
+      await page.keyboard.press('ArrowRight');
+      await expect(previewMode.getByRole('radio', { name: 'Альбом' })).toBeChecked();
+      await shot(page, 'preview-album', width);
+      await page.keyboard.press('ArrowLeft');
       if (width === 375) {
         await page.getByRole('button', { name: 'Назад к редактору' }).click();
         await expect(page.getByRole('textbox', { name: 'Текст' })).toBeVisible();
@@ -198,15 +232,61 @@ test.describe('keyboard pass at 1280px', () => {
 });
 
 for (const width of [375, 1440]) {
-  test(`post publish route renders its child page at ${width}px`, async ({ page }) => {
+  test(`approved post publication setup renders at ${width}px`, async ({ page }) => {
     await page.setViewportSize({ width, height: width === 375 ? 812 : 900 });
     await mockApi(page);
-
-    await page.goto(`/posts/${ids.post}`);
-    await expect(page.locator('main section[aria-label]')).toHaveCount(0);
+    const approvedPost = post(ids.post, 'Итоги недели в про-сцене', 'approved', {
+      revision: 2,
+      body: 'Team Spirit проиграла в четвертьфинале.\n\nРазбираем драфт третьей карты.',
+      media: publicationPhotos
+    });
+    await page.route(new RegExp(`/api/v1/posts/${ids.post}$`), (route) =>
+      route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(approvedPost) })
+    );
+    const photoBytes = new Map(
+      publicationPhotos.map((item, index) => [
+        item.id,
+        readFileSync(
+          new URL(
+            `../src/pages/prototypes/assets/${['photo-altai.jpg', 'photo-lake.jpg', 'photo-mountains.jpg', 'poster-sunset.jpg', 'poster-waterfall.jpg'][index]}`,
+            import.meta.url
+          )
+        )
+      ])
+    );
+    await page.route(/\/api\/v1\/media\/[^/]+\/content$/, (route) => {
+      const mediaId = new URL(route.request().url()).pathname.split('/').at(-2);
+      const bytes = mediaId ? photoBytes.get(mediaId) : undefined;
+      if (!bytes) throw new Error(`No real photo fixture for ${mediaId ?? 'unknown media'}`);
+      return route.fulfill({ status: 200, contentType: 'image/jpeg', body: bytes });
+    });
 
     await page.goto(`/posts/${ids.post}/publish`);
     await expect(page.locator('main h1')).toBeVisible();
     await expect(page.locator('main section[aria-label]')).toHaveCount(2);
+    await expect(page.getByText('Сначала подготовьте пост')).toHaveCount(0);
+    await page.getByRole('button', { name: 'Выберите канал' }).click();
+    const channelDialog = page.getByRole('dialog', { name: 'Выберите канал' });
+    const firstChannel = channelDialog.getByRole('radio').first();
+    await firstChannel.focus();
+    await page.keyboard.press('Space');
+    await expect(channelDialog).toBeHidden();
+    await expect(page.getByRole('button', { name: /Канал:/ })).toBeVisible();
+    if (width === 1440) {
+      const mediaPreview = page.getByRole('region', { name: 'Медиа поста' });
+      await expect(mediaPreview.getByText('1 / 5')).toBeVisible();
+      await expect
+        .poll(() =>
+          mediaPreview
+            .locator('img')
+            .first()
+            .evaluate((image: HTMLImageElement) => image.naturalWidth)
+        )
+        .toBeGreaterThanOrEqual(1000);
+    }
+    await page.waitForLoadState('networkidle');
+    await shot(page, 'publish-route', width);
+    await expectNoSideScroll(page);
+    await expectNoViolations(page);
   });
 }

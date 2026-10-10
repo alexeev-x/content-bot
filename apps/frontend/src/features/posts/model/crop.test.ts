@@ -44,12 +44,56 @@ describe('post crop geometry and output', () => {
       drawImage: vi.fn(),
       restore: vi.fn()
     } as unknown as CanvasRenderingContext2D);
-    vi.spyOn(HTMLCanvasElement.prototype, 'toBlob').mockImplementation(function (callback, type) {
+    vi.spyOn(HTMLCanvasElement.prototype, 'toBlob').mockImplementation(function (
+      this: HTMLCanvasElement,
+      callback,
+      type
+    ) {
       callback(new Blob([new Uint8Array(512_000)], { type }));
     });
     const image = { naturalWidth: 4032, naturalHeight: 3024 } as HTMLImageElement;
     const output = await exportCrop(image, defaultCropModel());
     expect(['image/jpeg', 'image/webp']).toContain(output.type);
     expect(output.size).toBeLessThanOrEqual(10_000_000);
+  });
+
+  it('reduces the output dimensions when JPEG and WebP quality cannot fit the photo limit', async () => {
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue({
+      imageSmoothingQuality: 'low',
+      save: vi.fn(),
+      scale: vi.fn(),
+      translate: vi.fn(),
+      rotate: vi.fn(),
+      drawImage: vi.fn(),
+      restore: vi.fn()
+    } as unknown as CanvasRenderingContext2D);
+    vi.spyOn(HTMLCanvasElement.prototype, 'toBlob').mockImplementation(function (
+      this: HTMLCanvasElement,
+      callback,
+      type
+    ) {
+      callback(new Blob([new Uint8Array(this.width > 1536 ? 10_000_001 : 512_000)], { type }));
+    });
+    const image = { naturalWidth: 4032, naturalHeight: 3024 } as HTMLImageElement;
+    const output = await exportCrop(image, defaultCropModel());
+    expect(output.size).toBe(512_000);
+    expect(output.type).toBe('image/jpeg');
+  });
+
+  it('does not accept a browser PNG fallback as a JPEG or WebP crop', async () => {
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue({
+      imageSmoothingQuality: 'low',
+      save: vi.fn(),
+      scale: vi.fn(),
+      translate: vi.fn(),
+      rotate: vi.fn(),
+      drawImage: vi.fn(),
+      restore: vi.fn()
+    } as unknown as CanvasRenderingContext2D);
+    vi.spyOn(HTMLCanvasElement.prototype, 'toBlob').mockImplementation(function (this: HTMLCanvasElement, callback) {
+      callback(new Blob([new Uint8Array(128)], { type: 'image/png' }));
+    });
+    const image = { naturalWidth: 4032, naturalHeight: 3024 } as HTMLImageElement;
+    await expect(exportCrop(image, defaultCropModel())).rejects.toThrow('crop-too-large');
   });
 });

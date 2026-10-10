@@ -68,6 +68,7 @@ export function PostEditor({ post, onCreated, approvedActions, aside, headerActi
   const statusRef = useRef<HTMLDivElement>(null);
   const [compareOpen, setCompareOpen] = useState(false);
   const [mobilePreviewOpen, setMobilePreviewOpen] = useState(false);
+  const [desktopPreviewOpen, setDesktopPreviewOpen] = useState(true);
   const [approveOpen, setApproveOpen] = useState(false);
   const [overwriteOpen, setOverwriteOpen] = useState(false);
 
@@ -83,7 +84,6 @@ export function PostEditor({ post, onCreated, approvedActions, aside, headerActi
   const isArchived = baseline?.archivedAt != null;
   const hasConflict = conflict !== null;
   const showApprovedPreview = isApproved && !isArchived && !hasConflict;
-  const canSave = !editor.readOnly && !hasConflict && !editor.isSaving && !editor.isApproving;
   const canApprove =
     editor.title.trim().length > 0 &&
     !editor.readOnly &&
@@ -159,6 +159,7 @@ export function PostEditor({ post, onCreated, approvedActions, aside, headerActi
       onServerChange={editor.adoptMedia}
       onPendingChange={setMediaPending}
       onEnsurePost={editor.ensureDraftForMedia}
+      onMediaSaved={editor.syncLeaveGuardAfterMediaSave}
       onRevisionConflict={() => {
         editor.markMediaConflict();
         setCompareOpen(true);
@@ -174,20 +175,26 @@ export function PostEditor({ post, onCreated, approvedActions, aside, headerActi
         entities={editor.entities}
         length={editor.length}
         media={baseline?.media ?? []}
+        desktopHeader={!narrow}
+        onCollapse={!narrow && !showApprovedPreview ? () => setDesktopPreviewOpen(false) : undefined}
       />
     </>
   );
   // Desktop: the right column switches between the Telegram preview and this post's publications.
   const side = (
     <div className={`${styles.previewColumn} ${showApprovedPreview ? styles.previewStandalone : styles.previewInPane}`}>
-      <Tabs>
-        <TabList aria-label={copy.tabs.sideLabel}>
-          <Tab id="preview">{copy.tabs.preview}</Tab>
-          {aside ? <Tab id="pubs">{postsCopy.publications.title}</Tab> : null}
-        </TabList>
-        <TabPanel id="preview">{previewPanel}</TabPanel>
-        {aside ? <TabPanel id="pubs">{aside}</TabPanel> : null}
-      </Tabs>
+      {aside && showApprovedPreview ? (
+        <Tabs>
+          <TabList aria-label={copy.tabs.sideLabel}>
+            <Tab id="preview">{copy.tabs.preview}</Tab>
+            <Tab id="pubs">{postsCopy.publications.title}</Tab>
+          </TabList>
+          <TabPanel id="preview">{previewPanel}</TabPanel>
+          <TabPanel id="pubs">{aside}</TabPanel>
+        </Tabs>
+      ) : (
+        previewPanel
+      )}
     </div>
   );
 
@@ -198,26 +205,14 @@ export function PostEditor({ post, onCreated, approvedActions, aside, headerActi
   ) : (
     <Button
       size="xl"
+      icon="arrow-right"
       isLoading={editor.isApproving || editor.isSaving}
       isDisabled={!canApprove}
       onPress={() => setApproveOpen(true)}
     >
-      Настроить публикацию
+      К публикации
     </Button>
   );
-  const saveButton = !isApproved ? (
-    <Button
-      variant="secondary"
-      size="sm"
-      icon="check"
-      isLoading={editor.isSaving}
-      isDisabled={!canSave}
-      onPress={() => void saveAndExit()}
-    >
-      {editor.isNew ? copy.create : copy.saveAndExit}
-    </Button>
-  ) : null;
-
   return (
     <div ref={rootRef} className={styles.editor}>
       <header className={styles.titleRow}>
@@ -226,7 +221,7 @@ export function PostEditor({ post, onCreated, approvedActions, aside, headerActi
             variant="ghost"
             size="lg"
             icon="arrow-left"
-            aria-label={mobilePreviewOpen ? copy.previewReturn : undefined}
+            aria-label={mobilePreviewOpen ? copy.previewReturn : copy.back}
             onPress={() => {
               if (mobilePreviewOpen) {
                 setMobilePreviewOpen(false);
@@ -235,17 +230,15 @@ export function PostEditor({ post, onCreated, approvedActions, aside, headerActi
               void backToPosts();
             }}
             className={styles.backButton}
-          >
-            Посты
-          </Button>
+          />
         ) : null}
         <div className={styles.titleCopy}>
           <h1 ref={statusRef} tabIndex={-1}>
-            {editor.isNew ? 'Новый пост' : editor.title.trim() || copy.untitled}
+            {narrow ? 'Новый пост' : editor.isNew ? 'Новый пост' : editor.title.trim() || copy.untitled}
           </h1>
           <span className={styles.saveStatus}>
             <span className={styles.statusDot} data-state={editor.saveState} />
-            <SaveIndicator state={editor.saveState} savedAt={baseline?.updatedAt} />
+            <SaveIndicator state={editor.saveState} savedAt={baseline?.updatedAt} compact={narrow} />
           </span>
         </div>
         {narrow && !showApprovedPreview ? (
@@ -255,8 +248,12 @@ export function PostEditor({ post, onCreated, approvedActions, aside, headerActi
             onAction={() => setMobilePreviewOpen(true)}
           />
         ) : null}
-        {headerActions}
-        {!narrow ? saveButton : null}
+        {headerActions ? <span className={styles.headerActions}>{headerActions}</span> : null}
+        {!narrow && !showApprovedPreview && !desktopPreviewOpen ? (
+          <Button variant="secondary" size="sm" icon="eye" onPress={() => setDesktopPreviewOpen(true)}>
+            Предпросмотр
+          </Button>
+        ) : null}
         {editor.saveState === 'failed' && !editor.readOnly && !hasConflict ? (
           <Button variant="ghost" size="sm" icon="retry" onPress={() => void editor.save()}>
             {copy.errors.retry}
@@ -311,19 +308,18 @@ export function PostEditor({ post, onCreated, approvedActions, aside, headerActi
           {mediaEditor}
         </div>
       ) : (
-        <div className={styles.panes}>
+        <div className={`${styles.panes} ${!desktopPreviewOpen ? styles.previewCollapsed : ''}`}>
           <div className={styles.leftColumn}>
             <div className={styles.writeCard}>{fields}</div>
             {mediaEditor}
           </div>
-          {side}
+          {desktopPreviewOpen ? side : null}
         </div>
       )}
       <footer className={narrow ? styles.actionBar : styles.footerBar}>
-        <Button variant="secondary" size="xl" icon="log-out" onPress={() => void saveAndExit()}>
+        <Button variant="secondary" size={narrow ? 'sm' : 'xl'} icon="log-out" onPress={() => void saveAndExit()}>
           Выйти
         </Button>
-        {narrow ? saveButton : null}
         <p className={styles.footerNote}>
           <Icon name="info" size={16} />
           Черновик сохраняется автоматически

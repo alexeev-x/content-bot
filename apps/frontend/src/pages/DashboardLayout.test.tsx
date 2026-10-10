@@ -146,9 +146,15 @@ describe('layout in the view mode', () => {
     for (const widget of DEFAULT_WIDGETS) {
       expect(place(widget.type)).toEqual([`${widget.x + 1} / span ${widget.w}`, `${widget.y + 1} / span ${widget.h}`]);
     }
-    expect(screen.getByRole('region', { name: 'Черновики' })).toBeTruthy();
-    expect(screen.getByRole('region', { name: 'Неделя' })).toBeTruthy();
-    expect(screen.getByRole('region', { name: 'Быстрые действия' })).toBeTruthy();
+    expect(screen.getByRole('region', { name: 'Сводка' })).toBeTruthy();
+    expect(screen.getByRole('region', { name: 'Требует внимания' })).toBeTruthy();
+    expect(screen.getByRole('region', { name: 'Сегодня' })).toBeTruthy();
+    expect(screen.getByRole('region', { name: 'Ближайшие' })).toBeTruthy();
+    expect(screen.getByRole('region', { name: 'Последние публикации' })).toBeTruthy();
+    expect(screen.getByRole('region', { name: 'Система' })).toBeTruthy();
+    expect(screen.queryByRole('region', { name: 'Черновики' })).toBeNull();
+    expect(screen.queryByRole('region', { name: 'Неделя' })).toBeNull();
+    expect(screen.queryByRole('region', { name: 'Быстрые действия' })).toBeNull();
   });
 
   it('draws the saved widgets at their saved cells and nothing else', async () => {

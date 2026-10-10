@@ -54,6 +54,15 @@
   flex: 1;
   flex-direction: column;
 }
+.writeCard > section > div {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+}
+.previewCollapsed {
+  grid-template-columns: minmax(0, 1fr);
+}
 .titleRow {
   display: flex;
   align-items: center;
@@ -61,6 +70,10 @@
   min-height: var(--size-control);
 }
 .backButton {
+  flex: none;
+}
+.headerActions {
+  display: inline-flex;
   flex: none;
 }
 .titleCopy {
@@ -151,26 +164,27 @@
 }
 .fields {
   display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
   gap: var(--space-4);
+  flex: 1;
   min-height: 0;
   padding: var(--space-4);
 }
-.overLimit {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-1);
-  font-weight: var(--font-weight-semibold);
-}
-.length {
+.writeCard .fields > div:has([contenteditable='true']) {
   display: flex;
-  flex-wrap: wrap;
-  justify-content: space-between;
-  gap: var(--space-1) var(--space-3);
-  color: var(--color-text-muted);
-  font-size: var(--font-size-xs);
+  flex-direction: column;
+  min-height: 0;
 }
-.length[data-over] {
-  color: var(--color-danger);
+.writeCard .fields > div:has([contenteditable='true']) > div[class*='box'] {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+}
+.writeCard .fields [contenteditable='true'] {
+  flex: 1;
+  min-height: 0;
+  max-height: none;
 }
 .previewBody {
   display: grid;
@@ -240,13 +254,14 @@
   min-height: calc(var(--line-height-editor) * 5);
   overflow-y: auto;
 }
-.fields div:has([contenteditable='true']) > p:first-of-type > span:first-child,
-.fields .length > span:last-child {
-  display: none;
-}
 @media (max-width: 859px) {
   .phoneStack .fields {
     padding: 0;
+  }
+  .phoneStack > section {
+    border: 0;
+    border-radius: 0;
+    background: transparent;
   }
 }
 .shortcut {
@@ -309,8 +324,12 @@
     gap: var(--space-2);
   }
   .titleCopy h1 {
+    font-size: var(--font-size-md);
     min-width: 0;
     flex: 1 1 auto;
+  }
+  .titleCopy {
+    gap: var(--space-1);
   }
   .saveStatus {
     max-width: 7rem;
@@ -319,6 +338,15 @@
   }
   .titleRow {
     gap: var(--space-2);
+    min-height: 56px;
+  }
+  .headerActions {
+    display: none;
+  }
+  .backButton {
+    width: var(--size-target);
+    min-width: var(--size-target);
+    padding-inline: 0;
   }
   .desktopActions {
     display: none;
@@ -328,5 +356,13 @@
   }
   .footerPrimary {
     min-width: 0;
+  }
+  .saveStatus {
+    flex: none;
+    max-width: 8.5rem;
+    font-size: var(--font-size-xs);
+  }
+  .saveStatus > output svg {
+    display: none;
   }
 }

@@ -75,6 +75,10 @@
   min-width: 0;
   min-height: calc(var(--reserve-rows, 0) * var(--panel-row));
 }
+.body:focus-visible {
+  outline: var(--focus-ring-width) solid var(--color-focus-ring);
+  outline-offset: var(--focus-ring-offset);
+}
 .panel[data-variant='plain'] .body {
   flex: 1 1 auto;
   min-height: 0;

@@ -3,12 +3,15 @@ import type { CSSProperties, ReactNode } from 'react';
 import { GAP, ROW_HEIGHT } from '../model/geometry';
 import { sequence } from '../model/layout-ops';
 import styles from './Dashboard.module.css';
+import { PreviewPanels } from './PreviewPanels';
 
 type Props = {
   widgets: readonly DashboardWidget[];
   phone: boolean;
   /** Names the grid for assistive technology. */
   label?: string;
+  /** The unsaved default overview has two clearly marked demo panels outside the editable widget contract. */
+  defaultOverview?: boolean;
   children: (widget: DashboardWidget) => ReactNode;
 };
 
@@ -16,13 +19,14 @@ type Props = {
  * The view-mode layout: plain CSS Grid (12 columns, 56 px rows, 16 px gap) with every widget at its saved cell.
  * A phone gets one column in reading order (top to bottom, left to right) and ignores widths and heights.
  */
-export function WidgetGrid({ widgets, phone, label, children }: Props) {
+export function WidgetGrid({ widgets, phone, label, defaultOverview = false, children }: Props) {
   const geometry = { '--dash-row': `${ROW_HEIGHT}px`, '--dash-gap': `${GAP}px` } as CSSProperties;
   const ordered = phone ? sequence(widgets) : widgets;
   return (
     <div
       className={styles.grid}
       data-phone={phone || undefined}
+      data-default-overview={defaultOverview || undefined}
       style={geometry}
       {...(label ? { role: 'group', 'aria-label': label } : {})}
     >
@@ -43,6 +47,7 @@ export function WidgetGrid({ widgets, phone, label, children }: Props) {
           {children(widget)}
         </div>
       ))}
+      {defaultOverview ? <PreviewPanels /> : null}
     </div>
   );
 }

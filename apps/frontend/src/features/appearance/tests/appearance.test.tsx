@@ -196,12 +196,12 @@ describe('appearance editor', () => {
   describe('with the top bar toggle', () => {
     const toggleName = /Включить (светлую|тёмную) тему/;
 
-    it('has no theme mode control', async () => {
+    it('keeps the theme mode control when the top bar toggle is available', async () => {
       server.use(getAppearance(appearance({ themeMode: 'system' })));
       renderEditor();
       await lightGroup();
-      expect(screen.queryByText('Режим темы')).toBeNull();
-      expect(screen.queryByRole('radio', { name: 'Системная' })).toBeNull();
+      expect(screen.getByRole('region', { name: 'Тема' })).toBeTruthy();
+      expect(screen.getByRole('radio', { name: 'Системная' })).toBeTruthy();
     });
 
     it('saves the theme the toggle saved, not a stale copy', async () => {

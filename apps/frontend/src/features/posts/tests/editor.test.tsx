@@ -65,7 +65,7 @@ describe('mobile editor navigation', () => {
     const user = userEvent.setup();
     await openExisting({ body: 'Сохранённый текст' });
 
-    expect(screen.getByRole('heading', { name: 'Заголовок' })).toBeTruthy();
+    expect(screen.getByRole('textbox', { name: 'Заголовок' })).toBeTruthy();
     expect(screen.queryByRole('tablist')).toBeNull();
     expect(screen.queryByRole('tab')).toBeNull();
     const mediaHeading = screen.getByRole('heading', { name: 'Фото и видео' });
@@ -91,7 +91,7 @@ describe('mobile editor navigation', () => {
     server.use(failWith('patch', `/api/v1/posts/${ids.post}`, { status: 503, code: 'UNAVAILABLE' }));
 
     await typeAtEnd(user, ' важная правка');
-    await user.click(screen.getByRole('button', { name: 'Посты' }));
+    await user.click(screen.getByRole('button', { name: 'Все посты' }));
 
     expect(await screen.findByRole('alert')).toBeTruthy();
     expect(router.state.location.pathname).toBe(`/posts/${ids.post}`);
@@ -163,7 +163,7 @@ describe('create', () => {
     );
     const { router } = renderEditorApp('/posts/new');
     await user.type(await screen.findByRole('textbox', { name: /Заголовок/ }), 'Новый пост');
-    await user.click(screen.getByRole('button', { name: 'Настроить публикацию' }));
+    await user.click(screen.getByRole('button', { name: 'К публикации' }));
     const confirmation = await screen.findByRole('alertdialog');
     expect(calls).toEqual([]);
     await user.click(within(confirmation).getByRole('button', { name: 'Одобрить и продолжить' }));
@@ -183,7 +183,7 @@ describe('create', () => {
     const { router } = renderEditorApp('/posts/new');
     await user.type(await screen.findByRole('textbox', { name: /Заголовок/ }), 'Новый');
     await user.type(bodyBox(), 'Текст');
-    await user.click(screen.getByRole('button', { name: 'Создать черновик' }));
+    await user.keyboard('{Control>}s{/Control}');
 
     await waitFor(() => expect(router.state.location.pathname).toBe(`/posts/${ids.post}`));
     expect(seen).toHaveLength(1);
@@ -205,7 +205,7 @@ describe('create', () => {
     );
     renderEditorApp('/posts/new');
     await screen.findByRole('textbox', { name: /Заголовок/ });
-    await user.click(screen.getByRole('button', { name: 'Создать черновик' }));
+    await user.keyboard('{Control>}s{/Control}');
     expect(await screen.findByText('Введите заголовок')).toBeTruthy();
     expect(titleBox().getAttribute('aria-invalid')).toBe('true');
     expect(calls).toBe(0);
@@ -224,7 +224,7 @@ describe('save', () => {
       })
     );
     const { router } = await openExisting();
-    const saveAndExit = screen.getByRole('button', { name: 'Сохранить и выйти' });
+    const saveAndExit = screen.getByRole('button', { name: 'Выйти' });
     expect(saveAndExit.hasAttribute('disabled')).toBe(false);
     await user.click(saveAndExit);
     await waitFor(() => expect(router.state.location.pathname).toBe('/posts'));
@@ -242,7 +242,7 @@ describe('save', () => {
     );
     const { router } = await openExisting();
     await replaceBody(user, 'Правка');
-    await user.click(screen.getByRole('button', { name: 'Сохранить и выйти' }));
+    await user.click(screen.getByRole('button', { name: 'Выйти' }));
     await waitFor(() => expect(router.state.location.pathname).toBe('/posts'));
     expect(bodies).toEqual([{ revision: 0, body: 'Правка', entities: [] }]);
     expect(screen.queryByRole('alertdialog')).toBeNull();
@@ -261,7 +261,7 @@ describe('save', () => {
     );
     const { router } = await openExisting();
     await replaceBody(user, 'Правка');
-    await user.click(screen.getByRole('button', { name: 'Сохранить и выйти' }));
+    await user.click(screen.getByRole('button', { name: 'Выйти' }));
     await waitFor(() => expect(complete).toBeDefined());
     await typeAtEnd(user, '!');
     complete?.();
@@ -314,7 +314,7 @@ describe('save', () => {
     await openExisting();
     server.use(failWith('patch', `/api/v1/posts/${ids.post}`, { status: 503, code: 'UNAVAILABLE' }));
     await typeAtEnd(user, ' дополнение');
-    await user.click(screen.getByRole('button', { name: 'Сохранить и выйти' }));
+    await user.click(screen.getByRole('button', { name: 'Выйти' }));
     const alert = await screen.findByRole('alert');
     expect(alert.textContent).toContain('req-test-1');
     expect(alert.textContent).toContain('Ваш текст остался в редакторе');
@@ -341,7 +341,7 @@ describe('409 STALE_REVISION', () => {
       })
     );
     await replaceBody(user, 'Мой текст');
-    await user.click(screen.getByRole('button', { name: 'Сохранить и выйти' }));
+    await user.click(screen.getByRole('button', { name: 'Выйти' }));
 
     const banner = await screen.findByText('Пост уже изменён в другом месте');
     expect(banner).toBeTruthy();
@@ -417,7 +417,7 @@ describe('approve', () => {
         }
       ]
     });
-    await user.click(screen.getByRole('button', { name: 'Настроить публикацию' }));
+    await user.click(screen.getByRole('button', { name: 'К публикации' }));
     await user.click(
       within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Одобрить и продолжить' })
     );
@@ -437,7 +437,7 @@ describe('approve', () => {
     server.use(http.get('*/api/v1/posts/:id', () => HttpResponse.json(post())));
     const app = renderEditorApp(`/posts/${ids.post}`);
     await screen.findByRole('textbox', { name: 'Текст' });
-    await user.click(screen.getByRole('button', { name: 'Настроить публикацию' }));
+    await user.click(screen.getByRole('button', { name: 'К публикации' }));
     const dialog = await screen.findByRole('alertdialog');
     expect(approvals).toHaveLength(0);
     await user.click(within(dialog).getByRole('button', { name: 'Одобрить и продолжить' }));
@@ -446,7 +446,7 @@ describe('approve', () => {
     expect(await screen.findByRole('heading', { name: 'Настройки публикации' })).toBeTruthy();
     expect(screen.queryByRole('textbox', { name: 'Заголовок' })).toBeNull();
     expect(screen.queryByRole('textbox', { name: 'Текст' })).toBeNull();
-    expect(screen.queryByRole('button', { name: 'Сохранить и выйти' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Выйти' })).toBeNull();
   });
 
   it('shows EMPTY_BODY under the body field and keeps the post a draft', async () => {
@@ -459,7 +459,7 @@ describe('approve', () => {
       })
     );
     await openExisting({ body: '' });
-    await user.click(screen.getByRole('button', { name: 'Настроить публикацию' }));
+    await user.click(screen.getByRole('button', { name: 'К публикации' }));
     await user.click(
       within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Одобрить и продолжить' })
     );
@@ -487,7 +487,7 @@ describe('approve', () => {
       http.get('*/api/v1/posts/:id', () => HttpResponse.json(post({ status: 'approved', revision: 1 })))
     );
     await typeAtEnd(user, '!');
-    await user.click(screen.getByRole('button', { name: 'Сохранить и выйти' }));
+    await user.click(screen.getByRole('button', { name: 'Выйти' }));
     expect(await screen.findByText('Пост уже одобрен в другом месте')).toBeTruthy();
     expect(bodyBox().textContent).toBe('Текст поста!');
     expect(bodyBox().getAttribute('aria-readonly')).toBe('true');
@@ -536,7 +536,7 @@ describe('limits and preview', () => {
     await user.paste('a'.repeat(100));
     expect(screen.getAllByText('100 / 4096').length).toBeGreaterThan(0);
     // 4 (title) + 2 (blank line) + 100 (body)
-    expect(screen.getAllByText('В сообщении 106 из 4096 символов').length).toBeGreaterThan(0);
+    expect(document.body.textContent).toContain('В сообщении 106 из 4096 символов');
   });
 
   it('warns when title and body together exceed Telegram, keeps saving possible, and blocks approval', async () => {
@@ -545,8 +545,8 @@ describe('limits and preview', () => {
     await user.click(bodyBox());
     await user.paste('b'.repeat(POST_BODY_MAX - 5));
     expect(await screen.findByText(/Сообщение длиннее лимита Telegram на 6/)).toBeTruthy();
-    expect(screen.getByRole('button', { name: 'Сохранить и выйти' }).hasAttribute('disabled')).toBe(false);
-    expect(screen.getByRole('button', { name: 'Настроить публикацию' }).hasAttribute('disabled')).toBe(true);
+    expect(screen.getByRole('button', { name: 'Выйти' }).hasAttribute('disabled')).toBe(false);
+    expect(screen.getByRole('button', { name: 'К публикации' }).hasAttribute('disabled')).toBe(true);
   });
 
   it('previews the title and body as plain text, so markup is shown literally', async () => {
