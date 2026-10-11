@@ -15,11 +15,11 @@ export async function listPosts(deps: ReadPostsDeps, query: ListPostsQuery): Pro
   const after = query.cursor === undefined ? undefined : decodeCursor(query.cursor);
   if (after === null) throw new AppError('VALIDATION_ERROR', 'Invalid cursor', { field: 'cursor' });
 
-  // One extra row tells whether another page exists without a second query. The archive count
-  // is independent of the page, so it is read beside it.
-  const [rows, archivedCount] = await Promise.all([
+  // One extra row tells whether another page exists; counts cover the full selected view, not the cursor page.
+  const [rows, archivedCount, totalCount] = await Promise.all([
     deps.repo.list({ view: query.view, status: query.status, after, limit: query.limit + 1 }),
-    deps.repo.countArchived()
+    deps.repo.countArchived(),
+    deps.repo.count(query.view, query.status)
   ]);
   const page = rows.slice(0, query.limit);
   // A draft has no publications, so only approved posts are asked about.
@@ -32,7 +32,8 @@ export async function listPosts(deps: ReadPostsDeps, query: ListPostsQuery): Pro
   return {
     items: page.map((record) => toPostDto(record, summaries.get(record.id) ?? emptySummary())),
     nextCursor: rows.length > query.limit && last !== undefined ? encodeCursor({ at: lastKey, id: last.id }) : null,
-    archivedCount
+    archivedCount,
+    totalCount
   };
 }
 
@@ -41,4 +42,13 @@ export async function getPost(deps: ReadPostsDeps, id: string): Promise<PostDto>
   if (record === null) throw notFound();
   const summaries = await deps.summaries.summarize(record.status === 'approved' ? [record.id] : [], deps.now);
   return toPostDto(record, summaries.get(record.id) ?? emptySummary());
+}
+
+export async function getPostsByIds(deps: ReadPostsDeps, ids: readonly string[]): Promise<PostDto[]> {
+  const records = await deps.repo.findManyByIds(ids);
+  const summaries = await deps.summaries.summarize(
+    records.filter((record) => record.status === 'approved').map((record) => record.id),
+    deps.now
+  );
+  return records.map((record) => toPostDto(record, summaries.get(record.id) ?? emptySummary()));
 }

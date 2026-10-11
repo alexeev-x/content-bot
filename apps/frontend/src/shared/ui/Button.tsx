@@ -9,7 +9,7 @@ export type ButtonSize = 'sm' | 'md' | 'lg' | 'xl' | 'field';
 
 type Props = Omit<AriaButtonProps, 'children' | 'className' | 'isPending'> & {
   variant?: ButtonVariant;
-  /** `md` 32 px (toolbars, form footers, dialogs); `sm` 28 px (inside rows, popovers, banners); `lg` 44 px with wider padding (primary CTA of an editor footer: «К публикации →»); `xl` 52 px (editor footer CTAs); `field` = field height (36 px) beside an input. All are 44 px on touch and narrow screens. */
+  /** `md` 36 px (toolbars, form footers, dialogs); `sm` 34 px (inside rows, popovers, banners); `lg` 44 px with wider padding (primary CTA of an editor footer: «К публикации →»); `xl` 52 px (editor footer CTAs); `field` = field height (36 px, 44 px on touch/narrow screens). `md` and `sm` resolve to 44 px on touch/narrow screens. */
   size?: ButtonSize;
   /* `link`: accent text without a box; `soft`: tonal accent fill. */
   /** Keeps the label, shows a spinner and ignores presses (aria-disabled, so focus is not lost). */

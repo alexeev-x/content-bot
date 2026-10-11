@@ -9,7 +9,7 @@
     "build": "npm run typecheck",
     "test": "vitest run",
     "db:migrate:local": "node scripts/migrate-local.mjs",
-    "db:migrate:dev": "wrangler d1 migrations apply content-db-dev --remote --env dev",
+    "db:migrate:dev": "wrangler d1 migrations apply content-db-dev --remote --env dev && node --experimental-strip-types scripts/backfill-post-title-sort-keys.mjs --remote --env dev",
     "db:migrate:prod": "wrangler d1 migrations apply content-db-prod --remote --env production"
   },
   "dependencies": {

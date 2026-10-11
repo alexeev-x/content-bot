@@ -97,7 +97,8 @@ function workflow(
           ) => {
             calls.push(input);
             return options.send?.(input) ?? Promise.resolve({ ok: true });
-          }
+          },
+          sendMediaWithWebAppButton: () => Promise.resolve({ ok: true })
         }
       : options.messenger;
   return {
@@ -745,7 +746,8 @@ describe('processDotaUpdates', () => {
           sendMessageWithWebAppButton: (_chatId, input) => {
             sent.push(input);
             return Promise.resolve({ ok: true });
-          }
+          },
+          sendMediaWithWebAppButton: () => Promise.resolve({ ok: true })
         }
       }
     );

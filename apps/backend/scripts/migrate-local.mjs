@@ -12,4 +12,11 @@ const result = spawnSync(process.execPath, [wrangler, 'd1', 'migrations', 'apply
   cwd: backendDir,
   stdio: ['ignore', 'inherit', 'inherit']
 });
-process.exit(result.status ?? 1);
+if (result.status !== 0) process.exit(result.status ?? 1);
+
+const backfill = spawnSync(
+  process.execPath,
+  ['--experimental-strip-types', join(backendDir, 'scripts', 'backfill-post-title-sort-keys.mjs'), '--local'],
+  { cwd: backendDir, stdio: ['ignore', 'inherit', 'inherit'] }
+);
+process.exit(backfill.status ?? 1);

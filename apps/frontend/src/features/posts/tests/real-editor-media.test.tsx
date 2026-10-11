@@ -8,12 +8,27 @@ import { server, setupMswServer } from '../../../test/msw';
 import { uploadPostMedia } from '../api/post-media-api';
 import { renderEditorApp } from './harness';
 
-vi.mock('../api/post-media-api', () => ({
+vi.mock('../api/post-media-api', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../api/post-media-api')>()),
   attachLibraryMedia: vi.fn(),
   cropPostMedia: vi.fn(),
   deletePostMedia: vi.fn(),
   getPostMediaContent: vi.fn().mockResolvedValue(new Blob(['private image'], { type: 'image/jpeg' })),
   listMediaLibrary: vi.fn(),
+  mediaLibraryPageQueryOptions: (kind: 'all' | 'photo' | 'video', cursor?: string) => ({
+    queryKey: ['post-media', 'library', kind, cursor ?? null] as const,
+    queryFn: async () => ({ items: [], nextCursor: null }),
+    staleTime: 30_000,
+    gcTime: 60_000,
+    retry: false
+  }),
+  postMediaContentQueryOptions: (mediaId: string, sizeBytes: number) => ({
+    queryKey: ['post-media', 'content', mediaId] as const,
+    queryFn: async () => new Blob(['private image'], { type: 'image/jpeg' }),
+    staleTime: sizeBytes <= 512_000 ? 60_000 : 0,
+    gcTime: sizeBytes <= 512_000 ? 60_000 : 0,
+    retry: false
+  }),
   reorderPostMedia: vi.fn(),
   uploadPostMedia: vi.fn()
 }));

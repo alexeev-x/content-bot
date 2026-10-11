@@ -2,6 +2,7 @@ import { type PostEntity, type PostMediaDto, postEntityListSchema, postMediaSche
 import { completeIdempotencyStatement, ownsClaimSql } from '../../../platform/idempotency/d1-idempotency-store';
 import type { ListPostsQuery, PostChange, PostRecord, PostRepository } from '../application/ports';
 import type { PostStatus } from '../domain/post';
+import { postTitleSortKey } from '../domain/post-title-sort-key';
 
 interface PostRow {
   id: string;
@@ -149,10 +150,18 @@ export function createD1PostRepository(db: D1Database): PostRepository {
       const results = await db.batch([
         db
           .prepare(
-            `INSERT INTO posts (id, title, body, entities, status, revision, created_at, updated_at)
-             SELECT ?1, ?2, ?3, ?4, 'draft', 0, ?5, ?5 WHERE ${ownsClaimSql(6)}`
+            `INSERT INTO posts (id, title, title_sort_key, body, entities, status, revision, created_at, updated_at)
+             SELECT ?1, ?2, ?3, ?4, ?5, 'draft', 0, ?6, ?6 WHERE ${ownsClaimSql(7)}`
           )
-          .bind(record.id, record.title, record.body, entities, record.createdAt, ...claim),
+          .bind(
+            record.id,
+            record.title,
+            postTitleSortKey(record.title),
+            record.body,
+            entities,
+            record.createdAt,
+            ...claim
+          ),
         db
           .prepare(
             `INSERT INTO post_revisions (post_id, revision, title, body, entities, status, created_at)
@@ -167,12 +176,27 @@ export function createD1PostRepository(db: D1Database): PostRepository {
           .bind(record.id, record.createdAt, actor, ...claim),
         completeIdempotencyStatement(db, idempotency, response, record.createdAt)
       ]);
-      return results[0]?.meta.changes === 1;
+      // The FTS maintenance trigger can affect D1's changes count for the first statement; the final
+      // idempotency completion is the guarded batch outcome and remains one changed row on success.
+      return results.at(-1)?.meta.changes === 1;
     },
 
     async findById(id) {
       const row = await db.prepare(`SELECT ${POST_COLUMNS} FROM posts WHERE id = ?1`).bind(id).first<PostRow>();
       return row === null ? null : ((await attachMedia(db, [toRecord(row)]))[0] ?? null);
+    },
+
+    async findManyByIds(ids) {
+      if (ids.length === 0) return [];
+      const { results } = await db
+        .prepare(`SELECT ${POST_COLUMNS} FROM posts WHERE id IN (SELECT value FROM json_each(?1))`)
+        .bind(JSON.stringify(ids))
+        .all<PostRow>();
+      const byId = new Map((await attachMedia(db, results.map(toRecord))).map((post) => [post.id, post]));
+      return ids.flatMap((id) => {
+        const post = byId.get(id);
+        return post === undefined ? [] : [post];
+      });
     },
 
     // A revision is an immutable snapshot (primary key post_id + revision): what a publication sends.
@@ -236,6 +260,20 @@ export function createD1PostRepository(db: D1Database): PostRepository {
       return row?.n ?? 0;
     },
 
+    async count(view, status) {
+      const conditions = [view === 'archive' ? 'archived_at IS NOT NULL' : 'archived_at IS NULL'];
+      const bindings: string[] = [];
+      if (status !== undefined) {
+        conditions.push('status = ?');
+        bindings.push(status);
+      }
+      const row = await db
+        .prepare(`SELECT count(*) AS n FROM posts WHERE ${conditions.join(' AND ')}`)
+        .bind(...bindings)
+        .first<{ n: number }>();
+      return row?.n ?? 0;
+    },
+
     async update(change) {
       const fields = [
         ...(change.title === undefined ? [] : ['title']),
@@ -254,11 +292,20 @@ export function createD1PostRepository(db: D1Database): PostRepository {
         auditStatement(db, 'post.update', change, { revision: change.expectedRevision + 1, fields }),
         db
           .prepare(
-            `UPDATE posts SET title = COALESCE(?3, title), body = COALESCE(?4, body), entities = COALESCE(?5, entities),
+            `UPDATE posts SET title = COALESCE(?3, title), title_sort_key = COALESCE(?7, title_sort_key),
+               body = COALESCE(?4, body), entities = COALESCE(?5, entities),
                revision = revision + 1, updated_at = ?6
              WHERE ${GUARD} RETURNING ${POST_COLUMNS}`
           )
-          .bind(change.id, change.expectedRevision, change.title ?? null, change.body ?? null, entities, change.now),
+          .bind(
+            change.id,
+            change.expectedRevision,
+            change.title ?? null,
+            change.body ?? null,
+            entities,
+            change.now,
+            change.title === undefined ? null : postTitleSortKey(change.title)
+          ),
         // Read in the same batch as the write, so the media returned is the media of the revision returned.
         mediaStatement(db, [change.id])
       ]);

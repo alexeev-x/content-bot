@@ -1,7 +1,16 @@
-import { apiErrorSchema, type ApiErrorDto, type PostDto, postPageSchema, postSchema } from '@alexeev/contracts';
+import {
+  apiErrorSchema,
+  type ApiErrorDto,
+  type PostDto,
+  listPostsQuerySchema,
+  postPageSchema,
+  postSchema
+} from '@alexeev/contracts';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { sha256Hex } from '../../src/platform/security/sha256';
 import { testDb } from '../helpers/db';
+import { buildPostsListSql } from '../../src/app/posts-list-query';
+import { postTitleSortKey } from '../../src/modules/content';
 import { type Api, createApi, fakeClock, OWNER_ID, OWNER_TOKEN, resetDb, seedSession, START } from '../helpers/harness';
 
 let api: Api;
@@ -520,7 +529,12 @@ describe('GET /api/v1/posts', () => {
   it('returns an empty page for an empty table', async () => {
     const response = await api.request('/api/v1/posts');
 
-    expect(postPageSchema.parse(await response.json())).toEqual({ items: [], nextCursor: null, archivedCount: 0 });
+    expect(postPageSchema.parse(await response.json())).toEqual({
+      items: [],
+      nextCursor: null,
+      archivedCount: 0,
+      totalCount: 0
+    });
   });
 
   it('walks more items than the limit without gaps or duplicates, newest first', async () => {
@@ -552,6 +566,225 @@ describe('GET /api/v1/posts', () => {
     expect(drafts).toHaveLength(16);
     expect(approved.every((post) => post.status === 'approved')).toBe(true);
     expect(isNewestFirst(drafts)).toBe(true);
+  });
+
+  it('searches Cyrillic title and body substrings case-insensitively and reports filtered totalCount', async () => {
+    await create({ title: 'СЕКРЕТНЫЙ ЗАГОЛОВОК', body: 'Содержимое' });
+    await create({ title: 'Другое', body: 'ТЕКСТОВОЕ ТЕЛО' });
+    await create({ title: 'Не совпадает' });
+
+    const titleMatch = postPageSchema.parse(await (await api.request('/api/v1/posts?q=секретный')).json());
+    const bodyMatch = postPageSchema.parse(await (await api.request('/api/v1/posts?q=текстовое')).json());
+    const stateMatch = postPageSchema.parse(await (await api.request('/api/v1/posts?q=ЧЕРНОВИК')).json());
+
+    expect(titleMatch).toMatchObject({ totalCount: 1, items: [{ title: 'СЕКРЕТНЫЙ ЗАГОЛОВОК' }] });
+    expect(bodyMatch).toMatchObject({ totalCount: 1, items: [{ body: 'ТЕКСТОВОЕ ТЕЛО' }] });
+    expect(stateMatch.items.length).toBeGreaterThan(0);
+    expect(stateMatch.items.every((post) => post.status === 'draft')).toBe(true);
+  });
+
+  it('searches current channel titles with Unicode case folding', async () => {
+    const created = await create({ title: 'Channel post', body: 'Body' });
+    const accentedTitle = await create({ title: 'ÉCLAIR', body: 'Short search regression' });
+    const approved = postSchema.parse(await (await approve(created.id, { revision: 0 })).json());
+    const destinationId = crypto.randomUUID();
+    const publicationId = crypto.randomUUID();
+    await testDb().batch([
+      testDb()
+        .prepare(
+          "INSERT INTO destinations (id, title, chat_id, kind, enabled, revision, created_at, updated_at) VALUES (?1, 'ПУБЛИЧНЫЙ КАНАЛ', '@channel_test', 'channel', 1, 0, ?2, ?2)"
+        )
+        .bind(destinationId, START),
+      testDb()
+        .prepare(
+          "INSERT INTO publications (id, post_id, post_revision, destination_id, scheduled_at, timezone, revision, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, 'Europe/Chisinau', 0, ?5, ?5)"
+        )
+        .bind(publicationId, approved.id, approved.revision, destinationId, START),
+      testDb()
+        .prepare(
+          "INSERT INTO jobs (id, kind, publication_id, status, run_at, attempts, dedupe_key, publication_scheduled_at, created_at, updated_at) VALUES (?1, 'publish', ?2, 'succeeded', ?3, 1, ?4, ?3, ?3, ?3)"
+        )
+        .bind(crypto.randomUUID(), publicationId, START, `publish:${publicationId}`)
+    ]);
+
+    const page = postPageSchema.parse(await (await api.request('/api/v1/posts?q=публичный')).json());
+
+    expect(page.totalCount).toBe(1);
+    expect(page.items.map((post) => post.id)).toEqual([created.id]);
+
+    const accentedTitleResponse = await api.request('/api/v1/posts?q=é');
+    const accentedTitlePage = postPageSchema.parse(await accentedTitleResponse.json());
+    expect(accentedTitlePage.items.map((post) => post.id)).toContain(accentedTitle.id);
+
+    await testDb().prepare("UPDATE destinations SET title = 'ÓRBITA' WHERE id = ?1").bind(destinationId).run();
+    const accentedChannelPage = postPageSchema.parse(await (await api.request('/api/v1/posts?q=ó')).json());
+    expect(accentedChannelPage.items.map((post) => post.id)).toContain(created.id);
+  });
+
+  it('maintains trigram search indexes when post text and channel titles change', async () => {
+    const created = await create({ title: 'Обычный заголовок', body: 'Начальный текст' });
+    await patch(created.id, { revision: 0, title: 'Обновлённый заголовок', body: 'Изменённый текст', entities: [] });
+    const destinationId = crypto.randomUUID();
+    const approved = postSchema.parse(await (await approve(created.id, { revision: 1 })).json());
+    const publicationId = crypto.randomUUID();
+    await testDb().batch([
+      testDb()
+        .prepare(
+          "INSERT INTO destinations (id, title, chat_id, kind, enabled, revision, created_at, updated_at) VALUES (?1, 'Старый канал', '@updated_channel', 'channel', 1, 0, ?2, ?2)"
+        )
+        .bind(destinationId, START),
+      testDb()
+        .prepare(
+          "INSERT INTO publications (id, post_id, post_revision, destination_id, scheduled_at, timezone, revision, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, 'UTC', 0, ?5, ?5)"
+        )
+        .bind(publicationId, created.id, approved.revision, destinationId, START),
+      testDb()
+        .prepare(
+          "INSERT INTO jobs (id, kind, publication_id, status, run_at, attempts, dedupe_key, publication_scheduled_at, created_at, updated_at) VALUES (?1, 'publish', ?2, 'succeeded', ?3, 1, ?4, ?3, ?3, ?3)"
+        )
+        .bind(crypto.randomUUID(), publicationId, START, `publish:${publicationId}`)
+    ]);
+    await testDb().prepare("UPDATE destinations SET title = 'НОВЫЙ КАНАЛ' WHERE id = ?1").bind(destinationId).run();
+
+    const stalePostText = postPageSchema.parse(await (await api.request('/api/v1/posts?q=обычный')).json());
+    const updatedPostText = postPageSchema.parse(await (await api.request('/api/v1/posts?q=ОБНОВЛЁННЫЙ')).json());
+    const staleChannel = postPageSchema.parse(await (await api.request('/api/v1/posts?q=старый канал')).json());
+    const updatedChannel = postPageSchema.parse(await (await api.request('/api/v1/posts?q=новый канал')).json());
+
+    expect(stalePostText.totalCount).toBe(0);
+    expect(updatedPostText.items.map((post) => post.id)).toEqual([created.id]);
+    expect(staleChannel.totalCount).toBe(0);
+    expect(updatedChannel.items.map((post) => post.id)).toEqual([created.id]);
+  });
+
+  it('uses trigram virtual-table indexes for the post and channel substring search branches', async () => {
+    const query = listPostsQuerySchema.parse({ q: 'substring' });
+    const built = buildPostsListSql(query);
+    const { results } = await testDb()
+      .prepare(`EXPLAIN QUERY PLAN ${built.sql}`)
+      .bind(...built.bindings)
+      .all<{ detail: string }>();
+    const plan = results.map((row) => row.detail).join('\n');
+
+    expect(plan.match(/VIRTUAL TABLE INDEX/g)?.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it('uses the indexed title key for an unfiltered title sort', async () => {
+    const query = listPostsQuerySchema.parse({ sort: 'title', direction: 'ascending' });
+    const built = buildPostsListSql(query);
+    const { results } = await testDb()
+      .prepare(`EXPLAIN QUERY PLAN ${built.sql}`)
+      .bind(...built.bindings)
+      .all<{ detail: string }>();
+    const plan = results.map((row) => row.detail).join('\n');
+
+    expect(plan).toContain('posts_live_title_sort_idx');
+  });
+
+  it('sorts null sentAt after sent rows in both directions and continues with a stable cursor', async () => {
+    const sent = await create({ title: 'Sent' });
+    const noPublication = await create({ title: 'No publication' });
+    const destinationId = crypto.randomUUID();
+    const publicationId = crypto.randomUUID();
+    await testDb().batch([
+      testDb().prepare("UPDATE posts SET status = 'approved', revision = 1 WHERE id = ?1").bind(sent.id),
+      testDb()
+        .prepare(
+          "INSERT INTO post_revisions (post_id, revision, title, body, entities, status, created_at) VALUES (?1, 1, 'Sent', '', '[]', 'approved', ?2)"
+        )
+        .bind(sent.id, START),
+      testDb()
+        .prepare(
+          "INSERT INTO destinations (id, title, chat_id, kind, enabled, revision, created_at, updated_at) VALUES (?1, 'A', '@sent_test', 'channel', 1, 0, ?2, ?2)"
+        )
+        .bind(destinationId, START),
+      testDb()
+        .prepare(
+          "INSERT INTO publications (id, post_id, post_revision, destination_id, scheduled_at, timezone, revision, created_at, updated_at) VALUES (?1, ?2, 1, ?3, ?4, 'UTC', 0, ?4, ?4)"
+        )
+        .bind(publicationId, sent.id, destinationId, START),
+      testDb()
+        .prepare(
+          "INSERT INTO jobs (id, kind, publication_id, status, run_at, attempts, dedupe_key, publication_scheduled_at, created_at, updated_at) VALUES (?1, 'publish', ?2, 'succeeded', ?3, 1, ?4, ?3, ?3, ?3)"
+        )
+        .bind(crypto.randomUUID(), publicationId, START, `publish:${publicationId}`)
+    ]);
+    for (const direction of ['ascending', 'descending'] as const) {
+      const first = postPageSchema.parse(
+        await (await api.request(`/api/v1/posts?sort=sentAt&direction=${direction}&limit=1`)).json()
+      );
+      const params = new URLSearchParams({ sort: 'sentAt', direction, limit: '1', cursor: first.nextCursor ?? '' });
+      const next = postPageSchema.parse(await (await api.request(`/api/v1/posts?${params}`)).json());
+      expect(first.items[0]?.id).toBe(sent.id);
+      expect(next.items[0]?.id).toBe(noPublication.id);
+      expect(next.totalCount).toBe(2);
+    }
+  });
+
+  it('sorts titles like the previous ru-RU numeric collator and continues across title-key cursors', async () => {
+    const titles = ['Пост 10', 'Ёлка', 'Пост 2', 'Енот', 'Пост 02', 'Cafe 3', 'Café 2', 'Альфа'];
+    const posts = await Promise.all(titles.map((title) => create({ title })));
+    const collator = new Intl.Collator('ru-RU', { numeric: true, sensitivity: 'base' });
+    const expected = [...posts].sort((left, right) => {
+      const compared = collator.compare(left.title, right.title);
+      return compared || (left.id < right.id ? -1 : left.id > right.id ? 1 : 0);
+    });
+
+    for (const direction of ['ascending', 'descending'] as const) {
+      const ordered = direction === 'ascending' ? expected : [...expected].reverse();
+      const first = postPageSchema.parse(
+        await (await api.request(`/api/v1/posts?sort=title&direction=${direction}&limit=3`)).json()
+      );
+      const ids = first.items.map((post) => post.id);
+      let cursor = first.nextCursor;
+      while (cursor !== null) {
+        const page = postPageSchema.parse(
+          await (
+            await api.request(
+              `/api/v1/posts?sort=title&direction=${direction}&limit=3&cursor=${encodeURIComponent(cursor)}`
+            )
+          ).json()
+        );
+        ids.push(...page.items.map((post) => post.id));
+        cursor = page.nextCursor;
+      }
+      expect(ids).toEqual(ordered.map((post) => post.id));
+    }
+
+    const renamed = posts[0];
+    if (renamed === undefined) throw new Error('Expected a created post.');
+    await patch(renamed.id, { revision: 0, title: 'Пост 1' });
+    const storedKey = await testDb()
+      .prepare('SELECT title_sort_key FROM posts WHERE id = ?1')
+      .bind(renamed.id)
+      .first<{ title_sort_key: string }>();
+    expect(storedKey?.title_sort_key).toBe(postTitleSortKey('Пост 1'));
+    await testDb().prepare("UPDATE posts SET title = 'Пост 3' WHERE id = ?1").bind(renamed.id).run();
+    const invalidatedKey = await testDb()
+      .prepare('SELECT title_sort_key FROM posts WHERE id = ?1')
+      .bind(renamed.id)
+      .first<{ title_sort_key: string }>();
+    expect(invalidatedKey?.title_sort_key).toBe('');
+  });
+
+  it('keeps title sort cursors within the request limit for maximum-length titles', async () => {
+    const first = await create({ title: 'А'.repeat(200) });
+    const second = await create({ title: 'Я'.repeat(200) });
+    for (const direction of ['ascending', 'descending'] as const) {
+      const page = postPageSchema.parse(
+        await (await api.request(`/api/v1/posts?sort=title&direction=${direction}&limit=1`)).json()
+      );
+      const cursor = page.nextCursor;
+
+      expect(cursor).not.toBeNull();
+      expect(cursor?.length).toBeLessThanOrEqual(512);
+      const nextResponse = await api.request(
+        `/api/v1/posts?sort=title&direction=${direction}&limit=1&cursor=${encodeURIComponent(cursor ?? '')}`
+      );
+      expect(nextResponse.status).toBe(200);
+      const next = postPageSchema.parse(await nextResponse.json());
+      expect(next.items.map((post) => post.id)).toEqual([[first.id, second.id].find((id) => id !== page.items[0]?.id)]);
+    }
   });
 
   it('defaults to 20 items per page', async () => {

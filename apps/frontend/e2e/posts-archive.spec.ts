@@ -13,7 +13,9 @@ async function shot(page: Page, name: string, width: number) {
 async function expectNoViolations(page: Page) {
   const result = await new AxeBuilder({ page }).withTags(TAGS).analyze();
   expect(
-    result.violations.map((item) => `${item.id}: ${item.nodes.map((node) => node.target.join(' ')).join(' | ')}`)
+    result.violations.flatMap((item) =>
+      item.nodes.map((node) => `${item.id}: ${node.target.join(' ')} — ${node.failureSummary ?? item.help}`)
+    )
   ).toEqual([]);
 }
 
@@ -41,15 +43,27 @@ for (const width of [1280, 375]) {
       await mockApi(page);
       await page.goto('/posts?view=archive');
       await expect(page.getByText('Опубликованные посты хранятся здесь 30 дней, затем удаляются.')).toBeVisible();
-      await expect(page.getByRole('button', { name: 'Итоги недели', exact: true })).toBeVisible();
+      const weekPost =
+        width === 375
+          ? page.getByRole('listitem').filter({ hasText: 'Итоги недели' })
+          : page.getByRole('rowheader', { name: /^Итоги недели/ });
+      await expect(weekPost).toBeVisible();
       await page.waitForLoadState('networkidle');
       await shot(page, 'archive', width);
       await expectNoViolations(page);
 
-      if (width === 375) await page.getByRole('button', { name: 'Выбрать' }).click();
+      await page.getByRole('button', { name: 'Выбрать' }).click();
       // A real press on the visible box, so an overlay stealing the click would fail the test.
-      for (const name of ['Выбрать пост «Итоги недели»', /Выбрать пост «Сверхдлинное/]) {
-        await page.locator('label', { has: page.getByRole('checkbox', { name }) }).click();
+      for (const title of ['Итоги недели', 'Сверхдлинноеназваниеканалабезпробелов']) {
+        if (width === 375) {
+          const card = page.getByRole('listitem').filter({ hasText: title });
+          await card.locator('label').click();
+        } else {
+          const row = page
+            .getByRole('row')
+            .filter({ has: page.getByRole('rowheader', { name: new RegExp(`^${title}`) }) });
+          await row.locator('label[slot="selection"]').click();
+        }
       }
       const bar = page.getByRole('toolbar', { name: 'Выбранные посты' });
       await expect(bar).toContainText('Выбрано: 2');

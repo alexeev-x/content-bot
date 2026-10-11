@@ -100,11 +100,15 @@ export const errorBody = (code: ApiErrorCode, details?: Record<string, string>) 
   error: { code, message: `${code} message`, requestId: 'req-test-1', ...(details ? { details } : {}) }
 });
 
-/** A page of posts as GET /posts returns it, with the archive size. */
-export const postPage = (items: PostDto[], options: { nextCursor?: string | null; archivedCount?: number } = {}) => ({
+/** A page of posts as GET /posts returns it, with the archive size and filtered result count. */
+export const postPage = (
+  items: PostDto[],
+  options: { nextCursor?: string | null; archivedCount?: number; totalCount?: number } = {}
+) => ({
   items,
   nextCursor: options.nextCursor ?? null,
-  archivedCount: options.archivedCount ?? 0
+  archivedCount: options.archivedCount ?? 0,
+  totalCount: options.totalCount ?? items.length
 });
 
 const inHours = (hours: number) => new Date(Date.now() + hours * 3_600_000).toISOString();

@@ -4,8 +4,7 @@ export const postsCopy = {
     title: 'Посты',
     description: 'Черновики, одобренные и запланированные посты, сначала недавно изменённые.',
     create: 'Новый пост',
-    searchLabel: 'Поиск по загруженным постам',
-    searchScope: 'Поиск идёт только по уже загруженным постам.',
+    searchLabel: 'Поиск по постам',
     tabs: { label: 'Раздел постов', all: 'Все', drafts: 'Черновики', archive: 'Архив' },
     tableLabel: 'Список постов',
     columns: { title: 'Пост', status: 'Статус', updated: 'Изменён', actions: 'Действия' },
@@ -19,8 +18,7 @@ export const postsCopy = {
     scheduledAt: (time: string) => `на ${time}`,
     untitled: 'Без названия',
     emptyBody: 'Текст не заполнен',
-    // The API has no total: the count is «N из N» only when the last page is in.
-    loaded: (count: number, hasMore: boolean) => (hasMore ? `Загружено ${count}` : `Загружено ${count} из ${count}`),
+    loaded: (count: number, total: number) => `Загружено ${count} из ${total}`,
     sendAt: (time: string) => `Отправка ${time}`,
     checkResult: 'Проверьте результат',
     panel: { all: 'Все посты', drafts: 'Черновики', archive: 'Архив' },
@@ -30,8 +28,6 @@ export const postsCopy = {
       sort: 'Сортировка',
       sortDefault: 'По умолчанию'
     },
-    sortLoadedOnly:
-      'Сортировка применяется к уже загруженным постам. Загрузите остальные, чтобы включить их в порядок.',
     loadMore: 'Показать ещё',
     loadingMore: 'Загружаем…',
     loadMoreFailed: 'Не удалось загрузить следующие посты.',

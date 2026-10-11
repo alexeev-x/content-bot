@@ -5,6 +5,7 @@ import {
   VIDEO_MEDIA_MAX_BYTES,
   type PostMediaDto
 } from '@alexeev/contracts';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { ApiError } from '../../../shared/api/http-client';
 import type { PostDto } from '@alexeev/contracts';
@@ -47,6 +48,8 @@ import {
   deletePostMedia,
   getPostMediaContent,
   listMediaLibrary,
+  mediaLibraryPageQueryOptions,
+  postMediaContentQueryOptions,
   reorderPostMedia,
   uploadPostMedia
 } from '../api/post-media-api';
@@ -105,6 +108,8 @@ const maxBytes = (file: File) =>
       : PHOTO_MEDIA_MAX_BYTES;
 const replaceAtLimitNotice =
   '\u0414\u043b\u044f \u0437\u0430\u043c\u0435\u043d\u044b \u0443\u0434\u0430\u043b\u0438\u0442\u0435 \u043e\u0434\u043d\u043e \u0432\u043b\u043e\u0436\u0435\u043d\u0438\u0435: \u043b\u0438\u043c\u0438\u0442 10 \u0444\u0430\u0439\u043b\u043e\u0432.';
+const LIBRARY_PREVIEW_MAX_BYTES = 512_000;
+const LIBRARY_WINDOW_SIZE = 30;
 
 export function ServerPreview({
   media,
@@ -125,35 +130,33 @@ export function ServerPreview({
   onRemove?: () => void;
   isDisabled?: boolean;
 }) {
-  const [url, setUrl] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [attempt, setAttempt] = useState(0);
+  const [preview, setPreview] = useState<{ blob: Blob; url: string } | null>(null);
   const [decodeFailed, setDecodeFailed] = useState(false);
+  const query = useQuery(postMediaContentQueryOptions(media.id, media.sizeBytes));
+  const error = query.error;
+  const url = preview && preview.blob === query.data ? preview.url : null;
   useEffect(() => {
-    const controller = new AbortController();
+    if (!query.data) return;
+    const blob = query.data;
+    let active = true;
     let objectUrl: string | null = null;
-    // oxlint-disable-next-line react/set-state-in-effect -- Start this request in its loading state, clearing any previous error.
-    setError(null);
-    setDecodeFailed(false);
-    setUrl(null);
-    void getPostMediaContent(media.id, controller.signal)
-      .then((blob) => {
-        if (controller.signal.aborted) return;
-        objectUrl = URL.createObjectURL(blob);
-        setUrl(objectUrl);
-      })
-      .catch((cause: unknown) => {
-        if (controller.signal.aborted) return;
-        const requestId = cause instanceof ApiError ? cause.requestId : undefined;
-        setError(
-          requestId ? `Предпросмотр недоступен. Запрос: ${requestId}` : 'Предпросмотр недоступен. Вложение сохранено.'
-        );
-      });
+    queueMicrotask(() => {
+      if (!active) return;
+      objectUrl = URL.createObjectURL(blob);
+      setPreview({ blob, url: objectUrl });
+      setDecodeFailed(false);
+    });
     return () => {
-      controller.abort();
-      if (objectUrl) URL.revokeObjectURL(objectUrl);
+      active = false;
+      if (objectUrl !== null) URL.revokeObjectURL(objectUrl);
     };
-  }, [media.id, attempt]);
+  }, [query.data]);
+  const errorText =
+    error instanceof ApiError && error.requestId
+      ? `Предпросмотр недоступен. Запрос: ${error.requestId}`
+      : error
+        ? 'Предпросмотр недоступен. Вложение сохранено.'
+        : null;
   if (gridTile) {
     return (
       <>
@@ -182,10 +185,10 @@ export function ServerPreview({
             Загружаем предпросмотр
           </span>
         ) : null}
-        {error || decodeFailed ? (
+        {errorText || decodeFailed ? (
           <div className={styles.previewError} role="status">
-            <span>{error ?? 'Не удалось показать изображение. Вложение сохранено в посте.'}</span>
-            <Button size="sm" variant="secondary" onPress={() => setAttempt((value) => value + 1)}>
+            <span>{errorText ?? 'Не удалось показать изображение. Вложение сохранено в посте.'}</span>
+            <Button size="sm" variant="secondary" onPress={() => void query.refetch()}>
               Повторить
             </Button>
           </div>
@@ -196,10 +199,10 @@ export function ServerPreview({
   if (!url || decodeFailed)
     return (
       <div className={`${styles.previewPlaceholder} ${large ? styles.largePreview : ''}`}>
-        {error || decodeFailed ? (
+        {errorText || decodeFailed ? (
           <>
-            <span>{error ?? 'Не удалось показать изображение. Вложение сохранено в посте.'}</span>
-            <Button size="sm" variant="secondary" onPress={() => setAttempt((value) => value + 1)}>
+            <span>{errorText ?? 'Не удалось показать изображение. Вложение сохранено в посте.'}</span>
+            <Button size="sm" variant="secondary" onPress={() => void query.refetch()}>
               Повторить
             </Button>
           </>
@@ -249,22 +252,28 @@ function LibraryTile({
   disabled: boolean;
   onSelectedChange: (selected: boolean) => void;
 }) {
-  const [src, setSrc] = useState<string>();
+  const [preview, setPreview] = useState<{ blob: Blob; src: string } | null>(null);
+  const canLoadPreview = item.sizeBytes <= LIBRARY_PREVIEW_MAX_BYTES;
+  const query = useQuery({
+    ...postMediaContentQueryOptions(item.id, item.sizeBytes, { cachePreview: false }),
+    enabled: canLoadPreview
+  });
+  const src = preview && preview.blob === query.data ? preview.src : undefined;
   useEffect(() => {
-    const controller = new AbortController();
-    let objectUrl: string | undefined;
-    void getPostMediaContent(item.id, controller.signal)
-      .then((blob) => {
-        if (controller.signal.aborted) return;
-        objectUrl = URL.createObjectURL(blob);
-        setSrc(objectUrl);
-      })
-      .catch(() => undefined);
+    if (!query.data) return;
+    const blob = query.data;
+    let active = true;
+    let objectUrl: string | null = null;
+    queueMicrotask(() => {
+      if (!active) return;
+      objectUrl = URL.createObjectURL(blob);
+      setPreview({ blob, src: objectUrl });
+    });
     return () => {
-      controller.abort();
-      if (objectUrl) URL.revokeObjectURL(objectUrl);
+      active = false;
+      if (objectUrl !== null) URL.revokeObjectURL(objectUrl);
     };
-  }, [item.id]);
+  }, [query.data]);
   return (
     <div className={styles.libraryTile}>
       <MediaGridTile
@@ -364,6 +373,7 @@ export function PostMediaEditor({
   const [cropBusy, setCropBusy] = useState(false);
   const [cropModel, setCropModel] = useState<CropModel>(defaultCropModel);
   const [cropCover, setCropCover] = useState(false);
+  const queryClient = useQueryClient();
   const [mobileMediaCollapsed, setMobileMediaCollapsed] = useState(false);
   const [cropNaturalSize, setCropNaturalSize] = useState<{ width: number; height: number } | null>(null);
   const [draggedKey, setDraggedKey] = useState<string | null>(null);
@@ -534,6 +544,7 @@ export function PostMediaEditor({
         idempotencyKey: entry.idempotencyKey ?? crypto.randomUUID(),
         onProgress: (progress) => updateEntry(entry.key, { progress })
       });
+      void queryClient.invalidateQueries({ queryKey: ['post-media', 'library'] });
       let nextRevision = uploaded.revision;
       let nextMedia = [...mediaRef.current, uploaded.media].sort((left, right) => left.position - right.position);
       onServerChange(nextRevision, nextMedia);
@@ -707,6 +718,7 @@ export function PostMediaEditor({
     setBusy(true);
     try {
       const result = await deletePostMedia(activePostId, entry.media.id, revisionRef.current);
+      void queryClient.invalidateQueries({ queryKey: ['post-media', 'library'] });
       const next = mediaRef.current.filter((item) => item.id !== entry.media?.id);
       setEntries((current) => current.filter((item) => item.key !== entry.key));
       revisionRef.current = result.revision;
@@ -832,6 +844,7 @@ export function PostMediaEditor({
         cropMedia.fileName.replace(/\.[^.]+$/, extension),
         crypto.randomUUID()
       );
+      void queryClient.invalidateQueries({ queryKey: ['post-media', 'library'] });
       const next = mediaRef.current.map((item) => (item.id === cropMedia.id ? result.media : item));
       mediaRef.current = next;
       revisionRef.current = result.revision;
@@ -862,8 +875,19 @@ export function PostMediaEditor({
     setLibraryBusy(true);
     setLibraryError('');
     try {
-      const page = await listMediaLibrary(kind, cursor);
-      setLibraryItems((current) => (cursor ? [...current, ...page.items] : page.items));
+      const page = await queryClient.fetchQuery(mediaLibraryPageQueryOptions(kind, cursor));
+      setLibraryItems((current) => {
+        const combined = cursor ? [...current, ...page.items] : page.items;
+        const unique = [...new Map(combined.map((item) => [item.id, item])).values()];
+        if (unique.length <= LIBRARY_WINDOW_SIZE) return unique;
+        const selected = new Set(librarySelection);
+        const mostRecent = unique.slice(-LIBRARY_WINDOW_SIZE);
+        return [
+          ...new Map(
+            [...unique.filter((item) => selected.has(item.id)), ...mostRecent].map((item) => [item.id, item])
+          ).values()
+        ];
+      });
       setLibraryCursor(page.nextCursor);
       setLibraryKind(kind);
     } catch (error) {
@@ -899,6 +923,7 @@ export function PostMediaEditor({
     setLibraryError('');
     try {
       const result = await attachLibraryMedia(activePostId, revisionRef.current, librarySelection);
+      void queryClient.invalidateQueries({ queryKey: ['post-media', 'library'] });
       revisionRef.current = result.revision;
       mediaRef.current = result.media;
       onServerChange(result.revision, result.media);
@@ -1019,13 +1044,14 @@ export function PostMediaEditor({
         {libraryItems.map((item) => {
           const selected = librarySelection.includes(item.id);
           const alreadyAttached = entries.some((entry) => entry.media?.id === item.id);
-          const atLimit = entries.filter((entry) => !entry.rejected).length >= POST_MEDIA_MAX_ITEMS;
+          const attachedCount = entries.filter((entry) => !entry.rejected).length;
+          const atLimit = attachedCount + librarySelection.length >= POST_MEDIA_MAX_ITEMS;
           return (
             <li key={item.id}>
               <LibraryTile
                 item={item}
                 selected={selected}
-                disabled={busy || disabled || alreadyAttached || (atLimit && !selected)}
+                disabled={busy || libraryBusy || disabled || alreadyAttached || (atLimit && !selected)}
                 onSelectedChange={(nextSelected) =>
                   setLibrarySelection((current) =>
                     nextSelected ? [...current, item.id] : current.filter((id) => id !== item.id)
@@ -1072,6 +1098,12 @@ export function PostMediaEditor({
   };
   const sectionEntries = entries.filter((entry) => !entry.rejected && (!sourceOpen || entry.media !== undefined));
   const sectionEntryCount = entries.filter((entry) => !entry.rejected).length;
+  const addTile =
+    sectionEntryCount < POST_MEDIA_MAX_ITEMS ? (
+      <li className={styles.addItem}>
+        <MediaAddTile label="Добавить файлы" fluid isDisabled={disabled || busy} onPress={() => setSourceOpen(true)} />
+      </li>
+    ) : null;
   return (
     <>
       <section
@@ -1134,16 +1166,7 @@ export function PostMediaEditor({
           {sectionEntries.length ? (
             <>
               <ol className={styles.list} aria-label="Вложения поста">
-                {sectionEntryCount < POST_MEDIA_MAX_ITEMS ? (
-                  <li className={styles.addItem}>
-                    <MediaAddTile
-                      label="Добавить файлы"
-                      fluid
-                      isDisabled={disabled || busy}
-                      onPress={() => setSourceOpen(true)}
-                    />
-                  </li>
-                ) : null}
+                {!narrow ? addTile : null}
                 {sectionEntries.map((entry) =>
                   (() => {
                     const uploadedEntries = entries.filter((item) => item.media);
@@ -1272,6 +1295,7 @@ export function PostMediaEditor({
                     );
                   })()
                 )}
+                {narrow ? addTile : null}
               </ol>
               <span className={styles.srOnly} role="status" aria-live="polite">
                 {reorderAnnouncement}

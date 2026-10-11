@@ -12,7 +12,7 @@ import { useState } from 'react';
 import { vi } from 'vitest';
 import { ToastProvider } from '../../../shared/ui';
 import { createTestQueryClient } from '../../../test/query-wrapper';
-import { PostsList, type PostsView } from '../index';
+import { PostsList, type PostsSort, type PostsView } from '../index';
 
 export const onOpen = vi.fn();
 export const onCreate = vi.fn();
@@ -20,7 +20,25 @@ export const onReconcile = vi.fn();
 
 function Harness({ initialView }: { initialView: PostsView }) {
   const [view, setView] = useState<PostsView>(initialView);
-  return <PostsList view={view} onViewChange={setView} onOpen={onOpen} onCreate={onCreate} onReconcile={onReconcile} />;
+  const [query, setQuery] = useState('');
+  const [sort, setSort] = useState<PostsSort>(null);
+  return (
+    <PostsList
+      view={view}
+      query={query}
+      sort={sort}
+      onViewChange={(next) => {
+        setView(next);
+        setQuery('');
+        setSort(null);
+      }}
+      onQueryChange={setQuery}
+      onSortChange={setSort}
+      onOpen={onOpen}
+      onCreate={onCreate}
+      onReconcile={onReconcile}
+    />
+  );
 }
 
 /** The list inside a router (banners link to /publications) and the toast region. */

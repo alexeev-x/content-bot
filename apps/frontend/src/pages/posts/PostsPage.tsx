@@ -1,10 +1,14 @@
-import { PostsList, postsCopy, type PostsView } from '../../features/posts';
+import { PostsList, postsCopy, type PostsSort, type PostsView } from '../../features/posts';
 import { Button, PageHeader } from '../../shared/ui';
 import { useDocumentTitle } from './use-document-title';
 
 type Props = {
   view: PostsView;
+  query: string;
+  sort: PostsSort;
   onViewChange: (view: PostsView) => void;
+  onQueryChange: (query: string) => void;
+  onSortChange: (sort: PostsSort) => void;
   onOpen: (id: string) => void;
   onCreate: () => void;
   onReconcile: (postId: string) => void;

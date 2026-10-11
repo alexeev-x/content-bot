@@ -66,7 +66,7 @@ function serve(layout: DashboardLayoutDto | (() => DashboardLayoutDto)): Calls {
     }),
     http.get('*/api/v1/posts', ({ request }) => {
       note(request);
-      return HttpResponse.json({ items: [], nextCursor: null, archivedCount: 0 });
+      return HttpResponse.json({ items: [], nextCursor: null, archivedCount: 0, totalCount: 0 });
     }),
     http.get('*/api/v1/publications', ({ request }) => {
       note(request);

@@ -58,7 +58,6 @@ Webhook with secret and `update_id` dedup, owner-only; `/start`, `/today`, `/nex
 Official sources watched every five minutes with D1 dedup; a new update becomes a draft with the official title, date and link plus a private owner alert; gameplay patches get a summary of confirmed changes; source failures raise an incident. Nothing is published without approval.
 
 ### 2.9 Known limits
-- Posts search, sort and counts are client-side over loaded pages.
 - The top-bar search field is a disabled placeholder (no entity-search endpoint).
 - No owner timezone setting: the UI uses the browser zone, the bot falls back to Europe/Moscow.
 - The 409 compare dialog compares plain text only; bot notices still use HTML parse mode; the phone formatting toolbar wraps to three rows.
@@ -173,7 +172,7 @@ Whoever starts or finishes an item updates its status here in the same change (`
 | 4 | Owner timezone setting (UI, bot, Обзор, scheduling) | 2 | not started |
 | 5 | Публикации v2: periods on `from`/`to`, «Ошибки» = failed + unknown, total counts, server search in the UI | 2 | in progress |
 | 6 | Обзор v2: «Одобрены, но не запланированы», week-day links | 2 | in progress |
-| 7 | Посты: server-side search, sort and counts | 2 | not started |
+| 7 | Посты: server-side search, sort and counts | 2 | done |
 | 8 | Global search palette, or remove the disabled field | 2 | not started |
 | 9 | Channel disable warning with the scheduled count | 2 | not started |
 | 10 | Incident alerts: dedupe, grouping, recovery, Settings → Уведомления | 2 | not started |

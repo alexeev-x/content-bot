@@ -58,10 +58,10 @@
   --size-sidebar-collapsed: 56px;
   /* Fine pointer (desktop mouse): compact work-tool sizes. Touch and narrow screens override below. */
   --size-control: 36px;
-  --size-control-sm: 30px;
+  --size-control-sm: 36px;
   /* Buttons: md for toolbars, footers and dialogs; sm inside rows and popovers. A button beside a field uses the field height. */
-  --size-button: 32px;
-  --size-button-sm: 28px;
+  --size-button: 36px;
+  --size-button-sm: 34px;
   --size-row: 48px;
   --size-topbar: 48px;
   /* Tabs and segmented controls: items inside a compact bordered group. */

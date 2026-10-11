@@ -22,7 +22,6 @@ import {
   approvePost,
   createPost,
   getPost,
-  listPosts,
   removePostMedia,
   reorderPostMedia,
   updatePost,
@@ -33,6 +32,7 @@ import { AppError } from '../shared/app-error';
 import type { AppBindings } from './env';
 import { limitBody, validated } from './validation';
 import { restoreAndReadPost } from './workflows/restore-post';
+import { listPostsFromApp } from './posts-list-query';
 
 // Worst valid post request: 12 288 body bytes (4096 characters of three-byte UTF-8), 600 title bytes and up to
 // 16 384 bytes of entities (POST_ENTITIES_JSON_MAX, ASCII only) plus keys: about 29.4 KB, so 32 KB is enough.
@@ -75,11 +75,9 @@ export const postsRoutes = new Hono<AppBindings>()
   )
   .get('/', validated('query', listPostsQuerySchema), async (c) => {
     const container = c.get('container');
+    if (c.env.DB === undefined) throw new AppError('UNAVAILABLE', 'Database is not configured');
     return c.json(
-      await listPosts(
-        { repo: container.posts, summaries: container.postSummaries, now: container.clock.now() },
-        c.req.valid('query')
-      )
+      await listPostsFromApp({ container, db: c.env.DB, now: container.clock.now() }, c.req.valid('query'))
     );
   })
   .post(

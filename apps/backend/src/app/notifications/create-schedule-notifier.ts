@@ -61,8 +61,15 @@ export function createScheduleNotifier(deps: ScheduleNotifierDeps): ScheduleNoti
       requestId: deps.requestId,
       timeoutMs: deps.timeoutMs ?? NOTICE_TIMEOUT_MS
     });
+    const media = post?.media[0];
     await call.act(`schedule_notice.${kind}`, (signal) =>
-      messenger.sendMessageWithWebAppButton(deps.ownerChatId, notice, signal)
+      media === undefined
+        ? messenger.sendMessageWithWebAppButton(deps.ownerChatId, notice, signal)
+        : messenger.sendMediaWithWebAppButton(
+            deps.ownerChatId,
+            { ...media, html: notice.html, button: notice.button },
+            signal
+          )
     );
     log(`schedule_notice.${kind}`, 'sent');
   }

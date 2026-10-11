@@ -142,9 +142,9 @@ Lazy loading per route (`React.lazy` or lazy route modules), a shared lightweigh
 
 ## 8. Image previews and media handling
 
-- Source hero images are provided by the owner; the editor uploads them with checks of type, size and allowed resolution. Do not put blob/base64 in localStorage or TanStack Query.
+- Source hero images are provided by the owner; the editor uploads them with checks of type, size and allowed resolution. Never put blob/base64 in localStorage or sessionStorage; the only exception is the short-lived, size-bounded in-memory preview cache described below.
 - For file previews use `URL.createObjectURL(file)` only before upload and always call `URL.revokeObjectURL()` on replacement/unmount so as not to hold memory.
-- Media library — pagination + server thumbnails; `loading="lazy"` for lists, separate full-size files only on request. Metadata in D1, binary objects in R2.
+- Media library — paginated metadata; a picker keeps only the latest 30 items plus selected items (at most the remaining post slots). It loads inline previews only for assets up to 512 KB, does not retain library blobs in Query, and releases them when tiles leave the bounded window; larger items use the media-type placeholder until attached. Metadata in D1, binary objects in R2. Authenticated content responses remain `private, no-store` on the server; elsewhere the frontend may briefly cache preview blobs up to 512 KB in the in-memory TanStack Query cache (60 s fresh / 60 s inactive), which is cleared on logout. Larger originals are not retained in the query cache.
 - Rendered cards are a later phase (automated media pipeline, not built). When they exist, the preview must use the same server renderer as the publication and never present a sample as the real result.
 
 ## 9. Editor and calendar without data loss

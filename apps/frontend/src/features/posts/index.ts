@@ -1,4 +1,4 @@
-export type { PostsView } from './ui/PostsList';
+export type { PostsSort, PostsView } from './ui/PostsList';
 export type { ApprovePostBody, CreatePostBody, PostFilters, UpdatePostBody } from './api/posts-api';
 export {
   postKeys,

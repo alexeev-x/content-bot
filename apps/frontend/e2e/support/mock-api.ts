@@ -218,7 +218,8 @@ export async function mockApi(page: Page): Promise<void> {
   });
   await page.route(/\/api\/v1\/posts(\?.*)?$/, (route) => {
     const view = new URL(route.request().url()).searchParams.get('view');
-    return json(route, { ...page_(view === 'archive' ? archivedPosts : posts), archivedCount: archivedPosts.length });
+    const items = view === 'archive' ? archivedPosts : posts;
+    return json(route, { ...page_(items), archivedCount: archivedPosts.length, totalCount: items.length });
   });
   await page.route(/\/api\/v1\/posts\/[^/?]+$/, (route) => {
     const wanted = route.request().url().split('/').pop()?.split('?')[0];

@@ -1,6 +1,6 @@
 import type { PostDto, PostDeleteRefusal, PostRestoreRefusal } from '@alexeev/contracts';
 import { useInfiniteQuery } from '@tanstack/react-query';
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { classifyApiError } from '../../../shared/api/error-kind';
 import { ApiError } from '../../../shared/api/http-client';
 import {
@@ -19,16 +19,16 @@ import {
   SelectionBar,
   Tab,
   TabList,
+  TabPanel,
   Tabs,
-  useMediaQuery,
-  useRowSearch
+  useMediaQuery
 } from '../../../shared/ui';
 import type { RowSelection, SelectOption } from '../../../shared/ui';
 import { ru } from '../../../shared/lib/ru';
 import { postsInfiniteQueryOptions } from '../api/posts-queries';
 import { refusalText, type LifecycleNotice } from '../model/lifecycle-notices';
 import { deleteBlockOf } from '../model/post-state';
-import { sortPosts, type PostSort, type PostSortKey, type SortDirection } from '../model/post-sort';
+import type { PostSortKey, SortDirection } from '../model/post-sort';
 import { useNow } from '../model/use-now';
 import { useRestoreActions } from '../model/use-restore';
 import { useSelection } from '../model/use-selection';
@@ -37,13 +37,17 @@ import { deleteTargetOf, DeletePostsDialog, type DeleteOutcome, type DeleteTarge
 import { LifecycleBanner } from './LifecycleBanner';
 import { PostRows, type RowAction } from './PostRows';
 import styles from './PostsList.module.css';
-import { postRowText } from './row-text';
 
 export type PostsView = 'all' | 'drafts' | 'archive';
+export type PostsSort = { key: 'title' | 'updated' | 'sentAt' | 'left'; direction: SortDirection } | null;
 
 type Props = {
   view: PostsView;
+  query: string;
+  sort: PostsSort;
   onViewChange: (view: PostsView) => void;
+  onQueryChange: (query: string) => void;
+  onSortChange: (sort: PostsSort) => void;
   onOpen: (id: string) => void;
   onCreate: () => void;
   /** Opens the reconciliation of this post's `unknown` publication (the page resolves which one). */
@@ -83,20 +87,43 @@ function sortOptionsFor(view: PostsView): SelectOption[] {
   ];
 }
 
-export function PostsList({ view, onViewChange, onOpen, onCreate, onReconcile }: Props) {
+export function PostsList({
+  view,
+  query,
+  sort,
+  onViewChange,
+  onQueryChange,
+  onSortChange,
+  onOpen,
+  onCreate,
+  onReconcile
+}: Props) {
   const now = useNow();
   const narrow = useMediaQuery(NARROW);
   const rootRef = useRef<HTMLElement>(null);
   const focusAfter = useRef<string | null>(null);
   const firstFailed = useRef<string | null>(null);
   const isArchive = view === 'archive';
-  // The search covers the loaded rows only and is not carried across tabs.
-  const [query, setQuery] = useState('');
-  const result = useInfiniteQuery(postsInfiniteQueryOptions(filtersFor(view)));
+  // Search and sort are URL-backed; each combination owns a fresh infinite-query page chain.
+  const [searchDraft, setSearchDraft] = useState({ query, value: query });
+  const searchInput = searchDraft.query === query ? searchDraft.value : query;
+  useEffect(() => {
+    if (searchInput === query) return;
+    const timer = window.setTimeout(() => onQueryChange(searchInput), 250);
+    return () => window.clearTimeout(timer);
+  }, [onQueryChange, query, searchInput]);
+  const updateSearchInput = (value: string) => setSearchDraft({ query, value });
+  const normalizedQuery = query.trim();
+  const result = useInfiniteQuery(
+    postsInfiniteQueryOptions({
+      ...filtersFor(view),
+      ...(normalizedQuery ? { q: normalizedQuery } : {}),
+      ...(sort ? { sort: sort.key as 'title' | 'updated' | 'sentAt' | 'left', direction: sort.direction } : {})
+    })
+  );
   const loaded = useMemo(() => result.data?.pages.flatMap((page) => page.items) ?? [], [result.data]);
-  const textOf = useCallback((post: PostDto) => postRowText(post, now), [now]);
-  const rows = useRowSearch(loaded, textOf, query);
-  const isSearching = query.trim() !== '';
+  const rows = loaded;
+  const isSearching = normalizedQuery !== '';
   // An empty «Черновики» tab reads as a narrowed list (with a way back to «Все»), not as «no posts at all».
   const emptyIsFiltered = isSearching || view === 'drafts';
 
@@ -105,26 +132,31 @@ export function PostsList({ view, onViewChange, onOpen, onCreate, onReconcile }:
   const [lastCount, setLastCount] = useState<number | undefined>(undefined);
   if (fresh !== undefined && fresh !== lastCount) setLastCount(fresh);
   const archivedCount = fresh ?? lastCount;
-  const [sortState, setSortState] = useState<{ view: PostsView; sort: PostSort }>({ view, sort: null });
-  const sort = sortState.view === view ? sortState.sort : null;
-  const sortedRows = useMemo(() => sortPosts(rows, sort), [rows, sort]);
+  const sortedRows = rows;
   const sortOptions = useMemo(() => sortOptionsFor(view), [view]);
   const sortValue = sort ? `${sort.key}:${sort.direction}` : 'none';
-  const onSortChange = (next: NonNullable<PostSort>) => setSortState({ view, sort: next });
+  const listStateKey = `${normalizedQuery}\u0000${sortValue}`;
+  const previousListState = useRef(listStateKey);
   const onMobileSortChange = (value: string) => {
     if (!sortOptions.some((option) => option.id === value)) return;
     if (value === 'none') {
-      setSortState({ view, sort: null });
+      onSortChange(null);
       return;
     }
     const [key, direction] = value.split(':');
     if (key && direction) {
-      setSortState({ view, sort: { key: key as PostSortKey, direction: direction as SortDirection } });
+      onSortChange({ key: key as NonNullable<PostsSort>['key'], direction: direction as SortDirection });
     }
   };
 
   const selection = useSelection(view);
   const [selectMode, setSelectMode] = useState(false);
+  useEffect(() => {
+    if (previousListState.current === listStateKey) return;
+    previousListState.current = listStateKey;
+    selection.clear();
+    setSelectMode(false);
+  }, [listStateKey, selection]);
   const [notice, setNotice] = useState<LifecycleNotice | null>(null);
   const [reasonState, setReasonState] = useState<{ view: PostsView; map: ReadonlyMap<string, Reason> }>({
     view,
@@ -264,10 +296,9 @@ export function PostsList({ view, onViewChange, onOpen, onCreate, onReconcile }:
 
   const reasonText = useMemo(() => new Map([...reasons].map(([id, item]) => [id, item.text])), [reasons]);
   const copyFor = isArchive ? postsCopy.archive : copy;
-  const clearSearch = () => setQuery('');
+  const clearSearch = () => updateSearchInput('');
   const showAll = () => {
     clearSelection();
-    setQuery('');
     onViewChange('all');
   };
   const ready = !result.isPending && !result.isError;
@@ -303,6 +334,11 @@ export function PostsList({ view, onViewChange, onOpen, onCreate, onReconcile }:
   const [sheetOpen, setSheetOpen] = useState(false);
   const [draftSort, setDraftSort] = useState('none');
   const activeFilterCount = sort === null ? 0 : 1;
+  const selectedSortLabel = sortOptions.find((option) => option.id === sortValue)?.label ?? copy.filters.sort;
+  const phoneSortValue =
+    sort === null
+      ? copy.filters.sort
+      : `${selectedSortLabel.split(' — ')[0]} ${sort.direction === 'ascending' ? '↑' : '↓'}`;
 
   const panelAction = selectMode ? (
     <Button variant="ghost" size="sm" onPress={clearSelection}>
@@ -326,22 +362,17 @@ export function PostsList({ view, onViewChange, onOpen, onCreate, onReconcile }:
           <SearchField
             label={copy.searchLabel}
             placeholder={copy.filters.searchHint}
-            value={query}
-            isDisabled={result.isPending}
-            onChange={setQuery}
+            maxLength={120}
+            value={searchInput}
+            onChange={updateSearchInput}
           />
         </span>
       )}
     </>
   );
 
-  const loadedText = [
-    copy.loaded(loaded.length, result.hasNextPage),
-    sort && result.hasNextPage ? copy.sortLoadedOnly : null,
-    isSearching && result.hasNextPage ? copy.searchScope : null
-  ]
-    .filter(Boolean)
-    .join(' · ');
+  const totalCount = result.data?.pages[0]?.totalCount ?? loaded.length;
+  const loadedText = copy.loaded(loaded.length, totalCount);
   const footer = result.isPending ? (
     <FooterLine text={copy.loadingMore} />
   ) : ready && !noPostsAtAll ? (
@@ -368,7 +399,6 @@ export function PostsList({ view, onViewChange, onOpen, onCreate, onReconcile }:
         selectedKey={view}
         onSelectionChange={(key) => {
           clearSelection();
-          setQuery('');
           onViewChange(key as PostsView);
         }}
       >
@@ -382,132 +412,152 @@ export function PostsList({ view, onViewChange, onOpen, onCreate, onReconcile }:
             </Tab>
           ))}
         </TabList>
-      </Tabs>
-      {isArchive ? <p className={styles.note}>{postsCopy.archive.note}</p> : null}
-      {notice ? <LifecycleBanner notice={notice} onDismiss={() => setNotice(null)} /> : null}
+        {VIEWS.map((panelView) => (
+          <TabPanel key={panelView} id={panelView}>
+            {panelView === view ? (
+              <>
+                {isArchive ? <p className={styles.note}>{postsCopy.archive.note}</p> : null}
+                {notice ? <LifecycleBanner notice={notice} onDismiss={() => setNotice(null)} /> : null}
 
-      {result.isError ? (
-        <ListError error={result.error} isArchive={isArchive} onRetry={() => void result.refetch()} />
-      ) : (
-        <Wrap narrow={narrow}>
-          <Panel
-            title={PANEL_TITLE[view]}
-            action={panelAction}
-            {...(ready && hasRows ? {} : { reserveRows: narrow ? 6 : 8 })}
-            {...(footer ? { footer } : {})}
-          >
-            {narrow ? (
-              <PhoneToolbar>
-                <PhoneToolbarSearch>
-                  <SearchField
-                    label={copy.searchLabel}
-                    placeholder={copy.filters.phoneSearch}
-                    value={query}
-                    isDisabled={result.isPending}
-                    onChange={setQuery}
-                  />
-                </PhoneToolbarSearch>
-                <FilterButton
-                  count={activeFilterCount}
-                  isDisabled={result.isPending}
-                  onPress={() => {
-                    setDraftSort(sortValue);
-                    setSheetOpen(true);
-                  }}
-                />
-              </PhoneToolbar>
+                {result.isError ? (
+                  <ListError error={result.error} isArchive={isArchive} onRetry={() => void result.refetch()} />
+                ) : (
+                  <Wrap narrow={narrow}>
+                    <Panel
+                      title={PANEL_TITLE[view]}
+                      action={panelAction}
+                      {...(ready && hasRows ? {} : { reserveRows: narrow ? 6 : 8 })}
+                      {...(footer ? { footer } : {})}
+                    >
+                      {narrow ? (
+                        <PhoneToolbar>
+                          <PhoneToolbarSearch>
+                            <SearchField
+                              label={copy.searchLabel}
+                              placeholder={copy.filters.phoneSearch}
+                              maxLength={120}
+                              value={searchInput}
+                              onChange={updateSearchInput}
+                            />
+                          </PhoneToolbarSearch>
+                          <FilterButton
+                            count={activeFilterCount}
+                            sort={{
+                              label: copy.filters.sort,
+                              value: phoneSortValue,
+                              spoken: selectedSortLabel
+                            }}
+                            onPress={() => {
+                              setDraftSort(sortValue);
+                              setSheetOpen(true);
+                            }}
+                          />
+                        </PhoneToolbar>
+                      ) : null}
+                      {ready && !hasRows ? (
+                        <EmptyState
+                          icon={emptyIsFiltered ? 'search' : isArchive ? 'clock' : 'file'}
+                          title={
+                            isSearching
+                              ? copy.searchEmptyTitle
+                              : emptyIsFiltered
+                                ? copy.filteredEmptyTitle
+                                : copyFor.emptyTitle
+                          }
+                          description={
+                            isSearching
+                              ? copy.searchEmptyDescription
+                              : emptyIsFiltered
+                                ? copy.filteredEmptyDescription
+                                : copyFor.emptyDescription
+                          }
+                          action={
+                            isSearching ? (
+                              <Button variant="secondary" onPress={clearSearch}>
+                                {ru.ui.clearSearch}
+                              </Button>
+                            ) : emptyIsFiltered ? (
+                              <Button variant="secondary" onPress={showAll}>
+                                {copy.showAll}
+                              </Button>
+                            ) : isArchive ? undefined : (
+                              <Button icon="plus" onPress={onCreate}>
+                                {copy.create}
+                              </Button>
+                            )
+                          }
+                        />
+                      ) : (
+                        <PostRows
+                          mode={isArchive ? 'archive' : 'live'}
+                          label={isArchive ? postsCopy.archive.tableLabel : copy.tableLabel}
+                          rows={sortedRows}
+                          sort={sort}
+                          onSortChange={(next) =>
+                            onSortChange({ key: next.key as NonNullable<PostsSort>['key'], direction: next.direction })
+                          }
+                          now={now}
+                          isLoading={result.isPending}
+                          narrow={narrow}
+                          selectable={selectable}
+                          isSelected={selection.has}
+                          allState={allState}
+                          onSelectionChange={onTableSelection}
+                          onToggle={(post, on) => selection.toggle({ id: post.id, revision: post.revision }, on)}
+                          onToggleAll={(on) =>
+                            on
+                              ? selection.setAll(selectableRows.map((row) => ({ id: row.id, revision: row.revision })))
+                              : selection.remove(selectableRows.map((row) => row.id))
+                          }
+                          reasons={reasonText}
+                          onOpen={onOpen}
+                          onAction={onAction}
+                        />
+                      )}
+                    </Panel>
+                  </Wrap>
+                )}
+
+                {selectedPosts.length > 0 || selectMode ? (
+                  <SelectionBar
+                    label={postsCopy.selection.bar}
+                    summary={postsCopy.selection.selected(selectedPosts.length)}
+                    {...(selection.isFull ? { hint: postsCopy.selection.limit(100) } : {})}
+                  >
+                    {isArchive ? (
+                      <Button
+                        variant="secondary"
+                        icon="retry"
+                        isLoading={restore.isPending}
+                        isDisabled={selectedPosts.length === 0}
+                        onPress={() => void restoreSelected()}
+                      >
+                        {postsCopy.selection.restore}
+                      </Button>
+                    ) : null}
+                    <Button
+                      variant="danger"
+                      icon="trash"
+                      isDisabled={selectedPosts.length === 0}
+                      onPress={() => {
+                        setNotice(null);
+                        setDeleteTargets(
+                          selectedPosts.map((post) => ({ ...deleteTargetOf(post), revision: revisionFor(post) }))
+                        );
+                      }}
+                    >
+                      {postsCopy.selection.delete}
+                    </Button>
+                    <Button variant="ghost" onPress={clearSelection}>
+                      {postsCopy.selection.clear}
+                    </Button>
+                  </SelectionBar>
+                ) : null}
+              </>
             ) : null}
-            {ready && !hasRows ? (
-              <EmptyState
-                icon={emptyIsFiltered ? 'search' : isArchive ? 'clock' : 'file'}
-                title={
-                  isSearching ? copy.searchEmptyTitle : emptyIsFiltered ? copy.filteredEmptyTitle : copyFor.emptyTitle
-                }
-                description={
-                  isSearching
-                    ? copy.searchEmptyDescription
-                    : emptyIsFiltered
-                      ? copy.filteredEmptyDescription
-                      : copyFor.emptyDescription
-                }
-                action={
-                  isSearching ? (
-                    <Button variant="secondary" onPress={clearSearch}>
-                      {ru.ui.clearSearch}
-                    </Button>
-                  ) : emptyIsFiltered ? (
-                    <Button variant="secondary" onPress={showAll}>
-                      {copy.showAll}
-                    </Button>
-                  ) : isArchive ? undefined : (
-                    <Button icon="plus" onPress={onCreate}>
-                      {copy.create}
-                    </Button>
-                  )
-                }
-              />
-            ) : (
-              <PostRows
-                mode={isArchive ? 'archive' : 'live'}
-                label={isArchive ? postsCopy.archive.tableLabel : copy.tableLabel}
-                rows={sortedRows}
-                sort={sort}
-                onSortChange={onSortChange}
-                now={now}
-                isLoading={result.isPending}
-                narrow={narrow}
-                selectable={selectable}
-                isSelected={selection.has}
-                allState={allState}
-                onSelectionChange={onTableSelection}
-                onToggle={(post, on) => selection.toggle({ id: post.id, revision: post.revision }, on)}
-                onToggleAll={(on) =>
-                  on
-                    ? selection.setAll(selectableRows.map((row) => ({ id: row.id, revision: row.revision })))
-                    : selection.remove(selectableRows.map((row) => row.id))
-                }
-                reasons={reasonText}
-                onOpen={onOpen}
-                onAction={onAction}
-              />
-            )}
-          </Panel>
-        </Wrap>
-      )}
-
-      {selectedPosts.length > 0 || selectMode ? (
-        <SelectionBar
-          label={postsCopy.selection.bar}
-          summary={postsCopy.selection.selected(selectedPosts.length)}
-          {...(selection.isFull ? { hint: postsCopy.selection.limit(100) } : {})}
-        >
-          {isArchive ? (
-            <Button
-              variant="secondary"
-              icon="retry"
-              isLoading={restore.isPending}
-              isDisabled={selectedPosts.length === 0}
-              onPress={() => void restoreSelected()}
-            >
-              {postsCopy.selection.restore}
-            </Button>
-          ) : null}
-          <Button
-            variant="danger"
-            icon="trash"
-            isDisabled={selectedPosts.length === 0}
-            onPress={() => {
-              setNotice(null);
-              setDeleteTargets(selectedPosts.map((post) => ({ ...deleteTargetOf(post), revision: revisionFor(post) })));
-            }}
-          >
-            {postsCopy.selection.delete}
-          </Button>
-          <Button variant="ghost" onPress={clearSelection}>
-            {postsCopy.selection.clear}
-          </Button>
-        </SelectionBar>
-      ) : null}
+          </TabPanel>
+        ))}
+      </Tabs>
 
       <FilterSheet
         isOpen={sheetOpen}

@@ -83,7 +83,9 @@ export function createD1DestinationRepository(db: D1Database): DestinationReposi
             .bind(record.id, record.createdAt, actor, ...claim),
           completeIdempotencyStatement(db, idempotency, response, record.createdAt)
         ]);
-        return results[0]?.meta.changes === 1 ? 'created' : 'claim_lost';
+        // The FTS maintenance trigger can affect D1's first-statement change count; idempotency completion
+        // remains the guarded atomic outcome of the batch.
+        return results.at(-1)?.meta.changes === 1 ? 'created' : 'claim_lost';
       } catch (error) {
         if (isChatIdTaken(error)) return 'chat_id_taken';
         throw error;

@@ -115,22 +115,34 @@ export const approvePostInputSchema = z.strictObject({
 });
 export type ApprovePostInput = z.infer<typeof approvePostInputSchema>;
 
-// GET /api/v1/posts?view&status&cursor&limit → 200 PostPageDto.
+// GET /api/v1/posts?view&status&q&sort&direction&cursor&limit → 200 PostPageDto.
 // view=live (default): posts that are not archived, newest update first. view=archive: archived posts,
 // most recently archived first. `archivedCount` is the size of the archive whatever the view and page,
-// so the Archive tab badge needs no extra request; it is cheap because the archive only holds the
-// last 30 days.
+// q searches title, text, channel and status over the complete selected view; sort/direction apply
+// before cursor pagination. `totalCount` counts that filtered view, while `archivedCount` always
+// counts the entire archive for the tab badge.
 // Errors: VALIDATION_ERROR 400 (bad query or cursor), UNAUTHORIZED 401, FORBIDDEN 403.
 export const postViewSchema = z.enum(['live', 'archive']);
 export type PostView = z.infer<typeof postViewSchema>;
 
+export const postSortSchema = z.enum(['title', 'updated', 'sentAt', 'left']);
+export type PostSort = z.infer<typeof postSortSchema>;
+export const postSortDirectionSchema = z.enum(['ascending', 'descending']);
+export type PostSortDirection = z.infer<typeof postSortDirectionSchema>;
+
 export const listPostsQuerySchema = pageQuerySchema.extend({
   status: postStatusSchema.optional(),
-  view: postViewSchema.default('live')
+  view: postViewSchema.default('live'),
+  q: z.string().trim().max(120).optional(),
+  sort: postSortSchema.optional(),
+  direction: postSortDirectionSchema.optional()
 });
 export type ListPostsQuery = z.infer<typeof listPostsQuerySchema>;
 
-export const postPageSchema = pageSchema(postSchema).extend({ archivedCount: z.number().int().nonnegative() });
+export const postPageSchema = pageSchema(postSchema).extend({
+  archivedCount: z.number().int().nonnegative(),
+  totalCount: z.number().int().nonnegative()
+});
 export type PostPageDto = z.infer<typeof postPageSchema>;
 
 // GET /api/v1/posts/{id} → 200 PostDto. Errors: NOT_FOUND 404, UNAUTHORIZED 401, FORBIDDEN 403.

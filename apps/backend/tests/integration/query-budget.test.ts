@@ -113,9 +113,10 @@ async function measure(
 
 describe('D1 round trips per request (session lookup included)', () => {
   it('posts, their archive and deletion', async () => {
-    // session, list, media hydration and archive count, plus publication summaries of approved posts
+    // session, one composed page/count read, post/media hydration, plus publication summaries of approved posts
     expect((await measure('/api/v1/posts?limit=100')).counter.roundTrips).toBe(5);
-    expect((await measure('/api/v1/posts?view=archive&limit=100')).counter.roundTrips).toBe(2 + 0 + 1);
+    // The empty archive is answered by the composed page/count read and needs no post hydration.
+    expect((await measure('/api/v1/posts?view=archive&limit=100')).counter.roundTrips).toBe(2);
     expect((await measure(`/api/v1/posts/${postId}`)).counter.roundTrips).toBe(4); // session, post, media, summary
 
     const draft = await measure('/api/v1/posts', {

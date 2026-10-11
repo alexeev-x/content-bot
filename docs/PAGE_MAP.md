@@ -10,7 +10,7 @@ The regular browser app and Telegram Mini App are the same SPA. Every route must
 |---|---|---|---|
 | `/login` | Owner sign-in | Telegram Login Widget; Mini App automatic sign-in | cancelled, expired, 401, foreign owner 403 |
 | `/` | Dashboard | customizable 12-column widget grid (edit mode, catalog, undo; layout saved per owner via `/settings/dashboard-layout`; spec: `docs/design/UX_SPEC.md` §3.1); built widgets: system status, attention, today, upcoming, recent activity, drafts, week, channels, incidents, quick actions; automation health and stale sources appear when those systems exist | partial/stale data, component failure, layout save conflict |
-| `/posts` | Content library | one live search field (client-side over loaded rows), sort by column header (phone: sort sheet), drafts/approved content; server-side search, rubric/source/destination filters later | empty, error, stale |
+| `/posts` | Content library | one live server-side search, full-view sort by column header (phone: sort sheet), `totalCount` for the current view/search, drafts/approved content; rubric/source filters later | empty, error, stale |
 | `/posts?view=archive` | Posts archive | published posts kept 30 days, restore, delete now | empty, error, 30-day expiry, unknown not deletable |
 | `/posts/new` | New content | full editor, source/rubric, media, destination, preview, save/approve/schedule; prototype handoff: `docs/stories/post-editor-prototype.md` | dirty, validation, preview failure |
 | `/posts/:id` | Content Studio | edit, real preview, publication history, source provenance | 409 conflict, unsaved, stale revision |

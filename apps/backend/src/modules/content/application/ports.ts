@@ -60,12 +60,14 @@ export interface PostRepository {
    */
   create(input: NewPost): Promise<boolean>;
   findById(id: string): Promise<PostRecord | null>;
+  findManyByIds(ids: readonly string[]): Promise<PostRecord[]>;
   /** The stored snapshot of one revision, or null when it does not exist. */
   findRevision(
     postId: string,
     revision: number
   ): Promise<{ title: string; body: string; entities: PostEntity[]; media: PostRevisionMedia[] } | null>;
   list(query: ListPostsQuery): Promise<PostRecord[]>;
+  count(view: 'live' | 'archive', status?: PostStatus): Promise<number>;
   /** How many posts are in the archive (it only holds the retention period, so the count is small). */
   countArchived(): Promise<number>;
   /** Null when the guard (revision matches and the post is a draft) did not hold. */

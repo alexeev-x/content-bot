@@ -1,5 +1,5 @@
 import type { PostEntity } from '@alexeev/contracts';
-import { Api, type InputFile } from 'grammy';
+import { Api, InputFile } from 'grammy';
 import type { InputMediaPhoto, InputMediaVideo } from '@grammyjs/types';
 
 // The one call publishing needs, typed with the platform's AbortSignal. The text goes out as plain text with
@@ -133,6 +133,44 @@ export interface TelegramOwnerMessageApi {
     input: { html: string; button: { text: string; url: string } },
     signal: AbortSignal
   ): Promise<unknown>;
+  sendMediaWithWebAppButton(
+    chatId: string,
+    input: {
+      kind: 'photo' | 'video' | 'animation';
+      fileName: string;
+      body: ReadableStream<Uint8Array>;
+      html: string;
+      button: { text: string; url: string };
+    },
+    signal: AbortSignal
+  ): Promise<unknown>;
+}
+
+export async function* readBody(body: ReadableStream<Uint8Array>): AsyncGenerator<Uint8Array> {
+  const reader = body.getReader();
+  let reachedEof = false;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) {
+        reachedEof = true;
+        return;
+      }
+      yield value;
+    }
+  } finally {
+    try {
+      if (!reachedEof) {
+        // grammY may stop consuming the upload after an error or abort; cancel R2's stream then,
+        // but preserve normal EOF semantics and never mask the original iterator result.
+        await reader.cancel();
+      }
+    } catch {
+      // Cancellation is best-effort when the source has already errored or been cancelled.
+    } finally {
+      reader.releaseLock();
+    }
+  }
 }
 
 export function createTelegramOwnerMessageApi(token: string): TelegramOwnerMessageApi {
@@ -148,6 +186,17 @@ export function createTelegramOwnerMessageApi(token: string): TelegramOwnerMessa
           reply_markup: { inline_keyboard: [[{ text: button.text, web_app: { url: button.url } }]] }
         },
         signal as never
-      )
+      ),
+    sendMediaWithWebAppButton: (chatId, { kind, fileName, body, html, button }, signal) => {
+      const file = new InputFile(readBody(body), fileName);
+      const other = {
+        caption: html,
+        parse_mode: 'HTML' as const,
+        reply_markup: { inline_keyboard: [[{ text: button.text, web_app: { url: button.url } }]] }
+      };
+      if (kind === 'photo') return api.sendPhoto(chatId, file, other, signal as never);
+      if (kind === 'video') return api.sendVideo(chatId, file, other, signal as never);
+      return api.sendAnimation(chatId, file, other, signal as never);
+    }
   };
 }

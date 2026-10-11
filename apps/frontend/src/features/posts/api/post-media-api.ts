@@ -7,6 +7,7 @@ import {
   uploadPostMediaResultSchema,
   type PostMediaDto
 } from '@alexeev/contracts';
+import { queryOptions } from '@tanstack/react-query';
 import { ApiError, apiRequest, apiRequestBlob, mapApiError } from '../../../shared/api/http-client';
 import { getAccessToken } from '../../../shared/api/session';
 
@@ -140,6 +141,16 @@ export function listMediaLibrary(kind: 'all' | 'photo' | 'video', cursor?: strin
   return apiRequest(`/api/v1/media?${query.toString()}`, mediaLibraryPageSchema, { signal });
 }
 
+export function mediaLibraryPageQueryOptions(kind: 'all' | 'photo' | 'video', cursor?: string) {
+  return queryOptions({
+    queryKey: ['post-media', 'library', kind, cursor ?? null] as const,
+    queryFn: ({ signal }) => listMediaLibrary(kind, cursor, signal),
+    staleTime: 30_000,
+    gcTime: 60_000,
+    retry: false
+  });
+}
+
 export function attachLibraryMedia(postId: string, revision: number, mediaIds: string[]) {
   return apiRequest(`/api/v1/posts/${encodeURIComponent(postId)}/media/attach`, attachPostMediaResultSchema, {
     method: 'POST',
@@ -149,6 +160,23 @@ export function attachLibraryMedia(postId: string, revision: number, mediaIds: s
 
 export function getPostMediaContent(mediaId: string, signal?: AbortSignal): Promise<Blob> {
   return apiRequestBlob(`/api/v1/media/${encodeURIComponent(mediaId)}/content`, { signal });
+}
+
+// Media ids are immutable. Cache only small preview assets briefly; pages of full-size originals
+// would otherwise multiply memory use on a phone.
+export function postMediaContentQueryOptions(
+  mediaId: string,
+  sizeBytes: number,
+  options: { cachePreview?: boolean } = {}
+) {
+  const cacheable = options.cachePreview !== false && sizeBytes <= 512_000;
+  return queryOptions({
+    queryKey: ['post-media', 'content', mediaId] as const,
+    queryFn: ({ signal }) => getPostMediaContent(mediaId, signal),
+    staleTime: cacheable ? 60_000 : 0,
+    gcTime: cacheable ? 60_000 : 0,
+    retry: false
+  });
 }
 
 export type { PostMediaDto };

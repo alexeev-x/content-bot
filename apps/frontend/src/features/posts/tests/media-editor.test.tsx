@@ -1,9 +1,13 @@
-import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { cleanup, fireEvent, render as rtlRender, screen, waitFor, within } from '@testing-library/react';
+import { QueryClientProvider, type QueryClient } from '@tanstack/react-query';
+import type { ReactElement } from 'react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ApiError } from '../../../shared/api/http-client';
 import { clearSession, setSession } from '../../../shared/api/session';
 import { accessToken, ids, post } from '../../../test/fixtures';
+import { createTestQueryClient } from '../../../test/query-wrapper';
+import type { MediaLibraryItemDto } from '@alexeev/contracts';
 import {
   deletePostMedia,
   cropPostMedia,
@@ -14,14 +18,41 @@ import {
 } from '../api/post-media-api';
 import { PostMediaEditor, ServerPreview } from '../ui/PostMediaEditor';
 
-vi.mock('../api/post-media-api', () => ({
-  deletePostMedia: vi.fn(),
-  cropPostMedia: vi.fn(),
-  getPostMediaContent: vi.fn(),
-  listMediaLibrary: vi.fn(),
-  reorderPostMedia: vi.fn(),
-  uploadPostMedia: vi.fn()
-}));
+vi.mock('../api/post-media-api', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../api/post-media-api')>();
+  const getContent = vi.fn();
+  const listLibrary = vi.fn();
+  return {
+    ...actual,
+    deletePostMedia: vi.fn(),
+    cropPostMedia: vi.fn(),
+    getPostMediaContent: getContent,
+    listMediaLibrary: listLibrary,
+    mediaLibraryPageQueryOptions: (kind: 'all' | 'photo' | 'video', cursor?: string) => ({
+      queryKey: ['post-media', 'library', kind, cursor ?? null] as const,
+      queryFn: () => listLibrary(kind, cursor),
+      staleTime: 30_000,
+      gcTime: 60_000,
+      retry: false
+    }),
+    postMediaContentQueryOptions: (mediaId: string, sizeBytes: number, options: { cachePreview?: boolean } = {}) => {
+      const cacheable = options.cachePreview !== false && sizeBytes <= 512_000;
+      return {
+        queryKey: ['post-media', 'content', mediaId] as const,
+        queryFn: ({ signal }: { signal: AbortSignal }) => getContent(mediaId, signal),
+        staleTime: cacheable ? 60_000 : 0,
+        gcTime: cacheable ? 60_000 : 0,
+        retry: false
+      };
+    },
+    reorderPostMedia: vi.fn(),
+    uploadPostMedia: vi.fn()
+  };
+});
+
+function render(ui: ReactElement, client: QueryClient = createTestQueryClient()) {
+  return rtlRender(<QueryClientProvider client={client}>{ui}</QueryClientProvider>);
+}
 beforeEach(() => {
   clearSession();
   setSession(accessToken());
@@ -60,6 +91,30 @@ describe('post media editor', () => {
     expect(URL.createObjectURL).toHaveBeenCalledWith(expect.any(Blob));
     unmount();
     expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:local-preview');
+  });
+
+  it('reuses a small private preview from the in-memory cache when reopened', async () => {
+    const media = {
+      id: ids.post,
+      sourceMediaId: null,
+      kind: 'photo' as const,
+      fileName: 'cached.png',
+      contentType: 'image/png',
+      sizeBytes: 5,
+      width: 1,
+      height: 1,
+      durationMs: null,
+      position: 0
+    };
+    const client = createTestQueryClient();
+    const first = render(<ServerPreview media={media} />, client);
+    await screen.findByRole('img', { name: 'cached.png' });
+    first.unmount();
+
+    render(<ServerPreview media={media} />, client);
+    await screen.findByRole('img', { name: 'cached.png' });
+
+    expect(getPostMediaContent).toHaveBeenCalledTimes(1);
   });
 
   it('does not start a media mutation while another post revision write holds the lock', async () => {
@@ -127,6 +182,61 @@ describe('post media editor', () => {
     expect(screen.getByRole('button', { name: 'Повторить' })).toBeTruthy();
     await user.click(screen.getByRole('button', { name: 'Повторить' }));
     await waitFor(() => expect(listMediaLibrary).toHaveBeenCalledTimes(2));
+  });
+
+  it('bounds loaded library previews while keeping selected older media available', async () => {
+    const pageSize = 30;
+    const makeItem = (index: number): MediaLibraryItemDto => ({
+      id: `10000000-0000-4000-8000-${String(index + 1).padStart(12, '0')}`,
+      kind: 'photo',
+      fileName: `asset-${String(index).padStart(3, '0')}.jpg`,
+      contentType: 'image/jpeg',
+      sizeBytes: index % 10 === 0 ? 1_000_000 : 200_000,
+      width: 1200,
+      height: 900,
+      durationMs: null,
+      createdAt: '2026-10-10T12:00:00.000Z'
+    });
+    vi.mocked(listMediaLibrary).mockImplementation(async (_kind, cursor) => {
+      const offset = cursor ? Number(cursor) : 0;
+      const items = Array.from({ length: pageSize }, (_, index) => makeItem(offset + index));
+      const nextOffset = offset + pageSize;
+      return { items, nextCursor: nextOffset < 90 ? String(nextOffset) : null };
+    });
+    const user = userEvent.setup();
+    const client = createTestQueryClient();
+    render(
+      <PostMediaEditor
+        postId={ids.post}
+        revision={0}
+        media={[]}
+        disabled={false}
+        onServerChange={vi.fn()}
+        onPendingChange={vi.fn()}
+      />,
+      client
+    );
+
+    await user.click(screen.getByRole('button', { name: /Добавить медиа/ }));
+    await user.click(await screen.findByRole('tab', { name: /Медиабиблиотека/ }));
+    await screen.findByRole('button', { name: 'asset-000.jpg' });
+    await user.click(screen.getByRole('button', { name: 'asset-000.jpg' }));
+    await user.click(screen.getByRole('button', { name: 'Показать ещё' }));
+    await screen.findByRole('button', { name: 'asset-059.jpg' });
+    await user.click(screen.getByRole('button', { name: 'Показать ещё' }));
+    await screen.findByRole('button', { name: 'asset-089.jpg' });
+
+    const library = screen.getByRole('list', { name: /Файлы медиабиблиотеки/ });
+    expect(within(library).getAllByRole('listitem')).toHaveLength(pageSize + 1);
+    expect(screen.getByRole('button', { name: 'asset-000.jpg' })).toBeTruthy();
+    await waitFor(() =>
+      expect(
+        client
+          .getQueryCache()
+          .findAll({ queryKey: ['post-media', 'content'] })
+          .filter((query) => query.state.data instanceof Blob)
+      ).toHaveLength(27)
+    );
   });
 
   it('keeps the compact empty-media state while retaining supported file types', () => {
@@ -643,6 +753,7 @@ describe('post media editor', () => {
     );
     await screen.findByRole('button', { name: 'broken.png' });
     const item = screen.getByRole('listitem', { name: 'broken.png, позиция 1' });
+    await waitFor(() => expect(item.querySelector('img[alt="broken.png"]')).not.toBeNull());
     const preview = item.querySelector('img[alt="broken.png"]');
     if (!preview) throw new Error('Expected the media tile to render its photo');
     fireEvent.error(preview);

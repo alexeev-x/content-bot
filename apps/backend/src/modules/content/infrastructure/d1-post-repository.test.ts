@@ -108,3 +108,28 @@ describe('findRevision', () => {
     expect(await repo.findRevision(crypto.randomUUID(), 0)).toBeNull();
   });
 });
+
+describe('findManyByIds', () => {
+  it('returns existing posts in requested order and makes no query for an empty list', async () => {
+    const db = testDb();
+    const first = crypto.randomUUID();
+    const second = crypto.randomUUID();
+    await db.batch([
+      db
+        .prepare(
+          "INSERT INTO posts (id, title, body, status, revision, created_at, updated_at) VALUES (?1, 'First', '', 'draft', 0, ?2, ?2)"
+        )
+        .bind(first, START),
+      db
+        .prepare(
+          "INSERT INTO posts (id, title, body, status, revision, created_at, updated_at) VALUES (?1, 'Second', '', 'draft', 0, ?2, ?2)"
+        )
+        .bind(second, START)
+    ]);
+
+    const posts = await createD1PostRepository(db).findManyByIds([second, crypto.randomUUID(), first]);
+
+    expect(posts.map((post) => post.id)).toEqual([second, first]);
+    expect(await createD1PostRepository(db).findManyByIds([])).toEqual([]);
+  });
+});

@@ -150,6 +150,36 @@
   display: grid;
   min-width: 0;
 }
+/* Dashboard section headers can contain long RU titles, demo markers and links.
+   Give the title/markers their own row so narrow panels never collide with actions. */
+.cell > section > div:first-child {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-rows: auto auto;
+  align-items: center;
+  column-gap: var(--space-3);
+  row-gap: var(--space-1);
+  min-height: 0;
+  padding-block: var(--space-2);
+}
+.cell > section > div:first-child > div:first-child {
+  grid-column: 1 / -1;
+  flex-wrap: wrap;
+  min-width: 0;
+  overflow: visible;
+  white-space: normal;
+}
+.cell > section > div:first-child > div:first-child > h2 {
+  min-width: 0;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.cell > section > div:first-child > div:last-child {
+  grid-column: 2;
+  justify-self: end;
+  min-width: 0;
+  max-width: 100%;
+}
 .cell[data-area='attention'] {
   order: 1;
 }
@@ -727,6 +757,28 @@
   }
   .layout {
     grid-template-columns: minmax(0, 1fr);
+  }
+
+  /* The phone overview follows UX_SPEC §3.1: Today, Upcoming, Dota Pulse,
+     Analytics, Recent. Approved-unscheduled and Week are not phone sections. */
+  .cell[data-area='approved'],
+  .cell[data-area='week'] {
+    display: none;
+  }
+  .cell[data-area='upcoming'] {
+    order: 3;
+  }
+  .cell[data-area='pulse'] {
+    order: 4;
+  }
+  .cell[data-area='analytics'] {
+    order: 5;
+  }
+  .cell[data-area='recent'] {
+    order: 6;
+  }
+  .cell[data-area='system'] {
+    order: 7;
   }
 
   .tile {

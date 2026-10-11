@@ -335,6 +335,11 @@ for (const width of [375, 1440]) {
 
     await expect(page.locator('section[aria-labelledby="post-media-heading"] ol li > div img')).toHaveCount(5);
     await expect(page.getByRole('button', { name: 'Добавить файлы' })).toBeVisible();
+    if (width === 375) {
+      const mediaTiles = page.locator('section[aria-labelledby="post-media-heading"] ol li');
+      await expect(mediaTiles.first().getByRole('button', { name: 'altai_lake.jpg', exact: true })).toBeVisible();
+      await expect(mediaTiles.last().getByRole('button', { name: 'Добавить файлы' })).toBeVisible();
+    }
     for (const photo of photoFixtures) {
       const tile = page.getByRole('button', { name: photo.fileName, exact: true });
       const tileItem = page.locator('section[aria-labelledby="post-media-heading"] ol li').filter({ has: tile });

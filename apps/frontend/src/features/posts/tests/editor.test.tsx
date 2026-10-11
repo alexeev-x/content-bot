@@ -16,6 +16,7 @@ beforeEach(() => {
 afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
+  vi.restoreAllMocks();
 });
 
 const titleBox = () => screen.getByRole('textbox', { name: /Заголовок/ });
@@ -389,6 +390,8 @@ describe('revision history removal', () => {
 describe('approve', () => {
   it('allows a title and media without body text to continue to publication settings', async () => {
     const user = userEvent.setup();
+    vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:editor-media');
+    vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => undefined);
     const approvals: unknown[] = [];
     server.use(
       http.get(

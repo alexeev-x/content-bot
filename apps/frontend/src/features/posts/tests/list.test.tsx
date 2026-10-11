@@ -118,30 +118,40 @@ describe('filter, search and pagination', () => {
     expect(await screen.findByText('Заголовок')).toBeTruthy();
   });
 
-  it('searches the loaded posts only, says so, and loads the next page by cursor', async () => {
+  it('loads the next page and starts a fresh server query when search changes', async () => {
     const user = userEvent.setup();
-    const cursors: Array<string | null> = [];
+    const requests: URL[] = [];
     server.use(
       http.get('*/api/v1/posts', ({ request }) => {
-        const cursor = new URL(request.url).searchParams.get('cursor');
-        cursors.push(cursor);
-        return cursor === null
+        const url = new URL(request.url);
+        requests.push(url);
+        if (url.searchParams.get('q') === 'бета')
+          return HttpResponse.json(postPage([post({ title: 'Бета' })], { totalCount: 1 }));
+        return url.searchParams.has('cursor')
           ? HttpResponse.json(
-              postPage([post({ title: 'Альфа' }), post({ id: ids.post2, title: 'Бета' })], { nextCursor: 'c2' })
+              postPage([post({ id: '11111111-1111-4111-8111-333333333333', title: 'Гамма' })], { totalCount: 3 })
             )
-          : HttpResponse.json(postPage([post({ id: '11111111-1111-4111-8111-333333333333', title: 'Гамма' })]));
+          : HttpResponse.json(
+              postPage([post({ title: 'Альфа' }), post({ id: ids.post2, title: 'Бета' })], {
+                nextCursor: 'c2',
+                totalCount: 3
+              })
+            );
       })
     );
     renderList();
     await screen.findByText('Альфа');
-    // Desktop: the search field is always visible in the panel header.
-    await user.type(screen.getByRole('searchbox', { name: 'Поиск по загруженным постам' }), 'бет');
-    expect(screen.queryByText('Альфа')).toBeNull();
-    expect(screen.getByText('Бета')).toBeTruthy();
-    expect(screen.getByText(/Поиск идёт только по уже загруженным постам\./)).toBeTruthy();
+    expect(screen.getByText('Загружено 2 из 3')).toBeTruthy();
     await user.click(screen.getByRole('button', { name: 'Показать ещё' }));
-    await waitFor(() => expect(cursors).toEqual([null, 'c2']));
-    expect(await screen.findByText('Загружено 3 из 3')).toBeTruthy();
+    await screen.findByText('Гамма');
+    const field = screen.getByRole('searchbox', { name: 'Поиск по постам' });
+    await user.type(field, 'бета');
+    await screen.findByText('Бета');
+    await waitFor(() => expect(requests.some((url) => url.searchParams.get('q') === 'бета')).toBe(true));
+    const filtered = requests.find((url) => url.searchParams.get('q') === 'бета');
+    expect(filtered?.searchParams.has('cursor')).toBe(false);
+    expect(screen.getByText('Загружено 1 из 1')).toBeTruthy();
+    expect(screen.queryByText('Альфа')).toBeNull();
   });
 });
 
@@ -149,12 +159,17 @@ describe('search', () => {
   const mixed = (onRequest?: (url: string) => void) =>
     http.get('*/api/v1/posts', ({ request }) => {
       onRequest?.(request.url);
-      return HttpResponse.json(
-        postPage([
-          post({ title: 'Черновик А', body: 'Про героя' }),
-          postWith({ scheduled: 1 }, { id: ids.post2, title: 'Одобрен Б' })
-        ])
-      );
+      const items = [
+        post({ title: 'Черновик А', body: 'Про героя' }),
+        postWith({ scheduled: 1 }, { id: ids.post2, title: 'Одобрен Б' })
+      ];
+      const q = new URL(request.url).searchParams.get('q')?.toLocaleLowerCase('ru-RU');
+      const filtered = q
+        ? items.filter((item, index) =>
+            (index === 0 ? 'черновик а про героя' : 'одобрен б запланирован канал').includes(q)
+          )
+        : items;
+      return HttpResponse.json(postPage(filtered, { totalCount: filtered.length }));
     });
 
   it('filters the loaded rows by title, text, status label and channel while typing, and has no status filter', async () => {
@@ -165,31 +180,31 @@ describe('search', () => {
     await screen.findByText('Одобрен Б');
     const table = () => screen.getByRole('grid', { name: 'Список постов' });
     expect(screen.queryByRole('button', { name: /Фильтр по статусу/ })).toBeNull();
-    const field = screen.getByRole('searchbox', { name: 'Поиск по загруженным постам' });
+    const field = screen.getByRole('searchbox', { name: 'Поиск по постам' });
     const loaded = requests.length;
 
     await user.type(field, 'ОДОБРЕН');
-    expect(within(table()).queryByText('Черновик А')).toBeNull();
-    expect(within(table()).getByText('Одобрен Б')).toBeTruthy();
+    await waitFor(() => expect(within(table()).queryByText('Черновик А')).toBeNull());
+    expect(await within(table()).findByText('Одобрен Б')).toBeTruthy();
 
     await user.clear(field);
     await user.type(field, 'героя');
-    expect(within(table()).queryByText('Одобрен Б')).toBeNull();
+    await waitFor(() => expect(within(table()).queryByText('Одобрен Б')).toBeNull());
     await user.clear(field);
     await user.type(field, 'про героя');
-    expect(within(table()).getByText('Черновик А')).toBeTruthy();
+    expect(await within(table()).findByText('Черновик А')).toBeTruthy();
 
     // The status label of the row: «Запланирован».
     await user.clear(field);
     await user.type(field, 'запланирован');
-    expect(within(table()).queryByText('Черновик А')).toBeNull();
-    expect(within(table()).getByText('Одобрен Б')).toBeTruthy();
+    await waitFor(() => expect(within(table()).queryByText('Черновик А')).toBeNull());
+    expect(await within(table()).findByText('Одобрен Б')).toBeTruthy();
 
     await user.clear(field);
     await user.type(field, 'канал');
-    expect(within(table()).queryByText('Черновик А')).toBeNull();
-    expect(within(table()).getByText('Одобрен Б')).toBeTruthy();
-    expect(requests.length).toBe(loaded);
+    await waitFor(() => expect(within(table()).queryByText('Черновик А')).toBeNull());
+    expect(await within(table()).findByText('Одобрен Б')).toBeTruthy();
+    expect(requests.length).toBeGreaterThan(loaded);
   });
 
   it('moves into the rows with Arrow Down, shows «Ничего не найдено» and restores the rows when cleared', async () => {
@@ -197,7 +212,7 @@ describe('search', () => {
     server.use(mixed());
     renderList();
     await screen.findByText('Черновик А');
-    const field = screen.getByRole('searchbox', { name: 'Поиск по загруженным постам' });
+    const field = screen.getByRole('searchbox', { name: 'Поиск по постам' });
     await user.click(field);
     await user.keyboard('{ArrowDown}');
     // Real focus moves into the first row, so Enter opens it and the arrows walk the rows.
@@ -219,17 +234,37 @@ describe('search', () => {
   it('on a phone searches the cards with the same text and keeps only the sort in the sheet', async () => {
     setViewport(375);
     const user = userEvent.setup();
+    const requests: string[] = [];
+    server.use(mixed((url) => requests.push(url)));
+    renderList();
+    await screen.findByText('Черновик А');
+    await user.type(screen.getByRole('searchbox', { name: 'Поиск по постам' }), 'запланирован');
+    await waitFor(() => expect(screen.queryByText('Черновик А')).toBeNull());
+    expect(await screen.findByText('Одобрен Б')).toBeTruthy();
+
+    await user.click(screen.getByRole('button', { name: /Сортировка/ }));
+    const sheet = await screen.findByRole('dialog', { name: 'Сортировка' });
+    expect(within(sheet).queryByRole('button', { name: /Статус/ })).toBeNull();
+    await user.click(within(sheet).getByRole('button', { name: /По умолчанию/ }));
+    await user.click(await screen.findByRole('option', { name: /Пост — по возрастанию/ }));
+    await user.click(within(sheet).getByRole('button', { name: 'Показать результаты' }));
+    expect(screen.getByRole('button', { name: /Сортировка: Пост/ })).toBeTruthy();
+    await waitFor(() => expect(requests.some((url) => new URL(url).searchParams.get('sort') === 'title')).toBe(true));
+  });
+
+  it('returns keyboard focus to the sort trigger when Escape closes its sheet', async () => {
+    setViewport(390);
+    const user = userEvent.setup();
     server.use(mixed());
     renderList();
     await screen.findByText('Черновик А');
-    await user.type(screen.getByRole('searchbox', { name: 'Поиск по загруженным постам' }), 'запланирован');
-    expect(screen.queryByText('Черновик А')).toBeNull();
-    expect(screen.getByText('Одобрен Б')).toBeTruthy();
 
-    await user.click(screen.getByRole('button', { name: /Фильтры/ }));
-    const sheet = await screen.findByRole('dialog', { name: 'Сортировка' });
-    expect(within(sheet).queryByRole('button', { name: /Статус/ })).toBeNull();
-    expect(within(sheet).getByRole('button', { name: /Сортировка/ })).toBeTruthy();
+    const trigger = screen.getByRole('button', { name: /^Сортировка/ });
+    await user.click(trigger);
+    expect(await screen.findByRole('dialog', { name: 'Сортировка' })).toBeTruthy();
+    await user.keyboard('{Escape}');
+
+    await waitFor(() => expect(document.activeElement).toBe(trigger));
   });
 });
 

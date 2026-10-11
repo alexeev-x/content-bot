@@ -63,6 +63,43 @@ describe('createScheduleNotifier', () => {
     expect(events.at(-1)).toMatchObject({ component: 'owner_notice', status: 'sent', requestId: 'req-1' });
   });
 
+  it('sends the first attached asset with the notice and the Mini App button in one call', async () => {
+    const messenger = fakeOwnerMessenger();
+    const firstAsset = {
+      kind: 'photo' as const,
+      fileName: 'cover.jpg',
+      contentType: 'image/jpeg',
+      body: new Blob(['cover']).stream()
+    };
+    const secondAsset = {
+      kind: 'video' as const,
+      fileName: 'clip.mp4',
+      contentType: 'video/mp4',
+      body: new Blob(['clip']).stream()
+    };
+    createScheduleNotifier(
+      deps({
+        messenger,
+        posts: () => ({
+          findRevision: () =>
+            Promise.resolve({ title: 'Patch', body: SECRET_BODY, entities: [], media: [firstAsset, secondAsset] })
+        })
+      })
+    ).scheduled(publication);
+
+    await settle();
+
+    expect(messenger.sent).toHaveLength(0);
+    expect(messenger.sentMedia).toHaveLength(1);
+    expect(messenger.sentMedia[0]).toMatchObject({
+      chatId: '4242',
+      kind: 'photo',
+      fileName: 'cover.jpg',
+      button: { url: 'https://studio.example.dev/publications?id=5d4f8a7e-3b6c-4e2a-9f10-1a2b3c4d5e6f' }
+    });
+    expect(events.at(-1)).toMatchObject({ component: 'owner_notice', status: 'sent', requestId: 'req-1' });
+  });
+
   it('skips with a log line when the bot has no token', async () => {
     createScheduleNotifier(deps({ messenger: null })).scheduled(publication);
     await settle();
