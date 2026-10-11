@@ -14,12 +14,16 @@ import { listEnabledDestinations } from './destination-options';
 import {
   cancelPublication,
   createPublication,
+  deletePublication,
+  deletePublications,
   getPublication,
   listPublications,
   reschedulePublication,
   resolveUnknownPublication,
   type CancelPublicationBody,
+  type BulkDeletePublicationsBody,
   type CreatePublicationBody,
+  type DeletePublicationBody,
   type PublicationFilters,
   type ReschedulePublicationBody,
   type ResolveUnknownBody
@@ -153,5 +157,31 @@ export function useResolveUnknownPublication() {
     mutationFn: ({ id, input }: { id: string; input: ResolveUnknownBody }) => resolveUnknownPublication(id, input),
     retry: false,
     onSuccess: (publication) => applyServerPublication(queryClient, publication)
+  });
+}
+
+export function useDeletePublication() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, input }: { id: string; input: DeletePublicationBody }) => deletePublication(id, input),
+    retry: false,
+    onSuccess: (result) => {
+      queryClient.removeQueries({ queryKey: publicationKeys.detail(result.id) });
+      void queryClient.invalidateQueries({ queryKey: publicationKeys.lists() });
+    }
+  });
+}
+
+export function useBulkDeletePublications() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: BulkDeletePublicationsBody) => deletePublications(input),
+    retry: false,
+    onSuccess: (result) => {
+      for (const item of result.items) {
+        if (item.outcome === 'deleted') queryClient.removeQueries({ queryKey: publicationKeys.detail(item.id) });
+      }
+      void queryClient.invalidateQueries({ queryKey: publicationKeys.lists() });
+    }
   });
 }

@@ -6,9 +6,10 @@ import {
   useQueryClient,
   type QueryClient
 } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { createIdempotencyTracker } from '../../../shared/api/idempotency';
 import { nextCursor } from '../../../shared/api/query-string';
+import { attachLibraryMedia } from './post-media-api';
 import {
   approvePost,
   createPost,
@@ -18,6 +19,7 @@ import {
   listPosts,
   restorePost,
   restorePosts,
+  returnPostToDraft,
   updatePost,
   type ApprovePostBody,
   type BulkDeletePostsBody,
@@ -26,6 +28,7 @@ import {
   type DeletePostBody,
   type PostFilters,
   type RestorePostBody,
+  type ReturnPostToDraftBody,
   type UpdatePostBody
 } from './posts-api';
 
@@ -79,6 +82,72 @@ export function useCreatePost() {
   });
 }
 
+type DuplicateOperation = {
+  fingerprint: string;
+  idempotencyKey: string;
+  createdId?: string;
+};
+
+/** Creates a draft copy and resumes a partially completed copy instead of creating another post. */
+export function useDuplicatePost() {
+  const queryClient = useQueryClient();
+  const [tracker] = useState(createIdempotencyTracker);
+  const operations = useRef(new Map<string, DuplicateOperation>());
+  return useMutation({
+    mutationFn: async (source: PostDto): Promise<PostDto> => {
+      const mediaIds = source.media.map((media) => media.id);
+      const input: CreatePostBody = { title: source.title, body: source.body, entities: source.entities };
+      const fingerprint = JSON.stringify({ sourceId: source.id, input, mediaIds });
+      let operation = operations.current.get(source.id);
+      if (!operation || operation.fingerprint !== fingerprint) {
+        operation = { fingerprint, idempotencyKey: tracker.keyFor(fingerprint) };
+        operations.current.set(source.id, operation);
+      }
+
+      let copy = operation.createdId ? await getPost(operation.createdId) : undefined;
+      if (!copy) {
+        copy = await createPost(input, operation.idempotencyKey);
+        operation.createdId = copy.id;
+        tracker.release(operation.idempotencyKey);
+      }
+
+      if (
+        copy.status !== 'draft' ||
+        copy.title !== input.title ||
+        copy.body !== input.body ||
+        JSON.stringify(copy.entities) !== JSON.stringify(input.entities)
+      ) {
+        operations.current.delete(source.id);
+        throw new Error('The copied draft changed before duplication completed');
+      }
+
+      const attachedIds = copy.media.map((media) => media.id);
+      if (!sameIds(attachedIds, mediaIds)) {
+        if (attachedIds.length !== 0 || mediaIds.length === 0) {
+          operations.current.delete(source.id);
+          throw new Error('The copied draft media changed before attachment completed');
+        }
+        const attached = await attachLibraryMedia(copy.id, copy.revision, mediaIds);
+        copy = { ...copy, media: attached.media, revision: attached.revision };
+      }
+      return copy;
+    },
+    retry: false,
+    onSuccess: (post, source) => {
+      operations.current.delete(source.id);
+      queryClient.setQueryData(postKeys.detail(post.id), post);
+      void queryClient.invalidateQueries({ queryKey: postKeys.lists() });
+    },
+    onError: (_error, _source) => {
+      void queryClient.invalidateQueries({ queryKey: postKeys.lists() });
+    }
+  });
+}
+
+function sameIds(left: readonly string[], right: readonly string[]): boolean {
+  return left.length === right.length && left.every((id, index) => id === right[index]);
+}
+
 /** 409 (STALE_REVISION, NOT_EDITABLE) rejects the mutation and touches no cache: local edits stay. */
 export function useUpdatePost() {
   const queryClient = useQueryClient();
@@ -93,6 +162,15 @@ export function useApprovePost() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: ({ id, input }: { id: string; input: ApprovePostBody }) => approvePost(id, input),
+    retry: false,
+    onSuccess: (post) => applyServerPost(queryClient, post)
+  });
+}
+
+export function useReturnPostToDraft() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, input }: { id: string; input: ReturnPostToDraftBody }) => returnPostToDraft(id, input),
     retry: false,
     onSuccess: (post) => applyServerPost(queryClient, post)
   });

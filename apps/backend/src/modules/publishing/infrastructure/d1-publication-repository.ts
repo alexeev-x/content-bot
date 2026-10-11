@@ -1,9 +1,11 @@
 import { completeIdempotencyStatement, ownsClaimSql } from '../../../platform/idempotency/d1-idempotency-store';
 import type { PublicationStatus } from '@alexeev/contracts';
+import { AppError } from '../../../shared/app-error';
 import type {
   ListPublicationsQuery,
   PostPublicationSummary,
   PublicationChangeOutcome,
+  PublicationDeleteOutcome,
   PublicationRecord,
   PublicationRepository,
   RangeSummary,
@@ -37,6 +39,36 @@ const PUBLICATION_COLUMNS = `p.id, p.post_id, p.post_revision, p.destination_id,
 // one is looked up by key, instead of scanning one side and sorting.
 const FROM_PUBLICATIONS = `FROM publications p CROSS JOIN jobs j ON j.publication_id = p.id AND j.kind = 'publish'`;
 const FROM_JOBS = `FROM jobs j CROSS JOIN publications p ON p.id = j.publication_id`;
+
+// The dedupe key keeps a detached final job and its attempts available as history after its
+// publication row is removed. Every statement recomputes the same revision- and status-guarded set.
+const FINAL_PUBLICATION_TARGET = `WITH target(id) AS (
+  SELECT p.id FROM json_each(?1) je
+  JOIN publications p ON p.id = json_extract(je.value, '$.id')
+  JOIN jobs j ON (j.publication_id = p.id OR (j.publication_id IS NULL AND j.dedupe_key = 'publish:' || p.id))
+  WHERE p.revision = json_extract(je.value, '$.revision') AND j.kind = 'publish'
+    AND j.status IN ('succeeded', 'failed', 'cancelled')
+)`;
+const FINAL_PUBLICATION_AUDIT = `${FINAL_PUBLICATION_TARGET}
+  INSERT INTO audit_log (actor_telegram_id, action, entity_type, entity_id, created_at, details)
+  SELECT ?2, 'publication.delete', 'publication', p.id, ?3,
+    json_object('revision', p.revision, 'status', j.status)
+  FROM target t JOIN publications p ON p.id = t.id
+  JOIN jobs j ON j.publication_id = p.id OR (j.publication_id IS NULL AND j.dedupe_key = 'publish:' || p.id)`;
+const FINAL_PUBLICATION_INCIDENTS = `${FINAL_PUBLICATION_TARGET}
+  UPDATE incidents SET publication_id = NULL WHERE publication_id IN (SELECT id FROM target)`;
+const FINAL_PUBLICATION_JOBS = `${FINAL_PUBLICATION_TARGET}
+  UPDATE jobs SET publication_id = NULL, publication_scheduled_at = NULL
+  WHERE publication_id IN (SELECT id FROM target) OR dedupe_key IN (SELECT 'publish:' || id FROM target)`;
+const FINAL_PUBLICATION_DELETE = `${FINAL_PUBLICATION_TARGET}
+  DELETE FROM publications WHERE id IN (SELECT id FROM target) RETURNING id`;
+
+interface PublicationDeleteStateRow {
+  id: string;
+  is_present: number;
+  revision: number | null;
+  job_status: JobState | null;
+}
 
 function toRecord(row: PublicationRow): PublicationRecord {
   return {
@@ -460,6 +492,47 @@ export function createD1PublicationRepository(db: D1Database): PublicationReposi
           )
           .bind(change.id, change.expectedRevision, change.now),
         publicationSet: { sql: '', bindings: [] }
+      });
+    },
+
+    async deleteFinal({ items, actor, now }): Promise<PublicationDeleteOutcome[]> {
+      if (items.length === 0) return [];
+      const json = JSON.stringify(items);
+      const results = await db.batch([
+        db.prepare(FINAL_PUBLICATION_AUDIT).bind(json, actor, now),
+        db.prepare(FINAL_PUBLICATION_INCIDENTS).bind(json),
+        db.prepare(FINAL_PUBLICATION_JOBS).bind(json),
+        db.prepare(FINAL_PUBLICATION_DELETE).bind(json),
+        db
+          .prepare(
+            `SELECT json_extract(je.value, '$.id') AS id, p.id IS NOT NULL AS is_present, p.revision AS revision,
+                    j.status AS job_status
+             FROM json_each(?1) je
+             LEFT JOIN publications p ON p.id = json_extract(je.value, '$.id')
+             LEFT JOIN jobs j ON j.publication_id = p.id OR j.dedupe_key = 'publish:' || json_extract(je.value, '$.id')`
+          )
+          .bind(json)
+      ]);
+      const deletedRows = (results[3]?.results ?? []) as Array<{ id: string }>;
+      const deleted = new Set(deletedRows.map((row) => row.id));
+      const state = new Map(
+        ((results[4]?.results ?? []) as unknown as PublicationDeleteStateRow[]).map((row) => [row.id, row])
+      );
+      return items.map((item): PublicationDeleteOutcome => {
+        if (deleted.has(item.id)) return { id: item.id, outcome: 'deleted' };
+        const row = state.get(item.id);
+        if (row === undefined || row.is_present !== 1) return { id: item.id, outcome: 'refused', reason: 'NOT_FOUND' };
+        if (row.job_status === 'unknown') {
+          return { id: item.id, outcome: 'refused', reason: 'PUBLICATION_UNKNOWN' };
+        }
+        if (row.job_status === 'claimed') {
+          return { id: item.id, outcome: 'refused', reason: 'PUBLICATION_IN_PROGRESS' };
+        }
+        if (row.revision !== item.revision) return { id: item.id, outcome: 'refused', reason: 'STALE_REVISION' };
+        if (row.job_status !== 'succeeded' && row.job_status !== 'failed' && row.job_status !== 'cancelled') {
+          return { id: item.id, outcome: 'refused', reason: 'NOT_FINAL' };
+        }
+        throw new AppError('UNAVAILABLE', 'Final publication deletion was not applied');
       });
     },
 

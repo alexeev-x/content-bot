@@ -27,7 +27,8 @@ const bodySchema = z
 const revisionSchema = z.number().int().nonnegative();
 
 // What the post's publications amount to, so a list row needs no second request. Counts use the
-// user-facing PublicationStatus and always carry every status (zero included). A draft has none.
+// user-facing PublicationStatus and always carry every status (zero included). A returned draft may keep
+// final history.
 export const POST_SUMMARY_DESTINATIONS_MAX = 20;
 export const postPublicationSummarySchema = z.object({
   counts: z.record(publicationStatusSchema, z.number().int().nonnegative()),
@@ -114,6 +115,24 @@ export const approvePostInputSchema = z.strictObject({
   revision: revisionSchema
 });
 export type ApprovePostInput = z.infer<typeof approvePostInputSchema>;
+
+// POST /api/v1/posts/{id}/draft → 200 PostDto (status 'draft', revision + 1).
+// Only an approved post with no scheduled, queued, preparing, sending, retry_wait or unknown publications can return.
+// Existing final publication records and Telegram messages are preserved; this never cancels or resends anything.
+// Errors: VALIDATION_ERROR 400 or 413, NOT_FOUND 404, CONFLICT 409 (details.reason STALE_REVISION | NOT_APPROVED |
+// PUBLICATION_PENDING | PUBLICATION_IN_PROGRESS | PUBLICATION_UNKNOWN), UNAUTHORIZED 401, FORBIDDEN 403.
+export const returnPostToDraftInputSchema = z.strictObject({ revision: revisionSchema });
+export type ReturnPostToDraftInput = z.infer<typeof returnPostToDraftInputSchema>;
+
+export const returnPostToDraftRefusalSchema = z.enum([
+  'NOT_FOUND',
+  'STALE_REVISION',
+  'NOT_APPROVED',
+  'PUBLICATION_PENDING',
+  'PUBLICATION_IN_PROGRESS',
+  'PUBLICATION_UNKNOWN'
+]);
+export type ReturnPostToDraftRefusal = z.infer<typeof returnPostToDraftRefusalSchema>;
 
 // GET /api/v1/posts?view&status&q&sort&direction&cursor&limit → 200 PostPageDto.
 // view=live (default): posts that are not archived, newest update first. view=archive: archived posts,

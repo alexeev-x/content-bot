@@ -11,6 +11,7 @@ import {
   type deletePostInputSchema,
   type listPostsQuerySchema,
   type restorePostInputSchema,
+  type returnPostToDraftInputSchema,
   type updatePostInputSchema
 } from '@alexeev/contracts';
 import type { z } from 'zod';
@@ -25,6 +26,7 @@ export type BulkRestorePostsBody = z.input<typeof bulkRestorePostsInputSchema>;
 export type CreatePostBody = z.input<typeof createPostInputSchema>;
 export type UpdatePostBody = z.input<typeof updatePostInputSchema>;
 export type ApprovePostBody = z.input<typeof approvePostInputSchema>;
+export type ReturnPostToDraftBody = z.input<typeof returnPostToDraftInputSchema>;
 
 export function listPosts(filters: PostFilters, cursor: string | undefined, signal?: AbortSignal) {
   const query = buildQuery({
@@ -57,6 +59,10 @@ export function updatePost(id: string, input: UpdatePostBody) {
 
 export function approvePost(id: string, input: ApprovePostBody) {
   return apiRequest(`/api/v1/posts/${encodeURIComponent(id)}/approve`, postSchema, { method: 'POST', body: input });
+}
+
+export function returnPostToDraft(id: string, input: ReturnPostToDraftBody) {
+  return apiRequest(`/api/v1/posts/${encodeURIComponent(id)}/draft`, postSchema, { method: 'POST', body: input });
 }
 
 export function deletePost(id: string, input: DeletePostBody) {

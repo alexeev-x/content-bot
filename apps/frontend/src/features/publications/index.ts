@@ -22,6 +22,8 @@ export { displayStatus, isInProgress } from './model/publication-view';
 export { publicationRowText } from './model/row-text';
 export { copy as publicationCopy } from './ui/copy';
 export { PublicationDrawer } from './ui/PublicationDrawer';
+export { DeletePublicationsDialog, deleteTargetOf } from './ui/DeletePublicationsDialog';
+export type { DeletePublicationTarget, DeletePublicationsOutcome } from './ui/DeletePublicationsDialog';
 export { PublicationsSkeleton } from './ui/PublicationsSkeleton';
 export {
   PublicationTable,

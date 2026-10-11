@@ -25,6 +25,105 @@ beforeEach(() => {
 });
 
 describe('posts list states', () => {
+  it('returns an eligible approved post to draft with its current revision and keeps row focus', async () => {
+    const user = userEvent.setup();
+    let current = postWith({}, { title: 'Одобренный пост', revision: 7 });
+    let sentBody: unknown;
+    server.use(
+      http.get('*/api/v1/posts', () => HttpResponse.json(postPage([current]))),
+      http.post('*/api/v1/posts/:id/draft', async ({ request }) => {
+        sentBody = await request.json();
+        current = { ...current, status: 'draft', revision: 8 };
+        return HttpResponse.json(current);
+      })
+    );
+    renderList();
+    await screen.findByText('Одобренный пост');
+    await user.click(screen.getByRole('button', { name: 'Действия с постом «Одобренный пост»' }));
+    await user.click(await screen.findByRole('menuitem', { name: 'Вернуть в черновик' }));
+
+    expect(sentBody).toEqual({ revision: 7 });
+    expect(await screen.findByText('Пост возвращён в черновик')).toBeTruthy();
+    const row = screen.getByRole('row', { name: /Одобренный пост/ });
+    await waitFor(() => expect(document.activeElement).toBe(row));
+    expect(within(row).getByText('Черновик')).toBeTruthy();
+  });
+
+  it('only offers return-to-draft for approved posts and explains publication blockers', async () => {
+    const user = userEvent.setup();
+    server.use(
+      http.get('*/api/v1/posts', () =>
+        HttpResponse.json(
+          postPage([
+            postWith({ scheduled: 1 }, { title: 'Ожидает', id: ids.post }),
+            postWith({ sending: 1 }, { title: 'Отправляется', id: ids.post2 }),
+            postWith({ unknown: 1 }, { title: 'Нужна сверка', id: '11111111-1111-4111-8111-333333333333' }),
+            post({ title: 'Черновик', status: 'draft', id: '11111111-1111-4111-8111-444444444444' })
+          ])
+        )
+      )
+    );
+    renderList();
+    await screen.findByText('Ожидает');
+    for (const [title, reason] of [
+      ['Ожидает', 'есть ожидающая публикация'],
+      ['Отправляется', 'идёт отправка'],
+      ['Нужна сверка', 'сначала сверьте результат']
+    ]) {
+      await user.click(screen.getByRole('button', { name: `Действия с постом «${title}»` }));
+      expect(
+        (await screen.findByRole('menuitem', { name: new RegExp(`Вернуть в черновик: ${reason}`) })).getAttribute(
+          'aria-disabled'
+        )
+      ).toBe('true');
+      await user.keyboard('{Escape}');
+    }
+    await user.click(screen.getByRole('button', { name: 'Действия с постом «Черновик»' }));
+    expect(screen.queryByRole('menuitem', { name: /Вернуть в черновик/ })).toBeNull();
+  });
+
+  it('refreshes server state after a 409 and announces a recoverable HTTP error', async () => {
+    const user = userEvent.setup();
+    let gets = 0;
+    server.use(
+      http.get('*/api/v1/posts', () => {
+        gets += 1;
+        return HttpResponse.json(postPage([postWith({}, { title: 'Одобренный пост' })]));
+      }),
+      http.post('*/api/v1/posts/:id/draft', () =>
+        HttpResponse.json(
+          {
+            error: {
+              code: 'CONFLICT',
+              message: 'Conflict',
+              requestId: 'req-conflict',
+              details: { reason: 'STALE_REVISION' }
+            }
+          },
+          { status: 409 }
+        )
+      )
+    );
+    renderList();
+    await screen.findByText('Одобренный пост');
+    await user.click(screen.getByRole('button', { name: 'Действия с постом «Одобренный пост»' }));
+    await user.click(await screen.findByRole('menuitem', { name: 'Вернуть в черновик' }));
+    expect(await screen.findByText('Состояние поста изменилось')).toBeTruthy();
+    await waitFor(() => expect(gets).toBeGreaterThan(1));
+
+    cleanup();
+    server.use(
+      http.get('*/api/v1/posts', () => HttpResponse.json(postPage([postWith({}, { title: 'Одобренный пост' })]))),
+      failWith('post', '/api/v1/posts/:id/draft', { status: 503, code: 'UNAVAILABLE' })
+    );
+    renderList();
+    await screen.findByText('Одобренный пост');
+    await user.click(screen.getByRole('button', { name: 'Действия с постом «Одобренный пост»' }));
+    await user.click(await screen.findByRole('menuitem', { name: 'Вернуть в черновик' }));
+    expect(await screen.findByText('Не удалось вернуть в черновик')).toBeTruthy();
+    expect(screen.getByText('req-test-1')).toBeTruthy();
+  });
+
   it('shows a busy skeleton while loading, then rows without the internal revision', async () => {
     server.use(
       http.get('*/api/v1/posts', () =>
@@ -265,6 +364,166 @@ describe('search', () => {
     await user.keyboard('{Escape}');
 
     await waitFor(() => expect(document.activeElement).toBe(trigger));
+  });
+});
+
+describe('duplicate post action', () => {
+  const copyId = '11111111-1111-4111-8111-555555555555';
+  const media = [
+    {
+      id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      sourceMediaId: null,
+      kind: 'photo' as const,
+      fileName: 'first.jpg',
+      contentType: 'image/jpeg',
+      sizeBytes: 200,
+      width: 20,
+      height: 10,
+      durationMs: null,
+      position: 0
+    },
+    {
+      id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+      sourceMediaId: null,
+      kind: 'video' as const,
+      fileName: 'second.mp4',
+      contentType: 'video/mp4',
+      sizeBytes: 400,
+      width: 30,
+      height: 20,
+      durationMs: 1000,
+      position: 1
+    }
+  ];
+
+  it('copies only editorial fields, attaches media in order, then opens the server-created draft', async () => {
+    const user = userEvent.setup();
+    const source = postWith(
+      { sent: 1 },
+      {
+        title: 'Повторяемый пост',
+        body: 'Hello',
+        entities: [{ type: 'bold', offset: 0, length: 5 }],
+        media
+      }
+    );
+    const created = post({ id: copyId, title: source.title, body: source.body, entities: source.entities });
+    let createInput: unknown;
+    let createKey: string | null = null;
+    let attachInput: unknown;
+    server.use(
+      http.get('*/api/v1/posts', () => HttpResponse.json(postPage([source]))),
+      http.post('*/api/v1/posts', async ({ request }) => {
+        createInput = await request.json();
+        createKey = request.headers.get('Idempotency-Key');
+        return HttpResponse.json(created, { status: 201 });
+      }),
+      http.post('*/api/v1/posts/:id/media/attach', async ({ request }) => {
+        attachInput = await request.json();
+        return HttpResponse.json({ media, revision: 1 });
+      })
+    );
+    const { client } = renderList();
+    await screen.findByText('Повторяемый пост');
+    await user.click(screen.getByRole('button', { name: 'Действия с постом «Повторяемый пост»' }));
+    await user.click(await screen.findByRole('menuitem', { name: 'Дублировать' }));
+
+    await waitFor(() => expect(onOpen).toHaveBeenCalledWith(copyId));
+    expect(createInput).toEqual({ title: source.title, body: source.body, entities: source.entities });
+    expect(createKey).toBeTruthy();
+    expect(attachInput).toEqual({ revision: 0, mediaIds: media.map((item) => item.id) });
+    expect(client.getQueryData(['posts', 'detail', copyId])).toMatchObject({
+      id: copyId,
+      status: 'draft',
+      media,
+      publicationSummary: { counts: { sent: 0 } }
+    });
+  });
+
+  it('resumes after lost create and attach responses without a second copy or attachment', async () => {
+    const user = userEvent.setup();
+    const source = post({ title: 'Повторяемый пост', media });
+    let serverCopy = post({ id: copyId, title: source.title, body: source.body, entities: source.entities });
+    const createKeys: string[] = [];
+    let createCalls = 0;
+    let attachCalls = 0;
+    let readCalls = 0;
+    server.use(
+      http.get('*/api/v1/posts', () => HttpResponse.json(postPage([source]))),
+      http.post('*/api/v1/posts', async ({ request }) => {
+        createCalls += 1;
+        createKeys.push(request.headers.get('Idempotency-Key') ?? '');
+        if (createCalls === 1) {
+          serverCopy = { ...serverCopy, revision: 0 };
+          return HttpResponse.json(
+            { error: { code: 'UNAVAILABLE', message: 'Unavailable', requestId: 'req-create' } },
+            { status: 503 }
+          );
+        }
+        return HttpResponse.json(serverCopy, { status: 201 });
+      }),
+      http.get(`*/api/v1/posts/${copyId}`, () => {
+        readCalls += 1;
+        return HttpResponse.json(serverCopy);
+      }),
+      http.post('*/api/v1/posts/:id/media/attach', async ({ request }) => {
+        attachCalls += 1;
+        const input = (await request.json()) as { revision: number; mediaIds: string[] };
+        serverCopy = { ...serverCopy, media, revision: input.revision + 1 };
+        return HttpResponse.json(
+          { error: { code: 'UNAVAILABLE', message: 'Unavailable', requestId: 'req-attach' } },
+          { status: 503 }
+        );
+      })
+    );
+    renderList();
+    await screen.findByText('Повторяемый пост');
+    const duplicate = async () => {
+      await user.click(screen.getByRole('button', { name: 'Действия с постом «Повторяемый пост»' }));
+      await user.click(await screen.findByRole('menuitem', { name: 'Дублировать' }));
+    };
+
+    await duplicate();
+    expect(await screen.findByText('Не удалось завершить копирование')).toBeTruthy();
+    expect(onOpen).not.toHaveBeenCalled();
+    await duplicate();
+    expect(await screen.findByText('Не удалось завершить копирование')).toBeTruthy();
+    expect(onOpen).not.toHaveBeenCalled();
+    await duplicate();
+
+    await waitFor(() => expect(onOpen).toHaveBeenCalledWith(copyId));
+    expect(createCalls).toBe(2);
+    expect(createKeys[0]).toBeTruthy();
+    expect(createKeys[1]).toBe(createKeys[0]);
+    expect(attachCalls).toBe(1);
+    expect(readCalls).toBe(1);
+  });
+
+  it('keeps the source unchanged and shows a recoverable error when media is unavailable', async () => {
+    const user = userEvent.setup();
+    const source = post({ title: 'Повторяемый пост', media });
+    server.use(
+      http.get('*/api/v1/posts', () => HttpResponse.json(postPage([source]))),
+      http.post('*/api/v1/posts', () =>
+        HttpResponse.json(post({ id: copyId, title: source.title, body: source.body, entities: source.entities }), {
+          status: 201
+        })
+      ),
+      http.post('*/api/v1/posts/:id/media/attach', () =>
+        HttpResponse.json(
+          { error: { code: 'UNAVAILABLE', message: 'Unavailable', requestId: 'req-media' } },
+          { status: 503 }
+        )
+      )
+    );
+    renderList();
+    await screen.findByText('Повторяемый пост');
+    await user.click(screen.getByRole('button', { name: 'Действия с постом «Повторяемый пост»' }));
+    await user.click(await screen.findByRole('menuitem', { name: 'Дублировать' }));
+
+    expect(await screen.findByText('Не удалось завершить копирование')).toBeTruthy();
+    expect(screen.getByText(/Исходный пост не изменён/)).toBeTruthy();
+    expect(onOpen).not.toHaveBeenCalled();
   });
 });
 

@@ -21,6 +21,7 @@ export type {
   ScheduleNotifier
 } from './application/ports';
 export { cancelPublication, reschedulePublication } from './application/change-publication';
+export { deletePublication, deletePublications } from './application/delete-publications';
 export { resolveUnknownPublication } from './application/resolve-unknown';
 export { updateDestination } from './application/change-destination';
 export { checkDestination } from './application/check-destination';

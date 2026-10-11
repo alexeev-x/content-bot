@@ -58,11 +58,21 @@ export const postsCopy = {
   },
   actions: {
     rowMenu: (title: string) => `Действия с постом «${title}»`,
+    duplicate: 'Дублировать',
+    duplicating: 'Создаём копию…',
+    duplicateFailed: 'Не удалось завершить копирование',
+    duplicateFailedBody:
+      'Исходный пост не изменён. Черновик-копия мог уже создаться; повторите действие, чтобы безопасно продолжить копирование.',
+    duplicateChanged: 'Черновик-копия изменился. Проверьте его в списке и создайте новую копию при необходимости.',
     delete: 'Удалить',
     deleteBlocked: (reason: string) => `Удалить: ${reason}`,
     blockedInProgress: 'идёт отправка',
     blockedUnknown: 'нужна сверка результата',
     reconcile: 'Сверить результат',
+    returnToDraft: 'Вернуть в черновик',
+    returnDraftBlockedPending: 'Вернуть в черновик: есть ожидающая публикация',
+    returnDraftBlockedInProgress: 'Вернуть в черновик: идёт отправка',
+    returnDraftBlockedUnknown: 'Вернуть в черновик: сначала сверьте результат',
     restore: 'Вернуть из архива',
     deleteNow: 'Удалить сейчас',
     pageMenu: 'Действия с постом'
@@ -103,6 +113,8 @@ export const postsCopy = {
     deletedSome: (done: number, total: number, failed: number) => `Удалено: ${done} из ${total}. Не удалось: ${failed}`,
     deletedNone: (failed: number) => `Ничего не удалено. Не удалось: ${failed}`,
     restored: 'Пост возвращён из архива',
+    returnedToDraft: 'Пост возвращён в черновик',
+    returnedToDraftBody: 'Теперь пост можно снова редактировать.',
     restoredAll: (count: number) => `Возвращено: ${count}`,
     restoredSome: (done: number, total: number, failed: number) =>
       `Возвращено: ${done} из ${total}. Не удалось: ${failed}`,
@@ -127,12 +139,18 @@ export const postsCopy = {
       },
       notFound: { title: 'Пост уже удалён', body: 'Обновили список.' },
       notArchived: { title: 'Пост уже не в архиве', body: 'Обновили данные.' },
+      notApproved: { title: 'Пост уже не одобрен', body: 'Обновили данные.' },
+      pending: {
+        title: 'Есть ожидающая публикация',
+        body: 'Отмените или дождитесь её завершения, затем повторите действие.'
+      },
       openPublication: 'Открыть публикацию',
       requestId: 'Идентификатор запроса'
     },
     errors: {
       deleteTitle: 'Не удалось удалить',
       restoreTitle: 'Не удалось вернуть из архива',
+      draftTitle: 'Не удалось вернуть в черновик',
       validation: 'Сервер не принял запрос.',
       unavailable: 'Сервер сейчас недоступен.',
       rate: 'Слишком много запросов. Повторите чуть позже.',

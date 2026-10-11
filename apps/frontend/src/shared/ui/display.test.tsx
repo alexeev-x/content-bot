@@ -146,6 +146,28 @@ describe('Dialog, ConfirmDialog, Drawer', () => {
 });
 
 describe('Menu and Tabs', () => {
+  it('opens with Enter without activating the first item', async () => {
+    const user = userEvent.setup();
+    const onAction = vi.fn();
+    render(
+      <Menu
+        label="Действия"
+        onAction={onAction}
+        items={[
+          { id: 'edit', label: 'Изменить' },
+          { id: 'delete', label: 'Удалить' }
+        ]}
+      />
+    );
+
+    await user.tab();
+    await user.keyboard('{Enter}');
+
+    const item = screen.getByRole('menuitem', { name: 'Изменить' });
+    expect(document.activeElement).toBe(item);
+    expect(onAction).not.toHaveBeenCalled();
+  });
+
   it('menu opens with ArrowDown and runs the action', async () => {
     const user = userEvent.setup();
     const onAction = vi.fn();

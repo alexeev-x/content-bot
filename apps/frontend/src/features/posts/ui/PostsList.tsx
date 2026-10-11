@@ -25,8 +25,8 @@ import {
 } from '../../../shared/ui';
 import type { RowSelection, SelectOption } from '../../../shared/ui';
 import { ru } from '../../../shared/lib/ru';
-import { postsInfiniteQueryOptions } from '../api/posts-queries';
-import { refusalText, type LifecycleNotice } from '../model/lifecycle-notices';
+import { postsInfiniteQueryOptions, useDuplicatePost, useReturnPostToDraft } from '../api/posts-queries';
+import { describeLifecycleError, refusalText, type LifecycleNotice } from '../model/lifecycle-notices';
 import { deleteBlockOf } from '../model/post-state';
 import type { PostSortKey, SortDirection } from '../model/post-sort';
 import { useNow } from '../model/use-now';
@@ -172,6 +172,8 @@ export function PostsList({
     target?.focus();
   };
   const restore = useRestoreActions({ onNotice: setNotice, onShowFailures: showFailures });
+  const returnToDraft = useReturnPostToDraft();
+  const duplicatePost = useDuplicatePost();
 
   const selectedPosts = useMemo(() => loaded.filter((post) => selection.has(post.id)), [loaded, selection]);
   const selectableRows = useMemo(
@@ -240,6 +242,43 @@ export function PostsList({
     }
     if (action === 'delete') {
       setDeleteTargets([deleteTargetOf(post)]);
+      return;
+    }
+    if (action === 'duplicate') {
+      void duplicatePost.mutateAsync(post).then(
+        (copyPost) => onOpen(copyPost.id),
+        (error: unknown) => {
+          setNotice({
+            tone: 'error',
+            title: postsCopy.actions.duplicateFailed,
+            body:
+              error instanceof Error && error.message.includes('changed before duplication')
+                ? postsCopy.actions.duplicateChanged
+                : postsCopy.actions.duplicateFailedBody,
+            ...(error instanceof ApiError && error.requestId ? { requestId: error.requestId } : {})
+          });
+        }
+      );
+      return;
+    }
+    if (action === 'return-to-draft') {
+      void returnToDraft.mutateAsync({ id: post.id, input: { revision: post.revision } }).then(
+        () => {
+          setNotice({
+            tone: 'info',
+            title: postsCopy.lifecycle.returnedToDraft,
+            body: postsCopy.lifecycle.returnedToDraftBody
+          });
+          rowTarget(rootRef.current, post.id)?.focus();
+        },
+        (error: unknown) => {
+          const described = describeLifecycleError(error, 'draft');
+          setNotice(described.notice);
+          if (error instanceof ApiError && (error.code === 'CONFLICT' || error.code === 'NOT_FOUND')) {
+            void result.refetch();
+          }
+        }
+      );
       return;
     }
     const next = neighbourOf(post.id);
@@ -512,6 +551,7 @@ export function PostsList({
                           reasons={reasonText}
                           onOpen={onOpen}
                           onAction={onAction}
+                          isDuplicating={duplicatePost.isPending}
                         />
                       )}
                     </Panel>

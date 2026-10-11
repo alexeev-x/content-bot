@@ -1,6 +1,10 @@
 import {
   publicationPageSchema,
   publicationSchema,
+  bulkDeletePublicationsInputSchema,
+  bulkDeletePublicationsResultSchema,
+  deletePublicationInputSchema,
+  deletePublicationResultSchema,
   type cancelPublicationInputSchema,
   type createPublicationInputSchema,
   type listPublicationsQuerySchema,
@@ -19,6 +23,8 @@ export type CreatePublicationBody = z.input<typeof createPublicationInputSchema>
 export type ReschedulePublicationBody = z.input<typeof reschedulePublicationInputSchema>;
 export type CancelPublicationBody = z.input<typeof cancelPublicationInputSchema>;
 export type ResolveUnknownBody = z.input<typeof resolveUnknownPublicationInputSchema>;
+export type DeletePublicationBody = z.input<typeof deletePublicationInputSchema>;
+export type BulkDeletePublicationsBody = z.input<typeof bulkDeletePublicationsInputSchema>;
 
 export function listPublications(filters: PublicationFilters, cursor: string | undefined, signal?: AbortSignal) {
   const query = buildQuery({
@@ -65,6 +71,20 @@ export function cancelPublication(id: string, input: CancelPublicationBody) {
 /** Manual reconciliation of an `unknown` send; the owner checked the channel first. Never retried automatically. */
 export function resolveUnknownPublication(id: string, input: ResolveUnknownBody) {
   return apiRequest(`/api/v1/publications/${encodeURIComponent(id)}/resolve-unknown`, publicationSchema, {
+    method: 'POST',
+    body: input
+  });
+}
+
+export function deletePublication(id: string, input: DeletePublicationBody) {
+  return apiRequest(`/api/v1/publications/${encodeURIComponent(id)}/delete`, deletePublicationResultSchema, {
+    method: 'POST',
+    body: input
+  });
+}
+
+export function deletePublications(input: BulkDeletePublicationsBody) {
+  return apiRequest('/api/v1/publications/delete', bulkDeletePublicationsResultSchema, {
     method: 'POST',
     body: input
   });

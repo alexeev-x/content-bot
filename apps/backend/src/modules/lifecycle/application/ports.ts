@@ -13,6 +13,16 @@ export interface CancelledPublication {
 
 export type DeleteRefusal = 'NOT_FOUND' | 'STALE_REVISION' | 'PUBLICATION_IN_PROGRESS' | 'PUBLICATION_UNKNOWN';
 export type RestoreRefusal = 'NOT_FOUND' | 'STALE_REVISION' | 'NOT_ARCHIVED';
+export type ReturnToDraftRefusal =
+  | 'NOT_FOUND'
+  | 'STALE_REVISION'
+  | 'NOT_APPROVED'
+  | 'PUBLICATION_PENDING'
+  | 'PUBLICATION_IN_PROGRESS'
+  | 'PUBLICATION_UNKNOWN';
+
+export type ReturnToDraftOutcome =
+  { id: string; outcome: 'returned' } | { id: string; outcome: 'refused'; reason: ReturnToDraftRefusal };
 
 export type DeleteItemOutcome =
   | { id: string; outcome: 'deleted'; cancelledPublications: CancelledPublication[] }
@@ -36,6 +46,8 @@ export interface LifecycleRepository {
   deletePosts(input: { items: readonly PostRef[]; actor: string; now: number }): Promise<DeleteItemOutcome[]>;
   /** Takes archived posts back to the live list (`approved`, same revision). Never creates a job. */
   restorePosts(input: { items: readonly PostRef[]; actor: string; now: number }): Promise<RestoreItemOutcome[]>;
+  /** Changes an approved post back to draft without changing any publication or job history. */
+  returnPostToDraft(input: PostRef & { actor: string; now: number }): Promise<ReturnToDraftOutcome>;
   /**
    * Live approved posts whose publications finished at or after `since` and now qualify for the
    * archive: a sent publication (after the last restore) and nothing active.

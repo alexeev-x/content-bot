@@ -23,7 +23,7 @@ import { PostStateBadge } from './PostStateBadge';
 import styles from './PostRows.module.css';
 import { postRowText, shortFormat } from './row-text';
 
-export type RowAction = 'delete' | 'restore' | 'reconcile';
+export type RowAction = 'delete' | 'restore' | 'reconcile' | 'return-to-draft' | 'duplicate';
 
 type Props = {
   mode: 'live' | 'archive';
@@ -46,11 +46,23 @@ type Props = {
   reasons: ReadonlyMap<string, string>;
   onOpen: (id: string) => void;
   onAction: (post: PostDto, action: RowAction) => void;
+  isDuplicating: boolean;
 };
 
 const copy = postsCopy;
 export const POST_ROW_LOADING = 8;
 const titleOf = (post: PostDto) => post.title.trim() || copy.list.untitled;
+
+// The row itself is keyboard-activatable; keep its nested action menu from also opening the post.
+const keepRowAction = {
+  onPointerDown: (event: { stopPropagation: () => void }) => event.stopPropagation(),
+  onPointerUp: (event: { stopPropagation: () => void }) => event.stopPropagation(),
+  onMouseDown: (event: { stopPropagation: () => void }) => event.stopPropagation(),
+  onMouseUp: (event: { stopPropagation: () => void }) => event.stopPropagation(),
+  onClick: (event: { stopPropagation: () => void }) => event.stopPropagation(),
+  onKeyDown: (event: { stopPropagation: () => void }) => event.stopPropagation(),
+  onKeyUp: (event: { stopPropagation: () => void }) => event.stopPropagation()
+};
 
 function blockText(block: DeleteBlock): string {
   return block === 'unknown' ? copy.actions.blockedUnknown : copy.actions.blockedInProgress;
@@ -60,8 +72,17 @@ export function PostRows(props: Props) {
   return props.narrow ? <Cards {...props} /> : <Grid {...props} />;
 }
 
-function menuFor(post: PostDto, mode: Props['mode'], onAction: Props['onAction']): ReactNode {
+function menuFor(post: PostDto, mode: Props['mode'], onAction: Props['onAction'], isDuplicating: boolean): ReactNode {
   const block = deleteBlockOf(post);
+  const counts = post.publicationSummary.counts;
+  const draftBlock =
+    counts.unknown > 0
+      ? copy.actions.returnDraftBlockedUnknown
+      : counts.preparing + counts.sending > 0
+        ? copy.actions.returnDraftBlockedInProgress
+        : counts.scheduled + counts.queued + counts.retry_wait > 0
+          ? copy.actions.returnDraftBlockedPending
+          : null;
   const del: MenuEntry =
     mode === 'archive'
       ? { id: 'delete', label: copy.actions.deleteNow, icon: 'trash', tone: 'danger' }
@@ -81,12 +102,33 @@ function menuFor(post: PostDto, mode: Props['mode'], onAction: Props['onAction']
       : block === 'unknown'
         ? [reconcile, del]
         : [del];
+  items.unshift({
+    id: 'duplicate',
+    label: isDuplicating ? copy.actions.duplicating : copy.actions.duplicate,
+    icon: 'copy',
+    isDisabled: isDuplicating
+  });
+  if (mode === 'live' && post.status === 'approved') {
+    items.unshift({
+      id: 'return-to-draft',
+      label: draftBlock ?? copy.actions.returnToDraft,
+      icon: 'edit',
+      ...(draftBlock ? { isDisabled: true } : {})
+    });
+  }
   return (
-    <Menu
-      label={copy.actions.rowMenu(titleOf(post))}
-      items={items}
-      onAction={(id) => onAction(post, id === 'restore' || id === 'reconcile' ? id : 'delete')}
-    />
+    <div {...keepRowAction}>
+      <Menu
+        label={copy.actions.rowMenu(titleOf(post))}
+        items={items}
+        onAction={(id) =>
+          onAction(
+            post,
+            id === 'restore' || id === 'reconcile' || id === 'return-to-draft' || id === 'duplicate' ? id : 'delete'
+          )
+        }
+      />
+    </div>
   );
 }
 
@@ -224,7 +266,7 @@ function Grid(props: Props) {
       id: 'menu',
       header: copy.list.columns.actions,
       align: 'end',
-      cell: (post) => menuFor(post, mode, props.onAction)
+      cell: (post) => menuFor(post, mode, props.onAction, props.isDuplicating)
     }
   ];
   const sort = toTableSort(props.sort);
@@ -312,7 +354,7 @@ function Cards(props: Props) {
                       />
                     )
                   }
-                : { menu: menuFor(post, mode, props.onAction) })}
+                : { menu: menuFor(post, mode, props.onAction, props.isDuplicating) })}
             />
           );
         })}

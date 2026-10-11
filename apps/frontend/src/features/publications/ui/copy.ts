@@ -1,5 +1,30 @@
 // Copy of the publications screens. Status labels are canonical in shared/lib/ru.ts (skill page-spec).
 export const copy = {
+  deletion: {
+    titleOne: (title: string) => `Удалить запись публикации «${title}»?`,
+    titleMany: (count: number) => `Удалить записи публикаций (${count})?`,
+    body: 'Удалится запись в Студии. Сообщение, уже отправленное в Telegram, останется в канале.',
+    history: 'История попыток и связанные инциденты сохранятся.',
+    irreversible: 'Восстановить запись нельзя.',
+    keep: 'Оставить',
+    confirm: 'Удалить запись',
+    confirmMany: 'Удалить записи',
+    pending: 'Удаляем…',
+    failed: 'Не удалось удалить запись. Состояние не изменено; можно повторить.',
+    deletedOne: 'Запись публикации удалена',
+    deletedMany: (count: number) => `Удалено записей: ${count}`,
+    deletedSome: (done: number, total: number) => `Удалено: ${done} из ${total}. Остальные записи оставлены.`,
+    failedAll: 'Ни одна запись не удалена. Обновите список и проверьте статусы.',
+    select: 'Выбрать',
+    done: 'Готово',
+    selected: (count: number) => `Выбрано: ${count}`,
+    selectionLabel: 'Выбранные публикации',
+    delete: 'Удалить',
+    clear: 'Снять выделение',
+    row: (title: string) => `Выбрать публикацию «${title}»`,
+    blocked: (title: string) => `Публикацию «${title}» нельзя выбрать, пока она не завершена`,
+    limit: 'За раз можно выбрать не больше 100 записей.'
+  },
   list: {
     title: 'Публикации',
     description: 'Все отправки и расписание. Статус меняется только по подтверждению сервера.',

@@ -22,9 +22,9 @@ export async function listPosts(deps: ReadPostsDeps, query: ListPostsQuery): Pro
     deps.repo.count(query.view, query.status)
   ]);
   const page = rows.slice(0, query.limit);
-  // A draft has no publications, so only approved posts are asked about.
+  // A post returned to draft keeps its terminal publication history, which remains visible in its summary.
   const summaries = await deps.summaries.summarize(
-    page.filter((record) => record.status === 'approved').map((record) => record.id),
+    page.map((record) => record.id),
     deps.now
   );
   const last = page.at(-1);
@@ -40,14 +40,14 @@ export async function listPosts(deps: ReadPostsDeps, query: ListPostsQuery): Pro
 export async function getPost(deps: ReadPostsDeps, id: string): Promise<PostDto> {
   const record = await deps.repo.findById(id);
   if (record === null) throw notFound();
-  const summaries = await deps.summaries.summarize(record.status === 'approved' ? [record.id] : [], deps.now);
+  const summaries = await deps.summaries.summarize([record.id], deps.now);
   return toPostDto(record, summaries.get(record.id) ?? emptySummary());
 }
 
 export async function getPostsByIds(deps: ReadPostsDeps, ids: readonly string[]): Promise<PostDto[]> {
   const records = await deps.repo.findManyByIds(ids);
   const summaries = await deps.summaries.summarize(
-    records.filter((record) => record.status === 'approved').map((record) => record.id),
+    records.map((record) => record.id),
     deps.now
   );
   return records.map((record) => toPostDto(record, summaries.get(record.id) ?? emptySummary()));

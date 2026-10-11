@@ -291,6 +291,17 @@ export interface PublicationChange {
   now: number;
 }
 
+export interface PublicationDeleteItem {
+  id: string;
+  revision: number;
+}
+
+export type PublicationDeleteRefusal =
+  'NOT_FOUND' | 'STALE_REVISION' | 'NOT_FINAL' | 'PUBLICATION_IN_PROGRESS' | 'PUBLICATION_UNKNOWN';
+
+export type PublicationDeleteOutcome =
+  { id: string; outcome: 'deleted' } | { id: string; outcome: 'refused'; reason: PublicationDeleteRefusal };
+
 export interface PublicationRescheduleChange extends PublicationChange {
   scheduledAt: number;
   timezone: string;
@@ -355,6 +366,12 @@ export interface PublicationRepository {
    * revision, and also closes the open incidents of the job. Never sends anything.
    */
   resolveUnknown(change: PublicationResolveUnknownChange): Promise<PublicationChangeOutcome>;
+  /** Removes only final publication rows; attempts and incidents remain as history, with live links detached. */
+  deleteFinal(input: {
+    items: readonly PublicationDeleteItem[];
+    actor: string;
+    now: number;
+  }): Promise<PublicationDeleteOutcome[]>;
   /**
    * One grouped read for up to 100 posts. Posts without publications are absent from the map. `now`
    * separates `scheduled` from `queued`.

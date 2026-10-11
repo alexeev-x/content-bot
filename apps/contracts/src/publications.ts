@@ -101,6 +101,43 @@ export const cancelPublicationInputSchema = z.strictObject({
 });
 export type CancelPublicationInput = z.infer<typeof cancelPublicationInputSchema>;
 
+export const publicationDeleteRefusalSchema = z.enum([
+  'NOT_FOUND',
+  'STALE_REVISION',
+  'NOT_FINAL',
+  'PUBLICATION_IN_PROGRESS',
+  'PUBLICATION_UNKNOWN'
+]);
+export type PublicationDeleteRefusal = z.infer<typeof publicationDeleteRefusalSchema>;
+
+export const deletePublicationInputSchema = z.strictObject({ revision: revisionSchema });
+export type DeletePublicationInput = z.infer<typeof deletePublicationInputSchema>;
+
+const publicationDeleteItemSchema = z.strictObject({ id: z.uuid(), revision: revisionSchema });
+export const bulkDeletePublicationsInputSchema = z.strictObject({
+  items: z
+    .array(publicationDeleteItemSchema)
+    .min(1)
+    .max(100)
+    .refine((items) => new Set(items.map((item) => item.id)).size === items.length, { error: 'DUPLICATE_IDS' })
+});
+export type BulkDeletePublicationsInput = z.infer<typeof bulkDeletePublicationsInputSchema>;
+
+const publicationDeleteItemResultSchema = z.discriminatedUnion('outcome', [
+  z.object({ id: z.uuid(), outcome: z.literal('deleted') }),
+  z.object({ id: z.uuid(), outcome: z.literal('refused'), reason: publicationDeleteRefusalSchema })
+]);
+export const deletePublicationResultSchema = publicationDeleteItemResultSchema;
+export type DeletePublicationResultDto = z.infer<typeof deletePublicationResultSchema>;
+export const bulkDeletePublicationsResultSchema = z.object({ items: z.array(publicationDeleteItemResultSchema) });
+export type BulkDeletePublicationsResultDto = z.infer<typeof bulkDeletePublicationsResultSchema>;
+
+// POST /api/v1/publications/{id}/delete → one final publication record removed; Telegram messages remain.
+// Bulk POST /api/v1/publications/delete → one result per item (1..100). Only sent, failed and cancelled are final.
+// Bulk errors: VALIDATION_ERROR 400 (DUPLICATE_IDS); single errors: NOT_FOUND 404; CONFLICT 409
+// (STALE_REVISION | NOT_FINAL | PUBLICATION_IN_PROGRESS | PUBLICATION_UNKNOWN).
+// UNAUTHORIZED 401, FORBIDDEN 403.
+
 // Telegram message id as the owner reads it in the channel link (t.me/<channel>/<id>): a positive integer.
 const telegramMessageIdSchema = z.string().regex(/^[1-9]\d{0,15}$/, { error: 'Telegram message id' });
 

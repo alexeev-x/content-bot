@@ -2,12 +2,14 @@ import type { PostDto, PublicationDto } from '@alexeev/contracts';
 import { useMemo } from 'react';
 import {
   DataTable,
+  Checkbox,
   MediaTile,
   PanelList,
   PhoneSkeletonRows,
   RowCard,
   StatusBadge,
-  type DataColumn
+  type DataColumn,
+  type RowSelection
 } from '../../../shared/ui';
 import { browserTimeZone, formatShort } from '../model/format-time';
 import { displayStatus, messageLink } from '../model/publication-view';
@@ -34,6 +36,10 @@ type Props = {
   order?: PublicationOrder;
   onOrderChange?: (order: PublicationOrder) => void;
   narrow?: boolean;
+  selectable?: boolean;
+  selected?: ReadonlySet<string>;
+  onSelectionChange?: (selection: RowSelection) => void;
+  onToggle?: (publication: PublicationDto, selected: boolean) => void;
 };
 
 const keepPress = {
@@ -101,7 +107,13 @@ export function PublicationTable(props: Props) {
   return props.narrow ? <Cards {...props} /> : <Grid {...props} />;
 }
 
-function Grid({ rows, post, channel, onOpen, activeId, isLoading, rowText, order, onOrderChange }: Props) {
+function Grid(props: Props) {
+  const { rows, post, channel, onOpen, activeId, isLoading, rowText, order, onOrderChange } = props;
+  const blocked = new Set(
+    rows
+      .filter((row) => row.status !== 'sent' && row.status !== 'failed' && row.status !== 'cancelled')
+      .map((row) => row.id)
+  );
   const zone = useMemo(() => browserTimeZone(), []);
   const columns = useMemo<DataColumn<PublicationDto>[]>(
     () => [
@@ -158,7 +170,15 @@ function Grid({ rows, post, channel, onOpen, activeId, isLoading, rowText, order
       rows={rows}
       getRowId={(row) => row.id}
       {...(rowText ? { getRowText: rowText } : {})}
-      onRowAction={onOpen}
+      onRowAction={props.selectable ? undefined : onOpen}
+      {...(props.selectable
+        ? {
+            selectionMode: 'multiple' as const,
+            selected: props.selected,
+            onSelectionChange: props.onSelectionChange,
+            disabledIds: blocked
+          }
+        : {})}
       activeId={activeId}
       isLoading={isLoading ?? false}
       loadingRows={PUBLICATION_ROW_LOADING}
@@ -168,7 +188,7 @@ function Grid({ rows, post, channel, onOpen, activeId, isLoading, rowText, order
   );
 }
 
-function Cards({ rows, post, channel, onOpen, activeId, isLoading }: Props) {
+function Cards({ rows, post, channel, onOpen, activeId, isLoading, selectable, selected, onToggle }: Props) {
   const zone = useMemo(() => browserTimeZone(), []);
   if (isLoading) return <PhoneSkeletonRows label={copy.list.tableLabel} />;
   return (
@@ -184,8 +204,24 @@ function Cards({ rows, post, channel, onOpen, activeId, isLoading }: Props) {
             status={<StatusBadge status={status} />}
             meta={`${formatShort(row.scheduledAt, zone)} · ${place}`}
             {...(status === 'unknown' ? { warning: copy.list.checkChannel } : {})}
-            isActive={activeId === row.id}
-            onPress={() => onOpen(row.id)}
+            isActive={activeId === row.id || selected?.has(row.id) === true}
+            onPress={() => (selectable ? onToggle?.(row, !selected?.has(row.id)) : onOpen(row.id))}
+            {...(selectable
+              ? {
+                  leading: (
+                    <Checkbox
+                      aria-label={
+                        status === 'sent' || status === 'failed' || status === 'cancelled'
+                          ? copy.deletion.row(post(row)?.title ?? copy.list.unknownPost)
+                          : copy.deletion.blocked(post(row)?.title ?? copy.list.unknownPost)
+                      }
+                      isDisabled={status !== 'sent' && status !== 'failed' && status !== 'cancelled'}
+                      isSelected={selected?.has(row.id) ?? false}
+                      onChange={(on) => onToggle?.(row, on)}
+                    />
+                  )
+                }
+              : {})}
           />
         );
       })}

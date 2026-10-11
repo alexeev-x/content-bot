@@ -20,7 +20,7 @@ export type Described =
   /** Nothing is known to have changed: stay in the dialog, offer a retry. */
   | { kind: 'retry'; notice: LifecycleNotice };
 
-export type LifecycleAction = 'delete' | 'restore';
+export type LifecycleAction = 'delete' | 'restore' | 'draft';
 
 /** Maps a failed delete or restore to Russian text; 409 and 404 mean the state moved, everything else is retryable. */
 export function describeLifecycleError(error: unknown, action: LifecycleAction): Described {
@@ -37,6 +37,10 @@ export function describeLifecycleError(error: unknown, action: LifecycleAction):
         return state('warning', copy.notices.inProgress, error.details?.['publicationId']);
       case 'PUBLICATION_UNKNOWN':
         return state('warning', copy.notices.unknown, error.details?.['publicationId']);
+      case 'NOT_APPROVED':
+        return state('info', copy.notices.notApproved);
+      case 'PUBLICATION_PENDING':
+        return state('warning', copy.notices.pending);
       case 'NOT_ARCHIVED':
         return state('info', copy.notices.notArchived);
     }
@@ -57,7 +61,12 @@ export function describeLifecycleError(error: unknown, action: LifecycleAction):
     kind: 'retry',
     notice: {
       tone: 'error',
-      title: action === 'delete' ? copy.errors.deleteTitle : copy.errors.restoreTitle,
+      title:
+        action === 'delete'
+          ? copy.errors.deleteTitle
+          : action === 'draft'
+            ? copy.errors.draftTitle
+            : copy.errors.restoreTitle,
       body: `${message} ${action === 'delete' ? copy.errors.nothingRemoved : copy.errors.nothingRestored}`,
       requestId
     }

@@ -475,3 +475,69 @@ describe('PublicationsPage drawer', () => {
     expect(await screen.findByRole('dialog', { name: 'Герой дня' })).toBeTruthy();
   });
 });
+
+describe('PublicationsPage final publication deletion', () => {
+  it('offers deletion from a final publication drawer only behind a confirmation', async () => {
+    servePosts();
+    serveList(() => ({ items: [rows.sent] }));
+    let deleted: unknown;
+    server.use(
+      http.get('*/api/v1/publications/:id', () => HttpResponse.json(rows.sent)),
+      http.post('*/api/v1/publications/:id/delete', async ({ request }) => {
+        deleted = await request.json();
+        return HttpResponse.json({ id: rows.sent.id, outcome: 'deleted' });
+      })
+    );
+    const { user } = await renderPage();
+    await user.click(await screen.findByRole('row', { name: /Мета недели/ }));
+    const drawer = await screen.findByRole('dialog', { name: 'Мета недели' });
+    await user.click(within(drawer).getByRole('button', { name: /^Удалить$/ }));
+
+    const confirmation = await screen.findByRole('alertdialog', { name: 'Удалить запись публикации «Мета недели»?' });
+    expect(deleted).toBeUndefined();
+    await user.click(within(confirmation).getByRole('button', { name: 'Удалить запись' }));
+    await waitFor(() => expect(deleted).toEqual({ revision: rows.sent.revision }));
+  });
+
+  it('requires confirmation for bulk removal and leaves the Telegram message untouched', async () => {
+    servePosts();
+    serveList(() => ({ items: [rows.sent, rows.sentNoId] }));
+    let requestBody: unknown;
+    server.use(
+      http.post('*/api/v1/publications/delete', async ({ request }) => {
+        requestBody = await request.json();
+        return HttpResponse.json({
+          items: [
+            { id: rows.sent.id, outcome: 'deleted' },
+            { id: rows.sentNoId.id, outcome: 'deleted' }
+          ]
+        });
+      })
+    );
+    const { user } = await renderPage();
+    const table = await screen.findByRole('grid', { name: 'Список публикаций' });
+
+    await user.click(await screen.findByRole('button', { name: 'Выбрать' }));
+    const checkboxes = within(table).getAllByRole('checkbox');
+    await user.click(checkboxes[1]!);
+    await user.click(checkboxes[2]!);
+    await user.click(screen.getByRole('button', { name: /^Удалить$/ }));
+
+    const dialog = await screen.findByRole('alertdialog', { name: 'Удалить записи публикаций (2)?' });
+    expect(within(dialog).getByText(/Сообщение, уже отправленное в Telegram/)).toBeTruthy();
+    expect(requestBody).toBeUndefined();
+    await user.click(within(dialog).getByRole('button', { name: 'Удалить записи' }));
+
+    await waitFor(() =>
+      expect(requestBody).toEqual({
+        items: [
+          { id: rows.sent.id, revision: rows.sent.revision },
+          { id: rows.sentNoId.id, revision: rows.sentNoId.revision }
+        ]
+      })
+    );
+    await waitFor(() =>
+      expect(screen.queryByRole('alertdialog', { name: 'Удалить записи публикаций (2)?' })).toBeNull()
+    );
+  });
+});

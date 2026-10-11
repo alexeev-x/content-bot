@@ -4,6 +4,7 @@ import type {
   CancelledPublication,
   DeleteItemOutcome,
   LifecycleRepository,
+  ReturnToDraftOutcome,
   RestoreItemOutcome
 } from '../application/ports';
 
@@ -87,6 +88,33 @@ const RESTORE_STATE = `SELECT json_extract(je.value, '$.id') AS id, po.id IS NOT
     po.archived_at IS NOT NULL AS archived
   FROM json_each(?1) je LEFT JOIN posts po ON po.id = json_extract(je.value, '$.id')`;
 
+const RETURN_TO_DRAFT_BLOCKER = `(SELECT j.status FROM publications pu JOIN jobs j ON j.publication_id = pu.id
+  WHERE pu.post_id = po.id AND j.status IN ('pending', 'retry_wait', 'claimed', 'unknown')
+  ORDER BY CASE j.status WHEN 'unknown' THEN 0 WHEN 'claimed' THEN 1 ELSE 2 END, pu.id LIMIT 1)`;
+const RETURN_TO_DRAFT_TARGET = `WITH target(id) AS (
+  SELECT po.id FROM posts po
+  WHERE po.id = ?1 AND po.revision = ?2 AND po.status = 'approved'
+    AND NOT EXISTS (SELECT 1 FROM publications pu JOIN jobs j ON j.publication_id = pu.id
+                    WHERE pu.post_id = po.id AND j.status IN ('pending', 'retry_wait', 'claimed', 'unknown'))
+)`;
+const RETURN_TO_DRAFT_AUDIT = `${RETURN_TO_DRAFT_TARGET}
+  INSERT INTO audit_log (actor_telegram_id, action, entity_type, entity_id, created_at, details)
+  SELECT ?3, 'post.return_to_draft', 'post', po.id, ?4,
+         json_object('revision', po.revision + 1, 'restoredFromArchive', po.archived_at IS NOT NULL)
+  FROM target t JOIN posts po ON po.id = t.id`;
+const RETURN_TO_DRAFT_REVISION = `${RETURN_TO_DRAFT_TARGET}
+  INSERT INTO post_revisions (post_id, revision, title, body, entities, status, created_at, media_json)
+  SELECT po.id, po.revision + 1, po.title, po.body, po.entities, 'draft', ?3,
+         COALESCE((SELECT r.media_json FROM post_revisions r WHERE r.post_id = po.id AND r.revision = po.revision), '[]')
+  FROM target t JOIN posts po ON po.id = t.id`;
+const RETURN_TO_DRAFT_UPDATE = `${RETURN_TO_DRAFT_TARGET}
+  UPDATE posts SET status = 'draft', revision = revision + 1, archived_at = NULL,
+    restored_at = CASE WHEN archived_at IS NULL THEN restored_at ELSE ?3 END, updated_at = ?3
+  WHERE id IN (SELECT id FROM target) RETURNING id`;
+const RETURN_TO_DRAFT_STATE = `SELECT po.id AS id, po.status AS status, po.revision AS revision,
+    ${RETURN_TO_DRAFT_BLOCKER} AS blocker_status
+  FROM posts po WHERE po.id = ?1`;
+
 // Qualifies for the archive: a publication was sent after the last restore, and nothing is left to
 // send (scheduled, queued, preparing, sending, retry_wait, unknown). Failed and cancelled ones do not
 // block, but a post with only those never qualifies.
@@ -136,6 +164,13 @@ interface RestoreStateRow {
   found: number;
   revision: number | null;
   archived: number | null;
+}
+
+interface ReturnToDraftStateRow {
+  id: string;
+  status: string;
+  revision: number;
+  blocker_status: string | null;
 }
 
 function notApplied(): AppError {
@@ -226,6 +261,25 @@ export function createD1LifecycleRepository(db: D1Database): LifecycleRepository
         if (row.revision !== item.revision) return { id: item.id, outcome: 'refused', reason: 'STALE_REVISION' };
         throw notApplied();
       });
+    },
+
+    async returnPostToDraft({ id, revision, actor, now }): Promise<ReturnToDraftOutcome> {
+      const results = await db.batch([
+        db.prepare(RETURN_TO_DRAFT_AUDIT).bind(id, revision, actor, now),
+        db.prepare(RETURN_TO_DRAFT_REVISION).bind(id, revision, now),
+        db.prepare(RETURN_TO_DRAFT_UPDATE).bind(id, revision, now),
+        db.prepare(RETURN_TO_DRAFT_STATE).bind(id)
+      ]);
+      if (rowsOf<{ id: string }>(results[2]).some((row) => row.id === id)) return { id, outcome: 'returned' };
+      const row = rowsOf<ReturnToDraftStateRow>(results[3])[0];
+      if (row === undefined) return { id, outcome: 'refused', reason: 'NOT_FOUND' };
+      if (row.blocker_status === 'unknown') return { id, outcome: 'refused', reason: 'PUBLICATION_UNKNOWN' };
+      if (row.blocker_status === 'claimed') return { id, outcome: 'refused', reason: 'PUBLICATION_IN_PROGRESS' };
+      if (row.blocker_status === 'pending' || row.blocker_status === 'retry_wait')
+        return { id, outcome: 'refused', reason: 'PUBLICATION_PENDING' };
+      if (row.revision !== revision) return { id, outcome: 'refused', reason: 'STALE_REVISION' };
+      if (row.status !== 'approved') return { id, outcome: 'refused', reason: 'NOT_APPROVED' };
+      throw notApplied();
     },
 
     async findArchivable({ since, limit }) {

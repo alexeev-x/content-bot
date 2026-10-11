@@ -1,5 +1,5 @@
 import AxeBuilder from '@axe-core/playwright';
-import { cropPostMediaResultSchema } from '@alexeev/contracts';
+import { cropPostMediaResultSchema, postSchema, type PostDto } from '@alexeev/contracts';
 import { expect, test, type Page } from '@playwright/test';
 import { readFileSync } from 'node:fs';
 import { ids, mockApi, post } from './support/mock-api';
@@ -340,6 +340,13 @@ for (const width of [375, 1440]) {
       await expect(mediaTiles.first().getByRole('button', { name: 'altai_lake.jpg', exact: true })).toBeVisible();
       await expect(mediaTiles.last().getByRole('button', { name: 'Добавить файлы' })).toBeVisible();
     }
+    if (width === 1440) {
+      const addTile = page.locator('section[aria-labelledby="post-media-heading"] ol li[class*="addItem"]');
+      await expect(addTile).toHaveCount(1);
+      expect(await addTile.evaluate((item) => item.parentElement?.firstElementChild === item)).toBe(true);
+      const mediaTiles = page.locator('section[aria-labelledby="post-media-heading"] ol li');
+      await expect(mediaTiles.nth(1).getByRole('button', { name: 'altai_lake.jpg', exact: true })).toBeVisible();
+    }
     for (const photo of photoFixtures) {
       const tile = page.getByRole('button', { name: photo.fileName, exact: true });
       const tileItem = page.locator('section[aria-labelledby="post-media-heading"] ol li').filter({ has: tile });
@@ -500,6 +507,112 @@ for (const width of [375, 1440]) {
   });
 }
 
+test('new post keeps server-confirmed media through redirect and sends the next write on its latest revision', async ({
+  page
+}) => {
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await mockApi(page);
+
+  let serverPost: PostDto | null = null;
+  const readServerPost = (): PostDto => {
+    if (!serverPost) throw new Error('The server post must exist before it is read');
+    return serverPost;
+  };
+  const createRequests: unknown[] = [];
+  const mediaUploadRevisions: number[] = [];
+  const postWriteRevisions: number[] = [];
+  const uploadedMedia = {
+    id: '77777777-7777-4777-8777-777777777777',
+    sourceMediaId: null,
+    kind: 'photo' as const,
+    fileName: 'altai_lake.jpg',
+    contentType: 'image/jpeg',
+    sizeBytes: realPhoto.byteLength,
+    width: 4032,
+    height: 3024,
+    durationMs: null,
+    position: 0
+  };
+
+  await page.route(/\/api\/v1\/posts\/?$/, async (route) => {
+    if (route.request().method() !== 'POST') return route.fallback();
+    const input = route.request().postDataJSON() as { title: string; body: string; entities: [] };
+    createRequests.push(input);
+    serverPost = postSchema.parse({
+      ...post(ids.post, input.title, 'draft', {
+        body: input.body,
+        entities: input.entities,
+        revision: 0
+      }),
+      media: []
+    });
+    return route.fulfill({ status: 201, contentType: 'application/json', body: JSON.stringify(serverPost) });
+  });
+  await page.route(new RegExp(`/api/v1/posts/${ids.post}$`), async (route) => {
+    if (route.request().method() === 'PATCH') {
+      const input = route.request().postDataJSON() as {
+        revision: number;
+        title?: string;
+        body?: string;
+        entities?: [];
+      };
+      postWriteRevisions.push(input.revision);
+      const current = readServerPost();
+      if (input.revision !== current.revision)
+        return route.fulfill({
+          status: 409,
+          contentType: 'application/json',
+          body: JSON.stringify({ error: { code: 'CONFLICT', message: 'stale', requestId: 'req-e2e' } })
+        });
+      serverPost = { ...current, ...input, revision: input.revision + 1 };
+      return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(serverPost) });
+    }
+    return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(readServerPost()) });
+  });
+  await page.route(new RegExp(`/api/v1/posts/${ids.post}/media\\?`), async (route) => {
+    const revision = Number(new URL(route.request().url()).searchParams.get('revision'));
+    mediaUploadRevisions.push(revision);
+    const current = readServerPost();
+    if (revision !== current.revision)
+      return route.fulfill({
+        status: 409,
+        contentType: 'application/json',
+        body: JSON.stringify({ error: { code: 'CONFLICT', message: 'stale', requestId: 'req-e2e' } })
+      });
+    serverPost = { ...current, revision: revision + 1, media: [uploadedMedia] };
+    return route.fulfill({
+      status: 201,
+      contentType: 'application/json',
+      body: JSON.stringify({ media: uploadedMedia, revision: revision + 1 })
+    });
+  });
+  await page.route(`**/api/v1/media/${uploadedMedia.id}/content`, (route) =>
+    route.fulfill({ status: 200, contentType: 'image/jpeg', body: realPhoto })
+  );
+
+  await page.goto('/posts/new');
+  await page.getByTestId('media-file-input').setInputFiles({
+    name: 'altai_lake.jpg',
+    mimeType: 'image/jpeg',
+    buffer: realPhoto
+  });
+  await page.getByRole('button', { name: 'Добавить в пост (1)' }).click();
+
+  await expect.poll(() => createRequests.length).toBe(1);
+  await expect.poll(() => mediaUploadRevisions).toEqual([0]);
+  await expect(page).toHaveURL(new RegExp(`/posts/${ids.post}$`));
+  await expect(page.getByRole('button', { name: 'altai_lake.jpg', exact: true })).toBeVisible();
+  await expect(page.getByText('Загружено на сервер')).toBeVisible();
+
+  const title = page.getByRole('textbox', { name: /Заголовок/ });
+  await title.fill('Следующая редакция после добавления фото');
+  await expect.poll(() => postWriteRevisions).toEqual([1]);
+  await expect.poll(() => readServerPost().revision).toBe(2);
+  await expect(page.getByRole('button', { name: 'altai_lake.jpg', exact: true })).toBeVisible();
+  expect(readServerPost().media).toEqual([uploadedMedia]);
+});
+
 for (const width of [375, 1280]) {
   test(`empty-media editor at ${width}px`, async ({ page }) => {
     await page.setViewportSize({ width, height: width === 1280 ? 800 : 812 });
@@ -540,6 +653,186 @@ for (const width of [375, 1280]) {
     ).toEqual([]);
     if (SHOTS_DIR) await page.screenshot({ path: `${SHOTS_DIR}/media-empty-${width}.png`, fullPage: true });
     expect(pageErrors).toEqual([]);
+  });
+}
+
+test('square crop preview and encoded output keep the same selected color regions', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await mockApi(page);
+  const sourceSvg = Buffer.from(
+    '<svg xmlns="http://www.w3.org/2000/svg" width="400" height="300"><rect width="100" height="300" fill="#e00000"/><rect x="100" width="100" height="300" fill="#00c000"/><rect x="200" width="100" height="300" fill="#0000e0"/><rect x="300" width="100" height="300" fill="#e0c000"/></svg>'
+  );
+  await page.route(new RegExp(`/api/v1/posts/${ids.post}$`), (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(
+        post(ids.post, 'Color crop fixture', 'draft', { media: [{ ...media, width: 400, height: 300 }] })
+      )
+    })
+  );
+  await page.route(`**/api/v1/media/${media.id}/content`, (route) =>
+    route.fulfill({ status: 200, contentType: 'image/svg+xml', body: sourceSvg })
+  );
+  let encodedCropBase64 = '';
+  let encodedCropByteLength = 0;
+  let encodedCropType = 'image/jpeg';
+  await page.route(new RegExp(`/api/v1/posts/${ids.post}/media/${media.id}/crop\\?`), async (route) => {
+    const body = route.request().postDataBuffer();
+    if (!body) throw new Error('Crop request must contain encoded output');
+    encodedCropBase64 = body.toString('base64');
+    encodedCropByteLength = body.byteLength;
+    encodedCropType = route.request().headers()['content-type'] ?? 'image/jpeg';
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        media: {
+          ...media,
+          id: '55555555-5555-4555-8555-555555555555',
+          contentType: encodedCropType,
+          sizeBytes: encodedCropByteLength,
+          width: 2048,
+          height: 2048
+        },
+        revision: 2
+      })
+    });
+  });
+  await page.goto(`/posts/${ids.post}`);
+  await page.getByRole('button', { name: 'altai_lake.jpg', exact: true }).click();
+  await page.getByRole('dialog', { name: 'altai_lake.jpg' }).getByRole('button', { name: 'Кадрировать' }).click();
+  const dialog = page.getByRole('dialog', { name: 'Кадрирование фото' });
+  await expect(dialog).toBeVisible();
+  await dialog.getByRole('radio', { name: /Ориг/ }).focus();
+  await page.keyboard.press('ArrowRight');
+  await expect(dialog.getByRole('radio', { name: '1:1' })).toBeChecked();
+  const frameSampling = await dialog.getByRole('application', { name: 'Область кадрирования' }).evaluate((frame) => {
+    const stage = frame.parentElement;
+    if (!stage) throw new Error('Crop frame must belong to an image stage');
+    const frameBounds = frame.getBoundingClientRect();
+    const stageBounds = stage.getBoundingClientRect();
+    return {
+      x: (frameBounds.left - stageBounds.left) / stageBounds.width,
+      y: (frameBounds.top - stageBounds.top) / stageBounds.height,
+      width: frameBounds.width / stageBounds.width,
+      height: frameBounds.height / stageBounds.height
+    };
+  });
+  const visiblePreviewPixels = await dialog.locator('canvas').evaluate((element) => {
+    const canvas = element as HTMLCanvasElement;
+    const context = canvas.getContext('2d');
+    if (!context) throw new Error('Crop preview canvas must have a 2D context');
+    const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+    return [0.1, 0.4, 0.7, 0.9].map((fraction) => {
+      const x = Math.floor(canvas.width * fraction);
+      const y = Math.floor(canvas.height / 2);
+      const index = (y * canvas.width + x) * 4;
+      return [imageData.data[index] ?? 0, imageData.data[index + 1] ?? 0, imageData.data[index + 2] ?? 0];
+    });
+  });
+  const responsePromise = page.waitForResponse((response) => response.url().includes(`/media/${media.id}/crop?`));
+  await dialog.getByRole('button', { name: 'Сохранить' }).click();
+  const response = await responsePromise;
+  expect(response.status()).toBe(200);
+  expect(encodedCropByteLength).toBeGreaterThan(0);
+  const outputPixels = await page.evaluate(
+    async ({ base64, type }) => {
+      const blob = await (await fetch(`data:${type};base64,${base64}`)).blob();
+      const bitmap = await createImageBitmap(blob);
+      const canvas = document.createElement('canvas');
+      canvas.width = bitmap.width;
+      canvas.height = bitmap.height;
+      const context = canvas.getContext('2d');
+      if (!context) throw new Error('Encoded crop must decode to pixels');
+      context.drawImage(bitmap, 0, 0);
+      const samples = [0.1, 0.4, 0.7, 0.9].map((fraction) => {
+        const pixel = context.getImageData(
+          Math.floor(canvas.width * fraction),
+          Math.floor(canvas.height / 2),
+          1,
+          1
+        ).data;
+        return [pixel[0] ?? 0, pixel[1] ?? 0, pixel[2] ?? 0];
+      });
+      bitmap.close();
+      return samples;
+    },
+    { base64: encodedCropBase64, type: encodedCropType }
+  );
+  const expectedSourceBands = [
+    [224, 0, 0],
+    [0, 192, 0],
+    [0, 0, 224],
+    [224, 192, 0]
+  ];
+  const bandForFrameSample = (fraction: number) => Math.floor((frameSampling.x + frameSampling.width * fraction) * 4);
+  for (const [index, fraction] of [0.1, 0.4, 0.7, 0.9].entries()) {
+    const expectedBand = bandForFrameSample(fraction);
+    expect(expectedBand).toBeGreaterThanOrEqual(0);
+    expect(expectedBand).toBeLessThan(expectedSourceBands.length);
+    const preview = visiblePreviewPixels[index] ?? [];
+    const output = outputPixels[index] ?? [];
+    const expected = expectedSourceBands[expectedBand] ?? [];
+    for (const channel of [0, 1, 2]) {
+      expect(Math.abs((preview[channel] ?? 0) - (expected[channel] ?? 0))).toBeLessThan(55);
+      expect(Math.abs((output[channel] ?? 0) - (expected[channel] ?? 0))).toBeLessThan(55);
+      expect(Math.abs((preview[channel] ?? 0) - (output[channel] ?? 0))).toBeLessThan(45);
+    }
+  }
+  expect(frameSampling.y).toBeGreaterThanOrEqual(0);
+  expect(frameSampling.height).toBeCloseTo(1, 1);
+});
+
+const cropFailureCases = [
+  { status: 400, copy: /не удалось обработать кадрирование/i },
+  { status: 404, copy: /фото больше недоступно/i },
+  { status: 413, copy: /кадр слишком велик/i },
+  { status: 503, copy: /сервис временно недоступен/i }
+] as const;
+
+for (const { status, copy } of cropFailureCases) {
+  test(`crop HTTP ${status} explains the failure and preserves the original attachment`, async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await mockApi(page);
+    await page.route(new RegExp(`/api/v1/posts/${ids.post}$`), (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(post(ids.post, 'Crop failure fixture', 'draft', { media: [media] }))
+      })
+    );
+    await page.route(`**/api/v1/media/${media.id}/content`, (route) =>
+      route.fulfill({ status: 200, contentType: 'image/jpeg', body: realPhoto })
+    );
+    await page.route(new RegExp(`/api/v1/posts/${ids.post}/media/${media.id}/crop\\?`), (route) =>
+      route.fulfill({
+        status,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          error: {
+            code: status === 404 ? 'NOT_FOUND' : status === 400 || status === 413 ? 'VALIDATION_ERROR' : 'UNAVAILABLE',
+            message: 'crop failed',
+            requestId: `crop-${status}`
+          }
+        })
+      })
+    );
+    await page.goto(`/posts/${ids.post}`);
+    const originalTile = page.getByRole('button', { name: 'altai_lake.jpg', exact: true });
+    await expect(originalTile).toBeVisible();
+    await originalTile.click();
+    await page.getByRole('dialog', { name: 'altai_lake.jpg' }).getByRole('button', { name: 'Кадрировать' }).click();
+    const cropDialog = page.getByRole('dialog', { name: 'Кадрирование фото' });
+    const save = cropDialog.getByRole('button', { name: 'Сохранить' });
+    const responsePromise = page.waitForResponse((response) => response.url().includes(`/media/${media.id}/crop?`));
+    await save.click();
+    expect((await responsePromise).status()).toBe(status);
+    await expect(cropDialog.getByRole('alert')).toContainText(copy);
+    await expect(cropDialog).toBeVisible();
+    await expect(originalTile).toBeVisible();
+    await expect(page.getByText('Загружено на сервер')).toBeVisible();
   });
 }
 

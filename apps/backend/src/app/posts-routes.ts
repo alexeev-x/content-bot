@@ -10,6 +10,7 @@ import {
   listPostsQuerySchema,
   POST_ENTITY_ISSUE_CODES,
   restorePostInputSchema,
+  returnPostToDraftInputSchema,
   reorderPostMediaInputSchema,
   uploadPostMediaQuerySchema,
   updatePostInputSchema
@@ -32,6 +33,7 @@ import { AppError } from '../shared/app-error';
 import type { AppBindings } from './env';
 import { limitBody, validated } from './validation';
 import { restoreAndReadPost } from './workflows/restore-post';
+import { returnPostToDraftAndRead } from './workflows/return-post-to-draft';
 import { listPostsFromApp } from './posts-list-query';
 
 // Worst valid post request: 12 288 body bytes (4096 characters of three-byte UTF-8), 600 title bytes and up to
@@ -287,6 +289,29 @@ export const postsRoutes = new Hono<AppBindings>()
     async (c) => {
       const container = c.get('container');
       const post = await restoreAndReadPost(
+        {
+          lifecycle: container.lifecycle,
+          posts: container.posts,
+          summaries: container.postSummaries,
+          now: container.clock.now()
+        },
+        {
+          actor: c.get('actor').telegramId,
+          id: postId(c.req.valid('param').id),
+          revision: c.req.valid('json').revision
+        }
+      );
+      return c.json(post);
+    }
+  )
+  .post(
+    '/:id/draft',
+    limitBody(MAX_BODY_BYTES),
+    validated('param', idParamSchema),
+    validated('json', returnPostToDraftInputSchema),
+    async (c) => {
+      const container = c.get('container');
+      const post = await returnPostToDraftAndRead(
         {
           lifecycle: container.lifecycle,
           posts: container.posts,

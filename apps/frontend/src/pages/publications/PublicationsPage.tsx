@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
-import type { PublicationDto, PublicationStatus } from '@alexeev/contracts';
+import type { PublicationDeleteRefusal, PublicationDto, PublicationStatus } from '@alexeev/contracts';
 import { ApiError } from '../../shared/api/http-client';
 import { ru } from '../../shared/lib/ru';
 import { classifyApiError } from '../../shared/api/error-kind';
 import {
   browserTimeZone,
+  DeletePublicationsDialog,
+  deleteTargetOf,
   isInProgress,
   PublicationDrawer,
   PublicationTable,
@@ -19,14 +21,17 @@ import {
   FooterLine,
   PageHeader,
   Panel,
+  SelectionBar,
   Tab,
   TabList,
+  TabPanel,
   TableSearch,
   Tabs,
   VisuallyHidden,
   useMediaQuery,
   useRowSearch
 } from '../../shared/ui';
+import type { RowSelection } from '../../shared/ui';
 import { PhoneFilters, SearchFilter, type Order } from './PublicationsFilters';
 import { PublishPostDialog } from './PublishPostDialog';
 import type { PublicationsSearch, PublicationView } from './search';
@@ -52,6 +57,7 @@ export function PublicationsPage({ search, onSearchChange, onOpenPosts, pollMs }
   const narrow = useMediaQuery(NARROW);
   const { list, items, post, postTitle, channel } = usePublicationsData(search, pollMs);
   const [publishOpen, setPublishOpen] = useState(false);
+  const [deleteTargets, setDeleteTargets] = useState<ReturnType<typeof deleteTargetOf>[] | null>(null);
   // The search covers the loaded rows only and is not carried across tabs.
   const [query, setQuery] = useState('');
   const announcement = useStatusAnnouncement(items);
@@ -65,6 +71,17 @@ export function PublicationsPage({ search, onSearchChange, onOpenPosts, pollMs }
   const openRow = search.id ? items.find((item) => item.id === search.id) : undefined;
   const openDestination = openRow ? channel(openRow) : undefined;
   const view = search.view ?? 'all';
+  const selectionScope = `${view}\u0000${search.post ?? ''}\u0000${query}`;
+  const [storedSelection, setStoredSelection] = useState<{
+    scope: string;
+    mode: boolean;
+    selected: ReadonlyMap<string, number>;
+  }>({ scope: selectionScope, mode: false, selected: new Map() });
+  const selection =
+    storedSelection.scope === selectionScope
+      ? storedSelection
+      : { scope: selectionScope, mode: false, selected: new Map<string, number>() };
+  const { mode: selectMode, selected } = selection;
   const defaultOrder: Order = search.view === 'upcoming' ? 'asc' : 'desc';
   const order = search.order ?? defaultOrder;
   const [zone] = useState(() => browserTimeZone());
@@ -82,6 +99,49 @@ export function PublicationsPage({ search, onSearchChange, onOpenPosts, pollMs }
   };
   const ready = !list.isPending && !list.isError;
   const emptyFiltered = search.post !== undefined || search.view !== undefined || search.order !== undefined;
+  const selectableRows = rows.filter(
+    (row) => row.status === 'sent' || row.status === 'failed' || row.status === 'cancelled'
+  );
+  const selectableIds = new Set(selectableRows.map((row) => row.id));
+  function clearSelection() {
+    setStoredSelection({ scope: selectionScope, mode: false, selected: new Map() });
+  }
+
+  function onSelectionChange(selection: RowSelection) {
+    const ids = selection === 'all' ? selectableRows.map((row) => row.id) : [...selection];
+    setStoredSelection({
+      scope: selectionScope,
+      mode: true,
+      selected: new Map(
+        ids
+          .filter((id) => selectableIds.has(id))
+          .slice(0, 100)
+          .flatMap((id) => {
+            const row = rows.find((item) => item.id === id);
+            return row ? [[id, row.revision] as const] : [];
+          })
+      )
+    });
+  }
+
+  function togglePublication(publication: PublicationDto, on: boolean) {
+    if (publication.status !== 'sent' && publication.status !== 'failed' && publication.status !== 'cancelled') return;
+    setStoredSelection((current) => {
+      const next = new Map(current.scope === selectionScope ? current.selected : []);
+      if (on && next.size < 100) next.set(publication.id, publication.revision);
+      else next.delete(publication.id);
+      return { scope: selectionScope, mode: true, selected: next };
+    });
+  }
+
+  function onDeleteDone(outcome: { deleted: string[]; refused: ReadonlyMap<string, PublicationDeleteRefusal> }) {
+    setStoredSelection({
+      scope: selectionScope,
+      mode: outcome.refused.size > 0,
+      selected: new Map([...outcome.refused].map(([id]) => [id, selected.get(id) ?? 0]))
+    });
+    if (search.id && outcome.deleted.includes(search.id)) onSearchChange({ id: undefined }, { replace: true });
+  }
 
   const footer = list.isPending ? (
     <FooterLine text={copy.states.loading} />
@@ -136,88 +196,136 @@ export function PublicationsPage({ search, onSearchChange, onOpenPosts, pollMs }
             <Tab id="recent">{narrow ? copy.tabs.recentShort : copy.tabs.recent}</Tab>
             <Tab id="errors">{copy.tabs.errors}</Tab>
           </TabList>
-        </Tabs>
-        {search.post ? (
-          <p className={styles.note}>
-            {copy.list.onePost}{' '}
-            <Button variant="ghost" size="sm" onPress={() => onSearchChange({ post: undefined })}>
-              {copy.list.allPosts}
-            </Button>
-          </p>
-        ) : null}
-        <VisuallyHidden>
-          <output aria-live="polite">{announcement}</output>
-        </VisuallyHidden>
+          <TabPanel id={view}>
+            {search.post ? (
+              <p className={styles.note}>
+                {copy.list.onePost}{' '}
+                <Button variant="ghost" size="sm" onPress={() => onSearchChange({ post: undefined })}>
+                  {copy.list.allPosts}
+                </Button>
+              </p>
+            ) : null}
+            <VisuallyHidden>
+              <output aria-live="polite">{announcement}</output>
+            </VisuallyHidden>
 
-        {list.isError ? (
-          <ListError error={list.error} onRetry={() => void list.refetch()} />
-        ) : (
-          <Wrap narrow={narrow}>
-            <Panel
-              title={narrow ? copy.list.title : copy.list.panel[view]}
-              note={zoneNote}
-              {...(narrow ? {} : { action: <SearchFilter query={query} onChange={setQuery} /> })}
-              {...(ready && rows.length > 0 ? {} : { reserveRows: narrow ? 6 : 8 })}
-              {...(footer ? { footer } : {})}
-            >
-              {narrow ? (
-                <PhoneFilters
-                  query={query}
-                  onQueryChange={setQuery}
-                  order={search.order}
-                  defaultOrder={defaultOrder}
-                  isLoading={list.isPending}
-                  onOrderChange={(next) => onSearchChange({ order: next })}
-                />
-              ) : null}
-              {ready && rows.length === 0 ? (
-                isSearching ? (
-                  <EmptyState
-                    icon="search"
-                    title={copy.filters.searchEmptyTitle}
-                    description={copy.filters.searchEmptyDescription}
-                    action={
-                      <Button variant="secondary" onPress={clearSearch}>
-                        {ru.ui.clearSearch}
+            {list.isError ? (
+              <ListError error={list.error} onRetry={() => void list.refetch()} />
+            ) : (
+              <Wrap narrow={narrow}>
+                <Panel
+                  title={narrow ? copy.list.title : copy.list.panel[view]}
+                  note={zoneNote}
+                  action={
+                    <>
+                      {selectMode ? (
+                        <Button variant="ghost" size="sm" onPress={clearSelection}>
+                          {copy.deletion.done}
+                        </Button>
+                      ) : selectableRows.length > 0 ? (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          icon="check-circle"
+                          onPress={() => setStoredSelection({ scope: selectionScope, mode: true, selected: new Map() })}
+                        >
+                          {copy.deletion.select}
+                        </Button>
+                      ) : null}
+                      {narrow ? null : <SearchFilter query={query} onChange={setQuery} />}
+                    </>
+                  }
+                  {...(ready && rows.length > 0 ? {} : { reserveRows: narrow ? 6 : 8 })}
+                  {...(footer ? { footer } : {})}
+                >
+                  {narrow ? (
+                    <PhoneFilters
+                      query={query}
+                      onQueryChange={setQuery}
+                      order={search.order}
+                      defaultOrder={defaultOrder}
+                      isLoading={list.isPending}
+                      onOrderChange={(next) => onSearchChange({ order: next })}
+                    />
+                  ) : null}
+                  {ready && rows.length === 0 ? (
+                    isSearching ? (
+                      <EmptyState
+                        icon="search"
+                        title={copy.filters.searchEmptyTitle}
+                        description={copy.filters.searchEmptyDescription}
+                        action={
+                          <Button variant="secondary" onPress={clearSearch}>
+                            {ru.ui.clearSearch}
+                          </Button>
+                        }
+                      />
+                    ) : emptyFiltered ? (
+                      <EmptyState
+                        icon="search"
+                        title={copy.states.filteredTitle}
+                        description={copy.states.filteredDescription}
+                        action={
+                          <Button variant="secondary" onPress={resetAll}>
+                            {copy.filters.reset}
+                          </Button>
+                        }
+                      />
+                    ) : (
+                      <EmptyState
+                        icon="send"
+                        title={copy.states.emptyTitle}
+                        description={copy.states.emptyDescription}
+                        action={<Button onPress={onOpenPosts}>{copy.states.emptyAction}</Button>}
+                      />
+                    )
+                  ) : (
+                    <PublicationTable
+                      narrow={narrow}
+                      rows={rows}
+                      rowText={textOf}
+                      isLoading={list.isPending}
+                      post={post}
+                      channel={channel}
+                      activeId={search.id}
+                      onOpen={(id) => onSearchChange({ id })}
+                      order={order}
+                      onOrderChange={(next) => onSearchChange({ order: next })}
+                      selectable={selectMode}
+                      selected={new Set(selected.keys())}
+                      onSelectionChange={onSelectionChange}
+                      onToggle={togglePublication}
+                    />
+                  )}
+                  {selectMode ? (
+                    <SelectionBar
+                      label={copy.deletion.selectionLabel}
+                      summary={copy.deletion.selected(selected.size)}
+                      {...(selected.size >= 100 ? { hint: copy.deletion.limit } : {})}
+                    >
+                      <Button
+                        variant="danger"
+                        icon="trash"
+                        isDisabled={selected.size === 0}
+                        onPress={() => {
+                          const targets = items
+                            .filter((item) => selected.has(item.id))
+                            .map((item) => deleteTargetOf(item, postTitle(item) ?? copy.list.unknownPost));
+                          if (targets.length > 0) setDeleteTargets(targets);
+                        }}
+                      >
+                        {copy.deletion.delete}
                       </Button>
-                    }
-                  />
-                ) : emptyFiltered ? (
-                  <EmptyState
-                    icon="search"
-                    title={copy.states.filteredTitle}
-                    description={copy.states.filteredDescription}
-                    action={
-                      <Button variant="secondary" onPress={resetAll}>
-                        {copy.filters.reset}
+                      <Button variant="ghost" onPress={clearSelection}>
+                        {copy.deletion.clear}
                       </Button>
-                    }
-                  />
-                ) : (
-                  <EmptyState
-                    icon="send"
-                    title={copy.states.emptyTitle}
-                    description={copy.states.emptyDescription}
-                    action={<Button onPress={onOpenPosts}>{copy.states.emptyAction}</Button>}
-                  />
-                )
-              ) : (
-                <PublicationTable
-                  narrow={narrow}
-                  rows={rows}
-                  rowText={textOf}
-                  isLoading={list.isPending}
-                  post={post}
-                  channel={channel}
-                  activeId={search.id}
-                  onOpen={(id) => onSearchChange({ id })}
-                  order={order}
-                  onOrderChange={(next) => onSearchChange({ order: next })}
-                />
-              )}
-            </Panel>
-          </Wrap>
-        )}
+                    </SelectionBar>
+                  ) : null}
+                </Panel>
+              </Wrap>
+            )}
+          </TabPanel>
+        </Tabs>
       </div>
 
       <PublicationDrawer
@@ -232,8 +340,20 @@ export function PublicationsPage({ search, onSearchChange, onOpenPosts, pollMs }
         destinationTitle={openDestination?.title}
         chatId={openDestination?.chatId}
         pollMs={pollMs}
+        onDelete={(publication) =>
+          setDeleteTargets([deleteTargetOf(publication, postTitle(publication) ?? copy.list.unknownPost)])
+        }
       />
       <PublishPostDialog isOpen={publishOpen} onOpenChange={setPublishOpen} onOpenPosts={onOpenPosts} />
+      {deleteTargets ? (
+        <DeletePublicationsDialog
+          targets={deleteTargets}
+          onOpenChange={(open) => {
+            if (!open) setDeleteTargets(null);
+          }}
+          onDone={onDeleteDone}
+        />
+      ) : null}
     </>
   );
 }

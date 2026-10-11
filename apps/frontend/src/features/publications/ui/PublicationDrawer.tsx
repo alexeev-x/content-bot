@@ -46,6 +46,7 @@ type Props = {
   chatId?: string | undefined;
   /** Detail poll interval; defaults to the feature's 15 s. */
   pollMs?: number | undefined;
+  onDelete?: (publication: PublicationDto) => void;
 };
 
 // Sent, failed and cancelled publications have nothing to do from here, so they get no empty footer bar.
@@ -56,7 +57,10 @@ function hasFooter(publication: PublicationDto): boolean {
     actions.canCancel ||
     actions.canReschedule ||
     publication.status === 'preparing' ||
-    publication.status === 'sending'
+    publication.status === 'sending' ||
+    publication.status === 'sent' ||
+    publication.status === 'failed' ||
+    publication.status === 'cancelled'
   );
 }
 
@@ -71,6 +75,7 @@ export function PublicationDrawer({
   postBody,
   destinationTitle,
   chatId,
+  onDelete,
   pollMs = PUBLICATION_POLL_MS
 }: Props) {
   const query = useQuery({
@@ -95,7 +100,12 @@ export function PublicationDrawer({
         meta={shown ? <StatusBadge status={shown} /> : undefined}
         footer={
           publication && hasFooter(publication) ? (
-            <DrawerActions publication={publication} isFresh={!query.isPlaceholderData} onOpenDialog={setDialog} />
+            <DrawerActions
+              publication={publication}
+              isFresh={!query.isPlaceholderData}
+              onOpenDialog={setDialog}
+              onDelete={onDelete}
+            />
           ) : undefined
         }
       >
@@ -319,10 +329,26 @@ type ActionsProps = {
   publication: PublicationDto;
   isFresh: boolean;
   onOpenDialog: (dialog: Exclude<OpenDialog, null>) => void;
+  onDelete?: (publication: PublicationDto) => void;
 };
 
-function DrawerActions({ publication, isFresh, onOpenDialog }: ActionsProps) {
+function DrawerActions({ publication, isFresh, onOpenDialog, onDelete }: ActionsProps) {
   const actions = publicationActions(publication.status);
+
+  if (publication.status === 'sent' || publication.status === 'failed' || publication.status === 'cancelled') {
+    return (
+      <div className={styles.actions}>
+        <Button
+          variant="danger"
+          icon="trash"
+          isDisabled={!isFresh || !onDelete}
+          onPress={() => onDelete?.(publication)}
+        >
+          {copy.deletion.delete}
+        </Button>
+      </div>
+    );
+  }
 
   if (actions.needsReconciliation) {
     return (

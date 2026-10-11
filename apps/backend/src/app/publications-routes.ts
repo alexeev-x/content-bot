@@ -1,6 +1,8 @@
 import {
   cancelPublicationInputSchema,
+  bulkDeletePublicationsInputSchema,
   createPublicationInputSchema,
+  deletePublicationInputSchema,
   listPublicationsQuerySchema,
   reschedulePublicationInputSchema,
   resolveUnknownPublicationInputSchema
@@ -10,6 +12,8 @@ import { z } from 'zod';
 import {
   cancelPublication,
   createPublication,
+  deletePublication,
+  deletePublications,
   getPublication,
   listPublications,
   reschedulePublication,
@@ -50,6 +54,20 @@ function scheduleNotifier(c: Context<AppBindings>) {
 
 export const publicationsRoutes = new Hono<AppBindings>()
   .post(
+    '/delete',
+    limitBody(MAX_BODY_BYTES),
+    validated('json', bulkDeletePublicationsInputSchema, { reasons: ['DUPLICATE_IDS'] }),
+    async (c) => {
+      const container = c.get('container');
+      return c.json(
+        await deletePublications(
+          { repo: container.publications, now: container.clock.now() },
+          { actor: c.get('actor').telegramId, input: c.req.valid('json') }
+        )
+      );
+    }
+  )
+  .post(
     '/',
     limitBody(MAX_BODY_BYTES),
     validated('header', idempotencyHeaderSchema),
@@ -87,6 +105,25 @@ export const publicationsRoutes = new Hono<AppBindings>()
     const id = publicationId(c.req.valid('param').id);
     return c.json(await getPublication({ repo: container.publications, now: container.clock.now() }, id));
   })
+  .post(
+    '/:id/delete',
+    limitBody(MAX_BODY_BYTES),
+    validated('param', idParamSchema),
+    validated('json', deletePublicationInputSchema),
+    async (c) => {
+      const container = c.get('container');
+      return c.json(
+        await deletePublication(
+          { repo: container.publications, now: container.clock.now() },
+          {
+            actor: c.get('actor').telegramId,
+            id: publicationId(c.req.valid('param').id),
+            input: c.req.valid('json')
+          }
+        )
+      );
+    }
+  )
   .post(
     '/:id/reschedule',
     limitBody(MAX_BODY_BYTES),
