@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { dateChipText, nextPublication, recentTime, fullTime, untilDetail, untilShort } from '../model/format';
 
-// Local-time dates keep the expectations independent of the machine's zone.
-const NOW = new Date(2026, 9, 7, 21, 5);
-const at = (day: number, hour: number, minute = 0) => new Date(2026, 9, day, hour, minute).toISOString();
+// Dashboard formatting defaults to Europe/Moscow; anchor fixtures there explicitly so CI's UTC zone cannot shift them.
+const moscowDate = (day: number, hour: number, minute = 0) => new Date(Date.UTC(2026, 9, day, hour - 3, minute));
+const NOW = moscowDate(7, 21, 5);
+const at = (day: number, hour: number, minute = 0) => moscowDate(day, hour, minute).toISOString();
 
 describe('dashboard time formats', () => {
   it('writes the date chip with minute precision and a capitalised weekday', () => {
@@ -27,7 +28,7 @@ describe('dashboard time formats', () => {
   });
 
   it('names the next publication «Через …» today, «Завтра, …» tomorrow and the date later', () => {
-    const early = new Date(2026, 9, 7, 8, 0);
+    const early = moscowDate(7, 8);
     expect(untilDetail(at(7, 10, 0), early)).toBe('Через 2 ч');
     expect(untilDetail(at(8, 10), NOW)).toBe('Завтра, 10:00');
     expect(untilDetail(at(9, 10), NOW)).toBe('9 окт., 10:00');

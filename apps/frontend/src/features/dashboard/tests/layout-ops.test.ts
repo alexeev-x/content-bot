@@ -159,13 +159,14 @@ describe('layoutProblem', () => {
 
 describe('weekDays', () => {
   it('keeps empty days and counts by local day', () => {
-    const now = new Date(2026, 9, 8, 10, 0);
+    const moscowDate = (day: number, hour: number) => new Date(Date.UTC(2026, 9, day, hour - 3));
+    const now = moscowDate(8, 10);
     const days = weekDays(
       [
-        { scheduledAt: new Date(2026, 9, 8, 18, 0).toISOString() },
-        { scheduledAt: new Date(2026, 9, 8, 21, 0).toISOString() },
-        { scheduledAt: new Date(2026, 9, 10, 9, 0).toISOString() },
-        { scheduledAt: new Date(2026, 9, 20, 9, 0).toISOString() }
+        { scheduledAt: moscowDate(8, 18).toISOString() },
+        { scheduledAt: moscowDate(8, 21).toISOString() },
+        { scheduledAt: moscowDate(10, 9).toISOString() },
+        { scheduledAt: moscowDate(20, 9).toISOString() }
       ],
       now
     );
