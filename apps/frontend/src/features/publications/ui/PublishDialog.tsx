@@ -3,7 +3,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { now, parseAbsolute, type ZonedDateTime } from '@internationalized/date';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, type LinkProps } from '@tanstack/react-router';
-import { useEffect, useId, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
+import { useEffect, useId, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { Controller, useForm, useWatch } from 'react-hook-form';
 import { ru } from '../../../shared/lib/ru';
 import {
@@ -42,6 +42,7 @@ import styles from './PublishDialog.module.css';
 
 type Props = {
   post: PostDto;
+  timezone?: string;
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
   onPublished?: (publication: PublicationDto) => void;
@@ -58,13 +59,21 @@ const MODES = [
 
 /** Publish dialog: the post is mounted per id, so what the owner picked survives closing and reopening it. */
 export function PublishDialog(props: Props) {
-  const key = `${props.post.id}:${props.initialSettings?.destinationId ?? ''}:${props.initialSettings?.mode ?? ''}:${props.initialSettings?.scheduledAt.toDate().toISOString() ?? ''}`;
+  const key = `${props.post.id}:${props.timezone ?? ''}:${props.initialSettings?.destinationId ?? ''}:${props.initialSettings?.mode ?? ''}:${props.initialSettings?.scheduledAt.toDate().toISOString() ?? ''}`;
   return <PublishDialogBody key={key} {...props} />;
 }
 
-function PublishDialogBody({ post, isOpen, onOpenChange, onPublished, initialSettings, lockSettings = false }: Props) {
+function PublishDialogBody({
+  post,
+  timezone: configuredTimezone,
+  isOpen,
+  onOpenChange,
+  onPublished,
+  initialSettings,
+  lockSettings = false
+}: Props) {
   const formId = useId();
-  const zone = useMemo(() => browserTimeZone(), []);
+  const zone = configuredTimezone ?? browserTimeZone();
   const toast = useToast();
   const queryClient = useQueryClient();
   const create = useSubmitPublication();

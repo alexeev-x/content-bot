@@ -28,6 +28,8 @@ import { Route as PostsNewRouteImport } from './routes/posts/new';
 import { Route as SettingsIndexRouteImport } from './routes/settings.index';
 import { Route as SettingsAppearanceRouteImport } from './routes/settings.appearance';
 import { Route as SettingsChannelsRouteImport } from './routes/settings.channels';
+import { Route as SettingsNotificationsRouteImport } from './routes/settings.notifications';
+import { Route as SettingsOperationsRouteImport } from './routes/settings.operations';
 import { Route as PostsIdPublishRouteImport } from './routes/posts/$id.publish';
 
 const IndexRoute = IndexRouteImport.update({
@@ -125,6 +127,16 @@ const SettingsChannelsRoute = SettingsChannelsRouteImport.update({
   path: '/channels',
   getParentRoute: () => SettingsRoute,
 } as any);
+const SettingsNotificationsRoute = SettingsNotificationsRouteImport.update({
+  id: '/notifications',
+  path: '/notifications',
+  getParentRoute: () => SettingsRoute,
+} as any);
+const SettingsOperationsRoute = SettingsOperationsRouteImport.update({
+  id: '/operations',
+  path: '/operations',
+  getParentRoute: () => SettingsRoute,
+} as any);
 const PostsIdPublishRoute = PostsIdPublishRouteImport.update({
   id: '/publish',
   path: '/publish',
@@ -148,6 +160,8 @@ export interface FileRoutesByFullPath {
   '/posts/new': typeof PostsNewRoute;
   '/settings/appearance': typeof SettingsAppearanceRoute;
   '/settings/channels': typeof SettingsChannelsRoute;
+  '/settings/notifications': typeof SettingsNotificationsRoute;
+  '/settings/operations': typeof SettingsOperationsRoute;
   '/__proto/': typeof _protoIndexRoute;
   '/posts/': typeof PostsIndexRoute;
   '/settings/': typeof SettingsIndexRoute;
@@ -168,6 +182,8 @@ export interface FileRoutesByTo {
   '/posts/new': typeof PostsNewRoute;
   '/settings/appearance': typeof SettingsAppearanceRoute;
   '/settings/channels': typeof SettingsChannelsRoute;
+  '/settings/notifications': typeof SettingsNotificationsRoute;
+  '/settings/operations': typeof SettingsOperationsRoute;
   '/__proto': typeof _protoIndexRoute;
   '/posts': typeof PostsIndexRoute;
   '/settings': typeof SettingsIndexRoute;
@@ -191,6 +207,8 @@ export interface FileRoutesById {
   '/posts/new': typeof PostsNewRoute;
   '/settings/appearance': typeof SettingsAppearanceRoute;
   '/settings/channels': typeof SettingsChannelsRoute;
+  '/settings/notifications': typeof SettingsNotificationsRoute;
+  '/settings/operations': typeof SettingsOperationsRoute;
   '/__proto/': typeof _protoIndexRoute;
   '/posts/': typeof PostsIndexRoute;
   '/settings/': typeof SettingsIndexRoute;
@@ -215,6 +233,8 @@ export interface FileRouteTypes {
     | '/posts/new'
     | '/settings/appearance'
     | '/settings/channels'
+    | '/settings/notifications'
+    | '/settings/operations'
     | '/__proto/'
     | '/posts/'
     | '/settings/'
@@ -235,6 +255,8 @@ export interface FileRouteTypes {
     | '/posts/new'
     | '/settings/appearance'
     | '/settings/channels'
+    | '/settings/notifications'
+    | '/settings/operations'
     | '/__proto'
     | '/posts'
     | '/settings'
@@ -257,6 +279,8 @@ export interface FileRouteTypes {
     | '/posts/new'
     | '/settings/appearance'
     | '/settings/channels'
+    | '/settings/notifications'
+    | '/settings/operations'
     | '/__proto/'
     | '/posts/'
     | '/settings/'
@@ -415,6 +439,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SettingsChannelsRouteImport;
       parentRoute: typeof SettingsRoute;
     };
+    '/settings/notifications': {
+      id: '/settings/notifications';
+      path: '/notifications';
+      fullPath: '/settings/notifications';
+      preLoaderRoute: typeof SettingsNotificationsRouteImport;
+      parentRoute: typeof SettingsRoute;
+    };
+    '/settings/operations': {
+      id: '/settings/operations';
+      path: '/operations';
+      fullPath: '/settings/operations';
+      preLoaderRoute: typeof SettingsOperationsRouteImport;
+      parentRoute: typeof SettingsRoute;
+    };
     '/posts/$id/publish': {
       id: '/posts/$id/publish';
       path: '/publish';
@@ -441,12 +479,16 @@ const _protoRouteWithChildren =
 interface SettingsRouteChildren {
   SettingsAppearanceRoute: typeof SettingsAppearanceRoute;
   SettingsChannelsRoute: typeof SettingsChannelsRoute;
+  SettingsNotificationsRoute: typeof SettingsNotificationsRoute;
+  SettingsOperationsRoute: typeof SettingsOperationsRoute;
   SettingsIndexRoute: typeof SettingsIndexRoute;
 }
 
 const SettingsRouteChildren: SettingsRouteChildren = {
   SettingsAppearanceRoute: SettingsAppearanceRoute,
   SettingsChannelsRoute: SettingsChannelsRoute,
+  SettingsNotificationsRoute: SettingsNotificationsRoute,
+  SettingsOperationsRoute: SettingsOperationsRoute,
   SettingsIndexRoute: SettingsIndexRoute,
 };
 

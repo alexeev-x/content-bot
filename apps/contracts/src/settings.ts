@@ -1,6 +1,47 @@
 import { z } from 'zod';
 import { cleanText } from './text';
 
+function isTimeZone(value: string): boolean {
+  try {
+    new Intl.DateTimeFormat('en-US', { timeZone: value });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export const ownerTimeZoneSchema = z.string().trim().min(1).max(100).refine(isTimeZone, {
+  error: 'Use a valid IANA time zone'
+});
+
+export const notificationPreferencesSchema = z.object({
+  warningsEnabled: z.boolean(),
+  publicationAlerts: z.boolean(),
+  sourceAlerts: z.boolean(),
+  automationAlerts: z.boolean(),
+  recoveryAlerts: z.boolean(),
+  dotaWatchlistAlerts: z.boolean()
+});
+
+export const ownerOperationsSettingsSchema = z.object({
+  timezone: ownerTimeZoneSchema,
+  notifications: notificationPreferencesSchema,
+  revision: z.number().int().nonnegative(),
+  updatedAt: z.iso.datetime().nullable()
+});
+export type OwnerOperationsSettingsDto = z.infer<typeof ownerOperationsSettingsSchema>;
+
+// GET /api/v1/settings/operations → 200 OwnerOperationsSettingsDto (default timezone Europe/Moscow,
+// notifications enabled, revision 0 when never saved). PUT replaces the document using its revision.
+// CRITICAL alerts are always enabled; warningsEnabled only controls WARNING notifications.
+// Errors: VALIDATION_ERROR 400, CONFLICT 409 (STALE_REVISION), UNAUTHORIZED 401, FORBIDDEN 403.
+export const updateOwnerOperationsSettingsInputSchema = z.strictObject({
+  revision: z.number().int().nonnegative(),
+  timezone: ownerTimeZoneSchema,
+  notifications: notificationPreferencesSchema
+});
+export type UpdateOwnerOperationsSettingsInput = z.infer<typeof updateOwnerOperationsSettingsInputSchema>;
+
 // Owner appearance settings, stored on the server so the browser and the Mini App match
 // (owner decision 06.10.2026, docs/design/README.md).
 

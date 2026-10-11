@@ -1,7 +1,7 @@
 import type { PublicationDto } from '@alexeev/contracts';
 import { now, parseAbsolute, type ZonedDateTime } from '@internationalized/date';
 import { useQueryClient } from '@tanstack/react-query';
-import { useId, useMemo, useState } from 'react';
+import { useId, useState } from 'react';
 import { Button, DateTimeField, Dialog, useToast } from '../../../shared/ui';
 import { publicationKeys, useReschedulePublication } from '../api/publications-queries';
 import { browserTimeZone, formatWithZone } from '../model/format-time';
@@ -14,6 +14,7 @@ import styles from './RescheduleDialog.module.css';
 
 type Props = {
   publication: PublicationDto;
+  timezone?: string;
   onOpenChange: (open: boolean) => void;
 };
 
@@ -28,9 +29,9 @@ function validate(value: ZonedDateTime | null): string | undefined {
 }
 
 /** Mounted only while open, so it starts from the current time on every opening and keeps the typed value on errors. */
-export function RescheduleDialog({ publication, onOpenChange }: Props) {
+export function RescheduleDialog({ publication, timezone, onOpenChange }: Props) {
   const formId = useId();
-  const zone = useMemo(() => browserTimeZone(), []);
+  const zone = timezone ?? browserTimeZone();
   const toast = useToast();
   const queryClient = useQueryClient();
   const reschedule = useReschedulePublication();

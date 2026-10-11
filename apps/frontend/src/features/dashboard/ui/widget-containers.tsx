@@ -35,14 +35,18 @@ export function DraftsWidget(props: DraftsProps) {
   );
 }
 
-export function WeekWidget({ now }: { now: Date }) {
-  const range = weekRange(now);
+export function WeekWidget({ now, timezone }: { now: Date; timezone: string }) {
+  const range = weekRange(now, timezone);
   const query = useQuery(weekQueryOptions(range));
-  const days = useMemo(() => (query.data ? weekDays(query.data.items, now) : undefined), [query.data, now]);
+  const days = useMemo(
+    () => (query.data ? weekDays(query.data.items, now, timezone) : undefined),
+    [query.data, now, timezone]
+  );
   const truncated = query.data?.nextCursor != null && query.data.items.length >= WEEK_LIMIT;
   return (
     <WeekPanel
       days={days}
+      timezone={timezone}
       failed={query.isError && !query.data}
       onRetry={() => void query.refetch()}
       truncated={truncated}

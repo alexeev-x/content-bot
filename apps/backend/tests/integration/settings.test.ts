@@ -1,4 +1,9 @@
-import { type AppearanceDto, appearanceSchema, CUSTOM_PRESETS_MAX } from '@alexeev/contracts';
+import {
+  type AppearanceDto,
+  appearanceSchema,
+  CUSTOM_PRESETS_MAX,
+  ownerOperationsSettingsSchema
+} from '@alexeev/contracts';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { testDb } from '../helpers/db';
 import { expectError } from '../helpers/expect-error';
@@ -6,6 +11,7 @@ import { type Api, createApi, fakeClock, OWNER_ID, OWNER_TOKEN, resetDb, seedSes
 import { count } from '../helpers/publishing';
 
 const PATH = '/api/v1/settings/appearance';
+const OPERATIONS_PATH = '/api/v1/settings/operations';
 const ID_A = '0b8a4c1e-5f6d-4a7b-9c2d-1e3f4a5b6c7d';
 const ID_B = '7d6c5b4a-3f2e-4d1c-8b0a-9f8e7d6c5b4a';
 
@@ -79,6 +85,53 @@ describe('GET /api/v1/settings/appearance', () => {
     const repaired = await put({ ...valid, revision: 3 });
     expect(repaired.status).toBe(200);
     expect(await parsed(await get())).toMatchObject({ ...valid, revision: 4 });
+  });
+});
+
+describe('GET and PUT /api/v1/settings/operations', () => {
+  const validOperations = {
+    revision: 0,
+    timezone: 'Europe/Chisinau',
+    notifications: {
+      warningsEnabled: true,
+      publicationAlerts: true,
+      sourceAlerts: true,
+      automationAlerts: true,
+      recoveryAlerts: true,
+      dotaWatchlistAlerts: true
+    }
+  };
+  const operations = async () => ownerOperationsSettingsSchema.parse(await (await api.request(OPERATIONS_PATH)).json());
+
+  it('answers timezone and notification defaults without writing a row', async () => {
+    expect(await operations()).toEqual({
+      timezone: 'Europe/Moscow',
+      notifications: {
+        warningsEnabled: true,
+        publicationAlerts: true,
+        sourceAlerts: true,
+        automationAlerts: true,
+        recoveryAlerts: true,
+        dotaWatchlistAlerts: true
+      },
+      revision: 0,
+      updatedAt: null
+    });
+    expect(await count('settings')).toBe(0);
+  });
+
+  it('saves the complete document and refuses a stale revision without another audit', async () => {
+    const first = await api.request(OPERATIONS_PATH, { method: 'PUT', json: validOperations });
+    expect(first.status).toBe(200);
+    expect(ownerOperationsSettingsSchema.parse(await first.json())).toMatchObject({
+      ...validOperations,
+      revision: 1,
+      updatedAt: new Date(START).toISOString()
+    });
+
+    const stale = await api.request(OPERATIONS_PATH, { method: 'PUT', json: validOperations });
+    await expectError(stale, 409, 'CONFLICT', { reason: 'STALE_REVISION' });
+    expect(await count('audit_log')).toBe(1);
   });
 });
 

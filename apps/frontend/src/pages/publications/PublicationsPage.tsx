@@ -4,15 +4,13 @@ import { ApiError } from '../../shared/api/http-client';
 import { ru } from '../../shared/lib/ru';
 import { classifyApiError } from '../../shared/api/error-kind';
 import {
-  browserTimeZone,
   DeletePublicationsDialog,
   deleteTargetOf,
   isInProgress,
   PublicationDrawer,
   PublicationTable,
   publicationCopy,
-  publicationRowText,
-  utcOffsetLabel
+  publicationRowText
 } from '../../features/publications';
 import {
   Button,
@@ -29,15 +27,18 @@ import {
   Tabs,
   VisuallyHidden,
   useMediaQuery,
-  useRowSearch
+  Select
 } from '../../shared/ui';
 import type { RowSelection } from '../../shared/ui';
-import { PhoneFilters, SearchFilter, type Order } from './PublicationsFilters';
+import { periodOptions, PhoneFilters, SearchFilter, type Order } from './PublicationsFilters';
 import { PublishPostDialog } from './PublishPostDialog';
-import type { PublicationsSearch, PublicationView } from './search';
+import type { PublicationPeriod, PublicationsSearch, PublicationView } from './search';
 import { useDocumentTitle } from './use-document-title';
 import styles from './PublicationsPage.module.css';
 import { usePublicationsData } from './use-publications-data';
+import { useOwnerTimezone } from '../../features/owner-settings';
+import { utcOffsetLabel } from '../../shared/lib/owner-timezone';
+import { useNow } from '../../shared/lib/use-now';
 
 type Props = {
   search: PublicationsSearch;
@@ -55,23 +56,31 @@ const CLEARED: Partial<PublicationsSearch> = { post: undefined, order: undefined
 export function PublicationsPage({ search, onSearchChange, onOpenPosts, pollMs }: Props) {
   useDocumentTitle(copy.list.title);
   const narrow = useMediaQuery(NARROW);
-  const { list, items, post, postTitle, channel } = usePublicationsData(search, pollMs);
+  const timezone = useOwnerTimezone();
+  const now = useNow();
+  const { list, items, post, postTitle, channel } = usePublicationsData(search, timezone, pollMs);
   const [publishOpen, setPublishOpen] = useState(false);
   const [deleteTargets, setDeleteTargets] = useState<ReturnType<typeof deleteTargetOf>[] | null>(null);
-  // The search covers the loaded rows only and is not carried across tabs.
-  const [query, setQuery] = useState('');
+  const [query, setQuery] = useState(search.q ?? '');
+  useEffect(() => {
+    const timer = window.setTimeout(() => setQuery(search.q ?? ''), 0);
+    return () => window.clearTimeout(timer);
+  }, [search.q]);
+  useEffect(() => {
+    const normalized = query.trim();
+    if (normalized === (search.q ?? '')) return;
+    const timer = window.setTimeout(() => onSearchChange({ q: normalized || undefined }, { replace: true }), 250);
+    return () => window.clearTimeout(timer);
+  }, [onSearchChange, query, search.q]);
   const announcement = useStatusAnnouncement(items);
   // The offset is read once per visit: it only changes at a DST switch, and render must stay pure.
-  const [zoneNote] = useState(() => {
-    const zone = browserTimeZone();
-    return `${zone}, ${utcOffsetLabel(new Date(), zone)}`;
-  });
+  const zoneNote = `${timezone}, ${utcOffsetLabel(now, timezone)}`;
   const polling = items.some((item) => isInProgress(item.status));
 
   const openRow = search.id ? items.find((item) => item.id === search.id) : undefined;
   const openDestination = openRow ? channel(openRow) : undefined;
   const view = search.view ?? 'all';
-  const selectionScope = `${view}\u0000${search.post ?? ''}\u0000${query}`;
+  const selectionScope = `${view}\u0000${search.post ?? ''}\u0000${search.q ?? ''}\u0000${search.period ?? ''}\u0000${search.from ?? ''}\u0000${search.to ?? ''}`;
   const [storedSelection, setStoredSelection] = useState<{
     scope: string;
     mode: boolean;
@@ -84,21 +93,38 @@ export function PublicationsPage({ search, onSearchChange, onOpenPosts, pollMs }
   const { mode: selectMode, selected } = selection;
   const defaultOrder: Order = search.view === 'upcoming' ? 'asc' : 'desc';
   const order = search.order ?? defaultOrder;
-  const [zone] = useState(() => browserTimeZone());
+  const counts = list.data?.pages[0]?.statusCounts;
+  const tabCount = (kind: PublicationView) => {
+    if (!counts) return null;
+    if (kind === 'upcoming') return counts.scheduled + counts.queued + counts.preparing + counts.retry_wait;
+    if (kind === 'recent') return counts.sent;
+    if (kind === 'errors') return counts.failed + counts.unknown;
+    return list.data?.pages[0]?.totalCount ?? null;
+  };
+  const zone = timezone;
   const textOf = useCallback(
     (row: PublicationDto) => publicationRowText(row, post(row), channel(row)?.title, zone),
     [post, channel, zone]
   );
-  const rows = useRowSearch(items, textOf, query);
-  const isSearching = query.trim() !== '';
+  const rows = items;
+  const isSearching = (search.q ?? '').trim() !== '';
 
-  const clearSearch = () => setQuery('');
+  const clearSearch = () => {
+    setQuery('');
+    onSearchChange({ q: undefined }, { replace: true });
+  };
   const resetAll = () => {
     setQuery('');
-    onSearchChange({ ...CLEARED, view: undefined });
+    onSearchChange({ ...CLEARED, view: undefined, period: undefined, q: undefined, from: undefined, to: undefined });
   };
   const ready = !list.isPending && !list.isError;
-  const emptyFiltered = search.post !== undefined || search.view !== undefined || search.order !== undefined;
+  const emptyFiltered =
+    search.post !== undefined ||
+    search.view !== undefined ||
+    search.order !== undefined ||
+    search.period !== undefined ||
+    search.from !== undefined ||
+    search.to !== undefined;
   const selectableRows = rows.filter(
     (row) => row.status === 'sent' || row.status === 'failed' || row.status === 'cancelled'
   );
@@ -148,7 +174,7 @@ export function PublicationsPage({ search, onSearchChange, onOpenPosts, pollMs }
   ) : ready && items.length > 0 ? (
     <FooterLine
       text={[
-        copy.list.loaded(items.length, Boolean(list.hasNextPage)),
+        copy.list.loaded(items.length, list.data?.pages[0]?.totalCount ?? items.length, Boolean(list.hasNextPage)),
         isSearching && list.hasNextPage ? copy.filters.searchScope : null,
         polling ? copy.list.updating : null
       ]
@@ -180,21 +206,49 @@ export function PublicationsPage({ search, onSearchChange, onOpenPosts, pollMs }
         }
       />
       <div className={styles.page}>
+        <div className={styles.period}>
+          <Select
+            label="Период публикаций"
+            options={periodOptions}
+            value={search.period ?? 'all'}
+            onChange={(value) =>
+              onSearchChange({
+                period: value === 'all' ? undefined : (value as PublicationPeriod),
+                from: undefined,
+                to: undefined,
+                id: undefined
+              })
+            }
+          />
+        </div>
         <Tabs
           selectedKey={view}
           onSelectionChange={(key) => {
             setQuery('');
             onSearchChange({
               view: key === 'all' ? undefined : (key as PublicationView),
+              q: undefined,
               order: undefined
             });
           }}
         >
           <TabList aria-label={copy.tabs.label}>
-            <Tab id="all">{copy.tabs.all}</Tab>
-            <Tab id="upcoming">{narrow ? copy.tabs.upcomingShort : copy.tabs.upcoming}</Tab>
-            <Tab id="recent">{narrow ? copy.tabs.recentShort : copy.tabs.recent}</Tab>
-            <Tab id="errors">{copy.tabs.errors}</Tab>
+            <Tab id="all">
+              {copy.tabs.all}
+              {tabCount('all') === null ? '' : ` (${tabCount('all')})`}
+            </Tab>
+            <Tab id="upcoming">
+              {narrow ? copy.tabs.upcomingShort : copy.tabs.upcoming}
+              {tabCount('upcoming') === null ? '' : ` (${tabCount('upcoming')})`}
+            </Tab>
+            <Tab id="recent">
+              {narrow ? copy.tabs.recentShort : copy.tabs.recent}
+              {tabCount('recent') === null ? '' : ` (${tabCount('recent')})`}
+            </Tab>
+            <Tab id="errors">
+              {copy.tabs.errors}
+              {tabCount('errors') === null ? '' : ` (${tabCount('errors')})`}
+            </Tab>
           </TabList>
           <TabPanel id={view}>
             {search.post ? (
@@ -281,6 +335,7 @@ export function PublicationsPage({ search, onSearchChange, onOpenPosts, pollMs }
                     )
                   ) : (
                     <PublicationTable
+                      timezone={timezone}
                       narrow={narrow}
                       rows={rows}
                       rowText={textOf}
@@ -329,6 +384,7 @@ export function PublicationsPage({ search, onSearchChange, onOpenPosts, pollMs }
       </div>
 
       <PublicationDrawer
+        timezone={timezone}
         publicationId={search.id ?? null}
         isOpen={search.id !== undefined}
         onOpenChange={(open) => {
@@ -344,7 +400,12 @@ export function PublicationsPage({ search, onSearchChange, onOpenPosts, pollMs }
           setDeleteTargets([deleteTargetOf(publication, postTitle(publication) ?? copy.list.unknownPost)])
         }
       />
-      <PublishPostDialog isOpen={publishOpen} onOpenChange={setPublishOpen} onOpenPosts={onOpenPosts} />
+      <PublishPostDialog
+        timezone={timezone}
+        isOpen={publishOpen}
+        onOpenChange={setPublishOpen}
+        onOpenPosts={onOpenPosts}
+      />
       {deleteTargets ? (
         <DeletePublicationsDialog
           targets={deleteTargets}

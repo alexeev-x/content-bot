@@ -72,6 +72,17 @@ export type ListDestinationsQuery = z.infer<typeof listDestinationsQuerySchema>;
 export const destinationPageSchema = pageSchema(destinationSchema);
 export type DestinationPageDto = z.infer<typeof destinationPageSchema>;
 
+export const scheduledPublicationCountSchema = z.object({
+  destinationId: z.uuid(),
+  count: z.number().int().nonnegative()
+});
+export type ScheduledPublicationCountDto = z.infer<typeof scheduledPublicationCountSchema>;
+
+// GET /api/v1/destinations/{id}/scheduled-count → 200 ScheduledPublicationCountDto. Counts all
+// waiting publications (scheduled, queued and retry_wait) from D1 immediately before confirmation;
+// excludes in-flight and terminal work. The client must not cache this value for disable confirmation.
+// Errors: NOT_FOUND 404, UNAUTHORIZED 401, FORBIDDEN 403.
+
 // POST /api/v1/destinations/check — asks Telegram about a chat before it is saved: its title and
 // type, and whether this environment's bot can post there. Nothing is stored; the dialog uses it
 // to prefill the form and to refuse a channel the bot cannot publish to.

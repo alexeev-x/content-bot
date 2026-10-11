@@ -2,6 +2,7 @@ import {
   checkDestinationInputSchema,
   createDestinationInputSchema,
   listDestinationsQuerySchema,
+  scheduledPublicationCountSchema,
   updateDestinationInputSchema
 } from '@alexeev/contracts';
 import { Hono } from 'hono';
@@ -10,6 +11,7 @@ import {
   checkDestination,
   createDestination,
   getDestination,
+  getScheduledPublicationCount,
   listDestinations,
   updateDestination
 } from '../modules/publishing';
@@ -77,6 +79,14 @@ export const destinationsRoutes = new Hono<AppBindings>()
   .get('/:id', validated('param', idParamSchema), async (c) => {
     const id = destinationId(c.req.valid('param').id);
     return c.json(await getDestination({ repo: c.get('container').destinations }, id));
+  })
+  .get('/:id/scheduled-count', validated('param', idParamSchema), async (c) => {
+    const container = c.get('container');
+    const dto = await getScheduledPublicationCount(
+      { repo: container.destinations },
+      destinationId(c.req.valid('param').id)
+    );
+    return c.json(scheduledPublicationCountSchema.parse(dto));
   })
   .patch(
     '/:id',

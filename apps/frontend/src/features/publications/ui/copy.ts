@@ -38,7 +38,8 @@ export const copy = {
     noText: 'Без текста',
     checkChannel: 'Проверьте канал',
     panel: { all: 'Все публикации', upcoming: 'Запланированные', recent: 'Отправленные', errors: 'Ошибки' },
-    loaded: (count: number, hasMore: boolean) => (hasMore ? `Загружено ${count}` : `Загружено ${count} из ${count}`),
+    loaded: (count: number, total: number, hasMore: boolean) =>
+      hasMore ? `Загружено ${count} из ${total}` : `Показано ${count} из ${total}`,
     loadMore: 'Показать ещё',
     updating: 'обновляется',
     publishPost: 'Опубликовать пост',
@@ -56,12 +57,12 @@ export const copy = {
     errors: 'Ошибки'
   },
   filters: {
-    searchLabel: 'Поиск по загруженным публикациям',
+    searchLabel: 'Поиск по публикациям',
     searchHint: 'Пост, канал, статус, время',
     phoneSearch: 'Поиск',
-    searchScope: 'Поиск идёт только по уже загруженным публикациям.',
+    searchScope: 'Поиск на сервере по всем публикациям.',
     searchEmptyTitle: 'Ничего не найдено',
-    searchEmptyDescription: 'Попробуйте другой запрос или очистите поиск. Поиск идёт по загруженным публикациям.',
+    searchEmptyDescription: 'Попробуйте другой запрос или очистите поиск. Запрос проверяет все публикации.',
     sort: 'Сортировка',
     sortNewest: 'Сначала новые',
     sortOldest: 'Сначала старые',

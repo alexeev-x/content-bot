@@ -1,7 +1,8 @@
-import { useState } from 'react';
 import { useDocumentTitle } from '../../app/use-document-title';
 import { Incidents, incidentsCopy } from '../../features/incidents';
-import { browserTimeZone, utcOffsetLabel } from '../../features/publications';
+import { useOwnerTimezone } from '../../features/owner-settings';
+import { utcOffsetLabel } from '../../shared/lib/owner-timezone';
+import { useNow } from '../../shared/lib/use-now';
 import { ru } from '../../shared/lib/ru';
 import { PageHeader } from '../../shared/ui';
 import type { IncidentsSearch } from './search';
@@ -18,17 +19,16 @@ type Props = {
 
 export function IncidentsPage({ search, onSearchChange, onOpenPublication, onOpenPublications, pollMs }: Props) {
   useDocumentTitle(ru.pages.incidents);
-  // The offset is read once per visit: it only changes at a DST switch, and render must stay pure.
-  const [zoneNote] = useState(() => {
-    const zone = browserTimeZone();
-    return incidentsCopy.states.zone(zone, utcOffsetLabel(new Date(), zone));
-  });
+  const zone = useOwnerTimezone();
+  const now = useNow();
+  const zoneNote = incidentsCopy.states.zone(zone, utcOffsetLabel(now, zone));
   return (
     <>
       <PageHeader title={ru.pages.incidents} description={zoneNote} />
       <Incidents
         state={search.state}
         kind={search.kind}
+        timezone={zone}
         onStateChange={(state) => onSearchChange({ state })}
         onKindChange={(kind) => onSearchChange({ kind })}
         onOpenPublication={onOpenPublication}

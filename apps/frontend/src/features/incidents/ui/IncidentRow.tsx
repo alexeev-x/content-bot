@@ -11,10 +11,11 @@ import styles from './Incidents.module.css';
 
 type Props = {
   incident: IncidentDto;
+  timezone?: string;
   onOpenPublication: (publicationId: string) => void;
 };
 
-export function IncidentRow({ incident, onOpenPublication }: Props) {
+export function IncidentRow({ incident, timezone, onOpenPublication }: Props) {
   const toast = useToast();
   const resolve = useResolveIncident({
     onResolved: () => toast.show({ tone: 'success', title: copy.resolve.done })
@@ -41,7 +42,7 @@ export function IncidentRow({ incident, onOpenPublication }: Props) {
 
   const needsResolveUnknown = resolve.error instanceof ApiError && resolve.error.reason === 'USE_RESOLVE_UNKNOWN';
   const reasonParts = [incidentReason(incident.code), copy.row.attempts(incident.attemptCount)];
-  if (incident.resolvedAt) reasonParts.push(copy.row.closedAt(formatDayClock(incident.resolvedAt)));
+  if (incident.resolvedAt) reasonParts.push(copy.row.closedAt(formatDayClock(incident.resolvedAt, timezone)));
 
   return (
     <PanelRow>
@@ -60,7 +61,7 @@ export function IncidentRow({ incident, onOpenPublication }: Props) {
           ) : null}
           <span className={styles.meta}>
             {publication?.destinationName ? <span>{publication.destinationName} · </span> : null}
-            <time dateTime={incident.occurredAt}>{formatDayClock(incident.occurredAt)}</time>
+            <time dateTime={incident.occurredAt}>{formatDayClock(incident.occurredAt, timezone)}</time>
           </span>
           {needsResolveUnknown ? (
             <p className={styles.notice} role="alert">

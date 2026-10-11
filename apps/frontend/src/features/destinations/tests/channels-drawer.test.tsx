@@ -101,7 +101,8 @@ describe('channel drawer', () => {
     const toggle = within(drawer).getByRole('switch', { name: 'Канал включён' });
 
     await user.click(toggle);
-    expect(within(drawer).getByText(/завершатся ошибкой/)).toBeTruthy();
+    expect(await within(drawer).findByText(/Ожидающих публикаций: 2/)).toBeTruthy();
+    expect(within(drawer).getByText(/ошибкой/)).toBeTruthy();
     expect(bodies).toHaveLength(0);
     expect((toggle as HTMLInputElement).checked).toBe(true);
 

@@ -4,7 +4,7 @@ import type { Clock } from '../../platform/clock';
 import type { Logger } from '../../platform/logging/logger';
 import { AppError } from '../../shared/app-error';
 import { createTelegramCaller } from '../bot/telegram-call';
-import { formatIncidentAlert } from './incident-alert';
+import { formatIncidentAlertGroup } from './incident-alert';
 
 // One alert must not hold the Cron invocation for long; nothing is retried.
 export const ALERT_TIMEOUT_MS = 5_000;
@@ -77,21 +77,17 @@ export async function alertOwnerOfIncidents(
   const won = incidents.filter((incident) => claimedIds.includes(incident.id));
   summary.claimed = won.length;
   const call = createTelegramCaller({ logger, timeoutMs: deps.timeoutMs ?? ALERT_TIMEOUT_MS });
-  const origin = appOrigin;
-  await Promise.all(
-    won.map(async (incident) => {
-      try {
-        const message = formatIncidentAlert(incident, origin);
-        await call.act('incident_alert.send', (signal) =>
-          messenger.sendMessageWithWebAppButton(ownerChatId, message, signal)
-        );
-        summary.sent += 1;
-        log('sent');
-      } catch (error) {
-        summary.failed += 1;
-        log('failed', error instanceof AppError ? error.code : 'UNEXPECTED_ERROR');
-      }
-    })
-  );
+  try {
+    const message = formatIncidentAlertGroup(won, appOrigin);
+    if (message === null) return summary;
+    await call.act('incident_alert.send', (signal) =>
+      messenger.sendMessageWithWebAppButton(ownerChatId, message, signal)
+    );
+    summary.sent = won.length;
+    log('sent');
+  } catch (error) {
+    summary.failed = won.length;
+    log('failed', error instanceof AppError ? error.code : 'UNEXPECTED_ERROR');
+  }
   return summary;
 }

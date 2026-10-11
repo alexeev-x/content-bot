@@ -24,6 +24,7 @@ export const PUBLICATION_ROW_LOADING = 8;
 
 type Props = {
   rows: readonly PublicationDto[];
+  timezone?: string;
   /** Post details come from the page because posts are a separate feature. */
   post: (publication: PublicationDto) => PostDto | undefined;
   channel: (publication: PublicationDto) => PublicationChannel | undefined;
@@ -114,7 +115,7 @@ function Grid(props: Props) {
       .filter((row) => row.status !== 'sent' && row.status !== 'failed' && row.status !== 'cancelled')
       .map((row) => row.id)
   );
-  const zone = useMemo(() => browserTimeZone(), []);
+  const zone = props.timezone ?? browserTimeZone();
   const columns = useMemo<DataColumn<PublicationDto>[]>(
     () => [
       {
@@ -188,8 +189,8 @@ function Grid(props: Props) {
   );
 }
 
-function Cards({ rows, post, channel, onOpen, activeId, isLoading, selectable, selected, onToggle }: Props) {
-  const zone = useMemo(() => browserTimeZone(), []);
+function Cards({ rows, post, channel, onOpen, activeId, isLoading, selectable, selected, onToggle, timezone }: Props) {
+  const zone = timezone ?? browserTimeZone();
   if (isLoading) return <PhoneSkeletonRows label={copy.list.tableLabel} />;
   return (
     <PanelList aria-label={copy.list.tableLabel}>

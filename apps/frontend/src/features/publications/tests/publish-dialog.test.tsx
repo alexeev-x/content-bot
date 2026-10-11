@@ -5,7 +5,7 @@ import { http, HttpResponse } from 'msw';
 import { useState } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { clearSession, setSession } from '../../../shared/api/session';
-import { accessToken, destination, errorBody, ids, post, publication } from '../../../test/fixtures';
+import { accessToken, destination, errorBody, ids, post, publication, publicationPage } from '../../../test/fixtures';
 import { server, setupMswServer } from '../../../test/msw';
 import { PublishDialog } from '../index';
 import { defaultScheduledAt, publishFormSchema } from '../model/publish-form';
@@ -51,9 +51,7 @@ async function open(
     autoConfirm?: boolean;
   } = {}
 ) {
-  server.use(
-    http.get('*/api/v1/publications', () => HttpResponse.json({ items: options.existing ?? [], nextCursor: null }))
-  );
+  server.use(http.get('*/api/v1/publications', () => HttpResponse.json(publicationPage(options.existing ?? []))));
   function Host() {
     const [isOpen, setOpen] = useState(false);
     return (

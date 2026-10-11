@@ -8,6 +8,7 @@ import type { AppBindings } from '../env';
 import { appOriginOf } from './app-origin';
 import { createBot, loadBotSetup } from './create-bot';
 import { createOwnerReports } from './owner-reports';
+import { getOwnerOperationsSettings } from '../../modules/settings';
 import { createTelegramCaller } from './telegram-call';
 
 const MAX_UPDATE_BYTES = 256 * 1024;
@@ -54,6 +55,14 @@ export const telegramWebhook = new Hono<AppBindings>().post(
         clock: container.clock,
         appOrigin,
         publications: container.publications,
+        ownerTimezone: async () =>
+          (
+            await getOwnerOperationsSettings({
+              repo: container.settings,
+              logger: container.logger,
+              requestId: c.get('requestId')
+            })
+          ).timezone,
         incidents: container.dispatchJobs,
         posts: container.postRevisions,
         cron: container.systemState,

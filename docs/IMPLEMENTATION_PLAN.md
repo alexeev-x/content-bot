@@ -116,7 +116,7 @@ Definition of Done (checked by the owner in DEV):
 
 Watcher, draft + private alert, patch summary (§2.8). Not in this slice: publishing without approval (open owner decision, `docs/DECISIONS.md`), visual cards (Phase 9), hero/item statistics (Phase 4). Phase 4 extends this watcher instead of rebuilding it.
 
-### Phase 2 — Core operator UX (next)
+### Phase 2 — Core operator UX (in progress)
 
 Make the current Studio coherent before adding product areas:
 
@@ -137,6 +137,11 @@ Definition of Done:
 - list state survives URL/reload where appropriate;
 - publication detail explains exactly what happened;
 - one failure burst produces one grouped alert, and recovery is announced.
+
+Current implementation note: grouped publication alerts are sent once per Cron dispatch tick and incident claims
+remain deduplicated in D1. Source recovery notices already exist for Dota feed incidents. Cooldown across ticks
+and notification-preference enforcement still need implementation. Retention is waiting for the owner's policy
+choice; no attempt, incident or audit row is automatically deleted by this phase.
 
 ### Phase 3 — Calendar + analytics data foundation
 
@@ -194,14 +199,14 @@ Whoever starts or finishes an item updates its status here in the same change (`
 | 1   | Owner DEV check of built work: rich editor, autosave, media upload and albums, Dota drafts and patch summary, owner bot commands                                                        | 1, 1D | waiting for owner |
 | 2   | Post editor redesign: prototype v3 accepted 09.10.2026 (`docs/stories/post-editor-prototype.md`); next: real editor + frontend media fixes per `docs/stories/post-editor-v3-handoff.md` | 1     | in progress       |
 | 3   | Post actions: duplicate, «Вернуть в черновик», remove final publication records                                                                                                         | 1     | done              |
-| 4   | Owner timezone setting (UI, bot, Обзор, scheduling)                                                                                                                                     | 2     | not started       |
-| 5   | Публикации v2: periods on `from`/`to`, «Ошибки» = failed + unknown, total counts, server search in the UI                                                                               | 2     | in progress       |
+| 4   | Owner timezone setting (UI, bot, Обзор, scheduling)                                                                                                                                     | 2     | done              |
+| 5   | Публикации v2: periods on `from`/`to`, «Ошибки» = failed + unknown, total counts, server search in the UI                                                                               | 2     | done              |
 | 6   | Обзор v2: «Одобрены, но не запланированы», week-day links                                                                                                                               | 2     | done              |
 | 7   | Посты: server-side search, sort and counts                                                                                                                                              | 2     | done              |
-| 8   | Global search palette, or remove the disabled field                                                                                                                                     | 2     | not started       |
-| 9   | Channel disable warning with the scheduled count                                                                                                                                        | 2     | not started       |
-| 10  | Incident alerts: dedupe, grouping, recovery, Settings → Уведомления                                                                                                                     | 2     | not started       |
-| 11  | Retention policy for `job_attempts`, `incidents`, `audit_log`                                                                                                                           | 2     | not started       |
+| 8   | Global search palette, or remove the disabled field                                                                                                                                     | 2     | done              |
+| 9   | Channel disable warning with the scheduled count                                                                                                                                        | 2     | done              |
+| 10  | Incident alerts: dedupe, grouping, recovery, Settings → Уведомления                                                                                                                     | 2     | in progress       |
+| 11  | Retention policy for `job_attempts`, `incidents`, `audit_log`                                                                                                                           | 2     | waiting for owner |
 | 12  | Calendar                                                                                                                                                                                | 3     | not started       |
 | 13  | Analytics snapshot schema and Studio-owned publication analytics                                                                                                                        | 3     | not started       |
 | 14  | Telegram native statistics feasibility proof                                                                                                                                            | 3     | not started       |

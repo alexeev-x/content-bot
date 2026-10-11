@@ -1,7 +1,11 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { testDb } from '../../../../tests/helpers/db';
 import { resetDb, START } from '../../../../tests/helpers/harness';
-import { createD1DestinationRepository, listDestinationsSql } from './d1-destination-repository';
+import {
+  createD1DestinationRepository,
+  listDestinationsSql,
+  WAITING_PUBLICATION_COUNT_SQL
+} from './d1-destination-repository';
 
 beforeEach(resetDb);
 
@@ -29,6 +33,19 @@ describe('destination list query plans', () => {
     const plan = results.map((row) => row.detail).join('\n');
     expect(plan).toContain(expected);
     expect(plan).not.toContain('TEMP B-TREE');
+  });
+});
+
+describe('scheduled count query plan', () => {
+  it('seeks publications by destination index and joins jobs by publication id', async () => {
+    const { results } = await testDb()
+      .prepare(`EXPLAIN QUERY PLAN ${WAITING_PUBLICATION_COUNT_SQL}`)
+      .bind('0b1f6c52-8d3e-4a47-9a35-2f6f0c1d7e90')
+      .all<{ detail: string }>();
+
+    const plan = results.map((row) => row.detail).join('\n');
+    expect(plan).toContain('SEARCH p USING COVERING INDEX publications_destination_idx');
+    expect(plan).toContain('SEARCH j USING INDEX jobs_publication_idx');
   });
 });
 

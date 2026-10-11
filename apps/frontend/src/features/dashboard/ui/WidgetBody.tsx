@@ -39,15 +39,15 @@ export function WidgetBody({ widget, env }: Props) {
 
   switch (widget.type) {
     case 'kpi-summary':
-      return <Kpis view={view} now={now} />;
+      return <Kpis view={view} now={now} timezone={env.timezone} />;
     case 'kpi-today':
-      return <Kpis view={view} now={now} only="today" />;
+      return <Kpis view={view} now={now} timezone={env.timezone} only="today" />;
     case 'kpi-sent':
-      return <Kpis view={view} now={now} only="sent" />;
+      return <Kpis view={view} now={now} timezone={env.timezone} only="sent" />;
     case 'kpi-attention':
-      return <Kpis view={view} now={now} only="attention" />;
+      return <Kpis view={view} now={now} timezone={env.timezone} only="attention" />;
     case 'kpi-next':
-      return <Kpis view={view} now={now} only="next" />;
+      return <Kpis view={view} now={now} timezone={env.timezone} only="next" />;
     case 'attention':
       return (
         <AttentionPanel
@@ -68,6 +68,7 @@ export function WidgetBody({ widget, env }: Props) {
           narrow={narrow}
           {...(rows ? { capacity: rows } : {})}
           now={now}
+          timezone={env.timezone}
           onOpenPublication={env.onOpenPublication}
           onNewPost={env.onNewPost}
         />
@@ -79,6 +80,7 @@ export function WidgetBody({ widget, env }: Props) {
           narrow={narrow}
           {...(rows ? { capacity: rows } : {})}
           now={now}
+          timezone={env.timezone}
           onOpenPublication={env.onOpenPublication}
           onCreate={env.onOpenPosts}
         />
@@ -91,6 +93,7 @@ export function WidgetBody({ widget, env }: Props) {
           narrow={narrow}
           {...(tableRows ? { capacity: tableRows } : {})}
           now={now}
+          timezone={env.timezone}
           onOpenPublication={env.onOpenPublication}
         />
       );
@@ -110,7 +113,11 @@ export function WidgetBody({ widget, env }: Props) {
         <DraftsWidget narrow={narrow} capacity={listRows} onContinue={env.onOpenPost} onNewPost={env.onNewPost} />
       );
     case 'week':
-      return skeleton ? <WeekPanel days={undefined} limit={0} /> : <WeekWidget now={now} />;
+      return skeleton ? (
+        <WeekPanel days={undefined} limit={0} timezone={env.timezone ?? 'Europe/Moscow'} />
+      ) : (
+        <WeekWidget now={now} timezone={env.timezone ?? 'Europe/Moscow'} />
+      );
     case 'channels': {
       const bot = env.services?.find((service) => service.id === 'bot');
       return skeleton ? (

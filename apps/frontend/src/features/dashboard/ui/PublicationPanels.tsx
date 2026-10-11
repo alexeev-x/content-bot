@@ -45,12 +45,22 @@ type TodayProps = {
   /** Rows that fit the widget (the grid height); without it the phone and desktop defaults apply. */
   capacity?: number;
   now: Date;
+  timezone?: string;
   onOpenPublication: Open;
   onNewPost: () => void;
 };
 
 /** Today's timeline, earliest first. A sent row says «Опубликовано» only because the server said `sent`. */
-export function TodayPanel({ items, total, narrow, capacity, now, onOpenPublication, onNewPost }: TodayProps) {
+export function TodayPanel({
+  items,
+  total,
+  narrow,
+  capacity,
+  now,
+  timezone = 'Europe/Moscow',
+  onOpenPublication,
+  onNewPost
+}: TodayProps) {
   const reserve = capacity ?? (narrow ? 2 : 4);
   const shown = items?.slice(0, reserve);
   return (
@@ -82,14 +92,17 @@ export function TodayPanel({ items, total, narrow, capacity, now, onOpenPublicat
                 title={item.postTitle}
                 media={<RowTile size={44} />}
                 meta={
-                  <PhoneMeta status={item.status} text={`${formatClock(item.scheduledAt)} · ${item.destinationName}`} />
+                  <PhoneMeta
+                    status={item.status}
+                    text={`${formatClock(item.scheduledAt, timezone)} · ${item.destinationName}`}
+                  />
                 }
                 {...(item.status === 'unknown' ? { warning: copy.attention.unknownTag } : {})}
                 onPress={() => onOpenPublication(item.publicationId)}
               />
             ) : (
               <PanelRow key={item.publicationId}>
-                <TimeCell iso={item.scheduledAt} now={now} />
+                <TimeCell iso={item.scheduledAt} now={now} timezone={timezone} />
                 <RowTile />
                 <TitleLink item={item} />
                 <span className={styles.statusCol}>
@@ -109,12 +122,21 @@ type UpcomingProps = {
   narrow: boolean;
   capacity?: number;
   now: Date;
+  timezone?: string;
   onOpenPublication: Open;
   onCreate: () => void;
 };
 
 /** The next publications after today, with the time left. */
-export function UpcomingPanel({ items, narrow, capacity, now, onOpenPublication, onCreate }: UpcomingProps) {
+export function UpcomingPanel({
+  items,
+  narrow,
+  capacity,
+  now,
+  timezone = 'Europe/Moscow',
+  onOpenPublication,
+  onCreate
+}: UpcomingProps) {
   const reserve = capacity ?? (narrow ? 2 : 4);
   const shown = items?.slice(0, reserve);
   return (
@@ -153,14 +175,14 @@ export function UpcomingPanel({ items, narrow, capacity, now, onOpenPublication,
                 meta={
                   <PhoneMeta
                     status={item.status}
-                    text={`${formatDayClock(item.scheduledAt)} · ${item.destinationName}`}
+                    text={`${formatDayClock(item.scheduledAt, timezone)} · ${item.destinationName}`}
                   />
                 }
                 onPress={() => onOpenPublication(item.publicationId)}
               />
             ) : (
               <PanelRow key={item.publicationId}>
-                <TimeCell iso={item.scheduledAt} now={now} withDay />
+                <TimeCell iso={item.scheduledAt} now={now} withDay timezone={timezone} />
                 <RowTile />
                 <TitleLink item={item} />
                 <span className={styles.until}>{untilShort(item.scheduledAt, now)}</span>
@@ -188,11 +210,19 @@ type RecentProps = {
   narrow: boolean;
   capacity?: number;
   now: Date;
+  timezone?: string;
   onOpenPublication: Open;
 };
 
 /** The last sent publications; the Telegram link exists only when the server could build a public one. */
-export function RecentPanel({ items, narrow, capacity, now, onOpenPublication }: RecentProps) {
+export function RecentPanel({
+  items,
+  narrow,
+  capacity,
+  now,
+  timezone = 'Europe/Moscow',
+  onOpenPublication
+}: RecentProps) {
   const reserve = capacity ?? (narrow ? 2 : 5);
   const shown = items?.slice(0, reserve);
   return (
@@ -213,7 +243,7 @@ export function RecentPanel({ items, narrow, capacity, now, onOpenPublication }:
                 key={item.publicationId}
                 title={item.postTitle}
                 media={<RowTile size={44} />}
-                meta={<PhoneMeta status={item.status} text={recentTime(item.sentAt, now)} />}
+                meta={<PhoneMeta status={item.status} text={recentTime(item.sentAt, now, timezone)} />}
                 onPress={() => onOpenPublication(item.publicationId)}
               />
             ))}
@@ -237,9 +267,9 @@ export function RecentPanel({ items, narrow, capacity, now, onOpenPublication }:
               {shown.map((item) => (
                 <tr key={item.publicationId}>
                   <td className={styles.mono}>
-                    <time dateTime={item.sentAt} title={fullTime(item.sentAt)}>
-                      {recentTime(item.sentAt, now)}
-                      <VisuallyHidden>{`, ${fullTime(item.sentAt)}`}</VisuallyHidden>
+                    <time dateTime={item.sentAt} title={fullTime(item.sentAt, timezone)}>
+                      {recentTime(item.sentAt, now, timezone)}
+                      <VisuallyHidden>{`, ${fullTime(item.sentAt, timezone)}`}</VisuallyHidden>
                     </time>
                   </td>
                   <td>

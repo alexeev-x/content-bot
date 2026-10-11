@@ -11,7 +11,10 @@ interface SettingRow {
 // the read path reports, so the owner can always repair such a row with an ordinary save.
 const AT_REVISION = `(revision = ?2 OR (?2 = 1 AND NOT (typeof(revision) = 'integer' AND revision BETWEEN 1 AND 9007199254740991)))`;
 
-const AUDIT_ACTIONS: Record<SettingKey, string> = { appearance: 'settings.appearance.update' };
+const AUDIT_ACTIONS: Record<SettingKey, string> = {
+  appearance: 'settings.appearance.update',
+  operations: 'settings.operations.update'
+};
 
 export function createD1SettingsRepository(db: D1Database): SettingsRepository {
   return {

@@ -37,7 +37,7 @@ export function DashboardLayout({ widgets, env, loading, banner, zoneNote, defau
         </VisuallyHidden>
       ) : null}
       {banner}
-      <DateChip placement="below" zoneNote={zoneNote} />
+      <DateChip placement="below" zoneNote={zoneNote} timezone={env.timezone} />
       <WidgetGrid widgets={widgets} phone={phone} defaultOverview={defaultOverview} label={copy.edit.gridLabel}>
         {(widget) => <WidgetBody widget={widget} env={full} />}
       </WidgetGrid>

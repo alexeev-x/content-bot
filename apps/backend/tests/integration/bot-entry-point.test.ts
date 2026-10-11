@@ -233,6 +233,21 @@ describe('the owner commands over the webhook', () => {
   });
 
   it('/today uses the zone of the latest publication', async () => {
+    await api.request('/api/v1/settings/operations', {
+      method: 'PUT',
+      json: {
+        revision: 0,
+        timezone: 'Asia/Tokyo',
+        notifications: {
+          warningsEnabled: true,
+          publicationAlerts: true,
+          sourceAlerts: true,
+          automationAlerts: true,
+          recoveryAlerts: true,
+          dotaWatchlistAlerts: true
+        }
+      }
+    });
     const post = await seedApprovedPost(api, 'Токио');
     const channel = await seedDestination(api);
     await seedPublication(api, {

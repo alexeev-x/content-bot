@@ -20,7 +20,9 @@ import {
   type PageBindings,
   type ServiceRow
 } from '../features/dashboard';
-import { browserTimeZone, utcOffsetLabel } from '../features/publications';
+import { useOwnerTimezone } from '../features/owner-settings';
+import { utcOffsetLabel } from '../shared/lib/owner-timezone';
+import { useNow } from '../shared/lib/use-now';
 import { checkWord, isSwitchedOff, useServiceChecks } from '../features/system-health';
 import { ru } from '../shared/lib/ru';
 import { Banner, Button, PageHeader, useToast } from '../shared/ui';
@@ -48,17 +50,16 @@ export function DashboardPage({ pollMs }: Props) {
     void queryClient.invalidateQueries({ queryKey: dashboardKeys.all });
   };
   const layout = useDashboardLayout();
+  const timezone = useOwnerTimezone();
+  const now = useNow();
   const editor = useLayoutEditor({ current: layout.widgets, revision: layout.revision });
   // The day summary is read only while the page (or the draft being edited) has widgets that need it.
   const wantsDay = layout.settled && (editor.draft ?? layout.widgets).some((widget) => readsDashboard(widget.type));
-  const dashboard = useDashboardQuery(pollMs, wantsDay);
+  const dashboard = useDashboardQuery(pollMs, wantsDay, timezone);
   const service = useServiceChecks();
   const bot = useBotCheck();
   const checks = [...service.checks, bot];
-  const [zoneNote] = useState(() => {
-    const zone = browserTimeZone();
-    return `${zone}, ${utcOffsetLabel(new Date(), zone)}`;
-  });
+  const zoneNote = `${timezone}, ${utcOffsetLabel(now, timezone)}`;
   const services: ServiceRow[] = checks.map((check) => ({
     id: check.id,
     name: check.name,
@@ -80,6 +81,7 @@ export function DashboardPage({ pollMs }: Props) {
     checks,
     services,
     zoneNote,
+    timezone,
     onOpenPublication: (id) => void navigate({ to: '/publications', search: { id } }),
     onNewPost: () => void navigate({ to: '/posts/new' }),
     onOpenPosts: () => void navigate({ to: '/posts' }),
@@ -98,7 +100,7 @@ export function DashboardPage({ pollMs }: Props) {
         description={ru.dashboard.description}
         actions={
           <>
-            <DateChip placement="header" zoneNote={zoneNote} />
+            <DateChip placement="header" zoneNote={zoneNote} timezone={timezone} />
             <Button icon="plus" onPress={() => void navigate({ to: '/posts/new' })}>
               Новый пост
             </Button>
@@ -172,6 +174,7 @@ export function DashboardPage({ pollMs }: Props) {
         }}
       />
       <PublishPostDialog
+        timezone={timezone}
         isOpen={quick === 'publish'}
         onOpenChange={closeQuick}
         onOpenPosts={() => {

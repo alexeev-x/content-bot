@@ -11,6 +11,8 @@ export type WidgetEnv = {
   skeleton: boolean;
   now: Date;
   phone: boolean;
+  /** Owner timezone for calendar projections and date links. */
+  timezone?: string;
   onOpenPublication: (publicationId: string) => void;
   onNewPost: () => void;
   onOpenPosts: () => void;

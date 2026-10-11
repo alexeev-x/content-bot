@@ -141,9 +141,10 @@ Schemas and per-endpoint error codes: `apps/contracts/src/publications.ts`, `app
 | `POST /api/v1/destinations` | Add a Telegram channel or group (`Idempotency-Key` required); a chat id already in use is `409` `CHAT_ID_TAKEN` |
 | `POST /api/v1/destinations/check` | Before saving: Telegram title and type of the chat, whether this environment's bot can post there (`problem`: not a member / not an admin / cannot post), the canonical numeric id, and whether it is already added. Nothing is stored; 20 checks per 10 minutes |
 | `GET /api/v1/destinations`, `GET /api/v1/destinations/{id}` | Destinations ordered by title, optional `enabled` filter |
+| `GET /api/v1/destinations/{id}/scheduled-count` | Fresh D1 count of pending (scheduled or queued) and retry-wait publications for the disable confirmation; excludes sends already claimed and terminal publications |
 | `PATCH /api/v1/destinations/{id}` | Rename, change chat id (group migrated to a supergroup), enable/disable; current `revision` in the body |
 | `POST /api/v1/publications` | Schedule an approved post revision to an enabled destination. A time up to 5 minutes in the past means "send now"; more than 366 days ahead is `400` `SCHEDULE_OUT_OF_RANGE`. A draft is `409` `POST_NOT_APPROVED`, a newer post revision `409` `STALE_REVISION`, a disabled destination `409` `DESTINATION_DISABLED` |
-| `GET /api/v1/publications`, `GET /api/v1/publications/{id}` | Latest scheduled time first; filters `status`, `postId`, `destinationId` |
+| `GET /api/v1/publications`, `GET /api/v1/publications/{id}` | Latest scheduled time first; filters `status`, `statusGroup=errors` (failed + unknown), `postId`, `destinationId`, text `q`, and scheduled-time range `from`/`to`; list responses include `totalCount` matching every filter and exact `statusCounts` matching post, destination, text and time filters while ignoring the selected status/group |
 | `POST /api/v1/publications/{id}/delete` | Requires `{ revision }`; removes a single publication row only when its delivery job is final (`succeeded`, `failed`, `cancelled`). A stale revision is `409` `STALE_REVISION`; `pending`/`retry_wait` is `NOT_FINAL`, `claimed` is `PUBLICATION_IN_PROGRESS`, and `unknown` is `PUBLICATION_UNKNOWN`. Telegram messages are never deleted. Attempt and incident history remains; incidents are detached from the removed publication row. |
 | `POST /api/v1/publications/delete` | `{ items: [{ id, revision }] }`, 1–100 unique ids; one `deleted`/`refused` result per requested item in order. Final-state and revision guards are per item, so one refusal does not block others. Duplicate ids are `400` `DUPLICATE_IDS`. |
 | `POST /api/v1/publications/{id}/reschedule` | New time, only before sending starts (`scheduled`, `queued`, `retry_wait`); otherwise `409` `NOT_RESCHEDULABLE` |
@@ -162,6 +163,8 @@ Schemas and error codes: `apps/contracts/src/settings.ts`.
 |---|---|
 | `GET /api/v1/settings/appearance` | Theme mode (system/light/dark), accent for the light and the dark theme (a built-in preset or a custom one), up to 10 custom presets (name + base color). Never saved → defaults (system, cobalt/cobalt, no custom presets, revision 0) |
 | `PUT /api/v1/settings/appearance` | Replaces the whole document; the current `revision` goes in the body. Stale → `409` `STALE_REVISION`; an accent pointing to a custom preset that is not in the list → `400` `UNKNOWN_CUSTOM_PRESET`; repeated preset id → `400` `DUPLICATE_PRESET_ID`; body over 8 KB → `413` |
+| `GET /api/v1/settings/operations` | Owner timezone and notification preferences; never saved → `Europe/Moscow`, enabled notification preferences and revision 0. The UI uses this shared timezone for scheduling and the dashboard's local-day range; Telegram `/today` and `/next` use it too |
+| `PUT /api/v1/settings/operations` | Replaces the complete timezone and notification-preference document using its current `revision`; stale or concurrent saves return `409` `STALE_REVISION` |
 
 The light and dark accent shades of a custom preset are derived on the client from its base color; the server stores only the base color.
 

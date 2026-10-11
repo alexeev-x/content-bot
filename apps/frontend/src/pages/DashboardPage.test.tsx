@@ -11,7 +11,7 @@ import { renderPage } from '../test/render-app';
 import { clearViewport, setViewport } from '../test/viewport';
 import { DashboardPage } from './DashboardPage';
 
-// The owner's zone is the browser's: pin it so «09:00» below means 06:00 UTC.
+// The owner default is Europe/Moscow; the browser is deliberately set to a different zone.
 process.env['TZ'] = 'Europe/Chisinau';
 
 setupMswServer();
@@ -106,7 +106,7 @@ describe('dashboard blocks', () => {
     expect(rows[1]?.textContent).toContain('Запланировано');
     // The scheduled row never claims «Опубликовано»: only the server's `sent` does.
     expect(rows[1]?.textContent).not.toContain('Опубликовано');
-    expect(document.querySelector('[title="Europe/Chisinau, UTC+3"]')).not.toBeNull();
+    expect(document.querySelector('[title="Europe/Moscow, UTC+3"]')).not.toBeNull();
   });
 
   it('skeleton panels reserve the same rows as the loaded panels, so nothing jumps when the data arrives', async () => {

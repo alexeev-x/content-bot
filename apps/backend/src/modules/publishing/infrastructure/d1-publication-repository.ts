@@ -100,8 +100,9 @@ function toRecord(row: PublicationRow): PublicationRecord {
 // fragments are joined; every value is bound.
 export function listPublicationsSql(query: ListPublicationsQuery): { sql: string; bindings: (string | number)[] } {
   const byJobs =
-    query.status !== undefined &&
-    !(query.status === 'sent' && (query.postId !== undefined || query.destinationId !== undefined));
+    (query.status !== undefined &&
+      !(query.status === 'sent' && (query.postId !== undefined || query.destinationId !== undefined))) ||
+    query.statusGroup !== undefined;
   const scheduledAt = byJobs ? 'j.publication_scheduled_at' : 'p.scheduled_at';
   const id = byJobs ? 'j.publication_id' : 'p.id';
   const conditions: string[] = byJobs ? ["j.kind = 'publish'"] : [];
@@ -126,6 +127,7 @@ export function listPublicationsSql(query: ListPublicationsQuery): { sql: string
     conditions.push(condition.sql);
     if (condition.usesNow) bindings.push(query.now);
   }
+  if (query.statusGroup === 'errors') conditions.push("j.status IN ('failed', 'unknown')");
   if (query.from !== undefined) {
     conditions.push(`${scheduledAt} >= ?`);
     bindings.push(query.from);
@@ -151,6 +153,74 @@ export function listPublicationsSql(query: ListPublicationsQuery): { sql: string
     bindings
   };
 }
+
+function publicationSummarySql(
+  query: ListPublicationsQuery,
+  includeStatus: boolean
+): { sql: string; bindings: (string | number)[] } {
+  const conditions: string[] = [];
+  const bindings: (string | number)[] = [];
+  if (query.postId !== undefined) {
+    conditions.push('p.post_id = ?');
+    bindings.push(query.postId);
+  }
+  if (query.destinationId !== undefined) {
+    conditions.push('p.destination_id = ?');
+    bindings.push(query.destinationId);
+  }
+  if (query.q !== undefined) {
+    conditions.push(
+      'EXISTS (SELECT 1 FROM posts search_post WHERE search_post.id = p.post_id ' +
+        'AND (instr(lower(search_post.title), lower(?)) > 0 OR instr(lower(search_post.body), lower(?)) > 0))'
+    );
+    bindings.push(query.q, query.q);
+  }
+  if (query.from !== undefined) {
+    conditions.push('p.scheduled_at >= ?');
+    bindings.push(query.from);
+  }
+  if (query.to !== undefined) {
+    conditions.push('p.scheduled_at < ?');
+    bindings.push(query.to);
+  }
+  if (includeStatus && query.status !== undefined) {
+    const condition = jobConditionForStatus(query.status);
+    conditions.push(condition.sql);
+    if (condition.usesNow) bindings.push(query.now);
+  }
+  if (includeStatus && query.statusGroup === 'errors') conditions.push("j.status IN ('failed', 'unknown')");
+  const where = conditions.length === 0 ? '' : ` WHERE ${conditions.join(' AND ')}`;
+  if (includeStatus) {
+    return {
+      sql: `SELECT count(*) AS count ${FROM_PUBLICATIONS}${where}`,
+      bindings
+    };
+  }
+  const projectedStatus = `CASE
+    WHEN j.status = 'pending' AND j.run_at > ?1 THEN 'scheduled'
+    WHEN j.status = 'pending' THEN 'queued'
+    WHEN j.status = 'claimed' AND j.send_started_at IS NULL THEN 'preparing'
+    WHEN j.status = 'claimed' THEN 'sending'
+    WHEN j.status = 'succeeded' THEN 'sent'
+    ELSE j.status END`;
+  return {
+    sql: `SELECT ${projectedStatus} AS public_status, count(*) AS count
+      ${FROM_PUBLICATIONS}${where} GROUP BY ${projectedStatus}`,
+    bindings: [query.now, ...bindings]
+  };
+}
+
+const PUBLICATION_STATUS_COUNT_KEYS: readonly PublicationStatus[] = [
+  'scheduled',
+  'queued',
+  'preparing',
+  'sending',
+  'sent',
+  'retry_wait',
+  'failed',
+  'unknown',
+  'cancelled'
+];
 
 interface SummaryRow {
   post_id: string;
@@ -438,6 +508,29 @@ export function createD1PublicationRepository(db: D1Database): PublicationReposi
         .bind(...bindings)
         .all<PublicationRow>();
       return results.map(toRecord);
+    },
+
+    async listPage(query) {
+      const page = listPublicationsSql(query);
+      const total = publicationSummarySql(query, true);
+      const counts = publicationSummarySql(query, false);
+      const results = await db.batch([
+        db.prepare(page.sql).bind(...page.bindings),
+        db.prepare(total.sql).bind(...total.bindings),
+        db.prepare(counts.sql).bind(...counts.bindings)
+      ]);
+      const countRows = (results[2]?.results ?? []) as Array<{ public_status: PublicationStatus; count: number }>;
+      const statusCounts = Object.fromEntries(PUBLICATION_STATUS_COUNT_KEYS.map((status) => [status, 0])) as Record<
+        PublicationStatus,
+        number
+      >;
+      for (const row of countRows) statusCounts[row.public_status] = row.count;
+      const totalCount = ((results[1]?.results ?? []) as Array<{ count: number }>)[0]?.count ?? 0;
+      return {
+        items: ((results[0]?.results ?? []) as PublicationRow[]).map(toRecord),
+        totalCount,
+        statusCounts
+      };
     },
 
     async summarizeByPost(postIds, now) {

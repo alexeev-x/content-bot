@@ -11,10 +11,11 @@ type Props = {
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
   onOpenPosts: () => void;
+  timezone?: string;
 };
 
 /** «Опубликовать пост»: pick an approved post, then the existing publish dialog (channel, time, confirmation). */
-export function PublishPostDialog({ isOpen, onOpenChange, onOpenPosts }: Props) {
+export function PublishPostDialog({ isOpen, onOpenChange, onOpenPosts, timezone }: Props) {
   const posts = useInfiniteQuery({
     ...postsInfiniteQueryOptions({ view: 'live', status: 'approved' }),
     enabled: isOpen
@@ -82,7 +83,9 @@ export function PublishPostDialog({ isOpen, onOpenChange, onOpenPosts }: Props) 
           />
         )}
       </Dialog>
-      {chosen ? <PublishDialog post={chosen} isOpen={publishOpen} onOpenChange={setPublishOpen} /> : null}
+      {chosen ? (
+        <PublishDialog post={chosen} timezone={timezone} isOpen={publishOpen} onOpenChange={setPublishOpen} />
+      ) : null}
     </>
   );
 }

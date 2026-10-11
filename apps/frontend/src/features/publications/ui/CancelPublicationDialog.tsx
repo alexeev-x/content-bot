@@ -1,6 +1,6 @@
 import type { PublicationDto } from '@alexeev/contracts';
 import { useQueryClient } from '@tanstack/react-query';
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { Button, Dialog, Disclosure, useToast } from '../../../shared/ui';
 import { publicationKeys, useCancelPublication } from '../api/publications-queries';
 import { browserTimeZone, formatShort, formatUtc } from '../model/format-time';
@@ -14,12 +14,13 @@ type Props = {
   publication: PublicationDto;
   postTitle: string;
   destinationTitle: string | undefined;
+  timezone?: string;
   onOpenChange: (open: boolean) => void;
 };
 
 /** Destructive confirmation (alertdialog): names the post and the time, and the safe answer takes the initial focus. */
-export function CancelPublicationDialog({ publication, postTitle, destinationTitle, onOpenChange }: Props) {
-  const zone = useMemo(() => browserTimeZone(), []);
+export function CancelPublicationDialog({ publication, postTitle, destinationTitle, timezone, onOpenChange }: Props) {
+  const zone = timezone ?? browserTimeZone();
   const toast = useToast();
   const queryClient = useQueryClient();
   const cancel = useCancelPublication();

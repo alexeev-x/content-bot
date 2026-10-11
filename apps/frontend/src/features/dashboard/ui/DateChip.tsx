@@ -8,10 +8,11 @@ type Props = {
   placement: 'header' | 'below';
   /** «Europe/Chisinau, UTC+3»: the zone the time is shown in, as a tooltip. */
   zoneNote?: string;
+  timezone?: string;
 };
 
 /** «Вт, 7 окт. 2026 · 21:05»: minute precision, not a live region. */
-export function DateChip({ placement, zoneNote }: Props) {
+export function DateChip({ placement, zoneNote, timezone = 'Europe/Moscow' }: Props) {
   const now = useNow();
   return (
     <span
@@ -19,7 +20,7 @@ export function DateChip({ placement, zoneNote }: Props) {
       {...(zoneNote ? { title: zoneNote } : {})}
     >
       <Icon name="calendar" size={16} />
-      <time dateTime={now.toISOString()}>{dateChipText(now)}</time>
+      <time dateTime={now.toISOString()}>{dateChipText(now, timezone)}</time>
     </span>
   );
 }

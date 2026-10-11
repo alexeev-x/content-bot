@@ -172,6 +172,8 @@ export const ru = {
     navLabel: 'Разделы настроек',
     channels: 'Каналы',
     appearance: 'Оформление',
+    operations: 'Часовой пояс',
+    notifications: 'Уведомления',
     back: 'Настройки',
     description: 'Каналы публикации и внешний вид админки.'
   },

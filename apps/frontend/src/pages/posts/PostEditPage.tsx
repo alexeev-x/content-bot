@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
 import { useState } from 'react';
 import { displayStatus, PublishDialog } from '../../features/publications';
+import { useOwnerTimezone } from '../../features/owner-settings';
 import {
   DeletePostsDialog,
   deleteBlockOf,
@@ -165,6 +166,7 @@ function LoadedPost({ post }: { post: PostDto }) {
 
 function PublishAction({ post }: { post: PostDto }) {
   const navigate = useNavigate();
+  const timezone = useOwnerTimezone();
   const [isOpen, setOpen] = useState(false);
   const [published, setPublished] = useState<PublicationDto | null>(null);
   return (
@@ -178,7 +180,13 @@ function PublishAction({ post }: { post: PostDto }) {
           {copy.publications.created}: <StatusBadge status={displayStatus(published)} />
         </span>
       ) : null}
-      <PublishDialog post={post} isOpen={isOpen} onOpenChange={setOpen} onPublished={setPublished} />
+      <PublishDialog
+        post={post}
+        timezone={timezone}
+        isOpen={isOpen}
+        onOpenChange={setOpen}
+        onPublished={setPublished}
+      />
     </>
   );
 }

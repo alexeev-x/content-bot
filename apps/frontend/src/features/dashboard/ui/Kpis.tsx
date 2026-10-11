@@ -18,7 +18,7 @@ type Item = {
 
 export type KpiKey = 'today' | 'sent' | 'attention' | 'next';
 
-function items(view: DashboardView, now: Date): Item[] {
+function items(view: DashboardView, now: Date, timezone: string): Item[] {
   const { dashboard, attentionCount, sentToday } = view;
   const next = nextPublication(dashboard.today, dashboard.upcoming, now);
   return [
@@ -48,8 +48,8 @@ function items(view: DashboardView, now: Date): Item[] {
     {
       key: 'next',
       ...copy.kpi.next,
-      value: next ? formatClock(next.scheduledAt) : '—',
-      detail: next ? untilDetail(next.scheduledAt, now) : copy.kpi.next.detail,
+      value: next ? formatClock(next.scheduledAt, timezone) : '—',
+      detail: next ? untilDetail(next.scheduledAt, now, timezone) : copy.kpi.next.detail,
       icon: 'clock',
       ...(next ? { link: { to: '/publications' as const, search: { id: next.publicationId } } } : {})
     }
@@ -98,14 +98,15 @@ const KEYS: readonly KpiKey[] = ['today', 'sent', 'attention', 'next'];
 type KpisProps = {
   view: DashboardView | undefined;
   now: Date;
+  timezone?: string;
   /** One tile (the single-KPI widgets) instead of all four. */
   only?: KpiKey;
 };
 
 /** Four tiles filling their widget; while loading each keeps its label and swaps value and detail for skeletons. */
-export function Kpis({ view, now, only }: KpisProps) {
+export function Kpis({ view, now, only, timezone = 'Europe/Moscow' }: KpisProps) {
   const keys = only ? [only] : KEYS;
-  const loaded = view ? items(view, now).filter((item) => keys.includes(item.key as KpiKey)) : undefined;
+  const loaded = view ? items(view, now, timezone).filter((item) => keys.includes(item.key as KpiKey)) : undefined;
   const Tag = only ? 'div' : 'section';
   return (
     <Tag

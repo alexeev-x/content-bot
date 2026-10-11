@@ -1,7 +1,7 @@
 import type { PostDto } from '@alexeev/contracts';
 import { now, type ZonedDateTime } from '@internationalized/date';
 import { useQuery } from '@tanstack/react-query';
-import { useMemo, useState, type ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { browserTimeZone, formatWithZone } from '../model/format-time';
 import { defaultScheduledAt } from '../model/publish-form';
 import { publishDestinationsQueryOptions } from '../api/publications-queries';
@@ -25,11 +25,11 @@ const WHEN = [
   { id: 'later', label: 'Запланировать', icon: 'calendar' }
 ] as const;
 
-type Props = { post: PostDto; onBack: () => void; children: ReactNode };
+type Props = { post: PostDto; onBack: () => void; children: ReactNode; timezone?: string };
 
 /** In-page settings for the second editor screen. Sending remains behind PublishDialog's explicit final action. */
-export function PublicationSettings({ post, onBack, children }: Props) {
-  const timeZone = useMemo(() => browserTimeZone(), []);
+export function PublicationSettings({ post, onBack, children, timezone }: Props) {
+  const timeZone = timezone ?? browserTimeZone();
   const narrow = useMediaQuery('(max-width: 859px)');
   const destinations = useQuery(publishDestinationsQueryOptions());
   const [destinationId, setDestinationId] = useState('');
@@ -132,6 +132,7 @@ export function PublicationSettings({ post, onBack, children }: Props) {
       </footer>
       <PublishDialog
         post={post}
+        timezone={timeZone}
         isOpen={confirmOpen}
         onOpenChange={setConfirmOpen}
         initialSettings={{ destinationId: selectedDestinationId, mode, scheduledAt }}

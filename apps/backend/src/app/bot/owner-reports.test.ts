@@ -20,7 +20,21 @@ function reports(over: Partial<OwnerReportDeps> & { unknown?: number; failed?: n
         queries.push(`upcoming ${limit}`);
         return Promise.resolve([]);
       },
-      summarizeRange: () => Promise.reject(new Error('unexpected'))
+      summarizeRange: () =>
+        Promise.resolve({
+          counts: {
+            scheduled: 0,
+            queued: 0,
+            preparing: 0,
+            sending: 0,
+            sent: 0,
+            retry_wait: 0,
+            failed: 0,
+            unknown: 0,
+            cancelled: 0
+          },
+          nextWaitingAt: null
+        })
     },
     incidents: {
       countOpenIncidents: (limit) => {
@@ -75,5 +89,17 @@ describe('/next', () => {
       button: { text: 'Все запланированные', url: 'https://studio.example.com/publications?status=scheduled' }
     });
     expect(queries.sort()).toEqual(['list latest limit 1', 'upcoming 5']);
+  });
+
+  it('uses the owner operations timezone ahead of a publication-specific legacy timezone', async () => {
+    const { reports: r, queries } = reports({
+      zone: 'America/New_York',
+      ownerTimezone: () => Promise.resolve('Europe/Chisinau')
+    });
+
+    const answer = await r.today();
+
+    expect(answer.html).toContain('(Europe/Chisinau)');
+    expect(queries).not.toContain('list latest limit 1');
   });
 });

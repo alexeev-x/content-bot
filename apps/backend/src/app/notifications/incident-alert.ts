@@ -43,3 +43,18 @@ export function formatIncidentAlert(alert: RaisedIncident, appOrigin: string): I
   }
   return { html: lines.join('\n'), button: { text: OPEN_BUTTON_TEXT, url: openUrl(alert, appOrigin) } };
 }
+
+export function formatIncidentAlertGroup(
+  alerts: readonly RaisedIncident[],
+  appOrigin: string
+): IncidentAlertMessage | null {
+  const first = alerts[0];
+  if (first === undefined) return null;
+  if (alerts.length === 1) return formatIncidentAlert(first, appOrigin);
+
+  const entries = alerts.map((alert) => formatIncidentAlert(alert, appOrigin).html);
+  return {
+    html: `<b>Сводка: ${alerts.length} инцидента</b>\n\n${entries.join('\n\n— — —\n\n')}`,
+    button: { text: OPEN_BUTTON_TEXT, url: `${appOrigin}/incidents` }
+  };
+}

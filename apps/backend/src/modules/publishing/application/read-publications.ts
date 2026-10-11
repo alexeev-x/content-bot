@@ -16,8 +16,9 @@ export async function listPublications(
   if (key === null) throw new AppError('VALIDATION_ERROR', 'Invalid cursor', { field: 'cursor' });
 
   // One extra row tells whether another page exists without a second query.
-  const rows = await deps.repo.list({
+  const pageQuery = {
     status: query.status,
+    statusGroup: query.statusGroup,
     postId: query.postId,
     destinationId: query.destinationId,
     q: query.q,
@@ -27,12 +28,17 @@ export async function listPublications(
     after: key === undefined ? undefined : { scheduledAt: key[0], id: key[1] },
     limit: query.limit + 1,
     now: deps.now
-  });
+  };
+  const result = await deps.repo.listPage(pageQuery);
+  const rows = result.items;
   const page = rows.slice(0, query.limit);
   const last = page.at(-1);
   return {
     items: page.map((record) => toPublicationDto(record, deps.now)),
-    nextCursor: rows.length > query.limit && last !== undefined ? encodeKeysetCursor([last.scheduledAt, last.id]) : null
+    nextCursor:
+      rows.length > query.limit && last !== undefined ? encodeKeysetCursor([last.scheduledAt, last.id]) : null,
+    totalCount: result.totalCount,
+    statusCounts: result.statusCounts
   };
 }
 

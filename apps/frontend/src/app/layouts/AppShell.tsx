@@ -20,7 +20,7 @@ type Props = {
   ownerLoading?: boolean;
   /** Signs the owner out; without it the owner menu has no «Выйти». */
   onLogout?: () => void;
-  /** Opens the command palette. Without it the search entry is a disabled placeholder. */
+  /** Opens the command palette; the entry is hidden until real search is available. */
   onOpenSearch?: () => void;
   /** Slot left of the owner menu in the top bar (the theme toggle); built by the frontend role. */
   topBarTools?: ReactNode;
@@ -252,7 +252,7 @@ export function AppShell({
             </div>
             <AriaButton
               className={styles.search}
-              isDisabled={!onOpenSearch}
+              hidden={!onOpenSearch}
               onPress={onOpenSearch}
               aria-label={ru.shell.searchPlaceholder}
             >

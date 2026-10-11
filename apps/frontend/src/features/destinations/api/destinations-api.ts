@@ -2,6 +2,7 @@ import {
   destinationCheckSchema,
   destinationPageSchema,
   destinationSchema,
+  scheduledPublicationCountSchema,
   type checkDestinationInputSchema,
   type createDestinationInputSchema,
   type updateDestinationInputSchema
@@ -14,6 +15,7 @@ export type DestinationFilters = { enabled?: boolean | undefined };
 export type CheckDestinationBody = z.input<typeof checkDestinationInputSchema>;
 export type CreateDestinationBody = z.input<typeof createDestinationInputSchema>;
 export type UpdateDestinationBody = z.input<typeof updateDestinationInputSchema>;
+export type ScheduledPublicationCount = z.infer<typeof scheduledPublicationCountSchema>;
 
 export function listDestinations(filters: DestinationFilters, cursor: string | undefined, signal?: AbortSignal) {
   const query = buildQuery({
@@ -26,6 +28,12 @@ export function listDestinations(filters: DestinationFilters, cursor: string | u
 
 export function getDestination(id: string, signal?: AbortSignal) {
   return apiRequest(`/api/v1/destinations/${encodeURIComponent(id)}`, destinationSchema, { signal });
+}
+
+export function getScheduledPublicationCount(id: string, signal?: AbortSignal) {
+  return apiRequest(`/api/v1/destinations/${encodeURIComponent(id)}/scheduled-count`, scheduledPublicationCountSchema, {
+    signal
+  });
 }
 
 export function createDestination(input: CreateDestinationBody, idempotencyKey: string) {

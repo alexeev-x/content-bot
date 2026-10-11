@@ -70,6 +70,20 @@ describe('the owner alert of a failed or unknown publication', () => {
     expect(await notifiedAt(jobId)).toBe(START);
   });
 
+  it('groups a burst from one dispatch tick into one message with all affected posts', async () => {
+    await seedDueJob(api, { title: 'Patch 7.40' });
+    await seedDueJob(api, { title: 'Weekly recap' });
+    const tick = makeTick({ clock, transport: fakeTransport(REJECTED) });
+
+    await tick.run();
+
+    expect(tick.ownerMessages).toHaveLength(1);
+    expect(tick.ownerMessages[0]?.html).toContain('Сводка: 2 инцидента');
+    expect(tick.ownerMessages[0]?.html).toContain('Patch 7.40');
+    expect(tick.ownerMessages[0]?.html).toContain('Weekly recap');
+    expect(tick.ownerMessages[0]?.button.url).toBe(`${ORIGIN}/incidents`);
+  });
+
   it('says that the send is unconfirmed, and that it will not be repeated, when the outcome is unknown', async () => {
     const { publicationId } = await seedDueJob(api);
     const tick = makeTick({ clock, transport: fakeTransport({ kind: 'unknown', reason: 'timeout' }) });

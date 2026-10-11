@@ -1,7 +1,7 @@
 import type { PublicationDto, ResolveUnknownOutcome } from '@alexeev/contracts';
 import { now, type ZonedDateTime } from '@internationalized/date';
 import { useQueryClient } from '@tanstack/react-query';
-import { useId, useMemo, useState } from 'react';
+import { useId, useState } from 'react';
 import { ru } from '../../../shared/lib/ru';
 import { Button, DateTimeField, Dialog, TextArea, useToast } from '../../../shared/ui';
 import type { ResolveUnknownBody } from '../api/publications-api';
@@ -21,6 +21,7 @@ type Props = {
   publication: PublicationDto;
   /** Telegram chat id of the destination: lets the link check refuse a message from another channel. */
   chatId?: string | undefined;
+  timezone?: string;
   onOpenChange: (open: boolean) => void;
 };
 
@@ -53,9 +54,9 @@ function toastFor(updated: PublicationDto, zone: string): { title: string; descr
 }
 
 /** One confirm dialog per outcome of the manual reconciliation. Mounted only while open, so typed input survives errors. */
-export function ResolveUnknownDialog({ outcome, publication, chatId, onOpenChange }: Props) {
+export function ResolveUnknownDialog({ outcome, publication, chatId, timezone, onOpenChange }: Props) {
   const formId = useId();
-  const zone = useMemo(() => browserTimeZone(), []);
+  const zone = timezone ?? browserTimeZone();
   const toast = useToast();
   const queryClient = useQueryClient();
   const resolve = useResolveUnknownPublication();

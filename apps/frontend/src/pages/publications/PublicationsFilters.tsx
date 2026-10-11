@@ -12,6 +12,13 @@ export const orderOptions = [
   { id: 'asc', label: copy.sortOldest }
 ];
 
+export const periodOptions = [
+  { id: 'all', label: 'За всё время' },
+  { id: 'today', label: 'Сегодня' },
+  { id: '7d', label: '7 дней' },
+  { id: '30d', label: '30 дней' }
+];
+
 /**
  * Desktop: an always-visible search field in the panel header (owner, 08.10.2026). The page filters the loaded
  * rows while typing: a keystroke is not a request.

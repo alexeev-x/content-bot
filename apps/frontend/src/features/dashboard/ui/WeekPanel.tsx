@@ -5,9 +5,6 @@ import { copy } from './copy';
 import styles from './Dashboard.module.css';
 import { EmptyLine, PanelLink, Section } from './DashboardPanel';
 
-const weekday = new Intl.DateTimeFormat('ru-RU', { weekday: 'short' });
-const dayMonth = new Intl.DateTimeFormat('ru-RU', { day: 'numeric', month: 'short' });
-
 type Props = {
   /** Seven days with their scheduled counts; undefined while loading. */
   days: readonly WeekDay[] | undefined;
@@ -16,10 +13,13 @@ type Props = {
   /** The page of publications was full: the counts are a lower bound. */
   truncated?: boolean;
   limit: number;
+  timezone?: string;
 };
 
 /** The next 7 days as a strip: weekday, date and the scheduled count; empty days stay visible with a zero. */
-export function WeekPanel({ days, failed, onRetry, truncated, limit }: Props) {
+export function WeekPanel({ days, failed, onRetry, truncated, limit, timezone = 'Europe/Moscow' }: Props) {
+  const weekday = new Intl.DateTimeFormat('ru-RU', { weekday: 'short', timeZone: timezone });
+  const dayMonth = new Intl.DateTimeFormat('ru-RU', { day: 'numeric', month: 'short', timeZone: timezone });
   return (
     <Section
       area="week"
@@ -53,15 +53,14 @@ export function WeekPanel({ days, failed, onRetry, truncated, limit }: Props) {
                   const name = `${weekday.format(day.start)}, ${dayMonth.format(day.start)}`;
                   return (
                     <li key={day.start.toISOString()} className={styles.weekItem}>
-                      {/* A date filter on the list does not exist yet, so every day opens the same list. */}
                       <Link
                         to="/publications"
-                        search={{ view: 'upcoming' }}
+                        search={{ view: 'upcoming', from: day.from, to: day.to }}
                         className={styles.weekDay}
                         data-today={day.isToday || undefined}
                         data-empty={day.count === 0 || undefined}
                         aria-label={copy.week.dayLabel(name, day.count)}
-                        title={copy.week.hint}
+                        title={`${name}, ${timezone}`}
                       >
                         <span className={styles.weekName}>{weekday.format(day.start)}</span>
                         <span className={styles.weekDate}>{day.start.getDate()}</span>

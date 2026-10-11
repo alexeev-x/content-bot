@@ -1,12 +1,13 @@
 import type { DestinationDto } from '@alexeev/contracts';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useIsFetching, useQueryClient } from '@tanstack/react-query';
+import { useIsFetching, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRef, useState } from 'react';
 import { Controller, useForm, useWatch } from 'react-hook-form';
 import { z } from 'zod';
 import { useClosingConfirmation } from '../../../shared/telegram/use-closing-confirmation';
 import { Banner, Button, Switch, TextField, useToast } from '../../../shared/ui';
 import { destinationKeys, useUpdateDestination } from '../api/destinations-queries';
+import { getScheduledPublicationCount } from '../api/destinations-api';
 import { displayChatId, parseChatId } from '../model/chat-id';
 import { describeFailure, type RequestFailure } from '../model/check-failure';
 import { DESTINATION_TITLE_MAX } from '../model/title';
@@ -58,6 +59,13 @@ export function ChannelEditor({ destination, onOpenOther, onRightsKnown }: Props
   });
   const watchedTitle = useWatch({ control: form.control, name: 'title' });
   const refreshing = useIsFetching({ queryKey: destinationKeys.detail(destination.id) }) > 0;
+  const waitingCount = useQuery({
+    queryKey: [...destinationKeys.detail(destination.id), 'scheduled-count'],
+    queryFn: ({ signal }) => getScheduledPublicationCount(destination.id, signal),
+    enabled: false,
+    retry: false,
+    staleTime: 0
+  });
   const busy = saveMutation.isPending || toggleMutation.isPending || chatMutation.isPending;
   const titleDirty = watchedTitle.trim() !== destination.title;
   useClosingConfirmation(titleDirty);
@@ -99,6 +107,12 @@ export function ChannelEditor({ destination, onOpenOther, onRightsKnown }: Props
         onError: (error) => handleFailure(error, setToggleFailure)
       }
     );
+  }
+
+  async function prepareDisable() {
+    const result = await waitingCount.refetch();
+    if (result.isError || !result.data) return;
+    setConfirmingDisable(true);
   }
 
   function checkRights() {
@@ -218,13 +232,25 @@ export function ChannelEditor({ destination, onOpenOther, onRightsKnown }: Props
         <div ref={switchRef}>
           <Switch
             isSelected={destination.enabled}
-            isDisabled={busy || refreshing || confirmingDisable}
-            onChange={(next) => (next ? setEnabled(true) : setConfirmingDisable(true))}
+            isDisabled={busy || refreshing || confirmingDisable || waitingCount.isFetching}
+            onChange={(next) => (next ? setEnabled(true) : void prepareDisable())}
           >
             {copy.enabledLabel}
           </Switch>
         </div>
         <p className={styles.hint}>{copy.enabledHint}</p>
+        {waitingCount.isFetching ? <output>{copy.countLoading}</output> : null}
+        {waitingCount.isError ? (
+          <Banner
+            tone="error"
+            title={copy.countFailed}
+            action={
+              <Button size="sm" variant="secondary" onPress={() => void prepareDisable()}>
+                {copy.retryCount}
+              </Button>
+            }
+          />
+        ) : null}
         {confirmingDisable ? (
           <Banner
             tone="warning"
@@ -256,7 +282,7 @@ export function ChannelEditor({ destination, onOpenOther, onRightsKnown }: Props
               </div>
             }
           >
-            <p>{copy.disableBody}</p>
+            <p>{copy.disableBody(waitingCount.data?.count ?? 0)}</p>
           </Banner>
         ) : null}
         {toggleFailure ? <FailureBanner failure={toggleFailure} message={copy.saveFailed} /> : null}

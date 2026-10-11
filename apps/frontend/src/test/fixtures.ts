@@ -6,6 +6,7 @@ import type {
   PostDto,
   PostPublicationSummary,
   PublicationDto,
+  PublicationStatusCounts,
   TelegramWidgetSignInInput
 } from '@alexeev/contracts';
 
@@ -94,6 +95,58 @@ export const publication = (overrides: Partial<PublicationDto> = {}): Publicatio
   createdAt: T,
   updatedAt: T,
   ...overrides
+});
+
+export const publicationStatusCounts = (overrides: Partial<PublicationStatusCounts> = {}): PublicationStatusCounts => ({
+  scheduled: 0,
+  queued: 0,
+  preparing: 0,
+  sending: 0,
+  sent: 0,
+  retry_wait: 0,
+  failed: 0,
+  unknown: 0,
+  cancelled: 0,
+  ...overrides
+});
+
+export const publicationPage = (
+  items: PublicationDto[],
+  options: { nextCursor?: string | null; totalCount?: number; statusCounts?: Partial<PublicationStatusCounts> } = {}
+) => ({
+  items,
+  nextCursor: options.nextCursor ?? null,
+  totalCount: options.totalCount ?? items.length,
+  statusCounts: publicationStatusCounts(options.statusCounts)
+});
+
+export const ownerOperationsSettings = (
+  overrides: {
+    timezone?: string;
+    notifications?: Partial<{
+      warningsEnabled: boolean;
+      publicationAlerts: boolean;
+      sourceAlerts: boolean;
+      automationAlerts: boolean;
+      recoveryAlerts: boolean;
+      dotaWatchlistAlerts: boolean;
+    }>;
+    revision?: number;
+    updatedAt?: string | null;
+  } = {}
+) => ({
+  timezone: overrides.timezone ?? 'Europe/Moscow',
+  notifications: {
+    warningsEnabled: true,
+    publicationAlerts: true,
+    sourceAlerts: true,
+    automationAlerts: true,
+    recoveryAlerts: true,
+    dotaWatchlistAlerts: true,
+    ...overrides.notifications
+  },
+  revision: overrides.revision ?? 0,
+  updatedAt: overrides.updatedAt ?? null
 });
 
 export const errorBody = (code: ApiErrorCode, details?: Record<string, string>) => ({

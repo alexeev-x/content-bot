@@ -1,7 +1,7 @@
 import type { PublicationDto, ResolveUnknownOutcome } from '@alexeev/contracts';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
-import { useMemo, useState, type ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { ApiError } from '../../../shared/api/http-client';
 import { classifyApiError } from '../../../shared/api/error-kind';
 import {
@@ -46,6 +46,7 @@ type Props = {
   chatId?: string | undefined;
   /** Detail poll interval; defaults to the feature's 15 s. */
   pollMs?: number | undefined;
+  timezone?: string | undefined;
   onDelete?: (publication: PublicationDto) => void;
 };
 
@@ -76,7 +77,8 @@ export function PublicationDrawer({
   destinationTitle,
   chatId,
   onDelete,
-  pollMs = PUBLICATION_POLL_MS
+  pollMs = PUBLICATION_POLL_MS,
+  timezone
 }: Props) {
   const query = useQuery({
     ...publicationQueryOptions(publicationId ?? '', pollMs),
@@ -87,6 +89,7 @@ export function PublicationDrawer({
   const shown = publication ? displayStatus(publication) : undefined;
   const title = postTitle ?? copy.drawer.titleFallback;
   const [dialog, setDialog] = useState<OpenDialog>(null);
+  const zone = timezone ?? browserTimeZone();
 
   return (
     <>
@@ -116,6 +119,7 @@ export function PublicationDrawer({
             postBody={postBody}
             destinationTitle={destinationTitle}
             chatId={chatId}
+            timezone={zone}
           />
         ) : query.isError ? (
           <DetailError error={query.error} onRetry={() => void query.refetch()} />
@@ -129,13 +133,18 @@ export function PublicationDrawer({
       </Drawer>
       {/* Stacked above the drawer, outside its footer, so a status change that removes the buttons cannot unmount a dialog that is showing the explanation. */}
       {publication && dialog === 'reschedule' ? (
-        <RescheduleDialog publication={publication} onOpenChange={(open) => setDialog(open ? 'reschedule' : null)} />
+        <RescheduleDialog
+          publication={publication}
+          timezone={zone}
+          onOpenChange={(open) => setDialog(open ? 'reschedule' : null)}
+        />
       ) : null}
       {publication && dialog?.startsWith('resolve-') ? (
         <ResolveUnknownDialog
           outcome={dialog.slice('resolve-'.length) as ResolveUnknownOutcome}
           publication={publication}
           chatId={chatId}
+          timezone={zone}
           onOpenChange={(open) => {
             if (!open) setDialog(null);
           }}
@@ -146,6 +155,7 @@ export function PublicationDrawer({
           publication={publication}
           postTitle={title}
           destinationTitle={destinationTitle}
+          timezone={zone}
           onOpenChange={(open) => setDialog(open ? 'cancel' : null)}
         />
       ) : null}
@@ -174,6 +184,7 @@ type BodyProps = {
   postBody: string | undefined;
   destinationTitle: string | undefined;
   chatId: string | undefined;
+  timezone: string;
 };
 
 function Fact({ term, children }: { term: string; children: ReactNode }) {
@@ -185,8 +196,8 @@ function Fact({ term, children }: { term: string; children: ReactNode }) {
   );
 }
 
-function PublicationBody({ publication, postTitle, postBody, destinationTitle, chatId }: BodyProps) {
-  const zone = useMemo(() => browserTimeZone(), []);
+function PublicationBody({ publication, postTitle, postBody, destinationTitle, chatId, timezone }: BodyProps) {
+  const zone = timezone;
   const shown = displayStatus(publication);
   // A message link and number exist only for a publication the server confirmed as sent with an id.
   const confirmedId = shown === 'sent' ? publication.externalMessageId : undefined;

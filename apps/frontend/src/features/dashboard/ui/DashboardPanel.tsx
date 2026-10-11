@@ -133,11 +133,21 @@ export function TableSkeleton({ rows, footer = false }: { rows: number; footer?:
 }
 
 /** «14:30», with the day («8 окт.») under it when the time is not today. */
-export function TimeCell({ iso, now, withDay = false }: { iso: string; now: Date; withDay?: boolean }) {
-  const day = withDay ? otherDay(iso, now) : undefined;
+export function TimeCell({
+  iso,
+  now,
+  withDay = false,
+  timezone = 'Europe/Moscow'
+}: {
+  iso: string;
+  now: Date;
+  withDay?: boolean;
+  timezone?: string;
+}) {
+  const day = withDay ? otherDay(iso, now, timezone) : undefined;
   return (
     <time className={styles.time} dateTime={iso}>
-      {formatClock(iso)}
+      {formatClock(iso, timezone)}
       {day ? <small>{day}</small> : null}
     </time>
   );

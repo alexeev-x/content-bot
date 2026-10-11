@@ -1,10 +1,18 @@
 import {
   DASHBOARD_LAYOUT_REASONS,
+  updateOwnerOperationsSettingsInputSchema,
   updateAppearanceInputSchema,
   updateDashboardLayoutInputSchema
 } from '@alexeev/contracts';
 import { Hono } from 'hono';
-import { getAppearance, getDashboardLayout, saveAppearance, saveDashboardLayout } from '../modules/settings';
+import {
+  getAppearance,
+  getDashboardLayout,
+  getOwnerOperationsSettings,
+  saveAppearance,
+  saveDashboardLayout,
+  saveOwnerOperationsSettings
+} from '../modules/settings';
 import type { AppBindings } from './env';
 import { limitBody, validated } from './validation';
 
@@ -14,6 +22,35 @@ const MAX_BODY_BYTES = 8 * 1024;
 const APPEARANCE_REASONS = ['DUPLICATE_PRESET_ID', 'UNKNOWN_CUSTOM_PRESET'] as const;
 
 export const settingsRoutes = new Hono<AppBindings>()
+  .get('/operations', async (c) => {
+    const container = c.get('container');
+    return c.json(
+      await getOwnerOperationsSettings({
+        repo: container.settings,
+        logger: container.logger,
+        requestId: c.get('requestId')
+      })
+    );
+  })
+  .put(
+    '/operations',
+    limitBody(MAX_BODY_BYTES),
+    validated('json', updateOwnerOperationsSettingsInputSchema),
+    async (c) => {
+      const container = c.get('container');
+      return c.json(
+        await saveOwnerOperationsSettings(
+          {
+            repo: container.settings,
+            logger: container.logger,
+            requestId: c.get('requestId'),
+            now: container.clock.now()
+          },
+          { actor: c.get('actor').telegramId, input: c.req.valid('json') }
+        )
+      );
+    }
+  )
   .get('/appearance', async (c) => {
     const container = c.get('container');
     return c.json(

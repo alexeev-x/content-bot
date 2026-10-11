@@ -27,7 +27,7 @@ export { updateDestination } from './application/change-destination';
 export { checkDestination } from './application/check-destination';
 export { createDestination } from './application/create-destination';
 export { createPublication } from './application/create-publication';
-export { getDestination, listDestinations } from './application/read-destinations';
+export { getDestination, getScheduledPublicationCount, listDestinations } from './application/read-destinations';
 export { getPublication, listPublications } from './application/read-publications';
 export { readDashboard } from './application/read-dashboard';
 export { listIncidents } from './application/read-incidents';

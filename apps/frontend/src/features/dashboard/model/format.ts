@@ -1,22 +1,35 @@
 import type { DashboardPublicationDto } from '@alexeev/contracts';
 import { formatClock, formatDayClock } from '../../../shared/lib/clock';
+import { ownerDayRange } from '../../../shared/lib/owner-timezone';
 
 const LOCALE = 'ru-RU';
 const MINUTE = 60_000;
 
-const weekday = new Intl.DateTimeFormat(LOCALE, { weekday: 'short' });
-const dayMonthYear = new Intl.DateTimeFormat(LOCALE, { day: 'numeric', month: 'short', year: 'numeric' });
-const dayMonth = new Intl.DateTimeFormat(LOCALE, { day: 'numeric', month: 'short' });
-
 /** «Вт, 7 окт. 2026 · 21:05»: minute precision, the browser's zone (the owner's). */
-export function dateChipText(now: Date): string {
+export function dateChipText(now: Date, timezone = 'Europe/Moscow'): string {
+  const weekday = new Intl.DateTimeFormat(LOCALE, { weekday: 'short', timeZone: timezone });
+  const dayMonthYear = new Intl.DateTimeFormat(LOCALE, {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+    timeZone: timezone
+  });
   const day = weekday.format(now);
   const date = dayMonthYear.format(now).replace(/\s?г\.$/, '');
-  return `${day.charAt(0).toUpperCase()}${day.slice(1)}, ${date} · ${formatClock(now.toISOString())}`;
+  return `${day.charAt(0).toUpperCase()}${day.slice(1)}, ${date} · ${formatClock(now.toISOString(), timezone)}`;
 }
 
-const startOfDay = (date: Date, shiftDays = 0) =>
-  new Date(date.getFullYear(), date.getMonth(), date.getDate() + shiftDays).getTime();
+const startOfDay = (date: Date, timezone: string, shiftDays = 0) => {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: timezone,
+    year: 'numeric',
+    month: 'numeric',
+    day: 'numeric'
+  }).formatToParts(date);
+  const read = (type: string) => Number(parts.find((part) => part.type === type)?.value ?? 0);
+  const localDate = new Date(Date.UTC(read('year'), read('month') - 1, read('day') + shiftDays));
+  return Date.parse(ownerDayRange(localDate, timezone).from);
+};
 
 /** Whole-minute distance: «45 мин», «1 ч 55 мин», «2 ч», «3 дн.»; never negative. */
 export function untilShort(iso: string, now: Date): string {
@@ -30,40 +43,41 @@ export function untilShort(iso: string, now: Date): string {
 }
 
 /** «Через 1 ч 55 мин» (today), «Завтра, 10:00», «9 окт., 10:00». */
-export function untilDetail(iso: string, now: Date): string {
+export function untilDetail(iso: string, now: Date, timezone = 'Europe/Moscow'): string {
   const at = Date.parse(iso);
-  if (at < startOfDay(now, 1)) return `Через ${untilShort(iso, now)}`;
-  if (at < startOfDay(now, 2)) return `Завтра, ${formatClock(iso)}`;
-  return formatDayClock(iso);
+  if (at < startOfDay(now, timezone, 1)) return `Через ${untilShort(iso, now)}`;
+  if (at < startOfDay(now, timezone, 2)) return `Завтра, ${formatClock(iso, timezone)}`;
+  return formatDayClock(iso, timezone);
 }
 
 /** Day label for a time cell that is not today: «8 окт.»; undefined for the current day. */
-export function otherDay(iso: string, now: Date): string | undefined {
+export function otherDay(iso: string, now: Date, timezone = 'Europe/Moscow'): string | undefined {
   const at = Date.parse(iso);
-  return at >= startOfDay(now) && at < startOfDay(now, 1) ? undefined : dayMonth.format(new Date(iso));
+  if (at >= startOfDay(now, timezone) && at < startOfDay(now, timezone, 1)) return undefined;
+  return new Intl.DateTimeFormat(LOCALE, { day: 'numeric', month: 'short', timeZone: timezone }).format(new Date(iso));
 }
 
-const fullFormat = new Intl.DateTimeFormat(LOCALE, {
-  day: 'numeric',
-  month: 'short',
-  year: 'numeric',
-  hour: '2-digit',
-  minute: '2-digit',
-  hourCycle: 'h23',
-  timeZoneName: 'short'
-});
-
 /** Compact time of a past event: «12:00» today, «вчера, 18:30», «6 окт.» for anything older. */
-export function recentTime(iso: string, now: Date): string {
+export function recentTime(iso: string, now: Date, timezone = 'Europe/Moscow'): string {
   const at = Date.parse(iso);
-  if (at >= startOfDay(now)) return formatClock(iso);
-  if (at >= startOfDay(now, -1)) return `вчера, ${formatClock(iso)}`;
-  return dayMonth.format(new Date(iso));
+  if (at >= startOfDay(now, timezone)) return formatClock(iso, timezone);
+  const yesterday = Date.parse(ownerDayRange(new Date(startOfDay(now, timezone) - 1), timezone).from);
+  if (at >= yesterday) return `вчера, ${formatClock(iso, timezone)}`;
+  return new Intl.DateTimeFormat(LOCALE, { day: 'numeric', month: 'short', timeZone: timezone }).format(new Date(iso));
 }
 
 /** «6 окт. 2026 г., 12:00 GMT+3»: the full moment with its zone, for the tooltip and the accessible text. */
-export function fullTime(iso: string): string {
-  return fullFormat.format(new Date(iso));
+export function fullTime(iso: string, timezone = 'Europe/Moscow'): string {
+  return new Intl.DateTimeFormat(LOCALE, {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+    timeZoneName: 'short',
+    timeZone: timezone
+  }).format(new Date(iso));
 }
 
 const PENDING = new Set(['scheduled', 'queued', 'retry_wait']);

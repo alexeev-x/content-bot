@@ -163,8 +163,9 @@ describe('the budget of a busy tick (Free plan: 50 D1 queries, 50 subrequests)',
     });
     await tick.run();
 
-    // The owner heard about all three incidents, each alert being one more subrequest.
-    expect(tick.ownerMessages).toHaveLength(3);
+    // The owner heard about all incidents in one grouped message and one Telegram subrequest.
+    expect(tick.ownerMessages).toHaveLength(1);
+    expect(tick.ownerMessages[0]?.html).toContain('Сводка: 3 инцидента');
     const subrequests = transport.calls.length + tick.ownerMessages.length;
     expect(transport.calls).toHaveLength(DISPATCH_BATCH);
     expect(await jobOf(marked.publicationId)).toMatchObject({ status: 'unknown' });

@@ -17,7 +17,7 @@ import { buildQuery, DEFAULT_PAGE_SIZE } from '../../../shared/api/query-string'
 
 export type PublicationFilters = Pick<
   z.input<typeof listPublicationsQuerySchema>,
-  'status' | 'postId' | 'destinationId' | 'q' | 'from' | 'to' | 'order'
+  'status' | 'statusGroup' | 'postId' | 'destinationId' | 'q' | 'from' | 'to' | 'order'
 >;
 export type CreatePublicationBody = z.input<typeof createPublicationInputSchema>;
 export type ReschedulePublicationBody = z.input<typeof reschedulePublicationInputSchema>;
@@ -29,6 +29,7 @@ export type BulkDeletePublicationsBody = z.input<typeof bulkDeletePublicationsIn
 export function listPublications(filters: PublicationFilters, cursor: string | undefined, signal?: AbortSignal) {
   const query = buildQuery({
     status: filters.status,
+    statusGroup: filters.statusGroup,
     postId: filters.postId,
     destinationId: filters.destinationId,
     q: filters.q,

@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { dashboard, todayRow } from '../test/dashboard-fixtures';
 import { DEFAULT_WIDGETS, readCachedLayout, sequence } from '../features/dashboard';
 import { clearSession, setSession } from '../shared/api/session';
-import { accessToken } from '../test/fixtures';
+import { accessToken, publicationPage } from '../test/fixtures';
 import { server, setupMswServer } from '../test/msw';
 import { renderPage } from '../test/render-app';
 import { clearViewport, setViewport } from '../test/viewport';
@@ -239,8 +239,8 @@ describe('week and incidents widgets', () => {
         const url = new URL(request.url);
         expect(url.searchParams.get('status')).toBe('scheduled');
         expect(url.searchParams.get('order')).toBe('asc');
-        return HttpResponse.json({
-          items: [
+        return HttpResponse.json(
+          publicationPage([
             {
               id: '33333333-3333-4333-8333-000000000001',
               postId: '22222222-2222-4222-8222-000000000001',
@@ -253,9 +253,8 @@ describe('week and incidents widgets', () => {
               createdAt: '2026-10-07T07:00:00.000Z',
               updatedAt: '2026-10-07T07:00:00.000Z'
             }
-          ],
-          nextCursor: null
-        });
+          ])
+        );
       })
     );
     await renderDashboard();
@@ -264,7 +263,9 @@ describe('week and incidents widgets', () => {
     expect(days).toHaveLength(7);
     expect(days.filter((day) => day.getAttribute('aria-label')?.includes('нет публикаций'))).toHaveLength(6);
     expect(days[0]?.getAttribute('href')).toContain('view=upcoming');
-    expect(within(week).getByText(/без фильтра по дате/)).toBeTruthy();
+    expect(within(week).getByText(/Выберите день/)).toBeTruthy();
+    expect(days[0]?.getAttribute('href')).toContain('from=');
+    expect(days[0]?.getAttribute('href')).toContain('to=');
   });
 
   it('counts open incidents and the ones closed in the last 7 days', async () => {

@@ -229,6 +229,8 @@ export interface DestinationRepository {
    */
   create(input: NewDestination): Promise<'created' | 'claim_lost' | 'chat_id_taken'>;
   findById(id: string): Promise<DestinationRecord | null>;
+  /** Future pending publication intents for a destination, read directly from the stored schedule. */
+  countWaiting(destinationId: string): Promise<number>;
   list(query: ListDestinationsQuery): Promise<DestinationRecord[]>;
   /** `not_applied`: the revision guard did not hold (or the destination does not exist). */
   update(
@@ -270,6 +272,7 @@ export interface NewPublication {
 
 export interface ListPublicationsQuery {
   status?: PublicationStatus;
+  statusGroup?: 'errors';
   postId?: string;
   destinationId?: string;
   q?: string;
@@ -359,6 +362,11 @@ export interface PublicationRepository {
   create(input: NewPublication): Promise<boolean>;
   findById(id: string): Promise<PublicationRecord | null>;
   list(query: ListPublicationsQuery): Promise<PublicationRecord[]>;
+  listPage(query: ListPublicationsQuery): Promise<{
+    items: PublicationRecord[];
+    totalCount: number;
+    statusCounts: Record<PublicationStatus, number>;
+  }>;
   reschedule(change: PublicationRescheduleChange): Promise<PublicationChangeOutcome>;
   cancel(change: PublicationChange): Promise<PublicationChangeOutcome>;
   /**

@@ -46,6 +46,8 @@ export interface OwnerReportDeps {
   clock: Clock;
   appOrigin: string;
   publications: Pick<PublicationRepository, 'list' | 'listUpcoming' | 'summarizeRange'>;
+  /** Owner-wide operations zone; older installations fall back to the latest scheduled publication. */
+  ownerTimezone?: () => Promise<string | null>;
   incidents: Pick<DispatchRepository, 'countOpenIncidents'>;
   /** Titles of the posts /next lists: one primary-key lookup each, five at most. */
   posts: PostRevisionSource;
@@ -69,6 +71,8 @@ export function createOwnerReports(deps: OwnerReportDeps): OwnerReports {
 
   // One bounded read: the latest publication carries the zone the owner last scheduled in.
   async function ownerZone(): Promise<string> {
+    const configured = await deps.ownerTimezone?.();
+    if (configured !== undefined && configured !== null) return usableZone(configured);
     const [latest] = await deps.publications.list({ limit: 1, now: clock.now() });
     return latest === undefined ? DEFAULT_OWNER_ZONE : usableZone(latest.timezone);
   }

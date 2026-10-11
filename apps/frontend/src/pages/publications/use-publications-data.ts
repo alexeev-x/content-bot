@@ -1,6 +1,8 @@
 import type { DestinationDto, PostDto, PublicationDto } from '@alexeev/contracts';
 import { useInfiniteQuery, useQueries } from '@tanstack/react-query';
 import { useCallback, useMemo } from 'react';
+import { ownerDayRange, ownerDaysRange } from '../../shared/lib/owner-timezone';
+import { useNow } from '../../shared/lib/use-now';
 import { destinationsInfiniteQueryOptions } from '../../features/destinations';
 import { postQueryOptions } from '../../features/posts';
 import {
@@ -11,13 +13,27 @@ import {
 import type { PublicationsSearch } from './search';
 
 /** Composes the three features the list needs: publications, the posts they belong to and the channels they go to. */
-export function usePublicationsData(search: PublicationsSearch, pollMs?: number) {
+export function usePublicationsData(search: PublicationsSearch, timeZone: string, pollMs?: number) {
+  const now = useNow();
   const view = search.view;
+  const period = search.period ?? 'all';
+  const range =
+    search.from || search.to
+      ? { ...(search.from ? { from: search.from } : {}), ...(search.to ? { to: search.to } : {}) }
+      : period === 'today'
+        ? ownerDayRange(now, timeZone)
+        : period === '7d'
+          ? ownerDaysRange(now, timeZone, 7)
+          : period === '30d'
+            ? ownerDaysRange(now, timeZone, 30)
+            : undefined;
   const filters: PublicationFilters = {
     ...(search.post ? { postId: search.post } : {}),
+    ...(search.q ? { q: search.q } : {}),
+    ...(range ? range : {}),
     ...(view === 'upcoming' ? { status: 'scheduled' as const } : {}),
     ...(view === 'recent' ? { status: 'sent' as const } : {}),
-    ...(view === 'errors' ? { status: 'failed' as const } : {}),
+    ...(view === 'errors' ? { statusGroup: 'errors' as const } : {}),
     order: search.order ?? (view === 'upcoming' ? 'asc' : 'desc')
   };
   const list = useInfiniteQuery(publicationsInfiniteQueryOptions(filters, pollMs ?? PUBLICATION_POLL_MS));

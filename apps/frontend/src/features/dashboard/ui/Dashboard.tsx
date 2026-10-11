@@ -23,6 +23,7 @@ export type PageBindings = {
   services: readonly ServiceRow[];
   /** «Europe/Chisinau, UTC+3», built by the page (the zone helpers live in another feature). */
   zoneNote: string;
+  timezone?: string;
   onOpenPublication: (publicationId: string) => void;
   onNewPost: () => void;
   onOpenPosts: () => void;
@@ -53,6 +54,7 @@ export function Dashboard({
   checks,
   services,
   zoneNote,
+  timezone,
   onOpenPublication,
   onNewPost,
   onOpenPosts,
@@ -119,6 +121,7 @@ export function Dashboard({
         env={{
           view,
           services,
+          timezone,
           skeleton: false,
           onOpenPublication,
           onNewPost,

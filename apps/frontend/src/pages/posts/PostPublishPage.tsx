@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
 import { PublicationSettings } from '../../features/publications';
+import { useOwnerTimezone } from '../../features/owner-settings';
 import { messageLength, PostPreview, postQueryOptions, postsCopy } from '../../features/posts';
 import { Button, ErrorState, IconButton, PageHeader, Panel, Skeleton, Banner, useMediaQuery } from '../../shared/ui';
 import { BackToPosts } from './BackToPosts';
@@ -13,6 +14,7 @@ export function PostPublishPage({ id }: Props) {
   const query = useQuery(postQueryOptions(id));
   const navigate = useNavigate();
   const narrow = useMediaQuery('(max-width: 859px)');
+  const timezone = useOwnerTimezone();
   useDocumentTitle(query.data ? `Публикация: ${query.data.title}` : 'Настройки публикации');
 
   if (query.isPending) {
@@ -79,7 +81,11 @@ export function PostPublishPage({ id }: Props) {
         </Banner>
       ) : null}
       <div>
-        <PublicationSettings post={post} onBack={() => void navigate({ to: '/posts/$id', params: { id } })}>
+        <PublicationSettings
+          timezone={timezone}
+          post={post}
+          onBack={() => void navigate({ to: '/posts/$id', params: { id } })}
+        >
           <PostPreview
             title={post.title}
             body={post.body}

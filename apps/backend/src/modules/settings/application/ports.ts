@@ -1,4 +1,4 @@
-export type SettingKey = 'appearance';
+export type SettingKey = 'appearance' | 'operations';
 
 export interface SettingRecord {
   /** The JSON document as stored; the application parses it with the contract schema. */

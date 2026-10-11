@@ -15,7 +15,16 @@ import { useState } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { clearSession, setSession } from '../../shared/api/session';
 import { ToastProvider } from '../../shared/ui';
-import { accessToken, destination, errorBody, ids, post, postPage, publication } from '../../test/fixtures';
+import {
+  accessToken,
+  destination,
+  errorBody,
+  ids,
+  post,
+  postPage,
+  publication,
+  publicationPage
+} from '../../test/fixtures';
 import { server, setupMswServer } from '../../test/msw';
 import { createTestQueryClient } from '../../test/query-wrapper';
 import { clearViewport, setViewport } from '../../test/viewport';
@@ -73,7 +82,17 @@ function serveList(handler: (url: URL, call: number) => { items: PublicationDto[
       const url = new URL(request.url);
       urls.push(url);
       const page = handler(url, urls.length);
-      return HttpResponse.json({ items: page.items, nextCursor: page.nextCursor ?? null });
+      const q = url.searchParams.get('q')?.toLocaleLowerCase('ru-RU');
+      const items = q
+        ? page.items.filter((item) => {
+            const postTitle = item.postId === OTHER_POST ? 'Мета недели' : 'Герой дня';
+            const channelTitle = item.destinationId === SECOND_DESTINATION ? 'Новости' : 'Канал';
+            return `${postTitle} ${channelTitle}`.toLocaleLowerCase('ru-RU').includes(q);
+          })
+        : page.items;
+      return HttpResponse.json(
+        publicationPage(items, { nextCursor: page.nextCursor ?? null, totalCount: page.nextCursor ? 2 : items.length })
+      );
     })
   );
   return urls;
@@ -149,7 +168,7 @@ describe('PublicationsPage list', () => {
     expect(await screen.findByText(/, UTC/)).toBeTruthy();
   });
 
-  it('searches the loaded rows by post, status label and channel while typing, without a request per keystroke', async () => {
+  it('searches server-side by post and channel without a request per keystroke', async () => {
     server.use(
       http.get('*/api/v1/destinations', () =>
         HttpResponse.json({
@@ -167,27 +186,21 @@ describe('PublicationsPage list', () => {
     await within(table).findByText('Мета недели');
     await within(table).findByText('Новости');
     const requests = urls.length;
-    const field = screen.getByRole('searchbox', { name: 'Поиск по загруженным публикациям' });
+    const field = screen.getByRole('searchbox');
 
     // By post title, ignoring case.
     await user.type(field, 'МЕТА');
-    expect(within(table).queryByText('Герой дня')).toBeNull();
+    await waitFor(() => expect(within(table).queryByText('Герой дня')).toBeNull());
     expect(within(table).getByText('Мета недели')).toBeTruthy();
-
-    // By the status label the owner sees.
-    await user.clear(field);
-    await user.type(field, 'запланировано');
-    expect(within(table).getByText('Герой дня')).toBeTruthy();
-    expect(within(table).queryByText('Мета недели')).toBeNull();
+    expect(urls.at(-1)?.searchParams.get('q')).toBe('МЕТА');
 
     // By channel name.
     await user.clear(field);
     await user.type(field, 'новости');
-    expect(within(table).queryByText('Герой дня')).toBeNull();
+    await waitFor(() => expect(within(table).queryByText('Герой дня')).toBeNull());
     expect(within(table).getByText('Мета недели')).toBeTruthy();
-
-    expect(urls.length).toBe(requests);
-    expect(urls.every((url) => !url.searchParams.has('q'))).toBe(true);
+    await waitFor(() => expect(urls.at(-1)?.searchParams.get('q')).toBe('новости'));
+    expect(urls.length - requests).toBeLessThan(8);
   });
 
   it('moves into the rows with Arrow Down, shows «Ничего не найдено» with a way back, and clearing restores the rows', async () => {
@@ -196,7 +209,7 @@ describe('PublicationsPage list', () => {
     const { user } = await renderPage();
     const table = await screen.findByRole('grid', { name: 'Список публикаций' });
     await within(table).findByText('Мета недели');
-    const field = screen.getByRole('searchbox', { name: 'Поиск по загруженным публикациям' });
+    const field = screen.getByRole('searchbox');
 
     await user.click(field);
     await user.keyboard('{ArrowDown}');
@@ -216,7 +229,7 @@ describe('PublicationsPage list', () => {
 
     // Esc clears the text.
     await user.type(screen.getByRole('searchbox'), 'мета');
-    expect(screen.queryByText('Герой дня')).toBeNull();
+    await waitFor(() => expect(screen.queryByText('Герой дня')).toBeNull());
     await user.keyboard('{Escape}');
     expect(await screen.findByText('Герой дня')).toBeTruthy();
   });
@@ -234,10 +247,9 @@ describe('PublicationsPage list', () => {
     const urls = serveList(() => ({ items: [rows.scheduled] }));
     const { user } = await renderPage();
     await screen.findByRole('grid', { name: 'Список публикаций' });
-    await user.click(screen.getByRole('tab', { name: 'Ошибки' }));
-    await waitFor(() => expect(urls.at(-1)?.searchParams.get('status')).toBe('failed'));
-    expect(screen.getByRole('tab', { name: 'Ошибки' }).getAttribute('aria-selected')).toBe('true');
-    expect(screen.queryByRole('tab', { name: 'Сегодня' })).toBeNull();
+    await user.click(screen.getByRole('tab', { name: /Ошибки/ }));
+    await waitFor(() => expect(urls.at(-1)?.searchParams.get('statusGroup')).toBe('errors'));
+    expect(screen.getByRole('tab', { name: /Ошибки/ }).getAttribute('aria-selected')).toBe('true');
   });
 
   it('maps the URL presets to server-side publication filters', async () => {
@@ -260,26 +272,26 @@ describe('PublicationsPage list', () => {
 
     const errors = await renderPage({ initial: { view: 'errors' } });
     await screen.findByRole('grid', { name: 'Список публикаций' });
-    expect(urls.at(-1)?.searchParams.get('status')).toBe('failed');
+    expect(urls.at(-1)?.searchParams.get('statusGroup')).toBe('errors');
     errors.view.unmount();
     cleanup();
   });
 
-  it('opens an old ?view=today link as «Все»', () => {
-    expect(publicationsSearchSchema.parse({ view: 'today' }).view).toBeUndefined();
+  it('maps an old ?view=today link to the owner-local today period', () => {
+    expect(publicationsSearchSchema.parse({ view: 'today' }).period).toBe('today');
     expect(publicationsSearchSchema.parse({ view: 'bogus' }).view).toBeUndefined();
   });
 
-  it('opens old ?status=, ?channel= and ?q= links without a crash and without sending them to the server', async () => {
+  it('drops unsupported old status/channel filters but preserves the search query', async () => {
     const old = publicationsSearchSchema.parse({ status: 'failed', channel: 'nope', q: 'мета', order: 'asc' });
-    expect(old).toEqual({ order: 'asc' });
+    expect(old).toEqual({ q: 'мета', order: 'asc' });
     servePosts();
     const urls = serveList(() => ({ items: [rows.scheduled] }));
     await renderPage({ initial: old });
     expect(await screen.findByRole('grid', { name: 'Список публикаций' })).toBeTruthy();
     const url = urls.at(-1);
     expect(url?.searchParams.has('status')).toBe(false);
-    expect(url?.searchParams.has('q')).toBe(false);
+    expect(url?.searchParams.get('q')).toBe('мета');
     expect(url?.searchParams.has('destinationId')).toBe(false);
   });
 
@@ -293,10 +305,10 @@ describe('PublicationsPage list', () => {
     expect(screen.getByRole('list', { name: 'Список публикаций' })).toBeTruthy();
     const requests = urls.length;
 
-    await user.type(screen.getByRole('searchbox', { name: 'Поиск по загруженным публикациям' }), 'опубликовано');
-    expect(screen.queryByRole('button', { name: /^Герой дня/ })).toBeNull();
+    await user.type(screen.getByRole('searchbox'), 'МЕТА');
+    await waitFor(() => expect(screen.queryByRole('button', { name: /^Герой дня/ })).toBeNull());
     expect(screen.getByRole('button', { name: /^Мета недели/ })).toBeTruthy();
-    expect(urls.length).toBe(requests);
+    expect(urls.length).toBeGreaterThan(requests);
 
     await user.click(screen.getByRole('button', { name: /^Сортировка/ }));
     const sheet = await screen.findByRole('dialog', { name: 'Сортировка' });
@@ -320,7 +332,7 @@ describe('PublicationsPage list', () => {
     await waitFor(() => expect(urls.at(-1)?.searchParams.get('cursor')).toBe('next-1'));
     expect(await screen.findByText('Мета недели')).toBeTruthy();
     expect(screen.getByText('Герой дня')).toBeTruthy();
-    expect(await screen.findByText(/^Загружено 2 из 2/)).toBeTruthy();
+    expect(await screen.findByText(/^Показано 2 из 2/)).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Показать ещё' })).toBeNull();
   });
 
@@ -367,7 +379,7 @@ describe('PublicationsPage list', () => {
         attempt += 1;
         return attempt <= 1
           ? HttpResponse.json(errorBody('UNAVAILABLE'), { status: 503 })
-          : HttpResponse.json({ items: [rows.scheduled], nextCursor: null });
+          : HttpResponse.json(publicationPage([rows.scheduled]));
       })
     );
     servePosts();

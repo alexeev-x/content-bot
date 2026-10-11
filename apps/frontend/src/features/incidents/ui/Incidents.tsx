@@ -34,6 +34,7 @@ type Props = {
   onOpenPublication: (publicationId: string) => void;
   /** Where «К публикациям» of the empty state goes (the route is the page's business). */
   onOpenPublications: () => void;
+  timezone?: string;
   /** Test hook: poll interval in ms (production uses the 30 s default). */
   pollMs?: number;
 };
@@ -47,6 +48,7 @@ export function Incidents({
   onKindChange,
   onOpenPublication,
   onOpenPublications,
+  timezone,
   pollMs
 }: Props) {
   const narrow = useMediaQuery(NARROW);
@@ -185,7 +187,12 @@ export function Incidents({
         ) : (
           <PanelList aria-label={copy.states.listLabel}>
             {items.map((incident) => (
-              <IncidentRow key={incident.id} incident={incident} onOpenPublication={onOpenPublication} />
+              <IncidentRow
+                key={incident.id}
+                incident={incident}
+                timezone={timezone}
+                onOpenPublication={onOpenPublication}
+              />
             ))}
           </PanelList>
         )}

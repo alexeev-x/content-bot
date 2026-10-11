@@ -440,6 +440,64 @@ describe('GET /api/v1/publications', () => {
     expect(await ids(`&postId=${postId}&status=scheduled`)).toEqual([a.id]);
   });
 
+  it('returns the filtered total and exact per-status counts while status tabs ignore the selected status', async () => {
+    const scheduled = await scheduleOk({ scheduledAt: iso(START + 4 * MINUTE) });
+    const failed = await scheduleOk({ scheduledAt: iso(START + 3 * MINUTE) });
+    const cancelled = await scheduleOk({ scheduledAt: iso(START + 2 * MINUTE) });
+    const queued = await scheduleOk({ scheduledAt: iso(START + MINUTE) });
+    const preparing = await scheduleOk({ scheduledAt: iso(START + 4 * MINUTE) });
+    const sending = await scheduleOk({ scheduledAt: iso(START + 4 * MINUTE) });
+    const sent = await scheduleOk({ scheduledAt: iso(START + 4 * MINUTE) });
+    const retryWait = await scheduleOk({ scheduledAt: iso(START + 4 * MINUTE) });
+    const unknown = await scheduleOk({ scheduledAt: iso(START + 4 * MINUTE) });
+    await setJob(failed.id, { status: 'failed' });
+    await cancel(cancelled.id, { revision: 0 });
+    await setJob(queued.id, { run_at: START - MINUTE });
+    await setJob(preparing.id, { status: 'claimed', send_started_at: null });
+    await setJob(sending.id, { status: 'claimed', send_started_at: START });
+    await setJob(sent.id, { status: 'succeeded' });
+    await setJob(retryWait.id, { status: 'retry_wait' });
+    await setJob(unknown.id, { status: 'unknown' });
+    expect(await jobOf(queued.id)).toMatchObject({ status: 'pending', run_at: START - MINUTE });
+    expect(await jobOf(sending.id)).toMatchObject({ status: 'claimed', send_started_at: START });
+
+    const response = await api.request(
+      `/api/v1/publications?status=failed&postId=${postId}&q=Patch&from=${encodeURIComponent(iso(START))}&to=${encodeURIComponent(iso(START + 5 * MINUTE))}`
+    );
+    const page = publicationPageSchema.parse(await response.json());
+
+    expect(page.items.map((item) => item.id)).toEqual([failed.id]);
+    expect(page.totalCount).toBe(1);
+    expect(page.statusCounts).toEqual({
+      scheduled: 1,
+      queued: 1,
+      preparing: 1,
+      sending: 1,
+      sent: 1,
+      retry_wait: 1,
+      failed: 1,
+      unknown: 1,
+      cancelled: 1
+    });
+    expect(page.statusCounts.scheduled).toBe(1);
+    expect(page.items).not.toContainEqual(expect.objectContaining({ id: scheduled.id }));
+  });
+
+  it('returns failed and unknown publications together through the errors group', async () => {
+    const failed = await scheduleOk({ scheduledAt: iso(START + 2 * MINUTE) });
+    const unknown = await scheduleOk({ scheduledAt: iso(START + MINUTE) });
+    await setJob(failed.id, { status: 'failed' });
+    await setJob(unknown.id, { status: 'unknown' });
+
+    const response = await api.request('/api/v1/publications?statusGroup=errors');
+    const page = publicationPageSchema.parse(await response.json());
+
+    expect(page.items.map((item) => item.id)).toEqual([failed.id, unknown.id]);
+    expect(page.totalCount).toBe(2);
+    expect(page.statusCounts.failed).toBe(1);
+    expect(page.statusCounts.unknown).toBe(1);
+  });
+
   it('pages a status filter through equal timestamps without gaps or repeats', async () => {
     const created: PublicationDto[] = [];
     for (const time of [
@@ -477,13 +535,29 @@ describe('GET /api/v1/publications', () => {
   it('returns an empty page, not an error, when nothing matches', async () => {
     const page = publicationPageSchema.parse(await (await api.request('/api/v1/publications')).json());
 
-    expect(page).toEqual({ items: [], nextCursor: null });
+    expect(page).toEqual({
+      items: [],
+      nextCursor: null,
+      totalCount: 0,
+      statusCounts: {
+        scheduled: 0,
+        queued: 0,
+        preparing: 0,
+        sending: 0,
+        sent: 0,
+        retry_wait: 0,
+        failed: 0,
+        unknown: 0,
+        cancelled: 0
+      }
+    });
   });
 
   it.each([
     ['limit 0', 'limit=0'],
     ['limit 101', 'limit=101'],
     ['an unknown status', 'status=done'],
+    ['status and a status group together', 'status=failed&statusGroup=errors'],
     ['a malformed post id', 'postId=abc'],
     ['a malformed destination id', 'destinationId=abc'],
     ['an unknown parameter', 'sort=asc'],
