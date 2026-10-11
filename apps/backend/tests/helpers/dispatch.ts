@@ -163,7 +163,7 @@ export function makeTick(options: TickOptions): Tick {
       random: options.random ?? (() => 0),
       // Most Cron tests exercise publishing only. Dota watcher tests opt in to its real D1 behavior.
       dotaWatcher: {
-        sync: async () => ({ inserted: 0, fetched: 0 }),
+        sync: async () => ({ inserted: 0, fetched: 2 }),
         summarizePatch: async () => null
       },
       // Without a token the real Telegram clients refuse to be built; spreading the container below

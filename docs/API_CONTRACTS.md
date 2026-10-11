@@ -178,6 +178,18 @@ A widget is `{ id, type, x, y, w, h }`: `id` 1–40 characters of `[a-z0-9-]`, u
 
 Frontend usage: load with `GET`, show the default layout when `revision` is 0, send the revision you loaded on every `PUT`, replace local state with the response, and on `409` reload and let the owner redo the change. The server does not repair or re-pack a layout: send a valid one (resolve collisions in the grid first).
 
+## Dota Intelligence (first read-only slice)
+
+Schema: `apps/contracts/src/dota.ts`.
+
+| Endpoint | Meaning |
+|---|---|
+| `GET /api/v1/dota?source&limit` | Owner-only read of the two fixed official feeds and their persisted updates. `source` optionally filters updates to `steam_news` or `patch_notes`; both source summaries are always returned. `limit` defaults to 50 and is capped at 100; updates are newest first. No fetch, draft creation, notification or other mutation occurs on read. |
+
+Each source reports `lastAttemptAt`, `lastSuccessAt` and a server-derived health: `degraded` when a source-level incident is open, `unverified` before its first successful check, `stale` after 30 minutes without a success (including legacy sources with a successful baseline but no recoverable timestamp), otherwise `healthy`. A legacy source's unknown success time remains `null`; clients must not invent a timestamp. A patch-detail incident is exposed on the source but does not by itself mark the feed degraded. Update links are returned only for the canonical Steam Community announcement or official Dota patch URL validated against its stored source key and ID. `linkedDraft` is present only when the existing post still exists. This slice does not expose source editing, normalized events, watchlists, hero/item statistics, tournaments or cosmetics.
+
+Errors: `400` `VALIDATION_ERROR`, `401` `UNAUTHORIZED`, `403` `FORBIDDEN`, `503` `UNAVAILABLE`. Safe retries repeat only the read.
+
 ## Bot connection
 
 Schemas and error codes: `apps/contracts/src/bot.ts`.

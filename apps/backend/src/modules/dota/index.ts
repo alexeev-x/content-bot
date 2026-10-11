@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import type { DotaIntelligenceDto, DotaSourceKey as ContractDotaSourceKey } from '@alexeev/contracts';
 
 export const DOTA_SOURCE_KEYS = ['steam_news', 'patch_notes'] as const;
 export type DotaSourceKey = (typeof DOTA_SOURCE_KEYS)[number];
@@ -516,6 +517,13 @@ export interface DotaUpdateItem {
 
 export interface DotaWatcherRepository {
   storeSync(input: { items: DotaUpdateItem[]; detectedAt: number }): Promise<{ inserted: number }>;
+  recordSourceAttempt(input: { sourceKey: DotaSourceKey; attemptedAt: number }): Promise<void>;
+  storeSourceSync(input: {
+    sourceKey: DotaSourceKey;
+    items: DotaUpdateItem[];
+    detectedAt: number;
+  }): Promise<{ inserted: number }>;
+  listIntelligence(input: { source?: ContractDotaSourceKey; limit: number; now: number }): Promise<DotaIntelligenceDto>;
   recordSourceFailure(input: {
     sourceKey: DotaSourceKey;
     code: DotaWatchError['code'] | DotaPatchDetailError['code'];
@@ -655,82 +663,245 @@ export async function syncDotaUpdates(input: {
   repo: DotaWatcherRepository;
   detectedAt: number;
 }): Promise<{ inserted: number; fetched: number }> {
-  const fetchSource = async (sourceKey: DotaSourceKey): Promise<Response> => {
+  const syncSource = async (sourceKey: DotaSourceKey): Promise<{ inserted: number; fetched: number }> => {
     try {
-      return await input.fetcher.fetch(sourceKey);
-    } catch {
-      throw new DotaWatchError('DOTA_SOURCE_FETCH', sourceKey);
+      await input.repo.recordSourceAttempt({ sourceKey, attemptedAt: input.detectedAt });
+      const response = await input.fetcher.fetch(sourceKey);
+      const payload = await readBoundedJson(
+        response,
+        sourceKey === 'steam_news' ? MAX_STEAM_BYTES : MAX_PATCH_BYTES,
+        sourceKey
+      );
+      const items = sourceKey === 'steam_news' ? parseSteamNews(payload) : parsePatchList(payload);
+      const stored = await input.repo.storeSourceSync({ sourceKey, items, detectedAt: input.detectedAt });
+      return { inserted: stored.inserted, fetched: 1 };
+    } catch (error) {
+      const classified = error instanceof DotaWatchError ? error : new DotaWatchError('DOTA_SOURCE_FETCH', sourceKey);
+      await input.repo.recordSourceFailure({
+        sourceKey,
+        code: classified.code,
+        detectedAt: input.detectedAt,
+        id: crypto.randomUUID()
+      });
+      return { inserted: 0, fetched: 0 };
     }
   };
-  const [steamResponse, patchResponse] = await Promise.all([fetchSource('steam_news'), fetchSource('patch_notes')]);
-  const steamPayload = await readBoundedJson(steamResponse, MAX_STEAM_BYTES, 'steam_news');
-  const patchPayload = await readBoundedJson(patchResponse, MAX_PATCH_BYTES, 'patch_notes');
-  const items = [...parseSteamNews(steamPayload), ...parsePatchList(patchPayload)];
-  const stored = await input.repo.storeSync({ items, detectedAt: input.detectedAt });
-  return { inserted: stored.inserted, fetched: 2 };
+  const results = await Promise.all(DOTA_SOURCE_KEYS.map(syncSource));
+  return {
+    inserted: results.reduce((total, result) => total + result.inserted, 0),
+    fetched: results.reduce((total, result) => total + result.fetched, 0)
+  };
 }
 
 export function createD1DotaWatcherRepository(db: D1Database): DotaWatcherRepository {
   return {
     async storeSync({ items, detectedAt }) {
-      const statements: D1PreparedStatement[] = [];
-      const insertRanges: { start: number; end: number }[] = [];
-      for (const sourceKey of DOTA_SOURCE_KEYS) {
+      const stored = await Promise.all(
+        DOTA_SOURCE_KEYS.map((sourceKey) =>
+          this.storeSourceSync({ sourceKey, items: items.filter((item) => item.sourceKey === sourceKey), detectedAt })
+        )
+      );
+      return { inserted: stored.reduce((sum, entry) => sum + entry.inserted, 0) };
+    },
+
+    async storeSourceSync({ sourceKey, items, detectedAt }) {
+      const statements: D1PreparedStatement[] = [
+        db
+          .prepare('INSERT OR IGNORE INTO dota_source_state (source_key, baseline_seeded) VALUES (?1, 0)')
+          .bind(sourceKey)
+      ];
+      const insertIndexes: number[] = [];
+      for (let start = 0; start < items.length; start += INSERT_CHUNK_SIZE) {
+        const chunk = items.slice(start, start + INSERT_CHUNK_SIZE);
+        const sourceLiteral = sourceKey === 'steam_news' ? "'steam_news'" : "'patch_notes'";
+        const values = chunk
+          .map(
+            () =>
+              `(${sourceLiteral}, ? , ?, ?, ?, ?, (SELECT CASE WHEN baseline_seeded = 0 THEN 1 ELSE 0 END FROM dota_source_state WHERE source_key = ${sourceLiteral}))`
+          )
+          .join(', ');
+        const bindings: (string | number)[] = [];
+        for (const item of chunk)
+          bindings.push(item.externalId, item.title, item.sourceUrl, item.publishedAt, detectedAt);
+        insertIndexes.push(statements.length);
         statements.push(
           db
-            .prepare('INSERT OR IGNORE INTO dota_source_state (source_key, baseline_seeded) VALUES (?1, 0)')
-            .bind(sourceKey)
-        );
-        const sourceItems = items.filter((item) => item.sourceKey === sourceKey);
-        for (let start = 0; start < sourceItems.length; start += INSERT_CHUNK_SIZE) {
-          const chunk = sourceItems.slice(start, start + INSERT_CHUNK_SIZE);
-          const sourceLiteral = sourceKey === 'steam_news' ? "'steam_news'" : "'patch_notes'";
-          const values = chunk
-            .map(
-              () =>
-                `(${sourceLiteral}, ? , ?, ?, ?, ?, (SELECT CASE WHEN baseline_seeded = 0 THEN 1 ELSE 0 END FROM dota_source_state WHERE source_key = ${sourceLiteral}))`
+            .prepare(
+              `INSERT OR IGNORE INTO dota_update_items (source_key, external_id, title, source_url, published_at, detected_at, is_baseline) VALUES ${values}`
             )
-            .join(', ');
-          const bindings: (string | number)[] = [];
-          for (const item of chunk) {
-            bindings.push(item.externalId, item.title, item.sourceUrl, item.publishedAt, detectedAt);
-          }
-          const statementIndex = statements.length;
-          statements.push(
-            db
-              .prepare(
-                `INSERT OR IGNORE INTO dota_update_items (source_key, external_id, title, source_url, published_at, detected_at, is_baseline) VALUES ${values}`
-              )
-              .bind(...bindings)
-          );
-          insertRanges.push({ start: statementIndex, end: statementIndex + 1 });
-        }
-        statements.push(
-          db.prepare('UPDATE dota_source_state SET baseline_seeded = 1 WHERE source_key = ?1').bind(sourceKey)
+            .bind(...bindings)
         );
       }
-      // Item writes, baseline advancement and incident recovery are one atomic source sync.
       statements.push(
         db
           .prepare(
-            'UPDATE dota_source_incidents SET resolved_at = max(created_at, ?1) WHERE resolved_at IS NULL AND external_id IS NULL'
+            'UPDATE dota_source_state SET baseline_seeded = 1, last_attempt_at = max(COALESCE(last_attempt_at, 0), ?2), last_success_at = max(COALESCE(last_success_at, 0), ?2) WHERE source_key = ?1'
           )
-          .bind(detectedAt)
+          .bind(sourceKey, detectedAt),
+        db
+          .prepare(
+            'UPDATE dota_source_incidents SET resolved_at = max(created_at, ?1) WHERE source_key = ?2 AND resolved_at IS NULL AND external_id IS NULL'
+          )
+          .bind(detectedAt, sourceKey)
       );
       const results = await db.batch(statements);
-      const inserted = insertRanges.reduce((sum, range) => sum + (results[range.start]?.meta.changes ?? 0), 0);
-      return { inserted };
+      return { inserted: insertIndexes.reduce((sum, index) => sum + (results[index]?.meta.changes ?? 0), 0) };
+    },
+
+    async recordSourceAttempt({ sourceKey, attemptedAt }) {
+      await db.batch([
+        db
+          .prepare('INSERT OR IGNORE INTO dota_source_state (source_key, baseline_seeded) VALUES (?1, 0)')
+          .bind(sourceKey),
+        db
+          .prepare(
+            'UPDATE dota_source_state SET last_attempt_at = max(COALESCE(last_attempt_at, 0), ?2) WHERE source_key = ?1'
+          )
+          .bind(sourceKey, attemptedAt)
+      ]);
+    },
+
+    async listIntelligence({ source, limit, now }) {
+      const stateResult = await db
+        .prepare('SELECT source_key, baseline_seeded, last_attempt_at, last_success_at FROM dota_source_state')
+        .all<{
+          source_key: DotaSourceKey;
+          baseline_seeded: number;
+          last_attempt_at: number | null;
+          last_success_at: number | null;
+        }>();
+      const incidentResult = await db
+        .prepare(
+          `WITH source_keys(source_key) AS (VALUES ('steam_news'), ('patch_notes'))
+           SELECT source_keys.source_key, incident.code, incident.created_at, incident.external_id,
+             CASE WHEN EXISTS (
+               SELECT 1 FROM dota_source_incidents source_incident
+               WHERE source_incident.source_key = source_keys.source_key
+                 AND source_incident.external_id IS NULL AND source_incident.resolved_at IS NULL
+             ) THEN 1 ELSE 0 END AS has_source_incident
+           FROM source_keys
+           LEFT JOIN dota_source_incidents incident ON incident.id = (
+             SELECT latest.id FROM dota_source_incidents latest INDEXED BY dota_source_incidents_open_newest_idx
+             WHERE latest.source_key = source_keys.source_key AND latest.resolved_at IS NULL
+             ORDER BY latest.created_at DESC, latest.id DESC LIMIT 1
+           )`
+        )
+        .all<{
+          source_key: DotaSourceKey;
+          code: string | null;
+          created_at: number | null;
+          external_id: string | null;
+          has_source_incident: number;
+        }>();
+      const itemSql =
+        source === undefined
+          ? `SELECT u.source_key, u.external_id, u.title, u.source_url, u.published_at, u.detected_at, u.is_baseline,
+                  p.id AS linked_draft_id, p.title AS linked_draft_title
+           FROM dota_update_items u LEFT JOIN posts p ON p.id = u.draft_post_id
+           ORDER BY u.published_at DESC, u.source_key ASC, u.external_id ASC LIMIT ?1`
+          : `SELECT u.source_key, u.external_id, u.title, u.source_url, u.published_at, u.detected_at, u.is_baseline,
+                  p.id AS linked_draft_id, p.title AS linked_draft_title
+           FROM dota_update_items u LEFT JOIN posts p ON p.id = u.draft_post_id
+           WHERE u.source_key = ?1 ORDER BY u.published_at DESC, u.source_key ASC, u.external_id ASC LIMIT ?2`;
+      const itemRows =
+        source === undefined
+          ? await db.prepare(itemSql).bind(limit).all<DotaIntelligenceRow>()
+          : await db.prepare(itemSql).bind(source, limit).all<DotaIntelligenceRow>();
+      const states = new Map(stateResult.results.map((row) => [row.source_key, row]));
+      const incidents = new Map<DotaSourceKey, { code: string; created_at: number; external_id: string | null }>();
+      const sourceIncidents = new Set<DotaSourceKey>();
+      for (const incident of incidentResult.results) {
+        if (incident.code !== null && incident.created_at !== null) {
+          incidents.set(incident.source_key, {
+            code: incident.code,
+            created_at: incident.created_at,
+            external_id: incident.external_id
+          });
+        }
+        if (incident.has_source_incident === 1) sourceIncidents.add(incident.source_key);
+      }
+      const sources = DOTA_SOURCE_KEYS.map((key) => {
+        const state = states.get(key);
+        const incident = incidents.get(key);
+        const lastAttemptAt = state?.last_attempt_at ?? null;
+        const lastSuccessAt = state?.last_success_at ?? null;
+        const baselineSeeded = state?.baseline_seeded === 1;
+        const hasSourceIncident = sourceIncidents.has(key);
+        const health: DotaIntelligenceDto['sources'][number]['health'] = hasSourceIncident
+          ? 'degraded'
+          : lastSuccessAt === null
+            ? baselineSeeded
+              ? 'stale'
+              : 'unverified'
+            : now - lastSuccessAt > 30 * 60_000
+              ? 'stale'
+              : 'healthy';
+        return {
+          key,
+          name: key === 'steam_news' ? 'Steam Community announcements' : 'Official Dota 2 patch notes',
+          officialUrl:
+            key === 'steam_news'
+              ? 'https://steamcommunity.com/games/dota2/announcements/'
+              : 'https://www.dota2.com/patches',
+          lastAttemptAt: lastAttemptAt === null ? null : new Date(lastAttemptAt).toISOString(),
+          lastSuccessAt: lastSuccessAt === null ? null : new Date(lastSuccessAt).toISOString(),
+          health,
+          ...(incident === undefined
+            ? {}
+            : {
+                openIncident: {
+                  code: incident.code,
+                  occurredAt: new Date(incident.created_at).toISOString(),
+                  ...(incident.external_id === null ? {} : { externalId: incident.external_id })
+                }
+              })
+        };
+      });
+      const updates = itemRows.results.flatMap((row) => {
+        if (!isOfficialStoredUrl(row.source_key, row.external_id, row.source_url)) return [];
+        const linkedDraft =
+          row.linked_draft_id !== null && row.linked_draft_title !== null
+            ? { id: row.linked_draft_id, title: row.linked_draft_title }
+            : undefined;
+        return [
+          {
+            id: `${row.source_key}:${row.external_id}`,
+            sourceKey: row.source_key,
+            type: row.source_key === 'steam_news' ? ('news' as const) : ('patch' as const),
+            title: row.title,
+            sourceUrl: row.source_url,
+            publishedAt: new Date(row.published_at).toISOString(),
+            detectedAt: new Date(row.detected_at).toISOString(),
+            isBaseline: row.is_baseline === 1,
+            ...(linkedDraft === undefined ? {} : { linkedDraft })
+          }
+        ];
+      });
+      return { sources, updates };
     },
 
     async recordSourceFailure({ sourceKey, code, externalId, detectedAt, id }) {
+      await db.batch([
+        db
+          .prepare('INSERT OR IGNORE INTO dota_source_state (source_key, baseline_seeded) VALUES (?1, 0)')
+          .bind(sourceKey),
+        db
+          .prepare(
+            'UPDATE dota_source_state SET last_attempt_at = max(COALESCE(last_attempt_at, 0), ?2) WHERE source_key = ?1'
+          )
+          .bind(sourceKey, detectedAt),
+        db
+          .prepare(
+            `INSERT OR IGNORE INTO dota_source_incidents (id, source_key, external_id, code, created_at)
+             VALUES (?1, ?2, ?3, ?4, ?5)`
+          )
+          .bind(id, sourceKey, externalId ?? null, code, detectedAt)
+      ]);
       const result = await db
-        .prepare(
-          `INSERT OR IGNORE INTO dota_source_incidents (id, source_key, external_id, code, created_at)
-           VALUES (?1, ?2, ?3, ?4, ?5)`
-        )
-        .bind(id, sourceKey, externalId ?? null, code, detectedAt)
-        .run();
-      if (result.meta.changes === 1) return id;
+        .prepare('SELECT id FROM dota_source_incidents WHERE id = ?1')
+        .bind(id)
+        .first<{ id: string }>();
+      if (result !== null) return id;
       const existing = await db
         .prepare(
           'SELECT id FROM dota_source_incidents WHERE source_key = ?1 AND external_id IS ?2 AND resolved_at IS NULL'
@@ -841,6 +1012,35 @@ export function createD1DotaWatcherRepository(db: D1Database): DotaWatcherReposi
       return row === undefined ? null : { resolvedAt: row.resolved_at };
     }
   };
+}
+
+interface DotaIntelligenceRow {
+  source_key: DotaSourceKey;
+  external_id: string;
+  title: string;
+  source_url: string;
+  published_at: number;
+  detected_at: number;
+  is_baseline: number;
+  linked_draft_id: string | null;
+  linked_draft_title: string | null;
+}
+
+function isOfficialStoredUrl(sourceKey: DotaSourceKey, externalId: string, raw: string): boolean {
+  try {
+    const url = new URL(raw);
+    if (url.protocol !== 'https:' || url.username !== '' || url.password !== '' || url.search !== '' || url.hash !== '')
+      return false;
+    if (sourceKey === 'patch_notes')
+      return url.hostname === 'www.dota2.com' && url.pathname === `/patches/${encodeURIComponent(externalId)}`;
+    return (
+      url.hostname === 'store.steampowered.com' &&
+      (url.pathname === `/news/externalpost/steam_community_announcements/${encodeURIComponent(externalId)}` ||
+        url.pathname === `/news/app/570/view/${encodeURIComponent(externalId)}`)
+    );
+  } catch {
+    return false;
+  }
 }
 
 interface DotaDraftRow {

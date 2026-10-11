@@ -447,6 +447,13 @@
   }
 }
 
+@media (max-width: 359px) {
+  .tabbar .link {
+    font-size: 10px;
+    letter-spacing: -0.02em;
+  }
+}
+
 /* Holds the theme toggle's place while the session is restored, so the top bar does not shift. */
 .toolSpace {
   display: block;

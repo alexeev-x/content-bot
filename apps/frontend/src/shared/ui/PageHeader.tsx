@@ -1,4 +1,4 @@
-import { createContext, useContext, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, useRef, type ReactNode } from 'react';
 import styles from './PageHeader.module.css';
 
 type Props = {
@@ -9,6 +9,8 @@ type Props = {
   marker?: ReactNode;
   /** Explicitly suppresses shell tools for a focused route with its own reference header. */
   tools?: ReactNode | null;
+  /** Moves focus to the page heading after mount, for route-level focus management. */
+  focusHeadingOnMount?: boolean;
 };
 
 const PageHeaderToolsContext = createContext<ReactNode>(null);
@@ -16,14 +18,31 @@ const PageHeaderToolsContext = createContext<ReactNode>(null);
 /** Icon tools (search, owner menu) that every PageHeader below renders in its title row; the shell sets them. */
 export const PageHeaderTools = PageHeaderToolsContext.Provider;
 
-export function PageHeader({ title, description, actions, marker, tools: toolsOverride }: Props) {
+export function PageHeader({
+  title,
+  description,
+  actions,
+  marker,
+  tools: toolsOverride,
+  focusHeadingOnMount = false
+}: Props) {
+  const headingRef = useRef<HTMLHeadingElement>(null);
   const contextualTools = useContext(PageHeaderToolsContext);
   const tools = toolsOverride === undefined ? contextualTools : toolsOverride;
+
+  useEffect(() => {
+    if (!focusHeadingOnMount) return;
+    const frame = window.requestAnimationFrame(() => headingRef.current?.focus());
+    return () => window.cancelAnimationFrame(frame);
+  }, [focusHeadingOnMount]);
+
   return (
     <header className={styles.header}>
       <div className={styles.text}>
         <div className={styles.titleRow}>
-          <h1 className={styles.title}>{title}</h1>
+          <h1 ref={headingRef} className={styles.title} tabIndex={focusHeadingOnMount ? -1 : undefined}>
+            {title}
+          </h1>
           {marker}
         </div>
         {description ? <p className={styles.description}>{description}</p> : null}

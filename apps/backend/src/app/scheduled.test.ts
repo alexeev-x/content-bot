@@ -75,7 +75,7 @@ function probe(
     dotaWatcher: {
       sync: () => {
         calls.push('dota sync');
-        return Promise.resolve({ inserted: 0, fetched: 0 });
+        return Promise.resolve({ inserted: 0, fetched: 2 });
       },
       summarizePatch: () => Promise.resolve(null)
     },

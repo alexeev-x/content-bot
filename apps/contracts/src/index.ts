@@ -3,6 +3,7 @@ export * from './bot';
 export * from './dashboard';
 export * from './dashboard-layout';
 export * from './destinations';
+export * from './dota';
 export * from './errors';
 export * from './incidents';
 export * from './media';

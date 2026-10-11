@@ -681,7 +681,7 @@ describe('processDotaUpdates', () => {
     ).toBe(1);
   });
 
-  it('does not partially write when one official feed fails shape validation', async () => {
+  it('persists one successful feed and records the other feed shape failure', async () => {
     const repo = createD1DotaWatcherRepository(testDb());
     const fetcher: DotaSourceFetcher = {
       fetchPatchDetails: () => Promise.resolve(new Response('{}')),
@@ -698,11 +698,15 @@ describe('processDotaUpdates', () => {
         )
     };
 
-    await expect(syncDotaUpdates({ fetcher, repo, detectedAt: START })).rejects.toMatchObject({
-      code: 'DOTA_SOURCE_SHAPE',
-      sourceKey: 'patch_notes'
-    });
-    expect(await count('SELECT count(*) AS n FROM dota_update_items')).toBe(0);
+    await expect(syncDotaUpdates({ fetcher, repo, detectedAt: START })).resolves.toEqual({ inserted: 0, fetched: 1 });
+    const states = await testDb()
+      .prepare('SELECT source_key, last_attempt_at, last_success_at FROM dota_source_state ORDER BY source_key')
+      .all();
+    expect(states.results).toEqual([
+      { source_key: 'patch_notes', last_attempt_at: START, last_success_at: null },
+      { source_key: 'steam_news', last_attempt_at: START, last_success_at: START }
+    ]);
+    expect(await count("SELECT count(*) AS n FROM dota_source_incidents WHERE source_key = 'patch_notes'")).toBe(1);
   });
 
   it('runs the draft workflow from the scheduled handler against migrated D1 after publication work', async () => {

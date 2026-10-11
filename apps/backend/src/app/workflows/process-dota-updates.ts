@@ -1,6 +1,7 @@
 import type { CreatePostInput } from '@alexeev/contracts';
 import type { TelegramOwnerMessageApi } from '../../integrations/telegram/telegram-api';
 import {
+  DOTA_SOURCE_KEYS,
   DotaPatchDetailError,
   DotaWatchError,
   type DotaDraftSource,
@@ -53,6 +54,15 @@ export async function processDotaUpdates(deps: {
     const syncSummary = await deps.sync({ detectedAt: deps.now() });
     summary.feedsFetched = syncSummary.fetched;
     summary.itemsInserted = syncSummary.inserted;
+    summary.sourceFailures += Math.max(0, DOTA_SOURCE_KEYS.length - syncSummary.fetched);
+    if (syncSummary.fetched < DOTA_SOURCE_KEYS.length) {
+      deps.logger.warn({
+        component: 'dota',
+        operation: 'source_sync',
+        status: 'partial',
+        errorCode: 'DOTA_SOURCE_PARTIAL_FAILURE'
+      });
+    }
   } catch (error) {
     if (!(error instanceof DotaWatchError)) throw error;
     summary.sourceFailures = 1;

@@ -19,7 +19,7 @@ The regular browser app and Telegram Mini App are the same SPA. Every route must
 | `/calendar` | Scheduling | day/week/month views, schedule/reschedule/cancel, filters by destination/rubric | timezone/DST, collision, unsafe action |
 | `/automations` | Automation Center | rubrics, enabled/paused, auto/approval mode, last/next run, health, quick pause/run | source failure, stale run, partial config |
 | `/automations/:id` | Rubric detail | sources, rules, template, destination, cadence, run history, candidate/decision details | ambiguous detection, held candidate, failure |
-| `/sources` | Source control | official sources, health, last fetch/change, allowed domains, provenance | unreachable, stale, invalid response |
+| `/sources` | Dota Pulse and source health | inspect persisted official Steam announcements and Dota patch updates, source attempts/successes/incidents, and links to already-existing drafts; no editable source registry, confirmed-fact detail, or watchlists in this first slice (`docs/stories/dota-intelligence-mvp.md`) | partial/stale feed, source not yet verified, unavailable read; no unsupported statistics or fictional event data |
 | `/media` | Media library | upload, search/filter, metadata, preview, usage history, source/rights | validation, upload failure, unavailable object |
 | `/templates` | Visual templates | card templates, versions, preview, active/default state | renderer unavailable, invalid template |
 | `/jobs` | Execution history | scheduler/automation jobs, status, duration, attempts, request/job ids | stuck, retry_wait, failed |

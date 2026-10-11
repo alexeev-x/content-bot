@@ -224,7 +224,7 @@ describe('Dota source watcher', () => {
     expect(await storedItems()).toHaveLength(2);
   });
 
-  it('does not write either feed when one source fails', async () => {
+  it('keeps the healthy feed when the other source fails', async () => {
     const tick = makeWatcherTick({
       clock,
       scheduledTime: WATCHER_START,
@@ -235,11 +235,11 @@ describe('Dota source watcher', () => {
     });
 
     await expect(tick.run()).rejects.toThrow('SCHEDULED_TICK_FAILED');
-    expect(await storedItems()).toEqual([]);
-    expect(tick.logs).toContainEqual(expect.objectContaining({ operation: 'source_sync', status: 'error' }));
+    expect(await storedItems()).toEqual([{ source_key: 'steam_news', external_id: 'must-not-insert', is_baseline: 1 }]);
+    expect(tick.logs).toContainEqual(expect.objectContaining({ operation: 'source_sync', status: 'partial' }));
   });
 
-  it('fails closed on malformed source shape without partial inserts', async () => {
+  it('fails the Cron tick on malformed source shape while preserving the other feed', async () => {
     const malformed = {
       ...patchPayload({ patch_number: '7.41', patch_name: '7.41', patch_timestamp: 1_800_000_000 }),
       extra: true
@@ -251,13 +251,13 @@ describe('Dota source watcher', () => {
     });
 
     await expect(tick.run()).rejects.toThrow('SCHEDULED_TICK_FAILED');
-    expect(await storedItems()).toEqual([]);
+    expect(await storedItems()).toEqual([{ source_key: 'steam_news', external_id: 'must-not-insert', is_baseline: 1 }]);
     expect(tick.logs).toContainEqual(
-      expect.objectContaining({ operation: 'source_sync', errorCode: 'DOTA_SOURCE_SHAPE_patch_notes' })
+      expect.objectContaining({ operation: 'source_sync', errorCode: 'DOTA_SOURCE_PARTIAL_FAILURE', status: 'partial' })
     );
   });
 
-  it('rejects HTTP errors and oversized source bodies before writing either feed', async () => {
+  it('rejects failed feed HTTP and body-limit outcomes while saving the other feed', async () => {
     const failedStatus = makeWatcherTick({
       clock,
       scheduledTime: WATCHER_START,
@@ -276,7 +276,7 @@ describe('Dota source watcher', () => {
       }
     });
     await expect(failedStatus.run()).rejects.toThrow('SCHEDULED_TICK_FAILED');
-    expect(await storedItems()).toEqual([]);
+    expect(await storedItems()).toEqual([{ source_key: 'steam_news', external_id: 'must-not-insert', is_baseline: 1 }]);
 
     const oversized = makeWatcherTick({
       clock,
@@ -296,9 +296,12 @@ describe('Dota source watcher', () => {
       }
     });
     await expect(oversized.run()).rejects.toThrow('SCHEDULED_TICK_FAILED');
-    expect(await storedItems()).toEqual([]);
+    expect(await storedItems()).toEqual([
+      { source_key: 'patch_notes', external_id: '7.41', is_baseline: 1 },
+      { source_key: 'steam_news', external_id: 'must-not-insert', is_baseline: 1 }
+    ]);
     expect(oversized.logs).toContainEqual(
-      expect.objectContaining({ operation: 'source_sync', errorCode: 'DOTA_SOURCE_BODY_LIMIT_steam_news' })
+      expect.objectContaining({ operation: 'source_sync', errorCode: 'DOTA_SOURCE_PARTIAL_FAILURE', status: 'partial' })
     );
   });
 

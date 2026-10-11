@@ -50,7 +50,7 @@ describe('AppShell', () => {
     expect(await screen.findByRole('main')).toBeTruthy();
     expect(screen.getByRole('link', { name: 'Перейти к содержимому' })).toBeTruthy();
     const nav = screen.getAllByRole('navigation', { name: 'Основная навигация' })[0]!;
-    for (const label of ['Обзор', 'Посты', 'Публикации', 'Настройки']) {
+    for (const label of ['Обзор', 'Посты', 'Публикации', 'Источники', 'Настройки']) {
       expect(within(nav).getByRole('link', { name: new RegExp(label) })).toBeTruthy();
     }
     // Sections that are still «Раздел в разработке» stubs are not offered (their routes stay).
@@ -67,7 +67,7 @@ describe('AppShell', () => {
     for (const heading of ['Работа', 'Аналитика', 'Система']) expect(screen.queryByText(heading)).toBeNull();
     const side = document.querySelector('aside');
     const names = [...(side?.querySelectorAll('nav a') ?? [])].map((link) => link.textContent);
-    expect(names).toEqual(['Обзор', 'Посты', 'Публикации', 'Инциденты', 'Настройки']);
+    expect(names).toEqual(['Обзор', 'Посты', 'Публикации', 'Инциденты', 'Источники', 'Настройки']);
   });
 
   it('collapses the sidebar to icons, keeps link names and remembers the choice', async () => {
