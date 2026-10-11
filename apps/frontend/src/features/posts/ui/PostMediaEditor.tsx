@@ -39,6 +39,7 @@ import {
   cropFrameForRatio,
   defaultCropModel,
   exportCrop,
+  renderCrop,
   type CropModel,
   type CropRatio
 } from '../model/crop';
@@ -109,7 +110,15 @@ const maxBytes = (file: File) =>
 const replaceAtLimitNotice =
   '\u0414\u043b\u044f \u0437\u0430\u043c\u0435\u043d\u044b \u0443\u0434\u0430\u043b\u0438\u0442\u0435 \u043e\u0434\u043d\u043e \u0432\u043b\u043e\u0436\u0435\u043d\u0438\u0435: \u043b\u0438\u043c\u0438\u0442 10 \u0444\u0430\u0439\u043b\u043e\u0432.';
 const LIBRARY_PREVIEW_MAX_BYTES = 512_000;
+const LIBRARY_VIDEO_PREVIEW_MAX_BYTES = 8_000_000;
 const LIBRARY_WINDOW_SIZE = 30;
+
+function formatMediaDuration(durationMs: number | null): string | undefined {
+  if (durationMs === null) return undefined;
+  const seconds = Math.floor(durationMs / 1000);
+  const minutes = Math.floor(seconds / 60);
+  return `${String(minutes).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`;
+}
 
 export function ServerPreview({
   media,
@@ -165,6 +174,7 @@ export function ServerPreview({
           label={media.fileName}
           src={decodeFailed ? undefined : (url ?? undefined)}
           kind={media.kind === 'video' ? 'video' : 'image'}
+          duration={media.kind === 'video' ? formatMediaDuration(media.durationMs) : undefined}
           onPress={onOpen}
           handle={handle}
           onRemove={onRemove}
@@ -252,34 +262,94 @@ function LibraryTile({
   disabled: boolean;
   onSelectedChange: (selected: boolean) => void;
 }) {
+  const tileRef = useRef<HTMLDivElement>(null);
+  const [isVisible, setIsVisible] = useState(() => !('IntersectionObserver' in window));
   const [preview, setPreview] = useState<{ blob: Blob; src: string } | null>(null);
-  const canLoadPreview = item.sizeBytes <= LIBRARY_PREVIEW_MAX_BYTES;
+  const isVideo = item.kind === 'video';
+  const canLoadPreview = isVideo
+    ? isVisible && item.sizeBytes <= LIBRARY_VIDEO_PREVIEW_MAX_BYTES
+    : item.sizeBytes <= LIBRARY_PREVIEW_MAX_BYTES;
   const query = useQuery({
     ...postMediaContentQueryOptions(item.id, item.sizeBytes, { cachePreview: false }),
     enabled: canLoadPreview
   });
   const src = preview && preview.blob === query.data ? preview.src : undefined;
   useEffect(() => {
+    if (!isVideo || !tileRef.current) return;
+    if (!('IntersectionObserver' in window)) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry?.isIntersecting) {
+          setIsVisible(true);
+          observer.disconnect();
+        }
+      },
+      { rootMargin: '160px' }
+    );
+    observer.observe(tileRef.current);
+    return () => observer.disconnect();
+  }, [isVideo]);
+  useEffect(() => {
     if (!query.data) return;
     const blob = query.data;
     let active = true;
-    let objectUrl: string | null = null;
-    queueMicrotask(() => {
-      if (!active) return;
-      objectUrl = URL.createObjectURL(blob);
-      setPreview({ blob, src: objectUrl });
-    });
+    let mediaUrl: string | null = null;
+    let posterUrl: string | null = null;
+    let video: HTMLVideoElement | null = null;
+    let videoLoadedHandler: (() => void) | null = null;
+    if (isVideo) {
+      mediaUrl = URL.createObjectURL(blob);
+      video = document.createElement('video');
+      video.muted = true;
+      video.preload = 'auto';
+      const onLoadedData = () => {
+        if (!active || !video || video.videoWidth === 0 || video.videoHeight === 0) return;
+        const canvas = document.createElement('canvas');
+        const scale = Math.min(1, 480 / Math.max(video.videoWidth, video.videoHeight));
+        canvas.width = Math.max(1, Math.round(video.videoWidth * scale));
+        canvas.height = Math.max(1, Math.round(video.videoHeight * scale));
+        const context = canvas.getContext('2d');
+        if (!context) return;
+        context.drawImage(video, 0, 0, canvas.width, canvas.height);
+        canvas.toBlob(
+          (poster) => {
+            if (!active || !poster) return;
+            posterUrl = URL.createObjectURL(poster);
+            setPreview({ blob, src: posterUrl });
+          },
+          'image/jpeg',
+          0.72
+        );
+      };
+      videoLoadedHandler = onLoadedData;
+      video.addEventListener('loadeddata', onLoadedData, { once: true });
+      video.src = mediaUrl;
+    } else {
+      queueMicrotask(() => {
+        if (!active) return;
+        posterUrl = URL.createObjectURL(blob);
+        setPreview({ blob, src: posterUrl });
+      });
+    }
     return () => {
       active = false;
-      if (objectUrl !== null) URL.revokeObjectURL(objectUrl);
+      if (video) {
+        if (videoLoadedHandler) video.removeEventListener('loadeddata', videoLoadedHandler);
+        video.pause();
+        video.removeAttribute('src');
+        video.load();
+      }
+      if (mediaUrl !== null) URL.revokeObjectURL(mediaUrl);
+      if (posterUrl !== null) URL.revokeObjectURL(posterUrl);
     };
-  }, [query.data]);
+  }, [isVideo, query.data]);
   return (
-    <div className={styles.libraryTile}>
+    <div ref={tileRef} className={styles.libraryTile}>
       <MediaGridTile
         label={item.fileName}
         src={src}
-        kind={item.kind === 'video' ? 'video' : 'image'}
+        kind={isVideo ? 'video' : 'image'}
+        duration={isVideo ? formatMediaDuration(item.durationMs) : undefined}
         selectable
         isSelected={selected}
         onSelectedChange={onSelectedChange}
@@ -298,6 +368,21 @@ function friendlyError(error: unknown): string {
     if (error.status === 403) return 'Нет доступа к этому черновику.';
   }
   return 'Не удалось загрузить файл. Проверьте соединение и повторите попытку.';
+}
+
+function libraryAttachError(error: unknown): string {
+  if (error instanceof ApiError) {
+    if (error.status === 401) return 'Сессия завершилась. Войдите снова и повторите добавление.';
+    if (error.status === 403) return 'Нет доступа к выбранному файлу или черновику.';
+    if (error.status === 404) return 'Файл больше недоступен в медиатеке. Обновите список и выберите его снова.';
+    if (error.status === 409)
+      return 'Черновик изменился. Сначала разрешите конфликт версий, затем повторите добавление.';
+    if (error.reason === 'MEDIA_LIMIT_EXCEEDED') return 'В посте уже достигнут лимит в 10 файлов.';
+    if (error.reason === 'DUPLICATE_MEDIA_IDS') return 'Один из выбранных файлов уже добавлен в пост.';
+    if (error.status === 429) return 'Слишком много запросов. Подождите немного и повторите добавление.';
+    if (error.requestId) return `Не удалось добавить файлы. Код запроса: ${error.requestId}`;
+  }
+  return 'Не удалось добавить выбранные файлы. Проверьте соединение и повторите попытку.';
 }
 
 function cropErrorMessage(error: unknown): string {
@@ -366,6 +451,8 @@ export function PostMediaEditor({
   const [librarySelection, setLibrarySelection] = useState<string[]>([]);
   const [libraryBusy, setLibraryBusy] = useState(false);
   const [libraryError, setLibraryError] = useState('');
+  const [libraryErrorAction, setLibraryErrorAction] = useState<'load' | 'attach' | null>(null);
+  const libraryDraftRef = useRef<PostDto | null>(null);
   const [expandedMedia, setExpandedMedia] = useState<PostMediaDto | null>(null);
   const [cropMedia, setCropMedia] = useState<PostMediaDto | null>(null);
   const [cropUrl, setCropUrl] = useState<string | null>(null);
@@ -376,6 +463,7 @@ export function PostMediaEditor({
   const queryClient = useQueryClient();
   const [mobileMediaCollapsed, setMobileMediaCollapsed] = useState(false);
   const [cropNaturalSize, setCropNaturalSize] = useState<{ width: number; height: number } | null>(null);
+  const cropPreviewCanvas = useRef<HTMLCanvasElement>(null);
   const [draggedKey, setDraggedKey] = useState<string | null>(null);
   const [keyboardDraggedKey, setKeyboardDraggedKey] = useState<string | null>(null);
   const [keyboardTargetKey, setKeyboardTargetKey] = useState<string | null>(null);
@@ -431,6 +519,26 @@ export function PostMediaEditor({
       if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
   }, [cropMedia]);
+
+  useEffect(() => {
+    if (!cropUrl || !cropPreviewCanvas.current) return;
+    const image = new Image();
+    let active = true;
+    image.src = cropUrl;
+    void image
+      .decode()
+      .then(() => {
+        const canvas = cropPreviewCanvas.current;
+        if (!active || !canvas) return;
+        renderCrop(image, cropModel, canvas, 560);
+      })
+      .catch(() => {
+        if (active) setCropError('Не удалось подготовить предпросмотр кадрирования.');
+      });
+    return () => {
+      active = false;
+    };
+  }, [cropModel, cropUrl]);
 
   useEffect(() => {
     const suppressFileNavigation = (event: DragEvent) => {
@@ -874,6 +982,7 @@ export function PostMediaEditor({
     setSourceTab(tab);
     setLibraryBusy(true);
     setLibraryError('');
+    setLibraryErrorAction(null);
     try {
       const page = await queryClient.fetchQuery(mediaLibraryPageQueryOptions(kind, cursor));
       setLibraryItems((current) => {
@@ -893,6 +1002,7 @@ export function PostMediaEditor({
     } catch (error) {
       if (error instanceof ApiError && error.status === 409) onRevisionConflict?.();
       setLibraryError('Не удалось загрузить медиабиблиотеку. Повторите попытку.');
+      setLibraryErrorAction('load');
     } finally {
       setLibraryBusy(false);
     }
@@ -905,7 +1015,7 @@ export function PostMediaEditor({
       setLibraryError(`Можно добавить ещё ${Math.max(0, available)} файлов. Уберите часть выбранных файлов.`);
       return;
     }
-    let activePostId = postId;
+    let activePostId = postId ?? libraryDraftRef.current?.id ?? null;
     let createdPost: PostDto | null = null;
     if (!activePostId) {
       createdPost = (await onEnsurePost?.()) ?? null;
@@ -914,6 +1024,7 @@ export function PostMediaEditor({
         return;
       }
       activePostId = createdPost.id;
+      libraryDraftRef.current = createdPost;
       revisionRef.current = createdPost.revision;
       mediaRef.current = createdPost.media;
     }
@@ -921,6 +1032,7 @@ export function PostMediaEditor({
     setLibraryBusy(true);
     setBusy(true);
     setLibraryError('');
+    setLibraryErrorAction(null);
     try {
       const result = await attachLibraryMedia(activePostId, revisionRef.current, librarySelection);
       void queryClient.invalidateQueries({ queryKey: ['post-media', 'library'] });
@@ -929,14 +1041,18 @@ export function PostMediaEditor({
       onServerChange(result.revision, result.media);
       setSourceOpen(false);
       setLibrarySelection([]);
-      setLibrarySelection([]);
+      setLibraryErrorAction(null);
+      libraryDraftRef.current = null;
       if (createdPost) {
         onMediaSaved?.();
         onDraftReady?.(createdPost);
       }
     } catch (error) {
       if (error instanceof ApiError && error.status === 409) onRevisionConflict?.();
-      setLibraryError('Не удалось добавить выбранные файлы. Повторите попытку.');
+      setLibraryError(libraryAttachError(error));
+      const canRetry =
+        !(error instanceof ApiError) || error.status === 0 || error.status === 429 || error.status >= 500;
+      setLibraryErrorAction(canRetry ? 'attach' : null);
     } finally {
       setLibraryBusy(false);
       setBusy(false);
@@ -1025,12 +1141,19 @@ export function PostMediaEditor({
           <p className={styles.error} role="alert">
             {libraryError}
           </p>
-          <Button
-            variant="secondary"
-            onPress={() => void openLibrary(libraryKind, undefined, sourceTab === 'recent' ? 'recent' : 'library')}
-          >
-            Повторить
-          </Button>
+          {libraryErrorAction ? (
+            <Button
+              variant="secondary"
+              isDisabled={libraryBusy || disabled}
+              onPress={() =>
+                libraryErrorAction === 'attach'
+                  ? void attachSelected()
+                  : void openLibrary(libraryKind, undefined, sourceTab === 'recent' ? 'recent' : 'library')
+              }
+            >
+              Повторить
+            </Button>
+          ) : null}
         </div>
       ) : null}
       {libraryBusy && libraryItems.length === 0 ? <p role="status">Загружаем медиабиблиотеку…</p> : null}
@@ -1450,14 +1573,7 @@ export function PostMediaEditor({
                       )
                     }}
                   >
-                    <img
-                      src={cropUrl}
-                      alt=""
-                      style={{
-                        objectPosition: `${(cropModel.frame.x + cropModel.frame.w / 2) * 100}% ${(cropModel.frame.y + cropModel.frame.h / 2) * 100}%`,
-                        transform: `rotate(${cropModel.rotation}deg) scale(${cropModel.zoom})`
-                      }}
-                    />
+                    <canvas ref={cropPreviewCanvas} aria-hidden="true" />
                   </div>
                   <Switch
                     isSelected={cropCover}

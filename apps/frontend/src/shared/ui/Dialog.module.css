@@ -85,6 +85,9 @@
   font-weight: var(--font-weight-heading);
   letter-spacing: var(--letter-spacing-heading);
 }
+.media .description {
+  padding-inline: var(--space-6);
+}
 .media .body {
   flex: 1;
   min-height: 0;
@@ -98,6 +101,7 @@
 }
 @media (max-width: 859px) {
   .media .header,
+  .media .description,
   .media .body,
   .media .footer {
     padding-right: var(--space-4);

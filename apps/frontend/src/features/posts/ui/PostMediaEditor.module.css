@@ -282,9 +282,8 @@
 .largePreview {
   width: 100%;
   height: auto;
-  min-height: 120px;
   max-height: 360px;
-  aspect-ratio: 16 / 9;
+  object-fit: contain;
 }
 .previewList {
   display: grid;
@@ -322,16 +321,18 @@
 .cropPreviewImage {
   width: 100%;
   max-height: 14rem;
+  display: grid;
+  place-items: center;
   overflow: hidden;
   border-radius: var(--radius-2);
   background: var(--color-surface-2);
 }
-.cropPreviewImage img {
+.cropPreviewImage canvas {
   display: block;
   width: 100%;
-  height: 100%;
-  object-fit: cover;
-  transition: transform var(--motion-fast);
+  height: auto;
+  max-height: 14rem;
+  object-fit: contain;
 }
 .cropPreviewHint {
   margin: 0;

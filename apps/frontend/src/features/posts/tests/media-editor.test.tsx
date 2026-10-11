@@ -9,6 +9,7 @@ import { accessToken, ids, post } from '../../../test/fixtures';
 import { createTestQueryClient } from '../../../test/query-wrapper';
 import type { MediaLibraryItemDto } from '@alexeev/contracts';
 import {
+  attachLibraryMedia,
   deletePostMedia,
   cropPostMedia,
   getPostMediaContent,
@@ -25,6 +26,7 @@ vi.mock('../api/post-media-api', async (importOriginal) => {
   return {
     ...actual,
     deletePostMedia: vi.fn(),
+    attachLibraryMedia: vi.fn(),
     cropPostMedia: vi.fn(),
     getPostMediaContent: getContent,
     listMediaLibrary: listLibrary,
@@ -60,6 +62,7 @@ beforeEach(() => {
   Object.defineProperty(URL, 'revokeObjectURL', { configurable: true, value: vi.fn() });
   vi.mocked(uploadPostMedia).mockReset();
   vi.mocked(deletePostMedia).mockReset();
+  vi.mocked(attachLibraryMedia).mockReset();
   vi.mocked(cropPostMedia).mockReset();
   vi.mocked(reorderPostMedia).mockReset();
   vi.mocked(listMediaLibrary).mockReset();
@@ -182,6 +185,47 @@ describe('post media editor', () => {
     expect(screen.getByRole('button', { name: 'Повторить' })).toBeTruthy();
     await user.click(screen.getByRole('button', { name: 'Повторить' }));
     await waitFor(() => expect(listMediaLibrary).toHaveBeenCalledTimes(2));
+  });
+
+  it('retries attaching the selected library asset instead of reloading the library', async () => {
+    const libraryAsset: MediaLibraryItemDto = {
+      id: '10000000-0000-4000-8000-000000000099',
+      kind: 'photo',
+      fileName: 'saved.jpg',
+      contentType: 'image/jpeg',
+      sizeBytes: 100_000,
+      width: 1200,
+      height: 800,
+      durationMs: null,
+      createdAt: '2026-10-10T12:00:00.000Z'
+    };
+    vi.mocked(listMediaLibrary).mockResolvedValue({ items: [libraryAsset], nextCursor: null });
+    vi.mocked(attachLibraryMedia)
+      .mockRejectedValueOnce(new Error('offline'))
+      .mockResolvedValueOnce({ revision: 1, media: [] });
+    const user = userEvent.setup();
+    const onServerChange = vi.fn();
+    render(
+      <PostMediaEditor
+        postId={ids.post}
+        revision={0}
+        media={[]}
+        disabled={false}
+        onServerChange={onServerChange}
+        onPendingChange={vi.fn()}
+      />
+    );
+
+    await user.click(screen.getByRole('button', { name: /Добавить медиа/ }));
+    await user.click(await screen.findByRole('tab', { name: /Медиабиблиотека/ }));
+    await user.click(await screen.findByRole('button', { name: 'saved.jpg' }));
+    await user.click(screen.getByRole('button', { name: /Добавить в пост/ }));
+    await screen.findByRole('alert');
+    await user.click(screen.getByRole('button', { name: 'Повторить' }));
+
+    await waitFor(() => expect(attachLibraryMedia).toHaveBeenCalledTimes(2));
+    expect(attachLibraryMedia).toHaveBeenLastCalledWith(ids.post, 0, [libraryAsset.id]);
+    expect(onServerChange).toHaveBeenCalledWith(1, []);
   });
 
   it('bounds loaded library previews while keeping selected older media available', async () => {
