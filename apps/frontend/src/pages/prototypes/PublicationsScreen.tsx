@@ -410,7 +410,11 @@ export function PublicationsScreen() {
   const { publications, posts, channels } = useProtoStore();
   const media = usePostMedia();
   const view: View =
-    search.view === 'scheduled' || search.view === 'sent' || search.view === 'errors' ? search.view : 'all';
+    search.view === 'upcoming' || search.view === 'scheduled'
+      ? 'scheduled'
+      : search.view === 'sent' || search.view === 'errors'
+        ? search.view
+        : 'all';
   const [query, setQuery] = useState('');
   const [status, setStatus] = useState('all');
   const [channel, setChannel] = useState('all');

@@ -125,6 +125,24 @@ export function HomeScreen() {
     : publications
         .filter((p) => (p.status === 'scheduled' || p.status === 'retry_wait') && p.at > NOW)
         .sort((a, b) => a.at - b.at);
+  const approvedUnscheduled = blank
+    ? []
+    : posts.filter(
+        (post) =>
+          !post.archived &&
+          post.state === 'approved' &&
+          !publications.some((publication) => publication.postId === post.id && publication.status !== 'cancelled')
+      );
+  const weekDays = Array.from({ length: 7 }, (_, index) => {
+    const start = DAY_START + index * 24 * 3_600_000;
+    const localDate = new Date(start + 3 * 3_600_000);
+    const label = new Intl.DateTimeFormat('ru-RU', { weekday: 'short', timeZone: 'UTC' }).format(localDate);
+    const date = localDate.getUTCDate();
+    const count = upcoming.filter(
+      (publication) => publication.at >= start && publication.at < start + 24 * 3_600_000
+    ).length;
+    return { start, label, date, count };
+  });
   const recent = blank
     ? []
     : publications
@@ -143,6 +161,9 @@ export function HomeScreen() {
   const recentRows = narrow ? 2 : 5;
   const attentionBody = attentionReserve * rowH;
   const todayBody = todayRows * rowH;
+  const approvedRows = narrow ? 2 : 3;
+  const approvedBody = approvedRows * rowH;
+  const weekBody = narrow ? 116 : 76;
   const upcomingBody = upcomingRows * rowH;
   const recentBody = narrow ? recentRows * PHONE_ROW : 32 + recentRows * 44;
   const pulseCount = narrow ? 2 : 3;
@@ -340,6 +361,57 @@ export function HomeScreen() {
                 </PanelList>
               )}
             </Section>
+            <Section
+              area="approved"
+              title="Одобрены, но не запланированы"
+              {...(!loading && !failed ? { count: approvedUnscheduled.length } : {})}
+              link={{ text: 'Все посты', to: '/posts' }}
+              minBody={approvedBody}
+              busy={loading}
+            >
+              {loading ? (
+                <SkeletonRows count={approvedRows} narrow={narrow} />
+              ) : failed ? (
+                <SectionError onRetry={retry} />
+              ) : approvedUnscheduled.length === 0 ? (
+                <EmptyLine icon="check-circle" text="Все одобренные посты запланированы" />
+              ) : (
+                <PanelList aria-label="Одобрены, но не запланированы">
+                  {approvedUnscheduled.slice(0, approvedRows).map((post) => (
+                    <li key={post.id} className={styles.approvedRow}>
+                      <Link to={`${BASE}/posts/${post.id}` as never} className={styles.approvedLink}>
+                        <span>{post.title}</span>
+                        <span className={styles.approvedMeta}>Одобрен · {post.edited}</span>
+                      </Link>
+                    </li>
+                  ))}
+                </PanelList>
+              )}
+            </Section>
+            <Section area="week" title="Неделя" minBody={weekBody} busy={loading}>
+              {loading ? (
+                <SkeletonRows count={1} narrow={narrow} thumb={false} height={52} />
+              ) : failed ? (
+                <SectionError onRetry={retry} />
+              ) : (
+                <ul className={styles.weekLinks} aria-label="Публикации по дням недели">
+                  {weekDays.map((day) => (
+                    <li key={day.start}>
+                      <Link
+                        to={`${BASE}/publications` as never}
+                        search={{ view: 'upcoming' } as never}
+                        aria-label={`Публикации на ${day.label}, ${day.date} октября`}
+                        className={styles.weekLink}
+                      >
+                        <span>{day.label}</span>
+                        <strong>{day.date}</strong>
+                        <span className={styles.weekCount}>{day.count}</span>
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </Section>
           </div>
           <div className={styles.right}>
             <Section
@@ -385,7 +457,7 @@ export function HomeScreen() {
           <Section
             area="upcoming"
             title="Ближайшие публикации"
-            link={{ text: narrow ? 'Все' : 'Все запланированные', to: '/publications', search: { view: 'scheduled' } }}
+            link={{ text: narrow ? 'Все' : 'Все запланированные', to: '/publications', search: { view: 'upcoming' } }}
             minBody={upcomingBody}
             busy={loading}
           >
