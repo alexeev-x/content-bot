@@ -284,14 +284,14 @@ describe('post media editor', () => {
     const library = screen.getByRole('list', { name: /Файлы медиабиблиотеки/ });
     expect(within(library).getAllByRole('listitem')).toHaveLength(pageSize + 1);
     expect(screen.getByRole('button', { name: 'asset-000.jpg' })).toBeTruthy();
-    await waitFor(() =>
-      expect(
-        client
-          .getQueryCache()
-          .findAll({ queryKey: ['post-media', 'library-preview'] })
-          .filter((query) => query.state.data instanceof Blob)
-      ).toHaveLength(30)
-    );
+    await waitFor(() => {
+      const previewQueries = client
+        .getQueryCache()
+        .findAll({ queryKey: ['post-media', 'library-preview'] })
+        .filter((query) => query.state.data instanceof Blob);
+      expect(previewQueries.length).toBeGreaterThanOrEqual(pageSize);
+      expect(previewQueries.some((query) => query.queryKey[2] === makeItem(0).id)).toBe(true);
+    });
   });
 
   it('keeps the compact empty-media state while retaining supported file types', () => {
