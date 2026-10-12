@@ -431,6 +431,35 @@ describe('post media upload', () => {
     expect(state?.media).toEqual([]);
   });
 
+  it("does not let another post's occupied revision block a media-library attach", async () => {
+    const source = await createDraft();
+    const uploaded = uploadPostMediaResultSchema.parse(
+      await (await upload(source.id, source.revision, png(), nextKey())).json()
+    );
+    const target = await createDraft();
+    const unrelated = await createDraft();
+    await testDb()
+      .prepare(
+        `INSERT INTO post_revisions (post_id, revision, title, body, entities, status, created_at, media_json)
+         SELECT id, revision + 1, title, body, entities, status, ?2, '[]' FROM posts WHERE id = ?1`
+      )
+      .bind(unrelated.id, START + 2)
+      .run();
+
+    const response = await api.request(`/api/v1/posts/${target.id}/media/attach`, {
+      method: 'POST',
+      json: { revision: target.revision, mediaIds: [uploaded.media.id] }
+    });
+
+    expect(response.status).toBe(200);
+    const attached = attachPostMediaResultSchema.parse(await response.json());
+    expect(attached.revision).toBe(target.revision + 1);
+    expect(attached.media.map(({ id }) => id)).toEqual([uploaded.media.id]);
+    const state = await createD1PostMediaRepository(testDb()).findPostState(target.id);
+    expect(state?.revision).toBe(target.revision + 1);
+    expect(state?.media.map(({ id }) => id)).toEqual([uploaded.media.id]);
+  });
+
   it('allows only one concurrent media-library attach at the same draft revision', async () => {
     const source = await createDraft();
     const first = uploadPostMediaResultSchema.parse(await (await upload(source.id, 0, png(), nextKey())).json());

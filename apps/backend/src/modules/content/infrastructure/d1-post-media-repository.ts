@@ -232,15 +232,15 @@ export function createD1PostMediaRepository(db: D1Database): PostMediaRepository
         db
           .prepare(
             `INSERT INTO post_revisions (post_id, revision, title, body, entities, status, created_at, media_json)
-          SELECT id, revision + 1, title, body, entities, status, ?3, ?4 FROM posts WHERE ${guard(5, fullIds.length, {
-            nextRevision: true
-          })}`
+          SELECT id, revision + 1, title, body, entities, status, ?3, ?4 FROM posts
+          WHERE id = ?1 AND ${guard(5, fullIds.length, { nextRevision: true })}`
           )
           .bind(postId, expectedRevision, now, JSON.stringify(fullIds), JSON.stringify(mediaIds)),
         db
           .prepare(
             `INSERT INTO audit_log (actor_telegram_id, action, entity_type, entity_id, created_at, details)
-          SELECT ?3, 'post.media.attach_library', 'post', id, ?4, ?5 FROM posts WHERE ${guard(6, fullIds.length)}`
+          SELECT ?3, 'post.media.attach_library', 'post', id, ?4, ?5 FROM posts
+          WHERE id = ?1 AND ${guard(6, fullIds.length)}`
           )
           .bind(
             postId,
