@@ -220,7 +220,7 @@ export function PostEditor({ post, onCreated, approvedActions, aside, headerActi
           <Button
             variant="ghost"
             size="lg"
-            icon="arrow-left"
+            icon="chevron-left"
             aria-label={mobilePreviewOpen ? copy.previewReturn : copy.back}
             onPress={() => {
               if (mobilePreviewOpen) {

@@ -20,6 +20,7 @@ export function PostsPage({ onCreate, ...list }: Props) {
     <>
       <PageHeader
         title={postsCopy.list.title}
+        focusHeadingOnMount
         actions={
           <Button icon="plus" onPress={onCreate}>
             {postsCopy.list.create}

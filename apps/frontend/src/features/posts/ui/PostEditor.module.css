@@ -255,13 +255,26 @@
   overflow-y: auto;
 }
 @media (max-width: 859px) {
+  .editor {
+    gap: var(--space-3);
+    margin-block-start: calc(-1 * var(--space-4));
+  }
   .phoneStack .fields {
     padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
   }
-  .phoneStack > section {
+  .phoneStack .fields > div:has([contenteditable='true']) > p[class*='description'] {
+    position: absolute;
+  }
+  .editor .phoneStack > section {
     border: 0;
     border-radius: 0;
     background: transparent;
+  }
+  .editor .phoneStack > section[aria-labelledby='post-media-heading'] {
+    padding-block-start: var(--space-1);
   }
 }
 .shortcut {
@@ -346,6 +359,8 @@
   .backButton {
     width: var(--size-target);
     min-width: var(--size-target);
+  }
+  button.backButton[data-size='lg'] {
     padding-inline: 0;
   }
   .desktopActions {
