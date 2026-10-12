@@ -60,6 +60,16 @@ beforeEach(() => {
   setSession(accessToken());
   Object.defineProperty(URL, 'createObjectURL', { configurable: true, value: vi.fn(() => 'blob:local-preview') });
   Object.defineProperty(URL, 'revokeObjectURL', { configurable: true, value: vi.fn() });
+  vi.stubGlobal(
+    'createImageBitmap',
+    vi.fn(async () => ({ width: 480, height: 360, close: vi.fn() }) as unknown as ImageBitmap)
+  );
+  vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue({
+    drawImage: vi.fn()
+  } as unknown as CanvasRenderingContext2D);
+  vi.spyOn(HTMLCanvasElement.prototype, 'toBlob').mockImplementation((callback) =>
+    callback(new Blob(['preview'], { type: 'image/jpeg' }))
+  );
   vi.mocked(uploadPostMedia).mockReset();
   vi.mocked(deletePostMedia).mockReset();
   vi.mocked(attachLibraryMedia).mockReset();
@@ -73,6 +83,7 @@ beforeEach(() => {
 afterEach(() => {
   cleanup();
   vi.restoreAllMocks();
+  vi.unstubAllGlobals();
 });
 
 describe('post media editor', () => {
@@ -228,7 +239,7 @@ describe('post media editor', () => {
     expect(onServerChange).toHaveBeenCalledWith(1, []);
   });
 
-  it('bounds loaded library previews while keeping selected older media available', async () => {
+  it('loads previews for large library assets while keeping selected older media available', async () => {
     const pageSize = 30;
     const makeItem = (index: number): MediaLibraryItemDto => ({
       id: `10000000-0000-4000-8000-${String(index + 1).padStart(12, '0')}`,
@@ -277,9 +288,9 @@ describe('post media editor', () => {
       expect(
         client
           .getQueryCache()
-          .findAll({ queryKey: ['post-media', 'content'] })
+          .findAll({ queryKey: ['post-media', 'library-preview'] })
           .filter((query) => query.state.data instanceof Blob)
-      ).toHaveLength(27)
+      ).toHaveLength(30)
     );
   });
 

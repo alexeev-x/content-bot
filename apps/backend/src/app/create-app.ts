@@ -37,6 +37,18 @@ function errorBody(
   return { error: { code, message, requestId, ...(details === undefined ? {} : { details }) } };
 }
 
+function unexpectedErrorCode(error: unknown): string {
+  const message = error instanceof Error ? error.message.toLowerCase() : '';
+  if (message.includes('no such column')) return 'D1_NO_SUCH_COLUMN';
+  if (message.includes('no such table')) return 'D1_NO_SUCH_TABLE';
+  if (message.includes('foreign key constraint failed')) return 'D1_FOREIGN_KEY';
+  if (message.includes('unique constraint failed')) return 'D1_UNIQUE_CONSTRAINT';
+  if (message.includes('check constraint failed')) return 'D1_CHECK_CONSTRAINT';
+  if (message.includes('too many sql variables')) return 'D1_BIND_LIMIT';
+  if (message.includes('d1_error') || message.includes('sqlite_error')) return 'D1_ERROR';
+  return error instanceof Error ? error.name : 'UNKNOWN_ERROR';
+}
+
 export function createApp(
   options: Pick<ContainerOverrides, 'clock' | 'telegramChatApi' | 'telegramBotAdminApi' | 'ownerMessenger'> & {
     /** Routes registered before the session guard: the `npm run dev` sign-in (local-sign-in-route.ts). */
@@ -112,7 +124,7 @@ export function createApp(
       component: 'http',
       operation: `${c.req.method} ${c.req.routePath}`,
       requestId,
-      errorCode: error.name
+      errorCode: unexpectedErrorCode(error)
     });
     return c.json(errorBody('UNAVAILABLE', 'Internal error', requestId), 500);
   });
