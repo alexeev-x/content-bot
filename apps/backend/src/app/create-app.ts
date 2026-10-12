@@ -42,6 +42,8 @@ function unexpectedErrorCode(error: unknown): string {
   if (message.includes('no such column')) return 'D1_NO_SUCH_COLUMN';
   if (message.includes('no such table')) return 'D1_NO_SUCH_TABLE';
   if (message.includes('foreign key constraint failed')) return 'D1_FOREIGN_KEY';
+  if (message.includes('unique constraint failed: post_media.')) return 'D1_UNIQUE_POST_MEDIA';
+  if (message.includes('unique constraint failed: post_revisions.')) return 'D1_UNIQUE_POST_REVISION';
   if (message.includes('unique constraint failed')) return 'D1_UNIQUE_CONSTRAINT';
   if (message.includes('check constraint failed')) return 'D1_CHECK_CONSTRAINT';
   if (message.includes('too many sql variables')) return 'D1_BIND_LIMIT';

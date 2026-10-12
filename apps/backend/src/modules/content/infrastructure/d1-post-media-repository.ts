@@ -200,10 +200,18 @@ export function createD1PostMediaRepository(db: D1Database): PostMediaRepository
       const fullIds = [...currentIds, ...mediaIds];
       const guard = (
         mediaListParam: number,
-        expectedCount: number
+        expectedCount: number,
+        conflicts: { nextRevision?: boolean; alreadyAttached?: boolean } = {}
       ) => `EXISTS (SELECT 1 FROM posts p WHERE p.id = ?1 AND p.revision = ?2 AND p.status = 'draft'
         AND (SELECT count(*) FROM post_media WHERE post_id = p.id) = ${expectedCount}
         AND (SELECT count(*) FROM post_media WHERE post_id = p.id) + ${mediaIds.length} <= 10
+        ${conflicts.nextRevision ? 'AND NOT EXISTS (SELECT 1 FROM post_revisions r WHERE r.post_id = p.id AND r.revision = p.revision + 1)' : ''}
+        ${
+          conflicts.alreadyAttached
+            ? `AND NOT EXISTS (SELECT 1 FROM post_media attached JOIN json_each(?${mediaListParam}) requested
+          ON requested.value = attached.media_id WHERE attached.post_id = p.id)`
+            : ''
+        }
         AND NOT EXISTS (SELECT 1 FROM json_each(?${mediaListParam}) requested WHERE NOT EXISTS (
           SELECT 1 FROM media_assets m WHERE m.id = requested.value AND ${isRetainedSql('m.id')})) )`;
       const statements: D1PreparedStatement[] = [];
@@ -212,7 +220,10 @@ export function createD1PostMediaRepository(db: D1Database): PostMediaRepository
           db
             .prepare(
               `INSERT INTO post_media (post_id, media_id, position)
-             SELECT ?1, ?3, ${currentIds.length + index} WHERE ${guard(4, currentIds.length + index)}`
+             SELECT ?1, ?3, ${currentIds.length + index} WHERE ${guard(4, currentIds.length + index, {
+               nextRevision: index === 0,
+               alreadyAttached: index === 0
+             })}`
             )
             .bind(postId, expectedRevision, mediaId, JSON.stringify(mediaIds))
         );
@@ -221,7 +232,9 @@ export function createD1PostMediaRepository(db: D1Database): PostMediaRepository
         db
           .prepare(
             `INSERT INTO post_revisions (post_id, revision, title, body, entities, status, created_at, media_json)
-          SELECT id, revision + 1, title, body, entities, status, ?3, ?4 FROM posts WHERE ${guard(5, fullIds.length)}`
+          SELECT id, revision + 1, title, body, entities, status, ?3, ?4 FROM posts WHERE ${guard(5, fullIds.length, {
+            nextRevision: true
+          })}`
           )
           .bind(postId, expectedRevision, now, JSON.stringify(fullIds), JSON.stringify(mediaIds)),
         db

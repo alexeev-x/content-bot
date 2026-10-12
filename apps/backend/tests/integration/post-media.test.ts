@@ -405,6 +405,32 @@ describe('post media upload', () => {
     expect(apiErrorSchema.parse(await duplicate.json()).error.details?.reason).toBe('DUPLICATE_MEDIA_IDS');
   });
 
+  it('returns a revision conflict without attaching media when the next snapshot is already occupied', async () => {
+    const source = await createDraft();
+    const uploaded = uploadPostMediaResultSchema.parse(
+      await (await upload(source.id, source.revision, png(), nextKey())).json()
+    );
+    const target = await createDraft();
+    await testDb()
+      .prepare(
+        `INSERT INTO post_revisions (post_id, revision, title, body, entities, status, created_at, media_json)
+         SELECT id, revision + 1, title, body, entities, status, ?2, '[]' FROM posts WHERE id = ?1`
+      )
+      .bind(target.id, START + 1)
+      .run();
+
+    const response = await api.request(`/api/v1/posts/${target.id}/media/attach`, {
+      method: 'POST',
+      json: { revision: target.revision, mediaIds: [uploaded.media.id] }
+    });
+
+    expect(response.status).toBe(409);
+    expect(apiErrorSchema.parse(await response.json()).error.details?.reason).toBe('STALE_REVISION');
+    const state = await createD1PostMediaRepository(testDb()).findPostState(target.id);
+    expect(state?.revision).toBe(target.revision);
+    expect(state?.media).toEqual([]);
+  });
+
   it('allows only one concurrent media-library attach at the same draft revision', async () => {
     const source = await createDraft();
     const first = uploadPostMediaResultSchema.parse(await (await upload(source.id, 0, png(), nextKey())).json());
