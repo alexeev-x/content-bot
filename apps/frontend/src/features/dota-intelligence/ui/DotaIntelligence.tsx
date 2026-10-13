@@ -1,11 +1,10 @@
-import type { DotaSourceDto, DotaUpdateDto } from '@alexeev/contracts';
+import type { DotaSourceDto, DotaUpdateDto, DotaWatchMatchDto } from '@alexeev/contracts';
 import { Link } from '@tanstack/react-router';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { ApiError } from '../../../shared/api/http-client';
 import {
   Button,
-  ColumnFilter,
   DataTable,
   EmptyState,
   ErrorState,
@@ -21,6 +20,8 @@ import {
   type DataColumn
 } from '../../../shared/ui';
 import { dotaIntelligenceQueryOptions } from '../api/dota-queries';
+import { useDotaWatchlists } from '../api/dota-watchlists-queries';
+import { DotaWatchlists } from './DotaWatchlists';
 import styles from './DotaIntelligence.module.css';
 
 type View = 'updates' | 'sources';
@@ -38,12 +39,17 @@ const HEALTH_LABELS: Record<DotaSourceDto['health'], string> = {
 };
 const TYPE_LABELS: Record<DotaUpdateDto['type'], string> = { news: 'Новость', patch: 'Патч' };
 
-function when(value: string): string {
-  const date = new Date(value);
-  const elapsed = Date.now() - date.getTime();
-  if (elapsed < 60 * 60_000) return `${Math.max(1, Math.floor(elapsed / 60_000))} мин назад`;
-  if (elapsed < 24 * 60 * 60_000) return `${Math.floor(elapsed / (60 * 60_000))} ч назад`;
-  return new Intl.DateTimeFormat('ru-RU', { dateStyle: 'medium', timeStyle: 'short' }).format(date);
+function fullTime(iso: string, timezone: string): string {
+  return new Intl.DateTimeFormat('ru-RU', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+    timeZoneName: 'short',
+    timeZone: timezone
+  }).format(new Date(iso));
 }
 
 function SourceHealth({ source }: { source: DotaSourceDto }) {
@@ -57,49 +63,91 @@ function SourceHealth({ source }: { source: DotaSourceDto }) {
 }
 
 function updateColumns(
-  search: string,
-  type: UpdateType,
-  onSearch: (value: string) => void,
-  onType: (value: UpdateType) => void
+  timezone: string,
+  onOpen: (element: HTMLAnchorElement) => void,
+  matches: DotaWatchMatchDto[]
 ): DataColumn<DotaUpdateDto>[] {
   return [
     {
       id: 'type',
       header: 'Тип',
-      cell: (item) => `${TYPE_LABELS[item.type]}${item.isBaseline ? ' · при первом подключении' : ''}`,
-      headerControl: (
-        <ColumnFilter label="Фильтр по типу" isActive={type !== 'all'}>
-          <RadioGroup label="Тип обновления" value={type} onChange={(value) => onType(value as UpdateType)}>
-            <Radio value="all">Все</Radio>
-            <Radio value="patch">Патч</Radio>
-            <Radio value="news">Новость</Radio>
-          </RadioGroup>
-        </ColumnFilter>
-      )
+      cell: (item) => `${TYPE_LABELS[item.type]}${item.isBaseline ? ' · при первом подключении' : ''}`
     },
     {
       id: 'title',
       header: 'Заголовок',
       isRowHeader: true,
-      headerControl: (
-        <ColumnFilter label="Поиск по заголовку" icon="search" isActive={search.trim() !== ''}>
-          <SearchField label="Заголовок" placeholder="Что ищем?" value={search} onChange={onSearch} />
-        </ColumnFilter>
-      ),
-      cell: (item) => (
-        <span className={styles.title} title={item.title}>
-          {item.title}
-        </span>
-      )
+      cell: (item) => {
+        const itemMatches = matches.filter(
+          (match) => `${match.update.sourceKey}:${match.update.externalId}` === item.id
+        );
+        return (
+          <div className={styles.titleCell}>
+            <span className={styles.title} title={item.title}>
+              {item.title}
+            </span>
+            {itemMatches.map((match) => {
+              const status =
+                match.alertStatus === 'unknown'
+                  ? 'Требует проверки'
+                  : match.alertStatus === 'sent'
+                    ? 'Уведомление отправлено'
+                    : match.alertStatus === 'failed'
+                      ? 'Не удалось отправить'
+                      : match.alertStatus === 'disabled'
+                        ? 'Уведомления отключены'
+                        : match.alertStatus === 'sending'
+                          ? 'Отправляется'
+                          : 'В очереди';
+              return (
+                <div className={styles.match} key={match.id}>
+                  <span>Совпадение: {match.entityName}</span>
+                  <span>{status}</span>
+                  {match.alertStatus === 'unknown' ? (
+                    <span>Уведомление могло дойти; повторная отправка не предлагается.</span>
+                  ) : null}
+                </div>
+              );
+            })}
+          </div>
+        );
+      }
     },
     { id: 'source', header: 'Источник', cell: (item) => SOURCE_NAMES[item.sourceKey] },
-    { id: 'time', header: 'Когда', compactSlot: 'trailing', cell: (item) => when(item.publishedAt) },
+    {
+      id: 'time',
+      header: 'Когда',
+      compactSlot: 'trailing',
+      cell: (item) => (
+        <div className={styles.sourceDetails}>
+          <time dateTime={item.publishedAt} title={`${fullTime(item.publishedAt, timezone)}, ${timezone}`}>
+            Опубликовано: {fullTime(item.publishedAt, timezone)}, {timezone}
+          </time>
+          <span>
+            Обнаружено:{' '}
+            <time dateTime={item.detectedAt} title={`${fullTime(item.detectedAt, timezone)}, ${timezone}`}>
+              {fullTime(item.detectedAt, timezone)}, {timezone}
+            </time>
+          </span>
+        </div>
+      )
+    },
     {
       id: 'actions',
       header: 'Действия',
       align: 'end',
       cell: (item) => (
         <div className={styles.actions}>
+          <Link
+            className={styles.link}
+            to="/sources"
+            search={(previous) => ({ ...previous, update: item.id })}
+            aria-label={`Открыть разбор: ${item.title}`}
+            data-update-opener={item.id}
+            onClick={(event) => onOpen(event.currentTarget)}
+          >
+            Открыть разбор
+          </Link>
           <a className={styles.link} href={item.sourceUrl} target="_blank" rel="noreferrer">
             Источник
           </a>
@@ -114,7 +162,7 @@ function updateColumns(
   ];
 }
 
-function sourceColumns(): DataColumn<DotaSourceDto>[] {
+function sourceColumns(timezone: string): DataColumn<DotaSourceDto>[] {
   return [
     { id: 'name', header: 'Источник', isRowHeader: true, cell: (source) => <strong>{source.name}</strong> },
     {
@@ -132,13 +180,30 @@ function sourceColumns(): DataColumn<DotaSourceDto>[] {
       cell: (source) => (
         <div className={styles.sourceDetails}>
           <span>
-            {source.lastSuccessAt
-              ? `Успешно: ${when(source.lastSuccessAt)}`
-              : source.health === 'stale'
-                ? 'Успешная проверка была ранее; время неизвестно'
-                : source.lastAttemptAt
-                  ? `Попытка: ${when(source.lastAttemptAt)} · успеха ещё не было`
-                  : 'Источник ещё не проверялся'}
+            Попытка:{' '}
+            {source.lastAttemptAt ? (
+              <time
+                dateTime={source.lastAttemptAt}
+                aria-label={`${fullTime(source.lastAttemptAt, timezone)}, ${timezone}`}
+              >
+                {fullTime(source.lastAttemptAt, timezone)}, {timezone}
+              </time>
+            ) : (
+              'ещё не проверялся'
+            )}
+          </span>
+          <span>
+            Успех:{' '}
+            {source.lastSuccessAt ? (
+              <time
+                dateTime={source.lastSuccessAt}
+                aria-label={`${fullTime(source.lastSuccessAt, timezone)}, ${timezone}`}
+              >
+                {fullTime(source.lastSuccessAt, timezone)}, {timezone}
+              </time>
+            ) : (
+              'успешных проверок пока нет'
+            )}
           </span>
           {source.openIncident ? <span className={styles.muted}>Ошибка: {source.openIncident.code}</span> : null}
         </div>
@@ -148,9 +213,14 @@ function sourceColumns(): DataColumn<DotaSourceDto>[] {
   ];
 }
 
-export function DotaIntelligence() {
+type Props = { timezone?: string; update?: string };
+
+export function DotaIntelligence({ timezone = 'Europe/Moscow', update }: Props) {
   const query = useQuery(dotaIntelligenceQueryOptions());
-  const [view, setView] = useState<View>('updates');
+  const watchQuery = useDotaWatchlists();
+  const [opener, setOpener] = useState<HTMLAnchorElement | null>(null);
+  const previousWatchIds = useRef<Set<string> | null>(null);
+  const [view, setView] = useState<View>('sources');
   const [search, setSearch] = useState('');
   const [type, setType] = useState<UpdateType>('all');
   const updates = useMemo(
@@ -163,16 +233,40 @@ export function DotaIntelligence() {
     [query.data?.updates, search, type]
   );
 
+  useEffect(() => {
+    if (!update && opener?.isConnected) {
+      const frame = requestAnimationFrame(() => opener.focus());
+      return () => cancelAnimationFrame(frame);
+    }
+  }, [opener, update]);
+
+  useEffect(() => {
+    if (!watchQuery.data) return;
+    const previous = previousWatchIds.current;
+    if (previous === null) {
+      previousWatchIds.current = new Set(watchQuery.data.watches.map((watch) => watch.id));
+      return;
+    }
+    if (update) return;
+    const added = watchQuery.data.watches.find((watch) => !previous.has(watch.id));
+    previousWatchIds.current = new Set(watchQuery.data.watches.map((watch) => watch.id));
+    if (!added) return;
+    const frame = requestAnimationFrame(() =>
+      document.querySelector<HTMLElement>(`[data-watch-id="${CSS.escape(added.id)}"]`)?.focus()
+    );
+    return () => cancelAnimationFrame(frame);
+  }, [watchQuery.data, update]);
+
   if (!query.data && query.isPending) {
     return (
-      <Panel title="Загрузка Dota Pulse" reserveRows={8}>
+      <Panel title="Загрузка официальных источников" reserveRows={2}>
         <DataTable
-          aria-label="Загрузка обновлений Dota"
-          columns={updateColumns(search, type, setSearch, setType)}
+          aria-label="Загрузка официальных источников Dota 2"
+          columns={sourceColumns(timezone)}
           rows={[]}
-          getRowId={(item) => item.id}
+          getRowId={(source) => source.key}
           isLoading
-          loadingRows={8}
+          loadingRows={2}
         />
       </Panel>
     );
@@ -219,6 +313,17 @@ export function DotaIntelligence() {
             <Tab id="sources">Источники</Tab>
           </TabList>
           <TabPanel id="updates">
+            <div className={styles.filters}>
+              <RadioGroup label="Тип обновления" value={type} onChange={(value) => setType(value as UpdateType)}>
+                <Radio value="all">Все</Radio>
+                <Radio value="patch">Патчи</Radio>
+                <Radio value="news">Новости</Radio>
+              </RadioGroup>
+              <SearchField label="Поиск по заголовку" placeholder="Что ищем?" value={search} onChange={setSearch} />
+            </div>
+            <DotaWatchlists
+              confirmedUpdateId={query.data.updates.find((item) => item.sourceKey === 'patch_notes')?.id}
+            />
             <Panel
               title="Официальные обновления"
               marker={<span className={styles.muted}>Только подтверждённые записи лент</span>}
@@ -263,7 +368,7 @@ export function DotaIntelligence() {
                   flush
                   density="compact"
                   aria-label="Официальные обновления Dota 2"
-                  columns={updateColumns(search, type, setSearch, setType)}
+                  columns={updateColumns(timezone, setOpener, watchQuery.data?.matches ?? [])}
                   rows={updates}
                   getRowId={(item) => item.id}
                 />
@@ -276,10 +381,17 @@ export function DotaIntelligence() {
                 flush
                 density="compact"
                 aria-label="Официальные источники Dota 2"
-                columns={sourceColumns()}
+                columns={sourceColumns(timezone)}
                 rows={query.data.sources}
                 getRowId={(source) => source.key}
               />
+              {query.data.updates.length === 0 ? (
+                <EmptyState
+                  icon="check-circle"
+                  title="Пока не наблюдалось обновлений"
+                  description="Обе настроенные официальные ленты остаются доступны выше."
+                />
+              ) : null}
             </Panel>
           </TabPanel>
         </Tabs>

@@ -39,12 +39,12 @@ export function PreviewBanner() {
   );
 }
 
-type PageProps = { title: string; actions?: ReactNode; children: ReactNode };
+type PageProps = { title: string; actions?: ReactNode; children: ReactNode; focusHeadingOnMount?: boolean };
 
-export function PreviewPage({ title, actions, children }: PageProps) {
+export function PreviewPage({ title, actions, children, focusHeadingOnMount = false }: PageProps) {
   return (
     <div className={styles.page}>
-      <PageHeader title={title} marker={<PreviewChip />} actions={actions} />
+      <PageHeader title={title} marker={<PreviewChip />} actions={actions} focusHeadingOnMount={focusHeadingOnMount} />
       <PreviewBanner />
       {children}
     </div>

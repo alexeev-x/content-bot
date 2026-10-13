@@ -10,7 +10,7 @@ As the authorized Studio owner, I want one place to inspect verified official Do
 
 ## Implementation progress
 
-The first read-only slice is implemented at `/sources`: owner-only `GET /api/v1/dota` surfaces the two configured feeds, persisted attempt/success timestamps, open incidents, newest bounded official updates, and links to drafts that already exist. It does not add source editing, event normalization, watchlists, new notification behavior, or unsupported categories. Later slices below remain planned until their acceptance criteria are implemented and verified.
+The first read-only slice is implemented at `/sources`: owner-only `GET /api/v1/dota` surfaces the two configured feeds, persisted attempt/success timestamps, open incidents, newest bounded official updates, and links to drafts that already exist. The page shows both feeds by default; update publication/detection times use the owner's configured timezone. It does not add source editing, event normalization, watchlists, new notification behavior, or unsupported categories. Later slices below remain planned until their acceptance criteria are implemented and verified.
 
 ## Facts
 

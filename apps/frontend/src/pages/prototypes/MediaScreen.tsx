@@ -24,6 +24,7 @@ import {
   Skeleton,
   Tab,
   TabList,
+  TabPanel,
   Tabs,
   TextField,
   useToast,
@@ -149,6 +150,7 @@ function UploadDialog({
   forceDrag: boolean;
 }) {
   const [files, setFiles] = useState<UploadFile[] | null>(null);
+  const [uploadAnnouncement, setUploadAnnouncement] = useState('');
   const [drag, setDrag] = useState(false);
   const preview = usePreviewToast();
   const timer = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -165,6 +167,7 @@ function UploadDialog({
   }, [isOpen]);
   const start = () => {
     setDrag(false);
+    setUploadAnnouncement('');
     setFiles(UPLOAD_FILES);
     stop();
     timer.current = setInterval(() => {
@@ -205,6 +208,11 @@ function UploadDialog({
         </>
       }
     >
+      {uploadAnnouncement ? (
+        <p className={styles.uploadAnnouncement} role="status" aria-live="polite" aria-atomic="true">
+          {uploadAnnouncement}
+        </p>
+      ) : null}
       {files ? (
         <ul className={styles.uploads} aria-label="Ход загрузки">
           {files.map((file, index) => (
@@ -247,6 +255,7 @@ function UploadDialog({
                       setFiles((current) =>
                         (current ?? []).map((f, i) => (i === index ? { ...f, pct: 100, failed: false } : f))
                       );
+                      setUploadAnnouncement(`Повторная загрузка завершена: ${file.name}`);
                     }}
                   >
                     Повторить
@@ -840,87 +849,89 @@ export function MediaScreen() {
             </Tab>
           ))}
         </TabList>
-      </Tabs>
-      <Panel
-        title="Файлы"
-        marker={<DemoChip />}
-        reserveRows={ready ? undefined : narrow ? 6 : 8}
-        footer={
-          <FooterLine
-            text={
-              ready
-                ? `${rows.length} из ${MEDIA_ITEMS.length} · 2,4 ГБ из 10 ГБ`
-                : phase === 'loading'
-                  ? 'Загружаем…'
-                  : ' '
+        <TabPanel id={tab}>
+          <Panel
+            title="Файлы"
+            marker={<DemoChip />}
+            reserveRows={ready ? undefined : narrow ? 6 : 8}
+            footer={
+              <FooterLine
+                text={
+                  ready
+                    ? `${rows.length} из ${MEDIA_ITEMS.length} · 2,4 ГБ из 10 ГБ`
+                    : phase === 'loading'
+                      ? 'Загружаем…'
+                      : ' '
+                }
+                action={ready ? <DemoChip /> : undefined}
+              />
             }
-            action={ready ? <DemoChip /> : undefined}
-          />
-        }
-        action={
-          !narrow && filtered && ready ? (
-            <Button variant="ghost" size="sm" icon="x" onPress={reset}>
-              Сбросить фильтры
-            </Button>
-          ) : undefined
-        }
-      >
-        <div className={kit.toolbar} data-narrow={narrow || undefined}>
-          <div className={kit.grow}>
-            <SearchField
-              label="Поиск файлов"
-              placeholder="Название или тег"
-              value={query}
-              isDisabled={phase === 'loading'}
-              onChange={setQuery}
-            />
-          </div>
-          {narrow ? (
-            <FilterButton
-              count={filtersCount}
-              onPress={() => {
-                setDraft({ usage, sort });
-                setSheetOpen(true);
-              }}
-            />
-          ) : mode === 'grid' ? (
-            <>
-              <Select label="Использование" inlineLabel options={USAGE} value={usage} onChange={setUsage} />
-              <Select label="Сортировка" inlineLabel options={SORTS} value={sort} onChange={setSort} />
-            </>
-          ) : null}
-          {narrow ? null : <span className={kit.spacer} />}
-          {narrow ? null : (
-            <SegmentedControl
-              label="Вид"
-              value={mode}
-              onChange={(id) => update({ mode: id === 'grid' ? undefined : id })}
-              options={[
-                { id: 'grid', label: 'Сетка', icon: 'grid' },
-                { id: 'list', label: 'Список', icon: 'list' }
-              ]}
-            />
-          )}
-        </div>
-        {narrow ? (
-          <div className={styles.modeRow}>
-            <SegmentedControl
-              label="Вид"
-              fullWidth
-              value={mode}
-              onChange={(id) => update({ mode: id === 'grid' ? undefined : id })}
-              options={[
-                { id: 'grid', label: 'Сетка', icon: 'grid' },
-                { id: 'list', label: 'Список', icon: 'list' }
-              ]}
-            />
-          </div>
-        ) : null}
-        {ready && narrow ? (
-          <AppliedChips chips={chips} onRemove={(id) => (id === 'usage' ? setUsage('all') : setSort('new'))} />
-        ) : null}
-        {body}
-      </Panel>
+            action={
+              !narrow && filtered && ready ? (
+                <Button variant="ghost" size="sm" icon="x" onPress={reset}>
+                  Сбросить фильтры
+                </Button>
+              ) : undefined
+            }
+          >
+            <div className={kit.toolbar} data-narrow={narrow || undefined}>
+              <div className={kit.grow}>
+                <SearchField
+                  label="Поиск файлов"
+                  placeholder="Название или тег"
+                  value={query}
+                  isDisabled={phase === 'loading'}
+                  onChange={setQuery}
+                />
+              </div>
+              {narrow ? (
+                <FilterButton
+                  count={filtersCount}
+                  onPress={() => {
+                    setDraft({ usage, sort });
+                    setSheetOpen(true);
+                  }}
+                />
+              ) : mode === 'grid' ? (
+                <>
+                  <Select label="Использование" inlineLabel options={USAGE} value={usage} onChange={setUsage} />
+                  <Select label="Сортировка" inlineLabel options={SORTS} value={sort} onChange={setSort} />
+                </>
+              ) : null}
+              {narrow ? null : <span className={kit.spacer} />}
+              {narrow ? null : (
+                <SegmentedControl
+                  label="Вид"
+                  value={mode}
+                  onChange={(id) => update({ mode: id === 'grid' ? undefined : id })}
+                  options={[
+                    { id: 'grid', label: 'Сетка', icon: 'grid' },
+                    { id: 'list', label: 'Список', icon: 'list' }
+                  ]}
+                />
+              )}
+            </div>
+            {narrow ? (
+              <div className={styles.modeRow}>
+                <SegmentedControl
+                  label="Вид"
+                  fullWidth
+                  value={mode}
+                  onChange={(id) => update({ mode: id === 'grid' ? undefined : id })}
+                  options={[
+                    { id: 'grid', label: 'Сетка', icon: 'grid' },
+                    { id: 'list', label: 'Список', icon: 'list' }
+                  ]}
+                />
+              </div>
+            ) : null}
+            {ready && narrow ? (
+              <AppliedChips chips={chips} onRemove={(id) => (id === 'usage' ? setUsage('all') : setSort('new'))} />
+            ) : null}
+            {body}
+          </Panel>
+        </TabPanel>
+      </Tabs>
 
       {selecting && selected.size > 0 ? (
         <SelectionBar label="Выбранные файлы" summary={`Выбрано ${selected.size}`}>
@@ -937,30 +948,33 @@ export function MediaScreen() {
         </SelectionBar>
       ) : null}
 
-      <FilterSheet
-        isOpen={sheetOpen}
-        onOpenChange={setSheetOpen}
-        count={(draft.usage !== 'all' ? 1 : 0) + (draft.sort !== 'new' ? 1 : 0)}
-        onReset={() => setDraft({ usage: 'all', sort: 'new' })}
-        onApply={() => {
-          setUsage(draft.usage);
-          setSort(draft.sort);
-          setSheetOpen(false);
-        }}
-      >
-        <Select
-          label="Использование"
-          options={USAGE}
-          value={draft.usage}
-          onChange={(v) => setDraft({ ...draft, usage: v })}
-        />
-        <Select
-          label="Сортировка"
-          options={SORTS}
-          value={draft.sort}
-          onChange={(v) => setDraft({ ...draft, sort: v })}
-        />
-      </FilterSheet>
+      {sheetOpen ? (
+        <FilterSheet
+          isOpen={sheetOpen}
+          onOpenChange={setSheetOpen}
+          count={(draft.usage !== 'all' ? 1 : 0) + (draft.sort !== 'new' ? 1 : 0)}
+          onReset={() => setDraft({ usage: 'all', sort: 'new' })}
+          onApply={() => {
+            setUsage(draft.usage);
+            setSort(draft.sort);
+            setSheetOpen(false);
+          }}
+        >
+          <span className={styles.filterSheetMarker} aria-hidden="true" />
+          <Select
+            label="Использование"
+            options={USAGE}
+            value={draft.usage}
+            onChange={(v) => setDraft({ ...draft, usage: v })}
+          />
+          <Select
+            label="Сортировка"
+            options={SORTS}
+            value={draft.sort}
+            onChange={(v) => setDraft({ ...draft, sort: v })}
+          />
+        </FilterSheet>
+      ) : null}
 
       {active ? (
         <Inspector

@@ -41,8 +41,8 @@ const media = {
   fileName: 'altai_lake.jpg',
   contentType: 'image/jpeg',
   sizeBytes: realPhoto.byteLength,
-  width: 4032,
-  height: 3024,
+  width: 1122,
+  height: 842,
   durationMs: null,
   position: 0
 };
@@ -228,6 +228,17 @@ for (const width of [320, 375, 1280, 1440]) {
       await originalRatio.focus();
       await page.keyboard.press('ArrowRight');
       await expect(squareRatio).toBeChecked();
+      const selectedCrop = await cropDialog.locator('[role="application"]').evaluate((frame) => {
+        const bounds = frame.getBoundingClientRect();
+        const stage = frame.parentElement?.getBoundingClientRect();
+        if (!stage || stage.width === 0 || stage.height === 0) throw new Error('Crop stage must have dimensions');
+        return {
+          x: (bounds.left - stage.left) / stage.width,
+          y: (bounds.top - stage.top) / stage.height,
+          width: bounds.width / stage.width,
+          height: bounds.height / stage.height
+        };
+      });
       const cropResponse = page.waitForResponse((response) => response.url().includes(`/media/${media.id}/crop?`));
       const cropRequest = page.waitForRequest((request) => request.url().includes(`/media/${media.id}/crop?`));
       await cropDialog.getByRole('button', { name: width < 600 ? 'Готово' : 'Сохранить' }).click();
@@ -254,6 +265,62 @@ for (const width of [320, 375, 1280, 1440]) {
       expect(dimensions.width).toBeLessThanOrEqual(2048);
       expect(dimensions.height).toBeLessThanOrEqual(2048);
       expect(Math.abs(dimensions.width / dimensions.height - 1)).toBeLessThanOrEqual(0.01);
+      const pixelChecks = await page.evaluate(
+        async ({ sourceBase64, outputBase64, cropRect }) => {
+          const sourceImage = new Image();
+          sourceImage.src = `data:image/jpeg;base64,${sourceBase64}`;
+          const outputImage = new Image();
+          outputImage.src = `data:image/jpeg;base64,${outputBase64}`;
+          await Promise.all([sourceImage.decode(), outputImage.decode()]);
+          const sourceCanvas = document.createElement('canvas');
+          sourceCanvas.width = sourceImage.naturalWidth;
+          sourceCanvas.height = sourceImage.naturalHeight;
+          const sourceContext = sourceCanvas.getContext('2d');
+          if (!sourceContext) throw new Error('Source canvas 2D context unavailable');
+          sourceContext.drawImage(sourceImage, 0, 0);
+          const source = sourceContext.getImageData(0, 0, sourceCanvas.width, sourceCanvas.height);
+          const outputCanvas = document.createElement('canvas');
+          outputCanvas.width = outputImage.naturalWidth;
+          outputCanvas.height = outputImage.naturalHeight;
+          const outputContext = outputCanvas.getContext('2d');
+          if (!outputContext) throw new Error('Output canvas 2D context unavailable');
+          outputContext.drawImage(outputImage, 0, 0);
+          const output = outputContext.getImageData(0, 0, outputCanvas.width, outputCanvas.height);
+          const samples = [0.2, 0.5, 0.8].map((position) => {
+            const sourceX = Math.min(
+              source.width - 1,
+              Math.round((cropRect.x + cropRect.width * position) * source.width)
+            );
+            const sourceY = Math.min(
+              source.height - 1,
+              Math.round((cropRect.y + cropRect.height * position) * source.height)
+            );
+            const outputX = Math.min(output.width - 1, Math.round(position * output.width));
+            const outputY = Math.min(output.height - 1, Math.round(position * output.height));
+            const sourceIndex = (sourceY * source.width + sourceX) * 4;
+            const outputIndex = (outputY * output.width + outputX) * 4;
+            const differences = [0, 1, 2].map((channel) =>
+              Math.abs((source.data[sourceIndex + channel] ?? 0) - (output.data[outputIndex + channel] ?? 0))
+            );
+            return { position, differences };
+          });
+          return { sourceSize: [source.width, source.height], outputSize: [output.width, output.height], samples };
+        },
+        {
+          sourceBase64: realPhoto.toString('base64'),
+          outputBase64: encoded?.toString('base64') ?? '',
+          cropRect: selectedCrop
+        }
+      );
+      expect(pixelChecks.sourceSize).toEqual([1122, 842]);
+      expect(pixelChecks.outputSize).toEqual([dimensions.width, dimensions.height]);
+      expect(pixelChecks.samples).toHaveLength(3);
+      for (const sample of pixelChecks.samples) {
+        expect(
+          Math.max(...sample.differences),
+          `real-photo crop pixel mismatch at ${sample.position}: ${JSON.stringify(pixelChecks)}`
+        ).toBeLessThanOrEqual(40);
+      }
       await expect(cropDialog).toBeHidden();
       await expect(page.locator('[data-live-announcer] [role="log"] [role="img"]')).toHaveCount(0, { timeout: 8000 });
       if (width === 375) {

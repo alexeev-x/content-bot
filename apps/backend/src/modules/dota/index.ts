@@ -1,5 +1,14 @@
 import { z } from 'zod';
-import type { DotaIntelligenceDto, DotaSourceKey as ContractDotaSourceKey } from '@alexeev/contracts';
+import {
+  dotaEventDetailSchema,
+  dotaPatchFactSchema,
+  dotaPatchParseStatusSchema,
+  type DotaEventDetailDto,
+  type DotaPatchFactDto,
+  type DotaIntelligenceDto,
+  type DotaSourceKey as ContractDotaSourceKey
+} from '@alexeev/contracts';
+import { AppError } from '../../shared/app-error';
 
 export const DOTA_SOURCE_KEYS = ['steam_news', 'patch_notes'] as const;
 export type DotaSourceKey = (typeof DOTA_SOURCE_KEYS)[number];
@@ -275,10 +284,20 @@ export interface DotaPatchSummary {
   themes: DotaPatchChangeTheme[];
 }
 
-export async function summarizeOfficialPatch(
-  fetcher: DotaSourceFetcher,
-  version: string
-): Promise<DotaPatchSummary | null> {
+export interface DotaPatchAnalysis {
+  status: 'complete' | 'incomplete' | 'no_recognized_facts';
+  facts: DotaPatchFactDto[];
+  unknownNoteCount: number;
+  unresolvedEntityCount: number;
+  truncatedFactCount: number;
+}
+
+export interface DotaPatchInspection {
+  summary: DotaPatchSummary | null;
+  analysis: DotaPatchAnalysis;
+}
+
+export async function inspectOfficialPatch(fetcher: DotaSourceFetcher, version: string): Promise<DotaPatchInspection> {
   let response: Response;
   try {
     response = await fetcher.fetchPatchDetails(version);
@@ -387,9 +406,175 @@ export async function summarizeOfficialPatch(
       left.name.localeCompare(right.name)
   );
   const rankedThemes = selectPatchThemes(themes);
-  return rankedThemes.length === 0 || unresolvedEntities
-    ? null
-    : { patchNumber: parsed.data.patch_number, title: parsed.data.patch_name, themes: rankedThemes };
+  const summary =
+    rankedThemes.length === 0 || unresolvedEntities
+      ? null
+      : { patchNumber: parsed.data.patch_number, title: parsed.data.patch_name, themes: rankedThemes };
+  return {
+    summary,
+    analysis: parseOfficialPatchFacts(payload, version, nameMaps)
+  };
+}
+
+export async function summarizeOfficialPatch(
+  fetcher: DotaSourceFetcher,
+  version: string
+): Promise<DotaPatchSummary | null> {
+  return (await inspectOfficialPatch(fetcher, version)).summary;
+}
+
+export function parseOfficialPatchFacts(
+  payload: unknown,
+  version: string,
+  nameMaps: { heroes: Map<number, string>; items: Map<number, string> }
+): DotaPatchAnalysis {
+  const parsed = patchDetailsSchema.safeParse(payload);
+  if (!parsed.success || parsed.data.patch_number !== version)
+    throw new DotaPatchDetailError('DOTA_PATCH_DETAIL_SHAPE', version);
+
+  const facts: DotaPatchFactDto[] = [];
+  let unknownNoteCount = 0;
+  let unresolvedEntityCount = 0;
+  let truncatedFactCount = 0;
+  const appendNotes = (
+    entityType: DotaPatchFactDto['entityType'],
+    entityName: string,
+    section: DotaPatchFactDto['section'],
+    entityIndex: number,
+    groupIndex: number,
+    notes: { note: string }[] | undefined
+  ) => {
+    for (const [noteIndex, entry] of (notes ?? []).entries()) {
+      const extracted = extractPatchFact(entry.note);
+      if (extracted === null) {
+        unknownNoteCount += 1;
+        continue;
+      }
+      if (facts.length >= 500) {
+        truncatedFactCount += 1;
+        continue;
+      }
+      facts.push({
+        id: `patch:${version}:${entityType}:${entityIndex}:${section}:${groupIndex}:${noteIndex}`,
+        entityType,
+        entityName,
+        section,
+        change: extracted.change,
+        ...(extracted.direction === undefined ? {} : { direction: extracted.direction }),
+        ...(extracted.before === undefined ? {} : { before: extracted.before }),
+        ...(extracted.after === undefined ? {} : { after: extracted.after })
+      });
+    }
+  };
+  const appendNamedEntity = (
+    entityType: DotaPatchFactDto['entityType'],
+    section: DotaPatchFactDto['section'],
+    entityIndex: number,
+    notes: { note: string }[] | undefined,
+    lookupName: string
+  ) => {
+    if ((notes ?? []).length === 0) return;
+    const entityName = cleanPatchLabel(lookupName);
+    if (entityName === '') {
+      unresolvedEntityCount += 1;
+      for (const entry of notes ?? []) if (extractPatchFact(entry.note) === null) unknownNoteCount += 1;
+      return;
+    }
+    appendNotes(entityType, entityName, section, entityIndex, 0, notes);
+  };
+
+  for (const [groupIndex, group] of (parsed.data.general_notes ?? []).entries()) {
+    const notes = group.generic;
+    appendNotes('general', cleanPatchLabel(group.title) || 'General gameplay changes', 'general', groupIndex, 0, notes);
+  }
+  for (const [heroIndex, hero] of (parsed.data.heroes ?? []).entries()) {
+    const heroName = cleanPatchLabel(hero.hero_id === undefined ? undefined : nameMaps.heroes.get(hero.hero_id));
+    const sections: {
+      section: DotaPatchFactDto['section'];
+      notes: { note: string }[] | undefined;
+      groupIndex: number;
+    }[] = [
+      { section: 'hero', notes: hero.hero_notes, groupIndex: 0 },
+      { section: 'talent', notes: hero.talent_notes, groupIndex: 0 }
+    ];
+    for (const [abilityIndex, ability] of (hero.abilities ?? []).entries())
+      sections.push({ section: 'ability', notes: ability.ability_notes, groupIndex: abilityIndex + 1 });
+    for (const section of sections) {
+      if ((section.notes ?? []).length === 0) continue;
+      if (heroName === '') {
+        unresolvedEntityCount += 1;
+        for (const entry of section.notes ?? []) if (extractPatchFact(entry.note) === null) unknownNoteCount += 1;
+      } else {
+        appendNotes('hero', heroName, section.section, heroIndex, section.groupIndex, section.notes);
+      }
+    }
+  }
+  const appendItems = (
+    entries: z.infer<typeof patchEntityNotesSchema>[],
+    entityType: 'item' | 'neutral_item',
+    section: 'item' | 'neutral_item'
+  ) => {
+    for (const [entityIndex, entry] of entries.entries()) {
+      if (entry.ability_id === undefined || entry.ability_id === -1 || entry.is_general_note === true) continue;
+      appendNamedEntity(
+        entityType,
+        section,
+        entityIndex,
+        entry.ability_notes,
+        nameMaps.items.get(entry.ability_id) ?? ''
+      );
+    }
+  };
+  appendItems(parsed.data.items ?? [], 'item', 'item');
+  appendItems(parsed.data.neutral_items ?? [], 'neutral_item', 'neutral_item');
+  for (const [entityIndex, creep] of (parsed.data.neutral_creeps ?? []).entries()) {
+    appendNamedEntity(
+      'neutral_creep',
+      'neutral_creep',
+      entityIndex,
+      creep.neutral_creep_notes,
+      cleanPatchLabel(creep.localized_name) || cleanPatchLabel(creep.name)
+    );
+  }
+
+  // The contract caps the response at 500 facts. Omitted facts make the stored analysis explicitly partial.
+  const status =
+    unknownNoteCount > 0 || unresolvedEntityCount > 0 || truncatedFactCount > 0
+      ? 'incomplete'
+      : facts.length === 0
+        ? 'no_recognized_facts'
+        : 'complete';
+  return { status, facts, unknownNoteCount, unresolvedEntityCount, truncatedFactCount };
+}
+
+function extractPatchFact(note: string): {
+  change: string;
+  direction?: DotaPatchFactDto['direction'];
+  before?: string;
+  after?: string;
+} | null {
+  const change = summarizePatchNote(note);
+  if (change === null || change.length > 500) return null;
+  if (/^new map mechanic\.?$/i.test(note.trim())) return { change, direction: 'added' };
+  const parameterPattern = Object.keys(patchParameterNames)
+    .sort((left, right) => right.length - left.length)
+    .map((parameter) => parameter.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+    .join('|');
+  const fromTo = note.match(
+    new RegExp(
+      `\\b(${parameterPattern})\\s+(?:was\\s+)?(increased|decreased|reduced|lowered|raised|changed)\\s+from\\s+(-?\\d+(?:\\.\\d+)?%?)\\s+to\\s+(-?\\d+(?:\\.\\d+)?%?)`,
+      'i'
+    )
+  );
+  if (fromTo === null) return { change };
+  const before = fromTo[3] as string;
+  const after = fromTo[4] as string;
+  if (before.length > 40 || after.length > 40) return null;
+  const beforeValue = Number(before.replace('%', ''));
+  const afterValue = Number(after.replace('%', ''));
+  const direction: DotaPatchFactDto['direction'] =
+    afterValue > beforeValue ? 'increase' : afterValue < beforeValue ? 'decrease' : 'change';
+  return { change, direction, before, after };
 }
 
 const patchParameterNames: Record<string, string> = {
@@ -524,6 +709,23 @@ export interface DotaWatcherRepository {
     detectedAt: number;
   }): Promise<{ inserted: number }>;
   listIntelligence(input: { source?: ContractDotaSourceKey; limit: number; now: number }): Promise<DotaIntelligenceDto>;
+  getUpdateDetail(input: { sourceKey: DotaSourceKey; externalId: string }): Promise<DotaEventDetailDto | null>;
+  savePatchAnalysis(input: {
+    externalId: string;
+    claimToken?: string;
+    parseStatus: Extract<
+      DotaEventDetailDto['parseStatus'],
+      'pending' | 'complete' | 'incomplete' | 'no_recognized_facts' | 'unavailable'
+    >;
+    facts: DotaPatchFactDto[];
+    parsedAt?: number;
+  }): Promise<boolean>;
+  claimPendingPatchAnalyses(input: {
+    claimToken: string;
+    now: number;
+    leaseUntil: number;
+    limit: number;
+  }): Promise<string[]>;
   recordSourceFailure(input: {
     sourceKey: DotaSourceKey;
     code: DotaWatchError['code'] | DotaPatchDetailError['code'];
@@ -558,6 +760,17 @@ export const DOTA_DRAFT_WORK_SQL = `
   FROM dota_update_items u INDEXED BY dota_draft_candidates_idx
   WHERE u.is_baseline = 0 AND u.draft_post_id IS NULL
   ORDER BY u.published_at, u.source_key, u.external_id LIMIT ?1`;
+
+export const DOTA_PENDING_PATCH_ANALYSIS_SQL = `
+  WITH candidates AS (
+    SELECT external_id FROM dota_patch_analyses
+    WHERE parse_status IN ('pending', 'unavailable') AND (claim_until IS NULL OR claim_until <= ?2)
+    ORDER BY parsed_at, external_id LIMIT ?3
+  )
+  UPDATE dota_patch_analyses SET claim_token = ?1, claim_until = ?4
+  WHERE source_key = 'patch_notes' AND parse_status IN ('pending', 'unavailable')
+    AND (claim_until IS NULL OR claim_until <= ?2)
+    AND external_id IN (SELECT external_id FROM candidates)`;
 
 export const DOTA_DRAFT_RECOVERY_SQL = `
   SELECT u.source_key, u.external_id, u.title, u.source_url, u.published_at, u.is_baseline, u.draft_post_id
@@ -731,6 +944,17 @@ export function createD1DotaWatcherRepository(db: D1Database): DotaWatcherReposi
             )
             .bind(...bindings)
         );
+        if (sourceKey === 'patch_notes') {
+          statements.push(
+            db
+              .prepare(
+                `INSERT OR IGNORE INTO dota_patch_analyses (source_key, external_id, parse_status, facts_json, parsed_at)
+                 SELECT source_key, external_id, 'pending', '[]', detected_at
+                 FROM dota_update_items WHERE source_key = 'patch_notes' AND external_id IN (${chunk.map(() => '?').join(', ')})`
+              )
+              .bind(...chunk.map((item) => item.externalId))
+          );
+        }
       }
       statements.push(
         db
@@ -880,6 +1104,101 @@ export function createD1DotaWatcherRepository(db: D1Database): DotaWatcherReposi
       return { sources, updates };
     },
 
+    async getUpdateDetail({ sourceKey, externalId }) {
+      const row = await db
+        .prepare(
+          `SELECT u.source_key, u.external_id, u.title, u.source_url, u.published_at, u.detected_at,
+                  u.is_baseline, p.id AS linked_draft_id, p.title AS linked_draft_title,
+                  a.parse_status, a.facts_json
+           FROM dota_update_items u
+           LEFT JOIN posts p ON p.id = u.draft_post_id
+           LEFT JOIN dota_patch_analyses a ON a.source_key = u.source_key AND a.external_id = u.external_id
+           WHERE u.source_key = ?1 AND u.external_id = ?2`
+        )
+        .bind(sourceKey, externalId)
+        .first<DotaDetailRow>();
+      if (row === null || !isOfficialStoredUrl(row.source_key, row.external_id, row.source_url)) return null;
+      const linkedDraft =
+        row.linked_draft_id !== null && row.linked_draft_title !== null
+          ? { id: row.linked_draft_id, title: row.linked_draft_title }
+          : undefined;
+      const update = {
+        id: `${row.source_key}:${row.external_id}`,
+        sourceKey: row.source_key,
+        type: row.source_key === 'steam_news' ? ('news' as const) : ('patch' as const),
+        title: row.title,
+        sourceUrl: row.source_url,
+        publishedAt: new Date(row.published_at).toISOString(),
+        detectedAt: new Date(row.detected_at).toISOString(),
+        isBaseline: row.is_baseline === 1,
+        ...(linkedDraft === undefined ? {} : { linkedDraft })
+      };
+      let parseStatus: DotaEventDetailDto['parseStatus'];
+      let facts: DotaPatchFactDto[];
+      if (row.source_key === 'steam_news') {
+        parseStatus = 'not_applicable';
+        facts = [];
+      } else {
+        parseStatus = row.parse_status === null ? 'pending' : dotaPatchParseStatusSchema.parse(row.parse_status);
+        try {
+          facts = row.facts_json === null ? [] : (JSON.parse(row.facts_json) as DotaPatchFactDto[]);
+        } catch {
+          throw new AppError('UNAVAILABLE', 'Stored Dota analysis is invalid');
+        }
+      }
+      const detail = dotaEventDetailSchema.safeParse({ update, parseStatus, facts });
+      if (!detail.success) throw new AppError('UNAVAILABLE', 'Stored Dota analysis is invalid');
+      return detail.data;
+    },
+
+    async savePatchAnalysis({ externalId, claimToken, parseStatus, facts, parsedAt = 0 }) {
+      const parsedFacts = dotaPatchFactSchema.array().max(500).safeParse(facts);
+      const statusAllowed = dotaPatchParseStatusSchema.safeParse(parseStatus).success;
+      const statusMatchesFacts =
+        parseStatus === 'complete' ? facts.length > 0 : parseStatus === 'incomplete' ? true : facts.length === 0;
+      if (!parsedFacts.success || !statusAllowed || !statusMatchesFacts)
+        throw new AppError('VALIDATION_ERROR', 'Patch analysis is invalid');
+      const factsJson = JSON.stringify(parsedFacts.data);
+      if (factsJson.length > 1_000_000) throw new AppError('VALIDATION_ERROR', 'Patch analysis is too large');
+      const results = await db.batch([
+        db
+          .prepare(
+            `INSERT INTO dota_patch_analyses (source_key, external_id, parse_status, facts_json, parsed_at)
+             SELECT 'patch_notes', ?1, ?2, ?3, ?4
+             WHERE EXISTS (
+               SELECT 1 FROM dota_update_items
+               WHERE source_key = 'patch_notes' AND external_id = ?1
+             )
+             ON CONFLICT (source_key, external_id) DO UPDATE SET
+               parse_status = excluded.parse_status,
+               facts_json = excluded.facts_json,
+               parsed_at = excluded.parsed_at,
+               claim_token = NULL,
+               claim_until = NULL
+             WHERE (dota_patch_analyses.parse_status = 'pending'
+                 OR (dota_patch_analyses.parse_status = 'unavailable' AND excluded.parse_status != 'unavailable'))
+             AND ((?5 IS NULL AND dota_patch_analyses.claim_token IS NULL)
+               OR (?5 IS NOT NULL AND dota_patch_analyses.claim_token = ?5))`
+          )
+          .bind(externalId, parseStatus, factsJson, parsedAt, claimToken ?? null)
+      ]);
+      return results[0]?.meta.changes === 1;
+    },
+
+    async claimPendingPatchAnalyses({ claimToken, now, leaseUntil, limit }) {
+      const results = await db.batch([
+        db.prepare(DOTA_PENDING_PATCH_ANALYSIS_SQL).bind(claimToken, now, limit, leaseUntil),
+        db
+          .prepare(
+            `SELECT external_id FROM dota_patch_analyses
+             WHERE claim_token = ?1 AND claim_until = ?2 ORDER BY parsed_at, external_id`
+          )
+          .bind(claimToken, leaseUntil)
+      ]);
+      const rows = (results[1]?.results ?? []) as { external_id: string }[];
+      return rows.map((row) => row.external_id);
+    },
+
     async recordSourceFailure({ sourceKey, code, externalId, detectedAt, id }) {
       await db.batch([
         db
@@ -1024,6 +1343,11 @@ interface DotaIntelligenceRow {
   is_baseline: number;
   linked_draft_id: string | null;
   linked_draft_title: string | null;
+}
+
+interface DotaDetailRow extends DotaIntelligenceRow {
+  parse_status: string | null;
+  facts_json: string | null;
 }
 
 function isOfficialStoredUrl(sourceKey: DotaSourceKey, externalId: string, raw: string): boolean {

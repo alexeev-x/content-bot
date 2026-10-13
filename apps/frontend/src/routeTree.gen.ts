@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root';
 import { Route as IndexRouteImport } from './routes/index';
 import { Route as _catalogRouteImport } from './routes/[_][_]catalog';
 import { Route as _protoRouteImport } from './routes/[_][_]proto';
+import { Route as AnalyticsRouteImport } from './routes/analytics';
 import { Route as AutomationsRouteImport } from './routes/automations';
 import { Route as CalendarRouteImport } from './routes/calendar';
 import { Route as IncidentsRouteImport } from './routes/incidents';
@@ -45,6 +46,11 @@ const _catalogRoute = _catalogRouteImport.update({
 const _protoRoute = _protoRouteImport.update({
   id: '/__proto',
   path: '/__proto',
+  getParentRoute: () => rootRouteImport,
+} as any);
+const AnalyticsRoute = AnalyticsRouteImport.update({
+  id: '/analytics',
+  path: '/analytics',
   getParentRoute: () => rootRouteImport,
 } as any);
 const AutomationsRoute = AutomationsRouteImport.update({
@@ -147,6 +153,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute;
   '/__catalog': typeof _catalogRoute;
   '/__proto': typeof _protoRouteWithChildren;
+  '/analytics': typeof AnalyticsRoute;
   '/automations': typeof AutomationsRoute;
   '/calendar': typeof CalendarRoute;
   '/incidents': typeof IncidentsRoute;
@@ -170,6 +177,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute;
   '/__catalog': typeof _catalogRoute;
+  '/analytics': typeof AnalyticsRoute;
   '/automations': typeof AutomationsRoute;
   '/calendar': typeof CalendarRoute;
   '/incidents': typeof IncidentsRoute;
@@ -194,6 +202,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute;
   '/__catalog': typeof _catalogRoute;
   '/__proto': typeof _protoRouteWithChildren;
+  '/analytics': typeof AnalyticsRoute;
   '/automations': typeof AutomationsRoute;
   '/calendar': typeof CalendarRoute;
   '/incidents': typeof IncidentsRoute;
@@ -220,6 +229,7 @@ export interface FileRouteTypes {
     | '/'
     | '/__catalog'
     | '/__proto'
+    | '/analytics'
     | '/automations'
     | '/calendar'
     | '/incidents'
@@ -243,6 +253,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/__catalog'
+    | '/analytics'
     | '/automations'
     | '/calendar'
     | '/incidents'
@@ -266,6 +277,7 @@ export interface FileRouteTypes {
     | '/'
     | '/__catalog'
     | '/__proto'
+    | '/analytics'
     | '/automations'
     | '/calendar'
     | '/incidents'
@@ -291,6 +303,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute;
   _catalogRoute: typeof _catalogRoute;
   _protoRoute: typeof _protoRouteWithChildren;
+  AnalyticsRoute: typeof AnalyticsRoute;
   AutomationsRoute: typeof AutomationsRoute;
   CalendarRoute: typeof CalendarRoute;
   IncidentsRoute: typeof IncidentsRoute;
@@ -325,6 +338,13 @@ declare module '@tanstack/react-router' {
       path: '/__proto';
       fullPath: '/__proto';
       preLoaderRoute: typeof _protoRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
+    '/analytics': {
+      id: '/analytics';
+      path: '/analytics';
+      fullPath: '/analytics';
+      preLoaderRoute: typeof AnalyticsRouteImport;
       parentRoute: typeof rootRouteImport;
     };
     '/automations': {
@@ -511,6 +531,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   _catalogRoute: _catalogRoute,
   _protoRoute: _protoRouteWithChildren,
+  AnalyticsRoute: AnalyticsRoute,
   AutomationsRoute: AutomationsRoute,
   CalendarRoute: CalendarRoute,
   IncidentsRoute: IncidentsRoute,

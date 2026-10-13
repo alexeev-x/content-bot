@@ -17,6 +17,12 @@ export type BootResult =
  */
 export async function bootstrapSession(): Promise<BootResult> {
   if (getAccessToken() !== null) return { kind: 'done' };
+  if (
+    import.meta.env.DEV &&
+    (window.location.pathname === '/__proto' || window.location.pathname.startsWith('/__proto/'))
+  ) {
+    return { kind: 'done' };
+  }
   try {
     if (isInsideTelegram()) await signInWithMiniApp();
     // `npm run dev`: a fresh owner session on every load, without the Telegram widget, which refuses localhost.

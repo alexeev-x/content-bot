@@ -18,6 +18,9 @@ interface MediaRow {
   position: number;
   source_media_id?: string | null;
   created_at?: number;
+  duplicate_count?: number;
+  usage_count?: number;
+  usages?: string;
 }
 
 function toMedia(row: MediaRow): PostMediaDto {
@@ -147,21 +150,54 @@ export function createD1PostMediaRepository(db: D1Database): PostMediaRepository
       return { revision: post.revision, status: post.status, media: results.map(toMedia) };
     },
 
-    async listLibrary({ kind, after, limit }): Promise<MediaLibraryItemDto[]> {
+    async listLibrary({ kind, search, usage, after, limit }): Promise<MediaLibraryItemDto[]> {
       const kindClause =
         kind === 'all' ? '' : kind === 'photo' ? "AND m.kind = 'photo'" : "AND m.kind IN ('video', 'animation')";
-      const cursorClause = after === undefined ? '' : 'AND (m.created_at < ?1 OR (m.created_at = ?1 AND m.id < ?2))';
       const bindings: (string | number)[] = [];
-      if (after !== undefined) bindings.push(after.createdAt, after.id);
+      const nextParameter = () => `?${bindings.length + 1}`;
+      const cursorClause =
+        after === undefined
+          ? ''
+          : (() => {
+              const createdAt = nextParameter();
+              bindings.push(after.createdAt);
+              const id = nextParameter();
+              bindings.push(after.id);
+              return `AND (m.created_at < ${createdAt} OR (m.created_at = ${createdAt} AND m.id < ${id}))`;
+            })();
+      const searchClause =
+        search === undefined
+          ? ''
+          : (() => {
+              const parameter = nextParameter();
+              const escaped = search.replace(/[\\%_]/g, '\\$&');
+              bindings.push(`${escaped}%`);
+              return `AND m.file_name LIKE ${parameter} ESCAPE '\\' COLLATE NOCASE`;
+            })();
+      const usageClause =
+        usage === 'used'
+          ? 'AND EXISTS (SELECT 1 FROM post_media current_usage WHERE current_usage.media_id = m.id)'
+          : usage === 'unused'
+            ? 'AND NOT EXISTS (SELECT 1 FROM post_media current_usage WHERE current_usage.media_id = m.id)'
+            : '';
+      const limitParameter = nextParameter();
       bindings.push(limit + 1);
-      const limitPlaceholder = `?${bindings.length}`;
       const { results } = await db
         .prepare(
-          `SELECT m.id, m.kind, m.file_name, m.content_type, m.size_bytes, m.width, m.height, m.duration_ms, m.created_at
+          `SELECT m.id, m.kind, m.file_name, m.content_type, m.size_bytes, m.width, m.height, m.duration_ms, m.created_at,
+                  (SELECT count(*) FROM media_assets duplicate
+                    WHERE duplicate.sha256 = m.sha256 AND ${isRetainedSql('duplicate.id')}) AS duplicate_count,
+                  (SELECT count(*) FROM post_media current_usage WHERE current_usage.media_id = m.id) AS usage_count,
+                  (SELECT json_group_array(json_object('postId', post_id, 'title', title)) FROM (
+                    SELECT p.id AS post_id, p.title
+                      FROM post_media linked JOIN posts p ON p.id = linked.post_id
+                     WHERE linked.media_id = m.id
+                     ORDER BY p.created_at DESC, p.id DESC LIMIT 3
+                  )) AS usages
              FROM media_assets m
             WHERE ${isRetainedSql('m.id')}
-               ${kindClause} ${cursorClause}
-            ORDER BY m.created_at DESC, m.id DESC LIMIT ${limitPlaceholder}`
+               ${kindClause} ${cursorClause} ${searchClause} ${usageClause}
+            ORDER BY m.created_at DESC, m.id DESC LIMIT ${limitParameter}`
         )
         .bind(...bindings)
         .all<MediaRow>();
@@ -175,7 +211,10 @@ export function createD1PostMediaRepository(db: D1Database): PostMediaRepository
           width: row.width,
           height: row.height,
           durationMs: row.duration_ms,
-          createdAt: new Date(row.created_at ?? 0).toISOString()
+          createdAt: new Date(row.created_at ?? 0).toISOString(),
+          duplicateCount: row.duplicate_count,
+          usageCount: row.usage_count,
+          usages: JSON.parse(row.usages ?? '[]')
         })
       );
     },

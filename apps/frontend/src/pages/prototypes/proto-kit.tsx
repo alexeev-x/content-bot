@@ -9,10 +9,17 @@ export type ProtoSearch = {
   state?: string;
   view?: string;
   id?: string;
+  update?: string;
   mini?: string;
   /** Preview pages: calendar date (YYYY-MM-DD), analytics period, media view mode, inspector tab. */
   date?: string;
   period?: string;
+  destination?: string;
+  rubric?: string;
+  media?: string;
+  outcome?: string;
+  compare?: string;
+  page?: string;
   mode?: string;
   tab?: string;
 };

@@ -198,7 +198,7 @@ const extras: Shot[] = [
     url: '/__proto/analytics',
     overlay: true,
     viewports: ['M'],
-    run: click('Период и канал')
+    run: click(/^Фильтры/)
   },
   {
     group: 'marking',

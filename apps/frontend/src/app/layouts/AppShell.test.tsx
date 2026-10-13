@@ -54,7 +54,7 @@ describe('AppShell', () => {
       expect(within(nav).getByRole('link', { name: new RegExp(label) })).toBeTruthy();
     }
     // Sections that are still «Раздел в разработке» stubs are not offered (their routes stay).
-    for (const label of ['Календарь', 'Автоматизации', 'Медиа']) {
+    for (const label of ['Календарь', 'Автоматизации']) {
       expect(within(nav).queryByRole('link', { name: new RegExp(label) })).toBeNull();
     }
     expect(within(nav).getByRole('link', { name: /Обзор/ }).getAttribute('aria-current')).toBe('page');
@@ -64,10 +64,20 @@ describe('AppShell', () => {
     renderShell();
     await screen.findByRole('main');
     expect(screen.queryByRole('group')).toBeNull();
-    for (const heading of ['Работа', 'Аналитика', 'Система']) expect(screen.queryByText(heading)).toBeNull();
+    for (const heading of ['Работа', 'Аналитика', 'Система'])
+      expect(screen.queryByRole('heading', { name: heading })).toBeNull();
     const side = document.querySelector('aside');
     const names = [...(side?.querySelectorAll('nav a') ?? [])].map((link) => link.textContent);
-    expect(names).toEqual(['Обзор', 'Посты', 'Публикации', 'Инциденты', 'Источники', 'Настройки']);
+    expect(names).toEqual([
+      'Обзор',
+      'Посты',
+      'Публикации',
+      'Инциденты',
+      'Медиа',
+      'Источники',
+      'Аналитика',
+      'Настройки'
+    ]);
   });
 
   it('collapses the sidebar to icons, keeps link names and remembers the choice', async () => {

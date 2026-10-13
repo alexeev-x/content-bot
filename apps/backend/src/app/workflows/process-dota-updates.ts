@@ -1,10 +1,12 @@
 import type { CreatePostInput } from '@alexeev/contracts';
+import type { OwnerOperationsSettingsDto } from '@alexeev/contracts';
 import type { TelegramOwnerMessageApi } from '../../integrations/telegram/telegram-api';
 import {
   DOTA_SOURCE_KEYS,
   DotaPatchDetailError,
   DotaWatchError,
   type DotaDraftSource,
+  type DotaPatchInspection,
   type DotaPatchSummary,
   type DotaWatcherRepository
 } from '../../modules/dota';
@@ -16,6 +18,7 @@ import { formatDotaDraftAlert, formatDotaIncidentAlert } from '../notifications/
 
 // Keep each tick small enough to leave room for the existing publishing dispatch's 50-statement budget.
 export const DOTA_DRAFT_BATCH_LIMIT = 2;
+export const DOTA_PATCH_ANALYSIS_LEASE_MS = 60_000;
 export const DOTA_NOTICE_TIMEOUT_MS = 5_000;
 
 export interface DotaWorkflowSummary {
@@ -30,6 +33,7 @@ export interface DotaWorkflowSummary {
 export async function processDotaUpdates(deps: {
   sync: (input: { detectedAt: number }) => Promise<{ inserted: number; fetched: number }>;
   summarizePatch: (version: string) => Promise<DotaPatchSummary | null>;
+  inspectPatch?: (version: string) => Promise<DotaPatchInspection>;
   repo: DotaWatcherRepository;
   posts: PostRepository;
   idempotency: IdempotencyGate;
@@ -39,6 +43,7 @@ export async function processDotaUpdates(deps: {
   messenger: TelegramOwnerMessageApi | null;
   ownerChatId: string | null;
   readAppOrigin: () => Promise<string | null>;
+  readNotificationPreferences?: () => Promise<OwnerOperationsSettingsDto['notifications']>;
   logger: Logger;
   timeoutMs?: number;
 }): Promise<DotaWorkflowSummary> {
@@ -97,24 +102,45 @@ export async function processDotaUpdates(deps: {
     let patchSummary: DotaPatchSummary | null = null;
     if (source.sourceKey === 'patch_notes') {
       try {
-        patchSummary = await deps.summarizePatch(source.externalId);
-        await deps.repo.resolvePatchDetailFailures({ externalId: source.externalId, detectedAt: deps.now() });
+        let analysisSaved = deps.inspectPatch === undefined;
+        if (deps.inspectPatch === undefined) {
+          patchSummary = await deps.summarizePatch(source.externalId);
+        } else {
+          const inspection = await deps.inspectPatch(source.externalId);
+          patchSummary = inspection.summary;
+          analysisSaved = await deps.repo.savePatchAnalysis({
+            externalId: source.externalId,
+            parseStatus: inspection.analysis.status,
+            facts: inspection.analysis.facts,
+            parsedAt: deps.now()
+          });
+        }
+        if (analysisSaved)
+          await deps.repo.resolvePatchDetailFailures({ externalId: source.externalId, detectedAt: deps.now() });
       } catch (error) {
         if (!(error instanceof DotaPatchDetailError)) throw error;
-        summary.sourceFailures += 1;
-        await deps.repo.recordSourceFailure({
-          sourceKey: error.sourceKey,
-          code: error.code,
-          externalId: error.externalId,
-          detectedAt: deps.now(),
-          id: deps.newId()
+        const analysisSaved = await deps.repo.savePatchAnalysis({
+          externalId: source.externalId,
+          parseStatus: 'unavailable',
+          facts: [],
+          parsedAt: deps.now()
         });
-        deps.logger.warn({
-          component: 'dota',
-          operation: 'patch_summary',
-          status: 'omitted',
-          errorCode: error.code
-        });
+        if (analysisSaved) {
+          summary.sourceFailures += 1;
+          await deps.repo.recordSourceFailure({
+            sourceKey: error.sourceKey,
+            code: error.code,
+            externalId: error.externalId,
+            detectedAt: deps.now(),
+            id: deps.newId()
+          });
+          deps.logger.warn({
+            component: 'dota',
+            operation: 'patch_summary',
+            status: 'omitted',
+            errorCode: error.code
+          });
+        }
         continue;
       }
     }
@@ -140,6 +166,54 @@ export async function processDotaUpdates(deps: {
       });
       if (!(error instanceof AppError && error.code === 'CONFLICT' && error.details?.reason === 'IN_FLIGHT'))
         throw error;
+    }
+  }
+
+  if (deps.inspectPatch !== undefined) {
+    const claimToken = deps.newId();
+    const pendingAnalyses = await deps.repo.claimPendingPatchAnalyses({
+      claimToken,
+      now: deps.now(),
+      leaseUntil: deps.now() + DOTA_PATCH_ANALYSIS_LEASE_MS,
+      limit: DOTA_DRAFT_BATCH_LIMIT
+    });
+    for (const externalId of pendingAnalyses) {
+      try {
+        const inspection = await deps.inspectPatch(externalId);
+        const analysisSaved = await deps.repo.savePatchAnalysis({
+          externalId,
+          claimToken,
+          parseStatus: inspection.analysis.status,
+          facts: inspection.analysis.facts,
+          parsedAt: deps.now()
+        });
+        if (analysisSaved) await deps.repo.resolvePatchDetailFailures({ externalId, detectedAt: deps.now() });
+      } catch (error) {
+        if (!(error instanceof DotaPatchDetailError)) throw error;
+        const analysisSaved = await deps.repo.savePatchAnalysis({
+          externalId,
+          claimToken,
+          parseStatus: 'unavailable',
+          facts: [],
+          parsedAt: deps.now()
+        });
+        if (analysisSaved) {
+          summary.sourceFailures += 1;
+          await deps.repo.recordSourceFailure({
+            sourceKey: error.sourceKey,
+            code: error.code,
+            externalId: error.externalId,
+            detectedAt: deps.now(),
+            id: deps.newId()
+          });
+          deps.logger.warn({
+            component: 'dota',
+            operation: 'patch_analysis',
+            status: 'omitted',
+            errorCode: error.code
+          });
+        }
+      }
     }
   }
 
@@ -202,6 +276,24 @@ async function alertDrafts(deps: Parameters<typeof processDotaUpdates>[0]): Prom
 
 async function alertSourceIncidents(deps: Parameters<typeof processDotaUpdates>[0]): Promise<number> {
   const incidents = await deps.repo.listSourceIncidentAlerts(2);
+  if (incidents.length === 0) return 0;
+  let notifications: OwnerOperationsSettingsDto['notifications'];
+  try {
+    notifications =
+      deps.readNotificationPreferences === undefined
+        ? {
+            warningsEnabled: true,
+            publicationAlerts: true,
+            sourceAlerts: true,
+            automationAlerts: true,
+            recoveryAlerts: true,
+            dotaWatchlistAlerts: true
+          }
+        : await deps.readNotificationPreferences();
+  } catch {
+    logSkipped(deps, 'dota_source_alert', 'SETTINGS_UNAVAILABLE');
+    return 0;
+  }
   const ready = await notificationPrerequisites(deps);
   if (ready === null) {
     if (incidents.length > 0) logSkipped(deps, 'dota_source_alert', missingPrerequisite(deps));
@@ -212,6 +304,11 @@ async function alertSourceIncidents(deps: Parameters<typeof processDotaUpdates>[
   for (const incident of incidents) {
     const claim = await deps.repo.claimSourceIncidentAlert({ id: incident.id, claimedAt: deps.now() });
     if (claim === null) continue;
+    const recovery = claim.resolvedAt !== null;
+    if (!notifications.sourceAlerts || (recovery ? !notifications.recoveryAlerts : !notifications.warningsEnabled)) {
+      logSkipped(deps, recovery ? 'dota_source_recovery' : 'dota_source_alert', 'ALERT_CATEGORY_DISABLED');
+      continue;
+    }
     try {
       await call.act('dota_source_alert.send', (signal) =>
         ready.messenger.sendMessageWithWebAppButton(

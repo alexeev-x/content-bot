@@ -639,8 +639,8 @@ export function createD1PublicationRepository(db: D1Database): PublicationReposi
         actor: change.actor,
         now: change.now,
         action: 'publication.resolve_unknown' as const,
-        // After the audit row, so `changes() = 1` still means "the change applied". `max` keeps the
-        // `resolved_at >= created_at` check true if the clocks of two isolates disagree.
+        // The snapshot is appended by the audit trigger inside this write. The incident update
+        // still sees the guarded audit insert through `changes() = 1`; `max` keeps timestamps valid.
         after: [
           db
             .prepare(

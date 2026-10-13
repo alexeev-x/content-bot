@@ -7,9 +7,11 @@ import {
 import { dispatchDueJobs, type RaisedIncident, reconcileExpiredJobs } from '../modules/publishing';
 import type { Container } from './container';
 import { alertOwnerOfIncidents } from './notifications/alert-owner-of-incidents';
+import { getOwnerOperationsSettings } from '../modules/settings';
 import { processDotaUpdates } from './workflows/process-dota-updates';
 import { DotaWatchError } from '../modules/dota';
 import { processPostMediaCleanup } from '../modules/content';
+import { sendDotaWatchlistAlerts } from './workflows/process-dota-watchlist-alerts';
 
 // Per table and per hourly tick; leftovers wait for the next hour.
 export const CLEANUP_LIMIT = 100;
@@ -23,6 +25,7 @@ type TickContainer = Pick<
   | 'clock'
   | 'logger'
   | 'publishing'
+  | 'settings'
   | 'dispatchJobs'
   | 'lifecycle'
   | 'postRevisions'
@@ -38,6 +41,7 @@ type TickContainer = Pick<
   | 'newId'
   | 'dotaWatcher'
   | 'dotaRepository'
+  | 'dotaWatchlists'
   | 'posts'
   | 'idempotency'
 >;
@@ -182,20 +186,16 @@ export async function handleScheduled(controller: ScheduledController, container
     });
   }
 
-  if (raised.length > 0) {
-    const alerts = await alertOwnerOfIncidents(
-      {
-        repo: container.dispatchJobs,
-        messenger: container.ownerMessenger,
-        ownerChatId: container.ownerChatId,
-        readAppOrigin: () => container.systemState.readAppOrigin(),
-        clock,
-        logger
-      },
-      raised
-    );
-    Object.assign(counts, { alertsSent: alerts.sent, alertsFailed: alerts.failed });
-  }
+  const alerts = await alertOwnerOfIncidents({
+    repo: container.dispatchJobs,
+    messenger: container.ownerMessenger,
+    ownerChatId: container.ownerChatId,
+    readAppOrigin: () => container.systemState.readAppOrigin(),
+    readPreferences: () => getOwnerOperationsSettings({ repo: container.settings, logger, requestId: 'scheduled' }),
+    clock,
+    logger
+  });
+  Object.assign(counts, { alertsSent: alerts.sent, alertsFailed: alerts.failed });
 
   // Run after the publication pipeline and its alerts: feed ingestion never delays dispatch or
   // changes publication state. It runs only on exact five-minute UTC slots.
@@ -207,6 +207,7 @@ export async function handleScheduled(controller: ScheduledController, container
       const summary = await processDotaUpdates({
         sync: dotaWatcher.sync,
         summarizePatch: dotaWatcher.summarizePatch,
+        ...(dotaWatcher.inspectPatch === undefined ? {} : { inspectPatch: dotaWatcher.inspectPatch }),
         repo: container.dotaRepository,
         posts: container.posts,
         idempotency: container.idempotency,
@@ -216,16 +217,41 @@ export async function handleScheduled(controller: ScheduledController, container
         messenger: container.ownerMessenger,
         ownerChatId: container.ownerChatId,
         readAppOrigin: () => container.systemState.readAppOrigin(),
+        readNotificationPreferences: async () =>
+          (await getOwnerOperationsSettings({ repo: container.settings, logger, requestId: 'scheduled' }))
+            .notifications,
         logger
       });
       if (summary.sourceFailures > 0) failures += 1;
+      const notifications = (
+        await getOwnerOperationsSettings({ repo: container.settings, logger, requestId: 'scheduled' })
+      ).notifications;
+      const watchMatches = await container.dotaWatchlists.processMatches({
+        now: clock.now(),
+        newId: container.newId,
+        notificationsEnabled: notifications.dotaWatchlistAlerts
+      });
+      const watchAlerts = await sendDotaWatchlistAlerts({
+        repo: container.dotaWatchlists,
+        messenger: container.ownerMessenger,
+        ownerChatId: container.ownerChatId,
+        now: () => clock.now(),
+        logger,
+        appOrigin: await container.systemState.readAppOrigin()
+      });
       return {
         dotaFeedsFetched: summary.feedsFetched,
         dotaItemsInserted: summary.itemsInserted,
         dotaDraftsCreated: summary.draftsCreated,
         dotaDraftAlertsSent: summary.draftAlertsSent,
         dotaSourceAlertsSent: summary.sourceAlertsSent,
-        dotaSourceFailures: summary.sourceFailures
+        dotaSourceFailures: summary.sourceFailures,
+        dotaWatchMatches: watchMatches.matched,
+        dotaWatchAlertsSent: watchAlerts.sent,
+        dotaWatchAlertsFailed: watchAlerts.failed,
+        dotaWatchAlertsUnknown: watchAlerts.unknown,
+        dotaWatchAlertsDisabled: watchMatches.disabled,
+        dotaWatchAlertsRecoveredUnknown: watchMatches.unknown
       };
     });
   }

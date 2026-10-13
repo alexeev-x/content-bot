@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from 'react';
 import { Menu as AriaMenu, MenuItem, MenuTrigger, Popover, type Selection } from 'react-aria-components';
 import { Button } from './Button';
 import { Icon, type IconName } from './Icon';
@@ -42,17 +43,48 @@ export function Menu({
   onSelect,
   placement = 'bottom end'
 }: Props) {
+  const [isOpen, setIsOpen] = useState(false);
+  const triggerRef = useRef<HTMLElement | null>(null);
+  const wasOpenRef = useRef(false);
   const selected: Selection | undefined =
     selectionMode === 'single' ? new Set(selectedId ? [selectedId] : []) : undefined;
+
+  useEffect(() => {
+    if (!isOpen && wasOpenRef.current && document.activeElement === document.body) {
+      triggerRef.current?.focus();
+    }
+    wasOpenRef.current = isOpen;
+  }, [isOpen]);
+
   return (
-    <MenuTrigger>
+    <MenuTrigger
+      isOpen={isOpen}
+      onOpenChange={(open) => {
+        setIsOpen(open);
+      }}
+    >
       {triggerText ? (
-        <Button variant="secondary" size="sm" aria-label={label}>
+        <Button
+          variant="secondary"
+          size="sm"
+          aria-label={label}
+          onFocus={(event) => {
+            triggerRef.current = event.currentTarget instanceof HTMLElement ? event.currentTarget : null;
+          }}
+        >
           {triggerText}
           <Icon name="chevron-down" size={16} />
         </Button>
       ) : (
-        <IconButton label={label} icon={triggerIcon} size={triggerSize} showTooltip={false} />
+        <IconButton
+          label={label}
+          icon={triggerIcon}
+          size={triggerSize}
+          showTooltip={false}
+          onFocus={(event) => {
+            triggerRef.current = event.currentTarget instanceof HTMLElement ? event.currentTarget : null;
+          }}
+        />
       )}
       <Popover placement={placement} offset={6} className={styles.popover}>
         <AriaMenu

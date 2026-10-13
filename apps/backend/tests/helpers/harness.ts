@@ -40,6 +40,8 @@ export async function resetDb(): Promise<void> {
   await db.batch(
     [
       'incidents',
+      'incident_alert_groups',
+      'analytics_snapshots',
       'job_attempts',
       'jobs',
       'publications',

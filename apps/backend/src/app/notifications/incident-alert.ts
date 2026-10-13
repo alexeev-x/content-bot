@@ -1,4 +1,4 @@
-import type { RaisedIncident } from '../../modules/publishing';
+import type { OwnerIncidentAlertGroup, RaisedIncident } from '../../modules/publishing';
 import { clip, escapeHtml } from './schedule-notice';
 
 export const OPEN_BUTTON_TEXT = 'Открыть';
@@ -56,5 +56,44 @@ export function formatIncidentAlertGroup(
   return {
     html: `<b>Сводка: ${alerts.length} инцидента</b>\n\n${entries.join('\n\n— — —\n\n')}`,
     button: { text: OPEN_BUTTON_TEXT, url: `${appOrigin}/incidents` }
+  };
+}
+
+export function formatOwnerIncidentOccurrence(group: OwnerIncidentAlertGroup, appOrigin: string): IncidentAlertMessage {
+  const incident: RaisedIncident = {
+    id: group.groupKey,
+    kind: group.kind,
+    code: group.code,
+    publicationId: group.publicationId,
+    postTitle: group.postTitle,
+    channelTitle: group.channelTitle
+  };
+  const base = formatIncidentAlert(incident, appOrigin);
+  const lines = [
+    `<b>Сводка инцидента: ${group.occurrenceCount}</b>`,
+    `Первое событие: ${new Date(group.firstSeenAt).toISOString()}`,
+    base.html
+  ];
+  return { ...base, html: lines.join('\n') };
+}
+
+export function formatOwnerIncidentRecovery(group: OwnerIncidentAlertGroup, appOrigin: string): IncidentAlertMessage {
+  const incident: RaisedIncident = {
+    id: group.groupKey,
+    kind: group.kind,
+    code: group.code,
+    publicationId: group.publicationId,
+    postTitle: group.postTitle,
+    channelTitle: group.channelTitle
+  };
+  const base = formatIncidentAlert(incident, appOrigin);
+  const recoveredAt = group.recoveredAt ?? group.lastSeenAt;
+  const durationMs = Math.max(0, recoveredAt - group.firstSeenAt);
+  const minutes = Math.floor(durationMs / 60_000);
+  const hours = Math.floor(minutes / 60);
+  const duration = hours > 0 ? `${hours} ч ${minutes % 60} мин` : `${minutes} мин`;
+  return {
+    ...base,
+    html: `<b>Инцидент восстановлен</b>\nДлительность: ${duration}\n${base.html}`
   };
 }

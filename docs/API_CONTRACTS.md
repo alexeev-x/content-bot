@@ -155,6 +155,14 @@ Reschedule, cancel and resolve-unknown carry the publication `revision`; a stale
 
 There is no retry endpoint: a `failed` publication is not resent from the API, and `unknown` leaves only through `resolve-unknown`. A future retry may exist only for a status the backend deems safe, never for `unknown`.
 
+## Publication analytics
+
+`GET /api/v1/analytics/publications` is a read-only, owner-authenticated report over append-only Studio publication snapshots. `from` is inclusive and `to` exclusive; both are UTC ISO datetimes and the interval is at most 366 days. Optional filters are `destinationId`, `mediaKind` (`photo|animation|video`) and `outcome` (`sent|failed|unknown`). `comparison` selects `destination` (default) or `media`; `cursor`/`limit` use standard keyset pagination (`limit` 1–100, default 20).
+
+The report returns absolute publication/outcome/attempt/retry counts, a bounded comparison, a page of publication snapshots and media-history coverage, all with an observation timestamp. It returns at most one row per publication: the latest snapshot observed inside the selected interval. Thus an interval containing both an `unknown` observation and its later manual `sent` resolution shows the latter; an interval ending before resolution still shows the earlier `unknown`. Counts are unique publications, not snapshot-event counts. It never returns percentages/rates or infers rubric, mode, or missing history. Unknown remains distinct from sent and failed. Reads do not write snapshots or change publication state. Errors: `VALIDATION_ERROR` 400, `UNAUTHORIZED` 401, `FORBIDDEN` 403, `UNAVAILABLE` 503.
+
+The wire shape is defined in `apps/contracts/src/analytics.ts`; route and D1 snapshot behavior are covered by Worker contract tests.
+
 ## Owner settings
 
 Schemas and error codes: `apps/contracts/src/settings.ts`.
@@ -188,10 +196,25 @@ Schema: `apps/contracts/src/dota.ts`.
 | Endpoint | Meaning |
 |---|---|
 | `GET /api/v1/dota?source&limit` | Owner-only read of the two fixed official feeds and their persisted updates. `source` optionally filters updates to `steam_news` or `patch_notes`; both source summaries are always returned. `limit` defaults to 50 and is capped at 100; updates are newest first. No fetch, draft creation, notification or other mutation occurs on read. |
+| `GET /api/v1/dota/updates/:sourceKey/:externalId` | Owner-only read of one persisted update and its stored deterministic patch parse. It never fetches an upstream source. Steam updates use `not_applicable`; patches distinguish `pending`, `complete`, `incomplete`, `no_recognized_facts` and `unavailable`. Only explicitly recognized fact rows are returned; the canonical source URL is attached to the update, not represented as a fact-level citation. |
 
-Each source reports `lastAttemptAt`, `lastSuccessAt` and a server-derived health: `degraded` when a source-level incident is open, `unverified` before its first successful check, `stale` after 30 minutes without a success (including legacy sources with a successful baseline but no recoverable timestamp), otherwise `healthy`. A legacy source's unknown success time remains `null`; clients must not invent a timestamp. A patch-detail incident is exposed on the source but does not by itself mark the feed degraded. Update links are returned only for the canonical Steam Community announcement or official Dota patch URL validated against its stored source key and ID. `linkedDraft` is present only when the existing post still exists. This slice does not expose source editing, normalized events, watchlists, hero/item statistics, tournaments or cosmetics.
+Each source reports `lastAttemptAt`, `lastSuccessAt` and a server-derived health: `degraded` when a source-level incident is open, `unverified` before its first successful check, `stale` after 30 minutes without a success (including legacy sources with a successful baseline but no recoverable timestamp), otherwise `healthy`. A legacy source's unknown success time remains `null`; clients must not invent a timestamp. A patch-detail incident is exposed on the source but does not by itself mark the feed degraded. Update links are returned only for the canonical Steam Community announcement or official Dota patch URL validated against its stored source key and ID. `linkedDraft` is present only when the existing post still exists. These reads do not expose source editing, cross-source event matching, hero/item statistics, tournaments or cosmetics.
 
-Errors: `400` `VALIDATION_ERROR`, `401` `UNAUTHORIZED`, `403` `FORBIDDEN`, `503` `UNAVAILABLE`. Safe retries repeat only the read.
+Errors: both reads return `400` `VALIDATION_ERROR`, `401` `UNAUTHORIZED`, `403` `FORBIDDEN`, and `503` `UNAVAILABLE`; event detail additionally returns `404` `NOT_FOUND` for an update that is not persisted. Safe retries repeat only the read.
+
+### Exact Dota watchlists
+
+Schema: `apps/contracts/src/dota-watchlists.ts`.
+
+| Endpoint | Meaning |
+|---|---|
+| `GET /api/v1/dota/watchlists` | Owner-only read of up to 100 active exact hero/item watches and the newest 100 persisted watch-update matches with alert outcomes. It reads D1 only; it does not fetch sources or send alerts. |
+| `POST /api/v1/dota/watchlists` | Owner-only add from a persisted confirmed patch fact. Body identifies `sourceKey`, `externalId` and `factId`; the server derives the entity type/name and refuses non-hero/item or unsupported facts. Requires `Idempotency-Key`. Returns 201 when created or 200 with the existing active watch for a duplicate entity. Same key/payload replays the original response; same key with a different payload returns 409 `CONFLICT` (`IDEMPOTENCY_KEY_REUSED`), and a duplicate request while the original is still in progress returns 409 `CONFLICT` (`IN_FLIGHT`). |
+| `DELETE /api/v1/dota/watchlists/:watchId` | Owner-only idempotent removal. Returns 204 whether the active watch was removed now or was already absent. Alert history is retained. |
+
+Watch matching is limited to exact hero/item identities in persisted confirmed patch facts from updates detected after the watch was created. One D1-unique alert record exists per watch/update pair. It is claimed before sending to the private owner bot. Confirmed sends and definite failures are recorded; a crash or ambiguous Telegram response becomes `unknown` and is never automatically retried. The global `dotaWatchlistAlerts` owner notification preference can suppress delivery; a suppressed match is recorded as `disabled`. No statistics thresholds, inferred matches, or new sources are included.
+
+Errors: add returns `400` `VALIDATION_ERROR`, `401` `UNAUTHORIZED`, `403` `FORBIDDEN`, `409` `CONFLICT`, or `503` `UNAVAILABLE`; delete returns `400` `VALIDATION_ERROR`, `401` `UNAUTHORIZED`, `403` `FORBIDDEN`, or `503` `UNAVAILABLE`. `GET` is safe to retry; a notification action is not exposed as an HTTP retry.
 
 ## Bot connection
 
@@ -224,7 +247,7 @@ Media is attached to a draft in the post editor. The library is a reusable view 
 | `POST /api/v1/posts/{id}/media/{mediaId}/crop?revision={revision}&fileName={name}` | Raw rasterized photo bytes with required `Content-Length`, photo `Content-Type` and `Idempotency-Key`. Atomically replaces that attached draft photo at the same position and increments revision; it does not add a media slot. The response is `{ media, revision }`. A derivative retains a reference to the original source asset, so recropping never overwrites or prematurely removes the original. Crop geometry is embodied by the derivative bytes. Same-key/same-payload retry replays the original response; same key with a different payload or an in-flight duplicate is `409`. |
 | `DELETE /api/v1/posts/{id}/media/{mediaId}` | JSON `{ revision }`; removes one draft attachment and increments revision. |
 | `PATCH /api/v1/posts/{id}/media/order` | JSON `{ revision, mediaIds }`; replaces the order only when the list is exactly the draft's current attachments and increments revision. |
-| `GET /api/v1/media?kind=all|photo|video&cursor&limit` | Owner-authorized, keyset-paginated library of retained assets referenced by a post or immutable revision. `kind` defaults to `all`; media bytes remain private. |
+| `GET /api/v1/media?kind=all|photo|video&search&usage=all|used|unused&cursor&limit` | Owner-authorized, keyset-paginated retained-media library. `search` is a bounded SQLite filename-prefix match (ASCII case-insensitive; non-ASCII case-sensitive); `usage` filters current post attachments. Each item includes exact SHA-256 duplicate count, total current-attachment count and at most three post links. Assets referenced only by immutable revisions remain listed with no current post links. Media bytes remain private. |
 | `POST /api/v1/posts/{id}/media/attach` | JSON `{ revision, mediaIds }`; appends selected library assets in request order without copying bytes. Every ID must be retained and attachable; duplicate IDs, stale revision, or exceeding 10 total items is refused. Removing the post link does not delete an asset still used elsewhere. |
 | `GET /api/v1/media/{mediaId}/content` | Owner-authorized private byte stream for preview; clients fetch with the session Bearer token and use a temporary object URL. |
 

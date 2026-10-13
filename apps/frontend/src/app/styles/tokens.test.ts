@@ -64,6 +64,11 @@ describe.each(THEMES)('%s tokens', (theme) => {
       expect(contrastRatio(opaque(base, '--color-danger'), bg)).toBeGreaterThanOrEqual(TEXT_CONTRAST);
       expect(contrastRatio(opaque(base, '--color-border-strong'), bg)).toBeGreaterThanOrEqual(NON_TEXT_CONTRAST);
     }
+    for (const surface of ['--color-surface-1', '--color-surface-2']) {
+      expect(contrastRatio(opaque(base, '--color-border-subtle'), opaque(base, surface))).toBeGreaterThanOrEqual(
+        NON_TEXT_CONTRAST
+      );
+    }
   });
 
   it('keeps disabled text distinguishable but below muted', () => {

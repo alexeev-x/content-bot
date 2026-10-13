@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { cropPostMediaQuerySchema, cropPostMediaResultSchema, postMediaSchema } from '../src/media';
+import {
+  cropPostMediaQuerySchema,
+  cropPostMediaResultSchema,
+  mediaLibraryItemSchema,
+  mediaLibraryQuerySchema,
+  postMediaSchema
+} from '../src/media';
 
 const photo = {
   id: '11111111-1111-4111-8111-111111111111',
@@ -38,5 +44,40 @@ describe('post media crop contracts', () => {
       media: { ...photo, sourceMediaId: photo.id },
       revision: 5
     });
+  });
+});
+
+describe('media library contracts', () => {
+  it('parses bounded filename and usage filters and rejects unknown query keys', () => {
+    expect(mediaLibraryQuerySchema.parse({ search: 'Patch', usage: 'used' })).toMatchObject({
+      search: 'Patch',
+      usage: 'used',
+      kind: 'all',
+      limit: 20
+    });
+    expect(mediaLibraryQuerySchema.safeParse({ search: 'x'.repeat(81) }).success).toBe(false);
+    expect(mediaLibraryQuerySchema.safeParse({ query: 'patch' }).success).toBe(false);
+  });
+
+  it('requires exact duplicate count and bounded current usage links', () => {
+    const item = {
+      id: photo.id,
+      kind: photo.kind,
+      fileName: photo.fileName,
+      contentType: photo.contentType,
+      sizeBytes: photo.sizeBytes,
+      width: photo.width,
+      height: photo.height,
+      durationMs: photo.durationMs,
+      createdAt: '2026-10-13T08:00:00.000Z',
+      duplicateCount: 2,
+      usageCount: 4,
+      usages: [{ postId: '22222222-2222-4222-8222-222222222222', title: 'Patch 7.39' }]
+    };
+    expect(mediaLibraryItemSchema.parse(item)).toEqual(item);
+    expect(mediaLibraryItemSchema.safeParse({ ...item, duplicateCount: 0 }).success).toBe(false);
+    expect(
+      mediaLibraryItemSchema.safeParse({ ...item, usages: Array.from({ length: 4 }, () => item.usages[0]) }).success
+    ).toBe(false);
   });
 });

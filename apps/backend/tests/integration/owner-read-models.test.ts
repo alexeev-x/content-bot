@@ -111,6 +111,7 @@ describe('countOpenIncidents', () => {
       await seedDueJob(api);
     }
     await makeTick({ clock, transport: fakeTransport({ kind: 'rejected', code: 'CONTENT_INVALID' }) }).run();
+    await makeTick({ clock, transport: fakeTransport({ kind: 'rejected', code: 'CONTENT_INVALID' }) }).run();
     const repo = createD1DispatchRepository(testDb());
 
     expect(await repo.countOpenIncidents(10)).toBe(3);

@@ -1,6 +1,6 @@
 # ALEXEEV Studio — master implementation plan
 
-**Status:** the single roadmap: what works (§2), the target design map (§3), phases (§4) and the execution queue (§5). Updated 11.10.2026 from the code. DEV only; nothing is released to production.
+**Status:** the single roadmap: what works (§2), the target design map (§3), phases (§4) and the execution queue (§5). Updated 12.10.2026 from the code. DEV only; nothing is released to production.
 
 ALEXEEV Studio is not a small Telegram admin panel. The target is a complete content operations system for ALEXEEV: create content, attach media, approve it, schedule and publish it safely, understand what happened, monitor Dota changes and news, operate automations, receive incidents in the owner's Telegram bot, and later publish and measure content across Telegram, TikTok and YouTube.
 
@@ -55,7 +55,7 @@ Approved «Calm Operations» design (`docs/design/UX_SPEC.md`, `/__proto`) appli
 - Публикации: tabs Все / Запланированные / Отправленные / Ошибки, search and sort, «Опубликовать пост» picker, inspector. The API already supports server search `q`, a `from`/`to` range and `order`.
 - Инциденты: open/closed, acknowledge `publish_failed`, reconciliation link for `unknown`, nav badge.
 - Настройки: Каналы (add with a Telegram rights check, edit, enable/disable), Оформление.
-- 404, «в разработке» and error pages. Calendar, Automations, Media library, Dota Pulse/Sources and channel analytics exist only as mock previews in `/__proto`.
+- 404, «в разработке» and error pages. `/sources` has a real owner-only, read-only view of two official Dota feeds and persisted health/provenance (`docs/stories/source-registry-mvp.md`). Calendar and Automations remain previews; Media Library implementation is complete locally but is not yet deployed to DEV (migration 0029 and release checks remain).
 
 ### 2.7 Owner bot — built
 
@@ -63,7 +63,9 @@ Webhook with secret and `update_id` dedup, owner-only; `/start`, `/today`, `/nex
 
 ### 2.8 Dota (Phase 1D) — built
 
-Official sources watched every five minutes with D1 dedup; a new update becomes a draft with the official title, date and link plus a private owner alert; gameplay patches get a summary of confirmed changes; source failures raise an incident. Nothing is published without approval.
+Official sources watched every five minutes with D1 dedup; a new update becomes a draft with the official title, date and link plus a private owner alert; gameplay patches get a summary of confirmed changes; source failures raise an incident. `/sources` provides the owner-only read-only feed health, bounded official updates, provenance, and links only to existing drafts (`docs/stories/dota-intelligence-mvp.md`). Nothing is published without approval.
+
+Patch hero/item watchlists are owner-managed from persisted confirmed facts; D1 deduplicates matches and private alerts. Removed watches cannot claim or send a pending alert; ambiguous Telegram sends remain `unknown` and are not retried. `/sources` includes the watch panel and confirmed event detail.
 
 ### 2.9 Known limits
 
@@ -169,7 +171,7 @@ DoD: data traces back to snapshots; missing periods are visibly incomplete; comp
 
 ### Phase 7 — Media Library
 
-`/media` over the existing retained-assets API (`GET /api/v1/media`): search/filter, previews, metadata, usage links, checksum duplicate detection, safe deletion rules. Still no automatic download or generation.
+`/media` implementation is complete locally over the retained-assets API (`GET /api/v1/media`): server search and kind/usage filters, grid/list, authenticated private previews, metadata, bounded usage links, checksum duplicate counts, and attach-to-draft. It is not yet deployed to DEV; migration 0029 and release checks remain. No standalone upload, manual deletion, download, or automatic generation.
 
 ### Phase 8 — TikTok + YouTube
 
@@ -197,7 +199,7 @@ Whoever starts or finishes an item updates its status here in the same change (`
 | #   | Item                                                                                                                                                                                    | Phase | Status            |
 | --- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----- | ----------------- |
 | 1   | Owner DEV check of built work: rich editor, autosave, media upload and albums, Dota drafts and patch summary, owner bot commands                                                        | 1, 1D | waiting for owner |
-| 2   | Post editor redesign: prototype v3 accepted 09.10.2026 (`docs/stories/post-editor-prototype.md`); next: real editor + frontend media fixes per `docs/stories/post-editor-v3-handoff.md` | 1     | in progress       |
+| 2   | Post editor redesign: v3 implementation and core media fixes are complete; focused tests/typecheck, MEDIA-002 E2E, crop recovery, real-photo crop pixel samples, responsive/theme matrix, axe, UI-003 focus, mobile keyboard traversal, safe-area, and full verify passed. Only the network-blocked Telegram SDK audit remains; details in `docs/stories/post-editor-v3-handoff.md`. | 1     | in progress       |
 | 3   | Post actions: duplicate, «Вернуть в черновик», remove final publication records                                                                                                         | 1     | done              |
 | 4   | Owner timezone setting (UI, bot, Обзор, scheduling)                                                                                                                                     | 2     | done              |
 | 5   | Публикации v2: periods on `from`/`to`, «Ошибки» = failed + unknown, total counts, server search in the UI                                                                               | 2     | done              |
@@ -205,22 +207,22 @@ Whoever starts or finishes an item updates its status here in the same change (`
 | 7   | Посты: server-side search, sort and counts                                                                                                                                              | 2     | done              |
 | 8   | Global search palette, or remove the disabled field                                                                                                                                     | 2     | done              |
 | 9   | Channel disable warning with the scheduled count                                                                                                                                        | 2     | done              |
-| 10  | Incident alerts: dedupe, grouping, recovery, Settings → Уведомления                                                                                                                     | 2     | in progress       |
+| 10  | Incident alerts: settings, bot status, cross-tick grouping/cooldown, preference-aware delivery, and recovery; full verify and R3 review passed. Details: `docs/stories/incident-alerts-next.md`. | 2     | done              |
 | 11  | Retention policy for `job_attempts`, `incidents`, `audit_log`                                                                                                                           | 2     | waiting for owner |
-| 12  | Calendar                                                                                                                                                                                | 3     | not started       |
-| 13  | Analytics snapshot schema and Studio-owned publication analytics                                                                                                                        | 3     | not started       |
-| 14  | Telegram native statistics feasibility proof                                                                                                                                            | 3     | not started       |
-| 15  | Sources registry                                                                                                                                                                        | 4     | in progress (two official feeds and latest attempt/success status) |
-| 16  | Dota News / Pulse                                                                                                                                                                       | 4     | in progress (bounded official updates and existing draft links) |
-| 17  | Dota Event + patch parser (extends Phase 1D)                                                                                                                                            | 4     | not started       |
-| 18  | Hero statistics + Hero Movers                                                                                                                                                           | 4     | not started       |
-| 19  | Treasure/Cosmetics                                                                                                                                                                      | 4     | not started       |
-| 20  | Watchlists + private owner bot alerts                                                                                                                                                   | 4     | not started       |
-| 21  | Automation Center                                                                                                                                                                       | 5     | not started       |
-| 22  | Analytics v2                                                                                                                                                                            | 6     | not started       |
-| 23  | Media Library                                                                                                                                                                           | 7     | not started       |
-| 24  | Platform expansion                                                                                                                                                                      | 8     | not started       |
-| 25  | Automated media pipeline                                                                                                                                                                | 9     | not started       |
+| 12  | Calendar — story prepared; waiting for owner decision on DST repeated/nonexistent local-time behavior. Details: `docs/stories/calendar-mvp.md`.                                          | 3     | waiting for owner |
+| 13  | Analytics snapshot schema and Studio-owned publication analytics. Details: `docs/stories/analytics-studio-owned-mvp.md`.                                                                 | 3     | done              |
+| 14  | Telegram native statistics feasibility proof. Bot API is limited to current counts/future subscribed updates; rich native metrics require separately approved MTProto user auth. Details: `docs/stories/telegram-native-statistics-feasibility.md`. | 3     | done              |
+| 15  | Sources registry: owner-only read-only inspection of two official feeds, persisted attempt/success health, bounded updates and provenance. Details: `docs/stories/source-registry-mvp.md`. | 4     | done              |
+| 16  | Dota News / Pulse: bounded official updates and only already-existing linked drafts in `/sources`. Details: `docs/stories/dota-intelligence-mvp.md`.                                      | 4     | done              |
+| 17  | Dota Event + patch parser: read-only persisted update detail, deterministic fact states, Steam `not_applicable`, responsive/accessibility UI, and bounded legacy/new-patch analysis queue. Details: [`UX_SPEC.md` §3.9](design/UX_SPEC.md), [`API_CONTRACTS.md`](API_CONTRACTS.md), [`Dota plan` §12.2](plan/dota.md). | 4     | done |
+| 18  | Hero statistics + Hero Movers. OpenDota `/heroStats` feasibility and owner choice: `docs/stories/hero-statistics-feasibility.md`. | 4     | waiting for owner |
+| 19  | Treasure/Cosmetics. Source feasibility and owner scope choice: `docs/stories/dota-cosmetics-feasibility.md`. | 4     | waiting for owner |
+| 20  | Watchlists + private owner bot alerts: persisted-fact add/remove, deduplicated matching, guarded private delivery, unknown/no-retry behavior; integration, browser matrix and axe passed. | 4     | done              |
+| 21  | Automation Center — waiting for owner decision on whether pause may suspend dispatch of already scheduled Telegram publications. | 5     | waiting for owner |
+| 22  | Analytics v2 — awaiting the owner’s choice of permitted data source for channel/content performance; see `docs/stories/analytics-v2.md`. | 6 | waiting for owner |
+| 23  | Media Library — owner-only retained assets, server filters, private preview, bounded usage/duplicate details, and attach-to-draft; no standalone upload or manual deletion. | 7 | done |
+| 24  | Platform expansion — awaiting the owner’s first-platform and authorization choice; see `docs/stories/platform-expansion-feasibility.md`. | 8 | waiting for owner |
+| 25  | Automated media pipeline — separate project; awaiting explicit owner approval before scope or implementation. | 9 | waiting for owner |
 | 26  | Production release — only when the owner says DEV is ready                                                                                                                              | 10    | not started       |
 
 ## 6. Out of scope for the active plan

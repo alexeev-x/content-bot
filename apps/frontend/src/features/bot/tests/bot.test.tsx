@@ -6,6 +6,8 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { clearSession, setSession } from '../../../shared/api/session';
 import { ToastProvider } from '../../../shared/ui';
 import { BotConnection } from '../ui/BotConnection';
+import { BotStatusSummary } from '../ui/BotStatusSummary';
+import { botCopy } from '../ui/copy';
 import { accessToken } from '../../../test/fixtures';
 import { failWith, server, setupMswServer } from '../../../test/msw';
 import { createTestQueryClient, createWrapper } from '../../../test/query-wrapper';
@@ -51,6 +53,32 @@ function renderBot() {
   );
   return { user };
 }
+
+async function renderBotSummary() {
+  const Wrapper = createWrapper(createTestQueryClient());
+  render(
+    <Wrapper>
+      <BotStatusSummary />
+    </Wrapper>
+  );
+}
+
+describe('notification bot status summary', () => {
+  it('shows read-only status without exposing connection controls', async () => {
+    serve(status());
+    await renderBotSummary();
+    expect(await screen.findByText(botCopy.state.connected)).toBeTruthy();
+    expect(screen.getByText('@alexeev_bot')).toBeTruthy();
+    expect(screen.queryByRole('button')).toBeNull();
+  });
+
+  it('does not show bot details when status is forbidden', async () => {
+    server.use(failWith('get', '/api/v1/bot/status', { status: 403, code: 'FORBIDDEN' }));
+    await renderBotSummary();
+    expect(await screen.findByText(botCopy.forbidden)).toBeTruthy();
+    expect(screen.queryByText('@alexeev_bot')).toBeNull();
+  });
+});
 
 describe('bot connection', () => {
   it('shows a connected bot with a secondary reconnect', async () => {

@@ -51,6 +51,10 @@ function probe(
     outcomeInPlace: () => Promise.reject(new Error('unexpected')),
     resolveExpired: () => Promise.reject(new Error('unexpected')),
     claimOwnerNotices: () => Promise.reject(new Error('unexpected')),
+    purgeOwnerIncidentAlertGroups: () => Promise.resolve(0),
+    listOwnerIncidentAlertGroups: () => Promise.resolve([]),
+    claimOwnerIncidentAlertGroup: () => Promise.resolve(false),
+    markOwnerIncidentAlertSent: () => Promise.resolve(),
     countOpenIncidents: () => Promise.reject(new Error('unexpected'))
   };
   const lifecycle = {
@@ -68,6 +72,7 @@ function probe(
     clock: { now: () => HOUR },
     logger: createLogger((line) => lines.push(JSON.parse(line) as Record<string, unknown>)),
     publishing: { enabled: options.enabled ?? true },
+    settings: { find: () => Promise.resolve(null) },
     dispatchJobs: repo,
     lifecycle,
     postRevisions: { findRevision: () => Promise.reject(new Error('unexpected')) },
@@ -89,6 +94,12 @@ function probe(
       claimSourceIncidentAlert: () => Promise.resolve(null),
       storeSync: () => Promise.resolve({ inserted: 0 })
     },
+    dotaWatchlists: {
+      processMatches: () => Promise.resolve({ matched: 0, disabled: 0, unknown: 0 }),
+      listPending: () => Promise.resolve([]),
+      claimAlert: () => Promise.resolve(false),
+      finishAlert: () => Promise.resolve(false)
+    },
     posts: {},
     idempotency: {},
     sessions: {
@@ -106,6 +117,7 @@ function probe(
     ownerMessenger: null,
     ownerChatId: null,
     systemState: {
+      readAppOrigin: () => Promise.resolve(null),
       recordCronRun: (run: { status: string }) => {
         calls.push('heartbeat');
         heartbeats.push(run);

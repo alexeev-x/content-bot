@@ -183,8 +183,11 @@ export const SCREENS: ProtoScreen[] = [
     path: 'analytics',
     states: [
       { id: 'data', label: 'Данные', query: '' },
-      { id: 'week-group', label: 'Месяц (неполные данные)', query: 'period=month' },
-      { id: 'partial', label: 'Один график с ошибкой', query: 'state=partial' },
+      { id: 'week-group', label: 'Последние 7 дней', query: 'period=7' },
+      { id: 'partial', label: 'Частичное покрытие', query: 'state=partial&compare=media' },
+      { id: 'unknown', label: 'Неизвестный исход', query: 'state=unknown&outcome=unknown' },
+      { id: 'unauthorized', label: 'Сессия завершена (401)', query: 'state=unauthorized' },
+      { id: 'forbidden', label: 'Нет доступа (403)', query: 'state=forbidden' },
       { id: 'loading', label: 'Загрузка', query: 'state=loading' },
       { id: 'empty', label: 'Пустой период', query: 'state=empty' },
       { id: 'error', label: 'Ошибка', query: 'state=error' }
@@ -195,11 +198,27 @@ export const SCREENS: ProtoScreen[] = [
     label: 'Превью: Dota Pulse и Источники',
     path: 'sources',
     states: [
+      { id: 'detail-complete', label: 'Разбор патча 7.41 · факты подтверждены', query: 'update=patch_notes%3A7.41' },
+      { id: 'detail-incomplete', label: 'Разбор 7.37b · нужна ручная проверка', query: 'update=patch_notes%3A7.37b' },
+      { id: 'detail-empty', label: 'Разбор 7.37a · подтверждённых фактов нет', query: 'update=patch_notes%3A7.37a' },
+      { id: 'detail-unavailable', label: 'Разбор 7.37c · недоступен', query: 'update=patch_notes%3A7.37c' },
+      { id: 'detail-loading', label: 'Разбор загружается', query: 'update=patch_notes%3A7.41&state=loading' },
+      { id: 'detail-error', label: 'Ошибка чтения разбора', query: 'update=patch_notes%3A7.41&state=detail-error' },
+      {
+        id: 'detail-direct-link',
+        label: 'Прямая ссылка · разбор 7.41',
+        query: 'update=patch_notes%3A7.41'
+      },
       { id: 'events', label: 'События', query: '' },
       { id: 'sources', label: 'Источники', query: 'view=sources' },
       { id: 'source-inspector', label: 'Источник: недоступен', query: 'view=sources&id=s2' },
       { id: 'unreachable', label: 'Источник не отвечает', query: 'state=unreachable' },
       { id: 'partial', label: 'События из 2 источников', query: 'state=partial' },
+      { id: 'watch-loading', label: 'Watchlists · loading', query: 'state=watch-loading' },
+      { id: 'watch-empty', label: 'Watchlists · empty', query: 'state=watch-empty' },
+      { id: 'watch-error', label: 'Watchlists · mutation error', query: 'state=watch-error' },
+      { id: 'watch-conflict', label: 'Watchlists · 409 conflict', query: 'state=watch-conflict' },
+      { id: 'watch-offline', label: 'Watchlists · offline', query: 'state=watch-offline' },
       { id: 'loading', label: 'Загрузка', query: 'state=loading' },
       { id: 'empty', label: 'Пусто', query: 'state=empty' },
       { id: 'error', label: 'Ошибка', query: 'state=error' }

@@ -1,5 +1,5 @@
 import { CalendarDateTime, toZoned } from '@internationalized/date';
-import { cleanup, render, screen, within } from '@testing-library/react';
+import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useState } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -166,6 +166,21 @@ describe('Menu and Tabs', () => {
     const item = screen.getByRole('menuitem', { name: 'Изменить' });
     expect(document.activeElement).toBe(item);
     expect(onAction).not.toHaveBeenCalled();
+  });
+
+  it('closes with Escape and returns focus to the trigger', async () => {
+    const user = userEvent.setup();
+    render(<Menu label="Действия" items={[{ id: 'edit', label: 'Изменить' }]} />);
+
+    await user.tab();
+    const trigger = screen.getByRole('button', { name: 'Действия' });
+    await user.keyboard('{Enter}');
+    expect(screen.getByRole('menu')).toBeTruthy();
+
+    await user.keyboard('{Escape}');
+
+    expect(screen.queryByRole('menu')).toBeNull();
+    await waitFor(() => expect(document.activeElement).toBe(trigger));
   });
 
   it('menu opens with ArrowDown and runs the action', async () => {

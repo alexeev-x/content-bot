@@ -5,6 +5,7 @@ export type {
   PostRevisionSource,
   PublicationTransport,
   PublicationMedia,
+  OwnerIncidentAlertGroup,
   RaisedIncident,
   RangeSummary,
   SendOutcome,
@@ -18,6 +19,7 @@ export type {
   PostPublicationSummary,
   PostSource,
   PublicationRepository,
+  PublicationAnalyticsRepository,
   ScheduleNotifier
 } from './application/ports';
 export { cancelPublication, reschedulePublication } from './application/change-publication';
@@ -30,6 +32,7 @@ export { createPublication } from './application/create-publication';
 export { getDestination, getScheduledPublicationCount, listDestinations } from './application/read-destinations';
 export { getPublication, listPublications } from './application/read-publications';
 export { readDashboard } from './application/read-dashboard';
+export { readPublicationAnalytics } from './application/read-publication-analytics';
 export { listIncidents } from './application/read-incidents';
 export { resolveIncident } from './application/resolve-incident';
 export { projectPublicationStatus } from './domain/status-projection';
@@ -37,6 +40,7 @@ export type { JobSnapshot, JobState } from './domain/status-projection';
 export { classifySendResult, classifyTelegramError } from './infrastructure/classify-telegram-result';
 export { createD1DestinationRepository } from './infrastructure/d1-destination-repository';
 export { createD1PublicationRepository } from './infrastructure/d1-publication-repository';
+export { createD1PublicationAnalyticsRepository } from './infrastructure/d1-publication-analytics-repository';
 export { dispatchDueJobs } from './application/dispatch-due-jobs';
 export type { DispatchDeps, DispatchSummary } from './application/dispatch-due-jobs';
 export { reconcileExpiredJobs } from './application/reconcile-expired-jobs';

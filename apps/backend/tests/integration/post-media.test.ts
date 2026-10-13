@@ -405,6 +405,113 @@ describe('post media upload', () => {
     expect(apiErrorSchema.parse(await duplicate.json()).error.details?.reason).toBe('DUPLICATE_MEDIA_IDS');
   });
 
+  it('filters retained media by filename prefix and current usage, and reports exact duplicate and bounded current-post metadata', async () => {
+    const firstPost = await createDraft();
+    const first = uploadPostMediaResultSchema.parse(
+      await (await upload(firstPost.id, firstPost.revision, png(), nextKey(), 'image/png', 'Alpha.png')).json()
+    );
+    const secondPost = await createDraft();
+    const sameBytes = uploadPostMediaResultSchema.parse(
+      await (await upload(secondPost.id, secondPost.revision, png(), nextKey(), 'image/png', 'Alpha-copy.png')).json()
+    );
+    const thirdPost = await createDraft();
+    const differentBytes = uploadPostMediaResultSchema.parse(
+      await (await upload(thirdPost.id, thirdPost.revision, png(4, 5), nextKey(), 'image/png', 'Beta.png')).json()
+    );
+    const linkedPosts = [await createDraft(), await createDraft(), await createDraft()];
+    for (const linkedPost of linkedPosts) {
+      const attached = await api.request(`/api/v1/posts/${linkedPost.id}/media/attach`, {
+        method: 'POST',
+        json: { revision: linkedPost.revision, mediaIds: [first.media.id] }
+      });
+      expect(attached.status).toBe(200);
+    }
+
+    // This asset is retained only by an immutable revision, not by a current post attachment.
+    await testDb()
+      .prepare('UPDATE post_revisions SET media_json = ?2 WHERE post_id = ?1 AND revision = 0')
+      .bind(secondPost.id, JSON.stringify([sameBytes.media.id]))
+      .run();
+    await testDb()
+      .prepare('UPDATE media_assets SET sha256 = (SELECT sha256 FROM media_assets WHERE id = ?1) WHERE id = ?2')
+      .bind(first.media.id, sameBytes.media.id)
+      .run();
+    await testDb()
+      .prepare('DELETE FROM post_media WHERE post_id = ?1 AND media_id = ?2')
+      .bind(secondPost.id, sameBytes.media.id)
+      .run();
+    const revisionRetained = await testDb()
+      .prepare(
+        'SELECT EXISTS (SELECT 1 FROM post_revisions r, json_each(r.media_json) j WHERE j.value = ?1) AS retained'
+      )
+      .bind(sameBytes.media.id)
+      .first<{ retained: number }>();
+    expect(revisionRetained?.retained).toBe(1);
+
+    const all = mediaLibraryPageSchema.parse(await (await api.request('/api/v1/media?kind=all&limit=20')).json());
+    const firstItem = all.items.find(({ id }) => id === first.media.id);
+    const revisionOnlyItem = all.items.find(({ id }) => id === sameBytes.media.id);
+    const differentItem = all.items.find(({ id }) => id === differentBytes.media.id);
+    expect(firstItem).toMatchObject({
+      duplicateCount: 2,
+      usageCount: 4,
+      usages: expect.arrayContaining([{ postId: expect.any(String), title: 'Media post' }])
+    });
+    expect(firstItem?.usages).toHaveLength(3);
+    expect(
+      firstItem?.usages.every(({ postId }) => [firstPost.id, ...linkedPosts.map(({ id }) => id)].includes(postId))
+    ).toBe(true);
+    expect(revisionOnlyItem).toMatchObject({ duplicateCount: 2, usageCount: 0, usages: [] });
+    expect(differentItem).toMatchObject({ duplicateCount: 1, usageCount: 1 });
+
+    const prefixUsed = mediaLibraryPageSchema.parse(
+      await (await api.request('/api/v1/media?search=alpha&usage=used&limit=20')).json()
+    );
+    expect(prefixUsed.items.map(({ id }) => id)).toEqual([first.media.id]);
+    const prefixUnused = mediaLibraryPageSchema.parse(
+      await (await api.request('/api/v1/media?search=ALPHA&usage=unused&limit=20')).json()
+    );
+    expect(prefixUnused.items.map(({ id }) => id)).toEqual([sameBytes.media.id]);
+    const prefixEmpty = mediaLibraryPageSchema.parse(
+      await (await api.request('/api/v1/media?search=Alpha%25&limit=20')).json()
+    );
+    expect(prefixEmpty.items).toEqual([]);
+
+    const firstSearchPage = mediaLibraryPageSchema.parse(
+      await (await api.request('/api/v1/media?search=alpha&usage=all&limit=1')).json()
+    );
+    expect(firstSearchPage.items).toHaveLength(1);
+    expect(firstSearchPage.nextCursor).not.toBeNull();
+    const secondSearchPage = mediaLibraryPageSchema.parse(
+      await (
+        await api.request(
+          `/api/v1/media?search=alpha&usage=all&limit=1&cursor=${encodeURIComponent(firstSearchPage.nextCursor ?? '')}`
+        )
+      ).json()
+    );
+    expect(secondSearchPage.items).toHaveLength(1);
+    expect(secondSearchPage.items[0]?.id).not.toBe(firstSearchPage.items[0]?.id);
+    expect(secondSearchPage.nextCursor).toBeNull();
+  });
+
+  it('uses dedicated indexes for duplicate, filename-prefix and reverse current-post lookups', async () => {
+    const duplicate = await testDb()
+      .prepare('EXPLAIN QUERY PLAN SELECT count(*) FROM media_assets WHERE sha256 = ?1')
+      .bind('a'.repeat(64))
+      .all<{ detail: string }>();
+    const prefix = await testDb()
+      .prepare("EXPLAIN QUERY PLAN SELECT id FROM media_assets WHERE file_name LIKE 'alpha%' COLLATE NOCASE")
+      .all<{ detail: string }>();
+    const reverse = await testDb()
+      .prepare('EXPLAIN QUERY PLAN SELECT post_id FROM post_media WHERE media_id = ?1 LIMIT 4')
+      .bind(crypto.randomUUID())
+      .all<{ detail: string }>();
+
+    expect(duplicate.results.map(({ detail }) => detail).join(' ')).toContain('media_assets_sha256_idx');
+    expect(prefix.results.map(({ detail }) => detail).join(' ')).toContain('media_assets_file_name_idx');
+    expect(reverse.results.map(({ detail }) => detail).join(' ')).toContain('post_media_media_id_idx');
+  });
+
   it('returns a revision conflict without attaching media when the next snapshot is already occupied', async () => {
     const source = await createDraft();
     const uploaded = uploadPostMediaResultSchema.parse(

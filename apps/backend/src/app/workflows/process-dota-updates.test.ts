@@ -2,16 +2,18 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { testDb } from '../../../tests/helpers/db';
 import { resetDb, START } from '../../../tests/helpers/harness';
 import type { TelegramOwnerMessageApi } from '../../integrations/telegram/telegram-api';
-import { createD1PostRepository } from '../../modules/content';
+import { createD1PostRepository, createPost } from '../../modules/content';
 import {
   createD1DotaWatcherRepository,
   DOTA_DRAFT_WORK_SQL,
   DOTA_DRAFT_RECOVERY_SQL,
+  DOTA_PENDING_PATCH_ANALYSIS_SQL,
   DOTA_OWNER_ALERT_WORK_SQL,
   DOTA_SOURCE_INCIDENT_ALERT_SQL,
   DOTA_PATCH_DETAIL_INCIDENT_RECOVERY_SQL,
   DotaPatchDetailError,
   DotaWatchError,
+  type DotaPatchInspection,
   syncDotaUpdates,
   summarizeOfficialPatch,
   parsePatchNameMaps,
@@ -55,6 +57,14 @@ function workflow(
     ownerChatId?: string | null;
     messenger?: TelegramOwnerMessageApi | null;
     readAppOrigin?: () => Promise<string | null>;
+    readNotificationPreferences?: () => Promise<{
+      warningsEnabled: boolean;
+      publicationAlerts: boolean;
+      sourceAlerts: boolean;
+      automationAlerts: boolean;
+      recoveryAlerts: boolean;
+      dotaWatchlistAlerts: boolean;
+    }>;
     send?: (input: { html: string; button: { text: string; url: string } }) => Promise<unknown>;
     patchSummary?: {
       patchNumber: string;
@@ -82,6 +92,7 @@ function workflow(
         relativeMagnitudeScore: number;
       }[];
     } | null>;
+    inspectPatch?: (version: string) => Promise<DotaPatchInspection>;
   } = {}
 ) {
   const db = testDb();
@@ -112,6 +123,7 @@ function workflow(
             return { inserted: 0, fetched: 2 };
           }),
         summarizePatch: options.summarizePatch ?? (() => Promise.resolve(options.patchSummary ?? null)),
+        ...(options.inspectPatch === undefined ? {} : { inspectPatch: options.inspectPatch }),
         repo,
         posts,
         idempotency: createIdempotencyStore(db),
@@ -121,6 +133,9 @@ function workflow(
         messenger,
         ownerChatId: options.ownerChatId === undefined ? '4242' : options.ownerChatId,
         readAppOrigin: options.readAppOrigin ?? (() => Promise.resolve('https://studio.example.com')),
+        ...(options.readNotificationPreferences === undefined
+          ? {}
+          : { readNotificationPreferences: options.readNotificationPreferences }),
         logger: createLogger(() => undefined)
       })
   };
@@ -148,17 +163,138 @@ describe('Dota draft scan indexes', () => {
     const detailRecovery = await db
       .prepare(`EXPLAIN QUERY PLAN ${DOTA_PATCH_DETAIL_INCIDENT_RECOVERY_SQL}`)
       .all<{ detail: string }>();
+    const pendingAnalysis = await db
+      .prepare(`EXPLAIN QUERY PLAN ${DOTA_PENDING_PATCH_ANALYSIS_SQL}`)
+      .bind('claim-token', START, 2, START + 60_000)
+      .all<{ detail: string }>();
     const draftPlan = draft.results.map((row) => row.detail).join('\n');
     const alertPlan = alert.results.map((row) => row.detail).join('\n');
     const recoveryPlan = recovery.results.map((row) => row.detail).join('\n');
     const incidentPlan = incident.results.map((row) => row.detail).join('\n');
     const detailRecoveryPlan = detailRecovery.results.map((row) => row.detail).join('\n');
+    const pendingAnalysisPlan = pendingAnalysis.results.map((row) => row.detail).join('\n');
     expect(draftPlan).toContain('dota_draft_candidates_idx');
     expect(alertPlan).toContain('dota_draft_recovery_idx');
     expect(recoveryPlan).toContain('dota_draft_recovery_idx');
     expect(incidentPlan).toContain('dota_source_incidents_alert_idx');
     expect(detailRecoveryPlan).toContain('dota_patch_incidents_one_open_idx');
-    expect(draftPlan + alertPlan + recoveryPlan + incidentPlan + detailRecoveryPlan).not.toContain('TEMP B-TREE');
+    expect(pendingAnalysisPlan).toContain('dota_patch_analyses_pending_idx');
+    expect(
+      draftPlan + alertPlan + recoveryPlan + incidentPlan + detailRecoveryPlan + pendingAnalysisPlan
+    ).not.toContain('TEMP B-TREE');
+  });
+
+  it('claims pending patch analyses once across overlapping ticks and recovers after the lease expires', async () => {
+    const repo = createD1DotaWatcherRepository(testDb());
+    await repo.storeSourceSync({
+      sourceKey: 'patch_notes',
+      items: [
+        {
+          sourceKey: 'patch_notes',
+          externalId: '7.40',
+          title: 'Dota 7.40',
+          sourceUrl: 'https://www.dota2.com/patches/7.40',
+          publishedAt: START
+        }
+      ],
+      detectedAt: START
+    });
+    const claim = (claimToken: string, now: number) =>
+      repo.claimPendingPatchAnalyses({ claimToken, now, leaseUntil: now + 60_000, limit: 1 });
+
+    const overlapping = await Promise.all([claim('claim-a', START + 1), claim('claim-b', START + 1)]);
+    expect(overlapping.flat()).toHaveLength(1);
+
+    const recovered = await claim('claim-c', START + 60_001);
+    expect(recovered).toEqual(['7.40']);
+    const staleToken = overlapping[0]?.length === 1 ? 'claim-a' : 'claim-b';
+    const fact = {
+      id: 'patch:7.40:hero:0:hero:0:0',
+      entityType: 'hero' as const,
+      entityName: 'Axe',
+      section: 'hero' as const,
+      change: 'Damage: 10 to 12'
+    };
+    expect(
+      await repo.savePatchAnalysis({
+        externalId: '7.40',
+        claimToken: staleToken,
+        parseStatus: 'complete',
+        facts: [fact]
+      })
+    ).toBe(false);
+    expect(await repo.getUpdateDetail({ sourceKey: 'patch_notes', externalId: '7.40' })).toMatchObject({
+      parseStatus: 'pending',
+      facts: []
+    });
+    expect(
+      await repo.savePatchAnalysis({
+        externalId: '7.40',
+        claimToken: 'claim-c',
+        parseStatus: 'complete',
+        facts: [fact]
+      })
+    ).toBe(true);
+    expect(await repo.getUpdateDetail({ sourceKey: 'patch_notes', externalId: '7.40' })).toMatchObject({
+      parseStatus: 'complete',
+      facts: [{ entityName: 'Axe' }]
+    });
+  });
+
+  it('retries unavailable patch analysis after its lease expires and allows successful recovery', async () => {
+    const repo = createD1DotaWatcherRepository(testDb());
+    await repo.storeSourceSync({
+      sourceKey: 'patch_notes',
+      items: [
+        {
+          sourceKey: 'patch_notes',
+          externalId: '7.39',
+          title: 'Dota 7.39',
+          sourceUrl: 'https://www.dota2.com/patches/7.39',
+          publishedAt: START
+        }
+      ],
+      detectedAt: START
+    });
+    expect(
+      await repo.claimPendingPatchAnalyses({
+        claimToken: 'failed-read',
+        now: START,
+        leaseUntil: START + 60_000,
+        limit: 1
+      })
+    ).toEqual(['7.39']);
+    expect(
+      await repo.savePatchAnalysis({
+        externalId: '7.39',
+        claimToken: 'failed-read',
+        parseStatus: 'unavailable',
+        facts: [],
+        parsedAt: START + 1
+      })
+    ).toBe(true);
+
+    expect(
+      await repo.claimPendingPatchAnalyses({
+        claimToken: 'recovered-read',
+        now: START + 60_001,
+        leaseUntil: START + 120_001,
+        limit: 1
+      })
+    ).toEqual(['7.39']);
+    expect(
+      await repo.savePatchAnalysis({
+        externalId: '7.39',
+        claimToken: 'recovered-read',
+        parseStatus: 'no_recognized_facts',
+        facts: [],
+        parsedAt: START + 60_002
+      })
+    ).toBe(true);
+    expect(await repo.getUpdateDetail({ sourceKey: 'patch_notes', externalId: '7.39' })).toMatchObject({
+      parseStatus: 'no_recognized_facts',
+      facts: []
+    });
   });
 });
 
@@ -312,6 +448,136 @@ describe('summarizeOfficialPatch', () => {
 });
 
 describe('processDotaUpdates', () => {
+  it('analyzes an already-linked persisted patch without creating a duplicate draft', async () => {
+    const db = testDb();
+    const repo = createD1DotaWatcherRepository(db);
+    const patchItem = (externalId: string) => ({
+      ...steam(externalId),
+      sourceKey: 'patch_notes' as const,
+      title: `Dota ${externalId}`,
+      sourceUrl: `https://www.dota2.com/patches/${externalId}`
+    });
+    await repo.storeSourceSync({
+      sourceKey: 'patch_notes',
+      items: [patchItem('7.40')],
+      detectedAt: START
+    });
+    await repo.storeSourceSync({
+      sourceKey: 'patch_notes',
+      items: [patchItem('7.41')],
+      detectedAt: START + 1
+    });
+    const draft = await createPost(
+      {
+        repo: createD1PostRepository(db),
+        idempotency: createIdempotencyStore(db),
+        now: START,
+        newId: () => crypto.randomUUID()
+      },
+      {
+        actor: '4242',
+        idempotencyKey: 'existing-dota-draft',
+        input: { title: 'Existing patch draft', body: '', entities: [] }
+      }
+    );
+    await repo.reserveDraft({ sourceKey: 'patch_notes', externalId: '7.41', postId: draft.id });
+    const inspectPatch = async () => ({
+      summary: null,
+      analysis: {
+        status: 'complete' as const,
+        facts: [
+          {
+            id: 'patch:7.41:hero:0:hero:0:0',
+            entityType: 'hero' as const,
+            entityName: 'Axe',
+            section: 'hero' as const,
+            change: 'Damage: 10 → 12'
+          }
+        ],
+        unknownNoteCount: 0,
+        unresolvedEntityCount: 0,
+        truncatedFactCount: 0
+      }
+    });
+    const setup = workflow({ inspectPatch });
+
+    await setup.run();
+
+    expect(await count('SELECT count(*) AS n FROM posts')).toBe(1);
+    expect(await repo.getUpdateDetail({ sourceKey: 'patch_notes', externalId: '7.41' })).toMatchObject({
+      parseStatus: 'complete',
+      facts: [{ entityName: 'Axe', change: 'Damage: 10 → 12' }]
+    });
+  });
+
+  it('persists scheduled patch analysis once and keeps its identity on repeated writes', async () => {
+    const repo = createD1DotaWatcherRepository(testDb());
+    await repo.storeSourceSync({
+      sourceKey: 'patch_notes',
+      items: [
+        {
+          sourceKey: 'patch_notes',
+          externalId: '7.40',
+          title: 'Dota 7.40',
+          sourceUrl: 'https://www.dota2.com/patches/7.40',
+          publishedAt: START - 1
+        }
+      ],
+      detectedAt: START
+    });
+    await repo.storeSourceSync({
+      sourceKey: 'patch_notes',
+      items: [
+        {
+          sourceKey: 'patch_notes',
+          externalId: '7.41',
+          title: 'Dota 7.41',
+          sourceUrl: 'https://www.dota2.com/patches/7.41',
+          publishedAt: START
+        }
+      ],
+      detectedAt: START + 1
+    });
+    const fact = {
+      id: 'patch:7.41:hero:0:hero:0:0',
+      entityType: 'hero' as const,
+      entityName: 'Axe',
+      section: 'hero' as const,
+      change: 'Damage: 10 → 12',
+      direction: 'increase' as const,
+      before: '10',
+      after: '12'
+    };
+    const setup = workflow({
+      inspectPatch: async () => ({
+        summary: null,
+        analysis: {
+          status: 'complete',
+          facts: [fact],
+          unknownNoteCount: 0,
+          unresolvedEntityCount: 0,
+          truncatedFactCount: 0
+        }
+      })
+    });
+
+    await setup.run();
+    await repo.savePatchAnalysis({
+      externalId: '7.41',
+      parseStatus: 'incomplete',
+      facts: [{ ...fact, change: 'Different recognized change' }],
+      parsedAt: START + 99
+    });
+
+    const row = await testDb()
+      .prepare('SELECT parse_status, facts_json, parsed_at FROM dota_patch_analyses WHERE external_id = ?1')
+      .bind('7.41')
+      .first<{ parse_status: string; facts_json: string; parsed_at: number }>();
+    expect(row?.parse_status).toBe('complete');
+    expect(JSON.parse(row?.facts_json ?? '[]')).toEqual([fact]);
+    expect(row?.parsed_at).toBe(START + 10);
+  });
+
   it('creates no draft from the baseline and makes one draft from new persisted source facts', async () => {
     const repo = createD1DotaWatcherRepository(testDb());
     await repo.storeSync({ items: [steam('baseline')], detectedAt: START });
@@ -429,12 +695,22 @@ describe('processDotaUpdates', () => {
         "SELECT count(*) AS n FROM dota_source_incidents WHERE code = 'DOTA_PATCH_DETAIL_SHAPE' AND resolved_at IS NULL"
       )
     ).toBe(1);
+    const unavailableAnalysis = await testDb()
+      .prepare('SELECT parse_status, facts_json, parsed_at FROM dota_patch_analyses WHERE external_id = ?1')
+      .bind('7.41f')
+      .first<{ parse_status: string; facts_json: string; parsed_at: number }>();
+    expect(unavailableAnalysis).toMatchObject({ parse_status: 'unavailable', facts_json: '[]' });
 
     const stillUnavailable = workflow({
       messenger: null,
       summarizePatch: () => Promise.reject(new DotaPatchDetailError('DOTA_PATCH_DETAIL_SHAPE', '7.41f'))
     });
     await stillUnavailable.run();
+    const repeatedUnavailable = await testDb()
+      .prepare('SELECT parsed_at FROM dota_patch_analyses WHERE external_id = ?1')
+      .bind('7.41f')
+      .first<{ parsed_at: number }>();
+    expect(repeatedUnavailable?.parsed_at).toBe(unavailableAnalysis?.parsed_at);
     expect(
       await count(
         "SELECT count(*) AS n FROM dota_source_incidents WHERE code LIKE 'DOTA_PATCH_DETAIL_%' AND resolved_at IS NULL"
@@ -650,6 +926,54 @@ describe('processDotaUpdates', () => {
     expect(ready.calls[0]?.html).toContain('Источник Dota восстановился');
     expect(
       await count('SELECT count(*) AS n FROM dota_source_incidents WHERE owner_alert_claimed_at IS NOT NULL')
+    ).toBe(1);
+  });
+
+  it('suppresses Dota source alerts when the source preference is disabled but records the one-shot claim', async () => {
+    const disabled = workflow({
+      sync: sourceShapeFailure,
+      readNotificationPreferences: () =>
+        Promise.resolve({
+          warningsEnabled: true,
+          publicationAlerts: true,
+          sourceAlerts: false,
+          automationAlerts: true,
+          recoveryAlerts: true,
+          dotaWatchlistAlerts: true
+        })
+    });
+
+    const result = await disabled.run();
+
+    expect(result.sourceAlertsSent).toBe(0);
+    expect(disabled.calls).toEqual([]);
+    expect(
+      await count('SELECT count(*) AS n FROM dota_source_incidents WHERE owner_alert_claimed_at IS NOT NULL')
+    ).toBe(1);
+  });
+
+  it('suppresses a Dota recovery notice when recovery alerts are disabled', async () => {
+    await workflow({ sync: sourceShapeFailure }).run();
+    const disabled = workflow({
+      readNotificationPreferences: () =>
+        Promise.resolve({
+          warningsEnabled: true,
+          publicationAlerts: true,
+          sourceAlerts: true,
+          automationAlerts: true,
+          recoveryAlerts: false,
+          dotaWatchlistAlerts: true
+        })
+    });
+
+    const result = await disabled.run();
+
+    expect(result.sourceAlertsSent).toBe(0);
+    expect(disabled.calls).toEqual([]);
+    expect(
+      await count(
+        'SELECT count(*) AS n FROM dota_source_incidents WHERE resolved_at IS NOT NULL AND owner_alert_claimed_at IS NOT NULL'
+      )
     ).toBe(1);
   });
 

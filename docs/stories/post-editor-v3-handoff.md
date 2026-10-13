@@ -10,14 +10,26 @@ Handoff for the next session (Claude Code or Codex). Read first: `AGENTS.md`, `d
 - Prototype accepted: `/__proto/posts/new?state=<id>` (`apps/frontend/src/pages/prototypes/PostEditor*`). Gate A: 18/20 fixed then polish; open low items accepted by the owner («эти мелочи оставь»). Evidence: `.logs/qa-proto-v3d/`, `.logs/proto-v3e/`.
 - Backend media fixes with red→green tests (`apps/backend/tests/integration/post-media.test.ts`): PATCH post returns its media (MEDIA-001, likely the owner's 404), library attach of a crop original (MEDIA-005), orphan object after slow upload (MEDIA-008).
 
+## Implementation and verification record (12.10.2026)
+
+The production editor and media fixes in the previous section are implemented. Do not repeat these checks unless the source changes:
+
+- Focused frontend checks: `npx.cmd vitest run src/features/posts/tests/real-editor-media.test.tsx src/features/posts/tests/media-editor.test.tsx src/features/posts/model/crop.test.ts` — 32 tests passed; `npm.cmd run typecheck -w @alexeev/frontend` — passed.
+- MEDIA-002: two independent Playwright runs passed create → upload at revision 0 → redirect → confirmed media → next PATCH at revision 1; see `.logs/post-editor-gate-b-recheck-20261012/report.md`.
+- Crop: browser checks cover JPEG/WebP bounds (≤10 MB, long side ≤2048), selected ratio on a 4032×3024 source, shared preview/export geometry, and recoverable 400/404/413/503 errors while preserving the original; see `.logs/post-editor-gate-b-20261012/report.md` and `.logs/post-editor-interaction-audit-20261012/report.md`. In addition, a Playwright regression at 375 px and 1440 px samples three positions from the real 1122×842 Altai JPEG against the corresponding positions inside the selected crop frame; all RGB channel differences are ≤40 for JPEG encoding. The E2E DTO fixture now reports the source's real dimensions.
+- Responsive/editor UI: full 320–1920 viewport matrix in dark and light, no horizontal overflow, and axe WCAG 2.2 A/AA at 375/1440 passed; mobile geometry is within 2.75 px of the accepted prototype. UI-003 route focus passed its independent keyboard recheck; see `.logs/post-editor-gate-b-final-20261012/report.md` and `.logs/post-editor-ui003-recheck-20261012/report.md`.
+- Gate B closeout at current HEAD: individual keyboard actions on the crop region, all four resize corners, zoom slider, and rotation controls passed; the focused rotation control showed its focus ring. A focused mobile Playwright scenario then passed sequential Tab traversal to the media tile, Enter into media details and crop, with each focused target above the sticky footer and visible focus styling in the crop dialog. A separate 375×812 scenario passed with 38 px safe-area inset: the sticky action bar remained at viewport bottom with 38 px bottom padding. The first keyboard attempt was a harness false negative (it expected desktop dialog name «Кадрирование фото» at mobile width; the actual mobile name is «Кадрирование»); no application defect was found. Evidence for earlier crop controls: `.logs/post-editor-gate-b-closeout-20261012/report.md`.
+- Console/network audit is still unverified: the browser environment denied the Telegram WebApp SDK request (`ERR_NETWORK_ACCESS_DENIED`), producing a console error. Do not retry that audit unless network access changes; it is an environment blocker, not an application pass.
+- R2 review and required local gate: media ownership/revision/upload review passed; `npm.cmd run verify` passed after formatting/typecheck repairs; see `.logs/editor-security-gate-20261012/report.md` and `.logs/editor-verify-recheck-20261012/report.md`.
+
+Remaining before queue item 2 can be marked done:
+
+1. Gate B: capture a complete console/network audit only after `https://telegram.org/js/telegram-web-app.js` is accessible from the browser test environment; the current environment blocks it.
+
+The queue remains `in progress` until those checks have evidence. Full reports and screenshots from prior checks are under `.logs/`; the summaries above are the durable status record.
+
 ## Next (in order)
-1. **frontend**: implement the real editor (`apps/frontend/src/features/posts/**`, routes `/posts/new`, `/posts/$id`, `/posts/$id/publish`) to match the prototype exactly, using the same primitives. Fix in the same pass (audit, CONFIRMED by trace):
-   - MEDIA-002: new post — `adoptMedia` ignores uploads while `baseline === null`; after redirect media vanish and the next write is 409 (`model/use-post-editor.ts` ~252, `ui/PostMediaEditor.tsx`).
-   - MEDIA-003: crop uploads full-res PNG → >10 MB → 413. Use the prototype's `renderCrop` approach (`pages/prototypes/post-editor-crop.ts`): JPEG/WebP, long side ≤ 2048, ≤ 10 MB, same math for preview and output.
-   - MEDIA-004: crop preview/output mismatch (inverted pan) — replaced by CropCanvas + shared math.
-   - MEDIA-006/007: stale ids → 404; specific error copy for 404/400/413/503 in crop.
-   - Tests: real `PostEditor` + `usePostEditor` (not a mocked `onServerChange`), real-size photos in e2e.
-2. **ui-qa** Gate B: real pages vs prototype screenshots, 375/1440, both themes, axe, crop output = frame.
-3. **qa-security** (R2: uploads/media): integrated review; then full `npm run verify` once.
+
+1. **ui-qa**: finish only the remaining Gate B network audit above; do not rerun the passed matrix, MEDIA-002, crop error, real-photo crop sampling, keyboard traversal, safe-area, focus, axe, or `npm run verify` checks unless source changes.
 API needs left out of scope (handoff §10): thumbnails/posters endpoint (API-8), bulk detach (API-9), switches (decided: none).
 - Reorder in the prototype uses a small pointer hook (`pages/prototypes/post-editor-reorder.ts`: mouse after 5 px, touch after a 280 ms hold, Alt+Arrow keyboard), not React Aria DnD; e2e `apps/frontend/e2e/post-editor-dnd.spec.ts`.

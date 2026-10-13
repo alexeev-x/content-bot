@@ -22,6 +22,7 @@ import {
   createD1DispatchRepository,
   createD1IncidentRepository,
   createD1PublicationRepository,
+  createD1PublicationAnalyticsRepository,
   createTelegramChatInspector,
   createTelegramPublicationTransport,
   type ChatInspector,
@@ -33,6 +34,7 @@ import {
   type PublicationMedia,
   type PostSource,
   type PublicationRepository,
+  type PublicationAnalyticsRepository,
   type PublicationTransport
 } from '../modules/publishing';
 import {
@@ -57,12 +59,15 @@ import { AppError } from '../shared/app-error';
 import {
   createD1DotaWatcherRepository,
   createOfficialDotaFetcher,
+  inspectOfficialPatch,
   summarizeOfficialPatch,
   syncDotaUpdates,
   type DotaPatchSummary,
+  type DotaPatchInspection,
   type DotaSourceFetcher,
   type DotaWatcherRepository
 } from '../modules/dota';
+import { createD1DotaWatchlists } from '../modules/dota-watchlists';
 
 // The only place where real implementations are wired. It grows together with the modules
 // (repositories, transports); nothing is registered here before it exists.
@@ -84,6 +89,7 @@ export interface Container {
   dashboardLayout: DashboardLayoutRepository;
   destinations: DestinationRepository;
   publications: PublicationRepository;
+  publicationAnalytics: PublicationAnalyticsRepository;
   /** Incident list and acknowledgement (migrations 0005, 0010). */
   incidents: IncidentRepository;
   /** The owner's overview: one batch of bounded reads. */
@@ -113,9 +119,11 @@ export interface Container {
   dotaWatcher: {
     sync(input: { detectedAt: number }): Promise<{ inserted: number; fetched: number }>;
     summarizePatch(version: string): Promise<DotaPatchSummary | null>;
+    inspectPatch?(version: string): Promise<DotaPatchInspection>;
   };
   /** D1 state for draft reservation, Dota owner notices and deduped source incidents. */
   dotaRepository: DotaWatcherRepository;
+  dotaWatchlists: ReturnType<typeof createD1DotaWatchlists>;
   housekeeping: {
     purgeExpired(input: { now: number; limit: number }): Promise<{ idempotencyKeys: number; rateLimits: number }>;
   };
@@ -216,6 +224,9 @@ export function createContainer(env: ContainerEnv, overrides: ContainerOverrides
     get publications() {
       return createD1PublicationRepository(db());
     },
+    get publicationAnalytics() {
+      return createD1PublicationAnalyticsRepository(db());
+    },
     get incidents() {
       return createD1IncidentRepository(db());
     },
@@ -310,11 +321,15 @@ export function createContainer(env: ContainerEnv, overrides: ContainerOverrides
       const fetcher = overrides.dotaFetcher ?? createOfficialDotaFetcher();
       return {
         sync: ({ detectedAt }: { detectedAt: number }) => syncDotaUpdates({ fetcher, repo, detectedAt }),
-        summarizePatch: (version: string) => summarizeOfficialPatch(fetcher, version)
+        summarizePatch: (version: string) => summarizeOfficialPatch(fetcher, version),
+        inspectPatch: (version: string) => inspectOfficialPatch(fetcher, version)
       };
     },
     get dotaRepository() {
       return overrides.dotaRepository ?? createD1DotaWatcherRepository(db());
+    },
+    get dotaWatchlists() {
+      return createD1DotaWatchlists(db());
     },
     // Resolved per call: a BOT_INFO override never touches the database, so a Worker without one still answers.
     get botIdentity(): BotIdentityStore {

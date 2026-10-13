@@ -1,4 +1,11 @@
-import type { ClaimedJob, DispatchRepository, DispatchTarget, ExpiredClaim, JobResolution } from '../application/ports';
+import type {
+  ClaimedJob,
+  DispatchRepository,
+  DispatchTarget,
+  ExpiredClaim,
+  JobResolution,
+  OwnerIncidentAlertGroup
+} from '../application/ports';
 
 type Value = string | number | null;
 
@@ -72,12 +79,13 @@ function resolutionStatements(db: D1Database, resolution: JobResolution, guard: 
   ];
 
   if (resolution.incident !== null) {
+    const groupKey = `${resolution.incident.kind}:${resolution.publicationId ?? resolution.jobId}`;
     statements.push(
       guarded(
         db,
         (ours) =>
-          `INSERT INTO incidents (id, kind, publication_id, job_id, code, created_at, details)
-           SELECT ?1, ?2, ?3, ?4, ?5, ?6, ?7 WHERE ${ours}`,
+          `INSERT INTO incidents (id, kind, publication_id, job_id, code, created_at, details, alert_group_key)
+           SELECT ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8 WHERE ${ours}`,
         [
           resolution.incident.id,
           resolution.incident.kind,
@@ -85,7 +93,8 @@ function resolutionStatements(db: D1Database, resolution: JobResolution, guard: 
           resolution.jobId,
           resolution.incident.code,
           resolution.finishedAt,
-          JSON.stringify(resolution.incident.details)
+          JSON.stringify(resolution.incident.details),
+          groupKey
         ],
         guard
       )
@@ -183,6 +192,43 @@ export const DUE_JOBS_SQL = `SELECT id FROM (
 
 export const EXPIRED_CLAIMS_SQL = `SELECT id, publication_id, attempts, send_started_at, updated_at FROM jobs
   WHERE status = 'claimed' AND lease_until < ?1 ORDER BY lease_until LIMIT ?2`;
+
+export const OWNER_INCIDENT_ALERT_GROUPS_SQL = `
+  SELECT g.group_key, g.kind, g.first_seen_at, g.last_seen_at, g.occurrence_count,
+         g.recovery_claimed_at,
+         (SELECT max(history.resolved_at) FROM incidents history
+          WHERE history.alert_group_key = g.group_key AND history.resolved_at IS NOT NULL) AS recovered_at,
+         CASE WHEN NOT EXISTS (SELECT 1 FROM incidents open
+                               WHERE open.alert_group_key = g.group_key AND open.resolved_at IS NULL)
+              THEN 1 ELSE 0 END AS is_recovery,
+         sample.code, sample.publication_id,
+         substr(r.title, 1, 120) AS post_title, d.title AS channel_title
+  FROM incident_alert_groups g INDEXED BY incident_alert_groups_due_idx
+  JOIN incidents sample ON sample.id = (
+    SELECT recent.id FROM incidents recent
+    WHERE recent.alert_group_key = g.group_key
+    ORDER BY recent.created_at DESC, recent.id DESC LIMIT 1
+  )
+  LEFT JOIN publications p ON p.id = sample.publication_id
+  LEFT JOIN post_revisions r ON r.post_id = p.post_id AND r.revision = p.post_revision
+  LEFT JOIN destinations d ON d.id = p.destination_id
+  WHERE (EXISTS (SELECT 1 FROM incidents open
+                 WHERE open.alert_group_key = g.group_key AND open.resolved_at IS NULL) AND
+         (g.last_alert_claimed_at IS NULL OR
+          (g.last_seen_at > g.last_alert_claimed_at AND g.last_alert_claimed_at <= ?1 - 900000)))
+     OR (NOT EXISTS (SELECT 1 FROM incidents open
+                     WHERE open.alert_group_key = g.group_key AND open.resolved_at IS NULL)
+         AND g.alert_succeeded_at IS NOT NULL AND g.recovery_claimed_at IS NULL)
+  -- Oldest first across severity and recovery so the bounded per-tick page cannot starve older groups.
+  ORDER BY g.first_seen_at, g.group_key LIMIT ?2`;
+
+export const PURGE_OWNER_INCIDENT_ALERT_GROUPS_SQL = `DELETE FROM incident_alert_groups
+  WHERE recovery_claimed_at IS NOT NULL
+    AND group_key IN (
+      SELECT group_key FROM incident_alert_groups INDEXED BY incident_alert_groups_recovery_idx
+      WHERE recovery_claimed_at IS NOT NULL
+      ORDER BY recovery_claimed_at, group_key LIMIT ?1
+    )`;
 
 export function createD1DispatchRepository(db: D1Database): DispatchRepository {
   return {
@@ -299,6 +345,86 @@ export function createD1DispatchRepository(db: D1Database): DispatchRepository {
         .bind(now, JSON.stringify(incidentIds))
         .all<{ id: string }>();
       return results.map((row) => row.id);
+    },
+
+    async listOwnerIncidentAlertGroups(now, limit): Promise<OwnerIncidentAlertGroup[]> {
+      const { results } = await db.prepare(OWNER_INCIDENT_ALERT_GROUPS_SQL).bind(now, limit).all<{
+        group_key: string;
+        kind: 'publish_failed' | 'publish_unknown';
+        first_seen_at: number;
+        last_seen_at: number;
+        occurrence_count: number;
+        recovery_claimed_at: number | null;
+        recovered_at: number | null;
+        is_recovery: number;
+        code: string;
+        publication_id: string | null;
+        post_title: string | null;
+        channel_title: string | null;
+      }>();
+      return results.map((row) => ({
+        groupKey: row.group_key,
+        kind: row.kind,
+        code: row.code,
+        publicationId: row.publication_id,
+        postTitle: row.post_title,
+        channelTitle: row.channel_title,
+        firstSeenAt: row.first_seen_at,
+        lastSeenAt: row.last_seen_at,
+        occurrenceCount: row.occurrence_count,
+        recovery: row.is_recovery === 1,
+        recoveredAt: row.recovered_at
+      }));
+    },
+
+    async purgeOwnerIncidentAlertGroups(limit) {
+      const result = await db.prepare(PURGE_OWNER_INCIDENT_ALERT_GROUPS_SQL).bind(limit).run();
+      return result.meta.changes;
+    },
+
+    async claimOwnerIncidentAlertGroup(groupKey, now, recovery) {
+      const claim = recovery
+        ? db
+            .prepare(
+              `UPDATE incident_alert_groups SET recovery_claimed_at = ?1
+               WHERE group_key = ?2 AND recovery_claimed_at IS NULL AND alert_succeeded_at IS NOT NULL
+                 AND NOT EXISTS (SELECT 1 FROM incidents WHERE alert_group_key = ?2 AND resolved_at IS NULL)`
+            )
+            .bind(now, groupKey)
+        : db
+            .prepare(
+              `UPDATE incident_alert_groups SET last_alert_claimed_at = ?1
+               WHERE group_key = ?2
+                 AND (last_alert_claimed_at IS NULL OR
+                      (last_seen_at > last_alert_claimed_at AND last_alert_claimed_at <= ?1 - 900000))
+                 AND EXISTS (SELECT 1 FROM incidents WHERE alert_group_key = ?2 AND resolved_at IS NULL)`
+            )
+            .bind(now, groupKey);
+      const results = await db.batch([
+        claim,
+        ...(recovery
+          ? []
+          : [
+              db
+                .prepare(
+                  `UPDATE incidents SET owner_notified_at = ?1
+                   WHERE alert_group_key = ?2 AND resolved_at IS NULL AND owner_notified_at IS NULL
+                     AND changes() = 1`
+                )
+                .bind(now, groupKey)
+            ])
+      ]);
+      return results[0]?.meta.changes === 1;
+    },
+
+    async markOwnerIncidentAlertSent(groupKey, sentAt) {
+      await db
+        .prepare(
+          `UPDATE incident_alert_groups SET alert_succeeded_at = ?2
+           WHERE group_key = ?1 AND recovery_claimed_at IS NULL AND last_alert_claimed_at IS NOT NULL`
+        )
+        .bind(groupKey, sentAt)
+        .run();
     },
 
     // Walks incidents_open_idx and stops after `limit` rows.

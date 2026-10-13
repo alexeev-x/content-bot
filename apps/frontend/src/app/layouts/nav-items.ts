@@ -23,8 +23,9 @@ const ALL_NAV_ITEMS: readonly NavItem[] = [
   { to: '/calendar', label: ru.nav.calendar, icon: 'calendar', primary: true, built: false },
   { to: '/incidents', label: ru.nav.incidents, icon: 'alert', primary: true, badge: 'incidents', built: true },
   { to: '/automations', label: ru.nav.automations, icon: 'zap', primary: false, built: false },
-  { to: '/media', label: ru.nav.media, icon: 'image', primary: false, built: false },
+  { to: '/media', label: ru.nav.media, icon: 'image', primary: false, built: true },
   { to: '/sources', label: ru.nav.sources, icon: 'link', primary: false, built: true },
+  { to: '/analytics', label: ru.nav.analytics, icon: 'list', primary: false, built: true },
   { to: '/settings', label: ru.nav.settings, icon: 'settings', primary: false, pinned: true, built: true }
 ];
 

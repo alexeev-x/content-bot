@@ -1,4 +1,11 @@
-import type { DestinationKind, PostEntity, PublicationDto, PublicationStatus } from '@alexeev/contracts';
+import type {
+  DestinationKind,
+  PostEntity,
+  PublicationAnalyticsQuery,
+  PublicationAnalyticsReportDto,
+  PublicationDto,
+  PublicationStatus
+} from '@alexeev/contracts';
 import type { IdempotencyClaim } from '../../../platform/idempotency/d1-idempotency-store';
 import type { PostingProblem } from '../domain/bot-posting-rights';
 import type { SchedulablePost } from '../domain/schedulable';
@@ -93,6 +100,20 @@ export interface RaisedIncident {
   channelTitle: string | null;
 }
 
+export interface OwnerIncidentAlertGroup {
+  groupKey: string;
+  kind: JobIncident['kind'];
+  code: string;
+  publicationId: string | null;
+  postTitle: string | null;
+  channelTitle: string | null;
+  firstSeenAt: number;
+  lastSeenAt: number;
+  occurrenceCount: number;
+  recovery: boolean;
+  recoveredAt: number | null;
+}
+
 /** Everything one guarded batch writes when an attempt ends. */
 export interface JobResolution {
   jobId: string;
@@ -142,6 +163,14 @@ export interface DispatchRepository {
    * not exist): the caller must not alert for it. One statement for all ids.
    */
   claimOwnerNotices(incidentIds: readonly string[], now: number): Promise<string[]>;
+  /** Returns a small priority-ordered page of active alert groups or newly recovered groups. */
+  /** Deletes only bounded rows whose one-shot recovery claim is already durable. */
+  purgeOwnerIncidentAlertGroups(limit: number): Promise<number>;
+  listOwnerIncidentAlertGroups(now: number, limit: number): Promise<OwnerIncidentAlertGroup[]>;
+  /** Conditional, one-shot claim. `recovery` selects the recovery state transition. */
+  claimOwnerIncidentAlertGroup(groupKey: string, now: number, recovery: boolean): Promise<boolean>;
+  /** Records confirmed delivery; a crash/ambiguous send deliberately leaves the claim unconfirmed. */
+  markOwnerIncidentAlertSent(groupKey: string, sentAt: number): Promise<void>;
   /** How many incidents are unresolved, counted up to `limit` (so the read is bounded). */
   countOpenIncidents(limit: number): Promise<number>;
 }
@@ -389,6 +418,11 @@ export interface PublicationRepository {
   listUpcoming(limit: number): Promise<UpcomingPublication[]>;
   /** Counts of the publications scheduled in [from, to), read from at most RANGE_SUMMARY_ROWS of them. */
   summarizeRange(range: { from: number; to: number; now: number }): Promise<RangeSummary>;
+}
+
+/** Read-only report over immutable snapshots written by publication resolution batches. */
+export interface PublicationAnalyticsRepository {
+  read(query: PublicationAnalyticsQuery, observedAt: number): Promise<PublicationAnalyticsReportDto>;
 }
 
 /** The publication an incident is about, as one row of the incident list shows it. */

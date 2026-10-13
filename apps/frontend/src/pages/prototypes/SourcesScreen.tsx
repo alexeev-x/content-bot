@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { Link } from '@tanstack/react-router';
 import {
   Banner,
   Button,
@@ -14,6 +15,7 @@ import {
   SearchField,
   Tab,
   TabList,
+  TabPanel,
   Tabs,
   type DataColumn,
   type IconName
@@ -21,8 +23,12 @@ import {
 import { DOTA_EVENTS, EVENT_LABEL, SOURCES, agoText, type DotaEvent, type Source } from './preview-data';
 import { DemoChip, Pill, PreviewPage, Tag, usePreviewToast } from './preview-kit';
 import { FooterLine, PhoneSkeletonRows } from './parts';
-import { useNarrow, useProtoNavigate, useProtoSearch, useProtoSearchUpdate, useScreenPhase } from './proto-kit';
+import { BASE, useNarrow, useProtoNavigate, useProtoSearch, useProtoSearchUpdate, useScreenPhase } from './proto-kit';
+import { dotaDetailByEvent, dotaDetailByKey } from './dota-event-details';
+import { DotaEventDetail } from './DotaEventDetail';
+import { DotaWatchlists, type DotaWatch } from './DotaWatchlists';
 import kit from './Preview.module.css';
+import actionStyles from './SourcesScreen.module.css';
 
 const TYPES = [
   { id: 'all', label: 'Все' },
@@ -56,7 +62,17 @@ export function SourcesScreen() {
   const [query, setQuery] = useState('');
   const [type, setType] = useState('all');
   const [source, setSource] = useState('all');
+  const [watches, setWatches] = useState<DotaWatch[]>([
+    { id: 'Герой:Lina', kind: 'Герой', name: 'Lina', match: 'Патч 7.41', alert: 'unknown' }
+  ]);
+  const [pendingWatchId, setPendingWatchId] = useState<string>();
+  const [watchMessage, setWatchMessage] = useState('');
   const view = search.view === 'sources' ? 'sources' : 'events';
+  const detail = dotaDetailByKey(search.update);
+  const detailEvent = detail ? DOTA_EVENTS.find((event) => event.id === detail.eventId) : undefined;
+  const openerRef = useRef<HTMLElement | null>(null);
+  const openerIdRef = useRef<string | undefined>(undefined);
+  const previousUpdateRef = useRef(search.update);
   const partial = search.state === 'partial';
   const unreachable = search.state === 'unreachable';
 
@@ -75,6 +91,57 @@ export function SourcesScreen() {
     setType('all');
     setSource('all');
   };
+  const watchPanel = (
+    <>
+      <DotaWatchlists
+        watches={watches}
+        state={search.state?.startsWith('watch-') ? search.state : undefined}
+        onRemove={(id) => setWatches((current) => current.filter((watch) => watch.id !== id))}
+        onRetry={() => update({ state: undefined }, true)}
+        onShowFacts={() => {
+          const confirmedEvent = DOTA_EVENTS.find((event) => {
+            const eventDetail = dotaDetailByEvent(event.id);
+            return eventDetail?.parseStatus === 'complete' && eventDetail.facts.length > 0;
+          });
+          if (!confirmedEvent) return;
+          const confirmedDetail = dotaDetailByEvent(confirmedEvent.id);
+          if (confirmedDetail) go('sources', { update: confirmedDetail.updateKey });
+        }}
+      />
+      {watchMessage ? (
+        <output className={kit.muted} aria-live="polite">
+          {watchMessage}
+        </output>
+      ) : null}
+    </>
+  );
+  const addWatch = (watch: Pick<DotaWatch, 'id' | 'kind' | 'name'>) => {
+    if (watches.some((item) => item.id === watch.id) || search.state === 'watch-offline') return;
+    setPendingWatchId(watch.id);
+    window.setTimeout(() => {
+      setWatches((current) =>
+        current.some((item) => item.id === watch.id) ? current : [...current, { ...watch, alert: 'none' }]
+      );
+      setPendingWatchId(undefined);
+      setWatchMessage(`Превью: ${watch.name} добавлен только в демо-состоянии.`);
+      requestAnimationFrame(() => document.querySelector<HTMLElement>(`[data-watch-row="${watch.id}"]`)?.focus());
+    }, 350);
+  };
+  useEffect(() => {
+    if (!search.update && previousUpdateRef.current) {
+      requestAnimationFrame(() => {
+        if (openerRef.current?.isConnected) {
+          openerRef.current.focus();
+          return;
+        }
+        const priorOpener = openerIdRef.current
+          ? document.querySelector<HTMLElement>(`[data-update-opener="${openerIdRef.current}"]`)
+          : null;
+        (priorOpener ?? document.querySelector<HTMLElement>('[data-update-opener]'))?.focus();
+      });
+    }
+    previousUpdateRef.current = search.update;
+  }, [search.update]);
 
   const eventColumns: DataColumn<DotaEvent>[] = [
     {
@@ -135,14 +202,32 @@ export function SourcesScreen() {
       header: 'Действия',
       align: 'end',
       cell: (event) => (
-        <Menu
-          label={`Действия: ${event.title}`}
-          items={[
-            { id: 'open', label: 'Открыть источник', icon: 'external' },
-            { id: 'draft', label: 'Создать черновик поста', icon: 'edit' }
-          ]}
-          onAction={(id) => (id === 'draft' ? go('posts/new') : preview())}
-        />
+        <>
+          {dotaDetailByEvent(event.id) ? (
+            <Link
+              to={`${BASE}/sources` as never}
+              search={{ ...search, update: dotaDetailByEvent(event.id)?.updateKey } as never}
+              className={actionStyles.detailLink}
+              data-update-opener={event.id}
+              aria-label={`Открыть разбор: ${event.title}`}
+              onClick={(clickEvent) => {
+                openerRef.current = clickEvent.currentTarget;
+                openerIdRef.current = event.id;
+              }}
+              onFocus={(focusEvent) => focusEvent.stopPropagation()}
+            >
+              Открыть разбор
+            </Link>
+          ) : null}
+          <Menu
+            label={`Действия: ${event.title}`}
+            items={[
+              { id: 'open', label: 'Открыть источник', icon: 'external' },
+              { id: 'draft', label: 'Создать черновик поста', icon: 'edit' }
+            ]}
+            onAction={(id) => (id === 'draft' ? go('posts/new') : preview())}
+          />
+        </>
       )
     }
   ];
@@ -228,102 +313,152 @@ export function SourcesScreen() {
 
   return (
     <PreviewPage title="Dota Pulse">
-      {unreachable ? (
-        <Banner tone="warning" title="Источник не отвечает 2 ч, показаны данные на 06:40">
-          Источник «Patch notes» недоступен. Остальные источники работают.
-        </Banner>
-      ) : null}
-      <Tabs
-        selectedKey={view}
-        onSelectionChange={(key) => update({ view: key === 'events' ? undefined : String(key), id: undefined })}
-      >
-        <TabList aria-label="Разделы">
-          <Tab id="events">События</Tab>
-          <Tab id="sources">Источники</Tab>
-        </TabList>
-      </Tabs>
-      <Panel
-        title={view === 'sources' ? 'Источники' : 'События'}
-        marker={<DemoChip />}
-        reserveRows={ready ? undefined : 8}
-        action={
-          !narrow && view === 'events' && ready && (query.trim() || type !== 'all' || source !== 'all') ? (
-            <Button variant="ghost" size="sm" icon="x" onPress={reset}>
-              Сбросить фильтры
-            </Button>
-          ) : undefined
-        }
-        footer={
-          <FooterLine
-            text={
-              !ready
-                ? phase === 'loading'
-                  ? 'Загружаем…'
-                  : ' '
-                : view === 'sources'
-                  ? 'Проверено 3 источника'
-                  : partial
-                    ? `События 2 из 3 источников · ${events.length}`
-                    : unreachable
-                      ? `${events.length} событий · данные на 06:40`
-                      : `${events.length} из ${DOTA_EVENTS.length}`
-            }
+      {search.update ? (
+        <>
+          {watchPanel}
+          <DotaEventDetail
+            detail={detail}
+            event={detailEvent}
+            loading={phase === 'loading'}
+            readError={search.state === 'detail-error'}
+            backSearch={search}
+            onRetry={() => update({ state: undefined }, true)}
+            onDraft={(path) => go(path.replace('/__proto/', ''))}
+            watches={watches}
+            onWatch={addWatch}
+            pendingWatchId={pendingWatchId}
+            actionsDisabled={search.state === 'watch-offline'}
           />
-        }
-      >
-        {body}
-      </Panel>
-      {partial && ready && view === 'events' ? (
-        <output className={kit.muted}>Источник «Patch notes» не ответил: патчи временно не показаны.</output>
-      ) : null}
-      <Drawer
-        variant={narrow ? 'bottom' : 'side'}
-        isOpen={Boolean(active)}
-        onOpenChange={(open) => !open && update({ id: undefined })}
-        title={active?.name ?? ''}
-        meta={active ? <StatusPill source={active} /> : undefined}
-      >
-        {active ? (
-          <div className={kit.stack}>
-            {active.status !== 'up' ? (
-              <Banner
-                tone="warning"
-                title={active.status === 'down' ? 'Источник не отвечает 2 ч' : 'Источник давно не обновлялся'}
+        </>
+      ) : (
+        <>
+          {unreachable ? (
+            <Banner tone="warning" title="Источник не отвечает 2 ч, показаны данные на 06:40">
+              Источник «Patch notes» недоступен. Остальные источники работают.
+            </Banner>
+          ) : null}
+          <Tabs
+            selectedKey={view}
+            onSelectionChange={(key) => update({ view: key === 'events' ? undefined : String(key), id: undefined })}
+          >
+            <TabList aria-label="Разделы">
+              <Tab id="events">События</Tab>
+              <Tab id="sources">Источники</Tab>
+            </TabList>
+            <TabPanel id={view}>
+              {view === 'events' ? (
+                <div className={kit.stack}>
+                  <Panel title="Фильтры обновлений" marker={<DemoChip />}>
+                    <div className={kit.stack}>
+                      <SearchField label="Заголовок" placeholder="Что ищем?" value={query} onChange={setQuery} />
+                      <RadioGroup label="Тип обновления" value={type} onChange={setType}>
+                        {TYPES.map((option) => (
+                          <Radio key={option.id} value={option.id}>
+                            {option.label}
+                          </Radio>
+                        ))}
+                      </RadioGroup>
+                      <RadioGroup label="Источник" value={source} onChange={setSource}>
+                        {[
+                          { id: 'all', label: 'Все' },
+                          ...SOURCES.map((item) => ({ id: item.id, label: item.name }))
+                        ].map((option) => (
+                          <Radio key={option.id} value={option.id}>
+                            {option.label}
+                          </Radio>
+                        ))}
+                      </RadioGroup>
+                    </div>
+                  </Panel>
+                  {watchPanel}
+                </div>
+              ) : null}
+              <Panel
+                title={view === 'sources' ? 'Источники' : 'События'}
+                marker={<DemoChip />}
+                reserveRows={ready ? undefined : 8}
+                action={
+                  !narrow && view === 'events' && ready && (query.trim() || type !== 'all' || source !== 'all') ? (
+                    <Button variant="ghost" size="sm" icon="x" onPress={reset}>
+                      Сбросить фильтры
+                    </Button>
+                  ) : undefined
+                }
+                footer={
+                  <FooterLine
+                    text={
+                      !ready
+                        ? phase === 'loading'
+                          ? 'Загружаем…'
+                          : ' '
+                        : view === 'sources'
+                          ? 'Проверено 3 источника'
+                          : partial
+                            ? `События 2 из 3 источников · ${events.length}`
+                            : unreachable
+                              ? `${events.length} событий · данные на 06:40`
+                              : `${events.length} из ${DOTA_EVENTS.length}`
+                    }
+                  />
+                }
               >
-                Показаны данные на 06:40.
-              </Banner>
-            ) : null}
-            <dl className={kit.facts}>
-              <div className={kit.fact}>
-                <dt>Адрес</dt>
-                <dd className={kit.mono}>{active.domain}</dd>
-              </div>
-              <div className={kit.fact}>
-                <dt>Разрешённые домены</dt>
-                <dd className={kit.mono}>{active.allowed.join(', ')}</dd>
-              </div>
-              <div className={kit.fact}>
-                <dt>Получено с</dt>
-                <dd>{active.domain}</dd>
-              </div>
-            </dl>
-            <h3 className={kit.sectionTitle}>Последние проверки</h3>
-            <ul className={kit.checks}>
-              {Array.from({ length: 5 }, (_, index) => (
-                <li key={index}>
-                  <span>{agoText(active.checkedAgo + index * 30)}</span>
-                  <Pill
-                    group={active.status === 'down' && index < 4 ? 'failed' : 'done'}
-                    icon={active.status === 'down' && index < 4 ? 'x-circle' : 'check'}
-                  >
-                    {active.status === 'down' && index < 4 ? 'Нет ответа' : 'Доступен'}
-                  </Pill>
-                </li>
-              ))}
-            </ul>
-          </div>
-        ) : null}
-      </Drawer>
+                {body}
+              </Panel>
+              {partial && ready && view === 'events' ? (
+                <output className={kit.muted}>Источник «Patch notes» не ответил: патчи временно не показаны.</output>
+              ) : null}
+              <Drawer
+                variant={narrow ? 'bottom' : 'side'}
+                isOpen={Boolean(active)}
+                onOpenChange={(open) => !open && update({ id: undefined })}
+                title={active?.name ?? ''}
+                meta={active ? <StatusPill source={active} /> : undefined}
+              >
+                {active ? (
+                  <div className={kit.stack}>
+                    {active.status !== 'up' ? (
+                      <Banner
+                        tone="warning"
+                        title={active.status === 'down' ? 'Источник не отвечает 2 ч' : 'Источник давно не обновлялся'}
+                      >
+                        Показаны данные на 06:40.
+                      </Banner>
+                    ) : null}
+                    <dl className={kit.facts}>
+                      <div className={kit.fact}>
+                        <dt>Адрес</dt>
+                        <dd className={kit.mono}>{active.domain}</dd>
+                      </div>
+                      <div className={kit.fact}>
+                        <dt>Разрешённые домены</dt>
+                        <dd className={kit.mono}>{active.allowed.join(', ')}</dd>
+                      </div>
+                      <div className={kit.fact}>
+                        <dt>Получено с</dt>
+                        <dd>{active.domain}</dd>
+                      </div>
+                    </dl>
+                    <h3 className={kit.sectionTitle}>Последние проверки</h3>
+                    <ul className={kit.checks}>
+                      {Array.from({ length: 5 }, (_, index) => (
+                        <li key={index}>
+                          <span>{agoText(active.checkedAgo + index * 30)}</span>
+                          <Pill
+                            group={active.status === 'down' && index < 4 ? 'failed' : 'done'}
+                            icon={active.status === 'down' && index < 4 ? 'x-circle' : 'check'}
+                          >
+                            {active.status === 'down' && index < 4 ? 'Нет ответа' : 'Доступен'}
+                          </Pill>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : null}
+              </Drawer>
+            </TabPanel>
+          </Tabs>
+        </>
+      )}
     </PreviewPage>
   );
 }

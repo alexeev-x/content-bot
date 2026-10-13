@@ -1,659 +1,617 @@
-/* oxlint-disable jsx-a11y/no-noninteractive-element-interactions, jsx-a11y/no-noninteractive-tabindex, jsx-a11y/prefer-tag-over-role -- the chart is one keyboard-operable region (arrows move the data point) */
-/* oxlint-disable react/set-state-in-effect -- dev-only prototype: fake loading when the period changes */
-import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type PointerEvent } from 'react';
+/* oxlint-disable react/set-state-in-effect -- prototype filters mirror the URL state switcher. */
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
+  AppliedChips,
   Button,
-  Checkbox,
-  DataTable,
   Drawer,
   EmptyState,
   ErrorState,
-  IconButton,
-  KpiTile,
   Panel,
   Select,
   Skeleton,
-  VisuallyHidden,
-  type DataColumn
+  StatusBadge,
+  Tab,
+  TabList,
+  TabPanel,
+  Tabs
 } from '../../shared/ui';
-import { TOP_POSTS, buildSeries, numberRu, shortDate, type DayPoint } from './preview-data';
-import { DemoChip, Tag, Thumb, PreviewPage } from './preview-kit';
-import { useNarrow, useProtoSearch, useScreenPhase } from './proto-kit';
+import { PreviewPage } from './preview-kit';
+import { useNarrow, useProtoNavigate, useProtoSearch, useProtoSearchUpdate } from './proto-kit';
 import styles from './Analytics.module.css';
-import kit from './Preview.module.css';
 
-type Top = (typeof TOP_POSTS)[number];
-const PERIODS = [
-  { id: '7', label: '7 дней', days: 7 },
-  { id: '30', label: '30 дней', days: 30 },
-  { id: 'month', label: 'Месяц', days: 8 }
-];
-const CHANNELS = [
-  { id: 'all', label: 'Все каналы' },
-  { id: 'c1', label: 'Dota Pulse' },
-  { id: 'c2', label: 'Тестовый канал' }
-];
-type SeriesKey = 'views' | 'reactions' | 'reposts';
-const SERIES: ReadonlyArray<{ id: SeriesKey; label: string; dash?: string; width: number }> = [
-  { id: 'views', label: 'Просмотры', width: 2.5 },
-  { id: 'reactions', label: 'Реакции', width: 1.75 },
-  { id: 'reposts', label: 'Репосты', dash: '6 4', width: 1.75 }
-];
-const strokeOf = (id: SeriesKey) =>
-  id === 'views' ? 'var(--color-accent-text)' : id === 'reactions' ? 'var(--color-text)' : 'var(--color-text-muted)';
-
-function useWidth() {
-  const ref = useRef<HTMLDivElement>(null);
-  const [width, setWidth] = useState(0);
-  useEffect(() => {
-    const node = ref.current;
-    if (!node) return;
-    const observer = new ResizeObserver(([entry]) => entry && setWidth(Math.floor(entry.contentRect.width)));
-    observer.observe(node);
-    return () => observer.disconnect();
-  }, []);
-  return [ref, width] as const;
-}
-
-const PAD = { left: 8, right: 8, top: 12, bottom: 24 };
-
-function LineChart({
-  points,
-  visible,
-  height,
-  loading
-}: {
-  points: DayPoint[];
-  visible: ReadonlySet<SeriesKey>;
-  height: number;
-  loading: boolean;
-}) {
-  const [ref, width] = useWidth();
-  const [active, setActive] = useState(() => Math.round(points.length * 0.62));
-  const safe = Math.min(active, points.length - 1);
-  const innerW = Math.max(width - PAD.left - PAD.right, 1);
-  const innerH = height - PAD.top - PAD.bottom;
-  const x = (index: number) => PAD.left + (points.length === 1 ? innerW / 2 : (index / (points.length - 1)) * innerW);
-  // One shared scale: reactions and reposts stay small next to views, as they are.
-  const maxOf = () => Math.max(...points.map((p) => p.views), 1);
-  const y = (id: SeriesKey, value: number) => PAD.top + (1 - value / maxOf()) * innerH;
-  const indexAt = (clientX: number) => {
-    const rect = ref.current?.getBoundingClientRect();
-    if (!rect) return safe;
-    const ratio = (clientX - rect.left - PAD.left) / innerW;
-    return Math.max(0, Math.min(points.length - 1, Math.round(ratio * (points.length - 1))));
-  };
-  const onKey = (event: KeyboardEvent) => {
-    const step = event.key === 'ArrowRight' ? 1 : event.key === 'ArrowLeft' ? -1 : 0;
-    if (step) {
-      event.preventDefault();
-      setActive(Math.max(0, Math.min(points.length - 1, safe + step)));
-    } else if (event.key === 'Home' || event.key === 'End') {
-      event.preventDefault();
-      setActive(event.key === 'Home' ? 0 : points.length - 1);
-    }
-  };
-  const point = points[safe];
-  const tipLeft = Math.max(4, Math.min(width - 200, x(safe) - 100));
-  const labelEvery = Math.ceil(points.length / (width < 500 ? 4 : 8));
-  return (
-    <div
-      ref={ref}
-      className={styles.plot}
-      style={{ height }}
-      tabIndex={0}
-      role="group"
-      aria-label="График: просмотры, реакции и репосты по дням. Стрелки влево и вправо двигают точку."
-      onKeyDown={onKey}
-      onPointerMove={(event: PointerEvent) => !loading && setActive(indexAt(event.clientX))}
-      onPointerDown={(event: PointerEvent) => !loading && setActive(indexAt(event.clientX))}
-    >
-      {width > 0 ? (
-        <svg width={width} height={height} aria-hidden="true">
-          {[0, 1, 2, 3].map((line) => (
-            <line
-              key={line}
-              x1={PAD.left}
-              x2={width - PAD.right}
-              y1={PAD.top + (line / 3) * innerH}
-              y2={PAD.top + (line / 3) * innerH}
-              stroke="var(--color-grid)"
-            />
-          ))}
-          {loading ? null : (
-            <>
-              {SERIES.filter((s) => visible.has(s.id)).map((series) => (
-                <g key={series.id}>
-                  {series.id === 'views' ? (
-                    <path
-                      d={`M${x(0)},${PAD.top + innerH} ${points.map((p, i) => `L${x(i)},${y('views', p.views)}`).join(' ')} L${x(points.length - 1)},${PAD.top + innerH}Z`}
-                      fill="var(--color-accent-soft)"
-                    />
-                  ) : null}
-                  <polyline
-                    points={points.map((p, i) => `${x(i)},${y(series.id, p[series.id])}`).join(' ')}
-                    fill="none"
-                    stroke={strokeOf(series.id)}
-                    strokeWidth={series.width}
-                    strokeDasharray={series.dash}
-                    strokeLinejoin="round"
-                  />
-                </g>
-              ))}
-              <line
-                x1={x(safe)}
-                x2={x(safe)}
-                y1={PAD.top}
-                y2={PAD.top + innerH}
-                stroke="var(--color-border-strong)"
-                strokeDasharray="3 3"
-              />
-              {SERIES.filter((s) => visible.has(s.id)).map((series) => (
-                <circle
-                  key={series.id}
-                  cx={x(safe)}
-                  cy={y(series.id, point?.[series.id] ?? 0)}
-                  r={4}
-                  fill="var(--color-surface-1)"
-                  stroke={strokeOf(series.id)}
-                  strokeWidth={2}
-                />
-              ))}
-            </>
-          )}
-          {points.map((p, i) =>
-            i % labelEvery === 0 ? (
-              <text key={i} x={x(i)} y={height - 6} textAnchor="middle" fill="var(--color-text-muted)" fontSize={11}>
-                {p.label}
-              </text>
-            ) : null
-          )}
-        </svg>
-      ) : null}
-      {!loading && point ? (
-        <div className={styles.tip} style={{ left: tipLeft }} aria-hidden="true">
-          <strong>{point.label}</strong>
-          {SERIES.filter((s) => visible.has(s.id)).map((series) => (
-            <span key={series.id}>
-              <i style={{ background: strokeOf(series.id) }} data-dash={series.dash ? '' : undefined} />
-              {series.label}
-              <b>{numberRu(point[series.id])}</b>
-            </span>
-          ))}
-        </div>
-      ) : null}
-      <VisuallyHidden>
-        <span aria-live="polite">
-          {point && !loading
-            ? `${point.label}: просмотры ${numberRu(point.views)}, реакции ${numberRu(point.reactions)}, репосты ${numberRu(point.reposts)}`
-            : ''}
-        </span>
-      </VisuallyHidden>
-    </div>
-  );
-}
-
-function Bars({
-  points,
-  field,
-  tone,
-  summary,
-  loading
-}: {
-  points: DayPoint[];
-  field: 'sent' | 'errors';
-  tone: 'neutral' | 'danger';
-  summary: string;
-  loading: boolean;
-}) {
-  const [ref, width] = useWidth();
-  const height = 140;
-  const max = Math.max(...points.map((p) => p[field]), 1);
-  const step = width / points.length;
-  const barW = Math.max(2, Math.min(18, step * 0.62));
-  const id = `hatch-${field}`;
-  return (
-    <div ref={ref} className={styles.bars} style={{ height }}>
-      {width > 0 ? (
-        <svg width={width} height={height} role="img" aria-label={summary}>
-          <defs>
-            <pattern id={id} width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
-              <rect width="6" height="6" fill="var(--color-status-failed-bg)" />
-              <line x1="0" y1="0" x2="0" y2="6" stroke="var(--color-danger)" strokeWidth="3" />
-            </pattern>
-          </defs>
-          <line x1={0} x2={width} y1={height - 22} y2={height - 22} stroke="var(--color-border-subtle)" />
-          {loading
-            ? null
-            : points.map((p, i) => {
-                const h = (p[field] / max) * (height - 44);
-                const cx = i * step + step / 2;
-                return (
-                  <g key={i}>
-                    <rect
-                      x={cx - barW / 2}
-                      y={height - 22 - h}
-                      width={barW}
-                      height={h}
-                      rx={2}
-                      fill={tone === 'danger' ? `url(#${id})` : 'var(--color-text-muted)'}
-                      stroke={tone === 'danger' ? 'var(--color-danger)' : 'none'}
-                    >
-                      <title>{`${p.label}: ${p[field]}`}</title>
-                    </rect>
-                    {tone === 'danger' && p[field] > 0 ? (
-                      <text x={cx} y={height - 26 - h} textAnchor="middle" fontSize={11} fill="var(--color-danger)">
-                        {p[field]}
-                      </text>
-                    ) : null}
-                  </g>
-                );
-              })}
-          {[0, Math.floor(points.length / 2), points.length - 1].map((i) => (
-            <text
-              key={i}
-              x={Math.max(14, Math.min(width - 14, i * step + step / 2))}
-              y={height - 6}
-              textAnchor="middle"
-              fontSize={11}
-              fill="var(--color-text-muted)"
-            >
-              {points[i]?.label}
-            </text>
-          ))}
-        </svg>
-      ) : null}
-    </div>
-  );
-}
-
-const regroup = (points: DayPoint[], weekly: boolean): DayPoint[] => {
-  if (!weekly) return points;
-  const result: DayPoint[] = [];
-  for (let i = 0; i < points.length; i += 7) {
-    const chunk = points.slice(i, i + 7);
-    result.push({
-      label: chunk[0]?.label ?? '',
-      views: chunk.reduce((s, p) => s + p.views, 0),
-      reactions: chunk.reduce((s, p) => s + p.reactions, 0),
-      reposts: chunk.reduce((s, p) => s + p.reposts, 0),
-      sent: chunk.reduce((s, p) => s + p.sent, 0),
-      errors: chunk.reduce((s, p) => s + p.errors, 0)
-    });
-  }
-  return result;
+type Outcome = 'sent' | 'failed' | 'unknown';
+type MediaKind = 'Фото' | 'Анимация' | 'Видео' | null;
+type Entry = {
+  id: string;
+  publicationId: string;
+  title: string;
+  /** September day-of-month in the default report snapshot. */
+  date: number;
+  destination: string;
+  outcome: Outcome;
+  media: MediaKind;
+  mediaRecorded: boolean;
+  observedAt: string;
+  attempts: number;
 };
+
+const titles = [
+  'Как меняется карта после обновления: главные детали',
+  'Итоги турнира и самые напряжённые моменты финала',
+  'Новый герой: способности и первые впечатления',
+  'Большое обновление уже доступно — что важно знать',
+  'Расписание матчей на эту неделю',
+  'Разбор патча: изменения предметов и баланса',
+  'Команда объявила состав на следующий сезон',
+  'Пять моментов, которые решили исход серии',
+  'Коротко о главных новостях сообщества',
+  'Финал завершился: результаты и статистика',
+  'Что изменилось в рейтинговом режиме',
+  'Подборка лучших игровых моментов недели'
+];
+
+const records: Entry[] = Array.from({ length: 42 }, (_, index) => ({
+  id: `pub-${String(index + 1).padStart(2, '0')}`,
+  publicationId: 'u4',
+  title: titles[index % titles.length] ?? 'Публикация Studio',
+  date: 30 - (index % 30),
+  destination: index % 2 === 0 ? 'Канал А' : 'Канал Б',
+  outcome: index < 38 ? 'sent' : index < 40 ? 'failed' : 'unknown',
+  media: index % 5 === 0 ? null : (['Фото', 'Анимация', 'Видео'][index % 3] as MediaKind),
+  mediaRecorded: index % 6 !== 0,
+  observedAt: new Date(Date.UTC(2026, 8, 30 - (index % 30), 5 + (index % 8), (index * 7) % 60)).toISOString(),
+  attempts: index === 3 || index === 11 || index === 22 || index === 31 || index === 36 ? 2 : 1
+}));
+
+const periods = [
+  { id: '30', label: '1–30 сентября 2026' },
+  { id: '7', label: '24–30 сентября 2026' },
+  { id: '90', label: '1 июля – 30 сентября 2026' }
+];
+const destinations = [
+  { id: 'all', label: 'Все каналы' },
+  { id: 'Канал А', label: 'Канал А' },
+  { id: 'Канал Б', label: 'Канал Б' }
+];
+const mediaTypes = [
+  { id: 'all', label: 'Все типы медиа' },
+  { id: 'Фото', label: 'Фото' },
+  { id: 'Анимация', label: 'Анимация' },
+  { id: 'Видео', label: 'Видео' }
+];
+const outcomes = [
+  { id: 'all', label: 'Все результаты' },
+  { id: 'sent', label: 'Отправлено' },
+  { id: 'failed', label: 'Ошибка' },
+  { id: 'unknown', label: 'Требует проверки' }
+];
+const comparisons = [
+  { id: 'destination', label: 'Каналы' },
+  { id: 'media', label: 'Типы медиа' }
+];
+
+type Filters = { period: string; destination: string; media: string; outcome: string };
+const defaults: Filters = { period: '30', destination: 'all', media: 'all', outcome: 'all' };
+const outcomeStatus: Record<Outcome, 'sent' | 'failed' | 'unknown'> = {
+  sent: 'sent',
+  failed: 'failed',
+  unknown: 'unknown'
+};
+
+function optionValue(values: readonly { id: string }[], value: string | undefined, fallback: string) {
+  return values.some((option) => option.id === value) ? (value ?? fallback) : fallback;
+}
+
+function formatObservedAt(value: string) {
+  const instant = new Date(value);
+  const display = new Intl.DateTimeFormat('ru-RU', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    timeZone: 'Europe/Chisinau'
+  }).format(instant);
+  return `${display} Europe/Chisinau (UTC+3)`;
+}
 
 export function AnalyticsScreen() {
   const narrow = useNarrow();
-  const { phase, retry } = useScreenPhase();
   const search = useProtoSearch();
-  const [period, setPeriod] = useState(PERIODS.some((p) => p.id === search.period) ? (search.period ?? '30') : '30');
-  const [offset, setOffset] = useState(0);
-  const [channel, setChannel] = useState('all');
-  const [group, setGroup] = useState('day');
-  const [visible, setVisible] = useState<ReadonlySet<SeriesKey>>(new Set<SeriesKey>(['views', 'reactions', 'reposts']));
-  const [fake, setFake] = useState(false);
-  const [sheet, setSheet] = useState(false);
-  const [open, setOpen] = useState<Top | null>(null);
-  const [draft, setDraft] = useState({ period: '30', channel: 'all' });
+  const updateSearch = useProtoSearchUpdate();
+  const navigate = useProtoNavigate();
+  const [draft, setDraft] = useState<Filters>({
+    period: optionValue(periods, search.period, defaults.period),
+    destination: optionValue(destinations, search.destination, defaults.destination),
+    media: optionValue(mediaTypes, search.media, defaults.media),
+    outcome: optionValue(outcomes, search.outcome, defaults.outcome)
+  });
+  const [applied, setApplied] = useState(draft);
+  const [comparison, setComparison] = useState(optionValue(comparisons, search.compare, 'destination'));
+  const rowRefs = useRef(new Map<string, HTMLButtonElement>());
+  const previousDetailId = useRef<string | null>(null);
+  const [filterSheet, setFilterSheet] = useState(false);
+  const openRecord = records.find((record) => record.id === search.id) ?? null;
+  const [loading, setLoading] = useState(search.state === 'loading');
+  const [failedRead, setFailedRead] = useState(search.state === 'error');
+  const [retrySucceeded, setRetrySucceeded] = useState(false);
+  const state = search.state;
+  const partial = state === 'partial';
+  const currentPage = Math.max(1, Number.parseInt(search.page ?? '1', 10) || 1);
+  const accessBlocked = state === 'unauthorized' || state === 'forbidden';
+  const periodLabel = periods.find((period) => period.id === applied.period)?.label ?? periods[0]!.label;
 
-  // Every change of the period or channel re-renders the series after a short fake load, to show the skeleton.
   useEffect(() => {
-    setFake(true);
-    const timer = setTimeout(() => setFake(false), 400);
-    return () => clearTimeout(timer);
-  }, [period, offset, channel]);
+    const previousTitle = document.title;
+    document.title = 'Аналитика публикаций — ALEXEEV Studio';
+    return () => {
+      document.title = previousTitle;
+    };
+  }, []);
 
-  const days = PERIODS.find((p) => p.id === period)?.days ?? 30;
-  const base = useMemo(
-    () => buildSeries(days, CHANNELS.findIndex((c) => c.id === channel) + 1, offset),
-    [days, channel, offset]
-  );
-  const points = regroup(base, group === 'week');
-  const loading = phase === 'loading' || fake;
-  const partial = search.state === 'partial';
-  const total = (field: keyof DayPoint) =>
-    base.reduce((s, p) => s + (typeof p[field] === 'number' ? (p[field] as number) : 0), 0);
-  const er = ((total('reactions') + total('reposts')) / Math.max(total('views'), 1)) * 100;
-  const chartH = narrow ? 180 : 220;
-  const label = PERIODS.find((p) => p.id === period)?.label ?? '';
+  useEffect(() => {
+    const next: Filters = {
+      period: optionValue(periods, search.period, defaults.period),
+      destination: optionValue(destinations, search.destination, defaults.destination),
+      media: optionValue(mediaTypes, search.media, defaults.media),
+      outcome: optionValue(outcomes, search.outcome, defaults.outcome)
+    };
+    setDraft(next);
+    setApplied(next);
+    setFailedRead(search.state === 'error');
+    setLoading(search.state === 'loading');
+  }, [search.destination, search.media, search.outcome, search.period, search.state]);
 
-  const kpi = (title: string, value: string, hint: string, trend: number[], tone?: 'bad') =>
-    loading ? (
-      <div className={kit.kpiSkeleton}>
-        <Skeleton height={12} width="55%" />
-        <Skeleton height={28} width="35%" />
-        <Skeleton height={12} width="70%" />
-      </div>
-    ) : (
-      <div className={kit.kpiBox}>
-        <KpiTile
-          label={title}
-          value={value}
-          hint={hint}
-          {...(narrow ? {} : { trend, trendLabel: `Динамика: ${title}`, tone: tone ?? 'accent' })}
-        />
-        <DemoChip />
-      </div>
-    );
+  useEffect(() => {
+    setComparison(optionValue(comparisons, search.compare, 'destination'));
+  }, [search.compare]);
 
-  const columns: DataColumn<Top>[] = [
-    { id: 'n', header: '№', cell: (row) => <span className={kit.mono}>{TOP_POSTS.indexOf(row) + 1}</span> },
-    {
-      id: 'title',
-      header: 'Публикация',
-      isRowHeader: true,
-      cell: (row) => (
-        <span className={styles.postCell}>
-          <Thumb seed={row.title} size={40} label="" />
-          <span className={kit.cellTitle}>
-            <strong title={row.title}>{row.title}</strong>
-            <span className={kit.sub}>{row.rubric}</span>
-          </span>
-        </span>
-      )
-    },
-    { id: 'date', header: 'Дата', cell: (row) => <span className={kit.nowrap}>{shortDate(row.at)}</span> },
-    {
-      id: 'views',
-      header: 'Просмотры',
-      align: 'end',
-      cell: (row) => <span className={kit.mono}>{numberRu(row.views)}</span>
-    },
-    {
-      id: 'er',
-      header: 'ER',
-      align: 'end',
-      compactSlot: 'trailing',
-      cell: (row) => <span className={kit.mono}>{String(row.er.toFixed(1)).replace('.', ',')}%</span>
+  useEffect(() => {
+    if (openRecord) {
+      previousDetailId.current = openRecord.id;
+      return;
     }
-  ];
+    const closedId = previousDetailId.current;
+    if (!closedId) return;
+    previousDetailId.current = null;
+    const frame = window.requestAnimationFrame(() => rowRefs.current.get(closedId)?.focus());
+    return () => window.cancelAnimationFrame(frame);
+  }, [openRecord]);
 
-  const controls = narrow ? (
-    <Button
-      variant="secondary"
-      icon="settings"
-      onPress={() => {
-        setDraft({ period, channel });
-        setSheet(true);
-      }}
-    >
-      Период и канал
-    </Button>
-  ) : (
-    <div className={kit.inlineRow}>
+  const matching = useMemo(
+    () =>
+      records.filter((record) => {
+        if (applied.period === '7' && record.date < 24) return false;
+        if (applied.destination !== 'all' && record.destination !== applied.destination) return false;
+        if (applied.media !== 'all' && (!record.mediaRecorded || record.media !== applied.media)) return false;
+        if (applied.outcome !== 'all' && record.outcome !== applied.outcome) return false;
+        return true;
+      }),
+    [applied]
+  );
+  const sent = matching.filter((item) => item.outcome === 'sent').length;
+  const errors = matching.filter((item) => item.outcome === 'failed').length;
+  const unknown = matching.filter((item) => item.outcome === 'unknown').length;
+  const mediaUnrecorded = matching.filter((item) => !item.mediaRecorded).length;
+  const totalAttempts = matching.reduce((sum, item) => sum + item.attempts, 0);
+  const retriedPublications = matching.filter((item) => item.attempts > 1).length;
+
+  const apply = (next: Filters) => {
+    setApplied(next);
+    setDraft(next);
+    setLoading(true);
+    setFailedRead(false);
+    setFilterSheet(false);
+    updateSearch(
+      {
+        period: next.period,
+        destination: next.destination === 'all' ? undefined : next.destination,
+        media: next.media === 'all' ? undefined : next.media,
+        outcome: next.outcome === 'all' ? undefined : next.outcome,
+        compare: comparison,
+        page: undefined,
+        id: undefined,
+        state: undefined
+      },
+      false
+    );
+    window.setTimeout(() => setLoading(false), 350);
+  };
+  const retry = () => {
+    setFailedRead(false);
+    setRetrySucceeded(false);
+    setLoading(true);
+    window.setTimeout(() => {
+      setLoading(false);
+      setRetrySucceeded(true);
+      updateSearch({ state: undefined });
+    }, 350);
+  };
+  const clear = () => apply(defaults);
+  const filterCount = Object.entries(draft).filter(([key, value]) => key !== 'period' && value !== 'all').length;
+  const appliedChips = [
+    applied.destination !== 'all' ? { id: 'destination', label: `Канал: ${applied.destination}` } : null,
+    applied.media !== 'all' ? { id: 'media', label: `Медиа: ${applied.media}` } : null,
+    applied.outcome !== 'all'
+      ? {
+          id: 'outcome',
+          label: `Результат: ${outcomes.find((item) => item.id === applied.outcome)?.label ?? applied.outcome}`
+        }
+      : null
+  ].filter((chip): chip is { id: string; label: string } => chip !== null);
+  const removeChip = (id: string) => apply({ ...applied, [id]: 'all' });
+
+  const filterFields = (
+    <>
       <Select
         label="Период"
-        inlineLabel
-        options={PERIODS}
-        value={period}
-        onChange={(v) => {
-          setPeriod(v);
-          setOffset(0);
-        }}
+        options={periods}
+        value={draft.period}
+        onChange={(value) => setDraft({ ...draft, period: value })}
       />
-      <IconButton label="Предыдущий период" icon="chevron-left" onPress={() => setOffset(offset + 1)} />
-      <IconButton
-        label="Следующий период"
-        icon="chevron-right"
-        isDisabled={offset === 0}
-        onPress={() => setOffset(Math.max(0, offset - 1))}
+      <Select
+        label="Канал"
+        options={destinations}
+        value={draft.destination}
+        onChange={(value) => setDraft({ ...draft, destination: value })}
       />
-      <Select label="Канал" inlineLabel options={CHANNELS} value={channel} onChange={setChannel} />
+      <Select
+        label="Медиа"
+        options={mediaTypes}
+        value={draft.media}
+        onChange={(value) => setDraft({ ...draft, media: value })}
+      />
+      <Select
+        label="Результат"
+        options={outcomes}
+        value={draft.outcome}
+        onChange={(value) => setDraft({ ...draft, outcome: value })}
+      />
+    </>
+  );
+  const filterControls = (
+    <div className={styles.filters}>
+      {filterFields}
+      <Button onPress={() => apply(draft)}>Применить</Button>
     </div>
   );
 
-  const errorBox = (retryable = true) => (
-    <div className={styles.errorBox} style={{ minHeight: chartH + 60 }}>
-      <ErrorState
-        title="Не удалось загрузить"
-        message="График пока недоступен. Остальные блоки работают."
-        {...(retryable ? { onRetry: retry } : {})}
-      />
-    </div>
-  );
+  const comparisonRows = (() => {
+    const key = comparison;
+    const values =
+      key === 'destination' ? ['Канал А', 'Канал Б'] : ['Фото', 'Анимация', 'Видео', 'Без медиа', 'Не записано'];
+    const getDimension = (record: Entry) =>
+      key === 'destination' ? record.destination : record.mediaRecorded ? (record.media ?? 'Без медиа') : 'Не записано';
+    return values
+      .map((value) => {
+        const rows = matching.filter((record) => getDimension(record) === value);
+        const rowSent = rows.filter((record) => record.outcome === 'sent').length;
+        const rowErrors = rows.filter((record) => record.outcome === 'failed').length;
+        const rowUnknown = rows.filter((record) => record.outcome === 'unknown').length;
+        const covered = rows.filter((record) => (key === 'media' ? record.mediaRecorded : true)).length;
+        return { value, total: rows.length, sent: rowSent, errors: rowErrors, unknown: rowUnknown, covered };
+      })
+      .filter((row) => row.total > 0 || partial);
+  })();
 
-  if (phase === 'empty') {
-    return (
-      <PreviewPage title="Аналитика">
-        {controls}
-        <Panel title="Просмотры и вовлечённость" marker={<DemoChip />} footer={<span> </span>}>
-          <div className={styles.errorBox} style={{ minHeight: 360 }}>
-            <EmptyState
-              icon="search"
-              title="За выбранный период нет публикаций"
-              description="Выберите другой период или канал."
-              action={
-                <Button
-                  variant="secondary"
-                  onPress={() => {
-                    setPeriod('30');
-                    setOffset(0);
-                    setChannel('all');
-                  }}
-                >
-                  Выбрать другой период
-                </Button>
-              }
-            />
-          </div>
-        </Panel>
-      </PreviewPage>
-    );
-  }
+  const visibleRecords = matching.slice(0, currentPage * 10);
+  const hasOptionalFilters = applied.destination !== 'all' || applied.media !== 'all' || applied.outcome !== 'all';
+  const empty = state === 'empty' || (matching.length === 0 && !failedRead && !loading);
+  const activePeriod = applied.period === '7' ? 7 : applied.period === '30' ? 30 : 90;
 
   return (
-    <PreviewPage title="Аналитика">
-      {controls}
-      <div className={kit.kpis}>
-        {kpi(
-          'Просмотры',
-          numberRu(total('views')),
-          label,
-          base.map((p) => p.views)
-        )}
-        {kpi(
-          'Отправлено постов',
-          String(total('sent')),
-          label,
-          base.map((p) => p.sent)
-        )}
-        {kpi(
-          'Ошибки отправки',
-          String(total('errors')),
-          label,
-          base.map((p) => p.errors),
-          'bad'
-        )}
-        {kpi(
-          'Вовлечённость',
-          `${er.toFixed(1).replace('.', ',')}%`,
-          'реакции и репосты',
-          base.map((p) => p.reactions + p.reposts)
-        )}
-      </div>
-      <div className={styles.row}>
-        <Panel
-          title="Просмотры и вовлечённость"
-          marker={<DemoChip />}
-          action={
-            <Select
-              label="Группировка"
-              options={[
-                { id: 'day', label: 'По дням' },
-                { id: 'week', label: 'По неделям' }
-              ]}
-              value={group}
-              onChange={setGroup}
-              isDisabled={days < 14}
-            />
-          }
-          footer={
-            <span>
-              {period === 'month'
-                ? 'Данные за сегодня неполные'
-                : 'Единая шкала для всех рядов; точные значения во всплывающей подсказке'}
-            </span>
-          }
-        >
-          {phase === 'error' || partial ? (
-            errorBox()
-          ) : (
-            <div className={styles.chartBody}>
-              <ul className={styles.legend} aria-label="Ряды графика">
-                {SERIES.map((series) => (
-                  <li key={series.id}>
-                    <Checkbox
-                      isSelected={visible.has(series.id)}
-                      onChange={(on) => {
-                        const next = new Set(visible);
-                        if (on) next.add(series.id);
-                        else next.delete(series.id);
-                        if (next.size > 0) setVisible(next);
-                      }}
-                    >
-                      <svg width="26" height="10" aria-hidden="true">
-                        <line
-                          x1="1"
-                          x2="25"
-                          y1="5"
-                          y2="5"
-                          stroke={strokeOf(series.id)}
-                          strokeWidth={series.width}
-                          strokeDasharray={series.dash}
-                        />
-                      </svg>
-                      {series.label}
-                    </Checkbox>
-                  </li>
-                ))}
-              </ul>
-              <LineChart key={`${days}-${group}`} points={points} visible={visible} height={chartH} loading={loading} />
-            </div>
-          )}
-        </Panel>
-        <Panel title="Топ публикаций" marker={<DemoChip />} reserveRows={5} footer={<span>5 лучших за период</span>}>
-          {phase === 'error' ? (
-            errorBox()
-          ) : (
-            <DataTable
-              flush
-              density="compact"
-              aria-label="Топ публикаций"
-              columns={narrow ? columns.filter((c) => c.id !== 'n') : columns}
-              rows={TOP_POSTS}
-              getRowId={(row) => row.id}
-              onRowAction={(id) => setOpen(TOP_POSTS.find((row) => row.id === id) ?? null)}
-              isLoading={loading}
-              loadingRows={5}
-            />
-          )}
-        </Panel>
-      </div>
-      <div className={styles.pair}>
-        <Panel title="Отправленные посты" marker={<DemoChip />} footer={<span>{total('sent')} за период</span>}>
-          {phase === 'error' ? (
-            errorBox()
-          ) : (
-            <Bars
-              points={base}
-              field="sent"
-              tone="neutral"
-              summary={`Отправлено постов по дням, всего ${total('sent')}`}
-              loading={loading}
-            />
-          )}
-        </Panel>
-        <Panel
-          title="Ошибки отправки"
-          marker={<DemoChip />}
-          footer={<span>{total('errors')} за период · цифры над столбцами</span>}
-        >
-          {phase === 'error' ? (
-            errorBox()
-          ) : (
-            <Bars
-              points={base}
-              field="errors"
-              tone="danger"
-              summary={`Ошибки отправки по дням, всего ${total('errors')}`}
-              loading={loading}
-            />
-          )}
-        </Panel>
-      </div>
-
-      <Drawer
-        variant="bottom"
-        isOpen={sheet}
-        onOpenChange={setSheet}
-        title="Период и канал"
-        footer={
-          <Button
-            onPress={() => {
-              setPeriod(draft.period);
-              setChannel(draft.channel);
-              setOffset(0);
-              setSheet(false);
-            }}
-          >
-            Показать
-          </Button>
-        }
-      >
-        <div className={kit.stack}>
-          <Select
-            label="Период"
-            options={PERIODS}
-            value={draft.period}
-            onChange={(v) => setDraft({ ...draft, period: v })}
-          />
-          <Select
-            label="Канал"
-            options={CHANNELS}
-            value={draft.channel}
-            onChange={(v) => setDraft({ ...draft, channel: v })}
-          />
-        </div>
-      </Drawer>
-      <Drawer
-        variant={narrow ? 'bottom' : 'side'}
-        isOpen={Boolean(open)}
-        onOpenChange={(o) => !o && setOpen(null)}
-        title={open?.title ?? ''}
-        meta={open ? <Tag>{open.rubric}</Tag> : undefined}
-        footer={
-          <div className={kit.inlineRow}>
-            <Button variant="secondary" isDisabled>
-              Открыть пост
+    <PreviewPage title="Аналитика публикаций" focusHeadingOnMount>
+      <section className={styles.toolbar} aria-label="Фильтры отчёта">
+        {narrow ? (
+          <>
+            <p className={styles.periodNote}>Период: {periodLabel} · Europe/Chisinau (UTC+3)</p>
+            <Button
+              variant="secondary"
+              id="analytics-filter-trigger"
+              onPress={() => {
+                setFilterSheet(true);
+              }}
+            >
+              Фильтры ({filterCount})
             </Button>
-            <span className={kit.muted}>Недоступно в превью</span>
+          </>
+        ) : (
+          filterControls
+        )}
+      </section>
+      <AppliedChips chips={appliedChips} onRemove={removeChip} />
+
+      {filterSheet ? (
+        <Drawer
+          variant="bottom"
+          isOpen
+          onOpenChange={(open) => {
+            setFilterSheet(open);
+            if (!open) window.requestAnimationFrame(() => document.getElementById('analytics-filter-trigger')?.focus());
+          }}
+          title={`Фильтры (${filterCount})`}
+          footer={
+            <div className={styles.sheetActions}>
+              <Button variant="secondary" onPress={() => setDraft({ ...defaults, period: applied.period })}>
+                Сбросить
+              </Button>
+              <Button onPress={() => apply(draft)}>Показать результаты</Button>
+            </div>
+          }
+        >
+          <div className={styles.sheetFields}>
+            <div className={styles.filters}>{filterFields}</div>
           </div>
-        }
+        </Drawer>
+      ) : null}
+
+      {state === 'unauthorized' ? (
+        <Panel title="Сессия завершена" marker={<span className={styles.demo}>демо</span>}>
+          <ErrorState
+            title="Войдите снова, чтобы открыть аналитику"
+            message="Демо-сессия завершилась. Данные отчёта не загружены."
+            action={<Button onPress={() => navigate('login')}>Перейти ко входу</Button>}
+          />
+        </Panel>
+      ) : state === 'forbidden' ? (
+        <Panel title="Доступ ограничен" marker={<span className={styles.demo}>демо</span>}>
+          <ErrorState
+            title="Нет доступа к аналитике"
+            message="Для этой демо-учётной записи отчёт недоступен. Данные не загружены."
+            action={
+              <Button variant="secondary" onPress={() => navigate('')}>
+                Назад к обзору
+              </Button>
+            }
+          />
+        </Panel>
+      ) : loading ? (
+        <section className={styles.loading} aria-busy="true" aria-label="Загрузка отчёта">
+          <Skeleton height={20} width="45%" />
+          <div className={styles.summary}>
+            <Skeleton height={110} />
+            <Skeleton height={110} />
+            <Skeleton height={110} />
+          </div>
+          <Skeleton height={250} />
+        </section>
+      ) : failedRead ? (
+        <Panel title="Отчёт недоступен" marker={<span className={styles.demo}>демо</span>}>
+          <ErrorState
+            title="Не удалось загрузить аналитику"
+            message="Демо-запрос завершился ошибкой. Код запроса: DEMO-AN-503."
+            onRetry={retry}
+          />
+        </Panel>
+      ) : empty ? (
+        <Panel title="Публикации" marker={<span className={styles.demo}>демо</span>}>
+          <EmptyState
+            icon="search"
+            title="Нет наблюдений по выбранному периоду и фильтрам"
+            description="Попробуйте изменить период или очистить необязательные фильтры."
+            action={
+              <Button variant="secondary" onPress={clear}>
+                {hasOptionalFilters ? 'Сбросить фильтры' : 'Выбрать другой период'}
+              </Button>
+            }
+          />
+        </Panel>
+      ) : (
+        <>
+          <Panel title="Результаты периода" marker={<span className={styles.demo}>демо</span>}>
+            <div className={styles.reportCaption}>
+              <span>{periodLabel} · Europe/Chisinau (UTC+3)</span>
+              <span>Снимок отчёта: 12 окт. 2026, 09:14 Europe/Chisinau (UTC+3)</span>
+            </div>
+            <div className={styles.summary}>
+              <div>
+                <strong>{sent}</strong>
+                <span>Отправлено</span>
+              </div>
+              <div>
+                <strong>{errors}</strong>
+                <span>Ошибки</span>
+              </div>
+              <div>
+                <strong>{unknown}</strong>
+                <span>Требуют проверки</span>
+              </div>
+              <div>
+                <strong>{totalAttempts}</strong>
+                <span>Попытки отправки</span>
+              </div>
+              <div>
+                <strong>{retriedPublications}</strong>
+                <span>Публикации с повторной попыткой</span>
+              </div>
+            </div>
+            <p className={styles.note}>
+              Неизвестный результат показан отдельно. В работе не включены в завершённые исходы.
+            </p>
+            {activePeriod < 30 ? (
+              <p className={styles.note}>Показан ограниченный период: {activePeriod} дней.</p>
+            ) : null}
+            <p className={styles.note}>
+              Рубрика не фиксируется в истории Studio и недоступна для фильтрации и сравнения.
+            </p>
+            {mediaUnrecorded > 0 ? (
+              <output className={styles.coverage}>
+                Медиа записано для {matching.length - mediaUnrecorded} из {matching.length} публикаций; для{' '}
+                {mediaUnrecorded} значение не записано. Отсутствующие значения не равны нулю.
+              </output>
+            ) : null}
+          </Panel>
+
+          <Panel title="Сравнение" marker={<span className={styles.demo}>демо</span>}>
+            <Tabs
+              selectedKey={comparison}
+              onSelectionChange={(key) => {
+                const next = String(key);
+                setComparison(next);
+                updateSearch({ compare: next }, false);
+              }}
+            >
+              <TabList aria-label="Сравнить по">
+                {comparisons.map((item) => (
+                  <Tab key={item.id} id={item.id}>
+                    {item.label}
+                  </Tab>
+                ))}
+              </TabList>
+              <TabPanel id={comparison}>
+                {partial && comparison !== 'destination' ? (
+                  <p className={styles.coverage}>
+                    Часть исторических значений не записана. Отсутствующие значения не считаются нулём.
+                  </p>
+                ) : null}
+                <div className={styles.tableWrap}>
+                  <table className={styles.table} data-kind="comparison">
+                    <caption className={styles.srOnly}>
+                      Сравнение публикаций по {comparisons.find((item) => item.id === comparison)?.label.toLowerCase()}
+                    </caption>
+                    <thead>
+                      <tr>
+                        <th scope="col">{comparison === 'destination' ? 'Канал' : 'Тип медиа'}</th>
+                        <th scope="col">Учтено</th>
+                        <th scope="col">Отправлено</th>
+                        <th scope="col">Ошибки</th>
+                        <th scope="col">Требуют проверки</th>
+                        <th scope="col">Покрытие</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {comparisonRows.map((row) => (
+                        <tr key={row.value}>
+                          <th scope="row">{row.value}</th>
+                          <td>{row.total}</td>
+                          <td>{row.sent}</td>
+                          <td>{row.errors}</td>
+                          <td>{row.unknown}</td>
+                          <td>
+                            {comparison === 'destination'
+                              ? `${row.total} записано`
+                              : `${row.covered} из ${row.total} записано`}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <p className={styles.note}>Описательное сравнение, не рейтинг и не оценка причин.</p>
+              </TabPanel>
+            </Tabs>
+          </Panel>
+
+          <Panel title={`Публикации (${matching.length})`} marker={<span className={styles.demo}>демо</span>}>
+            <div className={styles.tableWrap}>
+              <table className={styles.table} data-kind="publications">
+                <caption className={styles.srOnly}>Публикации за {periodLabel}</caption>
+                <thead>
+                  <tr>
+                    <th scope="col">Публикация</th>
+                    <th scope="col">Результат</th>
+                    <th scope="col">Наблюдалось</th>
+                    <th scope="col">Попытки</th>
+                    <th scope="col">Повторные</th>
+                    <th scope="col">Назначение</th>
+                    <th scope="col">Медиа</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {visibleRecords.map((record) => (
+                    <tr key={record.id}>
+                      <th scope="row">
+                        <button
+                          type="button"
+                          aria-label={`Открыть публикацию: ${record.title}`}
+                          className={styles.rowButton}
+                          ref={(element) => {
+                            if (element) rowRefs.current.set(record.id, element);
+                            else rowRefs.current.delete(record.id);
+                          }}
+                          onClick={() => updateSearch({ id: record.id }, false)}
+                        >
+                          <span className={styles.title}>{record.title}</span>
+                          <small>{record.id}</small>
+                        </button>
+                      </th>
+                      <td>
+                        <StatusBadge status={outcomeStatus[record.outcome]} />
+                      </td>
+                      <td>{formatObservedAt(record.observedAt)}</td>
+                      <td>{record.attempts}</td>
+                      <td>{record.attempts > 1 ? 'Да' : 'Нет'}</td>
+                      <td>{record.destination}</td>
+                      <td>{record.mediaRecorded ? (record.media ?? 'Без медиа') : 'Не записано'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <p className={styles.footer}>
+              Показано {visibleRecords.length} из {matching.length} · сохранённый снимок: {periodLabel} · источник:
+              история Studio
+            </p>
+            {visibleRecords.length < matching.length ? (
+              <Button variant="secondary" onPress={() => updateSearch({ page: String(currentPage + 1) }, false)}>
+                Показать ещё
+              </Button>
+            ) : null}
+          </Panel>
+        </>
+      )}
+      {!accessBlocked && state === 'unknown' ? (
+        <Panel title="Неизвестный исход" marker={<span className={styles.demo}>демо</span>}>
+          <p className={styles.coverage}>
+            Отправка могла состояться, но подтверждения нет. Статус остаётся «Требует проверки» и не считается успехом.
+            Аналитика не предлагает повтор или сверку.
+          </p>
+        </Panel>
+      ) : null}
+      {retrySucceeded ? <output className={styles.retryStatus}>Демо-отчёт обновлён. Снимок не изменён.</output> : null}
+      <Drawer
+        isOpen={openRecord !== null}
+        onOpenChange={(open) => !open && updateSearch({ id: undefined })}
+        title={openRecord?.title ?? 'Публикация'}
       >
-        {open ? (
-          <dl className={kit.facts}>
-            <div className={kit.fact}>
-              <dt>Дата</dt>
-              <dd>{shortDate(open.at)}</dd>
+        {openRecord ? (
+          <dl className={styles.detail}>
+            <div>
+              <dt>Результат</dt>
+              <dd>
+                <StatusBadge status={outcomeStatus[openRecord.outcome]} />
+              </dd>
             </div>
-            <div className={kit.fact}>
-              <dt>Просмотры</dt>
-              <dd>{numberRu(open.views)}</dd>
+            <div>
+              <dt>Снимок наблюдения</dt>
+              <dd>{formatObservedAt(openRecord.observedAt)}</dd>
             </div>
-            <div className={kit.fact}>
-              <dt>Реакции</dt>
-              <dd>{numberRu(Math.round(open.views * 0.1))}</dd>
+            <div>
+              <dt>Назначение</dt>
+              <dd>{openRecord.destination}</dd>
             </div>
-            <div className={kit.fact}>
-              <dt>Репосты</dt>
-              <dd>{numberRu(Math.round(open.views * 0.03))}</dd>
+            <div>
+              <dt>Медиа</dt>
+              <dd>{openRecord.mediaRecorded ? (openRecord.media ?? 'Без медиа') : 'Не записано'}</dd>
             </div>
-            <div className={kit.fact}>
-              <dt>ER</dt>
-              <dd>{String(open.er.toFixed(1)).replace('.', ',')}%</dd>
+            <div>
+              <dt>Попытки</dt>
+              <dd>{openRecord.attempts}</dd>
             </div>
+            <div>
+              <dt>Повторная попытка</dt>
+              <dd>{openRecord.attempts > 1 ? 'Да' : 'Нет'}</dd>
+            </div>
+            {openRecord.outcome === 'unknown' ? (
+              <div>
+                <p className={styles.coverage}>
+                  Исход не подтверждён. Эта демо-страница только показывает запись; сверка и повтор недоступны здесь.
+                </p>
+                <Button variant="secondary" onPress={() => navigate('publications', { id: openRecord.publicationId })}>
+                  Открыть публикацию и проверку
+                </Button>
+              </div>
+            ) : null}
           </dl>
         ) : null}
       </Drawer>

@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { alertOwnerOfIncidents } from '../../src/app/notifications/alert-owner-of-incidents';
 import { createD1SystemState } from '../../src/app/system-state';
-import { createD1DispatchRepository, type RaisedIncident } from '../../src/modules/publishing';
+import { createD1DispatchRepository } from '../../src/modules/publishing';
 import { createLogger } from '../../src/platform/logging/logger';
 import { testDb } from '../helpers/db';
 import { fakeOwnerMessenger } from '../helpers/fake-owner-messenger';
@@ -55,33 +55,35 @@ describe('the owner alert of a failed or unknown publication', () => {
     await makeTick({ clock, transport: fakeTransport(REJECTED), ownerMessenger: messenger }).run();
 
     expect(jobStatusWhenSent).toBe('failed');
-    expect(messenger.sent).toEqual([
-      {
-        chatId: OWNER_ID,
-        html: [
-          '<b>Публикация не отправлена</b>',
-          'Пост: Patch 7.40',
-          'Канал: Main channel',
-          'Причина: бот потерял права на публикацию в канале или канал недоступен'
-        ].join('\n'),
-        button: { text: 'Открыть', url: `${ORIGIN}/publications?id=${publicationId}` }
-      }
-    ]);
+    expect(messenger.sent).toHaveLength(1);
+    expect(messenger.sent[0]).toMatchObject({
+      chatId: OWNER_ID,
+      html: expect.stringContaining('Первое событие:'),
+      button: { url: `${ORIGIN}/publications?id=${publicationId}` }
+    });
     expect(await notifiedAt(jobId)).toBe(START);
+    expect(
+      await testDb()
+        .prepare('SELECT first_seen_at, last_seen_at, occurrence_count FROM incident_alert_groups WHERE group_key = ?1')
+        .bind(`publish_failed:${publicationId}`)
+        .first()
+    ).toEqual({ first_seen_at: START, last_seen_at: START, occurrence_count: 1 });
   });
 
-  it('groups a burst from one dispatch tick into one message with all affected posts', async () => {
+  it('alerts separately for distinct affected publications', async () => {
     await seedDueJob(api, { title: 'Patch 7.40' });
     await seedDueJob(api, { title: 'Weekly recap' });
     const tick = makeTick({ clock, transport: fakeTransport(REJECTED) });
 
     await tick.run();
 
-    expect(tick.ownerMessages).toHaveLength(1);
-    expect(tick.ownerMessages[0]?.html).toContain('Сводка: 2 инцидента');
-    expect(tick.ownerMessages[0]?.html).toContain('Patch 7.40');
-    expect(tick.ownerMessages[0]?.html).toContain('Weekly recap');
-    expect(tick.ownerMessages[0]?.button.url).toBe(`${ORIGIN}/incidents`);
+    expect(tick.ownerMessages).toHaveLength(2);
+    expect(tick.ownerMessages[0]?.html).toContain('Первое событие:');
+    expect(tick.ownerMessages.map((message) => message.html).join('\n')).toContain('Patch 7.40');
+    expect(tick.ownerMessages.map((message) => message.html).join('\n')).toContain('Weekly recap');
+    expect(tick.ownerMessages.every((message) => message.button.url.startsWith(`${ORIGIN}/publications?id=`))).toBe(
+      true
+    );
   });
 
   it('says that the send is unconfirmed, and that it will not be repeated, when the outcome is unknown', async () => {
@@ -91,14 +93,8 @@ describe('the owner alert of a failed or unknown publication', () => {
     await tick.run();
 
     expect(tick.ownerMessages).toHaveLength(1);
-    expect(tick.ownerMessages[0]?.html).toBe(
-      [
-        '<b>Отправка не подтверждена</b>',
-        'Пост: Patch 7.40',
-        'Канал: Main channel',
-        'Сообщение могло выйти в канал. Проверьте канал вручную: бот не отправит его повторно сам.'
-      ].join('\n')
-    );
+    expect(tick.ownerMessages[0]?.html).toContain('Первое событие:');
+    expect(tick.ownerMessages[0]?.html).toContain('Отправка не подтверждена');
     expect(tick.ownerMessages[0]?.button.url).toBe(`${ORIGIN}/publications?id=${publicationId}`);
   });
 
@@ -113,16 +109,10 @@ describe('the owner alert of a failed or unknown publication', () => {
     await tick.run();
 
     expect((await jobOf(publicationId)).status).toBe('unknown');
-    expect(tick.ownerMessages).toEqual([
-      {
-        chatId: OWNER_ID,
-        html: [
-          '<b>Отправка не подтверждена</b>',
-          'Сообщение могло выйти в канал. Проверьте канал вручную: бот не отправит его повторно сам.'
-        ].join('\n'),
-        button: { text: 'Открыть', url: `${ORIGIN}/publications?id=${publicationId}` }
-      }
-    ]);
+    expect(tick.ownerMessages).toHaveLength(1);
+    expect(tick.ownerMessages[0]?.html).toContain('Первое событие:');
+    expect(tick.ownerMessages[0]?.html).toContain('Отправка не подтверждена');
+    expect(tick.ownerMessages[0]?.button.url).toBe(`${ORIGIN}/publications?id=${publicationId}`);
   });
 
   it('escapes the post and channel titles', async () => {
@@ -186,19 +176,16 @@ describe('exactly one alert per incident', () => {
   it('two alerts racing for the same incident claim it once', async () => {
     const { jobId } = await seedDueJob(api);
     await makeTick({ clock, transport: fakeTransport(REJECTED) }).run();
+    await resetAlertGroup(jobId);
     await testDb().prepare('UPDATE incidents SET owner_notified_at = NULL WHERE job_id = ?1').bind(jobId).run();
-    const incident = await raisedIncidentOf(jobId);
     const messenger = fakeOwnerMessenger();
     const deps = alertDeps(messenger);
 
-    const [a, b] = await Promise.all([
-      alertOwnerOfIncidents(deps, [incident]),
-      alertOwnerOfIncidents(deps, [incident])
-    ]);
+    const [a, b] = await Promise.all([alertOwnerOfIncidents(deps), alertOwnerOfIncidents(deps)]);
 
     expect(messenger.sent).toHaveLength(1);
-    expect([a.sent, b.sent].sort()).toEqual([0, 1]);
-    expect([a.claimed, b.claimed].sort()).toEqual([0, 1]);
+    expect(a.sent + b.sent).toBe(1);
+    expect(a.claimed + b.claimed).toBe(1);
   });
 
   it('a later tick never repeats the alert of an old incident', async () => {
@@ -210,6 +197,140 @@ describe('exactly one alert per incident', () => {
     await makeTick({ clock, transport: fakeTransport(SENT), ownerMessenger: messenger }).run();
 
     expect(messenger.sent).toHaveLength(1);
+  });
+
+  it('aggregates a repeated group across ticks and enforces a 15-minute cooldown', async () => {
+    const { jobId, publicationId } = await seedDueJob(api);
+    const messenger = fakeOwnerMessenger();
+    await makeTick({ clock, transport: fakeTransport(REJECTED), ownerMessenger: messenger }).run();
+    const groupKey = `publish_failed:${publicationId}`;
+    await testDb()
+      .prepare(
+        `INSERT INTO incidents (id, kind, publication_id, job_id, code, created_at, details, alert_group_key)
+       VALUES (?1, 'publish_failed', ?2, ?3, 'DESTINATION_UNAVAILABLE', ?4, '{}', ?5)`
+      )
+      .bind(crypto.randomUUID(), publicationId, jobId, START + 60_000, groupKey)
+      .run();
+    expect(
+      await testDb()
+        .prepare('SELECT first_seen_at, last_seen_at, occurrence_count FROM incident_alert_groups WHERE group_key = ?1')
+        .bind(groupKey)
+        .first()
+    ).toEqual({ first_seen_at: START, last_seen_at: START + 60_000, occurrence_count: 2 });
+
+    clock.advance(5 * 60_000);
+    await makeTick({ clock, transport: fakeTransport(SENT), ownerMessenger: messenger }).run();
+    expect(messenger.sent).toHaveLength(1);
+
+    clock.advance(10 * 60_000);
+    await makeTick({ clock, transport: fakeTransport(SENT), ownerMessenger: messenger }).run();
+    expect(messenger.sent).toHaveLength(2);
+    expect(messenger.sent[1]?.html).toContain('Сводка инцидента: 2');
+    expect(messenger.sent[1]?.html).toContain(new Date(START).toISOString());
+
+    clock.advance(15 * 60_000);
+    await makeTick({ clock, transport: fakeTransport(SENT), ownerMessenger: messenger }).run();
+    expect(messenger.sent).toHaveLength(2);
+  });
+
+  it.each(['warningsEnabled', 'publicationAlerts'] as const)(
+    'suppresses publish_failed when %s is disabled, while retaining the incident',
+    async (disabledPreference) => {
+      await saveNotificationPreferences({ [disabledPreference]: false });
+      const { jobId } = await seedDueJob(api);
+      const tick = makeTick({ clock, transport: fakeTransport(REJECTED) });
+
+      await tick.run();
+
+      expect(tick.ownerMessages).toEqual([]);
+      expect(await incidentsOf(jobId)).toHaveLength(1);
+      expect(await notifiedAt(jobId)).toBe(START);
+    }
+  );
+
+  it('delivers publish_unknown as critical even when warning and publication alerts are disabled', async () => {
+    await saveNotificationPreferences({ warningsEnabled: false, publicationAlerts: false });
+    await seedDueJob(api);
+    const tick = makeTick({ clock, transport: fakeTransport({ kind: 'unknown', reason: 'timeout' }) });
+
+    await tick.run();
+
+    expect(tick.ownerMessages).toHaveLength(1);
+    expect(tick.ownerMessages[0]?.html).toContain('Отправка не подтверждена');
+  });
+
+  it('sends one recovery alert after a failed incident is acknowledged when recovery alerts are enabled', async () => {
+    const { jobId } = await seedDueJob(api);
+    const messenger = fakeOwnerMessenger();
+    await makeTick({ clock, transport: fakeTransport(REJECTED), ownerMessenger: messenger }).run();
+    const incident = await testDb()
+      .prepare('SELECT id FROM incidents WHERE job_id = ?1')
+      .bind(jobId)
+      .first<{ id: string }>();
+    if (incident === null) throw new Error('incident missing');
+
+    const response = await api.request(`/api/v1/incidents/${incident.id}/resolve`, { method: 'POST' });
+    expect(response.status).toBe(200);
+    await makeTick({ clock, transport: fakeTransport(SENT), ownerMessenger: messenger }).run();
+    await makeTick({ clock, transport: fakeTransport(SENT), ownerMessenger: messenger }).run();
+
+    expect(messenger.sent).toHaveLength(2);
+    expect(messenger.sent[1]?.html).toContain('Инцидент восстановлен');
+    expect(messenger.sent[1]?.html).toContain('Длительность:');
+  });
+
+  it('does not send recovery when recoveryAlerts is disabled', async () => {
+    const { jobId } = await seedDueJob(api);
+    const messenger = fakeOwnerMessenger();
+    await makeTick({ clock, transport: fakeTransport(REJECTED), ownerMessenger: messenger }).run();
+    const incident = await testDb()
+      .prepare('SELECT id FROM incidents WHERE job_id = ?1')
+      .bind(jobId)
+      .first<{ id: string }>();
+    if (incident === null) throw new Error('incident missing');
+    await saveNotificationPreferences({ recoveryAlerts: false });
+    await api.request(`/api/v1/incidents/${incident.id}/resolve`, { method: 'POST' });
+
+    await makeTick({ clock, transport: fakeTransport(SENT), ownerMessenger: messenger }).run();
+
+    expect(messenger.sent).toHaveLength(1);
+  });
+
+  it('starts a fresh aggregate when a claimed recovered group opens again', async () => {
+    const { jobId, publicationId } = await seedDueJob(api);
+    const messenger = fakeOwnerMessenger();
+    await makeTick({ clock, transport: fakeTransport(REJECTED), ownerMessenger: messenger }).run();
+    const groupKey = `publish_failed:${publicationId}`;
+    await testDb()
+      .prepare('UPDATE incident_alert_groups SET recovery_claimed_at = ?2 WHERE group_key = ?1')
+      .bind(groupKey, START + 60_000)
+      .run();
+
+    await testDb()
+      .prepare(
+        `INSERT INTO incidents (id, kind, publication_id, job_id, code, created_at, details, alert_group_key)
+         VALUES (?1, 'publish_failed', ?2, ?3, 'DESTINATION_UNAVAILABLE', ?4, '{}', ?5)`
+      )
+      .bind(crypto.randomUUID(), publicationId, jobId, START + 120_000, groupKey)
+      .run();
+
+    expect(
+      await testDb()
+        .prepare(
+          `SELECT first_seen_at, last_seen_at, occurrence_count, last_alert_claimed_at,
+                  alert_succeeded_at, recovery_claimed_at
+           FROM incident_alert_groups WHERE group_key = ?1`
+        )
+        .bind(groupKey)
+        .first()
+    ).toEqual({
+      first_seen_at: START + 120_000,
+      last_seen_at: START + 120_000,
+      occurrence_count: 1,
+      last_alert_claimed_at: null,
+      alert_succeeded_at: null,
+      recovery_claimed_at: null
+    });
   });
 });
 
@@ -242,11 +363,10 @@ describe('a failing alert never touches dispatch', () => {
   it('gives up on a Telegram that does not answer after the alert timeout', async () => {
     const { jobId } = await seedDueJob(api);
     await makeTick({ clock, transport: fakeTransport(REJECTED) }).run();
+    await resetAlertGroup(jobId);
     await testDb().prepare('UPDATE incidents SET owner_notified_at = NULL WHERE job_id = ?1').bind(jobId).run();
 
-    const summary = await alertOwnerOfIncidents({ ...alertDeps(fakeOwnerMessenger({ hang: true })), timeoutMs: 20 }, [
-      await raisedIncidentOf(jobId)
-    ]);
+    const summary = await alertOwnerOfIncidents({ ...alertDeps(fakeOwnerMessenger({ hang: true })), timeoutMs: 20 });
 
     expect(summary).toEqual({ claimed: 1, sent: 0, failed: 1 });
   });
@@ -280,12 +400,11 @@ describe('a failing alert never touches dispatch', () => {
   });
 
   it('skips when the owner id is not configured', async () => {
-    const { jobId } = await seedDueJob(api);
+    await seedDueJob(api);
     await makeTick({ clock, transport: fakeTransport(REJECTED) }).run();
-    const incident = await raisedIncidentOf(jobId);
     const messenger = fakeOwnerMessenger();
 
-    const summary = await alertOwnerOfIncidents({ ...alertDeps(messenger), ownerChatId: null }, [incident]);
+    const summary = await alertOwnerOfIncidents({ ...alertDeps(messenger), ownerChatId: null });
 
     expect(summary).toEqual({ claimed: 0, sent: 0, failed: 0 });
     expect(messenger.sent).toEqual([]);
@@ -294,17 +413,14 @@ describe('a failing alert never touches dispatch', () => {
   it('a store that cannot be read ends as a logged code, not an exception', async () => {
     const { jobId } = await seedDueJob(api);
     await makeTick({ clock, transport: fakeTransport(REJECTED) }).run();
-    const incident = await raisedIncidentOf(jobId);
+    await resetAlertGroup(jobId);
     const logs: Record<string, unknown>[] = [];
 
-    const summary = await alertOwnerOfIncidents(
-      {
-        ...alertDeps(fakeOwnerMessenger()),
-        readAppOrigin: () => Promise.reject(new Error('D1 down')),
-        logger: createLogger((line) => logs.push(JSON.parse(line) as Record<string, unknown>))
-      },
-      [incident]
-    );
+    const summary = await alertOwnerOfIncidents({
+      ...alertDeps(fakeOwnerMessenger()),
+      readAppOrigin: () => Promise.reject(new Error('D1 down')),
+      logger: createLogger((line) => logs.push(JSON.parse(line) as Record<string, unknown>))
+    });
 
     expect(summary.failed).toBe(1);
     expect(logs).toEqual([
@@ -313,20 +429,14 @@ describe('a failing alert never touches dispatch', () => {
   });
 });
 
-async function raisedIncidentOf(jobId: string): Promise<RaisedIncident> {
-  const row = await testDb()
-    .prepare('SELECT id, kind, code, publication_id FROM incidents WHERE job_id = ?1')
+async function resetAlertGroup(jobId: string): Promise<void> {
+  await testDb()
+    .prepare(
+      `UPDATE incident_alert_groups SET last_alert_claimed_at = NULL, alert_succeeded_at = NULL
+       WHERE group_key = (SELECT alert_group_key FROM incidents WHERE job_id = ?1)`
+    )
     .bind(jobId)
-    .first<{ id: string; kind: RaisedIncident['kind']; code: string; publication_id: string | null }>();
-  if (row === null) throw new Error('incident missing');
-  return {
-    id: row.id,
-    kind: row.kind,
-    code: row.code,
-    publicationId: row.publication_id,
-    postTitle: null,
-    channelTitle: null
-  };
+    .run();
 }
 
 function alertDeps(messenger: ReturnType<typeof fakeOwnerMessenger>) {
@@ -335,7 +445,49 @@ function alertDeps(messenger: ReturnType<typeof fakeOwnerMessenger>) {
     messenger,
     ownerChatId: OWNER_ID,
     readAppOrigin: () => createD1SystemState(testDb()).readAppOrigin(),
+    readPreferences: () =>
+      Promise.resolve({
+        timezone: 'Europe/Moscow',
+        notifications: {
+          warningsEnabled: true,
+          publicationAlerts: true,
+          sourceAlerts: true,
+          automationAlerts: true,
+          recoveryAlerts: true,
+          dotaWatchlistAlerts: true
+        },
+        revision: 0,
+        updatedAt: null
+      }),
     clock,
     logger: createLogger(() => {})
   };
+}
+
+async function saveNotificationPreferences(
+  overrides: Partial<{
+    warningsEnabled: boolean;
+    publicationAlerts: boolean;
+    sourceAlerts: boolean;
+    automationAlerts: boolean;
+    recoveryAlerts: boolean;
+    dotaWatchlistAlerts: boolean;
+  }>
+): Promise<void> {
+  const notifications = {
+    warningsEnabled: true,
+    publicationAlerts: true,
+    sourceAlerts: true,
+    automationAlerts: true,
+    recoveryAlerts: true,
+    dotaWatchlistAlerts: true,
+    ...overrides
+  };
+  await testDb()
+    .prepare(
+      `INSERT INTO settings (key, value, revision, updated_at, updated_by)
+     VALUES ('operations', ?1, 1, ?2, ?3)`
+    )
+    .bind(JSON.stringify({ timezone: 'Europe/Moscow', notifications }), START, OWNER_ID)
+    .run();
 }

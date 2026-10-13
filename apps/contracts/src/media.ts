@@ -28,6 +28,12 @@ export type PostMediaDto = z.infer<typeof postMediaSchema>;
 export const mediaLibraryKindSchema = z.enum(['all', 'photo', 'video']);
 export type MediaLibraryKind = z.infer<typeof mediaLibraryKindSchema>;
 
+export const mediaLibraryUsageFilterSchema = z.enum(['all', 'used', 'unused']);
+export const mediaLibraryUsageSchema = z.object({
+  postId: z.uuid(),
+  title: z.string().nullable()
+});
+
 export const mediaLibraryItemSchema = z.object({
   id: z.uuid(),
   kind: mediaKindSchema,
@@ -37,13 +43,22 @@ export const mediaLibraryItemSchema = z.object({
   width: z.number().int().positive().nullable(),
   height: z.number().int().positive().nullable(),
   durationMs: z.number().int().positive().nullable(),
-  createdAt: z.iso.datetime()
+  createdAt: z.iso.datetime(),
+  duplicateCount: z.number().int().min(1),
+  usageCount: z.number().int().nonnegative(),
+  usages: z.array(mediaLibraryUsageSchema).max(3)
 });
 export type MediaLibraryItemDto = z.infer<typeof mediaLibraryItemSchema>;
 
-// GET /api/v1/media?kind=all|photo|video&cursor&limit -> 200 MediaLibraryPageDto.
-// Only media retained by at least one post or immutable revision is listed. Content remains private.
-export const mediaLibraryQuerySchema = pageQuerySchema.extend({ kind: mediaLibraryKindSchema.default('all') });
+// GET /api/v1/media?kind=all|photo|video&search&usage=all|used|unused&cursor&limit -> 200 MediaLibraryPageDto.
+// Search is an SQLite filename-prefix match (ASCII case-insensitive; non-ASCII case-sensitive).
+// Usage describes current post attachments;
+// duplicateCount compares exact SHA-256 among retained assets. Content remains private.
+export const mediaLibraryQuerySchema = pageQuerySchema.extend({
+  kind: mediaLibraryKindSchema.default('all'),
+  search: z.string().trim().min(1).max(80).optional(),
+  usage: mediaLibraryUsageFilterSchema.default('all')
+});
 export type MediaLibraryQuery = z.infer<typeof mediaLibraryQuerySchema>;
 export const mediaLibraryPageSchema = pageSchema(mediaLibraryItemSchema);
 export type MediaLibraryPageDto = z.infer<typeof mediaLibraryPageSchema>;

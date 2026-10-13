@@ -30,6 +30,8 @@ export async function listMediaLibrary(
 ): Promise<MediaLibraryPageDto> {
   const results = await deps.repo.listLibrary({
     kind: query.kind,
+    search: query.search,
+    usage: query.usage,
     after: decodeCursor(query.cursor),
     limit: query.limit
   });

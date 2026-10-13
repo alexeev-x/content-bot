@@ -36,6 +36,8 @@ export interface PostMediaRepository {
   findPostState(postId: string): Promise<MediaPostState | null>;
   listLibrary(input: {
     kind: 'all' | 'photo' | 'video';
+    search?: string;
+    usage: 'all' | 'used' | 'unused';
     after?: { createdAt: number; id: string };
     limit: number;
   }): Promise<MediaLibraryItemDto[]>;

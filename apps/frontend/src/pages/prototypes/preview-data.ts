@@ -461,13 +461,16 @@ const EVENT_SPEC: ReadonlyArray<readonly [EventType, string, string, number]> = 
   ['news', 'Итоги голосования сообщества за новые косметические наборы', 's1', 3300],
   ['tournament', 'Перенос матча четвертьфинала из-за технических причин', 's3', 4200]
 ];
-export const DOTA_EVENTS: DotaEvent[] = EVENT_SPEC.map(([type, title, sourceId, agoMin], index) => ({
-  id: `e${index + 1}`,
-  type,
-  title,
-  sourceId,
-  agoMin
-}));
+export const DOTA_EVENTS: DotaEvent[] = [
+  ...EVENT_SPEC.map(([type, title, sourceId, agoMin], index) => ({
+    id: `e${index + 1}`,
+    type,
+    title,
+    sourceId,
+    agoMin
+  })),
+  { id: 'e13', type: 'patch', title: 'Патч 7.41: изменения героев и предметов', sourceId: 's2', agoMin: 185 }
+];
 export const relativeAgo = (minutes: number) => agoText(minutes);
 
 // --- Аналитика -----------------------------------------------------------------------------------------------------

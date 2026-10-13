@@ -208,7 +208,10 @@ describe('post media editor', () => {
       width: 1200,
       height: 800,
       durationMs: null,
-      createdAt: '2026-10-10T12:00:00.000Z'
+      createdAt: '2026-10-10T12:00:00.000Z',
+      duplicateCount: 1,
+      usageCount: 0,
+      usages: []
     };
     vi.mocked(listMediaLibrary).mockResolvedValue({ items: [libraryAsset], nextCursor: null });
     vi.mocked(attachLibraryMedia)
@@ -250,7 +253,10 @@ describe('post media editor', () => {
       width: 1200,
       height: 900,
       durationMs: null,
-      createdAt: '2026-10-10T12:00:00.000Z'
+      createdAt: '2026-10-10T12:00:00.000Z',
+      duplicateCount: 1,
+      usageCount: 0,
+      usages: []
     });
     vi.mocked(listMediaLibrary).mockImplementation(async (_kind, cursor) => {
       const offset = cursor ? Number(cursor) : 0;

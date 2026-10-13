@@ -69,3 +69,6 @@ Accepted decisions that are in force. An agent does not propose an alternative t
 | Session lifetime | token 60 min; Mini App ≤ 12 h; refresh cookie in the browser 30 days |
 | Publication status labels | table in skill `page-spec` |
 | Repeated `Idempotency-Key` with a different body | 409 `CONFLICT` with `details.reason` |
+| Analytics v2 data source (`docs/stories/analytics-v2.md`) | Keep Phase 6 deferred until the owner selects manual observations/import or explicitly approves a separate MTProto security design; no user session is added to the Bot API worker by default |
+| First platform for expansion (`docs/stories/platform-expansion-feasibility.md`) | Defer integration until the owner selects TikTok or YouTube and authorizes the applicable account/API onboarding; no credentials or public publishing are configured by default |
+| Automated media pipeline (`docs/plan/media.md` §18) | Defer this separate project until manual media, sources and platform publishing are stable and the owner explicitly approves a scoped project; no paid providers or render tiers by default |
