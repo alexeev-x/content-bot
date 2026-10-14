@@ -348,11 +348,7 @@ export function ClockView({ items, events, day, now, timezone, onOpenPublication
     .sort((a, b) => a.scheduledAt.localeCompare(b.scheduledAt))[0];
   return (
     <div className={styles.clock}>
-      <svg
-        viewBox={`0 0 ${size} ${size}`}
-        className={styles.dial}
-        aria-hidden="true"
-      >
+      <svg viewBox={`0 0 ${size} ${size}`} className={styles.dial} aria-hidden="true">
         <circle cx={center} cy={center} r={ring} className={styles.dialRing} />
         {Array.from({ length: 24 }, (_, hour) => {
           const outer = point((hour / 24) * 100, ring + 6);
