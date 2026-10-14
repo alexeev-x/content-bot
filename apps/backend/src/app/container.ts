@@ -207,15 +207,25 @@ function configuredBotId(raw: string | undefined): number | null {
 
 export function createContainer(env: ContainerEnv, overrides: ContainerOverrides = {}): Container {
   // A token that is only whitespace (a pasted secret with a stray newline) is no token.
-  const botToken = (): string => (env.TELEGRAM_BOT_TOKEN ?? '').trim();
-  const metered = env.DB === undefined ? null : meterD1(env.DB);
-  const db = (): D1Database => {
-    if (metered === null) throw new AppError('UNAVAILABLE', 'Database is not configured');
-    return metered.db;
+  const botToken = (): string => (env?.TELEGRAM_BOT_TOKEN ?? '').trim();
+  // Metered on first use: building a container must not touch the environment (tests and error paths
+  // create the app without bindings), and one meter per container keeps the per-invocation count.
+  let metered: ReturnType<typeof meterD1> | null = null;
+  const meter = (): ReturnType<typeof meterD1> | null => {
+    if (metered === null && env?.DB !== undefined) metered = meterD1(env.DB);
+    return metered;
   };
+  const db = (): D1Database => {
+    const current = meter();
+    if (current === null) throw new AppError('UNAVAILABLE', 'Database is not configured');
+    return current.db;
+  };
+  const noBudget: QueryBudget = { limit: 0, used: () => 0, remaining: () => 0, charge: () => undefined };
   return {
     clock: overrides.clock ?? systemClock,
-    queryBudget: metered?.budget ?? { limit: 0, used: () => 0, remaining: () => 0, charge: () => undefined },
+    get queryBudget(): QueryBudget {
+      return meter()?.budget ?? noBudget;
+    },
     logger: createLogger(),
     get sessions() {
       return createD1SessionStore(db());
