@@ -31,7 +31,10 @@ import { ru } from '../../../shared/lib/ru';
 import { pluralRu } from '../../../shared/lib/ru-format';
 import { mediaPageQueryOptions, useCreatePostWithMedia, useDeleteMedia } from '../api/media-queries';
 import type { MediaFilters } from '../api/media-api';
+import { useLibraryCrop } from '../model/use-library-crop';
 import { AttachDialog } from './AttachDialog';
+import { LibraryCropDialog } from './LibraryCropDialog';
+import { PhotoViewer } from './PhotoViewer';
 import { formatDate } from './media-format';
 import { PrivateMediaPreview } from './PrivateMediaPreview';
 import styles from './MediaLibrary.module.css';
@@ -234,81 +237,116 @@ function MediaSkeleton({ view }: { view: 'grid' | 'list' }) {
 function Details({
   item,
   onClose,
+  photos,
+  onNavigate,
   onAttach,
-  onOpenPost
+  onOpenPost,
+  onSaved
 }: {
   item: MediaLibraryItemDto;
   onClose: () => void;
+  /** Photos of the current page, for the viewer's arrows. */
+  photos: MediaLibraryItemDto[];
+  onNavigate: (item: MediaLibraryItemDto) => void;
   onAttach: () => void;
   onOpenPost: (postId: string) => void;
+  onSaved: (item: MediaLibraryItemDto) => void;
 }) {
   const narrow = useMediaQuery('(max-width: 859px)');
+  const [viewerId, setViewerId] = useState<string | null>(null);
+  const crop = useLibraryCrop(onSaved);
+  const croppable = item.kind === 'photo' || item.kind === 'video';
   return (
-    <Drawer
-      variant={narrow ? 'bottom' : 'side'}
-      isOpen
-      onOpenChange={(open) => {
-        if (!open) onClose();
-      }}
-      title={item.fileName}
-      meta={kindLabel(item.kind)}
-      footer={
-        <Button onPress={onAttach} icon="plus">
-          Добавить в пост
-        </Button>
-      }
-    >
-      <div className={styles.details}>
-        <PrivateMediaPreview mediaId={item.id} kind={item.kind} eager allowRetry />
-        <dl className={styles.facts}>
-          <div className={styles.fact}>
-            <dt>Размер</dt>
-            <dd>{formatBytes(item.sizeBytes)}</dd>
-          </div>
-          <div className={styles.fact}>
-            <dt>Формат</dt>
-            <dd>{item.contentType}</dd>
-          </div>
-          <div className={styles.fact}>
-            <dt>Размер изображения</dt>
-            <dd>{item.width && item.height ? `${item.width} × ${item.height}` : '—'}</dd>
-          </div>
-          <div className={styles.fact}>
-            <dt>Добавлен</dt>
-            <dd>{formatDate(item.createdAt)}</dd>
-          </div>
-          <div className={styles.fact}>
-            <dt>Совпадения по содержимому</dt>
-            <dd>{item.duplicateCount}</dd>
-          </div>
-          <div className={styles.fact}>
-            <dt>Используется в постах</dt>
-            <dd>{item.usageCount}</dd>
-          </div>
-        </dl>
-        <section className={styles.usage} aria-labelledby="media-usage-title">
-          <h3 id="media-usage-title">Текущие посты</h3>
-          {item.usages.length ? (
-            <ul>
-              {item.usages.map((usage) => (
-                <li key={usage.postId}>
-                  <Button variant="link" onPress={() => onOpenPost(usage.postId)}>
-                    {usage.title || 'Без названия'}
-                  </Button>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p className={styles.meta}>Нет текущих постов. Файл может храниться в истории черновика.</p>
-          )}
-          {item.usageCount > item.usages.length ? (
-            <p className={styles.meta}>
-              Показаны последние {item.usages.length} из {item.usageCount}.
-            </p>
+    <>
+      <Drawer
+        variant={narrow ? 'bottom' : 'side'}
+        isOpen
+        onOpenChange={(open) => {
+          if (!open) onClose();
+        }}
+        title={item.fileName}
+        meta={kindLabel(item.kind)}
+        footer={
+          <>
+            <Button onPress={onAttach} icon="plus">
+              Добавить в пост
+            </Button>
+            {croppable ? (
+              <Button variant="secondary" icon="crop" onPress={() => crop.open(item)}>
+                Кадрировать
+              </Button>
+            ) : null}
+          </>
+        }
+      >
+        <div className={styles.details}>
+          <PrivateMediaPreview mediaId={item.id} kind={item.kind} eager allowRetry />
+          {item.kind === 'photo' ? (
+            <Button variant="secondary" icon="maximize" onPress={() => setViewerId(item.id)}>
+              На весь экран
+            </Button>
           ) : null}
-        </section>
-      </div>
-    </Drawer>
+          <dl className={styles.facts}>
+            <div className={styles.fact}>
+              <dt>Размер</dt>
+              <dd>{formatBytes(item.sizeBytes)}</dd>
+            </div>
+            <div className={styles.fact}>
+              <dt>Формат</dt>
+              <dd>{item.contentType}</dd>
+            </div>
+            <div className={styles.fact}>
+              <dt>Размер изображения</dt>
+              <dd>{item.width && item.height ? `${item.width} × ${item.height}` : '—'}</dd>
+            </div>
+            <div className={styles.fact}>
+              <dt>Добавлен</dt>
+              <dd>{formatDate(item.createdAt)}</dd>
+            </div>
+            <div className={styles.fact}>
+              <dt>Совпадения по содержимому</dt>
+              <dd>{item.duplicateCount}</dd>
+            </div>
+            <div className={styles.fact}>
+              <dt>Используется в постах</dt>
+              <dd>{item.usageCount}</dd>
+            </div>
+          </dl>
+          <section className={styles.usage} aria-labelledby="media-usage-title">
+            <h3 id="media-usage-title">Текущие посты</h3>
+            {item.usages.length ? (
+              <ul>
+                {item.usages.map((usage) => (
+                  <li key={usage.postId}>
+                    <Button variant="link" onPress={() => onOpenPost(usage.postId)}>
+                      {usage.title || 'Без названия'}
+                    </Button>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className={styles.meta}>Нет текущих постов. Файл может храниться в истории черновика.</p>
+            )}
+            {item.usageCount > item.usages.length ? (
+              <p className={styles.meta}>
+                Показаны последние {item.usages.length} из {item.usageCount}.
+              </p>
+            ) : null}
+          </section>
+        </div>
+      </Drawer>
+      <PhotoViewer
+        photos={photos}
+        openId={viewerId}
+        onChange={(id) => {
+          setViewerId(id);
+          const next = photos.find((photo) => photo.id === id);
+          if (next) onNavigate(next);
+        }}
+        onClose={() => setViewerId(null)}
+      />
+      <LibraryCropDialog crop={crop} />
+    </>
   );
 }
 
@@ -624,6 +662,9 @@ export function MediaLibrary({ searchState, onSearchState, onCreatePost, onLogin
         <Details
           item={active}
           onClose={closeDetails}
+          photos={items.filter((candidate) => candidate.kind === 'photo')}
+          onNavigate={openDetails}
+          onSaved={() => toast.show({ title: 'Сохранено как новый файл', tone: 'success' })}
           onOpenPost={onOpenPost}
           onAttach={() => {
             setSelected((current) => new Set([...current, active.id]));

@@ -1,5 +1,11 @@
-import { deleteMediaAsset, deleteMediaAssets, getPostMediaContent, listMediaLibrary } from '../modules/content';
-import { bulkDeleteMediaInputSchema, mediaLibraryQuerySchema } from '@alexeev/contracts';
+import {
+  deleteMediaAsset,
+  deleteMediaAssets,
+  deriveLibraryMedia,
+  getPostMediaContent,
+  listMediaLibrary
+} from '../modules/content';
+import { bulkDeleteMediaInputSchema, deriveMediaQuerySchema, mediaLibraryQuerySchema } from '@alexeev/contracts';
 import { AppError } from '../shared/app-error';
 import { Hono } from 'hono';
 import { z } from 'zod';
@@ -9,6 +15,7 @@ import { limitBody, validated } from './validation';
 const MAX_BODY_BYTES = 4096;
 
 const mediaIdSchema = z.strictObject({ mediaId: z.uuid() });
+const idempotencyHeaderSchema = z.object({ 'idempotency-key': z.string().min(1).max(255) });
 
 export const mediaRoutes = new Hono<AppBindings>()
   .get('/', validated('query', mediaLibraryQuerySchema), async (c) => {
@@ -35,6 +42,38 @@ export const mediaRoutes = new Hono<AppBindings>()
           c.req.valid('json').ids
         )
       );
+    }
+  )
+  .post(
+    '/:mediaId/derived',
+    validated('param', mediaIdSchema),
+    validated('query', deriveMediaQuerySchema),
+    validated('header', idempotencyHeaderSchema),
+    async (c) => {
+      const container = c.get('container');
+      const body = c.req.raw.body;
+      if (body === null) throw new AppError('VALIDATION_ERROR', 'A media file is required', { reason: 'EMPTY_MEDIA' });
+      if (container.mediaStorage === undefined) throw new AppError('UNAVAILABLE', 'Media storage is not configured');
+      const query = c.req.valid('query');
+      const item = await deriveLibraryMedia(
+        {
+          repo: container.postMedia,
+          storage: container.mediaStorage,
+          now: container.clock.now(),
+          newId: container.newId
+        },
+        {
+          sourceId: c.req.valid('param').mediaId,
+          fileName: query.fileName,
+          kind: query.kind,
+          contentType: c.req.header('content-type') ?? '',
+          contentLength: Number(c.req.header('content-length')),
+          body,
+          actor: c.get('actor').telegramId,
+          idempotencyKey: c.req.valid('header')['idempotency-key']
+        }
+      );
+      return c.json(item, 201);
     }
   )
   .delete('/:mediaId', validated('param', mediaIdSchema), async (c) => {

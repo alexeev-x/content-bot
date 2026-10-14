@@ -1,6 +1,7 @@
 import {
   PHOTO_MEDIA_MAX_BYTES,
   POST_MEDIA_MAX_ITEMS,
+  VIDEO_MEDIA_MAX_BYTES,
   type PostMediaDto,
   type CropPostMediaResultDto,
   type UploadPostMediaResultDto,
@@ -221,11 +222,13 @@ export async function cropPostMedia(
   }
 ): Promise<CropPostMediaResultDto> {
   const fileName = safeMediaFileName(command.fileName);
-  if (!['image/jpeg', 'image/png', 'image/webp'].includes(command.contentType))
-    throw new AppError('VALIDATION_ERROR', 'A cropped photo must be JPEG, PNG, or WebP', { reason: 'INVALID_MEDIA' });
+  if (!['image/jpeg', 'image/png', 'image/webp', 'video/mp4'].includes(command.contentType))
+    throw new AppError('VALIDATION_ERROR', 'A cropped file must be JPEG, PNG, WebP or MP4', {
+      reason: 'INVALID_MEDIA'
+    });
   if (!Number.isSafeInteger(command.contentLength) || command.contentLength <= 0)
     throw new AppError('VALIDATION_ERROR', 'A valid Content-Length is required', { reason: 'INVALID_MEDIA' });
-  if (command.contentLength > PHOTO_MEDIA_MAX_BYTES)
+  if (command.contentLength > (command.contentType === 'video/mp4' ? VIDEO_MEDIA_MAX_BYTES : PHOTO_MEDIA_MAX_BYTES))
     throw new HTTPException(413, { message: 'Media file is too large' });
 
   let existing;
@@ -283,8 +286,8 @@ export async function cropPostMedia(
       objectKey,
       command.contentLength
     );
-    if (streamed.kind !== 'photo')
-      throw new AppError('VALIDATION_ERROR', 'Only raster photos can be cropped', { reason: 'INVALID_MEDIA' });
+    if (streamed.kind !== 'photo' && streamed.kind !== 'video')
+      throw new AppError('VALIDATION_ERROR', 'Only photos and videos can be cropped', { reason: 'INVALID_MEDIA' });
     const payloadHash = await sha256Hex(
       JSON.stringify({
         postId: command.postId,
@@ -306,17 +309,21 @@ export async function cropPostMedia(
 
     const source = state?.media.find(({ id }) => id === command.mediaId);
     if (source === undefined) throw new AppError('UNAVAILABLE', 'The crop target changed unexpectedly');
+    if (source.kind !== streamed.kind)
+      throw new AppError('VALIDATION_ERROR', 'The cropped file must be the same kind as the attachment', {
+        reason: 'INVALID_MEDIA'
+      });
     const rootSourceMediaId = source.sourceMediaId ?? source.id;
     const media: PostMediaDto = {
       id: derivativeId,
       sourceMediaId: rootSourceMediaId,
-      kind: 'photo',
+      kind: streamed.kind,
       fileName,
       contentType: streamed.contentType,
       sizeBytes: streamed.bytes,
       width: streamed.width,
       height: streamed.height,
-      durationMs: null,
+      durationMs: streamed.durationMs,
       position: source.position
     };
     const result = cropPostMediaResultSchema.parse({ media, revision: command.revision + 1 });
@@ -401,8 +408,10 @@ function classifyCropTarget(
   if (state.revision !== revision) throw conflict('STALE_REVISION');
   const target = state.media.find(({ id }) => id === mediaId);
   if (target === undefined) throw new AppError('NOT_FOUND', 'Media attachment not found');
-  if (target.kind !== 'photo')
-    throw new AppError('VALIDATION_ERROR', 'Only photo attachments can be cropped', { reason: 'INVALID_CROP_TARGET' });
+  if (target.kind !== 'photo' && target.kind !== 'video')
+    throw new AppError('VALIDATION_ERROR', 'Only photo and video attachments can be cropped', {
+      reason: 'INVALID_CROP_TARGET'
+    });
 }
 
 export async function removePostMedia(

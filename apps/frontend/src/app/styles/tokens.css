@@ -232,6 +232,7 @@
   --color-media-ring: rgba(255, 255, 255, 0.06);
   /* Badges, chips and round buttons drawn on photos and video posters. */
   --color-media-scrim: rgba(8, 10, 14, 0.62);
+  --color-media-backdrop: rgba(4, 5, 8, 0.94);
   --color-on-media-strong: #ffffff;
   /* Crop canvas: the dimmed area outside the frame, the frame/handles, and the rule-of-thirds lines. */
   --color-crop-dim: rgba(0, 0, 0, 0.55);

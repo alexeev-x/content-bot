@@ -4,6 +4,7 @@ import {
   bulkDeleteMediaResultSchema,
   cropPostMediaQuerySchema,
   cropPostMediaResultSchema,
+  deriveMediaQuerySchema,
   mediaLibraryItemSchema,
   mediaLibraryQuerySchema,
   postMediaSchema
@@ -21,6 +22,17 @@ const photo = {
   durationMs: null,
   position: 0
 };
+
+describe('derived library media contract', () => {
+  it('requires a kind of photo or video and rejects unknown keys', () => {
+    expect(deriveMediaQuerySchema.parse({ fileName: 'a.mp4', kind: 'video' })).toEqual({
+      fileName: 'a.mp4',
+      kind: 'video'
+    });
+    expect(deriveMediaQuerySchema.safeParse({ fileName: 'a.gif', kind: 'animation' }).success).toBe(false);
+    expect(deriveMediaQuerySchema.safeParse({ fileName: 'a.png', kind: 'photo', extra: 1 }).success).toBe(false);
+  });
+});
 
 describe('post media crop contracts', () => {
   it('parses crop query metadata and rejects unknown keys', () => {

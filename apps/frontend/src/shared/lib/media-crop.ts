@@ -1,13 +1,14 @@
 import { PHOTO_MEDIA_MAX_BYTES } from '@alexeev/contracts';
-import { fitFrame, type CropFrame } from '../../../shared/ui';
+import { fitFrame, type CropFrame } from '../ui/crop-frame';
 
-export type CropRatio = 'original' | '1:1' | '4:5' | '16:9';
+export type CropRatio = 'original' | '1:1' | '4:5' | '16:9' | '9:16';
 export type CropModel = { ratio: CropRatio; zoom: number; rotation: 0 | 90 | 180 | 270; frame: CropFrame };
 export const CROP_RATIOS: Record<CropRatio, number | undefined> = {
   original: undefined,
   '1:1': 1,
   '4:5': 4 / 5,
-  '16:9': 16 / 9
+  '16:9': 16 / 9,
+  '9:16': 9 / 16
 };
 const INSET = 0.73;
 const INSET_FRAME: CropFrame = { x: (1 - INSET) / 2, y: (1 - INSET) / 2, w: INSET, h: INSET };
@@ -84,4 +85,17 @@ export async function exportCrop(image: HTMLImageElement, model: CropModel): Pro
     }
   }
   throw new Error('crop-too-large');
+}
+
+/**
+ * The frame in source pixels for a video crop. H.264 needs even sides, so every value is rounded down to an
+ * even number and clamped to the picture; the result is never empty.
+ */
+export function videoCropRect(size: { width: number; height: number }, frame: CropFrame) {
+  const even = (value: number) => Math.max(2, Math.floor(value / 2) * 2);
+  const width = Math.min(even(frame.w * size.width), even(size.width));
+  const height = Math.min(even(frame.h * size.height), even(size.height));
+  const left = Math.min(Math.max(0, Math.floor((frame.x * size.width) / 2) * 2), Math.max(0, size.width - width));
+  const top = Math.min(Math.max(0, Math.floor((frame.y * size.height) / 2) * 2), Math.max(0, size.height - height));
+  return { left, top, width, height };
 }

@@ -43,6 +43,18 @@ export interface PostMediaRepository {
     limit: number;
   }): Promise<{ items: MediaLibraryItemDto[]; totalCount: number }>;
   findRetainedMedia(mediaIds: string[]): Promise<PostMediaDto[]>;
+  findLibraryItem(mediaId: string): Promise<MediaLibraryItemDto | null>;
+  findDerivation(idempotencyKey: string): Promise<StoredUpload | null>;
+  /** Commits a library-only derivative atomically; false means the claim or the staging row was lost. */
+  storeDerived(input: {
+    idempotencyKey: string;
+    sourceMediaId: string;
+    payloadHash: string;
+    responseBody: string;
+    actor: string;
+    now: number;
+    asset: MediaAssetInput & { sourceMediaId: string };
+  }): Promise<boolean>;
   attachRetained(input: {
     postId: string;
     expectedRevision: number;

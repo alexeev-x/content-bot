@@ -1,4 +1,9 @@
-import { type PostMediaDto, mediaLibraryItemSchema, postMediaSchema } from '@alexeev/contracts';
+import {
+  type MediaLibraryItemDto,
+  type PostMediaDto,
+  mediaLibraryItemSchema,
+  postMediaSchema
+} from '@alexeev/contracts';
 import type { MediaPostState, PostMediaRepository, StoredUpload } from '../application/media-ports';
 
 interface MediaRow {
@@ -37,12 +42,13 @@ function toMedia(row: MediaRow): PostMediaDto {
 const guardedPost = "id = ?1 AND revision = ?2 AND status = 'draft'";
 
 // An asset is retained, hence listed, readable and attachable, while a draft holds it, a revision snapshot
-// names it, or a derivative (a crop) keeps it as its source. Every read and the attach guard share this
+// names it, a derivative (a crop) keeps it as its source, or it was saved to the library on its own. Every read and the attach guard share this
 // predicate, so anything the library lists can be attached.
 function isRetainedSql(idExpression: string): string {
   return `(EXISTS (SELECT 1 FROM post_media pm WHERE pm.media_id = ${idExpression})
     OR EXISTS (SELECT 1 FROM post_revisions r, json_each(r.media_json) j WHERE j.value = ${idExpression})
-    OR EXISTS (SELECT 1 FROM media_assets derivative WHERE derivative.source_media_id = ${idExpression}))`;
+    OR EXISTS (SELECT 1 FROM media_assets derivative WHERE derivative.source_media_id = ${idExpression})
+    OR EXISTS (SELECT 1 FROM media_assets own WHERE own.id = ${idExpression} AND own.in_library = 1))`;
 }
 
 // Nothing holds the asset: no post attachment (any status), no publication snapshot and no crop derived
@@ -73,6 +79,36 @@ const selectionBlockedCte = `WITH RECURSIVE blocked(id) AS (
   SELECT m.source_media_id FROM media_assets m JOIN blocked b ON m.id = b.id
    WHERE m.source_media_id IN (SELECT value FROM json_each(?1))
 )`;
+
+const libraryItemSelect = `SELECT m.id, m.kind, m.file_name, m.content_type, m.size_bytes, m.width, m.height, m.duration_ms, m.created_at,
+                  (SELECT count(*) FROM media_assets duplicate
+                    WHERE duplicate.sha256 = m.sha256 AND ${isRetainedSql('duplicate.id')}) AS duplicate_count,
+                  (SELECT count(*) FROM post_media current_usage WHERE current_usage.media_id = m.id) AS usage_count,
+                  ${isDeletableSql('m.id')} AS deletable,
+                  (SELECT json_group_array(json_object('postId', post_id, 'title', title)) FROM (
+                    SELECT p.id AS post_id, p.title
+                      FROM post_media linked JOIN posts p ON p.id = linked.post_id
+                     WHERE linked.media_id = m.id
+                     ORDER BY p.created_at DESC, p.id DESC LIMIT 3
+                  )) AS usages`;
+
+function toLibraryItem(row: MediaRow): MediaLibraryItemDto {
+  return mediaLibraryItemSchema.parse({
+    id: row.id,
+    kind: row.kind,
+    fileName: row.file_name,
+    contentType: row.content_type,
+    sizeBytes: row.size_bytes,
+    width: row.width,
+    height: row.height,
+    durationMs: row.duration_ms,
+    createdAt: new Date(row.created_at ?? 0).toISOString(),
+    duplicateCount: row.duplicate_count,
+    usageCount: row.usage_count,
+    deletable: row.deletable === 1,
+    usages: JSON.parse(row.usages ?? '[]')
+  });
+}
 
 export function createD1PostMediaRepository(db: D1Database): PostMediaRepository {
   return {
@@ -219,17 +255,7 @@ export function createD1PostMediaRepository(db: D1Database): PostMediaRepository
       const [page, count] = await db.batch([
         db
           .prepare(
-            `SELECT m.id, m.kind, m.file_name, m.content_type, m.size_bytes, m.width, m.height, m.duration_ms, m.created_at,
-                  (SELECT count(*) FROM media_assets duplicate
-                    WHERE duplicate.sha256 = m.sha256 AND ${isRetainedSql('duplicate.id')}) AS duplicate_count,
-                  (SELECT count(*) FROM post_media current_usage WHERE current_usage.media_id = m.id) AS usage_count,
-                  ${isDeletableSql('m.id')} AS deletable,
-                  (SELECT json_group_array(json_object('postId', post_id, 'title', title)) FROM (
-                    SELECT p.id AS post_id, p.title
-                      FROM post_media linked JOIN posts p ON p.id = linked.post_id
-                     WHERE linked.media_id = m.id
-                     ORDER BY p.created_at DESC, p.id DESC LIMIT 3
-                  )) AS usages
+            `${libraryItemSelect}
              FROM media_assets m
             ${filters} ${cursorClause}
             ORDER BY m.created_at DESC, m.id DESC LIMIT ${limitParameter} ${offsetClause}`
@@ -239,24 +265,99 @@ export function createD1PostMediaRepository(db: D1Database): PostMediaRepository
       ]);
       const results = (page?.results ?? []) as MediaRow[];
       const totalCount = ((count?.results ?? []) as Array<{ total: number }>)[0]?.total ?? 0;
-      const items = results.map((row) =>
-        mediaLibraryItemSchema.parse({
-          id: row.id,
-          kind: row.kind,
-          fileName: row.file_name,
-          contentType: row.content_type,
-          sizeBytes: row.size_bytes,
-          width: row.width,
-          height: row.height,
-          durationMs: row.duration_ms,
-          createdAt: new Date(row.created_at ?? 0).toISOString(),
-          duplicateCount: row.duplicate_count,
-          usageCount: row.usage_count,
-          deletable: row.deletable === 1,
-          usages: JSON.parse(row.usages ?? '[]')
-        })
-      );
+      const items = results.map(toLibraryItem);
       return { items, totalCount };
+    },
+
+    async findLibraryItem(mediaId) {
+      const row = await db
+        .prepare(`${libraryItemSelect} FROM media_assets m WHERE m.id = ?1 AND ${isRetainedSql('m.id')}`)
+        .bind(mediaId)
+        .first<MediaRow>();
+      return row === null ? null : toLibraryItem(row);
+    },
+
+    async findDerivation(idempotencyKey) {
+      return db
+        .prepare(
+          'SELECT payload_hash AS payloadHash, response_body AS responseBody FROM media_derivations WHERE idempotency_key = ?1'
+        )
+        .bind(idempotencyKey)
+        .first<StoredUpload>();
+    },
+
+    async storeDerived(input) {
+      const { asset } = input;
+      const claimGuard =
+        'EXISTS (SELECT 1 FROM media_derivations d WHERE d.idempotency_key = ?1 AND d.media_id = ?4 AND d.payload_hash = ?3)';
+      const results = await db.batch([
+        db
+          .prepare(
+            `INSERT INTO media_derivations (idempotency_key, source_media_id, payload_hash, media_id, response_body, created_at)
+             SELECT ?1, ?2, ?3, ?4, ?5, ?6
+              WHERE EXISTS (SELECT 1 FROM media_assets WHERE id = ?7)
+                -- Checked again at commit: a source detached (and queued for cleanup) after the request was
+                -- accepted must not become retained through a new derivative, or Cron would delete its object
+                -- while the row stays listed as a broken tile.
+                AND ${isRetainedSql('?7')}
+                AND ${isRetainedSql('?2')}
+                AND EXISTS (SELECT 1 FROM post_media_cleanup s WHERE s.media_id = ?4 AND s.staging = 1)
+             ON CONFLICT (idempotency_key) DO NOTHING`
+          )
+          .bind(
+            input.idempotencyKey,
+            input.sourceMediaId,
+            input.payloadHash,
+            asset.id,
+            input.responseBody,
+            input.now,
+            asset.sourceMediaId
+          ),
+        db
+          .prepare(
+            `INSERT INTO media_assets (id, object_key, sha256, kind, file_name, content_type, size_bytes, width, height, duration_ms, created_at, source_media_id, in_library)
+             SELECT ?4, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, 1 WHERE ${claimGuard}`
+          )
+          .bind(
+            input.idempotencyKey,
+            input.sourceMediaId,
+            input.payloadHash,
+            asset.id,
+            input.actor,
+            asset.objectKey,
+            asset.sha256,
+            asset.kind,
+            asset.fileName,
+            asset.contentType,
+            asset.sizeBytes,
+            asset.width,
+            asset.height,
+            asset.durationMs,
+            asset.createdAt,
+            asset.sourceMediaId
+          ),
+        db
+          .prepare(
+            `INSERT INTO audit_log (actor_telegram_id, action, entity_type, entity_id, created_at, details)
+             SELECT ?5, 'media.derive', 'media', ?4, ?6, ?7 WHERE ${claimGuard}
+               AND EXISTS (SELECT 1 FROM media_assets WHERE id = ?4)`
+          )
+          .bind(
+            input.idempotencyKey,
+            input.sourceMediaId,
+            input.payloadHash,
+            asset.id,
+            input.actor,
+            input.now,
+            JSON.stringify({ sourceMediaId: input.sourceMediaId, mediaId: asset.id })
+          ),
+        db
+          .prepare(
+            'DELETE FROM post_media_cleanup WHERE media_id = ?1 AND staging = 1 AND EXISTS (SELECT 1 FROM media_assets WHERE id = ?1)'
+          )
+          .bind(asset.id)
+      ]);
+      return results[0]?.meta.changes === 1 && results[1]?.meta.changes === 1 && results[3]?.meta.changes === 1;
     },
 
     async findRetainedMedia(mediaIds) {
@@ -436,7 +537,7 @@ export function createD1PostMediaRepository(db: D1Database): PostMediaRepository
       const current = `EXISTS (SELECT 1 FROM posts p JOIN post_media pm ON pm.post_id = p.id
         JOIN media_assets source ON source.id = pm.media_id
         WHERE p.id = ?1 AND p.revision = ?2 AND p.status = 'draft'
-          AND pm.media_id = ?5 AND source.kind = 'photo' AND pm.position = ?6)`;
+          AND pm.media_id = ?5 AND source.kind IN ('photo', 'video') AND pm.position = ?6)`;
       const guards = `${reservation} AND ${current}
         AND EXISTS (SELECT 1 FROM post_media_cleanup staging WHERE staging.media_id = ?7 AND staging.staging = 1)`;
       const response = JSON.parse(input.responseBody) as { media: PostMediaDto; revision: number };
@@ -444,7 +545,7 @@ export function createD1PostMediaRepository(db: D1Database): PostMediaRepository
         db
           .prepare(
             `INSERT INTO media_assets (id, object_key, sha256, kind, file_name, content_type, size_bytes, width, height, duration_ms, created_at, source_media_id)
-           SELECT ?7, ?8, ?9, 'photo', ?10, ?11, ?12, ?13, ?14, NULL, ?15, ?16 WHERE ${guards}`
+           SELECT ?7, ?8, ?9, ?17, ?10, ?11, ?12, ?13, ?14, ?18, ?15, ?16 WHERE ${guards}`
           )
           .bind(
             input.postId,
@@ -462,7 +563,9 @@ export function createD1PostMediaRepository(db: D1Database): PostMediaRepository
             asset.width,
             asset.height,
             asset.createdAt,
-            asset.sourceMediaId
+            asset.sourceMediaId,
+            asset.kind,
+            asset.durationMs
           ),
         db
           .prepare(`DELETE FROM post_media WHERE post_id = ?1 AND media_id = ?5 AND position = ?6 AND ${guards}`)
@@ -657,6 +760,12 @@ export function createD1PostMediaRepository(db: D1Database): PostMediaRepository
           .bind(ids),
         db
           .prepare(
+            `${free}DELETE FROM media_derivations
+              WHERE media_id IN (${inSelection}) AND media_id NOT IN (SELECT id FROM blocked)`
+          )
+          .bind(ids),
+        db
+          .prepare(
             `${free}DELETE FROM media_assets
               WHERE id IN (${inSelection}) AND id NOT IN (SELECT id FROM blocked)`
           )
@@ -670,9 +779,9 @@ export function createD1PostMediaRepository(db: D1Database): PostMediaRepository
           .bind(ids)
       ]);
       const before = new Set(((results[0]?.results ?? []) as { id: string }[]).map(({ id }) => id));
-      const after = new Set(((results[6]?.results ?? []) as { id: string }[]).map(({ id }) => id));
+      const after = new Set(((results[7]?.results ?? []) as { id: string }[]).map(({ id }) => id));
       const keys = new Map(
-        ((results[7]?.results ?? []) as { mediaId: string; objectKey: string }[]).map((row) => [
+        ((results[8]?.results ?? []) as { mediaId: string; objectKey: string }[]).map((row) => [
           row.mediaId,
           row.objectKey
         ])
@@ -750,7 +859,7 @@ export function createD1PostMediaRepository(db: D1Database): PostMediaRepository
           .bind(mediaId),
         db
           .prepare(
-            `DELETE FROM media_assets WHERE id = ?1
+            `DELETE FROM media_assets WHERE id = ?1 AND in_library = 0
               AND NOT EXISTS (SELECT 1 FROM post_media WHERE media_id = ?1)
               AND NOT EXISTS (SELECT 1 FROM post_revisions r, json_each(r.media_json) j WHERE j.value = ?1)
               AND NOT EXISTS (SELECT 1 FROM media_assets derivative WHERE derivative.source_media_id = ?1)`

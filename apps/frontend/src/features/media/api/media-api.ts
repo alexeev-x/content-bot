@@ -1,6 +1,7 @@
 import {
   attachPostMediaResultSchema,
   bulkDeleteMediaResultSchema,
+  mediaLibraryItemSchema,
   mediaLibraryPageSchema,
   mediaLibraryUsageFilterSchema,
   postPageSchema,
@@ -64,4 +65,20 @@ export function deleteMedia(mediaId: string) {
 
 export function bulkDeleteMedia(ids: string[]) {
   return apiRequest('/api/v1/media/delete', bulkDeleteMediaResultSchema, { method: 'POST', body: { ids } });
+}
+
+/** Stores a cropped photo or video as a new library item derived from `sourceId` (the original stays). */
+export function deriveMedia(
+  sourceId: string,
+  file: Blob,
+  fileName: string,
+  kind: 'photo' | 'video',
+  idempotencyKey: string,
+  signal?: AbortSignal
+) {
+  return apiRequest(
+    `/api/v1/media/${encodeURIComponent(sourceId)}/derived${buildQuery({ fileName, kind })}`,
+    mediaLibraryItemSchema,
+    { method: 'POST', rawBody: file, headers: { 'Idempotency-Key': idempotencyKey }, signal }
+  );
 }

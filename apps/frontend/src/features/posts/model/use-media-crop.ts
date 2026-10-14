@@ -1,97 +1,35 @@
 import type { PostMediaDto } from '@alexeev/contracts';
-import { useEffect, useRef, useState } from 'react';
+import { useState } from 'react';
 import { ApiError } from '../../../shared/api/http-client';
+import { useCropSession } from '../../../shared/lib/use-crop-session';
+import { videoCropErrorMessage, VideoCropError } from '../../../shared/lib/video-crop';
 import { cropPostMedia, getPostMediaContent, reorderPostMedia } from '../api/post-media-api';
-import { cropFrameForRatio, defaultCropModel, exportCrop, renderCrop, type CropModel, type CropRatio } from './crop';
 import { cropErrorMessage, friendlyError } from './media-errors';
 import type { MediaState } from './use-media-state';
+
+const isCroppable = (media: PostMediaDto): media is PostMediaDto & { kind: 'photo' | 'video' } =>
+  media.kind === 'photo' || media.kind === 'video';
 
 /** The crop dialog: loads the original, keeps the crop model and saves the result as a new attachment. */
 export function useMediaCrop(state: MediaState) {
   const { postId, disabled, busy, setEntries, setBusy, beginWrite, endWrite, queryClient, revisionRef, mediaRef } =
     state;
-  const [media, setMedia] = useState<PostMediaDto | null>(null);
-  const [url, setUrl] = useState<string | null>(null);
-  const [error, setError] = useState('');
   const [cropBusy, setCropBusy] = useState(false);
-  const [model, setModel] = useState<CropModel>(defaultCropModel);
   const [cover, setCover] = useState(false);
-  const [naturalSize, setNaturalSize] = useState<{ width: number; height: number } | null>(null);
-  const previewCanvas = useRef<HTMLCanvasElement>(null);
-
-  useEffect(() => {
-    if (!media) return;
-    const controller = new AbortController();
-    let objectUrl: string | null = null;
-    void getPostMediaContent(media.sourceMediaId ?? media.id, controller.signal)
-      .then((blob) => {
-        if (controller.signal.aborted) return;
-        objectUrl = URL.createObjectURL(blob);
-        const probe = new Image();
-        probe.onload = () => setNaturalSize({ width: probe.naturalWidth, height: probe.naturalHeight });
-        probe.src = objectUrl;
-        setUrl(objectUrl);
-      })
-      .catch((caught: unknown) => {
-        if (!controller.signal.aborted) setError(cropErrorMessage(caught));
-      });
-    return () => {
-      controller.abort();
-      if (objectUrl) URL.revokeObjectURL(objectUrl);
-    };
-  }, [media]);
-
-  useEffect(() => {
-    if (!url || !previewCanvas.current) return;
-    const image = new Image();
-    let active = true;
-    image.src = url;
-    void image
-      .decode()
-      .then(() => {
-        const canvas = previewCanvas.current;
-        if (!active || !canvas) return;
-        renderCrop(image, model, canvas, 560);
-      })
-      .catch(() => {
-        if (active) setError('Не удалось подготовить предпросмотр кадрирования.');
-      });
-    return () => {
-      active = false;
-    };
-  }, [model, url]);
-
-  const aspectFor = (rotation: number) =>
-    naturalSize
-      ? rotation % 180 === 0
-        ? naturalSize.width / naturalSize.height
-        : naturalSize.height / naturalSize.width
-      : 4 / 3;
+  const session = useCropSession<PostMediaDto & { kind: 'photo' | 'video' }>({
+    load: (item, signal) => getPostMediaContent(item.sourceMediaId ?? item.id, signal),
+    describeError: cropErrorMessage
+  });
+  const { error, setError, source: media } = session;
 
   function open(item: PostMediaDto) {
-    setModel(defaultCropModel());
+    if (!isCroppable(item)) return;
     setCover(item.position === 0);
-    setNaturalSize(item.width && item.height ? { width: item.width, height: item.height } : null);
-    setUrl(null);
-    setError('');
-    setMedia(item);
+    session.open(item);
   }
 
   function close() {
-    setMedia(null);
-  }
-
-  function reset() {
-    setModel(defaultCropModel());
-  }
-
-  function rotate(delta: -90 | 90) {
-    const rotation = ((model.rotation + delta + 360) % 360) as CropModel['rotation'];
-    setModel((current) => ({ ...current, rotation, frame: cropFrameForRatio(current.ratio, aspectFor(rotation)) }));
-  }
-
-  function setRatio(ratio: CropRatio) {
-    setModel((current) => ({ ...current, ratio, frame: cropFrameForRatio(ratio, aspectFor(current.rotation)) }));
+    session.close();
   }
 
   async function setAsCover(isSelected: boolean) {
@@ -133,17 +71,14 @@ export function useMediaCrop(state: MediaState) {
   }
 
   async function apply() {
-    if (!media || !url || !postId || busy || disabled) return;
+    if (!media || !session.url || !postId || busy || disabled) return;
     if (!beginWrite()) return;
     setCropBusy(true);
     setBusy(true);
     setError('');
     try {
-      const source = new Image();
-      source.src = url;
-      await source.decode();
-      const blob = await exportCrop(source, model);
-      const extension = blob.type === 'image/webp' ? '.webp' : '.jpg';
+      const blob = await session.render();
+      const extension = blob.type === 'video/mp4' ? '.mp4' : blob.type === 'image/webp' ? '.webp' : '.jpg';
       const result = await cropPostMedia(
         postId,
         media.id,
@@ -160,10 +95,11 @@ export function useMediaCrop(state: MediaState) {
           entry.media?.id === media.id ? { key: result.media.id, media: result.media, status: 'uploaded' } : entry
         )
       );
-      setMedia(null);
+      close();
     } catch (caught) {
+      if (caught instanceof DOMException && caught.name === 'AbortError') return;
       if (caught instanceof ApiError && caught.status === 409) state.onRevisionConflict?.();
-      setError(cropErrorMessage(caught));
+      setError(caught instanceof VideoCropError ? videoCropErrorMessage(caught) : cropErrorMessage(caught));
     } finally {
       setCropBusy(false);
       setBusy(false);
@@ -173,19 +109,22 @@ export function useMediaCrop(state: MediaState) {
 
   return {
     media,
-    url,
+    url: session.url,
     error,
     cropBusy,
-    model,
-    setModel,
+    model: session.model,
+    setModel: session.setModel,
     cover,
-    naturalSize,
-    previewCanvas,
+    naturalSize: session.naturalSize,
+    previewCanvas: session.previewCanvas,
+    trim: session.trim,
+    progress: session.progress,
+    cancelProcessing: session.cancelProcessing,
     open,
     close,
-    reset,
-    rotate,
-    setRatio,
+    reset: session.reset,
+    rotate: session.rotate,
+    setRatio: session.setRatio,
     setAsCover,
     apply
   };

@@ -93,16 +93,17 @@ export const uploadPostMediaResultSchema = z.object({
 });
 export type UploadPostMediaResultDto = z.infer<typeof uploadPostMediaResultSchema>;
 
-// POST /api/v1/posts/{postId}/media/{mediaId}/crop?revision&fileName; raw rasterized photo bytes.
-// Content-Length, photo Content-Type, and Idempotency-Key are required. The server atomically
-// replaces the existing draft photo at the same position; it does not consume another media slot.
+// POST /api/v1/posts/{postId}/media/{mediaId}/crop?revision&fileName; raw rasterized photo bytes
+// (JPEG, PNG, WebP) for a photo target or MP4 bytes for a video target; the bytes must match the target's kind.
+// Content-Length, Content-Type, and Idempotency-Key are required. The server atomically
+// replaces the existing draft photo or video at the same position; it does not consume another media slot.
 // The derivative points to the original asset (including when cropping an existing derivative),
 // so the original remains retained while a derivative refers to it. Crop geometry is represented
 // by the derivative bytes, not persisted separately.
 // Same key + same path/query/bytes replays the original response; a different payload with that
 // key is CONFLICT (IDEMPOTENCY_KEY_REUSED), and an in-flight request is CONFLICT (IN_FLIGHT).
-// Errors: VALIDATION_ERROR 400 (bad query, non-photo target, invalid image/signature or headers),
-// 413 (photo size limit), NOT_FOUND 404, CONFLICT 409 (STALE_REVISION | NOT_EDITABLE |
+// Errors: VALIDATION_ERROR 400 (bad query, animation target, kind mismatch, invalid media/signature or headers),
+// 413 (photo or video size limit), NOT_FOUND 404, CONFLICT 409 (STALE_REVISION | NOT_EDITABLE |
 // IDEMPOTENCY_KEY_REUSED | IN_FLIGHT), UNAVAILABLE 503 (storage failure), UNAUTHORIZED 401,
 // FORBIDDEN 403.
 export const cropPostMediaQuerySchema = z.strictObject({
@@ -116,6 +117,20 @@ export const cropPostMediaResultSchema = z.object({
   revision: z.number().int().nonnegative()
 });
 export type CropPostMediaResultDto = z.infer<typeof cropPostMediaResultSchema>;
+
+// POST /api/v1/media/{sourceId}/derived?fileName&kind=photo|video; raw bytes of a cropped photo (JPEG, PNG, WebP)
+// or an MP4 video. Content-Length, Content-Type and Idempotency-Key are required; validation matches uploads
+// (signature, streamed byte count, per-kind size limit, dimensions). The source must be a retained library item
+// of the same kind. Stores a NEW library item (no post involved) whose `source_media_id` is the root original,
+// so the original stays and cannot be deleted while the derivative exists. Returns 201 MediaLibraryItemDto.
+// Same key + same bytes/metadata/source replays the original response; a reused key with a different payload is
+// CONFLICT (IDEMPOTENCY_KEY_REUSED). Errors: VALIDATION_ERROR 400 (bad query, kind mismatch, invalid media),
+// 413 (size limit), NOT_FOUND 404 (unknown source), CONFLICT 409, UNAVAILABLE 503, UNAUTHORIZED 401, FORBIDDEN 403.
+export const deriveMediaQuerySchema = z.strictObject({
+  fileName: z.string().trim().min(1).max(255),
+  kind: z.enum(['photo', 'video'])
+});
+export type DeriveMediaQuery = z.infer<typeof deriveMediaQuerySchema>;
 
 // DELETE /api/v1/posts/{postId}/media/{mediaId}, JSON { revision } -> 200 { revision }.
 export const changePostMediaRevisionInputSchema = z.strictObject({ revision: z.number().int().nonnegative() });

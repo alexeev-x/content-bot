@@ -24,6 +24,7 @@ export { ErrorState } from './ErrorState';
 export { Icon } from './Icon';
 export type { IconName } from './Icon';
 export { IconButton } from './IconButton';
+export { MediaCropDialog } from './MediaCropDialog';
 export { MediaTile } from './MediaTile';
 export { MediaAddTile, MediaGridTile } from './MediaGridTile';
 export type { MediaTileKind, MediaTileState } from './MediaGridTile';

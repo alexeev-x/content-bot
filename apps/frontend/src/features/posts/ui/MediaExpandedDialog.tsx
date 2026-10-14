@@ -29,7 +29,7 @@ export function MediaExpandedDialog({ media, onClose, onCrop, inputRef, entryCou
             <Button variant="secondary" onPress={onClose}>
               Закрыть
             </Button>
-            {media.kind === 'photo' ? (
+            {media.kind === 'photo' || media.kind === 'video' ? (
               <Button variant="secondary" isDisabled={isDisabled} onPress={() => onCrop(media)}>
                 Кадрировать
               </Button>

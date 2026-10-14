@@ -29,7 +29,7 @@ export function cropErrorMessage(error: unknown): string {
   if (error instanceof Error && error.message === 'crop-too-large')
     return 'Кадр слишком велик для загрузки. Уменьшите область кадрирования; исходное вложение сохранено.';
   if (error instanceof ApiError) {
-    if (error.status === 404) return 'Фото больше недоступно. Обновите редактор и выберите вложение ещё раз.';
+    if (error.status === 404) return 'Файл больше недоступен. Обновите редактор и выберите вложение ещё раз.';
     if (error.status === 400)
       return 'Не удалось обработать кадрирование. Измените область и повторите попытку; исходное вложение сохранено.';
     if (error.status === 413)

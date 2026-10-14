@@ -1,5 +1,13 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { clampCropFrame, cropFrameForRatio, cropRegion, defaultCropModel, exportCrop, renderCrop } from './crop';
+import {
+  clampCropFrame,
+  cropFrameForRatio,
+  cropRegion,
+  defaultCropModel,
+  exportCrop,
+  renderCrop,
+  videoCropRect
+} from './media-crop';
 
 afterEach(() => vi.restoreAllMocks());
 
@@ -118,5 +126,37 @@ describe('post crop geometry and output', () => {
     });
     const image = { naturalWidth: 4032, naturalHeight: 3024 } as HTMLImageElement;
     await expect(exportCrop(image, defaultCropModel())).rejects.toThrow('crop-too-large');
+  });
+});
+
+describe('video crop rectangle', () => {
+  it('rounds the frame to even pixels inside the picture', () => {
+    expect(videoCropRect({ width: 1920, height: 1080 }, { x: 0.25, y: 0.25, w: 0.5, h: 0.5 })).toEqual({
+      left: 480,
+      top: 270,
+      width: 960,
+      height: 540
+    });
+    const odd = videoCropRect({ width: 1001, height: 777 }, { x: 0.333, y: 0.111, w: 0.4, h: 0.31 });
+    expect([odd.left, odd.top, odd.width, odd.height].every((value) => value % 2 === 0)).toBe(true);
+    expect(odd.left + odd.width).toBeLessThanOrEqual(1001);
+    expect(odd.top + odd.height).toBeLessThanOrEqual(777);
+  });
+
+  it('keeps a tiny frame at least 2 px and a full frame the whole even picture', () => {
+    expect(videoCropRect({ width: 640, height: 360 }, { x: 0, y: 0, w: 0.001, h: 0.001 })).toMatchObject({
+      width: 2,
+      height: 2
+    });
+    expect(videoCropRect({ width: 641, height: 361 }, { x: 0, y: 0, w: 1, h: 1 })).toEqual({
+      left: 0,
+      top: 0,
+      width: 640,
+      height: 360
+    });
+  });
+
+  it('offers a 9:16 preset', () => {
+    expect(cropFrameForRatio('9:16', 16 / 9).w).toBeLessThan(cropFrameForRatio('1:1', 16 / 9).w);
   });
 });

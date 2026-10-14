@@ -85,6 +85,8 @@ export async function mapApiError(response: Response): Promise<ApiError> {
 type RequestOptions = {
   method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
   body?: unknown;
+  /** A file sent as the raw request body (its own type becomes Content-Type; the browser sets Content-Length). */
+  rawBody?: Blob;
   signal?: AbortSignal | undefined;
   headers?: Record<string, string>;
   /** Sign-in endpoints: no Bearer and no silent re-auth. */
@@ -100,7 +102,10 @@ async function send(path: string, options: RequestOptions, token: string | null)
   // The refresh cookie travels only on /auth/* (its cookie path).
   if (path.startsWith('/api/v1/auth/')) init.credentials = 'include';
   if (options.signal) init.signal = options.signal;
-  if (options.body !== undefined) {
+  if (options.rawBody !== undefined) {
+    headers['Content-Type'] = options.rawBody.type;
+    init.body = options.rawBody;
+  } else if (options.body !== undefined) {
     headers['Content-Type'] = 'application/json';
     init.body = JSON.stringify(options.body);
   }

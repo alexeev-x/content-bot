@@ -76,6 +76,7 @@ const PATHS = {
   'rotate-right': 'M20 4v5h-5M19.5 9A8 8 0 1 0 20 13',
   crop: 'M6 2v14a2 2 0 0 0 2 2h14M2 6h14a2 2 0 0 1 2 2v14',
   minus: 'M5 12h14',
+  maximize: 'M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5',
   'arrow-left': 'M19 12H5M11 6l-6 6 6 6',
   'arrow-right': 'M5 12h14M13 6l6 6-6 6',
   'log-out': 'M10 4H5a1 1 0 0 0-1 1v14a1 1 0 0 0 1 1h5M15 8l4 4-4 4M19 12H9',
