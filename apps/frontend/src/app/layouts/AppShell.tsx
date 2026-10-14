@@ -135,7 +135,10 @@ export function AppShell({
   }, [onOpenSearch]);
 
   // The post editor owns the bottom edge on phones (its sticky action bar), so the tab bar steps aside there.
-  const editorOpen = /^\/posts\/[^/]+/.test(pathname);
+  // The chrome follows the page on screen, not the pending URL: switching on `location` hid the top and tab bars
+  // while the previous page was still shown and the editor chunk loaded, so «+» blinked and felt slow.
+  const shownPath = useRouterState({ select: (state) => state.resolvedLocation?.pathname ?? state.location.pathname });
+  const editorOpen = /^\/posts\/[^/]+/.test(shownPath);
   const primary = NAV_ITEMS.filter((item) => item.primary);
   const secondary = NAV_ITEMS.filter((item) => !item.primary);
   const moreActive = secondary.some((item) => pathname === item.to || pathname.startsWith(`${item.to}/`));

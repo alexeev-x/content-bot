@@ -102,10 +102,6 @@ export function PostEditor({ post, onCreated, approvedActions, aside, headerActi
     editor.overflow === 0;
 
   async function saveAndExit() {
-    if (editor.isNew) {
-      await editor.save();
-      return;
-    }
     if (editor.dirty) {
       const saved = await editor.save();
       if (!saved) return;
@@ -337,7 +333,7 @@ export function PostEditor({ post, onCreated, approvedActions, aside, headerActi
         </div>
       )}
       <footer className={narrow ? styles.actionBar : styles.footerBar}>
-        <Button variant="secondary" size={narrow ? 'sm' : 'xl'} icon="arrow-left" onPress={() => void saveAndExit()}>
+        <Button variant="secondary" size={narrow ? 'sm' : 'xl'} icon="arrow-left" onPress={() => void backToPosts()}>
           К постам
         </Button>
         <p className={styles.footerNote}>
