@@ -2,16 +2,14 @@ import type { PostDto } from '@alexeev/contracts';
 import { now, type ZonedDateTime } from '@internationalized/date';
 import { useQuery } from '@tanstack/react-query';
 import { useState, type ReactNode } from 'react';
-import { browserTimeZone, formatWithZone } from '../model/format-time';
+import { browserTimeZone } from '../model/format-time';
 import { defaultScheduledAt } from '../model/publish-form';
 import { publishDestinationsQueryOptions } from '../api/publications-queries';
 import {
   Banner,
   Button,
   DateTimeField,
-  Dialog,
   ErrorState,
-  Icon,
   Radio,
   RadioGroup,
   Skeleton,
@@ -20,26 +18,87 @@ import {
 import { PublishDialog } from './PublishDialog';
 import styles from './PublishDialog.module.css';
 
+const LAST_DESTINATION_KEY = 'publish:lastDestination';
+
+function readLastDestination(): string {
+  try {
+    return window.localStorage.getItem(LAST_DESTINATION_KEY) ?? '';
+  } catch {
+    return '';
+  }
+}
+
+function rememberDestination(id: string): void {
+  try {
+    window.localStorage.setItem(LAST_DESTINATION_KEY, id);
+  } catch {
+    // Remembering the channel is a convenience; private mode or a full quota must not block publishing.
+  }
+}
+
 const WHEN = [
   { id: 'now', label: 'Опубликовать сейчас', icon: 'send' },
   { id: 'later', label: 'Запланировать', icon: 'calendar' }
 ] as const;
 
-type Props = { post: PostDto; onBack: () => void; children: ReactNode; timezone?: string };
+export type EnsureApproved = (
+  post: PostDto
+) => Promise<{ ok: true; post: PostDto } | { ok: false; title: string; message: string }>;
+
+type Props = {
+  post: PostDto;
+  onBack: () => void;
+  children: ReactNode;
+  timezone?: string;
+  /** Approves a draft just before sending. Composed by the page because features never import each other. */
+  ensureApproved?: EnsureApproved;
+};
 
 /** In-page settings for the second editor screen: «Опубликовать» here is the final action and sends at once. */
-export function PublicationSettings({ post, onBack, children, timezone }: Props) {
+export function PublicationSettings({ post, onBack, children, timezone, ensureApproved }: Props) {
   const timeZone = timezone ?? browserTimeZone();
   const narrow = useMediaQuery('(max-width: 859px)');
   const destinations = useQuery(publishDestinationsQueryOptions());
   const [destinationId, setDestinationId] = useState('');
   const [mode, setMode] = useState<'now' | 'later'>('now');
-  const [destinationPickerOpen, setDestinationPickerOpen] = useState(false);
+  const [lastDestinationId] = useState(readLastDestination);
+  const [approving, setApproving] = useState(false);
+  const [approvedPost, setApprovedPost] = useState<PostDto | null>(null);
+  const [approveFailure, setApproveFailure] = useState<{ title: string; message: string } | null>(null);
   const [scheduledAt, setScheduledAt] = useState<ZonedDateTime>(() => defaultScheduledAt(timeZone));
   const [confirmOpen, setConfirmOpen] = useState(false);
   const options = destinations.data?.items ?? [];
 
-  const selectedDestinationId = destinationId || (options.length === 1 ? (options[0]?.id ?? '') : '');
+  const selectedDestinationId =
+    destinationId ||
+    (options.length === 1
+      ? (options[0]?.id ?? '')
+      : options.some((item) => item.id === lastDestinationId)
+        ? lastDestinationId
+        : '');
+
+  async function publish() {
+    if (approving || !selectedDestinationId) return;
+    let target = approvedPost ?? post;
+    if (target.status !== 'approved') {
+      if (!ensureApproved) return;
+      setApproving(true);
+      setApproveFailure(null);
+      try {
+        const result = await ensureApproved(target);
+        if (!result.ok) {
+          setApproveFailure({ title: result.title, message: result.message });
+          return;
+        }
+        target = result.post;
+        setApprovedPost(result.post);
+      } finally {
+        setApproving(false);
+      }
+    }
+    rememberDestination(selectedDestinationId);
+    setConfirmOpen(true);
+  }
 
   if (destinations.isPending)
     return (
@@ -59,31 +118,29 @@ export function PublicationSettings({ post, onBack, children, timezone }: Props)
     );
   }
 
-  const selected = options.find((item) => item.id === selectedDestinationId);
   const validSchedule = mode === 'now' || scheduledAt.toDate().getTime() > now(timeZone).toDate().getTime();
 
   return (
     <div className={styles.publishGrid}>
       <section className={styles.form} aria-labelledby="publication-settings-title">
-        <h2 id="publication-settings-title">Канал</h2>
-        <Button
-          variant="secondary"
-          size="xl"
-          fullWidth
-          aria-haspopup="dialog"
-          aria-label={selected ? `Канал: ${selected.title}` : 'Выберите канал'}
-          className={styles.destinationCard}
-          onPress={() => setDestinationPickerOpen(true)}
-        >
-          <span className={styles.destinationAvatar} aria-hidden="true">
-            {selected?.title.slice(0, 1).toLocaleUpperCase('ru-RU') ?? <Icon name="send" size={18} />}
-          </span>
-          <span className={styles.destinationCopy}>
-            <strong>{selected?.title ?? 'Выберите канал'}</strong>
-            <span>{selected ? 'Telegram-канал' : 'Канал для публикации'}</span>
-          </span>
-          <Icon name="chevron-right" size={18} />
-        </Button>
+        <h2 id="publication-settings-title">Куда и когда</h2>
+        {approveFailure ? (
+          <Banner tone="error" title={approveFailure.title} onDismiss={() => setApproveFailure(null)}>
+            {approveFailure.message}
+          </Banner>
+        ) : null}
+        <RadioGroup label="Канал" variant="rows" value={selectedDestinationId} onChange={(id) => setDestinationId(id)}>
+          {options.map((item) => (
+            <Radio key={item.id} value={item.id} description={item.chatId}>
+              <span className={styles.destinationOption}>
+                <span className={styles.destinationAvatar} aria-hidden="true">
+                  {item.title.slice(0, 1).toLocaleUpperCase('ru-RU')}
+                </span>
+                <span className={styles.destinationTitle}>{item.title}</span>
+              </span>
+            </Radio>
+          ))}
+        </RadioGroup>
         <RadioGroup
           label="Время публикации"
           variant="rows"
@@ -93,23 +150,18 @@ export function PublicationSettings({ post, onBack, children, timezone }: Props)
           <Radio value="now">{narrow ? 'Сейчас' : WHEN[0].label}</Radio>
           <Radio value="later">{WHEN[1].label}</Radio>
         </RadioGroup>
-        <DateTimeField
-          label="Дата и время"
-          value={mode === 'now' ? now(timeZone) : scheduledAt}
-          onChange={(value) => {
-            if (value) setScheduledAt(value);
-          }}
-          timeZone={timeZone}
-          minValue={now(timeZone)}
-          isRequired={mode === 'later'}
-          isDisabled={mode === 'now'}
-        />
-        <p className={styles.description}>
-          {selected ? `Канал: ${selected.title}. ` : 'Выберите канал. '}
-          {mode === 'now'
-            ? 'Пост уйдёт в очередь сразу после нажатия «Опубликовать».'
-            : `Время: ${formatWithZone(scheduledAt.toDate().toISOString(), timeZone)}.`}
-        </p>
+        {mode === 'later' ? (
+          <DateTimeField
+            label="Дата и время"
+            value={scheduledAt}
+            onChange={(value) => {
+              if (value) setScheduledAt(value);
+            }}
+            timeZone={timeZone}
+            minValue={now(timeZone)}
+            isRequired
+          />
+        ) : null}
       </section>
       <section className={styles.previewColumn} aria-label="Предпросмотр публикации">
         <h2>Предпросмотр публикации</h2>
@@ -123,16 +175,15 @@ export function PublicationSettings({ post, onBack, children, timezone }: Props)
           <Button
             icon={mode === 'now' ? 'send' : 'calendar'}
             isDisabled={!selectedDestinationId || !validSchedule}
-            isLoading={confirmOpen}
-            onPress={() => setConfirmOpen(true)}
+            isLoading={confirmOpen || approving}
+            onPress={() => void publish()}
           >
             {mode === 'now' ? 'Опубликовать' : 'Запланировать'}
           </Button>
-          <p className={styles.publishCaption}>Пост будет опубликован в выбранном канале.</p>
         </div>
       </footer>
       <PublishDialog
-        post={post}
+        post={approvedPost ?? post}
         timezone={timeZone}
         isOpen={confirmOpen}
         onOpenChange={setConfirmOpen}
@@ -140,28 +191,6 @@ export function PublicationSettings({ post, onBack, children, timezone }: Props)
         lockSettings
         direct
       />
-      <Dialog
-        isOpen={destinationPickerOpen}
-        onOpenChange={setDestinationPickerOpen}
-        title="Выберите канал"
-        description="Пост будет опубликован в выбранный канал."
-      >
-        <RadioGroup
-          label="Telegram-канал"
-          variant="rows"
-          value={selectedDestinationId}
-          onChange={(id) => {
-            setDestinationId(id);
-            setDestinationPickerOpen(false);
-          }}
-        >
-          {options.map((item) => (
-            <Radio key={item.id} value={item.id} description={item.chatId}>
-              {item.title}
-            </Radio>
-          ))}
-        </RadioGroup>
-      </Dialog>
     </div>
   );
 }

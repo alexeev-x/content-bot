@@ -220,6 +220,7 @@ export const copy = {
   },
   drawer: {
     titleFallback: 'Публикация',
+    resend: 'Отправить снова',
     pipeline: 'Этапы публикации',
     steps: { scheduled: 'Запланировано', queued: 'Очередь', sending: 'Отправка', result: 'Итог' },
     stepState: { done: 'выполнено', current: 'сейчас', upcoming: 'впереди', skipped: 'пропущено', final: 'итог' },

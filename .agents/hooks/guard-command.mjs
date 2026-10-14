@@ -35,7 +35,8 @@ export const RULES = [
     'Deleting remote branches is an owner action.',
   ],
   [
-    /\b(?:npm(?:\.cmd)?|pnpm(?:\.cmd)?|yarn|bun)\b[^\r\n]*\bpublish\b/i,
+    // The subcommand itself (optionally after flags), not any later word «publish» in a script name or message.
+    /\b(?:npm(?:\.cmd)?|pnpm(?:\.cmd)?|yarn|bun)\s+(?:-\S+\s+)*publish\b/i,
     'Publishing packages is not part of this project.',
   ],
   [

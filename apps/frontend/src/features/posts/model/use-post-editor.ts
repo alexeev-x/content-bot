@@ -4,7 +4,13 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef, useState, type RefObject } from 'react';
 import { useForm, useWatch } from 'react-hook-form';
 import { classifyApiError } from '../../../shared/api/error-kind';
-import { postQueryOptions, useApprovePost, useCreatePost, useUpdatePost } from '../api/posts-queries';
+import {
+  postQueryOptions,
+  useApprovePost,
+  useCreatePost,
+  useReturnPostToDraft,
+  useUpdatePost
+} from '../api/posts-queries';
 import { postsCopy } from '../ui/copy';
 import { messageLength, messageOverflow } from './message-length';
 import { toEditorNotice, type EditorNotice } from './post-errors';
@@ -57,6 +63,7 @@ export function usePostEditor({ post, onCreated, rootRef, dirtyRef, mediaWriteLo
   const create = useCreatePost();
   const update = useUpdatePost();
   const approve = useApprovePost();
+  const returnToDraftMutation = useReturnPostToDraft();
 
   const [baseline, setBaseline] = useState<PostDto | null>(post ?? null);
   const baselineRef = useRef<PostDto | null>(post ?? null);
@@ -303,7 +310,26 @@ export function usePostEditor({ post, onCreated, rootRef, dirtyRef, mediaWriteLo
     }
   }
 
+  /** Reopens an approved post for editing; the server refuses while a publication is active. */
+  async function returnToDraft(): Promise<PostDto | null> {
+    if (!baseline || returnToDraftMutation.isPending) return null;
+    try {
+      const draft = await returnToDraftMutation.mutateAsync({
+        id: baseline.id,
+        input: { revision: baseline.revision }
+      });
+      adopt(draft, null);
+      setConflict(null);
+      return draft;
+    } catch (error) {
+      setNotice(toEditorNotice(error, postsCopy.actions.returnToDraft));
+      return null;
+    }
+  }
+
   return {
+    returnToDraft,
+    isReturning: returnToDraftMutation.isPending,
     form,
     title,
     body,

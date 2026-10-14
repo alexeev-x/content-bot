@@ -7,7 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { clearSession, setSession } from '../../../shared/api/session';
 import { accessToken, destination, errorBody, ids, post, publication, publicationPage } from '../../../test/fixtures';
 import { server, setupMswServer } from '../../../test/msw';
-import { PublishDialog } from '../index';
+import { PublicationSettings, PublishDialog } from '../index';
 import { defaultScheduledAt, publishFormSchema } from '../model/publish-form';
 import { renderInApp } from './harness';
 
@@ -508,3 +508,34 @@ describe('publish intent follow-ups', () => {
 });
 
 const inFuture = () => new Date(Date.now() + 2 * 86_400_000).toISOString();
+
+describe('PublicationSettings with a draft', () => {
+  it('approves the draft on «Опубликовать», then creates the publication once with the approved revision', async () => {
+    const order: string[] = [];
+    const sent = captureCreate(() => {
+      order.push('create');
+      return accepted();
+    });
+    server.use(http.get('*/api/v1/publications', () => HttpResponse.json(publicationPage([]))));
+    const ensureApproved = vi.fn(async () => {
+      order.push('approve');
+      return { ok: true as const, post: approved({ revision: 4 }) };
+    });
+    await renderInApp(
+      <PublicationSettings
+        post={post({ status: 'draft', revision: 3 })}
+        onBack={() => undefined}
+        ensureApproved={ensureApproved}
+      >
+        <div />
+      </PublicationSettings>
+    );
+    const user = userEvent.setup();
+    expect(screen.queryByText('Сначала подготовьте пост')).toBeNull();
+    await user.click(await screen.findByRole('button', { name: 'Опубликовать' }));
+    await waitFor(() => expect(sent).toHaveLength(1));
+    expect(order).toEqual(['approve', 'create']);
+    expect(ensureApproved).toHaveBeenCalledTimes(1);
+    expect(sent[0]?.body.revision).toBe(4);
+  });
+});

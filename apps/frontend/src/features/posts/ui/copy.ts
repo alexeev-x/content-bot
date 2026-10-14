@@ -69,6 +69,7 @@ export const postsCopy = {
     blockedInProgress: 'идёт отправка',
     blockedUnknown: 'нужна сверка результата',
     reconcile: 'Сверить результат',
+    publish: 'Опубликовать',
     returnToDraft: 'Вернуть в черновик',
     returnDraftBlockedPending: 'Вернуть в черновик: есть ожидающая публикация',
     returnDraftBlockedInProgress: 'Вернуть в черновик: идёт отправка',

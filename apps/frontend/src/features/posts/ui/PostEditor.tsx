@@ -6,7 +6,7 @@ import {
   Button,
   ConfirmDialog,
   Icon,
-  Menu,
+  IconButton,
   Tab,
   TabList,
   TabPanel,
@@ -82,13 +82,22 @@ export function PostEditor({ post, onCreated, approvedActions, aside, headerActi
   // An archived post is read-only and its page explains why; the approved notice and the publish action do not apply.
   const isArchived = baseline?.archivedAt != null;
   const hasConflict = conflict !== null;
+  const activeCounts = baseline?.publicationSummary.counts;
+  const canReturnToDraft =
+    activeCounts !== undefined &&
+    activeCounts.unknown +
+      activeCounts.preparing +
+      activeCounts.sending +
+      activeCounts.scheduled +
+      activeCounts.queued +
+      activeCounts.retry_wait ===
+      0;
   const showApprovedPreview = isApproved && !isArchived && !hasConflict;
   const canApprove =
     editor.title.trim().length > 0 &&
     !editor.readOnly &&
     !hasConflict &&
     !editor.isSaving &&
-    !editor.isApproving &&
     !editor.mediaPending &&
     editor.overflow === 0;
 
@@ -120,14 +129,17 @@ export function PostEditor({ post, onCreated, approvedActions, aside, headerActi
     await navigate({ to: '/posts' });
   }
 
-  async function approveAndContinue() {
-    // No «are you sure»: approval sends nothing and the publish screen that follows is the real decision.
-    const approved = await editor.approvePost();
-    // The button is gone after approval: move focus to the announced status.
-    if (approved) {
-      statusRef.current?.focus();
-      void navigate({ to: '/posts/$id/publish', params: { id: approved.id } });
+  async function continueToPublish() {
+    // Approval happens on the publish screen together with the send; here only the text is saved.
+    let id = baseline?.id ?? null;
+    if (editor.dirty || baseline === null) {
+      const saved = await editor.save();
+      if (!saved) return;
+      id = saved.id;
     }
+    if (id === null) return;
+    dirtyRef.current = false;
+    void navigate({ to: '/posts/$id/publish', params: { id } });
   }
 
   async function confirmOverwrite() {
@@ -205,9 +217,9 @@ export function PostEditor({ post, onCreated, approvedActions, aside, headerActi
     <Button
       size="xl"
       icon="arrow-right"
-      isLoading={editor.isApproving || editor.isSaving}
+      isLoading={editor.isSaving}
       isDisabled={!canApprove}
-      onPress={() => void approveAndContinue()}
+      onPress={() => void continueToPublish()}
     >
       К публикации
     </Button>
@@ -233,7 +245,7 @@ export function PostEditor({ post, onCreated, approvedActions, aside, headerActi
         ) : null}
         <div className={styles.titleCopy}>
           <h1 ref={statusRef} tabIndex={-1}>
-            {narrow ? 'Новый пост' : editor.isNew ? 'Новый пост' : editor.title.trim() || copy.untitled}
+            {editor.isNew ? 'Новый пост' : editor.title.trim() || copy.untitled}
           </h1>
           <span className={styles.saveStatus}>
             <span className={styles.statusDot} data-state={editor.saveState} />
@@ -241,11 +253,7 @@ export function PostEditor({ post, onCreated, approvedActions, aside, headerActi
           </span>
         </div>
         {narrow && !showApprovedPreview ? (
-          <Menu
-            label={copy.moreActions}
-            items={[{ id: 'preview', label: copy.tabs.preview, icon: 'eye' }]}
-            onAction={() => setMobilePreviewOpen(true)}
-          />
+          <IconButton label={copy.tabs.preview} icon="eye" onPress={() => setMobilePreviewOpen(true)} />
         ) : null}
         {headerActions ? <span className={styles.headerActions}>{headerActions}</span> : null}
         {!narrow && !showApprovedPreview && !desktopPreviewOpen ? (
@@ -266,7 +274,7 @@ export function PostEditor({ post, onCreated, approvedActions, aside, headerActi
       {conflict ? (
         <ConflictBanner
           conflict={conflict}
-          isBusy={editor.isSaving || editor.isApproving}
+          isBusy={editor.isSaving || editor.isApproving || editor.isReturning}
           onShowServer={() => setCompareOpen(true)}
           onOverwrite={() => setOverwriteOpen(true)}
           onRetry={editor.retryServerVersion}
@@ -288,9 +296,22 @@ export function PostEditor({ post, onCreated, approvedActions, aside, headerActi
           tone="info"
           title={copy.approved.readOnlyTitle}
           action={
-            <Button size="sm" variant="secondary" icon="plus" onPress={() => void navigate({ to: '/posts/new' })}>
-              {copy.approved.newPost}
-            </Button>
+            <div className={styles.bannerActions}>
+              {canReturnToDraft ? (
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  icon="edit"
+                  isLoading={editor.isReturning}
+                  onPress={() => void editor.returnToDraft()}
+                >
+                  {postsCopy.actions.returnToDraft}
+                </Button>
+              ) : null}
+              <Button size="sm" variant="secondary" icon="plus" onPress={() => void navigate({ to: '/posts/new' })}>
+                {copy.approved.newPost}
+              </Button>
+            </div>
           }
         >
           {copy.approved.readOnlyBody}

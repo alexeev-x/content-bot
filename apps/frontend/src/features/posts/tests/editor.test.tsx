@@ -149,7 +149,7 @@ describe('create', () => {
     expect((screen.getByRole('textbox', { name: /Заголовок/ }) as HTMLInputElement).value).toBe(createdTitle);
   });
 
-  it('saves, approves and continues to publication settings in one press', async () => {
+  it('saves and continues to publication settings without approving', async () => {
     const user = userEvent.setup();
     const calls: string[] = [];
     server.use(
@@ -166,7 +166,8 @@ describe('create', () => {
     await user.type(await screen.findByRole('textbox', { name: /Заголовок/ }), 'Новый пост');
     await user.click(screen.getByRole('button', { name: 'К публикации' }));
     await waitFor(() => expect(router.state.location.pathname).toBe(`/posts/${ids.post}/publish`));
-    expect(calls).toEqual(['create', 'approve']);
+    // Approval belongs to the publish screen, together with the send.
+    expect(calls).toEqual(['create']);
   });
 
   it('creates the draft on first save with an Idempotency-Key and replaces the route with /posts/:id', async () => {
@@ -418,11 +419,11 @@ describe('approve', () => {
       ]
     });
     await user.click(screen.getByRole('button', { name: 'К публикации' }));
-    await waitFor(() => expect(approvals).toEqual([{ revision: 0 }]));
     await waitFor(() => expect(router.state.location.pathname).toBe(`/posts/${ids.post}/publish`));
+    expect(approvals).toEqual([]);
   });
 
-  it('approves with the saved revision, hides the editor, and shows the publish action', async () => {
+  it('goes to the publish screen without approving the draft', async () => {
     const user = userEvent.setup();
     const approvals: unknown[] = [];
     server.use(
@@ -435,28 +436,12 @@ describe('approve', () => {
     const app = renderEditorApp(`/posts/${ids.post}`);
     await screen.findByRole('textbox', { name: 'Текст' });
     await user.click(screen.getByRole('button', { name: 'К публикации' }));
-    await waitFor(() => expect(approvals).toEqual([{ revision: 0 }]));
     await waitFor(() => expect(app.router.state.location.pathname).toBe(`/posts/${ids.post}/publish`));
+    expect(approvals).toEqual([]);
     expect(await screen.findByRole('heading', { name: 'Настройки публикации' })).toBeTruthy();
     expect(screen.queryByRole('textbox', { name: 'Заголовок' })).toBeNull();
     expect(screen.queryByRole('textbox', { name: 'Текст' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Выйти' })).toBeNull();
-  });
-
-  it('shows EMPTY_BODY under the body field and keeps the post a draft', async () => {
-    const user = userEvent.setup();
-    server.use(
-      failWith('post', `/api/v1/posts/${ids.post}/approve`, {
-        status: 400,
-        code: 'VALIDATION_ERROR',
-        reason: 'EMPTY_BODY'
-      })
-    );
-    await openExisting({ body: '' });
-    await user.click(screen.getByRole('button', { name: 'К публикации' }));
-    expect(await screen.findByText('Добавьте текст поста: без него одобрить нельзя')).toBeTruthy();
-    expect(bodyBox().getAttribute('aria-invalid')).toBe('true');
-    expect(screen.queryByText('Пост одобрен и закрыт для правок')).toBeNull();
   });
 
   it('opens an already approved post read-only with the explanation and the publish slot', async () => {

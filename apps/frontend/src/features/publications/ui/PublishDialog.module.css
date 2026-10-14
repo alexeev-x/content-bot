@@ -209,3 +209,15 @@
     display: none;
   }
 }
+.destinationOption {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+  max-width: 100%;
+}
+/* Channel names can be one long unbroken word: wrap anywhere instead of pushing the layout sideways. */
+.destinationTitle {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}

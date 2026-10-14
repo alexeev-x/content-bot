@@ -58,6 +58,8 @@ test('guard allows normal work and blocks commits only on protected branches', (
     'npx wrangler types',
     'git push origin develop',
     'git push -u origin feat/agent-system',
+    'npm run shots -- --grep "publish"',
+    'npm test && git commit -m "feat(publish): x"',
     'git status',
     'rm -rf apps/frontend/dist',
     'cat .env.example.md',

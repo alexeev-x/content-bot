@@ -1,3 +1,4 @@
+import { useNavigate } from '@tanstack/react-router';
 import type { PostDto, PostDeleteRefusal, PostRestoreRefusal } from '@alexeev/contracts';
 import { useInfiniteQuery } from '@tanstack/react-query';
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
@@ -173,6 +174,7 @@ export function PostsList({
   };
   const restore = useRestoreActions({ onNotice: setNotice, onShowFailures: showFailures });
   const returnToDraft = useReturnPostToDraft();
+  const navigate = useNavigate();
   const duplicatePost = useDuplicatePost();
 
   const selectedPosts = useMemo(() => loaded.filter((post) => selection.has(post.id)), [loaded, selection]);
@@ -242,6 +244,10 @@ export function PostsList({
     }
     if (action === 'delete') {
       setDeleteTargets([deleteTargetOf(post)]);
+      return;
+    }
+    if (action === 'publish') {
+      void navigate({ to: '/posts/$id/publish', params: { id: post.id } });
       return;
     }
     if (action === 'duplicate') {

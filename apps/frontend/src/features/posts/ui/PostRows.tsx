@@ -23,7 +23,7 @@ import { PostStateBadge } from './PostStateBadge';
 import styles from './PostRows.module.css';
 import { postRowText, shortFormat } from './row-text';
 
-export type RowAction = 'delete' | 'restore' | 'reconcile' | 'return-to-draft' | 'duplicate';
+export type RowAction = 'delete' | 'restore' | 'reconcile' | 'return-to-draft' | 'duplicate' | 'publish';
 
 type Props = {
   mode: 'live' | 'archive';
@@ -108,6 +108,9 @@ function menuFor(post: PostDto, mode: Props['mode'], onAction: Props['onAction']
     icon: 'copy',
     isDisabled: isDuplicating
   });
+  if (mode === 'live' && (post.status === 'approved' || post.status === 'draft')) {
+    items.unshift({ id: 'publish', label: copy.actions.publish, icon: 'send' });
+  }
   if (mode === 'live' && post.status === 'approved') {
     items.unshift({
       id: 'return-to-draft',
@@ -124,7 +127,9 @@ function menuFor(post: PostDto, mode: Props['mode'], onAction: Props['onAction']
         onAction={(id) =>
           onAction(
             post,
-            id === 'restore' || id === 'reconcile' || id === 'return-to-draft' || id === 'duplicate' ? id : 'delete'
+            id === 'restore' || id === 'reconcile' || id === 'return-to-draft' || id === 'duplicate' || id === 'publish'
+              ? id
+              : 'delete'
           )
         }
       />

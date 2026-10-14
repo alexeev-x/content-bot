@@ -381,3 +381,9 @@
     display: none;
   }
 }
+
+.bannerActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}

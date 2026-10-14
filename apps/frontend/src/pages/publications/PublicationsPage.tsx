@@ -32,6 +32,7 @@ import {
 import type { RowSelection } from '../../shared/ui';
 import { periodOptions, PhoneFilters, SearchFilter, type Order } from './PublicationsFilters';
 import { PublishPostDialog } from './PublishPostDialog';
+import { ResendPublicationDialog } from './ResendPublicationDialog';
 import type { PublicationPeriod, PublicationsSearch, PublicationView } from './search';
 import { useDocumentTitle } from '../../app/use-document-title';
 import styles from './PublicationsPage.module.css';
@@ -62,6 +63,7 @@ export function PublicationsPage({ search, onSearchChange, onOpenPosts, pollMs }
   const { list, items, post, postTitle, channel } = usePublicationsData(search, timezone, pollMs);
   const [publishOpen, setPublishOpen] = useState(false);
   const [deleteTargets, setDeleteTargets] = useState<ReturnType<typeof deleteTargetOf>[] | null>(null);
+  const [resendFor, setResendFor] = useState<PublicationDto | null>(null);
   const [query, setQuery] = useState(search.q ?? '');
   useEffect(() => {
     const timer = window.setTimeout(() => setQuery(search.q ?? ''), 0);
@@ -404,10 +406,12 @@ export function PublicationsPage({ search, onSearchChange, onOpenPosts, pollMs }
         destinationTitle={openDestination?.title}
         chatId={openDestination?.chatId}
         pollMs={pollMs}
+        onResend={setResendFor}
         onDelete={(publication) =>
           setDeleteTargets([deleteTargetOf(publication, postTitle(publication) ?? copy.list.unknownPost)])
         }
       />
+      <ResendPublicationDialog publication={resendFor} timezone={timezone} onClose={() => setResendFor(null)} />
       <PublishPostDialog
         timezone={timezone}
         isOpen={publishOpen}

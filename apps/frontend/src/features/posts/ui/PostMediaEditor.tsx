@@ -477,6 +477,22 @@ export function PostMediaEditor({
     };
   }, [cropModel, cropUrl]);
 
+  const selectFilesRef = useRef(selectFiles);
+  useEffect(() => {
+    selectFilesRef.current = selectFiles;
+  });
+  useEffect(() => {
+    // Pasting an image anywhere on the editor page attaches it; plain-text paste is left to the editor.
+    const onPaste = (event: ClipboardEvent) => {
+      const files = Array.from(event.clipboardData?.files ?? []).filter((file) => file.type.startsWith('image/'));
+      if (files.length === 0) return;
+      event.preventDefault();
+      void selectFilesRef.current(files);
+    };
+    document.addEventListener('paste', onPaste);
+    return () => document.removeEventListener('paste', onPaste);
+  }, []);
+
   useEffect(() => {
     const suppressFileNavigation = (event: DragEvent) => {
       if (Array.from(event.dataTransfer?.types ?? []).includes('Files')) event.preventDefault();
@@ -667,14 +683,19 @@ export function PostMediaEditor({
       (file) => fileType(file) !== null && file.size > 0 && file.size <= maxBytes(file)
     );
     const accepted = typeAndSizeOk.slice(0, Math.max(0, POST_MEDIA_MAX_ITEMS - currentCount));
-    if (accepted.length !== chosen.length)
-      setNotice('Можно добавить не более 10 фото, GIF или видео. Поддерживаются только файлы изображений и видео.');
-    if (typeAndSizeOk.length !== chosen.length) {
-      const invalid = chosen
-        .filter((file) => !typeAndSizeOk.includes(file))
-        .map((file) => file.name)
-        .join(', ');
-      setNotice(`Не добавлены: ${invalid}. Допустимы JPG, PNG, WebP (до 10 MB), GIF и MP4 (до 50 MB).`);
+    if (accepted.length !== chosen.length) {
+      // One notice for every kind of refusal; refused files never enter the list.
+      const invalid = chosen.filter((file) => !typeAndSizeOk.includes(file)).map((file) => file.name);
+      setNotice(
+        [
+          invalid.length > 0
+            ? `Не добавлены: ${invalid.join(', ')}. Допустимы JPG, PNG, WebP (до 10 MB), GIF и MP4 (до 50 MB).`
+            : '',
+          typeAndSizeOk.length > accepted.length ? 'В посте может быть не больше 10 файлов.' : ''
+        ]
+          .filter(Boolean)
+          .join(' ')
+      );
     }
     const fresh = accepted.map((file): Entry => ({
       key: crypto.randomUUID(),
@@ -684,32 +705,20 @@ export function PostMediaEditor({
       idempotencyKey: crypto.randomUUID(),
       ...(replaceId ? { replaceId } : {})
     }));
-    const rejected = chosen
-      .filter((file) => !accepted.includes(file))
-      .map((file): Entry => ({
-        key: crypto.randomUUID(),
-        file,
-        previewUrl: URL.createObjectURL(file),
-        status: 'failed',
-        rejected: true,
-        error: !typeAndSizeOk.includes(file)
-          ? `${file.name} — формат или размер не поддерживается.`
-          : 'Достигнут лимит: в посте может быть не больше 10 файлов.'
-      }));
-    if (rejected.length > 0)
-      setNotice('Часть файлов не добавлена. Проверьте отмеченные строки; они не входят в лимит.');
-    for (const entry of [...fresh, ...rejected]) if (entry.previewUrl) previewUrls.current.add(entry.previewUrl);
-    setEntries((current) => [...current, ...fresh, ...rejected]);
-    setSourceOpen(true);
+    for (const entry of fresh) if (entry.previewUrl) previewUrls.current.add(entry.previewUrl);
     if (inputRef.current) inputRef.current.value = '';
-    setSourceTab('device');
+    if (fresh.length === 0) return;
+    setEntries((current) => [...current, ...fresh]);
+    setSourceOpen(false);
+    // Uploading starts at once: choosing a file is the decision, there is no queue step.
+    await uploadSelected(fresh);
   }
 
-  async function uploadSelected() {
+  async function uploadSelected(fresh?: Entry[]) {
     if (busy || disabled) return;
-    const queued = entries.filter(
-      (entry) => !entry.media && entry.file && !entry.rejected && entry.status !== 'uploading'
-    );
+    // `fresh` is passed right after selection, before the state holding it has rendered.
+    const queued =
+      fresh ?? entries.filter((entry) => !entry.media && entry.file && !entry.rejected && entry.status !== 'uploading');
     let activePostId = postId;
     let createdPost: PostDto | null = null;
     if (!activePostId && queued.length > 0) {
@@ -1368,7 +1377,7 @@ export function PostMediaEditor({
                 <Icon name="image-plus" size={28} />
               </span>
               <strong>Добавьте фото или видео</strong>
-              <span>Поделитесь яркими моментами вашего путешествия</span>
+              <span>Перетащите файлы сюда или вставьте из буфера</span>
               <Button
                 variant="primary"
                 size="sm"

@@ -1,6 +1,6 @@
 export type { PostsSort, PostsView } from './ui/PostsList';
 export type { ApprovePostBody, CreatePostBody, PostFilters, UpdatePostBody } from './api/posts-api';
-export { postQueryOptions, postsInfiniteQueryOptions } from './api/posts-queries';
+export { postQueryOptions, postsInfiniteQueryOptions, useApprovePost } from './api/posts-queries';
 export { PostEditor } from './ui/PostEditor';
 export { PostPreview } from './ui/PostPreview';
 export { messageLength } from './model/message-length';

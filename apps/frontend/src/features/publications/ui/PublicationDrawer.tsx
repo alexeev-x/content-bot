@@ -48,6 +48,8 @@ type Props = {
   pollMs?: number | undefined;
   timezone?: string | undefined;
   onDelete?: (publication: PublicationDto) => void;
+  /** «Отправить снова» for a failed publication: a new publish attempt, never a retry of the old request. */
+  onResend?: (publication: PublicationDto) => void;
 };
 
 // Sent, failed and cancelled publications have nothing to do from here, so they get no empty footer bar.
@@ -77,6 +79,7 @@ export function PublicationDrawer({
   destinationTitle,
   chatId,
   onDelete,
+  onResend,
   pollMs = PUBLICATION_POLL_MS,
   timezone
 }: Props) {
@@ -108,6 +111,7 @@ export function PublicationDrawer({
               isFresh={!query.isPlaceholderData}
               onOpenDialog={setDialog}
               onDelete={onDelete}
+              onResend={onResend}
             />
           ) : undefined
         }
@@ -341,14 +345,20 @@ type ActionsProps = {
   isFresh: boolean;
   onOpenDialog: (dialog: Exclude<OpenDialog, null>) => void;
   onDelete?: (publication: PublicationDto) => void;
+  onResend?: ((publication: PublicationDto) => void) | undefined;
 };
 
-function DrawerActions({ publication, isFresh, onOpenDialog, onDelete }: ActionsProps) {
+function DrawerActions({ publication, isFresh, onOpenDialog, onDelete, onResend }: ActionsProps) {
   const actions = publicationActions(publication.status);
 
   if (publication.status === 'sent' || publication.status === 'failed' || publication.status === 'cancelled') {
     return (
       <div className={styles.actions}>
+        {publication.status === 'failed' && onResend ? (
+          <Button variant="secondary" icon="retry" isDisabled={!isFresh} onPress={() => onResend(publication)}>
+            {copy.drawer.resend}
+          </Button>
+        ) : null}
         <Button
           variant="danger"
           icon="trash"

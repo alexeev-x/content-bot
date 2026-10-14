@@ -21,4 +21,4 @@ export type { DeletePublicationTarget, DeletePublicationsOutcome } from './ui/De
 export { PublicationsSkeleton } from './ui/PublicationsSkeleton';
 export { PublicationTable, type PublicationChannel, type PublicationOrder } from './ui/PublicationTable';
 export { PublishDialog } from './ui/PublishDialog';
-export { PublicationSettings } from './ui/PublicationSettings';
+export { PublicationSettings, type EnsureApproved } from './ui/PublicationSettings';

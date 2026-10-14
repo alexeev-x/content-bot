@@ -7,6 +7,7 @@ const PAGES = [
   '/',
   '/posts',
   '/posts/new',
+  '/posts/11111111-1111-4111-8111-111111111111/publish',
   '/publications',
   '/media',
   '/sources',
@@ -23,7 +24,13 @@ const WIDTHS = [
 for (const path of PAGES) {
   test(path, async ({ page }) => {
     await mockApi(page);
-    const name = path === '/' ? 'home' : path.slice(1).replaceAll('/', '-');
+    const name =
+      path === '/'
+        ? 'home'
+        : path
+            .slice(1)
+            .replaceAll('/', '-')
+            .replace(/[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}/, 'id');
     for (const viewport of WIDTHS) {
       await page.setViewportSize(viewport);
       // The mock appearance follows the system scheme, so the emulated scheme picks the theme.
