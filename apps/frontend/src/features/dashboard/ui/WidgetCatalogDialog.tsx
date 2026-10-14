@@ -13,7 +13,6 @@ type Props = {
 const ICONS: Record<WidgetKind, IconName> = {
   today: 'clock',
   upcoming: 'calendar',
-  attention: 'alert',
   week: 'grid',
   drafts: 'edit',
   recent: 'send',

@@ -5,7 +5,6 @@ import { useMediaQuery, VisuallyHidden } from '../../../shared/ui';
 import { PHONE_QUERY } from '../model/phone';
 import { mediumSpan, type LayoutItem } from '../model/widget-catalog';
 import { ActivityFeed } from './ActivityFeed';
-import { AttentionCard } from './AttentionCard';
 import { Channels } from './Channels';
 import { copy } from './copy';
 import styles from './Dashboard.module.css';
@@ -61,15 +60,6 @@ export function renderWidget(item: LayoutItem, env: Omit<WidgetEnv, 'phone'>, ph
           timezone={timezone}
           onOpenPublication={env.onOpenPublication}
           onNewPost={env.onNewPost}
-        />
-      );
-    case 'attention':
-      return (
-        <AttentionCard
-          rows={view?.rows}
-          total={view?.attentionCount ?? 0}
-          checking={view?.checking ?? false}
-          onOpenPublication={env.onOpenPublication}
         />
       );
     case 'week':

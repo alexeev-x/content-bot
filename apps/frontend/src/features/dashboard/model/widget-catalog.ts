@@ -4,7 +4,6 @@ import { DASHBOARD_GRID_COLUMNS, type DashboardWidget, type DashboardWidgetType 
 export type WidgetKind =
   | 'today'
   | 'upcoming'
-  | 'attention'
   | 'week'
   | 'drafts'
   | 'recent'
@@ -47,12 +46,6 @@ export const CATALOG: Record<WidgetKind, CatalogEntry> = {
     description: 'Ближайшая запланированная отправка.',
     widths: [4, 6],
     defaultWidth: 4
-  },
-  attention: {
-    title: 'Требует внимания',
-    description: 'Ошибки, неподтверждённые отправки и сбои системы.',
-    widths: [6, 12],
-    defaultWidth: 12
   },
   week: {
     title: 'Неделя',
@@ -142,7 +135,6 @@ const isKind = (type: DashboardWidgetType): type is WidgetKind => Object.hasOwn(
 export const DEFAULT_LAYOUT: readonly LayoutItem[] = [
   { id: 'today', kind: 'today', w: 8 },
   { id: 'upcoming', kind: 'upcoming', w: 4 },
-  { id: 'attention', kind: 'attention', w: 12 },
   { id: 'week', kind: 'week', w: 4 },
   { id: 'drafts', kind: 'drafts', w: 4 },
   { id: 'recent', kind: 'recent', w: 4 },

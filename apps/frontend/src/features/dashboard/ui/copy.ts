@@ -136,25 +136,6 @@ export const copy = {
     now: 'вот-вот',
     open: (title: string) => `Открыть публикацию «${title}»`
   },
-  attention: {
-    title: 'Требует внимания',
-    clear: 'Всё в порядке',
-    clearDetail: 'Публикации идут по плану, система работает.',
-    checking: 'Проверяем систему…',
-    all: 'Все ошибки',
-    check: 'Проверить',
-    open: 'Открыть',
-    unknownTag: 'Требует проверки',
-    unknownReason: 'Telegram не ответил. Сообщение могло уйти.',
-    failedTag: 'Ошибка публикации',
-    failedReason: 'Публикация не ушла.',
-    stuckTag: 'Просрочено',
-    stuckReason: 'Время прошло, а отправка не началась.',
-    systemTag: 'Система',
-    checkLabel: (title: string) => `Проверить: «${title}»`,
-    openLabel: (title: string) => `Открыть: «${title}»`,
-    count: (n: number) => pluralRu(n, 'пункт требует', 'пункта требуют', 'пунктов требуют') + ' внимания'
-  },
   week: {
     title: 'Неделя',
     scheduled: 'Запланировано',

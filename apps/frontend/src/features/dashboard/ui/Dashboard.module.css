@@ -174,9 +174,3 @@
     display: inline-flex;
   }
 }
-
-/* «Требует внимания»: a coloured side stripe in the status hue; calm green when there is nothing to do. */
-.widget[data-widget='attention'] {
-  border-inline-start: 4px solid var(--tone-ring);
-  background: linear-gradient(var(--tone-bg), var(--tone-bg)), var(--color-surface-1);
-}

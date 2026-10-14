@@ -17,7 +17,6 @@ import styles from './Dashboard.module.css';
 import { DashboardLayout } from './DashboardLayout';
 import type { LayoutEditing } from './LayoutActions';
 import { LayoutEditor } from './LayoutEditor';
-import { WidgetLab } from './WidgetLab';
 import type { WidgetEnv } from './widget-env';
 
 export type PageBindings = {
@@ -44,8 +43,6 @@ export type PageBindings = {
   renderMediaPreview?: ((media: { id: string; fileName: string }) => ReactNode) | undefined;
   /** The owner's layout and its edit mode (`useLayoutEditing`). */
   layout: LayoutEditing;
-  /** DEV design trial: every candidate look of the widgets instead of the owner's layout. */
-  lab?: boolean;
 };
 
 /** The fixed Обзор: the day summary is read once for all the widgets that need it. */
@@ -65,8 +62,7 @@ export function Dashboard({
   onOpenPost,
   onOpenMedia,
   renderMediaPreview,
-  layout,
-  lab = false
+  layout
 }: PageBindings) {
   const today = useTodayRange(timezone);
   const week = useWeekQuery(timezone, today.from);
@@ -186,11 +182,7 @@ export function Dashboard({
   };
   return (
     <>
-      {lab ? (
-        <WidgetLab env={env} />
-      ) : (
-        <DashboardLayout loading={query.isPending} banner={banner} zoneNote={zoneNote} items={layout.items} env={env} />
-      )}
+      <DashboardLayout loading={query.isPending} banner={banner} zoneNote={zoneNote} items={layout.items} env={env} />
       <ActivityDialog
         items={activity}
         onClose={() => setActivity(null)}
