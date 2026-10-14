@@ -1,4 +1,5 @@
 import {
+  publicationHistorySchema,
   publicationPageSchema,
   publicationSchema,
   bulkDeletePublicationsInputSchema,
@@ -51,6 +52,11 @@ export function listPublications(
 
 export function getPublication(id: string, signal?: AbortSignal) {
   return apiRequest(`/api/v1/publications/${encodeURIComponent(id)}`, publicationSchema, { signal });
+}
+
+/** Owner actions and send attempts, oldest first. */
+export function getPublicationHistory(id: string, signal?: AbortSignal) {
+  return apiRequest(`/api/v1/publications/${encodeURIComponent(id)}/history`, publicationHistorySchema, { signal });
 }
 
 /** 202 means accepted for scheduling, not sent: callers show the returned status. */

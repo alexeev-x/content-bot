@@ -240,3 +240,44 @@ export const publicationPageSchema = pageSchema(publicationSchema).extend({
   statusCounts: publicationStatusCountsSchema
 });
 export type PublicationPageDto = z.infer<typeof publicationPageSchema>;
+
+// GET /api/v1/publications/{id}/history → 200 PublicationHistoryDto; 404 NOT_FOUND for an unknown id.
+// Oldest first, at most PUBLICATION_HISTORY_LIMIT events: owner actions from the audit log and the send attempts.
+// `scheduledAt` is the plan the event set (absent on events recorded before it was stored).
+export const PUBLICATION_HISTORY_LIMIT = 100;
+
+export const publicationAttemptOutcomeSchema = z.enum([
+  'sent',
+  'rate_limited',
+  'rejected',
+  'unknown',
+  'skipped',
+  'lease_expired'
+]);
+export type PublicationAttemptOutcome = z.infer<typeof publicationAttemptOutcomeSchema>;
+
+export const publicationHistoryEventSchema = z.discriminatedUnion('kind', [
+  z.object({ kind: z.literal('created'), at: z.iso.datetime(), scheduledAt: z.iso.datetime().optional() }),
+  z.object({ kind: z.literal('rescheduled'), at: z.iso.datetime(), scheduledAt: z.iso.datetime().optional() }),
+  z.object({ kind: z.literal('cancelled'), at: z.iso.datetime() }),
+  z.object({
+    kind: z.literal('resolved'),
+    at: z.iso.datetime(),
+    outcome: z.enum(['sent', 'resend', 'cancel']),
+    scheduledAt: z.iso.datetime().optional()
+  }),
+  z.object({
+    kind: z.literal('attempt'),
+    at: z.iso.datetime(),
+    attempt: z.number().int().min(1),
+    outcome: publicationAttemptOutcomeSchema,
+    errorCode: z.string().min(1).max(64).nullable(),
+    retryAfterSeconds: z.number().int().nonnegative().nullable()
+  })
+]);
+export type PublicationHistoryEvent = z.infer<typeof publicationHistoryEventSchema>;
+
+export const publicationHistorySchema = z.object({
+  items: z.array(publicationHistoryEventSchema).max(PUBLICATION_HISTORY_LIMIT)
+});
+export type PublicationHistoryDto = z.infer<typeof publicationHistorySchema>;

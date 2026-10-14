@@ -6,6 +6,7 @@ import type {
   PostPublicationSummary,
   PublicationChangeOutcome,
   PublicationDeleteOutcome,
+  PublicationHistoryRows,
   PublicationRecord,
   PublicationRepository,
   RangeSummary,
@@ -589,7 +590,8 @@ export function createD1PublicationRepository(db: D1Database): PublicationReposi
             JSON.stringify({
               postId: input.postId,
               postRevision: input.postRevision,
-              destinationId: input.destinationId
+              destinationId: input.destinationId,
+              scheduledAt: input.scheduledAt
             })
           ),
         completeIdempotencyStatement(db, input.idempotency, input.response, input.now, {
@@ -603,6 +605,32 @@ export function createD1PublicationRepository(db: D1Database): PublicationReposi
     async findById(id) {
       const row = await selectOne(id).first<PublicationRow>();
       return row === null ? null : ((await withPostSnapshots(db, [toRecord(row)]))[0] ?? null);
+    },
+
+    async history(id, limit) {
+      const [exists, audit, attempts] = await db.batch([
+        db.prepare('SELECT 1 AS found FROM publications WHERE id = ?1').bind(id),
+        db
+          .prepare(
+            `SELECT created_at AS at, action, details FROM audit_log
+             WHERE entity_id = ?1 AND entity_type = 'publication'
+               AND action IN ('publication.create', 'publication.reschedule', 'publication.cancel', 'publication.resolve_unknown')
+             ORDER BY created_at, id LIMIT ?2`
+          )
+          .bind(id, limit),
+        db
+          .prepare(
+            `SELECT a.attempt, a.finished_at AS finishedAt, a.outcome, a.error_code AS errorCode, a.retry_after AS retryAfter
+             FROM job_attempts a JOIN jobs j ON j.id = a.job_id
+             WHERE j.publication_id = ?1 AND j.kind = 'publish' ORDER BY a.attempt LIMIT ?2`
+          )
+          .bind(id, limit)
+      ]);
+      if ((exists?.results.length ?? 0) === 0) return null;
+      return {
+        audit: (audit?.results ?? []) as PublicationHistoryRows['audit'],
+        attempts: (attempts?.results ?? []) as PublicationHistoryRows['attempts']
+      };
     },
 
     async list(query) {
@@ -673,7 +701,8 @@ export function createD1PublicationRepository(db: D1Database): PublicationReposi
                AND EXISTS (SELECT 1 FROM publications WHERE id = ?1 AND revision = ?2)`
           )
           .bind(change.id, change.expectedRevision, change.scheduledAt, change.now),
-        publicationSet: { sql: 'scheduled_at = ?4, timezone = ?5,', bindings: [change.scheduledAt, change.timezone] }
+        publicationSet: { sql: 'scheduled_at = ?4, timezone = ?5,', bindings: [change.scheduledAt, change.timezone] },
+        auditDetails: { scheduledAt: change.scheduledAt }
       });
     },
 

@@ -16,6 +16,7 @@ import {
   deletePublication,
   deletePublications,
   getPublication,
+  getPublicationHistory,
   listPublications,
   reschedulePublication,
   resolveUnknownPublication,
@@ -74,6 +75,18 @@ export function publicationsPageQueryOptions(
 }
 
 /** Detail; pass `pollMs` to keep an open drawer fresh while the publication is not final. */
+/**
+ * The history changes only when the publication does: `updatedAt` in the key refetches it after a reschedule,
+ * a cancel or a send, without polling of its own.
+ */
+export function publicationHistoryQueryOptions(id: string, updatedAt: string) {
+  return queryOptions({
+    queryKey: [...publicationKeys.detail(id), 'history', updatedAt] as const,
+    queryFn: ({ signal }) => getPublicationHistory(id, signal),
+    staleTime: STALE_TIME
+  });
+}
+
 export function publicationQueryOptions(id: string, pollMs?: number) {
   return queryOptions({
     queryKey: publicationKeys.detail(id),

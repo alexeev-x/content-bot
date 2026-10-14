@@ -15,6 +15,7 @@ import {
   deletePublication,
   deletePublications,
   getPublication,
+  getPublicationHistory,
   listPublications,
   reschedulePublication,
   resolveUnknownPublication
@@ -104,6 +105,11 @@ export const publicationsRoutes = new Hono<AppBindings>()
     const container = c.get('container');
     const id = publicationId(c.req.valid('param').id);
     return c.json(await getPublication({ repo: container.publications, now: container.clock.now() }, id));
+  })
+  .get('/:id/history', validated('param', idParamSchema), async (c) => {
+    const container = c.get('container');
+    const id = publicationId(c.req.valid('param').id);
+    return c.json(await getPublicationHistory({ repo: container.publications }, id));
   })
   .post(
     '/:id/delete',

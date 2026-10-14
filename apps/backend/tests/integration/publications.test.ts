@@ -1,4 +1,9 @@
-import { type PublicationDto, publicationPageSchema, publicationSchema } from '@alexeev/contracts';
+import {
+  type PublicationDto,
+  publicationHistorySchema,
+  publicationPageSchema,
+  publicationSchema
+} from '@alexeev/contracts';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { sha256Hex } from '../../src/platform/security/sha256';
 import { testDb } from '../helpers/db';
@@ -121,7 +126,7 @@ describe('POST /api/v1/publications', () => {
       entity_type: 'publication',
       entity_id: publication.id
     });
-    expect(JSON.parse(audit.results[0]?.details ?? '')).toEqual({ postId, postRevision, destinationId });
+    expect(JSON.parse(audit.results[0]?.details ?? '')).toEqual({ postId, postRevision, destinationId, scheduledAt });
   });
 
   it('answers queued when the time is already due', async () => {
@@ -586,6 +591,40 @@ const JOB_STATES: [string, Parameters<typeof setJob>[1], boolean][] = [
   ['cancelled', { status: 'cancelled' }, false]
 ];
 
+describe('GET /api/v1/publications/{id}/history', () => {
+  it('lists creation, every reschedule with its new time and the cancel, oldest first', async () => {
+    const created = await scheduleOk({ scheduledAt: iso(START + DAY) });
+    api.clock.advance(MINUTE);
+    expect(
+      (await reschedule(created.id, { revision: 0, scheduledAt: iso(START + 2 * DAY), timezone: 'UTC' })).status
+    ).toBe(200);
+    api.clock.advance(MINUTE);
+    expect(
+      (await reschedule(created.id, { revision: 1, scheduledAt: iso(START + 3 * DAY), timezone: 'UTC' })).status
+    ).toBe(200);
+    api.clock.advance(MINUTE);
+    expect((await cancel(created.id, { revision: 2 })).status).toBe(200);
+
+    const response = await api.request(`/api/v1/publications/${created.id}/history`);
+    expect(response.status).toBe(200);
+    const { items } = publicationHistorySchema.parse(await response.json());
+    expect(items).toEqual([
+      { kind: 'created', at: iso(START), scheduledAt: iso(START + DAY) },
+      { kind: 'rescheduled', at: iso(START + MINUTE), scheduledAt: iso(START + 2 * DAY) },
+      { kind: 'rescheduled', at: iso(START + 2 * MINUTE), scheduledAt: iso(START + 3 * DAY) },
+      { kind: 'cancelled', at: iso(START + 3 * MINUTE) }
+    ]);
+  });
+
+  it('answers 404 for an unknown publication', async () => {
+    await expectError(
+      await api.request('/api/v1/publications/00000000-0000-4000-8000-000000000000/history'),
+      404,
+      'NOT_FOUND'
+    );
+  });
+});
+
 describe('POST /api/v1/publications/{id}/cancel', () => {
   it('cancels a scheduled publication, bumps the revision and writes an audit row', async () => {
     const created = await scheduleOk();
@@ -766,7 +805,9 @@ describe('POST /api/v1/publications/{id}/reschedule', () => {
     const audit = await testDb()
       .prepare("SELECT details FROM audit_log WHERE action = 'publication.reschedule'")
       .all<{ details: string }>();
-    expect(audit.results.map((row) => JSON.parse(row.details))).toEqual([{ revision: 1 }]);
+    expect(audit.results.map((row) => JSON.parse(row.details))).toEqual([
+      { revision: 1, scheduledAt: START + 3 * DAY }
+    ]);
   });
 
   it('turns a publication waiting for a retry into a scheduled one and keeps the attempt count', async () => {

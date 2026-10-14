@@ -19,11 +19,15 @@ import {
   Timeline,
   VisuallyHidden
 } from '../../../shared/ui';
-import { PUBLICATION_POLL_MS, publicationQueryOptions } from '../api/publications-queries';
+import {
+  PUBLICATION_POLL_MS,
+  publicationHistoryQueryOptions,
+  publicationQueryOptions
+} from '../api/publications-queries';
 import { browserTimeZone, formatLong } from '../model/format-time';
 import { publicationActions } from '../model/publication-actions';
 import { explainErrorCode } from '../model/publication-errors';
-import { buildTimeline } from '../model/publication-timeline';
+import { buildHistoryTimeline, buildTimeline } from '../model/publication-timeline';
 import { channelLink, displayStatus, messageLink } from '../model/publication-view';
 import { CancelPublicationDialog } from './CancelPublicationDialog';
 import { copy } from './copy';
@@ -206,11 +210,14 @@ function PublicationBody({ publication, postTitle, postBody, destinationTitle, c
   // A message link and number exist only for a publication the server confirmed as sent with an id.
   const confirmedId = shown === 'sent' ? publication.externalMessageId : undefined;
   const href = confirmedId && chatId ? messageLink(chatId, confirmedId) : undefined;
-  const timeline = buildTimeline(publication, zone);
+  const history = useQuery(publicationHistoryQueryOptions(publication.id, publication.updatedAt));
+  const timeline = history.data
+    ? buildHistoryTimeline(history.data, publication, zone)
+    : buildTimeline(publication, zone);
   const log = (
-    <div className={styles.tabContent}>
+    <div className={styles.tabContent} aria-busy={history.isPending || undefined}>
       <Timeline aria-label={copy.drawer.attempts} items={timeline} />
-      <p className={styles.note}>{copy.drawer.attemptsNote}</p>
+      {history.isError ? <p className={styles.note}>{copy.drawer.historyError}</p> : null}
     </div>
   );
 

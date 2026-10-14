@@ -31,6 +31,7 @@ export { createDestination } from './application/create-destination';
 export { createPublication } from './application/create-publication';
 export { getDestination, getScheduledPublicationCount, listDestinations } from './application/read-destinations';
 export { getPublication, listPublications } from './application/read-publications';
+export { getPublicationHistory } from './application/read-publication-history';
 export { readDashboard } from './application/read-dashboard';
 export { readPublicationAnalytics } from './application/read-publication-analytics';
 export { createManualObservation } from './application/create-manual-observation';

@@ -399,6 +399,18 @@ export interface RangeSummary {
   nextWaitingAt: number | null;
 }
 
+export interface PublicationHistoryRows {
+  /** `publication.create|reschedule|cancel|resolve_unknown` rows; `details` is the stored JSON metadata. */
+  audit: { at: number; action: string; details: string | null }[];
+  attempts: {
+    attempt: number;
+    finishedAt: number;
+    outcome: string;
+    errorCode: string | null;
+    retryAfter: number | null;
+  }[];
+}
+
 export interface PublicationRepository {
   /**
    * Writes publication, job, audit row and the idempotency result in one batch, guarded by the
@@ -407,6 +419,8 @@ export interface PublicationRepository {
    */
   create(input: NewPublication): Promise<boolean>;
   findById(id: string): Promise<PublicationRecord | null>;
+  /** Owner actions and send attempts of one publication, oldest first; null when it does not exist. */
+  history(id: string, limit: number): Promise<PublicationHistoryRows | null>;
   list(query: ListPublicationsQuery): Promise<PublicationRecord[]>;
   listPage(query: ListPublicationsQuery): Promise<{
     items: PublicationRecord[];
