@@ -7,7 +7,7 @@ export const postsCopy = {
     searchLabel: 'Поиск по постам',
     tabs: { label: 'Раздел постов', all: 'Все', drafts: 'Черновики', archive: 'Архив' },
     tableLabel: 'Список постов',
-    columns: { title: 'Пост', status: 'Статус', updated: 'Изменён', actions: 'Действия' },
+    columns: { title: 'Пост', status: 'Статус', updated: 'Изменён', actions: 'Меню' },
     state: {
       draft: 'Черновик',
       approved: 'Одобрен',

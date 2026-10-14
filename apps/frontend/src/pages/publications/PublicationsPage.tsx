@@ -95,7 +95,15 @@ export function PublicationsPage({ search, onSearchChange, onOpenPosts, pollMs }
   const { mode: selectMode, selected } = selection;
   const defaultOrder: Order = search.view === 'upcoming' ? 'asc' : 'desc';
   const order = search.order ?? defaultOrder;
-  const counts = list.data?.statusCounts;
+  // Tab counters don't depend on the selected tab: keep the last known ones while another tab loads, and drop
+  // them only when a filter that changes them (period, dates, post, search) changes. No blink on tab switch.
+  const countsScope = `${search.post ?? ''}\u0000${search.q ?? ''}\u0000${search.period ?? ''}\u0000${search.from ?? ''}\u0000${search.to ?? ''}`;
+  const freshCounts = list.data?.statusCounts;
+  const [keptCounts, setKeptCounts] = useState<{ scope: string; counts: typeof freshCounts } | null>(null);
+  if (freshCounts && (keptCounts?.counts !== freshCounts || keptCounts.scope !== countsScope)) {
+    setKeptCounts({ scope: countsScope, counts: freshCounts });
+  }
+  const counts = freshCounts ?? (keptCounts?.scope === countsScope ? keptCounts.counts : undefined);
   const tabCount = (kind: PublicationView) => {
     if (!counts) return null;
     if (kind === 'upcoming') return counts.scheduled + counts.queued + counts.preparing + counts.retry_wait;

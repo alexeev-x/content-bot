@@ -47,6 +47,12 @@
   display: inline-flex;
   align-items: center;
   gap: var(--space-1);
+  /* A header never pushes past its fixed-width column (a 5 px overflow used to add a horizontal scrollbar). */
+  max-width: 100%;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 .sortActive {
   flex: none;
