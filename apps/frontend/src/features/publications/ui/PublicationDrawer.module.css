@@ -75,10 +75,6 @@
   margin: 0;
   overflow-wrap: anywhere;
 }
-.code {
-  font-family: var(--font-mono);
-  font-size: var(--font-size-xs);
-}
 @media (max-width: 859px) {
   .actions > :is(button, span) {
     flex: 1 1 auto;

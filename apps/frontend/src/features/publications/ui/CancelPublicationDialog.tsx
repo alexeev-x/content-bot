@@ -1,14 +1,13 @@
 import type { PublicationDto } from '@alexeev/contracts';
 import { useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
-import { Button, Dialog, Disclosure, useToast } from '../../../shared/ui';
+import { Button, Dialog, useToast } from '../../../shared/ui';
 import { publicationKeys, useCancelPublication } from '../api/publications-queries';
 import { browserTimeZone, formatShort } from '../model/format-time';
 import { publicationActions } from '../model/publication-actions';
 import { describeActionError, isTerminalForAction, type ActionError } from '../model/publication-errors';
 import { ActionErrorBanner } from './ActionErrorBanner';
 import { copy } from './copy';
-import styles from './CancelPublicationDialog.module.css';
 
 type Props = {
   publication: PublicationDto;
@@ -74,12 +73,6 @@ export function CancelPublicationDialog({ publication, postTitle, destinationTit
       }
     >
       {shownFailure ? <ActionErrorBanner error={shownFailure} /> : null}
-      <Disclosure id="cancel-details" title={copy.cancelDialog.details}>
-        <dl className={styles.facts}>
-          <dt>{copy.drawer.publicationId}</dt>
-          <dd className="mono">{publication.id}</dd>
-        </dl>
-      </Disclosure>
     </Dialog>
   );
 }

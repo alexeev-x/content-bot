@@ -7,7 +7,6 @@ import { classifyApiError } from '../../../shared/api/error-kind';
 import {
   Banner,
   Button,
-  Disclosure,
   Drawer,
   ErrorState,
   Skeleton,
@@ -275,19 +274,6 @@ function PublicationBody({ publication, postTitle, postBody, destinationTitle, c
           {log}
         </section>
       )}
-
-      <Disclosure id="tech" title={copy.drawer.techTitle}>
-        <dl className={styles.facts}>
-          <Fact term={copy.drawer.publicationId}>
-            <code className={styles.code}>{publication.id}</code>
-          </Fact>
-          {publication.lastErrorCode ? (
-            <Fact term={copy.drawer.errorCode}>
-              <code className={styles.code}>{publication.lastErrorCode}</code>
-            </Fact>
-          ) : null}
-        </dl>
-      </Disclosure>
     </div>
   );
 }

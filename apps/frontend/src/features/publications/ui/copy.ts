@@ -228,7 +228,6 @@ export const copy = {
     time: 'Время',
     sectionLabel: 'Раздел публикации',
     textTab: 'Текст',
-    techTitle: 'Технические данные',
     post: 'Пост',
     openPost: 'Открыть пост',
     postDeleted: 'Пост удалён',
@@ -237,9 +236,7 @@ export const copy = {
     message: 'Сообщение',
     messageNone: 'Идентификатор сообщения не получен',
     openInTelegram: 'Открыть в Telegram',
-    publicationId: 'Идентификатор',
     attempts: 'Хронология',
-    errorCode: 'Код причины',
     historyError: 'Полную историю загрузить не удалось: показаны ключевые моменты.',
     lastError: 'Причина',
     loadError: 'Не удалось загрузить публикацию',
@@ -362,7 +359,6 @@ export const copy = {
   },
   cancelDialog: {
     title: (post: string, channel: string, when: string) => `Отменить публикацию «${post}» в «${channel}» на ${when}?`,
-    details: 'Подробности',
     description:
       'Сообщение не будет отправлено. Это действие нельзя отменить: чтобы опубликовать пост снова, создайте новую публикацию.',
     confirm: 'Отменить публикацию',
