@@ -237,6 +237,9 @@
   font-size: var(--font-size-sm);
 }
 .footerPrimary {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-3);
   min-width: 14.5rem;
 }
 .phoneStack {
