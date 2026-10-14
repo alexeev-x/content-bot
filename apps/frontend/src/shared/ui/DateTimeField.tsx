@@ -1,11 +1,11 @@
 import {
   DateFormatter,
+  CalendarDateTime,
   getLocalTimeZone,
   now,
   Time as TimeValue,
-  toZoned,
-  type Time,
-  type ZonedDateTime
+  ZonedDateTime,
+  type Time
 } from '@internationalized/date';
 import {
   Button,
@@ -26,13 +26,14 @@ import {
   Text,
   TimeField as AriaTimeField
 } from 'react-aria-components';
-import { useContext, useState } from 'react';
+import { useContext, useId, useState } from 'react';
 import { nextQuarterHour } from '../lib/next-quarter-hour';
 import { ru } from '../lib/ru';
 import { DateTimePickerTimePanel } from './DateTimePickerTimePanel';
 import { Icon, type IconName } from './Icon';
 import styles from './Field.module.css';
 import dateStyles from './DateTimeField.module.css';
+import { localDateTime, resolveLocalTime } from './date-time-resolution';
 
 const LOCALE = 'ru-RU';
 const MONTH_NAME = new DateFormatter(LOCALE, { month: 'long', timeZone: 'UTC' });
@@ -49,27 +50,13 @@ function utcText(value: ZonedDateTime): string {
   return `${value.toDate().toISOString().slice(0, 16).replace('T', ' ')} UTC`;
 }
 
-function PickerGroup({
-  label,
-  value,
-  zone,
-  offset
-}: {
-  label: string;
-  value: ZonedDateTime | null;
-  zone: string;
-  offset: string;
-}) {
+function PickerGroup({ label, value, offset }: { label: string; value: CalendarDateTime | null; offset: string }) {
   const date = value
-    ? new DateFormatter(LOCALE, { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: zone }).format(
-        value.toDate()
+    ? new DateFormatter(LOCALE, { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'UTC' }).format(
+        value.toDate('UTC')
       )
     : null;
-  const time = value
-    ? new DateFormatter(LOCALE, { hour: '2-digit', minute: '2-digit', hourCycle: 'h23', timeZone: zone }).format(
-        value.toDate()
-      )
-    : null;
+  const time = value ? `${String(value.hour).padStart(2, '0')}:${String(value.minute).padStart(2, '0')}` : null;
   const formatted = date && time ? `${date} · ${time}` : ru.ui.selectDateTime;
   return (
     <Group className={`${styles.input} ${dateStyles.group}`}>
@@ -144,32 +131,58 @@ export function DateTimeField({
 }: Props) {
   const zone = timeZone || getLocalTimeZone();
   const [isOpen, setIsOpen] = useState(false);
-  const [draft, setDraft] = useState<ZonedDateTime | null>(null);
-  const shown = isOpen ? draft : value;
-  const offset = offsetLabel((shown ?? now(zone)).offset);
+  const dstRadioName = useId();
+  const [draft, setDraft] = useState<CalendarDateTime | null>(null);
+  const [foldChoice, setFoldChoice] = useState<'first' | 'second' | null>(null);
+  const shown = isOpen ? draft : value ? localDateTime(value) : null;
+  const defaultLocal = localDateTime(value ?? nextQuarterHour(now(zone)));
+  const working = shown ?? defaultLocal;
+  const resolution = resolveLocalTime(working, zone);
+  const selectedCandidate =
+    resolution.kind === 'unique'
+      ? resolution.candidates[0]
+      : resolution.kind === 'fold'
+        ? foldChoice === 'first'
+          ? resolution.candidates[0]
+          : foldChoice === 'second'
+            ? resolution.candidates[1]
+            : null
+        : null;
+  const offset = selectedCandidate
+    ? offsetLabel(selectedCandidate.offset)
+    : resolution.kind === 'fold'
+      ? 'UTC?'
+      : offsetLabel(now(zone).offset);
+  const lowerBound = minValue && minValue.toDate().getTime() > now(zone).toDate().getTime() ? minValue : now(zone);
+  const isConfirmDisabled = !selectedCandidate || selectedCandidate.toDate().getTime() <= lowerBound.toDate().getTime();
 
-  function constrain(candidate: ZonedDateTime): ZonedDateTime {
-    if (!minValue) return candidate;
+  function constrainLocal(local: CalendarDateTime): CalendarDateTime {
+    const result = resolveLocalTime(local, zone);
+    if (result.kind !== 'unique' || result.candidates[0].toDate().getTime() > lowerBound.toDate().getTime())
+      return local;
+    return localDateTime(nextQuarterHour(lowerBound));
+  }
+
+  function confirm(candidate?: CalendarDateTime) {
+    const local = candidate ?? draft ?? defaultLocal;
+    const result = resolveLocalTime(local, zone);
+    if (result.kind === 'gap') return;
+    if (result.kind === 'fold' && foldChoice === null) return;
+    const chosen = result.kind === 'unique' ? result.candidates[0] : result.candidates[foldChoice === 'second' ? 1 : 0];
+    if (!chosen) return;
     const current = now(zone);
-    const lowerBound = minValue.toDate().getTime() > current.toDate().getTime() ? minValue : current;
-    return candidate.toDate().getTime() <= lowerBound.toDate().getTime() ? nextQuarterHour(lowerBound) : candidate;
-  }
-
-  function normalize(next: ZonedDateTime | null): ZonedDateTime | null {
-    if (next === null) return null;
-    return constrain('timeZone' in next ? next : toZoned(next, zone));
-  }
-
-  function confirm(candidate?: ZonedDateTime) {
-    const chosen = constrain(candidate ?? draft ?? nextQuarterHour(now(zone)));
+    const confirmLowerBound = minValue && minValue.toDate().getTime() > current.toDate().getTime() ? minValue : current;
+    if (chosen.toDate().getTime() <= confirmLowerBound.toDate().getTime()) return;
     onChange(chosen);
     setIsOpen(false);
     setDraft(null);
+    setFoldChoice(null);
   }
 
   function cancel() {
     setIsOpen(false);
     setDraft(null);
+    setFoldChoice(null);
   }
 
   return (
@@ -177,14 +190,17 @@ export function DateTimeField({
       <DatePicker
         value={shown}
         onChange={(next) => {
-          const chosen = normalize(next);
-          if (isOpen) setDraft(chosen);
-          else onChange(chosen);
+          const local = next === null ? null : next instanceof ZonedDateTime ? localDateTime(next) : next;
+          if (isOpen && local) {
+            setDraft(constrainLocal(local));
+            setFoldChoice(null);
+          }
         }}
         isOpen={isOpen}
         onOpenChange={(open) => {
           if (open) {
-            setDraft(value ?? nextQuarterHour(now(zone)));
+            setDraft(value ? localDateTime(value) : defaultLocal);
+            setFoldChoice(null);
             setIsOpen(true);
           } else cancel();
         }}
@@ -192,8 +208,8 @@ export function DateTimeField({
         hourCycle={24}
         hideTimeZone
         shouldCloseOnSelect={false}
-        placeholderValue={now(zone)}
-        minValue={minValue}
+        placeholderValue={defaultLocal}
+        minValue={minValue ? localDateTime(minValue) : undefined}
         isDisabled={isDisabled}
         isRequired={isRequired}
         isInvalid={Boolean(errorMessage)}
@@ -201,7 +217,7 @@ export function DateTimeField({
         className={styles.field}
       >
         <Label className={styles.label}>{label}</Label>
-        <PickerGroup label={label} value={shown} zone={zone} offset={offset} />
+        <PickerGroup label={label} value={shown} offset={offset} />
         <Text slot="description" className={`${styles.description} ${dateStyles.description}`}>
           <span>
             {ru.ui.timeZone(zone, offset)}
@@ -215,13 +231,44 @@ export function DateTimeField({
             <div className={dateStyles.layout}>
               <CalendarPanel />
               <DateTimePickerTimePanel
-                value={draft ?? nextQuarterHour(now(zone))}
-                onChange={(next) => setDraft(constrain(next))}
+                value={working}
+                timeZone={zone}
+                onChange={(next) => {
+                  setDraft(constrainLocal(next));
+                  setFoldChoice(null);
+                }}
                 onConfirm={confirm}
                 onCancel={cancel}
                 offset={offset}
                 minValue={minValue}
+                isConfirmDisabled={isConfirmDisabled}
               />
+              {resolution.kind === 'gap' ? (
+                <p className={dateStyles.dstMessage} role="alert">
+                  Этого времени нет из-за перехода на летнее время. Выберите другое время.
+                </p>
+              ) : null}
+              {resolution.kind === 'fold' ? (
+                <fieldset className={dateStyles.dstChoice}>
+                  <legend>Это время встречается дважды. Выберите вариант.</legend>
+                  {resolution.candidates.map((candidate, index) => {
+                    const choice = index === 0 ? 'first' : 'second';
+                    return (
+                      <label key={candidate.toDate().toISOString()}>
+                        <input
+                          type="radio"
+                          name={dstRadioName}
+                          value={choice}
+                          checked={foldChoice === choice}
+                          onChange={() => setFoldChoice(choice)}
+                        />
+                        {index === 0 ? 'Первое время' : 'Второе время'} — {offsetLabel(candidate.offset)} (
+                        {utcText(candidate)})
+                      </label>
+                    );
+                  })}
+                </fieldset>
+              ) : null}
             </div>
           </Dialog>
         </Popover>

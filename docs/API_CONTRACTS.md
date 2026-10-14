@@ -163,6 +163,8 @@ The report returns absolute publication/outcome/attempt/retry counts, a bounded 
 
 The wire shape is defined in `apps/contracts/src/analytics.ts`; route and D1 snapshot behavior are covered by Worker contract tests.
 
+Queue item 22 adds manual performance observations, separate from Studio publication outcomes. `GET /api/v1/analytics/eligible-publications` is a bounded, searchable picker of publications already marked `sent`; `GET /api/v1/analytics/observations` is a bounded, append-only owner-entered history filterable by publication, metric and explicit content age. `POST /api/v1/analytics/observations` requires `Idempotency-Key` and records one value for `views`, `forwards` or `reactions` at one supported content age (+1h, +3h, +6h, +12h, +24h, +48h, +72h or +7d). The owner supplies a source label and complete/partial coverage; partial requires a note. Observation time and actor provenance are server-recorded. Replays with the same key/payload return the original 201 response; different payloads or a live duplicate claim return 409. No automatic collection, MTProto, backfill, editing or deletion is part of this API. Its wire shape is in `apps/contracts/src/analytics.ts`. Contract, migration 0033 and backend routes/tests are implemented locally; the frontend and final R3 review remain pending, so item 22 is still in progress.
+
 ## Owner settings
 
 Schemas and error codes: `apps/contracts/src/settings.ts`.
@@ -197,10 +199,11 @@ Schema: `apps/contracts/src/dota.ts`.
 |---|---|
 | `GET /api/v1/dota?source&limit` | Owner-only read of the two fixed official feeds and their persisted updates. `source` optionally filters updates to `steam_news` or `patch_notes`; both source summaries are always returned. `limit` defaults to 50 and is capped at 100; updates are newest first. No fetch, draft creation, notification or other mutation occurs on read. |
 | `GET /api/v1/dota/updates/:sourceKey/:externalId` | Owner-only read of one persisted update and its stored deterministic patch parse. It never fetches an upstream source. Steam updates use `not_applicable`; patches distinguish `pending`, `complete`, `incomplete`, `no_recognized_facts` and `unavailable`. Only explicitly recognized fact rows are returned; the canonical source URL is attached to the update, not represented as a fact-level citation. |
+| `GET /api/v1/dota/hero-statistics` | Owner-only read of the latest two persisted, bounded OpenDota hero-statistics observations and source health. It never fetches upstream during a request. The source is community-operated, not Valve; source attribution and observation times are part of the response. |
 
-Each source reports `lastAttemptAt`, `lastSuccessAt` and a server-derived health: `degraded` when a source-level incident is open, `unverified` before its first successful check, `stale` after 30 minutes without a success (including legacy sources with a successful baseline but no recoverable timestamp), otherwise `healthy`. A legacy source's unknown success time remains `null`; clients must not invent a timestamp. A patch-detail incident is exposed on the source but does not by itself mark the feed degraded. Update links are returned only for the canonical Steam Community announcement or official Dota patch URL validated against its stored source key and ID. `linkedDraft` is present only when the existing post still exists. These reads do not expose source editing, cross-source event matching, hero/item statistics, tournaments or cosmetics.
+The two official feed summaries report `lastAttemptAt`, `lastSuccessAt` and a server-derived health: `degraded` when a source-level incident is open, `unverified` before its first successful check, `stale` after 30 minutes without a success (including legacy sources with a successful baseline but no recoverable timestamp), otherwise `healthy`. A legacy source's unknown success time remains `null`; clients must not invent a timestamp. A patch-detail incident is exposed on the source but does not by itself mark the feed degraded. Update links are returned only for the canonical Steam Community announcement or official Dota patch URL validated against its stored source key and ID. `linkedDraft` is present only when the existing post still exists. These reads do not expose source editing, cross-source event matching, tournaments or cosmetics.
 
-Errors: both reads return `400` `VALIDATION_ERROR`, `401` `UNAUTHORIZED`, `403` `FORBIDDEN`, and `503` `UNAVAILABLE`; event detail additionally returns `404` `NOT_FOUND` for an update that is not persisted. Safe retries repeat only the read.
+Errors: list and hero-statistics reads return `401` `UNAUTHORIZED`, `403` `FORBIDDEN`, and `503` `UNAVAILABLE`; event detail additionally returns `400` `VALIDATION_ERROR` and `404` `NOT_FOUND` for an update that is not persisted. Safe retries repeat only the read.
 
 ### Exact Dota watchlists
 
@@ -224,6 +227,17 @@ Schemas and error codes: `apps/contracts/src/bot.ts`.
 |---|---|
 | `GET /api/v1/bot/status` | Which bot settings are missing on this Worker (names only), the bot username, the URL this Worker expects, and Telegram's webhook info: the current URL, whether it points here, pending updates and the last error. Changes nothing |
 | `POST /api/v1/bot/connect` | The Worker registers its own webhook with the token and secret it already holds, removes stale command lists, and sets the owner-chat commands and the menu button. Safe to repeat. Returns the fresh status. With missing settings → `503` `BOT_NOT_CONFIGURED` |
+
+## Automations
+
+The following owner-only routes manage the two registered Dota tasks only. Schemas and error shapes are in `apps/contracts/src/automations.ts`.
+
+| Endpoint | Meaning |
+|---|---|
+| `GET /api/v1/automations` and `GET /api/v1/automations/{automationId}` | Registered Dota source/watchlist and hero-statistics jobs only; returns server-owned cadence, next run, health, current execution, latest run, revision, and declared side effects. No arbitrary jobs or publication dispatch. |
+| `GET /api/v1/automations/{automationId}/runs?cursor&limit` | Keyset-paginated run history with bounded status/error data and output counts. |
+| `POST /api/v1/automations/{automationId}/pause` and `/resume` | `Idempotency-Key` + expected revision; accepted state and audit record are atomic. Pause prevents future automation claims only; an already claimed run completes, and scheduled Telegram publications remain dispatchable. |
+| `POST /api/v1/automations/{automationId}/run-now` | `Idempotency-Key`; queues/coalesces one bounded run through the ordinary D1 claim path and returns 202. The server enforces each source's minimum polling interval. It never calls Telegram publication transport. |
 
 ## Observability
 

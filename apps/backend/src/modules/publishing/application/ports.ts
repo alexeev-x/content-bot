@@ -1,5 +1,10 @@
 import type {
   DestinationKind,
+  EligibleObservationPublicationDto,
+  EligibleObservationPublicationsQuery,
+  ManualObservationDto,
+  ManualObservationInput,
+  ManualObservationQuery,
   PostEntity,
   PublicationAnalyticsQuery,
   PublicationAnalyticsReportDto,
@@ -423,6 +428,20 @@ export interface PublicationRepository {
 /** Read-only report over immutable snapshots written by publication resolution batches. */
 export interface PublicationAnalyticsRepository {
   read(query: PublicationAnalyticsQuery, observedAt: number): Promise<PublicationAnalyticsReportDto>;
+  listEligiblePublications(query: EligibleObservationPublicationsQuery): Promise<{
+    items: EligibleObservationPublicationDto[];
+    nextCursor: string | null;
+  }>;
+  listObservations(
+    query: ManualObservationQuery
+  ): Promise<{ items: ManualObservationDto[]; nextCursor: string | null }>;
+  createObservation(input: {
+    id: string;
+    actor: string;
+    now: number;
+    observation: ManualObservationInput;
+    idempotency: IdempotencyRef;
+  }): Promise<ManualObservationDto | null>;
 }
 
 /** The publication an incident is about, as one row of the incident list shows it. */

@@ -21,14 +21,6 @@ The target is a single Studio content record with manually authored platform var
 - Videos inserted by unverified API projects are restricted to private viewing until the project passes the required audit. Upload privacy must be explicit; the project must not silently change it.
 - Official references: [videos.insert](https://developers.google.com/youtube/v3/docs/videos/insert), [quota and compliance audits](https://developers.google.com/youtube/v3/guides/quota_and_compliance_audits), [Developer Policies](https://developers.google.com/youtube/terms/developer-policies).
 
-## Decision required
+## Owner decision (13.10.2026)
 
-Choose one before integration planning proceeds:
-
-1. **YouTube first** — authorize read-only setup of the owner’s Google API project and OAuth/privacy-policy requirements; upload implementation remains a separate approval.
-2. **TikTok first** — authorize read-only app/access setup and determine whether private-only unaudited testing is acceptable; public posting still requires TikTok audit and explicit publish approval.
-3. **Defer platform expansion** — keep Telegram only until the owner is ready to select a platform and complete its external onboarding.
-
-Recommendation: choose option 3 for now. Both platforms add a new OAuth credential boundary, compliance work and public-publication risk; TikTok additionally starts private-only until audit, while YouTube has project audit restrictions and quota policy. If expansion is a near-term priority, pick the platform matching the owner’s actual channel and authorize only a read-only feasibility/setup step first.
-
-Until a choice is recorded, queue item 24 is `waiting for owner`. No platform connector, credential, migration or publishing code is started.
+Choose YouTube first. The owner-only OAuth path is authorized as the first platform integration, but external setup remains a prerequisite: a dedicated Google API project, OAuth client/redirect configuration, a privacy-policy URL and the owner's consent grant. No login credentials may be collected; store tokens only in approved server-side secret/secure storage. Upload remains a separate explicit user-triggered action per video; there is no silent scheduled upload. Queue item 24 is waiting for external onboarding. This decision does not mean an account is connected or the integration is live.

@@ -22,9 +22,10 @@ import {
 import { dotaIntelligenceQueryOptions } from '../api/dota-queries';
 import { useDotaWatchlists } from '../api/dota-watchlists-queries';
 import { DotaWatchlists } from './DotaWatchlists';
+import { DotaHeroStatistics } from './DotaHeroStatistics';
 import styles from './DotaIntelligence.module.css';
 
-type View = 'updates' | 'sources';
+type View = 'updates' | 'sources' | 'heroes';
 type UpdateType = 'all' | 'news' | 'patch';
 
 const SOURCE_NAMES: Record<DotaSourceDto['key'], string> = {
@@ -311,6 +312,7 @@ export function DotaIntelligence({ timezone = 'Europe/Moscow', update }: Props) 
           <TabList aria-label="Раздел Dota Intelligence">
             <Tab id="updates">Обновления</Tab>
             <Tab id="sources">Источники</Tab>
+            <Tab id="heroes">Герои</Tab>
           </TabList>
           <TabPanel id="updates">
             <div className={styles.filters}>
@@ -393,6 +395,9 @@ export function DotaIntelligence({ timezone = 'Europe/Moscow', update }: Props) 
                 />
               ) : null}
             </Panel>
+          </TabPanel>
+          <TabPanel id="heroes">
+            <DotaHeroStatistics timezone={timezone} enabled={view === 'heroes'} />
           </TabPanel>
         </Tabs>
       </div>

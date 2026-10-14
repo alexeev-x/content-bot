@@ -106,6 +106,7 @@ const WATCHER_START = START + 5 * 60_000;
 
 beforeEach(async () => {
   await clearDotaTables();
+  await testDb().prepare('DELETE FROM automation_runs').run();
   clock = fakeClock();
 });
 
@@ -213,8 +214,8 @@ describe('Dota source watcher', () => {
     await makeWatcherTick({ clock, scheduledTime: WATCHER_START, fetcher: scriptedFetcher(payload) }).run();
     const repeated = makeWatcherTick({ clock, scheduledTime: WATCHER_START, fetcher: scriptedFetcher(payload) });
     await repeated.run();
-    expect(repeated.logs.find((event) => event.operation === 'tick')).toMatchObject({
-      counts: { dotaItemsInserted: 0 }
+    expect(repeated.logs.find((event) => event.operation === 'tick')).not.toMatchObject({
+      counts: { dotaItemsInserted: expect.any(Number) }
     });
 
     await Promise.all([
@@ -280,7 +281,7 @@ describe('Dota source watcher', () => {
 
     const oversized = makeWatcherTick({
       clock,
-      scheduledTime: WATCHER_START,
+      scheduledTime: WATCHER_START + 5 * 60_000,
       fetcher: {
         async fetchPatchDetails(version) {
           return Response.json({ patch_number: version, patch_name: version, heroes: [] });

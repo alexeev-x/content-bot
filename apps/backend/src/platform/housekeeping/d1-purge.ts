@@ -24,3 +24,59 @@ export async function purgeExpiredPlatformRows(
   ]);
   return { idempotencyKeys: keys?.meta.changes ?? 0, rateLimits: windows?.meta.changes ?? 0 };
 }
+
+const JOB_ATTEMPT_RETENTION_MS = 90 * 24 * 60 * 60 * 1000;
+const HISTORY_RETENTION_MS = 365 * 24 * 60 * 60 * 1000;
+
+// Each bounded DELETE is replay-safe. Delivery state and publication rows are never changed here.
+export async function purgeOperationalRows(
+  db: D1Database,
+  input: { now: number; limit: number }
+): Promise<{ jobAttempts: number; resolvedIncidents: number; auditRows: number }> {
+  const attemptCutoff = input.now - JOB_ATTEMPT_RETENTION_MS;
+  const historyCutoff = input.now - HISTORY_RETENTION_MS;
+  const [attempts, incidents, auditRows] = await db.batch([
+    db
+      .prepare(
+        `DELETE FROM job_attempts WHERE rowid IN (
+           SELECT a.rowid
+           FROM job_attempts AS a INDEXED BY job_attempts_finished_idx
+           JOIN jobs AS j ON j.id = a.job_id
+           WHERE a.finished_at < ?1
+             AND j.status IN ('succeeded', 'failed', 'cancelled')
+             AND NOT EXISTS (
+               SELECT 1 FROM incidents AS i INDEXED BY incidents_job_idx
+               WHERE i.job_id = j.id AND i.resolved_at IS NULL
+             )
+           ORDER BY a.finished_at, a.job_id, a.attempt
+           LIMIT ?2
+         )`
+      )
+      .bind(attemptCutoff, input.limit),
+    db
+      .prepare(
+        `DELETE FROM incidents WHERE id IN (
+           SELECT id FROM incidents INDEXED BY incidents_resolved_idx
+           WHERE resolved_at < ?1
+           ORDER BY resolved_at, id
+           LIMIT ?2
+         )`
+      )
+      .bind(historyCutoff, input.limit),
+    db
+      .prepare(
+        `DELETE FROM audit_log WHERE rowid IN (
+           SELECT rowid FROM audit_log INDEXED BY audit_log_created_idx
+           WHERE created_at < ?1
+           ORDER BY created_at, id
+           LIMIT ?2
+         )`
+      )
+      .bind(historyCutoff, input.limit)
+  ]);
+  return {
+    jobAttempts: attempts?.meta.changes ?? 0,
+    resolvedIncidents: incidents?.meta.changes ?? 0,
+    auditRows: auditRows?.meta.changes ?? 0
+  };
+}

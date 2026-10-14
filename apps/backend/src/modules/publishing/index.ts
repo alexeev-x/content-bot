@@ -33,6 +33,7 @@ export { getDestination, getScheduledPublicationCount, listDestinations } from '
 export { getPublication, listPublications } from './application/read-publications';
 export { readDashboard } from './application/read-dashboard';
 export { readPublicationAnalytics } from './application/read-publication-analytics';
+export { createManualObservation } from './application/create-manual-observation';
 export { listIncidents } from './application/read-incidents';
 export { resolveIncident } from './application/resolve-incident';
 export { projectPublicationStatus } from './domain/status-projection';

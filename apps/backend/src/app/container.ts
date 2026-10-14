@@ -49,7 +49,7 @@ import {
 import { type BotIdentityStore, createD1BotIdentityStore } from './bot/bot-identity-store';
 import { createD1UpdateDedup, type UpdateDedup } from './bot/update-dedup';
 import { createD1SystemState, type SystemStateStore } from './system-state';
-import { purgeExpiredPlatformRows } from '../platform/housekeeping/d1-purge';
+import { purgeExpiredPlatformRows, purgeOperationalRows } from '../platform/housekeeping/d1-purge';
 import { createD1RateLimiter, type RateLimiter } from '../platform/rate-limit/d1-rate-limiter';
 import { randomToken } from '../platform/security/random-token';
 import { createLogger, type Logger } from '../platform/logging/logger';
@@ -68,6 +68,13 @@ import {
   type DotaWatcherRepository
 } from '../modules/dota';
 import { createD1DotaWatchlists } from '../modules/dota-watchlists';
+import {
+  createD1DotaHeroStatisticsRepository,
+  createDotaHeroStatisticsService,
+  type DotaHeroStatisticsService
+} from '../modules/dota-hero-statistics';
+import { createOpenDotaHeroStatisticsFetcher } from '../integrations/opendota/hero-statistics';
+import { createD1AutomationRepository, type AutomationRepository } from '../modules/automations';
 
 // The only place where real implementations are wired. It grows together with the modules
 // (repositories, transports); nothing is registered here before it exists.
@@ -124,8 +131,16 @@ export interface Container {
   /** D1 state for draft reservation, Dota owner notices and deduped source incidents. */
   dotaRepository: DotaWatcherRepository;
   dotaWatchlists: ReturnType<typeof createD1DotaWatchlists>;
+  /** Persisted OpenDota hero observations; reads never fetch upstream. */
+  dotaHeroStatistics: DotaHeroStatisticsService;
+  /** Owner-visible history and conditional control for fixed Dota recurring work. */
+  automations: AutomationRepository;
   housekeeping: {
     purgeExpired(input: { now: number; limit: number }): Promise<{ idempotencyKeys: number; rateLimits: number }>;
+    purgeOperational(input: {
+      now: number;
+      limit: number;
+    }): Promise<{ jobAttempts: number; resolvedIncidents: number; auditRows: number }>;
   };
   random: () => number;
   newId: () => string;
@@ -160,6 +175,8 @@ export interface ContainerOverrides {
   /** Replaces the fixed-host feed fetcher for deterministic Cron tests. */
   dotaFetcher?: DotaSourceFetcher;
   dotaRepository?: DotaWatcherRepository;
+  dotaHeroStatistics?: DotaHeroStatisticsService;
+  dotaHeroStatisticsFetcher?: () => Promise<Response>;
   /** Replaces the watcher when a test is focused on unrelated scheduled work. */
   dotaWatcher?: Container['dotaWatcher'];
 }
@@ -331,6 +348,17 @@ export function createContainer(env: ContainerEnv, overrides: ContainerOverrides
     get dotaWatchlists() {
       return createD1DotaWatchlists(db());
     },
+    get dotaHeroStatistics() {
+      if (overrides.dotaHeroStatistics !== undefined) return overrides.dotaHeroStatistics;
+      const fetchHeroStatistics = overrides.dotaHeroStatisticsFetcher ?? createOpenDotaHeroStatisticsFetcher();
+      return createDotaHeroStatisticsService({
+        repo: createD1DotaHeroStatisticsRepository(db()),
+        fetch: fetchHeroStatistics
+      });
+    },
+    get automations() {
+      return createD1AutomationRepository(db());
+    },
     // Resolved per call: a BOT_INFO override never touches the database, so a Worker without one still answers.
     get botIdentity(): BotIdentityStore {
       const logger = createLogger();
@@ -340,7 +368,10 @@ export function createContainer(env: ContainerEnv, overrides: ContainerOverrides
       };
     },
     get housekeeping() {
-      return { purgeExpired: (input: { now: number; limit: number }) => purgeExpiredPlatformRows(db(), input) };
+      return {
+        purgeExpired: (input: { now: number; limit: number }) => purgeExpiredPlatformRows(db(), input),
+        purgeOperational: (input: { now: number; limit: number }) => purgeOperationalRows(db(), input)
+      };
     },
     // Jitter only; not for anything an attacker could use.
     random: overrides.random ?? Math.random,

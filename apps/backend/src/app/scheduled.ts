@@ -12,6 +12,7 @@ import { processDotaUpdates } from './workflows/process-dota-updates';
 import { DotaWatchError } from '../modules/dota';
 import { processPostMediaCleanup } from '../modules/content';
 import { sendDotaWatchlistAlerts } from './workflows/process-dota-watchlist-alerts';
+import { DotaHeroStatisticsError } from '../modules/dota-hero-statistics';
 
 // Per table and per hourly tick; leftovers wait for the next hour.
 export const CLEANUP_LIMIT = 100;
@@ -41,6 +42,8 @@ type TickContainer = Pick<
   | 'newId'
   | 'dotaWatcher'
   | 'dotaRepository'
+  | 'automations'
+  | 'dotaHeroStatistics'
   | 'dotaWatchlists'
   | 'posts'
   | 'idempotency'
@@ -79,11 +82,13 @@ export async function handleScheduled(controller: ScheduledController, container
         operation,
         status: 'error',
         errorCode:
-          error instanceof DotaWatchError
-            ? `${error.code}_${error.sourceKey}`
-            : error instanceof Error
-              ? error.name
-              : 'unknown',
+          error instanceof DotaHeroStatisticsError
+            ? error.code
+            : error instanceof DotaWatchError
+              ? `${error.code}_${error.sourceKey}`
+              : error instanceof Error
+                ? error.name
+                : 'unknown',
         durationMs: clock.now() - stepStartedAt
       });
     }
@@ -177,11 +182,22 @@ export async function handleScheduled(controller: ScheduledController, container
       const limit = CLEANUP_LIMIT;
       const platform = await container.housekeeping.purgeExpired({ now, limit });
       const identity = await container.sessions.purgeEnded({ now, limit, graceMs: SESSION_GRACE_MS });
+      const idle = failures === 0 && (counts.expired ?? 0) === 0 && (counts.due ?? 0) === 0 && raised.length === 0;
+      const operational = idle
+        ? await container.housekeeping.purgeOperational({ now, limit })
+        : { jobAttempts: 0, resolvedIncidents: 0, auditRows: 0 };
+      const dotaHeroStatsSnapshots = idle ? await container.dotaHeroStatistics.purgeExpiredSnapshots(now, limit) : 0;
+      const automationRuns = idle ? await container.automations.purgeHistory(now, limit) : 0;
       return {
         purgedIdempotencyKeys: platform.idempotencyKeys,
         purgedRateLimits: platform.rateLimits,
         purgedSignIns: identity.signIns,
-        purgedSessions: identity.sessions
+        purgedSessions: identity.sessions,
+        purgedJobAttempts: operational.jobAttempts,
+        purgedResolvedIncidents: operational.resolvedIncidents,
+        purgedAuditRows: operational.auditRows,
+        purgedDotaHeroStatsSnapshots: dotaHeroStatsSnapshots,
+        purgedAutomationRuns: automationRuns
       };
     });
   }
@@ -197,62 +213,148 @@ export async function handleScheduled(controller: ScheduledController, container
   });
   Object.assign(counts, { alertsSent: alerts.sent, alertsFailed: alerts.failed });
 
-  // Run after the publication pipeline and its alerts: feed ingestion never delays dispatch or
-  // changes publication state. It runs only on exact five-minute UTC slots.
+  // Run after the publication pipeline and its alerts: automation work never delays dispatch or
+  // changes publication state. Expired automation leases are visible as unknown and never retried.
+  await step('automation-reconcile', async () => ({
+    automationRunsUnknown: await container.automations.markExpiredUnknown(clock.now())
+  }));
   const publicationIdle =
     failures === 0 && (counts.expired ?? 0) === 0 && (counts.due ?? 0) === 0 && raised.length === 0;
-  if (controller.scheduledTime % (5 * 60_000) === 0 && minute !== 0 && minute !== PURGE_MINUTE && publicationIdle) {
-    await step('dota-watch', async () => {
-      const dotaWatcher = container.dotaWatcher;
-      const summary = await processDotaUpdates({
-        sync: dotaWatcher.sync,
-        summarizePatch: dotaWatcher.summarizePatch,
-        ...(dotaWatcher.inspectPatch === undefined ? {} : { inspectPatch: dotaWatcher.inspectPatch }),
-        repo: container.dotaRepository,
-        posts: container.posts,
-        idempotency: container.idempotency,
-        actor: container.ownerChatId ?? 'system',
-        now: () => clock.now(),
-        newId: container.newId,
-        messenger: container.ownerMessenger,
-        ownerChatId: container.ownerChatId,
-        readAppOrigin: () => container.systemState.readAppOrigin(),
-        readNotificationPreferences: async () =>
-          (await getOwnerOperationsSettings({ repo: container.settings, logger, requestId: 'scheduled' }))
-            .notifications,
-        logger
-      });
-      if (summary.sourceFailures > 0) failures += 1;
-      const notifications = (
-        await getOwnerOperationsSettings({ repo: container.settings, logger, requestId: 'scheduled' })
-      ).notifications;
-      const watchMatches = await container.dotaWatchlists.processMatches({
-        now: clock.now(),
-        newId: container.newId,
-        notificationsEnabled: notifications.dotaWatchlistAlerts
-      });
-      const watchAlerts = await sendDotaWatchlistAlerts({
-        repo: container.dotaWatchlists,
-        messenger: container.ownerMessenger,
-        ownerChatId: container.ownerChatId,
-        now: () => clock.now(),
-        logger,
-        appOrigin: await container.systemState.readAppOrigin()
-      });
-      return {
-        dotaFeedsFetched: summary.feedsFetched,
-        dotaItemsInserted: summary.itemsInserted,
-        dotaDraftsCreated: summary.draftsCreated,
-        dotaDraftAlertsSent: summary.draftAlertsSent,
-        dotaSourceAlertsSent: summary.sourceAlertsSent,
-        dotaSourceFailures: summary.sourceFailures,
-        dotaWatchMatches: watchMatches.matched,
-        dotaWatchAlertsSent: watchAlerts.sent,
-        dotaWatchAlertsFailed: watchAlerts.failed,
-        dotaWatchAlertsUnknown: watchAlerts.unknown,
-        dotaWatchAlertsDisabled: watchMatches.disabled,
-        dotaWatchAlertsRecoveredUnknown: watchMatches.unknown
-      };
+  if (publicationIdle) {
+    await step('dota-watch', async (): Promise<Record<string, number>> => {
+      if (controller.scheduledTime % (5 * 60_000) === 0 && minute !== 0 && minute !== PURGE_MINUTE) {
+        await container.automations.enqueueScheduled({
+          id: 'dota-intelligence',
+          slot: controller.scheduledTime,
+          requestedAt: clock.now(),
+          newId: container.newId
+        });
+      }
+      const run = await container.automations.claimNext({ id: 'dota-intelligence', now: clock.now() });
+      if (run === null) return {};
+      try {
+        const dotaWatcher = container.dotaWatcher;
+        const summary = await processDotaUpdates({
+          sync: dotaWatcher.sync,
+          summarizePatch: dotaWatcher.summarizePatch,
+          ...(dotaWatcher.inspectPatch === undefined ? {} : { inspectPatch: dotaWatcher.inspectPatch }),
+          repo: container.dotaRepository,
+          posts: container.posts,
+          idempotency: container.idempotency,
+          actor: container.ownerChatId ?? 'system',
+          now: () => clock.now(),
+          newId: container.newId,
+          messenger: container.ownerMessenger,
+          ownerChatId: container.ownerChatId,
+          readAppOrigin: () => container.systemState.readAppOrigin(),
+          readNotificationPreferences: async () =>
+            (await getOwnerOperationsSettings({ repo: container.settings, logger, requestId: 'scheduled' }))
+              .notifications,
+          logger
+        });
+        if (summary.sourceFailures > 0) failures += 1;
+        const notifications = (
+          await getOwnerOperationsSettings({ repo: container.settings, logger, requestId: 'scheduled' })
+        ).notifications;
+        const watchMatches = await container.dotaWatchlists.processMatches({
+          now: clock.now(),
+          newId: container.newId,
+          notificationsEnabled: notifications.dotaWatchlistAlerts
+        });
+        const watchAlerts = await sendDotaWatchlistAlerts({
+          repo: container.dotaWatchlists,
+          messenger: container.ownerMessenger,
+          ownerChatId: container.ownerChatId,
+          now: () => clock.now(),
+          logger,
+          appOrigin: await container.systemState.readAppOrigin()
+        });
+        const runStatus =
+          summary.sourceFailures > 0 || watchAlerts.failed > 0
+            ? 'failed'
+            : watchAlerts.unknown > 0
+              ? 'unknown'
+              : 'succeeded';
+        await container.automations.finish({
+          runId: run.id,
+          now: clock.now(),
+          status: runStatus,
+          outputCount: summary.itemsInserted + summary.draftsCreated + watchMatches.matched + watchAlerts.sent,
+          ...(summary.sourceFailures > 0
+            ? { errorCode: 'DOTA_SOURCE_FAILURE' }
+            : watchAlerts.failed > 0
+              ? { errorCode: 'DOTA_WATCH_ALERT_FAILED' }
+              : watchAlerts.unknown > 0
+                ? { errorCode: 'DOTA_WATCH_ALERT_UNKNOWN' }
+                : {})
+        });
+        if (summary.sourceFailures > 0) failures += 1;
+        return {
+          dotaFeedsFetched: summary.feedsFetched,
+          dotaItemsInserted: summary.itemsInserted,
+          dotaDraftsCreated: summary.draftsCreated,
+          dotaDraftAlertsSent: summary.draftAlertsSent,
+          dotaSourceAlertsSent: summary.sourceAlertsSent,
+          dotaSourceFailures: summary.sourceFailures,
+          dotaWatchMatches: watchMatches.matched,
+          dotaWatchAlertsSent: watchAlerts.sent,
+          dotaWatchAlertsFailed: watchAlerts.failed,
+          dotaWatchAlertsUnknown: watchAlerts.unknown,
+          dotaWatchAlertsDisabled: watchMatches.disabled,
+          dotaWatchAlertsRecoveredUnknown: watchMatches.unknown
+        };
+      } catch (error) {
+        await container.automations.finish({
+          runId: run.id,
+          now: clock.now(),
+          status: 'failed',
+          outputCount: 0,
+          errorCode: error instanceof DotaWatchError ? `${error.code}_${error.sourceKey}` : 'AUTOMATION_RUN_FAILED'
+        });
+        throw error;
+      }
+    });
+  }
+
+  const scheduledDate = new Date(controller.scheduledTime);
+  if (publicationIdle) {
+    await step('dota-hero-statistics', async (): Promise<Record<string, number>> => {
+      if (minute === 15 && scheduledDate.getUTCHours() % 6 === 0) {
+        await container.automations.enqueueScheduled({
+          id: 'dota-hero-statistics',
+          slot: controller.scheduledTime,
+          requestedAt: clock.now(),
+          newId: container.newId
+        });
+      }
+      const run = await container.automations.claimNext({ id: 'dota-hero-statistics', now: clock.now() });
+      if (run === null) return {};
+      try {
+        const result = await container.dotaHeroStatistics.poll({
+          now: clock.now(),
+          newId: container.newId
+        });
+        await container.automations.finish({
+          runId: run.id,
+          now: clock.now(),
+          status: result.status === 'stored' ? 'succeeded' : 'skipped',
+          outputCount: result.heroCount ?? 0,
+          ...(result.status === 'not_due' ? { errorCode: 'DOTA_HERO_STATS_POLL_NOT_CLAIMED' } : {})
+        });
+        return {
+          dotaHeroStatsSnapshotsStored: result.status === 'stored' ? 1 : 0,
+          dotaHeroStatsHeroesStored: result.heroCount ?? 0
+        };
+      } catch (error) {
+        await container.automations.finish({
+          runId: run.id,
+          now: clock.now(),
+          status: 'failed',
+          outputCount: 0,
+          errorCode: error instanceof DotaHeroStatisticsError ? error.code : 'AUTOMATION_RUN_FAILED'
+        });
+        throw error;
+      }
     });
   }
 

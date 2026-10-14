@@ -15,6 +15,7 @@ import {
   Select,
   Skeleton,
   StatusBadge,
+  TextField,
   statusMeta,
   type MenuEntry
 } from '../../shared/ui';
@@ -43,14 +44,24 @@ import {
   type CalendarItem
 } from './preview-data';
 import { PreviewPage, Thumb, usePreviewToast } from './preview-kit';
-import { PublishDialog, ZONE } from './PublishDialog';
+import { ZONE } from './PublishDialog';
 import { useNarrow, useProtoNavigate, useProtoSearch, useProtoSearchUpdate, useScreenPhase } from './proto-kit';
 import styles from './Calendar.module.css';
 import kit from './Preview.module.css';
 
-type View = 'month' | 'week' | 'day' | 'list';
-const VIEWS: readonly View[] = ['month', 'week', 'day', 'list'];
+type View = 'month' | 'week' | 'day';
+const VIEWS: readonly View[] = ['month', 'week', 'day'];
 const MAX_IN_CELL = 3;
+const UNSCHEDULED = [
+  { id: 'draft-post-1', title: 'Черновик: разбор обновления 7.41', status: 'draft' as const },
+  {
+    id: 'draft-post-2',
+    title: 'Идеи для следующего выпуска и длинный заголовок для проверки переноса',
+    status: 'draft' as const
+  },
+  { id: 'approved-post-1', title: 'Одобренный пост: итоги недели', status: 'approved' as const },
+  { id: 'approved-post-2', title: 'Одобренный анонс разбора матча', status: 'approved' as const }
+];
 
 const monthLabel = (key: string) => `${MONTH_NAMES[monthOfKey(key)]} ${dateOfKey(key).getUTCFullYear()}`;
 const weekLabel = (key: string) => {
@@ -178,6 +189,7 @@ type GridProps = {
   collide: (item: CalendarItem) => number;
   onDay: (key: string) => void;
   onItem: (item: CalendarItem) => void;
+  onSlot: (key: string, hour: number) => void;
 };
 
 function Chip({
@@ -204,7 +216,7 @@ function Chip({
 }
 
 function MonthGrid(props: GridProps) {
-  const { date, byDay, loading, selectedId, collide, onDay, onItem } = props;
+  const { date, byDay, loading, selectedId, collide, onDay, onItem, onSlot } = props;
   const first = `${date.slice(0, 8)}01`;
   const start = startOfWeek(first);
   const days = Array.from({ length: 42 }, (_, index) => addDays(start, index));
@@ -260,6 +272,16 @@ function MonthGrid(props: GridProps) {
                       ещё {items.length - MAX_IN_CELL}
                     </button>
                   ) : null}
+                  {items.length === 0 ? (
+                    <button
+                      type="button"
+                      className={styles.slotAction}
+                      aria-label={`Создать пост на ${key} в 10:00`}
+                      onClick={() => onSlot(key, 10)}
+                    >
+                      + 10:00
+                    </button>
+                  ) : null}
                 </>
               )}
             </div>
@@ -271,7 +293,7 @@ function MonthGrid(props: GridProps) {
 }
 
 function HourGrid({ days, ...props }: GridProps & { days: string[] }) {
-  const { byDay, loading, selectedId, collide, onDay, onItem } = props;
+  const { byDay, loading, selectedId, collide, onDay, onItem, onSlot } = props;
   const scroller = useRef<HTMLDivElement>(null);
   // Open at the working day, not at midnight.
   useEffect(() => {
@@ -313,76 +335,20 @@ function HourGrid({ days, ...props }: GridProps & { days: string[] }) {
                 {items.map((item) => (
                   <Chip key={item.id} item={item} selected={item.id === selectedId} onItem={onItem} collide={collide} />
                 ))}
+                {!loading && items.length === 0 ? (
+                  <button
+                    type="button"
+                    className={styles.slotAction}
+                    aria-label={`Создать пост на ${key} в ${String(hour).padStart(2, '0')}:00`}
+                    onClick={() => onSlot(key, hour)}
+                  >
+                    + Создать
+                  </button>
+                ) : null}
               </div>
             );
           })}
         </div>
-      ))}
-    </div>
-  );
-}
-
-function ListView({
-  items,
-  loading,
-  selectedId,
-  collide,
-  onItem
-}: {
-  items: CalendarItem[];
-  loading: boolean;
-  selectedId: string | undefined;
-  collide: (item: CalendarItem) => number;
-  onItem: (item: CalendarItem) => void;
-}) {
-  const narrow = useNarrow();
-  if (loading) {
-    return (
-      <div className={styles.list} aria-busy="true">
-        {Array.from({ length: 8 }, (_, index) => (
-          <div key={index} className={styles.listRow}>
-            <Skeleton height={14} width={narrow ? '30%' : '60%'} />
-            <Skeleton height={14} width="70%" />
-          </div>
-        ))}
-      </div>
-    );
-  }
-  const groups = new Map<string, CalendarItem[]>();
-  for (const item of items) {
-    const key = dayKeyOf(item.at);
-    groups.set(key, [...(groups.get(key) ?? []), item]);
-  }
-  return (
-    <div className={styles.list}>
-      {[...groups].map(([key, group]) => (
-        <section key={key} aria-label={dayLabel(key)}>
-          <h3 className={styles.listDay}>
-            {dayLabel(key)}
-            {key === TODAY_KEY ? <span className={styles.todayTag}>Сегодня</span> : null}
-          </h3>
-          {group.map((item) => (
-            <button
-              type="button"
-              key={item.id}
-              className={styles.listRow}
-              data-selected={item.id === selectedId || undefined}
-              onClick={() => onItem(item)}
-              aria-label={itemLabel(item)}
-            >
-              <span className={`${kit.mono} ${kit.nowrap}`}>{timeOf(item.at)}</span>
-              <span className={styles.listTitle}>
-                <Thumb seed={item.title} size={24} label={item.thumb ? 'img' : ''} />
-                <span className={styles.chipTitle} title={item.title}>
-                  {item.title}
-                </span>
-                <CollisionChip count={collide(item)} />
-              </span>
-              <span className={kit.muted}>{item.channel}</span>
-              <StatusBadge status={item.status} />
-            </button>
-          ))}
-        </section>
       ))}
     </div>
   );
@@ -481,7 +447,7 @@ function Agenda({
                 <span className={kit.muted}>Нет публикаций</span>
                 {keys.length === 1 ? (
                   <Button size="sm" variant="secondary" icon="send" onPress={onPublish}>
-                    Опубликовать пост
+                    Создать пост на это время
                   </Button>
                 ) : null}
               </div>
@@ -519,36 +485,45 @@ export function CalendarScreen() {
   const update = useProtoSearchUpdate();
   const go = useProtoNavigate();
   const preview = usePreviewToast();
-  const requested = VIEWS.find((view) => view === search.view);
-  const view: View = requested ?? (narrow ? 'day' : 'month');
-  const date = search.date && /^\d{4}-\d{2}-\d{2}$/.test(search.date) ? search.date : TODAY_KEY;
-  const [publishOpen, setPublishOpen] = useState(false);
+  const requestedView = VIEWS.find((candidate) => candidate === search.view);
+  const view: View = requestedView ?? (narrow ? 'day' : 'month');
+  const date = search.date ?? TODAY_KEY;
+  const destination = search.destination ?? 'all';
+  const selectedId = search.id;
+  const [draftOpen, setDraftOpen] = useState(false);
+  const [slot, setSlot] = useState(`${date}T10:00`);
+  const [draftTitle, setDraftTitle] = useState('Новый пост');
+  const [foldChoice, setFoldChoice] = useState('');
   const [moveItem, setMoveItem] = useState<CalendarItem | null>(null);
   const [moveTo, setMoveTo] = useState('plus-1d');
   const [cancelItem, setCancelItem] = useState<CalendarItem | null>(null);
 
   const byDay = useMemo(() => {
     const map = new Map<string, CalendarItem[]>();
-    for (const item of [...CALENDAR_ITEMS].sort((a, b) => a.at - b.at)) {
+    for (const item of CALENDAR_ITEMS.filter((entry) => entry.status !== 'draft')) {
+      if (destination !== 'all' && item.channel !== destination) continue;
       const key = dayKeyOf(item.at);
       map.set(key, [...(map.get(key) ?? []), item]);
     }
     return map;
-  }, []);
-  const collide = useCollisions(CALENDAR_ITEMS);
-  const inMonth = CALENDAR_ITEMS.filter((item) => dayKeyOf(item.at).slice(0, 7) === date.slice(0, 7));
-  const monthEmpty = phase === 'empty' || inMonth.length === 0;
+  }, [destination]);
+  const visibleItems = CALENDAR_ITEMS.filter(
+    (item) => item.status !== 'draft' && (destination === 'all' || item.channel === destination)
+  );
+  const unscheduled = UNSCHEDULED;
+  const collide = useCollisions(visibleItems);
+  const inMonth = visibleItems.filter((item) => dayKeyOf(item.at).slice(0, 7) === date.slice(0, 7));
+  const monthEmpty = phase === 'empty' || (inMonth.length === 0 && unscheduled.length === 0);
   const loading = phase === 'loading';
-  const selected = CALENDAR_ITEMS.find((item) => item.id === search.id);
-  const selectedId = selected?.id;
+  const selected = visibleItems.find((item) => item.id === selectedId);
   const dayItems = byDay.get(date) ?? [];
-  const upcoming = CALENDAR_ITEMS.filter((item) => item.at >= NOW && item.status === 'scheduled')
-    .sort((a, b) => a.at - b.at)
-    .slice(0, 5);
+  const upcoming = visibleItems.filter((item) => item.at >= NOW && item.status === 'scheduled').slice(0, 5);
 
-  const setDate = (key: string) => update({ date: key === TODAY_KEY ? undefined : key, id: undefined });
+  const setDate = (key: string) => {
+    update({ date: key === TODAY_KEY ? undefined : key, id: undefined }, false);
+  };
   const step = (direction: 1 | -1) => {
-    if (view === 'month' || view === 'list') setDate(addMonths(date, direction));
+    if (view === 'month') setDate(addMonths(date, direction));
     else if (view === 'week') setDate(addDays(date, 7 * direction));
     else setDate(addDays(date, direction));
   };
@@ -561,14 +536,33 @@ export function CalendarScreen() {
     cancel: setCancelItem,
     check: () => go('publications', { view: 'errors', id: 'u4' })
   };
-  const selectItem = (item: CalendarItem) => update({ id: item.id, date: dayKeyOf(item.at) }, false);
+  const selectItem = (item: CalendarItem) => {
+    update({ id: item.id, date: dayKeyOf(item.at) }, false);
+  };
+  const openSlot = (key: string, hour = 10) => {
+    setSlot(`${key}T${String(hour).padStart(2, '0')}:00`);
+    setDraftTitle('Новый пост');
+    setFoldChoice('');
+    setDraftOpen(true);
+  };
+  const dstGap = slot.startsWith('2026-03-29T03:');
+  const dstFold = slot.startsWith('2026-10-25T03:');
 
   const weekDays = Array.from({ length: 7 }, (_, index) => addDays(startOfWeek(date), index));
   const monthDays = Array.from({ length: 42 }, (_, index) => addDays(startOfWeek(`${date.slice(0, 8)}01`), index));
   const title = view === 'week' ? weekLabel(date) : view === 'day' ? dayLabel(date) : monthLabel(date);
 
-  const gridProps: GridProps = { date, byDay, loading, selectedId, collide, onDay: setDate, onItem: selectItem };
-  const label = view === 'month' || view === 'list' ? 'месяц' : view === 'week' ? 'неделю' : 'день';
+  const gridProps: GridProps = {
+    date,
+    byDay,
+    loading,
+    selectedId,
+    collide,
+    onDay: setDate,
+    onItem: selectItem,
+    onSlot: openSlot
+  };
+  const label = view === 'month' ? 'месяц' : view === 'week' ? 'неделю' : 'день';
 
   let body;
   if (phase === 'error') {
@@ -589,22 +583,12 @@ export function CalendarScreen() {
           title="В этом месяце ничего не запланировано"
           description="Опубликуйте пост сейчас или выберите дату в расписании."
           action={
-            <Button icon="send" onPress={() => setPublishOpen(true)}>
-              Опубликовать пост
+            <Button icon="plus" onPress={() => openSlot(date)}>
+              Создать пост на это время
             </Button>
           }
         />
       </div>
-    );
-  } else if (view === 'list') {
-    body = (
-      <ListView
-        items={inMonth.sort((a, b) => a.at - b.at)}
-        loading={loading}
-        selectedId={selectedId}
-        collide={collide}
-        onItem={selectItem}
-      />
     );
   } else if (narrow) {
     const strip = view === 'month' ? monthDays : weekDays;
@@ -619,7 +603,7 @@ export function CalendarScreen() {
             selectedId={selectedId}
             collide={collide}
             onItem={selectItem}
-            onPublish={() => setPublishOpen(true)}
+            onPublish={() => openSlot(date)}
           />
         </>
       ) : (
@@ -632,7 +616,7 @@ export function CalendarScreen() {
             selectedId={selectedId}
             collide={collide}
             onItem={selectItem}
-            onPublish={() => setPublishOpen(true)}
+            onPublish={() => openSlot(date)}
           />
         </>
       );
@@ -690,8 +674,8 @@ export function CalendarScreen() {
         {dayItems.length === 0 ? (
           <div className={styles.emptyDay}>
             <p>Нет публикаций</p>
-            <Button size="sm" icon="send" onPress={() => setPublishOpen(true)}>
-              Опубликовать пост
+            <Button size="sm" icon="plus" onPress={() => openSlot(date)}>
+              Создать пост на это время
             </Button>
           </div>
         ) : (
@@ -726,6 +710,17 @@ export function CalendarScreen() {
             </li>
           ))}
         </ul>
+        <h3 className={kit.sectionTitle}>Черновики и одобренные без расписания</h3>
+        <ul className={styles.nextList} aria-label="Черновики и одобренные посты без расписания">
+          {unscheduled.map((post) => (
+            <li key={post.id}>
+              <button type="button" onClick={() => go('posts')}>
+                <span className={styles.chipTitle}>{post.title}</span>
+                <span className={kit.muted}>{post.status === 'draft' ? 'Черновик' : 'Одобрен'} · не запланирован</span>
+              </button>
+            </li>
+          ))}
+        </ul>
       </div>
     </Panel>
   );
@@ -734,8 +729,8 @@ export function CalendarScreen() {
     <PreviewPage
       title="Календарь"
       actions={
-        <Button icon="send" onPress={() => setPublishOpen(true)}>
-          Опубликовать пост
+        <Button icon="plus" onPress={() => openSlot(date)}>
+          Создать пост на это время
         </Button>
       }
     >
@@ -753,18 +748,33 @@ export function CalendarScreen() {
                 label="Вид календаря"
                 fullWidth={narrow}
                 value={view}
-                onChange={(id) => update({ view: id, id: undefined })}
+                onChange={(id) => {
+                  if (VIEWS.includes(id as View)) update({ view: id, id: undefined }, false);
+                }}
                 options={[
                   { id: 'month', label: 'Месяц' },
                   { id: 'week', label: 'Неделя' },
                   { id: 'day', label: 'День' },
                   { id: 'list', label: 'Список' }
-                ]}
+                ].filter((option) => option.id !== 'list')}
               />
             </div>
             {narrow ? null : <span className={kit.spacer} />}
             {nav}
-            {narrow || view === 'list' ? null : (
+            <Select
+              label="Канал"
+              inlineLabel
+              value={destination}
+              onChange={(next) => update({ destination: next === 'all' ? undefined : next }, false)}
+              options={[
+                { id: 'all', label: 'Все каналы' },
+                ...Array.from(new Set(CALENDAR_ITEMS.map((item) => item.channel))).map((channel) => ({
+                  id: channel,
+                  label: channel
+                }))
+              ]}
+            />
+            {narrow ? null : (
               <Select
                 label="Месяц"
                 inlineLabel
@@ -778,6 +788,23 @@ export function CalendarScreen() {
         </Panel>
         {narrow ? null : inspector}
       </div>
+
+      {narrow ? (
+        <Panel title="Черновики и одобренные без расписания" note={`${unscheduled.length}`}>
+          <ul className={styles.nextList} aria-label="Черновики и одобренные посты без расписания">
+            {unscheduled.map((post) => (
+              <li key={post.id}>
+                <button type="button" onClick={() => go('posts')}>
+                  <span className={styles.chipTitle}>{post.title}</span>
+                  <span className={kit.muted}>
+                    {post.status === 'draft' ? 'Черновик' : 'Одобрен'} · не запланирован
+                  </span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </Panel>
+      ) : null}
 
       {narrow ? (
         <Drawer
@@ -842,7 +869,56 @@ export function CalendarScreen() {
           preview();
         }}
       />
-      <PublishDialog isOpen={publishOpen} onOpenChange={setPublishOpen} />
+      <Dialog
+        isOpen={draftOpen}
+        onOpenChange={setDraftOpen}
+        title="Создать черновик"
+        description="Время передаётся как намерение планирования. Календарь ничего не сохраняет и не отправляет."
+        footer={
+          <>
+            <Button variant="secondary" onPress={() => setDraftOpen(false)}>
+              Отмена
+            </Button>
+            <Button
+              isDisabled={dstGap || (dstFold && !foldChoice)}
+              onPress={() => {
+                setDraftOpen(false);
+                preview('Превью: черновик не сохранён и публикация не создана');
+              }}
+            >
+              Сохранить как черновик
+            </Button>
+          </>
+        }
+      >
+        <div className={styles.move}>
+          <TextField label="Название поста" value={draftTitle} onChange={setDraftTitle} />
+          <TextField
+            label="Время в Europe/Chisinau"
+            type="time"
+            value={slot.slice(11, 16)}
+            onChange={(time) => {
+              setSlot(`${slot.slice(0, 10)}T${time}`);
+              setFoldChoice('');
+            }}
+          />
+          <p className={kit.muted}>
+            Слот: {slot.slice(0, 10)}, {slot.slice(11, 16)} · Europe/Chisinau
+          </p>
+          {dstGap ? <p role="alert">Этого времени нет из-за перехода на летнее время. Выберите другое.</p> : null}
+          {dstFold ? (
+            <Select
+              label="Время встречается дважды"
+              value={foldChoice}
+              onChange={setFoldChoice}
+              options={[
+                { id: 'first', label: 'Первое вхождение · UTC+3' },
+                { id: 'second', label: 'Второе вхождение · UTC+2' }
+              ]}
+            />
+          ) : null}
+        </div>
+      </Dialog>
     </PreviewPage>
   );
 }

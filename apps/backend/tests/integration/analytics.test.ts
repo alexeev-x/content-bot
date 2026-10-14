@@ -1,4 +1,10 @@
-import { publicationAnalyticsReportSchema } from '@alexeev/contracts';
+import {
+  apiErrorSchema,
+  eligibleObservationPublicationsPageSchema,
+  manualObservationSchema,
+  manualObservationsPageSchema,
+  publicationAnalyticsReportSchema
+} from '@alexeev/contracts';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { testDb } from '../helpers/db';
 import { fakeTransport, makeTick, SENT, seedDueJob } from '../helpers/dispatch';
@@ -165,5 +171,211 @@ describe('GET /api/v1/analytics/publications', () => {
       .bind(START, START + 1, 20)
       .all<{ detail: string }>();
     expect(plans.results.some((row) => row.detail.includes('analytics_snapshots_observed_idx'))).toBe(true);
+  });
+});
+
+describe('manual analytics observations', () => {
+  it('lists only sent publications and creates an owner-entered observation with exact idempotent replay', async () => {
+    const sent = await send();
+    await send({ kind: 'rejected', code: 'CONTENT_INVALID' });
+    const pickerResponse = await api.request('/api/v1/analytics/eligible-publications?limit=1');
+    expect(pickerResponse.status).toBe(200);
+    const picker = eligibleObservationPublicationsPageSchema.parse(await pickerResponse.json());
+    expect(picker.items).toHaveLength(1);
+    expect(picker.items[0]?.publicationId).toBe(sent.publicationId);
+
+    const payload = {
+      publicationId: sent.publicationId,
+      metric: 'views',
+      value: 0,
+      contentAgeMinutes: 1440,
+      sourceLabel: 'Telegram Statistics',
+      coverage: 'complete'
+    };
+    const first = await api.request('/api/v1/analytics/observations', {
+      method: 'POST',
+      headers: { 'idempotency-key': 'manual-observation-1' },
+      json: payload
+    });
+    expect(first.status).toBe(201);
+    const observation = manualObservationSchema.parse(await first.json());
+    expect(observation).toMatchObject({
+      publicationId: sent.publicationId,
+      metric: 'views',
+      value: 0,
+      contentAgeMinutes: 1440,
+      coverage: 'complete',
+      sourceLabel: 'Telegram Statistics'
+    });
+    expect(observation.postTitle).toEqual(picker.items[0]?.postTitle);
+
+    const replay = await api.request('/api/v1/analytics/observations', {
+      method: 'POST',
+      headers: { 'idempotency-key': 'manual-observation-1' },
+      json: payload
+    });
+    expect(replay.status).toBe(201);
+    expect(await replay.json()).toEqual(observation);
+    expect(await count('manual_analytics_observations')).toBe(1);
+    expect(await count('audit_log', "action = 'analytics.observation.create'")).toBe(1);
+
+    const reused = await api.request('/api/v1/analytics/observations', {
+      method: 'POST',
+      headers: { 'idempotency-key': 'manual-observation-1' },
+      json: { ...payload, value: 1 }
+    });
+    expect(reused.status).toBe(409);
+    expect(await count('manual_analytics_observations')).toBe(1);
+  });
+
+  it('requires an explanation for partial data and refuses a publication that was not sent', async () => {
+    const pending = await seedDueJob(api);
+    const payload = {
+      publicationId: pending.publicationId,
+      metric: 'forwards',
+      value: 12,
+      contentAgeMinutes: 60,
+      sourceLabel: 'Telegram Statistics',
+      coverage: 'partial'
+    };
+    const partial = await api.request('/api/v1/analytics/observations', {
+      method: 'POST',
+      headers: { 'idempotency-key': 'partial-without-note' },
+      json: payload
+    });
+    expect(partial.status).toBe(400);
+    expect(apiErrorSchema.parse(await partial.json()).error.code).toBe('VALIDATION_ERROR');
+
+    const notSent = await api.request('/api/v1/analytics/observations', {
+      method: 'POST',
+      headers: { 'idempotency-key': 'not-sent' },
+      json: { ...payload, coverageNote: 'Some post values were unavailable' }
+    });
+    expect(notSent.status).toBe(404);
+    expect(await count('manual_analytics_observations')).toBe(0);
+  });
+
+  it('uses the D1 idempotency claim as the concurrent duplicate boundary', async () => {
+    const sent = await send();
+    const payload = {
+      publicationId: sent.publicationId,
+      metric: 'views',
+      value: 37,
+      contentAgeMinutes: 360,
+      sourceLabel: 'Telegram Statistics',
+      coverage: 'complete'
+    };
+    const sendRequest = () =>
+      api.request('/api/v1/analytics/observations', {
+        method: 'POST',
+        headers: { 'idempotency-key': 'observation-concurrent' },
+        json: payload
+      });
+    const [first, second] = await Promise.all([sendRequest(), sendRequest()]);
+    expect([first.status, second.status].some((status) => status === 201)).toBe(true);
+    expect([first.status, second.status].every((status) => status === 201 || status === 409)).toBe(true);
+    expect(await count('manual_analytics_observations')).toBe(1);
+    const replay = await sendRequest();
+    expect(replay.status).toBe(201);
+    expect(await count('manual_analytics_observations')).toBe(1);
+  });
+
+  it('returns owner-only, bounded observation history with metric/age filters and indexed scans', async () => {
+    const sent = await send();
+    const payload = {
+      publicationId: sent.publicationId,
+      metric: 'reactions',
+      value: 8,
+      contentAgeMinutes: 4320,
+      sourceLabel: 'Telegram Statistics',
+      coverage: 'partial',
+      coverageNote: 'Some reaction types were unavailable'
+    };
+    expect((await api.request('/api/v1/analytics/observations', { token: null })).status).toBe(401);
+    const create = await api.request('/api/v1/analytics/observations', {
+      method: 'POST',
+      headers: { 'idempotency-key': 'partial-observation' },
+      json: payload
+    });
+    expect(create.status).toBe(201);
+    const page = manualObservationsPageSchema.parse(
+      await (await api.request('/api/v1/analytics/observations?metric=reactions&contentAgeMinutes=4320')).json()
+    );
+    expect(page.items).toHaveLength(1);
+    expect(page.items[0]).toMatchObject({ coverage: 'partial', coverageNote: payload.coverageNote, value: 8 });
+    expect(
+      manualObservationsPageSchema.parse(
+        await (await api.request('/api/v1/analytics/observations?metric=views&contentAgeMinutes=4320')).json()
+      ).items
+    ).toEqual([]);
+    const plan = await testDb()
+      .prepare(
+        `EXPLAIN QUERY PLAN SELECT id FROM manual_analytics_observations
+         WHERE metric = ?1 AND content_age_minutes = ?2 ORDER BY observed_at DESC, id DESC LIMIT ?3`
+      )
+      .bind('reactions', 4320, 20)
+      .all<{ detail: string }>();
+    expect(plan.results.some((row) => row.detail.includes('manual_analytics_observations_metric_age_idx'))).toBe(true);
+  });
+
+  it('paginates eligible publications and observation history without crossing cursors', async () => {
+    const firstSent = await send();
+    api.clock.advance(MINUTE);
+    const secondSent = await send();
+    const picker1 = eligibleObservationPublicationsPageSchema.parse(
+      await (await api.request('/api/v1/analytics/eligible-publications?limit=1')).json()
+    );
+    expect(picker1.items).toHaveLength(1);
+    expect(picker1.nextCursor).not.toBeNull();
+    const picker2 = eligibleObservationPublicationsPageSchema.parse(
+      await (
+        await api.request(
+          `/api/v1/analytics/eligible-publications?limit=1&cursor=${encodeURIComponent(picker1.nextCursor ?? '')}`
+        )
+      ).json()
+    );
+    expect(picker2.items).toHaveLength(1);
+    expect(picker2.items[0]?.publicationId).not.toBe(picker1.items[0]?.publicationId);
+    expect([firstSent.publicationId, secondSent.publicationId]).toContain(picker1.items[0]?.publicationId);
+
+    for (const publicationId of [firstSent.publicationId, secondSent.publicationId]) {
+      const response = await api.request('/api/v1/analytics/observations', {
+        method: 'POST',
+        headers: { 'idempotency-key': `history-${publicationId}` },
+        json: {
+          publicationId,
+          metric: 'views',
+          value: 22,
+          contentAgeMinutes: 60,
+          sourceLabel: 'Telegram Statistics',
+          coverage: 'complete'
+        }
+      });
+      expect(response.status).toBe(201);
+      api.clock.advance(MINUTE);
+    }
+    const history1 = manualObservationsPageSchema.parse(
+      await (await api.request('/api/v1/analytics/observations?metric=views&contentAgeMinutes=60&limit=1')).json()
+    );
+    expect(history1.items).toHaveLength(1);
+    expect(history1.nextCursor).not.toBeNull();
+    const history2 = manualObservationsPageSchema.parse(
+      await (
+        await api.request(
+          `/api/v1/analytics/observations?metric=views&contentAgeMinutes=60&limit=1&cursor=${encodeURIComponent(history1.nextCursor ?? '')}`
+        )
+      ).json()
+    );
+    expect(history2.items).toHaveLength(1);
+    expect(history2.items[0]?.id).not.toBe(history1.items[0]?.id);
+
+    const pickerPlan = await testDb()
+      .prepare(
+        `EXPLAIN QUERY PLAN SELECT p.id FROM jobs j JOIN publications p ON p.id = j.publication_id
+         WHERE j.status = 'succeeded' ORDER BY p.scheduled_at DESC, p.id DESC LIMIT ?1`
+      )
+      .bind(20)
+      .all<{ detail: string }>();
+    expect(pickerPlan.results.some((row) => row.detail.includes('jobs_status_scheduled_idx'))).toBe(true);
   });
 });

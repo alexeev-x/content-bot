@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { publicationAnalyticsQuerySchema } from '../src/analytics';
+import {
+  manualObservationInputSchema,
+  manualObservationQuerySchema,
+  publicationAnalyticsQuerySchema
+} from '../src/analytics';
 
 describe('publication analytics query', () => {
   const valid = {
@@ -43,5 +47,39 @@ describe('publication analytics query', () => {
     expect(publicationAnalyticsQuerySchema.safeParse({ ...valid, rubric: 'news' }).success).toBe(false);
     expect(publicationAnalyticsQuerySchema.safeParse({ ...valid, outcome: 'retry_wait' }).success).toBe(false);
     expect(publicationAnalyticsQuerySchema.safeParse({ ...valid, comparison: 'rubric' }).success).toBe(false);
+  });
+});
+
+describe('manual analytics observations', () => {
+  const valid = {
+    publicationId: '00000000-0000-4000-8000-000000000001',
+    metric: 'views',
+    value: 0,
+    contentAgeMinutes: 1440,
+    sourceLabel: 'Telegram Statistics',
+    coverage: 'complete'
+  } as const;
+
+  it('accepts explicit zero values and bounded standard content ages', () => {
+    expect(manualObservationInputSchema.parse(valid)).toMatchObject({ value: 0, contentAgeMinutes: 1440 });
+    expect(manualObservationInputSchema.safeParse({ ...valid, contentAgeMinutes: 1441 }).success).toBe(false);
+  });
+
+  it('requires an explanation for partial coverage and rejects unknown fields', () => {
+    expect(manualObservationInputSchema.safeParse({ ...valid, coverage: 'partial' }).success).toBe(false);
+    expect(
+      manualObservationInputSchema.safeParse({ ...valid, coverage: 'partial', coverageNote: 'Some posts unavailable' })
+        .success
+    ).toBe(true);
+    expect(manualObservationInputSchema.safeParse({ ...valid, guessed: true }).success).toBe(false);
+  });
+
+  it('bounds observation filters and rejects a content age outside the supported set', () => {
+    expect(manualObservationQuerySchema.parse({ metric: 'reactions', contentAgeMinutes: '4320' })).toMatchObject({
+      metric: 'reactions',
+      contentAgeMinutes: 4320,
+      limit: 20
+    });
+    expect(manualObservationQuerySchema.safeParse({ contentAgeMinutes: 120 }).success).toBe(false);
   });
 });

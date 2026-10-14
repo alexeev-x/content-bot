@@ -40,27 +40,36 @@ export function Dialog({
       className={styles.overlay}
     >
       <Modal className={size === 'default' ? styles.modal : `${styles.modal} ${styles[size]}`}>
-        <AriaDialog role={role} className={styles.dialog}>
-          {({ close }) => (
-            <>
-              <header className={styles.header}>
-                <Heading slot="title" className={styles.title}>
-                  {title}
-                </Heading>
-                {role === 'dialog' ? (
-                  <IconButton label={ru.ui.close} icon="x" size="sm" showTooltip={false} onPress={close} />
+        <div
+          onKeyDownCapture={(event) => {
+            if (role === 'alertdialog' && event.key === 'Escape') {
+              event.preventDefault();
+              onOpenChange(false);
+            }
+          }}
+        >
+          <AriaDialog role={role} className={styles.dialog}>
+            {({ close }) => (
+              <>
+                <header className={styles.header}>
+                  <Heading slot="title" className={styles.title}>
+                    {title}
+                  </Heading>
+                  {role === 'dialog' ? (
+                    <IconButton label={ru.ui.close} icon="x" size="sm" showTooltip={false} onPress={close} />
+                  ) : null}
+                </header>
+                {description ? (
+                  <Text slot="description" className={styles.description}>
+                    {description}
+                  </Text>
                 ) : null}
-              </header>
-              {description ? (
-                <Text slot="description" className={styles.description}>
-                  {description}
-                </Text>
-              ) : null}
-              {children ? <div className={styles.body}>{children}</div> : null}
-              {footer ? <footer className={styles.footer}>{footer}</footer> : null}
-            </>
-          )}
-        </AriaDialog>
+                {children ? <div className={styles.body}>{children}</div> : null}
+                {footer ? <footer className={styles.footer}>{footer}</footer> : null}
+              </>
+            )}
+          </AriaDialog>
+        </div>
       </Modal>
     </ModalOverlay>
   );

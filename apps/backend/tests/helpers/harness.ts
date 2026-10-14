@@ -41,7 +41,11 @@ export async function resetDb(): Promise<void> {
     [
       'incidents',
       'incident_alert_groups',
+      'automation_runs',
+      'manual_analytics_observations',
       'analytics_snapshots',
+      'dota_hero_stats_snapshots',
+      'dota_hero_stats_state',
       'job_attempts',
       'jobs',
       'publications',
@@ -66,6 +70,7 @@ export async function resetDb(): Promise<void> {
       'sessions'
     ].map((table) => db.prepare(`DELETE FROM ${table}`))
   );
+  await db.prepare('UPDATE automations SET enabled = 1, revision = 0, updated_at = 0').run();
 }
 
 export async function seedBotIdentity(info: unknown, botId = 123456): Promise<void> {

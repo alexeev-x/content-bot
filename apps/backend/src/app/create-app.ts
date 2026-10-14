@@ -7,6 +7,7 @@ import { type ContainerOverrides, createContainer } from './container';
 import type { AppBindings } from './env';
 import { authRoutes } from './auth-routes';
 import { analyticsRoutes } from './analytics-routes';
+import { automationsRoutes } from './automations-routes';
 import { botRoutes } from './bot-routes';
 import { dashboardRoutes } from './dashboard-routes';
 import { destinationsRoutes } from './destinations-routes';
@@ -100,6 +101,7 @@ export function createApp(
   );
   app.route('/api/v1/auth', authRoutes);
   app.route('/api/v1/analytics', analyticsRoutes);
+  app.route('/api/v1/automations', automationsRoutes);
   app.route('/api/v1/posts', postsRoutes);
   app.route('/api/v1/media', mediaRoutes);
   app.route('/api/v1/destinations', destinationsRoutes);

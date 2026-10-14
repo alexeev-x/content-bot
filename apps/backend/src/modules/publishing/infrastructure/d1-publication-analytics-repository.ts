@@ -1,13 +1,18 @@
 import {
+  eligibleObservationPublicationSchema,
+  manualObservationSchema,
   mediaKindSchema,
   publicationAnalyticsGroupSchema,
   publicationAnalyticsReportSchema,
   publicationAnalyticsRowSchema,
   type PublicationAnalyticsQuery,
-  type PublicationAnalyticsReportDto
+  type PublicationAnalyticsReportDto,
+  type ManualObservationDto
 } from '@alexeev/contracts';
 import { z } from 'zod';
+import { completeIdempotencyStatement, ownsClaimSql } from '../../../platform/idempotency/d1-idempotency-store';
 import { AppError } from '../../../shared/app-error';
+import type { EligibleObservationPublicationsQuery, ManualObservationQuery } from '@alexeev/contracts';
 import type { PublicationAnalyticsRepository } from '../application/ports';
 
 type SqlValue = string | number;
@@ -45,6 +50,77 @@ interface SnapshotRow {
 interface CoverageRow {
   recorded: number;
   unrecorded: number;
+}
+
+interface EligiblePublicationRow {
+  publication_id: string;
+  post_title: string;
+  destination_title: string;
+  scheduled_at: number;
+}
+
+interface ManualObservationRow {
+  id: string;
+  publication_id: string;
+  post_title: string;
+  destination_title: string;
+  metric: 'views' | 'forwards' | 'reactions';
+  value: number;
+  content_age_minutes: number;
+  source_label: string;
+  coverage: 'complete' | 'partial';
+  coverage_note: string | null;
+  observed_at: number;
+}
+
+function encodePickerCursor(scheduledAt: number, publicationId: string): string {
+  return btoa(`${scheduledAt}|${publicationId}`);
+}
+
+function decodePickerCursor(value: string | undefined): { scheduledAt: number; publicationId: string } | null {
+  if (value === undefined) return null;
+  try {
+    const [scheduledAtRaw, publicationId] = atob(value).split('|');
+    const scheduledAt = Number(scheduledAtRaw);
+    if (!Number.isSafeInteger(scheduledAt) || scheduledAt < 0 || !z.uuid().safeParse(publicationId).success)
+      throw new Error('invalid cursor');
+    return { scheduledAt, publicationId: publicationId as string };
+  } catch {
+    throw new AppError('VALIDATION_ERROR', 'Invalid publication picker cursor');
+  }
+}
+
+function encodeObservationCursor(observedAt: number, id: string): string {
+  return btoa(`${observedAt}|${id}`);
+}
+
+function decodeObservationCursor(value: string | undefined): { observedAt: number; id: string } | null {
+  if (value === undefined) return null;
+  try {
+    const [observedAtRaw, id] = atob(value).split('|');
+    const observedAt = Number(observedAtRaw);
+    if (!Number.isSafeInteger(observedAt) || observedAt < 0 || !z.uuid().safeParse(id).success)
+      throw new Error('invalid cursor');
+    return { observedAt, id: id as string };
+  } catch {
+    throw new AppError('VALIDATION_ERROR', 'Invalid observation cursor');
+  }
+}
+
+function observationDto(row: ManualObservationRow): ManualObservationDto {
+  return manualObservationSchema.parse({
+    id: row.id,
+    publicationId: row.publication_id,
+    postTitle: row.post_title,
+    destinationTitle: row.destination_title,
+    metric: row.metric,
+    value: row.value,
+    contentAgeMinutes: row.content_age_minutes,
+    sourceLabel: row.source_label,
+    coverage: row.coverage,
+    coverageNote: row.coverage_note,
+    observedAt: new Date(row.observed_at).toISOString()
+  });
 }
 
 function queryWhere(query: PublicationAnalyticsQuery, includeOutcome: boolean): { sql: string; bindings: SqlValue[] } {
@@ -252,6 +328,163 @@ export function createD1PublicationAnalyticsRepository(db: D1Database): Publicat
         },
         mediaCoverage: { recorded: coverage.recorded, unrecorded: coverage.unrecorded }
       });
+    },
+
+    async listEligiblePublications(query: EligibleObservationPublicationsQuery) {
+      const cursor = decodePickerCursor(query.cursor);
+      const bindings: (string | number)[] = [];
+      const clauses = ["j.status = 'succeeded'"];
+      if (query.q !== undefined) {
+        bindings.push(query.q);
+        clauses.push(`instr(pr.title || ' ' || d.title, ?${bindings.length}) > 0`);
+      }
+      if (cursor !== null) {
+        bindings.push(cursor.scheduledAt, cursor.publicationId);
+        clauses.push(
+          `(p.scheduled_at < ?${bindings.length - 1} OR (p.scheduled_at = ?${bindings.length - 1} AND p.id < ?${bindings.length}))`
+        );
+      }
+      bindings.push(query.limit + 1);
+      const result = await db
+        .prepare(
+          `SELECT p.id AS publication_id, pr.title AS post_title, d.title AS destination_title, p.scheduled_at
+           FROM jobs j
+           JOIN publications p ON p.id = j.publication_id
+           JOIN post_revisions pr ON pr.post_id = p.post_id AND pr.revision = p.post_revision
+           JOIN destinations d ON d.id = p.destination_id
+           WHERE ${clauses.join(' AND ')}
+           ORDER BY p.scheduled_at DESC, p.id DESC LIMIT ?${bindings.length}`
+        )
+        .bind(...bindings)
+        .all<EligiblePublicationRow>();
+      const rows = result.results.slice(0, query.limit);
+      const last = rows.at(-1);
+      return {
+        items: rows.map((row) =>
+          eligibleObservationPublicationSchema.parse({
+            publicationId: row.publication_id,
+            postTitle: row.post_title,
+            destinationTitle: row.destination_title
+          })
+        ),
+        nextCursor:
+          result.results.length > query.limit && last !== undefined
+            ? encodePickerCursor(last.scheduled_at, last.publication_id)
+            : null
+      };
+    },
+
+    async listObservations(query: ManualObservationQuery) {
+      const cursor = decodeObservationCursor(query.cursor);
+      const bindings: (string | number)[] = [];
+      const clauses: string[] = [];
+      const add = (sql: string, value: string | number) => {
+        bindings.push(value);
+        clauses.push(sql.replace('?', `?${bindings.length}`));
+      };
+      if (query.publicationId !== undefined) add('publication_id = ?', query.publicationId);
+      if (query.metric !== undefined) add('metric = ?', query.metric);
+      if (query.contentAgeMinutes !== undefined) add('content_age_minutes = ?', query.contentAgeMinutes);
+      if (cursor !== null) {
+        bindings.push(cursor.observedAt, cursor.id);
+        clauses.push(
+          `(observed_at < ?${bindings.length - 1} OR (observed_at = ?${bindings.length - 1} AND id < ?${bindings.length}))`
+        );
+      }
+      bindings.push(query.limit + 1);
+      const result = await db
+        .prepare(
+          `SELECT id, publication_id, post_title, destination_title, metric, value, content_age_minutes,
+                  source_label, coverage, coverage_note, observed_at
+           FROM manual_analytics_observations
+           ${clauses.length === 0 ? '' : `WHERE ${clauses.join(' AND ')}`}
+           ORDER BY observed_at DESC, id DESC LIMIT ?${bindings.length}`
+        )
+        .bind(...bindings)
+        .all<ManualObservationRow>();
+      const rows = result.results.slice(0, query.limit);
+      const last = rows.at(-1);
+      return {
+        items: rows.map(observationDto),
+        nextCursor:
+          result.results.length > query.limit && last !== undefined
+            ? encodeObservationCursor(last.observed_at, last.id)
+            : null
+      };
+    },
+
+    async createObservation({ id, actor, now, observation, idempotency }) {
+      const publication = await db
+        .prepare(
+          `SELECT pr.title AS post_title, d.title AS destination_title
+           FROM jobs j
+           JOIN publications p ON p.id = j.publication_id
+           JOIN post_revisions pr ON pr.post_id = p.post_id AND pr.revision = p.post_revision
+           JOIN destinations d ON d.id = p.destination_id
+           WHERE p.id = ?1 AND j.status = 'succeeded' LIMIT 1`
+        )
+        .bind(observation.publicationId)
+        .first<{ post_title: string; destination_title: string }>();
+      if (publication === null) throw new AppError('NOT_FOUND', 'Sent publication not found');
+      const dto = manualObservationSchema.parse({
+        id,
+        publicationId: observation.publicationId,
+        postTitle: publication.post_title,
+        destinationTitle: publication.destination_title,
+        metric: observation.metric,
+        value: observation.value,
+        contentAgeMinutes: observation.contentAgeMinutes,
+        sourceLabel: observation.sourceLabel,
+        coverage: observation.coverage,
+        coverageNote: observation.coverageNote ?? null,
+        observedAt: new Date(now).toISOString()
+      });
+      const [inserted, audited, completed] = await db.batch([
+        db
+          .prepare(
+            `INSERT INTO manual_analytics_observations (
+               id, publication_id, post_title, destination_title, metric, value, content_age_minutes,
+               source_label, coverage, coverage_note, actor_telegram_id, observed_at
+             )
+             SELECT ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12
+             WHERE EXISTS (
+               SELECT 1 FROM jobs j JOIN publications p ON p.id = j.publication_id
+               WHERE p.id = ?2 AND j.status = 'succeeded'
+             ) AND ${ownsClaimSql(13)}`
+          )
+          .bind(
+            id,
+            observation.publicationId,
+            publication.post_title,
+            publication.destination_title,
+            observation.metric,
+            observation.value,
+            observation.contentAgeMinutes,
+            observation.sourceLabel,
+            observation.coverage,
+            observation.coverageNote ?? null,
+            actor,
+            now,
+            idempotency.scope,
+            idempotency.key,
+            idempotency.requestHash,
+            idempotency.claimedAt
+          ),
+        db
+          .prepare(
+            `INSERT INTO audit_log (actor_telegram_id, action, entity_type, entity_id, created_at, details)
+             SELECT ?1, 'analytics.observation.create', 'analytics_observation', ?2, ?3,
+                    json_object('metric', ?4, 'contentAgeMinutes', ?5)
+             WHERE EXISTS (SELECT 1 FROM manual_analytics_observations WHERE id = ?2)`
+          )
+          .bind(actor, id, now, observation.metric, observation.contentAgeMinutes),
+        completeIdempotencyStatement(db, idempotency, { status: 201, body: JSON.stringify(dto) }, now, {
+          sql: 'EXISTS (SELECT 1 FROM manual_analytics_observations WHERE id = ?8)',
+          bindings: [id]
+        })
+      ]);
+      if (inserted?.meta.changes !== 1 || audited?.meta.changes !== 1 || completed?.meta.changes !== 1) return null;
+      return dto;
     }
   };
 }

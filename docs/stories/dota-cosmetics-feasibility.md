@@ -10,13 +10,9 @@ The Steamworks documentation reviewed exposes economy/inventory methods such as 
 
 Therefore the current official feeds can substantiate that an announcement occurred and link to it, but cannot safely populate the planned treasure/item/hero/rarity catalog. This is an inference from the documented surface reviewed, not proof that Valve has no private or undocumented endpoints.
 
-## Recommendation
+## Owner decision (13.10.2026)
 
-Keep item 19 waiting for an explicit scope/source choice. Recommended safe default: do not build a partial cosmetics catalog from article scraping. The owner can choose one of these next scopes:
-
-1. Narrow item 19 to an official announcement index using existing persisted title/time/link only; no item-level details or copied images.
-2. Approve investigation of an official Steamworks publisher-key integration, including key custody, endpoint access and allowed data reuse; no key is added until separately authorized.
-3. Approve a named third-party structured source after its terms, freshness, coverage, and cost are reviewed.
+Narrow item 19 to an official announcement index using existing persisted title/time/link only. This can be represented by the current official source feed; no item-level catalog, article scraping, third-party catalog, or copied artwork is in scope. Revisit only after an authorized structured source and reuse terms are established.
 
 Images remain excluded until reuse terms are established. Any accepted source must fail closed on unknown schema and show source, observation time and unavailable fields explicitly.
 

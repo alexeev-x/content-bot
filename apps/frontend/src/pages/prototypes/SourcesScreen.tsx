@@ -36,6 +36,12 @@ const TYPES = [
   { id: 'news', label: 'Новость' },
   { id: 'tournament', label: 'Турнир' }
 ];
+type HeroPreview = { id: string; name: string; wins: number; picks: number; winRate: string; delta: string };
+const HERO_PREVIEW: HeroPreview[] = [
+  { id: 'axe', name: 'Axe', wins: 650, picks: 1240, winRate: '52,4%', delta: '+2,1 п.п.' },
+  { id: 'lina', name: 'Lina', wins: 488, picks: 980, winRate: '49,8%', delta: '−1,4 п.п.' },
+  { id: 'puck', name: 'Puck', wins: 369, picks: 720, winRate: '51,2%', delta: '+0,8 п.п.' }
+];
 const STATUS: Record<Source['status'], { label: string; group: 'done' | 'unknown' | 'failed'; icon: IconName }> = {
   up: { label: 'Доступен', group: 'done', icon: 'check-circle' },
   stale: { label: 'Устарел', group: 'unknown', icon: 'alert' },
@@ -67,7 +73,7 @@ export function SourcesScreen() {
   ]);
   const [pendingWatchId, setPendingWatchId] = useState<string>();
   const [watchMessage, setWatchMessage] = useState('');
-  const view = search.view === 'sources' ? 'sources' : 'events';
+  const view = search.view === 'sources' || search.view === 'heroes' ? search.view : 'events';
   const detail = dotaDetailByKey(search.update);
   const detailEvent = detail ? DOTA_EVENTS.find((event) => event.id === detail.eventId) : undefined;
   const openerRef = useRef<HTMLElement | null>(null);
@@ -238,6 +244,13 @@ export function SourcesScreen() {
     { id: 'change', header: 'Изменение', cell: (s) => s.change },
     { id: 'status', header: 'Статус', compactSlot: 'trailing', cell: (s) => <StatusPill source={s} /> }
   ];
+  const heroColumns: DataColumn<HeroPreview>[] = [
+    { id: 'name', header: 'Герой', isRowHeader: true, cell: (hero) => hero.name },
+    { id: 'wins', header: 'Победы', align: 'end', cell: (hero) => hero.wins.toLocaleString('ru-RU') },
+    { id: 'picks', header: 'Выборы', align: 'end', cell: (hero) => hero.picks.toLocaleString('ru-RU') },
+    { id: 'winRate', header: 'Доля побед', align: 'end', cell: (hero) => hero.winRate },
+    { id: 'delta', header: 'Изменение', align: 'end', cell: (hero) => hero.delta }
+  ];
 
   let body;
   if (phase === 'error') {
@@ -262,6 +275,24 @@ export function SourcesScreen() {
         isLoading={phase === 'loading'}
         loadingRows={3}
       />
+    );
+  } else if (view === 'heroes') {
+    body = (
+      <div className={kit.stack}>
+        <Banner tone="info" title="Данные показаны как прототип">
+          OpenDota · недавние матчи; источник стороннего сообщества, не официальная статистика Valve. Движение
+          рассчитано между двумя сохранёнными наблюдениями.
+        </Banner>
+        <Panel title="Движение героев" note="Пример: ранг 1 · минимум 100 выборов в обеих выборках">
+          <DataTable
+            flush
+            aria-label="Движение героев — демонстрационные данные"
+            columns={heroColumns}
+            rows={HERO_PREVIEW}
+            getRowId={(hero) => hero.id}
+          />
+        </Panel>
+      </div>
     );
   } else if (phase === 'loading') {
     body = narrow ? (
@@ -344,6 +375,7 @@ export function SourcesScreen() {
             <TabList aria-label="Разделы">
               <Tab id="events">События</Tab>
               <Tab id="sources">Источники</Tab>
+              <Tab id="heroes">Герои</Tab>
             </TabList>
             <TabPanel id={view}>
               {view === 'events' ? (
@@ -374,7 +406,7 @@ export function SourcesScreen() {
                 </div>
               ) : null}
               <Panel
-                title={view === 'sources' ? 'Источники' : 'События'}
+                title={view === 'sources' ? 'Источники' : view === 'heroes' ? 'Статистика героев' : 'События'}
                 marker={<DemoChip />}
                 reserveRows={ready ? undefined : 8}
                 action={
@@ -393,11 +425,13 @@ export function SourcesScreen() {
                           : ' '
                         : view === 'sources'
                           ? 'Проверено 3 источника'
-                          : partial
-                            ? `События 2 из 3 источников · ${events.length}`
-                            : unreachable
-                              ? `${events.length} событий · данные на 06:40`
-                              : `${events.length} из ${DOTA_EVENTS.length}`
+                          : view === 'heroes'
+                            ? 'Демо-данные · OpenDota, сообщественный источник'
+                            : partial
+                              ? `События 2 из 3 источников · ${events.length}`
+                              : unreachable
+                                ? `${events.length} событий · данные на 06:40`
+                                : `${events.length} из ${DOTA_EVENTS.length}`
                     }
                   />
                 }

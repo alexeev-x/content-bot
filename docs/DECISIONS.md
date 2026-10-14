@@ -21,11 +21,18 @@ Accepted decisions that are in force. An agent does not propose an alternative t
 | 06.10.2026 | Deleting or archiving a post or publication in the admin never deletes the message from the Telegram channel | `docs/BACKEND_ARCHITECTURE.md` §5 |
 | 06.10.2026 | Every delete asks for confirmation; post lists (including the Archive) and final publications support bulk delete | `docs/design/UX_SPEC.md` §3.2 |
 | 08.10.2026 | Обзор is a customizable widget grid (react-grid-layout v2 in edit mode only); layout stored server-side per owner with revision/409 | `apps/contracts/src/dashboard-layout.ts` |
+| 13.10.2026 | Calendar scheduling requires an explicit first/second occurrence for repeated local times and rejects nonexistent DST-gap times without shifting. | `docs/stories/calendar-mvp.md` |
+| 13.10.2026 | Pausing an automation stops future automation runs only; already-scheduled Telegram publications remain dispatchable under the publication state machine. | `docs/plan/sources-automation.md` |
+| 13.10.2026 | Platform expansion starts with YouTube, owner-only OAuth and explicit per-video action; no silent scheduled upload. TikTok is not the first integration because its documented intended-use policy conflicts with this internal owner-only utility. | `docs/stories/platform-expansion-feasibility.md` |
 
 ## Publishing and data
 | Date | Decision | Details |
 |---|---|---|
 | 03.10.2026 | `unknown` from Telegram — manual reconciliation only, never an automatic retry | skill `publishing-reliability` |
+| 13.10.2026 | Retention: purge terminal-job attempts after 90 days only when no open incident exists; purge resolved incidents 365 days after resolution; purge audit rows after 365 days. Open incidents and attempts for active jobs are never purged. Hourly Cron deletes at most 100 rows per table. | `docs/BACKEND_ARCHITECTURE.md` §10 |
+| 13.10.2026 | Hero Movers may use OpenDota `/heroStats` as community-derived, best-effort data with source attribution, sample counts, observation/freshness times, bounded no-key polling and no paid tier. Never label it Valve data; current API data-reuse terms and service limits are not established by the reviewed sources. | `docs/stories/hero-statistics-feasibility.md` |
+| 13.10.2026 | Dota cosmetics scope is limited to official announcement title/time/link already available through source feeds; no article scraping, item catalog, third-party catalog or copied artwork until an authorized structured source is established. | `docs/stories/dota-cosmetics-feasibility.md` |
+| 13.10.2026 | Analytics v2 uses manual observations/import only; no MTProto user session or new Telegram-user credential in the Bot API Worker. Measurements must carry metric, source, content age and observation time. | `docs/stories/analytics-v2.md` |
 | 06.10.2026 | Stale draft revision travels in the request body; a stale one is 409 `CONFLICT` with `details.reason = STALE_REVISION` (no `If-Match` / 412) | `apps/contracts/src/posts.ts`, `docs/API_CONTRACTS.md` |
 | 08.10.2026 | Post approval stores an immutable content snapshot; publication sends exactly that snapshot; the revision number guards against stale edits | `docs/plan/content-studio.md` |
 
@@ -36,6 +43,7 @@ Accepted decisions that are in force. An agent does not propose an alternative t
 | 06.10.2026 | Browser sign-in: classic Telegram Login Widget (no OIDC: BotFather gives no client credentials for this bot). The page listens for the widget's `auth_user` postMessage from `oauth.telegram.org` with exact origin/source checks (not `data-onauth`, which needs `unsafe-eval`); the server verifies the hash, one-time use | `docs/API_CONTRACTS.md`, skill `api-security` |
 | 05.10.2026 | Secret scanning: full-history Gitleaks with `.gitleaks.toml`; placeholders in docs/tests; false positives only by narrow path + pattern rules, never commit-SHA fingerprints | `.gitleaks.toml`, `README.md` |
 | 03.10.2026 | No paid AI/render APIs and no paid plans without a separate owner decision | `AGENTS.md` |
+| 13.10.2026 | Automated media pipeline is approved only as a later separate project after manual media, sources and platform publishing are stable; this does not authorize paid providers, render tiers or automatic publishing. | `docs/plan/media.md` §18 |
 
 ## Design
 | Date | Decision | Details |
@@ -69,6 +77,3 @@ Accepted decisions that are in force. An agent does not propose an alternative t
 | Session lifetime | token 60 min; Mini App ≤ 12 h; refresh cookie in the browser 30 days |
 | Publication status labels | table in skill `page-spec` |
 | Repeated `Idempotency-Key` with a different body | 409 `CONFLICT` with `details.reason` |
-| Analytics v2 data source (`docs/stories/analytics-v2.md`) | Keep Phase 6 deferred until the owner selects manual observations/import or explicitly approves a separate MTProto security design; no user session is added to the Bot API worker by default |
-| First platform for expansion (`docs/stories/platform-expansion-feasibility.md`) | Defer integration until the owner selects TikTok or YouTube and authorizes the applicable account/API onboarding; no credentials or public publishing are configured by default |
-| Automated media pipeline (`docs/plan/media.md` §18) | Defer this separate project until manual media, sources and platform publishing are stable and the owner explicitly approves a scoped project; no paid providers or render tiers by default |

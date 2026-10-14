@@ -55,7 +55,7 @@ async function jobsDump(): Promise<string> {
 }
 
 describe('an idle tick', () => {
-  it('costs five indexed reads that read a handful of rows at most, and writes only its heartbeat', async () => {
+  it('keeps idle automation reconciliation and claims bounded alongside publishing reads', async () => {
     await seedJobHistory();
     // Waiting work that is not due, and a claim whose lease is still alive: neither may be touched.
     const future = await seedDueJob(api);
@@ -73,16 +73,17 @@ describe('an idle tick', () => {
     const transport = fakeTransport(SENT);
     await makeTick({ clock, transport, db }).run();
 
-    // reconcile, due and archive scans, the bounded alert purge/list, and the heartbeat.
-    expect(meter.roundTrips).toBe(6);
-    expect(meter.statements).toBe(6);
+    // Publishing scans, bounded alert bookkeeping, automation lease reconciliation and two claims, heartbeat.
+    expect(meter.roundTrips).toBe(9);
+    expect(meter.statements).toBe(9);
     const writes = meter.sql.filter((statement) => !/^\s*SELECT\b/i.test(statement));
-    expect(writes).toHaveLength(2);
+    expect(writes).toHaveLength(3);
     expect(writes[0]).toMatch(/^\s*DELETE FROM incident_alert_groups\b/);
-    expect(writes[1]).toMatch(/^\s*INSERT INTO system_state\b/);
+    expect(writes[1]).toMatch(/^\s*UPDATE automation_runs\b/);
+    expect(writes[2]).toMatch(/^\s*INSERT INTO system_state\b/);
     // Not zero: D1 counts a few reads even for an empty index range. The point is that it is a small
     // constant however long the finished history is (300 rows here).
-    expect(meter.rowsRead).toBeLessThanOrEqual(11);
+    expect(meter.rowsRead).toBeLessThanOrEqual(14);
     expect(transport.calls).toHaveLength(0);
     expect(await jobsDump()).toBe(before);
     expect([await count('job_attempts'), await count('incidents'), await count('audit_log')]).toEqual(writesBefore);
@@ -101,17 +102,17 @@ describe('an idle tick', () => {
     await makeTick({ clock, transport: fakeTransport(SENT), db }).run();
 
     // Five recent finished jobs, none of them tied to a post, and nothing else.
-    expect(meter.rowsRead).toBeLessThanOrEqual(6 + 5);
+    expect(meter.rowsRead).toBeLessThanOrEqual(8 + 5);
   });
 
-  it('with publishing off it is four reads and the heartbeat', async () => {
+  it('with publishing off it keeps automation checks bounded and records the heartbeat', async () => {
     await seedJobHistory();
 
     const { db, meter } = meteredDb(testDb());
     await makeTick({ clock, transport: fakeTransport(SENT), db, publishing: 'false' }).run();
 
-    expect(meter.roundTrips).toBe(5);
-    expect(meter.rowsRead).toBeLessThanOrEqual(7);
+    expect(meter.roundTrips).toBe(8);
+    expect(meter.rowsRead).toBeLessThanOrEqual(10);
   });
 });
 
@@ -169,9 +170,9 @@ describe('the budget of a busy tick (Free plan: 50 D1 queries, 50 subrequests)',
     expect(await jobOf(marked.publicationId)).toMatchObject({ status: 'unknown' });
     expect(await count('incidents')).toBe(1 + DISPATCH_BATCH);
     expect(await count('posts', 'archived_at IS NOT NULL')).toBe(0);
-    // Pinned: 48 statements and 27 round trips, leaving two statements of Free-plan headroom.
-    expect(meter.statements).toBe(48);
-    expect(meter.roundTrips).toBe(27);
+    // Pinned: 49 statements and 28 round trips, leaving one statement of Free-plan headroom.
+    expect(meter.statements).toBe(49);
+    expect(meter.roundTrips).toBe(28);
     // Even if D1 counted every statement of a batch on its own, and Telegram calls beside them.
     expect(meter.statements).toBeLessThanOrEqual(50);
     expect(meter.roundTrips).toBeLessThanOrEqual(50);
@@ -191,8 +192,8 @@ describe('the budget of a busy tick (Free plan: 50 D1 queries, 50 subrequests)',
     await makeTick({ clock, transport: fakeTransport(SENT), db }).run();
 
     // Each sent post is archived by the same tick: one read and one batch of two for all three.
-    expect(meter.roundTrips).toBe(2 + 5 * DISPATCH_BATCH + 2 + 1 + 2);
-    expect(meter.statements).toBe(2 + 8 * DISPATCH_BATCH + 3 + 1 + 2);
+    expect(meter.roundTrips).toBe(2 + 5 * DISPATCH_BATCH + 2 + 1 + 3);
+    expect(meter.statements).toBe(2 + 8 * DISPATCH_BATCH + 3 + 1 + 3);
     expect(await count('posts', 'archived_at IS NOT NULL')).toBe(DISPATCH_BATCH);
   });
 });
@@ -213,10 +214,10 @@ describe('the purge tick (minute 30, nothing due)', () => {
 
     expect(await count('posts')).toBe(0);
     expect(await count('jobs')).toBe(0);
-    // reconcile, due scan, archive scan, expired scan, then the audit row, five child deletes and the post,
-    // and the heartbeat.
-    expect(meter.roundTrips).toBe(8);
-    expect(meter.statements).toBe(4 + 7 + 1 + 2);
+    // Reconciliation, due/archive/expired scans, automation reconciliation and two claims, then the audit row,
+    // five child deletes and the post, and the heartbeat.
+    expect(meter.roundTrips).toBe(11);
+    expect(meter.statements).toBe(4 + 7 + 1 + 5);
   });
 
   it('an idle one costs one read more than a regular idle tick', async () => {
@@ -224,7 +225,7 @@ describe('the purge tick (minute 30, nothing due)', () => {
 
     await makeTick({ clock, transport: fakeTransport(SENT), db, scheduledTime: START + 30 * 60_000 }).run();
 
-    expect(meter.roundTrips).toBe(7);
+    expect(meter.roundTrips).toBe(10);
     // Reads only, except the heartbeat upsert at the end.
     expect(meter.sql.slice(0, 4).every((statement) => /^\s*SELECT\b/i.test(statement))).toBe(true);
     expect(meter.sql.at(-1)).toMatch(/^\s*INSERT INTO system_state\b/);

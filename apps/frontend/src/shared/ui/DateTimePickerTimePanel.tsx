@@ -1,4 +1,4 @@
-import { DateFormatter, type ZonedDateTime } from '@internationalized/date';
+import { CalendarDateTime, DateFormatter, toZoned, type ZonedDateTime } from '@internationalized/date';
 import { Button } from 'react-aria-components';
 import { useEffect, useState, type KeyboardEvent } from 'react';
 import { ru } from '../lib/ru';
@@ -6,6 +6,10 @@ import { Icon } from './Icon';
 import styles from './DateTimeField.module.css';
 
 const QUICK_MINUTES = [0, 15, 30, 45];
+
+function resolveCandidate(value: CalendarDateTime, timeZone: string, minute: number): number {
+  return toZoned(value.set({ minute }), timeZone, 'earlier').toDate().getTime();
+}
 
 type Unit = 'hour' | 'minute';
 
@@ -79,23 +83,35 @@ function TimeUnit({ unit, value, onSelect, onStep, onConfirm }: TimeUnitProps) {
 }
 
 type Props = {
-  value: ZonedDateTime;
-  onChange: (value: ZonedDateTime) => void;
-  onConfirm: (value?: ZonedDateTime) => void;
+  value: CalendarDateTime;
+  timeZone: string;
+  onChange: (value: CalendarDateTime) => void;
+  onConfirm: (value?: CalendarDateTime) => void;
   onCancel: () => void;
   offset: string;
   minValue?: ZonedDateTime;
+  isConfirmDisabled?: boolean;
 };
 
-export function DateTimePickerTimePanel({ value, onChange, onConfirm, onCancel, offset, minValue }: Props) {
+export function DateTimePickerTimePanel({
+  value,
+  timeZone,
+  onChange,
+  onConfirm,
+  onCancel,
+  offset,
+  minValue,
+  isConfirmDisabled
+}: Props) {
   const [currentInstant, setCurrentInstant] = useState<number | null>(null);
   const earliestInstant = minValue ? Math.max(minValue.toDate().getTime(), currentInstant ?? -Infinity) : null;
   const dateText =
     new DateFormatter('ru-RU', {
       day: 'numeric',
       month: 'long',
-      timeZone: value.timeZone
-    }).format(value.toDate()) + ` ${value.year}`;
+      timeZone: 'UTC'
+    }).format(value.toDate('UTC')) + ` ${value.year}`;
+  const wall = value;
 
   useEffect(() => {
     if (!minValue) return;
@@ -104,11 +120,11 @@ export function DateTimePickerTimePanel({ value, onChange, onConfirm, onCancel, 
   }, [minValue]);
 
   function select(unit: Unit, number: number) {
-    onChange(value.set(unit === 'hour' ? { hour: number } : { minute: number }));
+    onChange(wall.set(unit === 'hour' ? { hour: number } : { minute: number }));
   }
 
   function step(unit: Unit, direction: 1 | -1) {
-    onChange(value.add(unit === 'hour' ? { hours: direction } : { minutes: 5 * direction }));
+    onChange(wall.add(unit === 'hour' ? { hours: direction } : { minutes: 5 * direction }));
   }
 
   return (
@@ -120,20 +136,20 @@ export function DateTimePickerTimePanel({ value, onChange, onConfirm, onCancel, 
       <div className={styles.clock}>
         <TimeUnit
           unit="hour"
-          value={value.hour}
+          value={wall.hour}
           onSelect={(number) => select('hour', number)}
           onStep={(direction) => step('hour', direction)}
-          onConfirm={(number) => onConfirm(number === undefined ? undefined : value.set({ hour: number }))}
+          onConfirm={(number) => onConfirm(number === undefined ? undefined : wall.set({ hour: number }))}
         />
         <span className={styles.colon} aria-hidden="true">
           :
         </span>
         <TimeUnit
           unit="minute"
-          value={value.minute}
+          value={wall.minute}
           onSelect={(number) => select('minute', number)}
           onStep={(direction) => step('minute', direction)}
-          onConfirm={(number) => onConfirm(number === undefined ? undefined : value.set({ minute: number }))}
+          onConfirm={(number) => onConfirm(number === undefined ? undefined : wall.set({ minute: number }))}
         />
       </div>
       <fieldset className={styles.quick} aria-label={ru.ui.quickMinutes}>
@@ -143,8 +159,8 @@ export function DateTimePickerTimePanel({ value, onChange, onConfirm, onCancel, 
             key={minute}
             className={styles.chip}
             aria-label={ru.ui.setMinutes(minute)}
-            data-selected={value.minute === minute || undefined}
-            isDisabled={earliestInstant !== null && value.set({ minute }).toDate().getTime() <= earliestInstant}
+            data-selected={wall.minute === minute || undefined}
+            isDisabled={earliestInstant !== null && resolveCandidate(wall, timeZone, minute) <= earliestInstant}
             onPress={() => select('minute', minute)}
           >
             {`:${String(minute).padStart(2, '0')}`}
@@ -166,7 +182,7 @@ export function DateTimePickerTimePanel({ value, onChange, onConfirm, onCancel, 
           <Button className={styles.cancel} onPress={onCancel}>
             {ru.ui.cancel}
           </Button>
-          <Button className={styles.done} onPress={() => onConfirm()}>
+          <Button className={styles.done} isDisabled={isConfirmDisabled} onPress={() => onConfirm()}>
             {ru.ui.done}
           </Button>
         </div>

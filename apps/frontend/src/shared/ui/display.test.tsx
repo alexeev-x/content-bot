@@ -131,6 +131,36 @@ describe('Dialog, ConfirmDialog, Drawer', () => {
     expect(onConfirm).toHaveBeenCalledTimes(1);
   });
 
+  it('dismisses a confirmation with Esc without confirming', async () => {
+    const user = userEvent.setup();
+    const onConfirm = vi.fn();
+    function Host() {
+      const [open, setOpen] = useState(false);
+      return (
+        <>
+          <Button onPress={() => setOpen(true)}>РћС‚РєСЂС‹С‚СЊ РїРѕРґС‚РІРµСЂР¶РґРµРЅРёРµ</Button>
+          <ConfirmDialog
+            isOpen={open}
+            onOpenChange={setOpen}
+            title="РџСЂРёРѕСЃС‚Р°РЅРѕРІРёС‚СЊ Р°РІС‚РѕРјР°С‚РёР·Р°С†РёСЋ?"
+            description="РўРµРєСѓС‰РёР№ Р·Р°РїСѓСЃРє РїСЂРѕРґРѕР»Р¶РёС‚СЃСЏ."
+            confirmLabel="РџСЂРёРѕСЃС‚Р°РЅРѕРІРёС‚СЊ"
+            onConfirm={onConfirm}
+          />
+        </>
+      );
+    }
+    render(<Host />);
+    const trigger = screen.getByRole('button', { name: 'РћС‚РєСЂС‹С‚СЊ РїРѕРґС‚РІРµСЂР¶РґРµРЅРёРµ' });
+    await user.click(trigger);
+
+    await user.keyboard('{Escape}');
+
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).toBeNull());
+    await waitFor(() => expect(document.activeElement).toBe(trigger));
+    expect(onConfirm).not.toHaveBeenCalled();
+  });
+
   it('drawer shows its title and a close button', async () => {
     const user = userEvent.setup();
     const onOpenChange = vi.fn();

@@ -31,6 +31,52 @@ function firstCalendarButton(dialog: HTMLElement, name: RegExp): HTMLElement {
 }
 
 describe('DateTimeField time picker', () => {
+  it('blocks a spring-forward gap without emitting a zoned value', async () => {
+    const user = userEvent.setup();
+    const initial = toZoned(new CalendarDateTime(2026, 3, 28, 3, 30), ZONE);
+    render(<Harness initial={initial} />);
+    await user.click(screen.getByRole('button', { name: /Открыть календарь/i }));
+    const dialog = await screen.findByRole('dialog');
+    await user.click(firstCalendarButton(dialog, /29 марта/));
+    expect(within(dialog).getByRole('alert').textContent).toMatch(/Этого времени нет/);
+    expect(within(dialog).getByRole('button', { name: 'Готово' }).hasAttribute('disabled')).toBe(true);
+    expect(out()).toContain('2026-03-28T03:30');
+  });
+
+  it('requires an explicit occurrence for a fold and commits the selected UTC instant', async () => {
+    const user = userEvent.setup();
+    const initial = toZoned(new CalendarDateTime(2026, 10, 24, 3, 30), ZONE);
+    render(<Harness initial={initial} />);
+    await user.click(screen.getByRole('button', { name: /Открыть календарь/i }));
+    const dialog = await screen.findByRole('dialog');
+    await user.click(firstCalendarButton(dialog, /25 октября/));
+    const options = within(dialog).getAllByRole('radio');
+    expect(options).toHaveLength(2);
+    expect((options[0] as HTMLInputElement | undefined)?.checked).toBe(false);
+    expect((options[1] as HTMLInputElement | undefined)?.checked).toBe(false);
+    expect(within(dialog).getByText(/UTC\+3/)).toBeTruthy();
+    expect(within(dialog).getByText(/UTC\+2/)).toBeTruthy();
+    const done = within(dialog).getByRole('button', { name: 'Готово' });
+    expect(done.hasAttribute('disabled')).toBe(true);
+    expect(out()).toContain('2026-10-24T03:30');
+    const firstOption = options[0];
+    if (!firstOption) throw new Error('First occurrence option is missing');
+    await user.click(firstOption);
+    expect(done.hasAttribute('disabled')).toBe(false);
+    await user.click(done);
+    expect(out()).toContain('2026-10-25T03:30:00+03:00[Europe/Chisinau]');
+
+    await user.click(screen.getByRole('button', { name: /Открыть календарь/i }));
+    const nextDialog = await screen.findByRole('dialog');
+    await user.click(firstCalendarButton(nextDialog, /24 октября/));
+    await user.click(firstCalendarButton(nextDialog, /25 октября/));
+    const secondOption = within(nextDialog).getAllByRole('radio')[1];
+    if (!secondOption) throw new Error('Second occurrence option is missing');
+    await user.click(secondOption);
+    await user.click(within(nextDialog).getByRole('button', { name: 'Готово' }));
+    expect(out()).toContain('2026-10-25T03:30:00+02:00[Europe/Chisinau]');
+  });
+
   it('edits date and time together, commits only on Done, and reopens the saved value', async () => {
     const user = userEvent.setup();
     render(<Harness initial={toZoned(new CalendarDateTime(2027, 3, 10, 14, 30), ZONE)} />);
