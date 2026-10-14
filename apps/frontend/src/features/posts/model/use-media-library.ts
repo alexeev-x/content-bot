@@ -7,7 +7,7 @@ import type { MediaState } from './use-media-state';
 
 export type LibraryItem = Awaited<ReturnType<typeof listMediaLibrary>>['items'][number];
 export type LibraryKind = 'all' | 'photo' | 'video';
-export type SourceTab = 'device' | 'library' | 'recent';
+export type SourceTab = 'device' | 'library';
 const LIBRARY_WINDOW_SIZE = 30;
 
 /** The «add media» dialog: which tab is open, the library listing and attaching the chosen library files. */
@@ -24,13 +24,9 @@ export function useMediaLibrary(state: MediaState) {
   const [errorAction, setErrorAction] = useState<'load' | 'attach' | null>(null);
   const draftRef = useRef<PostDto | null>(null);
 
-  async function openLibrary(
-    nextKind: LibraryKind = 'all',
-    nextCursor?: string,
-    tab: 'library' | 'recent' = sourceTab === 'recent' ? 'recent' : 'library'
-  ) {
+  async function openLibrary(nextKind: LibraryKind = 'all', nextCursor?: string) {
     setSourceOpen(true);
-    setSourceTab(tab);
+    setSourceTab('library');
     setLibraryBusy(true);
     setError('');
     setErrorAction(null);

@@ -41,6 +41,7 @@ export function Dialog({
     >
       <Modal className={size === 'default' ? styles.modal : `${styles.modal} ${styles[size]}`}>
         <div
+          className={styles.frame}
           onKeyDownCapture={(event) => {
             if (role === 'alertdialog' && event.key === 'Escape') {
               event.preventDefault();

@@ -15,8 +15,14 @@
   right: 0;
   bottom: 0;
   left: 0;
-  max-height: min(85dvh, calc(var(--tg-viewport-stable-height, 100dvh) * 0.85));
-  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  /* Visual viewport height: shrinks with the on-screen keyboard, so the footer actions stay reachable. */
+  max-height: min(
+    calc(var(--visual-viewport-height, 100dvh) - var(--space-4)),
+    calc(var(--tg-viewport-stable-height, 100dvh) - var(--space-4))
+  );
+  overflow: hidden;
   border: 1px solid var(--color-border-strong);
   border-bottom: 0;
   border-radius: var(--radius-4) var(--radius-4) 0 0;
@@ -46,6 +52,8 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
+  flex: 1;
+  min-height: 0;
   padding: var(--space-2) var(--space-4) max(var(--space-4), env(safe-area-inset-bottom));
   outline: none;
 }
@@ -64,11 +72,16 @@
   line-height: var(--line-height-heading);
 }
 .rows {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
 }
 .footer {
+  flex: none;
   display: flex;
   flex-direction: column;
   margin-top: var(--space-1);

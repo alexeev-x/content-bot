@@ -73,10 +73,9 @@ type Props = {
   disabled: boolean;
 };
 
-/** Library and «Недавние» tabs share one grid: pick files, then «Добавить в пост» attaches them. */
+/** The library tab is one grid: pick files, then «Добавить в пост» attaches them. */
 export function MediaLibraryPanel({ library, entries, busy, disabled }: Props) {
   const { kind, items, cursor, selection, libraryBusy, error, errorAction } = library;
-  const tab = library.sourceTab === 'recent' ? 'recent' : 'library';
   return (
     <div className={styles.library}>
       <Select
@@ -90,7 +89,7 @@ export function MediaLibraryPanel({ library, entries, busy, disabled }: Props) {
         onChange={(value) => {
           if (value === 'all' || value === 'photo' || value === 'video') {
             library.resetListing();
-            void library.openLibrary(value, undefined, tab);
+            void library.openLibrary(value);
           }
         }}
       />
@@ -104,9 +103,7 @@ export function MediaLibraryPanel({ library, entries, busy, disabled }: Props) {
               variant="secondary"
               isDisabled={libraryBusy || disabled}
               onPress={() =>
-                errorAction === 'attach'
-                  ? void library.attachSelected()
-                  : void library.openLibrary(kind, undefined, tab)
+                errorAction === 'attach' ? void library.attachSelected() : void library.openLibrary(kind)
               }
             >
               Повторить

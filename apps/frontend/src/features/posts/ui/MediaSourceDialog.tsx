@@ -66,11 +66,11 @@ export function MediaSourceDialog({
           selectedKey={sourceTab}
           onSelectionChange={(key) => {
             if (key === 'device') library.setSourceTab('device');
-            if (key === 'library' || key === 'recent') {
-              library.setSourceTab(key);
+            if (key === 'library') {
+              library.setSourceTab('library');
               if (library.items.length === 0 || library.kind !== 'all') {
                 library.resetListing();
-                void library.openLibrary('all', undefined, key);
+                void library.openLibrary('all');
               }
             }
           }}
@@ -81,9 +81,6 @@ export function MediaSourceDialog({
             </Tab>
             <Tab id="library" icon="folder" hint="Ваши сохранённые файлы">
               Медиабиблиотека
-            </Tab>
-            <Tab id="recent" icon="clock" hint="Ранее загруженные файлы">
-              Недавние
             </Tab>
           </TabList>
           <TabPanel id="device">
@@ -105,7 +102,6 @@ export function MediaSourceDialog({
             </div>
           </TabPanel>
           <TabPanel id="library">{panel}</TabPanel>
-          <TabPanel id="recent">{panel}</TabPanel>
         </Tabs>
         {notice ? (
           <p className={styles.error} role="alert">
@@ -142,7 +138,7 @@ export function MediaSourceDialog({
               icon="folder"
               title="Открыть медиабиблиотеку"
               hint="Ваши сохранённые файлы"
-              onPress={() => void library.openLibrary('all', undefined, 'library')}
+              onPress={() => void library.openLibrary('all')}
               isDisabled={busy || disabled}
             />
           </div>

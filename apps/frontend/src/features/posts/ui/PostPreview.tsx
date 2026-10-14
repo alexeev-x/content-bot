@@ -2,7 +2,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import type { PostEntity, PostMediaDto } from '@alexeev/contracts';
 import { useEffect, useState } from 'react';
 import { ApiError } from '../../../shared/api/http-client';
-import { Icon, IconButton, Panel, SegmentedControl, TelegramPreview } from '../../../shared/ui';
+import { Icon, IconButton, Panel, TelegramPreview } from '../../../shared/ui';
 import { getPostMediaContent } from '../api/post-media-api';
 import { previewMessage } from '../model/preview-message';
 import { postsCopy } from './copy';
@@ -35,7 +35,6 @@ const previewLabels = {
 export function PostPreview({ title, body, entities, media = emptyMedia, desktopHeader = false, onCollapse }: Props) {
   const isEmpty = title.trim() === '' && body === '';
   const message = previewMessage(title, body, entities);
-  const [mediaMode, setMediaMode] = useState<'single' | 'album'>('single');
   const [mediaUrls, setMediaUrls] = useState<ReadonlyMap<string, string>>(() => new Map());
   const [mediaError, setMediaError] = useState('');
   const queryClient = useQueryClient();
@@ -99,22 +98,10 @@ export function PostPreview({ title, body, entities, media = emptyMedia, desktop
       }
     >
       <div className={styles.previewBody}>
-        <SegmentedControl
-          label="Режим предпросмотра"
-          fullWidth
-          value={mediaMode}
-          onChange={(mode) => {
-            if (mode === 'single' || mode === 'album') setMediaMode(mode);
-          }}
-          options={[
-            { id: 'single', label: 'Пост' },
-            { id: 'album', label: 'Альбом' }
-          ]}
-        />
         <TelegramPreview
           body={isEmpty ? copy.previewEmpty : <EntityText text={message.text} entities={message.entities} />}
           media={previewMedia}
-          mediaMode={mediaMode}
+          mediaMode={media.length > 1 ? 'album' : 'single'}
           showCounter
           mediaLabels={previewLabels}
         />

@@ -4,7 +4,10 @@
   z-index: var(--z-modal);
   display: grid;
   place-items: center;
-  padding: var(--space-4);
+  padding: max(var(--space-4), env(safe-area-inset-top)) max(var(--space-4), env(safe-area-inset-right))
+    max(var(--space-4), env(safe-area-inset-bottom)) max(var(--space-4), env(safe-area-inset-left));
+  /* Follows the visual viewport, so an open on-screen keyboard never pushes the actions out of sight. */
+  height: var(--visual-viewport-height, 100dvh);
   background: var(--color-scrim);
 }
 .overlay[data-entering] {
@@ -27,6 +30,9 @@
 }
 .modal[data-entering] {
   animation: rise var(--motion-base) ease-out;
+}
+.frame {
+  display: contents;
 }
 .dialog {
   display: flex;
@@ -66,7 +72,7 @@
   display: flex;
   flex-direction: column;
   width: min(var(--measure-dialog-media), 100%);
-  max-height: min(90dvh, 100%);
+  max-height: 100%;
   overflow: hidden;
   border-radius: var(--radius-4);
 }
@@ -75,6 +81,16 @@
   gap: 0;
   min-height: 0;
   padding: 0;
+}
+.media .frame {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+}
+.media .header,
+.media .footer {
+  flex: none;
 }
 .media .header {
   align-items: center;
