@@ -24,18 +24,10 @@ type Props = {
   onOpenSearch?: () => void;
   /** Slot left of the owner menu in the top bar (the theme toggle); built by the frontend role. */
   topBarTools?: ReactNode;
-  /** Prototype only: prefix of every nav target (`/__proto`), so the shell navigates between mock screens. */
-  linkBase?: string | undefined;
-  /** Prototype only: hides the phone tab bar like the real editor route does. */
-  editor?: boolean | undefined;
   /** Hides the top bar; search, theme toggle and owner menu move into each page header (as in the Mini App). Default: on for the post editor routes (`/posts/new`, `/posts/$id`, `/posts/$id/publish`), off elsewhere. */
   focused?: boolean | undefined;
-  /** Prototype only: draws the Mini App variant (no top bar) without Telegram. */
-  miniApp?: boolean | undefined;
   /** Extra content under the sections in the «Ещё» sheet (the «Подключённый канал» card). */
   moreExtra?: ReactNode | ((close: () => void) => ReactNode);
-  /** Prototype only: a group below the working items and above the pinned Settings link (the «Превью» group). */
-  sidebarExtra?: ReactNode;
   /** Card above the collapse control (the «Подключённый канал» card); receives the rail state. */
   sidebarFooter?: ReactNode | ((collapsed: boolean) => ReactNode);
 };
@@ -60,19 +52,14 @@ function NavBadge({ count }: { count: number }) {
   );
 }
 
-// PAGE_MAP lists routes that the router does not know yet (/publications, /automations): their pages
-// are added by the frontend role, until then they resolve to the not-found page.
-const target = (item: NavItem, base = '') =>
-  (base ? `${base}${item.to === '/' ? '' : item.to}` : item.to) as LinkProps['to'];
+const target = (item: NavItem) => item.to as LinkProps['to'];
 
 function NavLink({
   item,
   incidentsCount,
   onNavigate,
-  iconOnly = false,
-  base
+  iconOnly = false
 }: {
-  base?: string | undefined;
   item: NavItem;
   incidentsCount: number;
   onNavigate?: () => void;
@@ -80,12 +67,7 @@ function NavLink({
   iconOnly?: boolean;
 }) {
   const link = (
-    <Link
-      to={target(item, base)}
-      activeOptions={{ exact: item.exact ?? false }}
-      className={styles.link}
-      onClick={onNavigate}
-    >
+    <Link to={target(item)} activeOptions={{ exact: item.exact ?? false }} className={styles.link} onClick={onNavigate}>
       <Icon name={item.icon} size={20} />
       <span className={iconOnly ? styles.linkLabelHidden : styles.linkLabel}>{item.label}</span>
       {item.badge === 'incidents' && incidentsCount > 0 ? <NavBadge count={incidentsCount} /> : null}
@@ -100,26 +82,15 @@ function NavLink({
   );
 }
 
-function SidebarNav({
-  incidentsCount,
-  collapsed,
-  base,
-  extra
-}: {
-  incidentsCount: number;
-  collapsed: boolean;
-  base?: string | undefined;
-  extra?: ReactNode;
-}) {
+function SidebarNav({ incidentsCount, collapsed }: { incidentsCount: number; collapsed: boolean }) {
   return (
     <nav aria-label={ru.nav.label} className={styles.nav}>
       {NAV_ITEMS.filter((item) => !item.pinned).map((item) => (
-        <NavLink key={item.to} item={item} incidentsCount={incidentsCount} iconOnly={collapsed} base={base} />
+        <NavLink key={item.to} item={item} incidentsCount={incidentsCount} iconOnly={collapsed} />
       ))}
-      {extra}
       <div className={styles.pinned}>
         {NAV_ITEMS.filter((item) => item.pinned).map((item) => (
-          <NavLink key={item.to} item={item} incidentsCount={incidentsCount} iconOnly={collapsed} base={base} />
+          <NavLink key={item.to} item={item} incidentsCount={incidentsCount} iconOnly={collapsed} />
         ))}
       </div>
     </nav>
@@ -145,12 +116,8 @@ export function AppShell({
   onLogout,
   onOpenSearch,
   topBarTools,
-  linkBase,
-  editor,
   focused: forcedFocused,
-  miniApp: forcedMiniApp,
   moreExtra,
-  sidebarExtra,
   sidebarFooter
 }: Props) {
   const [collapsed, toggleCollapsed] = useSidebarCollapsed();
@@ -179,11 +146,11 @@ export function AppShell({
   }, [onOpenSearch]);
 
   // The post editor owns the bottom edge on phones (its sticky action bar), so the tab bar steps aside there.
-  const editorOpen = editor ?? /^\/posts\/[^/]+/.test(pathname);
+  const editorOpen = /^\/posts\/[^/]+/.test(pathname);
   const primary = NAV_ITEMS.filter((item) => item.primary);
   const secondary = NAV_ITEMS.filter((item) => !item.primary);
   // Telegram draws its own header: the app top bar goes and its tools move into each page header.
-  const miniApp = forcedMiniApp ?? isInsideTelegram();
+  const miniApp = isInsideTelegram();
   const focused = forcedFocused ?? editorOpen;
   const hideTopBar = miniApp || focused;
   const tools = hideTopBar ? (
@@ -225,7 +192,7 @@ export function AppShell({
           </span>
           <EnvBadge />
         </div>
-        <SidebarNav incidentsCount={incidentsCount} collapsed={collapsed} base={linkBase} extra={sidebarExtra} />
+        <SidebarNav incidentsCount={incidentsCount} collapsed={collapsed} />
         {sidebarFooter ? (
           <div className={styles.sideFooter}>
             {typeof sidebarFooter === 'function' ? sidebarFooter(collapsed) : sidebarFooter}
@@ -272,7 +239,7 @@ export function AppShell({
 
       <nav aria-label={ru.nav.label} className={styles.tabbar}>
         {primary.map((item) => (
-          <NavLink key={item.to} item={item} incidentsCount={incidentsCount} base={linkBase} />
+          <NavLink key={item.to} item={item} incidentsCount={incidentsCount} />
         ))}
         <AriaButton
           className={styles.tab}
@@ -293,13 +260,7 @@ export function AppShell({
       <Drawer variant="bottom" title={ru.nav.moreTitle} isOpen={moreOpen} onOpenChange={setMoreOpen}>
         <nav aria-label={ru.nav.moreTitle} className={styles.sheetNav}>
           {secondary.map((item) => (
-            <NavLink
-              key={item.to}
-              item={item}
-              incidentsCount={incidentsCount}
-              onNavigate={() => setMoreOpen(false)}
-              base={linkBase}
-            />
+            <NavLink key={item.to} item={item} incidentsCount={incidentsCount} onNavigate={() => setMoreOpen(false)} />
           ))}
         </nav>
         {typeof moreExtra === 'function' ? moreExtra(() => setMoreOpen(false)) : moreExtra}
