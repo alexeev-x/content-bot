@@ -81,6 +81,8 @@
 }
 .libraryList {
   display: grid;
+  /* Rows keep their content height and the list scrolls; auto rows would shrink to min-height to fit. */
+  grid-auto-rows: max-content;
   gap: var(--space-2);
   max-height: min(50vh, 28rem);
   overflow: auto;
