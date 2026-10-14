@@ -5,6 +5,7 @@ import {
   cropPostMediaQuerySchema,
   cropPostMediaResultSchema,
   deriveMediaQuerySchema,
+  uploadLibraryMediaQuerySchema,
   mediaLibraryItemSchema,
   mediaLibraryQuerySchema,
   postMediaSchema
@@ -31,6 +32,20 @@ describe('derived library media contract', () => {
     });
     expect(deriveMediaQuerySchema.safeParse({ fileName: 'a.gif', kind: 'animation' }).success).toBe(false);
     expect(deriveMediaQuerySchema.safeParse({ fileName: 'a.png', kind: 'photo', extra: 1 }).success).toBe(false);
+  });
+});
+
+describe('library upload contract', () => {
+  it('accepts the three kinds, trims the name and rejects documents and extra keys', () => {
+    expect(uploadLibraryMediaQuerySchema.parse({ fileName: ' a.gif ', kind: 'animation' })).toEqual({
+      fileName: 'a.gif',
+      kind: 'animation'
+    });
+    expect(uploadLibraryMediaQuerySchema.safeParse({ fileName: 'a.pdf', kind: 'document' }).success).toBe(false);
+    expect(uploadLibraryMediaQuerySchema.safeParse({ fileName: '', kind: 'photo' }).success).toBe(false);
+    expect(uploadLibraryMediaQuerySchema.safeParse({ fileName: 'a.png', kind: 'photo', mode: 'new' }).success).toBe(
+      false
+    );
   });
 });
 

@@ -141,6 +141,18 @@ export const deriveMediaQuerySchema = z.strictObject({
 });
 export type DeriveMediaQuery = z.infer<typeof deriveMediaQuerySchema>;
 
+// POST /api/v1/media?fileName&kind=photo|animation|video; raw bytes of a new library file (JPEG, PNG, WebP, GIF or MP4).
+// Content-Length, Content-Type and Idempotency-Key are required; validation is the post-upload one (signature,
+// streamed byte count, per-kind size limit, dimensions). Stores a retained library item with no post and returns
+// 201 MediaLibraryItemDto. Same key + same bytes/metadata replays the original response; a reused key with a
+// different payload is CONFLICT (IDEMPOTENCY_KEY_REUSED). Errors: VALIDATION_ERROR 400 (bad query, kind mismatch,
+// invalid media/signature or headers), 413, CONFLICT 409, UNAVAILABLE 503, UNAUTHORIZED 401, FORBIDDEN 403.
+export const uploadLibraryMediaQuerySchema = z.strictObject({
+  fileName: z.string().trim().min(1).max(255),
+  kind: mediaKindSchema
+});
+export type UploadLibraryMediaQuery = z.infer<typeof uploadLibraryMediaQuerySchema>;
+
 // DELETE /api/v1/posts/{postId}/media/{mediaId}, JSON { revision } -> 200 { revision }.
 export const changePostMediaRevisionInputSchema = z.strictObject({ revision: z.number().int().nonnegative() });
 export type ChangePostMediaRevisionInput = z.infer<typeof changePostMediaRevisionInputSchema>;

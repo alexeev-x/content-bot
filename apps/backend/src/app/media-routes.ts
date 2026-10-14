@@ -4,13 +4,15 @@ import {
   deriveLibraryMedia,
   getMediaUsage,
   getPostMediaContent,
-  listMediaLibrary
+  listMediaLibrary,
+  uploadLibraryMedia
 } from '../modules/content';
 import {
   bulkDeleteMediaInputSchema,
   deleteMediaQuerySchema,
   deriveMediaQuerySchema,
-  mediaLibraryQuerySchema
+  mediaLibraryQuerySchema,
+  uploadLibraryMediaQuerySchema
 } from '@alexeev/contracts';
 import { AppError } from '../shared/app-error';
 import { Hono } from 'hono';
@@ -49,6 +51,34 @@ export const mediaRoutes = new Hono<AppBindings>()
           c.req.valid('json').detach
         )
       );
+    }
+  )
+  .post(
+    '/',
+    validated('query', uploadLibraryMediaQuerySchema),
+    validated('header', idempotencyHeaderSchema),
+    async (c) => {
+      const container = c.get('container');
+      const body = c.req.raw.body;
+      if (body === null) throw new AppError('VALIDATION_ERROR', 'A media file is required', { reason: 'EMPTY_MEDIA' });
+      if (container.mediaStorage === undefined) throw new AppError('UNAVAILABLE', 'Media storage is not configured');
+      const item = await uploadLibraryMedia(
+        {
+          repo: container.postMedia,
+          storage: container.mediaStorage,
+          now: container.clock.now(),
+          newId: container.newId
+        },
+        {
+          ...c.req.valid('query'),
+          contentType: c.req.header('content-type') ?? '',
+          contentLength: Number(c.req.header('content-length')),
+          body,
+          actor: c.get('actor').telegramId,
+          idempotencyKey: c.req.valid('header')['idempotency-key']
+        }
+      );
+      return c.json(item, 201);
     }
   )
   .post(

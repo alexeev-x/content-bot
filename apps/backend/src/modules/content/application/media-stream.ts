@@ -194,7 +194,14 @@ export async function streamAndValidateMedia(
 export function safeMediaFileName(raw: string): string {
   const fileName = Array.from(raw, (character) => {
     const codePoint = character.codePointAt(0) ?? 0;
-    return character === '/' || character === '\\' || codePoint <= 0x1f || codePoint === 0x7f ? '_' : character;
+    // C0/C1 controls and Unicode format characters (bidi overrides like U+202E) could spoof how the name reads.
+    return character === '/' ||
+      character === '\\' ||
+      codePoint <= 0x1f ||
+      (codePoint >= 0x7f && codePoint <= 0x9f) ||
+      /\p{Cf}/u.test(character)
+      ? '_'
+      : character;
   })
     .join('')
     .trim();

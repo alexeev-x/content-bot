@@ -244,3 +244,68 @@ describe('derived library media', () => {
     expect(result.media).toMatchObject({ kind: 'video', sourceMediaId: upload.media.id, contentType: 'video/mp4' });
   });
 });
+
+describe('library upload', () => {
+  const upload = (
+    bytes: Uint8Array,
+    key: string,
+    options: { contentType?: string; kind?: string; token?: string | null } = {}
+  ) =>
+    api.request(`/api/v1/media?fileName=up.png&kind=${options.kind ?? 'photo'}`, {
+      method: 'POST',
+      token: options.token,
+      headers: {
+        'content-type': options.contentType ?? 'image/png',
+        'content-length': String(bytes.byteLength),
+        'idempotency-key': key
+      },
+      body: bytes
+    });
+
+  it('stores a retained item without a post and lists it', async () => {
+    const response = await upload(png(4, 5), nextKey());
+
+    expect(response.status).toBe(201);
+    const item = mediaLibraryItemSchema.parse(await response.json());
+    expect(item).toMatchObject({ kind: 'photo', fileName: 'up.png', width: 4, height: 5, usageCount: 0 });
+    const row = await testDb()
+      .prepare('SELECT source_media_id AS source, in_library AS lib FROM media_assets WHERE id = ?1')
+      .bind(item.id)
+      .first<{ source: string | null; lib: number }>();
+    expect(row).toEqual({ source: null, lib: 1 });
+    expect(await count('SELECT count(*) AS n FROM post_media_cleanup')).toBe(0);
+    const library = mediaLibraryPageSchema.parse(await (await api.request('/api/v1/media?limit=10')).json());
+    expect(library.items.map(({ id }) => id)).toEqual([item.id]);
+  });
+
+  it('rejects a bad signature and leaves nothing behind', async () => {
+    const response = await upload(png(), nextKey(), { contentType: 'image/jpeg' });
+
+    expect(response.status).toBe(400);
+    expect((await testMediaBucket().list({ prefix: 'media/' })).objects).toHaveLength(0);
+    expect(await count('SELECT count(*) AS n FROM media_assets')).toBe(0);
+    expect(await count('SELECT count(*) AS n FROM post_media_cleanup')).toBe(0);
+  });
+
+  it('replays the same key and refuses a different payload under it', async () => {
+    const key = nextKey();
+    const first = await upload(png(4, 5), key);
+    const replay = await upload(png(4, 5), key);
+    const reused = await upload(png(6, 7), key);
+
+    expect(first.status).toBe(201);
+    expect(await replay.json()).toEqual(await first.json());
+    expect(reused.status).toBe(409);
+    expect(apiErrorSchema.parse(await reused.json()).error.details).toMatchObject({ reason: 'IDEMPOTENCY_KEY_REUSED' });
+    expect(await count('SELECT count(*) AS n FROM media_assets')).toBe(1);
+    expect((await testMediaBucket().list({ prefix: 'media/' })).objects).toHaveLength(1);
+    expect(await count('SELECT count(*) AS n FROM post_media_cleanup')).toBe(0);
+  });
+
+  it('requires a session', async () => {
+    const response = await upload(png(), nextKey(), { token: null });
+
+    expect(response.status).toBe(401);
+    expect(await count('SELECT count(*) AS n FROM media_assets')).toBe(0);
+  });
+});

@@ -17,7 +17,7 @@ function invalid(message: string): AppError {
   return new AppError('VALIDATION_ERROR', message, { reason: 'INVALID_MEDIA' });
 }
 
-function storedItem(responseBody: string): MediaLibraryItemDto {
+export function storedItem(responseBody: string): MediaLibraryItemDto {
   try {
     return mediaLibraryItemSchema.parse(JSON.parse(responseBody));
   } catch {
@@ -25,7 +25,12 @@ function storedItem(responseBody: string): MediaLibraryItemDto {
   }
 }
 
-async function discard(repo: PostMediaRepository, storage: MediaObjectStorage, mediaId: string, objectKey: string) {
+export async function discard(
+  repo: PostMediaRepository,
+  storage: MediaObjectStorage,
+  mediaId: string,
+  objectKey: string
+) {
   try {
     await storage.delete(objectKey);
     await repo.removeStaging(mediaId);

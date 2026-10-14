@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { mediaLibraryUsageFilterSchema, type MediaLibraryItemDto, type MediaLibraryKind } from '@alexeev/contracts';
 import type { z } from 'zod';
 import { classifyApiError } from '../../../shared/api/error-kind';
@@ -9,6 +9,7 @@ import { ApiError } from '../../../shared/api/http-client';
 import {
   Button,
   Checkbox,
+  ConfirmDialog,
   Drawer,
   EmptyState,
   ErrorState,
@@ -33,10 +34,13 @@ import { pluralRu } from '../../../shared/lib/ru-format';
 import { mediaPageQueryOptions, useCreatePostWithMedia, usePrefetchMediaTabs } from '../api/media-queries';
 import type { DeriveMode, MediaFilters } from '../api/media-api';
 import { useLibraryCrop } from '../model/use-library-crop';
+import { UPLOAD_ACCEPT, useLibraryUpload, type UploadEntry } from '../model/use-library-upload';
+import { useUploadIntake } from '../model/use-upload-intake';
 import { AttachDialog } from './AttachDialog';
 import { DeleteMediaDialog, type DeleteTarget } from './DeleteMediaDialog';
 import { LibraryCropDialog } from './LibraryCropDialog';
 import { PhotoViewer } from './PhotoViewer';
+import { UploadCard, UploadListRow } from './UploadTiles';
 import { formatDate } from './media-format';
 import { PrivateMediaPreview } from './PrivateMediaPreview';
 import styles from './MediaLibrary.module.css';
@@ -145,12 +149,18 @@ function MediaCard({
 }
 
 function MediaList({
+  uploads,
+  onRetry,
+  onRemoveUpload,
   items,
   selected,
   onToggle,
   onOpen,
   onDelete
 }: {
+  uploads: UploadEntry[];
+  onRetry: (key: string) => void;
+  onRemoveUpload: (key: string) => void;
   items: MediaLibraryItemDto[];
   selected: ReadonlySet<string>;
   onToggle: (item: MediaLibraryItemDto, checked: boolean) => void;
@@ -159,6 +169,14 @@ function MediaList({
 }) {
   return (
     <ul className={styles.list} aria-label="Файлы медиатеки">
+      {uploads.map((entry) => (
+        <UploadListRow
+          key={entry.key}
+          entry={entry}
+          onRetry={() => onRetry(entry.key)}
+          onRemove={() => onRemoveUpload(entry.key)}
+        />
+      ))}
       {items.map((item) => (
         <li key={item.id} className={styles.listRow}>
           <span className={`${styles.preview} ${styles.listPreview}`}>
@@ -392,6 +410,10 @@ export function MediaLibrary({ searchState, onSearchState, onCreatePost, onLogin
   const view = narrow ? 'grid' : (searchState.view ?? 'grid');
   const createPost = useCreatePostWithMedia();
   const toast = useToast();
+  const upload = useLibraryUpload();
+  const fileInput = useRef<HTMLInputElement>(null);
+  const dragging = useUploadIntake(upload.add, true);
+  const uploadItems = upload.entries;
   const askDelete = (targets: MediaLibraryItemDto[]) =>
     setPendingDelete(targets.map(({ id, fileName }) => ({ id, fileName })));
   const afterDeleted = (ids: string[]) => {
@@ -469,19 +491,25 @@ export function MediaLibrary({ searchState, onSearchState, onCreatePost, onLogin
         onRetry={retry}
       />
     );
-  } else if (totalCount === 0 && !filters.search && filters.kind === 'all' && filters.usage === 'all') {
+  } else if (
+    totalCount === 0 &&
+    uploadItems.length === 0 &&
+    !filters.search &&
+    filters.kind === 'all' &&
+    filters.usage === 'all'
+  ) {
     body = (
       <EmptyState
-        title="Файлов пока нет"
-        description="Загрузить файл можно в редакторе нового поста."
+        title="Загрузите первые файлы"
+        description="JPG, PNG, WebP, GIF или MP4. Можно перетащить файлы на страницу или вставить из буфера."
         action={
-          <Button variant="secondary" onPress={onCreatePost}>
-            Создать пост
+          <Button icon="upload" onPress={() => fileInput.current?.click()}>
+            Загрузить
           </Button>
         }
       />
     );
-  } else if (totalCount === 0) {
+  } else if (totalCount === 0 && uploadItems.length === 0) {
     body = (
       <EmptyState
         title="Ничего не найдено"
@@ -496,6 +524,14 @@ export function MediaLibrary({ searchState, onSearchState, onCreatePost, onLogin
   } else if (view === 'grid') {
     body = (
       <ul className={styles.grid} aria-label="Файлы медиатеки">
+        {uploadItems.map((entry) => (
+          <UploadCard
+            key={entry.key}
+            entry={entry}
+            onRetry={() => upload.retry(entry.key)}
+            onRemove={() => upload.remove(entry.key)}
+          />
+        ))}
         {items.map((item) => (
           <MediaCard
             key={item.id}
@@ -511,6 +547,9 @@ export function MediaLibrary({ searchState, onSearchState, onCreatePost, onLogin
   } else {
     body = (
       <MediaList
+        uploads={uploadItems}
+        onRetry={upload.retry}
+        onRemoveUpload={upload.remove}
         items={items}
         selected={selected}
         onToggle={changeSelected}
@@ -524,11 +563,11 @@ export function MediaLibrary({ searchState, onSearchState, onCreatePost, onLogin
     <div className={styles.page}>
       <PageHeader
         title={ru.pages.media}
-        description="Сохранённые файлы из черновиков и истории постов."
+        description="Файлы для постов: загрузите их сюда или возьмите из черновиков и истории."
         focusHeadingOnMount
         actions={
-          <Button icon="plus" onPress={onCreatePost}>
-            Создать пост
+          <Button icon="upload" onPress={() => fileInput.current?.click()}>
+            Загрузить
           </Button>
         }
       />
@@ -669,6 +708,35 @@ export function MediaLibrary({ searchState, onSearchState, onCreatePost, onLogin
         onClose={() => setPendingDelete(null)}
         onDeleted={afterDeleted}
         onOpenPost={onOpenPost}
+      />
+      <input
+        ref={fileInput}
+        type="file"
+        multiple
+        accept={UPLOAD_ACCEPT}
+        className={styles.hiddenInput}
+        aria-label="Выбрать файлы для загрузки"
+        tabIndex={-1}
+        onChange={(event) => {
+          upload.add([...(event.target.files ?? [])]);
+          event.target.value = '';
+        }}
+      />
+      {dragging ? (
+        <div className={styles.dropOverlay} aria-hidden="true">
+          <span>Отпустите, чтобы загрузить</span>
+        </div>
+      ) : null}
+      <ConfirmDialog
+        isOpen={upload.blocker.status === 'blocked'}
+        onOpenChange={(open) => {
+          if (!open) upload.blocker.reset?.();
+        }}
+        title="Загрузки прервутся. Уйти?"
+        description="Файлы, которые ещё не загрузились, придётся добавить заново."
+        confirmLabel="Да"
+        cancelLabel="Нет"
+        onConfirm={() => upload.blocker.proceed?.()}
       />
       {attachOpen ? (
         <AttachDialog

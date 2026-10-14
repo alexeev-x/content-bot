@@ -484,6 +484,65 @@ export function createD1PostMediaRepository(db: D1Database): PostMediaRepository
       return results[0]?.meta.changes === 1 && results[1]?.meta.changes === 1 && results.at(-1)?.meta.changes === 1;
     },
 
+    async storeLibraryUpload(input) {
+      const { asset } = input;
+      const claimGuard =
+        'EXISTS (SELECT 1 FROM media_derivations d WHERE d.idempotency_key = ?1 AND d.media_id = ?4 AND d.payload_hash = ?3)';
+      const results = await db.batch([
+        db
+          .prepare(
+            `INSERT INTO media_derivations (idempotency_key, source_media_id, payload_hash, media_id, response_body, created_at)
+             SELECT ?1, ?4, ?3, ?4, ?5, ?6
+              WHERE EXISTS (SELECT 1 FROM post_media_cleanup s WHERE s.media_id = ?4 AND s.staging = 1)
+             ON CONFLICT (idempotency_key) DO NOTHING`
+          )
+          .bind(input.idempotencyKey, '', input.payloadHash, asset.id, input.responseBody, input.now),
+        db
+          .prepare(
+            `INSERT INTO media_assets (id, object_key, sha256, kind, file_name, content_type, size_bytes, width, height, duration_ms, created_at, source_media_id, in_library)
+             SELECT ?4, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, NULL, 1 WHERE ${claimGuard}`
+          )
+          .bind(
+            input.idempotencyKey,
+            '',
+            input.payloadHash,
+            asset.id,
+            input.actor,
+            asset.objectKey,
+            asset.sha256,
+            asset.kind,
+            asset.fileName,
+            asset.contentType,
+            asset.sizeBytes,
+            asset.width,
+            asset.height,
+            asset.durationMs,
+            asset.createdAt
+          ),
+        db
+          .prepare(
+            `INSERT INTO audit_log (actor_telegram_id, action, entity_type, entity_id, created_at, details)
+             SELECT ?5, 'media.upload', 'media', ?4, ?6, ?7 WHERE ${claimGuard}
+               AND EXISTS (SELECT 1 FROM media_assets WHERE id = ?4)`
+          )
+          .bind(
+            input.idempotencyKey,
+            '',
+            input.payloadHash,
+            asset.id,
+            input.actor,
+            input.now,
+            JSON.stringify({ mediaId: asset.id })
+          ),
+        db
+          .prepare(
+            'DELETE FROM post_media_cleanup WHERE media_id = ?1 AND staging = 1 AND EXISTS (SELECT 1 FROM media_assets WHERE id = ?1)'
+          )
+          .bind(asset.id)
+      ]);
+      return results[0]?.meta.changes === 1 && results[1]?.meta.changes === 1 && results.at(-1)?.meta.changes === 1;
+    },
+
     async findRetainedMedia(mediaIds) {
       if (mediaIds.length === 0) return [];
       const { results } = await db

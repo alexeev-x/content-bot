@@ -60,6 +60,18 @@ export interface PostMediaRepository {
     /** mode=replace: swap the source for the asset in draft posts and drop the source from the listing, same batch. */
     replace?: boolean;
   }): Promise<boolean>;
+  /**
+   * Commits a standalone library upload atomically (claim in media_derivations, whose source_media_id is the
+   * new asset itself); false means the claim or the staging row was lost.
+   */
+  storeLibraryUpload(input: {
+    idempotencyKey: string;
+    payloadHash: string;
+    responseBody: string;
+    actor: string;
+    now: number;
+    asset: MediaAssetInput;
+  }): Promise<boolean>;
   /** A retained library item that was not replaced before. */
   findReplaceableSource(mediaId: string): Promise<boolean>;
   /** Idempotent; false when the item is unknown, not retained or replaced. */
