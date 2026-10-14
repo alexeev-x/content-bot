@@ -46,6 +46,7 @@ export const copy = {
     who: 'Кто',
     owner: 'Вы',
     system: 'Студия (автоматически)',
+    systemShort: 'Студия',
     channel: 'Канал',
     planned: 'План',
     openPublication: 'Открыть публикацию',

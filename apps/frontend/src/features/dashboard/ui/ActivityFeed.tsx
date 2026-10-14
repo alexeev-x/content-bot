@@ -23,6 +23,16 @@ const CHIPS = [
   ...(Object.keys(CATEGORY_LABELS) as ActivityCategory[]).map((id) => ({ id, label: CATEGORY_LABELS[id] }))
 ];
 
+const formatFull = (iso: string, timezone: string) =>
+  new Intl.DateTimeFormat('ru-RU', {
+    timeZone: timezone,
+    day: 'numeric',
+    month: 'long',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit'
+  }).format(new Date(iso));
+
 const dayKey = (iso: string, timezone: string) =>
   new Intl.DateTimeFormat('en-CA', { timeZone: timezone, year: 'numeric', month: '2-digit', day: '2-digit' }).format(
     new Date(iso)
@@ -61,7 +71,7 @@ export function ActivityFeed({ timezone, now, onOpen }: Props) {
         {query.isPending ? (
           <ul className={styles.list} aria-hidden="true">
             {['a', 'b', 'c', 'd'].map((key) => (
-              <li key={key} className={styles.row}>
+              <li key={key} className={styles.skeletonRow}>
                 <Skeleton width={32} height={32} radius="var(--radius-pill)" />
                 <Skeleton width="70%" height={14} />
               </li>
@@ -81,27 +91,32 @@ export function ActivityFeed({ timezone, now, onOpen }: Props) {
             {groups.map((group) => (
               <section key={group.key} className={styles.day} aria-label={dayLabel(group.key, now, timezone)}>
                 <h3 className={styles.dayTitle}>{dayLabel(group.key, now, timezone)}</h3>
-                <ul className={styles.list}>
+                <ol className={styles.timeline}>
                   {group.items.map((item) => {
                     const view = activityView(item);
                     return (
-                      <li key={item.id}>
-                        <AriaButton className={styles.row} style={toneStyle(view.tone)} onPress={() => onOpen([item])}>
-                          <span className={styles.icon} aria-hidden="true">
-                            <Icon name={view.icon} size={16} />
-                          </span>
-                          <span className={styles.text}>
+                      <li key={item.id} className={styles.event} data-tone={view.tone} style={toneStyle(view.tone)}>
+                        <span className={styles.node} aria-hidden="true">
+                          <Icon name={view.icon} size={14} />
+                        </span>
+                        <AriaButton className={styles.row} onPress={() => onOpen([item])}>
+                          <span className={styles.line}>
                             <span className={styles.what}>{view.text}</span>
                             {view.subject ? <span className={styles.subject}>{view.subject}</span> : null}
                           </span>
-                          <time className={styles.time} dateTime={item.at}>
-                            {formatClock(item.at, timezone)}
-                          </time>
+                          <span className={styles.meta}>
+                            {item.actor === 'owner' ? copy.activity.owner : copy.activity.systemShort}
+                            {item.channelTitle ? ` · ${item.channelTitle}` : ''}
+                            {' · '}
+                            <time dateTime={item.at} title={formatFull(item.at, timezone)}>
+                              {formatClock(item.at, timezone)}
+                            </time>
+                          </span>
                         </AriaButton>
                       </li>
                     );
                   })}
-                </ul>
+                </ol>
               </section>
             ))}
             {query.hasNextPage ? (
