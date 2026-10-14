@@ -5,7 +5,6 @@ import { PAGE_SIZE } from '../../../shared/api/page-query';
 import { relativeTimeRu } from '../../../shared/lib/ru-format';
 import { useNow } from '../../../shared/lib/use-now';
 import {
-  Button,
   DataTable,
   EmptyState,
   ErrorState,
@@ -16,7 +15,7 @@ import {
   type DataColumn,
   type TableSort
 } from '../../../shared/ui';
-import { useDotaAutomation, useRunAutomationNow } from '../api/dota-automation-queries';
+import { useDotaAutomation } from '../api/dota-automation-queries';
 import { dotaHeroStatisticsQueryOptions } from '../api/dota-hero-statistics-queries';
 import { buildRows, RANKS, sortRows, type HeroRow, type HeroSortKey, type Rank } from './hero-statistics-model';
 import styles from './HeroStatistics.module.css';
@@ -37,7 +36,6 @@ export function HeroStatistics() {
   const now = useNow().getTime();
   const query = useQuery(dotaHeroStatisticsQueryOptions());
   const automation = useDotaAutomation('dota-hero-statistics');
-  const run = useRunAutomationNow('dota-hero-statistics');
   const [rank, setRank] = useState<Rank>('all');
   const [sort, setSort] = useState<TableSort>({ column: 'winRate', direction: 'descending' });
   const [page, setPage] = useState(1);
@@ -104,7 +102,6 @@ export function HeroStatistics() {
 
   const auto = automation.data ?? undefined;
   const nextRunAt = auto?.enabled && auto.nextRunAt && new Date(auto.nextRunAt).getTime() > now ? auto.nextRunAt : null;
-  const running = run.isPending || (auto !== undefined && auto.executionState !== 'idle');
   const line = [
     'Данные OpenDota',
     query.data.lastSuccessAt ? `обновлено ${relativeTimeRu(query.data.lastSuccessAt, now)}` : null,
@@ -117,16 +114,6 @@ export function HeroStatistics() {
     <div className={styles.stats}>
       <div className={styles.head}>
         <p className={styles.line}>{line}</p>
-        {auto?.runNowAllowed ? (
-          <Button size="sm" variant="secondary" icon="retry" isLoading={running} onPress={() => run.mutate()}>
-            Обновить сейчас
-          </Button>
-        ) : null}
-        {run.isError ? (
-          <span role="alert" className={styles.line}>
-            Не удалось запустить обновление.
-          </span>
-        ) : null}
       </div>
       <Panel
         footer={
@@ -166,7 +153,21 @@ export function HeroStatistics() {
             emptyState={<EmptyState title="Нет данных по героям" />}
           />
         ) : (
-          <EmptyState icon="clock" title="Статистика ещё не собрана" description="Первый сбор в течение 6 часов." />
+          <EmptyState
+            icon="clock"
+            title="Статистика ещё не собрана"
+            description={[
+              query.data.lastError?.httpStatus === 429
+                ? 'OpenDota пока ограничивает запросы, студия попробует снова сама.'
+                : query.data.lastError
+                  ? 'Последняя попытка не удалась, студия попробует снова сама.'
+                  : null,
+              nextRunAt ? `Следующая попытка ${relativeTimeRu(nextRunAt, now)}.` : null,
+              'Запустить раньше можно кнопкой «Проверить сейчас» в «Состоянии лент».'
+            ]
+              .filter(Boolean)
+              .join(' ')}
+          />
         )}
       </Panel>
     </div>

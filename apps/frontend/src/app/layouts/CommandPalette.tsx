@@ -41,6 +41,8 @@ function PaletteBody({ onDone }: { onDone: () => void }) {
     enabled: searching,
     placeholderData: keepPreviousData
   });
+  // Before anything is typed: the latest edited posts, so the palette opens on where the owner left off.
+  const recent = useInfiniteQuery({ ...postsInfiniteQueryOptions({}), enabled: !searching });
   const publications = useQuery({
     ...publicationsPageQueryOptions({ q }),
     enabled: searching,
@@ -59,11 +61,13 @@ function PaletteBody({ onDone }: { onDone: () => void }) {
     { id: 'settings', label: ru.nav.settings, go: () => void navigate({ to: '/settings' }) }
   ].filter((entry) => entry.label.toLowerCase().includes(needle));
 
-  const postEntries: Entry[] = (posts.data?.pages[0]?.items ?? []).slice(0, MAX_PER_GROUP).map((post) => ({
-    id: `post-${post.id}`,
-    label: post.title || ru.shell.palette.untitled,
-    go: () => void navigate({ to: '/posts/$id', params: { id: post.id } })
-  }));
+  const postEntries: Entry[] = ((searching ? posts : recent).data?.pages[0]?.items ?? [])
+    .slice(0, MAX_PER_GROUP)
+    .map((post) => ({
+      id: `post-${post.id}`,
+      label: post.title || ru.shell.palette.untitled,
+      go: () => void navigate({ to: '/posts/$id', params: { id: post.id } })
+    }));
   const publicationEntries: Entry[] = (publications.data?.items ?? []).slice(0, MAX_PER_GROUP).map((item) => ({
     id: `publication-${item.id}`,
     label: `${ru.shell.palette.publication} · ${ru.status[item.status]}`,
@@ -75,7 +79,7 @@ function PaletteBody({ onDone }: { onDone: () => void }) {
   const failed = searching && (posts.isError || publications.isError);
   const groups = [
     { id: 'actions', title: ru.shell.palette.actions, items: actions },
-    { id: 'posts', title: ru.shell.palette.posts, items: postEntries },
+    { id: 'posts', title: searching ? ru.shell.palette.posts : ru.shell.palette.recentPosts, items: postEntries },
     { id: 'publications', title: ru.shell.palette.publications, items: publicationEntries }
   ].filter((group) => group.items.length > 0);
   const byId = new Map(groups.flatMap((group) => group.items).map((entry) => [entry.id, entry]));

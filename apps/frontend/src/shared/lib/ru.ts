@@ -32,6 +32,7 @@ export const ru = {
       placeholder: 'Пост, публикация или раздел…',
       actions: 'Быстрые действия',
       posts: 'Посты',
+      recentPosts: 'Недавние посты',
       publications: 'Публикации',
       loading: 'Ищем…',
       error: 'Не удалось выполнить поиск',

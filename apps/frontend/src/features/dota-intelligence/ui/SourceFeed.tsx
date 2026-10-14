@@ -13,10 +13,8 @@ import {
   Panel,
   PanelList,
   PanelRow,
-  SegmentedControl,
   Select,
-  Skeleton,
-  useMediaQuery
+  Skeleton
 } from '../../../shared/ui';
 import { sourceEventsQueryOptions, useCreateSourceEventDraft, useSetSourceEventHidden } from '../api/sources-queries';
 import { SourceEventCard } from './SourceEventCard';
@@ -58,7 +56,6 @@ export function SourceFeed({ filters, timezone, onFiltersChange }: Props) {
   );
   const draft = useCreateSourceEventDraft();
   const visibility = useSetSourceEventHidden();
-  const narrow = useMediaQuery('(max-width: 859px)');
   const [actionId, setActionId] = useState<string | null>(null);
 
   const totalCount = query.data?.totalCount ?? 0;
@@ -87,22 +84,14 @@ export function SourceFeed({ filters, timezone, onFiltersChange }: Props) {
   const hiddenConflict = actionError instanceof ApiError && actionError.reason === 'EVENT_HIDDEN';
   const toolbar = (
     <div className={styles.toolbar}>
-      {narrow ? (
-        <Select
-          label="Статус"
-          inlineLabel
-          options={STATUS_OPTIONS}
-          value={filters.status}
-          onChange={(status) => onFiltersChange({ status: status as SourceEventStatus, page: 1 })}
-        />
-      ) : (
-        <SegmentedControl
-          label="Статус события"
-          options={STATUS_OPTIONS}
-          value={filters.status}
-          onChange={(status) => onFiltersChange({ status: status as SourceEventStatus, page: 1 })}
-        />
-      )}
+      {/* A compact select on every screen: the page already has one row of tabs (Лента / Статистика героев). */}
+      <Select
+        label="Статус"
+        inlineLabel
+        options={STATUS_OPTIONS}
+        value={filters.status}
+        onChange={(status) => onFiltersChange({ status: status as SourceEventStatus, page: 1 })}
+      />
     </div>
   );
 
