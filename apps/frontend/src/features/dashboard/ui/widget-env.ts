@@ -1,14 +1,11 @@
 import type { ActivityItemDto, PostPageDto, PublicationPageDto } from '@alexeev/contracts';
 import type { UseQueryResult } from '@tanstack/react-query';
-import type { ServiceRow } from '../model/service-rows';
 import type { DashboardView } from './view-model';
 
 /** What every widget needs from the page; the page owns the data and the navigation, the widgets only draw. */
 export type WidgetEnv = {
   /** The loaded `/dashboard` day; undefined while it loads: widgets draw skeletons. */
   view: DashboardView | undefined;
-  /** One light per service (system checks mapped by the page). */
-  services: readonly ServiceRow[] | undefined;
   /** The week's publications and the newest drafts: separate reads, so each widget has its own loading and error. */
   week: UseQueryResult<PublicationPageDto> | undefined;
   drafts: UseQueryResult<PostPageDto> | undefined;

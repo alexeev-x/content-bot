@@ -1,8 +1,6 @@
 import type { DashboardDto } from '@alexeev/contracts';
-import type { ServiceRow } from '../model/service-rows';
 
-/** What the loaded dashboard renders: the server data plus what the page adds (system checks). */
+/** What the loaded dashboard renders: the server's day summary. */
 export type DashboardView = {
   dashboard: DashboardDto;
-  services: readonly ServiceRow[];
 };

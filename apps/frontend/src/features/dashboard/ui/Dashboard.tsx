@@ -5,10 +5,8 @@ import { dayActivityQueryOptions } from '../api/activity-queries';
 import { ApiError } from '../../../shared/api/http-client';
 import { classifyApiError } from '../../../shared/api/error-kind';
 import { Banner, Button, ErrorState } from '../../../shared/ui';
-import { buildView } from '../model/build-view';
 import { useDraftsQuery, useWeekQuery } from '../model/use-dashboard-query';
 import { useTodayRange } from '../model/today-range';
-import type { ServiceRow } from '../model/service-rows';
 import { ActivityDialog } from './ActivityDialog';
 import { copy } from './copy';
 import styles from './Dashboard.module.css';
@@ -18,8 +16,6 @@ import type { WidgetEnv } from './widget-env';
 export type PageBindings = {
   /** From `useDashboardQuery`: the page owns it, because the status strip reacts to the same data. */
   query: UseQueryResult<DashboardDto>;
-  /** One line per service for the «Система» panel, mapped by the page from the same checks. */
-  services: readonly ServiceRow[];
   /** «Europe/Chisinau, UTC+3», built by the page (the zone helpers live in another feature). */
   zoneNote: string;
   timezone?: string;
@@ -37,7 +33,6 @@ export type PageBindings = {
 /** The fixed Обзор: the day summary is read once for all the widgets that need it. */
 export function Dashboard({
   query,
-  services,
   zoneNote,
   timezone = 'Europe/Moscow',
   onOpenPublication,
@@ -59,7 +54,7 @@ export function Dashboard({
   let view: WidgetEnv['view'];
   let failure = null;
   if (query.data) {
-    view = buildView(query.data, services);
+    view = { dashboard: query.data };
   } else if (failed) {
     if (classifyApiError(query.error) === 'forbidden') {
       failure = <ErrorState title={copy.error.forbiddenTitle} message={copy.error.forbiddenMessage} />;
@@ -97,7 +92,6 @@ export function Dashboard({
 
   const env = {
     view,
-    services,
     week,
     drafts,
     timezone,

@@ -42,8 +42,6 @@ export { TableSearch } from './TableSearch';
 export { SelectionBar } from './SelectionBar';
 export { ActiveFilters } from './ActiveFilters';
 export type { ActiveFilter } from './ActiveFilters';
-export { FilterChips } from './FilterChips';
-export type { FilterChip } from './FilterChips';
 export { SegmentedControl } from './SegmentedControl';
 export type { SegmentOption } from './SegmentedControl';
 export { Select } from './Select';

@@ -2,15 +2,13 @@ import { useState } from 'react';
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
 import { useDocumentTitle } from '../app/use-document-title';
-import { useBotCheck } from '../features/bot';
-import { Dashboard, DateChip, useDashboardQuery, type PageBindings, type ServiceRow } from '../features/dashboard';
+import { Dashboard, DateChip, useDashboardQuery, type PageBindings } from '../features/dashboard';
 import { destinationsInfiniteQueryOptions } from '../features/destinations';
 import { MediaPanel, MediaThumb } from '../features/media';
 import { PublicationDrawer, publicationQueryOptions } from '../features/publications';
 import { useOwnerTimezone } from '../features/owner-settings';
 import { utcOffsetLabel } from '../shared/lib/owner-timezone';
 import { useNow } from '../shared/lib/use-now';
-import { checkWord, isSwitchedOff, useServiceChecks } from '../features/system-health';
 import { ru } from '../shared/lib/ru';
 import { Button, PageHeader, useMediaQuery } from '../shared/ui';
 
@@ -28,9 +26,6 @@ export function DashboardPage({ pollMs, openPublicationId, onOpenPublicationChan
   const timezone = useOwnerTimezone();
   const now = useNow();
   const dashboard = useDashboardQuery(pollMs, timezone);
-  const service = useServiceChecks();
-  const bot = useBotCheck();
-  const checks = [...service.checks, bot];
   const zoneNote = `${timezone}, ${utcOffsetLabel(now, timezone)}`;
   const [openMedia, setOpenMedia] = useState<{ id: string; fileName: string } | null>(null);
   const phone = useMediaQuery('(max-width: 859px)');
@@ -40,19 +35,9 @@ export function DashboardPage({ pollMs, openPublicationId, onOpenPublicationChan
     onOpenPublicationChange
       ? onOpenPublicationChange(id)
       : id && void navigate({ to: '/publications', search: { id } });
-  const services: ServiceRow[] = checks.map((check) => ({
-    id: check.id,
-    name: check.name,
-    tone: check.tone,
-    word: checkWord(check),
-    off: isSwitchedOff(check),
-    title: check.summary,
-    ...(check.action ? { action: check.action } : {})
-  }));
 
   const bindings: PageBindings = {
     query: dashboard,
-    services,
     zoneNote,
     timezone,
     onOpenPublication: (id) => openPublication(id),

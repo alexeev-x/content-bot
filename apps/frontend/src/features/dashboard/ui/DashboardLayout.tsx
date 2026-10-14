@@ -3,16 +3,12 @@ import { ownerDayRange } from '../../../shared/lib/owner-timezone';
 import { useNow } from '../../../shared/lib/use-now';
 import { useMediaQuery, VisuallyHidden } from '../../../shared/ui';
 import { PHONE_QUERY } from '../model/phone';
-import { LAYOUT, mediumSpan, type LayoutItem } from '../model/layout';
-import { ActivityFeed } from './ActivityFeed';
+import { LAYOUT, type LayoutItem } from '../model/layout';
 import { copy } from './copy';
 import styles from './Dashboard.module.css';
 import { DateChip } from './DateChip';
 import { DayTimeline } from './DayTimeline';
 import { Drafts } from './Drafts';
-import { NextUp } from './NextUp';
-import { RecentBubbles } from './RecentBubbles';
-import { SystemLights } from './SystemLights';
 import { WeekBars } from './WeekBars';
 import type { WidgetEnv } from './widget-env';
 
@@ -44,41 +40,16 @@ function renderWidget(item: LayoutItem, env: Omit<WidgetEnv, 'phone'>, phone: bo
           onOpenActivity={env.onOpenActivity}
         />
       );
-    case 'upcoming':
-      return (
-        <NextUp
-          today={dashboard?.today}
-          upcoming={dashboard?.upcoming}
-          now={now}
-          timezone={timezone}
-          onOpenPublication={env.onOpenPublication}
-          onNewPost={env.onNewPost}
-        />
-      );
     case 'week':
       return <WeekBars query={env.week} now={now} timezone={timezone} onOpenDay={env.onOpenDay} />;
     case 'drafts':
       return <Drafts query={env.drafts} now={now} onPublish={env.onPublishDraft} onNewPost={env.onNewPost} />;
-    case 'recent':
-      return (
-        <RecentBubbles
-          items={dashboard?.recentSent}
-          now={now}
-          timezone={timezone}
-          phone={phone}
-          onOpenPublication={env.onOpenPublication}
-        />
-      );
-    case 'system':
-      return <SystemLights services={env.services} />;
-    case 'activity':
-      return <ActivityFeed timezone={timezone} now={now} onOpen={env.onOpenActivity} />;
   }
 }
 
-/** Grid placement of one widget: its span on a wide screen and the paired span on a medium one. */
+/** Grid placement of one widget: its span from a medium screen up. */
 function cellStyle(item: LayoutItem): CSSProperties {
-  return { '--w': item.w, '--w-mid': mediumSpan(item.w) } as CSSProperties;
+  return { '--w': item.w } as CSSProperties;
 }
 
 /**

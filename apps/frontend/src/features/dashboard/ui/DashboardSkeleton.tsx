@@ -16,7 +16,6 @@ export function DashboardSkeleton({
       zoneNote={zoneNote}
       env={{
         view: undefined,
-        services: undefined,
         week: undefined,
         drafts: undefined,
         timezone,

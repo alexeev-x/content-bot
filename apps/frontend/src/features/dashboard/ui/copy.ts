@@ -4,15 +4,6 @@ import { pluralRu } from '../../../shared/lib/ru-format';
 export const copy = {
   loading: 'Загружаем обзор…',
   activity: {
-    title: 'Активность',
-    filter: 'Фильтр активности',
-    all: 'Всё',
-    today: 'Сегодня',
-    yesterday: 'Вчера',
-    empty: 'Пока ничего не происходило',
-    error: 'Не удалось загрузить активность',
-    retry: 'Повторить',
-    more: 'Показать ещё',
     lane: 'События',
     andMore: (n: number) => `и ещё ${n}`,
     eventDot: (count: number, first: string, clock: string) =>
@@ -23,7 +14,6 @@ export const copy = {
     who: 'Кто',
     owner: 'Вы',
     system: 'Студия (автоматически)',
-    systemShort: 'Студия',
     channel: 'Канал',
     planned: 'План',
     openPublication: 'Открыть публикацию',
@@ -51,14 +41,6 @@ export const copy = {
     marker: (title: string, channel: string, clock: string, status: string) =>
       `${clock}, ${status}: «${title}», ${channel}`
   },
-  next: {
-    title: 'Следующая публикация',
-    all: 'Все',
-    empty: 'Ничего не запланировано',
-    create: 'Новый пост',
-    now: 'вот-вот',
-    open: (title: string) => `Открыть публикацию «${title}»`
-  },
   week: {
     title: 'Неделя',
     scheduled: 'Запланировано',
@@ -72,14 +54,6 @@ export const copy = {
     day: (long: string, scheduled: number, sent: number, problem: number) =>
       `${long}: запланировано ${scheduled}, отправлено ${sent}, проблем ${problem}. Открыть публикации дня`
   },
-  recent: {
-    title: 'Отправлено недавно',
-    all: 'Все',
-    empty: 'Пока ничего не отправлено',
-    openInTelegram: 'Открыть в Telegram',
-    open: (title: string) => `Открыть публикацию «${title}»`,
-    telegram: (title: string) => `Открыть в Telegram: «${title}»`
-  },
   drafts: {
     title: 'Черновики',
     all: 'Все посты',
@@ -90,11 +64,6 @@ export const copy = {
     publishLabel: (title: string) => `К публикации: «${title}»`,
     error: 'Не удалось загрузить черновики',
     retry: 'Повторить'
-  },
-  system: {
-    title: 'Система',
-    empty: 'Нет данных о системе',
-    lights: 'Состояния служб'
   },
   error: {
     title: 'Не удалось загрузить обзор',

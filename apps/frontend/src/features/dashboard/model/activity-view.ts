@@ -1,4 +1,4 @@
-import type { ActivityAction, ActivityCategory, ActivityItemDto } from '@alexeev/contracts';
+import type { ActivityAction, ActivityItemDto } from '@alexeev/contracts';
 import type { IconName } from '../../../shared/ui';
 
 type ActionView = { text: string; icon: IconName };
@@ -30,14 +30,6 @@ const ACTIONS: Record<ActivityAction, ActionView> = {
   'automation.pause': { text: 'Автопроверка источников на паузе', icon: 'pause' },
   'automation.resume': { text: 'Автопроверка источников включена', icon: 'play' },
   'automation.run_now': { text: 'Запущена проверка источников', icon: 'retry' }
-};
-
-export const CATEGORY_LABELS: Record<ActivityCategory, string> = {
-  posts: 'Посты',
-  media: 'Медиа',
-  publications: 'Публикации',
-  errors: 'Ошибки',
-  system: 'Система'
 };
 
 /** The status-colour group an event borrows, so errors read as errors and sends as done. */

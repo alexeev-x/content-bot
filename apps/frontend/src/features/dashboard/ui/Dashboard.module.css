@@ -43,7 +43,8 @@
   display: grid;
   grid-template-columns: repeat(12, minmax(0, 1fr));
   gap: var(--space-4);
-  align-items: start;
+  /* Widgets of one row share its height, so their frames line up. */
+  align-items: stretch;
 }
 .cell {
   display: flex;
@@ -55,11 +56,6 @@
   flex: 1;
 }
 @container (min-width: 760px) {
-  .cell {
-    grid-column: span var(--w-mid);
-  }
-}
-@container (min-width: 1000px) {
   .cell {
     grid-column: span var(--w);
   }
