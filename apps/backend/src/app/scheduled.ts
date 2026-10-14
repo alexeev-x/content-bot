@@ -352,7 +352,11 @@ export async function handleScheduled(controller: ScheduledController, container
           newId: container.newId
         });
       }
-      const run = await container.automations.claimNext({ id: 'dota-hero-statistics', now: clock.now() });
+      const run = await container.automations.claimNext({
+        id: 'dota-hero-statistics',
+        now: clock.now(),
+        dueOnly: true
+      });
       if (run === null) return {};
       try {
         const result = await container.dotaHeroStatistics.poll({
@@ -378,6 +382,16 @@ export async function handleScheduled(controller: ScheduledController, container
           outputCount: 0,
           errorCode: error instanceof DotaHeroStatisticsError ? error.code : 'AUTOMATION_RUN_FAILED'
         });
+        // A transient OpenDota failure (shared Workers IPs hit its per-IP limit) is retried with backoff instead of
+        // waiting for the next 6 h slot; claimNext leaves the run queued until its time.
+        if (error instanceof DotaHeroStatisticsError && error.retryAt !== null) {
+          await container.automations.enqueueScheduled({
+            id: 'dota-hero-statistics',
+            slot: error.retryAt,
+            requestedAt: clock.now(),
+            newId: container.newId
+          });
+        }
         throw error;
       }
     });

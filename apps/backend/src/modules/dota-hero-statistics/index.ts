@@ -14,6 +14,11 @@ import { clipDetail, describeError, describeHttp, describeShape } from '../../sh
 
 // Minimum gap between two polls. The schedule (every 6 h) lives in Cron; «Проверить сейчас» may poll again after 5 min.
 const POLL_INTERVAL_MS = 5 * 60 * 1000;
+// OpenDota limits by IP and Workers share egress IPs, so a 429 or 5xx is often someone else's traffic. Instead of
+// waiting for the next 6 h slot, Cron retries after 5, 15, 45, 135 min, then gives the slot back to the schedule.
+const RETRY_BASE_MS = 5 * 60 * 1000;
+const RETRY_FACTOR = 3;
+const MAX_RETRIES = 4;
 const CLAIM_LEASE_MS = 60_000;
 const SNAPSHOT_RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
 const MAX_RESPONSE_BYTES = 512 * 1024;
@@ -56,7 +61,9 @@ export class DotaHeroStatisticsError extends Error {
   constructor(
     readonly code: DotaHeroStatisticsErrorCode,
     readonly httpStatus: number | null = null,
-    readonly detail = ''
+    readonly detail = '',
+    /** Set by `poll` after the failure was recorded: when Cron should try again outside the schedule. */
+    public retryAt: number | null = null
   ) {
     super(code);
     this.name = 'DotaHeroStatisticsError';
@@ -133,7 +140,7 @@ export interface DotaHeroStatisticsRepository {
     httpStatus: number | null;
     detail: string;
     at: number;
-  }): Promise<void>;
+  }): Promise<number | null>;
   purgeExpiredSnapshots(input: { cutoff: number; limit: number }): Promise<number>;
   read(): Promise<{
     state: HeroStatisticsStateRow | null;
@@ -205,15 +212,17 @@ export function createD1DotaHeroStatisticsRepository(db: D1Database): DotaHeroSt
     },
 
     async recordFailure({ claimToken, kind, code, httpStatus, detail, at }) {
-      await db
+      const row = await db
         .prepare(
           `UPDATE dota_hero_stats_state SET last_error_code = ?1, last_error_kind = ?2, last_error_http_status = ?3,
              last_error_detail = ?4, last_error_at = ?5, consecutive_failures = consecutive_failures + 1,
              claim_token = NULL, claim_until = NULL
-           WHERE id = 1 AND claim_token = ?6`
+           WHERE id = 1 AND claim_token = ?6
+           RETURNING consecutive_failures`
         )
         .bind(code, kind, httpStatus, detail, at, claimToken)
-        .run();
+        .first<{ consecutive_failures: number }>();
+      return row?.consecutive_failures ?? null;
     },
 
     async purgeExpiredSnapshots({ cutoff, limit }) {
@@ -250,6 +259,22 @@ export interface DotaHeroStatisticsService {
   get(now: number): Promise<DotaHeroStatisticsDto>;
   purgeExpiredSnapshots(now: number, limit: number): Promise<number>;
   poll(input: { now: number; newId: () => string }): Promise<{ status: 'not_due' | 'stored'; heroCount?: number }>;
+}
+
+/**
+ * When Cron should poll again after a failure, or null to wait for the next 6 h slot: only a transient upstream
+ * failure (429, 5xx, network) is retried, at most MAX_RETRIES times in a row.
+ */
+export function retryDelayMs(
+  failures: number,
+  code: DotaHeroStatisticsErrorCode,
+  httpStatus: number | null
+): number | null {
+  if (failures < 1 || failures > MAX_RETRIES) return null;
+  const transient =
+    code === 'DOTA_HERO_STATS_FETCH' ||
+    (code === 'DOTA_HERO_STATS_HTTP' && httpStatus !== null && (httpStatus === 429 || httpStatus >= 500));
+  return transient ? RETRY_BASE_MS * RETRY_FACTOR ** (failures - 1) : null;
 }
 
 function iso(value: number | null): string | null {
@@ -411,7 +436,7 @@ export function createDotaHeroStatisticsService(input: {
       } catch (error) {
         if (error instanceof AppError) throw error;
         if (error instanceof DotaHeroStatisticsError) {
-          await input.repo.recordFailure({
+          const failures = await input.repo.recordFailure({
             claimToken,
             kind: error.code,
             code: error.code,
@@ -419,6 +444,8 @@ export function createDotaHeroStatisticsService(input: {
             detail: error.detail,
             at: now
           });
+          const delay = failures === null ? null : retryDelayMs(failures, error.code, error.httpStatus);
+          error.retryAt = delay === null ? null : now + delay;
           throw error;
         }
         // Not the provider's fault (D1 write, mapper bug): never reported as a fetch failure.

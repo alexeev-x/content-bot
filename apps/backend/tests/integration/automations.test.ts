@@ -54,6 +54,22 @@ describe('Automation Center API', () => {
     });
   });
 
+  it('keeps a backoff retry queued until its slot when claimed with dueOnly', async () => {
+    const repo = createD1AutomationRepository(testDb());
+    const retryAt = START + 5 * 60_000;
+    await repo.enqueueScheduled({
+      id: 'dota-hero-statistics',
+      slot: retryAt,
+      requestedAt: START,
+      newId: () => crypto.randomUUID()
+    });
+
+    expect(await repo.claimNext({ id: 'dota-hero-statistics', now: retryAt - 1, dueOnly: true })).toBeNull();
+    expect(await repo.claimNext({ id: 'dota-hero-statistics', now: retryAt, dueOnly: true })).toMatchObject({
+      scheduledAt: new Date(retryAt).toISOString()
+    });
+  });
+
   it('pauses only future runs, skips queued work, checks revision, and replays the accepted command', async () => {
     const api = createApi({ clock: fakeClock(START) });
     const publication = await seedDueJob(api);

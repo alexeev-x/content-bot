@@ -145,7 +145,8 @@ export interface AutomationRepository {
     now: number;
   }): Promise<AutomationMutationDto>;
   enqueueScheduled(input: { id: AutomationId; slot: number; requestedAt: number; newId: () => string }): Promise<void>;
-  claimNext(input: { id: AutomationId; now: number }): Promise<AutomationRunDto | null>;
+  /** `dueOnly` leaves a run whose slot is still ahead queued (a backoff retry); by default the slot is only a dedupe key. */
+  claimNext(input: { id: AutomationId; now: number; dueOnly?: boolean }): Promise<AutomationRunDto | null>;
   finish(input: {
     runId: string;
     now: number;
@@ -335,14 +336,15 @@ export function createD1AutomationRepository(db: D1Database): AutomationReposito
         .run();
     },
 
-    async claimNext({ id, now }) {
+    async claimNext({ id, now, dueOnly = false }) {
       const candidate = await db
         .prepare(
           `SELECT id, automation_id, origin, status, requested_at, scheduled_at, started_at, completed_at,
           lease_until, output_count, error_code FROM automation_runs
-         WHERE automation_id = ?1 AND status = 'queued' ORDER BY requested_at, id LIMIT 1`
+         WHERE automation_id = ?1 AND status = 'queued' AND (?2 IS NULL OR scheduled_at IS NULL OR scheduled_at <= ?2)
+         ORDER BY requested_at, id LIMIT 1`
         )
-        .bind(id)
+        .bind(id, dueOnly ? now : null)
         .first<RunRow>();
       if (candidate === null) return null;
       const claim = await db
@@ -395,7 +397,17 @@ export function createD1AutomationRepository(db: D1Database): AutomationReposito
         )
         .bind(id)
         .first<RunRow>();
-      if (existing !== null) return { run: toRunDto(existing), coalesced: true };
+      if (existing !== null) {
+        // A retry waiting for its backoff is pulled forward: «Обновить сейчас» must not wait for it.
+        if (existing.status === 'queued' && existing.scheduled_at !== null && existing.scheduled_at > now) {
+          await db
+            .prepare(`UPDATE automation_runs SET scheduled_at = ?1 WHERE id = ?2 AND status = 'queued'`)
+            .bind(now, existing.id)
+            .run();
+          return { run: toRunDto({ ...existing, scheduled_at: now }), coalesced: true };
+        }
+        return { run: toRunDto(existing), coalesced: true };
+      }
       if (!current.runNowAllowed)
         throw new AppError('CONFLICT', 'Automation is not due yet', { reason: 'RUN_NOT_DUE' });
       const runId = newId();
