@@ -27,6 +27,7 @@ function PublicationsRoute() {
         })
       }
       onOpenPosts={() => void navigate({ to: '/posts' })}
+      onPublishPost={(id) => void navigate({ to: '/posts/$id/publish', params: { id } })}
     />
   );
 }

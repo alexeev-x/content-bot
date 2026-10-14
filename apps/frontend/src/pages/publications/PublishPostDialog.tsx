@@ -1,7 +1,7 @@
 import type { PostDto } from '@alexeev/contracts';
 import { useInfiniteQuery } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
-import { PublishDialog, publicationCopy } from '../../features/publications';
+import { publicationCopy } from '../../features/publications';
 import { postsInfiniteQueryOptions } from '../../features/posts';
 import { Button, Dialog, EmptyState, Select, Skeleton } from '../../shared/ui';
 
@@ -11,11 +11,13 @@ type Props = {
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
   onOpenPosts: () => void;
+  /** Opens the post's publish screen (`/posts/$id/publish`). */
+  onPublish: (postId: string) => void;
   timezone?: string;
 };
 
 /** «Опубликовать пост»: pick an approved post, then the existing publish dialog (channel, time, confirmation). */
-export function PublishPostDialog({ isOpen, onOpenChange, onOpenPosts, timezone }: Props) {
+export function PublishPostDialog({ isOpen, onOpenChange, onOpenPosts, onPublish }: Props) {
   const posts = useInfiniteQuery({
     ...postsInfiniteQueryOptions({ view: 'live', status: 'approved' }),
     enabled: isOpen
@@ -25,9 +27,7 @@ export function PublishPostDialog({ isOpen, onOpenChange, onOpenPosts, timezone 
     [posts.data]
   );
   const [pickedId, setPickedId] = useState<string | null>(null);
-  const [publishOpen, setPublishOpen] = useState(false);
   const picked = approved.find((post) => post.id === pickedId) ?? null;
-  const [chosen, setChosen] = useState<PostDto | null>(null);
 
   return (
     <>
@@ -44,9 +44,10 @@ export function PublishPostDialog({ isOpen, onOpenChange, onOpenPosts, timezone 
             <Button
               isDisabled={picked === null}
               onPress={() => {
-                setChosen(picked);
+                if (!picked) return;
                 onOpenChange(false);
-                setPublishOpen(true);
+                // One publish screen for every entry point: the same one the editor's «К публикации» opens.
+                onPublish(picked.id);
               }}
             >
               {copy.next}
@@ -83,9 +84,6 @@ export function PublishPostDialog({ isOpen, onOpenChange, onOpenPosts, timezone 
           />
         )}
       </Dialog>
-      {chosen ? (
-        <PublishDialog post={chosen} timezone={timezone} isOpen={publishOpen} onOpenChange={setPublishOpen} />
-      ) : null}
     </>
   );
 }

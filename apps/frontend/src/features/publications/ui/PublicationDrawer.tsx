@@ -335,9 +335,14 @@ function DrawerActions({ publication, isFresh, onOpenDialog, onDelete, onResend 
   if (publication.status === 'sent' || publication.status === 'failed' || publication.status === 'cancelled') {
     return (
       <div className={styles.actions}>
-        {publication.status === 'failed' && onResend ? (
-          <Button variant="secondary" icon="retry" isDisabled={!isFresh} onPress={() => onResend(publication)}>
-            {copy.drawer.resend}
+        {(publication.status === 'failed' || publication.status === 'cancelled') && onResend ? (
+          <Button
+            variant="secondary"
+            icon={publication.status === 'failed' ? 'retry' : 'calendar'}
+            isDisabled={!isFresh}
+            onPress={() => onResend(publication)}
+          >
+            {publication.status === 'failed' ? copy.drawer.resend : copy.drawer.scheduleAgain}
           </Button>
         ) : null}
         <Button

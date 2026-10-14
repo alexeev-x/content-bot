@@ -37,6 +37,10 @@ export function RescheduleDialog({ publication, timezone, onOpenChange }: Props)
   const reschedule = useReschedulePublication();
   const [value, setValue] = useState<ZonedDateTime | null>(() => parseAbsolute(publication.scheduledAt, zone));
   const [fieldError, setFieldError] = useState<string | undefined>();
+  // The same minute as now is not a move: the button waits for a different time (no notice, no audit row).
+  const unchanged =
+    value !== null &&
+    Math.floor(value.toDate().getTime() / 60_000) === Math.floor(Date.parse(publication.scheduledAt) / 60_000);
   const [failure, setFailure] = useState<ActionError | null>(null);
   const canReschedule = publicationActions(publication.status).canReschedule;
 
@@ -44,7 +48,7 @@ export function RescheduleDialog({ publication, timezone, onOpenChange }: Props)
     if (reschedule.isPending || !canReschedule) return;
     const problem = validate(value);
     setFieldError(problem);
-    if (problem || value === null) return;
+    if (problem || value === null || unchanged) return;
     setFailure(null);
     try {
       const updated = await reschedule.mutateAsync({
@@ -89,7 +93,7 @@ export function RescheduleDialog({ publication, timezone, onOpenChange }: Props)
             form={formId}
             icon="calendar"
             isLoading={reschedule.isPending}
-            isDisabled={!canReschedule}
+            isDisabled={!canReschedule || unchanged}
           >
             {copy.reschedule.submit}
           </Button>

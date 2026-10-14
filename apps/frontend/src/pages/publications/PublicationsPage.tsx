@@ -47,6 +47,8 @@ type Props = {
   /** Merges into the URL search; filters are history entries, the open drawer id too. */
   onSearchChange: (patch: Partial<PublicationsSearch>, options?: { replace?: boolean }) => void;
   onOpenPosts: () => void;
+  /** The post's publish screen, the one entry point for a new publication. */
+  onPublishPost: (postId: string) => void;
   /** Test hook: poll interval in ms (production uses the feature default of 15 s). */
   pollMs?: number;
 };
@@ -61,7 +63,7 @@ function dayChipLabel(from: string | undefined, timeZone: string): string {
 }
 const CLEARED: Partial<PublicationsSearch> = { post: undefined, order: undefined };
 
-export function PublicationsPage({ search, onSearchChange, onOpenPosts, pollMs }: Props) {
+export function PublicationsPage({ search, onSearchChange, onOpenPosts, onPublishPost, pollMs }: Props) {
   useDocumentTitle(copy.list.title);
   const narrow = useMediaQuery(NARROW);
   const timezone = useOwnerTimezone();
@@ -432,6 +434,7 @@ export function PublicationsPage({ search, onSearchChange, onOpenPosts, pollMs }
         isOpen={publishOpen}
         onOpenChange={setPublishOpen}
         onOpenPosts={onOpenPosts}
+        onPublish={onPublishPost}
       />
       {deleteTargets ? (
         <DeletePublicationsDialog

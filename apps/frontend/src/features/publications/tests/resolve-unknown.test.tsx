@@ -258,7 +258,7 @@ describe('outcome «Не вышел — отправить снова»', () => 
     const at = new Date(String(body['scheduledAt'])).getTime();
     expect(at).toBeGreaterThanOrEqual(before - 1000);
     expect(at).toBeLessThanOrEqual(Date.now() + 1000);
-    expect(await screen.findByText(/Сообщение отправится в ближайшую минуту/)).toBeTruthy();
+    expect(await screen.findByText(/Сообщение уйдёт в ближайшую минуту/)).toBeTruthy();
     await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Отправить снова' })).toBeNull());
     expect(within(drawer).getAllByText('В очереди').length).toBeGreaterThan(0);
     expect(screen.queryByText('Опубликовано')).toBeNull();

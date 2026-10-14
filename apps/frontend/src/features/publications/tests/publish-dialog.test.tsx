@@ -158,7 +158,7 @@ describe('PublishDialog', () => {
     const at = Date.parse(String(sent[0]?.body['scheduledAt']));
     expect(at).toBeGreaterThan(Date.now());
     expect(new Date(at).getUTCMinutes() % 15).toBe(0);
-    expect(await screen.findByText(/Сервер принял заявку\. Отправка:/)).toBeTruthy();
+    expect(await screen.findByText(/^Отправка .*Если что-то пойдёт не так, бот напишет\./)).toBeTruthy();
   });
 
   it('reuses the Idempotency-Key and the same instant when a «Сейчас» submit is retried after a network failure', async () => {
@@ -325,7 +325,7 @@ describe('publish intent (lost 202 must never create a second publication)', () 
     cleanup();
 
     const second = await open();
-    expect(await within(second.dialog).findByText('Предыдущая попытка могла дойти до сервера')).toBeTruthy();
+    expect(await within(second.dialog).findByText('Предыдущая попытка могла сработать')).toBeTruthy();
     expect(within(second.dialog).getByRole('button', { name: /Канал/ }).textContent).toContain('Канал');
     await second.user.click(within(second.dialog).getByRole('button', { name: 'Отправить сейчас' }));
     await waitFor(() => expect(sent).toHaveLength(2));
@@ -365,7 +365,7 @@ describe('publish intent (lost 202 must never create a second publication)', () 
     await user.click(within(dialog).getByRole('button', { name: 'Отправить сейчас' }));
     expect(await within(dialog).findByText('Время вне допустимого диапазона')).toBeTruthy();
     expect(pendingKeys()).toHaveLength(0);
-    expect(within(dialog).queryByText('Предыдущая попытка могла дойти до сервера')).toBeNull();
+    expect(within(dialog).queryByText('Предыдущая попытка могла сработать')).toBeNull();
     await user.click(within(dialog).getByRole('button', { name: 'Отправить сейчас' }));
     await waitFor(() => expect(sent).toHaveLength(2));
     expect(sent[1]?.key).not.toBe(sent[0]?.key);

@@ -1,5 +1,5 @@
 import type { PublicationDto } from '@alexeev/contracts';
-import { now } from '@internationalized/date';
+import { now, parseAbsolute } from '@internationalized/date';
 import { useQuery } from '@tanstack/react-query';
 import { useEffect } from 'react';
 import { browserTimeZone, PublishDialog } from '../../features/publications';
@@ -13,7 +13,7 @@ type Props = {
 };
 
 /**
- * «Отправить снова» for a failed publication: the normal publish dialog for the same post and channel. It is a new
+ * «Отправить снова» for a failed publication and «Запланировать снова» for a cancelled one: the normal publish dialog for the same post and channel. It is a new
  * attempt with its own Idempotency-Key and the usual duplicate check, never a replay of the failed request.
  */
 export function ResendPublicationDialog({ publication, onClose, timezone }: Props) {
@@ -41,7 +41,19 @@ export function ResendPublicationDialog({ publication, onClose, timezone }: Prop
       onOpenChange={(open) => {
         if (!open) onClose();
       }}
-      initialSettings={{ destinationId: publication.destinationId, mode: 'now', scheduledAt: now(zone) }}
+      initialSettings={
+        publication.status === 'cancelled'
+          ? {
+              destinationId: publication.destinationId,
+              mode: 'later',
+              // The plan it had while still ahead; otherwise an hour from now.
+              scheduledAt:
+                Date.parse(publication.scheduledAt) > Date.now()
+                  ? parseAbsolute(publication.scheduledAt, zone)
+                  : now(zone).add({ hours: 1 })
+            }
+          : { destinationId: publication.destinationId, mode: 'now', scheduledAt: now(zone) }
+      }
     />
   );
 }
