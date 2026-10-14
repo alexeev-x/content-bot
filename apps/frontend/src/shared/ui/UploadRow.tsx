@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { LoadingImage } from './LoadingImage';
 import { Icon } from './Icon';
 import { IconButton } from './IconButton';
 import { ProgressBar, ProgressRing } from './Progress';
@@ -42,7 +43,7 @@ export function UploadRow({
     <div className={styles.row} data-state={state} data-thumb={thumb}>
       <span className={styles.thumb} aria-hidden="true">
         {showImage ? (
-          <img src={src} alt="" loading="lazy" decoding="async" onError={() => setFailedSrc(src)} />
+          <LoadingImage src={src ?? ''} alt="" loading="lazy" decoding="async" onError={() => setFailedSrc(src)} />
         ) : (
           <Icon name={kind === 'video' ? 'video' : 'image'} size={24} />
         )}

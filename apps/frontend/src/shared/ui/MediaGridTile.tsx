@@ -1,6 +1,8 @@
 import { useState, type ReactNode } from 'react';
 import { Button as AriaButton, ToggleButton } from 'react-aria-components';
 import { Icon } from './Icon';
+import { LoadingImage } from './LoadingImage';
+import { MediaSkeleton } from './Skeleton';
 import { ProgressRing } from './Progress';
 import styles from './MediaGridTile.module.css';
 
@@ -12,6 +14,8 @@ type Props = {
   label: string;
   /** Photo or video poster. Without it, or when it fails, the tile shows the type icon: the box never collapses. */
   src?: string | undefined;
+  /** The picture is still being fetched (no `src` yet): the tile shimmers instead of showing the type icon. */
+  pending?: boolean;
   kind?: MediaTileKind;
   /** Video length, «01:24»: shown in the bottom-left chip. */
   duration?: string;
@@ -46,6 +50,7 @@ type Props = {
 export function MediaGridTile({
   label,
   src,
+  pending = false,
   kind = 'image',
   duration,
   state = 'ready',
@@ -69,7 +74,9 @@ export function MediaGridTile({
   const picture = (
     <>
       {showImage ? (
-        <img src={src} alt="" loading="lazy" decoding="async" onError={() => setFailedSrc(src)} />
+        <LoadingImage src={src ?? ''} alt="" loading="lazy" decoding="async" onError={() => setFailedSrc(src)} />
+      ) : pending && !src ? (
+        <MediaSkeleton />
       ) : (
         <span className={styles.fallback} aria-hidden="true">
           <Icon name={kind === 'video' ? 'video' : 'image'} size={28} />

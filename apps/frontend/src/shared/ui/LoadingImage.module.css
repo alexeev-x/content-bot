@@ -1,0 +1,19 @@
+.image {
+  background: var(--color-surface-3);
+}
+/* A calm shimmer on the reserved box; the same sweep as the filmstrip. */
+.image[data-loading] {
+  background: linear-gradient(90deg, var(--color-surface-3) 0%, var(--color-surface-2) 50%, var(--color-surface-3) 100%)
+    0 0 / 200% 100%;
+  animation: shimmer 1.4s linear infinite;
+}
+@keyframes shimmer {
+  to {
+    background-position: -200% 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .image[data-loading] {
+    animation: none;
+  }
+}

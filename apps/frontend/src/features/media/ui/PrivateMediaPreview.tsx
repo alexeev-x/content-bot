@@ -1,7 +1,7 @@
 /* oxlint-disable jsx-a11y/media-has-caption -- Uploaded files may not contain captions; never fabricate a track. */
 import { useEffect, useRef, useState } from 'react';
 import { useMediaOriginal, useMediaThumbnail } from '../../../shared/lib/use-media-thumbnail';
-import { Button, Icon } from '../../../shared/ui';
+import { Button, Icon, LoadingImage, MediaSkeleton } from '../../../shared/ui';
 import { getMediaContent } from '../api/media-api';
 import styles from './MediaLibrary.module.css';
 
@@ -30,6 +30,9 @@ export function PrivateMediaPreview({ mediaId, kind, eager = false, allowRetry =
   const asVideo = eager && (kind === 'video' || original.mime.startsWith('video/'));
   const shown = eager && kind !== 'video' ? original : thumbnail;
   const failed = shown.isError || broken || (eager && original.isError);
+  // The box (fixed ratio in the stylesheet) shimmers until the thumbnail or poster exists; never the bare type icon.
+  const pending = !failed && !shown.src;
+  const posterPending = !failed && kind === 'video' && !thumbnail.src;
 
   useEffect(() => {
     if (eager || visible || !host.current) return;
@@ -49,22 +52,27 @@ export function PrivateMediaPreview({ mediaId, kind, eager = false, allowRetry =
   return (
     <span ref={host} className={styles.preview}>
       {asVideo && original.src && !failed ? (
-        <video
-          src={original.src}
-          poster={kind === 'video' ? thumbnail.src : undefined}
-          controls={kind === 'video'}
-          autoPlay={kind !== 'video'}
-          loop={kind !== 'video'}
-          muted={kind !== 'video'}
-          playsInline
-          preload="metadata"
-          aria-label={kind === 'video' ? 'Видео' : 'Анимация'}
-          onError={() => setBroken(true)}
-        />
+        <>
+          {posterPending ? <MediaSkeleton /> : null}
+          <video
+            src={original.src}
+            poster={kind === 'video' ? thumbnail.src : undefined}
+            controls={kind === 'video'}
+            autoPlay={kind !== 'video'}
+            loop={kind !== 'video'}
+            muted={kind !== 'video'}
+            playsInline
+            preload="metadata"
+            aria-label={kind === 'video' ? 'Видео' : 'Анимация'}
+            onError={() => setBroken(true)}
+          />
+        </>
       ) : (
         <span aria-hidden="true">
           {shown.src && !failed ? (
-            <img src={shown.src} alt="" onError={() => setBroken(true)} />
+            <LoadingImage src={shown.src} alt="" onError={() => setBroken(true)} />
+          ) : pending ? (
+            <MediaSkeleton />
           ) : (
             <Icon name={kind === 'video' ? 'video' : 'image'} size={28} />
           )}

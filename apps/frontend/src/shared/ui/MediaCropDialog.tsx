@@ -1,4 +1,4 @@
-import type { ReactNode, RefObject } from 'react';
+import { useState, type ReactNode, type RefObject } from 'react';
 import { CROP_RATIOS, clampCropFrame, type CropModel, type CropRatio } from '../lib/media-crop';
 import { Button } from './Button';
 import { CropCanvas } from './CropCanvas';
@@ -8,6 +8,8 @@ import { Panel } from './Panel';
 import { ProgressBar } from './Progress';
 import { RatioTileGroup } from './RatioTileGroup';
 import { Slider } from './Slider';
+import { TrimPreviewPlayer } from './TrimPreviewPlayer';
+import { VideoTrimTimeline } from './VideoTrimTimeline';
 import styles from './MediaCropDialog.module.css';
 
 const PHOTO_RATIOS = [
@@ -44,17 +46,22 @@ type Props = {
   /** Video only, 0–1; `null` when nothing is running. */
   progress?: number | null;
   /** Video only: trim handles in seconds. */
-  trim?: { duration: number; start: number; end: number; onChange: (start: number, end: number) => void };
+  trim?: {
+    duration: number;
+    start: number;
+    end: number;
+    onChange: (start: number, end: number) => void;
+    /** The source video, for the range preview. */
+    blob: Blob;
+    /** Filmstrip thumbnails; `null` while they are being cut. */
+    frames: string[] | null;
+  };
   /** Desktop side panel content under the photo preview (the editor's cover switch). */
   aside?: ReactNode;
   /** Mobile block under the controls. */
   mobileExtra?: ReactNode;
   loadingLabel: string;
 };
-
-const MIN_CLIP_SECONDS = 0.5;
-
-const formatSeconds = (value: number) => `${value.toFixed(1)} с`;
 
 /** Crop dialog shared by the post editor and the media library: ratio presets, zoom and rotation for photos, trim and progress for video. */
 export function MediaCropDialog({
@@ -87,6 +94,20 @@ export function MediaCropDialog({
     ...option,
     label: option.id === 'original' ? (isVideo ? 'Свободно' : narrow ? 'Ориг.' : option.label) : option.label
   }));
+  const [previewing, setPreviewing] = useState(false);
+  const [playhead, setPlayhead] = useState<number | null>(null);
+  // A video also carries the timeline and the ratio row, so its stage is shorter and the footer stays in view.
+  const stageHeight = isVideo
+    ? narrow
+      ? 'min(34dvh, 16rem)'
+      : 'clamp(200px, 34vh, 300px)'
+    : narrow
+      ? 'min(50dvh, 25rem)'
+      : 'clamp(280px, 52vh, 420px)';
+  const stopPreview = () => {
+    setPreviewing(false);
+    setPlayhead(null);
+  };
   const showPane = !isVideo && !narrow && ready;
   return (
     <Dialog
@@ -136,33 +157,44 @@ export function MediaCropDialog({
       <div className={styles.workspace} data-single={showPane ? undefined : ''}>
         {ready ? (
           <div className={styles.stage}>
-            <CropCanvas
-              src={src}
-              imageAspect={
-                model.rotation % 180 === 0
-                  ? naturalSize.width / naturalSize.height
-                  : naturalSize.height / naturalSize.width
-              }
-              frame={model.frame}
-              onFrameChange={(frame) =>
-                onModelChange((current) => ({ ...current, frame: clampCropFrame(frame, current.zoom) }))
-              }
-              lockedRatio={CROP_RATIOS[model.ratio]}
-              zoom={model.zoom}
-              rotation={model.rotation}
-              handle={narrow ? 'bracket' : 'square'}
-              grid="dashed"
-              height={narrow ? 'min(50dvh, 25rem)' : 'clamp(280px, 52vh, 420px)'}
-              labels={{
-                region: 'Область кадрирования',
-                corners: {
-                  'top-left': 'Левый верхний угол кадрирования',
-                  'top-right': 'Правый верхний угол кадрирования',
-                  'bottom-left': 'Левый нижний угол кадрирования',
-                  'bottom-right': 'Правый нижний угол кадрирования'
+            {previewing && trim ? (
+              <TrimPreviewPlayer
+                blob={trim.blob}
+                start={trim.start}
+                end={trim.end}
+                height={stageHeight}
+                onTime={setPlayhead}
+                onEnd={stopPreview}
+              />
+            ) : (
+              <CropCanvas
+                src={src}
+                imageAspect={
+                  model.rotation % 180 === 0
+                    ? naturalSize.width / naturalSize.height
+                    : naturalSize.height / naturalSize.width
                 }
-              }}
-            />
+                frame={model.frame}
+                onFrameChange={(frame) =>
+                  onModelChange((current) => ({ ...current, frame: clampCropFrame(frame, current.zoom) }))
+                }
+                lockedRatio={CROP_RATIOS[model.ratio]}
+                zoom={model.zoom}
+                rotation={model.rotation}
+                handle={narrow ? 'bracket' : 'square'}
+                grid="dashed"
+                height={stageHeight}
+                labels={{
+                  region: 'Область кадрирования',
+                  corners: {
+                    'top-left': 'Левый верхний угол кадрирования',
+                    'top-right': 'Правый верхний угол кадрирования',
+                    'bottom-left': 'Левый нижний угол кадрирования',
+                    'bottom-right': 'Правый нижний угол кадрирования'
+                  }
+                }}
+              />
+            )}
           </div>
         ) : error ? null : (
           <output>{loadingLabel}</output>
@@ -193,37 +225,19 @@ export function MediaCropDialog({
       />
       {isVideo ? (
         trim ? (
-          <div className={styles.trim}>
-            <Slider
-              label="Начало"
-              value={trim.start}
-              onChange={(start) => trim.onChange(Math.min(start, trim.end - MIN_CLIP_SECONDS), trim.end)}
-              min={0}
-              max={Math.max(0, trim.duration - MIN_CLIP_SECONDS)}
-              step={0.1}
-              stepperStep={1}
-              isDisabled={busy}
-              decrementLabel="Начать раньше"
-              incrementLabel="Начать позже"
-              valueFormat={{ minimumFractionDigits: 1, maximumFractionDigits: 1 }}
-            />
-            <Slider
-              label="Конец"
-              value={trim.end}
-              onChange={(end) => trim.onChange(trim.start, Math.max(end, trim.start + MIN_CLIP_SECONDS))}
-              min={Math.min(trim.duration, MIN_CLIP_SECONDS)}
-              max={trim.duration}
-              step={0.1}
-              stepperStep={1}
-              isDisabled={busy}
-              decrementLabel="Закончить раньше"
-              incrementLabel="Закончить позже"
-              valueFormat={{ minimumFractionDigits: 1, maximumFractionDigits: 1 }}
-            />
-            <p className={styles.progress}>
-              Длительность ролика: {formatSeconds(Math.max(0, trim.end - trim.start))} из {formatSeconds(trim.duration)}
-            </p>
-          </div>
+          <VideoTrimTimeline
+            duration={trim.duration}
+            range={{ start: trim.start, end: trim.end }}
+            onChange={(range) => {
+              stopPreview();
+              trim.onChange(range.start, range.end);
+            }}
+            frames={trim.frames}
+            playhead={playhead ?? trim.start}
+            previewing={previewing}
+            onTogglePreview={() => (previewing ? stopPreview() : setPreviewing(true))}
+            isDisabled={busy}
+          />
         ) : null
       ) : (
         <div className={styles.controlRow}>

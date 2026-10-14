@@ -231,6 +231,7 @@
 }
 .preview,
 .previewPlaceholder {
+  overflow: hidden;
   display: grid;
   width: 88px;
   height: 64px;

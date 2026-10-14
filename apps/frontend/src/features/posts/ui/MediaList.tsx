@@ -1,7 +1,7 @@
 /* oxlint-disable jsx-a11y/media-has-caption -- Uploaded files may not contain captions; never fabricate a track. */
 /* oxlint-disable jsx-a11y/prefer-tag-over-role -- Live status is kept on the existing generic containers for layout and semantics. */
 import { POST_MEDIA_MAX_ITEMS, type PostMediaDto } from '@alexeev/contracts';
-import { Button, MediaAddTile } from '../../../shared/ui';
+import { Button, LoadingImage, MediaAddTile } from '../../../shared/ui';
 import type { Entry } from '../model/media-entry';
 import { replaceAtLimitNotice } from '../model/media-entry';
 import type { MediaReorder } from '../model/use-media-reorder';
@@ -73,7 +73,7 @@ export function MediaList({
                 entry.file?.type.startsWith('video/') ? (
                   <video className={styles.preview} src={entry.previewUrl} controls preload="metadata" />
                 ) : (
-                  <img
+                  <LoadingImage
                     className={styles.preview}
                     src={entry.previewUrl}
                     alt={`Предпросмотр: ${entry.file?.name ?? 'файл'}`}

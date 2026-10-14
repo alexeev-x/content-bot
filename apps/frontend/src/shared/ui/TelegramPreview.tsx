@@ -3,6 +3,8 @@ import { Button as AriaButton } from 'react-aria-components';
 import { clampSingleMediaRatio, layoutMediaGroup } from '../lib/media-group-layout';
 import { ru } from '../lib/ru';
 import { Icon } from './Icon';
+import { LoadingImage } from './LoadingImage';
+import { MediaSkeleton } from './Skeleton';
 import styles from './TelegramPreview.module.css';
 
 export type PreviewMediaItem = {
@@ -15,6 +17,8 @@ export type PreviewMediaItem = {
   /** `video` and `animation` sources are video files: the first frame is the poster. */
   kind?: 'photo' | 'video' | 'animation';
   durationMs?: number | null;
+  /** The bytes are still being fetched: the slot keeps its final box and shimmers. `src` is ignored. */
+  pending?: boolean;
 };
 
 // Album geometry is computed in a nominal 1000-unit box and drawn in percent, so it scales with the bubble.
@@ -96,8 +100,10 @@ export function TelegramPreview({
   };
   const sizeOf = (item: PreviewMediaItem) => {
     if (item.width && item.height) return { width: item.width, height: item.height };
-    return measured.get(item.id) ?? { width: 1, height: 1 };
+    // Until the picture reports its size the slot assumes a common 4:3 photo.
+    return measured.get(item.id) ?? { width: 4, height: 3 };
   };
+  const [playable, setPlayable] = useState<ReadonlySet<string>>(new Set());
   const markFailed = (id: string) => setFailed((prev) => new Set(prev).add(id));
   const retry = (id: string) =>
     setFailed((prev) => {
@@ -107,6 +113,12 @@ export function TelegramPreview({
     });
 
   function picture(item: PreviewMediaItem) {
+    if (item.pending)
+      return (
+        <span className={styles.skeleton}>
+          <MediaSkeleton />
+        </span>
+      );
     if (failed.has(item.id) && mediaLabels) {
       return (
         <span className={styles.broken}>
@@ -122,19 +134,27 @@ export function TelegramPreview({
     return (
       <>
         {isVideo ? (
-          <video
-            src={item.src}
-            aria-label={item.alt}
-            muted
-            playsInline
-            preload="metadata"
-            onLoadedMetadata={(event) =>
-              measure(item.id, event.currentTarget.videoWidth, event.currentTarget.videoHeight)
-            }
-            onError={() => markFailed(item.id)}
-          />
+          <>
+            {playable.has(item.id) ? null : (
+              <span className={styles.skeleton}>
+                <MediaSkeleton />
+              </span>
+            )}
+            <video
+              src={item.src}
+              aria-label={item.alt}
+              muted
+              playsInline
+              preload="metadata"
+              onLoadedMetadata={(event) =>
+                measure(item.id, event.currentTarget.videoWidth, event.currentTarget.videoHeight)
+              }
+              onLoadedData={() => setPlayable((prev) => new Set(prev).add(item.id))}
+              onError={() => markFailed(item.id)}
+            />
+          </>
         ) : (
-          <img
+          <LoadingImage
             src={item.src}
             alt={item.alt ?? ''}
             decoding="async"

@@ -22,3 +22,8 @@ export function Skeleton({ width = '100%', height = 16, radius = 'var(--radius-1
     </span>
   );
 }
+
+/** Shimmer that fills its parent's reserved media box. Decorative: the owner announces loading. */
+export function MediaSkeleton() {
+  return <span className={styles.media} aria-hidden="true" />;
+}

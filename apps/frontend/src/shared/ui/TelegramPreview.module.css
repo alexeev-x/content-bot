@@ -196,3 +196,9 @@
 .chat[data-variant='panel'] .meta {
   color: var(--color-text-muted);
 }
+/* Skeleton: fills the slide or cell; over the video until its first frame is decoded. */
+.skeleton {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+}

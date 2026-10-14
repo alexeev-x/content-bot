@@ -80,25 +80,23 @@ export function PostPreview({ title, body, entities, media = emptyMedia, desktop
     };
   }, [media, queryClient]);
 
-  const allMediaLoaded = media.length > 0 && media.every((item) => mediaUrls.has(item.id));
-  const previewMedia = allMediaLoaded
-    ? media.flatMap((item) => {
-        const src = mediaUrls.get(item.id);
-        return src
-          ? [
-              {
-                id: item.id,
-                src,
-                alt: item.fileName,
-                width: item.width,
-                height: item.height,
-                kind: item.kind,
-                durationMs: item.durationMs
-              }
-            ]
-          : [];
-      })
-    : undefined;
+  // Every attachment gets its slot at once (known width/height from the DTO), so the bubble keeps its height while bytes arrive.
+  const previewMedia =
+    media.length > 0
+      ? media.map((item) => {
+          const src = mediaUrls.get(item.id);
+          return {
+            id: item.id,
+            src: src ?? '',
+            pending: src === undefined,
+            alt: item.fileName,
+            width: item.width,
+            height: item.height,
+            kind: item.kind,
+            durationMs: item.durationMs
+          };
+        })
+      : undefined;
 
   return (
     <Panel

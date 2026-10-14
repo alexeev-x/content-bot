@@ -2,7 +2,7 @@ import type { PostMediaDto } from '@alexeev/contracts';
 import { useQuery } from '@tanstack/react-query';
 import { useEffect, useState, type ReactNode } from 'react';
 import { ApiError } from '../../../shared/api/http-client';
-import { Button, MediaGridTile } from '../../../shared/ui';
+import { Button, LoadingImage, MediaGridTile, MediaSkeleton } from '../../../shared/ui';
 import { postMediaContentQueryOptions } from '../api/post-media-api';
 import { formatMediaDuration } from '../model/media-entry';
 import styles from './PostMediaEditor.module.css';
@@ -31,6 +31,10 @@ export function ServerPreview({
 }) {
   const [preview, setPreview] = useState<{ blob: Blob; url: string } | null>(null);
   const [decodeFailed, setDecodeFailed] = useState(false);
+  // The expanded dialog reserves the real picture shape up front, so the box does not change height when the bytes arrive.
+  const ratioStyle = large
+    ? { aspectRatio: media.width && media.height ? media.width / media.height : 4 / 3 }
+    : undefined;
   const query = useQuery(postMediaContentQueryOptions(media.id, media.sizeBytes));
   const error = query.error;
   const url = preview && preview.blob === query.data ? preview.url : null;
@@ -63,6 +67,7 @@ export function ServerPreview({
           fluid={fluid}
           label={media.fileName}
           src={decodeFailed ? undefined : (url ?? undefined)}
+          pending={!url && !error}
           kind={media.kind === 'video' ? 'video' : 'image'}
           duration={media.kind === 'video' ? formatMediaDuration(media.durationMs) : undefined}
           onPress={onOpen}
@@ -98,7 +103,7 @@ export function ServerPreview({
   }
   if (!url || decodeFailed)
     return (
-      <div className={`${styles.previewPlaceholder} ${large ? styles.largePreview : ''}`}>
+      <div className={`${styles.previewPlaceholder} ${large ? styles.largePreview : ''}`} style={ratioStyle}>
         {errorText || decodeFailed ? (
           <>
             <span>{errorText ?? 'Не удалось показать изображение. Вложение сохранено в посте.'}</span>
@@ -107,15 +112,27 @@ export function ServerPreview({
             </Button>
           </>
         ) : (
-          'Загружаем предпросмотр'
+          <>
+            <MediaSkeleton />
+            <span className={styles.srOnly} role="status">
+              Загружаем предпросмотр
+            </span>
+          </>
         )}
       </div>
     );
   return media.kind === 'video' ? (
-    <video className={`${styles.preview} ${large ? styles.largePreview : ''}`} src={url} controls preload="metadata" />
-  ) : (
-    <img
+    <video
       className={`${styles.preview} ${large ? styles.largePreview : ''}`}
+      style={ratioStyle}
+      src={url}
+      controls
+      preload="metadata"
+    />
+  ) : (
+    <LoadingImage
+      className={`${styles.preview} ${large ? styles.largePreview : ''}`}
+      style={ratioStyle}
       src={url}
       alt={media.fileName}
       onError={() => setDecodeFailed(true)}

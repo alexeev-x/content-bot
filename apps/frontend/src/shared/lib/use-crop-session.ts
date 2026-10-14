@@ -9,9 +9,10 @@ import {
   type CropRatio
 } from './media-crop';
 import { createMediaThumbnail } from './media-thumbnail';
+import { extractFilmstrip } from './video-trim';
 import { cropVideo, probeVideo, VIDEO_UNSUPPORTED_MESSAGE, VideoCropError } from './video-crop';
 
-export type CropSource = { kind: 'photo' | 'video'; width: number | null; height: number | null };
+export type CropSource = { id?: string; kind: 'photo' | 'video'; width: number | null; height: number | null };
 
 /**
  * What every crop dialog needs, photo or video: the original bytes, the picture the frame is dragged over (the
@@ -28,6 +29,9 @@ export function useCropSession<T extends CropSource>(options: {
   const [error, setError] = useState('');
   const [trim, setTrim] = useState<{ start: number; end: number } | null>(null);
   const [progress, setProgress] = useState<number | null>(null);
+  const [frames, setFrames] = useState<string[] | null>(null);
+  // Filmstrips per media id: reopening the dialog on the same video does not cut the frames again.
+  const filmstrips = useRef(new Map<string, string[]>());
   const processing = useRef<AbortController | null>(null);
   const [model, setModel] = useState<CropModel>(defaultCropModel);
   const [naturalSize, setNaturalSize] = useState<{ width: number; height: number } | null>(null);
@@ -82,6 +86,27 @@ export function useCropSession<T extends CropSource>(options: {
   }, [source]);
 
   useEffect(() => {
+    if (source?.kind !== 'video' || !blob || duration === null) return;
+    const cached = source.id ? filmstrips.current.get(source.id) : undefined;
+    if (cached) {
+      setFrames(cached);
+      return;
+    }
+    const controller = new AbortController();
+    void extractFilmstrip(blob, duration, controller.signal)
+      .then((cut) => {
+        if (controller.signal.aborted) return;
+        if (source.id && cut.length > 0) filmstrips.current.set(source.id, cut);
+        setFrames(cut);
+      })
+      .catch(() => {
+        // A strip is only a trimming aid: without frames the handles and the labels still work.
+        if (!controller.signal.aborted) setFrames([]);
+      });
+    return () => controller.abort();
+  }, [source, blob, duration]);
+
+  useEffect(() => {
     if (source?.kind !== 'photo' || !url || !previewCanvas.current) return;
     const image = new Image();
     let active = true;
@@ -126,6 +151,7 @@ export function useCropSession<T extends CropSource>(options: {
       setUrl(null);
       setDuration(null);
       setTrim(null);
+      setFrames(null);
       setError('');
       setSource(next);
     },
@@ -134,8 +160,8 @@ export function useCropSession<T extends CropSource>(options: {
       setSource(null);
     },
     trim:
-      duration !== null && trim !== null
-        ? { duration, ...trim, onChange: (start: number, end: number) => setTrim({ start, end }) }
+      duration !== null && trim !== null && blob !== null
+        ? { duration, ...trim, blob, frames, onChange: (start: number, end: number) => setTrim({ start, end }) }
         : undefined,
     progress,
     cancelProcessing() {

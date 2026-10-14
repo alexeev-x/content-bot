@@ -1,4 +1,5 @@
 import { useState, type CSSProperties } from 'react';
+import { LoadingImage } from './LoadingImage';
 import { Icon, type IconName } from './Icon';
 import styles from './MediaTile.module.css';
 
@@ -18,7 +19,7 @@ export function MediaTile({ src, size = 40, icon = 'file' }: Props) {
   return (
     <span className={styles.tile} style={style} data-image={showImage || undefined} aria-hidden="true">
       {showImage ? (
-        <img src={src} alt="" loading="lazy" decoding="async" onError={() => setFailed(src)} />
+        <LoadingImage src={src ?? ''} alt="" loading="lazy" decoding="async" onError={() => setFailed(src)} />
       ) : (
         <Icon name={icon} size={size >= 40 ? 20 : 16} />
       )}
