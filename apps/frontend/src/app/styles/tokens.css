@@ -6,7 +6,6 @@
   Theme selection is by attributes, on <html> or on any wrapper (the catalog nests themes):
     data-theme="light|dark"
     data-accent="blue|orange|violet|teal|green|pink|red|graphite|custom"  (a theme preset: accent plus tinted neutrals; teal and pink are legacy)
-    data-density="compact"  (on <html> only; Normal = no attribute)
   No attributes = dark + blue, the default.
 
   Neutrals (owner direction 14.10.2026, Cloudflare-dashboard look): near-neutral zinc greys, panels a step
@@ -104,18 +103,6 @@
   --z-overlay: 30;
   --z-modal: 40;
   --z-toast: 50;
-}
-
-/* Compact density (per device): tighter rows and controls for a mouse. Touch and narrow screens keep their 44 px targets. */
-@media (pointer: fine) and (min-width: 860px) {
-  :root[data-density='compact'] {
-    --size-control: 32px;
-    --size-control-sm: 32px;
-    --size-button: 32px;
-    --size-button-sm: 30px;
-    --size-row: 36px;
-    --size-tab: 28px;
-  }
 }
 
 /* Touch and the Mini App keep 44 px targets (WCAG 2.5.8 AAA / project choice). */

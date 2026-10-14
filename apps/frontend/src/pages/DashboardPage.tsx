@@ -19,7 +19,7 @@ import { ownerDayRange, utcOffsetLabel } from '../shared/lib/owner-timezone';
 import { useNow } from '../shared/lib/use-now';
 import { checkWord, isSwitchedOff, useServiceChecks } from '../features/system-health';
 import { ru } from '../shared/lib/ru';
-import { Button, PageHeader } from '../shared/ui';
+import { Button, PageHeader, useMediaQuery } from '../shared/ui';
 
 type Props = {
   /** Test hook: dashboard poll interval in ms (production uses the 60 s default). */
@@ -40,6 +40,7 @@ export function DashboardPage({ pollMs, openPublicationId, onOpenPublicationChan
   const checks = [...service.checks, bot];
   const zoneNote = `${timezone}, ${utcOffsetLabel(now, timezone)}`;
   const layout = useLayoutEditing();
+  const phone = useMediaQuery('(max-width: 859px)');
   const destinations = useInfiniteQuery(destinationsInfiniteQueryOptions({ enabled: true }));
   const destinationList = destinations.data?.pages.flatMap((page) => page.items);
   const botTone: ChannelRow['tone'] = bot.tone === 'ok' ? 'ok' : bot.tone === 'loading' ? 'muted' : 'warn';
@@ -99,9 +100,12 @@ export function DashboardPage({ pollMs, openPublicationId, onOpenPublicationChan
             <>
               <DateChip placement="header" zoneNote={zoneNote} timezone={timezone} />
               <LayoutActions editing={layout}>
-                <Button icon="plus" onPress={() => void navigate({ to: '/posts/new' })}>
-                  Новый пост
-                </Button>
+                {/* On a phone the tab bar's «+» creates a post: no second button on the page. */}
+                {phone ? null : (
+                  <Button icon="plus" onPress={() => void navigate({ to: '/posts/new' })}>
+                    Новый пост
+                  </Button>
+                )}
               </LayoutActions>
             </>
           )

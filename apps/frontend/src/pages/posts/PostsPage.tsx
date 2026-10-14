@@ -1,5 +1,5 @@
 import { PostsList, postsCopy, type PostsSort, type PostsView } from '../../features/posts';
-import { Button, PageHeader } from '../../shared/ui';
+import { Button, PageHeader, useMediaQuery } from '../../shared/ui';
 import { useDocumentTitle } from '../../app/use-document-title';
 
 type Props = {
@@ -18,15 +18,19 @@ type Props = {
 
 export function PostsPage({ onCreate, ...list }: Props) {
   useDocumentTitle(postsCopy.list.title);
+  const phone = useMediaQuery('(max-width: 859px)');
   return (
     <>
       <PageHeader
         title={postsCopy.list.title}
         focusHeadingOnMount
         actions={
-          <Button icon="plus" onPress={onCreate}>
-            {postsCopy.list.create}
-          </Button>
+          // On a phone the tab bar's «+» creates a post: no second button on the page.
+          phone ? undefined : (
+            <Button icon="plus" onPress={onCreate}>
+              {postsCopy.list.create}
+            </Button>
+          )
         }
       />
       <PostsList {...list} onCreate={onCreate} />

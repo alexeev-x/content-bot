@@ -22,14 +22,9 @@ import { useScreenTheme } from '../model/use-screen-theme';
 import styles from './AppearanceEditor.module.css';
 import { ThemeCards } from './ThemeCards';
 
-export type Density = 'normal' | 'compact';
-
 type Props = {
   /** Applies a value to the document without persisting it; must be a stable function. */
   preview: (value: AppearanceValue) => void;
-  /** Density is a per-device setting kept by the app (localStorage), not by the server. */
-  density: Density;
-  onDensityChange: (density: Density) => void;
 };
 
 const MODE_OPTIONS = [
@@ -38,11 +33,6 @@ const MODE_OPTIONS = [
   { id: 'system', label: ru.appearance.modeAuto, icon: 'monitor' }
 ] as const;
 const isMode = (id: string): id is ThemeMode => id === 'light' || id === 'dark' || id === 'system';
-
-const DENSITY_OPTIONS = [
-  { id: 'normal', label: ru.appearance.density.normal },
-  { id: 'compact', label: ru.appearance.density.compact }
-] as const;
 
 function Loading() {
   return (
@@ -55,7 +45,7 @@ function Loading() {
 }
 
 /** Every choice applies at once and is saved right away; there is no Save button. */
-export function AppearanceEditor({ preview, density, onDensityChange }: Props) {
+export function AppearanceEditor({ preview }: Props) {
   const query = useQuery(appearanceQueryOptions());
   const toast = useToast();
   const screen = useScreenTheme();
@@ -118,16 +108,6 @@ export function AppearanceEditor({ preview, density, onDensityChange }: Props) {
               ) : null}
             </div>
           ) : null}
-        </div>
-      </Panel>
-      <Panel title={ru.appearance.densityTitle} note={ru.appearance.densityNote}>
-        <div className={styles.body}>
-          <SegmentedControl
-            label={ru.appearance.densityLabel}
-            options={DENSITY_OPTIONS}
-            value={density}
-            onChange={(id) => onDensityChange(id === 'compact' ? 'compact' : 'normal')}
-          />
         </div>
       </Panel>
     </div>

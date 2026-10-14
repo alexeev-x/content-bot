@@ -26,9 +26,6 @@ export type Appearance = {
 
 const DEFAULT_APPEARANCE: Appearance = { themeMode: 'system', accent: DEFAULT_ACCENT };
 
-export type Density = 'normal' | 'compact';
-const DENSITY_KEY = 'ui-density'; // per device, never sent to the server
-
 /** Fired on `window` after a persisted applyAppearance, so useTheme re-reads the stored mode. */
 const APPEARANCE_APPLIED_EVENT = 'appearance-applied';
 
@@ -125,28 +122,6 @@ function applyCustomColor(baseColor: string): void {
   }
 }
 
-export function readDensity(): Density {
-  try {
-    return window.localStorage.getItem(DENSITY_KEY) === 'compact' ? 'compact' : 'normal';
-  } catch {
-    return 'normal';
-  }
-}
-
-/** Sets data-density on <html> and remembers it on this device; touch and narrow screens ignore it in CSS. */
-export function applyDensity(density: Density, options: { persist?: boolean } = {}): void {
-  const root = document.documentElement;
-  if (density === 'compact') root.dataset['density'] = 'compact';
-  else delete root.dataset['density'];
-  if (options.persist ?? true) {
-    try {
-      window.localStorage.setItem(DENSITY_KEY, density);
-    } catch {
-      // storage unavailable: the choice lasts for this session only
-    }
-  }
-}
-
 /**
  * Applies theme mode and the accent to <html>. `persist: false` is for the boot call that replays the cache.
  * Fetching and saving the server setting is the caller's job.
@@ -166,7 +141,13 @@ export function applyAppearance(appearance: Appearance, options: { persist?: boo
 /** Boot call, before React renders: replays the cached appearance (defaults: blue, system). */
 export function applyCachedAppearance(): void {
   applyAppearance(readCachedAppearance(), { persist: false });
-  applyDensity(readDensity(), { persist: false });
+  // «Плотность» was removed (owner, 14.10.2026): drop a compact choice an older build left on this device.
+  delete document.documentElement.dataset['density'];
+  try {
+    window.localStorage.removeItem('ui-density');
+  } catch {
+    // storage unavailable: nothing was kept
+  }
 }
 
 export function useTheme() {
