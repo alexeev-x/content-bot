@@ -7,11 +7,17 @@ import { AppError } from '../../shared/app-error';
 import type { AppBindings } from '../env';
 import { appOriginOf } from './app-origin';
 import { createBot, loadBotSetup } from './create-bot';
+import { createMediaImportRunner } from './media-import-runner';
+import { WEBHOOK_IMPORT_BUDGET_MS } from './media-import-worker';
 import { createOwnerReports } from './owner-reports';
 import { getOwnerOperationsSettings } from '../../modules/settings';
 import { createTelegramCaller } from './telegram-call';
 
 const MAX_UPDATE_BYTES = 256 * 1024;
+// grammY's default is 10 s, the point where Telegram gives up on the webhook. The handler only does D1
+// writes and one reply (each Bot API call is capped at 4 s), so it normally ends in well under a second;
+// a stuck call is cut here, before Telegram's own deadline, and the update is not redelivered (deduped).
+const WEBHOOK_TIMEOUT_MS = 8_000;
 const SECRET_HEADER = 'x-telegram-bot-api-secret-token';
 
 // Mounted at /webhooks: the only route without a session. Authenticity is the secret header.
@@ -68,6 +74,16 @@ export const telegramWebhook = new Hono<AppBindings>().post(
         cron: container.systemState,
         publishing: container.publishing
       });
+    const actor = String(config.ownerId);
+    const call = createTelegramCaller({ logger: container.logger, requestId: c.get('requestId') });
+    const requestId = c.get('requestId');
+    // Built when an import starts, so an update that carries no file never reaches for the media stores.
+    const imports = () =>
+      createMediaImportRunner(container, {
+        token: config.token,
+        requestId,
+        readAppOrigin: () => Promise.resolve(appOrigin)
+      });
     const bot = createBot(config, {
       appOrigin,
       clock: container.clock,
@@ -85,11 +101,38 @@ export const telegramWebhook = new Hono<AppBindings>().post(
             now: container.clock.now(),
             newId: container.newId
           },
-          { actor: String(config.ownerId), idempotencyKey, input }
+          { actor, idempotencyKey, input }
         ),
+      mediaImports: {
+        enqueue: ({ postId, file, messageId, caption, oversized, captionTooLong }) =>
+          container.mediaImports.enqueue({
+            postId,
+            file,
+            messageId,
+            caption,
+            oversized,
+            captionTooLong,
+            now: container.clock.now()
+          }),
+        // After the response, so a slow download never holds the webhook; Cron finishes what is left.
+        start: (postId, settleMs) =>
+          c.executionCtx.waitUntil(
+            (async () => {
+              if (settleMs > 0) await new Promise((resolve) => setTimeout(resolve, settleMs));
+              await imports().run(postId, WEBHOOK_IMPORT_BUDGET_MS);
+            })().catch((error: unknown) => {
+              container.logger.error({
+                component: 'bot',
+                operation: 'media_import',
+                requestId,
+                errorCode: error instanceof Error ? error.name : 'unknown'
+              });
+            })
+          )
+      },
       rememberAppOrigin: (origin) => container.systemState.rememberAppOrigin(origin, container.clock.now()),
       adminApi: container.botAdminApi,
-      call: createTelegramCaller({ logger: container.logger, requestId: c.get('requestId') }),
+      call,
       waitUntil: (work) => c.executionCtx.waitUntil(work),
       onError: (error) => {
         container.logger.error({
@@ -100,6 +143,9 @@ export const telegramWebhook = new Hono<AppBindings>().post(
         });
       }
     });
-    return webhookCallback(bot, 'cloudflare-mod', { secretToken: config.webhookSecret })(c.req.raw);
+    return webhookCallback(bot, 'cloudflare-mod', {
+      secretToken: config.webhookSecret,
+      timeoutMilliseconds: WEBHOOK_TIMEOUT_MS
+    })(c.req.raw);
   }
 );

@@ -47,6 +47,7 @@ import {
   type TelegramOwnerMessageApi
 } from '../integrations/telegram/telegram-api';
 import { type BotIdentityStore, createD1BotIdentityStore } from './bot/bot-identity-store';
+import { createD1MediaImportStore, type MediaImportStore } from './bot/media-import-store';
 import { createD1UpdateDedup, type UpdateDedup } from './bot/update-dedup';
 import { createD1SystemState, type SystemStateStore } from './system-state';
 import { purgeExpiredPlatformRows, purgeOperationalRows } from '../platform/housekeeping/d1-purge';
@@ -120,6 +121,10 @@ export interface Container {
   botIdentity: BotIdentityStore;
   /** The last Cron run and this Worker's public origin (migration 0009). */
   systemState: SystemStateStore;
+  /** The bot token for Cron's file imports; null while it is not set. */
+  botToken: string | null;
+  /** Files the owner sent to the bot, waiting to be imported into their draft (migration 0034). */
+  mediaImports: MediaImportStore;
   /** Webhook update ids already seen (migration 0009): a replayed update is not processed twice. */
   webhookUpdates: UpdateDedup;
   /** Polls the two fixed official Dota feeds and persists deduped source items. */
@@ -328,6 +333,12 @@ export function createContainer(env: ContainerEnv, overrides: ContainerOverrides
     },
     get systemState(): SystemStateStore {
       return createD1SystemState(db());
+    },
+    get botToken() {
+      return botToken() === '' ? null : botToken();
+    },
+    get mediaImports(): MediaImportStore {
+      return createD1MediaImportStore(db(), overrides.newId ?? (() => crypto.randomUUID()));
     },
     get webhookUpdates(): UpdateDedup {
       return createD1UpdateDedup(db());
