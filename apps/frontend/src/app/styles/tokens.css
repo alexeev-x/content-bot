@@ -10,9 +10,9 @@
   `custom` reads --custom-{light,dark}-* injected by src/app/theme.ts from shared/lib/color.
   No attributes = dark + cobalt, the default.
 
-  Neutrals: the prototype carried a green tint picked for the rejected lime accent. They are retuned
-  to a faintly cool grey (hue ~265, chroma <= 0.01) that sits calmly beside cobalt, with the same
-  lightness steps, so every contrast step of the prototype is kept (checked in src/app/styles/tokens.test.ts).
+  Neutrals (owner direction 14.10.2026, Cloudflare-dashboard look): near-neutral zinc greys, panels a step
+  above the page, hairline decorative borders (--color-border-subtle) and a stronger edge only on
+  controls (--color-border-strong).
 */
 :root {
   /* type */
@@ -23,14 +23,14 @@
   --font-size-sm: 0.875rem;
   --font-size-md: 0.9375rem;
   --font-size-lg: 1.125rem;
-  /* Page title: 24 px on desktop, 18 px under the touch/narrow query below. */
-  --font-size-xl: 1.5rem;
+  /* Page title: 20 px on desktop, 18 px under the touch/narrow query below. */
+  --font-size-xl: 1.25rem;
   --font-size-display: 2.125rem;
   --font-weight-regular: 400;
-  --font-weight-medium: 550;
+  --font-weight-medium: 500;
   --font-weight-semibold: 600;
-  --font-weight-heading: 650;
-  --letter-spacing-heading: -0.02em;
+  --font-weight-heading: 600;
+  --letter-spacing-heading: -0.01em;
   --letter-spacing-display: -0.03em;
   --line-height-body: 1.5;
   --line-height-heading: 1.2;
@@ -46,15 +46,15 @@
   --space-5: 20px;
   --space-6: 24px;
   --space-8: 32px;
-  --radius-1: 7px;
-  --radius-2: 8px;
-  --radius-3: 9px;
+  --radius-1: 6px;
+  --radius-2: 6px;
+  --radius-3: 8px;
   /* Cards, media tiles, drop zones, sheets: the larger corner of the post editor (owner reference). */
-  --radius-4: 12px;
+  --radius-4: 10px;
   --radius-pill: 999px;
   --size-target: 44px;
   --size-target-min: 24px;
-  --size-sidebar: 216px;
+  --size-sidebar: 232px;
   --size-sidebar-collapsed: 56px;
   /* Fine pointer (desktop mouse): compact work-tool sizes. Touch and narrow screens override below. */
   --size-control: 36px;
@@ -62,15 +62,15 @@
   /* Buttons: md for toolbars, footers and dialogs; sm inside rows and popovers. A button beside a field uses the field height. */
   --size-button: 36px;
   --size-button-sm: 34px;
-  --size-row: 48px;
-  --size-topbar: 48px;
+  --size-row: 44px;
+  --size-topbar: 52px;
   /* Tabs and segmented controls: items inside a compact bordered group. */
   --size-tab: 32px;
   /* Reading width a page opts into with the .reading-width class. */
   --measure-reading: 760px;
   --measure-dashboard: 1280px;
   /* Widest content column of the shell: keeps wide tables readable on large monitors. */
-  --measure-content: 1440px;
+  --measure-content: 1680px;
   --size-nav: 64px;
   /* Media: strip/grid tile, list thumbnail, queue thumbnail (post editor). */
   --size-media-tile: 124px;
@@ -135,18 +135,18 @@
 :root,
 [data-theme='dark'] {
   color-scheme: dark;
-  --color-bg: #0d0e10;
-  --color-surface-1: #151619;
-  --color-surface-2: #1c1e22;
-  --color-surface-3: #25272c;
-  --color-border-subtle: #636973;
-  --color-border-strong: #747a86;
-  --color-text: #eceef2;
-  --color-text-muted: #a0a4ad;
-  --color-text-disabled: #6a6e77;
+  --color-bg: #0a0a0b;
+  --color-surface-1: #111113;
+  --color-surface-2: #18181b;
+  --color-surface-3: #222226;
+  --color-border-subtle: #26272b;
+  --color-border-strong: #3f4046;
+  --color-text: #ededef;
+  --color-text-muted: #a1a1aa;
+  --color-text-disabled: #63636b;
   --color-danger: #ff7a7a;
   --color-scrim: rgba(0, 0, 0, 0.6);
-  --color-grid: rgba(255, 255, 255, 0.06);
+  --color-grid: rgba(255, 255, 255, 0.05);
   --shadow-card: none;
   --color-selected-bg: var(--color-surface-2);
   --shadow-pop: 0 24px 60px rgba(0, 0, 0, 0.6);
@@ -176,15 +176,15 @@
 /* ===== Light ===== */
 [data-theme='light'] {
   color-scheme: light;
-  --color-bg: #f3f4f6;
+  --color-bg: #f7f7f8;
   --color-surface-1: #ffffff;
-  --color-surface-2: #f7f8fa;
-  --color-surface-3: #eceef2;
-  --color-border-subtle: #888f9b;
-  --color-border-strong: #7e8491;
-  --color-text: #14161a;
-  --color-text-muted: #565b66;
-  --color-text-disabled: #8a8f9a;
+  --color-surface-2: #f4f4f5;
+  --color-surface-3: #e9e9ec;
+  --color-border-subtle: #e4e4e7;
+  --color-border-strong: #c8c8ce;
+  --color-text: #18181b;
+  --color-text-muted: #5f5f68;
+  --color-text-disabled: #9a9aa3;
   --color-danger: #b42323;
   --color-scrim: rgba(20, 22, 26, 0.45);
   --color-grid: rgba(20, 22, 26, 0.07);
@@ -295,13 +295,14 @@
 :root:not([data-theme]),
 [data-theme='dark']:not([data-accent-dark]),
 [data-theme='dark'][data-accent-dark='cobalt'] {
-  --color-accent: #6c93ff;
-  --color-on-accent: #06112e;
-  --color-accent-hover: #86a6ff;
-  --color-accent-text: #9db8ff;
-  --color-accent-soft: rgba(108, 147, 255, 0.15);
-  --color-focus-ring: #9db8ff;
-  --color-accent-glow: rgba(108, 147, 255, 0.4);
+  /* Saturated button blue with white text (5.2:1), as in the Cloudflare dashboard; text and ring stay light. */
+  --color-accent: #2563eb;
+  --color-on-accent: #ffffff;
+  --color-accent-hover: #1d4fd0;
+  --color-accent-text: #8fb0ff;
+  --color-accent-soft: rgba(59, 118, 246, 0.16);
+  --color-focus-ring: #8fb0ff;
+  --color-accent-glow: rgba(59, 118, 246, 0.4);
 }
 [data-theme='dark'][data-accent-dark='indigo'] {
   --color-accent: #8f88f2;

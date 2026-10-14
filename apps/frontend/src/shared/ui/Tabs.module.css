@@ -4,14 +4,18 @@
   gap: var(--space-4);
   min-width: 0;
 }
-/* View tabs: an underline row. SegmentedControl is the boxed switch, so the two never look alike. */
+/* View tabs: a bordered group of compact items, the selected one raised (Cloudflare-dashboard style). */
 .list {
-  display: flex;
-  gap: var(--space-1);
+  display: inline-flex;
+  align-self: flex-start;
+  gap: 2px;
   max-width: 100%;
+  padding: 3px;
   overflow-x: auto;
   overflow-y: hidden;
-  border-bottom: 1px solid var(--color-border-subtle);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-3);
+  background: var(--color-surface-1);
   scrollbar-width: none;
 }
 .tab {
@@ -20,9 +24,9 @@
   flex: none;
   align-items: center;
   gap: var(--space-2);
-  min-height: var(--size-control);
+  min-height: var(--size-tab);
   padding: 0 var(--space-3);
-  border-radius: var(--radius-1) var(--radius-1) 0 0;
+  border-radius: var(--radius-1);
   color: var(--color-text-muted);
   font-size: var(--font-size-sm);
   font-weight: var(--font-weight-medium);
@@ -33,26 +37,14 @@
     background-color var(--motion-fast),
     color var(--motion-fast);
 }
-/* The selected mark sits on the list rule: 2px accent, no box. */
-.tab::after {
-  content: '';
-  position: absolute;
-  right: var(--space-2);
-  bottom: -1px;
-  left: var(--space-2);
-  height: 2px;
-  border-radius: var(--radius-pill);
-  background: transparent;
-}
 .tab[data-hovered] {
-  background: var(--color-surface-2);
   color: var(--color-text);
 }
+/* Selected: raised surface plus a visible edge, so selection never depends on colour alone. */
 .tab[data-selected] {
+  background: var(--color-surface-3);
+  box-shadow: inset 0 0 0 1px var(--color-border-strong);
   color: var(--color-text);
-}
-.tab[data-selected]::after {
-  background: var(--color-accent);
 }
 .tab[data-focus-visible] {
   outline: var(--focus-ring-width) solid var(--color-focus-ring);
@@ -89,11 +81,14 @@
 /* Card variant: three or more equal tiles. Selection shows by an accent border and fill, never by colour alone: the icon square also fills. */
 .tabs[data-variant='card'] .list {
   display: grid;
+  align-self: stretch;
+  padding: 0;
+  border: 0;
+  background: none;
   grid-auto-columns: minmax(0, 1fr);
   grid-auto-flow: column;
   gap: var(--space-2);
   overflow: visible;
-  border-bottom: 0;
 }
 .tabs[data-variant='card'] .tab {
   align-items: center;
@@ -106,14 +101,12 @@
   color: var(--color-text);
   white-space: normal;
 }
-.tabs[data-variant='card'] .tab::after {
-  display: none;
-}
 .tabs[data-variant='card'] .tab[data-hovered] {
   background: var(--color-surface-3);
 }
 .tabs[data-variant='card'] .tab[data-selected] {
   border-color: var(--color-accent-text);
+  color: var(--color-text);
   background: var(--color-accent-soft);
   box-shadow: inset 0 0 0 1px var(--color-accent-text);
 }

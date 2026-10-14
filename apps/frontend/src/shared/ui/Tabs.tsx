@@ -12,13 +12,13 @@ import {
 import { Icon, type IconName } from './Icon';
 import styles from './Tabs.module.css';
 
-type TabsVariant = 'underline' | 'card';
+type TabsVariant = 'group' | 'card';
 
 /**
  * APG tabs: arrows move between tabs (roving tabindex), Tab enters the panel. Compose Tabs > TabList > Tab + TabPanel.
  * `card`: equal-width bordered tiles, each with an icon square, a title and a hint (source pickers); pass `icon` and `hint` to Tab.
  */
-export function Tabs({ variant = 'underline', ...props }: Omit<TabsProps, 'className'> & { variant?: TabsVariant }) {
+export function Tabs({ variant = 'group', ...props }: Omit<TabsProps, 'className'> & { variant?: TabsVariant }) {
   return <AriaTabs {...props} data-variant={variant} className={styles.tabs} />;
 }
 

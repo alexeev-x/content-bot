@@ -49,7 +49,7 @@ The regular browser app and Telegram Mini App are the same SPA. Every route must
 
 ## Visual quality bar
 
-The approved design (08.10.2026, `docs/design/UX_SPEC.md`, live prototype at `/__proto` in DEV) is the acceptance reference. The product language it establishes:
+The approved design (`docs/design/UX_SPEC.md` for flows, `docs/design/README.md` for the look) is the acceptance reference. The product language it establishes:
 
 - deliberate typography and hierarchy;
 - consistent density, spacing and alignment;

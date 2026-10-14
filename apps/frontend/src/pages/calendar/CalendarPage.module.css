@@ -129,7 +129,7 @@
 }
 .monthEvent span:first-child {
   flex: none;
-  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
 }
 .more,
 .createSlot {
@@ -176,7 +176,7 @@
 .hourLabel {
   padding: var(--space-2);
   color: var(--color-text-muted);
-  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
   font-size: var(--font-size-2xs);
 }
 .hourCell {
@@ -207,9 +207,8 @@
   background: var(--color-surface-2);
 }
 .eventTime {
-  font-family: var(--font-mono);
-  font-size: var(--font-size-xs);
   font-variant-numeric: tabular-nums;
+  font-size: var(--font-size-xs);
 }
 .eventTitle {
   overflow: hidden;

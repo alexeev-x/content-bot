@@ -11,7 +11,8 @@
     "explore": "playwright test --config playwright.explore.config.ts",
     "test": "vitest run && node --test scripts/*.test.mjs",
     "deploy": "wrangler deploy",
-    "deploy:check": "wrangler deploy --dry-run"
+    "deploy:check": "wrangler deploy --dry-run",
+    "shots": "playwright test --config playwright.shots.config.ts"
   },
   "dependencies": {
     "@alexeev/contracts": "*",

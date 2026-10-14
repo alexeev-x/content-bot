@@ -249,7 +249,9 @@ export async function mockApi(page: Page): Promise<void> {
         (!params.get('status') || item['status'] === params.get('status')) &&
         (!params.get('postId') || item['postId'] === params.get('postId'))
     );
-    return json(route, page_(items));
+    const statusCounts = { ...NO_COUNTS };
+    for (const item of store) statusCounts[item['status'] as keyof typeof NO_COUNTS] += 1;
+    return json(route, { ...page_(items), totalCount: items.length, statusCounts });
   });
   await page.route(/\/api\/v1\/publications\/[^/?]+$/, (route) => {
     const wanted = route.request().url().split('/').pop()?.split('?')[0];
@@ -282,6 +284,48 @@ export async function mockApi(page: Page): Promise<void> {
     }
     found['resolvedAt'] ??= '2026-10-07T07:10:00.000Z';
     return json(route, found);
+  });
+  await page.route('**/api/v1/settings/dashboard-layout', (route) => json(route, { revision: 0, widgets: [] }));
+  await page.route(/\/api\/v1\/analytics\/publications(\?.*)?$/, (route) => {
+    const counts = (sent: number, failed: number, unknown: number) => ({
+      publications: sent + failed + unknown,
+      sent,
+      failed,
+      unknown,
+      attempts: sent + failed + unknown + 2,
+      retries: 2
+    });
+    const rows = destinations.slice(0, 2).flatMap((destination, index) =>
+      [0, 1, 2].map((n) => ({
+        publicationId: `44444444-4444-4444-8444-${String(index * 10 + n).padStart(12, '0')}`,
+        postId: ids.post,
+        postRevision: 1,
+        title: n === 0 ? LONG_POST_TITLE : `Публикация №${index * 10 + n + 1}`,
+        outcome: n === 2 && index === 1 ? 'failed' : 'sent',
+        observedAt: T,
+        destinationId: destination.id,
+        destinationTitle: destination.title,
+        mediaKinds: n === 1 ? ['photo', 'video'] : ['photo'],
+        attemptCount: n === 2 ? 3 : 1,
+        retryCount: n === 2 ? 2 : 0
+      }))
+    );
+    return json(route, {
+      from: '2026-09-06T00:00:00.000Z',
+      to: '2026-10-06T00:00:00.000Z',
+      observedAt: T,
+      comparison: 'destination',
+      summary: counts(5, 1, 0),
+      groups: destinations.slice(0, 2).map((destination, index) => ({
+        key: destination.id,
+        label: destination.title,
+        counts: index === 0 ? counts(3, 0, 0) : counts(2, 1, 0),
+        coveredPublications: 3,
+        unrecordedPublications: 0
+      })),
+      publications: { items: rows, nextCursor: null },
+      mediaCoverage: { recorded: 6, unrecorded: 0 }
+    });
   });
   await page.route(/\/api\/v1\/dashboard(\?.*)?$/, (route) => {
     const open = openIncidents();

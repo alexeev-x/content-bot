@@ -24,8 +24,8 @@ These are the common tells of generated UIs:
 - Template chrome: an ALL-CAPS tracked eyebrow above every heading, meta joined with « · », a monospace face for small labels, «→» appended to buttons, numbered markers on content that is not a sequence, one highlighted word in a headline.
 - A fade-and-slide entrance on every section and a hover animation on every card.
 
-## Approved direction (08.10.2026): «Calm Operations»
-Binding: `docs/design/README.md` and `docs/design/UX_SPEC.md`. One accent token set (cobalt default; per-theme presets or a custom color from Settings → Appearance) only for primary actions, selection, focus, links and charts. Statuses keep their own colors plus text and icon. Refine this direction; never propose a new one. Components are React Aria Components wrapped in `shared/ui`, styled with CSS Modules over the tokens; add no other UI library.
+## Approved direction (14.10.2026): Cloudflare-dashboard look
+Binding: `docs/design/README.md` (references in `design-refs/нравится/`) and `docs/design/UX_SPEC.md` for flows. One accent token set (cobalt default; per-theme presets or a custom color from Settings → Appearance) only for primary actions, selection, focus, links and charts. Statuses keep their own colors plus text and icon. Refine this direction; never propose a new one. Components are React Aria Components wrapped in `shared/ui`, styled with CSS Modules over the tokens; add no other UI library.
 
 ## Principles
 - **Spend boldness in one place**, for example the publication timeline or the status system. Keep everything else quiet. Before finishing, remove one decorative element.

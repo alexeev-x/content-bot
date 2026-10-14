@@ -40,15 +40,21 @@ textarea {
   color: inherit;
 }
 code,
-kbd,
-.mono {
+kbd {
   font-family: var(--font-mono);
   font-size: 0.86em;
+}
+/* Times, counters and revisions: the body face with tabular figures; monospace stays for ids and code. */
+.mono {
   font-variant-numeric: tabular-nums;
 }
 :focus-visible {
   outline: var(--focus-ring-width) solid var(--color-focus-ring);
   outline-offset: var(--focus-ring-offset);
+}
+/* Route headings take programmatic focus (tabindex -1) for screen readers; they are not controls, so no ring. */
+[tabindex='-1']:focus-visible {
+  outline: none;
 }
 @media (prefers-reduced-motion: reduce) {
   *,

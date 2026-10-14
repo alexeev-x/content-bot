@@ -351,9 +351,8 @@
   flex: none;
   min-width: 44px;
   color: var(--color-text-muted);
-  font-family: var(--font-mono);
-  font-size: var(--font-size-sm);
   font-variant-numeric: tabular-nums;
+  font-size: var(--font-size-sm);
 }
 .time small {
   font-family: inherit;
@@ -555,7 +554,6 @@
 }
 .mono {
   color: var(--color-text-muted);
-  font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
 }
 .recentFooter {

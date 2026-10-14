@@ -1,6 +1,6 @@
 # ALEXEEV Studio admin: UX spec
 
-Status: **Approved 08.10.2026** (owner approved this spec and the prototype at `/__proto`; real pages follow the prototype). Expert review, not validated with users; the owner's words and the existing stories are the primary evidence. Scope: only screens and routes that exist now. Anything needing a missing API is marked **API need**; future items are marked **Later** and are never drawn as working.
+Status: **Approved 08.10.2026** for flows, states and copy. Visual look: Cloudflare-dashboard direction (owner, 14.10.2026; `docs/design/README.md`). The `/__proto` prototype was removed on 14.10.2026; mentions of it below are history. Expert review, not validated with users; the owner's words and the existing stories are the primary evidence. Scope: only screens and routes that exist now. Anything needing a missing API is marked **API need**; future items are marked **Later** and are never drawn as working.
 
 Inputs: `docs/design/README.md` (Calm Operations visual rules) and `docs/PAGE_MAP.md`. Publishing-safety rules in `docs/BACKEND_ARCHITECTURE.md` and skill `publishing-reliability` always win.
 

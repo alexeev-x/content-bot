@@ -14,7 +14,6 @@
   flex: 1;
   align-items: center;
   min-width: 0;
-  font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
 }
 .segment {
@@ -45,7 +44,7 @@
 .fieldOffset {
   flex: none;
   color: var(--color-text-muted);
-  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
   font-size: var(--font-size-sm);
 }
 .fieldButton {
@@ -60,7 +59,6 @@
   border-radius: var(--radius-2);
   background: none;
   color: var(--color-text);
-  font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
   text-align: left;
   cursor: pointer;
@@ -283,11 +281,10 @@
   border: 0;
   background: transparent;
   color: var(--color-text);
-  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
   font-size: var(--font-size-xl);
   font-weight: var(--font-weight-semibold);
   text-align: center;
-  font-variant-numeric: tabular-nums;
   outline: none;
 }
 .timeValue:focus-visible {

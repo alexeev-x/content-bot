@@ -497,6 +497,19 @@ export function AnalyticsReport({
           onRetry={() => void query.refetch()}
         />
       ) : null}
+      {query.data && !accessDenied ? (
+        <Panel
+          title="Результаты публикаций"
+          note={`${formatInstant(query.data.from, zone)} — ${formatInstant(query.data.to, zone)} · ${zone}, ${utcOffsetLabel(now, zone)}`}
+        >
+          <Summary report={query.data} />
+          <p className={styles.note}>
+            Снимок отчёта: {formatInstant(query.data.observedAt, zone)} {zone} (
+            {utcOffsetLabel(new Date(query.data.observedAt), zone)}). Значения — абсолютные количества по истории
+            Studio.
+          </p>
+        </Panel>
+      ) : null}
       {query.isPending || (query.data && !accessDenied) ? (
         <Panel title="Сравнение">
           <div aria-busy={query.isPending}>
@@ -528,17 +541,6 @@ export function AnalyticsReport({
       ) : null}
       {query.data && !accessDenied ? (
         <>
-          <Panel
-            title="Результаты публикаций"
-            note={`${formatInstant(query.data.from, zone)} — ${formatInstant(query.data.to, zone)} · ${zone}, ${utcOffsetLabel(now, zone)}`}
-          >
-            <Summary report={query.data} />
-            <p className={styles.note}>
-              Снимок отчёта: {formatInstant(query.data.observedAt, zone)} {zone} (
-              {utcOffsetLabel(new Date(query.data.observedAt), zone)}). Значения — абсолютные количества по истории
-              Studio.
-            </p>
-          </Panel>
           <Panel title="Публикации" footer={<span>Показано {rows.length}</span>}>
             <ReportTable
               report={query.data}

@@ -61,5 +61,5 @@
   font-size: var(--font-size-xs);
 }
 .checked time {
-  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
 }

@@ -40,7 +40,7 @@ apps/frontend/src/
 ├── main.tsx
 ├── app/          # router, providers, layouts, theme, Telegram chrome, styles/tokens.css
 ├── routes/       # TanStack Router file routes (lazy), generated routeTree.gen.ts
-├── pages/        # screen assembly, no data logic (posts/, publications/, incidents/, settings/, prototypes/ = dev-only /__proto)
+├── pages/        # screen assembly, no data logic (posts/, publications/, incidents/, settings/, …)
 ├── features/     # slices: index.ts, api/, model/, ui/, tests/
 ├── shared/       # api/ (http-client, session), ui/ primitives, lib/, telegram/
 └── test/         # MSW, fixtures, render helpers

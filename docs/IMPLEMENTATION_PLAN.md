@@ -15,7 +15,7 @@ Made by the owner; not re-opened unless the owner changes them. Dated decisions 
 - A post may carry several manually uploaded photos, GIFs and videos. Automatic downloading and generated media are a later, separate project.
 - No AI/LLM/generative features in the active roadmap (§6).
 - Dota intelligence is deterministic: source ingestion, parsing, normalization, comparisons, thresholds, rules, watchlists and explicit provenance.
-- Design exists only in code (tokens, primitives, `/__proto`, screenshots); no Figma.
+- Design exists only in code (tokens, primitives, screenshots via `npm run shots -w @alexeev/frontend`); no Figma.
 - Phone, tablet, laptop, desktop and the Mini App are first-class; mobile is not read-only. Widths to check: `docs/design/UX_SPEC.md` Conventions.
 - D1 is the operational source of truth; R2 holds media objects.
 - A feature is done only when the real backend, real UI, validation, error states, tests and operational behavior exist. A route or a prototype is not a feature.
@@ -35,7 +35,7 @@ Telegram Login Widget (browser), Mini App `initData`, owner-only access, rotatin
 
 ### 2.3 Shell and design — owner-checked (08.10.2026)
 
-Approved «Calm Operations» design (`docs/design/UX_SPEC.md`, `/__proto`) applied to every real page: sidebar with collapse and channel card, top bar (timezone chip, DEV marker, system-status chip, theme toggle, owner menu), phone tab bar (Обзор, Посты, Публикации, Инциденты, Ещё), skeletons with stable geometry, dark/light themes, accent presets and custom colours.
+Approved design (`docs/design/UX_SPEC.md`; Cloudflare-dashboard look since 14.10.2026) applied to every real page: sidebar with collapse and channel card, top bar (timezone chip, DEV marker, system-status chip, theme toggle, owner menu), phone tab bar (Обзор, Посты, Публикации, Инциденты, Ещё), skeletons with stable geometry, dark/light themes, accent presets and custom colours.
 
 ### 2.4 Posts and editor
 
