@@ -195,6 +195,24 @@ describe('publication text search', () => {
     expect((await repo.list({ q: 'b', limit: 21, now: NOW })).map((row) => row.id)).toEqual([input.id]);
     expect(await repo.list({ q: 'missing', limit: 21, now: NOW })).toEqual([]);
   });
+
+  // SQLite lower() folds only ASCII: «ауд» used to miss «Аудит».
+  it('ignores letter case in Cyrillic as well as ASCII', async () => {
+    await seedPost();
+    await seedDestination();
+    await testDb()
+      .prepare(`UPDATE posts SET title = 'Аудит DEV', body = 'ПРОВЕРКА канала' WHERE id = ?1`)
+      .bind(POST)
+      .run();
+    const repo = createD1PublicationRepository(testDb());
+    const input = await newPublication();
+    await repo.create(input);
+
+    for (const q of ['ауд', 'АУДИТ', 'дит dev', 'проверка', 'Канала']) {
+      expect((await repo.list({ q, limit: 21, now: NOW })).map((row) => row.id)).toEqual([input.id]);
+    }
+    expect(await repo.list({ q: 'аудиты', limit: 21, now: NOW })).toEqual([]);
+  });
 });
 
 describe('publication list query plans', () => {

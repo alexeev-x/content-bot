@@ -13,6 +13,7 @@ import type {
 } from '../application/ports';
 import { type JobState, projectPublicationStatus } from '../domain/status-projection';
 import { jobConditionForStatus } from './publication-status-sql';
+import { caseFoldSql, foldSearchQuery } from '../../../shared/unicode-case-fold';
 
 interface PublicationRow {
   id: string;
@@ -80,6 +81,14 @@ interface PublicationDeleteStateRow {
   is_present: number;
   revision: number | null;
   job_status: JobState | null;
+}
+
+// The post title or text contains the query in any letter case, Cyrillic included (see shared/unicode-case-fold).
+function postTextSearchSql(q: string): string {
+  return (
+    'EXISTS (SELECT 1 FROM posts search_post WHERE search_post.id = p.post_id ' +
+    `AND (instr(${caseFoldSql('search_post.title', q)}, ?) > 0 OR instr(${caseFoldSql('search_post.body', q)}, ?) > 0))`
+  );
 }
 
 function toRecord(row: PublicationRow): PublicationRecord {
@@ -213,11 +222,9 @@ export function listPublicationsSql(query: ListPublicationsQuery): { sql: string
     bindings.push(query.destinationId);
   }
   if (query.q !== undefined) {
-    conditions.push(
-      'EXISTS (SELECT 1 FROM posts search_post WHERE search_post.id = p.post_id ' +
-        'AND (instr(lower(search_post.title), lower(?)) > 0 OR instr(lower(search_post.body), lower(?)) > 0))'
-    );
-    bindings.push(query.q, query.q);
+    conditions.push(postTextSearchSql(query.q));
+    const folded = foldSearchQuery(query.q);
+    bindings.push(folded, folded);
   }
   if (query.status !== undefined) {
     const condition = jobConditionForStatus(query.status);
@@ -268,11 +275,9 @@ function publicationSummarySql(
     bindings.push(query.destinationId);
   }
   if (query.q !== undefined) {
-    conditions.push(
-      'EXISTS (SELECT 1 FROM posts search_post WHERE search_post.id = p.post_id ' +
-        'AND (instr(lower(search_post.title), lower(?)) > 0 OR instr(lower(search_post.body), lower(?)) > 0))'
-    );
-    bindings.push(query.q, query.q);
+    conditions.push(postTextSearchSql(query.q));
+    const folded = foldSearchQuery(query.q);
+    bindings.push(folded, folded);
   }
   if (query.from !== undefined) {
     conditions.push('p.scheduled_at >= ?');

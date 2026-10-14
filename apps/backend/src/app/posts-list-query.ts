@@ -4,6 +4,7 @@ import type { Container } from './container';
 import { AppError } from '../shared/app-error';
 import { ARCHIVE_RETENTION_MS } from '../shared/archive-retention';
 import { sha256Hex } from '../platform/security/sha256';
+import { caseFoldSql } from '../shared/unicode-case-fold';
 
 interface Cursor {
   view: PostView;
@@ -71,18 +72,6 @@ function publicationStateSql(): string {
     ELSE '\u0447\u0435\u0440\u043d\u043e\u0432\u0438\u043a' END`;
 }
 
-function unicodeCaseFoldSql(column: string, query: string): string {
-  let expression = `lower(${column})`;
-  const uppercaseCharacters = new Set<string>();
-  for (const character of query) {
-    const uppercase = character.toLocaleUpperCase('ru');
-    if ([...uppercase].length === 1 && uppercase !== character) uppercaseCharacters.add(uppercase);
-  }
-  for (const uppercase of uppercaseCharacters)
-    expression = `replace(${expression}, '${uppercase}', '${uppercase.toLocaleLowerCase('ru')}')`;
-  return expression;
-}
-
 export function buildPostsListSql(
   query: ListPostsQuery,
   cursor: Cursor | null = null
@@ -106,13 +95,13 @@ export function buildPostsListSql(
   }
   if (q !== '') {
     const postTextMatch = shortSearch
-      ? `instr(${unicodeCaseFoldSql('p.title', q)}, ?) > 0 OR instr(${unicodeCaseFoldSql('p.body', q)}, ?) > 0`
+      ? `instr(${caseFoldSql('p.title', q)}, ?) > 0 OR instr(${caseFoldSql('p.body', q)}, ?) > 0`
       : `p.rowid IN (SELECT rowid FROM posts_search WHERE posts_search MATCH ?)`;
     const channelMatch = shortSearch
       ? `EXISTS (SELECT 1 FROM destinations d JOIN publications pu ON pu.destination_id = d.id
                 JOIN jobs j ON j.publication_id = pu.id AND j.kind = 'publish'
                 WHERE pu.post_id = p.id AND j.status NOT IN ('failed', 'cancelled')
-                  AND instr(${unicodeCaseFoldSql('d.title', q)}, ?) > 0)`
+                  AND instr(${caseFoldSql('d.title', q)}, ?) > 0)`
       : `EXISTS (SELECT 1 FROM publications pu JOIN jobs j ON j.publication_id = pu.id AND j.kind = 'publish'
                 JOIN destinations d ON d.id = pu.destination_id
                 WHERE pu.post_id = p.id AND j.status NOT IN ('failed', 'cancelled')

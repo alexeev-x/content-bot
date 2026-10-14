@@ -11,6 +11,7 @@ import {
   postMediaSchema
 } from '@alexeev/contracts';
 import type { MediaPostState, PostMediaRepository, StoredUpload } from '../application/media-ports';
+import { caseFoldSql, foldSearchQuery } from '../../../shared/unicode-case-fold';
 
 interface MediaRow {
   id: string;
@@ -340,9 +341,9 @@ export function createD1PostMediaRepository(db: D1Database): PostMediaRepository
         search === undefined
           ? ''
           : (() => {
-              const escaped = search.replace(/[\\%_]/g, '\\$&');
-              filterBindings.push(`${escaped}%`);
-              return `AND m.file_name LIKE ?${filterBindings.length} ESCAPE '\\' COLLATE NOCASE`;
+              // Substring in any letter case, Cyrillic included (see shared/unicode-case-fold).
+              filterBindings.push(foldSearchQuery(search));
+              return `AND instr(${caseFoldSql('m.file_name', search)}, ?${filterBindings.length}) > 0`;
             })();
       const usageClause =
         usage === 'used'
