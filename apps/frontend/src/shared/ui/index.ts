@@ -40,6 +40,7 @@ export { RowCard } from './RowCard';
 export { SearchField } from './SearchField';
 export { TableSearch } from './TableSearch';
 export { SelectionBar } from './SelectionBar';
+export { DragHandle, SortableGrid } from './SortableGrid';
 export { SegmentedControl } from './SegmentedControl';
 export type { SegmentOption } from './SegmentedControl';
 export { Select } from './Select';

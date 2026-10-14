@@ -1,9 +1,21 @@
+import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
 import { useDocumentTitle } from '../app/use-document-title';
 import { useBotCheck } from '../features/bot';
-import { Dashboard, DateChip, useDashboardQuery, type PageBindings, type ServiceRow } from '../features/dashboard';
+import {
+  Dashboard,
+  DateChip,
+  LayoutActions,
+  useDashboardQuery,
+  useLayoutEditing,
+  type ChannelRow,
+  type PageBindings,
+  type ServiceRow
+} from '../features/dashboard';
+import { destinationsInfiniteQueryOptions } from '../features/destinations';
+import { PublicationDrawer, publicationQueryOptions } from '../features/publications';
 import { useOwnerTimezone } from '../features/owner-settings';
-import { utcOffsetLabel } from '../shared/lib/owner-timezone';
+import { ownerDayRange, utcOffsetLabel } from '../shared/lib/owner-timezone';
 import { useNow } from '../shared/lib/use-now';
 import { checkWord, isSwitchedOff, useServiceChecks } from '../features/system-health';
 import { ru } from '../shared/lib/ru';
@@ -12,9 +24,12 @@ import { Button, PageHeader } from '../shared/ui';
 type Props = {
   /** Test hook: dashboard poll interval in ms (production uses the 60 s default). */
   pollMs?: number;
+  /** The publication whose panel is open over Обзор (`?id=` in the URL). */
+  openPublicationId?: string | undefined;
+  onOpenPublicationChange?: (id: string | undefined) => void;
 };
 
-export function DashboardPage({ pollMs }: Props) {
+export function DashboardPage({ pollMs, openPublicationId, onOpenPublicationChange }: Props) {
   useDocumentTitle(ru.pages.dashboard);
   const navigate = useNavigate();
   const timezone = useOwnerTimezone();
@@ -24,6 +39,19 @@ export function DashboardPage({ pollMs }: Props) {
   const bot = useBotCheck();
   const checks = [...service.checks, bot];
   const zoneNote = `${timezone}, ${utcOffsetLabel(now, timezone)}`;
+  const layout = useLayoutEditing();
+  const destinations = useInfiniteQuery(destinationsInfiniteQueryOptions({ enabled: true }));
+  const destinationList = destinations.data?.pages.flatMap((page) => page.items);
+  const botTone: ChannelRow['tone'] = bot.tone === 'ok' ? 'ok' : bot.tone === 'loading' ? 'muted' : 'warn';
+  const channels: ChannelRow[] | undefined = destinationList?.map((destination) => ({
+    id: destination.id,
+    title: destination.title,
+    tone: botTone
+  }));
+  const openPublication = (id: string | undefined) =>
+    onOpenPublicationChange
+      ? onOpenPublicationChange(id)
+      : id && void navigate({ to: '/publications', search: { id } });
   const services: ServiceRow[] = checks.map((check) => ({
     id: check.id,
     name: check.name,
@@ -40,11 +68,25 @@ export function DashboardPage({ pollMs }: Props) {
     services,
     zoneNote,
     timezone,
-    onOpenPublication: (id) => void navigate({ to: '/publications', search: { id } }),
+    onOpenPublication: (id) => openPublication(id),
     onOpenDay: (day) => void navigate({ to: '/publications', search: { from: day.from, to: day.to } }),
     onNewPost: () => void navigate({ to: '/posts/new' }),
-    onPublishDraft: (id) => void navigate({ to: '/posts/$id/publish', params: { id } })
+    onPublishDraft: (id) => void navigate({ to: '/posts/$id/publish', params: { id } }),
+    onOpenToday: () => {
+      const day = ownerDayRange(now, timezone);
+      void navigate({ to: '/publications', search: { from: day.from, to: day.to } });
+    },
+    onOpenErrors: () => void navigate({ to: '/publications', search: { view: 'errors' } }),
+    onNavigate: (to) => void navigate({ to }),
+    channels,
+    layout
   };
+  // The panel's own detail query (same key): it tells which channel the message link belongs to.
+  const openDetail = useQuery({
+    ...publicationQueryOptions(openPublicationId ?? ''),
+    enabled: openPublicationId !== undefined
+  });
+  const drawerDestination = destinationList?.find((destination) => destination.id === openDetail.data?.destinationId);
 
   return (
     <>
@@ -52,15 +94,31 @@ export function DashboardPage({ pollMs }: Props) {
         title={ru.pages.dashboard}
         description={ru.dashboard.description}
         actions={
-          <>
-            <DateChip placement="header" zoneNote={zoneNote} timezone={timezone} />
-            <Button icon="plus" onPress={() => void navigate({ to: '/posts/new' })}>
-              Новый пост
-            </Button>
-          </>
+          layout.editing ? (
+            <LayoutActions editing={layout} />
+          ) : (
+            <>
+              <DateChip placement="header" zoneNote={zoneNote} timezone={timezone} />
+              <LayoutActions editing={layout}>
+                <Button icon="plus" onPress={() => void navigate({ to: '/posts/new' })}>
+                  Новый пост
+                </Button>
+              </LayoutActions>
+            </>
+          )
         }
       />
       <Dashboard {...bindings} />
+      <PublicationDrawer
+        timezone={timezone}
+        publicationId={openPublicationId ?? null}
+        isOpen={openPublicationId !== undefined}
+        onOpenChange={(open) => {
+          if (!open) openPublication(undefined);
+        }}
+        destinationTitle={drawerDestination?.title}
+        chatId={drawerDestination?.chatId}
+      />
     </>
   );
 }

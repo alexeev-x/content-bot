@@ -3,14 +3,17 @@ import type { UseQueryResult } from '@tanstack/react-query';
 import { ApiError } from '../../../shared/api/http-client';
 import { classifyApiError } from '../../../shared/api/error-kind';
 import type { StatusCheck } from '../../../shared/lib/status-check';
-import { Banner, Button, ErrorState } from '../../../shared/ui';
+import { Banner, Button, ErrorState, VisuallyHidden } from '../../../shared/ui';
 import { buildView } from '../model/build-view';
 import { useDraftsQuery, useWeekQuery } from '../model/use-dashboard-query';
 import { useTodayRange } from '../model/today-range';
+import type { ChannelRow } from '../model/channel-rows';
 import type { ServiceRow } from '../model/service-rows';
 import { copy } from './copy';
 import styles from './Dashboard.module.css';
 import { DashboardLayout } from './DashboardLayout';
+import type { LayoutEditing } from './LayoutActions';
+import { LayoutEditor } from './LayoutEditor';
 import type { WidgetEnv } from './widget-env';
 
 export type PageBindings = {
@@ -28,6 +31,12 @@ export type PageBindings = {
   onOpenDay: (day: { from: string; to: string }) => void;
   onNewPost: () => void;
   onPublishDraft: (postId: string) => void;
+  onOpenToday: () => void;
+  onOpenErrors: () => void;
+  onNavigate: (to: '/media' | '/publications' | '/sources') => void;
+  channels: readonly ChannelRow[] | undefined;
+  /** The owner's layout and its edit mode (`useLayoutEditing`). */
+  layout: LayoutEditing;
 };
 
 /** The fixed Обзор: the day summary is read once for all the widgets that need it. */
@@ -40,7 +49,12 @@ export function Dashboard({
   onOpenPublication,
   onOpenDay,
   onNewPost,
-  onPublishDraft
+  onPublishDraft,
+  onOpenToday,
+  onOpenErrors,
+  onNavigate,
+  channels,
+  layout
 }: PageBindings) {
   const week = useWeekQuery(timezone, useTodayRange(timezone).from);
   const drafts = useDraftsQuery();
@@ -84,6 +98,40 @@ export function Dashboard({
     </>
   );
 
+  if (layout.editing) {
+    return (
+      <div className={styles.root}>
+        {layout.conflict ? (
+          <Banner
+            tone="warning"
+            title={copy.edit.conflictTitle}
+            action={
+              <>
+                <Button size="sm" variant="secondary" onPress={layout.reload}>
+                  {copy.edit.reload}
+                </Button>
+                <Button size="sm" onPress={() => void layout.keepMine()}>
+                  {copy.edit.keepMine}
+                </Button>
+              </>
+            }
+          >
+            {copy.edit.conflictBody}
+          </Banner>
+        ) : null}
+        <p className={styles.quiet}>{copy.edit.hint}</p>
+        <VisuallyHidden>
+          <output>{layout.announcement}</output>
+        </VisuallyHidden>
+        {layout.items.length === 0 ? (
+          <p className={styles.quiet}>{copy.edit.empty}</p>
+        ) : (
+          <LayoutEditor items={layout.items} onChange={layout.change} />
+        )}
+      </div>
+    );
+  }
+
   if (failure) return <div className={styles.root}>{banner}</div>;
 
   return (
@@ -91,7 +139,22 @@ export function Dashboard({
       loading={query.isPending}
       banner={banner}
       zoneNote={zoneNote}
-      env={{ view, services, week, drafts, timezone, onOpenPublication, onOpenDay, onNewPost, onPublishDraft }}
+      items={layout.items}
+      env={{
+        view,
+        services,
+        week,
+        drafts,
+        timezone,
+        onOpenPublication,
+        onOpenDay,
+        onNewPost,
+        onPublishDraft,
+        onOpenToday,
+        onOpenErrors,
+        onNavigate,
+        channels
+      }}
     />
   );
 }

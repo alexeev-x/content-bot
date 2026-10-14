@@ -3,6 +3,60 @@ import { pluralRu } from '../../../shared/lib/ru-format';
 // Copy of the dashboard widgets. Publication status labels are canonical in shared/lib/ru.ts (skill page-spec).
 export const copy = {
   loading: 'Загружаем обзор…',
+  kpi: {
+    sentCaption: (total: number) => `из ${total} за сегодня`,
+    allClear: 'всё в порядке',
+    needsLook: 'нужно посмотреть'
+  },
+  quick: {
+    title: 'Быстрые действия',
+    newPost: 'Новый пост',
+    upload: 'Загрузить медиа',
+    publications: 'Публикации',
+    sources: 'Источники'
+  },
+  channels: {
+    title: 'Каналы',
+    all: 'Настроить',
+    empty: 'Канал не подключён',
+    state: { ok: 'бот публикует', warn: 'нужна проверка бота', muted: 'проверяем бота' }
+  },
+  edit: {
+    customize: 'Настроить',
+    done: 'Готово',
+    cancel: 'Отмена',
+    reset: 'Сбросить',
+    add: 'Добавить виджет',
+    hint: 'Перетащите виджет за ручку или используйте меню виджета. Изменения сохранятся по кнопке «Готово».',
+    grid: 'Виджеты обзора',
+    drag: (title: string) => `Перетащить «${title}»`,
+    menu: (title: string) => `Действия: «${title}»`,
+    width: 'Ширина',
+    earlier: 'Раньше',
+    later: 'Позже',
+    remove: 'Убрать',
+    removeLabel: (title: string) => `Убрать «${title}»`,
+    removed: (title: string) => `«${title}» убран`,
+    moved: (title: string, position: number, total: number) => `«${title}»: место ${position} из ${total}`,
+    resized: (title: string, width: string) => `«${title}»: ${width.toLowerCase()}`,
+    empty: 'На обзоре нет виджетов. Добавьте нужные из каталога.',
+    catalogTitle: 'Добавить виджет',
+    catalogEmpty: 'Все виджеты уже на обзоре.',
+    addOne: 'Добавить',
+    saved: 'Обзор сохранён',
+    saveError: 'Не удалось сохранить обзор',
+    conflictTitle: 'Обзор изменили в другом окне',
+    conflictBody: 'Можно загрузить новую раскладку или сохранить свою поверх неё.',
+    reload: 'Загрузить заново',
+    keepMine: 'Сохранить мою',
+    discardTitle: 'Отменить изменения обзора?',
+    discardBody: 'Перестановки и новые виджеты не сохранятся.',
+    discard: 'Отменить изменения',
+    keepEditing: 'Продолжить настройку',
+    resetTitle: 'Вернуть стандартный обзор?',
+    resetBody: 'Виджеты встанут как было изначально. Сохранится только после «Готово».',
+    resetConfirm: 'Вернуть стандартный'
+  },
   newPost: 'Новый пост',
   line: {
     title: 'Лента дня',

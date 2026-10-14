@@ -1,0 +1,63 @@
+.grid {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  gap: var(--space-4);
+  align-items: stretch;
+  outline: none;
+}
+.item {
+  position: relative;
+  grid-column: span 12;
+  min-width: 0;
+  border-radius: var(--radius-3);
+  outline: none;
+}
+/* Items span the columns their style sets (--w wide, --w-mid medium); the grid's container decides which. */
+@container (min-width: 760px) {
+  .item {
+    grid-column: span var(--w-mid, 12);
+  }
+}
+@container (min-width: 1000px) {
+  .item {
+    grid-column: span var(--w, 12);
+  }
+}
+.item[data-focus-visible] {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 2px;
+}
+.item[data-dragging] {
+  opacity: 0.5;
+}
+.handle {
+  display: inline-grid;
+  flex: none;
+  width: var(--size-target);
+  height: var(--size-target);
+  place-items: center;
+  border: 0;
+  border-radius: var(--radius-2);
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: grab;
+  touch-action: none;
+}
+.handle[data-hovered] {
+  background: var(--color-surface-3);
+  color: var(--color-text);
+}
+.handle[data-focus-visible] {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 2px;
+}
+.indicator {
+  grid-column: span 12;
+  height: 0;
+  outline: none;
+}
+.indicator[data-drop-target] {
+  height: 4px;
+  border-radius: var(--radius-pill);
+  background: var(--color-accent);
+}

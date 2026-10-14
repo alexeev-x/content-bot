@@ -7,6 +7,7 @@ export type {
 } from './api/publications-api';
 export {
   PUBLICATION_POLL_MS,
+  publicationQueryOptions,
   publicationsInfiniteQueryOptions,
   publicationsPageQueryOptions
 } from './api/publications-queries';

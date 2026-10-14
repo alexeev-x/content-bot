@@ -20,7 +20,7 @@ Accepted decisions that are in force. An agent does not propose an alternative t
 | 07.10.2026 | The end goal is a server that prepares content itself. First step: Phase 1D — watch official Dota sources and turn a new update into a template draft with a private owner alert; publishing still needs owner approval | — |
 | 06.10.2026 | Deleting or archiving a post or publication in the admin never deletes the message from the Telegram channel | `docs/BACKEND_ARCHITECTURE.md` §5 |
 | 06.10.2026 | Every delete asks for confirmation; post lists (including the Archive) and final publications support bulk delete | `docs/design/UX_SPEC.md` §3.2 |
-| 08.10.2026 | Обзор is a customizable widget grid (react-grid-layout v2 in edit mode only); layout stored server-side per owner with revision/409 | `apps/contracts/src/dashboard-layout.ts` |
+| 08.10.2026 | Обзор is a customizable widget grid (since 14.10.2026: ordered widgets with widths, React Aria drag and drop; no react-grid-layout); layout stored server-side per owner with revision/409 | `apps/contracts/src/dashboard-layout.ts` |
 | 13.10.2026 | Calendar scheduling requires an explicit first/second occurrence for repeated local times and rejects nonexistent DST-gap times without shifting. | `docs/stories/calendar-mvp.md` |
 | 13.10.2026 | Pausing an automation stops future automation runs only; already-scheduled Telegram publications remain dispatchable under the publication state machine. | — |
 | 13.10.2026 | Platform expansion starts with YouTube, owner-only OAuth and explicit per-video action; no silent scheduled upload. TikTok is not the first integration because its documented intended-use policy conflicts with this internal owner-only utility. | `docs/stories/platform-expansion-feasibility.md` |
