@@ -12,5 +12,4 @@ export type DashboardView = {
   checking: boolean;
   services: readonly ServiceRow[];
   /** `sent` rows among today's listed ones. */
-  sentToday: number;
 };

@@ -1,3 +1,4 @@
+/* oxlint-disable jsx-a11y/media-has-caption -- Uploaded files may not contain captions; never fabricate a track. */
 import { useEffect, useRef, useState } from 'react';
 import { useMediaOriginal, useMediaThumbnail } from '../../../shared/lib/use-media-thumbnail';
 import { Button, Icon } from '../../../shared/ui';
@@ -18,16 +19,17 @@ export function PrivateMediaPreview({ mediaId, kind, eager = false, allowRetry =
   const [visible, setVisible] = useState(() => eager || typeof IntersectionObserver === 'undefined');
   const [broken, setBroken] = useState(false);
   const load = (signal: AbortSignal) => getMediaContent(mediaId, signal);
-  // Video originals cannot go into <img>: the detail view of a video also shows its first frame.
-  const original = useMediaOriginal(mediaId, load, eager && kind !== 'video');
+  // The detail view plays the original (video, or an animation delivered as MP4); grid tiles show a cached thumbnail.
+  const original = useMediaOriginal(mediaId, load, eager);
   const thumbnail = useMediaThumbnail(
     mediaId,
     kind === 'video' ? 'video' : 'image',
     load,
-    visible && !(eager && kind !== 'video')
+    visible && (!eager || kind === 'video')
   );
+  const asVideo = eager && (kind === 'video' || original.mime.startsWith('video/'));
   const shown = eager && kind !== 'video' ? original : thumbnail;
-  const failed = shown.isError || broken;
+  const failed = shown.isError || broken || (eager && original.isError);
 
   useEffect(() => {
     if (eager || visible || !host.current) return;
@@ -46,14 +48,29 @@ export function PrivateMediaPreview({ mediaId, kind, eager = false, allowRetry =
 
   return (
     <span ref={host} className={styles.preview}>
-      <span aria-hidden="true">
-        {shown.src && !failed ? (
-          <img src={shown.src} alt="" onError={() => setBroken(true)} />
-        ) : (
-          <Icon name={kind === 'video' ? 'video' : 'image'} size={28} />
-        )}
-        {kind === 'video' ? <span className={styles.videoMark}>Видео</span> : null}
-      </span>
+      {asVideo && original.src && !failed ? (
+        <video
+          src={original.src}
+          poster={kind === 'video' ? thumbnail.src : undefined}
+          controls={kind === 'video'}
+          autoPlay={kind !== 'video'}
+          loop={kind !== 'video'}
+          muted={kind !== 'video'}
+          playsInline
+          preload="metadata"
+          aria-label={kind === 'video' ? 'Видео' : 'Анимация'}
+          onError={() => setBroken(true)}
+        />
+      ) : (
+        <span aria-hidden="true">
+          {shown.src && !failed ? (
+            <img src={shown.src} alt="" onError={() => setBroken(true)} />
+          ) : (
+            <Icon name={kind === 'video' ? 'video' : 'image'} size={28} />
+          )}
+          {kind === 'video' && !eager ? <span className={styles.videoMark}>▶ Видео</span> : null}
+        </span>
+      )}
       {failed ? (
         <span className={styles.previewError}>
           Предпросмотр недоступен

@@ -8,7 +8,7 @@ import { createMediaThumbnail } from './media-thumbnail';
 const THUMBNAIL_GC_MS = 15 * 60_000;
 const ORIGINAL_GC_MS = 60_000;
 
-type Loaded = { src: string | undefined; isError: boolean; retry: () => void };
+type Loaded = { src: string | undefined; mime: string; isError: boolean; retry: () => void };
 
 function useBlobUrl(
   queryKey: readonly unknown[],
@@ -40,6 +40,7 @@ function useBlobUrl(
   }, [query.data]);
   return {
     src: preview && preview.blob === query.data ? preview.src : undefined,
+    mime: query.data?.type ?? '',
     isError: query.isError,
     retry: () => void query.refetch()
   };

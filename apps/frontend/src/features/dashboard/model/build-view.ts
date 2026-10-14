@@ -16,7 +16,6 @@ export function buildView(
     rows: attentionRows(data.attention, checks),
     attentionCount: Math.min(99, data.attentionTotal + problems),
     checking: checks.some((check) => check.tone === 'loading'),
-    services,
-    sentToday: data.today.filter((item) => item.status === 'sent').length
+    services
   };
 }

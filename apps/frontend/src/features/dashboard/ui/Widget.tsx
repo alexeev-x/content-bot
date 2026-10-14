@@ -11,11 +11,13 @@ type Props = {
   /** Hides the header strip (the widget draws its own heading). */
   bare?: boolean;
   style?: CSSProperties;
+  /** Nothing to do here: the layout may move the widget out of the way. */
+  calm?: boolean;
   children: ReactNode;
 };
 
 /** The shared frame of a widget: bordered surface, heading, one optional action. What is inside is each widget's own form. */
-export function Widget({ id, title, action, busy, bare, style, children }: Props) {
+export function Widget({ id, title, action, busy, bare, style, calm, children }: Props) {
   const headingId = useId();
   return (
     <section
@@ -23,6 +25,7 @@ export function Widget({ id, title, action, busy, bare, style, children }: Props
       data-widget={id}
       aria-labelledby={headingId}
       aria-busy={busy || undefined}
+      data-calm={calm || undefined}
       style={style}
     >
       <header className={bare ? styles.headBare : styles.head}>

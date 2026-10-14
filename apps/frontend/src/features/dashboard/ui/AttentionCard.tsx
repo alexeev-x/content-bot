@@ -17,33 +17,20 @@ type Props = {
   total: number;
   /** A system check has not answered yet: the card says so instead of «Всё в порядке». */
   checking: boolean;
-  phone: boolean;
   onOpenPublication: (publicationId: string) => void;
 };
 
-/** A check mark in a ring with two sparks, drawn in the status tokens. */
-function Calm() {
-  return (
-    <svg className={styles.calm} viewBox="0 0 96 96" aria-hidden="true">
-      <circle className={styles.calmDisc} cx="48" cy="48" r="34" />
-      <circle className={styles.calmRing} cx="48" cy="48" r="34" />
-      <path className={styles.calmCheck} d="M33 49.5 43.5 60 63.5 38" />
-      <path className={styles.calmSpark} d="M80 16v10M75 21h10M16 70v8M12 74h8" />
-    </svg>
-  );
-}
-
-/** Failed, unknown and stuck sends and failing checks: one coloured card with a big count; calm and green when there is none. */
-export function AttentionCard({ rows, total, checking, phone, onOpenPublication }: Props) {
+/** Failed, unknown and stuck sends and failing checks: a coloured card with a count; one calm line when there is none. */
+export function AttentionCard({ rows, total, checking, onOpenPublication }: Props) {
   const views = rows?.slice(0, MAX_ROWS).map((row) => toAttentionView(row, onOpenPublication));
   const loaded = views !== undefined;
   const clear = loaded && views.length === 0;
   const group = !loaded || checking ? 'muted' : clear ? 'done' : 'failed';
   const count = total >= 99 ? '99+' : String(total);
 
-  if (clear && phone) {
+  if (clear) {
     return (
-      <Widget id="attention" title={copy.attention.title} style={toneStyle(group)} bare>
+      <Widget id="attention" title={copy.attention.title} style={toneStyle(group)} bare calm>
         <p className={styles.compact}>
           <Icon name={checking ? 'clock' : 'check-circle'} size={20} />
           {checking ? copy.attention.checking : copy.attention.clear}
@@ -73,12 +60,6 @@ export function AttentionCard({ rows, total, checking, phone, onOpenPublication 
             <Skeleton width={72} height={56} />
             <Skeleton height={14} width="70%" />
             <Skeleton height={14} width="55%" />
-          </div>
-        ) : clear ? (
-          <div className={styles.clear}>
-            <Calm />
-            <p className={styles.clearTitle}>{checking ? copy.attention.checking : copy.attention.clear}</p>
-            {checking ? null : <p className={shell.quiet}>{copy.attention.clearDetail}</p>}
           </div>
         ) : (
           <>

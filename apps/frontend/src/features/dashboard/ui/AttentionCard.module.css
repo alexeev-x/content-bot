@@ -14,7 +14,7 @@
 }
 .big {
   color: var(--tone-fg);
-  font-size: var(--font-size-display);
+  font-size: var(--font-size-xl);
   font-weight: var(--font-weight-semibold);
   letter-spacing: var(--letter-spacing-display);
   line-height: 1;
@@ -68,47 +68,6 @@
 .rowText strong {
   color: var(--color-text);
   font-weight: var(--font-weight-medium);
-}
-.clear {
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: var(--space-1);
-  padding: var(--space-2) 0;
-  text-align: center;
-}
-.clearTitle {
-  margin: 0;
-  color: var(--tone-fg);
-  font-size: var(--font-size-lg);
-  font-weight: var(--font-weight-semibold);
-}
-.calm {
-  width: 96px;
-  height: 96px;
-}
-.calmDisc {
-  fill: var(--tone-bg);
-}
-.calmRing {
-  fill: none;
-  stroke: var(--tone-ring);
-  stroke-width: 2;
-}
-.calmCheck {
-  fill: none;
-  stroke: var(--tone-fg);
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  stroke-width: 5;
-}
-.calmSpark {
-  fill: none;
-  stroke: var(--tone-ring);
-  stroke-linecap: round;
-  stroke-width: 2.5;
 }
 .compact {
   display: flex;

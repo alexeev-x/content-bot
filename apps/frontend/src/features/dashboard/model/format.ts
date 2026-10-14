@@ -1,5 +1,5 @@
 import type { DashboardPublicationDto } from '@alexeev/contracts';
-import { formatClock, formatDayClock } from '../../../shared/lib/clock';
+import { formatClock } from '../../../shared/lib/clock';
 import { ownerDayRange } from '../../../shared/lib/owner-timezone';
 
 const LOCALE = 'ru-RU';
@@ -40,14 +40,6 @@ export function untilShort(iso: string, now: Date): string {
     return rest ? `${Math.floor(minutes / 60)} ч ${rest} мин` : `${minutes / 60} ч`;
   }
   return `${Math.floor(minutes / (24 * 60))} дн.`;
-}
-
-/** «Через 1 ч 55 мин» (today), «Завтра, 10:00», «9 окт., 10:00». */
-export function untilDetail(iso: string, now: Date, timezone = 'Europe/Moscow'): string {
-  const at = Date.parse(iso);
-  if (at < startOfDay(now, timezone, 1)) return `Через ${untilShort(iso, now)}`;
-  if (at < startOfDay(now, timezone, 2)) return `Завтра, ${formatClock(iso, timezone)}`;
-  return formatDayClock(iso, timezone);
 }
 
 /** Day label for a time cell that is not today: «8 окт.»; undefined for the current day. */

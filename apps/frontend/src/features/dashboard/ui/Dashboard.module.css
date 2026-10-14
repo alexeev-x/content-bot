@@ -43,7 +43,7 @@
   display: grid;
   grid-template-columns: repeat(12, minmax(0, 1fr));
   gap: var(--space-4);
-  align-items: stretch;
+  align-items: start;
 }
 .grid > [data-widget] {
   grid-column: span 12;
@@ -51,19 +51,23 @@
 }
 @container (min-width: 760px) {
   .grid > [data-widget='next'] {
-    grid-column: span 7;
-  }
-  .grid > [data-widget='attention'] {
     grid-column: span 5;
   }
-  .grid > [data-widget='drafts'] {
-    grid-column: span 6;
+  .grid > [data-widget='line'] {
+    grid-column: span 7;
   }
+  .grid > [data-widget='drafts'],
   .grid > [data-widget='recent'] {
     grid-column: span 6;
   }
 }
 @container (min-width: 1000px) {
+  .grid > [data-widget='next'] {
+    grid-column: span 4;
+  }
+  .grid > [data-widget='line'] {
+    grid-column: span 8;
+  }
   .grid > [data-widget='week'],
   .grid > [data-widget='drafts'],
   .grid > [data-widget='recent'] {
@@ -171,9 +175,13 @@
   .grid {
     display: flex;
     flex-direction: column;
+    align-items: stretch;
   }
   .grid > [data-widget='attention'] {
     order: 1;
+  }
+  .grid > [data-widget='attention'][data-calm] {
+    order: 4;
   }
   .grid > [data-widget='next'] {
     order: 2;
@@ -190,11 +198,8 @@
   .grid > [data-widget='recent'] {
     order: 6;
   }
-  .grid > [data-widget='stats'] {
-    order: 7;
-  }
   .grid > [data-widget='system'] {
-    order: 8;
+    order: 7;
   }
   .dateChip {
     display: none;

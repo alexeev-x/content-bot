@@ -11,7 +11,6 @@ import { DayTimeline } from './DayTimeline';
 import { Drafts } from './Drafts';
 import { NextUp } from './NextUp';
 import { RecentBubbles } from './RecentBubbles';
-import { Stats } from './Stats';
 import { SystemLights } from './SystemLights';
 import { WeekBars } from './WeekBars';
 import type { WidgetEnv } from './widget-env';
@@ -45,7 +44,6 @@ export function DashboardLayout({ env, loading, banner, zoneNote }: LayoutProps)
       {banner}
       <DateChip placement="below" zoneNote={zoneNote} timezone={timezone} />
       <div className={styles.grid}>
-        <Stats view={view} now={now} timezone={timezone} day={day} />
         <DayTimeline
           items={dashboard?.today}
           total={dashboard?.todayTotal ?? 0}
@@ -68,7 +66,6 @@ export function DashboardLayout({ env, loading, banner, zoneNote }: LayoutProps)
           rows={view?.rows}
           total={view?.attentionCount ?? 0}
           checking={view?.checking ?? false}
-          phone={phone}
           onOpenPublication={env.onOpenPublication}
         />
         <WeekBars query={env.week} now={now} timezone={timezone} onOpenDay={env.onOpenDay} />

@@ -4,13 +4,6 @@ import { pluralRu } from '../../../shared/lib/ru-format';
 export const copy = {
   loading: 'Загружаем обзор…',
   newPost: 'Новый пост',
-  stats: {
-    label: 'Цифры дня',
-    today: { label: 'Сегодня', detail: 'публикаций в плане' },
-    sent: { label: 'Отправлено', detail: 'за сегодня' },
-    attention: { label: 'Внимание', detailClear: 'всё спокойно', detailOpen: 'нужно решение' },
-    next: { label: 'Ближайшая', detail: 'ничего не запланировано' }
-  },
   line: {
     title: 'Лента дня',
     all: 'Все публикации',
@@ -29,7 +22,6 @@ export const copy = {
     all: 'Все',
     empty: 'Ничего не запланировано',
     create: 'Новый пост',
-    after: 'Дальше по плану',
     now: 'вот-вот',
     open: (title: string) => `Открыть публикацию «${title}»`
   },
