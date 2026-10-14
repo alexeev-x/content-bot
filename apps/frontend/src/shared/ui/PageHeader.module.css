@@ -80,13 +80,23 @@
   }
 }
 
-/* At narrow phone widths, keep the shell tools beside the title and move actions below them.
-   Without tools (phone browser: they live in the top bar) the action stays beside the title. */
-@media (max-width: 400px) {
+/* Phones with the shell tools in the header (Mini App, editor): the tools stay beside the title and the actions take
+   their own row at any phone width — a 424px Telegram Desktop window squeezed «Публикации» into «Публи/кации». */
+@media (max-width: 859px) {
   .header:has(.tools) {
     grid-template-columns: minmax(0, 1fr) auto;
   }
   .header:has(.tools) .actions {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+}
+/* Without tools (phone browser) the action stays beside the title down to 360px; narrower, it moves below too. */
+@media (max-width: 359px) {
+  .header {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  .actions {
     grid-column: 1 / -1;
     grid-row: 2;
   }
