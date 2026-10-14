@@ -9,9 +9,12 @@ import {
   type DotaSourceKey as ContractDotaSourceKey
 } from '@alexeev/contracts';
 import { AppError } from '../../shared/app-error';
+import { classifyDotaEvent, cleanExcerpt, type DotaSourceKey, type SourceEventType } from './source-events';
+
+export * from './source-events';
+export * from './source-events-repository';
 
 export const DOTA_SOURCE_KEYS = ['steam_news', 'patch_notes'] as const;
-export type DotaSourceKey = (typeof DOTA_SOURCE_KEYS)[number];
 
 const steamNewsItemSchema = z
   .object({
@@ -66,7 +69,9 @@ const MAX_STEAM_BYTES = 512 * 1024;
 const MAX_PATCH_BYTES = 256 * 1024;
 const FETCH_TIMEOUT_MS = 8_000;
 // Five bound values per item; 20 rows reaches but never exceeds D1's 100-parameter cap.
-const INSERT_CHUNK_SIZE = 20;
+// D1 allows 100 bound parameters per statement: 7 per Steam row, 5 per patch row.
+const STEAM_INSERT_CHUNK_SIZE = 14;
+const PATCH_INSERT_CHUNK_SIZE = 20;
 
 export class DotaWatchError extends Error {
   constructor(
@@ -698,6 +703,8 @@ export interface DotaUpdateItem {
   title: string;
   sourceUrl: string;
   publishedAt: number;
+  /** Cleaned start of a Steam announcement; absent for patch notes. */
+  excerpt?: string | null;
 }
 
 export interface DotaWatcherRepository {
@@ -745,6 +752,8 @@ export interface DotaWatcherRepository {
 export interface DotaDraftSource extends DotaUpdateItem {
   isBaseline: boolean;
   draftPostId: string | null;
+  excerpt: string | null;
+  eventType: SourceEventType;
 }
 
 export interface DotaSourceIncident {
@@ -756,9 +765,9 @@ export interface DotaSourceIncident {
 }
 
 const DOTA_DRAFT_WORK_SQL = `
-  SELECT u.source_key, u.external_id, u.title, u.source_url, u.published_at, u.is_baseline, u.draft_post_id
+  SELECT u.source_key, u.external_id, u.title, u.source_url, u.published_at, u.is_baseline, u.draft_post_id, u.excerpt, u.event_type
   FROM dota_update_items u INDEXED BY dota_draft_candidates_idx
-  WHERE u.is_baseline = 0 AND u.draft_post_id IS NULL
+  WHERE u.is_baseline = 0 AND u.draft_post_id IS NULL AND u.hidden_at IS NULL
   ORDER BY u.published_at, u.source_key, u.external_id LIMIT ?1`;
 
 const DOTA_PENDING_PATCH_ANALYSIS_SQL = `
@@ -773,15 +782,16 @@ const DOTA_PENDING_PATCH_ANALYSIS_SQL = `
     AND external_id IN (SELECT external_id FROM candidates)`;
 
 const DOTA_DRAFT_RECOVERY_SQL = `
-  SELECT u.source_key, u.external_id, u.title, u.source_url, u.published_at, u.is_baseline, u.draft_post_id
+  SELECT u.source_key, u.external_id, u.title, u.source_url, u.published_at, u.is_baseline, u.draft_post_id, u.excerpt, u.event_type
   FROM dota_update_items u INDEXED BY dota_draft_recovery_idx LEFT JOIN posts p ON p.id = u.draft_post_id
   WHERE u.is_baseline = 0 AND u.draft_post_id IS NOT NULL AND u.owner_alert_claimed_at IS NULL AND p.id IS NULL
+    AND u.hidden_at IS NULL
   ORDER BY u.published_at, u.source_key, u.external_id LIMIT ?1`;
 
 const DOTA_OWNER_ALERT_WORK_SQL = `
-  SELECT u.source_key, u.external_id, u.title, u.source_url, u.published_at, u.is_baseline, u.draft_post_id
+  SELECT u.source_key, u.external_id, u.title, u.source_url, u.published_at, u.is_baseline, u.draft_post_id, u.excerpt, u.event_type
   FROM dota_update_items u INDEXED BY dota_draft_recovery_idx JOIN posts p ON p.id = u.draft_post_id
-  WHERE u.is_baseline = 0 AND u.draft_post_id IS NOT NULL AND u.owner_alert_claimed_at IS NULL
+  WHERE u.is_baseline = 0 AND u.draft_post_id IS NOT NULL AND u.owner_alert_claimed_at IS NULL AND u.hidden_at IS NULL
   ORDER BY u.published_at, u.source_key, u.external_id LIMIT ?1`;
 
 const DOTA_SOURCE_INCIDENT_ALERT_SQL = `
@@ -843,7 +853,8 @@ function parseSteamNews(payload: unknown): DotaUpdateItem[] {
       externalId: news.gid,
       title: news.title,
       sourceUrl: `https://store.steampowered.com/news/externalpost/steam_community_announcements/${encodeURIComponent(news.gid)}`,
-      publishedAt: news.date * 1_000
+      publishedAt: news.date * 1_000,
+      excerpt: cleanExcerpt(news.contents)
     });
   }
   return official;
@@ -914,23 +925,31 @@ export function createD1DotaWatcherRepository(db: D1Database): DotaWatcherReposi
           .bind(sourceKey)
       ];
       const insertIndexes: number[] = [];
-      for (let start = 0; start < items.length; start += INSERT_CHUNK_SIZE) {
-        const chunk = items.slice(start, start + INSERT_CHUNK_SIZE);
+      const chunkSize = sourceKey === 'steam_news' ? STEAM_INSERT_CHUNK_SIZE : PATCH_INSERT_CHUNK_SIZE;
+      for (let start = 0; start < items.length; start += chunkSize) {
+        const chunk = items.slice(start, start + chunkSize);
         const sourceLiteral = sourceKey === 'steam_news' ? "'steam_news'" : "'patch_notes'";
         const values = chunk
           .map(
             () =>
-              `(${sourceLiteral}, ? , ?, ?, ?, ?, (SELECT CASE WHEN baseline_seeded = 0 THEN 1 ELSE 0 END FROM dota_source_state WHERE source_key = ${sourceLiteral}))`
+              `(${sourceLiteral}, ?, ?, ?, ?, ?, (SELECT CASE WHEN baseline_seeded = 0 THEN 1 ELSE 0 END FROM dota_source_state WHERE source_key = ${sourceLiteral}), ${
+                sourceKey === 'steam_news' ? '?, ?' : "NULL, 'patch'"
+              })`
           )
           .join(', ');
-        const bindings: (string | number)[] = [];
-        for (const item of chunk)
+        const bindings: (string | number | null)[] = [];
+        for (const item of chunk) {
           bindings.push(item.externalId, item.title, item.sourceUrl, item.publishedAt, detectedAt);
+          if (sourceKey === 'steam_news') {
+            const excerpt = item.excerpt ?? null;
+            bindings.push(excerpt, classifyDotaEvent({ sourceKey, title: item.title, excerpt }));
+          }
+        }
         insertIndexes.push(statements.length);
         statements.push(
           db
             .prepare(
-              `INSERT OR IGNORE INTO dota_update_items (source_key, external_id, title, source_url, published_at, detected_at, is_baseline) VALUES ${values}`
+              `INSERT OR IGNORE INTO dota_update_items (source_key, external_id, title, source_url, published_at, detected_at, is_baseline, excerpt, event_type) VALUES ${values}`
             )
             .bind(...bindings)
         );
@@ -1260,7 +1279,8 @@ export function createD1DotaWatcherRepository(db: D1Database): DotaWatcherReposi
       const result = await db
         .prepare(
           `UPDATE dota_update_items SET draft_post_id = ?3
-           WHERE source_key = ?1 AND external_id = ?2 AND is_baseline = 0 AND draft_post_id IS NULL`
+           WHERE source_key = ?1 AND external_id = ?2 AND is_baseline = 0 AND draft_post_id IS NULL
+             AND hidden_at IS NULL`
         )
         .bind(sourceKey, externalId, postId)
         .run();
@@ -1365,6 +1385,8 @@ interface DotaDraftRow {
   published_at: number;
   is_baseline: number;
   draft_post_id: string | null;
+  excerpt: string | null;
+  event_type: SourceEventType;
 }
 
 function toDraftSource(row: DotaDraftRow): DotaDraftSource {
@@ -1375,7 +1397,11 @@ function toDraftSource(row: DotaDraftRow): DotaDraftSource {
     sourceUrl: row.source_url,
     publishedAt: row.published_at,
     isBaseline: row.is_baseline === 1,
-    draftPostId: row.draft_post_id
+    draftPostId: row.draft_post_id,
+    excerpt: row.excerpt,
+    // Patch notes are always a patch: a row inserted by an older Worker between migration 0037 and the
+    // deploy keeps the column default 'news'.
+    eventType: row.source_key === 'patch_notes' ? 'patch' : row.event_type
   };
 }
 

@@ -16,4 +16,5 @@ export * from './post-entities';
 export * from './posts';
 export * from './publications';
 export * from './settings';
+export * from './sources';
 export * from './system';

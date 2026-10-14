@@ -16,6 +16,7 @@
 | [`docs/backend/bot.md`](./backend/bot.md) | §5 Owner notice on schedule, bot as the entry point |
 | [`docs/backend/dashboard-incidents.md`](./backend/dashboard-incidents.md) | §5 Dashboard, incidents, destination check |
 | [`docs/backend/cron.md`](./backend/cron.md) | §5 The Cron tick as built |
+| [`docs/backend/sources.md`](./backend/sources.md) | «Источники»: event classification, draft templates, owner notice |
 | [`docs/backend/data-migrations.md`](./backend/data-migrations.md) | §6 Data and migrations |
 | [`docs/backend/quotas.md`](./backend/quotas.md) | §7 Working quotas and cost |
 | [`docs/backend/security.md`](./backend/security.md) | §8 Security and authentication |

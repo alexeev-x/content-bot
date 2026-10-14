@@ -1,24 +1,17 @@
 import type { DotaDraftSource, DotaSourceIncident } from '../../modules/dota';
 import { clip, escapeHtml } from './schedule-notice';
 
-const DOTA_ALERT_BUTTON_TEXT = 'Открыть черновик';
 const DOTA_INCIDENT_BUTTON_TEXT = 'Открыть студию';
 
-type AlertableDotaDraft = Omit<DotaDraftSource, 'draftPostId'> & { draftPostId: string };
+const EVENT_LABEL: Record<DotaDraftSource['eventType'], string> = {
+  patch: 'Патч',
+  treasure: 'Сокровищница',
+  news: 'Новость'
+};
 
-export function formatDotaDraftAlert(
-  source: AlertableDotaDraft,
-  appOrigin: string
-): {
-  html: string;
-  button: { text: string; url: string };
-} {
-  const title = escapeHtml(clip(source.title));
-  const date = new Date(source.publishedAt).toISOString().slice(0, 10);
-  return {
-    html: `<b>Вышло обновление Dota — черновик готов</b>\n${title}\nОпубликовано: ${date}`,
-    button: { text: DOTA_ALERT_BUTTON_TEXT, url: `${appOrigin}/posts/${source.draftPostId}` }
-  };
+// «<тип>: <заголовок> — черновик готов»; the buttons come from the publish keyboard.
+export function formatDotaDraftAlert(source: Pick<DotaDraftSource, 'eventType' | 'title'>): string {
+  return `<b>${EVENT_LABEL[source.eventType]}: ${escapeHtml(clip(source.title))} — черновик готов</b>`;
 }
 
 export function formatDotaIncidentAlert(

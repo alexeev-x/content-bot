@@ -8,7 +8,7 @@ import { dispatchDueJobs, type RaisedIncident, reconcileExpiredJobs } from '../m
 import type { Container } from './container';
 import { ALBUM_SETTLE_MS, CRON_IMPORT_BUDGET_MS, CRON_IMPORT_POSTS } from './bot/media-import-worker';
 import { createMediaImportRunner } from './bot/media-import-runner';
-import { ACTION_TTL_MS } from './bot/publish-actions';
+import { ACTION_TTL_MS, createPublishActions } from './bot/publish-actions';
 import { alertOwnerOfIncidents } from './notifications/alert-owner-of-incidents';
 import { getOwnerOperationsSettings } from '../modules/settings';
 import { processDotaUpdates } from './workflows/process-dota-updates';
@@ -47,6 +47,7 @@ type TickContainer = Pick<
   | 'newId'
   | 'dotaWatcher'
   | 'dotaRepository'
+  | 'sourceEvents'
   | 'automations'
   | 'dotaHeroStatistics'
   | 'dotaWatchlists'
@@ -250,9 +251,14 @@ export async function handleScheduled(controller: ScheduledController, container
       if (run === null) return {};
       try {
         const dotaWatcher = container.dotaWatcher;
+        const publishActions = createPublishActions(container, {
+          actor: container.ownerChatId ?? 'system',
+          requestId: 'scheduled',
+          timezone: async () =>
+            (await getOwnerOperationsSettings({ repo: container.settings, logger, requestId: 'scheduled' })).timezone
+        });
         const summary = await processDotaUpdates({
           sync: dotaWatcher.sync,
-          summarizePatch: dotaWatcher.summarizePatch,
           ...(dotaWatcher.inspectPatch === undefined ? {} : { inspectPatch: dotaWatcher.inspectPatch }),
           repo: container.dotaRepository,
           posts: container.posts,
@@ -266,6 +272,9 @@ export async function handleScheduled(controller: ScheduledController, container
           readNotificationPreferences: async () =>
             (await getOwnerOperationsSettings({ repo: container.settings, logger, requestId: 'scheduled' }))
               .notifications,
+          watchedKeys: () => container.sourceEvents.watchedKeys(),
+          publishButtons: (post) => publishActions.buttons(post),
+          budget: container.queryBudget,
           logger
         });
         if (summary.sourceFailures > 0) failures += 1;

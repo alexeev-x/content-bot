@@ -1,25 +1,42 @@
-import type { CreatePostInput } from '@alexeev/contracts';
 import type { OwnerOperationsSettingsDto } from '@alexeev/contracts';
 import type { TelegramOwnerMessageApi } from '../../integrations/telegram/telegram-api';
 import {
+  buildEventDraft,
+  changedEntities,
   DOTA_SOURCE_KEYS,
   DotaPatchDetailError,
   DotaWatchError,
-  type DotaDraftSource,
+  type ChangedEntity,
   type DotaPatchInspection,
-  type DotaPatchSummary,
   type DotaWatcherRepository
 } from '../../modules/dota';
 import { createPost, type IdempotencyGate, type PostRepository } from '../../modules/content';
+import type { QueryBudget } from '../../platform/d1-budget';
 import type { Logger } from '../../platform/logging/logger';
 import { AppError } from '../../shared/app-error';
 import { createTelegramCaller } from '../bot/telegram-call';
+import type { PublishButton } from '../bot/publish-actions';
+import { publishKeyboard } from '../bot/publish-keyboard';
 import { formatDotaDraftAlert, formatDotaIncidentAlert } from '../notifications/dota-alert';
 
 // Keep each tick small enough to leave room for the existing publishing dispatch's 50-statement budget.
 const DOTA_DRAFT_BATCH_LIMIT = 2;
 const DOTA_PATCH_ANALYSIS_LEASE_MS = 60_000;
 const DOTA_NOTICE_TIMEOUT_MS = 5_000;
+// Free plan: 50 subrequests per invocation shared with the whole tick. The Steam and patch-list fetches.
+const DOTA_SYNC_SUBREQUESTS = 2;
+// Patch details plus the hero and item name lists.
+const DOTA_PATCH_INSPECT_SUBREQUESTS = 3;
+// Worst case of one draft (a patch: reserve, post lookup, create 5, watches, details fetches 3, analysis save and
+// resolve) and of one owner notice (claim, post and media lookups, channels, three for the button tokens, send).
+// Below it the rest waits for the next tick: nothing is lost, every step is recoverable.
+const DOTA_DRAFT_MIN_BUDGET = 13;
+const DOTA_ALERT_MIN_BUDGET = 9;
+// What the tick still spends after this workflow: watchlist matching and alerts, the automation run record, the
+// heartbeat. Pinned by the tick budget test in tests/integration/source-events.test.ts.
+const DOTA_TAIL_RESERVE = 12;
+// Preferences, app origin and the alert list, read before the first notice.
+const DOTA_ALERT_SETUP = 3;
 
 export interface DotaWorkflowSummary {
   feedsFetched: number;
@@ -32,7 +49,6 @@ export interface DotaWorkflowSummary {
 
 export async function processDotaUpdates(deps: {
   sync: (input: { detectedAt: number }) => Promise<{ inserted: number; fetched: number }>;
-  summarizePatch: (version: string) => Promise<DotaPatchSummary | null>;
   inspectPatch?: (version: string) => Promise<DotaPatchInspection>;
   repo: DotaWatcherRepository;
   posts: PostRepository;
@@ -44,6 +60,11 @@ export async function processDotaUpdates(deps: {
   ownerChatId: string | null;
   readAppOrigin: () => Promise<string | null>;
   readNotificationPreferences?: () => Promise<OwnerOperationsSettingsDto['notifications']>;
+  /** Active watches as `watchKey`s: a patch draft lists watched heroes and items first. */
+  watchedKeys: () => Promise<Set<string>>;
+  /** The «Опубликовать сейчас» buttons for a draft; empty when there is no channel. Never throws. */
+  publishButtons: (post: { id: string; revision: number }) => Promise<PublishButton[]>;
+  budget: QueryBudget;
   logger: Logger;
   timeoutMs?: number;
 }): Promise<DotaWorkflowSummary> {
@@ -56,6 +77,7 @@ export async function processDotaUpdates(deps: {
     sourceFailures: 0
   };
   try {
+    deps.budget.charge(DOTA_SYNC_SUBREQUESTS);
     const syncSummary = await deps.sync({ detectedAt: deps.now() });
     summary.feedsFetched = syncSummary.fetched;
     summary.itemsInserted = syncSummary.inserted;
@@ -86,7 +108,9 @@ export async function processDotaUpdates(deps: {
   }
 
   const draftWork = await deps.repo.listDraftWork(DOTA_DRAFT_BATCH_LIMIT);
+  let watched: Set<string> | null = null;
   for (const source of draftWork) {
+    if (deps.budget.remaining() < DOTA_DRAFT_MIN_BUDGET + DOTA_TAIL_RESERVE) break;
     const reservedId =
       source.draftPostId ??
       (await deps.repo.reserveDraft({
@@ -99,22 +123,18 @@ export async function processDotaUpdates(deps: {
     const existing = await deps.posts.findById(reservedId);
     if (existing !== null) continue;
 
-    let patchSummary: DotaPatchSummary | null = null;
-    if (source.sourceKey === 'patch_notes') {
+    let entities: ChangedEntity[] = [];
+    if (source.sourceKey === 'patch_notes' && deps.inspectPatch !== undefined) {
       try {
-        let analysisSaved = deps.inspectPatch === undefined;
-        if (deps.inspectPatch === undefined) {
-          patchSummary = await deps.summarizePatch(source.externalId);
-        } else {
-          const inspection = await deps.inspectPatch(source.externalId);
-          patchSummary = inspection.summary;
-          analysisSaved = await deps.repo.savePatchAnalysis({
-            externalId: source.externalId,
-            parseStatus: inspection.analysis.status,
-            facts: inspection.analysis.facts,
-            parsedAt: deps.now()
-          });
-        }
+        deps.budget.charge(DOTA_PATCH_INSPECT_SUBREQUESTS);
+        const inspection = await deps.inspectPatch(source.externalId);
+        entities = changedEntities(inspection.analysis.facts);
+        const analysisSaved = await deps.repo.savePatchAnalysis({
+          externalId: source.externalId,
+          parseStatus: inspection.analysis.status,
+          facts: inspection.analysis.facts,
+          parsedAt: deps.now()
+        });
         if (analysisSaved)
           await deps.repo.resolvePatchDetailFailures({ externalId: source.externalId, detectedAt: deps.now() });
       } catch (error) {
@@ -144,7 +164,18 @@ export async function processDotaUpdates(deps: {
         continue;
       }
     }
-    const input = draftInput(source, patchSummary);
+    if (source.eventType === 'patch') watched ??= await deps.watchedKeys();
+    const input = buildEventDraft(
+      {
+        type: source.eventType,
+        externalId: source.externalId,
+        title: source.title,
+        excerpt: source.excerpt,
+        sourceUrl: source.sourceUrl
+      },
+      entities,
+      watched ?? new Set()
+    );
     try {
       await createPost(
         { repo: deps.posts, idempotency: deps.idempotency, now: deps.now(), newId: () => reservedId },
@@ -169,7 +200,7 @@ export async function processDotaUpdates(deps: {
     }
   }
 
-  if (deps.inspectPatch !== undefined) {
+  if (deps.inspectPatch !== undefined && deps.budget.remaining() >= DOTA_DRAFT_MIN_BUDGET + DOTA_TAIL_RESERVE) {
     const claimToken = deps.newId();
     const pendingAnalyses = await deps.repo.claimPendingPatchAnalyses({
       claimToken,
@@ -179,6 +210,7 @@ export async function processDotaUpdates(deps: {
     });
     for (const externalId of pendingAnalyses) {
       try {
+        deps.budget.charge(DOTA_PATCH_INSPECT_SUBREQUESTS);
         const inspection = await deps.inspectPatch(externalId);
         const analysisSaved = await deps.repo.savePatchAnalysis({
           externalId,
@@ -222,24 +254,36 @@ export async function processDotaUpdates(deps: {
   return summary;
 }
 
-function draftInput(source: DotaDraftSource, patchSummary: DotaPatchSummary | null): CreatePostInput {
-  const publishedAt = new Date(source.publishedAt).toISOString();
-  const title = source.title.length <= 200 ? source.title : 'Обновление Dota';
-  const summary =
-    source.sourceKey !== 'patch_notes'
-      ? ''
-      : patchSummary === null
-        ? '\n\nАвтоматическая сводка не сформирована: проверьте изменения вручную по официальному источнику.'
-        : `\n\nПредварительная сводка по официальным заметкам — проверьте перед публикацией:\n${patchSummary.themes
-            .map((theme) => `— ${theme.category} — ${theme.name}: ${theme.changes.join('; ')}`)
-            .join('\n')}`;
-  const body = `${source.title}${summary}\n\nОпубликовано (UTC): ${publishedAt}\nОфициальный источник: ${source.sourceUrl}`;
-  return { title, body, entities: [] };
+const ALL_NOTIFICATIONS_ON: OwnerOperationsSettingsDto['notifications'] = {
+  warningsEnabled: true,
+  publicationAlerts: true,
+  sourceAlerts: true,
+  automationAlerts: true,
+  recoveryAlerts: true,
+  dotaWatchlistAlerts: true
+};
+
+async function readPreferences(
+  deps: Parameters<typeof processDotaUpdates>[0],
+  operation: string
+): Promise<OwnerOperationsSettingsDto['notifications'] | null> {
+  if (deps.readNotificationPreferences === undefined) return ALL_NOTIFICATIONS_ON;
+  try {
+    return await deps.readNotificationPreferences();
+  } catch {
+    logSkipped(deps, operation, 'SETTINGS_UNAVAILABLE');
+    return null;
+  }
 }
 
+// One notice per event: the claim is a conditional UPDATE, so a repeated tick or a concurrent one finds it
+// taken. With the sourceAlerts preference off the claim is still consumed (a quiet event stays quiet).
 async function alertDrafts(deps: Parameters<typeof processDotaUpdates>[0]): Promise<number> {
+  if (deps.budget.remaining() < DOTA_ALERT_MIN_BUDGET + DOTA_TAIL_RESERVE + DOTA_ALERT_SETUP) return 0;
   const sources = await deps.repo.listOwnerAlertWork(DOTA_DRAFT_BATCH_LIMIT);
   if (sources.length === 0) return 0;
+  const notifications = await readPreferences(deps, 'dota_draft_alert');
+  if (notifications === null) return 0;
   const ready = await notificationPrerequisites(deps);
   if (ready === null) {
     logSkipped(deps, 'draft_alert', missingPrerequisite(deps));
@@ -250,16 +294,31 @@ async function alertDrafts(deps: Parameters<typeof processDotaUpdates>[0]): Prom
   for (const source of sources) {
     const draftPostId = source.draftPostId;
     if (draftPostId === null) continue;
+    if (deps.budget.remaining() < DOTA_ALERT_MIN_BUDGET + DOTA_TAIL_RESERVE) break;
     const claimed = await deps.repo.claimDraftOwnerAlert({
       sourceKey: source.sourceKey,
       externalId: source.externalId,
       claimedAt: deps.now()
     });
     if (!claimed) continue;
+    if (!notifications.sourceAlerts) {
+      logSkipped(deps, 'dota_draft_alert', 'ALERT_CATEGORY_DISABLED');
+      continue;
+    }
     try {
-      const notice = formatDotaDraftAlert({ ...source, draftPostId }, ready.origin);
+      const post = await deps.posts.findById(draftPostId);
+      if (post === null) continue;
+      const buttons =
+        post.status === 'draft' ? await deps.publishButtons({ id: post.id, revision: post.revision }) : [];
+      const markup = publishKeyboard({ appOrigin: ready.origin, postId: post.id, buttons });
+      if (markup === undefined) continue;
+      deps.budget.charge(1);
       await call.act('dota_draft_alert.send', (signal) =>
-        ready.messenger.sendMessageWithWebAppButton(ready.ownerChatId, notice, signal)
+        ready.messenger.sendMessageWithKeyboard(
+          ready.ownerChatId,
+          { html: formatDotaDraftAlert(source), markup },
+          signal
+        )
       );
       sent += 1;
     } catch (error) {
@@ -275,25 +334,13 @@ async function alertDrafts(deps: Parameters<typeof processDotaUpdates>[0]): Prom
 }
 
 async function alertSourceIncidents(deps: Parameters<typeof processDotaUpdates>[0]): Promise<number> {
+  // Same rule as the draft notices: start only when the whole alert (read, claim, send, mark) still fits and
+  // the tail reserve stays free; otherwise the incident waits for the next tick (it is claimed only once).
+  if (deps.budget.remaining() < DOTA_ALERT_MIN_BUDGET + DOTA_TAIL_RESERVE + DOTA_ALERT_SETUP) return 0;
   const incidents = await deps.repo.listSourceIncidentAlerts(2);
   if (incidents.length === 0) return 0;
-  let notifications: OwnerOperationsSettingsDto['notifications'];
-  try {
-    notifications =
-      deps.readNotificationPreferences === undefined
-        ? {
-            warningsEnabled: true,
-            publicationAlerts: true,
-            sourceAlerts: true,
-            automationAlerts: true,
-            recoveryAlerts: true,
-            dotaWatchlistAlerts: true
-          }
-        : await deps.readNotificationPreferences();
-  } catch {
-    logSkipped(deps, 'dota_source_alert', 'SETTINGS_UNAVAILABLE');
-    return 0;
-  }
+  const notifications = await readPreferences(deps, 'dota_source_alert');
+  if (notifications === null) return 0;
   const ready = await notificationPrerequisites(deps);
   if (ready === null) {
     if (incidents.length > 0) logSkipped(deps, 'dota_source_alert', missingPrerequisite(deps));

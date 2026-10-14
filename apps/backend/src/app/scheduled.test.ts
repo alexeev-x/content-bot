@@ -96,6 +96,8 @@ function probe(
       claimSourceIncidentAlert: () => Promise.resolve(null),
       storeSync: () => Promise.resolve({ inserted: 0 })
     },
+    sourceEvents: { watchedKeys: () => Promise.resolve(new Set<string>()) },
+    queryBudget: { limit: 50, used: () => 0, remaining: () => 50, charge: () => {} },
     dotaWatchlists: {
       processMatches: () => Promise.resolve({ matched: 0, disabled: 0, unknown: 0 }),
       listPending: () => Promise.resolve([]),

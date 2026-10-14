@@ -39,6 +39,13 @@ export async function resetDb(): Promise<void> {
   // Children first: jobs reference publications, which reference posts, revisions and destinations.
   await db.batch(
     [
+      'dota_watch_alerts',
+      'dota_watch_matches',
+      'dota_watches',
+      'dota_patch_analyses',
+      'dota_source_incidents',
+      'dota_update_items',
+      'dota_source_state',
       'incidents',
       'incident_alert_groups',
       'automation_runs',

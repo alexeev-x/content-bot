@@ -61,6 +61,8 @@ import { z } from 'zod';
 import { AppError } from '../shared/app-error';
 import {
   createD1DotaWatcherRepository,
+  createD1SourceEventsRepository,
+  type SourceEventsRepository,
   createOfficialDotaFetcher,
   inspectOfficialPatch,
   summarizeOfficialPatch,
@@ -141,6 +143,8 @@ export interface Container {
   };
   /** D1 state for draft reservation, Dota owner notices and deduped source incidents. */
   dotaRepository: DotaWatcherRepository;
+  /** «Источники»: the events read model and hide flag over the Dota update items. */
+  sourceEvents: SourceEventsRepository;
   dotaWatchlists: ReturnType<typeof createD1DotaWatchlists>;
   /** Persisted OpenDota hero observations; reads never fetch upstream. */
   dotaHeroStatistics: DotaHeroStatisticsService;
@@ -376,6 +380,9 @@ export function createContainer(env: ContainerEnv, overrides: ContainerOverrides
     },
     get dotaRepository() {
       return overrides.dotaRepository ?? createD1DotaWatcherRepository(db());
+    },
+    get sourceEvents() {
+      return createD1SourceEventsRepository(db());
     },
     get dotaWatchlists() {
       return createD1DotaWatchlists(db());
