@@ -16,7 +16,10 @@ function DashboardRoute() {
   return (
     <DashboardPage
       openPublicationId={id}
-      onOpenPublicationChange={(next) => void navigate({ search: { id: next }, replace: next === undefined })}
+      onOpenPublicationChange={(next) =>
+        // The panel opens over the page: keep the owner where they are instead of scrolling to the top.
+        void navigate({ search: { id: next }, replace: next === undefined, resetScroll: false })
+      }
     />
   );
 }

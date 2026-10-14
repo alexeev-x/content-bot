@@ -70,6 +70,24 @@ describe('Automation Center API', () => {
     });
   });
 
+  it('shows a waiting backoff retry as idle with its time as the next run', async () => {
+    const repo = createD1AutomationRepository(testDb());
+    const retryAt = START + 45 * 60_000;
+    await repo.enqueueScheduled({
+      id: 'dota-hero-statistics',
+      slot: retryAt,
+      requestedAt: START,
+      newId: () => crypto.randomUUID()
+    });
+
+    expect(await repo.get('dota-hero-statistics', START)).toMatchObject({
+      executionState: 'idle',
+      activeRunId: null,
+      nextRunAt: new Date(retryAt).toISOString()
+    });
+    expect((await repo.get('dota-hero-statistics', retryAt))?.executionState).toBe('queued');
+  });
+
   it('pauses only future runs, skips queued work, checks revision, and replays the accepted command', async () => {
     const api = createApi({ clock: fakeClock(START) });
     const publication = await seedDueJob(api);

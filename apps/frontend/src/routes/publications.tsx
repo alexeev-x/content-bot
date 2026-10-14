@@ -21,7 +21,9 @@ function PublicationsRoute() {
             ...(Object.keys(patch).some((key) => key !== 'id' && key !== 'page') ? { page: undefined } : {}),
             ...patch
           }),
-          replace: options?.replace ?? false
+          replace: options?.replace ?? false,
+          // Opening or closing a publication's panel keeps the list where it was; filters start from the top.
+          resetScroll: !Object.keys(patch).every((key) => key === 'id')
         })
       }
       onOpenPosts={() => void navigate({ to: '/posts' })}

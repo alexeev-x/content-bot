@@ -29,6 +29,7 @@ interface AutomationRow {
   last_error_code: string | null;
   active_run_id: string | null;
   active_status: 'queued' | 'running' | null;
+  retry_at: number | null;
   run_now_eligible: number;
 }
 
@@ -172,6 +173,8 @@ export function createD1AutomationRepository(db: D1Database): AutomationReposito
           r.started_at AS last_started_at, r.completed_at AS last_completed_at,
           r.lease_until AS last_lease_until, r.output_count AS last_output_count, r.error_code AS last_error_code,
           active.id AS active_run_id, active.status AS active_status,
+          (SELECT min(waiting.scheduled_at) FROM automation_runs waiting
+            WHERE waiting.automation_id = a.id AND waiting.status = 'queued' AND waiting.scheduled_at > ?1) AS retry_at,
           CASE
             WHEN a.id = 'dota-hero-statistics' AND hero_state.last_attempt_at IS NOT NULL
               AND hero_state.last_attempt_at > ?1 - 300000 THEN 0
@@ -183,11 +186,14 @@ export function createD1AutomationRepository(db: D1Database): AutomationReposito
          LEFT JOIN dota_hero_stats_state hero_state ON hero_state.id = 1
          LEFT JOIN automation_runs r ON r.id = (
            SELECT latest.id FROM automation_runs latest
-           WHERE latest.automation_id = a.id ORDER BY latest.requested_at DESC, latest.id DESC LIMIT 1
+           WHERE latest.automation_id = a.id
+             AND NOT (latest.status = 'queued' AND latest.scheduled_at > ?1)
+           ORDER BY latest.requested_at DESC, latest.id DESC LIMIT 1
          )
          LEFT JOIN automation_runs active ON active.id = (
            SELECT current.id FROM automation_runs current
            WHERE current.automation_id = a.id AND current.status IN ('queued', 'running')
+             AND NOT (current.status = 'queued' AND current.scheduled_at > ?1)
            ORDER BY current.requested_at, current.id LIMIT 1
          )
          ORDER BY a.id`
@@ -230,7 +236,9 @@ export function createD1AutomationRepository(db: D1Database): AutomationReposito
         revision: row.revision,
         cron: configEntry.cron,
         cadenceMinutes: configEntry.cadenceMinutes,
-        nextRunAt: row.enabled === 1 ? iso(scheduleAt(id, now)) : null,
+        // A backoff retry waiting for its slot is neither the last run nor an active one; it is the next run.
+        nextRunAt:
+          row.enabled === 1 ? iso(Math.min(scheduleAt(id, now), row.retry_at ?? Number.POSITIVE_INFINITY)) : null,
         health,
         executionState: row.active_status ?? 'idle',
         activeRunId: row.active_run_id,
