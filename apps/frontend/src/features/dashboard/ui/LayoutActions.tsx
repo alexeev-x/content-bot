@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Button, ConfirmDialog, IconButton } from '../../../shared/ui';
+import { Button, ConfirmDialog, IconButton, useMediaQuery } from '../../../shared/ui';
 import type { useLayoutEditing } from '../model/use-layout-editing';
 import { copy } from './copy';
 import { WidgetCatalogDialog } from './WidgetCatalogDialog';
@@ -10,6 +10,8 @@ export type LayoutEditing = ReturnType<typeof useLayoutEditing>;
 export function LayoutActions({ editing, children }: { editing: LayoutEditing; children?: React.ReactNode }) {
   const [catalogOpen, setCatalogOpen] = useState(false);
   const [confirm, setConfirm] = useState<'discard' | 'reset' | null>(null);
+  // On a phone the four edit buttons share one row: «Добавить» keeps its full name for screen readers.
+  const phone = useMediaQuery('(max-width: 859px)');
 
   if (!editing.editing) {
     return (
@@ -28,16 +30,25 @@ export function LayoutActions({ editing, children }: { editing: LayoutEditing; c
 
   return (
     <>
-      <Button variant="secondary" icon="plus" onPress={() => setCatalogOpen(true)}>
-        {copy.edit.add}
+      <Button
+        variant="secondary"
+        icon="plus"
+        {...(phone ? { 'aria-label': copy.edit.add } : {})}
+        onPress={() => setCatalogOpen(true)}
+      >
+        {phone ? copy.edit.addShort : copy.edit.add}
       </Button>
-      <Button variant="ghost" onPress={() => setConfirm('reset')}>
-        {copy.edit.reset}
-      </Button>
+      {phone ? (
+        <IconButton icon="undo" variant="ghost" label={copy.edit.reset} onPress={() => setConfirm('reset')} />
+      ) : (
+        <Button variant="ghost" onPress={() => setConfirm('reset')}>
+          {copy.edit.reset}
+        </Button>
+      )}
       <Button variant="ghost" onPress={() => (editing.dirty ? setConfirm('discard') : editing.cancel())}>
         {copy.edit.cancel}
       </Button>
-      <Button icon="check" isLoading={editing.saving} onPress={editing.done}>
+      <Button {...(phone ? {} : { icon: 'check' as const })} isLoading={editing.saving} onPress={editing.done}>
         {copy.edit.done}
       </Button>
       <WidgetCatalogDialog

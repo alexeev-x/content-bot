@@ -70,6 +70,15 @@
   }
 }
 
+/* Three or more actions (Обзор in edit mode) never fit beside the title: they take their own wrapping row. */
+@media (max-width: 859px) {
+  .header:has(.actions > :nth-child(3)) .actions {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    flex-wrap: wrap;
+  }
+}
+
 /* At narrow phone widths, keep the shell tools beside the title and move actions below them. */
 @media (max-width: 400px) {
   .header {
