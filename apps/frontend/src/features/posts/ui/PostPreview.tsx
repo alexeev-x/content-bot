@@ -84,7 +84,19 @@ export function PostPreview({ title, body, entities, media = emptyMedia, desktop
   const previewMedia = allMediaLoaded
     ? media.flatMap((item) => {
         const src = mediaUrls.get(item.id);
-        return src ? [{ id: item.id, src, alt: item.fileName }] : [];
+        return src
+          ? [
+              {
+                id: item.id,
+                src,
+                alt: item.fileName,
+                width: item.width,
+                height: item.height,
+                kind: item.kind,
+                durationMs: item.durationMs
+              }
+            ]
+          : [];
       })
     : undefined;
 

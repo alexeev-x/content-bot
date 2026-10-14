@@ -27,7 +27,7 @@
   font-size: var(--font-size-2xs);
 }
 
-/* Media slot: a 4:3 carousel (single) or a grid (album) at the top of the bubble. */
+/* Media slot: one picture at its own ratio (a carousel when paged) or an absolutely placed album at the top of the bubble. */
 .media {
   position: relative;
   margin: calc(-1 * var(--space-2)) calc(-1 * var(--space-3)) var(--space-1);
@@ -35,47 +35,51 @@
   border-radius: var(--radius-2) var(--radius-2) 0 0;
   background: var(--color-surface-3);
 }
-.media[data-mode='single'] {
-  aspect-ratio: 4 / 3;
-}
 .slide,
 .cell {
   display: block;
-  width: 100%;
-  height: 100%;
+}
+.slide {
+  position: absolute;
+  inset: 0;
+}
+/* Album cells sit at the percent rects from the layout; only the clipped outer corners are rounded. */
+.cell {
+  position: absolute;
+  overflow: hidden;
 }
 .slide img,
-.cell img {
+.cell img,
+.slide video,
+.cell video {
   display: block;
   width: 100%;
   height: 100%;
   object-fit: cover;
 }
-.media[data-mode='album'] {
+.badge {
+  position: absolute;
+  top: var(--space-2);
+  left: var(--space-2);
+  padding: 1px var(--space-2);
+  border-radius: var(--radius-pill);
+  background: var(--color-media-scrim);
+  color: var(--color-on-media-strong);
+  font-size: var(--font-size-2xs);
+  font-variant-numeric: tabular-nums;
+}
+.play {
+  position: absolute;
+  top: 50%;
+  left: 50%;
   display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
-  gap: 2px;
-  aspect-ratio: 4 / 3;
-}
-/* Telegram groups: 1 whole, 2 side by side, 3 one wide + two, 4 a 2 x 2, 5+ two over three (the sixth and later are not drawn). */
-.media[data-mode='album'] .cell {
-  grid-column: span 3;
-}
-.media[data-mode='album'] .cell:nth-child(n + 6) {
-  display: none;
-}
-.media[data-mode='album'][data-count='1'] .cell,
-.media[data-mode='album'][data-count='3'] .cell:first-child {
-  grid-column: 1 / -1;
-}
-.media[data-mode='album'][data-count='3'] {
-  grid-template-rows: 2fr 1fr;
-}
-.media[data-mode='album'][data-count='5'] {
-  grid-template-rows: 3fr 2fr;
-}
-.media[data-mode='album'][data-count='5'] .cell:nth-child(n + 3) {
-  grid-column: span 2;
+  place-items: center;
+  width: var(--size-control);
+  height: var(--size-control);
+  border-radius: 50%;
+  background: var(--color-media-scrim);
+  color: var(--color-on-media-strong);
+  transform: translate(-50%, -50%);
 }
 .chevron {
   position: absolute;

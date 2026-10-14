@@ -1,10 +1,32 @@
 import { useState, type KeyboardEvent, type ReactNode } from 'react';
 import { Button as AriaButton } from 'react-aria-components';
+import { clampSingleMediaRatio, layoutMediaGroup } from '../lib/media-group-layout';
 import { ru } from '../lib/ru';
 import { Icon } from './Icon';
 import styles from './TelegramPreview.module.css';
 
-export type PreviewMediaItem = { id: string; src: string; alt?: string };
+export type PreviewMediaItem = {
+  id: string;
+  src: string;
+  alt?: string;
+  /** Pixel size when known; otherwise it is read from the loaded picture. */
+  width?: number | null;
+  height?: number | null;
+  /** `video` and `animation` sources are video files: the first frame is the poster. */
+  kind?: 'photo' | 'video' | 'animation';
+  durationMs?: number | null;
+};
+
+// Album geometry is computed in a nominal 1000-unit box and drawn in percent, so it scales with the bubble.
+const GROUP_WIDTH = 1000;
+const GROUP_MIN_WIDTH = 200;
+const GROUP_SPACING = 6;
+
+function formatDuration(ms: number): string {
+  const total = Math.max(0, Math.round(ms / 1000));
+  const seconds = String(total % 60).padStart(2, '0');
+  return `${Math.floor(total / 60)}:${seconds}`;
+}
 
 export type PreviewMediaLabels = {
   /** Names of the chevron buttons («Предыдущее фото», «Следующее фото»). */
@@ -67,6 +89,15 @@ export function TelegramPreview({
     if (event.key === 'ArrowLeft') go(index - 1);
     else if (event.key === 'ArrowRight') go(index + 1);
   };
+  const [measured, setMeasured] = useState<ReadonlyMap<string, { width: number; height: number }>>(new Map());
+  const measure = (id: string, width: number, height: number) => {
+    if (width <= 0 || height <= 0) return;
+    setMeasured((prev) => (prev.has(id) ? prev : new Map(prev).set(id, { width, height })));
+  };
+  const sizeOf = (item: PreviewMediaItem) => {
+    if (item.width && item.height) return { width: item.width, height: item.height };
+    return measured.get(item.id) ?? { width: 1, height: 1 };
+  };
   const markFailed = (id: string) => setFailed((prev) => new Set(prev).add(id));
   const retry = (id: string) =>
     setFailed((prev) => {
@@ -87,8 +118,52 @@ export function TelegramPreview({
         </span>
       );
     }
-    return <img src={item.src} alt={item.alt ?? ''} decoding="async" onError={() => markFailed(item.id)} />;
+    const isVideo = item.kind === 'video' || item.kind === 'animation';
+    return (
+      <>
+        {isVideo ? (
+          <video
+            src={item.src}
+            aria-label={item.alt}
+            muted
+            playsInline
+            preload="metadata"
+            onLoadedMetadata={(event) =>
+              measure(item.id, event.currentTarget.videoWidth, event.currentTarget.videoHeight)
+            }
+            onError={() => markFailed(item.id)}
+          />
+        ) : (
+          <img
+            src={item.src}
+            alt={item.alt ?? ''}
+            decoding="async"
+            onLoad={(event) => measure(item.id, event.currentTarget.naturalWidth, event.currentTarget.naturalHeight)}
+            onError={() => markFailed(item.id)}
+          />
+        )}
+        {item.kind === 'animation' ? <span className={styles.badge}>GIF</span> : null}
+        {item.kind === 'video' ? (
+          <>
+            <span className={styles.play} aria-hidden="true">
+              <Icon name="play" size={20} />
+            </span>
+            {item.durationMs ? <span className={styles.badge}>{formatDuration(item.durationMs)}</span> : null}
+          </>
+        ) : null}
+      </>
+    );
   }
+
+  const shown = media?.slice(0, 10) ?? [];
+  const rects =
+    mediaMode === 'album' ? layoutMediaGroup(shown.map(sizeOf), GROUP_WIDTH, GROUP_MIN_WIDTH, GROUP_SPACING) : [];
+  const groupHeight = rects.reduce((max, r) => Math.max(max, r.y + r.height), 0);
+  // Telegram may lay an album out narrower than the bubble's max width (tall photos); the block shrinks to it.
+  const groupWidth = rects.reduce((max, r) => Math.max(max, r.x + r.width), 0) || GROUP_WIDTH;
+  const current = media?.[index] ?? media?.[0];
+  const currentSize = current ? sizeOf(current) : { width: 1, height: 1 };
+  const singleRatio = clampSingleMediaRatio(currentSize.width, currentSize.height);
 
   return (
     <figure className={styles.chat} data-variant={variant} aria-label={ru.ui.previewLabel}>
@@ -99,17 +174,34 @@ export function TelegramPreview({
             aria-roledescription="carousel"
             className={styles.media}
             data-mode={mediaMode}
-            data-count={mediaMode === 'album' ? Math.min(count, 5) : 1}
+            style={
+              mediaMode === 'album'
+                ? { aspectRatio: `${groupWidth} / ${groupHeight}`, width: `${(groupWidth / GROUP_WIDTH) * 100}%` }
+                : { aspectRatio: singleRatio }
+            }
           >
             {mediaMode === 'album' ? (
-              media.map((item) => (
-                <span key={item.id} className={styles.cell}>
-                  {picture(item)}
-                </span>
-              ))
+              shown.map((item, i) => {
+                const r = rects[i];
+                if (!r) return null;
+                return (
+                  <span
+                    key={item.id}
+                    className={styles.cell}
+                    style={{
+                      left: `${(r.x / groupWidth) * 100}%`,
+                      top: `${(r.y / groupHeight) * 100}%`,
+                      width: `${(r.width / groupWidth) * 100}%`,
+                      height: `${(r.height / groupHeight) * 100}%`
+                    }}
+                  >
+                    {picture(item)}
+                  </span>
+                );
+              })
             ) : (
               <>
-                <span className={styles.slide}>{picture(media[index] ?? media[0]!)}</span>
+                <span className={styles.slide}>{picture(current ?? media[0]!)}</span>
                 {mediaLabels && index > 0 ? (
                   <AriaButton
                     aria-label={mediaLabels.previous}
