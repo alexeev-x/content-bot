@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { checkWord, isSwitchedOff } from '../../features/system-health';
-import { formatClock } from '../../shared/lib/clock';
 import { ru } from '../../shared/lib/ru';
 import type { StatusCheck } from '../../shared/lib/status-check';
 import { Button as AriaButton } from 'react-aria-components';
@@ -10,12 +9,10 @@ import styles from './SystemStatus.module.css';
 import { useShellStatus } from './use-shell-status';
 
 const copy = {
-  allOk: 'Всё работает',
-  checked: 'Проверено в',
-  refresh: 'обновляется каждую минуту'
+  allOk: 'Всё работает'
 } as const;
 
-function Details({ checks, checkedAt }: { checks: readonly StatusCheck[]; checkedAt: string | undefined }) {
+function Details({ checks }: { checks: readonly StatusCheck[] }) {
   return (
     <>
       <ul className={styles.list}>
@@ -43,12 +40,6 @@ function Details({ checks, checkedAt }: { checks: readonly StatusCheck[]; checke
           );
         })}
       </ul>
-      {/* One check time for the whole list: three near-identical times are noise. */}
-      {checkedAt ? (
-        <p className={styles.checked}>
-          {copy.checked} <time dateTime={checkedAt}>{formatClock(checkedAt)}</time> · {copy.refresh}
-        </p>
-      ) : null}
     </>
   );
 }
@@ -62,11 +53,10 @@ export type SystemStatusTone = 'ok' | 'warning' | 'danger';
  */
 export function useSystemStatus(): {
   checks: StatusCheck[] | undefined;
-  checkedAt: string | undefined;
   tone: SystemStatusTone;
   label: string;
 } {
-  const { checks, checkedAt } = useShellStatus();
+  const { checks } = useShellStatus();
   const rechecking = checks.some((check) => check.tone === 'loading');
   const key = checks.map((check) => `${check.id}:${check.tone}:${check.summary}`).join('|');
   const [settled, setSettled] = useState<{ key: string; checks: StatusCheck[] } | undefined>(undefined);
@@ -82,7 +72,7 @@ export function useSystemStatus(): {
       : problems.length > 1
         ? ru.systemStatus.attention(problems.length)
         : copy.allOk;
-  return { checks: shown, checkedAt, tone, label };
+  return { checks: shown, tone, label };
 }
 
 /** «Статус системы» row of the account menu: one line at a glance, the checks and their fixes on demand. */
@@ -100,13 +90,7 @@ export function SystemStatusSection({ status }: { status: ReturnType<typeof useS
         </span>
         <Icon name={open ? 'chevron-up' : 'chevron-down'} size={16} />
       </AriaButton>
-      {open ? (
-        status.checks ? (
-          <Details checks={status.checks} checkedAt={status.checkedAt} />
-        ) : (
-          <Skeleton height={72} />
-        )
-      ) : null}
+      {open ? status.checks ? <Details checks={status.checks} /> : <Skeleton height={72} /> : null}
       <VisuallyHidden>
         <output>{status.label}</output>
       </VisuallyHidden>

@@ -47,14 +47,6 @@
 .more {
   padding-left: var(--space-4);
 }
-.checked {
-  margin: 0;
-  color: var(--color-text-muted);
-  font-size: var(--font-size-xs);
-}
-.checked time {
-  font-variant-numeric: tabular-nums;
-}
 .section {
   display: grid;
   gap: var(--space-2);

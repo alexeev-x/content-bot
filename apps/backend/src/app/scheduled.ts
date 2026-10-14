@@ -266,7 +266,9 @@ export async function handleScheduled(controller: ScheduledController, container
     failures === 0 && (counts.expired ?? 0) === 0 && (counts.due ?? 0) === 0 && raised.length === 0;
   if (publicationIdle) {
     await step('dota-watch', async (): Promise<Record<string, number>> => {
-      if (controller.scheduledTime % (5 * 60_000) === 0 && minute !== 0 && minute !== PURGE_MINUTE) {
+      // By the minute, like the hero-stats slot: an exact-millisecond check on scheduledTime never matched on DEV
+      // (the feeds only ran when the owner pressed «Проверить сейчас»).
+      if (minute % 5 === 0 && minute !== 0 && minute !== PURGE_MINUTE) {
         await container.automations.enqueueScheduled({
           id: 'dota-intelligence',
           slot: controller.scheduledTime,
