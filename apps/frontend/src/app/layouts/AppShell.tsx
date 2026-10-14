@@ -7,7 +7,7 @@ import { Drawer, Icon, IconButton, PageHeaderTools, Tooltip, VisuallyHidden } fr
 import { readAppEnvironment, showEnvironmentBadge } from '../environment';
 import styles from './AppShell.module.css';
 import { NAV_ITEMS, type NavItem } from './nav-items';
-import { OwnerMenu } from './OwnerMenu';
+import { AccountMenu } from './AccountMenu';
 import { useSidebarCollapsed } from './use-sidebar-collapsed';
 
 type Props = {
@@ -22,8 +22,10 @@ type Props = {
   onLogout?: () => void;
   /** Opens the command palette; the entry is hidden until real search is available. */
   onOpenSearch?: () => void;
-  /** Slot left of the owner menu in the top bar (the theme toggle); built by the frontend role. */
-  topBarTools?: ReactNode;
+  /** Rows of the account menu between «Настройки» and «Выйти» (system status, theme); built by the layout. */
+  accountRows?: ReactNode;
+  /** A system problem: marks the account avatar. */
+  accountAlert?: 'warning' | 'danger' | undefined;
   /** Hides the top bar; search, theme toggle and owner menu move into each page header (as in the Mini App). Default: on for the post editor routes (`/posts/new`, `/posts/$id`, `/posts/$id/publish`), off elsewhere. */
   focused?: boolean | undefined;
   /** Extra content under the sections in the «Ещё» sheet (the «Подключённый канал» card). */
@@ -115,7 +117,8 @@ export function AppShell({
   ownerLoading = false,
   onLogout,
   onOpenSearch,
-  topBarTools,
+  accountRows,
+  accountAlert,
   focused: forcedFocused,
   moreExtra,
   sidebarFooter
@@ -157,8 +160,9 @@ export function AppShell({
     <>
       {/* No disabled placeholder in the cramped Telegram header: search appears once it works. */}
       {onOpenSearch ? <IconButton label={ru.shell.searchPlaceholder} icon="search" onPress={onOpenSearch} /> : null}
-      {topBarTools}
-      <OwnerMenu ownerName={ownerName} onLogout={onLogout} isLoading={ownerLoading} iconOnly />
+      <AccountMenu ownerName={ownerName} onLogout={onLogout} isLoading={ownerLoading} alert={accountAlert} iconOnly>
+        {accountRows}
+      </AccountMenu>
     </>
   ) : null;
 
@@ -228,8 +232,9 @@ export function AppShell({
               {onOpenSearch ? <kbd className={styles.kbd}>⌘K</kbd> : null}
             </AriaButton>
             <span className={styles.spacer} />
-            {topBarTools}
-            <OwnerMenu ownerName={ownerName} onLogout={onLogout} isLoading={ownerLoading} />
+            <AccountMenu ownerName={ownerName} onLogout={onLogout} isLoading={ownerLoading} alert={accountAlert}>
+              {accountRows}
+            </AccountMenu>
           </header>
         )}
         <main id="main" ref={mainRef} tabIndex={-1} className={styles.main}>

@@ -455,11 +455,6 @@
 }
 
 /* Holds the theme toggle's place while the session is restored, so the top bar does not shift. */
-.toolSpace {
-  display: block;
-  width: var(--size-control);
-  height: var(--size-control);
-}
 
 /* Content under the sections in the «Ещё» sheet (the channel card), set apart by a rule. */
 .moreExtra {

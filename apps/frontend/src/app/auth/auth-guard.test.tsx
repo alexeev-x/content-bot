@@ -249,7 +249,7 @@ describe('logout', () => {
     await screen.findByRole('heading', { name: 'Страница постов' });
     const trigger = (await screen.findAllByRole('button', { name: /Меню владельца/ }))[0]!;
     await user.click(trigger);
-    await user.click(await screen.findByRole('menuitem', { name: 'Выйти' }));
+    await user.click(await screen.findByRole('button', { name: 'Выйти' }));
   }
 
   it('revokes on the server, clears the session and the query cache, and returns to the login page', async () => {

@@ -93,6 +93,7 @@ export const ru = {
     light: 'Светлая',
     dark: 'Тёмная',
     system: 'Системная',
+    rowLabel: 'Сменить тему',
     toDark: 'Включить тёмную тему',
     toLight: 'Включить светлую тему',
     nowDark: 'Тёмная тема',
@@ -262,7 +263,7 @@ export const ru = {
   },
   notFound: { description: 'Такого адреса нет в админке.', back: 'К обзору' },
   systemStatus: {
-    title: 'Состояние системы',
+    title: 'Статус системы',
     allOk: 'Сервис и бот работают',
     attention: (count: number) => `Требует внимания: ${count}`,
     checkFailed: 'Не удалось проверить',

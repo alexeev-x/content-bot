@@ -17,7 +17,8 @@ import { ChannelCard } from './ChannelCard';
 import styles from './AppShell.module.css';
 import { NAV_ITEMS } from './nav-items';
 import { RouteSkeleton } from './RouteSkeleton';
-import { SystemStatusChip } from './SystemStatusChip';
+import menuStyles from './AccountMenu.module.css';
+import { SystemStatusSection, useSystemStatus } from './SystemStatus';
 
 // The sign-in page and the dev catalog use the full viewport: no navigation around them.
 const BARE_PATHS = ['/login', '/__catalog'];
@@ -25,6 +26,12 @@ const BARE_PATHS = ['/login', '/__catalog'];
 const applyServerAppearance = (value: Appearance) => applyAppearance(value);
 // The theme button shows its result before the server confirms; only the server answer is persisted.
 const previewAppearance = (value: Appearance) => applyAppearance(value, { persist: false });
+
+const THEME_ROW = {
+  className: menuStyles.row,
+  labelClassName: menuStyles.rowLabel,
+  valueClassName: menuStyles.value
+};
 
 const channelCard = (collapsed: boolean) => <ChannelCard collapsed={collapsed} />;
 
@@ -52,6 +59,7 @@ function SignedInLayout() {
   const { resolved } = useTheme();
   useTelegramChrome(resolved);
   useDocumentTitle(titleFor(pathname));
+  const status = useSystemStatus();
 
   if (me.error instanceof ApiError && me.error.status === 403) {
     return <NoAccessState onAction={() => void auth.logout()} />;
@@ -62,10 +70,11 @@ function SignedInLayout() {
       ownerName={me.data?.name ?? cachedName}
       ownerLoading={me.isPending}
       onLogout={() => void auth.logout()}
-      topBarTools={
+      accountAlert={status.checks && status.tone !== 'ok' ? status.tone : undefined}
+      accountRows={
         <>
-          <SystemStatusChip />
-          <ThemeToggle preview={previewAppearance} />
+          <SystemStatusSection status={status} />
+          <ThemeToggle preview={previewAppearance} row={THEME_ROW} />
         </>
       }
       sidebarFooter={channelCard}
@@ -91,12 +100,6 @@ function RestoringLayout({ pathname }: { pathname: string }) {
     <AppShell
       ownerName={readOwnerName()}
       ownerLoading
-      topBarTools={
-        <>
-          <Skeleton width={128} height={28} radius="var(--radius-pill)" />
-          <span className={styles.toolSpace} aria-hidden="true" />
-        </>
-      }
       sidebarFooter={
         <div className={styles.channelSpace} aria-hidden="true">
           <Skeleton width={28} height={28} radius="var(--radius-pill)" />
