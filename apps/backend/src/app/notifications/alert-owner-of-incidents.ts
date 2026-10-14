@@ -108,7 +108,7 @@ export async function alertOwnerOfIncidents(deps: OwnerAlertDeps): Promise<Owner
     try {
       const message = group.recovery
         ? formatOwnerIncidentRecovery(group, appOrigin)
-        : formatOwnerIncidentOccurrence(group, appOrigin);
+        : formatOwnerIncidentOccurrence(group, appOrigin, preferences.timezone);
       await call.act(group.recovery ? 'incident_recovery.send' : 'incident_alert.send', (signal) =>
         messenger.sendMessageWithWebAppButton(ownerChatId, message, signal)
       );

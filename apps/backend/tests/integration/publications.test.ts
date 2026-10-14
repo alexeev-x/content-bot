@@ -1016,8 +1016,8 @@ describe('owner notice when a publication is scheduled or moved', () => {
     const [message] = api.ownerMessages;
     expect(message?.chatId).toBe(OWNER_ID);
     expect(message?.html).toContain('<b>Публикация запланирована</b>');
-    expect(message?.html).toContain('Пост: Patch 7.40');
-    expect(message?.html).toContain('Канал: Main channel');
+    expect(message?.html).toContain('<b>Patch 7.40</b>');
+    expect(message?.html).toContain('📣 Main channel');
     expect(message?.html).toContain(`(Europe/Moscow)`);
     expect(message?.button).toEqual({ text: 'Подробнее', url: `${ORIGIN}/publications?id=${publication.id}` });
   });
@@ -1028,8 +1028,9 @@ describe('owner notice when a publication is scheduled or moved', () => {
     await api.settle();
 
     const html = api.ownerMessages[0]?.html ?? '';
-    expect(html).toContain('Пост: &lt;b&gt;Boom&lt;/b&gt; &amp; &lt;a href=&quot;x&quot;&gt;link&lt;/a&gt;');
-    expect(html.match(/<[^>]+>/g)).toEqual(['<b>', '</b>']);
+    expect(html).toContain('<b>&lt;b&gt;Boom&lt;/b&gt; &amp; &lt;a href=&quot;x&quot;&gt;link&lt;/a&gt;</b>');
+    // Only our own markup: the status line and the title, both bold.
+    expect(html.match(/<[^>]+>/g)).toEqual(['<b>', '</b>', '<b>', '</b>']);
   });
 
   it('does not send a second message for an idempotent replay', async () => {

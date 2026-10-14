@@ -1,5 +1,5 @@
 import type { OwnerIncidentAlertGroup, RaisedIncident } from '../../modules/publishing';
-import { clip, escapeHtml } from './schedule-notice';
+import { channelFact, formatOwnerTime, noticeHtml, timesRu, type NoticeFact, type NoticeTone } from './notice-template';
 
 const OPEN_BUTTON_TEXT = 'Открыть';
 
@@ -26,26 +26,34 @@ function openUrl(alert: RaisedIncident, appOrigin: string): string {
   return `${appOrigin}/publications?status=${alert.kind === 'publish_unknown' ? 'unknown' : 'failed'}`;
 }
 
-function formatIncidentAlert(alert: RaisedIncident, appOrigin: string): IncidentAlertMessage {
-  const lines: string[] = [];
-  const post = alert.postTitle?.trim() ?? '';
-  const channel = alert.channelTitle?.trim() ?? '';
-  if (alert.kind === 'publish_unknown') {
-    lines.push('<b>Отправка не подтверждена</b>');
-    if (post !== '') lines.push(`Пост: ${escapeHtml(clip(post))}`);
-    if (channel !== '') lines.push(`Канал: ${escapeHtml(clip(channel))}`);
-    lines.push('Сообщение могло выйти в канал. Проверьте канал вручную: бот не отправит его повторно сам.');
-  } else {
-    lines.push('<b>Публикация не отправлена</b>');
-    if (post !== '') lines.push(`Пост: ${escapeHtml(clip(post))}`);
-    if (channel !== '') lines.push(`Канал: ${escapeHtml(clip(channel))}`);
-    lines.push(`Причина: ${escapeHtml(FAILURE_REASONS[alert.code] ?? `код ${alert.code}`)}`);
-  }
-  return { html: lines.join('\n'), button: { text: OPEN_BUTTON_TEXT, url: openUrl(alert, appOrigin) } };
+function formatIncidentAlert(
+  alert: RaisedIncident,
+  appOrigin: string,
+  extra: { status?: string; tone?: NoticeTone; facts?: NoticeFact[] } = {}
+): IncidentAlertMessage {
+  const unknown = alert.kind === 'publish_unknown';
+  const html = noticeHtml({
+    tone: extra.tone ?? (unknown ? 'unknown' : 'failed'),
+    status: extra.status ?? (unknown ? 'Отправка не подтверждена' : 'Публикация не отправлена'),
+    subject: alert.postTitle,
+    facts: [
+      channelFact(alert.channelTitle),
+      unknown ? null : { icon: '💬', text: `Причина: ${FAILURE_REASONS[alert.code] ?? `код ${alert.code}`}` },
+      ...(extra.facts ?? [])
+    ],
+    ...(extra.tone === 'recovered'
+      ? {}
+      : {
+          note: unknown
+            ? 'Сообщение могло выйти в канал. Проверьте канал и отметьте результат: бот не отправит его повторно сам.'
+            : 'Откройте публикацию, чтобы перенести её или отправить заново.'
+        })
+  });
+  return { html, button: { text: OPEN_BUTTON_TEXT, url: openUrl(alert, appOrigin) } };
 }
 
-export function formatOwnerIncidentOccurrence(group: OwnerIncidentAlertGroup, appOrigin: string): IncidentAlertMessage {
-  const incident: RaisedIncident = {
+function incidentOf(group: OwnerIncidentAlertGroup): RaisedIncident {
+  return {
     id: group.groupKey,
     kind: group.kind,
     code: group.code,
@@ -53,32 +61,34 @@ export function formatOwnerIncidentOccurrence(group: OwnerIncidentAlertGroup, ap
     postTitle: group.postTitle,
     channelTitle: group.channelTitle
   };
-  const base = formatIncidentAlert(incident, appOrigin);
-  const lines = [
-    `<b>Сводка инцидента: ${group.occurrenceCount}</b>`,
-    `Первое событие: ${new Date(group.firstSeenAt).toISOString()}`,
-    base.html
-  ];
-  return { ...base, html: lines.join('\n') };
+}
+
+export function formatOwnerIncidentOccurrence(
+  group: OwnerIncidentAlertGroup,
+  appOrigin: string,
+  timezone: string
+): IncidentAlertMessage {
+  const repeated = group.occurrenceCount > 1;
+  return formatIncidentAlert(incidentOf(group), appOrigin, {
+    ...(repeated ? { tone: 'repeat' as const } : {}),
+    facts: repeated
+      ? [
+          { icon: '🔂', text: `Повторилось ${timesRu(group.occurrenceCount)}` },
+          { icon: '🕒', text: `Впервые: ${formatOwnerTime(group.firstSeenAt, timezone)}` }
+        ]
+      : []
+  });
 }
 
 export function formatOwnerIncidentRecovery(group: OwnerIncidentAlertGroup, appOrigin: string): IncidentAlertMessage {
-  const incident: RaisedIncident = {
-    id: group.groupKey,
-    kind: group.kind,
-    code: group.code,
-    publicationId: group.publicationId,
-    postTitle: group.postTitle,
-    channelTitle: group.channelTitle
-  };
-  const base = formatIncidentAlert(incident, appOrigin);
   const recoveredAt = group.recoveredAt ?? group.lastSeenAt;
   const durationMs = Math.max(0, recoveredAt - group.firstSeenAt);
   const minutes = Math.floor(durationMs / 60_000);
   const hours = Math.floor(minutes / 60);
   const duration = hours > 0 ? `${hours} ч ${minutes % 60} мин` : `${minutes} мин`;
-  return {
-    ...base,
-    html: `<b>Инцидент восстановлен</b>\nДлительность: ${duration}\n${base.html}`
-  };
+  return formatIncidentAlert(incidentOf(group), appOrigin, {
+    tone: 'recovered',
+    status: 'Снова работает',
+    facts: [{ icon: '⏱', text: `Сбой длился ${duration}` }]
+  });
 }

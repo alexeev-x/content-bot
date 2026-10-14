@@ -182,7 +182,10 @@ describe('the budget of a busy tick (Free plan: 50 D1 queries, 50 subrequests)',
 
     clock.advance(60_000);
     await makeTick({ clock, transport: fakeTransport(SENT), ownerMessenger }).run();
-    expect(tick.ownerMessages).toHaveLength(3);
+    // The two sends of this tick are announced as «Опубликовано»; the incident alerts are counted apart.
+    const sentNotices = tick.ownerMessages.filter((message) => message.html.includes('Опубликовано'));
+    expect(sentNotices).toHaveLength(2);
+    expect(tick.ownerMessages.length - sentNotices.length).toBe(3);
   });
 
   it('three successful sends cost 5 round trips each', async () => {
@@ -191,9 +194,10 @@ describe('the budget of a busy tick (Free plan: 50 D1 queries, 50 subrequests)',
     const { db, meter } = meteredDb(testDb());
     await makeTick({ clock, transport: fakeTransport(SENT), db }).run();
 
-    // Each sent post is archived by the same tick: one read and one batch of two for all three.
-    expect(meter.roundTrips).toBe(2 + 5 * DISPATCH_BATCH + 2 + 1 + 3);
-    expect(meter.statements).toBe(2 + 8 * DISPATCH_BATCH + 3 + 1 + 3);
+    // Each sent post is archived by the same tick: one read and one batch of two for all three. The owner's
+    // «Опубликовано» notices add two reads (app origin and notification settings, shared with the alerts).
+    expect(meter.roundTrips).toBe(2 + 5 * DISPATCH_BATCH + 2 + 1 + 3 + 2);
+    expect(meter.statements).toBe(2 + 8 * DISPATCH_BATCH + 3 + 1 + 3 + 2);
     expect(await count('posts', 'archived_at IS NOT NULL')).toBe(DISPATCH_BATCH);
   });
 });

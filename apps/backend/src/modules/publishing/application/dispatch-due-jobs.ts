@@ -35,6 +35,16 @@ export interface DispatchSummary {
   errors: number;
   /** The incidents this tick wrote, for the owner alert; the caller sends it after the tick's state is stored. */
   raised: RaisedIncident[];
+  /** Sends whose `succeeded` write was applied, for the owner's «Опубликовано» notice (sent after the tick). */
+  delivered: DeliveredPublication[];
+}
+
+export interface DeliveredPublication {
+  publicationId: string;
+  postTitle: string | null;
+  channelTitle: string | null;
+  chatId: string | null;
+  externalMessageId: string | null;
 }
 
 type JobResult = 'lost' | 'sent' | 'retry_wait' | 'failed' | 'unknown' | 'not_sent' | 'failed_halt';
@@ -45,12 +55,14 @@ type JobResult = 'lost' | 'sent' | 'retry_wait' | 'failed' | 'unknown' | 'not_se
 interface TickBudget {
   writeRetries: number;
   raised: RaisedIncident[];
+  delivered: DeliveredPublication[];
 }
 
 // What the owner alert can say about a job, filled in as the dispatcher loads it.
 interface AlertContext {
   postTitle: string | null;
   channelTitle: string | null;
+  chatId: string | null;
 }
 
 // One tick's dispatch (docs/BACKEND_ARCHITECTURE.md §5): a small batch of due jobs, each handled
@@ -67,11 +79,12 @@ export async function dispatchDueJobs(deps: DispatchDeps): Promise<DispatchSumma
     unknown: 0,
     notSent: 0,
     errors: 0,
-    raised: []
+    raised: [],
+    delivered: []
   };
   const jobIds = await deps.repo.findDueJobIds(deps.clock.now(), DISPATCH_BATCH);
   summary.due = jobIds.length;
-  const budget: TickBudget = { writeRetries: 1, raised: summary.raised };
+  const budget: TickBudget = { writeRetries: 1, raised: summary.raised, delivered: summary.delivered };
 
   for (const jobId of jobIds) {
     const startedAt = deps.clock.now();
@@ -112,13 +125,14 @@ async function dispatchJob(deps: DispatchDeps, jobId: string, budget: TickBudget
   // Another tick or the owner's cancel got there first: nothing to do and nothing to undo.
   if (claimed === null) return 'lost';
 
-  const context: AlertContext = { postTitle: null, channelTitle: null };
+  const context: AlertContext = { postTitle: null, channelTitle: null, chatId: null };
   const refuse = (code: string, reason: string) => refused(deps, budget, claimed, startedAt, context, code, reason);
 
   if (claimed.publicationId === null) return refuse('PUBLICATION_MISSING', 'job_without_publication');
   const target = await repo.loadTarget(claimed.publicationId);
   if (target === null) return refuse('PUBLICATION_MISSING', 'publication_not_found');
   context.channelTitle = target.destinationTitle;
+  context.chatId = target.chatId;
   if (!target.destinationEnabled) return refuse('DESTINATION_DISABLED', 'destination_disabled');
 
   const revision = await deps.posts.findRevision(target.postId, target.postRevision);
@@ -343,6 +357,15 @@ async function write(
         publicationId: resolution.publicationId,
         postTitle: context.postTitle,
         channelTitle: context.channelTitle
+      });
+    }
+    if (resolution.status === 'succeeded' && resolution.publicationId !== null) {
+      budget.delivered.push({
+        publicationId: resolution.publicationId,
+        postTitle: context.postTitle,
+        channelTitle: context.channelTitle,
+        chatId: context.chatId,
+        externalMessageId: resolution.externalMessageId ?? null
       });
     }
   } else log(deps, claimed, startedAt, resolution.status, 'OUTCOME_NOT_APPLIED', 'warn');

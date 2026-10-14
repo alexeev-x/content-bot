@@ -6,7 +6,7 @@ import type {
   RangeSummary
 } from '../../modules/publishing';
 import type { Clock } from '../../platform/clock';
-import { clip, escapeHtml } from '../notifications/schedule-notice';
+import { clip, escapeHtml } from '../notifications/notice-template';
 import type { SystemStateStore } from '../system-state';
 import {
   DEFAULT_OWNER_ZONE,

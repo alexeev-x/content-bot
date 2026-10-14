@@ -42,7 +42,7 @@ export { createD1DestinationRepository } from './infrastructure/d1-destination-r
 export { createD1PublicationRepository } from './infrastructure/d1-publication-repository';
 export { createD1PublicationAnalyticsRepository } from './infrastructure/d1-publication-analytics-repository';
 export { dispatchDueJobs } from './application/dispatch-due-jobs';
-export type { DispatchDeps, DispatchSummary } from './application/dispatch-due-jobs';
+export type { DeliveredPublication, DispatchDeps, DispatchSummary } from './application/dispatch-due-jobs';
 export { reconcileExpiredJobs } from './application/reconcile-expired-jobs';
 export type { ReconcileDeps, ReconcileSummary } from './application/reconcile-expired-jobs';
 export { createD1DashboardRepository } from './infrastructure/d1-dashboard-repository';

@@ -4,7 +4,12 @@ import {
   archiveSentPosts,
   purgeExpiredArchive
 } from '../modules/lifecycle';
-import { dispatchDueJobs, type RaisedIncident, reconcileExpiredJobs } from '../modules/publishing';
+import {
+  type DeliveredPublication,
+  dispatchDueJobs,
+  type RaisedIncident,
+  reconcileExpiredJobs
+} from '../modules/publishing';
 import type { Container } from './container';
 import { ALBUM_SETTLE_MS, CRON_IMPORT_BUDGET_MS, CRON_IMPORT_POSTS } from './bot/media-import-worker';
 import { createMediaImportRunner } from './bot/media-import-runner';
@@ -16,6 +21,7 @@ import { DotaWatchError } from '../modules/dota';
 import { processPostMediaCleanup } from '../modules/content';
 import { sendDotaWatchlistAlerts } from './workflows/process-dota-watchlist-alerts';
 import { DotaHeroStatisticsError } from '../modules/dota-hero-statistics';
+import { notifyOwnerOfDeliveries } from './notifications/sent-notice';
 
 // Per table and per hourly tick; leftovers wait for the next hour.
 export const CLEANUP_LIMIT = 100;
@@ -85,6 +91,7 @@ export async function handleScheduled(controller: ScheduledController, container
   const counts: Record<string, number> = {};
   let failures = 0;
   const raised: RaisedIncident[] = [];
+  const delivered: DeliveredPublication[] = [];
 
   const step = async (operation: string, run: () => Promise<Record<string, number>>): Promise<void> => {
     const stepStartedAt = clock.now();
@@ -139,6 +146,7 @@ export async function handleScheduled(controller: ScheduledController, container
       });
       if (summary.errors > 0) failures += 1;
       raised.push(...summary.raised);
+      delivered.push(...summary.delivered);
       return {
         due: summary.due,
         lost: summary.lost,
@@ -219,16 +227,35 @@ export async function handleScheduled(controller: ScheduledController, container
     });
   }
 
+  // Read at most once per tick and shared by the incident alerts and the «Опубликовано» notices.
+  let appOrigin: Promise<string | null> | undefined;
+  let preferences: ReturnType<typeof getOwnerOperationsSettings> | undefined;
+  const readAppOrigin = () => (appOrigin ??= container.systemState.readAppOrigin());
+  const readPreferences = () =>
+    (preferences ??= getOwnerOperationsSettings({ repo: container.settings, logger, requestId: 'scheduled' }));
+
   const alerts = await alertOwnerOfIncidents({
     repo: container.dispatchJobs,
     messenger: container.ownerMessenger,
     ownerChatId: container.ownerChatId,
-    readAppOrigin: () => container.systemState.readAppOrigin(),
-    readPreferences: () => getOwnerOperationsSettings({ repo: container.settings, logger, requestId: 'scheduled' }),
+    readAppOrigin,
+    readPreferences,
     clock,
     logger
   });
   Object.assign(counts, { alertsSent: alerts.sent, alertsFailed: alerts.failed });
+
+  const notices = await notifyOwnerOfDeliveries(
+    {
+      messenger: container.ownerMessenger,
+      ownerChatId: container.ownerChatId,
+      readAppOrigin,
+      readPreferences,
+      logger
+    },
+    delivered
+  );
+  Object.assign(counts, { sentNotices: notices.sent, sentNoticesFailed: notices.failed });
 
   // Run after the publication pipeline and its alerts: automation work never delays dispatch or
   // changes publication state. Expired automation leases are visible as unknown and never retried.

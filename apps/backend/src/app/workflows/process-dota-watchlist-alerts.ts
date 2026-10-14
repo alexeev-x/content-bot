@@ -2,7 +2,7 @@ import type { TelegramOwnerMessageApi } from '../../integrations/telegram/telegr
 import { type DotaWatchlistRepository } from '../../modules/dota-watchlists';
 import type { Logger } from '../../platform/logging/logger';
 import { GrammyError } from 'grammy';
-import { escapeHtml } from '../notifications/schedule-notice';
+import { escapeHtml } from '../notifications/notice-template';
 
 const DOTA_WATCHLIST_ALERT_BATCH_LIMIT = 2;
 const DOTA_WATCHLIST_ALERT_TIMEOUT_MS = 5_000;
