@@ -210,12 +210,24 @@ function PublicationBody({ publication, postTitle, postBody, destinationTitle, c
   const confirmedId = shown === 'sent' ? publication.externalMessageId : undefined;
   const href = confirmedId && chatId ? messageLink(chatId, confirmedId) : undefined;
   const history = useQuery(publicationHistoryQueryOptions(publication.id, publication.updatedAt));
+  // While the history loads, a skeleton: an estimate built from the list row flashed first and was then swapped
+  // for the real steps, which read as another publication's timeline. The estimate stays only as the error fallback.
   const timeline = history.data
     ? buildHistoryTimeline(history.data, publication, zone)
-    : buildTimeline(publication, zone);
+    : history.isError
+      ? buildTimeline(publication, zone)
+      : null;
   const log = (
     <div className={styles.tabContent} aria-busy={history.isPending || undefined}>
-      <Timeline aria-label={copy.drawer.attempts} items={timeline} />
+      {timeline ? (
+        <Timeline aria-label={copy.drawer.attempts} items={timeline} />
+      ) : (
+        <div className={styles.timelineSkeleton}>
+          {[0, 1, 2].map((row) => (
+            <Skeleton key={row} height={40} />
+          ))}
+        </div>
+      )}
       {history.isError ? <p className={styles.note}>{copy.drawer.historyError}</p> : null}
     </div>
   );

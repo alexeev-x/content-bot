@@ -4,6 +4,10 @@
   display: grid;
   gap: var(--space-3);
 }
+.timelineSkeleton {
+  display: grid;
+  gap: var(--space-3);
+}
 .heading {
   margin: 0;
   font-size: var(--font-size-md);
