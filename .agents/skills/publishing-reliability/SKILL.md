@@ -8,7 +8,7 @@ Goal: no scheduled post silently disappears, and no ambiguous send repeats autom
 
 ## Invariants
 1. **D1 is the only state; Cron is the only dispatcher** (every minute: reconcile, then claim a small batch of due jobs; Free plan allows 50 subrequests and 50 D1 queries per invocation). Concurrent Cron ticks are expected (overlap is undocumented, so assume it happens). If a Queue is added later, its message carries `{ jobId, schemaVersion }` only.
-2. **Claim with a condition** — the exact SQL is in `docs/BACKEND_ARCHITECTURE.md` §5 ("Условный захват задания"); copy it from there, never retype it. Continue only if `meta.changes === 1`.
+2. **Claim with a condition** — the exact SQL is in `docs/backend/publishing.md` §5 ("Условный захват задания"); copy it from there, never retype it. Continue only if `meta.changes === 1`.
 3. **Mark before sending:** a separate statement, `UPDATE jobs SET send_started_at=? WHERE id=? AND status='claimed' AND send_started_at IS NULL`, must report `changes === 1`, and only then may you call Telegram. Never fold this into the result write: if the Worker dies after the send, this marker is the only evidence the send may have happened.
 4. **Classify the outcome:**
 

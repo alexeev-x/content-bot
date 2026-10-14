@@ -13,13 +13,13 @@ Shared Claude Code/Codex rules. Talk Russian; code, identifiers, docs, commits a
 ## One fact, one place
 Edit a fact at its source; elsewhere only link to it.
 - Status and queue: `docs/IMPLEMENTATION_PLAN.md`. Decisions: `docs/DECISIONS.md`.
-- Screens and viewport widths: `docs/design/UX_SPEC.md`; visual direction and tokens: `docs/design/README.md`.
+- Screens and viewport widths: index `docs/design/UX_SPEC.md` → one file in `docs/design/ux/`; visual direction and tokens: `docs/design/README.md`.
 - API meaning: `docs/API_CONTRACTS.md`; shapes: `apps/contracts/src`.
 
 ## Load context on demand, never everything
 | When you touch | Load |
 |---|---|
-| `apps/backend/**` | `apps/backend/AGENTS.md`, then the needed section of `docs/BACKEND_ARCHITECTURE.md` |
+| `apps/backend/**` | `apps/backend/AGENTS.md`, then one topic file from the index `docs/BACKEND_ARCHITECTURE.md` |
 | `apps/frontend/**` | `apps/frontend/AGENTS.md`, then the needed section of `docs/FRONTEND_ARCHITECTURE.md` |
 | `apps/contracts/**` or any request/response shape | skill `contract-change` |
 | publications, jobs, Cron, Queue, Telegram send | skill `publishing-reliability` |

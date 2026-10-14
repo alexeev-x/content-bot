@@ -34,7 +34,7 @@ description: "Procedure for adding or changing an API endpoint, request/response
 4. **Human doc:** add the endpoint to `docs/API_CONTRACTS.md` by name and meaning only. Never copy the schema; the code is the source.
 5. **Update both consumers in the same PR.** The backend route parses input with the schema and returns the DTO type. The frontend fetcher parses the response with the schema in tests, and gets MSW fixtures for success and each error code. A new error code needs a frontend message and action.
 6. **Contract test:** call the real Worker route, then parse the response with the schema for success and for each documented error.
-7. **Publication statuses:** `PublicationStatus` is a projection. A new internal state updates the mapping table in `docs/BACKEND_ARCHITECTURE.md` §5 and its unit test.
+7. **Publication statuses:** `PublicationStatus` is a projection. A new internal state updates the mapping table in `docs/backend/publishing.md` §5 and its unit test.
 
 Before you finish: `npm run verify` passes, both consumers compile against the new types, and the contract test covers every documented status.
 
