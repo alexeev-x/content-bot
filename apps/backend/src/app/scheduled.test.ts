@@ -113,6 +113,7 @@ function probe(
         return Promise.resolve({ status: 'stored' as const, heroCount: 1 });
       }
     },
+    publishActions: { purgeOlderThan: () => Promise.resolve(0) },
     automations: {
       markExpiredUnknown: () => Promise.resolve(0),
       purgeHistory: () => Promise.resolve(0),

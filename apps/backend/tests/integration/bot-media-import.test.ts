@@ -2,6 +2,7 @@ import { createContainer } from '../../src/app/container';
 import { createMediaImportRunner } from '../../src/app/bot/media-import-runner';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { fakeBotAdminApi } from '../helpers/fake-bot-admin-api';
+import { fakeOwnerMessenger } from '../helpers/fake-owner-messenger';
 import { testDb } from '../helpers/db';
 import {
   type Api,
@@ -140,6 +141,33 @@ describe('forwarded text keeps its formatting', () => {
   });
 });
 
+// A webhook invocation has little allowance left once its file is in, so the report comes with the next Cron tick.
+async function settleWithCron(): Promise<void> {
+  await api.settle();
+  const clock = fakeClock();
+  const messenger = fakeOwnerMessenger();
+  for (let tick = 0; tick < 5; tick += 1) {
+    clock.advance(60_000);
+    const container = createContainer(
+      {
+        DB: testDb(),
+        MEDIA_BUCKET: testMediaBucket(),
+        OWNER_TELEGRAM_ID: OWNER_ID,
+        TELEGRAM_BOT_TOKEN: TEST_BOT_TOKEN
+      },
+      { clock, ownerMessenger: messenger }
+    );
+    const runner = createMediaImportRunner(container, {
+      token: TEST_BOT_TOKEN,
+      requestId: 'cron',
+      readAppOrigin: () => Promise.resolve(ORIGIN)
+    });
+    const due = await runner.runDue(25_000, 2, 0);
+    api.ownerMessages.push(...messenger.sent.splice(0));
+    if (due === 0) return;
+  }
+}
+
 const replyTexts = () => replies.map((reply) => reply.text);
 const mediaOf = (postId: string | undefined) =>
   testDb()
@@ -162,12 +190,22 @@ describe('media from the owner becomes a draft', () => {
     );
     expect(response.status).toBe(200);
     expect(replyTexts()).toEqual(['Черновик создан, файлы загружаются…']);
-    await api.settle();
+    // Only the Studio button: a publish tap now would approve the post before the photo is attached.
+    expect(
+      (replies[0] as { reply_markup?: { inline_keyboard: { text: string }[][] } }).reply_markup?.inline_keyboard
+        .flat()
+        .map((button) => button.text)
+    ).toEqual(['Открыть в Студии']);
+    await settleWithCron();
     const [row] = (await posts()).results;
     expect(row).toMatchObject({ title: 'Подпись', body: 'Текст' });
     expect(JSON.parse(row?.entities ?? '[]')).toEqual([{ type: 'italic', offset: 0, length: 5 }]);
     expect(await mediaOf(row?.id)).toHaveProperty('results.length', 1);
     expect(api.ownerMessages.map((m) => m.html)).toEqual(['Файлы загружены в черновик: 1.']);
+    expect(api.ownerMessages[0]?.button).toEqual({
+      text: 'Открыть в Студии',
+      url: `${ORIGIN}/posts/${row?.id}/publish`
+    });
   });
 
   it('keeps the webhook fast when Telegram is slow and finishes the import in the background', async () => {
@@ -180,7 +218,7 @@ describe('media from the owner becomes a draft', () => {
     expect(response.status).toBe(200);
     expect(await count('post_media')).toBe(0);
     release();
-    await api.settle();
+    await settleWithCron();
     expect(await count('post_media')).toBe(1);
     expect(downloads).toBe(1);
     expect(api.ownerMessages).toHaveLength(1);
@@ -205,7 +243,7 @@ describe('media from the owner becomes a draft', () => {
         )
       )
     );
-    await api.settle();
+    await settleWithCron();
     const rows = (await posts()).results;
     expect(rows).toHaveLength(1);
     expect(rows[0]).toMatchObject({ title: 'Альбом', body: '' });
@@ -283,7 +321,7 @@ describe('review fixes', () => {
     while (downloads === 0) await sleep(20);
     await deliver(message({ photo: photo('c1', 29), media_group_id: 'late', caption: 'Альбом' }, 201));
     release();
-    await api.settle();
+    await settleWithCron();
     const [row] = (await posts()).results;
     expect(row?.title).toBe('Альбом');
     expect(await count('post_media')).toBe(2);
@@ -297,7 +335,7 @@ describe('review fixes', () => {
     await deliver(
       message({ photo: photo('l1', 29), media_group_id: 'long', caption: `Заголовок\n${'я'.repeat(4100)}` }, 301)
     );
-    await api.settle();
+    await settleWithCron();
     expect(replyTexts()).toEqual(['Черновик создан, файлы загружаются…']);
     expect(await count('post_media')).toBe(2);
     expect((await posts()).results[0]?.title).toBe('Медиа из Telegram');
@@ -309,7 +347,7 @@ describe('review fixes', () => {
   it('keeps the file of a single photo whose caption is too long', async () => {
     files.set('l2', { size: 29, bytes: jpeg() });
     await deliver(message({ photo: photo('l2', 29), caption: `Заголовок\n${'я'.repeat(4100)}` }));
-    await api.settle();
+    await settleWithCron();
     expect(replyTexts()).toEqual(['Черновик создан, файлы загружаются…']);
     expect(await count('post_media')).toBe(1);
     expect(api.ownerMessages[0]?.html).toContain('Подпись длиннее 4096');
@@ -349,7 +387,8 @@ describe('review fixes', () => {
       requestId: 'cron',
       readAppOrigin: () => Promise.resolve(ORIGIN)
     });
-    expect(await runner.runDue(25_000, 2, 0)).toBe(1);
+    // Both: the first draft's report did not fit the webhook invocation's allowance.
+    expect(await runner.runDue(25_000, 2, 0)).toBe(2);
     expect(maxInFlight).toBe(1);
     expect(downloads).toBe(2);
     expect(await count('post_media')).toBe(2);

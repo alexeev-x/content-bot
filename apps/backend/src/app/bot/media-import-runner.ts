@@ -1,10 +1,14 @@
+import type { QueryBudget } from '../../platform/d1-budget';
 import { Api } from 'grammy';
 import { getPost, updatePost, uploadPostMedia } from '../../modules/content';
+import { getOwnerOperationsSettings } from '../../modules/settings';
 import { AppError } from '../../shared/app-error';
 import type { Container } from '../container';
 import { MEDIA_DRAFT_TITLE } from './draft-from-message';
 import { createTelegramFileSource } from './media-import';
-import { importReportText, runMediaImport, type MediaImportWorkerDeps } from './media-import-worker';
+import { createPublishActions, type PublishActionsContainer } from './publish-actions';
+import { publishKeyboard } from './publish-keyboard';
+import { importReportText, RUN_MIN_BUDGET, runMediaImport, type MediaImportWorkerDeps } from './media-import-worker';
 import { createTelegramCaller } from './telegram-call';
 
 const NOTICE_TIMEOUT_MS = 5_000;
@@ -13,6 +17,7 @@ const CAPTION_ATTEMPTS = 3;
 export type MediaImportContainer = Pick<
   Container,
   | 'clock'
+  | 'queryBudget'
   | 'logger'
   | 'newId'
   | 'posts'
@@ -22,7 +27,9 @@ export type MediaImportContainer = Pick<
   | 'mediaImports'
   | 'ownerMessenger'
   | 'ownerChatId'
->;
+  | 'settings'
+> &
+  PublishActionsContainer;
 
 export interface MediaImportRunner {
   /** Imports one draft's pending files within `budgetMs`; a draft another worker holds is left to it. */
@@ -35,7 +42,13 @@ export interface MediaImportRunner {
 // tick, never kept: no state lives in module scope.
 export function createMediaImportRunner(
   container: MediaImportContainer,
-  config: { token: string; requestId: string; readAppOrigin: () => Promise<string | null> }
+  config: {
+    token: string;
+    requestId: string;
+    readAppOrigin: () => Promise<string | null>;
+    /** Subrequests kept free for work that runs after the import in the same invocation (the Cron heartbeat). */
+    reserve?: number;
+  }
 ): MediaImportRunner {
   const { clock, logger } = container;
   const actor = container.ownerChatId ?? 'telegram-bot';
@@ -48,11 +61,19 @@ export function createMediaImportRunner(
     getFile: (fileId, signal) => api.getFile(fileId, signal as never)
   });
 
+  const publishActions = createPublishActions(container, {
+    actor,
+    requestId: config.requestId,
+    timezone: async () =>
+      (await getOwnerOperationsSettings({ repo: container.settings, logger, requestId: config.requestId })).timezone
+  });
+
   const postsDeps = () => ({ repo: container.posts, now: clock.now() });
 
   const deps: MediaImportWorkerDeps = {
     source,
     store: container.mediaImports,
+    budget: withReserve(container.queryBudget, config.reserve ?? 0),
     clock,
     newId: container.newId,
     postState: async (id) => {
@@ -91,16 +112,21 @@ export function createMediaImportRunner(
       if (chatId === null || messenger === null) return;
       const html = importReportText(report);
       const signal = AbortSignal.timeout(NOTICE_TIMEOUT_MS);
-      // Cron has no request to learn the origin from: without one the text still goes out, minus the button.
-      if (origin === null) {
+      // Buttons only for a draft that still is one and has files (an approved post would refuse them);
+      // the tap re-checks everything.
+      const state = await container.postMedia.findPostState(postId);
+      const buttons =
+        state === null || state.status !== 'draft' || state.media.length === 0
+          ? []
+          : await publishActions.buttons({ id: postId, revision: state.revision });
+      // Cron has no request to learn the origin from: without one the text still goes out, minus the Studio button.
+      container.queryBudget.charge(1);
+      const markup = publishKeyboard({ appOrigin: origin, postId, buttons });
+      if (markup === undefined) {
         await api.sendMessage(chatId, html, { parse_mode: 'HTML' }, signal as never);
         return;
       }
-      await messenger.sendMessageWithWebAppButton(
-        chatId,
-        { html, button: { text: 'Открыть', url: `${origin}/posts/${postId}` } },
-        signal
-      );
+      await messenger.sendMessageWithKeyboard(chatId, { html, markup }, signal);
     },
     onError: (error) => {
       logger.error({
@@ -119,10 +145,21 @@ export function createMediaImportRunner(
       const due = await container.mediaImports.listDue(startedAt, startedAt - settleMs, limit);
       for (const postId of due) {
         const left = budgetMs - (clock.now() - startedAt);
-        if (left <= 0) break;
+        if (left <= 0 || container.queryBudget.remaining() < RUN_MIN_BUDGET) break;
         await runMediaImport(deps, postId, left);
       }
       return due.length;
     }
+  };
+}
+
+/** The same allowance, minus what later steps of this invocation still need. */
+function withReserve(budget: QueryBudget, reserve: number): QueryBudget {
+  if (reserve <= 0) return budget;
+  return {
+    limit: budget.limit,
+    used: () => budget.used(),
+    remaining: () => Math.max(0, budget.remaining() - reserve),
+    charge: (count) => budget.charge(count)
   };
 }

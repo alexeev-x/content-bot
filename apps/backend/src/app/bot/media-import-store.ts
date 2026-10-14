@@ -44,7 +44,9 @@ export interface MediaImportStore {
     postId: string,
     token: string,
     rowId: string,
-    outcome: { status: 'done' } | { failure: ImportFailure }
+    outcome: { status: 'done' } | { failure: ImportFailure },
+    /** The download lease to hand back in the same batch (one round trip instead of two). */
+    releaseDownloadToken?: string
   ): Promise<boolean>;
   /** The album caption, until it is applied. */
   takeCaption(postId: string, token: string, now: number): Promise<CreatePostInput | null>;
@@ -53,6 +55,8 @@ export interface MediaImportStore {
   /** Takes the claim back after a failed send so Cron tries again, a bounded number of times. */
   reopenReport(postId: string): Promise<void>;
   report(postId: string): Promise<ImportReport>;
+  /** True while the draft's import has files waiting or its report is not out yet. */
+  hasOpenImport(postId: string): Promise<boolean>;
 }
 
 interface FileRecord {
@@ -203,17 +207,23 @@ export function createD1MediaImportStore(db: D1Database, newId: () => string): M
       return row?.attempts ?? null;
     },
 
-    async settle(postId, token, rowId, outcome) {
+    async settle(postId, token, rowId, outcome, releaseDownloadToken) {
       const failure = 'failure' in outcome ? outcome.failure : null;
-      const result = await db
+      const settle = db
         .prepare(
           `UPDATE bot_media_import_files SET status = ?4, failure = ?5
            WHERE id = ?1 AND status = 'pending'
              AND EXISTS (SELECT 1 FROM bot_media_imports WHERE post_id = ?2 AND lease_token = ?3)`
         )
-        .bind(rowId, postId, token, failure === null ? 'done' : 'failed', failure)
-        .run();
-      return result.meta.changes === 1;
+        .bind(rowId, postId, token, failure === null ? 'done' : 'failed', failure);
+      if (releaseDownloadToken === undefined) return (await settle.run()).meta.changes === 1;
+      const [result] = await db.batch([
+        settle,
+        db
+          .prepare('UPDATE bot_media_download_lease SET lease_until = 0 WHERE id = 1 AND lease_token = ?1')
+          .bind(releaseDownloadToken)
+      ]);
+      return result?.meta.changes === 1;
     },
 
     async takeCaption(postId, token, now) {
@@ -246,6 +256,19 @@ export function createD1MediaImportStore(db: D1Database, newId: () => string): M
         .prepare('UPDATE bot_media_imports SET reported_at = NULL WHERE post_id = ?1 AND report_attempts < ?2')
         .bind(postId, REPORT_ATTEMPTS)
         .run();
+    },
+
+    async hasOpenImport(postId) {
+      const row = await db
+        .prepare(
+          `SELECT 1 AS open FROM bot_media_imports i
+            WHERE i.post_id = ?1
+              AND (i.reported_at IS NULL
+                   OR EXISTS (SELECT 1 FROM bot_media_import_files f WHERE f.post_id = ?1 AND f.status = 'pending'))`
+        )
+        .bind(postId)
+        .first();
+      return row !== null;
     },
 
     async report(postId) {

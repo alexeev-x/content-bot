@@ -1,5 +1,6 @@
 import type { CreatePostInput } from '@alexeev/contracts';
 import type { Clock } from '../../platform/clock';
+import type { QueryBudget } from '../../platform/d1-budget';
 import { DOWNLOAD_TIMEOUT_MS, type ImportMediaDeps, importMedia } from './media-import';
 import type { ImportReport, MediaImportStore } from './media-import-store';
 
@@ -20,8 +21,22 @@ export const WEBHOOK_IMPORT_BUDGET_MS = 25_000;
 export const CRON_IMPORT_BUDGET_MS = 20_000;
 export const CRON_IMPORT_POSTS = 2;
 
+// One invocation may make 50 subrequests (D1 statements, Telegram calls, R2 writes). A file is started only
+// when its worst case still fits: getFile, the download, the R2 write and the upload's statements measured
+// at 23 in tests/integration/bot-import-budget.test.ts, plus slack for a retry path. The lease release always
+// keeps room, and the report (its buttons, the send) is sent only when its own share is left. What does not
+// fit waits, in order, for the next Cron tick.
+export const FILE_COST = 25;
+export const LEASE_RESERVE = 2;
+export const REPORT_RESERVE = 18;
+const EXTERNAL_CALLS_PER_FILE = 3;
+/** Less than this and starting the draft would do nothing but take and free its lease. */
+export const RUN_MIN_BUDGET = FILE_COST + LEASE_RESERVE;
+
 export interface MediaImportWorkerDeps extends ImportMediaDeps {
   store: MediaImportStore;
+  /** The invocation's allowance; the run stops before a file that would not fit. */
+  budget: QueryBudget;
   clock: Clock;
   newId: () => string;
   /** Gives an album draft its caption unless the draft already has text of its own. */
@@ -57,6 +72,7 @@ async function applyAlbumCaption(deps: MediaImportWorkerDeps, postId: string, to
 // Imports the pending files of one draft, one at a time, and sends the owner the result when none is left.
 // Safe to call from any number of places at once: the lease lets one caller work, the others return.
 export async function runMediaImport(deps: MediaImportWorkerDeps, postId: string, budgetMs: number): Promise<void> {
+  if (deps.budget.remaining() < RUN_MIN_BUDGET) return;
   const token = deps.newId();
   const startedAt = deps.clock.now();
   if (!(await deps.store.claimLease(postId, token, startedAt, LEASE_MS))) return;
@@ -68,6 +84,8 @@ export async function runMediaImport(deps: MediaImportWorkerDeps, postId: string
       if (row === null) break;
       const remaining = startedAt + budgetMs - deps.clock.now();
       if (remaining < MIN_FILE_BUDGET_MS) return;
+      // Rows stay pending and the lease is freed at once: the next tick carries on, in order.
+      if (deps.budget.remaining() < RUN_MIN_BUDGET) return;
       // Before the attempt is counted: a busy Worker is not the file's fault. The row stays pending.
       const downloadToken = deps.newId();
       if (!(await deps.store.claimDownload(downloadToken, deps.clock.now(), DOWNLOAD_LEASE_MS))) {
@@ -75,9 +93,12 @@ export async function runMediaImport(deps: MediaImportWorkerDeps, postId: string
         return;
       }
       let outcome: Awaited<ReturnType<typeof importMedia>> | 'exhausted';
+      let released = false;
       try {
         const attempts = await deps.store.startAttempt(postId, token, row.id);
         if (attempts === null) return;
+        // getFile, the download and the R2 write are subrequests too.
+        deps.budget.charge(EXTERNAL_CALLS_PER_FILE);
         outcome =
           attempts > MAX_ATTEMPTS
             ? 'exhausted'
@@ -88,23 +109,27 @@ export async function runMediaImport(deps: MediaImportWorkerDeps, postId: string
                 `tg-import-${row.id}`,
                 Math.min(DOWNLOAD_TIMEOUT_MS, remaining - 2_000)
               );
+        await deps.store.settle(
+          postId,
+          token,
+          row.id,
+          outcome === 'attached' ? { status: 'done' } : { failure: outcome === 'exhausted' ? 'failed' : outcome },
+          downloadToken
+        );
+        released = true;
       } catch (error) {
         deps.onError(error);
         // Order matters (files attach by message id), so a transient failure pauses the whole draft.
         retryAt = deps.clock.now() + RETRY_DELAY_MS;
         return;
       } finally {
-        await deps.store.releaseDownload(downloadToken).catch(deps.onError);
+        if (!released) await deps.store.releaseDownload(downloadToken).catch(deps.onError);
       }
-      await deps.store.settle(
-        postId,
-        token,
-        row.id,
-        outcome === 'attached' ? { status: 'done' } : { failure: outcome === 'exhausted' ? 'failed' : outcome }
-      );
     }
     // Read again: the caption can arrive while the files were downloading.
     await applyAlbumCaption(deps, postId, token);
+    // Not enough left to send it: the report stays unclaimed and Cron sends it.
+    if (deps.budget.remaining() < REPORT_RESERVE) return;
     if (await deps.store.claimReport(postId, deps.clock.now())) {
       try {
         await deps.notify(postId, await deps.store.report(postId));

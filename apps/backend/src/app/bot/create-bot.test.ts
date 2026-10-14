@@ -97,9 +97,10 @@ function harness(overrides: Partial<BotRuntime> = {}): Harness {
         next: () => Promise.resolve(answer('next')),
         status: () => Promise.resolve(answer('status'))
       },
+      publish: { buttons: () => Promise.resolve([]), perform: () => Promise.resolve({ kind: 'busy' }) },
       createDraft: (input, key) => {
         drafts.push({ input, key });
-        return Promise.resolve({ id: `post-${drafts.length}` });
+        return Promise.resolve({ id: `post-${drafts.length}`, revision: 0 });
       },
       rememberAppOrigin: (origin) => {
         origins.push(origin);
@@ -419,7 +420,9 @@ describe('drafts from messages', () => {
         chat_id: 4242,
         text: 'Черновик создан',
         reply_markup: {
-          inline_keyboard: [[{ text: 'Открыть', web_app: { url: 'https://studio.example.com/posts/post-1' } }]]
+          inline_keyboard: [
+            [{ text: 'Открыть в Студии', web_app: { url: 'https://studio.example.com/posts/post-1/publish' } }]
+          ]
         }
       }
     });

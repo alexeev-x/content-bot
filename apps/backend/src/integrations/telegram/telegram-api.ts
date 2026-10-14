@@ -1,6 +1,6 @@
 import type { PostEntity } from '@alexeev/contracts';
 import { Api, InputFile } from 'grammy';
-import type { InputMediaPhoto, InputMediaVideo } from '@grammyjs/types';
+import type { InlineKeyboardMarkup, InputMediaPhoto, InputMediaVideo } from '@grammyjs/types';
 
 // The one call publishing needs, typed with the platform's AbortSignal. The text goes out as plain text with
 // explicit entities and never with a parse_mode: nothing in a post can be read as markup.
@@ -133,6 +133,12 @@ export interface TelegramOwnerMessageApi {
     input: { html: string; button: { text: string; url: string } },
     signal: AbortSignal
   ): Promise<unknown>;
+  /** The same notice with a ready inline keyboard (callback and web_app buttons). */
+  sendMessageWithKeyboard(
+    chatId: string,
+    input: { html: string; markup: InlineKeyboardMarkup },
+    signal: AbortSignal
+  ): Promise<unknown>;
   sendMediaWithWebAppButton(
     chatId: string,
     input: {
@@ -185,6 +191,13 @@ export function createTelegramOwnerMessageApi(token: string): TelegramOwnerMessa
           link_preview_options: { is_disabled: true },
           reply_markup: { inline_keyboard: [[{ text: button.text, web_app: { url: button.url } }]] }
         },
+        signal as never
+      ),
+    sendMessageWithKeyboard: (chatId, { html, markup }, signal) =>
+      api.sendMessage(
+        chatId,
+        html,
+        { parse_mode: 'HTML', link_preview_options: { is_disabled: true }, reply_markup: markup },
         signal as never
       ),
     sendMediaWithWebAppButton: (chatId, { kind, fileName, body, html, button }, signal) => {

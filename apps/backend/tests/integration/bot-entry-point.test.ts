@@ -125,7 +125,10 @@ describe('a text from the owner becomes a draft', () => {
     const postId = rows.results[0]?.id ?? '';
     expect(replies).toHaveLength(1);
     expect(replies[0]).toMatchObject({ chat_id: Number(OWNER_ID), text: 'Черновик создан' });
-    expect(buttonOf(replies[0])).toEqual({ text: 'Открыть', web_app: { url: `${ORIGIN}/posts/${postId}` } });
+    expect(buttonOf(replies[0])).toEqual({
+      text: 'Открыть в Студии',
+      web_app: { url: `${ORIGIN}/posts/${postId}/publish` }
+    });
     const audit = await testDb()
       .prepare("SELECT actor_telegram_id FROM audit_log WHERE entity_id = ?1 AND action = 'post.create'")
       .bind(postId)

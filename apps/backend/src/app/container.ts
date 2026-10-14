@@ -15,6 +15,7 @@ import {
   type SettingsRepository
 } from '../modules/settings';
 import { type Clock, systemClock } from '../platform/clock';
+import { meterD1, type QueryBudget } from '../platform/d1-budget';
 import { createIdempotencyStore } from '../platform/idempotency/d1-idempotency-store';
 import {
   createD1DashboardRepository,
@@ -48,6 +49,7 @@ import {
 } from '../integrations/telegram/telegram-api';
 import { type BotIdentityStore, createD1BotIdentityStore } from './bot/bot-identity-store';
 import { createD1MediaImportStore, type MediaImportStore } from './bot/media-import-store';
+import { createD1PublishActionStore, type PublishActionStore } from './bot/publish-action-store';
 import { createD1UpdateDedup, type UpdateDedup } from './bot/update-dedup';
 import { createD1SystemState, type SystemStateStore } from './system-state';
 import { purgeExpiredPlatformRows, purgeOperationalRows } from '../platform/housekeeping/d1-purge';
@@ -81,6 +83,8 @@ import { createD1AutomationRepository, type AutomationRepository } from '../modu
 // (repositories, transports); nothing is registered here before it exists.
 export interface Container {
   clock: Clock;
+  /** What this invocation has spent on D1 so far (the Free plan allows 50 subrequests per invocation). */
+  queryBudget: QueryBudget;
   logger: Logger;
   sessions: SessionStore;
   rateLimiter: RateLimiter;
@@ -125,6 +129,8 @@ export interface Container {
   botToken: string | null;
   /** Files the owner sent to the bot, waiting to be imported into their draft (migration 0034). */
   mediaImports: MediaImportStore;
+  /** The bot's «publish now» buttons (migration 0035). */
+  publishActions: PublishActionStore;
   /** Webhook update ids already seen (migration 0009): a replayed update is not processed twice. */
   webhookUpdates: UpdateDedup;
   /** Polls the two fixed official Dota feeds and persists deduped source items. */
@@ -202,12 +208,14 @@ function configuredBotId(raw: string | undefined): number | null {
 export function createContainer(env: ContainerEnv, overrides: ContainerOverrides = {}): Container {
   // A token that is only whitespace (a pasted secret with a stray newline) is no token.
   const botToken = (): string => (env.TELEGRAM_BOT_TOKEN ?? '').trim();
+  const metered = env.DB === undefined ? null : meterD1(env.DB);
   const db = (): D1Database => {
-    if (env.DB === undefined) throw new AppError('UNAVAILABLE', 'Database is not configured');
-    return env.DB;
+    if (metered === null) throw new AppError('UNAVAILABLE', 'Database is not configured');
+    return metered.db;
   };
   return {
     clock: overrides.clock ?? systemClock,
+    queryBudget: metered?.budget ?? { limit: 0, used: () => 0, remaining: () => 0, charge: () => undefined },
     logger: createLogger(),
     get sessions() {
       return createD1SessionStore(db());
@@ -339,6 +347,9 @@ export function createContainer(env: ContainerEnv, overrides: ContainerOverrides
     },
     get mediaImports(): MediaImportStore {
       return createD1MediaImportStore(db(), overrides.newId ?? (() => crypto.randomUUID()));
+    },
+    get publishActions(): PublishActionStore {
+      return createD1PublishActionStore(db());
     },
     get webhookUpdates(): UpdateDedup {
       return createD1UpdateDedup(db());

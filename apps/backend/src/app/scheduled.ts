@@ -8,6 +8,7 @@ import { dispatchDueJobs, type RaisedIncident, reconcileExpiredJobs } from '../m
 import type { Container } from './container';
 import { ALBUM_SETTLE_MS, CRON_IMPORT_BUDGET_MS, CRON_IMPORT_POSTS } from './bot/media-import-worker';
 import { createMediaImportRunner } from './bot/media-import-runner';
+import { ACTION_TTL_MS } from './bot/publish-actions';
 import { alertOwnerOfIncidents } from './notifications/alert-owner-of-incidents';
 import { getOwnerOperationsSettings } from '../modules/settings';
 import { processDotaUpdates } from './workflows/process-dota-updates';
@@ -18,6 +19,8 @@ import { DotaHeroStatisticsError } from '../modules/dota-hero-statistics';
 
 // Per table and per hourly tick; leftovers wait for the next hour.
 export const CLEANUP_LIMIT = 100;
+// The heartbeat upsert plus slack for the final log line's bookkeeping.
+const HEARTBEAT_RESERVE = 3;
 // The tick of this UTC minute purges expired archived posts (cleanup runs at minute 0).
 const PURGE_MINUTE = 30;
 // Ended sessions stay this long for diagnosis before they are deleted.
@@ -51,7 +54,12 @@ type TickContainer = Pick<
   | 'idempotency'
   | 'postSummaries'
   | 'mediaImports'
+  | 'queryBudget'
   | 'botToken'
+  | 'publications'
+  | 'destinations'
+  | 'postSource'
+  | 'publishActions'
 >;
 
 // Cron entry point, once a minute (docs/BACKEND_ARCHITECTURE.md §5). Ticks may overlap or repeat:
@@ -68,7 +76,7 @@ type TickContainer = Pick<
 //      (best effort, nothing is retried; a tick without incidents spends nothing here)
 //   7. dota watch: on five-minute UTC boundaries after publication work, only when that tick was idle and
 //      not on the hourly housekeeping ticks; bounded work leaves the publishing D1 budget untouched
-//   7b. bot media import: leftovers of the owner's files sent to the bot (idle ticks only, bounded posts and time, after the alerts)
+//   8a. bot media import: leftovers of the files the owner sent to the bot (idle ticks only, last, on what the tick has left)
 //   8. heartbeat: one upsert that records this run for the owner's /status
 export async function handleScheduled(controller: ScheduledController, container: TickContainer): Promise<void> {
   const { clock, logger } = container;
@@ -192,11 +200,13 @@ export async function handleScheduled(controller: ScheduledController, container
       const operational = idle
         ? await container.housekeeping.purgeOperational({ now, limit })
         : { jobAttempts: 0, resolvedIncidents: 0, auditRows: 0 };
+      const botPublishActions = idle ? await container.publishActions.purgeOlderThan(now - ACTION_TTL_MS, limit) : 0;
       const dotaHeroStatsSnapshots = idle ? await container.dotaHeroStatistics.purgeExpiredSnapshots(now, limit) : 0;
       const automationRuns = idle ? await container.automations.purgeHistory(now, limit) : 0;
       return {
         purgedIdempotencyKeys: platform.idempotencyKeys,
         purgedRateLimits: platform.rateLimits,
+        purgedBotPublishActions: botPublishActions,
         purgedSignIns: identity.signIns,
         purgedSessions: identity.sessions,
         purgedJobAttempts: operational.jobAttempts,
@@ -218,20 +228,6 @@ export async function handleScheduled(controller: ScheduledController, container
     logger
   });
   Object.assign(counts, { alertsSent: alerts.sent, alertsFailed: alerts.failed });
-
-  // After the owner's alerts, so a slow download never delays them. Files the owner sent to the bot that the webhook's own run left behind (an expired lease, a paused retry).
-  // Bounded by posts and time; only on ticks that dispatched nothing, and then one indexed read.
-  if (container.botToken && (counts.due ?? 0) === 0 && raised.length === 0) {
-    const token = container.botToken;
-    await step('bot-media-import', async () => {
-      const runner = createMediaImportRunner(container, {
-        token,
-        requestId: 'scheduled',
-        readAppOrigin: () => container.systemState.readAppOrigin()
-      });
-      return { botMediaImports: await runner.runDue(CRON_IMPORT_BUDGET_MS, CRON_IMPORT_POSTS, ALBUM_SETTLE_MS) };
-    });
-  }
 
   // Run after the publication pipeline and its alerts: automation work never delays dispatch or
   // changes publication state. Expired automation leases are visible as unknown and never retried.
@@ -375,6 +371,23 @@ export async function handleScheduled(controller: ScheduledController, container
         });
         throw error;
       }
+    });
+  }
+
+  // Last before the heartbeat: the import spends only what the tick has left (its budget counts every
+  // earlier step) and keeps HEARTBEAT_RESERVE free, so dota-watch or the heartbeat is never cut off by the
+  // Free plan's 50-subrequest limit. After the owner's alerts, so a slow download never delays them. Files the owner sent to the bot that the webhook's own run left behind (an expired lease, a paused retry).
+  // Bounded by posts and time; only on ticks that dispatched nothing, and then one indexed read.
+  if (container.botToken && (counts.due ?? 0) === 0 && raised.length === 0) {
+    const token = container.botToken;
+    await step('bot-media-import', async () => {
+      const runner = createMediaImportRunner(container, {
+        token,
+        requestId: 'scheduled',
+        readAppOrigin: () => container.systemState.readAppOrigin(),
+        reserve: HEARTBEAT_RESERVE
+      });
+      return { botMediaImports: await runner.runDue(CRON_IMPORT_BUDGET_MS, CRON_IMPORT_POSTS, ALBUM_SETTLE_MS) };
     });
   }
 

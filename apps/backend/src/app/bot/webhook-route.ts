@@ -8,6 +8,7 @@ import type { AppBindings } from '../env';
 import { appOriginOf } from './app-origin';
 import { createBot, loadBotSetup } from './create-bot';
 import { createMediaImportRunner } from './media-import-runner';
+import { createPublishActions } from './publish-actions';
 import { WEBHOOK_IMPORT_BUDGET_MS } from './media-import-worker';
 import { createOwnerReports } from './owner-reports';
 import { getOwnerOperationsSettings } from '../../modules/settings';
@@ -84,8 +85,15 @@ export const telegramWebhook = new Hono<AppBindings>().post(
         requestId,
         readAppOrigin: () => Promise.resolve(appOrigin)
       });
+    const publish = createPublishActions(container, {
+      actor,
+      requestId,
+      timezone: async () =>
+        (await getOwnerOperationsSettings({ repo: container.settings, logger: container.logger, requestId })).timezone
+    });
     const bot = createBot(config, {
       appOrigin,
+      publish,
       clock: container.clock,
       updates: { claim: (updateId, now) => container.webhookUpdates.claim(updateId, now) },
       reports: {

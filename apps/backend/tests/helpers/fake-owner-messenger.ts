@@ -1,9 +1,12 @@
+import type { InlineKeyboardMarkup } from 'grammy/types';
 import type { TelegramOwnerMessageApi } from '../../src/integrations/telegram/telegram-api';
 
 export interface SentOwnerMessage {
   chatId: string;
   html: string;
   button: { text: string; url: string };
+  /** Set when the notice went out with a ready keyboard; `button` is then its web_app button, if any. */
+  markup?: InlineKeyboardMarkup;
 }
 
 export interface SentOwnerMediaMessage extends SentOwnerMessage {
@@ -26,6 +29,21 @@ export function fakeOwnerMessenger(options: { fail?: () => unknown; hang?: boole
     sentMedia,
     sendMessageWithWebAppButton(chatId, { html, button }, signal) {
       sent.push({ chatId, html, button });
+      if (options.hang === true) {
+        return new Promise((_resolve, reject) => {
+          signal.addEventListener('abort', () => reject(new Error('aborted')));
+        });
+      }
+      return options.fail === undefined ? Promise.resolve(true) : Promise.reject(options.fail());
+    },
+    sendMessageWithKeyboard(chatId, { html, markup }, signal) {
+      const web = markup.inline_keyboard.flat().find((button) => 'web_app' in button);
+      sent.push({
+        chatId,
+        html,
+        markup,
+        button: web !== undefined && 'web_app' in web ? { text: web.text, url: web.web_app.url } : { text: '', url: '' }
+      });
       if (options.hang === true) {
         return new Promise((_resolve, reject) => {
           signal.addEventListener('abort', () => reject(new Error('aborted')));

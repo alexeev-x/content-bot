@@ -1,7 +1,8 @@
 import type { BotSetting, CreatePostInput } from '@alexeev/contracts';
 import { POST_BODY_MAX } from '@alexeev/contracts';
-import { Bot, type Context, InlineKeyboard, type NextFunction } from 'grammy';
+import { Bot, type Context, GrammyError, InlineKeyboard, type NextFunction } from 'grammy';
 import type { Message, UserFromGetMe } from 'grammy/types';
+import type { PublicationStatus } from '@alexeev/contracts';
 import { AppError } from '../../shared/app-error';
 import type { Clock } from '../../platform/clock';
 import type { Logger } from '../../platform/logging/logger';
@@ -13,6 +14,8 @@ import type { BotIdentityStore } from './bot-identity-store';
 import { draftFromCaption, draftFromMessageText, mediaOnlyDraft } from './draft-from-message';
 import { type BotMediaFile, mediaLimit } from './media-import';
 import { ALBUM_SETTLE_MS } from './media-import-worker';
+import { CALLBACK_PREFIX, type PublishActions, type PublishOutcome } from './publish-actions';
+import { publishKeyboard } from './publish-keyboard';
 import { configureOwnerChat } from './owner-chat';
 import type { OwnerReply, OwnerReports } from './owner-reports';
 import type { TelegramCaller } from './telegram-call';
@@ -106,8 +109,6 @@ function ownerOnly(ownerId: number) {
   };
 }
 
-const OPEN_BUTTON_TEXT = 'Открыть';
-
 export interface BotRuntime {
   /** This Worker's public origin: where the studio button points. */
   appOrigin: string;
@@ -117,7 +118,9 @@ export interface BotRuntime {
   /** The answers of /today, /next and /status. */
   reports: OwnerReports;
   /** Stores a draft post; a repeated key returns the same post. Throws `AppError` or a D1 error. */
-  createDraft: (input: CreatePostInput, idempotencyKey: string) => Promise<{ id: string }>;
+  createDraft: (input: CreatePostInput, idempotencyKey: string) => Promise<{ id: string; revision: number }>;
+  /** The «publish now» buttons under a draft reply and what a tap does. */
+  publish: PublishActions;
   /** Records the file in D1 (fast) and starts the import after the webhook answered. */
   mediaImports: {
     /** `first` is true for the update that made the draft's import record: the only one that answers. */
@@ -154,6 +157,10 @@ const DRAFT_FAILED_TEXT = 'Не удалось создать черновик. 
 const DRAFT_CREATED_TEXT = 'Черновик создан';
 const MEDIA_DRAFT_CREATED_TEXT = 'Черновик создан, файлы загружаются…';
 const DRAFT_TOO_LONG_TEXT = `Текст длиннее ${POST_BODY_MAX} символов, черновик не создан.`;
+const CHANGED_TEXT = 'Пост изменился — откройте в Студии';
+const IMPORTING_TEXT = 'Файлы ещё загружаются — дождитесь отчёта или откройте в Студии';
+const DUPLICATE_TEXT = 'Уже в очереди или опубликовано в этом канале — откройте в Студии';
+const EXPIRED_TEXT = 'Кнопка устарела, откройте в Студии';
 const UNSUPPORTED_TEXT = 'Этот тип сообщения пока не превращается в черновик';
 const DRAFT_INVALID_TEXT = 'Текст содержит недопустимые символы, черновик не создан.';
 
@@ -242,9 +249,14 @@ export function createBot(config: BotConfig, runtime: BotRuntime): Bot {
   );
 
   // Whatever the owner sends or forwards becomes a draft. An unknown command is not a post.
-  const openButton = (postId: string) => ({
-    reply_markup: new InlineKeyboard().webApp(OPEN_BUTTON_TEXT, `${runtime.appOrigin}/posts/${postId}`)
-  });
+  const draftReplyOptions = async (post: { id: string; revision: number }) => {
+    const markup = publishKeyboard({
+      appOrigin: runtime.appOrigin,
+      postId: post.id,
+      buttons: await runtime.publish.buttons(post)
+    });
+    return markup === undefined ? {} : { reply_markup: markup };
+  };
 
   bot.on('message:text', async (ctx) => {
     if (ctx.message.entities?.some((entity) => entity.type === 'bot_command' && entity.offset === 0)) return;
@@ -253,7 +265,7 @@ export function createBot(config: BotConfig, runtime: BotRuntime): Bot {
       await ctx.reply(draft.reason === 'TOO_LONG' ? DRAFT_TOO_LONG_TEXT : DRAFT_INVALID_TEXT);
       return;
     }
-    let post: { id: string };
+    let post: { id: string; revision: number };
     try {
       // The update id as the key: a replay that slipped past the dedup still cannot create a second draft.
       post = await runtime.createDraft(draft.input, `tg-update-${ctx.update.update_id}`);
@@ -262,7 +274,7 @@ export function createBot(config: BotConfig, runtime: BotRuntime): Bot {
       await ctx.reply(DRAFT_FAILED_TEXT);
       return;
     }
-    await ctx.reply(DRAFT_CREATED_TEXT, openButton(post.id));
+    await ctx.reply(DRAFT_CREATED_TEXT, await draftReplyOptions(post));
   });
 
   // A photo, video or GIF with its caption. An album arrives as one update per file sharing a
@@ -281,7 +293,7 @@ export function createBot(config: BotConfig, runtime: BotRuntime): Bot {
       return;
     }
     const draft = parsed.ok ? parsed : { ok: true as const, input: mediaOnlyDraft() };
-    let post: { id: string };
+    let post: { id: string; revision: number };
     let first: boolean;
     try {
       post =
@@ -304,13 +316,17 @@ export function createBot(config: BotConfig, runtime: BotRuntime): Bot {
     // Registered before the reply: if the reply fails, the file is still imported.
     runtime.mediaImports.start(post.id, albumId === undefined ? 0 : ALBUM_SETTLE_MS);
     // One answer per draft: the others of an album stay silent.
-    if (first) await ctx.reply(MEDIA_DRAFT_CREATED_TEXT, openButton(post.id));
+    // No publish buttons here: the files are not attached yet, and the report that follows carries them.
+    if (first) {
+      const markup = publishKeyboard({ appOrigin: runtime.appOrigin, postId: post.id, buttons: [] });
+      await ctx.reply(MEDIA_DRAFT_CREATED_TEXT, markup === undefined ? {} : { reply_markup: markup });
+    }
   });
 
   // The album's first update makes the draft; the others find it by the same key. The payload is fixed
   // (the caption is applied afterwards), so concurrent updates agree on one draft. One that meets the first
   // still writing waits a moment and asks again.
-  async function createAlbumDraft(albumId: string): Promise<{ id: string }> {
+  async function createAlbumDraft(albumId: string): Promise<{ id: string; revision: number }> {
     for (let attempt = 1; ; attempt += 1) {
       try {
         return await runtime.createDraft(mediaOnlyDraft(), `tg-album-${albumId}`);
@@ -321,6 +337,26 @@ export function createBot(config: BotConfig, runtime: BotRuntime): Bot {
       }
     }
   }
+
+  // A tap on «publish now». Answered first (Telegram shows a spinner until then); the work follows and
+  // the result is written into the message itself. The bot never sends: it asks for a publication.
+  bot.callbackQuery(new RegExp(`^${CALLBACK_PREFIX}([A-Za-z0-9]{8,32})$`), async (ctx) => {
+    await ctx.answerCallbackQuery().catch((error: unknown) => runtime.onError(error));
+    const outcome = await runtime.publish.perform(ctx.match[1] ?? '');
+    if (outcome.kind === 'busy') return;
+    const { text, postId } = outcomeText(outcome);
+    const markup = postId === null ? undefined : publishKeyboard({ appOrigin: runtime.appOrigin, postId, buttons: [] });
+    try {
+      await ctx.editMessageText(text, {
+        parse_mode: 'HTML',
+        link_preview_options: { is_disabled: true },
+        ...(markup === undefined ? {} : { reply_markup: markup })
+      });
+    } catch (error) {
+      // A repeated tap writes the same text again; Telegram calls that an error, it is not one.
+      if (!(error instanceof GrammyError && error.description.includes('message is not modified'))) throw error;
+    }
+  });
 
   // Stickers, voice, documents and the rest: said once, no draft. Service messages (such as
   // `write_access_allowed`) carry none of these, so they get no answer.
@@ -375,4 +411,36 @@ function mediaFileOf(message: Message): BotMediaFile | null {
     mimeType: media.mime_type ?? null,
     size: media.file_size ?? null
   };
+}
+
+// What the server says about the publication, never more: «Опубликовано» is the dispatcher's word and is
+// not used here at all.
+const STATUS_LABEL: Record<PublicationStatus, string> = {
+  scheduled: 'Поставлено в очередь',
+  queued: 'Поставлено в очередь',
+  preparing: 'Готовится к отправке',
+  sending: 'Отправляется',
+  retry_wait: 'Ожидает повторной отправки',
+  sent: 'Отправлено',
+  failed: 'Не отправлено',
+  unknown: 'Результат неизвестен, проверьте в Студии',
+  cancelled: 'Отменено'
+};
+
+const escapeHtml = (value: string): string =>
+  value.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;');
+
+function outcomeText(outcome: Exclude<PublishOutcome, { kind: 'busy' }>): { text: string; postId: string | null } {
+  switch (outcome.kind) {
+    case 'queued':
+      return { text: `${STATUS_LABEL[outcome.status]}: ${escapeHtml(outcome.channelTitle)}`, postId: outcome.postId };
+    case 'changed':
+      return { text: CHANGED_TEXT, postId: outcome.postId };
+    case 'importing':
+      return { text: IMPORTING_TEXT, postId: outcome.postId };
+    case 'duplicate':
+      return { text: DUPLICATE_TEXT, postId: outcome.postId };
+    case 'expired':
+      return { text: EXPIRED_TEXT, postId: outcome.postId };
+  }
 }
