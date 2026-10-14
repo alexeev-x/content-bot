@@ -68,12 +68,6 @@ import {
   type DotaWatcherRepository
 } from '../modules/dota';
 import { createD1DotaWatchlists } from '../modules/dota-watchlists';
-import {
-  createD1DotaHeroStatisticsRepository,
-  createDotaHeroStatisticsService,
-  type DotaHeroStatisticsService
-} from '../modules/dota-hero-statistics';
-import { createOpenDotaHeroStatisticsFetcher } from '../integrations/opendota/hero-statistics';
 import { createD1AutomationRepository, type AutomationRepository } from '../modules/automations';
 import { type ActivityRepository, createD1ActivityRepository } from '../modules/activity';
 
@@ -141,8 +135,6 @@ export interface Container {
   /** «Источники»: the events read model and hide flag over the Dota update items. */
   sourceEvents: SourceEventsRepository;
   dotaWatchlists: ReturnType<typeof createD1DotaWatchlists>;
-  /** Persisted OpenDota hero observations; reads never fetch upstream. */
-  dotaHeroStatistics: DotaHeroStatisticsService;
   /** Owner-visible history and conditional control for fixed Dota recurring work. */
   automations: AutomationRepository;
   housekeeping: {
@@ -185,8 +177,6 @@ export interface ContainerOverrides {
   /** Replaces the fixed-host feed fetcher for deterministic Cron tests. */
   dotaFetcher?: DotaSourceFetcher;
   dotaRepository?: DotaWatcherRepository;
-  dotaHeroStatistics?: DotaHeroStatisticsService;
-  dotaHeroStatisticsFetcher?: () => Promise<Response>;
   /** Replaces the watcher when a test is focused on unrelated scheduled work. */
   dotaWatcher?: Container['dotaWatcher'];
 }
@@ -381,14 +371,6 @@ export function createContainer(env: ContainerEnv, overrides: ContainerOverrides
     },
     get dotaWatchlists() {
       return createD1DotaWatchlists(db());
-    },
-    get dotaHeroStatistics() {
-      if (overrides.dotaHeroStatistics !== undefined) return overrides.dotaHeroStatistics;
-      const fetchHeroStatistics = overrides.dotaHeroStatisticsFetcher ?? createOpenDotaHeroStatisticsFetcher();
-      return createDotaHeroStatisticsService({
-        repo: createD1DotaHeroStatisticsRepository(db()),
-        fetch: fetchHeroStatistics
-      });
     },
     get automations() {
       return createD1AutomationRepository(db());

@@ -25,7 +25,7 @@ describe('Automation Center API', () => {
     expect((await api.request('/api/v1/automations', { token: 'foreign-automation-token' })).status).toBe(403);
     expect((await api.request('/api/v1/automations/dota-intelligence')).status).toBe(200);
     const list = automationListSchema.parse(await (await api.request('/api/v1/automations')).json());
-    expect(list.items.map((item) => item.id)).toEqual(['dota-hero-statistics', 'dota-intelligence']);
+    expect(list.items.map((item) => item.id)).toEqual(['dota-intelligence']);
     expect(list.items.every((item) => item.enabled && item.runNowAllowed)).toBe(true);
     expect(
       automationSummarySchema.parse(await (await api.request('/api/v1/automations/dota-intelligence')).json())
@@ -58,34 +58,16 @@ describe('Automation Center API', () => {
     const repo = createD1AutomationRepository(testDb());
     const retryAt = START + 5 * 60_000;
     await repo.enqueueScheduled({
-      id: 'dota-hero-statistics',
+      id: 'dota-intelligence',
       slot: retryAt,
       requestedAt: START,
       newId: () => crypto.randomUUID()
     });
 
-    expect(await repo.claimNext({ id: 'dota-hero-statistics', now: retryAt - 1, dueOnly: true })).toBeNull();
-    expect(await repo.claimNext({ id: 'dota-hero-statistics', now: retryAt, dueOnly: true })).toMatchObject({
+    expect(await repo.claimNext({ id: 'dota-intelligence', now: retryAt - 1, dueOnly: true })).toBeNull();
+    expect(await repo.claimNext({ id: 'dota-intelligence', now: retryAt, dueOnly: true })).toMatchObject({
       scheduledAt: new Date(retryAt).toISOString()
     });
-  });
-
-  it('shows a waiting backoff retry as idle with its time as the next run', async () => {
-    const repo = createD1AutomationRepository(testDb());
-    const retryAt = START + 45 * 60_000;
-    await repo.enqueueScheduled({
-      id: 'dota-hero-statistics',
-      slot: retryAt,
-      requestedAt: START,
-      newId: () => crypto.randomUUID()
-    });
-
-    expect(await repo.get('dota-hero-statistics', START)).toMatchObject({
-      executionState: 'idle',
-      activeRunId: null,
-      nextRunAt: new Date(retryAt).toISOString()
-    });
-    expect((await repo.get('dota-hero-statistics', retryAt))?.executionState).toBe('queued');
   });
 
   it('pauses only future runs, skips queued work, checks revision, and replays the accepted command', async () => {
@@ -254,25 +236,6 @@ describe('Automation Center API', () => {
       .bind('dota-intelligence')
       .all<{ detail: string }>();
     expect(claimPlan.results.some((row) => row.detail.includes('automation_runs_history_idx'))).toBe(true);
-  });
-
-  it('does not let run-now poll the hero source again within five minutes', async () => {
-    const api = createApi({ clock: fakeClock(START) });
-    await testDb()
-      .prepare('INSERT INTO dota_hero_stats_state (id, last_attempt_at) VALUES (1, ?1)')
-      .bind(START - 2 * 60_000)
-      .run();
-    const summary = automationSummarySchema.parse(
-      await (await api.request('/api/v1/automations/dota-hero-statistics')).json()
-    );
-    expect(summary.runNowAllowed).toBe(false);
-    const response = await api.request('/api/v1/automations/dota-hero-statistics/run-now', {
-      method: 'POST',
-      headers: { 'idempotency-key': 'hero-run-too-soon' },
-      json: {}
-    });
-    expect(response.status).toBe(409);
-    expect(apiErrorSchema.parse(await response.json()).error.details).toMatchObject({ reason: 'RUN_NOT_DUE' });
   });
 
   it('does not let run-now bypass the five-minute Dota polling cadence', async () => {

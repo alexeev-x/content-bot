@@ -84,7 +84,7 @@ export function SourceFeed({ filters, timezone, onFiltersChange }: Props) {
   const hiddenConflict = actionError instanceof ApiError && actionError.reason === 'EVENT_HIDDEN';
   const toolbar = (
     <div className={styles.toolbar}>
-      {/* A compact select on every screen: the page already has one row of tabs (Лента / Статистика героев). */}
+      {/* A compact select on every screen: the status is the only filter of the feed. */}
       <Select
         label="Статус"
         inlineLabel

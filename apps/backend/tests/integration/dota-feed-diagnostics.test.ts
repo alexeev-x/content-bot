@@ -5,13 +5,6 @@ import {
   syncDotaUpdates,
   type DotaSourceFetcher
 } from '../../src/modules/dota';
-import {
-  createD1DotaHeroStatisticsRepository,
-  createDotaHeroStatisticsService,
-  DotaHeroStatisticsError
-} from '../../src/modules/dota-hero-statistics';
-import { createOpenDotaHeroStatisticsFetcher } from '../../src/integrations/opendota/hero-statistics';
-import heroStatsFixture from '../fixtures/opendota-herostats.json';
 import patchListFixture from '../fixtures/dota-patchnoteslist.json';
 import steamNewsFixture from '../fixtures/steam-news.json';
 import { testDb } from '../helpers/db';
@@ -32,13 +25,7 @@ function fetcherFor(responses: { steam: () => Response; patches: () => Response 
 // stub builds a real Request instead of accepting any init.
 const runtimeFetch: typeof fetch = (input, init) => {
   const request = new Request(input, init);
-  return Promise.resolve(
-    request.url.includes('steampowered')
-      ? json(steamNewsFixture)
-      : request.url.includes('patchnoteslist')
-        ? json(patchListFixture)
-        : json(heroStatsFixture)
-  );
+  return Promise.resolve(request.url.includes('steampowered') ? json(steamNewsFixture) : json(patchListFixture));
 };
 
 async function sourceRow(key: string) {
@@ -178,71 +165,5 @@ describe('dota feed sync with real-shaped payloads', () => {
       lastSuccessAt: null
     });
     expect(sources.find((source) => source.key === 'patch_notes')?.lastError).toBeNull();
-  });
-});
-
-describe('hero statistics poll', () => {
-  const newId = () => crypto.randomUUID();
-  const heroRow = () =>
-    testDb()
-      .prepare(
-        'SELECT last_error_code, last_error_kind, last_error_http_status, last_error_detail, consecutive_failures FROM dota_hero_stats_state WHERE id = 1'
-      )
-      .first<Record<string, string | number | null>>();
-
-  it('stores a real-shaped response fetched with a runtime-valid RequestInit', async () => {
-    const service = createDotaHeroStatisticsService({
-      repo: createD1DotaHeroStatisticsRepository(testDb()),
-      fetch: createOpenDotaHeroStatisticsFetcher(runtimeFetch)
-    });
-    expect(await service.poll({ now: T0, newId })).toEqual({ status: 'stored', heroCount: 3 });
-    const dto = await service.get(T0 + 1000);
-    expect(dto.health).toBe('healthy');
-    expect(dto.lastError).toBeNull();
-  });
-
-  it('keeps the status and detail of a redirect or error response and counts failures', async () => {
-    const service = createDotaHeroStatisticsService({
-      repo: createD1DotaHeroStatisticsRepository(testDb()),
-      fetch: () => Promise.resolve(new Response(null, { status: 302, headers: { location: 'https://example.com' } }))
-    });
-    await expect(service.poll({ now: T0, newId })).rejects.toBeInstanceOf(DotaHeroStatisticsError);
-    await expect(service.poll({ now: T0 + 7 * 3600_000, newId })).rejects.toBeInstanceOf(DotaHeroStatisticsError);
-    const dto = await service.get(T0 + 7 * 3600_000 + 1000);
-    expect(dto.health).toBe('degraded');
-    expect(dto.lastErrorCode).toBe('DOTA_HERO_STATS_HTTP');
-    expect(dto.lastError).toMatchObject({
-      code: 'DOTA_HERO_STATS_HTTP',
-      httpStatus: 302,
-      detail: 'HTTP 302 Found',
-      consecutiveFailures: 2,
-      lastSuccessAt: null
-    });
-  });
-
-  it('names the failing field of a shape change', async () => {
-    const service = createDotaHeroStatisticsService({
-      repo: createD1DotaHeroStatisticsRepository(testDb()),
-      fetch: () => Promise.resolve(json([{ id: 1, localized_name: 5 }]))
-    });
-    await expect(service.poll({ now: T0, newId })).rejects.toMatchObject({ code: 'DOTA_HERO_STATS_SHAPE' });
-    expect((await heroRow())?.last_error_detail).toContain('0.localized_name');
-  });
-
-  it('reports a failed D1 write as STORE', async () => {
-    const real = createD1DotaHeroStatisticsRepository(testDb());
-    const service = createDotaHeroStatisticsService({
-      repo: { ...real, storeSnapshot: () => Promise.reject(new Error('D1_ERROR: disk I/O error')) },
-      fetch: () => Promise.resolve(json(heroStatsFixture))
-    });
-    await expect(service.poll({ now: T0, newId })).rejects.toThrow('disk I/O error');
-    expect(await heroRow()).toMatchObject({
-      last_error_code: null,
-      last_error_kind: 'DOTA_HERO_STATS_STORE',
-      consecutive_failures: 1
-    });
-    const dto = await service.get(T0 + 1000);
-    expect(dto.health).toBe('degraded');
-    expect(dto.lastError?.code).toBe('DOTA_HERO_STATS_STORE');
   });
 });

@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { pageQuerySchema, pageSchema } from './pagination';
 
-export const automationIdSchema = z.enum(['dota-intelligence', 'dota-hero-statistics']);
+export const automationIdSchema = z.enum(['dota-intelligence']);
 export type AutomationId = z.infer<typeof automationIdSchema>;
 
 export const automationHealthSchema = z.enum(['healthy', 'stale', 'degraded', 'unverified']);
@@ -16,12 +16,7 @@ export type AutomationRunStatus = z.infer<typeof automationRunStatusSchema>;
 export const automationRunOriginSchema = z.enum(['scheduled', 'manual']);
 export type AutomationRunOrigin = z.infer<typeof automationRunOriginSchema>;
 
-export const automationSideEffectSchema = z.enum([
-  'persist_dota_updates',
-  'create_review_draft',
-  'send_private_alert',
-  'persist_hero_snapshot'
-]);
+export const automationSideEffectSchema = z.enum(['persist_dota_updates', 'create_review_draft', 'send_private_alert']);
 
 const utcInstantSchema = z.iso.datetime();
 const nonnegativeCountSchema = z.number().int().nonnegative();

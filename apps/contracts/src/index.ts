@@ -5,7 +5,6 @@ export * from './bot';
 export * from './dashboard';
 export * from './destinations';
 export * from './dota';
-export * from './dota-hero-statistics';
 export * from './dota-watchlists';
 export * from './errors';
 export * from './incidents';

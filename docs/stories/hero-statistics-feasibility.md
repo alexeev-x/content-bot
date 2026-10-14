@@ -1,5 +1,7 @@
 # Hero statistics and Hero Movers MVP
 
+> Removed 14.10.2026 (owner): OpenDota rejects Cloudflare Workers' shared egress IPs with 429, so no snapshot was ever stored; a replacement source is to be discussed. Tables `dota_hero_stats_*` stay unused.
+
 Queue item: 18 (`docs/IMPLEMENTATION_PLAN.md`). Source review checked 2026-10-13. This document records source limits and the bounded first implementation. The source is approved for DEV use under the owner decision below; current data-reuse terms remain unverified and no paid tier or key is approved.
 
 ## Finding

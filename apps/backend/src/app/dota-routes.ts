@@ -1,6 +1,5 @@
 import {
   addDotaWatchlistInputSchema,
-  dotaHeroStatisticsSchema,
   dotaUpdateParamsSchema,
   listDotaIntelligenceQuerySchema
 } from '@alexeev/contracts';
@@ -31,11 +30,6 @@ export const dotaRoutes = new Hono<AppBindings>()
     const detail = await container.dotaRepository.getUpdateDetail(c.req.valid('param'));
     if (detail === null) throw new AppError('NOT_FOUND', 'Dota update not found');
     return c.json(detail);
-  })
-  .get('/hero-statistics', async (c) => {
-    const container = c.get('container');
-    if (c.env.DB === undefined) throw new AppError('UNAVAILABLE', 'Database is not configured');
-    return c.json(dotaHeroStatisticsSchema.parse(await container.dotaHeroStatistics.get(container.clock.now())));
   })
   .get('/watchlists', validated('query', z.strictObject({})), async (c) => {
     const container = c.get('container');

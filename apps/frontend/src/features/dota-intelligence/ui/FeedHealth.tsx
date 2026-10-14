@@ -6,7 +6,6 @@ import { ApiError } from '../../../shared/api/http-client';
 import { useNow } from '../../../shared/lib/use-now';
 import { Button, ConfirmDialog, Disclosure, DisclosureGroup, Spinner, VisuallyHidden } from '../../../shared/ui';
 import { useDotaAutomation, useRunAutomationNow, useSetAutomationPaused } from '../api/dota-automation-queries';
-import { dotaHeroStatisticsQueryOptions } from '../api/dota-hero-statistics-queries';
 import { dotaIntelligenceQueryOptions } from '../api/dota-queries';
 import { DotaTime } from './DotaTime';
 import { FeedErrorDialog } from './FeedErrorDialog';
@@ -54,16 +53,8 @@ function WatcherControls({ onFinished }: { onFinished: () => void }) {
   const run = useRunAutomationNow(id);
   const toggle = useSetAutomationPaused(id);
   const [confirmPause, setConfirmPause] = useState(false);
-  // Hero statistics have their own job (Cron every 6 h, at most every 5 min on demand); the same button re-checks them.
-  const heroes = useDotaAutomation('dota-hero-statistics');
-  const heroesRun = useRunAutomationNow('dota-hero-statistics');
   const automation = watcher.data ?? undefined;
-  const heroesBusy = heroesRun.isPending || (heroes.data != null && heroes.data.executionState !== 'idle');
-  const running = run.isPending || heroesBusy || (automation !== undefined && automation.executionState !== 'idle');
-  const checkNow = () => {
-    run.mutate();
-    if (heroes.data?.enabled && heroes.data.runNowAllowed) heroesRun.mutate();
-  };
+  const running = run.isPending || (automation !== undefined && automation.executionState !== 'idle');
   const wasRunning = useRef(false);
 
   useEffect(() => {
@@ -83,7 +74,7 @@ function WatcherControls({ onFinished }: { onFinished: () => void }) {
         icon="retry"
         isLoading={running}
         isDisabled={paused || !automation.runNowAllowed || toggle.isPending}
-        onPress={checkNow}
+        onPress={() => run.mutate()}
       >
         Проверить сейчас
       </Button>
@@ -128,38 +119,19 @@ type Props = { timezone: string; onChecked?: () => void };
 export function FeedHealth({ timezone, onChecked }: Props) {
   const now = useNow().getTime();
   const sources = useQuery(dotaIntelligenceQueryOptions());
-  const heroes = useQuery(dotaHeroStatisticsQueryOptions());
   const [openFeed, setOpenFeed] = useState<string | null>(null);
   // Same cached queries as the controls: a collapsed panel still shows that a check is running.
   const watcher = useDotaAutomation('dota-intelligence');
-  const heroesJob = useDotaAutomation('dota-hero-statistics');
-  const checking =
-    (watcher.data != null && watcher.data.executionState !== 'idle') ||
-    (heroesJob.data != null && heroesJob.data.executionState !== 'idle');
-  const feeds: Feed[] = [
-    ...(sources.data?.sources ?? []).map((source) => ({
-      id: source.key,
-      name: FEED_NAMES[source.key],
-      provider: PROVIDERS[source.key],
-      error: source.lastError,
-      health: source.health,
-      lastAttemptAt: source.lastAttemptAt,
-      lastSuccessAt: source.lastSuccessAt
-    })),
-    ...(heroes.data
-      ? [
-          {
-            id: 'opendota',
-            name: 'Статистика героев',
-            provider: 'OpenDota',
-            error: heroes.data.lastError,
-            health: heroes.data.health,
-            lastAttemptAt: heroes.data.lastAttemptAt,
-            lastSuccessAt: heroes.data.lastSuccessAt
-          }
-        ]
-      : [])
-  ];
+  const checking = watcher.data != null && watcher.data.executionState !== 'idle';
+  const feeds: Feed[] = (sources.data?.sources ?? []).map((source) => ({
+    id: source.key,
+    name: FEED_NAMES[source.key],
+    provider: PROVIDERS[source.key],
+    error: source.lastError,
+    health: source.health,
+    lastAttemptAt: source.lastAttemptAt,
+    lastSuccessAt: source.lastSuccessAt
+  }));
   if (feeds.length === 0) return null;
   const dots = (
     <span className={styles.dots}>
@@ -220,7 +192,6 @@ export function FeedHealth({ timezone, onChecked }: Props) {
         <WatcherControls
           onFinished={() => {
             void sources.refetch();
-            void heroes.refetch();
             onChecked?.();
           }}
         />

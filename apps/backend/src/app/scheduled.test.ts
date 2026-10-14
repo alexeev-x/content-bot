@@ -28,7 +28,7 @@ function probe(
     failArchive?: boolean;
     failHeartbeat?: boolean;
     due?: string[];
-    manualAutomation?: 'dota-intelligence' | 'dota-hero-statistics';
+    manualAutomation?: 'dota-intelligence';
   } = {}
 ): Probe {
   const lines: Record<string, unknown>[] = [];
@@ -104,17 +104,6 @@ function probe(
       claimAlert: () => Promise.resolve(false),
       finishAlert: () => Promise.resolve(false)
     },
-    dotaHeroStatistics: {
-      get: () => Promise.reject(new Error('unexpected')),
-      purgeExpiredSnapshots: () => {
-        calls.push('purge hero stats snapshots');
-        return Promise.resolve(0);
-      },
-      poll: () => {
-        calls.push('hero stats poll');
-        return Promise.resolve({ status: 'stored' as const, heroCount: 1 });
-      }
-    },
     publishActions: { purgeOlderThan: () => Promise.resolve(0) },
     automations: {
       markExpiredUnknown: () => Promise.resolve(0),
@@ -128,7 +117,6 @@ function probe(
         const isScheduled = scheduledRuns.delete(id);
         const isManual = options.manualAutomation === id;
         if (isScheduled || isManual) {
-          if (isManual && id === 'dota-hero-statistics') calls.push('claim manual hero stats');
           return Promise.resolve({
             id: crypto.randomUUID(),
             automationId: id,
@@ -184,31 +172,12 @@ function probe(
 const controller = (scheduledTime: number) => ({ cron: '* * * * *', scheduledTime }) as ScheduledController;
 
 describe('handleScheduled', () => {
-  it('polls hero statistics only on the six-hour UTC slot when publication work is idle', async () => {
-    const slot = Date.UTC(2027, 0, 1, 0, 15);
-    const idle = probe();
-    const busy = probe({ due: ['job-1'] });
-    const outsideSlot = probe();
-
-    await handleScheduled(controller(slot), idle.container);
-    await handleScheduled(controller(slot), busy.container);
-    await handleScheduled(controller(slot + 60_000), outsideSlot.container);
-
-    expect(idle.calls).toContain('hero stats poll');
-    expect(busy.calls).not.toContain('hero stats poll');
-    expect(outsideSlot.calls).not.toContain('hero stats poll');
-  });
-
   it('executes a queued manual automation on the next idle tick without waiting for its cadence slot', async () => {
     const manualDota = probe({ manualAutomation: 'dota-intelligence' });
-    const manualHero = probe({ manualAutomation: 'dota-hero-statistics' });
 
     await handleScheduled(controller(NOT_HOUR), manualDota.container);
-    await handleScheduled(controller(NOT_HOUR), manualHero.container);
 
     expect(manualDota.calls).toContain('dota sync');
-    expect(manualHero.calls).toContain('claim manual hero stats');
-    expect(manualHero.calls).toContain('hero stats poll');
   });
 
   it('an idle tick reconciles, scans for due jobs and for posts to archive, logs once, and does nothing else', async () => {
@@ -244,7 +213,6 @@ describe('handleScheduled', () => {
       'purge platform',
       'purge sessions',
       'purge operational',
-      'purge hero stats snapshots',
       'heartbeat'
     ]);
   });
@@ -257,7 +225,6 @@ describe('handleScheduled', () => {
     expect(busy.calls).toContain('purge platform');
     expect(busy.calls).toContain('purge sessions');
     expect(busy.calls).not.toContain('purge operational');
-    expect(busy.calls).not.toContain('purge hero stats snapshots');
   });
 
   it('with publishing off it never looks for due jobs', async () => {

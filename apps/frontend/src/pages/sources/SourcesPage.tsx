@@ -40,16 +40,10 @@ export function SourcesPage() {
       <PageHeader
         title={ru.pages.sources}
         focusHeadingOnMount
-        description={search.update ? undefined : 'События Dota 2 и статистика героев'}
+        description={search.update ? undefined : 'События Dota 2'}
       />
       <div hidden={Boolean(search.update)}>
-        <SourcesBoard
-          timezone={timezone}
-          view={search.tab ?? 'feed'}
-          onViewChange={(tab) => void navigate({ search: (previous) => ({ ...previous, tab }), replace: true })}
-          filters={filters}
-          onFiltersChange={onFiltersChange}
-        />
+        <SourcesBoard timezone={timezone} filters={filters} onFiltersChange={onFiltersChange} />
       </div>
       {validUpdate && validSourceKey ? (
         <DotaEventDetail sourceKey={validSourceKey} externalId={externalId} timezone={timezone} />

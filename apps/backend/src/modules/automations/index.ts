@@ -94,25 +94,12 @@ const config = {
     cron: 'Every 5 minutes (UTC)',
     cadenceMinutes: 5,
     sideEffects: ['persist_dota_updates', 'create_review_draft', 'send_private_alert'] as const
-  },
-  'dota-hero-statistics': {
-    cron: 'At 00:15, 06:15, 12:15 and 18:15 (UTC)',
-    cadenceMinutes: 360,
-    sideEffects: ['persist_hero_snapshot'] as const
   }
 } satisfies Record<AutomationId, { cron: string; cadenceMinutes: number; sideEffects: readonly string[] }>;
 
-function scheduleAt(id: AutomationId, now: number): number {
-  if (id === 'dota-intelligence') return Math.ceil(now / (5 * 60_000)) * 5 * 60_000;
-  const start = new Date(now);
-  start.setUTCHours(0, 15, 0, 0);
-  for (const hour of [0, 6, 12, 18]) {
-    const candidate = new Date(start);
-    candidate.setUTCHours(hour);
-    if (candidate.getTime() > now) return candidate.getTime();
-  }
-  start.setUTCDate(start.getUTCDate() + 1);
-  return start.getTime();
+/** The next 5-minute slot of the Dota feeds. */
+function scheduleAt(now: number): number {
+  return Math.ceil(now / (5 * 60_000)) * 5 * 60_000;
 }
 
 async function purgeAutomationHistory(db: D1Database, now: number, limit = HISTORY_LIMIT): Promise<number> {
@@ -176,14 +163,11 @@ export function createD1AutomationRepository(db: D1Database): AutomationReposito
           (SELECT min(waiting.scheduled_at) FROM automation_runs waiting
             WHERE waiting.automation_id = a.id AND waiting.status = 'queued' AND waiting.scheduled_at > ?1) AS retry_at,
           CASE
-            WHEN a.id = 'dota-hero-statistics' AND hero_state.last_attempt_at IS NOT NULL
-              AND hero_state.last_attempt_at > ?1 - 300000 THEN 0
             WHEN a.id = 'dota-intelligence' AND r.status IS NOT NULL AND r.status != 'skipped'
               AND coalesce(r.completed_at, r.started_at, r.requested_at) > ?1 - 300000 THEN 0
             ELSE 1
           END AS run_now_eligible
          FROM automations a
-         LEFT JOIN dota_hero_stats_state hero_state ON hero_state.id = 1
          LEFT JOIN automation_runs r ON r.id = (
            SELECT latest.id FROM automation_runs latest
            WHERE latest.automation_id = a.id
@@ -196,6 +180,8 @@ export function createD1AutomationRepository(db: D1Database): AutomationReposito
              AND NOT (current.status = 'queued' AND current.scheduled_at > ?1)
            ORDER BY current.requested_at, current.id LIMIT 1
          )
+         -- Rows of removed automations (dota-hero-statistics, 14.10.2026) stay in D1 but are not listed.
+         WHERE a.id IN ('dota-intelligence')
          ORDER BY a.id`
       )
       .bind(now)
@@ -237,8 +223,7 @@ export function createD1AutomationRepository(db: D1Database): AutomationReposito
         cron: configEntry.cron,
         cadenceMinutes: configEntry.cadenceMinutes,
         // A backoff retry waiting for its slot is neither the last run nor an active one; it is the next run.
-        nextRunAt:
-          row.enabled === 1 ? iso(Math.min(scheduleAt(id, now), row.retry_at ?? Number.POSITIVE_INFINITY)) : null,
+        nextRunAt: row.enabled === 1 ? iso(Math.min(scheduleAt(now), row.retry_at ?? Number.POSITIVE_INFINITY)) : null,
         health,
         executionState: row.active_status ?? 'idle',
         activeRunId: row.active_run_id,

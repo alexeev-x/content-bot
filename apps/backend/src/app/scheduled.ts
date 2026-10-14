@@ -20,7 +20,6 @@ import { processDotaUpdates } from './workflows/process-dota-updates';
 import { DotaWatchError } from '../modules/dota';
 import { processPostMediaCleanup } from '../modules/content';
 import { sendDotaWatchlistAlerts } from './workflows/process-dota-watchlist-alerts';
-import { DotaHeroStatisticsError } from '../modules/dota-hero-statistics';
 import { notifyOwnerOfDeliveries } from './notifications/sent-notice';
 
 // Per table and per hourly tick; leftovers wait for the next hour.
@@ -55,7 +54,6 @@ type TickContainer = Pick<
   | 'dotaRepository'
   | 'sourceEvents'
   | 'automations'
-  | 'dotaHeroStatistics'
   | 'dotaWatchlists'
   | 'posts'
   | 'idempotency'
@@ -104,13 +102,11 @@ export async function handleScheduled(controller: ScheduledController, container
         operation,
         status: 'error',
         errorCode:
-          error instanceof DotaHeroStatisticsError
-            ? error.code
-            : error instanceof DotaWatchError
-              ? `${error.code}_${error.sourceKey}`
-              : error instanceof Error
-                ? error.name
-                : 'unknown',
+          error instanceof DotaWatchError
+            ? `${error.code}_${error.sourceKey}`
+            : error instanceof Error
+              ? error.name
+              : 'unknown',
         durationMs: clock.now() - stepStartedAt
       });
     }
@@ -210,7 +206,6 @@ export async function handleScheduled(controller: ScheduledController, container
         ? await container.housekeeping.purgeOperational({ now, limit })
         : { jobAttempts: 0, resolvedIncidents: 0, auditRows: 0 };
       const botPublishActions = idle ? await container.publishActions.purgeOlderThan(now - ACTION_TTL_MS, limit) : 0;
-      const dotaHeroStatsSnapshots = idle ? await container.dotaHeroStatistics.purgeExpiredSnapshots(now, limit) : 0;
       const automationRuns = idle ? await container.automations.purgeHistory(now, limit) : 0;
       return {
         purgedIdempotencyKeys: platform.idempotencyKeys,
@@ -221,7 +216,6 @@ export async function handleScheduled(controller: ScheduledController, container
         purgedJobAttempts: operational.jobAttempts,
         purgedResolvedIncidents: operational.resolvedIncidents,
         purgedAuditRows: operational.auditRows,
-        purgedDotaHeroStatsSnapshots: dotaHeroStatsSnapshots,
         purgedAutomationRuns: automationRuns
       };
     });
@@ -266,7 +260,7 @@ export async function handleScheduled(controller: ScheduledController, container
     failures === 0 && (counts.expired ?? 0) === 0 && (counts.due ?? 0) === 0 && raised.length === 0;
   if (publicationIdle) {
     await step('dota-watch', async (): Promise<Record<string, number>> => {
-      // By the minute, like the hero-stats slot: an exact-millisecond check on scheduledTime never matched on DEV
+      // By the minute: an exact-millisecond check on scheduledTime never matched on DEV
       // (the feeds only ran when the owner pressed «Проверить сейчас»).
       if (minute % 5 === 0 && minute !== 0 && minute !== PURGE_MINUTE) {
         await container.automations.enqueueScheduled({
@@ -365,62 +359,6 @@ export async function handleScheduled(controller: ScheduledController, container
           outputCount: 0,
           errorCode: error instanceof DotaWatchError ? `${error.code}_${error.sourceKey}` : 'AUTOMATION_RUN_FAILED'
         });
-        throw error;
-      }
-    });
-  }
-
-  const scheduledDate = new Date(controller.scheduledTime);
-  if (publicationIdle) {
-    await step('dota-hero-statistics', async (): Promise<Record<string, number>> => {
-      if (minute === 15 && scheduledDate.getUTCHours() % 6 === 0) {
-        await container.automations.enqueueScheduled({
-          id: 'dota-hero-statistics',
-          slot: controller.scheduledTime,
-          requestedAt: clock.now(),
-          newId: container.newId
-        });
-      }
-      const run = await container.automations.claimNext({
-        id: 'dota-hero-statistics',
-        now: clock.now(),
-        dueOnly: true
-      });
-      if (run === null) return {};
-      try {
-        const result = await container.dotaHeroStatistics.poll({
-          now: clock.now(),
-          newId: container.newId
-        });
-        await container.automations.finish({
-          runId: run.id,
-          now: clock.now(),
-          status: result.status === 'stored' ? 'succeeded' : 'skipped',
-          outputCount: result.heroCount ?? 0,
-          ...(result.status === 'not_due' ? { errorCode: 'DOTA_HERO_STATS_POLL_NOT_CLAIMED' } : {})
-        });
-        return {
-          dotaHeroStatsSnapshotsStored: result.status === 'stored' ? 1 : 0,
-          dotaHeroStatsHeroesStored: result.heroCount ?? 0
-        };
-      } catch (error) {
-        await container.automations.finish({
-          runId: run.id,
-          now: clock.now(),
-          status: 'failed',
-          outputCount: 0,
-          errorCode: error instanceof DotaHeroStatisticsError ? error.code : 'AUTOMATION_RUN_FAILED'
-        });
-        // A transient OpenDota failure (shared Workers IPs hit its per-IP limit) is retried with backoff instead of
-        // waiting for the next 6 h slot; claimNext leaves the run queued until its time.
-        if (error instanceof DotaHeroStatisticsError && error.retryAt !== null) {
-          await container.automations.enqueueScheduled({
-            id: 'dota-hero-statistics',
-            slot: error.retryAt,
-            requestedAt: clock.now(),
-            newId: container.newId
-          });
-        }
         throw error;
       }
     });

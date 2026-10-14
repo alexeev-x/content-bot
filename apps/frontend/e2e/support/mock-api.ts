@@ -552,20 +552,6 @@ export async function mockApi(page: Page): Promise<void> {
           lastRun: null,
           runNowAllowed: true,
           sideEffects: ['persist_dota_updates']
-        },
-        {
-          id: 'dota-hero-statistics',
-          enabled: true,
-          revision: 1,
-          cron: '0 */6 * * *',
-          cadenceMinutes: 360,
-          nextRunAt: new Date(Date.now() + 3 * 3_600_000).toISOString(),
-          health: 'healthy',
-          executionState: 'idle',
-          activeRunId: null,
-          lastRun: null,
-          runNowAllowed: true,
-          sideEffects: ['persist_hero_snapshot']
         }
       ])
     )
@@ -639,44 +625,6 @@ export async function mockApi(page: Page): Promise<void> {
       nextCursor: null,
       page: number,
       totalCount: items.length
-    });
-  });
-  await page.route('**/api/v1/dota/hero-statistics', (route) => {
-    const names = [
-      'Pudge',
-      'Axe',
-      'Lina',
-      'Phoenix',
-      'Mars',
-      'Juggernaut',
-      'Invoker',
-      'Sniper',
-      'Crystal Maiden',
-      'Tidehunter',
-      'Zeus',
-      'Viper'
-    ];
-    const snapshot = (shift: number, observedAt: string) => ({
-      observedAt,
-      heroes: names.map((name, index) => {
-        const picks = 4000 + index * 900;
-        const bracket = { picks, wins: Math.round(picks * (0.46 + ((index * 7) % 10) / 100 + shift)) };
-        return {
-          heroId: index + 1,
-          name,
-          ranked: Object.fromEntries(['1', '2', '3', '4', '5', '6', '7', '8'].map((id) => [id, bracket])),
-          professional: { picks: 200 + index * 10, wins: 100 + index * 5, bans: 50 }
-        };
-      })
-    });
-    return json(route, {
-      source: { name: 'OpenDota', url: 'https://www.opendota.com' },
-      health: 'healthy',
-      lastAttemptAt: hoursAgo(3),
-      lastSuccessAt: hoursAgo(3),
-      lastErrorCode: null,
-      latest: snapshot(0.01, hoursAgo(3)),
-      previous: snapshot(0, hoursAgo(170))
     });
   });
   await page.route(/\/api\/v1\/sources\/events\/[^/]+\/(draft|hide|unhide)$/, (route) =>

@@ -73,9 +73,9 @@ describe('an idle tick', () => {
     const transport = fakeTransport(SENT);
     await makeTick({ clock, transport, db }).run();
 
-    // Publishing scans, bounded alert bookkeeping, automation lease reconciliation and two claims, the bot media import read, heartbeat.
-    expect(meter.roundTrips).toBe(10);
-    expect(meter.statements).toBe(10);
+    // Publishing scans, bounded alert bookkeeping, automation lease reconciliation and one claim, the bot media import read, heartbeat.
+    expect(meter.roundTrips).toBe(9);
+    expect(meter.statements).toBe(9);
     const writes = meter.sql.filter((statement) => !/^\s*SELECT\b/i.test(statement));
     expect(writes).toHaveLength(3);
     expect(writes[0]).toMatch(/^\s*DELETE FROM incident_alert_groups\b/);
@@ -111,7 +111,7 @@ describe('an idle tick', () => {
     const { db, meter } = meteredDb(testDb());
     await makeTick({ clock, transport: fakeTransport(SENT), db, publishing: 'false' }).run();
 
-    expect(meter.roundTrips).toBe(9);
+    expect(meter.roundTrips).toBe(8);
     expect(meter.rowsRead).toBeLessThanOrEqual(12);
   });
 });
@@ -219,10 +219,10 @@ describe('the purge tick (minute 30, nothing due)', () => {
     // Every expired post had a sent publication, so each is a tombstone and its history stays.
     expect(await count('posts', 'deleted_at IS NOT NULL')).toBe(PURGE_BATCH);
     expect(await count('jobs')).toBe(PURGE_BATCH);
-    // Reconciliation, due/archive/expired scans, automation reconciliation and two claims, then the audit row,
+    // Reconciliation, due/archive/expired scans, automation reconciliation and one claim, then the audit row,
     // eight child deletes, the hard delete and the soft delete of the posts, and the heartbeat.
-    expect(meter.roundTrips).toBe(12);
-    expect(meter.statements).toBe(4 + 7 + 1 + 8 + 2);
+    expect(meter.roundTrips).toBe(11);
+    expect(meter.statements).toBe(3 + 7 + 1 + 8 + 2);
   });
 
   it('an idle one costs one read more than a regular idle tick', async () => {
@@ -230,7 +230,7 @@ describe('the purge tick (minute 30, nothing due)', () => {
 
     await makeTick({ clock, transport: fakeTransport(SENT), db, scheduledTime: START + 30 * 60_000 }).run();
 
-    expect(meter.roundTrips).toBe(11);
+    expect(meter.roundTrips).toBe(10);
     // Reads only, except the heartbeat upsert at the end.
     expect(meter.sql.slice(0, 4).every((statement) => /^\s*SELECT\b/i.test(statement))).toBe(true);
     expect(meter.sql.at(-1)).toMatch(/^\s*INSERT INTO system_state\b/);
