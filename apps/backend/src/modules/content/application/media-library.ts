@@ -6,7 +6,9 @@ import {
   mediaLibraryPageSchema,
   POST_MEDIA_MAX_ITEMS,
   type AttachPostMediaResultDto,
+  type MediaBlockedBy,
   type MediaLibraryPageDto,
+  type MediaUsageDto,
   type MediaLibraryQuery
 } from '@alexeev/contracts';
 import { AppError } from '../../../shared/app-error';
@@ -36,6 +38,7 @@ export async function listMediaLibrary(
     kind: query.kind,
     search: query.search,
     usage: query.usage,
+    hidden: query.hidden === true,
     after: decodeCursor(query.cursor),
     offset: query.page === undefined ? undefined : (query.page - 1) * query.limit,
     limit: query.limit
@@ -167,8 +170,8 @@ type DeleteDeps = {
 // one D1 batch decides and commits, one R2 call removes every object, one D1 statement drops the cleanup
 // rows. D1 commits first: a failed R2 delete leaves the cleanup rows the batch wrote, and the Cron
 // cleanup retries them. The reverse order could lose a live file.
-async function deleteMany(deps: DeleteDeps, ids: string[]) {
-  const result = await deps.repo.deleteUnusedAssets({ mediaIds: ids, actor: deps.actor, now: deps.now });
+async function deleteMany(deps: DeleteDeps, ids: string[], detachDrafts: boolean) {
+  const result = await deps.repo.deleteUnusedAssets({ mediaIds: ids, actor: deps.actor, now: deps.now, detachDrafts });
   const mediaIds = result.deleted.map(({ mediaId }) => mediaId);
   if (mediaIds.length > 0) {
     try {
@@ -188,20 +191,50 @@ async function deleteMany(deps: DeleteDeps, ids: string[]) {
   return result;
 }
 
-export async function deleteMediaAsset(deps: DeleteDeps, mediaId: string): Promise<void> {
-  const result = await deleteMany(deps, [mediaId]);
+function blockedBy(usage: MediaUsageDto | null, detachDrafts: boolean): MediaBlockedBy | undefined {
+  if (usage === null) return undefined;
+  if (usage.published.length > 0) return 'PUBLISHED';
+  if (usage.approved.length > 0) return 'APPROVED';
+  if (usage.derivatives > 0) return 'DERIVATIVES';
+  return usage.drafts.length > 0 || detachDrafts ? 'DRAFTS' : undefined;
+}
+
+export async function deleteMediaAsset(deps: DeleteDeps, mediaId: string, detachDrafts = false): Promise<void> {
+  const result = await deleteMany(deps, [mediaId], detachDrafts);
   if (result.notFound.length > 0) throw new AppError('NOT_FOUND', 'Media not found');
   if (result.inUse.length > 0) {
+    const usage = await deps.repo.getUsage(mediaId).catch(() => null);
+    const reason = blockedBy(usage, detachDrafts);
     throw new AppError('CONFLICT', 'Media is held by a post, a publication or a crop and cannot be deleted', {
-      reason: MEDIA_IN_USE_REASON
+      reason: MEDIA_IN_USE_REASON,
+      ...(reason === undefined ? {} : { blockedBy: reason })
     });
   }
 }
 
-export async function deleteMediaAssets(deps: DeleteDeps, ids: string[]): Promise<BulkDeleteMediaResultDto> {
-  const result = await deleteMany(deps, ids);
+export async function deleteMediaAssets(
+  deps: DeleteDeps,
+  ids: string[],
+  detachDrafts = false
+): Promise<BulkDeleteMediaResultDto> {
+  const result = await deleteMany(deps, ids, detachDrafts);
   return bulkDeleteMediaResultSchema.parse({
     deleted: ids.filter((id) => !result.inUse.includes(id)),
     inUse: result.inUse
   });
+}
+
+export async function getMediaUsage(deps: { repo: PostMediaRepository }, mediaId: string): Promise<MediaUsageDto> {
+  const usage = await deps.repo.getUsage(mediaId);
+  if (usage === null) throw new AppError('NOT_FOUND', 'Media not found');
+  return usage;
+}
+
+export async function setMediaHidden(
+  deps: { repo: PostMediaRepository; actor: string; now: number },
+  mediaId: string,
+  hidden: boolean
+): Promise<void> {
+  if (!(await deps.repo.setHidden({ mediaId, hidden, actor: deps.actor, now: deps.now })))
+    throw new AppError('NOT_FOUND', 'Media not found');
 }

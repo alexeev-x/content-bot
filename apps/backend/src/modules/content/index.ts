@@ -16,7 +16,9 @@ export {
   attachRetainedPostMedia,
   deleteMediaAsset,
   deleteMediaAssets,
-  listMediaLibrary
+  getMediaUsage,
+  listMediaLibrary,
+  setMediaHidden
 } from './application/media-library';
 export { deriveLibraryMedia } from './application/derive-media';
 export {

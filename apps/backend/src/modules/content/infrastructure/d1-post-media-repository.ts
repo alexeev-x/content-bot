@@ -1,7 +1,11 @@
 import {
   type MediaLibraryItemDto,
+  type MediaUsageDto,
   type PostMediaDto,
+  MEDIA_DETACH_DRAFTS_MAX,
+  MEDIA_USAGE_LIST_MAX,
   mediaLibraryItemSchema,
+  mediaUsageSchema,
   postMediaSchema
 } from '@alexeev/contracts';
 import type { MediaPostState, PostMediaRepository, StoredUpload } from '../application/media-ports';
@@ -42,11 +46,19 @@ function toMedia(row: MediaRow): PostMediaDto {
 const guardedPost = "id = ?1 AND revision = ?2 AND status = 'draft'";
 
 // An asset is retained, hence listed, readable and attachable, while a draft holds it, a revision snapshot
-// names it, a derivative (a crop) keeps it as its source, or it was saved to the library on its own. Every read and the attach guard share this
+// names it (for a replaced original, library_state 2, only a publication snapshot counts), a derivative (a crop) keeps it as its source, or it was saved to the library on its own. Every read and the attach guard share this
 // predicate, so anything the library lists can be attached.
+function revisionHoldSql(idExpression: string): string {
+  return `(EXISTS (SELECT 1 FROM media_assets draftable WHERE draftable.id = ${idExpression} AND draftable.library_state <> 2
+      AND EXISTS (SELECT 1 FROM post_revisions r, json_each(r.media_json) j WHERE j.value = ${idExpression}))
+    OR EXISTS (SELECT 1 FROM publications pu
+      JOIN post_revisions r ON r.post_id = pu.post_id AND r.revision = pu.post_revision, json_each(r.media_json) j
+      WHERE j.value = ${idExpression}))`;
+}
+
 function isRetainedSql(idExpression: string): string {
   return `(EXISTS (SELECT 1 FROM post_media pm WHERE pm.media_id = ${idExpression})
-    OR EXISTS (SELECT 1 FROM post_revisions r, json_each(r.media_json) j WHERE j.value = ${idExpression})
+    OR ${revisionHoldSql(idExpression)}
     OR EXISTS (SELECT 1 FROM media_assets derivative WHERE derivative.source_media_id = ${idExpression})
     OR EXISTS (SELECT 1 FROM media_assets own WHERE own.id = ${idExpression} AND own.in_library = 1))`;
 }
@@ -66,10 +78,19 @@ function isDeletableSql(idExpression: string): string {
 // when a post holds it, a publication snapshot names it, or a derivative outside the selection still
 // points at it; blocking propagates to the source of a blocked member that is also selected. So a source
 // and its crop chosen together are both deleted or both kept, whatever order the ids arrive in.
-const selectionBlockedCte = `WITH RECURSIVE blocked(id) AS (
+// With detachDrafts a draft's own attachment does not block (it is removed first), but a file held by more
+// than MEDIA_DETACH_DRAFTS_MAX drafts stays blocked: the detach stays bounded.
+function selectionBlockedCte(detachDrafts: boolean): string {
+  const postHolds = detachDrafts
+    ? `EXISTS (SELECT 1 FROM post_media pm JOIN posts p ON p.id = pm.post_id
+               WHERE pm.media_id = m.id AND p.status <> 'draft')
+       OR (SELECT count(*) FROM post_media pm JOIN posts p ON p.id = pm.post_id
+            WHERE pm.media_id = m.id AND p.status = 'draft') > ${MEDIA_DETACH_DRAFTS_MAX}`
+    : 'EXISTS (SELECT 1 FROM post_media pm WHERE pm.media_id = m.id)';
+  return `WITH RECURSIVE blocked(id) AS (
   SELECT m.id FROM media_assets m
    WHERE m.id IN (SELECT value FROM json_each(?1))
-     AND (EXISTS (SELECT 1 FROM post_media pm WHERE pm.media_id = m.id)
+     AND (${postHolds}
        OR EXISTS (SELECT 1 FROM publications pu
             JOIN post_revisions r ON r.post_id = pu.post_id AND r.revision = pu.post_revision, json_each(r.media_json) j
             WHERE j.value = m.id)
@@ -79,6 +100,7 @@ const selectionBlockedCte = `WITH RECURSIVE blocked(id) AS (
   SELECT m.source_media_id FROM media_assets m JOIN blocked b ON m.id = b.id
    WHERE m.source_media_id IN (SELECT value FROM json_each(?1))
 )`;
+}
 
 const libraryItemSelect = `SELECT m.id, m.kind, m.file_name, m.content_type, m.size_bytes, m.width, m.height, m.duration_ms, m.created_at,
                   (SELECT count(*) FROM media_assets duplicate
@@ -111,6 +133,65 @@ function toLibraryItem(row: MediaRow): MediaLibraryItemDto {
 }
 
 export function createD1PostMediaRepository(db: D1Database): PostMediaRepository {
+  // The swap of mode=replace. It runs in the same batch as the derivative's insert and every statement is
+  // guarded by that insert (the claim row names the new asset id, so a replay or a lost race matches nothing).
+  // Drafts are identified by status at statement time, inside the batch transaction: an approve landing
+  // first leaves its post (and snapshot) on the source, one landing later snapshots the new item.
+  // Revision bump = an edit (new revision row, audit row, revision + 1), so a stale editor gets STALE_REVISION.
+  const replaceStatements = (input: {
+    idempotencyKey: string;
+    sourceMediaId: string;
+    payloadHash: string;
+    actor: string;
+    now: number;
+    asset: { id: string };
+  }): D1PreparedStatement[] => {
+    const guard = `EXISTS (SELECT 1 FROM media_derivations d WHERE d.idempotency_key = ?1 AND d.media_id = ?4 AND d.payload_hash = ?3)
+      AND EXISTS (SELECT 1 FROM media_assets WHERE id = ?4)`;
+    // Drafts already swapped by the first statement: the only post_media rows naming the brand new asset.
+    const swapped = `p.status = 'draft' AND EXISTS (SELECT 1 FROM post_media pm WHERE pm.post_id = p.id AND pm.media_id = ?4)`;
+    // D1 rejects a statement bound to more values than its highest ?N, so each one takes only what it names.
+    const prepare = (sql: string) =>
+      db.prepare(sql).bind(...binds.slice(0, Math.max(...[...sql.matchAll(/\?(\d+)/g)].map((m) => Number(m[1])))));
+    const binds = [
+      input.idempotencyKey,
+      input.sourceMediaId,
+      input.payloadHash,
+      input.asset.id,
+      input.actor,
+      input.now
+    ];
+    return [
+      prepare(
+        `UPDATE post_media SET media_id = ?4
+            WHERE media_id = ?2 AND post_id IN (SELECT id FROM posts WHERE status = 'draft') AND ${guard}`
+      ),
+      prepare(
+        `INSERT INTO post_revisions (post_id, revision, title, body, entities, status, created_at, media_json)
+           SELECT p.id, p.revision + 1, p.title, p.body, p.entities, p.status, ?6, '[]' FROM posts p
+            WHERE ${swapped} AND ${guard}`
+      ),
+      prepare(
+        `INSERT INTO audit_log (actor_telegram_id, action, entity_type, entity_id, created_at, details)
+           SELECT ?5, 'post.media.replace', 'post', p.id, ?6,
+                  json_object('revision', p.revision + 1, 'sourceMediaId', ?2, 'mediaId', ?4)
+             FROM posts p WHERE ${swapped} AND ${guard}`
+      ),
+      prepare(`UPDATE posts AS p SET revision = revision + 1, updated_at = ?6 WHERE ${swapped} AND ${guard}`),
+      prepare(`UPDATE media_assets SET in_library = 0, library_state = 2 WHERE id = ?2 AND ${guard}`),
+      // After the flags above, the same rule as the detach trigger: queue the object only if nothing holds it.
+      prepare(
+        `INSERT OR IGNORE INTO post_media_cleanup (media_id, object_key, attempts, created_at)
+           SELECT m.id, m.object_key, 0, m.created_at FROM media_assets m
+            WHERE m.id = ?2 AND m.in_library = 0 AND ${guard}
+              AND NOT EXISTS (SELECT 1 FROM post_media pm WHERE pm.media_id = m.id)
+              AND NOT EXISTS (SELECT 1 FROM publications pu
+                JOIN post_revisions r ON r.post_id = pu.post_id AND r.revision = pu.post_revision, json_each(r.media_json) j
+                WHERE j.value = m.id)
+              AND NOT EXISTS (SELECT 1 FROM media_assets derivative WHERE derivative.source_media_id = m.id)`
+      )
+    ];
+  };
   return {
     async registerStaging(mediaId, objectKey, now) {
       const result = await db
@@ -236,7 +317,7 @@ export function createD1PostMediaRepository(db: D1Database): PostMediaRepository
       return { revision: post.revision, status: post.status, media: results.map(toMedia) };
     },
 
-    async listLibrary({ kind, search, usage, after, offset, limit }) {
+    async listLibrary({ kind, search, usage, hidden, after, offset, limit }) {
       const kindClause =
         kind === 'all' ? '' : kind === 'photo' ? "AND m.kind = 'photo'" : "AND m.kind IN ('video', 'animation')";
       const filterBindings: (string | number)[] = [];
@@ -254,7 +335,7 @@ export function createD1PostMediaRepository(db: D1Database): PostMediaRepository
           : usage === 'unused'
             ? 'AND NOT EXISTS (SELECT 1 FROM post_media current_usage WHERE current_usage.media_id = m.id)'
             : '';
-      const filters = `WHERE ${isRetainedSql('m.id')} ${kindClause} ${searchClause} ${usageClause}`;
+      const filters = `WHERE ${isRetainedSql('m.id')} AND m.library_state = ${hidden ? 1 : 0} ${kindClause} ${searchClause} ${usageClause}`;
       const bindings: (string | number)[] = [...filterBindings];
       const nextParameter = () => `?${bindings.length + 1}`;
       const cursorClause =
@@ -327,6 +408,7 @@ export function createD1PostMediaRepository(db: D1Database): PostMediaRepository
                 AND ${isRetainedSql('?7')}
                 AND ${isRetainedSql('?2')}
                 AND EXISTS (SELECT 1 FROM post_media_cleanup s WHERE s.media_id = ?4 AND s.staging = 1)
+                AND (?8 = 0 OR NOT EXISTS (SELECT 1 FROM media_assets replaced WHERE replaced.id = ?2 AND replaced.library_state = 2))
              ON CONFLICT (idempotency_key) DO NOTHING`
           )
           .bind(
@@ -336,7 +418,8 @@ export function createD1PostMediaRepository(db: D1Database): PostMediaRepository
             asset.id,
             input.responseBody,
             input.now,
-            asset.sourceMediaId
+            asset.sourceMediaId,
+            input.replace === true ? 1 : 0
           ),
         db
           .prepare(
@@ -376,13 +459,14 @@ export function createD1PostMediaRepository(db: D1Database): PostMediaRepository
             input.now,
             JSON.stringify({ sourceMediaId: input.sourceMediaId, mediaId: asset.id })
           ),
+        ...(input.replace === true ? replaceStatements(input) : []),
         db
           .prepare(
             'DELETE FROM post_media_cleanup WHERE media_id = ?1 AND staging = 1 AND EXISTS (SELECT 1 FROM media_assets WHERE id = ?1)'
           )
           .bind(asset.id)
       ]);
-      return results[0]?.meta.changes === 1 && results[1]?.meta.changes === 1 && results[3]?.meta.changes === 1;
+      return results[0]?.meta.changes === 1 && results[1]?.meta.changes === 1 && results.at(-1)?.meta.changes === 1;
     },
 
     async findRetainedMedia(mediaIds) {
@@ -758,6 +842,100 @@ export function createD1PostMediaRepository(db: D1Database): PostMediaRepository
       return results.at(-1)?.meta.changes === 1;
     },
 
+    async findReplaceableSource(mediaId) {
+      const row = await db
+        .prepare(
+          `SELECT 1 AS ok FROM media_assets m WHERE m.id = ?1 AND m.library_state <> 2 AND ${isRetainedSql('m.id')}`
+        )
+        .bind(mediaId)
+        .first<{ ok: number }>();
+      return row !== null;
+    },
+
+    async setHidden({ mediaId, hidden, actor, now }) {
+      const from = hidden ? 0 : 1;
+      const to = hidden ? 1 : 0;
+      const [, , state] = await db.batch([
+        db
+          .prepare(
+            `UPDATE media_assets SET library_state = ?3
+              WHERE id = ?1 AND library_state = ?2 AND ${isRetainedSql('media_assets.id')}`
+          )
+          .bind(mediaId, from, to),
+        // changes() is the row count of the UPDATE above, so a repeated request leaves no second audit row.
+        db
+          .prepare(
+            `INSERT INTO audit_log (actor_telegram_id, action, entity_type, entity_id, created_at, details)
+             SELECT ?1, ?2, 'media', ?3, ?4, NULL WHERE changes() = 1`
+          )
+          .bind(actor, hidden ? 'media.hide' : 'media.unhide', mediaId, now),
+        db
+          .prepare(`SELECT library_state AS state FROM media_assets WHERE id = ?1 AND ${isRetainedSql('?1')}`)
+          .bind(mediaId)
+      ]);
+      const row = ((state?.results ?? []) as { state: number }[])[0];
+      return row?.state === to;
+    },
+
+    async getUsage(mediaId): Promise<MediaUsageDto | null> {
+      const finished = `jb.status IN ('succeeded', 'unknown')`;
+      const snapshot = `FROM publications pu
+          JOIN posts p ON p.id = pu.post_id
+          JOIN post_revisions r ON r.post_id = pu.post_id AND r.revision = pu.post_revision, json_each(r.media_json) j
+          LEFT JOIN jobs jb ON jb.publication_id = pu.id
+         WHERE j.value = ?1`;
+      const limit = MEDIA_USAGE_LIST_MAX + 1;
+      const [lists, facts] = await db.batch([
+        db
+          .prepare(
+            `SELECT * FROM (SELECT 'draft' AS kind, p.id AS post_id, p.title, NULL AS at FROM posts p
+                 WHERE p.status = 'draft' AND EXISTS (SELECT 1 FROM post_media pm WHERE pm.post_id = p.id AND pm.media_id = ?1)
+                 ORDER BY p.updated_at DESC, p.id DESC LIMIT ${limit})
+             UNION ALL
+             SELECT * FROM (SELECT 'approved' AS kind, p.id AS post_id, p.title, NULL AS at FROM posts p
+                 WHERE EXISTS (SELECT 1 FROM post_media pm WHERE pm.post_id = p.id AND pm.media_id = ?1 AND p.status = 'approved')
+                    OR p.id IN (SELECT pu.post_id ${snapshot} AND NOT COALESCE(${finished}, 0)
+                                  AND COALESCE(jb.status, '') NOT IN ('failed', 'cancelled'))
+                 ORDER BY p.updated_at DESC, p.id DESC LIMIT ${limit})
+             UNION ALL
+             SELECT * FROM (SELECT 'published' AS kind, p.id AS post_id, p.title, max(jb.updated_at) AS at
+                 ${snapshot} AND ${finished}
+                 GROUP BY pu.post_id
+                 ORDER BY at DESC, pu.post_id DESC LIMIT ${limit})`
+          )
+          .bind(mediaId),
+        db
+          .prepare(
+            `SELECT m.library_state AS state,
+                    (SELECT count(*) FROM media_assets d WHERE d.source_media_id = m.id) AS derivatives,
+                    ${isDeletableSql('m.id')} AS deletable
+               FROM media_assets m WHERE m.id = ?1 AND ${isRetainedSql('m.id')}`
+          )
+          .bind(mediaId)
+      ]);
+      const fact = ((facts?.results ?? []) as { state: number; derivatives: number; deletable: number }[])[0];
+      if (fact === undefined) return null;
+      const rows = (lists?.results ?? []) as {
+        kind: 'draft' | 'approved' | 'published';
+        post_id: string;
+        title: string | null;
+        at: number | null;
+      }[];
+      const pick = (kind: string) => rows.filter((row) => row.kind === kind).slice(0, MEDIA_USAGE_LIST_MAX);
+      return mediaUsageSchema.parse({
+        drafts: pick('draft').map((row) => ({ postId: row.post_id, title: row.title })),
+        approved: pick('approved').map((row) => ({ postId: row.post_id, title: row.title })),
+        published: pick('published').map((row) => ({
+          postId: row.post_id,
+          title: row.title,
+          publishedAt: new Date(row.at ?? 0).toISOString()
+        })),
+        derivatives: fact.derivatives,
+        deletable: fact.deletable === 1,
+        hideable: fact.state === 0
+      });
+    },
+
     async findObjectKey(mediaId) {
       const row = await db
         .prepare(`SELECT m.object_key FROM media_assets m WHERE m.id = ?1 AND ${isRetainedSql('m.id')}`)
@@ -766,7 +944,7 @@ export function createD1PostMediaRepository(db: D1Database): PostMediaRepository
       return row?.object_key ?? null;
     },
 
-    async deleteUnusedAssets({ mediaIds, actor, now }) {
+    async deleteUnusedAssets({ mediaIds, actor, now, detachDrafts }) {
       const ids = JSON.stringify(mediaIds);
       // One round trip for the whole selection. Every decision reads the state before the first write
       // (cleanup rows and the audit trail are written ahead of the deletes), and D1 runs a batch as one
@@ -774,9 +952,51 @@ export function createD1PostMediaRepository(db: D1Database): PostMediaRepository
       // the asset gone. The cleanup row is written in the same transaction as the delete, so the object
       // is never orphaned without a durable record, even if the Worker dies before the R2 call.
       const inSelection = 'SELECT value FROM json_each(?1)';
-      const free = `${selectionBlockedCte} `;
+      const free = `${selectionBlockedCte(detachDrafts)} `;
+      const unblocked = `SELECT m.id FROM media_assets m WHERE m.id IN (${inSelection}) AND m.id NOT IN (SELECT id FROM blocked)`;
+      const holders = `p.status = 'draft' AND EXISTS (SELECT 1 FROM post_media pm WHERE pm.post_id = p.id AND pm.media_id IN (${unblocked}))`;
+      // A draft that is detached from gets the same revision bump as an edit. The set of touched drafts is
+      // the one with a revision row ahead of its own revision, which only the first statement creates.
+      const aheadOfRevision = `p.status = 'draft' AND EXISTS (SELECT 1 FROM post_revisions rv WHERE rv.post_id = p.id AND rv.revision = p.revision + 1)`;
+      const detach: D1PreparedStatement[] = detachDrafts
+        ? [
+            db
+              .prepare(
+                `${free}INSERT INTO post_revisions (post_id, revision, title, body, entities, status, created_at, media_json)
+                 SELECT p.id, p.revision + 1, p.title, p.body, p.entities, p.status, ?2, '[]' FROM posts p WHERE ${holders}`
+              )
+              .bind(ids, now),
+            db
+              .prepare(
+                `${free}INSERT INTO audit_log (actor_telegram_id, action, entity_type, entity_id, created_at, details)
+                 SELECT ?3, 'post.media.change', 'post', p.id, ?2,
+                        json_object('revision', p.revision + 1, 'detachedMediaIds',
+                          (SELECT json_group_array(pm.media_id) FROM post_media pm
+                            WHERE pm.post_id = p.id AND pm.media_id IN (${unblocked})))
+                   FROM posts p WHERE ${holders}`
+              )
+              .bind(ids, now, actor),
+            db
+              .prepare(
+                `${free}DELETE FROM post_media WHERE media_id IN (${unblocked})
+                    AND post_id IN (SELECT id FROM posts WHERE status = 'draft')`
+              )
+              .bind(ids),
+            db.prepare(
+              `UPDATE post_media SET position = r.rn
+                   FROM (SELECT post_id, media_id, row_number() OVER (PARTITION BY post_id ORDER BY position, media_id) - 1 AS rn
+                           FROM post_media
+                          WHERE post_id IN (SELECT p.id FROM posts p WHERE ${aheadOfRevision})) r
+                  WHERE post_media.post_id = r.post_id AND post_media.media_id = r.media_id AND post_media.position <> r.rn`
+            ),
+            db
+              .prepare(`UPDATE posts AS p SET revision = revision + 1, updated_at = ?1 WHERE ${aheadOfRevision}`)
+              .bind(now)
+          ]
+        : [];
       const results = await db.batch([
         db.prepare(`SELECT id FROM media_assets WHERE id IN (${inSelection})`).bind(ids),
+        ...detach,
         db
           .prepare(
             `${free}INSERT OR IGNORE INTO post_media_cleanup (media_id, object_key, attempts, created_at)
@@ -824,9 +1044,9 @@ export function createD1PostMediaRepository(db: D1Database): PostMediaRepository
           .bind(ids)
       ]);
       const before = new Set(((results[0]?.results ?? []) as { id: string }[]).map(({ id }) => id));
-      const after = new Set(((results[7]?.results ?? []) as { id: string }[]).map(({ id }) => id));
+      const after = new Set(((results.at(-2)?.results ?? []) as { id: string }[]).map(({ id }) => id));
       const keys = new Map(
-        ((results[8]?.results ?? []) as { mediaId: string; objectKey: string }[]).map((row) => [
+        ((results.at(-1)?.results ?? []) as { mediaId: string; objectKey: string }[]).map((row) => [
           row.mediaId,
           row.objectKey
         ])
@@ -892,21 +1112,21 @@ export function createD1PostMediaRepository(db: D1Database): PostMediaRepository
           .prepare(
             `DELETE FROM post_media_uploads WHERE media_id = ?1
               AND NOT EXISTS (SELECT 1 FROM post_media WHERE media_id = ?1)
-              AND NOT EXISTS (SELECT 1 FROM post_revisions r, json_each(r.media_json) j WHERE j.value = ?1)`
+              AND NOT ${revisionHoldSql('?1')}`
           )
           .bind(mediaId),
         db
           .prepare(
             `DELETE FROM post_media_crops WHERE media_id = ?1
               AND NOT EXISTS (SELECT 1 FROM post_media WHERE media_id = ?1)
-              AND NOT EXISTS (SELECT 1 FROM post_revisions r, json_each(r.media_json) j WHERE j.value = ?1)`
+              AND NOT ${revisionHoldSql('?1')}`
           )
           .bind(mediaId),
         db
           .prepare(
             `DELETE FROM media_assets WHERE id = ?1 AND in_library = 0
               AND NOT EXISTS (SELECT 1 FROM post_media WHERE media_id = ?1)
-              AND NOT EXISTS (SELECT 1 FROM post_revisions r, json_each(r.media_json) j WHERE j.value = ?1)
+              AND NOT ${revisionHoldSql('?1')}
               AND NOT EXISTS (SELECT 1 FROM media_assets derivative WHERE derivative.source_media_id = ?1)`
           )
           .bind(mediaId)

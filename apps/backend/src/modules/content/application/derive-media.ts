@@ -56,6 +56,7 @@ export async function deriveLibraryMedia(
   if (command.contentLength > (isVideo ? VIDEO_MEDIA_MAX_BYTES : PHOTO_MEDIA_MAX_BYTES))
     throw new HTTPException(413, { message: 'Media file is too large' });
 
+  const replace = command.mode === 'replace';
   const mediaId = deps.newId();
   const objectKey = `media/${mediaId}`;
   try {
@@ -76,6 +77,8 @@ export async function deriveLibraryMedia(
     const payloadHash = await sha256Hex(
       JSON.stringify({
         sourceId: command.sourceId,
+        // Only a replace names its mode, so payloads of the default mode hash as they always did.
+        ...(command.mode === 'replace' ? { mode: 'replace' } : {}),
         fileName,
         contentType: streamed.contentType,
         sizeBytes: streamed.bytes,
@@ -103,6 +106,8 @@ export async function deriveLibraryMedia(
 
     const [source] = await deps.repo.findRetainedMedia([command.sourceId]);
     if (source === undefined) throw new AppError('NOT_FOUND', 'Source media not found');
+    if (replace && !(await deps.repo.findReplaceableSource(command.sourceId)))
+      throw new AppError('NOT_FOUND', 'Source media not found');
     if (source.kind !== streamed.kind)
       throw new AppError('VALIDATION_ERROR', 'Only a photo or a video can be derived from its own kind', {
         reason: 'INVALID_CROP_TARGET'
@@ -140,6 +145,7 @@ export async function deriveLibraryMedia(
     let stored: boolean;
     try {
       stored = await deps.repo.storeDerived({
+        replace,
         idempotencyKey: command.idempotencyKey,
         sourceMediaId: command.sourceId,
         payloadHash,
@@ -168,6 +174,8 @@ export async function deriveLibraryMedia(
     }
     if (stored) {
       keepStaged = true;
+      // A replace is replayed from the stored body, so its first answer is that same body.
+      if (replace) return item;
       const fresh = await deps.repo.findLibraryItem(mediaId).catch(() => null);
       return fresh ?? item;
     }
@@ -177,7 +185,8 @@ export async function deriveLibraryMedia(
     if (raced !== null) return raced;
     // The source vanished or cleanup claimed the staging row while the bytes were streaming.
     const again = await deps.repo.findRetainedMedia([command.sourceId]);
-    if (again.length === 0) throw new AppError('NOT_FOUND', 'Source media not found');
+    if (again.length === 0 || (replace && !(await deps.repo.findReplaceableSource(command.sourceId))))
+      throw new AppError('NOT_FOUND', 'Source media not found');
     throw new AppError('UNAVAILABLE', 'Derived media staging expired; retry the upload');
   } catch (error) {
     if (!keepStaged) {

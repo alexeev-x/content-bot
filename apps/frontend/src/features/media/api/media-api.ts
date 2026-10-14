@@ -4,6 +4,7 @@ import {
   mediaLibraryItemSchema,
   mediaLibraryPageSchema,
   mediaLibraryUsageFilterSchema,
+  mediaUsageSchema,
   postPageSchema,
   postSchema,
   type MediaLibraryKind
@@ -17,11 +18,13 @@ export type MediaFilters = {
   kind: MediaLibraryKind;
   search?: string;
   usage: z.infer<typeof mediaLibraryUsageFilterSchema>;
+  /** Only the files the owner hid; omitted (not `false`) for the normal library. */
+  hidden?: true;
 };
 
 export function listMedia(filters: MediaFilters, cursor: string | undefined, signal?: AbortSignal, page?: number) {
   return apiRequest(
-    `/api/v1/media${buildQuery({ ...filters, cursor, page, limit: page === undefined ? DEFAULT_PAGE_SIZE : PAGE_SIZE })}`,
+    `/api/v1/media${buildQuery({ ...filters, hidden: filters.hidden ? 'true' : undefined, cursor, page, limit: page === undefined ? DEFAULT_PAGE_SIZE : PAGE_SIZE })}`,
     mediaLibraryPageSchema,
     { signal }
   );
@@ -59,13 +62,32 @@ export function createDraft(idempotencyKey: string) {
   });
 }
 
-export function deleteMedia(mediaId: string) {
-  return apiRequestNoContent(`/api/v1/media/${encodeURIComponent(mediaId)}`, { method: 'DELETE' });
+export function getMediaUsage(mediaId: string, signal?: AbortSignal) {
+  return apiRequest(`/api/v1/media/${encodeURIComponent(mediaId)}/usage`, mediaUsageSchema, { signal });
 }
 
-export function bulkDeleteMedia(ids: string[]) {
-  return apiRequest('/api/v1/media/delete', bulkDeleteMediaResultSchema, { method: 'POST', body: { ids } });
+/** `detachDrafts` first removes the file from the drafts that hold it (the owner confirmed exactly that). */
+export function deleteMedia(mediaId: string, detachDrafts: boolean) {
+  return apiRequestNoContent(
+    `/api/v1/media/${encodeURIComponent(mediaId)}${buildQuery({ detachDrafts: detachDrafts ? 'true' : undefined })}`,
+    { method: 'DELETE' }
+  );
 }
+
+export function bulkDeleteMedia(ids: string[], detachDrafts: boolean) {
+  return apiRequest('/api/v1/media/delete', bulkDeleteMediaResultSchema, {
+    method: 'POST',
+    body: detachDrafts ? { ids, detachDrafts: true } : { ids }
+  });
+}
+
+export function setMediaHidden(mediaId: string, hidden: boolean) {
+  return apiRequestNoContent(`/api/v1/media/${encodeURIComponent(mediaId)}/${hidden ? 'hide' : 'unhide'}`, {
+    method: 'POST'
+  });
+}
+
+export type DeriveMode = 'new' | 'replace';
 
 /** Stores a cropped photo or video as a new library item derived from `sourceId` (the original stays). */
 export function deriveMedia(
@@ -74,10 +96,11 @@ export function deriveMedia(
   fileName: string,
   kind: 'photo' | 'video',
   idempotencyKey: string,
+  mode: DeriveMode,
   signal?: AbortSignal
 ) {
   return apiRequest(
-    `/api/v1/media/${encodeURIComponent(sourceId)}/derived${buildQuery({ fileName, kind })}`,
+    `/api/v1/media/${encodeURIComponent(sourceId)}/derived${buildQuery({ fileName, kind, mode })}`,
     mediaLibraryItemSchema,
     { method: 'POST', rawBody: file, headers: { 'Idempotency-Key': idempotencyKey }, signal }
   );

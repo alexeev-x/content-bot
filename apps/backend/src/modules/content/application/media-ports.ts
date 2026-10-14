@@ -1,4 +1,4 @@
-import type { MediaLibraryItemDto, PostMediaDto } from '@alexeev/contracts';
+import type { MediaLibraryItemDto, MediaUsageDto, PostMediaDto } from '@alexeev/contracts';
 
 export interface MediaAssetInput extends Omit<PostMediaDto, 'position'> {
   objectKey: string;
@@ -41,6 +41,7 @@ export interface PostMediaRepository {
     kind: 'all' | 'photo' | 'video';
     search?: string;
     usage: 'all' | 'used' | 'unused';
+    hidden: boolean;
     after?: { createdAt: number; id: string };
     offset?: number;
     limit: number;
@@ -57,7 +58,14 @@ export interface PostMediaRepository {
     actor: string;
     now: number;
     asset: MediaAssetInput & { sourceMediaId: string };
+    /** mode=replace: swap the source for the asset in draft posts and drop the source from the listing, same batch. */
+    replace?: boolean;
   }): Promise<boolean>;
+  /** A retained library item that was not replaced before. */
+  findReplaceableSource(mediaId: string): Promise<boolean>;
+  /** Idempotent; false when the item is unknown, not retained or replaced. */
+  setHidden(input: { mediaId: string; hidden: boolean; actor: string; now: number }): Promise<boolean>;
+  getUsage(mediaId: string): Promise<MediaUsageDto | null>;
   attachRetained(input: {
     postId: string;
     expectedRevision: number;
@@ -100,7 +108,7 @@ export interface PostMediaRepository {
     mediaIds: string[];
   }): Promise<boolean>;
   findObjectKey(mediaId: string): Promise<string | null>;
-  deleteUnusedAssets(input: { mediaIds: string[]; actor: string; now: number }): Promise<{
+  deleteUnusedAssets(input: { mediaIds: string[]; actor: string; now: number; detachDrafts: boolean }): Promise<{
     deleted: { mediaId: string; objectKey: string }[];
     inUse: string[];
     notFound: string[];

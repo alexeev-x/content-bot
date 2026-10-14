@@ -6,6 +6,7 @@ import { MediaLibrary } from '../features/media';
 const mediaSearchSchema = z.looseObject({
   kind: mediaLibraryKindSchema.optional().catch(undefined),
   usage: mediaLibraryUsageFilterSchema.optional().catch(undefined),
+  hidden: z.literal(true).optional().catch(undefined),
   search: z.string().trim().min(1).max(80).optional().catch(undefined),
   view: z.enum(['grid', 'list']).optional().catch(undefined),
   id: z.uuid().optional().catch(undefined),

@@ -10,8 +10,10 @@ import {
   deleteMedia,
   createDraft,
   getDraft,
+  getMediaUsage,
   listDrafts,
   listMedia,
+  setMediaHidden,
   type MediaFilters
 } from './media-api';
 
@@ -19,6 +21,7 @@ export const mediaKeys = {
   all: ['media-library'] as const,
   lists: () => [...mediaKeys.all, 'list'] as const,
   list: (filters: MediaFilters) => [...mediaKeys.lists(), filters] as const,
+  usage: (id: string) => [...mediaKeys.all, 'usage', id] as const,
   drafts: () => [...mediaKeys.all, 'drafts'] as const,
   draft: (id: string) => [...mediaKeys.drafts(), id] as const
 };
@@ -123,19 +126,42 @@ export function useCreatePostWithMedia() {
   });
 }
 
-/** Deletes unused files; a single id uses the item endpoint, several use the bulk one. Always refreshes the list. */
+/** Where a file is used. Always read fresh: the answer decides what a delete may do. */
+export function mediaUsageQueryOptions(id: string) {
+  return queryOptions({
+    queryKey: mediaKeys.usage(id),
+    queryFn: ({ signal }) => getMediaUsage(id, signal),
+    staleTime: 0,
+    gcTime: 0,
+    retry: false
+  });
+}
+
+/** Deletes files; with `detachDrafts` the server first takes them out of the drafts. Always refreshes the list. */
 export function useDeleteMedia() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (ids: string[]) => {
+    mutationFn: async ({ ids, detachDrafts }: { ids: string[]; detachDrafts: boolean }) => {
       const [only] = ids;
       if (ids.length === 1 && only !== undefined) {
-        await deleteMedia(only);
+        await deleteMedia(only, detachDrafts);
         return { deleted: ids, inUse: [] as string[] };
       }
-      return bulkDeleteMedia(ids);
+      return bulkDeleteMedia(ids, detachDrafts);
     },
     retry: false,
-    onSettled: () => void queryClient.invalidateQueries({ queryKey: mediaKeys.lists() })
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: mediaKeys.lists() });
+      void queryClient.invalidateQueries({ queryKey: ['posts'] });
+    }
+  });
+}
+
+export function useHideMedia() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, hidden }: { id: string; hidden: boolean }) => setMediaHidden(id, hidden),
+    retry: false,
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: mediaKeys.lists() })
   });
 }
