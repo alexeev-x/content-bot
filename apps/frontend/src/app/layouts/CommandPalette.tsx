@@ -117,7 +117,7 @@ function PaletteBody({ onDone }: { onDone: () => void }) {
 
 export function CommandPalette({ isOpen, onOpenChange }: Props) {
   return (
-    <Dialog isOpen={isOpen} onOpenChange={onOpenChange} title={ru.shell.palette.title}>
+    <Dialog isOpen={isOpen} onOpenChange={onOpenChange} title={ru.shell.palette.title} size="search">
       <PaletteBody onDone={() => onOpenChange(false)} />
     </Dialog>
   );

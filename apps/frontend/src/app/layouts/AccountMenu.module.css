@@ -153,8 +153,9 @@
   .row {
     min-height: var(--size-target);
   }
+  /* Even 12 px sides on phones (owner, 14.10.2026): the avatar and the chevron sit balanced in the pill. */
   .trigger {
-    padding-right: var(--space-1);
+    padding: 0 var(--space-3);
   }
 }
 @media (prefers-reduced-motion: no-preference) {

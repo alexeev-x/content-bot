@@ -17,8 +17,9 @@ type Props = {
   /**
    * `wide` for dialogs that lay out content side by side on desktop; phones get the full width either way.
    * `media` (760 px, 90 vh): header and footer stay, only the body scrolls (add media, crop).
+   * `search` (640 px on desktop): a full-screen sheet sliding up from the bottom on phones (⌘K search).
    */
-  size?: 'default' | 'wide' | 'media';
+  size?: 'default' | 'wide' | 'media' | 'search';
 };
 
 /** Modal dialog: inert background, focus trap, Esc, focus back to the trigger (React Aria Modal). Never nest dialogs. */
@@ -38,6 +39,7 @@ export function Dialog({
       onOpenChange={onOpenChange}
       isDismissable={role === 'dialog'}
       className={styles.overlay}
+      data-size={size}
     >
       <Modal className={size === 'default' ? styles.modal : `${styles.modal} ${styles[size]}`}>
         <div

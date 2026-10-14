@@ -30,6 +30,33 @@
 .wide {
   width: min(880px, 100%);
 }
+.search {
+  width: min(640px, 100%);
+  height: min(560px, 100%);
+}
+@media (max-width: 859px) {
+  .overlay[data-size='search'] {
+    padding: 0;
+    place-items: stretch;
+  }
+  .search {
+    width: 100%;
+    height: 100%;
+    max-height: none;
+    padding-bottom: env(safe-area-inset-bottom);
+    border: 0;
+    border-radius: 0;
+  }
+  .search[data-entering] {
+    animation: slide-up var(--motion-base) ease-out;
+  }
+}
+@keyframes slide-up {
+  from {
+    transform: translateY(24px);
+    opacity: 0;
+  }
+}
 .modal[data-entering] {
   animation: rise var(--motion-base) ease-out;
 }
