@@ -55,21 +55,6 @@
   color: var(--color-text-disabled);
   cursor: not-allowed;
 }
-/* A count after the label: muted pill, text carries the number. */
-.tab :global(.tab-count) {
-  min-width: 20px;
-  padding: 1px 6px;
-  border-radius: var(--radius-pill);
-  background: var(--color-surface-3);
-  color: var(--color-text-muted);
-  font-size: var(--font-size-2xs);
-  font-weight: var(--font-weight-semibold);
-  line-height: 1.4;
-  text-align: center;
-}
-.tab[data-selected] :global(.tab-count) {
-  color: var(--color-text);
-}
 .panel {
   outline: none;
 }

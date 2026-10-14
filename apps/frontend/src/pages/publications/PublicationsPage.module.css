@@ -19,17 +19,3 @@
 }
 
 /* The counter slot is always reserved (up to three digits and parentheses, tabular), so a tab does not change width as numbers load. */
-.errorBadge {
-  display: inline-grid;
-  place-items: center;
-  min-width: 18px;
-  height: 18px;
-  margin-inline-start: var(--space-2);
-  padding: 0 5px;
-  border-radius: var(--radius-pill);
-  background: var(--color-status-failed-bg);
-  color: var(--color-status-failed-fg);
-  font-size: var(--font-size-2xs);
-  font-weight: var(--font-weight-semibold);
-  font-variant-numeric: tabular-nums;
-}

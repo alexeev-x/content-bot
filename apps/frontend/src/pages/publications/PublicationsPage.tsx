@@ -61,11 +61,7 @@ export function PublicationsPage({ search, onSearchChange, onOpenPosts, pollMs }
   const narrow = useMediaQuery(NARROW);
   const timezone = useOwnerTimezone();
   const now = useNow();
-  const { list, counts, switching, shownView, items, post, postTitle, channel } = usePublicationsData(
-    search,
-    timezone,
-    pollMs
-  );
+  const { list, switching, shownView, items, post, postTitle, channel } = usePublicationsData(search, timezone, pollMs);
   const [publishOpen, setPublishOpen] = useState(false);
   const [deleteTargets, setDeleteTargets] = useState<ReturnType<typeof deleteTargetOf>[] | null>(null);
   const [resendFor, setResendFor] = useState<PublicationDto | null>(null);
@@ -100,15 +96,6 @@ export function PublicationsPage({ search, onSearchChange, onOpenPosts, pollMs }
   const { mode: selectMode, selected } = selection;
   const defaultOrder: Order = shownView === 'upcoming' ? 'asc' : 'desc';
   const order = search.order ?? defaultOrder;
-  const tabValue = (kind: PublicationView): number | null => {
-    if (!counts) return null;
-    const byStatus = counts.statusCounts;
-    if (kind === 'upcoming') return byStatus.scheduled + byStatus.queued + byStatus.preparing + byStatus.retry_wait;
-    if (kind === 'recent') return byStatus.sent;
-    if (kind === 'errors') return byStatus.failed + byStatus.unknown;
-    return counts.totalCount;
-  };
-  const errorCount = tabValue('errors') ?? 0;
   const zone = timezone;
   const textOf = useCallback(
     (row: PublicationDto) => publicationRowText(row, post(row), channel(row)?.title, zone),
@@ -243,13 +230,7 @@ export function PublicationsPage({ search, onSearchChange, onOpenPosts, pollMs }
             <Tab id="all">{copy.tabs.all}</Tab>
             <Tab id="upcoming">{narrow ? copy.tabs.upcomingShort : copy.tabs.upcoming}</Tab>
             <Tab id="recent">{narrow ? copy.tabs.recentShort : copy.tabs.recent}</Tab>
-            <Tab id="errors">
-              {copy.tabs.errors}
-              {/* Only errors get a number: it asks for action; the other counts said little and grew noisy. */}
-              {errorCount > 0 ? (
-                <span className={styles.errorBadge}>{errorCount > 99 ? '99+' : errorCount}</span>
-              ) : null}
-            </Tab>
+            <Tab id="errors">{copy.tabs.errors}</Tab>
           </TabList>
           <TabPanel id={view}>
             {search.post ? (
