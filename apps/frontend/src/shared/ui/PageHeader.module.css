@@ -80,12 +80,13 @@
   }
 }
 
-/* At narrow phone widths, keep the shell tools beside the title and move actions below them. */
+/* At narrow phone widths, keep the shell tools beside the title and move actions below them.
+   Without tools (phone browser: they live in the top bar) the action stays beside the title. */
 @media (max-width: 400px) {
-  .header {
+  .header:has(.tools) {
     grid-template-columns: minmax(0, 1fr) auto;
   }
-  .actions {
+  .header:has(.tools) .actions {
     grid-column: 1 / -1;
     grid-row: 2;
   }
