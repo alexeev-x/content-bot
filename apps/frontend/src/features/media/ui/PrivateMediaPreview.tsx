@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { useMediaOriginal, useMediaThumbnail } from '../../../shared/lib/use-media-thumbnail';
 import { Button, Icon } from '../../../shared/ui';
 import { getMediaContent } from '../api/media-api';
 import styles from './MediaLibrary.module.css';
@@ -6,18 +7,27 @@ import styles from './MediaLibrary.module.css';
 type Props = {
   mediaId: string;
   kind: 'photo' | 'animation' | 'video';
+  /** Detail view: loads at once and shows the original; grid tiles wait until visible and show a cached thumbnail. */
   eager?: boolean;
   allowRetry?: boolean;
 };
 
-/** Only private authenticated bytes are shown; URLs are scoped to this mounted preview. */
+/** Only private authenticated bytes are shown; object URLs are scoped to this mounted preview. */
 export function PrivateMediaPreview({ mediaId, kind, eager = false, allowRetry = false }: Props) {
   const host = useRef<HTMLSpanElement>(null);
-  const latestAttempt = useRef(0);
-  const [source, setSource] = useState<string>();
-  const [failed, setFailed] = useState(false);
   const [visible, setVisible] = useState(() => eager || typeof IntersectionObserver === 'undefined');
-  const [attempt, setAttempt] = useState(0);
+  const [broken, setBroken] = useState(false);
+  const load = (signal: AbortSignal) => getMediaContent(mediaId, signal);
+  // Video originals cannot go into <img>: the detail view of a video also shows its first frame.
+  const original = useMediaOriginal(mediaId, load, eager && kind !== 'video');
+  const thumbnail = useMediaThumbnail(
+    mediaId,
+    kind === 'video' ? 'video' : 'image',
+    load,
+    visible && !(eager && kind !== 'video')
+  );
+  const shown = eager && kind !== 'video' ? original : thumbnail;
+  const failed = shown.isError || broken;
 
   useEffect(() => {
     if (eager || visible || !host.current) return;
@@ -34,42 +44,11 @@ export function PrivateMediaPreview({ mediaId, kind, eager = false, allowRetry =
     return () => observer.disconnect();
   }, [eager, visible]);
 
-  useEffect(() => {
-    if (!visible) return;
-    // Retry increments this key to restart the same safe, authenticated GET.
-    latestAttempt.current = attempt;
-    const requestAttempt = attempt;
-    const controller = new AbortController();
-    let objectUrl: string | undefined;
-    void getMediaContent(mediaId, controller.signal)
-      .then((blob) => {
-        if (controller.signal.aborted || latestAttempt.current !== requestAttempt) return;
-        objectUrl = URL.createObjectURL(blob);
-        setSource(objectUrl);
-        setFailed(false);
-      })
-      .catch(() => {
-        if (!controller.signal.aborted) setFailed(true);
-      });
-    return () => {
-      controller.abort();
-      if (objectUrl) URL.revokeObjectURL(objectUrl);
-    };
-  }, [attempt, mediaId, visible]);
-
   return (
     <span ref={host} className={styles.preview}>
       <span aria-hidden="true">
-        {source && !failed ? (
-          <img
-            src={source}
-            alt=""
-            onError={() => {
-              URL.revokeObjectURL(source);
-              setSource(undefined);
-              setFailed(true);
-            }}
-          />
+        {shown.src && !failed ? (
+          <img src={shown.src} alt="" onError={() => setBroken(true)} />
         ) : (
           <Icon name={kind === 'video' ? 'video' : 'image'} size={28} />
         )}
@@ -83,8 +62,8 @@ export function PrivateMediaPreview({ mediaId, kind, eager = false, allowRetry =
               variant="secondary"
               size="sm"
               onPress={() => {
-                setFailed(false);
-                setAttempt((value) => value + 1);
+                setBroken(false);
+                shown.retry();
               }}
             >
               Повторить

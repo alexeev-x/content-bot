@@ -1,3 +1,4 @@
+import { useQueryClient } from '@tanstack/react-query';
 import type { PostEntity, PostMediaDto } from '@alexeev/contracts';
 import { useEffect, useState } from 'react';
 import { ApiError } from '../../../shared/api/http-client';
@@ -37,6 +38,7 @@ export function PostPreview({ title, body, entities, media = emptyMedia, desktop
   const [mediaMode, setMediaMode] = useState<'single' | 'album'>('single');
   const [mediaUrls, setMediaUrls] = useState<ReadonlyMap<string, string>>(() => new Map());
   const [mediaError, setMediaError] = useState('');
+  const queryClient = useQueryClient();
 
   useEffect(() => {
     if (media.length === 0) return;
@@ -44,7 +46,13 @@ export function PostPreview({ title, body, entities, media = emptyMedia, desktop
     const createdUrls: string[] = [];
     void Promise.all(
       media.map(async (item) => {
-        const blob = await getPostMediaContent(item.id, controller.signal);
+        // Same cache as the media views: an id's bytes never change, so a re-render reuses them.
+        const blob = await queryClient.fetchQuery({
+          queryKey: ['media-original', item.id],
+          queryFn: ({ signal }) => getPostMediaContent(item.id, signal),
+          staleTime: Infinity,
+          gcTime: 60_000
+        });
         if (controller.signal.aborted) return [item.id, ''] as const;
         const url = URL.createObjectURL(blob);
         createdUrls.push(url);
@@ -71,7 +79,7 @@ export function PostPreview({ title, body, entities, media = emptyMedia, desktop
       controller.abort();
       createdUrls.forEach((url) => URL.revokeObjectURL(url));
     };
-  }, [media]);
+  }, [media, queryClient]);
 
   const allMediaLoaded = media.length > 0 && media.every((item) => mediaUrls.has(item.id));
   const previewMedia = allMediaLoaded

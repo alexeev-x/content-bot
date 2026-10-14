@@ -54,6 +54,7 @@ import {
   reorderPostMedia,
   uploadPostMedia
 } from '../api/post-media-api';
+import { useMediaThumbnail } from '../../../shared/lib/use-media-thumbnail';
 import styles from './PostMediaEditor.module.css';
 
 /* oxlint-disable jsx-a11y/media-has-caption -- Uploaded files may not contain captions; never fabricate a track. */
@@ -109,7 +110,6 @@ const maxBytes = (file: File) =>
       : PHOTO_MEDIA_MAX_BYTES;
 const replaceAtLimitNotice =
   '\u0414\u043b\u044f \u0437\u0430\u043c\u0435\u043d\u044b \u0443\u0434\u0430\u043b\u0438\u0442\u0435 \u043e\u0434\u043d\u043e \u0432\u043b\u043e\u0436\u0435\u043d\u0438\u0435: \u043b\u0438\u043c\u0438\u0442 10 \u0444\u0430\u0439\u043b\u043e\u0432.';
-const LIBRARY_PREVIEW_MAX_SIDE = 480;
 const LIBRARY_WINDOW_SIZE = 30;
 
 function formatMediaDuration(durationMs: number | null): string | undefined {
@@ -117,94 +117,6 @@ function formatMediaDuration(durationMs: number | null): string | undefined {
   const seconds = Math.floor(durationMs / 1000);
   const minutes = Math.floor(seconds / 60);
   return `${String(minutes).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`;
-}
-
-function createPreviewCanvas(width: number, height: number): HTMLCanvasElement {
-  const scale = Math.min(1, LIBRARY_PREVIEW_MAX_SIDE / Math.max(width, height));
-  const canvas = document.createElement('canvas');
-  canvas.width = Math.max(1, Math.round(width * scale));
-  canvas.height = Math.max(1, Math.round(height * scale));
-  return canvas;
-}
-
-function encodePreview(canvas: HTMLCanvasElement): Promise<Blob> {
-  return new Promise((resolve, reject) => {
-    canvas.toBlob(
-      (blob) => (blob ? resolve(blob) : reject(new Error('Could not encode media preview'))),
-      'image/jpeg',
-      0.68
-    );
-  });
-}
-
-async function createMediaThumbnail(blob: Blob, kind: 'image' | 'video', signal: AbortSignal): Promise<Blob> {
-  if (kind === 'video') {
-    const mediaUrl = URL.createObjectURL(blob);
-    const video = document.createElement('video');
-    video.muted = true;
-    video.playsInline = true;
-    video.preload = 'auto';
-    try {
-      await new Promise<void>((resolve, reject) => {
-        const timeout = window.setTimeout(() => reject(new Error('Video preview timed out')), 15_000);
-        const cleanup = () => {
-          window.clearTimeout(timeout);
-          signal.removeEventListener('abort', onAbort);
-        };
-        const onAbort = () => {
-          cleanup();
-          reject(new DOMException('Preview cancelled', 'AbortError'));
-        };
-        video.addEventListener(
-          'loadeddata',
-          () => {
-            cleanup();
-            resolve();
-          },
-          { once: true }
-        );
-        video.addEventListener(
-          'error',
-          () => {
-            cleanup();
-            reject(new Error('Video preview is unavailable'));
-          },
-          { once: true }
-        );
-        signal.addEventListener('abort', onAbort, { once: true });
-        if (signal.aborted) {
-          onAbort();
-          return;
-        }
-        video.src = mediaUrl;
-        video.load();
-      });
-      if (signal.aborted || video.videoWidth === 0 || video.videoHeight === 0)
-        throw new DOMException('Preview cancelled', 'AbortError');
-      const canvas = createPreviewCanvas(video.videoWidth, video.videoHeight);
-      const context = canvas.getContext('2d');
-      if (!context) throw new Error('Canvas is unavailable');
-      context.drawImage(video, 0, 0, canvas.width, canvas.height);
-      return await encodePreview(canvas);
-    } finally {
-      video.pause();
-      video.removeAttribute('src');
-      video.load();
-      URL.revokeObjectURL(mediaUrl);
-    }
-  }
-
-  const bitmap = await createImageBitmap(blob);
-  try {
-    if (signal.aborted) throw new DOMException('Preview cancelled', 'AbortError');
-    const canvas = createPreviewCanvas(bitmap.width, bitmap.height);
-    const context = canvas.getContext('2d');
-    if (!context) throw new Error('Canvas is unavailable');
-    context.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
-    return await encodePreview(canvas);
-  } finally {
-    bitmap.close();
-  }
 }
 
 function ServerPreview({
@@ -340,20 +252,14 @@ function LibraryTile({
 }) {
   const tileRef = useRef<HTMLDivElement>(null);
   const [isVisible, setIsVisible] = useState(() => !('IntersectionObserver' in window));
-  const [preview, setPreview] = useState<{ blob: Blob; src: string } | null>(null);
   const isVideo = item.kind === 'video';
-  const query = useQuery({
-    queryKey: ['post-media', 'library-preview', item.id] as const,
-    queryFn: async ({ signal }) => {
-      const original = await getPostMediaContent(item.id, signal);
-      return createMediaThumbnail(original, isVideo ? 'video' : 'image', signal);
-    },
-    staleTime: 0,
-    gcTime: 0,
-    retry: false,
-    enabled: isVisible
-  });
-  const src = preview && preview.blob === query.data ? preview.src : undefined;
+  const thumbnail = useMediaThumbnail(
+    item.id,
+    isVideo ? 'video' : 'image',
+    (signal) => getPostMediaContent(item.id, signal),
+    isVisible
+  );
+  const src = thumbnail.src;
   useEffect(() => {
     if (!tileRef.current) return;
     if (!('IntersectionObserver' in window)) return;
@@ -369,20 +275,7 @@ function LibraryTile({
     observer.observe(tileRef.current);
     return () => observer.disconnect();
   }, []);
-  useEffect(() => {
-    if (!query.data) return;
-    const thumbnail = query.data;
-    const thumbnailUrl = URL.createObjectURL(thumbnail);
-    let active = true;
-    queueMicrotask(() => {
-      if (active) setPreview({ blob: thumbnail, src: thumbnailUrl });
-    });
-    return () => {
-      active = false;
-      URL.revokeObjectURL(thumbnailUrl);
-    };
-  }, [query.data]);
-  const previewUnavailable = query.isError;
+  const previewUnavailable = thumbnail.isError;
   return (
     <div ref={tileRef} className={styles.libraryTile}>
       <MediaGridTile
@@ -392,14 +285,7 @@ function LibraryTile({
         duration={isVideo ? formatMediaDuration(item.durationMs) : undefined}
         state={previewUnavailable ? 'failed' : 'ready'}
         stateLabel={previewUnavailable ? 'Превью недоступно' : undefined}
-        onRetry={
-          previewUnavailable
-            ? () => {
-                setPreview(null);
-                void query.refetch();
-              }
-            : undefined
-        }
+        onRetry={previewUnavailable ? thumbnail.retry : undefined}
         retryLabel={previewUnavailable ? 'Повторить загрузку превью' : undefined}
         selectable
         isSelected={selected}
