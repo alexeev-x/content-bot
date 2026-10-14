@@ -53,7 +53,7 @@ function WatcherControls({ onFinished }: { onFinished: () => void }) {
   const watcher = useDotaAutomation(id);
   const run = useRunAutomationNow(id);
   const toggle = useSetAutomationPaused(id);
-  // Hero statistics have their own job (at most once per 6 h); the same button re-checks them when allowed.
+  // Hero statistics have their own job (Cron every 6 h, at most every 5 min on demand); the same button re-checks them.
   const heroes = useDotaAutomation('dota-hero-statistics');
   const heroesRun = useRunAutomationNow('dota-hero-statistics');
   const automation = watcher.data ?? undefined;

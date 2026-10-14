@@ -222,11 +222,11 @@ describe('Automation Center API', () => {
     expect(claimPlan.results.some((row) => row.detail.includes('automation_runs_history_idx'))).toBe(true);
   });
 
-  it('does not let run-now bypass the hero source six-hour request limit', async () => {
+  it('does not let run-now poll the hero source again within five minutes', async () => {
     const api = createApi({ clock: fakeClock(START) });
     await testDb()
       .prepare('INSERT INTO dota_hero_stats_state (id, last_attempt_at) VALUES (1, ?1)')
-      .bind(START - 60 * 60_000)
+      .bind(START - 2 * 60_000)
       .run();
     const summary = automationSummarySchema.parse(
       await (await api.request('/api/v1/automations/dota-hero-statistics')).json()

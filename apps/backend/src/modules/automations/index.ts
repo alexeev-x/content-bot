@@ -173,7 +173,7 @@ export function createD1AutomationRepository(db: D1Database): AutomationReposito
           active.id AS active_run_id, active.status AS active_status,
           CASE
             WHEN a.id = 'dota-hero-statistics' AND hero_state.last_attempt_at IS NOT NULL
-              AND hero_state.last_attempt_at > ?1 - 21600000 THEN 0
+              AND hero_state.last_attempt_at > ?1 - 300000 THEN 0
             WHEN a.id = 'dota-intelligence' AND r.status IS NOT NULL AND r.status != 'skipped'
               AND coalesce(r.completed_at, r.started_at, r.requested_at) > ?1 - 300000 THEN 0
             ELSE 1

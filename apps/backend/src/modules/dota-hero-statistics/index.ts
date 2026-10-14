@@ -12,7 +12,8 @@ import { OPENDOTA_HERO_STATS_URL } from '../../integrations/opendota/hero-statis
 import { AppError } from '../../shared/app-error';
 import { clipDetail, describeError, describeHttp, describeShape } from '../../shared/feed-diagnostics';
 
-const POLL_INTERVAL_MS = 6 * 60 * 60 * 1000;
+// Minimum gap between two polls. The schedule (every 6 h) lives in Cron; «Проверить сейчас» may poll again after 5 min.
+const POLL_INTERVAL_MS = 5 * 60 * 1000;
 const CLAIM_LEASE_MS = 60_000;
 const SNAPSHOT_RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
 const MAX_RESPONSE_BYTES = 512 * 1024;
