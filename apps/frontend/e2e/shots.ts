@@ -47,6 +47,11 @@ for (const path of PAGES) {
           await page.waitForTimeout(300);
           await page.screenshot({ path: `../../.logs/shots/account-menu-${viewport.width}-${colorScheme}.png` });
           await page.keyboard.press('Escape');
+          await page.keyboard.press('ControlOrMeta+k');
+          await page.keyboard.type('пост');
+          await page.waitForTimeout(800);
+          await page.screenshot({ path: `../../.logs/shots/search-${viewport.width}-${colorScheme}.png` });
+          await page.keyboard.press('Escape');
         }
       }
     }
