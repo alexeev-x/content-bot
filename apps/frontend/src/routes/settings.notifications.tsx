@@ -1,4 +1,8 @@
-import { createFileRoute } from '@tanstack/react-router';
-import { NotificationsPage } from '../pages/settings/NotificationsPage';
+import { createFileRoute, redirect } from '@tanstack/react-router';
 
-export const Route = createFileRoute('/settings/notifications')({ component: NotificationsPage });
+// Old address (notifications page): merged into «Общие».
+export const Route = createFileRoute('/settings/notifications')({
+  beforeLoad: () => {
+    throw redirect({ to: '/settings/general', replace: true });
+  }
+});

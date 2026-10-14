@@ -167,7 +167,7 @@ describe('auth guard', () => {
     expect(refreshes).toBe(1);
     expect(getAccessToken()).toBe('restored');
     expect((await screen.findAllByRole('button', { name: 'Меню владельца: Owner' })).length).toBeGreaterThan(0);
-    await waitFor(() => expect(document.documentElement.dataset['accentLight']).toBe('indigo'));
+    await waitFor(() => expect(document.documentElement.dataset['accent']).toBe('violet'));
     expect(document.title).toContain('ALEXEEV Studio');
   });
 

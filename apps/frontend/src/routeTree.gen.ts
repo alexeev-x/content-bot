@@ -22,6 +22,7 @@ import { Route as PostsNewRouteImport } from './routes/posts/new';
 import { Route as SettingsIndexRouteImport } from './routes/settings.index';
 import { Route as SettingsAppearanceRouteImport } from './routes/settings.appearance';
 import { Route as SettingsChannelsRouteImport } from './routes/settings.channels';
+import { Route as SettingsGeneralRouteImport } from './routes/settings.general';
 import { Route as SettingsNotificationsRouteImport } from './routes/settings.notifications';
 import { Route as SettingsOperationsRouteImport } from './routes/settings.operations';
 import { Route as PostsIdPublishRouteImport } from './routes/posts/$id.publish';
@@ -91,6 +92,11 @@ const SettingsChannelsRoute = SettingsChannelsRouteImport.update({
   path: '/channels',
   getParentRoute: () => SettingsRoute,
 } as any);
+const SettingsGeneralRoute = SettingsGeneralRouteImport.update({
+  id: '/general',
+  path: '/general',
+  getParentRoute: () => SettingsRoute,
+} as any);
 const SettingsNotificationsRoute = SettingsNotificationsRouteImport.update({
   id: '/notifications',
   path: '/notifications',
@@ -119,6 +125,7 @@ export interface FileRoutesByFullPath {
   '/posts/new': typeof PostsNewRoute;
   '/settings/appearance': typeof SettingsAppearanceRoute;
   '/settings/channels': typeof SettingsChannelsRoute;
+  '/settings/general': typeof SettingsGeneralRoute;
   '/settings/notifications': typeof SettingsNotificationsRoute;
   '/settings/operations': typeof SettingsOperationsRoute;
   '/posts/': typeof PostsIndexRoute;
@@ -136,6 +143,7 @@ export interface FileRoutesByTo {
   '/posts/new': typeof PostsNewRoute;
   '/settings/appearance': typeof SettingsAppearanceRoute;
   '/settings/channels': typeof SettingsChannelsRoute;
+  '/settings/general': typeof SettingsGeneralRoute;
   '/settings/notifications': typeof SettingsNotificationsRoute;
   '/settings/operations': typeof SettingsOperationsRoute;
   '/posts': typeof PostsIndexRoute;
@@ -155,6 +163,7 @@ export interface FileRoutesById {
   '/posts/new': typeof PostsNewRoute;
   '/settings/appearance': typeof SettingsAppearanceRoute;
   '/settings/channels': typeof SettingsChannelsRoute;
+  '/settings/general': typeof SettingsGeneralRoute;
   '/settings/notifications': typeof SettingsNotificationsRoute;
   '/settings/operations': typeof SettingsOperationsRoute;
   '/posts/': typeof PostsIndexRoute;
@@ -175,6 +184,7 @@ export interface FileRouteTypes {
     | '/posts/new'
     | '/settings/appearance'
     | '/settings/channels'
+    | '/settings/general'
     | '/settings/notifications'
     | '/settings/operations'
     | '/posts/'
@@ -192,6 +202,7 @@ export interface FileRouteTypes {
     | '/posts/new'
     | '/settings/appearance'
     | '/settings/channels'
+    | '/settings/general'
     | '/settings/notifications'
     | '/settings/operations'
     | '/posts'
@@ -210,6 +221,7 @@ export interface FileRouteTypes {
     | '/posts/new'
     | '/settings/appearance'
     | '/settings/channels'
+    | '/settings/general'
     | '/settings/notifications'
     | '/settings/operations'
     | '/posts/'
@@ -323,6 +335,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SettingsChannelsRouteImport;
       parentRoute: typeof SettingsRoute;
     };
+    '/settings/general': {
+      id: '/settings/general';
+      path: '/general';
+      fullPath: '/settings/general';
+      preLoaderRoute: typeof SettingsGeneralRouteImport;
+      parentRoute: typeof SettingsRoute;
+    };
     '/settings/notifications': {
       id: '/settings/notifications';
       path: '/notifications';
@@ -350,6 +369,7 @@ declare module '@tanstack/react-router' {
 interface SettingsRouteChildren {
   SettingsAppearanceRoute: typeof SettingsAppearanceRoute;
   SettingsChannelsRoute: typeof SettingsChannelsRoute;
+  SettingsGeneralRoute: typeof SettingsGeneralRoute;
   SettingsNotificationsRoute: typeof SettingsNotificationsRoute;
   SettingsOperationsRoute: typeof SettingsOperationsRoute;
   SettingsIndexRoute: typeof SettingsIndexRoute;
@@ -358,6 +378,7 @@ interface SettingsRouteChildren {
 const SettingsRouteChildren: SettingsRouteChildren = {
   SettingsAppearanceRoute: SettingsAppearanceRoute,
   SettingsChannelsRoute: SettingsChannelsRoute,
+  SettingsGeneralRoute: SettingsGeneralRoute,
   SettingsNotificationsRoute: SettingsNotificationsRoute,
   SettingsOperationsRoute: SettingsOperationsRoute,
   SettingsIndexRoute: SettingsIndexRoute,

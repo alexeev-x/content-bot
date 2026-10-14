@@ -1,90 +1,19 @@
 .grid {
   display: grid;
   gap: var(--space-4);
-}
-.themes {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-}
-.stack {
-  display: grid;
-  gap: var(--space-4);
-}
-.actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2);
-}
-.section {
-  display: grid;
-  gap: var(--space-3);
   min-width: 0;
-  padding: var(--space-3) var(--space-4);
 }
-.section + .section {
-  border-top: 1px solid var(--color-border-subtle);
-}
-.sectionTitle {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  margin: 0;
-  font-size: var(--font-size-md);
-  font-weight: var(--font-weight-semibold);
-}
-.now {
-  color: var(--color-text-muted);
-  font-size: var(--font-size-xs);
-  font-weight: var(--font-weight-medium);
-}
-/* Only while there is something to save: sticky above the phone tab bar, like the prototype. */
-.bar {
-  position: sticky;
-  bottom: var(--space-4);
-  z-index: var(--z-sticky);
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-3);
-  padding: var(--space-3) var(--space-4);
-  border: 1px solid var(--color-border-strong);
-  border-radius: var(--radius-2);
-  background: var(--color-surface-2);
-  box-shadow: var(--shadow-pop);
-}
-.status {
-  min-height: 1.5em;
-  color: var(--color-text-muted);
-  font-size: var(--font-size-sm);
-}
-.themeMode,
-.previewPanel {
-  display: grid;
-  gap: var(--space-3);
+.body {
   padding: var(--space-4);
 }
-.customPresets {
-  margin-top: var(--space-3);
-  border-top: 1px solid var(--color-border-subtle);
+.accentRow {
+  display: grid;
+  gap: var(--space-4);
+  min-width: 0;
 }
-@media (max-width: 719px) {
-  .bar {
-    bottom: calc(var(--size-nav) + var(--space-3) + env(safe-area-inset-bottom));
-  }
-}
-@media (max-width: 859px) {
-  .grid {
-    gap: var(--space-3);
-  }
-  .themeMode :global([data-full]) {
-    width: 100%;
-  }
-}
-@media (max-width: 480px) {
-  /* The button row takes the full width too, so stacked buttons line up with the content edge. */
-  .actions,
-  .actions > * {
-    flex: 1 1 100%;
+@media (min-width: 1180px) {
+  .accentRow {
+    grid-template-columns: minmax(0, 1fr) 280px;
+    align-items: start;
   }
 }

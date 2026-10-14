@@ -13,7 +13,7 @@ const PAGES = [
   '/sources',
   '/settings/channels',
   '/settings/appearance',
-  '/settings/notifications',
+  '/settings/general',
   '/login'
 ];
 const WIDTHS = [

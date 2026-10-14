@@ -5,10 +5,9 @@
 
   Theme selection is by attributes, on <html> or on any wrapper (the catalog nests themes):
     data-theme="light|dark"
-    data-accent-light="cobalt|indigo|copper|orchid|mono|custom"   (used while data-theme=light)
-    data-accent-dark="cobalt|indigo|copper|orchid|mono|custom"    (used while data-theme=dark)
-  `custom` reads --custom-{light,dark}-* injected by src/app/theme.ts from shared/lib/color.
-  No attributes = dark + cobalt, the default.
+    data-accent="blue|orange|violet|teal|green|pink|red|graphite"  (one preset, both themes)
+    data-density="compact"  (on <html> only; Normal = no attribute)
+  No attributes = dark + blue, the default.
 
   Neutrals (owner direction 14.10.2026, Cloudflare-dashboard look): near-neutral zinc greys, panels a step
   above the page, hairline decorative borders (--color-border-subtle) and a stronger edge only on
@@ -105,6 +104,18 @@
   --z-overlay: 30;
   --z-modal: 40;
   --z-toast: 50;
+}
+
+/* Compact density (per device): tighter rows and controls for a mouse. Touch and narrow screens keep their 44 px targets. */
+@media (pointer: fine) and (min-width: 860px) {
+  :root[data-density='compact'] {
+    --size-control: 32px;
+    --size-control-sm: 32px;
+    --size-button: 32px;
+    --size-button-sm: 30px;
+    --size-row: 36px;
+    --size-tab: 28px;
+  }
 }
 
 /* Touch and the Mini App keep 44 px targets (WCAG 2.5.8 AAA / project choice). */
@@ -244,146 +255,177 @@
   --color-status-muted-ring: color-mix(in srgb, var(--color-status-muted-fg) 40%, transparent);
 }
 
-/* ===== Accents: five presets x two themes. Used only for primary buttons, selected navigation,
-   focus ring, links and sparklines. ===== */
-[data-theme='light']:not([data-accent-light]),
-[data-theme='light'][data-accent-light='cobalt'] {
-  --color-accent: #1d4ed8;
+/* ===== Accents: eight presets x two themes, one preset for both (data-accent). Used only for primary buttons,
+   selected navigation, focus ring, links and sparklines. Contrast checked: on-accent and accent text >= 4.5:1
+   on the surfaces, focus ring >= 3:1. ===== */
+[data-theme='light'][data-accent='blue'],
+[data-theme='light']:not([data-accent]) {
+  --color-accent: #0051c3;
   --color-on-accent: #ffffff;
-  --color-accent-hover: #1a43ba;
-  --color-accent-text: #1d4ed8;
-  --color-accent-soft: rgba(29, 78, 216, 0.09);
-  --color-focus-ring: #1d4ed8;
-  --color-accent-glow: rgba(29, 78, 216, 0.35);
+  --color-accent-hover: #0044a3;
+  --color-accent-text: #0051c3;
+  --color-accent-soft: rgba(0, 81, 195, 0.09);
+  --color-focus-ring: #0051c3;
+  --color-accent-glow: rgba(0, 81, 195, 0.3);
 }
-[data-theme='light'][data-accent-light='indigo'] {
-  --color-accent: #4f46c8;
-  --color-on-accent: #ffffff;
-  --color-accent-hover: #433bae;
-  --color-accent-text: #4f46c8;
-  --color-accent-soft: rgba(79, 70, 200, 0.09);
-  --color-focus-ring: #4f46c8;
-  --color-accent-glow: rgba(79, 70, 200, 0.35);
-}
-[data-theme='light'][data-accent-light='copper'] {
-  --color-accent: #b4531c;
-  --color-on-accent: #ffffff;
-  --color-accent-hover: #9c4616;
-  --color-accent-text: #a04512;
-  --color-accent-soft: rgba(180, 83, 28, 0.09);
-  --color-focus-ring: #a04512;
-  --color-accent-glow: rgba(180, 83, 28, 0.35);
-}
-[data-theme='light'][data-accent-light='orchid'] {
-  --color-accent: #b0206f;
-  --color-on-accent: #ffffff;
-  --color-accent-hover: #951a5e;
-  --color-accent-text: #b0206f;
-  --color-accent-soft: rgba(176, 32, 111, 0.09);
-  --color-focus-ring: #b0206f;
-  --color-accent-glow: rgba(176, 32, 111, 0.35);
-}
-[data-theme='light'][data-accent-light='mono'] {
-  --color-accent: #14170f;
-  --color-on-accent: #ffffff;
-  --color-accent-hover: #2e3328;
-  --color-accent-text: #14170f;
-  --color-accent-soft: rgba(20, 23, 15, 0.08);
-  --color-focus-ring: #14170f;
-  --color-accent-glow: rgba(20, 23, 15, 0.25);
-}
+[data-theme='dark'][data-accent='blue'],
 :root:not([data-theme]),
-[data-theme='dark']:not([data-accent-dark]),
-[data-theme='dark'][data-accent-dark='cobalt'] {
-  /* Saturated button blue with white text (5.2:1), as in the Cloudflare dashboard; text and ring stay light. */
+[data-theme='dark']:not([data-accent]) {
   --color-accent: #2563eb;
   --color-on-accent: #ffffff;
   --color-accent-hover: #1d4fd0;
   --color-accent-text: #8fb0ff;
-  --color-accent-soft: rgba(59, 118, 246, 0.16);
+  --color-accent-soft: rgba(37, 99, 235, 0.16);
   --color-focus-ring: #8fb0ff;
-  --color-accent-glow: rgba(59, 118, 246, 0.4);
+  --color-accent-glow: rgba(37, 99, 235, 0.4);
 }
-[data-theme='dark'][data-accent-dark='indigo'] {
-  --color-accent: #8f88f2;
-  --color-on-accent: #110f2b;
-  --color-accent-hover: #a29cf7;
-  --color-accent-text: #b0aaff;
-  --color-accent-soft: rgba(143, 136, 242, 0.15);
-  --color-focus-ring: #b0aaff;
-  --color-accent-glow: rgba(143, 136, 242, 0.4);
+[data-theme='light'][data-accent='orange'] {
+  --color-accent: #f6821f;
+  --color-on-accent: #1c1005;
+  --color-accent-hover: #e07410;
+  --color-accent-text: #a84a00;
+  --color-accent-soft: rgba(246, 130, 31, 0.09);
+  --color-focus-ring: #a84a00;
+  --color-accent-glow: rgba(246, 130, 31, 0.3);
 }
-[data-theme='dark'][data-accent-dark='copper'] {
-  --color-accent: #e58a4e;
-  --color-on-accent: #1f0e03;
-  --color-accent-hover: #ee9c66;
-  --color-accent-text: #f2a674;
-  --color-accent-soft: rgba(229, 138, 78, 0.15);
-  --color-focus-ring: #f2a674;
-  --color-accent-glow: rgba(229, 138, 78, 0.4);
+[data-theme='dark'][data-accent='orange'] {
+  --color-accent: #f6821f;
+  --color-on-accent: #1c1005;
+  --color-accent-hover: #ff963f;
+  --color-accent-text: #ff9d4d;
+  --color-accent-soft: rgba(246, 130, 31, 0.16);
+  --color-focus-ring: #ff9d4d;
+  --color-accent-glow: rgba(246, 130, 31, 0.4);
 }
-[data-theme='dark'][data-accent-dark='orchid'] {
-  --color-accent: #e879b9;
+[data-theme='light'][data-accent='violet'] {
+  --color-accent: #6d28d9;
+  --color-on-accent: #ffffff;
+  --color-accent-hover: #5b21b6;
+  --color-accent-text: #6d28d9;
+  --color-accent-soft: rgba(109, 40, 217, 0.09);
+  --color-focus-ring: #6d28d9;
+  --color-accent-glow: rgba(109, 40, 217, 0.3);
+}
+[data-theme='dark'][data-accent='violet'] {
+  --color-accent: #7c3aed;
+  --color-on-accent: #ffffff;
+  --color-accent-hover: #6d28d9;
+  --color-accent-text: #b79bff;
+  --color-accent-soft: rgba(124, 58, 237, 0.16);
+  --color-focus-ring: #b79bff;
+  --color-accent-glow: rgba(124, 58, 237, 0.4);
+}
+[data-theme='light'][data-accent='teal'] {
+  --color-accent: #0f766e;
+  --color-on-accent: #ffffff;
+  --color-accent-hover: #0b625b;
+  --color-accent-text: #0f766e;
+  --color-accent-soft: rgba(15, 118, 110, 0.09);
+  --color-focus-ring: #0f766e;
+  --color-accent-glow: rgba(15, 118, 110, 0.3);
+}
+[data-theme='dark'][data-accent='teal'] {
+  --color-accent: #14b8a6;
+  --color-on-accent: #04201d;
+  --color-accent-hover: #2dd4bf;
+  --color-accent-text: #3fd8c6;
+  --color-accent-soft: rgba(20, 184, 166, 0.16);
+  --color-focus-ring: #3fd8c6;
+  --color-accent-glow: rgba(20, 184, 166, 0.4);
+}
+[data-theme='light'][data-accent='green'] {
+  --color-accent: #127836;
+  --color-on-accent: #ffffff;
+  --color-accent-hover: #0f6a2f;
+  --color-accent-text: #127836;
+  --color-accent-soft: rgba(18, 120, 54, 0.09);
+  --color-focus-ring: #127836;
+  --color-accent-glow: rgba(18, 120, 54, 0.3);
+}
+[data-theme='dark'][data-accent='green'] {
+  --color-accent: #22c55e;
+  --color-on-accent: #04180a;
+  --color-accent-hover: #4ade80;
+  --color-accent-text: #4ade80;
+  --color-accent-soft: rgba(34, 197, 94, 0.16);
+  --color-focus-ring: #4ade80;
+  --color-accent-glow: rgba(34, 197, 94, 0.4);
+}
+[data-theme='light'][data-accent='pink'] {
+  --color-accent: #be185d;
+  --color-on-accent: #ffffff;
+  --color-accent-hover: #9d174d;
+  --color-accent-text: #be185d;
+  --color-accent-soft: rgba(190, 24, 93, 0.09);
+  --color-focus-ring: #be185d;
+  --color-accent-glow: rgba(190, 24, 93, 0.3);
+}
+[data-theme='dark'][data-accent='pink'] {
+  --color-accent: #ec4899;
   --color-on-accent: #2a0518;
-  --color-accent-hover: #ef93c8;
-  --color-accent-text: #f59ad0;
-  --color-accent-soft: rgba(232, 121, 185, 0.15);
-  --color-focus-ring: #f59ad0;
-  --color-accent-glow: rgba(232, 121, 185, 0.4);
+  --color-accent-hover: #f472b6;
+  --color-accent-text: #f78fc3;
+  --color-accent-soft: rgba(236, 72, 153, 0.16);
+  --color-focus-ring: #f78fc3;
+  --color-accent-glow: rgba(236, 72, 153, 0.4);
 }
-[data-theme='dark'][data-accent-dark='mono'] {
-  --color-accent: #edefe9;
-  --color-on-accent: #0d0e0c;
+[data-theme='light'][data-accent='red'] {
+  --color-accent: #c62828;
+  --color-on-accent: #ffffff;
+  --color-accent-hover: #a82020;
+  --color-accent-text: #c62828;
+  --color-accent-soft: rgba(198, 40, 40, 0.09);
+  --color-focus-ring: #c62828;
+  --color-accent-glow: rgba(198, 40, 40, 0.3);
+}
+[data-theme='dark'][data-accent='red'] {
+  --color-accent: #ef4444;
+  --color-on-accent: #1f0404;
+  --color-accent-hover: #f87171;
+  --color-accent-text: #ff8a8a;
+  --color-accent-soft: rgba(239, 68, 68, 0.16);
+  --color-focus-ring: #ff8a8a;
+  --color-accent-glow: rgba(239, 68, 68, 0.4);
+}
+[data-theme='light'][data-accent='graphite'] {
+  --color-accent: #27272a;
+  --color-on-accent: #ffffff;
+  --color-accent-hover: #3f3f46;
+  --color-accent-text: #27272a;
+  --color-accent-soft: rgba(39, 39, 42, 0.09);
+  --color-focus-ring: #27272a;
+  --color-accent-glow: rgba(39, 39, 42, 0.3);
+}
+[data-theme='dark'][data-accent='graphite'] {
+  --color-accent: #e4e4e7;
+  --color-on-accent: #18181b;
   --color-accent-hover: #ffffff;
-  --color-accent-text: #edefe9;
-  --color-accent-soft: rgba(237, 239, 233, 0.1);
-  --color-focus-ring: #edefe9;
-  --color-accent-glow: rgba(237, 239, 233, 0.18);
-}
-
-/* ===== Custom presets: values derived in TS (shared/lib/color) and injected as --custom-* ===== */
-[data-theme='light'][data-accent-light='custom'] {
-  --color-accent: var(--custom-light-accent);
-  --color-on-accent: var(--custom-light-on-accent);
-  --color-accent-hover: var(--custom-light-accent-hover);
-  --color-accent-text: var(--custom-light-accent-text);
-  --color-accent-soft: var(--custom-light-accent-soft);
-  --color-focus-ring: var(--custom-light-focus-ring);
-  --color-accent-glow: var(--custom-light-accent-glow);
-}
-[data-theme='dark'][data-accent-dark='custom'] {
-  --color-accent: var(--custom-dark-accent);
-  --color-on-accent: var(--custom-dark-on-accent);
-  --color-accent-hover: var(--custom-dark-accent-hover);
-  --color-accent-text: var(--custom-dark-accent-text);
-  --color-accent-soft: var(--custom-dark-accent-soft);
-  --color-focus-ring: var(--custom-dark-focus-ring);
-  --color-accent-glow: var(--custom-dark-accent-glow);
+  --color-accent-text: #e4e4e7;
+  --color-accent-soft: rgba(228, 228, 231, 0.16);
+  --color-focus-ring: #e4e4e7;
+  --color-accent-glow: rgba(228, 228, 231, 0.4);
 }
 
 /* ===== Status overrides where an accent would collide with a status hue.
-   Active (sending) turns slate next to blue/violet accents and custom ones (unknown hue);
-   unknown turns gold next to copper. ===== */
-[data-theme='dark'][data-accent-dark='cobalt'],
-[data-theme='dark'][data-accent-dark='indigo'],
-[data-theme='dark'][data-accent-dark='custom'],
+   Active (sending) turns slate next to blue and violet; unknown turns gold next to orange. ===== */
+[data-theme='dark'][data-accent='blue'],
+[data-theme='dark'][data-accent='violet'],
 :root:not([data-theme]),
-[data-theme='dark']:not([data-accent-dark]) {
+[data-theme='dark']:not([data-accent]) {
   --color-status-active-fg: #c3cad6;
   --color-status-active-bg: rgba(190, 200, 215, 0.15);
 }
-[data-theme='light'][data-accent-light='cobalt'],
-[data-theme='light'][data-accent-light='indigo'],
-[data-theme='light'][data-accent-light='custom'],
-[data-theme='light']:not([data-accent-light]) {
+[data-theme='light'][data-accent='blue'],
+[data-theme='light'][data-accent='violet'],
+[data-theme='light']:not([data-accent]) {
   --color-status-active-fg: #3c4554;
   --color-status-active-bg: rgba(70, 80, 95, 0.12);
 }
-[data-theme='dark'][data-accent-dark='copper'] {
+[data-theme='dark'][data-accent='orange'] {
   --color-status-unknown-fg: #f2d14f;
   --color-status-unknown-bg: rgba(240, 205, 60, 0.16);
 }
-[data-theme='light'][data-accent-light='copper'] {
+[data-theme='light'][data-accent='orange'] {
   --color-status-unknown-fg: #745700;
   --color-status-unknown-bg: rgba(230, 190, 20, 0.2);
 }

@@ -1,4 +1,8 @@
-import { createFileRoute } from '@tanstack/react-router';
-import { OperationsPage } from '../pages/settings/OperationsPage';
+import { createFileRoute, redirect } from '@tanstack/react-router';
 
-export const Route = createFileRoute('/settings/operations')({ component: OperationsPage });
+// Old address (time zone page): kept so bookmarks and Telegram links still land on the merged page.
+export const Route = createFileRoute('/settings/operations')({
+  beforeLoad: () => {
+    throw redirect({ to: '/settings/general', replace: true });
+  }
+});

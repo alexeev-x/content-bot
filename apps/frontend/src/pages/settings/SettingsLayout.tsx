@@ -8,8 +8,7 @@ import styles from './SettingsLayout.module.css';
 
 const SECTIONS = [
   { to: '/settings/channels', label: ru.settings.channels, icon: 'channel' },
-  { to: '/settings/operations', label: ru.settings.operations, icon: 'clock' },
-  { to: '/settings/notifications', label: ru.settings.notifications, icon: 'bell' },
+  { to: '/settings/general', label: ru.settings.general, icon: 'settings' },
   { to: '/settings/appearance', label: ru.settings.appearance, icon: 'sparkle' }
 ] as const satisfies readonly { to: string; label: string; icon: IconName }[];
 

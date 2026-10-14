@@ -45,7 +45,8 @@ export type UpdateOwnerOperationsSettingsInput = z.infer<typeof updateOwnerOpera
 // Owner appearance settings, stored on the server so the browser and the Mini App match
 // (owner decision 06.10.2026, docs/design/README.md).
 
-export const accentPresetIdSchema = z.enum(['cobalt', 'indigo', 'copper', 'orchid', 'mono']);
+// Old ids keep their meaning (cobalt = blue, indigo = violet, copper = orange, orchid = pink, mono = graphite).
+export const accentPresetIdSchema = z.enum(['cobalt', 'indigo', 'copper', 'orchid', 'mono', 'teal', 'green', 'red']);
 export type AccentPresetId = z.infer<typeof accentPresetIdSchema>;
 
 export const themeModeSchema = z.enum(['system', 'light', 'dark']);
