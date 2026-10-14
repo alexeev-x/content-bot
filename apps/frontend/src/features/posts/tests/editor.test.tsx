@@ -23,13 +23,15 @@ const titleBox = () => screen.getByRole('textbox', { name: /Заголовок/ 
 const bodyBox = () => screen.getByRole('textbox', { name: 'Текст' });
 
 /** user-event puts the caret at the start of a contenteditable (it keeps the end of a textarea): move it by hand. */
+// The caret goes to the end through ProseMirror's keymap (select all, then →), and the text arrives as one input:
+// a DOM selection plus key-by-key typing lost a character under CI load (selectionchange arrives late).
 async function typeAtEnd(user: ReturnType<typeof userEvent.setup>, text: string) {
   const box = bodyBox();
+  const before = box.textContent ?? '';
   box.focus();
-  const selection = window.getSelection();
-  selection?.selectAllChildren(box);
-  selection?.collapseToEnd();
-  await user.keyboard(text);
+  await user.keyboard('{Control>}a{/Control}{ArrowRight}');
+  await user.paste(text);
+  await waitFor(() => expect(box.textContent).toBe(before + text));
 }
 
 // Ctrl+A goes through ProseMirror's own keymap; a DOM selection (user.clear) reaches the editor state only on a
