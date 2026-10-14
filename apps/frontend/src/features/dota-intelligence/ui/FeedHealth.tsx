@@ -9,6 +9,7 @@ import { dotaHeroStatisticsQueryOptions } from '../api/dota-hero-statistics-quer
 import { dotaIntelligenceQueryOptions } from '../api/dota-queries';
 import { DotaTime } from './DotaTime';
 import { FeedErrorDialog } from './FeedErrorDialog';
+import { explainFeedError } from './feed-error-text';
 import styles from './FeedHealth.module.css';
 
 type Health = DotaSourceDto['health'];
@@ -52,8 +53,16 @@ function WatcherControls({ onFinished }: { onFinished: () => void }) {
   const watcher = useDotaAutomation(id);
   const run = useRunAutomationNow(id);
   const toggle = useSetAutomationPaused(id);
+  // Hero statistics have their own job (at most once per 6 h); the same button re-checks them when allowed.
+  const heroes = useDotaAutomation('dota-hero-statistics');
+  const heroesRun = useRunAutomationNow('dota-hero-statistics');
   const automation = watcher.data ?? undefined;
-  const running = run.isPending || (automation !== undefined && automation.executionState !== 'idle');
+  const heroesBusy = heroesRun.isPending || (heroes.data != null && heroes.data.executionState !== 'idle');
+  const running = run.isPending || heroesBusy || (automation !== undefined && automation.executionState !== 'idle');
+  const checkNow = () => {
+    run.mutate();
+    if (heroes.data?.enabled && heroes.data.runNowAllowed) heroesRun.mutate();
+  };
   const wasRunning = useRef(false);
 
   useEffect(() => {
@@ -73,7 +82,7 @@ function WatcherControls({ onFinished }: { onFinished: () => void }) {
         icon="retry"
         isLoading={running}
         isDisabled={paused || !automation.runNowAllowed || toggle.isPending}
-        onPress={() => run.mutate()}
+        onPress={checkNow}
       >
         Проверить сейчас
       </Button>
@@ -148,43 +157,56 @@ export function FeedHealth({ timezone, onChecked }: Props) {
     <DisclosureGroup>
       <Disclosure id="feeds" title="Состояние лент" aside={dots}>
         <ul className={styles.list}>
-          {feeds.map((feed) => (
-            <li key={feed.id} className={styles.row}>
-              <strong className={styles.name}>{feed.name}</strong>
-              <StatusPill label={HEALTH_LABELS[feed.health]} {...TONE[feed.health]} />
-              <span className={styles.note}>
-                {feed.lastSuccessAt ? (
-                  <>
-                    Последний успех: <DotaTime iso={feed.lastSuccessAt} now={now} timezone={timezone} />
-                  </>
-                ) : (
-                  'Успешных проверок пока нет'
-                )}
-              </span>
-              {feed.error ? (
-                <>
-                  <Button size="sm" variant="ghost" onPress={() => setOpenFeed(feed.id)}>
-                    Подробнее
-                  </Button>
-                  <FeedErrorDialog
-                    feedName={feed.name}
-                    provider={feed.provider}
-                    error={feed.error}
-                    now={now}
-                    timezone={timezone}
-                    isOpen={openFeed === feed.id}
-                    onOpenChange={(open) => setOpenFeed(open ? feed.id : null)}
-                  />
-                </>
-              ) : feed.health === 'degraded' ? (
-                <span className={styles.note}>Подробности появятся после следующей проверки</span>
-              ) : null}
-            </li>
-          ))}
+          {feeds.map((feed) => {
+            const failed = feed.health === 'degraded';
+            return (
+              <li key={feed.id} className={styles.row}>
+                <span className={styles.dot} data-group={TONE[feed.health].group} aria-hidden="true" />
+                <div className={styles.main}>
+                  <strong className={styles.name}>{feed.name}</strong>
+                  <span className={styles.note} data-tone={failed ? 'failed' : undefined}>
+                    {failed ? (
+                      feed.error ? (
+                        explainFeedError(feed.error, feed.provider)
+                      ) : (
+                        'Причина не записана: она появится после следующей проверки'
+                      )
+                    ) : feed.lastSuccessAt ? (
+                      <>
+                        Обновлено <DotaTime iso={feed.lastSuccessAt} now={now} timezone={timezone} />
+                      </>
+                    ) : (
+                      HEALTH_LABELS[feed.health]
+                    )}
+                  </span>
+                </div>
+                <div className={styles.aside}>
+                  <StatusPill label={HEALTH_LABELS[feed.health]} {...TONE[feed.health]} />
+                  {feed.error ? (
+                    <>
+                      <Button size="sm" variant="ghost" onPress={() => setOpenFeed(feed.id)}>
+                        Подробнее
+                      </Button>
+                      <FeedErrorDialog
+                        feedName={feed.name}
+                        provider={feed.provider}
+                        error={feed.error}
+                        now={now}
+                        timezone={timezone}
+                        isOpen={openFeed === feed.id}
+                        onOpenChange={(open) => setOpenFeed(open ? feed.id : null)}
+                      />
+                    </>
+                  ) : null}
+                </div>
+              </li>
+            );
+          })}
         </ul>
         <WatcherControls
           onFinished={() => {
             void sources.refetch();
+            void heroes.refetch();
             onChecked?.();
           }}
         />

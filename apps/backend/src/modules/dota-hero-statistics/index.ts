@@ -296,13 +296,15 @@ function toStatisticsDto(
     lastAttemptAt: iso(lastAttemptAt),
     lastSuccessAt: iso(lastSuccessAt),
     lastErrorCode: lastError?.success ? lastError.data : null,
+    // A failure recorded before migration 0039 has a code but no time or detail: it is still shown, dated by the
+    // attempt that produced it, so «Состояние лент» never says "error" without a reason.
     lastError:
-      errorKind !== null && state?.last_error_at != null
+      errorKind !== null && state !== null && (state.last_error_at ?? state.last_attempt_at) !== null
         ? {
             code: errorKind,
             httpStatus: state.last_error_http_status,
             detail: state.last_error_detail ?? '',
-            at: iso(state.last_error_at),
+            at: iso(state.last_error_at ?? state.last_attempt_at),
             consecutiveFailures: Math.max(1, state.consecutive_failures),
             lastSuccessAt: iso(lastSuccessAt)
           }
