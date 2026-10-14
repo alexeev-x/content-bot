@@ -30,7 +30,8 @@ export function DashboardPage({ pollMs }: Props) {
     tone: check.tone,
     word: checkWord(check),
     off: isSwitchedOff(check),
-    title: check.summary
+    title: check.summary,
+    ...(check.action ? { action: check.action } : {})
   }));
 
   const bindings: PageBindings = {
@@ -40,8 +41,9 @@ export function DashboardPage({ pollMs }: Props) {
     zoneNote,
     timezone,
     onOpenPublication: (id) => void navigate({ to: '/publications', search: { id } }),
+    onOpenDay: (day) => void navigate({ to: '/publications', search: { from: day.from, to: day.to } }),
     onNewPost: () => void navigate({ to: '/posts/new' }),
-    onOpenPosts: () => void navigate({ to: '/posts' })
+    onPublishDraft: (id) => void navigate({ to: '/posts/$id/publish', params: { id } })
   };
 
   return (

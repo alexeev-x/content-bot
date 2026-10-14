@@ -1,0 +1,98 @@
+.chat {
+  flex: 1;
+  padding: var(--space-3);
+  border-radius: var(--radius-3);
+  background: var(--color-chat-bg);
+}
+.list,
+.skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.bubble {
+  align-self: flex-start;
+  max-width: 100%;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-3) var(--radius-3) var(--radius-3) var(--radius-1);
+  background: var(--color-bubble);
+  color: var(--color-bubble-text);
+  box-shadow: var(--shadow-card);
+}
+.main {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-1);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+.main[data-focus-visible] {
+  outline: var(--focus-ring-width) solid var(--color-focus-ring);
+  outline-offset: var(--focus-ring-offset);
+}
+.channel {
+  overflow: hidden;
+  color: var(--color-bubble-link);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.title {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  font-size: var(--font-size-sm);
+  overflow-wrap: anywhere;
+}
+.foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0 var(--space-3);
+  min-height: var(--size-target-min);
+  color: var(--color-bubble-meta);
+  font-size: var(--font-size-xs);
+}
+.foot time {
+  display: inline-flex;
+  margin-inline-start: auto;
+  white-space: nowrap;
+  align-items: center;
+  gap: 2px;
+  font-variant-numeric: tabular-nums;
+}
+.link {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  color: var(--color-bubble-link);
+  text-decoration: none;
+  white-space: nowrap;
+}
+.link:hover {
+  text-decoration: underline;
+}
+.link:focus-visible {
+  outline: var(--focus-ring-width) solid var(--color-focus-ring);
+  outline-offset: var(--focus-ring-offset);
+  border-radius: var(--radius-1);
+}
+.empty {
+  margin: 0;
+  padding: var(--space-3);
+  color: var(--color-bubble-meta);
+  font-size: var(--font-size-sm);
+}

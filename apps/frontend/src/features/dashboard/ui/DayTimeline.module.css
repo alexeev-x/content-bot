@@ -1,0 +1,188 @@
+.chart {
+  --marker: 28px;
+  --lane-step: 34px;
+  position: relative;
+  /* Room for the «сейчас» label above and the hour labels below; the height holds for every number of markers. */
+  height: calc(var(--space-6) + var(--marker) + (var(--lanes) - 1) * var(--lane-step) + var(--space-6));
+  padding-inline: var(--space-4);
+}
+.plot {
+  position: relative;
+  height: 100%;
+}
+.track {
+  position: absolute;
+  inset-inline: 0;
+  top: calc(var(--space-6) + var(--marker) / 2 - 2px);
+  height: 4px;
+  border-radius: var(--radius-pill);
+  background: var(--color-border-subtle);
+}
+.past {
+  position: absolute;
+  inset-inline-start: 0;
+  top: calc(var(--space-6) + var(--marker) / 2 - 2px);
+  width: var(--now);
+  height: 4px;
+  border-radius: var(--radius-pill);
+  background: var(--color-accent);
+  opacity: 0.55;
+}
+.tick {
+  position: absolute;
+  bottom: 0;
+  width: 0;
+}
+.tickLabel {
+  position: absolute;
+  bottom: 0;
+  transform: translateX(-50%);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-2xs);
+  font-variant-numeric: tabular-nums;
+}
+.now {
+  position: absolute;
+  top: var(--space-4);
+  bottom: var(--space-5);
+  inset-inline-start: var(--now);
+  width: 2px;
+  margin-inline-start: -1px;
+  border-radius: var(--radius-pill);
+  background: var(--color-accent);
+  pointer-events: none;
+}
+.nowLabel {
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-pill);
+  background: var(--color-accent);
+  color: var(--color-on-accent);
+  font-size: var(--font-size-2xs);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.6;
+  white-space: nowrap;
+}
+.markers {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.markerSlot {
+  position: absolute;
+  top: calc(var(--space-6) + var(--lane) * var(--lane-step));
+  width: 0;
+}
+/* A marker in a lower lane keeps a stem up to the line, so it still reads as «at this time». */
+.markerSlot[data-lane='1']::before {
+  content: '';
+  position: absolute;
+  bottom: calc(var(--marker) - 4px);
+  left: -1px;
+  width: 2px;
+  height: calc(var(--lane-step) - var(--marker) / 2 + 4px);
+  background: var(--tone-ring, var(--color-border-strong));
+  opacity: 0.5;
+}
+.marker {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: var(--marker);
+  height: var(--marker);
+  margin-inline-start: calc(var(--marker) / -2);
+  padding: 0;
+  border: 1.5px solid var(--tone-ring);
+  border-radius: var(--radius-pill);
+  background: linear-gradient(var(--tone-bg), var(--tone-bg)), var(--color-surface-1);
+  color: var(--tone-fg);
+  cursor: pointer;
+  transition: transform var(--motion-fast) ease-out;
+}
+.marker[data-hovered] {
+  transform: scale(1.12);
+}
+.marker[data-focus-visible] {
+  outline: var(--focus-ring-width) solid var(--color-focus-ring);
+  outline-offset: var(--focus-ring-offset);
+}
+.letter {
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  line-height: 1;
+}
+/* Status icon rides on the corner of the channel letter: the status is never colour alone. */
+.badge {
+  position: absolute;
+  right: -5px;
+  bottom: -5px;
+  display: grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  border-radius: var(--radius-pill);
+  background: var(--color-surface-1);
+  box-shadow: 0 0 0 1.5px var(--tone-ring);
+  color: var(--tone-fg);
+}
+.badge svg {
+  display: block;
+}
+.tip {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.skeletonDots {
+  position: absolute;
+  top: var(--space-6);
+  inset-inline: 10% 10%;
+  display: flex;
+  justify-content: space-between;
+}
+.sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
+.hint {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding-top: var(--space-2);
+}
+.hintText,
+.partial {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+.partial {
+  display: flex;
+  align-items: center;
+  min-height: var(--size-control-sm);
+  padding-top: var(--space-2);
+}
+/* Same height as the hint row, so the widget does not jump between its states. */
+.hintSpacer {
+  display: block;
+  min-height: calc(var(--size-control-sm) + var(--space-2));
+}
+
+@media (max-width: 859px) {
+  .chart {
+    padding-inline: var(--space-3);
+  }
+  .tick[data-minor] {
+    display: none;
+  }
+}

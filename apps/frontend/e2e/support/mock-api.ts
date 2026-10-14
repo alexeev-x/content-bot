@@ -121,6 +121,47 @@ const publications = [
   )
 ].map((item) => (item.status === 'unknown' ? { ...item, revision: 4, lastErrorCode: 'SEND_UNCONFIRMED' } : item));
 
+const HOUR_MS = 3_600_000;
+const uuid = (group: string, n: number) => `55555555-5555-4555-8555-${group}${String(n).padStart(8, '0')}`;
+const DEMO_POSTS = [
+  ['Итоги группового этапа', 'Dota Studio'],
+  ['Разбор патча 7.38', LONG_CHANNEL_TITLE],
+  ['Расписание плей-офф', 'Dota Studio'],
+  ['Новый герой: что известно', UNBROKEN],
+  ['Дайджест недели', 'Dota Studio'],
+  ['Анонс стрима', LONG_CHANNEL_TITLE],
+  ['Мемы вечера', 'Dota Studio'],
+  ['Скидки в магазине', UNBROKEN],
+  ['Подборка клипов', 'Dota Studio']
+] as const;
+// Publication hours of a demo day; a past slot is sent (one is failed), a future slot is scheduled.
+const DEMO_HOURS = [1.5, 6.5, 9, 11.25, 13.5, 15, 17.75, 20, 22.5];
+const demoDay = (from: number, day: number, now: number) =>
+  DEMO_HOURS.slice(0, [3, 5, 2, 9, 4, 1, 2][day % 7]!).map((hour, index) => {
+    const at = from + day * 24 * HOUR_MS + hour * HOUR_MS;
+    const [postTitle, destinationName] = DEMO_POSTS[(day + index) % DEMO_POSTS.length]!;
+    const failed = day === 1 && index === 0;
+    return {
+      publicationId: uuid(String(day).padStart(4, '0'), index + 1),
+      scheduledAt: new Date(at).toISOString(),
+      status: failed ? 'failed' : at < now ? 'sent' : 'scheduled',
+      postTitle,
+      destinationName
+    };
+  });
+
+// The newest drafts of the dashboard: edited an hour, a day and three days ago.
+const demoDrafts = () =>
+  [
+    ['11111111-1111-4111-8111-aaaaaaaaaa01', 'Итоги недели в Dota 2', 1],
+    ['11111111-1111-4111-8111-aaaaaaaaaa02', 'Гайд по новой роли для керри', 26],
+    ['11111111-1111-4111-8111-aaaaaaaaaa03', LONG_POST_TITLE, 74]
+  ].map(([id, title, hoursAgo]) =>
+    post(id as string, title as string, 'draft', {
+      updatedAt: new Date(Date.now() - (hoursAgo as number) * HOUR_MS).toISOString()
+    })
+  );
+
 const incidentIds = {
   unknown: '44444444-4444-4444-8444-000000000001',
   failed: '44444444-4444-4444-8444-000000000002',
@@ -217,7 +258,11 @@ export async function mockApi(page: Page): Promise<void> {
     return json(route, appearance);
   });
   await page.route(/\/api\/v1\/posts(\?.*)?$/, (route) => {
-    const view = new URL(route.request().url()).searchParams.get('view');
+    const query = new URL(route.request().url()).searchParams;
+    const view = query.get('view');
+    if (query.get('status') === 'draft' && query.get('limit') === '3') {
+      return json(route, { ...page_(demoDrafts()), archivedCount: archivedPosts.length, totalCount: 3 });
+    }
     const items = view === 'archive' ? archivedPosts : posts;
     return json(route, { ...page_(items), archivedCount: archivedPosts.length, totalCount: items.length });
   });
@@ -244,6 +289,21 @@ export async function mockApi(page: Page): Promise<void> {
   const store: Array<Record<string, unknown>> = publications.map((item) => ({ ...item }));
   await page.route(/\/api\/v1\/publications(\?.*)?$/, (route) => {
     const params = new URL(route.request().url()).searchParams;
+    const rangeFrom = params.get('from');
+    const rangeTo = params.get('to');
+    if (rangeFrom && rangeTo) {
+      // A date range (the week bars, a day opened from them): one demo week laid on the requested days.
+      const start = Date.parse(rangeFrom);
+      const days = Math.max(1, Math.round((Date.parse(rangeTo) - start) / (24 * HOUR_MS)));
+      const items = Array.from({ length: days }, (_, day) => demoDay(start, day, Date.now())).flat();
+      const rows = items.map((item) => ({
+        ...publication(item.publicationId, posts[0]!.id, ids.destination, item.status, item.scheduledAt),
+        ...(item.status === 'failed' ? { lastErrorCode: 'TELEGRAM_REJECTED' } : {})
+      }));
+      const statusCounts = { ...NO_COUNTS };
+      for (const row of rows) statusCounts[row.status as keyof typeof NO_COUNTS] += 1;
+      return json(route, { ...page_(rows), totalCount: rows.length, statusCounts });
+    }
     const items = store.filter(
       (item) =>
         (!params.get('status') || item['status'] === params.get('status')) &&
@@ -401,56 +461,46 @@ export async function mockApi(page: Page): Promise<void> {
         occurredAt: item['occurredAt']
       };
     });
-    const row = (id: string, at: string, status: string, postTitle: string, destinationName: string) => ({
-      publicationId: id,
-      scheduledAt: at,
-      status,
-      postTitle,
-      destinationName
+    const range = new URL(route.request().url()).searchParams;
+    const from = Date.parse(range.get('from') ?? new Date().toISOString());
+    const to = Date.parse(range.get('to') ?? new Date(from + 24 * HOUR_MS).toISOString());
+    const today = demoDay(from - 3 * 24 * HOUR_MS, 3, Date.now()).slice(0, 8);
+    const tomorrow = (hour: number, id: number, title: string, channel: string) => ({
+      publicationId: uuid('9999', id),
+      scheduledAt: new Date(to + hour * HOUR_MS).toISOString(),
+      status: 'scheduled',
+      postTitle: title,
+      destinationName: channel
+    });
+    const sentRow = (hoursBefore: number, id: number, title: string, channel: string, url?: string) => ({
+      publicationId: uuid('8888', id),
+      scheduledAt: new Date(from - hoursBefore * HOUR_MS).toISOString(),
+      status: 'sent',
+      postTitle: title,
+      destinationName: channel,
+      sentAt: new Date(from - hoursBefore * HOUR_MS + 5000).toISOString(),
+      ...(url ? { messageUrl: url } : {})
     });
     return json(route, {
       attention: attention.slice(0, 5),
       attentionTotal: Math.min(attention.length, 99),
-      today: [
-        row('33333333-3333-4333-8333-000000000a01', SOON, 'sent', 'Утренние новости', 'Dota Studio'),
-        row(
-          '33333333-3333-4333-8333-000000000a02',
-          '2026-10-07T11:00:00.000Z',
-          'scheduled',
-          LONG_POST_TITLE,
-          LONG_CHANNEL_TITLE
-        ),
-        row('33333333-3333-4333-8333-000000000a03', '2026-10-07T15:30:00.000Z', 'queued', UNBROKEN, UNBROKEN)
-      ],
-      todayTotal: 3,
-      upcoming: [
-        row(
-          '33333333-3333-4333-8333-000000000b01',
-          '2026-10-08T09:00:00.000Z',
-          'scheduled',
-          LONG_POST_TITLE,
-          'Dota Studio'
-        ),
-        row('33333333-3333-4333-8333-000000000b02', '2026-10-09T12:30:00.000Z', 'scheduled', 'Разбор патча', UNBROKEN)
-      ],
+      today,
+      todayTotal: today.length,
+      upcoming: [tomorrow(10, 1, LONG_POST_TITLE, 'Dota Studio'), tomorrow(36.5, 2, 'Разбор патча', UNBROKEN)],
       recentSent: [
-        {
-          ...row('33333333-3333-4333-8333-000000000a01', SOON, 'sent', 'Утренние новости', 'Dota Studio'),
-          sentAt: '2026-10-07T06:00:05.000Z',
-          messageUrl: 'https://t.me/dota_studio/4821'
-        },
-        {
-          ...row(
-            '33333333-3333-4333-8333-000000000c01',
-            '2026-10-06T09:00:00.000Z',
-            'sent',
-            'Итоги недели',
-            LONG_CHANNEL_TITLE
-          ),
-          sentAt: '2026-10-06T09:00:07.000Z'
-        }
-      ],
-      generatedAt: '2026-10-07T07:00:00.000Z'
+        ...today
+          .filter((item) => item.status === 'sent')
+          .slice(-2)
+          .reverse()
+          .map((item, index) => ({
+            ...item,
+            sentAt: new Date(Date.parse(item.scheduledAt) + 6000).toISOString(),
+            ...(index === 0 ? { messageUrl: 'https://t.me/dota_studio/4821' } : {})
+          })),
+        sentRow(3, 1, 'Итоги недели', LONG_CHANNEL_TITLE, 'https://t.me/dota_cis/310'),
+        sentRow(14, 2, 'Утренние новости', 'Dota Studio')
+      ].slice(0, 5),
+      generatedAt: new Date().toISOString()
     });
   });
   await page.route(/\/api\/v1\/publications\/[^/?]+\/resolve-unknown$/, (route) => {

@@ -5,6 +5,8 @@ import { classifyApiError } from '../../../shared/api/error-kind';
 import type { StatusCheck } from '../../../shared/lib/status-check';
 import { Banner, Button, ErrorState } from '../../../shared/ui';
 import { buildView } from '../model/build-view';
+import { useDraftsQuery, useWeekQuery } from '../model/use-dashboard-query';
+import { useTodayRange } from '../model/today-range';
 import type { ServiceRow } from '../model/service-rows';
 import { copy } from './copy';
 import styles from './Dashboard.module.css';
@@ -22,8 +24,10 @@ export type PageBindings = {
   zoneNote: string;
   timezone?: string;
   onOpenPublication: (publicationId: string) => void;
+  /** Opens the publication list for one owner-zone day (the bars of «Неделя»). */
+  onOpenDay: (day: { from: string; to: string }) => void;
   onNewPost: () => void;
-  onOpenPosts: () => void;
+  onPublishDraft: (postId: string) => void;
 };
 
 /** The fixed Обзор: the day summary is read once for all the widgets that need it. */
@@ -32,11 +36,14 @@ export function Dashboard({
   checks,
   services,
   zoneNote,
-  timezone,
+  timezone = 'Europe/Moscow',
   onOpenPublication,
+  onOpenDay,
   onNewPost,
-  onOpenPosts
+  onPublishDraft
 }: PageBindings) {
+  const week = useWeekQuery(timezone, useTodayRange(timezone).from);
+  const drafts = useDraftsQuery();
   // A failed day summary replaces the widgets that read it with one error, never a block of zeros.
   const failed = !query.data && !query.isPending;
 
@@ -84,7 +91,7 @@ export function Dashboard({
       loading={query.isPending}
       banner={banner}
       zoneNote={zoneNote}
-      env={{ view, services, timezone, onOpenPublication, onNewPost, onOpenPosts }}
+      env={{ view, services, week, drafts, timezone, onOpenPublication, onOpenDay, onNewPost, onPublishDraft }}
     />
   );
 }

@@ -66,20 +66,6 @@ export function recentTime(iso: string, now: Date, timezone = 'Europe/Moscow'): 
   return new Intl.DateTimeFormat(LOCALE, { day: 'numeric', month: 'short', timeZone: timezone }).format(new Date(iso));
 }
 
-/** «6 окт. 2026 г., 12:00 GMT+3»: the full moment with its zone, for the tooltip and the accessible text. */
-export function fullTime(iso: string, timezone = 'Europe/Moscow'): string {
-  return new Intl.DateTimeFormat(LOCALE, {
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-    hourCycle: 'h23',
-    timeZoneName: 'short',
-    timeZone: timezone
-  }).format(new Date(iso));
-}
-
 const PENDING = new Set(['scheduled', 'queued', 'retry_wait']);
 
 /** The next publication still ahead of `now`: today's rows first, then the following days. */
