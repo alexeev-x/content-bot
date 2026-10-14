@@ -15,7 +15,12 @@ function PublicationsRoute() {
       search={search}
       onSearchChange={(patch, options) =>
         void navigate({
-          search: (previous: PublicationsSearch) => ({ ...previous, ...patch }),
+          // Any filter change starts again from page 1; opening a row or paging keeps the page.
+          search: (previous: PublicationsSearch) => ({
+            ...previous,
+            ...(Object.keys(patch).some((key) => key !== 'id' && key !== 'page') ? { page: undefined } : {}),
+            ...patch
+          }),
           replace: options?.replace ?? false
         })
       }

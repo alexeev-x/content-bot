@@ -1,8 +1,9 @@
+import { PAGE_SIZE } from '../../../shared/api/page-query';
 import { ru } from '../../../shared/lib/ru';
 import {
   DataTable,
   FilterButton,
-  FooterLine,
+  Pagination,
   Panel,
   PhoneSkeletonRows,
   PhoneToolbar,
@@ -21,11 +22,11 @@ import styles from './PublicationsSkeleton.module.css';
 
 const noop = () => {};
 const COLUMNS: DataColumn<{ id: string }>[] = [
-  { id: 'time', header: copy.list.columns.time, cell: () => null },
+  { id: 'time', width: 150, header: copy.list.columns.time, cell: () => null },
   { id: 'post', header: copy.list.columns.post, isRowHeader: true, cell: () => null },
-  { id: 'channel', header: copy.list.columns.channel, cell: () => null },
-  { id: 'status', header: copy.list.columns.status, cell: () => null },
-  { id: 'message', header: copy.list.columns.message, cell: () => null }
+  { id: 'channel', width: 220, header: copy.list.columns.channel, cell: () => null },
+  { id: 'status', width: 170, header: copy.list.columns.status, cell: () => null },
+  { id: 'message', width: 140, header: copy.list.columns.message, cell: () => null }
 ];
 
 /** The publications page while the session is restored: the loaded geometry (tabs, panel, rows) and no request. */
@@ -47,7 +48,7 @@ export function PublicationsSkeleton() {
       <Panel
         title={narrow ? copy.list.title : copy.list.panel.all}
         reserveRows={narrow ? 6 : 8}
-        footer={<FooterLine text={copy.states.loading} />}
+        footer={<Pagination page={1} pageSize={PAGE_SIZE} totalCount={0} onPageChange={() => {}} isLoading />}
       >
         {narrow ? (
           <>

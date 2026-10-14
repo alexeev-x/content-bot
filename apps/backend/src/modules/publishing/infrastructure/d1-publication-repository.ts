@@ -146,10 +146,12 @@ export function listPublicationsSql(query: ListPublicationsQuery): { sql: string
     bindings.push(query.after.scheduledAt, query.after.scheduledAt, query.after.id);
   }
   bindings.push(query.limit);
+  const offset = query.offset === undefined ? '' : ' OFFSET ?';
+  if (query.offset !== undefined) bindings.push(query.offset);
   const where = conditions.length === 0 ? '' : ` WHERE ${conditions.join(' AND ')}`;
   const direction = order === 'asc' ? 'ASC' : 'DESC';
   return {
-    sql: `SELECT ${PUBLICATION_COLUMNS} ${byJobs ? FROM_JOBS : FROM_PUBLICATIONS}${where} ORDER BY ${scheduledAt} ${direction}, ${id} ${direction} LIMIT ?`,
+    sql: `SELECT ${PUBLICATION_COLUMNS} ${byJobs ? FROM_JOBS : FROM_PUBLICATIONS}${where} ORDER BY ${scheduledAt} ${direction}, ${id} ${direction} LIMIT ?${offset}`,
     bindings
   };
 }

@@ -1,5 +1,11 @@
 import { z } from 'zod';
-import { pageQuerySchema, pageSchema } from './pagination';
+import {
+  CURSOR_XOR_PAGE_ISSUE,
+  cursorXorPage,
+  offsetPageFields,
+  offsetPageQuerySchema,
+  pageSchema
+} from './pagination';
 
 export const mediaKindSchema = z.enum(['photo', 'animation', 'video']);
 export type MediaKind = z.infer<typeof mediaKindSchema>;
@@ -52,17 +58,19 @@ export const mediaLibraryItemSchema = z.object({
 });
 export type MediaLibraryItemDto = z.infer<typeof mediaLibraryItemSchema>;
 
-// GET /api/v1/media?kind=all|photo|video&search&usage=all|used|unused&cursor&limit -> 200 MediaLibraryPageDto.
+// GET /api/v1/media?kind=all|photo|video&search&usage=all|used|unused&cursor|page&limit -> 200 MediaLibraryPageDto.
 // Search is an SQLite filename-prefix match (ASCII case-insensitive; non-ASCII case-sensitive).
 // Usage describes current post attachments;
 // duplicateCount compares exact SHA-256 among retained assets. Content remains private.
-export const mediaLibraryQuerySchema = pageQuerySchema.extend({
-  kind: mediaLibraryKindSchema.default('all'),
-  search: z.string().trim().min(1).max(80).optional(),
-  usage: mediaLibraryUsageFilterSchema.default('all')
-});
+export const mediaLibraryQuerySchema = offsetPageQuerySchema
+  .extend({
+    kind: mediaLibraryKindSchema.default('all'),
+    search: z.string().trim().min(1).max(80).optional(),
+    usage: mediaLibraryUsageFilterSchema.default('all')
+  })
+  .refine(cursorXorPage, CURSOR_XOR_PAGE_ISSUE);
 export type MediaLibraryQuery = z.infer<typeof mediaLibraryQuerySchema>;
-export const mediaLibraryPageSchema = pageSchema(mediaLibraryItemSchema);
+export const mediaLibraryPageSchema = pageSchema(mediaLibraryItemSchema).extend(offsetPageFields);
 export type MediaLibraryPageDto = z.infer<typeof mediaLibraryPageSchema>;
 
 // POST /api/v1/posts/{postId}/media?revision&fileName; raw binary body, Content-Type is checked

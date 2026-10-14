@@ -39,8 +39,9 @@ export interface PostMediaRepository {
     search?: string;
     usage: 'all' | 'used' | 'unused';
     after?: { createdAt: number; id: string };
+    offset?: number;
     limit: number;
-  }): Promise<MediaLibraryItemDto[]>;
+  }): Promise<{ items: MediaLibraryItemDto[]; totalCount: number }>;
   findRetainedMedia(mediaIds: string[]): Promise<PostMediaDto[]>;
   attachRetained(input: {
     postId: string;

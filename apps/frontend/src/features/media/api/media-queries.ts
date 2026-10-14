@@ -1,6 +1,7 @@
 import { useRef } from 'react';
 import type { PostDto } from '@alexeev/contracts';
 import { infiniteQueryOptions, queryOptions, useMutation, useQueryClient } from '@tanstack/react-query';
+import { keepPreviousInScope } from '../../../shared/api/page-query';
 import { nextCursor } from '../../../shared/api/query-string';
 import { ApiError } from '../../../shared/api/http-client';
 import {
@@ -30,6 +31,18 @@ export function mediaInfiniteQueryOptions(filters: MediaFilters) {
     getNextPageParam: nextCursor,
     staleTime: 30_000,
     retry: false
+  });
+}
+
+export function mediaPageQueryOptions(filters: MediaFilters, page: number) {
+  const scope = `${filters.kind}:${filters.usage}`;
+  return queryOptions({
+    queryKey: [...mediaKeys.lists(), 'page', filters, page] as const,
+    queryFn: ({ signal }) => listMedia(filters, undefined, signal, page),
+    staleTime: 30_000,
+    retry: false,
+    meta: { scope },
+    placeholderData: keepPreviousInScope(scope)
   });
 }
 

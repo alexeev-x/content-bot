@@ -8,6 +8,7 @@ import {
 } from '@tanstack/react-query';
 import { useRef, useState } from 'react';
 import { createIdempotencyTracker } from '../../../shared/api/idempotency';
+import { keepPreviousInScope } from '../../../shared/api/page-query';
 import { nextCursor } from '../../../shared/api/query-string';
 import { attachLibraryMedia } from './post-media-api';
 import {
@@ -47,6 +48,17 @@ export function postsInfiniteQueryOptions(filters: PostFilters = {}) {
     initialPageParam: undefined as string | undefined,
     getNextPageParam: nextCursor,
     staleTime: 30_000
+  });
+}
+
+/** One numbered page. Searching or sorting keeps the previous rows on screen inside the same tab. */
+export function postsPageQueryOptions(filters: PostFilters, page: number) {
+  return queryOptions({
+    queryKey: [...postKeys.lists(), 'page', filters, page] as const,
+    queryFn: ({ signal }) => listPosts(filters, undefined, signal, page),
+    staleTime: 30_000,
+    meta: { scope: `${filters.view ?? 'live'}:${filters.status ?? ''}` },
+    placeholderData: keepPreviousInScope(`${filters.view ?? 'live'}:${filters.status ?? ''}`)
   });
 }
 

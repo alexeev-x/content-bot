@@ -8,6 +8,7 @@ import { PostsPage } from '../../pages/posts/PostsPage';
 // List state lives in the URL so filters remain shareable and browser navigation restores them.
 const searchSchema = z
   .object({
+    page: z.number().int().min(1).max(1000).optional().catch(1),
     view: z.enum(['all', 'drafts', 'archive']).optional().catch(undefined),
     q: z.string().trim().max(120).optional().catch(undefined),
     sort: z.enum(['title', 'updated', 'sentAt', 'left']).optional().catch(undefined),
@@ -28,7 +29,7 @@ export const Route = createFileRoute('/posts/')({
 });
 
 function PostsRoute() {
-  const { view, q, sort, direction } = Route.useSearch();
+  const { view, q, sort, direction, page } = Route.useSearch();
   const setSearch = Route.useNavigate();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -48,10 +49,15 @@ function PostsRoute() {
       view={view ?? 'all'}
       query={q ?? ''}
       sort={listSort}
+      page={page ?? 1}
+      onPageChange={(next) =>
+        void setSearch({ search: (previous) => ({ ...previous, page: next > 1 ? next : undefined }), replace: true })
+      }
       onViewChange={(next) =>
         void setSearch({
           search: (previous) => ({
             ...previous,
+            page: undefined,
             view: next === 'all' ? undefined : next,
             q: undefined,
             sort: undefined,
@@ -61,11 +67,14 @@ function PostsRoute() {
         })
       }
       onQueryChange={(next) =>
-        void setSearch({ search: (previous) => ({ ...previous, q: next.trim() || undefined }), replace: true })
+        void setSearch({
+          search: (previous) => ({ ...previous, page: undefined, q: next.trim() || undefined }),
+          replace: true
+        })
       }
       onSortChange={(next) =>
         void setSearch({
-          search: (previous) => ({ ...previous, sort: next?.key, direction: next?.direction }),
+          search: (previous) => ({ ...previous, page: undefined, sort: next?.key, direction: next?.direction }),
           replace: true
         })
       }

@@ -13,6 +13,7 @@ import {
 } from '@alexeev/contracts';
 import type { z } from 'zod';
 import { apiRequest } from '../../../shared/api/http-client';
+import { PAGE_SIZE } from '../../../shared/api/page-query';
 import { buildQuery, DEFAULT_PAGE_SIZE } from '../../../shared/api/query-string';
 
 export type PublicationFilters = Pick<
@@ -26,7 +27,12 @@ export type ResolveUnknownBody = z.input<typeof resolveUnknownPublicationInputSc
 export type DeletePublicationBody = z.input<typeof deletePublicationInputSchema>;
 export type BulkDeletePublicationsBody = z.input<typeof bulkDeletePublicationsInputSchema>;
 
-export function listPublications(filters: PublicationFilters, cursor: string | undefined, signal?: AbortSignal) {
+export function listPublications(
+  filters: PublicationFilters,
+  cursor: string | undefined,
+  signal?: AbortSignal,
+  page?: number
+) {
   const query = buildQuery({
     status: filters.status,
     statusGroup: filters.statusGroup,
@@ -37,7 +43,8 @@ export function listPublications(filters: PublicationFilters, cursor: string | u
     to: filters.to,
     order: filters.order,
     cursor,
-    limit: DEFAULT_PAGE_SIZE
+    page,
+    limit: page === undefined ? DEFAULT_PAGE_SIZE : PAGE_SIZE
   });
   return apiRequest(`/api/v1/publications${query}`, publicationPageSchema, { signal });
 }

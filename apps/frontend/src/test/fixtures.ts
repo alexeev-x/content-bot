@@ -116,6 +116,7 @@ export const publicationPage = (
 ) => ({
   items,
   nextCursor: options.nextCursor ?? null,
+  page: null,
   totalCount: options.totalCount ?? items.length,
   statusCounts: publicationStatusCounts(options.statusCounts)
 });
@@ -160,6 +161,7 @@ export const postPage = (
 ) => ({
   items,
   nextCursor: options.nextCursor ?? null,
+  page: null,
   archivedCount: options.archivedCount ?? 0,
   totalCount: options.totalCount ?? items.length
 });

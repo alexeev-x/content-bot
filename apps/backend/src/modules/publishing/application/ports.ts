@@ -316,6 +316,8 @@ export interface ListPublicationsQuery {
   to?: number;
   order?: 'asc' | 'desc';
   after?: { scheduledAt: number; id: string };
+  /** Rows to skip for page-number pagination; mutually exclusive with `after`. */
+  offset?: number;
   limit: number;
   /** Separates `scheduled` from `queued` for pending jobs. */
   now: number;

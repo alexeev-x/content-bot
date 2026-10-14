@@ -1,3 +1,4 @@
+import { PAGE_SIZE } from '../../../shared/api/page-query';
 import type { PostDto, PublicationDto } from '@alexeev/contracts';
 import { useMemo } from 'react';
 import {
@@ -20,7 +21,7 @@ export type PublicationChannel = { title: string; chatId: string };
 export type PublicationOrder = 'asc' | 'desc';
 
 /** Rows drawn while the list loads: the same geometry as the loaded table. */
-export const PUBLICATION_ROW_LOADING = 8;
+export const PUBLICATION_ROW_LOADING = PAGE_SIZE;
 
 type Props = {
   rows: readonly PublicationDto[];
@@ -120,6 +121,7 @@ function Grid(props: Props) {
     () => [
       {
         id: 'time',
+        width: 150,
         header: copy.list.columns.time,
         allowsSorting: true,
         cell: (row) => (
@@ -136,6 +138,7 @@ function Grid(props: Props) {
       },
       {
         id: 'channel',
+        width: 220,
         header: copy.list.columns.channel,
         cell: (row) => {
           const title = channel(row)?.title;
@@ -150,11 +153,13 @@ function Grid(props: Props) {
       },
       {
         id: 'status',
+        width: 170,
         header: copy.list.columns.status,
         cell: (row) => <StatusBadge status={displayStatus(row)} />
       },
       {
         id: 'message',
+        width: 140,
         header: copy.list.columns.message,
         cell: (row) => <MessageCell publication={row} channel={channel(row)} />
       }

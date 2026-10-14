@@ -45,7 +45,7 @@ export const postsCopy = {
   },
   archive: {
     tableLabel: 'Архив постов',
-    note: 'Опубликованные посты хранятся здесь 30 дней, затем удаляются.',
+    note: 'Хранятся 30 дней, затем удаляются',
     columns: { title: 'Название', channels: 'Каналы', sentAt: 'Опубликовано', left: 'Осталось' },
     noChannels: 'Нет данных о каналах',
     daysLeft: (days: number) => `Удалится через ${days} дн.`,

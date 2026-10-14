@@ -1,8 +1,9 @@
-import { useInfiniteQuery } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { useEffect, useMemo, useState } from 'react';
 import { mediaLibraryUsageFilterSchema, type MediaLibraryItemDto, type MediaLibraryKind } from '@alexeev/contracts';
 import type { z } from 'zod';
 import { classifyApiError } from '../../../shared/api/error-kind';
+import { PAGE_SIZE } from '../../../shared/api/page-query';
 import { ApiError } from '../../../shared/api/http-client';
 import {
   Button,
@@ -14,11 +15,11 @@ import {
   Menu,
   Panel,
   PageHeader,
+  Pagination,
   SearchField,
   SegmentedControl,
   SelectionBar,
   Select,
-  Skeleton,
   Tab,
   TabList,
   TabPanel,
@@ -28,7 +29,7 @@ import {
 } from '../../../shared/ui';
 import { ru } from '../../../shared/lib/ru';
 import { pluralRu } from '../../../shared/lib/ru-format';
-import { mediaInfiniteQueryOptions, useCreatePostWithMedia, useDeleteMedia } from '../api/media-queries';
+import { mediaPageQueryOptions, useCreatePostWithMedia, useDeleteMedia } from '../api/media-queries';
 import type { MediaFilters } from '../api/media-api';
 import { AttachDialog } from './AttachDialog';
 import { formatDate } from './media-format';
@@ -41,6 +42,7 @@ type SearchState = {
   search?: string;
   view?: 'grid' | 'list';
   id?: string;
+  page?: number;
 };
 type MediaLibraryUsageFilter = z.infer<typeof mediaLibraryUsageFilterSchema>;
 type Props = {
@@ -186,25 +188,46 @@ function MediaList({
   );
 }
 
+/** The same markup and classes as the loaded cards and rows, so the swap moves nothing. */
 function MediaSkeleton({ view }: { view: 'grid' | 'list' }) {
+  const rows = Array.from({ length: PAGE_SIZE }, (_, index) => index);
   return view === 'grid' ? (
     <ul className={styles.grid} aria-label="Загрузка медиатеки" aria-busy="true">
-      {Array.from({ length: 10 }, (_, index) => (
+      {rows.map((index) => (
         <li className={styles.card} key={index}>
           <div className={styles.cardButton}>
-            <Skeleton height="140px" radius="var(--radius-1)" />
-            <Skeleton height={14} width="70%" />
-            <Skeleton height={12} width="45%" />
+            <span className={`${styles.preview} ${styles.skeletonBlock}`} aria-hidden="true" />
+            <span className={`${styles.name} ${styles.skeletonText}`} aria-hidden="true">
+               
+            </span>
+            <span className={`${styles.meta} ${styles.skeletonText}`} aria-hidden="true">
+               
+            </span>
           </div>
         </li>
       ))}
     </ul>
   ) : (
-    <div aria-label="Загрузка медиатеки" aria-busy="true">
-      {Array.from({ length: 8 }, (_, index) => (
-        <Skeleton key={index} height={64} />
+    <ul className={styles.list} aria-label="Загрузка медиатеки" aria-busy="true">
+      {rows.map((index) => (
+        <li className={styles.listRow} key={index}>
+          <span className={`${styles.preview} ${styles.listPreview} ${styles.skeletonBlock}`} aria-hidden="true" />
+          <span className={styles.listText}>
+            <span className={`${styles.name} ${styles.skeletonText}`} aria-hidden="true">
+               
+            </span>
+            <span className={`${styles.meta} ${styles.skeletonText}`} aria-hidden="true">
+               
+            </span>
+          </span>
+          <span className={`${styles.listUsage} ${styles.skeletonText}`} aria-hidden="true">
+             
+          </span>
+          <span className={styles.listCheck} />
+          <span className={styles.listCheck} />
+        </li>
       ))}
-    </div>
+    </ul>
   );
 }
 
@@ -303,8 +326,19 @@ export function MediaLibrary({ searchState, onSearchState, onCreatePost, onLogin
     }),
     [searchState.kind, searchState.search, searchState.usage]
   );
-  const query = useInfiniteQuery(mediaInfiniteQueryOptions(filters));
-  const items = query.data?.pages.flatMap((page) => page.items) ?? [];
+  const page = searchState.page ?? 1;
+  const query = useQuery(mediaPageQueryOptions(filters, page));
+  const items = useMemo(() => query.data?.items ?? [], [query.data]);
+  const totalCount = query.data?.totalCount ?? 0;
+  const lastPage = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
+  // A page emptied by deletions falls back to the new last page.
+  useEffect(() => {
+    if (!query.isPlaceholderData && !query.isPending && !query.isError && page > lastPage) {
+      onSearchState({ page: lastPage > 1 ? lastPage : undefined }, { replace: true });
+    }
+  }, [lastPage, onSearchState, page, query.isError, query.isPending, query.isPlaceholderData]);
+  const isSearchSettling =
+    searchInput.trim() !== (searchState.search ?? '') || (query.isPlaceholderData && query.isFetching);
   const active = items.find((item) => item.id === searchState.id);
   // The list is a desktop affordance: phones always get the grid.
   const view = narrow ? 'grid' : (searchState.view ?? 'grid');
@@ -411,14 +445,7 @@ export function MediaLibrary({ searchState, onSearchState, onCreatePost, onLogin
         onRetry={retry}
       />
     );
-  } else if (
-    items.length === 0 &&
-    query.data?.pages.length === 1 &&
-    query.data.pages[0]?.items.length === 0 &&
-    !filters.search &&
-    filters.kind === 'all' &&
-    filters.usage === 'all'
-  ) {
+  } else if (totalCount === 0 && !filters.search && filters.kind === 'all' && filters.usage === 'all') {
     body = (
       <EmptyState
         title="Файлов пока нет"
@@ -430,7 +457,7 @@ export function MediaLibrary({ searchState, onSearchState, onCreatePost, onLogin
         }
       />
     );
-  } else if (items.length === 0) {
+  } else if (totalCount === 0) {
     body = (
       <EmptyState
         title="Ничего не найдено"
@@ -502,24 +529,20 @@ export function MediaLibrary({ searchState, onSearchState, onCreatePost, onLogin
             <TabPanel key={option.id} id={option.id}>
               <Panel
                 footer={
-                  <div className={styles.footer}>
-                    <span>{query.isPending ? 'Загрузка…' : `${items.length} показано`}</span>
-                    <output className={styles.status} aria-live="polite" aria-atomic="true">
-                      {query.isFetchingNextPage ? 'Загружаем ещё файлы…' : ''}
-                    </output>
-                    {query.hasNextPage ? (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onPress={() => void query.fetchNextPage()}
-                        isDisabled={query.isFetchingNextPage}
-                      >
-                        Показать ещё
-                      </Button>
-                    ) : (
-                      <span>Конец списка</span>
-                    )}
-                  </div>
+                  query.isPending ? (
+                    <Pagination page={1} pageSize={PAGE_SIZE} totalCount={0} onPageChange={() => {}} isLoading />
+                  ) : (
+                    <Pagination
+                      page={page}
+                      pageSize={PAGE_SIZE}
+                      totalCount={totalCount}
+                      onPageChange={(next) => {
+                        setSelected(new Set());
+                        onSearchState({ page: next > 1 ? next : undefined, id: undefined }, { replace: true });
+                      }}
+                      isSearching={isSearchSettling}
+                    />
+                  )
                 }
               >
                 <div className={styles.toolbar}>

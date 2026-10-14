@@ -8,7 +8,8 @@ const mediaSearchSchema = z.looseObject({
   usage: mediaLibraryUsageFilterSchema.optional().catch(undefined),
   search: z.string().trim().min(1).max(80).optional().catch(undefined),
   view: z.enum(['grid', 'list']).optional().catch(undefined),
-  id: z.uuid().optional().catch(undefined)
+  id: z.uuid().optional().catch(undefined),
+  page: z.number().int().min(1).max(1000).optional().catch(1)
 });
 
 export const Route = createFileRoute('/media')({
@@ -24,7 +25,14 @@ export const Route = createFileRoute('/media')({
         onOpenPost={(id) => void navigate({ to: '/posts/$id', params: { id } })}
         onSearchState={(patch, options) =>
           void navigate({
-            search: (previous) => ({ ...previous, ...patch }),
+            // Filters and search start again from page 1; paging, the view and the open file keep it.
+            search: (previous) => ({
+              ...previous,
+              ...(Object.keys(patch).some((key) => key !== 'id' && key !== 'page' && key !== 'view')
+                ? { page: undefined }
+                : {}),
+              ...patch
+            }),
             replace: options?.replace ?? false
           })
         }

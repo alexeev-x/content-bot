@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import type { PublicationDeleteRefusal, PublicationDto, PublicationStatus } from '@alexeev/contracts';
+import { PAGE_SIZE } from '../../shared/api/page-query';
 import { ApiError } from '../../shared/api/http-client';
 import { ru } from '../../shared/lib/ru';
 import { classifyApiError } from '../../shared/api/error-kind';
 import {
   DeletePublicationsDialog,
   deleteTargetOf,
-  isInProgress,
   PublicationDrawer,
   PublicationTable,
   publicationCopy,
@@ -16,7 +16,7 @@ import {
   Button,
   EmptyState,
   ErrorState,
-  FooterLine,
+  Pagination,
   PageHeader,
   Panel,
   SelectionBar,
@@ -78,7 +78,6 @@ export function PublicationsPage({ search, onSearchChange, onOpenPosts, pollMs }
   const announcement = useStatusAnnouncement(items);
   // The offset is read once per visit: it only changes at a DST switch, and render must stay pure.
   const zoneNote = `${timezone}, ${utcOffsetLabel(now, timezone)}`;
-  const polling = items.some((item) => isInProgress(item.status));
 
   const openRow = search.id ? items.find((item) => item.id === search.id) : undefined;
   const openDestination = openRow ? channel(openRow) : undefined;
@@ -96,13 +95,13 @@ export function PublicationsPage({ search, onSearchChange, onOpenPosts, pollMs }
   const { mode: selectMode, selected } = selection;
   const defaultOrder: Order = search.view === 'upcoming' ? 'asc' : 'desc';
   const order = search.order ?? defaultOrder;
-  const counts = list.data?.pages[0]?.statusCounts;
+  const counts = list.data?.statusCounts;
   const tabCount = (kind: PublicationView) => {
     if (!counts) return null;
     if (kind === 'upcoming') return counts.scheduled + counts.queued + counts.preparing + counts.retry_wait;
     if (kind === 'recent') return counts.sent;
     if (kind === 'errors') return counts.failed + counts.unknown;
-    return list.data?.pages[0]?.totalCount ?? null;
+    return list.data?.totalCount ?? null;
   };
   const zone = timezone;
   const textOf = useCallback(
@@ -172,29 +171,28 @@ export function PublicationsPage({ search, onSearchChange, onOpenPosts, pollMs }
     if (search.id && outcome.deleted.includes(search.id)) onSearchChange({ id: undefined }, { replace: true });
   }
 
+  const totalCount = list.data?.totalCount ?? 0;
+  const page = search.page ?? 1;
+  const lastPage = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
+  // A page emptied by deletions falls back to the new last page.
+  useEffect(() => {
+    if (!list.isPlaceholderData && !list.isPending && !list.isError && page > lastPage) {
+      onSearchChange({ page: lastPage > 1 ? lastPage : undefined }, { replace: true });
+    }
+  }, [lastPage, list.isError, list.isPending, list.isPlaceholderData, onSearchChange, page]);
+  const isSearchSettling = query.trim() !== (search.q ?? '') || (list.isPlaceholderData && list.isFetching);
   const footer = list.isPending ? (
-    <FooterLine text={copy.states.loading} />
-  ) : ready && items.length > 0 ? (
-    <FooterLine
-      text={[
-        copy.list.loaded(items.length, list.data?.pages[0]?.totalCount ?? items.length, Boolean(list.hasNextPage)),
-        isSearching && list.hasNextPage ? copy.filters.searchScope : null,
-        polling ? copy.list.updating : null
-      ]
-        .filter(Boolean)
-        .join(' · ')}
-      action={
-        list.hasNextPage ? (
-          <Button
-            variant="ghost"
-            size="sm"
-            isLoading={list.isFetchingNextPage}
-            onPress={() => void list.fetchNextPage()}
-          >
-            {copy.list.loadMore}
-          </Button>
-        ) : undefined
-      }
+    <Pagination page={1} pageSize={PAGE_SIZE} totalCount={0} onPageChange={() => {}} isLoading />
+  ) : ready && (items.length > 0 || totalCount > 0) ? (
+    <Pagination
+      page={page}
+      pageSize={PAGE_SIZE}
+      totalCount={totalCount}
+      onPageChange={(next) => {
+        clearSelection();
+        onSearchChange({ page: next > 1 ? next : undefined }, { replace: true });
+      }}
+      isSearching={isSearchSettling}
     />
   ) : undefined;
 
@@ -254,13 +252,6 @@ export function PublicationsPage({ search, onSearchChange, onOpenPosts, pollMs }
             </Tab>
           </TabList>
           <TabPanel id={view}>
-            {view === 'errors' ? (
-              <OpenIncidents
-                timezone={timezone}
-                onOpenPublication={(id) => onSearchChange({ id })}
-                {...(pollMs === undefined ? {} : { pollMs })}
-              />
-            ) : null}
             {search.post ? (
               <p className={styles.note}>
                 {copy.list.onePost}{' '}
@@ -312,7 +303,7 @@ export function PublicationsPage({ search, onSearchChange, onOpenPosts, pollMs }
                       onOrderChange={(next) => onSearchChange({ order: next })}
                     />
                   ) : null}
-                  {ready && rows.length === 0 ? (
+                  {ready && rows.length === 0 && totalCount === 0 ? (
                     isSearching ? (
                       <EmptyState
                         icon="search"
@@ -389,6 +380,14 @@ export function PublicationsPage({ search, onSearchChange, onOpenPosts, pollMs }
                 </Panel>
               </Wrap>
             )}
+            {/* Below the table: a per-tab block above it would move the table when the tab changes. */}
+            {view === 'errors' ? (
+              <OpenIncidents
+                timezone={timezone}
+                onOpenPublication={(id) => onSearchChange({ id })}
+                {...(pollMs === undefined ? {} : { pollMs })}
+              />
+            ) : null}
           </TabPanel>
         </Tabs>
       </div>

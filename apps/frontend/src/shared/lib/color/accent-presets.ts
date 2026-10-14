@@ -30,17 +30,40 @@ const FROM_SERVER_PRESET = {
   red: 'red'
 } as const satisfies Record<(typeof SERVER_PRESET)[AccentId], AccentId>;
 
-/** Reads the one accent from the stored light/dark pair; anything else (an old custom colour) is blue. */
-export function accentFromStored({ lightAccent }: { lightAccent: AccentRef }): AccentId {
-  return lightAccent.kind === 'preset' ? FROM_SERVER_PRESET[lightAccent.id] : DEFAULT_ACCENT;
+/** The tile «Свой цвет»: one colour for both themes, kept as the single custom preset. */
+export type AccentChoice = AccentId | 'custom';
+export const isAccentChoice = (value: unknown): value is AccentChoice => value === 'custom' || isAccentId(value);
+
+/** Fixed id: there is only ever one custom preset, so the owner never manages a list. */
+export const CUSTOM_ACCENT_ID = '5f0c2a64-9b1e-4c7d-8a3f-2d6e1b7c4a90';
+export const CUSTOM_ACCENT_NAME = 'Свой цвет';
+export const DEFAULT_CUSTOM_COLOR = '#d9468f';
+
+type Stored = { lightAccent: AccentRef; customPresets: readonly CustomPresetDto[] };
+
+/** Reads the accent choice and the stored custom colour (null when none was ever saved). */
+export function accentFromStored({ lightAccent, customPresets }: Stored): {
+  accent: AccentChoice;
+  customColor: string | null;
+} {
+  const custom =
+    (lightAccent.kind === 'custom' ? customPresets.find((preset) => preset.id === lightAccent.id) : undefined) ??
+    customPresets[0];
+  const customColor = custom?.baseColor.toLowerCase() ?? null;
+  if (lightAccent.kind === 'preset') return { accent: FROM_SERVER_PRESET[lightAccent.id], customColor };
+  return { accent: customColor ? 'custom' : DEFAULT_ACCENT, customColor };
 }
 
-/** The same accent for both themes, in the shape the PUT body needs; old custom colours are dropped. */
-export function accentToStored(id: AccentId): {
-  lightAccent: AccentRef;
-  darkAccent: AccentRef;
-  customPresets: CustomPresetDto[];
-} {
-  const ref: AccentRef = { kind: 'preset', id: SERVER_PRESET[id] };
-  return { lightAccent: ref, darkAccent: ref, customPresets: [] };
+/** The same accent for both themes, in the shape the PUT body needs; the custom colour is kept while another tile is chosen. */
+export function accentToStored(
+  accent: AccentChoice,
+  customColor: string | null
+): { lightAccent: AccentRef; darkAccent: AccentRef; customPresets: CustomPresetDto[] } {
+  const colour = accent === 'custom' ? (customColor ?? DEFAULT_CUSTOM_COLOR) : customColor;
+  const customPresets: CustomPresetDto[] = colour
+    ? [{ id: CUSTOM_ACCENT_ID, name: CUSTOM_ACCENT_NAME, baseColor: colour }]
+    : [];
+  const ref: AccentRef =
+    accent === 'custom' ? { kind: 'custom', id: CUSTOM_ACCENT_ID } : { kind: 'preset', id: SERVER_PRESET[accent] };
+  return { lightAccent: ref, darkAccent: ref, customPresets };
 }

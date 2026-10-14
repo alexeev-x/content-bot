@@ -1,9 +1,4 @@
-import {
-  type MediaLibraryItemDto,
-  type PostMediaDto,
-  mediaLibraryItemSchema,
-  postMediaSchema
-} from '@alexeev/contracts';
+import { type PostMediaDto, mediaLibraryItemSchema, postMediaSchema } from '@alexeev/contracts';
 import type { MediaPostState, PostMediaRepository, StoredUpload } from '../application/media-ports';
 
 interface MediaRow {
@@ -180,10 +175,26 @@ export function createD1PostMediaRepository(db: D1Database): PostMediaRepository
       return { revision: post.revision, status: post.status, media: results.map(toMedia) };
     },
 
-    async listLibrary({ kind, search, usage, after, limit }): Promise<MediaLibraryItemDto[]> {
+    async listLibrary({ kind, search, usage, after, offset, limit }) {
       const kindClause =
         kind === 'all' ? '' : kind === 'photo' ? "AND m.kind = 'photo'" : "AND m.kind IN ('video', 'animation')";
-      const bindings: (string | number)[] = [];
+      const filterBindings: (string | number)[] = [];
+      const searchClause =
+        search === undefined
+          ? ''
+          : (() => {
+              const escaped = search.replace(/[\\%_]/g, '\\$&');
+              filterBindings.push(`${escaped}%`);
+              return `AND m.file_name LIKE ?${filterBindings.length} ESCAPE '\\' COLLATE NOCASE`;
+            })();
+      const usageClause =
+        usage === 'used'
+          ? 'AND EXISTS (SELECT 1 FROM post_media current_usage WHERE current_usage.media_id = m.id)'
+          : usage === 'unused'
+            ? 'AND NOT EXISTS (SELECT 1 FROM post_media current_usage WHERE current_usage.media_id = m.id)'
+            : '';
+      const filters = `WHERE ${isRetainedSql('m.id')} ${kindClause} ${searchClause} ${usageClause}`;
+      const bindings: (string | number)[] = [...filterBindings];
       const nextParameter = () => `?${bindings.length + 1}`;
       const cursorClause =
         after === undefined
@@ -195,26 +206,20 @@ export function createD1PostMediaRepository(db: D1Database): PostMediaRepository
               bindings.push(after.id);
               return `AND (m.created_at < ${createdAt} OR (m.created_at = ${createdAt} AND m.id < ${id}))`;
             })();
-      const searchClause =
-        search === undefined
+      const limitParameter = nextParameter();
+      bindings.push(limit + 1);
+      const offsetClause =
+        offset === undefined
           ? ''
           : (() => {
               const parameter = nextParameter();
-              const escaped = search.replace(/[\\%_]/g, '\\$&');
-              bindings.push(`${escaped}%`);
-              return `AND m.file_name LIKE ${parameter} ESCAPE '\\' COLLATE NOCASE`;
+              bindings.push(offset);
+              return `OFFSET ${parameter}`;
             })();
-      const usageClause =
-        usage === 'used'
-          ? 'AND EXISTS (SELECT 1 FROM post_media current_usage WHERE current_usage.media_id = m.id)'
-          : usage === 'unused'
-            ? 'AND NOT EXISTS (SELECT 1 FROM post_media current_usage WHERE current_usage.media_id = m.id)'
-            : '';
-      const limitParameter = nextParameter();
-      bindings.push(limit + 1);
-      const { results } = await db
-        .prepare(
-          `SELECT m.id, m.kind, m.file_name, m.content_type, m.size_bytes, m.width, m.height, m.duration_ms, m.created_at,
+      const [page, count] = await db.batch([
+        db
+          .prepare(
+            `SELECT m.id, m.kind, m.file_name, m.content_type, m.size_bytes, m.width, m.height, m.duration_ms, m.created_at,
                   (SELECT count(*) FROM media_assets duplicate
                     WHERE duplicate.sha256 = m.sha256 AND ${isRetainedSql('duplicate.id')}) AS duplicate_count,
                   (SELECT count(*) FROM post_media current_usage WHERE current_usage.media_id = m.id) AS usage_count,
@@ -226,13 +231,15 @@ export function createD1PostMediaRepository(db: D1Database): PostMediaRepository
                      ORDER BY p.created_at DESC, p.id DESC LIMIT 3
                   )) AS usages
              FROM media_assets m
-            WHERE ${isRetainedSql('m.id')}
-               ${kindClause} ${cursorClause} ${searchClause} ${usageClause}
-            ORDER BY m.created_at DESC, m.id DESC LIMIT ${limitParameter}`
-        )
-        .bind(...bindings)
-        .all<MediaRow>();
-      return results.map((row) =>
+            ${filters} ${cursorClause}
+            ORDER BY m.created_at DESC, m.id DESC LIMIT ${limitParameter} ${offsetClause}`
+          )
+          .bind(...bindings),
+        db.prepare(`SELECT count(*) AS total FROM media_assets m ${filters}`).bind(...filterBindings)
+      ]);
+      const results = (page?.results ?? []) as MediaRow[];
+      const totalCount = ((count?.results ?? []) as Array<{ total: number }>)[0]?.total ?? 0;
+      const items = results.map((row) =>
         mediaLibraryItemSchema.parse({
           id: row.id,
           kind: row.kind,
@@ -249,6 +256,7 @@ export function createD1PostMediaRepository(db: D1Database): PostMediaRepository
           usages: JSON.parse(row.usages ?? '[]')
         })
       );
+      return { items, totalCount };
     },
 
     async findRetainedMedia(mediaIds) {

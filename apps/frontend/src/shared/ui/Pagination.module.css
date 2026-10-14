@@ -1,0 +1,86 @@
+.root {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  min-width: 0;
+  min-height: var(--size-target-min);
+}
+.range {
+  min-width: 0;
+  white-space: nowrap;
+}
+.nav {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+.list {
+  display: flex;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.button {
+  display: inline-grid;
+  place-items: center;
+  min-width: var(--size-target-min);
+  height: var(--size-target-min);
+  padding: 0 var(--space-2);
+  border: 1px solid transparent;
+  border-radius: var(--radius-1);
+  background: transparent;
+  color: var(--color-text);
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+.button:hover:not(:disabled) {
+  background: var(--color-surface-3);
+}
+.button[aria-current='page'] {
+  border-color: var(--color-accent-text);
+  background: var(--color-accent-soft);
+  color: var(--color-accent-text);
+  font-weight: var(--font-weight-semibold);
+}
+.button:disabled {
+  color: var(--color-text-disabled);
+  cursor: not-allowed;
+}
+.button:focus-visible {
+  outline: var(--focus-ring-width) solid var(--color-focus-ring);
+  outline-offset: var(--focus-ring-offset);
+}
+.gap {
+  display: grid;
+  place-items: center;
+  min-width: var(--size-target-min);
+  color: var(--color-text-muted);
+}
+.status {
+  display: none;
+  padding: 0 var(--space-2);
+  white-space: nowrap;
+}
+
+/* Touch and phones: 44 px targets, only prev / «Стр. 2 из 7» / next. */
+@media (pointer: coarse), (max-width: 859px) {
+  .root {
+    min-height: var(--size-target);
+  }
+  .button {
+    min-width: var(--size-target);
+    height: var(--size-target);
+  }
+}
+@media (max-width: 599px) {
+  .list {
+    display: none;
+  }
+  .status {
+    display: inline;
+  }
+}

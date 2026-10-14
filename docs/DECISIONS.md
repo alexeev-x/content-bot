@@ -50,7 +50,7 @@ Accepted decisions that are in force. An agent does not propose an alternative t
 |---|---|---|
 | 03.10.2026 | Figma is excluded entirely (reaffirmed 07.10.2026, including picking templates); design lives only in code | `docs/design/README.md` |
 | 14.10.2026 | Visual direction: Cloudflare-dashboard look (full-width content, hairline borders, layered greys, segmented tabs, saturated blue primary); `/__proto` prototype removed; `UX_SPEC.md` stays the source for flows and states | `docs/design/README.md`, `design-refs/нравится/` |
-| 14.10.2026 | Appearance: one accent for both themes from 8 presets (blue default, orange, violet, teal, green, pink, red, graphite), no custom colours; theme light/dark/system; density per device; everything saves immediately (replaces the 06.10.2026 per-theme palette with custom presets) | `docs/design/README.md` |
+| 14.10.2026 | Appearance: one accent for both themes from 8 presets (blue default, orange, violet, teal, green, pink, red, graphite), one optional custom colour («Свой цвет», same for both themes, contrast derived automatically); theme light/dark/system; density per device; everything saves immediately (replaces the 06.10.2026 per-theme palette with custom presets) | `docs/design/README.md` |
 | 07.10.2026 | A top-bar button toggles light ↔ dark and saves at once; accent changes need an explicit Save; Settings is master/detail; bot status lives on the dashboard | `docs/design/UX_SPEC.md` §3.6, §4.5 |
 | 03.10.2026 | Documentation and agent instructions are in English; the owner is addressed in Russian; UI copy is Russian | `AGENTS.md` |
 

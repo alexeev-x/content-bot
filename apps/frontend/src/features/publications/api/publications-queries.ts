@@ -6,6 +6,7 @@ import {
   useQueryClient,
   type QueryClient
 } from '@tanstack/react-query';
+import { keepPreviousInScope } from '../../../shared/api/page-query';
 import { nextCursor } from '../../../shared/api/query-string';
 import { isInProgress } from '../model/publication-view';
 import { listEnabledDestinations } from './destination-options';
@@ -56,16 +57,19 @@ export function publicationsInfiniteQueryOptions(filters: PublicationFilters = {
   });
 }
 
-/** One page of the list; the cursor lives in the URL, so back/forward and shared links work. */
+/** One numbered page of the list; `page` lives in the URL, so back/forward and shared links work. */
 export function publicationsPageQueryOptions(
   filters: PublicationFilters = {},
-  cursor?: string,
+  page?: number,
   pollMs: number = PUBLICATION_POLL_MS
 ) {
+  const scope = JSON.stringify([filters.status, filters.statusGroup, filters.postId, filters.destinationId]);
   return queryOptions({
-    queryKey: [...publicationKeys.lists(), 'page', filters, cursor ?? null] as const,
-    queryFn: ({ signal }) => listPublications(filters, cursor, signal),
+    queryKey: [...publicationKeys.lists(), 'page', filters, page ?? null] as const,
+    queryFn: ({ signal }) => listPublications(filters, undefined, signal, page),
     staleTime: STALE_TIME,
+    meta: { scope },
+    placeholderData: keepPreviousInScope(scope),
     // Poll only while a visible row can still change; the default refetchIntervalInBackground (false) stops it in hidden tabs.
     refetchInterval: (query) => (query.state.data?.items.some((item) => isInProgress(item.status)) ? pollMs : false)
   });

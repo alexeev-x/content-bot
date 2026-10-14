@@ -29,6 +29,8 @@ export type DataColumn<T> = {
   /** Wide screens: a filter control (search or filter) after the header label. */
   headerControl?: ReactNode;
   align?: 'start' | 'end';
+  /** Wide screens: the column's width (px number or CSS length). The table is `table-layout: fixed`, so these widths, set once here, hold for skeleton rows, data rows and every page; columns without one share the rest. */
+  width?: number | string;
   /** `density="compact"` on narrow screens: `trailing` puts the cell (a status) at the right of the title; the other columns form one meta line. */
   compactSlot?: 'trailing';
 };
@@ -67,6 +69,7 @@ type Props<T> = {
   rowHeight?: 'default' | 'tall';
 };
 
+const SELECT_COLUMN_WIDTH = 52;
 const SKELETON_ROWS = 5;
 const SKELETON_CARDS = 3;
 const SKELETON_WIDTHS = [64, 48, 72, 40] as const;
@@ -128,7 +131,7 @@ function Grid<T>({
       >
         <TableHeader className={styles.head}>
           {selectionMode === 'multiple' ? (
-            <Column className={styles.selectCell} width={52}>
+            <Column className={styles.selectCell} style={{ width: SELECT_COLUMN_WIDTH }}>
               <Checkbox slot="selection" />
             </Column>
           ) : null}
@@ -140,6 +143,7 @@ function Grid<T>({
                 allowsSorting={column.allowsSorting}
                 className={styles.column}
                 data-align={column.align}
+                {...(column.width === undefined ? {} : { style: { width: column.width } })}
               >
                 {({ allowsSorting, sortDirection }) => (
                   <span className={styles.columnInner}>

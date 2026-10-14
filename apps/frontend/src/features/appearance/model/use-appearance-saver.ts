@@ -1,9 +1,11 @@
 import type { AppearanceDto } from '@alexeev/contracts';
 import { useQueryClient } from '@tanstack/react-query';
-import { useCallback, useRef } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import { ApiError } from '../../../shared/api/http-client';
 import { appearanceKeys, appearanceQueryOptions, useSaveAppearance } from '../api/appearance-queries';
 import { toInput, toValue, type AppearanceValue } from './appearance-value';
+
+const DRAG_SAVE_DELAY_MS = 500;
 
 type Options = {
   /** Applies a value to the document without persisting it; must be stable. */
@@ -22,6 +24,12 @@ export function useAppearanceSaver({ preview, onFailure }: Options) {
   const save = useSaveAppearance();
   const wanted = useRef<Partial<AppearanceValue> | null>(null);
   const running = useRef(false);
+
+  const timer = useRef<number | null>(null);
+  const stopTimer = useCallback(() => {
+    if (timer.current !== null) window.clearTimeout(timer.current);
+    timer.current = null;
+  }, []);
 
   const cached = useCallback(() => queryClient.getQueryData<AppearanceDto>(appearanceKeys.detail()), [queryClient]);
 
@@ -72,12 +80,40 @@ export function useAppearanceSaver({ preview, onFailure }: Options) {
     (patch: Partial<AppearanceValue>) => {
       const base = cached();
       if (!base) return;
+      stopTimer();
       wanted.current = { ...wanted.current, ...patch };
       preview({ ...toValue(base), ...wanted.current });
       if (!running.current) void drain();
     },
-    [cached, drain, preview]
+    [cached, drain, preview, stopTimer]
   );
 
-  return { choose, isSaving: save.isPending };
+  /** Like choose, for a drag: shows every step, saves once the value rests for DRAG_SAVE_DELAY_MS. */
+  const chooseSoon = useCallback(
+    (patch: Partial<AppearanceValue>) => {
+      const base = cached();
+      if (!base) return;
+      wanted.current = { ...wanted.current, ...patch };
+      preview({ ...toValue(base), ...wanted.current });
+      stopTimer();
+      timer.current = window.setTimeout(() => {
+        timer.current = null;
+        if (!running.current && wanted.current) void drain();
+      }, DRAG_SAVE_DELAY_MS);
+    },
+    [cached, drain, preview, stopTimer]
+  );
+
+  // Leaving the page saves the last colour instead of dropping it.
+  useEffect(
+    () => () => {
+      if (timer.current === null) return;
+      window.clearTimeout(timer.current);
+      timer.current = null;
+      if (!running.current && wanted.current) void drain();
+    },
+    [drain]
+  );
+
+  return { choose, chooseSoon, isSaving: save.isPending };
 }

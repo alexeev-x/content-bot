@@ -1,5 +1,5 @@
 import type { DestinationDto, PostDto, PublicationDto } from '@alexeev/contracts';
-import { useInfiniteQuery, useQueries } from '@tanstack/react-query';
+import { useInfiniteQuery, useQueries, useQuery } from '@tanstack/react-query';
 import { useCallback, useMemo } from 'react';
 import { ownerDayRange, ownerDaysRange } from '../../shared/lib/owner-timezone';
 import { useNow } from '../../shared/lib/use-now';
@@ -7,7 +7,7 @@ import { destinationsInfiniteQueryOptions } from '../../features/destinations';
 import { postQueryOptions } from '../../features/posts';
 import {
   PUBLICATION_POLL_MS,
-  publicationsInfiniteQueryOptions,
+  publicationsPageQueryOptions,
   type PublicationFilters
 } from '../../features/publications';
 import type { PublicationsSearch } from './search';
@@ -36,22 +36,9 @@ export function usePublicationsData(search: PublicationsSearch, timeZone: string
     ...(view === 'errors' ? { statusGroup: 'errors' as const } : {}),
     order: search.order ?? (view === 'upcoming' ? 'asc' : 'desc')
   };
-  const list = useInfiniteQuery(publicationsInfiniteQueryOptions(filters, pollMs ?? PUBLICATION_POLL_MS));
+  const list = useQuery(publicationsPageQueryOptions(filters, search.page ?? 1, pollMs ?? PUBLICATION_POLL_MS));
   const destinations = useInfiniteQuery(destinationsInfiniteQueryOptions());
-  // Polling refetches every loaded page; a row that moved between pages must still appear once.
-  const items = useMemo(() => {
-    const seen = new Set<string>();
-    const rows: PublicationDto[] = [];
-    for (const page of list.data?.pages ?? []) {
-      for (const item of page.items) {
-        if (!seen.has(item.id)) {
-          seen.add(item.id);
-          rows.push(item);
-        }
-      }
-    }
-    return rows;
-  }, [list.data]);
+  const items = useMemo(() => list.data?.items ?? [], [list.data]);
 
   const postIds = useMemo(() => [...new Set(items.map((item) => item.postId))], [items]);
   const posts = useQueries({ queries: postIds.map((id) => postQueryOptions(id)) });

@@ -26,6 +26,7 @@ export async function listPublications(
     to: query.to === undefined ? undefined : Date.parse(query.to),
     order: query.order,
     after: key === undefined ? undefined : { scheduledAt: key[0], id: key[1] },
+    offset: query.page === undefined ? undefined : (query.page - 1) * query.limit,
     limit: query.limit + 1,
     now: deps.now
   };
@@ -36,7 +37,10 @@ export async function listPublications(
   return {
     items: page.map((record) => toPublicationDto(record, deps.now)),
     nextCursor:
-      rows.length > query.limit && last !== undefined ? encodeKeysetCursor([last.scheduledAt, last.id]) : null,
+      query.page === undefined && rows.length > query.limit && last !== undefined
+        ? encodeKeysetCursor([last.scheduledAt, last.id])
+        : null,
+    page: query.page ?? null,
     totalCount: result.totalCount,
     statusCounts: result.statusCounts
   };

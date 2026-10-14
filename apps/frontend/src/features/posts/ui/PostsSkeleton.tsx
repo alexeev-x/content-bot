@@ -1,8 +1,9 @@
+import { PAGE_SIZE } from '../../../shared/api/page-query';
 import { ru } from '../../../shared/lib/ru';
 import {
   DataTable,
   FilterButton,
-  FooterLine,
+  Pagination,
   Panel,
   PhoneSkeletonRows,
   PhoneToolbar,
@@ -23,9 +24,9 @@ const copy = postsCopy.list;
 const noop = () => {};
 const COLUMNS: DataColumn<{ id: string }>[] = [
   { id: 'title', header: copy.columns.title, isRowHeader: true, cell: () => null },
-  { id: 'status', header: copy.columns.status, cell: () => null },
-  { id: 'updated', header: copy.columns.updated, cell: () => null },
-  { id: 'menu', header: copy.columns.actions, align: 'end', cell: () => null }
+  { id: 'status', width: 180, header: copy.columns.status, cell: () => null },
+  { id: 'updated', width: 180, header: copy.columns.updated, cell: () => null },
+  { id: 'menu', width: 72, header: copy.columns.actions, align: 'end', cell: () => null }
 ];
 
 /** The posts page while the session is restored: the loaded geometry (tabs, panel, rows) and no request. */
@@ -43,7 +44,11 @@ export function PostsSkeleton() {
           <Tab id="archive">{copy.tabs.archive}</Tab>
         </TabList>
       </Tabs>
-      <Panel title={copy.panel.all} reserveRows={narrow ? 6 : 8} footer={<FooterLine text={copy.loadingMore} />}>
+      <Panel
+        title={copy.panel.all}
+        reserveRows={narrow ? 6 : 8}
+        footer={<Pagination page={1} pageSize={PAGE_SIZE} totalCount={0} onPageChange={noop} isLoading />}
+      >
         {narrow ? (
           <>
             <PhoneToolbar>

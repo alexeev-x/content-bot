@@ -5,7 +5,7 @@
 
   Theme selection is by attributes, on <html> or on any wrapper (the catalog nests themes):
     data-theme="light|dark"
-    data-accent="blue|orange|violet|teal|green|pink|red|graphite"  (one preset, both themes)
+    data-accent="blue|orange|violet|teal|green|pink|red|graphite|custom"  (one accent, both themes)
     data-density="compact"  (on <html> only; Normal = no attribute)
   No attributes = dark + blue, the default.
 
@@ -406,10 +406,32 @@
   --color-accent-glow: rgba(228, 228, 231, 0.4);
 }
 
+/* ===== Custom colour: one colour for both themes; the per-theme values are derived in TS (shared/lib/color,
+   contrast guaranteed) and injected by src/app/theme.ts as --custom-* ===== */
+[data-theme='light'][data-accent='custom'] {
+  --color-accent: var(--custom-light-accent);
+  --color-on-accent: var(--custom-light-on-accent);
+  --color-accent-hover: var(--custom-light-accent-hover);
+  --color-accent-text: var(--custom-light-accent-text);
+  --color-accent-soft: var(--custom-light-accent-soft);
+  --color-focus-ring: var(--custom-light-focus-ring);
+  --color-accent-glow: var(--custom-light-accent-glow);
+}
+[data-theme='dark'][data-accent='custom'] {
+  --color-accent: var(--custom-dark-accent);
+  --color-on-accent: var(--custom-dark-on-accent);
+  --color-accent-hover: var(--custom-dark-accent-hover);
+  --color-accent-text: var(--custom-dark-accent-text);
+  --color-accent-soft: var(--custom-dark-accent-soft);
+  --color-focus-ring: var(--custom-dark-focus-ring);
+  --color-accent-glow: var(--custom-dark-accent-glow);
+}
+
 /* ===== Status overrides where an accent would collide with a status hue.
-   Active (sending) turns slate next to blue and violet; unknown turns gold next to orange. ===== */
+   Active (sending) turns slate next to blue, violet and a custom colour (unknown hue); unknown turns gold next to orange. ===== */
 [data-theme='dark'][data-accent='blue'],
 [data-theme='dark'][data-accent='violet'],
+[data-theme='dark'][data-accent='custom'],
 :root:not([data-theme]),
 [data-theme='dark']:not([data-accent]) {
   --color-status-active-fg: #c3cad6;
@@ -417,6 +439,7 @@
 }
 [data-theme='light'][data-accent='blue'],
 [data-theme='light'][data-accent='violet'],
+[data-theme='light'][data-accent='custom'],
 [data-theme='light']:not([data-accent]) {
   --color-status-active-fg: #3c4554;
   --color-status-active-bg: rgba(70, 80, 95, 0.12);

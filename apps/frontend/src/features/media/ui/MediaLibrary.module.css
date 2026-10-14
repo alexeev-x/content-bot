@@ -133,7 +133,8 @@
 }
 .listRow {
   display: grid;
-  grid-template-columns: var(--size-media-thumb) minmax(0, 1fr) auto auto auto;
+  /* Fixed tracks: every row, and the skeleton, lines up in the same columns. */
+  grid-template-columns: var(--size-media-thumb) minmax(0, 1fr) 168px var(--size-target-min) var(--size-target);
   align-items: center;
   gap: var(--space-3);
   min-height: var(--size-action-row);
@@ -204,22 +205,6 @@
 .toolbarEnd {
   margin-left: auto;
 }
-.footer {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: var(--space-3);
-  min-height: 40px;
-  padding: 0 var(--space-4);
-  border-top: 1px solid var(--color-border-subtle);
-  color: var(--color-text-muted);
-  font-size: var(--font-size-xs);
-}
-.status {
-  min-height: 1.5em;
-  color: var(--color-text-muted);
-  font-size: var(--font-size-sm);
-}
 .dialogDrafts {
   display: grid;
   gap: var(--space-2);
@@ -272,16 +257,42 @@
     padding: var(--space-3);
   }
   .listRow {
-    grid-template-columns: 44px minmax(0, 1fr) auto auto;
+    grid-template-columns: 44px minmax(0, 1fr) var(--size-target-min) var(--size-target);
     padding-inline: var(--space-3);
   }
   .listUsage {
     display: none;
   }
-  .footer {
-    padding-inline: var(--space-3);
-  }
 }
 .chips {
   padding: 0 var(--space-3) var(--space-3);
+}
+
+.skeletonText {
+  width: 70%;
+  border-radius: var(--radius-1);
+  background: var(--color-surface-3);
+  color: transparent;
+  animation: skeleton-pulse 1.8s ease-in-out infinite;
+}
+.skeletonBlock {
+  animation: skeleton-pulse 1.8s ease-in-out infinite;
+}
+.listCheck {
+  display: block;
+}
+@keyframes skeleton-pulse {
+  0%,
+  100% {
+    opacity: 0.55;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .skeletonText,
+  .skeletonBlock {
+    animation: none;
+  }
 }

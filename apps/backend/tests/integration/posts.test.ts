@@ -532,6 +532,7 @@ describe('GET /api/v1/posts', () => {
     expect(postPageSchema.parse(await response.json())).toEqual({
       items: [],
       nextCursor: null,
+      page: null,
       archivedCount: 0,
       totalCount: 0
     });
@@ -820,6 +821,28 @@ describe('GET /api/v1/posts', () => {
     ['an unknown parameter', 'sort=asc']
   ])('answers 400 for %s', async (_name, query) => {
     await expectError(await api.request(`/api/v1/posts?${query}`), 400, 'VALIDATION_ERROR');
+  });
+
+  it('serves page-number slices in the cursor order and reports totalCount beyond the last page', async () => {
+    await seedPosts(25);
+    const all = await walk('', 100);
+    const read = async (query: string) => {
+      const response = await api.request(`/api/v1/posts?${query}`);
+      expect(response.status).toBe(200);
+      return postPageSchema.parse(await response.json());
+    };
+
+    const second = await read('page=2&limit=10');
+    const third = await read('page=3&limit=10');
+    const beyond = await read('page=9&limit=10');
+
+    expect(second.items.map((post) => post.id)).toEqual(all.slice(10, 20).map((post) => post.id));
+    expect(third.items.map((post) => post.id)).toEqual(all.slice(20).map((post) => post.id));
+    expect(second).toMatchObject({ page: 2, nextCursor: null, totalCount: 25 });
+    expect(beyond).toMatchObject({ items: [], page: 9, totalCount: 25 });
+    expect((await api.request('/api/v1/posts?page=1&cursor=abc')).status).toBe(400);
+    expect((await api.request('/api/v1/posts?page=0')).status).toBe(400);
+    expect((await api.request('/api/v1/posts?page=1001')).status).toBe(400);
   });
 
   it('accepts the largest limit', async () => {

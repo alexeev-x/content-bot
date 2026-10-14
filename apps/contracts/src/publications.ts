@@ -1,5 +1,11 @@
 import { z } from 'zod';
-import { pageQuerySchema, pageSchema } from './pagination';
+import {
+  CURSOR_XOR_PAGE_ISSUE,
+  cursorXorPage,
+  offsetPageFields,
+  offsetPageQuerySchema,
+  pageSchema
+} from './pagination';
 
 // User-facing projection of internal job states (docs/BACKEND_ARCHITECTURE.md §5).
 export const publicationStatusSchema = z.enum([
@@ -175,13 +181,13 @@ export const resolveUnknownPublicationInputSchema = z.discriminatedUnion('outcom
 export type ResolveUnknownPublicationInput = z.infer<typeof resolveUnknownPublicationInputSchema>;
 export type ResolveUnknownOutcome = ResolveUnknownPublicationInput['outcome'];
 
-// GET /api/v1/publications?status|statusGroup&postId&destinationId&q&from&to&order&cursor&limit → 200 PublicationPageDto,
+// GET /api/v1/publications?status|statusGroup&postId&destinationId&q&from&to&order&cursor|page&limit → 200 PublicationPageDto,
 // latest scheduledAt first. totalCount reflects every supplied filter. statusCounts reflects all nine statuses
 // after applying postId/destinationId/q/from/to but deliberately ignores `status`/`statusGroup`, so tabs can show counts.
 // statusGroup=errors returns failed + unknown and cannot be combined with status.
 // GET /api/v1/publications/{id} → 200 PublicationDto or NOT_FOUND 404.
 // Errors: VALIDATION_ERROR 400, UNAUTHORIZED 401, FORBIDDEN 403.
-export const listPublicationsQuerySchema = pageQuerySchema
+export const listPublicationsQuerySchema = offsetPageQuerySchema
   .extend({
     status: publicationStatusSchema.optional(),
     /** A server-side grouping for the operator's Errors tab. Mutually exclusive with status. */
@@ -196,7 +202,8 @@ export const listPublicationsQuerySchema = pageQuerySchema
   .refine((query) => query.status === undefined || query.statusGroup === undefined, {
     error: 'Use either status or statusGroup, not both',
     path: ['statusGroup']
-  });
+  })
+  .refine(cursorXorPage, CURSOR_XOR_PAGE_ISSUE);
 export type ListPublicationsQuery = z.infer<typeof listPublicationsQuerySchema>;
 
 export const publicationStatusCountsSchema = z.object({
@@ -213,7 +220,7 @@ export const publicationStatusCountsSchema = z.object({
 export type PublicationStatusCounts = z.infer<typeof publicationStatusCountsSchema>;
 
 export const publicationPageSchema = pageSchema(publicationSchema).extend({
-  totalCount: z.number().int().nonnegative(),
+  ...offsetPageFields,
   statusCounts: publicationStatusCountsSchema
 });
 export type PublicationPageDto = z.infer<typeof publicationPageSchema>;

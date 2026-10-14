@@ -1,5 +1,11 @@
 import { z } from 'zod';
-import { pageQuerySchema, pageSchema } from './pagination';
+import {
+  CURSOR_XOR_PAGE_ISSUE,
+  cursorXorPage,
+  offsetPageFields,
+  offsetPageQuerySchema,
+  pageSchema
+} from './pagination';
 import { normalizeAndCheckEntities, normalizeEntities, postEntityListSchema, postEntitySchema } from './post-entities';
 import { publicationStatusSchema } from './publications';
 import { cleanText } from './text';
@@ -134,7 +140,7 @@ export const returnPostToDraftRefusalSchema = z.enum([
 ]);
 export type ReturnPostToDraftRefusal = z.infer<typeof returnPostToDraftRefusalSchema>;
 
-// GET /api/v1/posts?view&status&q&sort&direction&cursor&limit → 200 PostPageDto.
+// GET /api/v1/posts?view&status&q&sort&direction&cursor|page&limit → 200 PostPageDto.
 // view=live (default): posts that are not archived, newest update first. view=archive: archived posts,
 // most recently archived first. `archivedCount` is the size of the archive whatever the view and page,
 // q searches title, text, channel and status over the complete selected view; sort/direction apply
@@ -149,18 +155,20 @@ export type PostSort = z.infer<typeof postSortSchema>;
 export const postSortDirectionSchema = z.enum(['ascending', 'descending']);
 export type PostSortDirection = z.infer<typeof postSortDirectionSchema>;
 
-export const listPostsQuerySchema = pageQuerySchema.extend({
-  status: postStatusSchema.optional(),
-  view: postViewSchema.default('live'),
-  q: z.string().trim().max(120).optional(),
-  sort: postSortSchema.optional(),
-  direction: postSortDirectionSchema.optional()
-});
+export const listPostsQuerySchema = offsetPageQuerySchema
+  .extend({
+    status: postStatusSchema.optional(),
+    view: postViewSchema.default('live'),
+    q: z.string().trim().max(120).optional(),
+    sort: postSortSchema.optional(),
+    direction: postSortDirectionSchema.optional()
+  })
+  .refine(cursorXorPage, CURSOR_XOR_PAGE_ISSUE);
 export type ListPostsQuery = z.infer<typeof listPostsQuerySchema>;
 
 export const postPageSchema = pageSchema(postSchema).extend({
   archivedCount: z.number().int().nonnegative(),
-  totalCount: z.number().int().nonnegative()
+  ...offsetPageFields
 });
 export type PostPageDto = z.infer<typeof postPageSchema>;
 

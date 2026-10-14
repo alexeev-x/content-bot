@@ -133,6 +133,8 @@ export function buildPostsListSql(
   )`;
   if (cursor !== null) bindings.push(cursor.id, cursor.id, cursor.id);
   bindings.push(query.limit + 1);
+  const offsetSql = query.page === undefined ? '' : ' OFFSET ?';
+  if (query.page !== undefined) bindings.push((query.page - 1) * query.limit);
   const sql = `WITH publication_facts AS (
       SELECT pu.post_id, MAX(CASE WHEN j.status = 'succeeded' THEN j.updated_at END) AS last_sent_at
       FROM publications pu JOIN jobs j ON j.publication_id = pu.id AND j.kind = 'publish'
@@ -153,7 +155,7 @@ export function buildPostsListSql(
     )`
     }, page AS (
       SELECT selected.* FROM selected${cursor === null ? '' : ' CROSS JOIN cursor_position'} WHERE 1 = 1${cursorSql}
-      ORDER BY sort_null ASC, sort_key ${order}, id ${order} LIMIT ?
+      ORDER BY sort_null ASC, sort_key ${order}, id ${order} LIMIT ?${offsetSql}
     )
     SELECT page.id, page.sort_key, (SELECT count(*) FROM selected) AS total_count,
            (SELECT count(*) FROM posts WHERE archived_at IS NOT NULL) AS archived_count
@@ -187,11 +189,14 @@ export async function listPostsFromApp(
     );
     const last = page.at(-1);
     const lastCursor =
-      rows.length > query.limit && last !== undefined ? cursorEncode({ ...expected, id: last.id }) : null;
+      query.page === undefined && rows.length > query.limit && last !== undefined
+        ? cursorEncode({ ...expected, id: last.id })
+        : null;
     const first = results[0];
     return {
       items: posts,
       nextCursor: lastCursor,
+      page: query.page ?? null,
       totalCount: first?.total_count ?? 0,
       archivedCount: first?.archived_count ?? 0
     };

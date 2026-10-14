@@ -5,6 +5,7 @@ export const publicationPeriodSchema = z.enum(['all', 'today', '7d', '30d']);
 
 /** List controls live in the URL so a filtered publication view survives reload and can be shared. */
 const publicationsSearchShape = z.object({
+  page: z.number().int().min(1).max(1000).optional().catch(1),
   view: publicationViewSchema.optional().catch(undefined),
   period: publicationPeriodSchema.optional().catch(undefined),
   q: z.string().trim().max(200).optional().catch(undefined),

@@ -1,3 +1,4 @@
+import { PAGE_SIZE } from '../../../shared/api/page-query';
 import type { PostDto } from '@alexeev/contracts';
 import type { ReactNode } from 'react';
 import {
@@ -50,7 +51,7 @@ type Props = {
 };
 
 const copy = postsCopy;
-export const POST_ROW_LOADING = 8;
+export const POST_ROW_LOADING = PAGE_SIZE;
 const titleOf = (post: PostDto) => post.title.trim() || copy.list.untitled;
 
 // The row itself is keyboard-activatable; keep its nested action menu from also opening the post.
@@ -238,11 +239,13 @@ function Grid(props: Props) {
       ? ([
           {
             id: 'status',
+            width: 180,
             header: copy.list.columns.status,
             cell: (post: PostDto) => <StateCell post={post} />
           },
           {
             id: 'updated',
+            width: 180,
             header: copy.list.columns.updated,
             allowsSorting: true,
             cell: (post: PostDto) => <UpdatedCell post={post} now={now} />
@@ -251,17 +254,20 @@ function Grid(props: Props) {
       : ([
           {
             id: 'channels',
+            width: 200,
             header: copy.archive.columns.channels,
             cell: (post: PostDto) => <ChannelsCell post={post} />
           },
           {
             id: 'sentAt',
+            width: 160,
             header: copy.archive.columns.sentAt,
             allowsSorting: true,
             cell: (post: PostDto) => <SentCell post={post} />
           },
           {
             id: 'left',
+            width: 140,
             header: copy.archive.columns.left,
             allowsSorting: true,
             cell: (post: PostDto) => <LeftCell post={post} now={now} />
@@ -269,6 +275,7 @@ function Grid(props: Props) {
         ] satisfies DataColumn<PostDto>[])),
     {
       id: 'menu',
+      width: 72,
       header: copy.list.columns.actions,
       align: 'end',
       cell: (post) => menuFor(post, mode, props.onAction, props.isDuplicating)

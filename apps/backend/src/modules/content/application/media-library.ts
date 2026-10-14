@@ -32,11 +32,12 @@ export async function listMediaLibrary(
   deps: { repo: PostMediaRepository },
   query: MediaLibraryQuery
 ): Promise<MediaLibraryPageDto> {
-  const results = await deps.repo.listLibrary({
+  const { items: results, totalCount } = await deps.repo.listLibrary({
     kind: query.kind,
     search: query.search,
     usage: query.usage,
     after: decodeCursor(query.cursor),
+    offset: query.page === undefined ? undefined : (query.page - 1) * query.limit,
     limit: query.limit
   });
   const hasMore = results.length > query.limit;
@@ -44,7 +45,12 @@ export async function listMediaLibrary(
   const last = items.at(-1);
   return mediaLibraryPageSchema.parse({
     items,
-    nextCursor: hasMore && last !== undefined ? btoa(`${Date.parse(last.createdAt)}:${last.id}`) : null
+    nextCursor:
+      query.page === undefined && hasMore && last !== undefined
+        ? btoa(`${Date.parse(last.createdAt)}:${last.id}`)
+        : null,
+    page: query.page ?? null,
+    totalCount
   });
 }
 

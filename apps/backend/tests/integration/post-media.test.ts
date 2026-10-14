@@ -1498,3 +1498,30 @@ describe('media library delete', () => {
     expect([401, 403]).toContain(anonymous.status);
   });
 });
+
+describe('GET /api/v1/media page numbers', () => {
+  it('serves page slices in the cursor order and reports totalCount beyond the last page', async () => {
+    const post = await createDraft();
+    for (let i = 0; i < 5; i++) {
+      const uploaded = await upload(post.id, i, png(2 + i, 3), nextKey(), 'image/png', `shot-${i}.png`);
+      expect(uploaded.status).toBe(201);
+    }
+    const read = async (query: string) => {
+      const response = await api.request(`/api/v1/media?${query}`);
+      expect(response.status).toBe(200);
+      return mediaLibraryPageSchema.parse(await response.json());
+    };
+
+    const everything = await read('limit=100');
+    const second = await read('page=2&limit=2');
+    const beyond = await read('page=7&limit=2');
+    const filtered = await read('page=1&limit=2&search=shot-1');
+
+    expect(everything.totalCount).toBe(5);
+    expect(second.items.map((item) => item.id)).toEqual(everything.items.slice(2, 4).map((item) => item.id));
+    expect(second).toMatchObject({ page: 2, nextCursor: null, totalCount: 5 });
+    expect(beyond).toMatchObject({ items: [], page: 7, totalCount: 5 });
+    expect(filtered).toMatchObject({ totalCount: 1 });
+    expect((await api.request('/api/v1/media?page=2&cursor=abc')).status).toBe(400);
+  });
+});

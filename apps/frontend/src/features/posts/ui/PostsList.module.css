@@ -3,11 +3,6 @@
   gap: var(--space-4);
   min-width: 0;
 }
-.note {
-  margin: 0;
-  color: var(--color-text-muted);
-  font-size: var(--font-size-sm);
-}
 .count {
   min-width: 20px;
   padding: 0 var(--space-1);

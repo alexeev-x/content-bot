@@ -1,6 +1,6 @@
 import { useNavigate } from '@tanstack/react-router';
 import type { PostDto } from '@alexeev/contracts';
-import { useInfiniteQuery } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { classifyApiError } from '../../../shared/api/error-kind';
 import { ApiError } from '../../../shared/api/http-client';
@@ -10,7 +10,7 @@ import {
   ErrorState,
   FilterButton,
   FilterSheet,
-  FooterLine,
+  Pagination,
   Panel,
   PhoneToolbar,
   PhoneToolbarSearch,
@@ -26,7 +26,8 @@ import {
 } from '../../../shared/ui';
 import type { SelectOption } from '../../../shared/ui';
 import { ru } from '../../../shared/lib/ru';
-import { postsInfiniteQueryOptions, useDuplicatePost, useReturnPostToDraft } from '../api/posts-queries';
+import { PAGE_SIZE } from '../../../shared/api/page-query';
+import { postsPageQueryOptions, useDuplicatePost, useReturnPostToDraft } from '../api/posts-queries';
 import { describeLifecycleError, type LifecycleNotice } from '../model/lifecycle-notices';
 import type { PostSortKey, SortDirection } from '../model/post-sort';
 import { useNow } from '../../../shared/lib/use-now';
@@ -44,6 +45,8 @@ type Props = {
   view: PostsView;
   query: string;
   sort: PostsSort;
+  page: number;
+  onPageChange: (page: number) => void;
   onViewChange: (view: PostsView) => void;
   onQueryChange: (query: string) => void;
   onSortChange: (sort: PostsSort) => void;
@@ -88,6 +91,8 @@ export function PostsList({
   view,
   query,
   sort,
+  page,
+  onPageChange,
   onViewChange,
   onQueryChange,
   onSortChange,
@@ -110,21 +115,26 @@ export function PostsList({
   }, [onQueryChange, query, searchInput]);
   const updateSearchInput = (value: string) => setSearchDraft({ query, value });
   const normalizedQuery = query.trim();
-  const result = useInfiniteQuery(
-    postsInfiniteQueryOptions({
-      ...filtersFor(view),
-      ...(normalizedQuery ? { q: normalizedQuery } : {}),
-      ...(sort ? { sort: sort.key as 'title' | 'updated' | 'sentAt' | 'left', direction: sort.direction } : {})
-    })
+  const result = useQuery(
+    postsPageQueryOptions(
+      {
+        ...filtersFor(view),
+        ...(normalizedQuery ? { q: normalizedQuery } : {}),
+        ...(sort ? { sort: sort.key as 'title' | 'updated' | 'sentAt' | 'left', direction: sort.direction } : {})
+      },
+      page
+    )
   );
-  const loaded = useMemo(() => result.data?.pages.flatMap((page) => page.items) ?? [], [result.data]);
+  const loaded = useMemo(() => result.data?.items ?? [], [result.data]);
   const rows = loaded;
+  // A typed search is waiting out its debounce or its request: rows stay, the footer says so.
+  const isSearchSettling = searchInput !== query || (result.isPlaceholderData && result.isFetching);
   const isSearching = normalizedQuery !== '';
   // An empty «Черновики» tab reads as a narrowed list (with a way back to «Все»), not as «no posts at all».
   const emptyIsFiltered = isSearching || view === 'drafts';
 
   // The archive size rides on every page; keep the last known value while another tab is loading.
-  const fresh = result.data?.pages[0]?.archivedCount;
+  const fresh = result.data?.archivedCount;
   const [lastCount, setLastCount] = useState<number | undefined>(undefined);
   if (fresh !== undefined && fresh !== lastCount) setLastCount(fresh);
   const archivedCount = fresh ?? lastCount;
@@ -299,27 +309,27 @@ export function PostsList({
     </>
   );
 
-  const totalCount = result.data?.pages[0]?.totalCount ?? loaded.length;
-  const loadedText = copy.loaded(loaded.length, totalCount);
-  const footer = result.isPending ? (
-    <FooterLine text={copy.loadingMore} />
-  ) : ready && !noPostsAtAll ? (
-    <FooterLine
-      text={result.isFetchNextPageError ? copy.loadMoreFailed : loadedText}
-      action={
-        result.hasNextPage ? (
-          <Button
-            variant="ghost"
-            size="sm"
-            isLoading={result.isFetchingNextPage}
-            onPress={() => void result.fetchNextPage()}
-          >
-            {result.isFetchingNextPage ? copy.loadingMore : copy.loadMore}
-          </Button>
-        ) : undefined
-      }
-    />
-  ) : undefined;
+  const totalCount = result.data?.totalCount ?? 0;
+  const lastPage = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
+  const footer =
+    ready && !noPostsAtAll ? (
+      <Pagination
+        page={page}
+        pageSize={PAGE_SIZE}
+        totalCount={totalCount}
+        onPageChange={(next) => {
+          clearSelection();
+          onPageChange(next);
+        }}
+        isSearching={isSearchSettling}
+      />
+    ) : result.isPending ? (
+      <Pagination page={1} pageSize={PAGE_SIZE} totalCount={0} onPageChange={onPageChange} isLoading />
+    ) : undefined;
+  // A page emptied by deletions falls back to the new last page.
+  useEffect(() => {
+    if (!result.isPlaceholderData && !result.isPending && !result.isError && page > lastPage) onPageChange(lastPage);
+  }, [lastPage, onPageChange, page, result.isError, result.isPending, result.isPlaceholderData]);
 
   return (
     <section ref={rootRef} className={styles.list}>
@@ -344,7 +354,6 @@ export function PostsList({
           <TabPanel key={panelView} id={panelView}>
             {panelView === view ? (
               <>
-                {isArchive ? <p className={styles.note}>{postsCopy.archive.note}</p> : null}
                 {notice ? <LifecycleBanner notice={notice} onDismiss={() => setNotice(null)} /> : null}
 
                 {result.isError ? (
@@ -353,6 +362,7 @@ export function PostsList({
                   <Wrap narrow={narrow}>
                     <Panel
                       title={PANEL_TITLE[view]}
+                      {...(isArchive ? { note: postsCopy.archive.note } : {})}
                       action={panelAction}
                       {...(ready && hasRows ? {} : { reserveRows: narrow ? 6 : 8 })}
                       {...(footer ? { footer } : {})}
@@ -382,7 +392,7 @@ export function PostsList({
                           />
                         </PhoneToolbar>
                       ) : null}
-                      {ready && !hasRows ? (
+                      {ready && !hasRows && totalCount === 0 ? (
                         <EmptyState
                           icon={emptyIsFiltered ? 'search' : isArchive ? 'clock' : 'file'}
                           title={

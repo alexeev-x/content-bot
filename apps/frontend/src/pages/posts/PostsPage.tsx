@@ -6,6 +6,8 @@ type Props = {
   view: PostsView;
   query: string;
   sort: PostsSort;
+  page: number;
+  onPageChange: (page: number) => void;
   onViewChange: (view: PostsView) => void;
   onQueryChange: (query: string) => void;
   onSortChange: (sort: PostsSort) => void;

@@ -16,6 +16,7 @@ import {
 } from '@alexeev/contracts';
 import type { z } from 'zod';
 import { apiRequest } from '../../../shared/api/http-client';
+import { PAGE_SIZE } from '../../../shared/api/page-query';
 import { buildQuery, DEFAULT_PAGE_SIZE } from '../../../shared/api/query-string';
 
 export type PostFilters = Pick<z.input<typeof listPostsQuerySchema>, 'status' | 'view' | 'q' | 'sort' | 'direction'>;
@@ -28,7 +29,7 @@ export type UpdatePostBody = z.input<typeof updatePostInputSchema>;
 export type ApprovePostBody = z.input<typeof approvePostInputSchema>;
 export type ReturnPostToDraftBody = z.input<typeof returnPostToDraftInputSchema>;
 
-export function listPosts(filters: PostFilters, cursor: string | undefined, signal?: AbortSignal) {
+export function listPosts(filters: PostFilters, cursor: string | undefined, signal?: AbortSignal, page?: number) {
   const query = buildQuery({
     status: filters.status,
     view: filters.view,
@@ -36,7 +37,8 @@ export function listPosts(filters: PostFilters, cursor: string | undefined, sign
     sort: filters.sort,
     direction: filters.direction,
     cursor,
-    limit: DEFAULT_PAGE_SIZE
+    page,
+    limit: page === undefined ? DEFAULT_PAGE_SIZE : PAGE_SIZE
   });
   return apiRequest(`/api/v1/posts${query}`, postPageSchema, { signal });
 }

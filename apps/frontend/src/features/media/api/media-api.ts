@@ -9,6 +9,7 @@ import {
 } from '@alexeev/contracts';
 import type { z } from 'zod';
 import { apiRequest, apiRequestBlob, apiRequestNoContent } from '../../../shared/api/http-client';
+import { PAGE_SIZE } from '../../../shared/api/page-query';
 import { buildQuery, DEFAULT_PAGE_SIZE } from '../../../shared/api/query-string';
 
 export type MediaFilters = {
@@ -17,9 +18,9 @@ export type MediaFilters = {
   usage: z.infer<typeof mediaLibraryUsageFilterSchema>;
 };
 
-export function listMedia(filters: MediaFilters, cursor: string | undefined, signal?: AbortSignal) {
+export function listMedia(filters: MediaFilters, cursor: string | undefined, signal?: AbortSignal, page?: number) {
   return apiRequest(
-    `/api/v1/media${buildQuery({ ...filters, cursor, limit: DEFAULT_PAGE_SIZE })}`,
+    `/api/v1/media${buildQuery({ ...filters, cursor, page, limit: page === undefined ? DEFAULT_PAGE_SIZE : PAGE_SIZE })}`,
     mediaLibraryPageSchema,
     { signal }
   );

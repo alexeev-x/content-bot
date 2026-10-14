@@ -538,6 +538,7 @@ describe('GET /api/v1/publications', () => {
     expect(page).toEqual({
       items: [],
       nextCursor: null,
+      page: null,
       totalCount: 0,
       statusCounts: {
         scheduled: 0,
@@ -1084,5 +1085,25 @@ describe('owner notice when a publication is scheduled or moved', () => {
     expect(stale.status).toBe(409);
     expect(now.status).toBe(200);
     expect(api.ownerMessages).toEqual([]);
+  });
+});
+
+describe('GET /api/v1/publications page numbers', () => {
+  it('serves page slices in the cursor order and reports totalCount beyond the last page', async () => {
+    for (let i = 0; i < 5; i++) await scheduleOk({ scheduledAt: iso(START + (10 + i) * MINUTE) });
+    const read = async (query: string) => {
+      const response = await api.request(`/api/v1/publications?${query}`);
+      expect(response.status).toBe(200);
+      return publicationPageSchema.parse(await response.json());
+    };
+
+    const everything = await read('limit=100');
+    const second = await read('page=2&limit=2');
+    const beyond = await read('page=7&limit=2');
+
+    expect(second.items.map((item) => item.id)).toEqual(everything.items.slice(2, 4).map((item) => item.id));
+    expect(second).toMatchObject({ page: 2, nextCursor: null, totalCount: 5 });
+    expect(beyond).toMatchObject({ items: [], page: 7, totalCount: 5 });
+    expect((await api.request('/api/v1/publications?page=2&cursor=abc')).status).toBe(400);
   });
 });

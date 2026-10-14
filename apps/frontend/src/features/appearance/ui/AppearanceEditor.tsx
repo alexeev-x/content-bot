@@ -1,9 +1,18 @@
 import { useQuery } from '@tanstack/react-query';
-import { useCallback } from 'react';
+import { useCallback, useState } from 'react';
 import { ApiError } from '../../../shared/api/http-client';
-import { ACCENT_IDS, type AccentId } from '../../../shared/lib/color';
+import { ACCENT_IDS, DEFAULT_CUSTOM_COLOR, statusHueWarning, type AccentChoice } from '../../../shared/lib/color';
 import { ru } from '../../../shared/lib/ru';
-import { ErrorState, Panel, SegmentedControl, Skeleton, useToast, VisuallyHidden } from '../../../shared/ui';
+import {
+  Banner,
+  ColorPicker,
+  ErrorState,
+  Panel,
+  SegmentedControl,
+  Skeleton,
+  useToast,
+  VisuallyHidden
+} from '../../../shared/ui';
 import { appearanceQueryOptions } from '../api/appearance-queries';
 import { toValue, type AppearanceValue } from '../model/appearance-value';
 import { useAppearanceSaver } from '../model/use-appearance-saver';
@@ -43,8 +52,13 @@ export function AppearanceEditor({ preview, density, onDensityChange }: Props) {
   const query = useQuery(appearanceQueryOptions());
   const toast = useToast();
   const screen = useScreenTheme();
-  const onFailure = useCallback(() => toast.show({ tone: 'error', title: ru.appearance.saveFailed }), [toast]);
-  const { choose } = useAppearanceSaver({ preview, onFailure });
+  // The colour being dragged: the server value only arrives after the debounced save.
+  const [draftColor, setDraftColor] = useState<string | null>(null);
+  const onFailure = useCallback(() => {
+    setDraftColor(null);
+    toast.show({ tone: 'error', title: ru.appearance.saveFailed });
+  }, [toast]);
+  const { choose, chooseSoon } = useAppearanceSaver({ preview, onFailure });
 
   if (query.isPending) return <Loading />;
   if (query.isError || !query.data) {
@@ -60,6 +74,9 @@ export function AppearanceEditor({ preview, density, onDensityChange }: Props) {
   }
 
   const value = toValue(query.data);
+  const customColor = draftColor ?? value.customColor ?? DEFAULT_CUSTOM_COLOR;
+  const warning = statusHueWarning(customColor);
+  const chooseAccent = (accent: AccentChoice) => choose(accent === 'custom' ? { accent, customColor } : { accent });
   return (
     <div className={styles.grid}>
       <Panel title={ru.appearance.themeTitle}>
@@ -70,12 +87,25 @@ export function AppearanceEditor({ preview, density, onDensityChange }: Props) {
       <div className={styles.accentRow}>
         <Panel title={ru.appearance.accentTitle}>
           <div className={styles.body}>
-            <AccentTiles
-              ids={ACCENT_IDS}
-              theme={screen}
-              value={value.accent}
-              onChange={(accent: AccentId) => choose({ accent })}
-            />
+            <AccentTiles ids={ACCENT_IDS} theme={screen} value={value.accent} onChange={chooseAccent} />
+            {value.accent === 'custom' ? (
+              <div className={styles.custom}>
+                <h3 className={styles.customTitle}>{ru.appearance.customTitle}</h3>
+                <p className={styles.customNote}>{ru.appearance.customNote}</p>
+                <ColorPicker
+                  value={customColor}
+                  onChange={(hex) => {
+                    setDraftColor(hex);
+                    chooseSoon({ accent: 'custom', customColor: hex });
+                  }}
+                />
+                {warning ? (
+                  <Banner tone="warning" title={ru.appearance.customWarnTitle}>
+                    {warning === 'failed' ? ru.appearance.customWarnFailed : ru.appearance.customWarnUnknown}
+                  </Banner>
+                ) : null}
+              </div>
+            ) : null}
           </div>
         </Panel>
         <PreviewPanel />

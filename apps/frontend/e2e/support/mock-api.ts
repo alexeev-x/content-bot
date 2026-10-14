@@ -207,7 +207,8 @@ const incidents = (): Array<Record<string, unknown>> => [
 
 const json = (route: Route, body: unknown, status = 200) =>
   route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) });
-const page_ = <T>(items: T[]) => ({ items, nextCursor: null });
+// Page-number lists also carry `page` and `totalCount`; plain cursor lists ignore the extra fields.
+const page_ = <T>(items: T[]) => ({ items, nextCursor: null, page: 1, totalCount: items.length });
 
 /** Deterministic API for every implemented endpoint, with long titles and channel names. Later routes win. */
 export async function mockApi(page: Page): Promise<void> {
@@ -376,6 +377,7 @@ export async function mockApi(page: Page): Promise<void> {
           createdAt: T,
           duplicateCount: 1,
           usageCount: index % 2,
+          deletable: index % 2 === 0,
           usages: []
         }))
       )
