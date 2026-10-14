@@ -17,9 +17,9 @@ import { createTelegramCaller } from '../bot/telegram-call';
 import { formatDotaDraftAlert, formatDotaIncidentAlert } from '../notifications/dota-alert';
 
 // Keep each tick small enough to leave room for the existing publishing dispatch's 50-statement budget.
-export const DOTA_DRAFT_BATCH_LIMIT = 2;
-export const DOTA_PATCH_ANALYSIS_LEASE_MS = 60_000;
-export const DOTA_NOTICE_TIMEOUT_MS = 5_000;
+const DOTA_DRAFT_BATCH_LIMIT = 2;
+const DOTA_PATCH_ANALYSIS_LEASE_MS = 60_000;
+const DOTA_NOTICE_TIMEOUT_MS = 5_000;
 
 export interface DotaWorkflowSummary {
   feedsFetched: number;

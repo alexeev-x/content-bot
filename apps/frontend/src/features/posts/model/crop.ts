@@ -9,8 +9,8 @@ export const CROP_RATIOS: Record<CropRatio, number | undefined> = {
   '4:5': 4 / 5,
   '16:9': 16 / 9
 };
-export const INSET = 0.73;
-export const INSET_FRAME: CropFrame = { x: (1 - INSET) / 2, y: (1 - INSET) / 2, w: INSET, h: INSET };
+const INSET = 0.73;
+const INSET_FRAME: CropFrame = { x: (1 - INSET) / 2, y: (1 - INSET) / 2, w: INSET, h: INSET };
 export const defaultCropModel = (): CropModel => ({ ratio: 'original', zoom: 1, rotation: 0, frame: INSET_FRAME });
 
 export function clampCropFrame(frame: CropFrame, zoom: number): CropFrame {

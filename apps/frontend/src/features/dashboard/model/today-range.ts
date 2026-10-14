@@ -3,7 +3,7 @@ import { ownerDayRange } from '../../../shared/lib/owner-timezone';
 import type { DayRange } from '../api/dashboard-api';
 
 /** The UTC instants of the operator-zone day containing `now`: [local midnight, next local midnight). */
-export function todayRange(now: Date, timeZone: string): DayRange {
+function todayRange(now: Date, timeZone: string): DayRange {
   return ownerDayRange(now, timeZone);
 }
 

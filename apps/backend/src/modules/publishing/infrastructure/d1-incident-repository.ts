@@ -71,7 +71,7 @@ function toRecord(row: IncidentRow): IncidentRecord {
 // (resolved_at, id), or incidents_resolved_kind_idx when a kind is given. Each partial index repeats
 // its predicate here, so SQLite may use it; the page stops after LIMIT rows. Only constant fragments
 // are joined; every value is bound.
-export function listIncidentsSql(query: ListIncidentsQuery): { sql: string; bindings: (string | number)[] } {
+function listIncidentsSql(query: ListIncidentsQuery): { sql: string; bindings: (string | number)[] } {
   const open = query.state === 'open';
   const at = open ? 'i.created_at' : 'i.resolved_at';
   const conditions = [open ? 'i.resolved_at IS NULL' : 'i.resolved_at IS NOT NULL'];
@@ -93,9 +93,9 @@ export function listIncidentsSql(query: ListIncidentsQuery): { sql: string; bind
 }
 
 // Walks incidents_open_idx and stops at the cap.
-export const OPEN_COUNT_SQL = `SELECT count(*) AS n FROM (SELECT 1 FROM incidents WHERE resolved_at IS NULL LIMIT ${OPEN_INCIDENT_COUNT_CAP})`;
+const OPEN_COUNT_SQL = `SELECT count(*) AS n FROM (SELECT 1 FROM incidents WHERE resolved_at IS NULL LIMIT ${OPEN_INCIDENT_COUNT_CAP})`;
 
-export const INCIDENT_BY_ID_SQL = `${INCIDENT_FROM} WHERE i.id = ?1`;
+const INCIDENT_BY_ID_SQL = `${INCIDENT_FROM} WHERE i.id = ?1`;
 
 export function createD1IncidentRepository(db: D1Database): IncidentRepository {
   return {

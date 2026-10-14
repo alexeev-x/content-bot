@@ -42,7 +42,6 @@ export type { RatioTileOption } from './RatioTileGroup';
 export { RowCard } from './RowCard';
 export { SearchField } from './SearchField';
 export { TableSearch } from './TableSearch';
-export { useRowSearch } from './use-row-search';
 export { SelectionBar } from './SelectionBar';
 export { SegmentedControl } from './SegmentedControl';
 export type { SegmentOption } from './SegmentedControl';
@@ -51,7 +50,7 @@ export type { SelectOption } from './Select';
 export { Skeleton } from './Skeleton';
 export { Slider } from './Slider';
 export { Sparkline } from './Sparkline';
-export { ProgressBar, ProgressRing } from './Progress';
+export { ProgressBar } from './Progress';
 export type { ProgressTone } from './Progress';
 export { Spinner } from './Spinner';
 export { StatusBadge } from './StatusBadge';
@@ -77,7 +76,6 @@ export { UploadRow } from './UploadRow';
 export type { UploadRowState } from './UploadRow';
 export { useMediaQuery } from './use-media-query';
 export { VisuallyHidden } from './VisuallyHidden';
-export { ColumnFilter } from './ColumnFilter';
 export {
   AppliedChips,
   FilterButton,

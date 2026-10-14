@@ -6,8 +6,6 @@ import {
   useQueryClient,
   type QueryClient
 } from '@tanstack/react-query';
-import { useState } from 'react';
-import { createIdempotencyTracker } from '../../../shared/api/idempotency';
 import { nextCursor } from '../../../shared/api/query-string';
 import { isInProgress } from '../model/publication-view';
 import { listEnabledDestinations } from './destination-options';
@@ -101,24 +99,6 @@ export function publishDestinationsQueryOptions() {
 function applyServerPublication(queryClient: QueryClient, publication: PublicationDto): void {
   queryClient.setQueryData(publicationKeys.detail(publication.id), publication);
   void queryClient.invalidateQueries({ queryKey: publicationKeys.lists() });
-}
-
-export function useCreatePublication() {
-  const queryClient = useQueryClient();
-  const [tracker] = useState(createIdempotencyTracker);
-  return useMutation({
-    // One key per request: derived once here and released only after the server confirmed this very request.
-    mutationFn: async (input: CreatePublicationBody) => {
-      const key = tracker.keyFor(input);
-      const created = await createPublication(input, key);
-      tracker.release(key);
-      return created;
-    },
-    retry: false,
-    onSuccess: (publication) => {
-      applyServerPublication(queryClient, publication);
-    }
-  });
 }
 
 /** Create with a caller-owned Idempotency-Key (the publish intent keeps it across remounts and reloads). */

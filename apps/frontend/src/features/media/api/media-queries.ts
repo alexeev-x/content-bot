@@ -1,6 +1,6 @@
 import { infiniteQueryOptions, queryOptions, useMutation, useQueryClient } from '@tanstack/react-query';
 import { nextCursor } from '../../../shared/api/query-string';
-import { attachMedia, getDraft, getMediaContent, listDrafts, listMedia, type MediaFilters } from './media-api';
+import { attachMedia, getDraft, listDrafts, listMedia, type MediaFilters } from './media-api';
 
 export const mediaKeys = {
   all: ['media-library'] as const,
@@ -38,16 +38,6 @@ export function draftQueryOptions(id: string) {
     queryKey: mediaKeys.draft(id),
     queryFn: ({ signal }) => getDraft(id, signal),
     staleTime: 0,
-    retry: false
-  });
-}
-
-export function mediaContentQueryOptions(id: string) {
-  return queryOptions({
-    queryKey: mediaKeys.content(id),
-    queryFn: ({ signal }) => getMediaContent(id, signal),
-    staleTime: 0,
-    gcTime: 0,
     retry: false
   });
 }

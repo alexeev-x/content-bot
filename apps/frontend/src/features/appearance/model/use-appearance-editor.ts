@@ -12,7 +12,7 @@ type Options = {
 
 export type SaveProblem = 'conflict' | 'validation' | 'unavailable' | 'forbidden' | 'unauthorized';
 
-export function problemOf(error: unknown): SaveProblem {
+function problemOf(error: unknown): SaveProblem {
   if (error instanceof ApiError) {
     if (error.status === 409) return 'conflict';
     if (error.status === 400 || error.status === 413 || error.status === 422) return 'validation';

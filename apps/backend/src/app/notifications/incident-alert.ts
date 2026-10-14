@@ -1,7 +1,7 @@
 import type { OwnerIncidentAlertGroup, RaisedIncident } from '../../modules/publishing';
 import { clip, escapeHtml } from './schedule-notice';
 
-export const OPEN_BUTTON_TEXT = 'Открыть';
+const OPEN_BUTTON_TEXT = 'Открыть';
 
 // What the owner reads for each stable incident code. A code this table does not know still gets an
 // honest line (the code itself, which is ASCII and ours), never Telegram's own description.
@@ -26,7 +26,7 @@ function openUrl(alert: RaisedIncident, appOrigin: string): string {
   return `${appOrigin}/publications?status=${alert.kind === 'publish_unknown' ? 'unknown' : 'failed'}`;
 }
 
-export function formatIncidentAlert(alert: RaisedIncident, appOrigin: string): IncidentAlertMessage {
+function formatIncidentAlert(alert: RaisedIncident, appOrigin: string): IncidentAlertMessage {
   const lines: string[] = [];
   const post = alert.postTitle?.trim() ?? '';
   const channel = alert.channelTitle?.trim() ?? '';
@@ -42,21 +42,6 @@ export function formatIncidentAlert(alert: RaisedIncident, appOrigin: string): I
     lines.push(`Причина: ${escapeHtml(FAILURE_REASONS[alert.code] ?? `код ${alert.code}`)}`);
   }
   return { html: lines.join('\n'), button: { text: OPEN_BUTTON_TEXT, url: openUrl(alert, appOrigin) } };
-}
-
-export function formatIncidentAlertGroup(
-  alerts: readonly RaisedIncident[],
-  appOrigin: string
-): IncidentAlertMessage | null {
-  const first = alerts[0];
-  if (first === undefined) return null;
-  if (alerts.length === 1) return formatIncidentAlert(first, appOrigin);
-
-  const entries = alerts.map((alert) => formatIncidentAlert(alert, appOrigin).html);
-  return {
-    html: `<b>Сводка: ${alerts.length} инцидента</b>\n\n${entries.join('\n\n— — —\n\n')}`,
-    button: { text: OPEN_BUTTON_TEXT, url: `${appOrigin}/incidents` }
-  };
 }
 
 export function formatOwnerIncidentOccurrence(group: OwnerIncidentAlertGroup, appOrigin: string): IncidentAlertMessage {

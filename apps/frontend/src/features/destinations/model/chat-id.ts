@@ -4,7 +4,7 @@ const BARE_USERNAME = /^[A-Za-z][A-Za-z0-9_]{4,31}$/;
 const LINK_PREFIX = /^(?:https?:\/\/)?(?:t|telegram)\.me\//i;
 
 /** Turns what an operator pastes (`name`, `@name`, `t.me/name`, `-100…`) into the one spelling the API accepts. */
-export function normalizeChatId(raw: string): string {
+function normalizeChatId(raw: string): string {
   const trimmed = raw.trim().replace(LINK_PREFIX, '').replace(/\/+$/, '');
   return BARE_USERNAME.test(trimmed) ? `@${trimmed}` : trimmed;
 }

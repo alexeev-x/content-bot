@@ -112,7 +112,7 @@ export function AppLayout() {
   const pathname = useRouterState({ select: (state) => state.location.pathname });
   const href = useRouterState({ select: (state) => state.location.href });
   const auth = useAuth();
-  if (BARE_PATHS.includes(pathname) || pathname.startsWith('/__proto')) return <Outlet />;
+  if (BARE_PATHS.includes(pathname)) return <Outlet />;
 
   switch (auth.status) {
     case 'checking':

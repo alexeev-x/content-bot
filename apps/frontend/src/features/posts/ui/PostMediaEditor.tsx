@@ -207,7 +207,7 @@ async function createMediaThumbnail(blob: Blob, kind: 'image' | 'video', signal:
   }
 }
 
-export function ServerPreview({
+function ServerPreview({
   media,
   large = false,
   gridTile = false,
@@ -326,17 +326,6 @@ const cropRatios = [
   { id: '4:5', label: '4:5', shape: 4 / 5 },
   { id: '16:9', label: '16:9', shape: 16 / 9 }
 ] as const;
-
-export function PostMediaPreview({ media }: { media: PostMediaDto[] }) {
-  if (!media.length) return null;
-  return (
-    <div className={styles.previewList} aria-label="Медиа поста">
-      {media.map((item) => (
-        <ServerPreview key={item.id} media={item} large />
-      ))}
-    </div>
-  );
-}
 
 function LibraryTile({
   item,

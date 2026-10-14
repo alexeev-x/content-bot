@@ -1,7 +1,7 @@
-export const IDEMPOTENCY_TTL_MS = 24 * 60 * 60 * 1000;
+const IDEMPOTENCY_TTL_MS = 24 * 60 * 60 * 1000;
 // An in-flight claim is a lease: if the request dies before completing, the key is free again
 // after this long instead of staying locked for the whole replay window.
-export const IN_FLIGHT_LEASE_MS = 60 * 1000;
+const IN_FLIGHT_LEASE_MS = 60 * 1000;
 
 export type IdempotencyClaim =
   | { kind: 'claimed' }

@@ -30,7 +30,7 @@ const PUBLICATION_COLUMNS = `p.id AS publication_id, p.scheduled_at AS scheduled
 // (a) Open incidents, `unknown` before `failed`, newest first. Each kind is its own bounded walk of
 // incidents_open_idx that stops after the limit, and only those few rows are joined to their
 // publication (LEFT: an incident without one is still shown). The open count rides on the rows.
-export const ATTENTION_SQL = `
+const ATTENTION_SQL = `
   WITH top AS (
     SELECT id, kind, code, created_at, publication_id FROM (
       SELECT id, kind, code, created_at, publication_id FROM incidents
@@ -59,7 +59,7 @@ const DUE_PENDING = `FROM jobs WHERE status IN ('pending', 'retry_wait') AND sta
 
 // (b) Stuck: `scheduled`/`queued` publications whose time passed more than the threshold ago.
 // The repeated status predicate lets SQLite walk the partial jobs_due index in run_at order.
-export const STUCK_SQL = `
+const STUCK_SQL = `
   WITH overdue AS (
     SELECT id, run_at, publication_id, status, send_started_at ${DUE_PENDING} AND run_at < ?1
     ORDER BY run_at, id LIMIT ${DASHBOARD_ATTENTION_LIMIT}
@@ -73,7 +73,7 @@ export const STUCK_SQL = `
 // (c) The owner's day: publications_scheduled_idx gives the range in order, the LIMIT stops it, and
 // the total is a count over a bounded subquery. A cancelled publication is not going out, so it is
 // left off the timeline.
-export const TODAY_SQL = `
+const TODAY_SQL = `
   SELECT ${PUBLICATION_COLUMNS}, j.status AS job_status, j.run_at AS job_run_at,
          j.send_started_at AS job_send_started_at,
          (SELECT count(*) FROM (
@@ -91,7 +91,7 @@ const UPCOMING_BRANCH = (status: string) => `SELECT id, run_at, publication_id, 
 
 // (d) What goes out after today: the same two-branch walk of jobs_due as the bot's /next, from the
 // end of the owner's day on, merged to the limit.
-export const UPCOMING_FROM_SQL = `
+const UPCOMING_FROM_SQL = `
   WITH next_jobs AS (
     SELECT id, run_at, publication_id, status, send_started_at FROM (
       SELECT id, run_at, publication_id, status, send_started_at FROM (${UPCOMING_BRANCH('pending')})
@@ -106,7 +106,7 @@ export const UPCOMING_FROM_SQL = `
 
 // (e) The last sent: jobs_status_scheduled_idx holds the `succeeded` jobs latest-scheduled first, so
 // the read is five rows however long the history is.
-export const RECENT_SENT_SQL = `
+const RECENT_SENT_SQL = `
   WITH last_sent AS (
     SELECT id, run_at, publication_id, status, send_started_at FROM jobs
     WHERE status = 'succeeded' AND kind = 'publish'

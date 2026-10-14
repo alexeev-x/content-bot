@@ -266,7 +266,7 @@ function emptyCounts(): Record<PublicationStatus, number> {
   };
 }
 
-export function summarizeRows(rows: readonly SummaryRow[], now: number): Map<string, PostPublicationSummary> {
+function summarizeRows(rows: readonly SummaryRow[], now: number): Map<string, PostPublicationSummary> {
   const summaries = new Map<string, PostPublicationSummary>();
   const destinations = new Map<string, Map<string, string>>();
   for (const row of rows) {
@@ -341,7 +341,7 @@ interface UpcomingRow {
 }
 
 /** One day of publications is far below this; the cap only bounds the read if something goes wrong. */
-export const RANGE_SUMMARY_ROWS = 500;
+const RANGE_SUMMARY_ROWS = 500;
 
 // The same grouping as SUMMARY_SQL, over the publications scheduled in a range: publications_scheduled_idx
 // gives the range in order and the inner LIMIT bounds what is read.
@@ -366,7 +366,7 @@ interface RangeRow {
   first_scheduled_at: number;
 }
 
-export function summarizeRangeRows(rows: readonly RangeRow[], now: number): RangeSummary {
+function summarizeRangeRows(rows: readonly RangeRow[], now: number): RangeSummary {
   const counts = emptyCounts();
   let nextWaitingAt: number | null = null;
   for (const row of rows) {

@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ApiError } from '../../../shared/api/http-client';
 import { addDotaWatchlist, getDotaWatchlists, removeDotaWatchlist } from './dota-watchlists-api';
 
-export const dotaWatchlistKeys = { all: ['dota-watchlists'] as const };
+const dotaWatchlistKeys = { all: ['dota-watchlists'] as const };
 
 export function useDotaWatchlists() {
   return useQuery({

@@ -30,12 +30,12 @@ export const DEFAULT_APPEARANCE: Appearance = {
 };
 
 /** Fired on `window` after a persisted applyAppearance, so useTheme re-reads the stored mode. */
-export const APPEARANCE_APPLIED_EVENT = 'appearance-applied';
+const APPEARANCE_APPLIED_EVENT = 'appearance-applied';
 
 const STORAGE_KEY = 'ui-theme'; // UI preference only, never a token
 const APPEARANCE_KEY = 'ui-appearance'; // last applied accents: a flash-avoiding cache, the server is the truth
 
-export function readPreference(): ThemePreference {
+function readPreference(): ThemePreference {
   try {
     const value = window.localStorage.getItem(STORAGE_KEY);
     if (value === 'light' || value === 'dark' || value === 'system') return value;
@@ -53,7 +53,7 @@ function writePreference(value: ThemePreference): void {
   }
 }
 
-export function readSystemScheme(): ResolvedTheme {
+function readSystemScheme(): ResolvedTheme {
   const telegram = getTelegramColorScheme();
   if (telegram) return telegram;
   if (typeof window.matchMedia === 'function') {
@@ -62,11 +62,11 @@ export function readSystemScheme(): ResolvedTheme {
   return 'dark';
 }
 
-export function resolveTheme(preference: ThemePreference): ResolvedTheme {
+function resolveTheme(preference: ThemePreference): ResolvedTheme {
   return preference === 'system' ? readSystemScheme() : preference;
 }
 
-export function applyTheme(theme: ResolvedTheme): void {
+function applyTheme(theme: ResolvedTheme): void {
   document.documentElement.dataset['theme'] = theme;
 }
 
@@ -77,7 +77,7 @@ const cachedAppearanceSchema = z.object({
 });
 
 /** Last applied appearance from localStorage; the defaults when absent, corrupt or storage is blocked. */
-export function readCachedAppearance(): Appearance {
+function readCachedAppearance(): Appearance {
   const themeMode = readPreference();
   try {
     const raw = window.localStorage.getItem(APPEARANCE_KEY);
@@ -111,7 +111,7 @@ const TOKEN_SUFFIXES: Record<keyof DerivedAccent, string> = {
 };
 
 /** Sets data-accent-<theme> and, for a custom preset, the --custom-<theme>-* properties tokens.css reads. */
-export function applyAccent(theme: ResolvedTheme, ref: AccentRef, customPresets: readonly CustomPresetDto[]): void {
+function applyAccent(theme: ResolvedTheme, ref: AccentRef, customPresets: readonly CustomPresetDto[]): void {
   const root = document.documentElement;
   const custom = ref.kind === 'custom' ? customPresets.find((preset) => preset.id === ref.id) : undefined;
   for (const suffix of Object.values(TOKEN_SUFFIXES)) root.style.removeProperty(`--custom-${theme}-${suffix}`);

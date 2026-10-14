@@ -1,9 +1,8 @@
-export { approve, canEdit } from './domain/post';
 export type { ApproveResult, Post, PostStatus } from './domain/post';
 export { postTitleSortKey } from './domain/post-title-sort-key';
 export { approvePost, updatePost } from './application/change-post';
 export { createPost } from './application/create-post';
-export { getPost, getPostsByIds, listPosts } from './application/read-posts';
+export { getPost, getPostsByIds } from './application/read-posts';
 export type {
   IdempotencyGate,
   PostPublicationSummary,

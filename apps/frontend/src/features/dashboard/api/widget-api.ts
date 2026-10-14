@@ -8,9 +8,9 @@ import {
 import { apiRequest } from '../../../shared/api/http-client';
 import { buildQuery } from '../../../shared/api/query-string';
 
-export const DRAFTS_LIMIT = 5;
+const DRAFTS_LIMIT = 5;
 export const WEEK_LIMIT = 100;
-export const CHANNELS_LIMIT = 20;
+const CHANNELS_LIMIT = 20;
 export const INCIDENTS_CLOSED_LIMIT = 50;
 
 /** Recently edited drafts: the first page of the posts list, drafts only, newest update first. */

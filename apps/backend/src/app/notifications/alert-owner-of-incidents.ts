@@ -7,9 +7,9 @@ import { AppError } from '../../shared/app-error';
 import { createTelegramCaller } from '../bot/telegram-call';
 import { formatOwnerIncidentOccurrence, formatOwnerIncidentRecovery } from './incident-alert';
 
-export const ALERT_TIMEOUT_MS = 5_000;
+const ALERT_TIMEOUT_MS = 5_000;
 // Keep enough of the Cron's 50-statement D1 budget for outcome writes; oldest-first prevents starvation.
-export const MAX_ALERTS_PER_TICK = 2;
+const MAX_ALERTS_PER_TICK = 2;
 const ALERT_GROUP_PURGE_LIMIT = 25;
 
 export interface OwnerAlertDeps {

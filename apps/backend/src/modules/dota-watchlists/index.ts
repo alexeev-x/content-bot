@@ -112,7 +112,7 @@ function matchDto(row: MatchRow): DotaWatchMatchDto {
   };
 }
 
-export async function listDotaWatchlists(db: D1Database): Promise<DotaWatchlistsDto> {
+async function listDotaWatchlists(db: D1Database): Promise<DotaWatchlistsDto> {
   const [watchRows, matchRows] = await Promise.all([
     db
       .prepare(
@@ -288,7 +288,7 @@ export async function addDotaWatchlist(input: {
   }
 }
 
-export async function removeDotaWatchlist(db: D1Database, id: string, now: number): Promise<void> {
+async function removeDotaWatchlist(db: D1Database, id: string, now: number): Promise<void> {
   await db.prepare('UPDATE dota_watches SET removed_at = ?2 WHERE id = ?1 AND removed_at IS NULL').bind(id, now).run();
 }
 
@@ -386,7 +386,7 @@ export async function processDotaWatchlistMatches(deps: {
   return summary;
 }
 
-export async function listPendingDotaWatchlistAlerts(db: D1Database, limit: number): Promise<DotaWatchlistAlert[]> {
+async function listPendingDotaWatchlistAlerts(db: D1Database, limit: number): Promise<DotaWatchlistAlert[]> {
   const pending = await db
     .prepare(
       `SELECT a.id, m.external_id, w.entity_type, w.entity_name, u.title
@@ -408,7 +408,7 @@ export async function listPendingDotaWatchlistAlerts(db: D1Database, limit: numb
   }));
 }
 
-export async function claimDotaWatchlistAlert(db: D1Database, id: string, now: number): Promise<boolean> {
+async function claimDotaWatchlistAlert(db: D1Database, id: string, now: number): Promise<boolean> {
   const result = await db
     .prepare(
       `UPDATE dota_watch_alerts SET status = 'sending', send_started_at = ?2, updated_at = ?2

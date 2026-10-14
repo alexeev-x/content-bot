@@ -3,7 +3,7 @@ import type { z } from 'zod';
 import type { Logger } from '../../platform/logging/logger';
 import { AppError } from '../../shared/app-error';
 
-export const BOT_CALL_TIMEOUT_MS = 8_000;
+const BOT_CALL_TIMEOUT_MS = 8_000;
 // Telegram caps retry_after far above what a person should wait for a button; the header stays sane.
 const MAX_RETRY_AFTER_SEC = 3_600;
 

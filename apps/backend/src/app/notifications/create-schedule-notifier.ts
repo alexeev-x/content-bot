@@ -7,7 +7,7 @@ import { createTelegramCaller } from '../bot/telegram-call';
 import { formatScheduleNotice } from './schedule-notice';
 
 // One message must not hold the request's background work for long; nothing is retried.
-export const NOTICE_TIMEOUT_MS = 5_000;
+const NOTICE_TIMEOUT_MS = 5_000;
 
 export interface ScheduleNotifierDeps {
   /** Null when the bot token is not set: the owner is simply not told. */

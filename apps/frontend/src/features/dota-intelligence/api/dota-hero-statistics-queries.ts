@@ -1,7 +1,7 @@
 import { queryOptions } from '@tanstack/react-query';
 import { getDotaHeroStatistics } from './dota-hero-statistics-api';
 
-export const dotaHeroStatisticsKey = ['dota-hero-statistics'] as const;
+const dotaHeroStatisticsKey = ['dota-hero-statistics'] as const;
 
 export function dotaHeroStatisticsQueryOptions(enabled = true) {
   return queryOptions({

@@ -16,7 +16,7 @@ export type AppearanceValue = {
 
 export type ThemeName = 'light' | 'dark';
 
-export const FALLBACK_ACCENT: AccentRef = { kind: 'preset', id: 'cobalt' };
+const FALLBACK_ACCENT: AccentRef = { kind: 'preset', id: 'cobalt' };
 
 export function toValue(dto: AppearanceDto): AppearanceValue {
   return {
@@ -50,7 +50,7 @@ export function isSameValue(a: AppearanceValue, b: AppearanceValue): boolean {
 export const setAccent = (value: AppearanceValue, theme: ThemeName, accent: AccentRef): AppearanceValue =>
   theme === 'light' ? { ...value, lightAccent: accent } : { ...value, darkAccent: accent };
 
-export const canAddPreset = (value: AppearanceValue) => value.customPresets.length < CUSTOM_PRESETS_MAX;
+const canAddPreset = (value: AppearanceValue) => value.customPresets.length < CUSTOM_PRESETS_MAX;
 
 export function addPreset(value: AppearanceValue, preset: CustomPresetDto): AppearanceValue {
   if (!canAddPreset(value)) return value;

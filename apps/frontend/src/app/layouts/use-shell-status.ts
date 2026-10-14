@@ -3,7 +3,7 @@ import { botStatusQueryOptions, useBotCheck } from '../../features/bot';
 import { healthQueryOptions, useServiceChecks } from '../../features/system-health';
 import type { StatusCheck } from '../../shared/lib/status-check';
 
-export const STATUS_POLL_MS = 60_000;
+const STATUS_POLL_MS = 60_000;
 
 /**
  * The system checks the top-bar chip and the dashboard report on. The chip says «обновляется каждую минуту», so the

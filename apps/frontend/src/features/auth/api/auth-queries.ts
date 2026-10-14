@@ -1,7 +1,7 @@
 import { queryOptions, useMutation, useQueryClient } from '@tanstack/react-query';
 import type { TelegramWidgetSignInInput } from '@alexeev/contracts';
 import { clearSession } from '../../../shared/api/session';
-import { fetchMe, logoutRequest, signInWithMiniApp, signInWithWidget } from './auth-api';
+import { fetchMe, logoutRequest, signInWithWidget } from './auth-api';
 
 export const authKeys = {
   all: ['auth'] as const,
@@ -13,16 +13,6 @@ export function meQueryOptions() {
     queryKey: authKeys.me(),
     queryFn: ({ signal }) => fetchMe(signal),
     staleTime: 5 * 60_000
-  });
-}
-
-export function useSignInMiniApp() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: () => signInWithMiniApp(),
-    retry: false,
-    // Drop anything cached under a previous session before the new one is used.
-    onSuccess: () => queryClient.clear()
   });
 }
 

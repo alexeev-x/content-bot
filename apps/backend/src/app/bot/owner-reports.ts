@@ -19,16 +19,16 @@ import {
 } from './owner-time';
 
 // How many publications /next lists.
-export const NEXT_LIMIT = 5;
+const NEXT_LIMIT = 5;
 // Counts of problems stop here: "5+" says enough, and the read stays a handful of rows.
 const PROBLEM_CAP = 5;
 const INCIDENT_CAP = 20;
 // A tick that is older than this means Cron is not running (it fires every minute).
 const CRON_STALE_MS = 3 * 60_000;
 
-export const STUDIO_BUTTON_TEXT = 'Открыть студию';
-export const ALL_SCHEDULED_BUTTON_TEXT = 'Все запланированные';
-export const PROBLEMS_BUTTON_TEXT = 'Разобраться';
+const STUDIO_BUTTON_TEXT = 'Открыть студию';
+const ALL_SCHEDULED_BUTTON_TEXT = 'Все запланированные';
+const PROBLEMS_BUTTON_TEXT = 'Разобраться';
 
 export interface OwnerReply {
   /** Telegram HTML: every user-controlled part is escaped. */

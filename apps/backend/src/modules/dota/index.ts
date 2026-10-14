@@ -238,7 +238,7 @@ const patchNamesSchema = z
   })
   .passthrough();
 
-export function parsePatchNameMaps(
+function parsePatchNameMaps(
   heroPayload: unknown,
   itemPayload: unknown
 ): { heroes: Map<number, string>; items: Map<number, string> } {
@@ -423,7 +423,7 @@ export async function summarizeOfficialPatch(
   return (await inspectOfficialPatch(fetcher, version)).summary;
 }
 
-export function parseOfficialPatchFacts(
+function parseOfficialPatchFacts(
   payload: unknown,
   version: string,
   nameMaps: { heroes: Map<number, string>; items: Map<number, string> }
@@ -755,13 +755,13 @@ export interface DotaSourceIncident {
   resolvedAt: number | null;
 }
 
-export const DOTA_DRAFT_WORK_SQL = `
+const DOTA_DRAFT_WORK_SQL = `
   SELECT u.source_key, u.external_id, u.title, u.source_url, u.published_at, u.is_baseline, u.draft_post_id
   FROM dota_update_items u INDEXED BY dota_draft_candidates_idx
   WHERE u.is_baseline = 0 AND u.draft_post_id IS NULL
   ORDER BY u.published_at, u.source_key, u.external_id LIMIT ?1`;
 
-export const DOTA_PENDING_PATCH_ANALYSIS_SQL = `
+const DOTA_PENDING_PATCH_ANALYSIS_SQL = `
   WITH candidates AS (
     SELECT external_id FROM dota_patch_analyses
     WHERE parse_status IN ('pending', 'unavailable') AND (claim_until IS NULL OR claim_until <= ?2)
@@ -772,32 +772,22 @@ export const DOTA_PENDING_PATCH_ANALYSIS_SQL = `
     AND (claim_until IS NULL OR claim_until <= ?2)
     AND external_id IN (SELECT external_id FROM candidates)`;
 
-export const DOTA_DRAFT_RECOVERY_SQL = `
+const DOTA_DRAFT_RECOVERY_SQL = `
   SELECT u.source_key, u.external_id, u.title, u.source_url, u.published_at, u.is_baseline, u.draft_post_id
   FROM dota_update_items u INDEXED BY dota_draft_recovery_idx LEFT JOIN posts p ON p.id = u.draft_post_id
   WHERE u.is_baseline = 0 AND u.draft_post_id IS NOT NULL AND u.owner_alert_claimed_at IS NULL AND p.id IS NULL
   ORDER BY u.published_at, u.source_key, u.external_id LIMIT ?1`;
 
-export const DOTA_OWNER_ALERT_WORK_SQL = `
+const DOTA_OWNER_ALERT_WORK_SQL = `
   SELECT u.source_key, u.external_id, u.title, u.source_url, u.published_at, u.is_baseline, u.draft_post_id
   FROM dota_update_items u INDEXED BY dota_draft_recovery_idx JOIN posts p ON p.id = u.draft_post_id
   WHERE u.is_baseline = 0 AND u.draft_post_id IS NOT NULL AND u.owner_alert_claimed_at IS NULL
   ORDER BY u.published_at, u.source_key, u.external_id LIMIT ?1`;
 
-export const DOTA_SOURCE_INCIDENT_ALERT_SQL = `
+const DOTA_SOURCE_INCIDENT_ALERT_SQL = `
   SELECT id, source_key, external_id, code, resolved_at FROM dota_source_incidents INDEXED BY dota_source_incidents_alert_idx
   WHERE owner_alert_claimed_at IS NULL
   ORDER BY created_at, id LIMIT ?1`;
-
-export const DOTA_PATCH_DETAIL_INCIDENT_RECOVERY_SQL = `
-  SELECT id FROM dota_source_incidents
-  WHERE source_key = 'patch_notes'
-    AND external_id IS NOT NULL
-    AND code IN (
-      'DOTA_PATCH_DETAIL_FETCH', 'DOTA_PATCH_DETAIL_HTTP', 'DOTA_PATCH_DETAIL_BODY_LIMIT',
-      'DOTA_PATCH_DETAIL_JSON', 'DOTA_PATCH_DETAIL_SHAPE'
-    )
-    AND resolved_at IS NULL`;
 
 async function readBoundedJson(response: Response, maximumBytes: number, sourceKey: DotaSourceKey): Promise<unknown> {
   if (!response.ok) throw new DotaWatchError('DOTA_SOURCE_HTTP', sourceKey);

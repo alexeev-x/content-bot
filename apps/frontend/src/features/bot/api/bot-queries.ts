@@ -2,7 +2,7 @@ import { queryOptions, useMutation, useQueryClient } from '@tanstack/react-query
 import { describeConnectFailure } from '../model/connect-failure';
 import { connectBot, getBotStatus } from './bot-api';
 
-export const botKeys = {
+const botKeys = {
   all: ['bot'] as const,
   status: () => [...botKeys.all, 'status'] as const
 };

@@ -47,7 +47,7 @@ const replace = (widgets: Widgets, id: string, patch: Partial<DashboardWidget>) 
   widgets.map((item) => (item.id === id ? { ...item, ...patch } : item));
 
 /** A widget takes the other's place and the other takes its place; sizes stay, x is pulled left to fit, overlaps are resolved. */
-export function swap(widgets: Widgets, aId: string, bId: string): DashboardWidget[] {
+function swap(widgets: Widgets, aId: string, bId: string): DashboardWidget[] {
   const a = widgets.find((item) => item.id === aId);
   const b = widgets.find((item) => item.id === bId);
   if (!a || !b || a.id === b.id) return [...widgets];

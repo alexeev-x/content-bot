@@ -7,7 +7,7 @@ const copy = publicationCopy.filters;
 
 export type Order = 'asc' | 'desc';
 
-export const orderOptions = [
+const orderOptions = [
   { id: 'desc', label: copy.sortNewest },
   { id: 'asc', label: copy.sortOldest }
 ];

@@ -24,8 +24,8 @@ export function problemFromError(error: unknown): LoginProblem {
 }
 
 /** Wait shown for a 429 without a usable Retry-After, and the cap for an absurd one. */
-export const DEFAULT_RETRY_SECONDS = 30;
-export const MAX_RETRY_SECONDS = 15 * 60;
+const DEFAULT_RETRY_SECONDS = 30;
+const MAX_RETRY_SECONDS = 15 * 60;
 
 export function retryWait(seconds: number | undefined): number {
   if (seconds === undefined || !Number.isFinite(seconds) || seconds <= 0) return DEFAULT_RETRY_SECONDS;

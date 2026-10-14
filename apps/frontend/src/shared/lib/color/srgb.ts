@@ -53,7 +53,7 @@ const linear = (channel: number): number => {
 };
 
 /** WCAG 2.x relative luminance. */
-export function relativeLuminance({ r, g, b }: Rgb): number {
+function relativeLuminance({ r, g, b }: Rgb): number {
   return 0.2126 * linear(r) + 0.7152 * linear(g) + 0.0722 * linear(b);
 }
 

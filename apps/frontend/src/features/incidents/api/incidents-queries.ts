@@ -3,14 +3,14 @@ import { infiniteQueryOptions, queryOptions, useMutation, useQueryClient } from 
 import { nextCursor } from '../../../shared/api/query-string';
 import { listIncidents, resolveIncident, type IncidentFilters } from './incidents-api';
 
-export const incidentKeys = {
+const incidentKeys = {
   all: ['incidents'] as const,
   lists: () => [...incidentKeys.all, 'list'] as const,
   list: (filters: IncidentFilters) => [...incidentKeys.lists(), filters] as const,
   openCount: () => [...incidentKeys.all, 'open-count'] as const
 };
 
-export const INCIDENT_POLL_MS = 30_000;
+const INCIDENT_POLL_MS = 30_000;
 
 /**
  * Accumulating list behind «Показать ещё». `staleTime: 0` makes a return from the publication drawer refetch

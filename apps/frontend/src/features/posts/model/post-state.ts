@@ -58,7 +58,7 @@ export function pluralPosts(n: number): string {
   return `${n} ${pluralWord(n, 'пост', 'поста', 'постов')}`;
 }
 
-export function pluralWord(n: number, one: string, few: string, many: string): string {
+function pluralWord(n: number, one: string, few: string, many: string): string {
   const mod10 = n % 10;
   const mod100 = n % 100;
   if (mod10 === 1 && mod100 !== 11) return one;

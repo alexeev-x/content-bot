@@ -26,7 +26,7 @@ export type DataColumn<T> = {
   /** The cell that names the row: the card title on narrow screens and the row header for screen readers. */
   isRowHeader?: boolean;
   allowsSorting?: boolean;
-  /** Wide screens: a ColumnFilter (search or filter) after the header label. */
+  /** Wide screens: a filter control (search or filter) after the header label. */
   headerControl?: ReactNode;
   align?: 'start' | 'end';
   /** `density="compact"` on narrow screens: `trailing` puts the cell (a status) at the right of the title; the other columns form one meta line. */

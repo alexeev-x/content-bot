@@ -3,7 +3,7 @@ import { expect } from 'vitest';
 import { testDb } from './db';
 import { fakeTransport, isoAt, makeTick, SENT, seedDueJob } from './dispatch';
 import type { Api, FakeClock } from './harness';
-import { seedApprovedPost, seedDestination, seedPublication } from './publishing';
+import { seedDestination, seedPublication } from './publishing';
 
 export const DAY = 24 * 60 * 60_000;
 // START is minute 0 of an hour; these ticks run the purge and the plain minute.
@@ -49,10 +49,6 @@ export async function seedSentPost(api: Api, clock: FakeClock, title?: string) {
 export async function addScheduled(api: Api, postId: string, revision: number, at: number) {
   const destination = await seedDestination(api);
   return seedPublication(api, { postId, revision, destinationId: destination.id, scheduledAt: isoAt(at) });
-}
-
-export async function approvedPost(api: Api, title?: string): Promise<PostDto> {
-  return seedApprovedPost(api, title);
 }
 
 export async function setJob(publicationId: string, set: string, ...bindings: (string | number | null)[]) {

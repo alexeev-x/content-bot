@@ -1,6 +1,6 @@
 import { CalendarDate, Time } from '@internationalized/date';
 import { useState } from 'react';
-import lake from './prototypes/assets/crop-lake-demo.png';
+import lake from './catalog-assets/crop-lake-demo.png';
 import {
   ActionRow,
   BottomSheet,

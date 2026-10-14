@@ -1,8 +1,8 @@
 import type { DotaDraftSource, DotaSourceIncident } from '../../modules/dota';
 import { clip, escapeHtml } from './schedule-notice';
 
-export const DOTA_ALERT_BUTTON_TEXT = 'Открыть черновик';
-export const DOTA_INCIDENT_BUTTON_TEXT = 'Открыть студию';
+const DOTA_ALERT_BUTTON_TEXT = 'Открыть черновик';
+const DOTA_INCIDENT_BUTTON_TEXT = 'Открыть студию';
 
 type AlertableDotaDraft = Omit<DotaDraftSource, 'draftPostId'> & { draftPostId: string };
 

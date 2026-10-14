@@ -3,7 +3,7 @@ import { queryOptions, useMutation, useQueryClient } from '@tanstack/react-query
 import { writeCachedLayout } from '../model/layout-cache';
 import { fetchDashboardLayout, saveDashboardLayout } from './layout-api';
 
-export const dashboardLayoutKeys = {
+const dashboardLayoutKeys = {
   all: ['dashboard-layout'] as const
 };
 

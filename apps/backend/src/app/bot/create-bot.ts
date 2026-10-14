@@ -97,13 +97,13 @@ export async function loadBotSetup(
 }
 
 // The bot is personal: updates from anyone but the owner are dropped without an answer.
-export function ownerOnly(ownerId: number) {
+function ownerOnly(ownerId: number) {
   return async (ctx: Context, next: NextFunction): Promise<void> => {
     if (ctx.from?.id === ownerId) await next();
   };
 }
 
-export const OPEN_BUTTON_TEXT = 'Открыть';
+const OPEN_BUTTON_TEXT = 'Открыть';
 
 export interface BotRuntime {
   /** This Worker's public origin: where the studio button points. */

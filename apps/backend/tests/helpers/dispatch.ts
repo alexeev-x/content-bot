@@ -64,7 +64,7 @@ export interface FakeSender extends TelegramSender {
   requests: { chatId: string; text: string; other: unknown }[];
 }
 
-export function fakeSender(step: SenderStep): FakeSender {
+function fakeSender(step: SenderStep): FakeSender {
   const requests: FakeSender['requests'] = [];
   return {
     requests,

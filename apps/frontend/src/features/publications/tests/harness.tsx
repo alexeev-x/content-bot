@@ -35,9 +35,3 @@ export async function renderInApp(ui: ReactNode, client = createTestQueryClient(
   );
   return { client, router };
 }
-
-export const inDays = (days: number): string => {
-  const date = new Date(Date.now() + days * 86_400_000);
-  date.setUTCSeconds(0, 0);
-  return date.toISOString();
-};

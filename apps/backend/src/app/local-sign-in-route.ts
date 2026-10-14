@@ -6,7 +6,7 @@ import type { AppBindings } from './env';
 import { setRefreshCookie } from './refresh-cookie';
 import { requireAppOrigin } from './require-app-origin';
 
-export const LOCAL_SIGN_IN_PATH = '/api/v1/auth/local';
+const LOCAL_SIGN_IN_PATH = '/api/v1/auth/local';
 
 // Owner session without Telegram on `npm run dev`, because the Login Widget refuses localhost (docs/LOCAL_PREVIEW.md).
 // Only src/index.ts mounts it, behind the `__LOCAL_SIGN_IN__` build constant, so `vite build` drops this module

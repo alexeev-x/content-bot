@@ -17,13 +17,13 @@ export type DerivedAccent = {
 
 // Backdrops an accent must read on. They mirror --color-bg and --color-surface-1..3 in tokens.css;
 // tokens.test.ts fails if the two drift apart.
-export const THEME_SURFACES: Record<ColorTheme, readonly string[]> = {
+const THEME_SURFACES: Record<ColorTheme, readonly string[]> = {
   light: ['#f3f4f6', '#ffffff', '#f7f8fa', '#eceef2'],
   dark: ['#0d0e10', '#151619', '#1c1e22', '#25272c']
 };
 
-export const TEXT_CONTRAST = 4.5; // WCAG 1.4.3: on-accent text and accent text
-export const NON_TEXT_CONTRAST = 3; // WCAG 1.4.11: focus ring, control boundaries
+const TEXT_CONTRAST = 4.5; // WCAG 1.4.3: on-accent text and accent text
+const NON_TEXT_CONTRAST = 3; // WCAG 1.4.11: focus ring, control boundaries
 const STEP = 0.005;
 
 const surfaces = (theme: ColorTheme): Rgb[] => THEME_SURFACES[theme].map((hex) => parseHex(hex)!);

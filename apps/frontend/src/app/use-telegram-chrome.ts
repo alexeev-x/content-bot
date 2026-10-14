@@ -17,7 +17,7 @@ function tokenHex(name: string): string | undefined {
 }
 
 /** Telegram's header, background and bottom bar follow our tokens; undefined when a token is not a hex color. */
-export function readTelegramColors(): TelegramColors | undefined {
+function readTelegramColors(): TelegramColors | undefined {
   const background = tokenHex('--color-bg');
   const bottomBar = tokenHex('--color-surface-1');
   return background && bottomBar ? { header: background, background, bottomBar } : undefined;

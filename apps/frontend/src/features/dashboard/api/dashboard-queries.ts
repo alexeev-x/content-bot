@@ -6,7 +6,7 @@ export const dashboardKeys = {
   day: (range: DayRange) => [...dashboardKeys.all, range.from, range.to] as const
 };
 
-export const DASHBOARD_POLL_MS = 60_000;
+const DASHBOARD_POLL_MS = 60_000;
 
 /**
  * Besides the incidents screen, the dashboard is the only read that polls (the sidebar badge does not). TanStack's default

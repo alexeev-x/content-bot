@@ -4,8 +4,8 @@ import type { Logger } from '../../platform/logging/logger';
 import { GrammyError } from 'grammy';
 import { escapeHtml } from '../notifications/schedule-notice';
 
-export const DOTA_WATCHLIST_ALERT_BATCH_LIMIT = 2;
-export const DOTA_WATCHLIST_ALERT_TIMEOUT_MS = 5_000;
+const DOTA_WATCHLIST_ALERT_BATCH_LIMIT = 2;
+const DOTA_WATCHLIST_ALERT_TIMEOUT_MS = 5_000;
 
 export async function sendDotaWatchlistAlerts(deps: {
   repo: Pick<DotaWatchlistRepository, 'listPending' | 'claimAlert' | 'finishAlert'>;

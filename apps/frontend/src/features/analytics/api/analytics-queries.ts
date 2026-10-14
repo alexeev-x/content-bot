@@ -2,7 +2,7 @@ import type { PublicationAnalyticsQuery } from '@alexeev/contracts';
 import { queryOptions } from '@tanstack/react-query';
 import { fetchPublicationAnalytics } from './analytics-api';
 
-export const analyticsKeys = {
+const analyticsKeys = {
   all: ['analytics'] as const,
   reports: () => [...analyticsKeys.all, 'publications'] as const,
   report: (query: PublicationAnalyticsQuery) => [...analyticsKeys.reports(), query] as const

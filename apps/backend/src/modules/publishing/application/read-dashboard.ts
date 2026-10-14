@@ -11,7 +11,7 @@ import { projectPublicationStatus } from '../domain/status-projection';
 import type { DashboardAttentionRow, DashboardPublicationRow, DashboardRepository, DashboardSentRow } from './ports';
 
 /** A scheduled or queued publication this far past its time means Cron or the kill switch is not sending. */
-export const STUCK_AFTER_MS = 10 * 60 * 1000;
+const STUCK_AFTER_MS = 10 * 60 * 1000;
 
 const iso = (ms: number) => new Date(ms).toISOString();
 

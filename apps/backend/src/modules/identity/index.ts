@@ -1,4 +1,3 @@
-export { INIT_DATA_MAX_AGE_SEC, verifyInitData } from './application/verify-init-data';
 export type {
   InitDataFailure,
   TelegramUser,
@@ -19,5 +18,5 @@ export { signInWithWidget } from './application/sign-in-with-widget';
 export type { WidgetSignInDeps } from './application/sign-in-with-widget';
 export type { WidgetField } from './application/verify-widget-data';
 export { parseOwnerTelegramId } from './application/owner';
-export { LOCAL_SESSION_NAME, signInLocally } from './application/sign-in-locally';
+export { signInLocally } from './application/sign-in-locally';
 export type { LocalSignInDeps } from './application/sign-in-locally';

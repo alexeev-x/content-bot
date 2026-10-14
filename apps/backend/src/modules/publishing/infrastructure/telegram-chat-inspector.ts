@@ -5,7 +5,7 @@ import { AppError } from '../../../shared/app-error';
 import type { ChatInspector } from '../application/ports';
 import { assessBotPosting } from '../domain/bot-posting-rights';
 
-export const CHAT_CHECK_TIMEOUT_MS = 8_000;
+const CHAT_CHECK_TIMEOUT_MS = 8_000;
 
 // What the adapter needs from Telegram: `integrations/telegram` provides it, tests script it.
 export interface TelegramChatReader {

@@ -36,9 +36,7 @@ export { readPublicationAnalytics } from './application/read-publication-analyti
 export { createManualObservation } from './application/create-manual-observation';
 export { listIncidents } from './application/read-incidents';
 export { resolveIncident } from './application/resolve-incident';
-export { projectPublicationStatus } from './domain/status-projection';
 export type { JobSnapshot, JobState } from './domain/status-projection';
-export { classifySendResult, classifyTelegramError } from './infrastructure/classify-telegram-result';
 export { createD1DestinationRepository } from './infrastructure/d1-destination-repository';
 export { createD1PublicationRepository } from './infrastructure/d1-publication-repository';
 export { createD1PublicationAnalyticsRepository } from './infrastructure/d1-publication-analytics-repository';

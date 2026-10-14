@@ -2,7 +2,7 @@ import { queryOptions } from '@tanstack/react-query';
 import { getDotaEventDetail, getDotaIntelligence } from './dota-api';
 import type { DotaSourceKey } from '@alexeev/contracts';
 
-export const dotaIntelligenceKeys = {
+const dotaIntelligenceKeys = {
   all: ['dota-intelligence'] as const,
   source: (source: string | undefined) => [...dotaIntelligenceKeys.all, source ?? 'all'] as const,
   detail: (sourceKey: DotaSourceKey, externalId: string) =>

@@ -32,7 +32,7 @@ const summary = (counts: Partial<typeof NO_COUNTS> = {}, extra: Record<string, u
   ...extra
 });
 
-export const post = (id: string, title: string, status = 'draft', extra: Record<string, unknown> = {}) => ({
+const post = (id: string, title: string, status = 'draft', extra: Record<string, unknown> = {}) => ({
   id,
   title,
   body: 'Текст поста. '.repeat(40),
@@ -121,7 +121,7 @@ const publications = [
   )
 ].map((item) => (item.status === 'unknown' ? { ...item, revision: 4, lastErrorCode: 'SEND_UNCONFIRMED' } : item));
 
-export const incidentIds = {
+const incidentIds = {
   unknown: '44444444-4444-4444-8444-000000000001',
   failed: '44444444-4444-4444-8444-000000000002',
   failedLong: '44444444-4444-4444-8444-000000000003'

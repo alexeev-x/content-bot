@@ -9,7 +9,7 @@ export interface LocalSignInDeps extends IssueBrowserSessionDeps {
   ownerTelegramId: string | undefined;
 }
 
-export const LOCAL_SESSION_NAME = 'Локальная разработка';
+const LOCAL_SESSION_NAME = 'Локальная разработка';
 
 // Owner session without Telegram, for `npm run dev` only: the Login Widget refuses localhost. The caller
 // (app/local-sign-in-route.ts) decides whether this may run at all; this use case only issues the session.

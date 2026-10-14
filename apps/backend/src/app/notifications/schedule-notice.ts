@@ -3,7 +3,7 @@ export function escapeHtml(text: string): string {
   return text.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;');
 }
 
-export const DETAILS_BUTTON_TEXT = 'Подробнее';
+const DETAILS_BUTTON_TEXT = 'Подробнее';
 
 const MAX_TITLE_CHARS = 100;
 const FALLBACK_TITLE = 'Без названия';
@@ -43,7 +43,7 @@ function postLabel(post: ScheduleNoticeInput['post']): string {
 // "17 октября 2026 г., 14:30 (Europe/Moscow)" in the zone the owner scheduled in. Date and time are
 // formatted apart because ICU versions differ in the word that joins them. A zone the runtime does
 // not know falls back to UTC and says so, so the time is never shown in the wrong zone silently.
-export function formatScheduledTime(epochMs: number, timezone: string): string {
+function formatScheduledTime(epochMs: number, timezone: string): string {
   const render = (zone: string) => {
     const date = new Intl.DateTimeFormat('ru-RU', { timeZone: zone, day: 'numeric', month: 'long', year: 'numeric' });
     const time = new Intl.DateTimeFormat('ru-RU', {

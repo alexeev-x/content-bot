@@ -78,7 +78,7 @@ function hasWinsAbovePicks(row: z.infer<typeof sourceHeroSchema>): boolean {
 }
 
 /** Validates a complete provider response before mapping it to the bounded stored DTO. */
-export function parseOpenDotaHeroStatistics(payload: unknown): DotaHeroStatisticDto[] {
+function parseOpenDotaHeroStatistics(payload: unknown): DotaHeroStatisticDto[] {
   const parsed = sourceResponseSchema.safeParse(payload);
   if (!parsed.success) throw new DotaHeroStatisticsError('DOTA_HERO_STATS_SHAPE');
   const ids = new Set<number>();
