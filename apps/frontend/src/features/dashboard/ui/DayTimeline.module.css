@@ -309,8 +309,9 @@
   font-size: var(--font-size-xs);
 }
 @media (max-width: 859px) {
+  /* The card's own padding is enough: the plot runs almost edge to edge of the card (owner, 14.10.2026). */
   .chart {
-    padding-inline: var(--space-3);
+    padding-inline: 0;
   }
   .tick[data-minor] {
     display: none;
