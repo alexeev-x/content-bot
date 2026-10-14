@@ -130,6 +130,8 @@ export const ownerOperationsSettings = (
       sourceAlerts: boolean;
       automationAlerts: boolean;
       recoveryAlerts: boolean;
+      scheduleNotices: boolean;
+      sentNotices: boolean;
       dotaWatchlistAlerts: boolean;
     }>;
     revision?: number;
@@ -143,6 +145,8 @@ export const ownerOperationsSettings = (
     sourceAlerts: true,
     automationAlerts: true,
     recoveryAlerts: true,
+    scheduleNotices: true,
+    sentNotices: true,
     dotaWatchlistAlerts: true,
     ...overrides.notifications
   },

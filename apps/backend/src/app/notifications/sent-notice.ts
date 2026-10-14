@@ -43,7 +43,8 @@ export function formatSentNotice(
 
 /**
  * «Опубликовано» to the owner after the tick stored its outcomes: only for sends whose `succeeded` write applied,
- * at most a few per tick, never retried (a lost notice is harmless; the panel shows the truth).
+ * at most a few per tick, never retried (a lost notice is harmless; the panel shows the truth). Follows the
+ * owner's «Опубликовано» switch.
  */
 export async function notifyOwnerOfDeliveries(
   deps: SentNoticeDeps,
@@ -76,7 +77,7 @@ export async function notifyOwnerOfDeliveries(
     log('skipped', 'APP_ORIGIN_UNKNOWN');
     return summary;
   }
-  if (!preferences.notifications.publicationAlerts) {
+  if (!preferences.notifications.sentNotices) {
     log('skipped', 'NOTICE_CATEGORY_DISABLED');
     return summary;
   }

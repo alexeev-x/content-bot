@@ -20,7 +20,12 @@ export const notificationPreferencesSchema = z.object({
   sourceAlerts: z.boolean(),
   automationAlerts: z.boolean(),
   recoveryAlerts: z.boolean(),
-  dotaWatchlistAlerts: z.boolean()
+  dotaWatchlistAlerts: z.boolean(),
+  // Added 14.10.2026; a document saved before has neither, so both default to on.
+  /** «Запланировано», «Перенесено» and «Отменено» notices for the owner's own planning. */
+  scheduleNotices: z.boolean().default(true),
+  /** «Опубликовано» after a confirmed send. */
+  sentNotices: z.boolean().default(true)
 });
 
 export const ownerOperationsSettingsSchema = z.object({

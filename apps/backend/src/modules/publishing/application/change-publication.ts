@@ -9,6 +9,8 @@ import { toPublicationDto } from './publication-dto';
 export interface ChangePublicationDeps {
   repo: PublicationRepository;
   now: number;
+  /** Announces a cancel the owner made; optional so callers that only read stay free of Telegram. */
+  notifier?: ScheduleNotifier;
 }
 
 export interface ReschedulePublicationDeps extends ChangePublicationDeps {
@@ -50,7 +52,16 @@ export async function cancelPublication(
 ): Promise<PublicationDto> {
   const { actor, id, input } = command;
   const outcome = await deps.repo.cancel({ id, expectedRevision: input.revision, actor, now: deps.now });
-  return resolve(deps, outcome, input.revision, 'NOT_CANCELLABLE', 'The publication can no longer be cancelled');
+  const publication = resolve(
+    deps,
+    outcome,
+    input.revision,
+    'NOT_CANCELLABLE',
+    'The publication can no longer be cancelled'
+  );
+  // `resolve` throws unless this request cancelled it, so a replay or a lost race announces nothing.
+  deps.notifier?.cancelled(publication);
+  return publication;
 }
 
 // The repository ran one conditional batch and read the publication inside it, so `current`

@@ -49,6 +49,7 @@ export interface PublicationMedia {
 export interface ScheduleNotifier {
   scheduled(publication: PublicationDto): void;
   rescheduled(publication: PublicationDto): void;
+  cancelled(publication: PublicationDto): void;
 }
 
 /** The approved revision a publication sends; `app/container.ts` backs it with the content module. */

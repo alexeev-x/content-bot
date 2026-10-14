@@ -262,7 +262,9 @@ const ALL_NOTIFICATIONS_ON: OwnerOperationsSettingsDto['notifications'] = {
   sourceAlerts: true,
   automationAlerts: true,
   recoveryAlerts: true,
-  dotaWatchlistAlerts: true
+  dotaWatchlistAlerts: true,
+  scheduleNotices: true,
+  sentNotices: true
 };
 
 async function readPreferences(

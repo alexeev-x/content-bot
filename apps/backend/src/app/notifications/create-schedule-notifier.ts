@@ -9,6 +9,8 @@ import { formatScheduleNotice } from './schedule-notice';
 // One message must not hold the request's background work for long; nothing is retried.
 const NOTICE_TIMEOUT_MS = 5_000;
 
+type Kind = 'scheduled' | 'rescheduled' | 'cancelled';
+
 export interface ScheduleNotifierDeps {
   /** Null when the bot token is not set: the owner is simply not told. */
   messenger: TelegramOwnerMessageApi | null;
@@ -20,6 +22,8 @@ export interface ScheduleNotifierDeps {
   destinations: () => Pick<DestinationRepository, 'findById'>;
   logger: Logger;
   requestId: string;
+  /** The owner's «Запланировано и перенесено» switch, read only when a notice is about to be built. */
+  readScheduleNotices: () => Promise<boolean>;
   /** The request's `ctx.waitUntil`: the work outlives the response, and a failure cannot reach it. */
   waitUntil: (work: Promise<unknown>) => void;
   timeoutMs?: number;
@@ -37,10 +41,14 @@ export function createScheduleNotifier(deps: ScheduleNotifierDeps): ScheduleNoti
       ...(errorCode === undefined ? {} : { errorCode })
     });
 
-  async function send(kind: 'scheduled' | 'rescheduled', publication: PublicationDto): Promise<void> {
+  async function send(kind: Kind, publication: PublicationDto): Promise<void> {
     const { messenger } = deps;
     if (messenger === null) {
       log(`schedule_notice.${kind}`, 'skipped', 'BOT_TOKEN_MISSING');
+      return;
+    }
+    if (!(await deps.readScheduleNotices())) {
+      log(`schedule_notice.${kind}`, 'skipped', 'NOTICE_CATEGORY_DISABLED');
       return;
     }
     const [post, destination] = await Promise.all([
@@ -74,7 +82,7 @@ export function createScheduleNotifier(deps: ScheduleNotifierDeps): ScheduleNoti
     log(`schedule_notice.${kind}`, 'sent');
   }
 
-  function notify(kind: 'scheduled' | 'rescheduled', publication: PublicationDto): void {
+  function notify(kind: Kind, publication: PublicationDto): void {
     const operation = `schedule_notice.${kind}`;
     const guarded = send(kind, publication).catch((error: unknown) => {
       log(operation, 'failed', error instanceof AppError ? error.code : 'UNEXPECTED_ERROR');
@@ -89,6 +97,7 @@ export function createScheduleNotifier(deps: ScheduleNotifierDeps): ScheduleNoti
 
   return {
     scheduled: (publication) => notify('scheduled', publication),
-    rescheduled: (publication) => notify('rescheduled', publication)
+    rescheduled: (publication) => notify('rescheduled', publication),
+    cancelled: (publication) => notify('cancelled', publication)
   };
 }

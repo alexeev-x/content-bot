@@ -14,11 +14,12 @@ export function clip(text: string): string {
 // labelled facts. Telegram HTML; every user-controlled part is escaped here, never by the callers.
 
 export type NoticeTone =
-  'scheduled' | 'rescheduled' | 'sent' | 'failed' | 'unknown' | 'recovered' | 'warning' | 'repeat';
+  'scheduled' | 'rescheduled' | 'cancelled' | 'sent' | 'failed' | 'unknown' | 'recovered' | 'warning' | 'repeat';
 
 const ICON: Record<NoticeTone, string> = {
   scheduled: '🗓',
   rescheduled: '🔁',
+  cancelled: '🚫',
   sent: '✅',
   failed: '❌',
   unknown: '⚠️',

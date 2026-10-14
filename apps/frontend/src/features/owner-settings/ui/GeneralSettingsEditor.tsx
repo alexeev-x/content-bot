@@ -7,6 +7,8 @@ import styles from './GeneralSettingsEditor.module.css';
 import { TimezoneField } from './TimezoneField';
 
 const SWITCHES = [
+  { key: 'scheduleNotices', label: ru.general.scheduleNotices, description: ru.general.scheduleNoticesHint },
+  { key: 'sentNotices', label: ru.general.sentNotices, description: ru.general.sentNoticesHint },
   { key: 'publicationAlerts', label: ru.general.publications, description: ru.general.publicationsHint },
   { key: 'sourceAlerts', label: ru.general.sources, description: ru.general.sourcesHint },
   { key: 'recoveryAlerts', label: ru.general.recovery, description: ru.general.recoveryHint }

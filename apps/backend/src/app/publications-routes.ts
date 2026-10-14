@@ -20,6 +20,7 @@ import {
   reschedulePublication,
   resolveUnknownPublication
 } from '../modules/publishing';
+import { getOwnerOperationsSettings } from '../modules/settings';
 import { AppError } from '../shared/app-error';
 import { appOriginOf } from './bot/app-origin';
 import type { AppBindings } from './env';
@@ -49,6 +50,14 @@ function scheduleNotifier(c: Context<AppBindings>) {
     destinations: () => container.destinations,
     logger: container.logger,
     requestId: c.get('requestId'),
+    readScheduleNotices: async () =>
+      (
+        await getOwnerOperationsSettings({
+          repo: container.settings,
+          logger: container.logger,
+          requestId: c.get('requestId')
+        })
+      ).notifications.scheduleNotices,
     waitUntil: (work) => c.executionCtx.waitUntil(work)
   });
 }
@@ -152,7 +161,7 @@ export const publicationsRoutes = new Hono<AppBindings>()
     async (c) => {
       const container = c.get('container');
       const publication = await cancelPublication(
-        { repo: container.publications, now: container.clock.now() },
+        { repo: container.publications, now: container.clock.now(), notifier: scheduleNotifier(c) },
         { actor: c.get('actor').telegramId, id: publicationId(c.req.valid('param').id), input: c.req.valid('json') }
       );
       return c.json(publication);

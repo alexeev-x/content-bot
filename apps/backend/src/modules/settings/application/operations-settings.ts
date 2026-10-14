@@ -16,7 +16,9 @@ const DEFAULTS = {
     sourceAlerts: true,
     automationAlerts: true,
     recoveryAlerts: true,
-    dotaWatchlistAlerts: true
+    dotaWatchlistAlerts: true,
+    scheduleNotices: true,
+    sentNotices: true
   }
 } as const;
 const DOCUMENT_FIELDS = ['timezone', 'notifications'] as const;

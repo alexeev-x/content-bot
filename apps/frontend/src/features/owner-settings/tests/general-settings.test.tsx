@@ -35,12 +35,12 @@ describe('general settings: 409 STALE_REVISION', () => {
         <GeneralSettingsEditor />
       </QueryClientProvider>
     );
-    const toggle = await screen.findByRole('switch', { name: /Публикации/ });
+    const toggle = await screen.findByRole('switch', { name: /Ошибки публикаций/ });
     // Another tab saved meanwhile: the revision this page holds is stale.
     serverRevision = 2;
     await user.click(toggle);
     expect(await screen.findByText('Настройки изменились в другой вкладке', {}, { timeout: 3000 })).toBeTruthy();
-    expect((screen.getByRole('switch', { name: /Публикации/ }) as HTMLInputElement).checked).toBe(false);
+    expect((screen.getByRole('switch', { name: /Ошибки публикаций/ }) as HTMLInputElement).checked).toBe(false);
 
     await user.click(screen.getByRole('button', { name: 'Сохранить мой выбор' }));
     await waitFor(() => expect(puts).toHaveLength(2));

@@ -5,7 +5,7 @@ const DETAILS_BUTTON_TEXT = 'Подробнее';
 const FALLBACK_TITLE = 'Без названия';
 
 export interface ScheduleNoticeInput {
-  kind: 'scheduled' | 'rescheduled';
+  kind: 'scheduled' | 'rescheduled' | 'cancelled';
   post: { title: string; body: string } | null;
   channelTitle: string | null;
   /** UTC epoch milliseconds. */
@@ -33,16 +33,19 @@ function postLabel(post: ScheduleNoticeInput['post']): string {
 
 export function formatScheduleNotice(input: ScheduleNoticeInput): ScheduleNotice {
   const when = formatOwnerTime(input.scheduledAt, input.timezone);
-  const scheduled = input.kind === 'scheduled';
+  const status = {
+    scheduled: 'Публикация запланирована',
+    rescheduled: 'Публикация перенесена',
+    cancelled: 'Публикация отменена'
+  };
+  const time = { scheduled: when, rescheduled: `Новое время: ${when}`, cancelled: `Была запланирована на ${when}` };
   return {
     html: noticeHtml({
-      tone: scheduled ? 'scheduled' : 'rescheduled',
-      status: scheduled ? 'Публикация запланирована' : 'Публикация перенесена',
+      tone: input.kind,
+      status: status[input.kind],
       subject: postLabel(input.post),
-      facts: [
-        channelFact(input.channelTitle ?? FALLBACK_TITLE),
-        { icon: '🕒', text: scheduled ? when : `Новое время: ${when}` }
-      ]
+      facts: [channelFact(input.channelTitle ?? FALLBACK_TITLE), { icon: '🕒', text: time[input.kind] }],
+      ...(input.kind === 'cancelled' ? { note: 'Сообщение не уйдёт в канал.' } : {})
     }),
     button: { text: DETAILS_BUTTON_TEXT, url: `${input.appOrigin}/publications?id=${input.publicationId}` }
   };

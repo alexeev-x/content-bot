@@ -56,7 +56,8 @@ function recordingNotifier(): ScheduleNotifier & { calls: string[] } {
   return {
     calls,
     scheduled: (publication) => calls.push(`scheduled ${publication.id}`),
-    rescheduled: (publication) => calls.push(`rescheduled ${publication.id}`)
+    rescheduled: (publication) => calls.push(`rescheduled ${publication.id}`),
+    cancelled: (publication) => calls.push(`cancelled ${publication.id}`)
   };
 }
 

@@ -162,7 +162,7 @@ export function createPublishActions(
           posts: container.postSource,
           idempotency: container.idempotency,
           // «Now» publications announce nothing; this reply is the owner's confirmation.
-          notifier: { scheduled: () => undefined, rescheduled: () => undefined },
+          notifier: { scheduled: () => undefined, rescheduled: () => undefined, cancelled: () => undefined },
           now: clock.now(),
           newId: container.newId
         },

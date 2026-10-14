@@ -14,6 +14,8 @@ export type SettingsPatch = Partial<{
   publicationAlerts: boolean;
   sourceAlerts: boolean;
   recoveryAlerts: boolean;
+  scheduleNotices: boolean;
+  sentNotices: boolean;
 }>;
 
 export type SettingsProblem = { kind: 'conflict' | 'failed'; requestId?: string | undefined };
@@ -33,7 +35,9 @@ function toInput(base: OwnerOperationsSettingsDto, patch: SettingsPatch) {
       // The page has one «Источники Dota» switch; automation and watchlist alerts follow it.
       automationAlerts: sources,
       dotaWatchlistAlerts: sources,
-      recoveryAlerts: patch.recoveryAlerts ?? base.notifications.recoveryAlerts
+      recoveryAlerts: patch.recoveryAlerts ?? base.notifications.recoveryAlerts,
+      scheduleNotices: patch.scheduleNotices ?? base.notifications.scheduleNotices,
+      sentNotices: patch.sentNotices ?? base.notifications.sentNotices
     }
   };
 }
@@ -126,7 +130,9 @@ export function useGeneralSettings() {
         timezone: pending.timezone ?? data.timezone,
         publicationAlerts: pending.publicationAlerts ?? data.notifications.publicationAlerts,
         sourceAlerts: pending.sourceAlerts ?? data.notifications.sourceAlerts,
-        recoveryAlerts: pending.recoveryAlerts ?? data.notifications.recoveryAlerts
+        recoveryAlerts: pending.recoveryAlerts ?? data.notifications.recoveryAlerts,
+        scheduleNotices: pending.scheduleNotices ?? data.notifications.scheduleNotices,
+        sentNotices: pending.sentNotices ?? data.notifications.sentNotices
       }
     : null;
 

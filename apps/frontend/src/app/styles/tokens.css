@@ -441,29 +441,8 @@
   --color-status-unknown-bg: rgba(230, 190, 20, 0.2);
 }
 
-/* ===== Themes (owner, 14.10.2026): each preset also tints the neutrals, in both modes. «Графит» and «Своя»
-   keep the plain neutrals above. Text and status colours stay the same, so their contrast is unchanged. ===== */
-/* Telegram: cool blue-grey (dark) */
-[data-theme='dark'][data-accent='blue'],
-[data-theme='dark']:not([data-accent]),
-:root:not([data-theme]) {
-  --color-bg: #0b0f14;
-  --color-surface-1: #10161d;
-  --color-surface-2: #161e27;
-  --color-surface-3: #1f2935;
-  --color-border-subtle: #233040;
-  --color-border-strong: #3a4b5e;
-}
-/* Telegram: cool blue-grey (light) */
-[data-theme='light'][data-accent='blue'],
-[data-theme='light']:not([data-accent]) {
-  --color-bg: #f3f6f9;
-  --color-surface-1: #ffffff;
-  --color-surface-2: #eef2f6;
-  --color-surface-3: #e2e8ef;
-  --color-border-subtle: #dce3ea;
-  --color-border-strong: #bcc8d4;
-}
+/* ===== Themes (owner, 14.10.2026): each preset also tints the neutrals, in both modes. «Telegram» (the default), «Графит»
+   and «Своя» keep the plain neutrals above: the dark default stays the neutral Cloudflare-like black. Text and status colours stay the same, so their contrast is unchanged. ===== */
 /* Полночь: blue-black (dark) */
 [data-theme='dark'][data-accent='violet'] {
   --color-bg: #0b0b16;

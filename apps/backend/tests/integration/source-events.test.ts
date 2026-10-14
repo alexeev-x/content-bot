@@ -367,7 +367,9 @@ describe('the Cron workflow: auto-draft and one owner notice per event', () => {
       sourceAlerts: false,
       automationAlerts: true,
       recoveryAlerts: true,
-      dotaWatchlistAlerts: true
+      dotaWatchlistAlerts: true,
+      scheduleNotices: true,
+      sentNotices: true
     };
     await processDotaUpdates(deps({ messenger, readNotificationPreferences: () => Promise.resolve(off) }));
     await processDotaUpdates(deps({ messenger }));
