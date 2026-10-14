@@ -1,7 +1,7 @@
-import { useRef } from 'react';
+import { useEffect, useRef } from 'react';
 import type { PostDto } from '@alexeev/contracts';
 import { infiniteQueryOptions, queryOptions, useMutation, useQueryClient } from '@tanstack/react-query';
-import { keepPreviousInScope } from '../../../shared/api/page-query';
+import { keepPreviousRows } from '../../../shared/api/page-query';
 import { nextCursor } from '../../../shared/api/query-string';
 import { ApiError } from '../../../shared/api/http-client';
 import {
@@ -35,15 +35,24 @@ export function mediaInfiniteQueryOptions(filters: MediaFilters) {
 }
 
 export function mediaPageQueryOptions(filters: MediaFilters, page: number) {
-  const scope = `${filters.kind}:${filters.usage}`;
   return queryOptions({
     queryKey: [...mediaKeys.lists(), 'page', filters, page] as const,
     queryFn: ({ signal }) => listMedia(filters, undefined, signal, page),
     staleTime: 30_000,
     retry: false,
-    meta: { scope },
-    placeholderData: keepPreviousInScope(scope)
+    placeholderData: keepPreviousRows
   });
+}
+
+/** Warms page 1 of every kind tab (same usage and search) so a tab switch is served from the cache. */
+export function usePrefetchMediaTabs(tabs: readonly MediaFilters[]): void {
+  const queryClient = useQueryClient();
+  // The caller rebuilds the array every render; the serialized form is the stable dependency.
+  const serialized = JSON.stringify(tabs);
+  useEffect(() => {
+    const parsed = JSON.parse(serialized) as MediaFilters[];
+    for (const filters of parsed) void queryClient.prefetchQuery(mediaPageQueryOptions(filters, 1));
+  }, [queryClient, serialized]);
 }
 
 export function draftsInfiniteQueryOptions() {

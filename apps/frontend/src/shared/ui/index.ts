@@ -45,6 +45,7 @@ export type { SegmentOption } from './SegmentedControl';
 export { Select } from './Select';
 export type { SelectOption } from './Select';
 export { Skeleton } from './Skeleton';
+export { StaleRegion } from './StaleRegion';
 export { Pagination } from './Pagination';
 export { Slider } from './Slider';
 export { Sparkline } from './Sparkline';

@@ -4,6 +4,7 @@ import { mediaLibraryUsageFilterSchema, type MediaLibraryItemDto, type MediaLibr
 import type { z } from 'zod';
 import { classifyApiError } from '../../../shared/api/error-kind';
 import { PAGE_SIZE } from '../../../shared/api/page-query';
+import { useTabSwitch } from '../../../shared/api/use-tab-switch';
 import { ApiError } from '../../../shared/api/http-client';
 import {
   Button,
@@ -20,6 +21,7 @@ import {
   SegmentedControl,
   SelectionBar,
   Select,
+  StaleRegion,
   Tab,
   TabList,
   TabPanel,
@@ -29,7 +31,12 @@ import {
 } from '../../../shared/ui';
 import { ru } from '../../../shared/lib/ru';
 import { pluralRu } from '../../../shared/lib/ru-format';
-import { mediaPageQueryOptions, useCreatePostWithMedia, useDeleteMedia } from '../api/media-queries';
+import {
+  mediaPageQueryOptions,
+  useCreatePostWithMedia,
+  useDeleteMedia,
+  usePrefetchMediaTabs
+} from '../api/media-queries';
 import type { MediaFilters } from '../api/media-api';
 import { useLibraryCrop } from '../model/use-library-crop';
 import { AttachDialog } from './AttachDialog';
@@ -366,6 +373,8 @@ export function MediaLibrary({ searchState, onSearchState, onCreatePost, onLogin
   );
   const page = searchState.page ?? 1;
   const query = useQuery(mediaPageQueryOptions(filters, page));
+  usePrefetchMediaTabs(KIND_OPTIONS.map((option) => ({ ...filters, kind: option.id })));
+  const { switching } = useTabSwitch(filters.kind, query.isPlaceholderData);
   const items = useMemo(() => query.data?.items ?? [], [query.data]);
   const totalCount = query.data?.totalCount ?? 0;
   const lastPage = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
@@ -563,70 +572,71 @@ export function MediaLibrary({ searchState, onSearchState, onCreatePost, onLogin
               </Tab>
             ))}
           </TabList>
-          {KIND_OPTIONS.map((option) => (
-            <TabPanel key={option.id} id={option.id}>
-              <Panel
-                footer={
-                  query.isPending ? (
-                    <Pagination page={1} pageSize={PAGE_SIZE} totalCount={0} onPageChange={() => {}} isLoading />
-                  ) : (
-                    <Pagination
-                      page={page}
-                      pageSize={PAGE_SIZE}
-                      totalCount={totalCount}
-                      onPageChange={(next) => {
-                        setSelected(new Set());
-                        onSearchState({ page: next > 1 ? next : undefined, id: undefined }, { replace: true });
-                      }}
-                      isSearching={isSearchSettling}
-                    />
-                  )
-                }
-              >
-                <div className={styles.toolbar}>
-                  <div className={styles.search}>
-                    <SearchField
-                      label="Поиск по имени файла"
-                      placeholder="Имя файла"
-                      value={searchInput}
-                      onChange={setSearchInput}
-                    />
-                  </div>
-                  {narrow ? null : (
-                    <Select
-                      label="Использование"
-                      inlineLabel
-                      options={USAGE_OPTIONS}
-                      value={filters.usage}
-                      onChange={(value) => applyUsage(value as MediaLibraryUsageFilter)}
-                    />
-                  )}
-                  {narrow ? null : (
-                    <div className={styles.toolbarEnd}>
-                      <SegmentedControl
-                        label="Вид файлов"
-                        options={VIEW_OPTIONS}
-                        value={view}
-                        onChange={(value) => onSearchState({ view: value === 'grid' ? undefined : 'list' })}
-                      />
-                    </div>
-                  )}
+          {/* One panel for every tab: the grid stays mounted across a switch instead of blinking. */}
+          <TabPanel id={filters.kind}>
+            <Panel
+              footer={
+                query.isPending ? (
+                  <Pagination page={1} pageSize={PAGE_SIZE} totalCount={0} onPageChange={() => {}} isLoading />
+                ) : (
+                  <Pagination
+                    page={page}
+                    pageSize={PAGE_SIZE}
+                    totalCount={totalCount}
+                    onPageChange={(next) => {
+                      setSelected(new Set());
+                      onSearchState({ page: next > 1 ? next : undefined, id: undefined }, { replace: true });
+                    }}
+                    isSearching={isSearchSettling}
+                  />
+                )
+              }
+            >
+              <div className={styles.toolbar}>
+                <div className={styles.search}>
+                  <SearchField
+                    label="Поиск по имени файла"
+                    placeholder="Имя файла"
+                    value={searchInput}
+                    onChange={setSearchInput}
+                  />
                 </div>
-                {narrow ? (
-                  <div className={styles.chips}>
+                {narrow ? null : (
+                  <Select
+                    label="Использование"
+                    inlineLabel
+                    options={USAGE_OPTIONS}
+                    value={filters.usage}
+                    onChange={(value) => applyUsage(value as MediaLibraryUsageFilter)}
+                  />
+                )}
+                {narrow ? null : (
+                  <div className={styles.toolbarEnd}>
                     <SegmentedControl
-                      label="Использование"
-                      options={USAGE_OPTIONS}
-                      value={filters.usage}
-                      onChange={(value) => applyUsage(value as MediaLibraryUsageFilter)}
-                      fullWidth
+                      label="Вид файлов"
+                      options={VIEW_OPTIONS}
+                      value={view}
+                      onChange={(value) => onSearchState({ view: value === 'grid' ? undefined : 'list' })}
                     />
                   </div>
-                ) : null}
-                <div className={styles.content}>{body}</div>
-              </Panel>
-            </TabPanel>
-          ))}
+                )}
+              </div>
+              {narrow ? (
+                <div className={styles.chips}>
+                  <SegmentedControl
+                    label="Использование"
+                    options={USAGE_OPTIONS}
+                    value={filters.usage}
+                    onChange={(value) => applyUsage(value as MediaLibraryUsageFilter)}
+                    fullWidth
+                  />
+                </div>
+              ) : null}
+              <div className={styles.content}>
+                <StaleRegion busy={switching}>{body}</StaleRegion>
+              </div>
+            </Panel>
+          </TabPanel>
         </Tabs>
       </div>
       {selected.size ? (

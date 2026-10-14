@@ -20,6 +20,7 @@ import {
   PageHeader,
   Panel,
   SelectionBar,
+  StaleRegion,
   Tab,
   TabList,
   TabPanel,
@@ -60,7 +61,11 @@ export function PublicationsPage({ search, onSearchChange, onOpenPosts, pollMs }
   const narrow = useMediaQuery(NARROW);
   const timezone = useOwnerTimezone();
   const now = useNow();
-  const { list, items, post, postTitle, channel } = usePublicationsData(search, timezone, pollMs);
+  const { list, counts, switching, shownView, items, post, postTitle, channel } = usePublicationsData(
+    search,
+    timezone,
+    pollMs
+  );
   const [publishOpen, setPublishOpen] = useState(false);
   const [deleteTargets, setDeleteTargets] = useState<ReturnType<typeof deleteTargetOf>[] | null>(null);
   const [resendFor, setResendFor] = useState<PublicationDto | null>(null);
@@ -93,23 +98,19 @@ export function PublicationsPage({ search, onSearchChange, onOpenPosts, pollMs }
       ? storedSelection
       : { scope: selectionScope, mode: false, selected: new Map<string, number>() };
   const { mode: selectMode, selected } = selection;
-  const defaultOrder: Order = search.view === 'upcoming' ? 'asc' : 'desc';
+  const defaultOrder: Order = shownView === 'upcoming' ? 'asc' : 'desc';
   const order = search.order ?? defaultOrder;
-  // Tab counters don't depend on the selected tab: keep the last known ones while another tab loads, and drop
-  // them only when a filter that changes them (period, dates, post, search) changes. No blink on tab switch.
-  const countsScope = `${search.post ?? ''}\u0000${search.q ?? ''}\u0000${search.period ?? ''}\u0000${search.from ?? ''}\u0000${search.to ?? ''}`;
-  const freshCounts = list.data?.statusCounts;
-  const [keptCounts, setKeptCounts] = useState<{ scope: string; counts: typeof freshCounts } | null>(null);
-  if (freshCounts && (keptCounts?.counts !== freshCounts || keptCounts.scope !== countsScope)) {
-    setKeptCounts({ scope: countsScope, counts: freshCounts });
-  }
-  const counts = freshCounts ?? (keptCounts?.scope === countsScope ? keptCounts.counts : undefined);
-  const tabCount = (kind: PublicationView) => {
+  const tabCount = (kind: PublicationView): string => {
+    const value = tabValue(kind);
+    return value === null ? '' : `(${value})`;
+  };
+  const tabValue = (kind: PublicationView): number | null => {
     if (!counts) return null;
-    if (kind === 'upcoming') return counts.scheduled + counts.queued + counts.preparing + counts.retry_wait;
-    if (kind === 'recent') return counts.sent;
-    if (kind === 'errors') return counts.failed + counts.unknown;
-    return list.data?.totalCount ?? null;
+    const byStatus = counts.statusCounts;
+    if (kind === 'upcoming') return byStatus.scheduled + byStatus.queued + byStatus.preparing + byStatus.retry_wait;
+    if (kind === 'recent') return byStatus.sent;
+    if (kind === 'errors') return byStatus.failed + byStatus.unknown;
+    return counts.totalCount;
   };
   const zone = timezone;
   const textOf = useCallback(
@@ -244,19 +245,19 @@ export function PublicationsPage({ search, onSearchChange, onOpenPosts, pollMs }
           <TabList aria-label={copy.tabs.label}>
             <Tab id="all">
               {copy.tabs.all}
-              {tabCount('all') === null ? '' : ` (${tabCount('all')})`}
+              <span className={styles.tabCount}>{tabCount('all')}</span>
             </Tab>
             <Tab id="upcoming">
               {narrow ? copy.tabs.upcomingShort : copy.tabs.upcoming}
-              {tabCount('upcoming') === null ? '' : ` (${tabCount('upcoming')})`}
+              <span className={styles.tabCount}>{tabCount('upcoming')}</span>
             </Tab>
             <Tab id="recent">
               {narrow ? copy.tabs.recentShort : copy.tabs.recent}
-              {tabCount('recent') === null ? '' : ` (${tabCount('recent')})`}
+              <span className={styles.tabCount}>{tabCount('recent')}</span>
             </Tab>
             <Tab id="errors">
               {copy.tabs.errors}
-              {tabCount('errors') === null ? '' : ` (${tabCount('errors')})`}
+              <span className={styles.tabCount}>{tabCount('errors')}</span>
             </Tab>
           </TabList>
           <TabPanel id={view}>
@@ -275,118 +276,122 @@ export function PublicationsPage({ search, onSearchChange, onOpenPosts, pollMs }
             {list.isError ? (
               <ListError error={list.error} onRetry={() => void list.refetch()} />
             ) : (
-              <Wrap narrow={narrow}>
-                <Panel
-                  title={narrow ? copy.list.title : copy.list.panel[view]}
-                  note={zoneNote}
-                  action={
-                    <>
-                      {selectMode ? (
-                        <Button variant="ghost" size="sm" onPress={clearSelection}>
-                          {copy.deletion.done}
-                        </Button>
-                      ) : selectableRows.length > 0 ? (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          icon="check-circle"
-                          onPress={() => setStoredSelection({ scope: selectionScope, mode: true, selected: new Map() })}
-                        >
-                          {copy.deletion.select}
-                        </Button>
-                      ) : null}
-                      {narrow ? null : <SearchFilter query={query} onChange={setQuery} />}
-                    </>
-                  }
-                  {...(ready && rows.length > 0 ? {} : { reserveRows: narrow ? 6 : 8 })}
-                  {...(footer ? { footer } : {})}
-                >
-                  {narrow ? (
-                    <PhoneFilters
-                      query={query}
-                      onQueryChange={setQuery}
-                      order={search.order}
-                      defaultOrder={defaultOrder}
-                      isLoading={list.isPending}
-                      onOrderChange={(next) => onSearchChange({ order: next })}
-                    />
-                  ) : null}
-                  {ready && rows.length === 0 && totalCount === 0 ? (
-                    isSearching ? (
-                      <EmptyState
-                        icon="search"
-                        title={copy.filters.searchEmptyTitle}
-                        description={copy.filters.searchEmptyDescription}
-                        action={
-                          <Button variant="secondary" onPress={clearSearch}>
-                            {ru.ui.clearSearch}
+              <StaleRegion busy={switching}>
+                <Wrap narrow={narrow}>
+                  <Panel
+                    title={narrow ? copy.list.title : copy.list.panel[shownView]}
+                    note={zoneNote}
+                    action={
+                      <>
+                        {selectMode ? (
+                          <Button variant="ghost" size="sm" onPress={clearSelection}>
+                            {copy.deletion.done}
                           </Button>
-                        }
-                      />
-                    ) : emptyFiltered ? (
-                      <EmptyState
-                        icon="search"
-                        title={copy.states.filteredTitle}
-                        description={copy.states.filteredDescription}
-                        action={
-                          <Button variant="secondary" onPress={resetAll}>
-                            {copy.filters.reset}
+                        ) : selectableRows.length > 0 ? (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            icon="check-circle"
+                            onPress={() =>
+                              setStoredSelection({ scope: selectionScope, mode: true, selected: new Map() })
+                            }
+                          >
+                            {copy.deletion.select}
                           </Button>
-                        }
+                        ) : null}
+                        {narrow ? null : <SearchFilter query={query} onChange={setQuery} />}
+                      </>
+                    }
+                    {...(ready && rows.length > 0 ? {} : { reserveRows: narrow ? 6 : 8 })}
+                    {...(footer ? { footer } : {})}
+                  >
+                    {narrow ? (
+                      <PhoneFilters
+                        query={query}
+                        onQueryChange={setQuery}
+                        order={search.order}
+                        defaultOrder={defaultOrder}
+                        isLoading={list.isPending}
+                        onOrderChange={(next) => onSearchChange({ order: next })}
                       />
+                    ) : null}
+                    {ready && rows.length === 0 && totalCount === 0 ? (
+                      isSearching ? (
+                        <EmptyState
+                          icon="search"
+                          title={copy.filters.searchEmptyTitle}
+                          description={copy.filters.searchEmptyDescription}
+                          action={
+                            <Button variant="secondary" onPress={clearSearch}>
+                              {ru.ui.clearSearch}
+                            </Button>
+                          }
+                        />
+                      ) : emptyFiltered ? (
+                        <EmptyState
+                          icon="search"
+                          title={copy.states.filteredTitle}
+                          description={copy.states.filteredDescription}
+                          action={
+                            <Button variant="secondary" onPress={resetAll}>
+                              {copy.filters.reset}
+                            </Button>
+                          }
+                        />
+                      ) : (
+                        <EmptyState
+                          icon="send"
+                          title={copy.states.emptyTitle}
+                          description={copy.states.emptyDescription}
+                          action={<Button onPress={onOpenPosts}>{copy.states.emptyAction}</Button>}
+                        />
+                      )
                     ) : (
-                      <EmptyState
-                        icon="send"
-                        title={copy.states.emptyTitle}
-                        description={copy.states.emptyDescription}
-                        action={<Button onPress={onOpenPosts}>{copy.states.emptyAction}</Button>}
+                      <PublicationTable
+                        timezone={timezone}
+                        narrow={narrow}
+                        rows={rows}
+                        rowText={textOf}
+                        isLoading={list.isPending}
+                        post={post}
+                        channel={channel}
+                        activeId={search.id}
+                        onOpen={(id) => onSearchChange({ id })}
+                        order={order}
+                        onOrderChange={(next) => onSearchChange({ order: next })}
+                        selectable={selectMode}
+                        selected={new Set(selected.keys())}
+                        onSelectionChange={onSelectionChange}
+                        onToggle={togglePublication}
                       />
-                    )
-                  ) : (
-                    <PublicationTable
-                      timezone={timezone}
-                      narrow={narrow}
-                      rows={rows}
-                      rowText={textOf}
-                      isLoading={list.isPending}
-                      post={post}
-                      channel={channel}
-                      activeId={search.id}
-                      onOpen={(id) => onSearchChange({ id })}
-                      order={order}
-                      onOrderChange={(next) => onSearchChange({ order: next })}
-                      selectable={selectMode}
-                      selected={new Set(selected.keys())}
-                      onSelectionChange={onSelectionChange}
-                      onToggle={togglePublication}
-                    />
-                  )}
-                  {selectMode ? (
-                    <SelectionBar
-                      label={copy.deletion.selectionLabel}
-                      summary={copy.deletion.selected(selected.size)}
-                      {...(selected.size >= 100 ? { hint: copy.deletion.limit } : {})}
-                    >
-                      <Button
-                        variant="danger"
-                        icon="trash"
-                        isDisabled={selected.size === 0}
-                        onPress={() => {
-                          const targets = items
-                            .filter((item) => selected.has(item.id))
-                            .map((item) => deleteTargetOf(item, postTitle(item) ?? copy.list.unknownPost));
-                          if (targets.length > 0) setDeleteTargets(targets);
-                        }}
+                    )}
+                    {selectMode ? (
+                      <SelectionBar
+                        label={copy.deletion.selectionLabel}
+                        summary={copy.deletion.selected(selected.size)}
+                        {...(selected.size >= 100 ? { hint: copy.deletion.limit } : {})}
                       >
-                        {copy.deletion.delete}
-                      </Button>
-                      <Button variant="ghost" onPress={clearSelection}>
-                        {copy.deletion.clear}
-                      </Button>
-                    </SelectionBar>
-                  ) : null}
-                </Panel>
-              </Wrap>
+                        <Button
+                          variant="danger"
+                          icon="trash"
+                          isDisabled={selected.size === 0}
+                          onPress={() => {
+                            const targets = items
+                              .filter((item) => selected.has(item.id))
+                              .map((item) => deleteTargetOf(item, postTitle(item) ?? copy.list.unknownPost));
+                            if (targets.length > 0) setDeleteTargets(targets);
+                          }}
+                        >
+                          {copy.deletion.delete}
+                        </Button>
+                        <Button variant="ghost" onPress={clearSelection}>
+                          {copy.deletion.clear}
+                        </Button>
+                      </SelectionBar>
+                    ) : null}
+                  </Panel>
+                </Wrap>
+              </StaleRegion>
             )}
             {/* Below the table: a per-tab block above it would move the table when the tab changes. */}
             {view === 'errors' ? (

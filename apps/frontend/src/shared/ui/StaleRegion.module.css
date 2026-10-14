@@ -1,0 +1,15 @@
+.region {
+  position: relative;
+  min-width: 0;
+}
+.bar {
+  position: absolute;
+  z-index: 1;
+  inset: 0 0 auto;
+}
+.content {
+  transition: opacity var(--motion-fast);
+}
+.content[data-busy] {
+  opacity: 0.5;
+}

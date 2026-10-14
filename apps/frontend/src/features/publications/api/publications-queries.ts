@@ -6,7 +6,7 @@ import {
   useQueryClient,
   type QueryClient
 } from '@tanstack/react-query';
-import { keepPreviousInScope } from '../../../shared/api/page-query';
+import { keepPreviousRows } from '../../../shared/api/page-query';
 import { nextCursor } from '../../../shared/api/query-string';
 import { isInProgress } from '../model/publication-view';
 import { listEnabledDestinations } from './destination-options';
@@ -63,13 +63,11 @@ export function publicationsPageQueryOptions(
   page?: number,
   pollMs: number = PUBLICATION_POLL_MS
 ) {
-  const scope = JSON.stringify([filters.status, filters.statusGroup, filters.postId, filters.destinationId]);
   return queryOptions({
     queryKey: [...publicationKeys.lists(), 'page', filters, page ?? null] as const,
     queryFn: ({ signal }) => listPublications(filters, undefined, signal, page),
     staleTime: STALE_TIME,
-    meta: { scope },
-    placeholderData: keepPreviousInScope(scope),
+    placeholderData: keepPreviousRows,
     // Poll only while a visible row can still change; the default refetchIntervalInBackground (false) stops it in hidden tabs.
     refetchInterval: (query) => (query.state.data?.items.some((item) => isInProgress(item.status)) ? pollMs : false)
   });

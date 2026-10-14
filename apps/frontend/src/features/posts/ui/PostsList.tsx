@@ -18,6 +18,7 @@ import {
   TableSearch,
   Select,
   SelectionBar,
+  StaleRegion,
   Tab,
   TabList,
   TabPanel,
@@ -27,7 +28,13 @@ import {
 import type { SelectOption } from '../../../shared/ui';
 import { ru } from '../../../shared/lib/ru';
 import { PAGE_SIZE } from '../../../shared/api/page-query';
-import { postsPageQueryOptions, useDuplicatePost, useReturnPostToDraft } from '../api/posts-queries';
+import { useTabSwitch } from '../../../shared/api/use-tab-switch';
+import {
+  postsPageQueryOptions,
+  useDuplicatePost,
+  usePrefetchPostTabs,
+  useReturnPostToDraft
+} from '../api/posts-queries';
 import { describeLifecycleError, type LifecycleNotice } from '../model/lifecycle-notices';
 import type { PostSortKey, SortDirection } from '../model/post-sort';
 import { useNow } from '../../../shared/lib/use-now';
@@ -65,6 +72,8 @@ function filtersFor(view: PostsView) {
   if (view === 'archive') return { view: 'archive' } as const;
   return view === 'drafts' ? ({ view: 'live', status: 'draft' } as const) : ({ view: 'live' } as const);
 }
+// A tab switch clears search and sort, so page 1 without them is exactly what the next tab asks for.
+const TAB_FILTERS = VIEWS.map(filtersFor);
 
 function sortOptionsFor(view: PostsView): SelectOption[] {
   const columns: { key: PostSortKey; label: string }[] =
@@ -104,7 +113,7 @@ export function PostsList({
   const narrow = useMediaQuery(NARROW);
   const rootRef = useRef<HTMLElement>(null);
   const focusAfter = useRef<string | null>(null);
-  const isArchive = view === 'archive';
+  usePrefetchPostTabs(TAB_FILTERS);
   // Search and sort are URL-backed; each combination owns a fresh infinite-query page chain.
   const [searchDraft, setSearchDraft] = useState({ query, value: query });
   const searchInput = searchDraft.query === query ? searchDraft.value : query;
@@ -125,13 +134,17 @@ export function PostsList({
       page
     )
   );
+  // While another tab loads, the rows of the previous tab stay (dimmed, inert) and the table keeps its own mode.
+  const { switching, shownScope } = useTabSwitch(view, result.isPlaceholderData);
+  const shownView = shownScope as PostsView;
+  const isArchive = shownView === 'archive';
   const loaded = useMemo(() => result.data?.items ?? [], [result.data]);
   const rows = loaded;
   // A typed search is waiting out its debounce or its request: rows stay, the footer says so.
   const isSearchSettling = searchInput !== query || (result.isPlaceholderData && result.isFetching);
   const isSearching = normalizedQuery !== '';
   // An empty «Черновики» tab reads as a narrowed list (with a way back to «Все»), not as «no posts at all».
-  const emptyIsFiltered = isSearching || view === 'drafts';
+  const emptyIsFiltered = isSearching || shownView === 'drafts';
 
   // The archive size rides on every page; keep the last known value while another tab is loading.
   const fresh = result.data?.archivedCount;
@@ -139,7 +152,7 @@ export function PostsList({
   if (fresh !== undefined && fresh !== lastCount) setLastCount(fresh);
   const archivedCount = fresh ?? lastCount;
   const sortedRows = rows;
-  const sortOptions = useMemo(() => sortOptionsFor(view), [view]);
+  const sortOptions = useMemo(() => sortOptionsFor(shownView), [shownView]);
   const sortValue = sort ? `${sort.key}:${sort.direction}` : 'none';
   const listStateKey = `${normalizedQuery}\u0000${sortValue}`;
   const onMobileSortChange = (value: string) => {
@@ -170,7 +183,7 @@ export function PostsList({
     restoreSelected,
     onTableSelection,
     showFailures
-  } = usePostsSelection({ view, isArchive, rows: sortedRows, listStateKey, rootRef, onNotice: setNotice });
+  } = usePostsSelection({ view: shownView, isArchive, rows: sortedRows, listStateKey, rootRef, onNotice: setNotice });
   const [deleteTargets, setDeleteTargets] = useState<DeleteTarget[] | null>(null);
 
   const returnToDraft = useReturnPostToDraft();
@@ -344,158 +357,155 @@ export function PostsList({
           {VIEWS.map((id) => (
             <Tab key={id} id={id}>
               {copy.tabs[id]}
-              {id === 'archive' && archivedCount !== undefined ? (
-                <span className={styles.count}>{archivedCount}</span>
-              ) : null}
+              {id === 'archive' ? <span className={styles.count}>{archivedCount ?? ''}</span> : null}
             </Tab>
           ))}
         </TabList>
-        {VIEWS.map((panelView) => (
-          <TabPanel key={panelView} id={panelView}>
-            {panelView === view ? (
-              <>
-                {notice ? <LifecycleBanner notice={notice} onDismiss={() => setNotice(null)} /> : null}
+        {/* One panel for every tab: the table stays mounted across a switch instead of blinking. */}
+        <TabPanel id={view}>
+          <>
+            {notice ? <LifecycleBanner notice={notice} onDismiss={() => setNotice(null)} /> : null}
 
-                {result.isError ? (
-                  <ListError error={result.error} isArchive={isArchive} onRetry={() => void result.refetch()} />
-                ) : (
-                  <Wrap narrow={narrow}>
-                    <Panel
-                      title={PANEL_TITLE[view]}
-                      {...(isArchive ? { note: postsCopy.archive.note } : {})}
-                      action={panelAction}
-                      {...(ready && hasRows ? {} : { reserveRows: narrow ? 6 : 8 })}
-                      {...(footer ? { footer } : {})}
-                    >
-                      {narrow ? (
-                        <PhoneToolbar>
-                          <PhoneToolbarSearch>
-                            <SearchField
-                              label={copy.searchLabel}
-                              placeholder={copy.filters.phoneSearch}
-                              maxLength={120}
-                              value={searchInput}
-                              onChange={updateSearchInput}
-                            />
-                          </PhoneToolbarSearch>
-                          <FilterButton
-                            count={activeFilterCount}
-                            sort={{
-                              label: copy.filters.sort,
-                              value: phoneSortValue,
-                              spoken: selectedSortLabel
-                            }}
-                            onPress={() => {
-                              setDraftSort(sortValue);
-                              setSheetOpen(true);
-                            }}
-                          />
-                        </PhoneToolbar>
-                      ) : null}
-                      {ready && !hasRows && totalCount === 0 ? (
-                        <EmptyState
-                          icon={emptyIsFiltered ? 'search' : isArchive ? 'clock' : 'file'}
-                          title={
-                            isSearching
-                              ? copy.searchEmptyTitle
-                              : emptyIsFiltered
-                                ? copy.filteredEmptyTitle
-                                : copyFor.emptyTitle
-                          }
-                          description={
-                            isSearching
-                              ? copy.searchEmptyDescription
-                              : emptyIsFiltered
-                                ? copy.filteredEmptyDescription
-                                : copyFor.emptyDescription
-                          }
-                          action={
-                            isSearching ? (
-                              <Button variant="secondary" onPress={clearSearch}>
-                                {ru.ui.clearSearch}
-                              </Button>
-                            ) : emptyIsFiltered ? (
-                              <Button variant="secondary" onPress={showAll}>
-                                {copy.showAll}
-                              </Button>
-                            ) : isArchive ? undefined : (
-                              <Button icon="plus" onPress={onCreate}>
-                                {copy.create}
-                              </Button>
-                            )
-                          }
-                        />
-                      ) : (
-                        <PostRows
-                          mode={isArchive ? 'archive' : 'live'}
-                          label={isArchive ? postsCopy.archive.tableLabel : copy.tableLabel}
-                          rows={sortedRows}
-                          sort={sort}
-                          onSortChange={(next) =>
-                            onSortChange({ key: next.key as NonNullable<PostsSort>['key'], direction: next.direction })
-                          }
-                          now={now.getTime()}
-                          isLoading={result.isPending}
-                          narrow={narrow}
-                          selectable={selectMode}
-                          isSelected={selection.has}
-                          allState={allState}
-                          onSelectionChange={onTableSelection}
-                          onToggle={(post, on) => selection.toggle({ id: post.id, revision: post.revision }, on)}
-                          onToggleAll={(on) =>
-                            on
-                              ? selection.setAll(selectableRows.map((row) => ({ id: row.id, revision: row.revision })))
-                              : selection.remove(selectableRows.map((row) => row.id))
-                          }
-                          reasons={reasonText}
-                          onOpen={onOpen}
-                          onAction={onAction}
-                          isDuplicating={duplicatePost.isPending}
-                        />
-                      )}
-                    </Panel>
-                  </Wrap>
-                )}
-
-                {selectedPosts.length > 0 || selectMode ? (
-                  <SelectionBar
-                    label={postsCopy.selection.bar}
-                    summary={postsCopy.selection.selected(selectedPosts.length)}
-                    {...(selection.isFull ? { hint: postsCopy.selection.limit(100) } : {})}
+            {result.isError ? (
+              <ListError error={result.error} isArchive={isArchive} onRetry={() => void result.refetch()} />
+            ) : (
+              <StaleRegion busy={switching}>
+                <Wrap narrow={narrow}>
+                  <Panel
+                    title={PANEL_TITLE[shownView]}
+                    {...(isArchive ? { note: postsCopy.archive.note } : {})}
+                    action={panelAction}
+                    {...(ready && hasRows ? {} : { reserveRows: narrow ? 6 : 8 })}
+                    {...(footer ? { footer } : {})}
                   >
-                    {isArchive ? (
-                      <Button
-                        variant="secondary"
-                        icon="retry"
-                        isLoading={restore.isPending}
-                        isDisabled={selectedPosts.length === 0}
-                        onPress={() => void restoreSelected()}
-                      >
-                        {postsCopy.selection.restore}
-                      </Button>
+                    {narrow ? (
+                      <PhoneToolbar>
+                        <PhoneToolbarSearch>
+                          <SearchField
+                            label={copy.searchLabel}
+                            placeholder={copy.filters.phoneSearch}
+                            maxLength={120}
+                            value={searchInput}
+                            onChange={updateSearchInput}
+                          />
+                        </PhoneToolbarSearch>
+                        <FilterButton
+                          count={activeFilterCount}
+                          sort={{
+                            label: copy.filters.sort,
+                            value: phoneSortValue,
+                            spoken: selectedSortLabel
+                          }}
+                          onPress={() => {
+                            setDraftSort(sortValue);
+                            setSheetOpen(true);
+                          }}
+                        />
+                      </PhoneToolbar>
                     ) : null}
-                    <Button
-                      variant="danger"
-                      icon="trash"
-                      isDisabled={selectedPosts.length === 0}
-                      onPress={() => {
-                        setNotice(null);
-                        setDeleteTargets(
-                          selectedPosts.map((post) => ({ ...deleteTargetOf(post), revision: revisionFor(post) }))
-                        );
-                      }}
-                    >
-                      {postsCopy.selection.delete}
-                    </Button>
-                    <Button variant="ghost" onPress={clearSelection}>
-                      {postsCopy.selection.clear}
-                    </Button>
-                  </SelectionBar>
+                    {ready && !hasRows && totalCount === 0 ? (
+                      <EmptyState
+                        icon={emptyIsFiltered ? 'search' : isArchive ? 'clock' : 'file'}
+                        title={
+                          isSearching
+                            ? copy.searchEmptyTitle
+                            : emptyIsFiltered
+                              ? copy.filteredEmptyTitle
+                              : copyFor.emptyTitle
+                        }
+                        description={
+                          isSearching
+                            ? copy.searchEmptyDescription
+                            : emptyIsFiltered
+                              ? copy.filteredEmptyDescription
+                              : copyFor.emptyDescription
+                        }
+                        action={
+                          isSearching ? (
+                            <Button variant="secondary" onPress={clearSearch}>
+                              {ru.ui.clearSearch}
+                            </Button>
+                          ) : emptyIsFiltered ? (
+                            <Button variant="secondary" onPress={showAll}>
+                              {copy.showAll}
+                            </Button>
+                          ) : isArchive ? undefined : (
+                            <Button icon="plus" onPress={onCreate}>
+                              {copy.create}
+                            </Button>
+                          )
+                        }
+                      />
+                    ) : (
+                      <PostRows
+                        mode={isArchive ? 'archive' : 'live'}
+                        label={isArchive ? postsCopy.archive.tableLabel : copy.tableLabel}
+                        rows={sortedRows}
+                        sort={sort}
+                        onSortChange={(next) =>
+                          onSortChange({ key: next.key as NonNullable<PostsSort>['key'], direction: next.direction })
+                        }
+                        now={now.getTime()}
+                        isLoading={result.isPending}
+                        narrow={narrow}
+                        selectable={selectMode}
+                        isSelected={selection.has}
+                        allState={allState}
+                        onSelectionChange={onTableSelection}
+                        onToggle={(post, on) => selection.toggle({ id: post.id, revision: post.revision }, on)}
+                        onToggleAll={(on) =>
+                          on
+                            ? selection.setAll(selectableRows.map((row) => ({ id: row.id, revision: row.revision })))
+                            : selection.remove(selectableRows.map((row) => row.id))
+                        }
+                        reasons={reasonText}
+                        onOpen={onOpen}
+                        onAction={onAction}
+                        isDuplicating={duplicatePost.isPending}
+                      />
+                    )}
+                  </Panel>
+                </Wrap>
+              </StaleRegion>
+            )}
+
+            {selectedPosts.length > 0 || selectMode ? (
+              <SelectionBar
+                label={postsCopy.selection.bar}
+                summary={postsCopy.selection.selected(selectedPosts.length)}
+                {...(selection.isFull ? { hint: postsCopy.selection.limit(100) } : {})}
+              >
+                {isArchive ? (
+                  <Button
+                    variant="secondary"
+                    icon="retry"
+                    isLoading={restore.isPending}
+                    isDisabled={selectedPosts.length === 0}
+                    onPress={() => void restoreSelected()}
+                  >
+                    {postsCopy.selection.restore}
+                  </Button>
                 ) : null}
-              </>
+                <Button
+                  variant="danger"
+                  icon="trash"
+                  isDisabled={selectedPosts.length === 0}
+                  onPress={() => {
+                    setNotice(null);
+                    setDeleteTargets(
+                      selectedPosts.map((post) => ({ ...deleteTargetOf(post), revision: revisionFor(post) }))
+                    );
+                  }}
+                >
+                  {postsCopy.selection.delete}
+                </Button>
+                <Button variant="ghost" onPress={clearSelection}>
+                  {postsCopy.selection.clear}
+                </Button>
+              </SelectionBar>
             ) : null}
-          </TabPanel>
-        ))}
+          </>
+        </TabPanel>
       </Tabs>
 
       <FilterSheet

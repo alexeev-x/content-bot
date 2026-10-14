@@ -10,12 +10,16 @@ import {
   publicationsPageQueryOptions,
   type PublicationFilters
 } from '../../features/publications';
-import type { PublicationsSearch } from './search';
+import { useTabSwitch } from '../../shared/api/use-tab-switch';
+import type { Order } from './PublicationsFilters';
+import type { PublicationsSearch, PublicationView } from './search';
+
+const TABS: readonly PublicationView[] = ['all', 'upcoming', 'recent', 'errors'];
 
 /** Composes the three features the list needs: publications, the posts they belong to and the channels they go to. */
 export function usePublicationsData(search: PublicationsSearch, timeZone: string, pollMs?: number) {
   const now = useNow();
-  const view = search.view;
+  const view: PublicationView = search.view ?? 'all';
   const period = search.period ?? 'all';
   const range =
     search.from || search.to
@@ -27,20 +31,42 @@ export function usePublicationsData(search: PublicationsSearch, timeZone: string
           : period === '30d'
             ? ownerDaysRange(now, timeZone, 30)
             : undefined;
-  const filters: PublicationFilters = {
+  const shared = {
     ...(search.post ? { postId: search.post } : {}),
-    ...(search.q ? { q: search.q } : {}),
-    ...(range ? range : {}),
-    ...(view === 'upcoming' ? { status: 'scheduled' as const } : {}),
-    ...(view === 'recent' ? { status: 'sent' as const } : {}),
-    ...(view === 'errors' ? { statusGroup: 'errors' as const } : {}),
-    order: search.order ?? (view === 'upcoming' ? 'asc' : 'desc')
+    ...(range ? range : {})
   };
-  const list = useQuery(publicationsPageQueryOptions(filters, search.page ?? 1, pollMs ?? PUBLICATION_POLL_MS));
+  const filtersFor = (tab: PublicationView, q: string | undefined, order: Order | undefined): PublicationFilters => ({
+    ...shared,
+    ...(q ? { q } : {}),
+    ...(tab === 'upcoming' ? { status: 'scheduled' as const } : {}),
+    ...(tab === 'recent' ? { status: 'sent' as const } : {}),
+    ...(tab === 'errors' ? { statusGroup: 'errors' as const } : {}),
+    order: order ?? (tab === 'upcoming' ? 'asc' : 'desc')
+  });
+  const pollInterval = pollMs ?? PUBLICATION_POLL_MS;
+  const page = search.page ?? 1;
+  const list = useQuery(publicationsPageQueryOptions(filtersFor(view, search.q, search.order), page, pollInterval));
+  // Tab switching clears search and order, so every tab is warmed with exactly those filters (no polling here:
+  // the tab on screen polls itself). The rows' posts are warmed too, so a switch shows titles at once.
+  const warmed = useQueries({
+    queries: TABS.map((tab) => publicationsPageQueryOptions(filtersFor(tab, undefined, undefined), 1, 0))
+  });
+  // The tab counters come from the «Все» query only, so they never depend on the active tab's own response.
+  const counts = useQuery(
+    publicationsPageQueryOptions(
+      filtersFor('all', search.q, view === 'all' ? search.order : undefined),
+      1,
+      pollInterval
+    )
+  );
+  const { switching, shownScope } = useTabSwitch(view, list.isPlaceholderData);
   const destinations = useInfiniteQuery(destinationsInfiniteQueryOptions());
   const items = useMemo(() => list.data?.items ?? [], [list.data]);
 
-  const postIds = useMemo(() => [...new Set(items.map((item) => item.postId))], [items]);
+  const idKey = [
+    ...new Set([...items, ...warmed.flatMap((result) => result.data?.items ?? [])].map((item) => item.postId))
+  ].join(',');
+  const postIds = useMemo(() => (idKey ? idKey.split(',') : []), [idKey]);
   const posts = useQueries({ queries: postIds.map((id) => postQueryOptions(id)) });
   const postById = useMemo(() => {
     const map = new Map<string, PostDto>();
@@ -64,5 +90,14 @@ export function usePublicationsData(search: PublicationsSearch, timeZone: string
     [destinationById]
   );
 
-  return { list, items, post, postTitle, channel };
+  return {
+    list,
+    counts: counts.data,
+    switching,
+    shownView: shownScope as PublicationView,
+    items,
+    post,
+    postTitle,
+    channel
+  };
 }

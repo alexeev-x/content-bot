@@ -6,9 +6,9 @@ import {
   useQueryClient,
   type QueryClient
 } from '@tanstack/react-query';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { createIdempotencyTracker } from '../../../shared/api/idempotency';
-import { keepPreviousInScope } from '../../../shared/api/page-query';
+import { keepPreviousRows } from '../../../shared/api/page-query';
 import { nextCursor } from '../../../shared/api/query-string';
 import { attachLibraryMedia } from './post-media-api';
 import {
@@ -51,15 +51,22 @@ export function postsInfiniteQueryOptions(filters: PostFilters = {}) {
   });
 }
 
-/** One numbered page. Searching or sorting keeps the previous rows on screen inside the same tab. */
+/** One numbered page. Searching, sorting or switching a tab keeps the previous rows on screen until the new ones arrive. */
 export function postsPageQueryOptions(filters: PostFilters, page: number) {
   return queryOptions({
     queryKey: [...postKeys.lists(), 'page', filters, page] as const,
     queryFn: ({ signal }) => listPosts(filters, undefined, signal, page),
     staleTime: 30_000,
-    meta: { scope: `${filters.view ?? 'live'}:${filters.status ?? ''}` },
-    placeholderData: keepPreviousInScope(`${filters.view ?? 'live'}:${filters.status ?? ''}`)
+    placeholderData: keepPreviousRows
   });
+}
+
+/** Warms page 1 of every tab so a tab switch is served from the cache. */
+export function usePrefetchPostTabs(tabs: readonly PostFilters[]): void {
+  const queryClient = useQueryClient();
+  useEffect(() => {
+    for (const filters of tabs) void queryClient.prefetchQuery(postsPageQueryOptions(filters, 1));
+  }, [queryClient, tabs]);
 }
 
 export function postQueryOptions(id: string) {
