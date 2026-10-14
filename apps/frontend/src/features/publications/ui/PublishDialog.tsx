@@ -3,41 +3,24 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { now, parseAbsolute, type ZonedDateTime } from '@internationalized/date';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, type LinkProps } from '@tanstack/react-router';
-import { useEffect, useId, useRef, useState, type FormEvent, type ReactNode } from 'react';
+import { useEffect, useId, useRef, type FormEvent, type ReactNode } from 'react';
 import { Controller, useForm, useWatch } from 'react-hook-form';
-import { ru } from '../../../shared/lib/ru';
 import {
   Banner,
   Button,
-  ConfirmDialog,
   DateTimeField,
   Dialog,
   Select,
   SegmentedControl,
   Skeleton,
-  TelegramPreview,
-  useToast
+  TelegramPreview
 } from '../../../shared/ui';
-import {
-  publicationsPageQueryOptions,
-  publishDestinationsQueryOptions,
-  useSubmitPublication
-} from '../api/publications-queries';
-import { browserTimeZone, formatShort, formatWithZone } from '../model/format-time';
-import { describeActionError, type ActionError } from '../model/publication-errors';
+import { publishDestinationsQueryOptions } from '../api/publications-queries';
+import { formatShort, formatWithZone } from '../model/format-time';
 import { defaultScheduledAt, publishFormSchema, type PublishFormValues } from '../model/publish-form';
-import {
-  clearIntent,
-  createIntentMemory,
-  findIntent,
-  INTENT_TRUSTED_MS,
-  isDefinitive,
-  newIntent,
-  saveIntent,
-  type PublishIntent
-} from '../model/publish-intent';
-import { displayStatus } from '../model/publication-view';
+import { usePublish } from '../model/use-publish';
 import { copy } from './copy';
+import { PublishDuplicateDialog } from './PublishDuplicateDialog';
 import styles from './PublishDialog.module.css';
 
 type Props = {
@@ -47,12 +30,6 @@ type Props = {
   onOpenChange: (open: boolean) => void;
   onPublished?: (publication: PublicationDto) => void;
   initialSettings?: { destinationId: string; mode: 'now' | 'later'; scheduledAt: ZonedDateTime };
-  lockSettings?: boolean;
-  /**
-   * The caller already showed the settings and the owner pressed «Опубликовать»: opening sends at once, with no
-   * dialog of its own. Only a real duplicate (this post already in this channel) still asks.
-   */
-  direct?: boolean;
 };
 
 const CHANNELS_PATH = '/settings/channels' as LinkProps['to'];
@@ -74,26 +51,22 @@ function PublishDialogBody({
   isOpen,
   onOpenChange,
   onPublished,
-  initialSettings,
-  lockSettings = false,
-  direct = false
+  initialSettings
 }: Props) {
   const formId = useId();
-  const zone = configuredTimezone ?? browserTimeZone();
-  const toast = useToast();
   const queryClient = useQueryClient();
-  const create = useSubmitPublication();
   const destinations = useQuery({ ...publishDestinationsQueryOptions(), enabled: isOpen });
-  const [failure, setFailure] = useState<{ error: ActionError; revision: number } | null>(null);
-  // In direct mode no dialog is on screen, so outcomes go to toasts.
-  const openRef = useRef(isOpen && !direct);
+  const openRef = useRef(isOpen);
   useEffect(() => {
-    openRef.current = isOpen && !direct;
-  }, [isOpen, direct]);
-  const [duplicate, setDuplicate] = useState<PublishFormValues | null>(null);
+    openRef.current = isOpen;
+  }, [isOpen]);
+  const publish = usePublish(post, configuredTimezone, {
+    onSettled: () => onOpenChange(false),
+    ...(onPublished ? { onPublished } : {}),
+    canShowBanner: () => openRef.current
+  });
+  const { zone, isApproved } = publish;
   const appliedKey = useRef<string | null>(null);
-  const [memory] = useState(createIntentMemory);
-  const [staleIntent, setStaleIntent] = useState<PublishIntent | null>(null);
 
   const form = useForm<PublishFormValues>({
     resolver: zodResolver(publishFormSchema),
@@ -116,8 +89,7 @@ function PublishDialogBody({
     }
   }, [onlyDestination, form]);
 
-  // A request that may have reached the server is retried exactly as sent (same key, same instant), whatever the delay.
-  const pending = findIntent(memory, post.id, post.revision, values.destinationId || undefined);
+  const pending = publish.findPending(values.destinationId);
   useEffect(() => {
     // Switching away drops the pending intent from view; coming back re-applies its mode and time.
     if (!pending) {
@@ -132,129 +104,16 @@ function PublishDialogBody({
   }, [pending, form, zone]);
 
   const selected: DestinationDto | undefined = options.find((item) => item.id === values.destinationId);
-  const visibleFailure = failure && failure.revision === post.revision ? failure.error : null;
-  const isApproved = post.status === 'approved';
-
-  async function send(intent: PublishIntent) {
-    if (create.isPending || !isApproved) return;
-    setFailure(null);
-    // Saved before the request: if the answer is lost, a remount or reload still finds the same intent.
-    saveIntent(memory, intent);
-    try {
-      const created = await create.mutateAsync({
-        input: {
-          postId: intent.postId,
-          revision: intent.revision,
-          destinationId: intent.destinationId,
-          scheduledAt: intent.scheduledAt,
-          timezone: intent.timezone
-        },
-        key: intent.key
-      });
-      clearIntent(memory, intent);
-      // 202 only means "accepted": the label is whatever status the server returned, never «Опубликовано» by default.
-      const shown = displayStatus(created);
-      toast.show({
-        tone: shown === 'scheduled' || shown === 'queued' ? 'success' : 'info',
-        title: ru.status[shown],
-        description:
-          intent.mode === 'later'
-            ? copy.publish.toastBody(formatWithZone(created.scheduledAt, zone))
-            : copy.publish.toastOther
-      });
-      onOpenChange(false);
-      onPublished?.(created);
-    } catch (error) {
-      if (isDefinitive(error)) clearIntent(memory, intent);
-      const described = describeActionError(error, 'create');
-      setFailure({ error: described, revision: post.revision });
-      // A closed dialog cannot show the banner: a failure must still reach the owner.
-      if (!openRef.current) toast.show({ tone: 'error', title: described.title, description: described.body });
-      if (direct) onOpenChange(false);
-    }
-  }
-
-  async function start(formValues: PublishFormValues, skipDuplicateCheck: boolean) {
-    if (create.isPending) return;
-    if (!skipDuplicateCheck && (await hasPublication(formValues.destinationId)) === true) {
-      setDuplicate(formValues);
-      return;
-    }
-    const intent = newIntent({
-      postId: post.id,
-      revision: post.revision,
-      destinationId: formValues.destinationId,
-      mode: formValues.mode,
-      scheduledAt:
-        formValues.mode === 'later' && formValues.scheduledAt
-          ? formValues.scheduledAt.toDate().toISOString()
-          : undefined,
-      timezone: zone
-    });
-    // The submit press is the explicit final action: no second «are you sure» on top of it.
-    await send(intent);
-  }
-
-  // Second safety net: the same post already scheduled or published in this channel. `null` = the lookup failed.
-  async function hasPublication(destinationId: string): Promise<boolean | null> {
-    try {
-      const page = await queryClient.fetchQuery({
-        ...publicationsPageQueryOptions({ postId: post.id, destinationId }),
-        staleTime: 0
-      });
-      return page.items.some((item) => item.status !== 'cancelled');
-    } catch {
-      return null;
-    }
-  }
-
-  // An intent older than the server's 24 h key memory is no longer replay-protected: look before resending it.
-  async function resendPending(intent: PublishIntent) {
-    if (Date.now() - intent.createdAt < INTENT_TRUSTED_MS) {
-      await send(intent);
-      return;
-    }
-    const found = await hasPublication(intent.destinationId);
-    if (found === null) {
-      setFailure({
-        error: { kind: 'unavailable', tone: 'warning', ...copy.errors.staleIntentCheckFailed },
-        revision: post.revision
-      });
-    } else if (found) {
-      setStaleIntent(intent);
-    } else {
-      await send(intent);
-    }
-  }
-
-  // Direct mode: opening is the press of «Опубликовать» on the caller's page, so start once per opening.
-  const startedRef = useRef(false);
-  useEffect(() => {
-    if (!direct) return;
-    if (!isOpen) {
-      startedRef.current = false;
-      return;
-    }
-    if (startedRef.current) return;
-    startedRef.current = true;
-    if (pending) void resendPending(pending);
-    else
-      void form.handleSubmit(
-        (formValues) => start(formValues, false),
-        () => onOpenChange(false)
-      )();
-    // Runs on opening only; the handlers read the current form and intent when called.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [direct, isOpen]);
+  const visibleFailure = publish.failure;
 
   function submit(event: FormEvent<HTMLFormElement>) {
     // A pending intent is sent as it was, so it skips validation of a time that may have passed meanwhile.
     if (pending) {
       event.preventDefault();
-      void resendPending(pending);
+      void publish.resendPending(pending);
       return;
     }
-    void form.handleSubmit((formValues) => start(formValues, false))(event);
+    void form.handleSubmit((formValues) => publish.start(formValues))(event);
   }
 
   const summaryWhen =
@@ -270,7 +129,7 @@ function PublishDialogBody({
   return (
     <>
       <Dialog
-        isOpen={isOpen && !direct}
+        isOpen={isOpen}
         onOpenChange={onOpenChange}
         title={copy.publish.title}
         description={copy.publish.description}
@@ -283,7 +142,7 @@ function PublishDialogBody({
               type="submit"
               form={formId}
               icon={mode === 'now' ? 'send' : 'calendar'}
-              isLoading={create.isPending}
+              isLoading={publish.isPending}
               isDisabled={!isApproved || destinations.isPending || options.length === 0}
             >
               {mode === 'now' ? copy.publish.submitNow : copy.publish.submitLater}
@@ -361,7 +220,6 @@ function PublishDialogBody({
                     onChange={field.onChange}
                     onBlur={field.onBlur}
                     isRequired
-                    isDisabled={lockSettings}
                     {...(fieldState.error?.message ? { errorMessage: fieldState.error.message } : {})}
                   />
                 )}
@@ -380,7 +238,7 @@ function PublishDialogBody({
                   options={MODES}
                   value={field.value}
                   onChange={(next) => field.onChange(next)}
-                  isDisabled={Boolean(pending) || lockSettings}
+                  isDisabled={Boolean(pending)}
                   fullWidth
                 />
               </div>
@@ -399,7 +257,7 @@ function PublishDialogBody({
                   timeZone={zone}
                   minValue={now(zone)}
                   isRequired
-                  isDisabled={Boolean(pending) || lockSettings}
+                  isDisabled={Boolean(pending)}
                   {...(fieldState.error?.message ? { errorMessage: fieldState.error.message } : {})}
                 />
               )}
@@ -429,29 +287,7 @@ function PublishDialogBody({
           </section>
         </form>
       </Dialog>
-      <ConfirmDialog
-        isOpen={duplicate !== null || staleIntent !== null}
-        onOpenChange={(open) => {
-          if (!open) {
-            setDuplicate(null);
-            setStaleIntent(null);
-            if (direct) onOpenChange(false);
-          }
-        }}
-        title={copy.publish.duplicateTitle}
-        description={copy.publish.duplicateBody}
-        confirmLabel={copy.publish.duplicateConfirm}
-        cancelLabel={copy.publish.duplicateKeep}
-        isPending={create.isPending}
-        onConfirm={() => {
-          const chosen = duplicate;
-          const old = staleIntent;
-          setDuplicate(null);
-          setStaleIntent(null);
-          if (old) void send(old);
-          else if (chosen) void start(chosen, true);
-        }}
-      />
+      <PublishDuplicateDialog publish={publish} />
     </>
   );
 }

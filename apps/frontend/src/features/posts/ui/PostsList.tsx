@@ -1,5 +1,5 @@
 import { useNavigate } from '@tanstack/react-router';
-import type { PostDto, PostDeleteRefusal, PostRestoreRefusal } from '@alexeev/contracts';
+import type { PostDto } from '@alexeev/contracts';
 import { useInfiniteQuery } from '@tanstack/react-query';
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { classifyApiError } from '../../../shared/api/error-kind';
@@ -24,15 +24,13 @@ import {
   Tabs,
   useMediaQuery
 } from '../../../shared/ui';
-import type { RowSelection, SelectOption } from '../../../shared/ui';
+import type { SelectOption } from '../../../shared/ui';
 import { ru } from '../../../shared/lib/ru';
 import { postsInfiniteQueryOptions, useDuplicatePost, useReturnPostToDraft } from '../api/posts-queries';
-import { describeLifecycleError, refusalText, type LifecycleNotice } from '../model/lifecycle-notices';
-import { deleteBlockOf } from '../model/post-state';
+import { describeLifecycleError, type LifecycleNotice } from '../model/lifecycle-notices';
 import type { PostSortKey, SortDirection } from '../model/post-sort';
 import { useNow } from '../../../shared/lib/use-now';
-import { useRestoreActions } from '../model/use-restore';
-import { useSelection } from '../model/use-selection';
+import { rowTarget, usePostsSelection } from '../model/use-posts-selection';
 import { postsCopy } from './copy';
 import { deleteTargetOf, DeletePostsDialog, type DeleteOutcome, type DeleteTarget } from './DeletePostsDialog';
 import { LifecycleBanner } from './LifecycleBanner';
@@ -59,8 +57,6 @@ const copy = postsCopy.list;
 const NARROW = '(max-width: 859px)';
 const VIEWS: readonly PostsView[] = ['all', 'drafts', 'archive'];
 const PANEL_TITLE = { all: copy.panel.all, drafts: copy.panel.drafts, archive: copy.panel.archive } as const;
-
-type Reason = { reason: PostDeleteRefusal | PostRestoreRefusal; text: string };
 
 function filtersFor(view: PostsView) {
   if (view === 'archive') return { view: 'archive' } as const;
@@ -103,7 +99,6 @@ export function PostsList({
   const narrow = useMediaQuery(NARROW);
   const rootRef = useRef<HTMLElement>(null);
   const focusAfter = useRef<string | null>(null);
-  const firstFailed = useRef<string | null>(null);
   const isArchive = view === 'archive';
   // Search and sort are URL-backed; each combination owns a fresh infinite-query page chain.
   const [searchDraft, setSearchDraft] = useState({ query, value: query });
@@ -137,7 +132,6 @@ export function PostsList({
   const sortOptions = useMemo(() => sortOptionsFor(view), [view]);
   const sortValue = sort ? `${sort.key}:${sort.direction}` : 'none';
   const listStateKey = `${normalizedQuery}\u0000${sortValue}`;
-  const previousListState = useRef(listStateKey);
   const onMobileSortChange = (value: string) => {
     if (!sortOptions.some((option) => option.id === value)) return;
     if (value === 'none') {
@@ -150,61 +144,28 @@ export function PostsList({
     }
   };
 
-  const selection = useSelection(view);
-  const [selectMode, setSelectMode] = useState(false);
-  useEffect(() => {
-    if (previousListState.current === listStateKey) return;
-    previousListState.current = listStateKey;
-    selection.clear();
-    setSelectMode(false);
-  }, [listStateKey, selection]);
   const [notice, setNotice] = useState<LifecycleNotice | null>(null);
-  const [reasonState, setReasonState] = useState<{ view: PostsView; map: ReadonlyMap<string, Reason> }>({
-    view,
-    map: new Map()
-  });
-  const reasons = reasonState.view === view ? reasonState.map : new Map<string, Reason>();
+  const {
+    selection,
+    selectMode,
+    setSelectMode,
+    selectedPosts,
+    selectableRows,
+    allState,
+    reasonText,
+    restore,
+    revisionFor,
+    recordRefusals,
+    clearSelection,
+    restoreSelected,
+    onTableSelection,
+    showFailures
+  } = usePostsSelection({ view, isArchive, rows: sortedRows, listStateKey, rootRef, onNotice: setNotice });
   const [deleteTargets, setDeleteTargets] = useState<DeleteTarget[] | null>(null);
 
-  const showFailures = () => {
-    const id = firstFailed.current;
-    const target = id ? rowTarget(rootRef.current, id) : null;
-    target?.scrollIntoView({ block: 'center' });
-    target?.focus();
-  };
-  const restore = useRestoreActions({ onNotice: setNotice, onShowFailures: showFailures });
   const returnToDraft = useReturnPostToDraft();
   const navigate = useNavigate();
   const duplicatePost = useDuplicatePost();
-
-  const selectedPosts = useMemo(() => loaded.filter((post) => selection.has(post.id)), [loaded, selection]);
-  const selectableRows = useMemo(
-    () => sortedRows.filter((post) => isArchive || deleteBlockOf(post) === null),
-    [sortedRows, isArchive]
-  );
-  const selectedVisible = selectableRows.filter((post) => selection.has(post.id)).length;
-  const allState = selectedVisible === 0 ? 'none' : selectedVisible === selectableRows.length ? 'all' : 'some';
-  const selectable = selectMode;
-
-  // Shift+click selects a range. The table reports only the new selection, so the key is read from the pointer
-  // event that caused it (a document listener, cleaned up).
-  const shiftHeld = useRef(false);
-  const escapePressed = useRef(false);
-  useEffect(() => {
-    const track = (event: MouseEvent) => {
-      shiftHeld.current = event.shiftKey;
-      escapePressed.current = false;
-    };
-    const trackKey = (event: KeyboardEvent) => {
-      escapePressed.current = event.key === 'Escape';
-    };
-    document.addEventListener('pointerdown', track, true);
-    document.addEventListener('keydown', trackKey, true);
-    return () => {
-      document.removeEventListener('pointerdown', track, true);
-      document.removeEventListener('keydown', trackKey, true);
-    };
-  }, []);
 
   // After a removal, focus moves to the neighbour (or the previous row when it was last).
   useEffect(() => {
@@ -223,19 +184,6 @@ export function PostsList({
   };
 
   const refOf = (post: PostDto) => ({ id: post.id, revision: post.revision });
-  // A row the server refused as changed is re-confirmed in the dialog, so it is sent with its fresh revision.
-  const revisionFor = (post: PostDto) =>
-    reasons.get(post.id)?.reason === 'STALE_REVISION'
-      ? post.revision
-      : (selection.revisionOf(post.id) ?? post.revision);
-
-  function recordRefusals(refused: ReadonlyMap<string, PostDeleteRefusal | PostRestoreRefusal>) {
-    const map = new Map<string, Reason>();
-    for (const [id, reason] of refused) map.set(id, { reason, text: refusalText(reason) });
-    firstFailed.current = [...refused.keys()][0] ?? null;
-    setReasonState({ view, map });
-  }
-
   function onAction(post: PostDto, action: RowAction) {
     setNotice(null);
     if (action === 'reconcile') {
@@ -300,46 +248,6 @@ export function PostsList({
     if (deleted.length === 1 && deleteTargets?.length === 1) focusAfter.current = neighbourOf(deleted[0]!);
   }
 
-  async function restoreSelected() {
-    setNotice(null);
-    const outcome = await restore.restoreMany(
-      selectedPosts.map((post) => ({ id: post.id, revision: revisionFor(post) }))
-    );
-    if (!outcome) return;
-    selection.remove(outcome.restored);
-    recordRefusals(outcome.refused);
-    if (outcome.refused.size === 0) setSelectMode(false);
-  }
-
-  function clearSelection() {
-    selection.clear();
-    setSelectMode(false);
-    setReasonState({ view, map: new Map() });
-  }
-
-  // Esc clears the selection. A document listener (cleaned up) so no static element carries a key handler; an open
-  // dialog or menu handles its own Esc first and marks the event as handled.
-  const clearRef = useRef(clearSelection);
-  useEffect(() => {
-    clearRef.current = clearSelection;
-  });
-  const hasSelection = selection.count > 0;
-  useEffect(() => {
-    if (!hasSelection) return;
-    const onKey = (event: KeyboardEvent) => {
-      if (
-        event.key === 'Escape' &&
-        !event.defaultPrevented &&
-        document.querySelector('[role="alertdialog"]') === null
-      ) {
-        clearRef.current();
-      }
-    };
-    document.addEventListener('keydown', onKey);
-    return () => document.removeEventListener('keydown', onKey);
-  }, [hasSelection]);
-
-  const reasonText = useMemo(() => new Map([...reasons].map(([id, item]) => [id, item.text])), [reasons]);
   const copyFor = isArchive ? postsCopy.archive : copy;
   const clearSearch = () => updateSearchInput('');
   const showAll = () => {
@@ -349,31 +257,6 @@ export function PostsList({
   const ready = !result.isPending && !result.isError;
   const hasRows = rows.length > 0;
   const noPostsAtAll = ready && loaded.length === 0 && !emptyIsFiltered;
-
-  // The table reports the whole selection; the hook keeps the revision the owner saw for each added row.
-  function onTableSelection(next: RowSelection) {
-    const wanted = next === 'all' ? new Set(selectableRows.map((post) => post.id)) : next;
-    // Esc inside the table clears its selection itself; the list leaves the selection mode with it.
-    if (wanted.size === 0 && escapePressed.current) {
-      clearSelection();
-      return;
-    }
-    const added = selectableRows.filter((post) => wanted.has(post.id) && !selection.has(post.id));
-    const removed = sortedRows.filter((post) => !wanted.has(post.id) && selection.has(post.id));
-    const only = added.length === 1 ? added[0] : undefined;
-    if (only && shiftHeld.current) {
-      selection.selectRange(
-        selectableRows.map((row) => ({ id: row.id, revision: row.revision })),
-        { id: only.id, revision: only.revision }
-      );
-    } else if (only) {
-      // A single row is a toggle, which also becomes the anchor of the next Shift range.
-      selection.toggle({ id: only.id, revision: only.revision }, true);
-    } else if (added.length > 0) {
-      selection.setAll(added.map((post) => ({ id: post.id, revision: post.revision })));
-    }
-    if (removed.length > 0) selection.remove(removed.map((post) => post.id));
-  }
 
   // Phone: the sheet holds only the sort (search is the field above); desktop sorts by the column headers.
   const [sheetOpen, setSheetOpen] = useState(false);
@@ -544,7 +427,7 @@ export function PostsList({
                           now={now.getTime()}
                           isLoading={result.isPending}
                           narrow={narrow}
-                          selectable={selectable}
+                          selectable={selectMode}
                           isSelected={selection.has}
                           allState={allState}
                           onSelectionChange={onTableSelection}
@@ -632,12 +515,6 @@ export function PostsList({
       ) : null}
     </section>
   );
-}
-
-/** What takes focus for a post row: the table row on desktop, nothing on a phone (rows there have no stable handle). */
-function rowTarget(root: HTMLElement | null, id: string): HTMLElement | null {
-  const marker = root?.querySelector<HTMLElement>(`[data-post-id="${id}"]`);
-  return marker?.closest<HTMLElement>('[role="row"]') ?? null;
 }
 
 function ListError({ error, isArchive, onRetry }: { error: unknown; isArchive: boolean; onRetry: () => void }) {

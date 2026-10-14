@@ -83,28 +83,14 @@ describe('PublishDialog', () => {
     await waitFor(() => expect(sent).toHaveLength(1));
     expect(screen.queryByRole('alertdialog', { name: 'Подтвердить публикацию?' })).toBeNull();
   });
-  it('direct mode sends once on opening, shows no dialog of its own, and asks only about a real duplicate', async () => {
+  it('PublicationSettings sends once on the press, shows no dialog, and asks only about a real duplicate', async () => {
     const sent = captureCreate(() => accepted());
     server.use(http.get('*/api/v1/publications', () => HttpResponse.json(publicationPage([]))));
-    function Host() {
-      const [isOpen, setOpen] = useState(false);
-      return (
-        <>
-          <button type="button" onClick={() => setOpen(true)}>
-            Опубликовать
-          </button>
-          <PublishDialog
-            post={approved()}
-            isOpen={isOpen}
-            onOpenChange={setOpen}
-            initialSettings={{ destinationId: ids.destination, mode: 'now', scheduledAt: defaultScheduledAt('UTC') }}
-            lockSettings
-            direct
-          />
-        </>
-      );
-    }
-    await renderInApp(<Host />);
+    await renderInApp(
+      <PublicationSettings post={approved()} onBack={() => undefined}>
+        <div />
+      </PublicationSettings>
+    );
     const user = userEvent.setup();
     await user.click(await screen.findByRole('button', { name: 'Опубликовать' }));
     await waitFor(() => expect(sent).toHaveLength(1));

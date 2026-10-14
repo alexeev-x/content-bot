@@ -7,6 +7,7 @@ const PAGES = [
   '/',
   '/posts',
   '/posts/new',
+  '/posts/11111111-1111-4111-8111-111111111111',
   '/posts/11111111-1111-4111-8111-111111111111/publish',
   '/publications',
   '/media',

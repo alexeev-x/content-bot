@@ -15,7 +15,8 @@ import {
   Skeleton,
   useMediaQuery
 } from '../../../shared/ui';
-import { PublishDialog } from './PublishDialog';
+import { usePublish } from '../model/use-publish';
+import { PublishDuplicateDialog } from './PublishDuplicateDialog';
 import styles from './PublishDialog.module.css';
 
 const LAST_DESTINATION_KEY = 'publish:lastDestination';
@@ -66,7 +67,7 @@ export function PublicationSettings({ post, onBack, children, timezone, ensureAp
   const [approvedPost, setApprovedPost] = useState<PostDto | null>(null);
   const [approveFailure, setApproveFailure] = useState<{ title: string; message: string } | null>(null);
   const [scheduledAt, setScheduledAt] = useState<ZonedDateTime>(() => defaultScheduledAt(timeZone));
-  const [confirmOpen, setConfirmOpen] = useState(false);
+  const publishing = usePublish(approvedPost ?? post, timeZone);
   const options = destinations.data?.items ?? [];
 
   const selectedDestinationId =
@@ -97,7 +98,10 @@ export function PublicationSettings({ post, onBack, children, timezone, ensureAp
       }
     }
     rememberDestination(selectedDestinationId);
-    setConfirmOpen(true);
+    // A request that may have reached the server is resent as it was; otherwise this is a new one.
+    const pending = publishing.findPending(selectedDestinationId, target);
+    if (pending) await publishing.resendPending(pending, target);
+    else await publishing.start({ destinationId: selectedDestinationId, mode, scheduledAt }, false, target);
   }
 
   if (destinations.isPending)
@@ -175,22 +179,14 @@ export function PublicationSettings({ post, onBack, children, timezone, ensureAp
           <Button
             icon={mode === 'now' ? 'send' : 'calendar'}
             isDisabled={!selectedDestinationId || !validSchedule}
-            isLoading={confirmOpen || approving}
+            isLoading={publishing.isPending || approving}
             onPress={() => void publish()}
           >
             {mode === 'now' ? 'Опубликовать' : 'Запланировать'}
           </Button>
         </div>
       </footer>
-      <PublishDialog
-        post={approvedPost ?? post}
-        timezone={timeZone}
-        isOpen={confirmOpen}
-        onOpenChange={setConfirmOpen}
-        initialSettings={{ destinationId: selectedDestinationId, mode, scheduledAt }}
-        lockSettings
-        direct
-      />
+      <PublishDuplicateDialog publish={publishing} />
     </div>
   );
 }
