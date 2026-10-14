@@ -297,18 +297,15 @@
     align-items: center;
     gap: var(--space-2);
   }
+  /* A real search field between the logo and the owner menu (owner, 14.10.2026), not a lone icon. */
   .search {
-    flex: none;
-    justify-content: center;
-    width: var(--size-control);
-    padding: 0;
+    flex: 1;
+    min-width: 0;
+    max-width: none;
+    margin-inline: var(--space-1);
   }
-  .searchText,
   .kbd {
     display: none;
-  }
-  .search {
-    margin-left: auto;
   }
   .spacer {
     display: none;

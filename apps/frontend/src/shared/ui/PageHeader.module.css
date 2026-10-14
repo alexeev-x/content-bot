@@ -38,11 +38,12 @@
 }
 /* Phone and Mini App: title, tools and the one primary action share the first row; the title clamps to 2 lines. */
 @media (max-width: 859px) {
-  /* One muted line on phones; the full sentence stays in the DOM for screen readers. */
+  /* Up to two muted lines on phones: a sentence cut in the middle read as broken (owner, 14.10.2026). */
   .description {
+    display: -webkit-box;
     overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
   }
   .header {
     display: grid;

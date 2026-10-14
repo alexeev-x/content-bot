@@ -5,7 +5,7 @@ import styles from './RowCard.module.css';
 type Props = {
   /** Up to two lines; the row's name for assistive tech. */
   title: string;
-  /** Status chip at the right of the title. */
+  /** Status chip on the second line, before the meta. */
   status?: ReactNode;
   /** One muted line: channel · time. */
   meta?: ReactNode;
@@ -22,7 +22,7 @@ type Props = {
   isDimmed?: boolean;
 };
 
-/** Phone row of a Panel list: fixed anatomy (title + chip, meta, optional warning), whole row is the tap target. */
+/** Phone row of a Panel list: fixed anatomy (title, then chip + meta, optional warning), whole row is the tap target. */
 export function RowCard({ title, status, meta, warning, onPress, leading, media, menu, isActive, isDimmed }: Props) {
   return (
     <li className={styles.row} data-active={isActive || undefined} data-dimmed={isDimmed || undefined}>
@@ -32,9 +32,14 @@ export function RowCard({ title, status, meta, warning, onPress, leading, media,
         <span className={styles.body}>
           <span className={styles.top}>
             <span className={styles.title}>{title}</span>
-            {status ? <span className={styles.status}>{status}</span> : null}
           </span>
-          {meta ? <span className={styles.meta}>{meta}</span> : null}
+          {/* The status sits under the title, so a long title is never squeezed to «Публикация от…». */}
+          {status || meta ? (
+            <span className={styles.second}>
+              {status ? <span className={styles.status}>{status}</span> : null}
+              {meta ? <span className={styles.meta}>{meta}</span> : null}
+            </span>
+          ) : null}
           {warning ? (
             <span className={styles.warning}>
               <Icon name="alert" size={14} />
