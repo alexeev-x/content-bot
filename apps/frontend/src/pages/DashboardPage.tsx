@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
 import { useDocumentTitle } from '../app/use-document-title';
@@ -13,6 +14,7 @@ import {
   type ServiceRow
 } from '../features/dashboard';
 import { destinationsInfiniteQueryOptions } from '../features/destinations';
+import { MediaPanel, MediaThumb } from '../features/media';
 import { PublicationDrawer, publicationQueryOptions } from '../features/publications';
 import { useOwnerTimezone } from '../features/owner-settings';
 import { ownerDayRange, utcOffsetLabel } from '../shared/lib/owner-timezone';
@@ -40,6 +42,7 @@ export function DashboardPage({ pollMs, openPublicationId, onOpenPublicationChan
   const checks = [...service.checks, bot];
   const zoneNote = `${timezone}, ${utcOffsetLabel(now, timezone)}`;
   const layout = useLayoutEditing();
+  const [openMedia, setOpenMedia] = useState<{ id: string; fileName: string } | null>(null);
   const phone = useMediaQuery('(max-width: 859px)');
   const destinations = useInfiniteQuery(destinationsInfiniteQueryOptions({ enabled: true }));
   const destinationList = destinations.data?.pages.flatMap((page) => page.items);
@@ -79,7 +82,8 @@ export function DashboardPage({ pollMs, openPublicationId, onOpenPublicationChan
     },
     onOpenErrors: () => void navigate({ to: '/publications', search: { view: 'errors' } }),
     onOpenPost: (id) => void navigate({ to: '/posts/$id', params: { id } }),
-    onOpenMedia: () => void navigate({ to: '/media' }),
+    onOpenMedia: (media) => setOpenMedia(media),
+    renderMediaPreview: (media) => <MediaThumb mediaId={media.id} fileName={media.fileName} />,
     channels,
     layout
   };
@@ -114,6 +118,12 @@ export function DashboardPage({ pollMs, openPublicationId, onOpenPublicationChan
         }
       />
       <Dashboard {...bindings} />
+      <MediaPanel
+        media={openMedia}
+        onClose={() => setOpenMedia(null)}
+        onOpenPost={(id) => void navigate({ to: '/posts/$id', params: { id } })}
+        onOpenLibrary={(id) => void navigate({ to: '/media', search: { id } })}
+      />
       <PublicationDrawer
         timezone={timezone}
         publicationId={openPublicationId ?? null}

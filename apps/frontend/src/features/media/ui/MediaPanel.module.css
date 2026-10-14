@@ -1,0 +1,46 @@
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+.usage {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+.heading {
+  margin: 0;
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-semibold);
+}
+.group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+.groupTitle {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+}
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.quiet {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+.thumb {
+  display: block;
+  overflow: hidden;
+  width: 100%;
+  max-width: 320px;
+  border-radius: var(--radius-2);
+}

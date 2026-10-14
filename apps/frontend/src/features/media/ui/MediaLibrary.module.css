@@ -122,6 +122,17 @@
   border-radius: var(--radius-1);
   background: var(--color-surface-1);
 }
+/* With a mouse the «⋯» shows on hover or focus only, so a grid of files is not a grid of buttons; touch keeps it. */
+@media (hover: hover) and (pointer: fine) {
+  .cardMenu {
+    opacity: 0;
+    transition: opacity var(--motion-fast) ease;
+  }
+  .card:hover .cardMenu,
+  .card:focus-within .cardMenu {
+    opacity: 1;
+  }
+}
 .card:not(:hover):not(:focus-within):not([data-selected]) .check {
   opacity: 0;
 }

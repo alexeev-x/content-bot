@@ -9,6 +9,12 @@
   width: min(380px, calc(100vw - 2 * var(--space-4)));
   outline: none;
 }
+/* An open side panel owns the right edge (its footer holds the actions): toasts move to its left. */
+@media (min-width: 860px) {
+  :global(body:has([data-drawer='side'])) .region {
+    right: calc(min(480px, 100%) + var(--space-4));
+  }
+}
 /* Above the bottom tab bar on narrow screens. */
 @media (max-width: 859px) {
   .region {

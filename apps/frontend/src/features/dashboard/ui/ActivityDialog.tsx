@@ -1,6 +1,7 @@
 import type { ActivityItemDto } from '@alexeev/contracts';
+import type { ReactNode } from 'react';
 import { formatClock } from '../../../shared/lib/clock';
-import { Button, Dialog, Icon } from '../../../shared/ui';
+import { Button, Drawer, Icon, useMediaQuery } from '../../../shared/ui';
 import { activityView } from '../model/activity-view';
 import { toneStyle } from '../model/tone';
 import styles from './ActivityDialog.module.css';
@@ -13,17 +14,29 @@ type Props = {
   timezone: string;
   onOpenPost: (postId: string) => void;
   onOpenPublication: (publicationId: string) => void;
-  onOpenMedia: () => void;
+  onOpenMedia: (media: { id: string; fileName: string }) => void;
+  /** The page draws a file's preview (Медиа owns private file access); none when it is not given. */
+  renderMediaPreview?: ((media: { id: string; fileName: string }) => ReactNode) | undefined;
 };
 
 /** What happened, when, by whom and where it leads: each event with its links to the post, the publication or Медиа. */
-export function ActivityDialog({ items, onClose, timezone, onOpenPost, onOpenPublication, onOpenMedia }: Props) {
+export function ActivityDialog({
+  items,
+  onClose,
+  timezone,
+  onOpenPost,
+  onOpenPublication,
+  onOpenMedia,
+  renderMediaPreview
+}: Props) {
+  const narrow = useMediaQuery('(max-width: 859px)');
   const open = (go: () => void) => {
     onClose();
     go();
   };
   return (
-    <Dialog
+    <Drawer
+      variant={narrow ? 'bottom' : 'side'}
       isOpen={items !== null}
       onOpenChange={(isOpen) => {
         if (!isOpen) onClose();
@@ -42,6 +55,9 @@ export function ActivityDialog({ items, onClose, timezone, onOpenPost, onOpenPub
               <div className={styles.text}>
                 <strong className={styles.what}>{view.text}</strong>
                 {view.subject ? <span className={styles.subject}>«{view.subject}»</span> : null}
+                {item.entityType === 'media' && item.action !== 'media.delete' && item.title && renderMediaPreview
+                  ? renderMediaPreview({ id: item.entityId, fileName: item.title })
+                  : null}
                 <dl className={styles.facts}>
                   <div>
                     <dt>{copy.activity.when}</dt>
@@ -79,8 +95,15 @@ export function ActivityDialog({ items, onClose, timezone, onOpenPost, onOpenPub
                       {copy.activity.openPost}
                     </Button>
                   ) : null}
-                  {item.entityType === 'media' && item.action !== 'media.delete' ? (
-                    <Button size="sm" variant="secondary" onPress={() => open(onOpenMedia)}>
+                  {item.entityType === 'media' && item.action !== 'media.delete' && item.title ? (
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      onPress={() => {
+                        const media = { id: item.entityId, fileName: item.title ?? '' };
+                        open(() => onOpenMedia(media));
+                      }}
+                    >
                       {copy.activity.openMedia}
                     </Button>
                   ) : null}
@@ -93,6 +116,6 @@ export function ActivityDialog({ items, onClose, timezone, onOpenPost, onOpenPub
           );
         })}
       </ul>
-    </Dialog>
+    </Drawer>
   );
 }

@@ -1,6 +1,6 @@
 import type { ActivityItemDto, DashboardDto } from '@alexeev/contracts';
 import { useQuery, type UseQueryResult } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { dayActivityQueryOptions } from '../api/activity-queries';
 import { ApiError } from '../../../shared/api/http-client';
 import { classifyApiError } from '../../../shared/api/error-kind';
@@ -39,7 +39,8 @@ export type PageBindings = {
   channels: readonly ChannelRow[] | undefined;
   /** Links from the activity dialog. */
   onOpenPost: (postId: string) => void;
-  onOpenMedia: () => void;
+  onOpenMedia: (media: { id: string; fileName: string }) => void;
+  renderMediaPreview?: ((media: { id: string; fileName: string }) => ReactNode) | undefined;
   /** The owner's layout and its edit mode (`useLayoutEditing`). */
   layout: LayoutEditing;
 };
@@ -60,6 +61,7 @@ export function Dashboard({
   channels,
   onOpenPost,
   onOpenMedia,
+  renderMediaPreview,
   layout
 }: PageBindings) {
   const today = useTodayRange(timezone);
@@ -193,6 +195,7 @@ export function Dashboard({
         onOpenPost={onOpenPost}
         onOpenPublication={onOpenPublication}
         onOpenMedia={onOpenMedia}
+        renderMediaPreview={renderMediaPreview}
       />
     </>
   );

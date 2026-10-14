@@ -98,10 +98,12 @@ function itemMeta(item: MediaLibraryItemDto): string {
 /** Delete is always offered: the dialog reads where the file is used and explains what will (not) happen. */
 function ItemMenu({
   item,
+  onOpen,
   onDelete,
   className
 }: {
   item: MediaLibraryItemDto;
+  onOpen: () => void;
   onDelete: () => void;
   className?: string;
 }) {
@@ -109,8 +111,12 @@ function ItemMenu({
     <span className={className}>
       <Menu
         label={`Действия для ${item.fileName}`}
-        items={[{ id: 'delete', label: 'Удалить', icon: 'trash', tone: 'danger' }]}
+        items={[
+          { id: 'open', label: 'Открыть', icon: 'eye' },
+          { id: 'delete', label: 'Удалить', icon: 'trash', tone: 'danger' }
+        ]}
         onAction={(id) => {
+          if (id === 'open') onOpen();
           if (id === 'delete') onDelete();
         }}
       />
@@ -143,7 +149,7 @@ function MediaCard({
       <span className={styles.check}>
         <Checkbox aria-label={`Выбрать ${item.fileName}`} isSelected={selected} onChange={onToggle} />
       </span>
-      <ItemMenu item={item} onDelete={onDelete} className={styles.cardMenu} />
+      <ItemMenu item={item} onOpen={onOpen} onDelete={onDelete} className={styles.cardMenu} />
     </li>
   );
 }
@@ -205,7 +211,7 @@ function MediaList({
             isSelected={selected.has(item.id)}
             onChange={(checked) => onToggle(item, checked)}
           />
-          <ItemMenu item={item} onDelete={() => onDelete(item)} />
+          <ItemMenu item={item} onOpen={() => onOpen(item)} onDelete={() => onDelete(item)} />
         </li>
       ))}
     </ul>
@@ -318,20 +324,12 @@ function Details({
               <dd>{formatBytes(item.sizeBytes)}</dd>
             </div>
             <div className={styles.fact}>
-              <dt>Формат</dt>
-              <dd>{item.contentType}</dd>
-            </div>
-            <div className={styles.fact}>
               <dt>Размер изображения</dt>
               <dd>{item.width && item.height ? `${item.width} × ${item.height}` : '—'}</dd>
             </div>
             <div className={styles.fact}>
               <dt>Добавлен</dt>
               <dd>{formatDate(item.createdAt)}</dd>
-            </div>
-            <div className={styles.fact}>
-              <dt>Совпадения по содержимому</dt>
-              <dd>{item.duplicateCount}</dd>
             </div>
             <div className={styles.fact}>
               <dt>Используется в постах</dt>
@@ -351,7 +349,7 @@ function Details({
                 ))}
               </ul>
             ) : (
-              <p className={styles.meta}>Нет текущих постов. Файл может храниться в истории черновика.</p>
+              <p className={styles.meta}>Файл пока не прикреплён ни к одному посту.</p>
             )}
             {item.usageCount > item.usages.length ? (
               <p className={styles.meta}>
@@ -617,15 +615,14 @@ export function MediaLibrary({ searchState, onSearchState, onCreatePost, onLogin
                     onChange={setSearchInput}
                   />
                 </div>
-                {narrow ? null : (
-                  <Select
-                    label="Использование"
-                    inlineLabel
-                    options={USAGE_OPTIONS}
-                    value={filters.usage}
-                    onChange={(value) => applyUsage(value as MediaLibraryUsageFilter)}
-                  />
-                )}
+                {/* One filter row on every screen: the usage choice is a compact select next to the search. */}
+                <Select
+                  label="Использование"
+                  inlineLabel
+                  options={USAGE_OPTIONS}
+                  value={filters.usage}
+                  onChange={(value) => applyUsage(value as MediaLibraryUsageFilter)}
+                />
                 {narrow ? null : (
                   <div className={styles.toolbarEnd}>
                     <SegmentedControl
@@ -637,17 +634,6 @@ export function MediaLibrary({ searchState, onSearchState, onCreatePost, onLogin
                   </div>
                 )}
               </div>
-              {narrow ? (
-                <div className={styles.chips}>
-                  <SegmentedControl
-                    label="Использование"
-                    options={USAGE_OPTIONS}
-                    value={filters.usage}
-                    onChange={(value) => applyUsage(value as MediaLibraryUsageFilter)}
-                    fullWidth
-                  />
-                </div>
-              ) : null}
               <div className={styles.content}>
                 <StaleRegion busy={switching}>{body}</StaleRegion>
               </div>

@@ -27,6 +27,7 @@ export function Drawer({ isOpen, onOpenChange, title, meta, children, footer, va
       onOpenChange={onOpenChange}
       isDismissable
       data-variant={variant}
+      data-drawer={variant}
       className={styles.overlay}
     >
       <Modal className={styles.modal}>
