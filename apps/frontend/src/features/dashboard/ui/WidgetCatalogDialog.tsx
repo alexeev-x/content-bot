@@ -23,7 +23,10 @@ const ICONS: Record<WidgetKind, IconName> = {
   'kpi-sent': 'check-circle',
   'kpi-attention': 'alert',
   'kpi-next': 'clock',
-  activity: 'list'
+  activity: 'list',
+  'schedule-gaps': 'calendar',
+  'source-inbox': 'bell',
+  preflight: 'check-circle'
 };
 
 /**

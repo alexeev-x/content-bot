@@ -1,11 +1,20 @@
 import { queryOptions } from '@tanstack/react-query';
-import { getDashboard, getNewestDrafts, getWeekPublications, type DayRange } from './dashboard-api';
+import {
+  getDashboard,
+  getNewestDrafts,
+  getPlannedPublications,
+  getSourceInbox,
+  getWeekPublications,
+  type DayRange
+} from './dashboard-api';
 
 const dashboardKeys = {
   all: ['dashboard'] as const,
   day: (range: DayRange) => [...dashboardKeys.all, range.from, range.to] as const,
   week: (range: DayRange) => [...dashboardKeys.all, 'week', range.from, range.to] as const,
-  drafts: () => [...dashboardKeys.all, 'drafts'] as const
+  drafts: () => [...dashboardKeys.all, 'drafts'] as const,
+  planned: (range: DayRange) => [...dashboardKeys.all, 'planned', range.from, range.to] as const,
+  inbox: (status: string) => [...dashboardKeys.all, 'inbox', status] as const
 };
 
 const DASHBOARD_POLL_MS = 60_000;
@@ -39,5 +48,23 @@ export function draftsQueryOptions() {
     queryKey: dashboardKeys.drafts(),
     queryFn: ({ signal }) => getNewestDrafts(signal),
     staleTime: 30_000
+  });
+}
+
+export function plannedQueryOptions(range: DayRange, pollMs: number = DASHBOARD_POLL_MS) {
+  return queryOptions({
+    queryKey: dashboardKeys.planned(range),
+    queryFn: ({ signal }) => getPlannedPublications(range, signal),
+    staleTime: 30_000,
+    refetchInterval: pollMs
+  });
+}
+
+export function sourceInboxQueryOptions(status: 'new' | 'drafted') {
+  return queryOptions({
+    queryKey: dashboardKeys.inbox(status),
+    queryFn: ({ signal }) => getSourceInbox(status, signal),
+    staleTime: 60_000,
+    refetchInterval: DASHBOARD_POLL_MS
   });
 }

@@ -19,7 +19,6 @@
   border-radius: var(--radius-3);
   background: var(--color-surface-2);
   box-shadow: var(--shadow-card);
-  opacity: calc(1 - var(--depth) * 0.12);
 }
 .foot {
   display: flex;

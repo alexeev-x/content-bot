@@ -14,7 +14,10 @@ import { DayTimeline } from './DayTimeline';
 import { Drafts } from './Drafts';
 import { KpiTile } from './KpiTile';
 import { NextUp } from './NextUp';
+import { Preflight } from './Preflight';
 import { RecentBubbles } from './RecentBubbles';
+import { ScheduleGaps } from './ScheduleGaps';
+import { SourceInbox } from './SourceInbox';
 import { SystemLights } from './SystemLights';
 import { WeekBars } from './WeekBars';
 import type { WidgetEnv } from './widget-env';
@@ -85,6 +88,21 @@ export function renderWidget(item: LayoutItem, env: Omit<WidgetEnv, 'phone'>, ph
       );
     case 'system':
       return <SystemLights services={env.services} />;
+    case 'schedule-gaps':
+      return <ScheduleGaps now={now} timezone={timezone} onOpenDay={env.onOpenDay} onNewPost={env.onNewPost} />;
+    case 'source-inbox':
+      return <SourceInbox now={now} />;
+    case 'preflight':
+      return (
+        <Preflight
+          today={dashboard?.today}
+          upcoming={dashboard?.upcoming}
+          channels={env.channels}
+          now={now}
+          timezone={timezone}
+          onOpenPublication={env.onOpenPublication}
+        />
+      );
     case 'activity':
       return <ActivityFeed timezone={timezone} now={now} onOpen={env.onOpenActivity} />;
     case 'channels':

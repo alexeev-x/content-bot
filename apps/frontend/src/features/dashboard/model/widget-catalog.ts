@@ -14,7 +14,10 @@ export type WidgetKind =
   | 'kpi-sent'
   | 'kpi-attention'
   | 'kpi-next'
-  | 'activity';
+  | 'activity'
+  | 'schedule-gaps'
+  | 'source-inbox'
+  | 'preflight';
 
 /** Column spans on the 12-column grid of a wide screen. */
 export type WidgetWidth = 3 | 4 | 6 | 8 | 12;
@@ -98,6 +101,24 @@ export const CATALOG: Record<WidgetKind, CatalogEntry> = {
     description: 'Сколько пунктов требует внимания.',
     widths: [3, 4, 6],
     defaultWidth: 3
+  },
+  'schedule-gaps': {
+    title: 'Пробелы в расписании',
+    description: 'Семь ближайших дней: где пусто, туда можно запланировать пост.',
+    widths: [6, 8, 12],
+    defaultWidth: 6
+  },
+  'source-inbox': {
+    title: 'Входящие от источников',
+    description: 'Новые события Dota и автоматические черновики, которые ждут решения.',
+    widths: [4, 6, 8],
+    defaultWidth: 4
+  },
+  preflight: {
+    title: 'Проверка перед отправкой',
+    description: 'Ближайшие отправки и то, что может им помешать: канал, права бота.',
+    widths: [4, 6, 8],
+    defaultWidth: 4
   },
   activity: {
     title: 'Активность',

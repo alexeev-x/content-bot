@@ -28,7 +28,10 @@ export const dashboardWidgetTypeSchema = z.enum([
   'incidents',
   'system',
   'quick-actions',
-  'activity'
+  'activity',
+  'schedule-gaps',
+  'source-inbox',
+  'preflight'
 ]);
 export type DashboardWidgetType = z.infer<typeof dashboardWidgetTypeSchema>;
 

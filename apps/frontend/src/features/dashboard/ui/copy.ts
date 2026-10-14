@@ -3,6 +3,30 @@ import { pluralRu } from '../../../shared/lib/ru-format';
 // Copy of the dashboard widgets. Publication status labels are canonical in shared/lib/ru.ts (skill page-spec).
 export const copy = {
   loading: 'Загружаем обзор…',
+  gaps: {
+    title: 'Пробелы в расписании',
+    loading: 'Считаем ближайшие дни…',
+    full: 'На каждый из ближайших 7 дней что-то запланировано.',
+    summary: (empty: number) => `Пустых дней на неделе вперёд: ${empty}. Нажмите на пустой день, чтобы создать пост.`,
+    day: (label: string, count: number, word: string) => `${label}: ${count} ${word}`,
+    emptyDay: (label: string) => `${label}: ничего не запланировано, создать пост`
+  },
+  inbox: {
+    title: 'Входящие от источников',
+    all: 'Источники',
+    empty: 'Новых событий из источников нет',
+    summary: (count: number) => `Ждут решения: ${count}`,
+    drafted: 'Черновик'
+  },
+  preflight: {
+    title: 'Проверка перед отправкой',
+    empty: 'Ближайших отправок нет',
+    allClear: 'Ничто не мешает ближайшим отправкам.',
+    summary: (count: number) => `Требуют внимания: ${count}`,
+    ready: 'готово к отправке',
+    channelOff: 'канал выключен или удалён',
+    botRights: 'у бота нет прав в канале'
+  },
   activity: {
     title: 'Активность',
     filter: 'Фильтр активности',
