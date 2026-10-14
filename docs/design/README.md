@@ -10,7 +10,7 @@
 Publishing-safety rules in `docs/BACKEND_ARCHITECTURE.md` always win. Product scope is in `docs/PAGE_MAP.md`; AI/LLM functionality is not in scope.
 
 ## Visual rules
-- Content fills the width next to the sidebar (max `--measure-content`), not a narrow centred column.
+- Content column is centred, max `--measure-content` (1200 px), with side margins on large monitors (owner, 14.10.2026).
 - Layered near-neutral greys: page `--color-bg`, panels `--color-surface-1`, hover/header strips `--color-surface-2`. Decorative borders are hairlines (`--color-border-subtle`); only controls get `--color-border-strong`.
 - Panels: a title row (regular-weight title, optional link/arrow on the right), then rows or metrics; no nested cards.
 - Tables are the core surface: left-aligned, 44 px rows, one line per cell where possible, muted header labels.

@@ -12,6 +12,14 @@ type Options = {
 };
 
 /** Choosing a file is the decision: uploads start at once, one after another (each advances the draft revision). */
+// A pasted screenshot arrives as «image.png» every time; a timestamped name keeps uploads distinguishable.
+function withPastedName(file: File, index: number): File {
+  if (file.name && file.name !== 'image.png' && file.name !== 'image.jpeg') return file;
+  const extension = file.type.split('/')[1]?.replace('jpeg', 'jpg') ?? 'png';
+  const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-');
+  return new File([file], `Вставка ${stamp}${index ? `-${index + 1}` : ''}.${extension}`, { type: file.type });
+}
+
 export function useMediaUpload(state: MediaState, { inputRef, closeSource }: Options) {
   const {
     postId,
@@ -50,15 +58,26 @@ export function useMediaUpload(state: MediaState, { inputRef, closeSource }: Opt
     selectFilesRef.current = selectFiles;
   });
   useEffect(() => {
-    // Pasting an image anywhere on the editor page attaches it; plain-text paste is left to the editor.
+    // Pasting an image or video anywhere on the editor page attaches it; plain-text paste is left to the editor.
+    // Capture phase: the text editor handles paste itself and would otherwise swallow a copied picture.
+    // Browsers put a copied image in `items` (kind 'file') and not always in `files`, so both are read.
     const onPaste = (event: ClipboardEvent) => {
-      const files = Array.from(event.clipboardData?.files ?? []).filter((file) => file.type.startsWith('image/'));
+      const data = event.clipboardData;
+      if (!data) return;
+      const fromItems = Array.from(data.items)
+        .filter((item) => item.kind === 'file')
+        .map((item) => item.getAsFile())
+        .filter((file): file is File => file !== null);
+      const files = (fromItems.length > 0 ? fromItems : Array.from(data.files)).filter(
+        (file) => file.type.startsWith('image/') || file.type.startsWith('video/')
+      );
       if (files.length === 0) return;
       event.preventDefault();
-      void selectFilesRef.current(files);
+      event.stopPropagation();
+      void selectFilesRef.current(files.map((file, index) => withPastedName(file, index)));
     };
-    document.addEventListener('paste', onPaste);
-    return () => document.removeEventListener('paste', onPaste);
+    document.addEventListener('paste', onPaste, true);
+    return () => document.removeEventListener('paste', onPaste, true);
   }, []);
 
   useEffect(() => {

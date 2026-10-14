@@ -68,8 +68,8 @@
   /* Reading width a page opts into with the .reading-width class. */
   --measure-reading: 760px;
   --measure-dashboard: 1280px;
-  /* Widest content column of the shell: keeps wide tables readable on large monitors. */
-  --measure-content: 1680px;
+  /* Widest content column of the shell (owner, 14.10.2026): centred with side margins on large monitors. */
+  --measure-content: 1200px;
   --size-nav: 64px;
   /* Media: strip/grid tile, list thumbnail, queue thumbnail (post editor). */
   --size-media-tile: 124px;
