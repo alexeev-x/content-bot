@@ -1,6 +1,6 @@
 import type { ActivityItemDto, DashboardPublicationDto, DashboardSentDto, PostDto } from '@alexeev/contracts';
 import { useInfiniteQuery } from '@tanstack/react-query';
-import { useState, type CSSProperties } from 'react';
+import { useState } from 'react';
 import { Button as AriaButton } from 'react-aria-components';
 import { formatClock } from '../../../shared/lib/clock';
 import { relativeTimeRu } from '../../../shared/lib/ru-format';
@@ -8,7 +8,7 @@ import { Icon, Sparkline } from '../../../shared/ui';
 import { activityFeedQueryOptions } from '../api/activity-queries';
 import { activityView } from '../model/activity-view';
 import type { AttentionRow } from '../model/attention-rows';
-import { nextPublication, untilShort } from '../model/format';
+import { untilShort } from '../model/format';
 import type { ServiceRow } from '../model/service-rows';
 import { toneStyle } from '../model/tone';
 import { countByDay, weekDays } from '../model/week';
@@ -17,85 +17,6 @@ import styles from './LabWidgets.module.css';
 // DEV design trial (owner, 14.10.2026): alternative looks for each Обзор widget, shown side by side in /lab.
 
 const Quiet = ({ children }: { children: string }) => <p className={styles.quiet}>{children}</p>;
-
-/* ===== Следующая публикация ===== */
-
-export function NextCountdown({
-  today,
-  upcoming,
-  recent,
-  now,
-  timezone,
-  onOpen
-}: {
-  today: readonly DashboardPublicationDto[];
-  upcoming: readonly DashboardPublicationDto[];
-  recent: readonly DashboardSentDto[];
-  now: Date;
-  timezone: string;
-  onOpen: (id: string) => void;
-}) {
-  const next = nextPublication(today, upcoming, now);
-  if (!next) return <Quiet>Ничего не запланировано</Quiet>;
-  const last = recent[0] ? Date.parse(recent[0].sentAt) : now.getTime() - 3_600_000;
-  const total = Math.max(1, Date.parse(next.scheduledAt) - last);
-  const progress = Math.min(1, Math.max(0, (now.getTime() - last) / total));
-  return (
-    <AriaButton className={styles.countdown} onPress={() => onOpen(next.publicationId)}>
-      <span className={styles.countdownValue}>{untilShort(next.scheduledAt, now)}</span>
-      <span className={styles.countdownTitle}>{next.postTitle}</span>
-      <span className={styles.meta}>
-        {next.destinationName} · {formatClock(next.scheduledAt, timezone)}
-      </span>
-      <span className={styles.progress} style={{ '--p': progress } as CSSProperties} aria-hidden="true" />
-    </AriaButton>
-  );
-}
-
-export function NextThree({
-  today,
-  upcoming,
-  now,
-  timezone,
-  onOpen
-}: {
-  today: readonly DashboardPublicationDto[];
-  upcoming: readonly DashboardPublicationDto[];
-  now: Date;
-  timezone: string;
-  onOpen: (id: string) => void;
-}) {
-  const ahead = [...today, ...upcoming]
-    .filter(
-      (item) =>
-        (item.status === 'scheduled' || item.status === 'queued') && Date.parse(item.scheduledAt) >= now.getTime()
-    )
-    .filter((item, index, all) => all.findIndex((other) => other.publicationId === item.publicationId) === index)
-    .sort((a, b) => a.scheduledAt.localeCompare(b.scheduledAt))
-    .slice(0, 3);
-  if (ahead.length === 0) return <Quiet>Ничего не запланировано</Quiet>;
-  return (
-    <ol className={styles.list}>
-      {ahead.map((item, index) => (
-        <li key={item.publicationId}>
-          <AriaButton
-            className={styles.row}
-            data-first={index === 0 || undefined}
-            onPress={() => onOpen(item.publicationId)}
-          >
-            <span className={styles.rowLead}>через {untilShort(item.scheduledAt, now)}</span>
-            <span className={styles.rowText}>
-              <span className={styles.rowTitle}>{item.postTitle}</span>
-              <span className={styles.meta}>
-                {item.destinationName} · {formatClock(item.scheduledAt, timezone)}
-              </span>
-            </span>
-          </AriaButton>
-        </li>
-      ))}
-    </ol>
-  );
-}
 
 /* ===== Требует внимания ===== */
 

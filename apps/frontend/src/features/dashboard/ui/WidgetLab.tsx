@@ -12,8 +12,6 @@ import {
   DraftList,
   DraftTiles,
   KpiStrip,
-  NextCountdown,
-  NextThree,
   RecentHero,
   RecentList,
   SystemIcons,
@@ -67,41 +65,6 @@ export function WidgetLab({ env }: { env: Omit<WidgetEnv, 'now' | 'phone'> }) {
   const weekItems = env.week?.data?.items;
   const drafts = env.drafts?.data?.items;
   const groups: Group[] = [
-    {
-      kind: 'upcoming',
-      title: 'Следующая публикация',
-      variants: [
-        {
-          label: 'Б · обратный отсчёт',
-          body: dashboard ? (
-            <NextCountdown
-              today={today}
-              upcoming={upcoming}
-              recent={recent}
-              now={now}
-              timezone={env.timezone}
-              onOpen={env.onOpenPublication}
-            />
-          ) : (
-            loading
-          )
-        },
-        {
-          label: 'В · три ближайших',
-          body: dashboard ? (
-            <NextThree
-              today={today}
-              upcoming={upcoming}
-              now={now}
-              timezone={env.timezone}
-              onOpen={env.onOpenPublication}
-            />
-          ) : (
-            loading
-          )
-        }
-      ]
-    },
     {
       kind: 'attention',
       title: 'Требует внимания',

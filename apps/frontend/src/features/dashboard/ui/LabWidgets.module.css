@@ -36,16 +36,12 @@
 .row[data-hovered] {
   background: var(--color-surface-2);
 }
-.row[data-first] {
-  background: var(--color-accent-soft);
-}
 .row[data-focus-visible],
 .tile[data-focus-visible],
 .weekCard[data-focus-visible],
 .draftTile[data-focus-visible],
 .heroBubble[data-focus-visible],
 .pill[data-focus-visible],
-.countdown[data-focus-visible],
 .strip[data-focus-visible],
 .linkish[data-focus-visible] {
   outline: 2px solid var(--color-focus-ring);
@@ -71,38 +67,6 @@
   font-weight: var(--font-weight-medium);
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.countdown {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
-  width: 100%;
-  padding: var(--space-3);
-  border: 0;
-  border-radius: var(--radius-3);
-  background: var(--color-accent-soft);
-  color: var(--color-text);
-  font: inherit;
-  text-align: start;
-  cursor: pointer;
-}
-.countdownValue {
-  color: var(--color-accent-text);
-  font-size: var(--font-size-display);
-  font-variant-numeric: tabular-nums;
-  font-weight: var(--font-weight-semibold);
-  line-height: 1.1;
-}
-.countdownTitle {
-  font-size: var(--font-size-md);
-  font-weight: var(--font-weight-semibold);
-}
-.progress {
-  height: 6px;
-  margin-top: var(--space-2);
-  border-radius: var(--radius-pill);
-  background: linear-gradient(to right, var(--color-accent) calc(var(--p) * 100%), var(--color-surface-1) 0);
 }
 
 .tiles {
