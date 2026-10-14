@@ -365,21 +365,23 @@ export async function mockApi(page: Page): Promise<void> {
     json(
       route,
       page_(
-        ['Турнир.jpg', 'Патч 7.37.png', 'Хайлайты.mp4', 'Обложка.jpg'].map((fileName, index) => ({
-          id: `55555555-5555-4555-8555-${String(index).padStart(12, '0')}`,
-          kind: fileName.endsWith('.mp4') ? 'video' : 'photo',
-          fileName,
-          contentType: fileName.endsWith('.mp4') ? 'video/mp4' : 'image/jpeg',
-          sizeBytes: 240_000 + index * 1000,
-          width: 1280,
-          height: 720,
-          durationMs: fileName.endsWith('.mp4') ? 42_000 : null,
-          createdAt: T,
-          duplicateCount: 1,
-          usageCount: index % 2,
-          deletable: index % 2 === 0,
-          usages: []
-        }))
+        ['Character_gesturing_middle_finger_20261012083017.mp4', 'Патч 7.37.png', 'Хайлайты.mp4', 'Обложка.jpg'].map(
+          (fileName, index) => ({
+            id: `55555555-5555-4555-8555-${String(index).padStart(12, '0')}`,
+            kind: fileName.endsWith('.mp4') ? 'video' : 'photo',
+            fileName,
+            contentType: fileName.endsWith('.mp4') ? 'video/mp4' : 'image/jpeg',
+            sizeBytes: 240_000 + index * 1000,
+            width: 1280,
+            height: 720,
+            durationMs: fileName.endsWith('.mp4') ? 42_000 : null,
+            createdAt: T,
+            duplicateCount: 1,
+            usageCount: index % 2,
+            deletable: index % 2 === 0,
+            usages: []
+          })
+        )
       )
     )
   );

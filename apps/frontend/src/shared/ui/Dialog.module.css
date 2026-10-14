@@ -56,17 +56,23 @@
   padding: var(--space-5) var(--space-5) var(--space-3);
 }
 .title {
+  min-width: 0;
   margin: 0;
   font-size: var(--font-size-lg);
   line-height: var(--line-height-heading);
+  /* Long file names have no spaces: break anywhere instead of pushing the frame wider than the screen. */
+  overflow-wrap: anywhere;
 }
 .description {
   flex: none;
+  overflow-wrap: anywhere;
   padding: 0 var(--space-5) var(--space-3);
   color: var(--color-text-muted);
 }
 .body {
   display: flex;
+  min-width: 0;
+  overflow-wrap: anywhere;
   flex: 1;
   flex-direction: column;
   gap: var(--space-4);
