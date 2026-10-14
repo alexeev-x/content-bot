@@ -1,6 +1,4 @@
-// One source for the grid geometry: the CSS grid of the view mode and react-grid-layout in the edit mode both
-// take these numbers, so a widget has the same box in both and nothing jumps when the owner starts editing.
-// (react-grid-layout needs pixels, so they cannot be CSS tokens; GAP equals --space-4.)
+// Grid geometry of the fixed Обзор layout; GAP equals --space-4.
 export const ROW_HEIGHT = 56;
 export const GAP = 16;
 /** The phone layout: the single breakpoint of the shell (tab bar, one column). */

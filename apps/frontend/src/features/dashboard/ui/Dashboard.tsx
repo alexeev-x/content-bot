@@ -1,5 +1,4 @@
-import type { DashboardDto, DashboardWidget } from '@alexeev/contracts';
-import type { ReactNode } from 'react';
+import type { DashboardDto } from '@alexeev/contracts';
 import type { UseQueryResult } from '@tanstack/react-query';
 import { ApiError } from '../../../shared/api/http-client';
 import { classifyApiError } from '../../../shared/api/error-kind';
@@ -7,11 +6,9 @@ import type { StatusCheck } from '../../../shared/lib/status-check';
 import { Banner, Button, ErrorState } from '../../../shared/ui';
 import { buildView } from '../model/build-view';
 import type { ServiceRow } from '../model/service-rows';
-import { readsDashboard } from '../model/widget-catalog';
 import { copy } from './copy';
 import styles from './Dashboard.module.css';
 import { DashboardLayout } from './DashboardLayout';
-import { EmptyWidgets } from './EmptyWidgets';
 import type { WidgetEnv } from './widget-env';
 
 export type PageBindings = {
@@ -27,29 +24,10 @@ export type PageBindings = {
   onOpenPublication: (publicationId: string) => void;
   onNewPost: () => void;
   onOpenPosts: () => void;
-  onOpenPost: (postId: string) => void;
-  onAddChannel: () => void;
-  /** Quick actions do their work in place: the page opens its own dialogs (features never import each other). */
-  onQuickNewPost: () => void;
-  onQuickPublish: () => void;
-  onQuickAddChannel: () => void;
 };
 
-type Props = PageBindings & {
-  widgets: readonly DashboardWidget[];
-  /** True only while no saved owner layout exists. */
-  defaultOverview?: boolean;
-  /** Starts editing with the default layout / with the catalog open; absent while no revision is known. */
-  onResetLayout?: () => void;
-  onAddWidget?: () => void;
-  /** Shown above the grid (e.g. the layout conflict banner). */
-  notice?: ReactNode;
-};
-
-/** The view mode: the saved widgets, with the day summary read once for all the widgets that need it. */
+/** The fixed Обзор: the day summary is read once for all the widgets that need it. */
 export function Dashboard({
-  widgets,
-  defaultOverview = false,
   query,
   checks,
   services,
@@ -57,20 +35,10 @@ export function Dashboard({
   timezone,
   onOpenPublication,
   onNewPost,
-  onOpenPosts,
-  onOpenPost,
-  onAddChannel,
-  onQuickNewPost,
-  onQuickPublish,
-  onQuickAddChannel,
-  onResetLayout,
-  onAddWidget,
-  notice
-}: Props) {
-  const wantsDay = widgets.some((widget) => readsDashboard(widget.type));
-  const failed = wantsDay && !query.data && !query.isPending;
-  // A failed day summary replaces only the widgets that read it, never a block of zeros; the rest stay.
-  const visible = failed ? widgets.filter((widget) => !readsDashboard(widget.type)) : widgets;
+  onOpenPosts
+}: PageBindings) {
+  // A failed day summary replaces the widgets that read it with one error, never a block of zeros.
+  const failed = !query.data && !query.isPending;
 
   let view: WidgetEnv['view'];
   let failure = null;
@@ -94,7 +62,6 @@ export function Dashboard({
 
   const banner = (
     <>
-      {notice}
       {failure ? <div className={styles.failure}>{failure}</div> : null}
       {query.data && query.isRefetchError ? (
         <Banner
@@ -110,35 +77,14 @@ export function Dashboard({
     </>
   );
 
+  if (failure) return <div className={styles.root}>{banner}</div>;
+
   return (
-    <>
-      <DashboardLayout
-        widgets={visible}
-        defaultOverview={defaultOverview}
-        loading={wantsDay && query.isPending}
-        banner={banner}
-        zoneNote={zoneNote}
-        env={{
-          view,
-          services,
-          timezone,
-          skeleton: false,
-          onOpenPublication,
-          onNewPost,
-          onOpenPosts,
-          onOpenPost,
-          onAddChannel,
-          onQuickNewPost,
-          onQuickPublish,
-          onQuickAddChannel
-        }}
-      />
-      {widgets.length === 0 ? (
-        <EmptyWidgets
-          {...(onResetLayout ? { onReset: onResetLayout } : {})}
-          {...(onAddWidget ? { onAdd: onAddWidget } : {})}
-        />
-      ) : null}
-    </>
+    <DashboardLayout
+      loading={query.isPending}
+      banner={banner}
+      zoneNote={zoneNote}
+      env={{ view, services, timezone, onOpenPublication, onNewPost, onOpenPosts }}
+    />
   );
 }

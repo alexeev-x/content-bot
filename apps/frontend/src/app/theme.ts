@@ -22,7 +22,7 @@ export type Appearance = {
   customPresets: readonly CustomPresetDto[];
 };
 
-export const DEFAULT_APPEARANCE: Appearance = {
+const DEFAULT_APPEARANCE: Appearance = {
   themeMode: 'system',
   lightAccent: { kind: 'preset', id: 'cobalt' },
   darkAccent: { kind: 'preset', id: 'cobalt' },

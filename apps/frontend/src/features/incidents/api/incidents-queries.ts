@@ -1,6 +1,5 @@
 import type { IncidentDto } from '@alexeev/contracts';
-import { infiniteQueryOptions, queryOptions, useMutation, useQueryClient } from '@tanstack/react-query';
-import { nextCursor } from '../../../shared/api/query-string';
+import { queryOptions, useMutation, useQueryClient } from '@tanstack/react-query';
 import { listIncidents, resolveIncident, type IncidentFilters } from './incidents-api';
 
 const incidentKeys = {
@@ -12,17 +11,11 @@ const incidentKeys = {
 
 const INCIDENT_POLL_MS = 30_000;
 
-/**
- * Accumulating list behind «Показать ещё». `staleTime: 0` makes a return from the publication drawer refetch
- * (the reconciliation there closes the incident on the server), while the cached rows stay on screen.
- * Polling pauses in a hidden tab (TanStack's `refetchIntervalInBackground` stays false).
- */
-export function incidentsInfiniteQueryOptions(filters: IncidentFilters, pollMs: number = INCIDENT_POLL_MS) {
-  return infiniteQueryOptions({
-    queryKey: incidentKeys.list(filters),
-    queryFn: ({ pageParam, signal }) => listIncidents(filters, pageParam, signal),
-    initialPageParam: undefined as string | undefined,
-    getNextPageParam: nextCursor,
+/** First page of open incidents. `staleTime: 0` makes a return from the publication drawer refetch (reconciliation closes the incident on the server). */
+export function openIncidentsQueryOptions(pollMs: number = INCIDENT_POLL_MS) {
+  return queryOptions({
+    queryKey: incidentKeys.list({ state: 'open' }),
+    queryFn: ({ signal }) => listIncidents({ state: 'open' }, undefined, signal),
     staleTime: 0,
     refetchInterval: pollMs
   });

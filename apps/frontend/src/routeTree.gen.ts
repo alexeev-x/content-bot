@@ -10,10 +10,6 @@
 
 import { Route as rootRouteImport } from './routes/__root';
 import { Route as IndexRouteImport } from './routes/index';
-import { Route as _catalogRouteImport } from './routes/[_][_]catalog';
-import { Route as AnalyticsRouteImport } from './routes/analytics';
-import { Route as AutomationsRouteImport } from './routes/automations';
-import { Route as CalendarRouteImport } from './routes/calendar';
 import { Route as IncidentsRouteImport } from './routes/incidents';
 import { Route as LoginRouteImport } from './routes/login';
 import { Route as MediaRouteImport } from './routes/media';
@@ -33,26 +29,6 @@ import { Route as PostsIdPublishRouteImport } from './routes/posts/$id.publish';
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
-  getParentRoute: () => rootRouteImport,
-} as any);
-const _catalogRoute = _catalogRouteImport.update({
-  id: '/__catalog',
-  path: '/__catalog',
-  getParentRoute: () => rootRouteImport,
-} as any);
-const AnalyticsRoute = AnalyticsRouteImport.update({
-  id: '/analytics',
-  path: '/analytics',
-  getParentRoute: () => rootRouteImport,
-} as any);
-const AutomationsRoute = AutomationsRouteImport.update({
-  id: '/automations',
-  path: '/automations',
-  getParentRoute: () => rootRouteImport,
-} as any);
-const CalendarRoute = CalendarRouteImport.update({
-  id: '/calendar',
-  path: '/calendar',
   getParentRoute: () => rootRouteImport,
 } as any);
 const IncidentsRoute = IncidentsRouteImport.update({
@@ -133,10 +109,6 @@ const PostsIdPublishRoute = PostsIdPublishRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute;
-  '/__catalog': typeof _catalogRoute;
-  '/analytics': typeof AnalyticsRoute;
-  '/automations': typeof AutomationsRoute;
-  '/calendar': typeof CalendarRoute;
   '/incidents': typeof IncidentsRoute;
   '/login': typeof LoginRoute;
   '/media': typeof MediaRoute;
@@ -155,10 +127,6 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute;
-  '/__catalog': typeof _catalogRoute;
-  '/analytics': typeof AnalyticsRoute;
-  '/automations': typeof AutomationsRoute;
-  '/calendar': typeof CalendarRoute;
   '/incidents': typeof IncidentsRoute;
   '/login': typeof LoginRoute;
   '/media': typeof MediaRoute;
@@ -177,10 +145,6 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport;
   '/': typeof IndexRoute;
-  '/__catalog': typeof _catalogRoute;
-  '/analytics': typeof AnalyticsRoute;
-  '/automations': typeof AutomationsRoute;
-  '/calendar': typeof CalendarRoute;
   '/incidents': typeof IncidentsRoute;
   '/login': typeof LoginRoute;
   '/media': typeof MediaRoute;
@@ -201,10 +165,6 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath;
   fullPaths:
     | '/'
-    | '/__catalog'
-    | '/analytics'
-    | '/automations'
-    | '/calendar'
     | '/incidents'
     | '/login'
     | '/media'
@@ -223,10 +183,6 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo;
   to:
     | '/'
-    | '/__catalog'
-    | '/analytics'
-    | '/automations'
-    | '/calendar'
     | '/incidents'
     | '/login'
     | '/media'
@@ -244,10 +200,6 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
-    | '/__catalog'
-    | '/analytics'
-    | '/automations'
-    | '/calendar'
     | '/incidents'
     | '/login'
     | '/media'
@@ -267,10 +219,6 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute;
-  _catalogRoute: typeof _catalogRoute;
-  AnalyticsRoute: typeof AnalyticsRoute;
-  AutomationsRoute: typeof AutomationsRoute;
-  CalendarRoute: typeof CalendarRoute;
   IncidentsRoute: typeof IncidentsRoute;
   LoginRoute: typeof LoginRoute;
   MediaRoute: typeof MediaRoute;
@@ -289,34 +237,6 @@ declare module '@tanstack/react-router' {
       path: '/';
       fullPath: '/';
       preLoaderRoute: typeof IndexRouteImport;
-      parentRoute: typeof rootRouteImport;
-    };
-    '/__catalog': {
-      id: '/__catalog';
-      path: '/__catalog';
-      fullPath: '/__catalog';
-      preLoaderRoute: typeof _catalogRouteImport;
-      parentRoute: typeof rootRouteImport;
-    };
-    '/analytics': {
-      id: '/analytics';
-      path: '/analytics';
-      fullPath: '/analytics';
-      preLoaderRoute: typeof AnalyticsRouteImport;
-      parentRoute: typeof rootRouteImport;
-    };
-    '/automations': {
-      id: '/automations';
-      path: '/automations';
-      fullPath: '/automations';
-      preLoaderRoute: typeof AutomationsRouteImport;
-      parentRoute: typeof rootRouteImport;
-    };
-    '/calendar': {
-      id: '/calendar';
-      path: '/calendar';
-      fullPath: '/calendar';
-      preLoaderRoute: typeof CalendarRouteImport;
       parentRoute: typeof rootRouteImport;
     };
     '/incidents': {
@@ -460,10 +380,6 @@ const PostsIdRouteWithChildren =
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
-  _catalogRoute: _catalogRoute,
-  AnalyticsRoute: AnalyticsRoute,
-  AutomationsRoute: AutomationsRoute,
-  CalendarRoute: CalendarRoute,
   IncidentsRoute: IncidentsRoute,
   LoginRoute: LoginRoute,
   MediaRoute: MediaRoute,

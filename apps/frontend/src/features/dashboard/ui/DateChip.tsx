@@ -1,6 +1,6 @@
 import { Icon } from '../../../shared/ui';
 import { dateChipText } from '../model/format';
-import { useNow } from '../model/use-now';
+import { useNow } from '../../../shared/lib/use-now';
 import styles from './Dashboard.module.css';
 
 type Props = {

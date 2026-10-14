@@ -1,11 +1,9 @@
 import type { ReactNode } from 'react';
 import { Button } from './Button';
 import { Drawer } from './Drawer';
-import { Icon } from './Icon';
 import styles from './ListParts.module.css';
 import { PanelList } from './Panel';
 import { Skeleton } from './Skeleton';
-import { VisuallyHidden } from './VisuallyHidden';
 
 /** Phone skeleton rows: the same 72 px geometry as RowCard (tile, title, status, meta), so data arrival shifts nothing. */
 export function PhoneSkeletonRows({ count = 6, label }: { count?: number; label: string }) {
@@ -92,26 +90,6 @@ export function FilterSheet({
     >
       <div className={styles.sheetFields}>{children}</div>
     </Drawer>
-  );
-}
-
-export type FilterChip = { id: string; label: string };
-
-/** Echo of the applied filters: removable, shown only while a filter is on. Never navigation. */
-export function AppliedChips({ chips, onRemove }: { chips: readonly FilterChip[]; onRemove: (id: string) => void }) {
-  if (chips.length === 0) return null;
-  return (
-    <ul className={styles.chips} aria-label="Применённые фильтры">
-      {chips.map((chip) => (
-        <li key={chip.id}>
-          <button type="button" className={styles.chip} onClick={() => onRemove(chip.id)}>
-            {chip.label}
-            <Icon name="x" size={14} />
-            <VisuallyHidden>, убрать</VisuallyHidden>
-          </button>
-        </li>
-      ))}
-    </ul>
   );
 }
 

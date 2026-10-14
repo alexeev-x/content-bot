@@ -99,17 +99,6 @@ function SidebarNav({ incidentsCount, collapsed }: { incidentsCount: number; col
   );
 }
 
-/** Static sidebar for the dev catalog: same classes and nav as the real shell, no sticky positioning. */
-export function SidebarPreview({ collapsed }: { collapsed: boolean }) {
-  return (
-    <div className={styles.preview} data-sidebar={collapsed ? 'collapsed' : 'expanded'}>
-      <aside className={styles.side}>
-        <SidebarNav incidentsCount={2} collapsed={collapsed} />
-      </aside>
-    </div>
-  );
-}
-
 export function AppShell({
   children,
   incidentsCount = 0,
@@ -254,11 +243,6 @@ export function AppShell({
         >
           <Icon name="menu" size={22} />
           <span className={styles.linkLabel}>{ru.nav.more}</span>
-          {incidentsCount > 0 && secondary.some((item) => item.badge === 'incidents') ? (
-            <span className={styles.dot}>
-              <VisuallyHidden>{ru.nav.incidentsBadge(incidentsCount)}</VisuallyHidden>
-            </span>
-          ) : null}
         </AriaButton>
       </nav>
 

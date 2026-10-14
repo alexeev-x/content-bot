@@ -20,8 +20,8 @@ import { RouteSkeleton } from './RouteSkeleton';
 import menuStyles from './AccountMenu.module.css';
 import { SystemStatusSection, useSystemStatus } from './SystemStatus';
 
-// The sign-in page and the dev catalog use the full viewport: no navigation around them.
-const BARE_PATHS = ['/login', '/__catalog'];
+// The sign-in page uses the full viewport: no navigation around them.
+const BARE_PATHS = ['/login'];
 
 const applyServerAppearance = (value: Appearance) => applyAppearance(value);
 // The theme button shows its result before the server confirms; only the server answer is persisted.

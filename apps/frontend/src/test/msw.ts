@@ -46,8 +46,6 @@ export const handlers: HttpHandler[] = [
     HttpResponse.json(publication({ revision: 1, status: 'cancelled' }))
   ),
 
-  // Never saved: the Обзор applies its default layout.
-  http.get('*/api/v1/settings/dashboard-layout', () => HttpResponse.json({ revision: 0, widgets: [] })),
   http.get('*/api/v1/settings/operations', () => HttpResponse.json(ownerOperationsSettings())),
   http.put('*/api/v1/settings/operations', async ({ request }) => {
     const body = (await request.json()) as ReturnType<typeof ownerOperationsSettings>;

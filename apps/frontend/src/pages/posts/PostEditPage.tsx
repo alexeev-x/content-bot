@@ -1,9 +1,7 @@
-import type { PostDto, PublicationDto } from '@alexeev/contracts';
+import type { PostDto } from '@alexeev/contracts';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
 import { useState } from 'react';
-import { displayStatus, PublishDialog } from '../../features/publications';
-import { useOwnerTimezone } from '../../features/owner-settings';
 import {
   DeletePostsDialog,
   deleteBlockOf,
@@ -18,11 +16,11 @@ import {
 } from '../../features/posts';
 import { classifyApiError } from '../../shared/api/error-kind';
 import { ApiError } from '../../shared/api/http-client';
-import { Banner, Button, Card, ErrorState, Menu, Skeleton, StatusBadge } from '../../shared/ui';
+import { Banner, Button, Card, ErrorState, Menu, Skeleton } from '../../shared/ui';
 import { BackToPosts } from './BackToPosts';
 import { PostPublications } from './PostPublications';
 import styles from './PostPages.module.css';
-import { useDocumentTitle } from './use-document-title';
+import { useDocumentTitle } from '../../app/use-document-title';
 
 type Props = { id: string };
 
@@ -166,27 +164,9 @@ function LoadedPost({ post }: { post: PostDto }) {
 
 function PublishAction({ post }: { post: PostDto }) {
   const navigate = useNavigate();
-  const timezone = useOwnerTimezone();
-  const [isOpen, setOpen] = useState(false);
-  const [published, setPublished] = useState<PublicationDto | null>(null);
   return (
-    <>
-      <Button icon="send" onPress={() => void navigate({ to: '/posts/$id/publish', params: { id: post.id } })}>
-        {copy.publications.publish}
-      </Button>
-      {/* 202 is not «sent»: only the status the server returned is shown. */}
-      {published ? (
-        <span className={styles.publishStatus}>
-          {copy.publications.created}: <StatusBadge status={displayStatus(published)} />
-        </span>
-      ) : null}
-      <PublishDialog
-        post={post}
-        timezone={timezone}
-        isOpen={isOpen}
-        onOpenChange={setOpen}
-        onPublished={setPublished}
-      />
-    </>
+    <Button icon="send" onPress={() => void navigate({ to: '/posts/$id/publish', params: { id: post.id } })}>
+      {copy.publications.publish}
+    </Button>
   );
 }

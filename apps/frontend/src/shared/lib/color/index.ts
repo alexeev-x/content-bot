@@ -1,5 +1,5 @@
-export { deriveAccent, measureAccent } from './derive-accent';
-export type { AccentChecks, ColorTheme, DerivedAccent } from './derive-accent';
+export { deriveAccent } from './derive-accent';
+export type { ColorTheme, DerivedAccent } from './derive-accent';
 export type { Oklch } from './oklch';
 export { parseHex, toHex } from './srgb';
 export type { Rgb, Rgba } from './srgb';

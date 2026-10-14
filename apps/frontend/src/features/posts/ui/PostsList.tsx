@@ -29,7 +29,7 @@ import { postsInfiniteQueryOptions, useDuplicatePost, useReturnPostToDraft } fro
 import { describeLifecycleError, refusalText, type LifecycleNotice } from '../model/lifecycle-notices';
 import { deleteBlockOf } from '../model/post-state';
 import type { PostSortKey, SortDirection } from '../model/post-sort';
-import { useNow } from '../model/use-now';
+import { useNow } from '../../../shared/lib/use-now';
 import { useRestoreActions } from '../model/use-restore';
 import { useSelection } from '../model/use-selection';
 import { postsCopy } from './copy';
@@ -535,7 +535,7 @@ export function PostsList({
                           onSortChange={(next) =>
                             onSortChange({ key: next.key as NonNullable<PostsSort>['key'], direction: next.direction })
                           }
-                          now={now}
+                          now={now.getTime()}
                           isLoading={result.isPending}
                           narrow={narrow}
                           selectable={selectable}

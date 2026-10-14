@@ -12,10 +12,8 @@ type Item = {
   short: string;
   value: string;
   detail: string;
-  link?: { to: '/incidents' } | { to: '/publications'; search: { view?: 'recent' } | { id: string } };
+  link?: { search: { view?: 'recent' | 'errors' } | { id: string } };
 };
-
-export type KpiKey = 'today' | 'sent' | 'attention' | 'next';
 
 function items(view: DashboardView, now: Date, timezone: string): Item[] {
   const { dashboard, attentionCount, sentToday } = view;
@@ -26,27 +24,27 @@ function items(view: DashboardView, now: Date, timezone: string): Item[] {
       ...copy.kpi.today,
       value: dashboard.todayTotal >= 100 ? '100+' : String(dashboard.todayTotal),
       // No «today» view on Публикации (needs an API date range): the full list, newest first.
-      link: { to: '/publications', search: {} }
+      link: { search: {} }
     },
     {
       key: 'sent',
       ...copy.kpi.sent,
       // `today` lists at most 8 rows: a longer day makes this a lower bound, so it says «+».
       value: dashboard.today.length < dashboard.todayTotal ? `${sentToday}+` : String(sentToday),
-      link: { to: '/publications', search: { view: 'recent' } }
+      link: { search: { view: 'recent' } }
     },
     {
       key: 'attention',
       ...copy.kpi.attention,
       value: attentionCount >= 99 ? '99+' : String(attentionCount),
-      link: { to: '/incidents' }
+      link: { search: { view: 'errors' } }
     },
     {
       key: 'next',
       ...copy.kpi.next,
       value: next ? formatClock(next.scheduledAt, timezone) : '—',
       detail: next ? untilDetail(next.scheduledAt, now, timezone) : copy.kpi.next.detail,
-      ...(next ? { link: { to: '/publications' as const, search: { id: next.publicationId } } } : {})
+      ...(next ? { link: { search: { id: next.publicationId } } } : {})
     }
   ];
 }
@@ -82,53 +80,37 @@ function KpiSkeleton({ kpi }: { kpi: { label: string; short: string } }) {
   );
 }
 
-const KEYS: readonly KpiKey[] = ['today', 'sent', 'attention', 'next'];
-
 type KpisProps = {
   view: DashboardView | undefined;
   now: Date;
   timezone?: string;
-  /** One tile (the single-KPI widgets) instead of all four. */
-  only?: KpiKey;
 };
 
+const KEYS = ['today', 'sent', 'attention', 'next'] as const;
+
 /** Four tiles filling their widget; while loading each keeps its label and swaps value and detail for skeletons. */
-export function Kpis({ view, now, only, timezone = 'Europe/Moscow' }: KpisProps) {
-  const keys = only ? [only] : KEYS;
-  const loaded = view ? items(view, now, timezone).filter((item) => keys.includes(item.key as KpiKey)) : undefined;
-  const Tag = only ? 'div' : 'section';
+export function Kpis({ view, now, timezone = 'Europe/Moscow' }: KpisProps) {
+  const loaded = view ? items(view, now, timezone) : undefined;
   return (
-    <Tag
-      className={styles.kpis}
-      data-single={only ? '' : undefined}
-      {...(only ? {} : { 'aria-label': copy.kpi.label })}
-    >
+    <section className={styles.kpis} aria-label={copy.kpi.label}>
       {loaded
-        ? loaded.map((item) => {
-            const link = item.link;
-            if (!link) {
-              return (
-                <div key={item.key} className={styles.kpi}>
-                  <KpiBody item={item} />
-                </div>
-              );
-            }
-            return link.to === '/incidents' ? (
-              <Link key={item.key} to="/incidents" className={`${styles.kpi} ${styles.kpiLink}`}>
-                <KpiBody item={item} />
-              </Link>
-            ) : (
+        ? loaded.map((item) =>
+            item.link ? (
               <Link
                 key={item.key}
                 to="/publications"
-                search={link.search}
+                search={item.link.search}
                 className={`${styles.kpi} ${styles.kpiLink}`}
               >
                 <KpiBody item={item} />
               </Link>
-            );
-          })
-        : keys.map((key) => <KpiSkeleton key={key} kpi={copy.kpi[key]} />)}
-    </Tag>
+            ) : (
+              <div key={item.key} className={styles.kpi}>
+                <KpiBody item={item} />
+              </div>
+            )
+          )
+        : KEYS.map((key) => <KpiSkeleton key={key} kpi={copy.kpi[key]} />)}
+    </section>
   );
 }

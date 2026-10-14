@@ -1,6 +1,6 @@
 import { PostsList, postsCopy, type PostsSort, type PostsView } from '../../features/posts';
 import { Button, PageHeader } from '../../shared/ui';
-import { useDocumentTitle } from './use-document-title';
+import { useDocumentTitle } from '../../app/use-document-title';
 
 type Props = {
   view: PostsView;

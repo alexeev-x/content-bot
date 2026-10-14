@@ -153,7 +153,7 @@ export function AttentionPanel({ rows, total, checking, narrow, capacity, now, o
       area="attention"
       title={copy.attention.title}
       {...(rows ? { count: total >= 99 ? '99+' : String(total) } : {})}
-      action={<PanelLink to="/incidents" text={copy.attention.all} />}
+      action={<PanelLink search={{ view: 'errors' }} text={copy.attention.all} />}
       rows={reserve}
       busy={rows === undefined}
     >

@@ -1,14 +1,24 @@
 import { useEffect, useState } from 'react';
 
-/** A minute-resolution clock for date-range UI; keeps time reads out of render and refreshes at midnight boundaries. */
-export function useNow(intervalMs = 60_000): Date {
-  const [timestamp, setTimestamp] = useState(() => Date.now());
+const MINUTE_MS = 60_000;
 
+/** The current time at minute precision. Ticks only while the tab is visible and catches up when it returns. */
+export function useNow(): Date {
+  const [now, setNow] = useState(() => new Date());
   useEffect(() => {
-    const update = () => setTimestamp(Date.now());
-    const interval = window.setInterval(update, intervalMs);
-    return () => window.clearInterval(interval);
-  }, [intervalMs]);
-
-  return new Date(timestamp);
+    const tick = () => {
+      if (document.visibilityState !== 'visible') return;
+      const next = new Date();
+      setNow((previous) =>
+        Math.floor(previous.getTime() / MINUTE_MS) === Math.floor(next.getTime() / MINUTE_MS) ? previous : next
+      );
+    };
+    const timer = setInterval(tick, MINUTE_MS);
+    document.addEventListener('visibilitychange', tick);
+    return () => {
+      clearInterval(timer);
+      document.removeEventListener('visibilitychange', tick);
+    };
+  }, []);
+  return now;
 }

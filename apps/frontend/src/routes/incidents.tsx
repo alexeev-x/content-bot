@@ -1,21 +1,8 @@
-import { createFileRoute } from '@tanstack/react-router';
-import { IncidentsPage } from '../pages/incidents/IncidentsPage';
-import { incidentsSearchSchema } from '../pages/incidents/search';
+import { createFileRoute, redirect } from '@tanstack/react-router';
 
+// Incidents merged into «Публикации → Ошибки»; keep old bookmarks working.
 export const Route = createFileRoute('/incidents')({
-  validateSearch: incidentsSearchSchema,
-  component: IncidentsRoute
+  beforeLoad: () => {
+    throw redirect({ to: '/publications', search: { view: 'errors' }, replace: true });
+  }
 });
-
-function IncidentsRoute() {
-  const search = Route.useSearch();
-  const navigate = Route.useNavigate();
-  return (
-    <IncidentsPage
-      search={search}
-      onSearchChange={(patch) => void navigate({ search: (previous) => ({ ...previous, ...patch }) })}
-      onOpenPublication={(id) => void navigate({ to: '/publications', search: { id } })}
-      onOpenPublications={() => void navigate({ to: '/publications' })}
-    />
-  );
-}

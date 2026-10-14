@@ -1,5 +1,5 @@
 import { oklchToRgb, rgbToOklch, type Oklch } from './oklch';
-import { composite, contrastRatio, parseCssColor, parseHex, toHex, toRgbaString, type Rgb } from './srgb';
+import { composite, contrastRatio, parseHex, toHex, toRgbaString, type Rgb } from './srgb';
 
 const SOFT_ALPHA = { light: 0.09, dark: 0.15 } as const;
 
@@ -111,21 +111,3 @@ export function deriveAccent(baseColor: string, theme: ColorTheme): DerivedAccen
 }
 
 export type AccentChecks = { onAccent: number; text: number; ring: number; soft: number };
-
-/** Measured contrast of an accent set on its theme (worst surface). Inputs are the token strings. */
-export function measureAccent(tokens: DerivedAccent, theme: ColorTheme): AccentChecks {
-  const backdrops = surfaces(theme);
-  const accent = parseCssColor(tokens.accent)!;
-  const onAccent = parseCssColor(tokens.onAccent)!;
-  const text = parseCssColor(tokens.text)!;
-  const ring = parseCssColor(tokens.ring)!;
-  const soft = parseCssColor(tokens.soft)!;
-  const surface1 = backdrops[1]!;
-  return {
-    onAccent: contrastRatio(onAccent, accent),
-    text: worstContrast(text, backdrops),
-    ring: worstContrast(ring, backdrops),
-    // selected-navigation text sits on the soft tint over surface 1
-    soft: contrastRatio(text, composite(soft, surface1))
-  };
-}

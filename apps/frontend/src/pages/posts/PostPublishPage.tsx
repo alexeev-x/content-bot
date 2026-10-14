@@ -5,7 +5,7 @@ import { useOwnerTimezone } from '../../features/owner-settings';
 import { messageLength, PostPreview, postQueryOptions, postsCopy } from '../../features/posts';
 import { Button, ErrorState, IconButton, PageHeader, Panel, Skeleton, Banner, useMediaQuery } from '../../shared/ui';
 import { BackToPosts } from './BackToPosts';
-import { useDocumentTitle } from './use-document-title';
+import { useDocumentTitle } from '../../app/use-document-title';
 import styles from './PostPages.module.css';
 
 type Props = { id: string };

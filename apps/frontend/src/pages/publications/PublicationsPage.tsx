@@ -33,9 +33,10 @@ import type { RowSelection } from '../../shared/ui';
 import { periodOptions, PhoneFilters, SearchFilter, type Order } from './PublicationsFilters';
 import { PublishPostDialog } from './PublishPostDialog';
 import type { PublicationPeriod, PublicationsSearch, PublicationView } from './search';
-import { useDocumentTitle } from './use-document-title';
+import { useDocumentTitle } from '../../app/use-document-title';
 import styles from './PublicationsPage.module.css';
 import { usePublicationsData } from './use-publications-data';
+import { OpenIncidents } from '../../features/incidents';
 import { useOwnerTimezone } from '../../features/owner-settings';
 import { utcOffsetLabel } from '../../shared/lib/owner-timezone';
 import { useNow } from '../../shared/lib/use-now';
@@ -251,6 +252,13 @@ export function PublicationsPage({ search, onSearchChange, onOpenPosts, pollMs }
             </Tab>
           </TabList>
           <TabPanel id={view}>
+            {view === 'errors' ? (
+              <OpenIncidents
+                timezone={timezone}
+                onOpenPublication={(id) => onSearchChange({ id })}
+                {...(pollMs === undefined ? {} : { pollMs })}
+              />
+            ) : null}
             {search.post ? (
               <p className={styles.note}>
                 {copy.list.onePost}{' '}

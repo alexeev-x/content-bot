@@ -1,5 +1,4 @@
 import { DashboardSkeleton } from '../../features/dashboard';
-import { IncidentsSkeleton } from '../../features/incidents';
 import { PostsSkeleton } from '../../features/posts';
 import { browserTimeZone, PublicationsSkeleton, utcOffsetLabel } from '../../features/publications';
 import { ru } from '../../shared/lib/ru';
@@ -98,14 +97,6 @@ export function RouteSkeleton({ pathname, title }: Props) {
   }
   if (page === '/settings' || page.startsWith('/settings/')) {
     return <SettingsSkeleton title={title} atList={page === '/settings'} />;
-  }
-  if (page === '/incidents') {
-    return (
-      <>
-        <PageHeader title={title} description={`Время: ${zoneNote()}`} />
-        <IncidentsSkeleton />
-      </>
-    );
   }
   return (
     <div aria-busy="true">

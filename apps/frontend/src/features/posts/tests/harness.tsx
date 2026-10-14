@@ -27,7 +27,7 @@ export function renderEditorApp(
   const root = createRootRoute({
     component: () => (
       <>
-        <Link to="/calendar">Уйти</Link>
+        <Link to="/media">Уйти</Link>
         <Outlet />
       </>
     )
@@ -59,7 +59,7 @@ export function renderEditorApp(
   });
   const elsewhere = createRoute({
     getParentRoute: () => root,
-    path: '/calendar',
+    path: '/media',
     component: () => <p>Другая страница</p>
   });
   const posts = createRoute({

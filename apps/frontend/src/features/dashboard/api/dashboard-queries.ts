@@ -1,7 +1,7 @@
 import { queryOptions } from '@tanstack/react-query';
 import { getDashboard, type DayRange } from './dashboard-api';
 
-export const dashboardKeys = {
+const dashboardKeys = {
   all: ['dashboard'] as const,
   day: (range: DayRange) => [...dashboardKeys.all, range.from, range.to] as const
 };

@@ -40,7 +40,6 @@
     "react": "^19.3.0",
     "react-aria-components": "^1.21.1",
     "react-dom": "^19.3.0",
-    "react-grid-layout": "^2.3.0",
     "react-hook-form": "^7.89.0",
     "zod": "^4.6.5"
   },

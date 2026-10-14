@@ -501,7 +501,7 @@ describe('leave guard', () => {
     await user.click(
       within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Выйти без сохранения' })
     );
-    await waitFor(() => expect(router.state.location.pathname).toBe('/calendar'));
+    await waitFor(() => expect(router.state.location.pathname).toBe('/media'));
   });
 
   it('does not interfere when nothing changed and warns on tab close only while dirty', async () => {

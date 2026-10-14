@@ -1,50 +1,20 @@
 import { Link } from '@tanstack/react-router';
-import { useContext, type CSSProperties, type ReactNode } from 'react';
+import { type CSSProperties, type ReactNode } from 'react';
 import { Icon, MediaTile, Panel, Skeleton, type IconName } from '../../../shared/ui';
 import { formatClock } from '../../../shared/lib/clock';
 import { otherDay } from '../model/format';
 import styles from './Dashboard.module.css';
-import { EditingContext } from './editing-context';
 
-export type PanelArea =
-  | 'attention'
-  | 'today'
-  | 'upcoming'
-  | 'recent'
-  | 'system'
-  | 'drafts'
-  | 'week'
-  | 'channels'
-  | 'incidents'
-  | 'quick-actions';
+export type PanelArea = 'attention' | 'today' | 'upcoming' | 'recent' | 'system';
 
-type PanelLinkProps = { text: string } & (
-  | { to: '/incidents' }
-  | { to: '/settings/channels' }
-  | { to: '/publications'; search: { view?: 'upcoming' | 'recent' } }
-  | { to: '/posts'; search: { view?: 'drafts' } }
-);
+type PanelLinkProps = { text: string; search: { view?: 'upcoming' | 'recent' | 'errors' } };
 
 /** The «Все …» link of a panel header. */
-export function PanelLink(props: PanelLinkProps) {
-  const body = (
-    <>
-      {props.text}
-      <Icon name="chevron-right" size={14} />
-    </>
-  );
-  if (props.to === '/incidents') return <Link to="/incidents">{body}</Link>;
-  if (props.to === '/settings/channels') return <Link to="/settings/channels">{body}</Link>;
-  if (props.to === '/posts') {
-    return (
-      <Link to="/posts" search={props.search}>
-        {body}
-      </Link>
-    );
-  }
+export function PanelLink({ text, search }: PanelLinkProps) {
   return (
-    <Link to="/publications" search={props.search}>
-      {body}
+    <Link to="/publications" search={search}>
+      {text}
+      <Icon name="chevron-right" size={14} />
     </Link>
   );
 }
@@ -63,7 +33,6 @@ type SectionProps = {
 
 /** One dashboard panel: a grid cell with a quiet 48 px strip and a body that keeps the skeleton height. */
 export function Section({ area, title, count, action, rows, busy, children }: SectionProps) {
-  const editing = useContext(EditingContext);
   return (
     <div className={styles.cell} data-area={area} aria-busy={busy || undefined}>
       <Panel
@@ -71,7 +40,7 @@ export function Section({ area, title, count, action, rows, busy, children }: Se
         title={title}
         headingLevel={2}
         marker={count !== undefined ? <span className={styles.count}>{count}</span> : undefined}
-        action={editing ? undefined : action}
+        action={action}
       >
         <div className={styles.fill} style={{ '--rows': rows } as CSSProperties}>
           {children}

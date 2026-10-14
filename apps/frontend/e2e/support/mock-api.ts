@@ -359,51 +359,9 @@ export async function mockApi(page: Page): Promise<void> {
   );
   // Private media bytes: one real photo, so thumbnails and previews render like production.
   await page.route(/\/api\/v1\/(media|posts\/[^/]+\/media)\/[^/]+\/content$/, (route) =>
-    route.fulfill({ path: new URL('../../src/pages/catalog-assets/crop-lake-demo.png', import.meta.url).pathname })
+    route.fulfill({ path: new URL('./crop-lake-demo.png', import.meta.url).pathname })
   );
   await page.route('**/api/v1/dota/watchlists', (route) => json(route, { watches: [], matches: [] }));
-  await page.route('**/api/v1/settings/dashboard-layout', (route) => json(route, { revision: 0, widgets: [] }));
-  await page.route(/\/api\/v1\/analytics\/publications(\?.*)?$/, (route) => {
-    const counts = (sent: number, failed: number, unknown: number) => ({
-      publications: sent + failed + unknown,
-      sent,
-      failed,
-      unknown,
-      attempts: sent + failed + unknown + 2,
-      retries: 2
-    });
-    const rows = destinations.slice(0, 2).flatMap((destination, index) =>
-      [0, 1, 2].map((n) => ({
-        publicationId: `44444444-4444-4444-8444-${String(index * 10 + n).padStart(12, '0')}`,
-        postId: ids.post,
-        postRevision: 1,
-        title: n === 0 ? LONG_POST_TITLE : `Публикация №${index * 10 + n + 1}`,
-        outcome: n === 2 && index === 1 ? 'failed' : 'sent',
-        observedAt: T,
-        destinationId: destination.id,
-        destinationTitle: destination.title,
-        mediaKinds: n === 1 ? ['photo', 'video'] : ['photo'],
-        attemptCount: n === 2 ? 3 : 1,
-        retryCount: n === 2 ? 2 : 0
-      }))
-    );
-    return json(route, {
-      from: '2026-09-06T00:00:00.000Z',
-      to: '2026-10-06T00:00:00.000Z',
-      observedAt: T,
-      comparison: 'destination',
-      summary: counts(5, 1, 0),
-      groups: destinations.slice(0, 2).map((destination, index) => ({
-        key: destination.id,
-        label: destination.title,
-        counts: index === 0 ? counts(3, 0, 0) : counts(2, 1, 0),
-        coveredPublications: 3,
-        unrecordedPublications: 0
-      })),
-      publications: { items: rows, nextCursor: null },
-      mediaCoverage: { recorded: 6, unrecorded: 0 }
-    });
-  });
   await page.route(/\/api\/v1\/dashboard(\?.*)?$/, (route) => {
     const open = openIncidents();
     const attention = [

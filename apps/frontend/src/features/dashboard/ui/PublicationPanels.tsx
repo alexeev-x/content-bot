@@ -68,7 +68,7 @@ export function TodayPanel({
       area="today"
       title={copy.today.title}
       {...(items ? { count: total >= 100 ? '100+' : String(total) } : {})}
-      action={<PanelLink to="/publications" search={{}} text={copy.today.all} />}
+      action={<PanelLink search={{}} text={copy.today.all} />}
       rows={reserve}
       busy={items === undefined}
     >
@@ -143,13 +143,7 @@ export function UpcomingPanel({
     <Section
       area="upcoming"
       title={copy.upcoming.title}
-      action={
-        <PanelLink
-          to="/publications"
-          search={{ view: 'upcoming' }}
-          text={narrow ? copy.upcoming.allShort : copy.upcoming.all}
-        />
-      }
+      action={<PanelLink search={{ view: 'upcoming' }} text={narrow ? copy.upcoming.allShort : copy.upcoming.all} />}
       rows={reserve}
       busy={items === undefined}
     >
