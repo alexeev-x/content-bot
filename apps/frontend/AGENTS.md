@@ -32,7 +32,7 @@ Stack (owner decision 03.10.2026; each library is added in the PR that first nee
   - focus not hidden under sticky bars (2.4.11);
   - color never the only signal;
   - targets ≥ 24×24 CSS px (2.5.8), and 44×44 for primary and mobile controls by project choice.
-- Responsive: quick check 375, 1280 and 1920 px; full matrix at the ui-qa gate (`docs/design/UX_SPEC.md` Conventions).
+- Responsive: check 375 and 1280 px (1920 for wide tables); no horizontal page scroll down to 320 px.
 
 ## Security
 `VITE_*` values are public, so no secrets go there. Never use `dangerouslySetInnerHTML` for external content. The access token lives only in memory: never `localStorage`/`sessionStorage`. Logout clears the query cache.

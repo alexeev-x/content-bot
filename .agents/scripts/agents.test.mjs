@@ -49,7 +49,7 @@ test('repository adapters and docs are consistent', () => {
   const { files, skills } = plan(root);
   assert.ok(files.has('.codex/agents/qa-security.toml'));
   assert.ok(skills.has('.claude/skills/orchestrate/SKILL.md'));
-  assert.ok(skills.has('.claude/skills/orchestrate/references/risk-qa.md'));
+  assert.ok(skills.has('.claude/skills/orchestrate/references/parallel-worktrees.md'));
   assert.deepEqual(checkRepo(root), []);
 });
 

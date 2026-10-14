@@ -83,7 +83,7 @@
     ],
     "SubagentStart": [
       {
-        "matcher": "^(backend|frontend|design-system|ui-prototyper)$",
+        "matcher": "^(backend|frontend|design-system)$",
         "hooks": [
           {
             "type": "command",

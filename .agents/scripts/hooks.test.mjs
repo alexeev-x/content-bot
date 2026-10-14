@@ -43,6 +43,9 @@ test('guard blocks owner-only and destructive commands', () => {
     'Remove-Item C:\\ -Recurse -Force',
     'Remove-Item $env:USERPROFILE -Force -Recurse',
     'npm publish',
+    'gh pr merge 12 --squash',
+    'git push origin --delete develop',
+    'git push origin :main',
   ])
     assert.ok(decide(cmd), `should block: ${cmd}`);
 });
@@ -78,6 +81,8 @@ test('guard allows normal work and blocks commits only on protected branches', (
   assert.equal(decide("cat > f.jsonc <<'EOF'\n// owner runs wrangler deploy later\nEOF\nls"), null);
   assert.ok(decide("cat <<'EOF'\nx\nEOF\nnpx wrangler deploy"));
   assert.ok(decide('git commit -m x', 'main'));
+  assert.ok(decide('git cherry-pick abc', 'main'));
+  assert.equal(decide('git commit -m x', 'feat/media'), null);
   assert.equal(decide('git commit -m x', 'develop'), null);
 });
 

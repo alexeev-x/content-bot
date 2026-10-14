@@ -57,14 +57,13 @@ Accepted decisions that are in force. An agent does not propose an alternative t
 ## Process and environments
 | Date | Decision | Details |
 |---|---|---|
-| 03.10.2026 | Git: work directly in `develop`; `main` — releases via a `develop → main` PR; the owner commits and pushes | `AGENTS.md` |
+| 14.10.2026 | Git: agents commit and push to `develop` or branches from it; `main` is forbidden for agents (release PR `develop → main` by the owner); a commit with a migration is pushed only after the owner applies it to DEV D1 (replaces 03.10.2026 "owner commits and pushes") | `AGENTS.md` § Git |
 | 05.10.2026 | CI deploys after green checks: `develop` → Worker `dev`, `main` → Worker `app`; each environment owns its D1 and vars; remote migrations stay manual owner actions | `.github/workflows/ci.yml`, `apps/backend/wrangler.jsonc` |
 | 07.10.2026 | Everything is tested only in DEV; production is not prepared or released until the owner says DEV is ready | `docs/IMPLEMENTATION_PLAN.md` Phase 10 |
 | 03.10.2026 | Uniform code style: Prettier + Oxlint via Husky/lint-staged on commit, `verify:changed` on pre-push, full `verify` in CI | `README.md` |
 | 03.10.2026 | Agents: one source for Claude Code and Codex (`.agents/` → generated adapters); work only by project roles; built-in read-only helpers allowed; generic global agents denied in `.claude/settings.json` | `docs/AGENT_ORCHESTRATION.md` |
-| 09.10.2026 | Substantive UI tasks go UX → mock-only clickable prototype → independent UI QA → implementation → UI QA; owner approval is optional unless requested or an owner-only decision is needed | `docs/AGENT_UI_WORKFLOW.md` |
 | 09.10.2026 | Owner reference images are reproduced visually exactly (composition, element shapes, sizes, spacing) using our colours, fonts and components; a shape our system lacks becomes a new primitive variant or token, never local CSS | `docs/AGENT_UI_WORKFLOW.md` § Reference fidelity |
-| 09.10.2026 | Token economy is the top cost rule for agent work: fresh agent per round, short packets and reports, downscaled images, role effort medium except qa-security | `docs/TOKEN_BUDGET.md` |
+| 14.10.2026 | Token economy is the top cost rule: the main session works itself, subagents only for parallel halves, research or R3 review; no prototype/ui-qa stages; tests only for critical paths (replaces the 09.10.2026 multi-role UI workflow) | `AGENTS.md`, skills `orchestrate`, `testing` |
 | 09.10.2026 | Owner reference images in `design-refs/<task>/` are committed so Claude Code, Codex and all agents share them | `design-refs/README.md` |
 | 09.10.2026 | Publication screen ships without the «Дополнительные настройки» switches (comments, notify, pin) in the prototype and the real UI; revisit as a separate owner decision | `docs/stories/post-editor-prototype.md` API-1 |
 | 03.10.2026 | Token-saving tools (RTK, caveman proxy, claude-context, context-mode) are not used: measured gains were negligible or they send code to external services | — |

@@ -11,7 +11,7 @@ import { runCommand, commandOutput } from '../scripts/run-command.mjs';
 export const MAX_BLOCKS = 2;
 // Only the main session and builder roles are held to a green verify; read-only, research or
 // translation agents cannot fix unrelated failures, so blocking them only burns tokens.
-export const BUILDER_AGENTS = new Set(['backend', 'frontend', 'design-system', 'ui-prototyper']);
+export const BUILDER_AGENTS = new Set(['backend', 'frontend', 'design-system']);
 export const appliesTo = (agentType) => !agentType || BUILDER_AGENTS.has(agentType);
 
 const git = (root, args) => execFileSync('git', args, { cwd: root, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });

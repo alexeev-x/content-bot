@@ -29,6 +29,11 @@ export const RULES = [
     /\bgit(?:\.exe)?\b[^\r\n]*\bpush\b[^\r\n]*--(?:all|mirror)\b/i,
     'Bulk pushes can update protected branches; use a reviewed release PR.',
   ],
+  [/\bgh(?:\.exe)?\b[^\r\n]*\bpr\s+merge\b/i, 'Merging PRs (releases into main) is an owner action.'],
+  [
+    /\bgit(?:\.exe)?\b[^\r\n]*\bpush\b[^\r\n]*\s--delete\b|\bgit(?:\.exe)?\b[^\r\n]*\bpush\b[^\r\n]*\s:(?:refs\/heads\/)?(?:main|develop)\b/i,
+    'Deleting remote branches is an owner action.',
+  ],
   [
     /\b(?:npm(?:\.cmd)?|pnpm(?:\.cmd)?|yarn|bun)\b[^\r\n]*\bpublish\b/i,
     'Publishing packages is not part of this project.',
@@ -84,7 +89,7 @@ export function decide(rawCommand, branch = '') {
   // `wrangler deploy --dry-run; wrangler deploy` to bypass every rule.
   if (/^\s*(?:npx\s+)?wrangler(?:\.cmd)?\s+deploy\s+--dry-run\s*$/i.test(command)) return null;
   for (const [re, reason] of RULES) if (re.test(command)) return reason;
-  if (/\bgit\s+(commit|merge|rebase)\b/.test(command) && branch === 'main') {
+  if (/\bgit\s+(commit|merge|rebase|cherry-pick|revert|reset)\b/.test(command) && branch === 'main') {
     return 'You are on main. Work on develop; main changes only through a release PR.';
   }
   return null;
