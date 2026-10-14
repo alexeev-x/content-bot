@@ -48,7 +48,8 @@ Viewer geography on TikTok: Russia 40%, Ukraine 18%, Belarus 9%, Kazakhstan 7%, 
 - TikTok next: what a personal account can get through the official API must be verified before building; the 13.10.2026 decision that TikTok is not the first integration has to be revisited.
 - Early tracking: a newly uploaded video is detected automatically and its public counters (views, likes, comments, shares) are snapshotted hourly for the first 72 hours, then daily. The curve is compared with the owner's own baseline (the median of past videos at the same age), giving a verdict «заходит / средне / не заходит» with a percentile. The bot reports at about 2 h, 24 h and 72 h. Snapshots are bounded: hourly rows collapse to daily after 72 hours.
 - Retention and watch time arrive later (YouTube Analytics reports with a delay of about 2–3 days), so the early verdict uses public counters and the breakdown adds retention when it lands.
-- Per-video page: metrics plus an AI breakdown of the first seconds and the topic against retention; a weekly report in the bot; topic suggestions from what worked.
+- New «Аналитика» section in the studio (sidebar; on phones in the «Ещё» sheet until it earns a tab): a list of videos from both platforms with the early verdict, views at 2 h / 24 h / 72 h and the platform; the newest videos on top while they are inside the 72-hour window.
+- Per-video page: the growth curve against the owner's baseline, metrics plus an AI breakdown of the first seconds and the topic against retention; a weekly report in the bot; topic suggestions from what worked.
 
 ### C. Telegram growth features
 
