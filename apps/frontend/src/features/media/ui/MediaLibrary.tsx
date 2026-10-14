@@ -32,13 +32,11 @@ import { ru } from '../../../shared/lib/ru';
 import { pluralRu } from '../../../shared/lib/ru-format';
 import {
   mediaPageQueryOptions,
-  mediaUsageQueryOptions,
   useCreatePostWithMedia,
   useHideMedia,
   usePrefetchMediaTabs
 } from '../api/media-queries';
 import type { DeriveMode, MediaFilters } from '../api/media-api';
-import { deleteVerdict } from '../model/media-usage';
 import { useLibraryCrop } from '../model/use-library-crop';
 import { AttachDialog } from './AttachDialog';
 import { DeleteMediaDialog, type DeleteTarget } from './DeleteMediaDialog';
@@ -64,6 +62,8 @@ type Props = {
   onCreatePost: () => void;
   onLogin: () => void;
   onOpenPost: (postId: string) => void;
+  /** Owner timezone for scheduled times shown in the delete dialog. */
+  timezone: string;
 };
 const KIND_OPTIONS = [
   { id: 'all', label: 'Все файлы' },
@@ -300,10 +300,6 @@ function Details({
   const narrow = useMediaQuery('(max-width: 859px)');
   const [viewerId, setViewerId] = useState<string | null>(null);
   const crop = useLibraryCrop(onSaved);
-  const usage = useQuery(mediaUsageQueryOptions(item.id));
-  const verdict = usage.data ? deleteVerdict(usage.data) : undefined;
-  const blockedReasons = verdict?.kind === 'blocked' ? verdict.reasons : [];
-  const blockedPosts = usage.data ? [...usage.data.published, ...usage.data.approved] : [];
   const croppable = item.kind === 'photo' || item.kind === 'video';
   return (
     <>
@@ -325,20 +321,12 @@ function Details({
                 Кадрировать
               </Button>
             ) : null}
-            <span title={blockedReasons.length ? blockedReasons.join('. ') : undefined}>
-              <Button
-                variant="secondary"
-                icon="trash"
-                isDisabled={verdict === undefined || verdict.kind === 'blocked'}
-                aria-describedby={blockedReasons.length ? 'media-delete-reason' : undefined}
-                onPress={onDelete}
-              >
-                Удалить
-              </Button>
-            </span>
-            {verdict?.kind === 'blocked' || hiddenView ? (
+            <Button variant="secondary" icon="trash" onPress={onDelete}>
+              Удалить
+            </Button>
+            {hiddenView ? (
               <Button variant="secondary" onPress={onHide}>
-                {hiddenView ? 'Вернуть' : 'Скрыть из медиатеки'}
+                Вернуть
               </Button>
             ) : null}
           </>
@@ -350,33 +338,6 @@ function Details({
             <Button variant="secondary" icon="maximize" onPress={() => setViewerId(item.id)}>
               На весь экран
             </Button>
-          ) : null}
-          {usage.isError ? (
-            <p className={styles.meta} role="alert">
-              Не удалось проверить, где используется файл. Удаление недоступно.{' '}
-              <Button variant="link" onPress={() => void usage.refetch()}>
-                Повторить
-              </Button>
-            </p>
-          ) : null}
-          {blockedReasons.length ? (
-            <section className={styles.usage} aria-labelledby="media-delete-reason-title">
-              <h3 id="media-delete-reason-title">Почему нельзя удалить</h3>
-              <ul id="media-delete-reason">
-                {blockedReasons.map((reason) => (
-                  <li key={reason}>{reason}</li>
-                ))}
-              </ul>
-              <ul>
-                {blockedPosts.map((post) => (
-                  <li key={post.postId}>
-                    <Button variant="link" onPress={() => onOpenPost(post.postId)}>
-                      {`Открыть пост «${post.title || 'Без названия'}»`}
-                    </Button>
-                  </li>
-                ))}
-              </ul>
-            </section>
           ) : null}
           <dl className={styles.facts}>
             <div className={styles.fact}>
@@ -442,7 +403,7 @@ function Details({
   );
 }
 
-export function MediaLibrary({ searchState, onSearchState, onCreatePost, onLogin, onOpenPost }: Props) {
+export function MediaLibrary({ searchState, onSearchState, onCreatePost, onLogin, onOpenPost, timezone }: Props) {
   const narrow = useMediaQuery('(max-width: 859px)');
   const [searchInput, setSearchInput] = useState(searchState.search ?? '');
   const [selected, setSelected] = useState<Set<string>>(() => new Set());
@@ -783,8 +744,10 @@ export function MediaLibrary({ searchState, onSearchState, onCreatePost, onLogin
       <DeleteMediaDialog
         targets={pendingDelete}
         inHiddenView={hiddenView}
+        timezone={timezone}
         onClose={() => setPendingDelete(null)}
         onDeleted={afterDeleted}
+        onOpenPost={onOpenPost}
       />
       {attachOpen ? (
         <AttachDialog

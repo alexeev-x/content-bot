@@ -2,6 +2,7 @@ import { createFileRoute, useNavigate, useSearch } from '@tanstack/react-router'
 import { mediaLibraryKindSchema, mediaLibraryUsageFilterSchema } from '@alexeev/contracts';
 import { z } from 'zod';
 import { MediaLibrary } from '../features/media';
+import { useOwnerTimezone } from '../features/owner-settings';
 
 const mediaSearchSchema = z.looseObject({
   kind: mediaLibraryKindSchema.optional().catch(undefined),
@@ -18,9 +19,11 @@ export const Route = createFileRoute('/media')({
   component: function MediaRoute() {
     const searchState = useSearch({ from: '/media' });
     const navigate = useNavigate({ from: '/media' });
+    const timezone = useOwnerTimezone();
     return (
       <MediaLibrary
         searchState={searchState}
+        timezone={timezone}
         onCreatePost={() => void navigate({ to: '/posts/new' })}
         onLogin={() => void navigate({ to: '/login' })}
         onOpenPost={(id) => void navigate({ to: '/posts/$id', params: { id } })}

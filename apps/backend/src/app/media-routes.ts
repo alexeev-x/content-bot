@@ -47,7 +47,7 @@ export const mediaRoutes = new Hono<AppBindings>()
             requestId: c.get('requestId')
           },
           c.req.valid('json').ids,
-          c.req.valid('json').detachDrafts === true
+          c.req.valid('json').detach
         )
       );
     }
@@ -120,7 +120,7 @@ export const mediaRoutes = new Hono<AppBindings>()
         requestId: c.get('requestId')
       },
       c.req.valid('param').mediaId,
-      c.req.valid('query').detachDrafts === true
+      c.req.valid('query').detach
     );
     return c.body(null, 204);
   })

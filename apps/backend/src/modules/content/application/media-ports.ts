@@ -1,4 +1,4 @@
-import type { MediaLibraryItemDto, MediaUsageDto, PostMediaDto } from '@alexeev/contracts';
+import type { MediaDetach, MediaLibraryItemDto, MediaUsageDto, PostMediaDto } from '@alexeev/contracts';
 
 export interface MediaAssetInput extends Omit<PostMediaDto, 'position'> {
   objectKey: string;
@@ -108,7 +108,7 @@ export interface PostMediaRepository {
     mediaIds: string[];
   }): Promise<boolean>;
   findObjectKey(mediaId: string): Promise<string | null>;
-  deleteUnusedAssets(input: { mediaIds: string[]; actor: string; now: number; detachDrafts: boolean }): Promise<{
+  deleteUnusedAssets(input: { mediaIds: string[]; actor: string; now: number; detach?: MediaDetach }): Promise<{
     deleted: { mediaId: string; objectKey: string }[];
     inUse: string[];
     notFound: string[];

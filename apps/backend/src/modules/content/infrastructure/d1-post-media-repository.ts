@@ -3,6 +3,8 @@ import {
   type MediaUsageDto,
   type PostMediaDto,
   MEDIA_DETACH_DRAFTS_MAX,
+  MEDIA_DELETED_CANCEL_CODE,
+  type MediaDetach,
   MEDIA_USAGE_LIST_MAX,
   mediaLibraryItemSchema,
   mediaUsageSchema,
@@ -78,22 +80,35 @@ function isDeletableSql(idExpression: string): string {
 // when a post holds it, a publication snapshot names it, or a derivative outside the selection still
 // points at it; blocking propagates to the source of a blocked member that is also selected. So a source
 // and its crop chosen together are both deleted or both kept, whatever order the ids arrive in.
-// With detachDrafts a draft's own attachment does not block (it is removed first), but a file held by more
+// detach 'drafts': a draft's own attachment does not block (it is removed first), but a file held by more
 // than MEDIA_DETACH_DRAFTS_MAX drafts stays blocked: the detach stays bounded.
-function selectionBlockedCte(detachDrafts: boolean): string {
-  const postHolds = detachDrafts
-    ? `EXISTS (SELECT 1 FROM post_media pm JOIN posts p ON p.id = pm.post_id
+// detach 'all': nothing blocks except a publication whose job is claimed or unknown (a send may be in
+// flight or unconfirmed: never touched), a derivative outside the selection and that draft bound.
+function selectionBlockedCte(detach: MediaDetach | undefined): string {
+  const draftsOverBound = `(SELECT count(*) FROM post_media pm JOIN posts p ON p.id = pm.post_id
+            WHERE pm.media_id = m.id AND p.status = 'draft') > ${MEDIA_DETACH_DRAFTS_MAX}`;
+  const postHolds =
+    detach === 'all'
+      ? draftsOverBound
+      : detach === 'drafts'
+        ? `EXISTS (SELECT 1 FROM post_media pm JOIN posts p ON p.id = pm.post_id
                WHERE pm.media_id = m.id AND p.status <> 'draft')
-       OR (SELECT count(*) FROM post_media pm JOIN posts p ON p.id = pm.post_id
-            WHERE pm.media_id = m.id AND p.status = 'draft') > ${MEDIA_DETACH_DRAFTS_MAX}`
-    : 'EXISTS (SELECT 1 FROM post_media pm WHERE pm.media_id = m.id)';
+       OR ${draftsOverBound}`
+        : 'EXISTS (SELECT 1 FROM post_media pm WHERE pm.media_id = m.id)';
+  const snapshotHolds =
+    detach === 'all'
+      ? `EXISTS (SELECT 1 FROM publications pu
+            JOIN jobs jb ON jb.publication_id = pu.id AND jb.status IN ('claimed', 'unknown')
+            JOIN post_revisions r ON r.post_id = pu.post_id AND r.revision = pu.post_revision, json_each(r.media_json) j
+            WHERE j.value = m.id)`
+      : `EXISTS (SELECT 1 FROM publications pu
+            JOIN post_revisions r ON r.post_id = pu.post_id AND r.revision = pu.post_revision, json_each(r.media_json) j
+            WHERE j.value = m.id)`;
   return `WITH RECURSIVE blocked(id) AS (
   SELECT m.id FROM media_assets m
    WHERE m.id IN (SELECT value FROM json_each(?1))
      AND (${postHolds}
-       OR EXISTS (SELECT 1 FROM publications pu
-            JOIN post_revisions r ON r.post_id = pu.post_id AND r.revision = pu.post_revision, json_each(r.media_json) j
-            WHERE j.value = m.id)
+       OR ${snapshotHolds}
        OR EXISTS (SELECT 1 FROM media_assets d
             WHERE d.source_media_id = m.id AND d.id NOT IN (SELECT value FROM json_each(?1))))
   UNION
@@ -878,28 +893,49 @@ export function createD1PostMediaRepository(db: D1Database): PostMediaRepository
     },
 
     async getUsage(mediaId): Promise<MediaUsageDto | null> {
-      const finished = `jb.status IN ('succeeded', 'unknown')`;
+      // One row per holder, tagged by kind. A publication is classified by its job: pending/retry_wait is
+      // scheduled, claimed/unknown is sending (never touched), succeeded is sent history; failed and
+      // cancelled ones hold nothing worth listing.
       const snapshot = `FROM publications pu
           JOIN posts p ON p.id = pu.post_id
-          JOIN post_revisions r ON r.post_id = pu.post_id AND r.revision = pu.post_revision, json_each(r.media_json) j
-          LEFT JOIN jobs jb ON jb.publication_id = pu.id
-         WHERE j.value = ?1`;
+          JOIN post_revisions r ON r.post_id = pu.post_id AND r.revision = pu.post_revision
+          JOIN jobs jb ON jb.publication_id = pu.id AND jb.kind = 'publish'
+         WHERE EXISTS (SELECT 1 FROM json_each(r.media_json) j WHERE j.value = ?1)`;
+      const holdsByRevision = `EXISTS (SELECT 1 FROM publications pu2
+          JOIN jobs jb2 ON jb2.publication_id = pu2.id AND jb2.kind = 'publish'
+                        AND jb2.status IN ('pending', 'retry_wait', 'claimed', 'unknown', 'succeeded')
+          JOIN post_revisions r2 ON r2.post_id = pu2.post_id AND r2.revision = pu2.post_revision
+         WHERE pu2.post_id = p.id AND EXISTS (SELECT 1 FROM json_each(r2.media_json) j2 WHERE j2.value = ?1))`;
+      const wouldBeEmpty = `(trim(r.title) = '' AND trim(r.body) = ''
+          AND NOT EXISTS (SELECT 1 FROM json_each(r.media_json) k JOIN media_assets a ON a.id = k.value WHERE k.value <> ?1))`;
       const limit = MEDIA_USAGE_LIST_MAX + 1;
       const [lists, facts] = await db.batch([
         db
           .prepare(
-            `SELECT * FROM (SELECT 'draft' AS kind, p.id AS post_id, p.title, NULL AS at FROM posts p
+            `SELECT * FROM (SELECT 'draft' AS kind, p.id AS post_id, p.title, NULL AS at, NULL AS publication_id, NULL AS state, 0 AS empty
+                   FROM posts p
                  WHERE p.status = 'draft' AND EXISTS (SELECT 1 FROM post_media pm WHERE pm.post_id = p.id AND pm.media_id = ?1)
                  ORDER BY p.updated_at DESC, p.id DESC LIMIT ${limit})
              UNION ALL
-             SELECT * FROM (SELECT 'approved' AS kind, p.id AS post_id, p.title, NULL AS at FROM posts p
-                 WHERE EXISTS (SELECT 1 FROM post_media pm WHERE pm.post_id = p.id AND pm.media_id = ?1 AND p.status = 'approved')
-                    OR p.id IN (SELECT pu.post_id ${snapshot} AND NOT COALESCE(${finished}, 0)
-                                  AND COALESCE(jb.status, '') NOT IN ('failed', 'cancelled'))
+             SELECT * FROM (SELECT 'approved' AS kind, p.id AS post_id, p.title, NULL AS at, NULL AS publication_id, NULL AS state, 0 AS empty
+                   FROM posts p
+                 WHERE p.status = 'approved' AND EXISTS (SELECT 1 FROM post_media pm WHERE pm.post_id = p.id AND pm.media_id = ?1)
+                   AND NOT ${holdsByRevision}
                  ORDER BY p.updated_at DESC, p.id DESC LIMIT ${limit})
              UNION ALL
-             SELECT * FROM (SELECT 'published' AS kind, p.id AS post_id, p.title, max(jb.updated_at) AS at
-                 ${snapshot} AND ${finished}
+             SELECT * FROM (SELECT 'scheduled' AS kind, p.id AS post_id, p.title, pu.scheduled_at AS at, pu.id AS publication_id,
+                                   NULL AS state, ${wouldBeEmpty} AS empty
+                   ${snapshot} AND jb.status IN ('pending', 'retry_wait')
+                 ORDER BY pu.scheduled_at, pu.id LIMIT ${limit})
+             UNION ALL
+             SELECT * FROM (SELECT 'sending' AS kind, p.id AS post_id, p.title, NULL AS at, pu.id AS publication_id,
+                                   jb.status AS state, 0 AS empty
+                   ${snapshot} AND jb.status IN ('claimed', 'unknown')
+                 ORDER BY pu.scheduled_at DESC, pu.id DESC LIMIT ${limit})
+             UNION ALL
+             SELECT * FROM (SELECT 'sent' AS kind, p.id AS post_id, p.title, max(jb.updated_at) AS at, NULL AS publication_id,
+                                   NULL AS state, 0 AS empty
+                   ${snapshot} AND jb.status = 'succeeded'
                  GROUP BY pu.post_id
                  ORDER BY at DESC, pu.post_id DESC LIMIT ${limit})`
           )
@@ -908,31 +944,53 @@ export function createD1PostMediaRepository(db: D1Database): PostMediaRepository
           .prepare(
             `SELECT m.library_state AS state,
                     (SELECT count(*) FROM media_assets d WHERE d.source_media_id = m.id) AS derivatives,
+                    (SELECT count(*) FROM post_media pm JOIN posts p ON p.id = pm.post_id
+                      WHERE pm.media_id = m.id AND p.status = 'draft') AS drafts,
                     ${isDeletableSql('m.id')} AS deletable
                FROM media_assets m WHERE m.id = ?1 AND ${isRetainedSql('m.id')}`
           )
           .bind(mediaId)
       ]);
-      const fact = ((facts?.results ?? []) as { state: number; derivatives: number; deletable: number }[])[0];
+      const fact = (
+        (facts?.results ?? []) as { state: number; derivatives: number; drafts: number; deletable: number }[]
+      )[0];
       if (fact === undefined) return null;
       const rows = (lists?.results ?? []) as {
-        kind: 'draft' | 'approved' | 'published';
+        kind: 'draft' | 'approved' | 'scheduled' | 'sending' | 'sent';
         post_id: string;
         title: string | null;
         at: number | null;
+        publication_id: string | null;
+        state: string | null;
+        empty: number;
       }[];
       const pick = (kind: string) => rows.filter((row) => row.kind === kind).slice(0, MEDIA_USAGE_LIST_MAX);
+      const sending = pick('sending');
       return mediaUsageSchema.parse({
         drafts: pick('draft').map((row) => ({ postId: row.post_id, title: row.title })),
         approved: pick('approved').map((row) => ({ postId: row.post_id, title: row.title })),
-        published: pick('published').map((row) => ({
+        scheduled: pick('scheduled').map((row) => ({
           postId: row.post_id,
           title: row.title,
-          publishedAt: new Date(row.at ?? 0).toISOString()
+          publicationId: row.publication_id,
+          scheduledAt: new Date(row.at ?? 0).toISOString(),
+          wouldBeEmpty: row.empty === 1
+        })),
+        sending: sending.map((row) => ({
+          postId: row.post_id,
+          title: row.title,
+          publicationId: row.publication_id,
+          state: row.state === 'unknown' ? 'unknown' : 'sending'
+        })),
+        sent: pick('sent').map((row) => ({
+          postId: row.post_id,
+          title: row.title,
+          sentAt: new Date(row.at ?? 0).toISOString()
         })),
         derivatives: fact.derivatives,
         deletable: fact.deletable === 1,
-        hideable: fact.state === 0
+        hideable: fact.state === 0,
+        detachable: sending.length === 0 && fact.derivatives === 0 && fact.drafts <= MEDIA_DETACH_DRAFTS_MAX
       });
     },
 
@@ -944,7 +1002,7 @@ export function createD1PostMediaRepository(db: D1Database): PostMediaRepository
       return row?.object_key ?? null;
     },
 
-    async deleteUnusedAssets({ mediaIds, actor, now, detachDrafts }) {
+    async deleteUnusedAssets({ mediaIds, actor, now, detach }) {
       const ids = JSON.stringify(mediaIds);
       // One round trip for the whole selection. Every decision reads the state before the first write
       // (cleanup rows and the audit trail are written ahead of the deletes), and D1 runs a batch as one
@@ -952,51 +1010,90 @@ export function createD1PostMediaRepository(db: D1Database): PostMediaRepository
       // the asset gone. The cleanup row is written in the same transaction as the delete, so the object
       // is never orphaned without a durable record, even if the Worker dies before the R2 call.
       const inSelection = 'SELECT value FROM json_each(?1)';
-      const free = `${selectionBlockedCte(detachDrafts)} `;
+      const free = `${selectionBlockedCte(detach)} `;
       const unblocked = `SELECT m.id FROM media_assets m WHERE m.id IN (${inSelection}) AND m.id NOT IN (SELECT id FROM blocked)`;
       const holders = `p.status = 'draft' AND EXISTS (SELECT 1 FROM post_media pm WHERE pm.post_id = p.id AND pm.media_id IN (${unblocked}))`;
       // A draft that is detached from gets the same revision bump as an edit. The set of touched drafts is
       // the one with a revision row ahead of its own revision, which only the first statement creates.
       const aheadOfRevision = `p.status = 'draft' AND EXISTS (SELECT 1 FROM post_revisions rv WHERE rv.post_id = p.id AND rv.revision = p.revision + 1)`;
-      const detach: D1PreparedStatement[] = detachDrafts
-        ? [
-            db
-              .prepare(
-                `${free}INSERT INTO post_revisions (post_id, revision, title, body, entities, status, created_at, media_json)
+      const detachStatements: D1PreparedStatement[] =
+        detach !== undefined
+          ? [
+              db
+                .prepare(
+                  `${free}INSERT INTO post_revisions (post_id, revision, title, body, entities, status, created_at, media_json)
                  SELECT p.id, p.revision + 1, p.title, p.body, p.entities, p.status, ?2, '[]' FROM posts p WHERE ${holders}`
-              )
-              .bind(ids, now),
-            db
-              .prepare(
-                `${free}INSERT INTO audit_log (actor_telegram_id, action, entity_type, entity_id, created_at, details)
+                )
+                .bind(ids, now),
+              db
+                .prepare(
+                  `${free}INSERT INTO audit_log (actor_telegram_id, action, entity_type, entity_id, created_at, details)
                  SELECT ?3, 'post.media.change', 'post', p.id, ?2,
                         json_object('revision', p.revision + 1, 'detachedMediaIds',
                           (SELECT json_group_array(pm.media_id) FROM post_media pm
                             WHERE pm.post_id = p.id AND pm.media_id IN (${unblocked})))
                    FROM posts p WHERE ${holders}`
-              )
-              .bind(ids, now, actor),
-            db
-              .prepare(
-                `${free}DELETE FROM post_media WHERE media_id IN (${unblocked})
+                )
+                .bind(ids, now, actor),
+              db
+                .prepare(
+                  `${free}DELETE FROM post_media WHERE media_id IN (${unblocked})
                     AND post_id IN (SELECT id FROM posts WHERE status = 'draft')`
-              )
-              .bind(ids),
-            db.prepare(
-              `UPDATE post_media SET position = r.rn
+                )
+                .bind(ids),
+              db.prepare(
+                `UPDATE post_media SET position = r.rn
                    FROM (SELECT post_id, media_id, row_number() OVER (PARTITION BY post_id ORDER BY position, media_id) - 1 AS rn
                            FROM post_media
                           WHERE post_id IN (SELECT p.id FROM posts p WHERE ${aheadOfRevision})) r
                   WHERE post_media.post_id = r.post_id AND post_media.media_id = r.media_id AND post_media.position <> r.rn`
-            ),
-            db
-              .prepare(`UPDATE posts AS p SET revision = revision + 1, updated_at = ?1 WHERE ${aheadOfRevision}`)
-              .bind(now)
-          ]
-        : [];
+              ),
+              db
+                .prepare(`UPDATE posts AS p SET revision = revision + 1, updated_at = ?1 WHERE ${aheadOfRevision}`)
+                .bind(now)
+            ]
+          : [];
+      // detach 'all'. Sent posts keep their snapshot untouched (history; a reader skips a missing asset), so
+      // a scheduled publication needs no rewrite either: it simply stops finding the file. What it must not
+      // do is go out with nothing at all, so a publication left with no title, no body and no remaining media
+      // is cancelled. The three statements below run in this order: the audit row and the publication change
+      // select by the job still being pending/retry_wait, the job update closes it last. Claimed and unknown
+      // jobs never reach them: those files are blocked in `free`.
+      const emptied = `SELECT pu.id FROM publications pu
+          JOIN jobs jb ON jb.publication_id = pu.id AND jb.kind = 'publish' AND jb.status IN ('pending', 'retry_wait')
+          JOIN post_revisions r ON r.post_id = pu.post_id AND r.revision = pu.post_revision
+         WHERE trim(r.title) = '' AND trim(r.body) = ''
+           AND EXISTS (SELECT 1 FROM json_each(r.media_json) j WHERE j.value IN (${unblocked}))
+           AND NOT EXISTS (SELECT 1 FROM json_each(r.media_json) k JOIN media_assets a ON a.id = k.value
+                            WHERE k.value NOT IN (${unblocked}))`;
+      const detachEverywhere: D1PreparedStatement[] = [
+        db
+          .prepare(
+            `${free}INSERT INTO audit_log (actor_telegram_id, action, entity_type, entity_id, created_at, details)
+             SELECT ?3, 'publication.cancel', 'publication', pu.id, ?2,
+                    json_object('revision', pu.revision + 1, 'reason', '${MEDIA_DELETED_CANCEL_CODE}')
+               FROM publications pu WHERE pu.id IN (${emptied})`
+          )
+          .bind(ids, now, actor),
+        db
+          .prepare(
+            `${free}UPDATE publications SET last_error_code = '${MEDIA_DELETED_CANCEL_CODE}', revision = revision + 1, updated_at = ?2
+              WHERE id IN (${emptied})`
+          )
+          .bind(ids, now),
+        db
+          .prepare(
+            `${free}UPDATE jobs SET status = 'cancelled', lease_until = NULL, updated_at = ?2
+              WHERE kind = 'publish' AND status IN ('pending', 'retry_wait') AND publication_id IN (${emptied})`
+          )
+          .bind(ids, now),
+        // Approved and sent posts hold the file by a plain attachment row too; drafts were handled above.
+        db.prepare(`${free}DELETE FROM post_media WHERE media_id IN (${unblocked})`).bind(ids)
+      ];
       const results = await db.batch([
         db.prepare(`SELECT id FROM media_assets WHERE id IN (${inSelection})`).bind(ids),
-        ...detach,
+        ...detachStatements,
+        ...(detach === 'all' ? detachEverywhere : []),
         db
           .prepare(
             `${free}INSERT OR IGNORE INTO post_media_cleanup (media_id, object_key, attempts, created_at)

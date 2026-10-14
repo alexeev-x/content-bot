@@ -1,6 +1,8 @@
 import {
   attachPostMediaResultSchema,
   MEDIA_IN_USE_REASON,
+  MEDIA_PUBLICATION_IN_FLIGHT_REASON,
+  type MediaDetach,
   bulkDeleteMediaResultSchema,
   type BulkDeleteMediaResultDto,
   mediaLibraryPageSchema,
@@ -170,8 +172,8 @@ type DeleteDeps = {
 // one D1 batch decides and commits, one R2 call removes every object, one D1 statement drops the cleanup
 // rows. D1 commits first: a failed R2 delete leaves the cleanup rows the batch wrote, and the Cron
 // cleanup retries them. The reverse order could lose a live file.
-async function deleteMany(deps: DeleteDeps, ids: string[], detachDrafts: boolean) {
-  const result = await deps.repo.deleteUnusedAssets({ mediaIds: ids, actor: deps.actor, now: deps.now, detachDrafts });
+async function deleteMany(deps: DeleteDeps, ids: string[], detach: MediaDetach | undefined) {
+  const result = await deps.repo.deleteUnusedAssets({ mediaIds: ids, actor: deps.actor, now: deps.now, detach });
   const mediaIds = result.deleted.map(({ mediaId }) => mediaId);
   if (mediaIds.length > 0) {
     try {
@@ -191,33 +193,44 @@ async function deleteMany(deps: DeleteDeps, ids: string[], detachDrafts: boolean
   return result;
 }
 
-function blockedBy(usage: MediaUsageDto | null, detachDrafts: boolean): MediaBlockedBy | undefined {
+function blockedBy(usage: MediaUsageDto | null, detach: MediaDetach | undefined): MediaBlockedBy | undefined {
   if (usage === null) return undefined;
-  if (usage.published.length > 0) return 'PUBLISHED';
-  if (usage.approved.length > 0) return 'APPROVED';
+  if (usage.sending.length > 0) return 'SENDING';
+  if (detach !== 'all') {
+    if (usage.sent.length > 0) return 'PUBLISHED';
+    if (usage.scheduled.length > 0) return 'SCHEDULED';
+    if (usage.approved.length > 0) return 'APPROVED';
+  }
   if (usage.derivatives > 0) return 'DERIVATIVES';
-  return usage.drafts.length > 0 || detachDrafts ? 'DRAFTS' : undefined;
+  return usage.drafts.length > 0 || detach !== undefined ? 'DRAFTS' : undefined;
 }
 
-export async function deleteMediaAsset(deps: DeleteDeps, mediaId: string, detachDrafts = false): Promise<void> {
-  const result = await deleteMany(deps, [mediaId], detachDrafts);
+export async function deleteMediaAsset(deps: DeleteDeps, mediaId: string, detach?: MediaDetach): Promise<void> {
+  const result = await deleteMany(deps, [mediaId], detach);
   if (result.notFound.length > 0) throw new AppError('NOT_FOUND', 'Media not found');
   if (result.inUse.length > 0) {
     const usage = await deps.repo.getUsage(mediaId).catch(() => null);
-    const reason = blockedBy(usage, detachDrafts);
-    throw new AppError('CONFLICT', 'Media is held by a post, a publication or a crop and cannot be deleted', {
-      reason: MEDIA_IN_USE_REASON,
-      ...(reason === undefined ? {} : { blockedBy: reason })
-    });
+    const reason = blockedBy(usage, detach);
+    const inFlight = reason === 'SENDING';
+    throw new AppError(
+      'CONFLICT',
+      inFlight
+        ? 'A publication that uses this file is being sent right now; try again in a minute'
+        : 'Media is held by a post, a publication or a crop and cannot be deleted',
+      {
+        reason: inFlight ? MEDIA_PUBLICATION_IN_FLIGHT_REASON : MEDIA_IN_USE_REASON,
+        ...(reason === undefined ? {} : { blockedBy: reason })
+      }
+    );
   }
 }
 
 export async function deleteMediaAssets(
   deps: DeleteDeps,
   ids: string[],
-  detachDrafts = false
+  detach?: MediaDetach
 ): Promise<BulkDeleteMediaResultDto> {
-  const result = await deleteMany(deps, ids, detachDrafts);
+  const result = await deleteMany(deps, ids, detach);
   return bulkDeleteMediaResultSchema.parse({
     deleted: ids.filter((id) => !result.inUse.includes(id)),
     inUse: result.inUse

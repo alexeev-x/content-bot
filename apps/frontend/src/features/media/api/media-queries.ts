@@ -58,10 +58,11 @@ export function usePrefetchMediaTabs(tabs: readonly MediaFilters[]): void {
   }, [queryClient, serialized]);
 }
 
-export function draftsInfiniteQueryOptions() {
+/** `q` is the server-side title search (empty = all drafts). */
+export function draftsInfiniteQueryOptions(q = '') {
   return infiniteQueryOptions({
-    queryKey: mediaKeys.drafts(),
-    queryFn: ({ pageParam, signal }) => listDrafts(pageParam, signal),
+    queryKey: [...mediaKeys.drafts(), 'list', q],
+    queryFn: ({ pageParam, signal }) => listDrafts(pageParam, q || undefined, signal),
     initialPageParam: undefined as string | undefined,
     getNextPageParam: nextCursor,
     staleTime: 15_000,
@@ -137,22 +138,24 @@ export function mediaUsageQueryOptions(id: string) {
   });
 }
 
-/** Deletes files; with `detachDrafts` the server first takes them out of the drafts. Always refreshes the list. */
+/** Deletes files with detach=all (the dialog told the owner what leaves). Refreshes media, posts and publications. */
 export function useDeleteMedia() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async ({ ids, detachDrafts }: { ids: string[]; detachDrafts: boolean }) => {
+    mutationFn: async ({ ids }: { ids: string[] }) => {
       const [only] = ids;
       if (ids.length === 1 && only !== undefined) {
-        await deleteMedia(only, detachDrafts);
+        await deleteMedia(only);
         return { deleted: ids, inUse: [] as string[] };
       }
-      return bulkDeleteMedia(ids, detachDrafts);
+      return bulkDeleteMedia(ids);
     },
     retry: false,
     onSettled: () => {
       void queryClient.invalidateQueries({ queryKey: mediaKeys.lists() });
       void queryClient.invalidateQueries({ queryKey: ['posts'] });
+      void queryClient.invalidateQueries({ queryKey: ['publications'] });
+      void queryClient.invalidateQueries({ queryKey: [...mediaKeys.all, 'usage'] });
     }
   });
 }

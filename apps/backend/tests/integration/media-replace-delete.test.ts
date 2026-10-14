@@ -15,7 +15,11 @@ import { type Api, createApi, OWNER_TOKEN, resetDb, seedSession, START } from '.
 import { meteredDb } from '../helpers/metered-db';
 import { testMediaBucket } from '../helpers/media-bucket';
 import { createR2MediaStorage } from '../../src/app/r2-media-storage';
-import { createD1PostMediaRepository, processPostMediaCleanup } from '../../src/modules/content';
+import {
+  createD1PostMediaRepository,
+  createD1PostRepository,
+  processPostMediaCleanup
+} from '../../src/modules/content';
 
 let api: Api;
 let keyCounter = 0;
@@ -137,7 +141,8 @@ const dangling = () =>
 const library = async (query = '') =>
   mediaLibraryPageSchema.parse(await (await api.request(`/api/v1/media?limit=50${query}`)).json()).items;
 
-async function seedPublication(postId: string, revision: number, jobStatus: string) {
+async function seedPublication(postId: string, revision: number, jobStatus: string, n = 1, scheduledAt = 5) {
+  const publicationId = `e0000000-0000-4000-8000-00000000000${n}`;
   await testDb()
     .prepare(
       `INSERT OR IGNORE INTO destinations (id, title, chat_id, kind, created_at, updated_at)
@@ -147,17 +152,18 @@ async function seedPublication(postId: string, revision: number, jobStatus: stri
   await testDb()
     .prepare(
       `INSERT INTO publications (id, post_id, post_revision, destination_id, scheduled_at, timezone, revision, created_at, updated_at)
-       VALUES ('e0000000-0000-4000-8000-000000000001', ?1, ?2, 'd0000000-0000-4000-8000-000000000001', 5, 'UTC', 0, 5, 5)`
+       VALUES (?3, ?1, ?2, 'd0000000-0000-4000-8000-000000000001', ?4, 'UTC', 0, 5, 5)`
     )
-    .bind(postId, revision)
+    .bind(postId, revision, publicationId, scheduledAt)
     .run();
   await testDb()
     .prepare(
       `INSERT INTO jobs (id, kind, publication_id, status, run_at, attempts, dedupe_key, publication_scheduled_at, created_at, updated_at)
-       VALUES ('f0000000-0000-4000-8000-000000000001', 'publish', 'e0000000-0000-4000-8000-000000000001', ?1, 5, 1, 'publish:e0000000-0000-4000-8000-000000000001', 5, 5, 7000)`
+       VALUES (?2, 'publish', ?3, ?1, ?4, 1, 'publish:' || ?3, ?4, 5, 7000)`
     )
-    .bind(jobStatus)
+    .bind(jobStatus, `f0000000-0000-4000-8000-00000000000${n}`, publicationId, scheduledAt)
     .run();
+  return publicationId;
 }
 
 describe('derived mode=replace', () => {
@@ -355,7 +361,7 @@ describe('derived mode=replace', () => {
 });
 
 describe('media usage', () => {
-  it('lists drafts, approved and published posts, derivatives and the flags', async () => {
+  it('lists drafts, approved and sent posts, derivatives and the flags', async () => {
     const a = await createDraft();
     const source = await uploadTo(a.id, a.revision, png(2, 2));
     const c = await createDraft();
@@ -370,15 +376,15 @@ describe('media usage', () => {
     expect(response.status).toBe(200);
     const usage = mediaUsageSchema.parse(await response.json());
     expect(usage.drafts).toEqual([{ postId: a.id, title: 'Media post' }]);
-    expect(usage.approved.map(({ postId }) => postId).sort()).toEqual([c.id, d.id].sort());
-    expect(usage.published).toEqual([{ postId: d.id, title: 'Media post', publishedAt: new Date(7000).toISOString() }]);
+    expect(usage.approved).toEqual([{ postId: c.id, title: 'Media post' }]);
+    expect(usage.sent).toEqual([{ postId: d.id, title: 'Media post', sentAt: new Date(7000).toISOString() }]);
     expect(usage).toMatchObject({ derivatives: 1, deletable: false, hideable: true });
     expect(cApproved.status).toBe('approved');
     expect((await api.request('/api/v1/media/11111111-1111-4111-8111-111111111111/usage')).status).toBe(404);
   });
 });
 
-describe('delete with detachDrafts', () => {
+describe('delete with detach=drafts', () => {
   it('removes the file from drafts (revision bump, dense positions) and deletes it', async () => {
     const a = await createDraft();
     const x = await uploadTo(a.id, a.revision, png(1, 1), 'x.png');
@@ -395,7 +401,7 @@ describe('delete with detachDrafts', () => {
       blockedBy: 'DRAFTS'
     });
 
-    const response = await api.request(`/api/v1/media/${target.media.id}?detachDrafts=true`, { method: 'DELETE' });
+    const response = await api.request(`/api/v1/media/${target.media.id}?detach=drafts`, { method: 'DELETE' });
 
     expect(response.status).toBe(204);
     expect(await mediaOrder(a.id)).toEqual([
@@ -417,7 +423,7 @@ describe('delete with detachDrafts', () => {
     const approvedAttach = await attachTo(approvedPost.id, approvedPost.revision, [source.media.id]);
     const approved = await approve(approvedPost.id, approvedAttach.revision);
     const revisionBefore = (await postRow(a.id))?.revision;
-    const del = () => api.request(`/api/v1/media/${source.media.id}?detachDrafts=true`, { method: 'DELETE' });
+    const del = () => api.request(`/api/v1/media/${source.media.id}?detach=drafts`, { method: 'DELETE' });
     const reason = async () => apiErrorSchema.parse(await (await del()).json()).error.details?.blockedBy;
 
     expect(await reason()).toBe('APPROVED');
@@ -432,7 +438,7 @@ describe('delete with detachDrafts', () => {
     const crop = mediaLibraryItemSchema.parse(
       await (await derive(loneUpload.media.id, png(8, 8), nextKey(), 'new')).json()
     );
-    const blocked = await api.request(`/api/v1/media/${loneUpload.media.id}?detachDrafts=true`, { method: 'DELETE' });
+    const blocked = await api.request(`/api/v1/media/${loneUpload.media.id}?detach=drafts`, { method: 'DELETE' });
     expect(blocked.status).toBe(409);
     expect(apiErrorSchema.parse(await blocked.json()).error.details?.blockedBy).toBe('DERIVATIVES');
     expect(await holders(loneUpload.media.id)).toHaveLength(1);
@@ -450,7 +456,7 @@ describe('delete with detachDrafts', () => {
 
     const response = await api.request('/api/v1/media/delete', {
       method: 'POST',
-      json: { ids: [free.media.id, heldUpload.media.id], detachDrafts: true }
+      json: { ids: [free.media.id, heldUpload.media.id], detach: 'drafts' }
     });
 
     expect(response.status).toBe(200);
@@ -478,7 +484,7 @@ describe('delete with detachDrafts', () => {
     const { db, meter } = meteredDb(testDb());
     api = createApi({ db });
 
-    const response = await api.request(`/api/v1/media/${source.media.id}?detachDrafts=true`, { method: 'DELETE' });
+    const response = await api.request(`/api/v1/media/${source.media.id}?detach=drafts`, { method: 'DELETE' });
 
     expect(response.status).toBe(204);
     expect(meter.statements).toBeLessThanOrEqual(30);
@@ -493,10 +499,184 @@ describe('delete with detachDrafts', () => {
       await attachTo(draft.id, draft.revision, [source.media.id]);
     }
 
-    const response = await api.request(`/api/v1/media/${source.media.id}?detachDrafts=true`, { method: 'DELETE' });
+    const response = await api.request(`/api/v1/media/${source.media.id}?detach=drafts`, { method: 'DELETE' });
 
     expect(response.status).toBe(409);
     expect(await holders(source.media.id)).toHaveLength(21);
+  });
+});
+
+describe('delete with detach=all', () => {
+  const del = (mediaId: string, detach = 'all') =>
+    api.request(`/api/v1/media/${mediaId}?detach=${detach}`, { method: 'DELETE' });
+  const jobStatus = (n = 1) =>
+    testDb()
+      .prepare(`SELECT status FROM jobs WHERE id = 'f0000000-0000-4000-8000-00000000000${n}'`)
+      .first<{ status: string }>()
+      .then((row) => row?.status);
+  const cleanup = () =>
+    processPostMediaCleanup(
+      { repo: createD1PostMediaRepository(testDb()), storage: createR2MediaStorage(testMediaBucket()) },
+      10,
+      START + 10 * 60_000
+    );
+
+  async function approvedWithMedia() {
+    const draft = await createDraft();
+    const upload = await uploadTo(draft.id, draft.revision, png(2, 2));
+    const approved = await approve(draft.id, upload.revision);
+    return { post: draft, media: upload.media, revision: approved.revision };
+  }
+
+  it('lists scheduled, sending and sent publications separately, with the empty flag', async () => {
+    const { post, media, revision } = await approvedWithMedia();
+    await seedPublication(post.id, revision, 'pending', 1, 9000);
+    await seedPublication(post.id, revision, 'retry_wait', 2, 8000);
+    await seedPublication(post.id, revision, 'claimed', 3);
+    await seedPublication(post.id, revision, 'succeeded', 4);
+    await testDb()
+      .prepare('UPDATE post_revisions SET title = ?3, body = ?3 WHERE post_id = ?1 AND revision = ?2')
+      .bind(post.id, revision, ' ')
+      .run();
+
+    const usage = mediaUsageSchema.parse(await (await api.request(`/api/v1/media/${media.id}/usage`)).json());
+
+    expect(usage.scheduled.map(({ scheduledAt, wouldBeEmpty }) => [scheduledAt, wouldBeEmpty])).toEqual([
+      [new Date(8000).toISOString(), true],
+      [new Date(9000).toISOString(), true]
+    ]);
+    expect(usage.sending).toMatchObject([{ state: 'sending', postId: post.id }]);
+    expect(usage.sent).toMatchObject([{ postId: post.id }]);
+    expect(usage.approved).toEqual([]);
+    expect(usage).toMatchObject({ detachable: false });
+  });
+
+  it('keeps a scheduled publication pending, frees the file, and the sender no longer sees it', async () => {
+    const { post, media, revision } = await approvedWithMedia();
+    await seedPublication(post.id, revision, 'pending');
+    const before = await objects();
+
+    const refused = await del(media.id, 'drafts');
+    expect(refused.status).toBe(409);
+    expect(apiErrorSchema.parse(await refused.json()).error.details).toMatchObject({ blockedBy: 'SCHEDULED' });
+
+    const response = await del(media.id);
+
+    expect(response.status).toBe(204);
+    expect(await jobStatus()).toBe('pending');
+    expect(await count(`SELECT count(*) AS n FROM media_assets WHERE id = '${media.id}'`)).toBe(0);
+    expect(await dangling()).toBe(0);
+    expect(await objects()).toBe(before - 1);
+    expect(await count('SELECT count(*) AS n FROM post_media_cleanup')).toBe(0);
+    const snapshot = await createD1PostRepository(testDb()).findRevision(post.id, revision);
+    expect(snapshot?.media).toEqual([]);
+    expect(snapshot?.body).toBe('Body');
+  });
+
+  it('cancels a publication that would be left with no media and no text, with a stable code', async () => {
+    const { post, media, revision } = await approvedWithMedia();
+    await testDb()
+      .prepare('UPDATE post_revisions SET title = ?3, body = ?3 WHERE post_id = ?1 AND revision = ?2')
+      .bind(post.id, revision, ' ')
+      .run();
+    const publicationId = await seedPublication(post.id, revision, 'retry_wait');
+
+    const response = await del(media.id);
+
+    expect(response.status).toBe(204);
+    expect(await jobStatus()).toBe('cancelled');
+    expect(
+      await testDb()
+        .prepare('SELECT last_error_code AS code, revision FROM publications WHERE id = ?1')
+        .bind(publicationId)
+        .first()
+    ).toEqual({ code: 'MEDIA_DELETED', revision: 1 });
+    expect(
+      await count(
+        `SELECT count(*) AS n FROM audit_log WHERE action = 'publication.cancel' AND entity_id = '${publicationId}'`
+      )
+    ).toBe(1);
+  });
+
+  it('answers 409 and changes nothing while a publication is claimed or unknown', async () => {
+    for (const state of ['claimed', 'unknown']) {
+      await resetDb();
+      await seedSession({ token: OWNER_TOKEN, expiresAt: START + 7 * 24 * 60 * 60 * 1000 });
+      const { post, media, revision } = await approvedWithMedia();
+      await seedPublication(post.id, revision, 'pending', 1);
+      await seedPublication(post.id, revision, state, 2);
+      const before = await objects();
+
+      const response = await del(media.id);
+
+      expect(response.status).toBe(409);
+      expect(apiErrorSchema.parse(await response.json()).error.details).toMatchObject({
+        reason: 'MEDIA_PUBLICATION_IN_FLIGHT',
+        blockedBy: 'SENDING'
+      });
+      expect(await jobStatus(1)).toBe('pending');
+      expect(await jobStatus(2)).toBe(state);
+      expect(await holders(media.id)).toHaveLength(1);
+      expect(await count(`SELECT count(*) AS n FROM media_assets WHERE id = '${media.id}'`)).toBe(1);
+      expect(await objects()).toBe(before);
+    }
+  });
+
+  it('refuses in the same batch when the claim lands first, and deletes when it has not', async () => {
+    const { post, media, revision } = await approvedWithMedia();
+    await seedPublication(post.id, revision, 'pending');
+    await testDb()
+      .prepare(
+        `UPDATE jobs SET status = 'claimed', lease_until = 99999999999 WHERE id = 'f0000000-0000-4000-8000-000000000001'`
+      )
+      .run();
+    expect((await del(media.id)).status).toBe(409);
+    await testDb().prepare(`UPDATE jobs SET status = 'retry_wait', lease_until = NULL`).run();
+    expect((await del(media.id)).status).toBe(204);
+  });
+
+  it('keeps the history of a sent post readable and reclaims the bytes', async () => {
+    const { post, media, revision } = await approvedWithMedia();
+    const publicationId = await seedPublication(post.id, revision, 'succeeded');
+    const before = await objects();
+
+    const response = await del(media.id);
+
+    expect(response.status).toBe(204);
+    expect(await jobStatus()).toBe('succeeded');
+    expect(await objects()).toBe(before - 1);
+    expect(await dangling()).toBe(0);
+    await cleanup();
+    expect(await count('SELECT count(*) AS n FROM post_media_cleanup')).toBe(0);
+    const read = await api.request(`/api/v1/posts/${post.id}`);
+    expect(read.status).toBe(200);
+    expect(postSchema.parse(await read.json()).media).toEqual([]);
+    expect((await api.request('/api/v1/posts?limit=10')).status).toBe(200);
+    expect((await api.request(`/api/v1/publications/${publicationId}`)).status).toBe(200);
+    expect((await api.request('/api/v1/publications?limit=10')).status).toBe(200);
+    expect((await api.request(`/api/v1/media/${media.id}/usage`)).status).toBe(404);
+  });
+
+  it('applies to the bulk endpoint, detaches drafts too, and stays inside the 50 statements', async () => {
+    const { post, media, revision } = await approvedWithMedia();
+    await seedPublication(post.id, revision, 'pending');
+    for (let index = 0; index < 20; index += 1) {
+      const draft = await createDraft();
+      await attachTo(draft.id, draft.revision, [media.id]);
+    }
+    const { db, meter } = meteredDb(testDb());
+    api = createApi({ db });
+
+    const response = await api.request('/api/v1/media/delete', {
+      method: 'POST',
+      json: { ids: [media.id], detach: 'all' }
+    });
+
+    expect(response.status).toBe(200);
+    expect(bulkDeleteMediaResultSchema.parse(await response.json())).toEqual({ deleted: [media.id], inUse: [] });
+    expect(meter.statements).toBeLessThanOrEqual(40);
+    expect(await count('SELECT count(*) AS n FROM post_media')).toBe(0);
+    expect(await jobStatus()).toBe('pending');
   });
 });
 
@@ -551,7 +731,7 @@ describe('replaced original retention', () => {
 
   it('reclaims a library-attached original once its crop is deleted', async () => {
     const { source, crop } = await replacedAfterLibraryAttach();
-    const removed = await api.request(`/api/v1/media/${crop.id}?detachDrafts=true`, { method: 'DELETE' });
+    const removed = await api.request(`/api/v1/media/${crop.id}?detach=drafts`, { method: 'DELETE' });
     expect(removed.status).toBe(204);
     expect(await count(`SELECT count(*) AS n FROM post_media_cleanup WHERE media_id = '${source.media.id}'`)).toBe(1);
     await cleanup();
@@ -567,7 +747,7 @@ describe('replaced original retention', () => {
       .bind(b.id, revision, JSON.stringify([source.media.id]))
       .run();
     await seedPublication(b.id, revision, 'succeeded');
-    await api.request(`/api/v1/media/${crop.id}?detachDrafts=true`, { method: 'DELETE' });
+    await api.request(`/api/v1/media/${crop.id}?detach=drafts`, { method: 'DELETE' });
     await cleanup();
     expect(await count(`SELECT count(*) AS n FROM media_assets WHERE id = '${source.media.id}'`)).toBe(1);
     expect((await api.request(`/api/v1/media/${source.media.id}/content`)).status).toBe(200);

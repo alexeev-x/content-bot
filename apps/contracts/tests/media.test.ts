@@ -107,6 +107,9 @@ describe('media delete contracts', () => {
     const many = Array.from({ length: 51 }, (_, i) => `00000000-0000-4000-8000-${String(i).padStart(12, '0')}`);
     expect(bulkDeleteMediaInputSchema.safeParse({ ids: many }).success).toBe(false);
     expect(bulkDeleteMediaInputSchema.safeParse({ ids: [id], force: true }).success).toBe(false);
+    expect(bulkDeleteMediaInputSchema.parse({ ids: [id], detach: 'all' }).detach).toBe('all');
+    expect(bulkDeleteMediaInputSchema.safeParse({ ids: [id], detach: 'everything' }).success).toBe(false);
+    expect(bulkDeleteMediaInputSchema.safeParse({ ids: [id], detachDrafts: true }).success).toBe(false);
   });
 
   it('parses the bulk result and rejects non-uuid entries', () => {

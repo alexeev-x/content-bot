@@ -1,7 +1,8 @@
 import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { ListBox, ListBoxItem } from 'react-aria-components';
 import { ApiError } from '../../../shared/api/http-client';
-import { Button, Dialog, EmptyState, ErrorState, Skeleton, useToast } from '../../../shared/ui';
+import { Button, Dialog, EmptyState, ErrorState, SearchField, Skeleton, useToast } from '../../../shared/ui';
 import { draftQueryOptions, draftsInfiniteQueryOptions, mediaKeys, useAttachMedia } from '../api/media-queries';
 import { formatDate } from './media-format';
 import styles from './MediaLibrary.module.css';
@@ -21,7 +22,17 @@ export function AttachDialog({
   onCreatePost: () => void;
   onLogin: () => void;
 }) {
-  const drafts = useInfiniteQuery({ ...draftsInfiniteQueryOptions(), enabled: open });
+  const [search, setSearch] = useState('');
+  const [query, setQuery] = useState('');
+  useEffect(() => {
+    const timer = window.setTimeout(() => setQuery(search.trim()), 250);
+    return () => window.clearTimeout(timer);
+  }, [search]);
+  const drafts = useInfiniteQuery({
+    ...draftsInfiniteQueryOptions(query),
+    enabled: open,
+    placeholderData: (previous) => previous
+  });
   const [draftId, setDraftId] = useState<string>();
   const draft = useQuery({ ...draftQueryOptions(draftId ?? ''), enabled: open && Boolean(draftId) });
   const attach = useAttachMedia();
@@ -80,36 +91,52 @@ export function AttachDialog({
           onRetry={() => void drafts.refetch()}
         />
       ) : null}
+      <SearchField label="Найти черновик" placeholder="Найти черновик" value={search} onChange={setSearch} />
       {drafts.isSuccess && draftItems.length === 0 ? (
-        <EmptyState
-          title="Нет доступных черновиков"
-          description="Создайте черновик, затем вернитесь в медиатеку."
-          action={
-            <Button variant="secondary" onPress={onCreatePost}>
-              Создать пост
-            </Button>
-          }
-        />
+        query ? (
+          <p className={styles.status}>Ничего не найдено</p>
+        ) : (
+          <EmptyState
+            title="Нет доступных черновиков"
+            description="Создайте черновик, затем вернитесь в медиатеку."
+            action={
+              <Button variant="secondary" onPress={onCreatePost}>
+                Создать пост
+              </Button>
+            }
+          />
+        )
       ) : null}
       {draftItems.length ? (
-        <div className={styles.dialogDrafts} aria-label="Черновики">
-          {draftItems.map((post) => (
-            <button
-              key={post.id}
-              type="button"
-              className={styles.draftButton}
-              data-selected={draftId === post.id || undefined}
-              onClick={() => {
-                setDraftId(post.id);
+        <div className={styles.dialogDrafts}>
+          <ListBox
+            aria-label="Черновики"
+            className={styles.draftList}
+            selectionMode="single"
+            disallowEmptySelection
+            selectedKeys={draftId ? [draftId] : []}
+            onSelectionChange={(keys) => {
+              const [first] = keys === 'all' ? [] : [...keys];
+              if (typeof first === 'string') {
+                setDraftId(first);
                 attach.reset();
-              }}
-            >
-              <span className={styles.draftTitle}>{post.title || 'Без названия'}</span>
-              <span className={styles.draftMeta}>
-                Изменён {formatDate(post.updatedAt)} · {post.media.length}/10 файлов
-              </span>
-            </button>
-          ))}
+              }
+            }}
+          >
+            {draftItems.map((post) => (
+              <ListBoxItem
+                key={post.id}
+                id={post.id}
+                textValue={post.title || 'Без названия'}
+                className={styles.draftButton}
+              >
+                <span className={styles.draftTitle}>{post.title || 'Без названия'}</span>
+                <span className={styles.draftMeta}>
+                  Изменён {formatDate(post.updatedAt)} · {post.media.length}/10
+                </span>
+              </ListBoxItem>
+            ))}
+          </ListBox>
           {drafts.hasNextPage ? (
             <Button
               variant="secondary"

@@ -1,88 +1,172 @@
+import { MEDIA_PUBLICATION_IN_FLIGHT_REASON, type MediaUsageDto } from '@alexeev/contracts';
 import { useQueries } from '@tanstack/react-query';
+import { useState } from 'react';
 import { ApiError } from '../../../shared/api/http-client';
-import { ConfirmDialog, useToast } from '../../../shared/ui';
+import { Button, Dialog, useToast } from '../../../shared/ui';
 import { mediaUsageQueryOptions, useDeleteMedia, useHideMedia } from '../api/media-queries';
-import { deleteVerdict, draftsSentence } from '../model/media-usage';
+import { blockSentence, countScheduled, deleteBlock, postTitle, scheduledLine } from '../model/media-usage';
+import styles from './DeleteMediaDialog.module.css';
 
 export type DeleteTarget = { id: string; fileName: string };
 
 type Props = {
   /** The files to delete; `null` closes the dialog. */
   targets: readonly DeleteTarget[] | null;
-  /** Already in «Скрытые»: hiding again is pointless, so a blocked file only gets an explanation. */
+  /** Already in «Скрытые»: hiding again is pointless. */
   inHiddenView: boolean;
+  /** Owner timezone for the scheduled times. */
+  timezone: string;
   onClose: () => void;
   /** Ids the server confirmed gone. */
   onDeleted: (ids: string[]) => void;
+  onOpenPost: (postId: string) => void;
 };
 
 const quote = (name: string) => `«${name}»`;
 
+function PostLinks({ posts, onOpen }: { posts: MediaUsageDto['drafts']; onOpen: (postId: string) => void }) {
+  return (
+    <ul>
+      {posts.map((post) => (
+        <li key={post.postId}>
+          <Button variant="link" onPress={() => onOpen(post.postId)}>
+            {postTitle(post.title)}
+          </Button>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function Group({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <section className={styles.group}>
+      <h3>{title}</h3>
+      {children}
+    </section>
+  );
+}
+
+/** What deleting one file does, grouped by where it is used. The server cuts the file out of all of them. */
+function UsageDetails({
+  usage,
+  timezone,
+  onOpen
+}: {
+  usage: MediaUsageDto;
+  timezone: string;
+  onOpen: (postId: string) => void;
+}) {
+  const { drafts, scheduled, approved, sent } = usage;
+  return (
+    <>
+      {drafts.length ? (
+        <Group title="Уберётся из черновиков:">
+          <PostLinks posts={drafts} onOpen={onOpen} />
+        </Group>
+      ) : null}
+      {scheduled.length ? (
+        <Group title="Уберётся из запланированных публикаций:">
+          <ul>
+            {scheduled.map((post) => (
+              <li key={post.publicationId}>
+                <Button variant="link" onPress={() => onOpen(post.postId)}>
+                  {scheduledLine(post, timezone)}
+                </Button>
+                {post.wouldBeEmpty ? (
+                  <p className={styles.note}>Публикация будет отменена — в ней ничего не останется.</p>
+                ) : null}
+              </li>
+            ))}
+          </ul>
+        </Group>
+      ) : null}
+      {approved.length ? (
+        <Group title="Уберётся из утверждённых постов:">
+          <PostLinks posts={approved} onOpen={onOpen} />
+        </Group>
+      ) : null}
+      {sent.length ? (
+        <Group title="Опубликованные посты:">
+          <PostLinks posts={sent} onOpen={onOpen} />
+          <p className={styles.note}>В канале останется, в истории файла не будет.</p>
+        </Group>
+      ) : null}
+    </>
+  );
+}
+
+const isUsed = (usage: MediaUsageDto) =>
+  usage.drafts.length + usage.scheduled.length + usage.approved.length + usage.sent.length > 0;
+
 /**
- * Delete confirmation that reads the usage first and says exactly what will happen: which drafts lose the file,
- * which files are skipped and why. A file held by a published/approved post or a copy is never sent.
+ * Delete confirmation that reads the usage first and says exactly what will happen. Deleting is always possible
+ * except while a publication is being sent, a crop still points at the file, or more than 20 drafts hold it.
  */
-export function DeleteMediaDialog({ targets, inHiddenView, onClose, onDeleted }: Props) {
+export function DeleteMediaDialog({ targets, inHiddenView, timezone, onClose, onDeleted, onOpenPost }: Props) {
   const list = targets ?? [];
   const usages = useQueries({ queries: list.map((target) => mediaUsageQueryOptions(target.id)) });
   const deleteMedia = useDeleteMedia();
   const hideMedia = useHideMedia();
   const toast = useToast();
+  const [inFlight, setInFlight] = useState(false);
   const pending = deleteMedia.isPending || hideMedia.isPending;
   const loading = usages.some((usage) => usage.isPending);
   const failed = usages.some((usage) => usage.isError);
-
-  const verdicts = list.map((target, index) => {
-    const data = usages[index]?.data;
-    return { target, verdict: data ? deleteVerdict(data) : undefined };
-  });
-  const removable = verdicts.filter(({ verdict }) => verdict && verdict.kind !== 'blocked');
-  const blocked = verdicts.flatMap(({ target, verdict }) =>
-    verdict?.kind === 'blocked' ? [{ target, reasons: verdict.reasons }] : []
-  );
-  const withDrafts = verdicts.flatMap(({ target, verdict }) =>
-    verdict?.kind === 'drafts' ? [{ target, drafts: verdict.drafts }] : []
-  );
   const single = list.length === 1 ? list[0] : undefined;
-  const blockedText = blocked
-    .slice(0, 5)
-    .map(({ target, reasons }) => `${quote(target.fileName)} — ${(reasons[0] ?? '').toLowerCase()}`)
-    .join('; ');
-  const blockedSentence = blocked.length
-    ? `Не будут удалены: ${blockedText}${blocked.length > 5 ? ` и ещё ${blocked.length - 5}` : ''}.`
-    : '';
+  const singleUsage = single ? usages[0]?.data : undefined;
+
+  const rows = list.flatMap((target, index) => {
+    const usage = usages[index]?.data;
+    return usage ? [{ target, usage, block: deleteBlock(usage) }] : [];
+  });
+  const removable = rows.filter(({ block }) => block.kind === 'none');
+  const blocked = rows.filter(({ block }) => block.kind !== 'none');
+  const scheduledCount = countScheduled(removable.map(({ usage }) => usage));
+  const draftFiles = removable.filter(({ usage }) => usage.drafts.length > 0).length;
 
   const close = () => {
-    if (!pending) onClose();
+    if (pending) return;
+    setInFlight(false);
+    onClose();
+  };
+  const open = (postId: string) => {
+    setInFlight(false);
+    onClose();
+    onOpenPost(postId);
   };
   const fail = (error: unknown, title: string) =>
     toast.show({
-      title: error instanceof ApiError && error.status === 409 ? 'Файл нужен постам, поэтому он не удалён' : title,
+      title,
       description: error instanceof ApiError && error.requestId ? `Запрос ${error.requestId}` : undefined,
       tone: 'error'
     });
+  const recheck = () => void Promise.all(usages.map((usage) => usage.refetch()));
+
   const remove = () => {
+    setInFlight(false);
     deleteMedia.mutate(
-      {
-        ids: removable.map(({ target }) => target.id),
-        detachDrafts: withDrafts.length > 0
-      },
+      { ids: removable.map(({ target }) => target.id) },
       {
         onSuccess: ({ deleted, inUse }) => {
           const skipped = blocked.length + inUse.length;
           toast.show({
             title: `Удалено файлов: ${deleted.length}`,
-            description: skipped
-              ? `Пропущено: ${skipped}. ${blockedSentence || 'Файл нужен постам или копии.'}`.trim()
-              : undefined,
+            description: skipped ? `Не удалено: ${skipped} (отправляется публикация или есть копии).` : undefined,
             tone: deleted.length ? 'success' : 'error'
           });
           onDeleted(deleted);
           onClose();
         },
         onError: (error) => {
+          if (error instanceof ApiError && error.reason === MEDIA_PUBLICATION_IN_FLIGHT_REASON) {
+            // Nothing changed; stay open so the owner can retry in a minute.
+            setInFlight(true);
+            recheck();
+            return;
+          }
           fail(error, 'Не удалось удалить файлы');
-          onClose();
+          recheck();
         }
       }
     );
@@ -106,67 +190,108 @@ export function DeleteMediaDialog({ targets, inHiddenView, onClose, onDeleted }:
   };
 
   let title: string;
-  let description: string;
-  let confirmLabel = 'Да, удалить';
-  let tone: 'danger' | 'default' = 'danger';
-  let onConfirm = remove;
-  let isPending = pending;
-  const cancelLabel = 'Нет';
+  let body: React.ReactNode = null;
+  let confirm: { label: string; run: () => void; tone: 'danger' | 'primary' } | null = {
+    label: 'Да, удалить',
+    run: remove,
+    tone: 'danger'
+  };
 
   if (loading) {
     title = single ? `Проверяем, где используется ${quote(single.fileName)}…` : 'Проверяем, где используются файлы…';
-    description = 'Удалять пока нечего: сначала нужно узнать, какие посты держат файл.';
-    isPending = true;
+    body = <p className={styles.note}>Сначала нужно узнать, что затронет удаление.</p>;
+    confirm = { label: 'Да, удалить', run: remove, tone: 'danger' };
   } else if (failed) {
     title = 'Не удалось проверить, где используется файл';
-    description = 'Ничего не удалено. Повторите попытку.';
-    confirmLabel = 'Да, повторить';
-    tone = 'default';
-    onConfirm = () => void Promise.all(usages.map((usage) => (usage.isError ? usage.refetch() : undefined)));
-  } else if (removable.length === 0) {
-    const why = single ? `${(blocked[0]?.reasons ?? []).join('. ')}.` : blockedSentence;
-    if (single && !inHiddenView) {
-      title = `Скрыть ${quote(single.fileName)} из медиатеки?`;
-      description = `Удалить нельзя. ${why} Скрытый файл остаётся в постах и виден в фильтре «Скрытые».`;
-      confirmLabel = 'Да, скрыть';
-      onConfirm = hide;
+    body = <p className={styles.alert}>Ничего не удалено. Повторите попытку.</p>;
+    confirm = { label: 'Повторить', run: recheck, tone: 'primary' };
+  } else if (single && singleUsage) {
+    const block = deleteBlock(singleUsage);
+    if (block.kind !== 'none') {
+      title = `Удалить ${quote(single.fileName)} пока нельзя`;
+      body = <p className={styles.alert}>{blockSentence(block)}</p>;
+      confirm = block.kind === 'sending' ? { label: 'Повторить', run: recheck, tone: 'primary' } : null;
     } else {
-      title = single ? `Удалить ${quote(single.fileName)} нельзя` : 'Выбранные файлы удалить нельзя';
-      description = why;
-      confirmLabel = 'Да, понятно';
-      onConfirm = onClose;
+      title = `Удалить ${quote(single.fileName)}?`;
+      body = (
+        <>
+          {isUsed(singleUsage) ? (
+            <p className={styles.warning}>
+              Внимание: если удалите, файл уберётся и из публикаций, постов и черновиков, где он используется.
+            </p>
+          ) : (
+            <p className={styles.note}>Файл не используется ни в одном посте. Он будет удалён безвозвратно.</p>
+          )}
+          <UsageDetails usage={singleUsage} timezone={timezone} onOpen={open} />
+        </>
+      );
     }
-    tone = 'default';
-  } else if (single) {
-    title = `Удалить ${quote(single.fileName)}?`;
-    const drafts = withDrafts[0]?.drafts;
-    description = drafts
-      ? `Файл будет убран из ${draftsSentence(drafts)}. После этого он будет удалён безвозвратно.`
-      : 'Файл не используется ни в одном посте. Он будет удалён безвозвратно.';
   } else {
     title = `Удалить файлы: ${removable.length}?`;
-    const parts = [
-      withDrafts.length
-        ? `Из черновиков будет убрано файлов: ${withDrafts.length}. Остальные не используются. Все они будут удалены безвозвратно.`
-        : 'Файлы не используются ни в одном посте. Они будут удалены безвозвратно.',
-      blockedSentence
-    ];
-    description = parts.filter(Boolean).join(' ');
+    body = (
+      <>
+        <p className={scheduledCount ? styles.warning : styles.note}>
+          {scheduledCount
+            ? `Внимание: файлы уберутся и из запланированных публикаций (${scheduledCount}).`
+            : 'Файлы будут удалены безвозвратно.'}
+        </p>
+        {draftFiles ? <p className={styles.note}>Из черновиков и постов файлы уберутся: {draftFiles}.</p> : null}
+        {blocked.length ? (
+          <Group title="Не будут удалены:">
+            <ul>
+              {blocked.slice(0, 5).map(({ target, block }) => (
+                <li key={target.id}>
+                  {quote(target.fileName)} — {blockSentence(block)}
+                </li>
+              ))}
+            </ul>
+            {blocked.length > 5 ? <p className={styles.note}>и ещё {blocked.length - 5}</p> : null}
+          </Group>
+        ) : null}
+      </>
+    );
+    if (removable.length === 0) confirm = null;
   }
 
+  const canHide = Boolean(single && singleUsage?.hideable && !inHiddenView && !loading);
+  const busy = pending;
+
   return (
-    <ConfirmDialog
+    <Dialog
       isOpen={targets !== null}
-      onOpenChange={(open) => {
-        if (!open) close();
+      onOpenChange={(next) => {
+        if (!next) close();
       }}
+      role="alertdialog"
       title={title}
-      description={description}
-      confirmLabel={confirmLabel}
-      cancelLabel={cancelLabel}
-      tone={tone}
-      isPending={isPending}
-      onConfirm={onConfirm}
-    />
+      footer={
+        <>
+          {/* Intentional: the safe answer takes initial focus in a destructive confirmation (skill ui-patterns). */}
+          {/* oxlint-disable-next-line jsx-a11y/no-autofocus */}
+          <Button variant="secondary" autoFocus isDisabled={busy} onPress={close}>
+            Нет
+          </Button>
+          {canHide ? (
+            <Button variant="secondary" isDisabled={busy} onPress={hide}>
+              Скрыть из медиатеки
+            </Button>
+          ) : null}
+          {confirm ? (
+            <Button variant={confirm.tone} isLoading={busy || loading} isDisabled={loading} onPress={confirm.run}>
+              {confirm.label}
+            </Button>
+          ) : null}
+        </>
+      }
+    >
+      <div className={styles.body}>
+        {body}
+        {inFlight && singleUsage?.sending.length !== undefined && singleUsage.sending.length === 0 ? (
+          <p className={styles.alert} role="alert">
+            {'Публикация с этим файлом сейчас отправляется. Попробуйте через минуту.'}
+          </p>
+        ) : null}
+      </div>
+    </Dialog>
   );
 }

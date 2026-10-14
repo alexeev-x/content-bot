@@ -1,35 +1,48 @@
 import type { MediaUsageDto } from '@alexeev/contracts';
+import { MEDIA_USAGE_LIST_MAX } from '@alexeev/contracts';
+import { formatDayClock } from '../../../shared/lib/clock';
 
-export type DeleteVerdict =
-  { kind: 'free' } | { kind: 'drafts'; drafts: MediaUsageDto['drafts'] } | { kind: 'blocked'; reasons: string[] };
+/** What stops `detach=all` for one file; `none` means deleting is possible now. */
+export type DeleteBlock =
+  | { kind: 'none' }
+  | { kind: 'sending'; titles: string[] }
+  | { kind: 'derivatives'; count: number }
+  | { kind: 'too-many-drafts' };
 
-const shortDate = new Intl.DateTimeFormat('ru-RU', { day: 'numeric', month: 'short' });
-const title = (value: string | null) => `«${value || 'Без названия'}»`;
+export const postTitle = (value: string | null) => `«${value || 'Без названия'}»`;
 
-/** Why a file cannot go: the strongest holder first, in the words the owner sees. */
-export function blockReasons(usage: MediaUsageDto): string[] {
-  const reasons: string[] = [];
-  for (const post of usage.published) {
-    reasons.push(`Нужен опубликованному посту ${title(post.title)} от ${shortDate.format(new Date(post.publishedAt))}`);
+/** Only a publication being sent, a crop pointing at the file, or >20 drafts stop a delete; everything else is warned. */
+export function deleteBlock(usage: MediaUsageDto): DeleteBlock {
+  if (usage.sending.length > 0) return { kind: 'sending', titles: usage.sending.map((post) => postTitle(post.title)) };
+  if (usage.derivatives > 0) return { kind: 'derivatives', count: usage.derivatives };
+  if (!usage.detachable) return { kind: 'too-many-drafts' };
+  return { kind: 'none' };
+}
+
+export const sendingSentence = (titles: string[]) =>
+  `Публикация ${titles.slice(0, 3).join(', ')} сейчас отправляется. Попробуйте через минуту.`;
+
+export const derivativesSentence = (count: number) => `Сначала удалите обрезанные копии (${count}).`;
+
+export const tooManyDraftsSentence = `Файл есть больше чем в ${MEDIA_USAGE_LIST_MAX} черновиках. Уберите его из части черновиков и повторите.`;
+
+export function blockSentence(block: DeleteBlock): string {
+  switch (block.kind) {
+    case 'sending':
+      return sendingSentence(block.titles);
+    case 'derivatives':
+      return derivativesSentence(block.count);
+    case 'too-many-drafts':
+      return tooManyDraftsSentence;
+    case 'none':
+      return '';
   }
-  for (const post of usage.approved) reasons.push(`Нужен утверждённому посту ${title(post.title)}`);
-  if (usage.derivatives > 0) reasons.push(`Из файла сделаны копии (${usage.derivatives}), они ссылаются на оригинал`);
-  return reasons;
 }
 
-/** Deletable now, or only drafts hold it (they are detached on confirmation), or blocked. */
-export function deleteVerdict(usage: MediaUsageDto): DeleteVerdict {
-  const reasons = blockReasons(usage);
-  if (reasons.length > 0) return { kind: 'blocked', reasons };
-  if (usage.drafts.length > 0) return { kind: 'drafts', drafts: usage.drafts };
-  if (usage.deletable) return { kind: 'free' };
-  // Not deletable with nothing visible in the lists: the server knows a holder we cannot name (e.g. >20 drafts).
-  return { kind: 'blocked', reasons: ['Файл держат другие записи'] };
-}
+export const scheduledLine = (post: MediaUsageDto['scheduled'][number], timeZone: string) =>
+  `${postTitle(post.title)} — ${formatDayClock(post.scheduledAt, timeZone)}`;
 
-export function draftsSentence(drafts: MediaUsageDto['drafts']): string {
-  const names = drafts.slice(0, 5).map((post) => title(post.title));
-  const rest = drafts.length - names.length;
-  const noun = drafts.length === 1 ? 'черновика' : 'черновиков';
-  return `${drafts.length} ${noun}: ${names.join(', ')}${rest > 0 ? ` и ещё ${rest}` : ''}`;
+/** Distinct scheduled publications that deleting these files would touch. */
+export function countScheduled(usages: readonly MediaUsageDto[]): number {
+  return new Set(usages.flatMap((usage) => usage.scheduled.map((post) => post.publicationId))).size;
 }

@@ -34,9 +34,9 @@ export function getMediaContent(mediaId: string, signal?: AbortSignal) {
   return apiRequestBlob(`/api/v1/media/${encodeURIComponent(mediaId)}/content`, { signal });
 }
 
-export function listDrafts(cursor: string | undefined, signal?: AbortSignal) {
+export function listDrafts(cursor: string | undefined, q: string | undefined, signal?: AbortSignal) {
   return apiRequest(
-    `/api/v1/posts${buildQuery({ view: 'live', status: 'draft', cursor, limit: DEFAULT_PAGE_SIZE })}`,
+    `/api/v1/posts${buildQuery({ view: 'live', status: 'draft', q, cursor, limit: DEFAULT_PAGE_SIZE })}`,
     postPageSchema,
     { signal }
   );
@@ -66,18 +66,17 @@ export function getMediaUsage(mediaId: string, signal?: AbortSignal) {
   return apiRequest(`/api/v1/media/${encodeURIComponent(mediaId)}/usage`, mediaUsageSchema, { signal });
 }
 
-/** `detachDrafts` first removes the file from the drafts that hold it (the owner confirmed exactly that). */
-export function deleteMedia(mediaId: string, detachDrafts: boolean) {
-  return apiRequestNoContent(
-    `/api/v1/media/${encodeURIComponent(mediaId)}${buildQuery({ detachDrafts: detachDrafts ? 'true' : undefined })}`,
-    { method: 'DELETE' }
-  );
+/** `detach=all`: the server takes the file out of drafts, approved posts and scheduled publications first. */
+export function deleteMedia(mediaId: string) {
+  return apiRequestNoContent(`/api/v1/media/${encodeURIComponent(mediaId)}${buildQuery({ detach: 'all' })}`, {
+    method: 'DELETE'
+  });
 }
 
-export function bulkDeleteMedia(ids: string[], detachDrafts: boolean) {
+export function bulkDeleteMedia(ids: string[]) {
   return apiRequest('/api/v1/media/delete', bulkDeleteMediaResultSchema, {
     method: 'POST',
-    body: detachDrafts ? { ids, detachDrafts: true } : { ids }
+    body: { ids, detach: 'all' }
   });
 }
 

@@ -172,26 +172,38 @@ export type AttachPostMediaResultDto = z.infer<typeof attachPostMediaResultSchem
 // GET /api/v1/media/{mediaId}/content -> private binary stream (not a public R2 URL).
 // Errors: NOT_FOUND 404, UNAVAILABLE 503, UNAUTHORIZED 401, FORBIDDEN 403.
 
-// DELETE /api/v1/media/{mediaId}?detachDrafts=true|false -> 204 (no body). Deletes a library file no post uses.
-// "In use" means any post holds it (draft, approved or archived) or a publication's snapshot names it,
-// or a derivative still points to it as its source.
-// With detachDrafts=true the file is first removed from DRAFT posts (same rules as removing it in the editor:
-// one revision bump per post, positions renumbered; at most MEDIA_DETACH_DRAFTS_MAX drafts) and then deleted.
-// If something else still needs it, nothing changes (drafts stay attached) and the answer is 409.
-// Errors: NOT_FOUND 404, CONFLICT 409 (details.reason MEDIA_IN_USE, details.blockedBy one of
-// PUBLISHED | APPROVED | DERIVATIVES | DRAFTS, strongest first), UNAUTHORIZED 401, FORBIDDEN 403.
+// DELETE /api/v1/media/{mediaId}?detach=drafts|all -> 204 (no body). Without `detach` it deletes a library file
+// no post uses. "In use" means any post holds it (draft, approved or archived) or a publication's snapshot
+// names it, or a derivative still points to it as its source.
+// detach=drafts: the file is first removed from DRAFT posts (same rules as removing it in the editor: one
+// revision bump per post, positions renumbered; at most MEDIA_DETACH_DRAFTS_MAX drafts) and then deleted.
+// Anything else that still needs it keeps it and the answer is 409 (nothing changes).
+// detach=all: deletion always goes through unless a publication is being sent right now or a derivative
+// still points at the file. On top of detach=drafts, in one D1 batch:
+//   - approved posts lose the attachment;
+//   - scheduled publications (job pending/retry_wait) simply stop seeing the file (readers skip a missing
+//     asset); one that would be left with no media and no text is CANCELLED (job cancelled, publication
+//     lastErrorCode MEDIA_DELETED, audit row publication.cancel), checked in the same statements as the delete;
+//   - sent posts keep their history record; Telegram keeps its own copy;
+//   - a publication whose job is claimed or unknown blocks everything: 409 MEDIA_PUBLICATION_IN_FLIGHT.
+// Errors: NOT_FOUND 404, CONFLICT 409 (details.reason MEDIA_IN_USE or MEDIA_PUBLICATION_IN_FLIGHT, details.blockedBy
+// one of SENDING | PUBLISHED | SCHEDULED | APPROVED | DERIVATIVES | DRAFTS, strongest first), UNAUTHORIZED 401, FORBIDDEN 403.
 // The D1 row is removed first, in one conditional statement; the R2 object follows and, if that fails,
 // stays in the durable cleanup queue.
 export const MEDIA_IN_USE_REASON = 'MEDIA_IN_USE';
+export const MEDIA_PUBLICATION_IN_FLIGHT_REASON = 'MEDIA_PUBLICATION_IN_FLIGHT';
+export const MEDIA_DELETED_CANCEL_CODE = 'MEDIA_DELETED';
 export const MEDIA_BULK_DELETE_MAX_IDS = 50;
 export const MEDIA_DETACH_DRAFTS_MAX = 20;
-export const mediaBlockedBySchema = z.enum(['PUBLISHED', 'APPROVED', 'DERIVATIVES', 'DRAFTS']);
+export const mediaBlockedBySchema = z.enum(['SENDING', 'PUBLISHED', 'SCHEDULED', 'APPROVED', 'DERIVATIVES', 'DRAFTS']);
 export type MediaBlockedBy = z.infer<typeof mediaBlockedBySchema>;
-export const deleteMediaQuerySchema = z.strictObject({ detachDrafts: z.stringbool().optional() });
+export const mediaDetachSchema = z.enum(['drafts', 'all']);
+export type MediaDetach = z.infer<typeof mediaDetachSchema>;
+export const deleteMediaQuerySchema = z.strictObject({ detach: mediaDetachSchema.optional() });
 export type DeleteMediaQuery = z.infer<typeof deleteMediaQuerySchema>;
 
-// POST /api/v1/media/delete { ids, detachDrafts? } -> 200 { deleted, inUse }. Each id is handled independently
-// (detachDrafts as for the single delete; an id that stays blocked is left untouched):
+// POST /api/v1/media/delete { ids, detach? } -> 200 { deleted, inUse }. Each id is handled independently
+// (detach as for the single delete; an id that stays blocked is left untouched):
 // `deleted` lists ids that are gone (an id that no longer exists counts, so a retry is harmless),
 // `inUse` lists ids that were kept because something references them.
 export const bulkDeleteMediaInputSchema = z.strictObject({
@@ -200,7 +212,7 @@ export const bulkDeleteMediaInputSchema = z.strictObject({
     .min(1)
     .max(MEDIA_BULK_DELETE_MAX_IDS)
     .refine((ids) => new Set(ids).size === ids.length, { message: 'DUPLICATE_MEDIA_IDS' }),
-  detachDrafts: z.boolean().optional()
+  detach: mediaDetachSchema.optional()
 });
 export type BulkDeleteMediaInput = z.infer<typeof bulkDeleteMediaInputSchema>;
 export const bulkDeleteMediaResultSchema = z.object({
@@ -209,21 +221,41 @@ export const bulkDeleteMediaResultSchema = z.object({
 });
 export type BulkDeleteMediaResultDto = z.infer<typeof bulkDeleteMediaResultSchema>;
 
-// GET /api/v1/media/{mediaId}/usage -> 200 MediaUsageDto. Each list holds at most MEDIA_USAGE_LIST_MAX posts,
-// newest first. drafts: posts in draft status holding the file; approved: approved posts holding it plus posts
-// whose scheduled/unfinished publication snapshot names it; published: posts with a sent (or unconfirmed) publication
-// that names it, publishedAt = when that job last changed. derivatives: crops that point at it as their source.
-// deletable: a plain DELETE would succeed; hideable: POST .../hide would change something.
+// GET /api/v1/media/{mediaId}/usage -> 200 MediaUsageDto: what deleting the file would touch. Every list holds at
+// most MEDIA_USAGE_LIST_MAX items, newest/soonest first.
+//   drafts: draft posts holding the file (detached on delete);
+//   approved: approved posts holding it that have no publication naming it (they lose the attachment);
+//   scheduled: publications whose job is pending/retry_wait and whose snapshot names it, with scheduledAt;
+//     wouldBeEmpty = after removal the publication has no media and no text, so deleting cancels it;
+//   sending: publications whose job is claimed ('sending') or unknown ('unknown'); they block detach=all;
+//   sent: posts with a succeeded publication naming it, sentAt = when that job last changed (history is kept);
+//   derivatives: crops that point at it as their source (they block every delete);
+//   deletable: a plain DELETE would succeed; hideable: POST .../hide would change something;
+//   detachable: DELETE ?detach=all would succeed now (nothing sending, no derivatives, at most
+//     MEDIA_DETACH_DRAFTS_MAX drafts).
 // Errors: NOT_FOUND 404, UNAUTHORIZED 401, FORBIDDEN 403.
 export const MEDIA_USAGE_LIST_MAX = 20;
 export const mediaUsagePostSchema = z.object({ postId: z.uuid(), title: z.string().nullable() });
 export const mediaUsageSchema = z.object({
   drafts: z.array(mediaUsagePostSchema).max(MEDIA_USAGE_LIST_MAX),
   approved: z.array(mediaUsagePostSchema).max(MEDIA_USAGE_LIST_MAX),
-  published: z.array(mediaUsagePostSchema.extend({ publishedAt: z.iso.datetime() })).max(MEDIA_USAGE_LIST_MAX),
+  scheduled: z
+    .array(
+      mediaUsagePostSchema.extend({
+        publicationId: z.uuid(),
+        scheduledAt: z.iso.datetime(),
+        wouldBeEmpty: z.boolean()
+      })
+    )
+    .max(MEDIA_USAGE_LIST_MAX),
+  sending: z
+    .array(mediaUsagePostSchema.extend({ publicationId: z.uuid(), state: z.enum(['sending', 'unknown']) }))
+    .max(MEDIA_USAGE_LIST_MAX),
+  sent: z.array(mediaUsagePostSchema.extend({ sentAt: z.iso.datetime() })).max(MEDIA_USAGE_LIST_MAX),
   derivatives: z.number().int().nonnegative(),
   deletable: z.boolean(),
-  hideable: z.boolean()
+  hideable: z.boolean(),
+  detachable: z.boolean()
 });
 export type MediaUsageDto = z.infer<typeof mediaUsageSchema>;
 
