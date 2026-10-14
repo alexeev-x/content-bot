@@ -6,6 +6,8 @@
   box-sizing: border-box;
 }
 html {
+  /* Reserve the scrollbar's width always: switching to a longer tab must not shift the page sideways. */
+  scrollbar-gutter: stable;
   font-family: var(--font-body);
   font-size: 16px;
   line-height: var(--line-height-body);
