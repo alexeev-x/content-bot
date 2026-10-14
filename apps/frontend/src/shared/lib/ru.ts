@@ -190,6 +190,9 @@ export const ru = {
     retry: 'Повторить вход',
     unavailableTitle: 'Не удалось проверить вход',
     unavailableDescription: 'Сервер не ответил. Если проблема останется, попробуйте позже.',
+    rateLimitedTitle: 'Слишком много попыток входа',
+    rateLimitedDescription: (minutes: number) =>
+      `Сервер временно ограничил вход с этой сети. Подождите ${minutes} мин. и нажмите «Повторить вход».`,
     ownerMenu: 'Меню владельца',
     logout: 'Выйти'
   },

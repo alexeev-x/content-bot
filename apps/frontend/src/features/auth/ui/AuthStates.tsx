@@ -33,11 +33,17 @@ export function NoAccessState({ onAction }: { onAction: () => void }) {
 /** The session could not be checked (network, 429, 503); a retry is a safe read. */
 export function AuthUnavailableState({ error, onRetry }: { error: unknown; onRetry: () => void }) {
   const requestId = error instanceof ApiError ? error.requestId : undefined;
+  // A 429 is not «the server did not answer»: it answered, and says when to come back.
+  const limited = error instanceof ApiError && error.status === 429;
+  const minutes = Math.max(
+    1,
+    Math.ceil(((error instanceof ApiError ? error.retryAfterSeconds : undefined) ?? 60) / 60)
+  );
   return (
     <main className={styles.unavailableScreen}>
       <ErrorState
-        title={ru.auth.unavailableTitle}
-        message={ru.auth.unavailableDescription}
+        title={limited ? ru.auth.rateLimitedTitle : ru.auth.unavailableTitle}
+        message={limited ? ru.auth.rateLimitedDescription(minutes) : ru.auth.unavailableDescription}
         {...(requestId ? { requestId } : {})}
         actionPlacement="after-title"
         action={
