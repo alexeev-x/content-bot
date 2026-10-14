@@ -126,6 +126,31 @@ export function createD1PostMediaRepository(db: D1Database): PostMediaRepository
       await db.prepare('DELETE FROM post_media_cleanup WHERE media_id = ?1').bind(mediaId).run();
     },
 
+    async registerStagingMany(items, now) {
+      if (items.length === 0) return;
+      const result = await db
+        .prepare(
+          `INSERT INTO post_media_cleanup (media_id, object_key, staging, attempts, created_at)
+           SELECT json_extract(value, '$.mediaId'), json_extract(value, '$.objectKey'), 1, 0, ?2 FROM json_each(?1) WHERE true
+           ON CONFLICT (media_id) DO NOTHING`
+        )
+        .bind(JSON.stringify(items), now)
+        .run();
+      if (result.meta.changes !== items.length) throw new Error('Could not claim unique media staging keys');
+    },
+
+    async findObjectKeys(mediaIds) {
+      if (mediaIds.length === 0) return new Map();
+      const { results } = await db
+        .prepare(
+          `SELECT m.id, m.object_key FROM media_assets m
+            WHERE m.id IN (SELECT value FROM json_each(?1)) AND ${isRetainedSql('m.id')}`
+        )
+        .bind(JSON.stringify(mediaIds))
+        .all<{ id: string; object_key: string }>();
+      return new Map(results.map((row) => [row.id, row.object_key]));
+    },
+
     async findUpload(postId, idempotencyKey) {
       return db
         .prepare(
@@ -376,36 +401,50 @@ export function createD1PostMediaRepository(db: D1Database): PostMediaRepository
       return results.map(toMedia);
     },
 
-    async attachRetained({ postId, expectedRevision, actor, now, currentIds, mediaIds }) {
+    async attachRetained({ postId, expectedRevision, actor, now, currentIds, mediaIds, copies }) {
       const fullIds = [...currentIds, ...mediaIds];
+      const copyIds = new Set(copies.map(({ id }) => id));
+      // Only pictures taken as they are must already be retained; a copy is created inside this batch.
+      const originalIds = mediaIds.filter((id) => !copyIds.has(id));
       const guard = (
-        mediaListParam: number,
+        originalsParam: number,
         expectedCount: number,
-        conflicts: { nextRevision?: boolean; alreadyAttached?: boolean } = {}
+        conflicts: { nextRevision?: boolean } = {}
       ) => `EXISTS (SELECT 1 FROM posts p WHERE p.id = ?1 AND p.revision = ?2 AND p.status = 'draft'
         AND (SELECT count(*) FROM post_media WHERE post_id = p.id) = ${expectedCount}
-        AND (SELECT count(*) FROM post_media WHERE post_id = p.id) + ${mediaIds.length} <= 10
+        AND ${currentIds.length + mediaIds.length} <= 10
         ${conflicts.nextRevision ? 'AND NOT EXISTS (SELECT 1 FROM post_revisions r WHERE r.post_id = p.id AND r.revision = p.revision + 1)' : ''}
-        ${
-          conflicts.alreadyAttached
-            ? `AND NOT EXISTS (SELECT 1 FROM post_media attached JOIN json_each(?${mediaListParam}) requested
-          ON requested.value = attached.media_id WHERE attached.post_id = p.id)`
-            : ''
-        }
-        AND NOT EXISTS (SELECT 1 FROM json_each(?${mediaListParam}) requested WHERE NOT EXISTS (
+        AND NOT EXISTS (SELECT 1 FROM json_each(?${originalsParam}) requested WHERE NOT EXISTS (
           SELECT 1 FROM media_assets m WHERE m.id = requested.value AND ${isRetainedSql('m.id')})) )`;
       const statements: D1PreparedStatement[] = [];
+      if (copies.length > 0) {
+        statements.push(
+          db
+            .prepare(
+              `INSERT INTO media_assets (id, object_key, sha256, kind, file_name, content_type, size_bytes, width, height, duration_ms, created_at, in_library, source_media_id)
+               SELECT json_extract(c.value, '$.id'), json_extract(c.value, '$.objectKey'), s.sha256, s.kind, s.file_name,
+                      s.content_type, s.size_bytes, s.width, s.height, s.duration_ms, ?3, 0,
+                      -- A copy of a crop keeps the crop's original, so re-cropping the copy starts from it too.
+                      s.source_media_id
+                 FROM json_each(?4) c JOIN media_assets s ON s.id = json_extract(c.value, '$.sourceId')
+                WHERE ${guard(5, currentIds.length, { nextRevision: true })}
+                  AND ${isRetainedSql('s.id')}
+                  AND EXISTS (SELECT 1 FROM post_media_cleanup st
+                               WHERE st.media_id = json_extract(c.value, '$.id') AND st.staging = 1)`
+            )
+            .bind(postId, expectedRevision, now, JSON.stringify(copies), JSON.stringify(originalIds))
+        );
+      }
       for (const [index, mediaId] of mediaIds.entries()) {
         statements.push(
           db
             .prepare(
               `INSERT INTO post_media (post_id, media_id, position)
              SELECT ?1, ?3, ${currentIds.length + index} WHERE ${guard(4, currentIds.length + index, {
-               nextRevision: index === 0,
-               alreadyAttached: index === 0
-             })}`
+               nextRevision: index === 0
+             })} AND EXISTS (SELECT 1 FROM media_assets WHERE id = ?3)`
             )
-            .bind(postId, expectedRevision, mediaId, JSON.stringify(mediaIds))
+            .bind(postId, expectedRevision, mediaId, JSON.stringify(originalIds))
         );
       }
       statements.push(
@@ -415,7 +454,7 @@ export function createD1PostMediaRepository(db: D1Database): PostMediaRepository
           SELECT id, revision + 1, title, body, entities, status, ?3, ?4 FROM posts
           WHERE id = ?1 AND ${guard(5, fullIds.length, { nextRevision: true })}`
           )
-          .bind(postId, expectedRevision, now, JSON.stringify(fullIds), JSON.stringify(mediaIds)),
+          .bind(postId, expectedRevision, now, JSON.stringify(fullIds), JSON.stringify(originalIds)),
         db
           .prepare(
             `INSERT INTO audit_log (actor_telegram_id, action, entity_type, entity_id, created_at, details)
@@ -428,17 +467,23 @@ export function createD1PostMediaRepository(db: D1Database): PostMediaRepository
             actor,
             now,
             JSON.stringify({ revision: expectedRevision + 1, mediaIds }),
-            JSON.stringify(mediaIds)
+            JSON.stringify(originalIds)
           ),
         db
           .prepare(
             `UPDATE posts SET revision = revision + 1, updated_at = ?3 WHERE id = ?1 AND revision = ?2 AND status = 'draft'
           AND ${guard(4, fullIds.length)}`
           )
-          .bind(postId, expectedRevision, now, JSON.stringify(mediaIds))
+          .bind(postId, expectedRevision, now, JSON.stringify(originalIds)),
+        db
+          .prepare(
+            `DELETE FROM post_media_cleanup WHERE staging = 1
+               AND media_id IN (SELECT value FROM json_each(?1)) AND EXISTS (SELECT 1 FROM post_media WHERE post_id = ?2 AND media_id = post_media_cleanup.media_id)`
+          )
+          .bind(JSON.stringify([...copyIds]), postId)
       );
       const results = await db.batch(statements);
-      return results.at(-1)?.meta.changes === 1;
+      return results.at(-2)?.meta.changes === 1;
     },
 
     async attach(input) {

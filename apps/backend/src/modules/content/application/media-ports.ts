@@ -24,6 +24,9 @@ export interface MediaPostState {
 export interface PostMediaRepository {
   registerStaging(mediaId: string, objectKey: string, now: number): Promise<void>;
   removeStaging(mediaId: string): Promise<void>;
+  /** Reserves several staging keys in one statement, so copying N files costs one D1 query. */
+  registerStagingMany(items: { mediaId: string; objectKey: string }[], now: number): Promise<void>;
+  findObjectKeys(mediaIds: string[]): Promise<Map<string, string>>;
   findUpload(postId: string, idempotencyKey: string): Promise<StoredUpload | null>;
   findCrop(postId: string, idempotencyKey: string): Promise<StoredCrop | null>;
   claimCrop(
@@ -61,7 +64,10 @@ export interface PostMediaRepository {
     actor: string;
     now: number;
     currentIds: string[];
+    /** Final ids in attach order; a copy's own new id stands in for the picture it duplicates. */
     mediaIds: string[];
+    /** The same picture attached again: a new asset row with its own R2 object, so every row owns one object. */
+    copies: { id: string; sourceId: string; objectKey: string }[];
   }): Promise<boolean>;
   attach(input: {
     postId: string;

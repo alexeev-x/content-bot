@@ -125,7 +125,12 @@ export const postsRoutes = new Hono<AppBindings>()
     async (c) => {
       const container = c.get('container');
       const result = await attachRetainedPostMedia(
-        { repo: container.postMedia, now: container.clock.now() },
+        {
+          repo: container.postMedia,
+          storage: container.mediaStorage,
+          now: container.clock.now(),
+          newId: container.newId
+        },
         {
           postId: postId(c.req.valid('param').id),
           actor: c.get('actor').telegramId,

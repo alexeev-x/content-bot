@@ -73,9 +73,30 @@ type Props = {
   disabled: boolean;
 };
 
+function filesWord(count: number): string {
+  const lastTwo = count % 100;
+  const last = count % 10;
+  if (lastTwo >= 11 && lastTwo <= 14) return 'файлов';
+  if (last === 1) return 'файл';
+  if (last >= 2 && last <= 4) return 'файла';
+  return 'файлов';
+}
+
+/** Says why tiles cannot be picked instead of leaving them silently disabled. */
+function libraryLimitHint(attached: number, selected: number, disabled: boolean): string | null {
+  if (disabled) return 'Пост нельзя изменять: файлы добавляются только в черновик.';
+  const left = POST_MEDIA_MAX_ITEMS - attached - selected;
+  if (left <= 0)
+    return `В посте может быть не больше ${POST_MEDIA_MAX_ITEMS} файлов. Снимите отметку с выбранного файла, чтобы выбрать другой.`;
+  if (attached > 0)
+    return `Можно добавить ещё ${left} ${filesWord(left)}. Один и тот же файл можно добавить несколько раз.`;
+  return null;
+}
+
 /** The library tab is one grid: pick files, then «Добавить в пост» attaches them. */
 export function MediaLibraryPanel({ library, entries, busy, disabled }: Props) {
   const { kind, items, cursor, selection, libraryBusy, error, errorAction } = library;
+  const limitHint = libraryLimitHint(entries.length, selection.length, disabled);
   return (
     <div className={styles.library}>
       <Select
@@ -111,6 +132,7 @@ export function MediaLibraryPanel({ library, entries, busy, disabled }: Props) {
           ) : null}
         </div>
       ) : null}
+      {limitHint ? <p className={styles.hint}>{limitHint}</p> : null}
       {libraryBusy && items.length === 0 ? <p role="status">Загружаем медиабиблиотеку…</p> : null}
       {!libraryBusy && items.length === 0 && !error ? <p>Здесь пока нет файлов.</p> : null}
       <ul className={styles.libraryGrid} aria-busy={libraryBusy} aria-label="Файлы медиабиблиотеки">
@@ -121,14 +143,13 @@ export function MediaLibraryPanel({ library, entries, busy, disabled }: Props) {
           : null}
         {items.map((item) => {
           const selected = selection.includes(item.id);
-          const alreadyAttached = entries.some((entry) => entry.media?.id === item.id);
           const atLimit = entries.length + selection.length >= POST_MEDIA_MAX_ITEMS;
           return (
             <li key={item.id}>
               <LibraryTile
                 item={item}
                 selected={selected}
-                disabled={busy || libraryBusy || disabled || alreadyAttached || (atLimit && !selected)}
+                disabled={busy || libraryBusy || disabled || (atLimit && !selected)}
                 onSelectedChange={(nextSelected) =>
                   library.setSelection((current) =>
                     nextSelected ? [...current, item.id] : current.filter((id) => id !== item.id)

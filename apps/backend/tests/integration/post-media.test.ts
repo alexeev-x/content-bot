@@ -400,13 +400,114 @@ describe('post media upload', () => {
       .bind(target.id)
       .first<{ media_json: string }>();
     expect(JSON.parse(snapshot?.media_json ?? 'null')).toEqual([uploaded.media.id]);
+  });
 
-    const duplicate = await api.request(`/api/v1/posts/${target.id}/media/attach`, {
-      method: 'POST',
-      json: { revision: attached.revision, mediaIds: [uploaded.media.id] }
+  describe('attaching the same picture more than once', () => {
+    const attach = (postId: string, revision: number, mediaIds: string[]) =>
+      api.request(`/api/v1/posts/${postId}/media/attach`, { method: 'POST', json: { revision, mediaIds } });
+    const objectExists = async (mediaId: string) => {
+      const row = await testDb()
+        .prepare('SELECT object_key FROM media_assets WHERE id = ?1')
+        .bind(mediaId)
+        .first<{ object_key: string }>();
+      return row !== null && (await testMediaBucket().head(row.object_key)) !== null;
+    };
+
+    it('attaches a picture already in the post and a repeat inside one request as separate assets with own objects', async () => {
+      const source = await createDraft();
+      const uploaded = uploadPostMediaResultSchema.parse(
+        await (await upload(source.id, source.revision, png(), nextKey())).json()
+      );
+      const id = uploaded.media.id;
+      const response = await attach(source.id, uploaded.revision, [id, id]);
+      expect(response.status).toBe(200);
+      const attached = attachPostMediaResultSchema.parse(await response.json());
+      expect(attached.media.map(({ position }) => position)).toEqual([0, 1, 2]);
+      const ids = attached.media.map((item) => item.id);
+      expect(new Set(ids).size).toBe(3);
+      expect(ids[0]).toBe(id);
+      const rows = await testDb()
+        .prepare('SELECT object_key, sha256 FROM media_assets WHERE id IN (SELECT value FROM json_each(?1))')
+        .bind(JSON.stringify(ids))
+        .all<{ object_key: string; sha256: string }>();
+      expect(new Set(rows.results.map((row) => row.object_key)).size).toBe(3);
+      expect(new Set(rows.results.map((row) => row.sha256)).size).toBe(1);
+      for (const mediaId of ids) expect(await objectExists(mediaId)).toBe(true);
+      expect(
+        (
+          await testDb()
+            .prepare('SELECT count(*) AS n FROM post_media_cleanup WHERE staging = 1')
+            .first<{ n: number }>()
+        )?.n
+      ).toBe(0);
+
+      const approved = postSchema.parse(
+        await (
+          await api.request(`/api/v1/posts/${source.id}/approve`, {
+            method: 'POST',
+            json: { revision: attached.revision }
+          })
+        ).json()
+      );
+      expect(approved.media.map((item) => item.id)).toEqual(ids);
+      const snapshot = await testDb()
+        .prepare('SELECT media_json FROM post_revisions WHERE post_id = ?1 AND revision = ?2')
+        .bind(source.id, approved.revision)
+        .first<{ media_json: string }>();
+      expect(JSON.parse(snapshot?.media_json ?? 'null')).toEqual(ids);
     });
-    expect(duplicate.status).toBe(400);
-    expect(apiErrorSchema.parse(await duplicate.json()).error.details?.reason).toBe('DUPLICATE_MEDIA_IDS');
+
+    it('keeps the other copy readable when one is removed, and deletes an object only with its last reference', async () => {
+      const source = await createDraft();
+      const uploaded = uploadPostMediaResultSchema.parse(
+        await (await upload(source.id, source.revision, png(), nextKey())).json()
+      );
+      const attached = attachPostMediaResultSchema.parse(
+        await (await attach(source.id, uploaded.revision, [uploaded.media.id])).json()
+      );
+      const [original, copy] = attached.media;
+      if (original === undefined || copy === undefined) throw new Error('expected two attachments');
+      const repo = createD1PostMediaRepository(testDb());
+      const storage = createR2MediaStorage(testMediaBucket());
+      await removePostMedia(
+        { repo, now: START },
+        { postId: source.id, mediaId: copy.id, revision: attached.revision, actor: OWNER_ID }
+      );
+      expect((await api.request(`/api/v1/media/${original.id}/content`)).status).toBe(200);
+      expect(await objectExists(original.id)).toBe(true);
+
+      const deps = { repo, storage, now: START, actor: OWNER_ID };
+      await deleteMediaAsset(deps, copy.id);
+      expect(await objectExists(copy.id)).toBe(false);
+      expect(await objectExists(original.id)).toBe(true);
+      await expect(deleteMediaAsset(deps, original.id)).rejects.toMatchObject({ code: 'CONFLICT' });
+      expect(await objectExists(original.id)).toBe(true);
+    });
+
+    it('still enforces the 10-file limit and leaves nothing behind when it is exceeded', async () => {
+      const source = await createDraft();
+      const uploaded = uploadPostMediaResultSchema.parse(
+        await (await upload(source.id, source.revision, png(), nextKey())).json()
+      );
+      const id = uploaded.media.id;
+      const tooMany = await attach(source.id, uploaded.revision, Array<string>(10).fill(id));
+      expect(tooMany.status).toBe(400);
+      expect(apiErrorSchema.parse(await tooMany.json()).error.details?.reason).toBe('MEDIA_LIMIT_EXCEEDED');
+      const nine = await attach(source.id, uploaded.revision, Array<string>(9).fill(id));
+      const full = attachPostMediaResultSchema.parse(await nine.json());
+      expect(full.media).toHaveLength(10);
+      const over = await attach(source.id, full.revision, [id]);
+      expect(over.status).toBe(400);
+      expect(
+        (
+          await testDb()
+            .prepare('SELECT count(*) AS n FROM post_media WHERE post_id = ?1')
+            .bind(source.id)
+            .first<{ n: number }>()
+        )?.n
+      ).toBe(10);
+      expect((await testMediaBucket().list({ prefix: 'media/' })).objects).toHaveLength(10);
+    });
   });
 
   it('filters retained media by filename prefix and current usage, and reports exact duplicate and bounded current-post metadata', async () => {

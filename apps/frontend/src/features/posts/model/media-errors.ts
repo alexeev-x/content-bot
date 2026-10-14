@@ -18,7 +18,6 @@ export function libraryAttachError(error: unknown): string {
     if (error.status === 409)
       return 'Черновик изменился. Сначала разрешите конфликт версий, затем повторите добавление.';
     if (error.reason === 'MEDIA_LIMIT_EXCEEDED') return 'В посте уже достигнут лимит в 10 файлов.';
-    if (error.reason === 'DUPLICATE_MEDIA_IDS') return 'Один из выбранных файлов уже добавлен в пост.';
     if (error.status === 429) return 'Слишком много запросов. Подождите немного и повторите добавление.';
     if (error.requestId) return `Не удалось добавить файлы. Код запроса: ${error.requestId}`;
   }

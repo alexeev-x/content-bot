@@ -54,43 +54,104 @@ export async function listMediaLibrary(
   });
 }
 
+// The same picture may be attached more than once (also twice in one request). Every post_media row needs its
+// own asset row and R2 object, because deletion and cleanup treat "no row references the object" as the only
+// rule; so a repeat is a byte copy under a new id. At most 9 copies fit a post, and the copy costs two R2
+// calls each, so the whole attach stays well below the Free-plan 50 subrequest limit.
 export async function attachRetainedPostMedia(
-  deps: { repo: PostMediaRepository; now: number },
+  deps: { repo: PostMediaRepository; storage?: MediaObjectStorage; now: number; newId: () => string },
   command: { postId: string; revision: number; actor: string; mediaIds: string[] }
 ): Promise<AttachPostMediaResultDto> {
-  if (new Set(command.mediaIds).size !== command.mediaIds.length) {
-    throw new AppError('VALIDATION_ERROR', 'Media ids must be unique', { reason: 'DUPLICATE_MEDIA_IDS' });
-  }
   const state = await deps.repo.findPostState(command.postId);
   if (state === null) throw new AppError('NOT_FOUND', 'Post not found');
   if (state.status !== 'draft')
     throw new AppError('CONFLICT', 'Only drafts can be changed', { reason: 'NOT_EDITABLE' });
   if (state.revision !== command.revision)
     throw new AppError('CONFLICT', 'Post revision is stale', { reason: 'STALE_REVISION' });
-  if (command.mediaIds.some((id) => state.media.some((item) => item.id === id))) {
-    throw new AppError('VALIDATION_ERROR', 'Media is already attached to this post', { reason: 'DUPLICATE_MEDIA_IDS' });
-  }
   if (state.media.length + command.mediaIds.length > POST_MEDIA_MAX_ITEMS) {
     throw new AppError('VALIDATION_ERROR', 'The post exceeds Telegram’s media limit', {
       reason: 'MEDIA_LIMIT_EXCEEDED'
     });
   }
-  const retained = await deps.repo.findRetainedMedia(command.mediaIds);
-  if (retained.length !== command.mediaIds.length)
+  const distinctIds = [...new Set(command.mediaIds)];
+  const retained = await deps.repo.findRetainedMedia(distinctIds);
+  const byId = new Map(retained.map((item) => [item.id, item]));
+  if (byId.size !== distinctIds.length)
     throw new AppError('NOT_FOUND', 'One or more retained media items were not found');
+
+  const taken = new Set(state.media.map(({ id }) => id));
+  const plan = command.mediaIds.map((sourceId) => {
+    if (!taken.has(sourceId)) {
+      taken.add(sourceId);
+      return { id: sourceId, sourceId, copy: false };
+    }
+    const id = deps.newId();
+    return { id, sourceId, copy: true };
+  });
+  const copies = plan
+    .filter((item) => item.copy)
+    .map(({ id, sourceId }) => ({ id, sourceId, objectKey: `media/${id}` }));
+  if (copies.length > 0) await copyObjects(deps, copies, byId);
+
   const attached = await deps.repo.attachRetained({
     postId: command.postId,
     expectedRevision: command.revision,
     actor: command.actor,
     now: deps.now,
     currentIds: state.media.map(({ id }) => id),
-    mediaIds: command.mediaIds
+    mediaIds: plan.map(({ id }) => id),
+    copies
   });
   if (!attached) throw new AppError('CONFLICT', 'Post media changed concurrently', { reason: 'STALE_REVISION' });
   return attachPostMediaResultSchema.parse({
-    media: [...state.media, ...retained.map((item, index) => ({ ...item, position: state.media.length + index }))],
+    media: [
+      ...state.media,
+      ...plan.flatMap((item, index) => {
+        const source = byId.get(item.sourceId);
+        if (source === undefined) return [];
+        return [
+          {
+            ...source,
+            id: item.id,
+            sourceMediaId: item.copy ? null : source.sourceMediaId,
+            position: state.media.length + index
+          }
+        ];
+      })
+    ],
     revision: command.revision + 1
   });
+}
+
+async function copyObjects(
+  deps: { repo: PostMediaRepository; storage?: MediaObjectStorage; now: number },
+  copies: { id: string; sourceId: string; objectKey: string }[],
+  byId: Map<string, { contentType: string }>
+): Promise<void> {
+  const { storage } = deps;
+  if (storage === undefined) throw new AppError('UNAVAILABLE', 'Media storage is not configured');
+  const keys = await deps.repo.findObjectKeys([...new Set(copies.map(({ sourceId }) => sourceId))]);
+  // Staging rows go first: a crash between the R2 put and the D1 commit leaves a row the Cron cleanup reclaims.
+  await deps.repo.registerStagingMany(
+    copies.map(({ id, objectKey }) => ({ mediaId: id, objectKey })),
+    deps.now
+  );
+  try {
+    for (const copy of copies) {
+      const sourceKey = keys.get(copy.sourceId);
+      const source = sourceKey === undefined ? null : await storage.get(sourceKey);
+      if (source === null) throw new AppError('NOT_FOUND', 'The media file is missing from storage');
+      await storage.put(
+        copy.objectKey,
+        source.body,
+        source.contentType ?? byId.get(copy.sourceId)?.contentType ?? 'application/octet-stream'
+      );
+    }
+  } catch (error) {
+    await storage.delete(copies.map(({ objectKey }) => objectKey)).catch(() => undefined);
+    if (error instanceof AppError) throw error;
+    throw new AppError('UNAVAILABLE', 'Media storage is unavailable');
+  }
 }
 
 type DeleteDeps = {

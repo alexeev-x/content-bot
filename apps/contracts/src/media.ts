@@ -146,7 +146,8 @@ export type ReorderPostMediaInput = z.infer<typeof reorderPostMediaInputSchema>;
 
 // POST /api/v1/posts/{postId}/media/attach -> 200 { media, revision }.
 // `mediaIds` are appended in the submitted order; existing attachments remain before them.
-// The server verifies every asset is in the retained library and enforces no duplicates and the 10-item cap.
+// The server verifies every asset is in the retained library and enforces the 10-item cap. The same picture may
+// be attached again, also within one request: each repeat becomes a new asset with its own copy of the stored file.
 export const attachPostMediaInputSchema = changePostMediaRevisionInputSchema.extend({
   mediaIds: z.array(z.uuid()).min(1).max(POST_MEDIA_MAX_ITEMS)
 });
