@@ -100,10 +100,6 @@ export function PublicationsPage({ search, onSearchChange, onOpenPosts, pollMs }
   const { mode: selectMode, selected } = selection;
   const defaultOrder: Order = shownView === 'upcoming' ? 'asc' : 'desc';
   const order = search.order ?? defaultOrder;
-  const tabCount = (kind: PublicationView): string => {
-    const value = tabValue(kind);
-    return value === null ? '' : `(${value})`;
-  };
   const tabValue = (kind: PublicationView): number | null => {
     if (!counts) return null;
     const byStatus = counts.statusCounts;
@@ -112,6 +108,7 @@ export function PublicationsPage({ search, onSearchChange, onOpenPosts, pollMs }
     if (kind === 'errors') return byStatus.failed + byStatus.unknown;
     return counts.totalCount;
   };
+  const errorCount = tabValue('errors') ?? 0;
   const zone = timezone;
   const textOf = useCallback(
     (row: PublicationDto) => publicationRowText(row, post(row), channel(row)?.title, zone),
@@ -243,21 +240,15 @@ export function PublicationsPage({ search, onSearchChange, onOpenPosts, pollMs }
           }}
         >
           <TabList aria-label={copy.tabs.label}>
-            <Tab id="all">
-              {copy.tabs.all}
-              <span className={styles.tabCount}>{tabCount('all')}</span>
-            </Tab>
-            <Tab id="upcoming">
-              {narrow ? copy.tabs.upcomingShort : copy.tabs.upcoming}
-              <span className={styles.tabCount}>{tabCount('upcoming')}</span>
-            </Tab>
-            <Tab id="recent">
-              {narrow ? copy.tabs.recentShort : copy.tabs.recent}
-              <span className={styles.tabCount}>{tabCount('recent')}</span>
-            </Tab>
+            <Tab id="all">{copy.tabs.all}</Tab>
+            <Tab id="upcoming">{narrow ? copy.tabs.upcomingShort : copy.tabs.upcoming}</Tab>
+            <Tab id="recent">{narrow ? copy.tabs.recentShort : copy.tabs.recent}</Tab>
             <Tab id="errors">
               {copy.tabs.errors}
-              <span className={styles.tabCount}>{tabCount('errors')}</span>
+              {/* Only errors get a number: it asks for action; the other counts said little and grew noisy. */}
+              {errorCount > 0 ? (
+                <span className={styles.errorBadge}>{errorCount > 99 ? '99+' : errorCount}</span>
+              ) : null}
             </Tab>
           </TabList>
           <TabPanel id={view}>

@@ -146,11 +146,6 @@ export function PostsList({
   // An empty «Черновики» tab reads as a narrowed list (with a way back to «Все»), not as «no posts at all».
   const emptyIsFiltered = isSearching || shownView === 'drafts';
 
-  // The archive size rides on every page; keep the last known value while another tab is loading.
-  const fresh = result.data?.archivedCount;
-  const [lastCount, setLastCount] = useState<number | undefined>(undefined);
-  if (fresh !== undefined && fresh !== lastCount) setLastCount(fresh);
-  const archivedCount = fresh ?? lastCount;
   const sortedRows = rows;
   const sortOptions = useMemo(() => sortOptionsFor(shownView), [shownView]);
   const sortValue = sort ? `${sort.key}:${sort.direction}` : 'none';
@@ -357,7 +352,6 @@ export function PostsList({
           {VIEWS.map((id) => (
             <Tab key={id} id={id}>
               {copy.tabs[id]}
-              {id === 'archive' ? <span className={styles.count}>{archivedCount ?? ''}</span> : null}
             </Tab>
           ))}
         </TabList>

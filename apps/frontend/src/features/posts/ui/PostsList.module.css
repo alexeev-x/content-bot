@@ -3,16 +3,6 @@
   gap: var(--space-4);
   min-width: 0;
 }
-.count {
-  min-width: 3ch;
-  padding: 0 var(--space-1);
-  font-variant-numeric: tabular-nums;
-  border-radius: var(--radius-pill);
-  background: var(--color-surface-3);
-  color: var(--color-text-muted);
-  font-size: var(--font-size-xs);
-  text-align: center;
-}
 /* The slot is reserved before the count arrives, so the tab does not change width. */
 .count:empty {
   background: none;
