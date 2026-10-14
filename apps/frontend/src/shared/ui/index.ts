@@ -41,6 +41,8 @@ export { SearchField } from './SearchField';
 export { TableSearch } from './TableSearch';
 export { SelectionBar } from './SelectionBar';
 export { DragHandle, SortableGrid } from './SortableGrid';
+export { FilterChips } from './FilterChips';
+export type { FilterChip } from './FilterChips';
 export { ResizeHandle } from './ResizeHandle';
 export { SegmentedControl } from './SegmentedControl';
 export type { SegmentOption } from './SegmentedControl';

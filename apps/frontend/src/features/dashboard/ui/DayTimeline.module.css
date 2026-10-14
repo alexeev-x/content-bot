@@ -186,3 +186,60 @@
     display: none;
   }
 }
+
+/* Second lane: the day's studio events (posts, files, channel changes) on the same 00-24 scale. */
+.eventsRow {
+  display: grid;
+  gap: var(--space-1);
+  padding-inline: var(--space-4);
+}
+.eventsLabel {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+}
+.events {
+  position: relative;
+  height: 32px;
+  margin: 0;
+  padding: 0;
+  border-top: 1px dashed var(--color-border-subtle);
+  list-style: none;
+}
+.eventSlot {
+  position: absolute;
+  top: 4px;
+  width: 0;
+}
+.eventDot {
+  position: relative;
+  display: grid;
+  width: var(--size-target-min);
+  height: var(--size-target-min);
+  margin-inline-start: calc(var(--size-target-min) / -2);
+  place-items: center;
+  padding: 0;
+  border: 1px solid var(--tone-ring);
+  border-radius: var(--radius-pill);
+  background: linear-gradient(var(--tone-bg), var(--tone-bg)), var(--color-surface-1);
+  color: var(--tone-fg);
+  cursor: pointer;
+}
+.eventDot[data-focus-visible] {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 2px;
+}
+.eventCount {
+  position: absolute;
+  top: -6px;
+  right: -8px;
+  min-width: 14px;
+  height: 14px;
+  padding: 0 3px;
+  border-radius: var(--radius-pill);
+  background: var(--color-text);
+  color: var(--color-surface-1);
+  font-size: var(--font-size-2xs);
+  font-weight: var(--font-weight-semibold);
+  line-height: 14px;
+  text-align: center;
+}

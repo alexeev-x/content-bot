@@ -225,6 +225,96 @@ export async function mockApi(page: Page): Promise<void> {
     return json(route, layout);
   });
   await page.route(/\/api\/v1\/publications\/[^/?]+\/history$/, (route) => json(route, { items: [] }));
+  // Activity: a few events around «now» so the feed and the day lane have something to show.
+  await page.route(/\/api\/v1\/activity(\?.*)?$/, (route) => {
+    const now = Date.now();
+    const at = (minutesAgo: number) => new Date(now - minutesAgo * 60_000).toISOString();
+    const base = {
+      actor: 'owner',
+      postId: null,
+      publicationId: null,
+      channelTitle: null,
+      scheduledAt: null,
+      errorCode: null
+    };
+    const items = [
+      {
+        ...base,
+        id: '6',
+        at: at(5),
+        action: 'job.failed',
+        category: 'errors',
+        actor: 'system',
+        entityType: 'publication',
+        entityId: ids.publication,
+        title: 'Итоги недели',
+        publicationId: ids.publication,
+        channelTitle: 'Dota Studio',
+        errorCode: 'DESTINATION_UNAVAILABLE'
+      },
+      {
+        ...base,
+        id: '5',
+        at: at(40),
+        action: 'publication.create',
+        category: 'publications',
+        entityType: 'publication',
+        entityId: ids.publication,
+        title: 'Итоги недели',
+        postId: ids.post,
+        publicationId: ids.publication,
+        channelTitle: 'Dota Studio',
+        scheduledAt: at(-120)
+      },
+      {
+        ...base,
+        id: '4',
+        at: at(45),
+        action: 'post.approve',
+        category: 'posts',
+        entityType: 'post',
+        entityId: ids.post,
+        title: 'Итоги недели',
+        postId: ids.post
+      },
+      {
+        ...base,
+        id: '3',
+        at: at(48),
+        action: 'media.upload',
+        category: 'media',
+        entityType: 'media',
+        entityId: 'm1',
+        title: 'cover.jpg'
+      },
+      {
+        ...base,
+        id: '2',
+        at: at(52),
+        action: 'post.create',
+        category: 'posts',
+        entityType: 'post',
+        entityId: ids.post,
+        title: 'Итоги недели',
+        postId: ids.post
+      },
+      {
+        ...base,
+        id: '1',
+        at: at(26 * 60),
+        action: 'destination.create',
+        category: 'system',
+        entityType: 'destination',
+        entityId: ids.destination,
+        title: 'Dota Studio'
+      }
+    ];
+    const category = new URL(route.request().url()).searchParams.get('category');
+    return json(route, {
+      items: category ? items.filter((item) => item.category === category) : items,
+      nextCursor: null
+    });
+  });
   await page.route('**/api/v1/health', (route) =>
     json(route, { status: 'ok', service: 'e2e', publishingEnabled: false, time: T })
   );

@@ -1,9 +1,10 @@
-import type { DashboardPublicationDto } from '@alexeev/contracts';
+import type { ActivityItemDto, DashboardPublicationDto } from '@alexeev/contracts';
 import { Link } from '@tanstack/react-router';
 import type { CSSProperties } from 'react';
 import { Button as AriaButton } from 'react-aria-components';
 import { formatClock } from '../../../shared/lib/clock';
 import { Button, Icon, Skeleton, statusMeta, Tooltip } from '../../../shared/ui';
+import { activityView, groupByTime } from '../model/activity-view';
 import { dayPercent, placeMarkers } from '../model/timeline';
 import { avatarLetter, toneStyle } from '../model/tone';
 import { copy } from './copy';
@@ -26,10 +27,34 @@ type Props = {
   phone: boolean;
   onOpenPublication: (publicationId: string) => void;
   onNewPost: () => void;
+  /** The day's studio events for the second lane; undefined while loading. Sends already show as markers. */
+  events?: readonly ActivityItemDto[] | undefined;
+  onOpenActivity?: (items: readonly ActivityItemDto[]) => void;
 };
 
+// Events closer than one dot width (percent of the day) share a dot: ~1.5 h on desktop, ~3 h on a phone.
+const EVENT_GAP_DESKTOP = 6;
+const EVENT_GAP_PHONE = 12;
+
 /** The day as a 00-24 line in the owner's zone: one marker per publication, a «сейчас» line, tooltips on hover and focus. */
-export function DayTimeline({ items, total, day, now, timezone, phone, onOpenPublication, onNewPost }: Props) {
+export function DayTimeline({
+  items,
+  total,
+  day,
+  now,
+  timezone,
+  phone,
+  onOpenPublication,
+  onNewPost,
+  events,
+  onOpenActivity
+}: Props) {
+  const eventGroups = groupByTime(
+    (events ?? [])
+      .filter((event) => event.action !== 'job.succeeded')
+      .map((event) => ({ event, percent: dayPercent(event.at, day) })),
+    phone ? EVENT_GAP_PHONE : EVENT_GAP_DESKTOP
+  );
   const markers = items ? placeMarkers(items, day, phone ? GAP_PHONE : GAP_DESKTOP, LANES) : [];
   const nowPercent = dayPercent(now.getTime(), day);
   const empty = items !== undefined && items.length === 0;
@@ -119,6 +144,36 @@ export function DayTimeline({ items, total, day, now, timezone, phone, onOpenPub
             )}
           </div>
         </div>
+        {onOpenActivity && eventGroups.length > 0 ? (
+          <div className={styles.eventsRow}>
+            <span className={styles.eventsLabel}>{copy.activity.lane}</span>
+            <ul className={styles.events} aria-label={copy.activity.lane}>
+              {eventGroups.map((group) => {
+                const first = group[group.length - 1]?.event;
+                if (!first) return null;
+                const view = activityView(first);
+                const clock = formatClock(first.at, timezone);
+                return (
+                  <li
+                    key={first.id}
+                    className={styles.eventSlot}
+                    style={{ insetInlineStart: `${group[0]?.percent ?? 0}%` }}
+                  >
+                    <AriaButton
+                      className={styles.eventDot}
+                      style={toneStyle(view.tone)}
+                      aria-label={copy.activity.eventDot(group.length, view.text, clock)}
+                      onPress={() => onOpenActivity(group.map((point) => point.event).reverse())}
+                    >
+                      <Icon name={view.icon} size={12} />
+                      {group.length > 1 ? <span className={styles.eventCount}>{group.length}</span> : null}
+                    </AriaButton>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        ) : null}
         {items ? <p className={styles.sr}>{copy.line.summary(total)}</p> : null}
         {empty ? (
           <div className={styles.hint}>

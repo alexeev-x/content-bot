@@ -1,5 +1,7 @@
-import type { DashboardDto } from '@alexeev/contracts';
-import type { UseQueryResult } from '@tanstack/react-query';
+import type { ActivityItemDto, DashboardDto } from '@alexeev/contracts';
+import { useQuery, type UseQueryResult } from '@tanstack/react-query';
+import { useState } from 'react';
+import { dayActivityQueryOptions } from '../api/activity-queries';
 import { ApiError } from '../../../shared/api/http-client';
 import { classifyApiError } from '../../../shared/api/error-kind';
 import type { StatusCheck } from '../../../shared/lib/status-check';
@@ -9,6 +11,7 @@ import { useDraftsQuery, useWeekQuery } from '../model/use-dashboard-query';
 import { useTodayRange } from '../model/today-range';
 import type { ChannelRow } from '../model/channel-rows';
 import type { ServiceRow } from '../model/service-rows';
+import { ActivityDialog } from './ActivityDialog';
 import { copy } from './copy';
 import styles from './Dashboard.module.css';
 import { DashboardLayout } from './DashboardLayout';
@@ -34,6 +37,9 @@ export type PageBindings = {
   onOpenToday: () => void;
   onOpenErrors: () => void;
   channels: readonly ChannelRow[] | undefined;
+  /** Links from the activity dialog. */
+  onOpenPost: (postId: string) => void;
+  onOpenMedia: () => void;
   /** The owner's layout and its edit mode (`useLayoutEditing`). */
   layout: LayoutEditing;
 };
@@ -52,9 +58,14 @@ export function Dashboard({
   onOpenToday,
   onOpenErrors,
   channels,
+  onOpenPost,
+  onOpenMedia,
   layout
 }: PageBindings) {
-  const week = useWeekQuery(timezone, useTodayRange(timezone).from);
+  const today = useTodayRange(timezone);
+  const week = useWeekQuery(timezone, today.from);
+  const dayEvents = useQuery(dayActivityQueryOptions(today.from, today.to)).data?.items;
+  const [activity, setActivity] = useState<readonly ActivityItemDto[] | null>(null);
   const drafts = useDraftsQuery();
   // A failed day summary replaces the widgets that read it with one error, never a block of zeros.
   const failed = !query.data && !query.isPending;
@@ -139,7 +150,9 @@ export function Dashboard({
               onPublishDraft,
               onOpenToday,
               onOpenErrors,
-              channels
+              channels,
+              dayEvents,
+              onOpenActivity: setActivity
             }}
           />
         )}
@@ -150,25 +163,37 @@ export function Dashboard({
   if (failure) return <div className={styles.root}>{banner}</div>;
 
   return (
-    <DashboardLayout
-      loading={query.isPending}
-      banner={banner}
-      zoneNote={zoneNote}
-      items={layout.items}
-      env={{
-        view,
-        services,
-        week,
-        drafts,
-        timezone,
-        onOpenPublication,
-        onOpenDay,
-        onNewPost,
-        onPublishDraft,
-        onOpenToday,
-        onOpenErrors,
-        channels
-      }}
-    />
+    <>
+      <DashboardLayout
+        loading={query.isPending}
+        banner={banner}
+        zoneNote={zoneNote}
+        items={layout.items}
+        env={{
+          view,
+          services,
+          week,
+          drafts,
+          timezone,
+          onOpenPublication,
+          onOpenDay,
+          onNewPost,
+          onPublishDraft,
+          onOpenToday,
+          onOpenErrors,
+          channels,
+          dayEvents,
+          onOpenActivity: setActivity
+        }}
+      />
+      <ActivityDialog
+        items={activity}
+        onClose={() => setActivity(null)}
+        timezone={timezone}
+        onOpenPost={onOpenPost}
+        onOpenPublication={onOpenPublication}
+        onOpenMedia={onOpenMedia}
+      />
+    </>
   );
 }

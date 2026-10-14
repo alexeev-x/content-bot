@@ -9,6 +9,7 @@ import { authRoutes } from './auth-routes';
 import { analyticsRoutes } from './analytics-routes';
 import { automationsRoutes } from './automations-routes';
 import { botRoutes } from './bot-routes';
+import { activityRoutes } from './activity-routes';
 import { dashboardRoutes } from './dashboard-routes';
 import { destinationsRoutes } from './destinations-routes';
 import { dotaRoutes } from './dota-routes';
@@ -110,6 +111,7 @@ export function createApp(
   app.route('/api/v1/sources', sourcesRoutes);
   app.route('/api/v1/publications', publicationsRoutes);
   app.route('/api/v1/dashboard', dashboardRoutes);
+  app.route('/api/v1/activity', activityRoutes);
   app.route('/api/v1/incidents', incidentsRoutes);
   app.route('/api/v1/settings', settingsRoutes);
   app.route('/api/v1/bot', botRoutes);

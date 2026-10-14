@@ -22,7 +22,8 @@ const ICONS: Record<WidgetKind, IconName> = {
   'kpi-today': 'calendar',
   'kpi-sent': 'check-circle',
   'kpi-attention': 'alert',
-  'kpi-next': 'clock'
+  'kpi-next': 'clock',
+  activity: 'list'
 };
 
 /**

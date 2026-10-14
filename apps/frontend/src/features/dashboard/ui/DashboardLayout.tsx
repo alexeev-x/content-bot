@@ -4,6 +4,7 @@ import { useNow } from '../../../shared/lib/use-now';
 import { useMediaQuery, VisuallyHidden } from '../../../shared/ui';
 import { PHONE_QUERY } from '../model/phone';
 import { mediumSpan, type LayoutItem } from '../model/widget-catalog';
+import { ActivityFeed } from './ActivityFeed';
 import { AttentionCard } from './AttentionCard';
 import { Channels } from './Channels';
 import { copy } from './copy';
@@ -44,6 +45,8 @@ export function renderWidget(item: LayoutItem, env: Omit<WidgetEnv, 'phone'>, ph
           phone={phone}
           onOpenPublication={env.onOpenPublication}
           onNewPost={env.onNewPost}
+          events={env.dayEvents}
+          onOpenActivity={env.onOpenActivity}
         />
       );
     case 'upcoming':
@@ -82,6 +85,8 @@ export function renderWidget(item: LayoutItem, env: Omit<WidgetEnv, 'phone'>, ph
       );
     case 'system':
       return <SystemLights services={env.services} />;
+    case 'activity':
+      return <ActivityFeed timezone={timezone} now={now} onOpen={env.onOpenActivity} />;
     case 'channels':
       return <Channels channels={env.channels} />;
     case 'kpi-today':

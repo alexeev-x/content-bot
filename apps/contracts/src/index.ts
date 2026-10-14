@@ -18,3 +18,4 @@ export * from './publications';
 export * from './settings';
 export * from './sources';
 export * from './system';
+export * from './activity';

@@ -35,7 +35,9 @@ export function DashboardSkeleton({
         onPublishDraft: ignore,
         onOpenToday: ignore,
         onOpenErrors: ignore,
-        channels: undefined
+        channels: undefined,
+        dayEvents: undefined,
+        onOpenActivity: ignore
       }}
     />
   );

@@ -13,7 +13,8 @@ export type WidgetKind =
   | 'kpi-today'
   | 'kpi-sent'
   | 'kpi-attention'
-  | 'kpi-next';
+  | 'kpi-next'
+  | 'activity';
 
 /** Column spans on the 12-column grid of a wide screen. */
 export type WidgetWidth = 3 | 4 | 6 | 8 | 12;
@@ -97,6 +98,12 @@ export const CATALOG: Record<WidgetKind, CatalogEntry> = {
     description: 'Сколько пунктов требует внимания.',
     widths: [3, 4, 6],
     defaultWidth: 3
+  },
+  activity: {
+    title: 'Активность',
+    description: 'Всё, что происходило в студии: посты, файлы, публикации, ошибки — по дням, с фильтром.',
+    widths: [4, 6, 8, 12],
+    defaultWidth: 4
   },
   'kpi-next': {
     title: 'Следующая через',

@@ -80,6 +80,7 @@ import {
 } from '../modules/dota-hero-statistics';
 import { createOpenDotaHeroStatisticsFetcher } from '../integrations/opendota/hero-statistics';
 import { createD1AutomationRepository, type AutomationRepository } from '../modules/automations';
+import { type ActivityRepository, createD1ActivityRepository } from '../modules/activity';
 
 // The only place where real implementations are wired. It grows together with the modules
 // (repositories, transports); nothing is registered here before it exists.
@@ -101,6 +102,7 @@ export interface Container {
   settings: SettingsRepository;
   /** The owner's Обзор widget layout (migration 0012). */
   dashboardLayout: DashboardLayoutRepository;
+  activity: ActivityRepository;
   destinations: DestinationRepository;
   publications: PublicationRepository;
   publicationAnalytics: PublicationAnalyticsRepository;
@@ -261,6 +263,9 @@ export function createContainer(env: ContainerEnv, overrides: ContainerOverrides
     },
     get dashboardLayout() {
       return createD1DashboardLayoutRepository(db());
+    },
+    get activity() {
+      return createD1ActivityRepository(db());
     },
     get destinations() {
       return createD1DestinationRepository(db());

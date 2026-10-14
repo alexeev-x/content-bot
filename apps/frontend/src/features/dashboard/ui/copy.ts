@@ -3,6 +3,32 @@ import { pluralRu } from '../../../shared/lib/ru-format';
 // Copy of the dashboard widgets. Publication status labels are canonical in shared/lib/ru.ts (skill page-spec).
 export const copy = {
   loading: 'Загружаем обзор…',
+  activity: {
+    title: 'Активность',
+    filter: 'Фильтр активности',
+    all: 'Всё',
+    today: 'Сегодня',
+    yesterday: 'Вчера',
+    empty: 'Пока ничего не происходило',
+    error: 'Не удалось загрузить активность',
+    retry: 'Повторить',
+    more: 'Показать ещё',
+    lane: 'События дня',
+    eventDot: (count: number, first: string, clock: string) =>
+      count > 1 ? `${clock}: ${count} событий, первое — ${first}` : `${clock}: ${first}`,
+    dialogOne: 'Что произошло',
+    dialogMany: (count: number) => `Событий: ${count}`,
+    when: 'Когда',
+    who: 'Кто',
+    owner: 'Вы',
+    system: 'Студия (автоматически)',
+    channel: 'Канал',
+    planned: 'План',
+    openPublication: 'Открыть публикацию',
+    openPost: 'Открыть пост',
+    openMedia: 'Открыть медиа',
+    gone: 'Объект уже удалён'
+  },
   kpi: {
     sentCaption: (total: number) => `из ${total} за сегодня`,
     allClear: 'всё в порядке',
