@@ -1,4 +1,4 @@
-import type { SourceEventDto, SourceEventStatus, SourceEventType } from '@alexeev/contracts';
+import type { SourceEventDto, SourceEventStatus } from '@alexeev/contracts';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
 import { useEffect, useState } from 'react';
@@ -22,7 +22,7 @@ import { sourceEventsQueryOptions, useCreateSourceEventDraft, useSetSourceEventH
 import { SourceEventCard } from './SourceEventCard';
 import styles from './SourceFeed.module.css';
 
-export type FeedFilters = { status: SourceEventStatus; type: SourceEventType | 'all'; page: number };
+export type FeedFilters = { status: SourceEventStatus; page: number };
 
 const STATUS_OPTIONS = [
   { id: 'new', label: 'Новые' },
@@ -30,12 +30,6 @@ const STATUS_OPTIONS = [
   { id: 'published', label: 'Опубликованные' },
   { id: 'hidden', label: 'Скрытые' }
 ] as const;
-const TYPE_OPTIONS = [
-  { id: 'all', label: 'Все типы' },
-  { id: 'patch', label: 'Патч' },
-  { id: 'treasure', label: 'Сокровищница' },
-  { id: 'news', label: 'Новость' }
-];
 const EMPTY: Record<SourceEventStatus, { title: string; description: string }> = {
   new: {
     title: 'Новых событий пока нет',
@@ -58,7 +52,6 @@ export function SourceFeed({ filters, timezone, onFiltersChange }: Props) {
   const query = useQuery(
     sourceEventsQueryOptions({
       status: filters.status,
-      ...(filters.type === 'all' ? {} : { type: filters.type }),
       page: filters.page,
       limit: PAGE_SIZE
     })
@@ -110,13 +103,6 @@ export function SourceFeed({ filters, timezone, onFiltersChange }: Props) {
           onChange={(status) => onFiltersChange({ status: status as SourceEventStatus, page: 1 })}
         />
       )}
-      <Select
-        label="Тип"
-        inlineLabel
-        options={TYPE_OPTIONS}
-        value={filters.type}
-        onChange={(type) => onFiltersChange({ type: type as FeedFilters['type'], page: 1 })}
-      />
     </div>
   );
 

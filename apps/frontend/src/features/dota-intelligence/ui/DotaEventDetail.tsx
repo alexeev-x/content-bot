@@ -76,7 +76,6 @@ export function DotaEventDetail({ sourceKey, externalId, timezone }: Props) {
       </h2>
       {data ? (
         <p className={styles.meta}>
-          {data.update.type === 'patch' ? 'Патч' : 'Новость'} ·{' '}
           {data.update.sourceKey === 'patch_notes' ? 'Patch notes' : 'Steam Community'}
           {' · опубликовано '}
           <DotaTime iso={data.update.publishedAt} now={now.getTime()} timezone={timezone} />

@@ -15,19 +15,15 @@ export function SourcesPage() {
   const externalId = parts.join(':');
   const validSourceKey = sourceKey === 'steam_news' || sourceKey === 'patch_notes' ? sourceKey : undefined;
   const validUpdate = validSourceKey !== undefined && /^[A-Za-z0-9._-]{1,100}$/.test(externalId);
-  const filters: FeedFilters = { status: search.status ?? 'new', type: search.type ?? 'all', page: search.page ?? 1 };
+  const filters: FeedFilters = { status: search.status ?? 'new', page: search.page ?? 1 };
   const onFiltersChange = useCallback(
     (patch: Partial<FeedFilters>) =>
       void navigate({
-        search: (previous) => {
-          const { type, ...rest } = patch;
-          return {
-            ...previous,
-            ...rest,
-            ...(type !== undefined ? { type: type === 'all' ? undefined : type } : {}),
-            ...(patch.page === 1 ? { page: undefined } : {})
-          };
-        },
+        search: (previous) => ({
+          ...previous,
+          ...patch,
+          ...(patch.page === 1 ? { page: undefined } : {})
+        }),
         replace: true
       }),
     [navigate]

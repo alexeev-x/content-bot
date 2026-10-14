@@ -9,6 +9,7 @@ import {
   type DotaSourceKey as ContractDotaSourceKey
 } from '@alexeev/contracts';
 import { AppError } from '../../shared/app-error';
+import { clipDetail, describeError, describeHttp, describeShape } from '../../shared/feed-diagnostics';
 import { classifyDotaEvent, cleanExcerpt, type DotaSourceKey, type SourceEventType } from './source-events';
 
 export * from './source-events';
@@ -77,7 +78,9 @@ export class DotaWatchError extends Error {
   constructor(
     readonly code:
       'DOTA_SOURCE_FETCH' | 'DOTA_SOURCE_HTTP' | 'DOTA_SOURCE_BODY_LIMIT' | 'DOTA_SOURCE_JSON' | 'DOTA_SOURCE_SHAPE',
-    readonly sourceKey: DotaSourceKey
+    readonly sourceKey: DotaSourceKey,
+    readonly httpStatus: number | null = null,
+    readonly detail = ''
   ) {
     super(`${code}_${sourceKey}`);
     this.name = 'DotaWatchError';
@@ -115,7 +118,7 @@ export function createOfficialDotaFetcher(fetchImpl: typeof fetch = fetch): Dota
         method: 'GET',
         headers: { accept: 'application/json' },
         signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
-        redirect: 'error'
+        redirect: 'manual'
       });
     },
     async fetchPatchDetails(version) {
@@ -126,7 +129,7 @@ export function createOfficialDotaFetcher(fetchImpl: typeof fetch = fetch): Dota
         method: 'GET',
         headers: { accept: 'application/json' },
         signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
-        redirect: 'error'
+        redirect: 'manual'
       });
     },
     async fetchPatchNameMaps() {
@@ -135,7 +138,7 @@ export function createOfficialDotaFetcher(fetchImpl: typeof fetch = fetch): Dota
           method: 'GET',
           headers: { accept: 'application/json' },
           signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
-          redirect: 'error'
+          redirect: 'manual'
         });
       if (nameMapsPromise === null) {
         nameMapsPromise = (async () => {
@@ -145,8 +148,8 @@ export function createOfficialDotaFetcher(fetchImpl: typeof fetch = fetch): Dota
               request('https://www.dota2.com/datafeed/herolist?language=english'),
               request('https://www.dota2.com/datafeed/itemlist?language=english')
             ]);
-          } catch {
-            throw new DotaWatchError('DOTA_SOURCE_FETCH', 'patch_notes');
+          } catch (error) {
+            throw new DotaWatchError('DOTA_SOURCE_FETCH', 'patch_notes', null, describeError(error));
           }
           const [heroPayload, itemPayload] = await Promise.all([
             readBoundedJson(responses[0], 128 * 1024, 'patch_notes'),
@@ -737,9 +740,14 @@ export interface DotaWatcherRepository {
     sourceKey: DotaSourceKey;
     code: DotaWatchError['code'] | DotaPatchDetailError['code'];
     externalId?: string;
+    /** Feed-level diagnostics (shown in «Состояние лент»); patch-detail failures leave them alone. */
+    httpStatus?: number | null;
+    detail?: string;
     detectedAt: number;
     id: string;
   }): Promise<string>;
+  /** A failure that is not the feed's fault (D1 write): diagnostics only, no incident and no owner alert. */
+  recordSourceStoreFailure(input: { sourceKey: DotaSourceKey; detail: string; detectedAt: number }): Promise<void>;
   resolvePatchDetailFailures(input: { externalId: string; detectedAt: number }): Promise<void>;
   listDraftWork(limit: number): Promise<DotaDraftSource[]>;
   reserveDraft(input: { sourceKey: DotaSourceKey; externalId: string; postId: string }): Promise<string | null>;
@@ -794,14 +802,23 @@ const DOTA_OWNER_ALERT_WORK_SQL = `
   WHERE u.is_baseline = 0 AND u.draft_post_id IS NOT NULL AND u.owner_alert_claimed_at IS NULL AND u.hidden_at IS NULL
   ORDER BY u.published_at, u.source_key, u.external_id LIMIT ?1`;
 
+// Replays of one tick (same `detectedAt`) must not count a failure twice.
+const RECORD_FEED_ERROR_SQL = `UPDATE dota_source_state SET last_error_code = ?2, last_error_http_status = ?3,
+    last_error_detail = ?4, last_error_at = ?5, consecutive_failures = consecutive_failures + 1
+  WHERE source_key = ?1 AND COALESCE(last_error_at, -1) < ?5`;
+
 const DOTA_SOURCE_INCIDENT_ALERT_SQL = `
   SELECT id, source_key, external_id, code, resolved_at FROM dota_source_incidents INDEXED BY dota_source_incidents_alert_idx
   WHERE owner_alert_claimed_at IS NULL
   ORDER BY created_at, id LIMIT ?1`;
 
 async function readBoundedJson(response: Response, maximumBytes: number, sourceKey: DotaSourceKey): Promise<unknown> {
-  if (!response.ok) throw new DotaWatchError('DOTA_SOURCE_HTTP', sourceKey);
-  if (response.body === null) throw new DotaWatchError('DOTA_SOURCE_JSON', sourceKey);
+  // Redirects are not followed (`redirect: 'manual'`): a 3xx lands here as a non-ok response.
+  if (!response.ok) {
+    await response.body?.cancel();
+    throw new DotaWatchError('DOTA_SOURCE_HTTP', sourceKey, response.status, describeHttp(response));
+  }
+  if (response.body === null) throw new DotaWatchError('DOTA_SOURCE_JSON', sourceKey, null, 'Empty response body');
 
   const reader = response.body.getReader();
   const chunks: Uint8Array[] = [];
@@ -813,7 +830,12 @@ async function readBoundedJson(response: Response, maximumBytes: number, sourceK
       total += value.byteLength;
       if (total > maximumBytes) {
         await reader.cancel();
-        throw new DotaWatchError('DOTA_SOURCE_BODY_LIMIT', sourceKey);
+        throw new DotaWatchError(
+          'DOTA_SOURCE_BODY_LIMIT',
+          sourceKey,
+          null,
+          `Response is larger than the ${maximumBytes} byte limit (read ${total} bytes)`
+        );
       }
       chunks.push(value);
     }
@@ -829,14 +851,14 @@ async function readBoundedJson(response: Response, maximumBytes: number, sourceK
   }
   try {
     return JSON.parse(new TextDecoder().decode(bytes)) as unknown;
-  } catch {
-    throw new DotaWatchError('DOTA_SOURCE_JSON', sourceKey);
+  } catch (error) {
+    throw new DotaWatchError('DOTA_SOURCE_JSON', sourceKey, null, describeError(error));
   }
 }
 
 function parseSteamNews(payload: unknown): DotaUpdateItem[] {
   const parsed = steamNewsSchema.safeParse(payload);
-  if (!parsed.success) throw new DotaWatchError('DOTA_SOURCE_SHAPE', 'steam_news');
+  if (!parsed.success) throw new DotaWatchError('DOTA_SOURCE_SHAPE', 'steam_news', null, describeShape(parsed.error));
   const official: DotaUpdateItem[] = [];
   for (const news of parsed.data.appnews.newsitems) {
     if (news.feedname !== 'steam_community_announcements') continue;
@@ -846,7 +868,12 @@ function parseSteamNews(payload: unknown): DotaUpdateItem[] {
       url.pathname === `/news/app/570/view/${news.gid}` ||
       url.pathname === `/news/externalpost/steam_community_announcements/${news.gid}`;
     if (!['http:', 'https:'].includes(url.protocol) || !allowedHost || !officialPath) {
-      throw new DotaWatchError('DOTA_SOURCE_SHAPE', 'steam_news');
+      throw new DotaWatchError(
+        'DOTA_SOURCE_SHAPE',
+        'steam_news',
+        null,
+        clipDetail(`newsitems ${news.gid}: unexpected url ${url.origin}${url.pathname}`)
+      );
     }
     official.push({
       sourceKey: 'steam_news',
@@ -862,7 +889,7 @@ function parseSteamNews(payload: unknown): DotaUpdateItem[] {
 
 function parsePatchList(payload: unknown): DotaUpdateItem[] {
   const parsed = patchListSchema.safeParse(payload);
-  if (!parsed.success) throw new DotaWatchError('DOTA_SOURCE_SHAPE', 'patch_notes');
+  if (!parsed.success) throw new DotaWatchError('DOTA_SOURCE_SHAPE', 'patch_notes', null, describeShape(parsed.error));
   return parsed.data.patches.map((patch) => ({
     sourceKey: 'patch_notes',
     externalId: patch.patch_number,
@@ -872,30 +899,54 @@ function parsePatchList(payload: unknown): DotaUpdateItem[] {
   }));
 }
 
+function isSubrequestBudgetError(error: unknown): boolean {
+  return error instanceof Error && /too many (api requests|subrequests)/i.test(error.message);
+}
+
 export async function syncDotaUpdates(input: {
   fetcher: DotaSourceFetcher;
   repo: DotaWatcherRepository;
   detectedAt: number;
 }): Promise<{ inserted: number; fetched: number }> {
   const syncSource = async (sourceKey: DotaSourceKey): Promise<{ inserted: number; fetched: number }> => {
+    let stage: 'store' | 'fetch' = 'store';
     try {
       await input.repo.recordSourceAttempt({ sourceKey, attemptedAt: input.detectedAt });
-      const response = await input.fetcher.fetch(sourceKey);
+      stage = 'fetch';
+      let response: Response;
+      try {
+        response = await input.fetcher.fetch(sourceKey);
+      } catch (error) {
+        throw new DotaWatchError('DOTA_SOURCE_FETCH', sourceKey, null, describeError(error));
+      }
       const payload = await readBoundedJson(
         response,
         sourceKey === 'steam_news' ? MAX_STEAM_BYTES : MAX_PATCH_BYTES,
         sourceKey
       );
       const items = sourceKey === 'steam_news' ? parseSteamNews(payload) : parsePatchList(payload);
+      stage = 'store';
       const stored = await input.repo.storeSourceSync({ sourceKey, items, detectedAt: input.detectedAt });
       return { inserted: stored.inserted, fetched: 1 };
     } catch (error) {
-      const classified = error instanceof DotaWatchError ? error : new DotaWatchError('DOTA_SOURCE_FETCH', sourceKey);
-      await input.repo.recordSourceFailure({
+      if (error instanceof DotaWatchError) {
+        await input.repo.recordSourceFailure({
+          sourceKey,
+          code: error.code,
+          httpStatus: error.httpStatus,
+          detail: error.detail,
+          detectedAt: input.detectedAt,
+          id: crypto.randomUUID()
+        });
+        return { inserted: 0, fetched: 0 };
+      }
+      // The invocation ran out of D1/subrequest allowance: the next tick retries, nothing is wrong with the feed.
+      if (isSubrequestBudgetError(error)) return { inserted: 0, fetched: 0 };
+      // Not a feed problem (D1 rejected a write, a bug in a mapper): reported as STORE, never as a fetch failure.
+      await input.repo.recordSourceStoreFailure({
         sourceKey,
-        code: classified.code,
-        detectedAt: input.detectedAt,
-        id: crypto.randomUUID()
+        detail: clipDetail(`${stage === 'store' ? 'D1/store' : 'unexpected'}: ${describeError(error)}`),
+        detectedAt: input.detectedAt
       });
       return { inserted: 0, fetched: 0 };
     }
@@ -968,7 +1019,14 @@ export function createD1DotaWatcherRepository(db: D1Database): DotaWatcherReposi
       statements.push(
         db
           .prepare(
-            'UPDATE dota_source_state SET baseline_seeded = 1, last_attempt_at = max(COALESCE(last_attempt_at, 0), ?2), last_success_at = max(COALESCE(last_success_at, 0), ?2) WHERE source_key = ?1'
+            `UPDATE dota_source_state SET baseline_seeded = 1, last_attempt_at = max(COALESCE(last_attempt_at, 0), ?2),
+               last_success_at = max(COALESCE(last_success_at, 0), ?2),
+               last_error_code = CASE WHEN COALESCE(last_error_at, -1) <= ?2 THEN NULL ELSE last_error_code END,
+               last_error_http_status = CASE WHEN COALESCE(last_error_at, -1) <= ?2 THEN NULL ELSE last_error_http_status END,
+               last_error_detail = CASE WHEN COALESCE(last_error_at, -1) <= ?2 THEN NULL ELSE last_error_detail END,
+               consecutive_failures = CASE WHEN COALESCE(last_error_at, -1) <= ?2 THEN 0 ELSE consecutive_failures END,
+               last_error_at = CASE WHEN COALESCE(last_error_at, -1) <= ?2 THEN NULL ELSE last_error_at END
+             WHERE source_key = ?1`
           )
           .bind(sourceKey, detectedAt),
         db
@@ -996,12 +1054,21 @@ export function createD1DotaWatcherRepository(db: D1Database): DotaWatcherReposi
 
     async listIntelligence({ source, limit, now }) {
       const stateResult = await db
-        .prepare('SELECT source_key, baseline_seeded, last_attempt_at, last_success_at FROM dota_source_state')
+        .prepare(
+          `SELECT source_key, baseline_seeded, last_attempt_at, last_success_at, last_error_code,
+                  last_error_http_status, last_error_detail, last_error_at, consecutive_failures
+           FROM dota_source_state`
+        )
         .all<{
           source_key: DotaSourceKey;
           baseline_seeded: number;
           last_attempt_at: number | null;
           last_success_at: number | null;
+          last_error_code: string | null;
+          last_error_http_status: number | null;
+          last_error_detail: string | null;
+          last_error_at: number | null;
+          consecutive_failures: number;
         }>();
       const incidentResult = await db
         .prepare(
@@ -1059,7 +1126,7 @@ export function createD1DotaWatcherRepository(db: D1Database): DotaWatcherReposi
         const lastAttemptAt = state?.last_attempt_at ?? null;
         const lastSuccessAt = state?.last_success_at ?? null;
         const baselineSeeded = state?.baseline_seeded === 1;
-        const hasSourceIncident = sourceIncidents.has(key);
+        const hasSourceIncident = sourceIncidents.has(key) || (state?.consecutive_failures ?? 0) > 0;
         const health: DotaIntelligenceDto['sources'][number]['health'] = hasSourceIncident
           ? 'degraded'
           : lastSuccessAt === null
@@ -1079,6 +1146,17 @@ export function createD1DotaWatcherRepository(db: D1Database): DotaWatcherReposi
           lastAttemptAt: lastAttemptAt === null ? null : new Date(lastAttemptAt).toISOString(),
           lastSuccessAt: lastSuccessAt === null ? null : new Date(lastSuccessAt).toISOString(),
           health,
+          lastError:
+            state?.last_error_code != null && state.last_error_at !== null
+              ? {
+                  code: state.last_error_code,
+                  httpStatus: state.last_error_http_status,
+                  detail: state.last_error_detail ?? '',
+                  at: new Date(state.last_error_at).toISOString(),
+                  consecutiveFailures: Math.max(1, state.consecutive_failures),
+                  lastSuccessAt: lastSuccessAt === null ? null : new Date(lastSuccessAt).toISOString()
+                }
+              : null,
           ...(incident === undefined
             ? {}
             : {
@@ -1208,7 +1286,16 @@ export function createD1DotaWatcherRepository(db: D1Database): DotaWatcherReposi
       return rows.map((row) => row.external_id);
     },
 
-    async recordSourceFailure({ sourceKey, code, externalId, detectedAt, id }) {
+    async recordSourceStoreFailure({ sourceKey, detail, detectedAt }) {
+      await db.batch([
+        db
+          .prepare('INSERT OR IGNORE INTO dota_source_state (source_key, baseline_seeded) VALUES (?1, 0)')
+          .bind(sourceKey),
+        db.prepare(RECORD_FEED_ERROR_SQL).bind(sourceKey, 'DOTA_SOURCE_STORE', null, detail, detectedAt)
+      ]);
+    },
+
+    async recordSourceFailure({ sourceKey, code, externalId, httpStatus, detail, detectedAt, id }) {
       await db.batch([
         db
           .prepare('INSERT OR IGNORE INTO dota_source_state (source_key, baseline_seeded) VALUES (?1, 0)')
@@ -1218,6 +1305,10 @@ export function createD1DotaWatcherRepository(db: D1Database): DotaWatcherReposi
             'UPDATE dota_source_state SET last_attempt_at = max(COALESCE(last_attempt_at, 0), ?2) WHERE source_key = ?1'
           )
           .bind(sourceKey, detectedAt),
+        // A patch-detail failure (externalId set) is not a feed failure; the feed row keeps its own state.
+        ...(externalId === undefined
+          ? [db.prepare(RECORD_FEED_ERROR_SQL).bind(sourceKey, code, httpStatus ?? null, detail ?? '', detectedAt)]
+          : []),
         db
           .prepare(
             `INSERT OR IGNORE INTO dota_source_incidents (id, source_key, external_id, code, created_at)

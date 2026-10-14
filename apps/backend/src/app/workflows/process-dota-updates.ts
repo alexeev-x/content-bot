@@ -96,6 +96,8 @@ export async function processDotaUpdates(deps: {
     await deps.repo.recordSourceFailure({
       sourceKey: error.sourceKey,
       code: error.code,
+      httpStatus: error.httpStatus,
+      detail: error.detail,
       detectedAt: deps.now(),
       id: deps.newId()
     });

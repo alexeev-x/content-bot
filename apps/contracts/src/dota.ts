@@ -6,6 +6,18 @@ export type DotaSourceKey = z.infer<typeof dotaSourceKeySchema>;
 export const dotaSourceHealthSchema = z.enum(['healthy', 'stale', 'unverified', 'degraded']);
 export type DotaSourceHealth = z.infer<typeof dotaSourceHealthSchema>;
 
+// The last failed check of a feed, persisted by the Worker. `code` is a stable machine code
+// (FETCH, HTTP, BODY_LIMIT, JSON, SHAPE, STORE); `detail` is short and never holds secrets.
+export const dotaFeedErrorSchema = z.object({
+  code: z.string().min(1).max(60),
+  httpStatus: z.number().int().min(100).max(599).nullable(),
+  detail: z.string().max(300),
+  at: z.iso.datetime(),
+  consecutiveFailures: z.number().int().min(1),
+  lastSuccessAt: z.iso.datetime().nullable()
+});
+export type DotaFeedErrorDto = z.infer<typeof dotaFeedErrorSchema>;
+
 export const dotaSourceSchema = z.object({
   key: dotaSourceKeySchema,
   name: z.string(),
@@ -13,6 +25,7 @@ export const dotaSourceSchema = z.object({
   lastAttemptAt: z.iso.datetime().nullable(),
   lastSuccessAt: z.iso.datetime().nullable(),
   health: dotaSourceHealthSchema,
+  lastError: dotaFeedErrorSchema.nullable(),
   openIncident: z
     .object({
       code: z.string(),

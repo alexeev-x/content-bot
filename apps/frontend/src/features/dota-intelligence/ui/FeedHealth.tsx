@@ -1,6 +1,6 @@
-import type { AutomationId, DotaSourceDto } from '@alexeev/contracts';
+import type { AutomationId, DotaFeedErrorDto, DotaSourceDto } from '@alexeev/contracts';
 import { useQuery } from '@tanstack/react-query';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ApiError } from '../../../shared/api/http-client';
 import { useNow } from '../../../shared/lib/use-now';
 import { Button, Disclosure, DisclosureGroup, StatusPill, VisuallyHidden } from '../../../shared/ui';
@@ -8,6 +8,7 @@ import { useDotaAutomation, useRunAutomationNow, useSetAutomationPaused } from '
 import { dotaHeroStatisticsQueryOptions } from '../api/dota-hero-statistics-queries';
 import { dotaIntelligenceQueryOptions } from '../api/dota-queries';
 import { DotaTime } from './DotaTime';
+import { FeedErrorDialog } from './FeedErrorDialog';
 import styles from './FeedHealth.module.css';
 
 type Health = DotaSourceDto['health'];
@@ -26,6 +27,10 @@ const TONE: Record<
   unverified: { group: 'muted', icon: 'help' },
   degraded: { group: 'failed', icon: 'x-circle' }
 };
+const PROVIDERS: Record<DotaSourceDto['key'], string> = {
+  patch_notes: 'сайта Dota 2',
+  steam_news: 'Steam'
+};
 const FEED_NAMES: Record<DotaSourceDto['key'], string> = {
   patch_notes: 'Патчи Dota 2',
   steam_news: 'Новости Steam'
@@ -34,6 +39,8 @@ const FEED_NAMES: Record<DotaSourceDto['key'], string> = {
 type Feed = {
   id: string;
   name: string;
+  provider: string;
+  error: DotaFeedErrorDto | null;
   health: Health;
   lastAttemptAt: string | null;
   lastSuccessAt: string | null;
@@ -97,10 +104,13 @@ export function FeedHealth({ timezone, onChecked }: Props) {
   const now = useNow().getTime();
   const sources = useQuery(dotaIntelligenceQueryOptions());
   const heroes = useQuery(dotaHeroStatisticsQueryOptions());
+  const [openFeed, setOpenFeed] = useState<string | null>(null);
   const feeds: Feed[] = [
     ...(sources.data?.sources ?? []).map((source) => ({
       id: source.key,
       name: FEED_NAMES[source.key],
+      provider: PROVIDERS[source.key],
+      error: source.lastError,
       health: source.health,
       lastAttemptAt: source.lastAttemptAt,
       lastSuccessAt: source.lastSuccessAt
@@ -110,6 +120,8 @@ export function FeedHealth({ timezone, onChecked }: Props) {
           {
             id: 'opendota',
             name: 'Статистика героев',
+            provider: 'OpenDota',
+            error: heroes.data.lastError,
             health: heroes.data.health,
             lastAttemptAt: heroes.data.lastAttemptAt,
             lastSuccessAt: heroes.data.lastSuccessAt
@@ -149,6 +161,24 @@ export function FeedHealth({ timezone, onChecked }: Props) {
                   'Успешных проверок пока нет'
                 )}
               </span>
+              {feed.error ? (
+                <>
+                  <Button size="sm" variant="ghost" onPress={() => setOpenFeed(feed.id)}>
+                    Подробнее
+                  </Button>
+                  <FeedErrorDialog
+                    feedName={feed.name}
+                    provider={feed.provider}
+                    error={feed.error}
+                    now={now}
+                    timezone={timezone}
+                    isOpen={openFeed === feed.id}
+                    onOpenChange={(open) => setOpenFeed(open ? feed.id : null)}
+                  />
+                </>
+              ) : feed.health === 'degraded' ? (
+                <span className={styles.note}>Подробности появятся после следующей проверки</span>
+              ) : null}
             </li>
           ))}
         </ul>

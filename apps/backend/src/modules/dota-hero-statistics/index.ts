@@ -10,6 +10,7 @@ import {
 import { z } from 'zod';
 import { OPENDOTA_HERO_STATS_URL } from '../../integrations/opendota/hero-statistics';
 import { AppError } from '../../shared/app-error';
+import { clipDetail, describeError, describeHttp, describeShape } from '../../shared/feed-diagnostics';
 
 const POLL_INTERVAL_MS = 6 * 60 * 60 * 1000;
 const CLAIM_LEASE_MS = 60_000;
@@ -47,8 +48,15 @@ const sourceResponseSchema = z.array(sourceHeroSchema).min(1).max(200);
 
 export type DotaHeroStatisticsErrorCode = z.infer<typeof dotaHeroStatisticsErrorSchema>;
 
+/** What the contract's five error codes do not cover: a D1 write failed after a good download. */
+const STORE_ERROR_KIND = 'DOTA_HERO_STATS_STORE';
+
 export class DotaHeroStatisticsError extends Error {
-  constructor(readonly code: DotaHeroStatisticsErrorCode) {
+  constructor(
+    readonly code: DotaHeroStatisticsErrorCode,
+    readonly httpStatus: number | null = null,
+    readonly detail = ''
+  ) {
     super(code);
     this.name = 'DotaHeroStatisticsError';
   }
@@ -80,10 +88,15 @@ function hasWinsAbovePicks(row: z.infer<typeof sourceHeroSchema>): boolean {
 /** Validates a complete provider response before mapping it to the bounded stored DTO. */
 function parseOpenDotaHeroStatistics(payload: unknown): DotaHeroStatisticDto[] {
   const parsed = sourceResponseSchema.safeParse(payload);
-  if (!parsed.success) throw new DotaHeroStatisticsError('DOTA_HERO_STATS_SHAPE');
+  if (!parsed.success) throw new DotaHeroStatisticsError('DOTA_HERO_STATS_SHAPE', null, describeShape(parsed.error));
   const ids = new Set<number>();
   const heroes = parsed.data.map((row) => {
-    if (ids.has(row.id) || hasWinsAbovePicks(row)) throw new DotaHeroStatisticsError('DOTA_HERO_STATS_SHAPE');
+    if (ids.has(row.id)) {
+      throw new DotaHeroStatisticsError('DOTA_HERO_STATS_SHAPE', null, `Duplicate hero id ${row.id}`);
+    }
+    if (hasWinsAbovePicks(row)) {
+      throw new DotaHeroStatisticsError('DOTA_HERO_STATS_SHAPE', null, `Hero ${row.id}: wins exceed picks`);
+    }
     ids.add(row.id);
     return {
       heroId: row.id,
@@ -112,7 +125,14 @@ export interface DotaHeroStatisticsRepository {
     retentionCutoff: number;
     heroesJson: string;
   }): Promise<boolean>;
-  recordFailure(input: { claimToken: string; code: DotaHeroStatisticsErrorCode }): Promise<void>;
+  recordFailure(input: {
+    claimToken: string;
+    kind: string;
+    code: DotaHeroStatisticsErrorCode | null;
+    httpStatus: number | null;
+    detail: string;
+    at: number;
+  }): Promise<void>;
   purgeExpiredSnapshots(input: { cutoff: number; limit: number }): Promise<number>;
   read(): Promise<{
     state: HeroStatisticsStateRow | null;
@@ -124,6 +144,11 @@ interface HeroStatisticsStateRow {
   last_attempt_at: number | null;
   last_success_at: number | null;
   last_error_code: string | null;
+  last_error_kind: string | null;
+  last_error_http_status: number | null;
+  last_error_detail: string | null;
+  last_error_at: number | null;
+  consecutive_failures: number;
 }
 
 interface HeroStatisticsSnapshotRow {
@@ -139,7 +164,7 @@ export function createD1DotaHeroStatisticsRepository(db: D1Database): DotaHeroSt
         db
           .prepare(
             `UPDATE dota_hero_stats_state
-             SET claim_token = ?1, claim_until = ?2, last_attempt_at = ?3, last_error_code = NULL
+             SET claim_token = ?1, claim_until = ?2, last_attempt_at = ?3, last_error_code = NULL, last_error_kind = NULL
              WHERE id = 1 AND (claim_until IS NULL OR claim_until <= ?3)
                AND (last_attempt_at IS NULL OR last_attempt_at <= ?3 - ?4)`
           )
@@ -161,7 +186,8 @@ export function createD1DotaHeroStatisticsRepository(db: D1Database): DotaHeroSt
         db
           .prepare(
             `UPDATE dota_hero_stats_state
-             SET last_success_at = ?1, last_error_code = NULL, claim_token = NULL, claim_until = NULL
+             SET last_success_at = ?1, last_error_code = NULL, last_error_kind = NULL, last_error_http_status = NULL,
+                 last_error_detail = NULL, last_error_at = NULL, consecutive_failures = 0, claim_token = NULL, claim_until = NULL
              WHERE id = 1 AND claim_token = ?2 AND claim_until > ?1`
           )
           .bind(observedAt, claimToken),
@@ -177,13 +203,15 @@ export function createD1DotaHeroStatisticsRepository(db: D1Database): DotaHeroSt
       return results[0]?.meta.changes === 1 && results[1]?.meta.changes === 1;
     },
 
-    async recordFailure({ claimToken, code }) {
+    async recordFailure({ claimToken, kind, code, httpStatus, detail, at }) {
       await db
         .prepare(
-          `UPDATE dota_hero_stats_state SET last_error_code = ?1, claim_token = NULL, claim_until = NULL
-           WHERE id = 1 AND claim_token = ?2`
+          `UPDATE dota_hero_stats_state SET last_error_code = ?1, last_error_kind = ?2, last_error_http_status = ?3,
+             last_error_detail = ?4, last_error_at = ?5, consecutive_failures = consecutive_failures + 1,
+             claim_token = NULL, claim_until = NULL
+           WHERE id = 1 AND claim_token = ?6`
         )
-        .bind(code, claimToken)
+        .bind(code, kind, httpStatus, detail, at, claimToken)
         .run();
     },
 
@@ -203,7 +231,10 @@ export function createD1DotaHeroStatisticsRepository(db: D1Database): DotaHeroSt
     async read() {
       const [state, snapshots] = await Promise.all([
         db
-          .prepare('SELECT last_attempt_at, last_success_at, last_error_code FROM dota_hero_stats_state WHERE id = 1')
+          .prepare(
+            `SELECT last_attempt_at, last_success_at, last_error_code, last_error_kind, last_error_http_status,
+                  last_error_detail, last_error_at, consecutive_failures FROM dota_hero_stats_state WHERE id = 1`
+          )
           .first<HeroStatisticsStateRow>(),
         db
           .prepare('SELECT observed_at, heroes_json FROM dota_hero_stats_snapshots ORDER BY observed_at DESC LIMIT 2')
@@ -250,19 +281,32 @@ function toStatisticsDto(
   if (state?.last_error_code && (!lastError || !lastError.success)) {
     throw new AppError('UNAVAILABLE', 'Stored hero statistics status is invalid');
   }
-  const health = lastError?.success
-    ? 'degraded'
-    : lastSuccessAt === null
-      ? 'unverified'
-      : now - lastSuccessAt > 24 * 60 * 60 * 1000
-        ? 'stale'
-        : 'healthy';
+  const errorKind = state?.last_error_kind ?? state?.last_error_code ?? null;
+  const health =
+    errorKind !== null
+      ? 'degraded'
+      : lastSuccessAt === null
+        ? 'unverified'
+        : now - lastSuccessAt > 24 * 60 * 60 * 1000
+          ? 'stale'
+          : 'healthy';
   return dotaHeroStatisticsSchema.parse({
     source: { name: 'OpenDota · статистика героев (сообщество)', url: OPENDOTA_HERO_STATS_URL },
     health: dotaHeroStatisticsHealthSchema.parse(health),
     lastAttemptAt: iso(lastAttemptAt),
     lastSuccessAt: iso(lastSuccessAt),
     lastErrorCode: lastError?.success ? lastError.data : null,
+    lastError:
+      errorKind !== null && state?.last_error_at != null
+        ? {
+            code: errorKind,
+            httpStatus: state.last_error_http_status,
+            detail: state.last_error_detail ?? '',
+            at: iso(state.last_error_at),
+            consecutiveFailures: Math.max(1, state.consecutive_failures),
+            lastSuccessAt: iso(lastSuccessAt)
+          }
+        : null,
     latest: rows[0] ? parseStoredSnapshot(rows[0]) : null,
     previous: rows[1] ? parseStoredSnapshot(rows[1]) : null
   });
@@ -272,9 +316,13 @@ async function readBoundedJson(response: Response): Promise<unknown> {
   const contentLength = Number(response.headers.get('content-length'));
   if (Number.isFinite(contentLength) && contentLength > MAX_RESPONSE_BYTES) {
     await response.body?.cancel();
-    throw new DotaHeroStatisticsError('DOTA_HERO_STATS_BODY_LIMIT');
+    throw new DotaHeroStatisticsError(
+      'DOTA_HERO_STATS_BODY_LIMIT',
+      null,
+      `Response is ${contentLength} bytes, the limit is ${MAX_RESPONSE_BYTES}`
+    );
   }
-  if (response.body === null) throw new DotaHeroStatisticsError('DOTA_HERO_STATS_JSON');
+  if (response.body === null) throw new DotaHeroStatisticsError('DOTA_HERO_STATS_JSON', null, 'Empty response body');
   const reader = response.body.getReader();
   const chunks: Uint8Array[] = [];
   let length = 0;
@@ -285,7 +333,11 @@ async function readBoundedJson(response: Response): Promise<unknown> {
       length += result.value.byteLength;
       if (length > MAX_RESPONSE_BYTES) {
         await reader.cancel();
-        throw new DotaHeroStatisticsError('DOTA_HERO_STATS_BODY_LIMIT');
+        throw new DotaHeroStatisticsError(
+          'DOTA_HERO_STATS_BODY_LIMIT',
+          null,
+          `Response is larger than the ${MAX_RESPONSE_BYTES} byte limit (read ${length} bytes)`
+        );
       }
       chunks.push(result.value);
     }
@@ -302,8 +354,8 @@ async function readBoundedJson(response: Response): Promise<unknown> {
   try {
     text = new TextDecoder('utf-8', { fatal: true, ignoreBOM: false }).decode(bytes);
     return JSON.parse(text) as unknown;
-  } catch {
-    throw new DotaHeroStatisticsError('DOTA_HERO_STATS_JSON');
+  } catch (error) {
+    throw new DotaHeroStatisticsError('DOTA_HERO_STATS_JSON', null, describeError(error));
   }
 }
 
@@ -330,18 +382,21 @@ export function createDotaHeroStatisticsService(input: {
         intervalMs: POLL_INTERVAL_MS
       });
       if (!claimed) return { status: 'not_due' };
+      let stage: 'fetch' | 'store' = 'fetch';
       try {
         let response: Response;
         try {
           response = await input.fetch();
-        } catch {
-          throw new DotaHeroStatisticsError('DOTA_HERO_STATS_FETCH');
+        } catch (error) {
+          throw new DotaHeroStatisticsError('DOTA_HERO_STATS_FETCH', null, describeError(error));
         }
+        // Redirects are not followed (`redirect: 'manual'`): a 3xx is a non-ok response here.
         if (!response.ok) {
           await response.body?.cancel();
-          throw new DotaHeroStatisticsError('DOTA_HERO_STATS_HTTP');
+          throw new DotaHeroStatisticsError('DOTA_HERO_STATS_HTTP', response.status, describeHttp(response));
         }
         const heroes = parseOpenDotaHeroStatistics(await readBoundedJson(response));
+        stage = 'store';
         const saved = await input.repo.storeSnapshot({
           claimToken,
           observedAt: now,
@@ -352,10 +407,28 @@ export function createDotaHeroStatisticsService(input: {
         return { status: 'stored', heroCount: heroes.length };
       } catch (error) {
         if (error instanceof AppError) throw error;
-        const classified =
-          error instanceof DotaHeroStatisticsError ? error : new DotaHeroStatisticsError('DOTA_HERO_STATS_FETCH');
-        await input.repo.recordFailure({ claimToken, code: classified.code });
-        throw classified;
+        if (error instanceof DotaHeroStatisticsError) {
+          await input.repo.recordFailure({
+            claimToken,
+            kind: error.code,
+            code: error.code,
+            httpStatus: error.httpStatus,
+            detail: error.detail,
+            at: now
+          });
+          throw error;
+        }
+        // Not the provider's fault (D1 write, mapper bug): never reported as a fetch failure.
+        const detail = clipDetail(`${stage}: ${describeError(error)}`);
+        await input.repo.recordFailure({
+          claimToken,
+          kind: STORE_ERROR_KIND,
+          code: null,
+          httpStatus: null,
+          detail,
+          at: now
+        });
+        throw error;
       }
     }
   };

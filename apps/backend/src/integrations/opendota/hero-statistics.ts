@@ -8,6 +8,6 @@ export function createOpenDotaHeroStatisticsFetcher(fetchImpl: typeof fetch = fe
       method: 'GET',
       headers: { accept: 'application/json' },
       signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
-      redirect: 'error'
+      redirect: 'manual'
     });
 }

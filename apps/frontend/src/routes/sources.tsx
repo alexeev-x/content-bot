@@ -7,7 +7,6 @@ const sourcesSearchSchema = z
     update: z.string().max(120).optional(),
     tab: z.enum(['feed', 'heroes']).optional().catch(undefined),
     status: z.enum(['new', 'drafted', 'published', 'hidden']).optional().catch(undefined),
-    type: z.enum(['patch', 'treasure', 'news']).optional().catch(undefined),
     page: z.number().int().min(1).max(1000).optional().catch(undefined)
   })
   .catch({});

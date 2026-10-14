@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { dotaFeedErrorSchema } from './dota';
 
 export const dotaHeroBracketSchema = z.enum(['1', '2', '3', '4', '5', '6', '7', '8']);
 export type DotaHeroBracket = z.infer<typeof dotaHeroBracketSchema>;
@@ -33,6 +34,7 @@ export const dotaHeroStatisticsSchema = z.object({
   lastAttemptAt: z.iso.datetime().nullable(),
   lastSuccessAt: z.iso.datetime().nullable(),
   lastErrorCode: dotaHeroStatisticsErrorSchema.nullable(),
+  lastError: dotaFeedErrorSchema.nullable(),
   latest: dotaHeroStatisticsSnapshotSchema.nullable(),
   previous: dotaHeroStatisticsSnapshotSchema.nullable()
 });

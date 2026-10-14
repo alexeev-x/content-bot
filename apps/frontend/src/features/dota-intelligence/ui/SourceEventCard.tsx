@@ -1,10 +1,9 @@
-import type { SourceEventDto, SourceEventEntityDto, SourceEventStatus, SourceEventType } from '@alexeev/contracts';
+import type { SourceEventDto, SourceEventEntityDto, SourceEventStatus } from '@alexeev/contracts';
 import { Link } from '@tanstack/react-router';
 import { Button, Icon, StatusBadge, StatusPill, VisuallyHidden } from '../../../shared/ui';
 import { DotaTime } from './DotaTime';
 import styles from './SourceEventCard.module.css';
 
-const TYPE_LABELS: Record<SourceEventType, string> = { patch: 'Патч', treasure: 'Сокровищница', news: 'Новость' };
 const STATUS_PILLS: Record<
   SourceEventStatus,
   { label: string; group: 'active' | 'muted' | 'done'; icon: 'sparkle' | 'edit' | 'check-circle' | 'minus-circle' }
@@ -82,7 +81,6 @@ export function SourceEventCard({
   return (
     <article className={styles.card} aria-labelledby={`event-${event.id}`}>
       <div className={styles.head}>
-        <span className={styles.type}>{TYPE_LABELS[event.type]}</span>
         {event.status === 'drafted' && event.publication ? (
           <StatusBadge status={event.publication.status} />
         ) : (
