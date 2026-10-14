@@ -12,6 +12,8 @@ export interface LogEvent {
   attempt?: number;
   /** Counters only (numbers), so a payload cannot smuggle text into a log line. */
   counts?: Record<string, number>;
+  /** Media asset ids (UUIDs, not secrets) the event concerns. */
+  mediaIds?: string[];
   cron?: string;
   at?: number;
 }

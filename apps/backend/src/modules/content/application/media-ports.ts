@@ -81,6 +81,12 @@ export interface PostMediaRepository {
     mediaIds: string[];
   }): Promise<boolean>;
   findObjectKey(mediaId: string): Promise<string | null>;
+  deleteUnusedAssets(input: { mediaIds: string[]; actor: string; now: number }): Promise<{
+    deleted: { mediaId: string; objectKey: string }[];
+    inUse: string[];
+    notFound: string[];
+  }>;
+  finishDeletedAssets(mediaIds: string[]): Promise<void>;
   claimCleanup(limit: number, now: number): Promise<{ mediaId: string; objectKey: string }[]>;
   stagingIsActive(mediaId: string): Promise<boolean>;
   cleanupIsReferenced(mediaId: string): Promise<boolean>;
@@ -97,5 +103,5 @@ export interface StoredMediaObject {
 export interface MediaObjectStorage {
   put(objectKey: string, body: ReadableStream<Uint8Array>, contentType: string): Promise<void>;
   get(objectKey: string): Promise<StoredMediaObject | null>;
-  delete(objectKey: string): Promise<void>;
+  delete(objectKey: string | string[]): Promise<void>;
 }

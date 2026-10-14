@@ -46,6 +46,8 @@ export const mediaLibraryItemSchema = z.object({
   createdAt: z.iso.datetime(),
   duplicateCount: z.number().int().min(1),
   usageCount: z.number().int().nonnegative(),
+  // False while a post, a publication snapshot or a crop holds the file: deleting it would answer 409.
+  deletable: z.boolean(),
   usages: z.array(mediaLibraryUsageSchema).max(3)
 });
 export type MediaLibraryItemDto = z.infer<typeof mediaLibraryItemSchema>;
@@ -134,3 +136,29 @@ export type AttachPostMediaResultDto = z.infer<typeof attachPostMediaResultSchem
 
 // GET /api/v1/media/{mediaId}/content -> private binary stream (not a public R2 URL).
 // Errors: NOT_FOUND 404, UNAVAILABLE 503, UNAUTHORIZED 401, FORBIDDEN 403.
+
+// DELETE /api/v1/media/{mediaId} -> 204 (no body). Deletes a library file no post uses.
+// "In use" means any post holds it (draft, approved or archived) or a publication's snapshot names it,
+// or a derivative still points to it as its source.
+// Errors: NOT_FOUND 404, CONFLICT 409 (details.reason MEDIA_IN_USE), UNAUTHORIZED 401, FORBIDDEN 403.
+// The D1 row is removed first, in one conditional statement; the R2 object follows and, if that fails,
+// stays in the durable cleanup queue.
+export const MEDIA_IN_USE_REASON = 'MEDIA_IN_USE';
+export const MEDIA_BULK_DELETE_MAX_IDS = 50;
+
+// POST /api/v1/media/delete { ids } -> 200 { deleted, inUse }. Each id is handled independently:
+// `deleted` lists ids that are gone (an id that no longer exists counts, so a retry is harmless),
+// `inUse` lists ids that were kept because something references them.
+export const bulkDeleteMediaInputSchema = z.strictObject({
+  ids: z
+    .array(z.uuid())
+    .min(1)
+    .max(MEDIA_BULK_DELETE_MAX_IDS)
+    .refine((ids) => new Set(ids).size === ids.length, { message: 'DUPLICATE_MEDIA_IDS' })
+});
+export type BulkDeleteMediaInput = z.infer<typeof bulkDeleteMediaInputSchema>;
+export const bulkDeleteMediaResultSchema = z.object({
+  deleted: z.array(z.uuid()).max(MEDIA_BULK_DELETE_MAX_IDS),
+  inUse: z.array(z.uuid()).max(MEDIA_BULK_DELETE_MAX_IDS)
+});
+export type BulkDeleteMediaResultDto = z.infer<typeof bulkDeleteMediaResultSchema>;

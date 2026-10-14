@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
+  bulkDeleteMediaInputSchema,
+  bulkDeleteMediaResultSchema,
   cropPostMediaQuerySchema,
   cropPostMediaResultSchema,
   mediaLibraryItemSchema,
@@ -72,6 +74,7 @@ describe('media library contracts', () => {
       createdAt: '2026-10-13T08:00:00.000Z',
       duplicateCount: 2,
       usageCount: 4,
+      deletable: false,
       usages: [{ postId: '22222222-2222-4222-8222-222222222222', title: 'Patch 7.39' }]
     };
     expect(mediaLibraryItemSchema.parse(item)).toEqual(item);
@@ -79,5 +82,23 @@ describe('media library contracts', () => {
     expect(
       mediaLibraryItemSchema.safeParse({ ...item, usages: Array.from({ length: 4 }, () => item.usages[0]) }).success
     ).toBe(false);
+  });
+});
+
+describe('media delete contracts', () => {
+  const id = '33333333-3333-4333-8333-333333333333';
+
+  it('accepts 1..50 unique ids and rejects empty, oversized, duplicate or extra-key bodies', () => {
+    expect(bulkDeleteMediaInputSchema.parse({ ids: [id] }).ids).toEqual([id]);
+    expect(bulkDeleteMediaInputSchema.safeParse({ ids: [] }).success).toBe(false);
+    expect(bulkDeleteMediaInputSchema.safeParse({ ids: [id, id] }).success).toBe(false);
+    const many = Array.from({ length: 51 }, (_, i) => `00000000-0000-4000-8000-${String(i).padStart(12, '0')}`);
+    expect(bulkDeleteMediaInputSchema.safeParse({ ids: many }).success).toBe(false);
+    expect(bulkDeleteMediaInputSchema.safeParse({ ids: [id], force: true }).success).toBe(false);
+  });
+
+  it('parses the bulk result and rejects non-uuid entries', () => {
+    expect(bulkDeleteMediaResultSchema.parse({ deleted: [id], inUse: [] })).toEqual({ deleted: [id], inUse: [] });
+    expect(bulkDeleteMediaResultSchema.safeParse({ deleted: ['x'], inUse: [] }).success).toBe(false);
   });
 });

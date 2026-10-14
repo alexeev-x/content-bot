@@ -1,5 +1,8 @@
 import {
   attachPostMediaResultSchema,
+  MEDIA_IN_USE_REASON,
+  bulkDeleteMediaResultSchema,
+  type BulkDeleteMediaResultDto,
   mediaLibraryPageSchema,
   POST_MEDIA_MAX_ITEMS,
   type AttachPostMediaResultDto,
@@ -7,7 +10,8 @@ import {
   type MediaLibraryQuery
 } from '@alexeev/contracts';
 import { AppError } from '../../../shared/app-error';
-import type { PostMediaRepository } from './media-ports';
+import type { Logger } from '../../../platform/logging/logger';
+import type { MediaObjectStorage, PostMediaRepository } from './media-ports';
 
 function decodeCursor(cursor: string | undefined): { createdAt: number; id: string } | undefined {
   if (cursor === undefined) return undefined;
@@ -80,5 +84,57 @@ export async function attachRetainedPostMedia(
   return attachPostMediaResultSchema.parse({
     media: [...state.media, ...retained.map((item, index) => ({ ...item, position: state.media.length + index }))],
     revision: command.revision + 1
+  });
+}
+
+type DeleteDeps = {
+  repo: PostMediaRepository;
+  storage: MediaObjectStorage;
+  now: number;
+  actor: string;
+  logger?: Pick<Logger, 'error'>;
+  requestId?: string;
+};
+
+// Three round trips for any selection, so 50 ids stay far below the Workers free-plan subrequest limit:
+// one D1 batch decides and commits, one R2 call removes every object, one D1 statement drops the cleanup
+// rows. D1 commits first: a failed R2 delete leaves the cleanup rows the batch wrote, and the Cron
+// cleanup retries them. The reverse order could lose a live file.
+async function deleteMany(deps: DeleteDeps, ids: string[]) {
+  const result = await deps.repo.deleteUnusedAssets({ mediaIds: ids, actor: deps.actor, now: deps.now });
+  const mediaIds = result.deleted.map(({ mediaId }) => mediaId);
+  if (mediaIds.length > 0) {
+    try {
+      await deps.storage.delete(result.deleted.map(({ objectKey }) => objectKey));
+      await deps.repo.finishDeletedAssets(mediaIds);
+    } catch {
+      // The durable cleanup rows stay and the next Cron pass retries; the failure is only logged.
+      deps.logger?.error({
+        component: 'media',
+        operation: 'delete-objects',
+        errorCode: 'MEDIA_OBJECT_DELETE_FAILED',
+        requestId: deps.requestId,
+        mediaIds
+      });
+    }
+  }
+  return result;
+}
+
+export async function deleteMediaAsset(deps: DeleteDeps, mediaId: string): Promise<void> {
+  const result = await deleteMany(deps, [mediaId]);
+  if (result.notFound.length > 0) throw new AppError('NOT_FOUND', 'Media not found');
+  if (result.inUse.length > 0) {
+    throw new AppError('CONFLICT', 'Media is held by a post, a publication or a crop and cannot be deleted', {
+      reason: MEDIA_IN_USE_REASON
+    });
+  }
+}
+
+export async function deleteMediaAssets(deps: DeleteDeps, ids: string[]): Promise<BulkDeleteMediaResultDto> {
+  const result = await deleteMany(deps, ids);
+  return bulkDeleteMediaResultSchema.parse({
+    deleted: ids.filter((id) => !result.inUse.includes(id)),
+    inUse: result.inUse
   });
 }

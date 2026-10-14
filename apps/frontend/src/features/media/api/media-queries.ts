@@ -3,7 +3,16 @@ import type { PostDto } from '@alexeev/contracts';
 import { infiniteQueryOptions, queryOptions, useMutation, useQueryClient } from '@tanstack/react-query';
 import { nextCursor } from '../../../shared/api/query-string';
 import { ApiError } from '../../../shared/api/http-client';
-import { attachMedia, createDraft, getDraft, listDrafts, listMedia, type MediaFilters } from './media-api';
+import {
+  attachMedia,
+  bulkDeleteMedia,
+  deleteMedia,
+  createDraft,
+  getDraft,
+  listDrafts,
+  listMedia,
+  type MediaFilters
+} from './media-api';
 
 export const mediaKeys = {
   all: ['media-library'] as const,
@@ -89,5 +98,22 @@ export function useCreatePostWithMedia() {
     },
     retry: false,
     onSuccess: (postId) => refresh(postId)
+  });
+}
+
+/** Deletes unused files; a single id uses the item endpoint, several use the bulk one. Always refreshes the list. */
+export function useDeleteMedia() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (ids: string[]) => {
+      const [only] = ids;
+      if (ids.length === 1 && only !== undefined) {
+        await deleteMedia(only);
+        return { deleted: ids, inUse: [] as string[] };
+      }
+      return bulkDeleteMedia(ids);
+    },
+    retry: false,
+    onSettled: () => void queryClient.invalidateQueries({ queryKey: mediaKeys.lists() })
   });
 }

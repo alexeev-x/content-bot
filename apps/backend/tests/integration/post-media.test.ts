@@ -1,5 +1,6 @@
 import {
   apiErrorSchema,
+  bulkDeleteMediaResultSchema,
   attachPostMediaResultSchema,
   cropPostMediaResultSchema,
   mediaLibraryPageSchema,
@@ -9,6 +10,7 @@ import {
 import { beforeEach, describe, expect, it } from 'vitest';
 import { testDb } from '../helpers/db';
 import { type Api, createApi, OWNER_ID, OWNER_TOKEN, resetDb, seedSession, START } from '../helpers/harness';
+import { meteredDb } from '../helpers/metered-db';
 import { testMediaBucket } from '../helpers/media-bucket';
 import { createR2MediaStorage } from '../../src/app/r2-media-storage';
 import {
@@ -16,6 +18,8 @@ import {
   createD1PostRepository,
   processPostMediaCleanup,
   cropPostMedia,
+  deleteMediaAsset,
+  deleteMediaAssets,
   removePostMedia,
   uploadPostMedia
 } from '../../src/modules/content';
@@ -1183,5 +1187,314 @@ describe('post media in every post response', () => {
     expect(cropped.media.sourceMediaId).toBe(original.media.id);
     const state = await createD1PostMediaRepository(testDb()).findPostState(target.id);
     expect(state?.media.map(({ id }) => id)).toEqual([original.media.id]);
+  });
+});
+
+describe('media library delete', () => {
+  // A library attach writes the id into a revision snapshot, so the asset stays listed after every
+  // post lets go of it.
+  async function unusedAsset(bytes = png()): Promise<string> {
+    const owner = await createDraft();
+    const uploaded = uploadPostMediaResultSchema.parse(await (await upload(owner.id, 0, bytes, nextKey())).json());
+    const holder = await createDraft();
+    const attached = attachPostMediaResultSchema.parse(
+      await (
+        await api.request(`/api/v1/posts/${holder.id}/media/attach`, {
+          method: 'POST',
+          json: { revision: holder.revision, mediaIds: [uploaded.media.id] }
+        })
+      ).json()
+    );
+    for (const [postId, revision] of [
+      [owner.id, uploaded.revision],
+      [holder.id, attached.revision]
+    ] as const) {
+      const detached = await api.request(`/api/v1/posts/${postId}/media/${uploaded.media.id}`, {
+        method: 'DELETE',
+        json: { revision }
+      });
+      expect(detached.status).toBe(200);
+    }
+    const page = mediaLibraryPageSchema.parse(await (await api.request('/api/v1/media?usage=unused')).json());
+    expect(page.items.find(({ id }) => id === uploaded.media.id)?.usageCount).toBe(0);
+    return uploaded.media.id;
+  }
+
+  const objectCount = async () => (await testMediaBucket().list({ prefix: 'media/' })).objects.length;
+  const assetRows = async (id: string) =>
+    (await testDb().prepare('SELECT count(*) AS n FROM media_assets WHERE id = ?1').bind(id).first<{ n: number }>())?.n;
+  const remove = (id: string) => api.request(`/api/v1/media/${id}`, { method: 'DELETE' });
+
+  it('deletes an unused file: 204, row gone, R2 object gone, no cleanup leftover, then 404', async () => {
+    const id = await unusedAsset();
+    expect(await objectCount()).toBe(1);
+
+    const response = await remove(id);
+
+    expect(response.status).toBe(204);
+    expect(await assetRows(id)).toBe(0);
+    expect(await objectCount()).toBe(0);
+    expect((await testDb().prepare('SELECT count(*) AS n FROM post_media_cleanup').first<{ n: number }>())?.n).toBe(0);
+    expect((await remove(id)).status).toBe(404);
+    expect((await api.request(`/api/v1/media/${id}/content`)).status).toBe(404);
+  });
+
+  it('refuses a file a post holds with MEDIA_IN_USE and removes nothing', async () => {
+    const post = await createDraft();
+    const uploaded = uploadPostMediaResultSchema.parse(await (await upload(post.id, 0, png(), nextKey())).json());
+
+    const response = await remove(uploaded.media.id);
+
+    expect(response.status).toBe(409);
+    const body = apiErrorSchema.parse(await response.json());
+    expect(body.error.code).toBe('CONFLICT');
+    expect(body.error.details?.reason).toBe('MEDIA_IN_USE');
+    expect(await assetRows(uploaded.media.id)).toBe(1);
+    expect(await objectCount()).toBe(1);
+    expect((await api.request(`/api/v1/media/${uploaded.media.id}/content`)).status).toBe(200);
+  });
+
+  it('refuses a file named by a publication snapshot even when no post holds it', async () => {
+    const id = await unusedAsset();
+    const post = await createDraft();
+    await testDb()
+      .prepare(
+        `INSERT INTO post_revisions (post_id, revision, title, body, entities, status, created_at, media_json)
+         VALUES (?1, 7, 't', 'b', '[]', 'approved', 1, ?2)`
+      )
+      .bind(post.id, JSON.stringify([id]))
+      .run();
+    await testDb()
+      .prepare(
+        `INSERT INTO destinations (id, title, chat_id, kind, created_at, updated_at)
+         VALUES ('d0000000-0000-4000-8000-000000000001', 'c', '-100', 'channel', 1, 1)`
+      )
+      .run();
+    await testDb()
+      .prepare(
+        `INSERT INTO publications (id, post_id, post_revision, destination_id, scheduled_at, timezone, created_at, updated_at)
+         VALUES ('e0000000-0000-4000-8000-000000000001', ?1, 7, 'd0000000-0000-4000-8000-000000000001', 1, 'UTC', 1, 1)`
+      )
+      .bind(post.id)
+      .run();
+
+    const response = await remove(id);
+
+    expect(response.status).toBe(409);
+    expect(await assetRows(id)).toBe(1);
+    expect(await objectCount()).toBe(1);
+  });
+
+  it('keeps the original while a crop derived from it exists', async () => {
+    const post = await createDraft();
+    const original = uploadPostMediaResultSchema.parse(await (await upload(post.id, 0, png(), nextKey())).json());
+    const cropped = cropPostMediaResultSchema.parse(
+      await (await crop(post.id, original.media.id, original.revision, png(5, 6), nextKey())).json()
+    );
+    await api.request(`/api/v1/posts/${post.id}/media/${cropped.media.id}`, {
+      method: 'DELETE',
+      json: { revision: cropped.revision }
+    });
+
+    expect((await remove(original.media.id)).status).toBe(409);
+    expect(await assetRows(original.media.id)).toBe(1);
+  });
+
+  it('keeps the other duplicate and its object when one of two identical files is deleted', async () => {
+    const first = await unusedAsset(png());
+    const second = await unusedAsset(png());
+    expect(await objectCount()).toBe(2);
+
+    expect((await remove(first)).status).toBe(204);
+
+    expect(await objectCount()).toBe(1);
+    expect((await api.request(`/api/v1/media/${second}/content`)).status).toBe(200);
+    expect((await api.request(`/api/v1/media/${first}/content`)).status).toBe(404);
+  });
+
+  it('never leaves a post referencing a deleted file when delete races attach', async () => {
+    for (let round = 0; round < 5; round += 1) {
+      const id = await unusedAsset(png(2 + round, 3));
+      const target = await createDraft();
+
+      const [deleted, attached] = await Promise.all([
+        remove(id),
+        api.request(`/api/v1/posts/${target.id}/media/attach`, {
+          method: 'POST',
+          json: { revision: target.revision, mediaIds: [id] }
+        })
+      ]);
+
+      expect([deleted.status, attached.status].sort()).toSatisfy(
+        (statuses: number[]) =>
+          (statuses[0] === 200 && statuses[1] === 409) || (statuses[0] === 204 && [404, 409].includes(statuses[1] ?? 0))
+      );
+      const dangling = await testDb()
+        .prepare(
+          'SELECT count(*) AS n FROM post_media pm WHERE NOT EXISTS (SELECT 1 FROM media_assets m WHERE m.id = pm.media_id)'
+        )
+        .first<{ n: number }>();
+      expect(dangling?.n).toBe(0);
+      if (attached.status === 200) expect(await assetRows(id)).toBe(1);
+      else expect(await assetRows(id)).toBe(0);
+    }
+  });
+
+  it('keeps the D1 deletion and queues the object for Cron when R2 delete fails', async () => {
+    const id = await unusedAsset();
+    const repo = createD1PostMediaRepository(testDb());
+    const failing = {
+      put: async () => undefined,
+      get: async () => null,
+      delete: async () => {
+        throw new Error('r2 down');
+      }
+    };
+
+    await deleteMediaAsset({ repo, storage: failing, now: START, actor: OWNER_ID }, id);
+
+    expect(await assetRows(id)).toBe(0);
+    expect(await objectCount()).toBe(1);
+    const storage = createR2MediaStorage(testMediaBucket());
+    expect(await processPostMediaCleanup({ repo, storage }, 5, START)).toEqual({ cleaned: 1, failed: 0 });
+    expect(await objectCount()).toBe(0);
+  });
+
+  it('bulk-deletes unused files, reports used ones and treats missing ids as deleted', async () => {
+    const unused = await unusedAsset();
+    const post = await createDraft();
+    const held = uploadPostMediaResultSchema.parse(await (await upload(post.id, 0, png(9, 9), nextKey())).json());
+    const missing = '99999999-9999-4999-8999-999999999999';
+
+    const response = await api.request('/api/v1/media/delete', {
+      method: 'POST',
+      json: { ids: [unused, held.media.id, missing] }
+    });
+
+    expect(response.status).toBe(200);
+    const result = bulkDeleteMediaResultSchema.parse(await response.json());
+    expect(result).toEqual({ deleted: [unused, missing], inUse: [held.media.id] });
+    expect(await assetRows(unused)).toBe(0);
+    expect(await assetRows(held.media.id)).toBe(1);
+    expect(await objectCount()).toBe(1);
+  });
+
+  async function addCrop(sourceId: string, id: string): Promise<void> {
+    await testDb()
+      .prepare(
+        `INSERT INTO media_assets (id, object_key, sha256, kind, file_name, content_type, size_bytes, width, height,
+                                   duration_ms, created_at, source_media_id)
+         SELECT ?2, 'media/' || ?2, sha256, kind, file_name, content_type, size_bytes, width, height, duration_ms,
+                created_at + 1, id FROM media_assets WHERE id = ?1`
+      )
+      .bind(sourceId, id)
+      .run();
+  }
+
+  it('deletes a source and its crop selected together in either order, or keeps both when the crop is held', async () => {
+    for (const reversed of [false, true]) {
+      const source = await unusedAsset(png(20 + Number(reversed), 20));
+      const crop = crypto.randomUUID();
+      await addCrop(source, crop);
+      const ids = reversed ? [crop, source] : [source, crop];
+      const response = await api.request('/api/v1/media/delete', { method: 'POST', json: { ids } });
+      expect(bulkDeleteMediaResultSchema.parse(await response.json())).toEqual({ deleted: ids, inUse: [] });
+      expect(await assetRows(source)).toBe(0);
+      expect(await assetRows(crop)).toBe(0);
+    }
+
+    const source = await unusedAsset(png(30, 30));
+    const crop = crypto.randomUUID();
+    await addCrop(source, crop);
+    const post = await createDraft();
+    await testDb()
+      .prepare('INSERT INTO post_media (post_id, media_id, position) VALUES (?1, ?2, 0)')
+      .bind(post.id, crop)
+      .run();
+    const held = await api.request('/api/v1/media/delete', { method: 'POST', json: { ids: [crop, source] } });
+    expect(bulkDeleteMediaResultSchema.parse(await held.json())).toEqual({ deleted: [], inUse: [crop, source] });
+    expect(await assetRows(source)).toBe(1);
+    expect(await assetRows(crop)).toBe(1);
+  });
+
+  it('lists deletable=false for a file that only a crop keeps and 409s the delete', async () => {
+    const source = await unusedAsset(png(40, 40));
+    await addCrop(source, crypto.randomUUID());
+    const page = mediaLibraryPageSchema.parse(await (await api.request('/api/v1/media')).json());
+    expect(page.items.find(({ id }) => id === source)?.deletable).toBe(false);
+    expect((await remove(source)).status).toBe(409);
+  });
+
+  it('spends a constant number of D1 round trips and one R2 call for 50 ids', async () => {
+    const ids: string[] = [];
+    ids.push(await unusedAsset(png(50, 7)));
+    for (let i = 1; i < 50; i += 1) {
+      const id = crypto.randomUUID();
+      await testDb()
+        .prepare(
+          `INSERT INTO media_assets (id, object_key, sha256, kind, file_name, content_type, size_bytes, width, height,
+                                     duration_ms, created_at)
+           SELECT ?2, 'media/' || ?2, sha256, kind, file_name, content_type, size_bytes, width, height, duration_ms,
+                  created_at FROM media_assets WHERE id = ?1`
+        )
+        .bind(ids[0], id)
+        .run();
+      ids.push(id);
+    }
+    const { db, meter } = meteredDb(testDb());
+    const calls: unknown[] = [];
+    const storage = {
+      put: async () => undefined,
+      get: async () => null,
+      delete: async (key: string | string[]) => {
+        calls.push(key);
+      }
+    };
+    const result = await deleteMediaAssets(
+      { repo: createD1PostMediaRepository(db), storage, now: START, actor: OWNER_ID },
+      ids
+    );
+    expect(result.deleted).toEqual(ids);
+    expect(meter.roundTrips).toBeLessThanOrEqual(3);
+    expect(calls).toHaveLength(1);
+    expect(meter.statements).toBeLessThanOrEqual(10);
+  });
+
+  it('logs a stable code with the media ids when the R2 delete fails in bulk', async () => {
+    const id = await unusedAsset(png(70, 70));
+    const events: unknown[] = [];
+    const storage = {
+      put: async () => undefined,
+      get: async () => null,
+      delete: async () => {
+        throw new Error('r2 down');
+      }
+    };
+    await deleteMediaAssets(
+      {
+        repo: createD1PostMediaRepository(testDb()),
+        storage,
+        now: START,
+        actor: OWNER_ID,
+        logger: { error: (event) => events.push(event) }
+      },
+      [id]
+    );
+    expect(events).toEqual([expect.objectContaining({ errorCode: 'MEDIA_OBJECT_DELETE_FAILED', mediaIds: [id] })]);
+  });
+
+  it('validates the bulk body and requires the owner session', async () => {
+    const empty = await api.request('/api/v1/media/delete', { method: 'POST', json: { ids: [] } });
+    expect(empty.status).toBe(400);
+    const tooMany = await api.request('/api/v1/media/delete', {
+      method: 'POST',
+      json: { ids: Array.from({ length: 51 }, (_, i) => `00000000-0000-4000-8000-${String(i).padStart(12, '0')}`) }
+    });
+    expect(tooMany.status).toBe(400);
+    const anonymous = await createApi().request(`/api/v1/media/99999999-9999-4999-8999-999999999999`, {
+      method: 'DELETE',
+      token: null
+    });
+    expect([401, 403]).toContain(anonymous.status);
   });
 });

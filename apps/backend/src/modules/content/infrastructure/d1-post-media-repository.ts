@@ -20,6 +20,7 @@ interface MediaRow {
   created_at?: number;
   duplicate_count?: number;
   usage_count?: number;
+  deletable?: number;
   usages?: string;
 }
 
@@ -48,6 +49,35 @@ function isRetainedSql(idExpression: string): string {
     OR EXISTS (SELECT 1 FROM post_revisions r, json_each(r.media_json) j WHERE j.value = ${idExpression})
     OR EXISTS (SELECT 1 FROM media_assets derivative WHERE derivative.source_media_id = ${idExpression}))`;
 }
+
+// Nothing holds the asset: no post attachment (any status), no publication snapshot and no crop derived
+// from it. Evaluated inside the DELETE itself, so an attach racing with a delete either lands first
+// (the delete then matches nothing) or finds the asset gone (the attach guard then fails).
+function isDeletableSql(idExpression: string): string {
+  return `(NOT EXISTS (SELECT 1 FROM post_media pm WHERE pm.media_id = ${idExpression})
+    AND NOT EXISTS (SELECT 1 FROM publications pu
+      JOIN post_revisions r ON r.post_id = pu.post_id AND r.revision = pu.post_revision, json_each(r.media_json) j
+      WHERE j.value = ${idExpression})
+    AND NOT EXISTS (SELECT 1 FROM media_assets derivative WHERE derivative.source_media_id = ${idExpression}))`;
+}
+
+// Blocked members of a selection of ids deleted together (bind it as ?1, a JSON array). A member is blocked
+// when a post holds it, a publication snapshot names it, or a derivative outside the selection still
+// points at it; blocking propagates to the source of a blocked member that is also selected. So a source
+// and its crop chosen together are both deleted or both kept, whatever order the ids arrive in.
+const selectionBlockedCte = `WITH RECURSIVE blocked(id) AS (
+  SELECT m.id FROM media_assets m
+   WHERE m.id IN (SELECT value FROM json_each(?1))
+     AND (EXISTS (SELECT 1 FROM post_media pm WHERE pm.media_id = m.id)
+       OR EXISTS (SELECT 1 FROM publications pu
+            JOIN post_revisions r ON r.post_id = pu.post_id AND r.revision = pu.post_revision, json_each(r.media_json) j
+            WHERE j.value = m.id)
+       OR EXISTS (SELECT 1 FROM media_assets d
+            WHERE d.source_media_id = m.id AND d.id NOT IN (SELECT value FROM json_each(?1))))
+  UNION
+  SELECT m.source_media_id FROM media_assets m JOIN blocked b ON m.id = b.id
+   WHERE m.source_media_id IN (SELECT value FROM json_each(?1))
+)`;
 
 export function createD1PostMediaRepository(db: D1Database): PostMediaRepository {
   return {
@@ -188,6 +218,7 @@ export function createD1PostMediaRepository(db: D1Database): PostMediaRepository
                   (SELECT count(*) FROM media_assets duplicate
                     WHERE duplicate.sha256 = m.sha256 AND ${isRetainedSql('duplicate.id')}) AS duplicate_count,
                   (SELECT count(*) FROM post_media current_usage WHERE current_usage.media_id = m.id) AS usage_count,
+                  ${isDeletableSql('m.id')} AS deletable,
                   (SELECT json_group_array(json_object('postId', post_id, 'title', title)) FROM (
                     SELECT p.id AS post_id, p.title
                       FROM post_media linked JOIN posts p ON p.id = linked.post_id
@@ -214,6 +245,7 @@ export function createD1PostMediaRepository(db: D1Database): PostMediaRepository
           createdAt: new Date(row.created_at ?? 0).toISOString(),
           duplicateCount: row.duplicate_count,
           usageCount: row.usage_count,
+          deletable: row.deletable === 1,
           usages: JSON.parse(row.usages ?? '[]')
         })
       );
@@ -578,6 +610,85 @@ export function createD1PostMediaRepository(db: D1Database): PostMediaRepository
       return row?.object_key ?? null;
     },
 
+    async deleteUnusedAssets({ mediaIds, actor, now }) {
+      const ids = JSON.stringify(mediaIds);
+      // One round trip for the whole selection. Every decision reads the state before the first write
+      // (cleanup rows and the audit trail are written ahead of the deletes), and D1 runs a batch as one
+      // transaction, so an attach racing with it either lands first (the asset is then blocked) or finds
+      // the asset gone. The cleanup row is written in the same transaction as the delete, so the object
+      // is never orphaned without a durable record, even if the Worker dies before the R2 call.
+      const inSelection = 'SELECT value FROM json_each(?1)';
+      const free = `${selectionBlockedCte} `;
+      const results = await db.batch([
+        db.prepare(`SELECT id FROM media_assets WHERE id IN (${inSelection})`).bind(ids),
+        db
+          .prepare(
+            `${free}INSERT OR IGNORE INTO post_media_cleanup (media_id, object_key, attempts, created_at)
+             SELECT m.id, m.object_key, 0, ?2 FROM media_assets m
+              WHERE m.id IN (${inSelection}) AND m.id NOT IN (SELECT id FROM blocked)`
+          )
+          .bind(ids, now),
+        db
+          .prepare(
+            `${free}INSERT INTO audit_log (actor_telegram_id, action, entity_type, entity_id, created_at, details)
+             SELECT ?3, 'media.delete', 'media', m.id, ?2, NULL FROM media_assets m
+              WHERE m.id IN (${inSelection}) AND m.id NOT IN (SELECT id FROM blocked)`
+          )
+          .bind(ids, now, actor),
+        db
+          .prepare(
+            `${free}DELETE FROM post_media_crops
+              WHERE media_id IN (${inSelection}) AND media_id NOT IN (SELECT id FROM blocked)`
+          )
+          .bind(ids),
+        db
+          .prepare(
+            `${free}DELETE FROM post_media_uploads
+              WHERE media_id IN (${inSelection}) AND media_id NOT IN (SELECT id FROM blocked)`
+          )
+          .bind(ids),
+        db
+          .prepare(
+            `${free}DELETE FROM media_assets
+              WHERE id IN (${inSelection}) AND id NOT IN (SELECT id FROM blocked)`
+          )
+          .bind(ids),
+        db.prepare(`SELECT id FROM media_assets WHERE id IN (${inSelection})`).bind(ids),
+        db
+          .prepare(
+            `SELECT media_id AS mediaId, object_key AS objectKey FROM post_media_cleanup
+              WHERE staging = 0 AND media_id IN (${inSelection})`
+          )
+          .bind(ids)
+      ]);
+      const before = new Set(((results[0]?.results ?? []) as { id: string }[]).map(({ id }) => id));
+      const after = new Set(((results[6]?.results ?? []) as { id: string }[]).map(({ id }) => id));
+      const keys = new Map(
+        ((results[7]?.results ?? []) as { mediaId: string; objectKey: string }[]).map((row) => [
+          row.mediaId,
+          row.objectKey
+        ])
+      );
+      const deleted: { mediaId: string; objectKey: string }[] = [];
+      const inUse: string[] = [];
+      const notFound: string[] = [];
+      for (const mediaId of mediaIds) {
+        const objectKey = keys.get(mediaId);
+        if (!before.has(mediaId)) notFound.push(mediaId);
+        else if (after.has(mediaId) || objectKey === undefined) inUse.push(mediaId);
+        else deleted.push({ mediaId, objectKey });
+      }
+      return { deleted, inUse, notFound };
+    },
+
+    async finishDeletedAssets(mediaIds) {
+      if (mediaIds.length === 0) return;
+      await db
+        .prepare('DELETE FROM post_media_cleanup WHERE staging = 0 AND media_id IN (SELECT value FROM json_each(?1))')
+        .bind(JSON.stringify(mediaIds))
+        .run();
+    },
+
     async claimCleanup(limit, now) {
       const { results } = await db
         .prepare(
@@ -605,7 +716,8 @@ export function createD1PostMediaRepository(db: D1Database): PostMediaRepository
 
     async cleanupIsReferenced(mediaId) {
       const row = await db
-        .prepare(`SELECT ${isRetainedSql('?1')} AS referenced`)
+        // A deleted asset can stay named by old revision snapshots; with no row left it holds nothing.
+        .prepare(`SELECT (EXISTS (SELECT 1 FROM media_assets WHERE id = ?1) AND ${isRetainedSql('?1')}) AS referenced`)
         .bind(mediaId)
         .first<{ referenced: number }>();
       return row?.referenced === 1;

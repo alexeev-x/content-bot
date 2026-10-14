@@ -114,6 +114,13 @@
   border-radius: var(--radius-1);
   background: var(--color-surface-1);
 }
+.cardMenu {
+  position: absolute;
+  top: var(--space-2);
+  right: var(--space-2);
+  border-radius: var(--radius-1);
+  background: var(--color-surface-1);
+}
 .card:not(:hover):not(:focus-within):not([data-selected]) .check {
   opacity: 0;
 }
@@ -125,7 +132,7 @@
 }
 .listRow {
   display: grid;
-  grid-template-columns: var(--size-media-thumb) minmax(0, 1fr) auto auto;
+  grid-template-columns: var(--size-media-thumb) minmax(0, 1fr) auto auto auto;
   align-items: center;
   gap: var(--space-3);
   min-height: var(--size-action-row);
@@ -264,7 +271,7 @@
     padding: var(--space-3);
   }
   .listRow {
-    grid-template-columns: 44px minmax(0, 1fr) auto;
+    grid-template-columns: 44px minmax(0, 1fr) auto auto;
     padding-inline: var(--space-3);
   }
   .listUsage {

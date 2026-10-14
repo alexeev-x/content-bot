@@ -1,5 +1,6 @@
 import {
   attachPostMediaResultSchema,
+  bulkDeleteMediaResultSchema,
   mediaLibraryPageSchema,
   mediaLibraryUsageFilterSchema,
   postPageSchema,
@@ -7,7 +8,7 @@ import {
   type MediaLibraryKind
 } from '@alexeev/contracts';
 import type { z } from 'zod';
-import { apiRequest, apiRequestBlob } from '../../../shared/api/http-client';
+import { apiRequest, apiRequestBlob, apiRequestNoContent } from '../../../shared/api/http-client';
 import { buildQuery, DEFAULT_PAGE_SIZE } from '../../../shared/api/query-string';
 
 export type MediaFilters = {
@@ -54,4 +55,12 @@ export function createDraft(idempotencyKey: string) {
     body: { title: 'Новый пост', body: '' },
     headers: { 'Idempotency-Key': idempotencyKey }
   });
+}
+
+export function deleteMedia(mediaId: string) {
+  return apiRequestNoContent(`/api/v1/media/${encodeURIComponent(mediaId)}`, { method: 'DELETE' });
+}
+
+export function bulkDeleteMedia(ids: string[]) {
+  return apiRequest('/api/v1/media/delete', bulkDeleteMediaResultSchema, { method: 'POST', body: { ids } });
 }
