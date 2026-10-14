@@ -72,7 +72,7 @@ Accepted decisions that are in force. An agent does not propose an alternative t
 | Question | Default recommendation |
 |---|---|
 | Text generation via AI | not in the MVP |
-| Dota 2 patch posts published without owner confirmation (`docs/PATCH_AUTOMATION_PLAN_DRAFT.md`) | after the MVP; until then patch posts go through owner confirmation, no paid AI/render APIs |
+| Dota 2 patch posts published without owner confirmation | after the MVP; until then patch posts go through owner confirmation, no paid AI/render APIs |
 | Session lifetime | token 60 min; Mini App ≤ 12 h; refresh cookie in the browser 30 days |
 | Publication status labels | table in skill `page-spec` |
 | Repeated `Idempotency-Key` with a different body | 409 `CONFLICT` with `details.reason` |
