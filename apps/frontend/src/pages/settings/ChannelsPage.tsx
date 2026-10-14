@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { AddChannelDialog, ChannelDrawer, ChannelsList, channelsCopy } from '../../features/destinations';
+import { readTelegramBotUsername } from '../../app/environment';
 import { Button } from '../../shared/ui';
 import { SectionActions } from './section-actions';
 
@@ -29,6 +30,7 @@ export function ChannelsPage({ selectedId, onSelect }: Props) {
       <AddChannelDialog
         isOpen={adding}
         onOpenChange={setAdding}
+        botUsername={readTelegramBotUsername()}
         onCreated={(destination, botCanPost) => rememberRights(destination.id, botCanPost)}
         onOpenExisting={(id) => {
           setAdding(false);

@@ -6,6 +6,20 @@
   padding: var(--space-2) 0;
   cursor: pointer;
 }
+/* A box without a label (table and card selection) still gets a hit area of 24 px, 44 px on touch (WCAG 2.5.8). */
+.checkbox:not(:has(.text)) {
+  align-items: center;
+  justify-content: center;
+  min-width: 24px;
+  min-height: 24px;
+  padding: var(--space-1);
+}
+@media (pointer: coarse) {
+  .checkbox:not(:has(.text)) {
+    min-width: var(--size-target);
+    min-height: var(--size-target);
+  }
+}
 .box {
   display: grid;
   flex: none;

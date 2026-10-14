@@ -1,4 +1,4 @@
-import { Link, useSearch } from '@tanstack/react-router';
+import { Link, useNavigate, useSearch } from '@tanstack/react-router';
 import { useEffect, useRef } from 'react';
 import { useDocumentTitle } from '../../app/use-document-title';
 import { DotaEventDetail, DotaIntelligence } from '../../features/dota-intelligence';
@@ -9,6 +9,7 @@ import { PageHeader } from '../../shared/ui';
 export function SourcesPage() {
   const timezone = useOwnerTimezone();
   const search = useSearch({ from: '/sources' });
+  const navigate = useNavigate({ from: '/sources' });
   const parts = search.update?.split(':') ?? [];
   const sourceKey = parts.shift();
   const externalId = parts.join(':');
@@ -29,7 +30,12 @@ export function SourcesPage() {
         description={search.update ? undefined : 'Новости и патчи Dota 2'}
       />
       <div hidden={Boolean(search.update)}>
-        <DotaIntelligence timezone={timezone} update={search.update} />
+        <DotaIntelligence
+          timezone={timezone}
+          update={search.update}
+          view={search.tab ?? 'updates'}
+          onViewChange={(tab) => void navigate({ search: (previous) => ({ ...previous, tab }), replace: true })}
+        />
       </div>
       {validUpdate && validSourceKey ? (
         <DotaEventDetail sourceKey={validSourceKey} externalId={externalId} timezone={timezone} />

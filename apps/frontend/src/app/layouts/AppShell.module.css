@@ -221,6 +221,9 @@
   text-align: left;
   cursor: pointer;
 }
+.search[hidden] {
+  display: none;
+}
 .search[data-hovered] {
   border-color: var(--color-text-muted);
 }
@@ -375,6 +378,31 @@
     background: var(--color-selected-bg);
     box-shadow: none;
     color: var(--color-text);
+  }
+  .tab[data-current] {
+    background: var(--color-selected-bg);
+    color: var(--color-text);
+  }
+  .tabCreate {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 48px;
+    border-radius: var(--radius-3);
+    text-decoration: none;
+  }
+  .tabCreateIcon {
+    display: grid;
+    place-items: center;
+    width: 48px;
+    height: 40px;
+    border-radius: var(--radius-pill);
+    background: var(--color-accent);
+    color: var(--color-on-accent);
+  }
+  .tabCreate:focus-visible {
+    outline: var(--focus-ring-width) solid var(--color-focus-ring);
+    outline-offset: -2px;
   }
   .tab[data-pressed] {
     background: var(--color-surface-2);

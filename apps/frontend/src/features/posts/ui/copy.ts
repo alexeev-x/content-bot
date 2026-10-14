@@ -10,7 +10,7 @@ export const postsCopy = {
     columns: { title: 'Пост', status: 'Статус', updated: 'Изменён', actions: 'Действия' },
     state: {
       draft: 'Черновик',
-      approved: 'Утверждён',
+      approved: 'Одобрен',
       scheduled: 'Запланирован',
       sending: 'Отправляется',
       unknown: 'Нужна сверка'
@@ -273,8 +273,10 @@ export const postsCopy = {
       }
     },
     approved: {
-      readOnlyTitle: 'Пост одобрен и закрыт для правок',
-      readOnlyBody: 'Текст нельзя изменить. Чтобы выпустить другую версию, создайте новый пост.',
+      readOnlyTitle: 'Пост готов к публикации',
+      readOnlyBody: 'Чтобы изменить текст — «Вернуть в черновик».',
+      readOnlyBodyNoReturn: 'Чтобы выпустить другую версию, создайте новый пост.',
+      footerNote: 'Пост одобрен',
       newPost: 'Новый пост',
       announce: 'Пост одобрен. Теперь его можно опубликовать.'
     },

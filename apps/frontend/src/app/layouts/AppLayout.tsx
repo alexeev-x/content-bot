@@ -12,6 +12,7 @@ import { Skeleton } from '../../shared/ui';
 import { applyAppearance, useTheme, type Appearance } from '../theme';
 import { useDocumentTitle } from '../use-document-title';
 import { AppShell } from './AppShell';
+import { CommandPalette } from './CommandPalette';
 import { readOwnerName, writeOwnerName } from './owner-name-cache';
 import { ChannelCard } from './ChannelCard';
 import styles from './AppShell.module.css';
@@ -60,6 +61,7 @@ function SignedInLayout() {
   useTelegramChrome(resolved);
   useDocumentTitle(titleFor(pathname));
   const status = useSystemStatus();
+  const [searchOpen, setSearchOpen] = useState(false);
 
   if (me.error instanceof ApiError && me.error.status === 403) {
     return <NoAccessState onAction={() => void auth.logout()} />;
@@ -70,6 +72,7 @@ function SignedInLayout() {
       ownerName={me.data?.name ?? cachedName}
       ownerLoading={me.isPending}
       onLogout={() => void auth.logout()}
+      onOpenSearch={() => setSearchOpen(true)}
       accountAlert={status.checks && status.tone !== 'ok' ? status.tone : undefined}
       accountRows={
         <>
@@ -85,6 +88,7 @@ function SignedInLayout() {
       }
     >
       <Outlet />
+      <CommandPalette isOpen={searchOpen} onOpenChange={setSearchOpen} />
     </AppShell>
   );
 }

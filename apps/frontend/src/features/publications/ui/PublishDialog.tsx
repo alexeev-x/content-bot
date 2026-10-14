@@ -153,7 +153,10 @@ function PublishDialogBody({
         <form id={formId} className={styles.form} onSubmit={submit} noValidate>
           {!isApproved ? (
             <Banner tone="warning" title={copy.publish.notApprovedTitle}>
-              {copy.publish.notApprovedBody}
+              {copy.publish.notApprovedBody}{' '}
+              <Link to="/posts/$id" params={{ id: post.id }} className={styles.link}>
+                {copy.publish.notApprovedAction}
+              </Link>
             </Banner>
           ) : null}
           {pending ? (
@@ -215,7 +218,11 @@ function PublishDialogBody({
                   <Select
                     label={copy.publish.channel}
                     placeholder={copy.publish.channelPlaceholder}
-                    options={options.map((item) => ({ id: item.id, label: item.title, description: item.chatId }))}
+                    options={options.map((item) => ({
+                      id: item.id,
+                      label: item.title,
+                      ...(item.chatId.startsWith('@') ? { description: item.chatId } : {})
+                    }))}
                     value={field.value || null}
                     onChange={field.onChange}
                     onBlur={field.onBlur}

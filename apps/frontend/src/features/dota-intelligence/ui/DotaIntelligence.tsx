@@ -29,7 +29,8 @@ import { DotaWatchlists } from './DotaWatchlists';
 import { DotaHeroStatistics } from './DotaHeroStatistics';
 import styles from './DotaIntelligence.module.css';
 
-type View = 'updates' | 'sources' | 'heroes';
+export type DotaView = 'updates' | 'sources' | 'heroes';
+type View = DotaView;
 type UpdateType = 'all' | 'news' | 'patch';
 
 const SOURCE_NAMES: Record<DotaSourceDto['key'], string> = {
@@ -193,15 +194,23 @@ function sourceColumns(timezone: string, now: number): DataColumn<DotaSourceDto>
   ];
 }
 
-type Props = { timezone?: string; update?: string };
+type Props = {
+  timezone?: string;
+  update?: string;
+  /** Active tab; the page keeps it in the URL. Without it the component keeps its own state. */
+  view?: DotaView;
+  onViewChange?: (view: DotaView) => void;
+};
 
-export function DotaIntelligence({ timezone = 'Europe/Moscow', update }: Props) {
+export function DotaIntelligence({ timezone = 'Europe/Moscow', update, view: controlledView, onViewChange }: Props) {
   const query = useQuery(dotaIntelligenceQueryOptions());
   const now = useNow();
   const watchQuery = useDotaWatchlists();
   const [opener, setOpener] = useState<HTMLAnchorElement | null>(null);
   const previousWatchIds = useRef<Set<string> | null>(null);
-  const [view, setView] = useState<View>('sources');
+  const [localView, setLocalView] = useState<View>('updates');
+  const view = controlledView ?? localView;
+  const setView = (next: View) => (onViewChange ? onViewChange(next) : setLocalView(next));
   const [search, setSearch] = useState('');
   const [type, setType] = useState<UpdateType>('all');
   const updates = useMemo(
@@ -298,13 +307,13 @@ export function DotaIntelligence({ timezone = 'Europe/Moscow', update }: Props) 
             />
             <Panel
               title="Официальные обновления"
-              marker={<span className={styles.muted}>Только подтверждённые записи лент</span>}
               action={refresh}
               footer={
                 <span>
                   {updates.length === query.data.updates.length
                     ? `Показано ${updates.length} последних обновлений`
                     : `${updates.length} из ${query.data.updates.length}`}
+                  {' · Только подтверждённые записи лент'}
                 </span>
               }
             >

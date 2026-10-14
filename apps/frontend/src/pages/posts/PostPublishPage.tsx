@@ -98,6 +98,7 @@ export function PostPublishPage({ id }: Props) {
           post={post}
           onBack={() => void navigate({ to: '/posts/$id', params: { id } })}
           ensureApproved={ensureApproved}
+          onPublished={(publication) => void navigate({ to: '/publications', search: { id: publication.id } })}
         >
           <PostPreview
             title={post.title}

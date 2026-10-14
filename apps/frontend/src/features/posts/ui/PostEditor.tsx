@@ -314,7 +314,7 @@ export function PostEditor({ post, onCreated, approvedActions, aside, headerActi
             </div>
           }
         >
-          {copy.approved.readOnlyBody}
+          {canReturnToDraft ? copy.approved.readOnlyBody : copy.approved.readOnlyBodyNoReturn}
         </Banner>
       ) : null}
 
@@ -337,12 +337,12 @@ export function PostEditor({ post, onCreated, approvedActions, aside, headerActi
         </div>
       )}
       <footer className={narrow ? styles.actionBar : styles.footerBar}>
-        <Button variant="secondary" size={narrow ? 'sm' : 'xl'} icon="log-out" onPress={() => void saveAndExit()}>
-          Выйти
+        <Button variant="secondary" size={narrow ? 'sm' : 'xl'} icon="arrow-left" onPress={() => void saveAndExit()}>
+          К постам
         </Button>
         <p className={styles.footerNote}>
           <Icon name="info" size={16} />
-          Черновик сохраняется автоматически
+          {isApproved ? copy.approved.footerNote : 'Черновик сохраняется автоматически'}
         </p>
         <div className={styles.footerPrimary}>{actions}</div>
       </footer>

@@ -147,12 +147,11 @@ describe('PublishDialog', () => {
     expect(screen.queryByText('Опубликовано')).toBeNull();
   });
 
-  it('schedules for a later time: the default is a future quarter hour and the summary shows zone and UTC', async () => {
+  it('schedules for a later time: the default is a future quarter hour and the field shows the zone', async () => {
     const sent = captureCreate(() => accepted());
     const { user, dialog } = await open();
     await user.click(within(dialog).getByRole('radio', { name: 'Запланировать' }));
     expect(await within(dialog).findByText(/Часовой пояс:/)).toBeTruthy();
-    expect(within(dialog).getByText(/В UTC:/)).toBeTruthy();
     await user.click(within(dialog).getByRole('button', { name: 'Запланировать' }));
 
     await waitFor(() => expect(sent).toHaveLength(1));
@@ -180,7 +179,7 @@ describe('PublishDialog', () => {
   });
 
   it.each([
-    ['POST_NOT_APPROVED', 409, 'CONFLICT', 'Пост не утверждён'],
+    ['POST_NOT_APPROVED', 409, 'CONFLICT', 'Пост не одобрен'],
     ['POST_ARCHIVED', 409, 'CONFLICT', 'Пост в архиве'],
     ['STALE_REVISION', 409, 'CONFLICT', 'Пост изменился'],
     ['DESTINATION_DISABLED', 409, 'CONFLICT', 'Канал отключён'],
@@ -262,7 +261,7 @@ describe('PublishDialog', () => {
   it('refuses a draft post before any request is made', async () => {
     const sent = captureCreate(() => accepted());
     const { dialog } = await open({ post: post({ status: 'draft' }) });
-    expect(within(dialog).getByText('Пост не утверждён')).toBeTruthy();
+    expect(within(dialog).getByText('Пост не одобрен')).toBeTruthy();
     expect(within(dialog).getByRole('button', { name: 'Отправить сейчас' }).hasAttribute('disabled')).toBe(true);
     expect(sent).toHaveLength(0);
   });
@@ -396,9 +395,9 @@ describe('publish intent (lost 202 must never create a second publication)', () 
     await waitFor(() => expect(sent).toHaveLength(1));
   });
 
-  it('does not ask when the only earlier publication was cancelled', async () => {
+  it.each(['cancelled', 'failed'] as const)('does not ask when the only earlier publication is %s', async (status) => {
     const sent = captureCreate(() => accepted());
-    const { user, dialog } = await open({ existing: [publication({ status: 'cancelled' })] });
+    const { user, dialog } = await open({ existing: [publication({ status })] });
     await user.click(within(dialog).getByRole('button', { name: 'Отправить сейчас' }));
     await waitFor(() => expect(sent).toHaveLength(1));
   });

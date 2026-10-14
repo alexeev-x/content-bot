@@ -212,10 +212,9 @@ export function DateTimeField({
             {ru.ui.timeZone(zone, offset)}
             {description ? ` · ${description}` : ''}
           </span>
-          {value ? <span className="mono">{ru.ui.utcHint(utcText(value))}</span> : null}
         </Text>
         <FieldError className={styles.error}>{errorMessage}</FieldError>
-        <Popover className={dateStyles.popover} placement="bottom" shouldFlip={false} offset={8}>
+        <Popover className={dateStyles.popover} placement="bottom start" shouldFlip offset={8}>
           <Dialog className={dateStyles.dialog}>
             <div className={dateStyles.layout}>
               <CalendarPanel />

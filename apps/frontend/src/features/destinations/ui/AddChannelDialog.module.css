@@ -4,32 +4,14 @@
   gap: var(--space-4);
   min-width: 0;
 }
-.lookup {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: start;
-  gap: var(--space-3);
-}
 .field {
   min-width: 0;
-}
-/* Lines the button up with the input, not with the label above it. */
-.checkButton {
-  margin-top: calc(var(--font-size-sm) * var(--line-height-body) + var(--space-1));
 }
 .hint,
 .requestId {
   margin: 0;
   color: var(--color-text-muted);
   font-size: var(--font-size-sm);
-}
-@media (max-width: 479px) {
-  .lookup {
-    grid-template-columns: minmax(0, 1fr);
-  }
-  .checkButton {
-    margin-top: 0;
-  }
 }
 
 .steps {

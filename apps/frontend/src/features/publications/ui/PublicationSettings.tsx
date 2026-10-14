@@ -1,4 +1,4 @@
-import type { PostDto } from '@alexeev/contracts';
+import type { PostDto, PublicationDto } from '@alexeev/contracts';
 import { now, type ZonedDateTime } from '@internationalized/date';
 import { useQuery } from '@tanstack/react-query';
 import { useState, type ReactNode } from 'react';
@@ -37,6 +37,18 @@ function rememberDestination(id: string): void {
   }
 }
 
+/** Quick answers to «когда»: every instant is computed in the owner's zone, not the browser's. */
+function schedulePresets(zone: string): { label: string; at: ZonedDateTime }[] {
+  const current = now(zone);
+  const at = (days: number, hour: number) => current.add({ days }).set({ hour, minute: 0, second: 0, millisecond: 0 });
+  return [
+    { label: 'Через час', at: current.add({ hours: 1 }).set({ second: 0, millisecond: 0 }) },
+    { label: 'Сегодня 18:00', at: at(0, 18) },
+    { label: 'Завтра 10:00', at: at(1, 10) },
+    { label: 'Завтра 18:00', at: at(1, 18) }
+  ];
+}
+
 const WHEN = [
   { id: 'now', label: 'Опубликовать сейчас', icon: 'send' },
   { id: 'later', label: 'Запланировать', icon: 'calendar' }
@@ -53,10 +65,12 @@ type Props = {
   timezone?: string;
   /** Approves a draft just before sending. Composed by the page because features never import each other. */
   ensureApproved?: EnsureApproved;
+  /** The server accepted the request; the page leaves this screen, so the button stays locked until then. */
+  onPublished?: (publication: PublicationDto) => void;
 };
 
 /** In-page settings for the second editor screen: «Опубликовать» here is the final action and sends at once. */
-export function PublicationSettings({ post, onBack, children, timezone, ensureApproved }: Props) {
+export function PublicationSettings({ post, onBack, children, timezone, ensureApproved, onPublished }: Props) {
   const timeZone = timezone ?? browserTimeZone();
   const narrow = useMediaQuery('(max-width: 859px)');
   const destinations = useQuery(publishDestinationsQueryOptions());
@@ -67,7 +81,14 @@ export function PublicationSettings({ post, onBack, children, timezone, ensureAp
   const [approvedPost, setApprovedPost] = useState<PostDto | null>(null);
   const [approveFailure, setApproveFailure] = useState<{ title: string; message: string } | null>(null);
   const [scheduledAt, setScheduledAt] = useState<ZonedDateTime>(() => defaultScheduledAt(timeZone));
-  const publishing = usePublish(approvedPost ?? post, timeZone);
+  const [done, setDone] = useState(false);
+  const publishing = usePublish(approvedPost ?? post, timeZone, {
+    onPublished: (publication) => {
+      if (!onPublished) return;
+      setDone(true);
+      onPublished(publication);
+    }
+  });
   const options = destinations.data?.items ?? [];
 
   const selectedDestinationId =
@@ -79,7 +100,7 @@ export function PublicationSettings({ post, onBack, children, timezone, ensureAp
         : '');
 
   async function publish() {
-    if (approving || !selectedDestinationId) return;
+    if (approving || done || !selectedDestinationId) return;
     let target = approvedPost ?? post;
     if (target.status !== 'approved') {
       if (!ensureApproved) return;
@@ -135,7 +156,7 @@ export function PublicationSettings({ post, onBack, children, timezone, ensureAp
         ) : null}
         <RadioGroup label="Канал" variant="rows" value={selectedDestinationId} onChange={(id) => setDestinationId(id)}>
           {options.map((item) => (
-            <Radio key={item.id} value={item.id} description={item.chatId}>
+            <Radio key={item.id} value={item.id} {...(item.chatId.startsWith('@') ? { description: item.chatId } : {})}>
               <span className={styles.destinationOption}>
                 <span className={styles.destinationAvatar} aria-hidden="true">
                   {item.title.slice(0, 1).toLocaleUpperCase('ru-RU')}
@@ -155,16 +176,32 @@ export function PublicationSettings({ post, onBack, children, timezone, ensureAp
           <Radio value="later">{WHEN[1].label}</Radio>
         </RadioGroup>
         {mode === 'later' ? (
-          <DateTimeField
-            label="Дата и время"
-            value={scheduledAt}
-            onChange={(value) => {
-              if (value) setScheduledAt(value);
-            }}
-            timeZone={timeZone}
-            minValue={now(timeZone)}
-            isRequired
-          />
+          <>
+            <fieldset className={styles.presets}>
+              <legend className={styles.presetsLegend}>Быстрый выбор времени</legend>
+              {schedulePresets(timeZone).map((preset) => (
+                <Button
+                  key={preset.label}
+                  variant="soft"
+                  size="sm"
+                  isDisabled={preset.at.toDate().getTime() <= now(timeZone).toDate().getTime()}
+                  onPress={() => setScheduledAt(preset.at)}
+                >
+                  {preset.label}
+                </Button>
+              ))}
+            </fieldset>
+            <DateTimeField
+              label="Дата и время"
+              value={scheduledAt}
+              onChange={(value) => {
+                if (value) setScheduledAt(value);
+              }}
+              timeZone={timeZone}
+              minValue={now(timeZone)}
+              isRequired
+            />
+          </>
         ) : null}
       </section>
       <section className={styles.previewColumn} aria-label="Предпросмотр публикации">
@@ -178,7 +215,7 @@ export function PublicationSettings({ post, onBack, children, timezone, ensureAp
         <div className={styles.publishPrimary}>
           <Button
             icon={mode === 'now' ? 'send' : 'calendar'}
-            isDisabled={!selectedDestinationId || !validSchedule}
+            isDisabled={!selectedDestinationId || !validSchedule || done}
             isLoading={publishing.isPending || approving}
             onPress={() => void publish()}
           >

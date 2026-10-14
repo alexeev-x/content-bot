@@ -14,6 +14,7 @@ export { DataTable } from './DataTable';
 export type { DataColumn, RowSelection, TableSort } from './DataTable';
 export { DateTimeField } from './DateTimeField';
 export { Dialog } from './Dialog';
+export { LinkButton } from './LinkButton';
 export { Dropzone } from './Dropzone';
 export { Disclosure, DisclosureGroup } from './Disclosure';
 export { Drawer } from './Drawer';

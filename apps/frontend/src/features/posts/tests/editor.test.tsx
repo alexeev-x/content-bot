@@ -223,7 +223,7 @@ describe('save', () => {
       })
     );
     const { router } = await openExisting();
-    const saveAndExit = screen.getByRole('button', { name: 'Выйти' });
+    const saveAndExit = screen.getByRole('button', { name: 'К постам' });
     expect(saveAndExit.hasAttribute('disabled')).toBe(false);
     await user.click(saveAndExit);
     await waitFor(() => expect(router.state.location.pathname).toBe('/posts'));
@@ -241,7 +241,7 @@ describe('save', () => {
     );
     const { router } = await openExisting();
     await replaceBody(user, 'Правка');
-    await user.click(screen.getByRole('button', { name: 'Выйти' }));
+    await user.click(screen.getByRole('button', { name: 'К постам' }));
     await waitFor(() => expect(router.state.location.pathname).toBe('/posts'));
     expect(bodies).toEqual([{ revision: 0, body: 'Правка', entities: [] }]);
     expect(screen.queryByRole('alertdialog')).toBeNull();
@@ -260,7 +260,7 @@ describe('save', () => {
     );
     const { router } = await openExisting();
     await replaceBody(user, 'Правка');
-    await user.click(screen.getByRole('button', { name: 'Выйти' }));
+    await user.click(screen.getByRole('button', { name: 'К постам' }));
     await waitFor(() => expect(complete).toBeDefined());
     await typeAtEnd(user, '!');
     complete?.();
@@ -313,7 +313,7 @@ describe('save', () => {
     await openExisting();
     server.use(failWith('patch', `/api/v1/posts/${ids.post}`, { status: 503, code: 'UNAVAILABLE' }));
     await typeAtEnd(user, ' дополнение');
-    await user.click(screen.getByRole('button', { name: 'Выйти' }));
+    await user.click(screen.getByRole('button', { name: 'К постам' }));
     const alert = await screen.findByRole('alert');
     expect(alert.textContent).toContain('req-test-1');
     expect(alert.textContent).toContain('Ваш текст остался в редакторе');
@@ -340,7 +340,7 @@ describe('409 STALE_REVISION', () => {
       })
     );
     await replaceBody(user, 'Мой текст');
-    await user.click(screen.getByRole('button', { name: 'Выйти' }));
+    await user.click(screen.getByRole('button', { name: 'К постам' }));
 
     const banner = await screen.findByText('Пост уже изменён в другом месте');
     expect(banner).toBeTruthy();
@@ -441,13 +441,13 @@ describe('approve', () => {
     expect(await screen.findByRole('heading', { name: 'Настройки публикации' })).toBeTruthy();
     expect(screen.queryByRole('textbox', { name: 'Заголовок' })).toBeNull();
     expect(screen.queryByRole('textbox', { name: 'Текст' })).toBeNull();
-    expect(screen.queryByRole('button', { name: 'Выйти' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'К постам' })).toBeNull();
   });
 
   it('opens an already approved post read-only with the explanation and the publish slot', async () => {
     server.use(http.get('*/api/v1/posts/:id', () => HttpResponse.json(post({ status: 'approved', revision: 2 }))));
     renderEditorApp(`/posts/${ids.post}`, () => <button type="button">Опубликовать</button>);
-    expect(await screen.findByText('Пост одобрен и закрыт для правок')).toBeTruthy();
+    expect(await screen.findByText('Пост готов к публикации')).toBeTruthy();
     expect(screen.queryByRole('textbox', { name: /Заголовок/ })).toBeNull();
     expect(screen.queryByRole('textbox', { name: 'Текст' })).toBeNull();
     expect(screen.getByRole('figure', { name: 'Предпросмотр в Telegram' })).toBeTruthy();
@@ -463,7 +463,7 @@ describe('approve', () => {
       http.get('*/api/v1/posts/:id', () => HttpResponse.json(post({ status: 'approved', revision: 1 })))
     );
     await typeAtEnd(user, '!');
-    await user.click(screen.getByRole('button', { name: 'Выйти' }));
+    await user.click(screen.getByRole('button', { name: 'К постам' }));
     expect(await screen.findByText('Пост уже одобрен в другом месте')).toBeTruthy();
     expect(bodyBox().textContent).toBe('Текст поста!');
     expect(bodyBox().getAttribute('aria-readonly')).toBe('true');
@@ -521,7 +521,7 @@ describe('limits and preview', () => {
     await user.click(bodyBox());
     await user.paste('b'.repeat(POST_BODY_MAX - 5));
     expect(await screen.findByText(/Сообщение длиннее лимита Telegram на 6/)).toBeTruthy();
-    expect(screen.getByRole('button', { name: 'Выйти' }).hasAttribute('disabled')).toBe(false);
+    expect(screen.getByRole('button', { name: 'К постам' }).hasAttribute('disabled')).toBe(false);
     expect(screen.getByRole('button', { name: 'К публикации' }).hasAttribute('disabled')).toBe(true);
   });
 

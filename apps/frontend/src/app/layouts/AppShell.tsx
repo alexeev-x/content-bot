@@ -141,6 +141,7 @@ export function AppShell({
   const editorOpen = /^\/posts\/[^/]+/.test(pathname);
   const primary = NAV_ITEMS.filter((item) => item.primary);
   const secondary = NAV_ITEMS.filter((item) => !item.primary);
+  const moreActive = secondary.some((item) => pathname === item.to || pathname.startsWith(`${item.to}/`));
   // Telegram draws its own header: the app top bar goes and its tools move into each page header.
   const miniApp = isInsideTelegram();
   const focused = forcedFocused ?? editorOpen;
@@ -213,6 +214,7 @@ export function AppShell({
             <AriaButton
               className={styles.search}
               hidden={!onOpenSearch}
+              isDisabled={!onOpenSearch}
               onPress={onOpenSearch}
               aria-label={ru.shell.searchPlaceholder}
             >
@@ -232,11 +234,20 @@ export function AppShell({
       </div>
 
       <nav aria-label={ru.nav.label} className={styles.tabbar}>
-        {primary.map((item) => (
+        {primary.slice(0, 2).map((item) => (
+          <NavLink key={item.to} item={item} incidentsCount={incidentsCount} />
+        ))}
+        <Link to="/posts/new" className={styles.tabCreate} aria-label={ru.nav.newPost}>
+          <span className={styles.tabCreateIcon}>
+            <Icon name="plus" size={22} />
+          </span>
+        </Link>
+        {primary.slice(2).map((item) => (
           <NavLink key={item.to} item={item} incidentsCount={incidentsCount} />
         ))}
         <AriaButton
           className={styles.tab}
+          data-current={moreActive || undefined}
           aria-haspopup="dialog"
           aria-expanded={moreOpen}
           onPress={() => setMoreOpen(true)}

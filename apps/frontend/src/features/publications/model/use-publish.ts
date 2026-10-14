@@ -20,6 +20,17 @@ import {
   type PublishIntent
 } from './publish-intent';
 
+/** Only these can be in (or on the way to) the channel; a failed or cancelled attempt must not block «Отправить снова». */
+const MAY_REACH_CHANNEL: ReadonlySet<PublicationDto['status']> = new Set([
+  'scheduled',
+  'queued',
+  'preparing',
+  'sending',
+  'sent',
+  'retry_wait',
+  'unknown'
+]);
+
 type Options = {
   onPublished?: (publication: PublicationDto) => void;
   /** Called after a success or a failure the owner has been told about; the dialog uses it to close. */
@@ -95,7 +106,7 @@ export function usePublish(post: PostDto, timezone: string | undefined, options:
         ...publicationsPageQueryOptions({ postId: post.id, destinationId }),
         staleTime: 0
       });
-      return page.items.some((item) => item.status !== 'cancelled');
+      return page.items.some((item) => MAY_REACH_CHANNEL.has(item.status));
     } catch {
       return null;
     }

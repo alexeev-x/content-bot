@@ -470,7 +470,7 @@ export function MediaLibrary({ searchState, onSearchState, onCreatePost, onLogin
   }
 
   return (
-    <main className={styles.page}>
+    <div className={styles.page}>
       <PageHeader
         title={ru.pages.media}
         description="Сохранённые файлы из черновиков и истории постов."
@@ -569,22 +569,29 @@ export function MediaLibrary({ searchState, onSearchState, onCreatePost, onLogin
         </Tabs>
       </div>
       {selected.size ? (
-        <SelectionBar label="Выбранные файлы" summary={`Выбрано ${selected.size}`} hint="Добавление не публикует пост.">
+        <SelectionBar
+          label="Выбранные файлы"
+          summary={`Выбрано ${selected.size}`}
+          hint={
+            deletableSelected.length < selected.size
+              ? `Удалить можно файлы, которые нигде не используются: ${deletableSelected.length} из ${selected.size}.`
+              : 'Добавление не публикует пост.'
+          }
+        >
           <Button onPress={createPostWithFiles} isLoading={createPost.isPending}>
             Новый пост с этими файлами
           </Button>
           <Button variant="secondary" onPress={() => setAttachOpen(true)} isDisabled={createPost.isPending}>
             Добавить в черновик
           </Button>
-          {deletableSelected.length ? (
-            <Button
-              variant="secondary"
-              icon="trash"
-              onPress={() => setPendingDelete(deletableSelected.map(({ id }) => id))}
-            >
-              {`Удалить (${deletableSelected.length})`}
-            </Button>
-          ) : null}
+          <Button
+            variant="secondary"
+            icon="trash"
+            isDisabled={deletableSelected.length === 0}
+            onPress={() => setPendingDelete(deletableSelected.map(({ id }) => id))}
+          >
+            {`Удалить (${deletableSelected.length})`}
+          </Button>
           <Button variant="secondary" onPress={() => setSelected(new Set())}>
             Снять выбор
           </Button>
@@ -628,6 +635,6 @@ export function MediaLibrary({ searchState, onSearchState, onCreatePost, onLogin
           onLogin={onLogin}
         />
       ) : null}
-    </main>
+    </div>
   );
 }
