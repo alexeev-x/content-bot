@@ -37,7 +37,8 @@ export const copy = {
     error: 'Не удалось загрузить активность',
     retry: 'Повторить',
     more: 'Показать ещё',
-    lane: 'События дня',
+    lane: 'События',
+    andMore: (n: number) => `и ещё ${n}`,
     eventDot: (count: number, first: string, clock: string) =>
       count > 1 ? `${clock}: ${count} событий, первое — ${first}` : `${clock}: ${first}`,
     dialogOne: 'Что произошло',
@@ -116,6 +117,12 @@ export const copy = {
     stat: (total: number, sent: number) =>
       `${total} ${pluralRu(total, 'публикация', 'публикации', 'публикаций')} · отправлено ${sent}`,
     more: (shown: number, total: number) => `Показаны ${shown} из ${total}`,
+    lanePublications: 'Публикации',
+    statsLabel: 'Итоги дня',
+    statPublications: (n: number) => pluralRu(n, 'публикация', 'публикации', 'публикаций'),
+    statSent: 'отправлено',
+    statProblems: (n: number) => pluralRu(n, 'проблема', 'проблемы', 'проблем'),
+    statEvents: (n: number) => pluralRu(n, 'событие', 'события', 'событий'),
     summary: (count: number) =>
       `${count} ${pluralRu(count, 'публикация', 'публикации', 'публикаций')} за день, слева направо от 00:00 до 24:00`,
     marker: (title: string, channel: string, clock: string, status: string) =>

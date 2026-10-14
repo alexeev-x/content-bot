@@ -1,50 +1,104 @@
+/* One chart, two lanes on one 00–24 scale: publications above, studio events below; the hour grid, the shaded
+   past and the «сейчас» line run through both. */
 .chart {
   --marker: 28px;
   --lane-step: 34px;
-  position: relative;
-  /* Room for the «сейчас» label above and the hour labels below; the height holds for every number of markers. */
-  height: calc(var(--space-6) + var(--marker) + (var(--lanes) - 1) * var(--lane-step) + var(--space-6));
+  --top: 26px;
+  --pub-h: calc(var(--marker) + (var(--lanes) - 1) * var(--lane-step) + 12px);
+  --evt-h: 0px;
+  --axis: 22px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  height: calc(var(--top) + var(--pub-h) + var(--evt-h) + var(--axis));
   padding-inline: var(--space-4);
+}
+.chart[data-events] {
+  --evt-h: 40px;
+}
+@media (min-width: 860px) {
+  .chart {
+    grid-template-columns: 76px minmax(0, 1fr);
+    column-gap: var(--space-3);
+  }
+}
+.labels {
+  position: relative;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+}
+.labelPub,
+.labelEvents {
+  position: absolute;
+  inset-inline-start: 0;
+  transform: translateY(-50%);
+  white-space: nowrap;
+}
+.labelPub {
+  top: calc(var(--top) + 6px + var(--marker) / 2);
+}
+.labelEvents {
+  top: calc(var(--top) + var(--pub-h) + var(--evt-h) / 2);
 }
 .plot {
   position: relative;
   height: 100%;
-}
-.track {
-  position: absolute;
-  inset-inline: 0;
-  top: calc(var(--space-6) + var(--marker) / 2 - 2px);
-  height: 4px;
-  border-radius: var(--radius-pill);
-  background: var(--color-border-subtle);
-}
-.past {
-  position: absolute;
-  inset-inline-start: 0;
-  top: calc(var(--space-6) + var(--marker) / 2 - 2px);
-  width: var(--now);
-  height: 4px;
-  border-radius: var(--radius-pill);
-  background: var(--color-accent);
-  opacity: 0.55;
+  /* Half a marker of room at both ends, so 00:00 and 23:59 stay inside the card. */
+  margin-inline: calc(var(--marker) / 2);
 }
 .tick {
   position: absolute;
-  bottom: 0;
-  width: 0;
+  top: var(--top);
+  bottom: var(--axis);
+  width: 1px;
+  background: var(--color-grid);
+}
+.tick[data-minor] {
+  background: transparent;
+  border-inline-start: 1px dashed var(--color-grid);
 }
 .tickLabel {
   position: absolute;
-  bottom: 0;
+  top: calc(100% + 4px);
   transform: translateX(-50%);
   color: var(--color-text-muted);
   font-size: var(--font-size-2xs);
   font-variant-numeric: tabular-nums;
 }
+.past {
+  position: absolute;
+  top: var(--top);
+  bottom: var(--axis);
+  inset-inline-start: 0;
+  width: var(--now);
+  border-radius: var(--radius-1);
+  background: color-mix(in srgb, var(--color-accent) 6%, transparent);
+}
+.track,
+.trackDone {
+  position: absolute;
+  top: calc(var(--top) + 6px + var(--marker) / 2 - 1px);
+  height: 2px;
+  border-radius: var(--radius-pill);
+}
+.track {
+  inset-inline: 0;
+  background: var(--color-border-strong);
+}
+.trackDone {
+  inset-inline-start: 0;
+  width: var(--now);
+  background: var(--color-accent);
+}
+.eventsTrack {
+  position: absolute;
+  top: calc(var(--top) + var(--pub-h) + var(--evt-h) / 2);
+  inset-inline: 0;
+  border-top: 1px dashed var(--color-border-strong);
+}
 .now {
   position: absolute;
-  top: var(--space-4);
-  bottom: var(--space-5);
+  top: calc(var(--top) - 4px);
+  bottom: var(--axis);
   inset-inline-start: var(--now);
   width: 2px;
   margin-inline-start: -1px;
@@ -75,7 +129,7 @@
 }
 .markerSlot {
   position: absolute;
-  top: calc(var(--space-6) + var(--lane) * var(--lane-step));
+  top: calc(var(--top) + 6px + var(--lane) * var(--lane-step));
   width: 0;
 }
 /* A marker in a lower lane keeps a stem up to the line, so it still reads as «at this time». */
@@ -140,7 +194,7 @@
 }
 .skeletonDots {
   position: absolute;
-  top: var(--space-6);
+  top: calc(var(--top) + 6px);
   inset-inline: 10% 10%;
   display: flex;
   justify-content: space-between;
@@ -161,54 +215,25 @@
   padding-top: var(--space-2);
 }
 .hintText,
-.partial {
-  margin: 0;
-  color: var(--color-text-muted);
-  font-size: var(--font-size-sm);
-}
-.partial {
-  display: flex;
-  align-items: center;
-  min-height: var(--size-control-sm);
-  padding-top: var(--space-2);
-}
 /* Same height as the hint row, so the widget does not jump between its states. */
 .hintSpacer {
   display: block;
   min-height: calc(var(--size-control-sm) + var(--space-2));
 }
 
-@media (max-width: 859px) {
-  .chart {
-    padding-inline: var(--space-3);
-  }
-  .tick[data-minor] {
-    display: none;
-  }
-}
-
-/* Second lane: the day's studio events (posts, files, channel changes) on the same 00-24 scale. */
-.eventsRow {
-  display: grid;
-  gap: var(--space-1);
-  padding-inline: var(--space-4);
-}
-.eventsLabel {
-  color: var(--color-text-muted);
-  font-size: var(--font-size-xs);
-}
 .events {
-  position: relative;
-  height: 32px;
+  position: absolute;
+  inset: 0;
   margin: 0;
   padding: 0;
-  border-top: 1px dashed var(--color-border-subtle);
   list-style: none;
+  pointer-events: none;
 }
 .eventSlot {
   position: absolute;
-  top: 4px;
+  top: calc(var(--top) + var(--pub-h) + var(--evt-h) / 2 - var(--size-target-min) / 2);
   width: 0;
+  pointer-events: auto;
 }
 .eventDot {
   position: relative;
@@ -223,6 +248,10 @@
   background: linear-gradient(var(--tone-bg), var(--tone-bg)), var(--color-surface-1);
   color: var(--tone-fg);
   cursor: pointer;
+  transition: transform var(--motion-fast) ease-out;
+}
+.eventDot[data-hovered] {
+  transform: scale(1.12);
 }
 .eventDot[data-focus-visible] {
   outline: 2px solid var(--color-focus-ring);
@@ -230,16 +259,60 @@
 }
 .eventCount {
   position: absolute;
-  top: -6px;
-  right: -8px;
-  min-width: 14px;
-  height: 14px;
-  padding: 0 3px;
+  top: -7px;
+  right: -9px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
   border-radius: var(--radius-pill);
-  background: var(--color-text);
-  color: var(--color-surface-1);
+  background: var(--color-accent);
+  color: var(--color-on-accent);
   font-size: var(--font-size-2xs);
   font-weight: var(--font-weight-semibold);
-  line-height: 14px;
+  line-height: 16px;
   text-align: center;
+}
+/* Day summary as small chips: the numbers read at a glance, a problem count in its status colour. */
+.stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: 0;
+  padding: var(--space-3) 0 0;
+  list-style: none;
+}
+.stat {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--space-1);
+  padding: 2px var(--space-2);
+  border-radius: var(--radius-pill);
+  background: var(--color-surface-2);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+}
+.stat strong {
+  color: var(--color-text);
+  font-size: var(--font-size-sm);
+  font-variant-numeric: tabular-nums;
+}
+.stat[data-tone] {
+  background: var(--tone-bg);
+  color: var(--tone-fg);
+}
+.stat[data-tone] strong {
+  color: var(--tone-fg);
+}
+.statNote {
+  align-self: center;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+}
+@media (max-width: 859px) {
+  .chart {
+    padding-inline: var(--space-3);
+  }
+  .tick[data-minor] {
+    display: none;
+  }
 }

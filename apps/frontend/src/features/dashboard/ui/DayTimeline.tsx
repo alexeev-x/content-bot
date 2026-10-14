@@ -58,6 +58,10 @@ export function DayTimeline({
   const markers = items ? placeMarkers(items, day, phone ? GAP_PHONE : GAP_DESKTOP, LANES) : [];
   const nowPercent = dayPercent(now.getTime(), day);
   const empty = items !== undefined && items.length === 0;
+  const showEvents = onOpenActivity !== undefined;
+  const sent = items?.filter((item) => item.status === 'sent').length ?? 0;
+  const problems = items?.filter((item) => item.status === 'failed' || item.status === 'unknown').length ?? 0;
+  const eventCount = eventGroups.reduce((sum, group) => sum + group.length, 0);
   return (
     <Widget
       id="line"
@@ -71,10 +75,18 @@ export function DayTimeline({
       }
     >
       <div className={shell.body}>
-        <div className={styles.chart} style={{ '--lanes': LANES, '--now': `${nowPercent}%` } as CSSProperties}>
+        <div
+          className={styles.chart}
+          data-events={showEvents || undefined}
+          style={{ '--lanes': LANES, '--now': `${nowPercent}%` } as CSSProperties}
+        >
+          {phone ? null : (
+            <div className={styles.labels} aria-hidden="true">
+              <span className={styles.labelPub}>{copy.line.lanePublications}</span>
+              {showEvents ? <span className={styles.labelEvents}>{copy.activity.lane}</span> : null}
+            </div>
+          )}
           <div className={styles.plot}>
-            <span className={styles.track} aria-hidden="true" />
-            <span className={styles.past} aria-hidden="true" />
             {HOURS.map((hour) => (
               <span
                 key={hour}
@@ -86,6 +98,10 @@ export function DayTimeline({
                 <span className={styles.tickLabel}>{String(hour).padStart(2, '0')}</span>
               </span>
             ))}
+            <span className={styles.past} aria-hidden="true" />
+            <span className={styles.track} aria-hidden="true" />
+            <span className={styles.trackDone} aria-hidden="true" />
+            {showEvents ? <span className={styles.eventsTrack} aria-hidden="true" /> : null}
             <span className={styles.now} aria-hidden="true">
               <span className={styles.nowLabel}>{formatClock(now.toISOString(), timezone)}</span>
             </span>
@@ -142,38 +158,54 @@ export function DayTimeline({
                 })}
               </ul>
             )}
+            {showEvents ? (
+              <ul className={styles.events} aria-label={copy.activity.lane}>
+                {eventGroups.map((group) => {
+                  // The dot shows the most serious event of its group (an error before a routine edit).
+                  const events = group.map((point) => point.event);
+                  const lead = events.find((event) => event.category === 'errors') ?? events[events.length - 1];
+                  if (!lead) return null;
+                  const view = activityView(lead);
+                  const clock = formatClock(lead.at, timezone);
+                  return (
+                    <li
+                      key={lead.id}
+                      className={styles.eventSlot}
+                      style={
+                        { insetInlineStart: `${group[0]?.percent ?? 0}%`, ...toneStyle(view.tone) } as CSSProperties
+                      }
+                    >
+                      <Tooltip
+                        content={
+                          <span className={styles.tip}>
+                            {events
+                              .slice(-3)
+                              .reverse()
+                              .map((event) => (
+                                <span key={event.id}>
+                                  {formatClock(event.at, timezone)} · {activityView(event).text}
+                                </span>
+                              ))}
+                            {events.length > 3 ? <span>{copy.activity.andMore(events.length - 3)}</span> : null}
+                          </span>
+                        }
+                      >
+                        <AriaButton
+                          className={styles.eventDot}
+                          aria-label={copy.activity.eventDot(group.length, view.text, clock)}
+                          onPress={() => onOpenActivity([...events].reverse())}
+                        >
+                          <Icon name={view.icon} size={12} />
+                          {group.length > 1 ? <span className={styles.eventCount}>{group.length}</span> : null}
+                        </AriaButton>
+                      </Tooltip>
+                    </li>
+                  );
+                })}
+              </ul>
+            ) : null}
           </div>
         </div>
-        {onOpenActivity && eventGroups.length > 0 ? (
-          <div className={styles.eventsRow}>
-            <span className={styles.eventsLabel}>{copy.activity.lane}</span>
-            <ul className={styles.events} aria-label={copy.activity.lane}>
-              {eventGroups.map((group) => {
-                const first = group[group.length - 1]?.event;
-                if (!first) return null;
-                const view = activityView(first);
-                const clock = formatClock(first.at, timezone);
-                return (
-                  <li
-                    key={first.id}
-                    className={styles.eventSlot}
-                    style={{ insetInlineStart: `${group[0]?.percent ?? 0}%` }}
-                  >
-                    <AriaButton
-                      className={styles.eventDot}
-                      style={toneStyle(view.tone)}
-                      aria-label={copy.activity.eventDot(group.length, view.text, clock)}
-                      onPress={() => onOpenActivity(group.map((point) => point.event).reverse())}
-                    >
-                      <Icon name={view.icon} size={12} />
-                      {group.length > 1 ? <span className={styles.eventCount}>{group.length}</span> : null}
-                    </AriaButton>
-                  </li>
-                );
-              })}
-            </ul>
-          </div>
-        ) : null}
         {items ? <p className={styles.sr}>{copy.line.summary(total)}</p> : null}
         {empty ? (
           <div className={styles.hint}>
@@ -183,10 +215,25 @@ export function DayTimeline({
             </Button>
           </div>
         ) : items ? (
-          <p className={styles.partial}>
-            {copy.line.stat(total, items.filter((item) => item.status === 'sent').length)}
-            {total > items.length ? ` · ${copy.line.more(items.length, total)}` : ''}
-          </p>
+          <ul className={styles.stats} aria-label={copy.line.statsLabel}>
+            <li className={styles.stat}>
+              <strong>{total}</strong> {copy.line.statPublications(total)}
+            </li>
+            <li className={styles.stat} style={toneStyle('done')} data-tone="done">
+              <strong>{sent}</strong> {copy.line.statSent}
+            </li>
+            {problems > 0 ? (
+              <li className={styles.stat} style={toneStyle('failed')} data-tone="failed">
+                <strong>{problems}</strong> {copy.line.statProblems(problems)}
+              </li>
+            ) : null}
+            {showEvents ? (
+              <li className={styles.stat}>
+                <strong>{eventCount}</strong> {copy.line.statEvents(eventCount)}
+              </li>
+            ) : null}
+            {total > items.length ? <li className={styles.statNote}>{copy.line.more(items.length, total)}</li> : null}
+          </ul>
         ) : (
           <span className={styles.hintSpacer} />
         )}
