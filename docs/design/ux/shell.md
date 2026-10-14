@@ -4,7 +4,7 @@
 
 ### 1.1 Desktop composition (>= 860 px; adapt fluidly for laptop and large desktop)
 - Sidebar 216-224 px expanded / 56-64 px collapsed rail. Collapse control **bottom-anchored** (owner likes it), 200 ms width transition, `prefers-reduced-motion` = instant; state persisted; current route never lost. Order: Обзор, Посты, Публикации, Инциденты (badge = open incidents count, the only badge), Настройки pinned bottom. Active = 2 px accent edge + subtle bg. Collapsed rail: icons with tooltips + `aria-label`.
-- Top bar (thin, 48 px): left = search trigger (field-looking, shows `Ctrl K`), right = read-only timezone chip («Europe/Chisinau (UTC+3)»), environment chip (DEV, always visible on dev), system-status chip (see 2.7), theme toggle, owner menu (`Выйти` only). Not a second dashboard.
+- Top bar (thin, 48 px): left = search trigger (field-looking, shows `Ctrl K`; on phones an icon only, as in the Mini App), right = read-only timezone chip («Europe/Chisinau (UTC+3)»), environment chip (DEV, always visible on dev), system-status chip (see 2.7), theme toggle, owner menu (`Выйти` only). Not a second dashboard.
 - Sidebar bottom: card «Подключённый канал» (avatar, name, state chip, subscribers line «—» until an API exists) above «Свернуть меню»; collapsed rail: avatar with tooltip (3.1).
 - Search: **today the field is a disabled placeholder unless wired**. Spec: the trigger opens a command palette (navigate-only: Посты, Публикации, Инциденты, Настройки; recents). **API need**: server search over posts/publications for entity results; until then the palette lists destinations + recent routes only, or the trigger is hidden (no disabled placeholder).
 - Sticky: sidebar and top bar. Page content scrolls; page header does not stick on desktop.
