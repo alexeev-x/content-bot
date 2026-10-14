@@ -1,7 +1,8 @@
 import type { BotSetting, CreatePostInput } from '@alexeev/contracts';
 import { POST_BODY_MAX } from '@alexeev/contracts';
 import { Bot, type Context, InlineKeyboard, type NextFunction } from 'grammy';
-import type { UserFromGetMe } from 'grammy/types';
+import type { Message, UserFromGetMe } from 'grammy/types';
+import { AppError } from '../../shared/app-error';
 import type { Clock } from '../../platform/clock';
 import type { Logger } from '../../platform/logging/logger';
 import type { TelegramBotAdminApi } from '../../integrations/telegram/telegram-api';
@@ -9,7 +10,9 @@ import { parseOwnerTelegramId } from '../../modules/identity';
 import type { AppEnv } from '../env';
 import { parseEnvBotInfo } from './bot-info';
 import type { BotIdentityStore } from './bot-identity-store';
-import { draftFromMessageText } from './draft-from-message';
+import { draftFromCaption, draftFromMessageText, mediaOnlyDraft } from './draft-from-message';
+import { type BotMediaFile, mediaLimit } from './media-import';
+import { ALBUM_SETTLE_MS } from './media-import-worker';
 import { configureOwnerChat } from './owner-chat';
 import type { OwnerReply, OwnerReports } from './owner-reports';
 import type { TelegramCaller } from './telegram-call';
@@ -115,6 +118,22 @@ export interface BotRuntime {
   reports: OwnerReports;
   /** Stores a draft post; a repeated key returns the same post. Throws `AppError` or a D1 error. */
   createDraft: (input: CreatePostInput, idempotencyKey: string) => Promise<{ id: string }>;
+  /** Records the file in D1 (fast) and starts the import after the webhook answered. */
+  mediaImports: {
+    /** `first` is true for the update that made the draft's import record: the only one that answers. */
+    enqueue: (input: {
+      postId: string;
+      file: BotMediaFile;
+      messageId: number;
+      /** The album's caption as a draft input; the worker applies it, so no update races on the revision. */
+      caption: CreatePostInput | null;
+      oversized: boolean;
+      /** The item's caption was over the post limit: never cut, so the file is kept and the report says so. */
+      captionTooLong: boolean;
+    }) => Promise<{ first: boolean }>;
+    /** Runs the import in the background; `settleMs` lets the rest of an album arrive first. */
+    start: (postId: string, settleMs: number) => void;
+  };
   /** Keeps this Worker's public origin for Cron's owner alerts, which have no request to learn it from. */
   rememberAppOrigin: (origin: string) => Promise<void>;
   /** Used by /start to refresh the owner's commands and menu button. */
@@ -133,7 +152,9 @@ const REPLY_TIMEOUT_SECONDS = 4;
 const REPORT_FAILED_TEXT = 'Не удалось получить данные. Попробуйте ещё раз.';
 const DRAFT_FAILED_TEXT = 'Не удалось создать черновик. Отправьте текст ещё раз.';
 const DRAFT_CREATED_TEXT = 'Черновик создан';
+const MEDIA_DRAFT_CREATED_TEXT = 'Черновик создан, файлы загружаются…';
 const DRAFT_TOO_LONG_TEXT = `Текст длиннее ${POST_BODY_MAX} символов, черновик не создан.`;
+const UNSUPPORTED_TEXT = 'Этот тип сообщения пока не превращается в черновик';
 const DRAFT_INVALID_TEXT = 'Текст содержит недопустимые символы, черновик не создан.';
 
 // Only private chats with the owner: the bot never answers in a group the owner happens to share with it.
@@ -221,9 +242,13 @@ export function createBot(config: BotConfig, runtime: BotRuntime): Bot {
   );
 
   // Whatever the owner sends or forwards becomes a draft. An unknown command is not a post.
+  const openButton = (postId: string) => ({
+    reply_markup: new InlineKeyboard().webApp(OPEN_BUTTON_TEXT, `${runtime.appOrigin}/posts/${postId}`)
+  });
+
   bot.on('message:text', async (ctx) => {
     if (ctx.message.entities?.some((entity) => entity.type === 'bot_command' && entity.offset === 0)) return;
-    const draft = draftFromMessageText(ctx.message.text);
+    const draft = draftFromMessageText(ctx.message.text, ctx.message.entities);
     if (!draft.ok) {
       await ctx.reply(draft.reason === 'TOO_LONG' ? DRAFT_TOO_LONG_TEXT : DRAFT_INVALID_TEXT);
       return;
@@ -237,9 +262,117 @@ export function createBot(config: BotConfig, runtime: BotRuntime): Bot {
       await ctx.reply(DRAFT_FAILED_TEXT);
       return;
     }
-    await ctx.reply(DRAFT_CREATED_TEXT, {
-      reply_markup: new InlineKeyboard().webApp(OPEN_BUTTON_TEXT, `${runtime.appOrigin}/posts/${post.id}`)
-    });
+    await ctx.reply(DRAFT_CREATED_TEXT, openButton(post.id));
+  });
+
+  // A photo, video or GIF with its caption. An album arrives as one update per file sharing a
+  // `media_group_id`: they all resolve to the same draft through one idempotency key.
+  bot.on(['message:photo', 'message:video', 'message:animation'], async (ctx) => {
+    const message = ctx.message;
+    const file = mediaFileOf(message);
+    if (file === null) return;
+    const albumId = message.media_group_id;
+    const parsed = draftFromCaption(message.caption, message.caption_entities);
+    // A caption over the limit is not cut and does not drop the file: the draft is made without it and the
+    // import report says so. One outcome, so no «too long» answer next to «draft created».
+    const captionTooLong = !parsed.ok && parsed.reason === 'TOO_LONG';
+    if (!parsed.ok && !captionTooLong) {
+      await ctx.reply(DRAFT_INVALID_TEXT);
+      return;
+    }
+    const draft = parsed.ok ? parsed : { ok: true as const, input: mediaOnlyDraft() };
+    let post: { id: string };
+    let first: boolean;
+    try {
+      post =
+        albumId === undefined
+          ? await runtime.createDraft(draft.input, `tg-update-${ctx.update.update_id}`)
+          : await createAlbumDraft(albumId);
+      ({ first } = await runtime.mediaImports.enqueue({
+        postId: post.id,
+        file,
+        messageId: message.message_id,
+        caption: albumId !== undefined && message.caption !== undefined && !captionTooLong ? draft.input : null,
+        oversized: file.size !== null && file.size > mediaLimit(file.kind),
+        captionTooLong
+      }));
+    } catch (error) {
+      runtime.onError(error);
+      await ctx.reply(DRAFT_FAILED_TEXT);
+      return;
+    }
+    // Registered before the reply: if the reply fails, the file is still imported.
+    runtime.mediaImports.start(post.id, albumId === undefined ? 0 : ALBUM_SETTLE_MS);
+    // One answer per draft: the others of an album stay silent.
+    if (first) await ctx.reply(MEDIA_DRAFT_CREATED_TEXT, openButton(post.id));
+  });
+
+  // The album's first update makes the draft; the others find it by the same key. The payload is fixed
+  // (the caption is applied afterwards), so concurrent updates agree on one draft. One that meets the first
+  // still writing waits a moment and asks again.
+  async function createAlbumDraft(albumId: string): Promise<{ id: string }> {
+    for (let attempt = 1; ; attempt += 1) {
+      try {
+        return await runtime.createDraft(mediaOnlyDraft(), `tg-album-${albumId}`);
+      } catch (error) {
+        const writing = error instanceof AppError && error.code === 'CONFLICT' && error.details?.reason === 'IN_FLIGHT';
+        if (!writing || attempt === ALBUM_DRAFT_ATTEMPTS) throw error;
+        await new Promise((resolve) => setTimeout(resolve, ALBUM_DRAFT_WAIT_MS));
+      }
+    }
+  }
+
+  // Stickers, voice, documents and the rest: said once, no draft. Service messages (such as
+  // `write_access_allowed`) carry none of these, so they get no answer.
+  bot.on('message', async (ctx) => {
+    if (UNSUPPORTED_CONTENT.some((key) => key in ctx.message)) await ctx.reply(UNSUPPORTED_TEXT);
   });
   return bot;
+}
+
+const UNSUPPORTED_CONTENT = [
+  'sticker',
+  'voice',
+  'audio',
+  'document',
+  'video_note',
+  'contact',
+  'location',
+  'venue',
+  'poll',
+  'dice',
+  'game',
+  'story',
+  'invoice',
+  'paid_media'
+] as const;
+const ALBUM_DRAFT_ATTEMPTS = 6;
+const ALBUM_DRAFT_WAIT_MS = 300;
+
+// A photo comes in several sizes: the biggest one that still fits the limit is imported.
+function mediaFileOf(message: Message): BotMediaFile | null {
+  if (message.photo !== undefined) {
+    const limit = mediaLimit('photo');
+    const sizes = [...message.photo].sort((a, b) => (b.file_size ?? 0) - (a.file_size ?? 0));
+    const fitting = sizes.find((size) => (size.file_size ?? 0) <= limit) ?? sizes[sizes.length - 1];
+    if (fitting === undefined) return null;
+    return {
+      fileId: fitting.file_id,
+      uniqueId: fitting.file_unique_id,
+      kind: 'photo',
+      fileName: null,
+      mimeType: 'image/jpeg',
+      size: fitting.file_size ?? null
+    };
+  }
+  const media = message.video ?? message.animation;
+  if (media === undefined) return null;
+  return {
+    fileId: media.file_id,
+    uniqueId: media.file_unique_id,
+    kind: message.video === undefined ? 'animation' : 'video',
+    fileName: media.file_name ?? null,
+    mimeType: media.mime_type ?? null,
+    size: media.file_size ?? null
+  };
 }

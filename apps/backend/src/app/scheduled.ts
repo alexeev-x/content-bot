@@ -6,6 +6,8 @@ import {
 } from '../modules/lifecycle';
 import { dispatchDueJobs, type RaisedIncident, reconcileExpiredJobs } from '../modules/publishing';
 import type { Container } from './container';
+import { ALBUM_SETTLE_MS, CRON_IMPORT_BUDGET_MS, CRON_IMPORT_POSTS } from './bot/media-import-worker';
+import { createMediaImportRunner } from './bot/media-import-runner';
 import { alertOwnerOfIncidents } from './notifications/alert-owner-of-incidents';
 import { getOwnerOperationsSettings } from '../modules/settings';
 import { processDotaUpdates } from './workflows/process-dota-updates';
@@ -47,6 +49,9 @@ type TickContainer = Pick<
   | 'dotaWatchlists'
   | 'posts'
   | 'idempotency'
+  | 'postSummaries'
+  | 'mediaImports'
+  | 'botToken'
 >;
 
 // Cron entry point, once a minute (docs/BACKEND_ARCHITECTURE.md §5). Ticks may overlap or repeat:
@@ -63,6 +68,7 @@ type TickContainer = Pick<
 //      (best effort, nothing is retried; a tick without incidents spends nothing here)
 //   7. dota watch: on five-minute UTC boundaries after publication work, only when that tick was idle and
 //      not on the hourly housekeeping ticks; bounded work leaves the publishing D1 budget untouched
+//   7b. bot media import: leftovers of the owner's files sent to the bot (idle ticks only, bounded posts and time, after the alerts)
 //   8. heartbeat: one upsert that records this run for the owner's /status
 export async function handleScheduled(controller: ScheduledController, container: TickContainer): Promise<void> {
   const { clock, logger } = container;
@@ -212,6 +218,20 @@ export async function handleScheduled(controller: ScheduledController, container
     logger
   });
   Object.assign(counts, { alertsSent: alerts.sent, alertsFailed: alerts.failed });
+
+  // After the owner's alerts, so a slow download never delays them. Files the owner sent to the bot that the webhook's own run left behind (an expired lease, a paused retry).
+  // Bounded by posts and time; only on ticks that dispatched nothing, and then one indexed read.
+  if (container.botToken && (counts.due ?? 0) === 0 && raised.length === 0) {
+    const token = container.botToken;
+    await step('bot-media-import', async () => {
+      const runner = createMediaImportRunner(container, {
+        token,
+        requestId: 'scheduled',
+        readAppOrigin: () => container.systemState.readAppOrigin()
+      });
+      return { botMediaImports: await runner.runDue(CRON_IMPORT_BUDGET_MS, CRON_IMPORT_POSTS, ALBUM_SETTLE_MS) };
+    });
+  }
 
   // Run after the publication pipeline and its alerts: automation work never delays dispatch or
   // changes publication state. Expired automation leases are visible as unknown and never retried.
