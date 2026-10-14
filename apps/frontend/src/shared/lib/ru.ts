@@ -117,7 +117,7 @@ export const ru = {
     calendar: 'Календарь',
     media: 'Медиа',
     incidents: 'Инциденты',
-    sources: 'Источники и Dota Pulse',
+    sources: 'Источники',
     settings: 'Настройки',
     login: 'Вход',
     appearance: 'Оформление',

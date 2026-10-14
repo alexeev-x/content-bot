@@ -1,10 +1,11 @@
 import type { DotaSourceKey } from '@alexeev/contracts';
 import { Link } from '@tanstack/react-router';
-import { useNavigate } from '@tanstack/react-router';
 import { useEffect, useRef } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useDocumentTitle } from '../../../app/use-document-title';
 import { ApiError } from '../../../shared/api/http-client';
+import { useNow } from '../../../shared/lib/use-now';
+import { DotaTime } from './DotaTime';
 import { Banner, Button, Panel, Skeleton } from '../../../shared/ui';
 import { dotaEventDetailQueryOptions } from '../api/dota-queries';
 import { useAddDotaWatchlist, useDotaWatchlists } from '../api/dota-watchlists-queries';
@@ -43,24 +44,11 @@ const SECTION_LABEL = {
   neutral_creep: 'Нейтральные крипы'
 } as const;
 
-function fullTime(iso: string, timezone: string): string {
-  return new Intl.DateTimeFormat('ru-RU', {
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-    hourCycle: 'h23',
-    timeZoneName: 'short',
-    timeZone: timezone
-  }).format(new Date(iso));
-}
-
 export function DotaEventDetail({ sourceKey, externalId, timezone }: Props) {
-  const navigate = useNavigate({ from: '/sources' });
   const query = useQuery(dotaEventDetailQueryOptions(sourceKey, externalId));
   const watchQuery = useDotaWatchlists();
   const addWatch = useAddDotaWatchlist();
+  const now = useNow();
   const headingRef = useRef<HTMLHeadingElement>(null);
   const data = query.data;
   const forbidden = query.error instanceof ApiError && query.error.status === 403;
@@ -91,13 +79,9 @@ export function DotaEventDetail({ sourceKey, externalId, timezone }: Props) {
           {data.update.type === 'patch' ? 'Патч' : 'Новость'} ·{' '}
           {data.update.sourceKey === 'patch_notes' ? 'Patch notes' : 'Steam Community'}
           {' · опубликовано '}
-          <time dateTime={data.update.publishedAt}>
-            {fullTime(data.update.publishedAt, timezone)}, {timezone}
-          </time>
+          <DotaTime iso={data.update.publishedAt} now={now.getTime()} timezone={timezone} />
           {' · обнаружено '}
-          <time dateTime={data.update.detectedAt}>
-            {fullTime(data.update.detectedAt, timezone)}, {timezone}
-          </time>
+          <DotaTime iso={data.update.detectedAt} now={now.getTime()} timezone={timezone} />
         </p>
       ) : null}
       <Panel title="Разбор обновления">
@@ -126,7 +110,7 @@ export function DotaEventDetail({ sourceKey, externalId, timezone }: Props) {
                   ? 'Войдите снова, чтобы просмотреть разбор.'
                   : missing
                     ? 'Это обновление не найдено или больше недоступно.'
-                    : 'Проверьте соединение и повторите безопасное чтение.'}
+                    : 'Проверьте соединение и повторите.'}
             </p>
             {requestId ? (
               <p>
@@ -136,7 +120,7 @@ export function DotaEventDetail({ sourceKey, externalId, timezone }: Props) {
             {unauthorized ? <Link to="/login">Войти снова</Link> : null}
             {!forbidden && !unauthorized && !missing ? (
               <Button variant="secondary" onPress={() => void query.refetch()}>
-                Повторить чтение
+                Повторить
               </Button>
             ) : null}
           </div>
@@ -169,7 +153,7 @@ export function DotaEventDetail({ sourceKey, externalId, timezone }: Props) {
                 </p>
                 {data.parseStatus === 'unavailable' ? (
                   <Button variant="secondary" onPress={() => void query.refetch()}>
-                    Повторить чтение
+                    Повторить
                   </Button>
                 ) : null}
               </div>
@@ -206,13 +190,7 @@ export function DotaEventDetail({ sourceKey, externalId, timezone }: Props) {
                                   (addWatch.isPending && addWatch.variables?.factId === fact.id) || !navigator.onLine
                                 }
                                 onPress={() =>
-                                  addWatch.mutate(
-                                    { sourceKey: 'patch_notes', externalId, factId: fact.id },
-                                    {
-                                      onSuccess: () =>
-                                        void navigate({ search: (previous) => ({ ...previous, update: undefined }) })
-                                    }
-                                  )
+                                  addWatch.mutate({ sourceKey: 'patch_notes', externalId, factId: fact.id })
                                 }
                               >
                                 Следить за {fact.entityType === 'hero' ? 'героем' : 'предметом'}: {fact.entityName}

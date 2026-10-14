@@ -357,6 +357,27 @@ export async function mockApi(page: Page): Promise<void> {
       }))
     })
   );
+  await page.route(/\/api\/v1\/automations(\?.*)?$/, (route) =>
+    json(
+      route,
+      page_([
+        {
+          id: 'dota-intelligence',
+          enabled: true,
+          revision: 1,
+          cron: '*/15 * * * *',
+          cadenceMinutes: 15,
+          nextRunAt: T,
+          health: 'healthy',
+          executionState: 'idle',
+          activeRunId: null,
+          lastRun: null,
+          runNowAllowed: true,
+          sideEffects: ['persist_dota_updates']
+        }
+      ])
+    )
+  );
   // Private media bytes: one real photo, so thumbnails and previews render like production.
   await page.route(/\/api\/v1\/(media|posts\/[^/]+\/media)\/[^/]+\/content$/, (route) =>
     route.fulfill({ path: new URL('./crop-lake-demo.png', import.meta.url).pathname })

@@ -2,6 +2,8 @@ import type { DotaSourceDto, DotaUpdateDto, DotaWatchMatchDto } from '@alexeev/c
 import { Link } from '@tanstack/react-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { useNow } from '../../../shared/lib/use-now';
+import { pluralRu } from '../../../shared/lib/ru-format';
 import { ApiError } from '../../../shared/api/http-client';
 import {
   Button,
@@ -21,6 +23,8 @@ import {
 } from '../../../shared/ui';
 import { dotaIntelligenceQueryOptions } from '../api/dota-queries';
 import { useDotaWatchlists } from '../api/dota-watchlists-queries';
+import { DotaTime } from './DotaTime';
+import { WatcherControls } from './WatcherControls';
 import { DotaWatchlists } from './DotaWatchlists';
 import { DotaHeroStatistics } from './DotaHeroStatistics';
 import styles from './DotaIntelligence.module.css';
@@ -40,19 +44,6 @@ const HEALTH_LABELS: Record<DotaSourceDto['health'], string> = {
 };
 const TYPE_LABELS: Record<DotaUpdateDto['type'], string> = { news: 'Новость', patch: 'Патч' };
 
-function fullTime(iso: string, timezone: string): string {
-  return new Intl.DateTimeFormat('ru-RU', {
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-    hourCycle: 'h23',
-    timeZoneName: 'short',
-    timeZone: timezone
-  }).format(new Date(iso));
-}
-
 function SourceHealth({ source }: { source: DotaSourceDto }) {
   const presentation = {
     healthy: { group: 'done' as const, icon: 'check-circle' as const },
@@ -65,6 +56,7 @@ function SourceHealth({ source }: { source: DotaSourceDto }) {
 
 function updateColumns(
   timezone: string,
+  now: number,
   onOpen: (element: HTMLAnchorElement) => void,
   matches: DotaWatchMatchDto[]
 ): DataColumn<DotaUpdateDto>[] {
@@ -121,14 +113,11 @@ function updateColumns(
       compactSlot: 'trailing',
       cell: (item) => (
         <div className={styles.sourceDetails}>
-          <time dateTime={item.publishedAt} title={`${fullTime(item.publishedAt, timezone)}, ${timezone}`}>
-            Опубликовано: {fullTime(item.publishedAt, timezone)}, {timezone}
-          </time>
           <span>
-            Обнаружено:{' '}
-            <time dateTime={item.detectedAt} title={`${fullTime(item.detectedAt, timezone)}, ${timezone}`}>
-              {fullTime(item.detectedAt, timezone)}, {timezone}
-            </time>
+            Опубликовано: <DotaTime iso={item.publishedAt} now={now} timezone={timezone} />
+          </span>
+          <span>
+            Обнаружено: <DotaTime iso={item.detectedAt} now={now} timezone={timezone} />
           </span>
         </div>
       )
@@ -163,7 +152,7 @@ function updateColumns(
   ];
 }
 
-function sourceColumns(timezone: string): DataColumn<DotaSourceDto>[] {
+function sourceColumns(timezone: string, now: number): DataColumn<DotaSourceDto>[] {
   return [
     { id: 'name', header: 'Источник', isRowHeader: true, cell: (source) => <strong>{source.name}</strong> },
     {
@@ -183,12 +172,7 @@ function sourceColumns(timezone: string): DataColumn<DotaSourceDto>[] {
           <span>
             Попытка:{' '}
             {source.lastAttemptAt ? (
-              <time
-                dateTime={source.lastAttemptAt}
-                aria-label={`${fullTime(source.lastAttemptAt, timezone)}, ${timezone}`}
-              >
-                {fullTime(source.lastAttemptAt, timezone)}, {timezone}
-              </time>
+              <DotaTime iso={source.lastAttemptAt} now={now} timezone={timezone} />
             ) : (
               'ещё не проверялся'
             )}
@@ -196,12 +180,7 @@ function sourceColumns(timezone: string): DataColumn<DotaSourceDto>[] {
           <span>
             Успех:{' '}
             {source.lastSuccessAt ? (
-              <time
-                dateTime={source.lastSuccessAt}
-                aria-label={`${fullTime(source.lastSuccessAt, timezone)}, ${timezone}`}
-              >
-                {fullTime(source.lastSuccessAt, timezone)}, {timezone}
-              </time>
+              <DotaTime iso={source.lastSuccessAt} now={now} timezone={timezone} />
             ) : (
               'успешных проверок пока нет'
             )}
@@ -218,6 +197,7 @@ type Props = { timezone?: string; update?: string };
 
 export function DotaIntelligence({ timezone = 'Europe/Moscow', update }: Props) {
   const query = useQuery(dotaIntelligenceQueryOptions());
+  const now = useNow();
   const watchQuery = useDotaWatchlists();
   const [opener, setOpener] = useState<HTMLAnchorElement | null>(null);
   const previousWatchIds = useRef<Set<string> | null>(null);
@@ -262,8 +242,8 @@ export function DotaIntelligence({ timezone = 'Europe/Moscow', update }: Props) 
     return (
       <Panel title="Загрузка официальных источников" reserveRows={2}>
         <DataTable
-          aria-label="Загрузка официальных источников Dota 2"
-          columns={sourceColumns(timezone)}
+          aria-label="Загрузка источников"
+          columns={sourceColumns(timezone, now.getTime())}
           rows={[]}
           getRowId={(source) => source.key}
           isLoading
@@ -282,10 +262,10 @@ export function DotaIntelligence({ timezone = 'Europe/Moscow', update }: Props) 
         title={forbidden ? 'Нет доступа' : unauthorized ? 'Сессия истекла' : undefined}
         message={
           forbidden
-            ? 'Dota Intelligence доступен только владельцу.'
+            ? 'Источники доступны только владельцу.'
             : unauthorized
               ? 'Войдите снова, чтобы открыть источники и обновления.'
-              : 'Не удалось загрузить официальные обновления Dota. Повторите безопасную загрузку.'
+              : 'Не удалось загрузить источники и обновления Dota.'
         }
         {...(requestId ? { requestId } : {})}
         {...(forbidden || unauthorized ? {} : { onRetry: () => void query.refetch() })}
@@ -294,22 +274,12 @@ export function DotaIntelligence({ timezone = 'Europe/Moscow', update }: Props) 
     );
   }
 
-  const refresh = (
-    <Button
-      size="sm"
-      variant="secondary"
-      icon="retry"
-      isLoading={query.isFetching}
-      onPress={() => void query.refetch()}
-    >
-      Обновить
-    </Button>
-  );
+  const refresh = <WatcherControls onFinished={() => void query.refetch()} />;
   return (
     <div className={styles.page}>
       <div className={styles.tabs}>
         <Tabs selectedKey={view} onSelectionChange={(key) => setView(key as View)}>
-          <TabList aria-label="Раздел Dota Intelligence">
+          <TabList aria-label="Разделы источников">
             <Tab id="updates">Обновления</Tab>
             <Tab id="sources">Источники</Tab>
             <Tab id="heroes">Герои</Tab>
@@ -370,7 +340,7 @@ export function DotaIntelligence({ timezone = 'Europe/Moscow', update }: Props) 
                   flush
                   density="compact"
                   aria-label="Официальные обновления Dota 2"
-                  columns={updateColumns(timezone, setOpener, watchQuery.data?.matches ?? [])}
+                  columns={updateColumns(timezone, now.getTime(), setOpener, watchQuery.data?.matches ?? [])}
                   rows={updates}
                   getRowId={(item) => item.id}
                 />
@@ -378,12 +348,16 @@ export function DotaIntelligence({ timezone = 'Europe/Moscow', update }: Props) 
             </Panel>
           </TabPanel>
           <TabPanel id="sources">
-            <Panel title="Официальные источники" note={`${query.data.sources.length} источника`} action={refresh}>
+            <Panel
+              title="Официальные источники"
+              note={`${query.data.sources.length} ${pluralRu(query.data.sources.length, 'источник', 'источника', 'источников')}`}
+              action={refresh}
+            >
               <DataTable
                 flush
                 density="compact"
                 aria-label="Официальные источники Dota 2"
-                columns={sourceColumns(timezone)}
+                columns={sourceColumns(timezone, now.getTime())}
                 rows={query.data.sources}
                 getRowId={(source) => source.key}
               />
@@ -404,7 +378,7 @@ export function DotaIntelligence({ timezone = 'Europe/Moscow', update }: Props) 
       {query.isRefetchError ? (
         <ErrorState
           title="Показаны сохранённые данные"
-          message="Не удалось обновить список. Время последней успешной проверки источников сохранено отдельно."
+          message="Не удалось обновить список."
           onRetry={() => void query.refetch()}
         />
       ) : null}

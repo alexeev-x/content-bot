@@ -3,6 +3,7 @@ import { useEffect, useRef } from 'react';
 import { useDocumentTitle } from '../../app/use-document-title';
 import { DotaEventDetail, DotaIntelligence } from '../../features/dota-intelligence';
 import { useOwnerTimezone } from '../../features/owner-settings';
+import { ru } from '../../shared/lib/ru';
 import { PageHeader } from '../../shared/ui';
 
 export function SourcesPage() {
@@ -14,7 +15,7 @@ export function SourcesPage() {
   const validSourceKey = sourceKey === 'steam_news' || sourceKey === 'patch_notes' ? sourceKey : undefined;
   const validUpdate = validSourceKey !== undefined && /^[A-Za-z0-9._-]{1,100}$/.test(externalId);
   const invalidHeadingRef = useRef<HTMLHeadingElement>(null);
-  useDocumentTitle(search.update ? 'Разбор обновления' : 'Источники и Dota Pulse');
+  useDocumentTitle(search.update ? 'Разбор обновления' : ru.pages.sources);
 
   useEffect(() => {
     if (search.update && !validUpdate) invalidHeadingRef.current?.focus();
@@ -23,13 +24,9 @@ export function SourcesPage() {
   return (
     <>
       <PageHeader
-        title="Dota Pulse"
+        title={ru.pages.sources}
         focusHeadingOnMount
-        description={
-          search.update
-            ? undefined
-            : 'Официальные новости и патчи Dota 2. Ленты проверяются по расписанию; здесь показаны сохранённые записи.'
-        }
+        description={search.update ? undefined : 'Новости и патчи Dota 2'}
       />
       <div hidden={Boolean(search.update)}>
         <DotaIntelligence timezone={timezone} update={search.update} />
