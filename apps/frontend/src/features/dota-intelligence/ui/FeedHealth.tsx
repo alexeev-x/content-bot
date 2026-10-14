@@ -1,15 +1,15 @@
 import type { AutomationId, DotaFeedErrorDto, DotaSourceDto } from '@alexeev/contracts';
 import { useQuery } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
+import { Button as AriaButton } from 'react-aria-components';
 import { ApiError } from '../../../shared/api/http-client';
 import { useNow } from '../../../shared/lib/use-now';
-import { Button, Disclosure, DisclosureGroup, StatusPill, VisuallyHidden } from '../../../shared/ui';
+import { Button, Disclosure, DisclosureGroup, VisuallyHidden } from '../../../shared/ui';
 import { useDotaAutomation, useRunAutomationNow, useSetAutomationPaused } from '../api/dota-automation-queries';
 import { dotaHeroStatisticsQueryOptions } from '../api/dota-hero-statistics-queries';
 import { dotaIntelligenceQueryOptions } from '../api/dota-queries';
 import { DotaTime } from './DotaTime';
 import { FeedErrorDialog } from './FeedErrorDialog';
-import { explainFeedError } from './feed-error-text';
 import styles from './FeedHealth.module.css';
 
 type Health = DotaSourceDto['health'];
@@ -165,13 +165,7 @@ export function FeedHealth({ timezone, onChecked }: Props) {
                 <div className={styles.main}>
                   <strong className={styles.name}>{feed.name}</strong>
                   <span className={styles.note} data-tone={failed ? 'failed' : undefined}>
-                    {failed ? (
-                      feed.error ? (
-                        explainFeedError(feed.error, feed.provider)
-                      ) : (
-                        'Причина не записана: она появится после следующей проверки'
-                      )
-                    ) : feed.lastSuccessAt ? (
+                    {!failed && feed.lastSuccessAt ? (
                       <>
                         Обновлено <DotaTime iso={feed.lastSuccessAt} now={now} timezone={timezone} />
                       </>
@@ -179,14 +173,11 @@ export function FeedHealth({ timezone, onChecked }: Props) {
                       HEALTH_LABELS[feed.health]
                     )}
                   </span>
-                </div>
-                <div className={styles.aside}>
-                  <StatusPill label={HEALTH_LABELS[feed.health]} {...TONE[feed.health]} />
                   {feed.error ? (
                     <>
-                      <Button size="sm" variant="ghost" onPress={() => setOpenFeed(feed.id)}>
+                      <AriaButton className={styles.more} onPress={() => setOpenFeed(feed.id)}>
                         Подробнее
-                      </Button>
+                      </AriaButton>
                       <FeedErrorDialog
                         feedName={feed.name}
                         provider={feed.provider}

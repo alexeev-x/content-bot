@@ -17,9 +17,11 @@
   animation: fade var(--motion-fast) ease-in reverse;
 }
 .modal {
+  display: flex;
+  flex-direction: column;
   width: min(480px, 100%);
   max-height: 100%;
-  overflow: auto;
+  overflow: hidden;
   border: 1px solid var(--color-border-strong);
   border-radius: var(--radius-3);
   background: var(--color-surface-1);
@@ -31,21 +33,27 @@
 .modal[data-entering] {
   animation: rise var(--motion-base) ease-out;
 }
+/* Every dialog keeps its header and actions on screen; only the body scrolls when content is tall. */
 .frame {
-  display: contents;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
 }
 .dialog {
   display: flex;
+  flex: 1;
   flex-direction: column;
-  gap: var(--space-3);
-  padding: var(--space-5);
+  min-height: 0;
   outline: none;
 }
 .header {
   display: flex;
+  flex: none;
   align-items: flex-start;
   justify-content: space-between;
   gap: var(--space-3);
+  padding: var(--space-5) var(--space-5) var(--space-3);
 }
 .title {
   margin: 0;
@@ -53,44 +61,35 @@
   line-height: var(--line-height-heading);
 }
 .description {
+  flex: none;
+  padding: 0 var(--space-5) var(--space-3);
   color: var(--color-text-muted);
 }
 .body {
   display: flex;
+  flex: 1;
   flex-direction: column;
   gap: var(--space-4);
+  min-height: 0;
+  overflow: auto;
+  padding: var(--space-1) var(--space-5) var(--space-4);
 }
 .footer {
   display: flex;
+  flex: none;
   flex-wrap: wrap;
   justify-content: flex-end;
   gap: var(--space-2);
-  margin-top: var(--space-2);
+  padding: var(--space-3) var(--space-5) var(--space-5);
 }
-/* Media dialogs: the frame keeps its height, only the body scrolls, so header and actions never leave the screen. */
+/* Without a body the description sits right above the actions. */
+.description + .footer {
+  padding-top: var(--space-2);
+}
+/* Media dialogs (add media, crop): larger frame, a divider above the actions. */
 .media {
-  display: flex;
-  flex-direction: column;
   width: min(var(--measure-dialog-media), 100%);
-  max-height: 100%;
-  overflow: hidden;
   border-radius: var(--radius-4);
-}
-.media .dialog {
-  flex: 1;
-  gap: 0;
-  min-height: 0;
-  padding: 0;
-}
-.media .frame {
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  min-height: 0;
-}
-.media .header,
-.media .footer {
-  flex: none;
 }
 .media .header {
   align-items: center;
@@ -105,13 +104,9 @@
   padding-inline: var(--space-6);
 }
 .media .body {
-  flex: 1;
-  min-height: 0;
-  overflow: auto;
   padding: var(--space-2) var(--space-6) var(--space-4);
 }
 .media .footer {
-  margin-top: 0;
   padding: var(--space-4) var(--space-6);
   border-top: 1px solid var(--color-border-subtle);
 }
