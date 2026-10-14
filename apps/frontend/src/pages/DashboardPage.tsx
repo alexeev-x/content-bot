@@ -1,3 +1,4 @@
+import { readAppEnvironment, showEnvironmentBadge } from '../app/environment';
 import { useState } from 'react';
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
@@ -29,9 +30,11 @@ type Props = {
   /** The publication whose panel is open over Обзор (`?id=` in the URL). */
   openPublicationId?: string | undefined;
   onOpenPublicationChange?: (id: string | undefined) => void;
+  /** DEV design trial (`/lab`): every candidate widget look instead of the owner's layout. */
+  lab?: boolean;
 };
 
-export function DashboardPage({ pollMs, openPublicationId, onOpenPublicationChange }: Props) {
+export function DashboardPage({ pollMs, openPublicationId, onOpenPublicationChange, lab = false }: Props) {
   useDocumentTitle(ru.pages.dashboard);
   const navigate = useNavigate();
   const timezone = useOwnerTimezone();
@@ -85,7 +88,8 @@ export function DashboardPage({ pollMs, openPublicationId, onOpenPublicationChan
     onOpenMedia: (media) => setOpenMedia(media),
     renderMediaPreview: (media) => <MediaThumb mediaId={media.id} fileName={media.fileName} />,
     channels,
-    layout
+    layout,
+    lab
   };
   // The panel's own detail query (same key): it tells which channel the message link belongs to.
   const openDetail = useQuery({
@@ -97,14 +101,27 @@ export function DashboardPage({ pollMs, openPublicationId, onOpenPublicationChan
   return (
     <>
       <PageHeader
-        title={ru.pages.dashboard}
-        description={ru.dashboard.description}
+        title={lab ? 'Витрина виджетов' : ru.pages.dashboard}
+        description={
+          lab
+            ? 'Варианты дизайна на ваших данных. Выберите по одному для каждого виджета — остальные уберём.'
+            : ru.dashboard.description
+        }
         actions={
-          layout.editing ? (
+          lab ? (
+            <Button variant="secondary" icon="arrow-left" onPress={() => void navigate({ to: '/' })}>
+              К обзору
+            </Button>
+          ) : layout.editing ? (
             <LayoutActions editing={layout} />
           ) : (
             <>
               <DateChip placement="header" zoneNote={zoneNote} timezone={timezone} />
+              {showEnvironmentBadge(readAppEnvironment()) ? (
+                <Button variant="ghost" icon="sparkle" onPress={() => void navigate({ to: '/lab' })}>
+                  Витрина
+                </Button>
+              ) : null}
               <LayoutActions editing={layout}>
                 {/* On a phone the tab bar's «+» creates a post: no second button on the page. */}
                 {phone ? null : (
