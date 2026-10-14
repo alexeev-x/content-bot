@@ -1,6 +1,6 @@
 import { Link } from '@tanstack/react-router';
 import { formatClock } from '../../../shared/lib/clock';
-import { Icon, Skeleton, type IconName } from '../../../shared/ui';
+import { Icon, Skeleton } from '../../../shared/ui';
 import { nextPublication, untilDetail } from '../model/format';
 import { copy } from './copy';
 import styles from './Dashboard.module.css';
@@ -12,7 +12,6 @@ type Item = {
   short: string;
   value: string;
   detail: string;
-  icon: IconName;
   link?: { to: '/incidents' } | { to: '/publications'; search: { view?: 'recent' } | { id: string } };
 };
 
@@ -26,7 +25,6 @@ function items(view: DashboardView, now: Date, timezone: string): Item[] {
       key: 'today',
       ...copy.kpi.today,
       value: dashboard.todayTotal >= 100 ? '100+' : String(dashboard.todayTotal),
-      icon: 'file',
       // No «today» view on Публикации (needs an API date range): the full list, newest first.
       link: { to: '/publications', search: {} }
     },
@@ -35,14 +33,12 @@ function items(view: DashboardView, now: Date, timezone: string): Item[] {
       ...copy.kpi.sent,
       // `today` lists at most 8 rows: a longer day makes this a lower bound, so it says «+».
       value: dashboard.today.length < dashboard.todayTotal ? `${sentToday}+` : String(sentToday),
-      icon: 'send',
       link: { to: '/publications', search: { view: 'recent' } }
     },
     {
       key: 'attention',
       ...copy.kpi.attention,
       value: attentionCount >= 99 ? '99+' : String(attentionCount),
-      icon: 'alert',
       link: { to: '/incidents' }
     },
     {
@@ -50,7 +46,6 @@ function items(view: DashboardView, now: Date, timezone: string): Item[] {
       ...copy.kpi.next,
       value: next ? formatClock(next.scheduledAt, timezone) : '—',
       detail: next ? untilDetail(next.scheduledAt, now, timezone) : copy.kpi.next.detail,
-      icon: 'clock',
       ...(next ? { link: { to: '/publications' as const, search: { id: next.publicationId } } } : {})
     }
   ];
@@ -59,9 +54,6 @@ function items(view: DashboardView, now: Date, timezone: string): Item[] {
 function KpiBody({ item }: { item: Item }) {
   return (
     <>
-      <span className={styles.kpiIcon}>
-        <Icon name={item.icon} size={22} />
-      </span>
       <span className={styles.kpiText}>
         <span className={styles.kpiLabel}>
           <span className={styles.full}>{item.label}</span>
@@ -78,9 +70,6 @@ function KpiBody({ item }: { item: Item }) {
 function KpiSkeleton({ kpi }: { kpi: { label: string; short: string } }) {
   return (
     <div className={styles.kpi} aria-busy="true">
-      <span className={styles.kpiIcon}>
-        <Skeleton width={24} height={24} />
-      </span>
       <span className={styles.kpiText}>
         <span className={styles.kpiLabel}>
           <span className={styles.full}>{kpi.label}</span>

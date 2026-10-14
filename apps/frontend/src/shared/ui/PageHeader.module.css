@@ -38,6 +38,12 @@
 }
 /* Phone and Mini App: title, tools and the one primary action share the first row; the title clamps to 2 lines. */
 @media (max-width: 859px) {
+  /* One muted line on phones; the full sentence stays in the DOM for screen readers. */
+  .description {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
   .header {
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto auto;

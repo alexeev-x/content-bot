@@ -26,12 +26,16 @@
   align-self: flex-start;
 }
 
-/* ===== KPI tiles fill their widget; the strip is 4 across (a single-KPI widget is one tile, phone 2 x 88 px) ===== */
+/* ===== KPI strip: one bordered panel split into cells, as the Cloudflare metrics row (phone 2 x 88 px) ===== */
 .kpis {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: var(--grid-gap, var(--space-4));
+  gap: 1px;
   height: 100%;
+  overflow: hidden;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-3);
+  background: var(--color-border-subtle);
 }
 .kpis[data-single] {
   grid-template-columns: minmax(0, 1fr);
@@ -39,32 +43,23 @@
 .kpi {
   position: relative;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: var(--space-3);
   min-width: 0;
   height: 100%;
-  padding: 0 var(--space-4);
+  padding: var(--space-3) var(--space-4);
   /* A tile narrower than its content drops the secondary parts (see the container query below). */
   container-type: inline-size;
-  border: 1px solid var(--color-border-subtle);
-  border-radius: var(--radius-2);
   background: var(--color-surface-1);
   color: inherit;
   text-decoration: none;
 }
 .kpiLink:hover {
-  border-color: var(--color-border-strong);
+  background: var(--color-surface-2);
 }
 .kpiLink:focus-visible {
   outline: var(--focus-ring-width) solid var(--color-focus-ring);
-  outline-offset: var(--focus-ring-offset);
-}
-.kpiIcon {
-  display: grid;
-  flex: none;
-  place-items: center;
-  width: 24px;
-  color: var(--color-text-muted);
+  outline-offset: calc(-1 * var(--focus-ring-width));
 }
 .kpiText {
   display: grid;
@@ -83,7 +78,8 @@
   display: none;
 }
 .kpiValue {
-  font-size: var(--font-size-xl);
+  margin-top: var(--space-1);
+  font-size: 1.5rem;
   font-weight: var(--font-weight-semibold);
   font-variant-numeric: tabular-nums;
   line-height: 1.2;
@@ -97,9 +93,8 @@
 }
 .kpiChevron {
   position: absolute;
-  top: 50%;
+  top: var(--space-3);
   right: var(--space-3);
-  translate: 0 -50%;
   color: var(--color-text-muted);
   opacity: 0;
   transition: opacity var(--motion-fast);
@@ -320,7 +315,6 @@
   flex: none;
 }
 @container (max-width: 200px) {
-  .kpiIcon,
   .kpiChevron,
   .kpiDetail,
   .full {
@@ -657,16 +651,14 @@
   }
   .kpis {
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: var(--space-3);
   }
   .kpis[data-single] {
     grid-template-columns: minmax(0, 1fr);
   }
   .kpi {
     height: 88px;
-    padding: 0 var(--space-3);
+    padding: var(--space-3);
   }
-  .kpiIcon,
   .kpiChevron,
   .kpiDetail {
     display: none;

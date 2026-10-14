@@ -3,7 +3,21 @@ import { mockApi } from './support/mock-api';
 
 // `npm run shots [-- --grep <page>]`: screenshots of the main pages on mock data, both themes, phone and laptop,
 // into .logs/shots/. For the visual check (skill visual-check); not part of the e2e suite.
-const PAGES = ['/', '/posts', '/publications', '/analytics', '/media', '/incidents', '/settings/channels'];
+const PAGES = [
+  '/',
+  '/posts',
+  '/posts/new',
+  '/publications',
+  '/calendar',
+  '/analytics',
+  '/media',
+  '/sources',
+  '/incidents',
+  '/settings/channels',
+  '/settings/appearance',
+  '/settings/notifications',
+  '/login'
+];
 const WIDTHS = [
   { width: 375, height: 812 },
   { width: 1280, height: 800 }

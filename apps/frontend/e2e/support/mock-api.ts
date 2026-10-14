@@ -285,6 +285,83 @@ export async function mockApi(page: Page): Promise<void> {
     found['resolvedAt'] ??= '2026-10-07T07:10:00.000Z';
     return json(route, found);
   });
+  await page.route('**/api/v1/settings/operations', (route) =>
+    json(route, {
+      timezone: 'Europe/Moscow',
+      notifications: {
+        warningsEnabled: true,
+        publicationAlerts: true,
+        sourceAlerts: true,
+        automationAlerts: true,
+        recoveryAlerts: true,
+        dotaWatchlistAlerts: true
+      },
+      revision: 1,
+      updatedAt: T
+    })
+  );
+  await page.route(/\/api\/v1\/media(\?.*)?$/, (route) =>
+    json(
+      route,
+      page_(
+        ['Турнир.jpg', 'Патч 7.37.png', 'Хайлайты.mp4', 'Обложка.jpg'].map((fileName, index) => ({
+          id: `55555555-5555-4555-8555-${String(index).padStart(12, '0')}`,
+          kind: fileName.endsWith('.mp4') ? 'video' : 'photo',
+          fileName,
+          contentType: fileName.endsWith('.mp4') ? 'video/mp4' : 'image/jpeg',
+          sizeBytes: 240_000 + index * 1000,
+          width: 1280,
+          height: 720,
+          durationMs: fileName.endsWith('.mp4') ? 42_000 : null,
+          createdAt: T,
+          duplicateCount: 1,
+          usageCount: index % 2,
+          usages: []
+        }))
+      )
+    )
+  );
+  await page.route(/\/api\/v1\/dota(\?.*)?$/, (route) =>
+    json(route, {
+      sources: [
+        {
+          key: 'steam_news',
+          name: 'Steam News',
+          officialUrl: 'https://store.steampowered.com/news/app/570',
+          lastAttemptAt: T,
+          lastSuccessAt: T,
+          health: 'healthy'
+        },
+        {
+          key: 'patch_notes',
+          name: 'Patch notes',
+          officialUrl: 'https://www.dota2.com/patches',
+          lastAttemptAt: T,
+          lastSuccessAt: T,
+          health: 'healthy'
+        }
+      ],
+      updates: [
+        ['Вышло обновление 7.37d', 'patch', 'patch_notes'],
+        ['Известны участники The International', 'news', 'steam_news'],
+        ['Новый герой в разработке', 'news', 'steam_news']
+      ].map(([title, type, sourceKey], index) => ({
+        id: `update-${index}`,
+        sourceKey,
+        type,
+        title,
+        sourceUrl: 'https://www.dota2.com/news',
+        publishedAt: T,
+        detectedAt: T,
+        isBaseline: false
+      }))
+    })
+  );
+  // Private media bytes: one real photo, so thumbnails and previews render like production.
+  await page.route(/\/api\/v1\/(media|posts\/[^/]+\/media)\/[^/]+\/content$/, (route) =>
+    route.fulfill({ path: new URL('../../src/pages/catalog-assets/crop-lake-demo.png', import.meta.url).pathname })
+  );
+  await page.route('**/api/v1/dota/watchlists', (route) => json(route, { watches: [], matches: [] }));
   await page.route('**/api/v1/settings/dashboard-layout', (route) => json(route, { revision: 0, widgets: [] }));
   await page.route(/\/api\/v1\/analytics\/publications(\?.*)?$/, (route) => {
     const counts = (sent: number, failed: number, unknown: number) => ({

@@ -148,6 +148,17 @@
   border-radius: var(--radius-1);
   color: var(--color-text-muted);
 }
+/* Mouse: the quick-add slot appears on the hovered or focused day only, so the month grid stays quiet. */
+@media (hover: hover) and (pointer: fine) {
+  .createSlot {
+    opacity: 0;
+    transition: opacity var(--motion-fast);
+  }
+  .dayCell:hover .createSlot,
+  .dayCell:focus-within .createSlot {
+    opacity: 1;
+  }
+}
 .hours {
   max-height: 680px;
   overflow: auto;
