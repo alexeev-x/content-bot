@@ -11,7 +11,7 @@ Status: owner request 08.10.2026. Expert review, not validated. Previews are exp
 | 3 | **Медиатека** | Editor needs «Выбрать из медиатеки»; grid + inspector is a new pattern | `/preview/media` |
 | 4 | **Автоматизации (Cron)** | Cron table + inspector tabs + safe enable/disable is the one risky-action pattern not yet drawn | `/preview/automations` |
 | 5 | **Dota Pulse + Источники** | Deterministic feed (RSS/official sources, no AI): list of events, source health | `/preview/sources` |
-| 6 | **Палитра поиска** (Ctrl K) | Replaces the disabled search; grouped results are cheap to click through | overlay, no route |
+| 6 | ~~**Палитра поиска** (Ctrl K)~~ — removed, no global search (docs/DECISIONS.md, 14.10.2026) | Replaces the disabled search; grouped results are cheap to click through | overlay, no route |
 | 7 | **Превью-блоки на Обзоре** | Dota Pulse, Аналитика канала, Система; always visible in DEV, marked ПРЕВЬЮ (3.1, 6.3 G) | `/` |
 
 **Skip:** «Демография» and «Лучшее время» (no data source, implies analytics intelligence); «Скачать отчёт» (no export); subscriber counts as real data (the sidebar «Подключённый канал» card itself is now in scope, 3.1; subscribers stay «—» until an API exists), multi-network switcher (VK; out of scope), «Создать публикацию» in the calendar (we use «Опубликовать пост»), AI/moderation items («авто-модерация», «Автоматическая обрезка»), «Резервное копирование» job, a separate «Правила» tab in Automations (rules are Later), Cloudflare-style metric dashboards for infrastructure.
@@ -23,7 +23,7 @@ Status: owner request 08.10.2026. Expert review, not validated. Previews are exp
 - **Marking on the page (all previews):** (1) h1 followed by a «Превью» chip; (2) a permanent slim banner under the header, not dismissable: «Превью · демо-данные. Это пример интерфейса: ничего не сохраняется и не отправляется в Telegram.» (3) every number/chart carries the fake mark: chart panel header strip shows «демо» chip; (4) every action button works locally and shows toast «Превью: действие не выполняется» when it would write (Вставить в пост, Удалить, Включить, Перенести, Загрузить).
 - **Leaving:** `← К обзору` is not needed (sidebar visible), but the banner has a text link «Закрыть превью» that goes to Обзор; Esc closes inspector/palette; the browser back works (state in URL: `?view=`, `?period=`, `?id=`). Phone: back chevron in header to «Ещё».
 - **Обзор (changed 08.10.2026):** no toggle and no group banner. The ПРЕВЬЮ blocks sit in the Обзор composition (3.1) and carry their own marking: chip «ПРЕВЬЮ» in the panel header, «демо» on figures, links to `/preview/*`. Hidden in a production build.
-- **Search palette preview** is part of the real shell trigger: results of type «Пост/Публикация» are mock rows tagged «демо» until the entity-search API exists (§5).
+- **Search palette preview** (removed 14.10.2026) was part of the real shell trigger: results of type «Пост/Публикация» are mock rows tagged «демо» until the entity-search API exists (§5).
 - Preview routes are unreachable in a production build (feature flag `VITE_PREVIEW=1` or dev-only); in DEV they are visible. Not in the PAGE_MAP rows of real routes.
 
 ### 6.3 Specs per preview
@@ -76,7 +76,7 @@ Queue item 13's current UX and acceptance criteria are canonical in [`docs/stori
 - **States:** loading 8 rows x 56; empty = «Новых событий нет» (positive, no CTA); filtered empty; source unreachable = chip + warning text «Источник не отвечает 2 ч, показаны данные на 06:40»; partial = events from 2 of 3 sources with a note; stale footer.
 - **Mock data:** 12 events from 3 fake-labelled sources (RSS «Dota 2 · блог», «Patch notes», «Tournaments»), real-looking but fictional titles; CSS-gradient thumbnails.
 
-#### F. Палитра поиска (Ctrl K)
+#### F. Палитра поиска (Ctrl K) — removed (docs/DECISIONS.md, 14.10.2026); kept for history only
 - **Purpose:** jump anywhere in two keystrokes. Trigger is the top-bar field (desktop), search icon on phone (full-screen sheet).
 - **Layout:** centred 640 px dialog (phone: full-screen), input with autofocus, **grouped results** with fixed headers: Недавнее, Разделы (Обзор, Посты, Публикации, Инциденты, Настройки, + «Превью» group items tagged), Посты (3), Публикации (3), Инциденты (2), Действия («Новый пост»). Each row: icon, label, muted secondary (status chip / channel / time), `Enter` hint on the active row; footer line «↑↓ выбрать · Enter открыть · Esc закрыть». Max 8 rows total, 3 per group.
 - **Clickable:** typing filters locally (case-insensitive, 150 ms debounce); arrow keys + Enter navigate (real routes for Разделы/Действия; entity rows open real `/posts` or `/publications?id=` only for existing mock ids, else toast); `Esc` closes and returns focus to the trigger; empty query shows Недавнее + Разделы.

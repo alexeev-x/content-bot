@@ -21,17 +21,13 @@ test.describe('Mini App', () => {
     await installFakeTelegram(page);
   });
 
-  test('hides the app top bar and puts the owner menu into the page header; no disabled search placeholder', async ({
-    page
-  }) => {
+  test('hides the app top bar and puts the owner menu into the page header', async ({ page }) => {
     await page.goto('/posts');
     const title = page.locator('main h1');
     await expect(title).toBeVisible();
     // The browser top bar is the only banner outside main.
     await expect(page.locator('main').locator('..').locator('> header')).toHaveCount(0);
     const header = page.locator('main header').first();
-    // Search is not wired yet, so the cramped Telegram header shows no disabled placeholder for it.
-    await expect(header.getByRole('button', { name: ru.shell.searchPlaceholder })).toHaveCount(0);
     const tools = [header.getByRole('button', { name: new RegExp(ru.auth.ownerMenu) })];
     for (const button of tools) {
       await expect(button).toBeVisible();

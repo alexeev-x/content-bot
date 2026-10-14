@@ -20,8 +20,6 @@ type Props = {
   ownerLoading?: boolean;
   /** Signs the owner out; without it the owner menu has no «Выйти». */
   onLogout?: () => void;
-  /** Opens the command palette; the entry is hidden until real search is available. */
-  onOpenSearch?: () => void;
   /** Rows of the account menu between «Настройки» and «Выйти» (system status, theme); built by the layout. */
   accountRows?: ReactNode;
   /** A system problem: marks the account avatar. */
@@ -103,7 +101,6 @@ export function AppShell({
   ownerName,
   ownerLoading = false,
   onLogout,
-  onOpenSearch,
   accountRows,
   accountAlert,
   focused: forcedFocused,
@@ -122,18 +119,6 @@ export function AppShell({
     mainRef.current?.focus();
   }, [pathname]);
 
-  useEffect(() => {
-    if (!onOpenSearch) return;
-    const onKey = (event: KeyboardEvent) => {
-      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
-        event.preventDefault();
-        onOpenSearch();
-      }
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [onOpenSearch]);
-
   // The post editor owns the bottom edge on phones (its sticky action bar), so the tab bar steps aside there.
   // The chrome follows the page on screen, not the pending URL: switching on `location` hid the top and tab bars
   // while the previous page was still shown and the editor chunk loaded, so «+» blinked and felt slow.
@@ -147,13 +132,9 @@ export function AppShell({
   const focused = forcedFocused ?? editorOpen;
   const hideTopBar = miniApp || focused;
   const tools = hideTopBar ? (
-    <>
-      {/* No disabled placeholder in the cramped Telegram header: search appears once it works. */}
-      {onOpenSearch ? <IconButton label={ru.shell.searchPlaceholder} icon="search" onPress={onOpenSearch} /> : null}
-      <AccountMenu ownerName={ownerName} onLogout={onLogout} isLoading={ownerLoading} alert={accountAlert} iconOnly>
-        {accountRows}
-      </AccountMenu>
-    </>
+    <AccountMenu ownerName={ownerName} onLogout={onLogout} isLoading={ownerLoading} alert={accountAlert} iconOnly>
+      {accountRows}
+    </AccountMenu>
   ) : null;
 
   return (
@@ -211,17 +192,6 @@ export function AppShell({
               </span>
               <EnvBadge />
             </div>
-            <AriaButton
-              className={styles.search}
-              hidden={!onOpenSearch}
-              isDisabled={!onOpenSearch}
-              onPress={onOpenSearch}
-              aria-label={ru.shell.searchPlaceholder}
-            >
-              <Icon name="search" size={18} />
-              <span className={styles.searchText}>{ru.shell.searchPlaceholder}</span>
-              {onOpenSearch ? <kbd className={styles.kbd}>⌘K</kbd> : null}
-            </AriaButton>
             <span className={styles.spacer} />
             <AccountMenu ownerName={ownerName} onLogout={onLogout} isLoading={ownerLoading} alert={accountAlert}>
               {accountRows}

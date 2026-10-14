@@ -154,8 +154,7 @@
   color: var(--color-accent-text);
 }
 .link:focus-visible,
-.tab:focus-visible,
-.search:focus-visible {
+.tab:focus-visible {
   outline: var(--focus-ring-width) solid var(--color-focus-ring);
   outline-offset: var(--focus-ring-offset);
 }
@@ -203,47 +202,6 @@
 }
 .topBrand {
   display: none;
-}
-.search {
-  display: flex;
-  flex: 1;
-  align-items: center;
-  gap: var(--space-3);
-  max-width: 420px;
-  min-height: var(--size-button);
-  padding: 0 var(--space-3);
-  border: 1px solid var(--color-border-strong);
-  border-radius: var(--radius-2);
-  background: var(--color-surface-1);
-  color: var(--color-text-muted);
-  font: inherit;
-  font-size: var(--font-size-sm);
-  text-align: left;
-  cursor: pointer;
-}
-.search[hidden] {
-  display: none;
-}
-.search[data-hovered] {
-  border-color: var(--color-text-muted);
-}
-.search[data-disabled] {
-  border-color: var(--color-border-subtle);
-  color: var(--color-text-disabled);
-  cursor: not-allowed;
-}
-.searchText {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.kbd {
-  padding: 3px 6px;
-  border: 1px solid var(--color-border-strong);
-  border-radius: var(--radius-1);
-  font: 500 11px var(--font-mono);
 }
 .spacer {
   flex: 1;
@@ -296,28 +254,6 @@
     display: flex;
     align-items: center;
     gap: var(--space-2);
-  }
-  /* A lone icon next to the owner menu, as in the Mini App (owner, 14.10.2026): it opens the same palette. */
-  .search {
-    flex: none;
-    justify-content: center;
-    width: var(--size-control);
-    min-height: var(--size-control);
-    margin-left: auto;
-    padding: 0;
-    border-color: transparent;
-    background: transparent;
-  }
-  .search[data-hovered] {
-    border-color: transparent;
-    background: var(--color-surface-3);
-  }
-  .searchText,
-  .kbd {
-    display: none;
-  }
-  .spacer {
-    display: none;
   }
   .main {
     padding: var(--space-4);

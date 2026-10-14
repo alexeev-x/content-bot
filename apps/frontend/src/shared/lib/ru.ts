@@ -24,7 +24,6 @@ export const ru = {
   shell: {
     skipLink: 'Перейти к содержимому',
     loadingPage: 'Загружаем страницу…',
-    searchPlaceholder: 'Найти пост или публикацию',
     searchUnavailable: 'Поиск появится позже',
     palette: {
       title: 'Поиск',

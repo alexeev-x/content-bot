@@ -31,4 +31,4 @@ Entry: nav badge, Обзор «Требует внимания», Инциден
 ---
 
 # 5. API needs (listed, not designed around)
-Entity search endpoint (palette); count of scheduled publications per destination (disable warning); approved -> draft («Вернуть в черновик»); hide/remove final publication records. Everything else here uses existing endpoints.
+count of scheduled publications per destination (disable warning); approved -> draft («Вернуть в черновик»); hide/remove final publication records. Everything else here uses existing endpoints.
