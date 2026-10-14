@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Button as AriaButton } from 'react-aria-components';
 import { ApiError } from '../../../shared/api/http-client';
 import { useNow } from '../../../shared/lib/use-now';
-import { Button, Disclosure, DisclosureGroup, VisuallyHidden } from '../../../shared/ui';
+import { Button, ConfirmDialog, Disclosure, DisclosureGroup, VisuallyHidden } from '../../../shared/ui';
 import { useDotaAutomation, useRunAutomationNow, useSetAutomationPaused } from '../api/dota-automation-queries';
 import { dotaHeroStatisticsQueryOptions } from '../api/dota-hero-statistics-queries';
 import { dotaIntelligenceQueryOptions } from '../api/dota-queries';
@@ -53,6 +53,7 @@ function WatcherControls({ onFinished }: { onFinished: () => void }) {
   const watcher = useDotaAutomation(id);
   const run = useRunAutomationNow(id);
   const toggle = useSetAutomationPaused(id);
+  const [confirmPause, setConfirmPause] = useState(false);
   // Hero statistics have their own job (Cron every 6 h, at most every 5 min on demand); the same button re-checks them.
   const heroes = useDotaAutomation('dota-hero-statistics');
   const heroesRun = useRunAutomationNow('dota-hero-statistics');
@@ -90,13 +91,28 @@ function WatcherControls({ onFinished }: { onFinished: () => void }) {
         size="sm"
         variant="ghost"
         isDisabled={running || toggle.isPending}
-        onPress={() => toggle.mutate({ paused: !paused, revision: automation.revision })}
+        onPress={() =>
+          paused ? toggle.mutate({ paused: false, revision: automation.revision }) : setConfirmPause(true)
+        }
       >
         {paused ? 'Возобновить' : 'Пауза'}
       </Button>
       <output className={styles.note} aria-live="polite">
         {running ? 'Идёт проверка…' : paused ? 'Автопроверка на паузе' : ''}
       </output>
+      <ConfirmDialog
+        isOpen={confirmPause}
+        onOpenChange={setConfirmPause}
+        title="Поставить проверку лент на паузу?"
+        description="Новые патчи и новости перестанут появляться, пока вы не нажмёте «Возобновить». Уже запланированные публикации уйдут как обычно."
+        confirmLabel="Да, на паузу"
+        cancelLabel="Нет"
+        tone="default"
+        onConfirm={() => {
+          setConfirmPause(false);
+          toggle.mutate({ paused: true, revision: automation.revision });
+        }}
+      />
       {error ? (
         <span role="alert" className={styles.note}>
           {conflict ? 'Состояние изменилось, обновлено.' : 'Не удалось выполнить действие.'}

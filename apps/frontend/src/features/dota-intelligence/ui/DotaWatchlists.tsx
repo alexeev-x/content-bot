@@ -1,6 +1,18 @@
 import type { DotaWatchlistDto } from '@alexeev/contracts';
+import { useState } from 'react';
 import { ApiError } from '../../../shared/api/http-client';
-import { Banner, Button, EmptyState, ErrorState, Menu, Panel, PanelList, PanelRow, Skeleton } from '../../../shared/ui';
+import {
+  Banner,
+  Button,
+  ConfirmDialog,
+  EmptyState,
+  ErrorState,
+  Menu,
+  Panel,
+  PanelList,
+  PanelRow,
+  Skeleton
+} from '../../../shared/ui';
 import { useDotaWatchlists, useRemoveDotaWatchlist } from '../api/dota-watchlists-queries';
 import styles from './DotaWatchlists.module.css';
 
@@ -19,6 +31,7 @@ function mutationError(error: unknown): string {
 export function DotaWatchlists() {
   const query = useDotaWatchlists();
   const remove = useRemoveDotaWatchlist();
+  const [confirming, setConfirming] = useState<DotaWatchlistDto | null>(null);
   const watches: DotaWatchlistDto[] = query.data?.watches ?? [];
 
   return (
@@ -62,7 +75,7 @@ export function DotaWatchlists() {
                     }
                   ]}
                   onAction={(id) => {
-                    if (id === 'remove') remove.mutate(watch.id);
+                    if (id === 'remove') setConfirming(watch);
                   }}
                 />
               </div>
@@ -85,6 +98,20 @@ export function DotaWatchlists() {
           </Banner>
         </div>
       ) : null}
+      <ConfirmDialog
+        isOpen={confirming !== null}
+        onOpenChange={(open) => {
+          if (!open) setConfirming(null);
+        }}
+        title={`Не отслеживать «${confirming?.entityName ?? ''}»?`}
+        description="Уведомления об изменениях в патчах для него перестанут приходить. Снова включить можно из разбора патча."
+        confirmLabel="Да, не отслеживать"
+        cancelLabel="Нет"
+        onConfirm={() => {
+          if (confirming) remove.mutate(confirming.id);
+          setConfirming(null);
+        }}
+      />
     </Panel>
   );
 }

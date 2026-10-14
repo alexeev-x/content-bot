@@ -11,7 +11,7 @@ const STATUS_PILLS: Record<
   new: { label: 'Новое', group: 'active', icon: 'sparkle' },
   drafted: { label: 'Черновик', group: 'muted', icon: 'edit' },
   published: { label: 'Опубликовано', group: 'done', icon: 'check-circle' },
-  hidden: { label: 'Скрыто', group: 'muted', icon: 'minus-circle' }
+  hidden: { label: 'Пропущено', group: 'muted', icon: 'minus-circle' }
 };
 const FACTS_SHOWN = 10;
 
@@ -145,7 +145,7 @@ export function SourceEventCard({
         )}
         {event.status === 'new' || event.status === 'drafted' ? (
           <Button size="sm" variant="ghost" isLoading={busy === 'visibility'} onPress={() => onSetHidden(event, true)}>
-            Скрыть
+            Пропустить
           </Button>
         ) : null}
       </div>

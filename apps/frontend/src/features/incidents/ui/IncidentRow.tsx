@@ -1,8 +1,9 @@
 import type { IncidentDto } from '@alexeev/contracts';
 import { Link } from '@tanstack/react-router';
+import { useState } from 'react';
 import { ApiError } from '../../../shared/api/http-client';
 import { formatDayClock } from '../../../shared/lib/clock';
-import { Button, Icon, PanelRow, StatusBadge, useToast } from '../../../shared/ui';
+import { Button, ConfirmDialog, Icon, PanelRow, StatusBadge, useToast } from '../../../shared/ui';
 import { useResolveIncident } from '../api/incidents-queries';
 import { incidentReason } from '../model/incident-view';
 import { CopyButton } from './CopyButton';
@@ -17,6 +18,7 @@ type Props = {
 
 export function IncidentRow({ incident, timezone, onOpenPublication }: Props) {
   const toast = useToast();
+  const [confirmClose, setConfirmClose] = useState(false);
   const resolve = useResolveIncident({
     onResolved: () => toast.show({ tone: 'success', title: copy.resolve.done })
   });
@@ -101,11 +103,24 @@ export function IncidentRow({ incident, timezone, onOpenPublication }: Props) {
               variant="ghost"
               aria-label={copy.row.closeLabel(title)}
               isLoading={resolve.isPending}
-              onPress={close}
+              onPress={() => setConfirmClose(true)}
             >
               {copy.row.close}
             </Button>
           ) : null}
+          <ConfirmDialog
+            isOpen={confirmClose}
+            onOpenChange={setConfirmClose}
+            title={`Закрыть инцидент «${title}»?`}
+            description="Он уйдёт из открытых. Публикацию это не меняет: если она не отправлена, отправьте её заново из «Публикаций»."
+            confirmLabel="Да, закрыть"
+            cancelLabel="Нет"
+            tone="default"
+            onConfirm={() => {
+              setConfirmClose(false);
+              close();
+            }}
+          />
         </div>
       </div>
     </PanelRow>

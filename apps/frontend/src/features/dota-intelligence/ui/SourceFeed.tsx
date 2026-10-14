@@ -28,7 +28,7 @@ const STATUS_OPTIONS = [
   { id: 'new', label: 'Новые' },
   { id: 'drafted', label: 'Черновики' },
   { id: 'published', label: 'Опубликованные' },
-  { id: 'hidden', label: 'Скрытые' }
+  { id: 'hidden', label: 'Пропущенные' }
 ] as const;
 const EMPTY: Record<SourceEventStatus, { title: string; description: string }> = {
   new: {
@@ -41,7 +41,7 @@ const EMPTY: Record<SourceEventStatus, { title: string; description: string }> =
     title: 'Опубликованных событий нет',
     description: 'Здесь появятся события, чьи посты уже вышли в канал.'
   },
-  hidden: { title: 'Скрытых событий нет', description: 'Скрытое событие можно вернуть в ленту.' }
+  hidden: { title: 'Пропущенных событий нет', description: 'Пропущенное событие можно вернуть в ленту.' }
 };
 
 type Props = { filters: FeedFilters; timezone: string; onFiltersChange: (patch: Partial<FeedFilters>) => void };
@@ -143,7 +143,7 @@ export function SourceFeed({ filters, timezone, onFiltersChange }: Props) {
       {actionError ? (
         <Banner
           tone={hiddenConflict ? 'warning' : 'error'}
-          title={hiddenConflict ? 'Событие скрыто' : 'Действие не подтверждено сервером'}
+          title={hiddenConflict ? 'Событие пропущено' : 'Действие не подтверждено сервером'}
         >
           {hiddenConflict ? 'Верните его в ленту, чтобы сделать пост.' : 'Ничего не изменилось, повторите действие.'}
           {actionError instanceof ApiError && actionError.requestId ? ` Номер запроса: ${actionError.requestId}` : ''}

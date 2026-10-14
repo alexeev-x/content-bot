@@ -10,8 +10,9 @@ Foundation: use a native element first and ARIA only when nothing native fits (n
 - Use the `shared/ui` Dialog (React Aria `Modal` + `Dialog`): it handles the inert background, Esc and focus. Give it a heading (`slot="title"`); destructive confirmations use `role="alertdialog"`.
 - Initial focus goes to the least destructive control, or to the title when the content is long. Focus returns to the trigger on close. Never nest dialogs.
 
-## Destructive or irreversible action
-- The dialog names the object and the consequence: «Отменить публикацию "Герой дня" на 14:30?». Buttons say the verb («Отменить публикацию» / «Не отменять»), never «OK» or «Да».
+## Destructive or impactful action (owner rule 14.10.2026)
+- Every delete, sign-out, cancel, pause, close, unwatch or other action whose effect the owner may regret opens a `ConfirmDialog` first. Reversible view toggles (filters, «Пропустить» on a source event) do not.
+- The dialog names the object and states exactly what happens and what does not: «Удалить «файл»? Уберётся из 2 черновиков…». Buttons: «Да, <глагол>» / «Нет», never a bare «OK» or «Да».
 - Never focus the destructive button by default. For `unknown`, add an explicit duplicate-post warning.
 - Show the result only after the server confirms it. No optimistic success.
 
