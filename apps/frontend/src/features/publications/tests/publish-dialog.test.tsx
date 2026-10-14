@@ -48,7 +48,6 @@ async function open(
     onPublished?: (publication: PublicationDto) => void;
     hasChannels?: boolean;
     existing?: PublicationDto[];
-    autoConfirm?: boolean;
   } = {}
 ) {
   server.use(http.get('*/api/v1/publications', () => HttpResponse.json(publicationPage(options.existing ?? []))));
@@ -70,42 +69,58 @@ async function open(
   }
   await renderInApp(<Host />);
   const user = userEvent.setup();
-  const interaction = new Proxy(user, {
-    get(target, property) {
-      if (property === 'click') {
-        return async (...args: Parameters<typeof user.click>) => {
-          await user.click(...args);
-          if (options.autoConfirm === false) return;
-          const confirmation = await waitFor(
-            () => screen.queryByRole('alertdialog', { name: 'Подтвердить публикацию?' }),
-            { timeout: 500 }
-          ).catch(() => null);
-          if (confirmation) {
-            const buttons = within(confirmation).getAllByRole('button');
-            await user.click(buttons[buttons.length - 1]!);
-          }
-        };
-      }
-      const value: unknown = Reflect.get(target, property);
-      return typeof value === 'function' ? value.bind(target) : value;
-    }
-  });
   await user.click(await screen.findByRole('button', { name: 'Опубликовать' }));
   const dialog = await screen.findByRole('dialog', { name: 'Опубликовать пост' });
   if (options.hasChannels !== false) await within(dialog).findByRole('button', { name: /Канал/ });
-  return { user: interaction, dialog };
+  return { user, dialog };
 }
 
 describe('PublishDialog', () => {
-  it('does not create a publication until the final confirmation is explicitly accepted', async () => {
+  it('sends on the submit press itself, with no second confirmation', async () => {
     const sent = captureCreate(() => accepted());
-    const { user, dialog } = await open({ autoConfirm: false });
+    const { user, dialog } = await open();
     await user.click(within(dialog).getByRole('button', { name: 'Отправить сейчас' }));
-    const confirmation = await screen.findByRole('alertdialog', { name: 'Подтвердить публикацию?' });
-    expect(sent).toHaveLength(0);
-    await user.click(within(confirmation).getByRole('button', { name: 'Поставить в очередь' }));
     await waitFor(() => expect(sent).toHaveLength(1));
+    expect(screen.queryByRole('alertdialog', { name: 'Подтвердить публикацию?' })).toBeNull();
   });
+  it('direct mode sends once on opening, shows no dialog of its own, and asks only about a real duplicate', async () => {
+    const sent = captureCreate(() => accepted());
+    server.use(http.get('*/api/v1/publications', () => HttpResponse.json(publicationPage([]))));
+    function Host() {
+      const [isOpen, setOpen] = useState(false);
+      return (
+        <>
+          <button type="button" onClick={() => setOpen(true)}>
+            Опубликовать
+          </button>
+          <PublishDialog
+            post={approved()}
+            isOpen={isOpen}
+            onOpenChange={setOpen}
+            initialSettings={{ destinationId: ids.destination, mode: 'now', scheduledAt: defaultScheduledAt('UTC') }}
+            lockSettings
+            direct
+          />
+        </>
+      );
+    }
+    await renderInApp(<Host />);
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('button', { name: 'Опубликовать' }));
+    await waitFor(() => expect(sent).toHaveLength(1));
+    expect(screen.queryByRole('dialog', { name: 'Опубликовать пост' })).toBeNull();
+    expect(await screen.findByText('Запланировано')).toBeTruthy();
+    // Pressing again with the same post and channel finds the existing publication and asks first.
+    server.use(
+      http.get('*/api/v1/publications', () =>
+        HttpResponse.json(publicationPage([publication({ status: 'scheduled' })]))
+      )
+    );
+    await user.click(screen.getByRole('button', { name: 'Опубликовать' }));
+    expect(await screen.findByRole('alertdialog', { name: /уже запланирован или опубликован/ })).toBeTruthy();
+    expect(sent).toHaveLength(1);
+  });
+
   it('sends «Сейчас» with the post revision, the browser zone and an Idempotency-Key, then toasts the returned status', async () => {
     const onPublished = vi.fn();
     const sent = captureCreate(() => accepted());

@@ -48,6 +48,11 @@ type Props = {
   onPublished?: (publication: PublicationDto) => void;
   initialSettings?: { destinationId: string; mode: 'now' | 'later'; scheduledAt: ZonedDateTime };
   lockSettings?: boolean;
+  /**
+   * The caller already showed the settings and the owner pressed «Опубликовать»: opening sends at once, with no
+   * dialog of its own. Only a real duplicate (this post already in this channel) still asks.
+   */
+  direct?: boolean;
 };
 
 const CHANNELS_PATH = '/settings/channels' as LinkProps['to'];
@@ -70,7 +75,8 @@ function PublishDialogBody({
   onOpenChange,
   onPublished,
   initialSettings,
-  lockSettings = false
+  lockSettings = false,
+  direct = false
 }: Props) {
   const formId = useId();
   const zone = configuredTimezone ?? browserTimeZone();
@@ -79,12 +85,12 @@ function PublishDialogBody({
   const create = useSubmitPublication();
   const destinations = useQuery({ ...publishDestinationsQueryOptions(), enabled: isOpen });
   const [failure, setFailure] = useState<{ error: ActionError; revision: number } | null>(null);
-  const openRef = useRef(isOpen);
+  // In direct mode no dialog is on screen, so outcomes go to toasts.
+  const openRef = useRef(isOpen && !direct);
   useEffect(() => {
-    openRef.current = isOpen;
-  }, [isOpen]);
+    openRef.current = isOpen && !direct;
+  }, [isOpen, direct]);
   const [duplicate, setDuplicate] = useState<PublishFormValues | null>(null);
-  const [confirmation, setConfirmation] = useState<PublishIntent | null>(null);
   const appliedKey = useRef<string | null>(null);
   const [memory] = useState(createIntentMemory);
   const [staleIntent, setStaleIntent] = useState<PublishIntent | null>(null);
@@ -164,6 +170,7 @@ function PublishDialogBody({
       setFailure({ error: described, revision: post.revision });
       // A closed dialog cannot show the banner: a failure must still reach the owner.
       if (!openRef.current) toast.show({ tone: 'error', title: described.title, description: described.body });
+      if (direct) onOpenChange(false);
     }
   }
 
@@ -184,7 +191,8 @@ function PublishDialogBody({
           : undefined,
       timezone: zone
     });
-    setConfirmation(intent);
+    // The submit press is the explicit final action: no second «are you sure» on top of it.
+    await send(intent);
   }
 
   // Second safety net: the same post already scheduled or published in this channel. `null` = the lookup failed.
@@ -203,7 +211,7 @@ function PublishDialogBody({
   // An intent older than the server's 24 h key memory is no longer replay-protected: look before resending it.
   async function resendPending(intent: PublishIntent) {
     if (Date.now() - intent.createdAt < INTENT_TRUSTED_MS) {
-      setConfirmation(intent);
+      await send(intent);
       return;
     }
     const found = await hasPublication(intent.destinationId);
@@ -215,9 +223,29 @@ function PublishDialogBody({
     } else if (found) {
       setStaleIntent(intent);
     } else {
-      setConfirmation(intent);
+      await send(intent);
     }
   }
+
+  // Direct mode: opening is the press of «Опубликовать» on the caller's page, so start once per opening.
+  const startedRef = useRef(false);
+  useEffect(() => {
+    if (!direct) return;
+    if (!isOpen) {
+      startedRef.current = false;
+      return;
+    }
+    if (startedRef.current) return;
+    startedRef.current = true;
+    if (pending) void resendPending(pending);
+    else
+      void form.handleSubmit(
+        (formValues) => start(formValues, false),
+        () => onOpenChange(false)
+      )();
+    // Runs on opening only; the handlers read the current form and intent when called.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [direct, isOpen]);
 
   function submit(event: FormEvent<HTMLFormElement>) {
     // A pending intent is sent as it was, so it skips validation of a time that may have passed meanwhile.
@@ -242,7 +270,7 @@ function PublishDialogBody({
   return (
     <>
       <Dialog
-        isOpen={isOpen}
+        isOpen={isOpen && !direct}
         onOpenChange={onOpenChange}
         title={copy.publish.title}
         description={copy.publish.description}
@@ -407,6 +435,7 @@ function PublishDialogBody({
           if (!open) {
             setDuplicate(null);
             setStaleIntent(null);
+            if (direct) onOpenChange(false);
           }
         }}
         title={copy.publish.duplicateTitle}
@@ -419,30 +448,8 @@ function PublishDialogBody({
           const old = staleIntent;
           setDuplicate(null);
           setStaleIntent(null);
-          if (old) {
-            setConfirmation(old);
-          } else if (chosen) void start(chosen, true);
-        }}
-      />
-      <ConfirmDialog
-        isOpen={confirmation !== null}
-        onOpenChange={(open) => {
-          if (!open) setConfirmation(null);
-        }}
-        title="Подтвердить публикацию?"
-        description={
-          confirmation
-            ? `${confirmation.mode === 'now' ? 'Пост будет поставлен в очередь сейчас' : 'Пост будет запланирован'} для канала ${options.find((item) => item.id === confirmation.destinationId)?.title ?? confirmation.destinationId}${confirmation.mode === 'later' ? ` на ${formatWithZone(confirmation.scheduledAt, confirmation.timezone)}` : ''}. Повторная отправка не выполняется автоматически.`
-            : ''
-        }
-        confirmLabel={confirmation?.mode === 'later' ? 'Запланировать' : 'Поставить в очередь'}
-        cancelLabel="Вернуться к настройкам"
-        tone="default"
-        isPending={create.isPending}
-        onConfirm={() => {
-          const intent = confirmation;
-          setConfirmation(null);
-          if (intent) void send(intent);
+          if (old) void send(old);
+          else if (chosen) void start(chosen, true);
         }}
       />
     </>

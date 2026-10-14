@@ -149,7 +149,7 @@ describe('create', () => {
     expect((screen.getByRole('textbox', { name: /Заголовок/ }) as HTMLInputElement).value).toBe(createdTitle);
   });
 
-  it('saves, approves and continues to publication settings only after explicit confirmation', async () => {
+  it('saves, approves and continues to publication settings in one press', async () => {
     const user = userEvent.setup();
     const calls: string[] = [];
     server.use(
@@ -165,9 +165,6 @@ describe('create', () => {
     const { router } = renderEditorApp('/posts/new');
     await user.type(await screen.findByRole('textbox', { name: /Заголовок/ }), 'Новый пост');
     await user.click(screen.getByRole('button', { name: 'К публикации' }));
-    const confirmation = await screen.findByRole('alertdialog');
-    expect(calls).toEqual([]);
-    await user.click(within(confirmation).getByRole('button', { name: 'Одобрить и продолжить' }));
     await waitFor(() => expect(router.state.location.pathname).toBe(`/posts/${ids.post}/publish`));
     expect(calls).toEqual(['create', 'approve']);
   });
@@ -421,14 +418,11 @@ describe('approve', () => {
       ]
     });
     await user.click(screen.getByRole('button', { name: 'К публикации' }));
-    await user.click(
-      within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Одобрить и продолжить' })
-    );
     await waitFor(() => expect(approvals).toEqual([{ revision: 0 }]));
     await waitFor(() => expect(router.state.location.pathname).toBe(`/posts/${ids.post}/publish`));
   });
 
-  it('confirms, approves with the saved revision, hides the editor, and shows the publish action', async () => {
+  it('approves with the saved revision, hides the editor, and shows the publish action', async () => {
     const user = userEvent.setup();
     const approvals: unknown[] = [];
     server.use(
@@ -441,9 +435,6 @@ describe('approve', () => {
     const app = renderEditorApp(`/posts/${ids.post}`);
     await screen.findByRole('textbox', { name: 'Текст' });
     await user.click(screen.getByRole('button', { name: 'К публикации' }));
-    const dialog = await screen.findByRole('alertdialog');
-    expect(approvals).toHaveLength(0);
-    await user.click(within(dialog).getByRole('button', { name: 'Одобрить и продолжить' }));
     await waitFor(() => expect(approvals).toEqual([{ revision: 0 }]));
     await waitFor(() => expect(app.router.state.location.pathname).toBe(`/posts/${ids.post}/publish`));
     expect(await screen.findByRole('heading', { name: 'Настройки публикации' })).toBeTruthy();
@@ -463,9 +454,6 @@ describe('approve', () => {
     );
     await openExisting({ body: '' });
     await user.click(screen.getByRole('button', { name: 'К публикации' }));
-    await user.click(
-      within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Одобрить и продолжить' })
-    );
     expect(await screen.findByText('Добавьте текст поста: без него одобрить нельзя')).toBeTruthy();
     expect(bodyBox().getAttribute('aria-invalid')).toBe('true');
     expect(screen.queryByText('Пост одобрен и закрыт для правок')).toBeNull();

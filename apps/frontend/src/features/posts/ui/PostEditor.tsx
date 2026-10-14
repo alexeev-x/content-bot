@@ -69,7 +69,6 @@ export function PostEditor({ post, onCreated, approvedActions, aside, headerActi
   const [compareOpen, setCompareOpen] = useState(false);
   const [mobilePreviewOpen, setMobilePreviewOpen] = useState(false);
   const [desktopPreviewOpen, setDesktopPreviewOpen] = useState(true);
-  const [approveOpen, setApproveOpen] = useState(false);
   const [overwriteOpen, setOverwriteOpen] = useState(false);
 
   useSaveShortcut(() => void editor.save());
@@ -121,10 +120,10 @@ export function PostEditor({ post, onCreated, approvedActions, aside, headerActi
     await navigate({ to: '/posts' });
   }
 
-  async function confirmApprove() {
+  async function approveAndContinue() {
+    // No «are you sure»: approval sends nothing and the publish screen that follows is the real decision.
     const approved = await editor.approvePost();
-    setApproveOpen(false);
-    // The button that opened the dialog is gone after approval: move focus to the announced status.
+    // The button is gone after approval: move focus to the announced status.
     if (approved) {
       statusRef.current?.focus();
       void navigate({ to: '/posts/$id/publish', params: { id: approved.id } });
@@ -208,7 +207,7 @@ export function PostEditor({ post, onCreated, approvedActions, aside, headerActi
       icon="arrow-right"
       isLoading={editor.isApproving || editor.isSaving}
       isDisabled={!canApprove}
-      onPress={() => setApproveOpen(true)}
+      onPress={() => void approveAndContinue()}
     >
       К публикации
     </Button>
@@ -333,17 +332,6 @@ export function PostEditor({ post, onCreated, approvedActions, aside, headerActi
         mine={{ title: editor.title, body: editor.body }}
         server={conflict?.server ?? null}
         onUseServer={editor.acceptServer}
-      />
-      <ConfirmDialog
-        isOpen={approveOpen}
-        onOpenChange={setApproveOpen}
-        title={copy.approveDialog.title(editor.title.trim() || copy.untitled)}
-        description={editor.dirty ? copy.approveDialog.descriptionDirty : copy.approveDialog.description}
-        confirmLabel={copy.approveDialog.confirm}
-        cancelLabel={copy.approveDialog.cancel}
-        tone="default"
-        isPending={editor.isApproving || editor.isSaving}
-        onConfirm={() => void confirmApprove()}
       />
       <ConfirmDialog
         isOpen={overwriteOpen}

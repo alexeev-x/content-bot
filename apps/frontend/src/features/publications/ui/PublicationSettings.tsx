@@ -27,7 +27,7 @@ const WHEN = [
 
 type Props = { post: PostDto; onBack: () => void; children: ReactNode; timezone?: string };
 
-/** In-page settings for the second editor screen. Sending remains behind PublishDialog's explicit final action. */
+/** In-page settings for the second editor screen: «Опубликовать» here is the final action and sends at once. */
 export function PublicationSettings({ post, onBack, children, timezone }: Props) {
   const timeZone = timezone ?? browserTimeZone();
   const narrow = useMediaQuery('(max-width: 859px)');
@@ -107,7 +107,7 @@ export function PublicationSettings({ post, onBack, children, timezone }: Props)
         <p className={styles.description}>
           {selected ? `Канал: ${selected.title}. ` : 'Выберите канал. '}
           {mode === 'now'
-            ? 'Публикация будет поставлена в очередь после подтверждения.'
+            ? 'Пост уйдёт в очередь сразу после нажатия «Опубликовать».'
             : `Время: ${formatWithZone(scheduledAt.toDate().toISOString(), timeZone)}.`}
         </p>
       </section>
@@ -123,6 +123,7 @@ export function PublicationSettings({ post, onBack, children, timezone }: Props)
           <Button
             icon={mode === 'now' ? 'send' : 'calendar'}
             isDisabled={!selectedDestinationId || !validSchedule}
+            isLoading={confirmOpen}
             onPress={() => setConfirmOpen(true)}
           >
             {mode === 'now' ? 'Опубликовать' : 'Запланировать'}
@@ -137,6 +138,7 @@ export function PublicationSettings({ post, onBack, children, timezone }: Props)
         onOpenChange={setConfirmOpen}
         initialSettings={{ destinationId: selectedDestinationId, mode, scheduledAt }}
         lockSettings
+        direct
       />
       <Dialog
         isOpen={destinationPickerOpen}
