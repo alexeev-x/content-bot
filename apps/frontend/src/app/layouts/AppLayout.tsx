@@ -8,13 +8,10 @@ import { ThemeToggle, useAppearanceSync } from '../../features/appearance';
 import { useOpenIncidentCount } from '../../features/incidents';
 import { AuthUnavailableState, NoAccessState, meQueryOptions } from '../../features/auth';
 import { ru } from '../../shared/lib/ru';
-import { Skeleton } from '../../shared/ui';
 import { applyAppearance, useTheme, type Appearance } from '../theme';
 import { useDocumentTitle } from '../use-document-title';
 import { AppShell } from './AppShell';
 import { readOwnerName, writeOwnerName } from './owner-name-cache';
-import { ChannelCard } from './ChannelCard';
-import styles from './AppShell.module.css';
 import { NAV_ITEMS } from './nav-items';
 import { RouteSkeleton } from './RouteSkeleton';
 import menuStyles from './AccountMenu.module.css';
@@ -32,8 +29,6 @@ const THEME_ROW = {
   labelClassName: menuStyles.rowLabel,
   valueClassName: menuStyles.value
 };
-
-const channelCard = (collapsed: boolean) => <ChannelCard collapsed={collapsed} />;
 
 function titleFor(pathname: string): string {
   if (pathname === '/') return ru.pages.dashboard;
@@ -77,7 +72,6 @@ function SignedInLayout() {
           <ThemeToggle preview={previewAppearance} row={THEME_ROW} />
         </>
       }
-      sidebarFooter={channelCard}
     >
       <Outlet />
     </AppShell>
@@ -92,15 +86,7 @@ function RestoringLayout({ pathname }: { pathname: string }) {
   const title = titleFor(pathname);
   useDocumentTitle(title);
   return (
-    <AppShell
-      ownerName={readOwnerName()}
-      ownerLoading
-      sidebarFooter={
-        <div className={styles.channelSpace} aria-hidden="true">
-          <Skeleton width={28} height={28} radius="var(--radius-pill)" />
-        </div>
-      }
-    >
+    <AppShell ownerName={readOwnerName()} ownerLoading>
       <RouteSkeleton pathname={pathname} title={title} />
     </AppShell>
   );

@@ -26,8 +26,6 @@ type Props = {
   accountAlert?: 'warning' | 'danger' | undefined;
   /** Hides the top bar; search, theme toggle and owner menu move into each page header (as in the Mini App). Default: on for the post editor routes (`/posts/new`, `/posts/$id`, `/posts/$id/publish`), off elsewhere. */
   focused?: boolean | undefined;
-  /** Card above the collapse control (the «Подключённый канал» card); receives the rail state. */
-  sidebarFooter?: ReactNode | ((collapsed: boolean) => ReactNode);
 };
 
 function EnvBadge() {
@@ -103,8 +101,7 @@ export function AppShell({
   onLogout,
   accountRows,
   accountAlert,
-  focused: forcedFocused,
-  sidebarFooter
+  focused: forcedFocused
 }: Props) {
   const [collapsed, toggleCollapsed] = useSidebarCollapsed();
   const [moreOpen, setMoreOpen] = useState(false);
@@ -168,11 +165,6 @@ export function AppShell({
           <EnvBadge />
         </div>
         <SidebarNav incidentsCount={incidentsCount} collapsed={collapsed} />
-        {sidebarFooter ? (
-          <div className={styles.sideFooter}>
-            {typeof sidebarFooter === 'function' ? sidebarFooter(collapsed) : sidebarFooter}
-          </div>
-        ) : null}
         <div className={styles.collapse}>
           <IconButton
             size="sm"

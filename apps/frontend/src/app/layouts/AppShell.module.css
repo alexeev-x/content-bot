@@ -172,9 +172,6 @@
   font-size: var(--font-size-2xs);
   font-weight: var(--font-weight-semibold);
 }
-.sideFooter {
-  padding-bottom: var(--space-3);
-}
 .collapse {
   display: flex;
   justify-content: flex-end;
@@ -363,11 +360,3 @@
 }
 
 /* Holds the theme toggle's place while the session is restored, so the top bar does not shift. */
-
-/* Holds the channel card's place while the session is restored. */
-.channelSpace {
-  display: flex;
-  align-items: center;
-  min-height: var(--size-target);
-  padding: 0 var(--space-2);
-}

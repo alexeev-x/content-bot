@@ -3,7 +3,7 @@ import { Link } from '@tanstack/react-router';
 import type { CSSProperties } from 'react';
 import { Button as AriaButton } from 'react-aria-components';
 import { formatClock } from '../../../shared/lib/clock';
-import { Button, Icon, Skeleton, statusMeta, Tooltip } from '../../../shared/ui';
+import { Button, Icon, statusMeta, Tooltip } from '../../../shared/ui';
 import { activityView, groupByTime } from '../model/activity-view';
 import { dayPercent, placeMarkers } from '../model/timeline';
 import { avatarLetter, toneStyle } from '../model/tone';
@@ -105,13 +105,8 @@ export function DayTimeline({
             <span className={styles.now} aria-hidden="true">
               <span className={styles.nowLabel}>{formatClock(now.toISOString(), timezone)}</span>
             </span>
-            {items === undefined ? (
-              <span className={styles.skeletonDots} aria-hidden="true">
-                <Skeleton width={28} height={28} radius="var(--radius-pill)" />
-                <Skeleton width={28} height={28} radius="var(--radius-pill)" />
-                <Skeleton width={28} height={28} radius="var(--radius-pill)" />
-              </span>
-            ) : (
+            {/* While loading, the scale stays empty: placeholder dots sat where no publication was and jumped away. */}
+            {items === undefined ? null : (
               <ul className={styles.markers} aria-label={copy.line.title}>
                 {markers.map(({ item, percent, lane }) => {
                   const meta = statusMeta(item.status);

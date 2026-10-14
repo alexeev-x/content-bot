@@ -5,7 +5,7 @@
 ### 1.1 Desktop composition (>= 860 px; adapt fluidly for laptop and large desktop)
 - Sidebar 216-224 px expanded / 56-64 px collapsed rail. Collapse control **bottom-anchored** (owner likes it), 200 ms width transition, `prefers-reduced-motion` = instant; state persisted; current route never lost. Order: Обзор, Посты, Публикации, Инциденты (badge = open incidents count, the only badge), Настройки pinned bottom. Active = 2 px accent edge + subtle bg. Collapsed rail: icons with tooltips + `aria-label`.
 - Top bar (thin, 48 px): left = logo (phones), right = read-only timezone chip («Europe/Chisinau (UTC+3)»), environment chip (DEV, always visible on dev), system-status chip (see 2.7), theme toggle, owner menu (`Выйти` only). Not a second dashboard.
-- Sidebar bottom: card «Подключённый канал» (avatar, name, state chip, subscribers line «—» until an API exists) above «Свернуть меню»; collapsed rail: avatar with tooltip (3.1).
+- Sidebar bottom: only «Свернуть меню»; no channel card (owner, 14.10.2026: the channel lives in Настройки → Каналы).
 - Search: **no global search** (docs/DECISIONS.md, 14.10.2026); lists search inside their own panel (Посты, Публикации).
 - Sticky: sidebar and top bar. Page content scrolls; page header does not stick on desktop.
 

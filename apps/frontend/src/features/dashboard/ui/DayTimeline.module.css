@@ -192,13 +192,6 @@
   flex-direction: column;
   gap: 2px;
 }
-.skeletonDots {
-  position: absolute;
-  top: calc(var(--top) + 6px);
-  inset-inline: 10% 10%;
-  display: flex;
-  justify-content: space-between;
-}
 .sr {
   position: absolute;
   width: 1px;
