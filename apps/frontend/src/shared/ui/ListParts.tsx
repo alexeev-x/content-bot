@@ -3,6 +3,7 @@ import { Button } from './Button';
 import { Drawer } from './Drawer';
 import styles from './ListParts.module.css';
 import { PanelList } from './Panel';
+import { Radio, RadioGroup } from './RadioGroup';
 import { Skeleton } from './Skeleton';
 
 /** Phone skeleton rows: the same 72 px geometry as RowCard (tile, title, status, meta), so data arrival shifts nothing. */
@@ -52,43 +53,36 @@ export function FilterButton({ count, onPress, isDisabled, sort }: FilterButtonP
   );
 }
 
-type SheetProps = {
+type SortSheetProps = {
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
-  count: number;
-  /** Defaults to «Фильтры»; a sort-only sheet is named «Сортировка». */
-  title?: string;
-  onReset: () => void;
-  onApply: () => void;
-  children: ReactNode;
+  title: string;
+  options: readonly { id: string; label: string }[];
+  value: string;
+  /** Applies at once: one tap on an order picks it and closes the sheet (owner, 14.10.2026). */
+  onChange: (value: string) => void;
 };
 
-/** Phone filter sheet: every filter and the sort in one place, applied together. */
-export function FilterSheet({
-  isOpen,
-  onOpenChange,
-  count,
-  title = 'Фильтры',
-  onReset,
-  onApply,
-  children
-}: SheetProps) {
+/** Phone sort sheet: the orders as a list, no second dropdown and no «Показать результаты». */
+export function SortSheet({ isOpen, onOpenChange, title, options, value, onChange }: SortSheetProps) {
   return (
-    <Drawer
-      variant="bottom"
-      title={count > 0 ? `${title} (${count})` : title}
-      isOpen={isOpen}
-      onOpenChange={onOpenChange}
-      footer={
-        <>
-          <Button variant="secondary" onPress={onReset}>
-            Сбросить
-          </Button>
-          <Button onPress={onApply}>Показать результаты</Button>
-        </>
-      }
-    >
-      <div className={styles.sheetFields}>{children}</div>
+    <Drawer variant="bottom" title={title} isOpen={isOpen} onOpenChange={onOpenChange}>
+      <RadioGroup
+        label={title}
+        labelHidden
+        variant="rows"
+        value={value}
+        onChange={(next) => {
+          onChange(next);
+          onOpenChange(false);
+        }}
+      >
+        {options.map((option) => (
+          <Radio key={option.id} value={option.id}>
+            {option.label}
+          </Radio>
+        ))}
+      </RadioGroup>
     </Drawer>
   );
 }

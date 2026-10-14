@@ -71,7 +71,6 @@ export function RouteSkeleton({ pathname, title }: Props) {
       <>
         <PageHeader
           title={title}
-          description={ru.dashboard.description}
           actions={
             <>
               <Skeleton width={196} height="var(--size-control)" radius="var(--radius-2)" />

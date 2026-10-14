@@ -37,11 +37,7 @@ export function SourcesPage() {
 
   return (
     <>
-      <PageHeader
-        title={ru.pages.sources}
-        focusHeadingOnMount
-        description={search.update ? undefined : 'События Dota 2'}
-      />
+      <PageHeader title={ru.pages.sources} focusHeadingOnMount />
       <div hidden={Boolean(search.update)}>
         <SourcesBoard timezone={timezone} filters={filters} onFiltersChange={onFiltersChange} />
       </div>

@@ -562,7 +562,6 @@ export function MediaLibrary({ searchState, onSearchState, onCreatePost, onLogin
     <div className={styles.page}>
       <PageHeader
         title={ru.pages.media}
-        description="Файлы для постов: загрузите их сюда или возьмите из черновиков и истории."
         focusHeadingOnMount
         actions={
           <Button icon="upload" onPress={() => fileInput.current?.click()}>

@@ -10,7 +10,7 @@
 - Sticky: sidebar and top bar. Page content scrolls; page header does not stick on desktop.
 
 ### 1.2 Compact composition (< 860 px; phone and narrow/tablet portrait widths)
-- Bottom tab bar, 4 tabs + «Ещё»: **Обзор, Посты, Публикации, Инциденты (badge dot/number), Ещё**. «Ещё» sheet: «Подключённый канал» card on top (moved from the sidebar), Настройки, theme, Выйти, (Later: Календарь, Медиа, Автоматизации when built). Reason: Календарь is a stub; Инциденты is a daily "resolve" task and an `unknown` is time-sensitive (wasted tap otherwise). 48 px high, labels always visible, 11.5-12 px min, no wrap at 320.
+- Bottom tab bar, 4 tabs + «Ещё»: **Обзор, Посты, Публикации, Инциденты (badge dot/number), Ещё**. «Ещё» sheet: sections only, no channel card (owner, 14.10.2026: the channel lives in Настройки → Каналы), Настройки, theme, Выйти, (Later: Календарь, Медиа, Автоматизации when built). Reason: Календарь is a stub; Инциденты is a daily "resolve" task and an `unknown` is time-sensitive (wasted tap otherwise). 48 px high, labels always visible, 11.5-12 px min, no wrap at 320.
 - Top app bar (browser only): logo, DEV, search icon, theme, owner menu. **Inside Telegram: hidden**; search and theme move into the page header's overflow (Ещё sheet holds theme).
 - Detail/edit routes (`/posts/new`, `/posts/:id`, Settings detail) hide the tab bar (full-screen) and show a back chevron (44 px) in the header; Mini App uses BackButton instead.
 - Safe areas: `max(env(), --tg-content-safe-area-inset-*)` on tab bar, action bar, sheet footers. Pinned UI follows `visualViewport` when the keyboard opens.

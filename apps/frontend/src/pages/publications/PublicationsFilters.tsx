@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { publicationCopy } from '../../features/publications';
 import styles from './PublicationsPage.module.css';
-import { FilterButton, FilterSheet, PhoneToolbar, PhoneToolbarSearch, SearchField, Select } from '../../shared/ui';
+import { FilterButton, PhoneToolbar, PhoneToolbarSearch, SearchField, SortSheet } from '../../shared/ui';
 
 const copy = publicationCopy.filters;
 
@@ -44,7 +44,6 @@ type PhoneProps = {
 /** Phone: the same search over the loaded rows plus «Сортировка», a sheet that holds only the order. */
 export function PhoneFilters({ query, onQueryChange, order, defaultOrder, isLoading, onOrderChange }: PhoneProps) {
   const [open, setOpen] = useState(false);
-  const [draft, setDraft] = useState<string>(defaultOrder);
   const current = order ?? defaultOrder;
   return (
     <>
@@ -66,25 +65,17 @@ export function PhoneFilters({ query, onQueryChange, order, defaultOrder, isLoad
             spoken: orderOptions.find((option) => option.id === current)?.label ?? ''
           }}
           isDisabled={isLoading}
-          onPress={() => {
-            setDraft(current);
-            setOpen(true);
-          }}
+          onPress={() => setOpen(true)}
         />
       </PhoneToolbar>
-      <FilterSheet
+      <SortSheet
         isOpen={open}
         onOpenChange={setOpen}
-        count={0}
         title={copy.sort}
-        onReset={() => setDraft(defaultOrder)}
-        onApply={() => {
-          onOrderChange(draft === defaultOrder ? undefined : (draft as Order));
-          setOpen(false);
-        }}
-      >
-        <Select label={copy.sort} options={orderOptions} value={draft} onChange={setDraft} />
-      </FilterSheet>
+        options={orderOptions}
+        value={current}
+        onChange={(next) => onOrderChange(next === defaultOrder ? undefined : (next as Order))}
+      />
     </>
   );
 }

@@ -63,6 +63,14 @@
     grid-row: 1;
     flex-wrap: nowrap;
   }
+  /* The title row is as tall as the tools and buttons beside it, so the title sits on their centre line. */
+  .titleRow {
+    min-height: var(--size-button);
+  }
+  .tools,
+  .actions {
+    align-items: center;
+  }
   .title {
     display: -webkit-box;
     overflow: hidden;

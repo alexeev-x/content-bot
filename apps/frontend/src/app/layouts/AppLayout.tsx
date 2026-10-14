@@ -81,11 +81,6 @@ function SignedInLayout() {
         </>
       }
       sidebarFooter={channelCard}
-      moreExtra={
-        <div className={styles.moreExtra}>
-          <ChannelCard collapsed={false} />
-        </div>
-      }
     >
       <Outlet />
       <CommandPalette isOpen={searchOpen} onOpenChange={setSearchOpen} />

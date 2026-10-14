@@ -28,8 +28,6 @@ type Props = {
   accountAlert?: 'warning' | 'danger' | undefined;
   /** Hides the top bar; search, theme toggle and owner menu move into each page header (as in the Mini App). Default: on for the post editor routes (`/posts/new`, `/posts/$id`, `/posts/$id/publish`), off elsewhere. */
   focused?: boolean | undefined;
-  /** Extra content under the sections in the «Ещё» sheet (the «Подключённый канал» card). */
-  moreExtra?: ReactNode | ((close: () => void) => ReactNode);
   /** Card above the collapse control (the «Подключённый канал» card); receives the rail state. */
   sidebarFooter?: ReactNode | ((collapsed: boolean) => ReactNode);
 };
@@ -109,7 +107,6 @@ export function AppShell({
   accountRows,
   accountAlert,
   focused: forcedFocused,
-  moreExtra,
   sidebarFooter
 }: Props) {
   const [collapsed, toggleCollapsed] = useSidebarCollapsed();
@@ -263,7 +260,6 @@ export function AppShell({
             <NavLink key={item.to} item={item} incidentsCount={incidentsCount} onNavigate={() => setMoreOpen(false)} />
           ))}
         </nav>
-        {typeof moreExtra === 'function' ? moreExtra(() => setMoreOpen(false)) : moreExtra}
       </Drawer>
     </div>
   );

@@ -9,6 +9,7 @@ import {
   type RadioProps
 } from 'react-aria-components';
 import styles from './RadioGroup.module.css';
+import { VisuallyHidden } from './VisuallyHidden';
 
 type GroupProps = Omit<RadioGroupProps, 'children' | 'className'> & {
   label: string;
@@ -19,6 +20,8 @@ type GroupProps = Omit<RadioGroupProps, 'children' | 'className'> & {
    * `rows` is a compact list: the selected row is outlined in accent, the others sit on hairline dividers.
    */
   variant?: 'default' | 'card' | 'rows';
+  /** Keeps the label for screen readers only, when a visible heading (a sheet title) already names the choice. */
+  labelHidden?: boolean;
   children: ReactNode;
 };
 
@@ -27,6 +30,7 @@ export function RadioGroup({
   description,
   errorMessage,
   variant = 'default',
+  labelHidden = false,
   isInvalid,
   children,
   ...rest
@@ -38,7 +42,13 @@ export function RadioGroup({
       data-variant={variant}
       className={styles.group}
     >
-      <Label className={styles.label}>{label}</Label>
+      {labelHidden ? (
+        <VisuallyHidden>
+          <Label>{label}</Label>
+        </VisuallyHidden>
+      ) : (
+        <Label className={styles.label}>{label}</Label>
+      )}
       {description ? (
         <Text slot="description" className={styles.description}>
           {description}

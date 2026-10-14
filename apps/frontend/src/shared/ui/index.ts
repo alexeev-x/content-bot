@@ -74,11 +74,4 @@ export { UploadRow } from './UploadRow';
 export type { UploadRowState } from './UploadRow';
 export { useMediaQuery } from './use-media-query';
 export { VisuallyHidden } from './VisuallyHidden';
-export {
-  FilterButton,
-  FilterSheet,
-  FooterLine,
-  PhoneSkeletonRows,
-  PhoneToolbar,
-  PhoneToolbarSearch
-} from './ListParts';
+export { FilterButton, SortSheet, FooterLine, PhoneSkeletonRows, PhoneToolbar, PhoneToolbarSearch } from './ListParts';

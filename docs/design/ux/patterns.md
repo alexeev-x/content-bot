@@ -1,7 +1,7 @@
 # 2. Pattern system (applies to every screen)
 
 ### 2.1 Page header
-`[← back, depth-2 only]  Title (h1, 1 line, ellipsis)   [primary action] [⋯]`; subtitle optional, **max one line, muted; remove explanatory paragraphs** (rules go into helper text, not subtitles). Phone: title row + primary action as a full-width-ish button only where the action is the page's point (Посты «Новый пост»); on lists the primary lives in the header at top-right as a 44 px button (icon + text, collapses to icon at 320). Focus moves to the h1 on route change.
+`[← back, depth-2 only]  Title (h1, 1 line, ellipsis)   [primary action] [⋯]`; **no subtitle under the title** on app pages (owner, 14.10.2026); rules go into helper text. The title sits on the centre line of the tools and buttons beside it. Phone: title row + primary action as a full-width-ish button only where the action is the page's point (Посты «Новый пост»); on lists the primary lives in the header at top-right as a 44 px button (icon + text, collapses to icon at 320). Focus moves to the h1 on route change.
 
 ### 2.2 Which control where (decision table)
 | Need | Control | Used on | Why |

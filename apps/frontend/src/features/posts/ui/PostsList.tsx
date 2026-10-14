@@ -10,14 +10,13 @@ import {
   EmptyState,
   ErrorState,
   FilterButton,
-  FilterSheet,
+  SortSheet,
   Pagination,
   Panel,
   PhoneToolbar,
   PhoneToolbarSearch,
   SearchField,
   TableSearch,
-  Select,
   SelectionBar,
   StaleRegion,
   Tab,
@@ -279,7 +278,6 @@ export function PostsList({
 
   // Phone: the sheet holds only the sort (search is the field above); desktop sorts by the column headers.
   const [sheetOpen, setSheetOpen] = useState(false);
-  const [draftSort, setDraftSort] = useState('none');
   const activeFilterCount = sort === null ? 0 : 1;
   const selectedSortLabel = sortOptions.find((option) => option.id === sortValue)?.label ?? copy.filters.sort;
   const phoneSortValue =
@@ -406,10 +404,7 @@ export function PostsList({
                             value: phoneSortValue,
                             spoken: selectedSortLabel
                           }}
-                          onPress={() => {
-                            setDraftSort(sortValue);
-                            setSheetOpen(true);
-                          }}
+                          onPress={() => setSheetOpen(true)}
                         />
                       </PhoneToolbar>
                     ) : null}
@@ -520,19 +515,14 @@ export function PostsList({
         </TabPanel>
       </Tabs>
 
-      <FilterSheet
+      <SortSheet
         isOpen={sheetOpen}
         onOpenChange={setSheetOpen}
-        count={activeFilterCount}
         title={copy.filters.sort}
-        onReset={() => setDraftSort('none')}
-        onApply={() => {
-          onMobileSortChange(draftSort);
-          setSheetOpen(false);
-        }}
-      >
-        <Select label={ru.ui.sortBy} options={sortOptions} value={draftSort} onChange={setDraftSort} />
-      </FilterSheet>
+        options={sortOptions}
+        value={sortValue}
+        onChange={onMobileSortChange}
+      />
 
       {deleteTargets ? (
         <DeletePostsDialog

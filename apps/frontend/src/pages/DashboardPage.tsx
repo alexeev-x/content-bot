@@ -59,7 +59,6 @@ export function DashboardPage({ pollMs, openPublicationId, onOpenPublicationChan
     <>
       <PageHeader
         title={ru.pages.dashboard}
-        description={ru.dashboard.description}
         actions={
           <>
             <DateChip placement="header" zoneNote={zoneNote} timezone={timezone} />
