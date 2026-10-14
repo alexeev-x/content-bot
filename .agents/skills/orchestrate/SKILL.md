@@ -42,4 +42,4 @@ The stop hook runs `verify:changed` automatically; a green hook result on the un
 A failure goes back to its owner with only the failing lines and file. Same first error after 2 rounds, or no progress → stop and give the owner options with a recommended default. Never resume a finished agent; start fresh with the packet plus `.logs/handoff/<task>.md`.
 
 ## Deliver
-Commit (conventional message), push `develop`/branch unless a migration is pending, then the final message from root `AGENTS.md`. Never touch `main`.
+Commit (conventional message), push `develop`/branch (CI applies DEV migrations before deploying), then the final message from root `AGENTS.md`. Never touch `main`.

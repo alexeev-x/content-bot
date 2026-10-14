@@ -67,12 +67,12 @@ Search with `rg`; read only needed lines. `npm run verify` prints failures; open
 - Agents commit and push to `develop` or to their own branches from it (`feat/…`, `fix/…`, `chore/…`). Pushing `develop` deploys Worker `dev`.
 - `main` is forbidden for agents: no checkout-and-commit, merge, push or PR merge into it. Releases are the owner's `develop → main` PR.
 - Never force-push or rewrite pushed history. Commit only the task's files, after its checks are green; conventional commit messages.
-- A commit that adds a file to `apps/backend/migrations/` is committed but **not pushed**: the owner first applies it to DEV D1 (Actions → D1 migrations), then the agent pushes.
+- Migrations: a push to `develop` applies pending migrations to DEV D1 in CI before the deploy, so they must stay expand-only (skill `d1-migration`). Production migrations stay a manual owner run.
 - A contract change updates `contracts`, the backend, the frontend and the contract tests in the same commit.
 
 ## Done means verified
 Run `npm run verify:changed` (full `npm run verify` for R2/R3, see skill `orchestrate`) and report actual results.
 
-Main session's final message: short Russian summary of what was done and check results; the commit hash(es) and whether they were pushed; only if a migration was added, its number and that the owner applies it to DEV D1 before the push.
+Main session's final message: short Russian summary of what was done and check results; the commit hash(es) and whether they were pushed; if a migration was added, its number (CI applies it to DEV; production is manual).
 
 Subagents report ≤ 20 lines: `state` (DONE|BLOCKED|FAILED|NOT_VERIFIED), changed paths, checks with the last relevant output lines, risks. Claims need fresh evidence; `not_run` is never success. Missing critical input → `BLOCKED` naming it. After two failed attempts on the same error, stop and report. Stay inside your assigned paths.

@@ -57,8 +57,8 @@ Accepted decisions that are in force. An agent does not propose an alternative t
 ## Process and environments
 | Date | Decision | Details |
 |---|---|---|
-| 14.10.2026 | Git: agents commit and push to `develop` or branches from it; `main` is forbidden for agents (release PR `develop → main` by the owner); a commit with a migration is pushed only after the owner applies it to DEV D1 (replaces 03.10.2026 "owner commits and pushes") | `AGENTS.md` § Git |
-| 05.10.2026 | CI deploys after green checks: `develop` → Worker `dev`, `main` → Worker `app`; each environment owns its D1 and vars; remote migrations stay manual owner actions | `.github/workflows/ci.yml`, `apps/backend/wrangler.jsonc` |
+| 14.10.2026 | Git: agents commit and push to `develop` or branches from it; `main` is forbidden for agents (release PR `develop → main` by the owner)| `AGENTS.md` § Git |
+| 14.10.2026 | CI deploys after green checks: `develop` → Worker `dev`, `main` → Worker `app`; each environment owns its D1 and vars; DEV applies pending D1 migrations automatically before the deploy, production migrations stay a manual owner run (replaces 05.10.2026 «remote migrations manual») | `.github/workflows/ci.yml`, `apps/backend/wrangler.jsonc` |
 | 07.10.2026 | Everything is tested only in DEV; production is not prepared or released until the owner says DEV is ready | — |
 | 03.10.2026 | Uniform code style: Prettier + Oxlint via Husky/lint-staged on commit, `verify:changed` on pre-push, full `verify` in CI | `README.md` |
 | 03.10.2026 | Agents: one source for Claude Code and Codex (`.agents/` → generated adapters); work only by project roles; built-in read-only helpers allowed; generic global agents denied in `.claude/settings.json` | `docs/AGENT_ORCHESTRATION.md` |

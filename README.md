@@ -23,7 +23,7 @@ npm run db:migrate:local  # apply D1 migrations to the local database
 npm run verify            # everything CI checks (format, lint, docs, types, architecture, tests, build)
 npm run deploy:check      # build + dry-run deploy (nothing is uploaded)
 npm run deploy            # manual deploy helper; normal remote deploys happen only in GitHub CI
-npm run db:migrate:dev   # OWNER ONLY: apply migrations to the dev D1 (content-db-dev); or GitHub Actions → "D1 migrations"
+npm run db:migrate:dev   # OWNER ONLY, rarely needed: CI applies DEV migrations on every develop push
 npm run db:migrate:prod  # OWNER ONLY: apply migrations to the production D1 (content-db-prod; take a Time Travel bookmark first)
 npm run agents:sync       # after editing .agents/roles or .agents/skills
 ```
