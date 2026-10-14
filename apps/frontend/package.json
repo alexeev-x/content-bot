@@ -2,6 +2,11 @@
   "name": "@alexeev/frontend",
   "private": true,
   "type": "module",
+  "sideEffects": [
+    "*.css",
+    "./src/main.tsx",
+    "./src/app/styles/**"
+  ],
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",

@@ -19,3 +19,6 @@ worker-configuration.d.ts
 
 # Agent screenshots and scratch files
 .tmp-*
+
+# Playwright MCP snapshots and console logs from browser walks
+.playwright-mcp/
