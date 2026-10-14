@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Button as AriaButton } from 'react-aria-components';
 import { ApiError } from '../../../shared/api/http-client';
 import { useNow } from '../../../shared/lib/use-now';
-import { Button, ConfirmDialog, Disclosure, DisclosureGroup, VisuallyHidden } from '../../../shared/ui';
+import { Button, ConfirmDialog, Disclosure, DisclosureGroup, Spinner, VisuallyHidden } from '../../../shared/ui';
 import { useDotaAutomation, useRunAutomationNow, useSetAutomationPaused } from '../api/dota-automation-queries';
 import { dotaHeroStatisticsQueryOptions } from '../api/dota-hero-statistics-queries';
 import { dotaIntelligenceQueryOptions } from '../api/dota-queries';
@@ -130,6 +130,12 @@ export function FeedHealth({ timezone, onChecked }: Props) {
   const sources = useQuery(dotaIntelligenceQueryOptions());
   const heroes = useQuery(dotaHeroStatisticsQueryOptions());
   const [openFeed, setOpenFeed] = useState<string | null>(null);
+  // Same cached queries as the controls: a collapsed panel still shows that a check is running.
+  const watcher = useDotaAutomation('dota-intelligence');
+  const heroesJob = useDotaAutomation('dota-hero-statistics');
+  const checking =
+    (watcher.data != null && watcher.data.executionState !== 'idle') ||
+    (heroesJob.data != null && heroesJob.data.executionState !== 'idle');
   const feeds: Feed[] = [
     ...(sources.data?.sources ?? []).map((source) => ({
       id: source.key,
@@ -157,6 +163,7 @@ export function FeedHealth({ timezone, onChecked }: Props) {
   if (feeds.length === 0) return null;
   const dots = (
     <span className={styles.dots}>
+      {checking ? <Spinner size={14} label="Идёт проверка лент" /> : null}
       {feeds.map((feed) => (
         <span
           key={feed.id}
