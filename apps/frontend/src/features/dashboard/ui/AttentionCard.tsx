@@ -28,12 +28,14 @@ export function AttentionCard({ rows, total, checking, onOpenPublication }: Prop
   const group = !loaded || checking ? 'muted' : clear ? 'done' : 'failed';
   const count = total >= 99 ? '99+' : String(total);
 
-  if (clear) {
+  // Loading draws the calm one-line card: «Всё в порядке» is the usual answer, so the widgets below stay put;
+  // the card grows only when there really is something to look at.
+  if (clear || !loaded) {
     return (
       <Widget id="attention" title={copy.attention.title} style={toneStyle(group)} bare calm>
         <p className={styles.compact}>
-          <Icon name={checking ? 'clock' : 'check-circle'} size={20} />
-          {checking ? copy.attention.checking : copy.attention.clear}
+          <Icon name={checking || !loaded ? 'clock' : 'check-circle'} size={20} />
+          {checking || !loaded ? copy.attention.checking : copy.attention.clear}
         </p>
       </Widget>
     );

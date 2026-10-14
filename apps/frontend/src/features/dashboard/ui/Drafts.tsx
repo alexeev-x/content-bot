@@ -16,6 +16,8 @@ type Props = {
   onNewPost: () => void;
 };
 
+const SKELETON_DEPTHS = [0, 1, 2] as const;
+
 /** The newest drafts as a small stack of cards, each with its way to the publish screen. */
 export function Drafts({ query, now, onPublish, onNewPost }: Props) {
   const items = query?.data?.items;
@@ -41,10 +43,20 @@ export function Drafts({ query, now, onPublish, onNewPost }: Props) {
             </Button>
           </div>
         ) : items === undefined ? (
-          <div className={styles.stack} aria-hidden="true">
-            <Skeleton height={76} radius="var(--radius-3)" />
-            <Skeleton height={76} radius="var(--radius-3)" />
-          </div>
+          // The same cards as the loaded stack (the query asks for 3), so the row keeps its height.
+          <ul className={styles.stack} aria-hidden="true">
+            {SKELETON_DEPTHS.map((depth) => (
+              <li key={depth} className={styles.card} style={{ '--depth': depth } as CSSProperties}>
+                <span className={styles.title}>
+                  <Skeleton width="70%" height="1lh" />
+                </span>
+                <span className={styles.foot}>
+                  <Skeleton width={72} height={12} />
+                  <Skeleton width={104} height="var(--size-button-sm)" radius="var(--radius-2)" />
+                </span>
+              </li>
+            ))}
+          </ul>
         ) : items.length === 0 ? (
           <div className={shell.emptyBlock}>
             <p className={styles.emptyTitle}>{copy.drafts.empty}</p>
