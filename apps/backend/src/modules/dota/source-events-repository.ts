@@ -63,6 +63,10 @@ interface EventRow {
   status: SourceEventStatus;
 }
 
+// Patch notes are always a patch: a row inserted by an older Worker between migration 0037 and the deploy keeps
+// the column default 'news'. Computed here so the list, the type filter, facts and drafts all agree.
+const EVENT_TYPE_SQL = "CASE WHEN u.source_key = 'patch_notes' THEN 'patch' ELSE u.event_type END";
+
 // Three layers because SQLite cannot reuse a select alias in the same SELECT: the job state of the draft's
 // latest publication, then the event status derived from it, then the filter and page.
 const eventsSql = (extraWhere: string, filter: string): string => `
@@ -77,7 +81,7 @@ const eventsSql = (extraWhere: string, filter: string): string => `
                 ELSE 'drafted' END AS status
     FROM (
       SELECT u.source_key, u.external_id, u.title, u.source_url, u.published_at, u.detected_at, u.excerpt,
-             u.event_type, u.hidden_at, p.id AS post_id, p.title AS post_title,
+             ${EVENT_TYPE_SQL} AS event_type, u.hidden_at, p.id AS post_id, p.title AS post_title,
              (SELECT j.status FROM publications pu JOIN jobs j ON j.publication_id = pu.id AND j.kind = 'publish'
               WHERE pu.post_id = p.id ORDER BY pu.created_at DESC, pu.id DESC LIMIT 1) AS job_status
       FROM dota_update_items u LEFT JOIN posts p ON p.id = u.draft_post_id
@@ -147,9 +151,7 @@ export function createD1SourceEventsRepository(db: D1Database): SourceEventsRepo
     return byEvent;
   }
 
-  function toDto(raw: EventRow, entities: SourceEventEntityDto[], keys: ReadonlySet<string>): SourceEventDto {
-    // Patch notes are always a patch (see dota/index.ts: rows written between migration 0037 and the deploy).
-    const row = raw.source_key === 'patch_notes' ? { ...raw, event_type: 'patch' as const } : raw;
+  function toDto(row: EventRow, entities: SourceEventEntityDto[], keys: ReadonlySet<string>): SourceEventDto {
     const hits = entities.filter((entity) => keys.has(watchKey(entity.kind, entity.name))).slice(0, 100);
     return {
       id: `${row.source_key}:${row.external_id}`,
@@ -183,7 +185,7 @@ export function createD1SourceEventsRepository(db: D1Database): SourceEventsRepo
       let extra = '';
       if (type !== undefined) {
         binds.push(type);
-        extra = ` AND u.event_type = ?${binds.length}`;
+        extra = ` AND ${EVENT_TYPE_SQL} = ?${binds.length}`;
       }
       let filter = '';
       if (status !== undefined) {
