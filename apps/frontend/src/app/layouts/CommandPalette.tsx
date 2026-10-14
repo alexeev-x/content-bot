@@ -1,4 +1,4 @@
-import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
+import { keepPreviousData, useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
 import { useEffect, useState } from 'react';
 import { Autocomplete, Collection, ListBox, ListBoxItem, ListBoxSection, Header } from 'react-aria-components';
@@ -35,8 +35,17 @@ function PaletteBody({ onDone }: { onDone: () => void }) {
   const [text, setText] = useState('');
   const q = useSettled(text);
   const searching = q !== '';
-  const posts = useInfiniteQuery({ ...postsInfiniteQueryOptions({ q }), enabled: searching });
-  const publications = useQuery({ ...publicationsPageQueryOptions({ q }), enabled: searching });
+  // Previous results stay on screen while the next text is fetched, so the list never blinks empty.
+  const posts = useInfiniteQuery({
+    ...postsInfiniteQueryOptions({ q }),
+    enabled: searching,
+    placeholderData: keepPreviousData
+  });
+  const publications = useQuery({
+    ...publicationsPageQueryOptions({ q }),
+    enabled: searching,
+    placeholderData: keepPreviousData
+  });
 
   const run = (go: () => void) => () => {
     onDone();
@@ -73,8 +82,6 @@ function PaletteBody({ onDone }: { onDone: () => void }) {
 
   return (
     <Autocomplete filter={() => true} inputValue={text} onInputChange={setText}>
-      {/* Intentional: the palette has one task, and its field is where it starts. */}
-      {/* oxlint-disable-next-line jsx-a11y/no-autofocus */}
       {/* Intentional: the palette has one task, and its field is where it starts. */}
       {/* oxlint-disable-next-line jsx-a11y/no-autofocus */}
       <SearchField label={ru.shell.palette.label} placeholder={ru.shell.palette.placeholder} autoFocus />

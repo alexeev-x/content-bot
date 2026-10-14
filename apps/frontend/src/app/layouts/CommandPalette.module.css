@@ -1,13 +1,16 @@
 .status {
-  min-height: var(--space-4);
+  min-height: 1.25rem;
   color: var(--color-text-muted);
   font-size: var(--font-size-sm);
 }
 .list {
   display: grid;
+  align-content: start;
   gap: var(--space-2);
-  max-height: 50vh;
+  /* A fixed height: the dialog keeps its size while results change under the cursor. */
+  height: min(420px, 55dvh);
   overflow: auto;
+  scrollbar-gutter: stable;
   outline: none;
 }
 .section {
