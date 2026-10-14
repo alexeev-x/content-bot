@@ -140,3 +140,10 @@
     grid-auto-flow: row;
   }
 }
+
+/* Four tabs («Все / Планы / Отправлено / Ошибки») fit a 320px screen without a hidden sideways scroll. */
+@media (max-width: 359px) {
+  .tab {
+    padding: 0 var(--space-2);
+  }
+}

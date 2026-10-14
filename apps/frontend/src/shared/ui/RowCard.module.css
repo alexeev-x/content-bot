@@ -75,8 +75,10 @@
 }
 .second {
   display: flex;
+  /* The date wraps under the status chip instead of being cut to «6 окт. 202…». */
+  flex-wrap: wrap;
   align-items: center;
-  gap: var(--space-2);
+  gap: var(--space-1) var(--space-2);
   min-width: 0;
 }
 .status {

@@ -118,3 +118,16 @@
   border-bottom: 0;
   background: transparent;
 }
+
+/* Phones: the note drops under the title instead of being cut («Хранятся 30 дней, зат…»). */
+@media (max-width: 859px) {
+  .heading:has(.note) {
+    flex-wrap: wrap;
+    row-gap: 0;
+    padding-block: var(--space-2);
+    white-space: normal;
+  }
+  .heading .note {
+    flex-basis: 100%;
+  }
+}

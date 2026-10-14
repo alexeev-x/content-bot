@@ -112,11 +112,8 @@
   font-weight: var(--font-weight-semibold);
 }
 .hint {
-  overflow: hidden;
   color: var(--color-text-muted);
   font-size: var(--font-size-xs);
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 .check {
   display: inline-grid;

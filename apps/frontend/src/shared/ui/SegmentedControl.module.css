@@ -40,6 +40,12 @@
     padding: 0 var(--space-2);
   }
 }
+/* At 320px three labels with icons still overflow («Авт…»): the words stay, the icons go. */
+@media (max-width: 359px) {
+  .segment > svg {
+    display: none;
+  }
+}
 .segment[data-hovered] {
   background: var(--color-surface-2);
   color: var(--color-text);
