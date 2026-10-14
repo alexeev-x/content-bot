@@ -1,39 +1,39 @@
+import type { AutomationId } from '@alexeev/contracts';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { listAutomations, runWatcherNow, setWatcherPaused } from './dota-automation-api';
+import { listAutomations, runAutomationNow, setAutomationPaused } from './dota-automation-api';
 
-const automationKeys = { all: ['dota-watcher-automation'] as const };
+const automationKeys = { one: (id: AutomationId) => ['dota-automations', id] as const };
 const POLL_MS = 2_000;
 
-/** The Dota watcher; polls only while a run is queued or running (TanStack stops it in a hidden tab). */
-export function useDotaWatcher() {
-  const query = useQuery({
-    queryKey: automationKeys.all,
+/** One Dota automation; polls only while a run is queued or running (TanStack stops it in a hidden tab). */
+export function useDotaAutomation(id: AutomationId) {
+  return useQuery({
+    queryKey: automationKeys.one(id),
     queryFn: async ({ signal }) => {
       const page = await listAutomations(signal);
-      return page.items.find((item) => item.id === 'dota-intelligence') ?? null;
+      return page.items.find((item) => item.id === id) ?? null;
     },
     staleTime: 15_000,
     retry: false,
     refetchInterval: (current) => (current.state.data && current.state.data.executionState !== 'idle' ? POLL_MS : false)
   });
-  return query;
 }
 
-export function useRunWatcherNow() {
+export function useRunAutomationNow(id: AutomationId) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: () => runWatcherNow(crypto.randomUUID()),
+    mutationFn: () => runAutomationNow(id, crypto.randomUUID()),
     retry: false,
-    onSettled: () => queryClient.invalidateQueries({ queryKey: automationKeys.all })
+    onSettled: () => queryClient.invalidateQueries({ queryKey: automationKeys.one(id) })
   });
 }
 
-export function useSetWatcherPaused() {
+export function useSetAutomationPaused(id: AutomationId) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: ({ paused, revision }: { paused: boolean; revision: number }) =>
-      setWatcherPaused(paused, revision, crypto.randomUUID()),
+      setAutomationPaused(id, paused, revision, crypto.randomUUID()),
     retry: false,
-    onSettled: () => queryClient.invalidateQueries({ queryKey: automationKeys.all })
+    onSettled: () => queryClient.invalidateQueries({ queryKey: automationKeys.one(id) })
   });
 }

@@ -1,0 +1,47 @@
+.dots {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+.dot {
+  width: 10px;
+  height: 10px;
+  border-radius: var(--radius-pill);
+  background: var(--color-text-muted);
+}
+.dot[data-group='done'] {
+  background: var(--color-status-done-fg);
+}
+.dot[data-group='unknown'] {
+  background: var(--color-status-unknown-fg);
+}
+.dot[data-group='failed'] {
+  background: var(--color-status-failed-fg);
+}
+.list {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0 0 var(--space-3);
+  padding: 0;
+  list-style: none;
+}
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+}
+.name {
+  min-width: 10rem;
+  font-size: var(--font-size-sm);
+}
+.note {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+}
+.controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}

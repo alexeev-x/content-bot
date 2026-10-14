@@ -12,6 +12,7 @@ const PAGES = [
   '/publications',
   '/media',
   '/sources',
+  '/sources?tab=heroes',
   '/settings/channels',
   '/settings/appearance',
   '/settings/general',
@@ -31,6 +32,7 @@ for (const path of PAGES) {
         : path
             .slice(1)
             .replaceAll('/', '-')
+            .replace(/[?=&]/g, '-')
             .replace(/[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}/, 'id');
     for (const viewport of WIDTHS) {
       await page.setViewportSize(viewport);
@@ -42,6 +44,11 @@ for (const path of PAGES) {
         // Skeletons swap to data a moment after the mocked responses; polling keeps the network busy.
         await page.waitForTimeout(1200);
         await page.screenshot({ path: `../../.logs/shots/${name}-${viewport.width}-${colorScheme}.png` });
+        if (path === '/settings/general') {
+          await page.getByRole('heading', { name: /Уведомлять/ }).scrollIntoViewIfNeeded();
+          await page.waitForTimeout(200);
+          await page.screenshot({ path: `../../.logs/shots/${name}-${viewport.width}-${colorScheme}-end.png` });
+        }
         if (path === '/') {
           await page.getByRole('button', { name: /Меню владельца/ }).click();
           await page.waitForTimeout(300);

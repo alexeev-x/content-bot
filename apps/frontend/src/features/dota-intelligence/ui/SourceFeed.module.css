@@ -1,0 +1,16 @@
+.feed {
+  display: grid;
+  gap: var(--space-4);
+  min-width: 0;
+}
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+.skeleton {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-4);
+}

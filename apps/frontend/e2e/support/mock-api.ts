@@ -436,6 +436,20 @@ export async function mockApi(page: Page): Promise<void> {
           lastRun: null,
           runNowAllowed: true,
           sideEffects: ['persist_dota_updates']
+        },
+        {
+          id: 'dota-hero-statistics',
+          enabled: true,
+          revision: 1,
+          cron: '0 */6 * * *',
+          cadenceMinutes: 360,
+          nextRunAt: new Date(Date.now() + 3 * 3_600_000).toISOString(),
+          health: 'healthy',
+          executionState: 'idle',
+          activeRunId: null,
+          lastRun: null,
+          runNowAllowed: true,
+          sideEffects: ['persist_hero_snapshot']
         }
       ])
     )
@@ -444,7 +458,114 @@ export async function mockApi(page: Page): Promise<void> {
   await page.route(/\/api\/v1\/(media|posts\/[^/]+\/media)\/[^/]+\/content$/, (route) =>
     route.fulfill({ path: new URL('./crop-lake-demo.png', import.meta.url).pathname })
   );
-  await page.route('**/api/v1/dota/watchlists', (route) => json(route, { watches: [], matches: [] }));
+  await page.route('**/api/v1/dota/watchlists', (route) =>
+    json(route, {
+      watches: [
+        ['Pudge', 'hero'],
+        ['Black King Bar', 'item']
+      ].map(([entityName, entityType], index) => ({
+        id: `00000000-0000-4000-8000-00000000000${index + 1}`,
+        entityType,
+        entityName,
+        createdAt: T,
+        lastMatchedUpdate: null
+      })),
+      matches: []
+    })
+  );
+  const hoursAgo = (hours: number) => new Date(Date.now() - hours * 3_600_000).toISOString();
+  const sourceEvents = Array.from({ length: 23 }, (_, index) => {
+    const type = (['patch', 'news', 'treasure'] as const)[index % 3]!;
+    const status = (['new', 'new', 'drafted', 'published', 'hidden'] as const)[index % 5]!;
+    return {
+      id: type === 'patch' ? `patch_notes:7.${41 - index}` : `steam_news:${1000 + index}`,
+      type,
+      title:
+        type === 'patch'
+          ? `Обновление 7.${41 - index}: баланс героев и предметов в Dota 2`
+          : type === 'treasure'
+            ? 'Сокровищница Международного 2026 уже доступна'
+            : 'Очень длинный заголовок новости про турнир и расписание групповой стадии на всю неделю',
+      sourceName: type === 'patch' ? 'Dota 2 · Patch notes' : 'Dota 2 · Steam News',
+      sourceUrl: 'https://www.dota2.com/news',
+      publishedAt: hoursAgo(2 + index * 9),
+      detectedAt: hoursAgo(1 + index * 9),
+      summary:
+        type === 'patch'
+          ? ''
+          : 'Valve рассказала о новых наградах, сроках и условиях участия. Подробности и список изменений доступны по ссылке на источник.',
+      facts:
+        type === 'patch'
+          ? ['Pudge', 'Axe', 'Lina', 'Phoenix', 'Mars']
+              .map((name) => ({ kind: 'hero', name }))
+              .concat([{ kind: 'item', name: 'Black King Bar' }])
+          : [],
+      watchHits: type === 'patch' ? [{ kind: 'hero', name: 'Pudge' }] : [],
+      status,
+      draft:
+        status === 'drafted' || status === 'published'
+          ? { postId: '11111111-1111-4111-8111-111111111111', title: 'Черновик' }
+          : null,
+      publication: status === 'published' ? { status: 'sent' } : null
+    };
+  });
+  await page.route(/\/api\/v1\/sources\/events(\?.*)?$/, (route) => {
+    const params = new URL(route.request().url()).searchParams;
+    const items = sourceEvents.filter(
+      (event) =>
+        (!params.get('status') || event.status === params.get('status')) &&
+        (!params.get('type') || event.type === params.get('type'))
+    );
+    const number = Number(params.get('page') ?? 1);
+    const limit = Number(params.get('limit') ?? 10);
+    return json(route, {
+      items: items.slice((number - 1) * limit, number * limit),
+      nextCursor: null,
+      page: number,
+      totalCount: items.length
+    });
+  });
+  await page.route('**/api/v1/dota/hero-statistics', (route) => {
+    const names = [
+      'Pudge',
+      'Axe',
+      'Lina',
+      'Phoenix',
+      'Mars',
+      'Juggernaut',
+      'Invoker',
+      'Sniper',
+      'Crystal Maiden',
+      'Tidehunter',
+      'Zeus',
+      'Viper'
+    ];
+    const snapshot = (shift: number, observedAt: string) => ({
+      observedAt,
+      heroes: names.map((name, index) => {
+        const picks = 4000 + index * 900;
+        const bracket = { picks, wins: Math.round(picks * (0.46 + ((index * 7) % 10) / 100 + shift)) };
+        return {
+          heroId: index + 1,
+          name,
+          ranked: Object.fromEntries(['1', '2', '3', '4', '5', '6', '7', '8'].map((id) => [id, bracket])),
+          professional: { picks: 200 + index * 10, wins: 100 + index * 5, bans: 50 }
+        };
+      })
+    });
+    return json(route, {
+      source: { name: 'OpenDota', url: 'https://www.opendota.com' },
+      health: 'healthy',
+      lastAttemptAt: hoursAgo(3),
+      lastSuccessAt: hoursAgo(3),
+      lastErrorCode: null,
+      latest: snapshot(0.01, hoursAgo(3)),
+      previous: snapshot(0, hoursAgo(170))
+    });
+  });
+  await page.route(/\/api\/v1\/sources\/events\/[^/]+\/(draft|hide|unhide)$/, (route) =>
+    json(route, { error: { code: 'CONFLICT', message: 'Event is hidden' } }, 409)
+  );
   await page.route(/\/api\/v1\/dashboard(\?.*)?$/, (route) => {
     const open = openIncidents();
     const attention = [
