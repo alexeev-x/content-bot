@@ -26,7 +26,9 @@ export const postsCopy = {
       searchHint: 'Название, текст, канал, статус',
       phoneSearch: 'Поиск',
       sort: 'Сортировка',
-      sortDefault: 'По умолчанию'
+      sortDefault: 'По умолчанию',
+      active: 'Включённые фильтры',
+      resetAll: 'Сбросить всё'
     },
     loadMore: 'Показать ещё',
     loadingMore: 'Загружаем…',
@@ -37,7 +39,9 @@ export const postsCopy = {
     filteredEmptyDescription: 'Откройте «Все», чтобы увидеть все посты.',
     showAll: 'Показать все посты',
     searchEmptyTitle: 'Ничего не найдено',
-    searchEmptyDescription: 'Попробуйте другой запрос или очистите поиск. Поиск идёт по загруженным постам.',
+    searchEmptyDescription: 'Попробуйте другой запрос или очистите поиск. Ищем по всем постам этой вкладки.',
+    searchFoundInArchive: (count: number) =>
+      `Здесь ничего нет, но в архиве совпадений: ${count}. Опубликованные посты уходят туда — откройте вкладку «Архив».`,
     errorTitle: 'Не удалось загрузить посты',
     errorMessage: 'Список не получен. Проверьте соединение и повторите.',
     forbiddenTitle: 'Нет доступа',

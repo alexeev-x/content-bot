@@ -5,6 +5,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { classifyApiError } from '../../../shared/api/error-kind';
 import { ApiError } from '../../../shared/api/http-client';
 import {
+  ActiveFilters,
   Button,
   EmptyState,
   ErrorState,
@@ -292,11 +293,6 @@ export function PostsList({
     </Button>
   ) : (
     <>
-      {!narrow && isSearching ? (
-        <Button variant="ghost" size="sm" icon="x" onPress={clearSearch}>
-          {ru.ui.clearSearch}
-        </Button>
-      ) : null}
       {ready && hasRows ? (
         <Button variant="ghost" size="sm" icon="check-circle" onPress={() => setSelectMode(true)}>
           {postsCopy.selection.select}
@@ -318,6 +314,12 @@ export function PostsList({
   );
 
   const totalCount = result.data?.totalCount ?? 0;
+  // An empty search outside Архив also asks the archive: a published post moved there, and the owner should know.
+  const archiveSearch = useQuery({
+    ...postsPageQueryOptions({ view: 'archive', q: query.trim() }, 1),
+    enabled: isSearching && !isArchive && !result.isPending && !result.isError && totalCount === 0
+  });
+  const archivedMatches = archiveSearch.data?.totalCount ?? 0;
   const lastPage = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
   const footer =
     ready && !noPostsAtAll ? (
@@ -341,6 +343,20 @@ export function PostsList({
 
   return (
     <section ref={rootRef} className={styles.list}>
+      <ActiveFilters
+        label={copy.filters.active}
+        resetLabel={copy.filters.resetAll}
+        onResetAll={() => {
+          clearSearch();
+          onSortChange(null);
+        }}
+        filters={[
+          ...(isSearching ? [{ id: 'q', label: `Поиск: «${query.trim()}»`, onRemove: clearSearch }] : []),
+          ...(sort !== null
+            ? [{ id: 'sort', label: `Сортировка: ${selectedSortLabel}`, onRemove: () => onSortChange(null) }]
+            : [])
+        ]}
+      />
       <Tabs
         selectedKey={view}
         onSelectionChange={(key) => {
@@ -409,7 +425,9 @@ export function PostsList({
                         }
                         description={
                           isSearching
-                            ? copy.searchEmptyDescription
+                            ? !isArchive && archivedMatches > 0
+                              ? copy.searchFoundInArchive(archivedMatches)
+                              : copy.searchEmptyDescription
                             : emptyIsFiltered
                               ? copy.filteredEmptyDescription
                               : copyFor.emptyDescription

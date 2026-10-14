@@ -13,6 +13,7 @@ import {
   publicationRowText
 } from '../../features/publications';
 import {
+  ActiveFilters,
   Button,
   EmptyState,
   ErrorState,
@@ -52,6 +53,12 @@ type Props = {
 
 const copy = publicationCopy;
 const NARROW = '(max-width: 859px)';
+
+/** «14 октября» in the owner's zone for the day chip; «выбранный» when the range has no start. */
+function dayChipLabel(from: string | undefined, timeZone: string): string {
+  if (from === undefined) return 'выбранный';
+  return new Intl.DateTimeFormat('ru-RU', { timeZone, day: 'numeric', month: 'long' }).format(new Date(from));
+}
 const CLEARED: Partial<PublicationsSearch> = { post: undefined, order: undefined };
 
 export function PublicationsPage({ search, onSearchChange, onOpenPosts, pollMs }: Props) {
@@ -211,6 +218,35 @@ export function PublicationsPage({ search, onSearchChange, onOpenPosts, pollMs }
             }
           />
         </div>
+        <ActiveFilters
+          label="Включённые фильтры"
+          resetLabel="Сбросить всё"
+          onResetAll={resetAll}
+          filters={[
+            ...(search.period !== undefined
+              ? [
+                  {
+                    id: 'period',
+                    label: `Период: ${periodOptions.find((option) => option.id === search.period)?.label ?? search.period}`,
+                    onRemove: () => onSearchChange({ period: undefined })
+                  }
+                ]
+              : []),
+            ...(search.from !== undefined || search.to !== undefined
+              ? [
+                  {
+                    id: 'day',
+                    label: `День: ${dayChipLabel(search.from, zone)}`,
+                    onRemove: () => onSearchChange({ from: undefined, to: undefined })
+                  }
+                ]
+              : []),
+            ...(search.post !== undefined
+              ? [{ id: 'post', label: 'Только один пост', onRemove: () => onSearchChange({ post: undefined }) }]
+              : []),
+            ...(isSearching ? [{ id: 'q', label: `Поиск: «${(search.q ?? '').trim()}»`, onRemove: clearSearch }] : [])
+          ]}
+        />
         <Tabs
           selectedKey={view}
           onSelectionChange={(key) => {

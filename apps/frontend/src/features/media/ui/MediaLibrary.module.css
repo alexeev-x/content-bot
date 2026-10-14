@@ -375,3 +375,10 @@
     grid-column: 1 / -1;
   }
 }
+
+.activeFilters:empty {
+  display: none;
+}
+.activeFilters {
+  padding: 0 var(--space-4) var(--space-3);
+}

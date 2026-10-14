@@ -7,6 +7,7 @@ import { PAGE_SIZE } from '../../../shared/api/page-query';
 import { useTabSwitch } from '../../../shared/api/use-tab-switch';
 import { ApiError } from '../../../shared/api/http-client';
 import {
+  ActiveFilters,
   Button,
   Checkbox,
   ConfirmDialog,
@@ -633,6 +634,39 @@ export function MediaLibrary({ searchState, onSearchState, onCreatePost, onLogin
                     />
                   </div>
                 )}
+              </div>
+              <div className={styles.activeFilters}>
+                <ActiveFilters
+                  label="Включённые фильтры"
+                  resetLabel="Сбросить всё"
+                  onResetAll={() => {
+                    setSearchInput('');
+                    onSearchState({ search: undefined, usage: undefined, id: undefined });
+                  }}
+                  filters={[
+                    ...((searchState.search ?? '') !== ''
+                      ? [
+                          {
+                            id: 'search',
+                            label: `Имя: «${searchState.search ?? ''}»`,
+                            onRemove: () => {
+                              setSearchInput('');
+                              onSearchState({ search: undefined });
+                            }
+                          }
+                        ]
+                      : []),
+                    ...(filters.usage !== 'all'
+                      ? [
+                          {
+                            id: 'usage',
+                            label: USAGE_OPTIONS.find((option) => option.id === filters.usage)?.label ?? filters.usage,
+                            onRemove: () => applyUsage('all')
+                          }
+                        ]
+                      : [])
+                  ]}
+                />
               </div>
               <div className={styles.content}>
                 <StaleRegion busy={switching}>{body}</StaleRegion>
