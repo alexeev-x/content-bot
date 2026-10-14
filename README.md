@@ -1,6 +1,6 @@
 # ALEXEEV Content Bot / Studio
 
-**Status:** in development, NOT production. What works and what is next: `docs/IMPLEMENTATION_PLAN.md`. Canon: `docs/BACKEND_ARCHITECTURE.md`, `docs/FRONTEND_ARCHITECTURE.md`, `docs/API_CONTRACTS.md`, `AGENTS.md`.
+**Status:** in development, NOT production. A new plan is being written (the old one was removed 14.10.2026). Canon: `docs/BACKEND_ARCHITECTURE.md`, `docs/FRONTEND_ARCHITECTURE.md`, `docs/API_CONTRACTS.md`, `AGENTS.md`.
 
 ## Structure
 ```text

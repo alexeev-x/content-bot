@@ -2,7 +2,7 @@
 
 Shared Claude Code/Codex rules. Talk Russian; code, identifiers, docs, commits and branches English.
 
-**Status:** in development, not in production; what works is in `docs/IMPLEMENTATION_PLAN.md`. Never describe planned parts as working.
+**Status:** in development, not in production. Old plan removed 14.10.2026, a new one is being written. Judge what works from code and tests; never describe planned parts as working.
 
 ## Layout
 - `apps/frontend/` (React SPA), `apps/backend/` (Hono Worker, D1), `apps/contracts/` (shared Zod DTOs); each has its own `AGENTS.md`.
@@ -12,7 +12,7 @@ Shared Claude Code/Codex rules. Talk Russian; code, identifiers, docs, commits a
 
 ## One fact, one place
 Edit a fact at its source; elsewhere only link to it.
-- Status and queue: `docs/IMPLEMENTATION_PLAN.md`. Decisions: `docs/DECISIONS.md`.
+- Decisions: `docs/DECISIONS.md`.
 - Screens and viewport widths: index `docs/design/UX_SPEC.md` → one file in `docs/design/ux/`; visual direction and tokens: `docs/design/README.md`.
 - API meaning: `docs/API_CONTRACTS.md`; shapes: `apps/contracts/src`.
 

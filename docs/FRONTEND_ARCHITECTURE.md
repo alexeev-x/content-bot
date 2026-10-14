@@ -1,6 +1,6 @@
 # CONTENT-BOT — FINAL FRONTEND ARCHITECTURE v1.0
 
-**Date:** 03.10.2026 · **Status:** approved technical direction, implemented in DEV; current state per page is in `docs/IMPLEMENTATION_PLAN.md` · **Product:** ALEXEEV Studio admin panel (working name), `apps/frontend/` in `content-bot`. Backend: `docs/BACKEND_ARCHITECTURE.md`.
+**Date:** 03.10.2026 · **Status:** approved technical direction, implemented in DEV · **Product:** ALEXEEV Studio admin panel (working name), `apps/frontend/` in `content-bot`. Backend: `docs/BACKEND_ARCHITECTURE.md`.
 
 > ALEXEEV Studio is the **primary full product control plane**, not a public SEO site and not a reduced admin MVP. SSR, Next.js, micro-frontends and heavy global state management are not needed at the start. The interface must provide polished browser/mobile control over content, publications, automations, sources/media/templates, operations, settings and analytics while preserving publishing safety.
 
