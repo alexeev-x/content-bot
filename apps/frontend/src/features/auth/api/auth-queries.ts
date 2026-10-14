@@ -21,7 +21,9 @@ export function useSignInWidget() {
   return useMutation({
     mutationFn: (user: TelegramWidgetSignInInput) => signInWithWidget(user),
     retry: false,
-    onSuccess: () => queryClient.clear()
+    // Before the token lands: clearing after it would drop the queries the freshly mounted shell already started,
+    // and their observers would wait on removed queries forever (owner name and channel card stuck as skeletons).
+    onMutate: () => queryClient.clear()
   });
 }
 
