@@ -3,7 +3,7 @@ import { useState, type ReactNode } from 'react';
 import { Button as AriaButton, Dialog, DialogTrigger, Popover } from 'react-aria-components';
 import { ru } from '../../shared/lib/ru';
 import { isInsideTelegram } from '../../shared/telegram/web-app';
-import { Drawer, Icon, Skeleton, useMediaQuery, VisuallyHidden } from '../../shared/ui';
+import { ConfirmDialog, Drawer, Icon, Skeleton, useMediaQuery, VisuallyHidden } from '../../shared/ui';
 import styles from './AccountMenu.module.css';
 
 type Props = {
@@ -33,6 +33,7 @@ function Avatar({ name, size, alert }: { name: string; size?: 'lg'; alert?: Prop
 export function AccountMenu({ ownerName, onLogout, iconOnly = false, isLoading = false, children, alert }: Props) {
   const wide = useMediaQuery('(min-width: 860px)');
   const [open, setOpen] = useState(false);
+  const [confirmLogout, setConfirmLogout] = useState(false);
   if (isLoading && !ownerName?.trim() && wide && !iconOnly) {
     return <Skeleton width={160} height="var(--size-button)" radius="var(--radius-pill)" />;
   }
@@ -58,7 +59,7 @@ export function AccountMenu({ ownerName, onLogout, iconOnly = false, isLoading =
             className={styles.row}
             onPress={() => {
               close();
-              onLogout();
+              setConfirmLogout(true);
             }}
           >
             <Icon name="log-out" size={18} />
@@ -81,6 +82,21 @@ export function AccountMenu({ ownerName, onLogout, iconOnly = false, isLoading =
     </AriaButton>
   );
 
+  const logoutDialog = onLogout ? (
+    <ConfirmDialog
+      isOpen={confirmLogout}
+      onOpenChange={setConfirmLogout}
+      title="Выйти из админки?"
+      description="Вход на этом устройстве будет сброшен. Чтобы вернуться, снова войдите через Telegram. Посты и расписание не изменятся."
+      confirmLabel="Да, выйти"
+      cancelLabel="Нет"
+      onConfirm={() => {
+        setConfirmLogout(false);
+        onLogout();
+      }}
+    />
+  ) : null;
+
   // Phones and Telegram get a bottom sheet: an anchored panel would hang off the screen edge there.
   if (!wide || isInsideTelegram()) {
     return (
@@ -89,17 +105,21 @@ export function AccountMenu({ ownerName, onLogout, iconOnly = false, isLoading =
         <Drawer variant="bottom" title={ru.auth.ownerMenu} isOpen={open} onOpenChange={setOpen}>
           <div className={styles.panel}>{content}</div>
         </Drawer>
+        {logoutDialog}
       </>
     );
   }
   return (
-    <DialogTrigger isOpen={open} onOpenChange={setOpen}>
-      {trigger}
-      <Popover placement="bottom end" offset={8} className={styles.popover}>
-        <Dialog aria-label={ru.auth.ownerMenu} className={styles.panel}>
-          {content}
-        </Dialog>
-      </Popover>
-    </DialogTrigger>
+    <>
+      <DialogTrigger isOpen={open} onOpenChange={setOpen}>
+        {trigger}
+        <Popover placement="bottom end" offset={8} className={styles.popover}>
+          <Dialog aria-label={ru.auth.ownerMenu} className={styles.panel}>
+            {content}
+          </Dialog>
+        </Popover>
+      </DialogTrigger>
+      {logoutDialog}
+    </>
   );
 }

@@ -6,7 +6,7 @@ import {
   createRouter,
   RouterProvider
 } from '@tanstack/react-router';
-import { cleanup, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { http, HttpResponse } from 'msw';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -250,6 +250,11 @@ describe('logout', () => {
     const trigger = (await screen.findAllByRole('button', { name: /Меню владельца/ }))[0]!;
     await user.click(trigger);
     await user.click(await screen.findByRole('button', { name: 'Выйти' }));
+    await user.click(
+      within(await screen.findByRole('alertdialog', { name: 'Выйти из админки?' })).getByRole('button', {
+        name: 'Да, выйти'
+      })
+    );
   }
 
   it('revokes on the server, clears the session and the query cache, and returns to the login page', async () => {
