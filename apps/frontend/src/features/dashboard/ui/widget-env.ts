@@ -1,6 +1,5 @@
 import type { ActivityItemDto, PostPageDto, PublicationPageDto } from '@alexeev/contracts';
 import type { UseQueryResult } from '@tanstack/react-query';
-import type { ChannelRow } from '../model/channel-rows';
 import type { ServiceRow } from '../model/service-rows';
 import type { DashboardView } from './view-model';
 
@@ -23,14 +22,8 @@ export type WidgetEnv = {
   onNewPost: () => void;
   /** Opens the publish screen of a draft. */
   onPublishDraft: (postId: string) => void;
-  /** Today's publications in the list (KPI tiles). */
-  onOpenToday: () => void;
-  /** Публикации → Ошибки (KPI tile). */
-  onOpenErrors: () => void;
   /** Today's studio events for the second lane of «Лента дня»; undefined while loading. */
   dayEvents: readonly ActivityItemDto[] | undefined;
   /** Opens the activity detail dialog with one event or the events of one dot. */
   onOpenActivity: (items: readonly ActivityItemDto[]) => void;
-  /** Connected channels with the bot's state; undefined while loading. */
-  channels: readonly ChannelRow[] | undefined;
 };

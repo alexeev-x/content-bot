@@ -3,21 +3,12 @@ import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
 import { useDocumentTitle } from '../app/use-document-title';
 import { useBotCheck } from '../features/bot';
-import {
-  Dashboard,
-  DateChip,
-  LayoutActions,
-  useDashboardQuery,
-  useLayoutEditing,
-  type ChannelRow,
-  type PageBindings,
-  type ServiceRow
-} from '../features/dashboard';
+import { Dashboard, DateChip, useDashboardQuery, type PageBindings, type ServiceRow } from '../features/dashboard';
 import { destinationsInfiniteQueryOptions } from '../features/destinations';
 import { MediaPanel, MediaThumb } from '../features/media';
 import { PublicationDrawer, publicationQueryOptions } from '../features/publications';
 import { useOwnerTimezone } from '../features/owner-settings';
-import { ownerDayRange, utcOffsetLabel } from '../shared/lib/owner-timezone';
+import { utcOffsetLabel } from '../shared/lib/owner-timezone';
 import { useNow } from '../shared/lib/use-now';
 import { checkWord, isSwitchedOff, useServiceChecks } from '../features/system-health';
 import { ru } from '../shared/lib/ru';
@@ -41,17 +32,10 @@ export function DashboardPage({ pollMs, openPublicationId, onOpenPublicationChan
   const bot = useBotCheck();
   const checks = [...service.checks, bot];
   const zoneNote = `${timezone}, ${utcOffsetLabel(now, timezone)}`;
-  const layout = useLayoutEditing();
   const [openMedia, setOpenMedia] = useState<{ id: string; fileName: string } | null>(null);
   const phone = useMediaQuery('(max-width: 859px)');
   const destinations = useInfiniteQuery(destinationsInfiniteQueryOptions({ enabled: true }));
   const destinationList = destinations.data?.pages.flatMap((page) => page.items);
-  const botTone: ChannelRow['tone'] = bot.tone === 'ok' ? 'ok' : bot.tone === 'loading' ? 'muted' : 'warn';
-  const channels: ChannelRow[] | undefined = destinationList?.map((destination) => ({
-    id: destination.id,
-    title: destination.title,
-    tone: botTone
-  }));
   const openPublication = (id: string | undefined) =>
     onOpenPublicationChange
       ? onOpenPublicationChange(id)
@@ -68,7 +52,6 @@ export function DashboardPage({ pollMs, openPublicationId, onOpenPublicationChan
 
   const bindings: PageBindings = {
     query: dashboard,
-    checks,
     services,
     zoneNote,
     timezone,
@@ -76,16 +59,9 @@ export function DashboardPage({ pollMs, openPublicationId, onOpenPublicationChan
     onOpenDay: (day) => void navigate({ to: '/publications', search: { from: day.from, to: day.to } }),
     onNewPost: () => void navigate({ to: '/posts/new' }),
     onPublishDraft: (id) => void navigate({ to: '/posts/$id/publish', params: { id } }),
-    onOpenToday: () => {
-      const day = ownerDayRange(now, timezone);
-      void navigate({ to: '/publications', search: { from: day.from, to: day.to } });
-    },
-    onOpenErrors: () => void navigate({ to: '/publications', search: { view: 'errors' } }),
     onOpenPost: (id) => void navigate({ to: '/posts/$id', params: { id } }),
     onOpenMedia: (media) => setOpenMedia(media),
-    renderMediaPreview: (media) => <MediaThumb mediaId={media.id} fileName={media.fileName} />,
-    channels,
-    layout
+    renderMediaPreview: (media) => <MediaThumb mediaId={media.id} fileName={media.fileName} />
   };
   // The panel's own detail query (same key): it tells which channel the message link belongs to.
   const openDetail = useQuery({
@@ -100,21 +76,15 @@ export function DashboardPage({ pollMs, openPublicationId, onOpenPublicationChan
         title={ru.pages.dashboard}
         description={ru.dashboard.description}
         actions={
-          layout.editing ? (
-            <LayoutActions editing={layout} />
-          ) : (
-            <>
-              <DateChip placement="header" zoneNote={zoneNote} timezone={timezone} />
-              <LayoutActions editing={layout}>
-                {/* On a phone the tab bar's «+» creates a post: no second button on the page. */}
-                {phone ? null : (
-                  <Button icon="plus" onPress={() => void navigate({ to: '/posts/new' })}>
-                    Новый пост
-                  </Button>
-                )}
-              </LayoutActions>
-            </>
-          )
+          <>
+            <DateChip placement="header" zoneNote={zoneNote} timezone={timezone} />
+            {/* On a phone the tab bar's «+» creates a post: no second button on the page. */}
+            {phone ? null : (
+              <Button icon="plus" onPress={() => void navigate({ to: '/posts/new' })}>
+                Новый пост
+              </Button>
+            )}
+          </>
         }
       />
       <Dashboard {...bindings} />

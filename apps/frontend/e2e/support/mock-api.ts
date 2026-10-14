@@ -215,15 +215,6 @@ export async function mockApi(page: Page): Promise<void> {
   await page.route('**/api/v1/**', (route) =>
     json(route, { error: { code: 'NOT_FOUND', message: 'not mocked', requestId: 'req-e2e' } }, 404)
   );
-  // The Обзор layout: never saved until the scenario saves one; a save bumps the revision like the server.
-  let layout: { revision: number; widgets: unknown[] } = { revision: 0, widgets: [] };
-  await page.route('**/api/v1/settings/dashboard-layout', (route) => {
-    if (route.request().method() === 'PUT') {
-      const body = route.request().postDataJSON() as { widgets: unknown[] };
-      layout = { revision: layout.revision + 1, widgets: body.widgets };
-    }
-    return json(route, layout);
-  });
   await page.route(/\/api\/v1\/publications\/[^/?]+\/history$/, (route) => json(route, { items: [] }));
   // Activity: a few events around «now» so the feed and the day lane have something to show.
   await page.route(/\/api\/v1\/activity(\?.*)?$/, (route) => {

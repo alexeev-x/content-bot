@@ -181,16 +181,7 @@ Schemas and error codes: `apps/contracts/src/settings.ts`.
 
 ### Dashboard layout
 
-Schemas and error codes: `apps/contracts/src/dashboard-layout.ts`. The Обзор widget grid (12 columns, react-grid-layout in edit mode only) is stored per owner with a revision.
-
-| Endpoint | Meaning |
-|---|---|
-| `GET /api/v1/settings/dashboard-layout` | `{ revision, widgets }`. Never saved → `{ revision: 0, widgets: [] }`: the frontend then applies its own default layout. After the first save an empty `widgets` is the owner's choice (everything removed) and is shown as is |
-| `PUT /api/v1/settings/dashboard-layout` | Body `{ revision, widgets }` replaces the whole layout; answers `{ revision: revision + 1, widgets }`. Stale or concurrent → `409` `CONFLICT` with `details.reason = STALE_REVISION`; invalid → `400` `VALIDATION_ERROR` with `details.reason` `OUT_OF_GRID` (x + w > 12), `DUPLICATE_WIDGET_ID` or `WIDGETS_OVERLAP`; body over 8 KB → `413` |
-
-A widget is `{ id, type, x, y, w, h }`: `id` 1–40 characters of `[a-z0-9-]`, unique; `x` 0–11, `y` 0–199, `w` 1–12, `h` 1–12; `x + w <= 12`; rectangles must not overlap (touching edges is fine); at most 40 widgets. `type` is one of `kpi-summary`, `kpi-today`, `kpi-sent`, `kpi-attention`, `kpi-next`, `attention`, `today`, `upcoming`, `recent`, `drafts`, `week`, `channels`, `incidents`, `system`, `quick-actions`. Removing a widget means leaving it out of the list. The data inside widgets comes from the existing endpoints (dashboard, posts, publications, destinations, incidents, system status); the layout carries no content. Analytics, top posts, Dota Pulse, sources, automations and media widgets are not types yet: adding a type later is an additive contract change (ship the frontend that renders it before saving it).
-
-Frontend usage: load with `GET`, show the default layout when `revision` is 0, send the revision you loaded on every `PUT`, replace local state with the response, and on `409` reload and let the owner redo the change. The server does not repair or re-pack a layout: send a valid one (resolve collisions in the grid first).
+Removed 14.10.2026 (owner): Обзор has one fixed layout, so `/api/v1/settings/dashboard-layout` no longer exists. The `dashboard_layout` table stays unused (expand-only migrations).
 
 ## Dota Intelligence (first read-only slice)
 

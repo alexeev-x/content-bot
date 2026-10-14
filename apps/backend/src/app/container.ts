@@ -8,12 +8,7 @@ import {
 } from '../modules/content';
 import { createD1LifecycleRepository, type LifecycleRepository } from '../modules/lifecycle';
 import { createD1SessionStore, parseOwnerTelegramId, type SessionStore } from '../modules/identity';
-import {
-  createD1DashboardLayoutRepository,
-  createD1SettingsRepository,
-  type DashboardLayoutRepository,
-  type SettingsRepository
-} from '../modules/settings';
+import { createD1SettingsRepository, type SettingsRepository } from '../modules/settings';
 import { type Clock, systemClock } from '../platform/clock';
 import { meterD1, type QueryBudget } from '../platform/d1-budget';
 import { createIdempotencyStore } from '../platform/idempotency/d1-idempotency-store';
@@ -100,8 +95,6 @@ export interface Container {
   lifecycle: LifecycleRepository;
   idempotency: IdempotencyGate;
   settings: SettingsRepository;
-  /** The owner's Обзор widget layout (migration 0012). */
-  dashboardLayout: DashboardLayoutRepository;
   activity: ActivityRepository;
   destinations: DestinationRepository;
   publications: PublicationRepository;
@@ -260,9 +253,6 @@ export function createContainer(env: ContainerEnv, overrides: ContainerOverrides
     },
     get settings() {
       return createD1SettingsRepository(db());
-    },
-    get dashboardLayout() {
-      return createD1DashboardLayoutRepository(db());
     },
     get activity() {
       return createD1ActivityRepository(db());

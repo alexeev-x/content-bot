@@ -3,7 +3,6 @@ export * from './analytics';
 export * from './automations';
 export * from './bot';
 export * from './dashboard';
-export * from './dashboard-layout';
 export * from './destinations';
 export * from './dota';
 export * from './dota-hero-statistics';

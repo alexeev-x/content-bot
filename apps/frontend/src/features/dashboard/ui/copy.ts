@@ -3,30 +3,6 @@ import { pluralRu } from '../../../shared/lib/ru-format';
 // Copy of the dashboard widgets. Publication status labels are canonical in shared/lib/ru.ts (skill page-spec).
 export const copy = {
   loading: 'Загружаем обзор…',
-  gaps: {
-    title: 'Пробелы в расписании',
-    loading: 'Считаем ближайшие дни…',
-    full: 'На каждый из ближайших 7 дней что-то запланировано.',
-    summary: (empty: number) => `Пустых дней на неделе вперёд: ${empty}. Нажмите на пустой день, чтобы создать пост.`,
-    day: (label: string, count: number, word: string) => `${label}: ${count} ${word}`,
-    emptyDay: (label: string) => `${label}: ничего не запланировано, создать пост`
-  },
-  inbox: {
-    title: 'Входящие от источников',
-    all: 'Источники',
-    empty: 'Новых событий из источников нет',
-    summary: (count: number) => `Ждут решения: ${count}`,
-    drafted: 'Черновик'
-  },
-  preflight: {
-    title: 'Проверка перед отправкой',
-    empty: 'Ближайших отправок нет',
-    allClear: 'Ничто не мешает ближайшим отправкам.',
-    summary: (count: number) => `Требуют внимания: ${count}`,
-    ready: 'готово к отправке',
-    channelOff: 'канал выключен или удалён',
-    botRights: 'у бота нет прав в канале'
-  },
   activity: {
     title: 'Активность',
     filter: 'Фильтр активности',
@@ -54,59 +30,6 @@ export const copy = {
     openPost: 'Открыть пост',
     openMedia: 'Открыть медиа',
     gone: 'Объект уже удалён'
-  },
-  kpi: {
-    sentCaption: (total: number) => `из ${total} за сегодня`,
-    allClear: 'всё в порядке',
-    needsLook: 'нужно посмотреть'
-  },
-  channels: {
-    title: 'Каналы',
-    all: 'Настроить',
-    empty: 'Канал не подключён',
-    state: { ok: 'бот публикует', warn: 'нужна проверка бота', muted: 'проверяем бота' }
-  },
-  edit: {
-    customize: 'Настроить обзор',
-    done: 'Готово',
-    cancel: 'Отмена',
-    reset: 'Сбросить',
-    add: 'Добавить виджет',
-    addShort: 'Добавить',
-    hint: 'Перетащите виджет за ручку, чтобы переставить, и тяните за правый край, чтобы сделать шире или уже. Изменения сохранятся по кнопке «Готово».',
-    grid: 'Виджеты обзора',
-    drag: (title: string) => `Перетащить «${title}»`,
-    menu: (title: string) => `Действия: «${title}»`,
-    width: 'Ширина',
-    widthOf: (title: string) => `Ширина «${title}»`,
-    earlier: 'Раньше',
-    later: 'Позже',
-    remove: 'Убрать',
-    removeLabel: (title: string) => `Убрать «${title}»`,
-    removed: (title: string) => `«${title}» убран`,
-    moved: (title: string, position: number, total: number) => `«${title}»: место ${position} из ${total}`,
-    resized: (title: string, width: string) => `«${title}»: ${width.toLowerCase()}`,
-    empty: 'На обзоре нет виджетов. Добавьте нужные из каталога.',
-    catalogTitle: 'Добавить виджет',
-    catalogLead: 'Добавленный виджет встаёт наверх обзора; переставить и изменить ширину можно сразу после.',
-    catalogWidths: (list: string) => `Ширина: ${list}`,
-    catalogClose: 'Закрыть',
-    onPage: 'На обзоре',
-    added: (title: string) => `«${title}» добавлен наверх обзора`,
-    addOne: 'Добавить',
-    saved: 'Обзор сохранён',
-    saveError: 'Не удалось сохранить обзор',
-    conflictTitle: 'Обзор изменили в другом окне',
-    conflictBody: 'Можно загрузить новую раскладку или сохранить свою поверх неё.',
-    reload: 'Загрузить заново',
-    keepMine: 'Сохранить мою',
-    discardTitle: 'Отменить изменения обзора?',
-    discardBody: 'Перестановки и новые виджеты не сохранятся.',
-    discard: 'Отменить изменения',
-    keepEditing: 'Продолжить настройку',
-    resetTitle: 'Вернуть стандартный обзор?',
-    resetBody: 'Виджеты встанут как было изначально. Сохранится только после «Готово».',
-    resetConfirm: 'Вернуть стандартный'
   },
   newPost: 'Новый пост',
   line: {
