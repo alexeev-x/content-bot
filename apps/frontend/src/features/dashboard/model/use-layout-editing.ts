@@ -6,7 +6,7 @@ import { dashboardLayoutQueryOptions, useSaveDashboardLayout } from '../api/layo
 import { copy } from '../ui/copy';
 import { addItem, sameLayout } from './layout-ops';
 import { useDashboardLayout } from './use-dashboard-layout';
-import { DEFAULT_LAYOUT, toServer, type LayoutItem, type WidgetKind } from './widget-catalog';
+import { CATALOG, DEFAULT_LAYOUT, toServer, type LayoutItem, type WidgetKind } from './widget-catalog';
 
 /**
  * The Обзор layout and its edit mode. A draft lives only on this screen until «Готово»; the save sends the revision
@@ -62,7 +62,10 @@ export function useLayoutEditing() {
       setDraft(items);
       setAnnouncement(message);
     },
-    add: (kind: WidgetKind) => setDraft((current) => addItem(current ?? layout.items, kind)),
+    add: (kind: WidgetKind) => {
+      setDraft((current) => addItem(current ?? layout.items, kind));
+      setAnnouncement(copy.edit.added(CATALOG[kind].title));
+    },
     reset: () => setDraft([...DEFAULT_LAYOUT]),
     cancel: finish,
     done: () => {

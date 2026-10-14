@@ -27,8 +27,6 @@ export type WidgetEnv = {
   onOpenToday: () => void;
   /** Публикации → Ошибки (KPI tile). */
   onOpenErrors: () => void;
-  /** Plain navigation for the quick actions. */
-  onNavigate: (to: '/media' | '/publications' | '/sources') => void;
   /** Connected channels with the bot's state; undefined while loading. */
   channels: readonly ChannelRow[] | undefined;
 };

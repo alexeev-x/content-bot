@@ -13,7 +13,6 @@ import { DayTimeline } from './DayTimeline';
 import { Drafts } from './Drafts';
 import { KpiTile } from './KpiTile';
 import { NextUp } from './NextUp';
-import { QuickActions } from './QuickActions';
 import { RecentBubbles } from './RecentBubbles';
 import { SystemLights } from './SystemLights';
 import { WeekBars } from './WeekBars';
@@ -30,7 +29,7 @@ type LayoutProps = {
   zoneNote: string;
 };
 
-function renderWidget(item: LayoutItem, env: Omit<WidgetEnv, 'phone'>, phone: boolean): ReactNode {
+export function renderWidget(item: LayoutItem, env: Omit<WidgetEnv, 'phone'>, phone: boolean): ReactNode {
   const { view, timezone, now } = env;
   const dashboard = view?.dashboard;
   switch (item.kind) {
@@ -83,8 +82,6 @@ function renderWidget(item: LayoutItem, env: Omit<WidgetEnv, 'phone'>, phone: bo
       );
     case 'system':
       return <SystemLights services={env.services} />;
-    case 'quick-actions':
-      return <QuickActions env={env} />;
     case 'channels':
       return <Channels channels={env.channels} />;
     case 'kpi-today':

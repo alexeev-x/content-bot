@@ -9,7 +9,6 @@ export type WidgetKind =
   | 'drafts'
   | 'recent'
   | 'system'
-  | 'quick-actions'
   | 'channels'
   | 'kpi-today'
   | 'kpi-sent'
@@ -74,12 +73,6 @@ export const CATALOG: Record<WidgetKind, CatalogEntry> = {
     description: 'Сервис, публикация и бот: работает ли всё.',
     widths: [4, 6, 12],
     defaultWidth: 12
-  },
-  'quick-actions': {
-    title: 'Быстрые действия',
-    description: 'Новый пост, загрузка медиа, публикация и источники в одно нажатие.',
-    widths: [4, 6, 12],
-    defaultWidth: 4
   },
   channels: {
     title: 'Каналы',

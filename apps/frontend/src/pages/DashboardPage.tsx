@@ -77,7 +77,6 @@ export function DashboardPage({ pollMs, openPublicationId, onOpenPublicationChan
       void navigate({ to: '/publications', search: { from: day.from, to: day.to } });
     },
     onOpenErrors: () => void navigate({ to: '/publications', search: { view: 'errors' } }),
-    onNavigate: (to) => void navigate({ to }),
     channels,
     layout
   };

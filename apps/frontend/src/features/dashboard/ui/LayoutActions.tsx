@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Button, ConfirmDialog } from '../../../shared/ui';
+import { Button, ConfirmDialog, IconButton } from '../../../shared/ui';
 import type { useLayoutEditing } from '../model/use-layout-editing';
 import { copy } from './copy';
 import { WidgetCatalogDialog } from './WidgetCatalogDialog';
@@ -14,9 +14,13 @@ export function LayoutActions({ editing, children }: { editing: LayoutEditing; c
   if (!editing.editing) {
     return (
       <>
-        <Button variant="secondary" icon="grid" isDisabled={!editing.canEdit} onPress={editing.start}>
-          {copy.edit.customize}
-        </Button>
+        <IconButton
+          icon="grid"
+          variant="secondary"
+          label={copy.edit.customize}
+          isDisabled={!editing.canEdit}
+          onPress={editing.start}
+        />
         {children}
       </>
     );

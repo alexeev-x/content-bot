@@ -33,7 +33,6 @@ export type PageBindings = {
   onPublishDraft: (postId: string) => void;
   onOpenToday: () => void;
   onOpenErrors: () => void;
-  onNavigate: (to: '/media' | '/publications' | '/sources') => void;
   channels: readonly ChannelRow[] | undefined;
   /** The owner's layout and its edit mode (`useLayoutEditing`). */
   layout: LayoutEditing;
@@ -52,7 +51,6 @@ export function Dashboard({
   onPublishDraft,
   onOpenToday,
   onOpenErrors,
-  onNavigate,
   channels,
   layout
 }: PageBindings) {
@@ -126,7 +124,24 @@ export function Dashboard({
         {layout.items.length === 0 ? (
           <p className={styles.quiet}>{copy.edit.empty}</p>
         ) : (
-          <LayoutEditor items={layout.items} onChange={layout.change} />
+          <LayoutEditor
+            items={layout.items}
+            onChange={layout.change}
+            env={{
+              view,
+              services,
+              week,
+              drafts,
+              timezone,
+              onOpenPublication,
+              onOpenDay,
+              onNewPost,
+              onPublishDraft,
+              onOpenToday,
+              onOpenErrors,
+              channels
+            }}
+          />
         )}
       </div>
     );
@@ -152,7 +167,6 @@ export function Dashboard({
         onPublishDraft,
         onOpenToday,
         onOpenErrors,
-        onNavigate,
         channels
       }}
     />

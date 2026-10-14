@@ -1,5 +1,5 @@
-import { Button, Dialog } from '../../../shared/ui';
-import { CATALOG, WIDGET_KINDS, type LayoutItem, type WidgetKind } from '../model/widget-catalog';
+import { Button, Drawer, Icon, type IconName } from '../../../shared/ui';
+import { CATALOG, WIDGET_KINDS, WIDTH_LABELS, type LayoutItem, type WidgetKind } from '../model/widget-catalog';
 import { copy } from './copy';
 import styles from './WidgetCatalogDialog.module.css';
 
@@ -10,37 +10,75 @@ type Props = {
   onAdd: (kind: WidgetKind) => void;
 };
 
-/** The widgets not yet on Обзор, each with what it shows; adding puts it at the top of the draft. */
+const ICONS: Record<WidgetKind, IconName> = {
+  today: 'clock',
+  upcoming: 'calendar',
+  attention: 'alert',
+  week: 'grid',
+  drafts: 'edit',
+  recent: 'send',
+  system: 'monitor',
+  channels: 'channel',
+  'kpi-today': 'calendar',
+  'kpi-sent': 'check-circle',
+  'kpi-attention': 'alert',
+  'kpi-next': 'clock'
+};
+
+/**
+ * Every widget with what it shows, in a side panel on desktop (a full sheet on phones). It stays open while the
+ * owner adds several; a widget already on Обзор is marked instead of offered twice.
+ */
 export function WidgetCatalogDialog({ isOpen, onOpenChange, items, onAdd }: Props) {
-  const available = WIDGET_KINDS.filter((kind) => !items.some((item) => item.kind === kind));
+  const onPage = new Set(items.map((item) => item.kind));
   return (
-    <Dialog isOpen={isOpen} onOpenChange={onOpenChange} title={copy.edit.catalogTitle}>
-      {available.length === 0 ? (
-        <p className={styles.empty}>{copy.edit.catalogEmpty}</p>
-      ) : (
-        <ul className={styles.list}>
-          {available.map((kind) => (
-            <li key={kind} className={styles.row}>
-              <span className={styles.text}>
-                <span className={styles.title}>{CATALOG[kind].title}</span>
-                <span className={styles.description}>{CATALOG[kind].description}</span>
+    <Drawer
+      isOpen={isOpen}
+      onOpenChange={onOpenChange}
+      title={copy.edit.catalogTitle}
+      footer={
+        <Button variant="secondary" onPress={() => onOpenChange(false)}>
+          {copy.edit.catalogClose}
+        </Button>
+      }
+    >
+      <p className={styles.lead}>{copy.edit.catalogLead}</p>
+      <ul className={styles.list}>
+        {WIDGET_KINDS.map((kind) => {
+          const entry = CATALOG[kind];
+          const added = onPage.has(kind);
+          return (
+            <li key={kind} className={styles.row} data-added={added || undefined}>
+              <span className={styles.icon} aria-hidden="true">
+                <Icon name={ICONS[kind]} size={20} />
               </span>
-              <Button
-                size="sm"
-                variant="secondary"
-                icon="plus"
-                aria-label={`${copy.edit.addOne}: ${CATALOG[kind].title}`}
-                onPress={() => {
-                  onAdd(kind);
-                  onOpenChange(false);
-                }}
-              >
-                {copy.edit.addOne}
-              </Button>
+              <span className={styles.text}>
+                <span className={styles.title}>{entry.title}</span>
+                <span className={styles.description}>{entry.description}</span>
+                <span className={styles.widths}>
+                  {copy.edit.catalogWidths(entry.widths.map((w) => WIDTH_LABELS[w].toLowerCase()).join(', '))}
+                </span>
+              </span>
+              {added ? (
+                <span className={styles.added}>
+                  <Icon name="check" size={16} />
+                  {copy.edit.onPage}
+                </span>
+              ) : (
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  icon="plus"
+                  aria-label={`${copy.edit.addOne}: ${entry.title}`}
+                  onPress={() => onAdd(kind)}
+                >
+                  {copy.edit.addOne}
+                </Button>
+              )}
             </li>
-          ))}
-        </ul>
-      )}
-    </Dialog>
+          );
+        })}
+      </ul>
+    </Drawer>
   );
 }

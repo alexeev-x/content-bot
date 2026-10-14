@@ -1,38 +1,46 @@
+/* A widget in edit mode: its real content under a thin control bar, framed so the owner sees it is movable. */
 .card {
   display: flex;
   flex-direction: column;
-  gap: var(--space-2);
   height: 100%;
-  min-height: 9rem;
-  padding: var(--space-2) var(--space-3) var(--space-3);
-  border: 1px dashed var(--color-border-strong);
+  border: 2px dashed var(--color-border-strong);
   border-radius: var(--radius-3);
-  background: var(--color-surface-1);
+  background: var(--color-surface-2);
 }
-.head {
+.card[data-resizing] {
+  border-color: var(--color-accent);
+}
+.bar {
   display: flex;
   align-items: center;
   gap: var(--space-1);
   min-width: 0;
+  padding: 0 var(--space-1) 0 0;
 }
 .title {
   flex: 1;
   min-width: 0;
   overflow: hidden;
-  font-size: var(--font-size-md);
+  font-size: var(--font-size-sm);
   font-weight: var(--font-weight-semibold);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.description {
-  margin: 0;
+.width {
+  flex: none;
   color: var(--color-text-muted);
-  font-size: var(--font-size-sm);
+  font-size: var(--font-size-xs);
+  font-variant-numeric: tabular-nums;
 }
-.tools {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-2);
-  margin-top: auto;
+.card[data-resizing] .width {
+  color: var(--color-accent-text);
+  font-weight: var(--font-weight-semibold);
+}
+/* The live widget, not interactive while arranging: presses go to the bar and the grips only. */
+.preview {
+  flex: 1;
+  min-height: 0;
+  padding: 0 var(--space-2) var(--space-2);
+  pointer-events: none;
+  user-select: none;
 }

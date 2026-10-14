@@ -8,13 +8,6 @@ export const copy = {
     allClear: 'всё в порядке',
     needsLook: 'нужно посмотреть'
   },
-  quick: {
-    title: 'Быстрые действия',
-    newPost: 'Новый пост',
-    upload: 'Загрузить медиа',
-    publications: 'Публикации',
-    sources: 'Источники'
-  },
   channels: {
     title: 'Каналы',
     all: 'Настроить',
@@ -22,16 +15,17 @@ export const copy = {
     state: { ok: 'бот публикует', warn: 'нужна проверка бота', muted: 'проверяем бота' }
   },
   edit: {
-    customize: 'Настроить',
+    customize: 'Настроить обзор',
     done: 'Готово',
     cancel: 'Отмена',
     reset: 'Сбросить',
     add: 'Добавить виджет',
-    hint: 'Перетащите виджет за ручку или используйте меню виджета. Изменения сохранятся по кнопке «Готово».',
+    hint: 'Перетащите виджет за ручку, чтобы переставить, и тяните за правый край, чтобы сделать шире или уже. Изменения сохранятся по кнопке «Готово».',
     grid: 'Виджеты обзора',
     drag: (title: string) => `Перетащить «${title}»`,
     menu: (title: string) => `Действия: «${title}»`,
     width: 'Ширина',
+    widthOf: (title: string) => `Ширина «${title}»`,
     earlier: 'Раньше',
     later: 'Позже',
     remove: 'Убрать',
@@ -41,7 +35,11 @@ export const copy = {
     resized: (title: string, width: string) => `«${title}»: ${width.toLowerCase()}`,
     empty: 'На обзоре нет виджетов. Добавьте нужные из каталога.',
     catalogTitle: 'Добавить виджет',
-    catalogEmpty: 'Все виджеты уже на обзоре.',
+    catalogLead: 'Добавленный виджет встаёт наверх обзора; переставить и изменить ширину можно сразу после.',
+    catalogWidths: (list: string) => `Ширина: ${list}`,
+    catalogClose: 'Закрыть',
+    onPage: 'На обзоре',
+    added: (title: string) => `«${title}» добавлен наверх обзора`,
     addOne: 'Добавить',
     saved: 'Обзор сохранён',
     saveError: 'Не удалось сохранить обзор',
