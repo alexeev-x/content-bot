@@ -5,7 +5,7 @@
 
   Theme selection is by attributes, on <html> or on any wrapper (the catalog nests themes):
     data-theme="light|dark"
-    data-accent="blue|orange|violet|teal|green|pink|red|graphite|custom"  (one accent, both themes)
+    data-accent="blue|orange|violet|teal|green|pink|red|graphite|custom"  (a theme preset: accent plus tinted neutrals; teal and pink are legacy)
     data-density="compact"  (on <html> only; Normal = no attribute)
   No attributes = dark + blue, the default.
 
@@ -452,4 +452,100 @@
 [data-theme='light'][data-accent='orange'] {
   --color-status-unknown-fg: #745700;
   --color-status-unknown-bg: rgba(230, 190, 20, 0.2);
+}
+
+/* ===== Themes (owner, 14.10.2026): each preset also tints the neutrals, in both modes. «Графит» and «Своя»
+   keep the plain neutrals above. Text and status colours stay the same, so their contrast is unchanged. ===== */
+/* Telegram: cool blue-grey (dark) */
+[data-theme='dark'][data-accent='blue'],
+[data-theme='dark']:not([data-accent]),
+:root:not([data-theme]) {
+  --color-bg: #0b0f14;
+  --color-surface-1: #10161d;
+  --color-surface-2: #161e27;
+  --color-surface-3: #1f2935;
+  --color-border-subtle: #233040;
+  --color-border-strong: #3a4b5e;
+}
+/* Telegram: cool blue-grey (light) */
+[data-theme='light'][data-accent='blue'],
+[data-theme='light']:not([data-accent]) {
+  --color-bg: #f3f6f9;
+  --color-surface-1: #ffffff;
+  --color-surface-2: #eef2f6;
+  --color-surface-3: #e2e8ef;
+  --color-border-subtle: #dce3ea;
+  --color-border-strong: #bcc8d4;
+}
+/* Полночь: blue-black (dark) */
+[data-theme='dark'][data-accent='violet'] {
+  --color-bg: #0b0b16;
+  --color-surface-1: #11111f;
+  --color-surface-2: #181829;
+  --color-surface-3: #222236;
+  --color-border-subtle: #26263d;
+  --color-border-strong: #3e3e5c;
+}
+/* Полночь: blue-black (light) */
+[data-theme='light'][data-accent='violet'] {
+  --color-bg: #f5f4fb;
+  --color-surface-1: #ffffff;
+  --color-surface-2: #f0eef9;
+  --color-surface-3: #e5e2f3;
+  --color-border-subtle: #e2dff0;
+  --color-border-strong: #c6c1dd;
+}
+/* Dota: warm black (dark) */
+[data-theme='dark'][data-accent='red'] {
+  --color-bg: #0f0a09;
+  --color-surface-1: #160f0d;
+  --color-surface-2: #1e1513;
+  --color-surface-3: #2a1d1a;
+  --color-border-subtle: #2e211e;
+  --color-border-strong: #4b3632;
+}
+/* Dota: warm black (light) */
+[data-theme='light'][data-accent='red'] {
+  --color-bg: #f8f4f2;
+  --color-surface-1: #ffffff;
+  --color-surface-2: #f4eeeb;
+  --color-surface-3: #ebe2de;
+  --color-border-subtle: #e7dcd7;
+  --color-border-strong: #cdbcb5;
+}
+/* Бумага: warm paper (dark) */
+[data-theme='dark'][data-accent='orange'] {
+  --color-bg: #12100c;
+  --color-surface-1: #191611;
+  --color-surface-2: #211d17;
+  --color-surface-3: #2c2720;
+  --color-border-subtle: #302a22;
+  --color-border-strong: #4d4538;
+}
+/* Бумага: warm paper (light) */
+[data-theme='light'][data-accent='orange'] {
+  --color-bg: #f6f1e7;
+  --color-surface-1: #fffdf8;
+  --color-surface-2: #f1eadc;
+  --color-surface-3: #e8dfcd;
+  --color-border-subtle: #e4dac7;
+  --color-border-strong: #cbbda4;
+}
+/* Лес: green-grey (dark) */
+[data-theme='dark'][data-accent='green'] {
+  --color-bg: #0a0f0c;
+  --color-surface-1: #0f1612;
+  --color-surface-2: #151e19;
+  --color-surface-3: #1e2a23;
+  --color-border-subtle: #212d26;
+  --color-border-strong: #364a3e;
+}
+/* Лес: green-grey (light) */
+[data-theme='light'][data-accent='green'] {
+  --color-bg: #f3f7f4;
+  --color-surface-1: #ffffff;
+  --color-surface-2: #edf3ef;
+  --color-surface-3: #e1eae4;
+  --color-border-subtle: #dce5df;
+  --color-border-strong: #bccbc1;
 }

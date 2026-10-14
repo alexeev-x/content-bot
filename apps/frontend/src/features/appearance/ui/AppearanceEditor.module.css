@@ -6,22 +6,14 @@
 .body {
   padding: var(--space-4);
 }
-.accentRow {
+.themeBody {
   display: grid;
   gap: var(--space-4);
-  min-width: 0;
-}
-@media (min-width: 1180px) {
-  .accentRow {
-    grid-template-columns: minmax(0, 1fr) 280px;
-    align-items: start;
-  }
 }
 
 .custom {
   display: grid;
   gap: var(--space-3);
-  margin-top: var(--space-4);
   padding-top: var(--space-4);
   border-top: 1px solid var(--color-border-subtle);
 }

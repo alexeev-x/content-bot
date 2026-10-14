@@ -1,5 +1,6 @@
 export {
   ACCENT_IDS,
+  THEME_PRESET_IDS,
   CUSTOM_ACCENT_ID,
   DEFAULT_CUSTOM_COLOR,
   accentFromStored,

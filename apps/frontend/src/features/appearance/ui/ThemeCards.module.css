@@ -1,0 +1,134 @@
+.group {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(9.5rem, 45%), 1fr));
+  gap: var(--space-3);
+}
+/* Each card carries data-theme/data-accent, so everything inside resolves to that theme's own tokens. */
+.card {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-3);
+  background: var(--color-surface-1);
+  color: var(--color-text);
+  cursor: pointer;
+  outline: none;
+  transition:
+    border-color var(--motion-fast) ease,
+    box-shadow var(--motion-fast) ease;
+}
+.card[data-hovered] {
+  border-color: var(--color-accent);
+}
+.card[data-selected] {
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 2px var(--color-accent);
+}
+.card[data-focus-visible] {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 3px;
+}
+.mini {
+  display: grid;
+  grid-template-columns: 28% 1fr;
+  height: 84px;
+  background: var(--color-bg);
+}
+.side {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 8px;
+  border-inline-end: 1px solid var(--color-border-subtle);
+  background: var(--color-surface-1);
+}
+.nav,
+.navOn {
+  height: 6px;
+  border-radius: var(--radius-pill);
+  background: var(--color-surface-3);
+}
+.navOn {
+  background: var(--color-accent);
+}
+.main {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+}
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 8px;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-1);
+  background: var(--color-surface-1);
+}
+.line,
+.lineStrong {
+  height: 5px;
+  border-radius: var(--radius-pill);
+  background: var(--color-border-strong);
+}
+.lineStrong {
+  width: 70%;
+  background: var(--color-text-muted);
+}
+.line {
+  width: 45%;
+}
+.chip {
+  width: 32%;
+  height: 8px;
+  border-radius: var(--radius-pill);
+  background: var(--color-status-done-bg);
+  box-shadow: inset 0 0 0 1px var(--color-status-done-ring);
+}
+.button {
+  align-self: flex-end;
+  width: 40%;
+  height: 14px;
+  border-radius: var(--radius-1);
+  background: var(--color-accent);
+}
+.caption {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border-top: 1px solid var(--color-border-subtle);
+}
+.text {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+.name {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+}
+.hint {
+  overflow: hidden;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.check {
+  display: inline-grid;
+  flex: none;
+  width: 22px;
+  height: 22px;
+  place-items: center;
+  border-radius: var(--radius-pill);
+  background: var(--color-accent);
+  color: var(--color-on-accent);
+  opacity: 0;
+}
+.card[data-selected] .check {
+  opacity: 1;
+}

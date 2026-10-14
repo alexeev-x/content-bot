@@ -5,6 +5,16 @@ export const ACCENT_IDS = ['blue', 'orange', 'violet', 'teal', 'green', 'pink', 
 export type AccentId = (typeof ACCENT_IDS)[number];
 export const DEFAULT_ACCENT: AccentId = 'blue';
 
+/** The six themes the owner picks from (owner, 14.10.2026), in display order; teal and pink stay valid but are not offered. */
+export const THEME_PRESET_IDS = [
+  'blue',
+  'violet',
+  'red',
+  'orange',
+  'green',
+  'graphite'
+] as const satisfies readonly AccentId[];
+
 export const isAccentId = (value: unknown): value is AccentId =>
   typeof value === 'string' && (ACCENT_IDS as readonly string[]).includes(value);
 
