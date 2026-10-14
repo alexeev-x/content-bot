@@ -6,6 +6,7 @@ import type {
   ManualObservationInput,
   ManualObservationQuery,
   PostEntity,
+  PostMediaDto,
   PublicationAnalyticsQuery,
   PublicationAnalyticsReportDto,
   PublicationDto,
@@ -288,6 +289,15 @@ export interface PublicationRecord {
   updatedAt: number;
   /** The publication's job: delivery state has exactly one owner. */
   job: JobSnapshot;
+  /** True once the owner deleted the post; the publication stays as history. */
+  postDeleted?: boolean;
+  /** The revision that was sent; set only with `postDeleted`, and only by the read paths that list or open it. */
+  postSnapshot?: {
+    title: string;
+    body: string;
+    entities: PostEntity[];
+    media: PostMediaDto[];
+  };
 }
 
 export interface NewPublication {

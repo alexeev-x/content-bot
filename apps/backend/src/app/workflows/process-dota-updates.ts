@@ -183,7 +183,7 @@ export async function processDotaUpdates(deps: {
         { repo: deps.posts, idempotency: deps.idempotency, now: deps.now(), newId: () => reservedId },
         {
           actor: deps.actor,
-          idempotencyKey: `dota:${source.sourceKey}:${source.externalId}`,
+          idempotencyKey: `dota:${source.sourceKey}:${source.externalId}:${reservedId}`,
           input
         }
       );

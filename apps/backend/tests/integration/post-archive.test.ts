@@ -554,15 +554,23 @@ describe('the Cron purge', () => {
     await tick.run();
 
     expect(tickCount(tick, 'purgedPosts')).toBe(1);
+    // The post was sent, so it stays as a tombstone with its publication, job, attempt and sent revision.
     expect(await tableCounts()).toEqual({
-      posts: 0,
-      post_revisions: 0,
-      publications: 0,
-      jobs: 0,
-      job_attempts: 0,
+      posts: 1,
+      post_revisions: 1,
+      publications: 1,
+      jobs: 1,
+      job_attempts: 1,
       incidents: 0
     });
+    expect(await count('posts', 'deleted_at IS NOT NULL')).toBe(1);
     expect(transport.calls).toHaveLength(0);
+    // A later purge never picks the tombstone up again.
+    clock.set(START + 2 * ARCHIVE_RETENTION_MS);
+    const later = makeTick({ clock, transport: fakeTransport(SENT), scheduledTime: PURGE_TICK });
+    await later.run();
+    expect(tickCount(later, 'purgedPosts')).toBe(0);
+    expect(await count('audit_log', "action = 'post.purge'")).toBe(1);
     const audit = await testDb()
       .prepare("SELECT actor_telegram_id, entity_id FROM audit_log WHERE action = 'post.purge'")
       .all();

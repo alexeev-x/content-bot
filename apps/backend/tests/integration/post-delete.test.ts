@@ -77,7 +77,7 @@ describe('POST /api/v1/posts/{id}/delete', () => {
       {
         actor_telegram_id: OWNER_ID,
         entity_id: draft.id,
-        details: '{"revision":0,"cancelledPublications":0,"removedPublications":0}'
+        details: '{"revision":0,"soft":0,"cancelledPublications":0,"removedPublications":0}'
       }
     ]);
 
@@ -133,7 +133,7 @@ describe('POST /api/v1/posts/{id}/delete', () => {
     expect(transport.calls).toHaveLength(0);
   });
 
-  it('removes final publication records, their attempts and incidents with a sent post', async () => {
+  it('keeps the sent publication with its attempts and incidents, and hides the post (a tombstone)', async () => {
     const sent = await seedSentPost(api, clock);
     const failed = await seedDueJob(api);
     expect(await count('job_attempts')).toBe(1);
@@ -148,16 +148,38 @@ describe('POST /api/v1/posts/{id}/delete', () => {
     expect((await del(post.id, post.revision)).status).toBe(200);
 
     expect(await tableCounts()).toMatchObject({
-      posts: 1,
-      post_revisions: 2,
-      publications: 1,
-      jobs: 1,
-      job_attempts: 0,
-      incidents: 0
+      posts: 2,
+      post_revisions: 3,
+      publications: 2,
+      jobs: 2,
+      job_attempts: 1,
+      incidents: 1
     });
+    expect(await count('posts', `id = '${sent.postId}' AND deleted_at IS NOT NULL`)).toBe(1);
     // The other post and its publication are untouched.
     expect(await jobOf(failed.publicationId)).toMatchObject({ status: 'pending' });
-    expect(await count('audit_log', `action = 'post.delete' AND details LIKE '%"removedPublications":1%'`)).toBe(1);
+    expect(await count('audit_log', `action = 'post.delete' AND details LIKE '%"soft":1%'`)).toBe(1);
+  });
+
+  it('hard-deletes the tombstone with its revisions once its last sent publication is deleted', async () => {
+    const sent = await seedSentPost(api, clock);
+    const post = await getPost(api, sent.postId);
+    expect((await del(post.id, post.revision)).status).toBe(200);
+    expect(await count('posts', `id = '${sent.postId}' AND deleted_at IS NOT NULL`)).toBe(1);
+    const publication = await testDb()
+      .prepare('SELECT revision FROM publications WHERE id = ?1')
+      .bind(sent.publicationId)
+      .first<{ revision: number }>();
+
+    const response = await api.request(`/api/v1/publications/${sent.publicationId}/delete`, {
+      method: 'POST',
+      json: { revision: publication?.revision }
+    });
+
+    expect(response.status).toBe(200);
+    expect(await postRow(sent.postId)).toBeNull();
+    expect(await count('post_revisions', `post_id = '${sent.postId}'`)).toBe(0);
+    expect(await count('publications', `id = '${sent.publicationId}'`)).toBe(0);
   });
 
   it.each([
@@ -220,6 +242,51 @@ describe('POST /api/v1/posts/{id}/delete', () => {
       'UNAUTHORIZED'
     );
     expect(await postRow(draft.id)).not.toBeNull();
+  });
+});
+
+describe('a deleted post that was sent stays in the publications history', () => {
+  it('the publication keeps the sent snapshot with postDeleted; the post disappears from every post view', async () => {
+    const sent = await seedSentPost(api, clock);
+    const post = await getPost(api, sent.postId);
+    expect((await del(post.id, post.revision)).status).toBe(200);
+
+    const detail = publicationSchema.parse(
+      await (await api.request(`/api/v1/publications/${sent.publicationId}`)).json()
+    );
+    expect(detail).toMatchObject({
+      id: sent.publicationId,
+      status: 'sent',
+      postDeleted: true,
+      postSnapshot: { title: post.title, body: post.body, entities: [], media: [] }
+    });
+    expect(detail.externalMessageId).toBeDefined();
+    const list = (await (await api.request('/api/v1/publications?limit=50')).json()) as { items: { id: string }[] };
+    expect(list.items.map((item) => item.id)).toEqual([sent.publicationId]);
+
+    await expectError(await api.request(`/api/v1/posts/${post.id}`), 404, 'NOT_FOUND');
+    for (const view of ['live', 'archive']) {
+      const page = postPageSchema.parse(await (await api.request(`/api/v1/posts?view=${view}`)).json());
+      expect(page).toMatchObject({ items: [], archivedCount: 0 });
+    }
+    expect(postPageSchema.parse(await (await api.request('/api/v1/posts?q=Sent+post')).json()).items).toEqual([]);
+    await expectError(await del(post.id, post.revision), 404, 'NOT_FOUND');
+    await expectError(
+      await api.request(`/api/v1/posts/${post.id}/restore`, { method: 'POST', json: { revision: post.revision } }),
+      404,
+      'NOT_FOUND'
+    );
+    expect(await count('audit_log', "action = 'post.delete'")).toBe(1);
+  });
+
+  it('an unsent post is still removed completely', async () => {
+    const failed = await seedDueJob(api);
+    await setJob(failed.publicationId, "status = 'failed'");
+
+    expect((await del(failed.postId, 1)).status).toBe(200);
+
+    expect(await count('posts', `id = '${failed.postId}'`)).toBe(0);
+    expect(await count('publications', `id = '${failed.publicationId}'`)).toBe(0);
   });
 });
 
@@ -339,7 +406,8 @@ describe('POST /api/v1/posts/delete', () => {
       reason: 'PUBLICATION_IN_PROGRESS',
       publicationId: sending.publicationId
     });
-    expect(await count('posts')).toBe(1);
+    expect(await count('posts')).toBe(4);
+    expect(await count('posts', 'deleted_at IS NOT NULL')).toBe(3);
     const page = postPageSchema.parse(await (await api.request('/api/v1/posts?view=archive')).json());
     expect(page).toMatchObject({ items: [], archivedCount: 0 });
   });
@@ -479,7 +547,9 @@ describe('a failure leaves everything in place', () => {
     const post = await getPost(api, seeded.postId);
     const db = testDb();
     await db
-      .prepare("CREATE TRIGGER block_post_delete BEFORE DELETE ON posts BEGIN SELECT RAISE(ABORT, 'boom'); END")
+      .prepare(
+        "CREATE TRIGGER block_post_delete BEFORE UPDATE OF deleted_at ON posts BEGIN SELECT RAISE(ABORT, 'boom'); END"
+      )
       .run();
     try {
       const before = await tableCounts();

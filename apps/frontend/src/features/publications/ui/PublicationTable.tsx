@@ -1,5 +1,5 @@
 import { PAGE_SIZE } from '../../../shared/api/page-query';
-import type { PostDto, PublicationDto } from '@alexeev/contracts';
+import type { PublicationDto } from '@alexeev/contracts';
 import { useMemo } from 'react';
 import {
   DataTable,
@@ -14,6 +14,7 @@ import {
 } from '../../../shared/ui';
 import { browserTimeZone, formatShort } from '../model/format-time';
 import { displayStatus, messageLink } from '../model/publication-view';
+import type { PostPreview } from '../model/row-text';
 import { copy } from './copy';
 import styles from './PublicationTable.module.css';
 
@@ -27,7 +28,7 @@ type Props = {
   rows: readonly PublicationDto[];
   timezone?: string;
   /** Post details come from the page because posts are a separate feature. */
-  post: (publication: PublicationDto) => PostDto | undefined;
+  post: (publication: PublicationDto) => PostPreview | undefined;
   channel: (publication: PublicationDto) => PublicationChannel | undefined;
   onOpen: (publicationId: string) => void;
   activeId?: string | undefined;
@@ -81,12 +82,13 @@ function MessageCell({
   );
 }
 
-function PostCell({ value }: { value: PostDto | undefined }) {
+function PostCell({ value, deleted }: { value: PostPreview | undefined; deleted: boolean }) {
   if (!value) {
     return (
       <span className={styles.cellMedia}>
         <MediaTile size={40} icon="send" />
         <span className={styles.muted}>{copy.list.unknownPost}</span>
+        {deleted ? <span className={styles.deletedBadge}>{copy.list.postDeleted}</span> : null}
       </span>
     );
   }
@@ -96,6 +98,7 @@ function PostCell({ value }: { value: PostDto | undefined }) {
       <span className={styles.cellTitle}>
         <strong className={styles.title} title={value.title}>
           {value.title}
+          {deleted ? <span className={styles.deletedBadge}>{copy.list.postDeleted}</span> : null}
         </strong>
         <span className={styles.excerpt} title={value.body}>
           {flat(value.body) || copy.list.noText}
@@ -134,7 +137,7 @@ function Grid(props: Props) {
         id: 'post',
         header: copy.list.columns.post,
         isRowHeader: true,
-        cell: (row) => <PostCell value={post(row)} />
+        cell: (row) => <PostCell value={post(row)} deleted={row.postDeleted === true} />
       },
       {
         id: 'channel',
@@ -208,7 +211,7 @@ function Cards({ rows, post, channel, onOpen, activeId, isLoading, selectable, s
             title={post(row)?.title ?? copy.list.unknownPost}
             media={<MediaTile size={44} />}
             status={<StatusBadge status={status} />}
-            meta={`${formatShort(row.scheduledAt, zone)} · ${place}`}
+            meta={`${formatShort(row.scheduledAt, zone)} · ${place}${row.postDeleted === true ? ` · ${copy.list.postDeleted}` : ''}`}
             {...(status === 'unknown' ? { warning: copy.list.checkChannel } : {})}
             isActive={activeId === row.id || selected?.has(row.id) === true}
             onPress={() => (selectable ? onToggle?.(row, !selected?.has(row.id)) : onOpen(row.id))}

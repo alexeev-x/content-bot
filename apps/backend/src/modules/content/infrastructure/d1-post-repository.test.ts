@@ -22,8 +22,8 @@ describe('list query plans', () => {
       { view: 'live' as const, status: 'approved' as const, after },
       ['SEARCH posts USING INDEX posts_status_updated_idx']
     ],
-    ['archive, first page', { view: 'archive' as const }, ['USING INDEX posts_archive_idx']],
-    ['archive, next page', { view: 'archive' as const, after }, ['SEARCH posts USING INDEX posts_archive_idx']]
+    ['archive, first page', { view: 'archive' as const }, ['USING INDEX posts_archived_idx']],
+    ['archive, next page', { view: 'archive' as const, after }, ['SEARCH posts USING INDEX posts_archived_idx']]
   ])('%s walks an index without sorting', async (_name, query, expected) => {
     const bindings: (string | number)[] = [];
     if ('status' in query) bindings.push(query.status);
@@ -42,10 +42,12 @@ describe('list query plans', () => {
 
   it('counts the archive from its partial index', async () => {
     const { results } = await testDb()
-      .prepare('EXPLAIN QUERY PLAN SELECT count(*) AS n FROM posts WHERE archived_at IS NOT NULL')
+      .prepare(
+        'EXPLAIN QUERY PLAN SELECT count(*) AS n FROM posts WHERE archived_at IS NOT NULL AND deleted_at IS NULL'
+      )
       .all<{ detail: string }>();
 
-    expect(results.map((row) => row.detail).join('\n')).toContain('posts_archive_idx');
+    expect(results.map((row) => row.detail).join('\n')).toContain('posts_archived_idx');
   });
 });
 

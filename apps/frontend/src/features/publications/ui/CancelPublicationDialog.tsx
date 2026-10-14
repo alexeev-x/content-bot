@@ -3,7 +3,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { Button, Dialog, Disclosure, useToast } from '../../../shared/ui';
 import { publicationKeys, useCancelPublication } from '../api/publications-queries';
-import { browserTimeZone, formatShort, formatUtc } from '../model/format-time';
+import { browserTimeZone, formatShort } from '../model/format-time';
 import { publicationActions } from '../model/publication-actions';
 import { describeActionError, isTerminalForAction, type ActionError } from '../model/publication-errors';
 import { ActionErrorBanner } from './ActionErrorBanner';
@@ -78,8 +78,6 @@ export function CancelPublicationDialog({ publication, postTitle, destinationTit
         <dl className={styles.facts}>
           <dt>{copy.drawer.publicationId}</dt>
           <dd className="mono">{publication.id}</dd>
-          <dt>{copy.drawer.utc}</dt>
-          <dd className="mono">{formatUtc(publication.scheduledAt)}</dd>
         </dl>
       </Disclosure>
     </Dialog>

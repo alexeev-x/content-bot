@@ -20,7 +20,7 @@ import {
   VisuallyHidden
 } from '../../../shared/ui';
 import { PUBLICATION_POLL_MS, publicationQueryOptions } from '../api/publications-queries';
-import { browserTimeZone, formatLong, formatUtc, formatWithZone, utcOffsetLabel } from '../model/format-time';
+import { browserTimeZone, formatLong } from '../model/format-time';
 import { publicationActions } from '../model/publication-actions';
 import { explainErrorCode } from '../model/publication-errors';
 import { buildTimeline } from '../model/publication-timeline';
@@ -207,12 +207,8 @@ function PublicationBody({ publication, postTitle, postBody, destinationTitle, c
   const confirmedId = shown === 'sent' ? publication.externalMessageId : undefined;
   const href = confirmedId && chatId ? messageLink(chatId, confirmedId) : undefined;
   const timeline = buildTimeline(publication, zone);
-  const sameZone = zone === publication.timezone;
   const log = (
     <div className={styles.tabContent}>
-      <p className={styles.note}>
-        {copy.drawer.timelineZone(zone, utcOffsetLabel(new Date(publication.updatedAt), zone))}
-      </p>
       <Timeline aria-label={copy.drawer.attempts} items={timeline} />
       <p className={styles.note}>{copy.drawer.attemptsNote}</p>
     </div>
@@ -228,22 +224,17 @@ function PublicationBody({ publication, postTitle, postBody, destinationTitle, c
 
       <dl className={styles.facts}>
         <Fact term={copy.drawer.channel}>{destinationTitle ?? copy.list.unknownChannel}</Fact>
-        <Fact term={copy.drawer.time}>
-          {formatLong(publication.scheduledAt, publication.timezone)}
-          <span className={styles.muted}>
-            {' '}
-            {publication.timezone} ({utcOffsetLabel(new Date(publication.scheduledAt), publication.timezone)})
-          </span>
-        </Fact>
-        {sameZone ? null : (
-          <Fact term={copy.drawer.yourZone}>
-            <span className="mono">{formatWithZone(publication.scheduledAt, zone)}</span>
-          </Fact>
-        )}
+        <Fact term={copy.drawer.time}>{formatLong(publication.scheduledAt, zone)}</Fact>
         <Fact term={copy.drawer.post}>
-          <Link to="/posts/$id" params={{ id: publication.postId }} className={styles.link}>
-            {postTitle ?? copy.drawer.openPost}
-          </Link>
+          {publication.postDeleted === true ? (
+            <span>
+              {postTitle ?? copy.drawer.titleFallback} <span className={styles.muted}>({copy.drawer.postDeleted})</span>
+            </span>
+          ) : (
+            <Link to="/posts/$id" params={{ id: publication.postId }} className={styles.link}>
+              {postTitle ?? copy.drawer.openPost}
+            </Link>
+          )}
         </Fact>
         {confirmedId ? (
           <Fact term={copy.drawer.message}>
@@ -282,9 +273,6 @@ function PublicationBody({ publication, postTitle, postBody, destinationTitle, c
         <dl className={styles.facts}>
           <Fact term={copy.drawer.publicationId}>
             <code className={styles.code}>{publication.id}</code>
-          </Fact>
-          <Fact term={copy.drawer.utc}>
-            <code className={styles.code}>{formatUtc(publication.scheduledAt)}</code>
           </Fact>
           {publication.lastErrorCode ? (
             <Fact term={copy.drawer.errorCode}>

@@ -108,11 +108,11 @@ async function attachMedia(db: D1Database, posts: PostRecord[]): Promise<PostRec
 // Live view: newest update first over posts that are not archived. The two live shapes walk
 // posts_updated_idx / posts_status_updated_idx in order and skip archived rows on the way (at most
 // the retention period's worth, never a sort). Archive view: most recently archived first over the
-// partial posts_archive_idx. Only constant fragments are joined; every value is bound.
+// partial posts_archived_idx. Only constant fragments are joined; every value is bound.
 export function listPostsSql(query: Pick<ListPostsQuery, 'view' | 'status' | 'after'>): string {
   const archive = query.view === 'archive';
   const sortKey = archive ? 'archived_at' : 'updated_at';
-  const conditions: string[] = [archive ? 'archived_at IS NOT NULL' : 'archived_at IS NULL'];
+  const conditions: string[] = [archive ? 'archived_at IS NOT NULL' : 'archived_at IS NULL', 'deleted_at IS NULL'];
   if (query.status !== undefined) conditions.push('status = ?');
   // The leading range on the sort key is what lets the index seek straight to the cursor; the OR
   // only breaks ties among rows that share the cursor's timestamp.
@@ -131,7 +131,7 @@ function listBindings(query: ListPostsQuery): (string | number)[] {
 // Only the guarded post is touched: every statement of a change carries the same guard, and
 // the guard is evaluated before the UPDATE bumps the revision, so the three statements either
 // all apply or none does.
-const GUARD = "id = ?1 AND revision = ?2 AND status = 'draft'";
+const GUARD = "id = ?1 AND revision = ?2 AND status = 'draft' AND deleted_at IS NULL";
 
 function auditStatement(db: D1Database, action: string, change: PostChange, details: object): D1PreparedStatement {
   return db
@@ -182,14 +182,19 @@ export function createD1PostRepository(db: D1Database): PostRepository {
     },
 
     async findById(id) {
-      const row = await db.prepare(`SELECT ${POST_COLUMNS} FROM posts WHERE id = ?1`).bind(id).first<PostRow>();
+      const row = await db
+        .prepare(`SELECT ${POST_COLUMNS} FROM posts WHERE id = ?1 AND deleted_at IS NULL`)
+        .bind(id)
+        .first<PostRow>();
       return row === null ? null : ((await attachMedia(db, [toRecord(row)]))[0] ?? null);
     },
 
     async findManyByIds(ids) {
       if (ids.length === 0) return [];
       const { results } = await db
-        .prepare(`SELECT ${POST_COLUMNS} FROM posts WHERE id IN (SELECT value FROM json_each(?1))`)
+        .prepare(
+          `SELECT ${POST_COLUMNS} FROM posts WHERE id IN (SELECT value FROM json_each(?1)) AND deleted_at IS NULL`
+        )
         .bind(JSON.stringify(ids))
         .all<PostRow>();
       const byId = new Map((await attachMedia(db, results.map(toRecord))).map((post) => [post.id, post]));
@@ -255,13 +260,13 @@ export function createD1PostRepository(db: D1Database): PostRepository {
 
     async countArchived() {
       const row = await db
-        .prepare('SELECT count(*) AS n FROM posts WHERE archived_at IS NOT NULL')
+        .prepare('SELECT count(*) AS n FROM posts WHERE archived_at IS NOT NULL AND deleted_at IS NULL')
         .first<{ n: number }>();
       return row?.n ?? 0;
     },
 
     async count(view, status) {
-      const conditions = [view === 'archive' ? 'archived_at IS NOT NULL' : 'archived_at IS NULL'];
+      const conditions = [view === 'archive' ? 'archived_at IS NOT NULL' : 'archived_at IS NULL', 'deleted_at IS NULL'];
       const bindings: string[] = [];
       if (status !== undefined) {
         conditions.push('status = ?');

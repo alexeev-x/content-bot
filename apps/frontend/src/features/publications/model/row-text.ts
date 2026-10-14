@@ -1,7 +1,10 @@
-import type { PostDto, PublicationDto } from '@alexeev/contracts';
+import type { PublicationDto } from '@alexeev/contracts';
 import { ru } from '../../../shared/lib/ru';
 import { formatShort } from './format-time';
 import { displayStatus } from './publication-view';
+
+/** What a row shows of its post: the live post, or the snapshot that was sent when the post is deleted. */
+export type PostPreview = { title: string; body: string };
 
 /**
  * Everything the row shows as text, in one string: the search matches the post title and text, the channel, the
@@ -10,7 +13,7 @@ import { displayStatus } from './publication-view';
  */
 export function publicationRowText(
   row: PublicationDto,
-  post: PostDto | undefined,
+  post: PostPreview | undefined,
   channelTitle: string | undefined,
   timeZone: string
 ): string {

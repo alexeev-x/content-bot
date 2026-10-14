@@ -41,7 +41,6 @@ export interface PostMediaRepository {
     kind: 'all' | 'photo' | 'video';
     search?: string;
     usage: 'all' | 'used' | 'unused';
-    hidden: boolean;
     after?: { createdAt: number; id: string };
     offset?: number;
     limit: number;
@@ -64,7 +63,6 @@ export interface PostMediaRepository {
   /** A retained library item that was not replaced before. */
   findReplaceableSource(mediaId: string): Promise<boolean>;
   /** Idempotent; false when the item is unknown, not retained or replaced. */
-  setHidden(input: { mediaId: string; hidden: boolean; actor: string; now: number }): Promise<boolean>;
   getUsage(mediaId: string): Promise<MediaUsageDto | null>;
   attachRetained(input: {
     postId: string;

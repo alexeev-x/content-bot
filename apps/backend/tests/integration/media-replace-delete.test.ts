@@ -378,7 +378,7 @@ describe('media usage', () => {
     expect(usage.drafts).toEqual([{ postId: a.id, title: 'Media post' }]);
     expect(usage.approved).toEqual([{ postId: c.id, title: 'Media post' }]);
     expect(usage.sent).toEqual([{ postId: d.id, title: 'Media post', sentAt: new Date(7000).toISOString() }]);
-    expect(usage).toMatchObject({ derivatives: 1, deletable: false, hideable: true });
+    expect(usage).toMatchObject({ derivatives: 1, deletable: false });
     expect(cApproved.status).toBe('approved');
     expect((await api.request('/api/v1/media/11111111-1111-4111-8111-111111111111/usage')).status).toBe(404);
   });
@@ -677,38 +677,6 @@ describe('delete with detach=all', () => {
     expect(meter.statements).toBeLessThanOrEqual(40);
     expect(await count('SELECT count(*) AS n FROM post_media')).toBe(0);
     expect(await jobStatus()).toBe('pending');
-  });
-});
-
-describe('hide and unhide', () => {
-  it('moves an item between the default list and hidden=true, idempotently', async () => {
-    const a = await createDraft();
-    const upload = await uploadTo(a.id, a.revision, png(2, 2));
-    const id = upload.media.id;
-
-    expect((await api.request(`/api/v1/media/${id}/hide`, { method: 'POST' })).status).toBe(204);
-    expect((await api.request(`/api/v1/media/${id}/hide`, { method: 'POST' })).status).toBe(204);
-    expect((await library()).map((item) => item.id)).not.toContain(id);
-    expect((await library('&hidden=true')).map((item) => item.id)).toEqual([id]);
-    expect(mediaUsageSchema.parse(await (await api.request(`/api/v1/media/${id}/usage`)).json()).hideable).toBe(false);
-    expect(await count("SELECT count(*) AS n FROM audit_log WHERE action = 'media.hide'")).toBe(1);
-    expect((await api.request(`/api/v1/media/${id}/content`)).status).toBe(200);
-
-    expect((await api.request(`/api/v1/media/${id}/unhide`, { method: 'POST' })).status).toBe(204);
-    expect((await api.request(`/api/v1/media/${id}/unhide`, { method: 'POST' })).status).toBe(204);
-    expect((await library()).map((item) => item.id)).toContain(id);
-    expect(await library('&hidden=true')).toEqual([]);
-    expect(await count("SELECT count(*) AS n FROM audit_log WHERE action = 'media.unhide'")).toBe(1);
-  });
-
-  it('answers 404 for an unknown or a replaced item', async () => {
-    const unknown = '11111111-1111-4111-8111-111111111111';
-    expect((await api.request(`/api/v1/media/${unknown}/hide`, { method: 'POST' })).status).toBe(404);
-    expect((await api.request(`/api/v1/media/${unknown}/unhide`, { method: 'POST' })).status).toBe(404);
-    const a = await createDraft();
-    const source = await uploadTo(a.id, a.revision, png(2, 2));
-    await derive(source.media.id, png(5, 5), nextKey());
-    expect((await api.request(`/api/v1/media/${source.media.id}/hide`, { method: 'POST' })).status).toBe(404);
   });
 });
 

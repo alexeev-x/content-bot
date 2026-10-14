@@ -1,5 +1,5 @@
 import { completeIdempotencyStatement, ownsClaimSql } from '../../../platform/idempotency/d1-idempotency-store';
-import type { PublicationStatus } from '@alexeev/contracts';
+import { type PostMediaDto, type PublicationStatus, postEntityListSchema, postMediaSchema } from '@alexeev/contracts';
 import { AppError } from '../../../shared/app-error';
 import type {
   ListPublicationsQuery,
@@ -30,11 +30,13 @@ interface PublicationRow {
   job_status: JobState;
   job_run_at: number;
   job_send_started_at: number | null;
+  post_deleted_at: number | null;
 }
 
 const PUBLICATION_COLUMNS = `p.id, p.post_id, p.post_revision, p.destination_id, p.scheduled_at, p.timezone,
   p.revision, p.external_message_id, p.external_message_ids, p.last_error_code, p.created_at, p.updated_at,
-  j.status AS job_status, j.run_at AS job_run_at, j.send_started_at AS job_send_started_at`;
+  j.status AS job_status, j.run_at AS job_run_at, j.send_started_at AS job_send_started_at,
+  (SELECT dp.deleted_at FROM posts dp WHERE dp.id = p.post_id) AS post_deleted_at`;
 // CROSS JOIN pins SQLite's order: the left table is walked through its keyset index and the other
 // one is looked up by key, instead of scanning one side and sorting.
 const FROM_PUBLICATIONS = `FROM publications p CROSS JOIN jobs j ON j.publication_id = p.id AND j.kind = 'publish'`;
@@ -63,6 +65,16 @@ const FINAL_PUBLICATION_JOBS = `${FINAL_PUBLICATION_TARGET}
 const FINAL_PUBLICATION_DELETE = `${FINAL_PUBLICATION_TARGET}
   DELETE FROM publications WHERE id IN (SELECT id FROM target) RETURNING id`;
 
+// A soft-deleted post is kept only for its sent publications (post lifecycle). Once the last one is gone the
+// tombstone has no reason to stay: its revisions go first (plain FK), the rest (media links, crops, bot
+// imports and actions) cascade from the post row. Only tombstones are ever matched, and only the posts of the
+// publications this call deletes (?1 = JSON array of post ids), so reads stay bounded by the batch.
+const TOMBSTONE_NO_PUBLICATIONS = `id IN (SELECT value FROM json_each(?1)) AND deleted_at IS NOT NULL
+  AND NOT EXISTS (SELECT 1 FROM publications pu WHERE pu.post_id = posts.id)`;
+const TOMBSTONE_REVISIONS = `DELETE FROM post_revisions WHERE post_id IN
+  (SELECT id FROM posts WHERE ${TOMBSTONE_NO_PUBLICATIONS})`;
+const TOMBSTONE_POSTS = `DELETE FROM posts WHERE ${TOMBSTONE_NO_PUBLICATIONS}`;
+
 interface PublicationDeleteStateRow {
   id: string;
   is_present: number;
@@ -84,8 +96,93 @@ function toRecord(row: PublicationRow): PublicationRecord {
     lastErrorCode: row.last_error_code,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
-    job: { status: row.job_status, runAt: row.job_run_at, sendStartedAt: row.job_send_started_at }
+    job: { status: row.job_status, runAt: row.job_run_at, sendStartedAt: row.job_send_started_at },
+    postDeleted: row.post_deleted_at !== null
   };
+}
+
+interface SnapshotRevisionRow {
+  post_id: string;
+  revision: number;
+  title: string;
+  body: string;
+  entities: string;
+}
+
+interface SnapshotMediaRow {
+  post_id: string;
+  revision: number;
+  id: string;
+  kind: PostMediaDto['kind'];
+  file_name: string;
+  content_type: string;
+  size_bytes: number;
+  width: number | null;
+  height: number | null;
+  duration_ms: number | null;
+  source_media_id: string | null;
+  position: number;
+}
+
+// What was sent, read from the revision the publication references (never edited after approval). Only
+// publications of a deleted post need it: a live post is read through the posts API. A media file that
+// retention already removed is simply missing from the list.
+async function withPostSnapshots(db: D1Database, records: PublicationRecord[]): Promise<PublicationRecord[]> {
+  const wanted = new Map<string, { postId: string; revision: number }>();
+  for (const record of records) {
+    if (record.postDeleted === true)
+      wanted.set(`${record.postId}:${record.postRevision}`, { postId: record.postId, revision: record.postRevision });
+  }
+  if (wanted.size === 0) return records;
+  const json = JSON.stringify([...wanted.values()]);
+  const [revisions, media] = await db.batch([
+    db
+      .prepare(
+        `SELECT r.post_id, r.revision, r.title, r.body, r.entities
+           FROM json_each(?1) w JOIN post_revisions r
+             ON r.post_id = json_extract(w.value, '$.postId') AND r.revision = json_extract(w.value, '$.revision')`
+      )
+      .bind(json),
+    db
+      .prepare(
+        `SELECT r.post_id, r.revision, m.id, m.kind, m.file_name, m.content_type, m.size_bytes, m.width, m.height,
+                m.duration_ms, m.source_media_id, CAST(j.key AS INTEGER) AS position
+           FROM json_each(?1) w JOIN post_revisions r
+             ON r.post_id = json_extract(w.value, '$.postId') AND r.revision = json_extract(w.value, '$.revision')
+           JOIN json_each(r.media_json) j JOIN media_assets m ON m.id = j.value
+          ORDER BY r.post_id, r.revision, position`
+      )
+      .bind(json)
+  ]);
+  const snapshots = new Map<string, NonNullable<PublicationRecord['postSnapshot']>>();
+  for (const row of (revisions?.results ?? []) as SnapshotRevisionRow[]) {
+    snapshots.set(`${row.post_id}:${row.revision}`, {
+      title: row.title,
+      body: row.body,
+      entities: postEntityListSchema.parse(JSON.parse(row.entities)),
+      media: []
+    });
+  }
+  for (const row of (media?.results ?? []) as SnapshotMediaRow[]) {
+    snapshots.get(`${row.post_id}:${row.revision}`)?.media.push(
+      postMediaSchema.parse({
+        id: row.id,
+        sourceMediaId: row.source_media_id,
+        kind: row.kind,
+        fileName: row.file_name,
+        contentType: row.content_type,
+        sizeBytes: row.size_bytes,
+        width: row.width,
+        height: row.height,
+        durationMs: row.duration_ms,
+        position: row.position
+      })
+    );
+  }
+  return records.map((record) => {
+    const postSnapshot = snapshots.get(`${record.postId}:${record.postRevision}`);
+    return record.postDeleted === true && postSnapshot !== undefined ? { ...record, postSnapshot } : record;
+  });
 }
 
 // Latest scheduledAt first. Every list is bounded by what its filter selects, not by the history:
@@ -454,7 +551,7 @@ export function createD1PublicationRepository(db: D1Database): PublicationReposi
                (id, post_id, post_revision, destination_id, scheduled_at, timezone, revision, created_at, updated_at)
              SELECT ?1, ?2, ?3, ?4, ?5, ?6, 0, ?7, ?7
              WHERE ${ownsClaimSql(8)}
-               AND EXISTS (SELECT 1 FROM posts WHERE id = ?2 AND revision = ?3 AND status = 'approved' AND archived_at IS NULL)
+               AND EXISTS (SELECT 1 FROM posts WHERE id = ?2 AND revision = ?3 AND status = 'approved' AND archived_at IS NULL AND deleted_at IS NULL)
                AND EXISTS (SELECT 1 FROM destinations WHERE id = ?4 AND enabled = 1)`
           )
           .bind(
@@ -500,7 +597,7 @@ export function createD1PublicationRepository(db: D1Database): PublicationReposi
 
     async findById(id) {
       const row = await selectOne(id).first<PublicationRow>();
-      return row === null ? null : toRecord(row);
+      return row === null ? null : ((await withPostSnapshots(db, [toRecord(row)]))[0] ?? null);
     },
 
     async list(query) {
@@ -529,7 +626,7 @@ export function createD1PublicationRepository(db: D1Database): PublicationReposi
       for (const row of countRows) statusCounts[row.public_status] = row.count;
       const totalCount = ((results[1]?.results ?? []) as Array<{ count: number }>)[0]?.count ?? 0;
       return {
-        items: ((results[0]?.results ?? []) as PublicationRow[]).map(toRecord),
+        items: await withPostSnapshots(db, ((results[0]?.results ?? []) as PublicationRow[]).map(toRecord)),
         totalCount,
         statusCounts
       };
@@ -593,11 +690,22 @@ export function createD1PublicationRepository(db: D1Database): PublicationReposi
     async deleteFinal({ items, actor, now }): Promise<PublicationDeleteOutcome[]> {
       if (items.length === 0) return [];
       const json = JSON.stringify(items);
+      // Read before the batch: once the publication rows are gone nothing says which posts they belonged to.
+      const owners = await db
+        .prepare(
+          `SELECT DISTINCT p.post_id AS post_id FROM json_each(?1) je
+           JOIN publications p ON p.id = json_extract(je.value, '$.id')`
+        )
+        .bind(json)
+        .all<{ post_id: string }>();
+      const postIds = JSON.stringify(owners.results.map((row) => row.post_id));
       const results = await db.batch([
         db.prepare(FINAL_PUBLICATION_AUDIT).bind(json, actor, now),
         db.prepare(FINAL_PUBLICATION_INCIDENTS).bind(json),
         db.prepare(FINAL_PUBLICATION_JOBS).bind(json),
         db.prepare(FINAL_PUBLICATION_DELETE).bind(json),
+        db.prepare(TOMBSTONE_REVISIONS).bind(postIds),
+        db.prepare(TOMBSTONE_POSTS).bind(postIds),
         db
           .prepare(
             `SELECT json_extract(je.value, '$.id') AS id, p.id IS NOT NULL AS is_present, p.revision AS revision,
@@ -611,7 +719,7 @@ export function createD1PublicationRepository(db: D1Database): PublicationReposi
       const deletedRows = (results[3]?.results ?? []) as Array<{ id: string }>;
       const deleted = new Set(deletedRows.map((row) => row.id));
       const state = new Map(
-        ((results[4]?.results ?? []) as unknown as PublicationDeleteStateRow[]).map((row) => [row.id, row])
+        ((results[6]?.results ?? []) as unknown as PublicationDeleteStateRow[]).map((row) => [row.id, row])
       );
       return items.map((item): PublicationDeleteOutcome => {
         if (deleted.has(item.id)) return { id: item.id, outcome: 'deleted' };

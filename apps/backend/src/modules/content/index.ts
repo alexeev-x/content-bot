@@ -17,8 +17,7 @@ export {
   deleteMediaAsset,
   deleteMediaAssets,
   getMediaUsage,
-  listMediaLibrary,
-  setMediaHidden
+  listMediaLibrary
 } from './application/media-library';
 export { deriveLibraryMedia } from './application/derive-media';
 export {

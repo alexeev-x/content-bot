@@ -15,6 +15,8 @@ export async function getPost(api: Api, id: string): Promise<PostDto> {
   return postSchema.parse(await response.json());
 }
 
+// The post as the app sees it: a soft-deleted post (a tombstone kept for its sent publications) is null,
+// exactly like a removed one. Tests of the tombstone itself query `deleted_at` directly.
 export async function postRow(id: string): Promise<{
   status: string;
   revision: number;
@@ -23,7 +25,9 @@ export async function postRow(id: string): Promise<{
   updated_at: number;
 } | null> {
   return testDb()
-    .prepare('SELECT status, revision, archived_at, restored_at, updated_at FROM posts WHERE id = ?1')
+    .prepare(
+      'SELECT status, revision, archived_at, restored_at, updated_at FROM posts WHERE id = ?1 AND deleted_at IS NULL'
+    )
     .bind(id)
     .first();
 }

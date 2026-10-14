@@ -9,7 +9,8 @@ import { createPost, type IdempotencyGate, type PostRepository } from '../../mod
 import { AppError } from '../../shared/app-error';
 
 // The owner's «create draft» on an event. It shares the reservation (`dota_update_items.draft_post_id`) and the
-// idempotency key with the Cron auto-draft, so the two can race or repeat and still leave one post.
+// idempotency key (per reserved post id, so a draft re-created after a soft delete is not replayed as the old
+// one) with the Cron auto-draft, so the two can race or repeat and still leave one post.
 export async function createSourceEventDraft(
   deps: {
     events: SourceEventsRepository;
@@ -38,7 +39,7 @@ export async function createSourceEventDraft(
       { repo: deps.posts, idempotency: deps.idempotency, now: deps.now(), newId: () => reservedId },
       {
         actor: deps.actor,
-        idempotencyKey: `dota:${id.sourceKey}:${id.externalId}`,
+        idempotencyKey: `dota:${id.sourceKey}:${id.externalId}:${reservedId}`,
         input: buildEventDraft(input.source, input.entities, input.watched)
       }
     );

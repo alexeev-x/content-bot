@@ -4,8 +4,7 @@ import {
   deriveLibraryMedia,
   getMediaUsage,
   getPostMediaContent,
-  listMediaLibrary,
-  setMediaHidden
+  listMediaLibrary
 } from '../modules/content';
 import {
   bulkDeleteMediaInputSchema,
@@ -88,24 +87,6 @@ export const mediaRoutes = new Hono<AppBindings>()
   .get('/:mediaId/usage', validated('param', mediaIdSchema), async (c) => {
     const container = c.get('container');
     return c.json(await getMediaUsage({ repo: container.postMedia }, c.req.valid('param').mediaId));
-  })
-  .post('/:mediaId/hide', validated('param', mediaIdSchema), async (c) => {
-    const container = c.get('container');
-    await setMediaHidden(
-      { repo: container.postMedia, actor: c.get('actor').telegramId, now: container.clock.now() },
-      c.req.valid('param').mediaId,
-      true
-    );
-    return c.body(null, 204);
-  })
-  .post('/:mediaId/unhide', validated('param', mediaIdSchema), async (c) => {
-    const container = c.get('container');
-    await setMediaHidden(
-      { repo: container.postMedia, actor: c.get('actor').telegramId, now: container.clock.now() },
-      c.req.valid('param').mediaId,
-      false
-    );
-    return c.body(null, 204);
   })
   .delete('/:mediaId', validated('param', mediaIdSchema), validated('query', deleteMediaQuerySchema), async (c) => {
     const container = c.get('container');

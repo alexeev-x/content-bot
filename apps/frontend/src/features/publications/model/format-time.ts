@@ -54,11 +54,7 @@ export function formatPrecise(iso: string, timeZone: string): string {
   }).format(new Date(iso));
 }
 
-/** «12:00, Europe/Moscow (UTC+3)» — time, explicit zone and offset (skill ui-patterns). */
+/** Times are shown in the owner's zone without naming it; the zone lives only in Settings (owner, 14.10.2026). */
 export function formatWithZone(iso: string, timeZone: string): string {
-  return `${formatShort(iso, timeZone)}, ${timeZone} (${utcOffsetLabel(new Date(iso), timeZone)})`;
-}
-
-export function formatUtc(iso: string): string {
-  return `${new Date(iso).toISOString().slice(0, 16).replace('T', ' ')} UTC`;
+  return formatShort(iso, timeZone);
 }

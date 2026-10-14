@@ -8,6 +8,7 @@ import { postQueryOptions } from '../../features/posts';
 import {
   PUBLICATION_POLL_MS,
   publicationsPageQueryOptions,
+  type PostPreview,
   type PublicationFilters
 } from '../../features/publications';
 import { useTabSwitch } from '../../shared/api/use-tab-switch';
@@ -63,8 +64,13 @@ export function usePublicationsData(search: PublicationsSearch, timeZone: string
   const destinations = useInfiniteQuery(destinationsInfiniteQueryOptions());
   const items = useMemo(() => list.data?.items ?? [], [list.data]);
 
+  // A deleted post can no longer be fetched: its rows carry the sent snapshot instead.
   const idKey = [
-    ...new Set([...items, ...warmed.flatMap((result) => result.data?.items ?? [])].map((item) => item.postId))
+    ...new Set(
+      [...items, ...warmed.flatMap((result) => result.data?.items ?? [])]
+        .filter((item) => item.postDeleted !== true)
+        .map((item) => item.postId)
+    )
   ].join(',');
   const postIds = useMemo(() => (idKey ? idKey.split(',') : []), [idKey]);
   const posts = useQueries({ queries: postIds.map((id) => postQueryOptions(id)) });
@@ -80,7 +86,11 @@ export function usePublicationsData(search: PublicationsSearch, timeZone: string
   );
   const destinationById = useMemo(() => new Map(destinationList.map((item) => [item.id, item])), [destinationList]);
 
-  const post = useCallback((row: PublicationDto) => postById.get(row.postId), [postById]);
+  const post = useCallback(
+    (row: PublicationDto): PostPreview | undefined =>
+      row.postDeleted === true ? row.postSnapshot : postById.get(row.postId),
+    [postById]
+  );
   const postTitle = useCallback((row: PublicationDto) => post(row)?.title, [post]);
   const channel = useCallback(
     (row: PublicationDto) => {

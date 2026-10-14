@@ -98,7 +98,7 @@ export function buildPostsListSql(
   const sortExpr = SORT_SQL[sort];
   const stateExpr = publicationStateSql();
   const autoDelete = `CASE WHEN p.archived_at IS NULL THEN NULL ELSE p.archived_at + ${ARCHIVE_RETENTION_MS} END`;
-  const filters = [live ? 'p.archived_at IS NULL' : 'p.archived_at IS NOT NULL'];
+  const filters = [live ? 'p.archived_at IS NULL' : 'p.archived_at IS NOT NULL', 'p.deleted_at IS NULL'];
   const bindings: (string | number)[] = [];
   if (query.status !== undefined) {
     filters.push('p.status = ?');
@@ -158,7 +158,7 @@ export function buildPostsListSql(
       ORDER BY sort_null ASC, sort_key ${order}, id ${order} LIMIT ?${offsetSql}
     )
     SELECT page.id, page.sort_key, (SELECT count(*) FROM selected) AS total_count,
-           (SELECT count(*) FROM posts WHERE archived_at IS NOT NULL) AS archived_count
+           (SELECT count(*) FROM posts WHERE archived_at IS NOT NULL AND deleted_at IS NULL) AS archived_count
     FROM (SELECT 1) AS anchor LEFT JOIN page ON 1 = 1 ORDER BY page.sort_null ASC, page.sort_key ${order}, page.id ${order}`;
   return { sql, bindings };
 }

@@ -798,7 +798,7 @@ const DOTA_DRAFT_RECOVERY_SQL = `
 
 const DOTA_OWNER_ALERT_WORK_SQL = `
   SELECT u.source_key, u.external_id, u.title, u.source_url, u.published_at, u.is_baseline, u.draft_post_id, u.excerpt, u.event_type
-  FROM dota_update_items u INDEXED BY dota_draft_recovery_idx JOIN posts p ON p.id = u.draft_post_id
+  FROM dota_update_items u INDEXED BY dota_draft_recovery_idx JOIN posts p ON p.id = u.draft_post_id AND p.deleted_at IS NULL
   WHERE u.is_baseline = 0 AND u.draft_post_id IS NOT NULL AND u.owner_alert_claimed_at IS NULL AND u.hidden_at IS NULL
   ORDER BY u.published_at, u.source_key, u.external_id LIMIT ?1`;
 
@@ -1097,11 +1097,11 @@ export function createD1DotaWatcherRepository(db: D1Database): DotaWatcherReposi
         source === undefined
           ? `SELECT u.source_key, u.external_id, u.title, u.source_url, u.published_at, u.detected_at, u.is_baseline,
                   p.id AS linked_draft_id, p.title AS linked_draft_title
-           FROM dota_update_items u LEFT JOIN posts p ON p.id = u.draft_post_id
+           FROM dota_update_items u LEFT JOIN posts p ON p.id = u.draft_post_id AND p.deleted_at IS NULL
            ORDER BY u.published_at DESC, u.source_key ASC, u.external_id ASC LIMIT ?1`
           : `SELECT u.source_key, u.external_id, u.title, u.source_url, u.published_at, u.detected_at, u.is_baseline,
                   p.id AS linked_draft_id, p.title AS linked_draft_title
-           FROM dota_update_items u LEFT JOIN posts p ON p.id = u.draft_post_id
+           FROM dota_update_items u LEFT JOIN posts p ON p.id = u.draft_post_id AND p.deleted_at IS NULL
            WHERE u.source_key = ?1 ORDER BY u.published_at DESC, u.source_key ASC, u.external_id ASC LIMIT ?2`;
       const itemRows =
         source === undefined
@@ -1198,7 +1198,7 @@ export function createD1DotaWatcherRepository(db: D1Database): DotaWatcherReposi
                   u.is_baseline, p.id AS linked_draft_id, p.title AS linked_draft_title,
                   a.parse_status, a.facts_json
            FROM dota_update_items u
-           LEFT JOIN posts p ON p.id = u.draft_post_id
+           LEFT JOIN posts p ON p.id = u.draft_post_id AND p.deleted_at IS NULL
            LEFT JOIN dota_patch_analyses a ON a.source_key = u.source_key AND a.external_id = u.external_id
            WHERE u.source_key = ?1 AND u.external_id = ?2`
         )
@@ -1370,15 +1370,21 @@ export function createD1DotaWatcherRepository(db: D1Database): DotaWatcherReposi
       const result = await db
         .prepare(
           `UPDATE dota_update_items SET draft_post_id = ?3
-           WHERE source_key = ?1 AND external_id = ?2 AND is_baseline = 0 AND draft_post_id IS NULL
-             AND hidden_at IS NULL`
+           WHERE source_key = ?1 AND external_id = ?2 AND is_baseline = 0 AND hidden_at IS NULL
+             AND (draft_post_id IS NULL
+                  OR draft_post_id IN (SELECT id FROM posts WHERE deleted_at IS NOT NULL))`
         )
         .bind(sourceKey, externalId, postId)
         .run();
       if (result.meta.changes === 1) return postId;
       const row = await db
         .prepare(
-          'SELECT draft_post_id FROM dota_update_items WHERE source_key = ?1 AND external_id = ?2 AND is_baseline = 0'
+          // A hidden event or a tombstone draft is no reservation: the caller answers NOT_FOUND instead of
+          // inserting a post with the tombstone's id.
+          // A reservation whose post is not inserted yet (a concurrent create) still counts.
+          `SELECT u.draft_post_id FROM dota_update_items u LEFT JOIN posts p ON p.id = u.draft_post_id
+           WHERE u.source_key = ?1 AND u.external_id = ?2 AND u.is_baseline = 0
+             AND u.hidden_at IS NULL AND p.deleted_at IS NULL`
         )
         .bind(sourceKey, externalId)
         .first<{ draft_post_id: string | null }>();
@@ -1396,7 +1402,7 @@ export function createD1DotaWatcherRepository(db: D1Database): DotaWatcherReposi
           `UPDATE dota_update_items SET owner_alert_claimed_at = ?3
            WHERE source_key = ?1 AND external_id = ?2 AND is_baseline = 0
              AND draft_post_id IS NOT NULL AND owner_alert_claimed_at IS NULL
-             AND EXISTS (SELECT 1 FROM posts WHERE id = dota_update_items.draft_post_id)`
+             AND EXISTS (SELECT 1 FROM posts WHERE id = dota_update_items.draft_post_id AND deleted_at IS NULL)`
         )
         .bind(sourceKey, externalId, claimedAt)
         .run();

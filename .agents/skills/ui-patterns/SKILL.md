@@ -42,8 +42,8 @@ Foundation: use a native element first and ARIA only when nothing native fits (n
 - Announce only user-relevant changes, batched in one polite region.
 
 ## Date, time and timezone
-- Store UTC. Display in an explicit zone with its offset: «14:30, Europe/Chisinau (UTC+3)».
-- Input with the `shared/ui` DatePicker/TimeField (React Aria + `ZonedDateTime` from `@internationalized/date`, `I18nProvider locale="ru-RU"`). Show the resulting UTC as a hint. Validate that the time is in the future, and warn about DST gaps and overlaps.
+- Store UTC. Display every time in the owner's zone (Settings) WITHOUT naming the zone or offset: «14:30». The zone is shown only in Settings (owner decision 14.10.2026).
+- Input with the `shared/ui` DatePicker/TimeField (React Aria + `ZonedDateTime` from `@internationalized/date`, `I18nProvider locale="ru-RU"`). No UTC hint. Validate that the time is in the future, and warn about DST gaps and overlaps.
 - Format with `Intl.DateTimeFormat` and an explicit `timeZone`. Never write a bare "local time".
 
 ## Tabs, menus, disclosure

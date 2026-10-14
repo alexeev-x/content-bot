@@ -189,6 +189,29 @@ describe('POST /api/v1/sources/events/{id}/draft', () => {
     expect(posts.results[0]?.body).toContain('Источник: https://www.dota2.com/patches/7.41');
   });
 
+  it('a soft-deleted draft counts as no draft: the event is new again and gets one fresh post', async () => {
+    const first = (await (await post(PATCH, 'draft')).json()) as { event: { draft: { postId: string } } };
+    const oldId = first.event.draft.postId;
+    await sql('UPDATE posts SET deleted_at = ?1 WHERE id = ?2', START, oldId);
+
+    const listed = sourceEventPageSchema.parse(await (await get('?type=patch')).json());
+    expect(listed.items[0]).toMatchObject({ status: 'new', draft: null });
+
+    const [a, b] = await Promise.all([post(PATCH, 'draft'), post(PATCH, 'draft')]);
+    expect([a.status, b.status].every((status) => [200, 201, 409].includes(status))).toBe(true);
+    const again = await post(PATCH, 'draft');
+    const body = (await again.json()) as { created: boolean; event: { status: string; draft: { postId: string } } };
+    expect(body.event.status).toBe('drafted');
+    expect(body.event.draft.postId).not.toBe(oldId);
+    expect(await count('posts')).toBe(2);
+    expect(await count('posts', `id = '${oldId}' AND deleted_at IS NOT NULL`)).toBe(1);
+    const link = await testDb()
+      .prepare('SELECT draft_post_id FROM dota_update_items WHERE external_id = ?1')
+      .bind('7.41')
+      .first<{ draft_post_id: string }>();
+    expect(link?.draft_post_id).toBe(body.event.draft.postId);
+  });
+
   it('a concurrent pair leaves one draft', async () => {
     const [a, b] = await Promise.all([post(TREASURE, 'draft'), post(TREASURE, 'draft')]);
     expect([a.status, b.status].every((status) => [200, 201, 409].includes(status))).toBe(true);

@@ -13,7 +13,6 @@ import {
   getMediaUsage,
   listDrafts,
   listMedia,
-  setMediaHidden,
   type MediaFilters
 } from './media-api';
 
@@ -157,14 +156,5 @@ export function useDeleteMedia() {
       void queryClient.invalidateQueries({ queryKey: ['publications'] });
       void queryClient.invalidateQueries({ queryKey: [...mediaKeys.all, 'usage'] });
     }
-  });
-}
-
-export function useHideMedia() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: ({ id, hidden }: { id: string; hidden: boolean }) => setMediaHidden(id, hidden),
-    retry: false,
-    onSuccess: () => void queryClient.invalidateQueries({ queryKey: mediaKeys.lists() })
   });
 }

@@ -9,6 +9,7 @@ import {
 } from '@alexeev/contracts';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { testDb } from '../helpers/db';
+import { expectError } from '../helpers/expect-error';
 import { type Api, createApi, OWNER_ID, OWNER_TOKEN, resetDb, seedSession, START } from '../helpers/harness';
 import { meteredDb } from '../helpers/metered-db';
 import { testMediaBucket } from '../helpers/media-bucket';
@@ -1624,5 +1625,46 @@ describe('GET /api/v1/media page numbers', () => {
     expect(beyond).toMatchObject({ items: [], page: 7, totalCount: 5 });
     expect(filtered).toMatchObject({ totalCount: 1 });
     expect((await api.request('/api/v1/media?page=2&cursor=abc')).status).toBe(400);
+  });
+
+  it('treats a soft-deleted draft as missing for every media write and writes nothing', async () => {
+    const source = await createDraft();
+    const kept = uploadPostMediaResultSchema.parse(
+      await (await upload(source.id, source.revision, png(), nextKey())).json()
+    );
+    const other = await createDraft();
+    const loose = uploadPostMediaResultSchema.parse(
+      await (await upload(other.id, other.revision, png(3, 3), nextKey())).json()
+    );
+    const target = await createDraft();
+    await testDb().prepare('UPDATE posts SET deleted_at = ?1 WHERE id = ?2').bind(START, target.id).run();
+    await testDb().prepare('UPDATE posts SET deleted_at = ?1 WHERE id = ?2').bind(START, source.id).run();
+
+    const responses = [
+      await upload(target.id, target.revision, png(), nextKey()),
+      await api.request(`/api/v1/posts/${target.id}/media/attach`, {
+        method: 'POST',
+        json: { revision: target.revision, mediaIds: [loose.media.id] }
+      }),
+      await crop(source.id, kept.media.id, source.revision + 1, png(5, 5), nextKey()),
+      await api.request(`/api/v1/posts/${source.id}/media/order`, {
+        method: 'PATCH',
+        json: { revision: source.revision + 1, mediaIds: [kept.media.id] }
+      })
+    ];
+
+    for (const response of responses) await expectError(response, 404, 'NOT_FOUND');
+    const rows = await testDb()
+      .prepare('SELECT post_id, media_id FROM post_media ORDER BY post_id')
+      .all<{ post_id: string; media_id: string }>();
+    expect(rows.results.map((row) => row.post_id).sort()).toEqual([other.id, source.id].sort());
+    const revisions = await testDb()
+      .prepare('SELECT id, revision FROM posts WHERE id IN (?1, ?2)')
+      .bind(source.id, target.id)
+      .all<{ id: string; revision: number }>();
+    expect(Object.fromEntries(revisions.results.map((row) => [row.id, row.revision]))).toEqual({
+      [source.id]: source.revision + 1,
+      [target.id]: target.revision
+    });
   });
 });

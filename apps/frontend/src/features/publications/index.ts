@@ -13,7 +13,7 @@ export {
 export { isConfirmedSent, type PublicationActions } from './model/publication-actions';
 export { browserTimeZone, utcOffsetLabel } from './model/format-time';
 export { isInProgress } from './model/publication-view';
-export { publicationRowText } from './model/row-text';
+export { publicationRowText, type PostPreview } from './model/row-text';
 export { copy as publicationCopy } from './ui/copy';
 export { PublicationDrawer } from './ui/PublicationDrawer';
 export { DeletePublicationsDialog, deleteTargetOf } from './ui/DeletePublicationsDialog';

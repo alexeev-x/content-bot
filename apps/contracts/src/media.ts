@@ -66,9 +66,7 @@ export const mediaLibraryQuerySchema = offsetPageQuerySchema
   .extend({
     kind: mediaLibraryKindSchema.default('all'),
     search: z.string().trim().min(1).max(80).optional(),
-    usage: mediaLibraryUsageFilterSchema.default('all'),
-    // hidden=true lists only items the owner hid; without it hidden items are left out.
-    hidden: z.stringbool().optional()
+    usage: mediaLibraryUsageFilterSchema.default('all')
   })
   .refine(cursorXorPage, CURSOR_XOR_PAGE_ISSUE);
 export type MediaLibraryQuery = z.infer<typeof mediaLibraryQuerySchema>;
@@ -230,7 +228,7 @@ export type BulkDeleteMediaResultDto = z.infer<typeof bulkDeleteMediaResultSchem
 //   sending: publications whose job is claimed ('sending') or unknown ('unknown'); they block detach=all;
 //   sent: posts with a succeeded publication naming it, sentAt = when that job last changed (history is kept);
 //   derivatives: crops that point at it as their source (they block every delete);
-//   deletable: a plain DELETE would succeed; hideable: POST .../hide would change something;
+//   deletable: a plain DELETE would succeed;
 //   detachable: DELETE ?detach=all would succeed now (nothing sending, no derivatives, at most
 //     MEDIA_DETACH_DRAFTS_MAX drafts).
 // Errors: NOT_FOUND 404, UNAUTHORIZED 401, FORBIDDEN 403.
@@ -254,11 +252,6 @@ export const mediaUsageSchema = z.object({
   sent: z.array(mediaUsagePostSchema.extend({ sentAt: z.iso.datetime() })).max(MEDIA_USAGE_LIST_MAX),
   derivatives: z.number().int().nonnegative(),
   deletable: z.boolean(),
-  hideable: z.boolean(),
   detachable: z.boolean()
 });
 export type MediaUsageDto = z.infer<typeof mediaUsageSchema>;
-
-// POST /api/v1/media/{mediaId}/hide and /unhide -> 204. Hiding takes the item out of the default listing
-// (GET /media?hidden=true lists them); nothing else changes: the file stays readable, attachable and retained.
-// Both are idempotent. A replaced or unknown item answers NOT_FOUND.

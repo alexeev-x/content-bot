@@ -18,13 +18,11 @@ export type MediaFilters = {
   kind: MediaLibraryKind;
   search?: string;
   usage: z.infer<typeof mediaLibraryUsageFilterSchema>;
-  /** Only the files the owner hid; omitted (not `false`) for the normal library. */
-  hidden?: true;
 };
 
 export function listMedia(filters: MediaFilters, cursor: string | undefined, signal?: AbortSignal, page?: number) {
   return apiRequest(
-    `/api/v1/media${buildQuery({ ...filters, hidden: filters.hidden ? 'true' : undefined, cursor, page, limit: page === undefined ? DEFAULT_PAGE_SIZE : PAGE_SIZE })}`,
+    `/api/v1/media${buildQuery({ ...filters, cursor, page, limit: page === undefined ? DEFAULT_PAGE_SIZE : PAGE_SIZE })}`,
     mediaLibraryPageSchema,
     { signal }
   );
@@ -77,12 +75,6 @@ export function bulkDeleteMedia(ids: string[]) {
   return apiRequest('/api/v1/media/delete', bulkDeleteMediaResultSchema, {
     method: 'POST',
     body: { ids, detach: 'all' }
-  });
-}
-
-export function setMediaHidden(mediaId: string, hidden: boolean) {
-  return apiRequestNoContent(`/api/v1/media/${encodeURIComponent(mediaId)}/${hidden ? 'hide' : 'unhide'}`, {
-    method: 'POST'
   });
 }
 

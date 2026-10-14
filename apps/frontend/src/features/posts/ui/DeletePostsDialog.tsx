@@ -12,7 +12,8 @@ export type DeleteTarget = {
   id: string;
   title: string;
   revision: number;
-  archived: boolean;
+  /** At least one publication was sent: it stays in «Публикации» after the post is deleted. */
+  sent: boolean;
   /** Publications that will be cancelled together with the post. */
   waiting: number;
   firstChannel: string | undefined;
@@ -41,7 +42,7 @@ export function deleteTargetOf(post: PostDto): DeleteTarget {
     id: post.id,
     title: post.title.trim() || postsCopy.list.untitled,
     revision: post.revision,
-    archived: post.archivedAt !== null,
+    sent: post.archivedAt !== null || (post.publicationSummary.counts.sent ?? 0) > 0,
     waiting: waitingCountOf(post),
     firstChannel: nextChannelTitle(post),
     firstAt: next?.scheduledAt
@@ -56,14 +57,15 @@ function describe(targets: readonly DeleteTarget[]): string {
     if (waiting > 0) {
       parts.push(copy.cancelling(waiting));
       if (only.firstAt) parts.push(copy.cancellingFirst(only.firstChannel, formatExact(only.firstAt)));
+      if (only.sent) parts.push(copy.publicationsKept);
       parts.push(copy.channelsKept);
     } else {
-      parts.push(only.archived ? copy.withRecords : copy.plain, copy.channelsKept);
+      parts.push(only.sent ? copy.withRecords : copy.plain, copy.channelsKept);
     }
     return parts.join(' ');
   }
   if (waiting > 0) parts.push(copy.cancelling(waiting));
-  else if (targets.some((target) => target.archived)) parts.push(copy.recordsMany);
+  else if (targets.some((target) => target.sent)) parts.push(copy.recordsMany);
   parts.push(copy.channelsKept, copy.irreversible);
   return parts.join(' ');
 }

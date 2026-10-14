@@ -1,4 +1,6 @@
 import { z } from 'zod';
+import { postMediaSchema } from './media';
+import { postEntitySchema } from './post-entities';
 import {
   CURSOR_XOR_PAGE_ISSUE,
   cursorXorPage,
@@ -66,7 +68,21 @@ export const publicationSchema = z.object({
   lastErrorCode: z.string().optional(),
   revision: revisionSchema,
   createdAt: z.iso.datetime(),
-  updatedAt: z.iso.datetime()
+  updatedAt: z.iso.datetime(),
+  /**
+   * True once the owner deleted the post. The publication stays as history («Пост удалён»): the post can no
+   * longer be opened or edited, so `postSnapshot` carries what was sent. The server always sends the flag.
+   */
+  postDeleted: z.boolean().optional(),
+  /** The sent revision, only with `postDeleted`; a media file removed by retention is missing from `media`. */
+  postSnapshot: z
+    .object({
+      title: z.string(),
+      body: z.string(),
+      entities: z.array(postEntitySchema),
+      media: z.array(postMediaSchema).max(10)
+    })
+    .optional()
 });
 export type PublicationDto = z.infer<typeof publicationSchema>;
 

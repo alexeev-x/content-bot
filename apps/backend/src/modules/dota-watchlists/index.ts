@@ -137,7 +137,7 @@ async function listDotaWatchlists(db: D1Database): Promise<DotaWatchlistsDto> {
               a.status AS alert_status, a.error_code AS alert_error_code
        FROM dota_watch_matches m JOIN dota_watches w ON w.id = m.watch_id
        JOIN dota_update_items u ON u.source_key = m.source_key AND u.external_id = m.external_id
-       JOIN dota_watch_alerts a ON a.match_id = m.id LEFT JOIN posts p ON p.id = u.draft_post_id
+       JOIN dota_watch_alerts a ON a.match_id = m.id LEFT JOIN posts p ON p.id = u.draft_post_id AND p.deleted_at IS NULL
        WHERE u.source_url = 'https://www.dota2.com/patches/' || u.external_id
        ORDER BY m.created_at DESC, m.id DESC LIMIT ?1`
       )

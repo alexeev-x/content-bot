@@ -84,7 +84,7 @@ const eventsSql = (extraWhere: string, filter: string): string => `
              ${EVENT_TYPE_SQL} AS event_type, u.hidden_at, p.id AS post_id, p.title AS post_title,
              (SELECT j.status FROM publications pu JOIN jobs j ON j.publication_id = pu.id AND j.kind = 'publish'
               WHERE pu.post_id = p.id ORDER BY pu.created_at DESC, pu.id DESC LIMIT 1) AS job_status
-      FROM dota_update_items u LEFT JOIN posts p ON p.id = u.draft_post_id
+      FROM dota_update_items u LEFT JOIN posts p ON p.id = u.draft_post_id AND p.deleted_at IS NULL
       WHERE u.is_baseline = 0 ${extraWhere}
     )
   )
@@ -229,7 +229,11 @@ export function createD1SourceEventsRepository(db: D1Database): SourceEventsRepo
         .first<EventRow>();
       if (row === null) return null;
       const reserved = await db
-        .prepare('SELECT draft_post_id FROM dota_update_items WHERE source_key = ?1 AND external_id = ?2')
+        .prepare(
+          `SELECT CASE WHEN p.deleted_at IS NULL THEN u.draft_post_id END AS draft_post_id
+             FROM dota_update_items u LEFT JOIN posts p ON p.id = u.draft_post_id
+            WHERE u.source_key = ?1 AND u.external_id = ?2`
+        )
         .bind(sourceKey, externalId)
         .first<{ draft_post_id: string | null }>();
       const { dtos, keys } = await hydrate([row]);

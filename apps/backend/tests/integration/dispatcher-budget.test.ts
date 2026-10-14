@@ -212,12 +212,13 @@ describe('the purge tick (minute 30, nothing due)', () => {
     const { db, meter } = meteredDb(testDb());
     await makeTick({ clock, transport: fakeTransport(SENT), db, scheduledTime: START + 30 * 60_000 }).run();
 
-    expect(await count('posts')).toBe(0);
-    expect(await count('jobs')).toBe(0);
+    // Every expired post had a sent publication, so each is a tombstone and its history stays.
+    expect(await count('posts', 'deleted_at IS NOT NULL')).toBe(PURGE_BATCH);
+    expect(await count('jobs')).toBe(PURGE_BATCH);
     // Reconciliation, due/archive/expired scans, automation reconciliation and two claims, then the audit row,
-    // five child deletes and the post, and the heartbeat.
+    // eight child deletes, the hard delete and the soft delete of the posts, and the heartbeat.
     expect(meter.roundTrips).toBe(12);
-    expect(meter.statements).toBe(4 + 7 + 1 + 5 + 1);
+    expect(meter.statements).toBe(4 + 7 + 1 + 8 + 2);
   });
 
   it('an idle one costs one read more than a regular idle tick', async () => {

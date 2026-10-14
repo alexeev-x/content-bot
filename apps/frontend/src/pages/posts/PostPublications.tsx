@@ -38,9 +38,7 @@ export function PostPublications({ postId }: Props) {
               <li key={publication.id} className={styles.publication}>
                 <span className={styles.publicationText}>
                   <strong>{titles.get(publication.destinationId) ?? publication.destinationId}</strong>
-                  <span className={styles.muted}>
-                    {copy.scheduledFor(formatExact(publication.scheduledAt), publication.timezone)}
-                  </span>
+                  <span className={styles.muted}>{formatExact(publication.scheduledAt)}</span>
                 </span>
                 <StatusBadge
                   status={

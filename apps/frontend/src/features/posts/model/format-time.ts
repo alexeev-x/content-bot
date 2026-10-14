@@ -3,8 +3,7 @@ const exactFormat = new Intl.DateTimeFormat('ru-RU', {
   month: 'long',
   year: 'numeric',
   hour: '2-digit',
-  minute: '2-digit',
-  timeZoneName: 'short'
+  minute: '2-digit'
 });
 const clockFormat = new Intl.DateTimeFormat('ru-RU', { timeStyle: 'short' });
 const relativeFormat = new Intl.RelativeTimeFormat('ru-RU', { numeric: 'auto' });
@@ -15,7 +14,7 @@ const STEPS: ReadonlyArray<{ unit: Intl.RelativeTimeFormatUnit; ms: number }> = 
   { unit: 'minute', ms: 60_000 }
 ];
 
-/** Exact local time with its zone; the zone is the browser's, so the offset is never implicit. */
+/** Exact local time; the zone is never printed (it lives in Settings). */
 export function formatExact(iso: string): string {
   return exactFormat.format(new Date(iso));
 }

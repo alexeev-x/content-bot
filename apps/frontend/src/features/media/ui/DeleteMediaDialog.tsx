@@ -3,7 +3,7 @@ import { useQueries } from '@tanstack/react-query';
 import { useState } from 'react';
 import { ApiError } from '../../../shared/api/http-client';
 import { Button, Dialog, useToast } from '../../../shared/ui';
-import { mediaUsageQueryOptions, useDeleteMedia, useHideMedia } from '../api/media-queries';
+import { mediaUsageQueryOptions, useDeleteMedia } from '../api/media-queries';
 import { blockSentence, countScheduled, deleteBlock, postTitle, scheduledLine } from '../model/media-usage';
 import styles from './DeleteMediaDialog.module.css';
 
@@ -12,8 +12,6 @@ export type DeleteTarget = { id: string; fileName: string };
 type Props = {
   /** The files to delete; `null` closes the dialog. */
   targets: readonly DeleteTarget[] | null;
-  /** Already in «Скрытые»: hiding again is pointless. */
-  inHiddenView: boolean;
   /** Owner timezone for the scheduled times. */
   timezone: string;
   onClose: () => void;
@@ -103,14 +101,13 @@ const isUsed = (usage: MediaUsageDto) =>
  * Delete confirmation that reads the usage first and says exactly what will happen. Deleting is always possible
  * except while a publication is being sent, a crop still points at the file, or more than 20 drafts hold it.
  */
-export function DeleteMediaDialog({ targets, inHiddenView, timezone, onClose, onDeleted, onOpenPost }: Props) {
+export function DeleteMediaDialog({ targets, timezone, onClose, onDeleted, onOpenPost }: Props) {
   const list = targets ?? [];
   const usages = useQueries({ queries: list.map((target) => mediaUsageQueryOptions(target.id)) });
   const deleteMedia = useDeleteMedia();
-  const hideMedia = useHideMedia();
   const toast = useToast();
   const [inFlight, setInFlight] = useState(false);
-  const pending = deleteMedia.isPending || hideMedia.isPending;
+  const pending = deleteMedia.isPending;
   const loading = usages.some((usage) => usage.isPending);
   const failed = usages.some((usage) => usage.isError);
   const single = list.length === 1 ? list[0] : undefined;
@@ -171,24 +168,6 @@ export function DeleteMediaDialog({ targets, inHiddenView, timezone, onClose, on
       }
     );
   };
-  const hide = () => {
-    if (!single) return;
-    hideMedia.mutate(
-      { id: single.id, hidden: true },
-      {
-        onSuccess: () => {
-          toast.show({ title: 'Скрыто из медиатеки', description: quote(single.fileName), tone: 'success' });
-          onDeleted([single.id]);
-          onClose();
-        },
-        onError: (error) => {
-          fail(error, 'Не удалось скрыть файл');
-          onClose();
-        }
-      }
-    );
-  };
-
   let title: string;
   let body: React.ReactNode = null;
   let confirm: { label: string; run: () => void; tone: 'danger' | 'primary' } | null = {
@@ -253,7 +232,6 @@ export function DeleteMediaDialog({ targets, inHiddenView, timezone, onClose, on
     if (removable.length === 0) confirm = null;
   }
 
-  const canHide = Boolean(single && singleUsage?.hideable && !inHiddenView && !loading);
   const busy = pending;
 
   return (
@@ -271,11 +249,6 @@ export function DeleteMediaDialog({ targets, inHiddenView, timezone, onClose, on
           <Button variant="secondary" autoFocus isDisabled={busy} onPress={close}>
             Нет
           </Button>
-          {canHide ? (
-            <Button variant="secondary" isDisabled={busy} onPress={hide}>
-              Скрыть из медиатеки
-            </Button>
-          ) : null}
           {confirm ? (
             <Button variant={confirm.tone} isLoading={busy || loading} isDisabled={loading} onPress={confirm.run}>
               {confirm.label}

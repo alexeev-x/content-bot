@@ -23,16 +23,25 @@ const BLOCKING_JOB = (post: string) =>
    WHERE pu.post_id = ${post} AND j.status IN ('claimed', 'unknown')`;
 
 // ?1 = JSON array of {id, revision}; a null revision means "any" (the purge). ?2 = purge cutoff, or NULL
-// for an owner delete; with a cutoff the post must still be archived and expired.
-const DELETE_TARGET = `WITH target(id) AS (
-  SELECT po.id FROM json_each(?1) je JOIN posts po ON po.id = json_extract(je.value, '$.id')
-  WHERE (json_extract(je.value, '$.revision') IS NULL OR po.revision = json_extract(je.value, '$.revision'))
+// for an owner delete; with a cutoff the post must still be archived and expired. A soft-deleted post is
+// never a target again. `soft` marks a post with a sent publication (a succeeded job): it is kept as a
+// tombstone so the publication stays in the history; any other post disappears. The flag only depends on
+// succeeded jobs, which no statement of the batch removes, so every statement computes the same sets.
+const DELETE_TARGET = `WITH target(id, soft) AS (
+  SELECT po.id, EXISTS (SELECT 1 FROM publications sp JOIN jobs sj ON sj.publication_id = sp.id
+                        WHERE sp.post_id = po.id AND sj.status = 'succeeded')
+  FROM json_each(?1) je JOIN posts po ON po.id = json_extract(je.value, '$.id')
+  WHERE po.deleted_at IS NULL
+    AND (json_extract(je.value, '$.revision') IS NULL OR po.revision = json_extract(je.value, '$.revision'))
     AND (?2 IS NULL OR (po.archived_at IS NOT NULL AND po.archived_at <= ?2))
     AND NOT EXISTS (${BLOCKING_JOB('po.id')})
 )`;
 
 const OF_TARGET = 'IN (SELECT id FROM target)';
-const PUBLICATIONS_OF_TARGET = `SELECT pu.id FROM publications pu WHERE pu.post_id ${OF_TARGET}`;
+const OF_SOFT_TARGET = 'IN (SELECT id FROM target WHERE soft = 1)';
+// Publications that go away: all of a hard-deleted post, and the unsent ones of a soft-deleted post.
+const DOOMED_PUBLICATIONS = `SELECT pu.id FROM publications pu WHERE pu.post_id ${OF_TARGET}
+  AND NOT EXISTS (SELECT 1 FROM jobs sj WHERE sj.publication_id = pu.id AND sj.status = 'succeeded')`;
 
 // ?3 actor, ?4 action, ?5 now. The counts say what the delete took with it; never post text.
 const DELETE_AUDIT = `${DELETE_TARGET}
@@ -40,9 +49,11 @@ const DELETE_AUDIT = `${DELETE_TARGET}
   SELECT ?3, ?4, 'post', t.id, ?5,
          json_object(
            'revision', po.revision,
+           'soft', t.soft,
            'cancelledPublications', (SELECT count(*) FROM publications pu JOIN jobs j ON j.publication_id = pu.id
                                      WHERE pu.post_id = t.id AND j.status IN ('pending', 'retry_wait')),
-           'removedPublications', (SELECT count(*) FROM publications pu WHERE pu.post_id = t.id))
+           'removedPublications', (SELECT count(*) FROM (${DOOMED_PUBLICATIONS}) d
+                                   JOIN publications dp ON dp.id = d.id WHERE dp.post_id = t.id))
   FROM target t JOIN posts po ON po.id = t.id`;
 
 const WAITING_OF_TARGET = `${DELETE_TARGET}
@@ -53,16 +64,26 @@ const WAITING_OF_TARGET = `${DELETE_TARGET}
   ORDER BY pu.post_id, pu.scheduled_at, pu.id`;
 
 // Children first: foreign keys point from attempts, incidents and jobs up to publications and posts.
+// A soft-deleted post keeps its sent publications with their jobs, attempts, incidents and the revision
+// they sent; the rest of its rows go like a hard delete (post_media and bot imports are cascades of the
+// post row, which stays, so they are removed explicitly).
 export const DELETE_STATEMENTS = [
   `${DELETE_TARGET} DELETE FROM job_attempts WHERE job_id IN
-     (SELECT j.id FROM jobs j WHERE j.publication_id IN (${PUBLICATIONS_OF_TARGET}))`,
-  `${DELETE_TARGET} DELETE FROM incidents WHERE publication_id IN (${PUBLICATIONS_OF_TARGET})
-     OR job_id IN (SELECT j.id FROM jobs j WHERE j.publication_id IN (${PUBLICATIONS_OF_TARGET}))`,
-  `${DELETE_TARGET} DELETE FROM jobs WHERE publication_id IN (${PUBLICATIONS_OF_TARGET})`,
-  `${DELETE_TARGET} DELETE FROM publications WHERE post_id ${OF_TARGET}`,
-  `${DELETE_TARGET} DELETE FROM post_revisions WHERE post_id ${OF_TARGET}`
+     (SELECT j.id FROM jobs j WHERE j.publication_id IN (${DOOMED_PUBLICATIONS}))`,
+  `${DELETE_TARGET} DELETE FROM incidents WHERE publication_id IN (${DOOMED_PUBLICATIONS})
+     OR job_id IN (SELECT j.id FROM jobs j WHERE j.publication_id IN (${DOOMED_PUBLICATIONS}))`,
+  `${DELETE_TARGET} DELETE FROM jobs WHERE publication_id IN (${DOOMED_PUBLICATIONS})`,
+  `${DELETE_TARGET} DELETE FROM publications WHERE id IN (${DOOMED_PUBLICATIONS})`,
+  `${DELETE_TARGET} DELETE FROM post_revisions WHERE post_id ${OF_TARGET}
+     AND NOT EXISTS (SELECT 1 FROM publications pu WHERE pu.post_id = post_revisions.post_id
+                     AND pu.post_revision = post_revisions.revision)`,
+  `${DELETE_TARGET} DELETE FROM post_media WHERE post_id ${OF_SOFT_TARGET}`,
+  `${DELETE_TARGET} DELETE FROM post_media_uploads WHERE post_id ${OF_SOFT_TARGET}`,
+  `${DELETE_TARGET} DELETE FROM bot_media_imports WHERE post_id ${OF_SOFT_TARGET}`
 ];
-const DELETE_POSTS = `${DELETE_TARGET} DELETE FROM posts WHERE id ${OF_TARGET} RETURNING id`;
+const DELETE_POSTS = `${DELETE_TARGET} DELETE FROM posts WHERE id IN (SELECT id FROM target WHERE soft = 0) RETURNING id`;
+// ?3 = now. Runs last: it removes the post from every later target.
+const SOFT_DELETE_POSTS = `${DELETE_TARGET} UPDATE posts SET deleted_at = ?3 WHERE id ${OF_SOFT_TARGET} RETURNING id`;
 
 // Read after the writes of the same batch: a post that was not deleted is exactly as it was decided on.
 const BLOCKER = (column: string) =>
@@ -71,11 +92,11 @@ const BLOCKER = (column: string) =>
     ORDER BY (j.status = 'unknown') DESC, pu.id LIMIT 1)`;
 const DELETE_STATE = `SELECT json_extract(je.value, '$.id') AS id, po.id IS NOT NULL AS found, po.revision AS revision,
     ${BLOCKER('pu.id')} AS blocker_publication_id, ${BLOCKER('j.status')} AS blocker_status
-  FROM json_each(?1) je LEFT JOIN posts po ON po.id = json_extract(je.value, '$.id')`;
+  FROM json_each(?1) je LEFT JOIN posts po ON po.id = json_extract(je.value, '$.id') AND po.deleted_at IS NULL`;
 
 const RESTORE_TARGET = `WITH target(id) AS (
   SELECT po.id FROM json_each(?1) je JOIN posts po ON po.id = json_extract(je.value, '$.id')
-  WHERE po.revision = json_extract(je.value, '$.revision') AND po.archived_at IS NOT NULL
+  WHERE po.revision = json_extract(je.value, '$.revision') AND po.archived_at IS NOT NULL AND po.deleted_at IS NULL
 )`;
 const RESTORE_AUDIT = `${RESTORE_TARGET}
   INSERT INTO audit_log (actor_telegram_id, action, entity_type, entity_id, created_at, details)
@@ -86,14 +107,14 @@ const RESTORE_POSTS = `${RESTORE_TARGET}
   UPDATE posts SET archived_at = NULL, restored_at = ?2, updated_at = ?2 WHERE id ${OF_TARGET} RETURNING id`;
 const RESTORE_STATE = `SELECT json_extract(je.value, '$.id') AS id, po.id IS NOT NULL AS found, po.revision AS revision,
     po.archived_at IS NOT NULL AS archived
-  FROM json_each(?1) je LEFT JOIN posts po ON po.id = json_extract(je.value, '$.id')`;
+  FROM json_each(?1) je LEFT JOIN posts po ON po.id = json_extract(je.value, '$.id') AND po.deleted_at IS NULL`;
 
 const RETURN_TO_DRAFT_BLOCKER = `(SELECT j.status FROM publications pu JOIN jobs j ON j.publication_id = pu.id
   WHERE pu.post_id = po.id AND j.status IN ('pending', 'retry_wait', 'claimed', 'unknown')
   ORDER BY CASE j.status WHEN 'unknown' THEN 0 WHEN 'claimed' THEN 1 ELSE 2 END, pu.id LIMIT 1)`;
 const RETURN_TO_DRAFT_TARGET = `WITH target(id) AS (
   SELECT po.id FROM posts po
-  WHERE po.id = ?1 AND po.revision = ?2 AND po.status = 'approved'
+  WHERE po.id = ?1 AND po.revision = ?2 AND po.status = 'approved' AND po.deleted_at IS NULL
     AND NOT EXISTS (SELECT 1 FROM publications pu JOIN jobs j ON j.publication_id = pu.id
                     WHERE pu.post_id = po.id AND j.status IN ('pending', 'retry_wait', 'claimed', 'unknown'))
 )`;
@@ -113,12 +134,12 @@ const RETURN_TO_DRAFT_UPDATE = `${RETURN_TO_DRAFT_TARGET}
   WHERE id IN (SELECT id FROM target) RETURNING id`;
 const RETURN_TO_DRAFT_STATE = `SELECT po.id AS id, po.status AS status, po.revision AS revision,
     ${RETURN_TO_DRAFT_BLOCKER} AS blocker_status
-  FROM posts po WHERE po.id = ?1`;
+  FROM posts po WHERE po.id = ?1 AND po.deleted_at IS NULL`;
 
 // Qualifies for the archive: a publication was sent after the last restore, and nothing is left to
 // send (scheduled, queued, preparing, sending, retry_wait, unknown). Failed and cancelled ones do not
 // block, but a post with only those never qualifies.
-const ARCHIVABLE = `po.archived_at IS NULL AND po.status = 'approved'
+const ARCHIVABLE = `po.archived_at IS NULL AND po.deleted_at IS NULL AND po.status = 'approved'
   AND EXISTS (SELECT 1 FROM publications p2 JOIN jobs j2 ON j2.publication_id = p2.id
               WHERE p2.post_id = po.id AND j2.status = 'succeeded' AND j2.updated_at > COALESCE(po.restored_at, 0))
   AND NOT EXISTS (SELECT 1 FROM publications p3 JOIN jobs j3 ON j3.publication_id = p3.id
@@ -141,7 +162,7 @@ const ARCHIVE_AUDIT = `${ARCHIVE_TARGET}
 const ARCHIVE_POSTS = `${ARCHIVE_TARGET} UPDATE posts SET archived_at = ?2 WHERE id ${OF_TARGET} RETURNING id`;
 
 export const FIND_EXPIRED = `SELECT po.id AS id FROM posts po
-  WHERE po.archived_at IS NOT NULL AND po.archived_at <= ?1 AND NOT EXISTS (${BLOCKING_JOB('po.id')})
+  WHERE po.deleted_at IS NULL AND po.archived_at IS NOT NULL AND po.archived_at <= ?1 AND NOT EXISTS (${BLOCKING_JOB('po.id')})
   ORDER BY po.archived_at, po.id LIMIT ?2`;
 
 interface WaitingRow {
@@ -188,7 +209,8 @@ export function createD1LifecycleRepository(db: D1Database): LifecycleRepository
   ): D1PreparedStatement[] => [
     db.prepare(DELETE_AUDIT).bind(json, cutoff, audit.actor, audit.action, audit.now),
     ...DELETE_STATEMENTS.map((sql) => db.prepare(sql).bind(json, cutoff)),
-    db.prepare(DELETE_POSTS).bind(json, cutoff)
+    db.prepare(DELETE_POSTS).bind(json, cutoff),
+    db.prepare(SOFT_DELETE_POSTS).bind(json, cutoff, audit.now)
   ];
 
   return {
@@ -202,7 +224,11 @@ export function createD1LifecycleRepository(db: D1Database): LifecycleRepository
         db.prepare(DELETE_STATE).bind(json)
       ]);
       const waiting = rowsOf<WaitingRow>(results[0]);
-      const deleted = new Set(rowsOf<{ id: string }>(results[results.length - 2]).map((row) => row.id));
+      const deleted = new Set(
+        [results[results.length - 3], results[results.length - 2]].flatMap((result) =>
+          rowsOf<{ id: string }>(result).map((row) => row.id)
+        )
+      );
       const state = new Map(rowsOf<DeleteStateRow>(results[results.length - 1]).map((row) => [row.id, row]));
 
       return items.map((item): DeleteItemOutcome => {
@@ -308,7 +334,10 @@ export function createD1LifecycleRepository(db: D1Database): LifecycleRepository
       const results = await db.batch(
         deleteStatements(json, before, { actor: SYSTEM_ACTOR, action: 'post.purge', now })
       );
-      return rowsOf<{ id: string }>(results[results.length - 1]).length;
+      return [results[results.length - 2], results[results.length - 1]].reduce(
+        (count, result) => count + rowsOf<{ id: string }>(result).length,
+        0
+      );
     }
   };
 }

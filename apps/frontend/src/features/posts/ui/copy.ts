@@ -98,10 +98,12 @@ export const postsCopy = {
     channelsKept: 'Сообщения в каналах не удаляются.',
     irreversible: 'Восстановить нельзя.',
     plain: 'Пост будет удалён без возможности восстановления.',
-    withRecords: 'Пост и записи о его публикациях будут удалены без возможности восстановления.',
+    publicationsKept: 'Опубликованные публикации останутся в разделе «Публикации» с пометкой «Пост удалён».',
+    withRecords:
+      'Пост будет удалён без возможности восстановления. Опубликованные публикации останутся в разделе «Публикации» с пометкой «Пост удалён».',
     cancelling: (count: number) => `Будут отменены запланированные публикации: ${count}.`,
     cancellingFirst: (channel: string | undefined, time: string) => `Первая: ${channel ? `${channel}, ` : ''}${time}.`,
-    recordsMany: 'Будут удалены посты и записи об их публикациях.',
+    recordsMany: 'Опубликованные публикации останутся в разделе «Публикации» с пометкой «Пост удалён».',
     confirmOne: 'Удалить',
     confirmMany: (count: string) => `Удалить ${count}`,
     pending: 'Удаляем…',
@@ -346,7 +348,6 @@ export const postsCopy = {
     publish: 'Опубликовать',
     empty: 'Этот пост ещё не публиковали и не планировали.',
     loadError: 'Не удалось загрузить публикации поста.',
-    scheduledFor: (time: string, zone: string) => `${time}, ${zone}`,
     revision: (revision: number) => `ред. ${revision}`,
     created: 'Публикация создана',
     openAll: 'Все публикации'

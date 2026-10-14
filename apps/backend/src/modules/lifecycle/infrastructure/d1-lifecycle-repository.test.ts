@@ -56,7 +56,7 @@ describe('query plans', () => {
   it('the purge scan walks the archive index from the oldest archived post', async () => {
     const text = await plan(FIND_EXPIRED, START, 50);
 
-    expect(text).toContain('posts_archive_idx');
+    expect(text).toContain('posts_archived_idx');
     expect(text).not.toContain('TEMP B-TREE');
   });
 });
@@ -143,9 +143,12 @@ describe('the purge write re-checks every condition at write time', () => {
 
     expect(await repo.purgePosts({ ids: [seeded.postId], before: START + DAY, now: START + DAY })).toBe(1);
 
+    // A sent post is kept as a tombstone with the rows its publication needs.
     for (const table of ['posts', 'post_revisions', 'publications', 'jobs', 'job_attempts']) {
-      expect(await count(table)).toBe(0);
+      expect(await count(table)).toBe(1);
     }
+    expect(await count('posts', 'deleted_at IS NOT NULL')).toBe(1);
+    expect(await repo.findExpired({ before: START + DAY, limit: 50 })).toEqual([]);
   });
 });
 

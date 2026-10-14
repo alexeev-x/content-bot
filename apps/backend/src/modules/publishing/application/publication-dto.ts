@@ -18,6 +18,8 @@ export function toPublicationDto(record: PublicationRecord, now: number): Public
     ...(record.lastErrorCode === null ? {} : { lastErrorCode: record.lastErrorCode }),
     revision: record.revision,
     createdAt: new Date(record.createdAt).toISOString(),
-    updatedAt: new Date(record.updatedAt).toISOString()
+    updatedAt: new Date(record.updatedAt).toISOString(),
+    postDeleted: record.postDeleted === true,
+    ...(record.postSnapshot === undefined ? {} : { postSnapshot: record.postSnapshot })
   };
 }

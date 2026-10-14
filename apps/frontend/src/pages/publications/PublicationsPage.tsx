@@ -40,8 +40,6 @@ import styles from './PublicationsPage.module.css';
 import { usePublicationsData } from './use-publications-data';
 import { OpenIncidents } from '../../features/incidents';
 import { useOwnerTimezone } from '../../features/owner-settings';
-import { utcOffsetLabel } from '../../shared/lib/owner-timezone';
-import { useNow } from '../../shared/lib/use-now';
 
 type Props = {
   search: PublicationsSearch;
@@ -60,7 +58,6 @@ export function PublicationsPage({ search, onSearchChange, onOpenPosts, pollMs }
   useDocumentTitle(copy.list.title);
   const narrow = useMediaQuery(NARROW);
   const timezone = useOwnerTimezone();
-  const now = useNow();
   const { list, switching, shownView, items, post, postTitle, channel } = usePublicationsData(search, timezone, pollMs);
   const [publishOpen, setPublishOpen] = useState(false);
   const [deleteTargets, setDeleteTargets] = useState<ReturnType<typeof deleteTargetOf>[] | null>(null);
@@ -78,7 +75,6 @@ export function PublicationsPage({ search, onSearchChange, onOpenPosts, pollMs }
   }, [onSearchChange, query, search.q]);
   const announcement = useStatusAnnouncement(items);
   // The offset is read once per visit: it only changes at a DST switch, and render must stay pure.
-  const zoneNote = `${timezone}, ${utcOffsetLabel(now, timezone)}`;
 
   const openRow = search.id ? items.find((item) => item.id === search.id) : undefined;
   const openDestination = openRow ? channel(openRow) : undefined;
@@ -252,7 +248,6 @@ export function PublicationsPage({ search, onSearchChange, onOpenPosts, pollMs }
                 <Wrap narrow={narrow}>
                   <Panel
                     title={narrow ? copy.list.title : copy.list.panel[shownView]}
-                    note={zoneNote}
                     action={
                       <>
                         {selectMode ? (

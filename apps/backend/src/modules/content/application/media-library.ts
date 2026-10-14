@@ -40,7 +40,6 @@ export async function listMediaLibrary(
     kind: query.kind,
     search: query.search,
     usage: query.usage,
-    hidden: query.hidden === true,
     after: decodeCursor(query.cursor),
     offset: query.page === undefined ? undefined : (query.page - 1) * query.limit,
     limit: query.limit
@@ -241,13 +240,4 @@ export async function getMediaUsage(deps: { repo: PostMediaRepository }, mediaId
   const usage = await deps.repo.getUsage(mediaId);
   if (usage === null) throw new AppError('NOT_FOUND', 'Media not found');
   return usage;
-}
-
-export async function setMediaHidden(
-  deps: { repo: PostMediaRepository; actor: string; now: number },
-  mediaId: string,
-  hidden: boolean
-): Promise<void> {
-  if (!(await deps.repo.setHidden({ mediaId, hidden, actor: deps.actor, now: deps.now })))
-    throw new AppError('NOT_FOUND', 'Media not found');
 }

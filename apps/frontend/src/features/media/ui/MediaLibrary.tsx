@@ -30,12 +30,7 @@ import {
 } from '../../../shared/ui';
 import { ru } from '../../../shared/lib/ru';
 import { pluralRu } from '../../../shared/lib/ru-format';
-import {
-  mediaPageQueryOptions,
-  useCreatePostWithMedia,
-  useHideMedia,
-  usePrefetchMediaTabs
-} from '../api/media-queries';
+import { mediaPageQueryOptions, useCreatePostWithMedia, usePrefetchMediaTabs } from '../api/media-queries';
 import type { DeriveMode, MediaFilters } from '../api/media-api';
 import { useLibraryCrop } from '../model/use-library-crop';
 import { AttachDialog } from './AttachDialog';
@@ -49,7 +44,6 @@ import styles from './MediaLibrary.module.css';
 type SearchState = {
   kind?: MediaLibraryKind;
   usage?: MediaLibraryUsageFilter;
-  hidden?: true;
   search?: string;
   view?: 'grid' | 'list';
   id?: string;
@@ -100,45 +94,23 @@ function itemMeta(item: MediaLibraryItemDto): string {
 /** Delete is always offered: the dialog reads where the file is used and explains what will (not) happen. */
 function ItemMenu({
   item,
-  hiddenView,
   onDelete,
-  onHide,
   className
 }: {
   item: MediaLibraryItemDto;
-  hiddenView: boolean;
   onDelete: () => void;
-  onHide: () => void;
   className?: string;
 }) {
   return (
     <span className={className}>
       <Menu
         label={`Действия для ${item.fileName}`}
-        items={[
-          hiddenView ? { id: 'hide', label: 'Вернуть', icon: 'eye' } : { id: 'hide', label: 'Скрыть из медиатеки' },
-          { id: 'delete', label: 'Удалить', icon: 'trash', tone: 'danger' }
-        ]}
+        items={[{ id: 'delete', label: 'Удалить', icon: 'trash', tone: 'danger' }]}
         onAction={(id) => {
           if (id === 'delete') onDelete();
-          if (id === 'hide') onHide();
         }}
       />
     </span>
-  );
-}
-
-/** Filter chip: shows only the files the owner hid. */
-function HiddenChip({ active, onChange }: { active: boolean; onChange: (active: boolean) => void }) {
-  return (
-    <Button
-      variant={active ? 'soft' : 'secondary'}
-      icon={active ? 'check' : undefined}
-      aria-pressed={active}
-      onPress={() => onChange(!active)}
-    >
-      Скрытые
-    </Button>
   );
 }
 
@@ -147,17 +119,13 @@ function MediaCard({
   selected,
   onToggle,
   onOpen,
-  onDelete,
-  onHide,
-  hiddenView
+  onDelete
 }: {
   item: MediaLibraryItemDto;
   selected: boolean;
   onToggle: (checked: boolean) => void;
   onOpen: () => void;
   onDelete: () => void;
-  onHide: () => void;
-  hiddenView: boolean;
 }) {
   return (
     <li className={styles.card} data-selected={selected || undefined}>
@@ -171,7 +139,7 @@ function MediaCard({
       <span className={styles.check}>
         <Checkbox aria-label={`Выбрать ${item.fileName}`} isSelected={selected} onChange={onToggle} />
       </span>
-      <ItemMenu item={item} hiddenView={hiddenView} onDelete={onDelete} onHide={onHide} className={styles.cardMenu} />
+      <ItemMenu item={item} onDelete={onDelete} className={styles.cardMenu} />
     </li>
   );
 }
@@ -181,17 +149,13 @@ function MediaList({
   selected,
   onToggle,
   onOpen,
-  onDelete,
-  onHide,
-  hiddenView
+  onDelete
 }: {
   items: MediaLibraryItemDto[];
   selected: ReadonlySet<string>;
   onToggle: (item: MediaLibraryItemDto, checked: boolean) => void;
   onOpen: (item: MediaLibraryItemDto) => void;
   onDelete: (item: MediaLibraryItemDto) => void;
-  onHide: (item: MediaLibraryItemDto) => void;
-  hiddenView: boolean;
 }) {
   return (
     <ul className={styles.list} aria-label="Файлы медиатеки">
@@ -223,7 +187,7 @@ function MediaList({
             isSelected={selected.has(item.id)}
             onChange={(checked) => onToggle(item, checked)}
           />
-          <ItemMenu item={item} hiddenView={hiddenView} onDelete={() => onDelete(item)} onHide={() => onHide(item)} />
+          <ItemMenu item={item} onDelete={() => onDelete(item)} />
         </li>
       ))}
     </ul>
@@ -281,9 +245,7 @@ function Details({
   onAttach,
   onOpenPost,
   onSaved,
-  hiddenView,
-  onDelete,
-  onHide
+  onDelete
 }: {
   item: MediaLibraryItemDto;
   onClose: () => void;
@@ -293,9 +255,7 @@ function Details({
   onAttach: () => void;
   onOpenPost: (postId: string) => void;
   onSaved: (item: MediaLibraryItemDto, mode: DeriveMode) => void;
-  hiddenView: boolean;
   onDelete: () => void;
-  onHide: () => void;
 }) {
   const narrow = useMediaQuery('(max-width: 859px)');
   const [viewerId, setViewerId] = useState<string | null>(null);
@@ -324,11 +284,6 @@ function Details({
             <Button variant="secondary" icon="trash" onPress={onDelete}>
               Удалить
             </Button>
-            {hiddenView ? (
-              <Button variant="secondary" onPress={onHide}>
-                Вернуть
-              </Button>
-            ) : null}
           </>
         }
       >
@@ -413,10 +368,9 @@ export function MediaLibrary({ searchState, onSearchState, onCreatePost, onLogin
     () => ({
       kind: searchState.kind ?? 'all',
       usage: searchState.usage ?? 'all',
-      ...(searchState.hidden ? { hidden: true as const } : {}),
       ...(searchState.search ? { search: searchState.search } : {})
     }),
-    [searchState.hidden, searchState.kind, searchState.search, searchState.usage]
+    [searchState.kind, searchState.search, searchState.usage]
   );
   const page = searchState.page ?? 1;
   const query = useQuery(mediaPageQueryOptions(filters, page));
@@ -438,29 +392,6 @@ export function MediaLibrary({ searchState, onSearchState, onCreatePost, onLogin
   const view = narrow ? 'grid' : (searchState.view ?? 'grid');
   const createPost = useCreatePostWithMedia();
   const toast = useToast();
-  const hideMedia = useHideMedia();
-  const hiddenView = filters.hidden === true;
-  const hideItem = (item: MediaLibraryItemDto) =>
-    hideMedia.mutate(
-      { id: item.id, hidden: !hiddenView },
-      {
-        onSuccess: () => {
-          setSelected((current) => new Set([...current].filter((id) => id !== item.id)));
-          if (active?.id === item.id) closeDetails();
-          toast.show({
-            title: hiddenView ? 'Файл возвращён в медиатеку' : 'Файл скрыт из медиатеки',
-            description: `«${item.fileName}»`,
-            tone: 'success'
-          });
-        },
-        onError: (error) =>
-          toast.show({
-            title: hiddenView ? 'Не удалось вернуть файл' : 'Не удалось скрыть файл',
-            description: error instanceof ApiError && error.requestId ? `Запрос ${error.requestId}` : undefined,
-            tone: 'error'
-          })
-      }
-    );
   const askDelete = (targets: MediaLibraryItemDto[]) =>
     setPendingDelete(targets.map(({ id, fileName }) => ({ id, fileName })));
   const afterDeleted = (ids: string[]) => {
@@ -485,7 +416,7 @@ export function MediaLibrary({ searchState, onSearchState, onCreatePost, onLogin
   const unauthorized = errorKind === 'unauthorized';
   const resetFilters = () => {
     setSearchInput('');
-    onSearchState({ search: undefined, usage: undefined, hidden: undefined, id: undefined });
+    onSearchState({ search: undefined, usage: undefined, id: undefined });
   };
   const changeSelected = (item: MediaLibraryItemDto, checked: boolean) => {
     setSelected((current) => {
@@ -498,7 +429,6 @@ export function MediaLibrary({ searchState, onSearchState, onCreatePost, onLogin
   const applyUsage = (usage: MediaLibraryUsageFilter) => {
     onSearchState({ usage: usage === 'all' ? undefined : usage, id: undefined });
   };
-  const applyHidden = (next: boolean) => onSearchState({ hidden: next ? true : undefined, id: undefined });
   const closeDetails = () => onSearchState({ id: undefined });
   const openDetails = (item: MediaLibraryItemDto) => onSearchState({ id: item.id });
   const createPostWithFiles = () =>
@@ -539,7 +469,7 @@ export function MediaLibrary({ searchState, onSearchState, onCreatePost, onLogin
         onRetry={retry}
       />
     );
-  } else if (totalCount === 0 && !filters.search && filters.kind === 'all' && filters.usage === 'all' && !hiddenView) {
+  } else if (totalCount === 0 && !filters.search && filters.kind === 'all' && filters.usage === 'all') {
     body = (
       <EmptyState
         title="Файлов пока нет"
@@ -574,8 +504,6 @@ export function MediaLibrary({ searchState, onSearchState, onCreatePost, onLogin
             onToggle={(checked) => changeSelected(item, checked)}
             onOpen={() => openDetails(item)}
             onDelete={() => askDelete([item])}
-            onHide={() => hideItem(item)}
-            hiddenView={hiddenView}
           />
         ))}
       </ul>
@@ -588,8 +516,6 @@ export function MediaLibrary({ searchState, onSearchState, onCreatePost, onLogin
         onToggle={changeSelected}
         onOpen={openDetails}
         onDelete={(item) => askDelete([item])}
-        onHide={hideItem}
-        hiddenView={hiddenView}
       />
     );
   }
@@ -661,7 +587,6 @@ export function MediaLibrary({ searchState, onSearchState, onCreatePost, onLogin
                     onChange={(value) => applyUsage(value as MediaLibraryUsageFilter)}
                   />
                 )}
-                {narrow ? null : <HiddenChip active={hiddenView} onChange={applyHidden} />}
                 {narrow ? null : (
                   <div className={styles.toolbarEnd}>
                     <SegmentedControl
@@ -682,7 +607,6 @@ export function MediaLibrary({ searchState, onSearchState, onCreatePost, onLogin
                     onChange={(value) => applyUsage(value as MediaLibraryUsageFilter)}
                     fullWidth
                   />
-                  <HiddenChip active={hiddenView} onChange={applyHidden} />
                 </div>
               ) : null}
               <div className={styles.content}>
@@ -722,9 +646,7 @@ export function MediaLibrary({ searchState, onSearchState, onCreatePost, onLogin
           onClose={closeDetails}
           photos={items.filter((candidate) => candidate.kind === 'photo')}
           onNavigate={openDetails}
-          hiddenView={hiddenView}
           onDelete={() => askDelete([active])}
-          onHide={() => hideItem(active)}
           onSaved={(created, mode) => {
             toast.show({
               title: mode === 'replace' ? 'Файл заменён в черновиках' : 'Сохранено как новый файл',
@@ -743,7 +665,6 @@ export function MediaLibrary({ searchState, onSearchState, onCreatePost, onLogin
       ) : null}
       <DeleteMediaDialog
         targets={pendingDelete}
-        inHiddenView={hiddenView}
         timezone={timezone}
         onClose={() => setPendingDelete(null)}
         onDeleted={afterDeleted}
