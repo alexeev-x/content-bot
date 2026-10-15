@@ -42,6 +42,11 @@ export interface ContentAlertRepository {
   /** Checkpoint views of the items published since `publishedFrom` that have any. */
   readCheckpoints(publishedFrom: number): Promise<CheckpointRow[]>;
   readFollowers(fromDay: string): Promise<{ platform: ContentPlatform; day: string; followers: number }[]>;
+  /** View snapshots of these items (at most 50) since `from`, oldest first. */
+  readSnapshots(
+    itemIds: readonly string[],
+    from: number
+  ): Promise<{ itemId: string; observedAt: number; views: number }[]>;
   /** Which of these ids (at most 90) are raised already. */
   existing(ids: readonly string[]): Promise<Set<string>>;
   /** Inserts the alerts not raised before; returns how many are new. */
@@ -134,6 +139,19 @@ export function createD1ContentAlertRepository(db: D1Database): ContentAlertRepo
         )
         .bind(fromDay)
         .all<{ platform: ContentPlatform; day: string; followers: number }>();
+      return rows.results;
+    },
+
+    async readSnapshots(itemIds, from) {
+      if (itemIds.length === 0) return [];
+      const rows = await db
+        .prepare(
+          `SELECT item_id AS itemId, observed_at AS observedAt, views FROM content_item_snapshots
+           WHERE item_id IN (SELECT value FROM json_each(?1)) AND observed_at >= ?2 AND views IS NOT NULL
+           ORDER BY item_id, observed_at LIMIT 2000`
+        )
+        .bind(JSON.stringify(itemIds.slice(0, 50)), from)
+        .all<{ itemId: string; observedAt: number; views: number }>();
       return rows.results;
     },
 

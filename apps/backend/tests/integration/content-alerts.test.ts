@@ -139,6 +139,58 @@ describe('content alerts', () => {
     expect(weak?.html).not.toContain('×');
   });
 
+  it('flags a TikTok video that stopped dead or vanished, once each, with a link to appeal', async () => {
+    const clock = fakeClock();
+    const repo = createD1ContentAlertRepository(testDb());
+    const db = testDb();
+    const item = (id: string, publishedAt: number, views: number, observedAt: number) =>
+      db
+        .prepare(
+          `INSERT INTO content_items (id, platform, title, url, published_at, views, observed_at)
+           VALUES (?, 'tiktok', ?, ?, ?, ?, ?)`
+        )
+        .bind(
+          `tiktok:${id}`,
+          `Ролик ${id} #dota2`,
+          `https://www.tiktok.com/@a/video/${id}`,
+          publishedAt,
+          views,
+          observedAt
+        )
+        .run();
+    const snapshot = (id: string, at: number, views: number) =>
+      db
+        .prepare('INSERT INTO content_item_snapshots (item_id, observed_at, views) VALUES (?, ?, ?)')
+        .bind(`tiktok:${id}`, at, views)
+        .run();
+    await db
+      .prepare(
+        `UPDATE content_sources SET last_success_at = ?, last_error_at = NULL, last_error_code = NULL WHERE platform = 'tiktok'`
+      )
+      .bind(START - 5 * 60_000)
+      .run();
+    // Grew 400 in the 6 hours before, then nothing for 6 hours.
+    await item('frozen', START - 30 * HOUR, 1000, START - 5 * 60_000);
+    await snapshot('frozen', START - 12 * HOUR - 5 * 60_000, 600);
+    await snapshot('frozen', START - 6 * HOUR - 5 * 60_000, 1000);
+    // Still growing: no alert.
+    await item('alive', START - 30 * HOUR, 1500, START - 5 * 60_000);
+    await snapshot('alive', START - 12 * HOUR - 5 * 60_000, 600);
+    await snapshot('alive', START - 6 * HOUR - 5 * 60_000, 1000);
+    // The last collection did not return it.
+    await item('gone', START - 5 * HOUR, 800, START - 3 * HOUR);
+
+    const goals = createD1ContentGoalRepository(testDb());
+    await raiseContentAlerts({ repo, goals, clock, timezone: TZ });
+    await raiseContentAlerts({ repo, goals, clock, timezone: TZ });
+    const alerts = await repo.listPending(10);
+    expect(alerts.map((alert) => alert.id).sort()).toEqual(['item:tiktok:frozen:stalled', 'item:tiktok:gone:gone']);
+    const frozen = alerts.find((alert) => alert.id.endsWith(':stalled'));
+    expect(frozen?.html).toContain('⛔ <b>Ролик перестал набирать</b> · TikTok\n«Ролик frozen»');
+    expect(frozen?.html).toContain('за последние 6 ч: +0');
+    expect(frozen?.html).toContain('<a href="https://www.tiktok.com/@a/video/frozen">Открыть в TikTok</a>');
+  });
+
   it('raises a source outage after three hours of failures, once per outage', async () => {
     const clock = fakeClock();
     const repo = createD1ContentAlertRepository(testDb());

@@ -33,6 +33,15 @@ const DIGEST_ITEM_LIMIT = 1000;
 const DIGEST_LIST = 3;
 /** The digest compares weeks at this age, so a week's last posts are not judged on a few hours. */
 const DIGEST_AGE_HOURS = 24;
+/** TikTok videos are watched for a freeze or a disappearance this long after publishing. */
+const WATCH_WINDOW_MS = 7 * DAY_MS;
+/** Snapshots are hourly for 72 hours, then daily: the freeze window follows them. */
+const HOURLY_SNAPSHOTS_MS = 72 * HOUR_MS;
+const STALL_MIN_VIEWS = 300;
+/** The window before the freeze must have grown at least this much: a quiet video is not «stopped». */
+const STALL_MIN_PRIOR_GAIN = 100;
+/** The item must have been seen by a collection this recently, or «no growth» only means «no data». */
+const FRESH_OBSERVATION_MS = 90 * 60 * 1000;
 /** Alerts inserted per tick; the rest still qualify on the next tick. Keeps the D1 budget fixed. */
 export const NEW_ALERTS_PER_TICK = 3;
 
@@ -246,6 +255,79 @@ export function sourceAlerts(sources: readonly SourceRow[], now: number, timezon
       html: sourceAlertHtml(facts, timezone),
       buttons: [],
       linkPath: '/settings/analytics'
+    });
+  }
+  return alerts;
+}
+
+function attr(value: string): string {
+  return esc(value).replaceAll('"', '&quot;');
+}
+
+/**
+ * TikTok videos of the last week that stopped dead or vanished (owner, 15.10.2026: a blocked video needs an
+ * appeal quickly). Stopped: the window before grew by STALL_MIN_PRIOR_GAIN or more and the last window (6 h
+ * while snapshots are hourly, then 24 h) added nothing. Vanished: TikTok's latest successful collection did
+ * not return it. Each raises one alert per video.
+ */
+export function tiktokWatchAlerts(
+  items: readonly ItemRow[],
+  snapshots: readonly { itemId: string; observedAt: number; views: number }[],
+  sources: readonly SourceRow[],
+  now: number
+): NewContentAlert[] {
+  const tiktok = sources.find((source) => source.platform === 'tiktok');
+  const lastSuccess = tiktok?.lastSuccessAt ?? null;
+  const alerts: NewContentAlert[] = [];
+  for (const item of items) {
+    if (item.platform !== 'tiktok' || now - item.publishedAt > WATCH_WINDOW_MS) continue;
+    const title = `«${esc(itemTitle(item, 80))}»`;
+    const link = /^https:\/\/(www\.)?tiktok\.com\//.test(item.url)
+      ? `\n👉 <a href="${attr(item.url)}">Открыть в TikTok</a>`
+      : '';
+    // A video TikTok stopped returning, while the collection itself works and the video is past its first hour.
+    if (
+      lastSuccess !== null &&
+      now - lastSuccess < FRESH_OBSERVATION_MS &&
+      item.observedAt < lastSuccess - 30 * 60 * 1000 &&
+      now - item.publishedAt > HOUR_MS
+    ) {
+      alerts.push({
+        id: `item:${item.id}:gone`,
+        kind: 'item',
+        title: `Ролик пропал из TikTok: «${itemTitle(item, 80)}»`,
+        body: 'TikTok перестал его возвращать: удалён, скрыт или на проверке. Проверьте уведомления TikTok и при блокировке подайте апелляцию.',
+        html: `🚫 <b>Ролик пропал из TikTok</b>\n${title}\n\nTikTok перестал его отдавать: удалён, скрыт или на проверке.\n💡 <i>Проверь уведомления в TikTok и, если это блокировка, подай апелляцию.</i>${link}`,
+        buttons: [],
+        linkPath: itemLink(item)
+      });
+      continue;
+    }
+    if ((item.views ?? 0) < STALL_MIN_VIEWS || now - item.observedAt > FRESH_OBSERVATION_MS) continue;
+    const window = now - item.publishedAt < HOURLY_SNAPSHOTS_MS ? 6 * HOUR_MS : 24 * HOUR_MS;
+    if (now - item.publishedAt < 2 * window) continue;
+    const own = snapshots.filter((row) => row.itemId === item.id);
+    const at = (moment: number) => own.filter((row) => row.observedAt <= moment).at(-1)?.views ?? null;
+    const before = at(item.observedAt - window);
+    const earlier = at(item.observedAt - 2 * window);
+    const views = item.views ?? 0;
+    if (before === null || earlier === null) continue;
+    if (before - earlier < STALL_MIN_PRIOR_GAIN || views - before > 0) continue;
+    const hours = window / HOUR_MS;
+    alerts.push({
+      id: `item:${item.id}:stalled`,
+      kind: 'item',
+      title: `Ролик перестал набирать: «${itemTitle(item, 80)}»`,
+      body: `За последние ${hours} ч ни одного просмотра, до этого +${count(before - earlier)}. Похоже на блокировку или ограничение показа: проверьте TikTok и подайте апелляцию.`,
+      html: [
+        `⛔ <b>Ролик перестал набирать</b> · TikTok`,
+        title,
+        '',
+        `<blockquote>👀 ${count(views)} просмотров\n📈 за ${hours} ч до этого: +${count(before - earlier)}\n⏸ за последние ${hours} ч: +0</blockquote>`,
+        `💡 <i>Похоже на блокировку или ограничение показа. Проверь уведомления в TikTok и подай апелляцию.</i>${link}`
+      ].join('\n'),
+      buttons: [],
+      linkPath: itemLink(item)
     });
   }
   return alerts;
@@ -528,11 +610,21 @@ export async function raiseContentAlerts(deps: {
   timezone: string;
 }): Promise<{ raised: number }> {
   const now = deps.clock.now();
-  const recent = await deps.repo.readRecent({ itemsFrom: now - ITEM_ALERT_WINDOW_MS, limit: 200 });
+  // A week back: the TikTok watch needs it; the curve alerts only look at the last 26 hours of it.
+  const recent = await deps.repo.readRecent({ itemsFrom: now - WATCH_WINDOW_MS, limit: 200 });
   const alerts = sourceAlerts(recent.sources, now, deps.timezone);
-  if (recent.items.length > 0) {
+  const young = recent.items.filter((item) => item.publishedAt >= now - ITEM_ALERT_WINDOW_MS);
+  if (young.length > 0) {
     const checkpoints = await deps.repo.readCheckpoints(now - BASELINE_WINDOW_MS);
-    alerts.push(...itemAlerts(recent.items, checkpoints));
+    alerts.push(...itemAlerts(young, checkpoints));
+  }
+  const watched = recent.items.filter((item) => item.platform === 'tiktok');
+  if (watched.length > 0) {
+    const snapshots = await deps.repo.readSnapshots(
+      watched.map((item) => item.id),
+      now - 2 * 24 * HOUR_MS - 2 * HOUR_MS
+    );
+    alerts.push(...tiktokWatchAlerts(watched, snapshots, recent.sources, now));
   }
   const weekEnd = digestWeekEnd(now, deps.timezone);
   const digestId = weekEnd === null ? null : `digest:${zonedDate(weekEnd, deps.timezone)}`;
