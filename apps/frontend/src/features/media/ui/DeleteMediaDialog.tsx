@@ -4,7 +4,14 @@ import { useState } from 'react';
 import { ApiError } from '../../../shared/api/http-client';
 import { Button, Dialog, useToast } from '../../../shared/ui';
 import { mediaUsageQueryOptions, useDeleteMedia } from '../api/media-queries';
-import { blockSentence, countScheduled, deleteBlock, postTitle, scheduledLine } from '../model/media-usage';
+import {
+  blockSentence,
+  countScheduled,
+  deleteBlock,
+  derivativesSentence,
+  postTitle,
+  scheduledLine
+} from '../model/media-usage';
 import styles from './DeleteMediaDialog.module.css';
 
 export type DeleteTarget = { id: string; fileName: string };
@@ -90,12 +97,17 @@ function UsageDetails({
           <p className={styles.note}>В канале останется, в истории файла не будет.</p>
         </Group>
       ) : null}
+      {usage.derivatives > 0 ? (
+        <Group title="Обрезанные копии:">
+          <p className={styles.note}>{derivativesSentence(usage.derivatives)}</p>
+        </Group>
+      ) : null}
     </>
   );
 }
 
 const isUsed = (usage: MediaUsageDto) =>
-  usage.drafts.length + usage.scheduled.length + usage.approved.length + usage.sent.length > 0;
+  usage.drafts.length + usage.scheduled.length + usage.approved.length + usage.sent.length + usage.derivatives > 0;
 
 /**
  * Delete confirmation that reads the usage first and says exactly what will happen. Deleting is always possible

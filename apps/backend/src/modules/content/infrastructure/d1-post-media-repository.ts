@@ -84,7 +84,8 @@ function isDeletableSql(idExpression: string): string {
 // detach 'drafts': a draft's own attachment does not block (it is removed first), but a file held by more
 // than MEDIA_DETACH_DRAFTS_MAX drafts stays blocked: the detach stays bounded.
 // detach 'all': nothing blocks except a publication whose job is claimed or unknown (a send may be in
-// flight or unconfirmed: never touched), a derivative outside the selection and that draft bound.
+// flight or unconfirmed: never touched) and that draft bound. Crops outside the selection do not block: they
+// are unlinked from the deleted source and stay in the library as files of their own (owner, 15.10.2026).
 function selectionBlockedCte(detach: MediaDetach | undefined): string {
   const draftsOverBound = `(SELECT count(*) FROM post_media pm JOIN posts p ON p.id = pm.post_id
             WHERE pm.media_id = m.id AND p.status = 'draft') > ${MEDIA_DETACH_DRAFTS_MAX}`;
@@ -105,16 +106,20 @@ function selectionBlockedCte(detach: MediaDetach | undefined): string {
       : `EXISTS (SELECT 1 FROM publications pu
             JOIN post_revisions r ON r.post_id = pu.post_id AND r.revision = pu.post_revision, json_each(r.media_json) j
             WHERE j.value = m.id)`;
+  const derivativeHolds =
+    detach === 'all'
+      ? ''
+      : `
+       OR EXISTS (SELECT 1 FROM media_assets d
+            WHERE d.source_media_id = m.id AND d.id NOT IN (SELECT value FROM json_each(?1)))`;
   return `WITH RECURSIVE blocked(id) AS (
   SELECT m.id FROM media_assets m
    WHERE m.id IN (SELECT value FROM json_each(?1))
      AND (${postHolds}
-       OR ${snapshotHolds}
-       OR EXISTS (SELECT 1 FROM media_assets d
-            WHERE d.source_media_id = m.id AND d.id NOT IN (SELECT value FROM json_each(?1))))
+       OR ${snapshotHolds}${derivativeHolds})
   UNION
   SELECT m.source_media_id FROM media_assets m JOIN blocked b ON m.id = b.id
-   WHERE m.source_media_id IN (SELECT value FROM json_each(?1))
+   WHERE m.source_media_id IN (SELECT value FROM json_each(?1))${detach === 'all' ? ' AND 0' : ''}
 )`;
 }
 
@@ -1024,7 +1029,7 @@ export function createD1PostMediaRepository(db: D1Database): PostMediaRepository
         })),
         derivatives: fact.derivatives,
         deletable: fact.deletable === 1,
-        detachable: sending.length === 0 && fact.derivatives === 0 && fact.drafts <= MEDIA_DETACH_DRAFTS_MAX
+        detachable: sending.length === 0 && fact.drafts <= MEDIA_DETACH_DRAFTS_MAX
       });
     },
 
@@ -1122,7 +1127,15 @@ export function createD1PostMediaRepository(db: D1Database): PostMediaRepository
           )
           .bind(ids, now),
         // Approved and sent posts hold the file by a plain attachment row too; drafts were handled above.
-        db.prepare(`${free}DELETE FROM post_media WHERE media_id IN (${unblocked})`).bind(ids)
+        db.prepare(`${free}DELETE FROM post_media WHERE media_id IN (${unblocked})`).bind(ids),
+        // Crops of a deleted file that are not deleted with it become library files of their own, so nothing
+        // that a post or the library shows loses its bytes, and none is left without a retention reason.
+        db
+          .prepare(
+            `${free}UPDATE media_assets SET source_media_id = NULL, in_library = 1
+              WHERE source_media_id IN (${unblocked}) AND id NOT IN (${unblocked})`
+          )
+          .bind(ids)
       ];
       const results = await db.batch([
         db.prepare(`SELECT id FROM media_assets WHERE id IN (${inSelection})`).bind(ids),

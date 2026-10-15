@@ -2,6 +2,7 @@ import {
   apiErrorSchema,
   cropPostMediaResultSchema,
   mediaLibraryItemSchema,
+  mediaUsageSchema,
   mediaLibraryPageSchema,
   postSchema,
   uploadPostMediaResultSchema
@@ -158,6 +159,27 @@ describe('derived library media', () => {
     expect(detach.status).toBe(200);
     expect(await count('SELECT count(*) AS n FROM post_media_cleanup')).toBe(0);
     expect(await count(`SELECT count(*) AS n FROM media_assets WHERE id = '${item.id}'`)).toBe(1);
+  });
+
+  it('deletes a source with detach=all while its crop stays a library file of its own', async () => {
+    const { upload } = await draftWith(png(), 'image/png', 'a.png');
+    const crop = mediaLibraryItemSchema.parse(await (await derive(upload.media.id, png(4, 5), nextKey())).json());
+
+    const usage = mediaUsageSchema.parse(await (await api.request(`/api/v1/media/${upload.media.id}/usage`)).json());
+    expect(usage).toMatchObject({ derivatives: 1, deletable: false, detachable: true });
+    // A plain delete still refuses: only the owner's explicit «delete anyway» (detach=all) goes through.
+    expect((await api.request(`/api/v1/media/${upload.media.id}`, { method: 'DELETE' })).status).toBe(409);
+
+    const remove = await api.request(`/api/v1/media/${upload.media.id}?detach=all`, { method: 'DELETE' });
+    expect(remove.status).toBe(204);
+    expect(await count(`SELECT count(*) AS n FROM media_assets WHERE id = '${upload.media.id}'`)).toBe(0);
+    const row = await testDb()
+      .prepare('SELECT source_media_id AS source, in_library AS lib FROM media_assets WHERE id = ?1')
+      .bind(crop.id)
+      .first<{ source: string | null; lib: number }>();
+    expect(row).toEqual({ source: null, lib: 1 });
+    const content = await api.request(`/api/v1/media/${crop.id}/content`);
+    expect(new Uint8Array(await content.arrayBuffer())).toEqual(png(4, 5));
   });
 
   it('derives a video from a video and rejects a photo from a video source', async () => {

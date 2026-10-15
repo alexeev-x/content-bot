@@ -239,9 +239,10 @@ export type BulkDeleteMediaResultDto = z.infer<typeof bulkDeleteMediaResultSchem
 //     wouldBeEmpty = after removal the publication has no media and no text, so deleting cancels it;
 //   sending: publications whose job is claimed ('sending') or unknown ('unknown'); they block detach=all;
 //   sent: posts with a succeeded publication naming it, sentAt = when that job last changed (history is kept);
-//   derivatives: crops that point at it as their source (they block every delete);
+//   derivatives: crops that point at it as their source (they block a plain DELETE; detach=all keeps them
+//     as library files of their own);
 //   deletable: a plain DELETE would succeed;
-//   detachable: DELETE ?detach=all would succeed now (nothing sending, no derivatives, at most
+//   detachable: DELETE ?detach=all would succeed now (nothing sending, at most
 //     MEDIA_DETACH_DRAFTS_MAX drafts).
 // Errors: NOT_FOUND 404, UNAUTHORIZED 401, FORBIDDEN 403.
 export const MEDIA_USAGE_LIST_MAX = 20;
