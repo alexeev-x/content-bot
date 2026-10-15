@@ -68,12 +68,24 @@ Sources: OpenDota keyless 60 req/min and 3 000/day; official datafeed keyless an
 
 ### B. Video analytics
 
-- YouTube first: owner OAuth, daily metrics per video (views, average view duration, retention).
-- TikTok next: what a personal account can get through the official API must be verified before building; the 13.10.2026 decision that TikTok is not the first integration has to be revisited.
-- Early tracking: a newly uploaded video is detected automatically and its public counters (views, likes, comments, shares) are snapshotted hourly for the first 72 hours, then daily. The curve is compared with the owner's own baseline (the median of past videos at the same age), giving a verdict «заходит / средне / не заходит» with a percentile. The bot reports at about 2 h, 24 h and 72 h. Snapshots are bounded: hourly rows collapse to daily after 72 hours.
-- Retention and watch time arrive later (YouTube Analytics reports with a delay of about 2–3 days), so the early verdict uses public counters and the breakdown adds retention when it lands.
-- New «Аналитика» section in the studio (sidebar; on phones in the «Ещё» sheet until it earns a tab): a list of videos from both platforms with the early verdict, views at 2 h / 24 h / 72 h and the platform; the newest videos on top while they are inside the 72-hour window.
-- Per-video page: the growth curve against the owner's baseline, metrics plus an AI breakdown of the first seconds and the topic against retention; a weekly report in the bot; topic suggestions from what worked.
+**Built on DEV (15.10.2026).** Hourly collection of Telegram (public preview), YouTube (Data API key) and TikTok (Display API, owner sign-in); views at 1–72 h for the «same age» status; «Аналитика» with tabs «Обзор» (summary, conclusions, «Что залетает сейчас», every publication against the median, daily growth), «Публикации» (best and worst, table, video comparison) and «Аудитория» (followers, platform comparison, best time to post); item panel; sources in «Настройки → Аналитика». Research of comparable tools: `.logs/handoff/analytics-research.md`.
+
+**Next, without AI, in this order** (each is a separate task; numbers in the owner's terms):
+
+1. **Telegram invite links per source.** The bot creates named invite links (TikTok bio, YouTube description, each ad post, each giveaway) and counts joins and leaves per link from `chat_member` updates. Answers the main question of the plan — which source brings subscribers — and gives advertisers proof. Needs: the bot as channel admin with the «invite users» right; `chat_member` in the webhook's allowed updates.
+2. **Bot alerts and a weekly digest.** «Ролик залетает: 1,8× обычного на 6 ч» for a video or post at 2, 6 and 24 h when it is ≥ 1.5× or ≤ 0.7× its usual curve; on Monday a digest: the period's «Главное», the best and worst three, followers change. Uses only what the page already computes.
+3. **Telegram channel metrics as in TGStat.** ERR (average views of the last 30 days' posts ÷ subscribers), ERR24 (views at 24 h ÷ subscribers, from the 24 h checkpoint), average reach per post and its trend; the numbers advertisers ask for.
+4. **Studio rubrics against results.** Telegram posts published through the studio are matched to their collected statistics, so a rubric («Учу фидить», «Вердикт чата», …) gets its own median, reach and best time. Shows which rubric to post more.
+5. **Goals with pace.** A target per platform (e.g. 1 000 Telegram subscribers) with the current pace and the forecast date; shown in «Сводка» and the weekly digest.
+6. **Ad and event marks.** The owner marks an ad post, a giveaway or a viral video; charts show the marks, and an ad post gets a report (views, reach, joins via its invite link, leaves after 7 days) to send to the advertiser.
+7. **«Обычно» band.** The p25–p75 range of the last ~10 publications drawn behind curves and KPIs, so «normal» is a range, not a single median.
+8. **Media kit and export.** A public page (or a PDF) with audience, reach, ERR and average views per platform for advertisers; CSV export of the publications table.
+
+**Needs the owner's YouTube sign-in (OAuth, YouTube Analytics API), not AI:** retention curve and relative retention, traffic sources, subscribers gained per video, audience geography. The early verdict stays on public counters; retention is added to the item panel when it lands (2–3 days delay).
+
+**Needs AI (stage A):** a breakdown of the first seconds and the topic against retention, automatic topic tags, hook and title scoring, topic suggestions from what worked.
+
+**Not available through the platforms' APIs:** TikTok retention, traffic sources and demographics (the Display API has counters only); TGStat's citation index; YouTube Studio's «Research» tab.
 
 ### C. Telegram growth features
 
