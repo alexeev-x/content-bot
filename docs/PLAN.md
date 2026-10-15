@@ -76,6 +76,10 @@ Agreed with the owner 15.10.2026. Publishing always needs the owner's approval.
 
 **Token economy (owner priority).** Prompt caching of the stable prefix (profile, examples, rules, rubric) in a fixed order; one draft, not variants; output length bound to the rubric's format; low effort for simple posts; a rewrite sends only the owner's short instruction; non-urgent work (weekly rules, topic lists) through the Batch API; per-request token and cache accounting with a daily cap shown in the studio. No prompt-compression tools (LLMLingua and the like): they need a separate server and strip the wording that carries the voice.
 
+**Spend tracking (owner, 15.10.2026), built with the provider port.** Every AI call is recorded (model, input, cache-read, cache-write and output tokens, cost from the model's price table). The studio shows this month's spend against the owner's monthly budget, what is left, drafts made and the average cost, by day and by kind of work; each draft shows its own cost. At 80% of the budget the bot warns; at 100% AI stops until next month unless the owner raises the budget; a daily cap keeps one day from eating the month; the provider console's monthly limit stays as a backstop. «Left» is counted from the owner's budget: the provider's prepaid balance is not readable with a normal API key (an admin key would be a separate decision).
+
+**Goal and acceptance (owner, 15.10.2026):** for now text only, written so that nobody can tell it is AI. Checked blind: 5 real posts mixed with 5 AI posts on the same topics; readers guessing no better than chance.
+
 **Order:** rubrics + provider port → style profile from the export → (blind test) → «Написать с ИИ» in the editor and in the bot → learning from edits → Reels topics from analytics → news autoposts.
 
 **Owner inputs:** the Telegram channel export (JSON), 10–15 posts that are «100% him», how Reels are recorded and what a script must contain, whether swearing is allowed.
