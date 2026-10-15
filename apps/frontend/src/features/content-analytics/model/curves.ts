@@ -31,7 +31,16 @@ export function baselineBand(
     : [];
 }
 
+/** «0», «30 мин», «1,5 ч», «12 ч», «4 дн»: axis ticks of a young item stay distinct. */
 export function formatAge(hours: number): string {
+  if (hours <= 0) return '0';
+  if (hours < 1) return `${Math.round(hours * 60)} мин`;
+  if (hours < 10) return `${(Math.round(hours * 10) / 10).toLocaleString('ru-RU')} ч`;
   if (hours < 72) return `${Math.round(hours)} ч`;
   return `${Math.round(hours / 24)} дн`;
+}
+
+/** The growth range that shows a whole item: 24 h while it is younger than a day, then 72 h, then all. */
+export function rangeForAge(hours: number): '24' | '72' | 'all' {
+  return hours < 24 ? '24' : hours < 72 ? '72' : 'all';
 }

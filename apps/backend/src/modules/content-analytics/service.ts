@@ -33,6 +33,8 @@ export const COLLECT_INTERVAL_MS = 55 * MINUTE_MS;
 const RETRY_AFTER_FAILURE_MS = 15 * MINUTE_MS;
 /** The owner's «Обновить» collects a source again only when its last claim is at least this old. */
 const MANUAL_MIN_GAP_MS = 5 * MINUTE_MS;
+/** D1 statements of one source's collection: the claim, the 5-statement write, the TikTok connection read and token write. */
+export const SOURCE_D1_STATEMENTS = 8;
 
 export function utcDay(at: number): string {
   return new Date(at).toISOString().slice(0, 10);
@@ -47,16 +49,26 @@ export async function collectContentAnalytics(deps: {
   clock: Clock;
   logger: Logger;
   requestId: string;
-  /** The invocation's subrequest meter: each collection's outbound requests are charged to it. */
-  budget?: { charge(count: number): void };
+  /**
+   * The invocation's subrequest meter: each collection's outbound requests are charged to it, and a source
+   * is collected only while its whole cost still fits, leaving `reserve` for the caller. A source left out
+   * keeps its schedule and is collected by a later call.
+   */
+  budget?: { charge(count: number): void; remaining(): number };
+  reserve?: number;
   /** The owner's manual refresh: ignores the schedule, at most once per MANUAL_MIN_GAP_MS per source. */
   manual?: boolean;
-}): Promise<{ collected: number; failed: number }> {
+}): Promise<{ collected: number; failed: number; deferred: number }> {
   let collected = 0;
   let failed = 0;
+  let deferred = 0;
   const manual = deps.manual === true;
   for (const collector of deps.sources.collectors) {
     if (collector.ready !== undefined && !(await collector.ready())) continue;
+    if (deps.budget && deps.budget.remaining() < collector.requests + SOURCE_D1_STATEMENTS + (deps.reserve ?? 0)) {
+      deferred += 1;
+      continue;
+    }
     const now = deps.clock.now();
     const won = await deps.repo.claim({
       platform: collector.platform,
@@ -119,7 +131,7 @@ export async function collectContentAnalytics(deps: {
     if (collection.warning === undefined) deps.logger.info({ ...event, status: 'ok' });
     else deps.logger.warn({ ...event, status: 'partial', errorCode: collection.warning });
   }
-  return { collected, failed };
+  return { collected, failed, deferred };
 }
 
 function toItemDto(row: ItemRow): ContentItemDto {

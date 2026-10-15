@@ -22,5 +22,6 @@ export {
   listContentItems,
   readContentAnalyticsOverview,
   readContentItem,
-  readContentReport
+  readContentReport,
+  SOURCE_D1_STATEMENTS
 } from './service';

@@ -16,7 +16,7 @@ import {
   Tabs
 } from '../../../shared/ui';
 import { contentItemQueryOptions } from '../api/content-analytics-queries';
-import { ageCurve, baselineBand, baselineCurve, formatAge } from '../model/curves';
+import { ageCurve, baselineBand, baselineCurve, formatAge, rangeForAge } from '../model/curves';
 import {
   engagementRate,
   formatCount,
@@ -104,7 +104,10 @@ function DrawerBody({
   onOpen: (id: string) => void;
 }) {
   const { item } = detail;
-  const [range, setRange] = useState<'24' | '72' | 'all'>('72');
+  // Opens on the range that fits the item's age: a 3-hour-old video is not shown on a 72-hour scale.
+  const [range, setRange] = useState<'24' | '72' | 'all'>(() =>
+    rangeForAge((now - Date.parse(item.publishedAt)) / 3_600_000)
+  );
   const peers = (context?.items ?? []).filter((entry) => entry.platform === item.platform);
   const medians = context?.medians ?? {};
   const verdict = verdictFor(item, now, [detail.baseline], medians);

@@ -21,17 +21,17 @@ import { DotaWatchError } from '../modules/dota';
 import { processPostMediaCleanup } from '../modules/content';
 import { sendDotaWatchlistAlerts } from './workflows/process-dota-watchlist-alerts';
 import { notifyOwnerOfDeliveries } from './notifications/sent-notice';
-import { collectContentAnalytics, raiseContentAlerts } from '../modules/content-analytics';
+import { collectContentAnalytics, raiseContentAlerts, SOURCE_D1_STATEMENTS } from '../modules/content-analytics';
 import { sendContentAlerts } from './workflows/send-content-alerts';
 
 // Per table and per hourly tick; leftovers wait for the next hour.
 export const CLEANUP_LIMIT = 100;
 // The heartbeat upsert plus slack for the final log line's bookkeeping.
 const HEARTBEAT_RESERVE = 3;
-// Claims, writes and outbound calls of one content-analytics run over every source
-// (Telegram 5 pages + YouTube 9 calls + TikTok 7 calls + about 21 D1 statements: per source a claim and a
-// 5-statement batch, plus the TikTok connection reads and token write).
-const CONTENT_ANALYTICS_RESERVE = 42;
+// The cheapest single source (Telegram: 5 preview pages + its D1 statements). All three sources need about
+// 45 of the 50 subrequests, more than an idle tick has left, so the step collects what fits and defers the
+// rest to the next minute-3 tick ten minutes later (each source keeps its own hourly schedule).
+const CONTENT_SOURCE_MIN = 5 + SOURCE_D1_STATEMENTS;
 // Raising (settings, at most ten reads with the digest's goals, NEW_ALERTS_PER_TICK inserts) and sending two
 // alerts (stuck sweep, pending read, app origin, then claim, Telegram call and finish each).
 const CONTENT_ALERTS_RESERVE = 24;
@@ -377,15 +377,15 @@ export async function handleScheduled(controller: ScheduledController, container
     });
   }
 
-  // 7b. content analytics: the owner's Telegram/YouTube counters, on idle ticks of minutes ending in 3.
-  // The per-source claim keeps it to about once an hour (sooner after a failure); a source needs at
-  // most 5 D1 statements and 9 outbound requests, so the step runs only with that budget left.
+  // 7b. content analytics: the owner's Telegram/YouTube/TikTok counters, on idle ticks of minutes ending in 3.
+  // The per-source claim keeps it to about once an hour (sooner after a failure); sources that do not fit
+  // the tick's remaining subrequests wait for the next such tick.
   if (
     minute % 10 === 3 &&
     (counts.due ?? 0) === 0 &&
     raised.length === 0 &&
     container.contentSources.collectors.length > 0 &&
-    container.queryBudget.remaining() >= CONTENT_ANALYTICS_RESERVE + HEARTBEAT_RESERVE
+    container.queryBudget.remaining() >= CONTENT_SOURCE_MIN + HEARTBEAT_RESERVE
   ) {
     await step('content-analytics', async () => {
       const result = await collectContentAnalytics({
@@ -394,9 +394,10 @@ export async function handleScheduled(controller: ScheduledController, container
         clock,
         logger,
         requestId: 'scheduled',
-        budget: container.queryBudget
+        budget: container.queryBudget,
+        reserve: HEARTBEAT_RESERVE
       });
-      return { contentCollected: result.collected, contentFailed: result.failed };
+      return { contentCollected: result.collected, contentFailed: result.failed, contentDeferred: result.deferred };
     });
   }
 

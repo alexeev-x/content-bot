@@ -73,17 +73,17 @@ describe('content analytics collection', () => {
     const run = (manual = false) =>
       collectContentAnalytics({ repo, sources, clock, logger, requestId: 't', ...(manual ? { manual } : {}) });
 
-    expect(await run()).toEqual({ collected: 1, failed: 0 });
+    expect(await run()).toEqual({ collected: 1, failed: 0, deferred: 0 });
     // An overlapping tick and a manual refresh right after both lose the claim.
-    expect(await run()).toEqual({ collected: 0, failed: 0 });
+    expect(await run()).toEqual({ collected: 0, failed: 0, deferred: 0 });
     clock.advance(4 * 60_000);
-    expect(await run(true)).toEqual({ collected: 0, failed: 0 });
+    expect(await run(true)).toEqual({ collected: 0, failed: 0, deferred: 0 });
     expect(calls).toBe(1);
 
     // An hour later: a new snapshot for the young post, none for the ten-day-old one.
     clock.advance(HOUR);
     views = 180;
-    expect(await run()).toEqual({ collected: 1, failed: 0 });
+    expect(await run()).toEqual({ collected: 1, failed: 0, deferred: 0 });
     expect(await snapshotCount('telegram:1')).toBe(2);
     expect(await snapshotCount('telegram:2')).toBe(1);
 
@@ -107,7 +107,8 @@ describe('content analytics collection', () => {
     clock.advance(HOUR);
     expect(await collectContentAnalytics({ repo, sources, clock, logger, requestId: 't' })).toEqual({
       collected: 0,
-      failed: 1
+      failed: 1,
+      deferred: 0
     });
 
     const overview = await readContentAnalyticsOverview({ repo, sources, clock });
@@ -116,13 +117,15 @@ describe('content analytics collection', () => {
     clock.advance(60_000);
     expect(await collectContentAnalytics({ repo, sources, clock, logger, requestId: 't', manual: true })).toEqual({
       collected: 0,
-      failed: 0
+      failed: 0,
+      deferred: 0
     });
     clock.advance(15 * 60_000);
     fail = false;
     expect(await collectContentAnalytics({ repo, sources, clock, logger, requestId: 't' })).toEqual({
       collected: 1,
-      failed: 0
+      failed: 0,
+      deferred: 0
     });
   });
 });
