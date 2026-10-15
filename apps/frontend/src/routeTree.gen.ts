@@ -21,6 +21,7 @@ import { Route as PostsIndexRouteImport } from './routes/posts/index';
 import { Route as PostsIdRouteImport } from './routes/posts/$id';
 import { Route as PostsNewRouteImport } from './routes/posts/new';
 import { Route as SettingsIndexRouteImport } from './routes/settings.index';
+import { Route as SettingsAnalyticsRouteImport } from './routes/settings.analytics';
 import { Route as SettingsAppearanceRouteImport } from './routes/settings.appearance';
 import { Route as SettingsChannelsRouteImport } from './routes/settings.channels';
 import { Route as SettingsGeneralRouteImport } from './routes/settings.general';
@@ -88,6 +89,11 @@ const SettingsIndexRoute = SettingsIndexRouteImport.update({
   path: '/',
   getParentRoute: () => SettingsRoute,
 } as any);
+const SettingsAnalyticsRoute = SettingsAnalyticsRouteImport.update({
+  id: '/analytics',
+  path: '/analytics',
+  getParentRoute: () => SettingsRoute,
+} as any);
 const SettingsAppearanceRoute = SettingsAppearanceRouteImport.update({
   id: '/appearance',
   path: '/appearance',
@@ -130,6 +136,7 @@ export interface FileRoutesByFullPath {
   '/sources': typeof SourcesRoute;
   '/posts/$id': typeof PostsIdRouteWithChildren;
   '/posts/new': typeof PostsNewRoute;
+  '/settings/analytics': typeof SettingsAnalyticsRoute;
   '/settings/appearance': typeof SettingsAppearanceRoute;
   '/settings/channels': typeof SettingsChannelsRoute;
   '/settings/general': typeof SettingsGeneralRoute;
@@ -149,6 +156,7 @@ export interface FileRoutesByTo {
   '/sources': typeof SourcesRoute;
   '/posts/$id': typeof PostsIdRouteWithChildren;
   '/posts/new': typeof PostsNewRoute;
+  '/settings/analytics': typeof SettingsAnalyticsRoute;
   '/settings/appearance': typeof SettingsAppearanceRoute;
   '/settings/channels': typeof SettingsChannelsRoute;
   '/settings/general': typeof SettingsGeneralRoute;
@@ -170,6 +178,7 @@ export interface FileRoutesById {
   '/sources': typeof SourcesRoute;
   '/posts/$id': typeof PostsIdRouteWithChildren;
   '/posts/new': typeof PostsNewRoute;
+  '/settings/analytics': typeof SettingsAnalyticsRoute;
   '/settings/appearance': typeof SettingsAppearanceRoute;
   '/settings/channels': typeof SettingsChannelsRoute;
   '/settings/general': typeof SettingsGeneralRoute;
@@ -192,6 +201,7 @@ export interface FileRouteTypes {
     | '/sources'
     | '/posts/$id'
     | '/posts/new'
+    | '/settings/analytics'
     | '/settings/appearance'
     | '/settings/channels'
     | '/settings/general'
@@ -211,6 +221,7 @@ export interface FileRouteTypes {
     | '/sources'
     | '/posts/$id'
     | '/posts/new'
+    | '/settings/analytics'
     | '/settings/appearance'
     | '/settings/channels'
     | '/settings/general'
@@ -231,6 +242,7 @@ export interface FileRouteTypes {
     | '/sources'
     | '/posts/$id'
     | '/posts/new'
+    | '/settings/analytics'
     | '/settings/appearance'
     | '/settings/channels'
     | '/settings/general'
@@ -341,6 +353,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SettingsIndexRouteImport;
       parentRoute: typeof SettingsRoute;
     };
+    '/settings/analytics': {
+      id: '/settings/analytics';
+      path: '/analytics';
+      fullPath: '/settings/analytics';
+      preLoaderRoute: typeof SettingsAnalyticsRouteImport;
+      parentRoute: typeof SettingsRoute;
+    };
     '/settings/appearance': {
       id: '/settings/appearance';
       path: '/appearance';
@@ -387,6 +406,7 @@ declare module '@tanstack/react-router' {
 }
 
 interface SettingsRouteChildren {
+  SettingsAnalyticsRoute: typeof SettingsAnalyticsRoute;
   SettingsAppearanceRoute: typeof SettingsAppearanceRoute;
   SettingsChannelsRoute: typeof SettingsChannelsRoute;
   SettingsGeneralRoute: typeof SettingsGeneralRoute;
@@ -396,6 +416,7 @@ interface SettingsRouteChildren {
 }
 
 const SettingsRouteChildren: SettingsRouteChildren = {
+  SettingsAnalyticsRoute: SettingsAnalyticsRoute,
   SettingsAppearanceRoute: SettingsAppearanceRoute,
   SettingsChannelsRoute: SettingsChannelsRoute,
   SettingsGeneralRoute: SettingsGeneralRoute,

@@ -4,10 +4,11 @@ import { useMemo } from 'react';
 import { ApiError } from '../../../shared/api/http-client';
 import { useNow } from '../../../shared/lib/use-now';
 import {
+  Banner,
   Button,
   ErrorState,
   Panel,
-  SegmentedControl,
+  Select,
   StaleRegion,
   Tab,
   TabList,
@@ -16,11 +17,7 @@ import {
   type TableSort,
   useToast
 } from '../../../shared/ui';
-import {
-  contentOverviewQueryOptions,
-  contentReportQueryOptions,
-  useSyncContent
-} from '../api/content-analytics-queries';
+import { contentReportQueryOptions, useSyncContent } from '../api/content-analytics-queries';
 import { formatCount, formatDay, PLATFORM_LABEL } from '../model/format';
 import { buildInsights } from '../model/insights';
 import {
@@ -34,6 +31,7 @@ import {
   splitPeriods,
   viewsByDay
 } from '../model/report';
+import { useSourcesAttention } from './AnalyticsSources';
 import { copy } from './copy';
 import { CompareVideosPanel } from './CompareVideosPanel';
 import { DynamicsPanel } from './DynamicsPanel';
@@ -48,7 +46,6 @@ import { PlatformComparison } from './PlatformComparison';
 import { PostingHeatmap } from './PostingHeatmap';
 import { type RankedItem, RankedLists } from './RankedLists';
 import styles from './Report.module.css';
-import { SourceStatusRow } from './SourceStatusRow';
 
 export type AnalyticsTab = 'overview' | 'items' | 'audience';
 
@@ -65,6 +62,8 @@ type Props = {
   timezone: string;
   view: AnalyticsView;
   onViewChange: (patch: Partial<AnalyticsView>) => void;
+  /** Настройки → Аналитика: sources, errors and the TikTok sign-in. */
+  onOpenSettings: () => void;
 };
 
 const PERIODS = [
@@ -84,13 +83,13 @@ const RANKED_LIMIT = 5;
  * period, every publication against the usual, platforms side by side, followers, the best time to post,
  * leaders and laggards, and every row in a paged table. All of it is computed from one report.
  */
-export function AnalyticsBoard({ timezone, view, onViewChange }: Props) {
+export function AnalyticsBoard({ timezone, view, onViewChange, onOpenSettings }: Props) {
   const { days, platform } = view;
-  const overview = useQuery(contentOverviewQueryOptions());
   const reportQuery = useQuery(contentReportQueryOptions(days));
   const report = reportQuery.data;
   const now = useNow().getTime();
   const baselines = report?.baselines ?? [];
+  const attention = useSourcesAttention();
 
   const derived = useMemo(() => {
     if (!report) return undefined;
@@ -192,29 +191,45 @@ export function AnalyticsBoard({ timezone, view, onViewChange }: Props) {
   const open = (id: string) => onViewChange({ openId: id });
   return (
     <div className={styles.board}>
-      <div className={styles.filters}>
-        <SegmentedControl
-          label={copy.filters.period}
-          options={PERIODS}
-          value={String(days)}
-          onChange={(id) => onViewChange({ days: Number(id) as ContentReportPeriod, page: 1 })}
+      {attention ? (
+        <Banner
+          tone={attention.tone}
+          title={attention.text}
+          action={
+            <Button size="sm" variant="secondary" onPress={onOpenSettings}>
+              Открыть настройки
+            </Button>
+          }
         />
-        <SegmentedControl
-          label={copy.filters.platform}
-          options={PLATFORM_FILTERS}
-          value={platform ?? 'all'}
-          onChange={(id) => onViewChange({ platform: id === 'all' ? undefined : (id as ContentPlatform), page: 1 })}
-        />
-      </div>
-      <SourceStatusRow overview={overview.data} now={now} />
+      ) : null}
       {report?.truncated ? <p className={styles.note}>{copy.truncated}</p> : null}
       <StaleRegion busy={reportQuery.isPlaceholderData}>
         <Tabs selectedKey={view.tab} onSelectionChange={(key) => onViewChange({ tab: key as AnalyticsTab })}>
-          <TabList aria-label="Разделы аналитики">
-            <Tab id="overview">Обзор</Tab>
-            <Tab id="items">Публикации</Tab>
-            <Tab id="audience">Аудитория</Tab>
-          </TabList>
+          <div className={styles.toolbar}>
+            <TabList aria-label="Разделы аналитики">
+              <Tab id="overview">Обзор</Tab>
+              <Tab id="items">Публикации</Tab>
+              <Tab id="audience">Аудитория</Tab>
+            </TabList>
+            <div className={styles.toolbarFilters}>
+              <Select
+                label={copy.filters.period}
+                inlineLabel
+                options={PERIODS}
+                value={String(days)}
+                onChange={(id) => onViewChange({ days: Number(id) as ContentReportPeriod, page: 1 })}
+              />
+              <Select
+                label={copy.filters.platform}
+                inlineLabel
+                options={PLATFORM_FILTERS}
+                value={platform ?? 'all'}
+                onChange={(id) =>
+                  onViewChange({ platform: id === 'all' ? undefined : (id as ContentPlatform), page: 1 })
+                }
+              />
+            </div>
+          </div>
           <TabPanel id="overview">
             <div className={styles.sections}>
               <Panel

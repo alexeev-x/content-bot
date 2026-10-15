@@ -18,6 +18,7 @@ const PAGES = [
   '/analytics?tab=audience',
   '/sources?tab=heroes',
   '/settings/channels',
+  '/settings/analytics',
   '/settings/appearance',
   '/settings/general',
   '/login'

@@ -5,7 +5,8 @@ import {
   AnalyticsBoard,
   type AnalyticsView,
   contentAnalyticsCopy,
-  RefreshAnalyticsButton
+  RefreshAnalyticsButton,
+  useLastSyncedText
 } from '../../features/content-analytics';
 import { useOwnerTimezone } from '../../features/owner-settings';
 import { ru } from '../../shared/lib/ru';
@@ -25,6 +26,7 @@ export function AnalyticsPage() {
     openId: search.id
   };
   const toast = useToast();
+  const lastSynced = useLastSyncedText();
   const tiktokResult = search.tiktok;
   // TikTok's redirect lands here once with the outcome: say it, then drop it from the URL so a reload is quiet.
   useEffect(() => {
@@ -57,8 +59,18 @@ export function AnalyticsPage() {
     });
   return (
     <>
-      <PageHeader title={ru.pages.analytics} focusHeadingOnMount actions={<RefreshAnalyticsButton />} />
-      <AnalyticsBoard timezone={timezone} view={view} onViewChange={onViewChange} />
+      <PageHeader
+        title={ru.pages.analytics}
+        description={lastSynced ?? 'Telegram, YouTube и TikTok в одном месте'}
+        focusHeadingOnMount
+        actions={<RefreshAnalyticsButton />}
+      />
+      <AnalyticsBoard
+        timezone={timezone}
+        view={view}
+        onViewChange={onViewChange}
+        onOpenSettings={() => void navigate({ to: '/settings/analytics' })}
+      />
     </>
   );
 }

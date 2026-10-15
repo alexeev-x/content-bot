@@ -200,6 +200,7 @@ export const ru = {
   settings: {
     navLabel: 'Разделы настроек',
     channels: 'Каналы',
+    analytics: 'Аналитика',
     general: 'Общие',
     appearance: 'Оформление',
     back: 'Настройки'

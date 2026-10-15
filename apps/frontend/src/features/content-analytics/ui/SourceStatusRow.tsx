@@ -9,12 +9,17 @@ import { collectErrorText, copy } from './copy';
 import { PlatformGlyph } from './PlatformGlyph';
 import styles from './Report.module.css';
 
-type Props = { overview: ContentAnalyticsOverviewDto | undefined; now: number };
+type Props = {
+  overview: ContentAnalyticsOverviewDto | undefined;
+  now: number;
+  /** `list`: one platform per row (the «Источники» dialog). */
+  layout?: 'row' | 'list';
+};
 
 /** One quiet line per platform: connected and fresh, not connected (with what to do) or failing (with why). */
-export function SourceStatusRow({ overview, now }: Props) {
+export function SourceStatusRow({ overview, now, layout = 'row' }: Props) {
   return (
-    <ul className={styles.sources} aria-label={copy.sources.label}>
+    <ul className={styles.sources} data-layout={layout} aria-label={copy.sources.label}>
       {PLATFORMS.map((platform) => {
         const source = overview?.sources.find((candidate) => candidate.platform === platform);
         const tone =
