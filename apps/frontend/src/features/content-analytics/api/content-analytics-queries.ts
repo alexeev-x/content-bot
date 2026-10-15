@@ -4,10 +4,13 @@ import { nextCursor } from '../../../shared/api/query-string';
 import {
   connectTikTok,
   disconnectTikTok,
+  getContentGoals,
   getContentItem,
   getContentItems,
   getContentOverview,
   getContentReport,
+  removeContentGoal,
+  setContentGoal,
   syncContent
 } from './content-analytics-api';
 
@@ -16,8 +19,28 @@ export const contentAnalyticsKeys = {
   overview: () => [...contentAnalyticsKeys.all, 'overview'] as const,
   items: (platform: ContentPlatform | undefined) => [...contentAnalyticsKeys.all, 'items', platform ?? 'all'] as const,
   item: (id: string) => [...contentAnalyticsKeys.all, 'item', id] as const,
-  report: (days: ContentReportPeriod) => [...contentAnalyticsKeys.all, 'report', days] as const
+  report: (days: ContentReportPeriod) => [...contentAnalyticsKeys.all, 'report', days] as const,
+  goals: () => [...contentAnalyticsKeys.all, 'goals'] as const
 };
+
+export function contentGoalsQueryOptions() {
+  return queryOptions({
+    queryKey: contentAnalyticsKeys.goals(),
+    queryFn: ({ signal }) => getContentGoals(signal),
+    staleTime: 5 * 60_000
+  });
+}
+
+/** Sets (target) or removes (null) the goal of a platform; the answer is the fresh list. */
+export function useSaveContentGoal() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: ({ platform, target }: { platform: ContentPlatform; target: number | null }) =>
+      target === null ? removeContentGoal(platform) : setContentGoal(platform, target),
+    retry: false,
+    onSuccess: (goals) => client.setQueryData(contentAnalyticsKeys.goals(), goals)
+  });
+}
 
 // The server collects about once an hour, so a few minutes of staleness costs nothing.
 const OVERVIEW_STALE_MS = 5 * 60_000;

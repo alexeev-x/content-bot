@@ -1,5 +1,8 @@
 import {
   contentAnalyticsOverviewSchema,
+  contentGoalInputSchema,
+  contentGoalParamsSchema,
+  contentGoalsSchema,
   contentItemDetailSchema,
   contentItemIdSchema,
   contentItemsPageSchema,
@@ -18,7 +21,10 @@ import {
   type ConnectResult,
   disconnectTikTok,
   readContentItem,
+  readContentGoals,
   readContentReport,
+  removeContentGoal,
+  setContentGoal,
   startTikTokConnect,
   TIKTOK_STATE_TTL_SEC
 } from '../modules/content-analytics';
@@ -168,4 +174,31 @@ export const contentAnalyticsRoutes = new Hono<AppBindings>()
         await readContentItem({ repo: container.contentAnalytics, clock: container.clock }, c.req.valid('param').id)
       )
     );
+  })
+  .get('/goals', async (c) => {
+    const container = c.get('container');
+    return c.json(
+      contentGoalsSchema.parse(await readContentGoals({ repo: container.contentGoals, clock: container.clock }))
+    );
+  })
+  .put(
+    '/goals/:platform',
+    validated('param', contentGoalParamsSchema),
+    validated('json', contentGoalInputSchema),
+    async (c) => {
+      const container = c.get('container');
+      const goals = await setContentGoal(
+        { repo: container.contentGoals, clock: container.clock },
+        { platform: c.req.valid('param').platform, target: c.req.valid('json').target }
+      );
+      return c.json(contentGoalsSchema.parse(goals));
+    }
+  )
+  .delete('/goals/:platform', validated('param', contentGoalParamsSchema), async (c) => {
+    const container = c.get('container');
+    const goals = await removeContentGoal(
+      { repo: container.contentGoals, clock: container.clock },
+      c.req.valid('param').platform
+    );
+    return c.json(contentGoalsSchema.parse(goals));
   });

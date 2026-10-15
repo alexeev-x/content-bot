@@ -51,6 +51,7 @@ export async function resetDb(): Promise<void> {
       'automation_runs',
       'content_item_snapshots',
       'content_alerts',
+      'content_goals',
       'content_items',
       'content_audience_days',
       'content_connections',

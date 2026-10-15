@@ -8,6 +8,8 @@ export {
   type TikTokConnectionRepository
 } from './tiktok-connection';
 export { raiseContentAlerts } from './alerts';
+export { createD1ContentGoalRepository } from './d1-content-goals-repository';
+export { type ContentGoalRepository, readContentGoals, removeContentGoal, setContentGoal } from './goals';
 export {
   type ContentAlert,
   type ContentAlertRepository,

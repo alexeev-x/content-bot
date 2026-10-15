@@ -1,5 +1,6 @@
 import {
   contentAnalyticsOverviewSchema,
+  contentGoalsSchema,
   contentItemDetailSchema,
   contentItemsPageSchema,
   contentReportSchema,
@@ -41,6 +42,21 @@ export function getContentReport(days: ContentReportPeriod, signal?: AbortSignal
 /** Starts the TikTok sign-in: the browser then goes to the returned TikTok consent page. */
 export function connectTikTok() {
   return apiRequest('/api/v1/content-analytics/tiktok/connect', tiktokConnectSchema, { method: 'POST' });
+}
+
+export function getContentGoals(signal?: AbortSignal) {
+  return apiRequest('/api/v1/content-analytics/goals', contentGoalsSchema, { signal });
+}
+
+export function setContentGoal(platform: ContentPlatform, target: number) {
+  return apiRequest(`/api/v1/content-analytics/goals/${platform}`, contentGoalsSchema, {
+    method: 'PUT',
+    body: { target }
+  });
+}
+
+export function removeContentGoal(platform: ContentPlatform) {
+  return apiRequest(`/api/v1/content-analytics/goals/${platform}`, contentGoalsSchema, { method: 'DELETE' });
 }
 
 export function disconnectTikTok() {

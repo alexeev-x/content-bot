@@ -1,6 +1,8 @@
+import type { ContentGoalDto } from '@alexeev/contracts';
 import type { Clock } from '../../platform/clock';
 import type { ContentAlertRepository, NewContentAlert } from './d1-content-alerts-repository';
 import type { CheckpointRow, ItemRow, SourceRow } from './d1-content-analytics-repository';
+import { type ContentGoalRepository, readContentGoals } from './goals';
 import { baselineFor } from './service';
 import { CONTENT_PLATFORMS, type ContentPlatform } from './types';
 
@@ -193,11 +195,12 @@ export function digestAlert(input: {
   items: readonly ItemRow[];
   checkpoints: readonly CheckpointRow[];
   followers: readonly { platform: ContentPlatform; day: string; followers: number }[];
+  goals?: readonly ContentGoalDto[];
   weekEnd: number;
   now: number;
   timezone: string;
 }): NewContentAlert {
-  const { items, checkpoints, followers, weekEnd, now, timezone } = input;
+  const { items, checkpoints, followers, goals = [], weekEnd, now, timezone } = input;
   // Noon a week back is always inside the previous Monday, whatever a DST change did to the week.
   const weekStart = zonedMidnight(weekEnd - 7 * DAY_MS + 12 * HOUR_MS, timezone);
   const previousStart = zonedMidnight(weekStart - 7 * DAY_MS + 12 * HOUR_MS, timezone);
@@ -275,6 +278,20 @@ export function digestAlert(input: {
     ];
   });
   if (followerParts.length > 0) lines.push(`Подписчики: ${followerParts.join(' · ')}.`);
+  for (const goal of goals) {
+    const label = PLATFORM_LABEL[goal.platform];
+    if (goal.reached) {
+      lines.push(`Цель ${label}: ${count(goal.target)} достигнута.`);
+      continue;
+    }
+    const parts = [`Цель ${label}: ${goal.followers === null ? '—' : count(goal.followers)} из ${count(goal.target)}`];
+    if (goal.perWeek !== null) parts.push(`${signed(goal.perWeek)} в неделю`);
+    if (goal.forecastDay !== null)
+      parts.push(`при таком темпе к ${shortDay(Date.parse(`${goal.forecastDay}T12:00:00Z`), timezone)}`);
+    else if (goal.perWeek !== null && goal.perWeek <= 0) parts.push('рост стоит');
+    // A short month already ends with a dot («нояб.»).
+    lines.push(`${parts.join(', ')}.`.replace(/\.\.$/, '.'));
+  }
   if (best.length > 0) lines.push('', 'Лучшие к обычному своей платформы (старше 3 дней):', ...best.map(line));
   if (worst.length > 0) lines.push('', 'Слабее всего:', ...worst.map(line));
 
@@ -289,10 +306,11 @@ export function digestAlert(input: {
 
 /**
  * Raises the alerts due now: item alerts for publications of the last 26 hours, source outages and, on
- * Monday, the weekly digest. Bounded: at most eight reads and NEW_ALERTS_PER_TICK inserts.
+ * Monday, the weekly digest. Bounded: at most ten reads and NEW_ALERTS_PER_TICK inserts.
  */
 export async function raiseContentAlerts(deps: {
   repo: ContentAlertRepository;
+  goals: ContentGoalRepository;
   clock: Clock;
   timezone: string;
 }): Promise<{ raised: number }> {
@@ -313,12 +331,23 @@ export async function raiseContentAlerts(deps: {
   const fresh = alerts.filter((alert) => !known.has(alert.id));
   if (weekEnd !== null && digestId !== null && !known.has(digestId) && fresh.length < NEW_ALERTS_PER_TICK) {
     const from = Math.min(now - MEDIAN_WINDOW_MS, weekEnd - 15 * DAY_MS);
-    const [history, checkpoints, followers] = await Promise.all([
+    const [history, checkpoints, followers, goals] = await Promise.all([
       deps.repo.readRecent({ itemsFrom: from, limit: DIGEST_ITEM_LIMIT }),
       deps.repo.readCheckpoints(weekEnd - 15 * DAY_MS),
-      deps.repo.readFollowers(new Date(weekEnd - 15 * DAY_MS).toISOString().slice(0, 10))
+      deps.repo.readFollowers(new Date(weekEnd - 15 * DAY_MS).toISOString().slice(0, 10)),
+      readContentGoals({ repo: deps.goals, clock: deps.clock })
     ]);
-    fresh.push(digestAlert({ items: history.items, checkpoints, followers, weekEnd, now, timezone: deps.timezone }));
+    fresh.push(
+      digestAlert({
+        items: history.items,
+        checkpoints,
+        followers,
+        goals: goals.goals,
+        weekEnd,
+        now,
+        timezone: deps.timezone
+      })
+    );
   }
   return { raised: await deps.repo.insert(fresh.slice(0, NEW_ALERTS_PER_TICK), now) };
 }

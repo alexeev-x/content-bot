@@ -193,3 +193,32 @@ export const contentReportSchema = z.object({
   tracked: z.array(z.string().min(3).max(160)).max(2000)
 });
 export type ContentReportDto = z.infer<typeof contentReportSchema>;
+
+// Goals: a follower target per platform, with the pace of the last CONTENT_GOAL_PACE_DAYS days and the
+// UTC day it is reached at that pace.
+//   GET    /api/v1/content-analytics/goals            → 200 ContentGoalsDto
+//   PUT    /api/v1/content-analytics/goals/:platform  body ContentGoalInput → 200 ContentGoalsDto (replaces; safe to repeat)
+//   DELETE /api/v1/content-analytics/goals/:platform  → 200 ContentGoalsDto (safe to repeat)
+// Errors: VALIDATION_ERROR 400, UNAUTHORIZED 401, FORBIDDEN 403.
+export const CONTENT_GOAL_MAX_TARGET = 100_000_000;
+export const CONTENT_GOAL_PACE_DAYS = 28;
+export const contentGoalParamsSchema = z.strictObject({ platform: contentPlatformSchema });
+export const contentGoalInputSchema = z.strictObject({
+  target: z.number().int().min(1).max(CONTENT_GOAL_MAX_TARGET)
+});
+export type ContentGoalInput = z.infer<typeof contentGoalInputSchema>;
+export const contentGoalSchema = z.object({
+  platform: contentPlatformSchema,
+  target: z.number().int().min(1).max(CONTENT_GOAL_MAX_TARGET),
+  /** The latest stored follower count; null before the first collection. */
+  followers: countSchema.nullable(),
+  /** Followers gained per week over the pace window; null with less than 7 days of counts. */
+  perWeek: z.number().nullable(),
+  /** The UTC day the target is reached at that pace; null when reached, not growing or beyond 5 years. */
+  forecastDay: dayKeySchema.nullable(),
+  reached: z.boolean(),
+  setAt: z.iso.datetime()
+});
+export type ContentGoalDto = z.infer<typeof contentGoalSchema>;
+export const contentGoalsSchema = z.object({ goals: z.array(contentGoalSchema).max(3) });
+export type ContentGoalsDto = z.infer<typeof contentGoalsSchema>;

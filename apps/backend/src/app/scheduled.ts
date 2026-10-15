@@ -32,9 +32,9 @@ const HEARTBEAT_RESERVE = 3;
 // (Telegram 5 pages + YouTube 9 calls + TikTok 7 calls + about 21 D1 statements: per source a claim and a
 // 5-statement batch, plus the TikTok connection reads and token write).
 const CONTENT_ANALYTICS_RESERVE = 42;
-// Raising (settings, at most eight reads, NEW_ALERTS_PER_TICK inserts) and sending two alerts (stuck sweep,
-// pending read, app origin, then claim, Telegram call and finish each).
-const CONTENT_ALERTS_RESERVE = 22;
+// Raising (settings, at most ten reads with the digest's goals, NEW_ALERTS_PER_TICK inserts) and sending two
+// alerts (stuck sweep, pending read, app origin, then claim, Telegram call and finish each).
+const CONTENT_ALERTS_RESERVE = 24;
 // The tick of this UTC minute purges expired archived posts (cleanup runs at minute 0).
 const PURGE_MINUTE = 30;
 // Ended sessions stay this long for diagnosis before they are deleted.
@@ -76,6 +76,7 @@ type TickContainer = Pick<
   | 'publishActions'
   | 'contentAnalytics'
   | 'contentAlerts'
+  | 'contentGoals'
   | 'contentSources'
 >;
 
@@ -410,7 +411,12 @@ export async function handleScheduled(controller: ScheduledController, container
   ) {
     await step('content-alerts', async () => {
       const { timezone } = await readPreferences();
-      const raisedAlerts = await raiseContentAlerts({ repo: container.contentAlerts, clock, timezone });
+      const raisedAlerts = await raiseContentAlerts({
+        repo: container.contentAlerts,
+        goals: container.contentGoals,
+        clock,
+        timezone
+      });
       const sent = await sendContentAlerts({
         repo: container.contentAlerts,
         messenger: container.ownerMessenger,
