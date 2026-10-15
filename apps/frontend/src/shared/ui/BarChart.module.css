@@ -109,6 +109,13 @@
   border-radius: 4px 4px 0 0;
   background: var(--color-chart-muted);
 }
+.band {
+  position: absolute;
+  inset-inline: 0;
+  z-index: 0;
+  background: color-mix(in oklab, var(--color-accent) 10%, transparent);
+  pointer-events: none;
+}
 .reference {
   position: absolute;
   inset-inline: 0;

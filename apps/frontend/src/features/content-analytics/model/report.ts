@@ -27,6 +27,16 @@ export function median(values: readonly number[]): number | null {
   return sorted.length % 2 === 1 ? sorted[middle]! : (sorted[middle - 1]! + sorted[middle]!) / 2;
 }
 
+/** Linear-interpolated quantile (0..1); null for an empty list. */
+export function quantile(values: readonly number[], q: number): number | null {
+  if (values.length === 0) return null;
+  const sorted = [...values].sort((a, b) => a - b);
+  const position = (sorted.length - 1) * q;
+  const lower = Math.floor(position);
+  const upper = Math.ceil(position);
+  return sorted[lower]! + (sorted[upper]! - sorted[lower]!) * (position - lower);
+}
+
 /** Relative change in percent, rounded; null when there is no base to compare with. */
 export function percentChange(current: number | null, previous: number | null): number | null {
   if (current === null || previous === null || previous === 0) return null;

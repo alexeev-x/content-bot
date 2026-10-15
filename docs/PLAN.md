@@ -78,7 +78,7 @@ Sources: OpenDota keyless 60 req/min and 3 000/day; official datafeed keyless an
 4. **Studio rubrics against results.** Telegram posts published through the studio are matched to their collected statistics, so a rubric («Учу фидить», «Вердикт чата», …) gets its own median, reach and best time. Shows which rubric to post more.
 5. **Goals with pace** (built on DEV 15.10.2026: «Аналитика → Аудитория» and the Monday digest). A target per platform (e.g. 1 000 Telegram subscribers) with the current pace and the forecast date; shown in «Сводка» and the weekly digest.
 6. **Ad and event marks** (deferred 15.10.2026: no ads planned soon). The owner marks an ad post, a giveaway or a viral video; charts show the marks, and an ad post gets a report (views, reach, joins via its invite link, leaves after 7 days) to send to the advertiser.
-7. **«Обычно» band.** The p25–p75 range of the last ~10 publications drawn behind curves and KPIs, so «normal» is a range, not a single median.
+7. **«Обычно» band** (built on DEV 15.10.2026: the item growth chart and «Каждая публикация»). The p25–p75 range of the last ~10 publications drawn behind curves and KPIs, so «normal» is a range, not a single median.
 8. **Media kit and export** (deferred 15.10.2026: no ads planned soon). A public page (or a PDF) with audience, reach, ERR and average views per platform for advertisers; CSV export of the publications table.
 
 **Needs the owner's YouTube sign-in (OAuth, YouTube Analytics API), not AI:** retention curve and relative retention, traffic sources, subscribers gained per video, audience geography. The early verdict stays on public counters; retention is added to the item panel when it lands (2–3 days delay).

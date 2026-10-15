@@ -2,7 +2,7 @@ import type { ContentItemDto } from '@alexeev/contracts';
 import { Button as AriaButton } from 'react-aria-components';
 import { relativeTimeRu } from '../../../shared/lib/ru-format';
 import { Icon, Panel } from '../../../shared/ui';
-import { formatCount, itemTitle, PLATFORM_LABEL } from '../model/format';
+import { formatCount, formatViews, itemTitle, PLATFORM_LABEL } from '../model/format';
 import { crossPosted } from '../model/report';
 import { ItemCover } from './ItemCover';
 import { PlatformLogo } from './PlatformLogo';
@@ -42,7 +42,7 @@ export function CrossPostedPanel({ items, now, onOpen }: Props) {
                       <PlatformLogo platform={item.platform} size={18} />
                       <span className={styles.srOnly}>{PLATFORM_LABEL[item.platform]}: </span>
                       <span className={styles.crossFigure}>
-                        <Icon name="eye" size={13} /> {formatCount(item.views)}
+                        <Icon name="eye" size={13} /> {formatViews(item)}
                       </span>
                       <span className={styles.crossFigure}>
                         <Icon name="heart" size={13} /> {formatCount(item.likes)}

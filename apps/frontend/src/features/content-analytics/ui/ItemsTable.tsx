@@ -10,7 +10,7 @@ import {
   Select,
   type TableSort
 } from '../../../shared/ui';
-import { engagementRate, formatCount, formatPublished, itemTitle, PLATFORM_LABEL } from '../model/format';
+import { engagementRate, formatCount, formatPublished, formatViews, itemTitle, PLATFORM_LABEL } from '../model/format';
 import { multipleOf } from '../model/report';
 import { type ItemStatus, verdictFor } from '../model/status';
 import { copy } from './copy';
@@ -123,7 +123,7 @@ export function ItemsTable({
         align: 'end',
         allowsSorting: true,
         compactSlot: 'trailing',
-        cell: (item) => <span className={styles.num}>{formatCount(item.views)}</span>
+        cell: (item) => <span className={styles.num}>{formatViews(item)}</span>
       },
       {
         id: 'multiple',
@@ -180,7 +180,7 @@ export function ItemsTable({
         }
       }
     ],
-    [timezone, medians, verdicts, onOpen]
+    [timezone, medians, now, verdicts, onOpen]
   );
 
   return (

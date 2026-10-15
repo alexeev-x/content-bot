@@ -16,12 +16,13 @@ import {
   Tabs
 } from '../../../shared/ui';
 import { contentItemQueryOptions } from '../api/content-analytics-queries';
-import { ageCurve, baselineCurve, formatAge } from '../model/curves';
+import { ageCurve, baselineBand, baselineCurve, formatAge } from '../model/curves';
 import {
   engagementRate,
   formatCount,
   formatExact,
   formatPublished,
+  formatViews,
   itemTitle,
   likesLabel,
   PLATFORM_LABEL
@@ -170,6 +171,7 @@ function DrawerBody({
   const maxHours = range === 'all' ? undefined : Number(range);
   const curve = ageCurve(detail, maxHours);
   const usualCurve = baselineCurve(detail.baseline, maxHours ?? 72);
+  const usualBand = baselineBand(detail.baseline, maxHours ?? 72);
   const ageHours = (now - Date.parse(item.publishedAt)) / 3_600_000;
   const last = detail.snapshots.filter((snapshot) => snapshot.views !== null).slice(-2);
   const speed =
@@ -273,7 +275,7 @@ function DrawerBody({
               })}
             </ul>
 
-            <GrowthChart curve={curve} usualCurve={usualCurve} range={range} onRange={setRange} />
+            <GrowthChart curve={curve} usualCurve={usualCurve} usualBand={usualBand} range={range} onRange={setRange} />
 
             <section aria-labelledby="item-findings">
               <h3 id="item-findings" className={styles.sectionTitle}>
@@ -297,7 +299,7 @@ function DrawerBody({
                   <p>
                     {verdict.multiple === null
                       ? 'Пока не с чем сравнить на этом возрасте.'
-                      : `${verdict.basis === 'age' ? `На ${formatAge(ageHours)}` : 'За всё время'} ролик набрал ${formatCount(item.views)} при обычных ${formatCount(verdict.usual)} — ${verdict.multiple.toLocaleString('ru-RU')}×.`}
+                      : `${verdict.basis === 'age' ? `На ${formatAge(ageHours)}` : 'За всё время'} ролик набрал ${formatViews(item)} при обычных ${formatCount(verdict.usual)} — ${verdict.multiple.toLocaleString('ru-RU')}×.`}
                   </p>
                 </div>
                 <div className={styles.finding} data-tone="violet">
@@ -317,7 +319,7 @@ function DrawerBody({
 
         <TabPanel id="growth">
           <div className={styles.section}>
-            <GrowthChart curve={curve} usualCurve={usualCurve} range={range} onRange={setRange} />
+            <GrowthChart curve={curve} usualCurve={usualCurve} usualBand={usualBand} range={range} onRange={setRange} />
             <table className={styles.snapshots}>
               <caption className={styles.sectionTitle}>Замеры</caption>
               <thead>
@@ -361,7 +363,7 @@ function DrawerBody({
                         <span className={styles.similarText}>
                           <span className={styles.similarTitle}>{itemTitle(entry)}</span>
                           <span className={styles.metricLabel}>
-                            {formatPublished(entry.publishedAt, timezone)}, {formatCount(entry.views)} просм.
+                            {formatPublished(entry.publishedAt, timezone)}, {formatViews(entry)} просм.
                           </span>
                         </span>
                         <span className={styles.multiple}>
@@ -388,11 +390,13 @@ function DrawerBody({
 function GrowthChart({
   curve,
   usualCurve,
+  usualBand,
   range,
   onRange
 }: {
   curve: { x: number; y: number }[];
   usualCurve: { x: number; y: number }[];
+  usualBand: { x: number; low: number; high: number }[];
   range: '24' | '72' | 'all';
   onRange: (range: '24' | '72' | 'all') => void;
 }) {
@@ -428,6 +432,11 @@ function GrowthChart({
                 ]
               : [])
           ]}
+          band={
+            usualBand.length > 1
+              ? { label: 'Обычно: средняя половина роликов', points: usualBand, color: 'var(--color-chart-muted)' }
+              : undefined
+          }
           formatX={(x) => formatAge(x)}
           formatY={formatCount}
           height={220}

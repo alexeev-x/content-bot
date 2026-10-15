@@ -290,6 +290,15 @@ function medianOf(values: number[]): number {
   return sorted.length % 2 === 1 ? sorted[middle]! : Math.round((sorted[middle - 1]! + sorted[middle]!) / 2);
 }
 
+/** Linear-interpolated quantile (0..1) of a non-empty list, rounded. */
+function quantileOf(values: number[], q: number): number {
+  const sorted = [...values].sort((a, b) => a - b);
+  const position = (sorted.length - 1) * q;
+  const lower = Math.floor(position);
+  const upper = Math.ceil(position);
+  return Math.round(sorted[lower]! + (sorted[upper]! - sorted[lower]!) * (position - lower));
+}
+
 export function baselineFor(
   rows: readonly CheckpointRow[],
   platform: ContentPlatform,
@@ -300,7 +309,13 @@ export function baselineFor(
   for (const hours of CHECKPOINT_HOURS) {
     const values = own.map((row) => row.views[hours]).filter((value): value is number => value !== null);
     if (values.length >= BASELINE_MIN_ITEMS)
-      points.push({ ageHours: hours, views: medianOf(values), items: values.length });
+      points.push({
+        ageHours: hours,
+        views: medianOf(values),
+        items: values.length,
+        low: quantileOf(values, 0.25),
+        high: quantileOf(values, 0.75)
+      });
   }
   return { platform, points };
 }

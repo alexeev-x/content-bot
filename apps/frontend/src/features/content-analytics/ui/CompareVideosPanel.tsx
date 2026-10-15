@@ -14,7 +14,7 @@ import {
 } from '../../../shared/ui';
 import { contentItemQueryOptions } from '../api/content-analytics-queries';
 import { ageCurve, baselineCurve } from '../model/curves';
-import { formatCount, formatPublished, itemTitle, PLATFORM_LABEL } from '../model/format';
+import { formatCount, formatPublished, formatViews, itemTitle, PLATFORM_LABEL } from '../model/format';
 import { median } from '../model/report';
 import { usualAt } from '../model/status';
 import { ItemCover } from './ItemCover';
@@ -386,7 +386,7 @@ function PickDialog({
                     <span className={styles.choiceTitle}>{itemTitle(item)}</span>
                     <span className={styles.choiceMeta}>
                       <PlatformGlyph platform={item.platform} withLabel size={14} />
-                      {formatPublished(item.publishedAt, timezone)}, {formatCount(item.views)} просм.
+                      {formatPublished(item.publishedAt, timezone)}, {formatViews(item)} просм.
                     </span>
                   </span>
                   <span className={styles.choiceTag} data-tracked={tracked.has(item.id) || undefined}>

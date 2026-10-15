@@ -119,7 +119,16 @@ export const CONTENT_CHECKPOINT_HOURS = [1, 3, 6, 12, 24, 48, 72] as const;
 export const contentBaselineSchema = z.object({
   platform: contentPlatformSchema,
   points: z
-    .array(z.object({ ageHours: z.number().int().positive(), views: countSchema, items: z.number().int().min(3) }))
+    .array(
+      z.object({
+        ageHours: z.number().int().positive(),
+        views: countSchema,
+        items: z.number().int().min(3),
+        /** The 25th and 75th percentiles: the «обычно» range around the median. */
+        low: countSchema.optional(),
+        high: countSchema.optional()
+      })
+    )
     .max(CONTENT_CHECKPOINT_HOURS.length)
 });
 export type ContentBaselineDto = z.infer<typeof contentBaselineSchema>;

@@ -29,6 +29,16 @@
 .area {
   opacity: 0.14;
 }
+.band {
+  opacity: 0.12;
+}
+.bandKey {
+  display: inline-block;
+  width: 14px;
+  height: 8px;
+  border-radius: 2px;
+  opacity: 0.35;
+}
 .dot {
   stroke: var(--color-surface-1);
   stroke-width: 2;

@@ -18,6 +18,19 @@ export function baselineCurve(baseline: ContentBaselineDto | undefined, maxHours
   return points.length > 0 ? [{ x: 0, y: 0 }, ...points.map((point) => ({ x: point.ageHours, y: point.views }))] : [];
 }
 
+/** The usual p25–p75 range at each checkpoint, from 0, cut at `maxHours`; empty for an older baseline. */
+export function baselineBand(
+  baseline: ContentBaselineDto | undefined,
+  maxHours = 72
+): { x: number; low: number; high: number }[] {
+  const points = (baseline?.points ?? []).filter(
+    (point) => point.ageHours <= maxHours && point.low !== undefined && point.high !== undefined
+  );
+  return points.length > 0
+    ? [{ x: 0, low: 0, high: 0 }, ...points.map((point) => ({ x: point.ageHours, low: point.low!, high: point.high! }))]
+    : [];
+}
+
 export function formatAge(hours: number): string {
   if (hours < 72) return `${Math.round(hours)} ч`;
   return `${Math.round(hours / 24)} дн`;

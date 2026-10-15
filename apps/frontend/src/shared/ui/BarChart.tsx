@@ -30,6 +30,8 @@ type Props = {
   label: string;
   /** A dashed horizontal line with its label, e.g. the median. */
   reference?: { value: number; label: string } | undefined;
+  /** A shaded horizontal range behind the bars, e.g. the usual p25–p75. */
+  band?: { low: number; high: number; label: string } | undefined;
   /** Axis text under the first and the last bar. */
   startLabel?: string;
   endLabel?: string;
@@ -45,7 +47,17 @@ type Props = {
  * move between bars, Enter opens it) whose name carries the tooltip text. Values never depend on the
  * tooltip alone: the caller shows the same rows in a table.
  */
-export function BarChart({ bars, label, reference, startLabel, endLabel, maxLabel, height = 200, onSelect }: Props) {
+export function BarChart({
+  bars,
+  label,
+  reference,
+  band,
+  startLabel,
+  endLabel,
+  maxLabel,
+  height = 200,
+  onSelect
+}: Props) {
   const [active, setActive] = useState<number | null>(null);
   // Roving focus: one bar is the Tab stop, arrows move between bars.
   const [focusIndex, setFocusIndex] = useState(0);
@@ -66,7 +78,12 @@ export function BarChart({ bars, label, reference, startLabel, endLabel, maxLabe
   const showTop = slot >= 46;
   const showInside = slot >= 28;
   const bottomStep = Math.max(1, Math.ceil(48 / slot));
-  const max = Math.max(1, reference?.value ?? 0, ...bars.map((bar) => Math.max(bar.value, bar.compare ?? 0)));
+  const max = Math.max(
+    1,
+    reference?.value ?? 0,
+    band?.high ?? 0,
+    ...bars.map((bar) => Math.max(bar.value, bar.compare ?? 0))
+  );
   const current = active === null ? undefined : bars[active];
   const labelled = bars.some((bar) => bar.bottomLabel !== undefined);
   const withImages = bars.some((bar) => bar.image !== undefined);
@@ -104,6 +121,17 @@ export function BarChart({ bars, label, reference, startLabel, endLabel, maxLabe
     <figure ref={rootRef} className={styles.root} aria-label={label}>
       <div className={styles.plot} style={{ height }}>
         {maxLabel ? <span className={styles.max}>{maxLabel}</span> : null}
+        {band ? (
+          <div
+            className={styles.band}
+            style={{
+              bottom: `${(band.low / max) * plotHeight}px`,
+              height: `${(Math.max(0, band.high - band.low) / max) * plotHeight}px`
+            }}
+            title={band.label}
+            aria-hidden="true"
+          />
+        ) : null}
         {reference ? (
           <div
             className={styles.reference}

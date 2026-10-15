@@ -1,8 +1,16 @@
 import type { ContentItemDto, ContentPlatform } from '@alexeev/contracts';
 import type { CSSProperties } from 'react';
 import { BarChart, Button, Icon, Panel } from '../../../shared/ui';
-import { formatCount, formatDay, formatPublished, itemTitle, likesLabel, PLATFORM_LABEL } from '../model/format';
-import { isSettled, median, PLATFORMS } from '../model/report';
+import {
+  formatCount,
+  formatDay,
+  formatPublished,
+  formatViews,
+  itemTitle,
+  likesLabel,
+  PLATFORM_LABEL
+} from '../model/format';
+import { isSettled, median, PLATFORMS, quantile } from '../model/report';
 import { PlatformLogo } from './PlatformLogo';
 import styles from './Performance.module.css';
 
@@ -21,6 +29,8 @@ type Props = {
 const LIMIT = 15;
 const STRONG = 1.5;
 const WEAK = 0.7;
+/** The «обычно» range needs this many settled publications to mean anything. */
+const BAND_MIN_ITEMS = 4;
 
 /**
  * «Каждая публикация»: one bar per post or video in publishing order against its platform's median, with
@@ -57,6 +67,10 @@ export function PerformancePanel({ items, at, platform, timezone, onOpen, onOpen
             />
             Ниже обычного
           </li>
+          <li>
+            <span className={styles.bandKey} />
+            Обычно: средняя половина публикаций
+          </li>
         </ul>
         {items === undefined ? (
           <div className={styles.skeleton} aria-hidden="true" />
@@ -66,7 +80,10 @@ export function PerformancePanel({ items, at, platform, timezone, onOpen, onOpen
           platforms.map((each) => {
             const own = items.filter((item) => item.platform === each && item.views !== null);
             // The median of settled items only: fresh ones are still collecting views.
-            const usual = median(own.filter((item) => isSettled(item, at)).map((item) => item.views ?? 0)) ?? 0;
+            const settledViews = own.filter((item) => isSettled(item, at)).map((item) => item.views ?? 0);
+            const usual = median(settledViews) ?? 0;
+            const low = settledViews.length >= BAND_MIN_ITEMS ? quantile(settledViews, 0.25) : null;
+            const high = settledViews.length >= BAND_MIN_ITEMS ? quantile(settledViews, 0.75) : null;
             const shown = [...own]
               .sort((a, b) => Date.parse(b.publishedAt) - Date.parse(a.publishedAt))
               .slice(0, LIMIT)
@@ -81,6 +98,14 @@ export function PerformancePanel({ items, at, platform, timezone, onOpen, onOpen
                   <span className={styles.fact}>
                     Медиана <strong>{formatCount(usual)}</strong>
                   </span>
+                  {low !== null && high !== null ? (
+                    <span className={styles.fact}>
+                      Обычно{' '}
+                      <strong>
+                        {formatCount(low)}–{formatCount(high)}
+                      </strong>
+                    </span>
+                  ) : null}
                   <span className={styles.spacer} />
                   <Button size="sm" variant="secondary" onPress={() => onOpenAll(each)}>
                     Все публикации <Icon name="arrow-right" size={14} />
@@ -103,14 +128,14 @@ export function PerformancePanel({ items, at, platform, timezone, onOpen, onOpen
                             : multiple < WEAK
                               ? 'weak'
                               : 'normal',
-                      topLabel: formatCount(item.views),
+                      topLabel: formatViews(item),
                       ...(rounded === null ? {} : { insideLabel: `${rounded.toLocaleString('ru-RU')}×` }),
                       bottomLabel: formatDay(item.publishedAt.slice(0, 10)),
                       ...(video ? { image: item.thumbnailUrl } : {}),
                       title: itemTitle(item),
                       lines: [
                         formatPublished(item.publishedAt, timezone),
-                        `${formatCount(item.views)} просмотров`,
+                        `${formatViews(item)} просмотров`,
                         young
                           ? 'Набирает просмотры: сравнение через 3 дня после выхода'
                           : rounded === null
@@ -120,6 +145,11 @@ export function PerformancePanel({ items, at, platform, timezone, onOpen, onOpen
                       ].filter((line) => line !== '')
                     };
                   })}
+                  band={
+                    low !== null && high !== null
+                      ? { low, high, label: `Обычно ${formatCount(low)}–${formatCount(high)}` }
+                      : undefined
+                  }
                   reference={usual > 0 ? { value: usual, label: `Медиана ${formatCount(usual)}` } : undefined}
                   height={video ? 230 : 190}
                   onSelect={onOpen}

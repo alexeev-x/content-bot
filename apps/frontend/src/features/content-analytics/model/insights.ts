@@ -1,6 +1,6 @@
 import type { ContentItemDto, ContentPlatform, ContentReportDto } from '@alexeev/contracts';
 import { pluralRu } from '../../../shared/lib/ru-format';
-import { formatCount, itemTitle, PLATFORM_LABEL } from './format';
+import { formatCount, formatViews, itemTitle, PLATFORM_LABEL } from './format';
 import {
   bestBlock,
   followersStats,
@@ -102,10 +102,10 @@ export function buildInsights(input: {
       id: 'leader',
       tone: 'good',
       title: `«${itemTitle(leader.item)}» ${times(leader.multiple)} выше обычного`,
-      detail: `${formatCount(leader.item.views)} просмотров при медиане ${formatCount(medians[leader.item.platform] ?? null)} в ${PLATFORM_LABEL[leader.item.platform]}. Повторите тему или формат первой строки.`,
+      detail: `${formatViews(leader.item)} просмотров при медиане ${formatCount(medians[leader.item.platform] ?? null)} в ${PLATFORM_LABEL[leader.item.platform]}. Повторите тему или формат первой строки.`,
       itemId: leader.item.id,
       thumb: leader.item.thumbnailUrl,
-      badge: { value: formatCount(leader.item.views), sub: `${leader.multiple.toLocaleString('ru-RU')}×` }
+      badge: { value: formatViews(leader.item), sub: `${leader.multiple.toLocaleString('ru-RU')}×` }
     });
   }
 

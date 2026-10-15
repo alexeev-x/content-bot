@@ -66,3 +66,12 @@ export function formatDay(day: string): string {
 export function itemTitle(item: Pick<ContentItemDto, 'title' | 'thumbnailUrl'>): string {
   return item.title || (item.thumbnailUrl === null ? 'Без текста' : 'Фото или видео');
 }
+
+/**
+ * Views of one item. Telegram's public preview rounds from a thousand on («1.2K»), so those counts are
+ * marked as approximate.
+ */
+export function formatViews(item: Pick<ContentItemDto, 'platform' | 'views'>): string {
+  const text = formatCount(item.views);
+  return item.platform === 'telegram' && item.views !== null && item.views >= 1000 ? `≈ ${text}` : text;
+}

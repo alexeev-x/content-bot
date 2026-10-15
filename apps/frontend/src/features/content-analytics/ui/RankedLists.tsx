@@ -1,7 +1,7 @@
 import type { ContentItemDto } from '@alexeev/contracts';
 import { Button as AriaButton } from 'react-aria-components';
 import { Panel, Skeleton } from '../../../shared/ui';
-import { formatCount, itemTitle, PLATFORM_LABEL } from '../model/format';
+import { formatViews, itemTitle, PLATFORM_LABEL } from '../model/format';
 import { ItemCover } from './ItemCover';
 import { PlatformGlyph } from './PlatformGlyph';
 import styles from './Report.module.css';
@@ -61,7 +61,7 @@ function RankedList({
               <span className={styles.rankedMeta}>
                 <PlatformGlyph platform={item.platform} />
                 <span>{PLATFORM_LABEL[item.platform]}</span>
-                <span>{formatCount(item.views)} просм.</span>
+                <span>{formatViews(item)} просм.</span>
               </span>
             </span>
             <span className={styles.multipleBadge} data-tone={tone}>

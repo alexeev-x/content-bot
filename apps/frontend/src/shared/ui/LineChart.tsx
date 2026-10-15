@@ -13,8 +13,17 @@ export type LineSeries = {
   area?: boolean;
 };
 
+/** A shaded range behind the lines, e.g. the usual p25–p75 of comparable items. */
+export type LineBand = {
+  label: string;
+  points: readonly { x: number; low: number; high: number }[];
+  /** A CSS colour, normally the colour of the line it surrounds. */
+  color: string;
+};
+
 type Props = {
   series: readonly LineSeries[];
+  band?: LineBand | undefined;
   /** Summary for assistive technology; the values themselves are in the page's tables. */
   label: string;
   formatX: (x: number) => string;
@@ -52,7 +61,7 @@ function valueAt(points: readonly { x: number; y: number }[], x: number): number
  * Lines over time with axes, a recessive grid, a crosshair tooltip that lists every series at the pointer,
  * and end labels. The width follows the container (measured), so text stays crisp at every size.
  */
-export function LineChart({ series, label, formatX, formatY, xTicks, height = 220, endLabels = true }: Props) {
+export function LineChart({ series, band, label, formatX, formatY, xTicks, height = 220, endLabels = true }: Props) {
   const ref = useRef<HTMLElement>(null);
   const [width, setWidth] = useState(600);
   const [hoverX, setHoverX] = useState<number | null>(null);
@@ -67,7 +76,11 @@ export function LineChart({ series, label, formatX, formatY, xTicks, height = 22
     return () => observer.disconnect();
   }, []);
 
-  const all = series.flatMap((entry) => entry.points);
+  const bandPoints = band?.points ?? [];
+  const all = [
+    ...series.flatMap((entry) => entry.points),
+    ...bandPoints.map((point) => ({ x: point.x, y: point.high }))
+  ];
   const minX = all.length > 0 ? Math.min(...all.map((point) => point.x)) : 0;
   const maxX = all.length > 0 ? Math.max(...all.map((point) => point.x)) : 1;
   const maxY = niceMax(Math.max(0, ...all.map((point) => point.y)));
@@ -90,6 +103,20 @@ export function LineChart({ series, label, formatX, formatY, xTicks, height = 22
       : series
           .map((entry) => ({ entry, value: valueAt(entry.points, hoverX) }))
           .filter((row): row is { entry: LineSeries; value: number } => row.value !== null);
+  const bandLow =
+    hoverX === null
+      ? null
+      : valueAt(
+          bandPoints.map((point) => ({ x: point.x, y: point.low })),
+          hoverX
+        );
+  const bandHigh =
+    hoverX === null
+      ? null
+      : valueAt(
+          bandPoints.map((point) => ({ x: point.x, y: point.high })),
+          hoverX
+        );
 
   return (
     <figure ref={ref} className={styles.root} aria-label={label}>
@@ -113,6 +140,18 @@ export function LineChart({ series, label, formatX, formatY, xTicks, height = 22
             {formatX(tick)}
           </text>
         ))}
+        {band && bandPoints.length >= 2 ? (
+          <path
+            className={styles.band}
+            fill={band.color}
+            d={`${bandPoints.map((point, index) => `${index === 0 ? 'M' : 'L'}${sx(point.x)},${sy(point.high)}`).join(' ')} ${[
+              ...bandPoints
+            ]
+              .reverse()
+              .map((point) => `L${sx(point.x)},${sy(point.low)}`)
+              .join(' ')} Z`}
+          />
+        ) : null}
         {series.map((entry) => {
           if (entry.points.length < 2) return null;
           const path = entry.points
@@ -163,6 +202,15 @@ export function LineChart({ series, label, formatX, formatY, xTicks, height = 22
               <span>{entry.label}</span>
             </span>
           ))}
+          {band && bandLow !== null && bandHigh !== null ? (
+            <span className={styles.tooltipRow}>
+              <span className={styles.bandKey} style={{ background: band.color }} />
+              <strong>
+                {formatY(bandLow)}–{formatY(bandHigh)}
+              </strong>
+              <span>{band.label}</span>
+            </span>
+          ) : null}
         </div>
       ) : null}
       <ul className={styles.legend}>
@@ -172,6 +220,12 @@ export function LineChart({ series, label, formatX, formatY, xTicks, height = 22
             {entry.label}
           </li>
         ))}
+        {band && bandPoints.length >= 2 ? (
+          <li>
+            <span className={styles.bandKey} style={{ background: band.color }} />
+            {band.label}
+          </li>
+        ) : null}
       </ul>
     </figure>
   );

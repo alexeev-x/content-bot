@@ -218,8 +218,8 @@ describe('views at the same age', () => {
 
     const report = await readContentReport({ repo, clock }, { days: 7 });
     expect(report.baselines.find((entry) => entry.platform === 'telegram')?.points).toEqual([
-      { ageHours: 1, views: 200, items: 3 },
-      { ageHours: 6, views: 800, items: 3 }
+      { ageHours: 1, views: 200, items: 3, low: 150, high: 250 },
+      { ageHours: 6, views: 800, items: 3, low: 600, high: 1000 }
     ]);
   });
 });
