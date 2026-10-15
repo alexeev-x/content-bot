@@ -1,6 +1,6 @@
 # Public legal pages for TikTok integration — agent implementation brief
 
-**Status:** implementation requested; **pages are not implemented by this document**.  
+**Status:** implemented 15.10.2026 as static pages (`apps/frontend/public/terms.html`, `privacy.html`, `legal.css`); operator «Alexeev (private individual)», contact Telegram @alexeev_x, law of the Republic of Moldova (owner, 15.10.2026). Production review still needs a public site with visible links to both pages.  
 **Owner context:** ALEXEEV Studio, existing React SPA + Hono Cloudflare Worker.  
 **Scope:** two public, readable legal pages for TikTok Developer Sandbox setup; prepare their content for later production review. No TikTok API/OAuth implementation, new service, database migration, or admin navigation redesign.
 

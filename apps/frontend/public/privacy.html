@@ -1,0 +1,183 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Privacy Policy — ALEXEEV Studio</title>
+    <meta
+      name="description"
+      content="What data ALEXEEV Studio processes, where it comes from, how long it is kept and how to ask about it."
+    />
+    <link rel="stylesheet" href="/legal.css" />
+  </head>
+  <body>
+    <header class="top">
+      <nav aria-label="Legal pages">
+        <a class="brand" href="/">ALEXEEV Studio</a>
+        <a href="/terms">Terms of Service</a>
+        <a href="/privacy" aria-current="page">Privacy Policy</a>
+      </nav>
+    </header>
+    <main>
+      <h1>Privacy Policy — ALEXEEV Studio</h1>
+      <p class="meta">Effective date: 15 October 2026. Last updated: 15 October 2026.</p>
+
+      <h2>1. Who operates the service</h2>
+      <p>
+        ALEXEEV Studio is a personal project operated by Alexeev, a private individual and the author of the @alexeev_x
+        channels on Telegram, TikTok and YouTube. For any question about this policy or your data, write on Telegram:
+        <a href="https://t.me/alexeev_x">@alexeev_x</a>.
+      </p>
+
+      <h2>2. What the service is</h2>
+      <p>
+        ALEXEEV Studio is a private dashboard the operator uses to prepare and schedule posts for the operator's
+        Telegram channel and to see how those posts and videos perform. Only the operator can sign in; it is not open to
+        the public and has no user registration.
+      </p>
+      <p>Working today:</p>
+      <ul>
+        <li>writing, storing and scheduling posts with media, and sending them to the operator's Telegram channels;</li>
+        <li>
+          statistics of the operator's own public Telegram channel and YouTube channel (followers, views, likes,
+          comments).
+        </li>
+      </ul>
+      <p class="note">
+        TikTok connection is <strong>under development</strong> and is not available yet. Section 4 describes what it
+        will process once it works. Nothing is read from TikTok today.
+      </p>
+
+      <h2>3. Data the service processes, by source</h2>
+      <ul>
+        <li>
+          <strong>Sign-in (Telegram).</strong> The operator signs in with the Telegram Login Widget or the Telegram Mini
+          App. The service checks the Telegram account ID against the single allowed operator ID and stores sessions: a
+          hash of the session token, the Telegram ID, the session type and its times.
+        </li>
+        <li>
+          <strong>Content.</strong> Posts, their text, attached images and videos, publication schedules, the Telegram
+          channels they are sent to, delivery results and an activity history of changes in the dashboard.
+        </li>
+        <li>
+          <strong>Telegram channel statistics.</strong> Public numbers from the channel's public web page
+          (t.me/s/alexeev_x): subscriber count, and the text, date, preview image, views and reaction counts of recent
+          posts.
+        </li>
+        <li>
+          <strong>YouTube statistics.</strong> Public data of the operator's YouTube channel read with the YouTube Data
+          API: subscriber count, and the title, date, thumbnail, views, likes and comment counts of recent videos. No
+          YouTube account sign-in is used.
+        </li>
+        <li>
+          <strong>Technical data.</strong> To limit abusive requests, the service counts requests per connecting IP
+          address for short time windows. The hosting provider records request logs; the service's own logs are
+          structured events (operation, status, error code, duration) and do not contain tokens, cookies, sign-in
+          payloads or message bodies.
+        </li>
+      </ul>
+
+      <h2>4. TikTok (planned)</h2>
+      <p>
+        When the TikTok connection is built, the operator will be able to link the operator's own TikTok account through
+        TikTok's official sign-in. Linking will be optional and will only happen when the account holder approves it on
+        TikTok. The service will request these permissions:
+      </p>
+      <ul>
+        <li>
+          <code>user.info.basic</code> and <code>user.info.profile</code>: account ID, display name, avatar and profile
+          details;
+        </li>
+        <li><code>user.info.stats</code>: follower, following, likes and video counts;</li>
+        <li>
+          <code>video.list</code>: the account's public videos with their titles, dates, cover images and view, like,
+          comment and share counts.
+        </li>
+      </ul>
+      <p>
+        The data will be used only to show the operator their own statistics in the dashboard. Access tokens issued by
+        TikTok will be stored on the server only and never sent to a browser. Numbers from TikTok can be delayed or
+        incomplete. Authorization can be revoked at any time in the TikTok app settings, in the list of apps that have
+        access to the account. ALEXEEV Studio is not affiliated with, sponsored or endorsed by TikTok.
+      </p>
+
+      <h2>5. Why the data is processed</h2>
+      <ul>
+        <li>to let the operator sign in and keep other people out;</li>
+        <li>to store, schedule and publish the operator's posts;</li>
+        <li>to show the operator how the posts and videos perform;</li>
+        <li>to keep the service secure and to diagnose failures.</li>
+      </ul>
+      <p>The data is not sold, not used for advertising profiles and not shared for marketing.</p>
+
+      <h2>6. Service providers</h2>
+      <ul>
+        <li>
+          <strong>Cloudflare</strong> hosts the service: its Workers platform runs it, its D1 database stores the
+          records and its R2 storage keeps uploaded media. Cloudflare processes request data to deliver and protect the
+          service.
+        </li>
+        <li><strong>Telegram</strong> provides sign-in and receives the posts the operator publishes.</li>
+        <li><strong>Google (YouTube Data API)</strong> provides the public YouTube statistics.</li>
+        <li><strong>TikTok</strong> will provide account data once the planned connection exists.</li>
+      </ul>
+
+      <h2>7. How long data is kept</h2>
+      <ul>
+        <li>
+          Sign-in sessions: the browser refresh session lasts up to 30 days; ended sessions are deleted about a day
+          later.
+        </li>
+        <li>Request counters for abuse protection: about one hour.</li>
+        <li>Published posts moved to the archive: deleted 30 days after archiving.</li>
+        <li>Delivery attempt details: 90 days. Resolved incidents and the activity history: 365 days.</li>
+        <li>
+          Channel and video statistics, unpublished posts and channel settings: kept while the operator uses the
+          service; they are deleted when the operator deletes them or on request.
+        </li>
+        <li>Hosting provider logs: kept according to Cloudflare's own retention.</li>
+      </ul>
+
+      <h2>8. Security</h2>
+      <p>
+        Access is limited to one Telegram account. API credentials are kept as server-side secrets and are never
+        included in web pages or the app bundle. Session tokens are stored only as hashes. Connections use HTTPS.
+      </p>
+
+      <h2>9. Cookies and browser storage</h2>
+      <p>
+        The service sets one cookie: an HTTP-only refresh cookie that keeps the operator signed in. The browser's local
+        storage keeps interface preferences: the colour theme, whether the side menu is collapsed, the last channel
+        chosen for publishing and the signed-in name. The access token is kept in memory only. The service uses no
+        advertising or analytics trackers.
+      </p>
+
+      <h2>10. Your choices and requests</h2>
+      <p>
+        Anyone whose data appears in the service (for example, in a public channel statistic) can ask what is held, ask
+        for a correction or ask for deletion by writing on Telegram to
+        <a href="https://t.me/alexeev_x">@alexeev_x</a>. There is no in-app disconnect button yet; until there is, such
+        requests are handled manually. TikTok authorization, once it exists, can also be revoked directly in TikTok as
+        described in section 4.
+      </p>
+
+      <h2>11. Age</h2>
+      <p>The service is a tool for the operator and is not directed at children.</p>
+
+      <h2>12. Applicable law and changes</h2>
+      <p>
+        The operator processes personal data in line with the data protection law of the Republic of Moldova. This
+        policy will be updated when the service changes, for example when the TikTok connection becomes available; the
+        effective date at the top will change with each update.
+      </p>
+      <p>
+        Third-party policies: <a href="https://www.tiktok.com/legal/page/global/privacy-policy/en">TikTok</a>,
+        <a href="https://telegram.org/privacy">Telegram</a>, <a href="https://policies.google.com/privacy">Google</a>,
+        <a href="https://www.cloudflare.com/privacypolicy/">Cloudflare</a>.
+      </p>
+    </main>
+    <footer>
+      <p>ALEXEEV Studio · <a href="/terms">Terms of Service</a> · <a href="/">Open Studio</a></p>
+    </footer>
+  </body>
+</html>
