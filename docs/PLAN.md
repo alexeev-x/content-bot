@@ -84,7 +84,9 @@ Agreed with the owner 15.10.2026. Publishing always needs the owner's approval.
 
 **Order:** rubrics + provider port → style profile from the export → «Написать с ИИ» in the editor and in the bot → learning from edits → Reels topics from analytics → news autoposts.
 
-**Owner inputs:** the Telegram channel export (JSON), 10–15 posts that are «100% him», how Reels are recorded and what a script must contain, whether swearing is allowed.
+**Swearing (owner, 15.10.2026):** allowed and sometimes needed; written in full, at the owner's own frequency and places as the style profile measures them, never more. A per-rubric «no swearing» switch can come with advertising.
+
+**Owner inputs:** the Telegram channel export (JSON), 10–15 posts that are «100% him», how Reels are recorded and what a script must contain.
 
 ### B. Video analytics
 
