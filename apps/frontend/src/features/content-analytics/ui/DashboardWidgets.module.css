@@ -11,13 +11,6 @@
   font-size: var(--font-size-sm);
   color: var(--color-text-muted);
 }
-.label {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-1);
-  font-size: var(--font-size-xs);
-  color: var(--color-text-muted);
-}
 .change {
   font-size: var(--font-size-xs);
   font-weight: var(--font-weight-semibold);
@@ -92,84 +85,4 @@
   font-size: var(--font-size-lg);
   font-weight: var(--font-weight-semibold);
   font-variant-numeric: tabular-nums;
-}
-.chartHead {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-2);
-}
-.platformRows {
-  display: flex;
-  flex-direction: column;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-.platformRow {
-  display: grid;
-  grid-template-areas:
-    'name chart'
-    'metrics chart';
-  grid-template-columns: minmax(0, 1fr) 150px;
-  align-items: center;
-  gap: var(--space-2) var(--space-3);
-  padding: var(--space-3) 0;
-  border-top: 1px solid var(--color-border-subtle);
-}
-.platformName {
-  grid-area: name;
-  justify-self: start;
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-2);
-  padding: 0;
-  border: 0;
-  background: transparent;
-  color: var(--color-text);
-  font: inherit;
-  font-weight: var(--font-weight-semibold);
-  cursor: pointer;
-}
-.platformName[data-focus-visible] {
-  outline: var(--focus-ring-width) solid var(--color-focus-ring);
-  outline-offset: var(--focus-ring-offset);
-  border-radius: var(--radius-1);
-}
-.inlineMetrics {
-  grid-area: metrics;
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: var(--space-2);
-  margin: 0;
-}
-.inlineMetrics dt {
-  font-size: var(--font-size-xs);
-  color: var(--color-text-muted);
-}
-.inlineMetrics dd {
-  margin: 0;
-  font-weight: var(--font-weight-semibold);
-  font-variant-numeric: tabular-nums;
-}
-.platformChart {
-  grid-area: chart;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 2px;
-  min-width: 0;
-}
-.platformChart > div {
-  width: 100%;
-}
-.footer {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  margin: 0;
-  padding-top: var(--space-3);
-  border-top: 1px solid var(--color-border-subtle);
-  font-size: var(--font-size-sm);
 }

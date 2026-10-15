@@ -6,5 +6,6 @@ export { copy as contentAnalyticsCopy } from './ui/copy';
 export { useLastSyncedText } from './ui/last-synced';
 export { AnalyticsSources } from './ui/AnalyticsSources';
 export { LatestVideoSummary } from './ui/DashboardWidgets';
+export { DashboardItemDrawer } from './ui/DashboardItemDrawer';
 export { PlatformLogo } from './ui/PlatformLogo';
 export { useSourcesAttention } from './ui/AnalyticsSources';

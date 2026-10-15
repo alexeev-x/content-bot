@@ -1,9 +1,10 @@
 import { useState } from 'react';
-import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
 import { useDocumentTitle } from '../app/use-document-title';
 import {
   contentOverviewQueryOptions,
+  DashboardItemDrawer,
   LatestVideoSummary,
   PlatformLogo,
   TrendingSummary
@@ -44,8 +45,9 @@ export function DashboardPage({ pollMs, openPublicationId, onOpenPublicationChan
       ? onOpenPublicationChange(id)
       : id && void navigate({ to: '/publications', search: { id } });
 
-  const queryClient = useQueryClient();
-  const openAnalyticsItem = (id: string) => void navigate({ to: '/analytics', search: { id } });
+  // The item details open over Обзор; the analytics page stays one click away inside the drawer's links.
+  const [openItemId, setOpenItemId] = useState<string | undefined>(undefined);
+  const openAnalyticsItem = (id: string) => setOpenItemId(id);
   // «Новости и источники»: the latest Dota updates, then the analytics sources that need a look.
   const events = useQuery(sourceEventsQueryOptions({ page: 1, limit: 3 }));
   const overview = useQuery(contentOverviewQueryOptions());
@@ -108,11 +110,7 @@ export function DashboardPage({ pollMs, openPublicationId, onOpenPublicationChan
       trending: <TrendingSummary timezone={timezone} onOpen={openAnalyticsItem} />,
       onOpenAll: () => void navigate({ to: '/analytics' })
     },
-    sources: { rows: sourceRows, footer: sourcesFooter },
-    onEditPublication: (id) =>
-      void queryClient
-        .fetchQuery(publicationQueryOptions(id))
-        .then((publication) => navigate({ to: '/posts/$id', params: { id: publication.postId } }))
+    sources: { rows: sourceRows, footer: sourcesFooter }
   };
   // The panel's own detail query (same key): it tells which channel the message link belongs to.
   const openDetail = useQuery({
@@ -143,6 +141,12 @@ export function DashboardPage({ pollMs, openPublicationId, onOpenPublicationChan
         onClose={() => setOpenMedia(null)}
         onOpenPost={(id) => void navigate({ to: '/posts/$id', params: { id } })}
         onOpenLibrary={(id) => void navigate({ to: '/media', search: { id } })}
+      />
+      <DashboardItemDrawer
+        id={openItemId}
+        onClose={() => setOpenItemId(undefined)}
+        onOpen={openAnalyticsItem}
+        timezone={timezone}
       />
       <PublicationDrawer
         timezone={timezone}

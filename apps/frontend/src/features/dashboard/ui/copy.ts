@@ -9,6 +9,14 @@ export const copy = {
     weekTitle: 'Итоги недели',
     all: 'Вся аналитика'
   },
+  next: {
+    title: 'Следующая публикация',
+    all: 'Все',
+    empty: 'Ничего не запланировано',
+    create: 'Новый пост',
+    now: 'вот-вот',
+    open: (title: string) => `Открыть публикацию «${title}»`
+  },
   activity: {
     lane: 'События',
     andMore: (n: number) => `и ещё ${n}`,

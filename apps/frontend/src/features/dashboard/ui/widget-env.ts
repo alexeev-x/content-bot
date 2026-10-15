@@ -30,8 +30,6 @@ export type WidgetEnv = {
   /** Rows of «Новости и источники», composed by the page from the Dota feed and the analytics sources. */
   sources?: { rows: readonly SourceRow[] | undefined; footer?: string } | undefined;
   onOpenPost: (postId: string) => void;
-  /** Opens the post behind a publication for editing. */
-  onEditPublication: (publicationId: string) => void;
 };
 
 export type AnalyticsSlots = {

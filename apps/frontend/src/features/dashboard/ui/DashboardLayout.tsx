@@ -9,7 +9,7 @@ import styles from './Dashboard.module.css';
 import { DateChip } from './DateChip';
 import { DayTimeline } from './DayTimeline';
 import { AnalyticsWidget } from './AnalyticsWidget';
-import { NextPublication } from './NextPublication';
+import { NextUp } from './NextUp';
 import { SourcesWidget } from './SourcesWidget';
 import { WeekBars } from './WeekBars';
 import type { WidgetEnv } from './widget-env';
@@ -44,13 +44,12 @@ function renderWidget(item: LayoutItem, env: Omit<WidgetEnv, 'phone'>, phone: bo
       );
     case 'nextPublication':
       return (
-        <NextPublication
-          next={dashboard?.upcoming[0]}
-          loading={dashboard === undefined}
+        <NextUp
+          today={dashboard?.today}
+          upcoming={dashboard?.upcoming}
           now={now}
           timezone={timezone}
           onOpenPublication={env.onOpenPublication}
-          onEditPublication={env.onEditPublication}
           onNewPost={env.onNewPost}
         />
       );
