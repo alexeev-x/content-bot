@@ -72,8 +72,10 @@ import { createD1AutomationRepository, type AutomationRepository } from '../modu
 import { type ActivityRepository, createD1ActivityRepository } from '../modules/activity';
 import {
   type ConfiguredSources,
+  type ContentAlertRepository,
   type ContentAnalyticsRepository,
   configuredCollectors,
+  createD1ContentAlertRepository,
   createD1ContentAnalyticsRepository,
   createD1TikTokConnectionRepository,
   type TikTokConnectionRepository
@@ -147,6 +149,8 @@ export interface Container {
   automations: AutomationRepository;
   /** Counters of the owner's own Telegram, YouTube and TikTok (migration 0043). */
   contentAnalytics: ContentAnalyticsRepository;
+  /** Bot alerts about the counters: a publication off its usual curve, a source outage, the digest (0047). */
+  contentAlerts: ContentAlertRepository;
   /** The content sources this environment configures (vars, the YouTube key, the TikTok app keys). */
   contentSources: ConfiguredSources;
   /** The connected TikTok account: OAuth states and encrypted tokens (migration 0044). */
@@ -404,6 +408,9 @@ export function createContainer(env: ContainerEnv, overrides: ContainerOverrides
     },
     get contentAnalytics() {
       return createD1ContentAnalyticsRepository(db());
+    },
+    get contentAlerts() {
+      return createD1ContentAlertRepository(db());
     },
     get contentSources() {
       return configuredCollectors(

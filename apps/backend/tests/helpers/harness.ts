@@ -50,6 +50,7 @@ export async function resetDb(): Promise<void> {
       'incident_alert_groups',
       'automation_runs',
       'content_item_snapshots',
+      'content_alerts',
       'content_items',
       'content_audience_days',
       'content_connections',

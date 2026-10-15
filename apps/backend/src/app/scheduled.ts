@@ -21,7 +21,8 @@ import { DotaWatchError } from '../modules/dota';
 import { processPostMediaCleanup } from '../modules/content';
 import { sendDotaWatchlistAlerts } from './workflows/process-dota-watchlist-alerts';
 import { notifyOwnerOfDeliveries } from './notifications/sent-notice';
-import { collectContentAnalytics } from '../modules/content-analytics';
+import { collectContentAnalytics, raiseContentAlerts } from '../modules/content-analytics';
+import { sendContentAlerts } from './workflows/send-content-alerts';
 
 // Per table and per hourly tick; leftovers wait for the next hour.
 export const CLEANUP_LIMIT = 100;
@@ -31,6 +32,9 @@ const HEARTBEAT_RESERVE = 3;
 // (Telegram 5 pages + YouTube 9 calls + TikTok 7 calls + about 21 D1 statements: per source a claim and a
 // 5-statement batch, plus the TikTok connection reads and token write).
 const CONTENT_ANALYTICS_RESERVE = 42;
+// Raising (settings, at most eight reads, NEW_ALERTS_PER_TICK inserts) and sending two alerts (stuck sweep,
+// pending read, app origin, then claim, Telegram call and finish each).
+const CONTENT_ALERTS_RESERVE = 22;
 // The tick of this UTC minute purges expired archived posts (cleanup runs at minute 0).
 const PURGE_MINUTE = 30;
 // Ended sessions stay this long for diagnosis before they are deleted.
@@ -71,6 +75,7 @@ type TickContainer = Pick<
   | 'postSource'
   | 'publishActions'
   | 'contentAnalytics'
+  | 'contentAlerts'
   | 'contentSources'
 >;
 
@@ -391,6 +396,36 @@ export async function handleScheduled(controller: ScheduledController, container
         budget: container.queryBudget
       });
       return { contentCollected: result.collected, contentFailed: result.failed };
+    });
+  }
+
+  // 7c. content alerts: five minutes after collection, on idle ticks. Raising is idempotent (the alert id
+  // is its dedup key); each alert is sent once and an unconfirmed send stays `unknown`.
+  if (
+    minute % 10 === 8 &&
+    (counts.due ?? 0) === 0 &&
+    raised.length === 0 &&
+    container.contentSources.collectors.length > 0 &&
+    container.queryBudget.remaining() >= CONTENT_ALERTS_RESERVE + HEARTBEAT_RESERVE
+  ) {
+    await step('content-alerts', async () => {
+      const { timezone } = await readPreferences();
+      const raisedAlerts = await raiseContentAlerts({ repo: container.contentAlerts, clock, timezone });
+      const sent = await sendContentAlerts({
+        repo: container.contentAlerts,
+        messenger: container.ownerMessenger,
+        ownerChatId: container.ownerChatId,
+        appOrigin: await readAppOrigin(),
+        now: () => clock.now(),
+        charge: (count) => container.queryBudget.charge(count),
+        logger
+      });
+      return {
+        contentAlertsRaised: raisedAlerts.raised,
+        contentAlertsSent: sent.sent,
+        contentAlertsFailed: sent.failed,
+        contentAlertsUnknown: sent.unknown
+      };
     });
   }
 

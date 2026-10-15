@@ -107,10 +107,10 @@ export interface ContentAnalyticsRepository {
   }>;
 }
 
-const ITEM_COLUMNS =
+export const ITEM_COLUMNS =
   'id, platform, title, url, thumbnail_url, published_at, views, likes, comments, shares, observed_at';
 
-interface RawItem {
+export interface RawItem {
   id: string;
   platform: ContentPlatform;
   title: string;
@@ -124,7 +124,7 @@ interface RawItem {
   observed_at: number;
 }
 
-function toItem(row: RawItem): ItemRow {
+export function toItem(row: RawItem): ItemRow {
   return {
     id: row.id,
     platform: row.platform,
