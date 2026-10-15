@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react';
 import { mediaLibraryUsageFilterSchema, type MediaLibraryItemDto, type MediaLibraryKind } from '@alexeev/contracts';
 import type { z } from 'zod';
 import { classifyApiError } from '../../../shared/api/error-kind';
@@ -63,6 +63,8 @@ type Props = {
   onOpenPost: (postId: string) => void;
   /** Owner timezone for scheduled times shown in the delete dialog. */
   timezone: string;
+  /** One more tab after the file kinds (the official Dota hero files), composed by the route. */
+  extraTab?: { id: string; label: string; selected: boolean; onSelect: () => void; content: ReactNode };
 };
 const KIND_OPTIONS = [
   { id: 'all', label: 'Все файлы' },
@@ -375,7 +377,15 @@ function Details({
   );
 }
 
-export function MediaLibrary({ searchState, onSearchState, onCreatePost, onLogin, onOpenPost, timezone }: Props) {
+export function MediaLibrary({
+  searchState,
+  onSearchState,
+  onCreatePost,
+  onLogin,
+  onOpenPost,
+  timezone,
+  extraTab
+}: Props) {
   const narrow = useMediaQuery('(max-width: 859px)');
   const [searchInput, setSearchInput] = useState(searchState.search ?? '');
   const [selected, setSelected] = useState<Set<string>>(() => new Set());
@@ -571,12 +581,14 @@ export function MediaLibrary({ searchState, onSearchState, onCreatePost, onLogin
       />
       <div className={styles.tabs}>
         <Tabs
-          selectedKey={filters.kind}
+          selectedKey={extraTab?.selected ? extraTab.id : filters.kind}
           onSelectionChange={(key) =>
-            onSearchState({
-              kind: String(key) === 'all' ? undefined : (String(key) as MediaLibraryKind),
-              id: undefined
-            })
+            extraTab !== undefined && String(key) === extraTab.id
+              ? extraTab.onSelect()
+              : onSearchState({
+                  kind: String(key) === 'all' ? undefined : (String(key) as MediaLibraryKind),
+                  id: undefined
+                })
           }
         >
           <TabList aria-label="Тип медиа">
@@ -585,93 +597,98 @@ export function MediaLibrary({ searchState, onSearchState, onCreatePost, onLogin
                 {option.label}
               </Tab>
             ))}
+            {extraTab === undefined ? null : <Tab id={extraTab.id}>{extraTab.label}</Tab>}
           </TabList>
+          {extraTab?.selected ? <TabPanel id={extraTab.id}>{extraTab.content}</TabPanel> : null}
           {/* One panel for every tab: the grid stays mounted across a switch instead of blinking. */}
-          <TabPanel id={filters.kind}>
-            <Panel
-              footer={
-                query.isPending ? (
-                  <Pagination page={1} pageSize={PAGE_SIZE} totalCount={0} onPageChange={() => {}} isLoading />
-                ) : (
-                  <Pagination
-                    page={page}
-                    pageSize={PAGE_SIZE}
-                    totalCount={totalCount}
-                    onPageChange={(next) => {
-                      setSelected(new Set());
-                      onSearchState({ page: next > 1 ? next : undefined, id: undefined }, { replace: true });
-                    }}
-                    isSearching={isSearchSettling}
-                  />
-                )
-              }
-            >
-              <div className={styles.toolbar}>
-                <div className={styles.search}>
-                  <SearchField
-                    label="Поиск по имени файла"
-                    placeholder="Имя файла"
-                    value={searchInput}
-                    onChange={setSearchInput}
-                  />
-                </div>
-                {/* One filter row on every screen: the usage choice is a compact select next to the search. */}
-                <Select
-                  label="Использование"
-                  inlineLabel
-                  options={USAGE_OPTIONS}
-                  value={filters.usage}
-                  onChange={(value) => applyUsage(value as MediaLibraryUsageFilter)}
-                />
-                {narrow ? null : (
-                  <div className={styles.toolbarEnd}>
-                    <SegmentedControl
-                      label="Вид файлов"
-                      options={VIEW_OPTIONS}
-                      value={view}
-                      onChange={(value) => onSearchState({ view: value === 'grid' ? undefined : 'list' })}
+          {extraTab?.selected ? null : (
+            <TabPanel id={filters.kind}>
+              <Panel
+                footer={
+                  query.isPending ? (
+                    <Pagination page={1} pageSize={PAGE_SIZE} totalCount={0} onPageChange={() => {}} isLoading />
+                  ) : (
+                    <Pagination
+                      page={page}
+                      pageSize={PAGE_SIZE}
+                      totalCount={totalCount}
+                      onPageChange={(next) => {
+                        setSelected(new Set());
+                        onSearchState({ page: next > 1 ? next : undefined, id: undefined }, { replace: true });
+                      }}
+                      isSearching={isSearchSettling}
+                    />
+                  )
+                }
+              >
+                <div className={styles.toolbar}>
+                  <div className={styles.search}>
+                    <SearchField
+                      label="Поиск по имени файла"
+                      placeholder="Имя файла"
+                      value={searchInput}
+                      onChange={setSearchInput}
                     />
                   </div>
-                )}
-              </div>
-              <div className={styles.activeFilters}>
-                <ActiveFilters
-                  label="Включённые фильтры"
-                  resetLabel="Сбросить всё"
-                  onResetAll={() => {
-                    setSearchInput('');
-                    onSearchState({ search: undefined, usage: undefined, id: undefined });
-                  }}
-                  filters={[
-                    ...((searchState.search ?? '') !== ''
-                      ? [
-                          {
-                            id: 'search',
-                            label: `Имя: «${searchState.search ?? ''}»`,
-                            onRemove: () => {
-                              setSearchInput('');
-                              onSearchState({ search: undefined });
+                  {/* One filter row on every screen: the usage choice is a compact select next to the search. */}
+                  <Select
+                    label="Использование"
+                    inlineLabel
+                    options={USAGE_OPTIONS}
+                    value={filters.usage}
+                    onChange={(value) => applyUsage(value as MediaLibraryUsageFilter)}
+                  />
+                  {narrow ? null : (
+                    <div className={styles.toolbarEnd}>
+                      <SegmentedControl
+                        label="Вид файлов"
+                        options={VIEW_OPTIONS}
+                        value={view}
+                        onChange={(value) => onSearchState({ view: value === 'grid' ? undefined : 'list' })}
+                      />
+                    </div>
+                  )}
+                </div>
+                <div className={styles.activeFilters}>
+                  <ActiveFilters
+                    label="Включённые фильтры"
+                    resetLabel="Сбросить всё"
+                    onResetAll={() => {
+                      setSearchInput('');
+                      onSearchState({ search: undefined, usage: undefined, id: undefined });
+                    }}
+                    filters={[
+                      ...((searchState.search ?? '') !== ''
+                        ? [
+                            {
+                              id: 'search',
+                              label: `Имя: «${searchState.search ?? ''}»`,
+                              onRemove: () => {
+                                setSearchInput('');
+                                onSearchState({ search: undefined });
+                              }
                             }
-                          }
-                        ]
-                      : []),
-                    ...(filters.usage !== 'all'
-                      ? [
-                          {
-                            id: 'usage',
-                            label: USAGE_OPTIONS.find((option) => option.id === filters.usage)?.label ?? filters.usage,
-                            onRemove: () => applyUsage('all')
-                          }
-                        ]
-                      : [])
-                  ]}
-                />
-              </div>
-              <div className={styles.content}>
-                <StaleRegion busy={switching}>{body}</StaleRegion>
-              </div>
-            </Panel>
-          </TabPanel>
+                          ]
+                        : []),
+                      ...(filters.usage !== 'all'
+                        ? [
+                            {
+                              id: 'usage',
+                              label:
+                                USAGE_OPTIONS.find((option) => option.id === filters.usage)?.label ?? filters.usage,
+                              onRemove: () => applyUsage('all')
+                            }
+                          ]
+                        : [])
+                    ]}
+                  />
+                </div>
+                <div className={styles.content}>
+                  <StaleRegion busy={switching}>{body}</StaleRegion>
+                </div>
+              </Panel>
+            </TabPanel>
+          )}
         </Tabs>
       </div>
       {selected.size ? (

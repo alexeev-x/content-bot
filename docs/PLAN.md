@@ -95,6 +95,7 @@ Sources: OpenDota keyless 60 req/min and 3 000/day; official datafeed keyless an
 
 ### D. Images
 
+- **Built on DEV (15.10.2026):** every hero's official animation without background (WebM, MOV), its PNG, portrait, icon and crop mirrored into R2; «Медиа → Герои Dota» shows and downloads them.
 - Templates rendered on the Worker (no paid render API): official hero art, owner screenshots, logo.
 - AI-generated backgrounds with the real hero composited on top, so the hero is never generated or distorted.
 - Generation from a reference only for memes, always approved by the owner.

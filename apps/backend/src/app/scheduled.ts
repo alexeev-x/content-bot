@@ -22,6 +22,7 @@ import { processPostMediaCleanup } from '../modules/content';
 import { sendDotaWatchlistAlerts } from './workflows/process-dota-watchlist-alerts';
 import { notifyOwnerOfDeliveries } from './notifications/sent-notice';
 import { collectContentAnalytics, raiseContentAlerts, SOURCE_D1_STATEMENTS } from '../modules/content-analytics';
+import { mirrorHeroAssets } from '../modules/hero-assets';
 import { sendContentAlerts } from './workflows/send-content-alerts';
 
 // Per table and per hourly tick; leftovers wait for the next hour.
@@ -35,6 +36,8 @@ const CONTENT_SOURCE_MIN = 5 + SOURCE_D1_STATEMENTS;
 // Raising (settings, at most ten reads with the digest's goals, NEW_ALERTS_PER_TICK inserts) and sending two
 // alerts (stuck sweep, pending read, app origin, then claim, Telegram call and finish each).
 const CONTENT_ALERTS_RESERVE = 24;
+/** A hero-list check, a claim and one file (fetch, R2 write, update); more files when more is left. */
+const HERO_ASSETS_MIN = 6;
 // The tick of this UTC minute purges expired archived posts (cleanup runs at minute 0).
 const PURGE_MINUTE = 30;
 // Ended sessions stay this long for diagnosis before they are deleted.
@@ -78,6 +81,9 @@ type TickContainer = Pick<
   | 'contentAlerts'
   | 'contentGoals'
   | 'contentSources'
+  | 'contentFetch'
+  | 'heroAssets'
+  | 'heroAssetStorage'
 >;
 
 // Cron entry point, once a minute (docs/BACKEND_ARCHITECTURE.md §5). Ticks may overlap or repeat:
@@ -450,6 +456,37 @@ export async function handleScheduled(controller: ScheduledController, container
         reserve: HEARTBEAT_RESERVE
       });
       return { botMediaImports: await runner.runDue(CRON_IMPORT_BUDGET_MS, CRON_IMPORT_POSTS, ALBUM_SETTLE_MS) };
+    });
+  }
+
+  // 9. hero media for AI posts: files from Valve's CDN into R2 on idle ticks of minutes ending in 1 and 6 (their
+  // own slots, so other ticks keep their cost), after everything the owner waits for; the list daily at 04:41.
+  const heroStorage = container.heroAssetStorage;
+  if (
+    heroStorage !== undefined &&
+    (counts.due ?? 0) === 0 &&
+    raised.length === 0 &&
+    (minute % 10 === 1 || minute % 10 === 6) &&
+    container.queryBudget.remaining() >= HERO_ASSETS_MIN + HEARTBEAT_RESERVE
+  ) {
+    const scheduled = new Date(controller.scheduledTime);
+    await step('hero-assets', async () => {
+      const result = await mirrorHeroAssets({
+        repo: container.heroAssets,
+        storage: heroStorage,
+        fetchImpl: container.contentFetch,
+        clock,
+        budget: container.queryBudget,
+        reserve: HEARTBEAT_RESERVE,
+        refreshList: scheduled.getUTCHours() === 4 && minute === 41,
+        logger
+      });
+      return {
+        heroesListed: result.listed,
+        heroAssetsStored: result.stored,
+        heroAssetsMissing: result.missing,
+        heroAssetsFailed: result.failed
+      };
     });
   }
 

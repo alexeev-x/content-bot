@@ -1,0 +1,97 @@
+import { dotaHeroAssetsSchema } from '@alexeev/contracts';
+import { beforeEach, describe, expect, it } from 'vitest';
+import { createD1HeroAssetRepository, HERO_ASSETS_PER_TICK, mirrorHeroAssets } from '../../src/modules/hero-assets';
+import { createR2HeroAssetStorage } from '../../src/app/r2-hero-asset-storage';
+import { createLogger } from '../../src/platform/logging/logger';
+import { testDb } from '../helpers/db';
+import { expectError } from '../helpers/expect-error';
+import { createApi, fakeClock, OWNER_TOKEN, resetDb, seedSession } from '../helpers/harness';
+import { testMediaBucket } from '../helpers/media-bucket';
+
+const logger = createLogger(() => undefined);
+const HERO_LIST = {
+  result: {
+    data: {
+      heroes: [
+        { id: 14, name: 'npc_dota_hero_pudge', name_english_loc: 'Pudge' },
+        { id: 11, name: 'npc_dota_hero_nevermore', name_english_loc: 'Shadow Fiend' },
+        { id: 999, name: 'npc_dota_hero_../evil', name_english_loc: 'Evil' }
+      ]
+    }
+  }
+};
+
+/** Valve's CDN: every file of Pudge exists, Shadow Fiend has no MOV render. */
+function fakeCdn(requested: string[]): typeof fetch {
+  return (async (input: RequestInfo | URL) => {
+    const url = String(input);
+    requested.push(url);
+    if (url.startsWith('https://www.dota2.com/datafeed/herolist')) return Response.json(HERO_LIST);
+    if (url.endsWith('/renders/nevermore.mov')) return new Response('not found', { status: 404 });
+    const body = `bytes of ${url.split('/apps/dota2/')[1]}`;
+    return new Response(body, { headers: { 'content-length': String(body.length) } });
+  }) as typeof fetch;
+}
+
+function deps(fetchImpl: typeof fetch, clock = fakeClock()) {
+  return {
+    repo: createD1HeroAssetRepository(testDb()),
+    storage: createR2HeroAssetStorage(testMediaBucket()),
+    fetchImpl,
+    clock,
+    budget: { charge: () => undefined, remaining: () => 50 },
+    reserve: 3,
+    refreshList: false,
+    logger
+  };
+}
+
+beforeEach(async () => {
+  await resetDb();
+  await seedSession({ token: OWNER_TOKEN });
+});
+
+describe('hero assets', () => {
+  it('lists heroes, copies due files into R2 a batch per run and marks a file Valve does not have as missing', async () => {
+    const requested: string[] = [];
+    const clock = fakeClock();
+    const first = await mirrorHeroAssets(deps(fakeCdn(requested), clock));
+    // A name that is not a plain slug never becomes a path; one run copies at most HERO_ASSETS_PER_TICK files.
+    expect(first.listed).toBe(2);
+    expect(first.stored + first.missing + first.failed).toBe(HERO_ASSETS_PER_TICK);
+    expect(requested.some((url) => url.includes('evil'))).toBe(false);
+
+    for (let run = 0; run < 2; run += 1) await mirrorHeroAssets(deps(fakeCdn(requested), clock));
+    const api = createApi({ clock });
+    const list = dotaHeroAssetsSchema.parse(await (await api.request('/api/v1/dota/hero-assets')).json());
+    expect(list).toMatchObject({ total: 12, stored: 11, missing: 1, failed: 0 });
+    expect(list.heroes.map((hero) => hero.name)).toEqual(['Pudge', 'Shadow Fiend']);
+    expect(list.heroes[1]?.assets.find((asset) => asset.kind === 'render_mov')?.status).toBe('missing');
+
+    const file = await api.request('/api/v1/dota/hero-assets/pudge/render_webm');
+    expect(file.status).toBe(200);
+    expect(file.headers.get('content-type')).toBe('video/webm');
+    expect(await file.text()).toBe('bytes of videos/dota_react/heroes/renders/pudge.webm');
+    await expectError(await api.request('/api/v1/dota/hero-assets/nevermore/render_mov'), 404, 'NOT_FOUND');
+    await expectError(await api.request('/api/v1/dota/hero-assets/..%2Fx/icon'), 400, 'VALIDATION_ERROR');
+
+    // Nothing is due any more: a stored file is never copied again, a missing one waits a week.
+    const before = requested.length;
+    expect(await mirrorHeroAssets(deps(fakeCdn(requested), clock))).toEqual({
+      listed: 0,
+      stored: 0,
+      missing: 0,
+      failed: 0
+    });
+    expect(requested.length).toBe(before);
+  });
+
+  it('lets overlapping runs claim different files', async () => {
+    const repo = createD1HeroAssetRepository(testDb());
+    await repo.upsertHeroes([{ slug: 'pudge', id: 14, name: 'Pudge' }], 1_000);
+    const [a, b] = await Promise.all([repo.claimDue(2_000, 3, 60_000), repo.claimDue(2_000, 3, 60_000)]);
+    const keys = [...(a ?? []), ...(b ?? [])].map((row) => row.kind);
+    expect(new Set(keys).size).toBe(keys.length);
+    expect(keys.length).toBe(6);
+  });
+});

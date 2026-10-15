@@ -51,6 +51,8 @@ import { purgeExpiredPlatformRows, purgeOperationalRows } from '../platform/hous
 import { createD1RateLimiter, type RateLimiter } from '../platform/rate-limit/d1-rate-limiter';
 import { randomToken } from '../platform/security/random-token';
 import { createLogger, type Logger } from '../platform/logging/logger';
+import { createD1HeroAssetRepository, type HeroAssetRepository, type HeroAssetStorage } from '../modules/hero-assets';
+import { createR2HeroAssetStorage } from './r2-hero-asset-storage';
 import { createR2MediaStorage } from './r2-media-storage';
 import { z } from 'zod';
 import { AppError } from '../shared/app-error';
@@ -161,6 +163,9 @@ export interface Container {
   tiktokConnections: TikTokConnectionRepository;
   /** Outbound fetch of the content integrations; tests replace it. */
   contentFetch: typeof fetch;
+  /** Official hero media mirrored from Valve's CDN into R2 (migration 0050). */
+  heroAssets: HeroAssetRepository;
+  heroAssetStorage: HeroAssetStorage | undefined;
   housekeeping: {
     purgeExpired(input: { now: number; limit: number }): Promise<{ idempotencyKeys: number; rateLimits: number }>;
     purgeOperational(input: {
@@ -437,6 +442,12 @@ export function createContainer(env: ContainerEnv, overrides: ContainerOverrides
     },
     get contentFetch() {
       return overrides.contentFetch ?? fetch;
+    },
+    get heroAssets() {
+      return createD1HeroAssetRepository(db());
+    },
+    get heroAssetStorage() {
+      return env.MEDIA_BUCKET === undefined ? undefined : createR2HeroAssetStorage(env.MEDIA_BUCKET);
     },
     // Resolved per call: a BOT_INFO override never touches the database, so a Worker without one still answers.
     get botIdentity(): BotIdentityStore {
