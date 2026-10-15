@@ -49,6 +49,9 @@ export async function resetDb(): Promise<void> {
       'incidents',
       'incident_alert_groups',
       'automation_runs',
+      'content_item_snapshots',
+      'content_items',
+      'content_audience_days',
       'manual_analytics_observations',
       'analytics_snapshots',
       'dota_hero_stats_snapshots',
@@ -83,6 +86,11 @@ export async function resetDb(): Promise<void> {
     ].map((table) => db.prepare(`DELETE FROM ${table}`))
   );
   await db.prepare('UPDATE automations SET enabled = 1, revision = 0, updated_at = 0').run();
+  await db
+    .prepare(
+      'UPDATE content_sources SET next_run_at = 0, claimed_at = 0, last_success_at = NULL, last_error_at = NULL, last_error_code = NULL'
+    )
+    .run();
 }
 
 export async function seedBotIdentity(info: unknown, botId = 123456): Promise<void> {

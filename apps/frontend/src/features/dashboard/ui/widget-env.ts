@@ -1,5 +1,6 @@
 import type { ActivityItemDto, PostPageDto, PublicationPageDto } from '@alexeev/contracts';
 import type { UseQueryResult } from '@tanstack/react-query';
+import type { ReactNode } from 'react';
 import type { DashboardView } from './view-model';
 
 /** What every widget needs from the page; the page owns the data and the navigation, the widgets only draw. */
@@ -23,4 +24,12 @@ export type WidgetEnv = {
   dayEvents: readonly ActivityItemDto[] | undefined;
   /** Opens the activity detail dialog with one event or the events of one dot. */
   onOpenActivity: (items: readonly ActivityItemDto[]) => void;
+  /** Bodies of the content-analytics widgets, composed by the page (features never import each other). */
+  analytics?: AnalyticsSlots | undefined;
+};
+
+export type AnalyticsSlots = {
+  audience: ReactNode;
+  top: ReactNode;
+  onOpenAll: () => void;
 };

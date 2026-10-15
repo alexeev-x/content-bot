@@ -167,6 +167,19 @@ The wire shape is defined in `apps/contracts/src/analytics.ts`; route and D1 sna
 
 Queue item 22 adds manual performance observations, separate from Studio publication outcomes. `GET /api/v1/analytics/eligible-publications` is a bounded, searchable picker of publications already marked `sent`; `GET /api/v1/analytics/observations` is a bounded, append-only owner-entered history filterable by publication, metric and explicit content age. `POST /api/v1/analytics/observations` requires `Idempotency-Key` and records one value for `views`, `forwards` or `reactions` at one supported content age (+1h, +3h, +6h, +12h, +24h, +48h, +72h or +7d). The owner supplies a source label and complete/partial coverage; partial requires a note. Observation time and actor provenance are server-recorded. Replays with the same key/payload return the original 201 response; different payloads or a live duplicate claim return 409. No automatic collection, MTProto, backfill, editing or deletion is part of this API. Its wire shape is in `apps/contracts/src/analytics.ts`. Contract, migration 0033 and backend routes/tests are implemented locally; the frontend and final R3 review remain pending, so item 22 is still in progress.
 
+## Content analytics
+
+Read-only counters of the owner's own Telegram, YouTube and TikTok, collected by the Worker (decision 15.10.2026). Separate from publication analytics above, which reports the Studio's send outcomes. Schemas: `apps/contracts/src/content-analytics.ts`.
+
+| Endpoint | Meaning |
+|---|---|
+| `GET /api/v1/content-analytics` | Overview: one state per platform (`ok`, `pending`, `not_configured`, `error` with a stable code), followers and their change against the closest stored day 7+ days ago, views and count of items published in the last 7 days, 30 days of daily follower counts, the newest items and the 30-day leaders by views |
+| `POST /api/v1/content-analytics/sync` | Collects now every configured source whose last claim is at least 5 minutes old (a source claimed by a concurrent Cron tick is skipped), then returns the overview. No body, safe to repeat |
+| `GET /api/v1/content-analytics/items` | Keyset page of posts and videos, newest first, optional `platform` |
+| `GET /api/v1/content-analytics/items/:id` | One item with its snapshots: hourly while it is younger than 72 hours, then daily; `404` when unknown |
+
+Sources are configured per environment: `ANALYTICS_TELEGRAM_CHANNEL` and `ANALYTICS_YOUTUBE_CHANNEL_ID` in `apps/backend/wrangler.jsonc`, the secret `YOUTUBE_API_KEY`. TikTok reports `not_configured` until its sign-in exists. Telegram previews expose views and reactions only (`comments` and `shares` are null). Errors: `VALIDATION_ERROR` 400, `UNAUTHORIZED` 401, `FORBIDDEN` 403, `NOT_FOUND` 404 (item), `UNAVAILABLE` 503.
+
 ## Owner settings
 
 Schemas and error codes: `apps/contracts/src/settings.ts`.

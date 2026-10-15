@@ -98,6 +98,14 @@
   font-size: var(--font-size-sm);
   text-decoration: none;
 }
+button.more {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  font-size: var(--font-size-sm);
+  cursor: pointer;
+}
 .head a:hover,
 .more:hover {
   text-decoration: underline;

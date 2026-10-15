@@ -8,6 +8,7 @@ import { copy } from './copy';
 import styles from './Dashboard.module.css';
 import { DateChip } from './DateChip';
 import { DayTimeline } from './DayTimeline';
+import { AnalyticsWidget } from './AnalyticsWidget';
 import { Drafts } from './Drafts';
 import { WeekBars } from './WeekBars';
 import type { WidgetEnv } from './widget-env';
@@ -40,6 +41,18 @@ function renderWidget(item: LayoutItem, env: Omit<WidgetEnv, 'phone'>, phone: bo
           onOpenActivity={env.onOpenActivity}
         />
       );
+    case 'audience':
+      return env.analytics ? (
+        <AnalyticsWidget id="audience" title={copy.analytics.audience} onOpenAll={env.analytics.onOpenAll}>
+          {env.analytics.audience}
+        </AnalyticsWidget>
+      ) : null;
+    case 'contentTop':
+      return env.analytics ? (
+        <AnalyticsWidget id="contentTop" title={copy.analytics.top} onOpenAll={env.analytics.onOpenAll}>
+          {env.analytics.top}
+        </AnalyticsWidget>
+      ) : null;
     case 'week':
       return <WeekBars query={env.week} now={now} timezone={timezone} onOpenDay={env.onOpenDay} />;
     case 'drafts':

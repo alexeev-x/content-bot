@@ -12,6 +12,8 @@ const PAGES = [
   '/publications',
   '/media',
   '/sources',
+  '/analytics',
+  '/analytics?id=youtube%3Ayt0000000a1',
   '/sources?tab=heroes',
   '/settings/channels',
   '/settings/appearance',

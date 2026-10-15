@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root';
 import { Route as IndexRouteImport } from './routes/index';
+import { Route as AnalyticsRouteImport } from './routes/analytics';
 import { Route as IncidentsRouteImport } from './routes/incidents';
 import { Route as LoginRouteImport } from './routes/login';
 import { Route as MediaRouteImport } from './routes/media';
@@ -30,6 +31,11 @@ import { Route as PostsIdPublishRouteImport } from './routes/posts/$id.publish';
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any);
+const AnalyticsRoute = AnalyticsRouteImport.update({
+  id: '/analytics',
+  path: '/analytics',
   getParentRoute: () => rootRouteImport,
 } as any);
 const IncidentsRoute = IncidentsRouteImport.update({
@@ -115,6 +121,7 @@ const PostsIdPublishRoute = PostsIdPublishRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute;
+  '/analytics': typeof AnalyticsRoute;
   '/incidents': typeof IncidentsRoute;
   '/login': typeof LoginRoute;
   '/media': typeof MediaRoute;
@@ -134,6 +141,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute;
+  '/analytics': typeof AnalyticsRoute;
   '/incidents': typeof IncidentsRoute;
   '/login': typeof LoginRoute;
   '/media': typeof MediaRoute;
@@ -153,6 +161,7 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport;
   '/': typeof IndexRoute;
+  '/analytics': typeof AnalyticsRoute;
   '/incidents': typeof IncidentsRoute;
   '/login': typeof LoginRoute;
   '/media': typeof MediaRoute;
@@ -174,6 +183,7 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath;
   fullPaths:
     | '/'
+    | '/analytics'
     | '/incidents'
     | '/login'
     | '/media'
@@ -193,6 +203,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo;
   to:
     | '/'
+    | '/analytics'
     | '/incidents'
     | '/login'
     | '/media'
@@ -211,6 +222,7 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
+    | '/analytics'
     | '/incidents'
     | '/login'
     | '/media'
@@ -231,6 +243,7 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute;
+  AnalyticsRoute: typeof AnalyticsRoute;
   IncidentsRoute: typeof IncidentsRoute;
   LoginRoute: typeof LoginRoute;
   MediaRoute: typeof MediaRoute;
@@ -249,6 +262,13 @@ declare module '@tanstack/react-router' {
       path: '/';
       fullPath: '/';
       preLoaderRoute: typeof IndexRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
+    '/analytics': {
+      id: '/analytics';
+      path: '/analytics';
+      fullPath: '/analytics';
+      preLoaderRoute: typeof AnalyticsRouteImport;
       parentRoute: typeof rootRouteImport;
     };
     '/incidents': {
@@ -401,6 +421,7 @@ const PostsIdRouteWithChildren =
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AnalyticsRoute: AnalyticsRoute,
   IncidentsRoute: IncidentsRoute,
   LoginRoute: LoginRoute,
   MediaRoute: MediaRoute,

@@ -28,6 +28,8 @@ export type PageBindings = {
   onOpenPost: (postId: string) => void;
   onOpenMedia: (media: { id: string; fileName: string }) => void;
   renderMediaPreview?: ((media: { id: string; fileName: string }) => ReactNode) | undefined;
+  /** The content-analytics widget bodies; without them those widgets are not drawn. */
+  analytics?: WidgetEnv['analytics'];
 };
 
 /** The fixed Обзор: the day summary is read once for all the widgets that need it. */
@@ -41,7 +43,8 @@ export function Dashboard({
   onPublishDraft,
   onOpenPost,
   onOpenMedia,
-  renderMediaPreview
+  renderMediaPreview,
+  analytics
 }: PageBindings) {
   const today = useTodayRange(timezone);
   const week = useWeekQuery(timezone, today.from);
@@ -100,7 +103,8 @@ export function Dashboard({
     onNewPost,
     onPublishDraft,
     dayEvents,
-    onOpenActivity: setActivity
+    onOpenActivity: setActivity,
+    analytics
   };
   return (
     <>

@@ -21,11 +21,14 @@ import { DotaWatchError } from '../modules/dota';
 import { processPostMediaCleanup } from '../modules/content';
 import { sendDotaWatchlistAlerts } from './workflows/process-dota-watchlist-alerts';
 import { notifyOwnerOfDeliveries } from './notifications/sent-notice';
+import { collectContentAnalytics } from '../modules/content-analytics';
 
 // Per table and per hourly tick; leftovers wait for the next hour.
 export const CLEANUP_LIMIT = 100;
 // The heartbeat upsert plus slack for the final log line's bookkeeping.
 const HEARTBEAT_RESERVE = 3;
+// Claims, writes and outbound calls of one content-analytics run over every source.
+const CONTENT_ANALYTICS_RESERVE = 20;
 // The tick of this UTC minute purges expired archived posts (cleanup runs at minute 0).
 const PURGE_MINUTE = 30;
 // Ended sessions stay this long for diagnosis before they are deleted.
@@ -65,6 +68,8 @@ type TickContainer = Pick<
   | 'destinations'
   | 'postSource'
   | 'publishActions'
+  | 'contentAnalytics'
+  | 'contentSources'
 >;
 
 // Cron entry point, once a minute (docs/BACKEND_ARCHITECTURE.md §5). Ticks may overlap or repeat:
@@ -361,6 +366,29 @@ export async function handleScheduled(controller: ScheduledController, container
         });
         throw error;
       }
+    });
+  }
+
+  // 7b. content analytics: the owner's Telegram/YouTube counters, on idle ticks of minutes ending in 3.
+  // The per-source claim keeps it to about once an hour (sooner after a failure); a source needs at
+  // most 4 D1 statements and 3 outbound requests, so the step runs only with that budget left.
+  if (
+    minute % 10 === 3 &&
+    (counts.due ?? 0) === 0 &&
+    raised.length === 0 &&
+    container.contentSources.collectors.length > 0 &&
+    container.queryBudget.remaining() >= CONTENT_ANALYTICS_RESERVE + HEARTBEAT_RESERVE
+  ) {
+    await step('content-analytics', async () => {
+      const result = await collectContentAnalytics({
+        repo: container.contentAnalytics,
+        sources: container.contentSources,
+        clock,
+        logger,
+        requestId: 'scheduled',
+        budget: container.queryBudget
+      });
+      return { contentCollected: result.collected, contentFailed: result.failed };
     });
   }
 

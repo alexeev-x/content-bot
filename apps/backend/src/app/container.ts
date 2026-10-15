@@ -70,6 +70,12 @@ import {
 import { createD1DotaWatchlists } from '../modules/dota-watchlists';
 import { createD1AutomationRepository, type AutomationRepository } from '../modules/automations';
 import { type ActivityRepository, createD1ActivityRepository } from '../modules/activity';
+import {
+  type ConfiguredSources,
+  type ContentAnalyticsRepository,
+  configuredCollectors,
+  createD1ContentAnalyticsRepository
+} from '../modules/content-analytics';
 
 // The only place where real implementations are wired. It grows together with the modules
 // (repositories, transports); nothing is registered here before it exists.
@@ -137,6 +143,10 @@ export interface Container {
   dotaWatchlists: ReturnType<typeof createD1DotaWatchlists>;
   /** Owner-visible history and conditional control for fixed Dota recurring work. */
   automations: AutomationRepository;
+  /** Counters of the owner's own Telegram, YouTube and TikTok (migration 0043). */
+  contentAnalytics: ContentAnalyticsRepository;
+  /** The content sources this environment configures (vars and the YouTube key). */
+  contentSources: ConfiguredSources;
   housekeeping: {
     purgeExpired(input: { now: number; limit: number }): Promise<{ idempotencyKeys: number; rateLimits: number }>;
     purgeOperational(input: {
@@ -161,6 +171,12 @@ export interface ContainerEnv {
   /** Kill switch: only the exact string "true" lets the dispatcher claim jobs. */
   PUBLISHING_ENABLED?: string;
   OWNER_TELEGRAM_ID?: string;
+  /** Public username of the owner's channel; empty means content analytics skips Telegram. */
+  ANALYTICS_TELEGRAM_CHANNEL?: string;
+  /** `UC…` id of the owner's YouTube channel; collected only with YOUTUBE_API_KEY. */
+  ANALYTICS_YOUTUBE_CHANNEL_ID?: string;
+  /** Worker secret: YouTube Data API v3 key (public counters only). */
+  YOUTUBE_API_KEY?: string;
 }
 
 export interface ContainerOverrides {
@@ -179,6 +195,8 @@ export interface ContainerOverrides {
   dotaRepository?: DotaWatcherRepository;
   /** Replaces the watcher when a test is focused on unrelated scheduled work. */
   dotaWatcher?: Container['dotaWatcher'];
+  /** Replaces the outbound fetch of the content collectors (tests script it). */
+  contentFetch?: typeof fetch;
 }
 
 const botIdSchema = z.object({ id: z.number().int().positive() });
@@ -374,6 +392,19 @@ export function createContainer(env: ContainerEnv, overrides: ContainerOverrides
     },
     get automations() {
       return createD1AutomationRepository(db());
+    },
+    get contentAnalytics() {
+      return createD1ContentAnalyticsRepository(db());
+    },
+    get contentSources() {
+      return configuredCollectors(
+        {
+          telegramChannel: env?.ANALYTICS_TELEGRAM_CHANNEL,
+          youtubeChannelId: env?.ANALYTICS_YOUTUBE_CHANNEL_ID,
+          youtubeApiKey: env?.YOUTUBE_API_KEY
+        },
+        overrides.contentFetch
+      );
     },
     // Resolved per call: a BOT_INFO override never touches the database, so a Worker without one still answers.
     get botIdentity(): BotIdentityStore {

@@ -141,6 +141,7 @@ export const ru = {
     media: 'Медиа',
     incidents: 'Инциденты',
     sources: 'Источники',
+    analytics: 'Аналитика',
     settings: 'Настройки',
     login: 'Вход',
     appearance: 'Оформление',

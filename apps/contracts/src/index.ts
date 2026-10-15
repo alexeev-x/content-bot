@@ -2,6 +2,7 @@ export * from './auth';
 export * from './analytics';
 export * from './automations';
 export * from './bot';
+export * from './content-analytics';
 export * from './dashboard';
 export * from './destinations';
 export * from './dota';

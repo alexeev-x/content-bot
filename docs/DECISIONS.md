@@ -24,7 +24,8 @@ Accepted decisions that are in force. An agent does not propose an alternative t
 | 14.10.2026 | No global search: the command palette, its top-bar trigger and `Ctrl K` are removed | Posts and Публикации have their own search; navigation is the sidebar and tab bar. Fewer controls in the phone and Mini App header |
 | 13.10.2026 | Calendar scheduling requires an explicit first/second occurrence for repeated local times and rejects nonexistent DST-gap times without shifting. | `docs/stories/calendar-mvp.md` |
 | 13.10.2026 | Pausing an automation stops future automation runs only; already-scheduled Telegram publications remain dispatchable under the publication state machine. | — |
-| 13.10.2026 | Platform expansion starts with YouTube, owner-only OAuth and explicit per-video action; no silent scheduled upload. TikTok is not the first integration because its documented intended-use policy conflicts with this internal owner-only utility. | `docs/stories/platform-expansion-feasibility.md` |
+| 13.10.2026 | Platform expansion (uploading videos) starts with YouTube, owner-only OAuth and explicit per-video action; no silent scheduled upload. | `docs/stories/platform-expansion-feasibility.md` |
+| 15.10.2026 | Content analytics first (owner): read-only counters of the owner's own channels. Telegram from the public channel preview `t.me/s/<channel>` (keyless; views and reactions per post, subscribers); YouTube from the Data API v3 with an API key (public counters, 3 of 10 000 free daily units per hourly run; retention needs OAuth later); TikTok through the official Display API with the owner's sign-in in a Sandbox app (built once the owner registers the app), revisiting the 13.10.2026 TikTok deferral for analytics only. Cron collects each source about hourly; snapshots are hourly for an item's first 72 hours, then daily. | `docs/API_CONTRACTS.md` § Content analytics |
 
 ## Publishing and data
 | Date | Decision | Details |

@@ -216,6 +216,114 @@ export async function mockApi(page: Page): Promise<void> {
     json(route, { error: { code: 'NOT_FOUND', message: 'not mocked', requestId: 'req-e2e' } }, 404)
   );
   await page.route(/\/api\/v1\/publications\/[^/?]+\/history$/, (route) => json(route, { items: [] }));
+  // Content analytics: the owner's real scale (836 Telegram subscribers, YouTube ~1.2K), TikTok not connected.
+  {
+    const now = Date.now();
+    const iso = (hoursAgo: number) => new Date(now - hoursAgo * 3_600_000).toISOString();
+    const day = (daysAgo: number) => new Date(now - daysAgo * 86_400_000).toISOString().slice(0, 10);
+    const item = (
+      id: string,
+      platform: string,
+      title: string,
+      hoursAgo: number,
+      views: number,
+      likes: number,
+      comments: number | null
+    ) => ({
+      id: `${platform}:${id}`,
+      platform,
+      title,
+      url: platform === 'telegram' ? `https://t.me/alexeev_x/${id}` : `https://www.youtube.com/shorts/${id}`,
+      thumbnailUrl: null,
+      publishedAt: iso(hoursAgo),
+      views,
+      likes,
+      comments,
+      shares: null,
+      observedAt: iso(0.3)
+    });
+    const items = [
+      item('680', 'telegram', 'Оракл, один из легчайших саппортов для руина игры', 20, 312, 9, null),
+      item('yt0000000a1', 'youtube', 'БКБ покупают только те, кто не умеет играть', 30, 41_200, 2_310, 184),
+      item('679', 'telegram', 'Открыл обучение, ничего не понял, закрыл игру', 52, 167, 4, null),
+      item('yt0000000a2', 'youtube', 'Откуда саппорту брать деньги?', 80, 18_900, 1_020, 77),
+      item('661', 'telegram', 'Трансформация', 160, 353, 8, null),
+      item('yt0000000a3', 'youtube', 'Учусь играть, часть 14', 200, 6_400, 380, 21),
+      item('yt0000000a4', 'youtube', '90% саппортов совершают эту ошибку', 400, 27_300, 1_640, 133)
+    ];
+    const series = (start: number, gain: number) =>
+      Array.from({ length: 30 }, (_, index) => ({
+        day: day(29 - index),
+        followers: Math.round(start + gain * index + (index % 4) * 3)
+      }));
+    const overview = {
+      observedAt: iso(0),
+      sources: [
+        {
+          platform: 'telegram',
+          state: 'ok',
+          handle: 'alexeev_x',
+          profileUrl: 'https://t.me/alexeev_x',
+          followers: 836,
+          followersChange7d: 24,
+          views7d: 1_480,
+          items7d: 6,
+          lastSyncedAt: iso(0.3),
+          errorCode: null
+        },
+        {
+          platform: 'youtube',
+          state: 'ok',
+          handle: 'UCE-VQmi1Qym7MrEzHg9ngjA',
+          profileUrl: 'https://www.youtube.com/channel/UCE-VQmi1Qym7MrEzHg9ngjA',
+          followers: 1_180,
+          followersChange7d: 41,
+          views7d: 66_500,
+          items7d: 3,
+          lastSyncedAt: iso(0.3),
+          errorCode: null
+        },
+        {
+          platform: 'tiktok',
+          state: 'not_configured',
+          handle: null,
+          profileUrl: null,
+          followers: null,
+          followersChange7d: null,
+          views7d: null,
+          items7d: 0,
+          lastSyncedAt: null,
+          errorCode: null
+        }
+      ],
+      followers: [
+        { platform: 'telegram', points: series(700, 4.6) },
+        { platform: 'youtube', points: series(1_010, 5.8) }
+      ],
+      recent: items.slice(0, 8),
+      top: [...items].sort((a, b) => b.views - a.views).slice(0, 5)
+    };
+    await page.route(/\/api\/v1\/content-analytics(\/sync)?$/, (route) => json(route, overview));
+    await page.route(/\/api\/v1\/content-analytics\/items(\?.*)?$/, (route) => {
+      const platform = new URL(route.request().url()).searchParams.get('platform');
+      json(route, {
+        items: items.filter((entry) => platform === null || entry.platform === platform),
+        nextCursor: null
+      });
+    });
+    await page.route(/\/api\/v1\/content-analytics\/items\/[^/?]+$/, (route) => {
+      const id = decodeURIComponent(new URL(route.request().url()).pathname.split('/').pop() ?? '');
+      const found = items.find((entry) => entry.id === id) ?? items[1]!;
+      const snapshots = Array.from({ length: 24 }, (_, index) => ({
+        observedAt: iso(30 - index),
+        views: Math.round(found.views * (1 - Math.exp(-(index + 1) / 6))),
+        likes: null,
+        comments: null,
+        shares: null
+      }));
+      json(route, { item: found, snapshots });
+    });
+  }
   // Activity: a few events around «now» so the feed and the day lane have something to show.
   await page.route(/\/api\/v1\/activity(\?.*)?$/, (route) => {
     const now = Date.now();

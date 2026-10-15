@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
 import { useDocumentTitle } from '../app/use-document-title';
+import { AudienceSummary, TopSummary } from '../features/content-analytics';
 import { Dashboard, DateChip, useDashboardQuery, type PageBindings } from '../features/dashboard';
 import { destinationsInfiniteQueryOptions } from '../features/destinations';
 import { MediaPanel, MediaThumb } from '../features/media';
@@ -46,7 +47,12 @@ export function DashboardPage({ pollMs, openPublicationId, onOpenPublicationChan
     onPublishDraft: (id) => void navigate({ to: '/posts/$id/publish', params: { id } }),
     onOpenPost: (id) => void navigate({ to: '/posts/$id', params: { id } }),
     onOpenMedia: (media) => setOpenMedia(media),
-    renderMediaPreview: (media) => <MediaThumb mediaId={media.id} fileName={media.fileName} />
+    renderMediaPreview: (media) => <MediaThumb mediaId={media.id} fileName={media.fileName} />,
+    analytics: {
+      audience: <AudienceSummary />,
+      top: <TopSummary onOpen={(id) => void navigate({ to: '/analytics', search: { id } })} />,
+      onOpenAll: () => void navigate({ to: '/analytics' })
+    }
   };
   // The panel's own detail query (same key): it tells which channel the message link belongs to.
   const openDetail = useQuery({

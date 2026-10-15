@@ -31,7 +31,11 @@
     "OWNER_TELEGRAM_ID": "768918661",
     // Kill switch of the Cron dispatcher: only the exact string "true" lets it claim jobs.
     // Reconcile of expired leases and cleanup run regardless. The owner flips it per environment.
-    "PUBLISHING_ENABLED": "false"
+    "PUBLISHING_ENABLED": "false",
+    // Content analytics sources (public identifiers, not secrets). Empty here so local runs and
+    // tests never reach the network; YOUTUBE_API_KEY is a Worker secret the owner sets.
+    "ANALYTICS_TELEGRAM_CHANNEL": "",
+    "ANALYTICS_YOUTUBE_CHANNEL_ID": ""
   },
 
   // Cloudflare Vite plugin selects these at build time via CLOUDFLARE_ENV.
@@ -54,7 +58,9 @@
       "r2_buckets": [{ "binding": "MEDIA_BUCKET", "bucket_name": "content-r2-dev" }],
       "vars": {
         "OWNER_TELEGRAM_ID": "768918661",
-        "PUBLISHING_ENABLED": "true"
+        "PUBLISHING_ENABLED": "true",
+        "ANALYTICS_TELEGRAM_CHANNEL": "alexeev_x",
+        "ANALYTICS_YOUTUBE_CHANNEL_ID": "UCE-VQmi1Qym7MrEzHg9ngjA"
       }
     },
     "production": {
@@ -73,7 +79,9 @@
       "r2_buckets": [{ "binding": "MEDIA_BUCKET", "bucket_name": "content-r2-prod" }],
       "vars": {
         "OWNER_TELEGRAM_ID": "768918661",
-        "PUBLISHING_ENABLED": "false"
+        "PUBLISHING_ENABLED": "false",
+        "ANALYTICS_TELEGRAM_CHANNEL": "alexeev_x",
+        "ANALYTICS_YOUTUBE_CHANNEL_ID": "UCE-VQmi1Qym7MrEzHg9ngjA"
       }
     }
   }

@@ -9,6 +9,8 @@ export type AppEnv = Env & {
   TELEGRAM_WEBHOOK_SECRET?: string;
   /** Optional override: JSON of the Bot API `getMe` result. Without it the identity stored by connect is used. */
   BOT_INFO?: string;
+  /** YouTube Data API v3 key for content analytics (public counters only). */
+  YOUTUBE_API_KEY?: string;
 };
 
 export type AppBindings = {

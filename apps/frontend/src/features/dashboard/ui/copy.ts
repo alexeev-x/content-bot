@@ -3,6 +3,11 @@ import { pluralRu } from '../../../shared/lib/ru-format';
 // Copy of the dashboard widgets. Publication status labels are canonical in shared/lib/ru.ts (skill page-spec).
 export const copy = {
   loading: 'Загружаем обзор…',
+  analytics: {
+    audience: 'Аудитория',
+    top: 'Лучшее за 30 дней',
+    all: 'Вся аналитика'
+  },
   activity: {
     lane: 'События',
     andMore: (n: number) => `и ещё ${n}`,

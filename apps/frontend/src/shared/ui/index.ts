@@ -52,6 +52,7 @@ export { StaleRegion } from './StaleRegion';
 export { Pagination } from './Pagination';
 export { Slider } from './Slider';
 export { Sparkline } from './Sparkline';
+export { AreaChart } from './AreaChart';
 export type { ProgressTone } from './Progress';
 export { Spinner } from './Spinner';
 export { StatusBadge } from './StatusBadge';
