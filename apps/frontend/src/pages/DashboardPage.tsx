@@ -4,11 +4,9 @@ import { useNavigate } from '@tanstack/react-router';
 import { useDocumentTitle } from '../app/use-document-title';
 import {
   contentOverviewQueryOptions,
-  CrossPlatformSummary,
   LatestVideoSummary,
   PlatformLogo,
-  TrendingSummary,
-  WeekStatsSummary
+  TrendingSummary
 } from '../features/content-analytics';
 import { sourceEventsQueryOptions } from '../features/dota-intelligence';
 import { Dashboard, DateChip, type PageBindings, type SourceRow, useDashboardQuery } from '../features/dashboard';
@@ -108,8 +106,6 @@ export function DashboardPage({ pollMs, openPublicationId, onOpenPublicationChan
       latestYoutube: <LatestVideoSummary platform="youtube" onOpen={openAnalyticsItem} />,
       latestTiktok: <LatestVideoSummary platform="tiktok" onOpen={openAnalyticsItem} />,
       trending: <TrendingSummary timezone={timezone} onOpen={openAnalyticsItem} />,
-      crossPlatform: <CrossPlatformSummary onOpen={openAnalyticsItem} />,
-      weekStats: <WeekStatsSummary timezone={timezone} />,
       onOpenAll: () => void navigate({ to: '/analytics' })
     },
     sources: { rows: sourceRows, footer: sourcesFooter },

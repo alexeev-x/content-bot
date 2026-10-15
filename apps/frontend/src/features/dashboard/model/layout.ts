@@ -1,14 +1,6 @@
 /** The widgets of Обзор. */
 export type WidgetKind =
-  | 'today'
-  | 'nextPublication'
-  | 'week'
-  | 'latestYoutube'
-  | 'latestTiktok'
-  | 'trending'
-  | 'crossPlatform'
-  | 'contentInWork'
-  | 'sources';
+  'today' | 'nextPublication' | 'week' | 'latestYoutube' | 'latestTiktok' | 'trending' | 'sources';
 
 /** Column spans on the 12-column grid of a wide screen. */
 export type WidgetWidth = 6 | 12;
@@ -23,7 +15,5 @@ export const LAYOUT: readonly LayoutItem[] = [
   { id: 'latestYoutube', w: 6 },
   { id: 'latestTiktok', w: 6 },
   { id: 'trending', w: 6 },
-  { id: 'crossPlatform', w: 6 },
-  { id: 'contentInWork', w: 6 },
   { id: 'sources', w: 6 }
 ];

@@ -1,8 +1,8 @@
 import type { PublicationPageDto } from '@alexeev/contracts';
 import type { UseQueryResult } from '@tanstack/react-query';
-import { type ReactNode, useMemo } from 'react';
+import { useMemo } from 'react';
 import { Button as AriaButton } from 'react-aria-components';
-import { Button, Icon, Skeleton } from '../../../shared/ui';
+import { Button, Skeleton } from '../../../shared/ui';
 import { countByDay, weekDays } from '../model/week';
 import { copy } from './copy';
 import shell from './Dashboard.module.css';
@@ -16,13 +16,10 @@ type Props = {
   now: Date;
   timezone: string;
   onOpenDay: (day: { from: string; to: string }) => void;
-  /** Analytics numbers of the week, composed by the page. */
-  stats?: ReactNode;
-  onOpenAll?: (() => void) | undefined;
 };
 
 /** Seven vertical bars for the current week in the owner's zone: sent, still scheduled and trouble stacked, today highlighted. */
-export function WeekBars({ query, now, timezone, onOpenDay, stats, onOpenAll }: Props) {
+export function WeekBars({ query, now, timezone, onOpenDay }: Props) {
   const days = useMemo(() => weekDays(now, timezone), [now, timezone]);
   const items = query?.data?.items;
   const counts = useMemo(() => (items ? countByDay(items, days) : undefined), [items, days]);
@@ -31,20 +28,8 @@ export function WeekBars({ query, now, timezone, onOpenDay, stats, onOpenAll }: 
   const sum = (key: 'scheduled' | 'sent' | 'problem') => (counts ?? []).reduce((total, day) => total + day[key], 0);
   const partial = query?.data?.nextCursor != null;
   return (
-    <Widget
-      id="week"
-      title={copy.week.title}
-      busy={query === undefined || query.isPending}
-      action={
-        onOpenAll ? (
-          <AriaButton className={shell.more} onPress={onOpenAll}>
-            Вся аналитика <Icon name="chevron-right" size={16} />
-          </AriaButton>
-        ) : undefined
-      }
-    >
+    <Widget id="week" title={copy.week.title} busy={query === undefined || query.isPending}>
       <div className={shell.body}>
-        {stats ? <div className={styles.stats}>{stats}</div> : null}
         {failed ? (
           <div className={styles.error}>
             <p className={shell.quiet}>{copy.week.error}</p>

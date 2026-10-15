@@ -9,7 +9,6 @@ import styles from './Dashboard.module.css';
 import { DateChip } from './DateChip';
 import { DayTimeline } from './DayTimeline';
 import { AnalyticsWidget } from './AnalyticsWidget';
-import { ContentInWork } from './ContentInWork';
 import { NextPublication } from './NextPublication';
 import { SourcesWidget } from './SourcesWidget';
 import { WeekBars } from './WeekBars';
@@ -56,16 +55,7 @@ function renderWidget(item: LayoutItem, env: Omit<WidgetEnv, 'phone'>, phone: bo
         />
       );
     case 'week':
-      return (
-        <WeekBars
-          query={env.week}
-          now={now}
-          timezone={timezone}
-          onOpenDay={env.onOpenDay}
-          stats={env.analytics?.weekStats}
-          onOpenAll={env.analytics?.onOpenAll}
-        />
-      );
+      return <WeekBars query={env.week} now={now} timezone={timezone} onOpenDay={env.onOpenDay} />;
     case 'latestYoutube':
       return env.analytics ? (
         <AnalyticsWidget id="latestYoutube" title="Последний ролик · YouTube" onOpenAll={env.analytics.onOpenAll}>
@@ -84,14 +74,6 @@ function renderWidget(item: LayoutItem, env: Omit<WidgetEnv, 'phone'>, phone: bo
           {env.analytics.trending}
         </AnalyticsWidget>
       ) : null;
-    case 'crossPlatform':
-      return env.analytics ? (
-        <AnalyticsWidget id="crossPlatform" title="Один ролик на площадках" onOpenAll={env.analytics.onOpenAll}>
-          {env.analytics.crossPlatform}
-        </AnalyticsWidget>
-      ) : null;
-    case 'contentInWork':
-      return <ContentInWork now={now} onOpenPost={env.onOpenPost} />;
     case 'sources':
       return (
         <SourcesWidget rows={env.sources?.rows} {...(env.sources?.footer ? { footer: env.sources.footer } : {})} />

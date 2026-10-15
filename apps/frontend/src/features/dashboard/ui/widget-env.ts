@@ -38,8 +38,5 @@ export type AnalyticsSlots = {
   latestYoutube: ReactNode;
   latestTiktok: ReactNode;
   trending: ReactNode;
-  crossPlatform: ReactNode;
-  /** The analytics numbers of «Итоги недели» (above the bars). */
-  weekStats: ReactNode;
   onOpenAll: () => void;
 };

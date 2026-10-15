@@ -5,6 +5,6 @@ export { contentOverviewQueryOptions } from './api/content-analytics-queries';
 export { copy as contentAnalyticsCopy } from './ui/copy';
 export { useLastSyncedText } from './ui/last-synced';
 export { AnalyticsSources } from './ui/AnalyticsSources';
-export { CrossPlatformSummary, LatestVideoSummary, WeekStatsSummary } from './ui/DashboardWidgets';
+export { LatestVideoSummary } from './ui/DashboardWidgets';
 export { PlatformLogo } from './ui/PlatformLogo';
 export { useSourcesAttention } from './ui/AnalyticsSources';
