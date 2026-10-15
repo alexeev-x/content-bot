@@ -119,7 +119,9 @@ async function copyAsset(
   deps.budget.charge(1);
   let response: Response;
   try {
-    response = await deps.fetchImpl(cdnUrl(slug, kind), { signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) });
+    // Called as a plain function: the runtime's fetch throws «Illegal invocation» when called as `deps.fetchImpl()`.
+    const fetchImpl = deps.fetchImpl;
+    response = await fetchImpl(cdnUrl(slug, kind), { signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) });
   } catch {
     return fail('HERO_ASSET_FETCH');
   }

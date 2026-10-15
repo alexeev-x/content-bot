@@ -23,7 +23,9 @@ const HERO_LIST = {
 
 /** Valve's CDN: every file of Pudge exists, Shadow Fiend has no MOV render. */
 function fakeCdn(requested: string[]): typeof fetch {
-  return (async (input: RequestInfo | URL) => {
+  // Like the runtime's fetch, it refuses to be called as a method of another object («Illegal invocation»).
+  return async function cdn(this: unknown, input: RequestInfo | URL) {
+    if (this !== undefined) throw new TypeError('Illegal invocation');
     const url = String(input);
     requested.push(url);
     if (url.startsWith('https://www.dota2.com/datafeed/herolist')) return Response.json(HERO_LIST);
@@ -32,7 +34,7 @@ function fakeCdn(requested: string[]): typeof fetch {
     // The CDN may answer a Worker without Content-Length (compressed, chunked): the size is measured.
     if (url.includes('/icons/')) return new Response(new Blob([body]).stream());
     return new Response(body, { headers: { 'content-length': String(body.length) } });
-  }) as typeof fetch;
+  } as typeof fetch;
 }
 
 function deps(fetchImpl: typeof fetch, clock = fakeClock()) {

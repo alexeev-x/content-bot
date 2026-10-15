@@ -440,8 +440,10 @@ export function createContainer(env: ContainerEnv, overrides: ContainerOverrides
     get tiktokConnections() {
       return createD1TikTokConnectionRepository(db());
     },
-    get contentFetch() {
-      return overrides.contentFetch ?? fetch;
+    get contentFetch(): typeof fetch {
+      // A wrapper, not the global itself: Workers' fetch throws «Illegal invocation» when a caller invokes it
+      // as a method of another object (`deps.fetchImpl(url)`).
+      return overrides.contentFetch ?? ((input, init) => fetch(input, init));
     },
     get heroAssets() {
       return createD1HeroAssetRepository(db());
