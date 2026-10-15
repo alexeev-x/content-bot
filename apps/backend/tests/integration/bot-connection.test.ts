@@ -219,7 +219,7 @@ describe('POST /api/v1/bot/connect', () => {
       'deleteMyCommands all_private_chats ru',
       `deleteMyCommands chat ${OWNER_ID} ru`,
       `setChatCommands ${OWNER_ID} start,today,next,status`,
-      `setChatMenuWebApp ${OWNER_ID} Студия ${ORIGIN}/`,
+      `setChatMenuCommands ${OWNER_ID}`,
       'getWebhookInfo'
     ]);
     expect(telegram.sent[1]).toEqual({
@@ -464,7 +464,7 @@ describe('POST /webhooks/telegram /start', () => {
     await Promise.all(api.background);
     expect(telegram.calls).toEqual([
       `setChatCommands ${OWNER_ID} start,today,next,status`,
-      `setChatMenuWebApp ${OWNER_ID} Студия ${ORIGIN}/`
+      `setChatMenuCommands ${OWNER_ID}`
     ]);
   });
 
@@ -489,7 +489,7 @@ describe('POST /webhooks/telegram /start', () => {
     ]);
     expect(telegram.calls).toEqual([
       `setChatCommands ${OWNER_ID} start,today,next,status`,
-      `setChatMenuWebApp ${OWNER_ID} Студия ${ORIGIN}/`
+      `setChatMenuCommands ${OWNER_ID}`
     ]);
   });
 
@@ -531,7 +531,7 @@ describe('POST /webhooks/telegram /start', () => {
         new Promise((resolve) => {
           finishCommands = () => resolve(true);
         }),
-      setChatMenuWebApp: () => hanging
+      setChatMenuCommands: () => hanging
     };
     api = createApi({ botInfo: BOT_INFO, webhookSecret: WEBHOOK_SECRET, botAdminApi: telegram });
     const sent: string[] = [];

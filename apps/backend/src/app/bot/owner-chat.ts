@@ -8,17 +8,14 @@ export const OWNER_COMMANDS = [
   { command: 'next', description: 'Ближайшие 5 публикаций' },
   { command: 'status', description: 'Публикация, Cron и проблемы' }
 ];
-const MENU_BUTTON_TEXT = 'Студия';
 
-// The owner's private chat: its command list and the menu button that opens the studio. Sets the
-// same values every time, so it is safe to repeat.
+// The owner's private chat: its command list and a menu button that shows it (owner decision 15.10.2026:
+// the commands must be visible; the studio opens from /start). Sets the same values every time.
 export async function configureOwnerChat(
   deps: { api: TelegramBotAdminApi; call: TelegramCaller },
-  input: { ownerId: number; appOrigin: string }
+  input: { ownerId: number }
 ): Promise<void> {
   const { api, call } = deps;
   await call.act('owner_chat.set_commands', (signal) => api.setChatCommands(input.ownerId, OWNER_COMMANDS, signal));
-  await call.act('owner_chat.set_menu_button', (signal) =>
-    api.setChatMenuWebApp(input.ownerId, { text: MENU_BUTTON_TEXT, url: `${input.appOrigin}/` }, signal)
-  );
+  await call.act('owner_chat.set_menu_button', (signal) => api.setChatMenuCommands(input.ownerId, signal));
 }

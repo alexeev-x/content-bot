@@ -268,10 +268,7 @@ describe('bot', () => {
         }
       }
     });
-    expect(adminCalls).toEqual([
-      'setChatCommands 4242 start,today,next,status',
-      'setChatMenuWebApp 4242 Студия https://studio.example.com/'
-    ]);
+    expect(adminCalls).toEqual(['setChatCommands 4242 start,today,next,status', 'setChatMenuCommands 4242']);
   });
 
   it('still replies when setting the commands fails, and logs a stable code', async () => {
@@ -294,7 +291,7 @@ describe('bot', () => {
     const adminApi = {
       ...fakeBotAdminApi(),
       setChatCommands: () => hanging,
-      setChatMenuWebApp: () => hanging
+      setChatMenuCommands: () => hanging
     };
     const { calls, background } = await run(4242, {}, adminApi);
     expect(calls.map((call) => call.method)).toEqual(['sendMessage']);

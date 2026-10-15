@@ -88,7 +88,8 @@ export interface TelegramBotAdminApi {
     signal: AbortSignal
   ): Promise<unknown>;
   setChatCommands(chatId: number, commands: BotCommandDescription[], signal: AbortSignal): Promise<unknown>;
-  setChatMenuWebApp(chatId: number, input: { text: string; url: string }, signal: AbortSignal): Promise<unknown>;
+  /** The owner's menu button shows the command list (the studio opens from /start). */
+  setChatMenuCommands(chatId: number, signal: AbortSignal): Promise<unknown>;
 }
 
 export function createTelegramBotAdminApi(token: string): TelegramBotAdminApi {
@@ -117,11 +118,8 @@ export function createTelegramBotAdminApi(token: string): TelegramBotAdminApi {
       ),
     setChatCommands: (chatId, commands, signal) =>
       api.setMyCommands(commands, { scope: { type: 'chat', chat_id: chatId } }, signal as never),
-    setChatMenuWebApp: (chatId, { text, url }, signal) =>
-      api.setChatMenuButton(
-        { chat_id: chatId, menu_button: { type: 'web_app', text, web_app: { url } } },
-        signal as never
-      )
+    setChatMenuCommands: (chatId, signal) =>
+      api.setChatMenuButton({ chat_id: chatId, menu_button: { type: 'commands' } }, signal as never)
   };
 }
 

@@ -50,7 +50,6 @@ export function fakeBotAdminApi(
       ),
     setChatCommands: (chatId, commands) =>
       run('setChatCommands', `setChatCommands ${chatId} ${commands.map((c) => c.command).join(',')}`, commands),
-    setChatMenuWebApp: (chatId, input) =>
-      run('setChatMenuWebApp', `setChatMenuWebApp ${chatId} ${input.text} ${input.url}`, input)
+    setChatMenuCommands: (chatId) => run('setChatMenuCommands', `setChatMenuCommands ${chatId}`, chatId)
   };
 }

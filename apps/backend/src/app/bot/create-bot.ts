@@ -214,12 +214,7 @@ export function createBot(config: BotConfig, runtime: BotRuntime): Bot {
       runtime
         .rememberAppOrigin(runtime.appOrigin)
         .catch((error: unknown) => runtime.onError(error))
-        .then(() =>
-          configureOwnerChat(
-            { api: runtime.adminApi, call: runtime.call },
-            { ownerId: config.ownerId, appOrigin: runtime.appOrigin }
-          )
-        )
+        .then(() => configureOwnerChat({ api: runtime.adminApi, call: runtime.call }, { ownerId: config.ownerId }))
         .catch(() => undefined)
     );
   });

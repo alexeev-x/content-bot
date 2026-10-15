@@ -136,7 +136,7 @@ export async function connectBot(deps: BotConnectionDeps): Promise<BotStatusDto>
   for (const { label, input } of stale) {
     await call.act(`bot_connect.delete_${label}`, (signal) => api.deleteMyCommands(input, signal));
   }
-  await configureOwnerChat({ api, call }, { ownerId: settings.ownerId, appOrigin });
+  await configureOwnerChat({ api, call }, { ownerId: settings.ownerId });
   // Everything Telegram needed is already set, so a store that cannot take the origin (a deployment
   // before migration 0009) does not turn the connect into a failure; /start stores it again.
   try {
