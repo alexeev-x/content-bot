@@ -60,11 +60,25 @@ Sources: OpenDota keyless 60 req/min and 3 000/day; official datafeed keyless an
 
 ### A. AI that writes like the owner
 
-- AI provider behind one port, switchable by configuration. Proposed: OpenAI (text and images with one key); optional blind A/B test against Claude on the owner's texts. Needs an owner decision and a key in Worker secrets.
-- Rubrics in the studio: name, goal, format, examples.
-- Style profile from the owner's texts (Telegram export, Reels scripts) and a list of phrases that sound like AI.
-- Every AI draft is stored next to the owner's final version; these edits become the examples the AI learns from.
-- Bot: «пост в рубрику X про Y» → draft → edit → approve. Publishing always needs the owner's approval.
+Agreed with the owner 15.10.2026. Publishing always needs the owner's approval.
+
+**Provider.** One port, the model chosen by configuration. Candidates: Claude Sonnet 5.5 (drafts), Claude Haiku 5.5 (checks, tags) or an OpenAI model of the same price class. Open: a blind A/B on 10 of the owner's posts or Claude directly; the key with a monthly limit is set by the owner in Worker secrets.
+
+**Reels** (rubrics «Учу фидить» and «Учусь играть в доту»; more can be added):
+1. A Reel script on a topic, with or without a rubric.
+2. Topics for a rubric: 5–10 ideas that skip the owner's past videos (known from analytics) and lean on what flew; the chosen one becomes a script.
+3. A new rubric from a trend, a patch, what flew or competitors: name, idea, format, first three topics; saved on approval.
+4. The owner's raw thoughts → a structured script that keeps his words and only adds the hook, order and links.
+
+**Telegram autoposts from news.** A source (official or not) finds news; duplicates from several sources merge into one; the AI writes the post in the owner's voice from the news facts only, an unofficial one marked as a rumour; the draft comes to the bot to publish, edit or reject. Open: which unofficial sources, a daily cap, which news topics.
+
+**Voice, not fine-tuning.** A compact style profile (1–1.5K tokens) distilled from the owner's Telegram export and 10–15 of his own posts; 3–4 examples of the same rubric per request; a stop-list of AI-sounding phrases checked in code and by the cheap model; every AI draft stored next to the owner's final text, and a weekly batch run turns those edits into new profile rules.
+
+**Token economy (owner priority).** Prompt caching of the stable prefix (profile, examples, rules, rubric) in a fixed order; one draft, not variants; output length bound to the rubric's format; low effort for simple posts; a rewrite sends only the owner's short instruction; non-urgent work (weekly rules, topic lists) through the Batch API; per-request token and cache accounting with a daily cap shown in the studio. No prompt-compression tools (LLMLingua and the like): they need a separate server and strip the wording that carries the voice.
+
+**Order:** rubrics + provider port → style profile from the export → (blind test) → «Написать с ИИ» in the editor and in the bot → learning from edits → Reels topics from analytics → news autoposts.
+
+**Owner inputs:** the Telegram channel export (JSON), 10–15 posts that are «100% him», how Reels are recorded and what a script must contain, whether swearing is allowed.
 
 ### B. Video analytics
 
@@ -96,9 +110,9 @@ Sources: OpenDota keyless 60 req/min and 3 000/day; official datafeed keyless an
 ### D. Images
 
 - **Built on DEV (15.10.2026):** every hero's official animation without background (WebM, MOV), its PNG, portrait, icon and crop mirrored into R2; «Медиа → Герои Dota» shows and downloads them.
-- Templates rendered on the Worker (no paid render API): official hero art, owner screenshots, logo.
-- AI-generated backgrounds with the real hero composited on top, so the hero is never generated or distorted.
-- Generation from a reference only for memes, always approved by the owner.
+- No paid plans (owner, 15.10.2026: the Workers Paid plan is not an option). The Worker's Free CPU limit cannot render images, so layers are composed by Cloudflare Images (free 5 000 unique transformations a month; over it a new image fails, nothing is charged): the owner's background, hero art or the news image, logo and a fixed set of pre-drawn labels («ПАТЧ», «СЛУХ», «ТУРНИР», «РОЗЫГРЫШ»). Free-form headline text on the image only if the binding can draw it; otherwise the text stays in the post. Needs the owner to enable Cloudflare Images (free) and to supply a background, a logo and 2–3 reference images.
+- Order of choice per post: template card by default; the news image or the hero art when no template fits; an AI image only by the owner's button.
+- AI images through Workers AI's free daily allowance (e.g. Flux): a background or scene, the real hero art composited on top, so the hero is never generated or distorted; no text drawn by the model.
 
 ### Later
 
