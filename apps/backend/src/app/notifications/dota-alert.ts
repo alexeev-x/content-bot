@@ -62,3 +62,12 @@ export function formatDotaIncidentAlert(
     button: { text: DOTA_INCIDENT_BUTTON_TEXT, url: `${appOrigin}/sources` }
   };
 }
+
+// «Обновление Dota совпало с отслеживанием»: a watched hero or item appears in new patch notes.
+export function formatDotaWatchlistAlert(alert: {
+  entityType: 'hero' | 'item';
+  entityName: string;
+  title: string;
+}): string {
+  return `<b>Обновление Dota совпало с отслеживанием</b>\n${alert.entityType === 'hero' ? 'Герой' : 'Предмет'}: ${escapeHtml(alert.entityName)}\n${escapeHtml(alert.title)}`;
+}

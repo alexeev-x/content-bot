@@ -42,7 +42,7 @@ export async function sendContentAlerts(deps: {
     }
     const html = `<b>${escapeHtml(alert.title)}</b>\n${escapeHtml(alert.body)}`;
     const button = {
-      text: alert.kind === 'source' ? 'Открыть настройки' : 'Открыть аналитику',
+      text: alert.kind === 'source' ? 'Открыть и обновить' : 'Открыть аналитику',
       url: new URL(alert.linkPath, deps.appOrigin).toString()
     };
     deps.charge(1);

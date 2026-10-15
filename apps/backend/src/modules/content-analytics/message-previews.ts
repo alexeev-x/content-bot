@@ -24,14 +24,14 @@ import {
 import type { ContentAlertKind, ContentAlertRepository } from './d1-content-alerts-repository';
 import type { ItemRow } from './d1-content-analytics-repository';
 import type { ContentGoalRepository } from './goals';
-import type { ContentPlatform } from './types';
 
 // Every bot alert in each candidate style, for the owner to compare in the bot before one style is chosen
 // (Настройки → Аналитика → «Прислать примеры в бота»). Built from last week's real numbers where they exist.
 
-export type PreviewStyle = 'current' | 'card' | 'compact' | 'table';
+export type PreviewStyle = 'current' | 'card' | 'compact' | 'table' | 'list';
 
 const STYLE_NAME: Record<PreviewStyle, string> = {
+  list: 'Д · просто, со ссылкой на ролик',
   current: 'А · как сейчас',
   card: 'Б · карточка',
   compact: 'В · коротко',
@@ -42,9 +42,9 @@ export interface MessagePreview {
   kind: ContentAlertKind;
   html: string;
   linkPath: string;
+  /** Extra buttons above the main one: each opens one publication's details in the studio. */
+  buttons?: { text: string; linkPath: string }[];
 }
-
-const ICON: Record<ContentPlatform, string> = { telegram: '✈️', youtube: '▶️', tiktok: '🎵' };
 
 function esc(value: string): string {
   return value.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;');
@@ -107,7 +107,7 @@ function entryLines(entries: readonly DigestEntry[]): string {
   return entries
     .map(
       (entry, index) =>
-        `${index + 1}. <b>${multiple(entry.ratio)}</b> · ${ICON[entry.item.platform]} ${short(entry.item.views ?? 0)}\n${esc(itemTitle(entry.item, 60))}`
+        `${index + 1}. <b>${multiple(entry.ratio)}</b> · ${PLATFORM_LABEL[entry.item.platform]} · ${short(entry.item.views ?? 0)}\n${esc(itemTitle(entry.item, 60))}`
     )
     .join('\n');
 }
@@ -122,10 +122,7 @@ function digestCard(data: DigestData, timezone: string): string {
   if (data.atAge.length > 0)
     blocks.push(
       `👀 <b>Первые 24 часа</b>, обычно\n<blockquote>${data.atAge
-        .map(
-          (row) =>
-            `${ICON[row.platform]} ${PLATFORM_LABEL[row.platform]} — <b>${count(row.views)}</b>${trend(row.change)}`
-        )
+        .map((row) => `${PLATFORM_LABEL[row.platform]} — <b>${count(row.views)}</b>${trend(row.change)}`)
         .join('\n')}</blockquote>`
     );
   if (data.followers.length > 0)
@@ -133,7 +130,7 @@ function digestCard(data: DigestData, timezone: string): string {
       `👥 <b>Подписчики</b>\n<blockquote>${data.followers
         .map(
           (row) =>
-            `${ICON[row.platform]} ${PLATFORM_LABEL[row.platform]} — <b>${count(row.followers)}</b>${row.change === null ? '' : ` (${signed(row.change)})`}`
+            `${PLATFORM_LABEL[row.platform]} — <b>${count(row.followers)}</b>${row.change === null ? '' : ` (${signed(row.change)})`}`
         )
         .join('\n')}</blockquote>`
     );
@@ -176,7 +173,7 @@ function digestTable(data: DigestData, timezone: string): string {
     `<b>${title}</b>\n${entries
       .map(
         (entry) =>
-          `<code>${multiple(entry.ratio).padStart(4)}</code> ${ICON[entry.item.platform]} ${esc(itemTitle(entry.item, 40))}`
+          `<code>${multiple(entry.ratio).padStart(4)}</code> ${PLATFORM_LABEL[entry.item.platform]} · ${esc(itemTitle(entry.item, 40))}`
       )
       .join('\n')}`;
   if (data.best.length > 0) blocks.push(ranked('🔥 Лучшие', data.best));
@@ -205,13 +202,53 @@ function digestCompact(data: DigestData, timezone: string, plainBody: string): s
   return lines.join('\n') + footer('compact');
 }
 
+/** The owner's layout: platform by name and the publication, no ratios; a button per publication. */
+function digestList(data: DigestData, timezone: string): string {
+  const blocks = [
+    `📊 <b>${esc(digestTitle(data, timezone))}</b>\n${
+      data.published === 0
+        ? 'За неделю публикаций не было.'
+        : `Публикаций: <b>${data.published}</b> (неделей раньше ${data.publishedBefore})`
+    }`
+  ];
+  if (data.followers.length > 0)
+    blocks.push(
+      `<b>Подписчики</b>\n${data.followers
+        .map(
+          (row) =>
+            `${PLATFORM_LABEL[row.platform]}: <b>${count(row.followers)}</b>${row.change === null ? '' : ` (${signed(row.change)} за неделю)`}`
+        )
+        .join('\n')}`
+    );
+  blocks.push(...goalLines(data, timezone, true));
+  const numbered = (entries: readonly DigestEntry[], from: number) =>
+    entries
+      .map(
+        (entry, index) =>
+          `${from + index}. <b>${PLATFORM_LABEL[entry.item.platform]}</b> — «${esc(itemTitle(entry.item, 60))}», ${count(entry.item.views ?? 0)} просмотров`
+      )
+      .join('\n');
+  if (data.best.length > 0) blocks.push(`🔥 <b>Залетели</b>\n${numbered(data.best, 1)}`);
+  if (data.worst.length > 0) blocks.push(`🧊 <b>Не зашли</b>\n${numbered(data.worst, data.best.length + 1)}`);
+  if (data.best.length + data.worst.length > 0) blocks.push('<i>Каждый ролик открывается кнопкой ниже.</i>');
+  return blocks.join('\n\n') + footer('list');
+}
+
+/** «1. TikTok · Пудж через мид…»: numbered as in the text, in the order shown. */
+function itemButtons(data: DigestData): { text: string; linkPath: string }[] {
+  return [...data.best, ...data.worst].map((entry, index) => ({
+    text: `${index + 1}. ${PLATFORM_LABEL[entry.item.platform]} · ${itemTitle(entry.item, 28)}`,
+    linkPath: `/analytics?id=${encodeURIComponent(entry.item.id)}`
+  }));
+}
+
 // ---------- item and source alerts ----------
 
 function itemPreviews(facts: ItemAlertFacts): MessagePreview[] {
   const rising = facts.direction === 'rising';
   const text = itemAlertText(facts);
   const title = esc(itemTitle(facts.item, 80));
-  const label = `${ICON[facts.item.platform]} ${PLATFORM_LABEL[facts.item.platform]}`;
+  const label = PLATFORM_LABEL[facts.item.platform];
   const ratio = multiple(facts.views / facts.usual);
   const advice = rising
     ? 'Повторите тему или первую фразу, пока интерес высокий.'
@@ -229,11 +266,20 @@ function itemPreviews(facts: ItemAlertFacts): MessagePreview[] {
     `«${title}»`,
     `<code>${count(facts.views)}</code> просмотров при обычных <code>${count(facts.usual)}</code>`
   ].join('\n');
+  const what =
+    facts.item.platform === 'telegram' ? 'пост в Telegram' : `видео в ${PLATFORM_LABEL[facts.item.platform]}`;
+  const simple = [
+    rising ? `🚀 <b>Залетает ${what}</b>` : `📉 <b>Слабее обычного идёт ${what}</b>`,
+    `«${title}»`,
+    '',
+    `<i>Детали — кнопкой ниже.</i>`
+  ].join('\n');
   const linkPath = `/analytics?id=${encodeURIComponent(facts.item.id)}`;
   return [
     { kind: 'item', html: plain(text.title, text.body, 'current'), linkPath },
     { kind: 'item', html: card + footer('card'), linkPath },
-    { kind: 'item', html: compact + footer('compact'), linkPath }
+    { kind: 'item', html: compact + footer('compact'), linkPath },
+    { kind: 'item', html: simple + footer('list'), linkPath }
   ];
 }
 
@@ -248,11 +294,15 @@ function sourcePreviews(facts: SourceAlertFacts, timezone: string): MessagePrevi
   const compact = reconnect
     ? `🔑 <b>${label}</b>: доступ отозван, войдите заново`
     : `⚠️ <b>${label}</b> не собирается с ${esc(when)} · <code>${esc(facts.lastErrorCode ?? '—')}</code>`;
+  const simple = reconnect
+    ? `🔑 <b>${label}: войдите заново</b>\n${label} отозвал доступ, без этого статистика не обновляется.`
+    : `⚠️ <b>Статистика ${label} не обновляется</b>\nПоследний раз — ${esc(when)}. Повторяем сами каждые 15 минут.`;
   const linkPath = '/settings/analytics';
   return [
     { kind: 'source', html: plain(text.title, text.body, 'current'), linkPath },
     { kind: 'source', html: card + footer('card'), linkPath },
-    { kind: 'source', html: compact + footer('compact'), linkPath }
+    { kind: 'source', html: compact + footer('compact'), linkPath },
+    { kind: 'source', html: simple + footer('list'), linkPath }
   ];
 }
 
@@ -271,16 +321,16 @@ const SAMPLE_ITEM: ItemRow = {
 };
 
 /**
- * The preview set: an intro, then each alert kind in every style. Last week's digest is real; the item
+ * Each content alert kind in every style. Last week's digest is real; the item
  * alerts use last week's best and weakest publication when there are any, and the source alerts are samples.
- * Bounded: four reads, 17 messages with the intro.
+ * Bounded: four reads, 21 messages.
  */
 export async function buildMessagePreviews(deps: {
   repo: ContentAlertRepository;
   goals: ContentGoalRepository;
   clock: Clock;
   timezone: string;
-}): Promise<{ intro: string; messages: MessagePreview[] }> {
+}): Promise<MessagePreview[]> {
   const now = deps.clock.now();
   const input = await loadDigestInput({ ...deps, weekEnd: lastWeekEnd(now, deps.timezone) });
   const data = digestData(input);
@@ -314,9 +364,10 @@ export async function buildMessagePreviews(deps: {
     { kind: 'digest', html: plain(current.title, current.body, 'current'), linkPath: '/analytics' },
     { kind: 'digest', html: digestCard(data, deps.timezone), linkPath: '/analytics' },
     { kind: 'digest', html: digestCompact(data, deps.timezone, current.body), linkPath: '/analytics' },
-    { kind: 'digest', html: digestTable(data, deps.timezone), linkPath: '/analytics' }
+    { kind: 'digest', html: digestTable(data, deps.timezone), linkPath: '/analytics' },
+    { kind: 'digest', html: digestList(data, deps.timezone), linkPath: '/analytics', buttons: itemButtons(data) }
   ];
-  const messages = [
+  const messages: MessagePreview[] = [
     ...digest,
     ...itemPreviews(rising),
     ...itemPreviews(below),
@@ -326,15 +377,5 @@ export async function buildMessagePreviews(deps: {
     ),
     ...sourcePreviews({ platform: 'tiktok', lastSuccessAt: now, lastErrorCode: 'TIKTOK_RECONNECT' }, deps.timezone)
   ];
-  const intro = [
-    '🧪 <b>Примеры сообщений бота</b>',
-    '',
-    'Дальше идут все виды оповещений, каждый в нескольких стилях:',
-    '• сводка недели (настоящие цифры прошлой недели) — А, Б, В, Г',
-    '• «Залетает» и «Идёт слабее обычного» — А, Б, В',
-    '• сбор статистики сломался и «нужно войти заново» — А, Б, В',
-    '',
-    'Внизу каждого сообщения подписан вариант. Напишите, какой стиль оставить.'
-  ].join('\n');
-  return { intro, messages };
+  return messages;
 }

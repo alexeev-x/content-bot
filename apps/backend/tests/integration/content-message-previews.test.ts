@@ -34,8 +34,8 @@ beforeEach(async () => {
   await seedSession({ token: OWNER_TOKEN });
 });
 
-describe('message previews', () => {
-  it('sends every alert kind in each style to the owner, with markup Telegram accepts', async () => {
+describe('bot message catalog', () => {
+  it('sends every message the bot sends the owner, with markup Telegram accepts', async () => {
     // Two weeks of posts, one title with markup characters that must arrive escaped.
     for (let index = 0; index < 10; index += 1)
       await insertItem(
@@ -51,7 +51,8 @@ describe('message previews', () => {
     expect(response.status).toBe(200);
     const { sent } = messagePreviewsResultSchema.parse(await response.json());
     expect(sent).toBe(messenger.sent.length);
-    expect(sent).toBe(17);
+    // Intro, 4 section headings, 8 publication, 6 bot, 5 Dota and 21 analytics messages.
+    expect(sent).toBe(45);
     for (const message of messenger.sent) {
       expect(message.chatId).toBe(OWNER_ID);
       expectWellFormed(message.html);

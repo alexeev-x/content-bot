@@ -2,7 +2,7 @@ import type { TelegramOwnerMessageApi } from '../../integrations/telegram/telegr
 import { type DotaWatchlistRepository } from '../../modules/dota-watchlists';
 import type { Logger } from '../../platform/logging/logger';
 import { GrammyError } from 'grammy';
-import { escapeHtml } from '../notifications/notice-template';
+import { formatDotaWatchlistAlert } from '../notifications/dota-alert';
 
 const DOTA_WATCHLIST_ALERT_BATCH_LIMIT = 2;
 const DOTA_WATCHLIST_ALERT_TIMEOUT_MS = 5_000;
@@ -33,7 +33,7 @@ export async function sendDotaWatchlistAlerts(deps: {
     }
     const url = new URL('/sources', deps.appOrigin);
     url.searchParams.set('update', `patch_notes:${alert.externalId}`);
-    const html = `<b>Обновление Dota совпало с отслеживанием</b>\n${alert.entityType === 'hero' ? 'Герой' : 'Предмет'}: ${escapeHtml(alert.entityName)}\n${escapeHtml(alert.title)}`;
+    const html = formatDotaWatchlistAlert(alert);
     try {
       await deps.messenger.sendMessageWithWebAppButton(
         deps.ownerChatId,

@@ -12,10 +12,10 @@ import {
   messagePreviewsResultSchema,
   tiktokConnectSchema
 } from '@alexeev/contracts';
+import { GrammyError } from 'grammy';
 import { Hono } from 'hono';
 import { z } from 'zod';
 import {
-  buildMessagePreviews,
   collectContentAnalytics,
   listContentItems,
   readContentAnalyticsOverview,
@@ -33,13 +33,21 @@ import {
 import { getOwnerOperationsSettings } from '../modules/settings';
 import { AppError } from '../shared/app-error';
 import { appOriginOf } from './bot/app-origin';
+import { buildMessageCatalog } from './notifications/message-catalog';
+import { sendMessageCatalog } from './workflows/send-message-catalog';
 import { deleteCookie, getCookie, setCookie } from 'hono/cookie';
 import { rateLimitClientKey } from '../platform/rate-limit/client-key';
 import type { AppBindings } from './env';
 import { validated } from './validation';
 
-/** One answer each; the whole set (17 messages) stays well inside a request. */
-const PREVIEW_SEND_TIMEOUT_MS = 5_000;
+const PREVIEW_INTRO = [
+  '🧪 <b>Все сообщения бота</b>',
+  '',
+  'Дальше по разделам идёт каждое сообщение, которое бот присылает вам, в том виде, в каком оно приходит сейчас.',
+  'Публикации и каналы в примерах условные; отчёты /today, /next, /status и сводка недели — с настоящими данными.',
+  '',
+  'В конце — аналитика в нескольких стилях (А–Д, вариант подписан внизу). Напишите, какой оставить: он станет общим для всех сообщений.'
+].join('\n');
 
 const itemParamsSchema = z.strictObject({ id: contentItemIdSchema });
 // TikTok's redirect: every field optional and bounded; anything else in the query is ignored.
@@ -191,43 +199,33 @@ export const contentAnalyticsRoutes = new Hono<AppBindings>()
       logger: container.logger,
       requestId: c.get('requestId')
     });
-    const { intro, messages } = await buildMessagePreviews({
-      repo: container.contentAlerts,
-      goals: container.contentGoals,
-      clock: container.clock,
-      timezone
+    const appOrigin = appOriginOf(c.req.url);
+    const sections = await buildMessageCatalog({
+      appOrigin,
+      timezone,
+      reports: {
+        clock: container.clock,
+        publications: container.publications,
+        incidents: container.dispatchJobs,
+        posts: container.postRevisions,
+        cron: container.systemState,
+        publishing: container.publishing
+      },
+      analytics: { repo: container.contentAlerts, goals: container.contentGoals, clock: container.clock, timezone }
     });
-    const chatId = c.get('actor').telegramId;
-    const origin = appOriginOf(c.req.url);
-    let sent = 0;
-    try {
-      await messenger.sendMessageWithWebAppButton(
-        chatId,
-        { html: intro, button: { text: 'Открыть аналитику', url: new URL('/analytics', origin).toString() } },
-        AbortSignal.timeout(PREVIEW_SEND_TIMEOUT_MS)
-      );
-      sent += 1;
-      // One after another, so they arrive in order.
-      for (const message of messages) {
-        await messenger.sendMessageWithWebAppButton(
-          chatId,
-          {
-            html: message.html,
-            button: {
-              text: message.kind === 'source' ? 'Открыть настройки' : 'Открыть аналитику',
-              url: new URL(message.linkPath, origin).toString()
-            }
-          },
-          AbortSignal.timeout(PREVIEW_SEND_TIMEOUT_MS)
-        );
-        sent += 1;
-      }
-    } catch (error) {
+    const { sent, error } = await sendMessageCatalog({
+      messenger,
+      chatId: c.get('actor').telegramId,
+      intro: PREVIEW_INTRO,
+      studioUrl: `${appOrigin}/`,
+      sections
+    });
+    if (error !== null) {
       container.logger.warn({
-        component: 'content-alerts',
+        component: 'owner_notice',
         operation: 'message_previews',
         requestId: c.get('requestId'),
-        errorCode: error instanceof Error ? error.name : 'UNKNOWN'
+        errorCode: error instanceof GrammyError ? 'TELEGRAM_REJECTED' : 'TELEGRAM_RESULT_UNKNOWN'
       });
       throw new AppError('UNAVAILABLE', 'Telegram did not accept every preview', { sent: String(sent) });
     }
