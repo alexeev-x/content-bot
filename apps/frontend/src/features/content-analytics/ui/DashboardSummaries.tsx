@@ -1,7 +1,9 @@
 import { useQuery } from '@tanstack/react-query';
 import { useNow } from '../../../shared/lib/use-now';
 import { Button } from '../../../shared/ui';
-import { contentOverviewQueryOptions } from '../api/content-analytics-queries';
+import { contentOverviewQueryOptions, contentReportQueryOptions } from '../api/content-analytics-queries';
+import { mediansByPlatform, splitPeriods } from '../model/report';
+import { TrendingPanel } from './TrendingPanel';
 import { copy } from './copy';
 import styles from './ContentAnalytics.module.css';
 import { SourceTiles } from './SourceTiles';
@@ -30,5 +32,26 @@ function SummaryError({ onRetry }: { onRetry: () => void }) {
         {copy.refresh}
       </Button>
     </div>
+  );
+}
+
+/** Body of the Обзор widget «Что залетает сейчас»: the last 72 hours against the usual at the same age. */
+// The widget's own header already links to «Аналитика», so the list has no second link.
+export function TrendingSummary({ timezone, onOpen }: { timezone: string; onOpen: (id: string) => void }) {
+  const report = useQuery(contentReportQueryOptions(7));
+  const now = useNow().getTime();
+  if (report.isError && report.data === undefined) return <SummaryError onRetry={() => void report.refetch()} />;
+  const current = report.data ? splitPeriods(report.data, undefined).current : undefined;
+  return (
+    <TrendingPanel
+      bare
+      limit={2}
+      items={current}
+      baselines={report.data?.baselines ?? []}
+      medians={current ? mediansByPlatform(current) : {}}
+      now={now}
+      timezone={timezone}
+      onOpen={onOpen}
+    />
   );
 }

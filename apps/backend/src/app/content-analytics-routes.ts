@@ -164,6 +164,8 @@ export const contentAnalyticsRoutes = new Hono<AppBindings>()
   .get('/items/:id', validated('param', itemParamsSchema), async (c) => {
     const container = c.get('container');
     return c.json(
-      contentItemDetailSchema.parse(await readContentItem(container.contentAnalytics, c.req.valid('param').id))
+      contentItemDetailSchema.parse(
+        await readContentItem({ repo: container.contentAnalytics, clock: container.clock }, c.req.valid('param').id)
+      )
     );
   });

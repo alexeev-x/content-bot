@@ -1,11 +1,22 @@
-import type { ContentItemDto, ContentPlatform } from '@alexeev/contracts';
-import { useMemo } from 'react';
-import { DataTable, EmptyState, type DataColumn, Pagination, Panel, type TableSort } from '../../../shared/ui';
+import type { ContentBaselineDto, ContentItemDto, ContentPlatform } from '@alexeev/contracts';
+import { useMemo, useState } from 'react';
+import {
+  DataTable,
+  EmptyState,
+  type DataColumn,
+  Pagination,
+  Panel,
+  SearchField,
+  Select,
+  type TableSort
+} from '../../../shared/ui';
 import { engagementRate, formatCount, formatPublished, PLATFORM_LABEL } from '../model/format';
 import { multipleOf } from '../model/report';
+import { type ItemStatus, verdictFor } from '../model/status';
 import { copy } from './copy';
 import { ItemThumb } from './ItemThumb';
 import styles from './Report.module.css';
+import { StatusChip } from './StatusChip';
 
 export const ITEMS_PER_PAGE = 10;
 export type ItemsSortKey = 'published' | 'views' | 'likes' | 'comments' | 'er' | 'multiple';
@@ -13,6 +24,8 @@ export type ItemsSortKey = 'published' | 'views' | 'likes' | 'comments' | 'er' |
 type Props = {
   items: readonly ContentItemDto[] | undefined;
   medians: Partial<Record<ContentPlatform, number | null>>;
+  baselines: readonly ContentBaselineDto[];
+  now: number;
   timezone: string;
   page: number;
   onPageChange: (page: number) => void;
@@ -31,10 +44,20 @@ const SORTERS: Record<ItemsSortKey, (item: ContentItemDto, medians: Props['media
   multiple: (item, medians) => multipleOf(item, medians) ?? -1
 };
 
-/** Every post and video of the period: sortable by any number, paged like the other tables. */
+const STATUS_FILTERS = [
+  { id: 'all', label: 'Все' },
+  { id: 'rising', label: 'Залетает, выше нормы' },
+  { id: 'normal', label: 'В норме' },
+  { id: 'below', label: 'Ниже нормы' },
+  { id: 'collecting', label: 'Собираем данные' }
+] as const;
+
+/** «Все публикации»: search, status filter, sort by any number, a status per row; paged like the other tables. */
 export function ItemsTable({
   items,
   medians,
+  baselines,
+  now,
   timezone,
   page,
   onPageChange,
@@ -43,12 +66,25 @@ export function ItemsTable({
   activeId,
   onOpen
 }: Props) {
+  const [search, setSearch] = useState('');
+  const [status, setStatus] = useState<ItemStatus | 'all'>('all');
+  const verdicts = useMemo(
+    () => new Map((items ?? []).map((item) => [item.id, verdictFor(item, now, baselines, medians)])),
+    [items, now, baselines, medians]
+  );
   const sorted = useMemo(() => {
     if (!items) return [];
+    const needle = search.trim().toLocaleLowerCase('ru-RU');
     const key = (sort.column in SORTERS ? sort.column : 'published') as ItemsSortKey;
     const direction = sort.direction === 'ascending' ? 1 : -1;
-    return [...items].sort((a, b) => (SORTERS[key](a, medians) - SORTERS[key](b, medians)) * direction);
-  }, [items, medians, sort]);
+    return items
+      .filter(
+        (item) =>
+          (needle === '' || item.title.toLocaleLowerCase('ru-RU').includes(needle)) &&
+          (status === 'all' || verdicts.get(item.id)?.status === status)
+      )
+      .sort((a, b) => (SORTERS[key](a, medians) - SORTERS[key](b, medians)) * direction);
+  }, [items, medians, sort, search, status, verdicts]);
   const pageCount = Math.max(1, Math.ceil(sorted.length / ITEMS_PER_PAGE));
   const current = Math.min(page, pageCount);
   const rows = sorted.slice((current - 1) * ITEMS_PER_PAGE, current * ITEMS_PER_PAGE);
@@ -62,21 +98,26 @@ export function ItemsTable({
         cell: (item) => (
           <span className={styles.itemCell}>
             <ItemThumb item={item} />
-            <span className={styles.itemTitle}>{item.title || copy.table.untitled}</span>
+            <span className={styles.cellStack}>
+              <span className={styles.itemTitle}>{item.title || copy.table.untitled}</span>
+              <span className={styles.cellDelta} data-tone="flat">
+                {PLATFORM_LABEL[item.platform]}
+              </span>
+            </span>
           </span>
         )
       },
       {
         id: 'published',
-        header: copy.table.published,
-        width: 128,
+        header: 'Дата',
+        width: 104,
         allowsSorting: true,
         cell: (item) => <span className={styles.nowrap}>{formatPublished(item.publishedAt, timezone)}</span>
       },
       {
         id: 'views',
         header: copy.table.views,
-        width: 100,
+        width: 104,
         align: 'end',
         allowsSorting: true,
         compactSlot: 'trailing',
@@ -84,8 +125,8 @@ export function ItemsTable({
       },
       {
         id: 'multiple',
-        header: copy.table.multiple,
-        width: 104,
+        header: 'К норме',
+        width: 92,
         align: 'end',
         allowsSorting: true,
         cell: (item) => {
@@ -103,32 +144,41 @@ export function ItemsTable({
       {
         id: 'likes',
         header: copy.table.likes,
-        width: 92,
+        width: 80,
         align: 'end',
         allowsSorting: true,
         cell: (item) => <span className={styles.num}>{formatCount(item.likes)}</span>
       },
       {
         id: 'comments',
-        header: copy.table.comments,
-        width: 124,
+        header: 'Комм.',
+        width: 84,
         align: 'end',
         allowsSorting: true,
         cell: (item) => <span className={styles.num}>{formatCount(item.comments)}</span>
       },
       {
         id: 'er',
-        header: copy.table.er,
-        width: 132,
+        header: 'ER',
+        width: 72,
         align: 'end',
         allowsSorting: true,
         cell: (item) => {
           const rate = engagementRate(item);
           return <span className={styles.num}>{rate === null ? '—' : `${rate.toLocaleString('ru-RU')}%`}</span>;
         }
+      },
+      {
+        id: 'status',
+        header: 'Статус',
+        width: 148,
+        cell: (item) => {
+          const verdict = verdicts.get(item.id);
+          return verdict ? <StatusChip verdict={verdict} /> : null;
+        }
       }
     ],
-    [timezone, medians]
+    [timezone, medians, verdicts, onOpen]
   );
 
   return (
@@ -136,6 +186,30 @@ export function ItemsTable({
       title={copy.table.title}
       headingLevel={2}
       quiet
+      note={items ? `${items.length} публ. за период` : undefined}
+      action={
+        <div className={styles.tableTools}>
+          <SearchField
+            label="Поиск по названию"
+            placeholder="Поиск по названию…"
+            value={search}
+            onChange={(value) => {
+              setSearch(value);
+              onPageChange(1);
+            }}
+          />
+          <Select
+            label="Статус"
+            inlineLabel
+            options={STATUS_FILTERS}
+            value={status}
+            onChange={(id) => {
+              setStatus(id as ItemStatus | 'all');
+              onPageChange(1);
+            }}
+          />
+        </div>
+      }
       footer={
         <Pagination
           page={current}

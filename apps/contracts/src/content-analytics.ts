@@ -108,9 +108,27 @@ export type ContentItemSnapshotDto = z.infer<typeof contentItemSnapshotSchema>;
 // item is younger than 72 hours, then daily; oldest first, at most 200.
 // Errors: VALIDATION_ERROR 400, NOT_FOUND 404, UNAUTHORIZED 401, FORBIDDEN 403, UNAVAILABLE 503.
 export const contentItemIdSchema = z.string().regex(/^(telegram|youtube|tiktok):[A-Za-z0-9_-]{1,140}$/);
+/** Ages after publishing at which views are compared «на том же возрасте». */
+export const CONTENT_CHECKPOINT_HOURS = [1, 3, 6, 12, 24, 48, 72] as const;
+
+/**
+ * The platform's usual curve: at each checkpoint, the median views of the items published in the last
+ * 90 days that were tracked from their first hours, with how many items it rests on. A checkpoint with
+ * fewer than 3 items is left out.
+ */
+export const contentBaselineSchema = z.object({
+  platform: contentPlatformSchema,
+  points: z
+    .array(z.object({ ageHours: z.number().int().positive(), views: countSchema, items: z.number().int().min(3) }))
+    .max(CONTENT_CHECKPOINT_HOURS.length)
+});
+export type ContentBaselineDto = z.infer<typeof contentBaselineSchema>;
+
 export const contentItemDetailSchema = z.object({
   item: contentItemSchema,
-  snapshots: z.array(contentItemSnapshotSchema).max(CONTENT_ITEM_SNAPSHOT_LIMIT)
+  snapshots: z.array(contentItemSnapshotSchema).max(CONTENT_ITEM_SNAPSHOT_LIMIT),
+  /** The usual curve of the item's platform (the item itself excluded). */
+  baseline: contentBaselineSchema
 });
 export type ContentItemDetailDto = z.infer<typeof contentItemDetailSchema>;
 
@@ -162,6 +180,8 @@ export const contentReportSchema = z.object({
   /** Daily follower counts since `previousFrom`, oldest first. */
   followers: z
     .array(z.object({ platform: contentPlatformSchema, points: z.array(followersPointSchema).max(200) }))
-    .max(3)
+    .max(3),
+  /** Usual curves per platform, for the «на том же возрасте» status of young items. */
+  baselines: z.array(contentBaselineSchema).max(3)
 });
 export type ContentReportDto = z.infer<typeof contentReportSchema>;

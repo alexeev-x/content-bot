@@ -212,6 +212,22 @@
   --color-bubble-link: #1b6fc2;
 }
 
+/* Platform identity in analytics (a mark next to the name, a series in a chart; never the only signal).
+   Telegram and YouTube use their brand hues; TikTok's black/white mark follows the text colour. */
+:root,
+[data-theme] {
+  --color-platform-telegram: #2aabee;
+  --color-platform-youtube: #ff3b30;
+  --color-platform-tiktok: var(--color-text);
+  /* A previous period or a «usual» reference next to the accent series. */
+  --color-chart-muted: color-mix(in oklab, var(--color-text-muted) 55%, var(--color-surface-2));
+  --color-chart-grid: color-mix(in oklab, var(--color-border-subtle) 70%, transparent);
+  /* Series 2–4 next to the accent when several items are compared (fixed order, never cycled). */
+  --color-series-2: #8b5cf6;
+  --color-series-3: #14b8a6;
+  --color-series-4: #f59e0b;
+}
+
 /* Over media (thumbnails, image placeholders): the image decides the backdrop, so these do not follow the theme. */
 :root,
 [data-theme] {

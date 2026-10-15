@@ -1,122 +1,380 @@
+import type { ContentBaselineDto, ContentItemDetailDto, ContentItemDto, ContentPlatform } from '@alexeev/contracts';
 import { useQuery } from '@tanstack/react-query';
+import { useState } from 'react';
 import { relativeTimeRu } from '../../../shared/lib/ru-format';
-import { AreaChart, Drawer, ErrorState, Icon, Skeleton } from '../../../shared/ui';
+import {
+  Drawer,
+  ErrorState,
+  Icon,
+  type IconName,
+  LineChart,
+  SegmentedControl,
+  Skeleton,
+  Tab,
+  TabList,
+  TabPanel,
+  Tabs
+} from '../../../shared/ui';
 import { contentItemQueryOptions } from '../api/content-analytics-queries';
+import { ageCurve, baselineCurve, formatAge } from '../model/curves';
 import { engagementRate, formatCount, formatExact, formatPublished, likesLabel, PLATFORM_LABEL } from '../model/format';
+import { median, multipleOf } from '../model/report';
+import { rankOf, verdictFor } from '../model/status';
 import { copy } from './copy';
-import styles from './ContentAnalytics.module.css';
-import { ItemThumb } from './ItemThumb';
+import styles from './Drawer.module.css';
+import { ItemCover } from './ItemCover';
+import { PlatformGlyph } from './PlatformGlyph';
+import { StatusChip } from './StatusChip';
+
+/** What the page knows about the period, so the panel can place the item among its peers. */
+export type DrawerContext = {
+  items: readonly ContentItemDto[];
+  medians: Partial<Record<ContentPlatform, number | null>>;
+  baselines: readonly ContentBaselineDto[];
+  days: number;
+};
 
 type Props = {
   id: string | undefined;
   onClose: () => void;
+  onOpen: (id: string) => void;
   timezone: string;
   now: number;
-  /** Where the item stands in the open period; absent when it is outside it. */
-  context?: { multiple: number | null; rank: number; total: number; median: number | null; days: number } | undefined;
+  context?: DrawerContext | undefined;
 };
 
-/** One post or video: its counters and the views curve from the stored snapshots. */
-export function ItemDrawer({ id, onClose, timezone, now, context }: Props) {
+const RANGES = [
+  { id: '24', label: '24 ч' },
+  { id: '72', label: '72 ч' },
+  { id: 'all', label: 'Всё время' }
+] as const;
+
+function times(multiple: number): string {
+  if (multiple >= 1.15) return `В ${multiple.toLocaleString('ru-RU')} раза больше медианы`;
+  if (multiple <= 0.85) return `${Math.round(multiple * 100)}% от медианы`;
+  return 'Примерно как обычно';
+}
+
+/** One post or video: its place in the period, its numbers against the usual and its growth. */
+export function ItemDrawer({ id, onClose, onOpen, timezone, now, context }: Props) {
   const query = useQuery({ ...contentItemQueryOptions(id ?? ''), enabled: id !== undefined });
   const detail = query.data;
-  const item = detail?.item;
-  const snapshots = detail?.snapshots.filter((snapshot) => snapshot.views !== null) ?? [];
-  const rate = item ? engagementRate(item) : null;
-
   return (
     <Drawer
       isOpen={id !== undefined}
       onOpenChange={(open) => (open ? undefined : onClose())}
-      title={item ? item.title || copy.table.untitled : copy.title}
+      title={detail ? detail.item.title || copy.table.untitled : copy.title}
+      size="wide"
     >
       {query.isError ? (
         <ErrorState message={copy.detail.error} onRetry={() => void query.refetch()} />
-      ) : item === undefined ? (
-        <div className={styles.drawerBody} aria-busy="true">
-          <Skeleton height={160} radius="var(--radius-2)" />
-          <Skeleton lines={3} />
+      ) : detail === undefined ? (
+        <div className={styles.body} aria-busy="true">
+          <Skeleton height={140} radius="var(--radius-2)" />
+          <Skeleton lines={4} />
         </div>
       ) : (
-        <div className={styles.drawerBody}>
-          <div className={styles.drawerHead}>
-            <ItemThumb item={item} size="lg" />
-            <div className={styles.drawerMeta}>
-              <p className={styles.tileNote}>
-                {PLATFORM_LABEL[item.platform]}, {formatPublished(item.publishedAt, timezone)}
-              </p>
-              <a className={styles.externalLink} href={item.url} target="_blank" rel="noreferrer noopener">
-                {copy.detail.open(PLATFORM_LABEL[item.platform])}
-                <Icon name="external" size={14} />
-              </a>
-            </div>
-          </div>
-
-          {context && context.rank > 0 ? (
-            <div className={styles.standing}>
-              <p className={styles.standingRank}>
-                {copy.detail.rank(context.rank, context.total, PLATFORM_LABEL[item.platform], context.days)}
-              </p>
-              {context.multiple !== null ? (
-                <p
-                  className={styles.standingVersus}
-                  data-tone={context.multiple >= 1.5 ? 'up' : context.multiple <= 0.5 ? 'down' : 'flat'}
-                >
-                  {copy.detail.versus(context.multiple, formatCount(context.median))}
-                </p>
-              ) : null}
-            </div>
-          ) : null}
-
-          <dl className={styles.counters}>
-            <div>
-              <dt>{copy.table.views}</dt>
-              <dd>{formatExact(item.views)}</dd>
-            </div>
-            <div>
-              <dt>{likesLabel(item.platform)}</dt>
-              <dd>{formatExact(item.likes)}</dd>
-            </div>
-            <div>
-              <dt>{copy.table.comments}</dt>
-              <dd>{formatExact(item.comments)}</dd>
-            </div>
-            <div>
-              <dt>{copy.table.er}</dt>
-              <dd>{rate === null ? '—' : `${rate.toLocaleString('ru-RU')} %`}</dd>
-            </div>
-          </dl>
-
-          <section className={styles.growth} aria-labelledby="growth-title">
-            <h3 id="growth-title" className={styles.sectionTitle}>
-              {copy.detail.growth}
-            </h3>
-            {snapshots.length < 2 ? (
-              <p className={styles.tileNote}>{copy.detail.growthEmpty}</p>
-            ) : (
-              <>
-                <div className={styles.growthChart}>
-                  <span className={styles.growthMax}>
-                    {formatCount(Math.max(...snapshots.map((s) => s.views ?? 0)))}
-                  </span>
-                  <AreaChart
-                    points={snapshots.map((snapshot) => snapshot.views ?? 0)}
-                    x={snapshots.map((snapshot) => Date.parse(snapshot.observedAt))}
-                    height={140}
-                    baseline="zero"
-                    label={copy.detail.growthLabel(formatExact(item.views))}
-                  />
-                </div>
-                <div className={styles.growthAxis}>
-                  <span>{formatPublished(snapshots[0]!.observedAt, timezone)}</span>
-                  <span>{formatPublished(snapshots.at(-1)!.observedAt, timezone)}</span>
-                </div>
-              </>
-            )}
-            <p className={styles.tileUpdated}>{copy.detail.observed(relativeTimeRu(item.observedAt, now))}</p>
-          </section>
-        </div>
+        <DrawerBody detail={detail} timezone={timezone} now={now} context={context} onOpen={onOpen} />
       )}
     </Drawer>
+  );
+}
+
+function DrawerBody({
+  detail,
+  timezone,
+  now,
+  context,
+  onOpen
+}: {
+  detail: ContentItemDetailDto;
+  timezone: string;
+  now: number;
+  context: DrawerContext | undefined;
+  onOpen: (id: string) => void;
+}) {
+  const { item } = detail;
+  const [range, setRange] = useState<'24' | '72' | 'all'>('72');
+  const peers = (context?.items ?? []).filter((entry) => entry.platform === item.platform);
+  const medians = context?.medians ?? {};
+  const verdict = verdictFor(item, now, [detail.baseline], medians);
+  const inPeriod = peers.some((entry) => entry.id === item.id);
+  const rank = inPeriod ? rankOf(item, peers) : null;
+  const viewsMultiple = multipleOf(item, medians);
+  const medianOf = (pick: (entry: ContentItemDto) => number | null) =>
+    median(peers.map(pick).filter((value): value is number => value !== null));
+  const rate = engagementRate(item);
+  const usualRate = medianOf((entry) => engagementRate(entry));
+
+  type Metric = { label: string; icon: IconName; value: number | null; usual: number | null; percent?: boolean };
+  const allMetrics: Metric[] = [
+    { label: copy.table.views, icon: 'eye', value: item.views, usual: medianOf((entry) => entry.views) },
+    { label: likesLabel(item.platform), icon: 'heart', value: item.likes, usual: medianOf((entry) => entry.likes) },
+    { label: copy.table.comments, icon: 'message', value: item.comments, usual: medianOf((entry) => entry.comments) },
+    { label: 'Репосты', icon: 'send', value: item.shares, usual: medianOf((entry) => entry.shares) },
+    { label: copy.table.er, icon: 'sparkle', value: rate, usual: usualRate, percent: true }
+  ];
+  const metrics = allMetrics.filter((metric) => metric.value !== null);
+
+  const maxHours = range === 'all' ? undefined : Number(range);
+  const curve = ageCurve(detail, maxHours);
+  const usualCurve = baselineCurve(detail.baseline, maxHours ?? 72);
+  const ageHours = (now - Date.parse(item.publishedAt)) / 3_600_000;
+  const last = detail.snapshots.filter((snapshot) => snapshot.views !== null).slice(-2);
+  const speed =
+    last.length === 2
+      ? Math.round(
+          ((last[1]!.views ?? 0) - (last[0]!.views ?? 0)) /
+            Math.max(1, (Date.parse(last[1]!.observedAt) - Date.parse(last[0]!.observedAt)) / 3_600_000)
+        )
+      : null;
+  const similar = peers
+    .filter((entry) => entry.id !== item.id)
+    .sort(
+      (a, b) =>
+        Math.abs(Date.parse(a.publishedAt) - Date.parse(item.publishedAt)) -
+        Math.abs(Date.parse(b.publishedAt) - Date.parse(item.publishedAt))
+    )
+    .slice(0, 4);
+
+  return (
+    <div className={styles.body}>
+      <div className={styles.head}>
+        <ItemCover item={item} />
+        <div className={styles.headText}>
+          <p className={styles.meta}>
+            <PlatformGlyph platform={item.platform} withLabel />
+            <span>{formatPublished(item.publishedAt, timezone)}</span>
+          </p>
+          <a className={styles.external} href={item.url} target="_blank" rel="noreferrer noopener">
+            {copy.detail.open(PLATFORM_LABEL[item.platform])}
+            <Icon name="external" size={14} />
+          </a>
+        </div>
+      </div>
+
+      <Tabs>
+        <TabList aria-label="Разделы публикации">
+          <Tab id="overview">Обзор</Tab>
+          <Tab id="growth">Динамика</Tab>
+          <Tab id="compare">Сравнение</Tab>
+        </TabList>
+
+        <TabPanel id="overview">
+          <div className={styles.section}>
+            <div className={styles.hero} data-status={verdict.status}>
+              <div className={styles.heroTop}>
+                <StatusChip verdict={verdict} />
+                {rank ? <span className={styles.pill}>Топ {rank.topPercent}% контента</span> : null}
+              </div>
+              <p className={styles.heroTitle}>
+                {rank
+                  ? `${rank.position}-е место из ${rank.total} в ${PLATFORM_LABEL[item.platform]} за ${context?.days ?? 30} дней`
+                  : 'Вне выбранного периода'}
+              </p>
+              {viewsMultiple !== null ? (
+                <p className={styles.heroText}>
+                  {times(viewsMultiple)} ({formatCount(medians[item.platform] ?? null)})
+                </p>
+              ) : null}
+              <p className={styles.heroNote}>
+                {verdict.status === 'rising'
+                  ? 'Ролик набирает заметно больше обычного. Повторите тему или первую фразу.'
+                  : verdict.status === 'below'
+                    ? 'Ролик идёт слабее обычного: проверьте первую строку и время выхода.'
+                    : verdict.status === 'normal'
+                      ? 'Ролик идёт в пределах обычного для платформы.'
+                      : 'Статус появится, когда накопятся замеры на том же возрасте у других роликов.'}
+              </p>
+            </div>
+
+            <ul className={styles.metrics}>
+              {metrics.map((metric) => {
+                const multiple =
+                  metric.value !== null && metric.usual !== null && metric.usual > 0
+                    ? Math.round((metric.value / metric.usual) * 10) / 10
+                    : null;
+                return (
+                  <li key={metric.label} className={styles.metric}>
+                    <span className={styles.metricIcon}>
+                      <Icon name={metric.icon} size={16} />
+                    </span>
+                    <span className={styles.metricText}>
+                      <span className={styles.metricLabel}>{metric.label}</span>
+                      <strong>
+                        {metric.percent ? `${(metric.value ?? 0).toLocaleString('ru-RU')}%` : formatExact(metric.value)}
+                      </strong>
+                      <span
+                        className={styles.metricNote}
+                        data-tone={
+                          multiple === null ? 'flat' : multiple >= 1.15 ? 'up' : multiple <= 0.85 ? 'down' : 'flat'
+                        }
+                      >
+                        {multiple === null ? 'Не с чем сравнить' : times(multiple)}
+                      </span>
+                    </span>
+                  </li>
+                );
+              })}
+            </ul>
+
+            <GrowthChart curve={curve} usualCurve={usualCurve} range={range} onRange={setRange} />
+
+            <section aria-labelledby="item-findings">
+              <h3 id="item-findings" className={styles.sectionTitle}>
+                Аналитика и выводы
+              </h3>
+              <div className={styles.findings}>
+                <div className={styles.finding} data-tone="accent">
+                  <p className={styles.findingTitle}>
+                    <Icon name="zap" size={16} /> Скорость набора
+                  </p>
+                  <p>
+                    {speed === null
+                      ? 'Скорость появится после второго замера.'
+                      : `Сейчас +${formatCount(Math.max(0, speed))} просмотров в час. Возраст публикации — ${formatAge(ageHours)}. Первые 72 часа замеры каждый час, потом раз в день.`}
+                  </p>
+                </div>
+                <div className={styles.finding} data-tone={verdict.status === 'below' ? 'warn' : 'good'}>
+                  <p className={styles.findingTitle}>
+                    <Icon name="chart" size={16} /> Сравнение с обычным
+                  </p>
+                  <p>
+                    {verdict.multiple === null
+                      ? 'Пока не с чем сравнить на этом возрасте.'
+                      : `${verdict.basis === 'age' ? `На ${formatAge(ageHours)}` : 'За всё время'} ролик набрал ${formatCount(item.views)} при обычных ${formatCount(verdict.usual)} — ${verdict.multiple.toLocaleString('ru-RU')}×.`}
+                  </p>
+                </div>
+                <div className={styles.finding} data-tone="violet">
+                  <p className={styles.findingTitle}>
+                    <Icon name="heart" size={16} /> Вовлечённость
+                  </p>
+                  <p>
+                    {rate === null || usualRate === null
+                      ? 'Нет данных о реакциях.'
+                      : `${rate.toLocaleString('ru-RU')}% против обычных ${(Math.round(usualRate * 10) / 10).toLocaleString('ru-RU')}%: ${rate >= usualRate ? 'аудитория реагирует активнее обычного' : 'реагируют меньше обычного'}.`}
+                  </p>
+                </div>
+              </div>
+            </section>
+          </div>
+        </TabPanel>
+
+        <TabPanel id="growth">
+          <div className={styles.section}>
+            <GrowthChart curve={curve} usualCurve={usualCurve} range={range} onRange={setRange} />
+            <table className={styles.snapshots}>
+              <caption className={styles.sectionTitle}>Замеры</caption>
+              <thead>
+                <tr>
+                  <th scope="col">Время</th>
+                  <th scope="col">Возраст</th>
+                  <th scope="col">Просмотры</th>
+                  <th scope="col">{likesLabel(item.platform)}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {[...detail.snapshots]
+                  .reverse()
+                  .slice(0, 24)
+                  .map((snapshot) => (
+                    <tr key={snapshot.observedAt}>
+                      <td>{formatPublished(snapshot.observedAt, timezone)}</td>
+                      <td>{formatAge((Date.parse(snapshot.observedAt) - Date.parse(item.publishedAt)) / 3_600_000)}</td>
+                      <td>{formatExact(snapshot.views)}</td>
+                      <td>{formatExact(snapshot.likes)}</td>
+                    </tr>
+                  ))}
+              </tbody>
+            </table>
+          </div>
+        </TabPanel>
+
+        <TabPanel id="compare">
+          <div className={styles.section}>
+            <h3 className={styles.sectionTitle}>Соседние публикации в {PLATFORM_LABEL[item.platform]}</h3>
+            {similar.length === 0 ? (
+              <p className={styles.muted}>Других публикаций за период нет.</p>
+            ) : (
+              <ul className={styles.similar}>
+                {similar.map((entry) => {
+                  const multiple = multipleOf(entry, medians);
+                  return (
+                    <li key={entry.id}>
+                      <button type="button" className={styles.similarRow} onClick={() => onOpen(entry.id)}>
+                        <ItemCover item={entry} size="sm" />
+                        <span className={styles.similarText}>
+                          <span className={styles.similarTitle}>{entry.title || copy.table.untitled}</span>
+                          <span className={styles.metricLabel}>
+                            {formatPublished(entry.publishedAt, timezone)}, {formatCount(entry.views)} просм.
+                          </span>
+                        </span>
+                        <span className={styles.multiple}>
+                          {multiple === null ? '—' : `${multiple.toLocaleString('ru-RU')}×`}
+                        </span>
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </div>
+        </TabPanel>
+      </Tabs>
+
+      <p className={styles.muted}>{copy.detail.observed(relativeTimeRu(item.observedAt, now))}</p>
+    </div>
+  );
+}
+
+function GrowthChart({
+  curve,
+  usualCurve,
+  range,
+  onRange
+}: {
+  curve: { x: number; y: number }[];
+  usualCurve: { x: number; y: number }[];
+  range: '24' | '72' | 'all';
+  onRange: (range: '24' | '72' | 'all') => void;
+}) {
+  return (
+    <section className={styles.chartCard} aria-labelledby="item-growth">
+      <div className={styles.chartHead}>
+        <h3 id="item-growth" className={styles.sectionTitle}>
+          {copy.detail.growth}
+        </h3>
+        <SegmentedControl
+          label="Период графика"
+          options={RANGES}
+          value={range}
+          onChange={(value) => onRange(value as '24' | '72' | 'all')}
+        />
+      </div>
+      {curve.length < 2 ? (
+        <p className={styles.muted}>{copy.detail.growthEmpty}</p>
+      ) : (
+        <LineChart
+          label="Просмотры по часам после публикации против обычной медианы"
+          series={[
+            { id: 'item', label: 'Этот ролик', points: curve, color: 'var(--color-accent)', area: true },
+            ...(usualCurve.length > 1
+              ? [
+                  {
+                    id: 'usual',
+                    label: 'Обычная медиана',
+                    points: usualCurve,
+                    color: 'var(--color-chart-muted)',
+                    dashed: true
+                  }
+                ]
+              : [])
+          ]}
+          formatX={(x) => formatAge(x)}
+          formatY={formatCount}
+          height={220}
+        />
+      )}
+    </section>
   );
 }

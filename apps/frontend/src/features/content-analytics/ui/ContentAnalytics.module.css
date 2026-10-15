@@ -31,9 +31,21 @@
   flex: none;
   width: 22px;
   height: 22px;
-  border-radius: var(--radius-1);
+  border-radius: var(--radius-pill);
   background: var(--color-surface-2);
   color: var(--color-text-muted);
+}
+.glyphIcon[data-platform='telegram'] {
+  background: var(--color-platform-telegram);
+  color: var(--color-on-media-strong);
+}
+.glyphIcon[data-platform='youtube'] {
+  background: var(--color-platform-youtube);
+  color: var(--color-on-media-strong);
+}
+.glyphIcon[data-platform='tiktok'] {
+  background: var(--color-platform-tiktok);
+  color: var(--color-surface-1);
 }
 
 /* ===== Metric strip: one surface, one cell per platform (Cloudflare «Metrics») ===== */

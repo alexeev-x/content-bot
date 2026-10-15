@@ -9,7 +9,8 @@ import {
   collectContentAnalytics,
   type ConfiguredSources,
   createD1ContentAnalyticsRepository,
-  readContentAnalyticsOverview
+  readContentAnalyticsOverview,
+  readContentReport
 } from '../../src/modules/content-analytics';
 import type { Collection } from '../../src/modules/content-analytics/types';
 import { ContentCollectError } from '../../src/modules/content-analytics/types';
@@ -180,5 +181,45 @@ describe('content analytics routes', () => {
     await expectError(await api.request('/api/v1/content-analytics/report?days=5'), 400, 'VALIDATION_ERROR');
     const sync = await api.request('/api/v1/content-analytics/sync', { method: 'POST' });
     expect(sync.status).toBe(200);
+  });
+});
+
+describe('views at the same age', () => {
+  it('records a checkpoint only inside its window and builds the usual curve from three or more items', async () => {
+    const clock = fakeClock();
+    const repo = createD1ContentAnalyticsRepository(testDb());
+    let views = 100;
+    const sources = telegramSource(async () => ({
+      followers: 836,
+      items: [1, 2, 3].map((id) => post(id, START - HOUR - 10 * 60_000, views * id))
+    }));
+    // Collected at 1 h 10 min of age: inside the 1-hour window.
+    await collectContentAnalytics({ repo, sources, clock, logger, requestId: 't' });
+    // Five hours later (6 h 10 min of age): inside the 6-hour window; the 3-hour one was missed and stays empty.
+    clock.advance(5 * HOUR);
+    views = 400;
+    await collectContentAnalytics({ repo, sources, clock, logger, requestId: 't' });
+
+    const row = await testDb()
+      .prepare('SELECT v1h, v3h, v6h FROM content_items WHERE id = ?')
+      .bind('telegram:2')
+      .first<{ v1h: number; v3h: number | null; v6h: number }>();
+    expect(row).toEqual({ v1h: 200, v3h: null, v6h: 800 });
+
+    // A post the source no longer returns keeps its frozen count out of later checkpoints.
+    const gone = telegramSource(async () => ({ followers: 836, items: [post(1, START - HOUR - 10 * 60_000, 999)] }));
+    clock.advance(6 * HOUR);
+    await collectContentAnalytics({ repo, sources: gone, clock, logger, requestId: 't' });
+    const missing = await testDb()
+      .prepare('SELECT v12h FROM content_items WHERE id = ?')
+      .bind('telegram:2')
+      .first<{ v12h: number | null }>();
+    expect(missing?.v12h).toBeNull();
+
+    const report = await readContentReport({ repo, clock }, { days: 7 });
+    expect(report.baselines.find((entry) => entry.platform === 'telegram')?.points).toEqual([
+      { ageHours: 1, views: 200, items: 3 },
+      { ageHours: 6, views: 800, items: 3 }
+    ]);
   });
 });

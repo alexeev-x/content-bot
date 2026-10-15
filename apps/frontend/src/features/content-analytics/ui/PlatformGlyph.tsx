@@ -11,7 +11,7 @@ type Props = { platform: ContentPlatform; withLabel?: boolean };
 export function PlatformGlyph({ platform, withLabel = false }: Props) {
   return (
     <span className={styles.glyph}>
-      <span className={styles.glyphIcon} aria-hidden="true">
+      <span className={styles.glyphIcon} data-platform={platform} aria-hidden="true">
         <Icon name={ICON[platform]} size={14} />
       </span>
       {withLabel ? (

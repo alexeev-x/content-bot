@@ -362,6 +362,25 @@ export async function mockApi(page: Page): Promise<void> {
         previousFrom: new Date(previousFrom).toISOString(),
         items: items.filter((entry) => Date.parse(entry.publishedAt) >= previousFrom),
         truncated: false,
+        baselines: [
+          {
+            platform: 'telegram',
+            points: [1, 3, 6, 12, 24, 48, 72].map((ageHours) => ({
+              ageHours,
+              views: Math.round(290 * (1 - Math.exp(-ageHours / 10))),
+              items: 12
+            }))
+          },
+          {
+            platform: 'youtube',
+            points: [1, 3, 6, 12, 24, 48, 72].map((ageHours) => ({
+              ageHours,
+              views: Math.round(9_000 * (1 - Math.exp(-ageHours / 20))),
+              items: 6
+            }))
+          },
+          { platform: 'tiktok', points: [] }
+        ],
         followers: [
           { platform: 'telegram', points: series(700, 4.6).filter((point) => point.day >= day(2 * days)) },
           { platform: 'youtube', points: series(1_010, 5.8).filter((point) => point.day >= day(2 * days)) }
@@ -378,14 +397,33 @@ export async function mockApi(page: Page): Promise<void> {
     await page.route(/\/api\/v1\/content-analytics\/items\/[^/?]+$/, (route) => {
       const id = decodeURIComponent(new URL(route.request().url()).pathname.split('/').pop() ?? '');
       const found = items.find((entry) => entry.id === id) ?? items[1]!;
-      const snapshots = Array.from({ length: 24 }, (_, index) => ({
-        observedAt: iso(30 - index),
-        views: Math.round(found.views * (1 - Math.exp(-(index + 1) / 6))),
-        likes: null,
-        comments: null,
-        shares: null
-      }));
-      json(route, { item: found, snapshots });
+      // Hourly for the first day, then daily: the views approach the item's current count.
+      const published = Date.parse(found.publishedAt);
+      const snapshots = Array.from({ length: 40 }, (_, index) => {
+        const age = index < 24 ? index + 1 : 24 + (index - 23) * 24;
+        return {
+          observedAt: new Date(published + age * 3_600_000).toISOString(),
+          views: Math.round(found.views * (1 - Math.exp(-age / 12))),
+          likes: null,
+          comments: null,
+          shares: null
+        };
+      }).filter((snapshot) => Date.parse(snapshot.observedAt) <= now);
+      const ageHours = (Date.parse(found.observedAt) - Date.parse(found.publishedAt)) / 3_600_000;
+      json(route, {
+        item: found,
+        snapshots,
+        baseline: {
+          platform: found.platform,
+          points: [1, 3, 6, 12, 24, 48, 72]
+            .filter((age) => age <= Math.max(72, ageHours))
+            .map((age) => ({
+              ageHours: age,
+              views: Math.round((found.views / 2) * (1 - Math.exp(-age / 12))),
+              items: 8
+            }))
+        }
+      });
     });
   }
   // Activity: a few events around «now» so the feed and the day lane have something to show.

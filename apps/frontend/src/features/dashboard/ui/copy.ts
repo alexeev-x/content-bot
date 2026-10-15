@@ -5,7 +5,7 @@ export const copy = {
   loading: 'Загружаем обзор…',
   analytics: {
     audience: 'Аудитория',
-    top: 'Лучшее за 30 дней',
+    top: 'Что залетает сейчас',
     all: 'Вся аналитика'
   },
   activity: {

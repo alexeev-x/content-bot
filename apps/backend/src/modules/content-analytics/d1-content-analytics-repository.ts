@@ -14,6 +14,15 @@ const DAILY_GUARD_MS = 23 * HOUR_MS;
 /** Items older than this change little: one snapshot a week keeps the history bounded. */
 const LATE_WINDOW_MS = 30 * 24 * HOUR_MS;
 const WEEKLY_GUARD_MS = 7 * 24 * HOUR_MS - HOUR_MS;
+/** Ages (hours) at which an item's views are kept for «at the same age» comparisons. */
+export const CHECKPOINT_HOURS = [1, 3, 6, 12, 24, 48, 72] as const;
+// A checkpoint is taken by the first collection within 90 minutes after it; later readings (a backfill,
+// a long outage) leave it empty rather than record a value from a different age.
+const CHECKPOINT_WINDOW_MS = 90 * 60 * 1000;
+const CHECKPOINT_SET = CHECKPOINT_HOURS.map(
+  (hours) =>
+    `v${hours}h = COALESCE(v${hours}h, CASE WHEN ?1 - published_at >= ${hours * HOUR_MS} AND ?1 - published_at < ${hours * HOUR_MS + CHECKPOINT_WINDOW_MS} THEN views END)`
+).join(',\n               ');
 
 export interface SourceRow {
   platform: ContentPlatform;
@@ -43,6 +52,13 @@ export interface SnapshotRow {
   likes: number | null;
   comments: number | null;
   shares: number | null;
+}
+
+export interface CheckpointRow {
+  id: string;
+  platform: ContentPlatform;
+  /** Views by checkpoint hour; null where the item has no reading for it. */
+  views: Record<(typeof CHECKPOINT_HOURS)[number], number | null>;
 }
 
 export interface OverviewRows {
@@ -82,6 +98,8 @@ export interface ContentAnalyticsRepository {
     limit: number;
   }): Promise<ItemRow[]>;
   readItem(id: string): Promise<{ item: ItemRow; snapshots: SnapshotRow[] } | null>;
+  /** Checkpoint views of the items published since `publishedFrom` that have any. */
+  readCheckpoints(input: { publishedFrom: number; platform?: ContentPlatform }): Promise<CheckpointRow[]>;
   readReport(input: { publishedFrom: number; fromDay: string; limit: number }): Promise<{
     items: ItemRow[];
     followers: OverviewRows['followers'];
@@ -178,6 +196,14 @@ export function createD1ContentAnalyticsRepository(db: D1Database): ContentAnaly
              )`
           )
           .bind(json, now, EARLY_WINDOW_MS, HOURLY_GUARD_MS, DAILY_GUARD_MS, LATE_WINDOW_MS, WEEKLY_GUARD_MS),
+        // After the upsert, so `views` is this collection's reading; `observed_at = now` keeps it to the items
+        // this run actually read (a post missing from the source keeps its old, frozen count out).
+        db
+          .prepare(
+            `UPDATE content_items SET ${CHECKPOINT_SET}
+             WHERE platform = ?2 AND published_at > ?1 - ?3 AND observed_at = ?1`
+          )
+          .bind(now, platform, 73 * HOUR_MS + CHECKPOINT_WINDOW_MS),
         db
           .prepare(
             'UPDATE content_sources SET last_success_at = ?, last_error_at = NULL, last_error_code = NULL WHERE platform = ?'
@@ -267,6 +293,26 @@ export function createD1ContentAnalyticsRepository(db: D1Database): ContentAnaly
         .bind(...values, limit)
         .all<RawItem>();
       return rows.results.map(toItem);
+    },
+
+    async readCheckpoints({ publishedFrom, platform }) {
+      const columns = CHECKPOINT_HOURS.map((hours) => `v${hours}h`);
+      const rows = await db
+        .prepare(
+          `SELECT id, platform, ${columns.join(', ')} FROM content_items
+           WHERE published_at >= ?1 AND (?2 IS NULL OR platform = ?2)
+             AND (${columns.map((column) => `${column} IS NOT NULL`).join(' OR ')})
+           LIMIT 2000`
+        )
+        .bind(publishedFrom, platform ?? null)
+        .all<Record<string, number | string | null>>();
+      return rows.results.map((row) => ({
+        id: String(row['id']),
+        platform: row['platform'] as ContentPlatform,
+        views: Object.fromEntries(
+          CHECKPOINT_HOURS.map((hours) => [hours, (row[`v${hours}h`] as number | null) ?? null])
+        ) as CheckpointRow['views']
+      }));
     },
 
     async readReport({ publishedFrom, fromDay, limit }) {

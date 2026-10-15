@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
 import { useDocumentTitle } from '../app/use-document-title';
-import { AudienceSummary, TopSummary } from '../features/content-analytics';
+import { AudienceSummary, TrendingSummary } from '../features/content-analytics';
 import { Dashboard, DateChip, useDashboardQuery, type PageBindings } from '../features/dashboard';
 import { destinationsInfiniteQueryOptions } from '../features/destinations';
 import { MediaPanel, MediaThumb } from '../features/media';
@@ -50,7 +50,7 @@ export function DashboardPage({ pollMs, openPublicationId, onOpenPublicationChan
     renderMediaPreview: (media) => <MediaThumb mediaId={media.id} fileName={media.fileName} />,
     analytics: {
       audience: <AudienceSummary />,
-      top: <TopSummary onOpen={(id) => void navigate({ to: '/analytics', search: { id } })} />,
+      top: <TrendingSummary timezone={timezone} onOpen={(id) => void navigate({ to: '/analytics', search: { id } })} />,
       onOpenAll: () => void navigate({ to: '/analytics' })
     }
   };

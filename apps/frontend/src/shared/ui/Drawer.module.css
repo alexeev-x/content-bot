@@ -21,6 +21,9 @@
   background: var(--color-surface-1);
   box-shadow: var(--shadow-pop);
 }
+.modal[data-size='wide'] {
+  width: min(760px, 100%);
+}
 .modal[data-entering] {
   animation: slide-in var(--motion-base) cubic-bezier(0.2, 0.8, 0.2, 1);
 }

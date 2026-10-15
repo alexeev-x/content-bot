@@ -17,10 +17,21 @@ type Props = {
    * `bottom`: a bottom sheet at every width (the «Ещё» menu).
    */
   variant?: 'side' | 'bottom';
+  /** `wide`: a side panel of up to 760 px for dense detail (analytics item); default 480 px. */
+  size?: 'default' | 'wide';
 };
 
 /** Inspector panel that keeps the page behind it visible; focus is trapped, Esc and the scrim close it. */
-export function Drawer({ isOpen, onOpenChange, title, meta, children, footer, variant = 'side' }: Props) {
+export function Drawer({
+  isOpen,
+  onOpenChange,
+  title,
+  meta,
+  children,
+  footer,
+  variant = 'side',
+  size = 'default'
+}: Props) {
   return (
     <ModalOverlay
       isOpen={isOpen}
@@ -30,7 +41,7 @@ export function Drawer({ isOpen, onOpenChange, title, meta, children, footer, va
       data-drawer={variant}
       className={styles.overlay}
     >
-      <Modal className={styles.modal}>
+      <Modal className={styles.modal} data-size={size}>
         <AriaDialog className={styles.dialog}>
           {({ close }) => (
             <>

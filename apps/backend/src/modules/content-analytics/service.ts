@@ -7,6 +7,8 @@ import {
   CONTENT_REPORT_ITEM_LIMIT,
   type ContentReportDto,
   type ContentReportQuery,
+  type ContentBaselineDto,
+  type ContentPlatform,
   type ContentSourceDto
 } from '@alexeev/contracts';
 import { z } from 'zod';
@@ -15,7 +17,12 @@ import type { Logger } from '../../platform/logging/logger';
 import { decodeKeysetCursor, encodeKeysetCursor } from '../../platform/pagination/keyset-cursor';
 import { AppError } from '../../shared/app-error';
 import type { ConfiguredSources } from './collectors';
-import type { ContentAnalyticsRepository, ItemRow } from './d1-content-analytics-repository';
+import {
+  CHECKPOINT_HOURS,
+  type CheckpointRow,
+  type ContentAnalyticsRepository,
+  type ItemRow
+} from './d1-content-analytics-repository';
 import { CONTENT_PLATFORMS, ContentCollectError } from './types';
 
 const MINUTE_MS = 60 * 1000;
@@ -220,10 +227,18 @@ export async function listContentItems(
   };
 }
 
-export async function readContentItem(repo: ContentAnalyticsRepository, id: string): Promise<ContentItemDetailDto> {
-  const found = await repo.readItem(id);
+export async function readContentItem(
+  deps: { repo: ContentAnalyticsRepository; clock: Clock },
+  id: string
+): Promise<ContentItemDetailDto> {
+  const found = await deps.repo.readItem(id);
   if (found === null) throw new AppError('NOT_FOUND', 'Content item not found');
+  const checkpoints = await deps.repo.readCheckpoints({
+    publishedFrom: deps.clock.now() - BASELINE_WINDOW_MS,
+    platform: found.item.platform
+  });
   return {
+    baseline: baselineFor(checkpoints, found.item.platform, found.item.id),
     item: toItemDto(found.item),
     snapshots: found.snapshots.map((snapshot) => ({
       ...snapshot,
@@ -239,11 +254,14 @@ export async function readContentReport(
   const now = deps.clock.now();
   const from = now - query.days * DAY_MS;
   const previousFrom = from - query.days * DAY_MS;
-  const rows = await deps.repo.readReport({
-    publishedFrom: previousFrom,
-    fromDay: utcDay(previousFrom),
-    limit: CONTENT_REPORT_ITEM_LIMIT + 1
-  });
+  const [rows, checkpoints] = await Promise.all([
+    deps.repo.readReport({
+      publishedFrom: previousFrom,
+      fromDay: utcDay(previousFrom),
+      limit: CONTENT_REPORT_ITEM_LIMIT + 1
+    }),
+    deps.repo.readCheckpoints({ publishedFrom: now - BASELINE_WINDOW_MS })
+  ]);
   return {
     from: new Date(from).toISOString(),
     to: new Date(now).toISOString(),
@@ -255,6 +273,32 @@ export async function readContentReport(
       points: rows.followers
         .filter((row) => row.platform === platform)
         .map((row) => ({ day: row.day, followers: row.followers }))
-    })).filter((series) => series.points.length > 0)
+    })).filter((series) => series.points.length > 0),
+    baselines: CONTENT_PLATFORMS.map((platform) => baselineFor(checkpoints, platform))
   };
+}
+
+/** Items tracked from birth over the last 90 days make the usual curve. */
+const BASELINE_WINDOW_MS = 90 * DAY_MS;
+const BASELINE_MIN_ITEMS = 3;
+
+function medianOf(values: number[]): number {
+  const sorted = [...values].sort((a, b) => a - b);
+  const middle = Math.floor(sorted.length / 2);
+  return sorted.length % 2 === 1 ? sorted[middle]! : Math.round((sorted[middle - 1]! + sorted[middle]!) / 2);
+}
+
+export function baselineFor(
+  rows: readonly CheckpointRow[],
+  platform: ContentPlatform,
+  excludeId?: string
+): ContentBaselineDto {
+  const own = rows.filter((row) => row.platform === platform && row.id !== excludeId);
+  const points: ContentBaselineDto['points'] = [];
+  for (const hours of CHECKPOINT_HOURS) {
+    const values = own.map((row) => row.views[hours]).filter((value): value is number => value !== null);
+    if (values.length >= BASELINE_MIN_ITEMS)
+      points.push({ ageHours: hours, views: medianOf(values), items: values.length });
+  }
+  return { platform, points };
 }

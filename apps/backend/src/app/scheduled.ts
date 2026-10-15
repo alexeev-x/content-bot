@@ -28,8 +28,9 @@ export const CLEANUP_LIMIT = 100;
 // The heartbeat upsert plus slack for the final log line's bookkeeping.
 const HEARTBEAT_RESERVE = 3;
 // Claims, writes and outbound calls of one content-analytics run over every source
-// (Telegram 5 pages + YouTube 9 calls + TikTok 7 calls + about 20 D1 statements).
-const CONTENT_ANALYTICS_RESERVE = 40;
+// (Telegram 5 pages + YouTube 9 calls + TikTok 7 calls + about 21 D1 statements: per source a claim and a
+// 5-statement batch, plus the TikTok connection reads and token write).
+const CONTENT_ANALYTICS_RESERVE = 42;
 // The tick of this UTC minute purges expired archived posts (cleanup runs at minute 0).
 const PURGE_MINUTE = 30;
 // Ended sessions stay this long for diagnosis before they are deleted.
