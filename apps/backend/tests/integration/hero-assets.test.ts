@@ -30,6 +30,7 @@ function fakeCdn(requested: string[]): typeof fetch {
     requested.push(url);
     if (url.startsWith('https://www.dota2.com/datafeed/herolist')) return Response.json(HERO_LIST);
     if (url.endsWith('/renders/nevermore.mov')) return new Response('not found', { status: 404 });
+    if (url.endsWith('/crops/nevermore.png')) throw new Error('Too many subrequests.');
     const body = `bytes of ${url.split('/apps/dota2/')[1]}`;
     // The CDN may answer a Worker without Content-Length (compressed, chunked): the size is measured.
     if (url.includes('/icons/')) return new Response(new Blob([body]).stream());
@@ -68,7 +69,11 @@ describe('hero assets', () => {
     for (let run = 0; run < 2; run += 1) await mirrorHeroAssets(deps(fakeCdn(requested), clock));
     const api = createApi({ clock });
     const list = dotaHeroAssetsSchema.parse(await (await api.request('/api/v1/dota/hero-assets')).json());
-    expect(list).toMatchObject({ total: 12, stored: 11, missing: 1, failed: 0 });
+    // A failed call keeps the runtime's words, so the gallery says why.
+    expect(list).toMatchObject({ total: 12, stored: 10, missing: 1, failed: 1 });
+    expect(list.heroes[1]?.assets.find((asset) => asset.kind === 'crop')?.errorCode).toBe(
+      'HERO_ASSET_FETCH: Too many subrequests.'
+    );
     expect(list.heroes.map((hero) => hero.name)).toEqual(['Pudge', 'Shadow Fiend']);
     expect(list.heroes[1]?.assets.find((asset) => asset.kind === 'render_mov')?.status).toBe('missing');
 

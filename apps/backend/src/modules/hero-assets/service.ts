@@ -24,8 +24,8 @@ const HOUR_MS = 60 * 60 * 1000;
 const MISSING_RECHECK_MS = 7 * 24 * HOUR_MS;
 /** One file costs a CDN fetch, an R2 write and one D1 update. */
 const ASSET_COST = 3;
-/** About 25 statements of the 50 a Free-plan invocation allows; the budget check lowers it when less is left. */
-export const HERO_ASSETS_PER_TICK = 8;
+/** About 16 subrequests of the 50 a Free-plan invocation allows; the budget check lowers it when less is left. */
+export const HERO_ASSETS_PER_TICK = 5;
 
 const heroListSchema = z.object({
   result: z.object({
@@ -60,6 +60,19 @@ async function fetchHeroList(fetchImpl: typeof fetch): Promise<HeroRow[]> {
     const slug = heroSlugSchema.safeParse(hero.name.replace(/^npc_dota_hero_/, ''));
     return slug.success ? [{ slug: slug.data, id: hero.id, name: hero.name_english_loc }] : [];
   });
+}
+
+/**
+ * The runtime's own words for a failed call («Too many subrequests.», «Network connection lost.», a timeout),
+ * cut to fit the stored code. The CDN URL is public, so nothing secret can be in it.
+ */
+function reason(error: unknown): string {
+  if (!(error instanceof Error)) return '';
+  const text = `${error.name === 'Error' ? '' : `${error.name} `}${error.message}`
+    .replace(/[^\w .:-]/g, '')
+    .trim()
+    .slice(0, 56);
+  return text === '' ? '' : `: ${text}`;
 }
 
 function backoff(attempts: number): number {
@@ -122,8 +135,8 @@ async function copyAsset(
     // Called as a plain function: the runtime's fetch throws «Illegal invocation» when called as `deps.fetchImpl()`.
     const fetchImpl = deps.fetchImpl;
     response = await fetchImpl(cdnUrl(slug, kind), { signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) });
-  } catch {
-    return fail('HERO_ASSET_FETCH');
+  } catch (error) {
+    return fail(`HERO_ASSET_FETCH${reason(error)}`);
   }
   // Only «not found» means Valve has no such file; a refusal (403) is retried like any other failure.
   if (response.status === 404) {
@@ -151,8 +164,8 @@ async function copyAsset(
   let bytes: ArrayBuffer;
   try {
     bytes = await response.arrayBuffer();
-  } catch {
-    return fail('HERO_ASSET_READ');
+  } catch (error) {
+    return fail(`HERO_ASSET_READ${reason(error)}`);
   }
   const size = bytes.byteLength;
   if (size === 0 || size > ASSET_MAX_BYTES) return fail('HERO_ASSET_SIZE');
