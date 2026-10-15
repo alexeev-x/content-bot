@@ -1,10 +1,24 @@
 import type { ContentItemDto, ContentPlatform, ContentReportDto } from '@alexeev/contracts';
+import { YOUNG_HOURS } from './status';
 
 // Everything the analytics page compares is derived here from one report (this period and the
 // previous one). Views are «as of now»: an older item had more time to collect them, so period
 // comparisons favour the previous period slightly; the page says so next to the numbers.
 
 export const PLATFORMS: readonly ContentPlatform[] = ['telegram', 'youtube', 'tiktok'];
+
+/**
+ * A publication younger than YOUNG_HOURS is still collecting most of its views, so medians, «×» and
+ * ranks use only settled items; a young one is judged against the usual curve at its age (status.ts).
+ * `at` is the report time.
+ */
+export function isSettled(item: ContentItemDto, at: number): boolean {
+  return at - Date.parse(item.publishedAt) >= YOUNG_HOURS * 3_600_000;
+}
+
+export function settledItems(items: readonly ContentItemDto[], at: number): ContentItemDto[] {
+  return items.filter((item) => isSettled(item, at));
+}
 
 export function median(values: readonly number[]): number | null {
   if (values.length === 0) return null;
@@ -81,18 +95,24 @@ export function splitPeriods(report: ContentReportDto, platform: ContentPlatform
 /** Views against the platform's median in the period: 2.5 means «в 2,5 раза больше обычного». */
 export function multipleOf(
   item: ContentItemDto,
-  medians: Partial<Record<ContentPlatform, number | null>>
+  medians: Partial<Record<ContentPlatform, number | null>>,
+  at: number
 ): number | null {
   const base = medians[item.platform];
-  if (item.views === null || base === null || base === undefined || base === 0) return null;
+  if (!isSettled(item, at) || item.views === null || base === null || base === undefined || base === 0) return null;
   return Math.round((item.views / base) * 10) / 10;
 }
 
-export function mediansByPlatform(items: readonly ContentItemDto[]): Partial<Record<ContentPlatform, number | null>> {
+/** The median views of each platform's settled items. */
+export function mediansByPlatform(
+  items: readonly ContentItemDto[],
+  at: number
+): Partial<Record<ContentPlatform, number | null>> {
+  const settled = settledItems(items, at);
   const result: Partial<Record<ContentPlatform, number | null>> = {};
   for (const platform of PLATFORMS) {
     result[platform] = median(
-      items.filter((item) => item.platform === platform && item.views !== null).map((item) => item.views ?? 0)
+      settled.filter((item) => item.platform === platform && item.views !== null).map((item) => item.views ?? 0)
     );
   }
   return result;

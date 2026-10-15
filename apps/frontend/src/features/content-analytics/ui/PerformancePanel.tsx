@@ -1,13 +1,15 @@
 import type { ContentItemDto, ContentPlatform } from '@alexeev/contracts';
 import type { CSSProperties } from 'react';
 import { BarChart, Button, Icon, Panel } from '../../../shared/ui';
-import { formatCount, formatDay, formatPublished, likesLabel, PLATFORM_LABEL } from '../model/format';
-import { median, PLATFORMS } from '../model/report';
+import { formatCount, formatDay, formatPublished, itemTitle, likesLabel, PLATFORM_LABEL } from '../model/format';
+import { isSettled, median, PLATFORMS } from '../model/report';
 import { PlatformLogo } from './PlatformLogo';
 import styles from './Performance.module.css';
 
 type Props = {
   items: readonly ContentItemDto[] | undefined;
+  /** The report time: items younger than three days are drawn without «×». */
+  at: number;
   platform: ContentPlatform | undefined;
   timezone: string;
   onOpen: (id: string) => void;
@@ -25,7 +27,7 @@ const WEAK = 0.7;
  * the value above, «×» inside and the date under it; videos show their cover. Each platform has its own
  * scale (small multiples), since they differ by orders of magnitude.
  */
-export function PerformancePanel({ items, platform, timezone, onOpen, onOpenAll }: Props) {
+export function PerformancePanel({ items, at, platform, timezone, onOpen, onOpenAll }: Props) {
   const platforms = PLATFORMS.filter(
     (each) => (platform === undefined || platform === each) && (items ?? []).some((item) => item.platform === each)
   );
@@ -63,7 +65,8 @@ export function PerformancePanel({ items, platform, timezone, onOpen, onOpenAll 
         ) : (
           platforms.map((each) => {
             const own = items.filter((item) => item.platform === each && item.views !== null);
-            const usual = median(own.map((item) => item.views ?? 0)) ?? 0;
+            // The median of settled items only: fresh ones are still collecting views.
+            const usual = median(own.filter((item) => isSettled(item, at)).map((item) => item.views ?? 0)) ?? 0;
             const shown = [...own]
               .sort((a, b) => Date.parse(b.publishedAt) - Date.parse(a.publishedAt))
               .slice(0, LIMIT)
@@ -86,7 +89,8 @@ export function PerformancePanel({ items, platform, timezone, onOpen, onOpenAll 
                 <BarChart
                   label={`${PLATFORM_LABEL[each]}: просмотры ${shown.length} последних публикаций по порядку выхода, медиана ${formatCount(usual)}`}
                   bars={shown.map((item) => {
-                    const multiple = usual > 0 ? (item.views ?? 0) / usual : null;
+                    const young = !isSettled(item, at);
+                    const multiple = usual > 0 && !young ? (item.views ?? 0) / usual : null;
                     const rounded = multiple === null ? null : Math.round(multiple * 10) / 10;
                     return {
                       id: item.id,
@@ -103,11 +107,15 @@ export function PerformancePanel({ items, platform, timezone, onOpen, onOpenAll 
                       ...(rounded === null ? {} : { insideLabel: `${rounded.toLocaleString('ru-RU')}×` }),
                       bottomLabel: formatDay(item.publishedAt.slice(0, 10)),
                       ...(video ? { image: item.thumbnailUrl } : {}),
-                      title: item.title || 'Без текста',
+                      title: itemTitle(item),
                       lines: [
                         formatPublished(item.publishedAt, timezone),
                         `${formatCount(item.views)} просмотров`,
-                        rounded === null ? '' : `${rounded.toLocaleString('ru-RU')}× к медиане`,
+                        young
+                          ? 'Набирает просмотры: сравнение через 3 дня после выхода'
+                          : rounded === null
+                            ? ''
+                            : `${rounded.toLocaleString('ru-RU')}× к медиане`,
                         item.likes === null ? '' : `${likesLabel(item.platform)}: ${formatCount(item.likes)}`
                       ].filter((line) => line !== '')
                     };
@@ -121,7 +129,8 @@ export function PerformancePanel({ items, platform, timezone, onOpen, onOpenAll 
           })
         )}
         <p className={styles.note}>
-          <Icon name="info" size={14} /> Свежие публикации ещё набирают просмотры — их столбики растут с каждым замером.
+          <Icon name="info" size={14} /> Публикации моложе трёх дней ещё набирают просмотры: они без «×» и не входят в
+          медиану.
         </p>
       </div>
     </Panel>

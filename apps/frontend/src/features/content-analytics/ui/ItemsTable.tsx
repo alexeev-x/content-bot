@@ -10,7 +10,7 @@ import {
   Select,
   type TableSort
 } from '../../../shared/ui';
-import { engagementRate, formatCount, formatPublished, PLATFORM_LABEL } from '../model/format';
+import { engagementRate, formatCount, formatPublished, itemTitle, PLATFORM_LABEL } from '../model/format';
 import { multipleOf } from '../model/report';
 import { type ItemStatus, verdictFor } from '../model/status';
 import { copy } from './copy';
@@ -35,13 +35,13 @@ type Props = {
   onOpen: (id: string) => void;
 };
 
-const SORTERS: Record<ItemsSortKey, (item: ContentItemDto, medians: Props['medians']) => number> = {
+const SORTERS: Record<ItemsSortKey, (item: ContentItemDto, medians: Props['medians'], now: number) => number> = {
   published: (item) => Date.parse(item.publishedAt),
   views: (item) => item.views ?? -1,
   likes: (item) => item.likes ?? -1,
   comments: (item) => item.comments ?? -1,
   er: (item) => engagementRate(item) ?? -1,
-  multiple: (item, medians) => multipleOf(item, medians) ?? -1
+  multiple: (item, medians, now) => multipleOf(item, medians, now) ?? -1
 };
 
 const STATUS_FILTERS = [
@@ -83,8 +83,8 @@ export function ItemsTable({
           (needle === '' || item.title.toLocaleLowerCase('ru-RU').includes(needle)) &&
           (status === 'all' || verdicts.get(item.id)?.status === status)
       )
-      .sort((a, b) => (SORTERS[key](a, medians) - SORTERS[key](b, medians)) * direction);
-  }, [items, medians, sort, search, status, verdicts]);
+      .sort((a, b) => (SORTERS[key](a, medians, now) - SORTERS[key](b, medians, now)) * direction);
+  }, [items, medians, now, sort, search, status, verdicts]);
   const pageCount = Math.max(1, Math.ceil(sorted.length / ITEMS_PER_PAGE));
   const current = Math.min(page, pageCount);
   const rows = sorted.slice((current - 1) * ITEMS_PER_PAGE, current * ITEMS_PER_PAGE);
@@ -100,7 +100,7 @@ export function ItemsTable({
             <ItemThumb item={item} />
             <span className={styles.cellStack}>
               <span className={styles.itemTitle} title={item.title || undefined}>
-                {item.title || copy.table.untitled}
+                {itemTitle(item)}
               </span>
               <span className={styles.cellDelta} data-tone="flat">
                 {PLATFORM_LABEL[item.platform]}
@@ -132,7 +132,7 @@ export function ItemsTable({
         align: 'end',
         allowsSorting: true,
         cell: (item) => {
-          const multiple = multipleOf(item, medians);
+          const multiple = multipleOf(item, medians, now);
           return (
             <span
               className={styles.multipleCell}

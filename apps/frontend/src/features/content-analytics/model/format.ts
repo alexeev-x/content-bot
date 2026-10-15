@@ -1,4 +1,4 @@
-import type { ContentPlatform } from '@alexeev/contracts';
+import type { ContentItemDto, ContentPlatform } from '@alexeev/contracts';
 
 const compact = new Intl.NumberFormat('ru-RU', { notation: 'compact', maximumFractionDigits: 1 });
 const exact = new Intl.NumberFormat('ru-RU');
@@ -60,4 +60,9 @@ export function formatPublished(iso: string, timezone: string): string {
 
 export function formatDay(day: string): string {
   return dateOnly.format(new Date(`${day}T12:00:00Z`));
+}
+
+/** A post with only a photo or video has no text: name it by what it holds. */
+export function itemTitle(item: Pick<ContentItemDto, 'title' | 'thumbnailUrl'>): string {
+  return item.title || (item.thumbnailUrl === null ? 'Без текста' : 'Фото или видео');
 }

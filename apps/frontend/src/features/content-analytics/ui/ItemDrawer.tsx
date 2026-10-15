@@ -17,8 +17,16 @@ import {
 } from '../../../shared/ui';
 import { contentItemQueryOptions } from '../api/content-analytics-queries';
 import { ageCurve, baselineCurve, formatAge } from '../model/curves';
-import { engagementRate, formatCount, formatExact, formatPublished, likesLabel, PLATFORM_LABEL } from '../model/format';
-import { median, multipleOf } from '../model/report';
+import {
+  engagementRate,
+  formatCount,
+  formatExact,
+  formatPublished,
+  itemTitle,
+  likesLabel,
+  PLATFORM_LABEL
+} from '../model/format';
+import { isSettled, median, multipleOf, settledItems } from '../model/report';
 import { rankOf, verdictFor } from '../model/status';
 import { RefreshAnalyticsButton } from './RefreshAnalyticsButton';
 import { copy } from './copy';
@@ -64,7 +72,7 @@ export function ItemDrawer({ id, onClose, onOpen, timezone, now, context }: Prop
     <Drawer
       isOpen={id !== undefined}
       onOpenChange={(open) => (open ? undefined : onClose())}
-      title={detail ? detail.item.title || copy.table.untitled : copy.title}
+      title={detail ? itemTitle(detail.item) : copy.title}
       size="wide"
     >
       {query.isError ? (
@@ -100,10 +108,14 @@ function DrawerBody({
   const medians = context?.medians ?? {};
   const verdict = verdictFor(item, now, [detail.baseline], medians);
   const inPeriod = peers.some((entry) => entry.id === item.id);
-  const rank = inPeriod ? rankOf(item, peers) : null;
-  const viewsMultiple = multipleOf(item, medians);
+  // A young item has not collected its views yet: no place, «×» or counts against settled ones.
+  const settled = isSettled(item, now);
+  const settledPeers = settledItems(peers, now);
+  const rank = inPeriod && settled ? rankOf(item, settledPeers) : null;
+  const viewsMultiple = multipleOf(item, medians, now);
   const medianOf = (pick: (entry: ContentItemDto) => number | null) =>
-    median(peers.map(pick).filter((value): value is number => value !== null));
+    median(settledPeers.map(pick).filter((value): value is number => value !== null));
+  const countUsual = (pick: (entry: ContentItemDto) => number | null) => (settled ? medianOf(pick) : null);
   const rate = engagementRate(item);
   const usualRate = medianOf((entry) => engagementRate(entry));
 
@@ -121,28 +133,28 @@ function DrawerBody({
       icon: 'eye',
       color: 'var(--color-accent)',
       value: item.views,
-      usual: medianOf((entry) => entry.views)
+      usual: countUsual((entry) => entry.views)
     },
     {
       label: likesLabel(item.platform),
       icon: 'heart',
       color: 'var(--color-status-failed-fg)',
       value: item.likes,
-      usual: medianOf((entry) => entry.likes)
+      usual: countUsual((entry) => entry.likes)
     },
     {
       label: copy.table.comments,
       icon: 'message',
       color: 'var(--color-series-2)',
       value: item.comments,
-      usual: medianOf((entry) => entry.comments)
+      usual: countUsual((entry) => entry.comments)
     },
     {
       label: 'Репосты',
       icon: 'send',
       color: 'var(--color-series-3)',
       value: item.shares,
-      usual: medianOf((entry) => entry.shares)
+      usual: countUsual((entry) => entry.shares)
     },
     {
       label: copy.table.er,
@@ -204,12 +216,16 @@ function DrawerBody({
             <div className={styles.hero} data-status={verdict.status}>
               <div className={styles.heroTop}>
                 <StatusChip verdict={verdict} />
-                {rank ? <span className={styles.pill}>Топ {rank.topPercent}% контента</span> : null}
+                {rank && rank.topPercent <= 50 ? (
+                  <span className={styles.pill}>Топ {rank.topPercent}% контента</span>
+                ) : null}
               </div>
               <p className={styles.heroTitle}>
                 {rank
                   ? `${rank.position}-е место из ${rank.total} в ${PLATFORM_LABEL[item.platform]} за ${context?.days ?? 30} дней`
-                  : 'Вне выбранного периода'}
+                  : inPeriod && !settled
+                    ? 'Место среди публикаций появится через 3 дня после выхода'
+                    : 'Вне выбранного периода'}
               </p>
               {viewsMultiple !== null ? (
                 <p className={styles.heroText}>
@@ -337,13 +353,13 @@ function DrawerBody({
             ) : (
               <ul className={styles.similar}>
                 {similar.map((entry) => {
-                  const multiple = multipleOf(entry, medians);
+                  const multiple = multipleOf(entry, medians, now);
                   return (
                     <li key={entry.id}>
                       <button type="button" className={styles.similarRow} onClick={() => onOpen(entry.id)}>
                         <ItemCover item={entry} size="sm" />
                         <span className={styles.similarText}>
-                          <span className={styles.similarTitle}>{entry.title || copy.table.untitled}</span>
+                          <span className={styles.similarTitle}>{itemTitle(entry)}</span>
                           <span className={styles.metricLabel}>
                             {formatPublished(entry.publishedAt, timezone)}, {formatCount(entry.views)} просм.
                           </span>

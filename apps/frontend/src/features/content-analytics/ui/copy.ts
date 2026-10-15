@@ -58,7 +58,6 @@ export const copy = {
     comments: 'Комментарии',
     er: 'Вовлечённость',
     multiple: 'К обычному',
-    untitled: 'Без текста',
     more: 'Показать ещё',
     shown: (n: number) => `Показано: ${n}`,
     empty: 'Здесь будут посты и видео',

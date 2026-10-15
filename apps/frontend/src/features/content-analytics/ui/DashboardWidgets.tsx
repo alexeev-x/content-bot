@@ -5,8 +5,8 @@ import { relativeTimeRu } from '../../../shared/lib/ru-format';
 import { useNow } from '../../../shared/lib/use-now';
 import { Skeleton } from '../../../shared/ui';
 import { contentReportQueryOptions } from '../api/content-analytics-queries';
-import { engagementRate, formatCount, likesLabel, PLATFORM_LABEL } from '../model/format';
-import { median, mediansByPlatform, percentChange, splitPeriods } from '../model/report';
+import { engagementRate, formatCount, itemTitle, likesLabel, PLATFORM_LABEL } from '../model/format';
+import { median, mediansByPlatform, percentChange, settledItems, splitPeriods } from '../model/report';
 import { verdictFor } from '../model/status';
 import { ItemCover } from './ItemCover';
 import { StatusChip } from './StatusChip';
@@ -33,9 +33,9 @@ export function LatestVideoSummary({ platform, onOpen }: { platform: ContentPlat
   const latest = [...(current ?? [])].sort((a, b) => Date.parse(b.publishedAt) - Date.parse(a.publishedAt))[0];
   if (report.isPending) return <Skeleton height={220} />;
   if (!latest) return <p className={styles.empty}>За 30 дней публикаций в {PLATFORM_LABEL[platform]} нет.</p>;
-  const medians = mediansByPlatform(current ?? []);
+  const medians = mediansByPlatform(current ?? [], now);
   const verdict = verdictFor(latest, now, report.data?.baselines ?? [], medians);
-  const peers = current ?? [];
+  const peers = settledItems(current ?? [], now);
   const usualOf = (pick: (item: ContentItemDto) => number | null) =>
     median(
       peers
@@ -56,7 +56,7 @@ export function LatestVideoSummary({ platform, onOpen }: { platform: ContentPlat
       <AriaButton className={styles.head} onPress={() => onOpen(latest.id)}>
         <ItemCover item={latest} />
         <span className={styles.headText}>
-          <span className={styles.title}>{latest.title || 'Без текста'}</span>
+          <span className={styles.title}>{itemTitle(latest)}</span>
           <span className={styles.muted}>{relativeTimeRu(latest.publishedAt, now)}</span>
           <StatusChip verdict={verdict} withMultiple />
         </span>

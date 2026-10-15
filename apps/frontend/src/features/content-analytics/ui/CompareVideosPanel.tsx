@@ -14,7 +14,7 @@ import {
 } from '../../../shared/ui';
 import { contentItemQueryOptions } from '../api/content-analytics-queries';
 import { ageCurve, baselineCurve } from '../model/curves';
-import { formatCount, formatPublished, PLATFORM_LABEL } from '../model/format';
+import { formatCount, formatPublished, itemTitle, PLATFORM_LABEL } from '../model/format';
 import { median } from '../model/report';
 import { usualAt } from '../model/status';
 import { ItemCover } from './ItemCover';
@@ -141,7 +141,7 @@ export function CompareVideosPanel({ items, tracked, baselines, timezone, onOpen
       ? [
           {
             id: row.item.id,
-            label: row.item.title || 'Без текста',
+            label: itemTitle(row.item),
             points,
             color: row.color,
             area: index === 0 && mode === 'views'
@@ -206,12 +206,12 @@ export function CompareVideosPanel({ items, tracked, baselines, timezone, onOpen
               <span className={styles.swatch} style={{ '--swatch': row.color } as CSSProperties} />
               <PlatformGlyph platform={row.item.platform} size={14} />
               <span className={styles.pickTitle} title={row.item.title || undefined}>
-                {row.item.title || 'Без текста'}
+                {itemTitle(row.item)}
               </span>
               <IconButton
                 icon="x"
                 size="sm"
-                label={`Убрать «${row.item.title || 'Без текста'}» из сравнения`}
+                label={`Убрать «${itemTitle(row.item)}» из сравнения`}
                 onPress={() => setPicked(ids.filter((id) => id !== row.item.id))}
               />
             </li>
@@ -282,7 +282,7 @@ export function CompareVideosPanel({ items, tracked, baselines, timezone, onOpen
                     <ItemCover item={row.item} size="sm" />
                     <span className={styles.cardTitle}>
                       <span>
-                        <span className={styles.swatch} /> {row.item.title || 'Без текста'}
+                        <span className={styles.swatch} /> {itemTitle(row.item)}
                       </span>
                       <span className={styles.cardMeta}>
                         {PLATFORM_LABEL[row.item.platform]}, {formatPublished(row.item.publishedAt, timezone)}
@@ -383,7 +383,7 @@ function PickDialog({
                 <AriaButton className={styles.choice} onPress={() => onPick(item.id)}>
                   <ItemCover item={item} size="sm" />
                   <span className={styles.choiceText}>
-                    <span className={styles.choiceTitle}>{item.title || 'Без текста'}</span>
+                    <span className={styles.choiceTitle}>{itemTitle(item)}</span>
                     <span className={styles.choiceMeta}>
                       <PlatformGlyph platform={item.platform} withLabel size={14} />
                       {formatPublished(item.publishedAt, timezone)}, {formatCount(item.views)} просм.
@@ -415,7 +415,7 @@ function percent(a: number, b: number): number {
 }
 
 function shortTitle(item: ContentItemDto): string {
-  const title = item.title || 'Без текста';
+  const title = itemTitle(item);
   return title.length > 28 ? `«${title.slice(0, 27)}…»` : `«${title}»`;
 }
 

@@ -7,7 +7,7 @@ import { AreaChart, Icon, Panel, SegmentedControl, Skeleton } from '../../../sha
 import { PLATFORMS } from '../model/report';
 import { contentItemQueryOptions } from '../api/content-analytics-queries';
 import { ageCurve, formatAge } from '../model/curves';
-import { formatCount, formatPublished, PLATFORM_LABEL } from '../model/format';
+import { formatCount, formatPublished, itemTitle, PLATFORM_LABEL } from '../model/format';
 import { type ItemVerdict, verdictFor, YOUNG_HOURS } from '../model/status';
 import { ItemCover } from './ItemCover';
 import { PlatformGlyph } from './PlatformGlyph';
@@ -75,7 +75,7 @@ export function TrendingPanel({
                   <ItemCover item={item} />
                   <span className={styles.text}>
                     <span className={styles.trendTitle} title={item.title || undefined}>
-                      {item.title || 'Без текста'}
+                      {itemTitle(item)}
                     </span>
                     <span className={styles.meta}>
                       <PlatformGlyph platform={item.platform} size={14} withLabel />

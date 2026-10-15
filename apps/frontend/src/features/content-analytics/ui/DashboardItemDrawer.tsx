@@ -21,7 +21,12 @@ export function DashboardItemDrawer({ id, onClose, onOpen, timezone }: Props) {
   const context = useMemo(() => {
     if (!report.data) return undefined;
     const { current } = splitPeriods(report.data, undefined);
-    return { items: current, medians: mediansByPlatform(current), baselines: report.data.baselines, days: DAYS };
+    return {
+      items: current,
+      medians: mediansByPlatform(current, Date.parse(report.data.to)),
+      baselines: report.data.baselines,
+      days: DAYS
+    };
   }, [report.data]);
   return <ItemDrawer id={id} onClose={onClose} onOpen={onOpen} timezone={timezone} now={now} context={context} />;
 }

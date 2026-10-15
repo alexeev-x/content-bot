@@ -1,7 +1,7 @@
 import type { ContentItemDto } from '@alexeev/contracts';
 import { Button as AriaButton } from 'react-aria-components';
 import { Skeleton } from '../../../shared/ui';
-import { formatCount } from '../model/format';
+import { formatCount, itemTitle } from '../model/format';
 import { copy } from './copy';
 import styles from './ContentAnalytics.module.css';
 import { PlatformGlyph } from './PlatformGlyph';
@@ -47,7 +47,7 @@ export function TopList({ items, limit = 5, onOpen }: Props) {
             />
             <span className={styles.topRank}>{index + 1}</span>
             <PlatformGlyph platform={item.platform} />
-            <span className={styles.topTitle}>{item.title || copy.table.untitled}</span>
+            <span className={styles.topTitle}>{itemTitle(item)}</span>
             <span className={styles.topViews}>{formatCount(item.views)}</span>
           </AriaButton>
         </li>

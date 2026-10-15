@@ -1,7 +1,7 @@
 import type { ContentItemDto } from '@alexeev/contracts';
 import { Button as AriaButton } from 'react-aria-components';
 import { Panel, Skeleton } from '../../../shared/ui';
-import { formatCount, PLATFORM_LABEL } from '../model/format';
+import { formatCount, itemTitle, PLATFORM_LABEL } from '../model/format';
 import { ItemCover } from './ItemCover';
 import { PlatformGlyph } from './PlatformGlyph';
 import styles from './Report.module.css';
@@ -56,7 +56,7 @@ function RankedList({
             <ItemCover item={item} size="sm" />
             <span className={styles.rankedText}>
               <span className={styles.rankedTitle} title={item.title || undefined}>
-                {item.title || 'Без текста'}
+                {itemTitle(item)}
               </span>
               <span className={styles.rankedMeta}>
                 <PlatformGlyph platform={item.platform} />

@@ -1,10 +1,11 @@
 import type { ContentItemDto, ContentPlatform, ContentReportDto } from '@alexeev/contracts';
 import { pluralRu } from '../../../shared/lib/ru-format';
-import { formatCount, PLATFORM_LABEL } from './format';
+import { formatCount, itemTitle, PLATFORM_LABEL } from './format';
 import {
   bestBlock,
   followersStats,
   HOUR_BLOCKS,
+  isSettled,
   median,
   mediansByPlatform,
   multipleOf,
@@ -48,6 +49,8 @@ const REACH_GOOD = 30;
 const REACH_LOW = 20;
 /** At least this many items in the period before a pattern counts as one. */
 const MIN_ITEMS = 4;
+/** The plan's Telegram pace: 2–3 posts a day (docs/PLAN.md, stage 0). */
+const TG_PLAN_PER_WEEK = [14, 21] as const;
 
 // Rule-based conclusions, strongest first. Each one states its numbers, so the owner can check it.
 export function buildInsights(input: {
@@ -61,7 +64,8 @@ export function buildInsights(input: {
   const insights: Insight[] = [];
   const now = periodStats(current);
   const before = periodStats(previous);
-  const medians = mediansByPlatform(current);
+  const at = Date.parse(report.to);
+  const medians = mediansByPlatform(current, at);
 
   // 1. The period against the previous one.
   if (now.items > 0 && before.items > 0) {
@@ -89,15 +93,15 @@ export function buildInsights(input: {
 
   // 2. The leader against what is usual for its platform.
   const ranked = current
-    .map((item) => ({ item, multiple: multipleOf(item, medians) }))
+    .map((item) => ({ item, multiple: multipleOf(item, medians, at) }))
     .filter((entry): entry is { item: ContentItemDto; multiple: number } => entry.multiple !== null)
     .sort((a, b) => b.multiple - a.multiple);
   const leader = ranked[0];
-  if (leader !== undefined && leader.multiple >= 1.5 && current.length >= MIN_ITEMS) {
+  if (leader !== undefined && leader.multiple >= 1.5 && ranked.length >= MIN_ITEMS) {
     insights.push({
       id: 'leader',
       tone: 'good',
-      title: `«${leader.item.title || 'Без текста'}» ${times(leader.multiple)} выше обычного`,
+      title: `«${itemTitle(leader.item)}» ${times(leader.multiple)} выше обычного`,
       detail: `${formatCount(leader.item.views)} просмотров при медиане ${formatCount(medians[leader.item.platform] ?? null)} в ${PLATFORM_LABEL[leader.item.platform]}. Повторите тему или формат первой строки.`,
       itemId: leader.item.id,
       thumb: leader.item.thumbnailUrl,
@@ -124,8 +128,8 @@ export function buildInsights(input: {
     const ofPlatform = current
       .filter((item) => item.platform === each && item.views !== null)
       .sort((a, b) => Date.parse(b.publishedAt) - Date.parse(a.publishedAt));
-    // The newest day is still collecting views; it would always look weak.
-    const settled = ofPlatform.filter((item) => Date.parse(report.to) - Date.parse(item.publishedAt) > 48 * 3_600_000);
+    // The newest items are still collecting views; they would always look weak.
+    const settled = ofPlatform.filter((item) => isSettled(item, at));
     if (settled.length < MIN_ITEMS * 2) continue;
     const recent = median(settled.slice(0, 5).map((item) => item.views ?? 0));
     const usual = median(settled.map((item) => item.views ?? 0));
@@ -135,7 +139,7 @@ export function buildInsights(input: {
       id: `recent-${each}`,
       tone: change > 0 ? 'good' : 'bad',
       title: `Последние 5 в ${PLATFORM_LABEL[each]}: ${signed(change)} к обычному`,
-      detail: `Медиана последних пяти (старше двух суток) ${formatCount(recent)} против ${formatCount(usual)} за период.`,
+      detail: `Медиана последних пяти (старше трёх суток) ${formatCount(recent)} против ${formatCount(usual)} за период.`,
       badge: { value: formatCount(recent), sub: signed(change) }
     });
   }
@@ -215,19 +219,40 @@ export function buildInsights(input: {
     }
   }
 
-  // 9. Cadence: publishing less is the most common reason for fewer views.
-  if (before.items > 0 && now.items > 0) {
-    const change = percentChange(now.items, before.items);
-    if (change !== null && Math.abs(change) >= 25) {
+  // 9. Cadence: publishing less is the most common reason for fewer views. The plan sets a pace for
+  // Telegram only, so Telegram (also with every platform shown) is checked against it; a video platform
+  // against its previous period.
+  const cadenceOf = platform ?? 'telegram';
+  const posted = current.filter((item) => item.platform === cadenceOf).length;
+  const postedBefore = previous.filter((item) => item.platform === cadenceOf).length;
+  const perWeek = Math.round((posted / days) * 7 * 10) / 10;
+  const perWeekText = perWeek.toLocaleString('ru-RU');
+  const cadenceChange = percentChange(posted, postedBefore);
+  if (cadenceOf === 'telegram' && posted > 0) {
+    const [low, high] = TG_PLAN_PER_WEEK;
+    insights.push({
+      id: 'cadence',
+      tone: perWeek < low ? 'bad' : 'good',
+      title:
+        perWeek < low
+          ? `Telegram: ${perWeekText} в неделю при плане ${low}–${high}`
+          : perWeek > high
+            ? `Telegram: ${perWeekText} в неделю, чаще плана ${low}–${high}`
+            : `Telegram: ${perWeekText} в неделю, как в плане`,
+      detail: `${posted} ${pluralRu(posted, 'пост', 'поста', 'постов')} за ${days} дней против ${postedBefore} за прошлые. В плане 2–3 поста в день.`,
+      badge: { value: perWeekText, sub: cadenceChange === null ? 'в неделю' : signed(cadenceChange) }
+    });
+  } else if (cadenceOf !== 'telegram' && posted > 0 && postedBefore > 0) {
+    if (cadenceChange !== null && Math.abs(cadenceChange) >= 25) {
       insights.push({
         id: 'cadence',
-        tone: change > 0 ? 'good' : 'bad',
+        tone: cadenceChange > 0 ? 'good' : 'bad',
         title:
-          change > 0
-            ? `Публикуете чаще: ${now.items} против ${before.items}`
-            : `Публикуете реже: ${now.items} против ${before.items}`,
-        detail: `${(Math.round((now.items / days) * 7 * 10) / 10).toLocaleString('ru-RU')} в неделю. В плане 2–3 поста в Telegram в день.`,
-        badge: { value: (Math.round((now.items / days) * 7 * 10) / 10).toLocaleString('ru-RU'), sub: signed(change) }
+          cadenceChange > 0
+            ? `Публикуете чаще: ${posted} против ${postedBefore}`
+            : `Публикуете реже: ${posted} против ${postedBefore}`,
+        detail: `${perWeekText} в неделю в ${PLATFORM_LABEL[cadenceOf]}.`,
+        badge: { value: perWeekText, sub: signed(cadenceChange) }
       });
     }
   }

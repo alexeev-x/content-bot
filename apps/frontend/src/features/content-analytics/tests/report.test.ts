@@ -37,11 +37,17 @@ function report(items: ContentItemDto[]): ContentReportDto {
 }
 
 describe('report model', () => {
-  it('takes medians per platform, so a video and a post are each compared with their own usual', () => {
-    const items = [item('1', 'telegram', 1, 100), item('2', 'telegram', 2, 300), item('3', 'youtube', 3, 50_000)];
-    const medians = mediansByPlatform(items);
+  it('takes medians per platform from settled items, so a fresh post is never compared with full totals', () => {
+    const items = [
+      item('1', 'telegram', 3, 100),
+      item('2', 'telegram', 4, 300),
+      item('3', 'youtube', 5, 50_000),
+      item('fresh', 'telegram', 0.3, 10)
+    ];
+    const medians = mediansByPlatform(items, NOW);
     expect(medians).toMatchObject({ telegram: 200, youtube: 50_000 });
-    expect(multipleOf(items[1]!, medians)).toBe(1.5);
+    expect(multipleOf(items[1]!, medians, NOW)).toBe(1.5);
+    expect(multipleOf(items[3]!, medians, NOW)).toBeNull();
     expect(median([])).toBeNull();
     expect(percentChange(150, 100)).toBe(50);
     expect(percentChange(1, 0)).toBeNull();
@@ -53,10 +59,10 @@ describe('report model', () => {
     expect(split.previous.map((entry) => entry.id)).toEqual(['telegram:2']);
   });
 
-  it('states the period change, the leader and the Telegram reach with their numbers', () => {
+  it('states the period change, the leader, the Telegram reach and its pace against the plan', () => {
     const items = [
-      ...[1, 2, 3, 4, 5].map((n) => item(`c${n}`, 'telegram', n, n === 1 ? 900 : 300)),
-      ...[8, 9].map((n) => item(`p${n}`, 'telegram', n, 300))
+      ...[3, 4, 5, 6, 7].map((n) => item(`c${n}`, 'telegram', n, n === 3 ? 900 : 300)),
+      ...[10, 11].map((n) => item(`p${n}`, 'telegram', n, 300))
     ];
     const insights = buildInsights({ report: report(items), platform: undefined, days: 7, timezone: 'Europe/Moscow' });
     const byId = new Map(insights.map((insight) => [insight.id, insight]));
@@ -64,9 +70,10 @@ describe('report model', () => {
     expect(byId.get('views-change')).toMatchObject({ tone: 'good', title: 'Просмотры +250% к прошлым 7 дням' });
     expect(byId.get('leader')).toMatchObject({
       tone: 'good',
-      title: '«Пост c1» в 3 раза выше обычного',
-      itemId: 'telegram:c1'
+      title: '«Пост c3» в 3 раза выше обычного',
+      itemId: 'telegram:c3'
     });
     expect(byId.get('tg-reach')).toMatchObject({ tone: 'good', title: 'Пост в Telegram видят 30% подписчиков' });
+    expect(byId.get('cadence')).toMatchObject({ tone: 'bad', title: 'Telegram: 5 в неделю при плане 14–21' });
   });
 });

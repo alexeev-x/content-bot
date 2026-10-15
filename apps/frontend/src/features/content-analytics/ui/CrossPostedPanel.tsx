@@ -2,7 +2,7 @@ import type { ContentItemDto } from '@alexeev/contracts';
 import { Button as AriaButton } from 'react-aria-components';
 import { relativeTimeRu } from '../../../shared/lib/ru-format';
 import { Icon, Panel } from '../../../shared/ui';
-import { formatCount, PLATFORM_LABEL } from '../model/format';
+import { formatCount, itemTitle, PLATFORM_LABEL } from '../model/format';
 import { crossPosted } from '../model/report';
 import { ItemCover } from './ItemCover';
 import { PlatformLogo } from './PlatformLogo';
@@ -31,7 +31,7 @@ export function CrossPostedPanel({ items, now, onOpen }: Props) {
               <div className={styles.crossHead}>
                 <ItemCover item={cover} />
                 <span className={styles.crossTitle}>
-                  <span title={cover.title}>{cover.title || 'Без текста'}</span>
+                  <span title={cover.title}>{itemTitle(cover)}</span>
                   <span className={styles.note}>{relativeTimeRu(cover.publishedAt, now)}</span>
                 </span>
               </div>

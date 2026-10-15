@@ -48,7 +48,7 @@ export function TrendingSummary({ timezone, onOpen }: { timezone: string; onOpen
       limit={2}
       items={current}
       baselines={report.data?.baselines ?? []}
-      medians={current ? mediansByPlatform(current) : {}}
+      medians={current ? mediansByPlatform(current, now) : {}}
       now={now}
       timezone={timezone}
       onOpen={onOpen}

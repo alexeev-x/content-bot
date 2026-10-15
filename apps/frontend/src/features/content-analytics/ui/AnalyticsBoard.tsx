@@ -20,13 +20,14 @@ import { contentReportQueryOptions } from '../api/content-analytics-queries';
 import { formatCount, formatDay, formatPublished, PLATFORM_LABEL } from '../model/format';
 import { buildInsights } from '../model/insights';
 import {
+  PLATFORMS,
+  cumulative,
   followersStats,
   mediansByPlatform,
   multipleOf,
   percentChange,
   periodStats,
-  PLATFORMS,
-  cumulative,
+  settledItems,
   splitPeriods,
   viewsByDay,
   zonedParts
@@ -78,7 +79,6 @@ const PLATFORM_FILTERS = [
   { id: 'all', label: copy.table.all },
   ...PLATFORMS.map((platform) => ({ id: platform, label: PLATFORM_LABEL[platform] }))
 ];
-const SETTLED_MS = 48 * 3_600_000;
 const RANKED_LIMIT = 5;
 
 /**
@@ -98,9 +98,10 @@ export function AnalyticsBoard({ timezone, view, onViewChange, onOpenSettings }:
   const derived = useMemo(() => {
     if (!report) return undefined;
     const { current, previous } = splitPeriods(report, platform);
+    const at = Date.parse(report.to);
     const stats = periodStats(current);
     const before = periodStats(previous);
-    const medians = mediansByPlatform(current);
+    const medians = mediansByPlatform(current, at);
     const daily = viewsByDay(current, report.from, report.to, timezone);
     const followers = (platform === undefined ? PLATFORMS : [platform]).map((each) => followersStats(report, each));
     const followersNow = followers.reduce<number | null>(
@@ -158,8 +159,9 @@ export function AnalyticsBoard({ timezone, view, onViewChange, onOpenSettings }:
             id: 'median',
             label: copy.kpi.median,
             icon: 'chart',
-            value: formatCount(stats.medianViews),
-            change: percentChange(stats.medianViews, before.medianViews),
+            // Settled items only: a post of the last hours would pull the median down.
+            value: formatCount(periodStats(settledItems(current, at)).medianViews),
+            change: percentChange(periodStats(settledItems(current, at)).medianViews, before.medianViews),
             hint: copy.kpi.noBase
           },
       {
@@ -189,8 +191,8 @@ export function AnalyticsBoard({ timezone, view, onViewChange, onOpenSettings }:
       }
     ];
     const hitsOf = (items: typeof current) => {
-      const ownMedians = mediansByPlatform(items);
-      return items.filter((item) => (multipleOf(item, ownMedians) ?? 0) >= 1.5).length;
+      const ownMedians = mediansByPlatform(items, at);
+      return items.filter((item) => (multipleOf(item, ownMedians, at) ?? 0) >= 1.5).length;
     };
     const hits = hitsOf(current);
     const summary: InsightsSummary = {
@@ -200,23 +202,23 @@ export function AnalyticsBoard({ timezone, view, onViewChange, onOpenSettings }:
         series: daily.map((entry) => entry.views),
         tips: daily.map((entry) => `${formatDay(entry.day)}: ${formatCount(entry.views)}`)
       },
-      hits: { hits, total: stats.items, diff: before.items > 0 ? hits - hitsOf(previous) : null },
+      hits: { hits, total: settledItems(current, at).length, diff: before.items > 0 ? hits - hitsOf(previous) : null },
       cadence: {
         perWeek: (Math.round((stats.items / days) * 7 * 10) / 10).toLocaleString('ru-RU'),
         change: before.items > 0 ? percentChange(stats.items, before.items) : null
       }
     };
     const ranked = current
-      .map((item) => ({ item, multiple: multipleOf(item, medians) }))
+      .map((item) => ({ item, multiple: multipleOf(item, medians, at) }))
       .filter((entry): entry is RankedItem => entry.multiple !== null);
     const best = [...ranked].sort((a, b) => b.multiple - a.multiple).slice(0, RANKED_LIMIT);
-    // The last two days are still collecting views: they would always look weak.
+    // Young items have no multiple yet, so they never land among the worst.
     const worst = ranked
-      .filter((entry) => Date.parse(report.to) - Date.parse(entry.item.publishedAt) > SETTLED_MS)
       .filter((entry) => !best.some((leader) => leader.item.id === entry.item.id))
       .sort((a, b) => a.multiple - b.multiple)
       .slice(0, RANKED_LIMIT);
     return {
+      at,
       current,
       previous,
       medians,
@@ -319,6 +321,7 @@ export function AnalyticsBoard({ timezone, view, onViewChange, onOpenSettings }:
               />
               <PerformancePanel
                 items={derived?.current}
+                at={derived?.at ?? 0}
                 platform={platform}
                 timezone={timezone}
                 onOpen={open}
@@ -375,7 +378,10 @@ export function AnalyticsBoard({ timezone, view, onViewChange, onOpenSettings }:
 }
 
 function telegramReachKpi(report: NonNullable<Parameters<typeof splitPeriods>[0]>, timezone: string): Kpi {
-  const { current, previous } = splitPeriods(report, 'telegram');
+  const split = splitPeriods(report, 'telegram');
+  // Only settled posts: a post of the last hours has not reached its readers yet.
+  const current = settledItems(split.current, Date.parse(report.to));
+  const previous = split.previous;
   const followers = followersStats(report, 'telegram').now;
   const reach = (items: typeof current) => {
     const value = periodStats(items).medianViews;
