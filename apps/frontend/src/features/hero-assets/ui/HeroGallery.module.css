@@ -116,6 +116,9 @@
 }
 
 .media {
+  /* Own size, only scaled down to fit: a small file is never stretched. */
+  inline-size: auto;
+  block-size: auto;
   max-inline-size: 100%;
   max-block-size: 360px;
   object-fit: contain;
@@ -124,6 +127,26 @@
 .fileActions {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.iconRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-block-end: var(--space-3);
+}
+
+.icon {
+  inline-size: auto;
+  block-size: auto;
+}
+
+.iconEnd {
+  display: flex;
   align-items: center;
   gap: var(--space-3);
 }

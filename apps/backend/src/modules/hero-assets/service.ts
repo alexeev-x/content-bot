@@ -125,7 +125,8 @@ async function copyAsset(
   } catch {
     return fail('HERO_ASSET_FETCH');
   }
-  if (response.status === 404 || response.status === 403) {
+  // Only «not found» means Valve has no such file; a refusal (403) is retried like any other failure.
+  if (response.status === 404) {
     await response.body?.cancel();
     await deps.repo.finish({
       slug,

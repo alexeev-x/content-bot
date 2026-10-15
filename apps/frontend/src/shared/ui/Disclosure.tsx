@@ -38,14 +38,27 @@ type GroupProps = {
   /** Several sections may stay open at once, so the owner can compare them. */
   allowsMultipleExpanded?: boolean;
   defaultExpandedKeys?: Iterable<string>;
+  /** Controlled: lets a section load its content only once it is opened. */
+  expandedKeys?: Iterable<string>;
+  onExpandedChange?: (keys: Set<string>) => void;
 };
 
-export function DisclosureGroup({ children, allowsMultipleExpanded = true, defaultExpandedKeys }: GroupProps) {
+export function DisclosureGroup({
+  children,
+  allowsMultipleExpanded = true,
+  defaultExpandedKeys,
+  expandedKeys,
+  onExpandedChange
+}: GroupProps) {
   return (
     <AriaDisclosureGroup
       className={styles.group}
       allowsMultipleExpanded={allowsMultipleExpanded}
       defaultExpandedKeys={defaultExpandedKeys}
+      {...(expandedKeys === undefined ? {} : { expandedKeys })}
+      {...(onExpandedChange === undefined
+        ? {}
+        : { onExpandedChange: (keys: Set<string | number>) => onExpandedChange(new Set([...keys].map(String))) })}
     >
       {children}
     </AriaDisclosureGroup>
