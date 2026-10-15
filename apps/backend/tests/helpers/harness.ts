@@ -52,6 +52,8 @@ export async function resetDb(): Promise<void> {
       'content_item_snapshots',
       'content_items',
       'content_audience_days',
+      'content_connections',
+      'content_oauth_states',
       'manual_analytics_observations',
       'analytics_snapshots',
       'dota_hero_stats_snapshots',
@@ -158,6 +160,10 @@ export function createApi(
     ownerMessenger?: TelegramOwnerMessageApi;
     /** Replaces the test database, for example with a metered one. */
     db?: D1Database;
+    /** Extra Worker variables and secrets (content analytics keys). */
+    env?: Partial<AppEnv>;
+    /** Replaces the outbound fetch of the content integrations (TikTok, YouTube, Telegram preview). */
+    contentFetch?: typeof fetch;
     /** Mounts the `npm run dev` sign-in (app/local-sign-in-route.ts), as src/index.ts does on the dev server. */
     localSignIn?: boolean;
   } = {}
@@ -169,6 +175,7 @@ export function createApi(
     telegramChatApi: options.chatApi,
     telegramBotAdminApi: options.botAdminApi,
     ownerMessenger: options.ownerMessenger ?? (options.botToken === null ? undefined : messenger),
+    ...(options.contentFetch === undefined ? {} : { contentFetch: options.contentFetch }),
     ...(options.localSignIn === true ? { mountBeforeGuard: mountLocalSignIn } : {})
   });
   const env = {
@@ -178,7 +185,8 @@ export function createApi(
     ...(options.botInfo === undefined ? {} : { BOT_INFO: options.botInfo }),
     ...(options.webhookSecret === undefined ? {} : { TELEGRAM_WEBHOOK_SECRET: options.webhookSecret }),
     MEDIA_BUCKET: testMediaBucket(),
-    ...(options.botToken === null ? {} : { TELEGRAM_BOT_TOKEN: options.botToken ?? TEST_BOT_TOKEN })
+    ...(options.botToken === null ? {} : { TELEGRAM_BOT_TOKEN: options.botToken ?? TEST_BOT_TOKEN }),
+    ...options.env
   } as AppEnv;
   const background: Promise<unknown>[] = [];
   const executionCtx = {

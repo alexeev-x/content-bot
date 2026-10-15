@@ -2,6 +2,8 @@ import type { ContentPlatform, ContentReportPeriod } from '@alexeev/contracts';
 import { infiniteQueryOptions, queryOptions, useMutation, useQueryClient } from '@tanstack/react-query';
 import { nextCursor } from '../../../shared/api/query-string';
 import {
+  connectTikTok,
+  disconnectTikTok,
   getContentItem,
   getContentItems,
   getContentOverview,
@@ -67,5 +69,23 @@ export function useSyncContent() {
       void client.invalidateQueries({ queryKey: [...contentAnalyticsKeys.all, 'report'] });
       void client.invalidateQueries({ queryKey: [...contentAnalyticsKeys.all, 'item'] });
     }
+  });
+}
+
+/** Gets TikTok's consent URL and leaves the app for it; TikTok sends the browser back to /analytics. */
+export function useConnectTikTok() {
+  return useMutation({
+    mutationFn: connectTikTok,
+    retry: false,
+    onSuccess: ({ authorizeUrl }) => window.location.assign(authorizeUrl)
+  });
+}
+
+export function useDisconnectTikTok() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: disconnectTikTok,
+    retry: false,
+    onSuccess: () => void client.invalidateQueries({ queryKey: contentAnalyticsKeys.all })
   });
 }

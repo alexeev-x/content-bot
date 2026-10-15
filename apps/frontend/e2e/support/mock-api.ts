@@ -315,7 +315,8 @@ export async function mockApi(page: Page): Promise<void> {
           views7d: 1_480,
           items7d: 6,
           lastSyncedAt: iso(0.3),
-          errorCode: null
+          errorCode: null,
+          connection: 'none'
         },
         {
           platform: 'youtube',
@@ -327,7 +328,8 @@ export async function mockApi(page: Page): Promise<void> {
           views7d: 66_500,
           items7d: 3,
           lastSyncedAt: iso(0.3),
-          errorCode: null
+          errorCode: null,
+          connection: 'none'
         },
         {
           platform: 'tiktok',
@@ -339,7 +341,8 @@ export async function mockApi(page: Page): Promise<void> {
           views7d: null,
           items7d: 0,
           lastSyncedAt: null,
-          errorCode: null
+          errorCode: null,
+          connection: 'available'
         }
       ],
       followers: [

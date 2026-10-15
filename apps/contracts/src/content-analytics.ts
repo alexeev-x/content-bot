@@ -53,7 +53,13 @@ export const contentSourceSchema = z.object({
   items7d: countSchema,
   lastSyncedAt: z.iso.datetime().nullable(),
   /** Stable code of the last failed collection; null after a success. */
-  errorCode: z.string().max(64).nullable()
+  errorCode: z.string().max(64).nullable(),
+  /**
+   * Account sign-in of an OAuth platform (TikTok): `available` — the owner can connect an account,
+   * `connected` — one is connected and can be disconnected; `none` — no sign-in applies (Telegram,
+   * YouTube) or the app keys are missing.
+   */
+  connection: z.enum(['none', 'available', 'connected'])
 });
 export type ContentSourceDto = z.infer<typeof contentSourceSchema>;
 
@@ -107,6 +113,21 @@ export const contentItemDetailSchema = z.object({
   snapshots: z.array(contentItemSnapshotSchema).max(CONTENT_ITEM_SNAPSHOT_LIMIT)
 });
 export type ContentItemDetailDto = z.infer<typeof contentItemDetailSchema>;
+
+// POST /api/v1/content-analytics/tiktok/connect (no body) → 200 { authorizeUrl }: the browser goes there to
+// approve access on TikTok. Errors: UNAUTHORIZED 401, FORBIDDEN 403, UNAVAILABLE 503 (app keys not set).
+// GET /api/v1/content-analytics/tiktok/callback?code&state|error — public: TikTok's redirect. Always answers
+// 302 to `/analytics?platform=tiktok&tiktok=<result>` (also when rate-limited or failing). The state must match
+// the HttpOnly cookie set by /connect in the same browser; a missing, foreign, reused or expired state never
+// reaches TikTok.
+// POST /api/v1/content-analytics/tiktok/disconnect (no body) → 204: forgets the tokens, revokes them at TikTok
+// (best effort). Safe to repeat. Errors: UNAUTHORIZED 401, FORBIDDEN 403, UNAVAILABLE 503.
+export const tiktokConnectSchema = z.object({
+  authorizeUrl: z.url().max(4096).startsWith('https://www.tiktok.com/')
+});
+export type TikTokConnectDto = z.infer<typeof tiktokConnectSchema>;
+export const tiktokConnectResultSchema = z.enum(['connected', 'denied', 'expired', 'failed']);
+export type TikTokConnectResult = z.infer<typeof tiktokConnectResultSchema>;
 
 export const CONTENT_REPORT_PERIODS = [7, 30, 90] as const;
 export type ContentReportPeriod = (typeof CONTENT_REPORT_PERIODS)[number];

@@ -27,7 +27,8 @@ function telegramSource(collect: () => Promise<Collection>): ConfiguredSources {
     collectors: [
       { platform: 'telegram', handle: 'alexeev_x', profileUrl: 'https://t.me/alexeev_x', requests: 1, collect }
     ],
-    handles: { telegram: { handle: 'alexeev_x', profileUrl: 'https://t.me/alexeev_x' } }
+    handles: { telegram: { handle: 'alexeev_x', profileUrl: 'https://t.me/alexeev_x' } },
+    tiktok: null
   };
 }
 

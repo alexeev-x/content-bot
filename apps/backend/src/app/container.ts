@@ -74,7 +74,9 @@ import {
   type ConfiguredSources,
   type ContentAnalyticsRepository,
   configuredCollectors,
-  createD1ContentAnalyticsRepository
+  createD1ContentAnalyticsRepository,
+  createD1TikTokConnectionRepository,
+  type TikTokConnectionRepository
 } from '../modules/content-analytics';
 
 // The only place where real implementations are wired. It grows together with the modules
@@ -145,8 +147,12 @@ export interface Container {
   automations: AutomationRepository;
   /** Counters of the owner's own Telegram, YouTube and TikTok (migration 0043). */
   contentAnalytics: ContentAnalyticsRepository;
-  /** The content sources this environment configures (vars and the YouTube key). */
+  /** The content sources this environment configures (vars, the YouTube key, the TikTok app keys). */
   contentSources: ConfiguredSources;
+  /** The connected TikTok account: OAuth states and encrypted tokens (migration 0044). */
+  tiktokConnections: TikTokConnectionRepository;
+  /** Outbound fetch of the content integrations; tests replace it. */
+  contentFetch: typeof fetch;
   housekeeping: {
     purgeExpired(input: { now: number; limit: number }): Promise<{ idempotencyKeys: number; rateLimits: number }>;
     purgeOperational(input: {
@@ -177,6 +183,9 @@ export interface ContainerEnv {
   ANALYTICS_YOUTUBE_CHANNEL_ID?: string;
   /** Worker secret: YouTube Data API v3 key (public counters only). */
   YOUTUBE_API_KEY?: string;
+  /** Worker secrets: TikTok for Developers app (Login Kit + Display API). */
+  TIKTOK_CLIENT_KEY?: string;
+  TIKTOK_CLIENT_SECRET?: string;
 }
 
 export interface ContainerOverrides {
@@ -401,10 +410,19 @@ export function createContainer(env: ContainerEnv, overrides: ContainerOverrides
         {
           telegramChannel: env?.ANALYTICS_TELEGRAM_CHANNEL,
           youtubeChannelId: env?.ANALYTICS_YOUTUBE_CHANNEL_ID,
-          youtubeApiKey: env?.YOUTUBE_API_KEY
+          youtubeApiKey: env?.YOUTUBE_API_KEY,
+          tiktokClientKey: env?.TIKTOK_CLIENT_KEY,
+          tiktokClientSecret: env?.TIKTOK_CLIENT_SECRET
         },
-        overrides.contentFetch
+        overrides.contentFetch,
+        { connections: createD1TikTokConnectionRepository(db()), clock: overrides.clock ?? systemClock }
       );
+    },
+    get tiktokConnections() {
+      return createD1TikTokConnectionRepository(db());
+    },
+    get contentFetch() {
+      return overrides.contentFetch ?? fetch;
     },
     // Resolved per call: a BOT_INFO override never touches the database, so a Worker without one still answers.
     get botIdentity(): BotIdentityStore {

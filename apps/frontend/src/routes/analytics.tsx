@@ -1,4 +1,4 @@
-import { contentItemIdSchema, contentPlatformSchema } from '@alexeev/contracts';
+import { contentItemIdSchema, contentPlatformSchema, tiktokConnectResultSchema } from '@alexeev/contracts';
 import { createFileRoute } from '@tanstack/react-router';
 import { z } from 'zod';
 import { AnalyticsPage } from '../pages/analytics/AnalyticsPage';
@@ -13,7 +13,8 @@ const analyticsSearchSchema = z
     page: z.number().int().min(1).max(1000).optional().catch(undefined),
     sort: z.enum(['published', 'views', 'likes', 'comments', 'er', 'multiple']).optional().catch(undefined),
     dir: z.literal('asc').optional().catch(undefined),
-    id: contentItemIdSchema.optional().catch(undefined)
+    id: contentItemIdSchema.optional().catch(undefined),
+    tiktok: tiktokConnectResultSchema.optional().catch(undefined)
   })
   .catch({});
 

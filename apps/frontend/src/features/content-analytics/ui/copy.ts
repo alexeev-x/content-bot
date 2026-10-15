@@ -21,7 +21,7 @@ export const copy = {
   setup: {
     telegram: 'Укажите публичный канал в настройках Worker (ANALYTICS_TELEGRAM_CHANNEL).',
     youtube: 'Добавьте ключ YouTube Data API в секреты Worker (YOUTUBE_API_KEY).',
-    tiktok: 'Нужно приложение TikTok for Developers и вход через TikTok. Подключим следующим шагом.'
+    tiktok: 'Нажмите «Подключить TikTok» в разделе «Аналитика» и разрешите доступ на TikTok.'
   } satisfies Record<ContentPlatform, string>,
   errors: {
     TELEGRAM_PREVIEW_FETCH: 'Telegram не ответил. Повторим через 15 минут.',
@@ -31,7 +31,13 @@ export const copy = {
     YOUTUBE_KEY: 'YouTube не принял ключ. Проверьте YOUTUBE_API_KEY и что YouTube Data API v3 включён.',
     YOUTUBE_QUOTA: 'Закончился дневной лимит YouTube API. Сбор продолжится завтра.',
     YOUTUBE_CHANNEL_NOT_FOUND: 'YouTube не нашёл канал. Проверьте ANALYTICS_YOUTUBE_CHANNEL_ID.',
-    YOUTUBE_FETCH: 'YouTube не ответил. Повторим через 15 минут.'
+    YOUTUBE_FETCH: 'YouTube не ответил. Повторим через 15 минут.',
+    TIKTOK_RECONNECT: 'Доступ к TikTok истёк или отозван. Подключите TikTok заново.',
+    TIKTOK_SCOPE: 'TikTok не дал нужных разрешений. Подключите заново и разрешите всё.',
+    TIKTOK_RATE: 'TikTok ограничил частоту запросов. Повторим через 15 минут.',
+    TIKTOK_FETCH: 'TikTok не ответил. Повторим через 15 минут.',
+    TIKTOK_HTTP: 'TikTok вернул ошибку. Повторим через 15 минут.',
+    TIKTOK_SHAPE: 'TikTok прислал неожиданный ответ. Повторим через 15 минут.'
   } as Record<string, string>,
   errorFallback: (code: string) => `Сбор не удался (${code}). Повторим через 15 минут.`,
   top: {
@@ -77,6 +83,23 @@ export const copy = {
   truncated: 'Публикаций больше 1000: самые старые в расчёт не вошли. Выберите период короче.',
   filters: { period: 'Период', platform: 'Платформа' },
   sources: { label: 'Источники данных' },
+  tiktok: {
+    connect: 'Подключить TikTok',
+    disconnect: 'Отключить',
+    connectFailed: 'Не удалось начать вход в TikTok. Проверьте ключи приложения в Cloudflare.',
+    disconnectTitle: 'Отключить TikTok?',
+    disconnectDescription:
+      'Studio забудет ключи доступа и отзовёт их в TikTok. Уже собранная статистика останется. Подключить снова можно в любой момент.',
+    disconnectConfirm: 'Отключить TikTok',
+    disconnectCancel: 'Оставить',
+    disconnected: 'TikTok отключён',
+    result: {
+      connected: 'TikTok подключён. Нажмите «Обновить», чтобы сразу загрузить данные.',
+      denied: 'Доступ в TikTok не разрешён. Подключение отменено.',
+      expired: 'Ссылка входа устарела или уже использована. Нажмите «Подключить TikTok» ещё раз.',
+      failed: 'TikTok не подтвердил вход. Попробуйте ещё раз через минуту.'
+    }
+  },
   insights: {
     title: (days: number) => `Главное за ${days} дней`,
     empty: 'Пока мало данных для выводов. Они появятся после первых сборов.'

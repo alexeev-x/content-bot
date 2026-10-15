@@ -1,9 +1,15 @@
 import { useNavigate, useSearch } from '@tanstack/react-router';
+import { useEffect } from 'react';
 import { useDocumentTitle } from '../../app/use-document-title';
-import { AnalyticsBoard, type AnalyticsView, RefreshAnalyticsButton } from '../../features/content-analytics';
+import {
+  AnalyticsBoard,
+  type AnalyticsView,
+  contentAnalyticsCopy,
+  RefreshAnalyticsButton
+} from '../../features/content-analytics';
 import { useOwnerTimezone } from '../../features/owner-settings';
 import { ru } from '../../shared/lib/ru';
-import { PageHeader } from '../../shared/ui';
+import { PageHeader, useToast } from '../../shared/ui';
 
 export function AnalyticsPage() {
   useDocumentTitle(ru.pages.analytics);
@@ -17,6 +23,17 @@ export function AnalyticsPage() {
     sort: { column: search.sort ?? 'published', direction: search.dir === 'asc' ? 'ascending' : 'descending' },
     openId: search.id
   };
+  const toast = useToast();
+  const tiktokResult = search.tiktok;
+  // TikTok's redirect lands here once with the outcome: say it, then drop it from the URL so a reload is quiet.
+  useEffect(() => {
+    if (tiktokResult === undefined) return;
+    toast.show({
+      tone: tiktokResult === 'connected' ? 'success' : 'error',
+      title: contentAnalyticsCopy.tiktok.result[tiktokResult]
+    });
+    void navigate({ search: (previous) => ({ ...previous, tiktok: undefined }), replace: true });
+  }, [tiktokResult, toast, navigate]);
   const onViewChange = (patch: Partial<AnalyticsView>) =>
     void navigate({
       search: (previous) => {

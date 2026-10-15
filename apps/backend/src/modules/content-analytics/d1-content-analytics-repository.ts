@@ -51,6 +51,8 @@ export interface OverviewRows {
   week: { platform: ContentPlatform; items: number; views: number | null }[];
   recent: ItemRow[];
   top: ItemRow[];
+  /** Connected OAuth accounts (TikTok) with their public name. */
+  connections: { platform: ContentPlatform; accountName: string | null }[];
 }
 
 export interface ContentAnalyticsRepository {
@@ -207,7 +209,7 @@ export function createD1ContentAnalyticsRepository(db: D1Database): ContentAnaly
     },
 
     async readOverview({ weekFrom, monthFrom, seriesFromDay }) {
-      const [sources, followers, week, recent, top] = await db.batch([
+      const [sources, followers, week, recent, top, connections] = await db.batch([
         db.prepare(
           `SELECT platform, next_run_at AS nextRunAt, last_success_at AS lastSuccessAt, last_error_at AS lastErrorAt,
                   last_error_code AS lastErrorCode
@@ -233,14 +235,16 @@ export function createD1ContentAnalyticsRepository(db: D1Database): ContentAnaly
             `SELECT ${ITEM_COLUMNS} FROM content_items
              WHERE published_at >= ? AND views IS NOT NULL ORDER BY views DESC, id DESC LIMIT ?`
           )
-          .bind(monthFrom, CONTENT_ANALYTICS_TOP_LIMIT)
+          .bind(monthFrom, CONTENT_ANALYTICS_TOP_LIMIT),
+        db.prepare('SELECT platform, account_name AS accountName FROM content_connections')
       ]);
       return {
         sources: (sources?.results ?? []) as SourceRow[],
         followers: (followers?.results ?? []) as OverviewRows['followers'],
         week: (week?.results ?? []) as OverviewRows['week'],
         recent: ((recent?.results ?? []) as RawItem[]).map(toItem),
-        top: ((top?.results ?? []) as RawItem[]).map(toItem)
+        top: ((top?.results ?? []) as RawItem[]).map(toItem),
+        connections: (connections?.results ?? []) as OverviewRows['connections']
       };
     },
 

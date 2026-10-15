@@ -5,7 +5,8 @@ import {
   contentItemsPageSchema,
   contentItemsQuerySchema,
   contentReportQuerySchema,
-  contentReportSchema
+  contentReportSchema,
+  tiktokConnectSchema
 } from '@alexeev/contracts';
 import { Hono } from 'hono';
 import { z } from 'zod';
@@ -13,13 +14,41 @@ import {
   collectContentAnalytics,
   listContentItems,
   readContentAnalyticsOverview,
+  completeTikTokConnect,
+  type ConnectResult,
+  disconnectTikTok,
   readContentItem,
-  readContentReport
+  readContentReport,
+  startTikTokConnect,
+  TIKTOK_STATE_TTL_SEC
 } from '../modules/content-analytics';
+import { AppError } from '../shared/app-error';
+import { deleteCookie, getCookie, setCookie } from 'hono/cookie';
+import { rateLimitClientKey } from '../platform/rate-limit/client-key';
 import type { AppBindings } from './env';
 import { validated } from './validation';
 
 const itemParamsSchema = z.strictObject({ id: contentItemIdSchema });
+// TikTok's redirect: every field optional and bounded; anything else in the query is ignored.
+const callbackQuerySchema = z.object({
+  code: z.string().min(1).max(2048).optional(),
+  state: z.string().min(1).max(128).optional(),
+  error: z.string().min(1).max(200).optional()
+});
+const CALLBACK_PATH = '/api/v1/content-analytics/tiktok/callback';
+// Ties the OAuth state to the browser that started the connection; only the callback ever receives it.
+const STATE_COOKIE = 'tiktok_oauth_state';
+
+/** The redirect URI must match the one registered in the TikTok app: this Worker's own origin. */
+function callbackUri(requestUrl: string): string {
+  return `${new URL(requestUrl).origin}${CALLBACK_PATH}`;
+}
+
+function tiktokDeps(container: AppBindings['Variables']['container']) {
+  const config = container.contentSources.tiktok;
+  if (config === null) throw new AppError('UNAVAILABLE', 'TikTok app keys are not configured');
+  return { repo: container.tiktokConnections, config, clock: container.clock, fetchImpl: container.contentFetch };
+}
 
 export const contentAnalyticsRoutes = new Hono<AppBindings>()
   .get('/', async (c) => {
@@ -59,6 +88,72 @@ export const contentAnalyticsRoutes = new Hono<AppBindings>()
         await readContentReport({ repo: container.contentAnalytics, clock: container.clock }, c.req.valid('query'))
       )
     );
+  })
+  .post('/tiktok/connect', async (c) => {
+    const container = c.get('container');
+    const { authorizeUrl, state } = await startTikTokConnect(tiktokDeps(container), callbackUri(c.req.url));
+    setCookie(c, STATE_COOKIE, state, {
+      httpOnly: true,
+      secure: true,
+      // Lax: sent on TikTok's top-level redirect back, never on cross-site subrequests.
+      sameSite: 'Lax',
+      path: CALLBACK_PATH,
+      maxAge: TIKTOK_STATE_TTL_SEC
+    });
+    return c.json(tiktokConnectSchema.parse({ authorizeUrl }));
+  })
+  .get('/tiktok/callback', async (c) => {
+    const container = c.get('container');
+    const browserState = getCookie(c, STATE_COOKIE);
+    deleteCookie(c, STATE_COOKIE, { path: CALLBACK_PATH, secure: true });
+    // Always a redirect back to the app, never a JSON error page in the owner's browser.
+    let result: ConnectResult = 'failed';
+    try {
+      const decision = await container.rateLimiter.hit({
+        name: 'tiktok-callback',
+        client: rateLimitClientKey(c.req.header('cf-connecting-ip')),
+        limit: 20,
+        windowMs: 10 * 60 * 1000,
+        now: container.clock.now()
+      });
+      const parsed = callbackQuerySchema.safeParse(c.req.query());
+      const query = parsed.success ? parsed.data : {};
+      const config = container.contentSources.tiktok;
+      if (decision.allowed && config !== null) {
+        result = await completeTikTokConnect(
+          {
+            repo: container.tiktokConnections,
+            config,
+            clock: container.clock,
+            fetchImpl: container.contentFetch,
+            logger: container.logger,
+            requestId: c.get('requestId')
+          },
+          {
+            state: query.state,
+            browserState,
+            code: query.code,
+            error: query.error,
+            redirectUri: callbackUri(c.req.url)
+          }
+        );
+      }
+    } catch (error) {
+      container.logger.error({
+        requestId: c.get('requestId'),
+        component: 'content-analytics',
+        operation: 'tiktok_callback',
+        status: 'error',
+        errorCode: error instanceof Error ? error.name : 'UNKNOWN'
+      });
+    }
+    // A relative redirect keeps the browser on this origin whatever the query held.
+    return c.redirect(`/analytics?platform=tiktok&tiktok=${result}`, 302);
+  })
+  .post('/tiktok/disconnect', async (c) => {
+    const container = c.get('container');
+    await disconnectTikTok({ ...tiktokDeps(container), logger: container.logger, requestId: c.get('requestId') });
+    return c.body(null, 204);
   })
   .get('/items', validated('query', contentItemsQuerySchema), async (c) => {
     const container = c.get('container');

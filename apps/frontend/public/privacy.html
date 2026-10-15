@@ -40,13 +40,13 @@
         <li>writing, storing and scheduling posts with media, and sending them to the operator's Telegram channels;</li>
         <li>
           statistics of the operator's own public Telegram channel and YouTube channel (followers, views, likes,
-          comments).
+          comments);
+        </li>
+        <li>
+          statistics of the operator's own TikTok account, once the operator connects it (section 4). The connection
+          runs in TikTok's developer sandbox and is not an approved public integration.
         </li>
       </ul>
-      <p class="note">
-        TikTok connection is <strong>under development</strong> and is not available yet. Section 4 describes what it
-        will process once it works. Nothing is read from TikTok today.
-      </p>
 
       <h2>3. Data the service processes, by source</h2>
       <ul>
@@ -77,11 +77,11 @@
         </li>
       </ul>
 
-      <h2>4. TikTok (planned)</h2>
+      <h2>4. TikTok</h2>
       <p>
-        When the TikTok connection is built, the operator will be able to link the operator's own TikTok account through
-        TikTok's official sign-in. Linking will be optional and will only happen when the account holder approves it on
-        TikTok. The service will request these permissions:
+        The operator can link the operator's own TikTok account through TikTok's official sign-in (Login Kit). Linking
+        is optional and happens only when the account holder approves it on TikTok. The service requests these
+        permissions:
       </p>
       <ul>
         <li>
@@ -95,10 +95,11 @@
         </li>
       </ul>
       <p>
-        The data will be used only to show the operator their own statistics in the dashboard. Access tokens issued by
-        TikTok will be stored on the server only and never sent to a browser. Numbers from TikTok can be delayed or
-        incomplete. Authorization can be revoked at any time in the TikTok app settings, in the list of apps that have
-        access to the account. ALEXEEV Studio is not affiliated with, sponsored or endorsed by TikTok.
+        The data is used only to show the operator their own statistics in the dashboard; it is collected about once an
+        hour. Access and refresh tokens issued by TikTok are stored on the server only, encrypted, and are never sent to
+        a browser. Numbers from TikTok can be delayed or incomplete. Authorization can be revoked at any time in the
+        TikTok app settings, in the list of apps that have access to the account. ALEXEEV Studio is not affiliated with,
+        sponsored or endorsed by TikTok.
       </p>
 
       <h2>5. Why the data is processed</h2>
@@ -119,7 +120,7 @@
         </li>
         <li><strong>Telegram</strong> provides sign-in and receives the posts the operator publishes.</li>
         <li><strong>Google (YouTube Data API)</strong> provides the public YouTube statistics.</li>
-        <li><strong>TikTok</strong> will provide account data once the planned connection exists.</li>
+        <li><strong>TikTok</strong> provides account data once the operator connects an account.</li>
       </ul>
 
       <h2>7. How long data is kept</h2>
@@ -156,9 +157,9 @@
       <p>
         Anyone whose data appears in the service (for example, in a public channel statistic) can ask what is held, ask
         for a correction or ask for deletion by writing on Telegram to
-        <a href="https://t.me/alexeev_x">@alexeev_x</a>. There is no in-app disconnect button yet; until there is, such
-        requests are handled manually. TikTok authorization, once it exists, can also be revoked directly in TikTok as
-        described in section 4.
+        <a href="https://t.me/alexeev_x">@alexeev_x</a>. The «Отключить» (Disconnect) button on the analytics page
+        removes the stored TikTok tokens and asks TikTok to revoke them; other requests are handled manually. TikTok
+        authorization can also be revoked directly in TikTok as described in section 4.
       </p>
 
       <h2>11. Age</h2>
@@ -167,8 +168,8 @@
       <h2>12. Applicable law and changes</h2>
       <p>
         The operator processes personal data in line with the data protection law of the Republic of Moldova. This
-        policy will be updated when the service changes, for example when the TikTok connection becomes available; the
-        effective date at the top will change with each update.
+        policy will be updated when the service changes, for example when the TikTok integration is approved for public
+        use; the effective date at the top will change with each update.
       </p>
       <p>
         Third-party policies: <a href="https://www.tiktok.com/legal/page/global/privacy-policy/en">TikTok</a>,

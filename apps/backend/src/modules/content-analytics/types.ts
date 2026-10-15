@@ -31,6 +31,8 @@ export interface ContentCollector {
   profileUrl: string;
   /** Outbound requests one collection makes; they count against the invocation's subrequest budget. */
   requests: number;
+  /** When present and false, the source is skipped before any claim (an OAuth platform not connected yet). */
+  ready?: () => Promise<boolean>;
   collect(): Promise<Collection>;
 }
 

@@ -1,6 +1,8 @@
 import type { ContentAnalyticsOverviewDto } from '@alexeev/contracts';
 import { relativeTimeRu } from '../../../shared/lib/ru-format';
-import { Icon, Skeleton } from '../../../shared/ui';
+import { useState } from 'react';
+import { Button, ConfirmDialog, Icon, Skeleton, useToast } from '../../../shared/ui';
+import { useConnectTikTok, useDisconnectTikTok } from '../api/content-analytics-queries';
 import { PLATFORM_LABEL } from '../model/format';
 import { PLATFORMS } from '../model/report';
 import { collectErrorText, copy } from './copy';
@@ -35,6 +37,8 @@ export function SourceStatusRow({ overview, now }: Props) {
                       : copy.state.not_configured}
               </span>
             )}
+            {source?.connection === 'available' ? <ConnectTikTokButton /> : null}
+            {source?.connection === 'connected' ? <DisconnectTikTokButton /> : null}
             {source?.profileUrl ? (
               <a
                 className={styles.sourceLink}
@@ -50,5 +54,53 @@ export function SourceStatusRow({ overview, now }: Props) {
         );
       })}
     </ul>
+  );
+}
+
+function ConnectTikTokButton() {
+  const connect = useConnectTikTok();
+  const toast = useToast();
+  return (
+    <Button
+      size="sm"
+      isLoading={connect.isPending}
+      onPress={() =>
+        connect.mutate(undefined, { onError: () => toast.show({ tone: 'error', title: copy.tiktok.connectFailed }) })
+      }
+    >
+      {copy.tiktok.connect}
+    </Button>
+  );
+}
+
+function DisconnectTikTokButton() {
+  const [open, setOpen] = useState(false);
+  const disconnect = useDisconnectTikTok();
+  const toast = useToast();
+  return (
+    <>
+      <Button size="sm" variant="ghost" onPress={() => setOpen(true)}>
+        {copy.tiktok.disconnect}
+      </Button>
+      <ConfirmDialog
+        isOpen={open}
+        onOpenChange={setOpen}
+        title={copy.tiktok.disconnectTitle}
+        description={copy.tiktok.disconnectDescription}
+        confirmLabel={copy.tiktok.disconnectConfirm}
+        cancelLabel={copy.tiktok.disconnectCancel}
+        tone="danger"
+        isPending={disconnect.isPending}
+        onConfirm={() =>
+          disconnect.mutate(undefined, {
+            onSuccess: () => {
+              setOpen(false);
+              toast.show({ tone: 'success', title: copy.tiktok.disconnected });
+            },
+            onError: () => toast.show({ tone: 'error', title: copy.refreshFailed })
+          })
+        }
+      />
+    </>
   );
 }

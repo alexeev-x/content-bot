@@ -49,6 +49,7 @@ export async function collectContentAnalytics(deps: {
   let failed = 0;
   const manual = deps.manual === true;
   for (const collector of deps.sources.collectors) {
+    if (collector.ready !== undefined && !(await collector.ready())) continue;
     const now = deps.clock.now();
     const won = await deps.repo.claim({
       platform: collector.platform,
@@ -150,17 +151,29 @@ export async function readContentAnalyticsOverview(deps: {
     const latest = points.at(-1);
     const baseline = points.filter((row) => row.day <= weekAgoDay).at(-1);
     const week = rows.week.find((row) => row.platform === platform);
-    const known = deps.sources.handles[platform];
+    const connection = rows.connections.find((row) => row.platform === platform);
+    const oauth = platform === 'tiktok' && deps.sources.tiktok !== null;
+    const tiktokName = connection?.accountName ?? null;
+    const known =
+      platform === 'tiktok'
+        ? connection === undefined
+          ? undefined
+          : {
+              handle: tiktokName ?? 'TikTok',
+              profileUrl: tiktokName === null ? 'https://www.tiktok.com' : `https://www.tiktok.com/@${tiktokName}`
+            }
+        : deps.sources.handles[platform];
     const lastSuccessAt = source?.lastSuccessAt ?? null;
     const failedLast =
       source?.lastErrorAt !== null && source?.lastErrorAt !== undefined && source.lastErrorAt >= (lastSuccessAt ?? 0);
-    const state = !configured.has(platform)
-      ? 'not_configured'
-      : failedLast
-        ? 'error'
-        : lastSuccessAt === null
-          ? 'pending'
-          : 'ok';
+    const state =
+      !configured.has(platform) || (oauth && connection === undefined)
+        ? 'not_configured'
+        : failedLast
+          ? 'error'
+          : lastSuccessAt === null
+            ? 'pending'
+            : 'ok';
     return {
       platform,
       state,
@@ -171,7 +184,8 @@ export async function readContentAnalyticsOverview(deps: {
       views7d: week?.views ?? null,
       items7d: week?.items ?? 0,
       lastSyncedAt: lastSuccessAt === null ? null : new Date(lastSuccessAt).toISOString(),
-      errorCode: failedLast ? (source?.lastErrorCode ?? 'COLLECT_FAILED') : null
+      errorCode: failedLast ? (source?.lastErrorCode ?? 'COLLECT_FAILED') : null,
+      connection: !oauth ? 'none' : connection === undefined ? 'available' : 'connected'
     };
   });
 

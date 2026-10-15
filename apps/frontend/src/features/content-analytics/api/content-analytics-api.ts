@@ -3,10 +3,11 @@ import {
   contentItemDetailSchema,
   contentItemsPageSchema,
   contentReportSchema,
+  tiktokConnectSchema,
   type ContentPlatform,
   type ContentReportPeriod
 } from '@alexeev/contracts';
-import { apiRequest } from '../../../shared/api/http-client';
+import { apiRequest, apiRequestNoContent } from '../../../shared/api/http-client';
 import { buildQuery } from '../../../shared/api/query-string';
 
 export const ITEMS_PAGE_SIZE = 20;
@@ -35,4 +36,13 @@ export function getContentItem(id: string, signal?: AbortSignal) {
 
 export function getContentReport(days: ContentReportPeriod, signal?: AbortSignal) {
   return apiRequest(`/api/v1/content-analytics/report${buildQuery({ days })}`, contentReportSchema, { signal });
+}
+
+/** Starts the TikTok sign-in: the browser then goes to the returned TikTok consent page. */
+export function connectTikTok() {
+  return apiRequest('/api/v1/content-analytics/tiktok/connect', tiktokConnectSchema, { method: 'POST' });
+}
+
+export function disconnectTikTok() {
+  return apiRequestNoContent('/api/v1/content-analytics/tiktok/disconnect', { method: 'POST' });
 }

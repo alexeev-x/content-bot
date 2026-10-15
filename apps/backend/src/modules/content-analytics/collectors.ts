@@ -9,6 +9,14 @@ import {
   YOUTUBE_MAX_REQUESTS,
   YouTubeApiError
 } from '../../integrations/youtube/youtube-data-api';
+import {
+  fetchTikTokAccount,
+  fetchTikTokVideos,
+  TIKTOK_VIDEO_PAGES,
+  TikTokApiError
+} from '../../integrations/tiktok/tiktok-api';
+import type { Clock } from '../../platform/clock';
+import { type TikTokConfig, type TikTokConnectionRepository, tiktokAccessToken } from './tiktok-connection';
 import { type CollectedItem, ContentCollectError, type ContentCollector } from './types';
 
 const TITLE_MAX = 200;
@@ -24,17 +32,31 @@ export interface CollectorConfig {
   telegramChannel?: string | undefined;
   youtubeChannelId?: string | undefined;
   youtubeApiKey?: string | undefined;
+  tiktokClientKey?: string | undefined;
+  tiktokClientSecret?: string | undefined;
+}
+
+/** What the TikTok collector needs besides configuration: its stored connection and the clock. */
+export interface TikTokCollectorDeps {
+  connections: TikTokConnectionRepository;
+  clock: Clock;
 }
 
 export interface ConfiguredSources {
   collectors: ContentCollector[];
   /** Platforms whose collector is missing its configuration, with the public handle when one is known. */
   handles: Partial<Record<ContentCollector['platform'], { handle: string; profileUrl: string }>>;
+  /** Set when the TikTok app keys exist: the owner can connect an account. */
+  tiktok: TikTokConfig | null;
 }
 
 // Builds a collector for every platform the environment configures. A blank or malformed value
 // means "not configured", never an error: the owner sees the platform as not connected.
-export function configuredCollectors(config: CollectorConfig, fetchImpl: typeof fetch = fetch): ConfiguredSources {
+export function configuredCollectors(
+  config: CollectorConfig,
+  fetchImpl: typeof fetch = fetch,
+  tiktokDeps?: TikTokCollectorDeps
+): ConfiguredSources {
   const collectors: ContentCollector[] = [];
   const handles: ConfiguredSources['handles'] = {};
 
@@ -110,5 +132,48 @@ export function configuredCollectors(config: CollectorConfig, fetchImpl: typeof 
     }
   }
 
-  return { collectors, handles };
+  const clientKey = config.tiktokClientKey?.trim() ?? '';
+  const clientSecret = config.tiktokClientSecret?.trim() ?? '';
+  const tiktok = clientKey !== '' && clientSecret !== '' ? { clientKey, clientSecret } : null;
+  if (tiktok !== null && tiktokDeps !== undefined) {
+    const deps = { repo: tiktokDeps.connections, config: tiktok, clock: tiktokDeps.clock, fetchImpl };
+    collectors.push({
+      platform: 'tiktok',
+      handle: 'tiktok',
+      profileUrl: 'https://www.tiktok.com',
+      // A refresh, the account and up to five video pages.
+      requests: 2 + TIKTOK_VIDEO_PAGES,
+      ready: async () => (await tiktokDeps.connections.load()) !== null,
+      async collect() {
+        try {
+          const { accessToken } = await tiktokAccessToken(deps);
+          const account = await fetchTikTokAccount(accessToken, fetchImpl);
+          const videos = await fetchTikTokVideos(accessToken, fetchImpl);
+          const profile =
+            account.username === null ? 'https://www.tiktok.com' : `https://www.tiktok.com/@${account.username}`;
+          return {
+            followers: account.followers,
+            items: videos.map((video): CollectedItem => ({
+              externalId: video.id,
+              title: firstLine(video.title),
+              url: video.shareUrl ?? `${profile}/video/${video.id}`,
+              thumbnailUrl: video.coverUrl !== null && video.coverUrl.length <= 2048 ? video.coverUrl : null,
+              publishedAt: video.createdAt,
+              views: video.views,
+              likes: video.likes,
+              comments: video.comments,
+              shares: video.shares
+            }))
+          };
+        } catch (error) {
+          if (error instanceof TikTokApiError) {
+            throw new ContentCollectError(error.code === 'TIKTOK_AUTH' ? 'TIKTOK_RECONNECT' : error.code);
+          }
+          throw error;
+        }
+      }
+    });
+  }
+
+  return { collectors, handles, tiktok };
 }

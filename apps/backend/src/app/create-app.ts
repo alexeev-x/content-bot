@@ -30,7 +30,9 @@ const PUBLIC_ROUTES = new Set([
   'POST /api/v1/auth/telegram',
   'POST /api/v1/auth/telegram-widget',
   'POST /api/v1/auth/refresh',
-  'POST /api/v1/auth/logout'
+  'POST /api/v1/auth/logout',
+  // TikTok sends the browser back here without our Bearer token; the single-use OAuth state is the check.
+  'GET /api/v1/content-analytics/tiktok/callback'
 ]);
 
 function errorBody(
@@ -57,7 +59,10 @@ function unexpectedErrorCode(error: unknown): string {
 }
 
 export function createApp(
-  options: Pick<ContainerOverrides, 'clock' | 'telegramChatApi' | 'telegramBotAdminApi' | 'ownerMessenger'> & {
+  options: Pick<
+    ContainerOverrides,
+    'clock' | 'telegramChatApi' | 'telegramBotAdminApi' | 'ownerMessenger' | 'contentFetch'
+  > & {
     /** Routes registered before the session guard: the `npm run dev` sign-in (local-sign-in-route.ts). */
     mountBeforeGuard?: (app: Hono<AppBindings>) => void;
   } = {}
