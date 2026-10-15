@@ -62,7 +62,7 @@ Sources: OpenDota keyless 60 req/min and 3 000/day; official datafeed keyless an
 
 Agreed with the owner 15.10.2026. Publishing always needs the owner's approval.
 
-**Provider.** One port, the model chosen by configuration. Candidates: Claude Sonnet 5.5 (drafts), Claude Haiku 5.5 (checks, tags) or an OpenAI model of the same price class. Open: a blind A/B on 10 of the owner's posts or Claude directly; the key with a monthly limit is set by the owner in Worker secrets.
+**Provider: OpenAI** (owner decision 15.10.2026, `docs/DECISIONS.md`). One port, the model chosen by configuration: a mid-priced model for drafts, the cheapest for checks and tags; exact names verified on OpenAI's site when the key exists. The key with a monthly limit is set by the owner in Worker secrets.
 
 **Reels** (rubrics «Учу фидить» and «Учусь играть в доту»; more can be added):
 1. A Reel script on a topic, with or without a rubric.
@@ -82,7 +82,7 @@ Agreed with the owner 15.10.2026. Publishing always needs the owner's approval.
 
 **Goal and acceptance (owner, 15.10.2026):** for now text only, written so that nobody can tell it is AI. Checked blind: 5 real posts mixed with 5 AI posts on the same topics; readers guessing no better than chance.
 
-**Order:** rubrics + provider port → style profile from the export → (blind test) → «Написать с ИИ» in the editor and in the bot → learning from edits → Reels topics from analytics → news autoposts.
+**Order:** rubrics + provider port → style profile from the export → «Написать с ИИ» in the editor and in the bot → learning from edits → Reels topics from analytics → news autoposts.
 
 **Owner inputs:** the Telegram channel export (JSON), 10–15 posts that are «100% him», how Reels are recorded and what a script must contain, whether swearing is allowed.
 
