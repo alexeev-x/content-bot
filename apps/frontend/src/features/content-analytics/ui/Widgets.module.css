@@ -441,3 +441,58 @@
   outline: var(--focus-ring-width) solid var(--color-focus-ring);
   outline-offset: var(--focus-ring-offset);
 }
+
+/* «Что залетает сейчас»: one line per publication (cover, title, views, status, curve) */
+.trendRow {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+  width: 100%;
+  min-height: var(--size-row);
+  padding: var(--space-2) 0;
+  border: 0;
+  background: transparent;
+  color: var(--color-text);
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+.trendRow[data-hovered] .trendTitle {
+  text-decoration: underline;
+}
+.trendRow[data-focus-visible] {
+  outline: var(--focus-ring-width) solid var(--color-focus-ring);
+  outline-offset: var(--focus-ring-offset);
+  border-radius: var(--radius-1);
+}
+.trendTitle {
+  overflow: hidden;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.trendRow .chip {
+  justify-self: start;
+}
+.trendViews {
+  display: flex;
+  justify-content: flex-end;
+  align-items: baseline;
+  gap: var(--space-1);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.trendSpark {
+  display: none;
+  width: 120px;
+}
+@media (min-width: 900px) {
+  .trendRow {
+    grid-template-columns: auto minmax(0, 1fr) 128px 176px 120px;
+  }
+  .trendSpark {
+    display: block;
+  }
+}

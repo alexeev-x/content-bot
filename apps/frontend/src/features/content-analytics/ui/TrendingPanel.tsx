@@ -67,32 +67,31 @@ export function TrendingPanel({
             const curve = points.map((point) => point.y);
             return (
               <li key={item.id}>
-                <AriaButton className={styles.row} onPress={() => onOpen(item.id)}>
-                  <ItemCover item={item} />
+                <AriaButton className={styles.trendRow} onPress={() => onOpen(item.id)}>
+                  <ItemCover item={item} size="sm" />
                   <span className={styles.text}>
-                    <span className={styles.meta}>
-                      <PlatformGlyph platform={item.platform} withLabel />
+                    <span className={styles.trendTitle} title={item.title || undefined}>
+                      {item.title || 'Без текста'}
                     </span>
-                    <span className={styles.title}>{item.title || 'Без текста'}</span>
                     <span className={styles.meta}>
-                      {formatPublished(item.publishedAt, timezone)}
-                      <span aria-hidden="true">•</span>
+                      <PlatformGlyph platform={item.platform} size={14} />
                       {relativeTimeRu(item.publishedAt, now)}
+                      <span className={styles.srOnly}>, {formatPublished(item.publishedAt, timezone)}</span>
                     </span>
                   </span>
-                  <span className={styles.side}>
+                  <span className={styles.trendViews}>
                     <strong>{formatCount(item.views)}</strong>
-                    <span className={styles.small}>просмотров</span>
-                    <StatusChip verdict={verdict} withMultiple />
-                    <span className={styles.spark}>
-                      <AreaChart
-                        points={curve}
-                        x={points.map((point) => point.x)}
-                        tips={points.map((point) => `${formatAge(point.x)}: ${formatCount(point.y)}`)}
-                        height={36}
-                        label={`${PLATFORM_LABEL[item.platform]}: рост просмотров`}
-                      />
-                    </span>
+                    <span className={styles.small}>просм.</span>
+                  </span>
+                  <StatusChip verdict={verdict} withMultiple />
+                  <span className={styles.trendSpark}>
+                    <AreaChart
+                      points={curve}
+                      x={points.map((point) => point.x)}
+                      tips={points.map((point) => `${formatAge(point.x)}: ${formatCount(point.y)}`)}
+                      height={28}
+                      label={`${PLATFORM_LABEL[item.platform]}: рост просмотров`}
+                    />
                   </span>
                 </AriaButton>
               </li>
