@@ -10,7 +10,7 @@ import type { Clock } from '../../platform/clock';
 import type { Logger } from '../../platform/logging/logger';
 import { AppError } from '../../shared/app-error';
 import type { HeroAssetRepository, HeroRow } from './d1-hero-assets-repository';
-import { cdnUrl, type HeroAssetStorage, KIND_SPEC, objectKey } from './types';
+import { CDN_HOSTS, cdnUrl, type HeroAssetStorage, KIND_SPEC, objectKey } from './types';
 
 const HERO_LIST_URL = 'https://www.dota2.com/datafeed/herolist?language=english';
 const HERO_LIST_MAX_BYTES = 512 * 1024;
@@ -20,8 +20,8 @@ const FETCH_TIMEOUT_MS = 20_000;
 /** A claimed file not finished within this is claimable again (the Worker was cut off). */
 const LEASE_MS = 10 * 60 * 1000;
 const HOUR_MS = 60 * 60 * 1000;
-/** One file costs a CDN fetch, an R2 write and one D1 update. */
-const ASSET_COST = 3;
+/** One file costs up to two CDN fetches (a mirror after a refusal), an R2 write and one D1 update. */
+const ASSET_COST = 4;
 /** About 16 subrequests of the 50 a Free-plan invocation allows; the budget check lowers it when less is left. */
 export const HERO_ASSETS_PER_TICK = 5;
 
@@ -137,15 +137,26 @@ async function copyAsset(
     deps.logger.warn({ component: 'hero-assets', operation: 'copy', status: 'error', errorCode });
     return 'failed' as const;
   };
-  deps.budget.charge(1);
-  let response: Response;
-  try {
-    // Called as a plain function: the runtime's fetch throws «Illegal invocation» when called as `deps.fetchImpl()`.
-    const fetchImpl = deps.fetchImpl;
-    response = await fetchImpl(cdnUrl(slug, kind), { signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) });
-  } catch (error) {
-    return fail(`HERO_ASSET_FETCH${reason(error)}`);
+  // Each mirror in turn until one answers 200 or 404; what every mirror said is kept for the gallery.
+  const said: string[] = [];
+  let response: Response | null = null;
+  for (const host of CDN_HOSTS) {
+    deps.budget.charge(1);
+    try {
+      // Called as a plain function: the runtime's fetch throws «Illegal invocation» when called as `deps.fetchImpl()`.
+      const fetchImpl = deps.fetchImpl;
+      const answer = await fetchImpl(cdnUrl(host.base, slug, kind), { signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) });
+      if (answer.ok || answer.status === 404) {
+        response = answer;
+        break;
+      }
+      await answer.body?.cancel();
+      said.push(`${host.label} HTTP_${answer.status}`);
+    } catch (error) {
+      said.push(`${host.label} FETCH${reason(error)}`);
+    }
   }
+  if (response === null) return fail(said.join(' / ').slice(0, 80));
   // Only «not found» means Valve has no such file; a refusal (403) is retried like any other failure.
   if (response.status === 404) {
     await response.body?.cancel();

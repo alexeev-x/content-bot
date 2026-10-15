@@ -31,6 +31,8 @@ function fakeCdn(requested: string[]): typeof fetch {
     if (url.startsWith('https://www.dota2.com/datafeed/herolist')) return Response.json(HERO_LIST);
     if (url.endsWith('/renders/nevermore.mov')) return new Response('not found', { status: 404 });
     if (url.endsWith('/crops/nevermore.png')) throw new Error('Too many subrequests.');
+    // The first mirror refuses this one; the second has it.
+    if (url.includes('akamai') && url.endsWith('/renders/pudge.png')) return new Response('denied', { status: 403 });
     const body = `bytes of ${url.split('/apps/dota2/')[1]}`;
     // The CDN may answer a Worker without Content-Length (compressed, chunked): the size is measured.
     if (url.includes('/icons/')) return new Response(new Blob([body]).stream());
@@ -79,7 +81,7 @@ describe('hero assets', () => {
     // A failed call keeps the runtime's words, so the gallery says why.
     expect(list).toMatchObject({ total: 12, stored: 10, missing: 1, failed: 1 });
     expect(list.heroes[1]?.assets.find((asset) => asset.kind === 'crop')?.errorCode).toBe(
-      'HERO_ASSET_FETCH: Too many subrequests.'
+      'akamai FETCH: Too many subrequests. / cloudflare FETCH: Too many subrequests.'
     );
     expect(list.heroes.map((hero) => hero.name)).toEqual(['Pudge', 'Shadow Fiend']);
     expect(list.heroes[1]?.assets.find((asset) => asset.kind === 'render_mov')?.status).toBe('missing');
@@ -88,6 +90,13 @@ describe('hero assets', () => {
     expect(file.status).toBe(200);
     expect(file.headers.get('content-type')).toBe('video/webm');
     expect(await file.text()).toBe('bytes of videos/dota_react/heroes/renders/pudge.webm');
+    expect(requested.filter((url) => url.endsWith('/renders/pudge.png'))).toEqual([
+      'https://cdn.akamai.steamstatic.com/apps/dota2/videos/dota_react/heroes/renders/pudge.png',
+      'https://cdn.cloudflare.steamstatic.com/apps/dota2/videos/dota_react/heroes/renders/pudge.png'
+    ]);
+    expect(await (await api.request('/api/v1/dota/hero-assets/pudge/render_png')).text()).toBe(
+      'bytes of videos/dota_react/heroes/renders/pudge.png'
+    );
     const icon = await api.request('/api/v1/dota/hero-assets/pudge/icon');
     expect(await icon.text()).toBe('bytes of images/dota_react/heroes/icons/pudge.png');
     await expectError(await api.request('/api/v1/dota/hero-assets/nevermore/render_mov'), 404, 'NOT_FOUND');

@@ -1,6 +1,11 @@
 import type { HeroAssetKind } from '@alexeev/contracts';
 
-const CDN = 'https://cdn.cloudflare.steamstatic.com/apps/dota2';
+// Valve serves the same files from two CDNs. Akamai first: a Worker asking a Cloudflare-hosted mirror is
+// refused (403) far more often; the Cloudflare mirror is the fallback.
+export const CDN_HOSTS = [
+  { label: 'akamai', base: 'https://cdn.akamai.steamstatic.com/apps/dota2' },
+  { label: 'cloudflare', base: 'https://cdn.cloudflare.steamstatic.com/apps/dota2' }
+] as const;
 
 interface KindSpec {
   /** Path on Valve's CDN for a hero slug. */
@@ -32,8 +37,8 @@ export const KIND_SPEC: Record<HeroAssetKind, KindSpec> = {
   crop: { path: (slug) => `/images/dota_react/heroes/crops/${slug}.png`, extension: 'png', contentType: 'image/png' }
 };
 
-export function cdnUrl(slug: string, kind: HeroAssetKind): string {
-  return `${CDN}${KIND_SPEC[kind].path(slug)}`;
+export function cdnUrl(base: string, slug: string, kind: HeroAssetKind): string {
+  return `${base}${KIND_SPEC[kind].path(slug)}`;
 }
 
 export function objectKey(slug: string, kind: HeroAssetKind): string {
