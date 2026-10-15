@@ -131,3 +131,20 @@
     flex-basis: 100%;
   }
 }
+
+/* Phones: a wide action (tabs, segmented control) drops under the title instead of squeezing it to «Что зале…». */
+@media (max-width: 599px) {
+  .head {
+    flex-wrap: wrap;
+    row-gap: var(--space-2);
+    padding-block: var(--space-2);
+  }
+  .heading {
+    flex: 1 1 180px;
+  }
+  .action {
+    flex: 0 1 auto;
+    flex-wrap: wrap;
+    max-width: 100%;
+  }
+}

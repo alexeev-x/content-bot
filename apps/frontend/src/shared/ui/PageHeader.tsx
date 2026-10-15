@@ -11,6 +11,8 @@ type Props = {
   tools?: ReactNode | null;
   /** Moves focus to the page heading after mount, for route-level focus management. */
   focusHeadingOnMount?: boolean;
+  /** The actions are a toolbar (tabs, filters): on a phone they take their own row under the title. */
+  wideActions?: boolean;
 };
 
 const PageHeaderToolsContext = createContext<ReactNode>(null);
@@ -24,7 +26,8 @@ export function PageHeader({
   actions,
   marker,
   tools: toolsOverride,
-  focusHeadingOnMount = false
+  focusHeadingOnMount = false,
+  wideActions = false
 }: Props) {
   const headingRef = useRef<HTMLHeadingElement>(null);
   const contextualTools = useContext(PageHeaderToolsContext);
@@ -37,7 +40,7 @@ export function PageHeader({
   }, [focusHeadingOnMount]);
 
   return (
-    <header className={styles.header}>
+    <header className={styles.header} data-wide-actions={wideActions || undefined}>
       <div className={styles.text}>
         <div className={styles.titleRow}>
           <h1 ref={headingRef} className={styles.title} tabIndex={focusHeadingOnMount ? -1 : undefined}>

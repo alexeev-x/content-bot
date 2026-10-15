@@ -91,7 +91,9 @@
 .head a,
 .more {
   display: inline-flex;
+  flex: none;
   align-items: center;
+  white-space: nowrap;
   gap: var(--space-1);
   min-height: var(--size-target-min);
   color: var(--color-accent-text);

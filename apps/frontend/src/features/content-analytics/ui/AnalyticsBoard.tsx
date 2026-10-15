@@ -249,6 +249,7 @@ export function AnalyticsBoard({ timezone, view, onViewChange, onOpenSettings }:
             title={copy.title}
             description={lastSynced ?? 'Telegram, YouTube и TikTok в одном месте'}
             focusHeadingOnMount
+            wideActions
             actions={
               <div className={styles.toolbar}>
                 <TabList aria-label="Разделы аналитики">

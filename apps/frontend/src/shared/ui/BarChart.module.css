@@ -178,6 +178,11 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+/* Every n-th label only: it may spill over its empty neighbours instead of cutting to «2…». */
+.slotLabels[data-sparse] span {
+  overflow: visible;
+  text-overflow: clip;
+}
 @media (prefers-reduced-motion: reduce) {
   .bar {
     transition: none;

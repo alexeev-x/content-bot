@@ -1,4 +1,4 @@
-import { useRef, useState, type KeyboardEvent } from 'react';
+import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
 import styles from './BarChart.module.css';
 
 export type ChartBar = {
@@ -50,6 +50,22 @@ export function BarChart({ bars, label, reference, startLabel, endLabel, maxLabe
   // Roving focus: one bar is the Tab stop, arrows move between bars.
   const [focusIndex, setFocusIndex] = useState(0);
   const refs = useRef<(HTMLButtonElement | null)[]>([]);
+  const rootRef = useRef<HTMLElement>(null);
+  const [width, setWidth] = useState(800);
+  useEffect(() => {
+    const element = rootRef.current;
+    if (!element) return;
+    const observer = new ResizeObserver(([entry]) => {
+      if (entry) setWidth(Math.round(entry.contentRect.width));
+    });
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, []);
+  // Narrow slots (a phone, many bars) drop the labels that would collide; the tooltip still carries every value.
+  const slot = width / Math.max(1, bars.length);
+  const showTop = slot >= 46;
+  const showInside = slot >= 28;
+  const bottomStep = Math.max(1, Math.ceil(48 / slot));
   const max = Math.max(1, reference?.value ?? 0, ...bars.map((bar) => Math.max(bar.value, bar.compare ?? 0)));
   const current = active === null ? undefined : bars[active];
   const labelled = bars.some((bar) => bar.bottomLabel !== undefined);
@@ -85,7 +101,7 @@ export function BarChart({ bars, label, reference, startLabel, endLabel, maxLabe
   };
 
   return (
-    <figure className={styles.root} aria-label={label}>
+    <figure ref={rootRef} className={styles.root} aria-label={label}>
       <div className={styles.plot} style={{ height }}>
         {maxLabel ? <span className={styles.max}>{maxLabel}</span> : null}
         {reference ? (
@@ -121,14 +137,14 @@ export function BarChart({ bars, label, reference, startLabel, endLabel, maxLabe
                   {bar.image ? (
                     <img className={styles.image} src={bar.image} alt="" loading="lazy" referrerPolicy="no-referrer" />
                   ) : null}
-                  {bar.topLabel ? <span className={styles.topLabel}>{bar.topLabel}</span> : null}
+                  {bar.topLabel && showTop ? <span className={styles.topLabel}>{bar.topLabel}</span> : null}
                   {/* A bar too short to hold its label carries it above instead. */}
-                  {bar.insideLabel && barHeight(bar) < 22 ? (
+                  {bar.insideLabel && showInside && barHeight(bar) < 22 ? (
                     <span className={styles.insideLabel}>{bar.insideLabel}</span>
                   ) : null}
                   <span className={styles.pair}>
                     <span className={styles.bar} data-tone={tone} style={{ height: `${barHeight(bar)}px` }}>
-                      {bar.insideLabel && barHeight(bar) >= 22 ? (
+                      {bar.insideLabel && showInside && barHeight(bar) >= 22 ? (
                         <span className={styles.insideLabel}>{bar.insideLabel}</span>
                       ) : null}
                     </span>
@@ -159,9 +175,9 @@ export function BarChart({ bars, label, reference, startLabel, endLabel, maxLabe
         ) : null}
       </div>
       {labelled ? (
-        <figcaption className={styles.slotLabels} aria-hidden="true">
-          {bars.map((bar) => (
-            <span key={bar.id}>{bar.bottomLabel ?? ''}</span>
+        <figcaption className={styles.slotLabels} data-sparse={bottomStep > 1 || undefined} aria-hidden="true">
+          {bars.map((bar, index) => (
+            <span key={bar.id}>{index % bottomStep === 0 ? (bar.bottomLabel ?? '') : ''}</span>
           ))}
         </figcaption>
       ) : startLabel || endLabel ? (

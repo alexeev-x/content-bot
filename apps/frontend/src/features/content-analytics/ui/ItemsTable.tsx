@@ -222,22 +222,24 @@ export function ItemsTable({
         />
       }
     >
-      <DataTable
-        aria-label={copy.table.label}
-        columns={columns}
-        rows={rows}
-        getRowId={(item) => item.id}
-        getRowText={(item) => `${item.title} ${PLATFORM_LABEL[item.platform]}`}
-        sort={sort}
-        onSortChange={onSortChange}
-        onRowAction={onOpen}
-        activeId={activeId}
-        isLoading={items === undefined}
-        loadingRows={ITEMS_PER_PAGE}
-        density="compact"
-        flush
-        emptyState={<EmptyState icon="chart" title={copy.table.empty} description={copy.table.emptyHint} />}
-      />
+      <div className={styles.tableInset}>
+        <DataTable
+          aria-label={copy.table.label}
+          columns={columns}
+          rows={rows}
+          getRowId={(item) => item.id}
+          getRowText={(item) => `${item.title} ${PLATFORM_LABEL[item.platform]}`}
+          sort={sort}
+          onSortChange={onSortChange}
+          onRowAction={onOpen}
+          activeId={activeId}
+          isLoading={items === undefined}
+          loadingRows={ITEMS_PER_PAGE}
+          density="compact"
+          flush
+          emptyState={<EmptyState icon="chart" title={copy.table.empty} description={copy.table.emptyHint} />}
+        />
+      </div>
     </Panel>
   );
 }

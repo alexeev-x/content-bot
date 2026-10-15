@@ -198,3 +198,28 @@
   object-fit: cover;
   border-radius: var(--radius-1);
 }
+
+/* Phone: the number moves under the text so the conclusion keeps the full width. */
+@media (max-width: 599px) {
+  .body {
+    padding: 0 var(--space-3) var(--space-3);
+  }
+  .card {
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: start;
+    padding: var(--space-3);
+  }
+  .badge {
+    grid-column: 2;
+    justify-self: start;
+    min-width: 0;
+  }
+  .badgeText {
+    flex-direction: row;
+    align-items: baseline;
+    gap: var(--space-2);
+  }
+  .stat {
+    padding: var(--space-3);
+  }
+}

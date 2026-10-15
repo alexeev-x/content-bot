@@ -124,16 +124,17 @@ export function PlatformComparison({ report }: { report: ContentReportDto | unde
   );
   return (
     <Panel title="Сравнение платформ" headingLevel={2} quiet note="Под значением — изменение к прошлому периоду">
-      <DataTable
-        aria-label="Сравнение платформ"
-        columns={columns}
-        rows={rows}
-        getRowId={(row) => row.platform}
-        isLoading={report === undefined}
-        loadingRows={3}
-        density="compact"
-        flush
-      />
+      <div className={styles.tableInset}>
+        <DataTable
+          aria-label="Сравнение платформ"
+          columns={columns}
+          rows={rows}
+          getRowId={(row) => row.platform}
+          isLoading={report === undefined}
+          loadingRows={3}
+          flush
+        />
+      </div>
     </Panel>
   );
 }
