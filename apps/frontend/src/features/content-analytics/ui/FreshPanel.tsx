@@ -1,12 +1,9 @@
 import type { ContentBaselineDto, ContentItemDto, ContentPlatform } from '@alexeev/contracts';
-import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import { Button as AriaButton } from 'react-aria-components';
-import { Icon, LineChart, Panel, SegmentedControl, Skeleton } from '../../../shared/ui';
-import { contentItemQueryOptions } from '../api/content-analytics-queries';
-import { ageCurve, baselineCurve } from '../model/curves';
+import { Panel, SegmentedControl, Skeleton } from '../../../shared/ui';
 import { formatCount, formatPublished } from '../model/format';
-import { rankOf, usualAt, verdictFor } from '../model/status';
+import { verdictFor } from '../model/status';
 import { ItemCover } from './ItemCover';
 import { StatusChip } from './StatusChip';
 import styles from './Widgets.module.css';
