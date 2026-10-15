@@ -24,9 +24,10 @@ export function DistributionPanel({ items }: { items: readonly ContentItemDto[] 
         <DonutChart
           slices={rows.map((row) => ({
             id: row.platform,
-            label: PLATFORM_LABEL[row.platform],
+            label: `${PLATFORM_LABEL[row.platform]}, ${formatCount(row.views)}`,
             value: row.views,
-            color: COLOR[row.platform]
+            color: COLOR[row.platform],
+            caption: `${total > 0 ? Math.round((row.views / total) * 100) : 0}%`
           }))}
           centerValue={formatCount(total)}
           centerLabel="просмотров"

@@ -94,6 +94,15 @@ export function PostingHeatmap({ items, platform, timezone }: Props) {
                           <>
                             <span className={styles.heatValue}>{multiple.toLocaleString('ru-RU')}×</span>
                             <span className={styles.heatCount}>{cell?.items}</span>
+                            <span className={styles.heatTip}>
+                              {WEEKDAYS_FULL[row]}, {String(start).padStart(2, '0')}:00–
+                              {String(start + 4).padStart(2, '0')}:00
+                              <br />
+                              Медиана {formatCount(cell?.medianViews ?? null)}, {multiple.toLocaleString('ru-RU')}× к
+                              обычной
+                              <br />
+                              {cell?.items} публ.
+                            </span>
                           </>
                         ) : (
                           <span className={widgets.srOnly}>

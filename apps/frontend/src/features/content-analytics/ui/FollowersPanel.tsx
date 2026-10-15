@@ -39,6 +39,9 @@ export function FollowersPanel({ report, platform }: Props) {
                   <AreaChart
                     points={stats.points.map((point) => point.followers)}
                     height={64}
+                    tips={stats.points.map(
+                      (point) => `${formatDay(point.day)}: ${formatCount(point.followers)} подписчиков`
+                    )}
                     label={copy.followersPanel.chartLabel(PLATFORM_LABEL[each], formatCount(stats.now))}
                   />
                   <div className={styles.axisRow} aria-hidden="true">

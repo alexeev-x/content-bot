@@ -27,6 +27,7 @@
   gap: 2px;
 }
 .slot {
+  gap: 2px;
   padding: 0;
   border: 0;
   border-radius: 2px;
@@ -53,6 +54,12 @@
   /* Visible on both themes: accent-soft alone nearly vanishes on the dark surface. */
   background: color-mix(in oklab, var(--color-accent) 30%, var(--color-surface-2));
   transition: background var(--motion-fast);
+}
+.compare {
+  width: 100%;
+  max-width: 28px;
+  border-radius: 4px 4px 0 0;
+  background: var(--color-chart-muted);
 }
 .bar[data-strong] {
   background: var(--color-accent);

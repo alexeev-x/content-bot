@@ -10,6 +10,8 @@ export type ChartBar = {
   lines: readonly string[];
   /** Strong bars stand out (accent); the rest stay soft. The legend explains what strong means. */
   strong?: boolean;
+  /** A muted bar beside this one for the same slot of a previous period. */
+  compare?: number;
 };
 
 type Props = {
@@ -38,7 +40,7 @@ export function BarChart({ bars, label, reference, startLabel, endLabel, maxLabe
   // Roving focus: one bar is the Tab stop, arrows move between bars.
   const [focusIndex, setFocusIndex] = useState(0);
   const refs = useRef<(HTMLButtonElement | null)[]>([]);
-  const max = Math.max(1, reference?.value ?? 0, ...bars.map((bar) => bar.value));
+  const max = Math.max(1, reference?.value ?? 0, ...bars.map((bar) => Math.max(bar.value, bar.compare ?? 0)));
   const current = active === null ? undefined : bars[active];
 
   const move = (index: number) => {
@@ -98,6 +100,9 @@ export function BarChart({ bars, label, reference, startLabel, endLabel, maxLabe
                 data-strong={bar.strong || undefined}
                 style={{ height: `${Math.max(1, (bar.value / max) * 100)}%` }}
               />
+              {bar.compare !== undefined ? (
+                <span className={styles.compare} style={{ height: `${Math.max(1, (bar.compare / max) * 100)}%` }} />
+              ) : null}
             </button>
           ))}
         </div>

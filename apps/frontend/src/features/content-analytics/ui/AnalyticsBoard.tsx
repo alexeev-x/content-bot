@@ -102,7 +102,11 @@ export function AnalyticsBoard({ timezone, view, onViewChange }: Props) {
         value: formatCount(stats.views),
         change: before.items > 0 ? percentChange(stats.views, before.views) : null,
         hint: copy.kpi.noBase,
-        series: cumulative(daily.map((entry) => entry.views))
+        series: cumulative(daily.map((entry) => entry.views)),
+        tips: daily.map(
+          (entry, index) =>
+            `${formatDay(entry.day)}: ${formatCount(cumulative(daily.map((day) => day.views))[index] ?? 0)} всего, +${formatCount(entry.views)} за день`
+        )
       },
       {
         id: 'items',
@@ -110,7 +114,8 @@ export function AnalyticsBoard({ timezone, view, onViewChange }: Props) {
         value: String(stats.items),
         change: before.items > 0 ? percentChange(stats.items, before.items) : null,
         hint: copy.kpi.noBase,
-        series: cumulative(daily.map((entry) => entry.items))
+        series: cumulative(daily.map((entry) => entry.items)),
+        tips: daily.map((entry) => `${formatDay(entry.day)}: ${entry.items} публ.`)
       },
       // One median across Telegram and YouTube means nothing (300 against 100 000): with every platform
       // shown, the tile gives the Telegram reach instead, the measure the channel's ads are sold on.

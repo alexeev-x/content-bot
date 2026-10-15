@@ -13,6 +13,8 @@ export type Kpi = {
   /** Shown when there is no comparison. */
   hint: string;
   series?: readonly number[];
+  /** Hover text per point of the series. */
+  tips?: readonly string[];
 };
 
 type Props = { kpis: readonly Kpi[] | undefined; days: number };
@@ -55,7 +57,7 @@ export function KpiStrip({ kpis, days }: Props) {
             </span>
             {kpi.series && kpi.series.length > 1 ? (
               <span className={styles.kpiChart}>
-                <AreaChart points={kpi.series} height={32} />
+                <AreaChart points={kpi.series} height={32} {...(kpi.tips ? { tips: kpi.tips } : {})} />
               </span>
             ) : null}
           </li>

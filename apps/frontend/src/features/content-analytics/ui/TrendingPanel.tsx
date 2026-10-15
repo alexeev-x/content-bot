@@ -4,7 +4,7 @@ import { Button as AriaButton } from 'react-aria-components';
 import { relativeTimeRu } from '../../../shared/lib/ru-format';
 import { AreaChart, Icon, Panel, Skeleton } from '../../../shared/ui';
 import { contentItemQueryOptions } from '../api/content-analytics-queries';
-import { ageCurve } from '../model/curves';
+import { ageCurve, formatAge } from '../model/curves';
 import { formatCount, formatPublished, PLATFORM_LABEL } from '../model/format';
 import { type ItemVerdict, verdictFor, YOUNG_HOURS } from '../model/status';
 import { ItemCover } from './ItemCover';
@@ -60,7 +60,8 @@ export function TrendingPanel({
         <ul className={styles.rows}>
           {young.map(({ item, verdict }, index) => {
             const detail = details[index]?.data;
-            const curve = detail ? ageCurve(detail).map((point) => point.y) : [];
+            const points = detail ? ageCurve(detail) : [];
+            const curve = points.map((point) => point.y);
             return (
               <li key={item.id}>
                 <AriaButton className={styles.row} onPress={() => onOpen(item.id)}>
@@ -83,6 +84,8 @@ export function TrendingPanel({
                     <span className={styles.spark}>
                       <AreaChart
                         points={curve}
+                        x={points.map((point) => point.x)}
+                        tips={points.map((point) => `${formatAge(point.x)}: ${formatCount(point.y)}`)}
                         height={36}
                         label={`${PLATFORM_LABEL[item.platform]}: рост просмотров`}
                       />

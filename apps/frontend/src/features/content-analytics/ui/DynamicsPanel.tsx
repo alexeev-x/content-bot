@@ -1,6 +1,6 @@
 import type { ContentItemDto, ContentReportDto } from '@alexeev/contracts';
 import type { CSSProperties } from 'react';
-import { Panel } from '../../../shared/ui';
+import { BarChart, Panel } from '../../../shared/ui';
 import { formatCount, formatDay } from '../model/format';
 import { percentChange, viewsByDay } from '../model/report';
 import styles from './Widgets.module.css';
@@ -38,11 +38,9 @@ export function DynamicsPanel({ report, current, previous, days, timezone }: Pro
   const before = viewsByDay(previous, report.previousFrom, report.from, timezone);
   // Day i of this period faces day i of the previous one.
   const pairs = now.map((day, index) => ({ day, before: before[index] ?? { day: '', views: 0, items: 0 } }));
-  const max = Math.max(1, ...pairs.flatMap((pair) => [pair.day.views, pair.before.views]));
   const viewsNow = now.reduce((sum, day) => sum + day.views, 0);
   const viewsBefore = before.reduce((sum, day) => sum + day.views, 0);
   const itemsNow = current.length;
-  const step = Math.max(1, Math.ceil(pairs.length / 7));
   return (
     <Panel title="Динамика просмотров" headingLevel={2} quiet note="По дню публикации">
       <div className={styles.body}>
@@ -70,31 +68,23 @@ export function DynamicsPanel({ report, current, previous, days, timezone }: Pro
             </li>
           </ul>
         </div>
-        <figure
-          className={styles.pairs}
-          aria-label={`Просмотры по дням: ${formatCount(viewsNow)} за ${days} дней против ${formatCount(viewsBefore)} за прошлые`}
-        >
-          {pairs.map((pair) => (
-            <div
-              key={pair.day.day}
-              className={styles.pair}
-              title={`${formatDay(pair.day.day)}: ${formatCount(pair.day.views)} (прошлый период ${formatCount(pair.before.views)})`}
-            >
-              <span className={styles.barNow} style={{ height: `${Math.max(1, (pair.day.views / max) * 100)}%` }} />
-              <span
-                className={styles.barBefore}
-                style={{ height: `${Math.max(1, (pair.before.views / max) * 100)}%` }}
-              />
-            </div>
-          ))}
-        </figure>
-        <div className={styles.axis} aria-hidden="true">
-          {pairs
-            .filter((_, index) => index % step === 0)
-            .map((pair) => (
-              <span key={pair.day.day}>{formatDay(pair.day.day)}</span>
-            ))}
-        </div>
+        <BarChart
+          label={`Просмотры по дням: ${formatCount(viewsNow)} за ${days} дней против ${formatCount(viewsBefore)} за прошлые`}
+          bars={pairs.map((pair) => ({
+            id: pair.day.day,
+            value: pair.day.views,
+            compare: pair.before.views,
+            strong: true,
+            title: formatDay(pair.day.day),
+            lines: [
+              `${formatCount(pair.day.views)} просм., ${pair.day.items} публ.`,
+              `Прошлый период${pair.before.day ? ` (${formatDay(pair.before.day)})` : ''}: ${formatCount(pair.before.views)}`
+            ]
+          }))}
+          startLabel={pairs[0] ? formatDay(pairs[0].day.day) : undefined}
+          endLabel={pairs.at(-1) ? formatDay(pairs.at(-1)!.day.day) : undefined}
+          height={170}
+        />
       </div>
     </Panel>
   );

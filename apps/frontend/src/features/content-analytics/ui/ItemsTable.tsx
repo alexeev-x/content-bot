@@ -99,7 +99,9 @@ export function ItemsTable({
           <span className={styles.itemCell}>
             <ItemThumb item={item} />
             <span className={styles.cellStack}>
-              <span className={styles.itemTitle}>{item.title || copy.table.untitled}</span>
+              <span className={styles.itemTitle} title={item.title || undefined}>
+                {item.title || copy.table.untitled}
+              </span>
               <span className={styles.cellDelta} data-tone="flat">
                 {PLATFORM_LABEL[item.platform]}
               </span>

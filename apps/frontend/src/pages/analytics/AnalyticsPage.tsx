@@ -32,7 +32,7 @@ export function AnalyticsPage() {
       tone: tiktokResult === 'connected' ? 'success' : 'error',
       title: contentAnalyticsCopy.tiktok.result[tiktokResult]
     });
-    void navigate({ search: (previous) => ({ ...previous, tiktok: undefined }), replace: true });
+    void navigate({ search: (previous) => ({ ...previous, tiktok: undefined }), replace: true, resetScroll: false });
   }, [tiktokResult, toast, navigate]);
   const onViewChange = (patch: Partial<AnalyticsView>) =>
     void navigate({
@@ -49,7 +49,9 @@ export function AnalyticsPage() {
         };
       },
       // Opening an item is a step back can undo; filters and pages replace the entry.
-      replace: !('openId' in patch)
+      replace: !('openId' in patch),
+      // Filters, pages and the item panel change the URL, not the page: keep the reader where they are.
+      resetScroll: false
     });
   return (
     <>

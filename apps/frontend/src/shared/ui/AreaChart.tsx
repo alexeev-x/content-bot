@@ -1,3 +1,4 @@
+import { type PointerEvent, useState } from 'react';
 import styles from './AreaChart.module.css';
 
 type Props = {
@@ -11,6 +12,11 @@ type Props = {
   baseline?: 'zero' | 'data';
   /** Height in px; the width follows the container. */
   height?: number;
+  /**
+   * One line per point («15 окт.: 1 240 просмотров»): hovering the chart shows the nearest point's line
+   * with a marker. The values must also be readable elsewhere on the page (a number, a table).
+   */
+  tips?: readonly string[];
 };
 
 const VIEW_W = 100;
@@ -19,7 +25,8 @@ const VIEW_W = 100;
  * Responsive area chart in the accent: fills its container's width (Cloudflare-style metric tiles and
  * the growth curve). The stroke keeps its width when the SVG stretches.
  */
-export function AreaChart({ points, x, label, baseline = 'data', height = 48 }: Props) {
+export function AreaChart({ points, x, label, baseline = 'data', height = 48, tips }: Props) {
+  const [active, setActive] = useState<number | null>(null);
   const has = points.length >= 2;
   const min = has ? (baseline === 'zero' ? Math.min(0, ...points) : Math.min(...points)) : 0;
   const span = has ? Math.max(...points) - min || 1 : 1;
@@ -33,32 +40,69 @@ export function AreaChart({ points, x, label, baseline = 'data', height = 48 }: 
   const coords = has ? points.map((value, index) => `${xAt(index).toFixed(2)},${y(value).toFixed(2)}`) : [];
   const line = coords.join(' ');
   const area = has ? `M0,${height} L${coords.join(' L')} L${VIEW_W},${height}Z` : '';
+  const interactive = has && tips !== undefined && tips.length === points.length;
+
+  const onMove = (event: PointerEvent<SVGSVGElement>) => {
+    const box = event.currentTarget.getBoundingClientRect();
+    const at = ((event.clientX - box.left) / box.width) * VIEW_W;
+    let nearest = 0;
+    for (let index = 1; index < points.length; index += 1) {
+      if (Math.abs(xAt(index) - at) < Math.abs(xAt(nearest) - at)) nearest = index;
+    }
+    setActive(nearest);
+  };
+  const left = active === null ? 0 : xAt(active);
+
   return (
-    <svg
-      className={styles.chart}
-      viewBox={`0 0 ${VIEW_W} ${height}`}
-      preserveAspectRatio="none"
-      height={height}
-      role={label ? 'img' : undefined}
-      aria-label={label}
-      aria-hidden={label ? undefined : true}
-      focusable="false"
-    >
-      {has ? (
+    <div className={styles.root}>
+      <svg
+        className={styles.chart}
+        viewBox={`0 0 ${VIEW_W} ${height}`}
+        preserveAspectRatio="none"
+        height={height}
+        role={label ? 'img' : undefined}
+        aria-label={label}
+        aria-hidden={label ? undefined : true}
+        focusable="false"
+        onPointerMove={interactive ? onMove : undefined}
+        onPointerLeave={interactive ? () => setActive(null) : undefined}
+      >
+        {has ? (
+          <>
+            <path className={styles.area} d={area} />
+            <polyline className={styles.line} points={line} vectorEffect="non-scaling-stroke" />
+          </>
+        ) : (
+          <line
+            className={styles.empty}
+            x1="0"
+            x2={VIEW_W}
+            y1={height - 1}
+            y2={height - 1}
+            vectorEffect="non-scaling-stroke"
+          />
+        )}
+        {interactive && active !== null ? (
+          <line className={styles.cursor} x1={left} x2={left} y1={0} y2={height} vectorEffect="non-scaling-stroke" />
+        ) : null}
+      </svg>
+      {interactive && active !== null ? (
         <>
-          <path className={styles.area} d={area} />
-          <polyline className={styles.line} points={line} vectorEffect="non-scaling-stroke" />
+          <span
+            className={styles.marker}
+            style={{ left: `${left}%`, top: `${y(points[active]!)}px` }}
+            aria-hidden="true"
+          />
+          <span
+            className={styles.tooltip}
+            data-side={left > 60 ? 'left' : 'right'}
+            style={{ left: `${left}%` }}
+            aria-hidden="true"
+          >
+            {tips[active]}
+          </span>
         </>
-      ) : (
-        <line
-          className={styles.empty}
-          x1="0"
-          x2={VIEW_W}
-          y1={height - 1}
-          y2={height - 1}
-          vectorEffect="non-scaling-stroke"
-        />
-      )}
-    </svg>
+      ) : null}
+    </div>
   );
 }

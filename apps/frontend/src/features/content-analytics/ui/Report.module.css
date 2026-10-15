@@ -601,3 +601,32 @@
 .summaryBody {
   padding: 0 var(--space-4) var(--space-4);
 }
+
+/* Hover detail of a heat cell; the same facts are in its accessible text. */
+.heatCell {
+  position: relative;
+}
+.heatTip {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  z-index: 3;
+  display: none;
+  width: max-content;
+  max-width: 220px;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-2);
+  background: var(--color-surface-1);
+  box-shadow: var(--shadow-pop);
+  color: var(--color-text);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-regular);
+  line-height: 1.4;
+  text-align: start;
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+.heatCell:hover .heatTip {
+  display: block;
+}

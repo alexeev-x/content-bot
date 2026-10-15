@@ -55,7 +55,9 @@ function RankedList({
           <AriaButton className={styles.rankedRow} onPress={() => onOpen(item.id)}>
             <ItemCover item={item} size="sm" />
             <span className={styles.rankedText}>
-              <span className={styles.rankedTitle}>{item.title || 'Без текста'}</span>
+              <span className={styles.rankedTitle} title={item.title || undefined}>
+                {item.title || 'Без текста'}
+              </span>
               <span className={styles.rankedMeta}>
                 <PlatformGlyph platform={item.platform} />
                 <span>{PLATFORM_LABEL[item.platform]}</span>

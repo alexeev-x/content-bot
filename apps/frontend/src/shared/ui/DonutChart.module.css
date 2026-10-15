@@ -24,3 +24,13 @@
   font-size: var(--font-size-xs);
   color: var(--color-text-muted);
 }
+.slice {
+  cursor: default;
+  transition: opacity var(--motion-fast);
+}
+.slice[data-dimmed] {
+  opacity: 0.35;
+}
+.center {
+  pointer-events: none;
+}
