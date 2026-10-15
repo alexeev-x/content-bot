@@ -10,8 +10,18 @@ export type ChartBar = {
   lines: readonly string[];
   /** Strong bars stand out (accent); the rest stay soft. The legend explains what strong means. */
   strong?: boolean;
+  /** Three-step emphasis instead of `strong`: above the norm, within it, below it. */
+  tone?: 'strong' | 'normal' | 'weak';
   /** A muted bar beside this one for the same slot of a previous period. */
   compare?: number;
+  /** Value written above the bar («162,7 тыс.»). */
+  topLabel?: string;
+  /** Short text inside the bar's foot («24,7×»). */
+  insideLabel?: string;
+  /** Text under the slot («17 сент.»); with any of these the start/end labels are not drawn. */
+  bottomLabel?: string;
+  /** A small cover above the bar (videos). */
+  image?: string | null;
 };
 
 type Props = {
@@ -32,8 +42,8 @@ type Props = {
 
 /**
  * Vertical bars with a tooltip on hover and on keyboard focus: each bar is a button (one Tab stop, arrows
- * move between bars, Enter opens it) whose name carries the tooltip text. Values never depend on the tooltip alone: the caller shows
- * the same rows in a table.
+ * move between bars, Enter opens it) whose name carries the tooltip text. Values never depend on the
+ * tooltip alone: the caller shows the same rows in a table.
  */
 export function BarChart({ bars, label, reference, startLabel, endLabel, maxLabel, height = 200, onSelect }: Props) {
   const [active, setActive] = useState<number | null>(null);
@@ -42,6 +52,12 @@ export function BarChart({ bars, label, reference, startLabel, endLabel, maxLabe
   const refs = useRef<(HTMLButtonElement | null)[]>([]);
   const max = Math.max(1, reference?.value ?? 0, ...bars.map((bar) => Math.max(bar.value, bar.compare ?? 0)));
   const current = active === null ? undefined : bars[active];
+  const labelled = bars.some((bar) => bar.bottomLabel !== undefined);
+  const withImages = bars.some((bar) => bar.image !== undefined);
+  // Room above the tallest bar for its value label and cover.
+  const headroom = (bars.some((bar) => bar.topLabel) ? 18 : 0) + (withImages ? 44 : 0);
+  const plotHeight = height - headroom - (bars.some((bar) => bar.insideLabel) ? 20 : 0);
+  const barHeight = (bar: ChartBar) => Math.max(2, (bar.value / max) * plotHeight);
 
   const move = (index: number) => {
     setFocusIndex(index);
@@ -73,38 +89,60 @@ export function BarChart({ bars, label, reference, startLabel, endLabel, maxLabe
       <div className={styles.plot} style={{ height }}>
         {maxLabel ? <span className={styles.max}>{maxLabel}</span> : null}
         {reference ? (
-          <div className={styles.reference} style={{ bottom: `${(reference.value / max) * 100}%` }} aria-hidden="true">
+          <div
+            className={styles.reference}
+            style={{ bottom: `${(reference.value / max) * plotHeight}px` }}
+            aria-hidden="true"
+          >
             <span>{reference.label}</span>
           </div>
         ) : null}
         <div className={styles.bars} onPointerLeave={() => setActive(null)}>
-          {bars.map((bar, index) => (
-            <button
-              key={bar.id}
-              ref={(element) => {
-                refs.current[index] = element;
-              }}
-              type="button"
-              className={styles.slot}
-              data-active={index === active || undefined}
-              tabIndex={index === Math.min(focusIndex, bars.length - 1) ? 0 : -1}
-              aria-label={[bar.title, ...bar.lines].join(', ')}
-              onPointerEnter={() => setActive(index)}
-              onFocus={() => setActive(index)}
-              onBlur={() => setActive(null)}
-              onKeyDown={(event) => onKeyDown(event, index)}
-              onClick={onSelect ? () => onSelect(bar.id) : undefined}
-            >
-              <span
-                className={styles.bar}
-                data-strong={bar.strong || undefined}
-                style={{ height: `${Math.max(1, (bar.value / max) * 100)}%` }}
-              />
-              {bar.compare !== undefined ? (
-                <span className={styles.compare} style={{ height: `${Math.max(1, (bar.compare / max) * 100)}%` }} />
-              ) : null}
-            </button>
-          ))}
+          {bars.map((bar, index) => {
+            const tone = bar.tone ?? (bar.strong ? 'strong' : 'normal');
+            return (
+              <button
+                key={bar.id}
+                ref={(element) => {
+                  refs.current[index] = element;
+                }}
+                type="button"
+                className={styles.slot}
+                data-active={index === active || undefined}
+                tabIndex={index === Math.min(focusIndex, bars.length - 1) ? 0 : -1}
+                aria-label={[bar.title, ...bar.lines].join(', ')}
+                onPointerEnter={() => setActive(index)}
+                onFocus={() => setActive(index)}
+                onBlur={() => setActive(null)}
+                onKeyDown={(event) => onKeyDown(event, index)}
+                onClick={onSelect ? () => onSelect(bar.id) : undefined}
+              >
+                <span className={styles.column}>
+                  {bar.image ? (
+                    <img className={styles.image} src={bar.image} alt="" loading="lazy" referrerPolicy="no-referrer" />
+                  ) : null}
+                  {bar.topLabel ? <span className={styles.topLabel}>{bar.topLabel}</span> : null}
+                  {/* A bar too short to hold its label carries it above instead. */}
+                  {bar.insideLabel && barHeight(bar) < 22 ? (
+                    <span className={styles.insideLabel}>{bar.insideLabel}</span>
+                  ) : null}
+                  <span className={styles.pair}>
+                    <span className={styles.bar} data-tone={tone} style={{ height: `${barHeight(bar)}px` }}>
+                      {bar.insideLabel && barHeight(bar) >= 22 ? (
+                        <span className={styles.insideLabel}>{bar.insideLabel}</span>
+                      ) : null}
+                    </span>
+                    {bar.compare !== undefined ? (
+                      <span
+                        className={styles.compare}
+                        style={{ height: `${Math.max(2, (bar.compare / max) * plotHeight)}px` }}
+                      />
+                    ) : null}
+                  </span>
+                </span>
+              </button>
+            );
+          })}
         </div>
         {current ? (
           <div
@@ -120,7 +158,13 @@ export function BarChart({ bars, label, reference, startLabel, endLabel, maxLabe
           </div>
         ) : null}
       </div>
-      {startLabel || endLabel ? (
+      {labelled ? (
+        <figcaption className={styles.slotLabels} aria-hidden="true">
+          {bars.map((bar) => (
+            <span key={bar.id}>{bar.bottomLabel ?? ''}</span>
+          ))}
+        </figcaption>
+      ) : startLabel || endLabel ? (
         <figcaption className={styles.axis} aria-hidden="true">
           <span>{startLabel}</span>
           <span>{endLabel}</span>

@@ -2,7 +2,9 @@ import type { ContentBaselineDto, ContentItemDto, ContentPlatform } from '@alexe
 import { useQueries } from '@tanstack/react-query';
 import { Button as AriaButton } from 'react-aria-components';
 import { relativeTimeRu } from '../../../shared/lib/ru-format';
-import { AreaChart, Icon, Panel, Skeleton } from '../../../shared/ui';
+import { useState } from 'react';
+import { AreaChart, Icon, Panel, SegmentedControl, Skeleton } from '../../../shared/ui';
+import { PLATFORMS } from '../model/report';
 import { contentItemQueryOptions } from '../api/content-analytics-queries';
 import { ageCurve, formatAge } from '../model/curves';
 import { formatCount, formatPublished, PLATFORM_LABEL } from '../model/format';
@@ -43,7 +45,9 @@ export function TrendingPanel({
   allLabel = 'Открыть аналитику',
   bare = false
 }: Props) {
+  const [only, setOnly] = useState<ContentPlatform | 'all'>('all');
   const young = (items ?? [])
+    .filter((item) => only === 'all' || item.platform === only)
     .filter((item) => now - Date.parse(item.publishedAt) < YOUNG_HOURS * 3_600_000)
     .map((item) => ({ item, verdict: verdictFor(item, now, baselines, medians) }))
     .sort(
@@ -68,13 +72,14 @@ export function TrendingPanel({
             return (
               <li key={item.id}>
                 <AriaButton className={styles.trendRow} onPress={() => onOpen(item.id)}>
-                  <ItemCover item={item} size="sm" />
+                  <ItemCover item={item} />
                   <span className={styles.text}>
                     <span className={styles.trendTitle} title={item.title || undefined}>
                       {item.title || 'Без текста'}
                     </span>
                     <span className={styles.meta}>
-                      <PlatformGlyph platform={item.platform} size={14} />
+                      <PlatformGlyph platform={item.platform} size={14} withLabel />
+                      <span aria-hidden="true">•</span>
                       {relativeTimeRu(item.publishedAt, now)}
                       <span className={styles.srOnly}>, {formatPublished(item.publishedAt, timezone)}</span>
                     </span>
@@ -83,7 +88,15 @@ export function TrendingPanel({
                     <strong>{formatCount(item.views)}</strong>
                     <span className={styles.small}>просм.</span>
                   </span>
-                  <StatusChip verdict={verdict} withMultiple />
+                  <span className={styles.trendStatus}>
+                    <StatusChip verdict={verdict} />
+                    {verdict.multiple !== null ? (
+                      <span className={styles.small}>
+                        <strong className={styles.num}>{verdict.multiple.toLocaleString('ru-RU')}×</strong>{' '}
+                        {verdict.basis === 'age' ? 'к обычному на том же возрасте' : 'к медиане периода'}
+                      </span>
+                    ) : null}
+                  </span>
                   <span className={styles.trendSpark}>
                     <AreaChart
                       points={curve}
@@ -113,7 +126,23 @@ export function TrendingPanel({
   );
   if (bare) return content;
   return (
-    <Panel title="Что залетает сейчас" headingLevel={2} quiet note="Последние 72 часа">
+    <Panel
+      title="Что залетает сейчас"
+      headingLevel={2}
+      quiet
+      note="Последние 72 часа"
+      action={
+        <SegmentedControl
+          label="Платформа"
+          options={[
+            { id: 'all', label: 'Все' },
+            ...PLATFORMS.map((each) => ({ id: each, label: PLATFORM_LABEL[each] }))
+          ]}
+          value={only}
+          onChange={(id) => setOnly(id as ContentPlatform | 'all')}
+        />
+      }
+    >
       {content}
     </Panel>
   );

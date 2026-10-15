@@ -15,7 +15,17 @@ import {
 } from './report';
 
 export type InsightTone = 'good' | 'bad' | 'neutral';
-export type Insight = { id: string; tone: InsightTone; title: string; detail: string; itemId?: string };
+export type Insight = {
+  id: string;
+  tone: InsightTone;
+  title: string;
+  detail: string;
+  itemId?: string;
+  /** The number the conclusion rests on, shown at the right of its card. */
+  badge?: { value: string; sub?: string };
+  /** A cover when the conclusion is about one publication. */
+  thumb?: string | null;
+};
 
 /** «в 3,1 раза» */
 function times(multiple: number): string {
@@ -64,7 +74,8 @@ export function buildInsights(input: {
           Math.abs(change) < 10
             ? `Просмотры на уровне прошлых ${days} дней (${signed(change)})`
             : `Просмотры ${signed(change)} к прошлым ${days} дням`,
-        detail: `${formatCount(now.views)} против ${formatCount(before.views)}: ${now.items} ${pluralRu(now.items, 'публикация', 'публикации', 'публикаций')} против ${before.items}. Новые публикации ещё добирают просмотры.`
+        detail: `${formatCount(now.views)} против ${formatCount(before.views)}: ${now.items} ${pluralRu(now.items, 'публикация', 'публикации', 'публикаций')} против ${before.items}. Новые публикации ещё добирают просмотры.`,
+        badge: { value: formatCount(now.views), sub: signed(change) }
       });
     }
   } else if (now.items > 0 && before.items === 0) {
@@ -88,7 +99,9 @@ export function buildInsights(input: {
       tone: 'good',
       title: `«${leader.item.title || 'Без текста'}» ${times(leader.multiple)} выше обычного`,
       detail: `${formatCount(leader.item.views)} просмотров при медиане ${formatCount(medians[leader.item.platform] ?? null)} в ${PLATFORM_LABEL[leader.item.platform]}. Повторите тему или формат первой строки.`,
-      itemId: leader.item.id
+      itemId: leader.item.id,
+      thumb: leader.item.thumbnailUrl,
+      badge: { value: formatCount(leader.item.views), sub: `${leader.multiple.toLocaleString('ru-RU')}×` }
     });
   }
 
@@ -100,7 +113,8 @@ export function buildInsights(input: {
       id: 'hit-rate',
       tone: hits >= misses ? 'neutral' : 'bad',
       title: `${hits} из ${ranked.length} ${pluralRu(ranked.length, 'публикации', 'публикаций', 'публикаций')} выстрелили, ${misses} провалились`,
-      detail: 'Выстрелила: от 1,5× медианы своей платформы. Провалилась: меньше половины медианы.'
+      detail: 'Выстрелила: от 1,5× медианы своей платформы. Провалилась: меньше половины медианы.',
+      badge: { value: `${hits} / ${ranked.length}`, sub: `${misses} провалов` }
     });
   }
 
@@ -121,7 +135,8 @@ export function buildInsights(input: {
       id: `recent-${each}`,
       tone: change > 0 ? 'good' : 'bad',
       title: `Последние 5 в ${PLATFORM_LABEL[each]}: ${signed(change)} к обычному`,
-      detail: `Медиана последних пяти (старше двух суток) ${formatCount(recent)} против ${formatCount(usual)} за период.`
+      detail: `Медиана последних пяти (старше двух суток) ${formatCount(recent)} против ${formatCount(usual)} за период.`,
+      badge: { value: formatCount(recent), sub: signed(change) }
     });
   }
 
@@ -135,7 +150,11 @@ export function buildInsights(input: {
         id: 'tg-reach',
         tone: reach >= REACH_GOOD ? 'good' : reach < REACH_LOW ? 'bad' : 'neutral',
         title: `Пост в Telegram видят ${reach}% подписчиков`,
-        detail: `Медиана ${formatCount(postsMedian)} просмотров при ${formatCount(followers)} подписчиках. У личных каналов о Dota обычно 20–50%, у новостных 4–15%.`
+        detail: `Медиана ${formatCount(postsMedian)} просмотров при ${formatCount(followers)} подписчиках. У личных каналов о Dota обычно 20–50%, у новостных 4–15%.`,
+        badge: {
+          value: `${reach}%`,
+          sub: reach >= REACH_GOOD ? 'выше нормы' : reach < REACH_LOW ? 'ниже нормы' : 'в норме'
+        }
       });
     }
   }
@@ -150,7 +169,8 @@ export function buildInsights(input: {
       id: `best-time-${each}`,
       tone: 'neutral',
       title: `${PLATFORM_LABEL[each]}: лучше всего заходит ${blockLabel(best.block)}`,
-      detail: `Медиана ${formatCount(best.medianViews)}, ${times(best.multiple)} выше обычного (${best.items} ${pluralRu(best.items, 'публикация', 'публикации', 'публикаций')}).`
+      detail: `Медиана ${formatCount(best.medianViews)}, ${times(best.multiple)} выше обычного (${best.items} ${pluralRu(best.items, 'публикация', 'публикации', 'публикаций')}).`,
+      badge: { value: `${best.multiple.toLocaleString('ru-RU')}×`, sub: blockLabel(best.block) }
     });
   }
 
@@ -165,7 +185,11 @@ export function buildInsights(input: {
       id: `followers-${each}`,
       tone: stats.change > 0 ? 'good' : stats.change < 0 ? 'bad' : 'neutral',
       title: `${PLATFORM_LABEL[each]}: ${stats.change > 0 ? '+' : stats.change < 0 ? '−' : ''}${formatCount(Math.abs(stats.change))} ${pluralRu(Math.abs(stats.change), 'подписчик', 'подписчика', 'подписчиков')}`,
-      detail: `Сейчас ${formatCount(stats.now)}${percent === null ? '' : `, ${percent > 0 ? '+' : ''}${percent.toLocaleString('ru-RU')}% за период`}.`
+      detail: `Сейчас ${formatCount(stats.now)}${percent === null ? '' : `, ${percent > 0 ? '+' : ''}${percent.toLocaleString('ru-RU')}% за период`}.`,
+      badge: {
+        value: `${stats.change > 0 ? '+' : stats.change < 0 ? '−' : ''}${formatCount(Math.abs(stats.change))}`,
+        ...(percent === null ? {} : { sub: `${percent > 0 ? '+' : ''}${percent.toLocaleString('ru-RU')}%` })
+      }
     });
   }
 
@@ -185,7 +209,8 @@ export function buildInsights(input: {
         id: 'per-follower',
         tone: 'neutral',
         title: `${PLATFORM_LABEL[top.each]} даёт ${times(ratio)} больше просмотров на подписчика, чем ${PLATFORM_LABEL[low.each]}`,
-        detail: `Там ролики уходят далеко за пределы своей аудитории: ведите оттуда в Telegram ссылкой в описании и вопросом в конце ролика.`
+        detail: `Там ролики уходят далеко за пределы своей аудитории: ведите оттуда в Telegram ссылкой в описании и вопросом в конце ролика.`,
+        badge: { value: `×${ratio.toLocaleString('ru-RU')}`, sub: `к ${PLATFORM_LABEL[low.each]}` }
       });
     }
   }
@@ -201,7 +226,8 @@ export function buildInsights(input: {
           change > 0
             ? `Публикуете чаще: ${now.items} против ${before.items}`
             : `Публикуете реже: ${now.items} против ${before.items}`,
-        detail: `${(Math.round((now.items / days) * 7 * 10) / 10).toLocaleString('ru-RU')} в неделю. В плане 2–3 поста в Telegram в день.`
+        detail: `${(Math.round((now.items / days) * 7 * 10) / 10).toLocaleString('ru-RU')} в неделю. В плане 2–3 поста в Telegram в день.`,
+        badge: { value: (Math.round((now.items / days) * 7 * 10) / 10).toLocaleString('ru-RU'), sub: signed(change) }
       });
     }
   }

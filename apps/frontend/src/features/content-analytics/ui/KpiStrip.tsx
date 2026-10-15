@@ -1,11 +1,12 @@
-import { AreaChart, Icon, Skeleton } from '../../../shared/ui';
+import { AreaChart, Icon, type IconName, Skeleton } from '../../../shared/ui';
 import { formatCount } from '../model/format';
-import styles from './Report.module.css';
+import styles from './Kpi.module.css';
 
 export type Kpi = {
   id: string;
   label: string;
   value: string;
+  icon: IconName;
   /** Percent against the previous period; null when there is nothing to compare with. */
   change: number | null;
   /** Absolute change shown instead of a percent (followers). */
@@ -15,11 +16,14 @@ export type Kpi = {
   series?: readonly number[];
   /** Hover text per point of the series. */
   tips?: readonly string[];
+  chart?: 'area' | 'bars';
+  /** Colour of the card's chart; the accent by default. */
+  color?: string;
 };
 
 type Props = { kpis: readonly Kpi[] | undefined; days: number };
 
-/** Headline numbers with their change against the previous period of the same length (YouTube Studio style). */
+/** Headline numbers, each with its change against the previous period and its own small chart. */
 export function KpiStrip({ kpis, days }: Props) {
   if (kpis === undefined) {
     return (
@@ -41,14 +45,15 @@ export function KpiStrip({ kpis, days }: Props) {
         const tone = delta === null || delta === undefined || delta === 0 ? 'flat' : delta > 0 ? 'up' : 'down';
         return (
           <li key={kpi.id} className={styles.kpi}>
-            <span className={styles.kpiLabel}>{kpi.label}</span>
-            <span className={styles.kpiValue}>{kpi.value}</span>
-            <span className={styles.kpiChange} data-tone={tone}>
-              {tone === 'up' ? (
-                <Icon name="arrow-up" size={14} />
-              ) : tone === 'down' ? (
-                <Icon name="arrow-down" size={14} />
-              ) : null}
+            <span className={styles.head}>
+              <span className={styles.label}>{kpi.label}</span>
+              <span className={styles.icon}>
+                <Icon name={kpi.icon} size={16} />
+              </span>
+            </span>
+            <span className={styles.value}>{kpi.value}</span>
+            <span className={styles.change} data-tone={tone}>
+              {tone === 'up' ? '↑ ' : tone === 'down' ? '↓ ' : ''}
               {kpi.absolute !== undefined && kpi.absolute !== null
                 ? `${kpi.absolute > 0 ? '+' : kpi.absolute < 0 ? '−' : ''}${formatCount(Math.abs(kpi.absolute))} за ${days} дн.`
                 : kpi.change !== null
@@ -56,8 +61,14 @@ export function KpiStrip({ kpis, days }: Props) {
                   : kpi.hint}
             </span>
             {kpi.series && kpi.series.length > 1 ? (
-              <span className={styles.kpiChart}>
-                <AreaChart points={kpi.series} height={32} {...(kpi.tips ? { tips: kpi.tips } : {})} />
+              <span className={styles.chart}>
+                <AreaChart
+                  points={kpi.series}
+                  height={40}
+                  variant={kpi.chart ?? 'area'}
+                  {...(kpi.color ? { color: kpi.color } : {})}
+                  {...(kpi.tips ? { tips: kpi.tips } : {})}
+                />
               </span>
             ) : null}
           </li>

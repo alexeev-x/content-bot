@@ -1,91 +1,128 @@
 import type { ContentItemDto, ContentPlatform } from '@alexeev/contracts';
-import { BarChart, Panel } from '../../../shared/ui';
-import { formatCount, formatPublished, likesLabel, PLATFORM_LABEL } from '../model/format';
+import type { CSSProperties } from 'react';
+import { BarChart, Button, Icon, Panel } from '../../../shared/ui';
+import { formatCount, formatDay, formatPublished, likesLabel, PLATFORM_LABEL } from '../model/format';
 import { median, PLATFORMS } from '../model/report';
-import { copy } from './copy';
-import styles from './Report.module.css';
+import { PlatformLogo } from './PlatformLogo';
+import styles from './Performance.module.css';
 
 type Props = {
   items: readonly ContentItemDto[] | undefined;
   platform: ContentPlatform | undefined;
   timezone: string;
   onOpen: (id: string) => void;
+  /** «Все публикации» of one platform: the table, filtered. */
+  onOpenAll: (platform: ContentPlatform) => void;
 };
 
+/** The newest publications drawn per platform; older ones are in the table. */
+const LIMIT = 15;
+const STRONG = 1.5;
+const WEAK = 0.7;
+
 /**
- * «Каждая публикация»: one bar per post or video in publishing order against the platform's median,
- * so hits and misses read at a glance. Platforms differ by orders of magnitude, so each gets its own
- * chart (small multiples) instead of sharing one axis.
+ * «Каждая публикация»: one bar per post or video in publishing order against its platform's median, with
+ * the value above, «×» inside and the date under it; videos show their cover. Each platform has its own
+ * scale (small multiples), since they differ by orders of magnitude.
  */
-export function PerformancePanel({ items, platform, timezone, onOpen }: Props) {
+export function PerformancePanel({ items, platform, timezone, onOpen, onOpenAll }: Props) {
   const platforms = PLATFORMS.filter(
     (each) => (platform === undefined || platform === each) && (items ?? []).some((item) => item.platform === each)
   );
   return (
-    <Panel title={copy.performance.title} headingLevel={2} quiet note={copy.performance.note}>
-      <div className={styles.panelBody}>
-        <ul className={styles.legend} aria-label={copy.performance.legend}>
+    <Panel title="Каждая публикация" headingLevel={2} quiet note="По порядку выхода, к медиане своей платформы">
+      <div className={styles.body}>
+        <ul className={styles.legend} aria-label="Обозначения">
           <li>
-            <span className={styles.legendStrong} aria-hidden="true" />
-            {copy.performance.strong}
+            <span className={styles.key} style={{ '--key': 'var(--color-accent)' } as CSSProperties} />
+            Выше {STRONG.toLocaleString('ru-RU')}× медианы
           </li>
           <li>
-            <span className={styles.legendSoft} aria-hidden="true" />
-            {copy.performance.soft}
+            <span
+              className={styles.key}
+              style={
+                { '--key': 'color-mix(in oklab, var(--color-accent) 45%, var(--color-surface-2))' } as CSSProperties
+              }
+            />
+            В пределах нормы
           </li>
           <li>
-            <span className={styles.legendLine} aria-hidden="true" />
-            {copy.performance.median}
+            <span
+              className={styles.key}
+              style={
+                { '--key': 'color-mix(in oklab, var(--color-accent) 18%, var(--color-surface-2))' } as CSSProperties
+              }
+            />
+            Ниже обычного
           </li>
         </ul>
         {items === undefined ? (
-          <div className={styles.chartSkeleton} aria-hidden="true" />
+          <div className={styles.skeleton} aria-hidden="true" />
         ) : platforms.length === 0 ? (
-          <p className={styles.empty}>{copy.performance.empty}</p>
+          <p className={styles.muted}>За период публикаций нет.</p>
         ) : (
           platforms.map((each) => {
-            const own = items
-              .filter((item) => item.platform === each && item.views !== null)
-              .sort((a, b) => Date.parse(a.publishedAt) - Date.parse(b.publishedAt));
+            const own = items.filter((item) => item.platform === each && item.views !== null);
             const usual = median(own.map((item) => item.views ?? 0)) ?? 0;
-            const first = own[0];
-            const last = own.at(-1);
+            const shown = [...own]
+              .sort((a, b) => Date.parse(b.publishedAt) - Date.parse(a.publishedAt))
+              .slice(0, LIMIT)
+              .reverse();
+            const video = each !== 'telegram';
             return (
-              <section key={each} className={styles.multiple} aria-label={PLATFORM_LABEL[each]}>
-                <h3 className={styles.multipleTitle}>
-                  {PLATFORM_LABEL[each]}
-                  <span>{copy.performance.summary(own.length, formatCount(usual))}</span>
-                </h3>
+              <section key={each} className={styles.section} aria-label={PLATFORM_LABEL[each]}>
+                <header className={styles.head}>
+                  <PlatformLogo platform={each} size={28} />
+                  <h3 className={styles.name}>{PLATFORM_LABEL[each]}</h3>
+                  <span className={styles.fact}>{own.length} публ.</span>
+                  <span className={styles.fact}>
+                    Медиана <strong>{formatCount(usual)}</strong>
+                  </span>
+                  <span className={styles.spacer} />
+                  <Button size="sm" variant="secondary" onPress={() => onOpenAll(each)}>
+                    Все публикации <Icon name="arrow-right" size={14} />
+                  </Button>
+                </header>
                 <BarChart
-                  label={copy.performance.chartLabel(PLATFORM_LABEL[each], own.length, formatCount(usual))}
-                  bars={own.map((item) => {
+                  label={`${PLATFORM_LABEL[each]}: просмотры ${shown.length} последних публикаций по порядку выхода, медиана ${formatCount(usual)}`}
+                  bars={shown.map((item) => {
                     const multiple = usual > 0 ? (item.views ?? 0) / usual : null;
+                    const rounded = multiple === null ? null : Math.round(multiple * 10) / 10;
                     return {
                       id: item.id,
                       value: item.views ?? 0,
-                      strong: multiple !== null && multiple >= 1.5,
-                      title: item.title || copy.table.untitled,
+                      tone:
+                        multiple === null
+                          ? 'normal'
+                          : multiple >= STRONG
+                            ? 'strong'
+                            : multiple < WEAK
+                              ? 'weak'
+                              : 'normal',
+                      topLabel: formatCount(item.views),
+                      ...(rounded === null ? {} : { insideLabel: `${rounded.toLocaleString('ru-RU')}×` }),
+                      bottomLabel: formatDay(item.publishedAt.slice(0, 10)),
+                      ...(video ? { image: item.thumbnailUrl } : {}),
+                      title: item.title || 'Без текста',
                       lines: [
                         formatPublished(item.publishedAt, timezone),
                         `${formatCount(item.views)} просмотров`,
-                        multiple === null ? '' : copy.performance.multiple(multiple),
+                        rounded === null ? '' : `${rounded.toLocaleString('ru-RU')}× к медиане`,
                         item.likes === null ? '' : `${likesLabel(item.platform)}: ${formatCount(item.likes)}`
                       ].filter((line) => line !== '')
                     };
                   })}
-                  reference={
-                    usual > 0 ? { value: usual, label: `${copy.performance.median} ${formatCount(usual)}` } : undefined
-                  }
-                  maxLabel={formatCount(Math.max(...own.map((item) => item.views ?? 0)))}
-                  startLabel={first ? formatPublished(first.publishedAt, timezone) : undefined}
-                  endLabel={last ? formatPublished(last.publishedAt, timezone) : undefined}
-                  height={180}
+                  reference={usual > 0 ? { value: usual, label: `Медиана ${formatCount(usual)}` } : undefined}
+                  height={video ? 230 : 190}
                   onSelect={onOpen}
                 />
               </section>
             );
           })
         )}
+        <p className={styles.note}>
+          <Icon name="info" size={14} /> Свежие публикации ещё набирают просмотры — их столбики растут с каждым замером.
+        </p>
       </div>
     </Panel>
   );

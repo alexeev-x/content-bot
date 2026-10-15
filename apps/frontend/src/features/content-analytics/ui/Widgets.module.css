@@ -473,8 +473,15 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.trendRow .chip {
-  justify-self: start;
+.trendStatus {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+}
+.trendViews {
+  flex-direction: column;
+  align-items: flex-end;
 }
 .trendViews {
   display: flex;
@@ -486,11 +493,11 @@
 }
 .trendSpark {
   display: none;
-  width: 120px;
+  width: 140px;
 }
 @media (min-width: 900px) {
   .trendRow {
-    grid-template-columns: auto minmax(0, 1fr) 128px 176px 120px;
+    grid-template-columns: auto minmax(0, 1fr) 96px 240px 140px;
   }
   .trendSpark {
     display: block;

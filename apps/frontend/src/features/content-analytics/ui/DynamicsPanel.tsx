@@ -1,8 +1,10 @@
 import type { ContentPlatform, ContentReportDto } from '@alexeev/contracts';
-import { BarChart, Panel } from '../../../shared/ui';
-import { formatCount, formatDay } from '../model/format';
-import { percentChange } from '../model/report';
-import styles from './Widgets.module.css';
+import { useState } from 'react';
+import { AreaChart, Checkbox, LineChart, Panel } from '../../../shared/ui';
+import { formatCount, formatDay, PLATFORM_LABEL } from '../model/format';
+import { percentChange, PLATFORMS } from '../model/report';
+import { PlatformLogo } from './PlatformLogo';
+import styles from './Dynamics.module.css';
 
 type Props = {
   report: ContentReportDto | undefined;
@@ -11,6 +13,11 @@ type Props = {
 };
 
 const DAY = 86_400_000;
+const COLOR: Record<ContentPlatform, string> = {
+  telegram: 'var(--color-platform-telegram)',
+  youtube: 'var(--color-platform-youtube)',
+  tiktok: 'var(--color-series-3)'
+};
 
 function dayKeys(from: string, count: number): string[] {
   const start = Date.parse(`${from.slice(0, 10)}T00:00:00Z`);
@@ -18,91 +25,108 @@ function dayKeys(from: string, count: number): string[] {
 }
 
 /**
- * «Прирост просмотров»: how many views all publications gained each day (from the daily readings, so an
- * old video that keeps growing counts every day it grows), against the same day of the previous period.
+ * «Динамика по платформам»: views gained per day on each platform (from the daily readings, so an old
+ * video still growing counts every day), with the period's total and its change beside it; a platform
+ * can be hidden from the chart.
  */
 export function DynamicsPanel({ report, platform, days }: Props) {
+  const [hidden, setHidden] = useState<ReadonlySet<ContentPlatform>>(new Set());
   if (!report) {
     return (
-      <Panel title="Прирост просмотров" headingLevel={2} quiet>
-        <div className={styles.body}>
-          <div className={styles.pairs} aria-hidden="true" />
-        </div>
+      <Panel title="Динамика по платформам" headingLevel={2} quiet>
+        <div className={styles.skeleton} aria-hidden="true" />
       </Panel>
     );
   }
-  const rows = report.growth.filter((row) => platform === undefined || row.platform === platform);
-  const byDay = new Map<string, number>();
-  for (const row of rows) byDay.set(row.day, (byDay.get(row.day) ?? 0) + row.views);
-  const allNow = dayKeys(report.from, days + 1).map((day) => ({ day, views: byDay.get(day) }));
-  const allBefore = dayKeys(report.previousFrom, days + 1).map((day) => ({ day, views: byDay.get(day) }));
-  // While the history is shorter than the period, the chart starts at the first measured day instead of
-  // drawing weeks of empty bars; the previous period keeps the same day offsets.
-  const start = Math.max(
-    0,
-    allNow.findIndex((entry) => entry.views !== undefined)
+  const platforms = PLATFORMS.filter(
+    (each) => (platform === undefined || platform === each) && report.growth.some((row) => row.platform === each)
   );
-  const now = allNow.slice(start);
-  const before = allBefore.slice(start, start + now.length);
-  const measured = now.filter((entry) => entry.views !== undefined);
-  const total = measured.reduce((sum, entry) => sum + (entry.views ?? 0), 0);
-  const totalBefore = before.reduce((sum, entry) => sum + (entry.views ?? 0), 0);
-  const hasBefore = before.some((entry) => entry.views !== undefined);
-  const first = measured[0];
+  const nowDays = dayKeys(report.from, days + 1);
+  const beforeDays = new Set(dayKeys(report.previousFrom, days));
+  const measuredDays = nowDays.filter((day) => report.growth.some((row) => row.day === day));
+  const start = nowDays.indexOf(measuredDays[0] ?? nowDays[0]!);
+  const shownDays = nowDays.slice(Math.max(0, start));
+  const rows = platforms.map((each) => {
+    const byDay = new Map(report.growth.filter((row) => row.platform === each).map((row) => [row.day, row.views]));
+    const series = shownDays.map((day) => byDay.get(day) ?? 0);
+    const total = shownDays.reduce((sum, day) => sum + (byDay.get(day) ?? 0), 0);
+    const before = [...byDay].filter(([day]) => beforeDays.has(day)).reduce((sum, [, views]) => sum + views, 0);
+    return { platform: each, series, total, change: before > 0 ? percentChange(total, before) : null };
+  });
 
   return (
     <Panel
-      title="Прирост просмотров"
+      title="Динамика по платформам"
       headingLevel={2}
       quiet
       note="Сколько просмотров набрали за день публикации младше 30 дней"
     >
-      <div className={styles.body}>
-        {measured.length < 2 ? (
-          <p className={styles.muted}>
-            Прирост считается по ежедневным замерам{first ? ` с ${formatDay(first.day)}` : ''}: график появится со
-            второго дня. Пока смотрите «Каждая публикация» ниже.
-          </p>
-        ) : (
-          <>
-            <div className={styles.head}>
-              <div className={styles.figures}>
-                <div className={styles.figure}>
-                  <span className={styles.small}>За {measured.length} дн. с замерами</span>
-                  <strong>+{formatCount(total)}</strong>
-                  {hasBefore ? (
-                    <span className={total >= totalBefore ? styles.up : styles.down}>
-                      {percentChange(total, totalBefore) ?? 0}% к прошлым {days} дн.
-                    </span>
-                  ) : (
-                    <span className={styles.small}>прошлый период ещё не измерялся</span>
-                  )}
-                </div>
-                <div className={styles.figure}>
-                  <span className={styles.small}>В среднем за день</span>
-                  <strong>+{formatCount(Math.round(total / measured.length))}</strong>
-                </div>
-              </div>
-            </div>
-            <BarChart
-              label={`Прирост просмотров по дням: +${formatCount(total)} за ${measured.length} дней`}
-              bars={now.map((entry, index) => ({
-                id: entry.day,
-                value: entry.views ?? 0,
-                ...(hasBefore ? { compare: before[index]?.views ?? 0 } : {}),
-                strong: true,
-                title: formatDay(entry.day),
-                lines: [
-                  entry.views === undefined ? 'Замеров нет' : `+${formatCount(entry.views)} просмотров`,
-                  ...(hasBefore ? [`Прошлый период: +${formatCount(before[index]?.views ?? 0)}`] : [])
-                ]
-              }))}
-              startLabel={formatDay(now[0]!.day)}
-              endLabel={formatDay(now.at(-1)!.day)}
-              height={170}
+      <div className={styles.layout}>
+        <div className={styles.chart}>
+          {measuredDays.length < 2 ? (
+            <p className={styles.muted}>
+              Прирост считается по ежедневным замерам{measuredDays[0] ? ` с ${formatDay(measuredDays[0])}` : ''}: график
+              появится со второго дня.
+            </p>
+          ) : (
+            <LineChart
+              label="Прирост просмотров по дням и платформам"
+              series={rows
+                .filter((row) => !hidden.has(row.platform))
+                .map((row) => ({
+                  id: row.platform,
+                  label: PLATFORM_LABEL[row.platform],
+                  points: row.series.map((views, index) => ({
+                    x: Date.parse(`${shownDays[index]}T12:00:00Z`),
+                    y: views
+                  })),
+                  color: COLOR[row.platform],
+                  area: true
+                }))}
+              formatX={(x) => formatDay(new Date(x).toISOString().slice(0, 10))}
+              formatY={formatCount}
+              height={240}
+              endLabels={false}
             />
-          </>
-        )}
+          )}
+        </div>
+        <aside className={styles.totals} aria-label="Итого за период">
+          <h3 className={styles.totalsTitle}>Итого за период</h3>
+          <ul className={styles.rows}>
+            {rows.map((row) => (
+              <li key={row.platform} className={styles.row}>
+                <PlatformLogo platform={row.platform} size={28} />
+                <span className={styles.rowText}>
+                  <span className={styles.rowName}>{PLATFORM_LABEL[row.platform]}</span>
+                  <strong>{formatCount(row.total)}</strong>
+                </span>
+                <span
+                  className={styles.rowChange}
+                  data-tone={row.change === null ? 'flat' : row.change >= 0 ? 'up' : 'down'}
+                >
+                  {row.change === null
+                    ? '—'
+                    : `${row.change > 0 ? '↑ +' : row.change < 0 ? '↓ −' : ''}${Math.abs(row.change)}%`}
+                </span>
+                <span className={styles.rowSpark}>
+                  <AreaChart points={row.series} height={28} color={COLOR[row.platform]} />
+                </span>
+                <Checkbox
+                  aria-label={`Показать ${PLATFORM_LABEL[row.platform]} на графике`}
+                  isSelected={!hidden.has(row.platform)}
+                  onChange={(on) =>
+                    setHidden((current) => {
+                      const next = new Set(current);
+                      if (on) next.delete(row.platform);
+                      else next.add(row.platform);
+                      return next;
+                    })
+                  }
+                />
+              </li>
+            ))}
+          </ul>
+        </aside>
       </div>
     </Panel>
   );
