@@ -8,3 +8,4 @@ analysis/*/audio.m4a
 analysis/*/head.wav
 analysis/*/c*.wav
 analysis/*/frames/
+.venv/
