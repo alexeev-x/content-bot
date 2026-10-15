@@ -84,6 +84,8 @@ Agreed with the owner 15.10.2026. Publishing always needs the owner's approval.
 
 **Order:** rubrics + provider port → style profile from the export → «Написать с ИИ» in the editor and in the bot → learning from edits → Reels topics from analytics → news autoposts.
 
+**Dota humour (owner, 15.10.2026: important).** A compact «Сленг и мемы» lexicon (term or meme, meaning, when it fits, an example line) sent cached with every request; the owner's own jokes and punchline habits extracted from his export as examples; the owner adds or retires entries in the studio in one line; posts about news see the news and its discussion, so fresh jokes come from there; a «шутка не зашла» button in the bot turns misses into rules. Owner input: 10–20 memes and words he uses or that are current.
+
 **Swearing (owner, 15.10.2026):** allowed and sometimes needed; written in full, at the owner's own frequency and places as the style profile measures them, never more. A per-rubric «no swearing» switch can come with advertising.
 
 **Owner inputs:** the Telegram channel export (JSON), 10–15 posts that are «100% him», how Reels are recorded and what a script must contain.
