@@ -5,6 +5,8 @@ import { EditVideo } from './engine/EditVideo';
 import { bkb2 } from './v2/cuts/bkb';
 import { oracle2 } from './v2/cuts/oracle';
 import { CutVideo } from './v2/CutVideo';
+import { bkbHook } from './v3/bkb-hook';
+import { HookVideo } from './v3/HookVideo';
 import { FPS, sec } from './engine/style';
 
 export function Root() {
@@ -34,6 +36,15 @@ export function Root() {
           height={1920}
         />
       ))}
+      <Composition
+        id={bkbHook.id}
+        component={HookVideo}
+        defaultProps={{ hook: bkbHook }}
+        durationInFrames={sec(bkbHook.duration)}
+        fps={FPS}
+        width={1080}
+        height={1920}
+      />
     </>
   );
 }

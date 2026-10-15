@@ -9,3 +9,4 @@ analysis/*/head.wav
 analysis/*/c*.wav
 analysis/*/frames/
 .venv/
+refs/

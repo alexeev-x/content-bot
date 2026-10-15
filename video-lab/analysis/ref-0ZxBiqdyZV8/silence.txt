@@ -1,0 +1,2 @@
+frame= 1303 fps=0.0 q=-0.0 size=N/A time=00:00:44.04 bitrate=N/A speed=88.1x elapsed=0:00:00.50    [Parsed_silencedetect_0 @ 0xc6ac31140] silence_start: 57.560454
+[Parsed_silencedetect_0 @ 0xc6ac31140] silence_end: 59.303764 | silence_duration: 1.743311
