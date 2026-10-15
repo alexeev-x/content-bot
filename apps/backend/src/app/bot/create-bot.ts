@@ -152,18 +152,18 @@ export interface BotRuntime {
 // under the webhook's 10 s deadline (grammY's own default is 500 s).
 const REPLY_TIMEOUT_SECONDS = 4;
 
-export const START_TEXT = 'Студия на связи. Откройте её кнопкой ниже.';
-export const REPORT_FAILED_TEXT = 'Не удалось получить данные. Попробуйте ещё раз.';
-export const DRAFT_FAILED_TEXT = 'Не удалось создать черновик. Отправьте текст ещё раз.';
-export const DRAFT_CREATED_TEXT = 'Черновик создан';
-export const MEDIA_DRAFT_CREATED_TEXT = 'Черновик создан, файлы загружаются…';
-export const DRAFT_TOO_LONG_TEXT = `Текст длиннее ${POST_BODY_MAX} символов, черновик не создан.`;
-export const CHANGED_TEXT = 'Пост изменился — откройте в Студии';
-export const IMPORTING_TEXT = 'Файлы ещё загружаются — дождитесь отчёта или откройте в Студии';
-export const DUPLICATE_TEXT = 'Уже в очереди или опубликовано в этом канале — откройте в Студии';
-export const EXPIRED_TEXT = 'Кнопка устарела, откройте в Студии';
-export const UNSUPPORTED_TEXT = 'Этот тип сообщения пока не превращается в черновик';
-export const DRAFT_INVALID_TEXT = 'Текст содержит недопустимые символы, черновик не создан.';
+const START_TEXT = 'Студия на связи. Откройте её кнопкой ниже.';
+const REPORT_FAILED_TEXT = 'Не удалось получить данные. Попробуйте ещё раз.';
+const DRAFT_FAILED_TEXT = 'Не удалось создать черновик. Отправьте текст ещё раз.';
+const DRAFT_CREATED_TEXT = 'Черновик создан';
+const MEDIA_DRAFT_CREATED_TEXT = 'Черновик создан, файлы загружаются…';
+const DRAFT_TOO_LONG_TEXT = `Текст длиннее ${POST_BODY_MAX} символов, черновик не создан.`;
+const CHANGED_TEXT = 'Пост изменился — откройте в Студии';
+const IMPORTING_TEXT = 'Файлы ещё загружаются — дождитесь отчёта или откройте в Студии';
+const DUPLICATE_TEXT = 'Уже в очереди или опубликовано в этом канале — откройте в Студии';
+const EXPIRED_TEXT = 'Кнопка устарела, откройте в Студии';
+const UNSUPPORTED_TEXT = 'Этот тип сообщения пока не превращается в черновик';
+const DRAFT_INVALID_TEXT = 'Текст содержит недопустимые символы, черновик не создан.';
 
 // Only private chats with the owner: the bot never answers in a group the owner happens to share with it.
 function privateChatOnly() {
@@ -411,7 +411,7 @@ function mediaFileOf(message: Message): BotMediaFile | null {
 
 // What the server says about the publication, never more: «Опубликовано» is the dispatcher's word and is
 // not used here at all.
-export const STATUS_LABEL: Record<PublicationStatus, string> = {
+const STATUS_LABEL: Record<PublicationStatus, string> = {
   scheduled: 'Поставлено в очередь',
   queued: 'Поставлено в очередь',
   preparing: 'Готовится к отправке',

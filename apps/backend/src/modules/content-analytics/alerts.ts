@@ -1,6 +1,6 @@
 import type { ContentGoalDto } from '@alexeev/contracts';
 import type { Clock } from '../../platform/clock';
-import type { ContentAlertRepository, NewContentAlert } from './d1-content-alerts-repository';
+import type { AlertButton, ContentAlertRepository, NewContentAlert } from './d1-content-alerts-repository';
 import type { CheckpointRow, ItemRow, SourceRow } from './d1-content-analytics-repository';
 import { type ContentGoalRepository, readContentGoals } from './goals';
 import { baselineFor } from './service';
@@ -16,8 +16,8 @@ const DAY_MS = 24 * HOUR_MS;
 const ALERT_CHECKPOINTS = [24, 6, 3] as const;
 /** The 24 h checkpoint is recorded by 25.5 h; older items no longer raise alerts. */
 const ITEM_ALERT_WINDOW_MS = 26 * HOUR_MS;
-export const RISING = 1.5;
-export const BELOW = 0.7;
+const RISING = 1.5;
+const BELOW = 0.7;
 /** A usual value this small is noise (a few views either way doubles it). */
 const MIN_USUAL_VIEWS = 20;
 /** Usual curves come from items tracked from birth over this window, as on the page. */
@@ -36,7 +36,7 @@ const DIGEST_AGE_HOURS = 24;
 /** Alerts inserted per tick; the rest still qualify on the next tick. Keeps the D1 budget fixed. */
 export const NEW_ALERTS_PER_TICK = 3;
 
-export const PLATFORM_LABEL: Record<ContentPlatform, string> = {
+const PLATFORM_LABEL: Record<ContentPlatform, string> = {
   telegram: 'Telegram',
   youtube: 'YouTube',
   tiktok: 'TikTok'
@@ -50,7 +50,7 @@ export function count(value: number): string {
   return whole < 10_000 ? exact.format(whole) : compact.format(whole);
 }
 
-export function multiple(value: number): string {
+function multiple(value: number): string {
   return `${(Math.round(value * 10) / 10).toLocaleString('ru-RU')}×`;
 }
 
@@ -58,8 +58,13 @@ export function signed(value: number): string {
   return value > 0 ? `+${count(value)}` : value < 0 ? `−${count(-value)}` : '0';
 }
 
-export function itemTitle(item: ItemRow, max: number): string {
-  const title = item.title.trim() || (item.thumbnailUrl === null ? 'Без текста' : 'Фото или видео');
+function itemTitle(item: ItemRow, max: number): string {
+  // Hashtags are for the platforms' search, not for reading the title in an alert.
+  const words = item.title
+    .replace(/(^|\s)#[^\s#]+/gu, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  const title = words || (item.thumbnailUrl === null ? 'Без текста' : 'Фото или видео');
   // By code point, so an emoji is never cut in half.
   const chars = Array.from(title);
   return chars.length > max
@@ -105,11 +110,11 @@ function zonedDate(at: number, timezone: string): string {
   return new Intl.DateTimeFormat('en-CA', { timeZone: timezone }).format(new Date(at));
 }
 
-export function shortDay(at: number, timezone: string): string {
+function shortDay(at: number, timezone: string): string {
   return new Intl.DateTimeFormat('ru-RU', { timeZone: timezone, day: 'numeric', month: 'short' }).format(new Date(at));
 }
 
-export function shortTime(at: number, timezone: string): string {
+function shortTime(at: number, timezone: string): string {
   return new Intl.DateTimeFormat('ru-RU', {
     timeZone: timezone,
     day: 'numeric',
@@ -119,7 +124,17 @@ export function shortTime(at: number, timezone: string): string {
   }).format(new Date(at));
 }
 
-export interface ItemAlertFacts {
+/** Telegram HTML needs these three escaped. */
+function esc(value: string): string {
+  return value.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;');
+}
+
+function bar(fraction: number): string {
+  const filled = Math.max(0, Math.min(10, Math.round(fraction * 10)));
+  return `${'▓'.repeat(filled)}${'░'.repeat(10 - filled)}`;
+}
+
+interface ItemAlertFacts {
   item: ItemRow;
   direction: 'rising' | 'below';
   hours: number;
@@ -127,7 +142,7 @@ export interface ItemAlertFacts {
   usual: number;
 }
 
-export function itemAlertText({ item, direction, hours, views, usual }: ItemAlertFacts): {
+function itemAlertText({ item, direction, hours, views, usual }: ItemAlertFacts): {
   title: string;
   body: string;
 } {
@@ -136,6 +151,20 @@ export function itemAlertText({ item, direction, hours, views, usual }: ItemAler
   return direction === 'rising'
     ? { title: `Залетает: ${where}`, body: `${numbers}\nПовторите тему или первую фразу, пока интерес высокий.` }
     : { title: `Идёт слабее обычного: ${where}`, body: `${numbers}\nПроверьте первую строку, обложку и время выхода.` };
+}
+
+/** «🚀 Залетает · TikTok»: the card style the owner chose on 15.10.2026. */
+function itemAlertHtml({ item, direction, hours, views, usual }: ItemAlertFacts): string {
+  const rising = direction === 'rising';
+  return [
+    `${rising ? '🚀' : '🐢'} <b>${rising ? 'Залетает' : 'Идёт слабее обычного'}</b> · ${PLATFORM_LABEL[item.platform]}`,
+    `«${esc(itemTitle(item, 80))}»`,
+    '',
+    // The owner reads a ratio below 1 as noise (15.10.2026): a weak item shows only its numbers.
+    ...(rising ? [`<b>${multiple(views / usual)}</b> обычного за ${hours} ч`] : []),
+    `<blockquote>👀 ${count(views)} просмотров\n📈 обычно ${count(usual)}</blockquote>`,
+    `💡 <i>${rising ? 'Повторите тему или первую фразу, пока интерес высокий.' : 'Проверьте первую строку, обложку и время выхода.'}</i>`
+  ].join('\n');
 }
 
 /** A young item against its platform's usual curve at the latest recorded alert checkpoint. */
@@ -159,6 +188,8 @@ export function itemAlerts(items: readonly ItemRow[], checkpoints: readonly Chec
             id: `item:${item.id}:${direction}`,
             kind: 'item',
             ...itemAlertText({ item, direction, hours, views, usual }),
+            html: itemAlertHtml({ item, direction, hours, views, usual }),
+            buttons: [],
             linkPath: itemLink(item)
           });
       }
@@ -168,13 +199,13 @@ export function itemAlerts(items: readonly ItemRow[], checkpoints: readonly Chec
   return alerts;
 }
 
-export interface SourceAlertFacts {
+interface SourceAlertFacts {
   platform: ContentPlatform;
   lastSuccessAt: number;
   lastErrorCode: string | null;
 }
 
-export function sourceAlertText(source: SourceAlertFacts, timezone: string): { title: string; body: string } {
+function sourceAlertText(source: SourceAlertFacts, timezone: string): { title: string; body: string } {
   const label = PLATFORM_LABEL[source.platform];
   return source.lastErrorCode === 'TIKTOK_RECONNECT'
     ? {
@@ -187,6 +218,14 @@ export function sourceAlertText(source: SourceAlertFacts, timezone: string): { t
       };
 }
 
+/** The card style the owner chose on 15.10.2026; the button opens Настройки → Аналитика to refresh. */
+function sourceAlertHtml(source: SourceAlertFacts, timezone: string): string {
+  const label = PLATFORM_LABEL[source.platform];
+  return source.lastErrorCode === 'TIKTOK_RECONNECT'
+    ? `🔑 <b>${label}: нужно войти заново</b>\n\n${label} отозвал доступ — статистика не обновляется.\n👉 <i>Настройки → Аналитика</i>`
+    : `⚠️ <b>${label}: сбор статистики остановлен</b>\n<blockquote>Последний успешный сбор: ${esc(shortTime(source.lastSuccessAt, timezone))}\nОшибка: <code>${esc(source.lastErrorCode ?? 'неизвестна')}</code></blockquote>\nГрафики не обновляются, повторяем каждые 15 минут.`;
+}
+
 /** A source that worked before and now fails: after SOURCE_OUTAGE_MS, or at once when it needs a new sign-in. */
 export function sourceAlerts(sources: readonly SourceRow[], now: number, timezone: string): NewContentAlert[] {
   const alerts: NewContentAlert[] = [];
@@ -195,13 +234,17 @@ export function sourceAlerts(sources: readonly SourceRow[], now: number, timezon
       continue;
     const reconnect = source.lastErrorCode === 'TIKTOK_RECONNECT';
     if (!reconnect && now - source.lastSuccessAt < SOURCE_OUTAGE_MS) continue;
+    const facts = {
+      platform: source.platform,
+      lastSuccessAt: source.lastSuccessAt,
+      lastErrorCode: source.lastErrorCode
+    };
     alerts.push({
       id: `source:${source.platform}:${source.lastSuccessAt}`,
       kind: 'source',
-      ...sourceAlertText(
-        { platform: source.platform, lastSuccessAt: source.lastSuccessAt, lastErrorCode: source.lastErrorCode },
-        timezone
-      ),
+      ...sourceAlertText(facts, timezone),
+      html: sourceAlertHtml(facts, timezone),
+      buttons: [],
       linkPath: '/settings/analytics'
     });
   }
@@ -221,13 +264,13 @@ export function digestWeekEnd(now: number, timezone: string): number | null {
   return zonedMidnight(now, timezone);
 }
 
-export interface DigestEntry {
+interface DigestEntry {
   item: ItemRow;
   ratio: number;
 }
 
 /** What a weekly digest says, before it is worded; the bot message and the preview variants share it. */
-export interface DigestData {
+interface DigestData {
   weekStart: number;
   weekEnd: number;
   published: number;
@@ -241,7 +284,7 @@ export interface DigestData {
   worst: DigestEntry[];
 }
 
-export interface DigestInput {
+interface DigestInput {
   items: readonly ItemRow[];
   checkpoints: readonly CheckpointRow[];
   followers: readonly { platform: ContentPlatform; day: string; followers: number }[];
@@ -252,7 +295,7 @@ export interface DigestInput {
 }
 
 /** The numbers of the week that ended at `weekEnd`. */
-export function digestData(input: DigestInput): DigestData {
+function digestData(input: DigestInput): DigestData {
   const { items, checkpoints, followers, goals = [], weekEnd, now, timezone } = input;
   // Noon a week back is always inside the previous Monday, whatever a DST change did to the week.
   const weekStart = zonedMidnight(weekEnd - 7 * DAY_MS + 12 * HOUR_MS, timezone);
@@ -332,8 +375,66 @@ export function digestData(input: DigestInput): DigestData {
   };
 }
 
-export function digestTitle(data: DigestData, timezone: string): string {
+function digestTitle(data: DigestData, timezone: string): string {
   return `Итоги недели ${shortDay(data.weekStart, timezone)} — ${shortDay(data.weekEnd - 1, timezone)}`;
+}
+
+function goalLine(goal: ContentGoalDto, timezone: string): string {
+  const label = PLATFORM_LABEL[goal.platform];
+  if (goal.reached) return `🎯 <b>Цель ${label}</b>: ${count(goal.target)} — достигнута 🎉`;
+  const followers = goal.followers ?? 0;
+  const pace = [
+    goal.perWeek === null ? null : `${signed(goal.perWeek)} в неделю`,
+    goal.forecastDay !== null
+      ? `→ к ${forecastDay(goal.forecastDay, timezone)}`
+      : goal.perWeek !== null && goal.perWeek <= 0
+        ? 'рост стоит'
+        : null
+  ].filter((part) => part !== null);
+  return `🎯 <b>Цель ${label}</b>: ${count(followers)} из ${count(goal.target)}\n<code>${bar(followers / goal.target)}</code> ${Math.floor((followers / goal.target) * 100)}%${pace.length > 0 ? ` · ${pace.join(' ')}` : ''}`;
+}
+
+/**
+ * The style the owner chose on 15.10.2026: platform by name and the publication with its views, no
+ * ratios; each publication has its own button (digestButtons) with the same number.
+ */
+function digestHtml(data: DigestData, timezone: string): string {
+  const blocks = [
+    `📊 <b>${esc(digestTitle(data, timezone))}</b>\n${
+      data.published === 0
+        ? 'За неделю публикаций не было.'
+        : `Публикаций: <b>${data.published}</b> (неделей раньше ${data.publishedBefore})`
+    }`
+  ];
+  if (data.followers.length > 0)
+    blocks.push(
+      `<b>Подписчики</b>\n${data.followers
+        .map(
+          (row) =>
+            `${PLATFORM_LABEL[row.platform]}: <b>${count(row.followers)}</b>${row.change === null ? '' : ` (${signed(row.change)} за неделю)`}`
+        )
+        .join('\n')}`
+    );
+  blocks.push(...data.goals.map((goal) => goalLine(goal, timezone)));
+  const numbered = (entries: readonly DigestEntry[], from: number) =>
+    entries
+      .map(
+        (entry, index) =>
+          `${from + index}. <b>${PLATFORM_LABEL[entry.item.platform]}</b> — «${esc(itemTitle(entry.item, 60))}», ${count(entry.item.views ?? 0)} просмотров`
+      )
+      .join('\n');
+  if (data.best.length > 0) blocks.push(`🔥 <b>Залетели</b>\n${numbered(data.best, 1)}`);
+  if (data.worst.length > 0) blocks.push(`🧊 <b>Не зашли</b>\n${numbered(data.worst, data.best.length + 1)}`);
+  if (data.best.length + data.worst.length > 0) blocks.push('<i>Каждый ролик открывается кнопкой ниже.</i>');
+  return blocks.join('\n\n');
+}
+
+/** «1. TikTok · Пудж через мид…»: numbered as in the text, at most six. */
+function digestButtons(data: DigestData): AlertButton[] {
+  return [...data.best, ...data.worst].map((entry, index) => ({
+    text: `${index + 1}. ${PLATFORM_LABEL[entry.item.platform]} · ${itemTitle(entry.item, 28)}`,
+    linkPath: itemLink(entry.item)
+  }));
 }
 
 /** The Monday digest of the week that ended at `weekEnd`. */
@@ -378,6 +479,8 @@ export function digestAlert(input: DigestInput): NewContentAlert {
     kind: 'digest',
     title: digestTitle(data, timezone),
     body: lines.join('\n').slice(0, 3000),
+    html: digestHtml(data, timezone),
+    buttons: digestButtons(data),
     linkPath: '/analytics'
   };
 }
@@ -386,15 +489,8 @@ export function forecastDay(day: string, timezone: string): string {
   return shortDay(Date.parse(`${day}T12:00:00Z`), timezone);
 }
 
-/** The owner-zone Monday 00:00 that ended the last full week before `now`. */
-export function lastWeekEnd(now: number, timezone: string): number {
-  const today = zonedMidnight(now, timezone);
-  // Noon keeps the day right across a DST change inside the week.
-  return zonedMidnight(today - zoned(now, timezone).weekday * DAY_MS + 12 * HOUR_MS, timezone);
-}
-
 /** Everything a digest of the week that ended at `weekEnd` reads: four bounded reads. */
-export async function loadDigestInput(deps: {
+async function loadDigestInput(deps: {
   repo: ContentAlertRepository;
   goals: ContentGoalRepository;
   clock: Clock;

@@ -4,7 +4,6 @@ import {
   contentItemDetailSchema,
   contentItemsPageSchema,
   contentReportSchema,
-  messagePreviewsResultSchema,
   tiktokConnectSchema,
   type ContentPlatform,
   type ContentReportPeriod
@@ -62,9 +61,4 @@ export function removeContentGoal(platform: ContentPlatform) {
 
 export function disconnectTikTok() {
   return apiRequestNoContent('/api/v1/content-analytics/tiktok/disconnect', { method: 'POST' });
-}
-
-/** Sends every bot alert kind in each candidate style to the owner's chat (about 20 messages). */
-export function sendMessagePreviews() {
-  return apiRequest('/api/v1/content-analytics/message-previews', messagePreviewsResultSchema, { method: 'POST' });
 }

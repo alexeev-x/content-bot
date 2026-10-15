@@ -9,6 +9,11 @@ import {
 } from './d1-content-analytics-repository';
 import type { ContentPlatform } from './types';
 
+export interface AlertButton {
+  text: string;
+  linkPath: string;
+}
+
 export type ContentAlertKind = 'item' | 'source' | 'digest';
 export type ContentAlertStatus = 'pending' | 'sending' | 'sent' | 'failed' | 'unknown';
 
@@ -16,8 +21,13 @@ export type ContentAlertStatus = 'pending' | 'sending' | 'sent' | 'failed' | 'un
 export interface NewContentAlert {
   id: string;
   kind: ContentAlertKind;
+  /** Plain text, kept for logs and the alerts raised before migration 0049. */
   title: string;
   body: string;
+  /** The Telegram HTML that is sent; null only for alerts raised before migration 0049. */
+  html: string | null;
+  /** Buttons above the main one, each to one publication in the studio (at most six). */
+  buttons: AlertButton[];
   /** Studio path the alert's button opens, e.g. `/analytics?id=…`. */
   linkPath: string;
 }
@@ -49,8 +59,30 @@ interface RawAlert {
   kind: ContentAlertKind;
   title: string;
   body: string;
+  html: string | null;
+  buttons: string | null;
   link_path: string;
   created_at: number;
+}
+
+// Written by this module only; a row that does not parse loses its extra buttons, never the alert.
+function parseButtons(raw: string | null): AlertButton[] {
+  if (raw === null) return [];
+  try {
+    const value: unknown = JSON.parse(raw);
+    if (!Array.isArray(value)) return [];
+    return value
+      .filter(
+        (entry): entry is AlertButton =>
+          typeof entry === 'object' &&
+          entry !== null &&
+          typeof (entry as AlertButton).text === 'string' &&
+          typeof (entry as AlertButton).linkPath === 'string'
+      )
+      .slice(0, 6);
+  } catch {
+    return [];
+  }
 }
 
 export function createD1ContentAlertRepository(db: D1Database): ContentAlertRepository {
@@ -122,10 +154,20 @@ export function createD1ContentAlertRepository(db: D1Database): ContentAlertRepo
         alerts.map((alert) =>
           db
             .prepare(
-              `INSERT OR IGNORE INTO content_alerts (id, kind, status, title, body, link_path, created_at, updated_at)
-               VALUES (?, ?, 'pending', ?, ?, ?, ?, ?)`
+              `INSERT OR IGNORE INTO content_alerts (id, kind, status, title, body, html, buttons, link_path, created_at, updated_at)
+               VALUES (?, ?, 'pending', ?, ?, ?, ?, ?, ?, ?)`
             )
-            .bind(alert.id, alert.kind, alert.title, alert.body, alert.linkPath, now, now)
+            .bind(
+              alert.id,
+              alert.kind,
+              alert.title,
+              alert.body,
+              alert.html,
+              alert.buttons.length === 0 ? null : JSON.stringify(alert.buttons),
+              alert.linkPath,
+              now,
+              now
+            )
         )
       );
       return results.reduce((sum, result) => sum + (result.meta.changes ?? 0), 0);
@@ -134,7 +176,7 @@ export function createD1ContentAlertRepository(db: D1Database): ContentAlertRepo
     async listPending(limit) {
       const rows = await db
         .prepare(
-          `SELECT id, kind, title, body, link_path, created_at FROM content_alerts
+          `SELECT id, kind, title, body, html, buttons, link_path, created_at FROM content_alerts
            WHERE status = 'pending' ORDER BY created_at, id LIMIT ?`
         )
         .bind(limit)
@@ -144,6 +186,8 @@ export function createD1ContentAlertRepository(db: D1Database): ContentAlertRepo
         kind: row.kind,
         title: row.title,
         body: row.body,
+        html: row.html,
+        buttons: parseButtons(row.buttons),
         linkPath: row.link_path,
         createdAt: row.created_at
       }));

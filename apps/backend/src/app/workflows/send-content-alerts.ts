@@ -40,16 +40,30 @@ export async function sendContentAlerts(deps: {
       summary.failed += 1;
       continue;
     }
-    const html = `<b>${escapeHtml(alert.title)}</b>\n${escapeHtml(alert.body)}`;
-    const button = {
-      text: alert.kind === 'source' ? 'Открыть и обновить' : 'Открыть аналитику',
-      url: new URL(alert.linkPath, deps.appOrigin).toString()
+    // Alerts raised before migration 0049 have no HTML: their plain text is escaped as before.
+    const html = alert.html ?? `<b>${escapeHtml(alert.title)}</b>\n${escapeHtml(alert.body)}`;
+    const origin = deps.appOrigin;
+    const button = (text: string, linkPath: string) => [
+      { text, web_app: { url: new URL(linkPath, origin).toString() } }
+    ];
+    const markup = {
+      inline_keyboard: [
+        ...alert.buttons.map((extra) => button(extra.text, extra.linkPath)),
+        button(
+          alert.kind === 'source'
+            ? 'Открыть и обновить'
+            : alert.kind === 'item'
+              ? 'Открыть в студии'
+              : 'Открыть аналитику',
+          alert.linkPath
+        )
+      ]
     };
     deps.charge(1);
     try {
-      await deps.messenger.sendMessageWithWebAppButton(
+      await deps.messenger.sendMessageWithKeyboard(
         deps.ownerChatId,
-        { html, button },
+        { html, markup },
         AbortSignal.timeout(CONTENT_ALERT_TIMEOUT_MS)
       );
       await deps.repo.finish({ id: alert.id, now: deps.now(), status: 'sent' });

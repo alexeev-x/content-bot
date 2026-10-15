@@ -10,7 +10,6 @@ import {
   getContentOverview,
   getContentReport,
   removeContentGoal,
-  sendMessagePreviews,
   setContentGoal,
   syncContent
 } from './content-analytics-api';
@@ -112,8 +111,4 @@ export function useDisconnectTikTok() {
     retry: false,
     onSuccess: () => void client.invalidateQueries({ queryKey: contentAnalyticsKeys.all })
   });
-}
-
-export function useSendMessagePreviews() {
-  return useMutation({ mutationFn: sendMessagePreviews, retry: false });
 }

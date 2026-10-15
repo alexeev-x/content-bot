@@ -9,10 +9,8 @@ import {
   contentItemsQuerySchema,
   contentReportQuerySchema,
   contentReportSchema,
-  messagePreviewsResultSchema,
   tiktokConnectSchema
 } from '@alexeev/contracts';
-import { GrammyError } from 'grammy';
 import { Hono } from 'hono';
 import { z } from 'zod';
 import {
@@ -30,24 +28,11 @@ import {
   startTikTokConnect,
   TIKTOK_STATE_TTL_SEC
 } from '../modules/content-analytics';
-import { getOwnerOperationsSettings } from '../modules/settings';
 import { AppError } from '../shared/app-error';
-import { appOriginOf } from './bot/app-origin';
-import { buildMessageCatalog } from './notifications/message-catalog';
-import { sendMessageCatalog } from './workflows/send-message-catalog';
 import { deleteCookie, getCookie, setCookie } from 'hono/cookie';
 import { rateLimitClientKey } from '../platform/rate-limit/client-key';
 import type { AppBindings } from './env';
 import { validated } from './validation';
-
-const PREVIEW_INTRO = [
-  '🧪 <b>Все сообщения бота</b>',
-  '',
-  'Дальше по разделам идёт каждое сообщение, которое бот присылает вам, в том виде, в каком оно приходит сейчас.',
-  'Публикации и каналы в примерах условные; отчёты /today, /next, /status и сводка недели — с настоящими данными.',
-  '',
-  'В конце — аналитика в нескольких стилях (А–Д, вариант подписан внизу). Напишите, какой оставить: он станет общим для всех сообщений.'
-].join('\n');
 
 const itemParamsSchema = z.strictObject({ id: contentItemIdSchema });
 // TikTok's redirect: every field optional and bounded; anything else in the query is ignored.
@@ -189,47 +174,6 @@ export const contentAnalyticsRoutes = new Hono<AppBindings>()
         await readContentItem({ repo: container.contentAnalytics, clock: container.clock }, c.req.valid('param').id)
       )
     );
-  })
-  .post('/message-previews', async (c) => {
-    const container = c.get('container');
-    const messenger = container.ownerMessenger;
-    if (messenger === null) throw new AppError('UNAVAILABLE', 'The bot token is not configured');
-    const { timezone } = await getOwnerOperationsSettings({
-      repo: container.settings,
-      logger: container.logger,
-      requestId: c.get('requestId')
-    });
-    const appOrigin = appOriginOf(c.req.url);
-    const sections = await buildMessageCatalog({
-      appOrigin,
-      timezone,
-      reports: {
-        clock: container.clock,
-        publications: container.publications,
-        incidents: container.dispatchJobs,
-        posts: container.postRevisions,
-        cron: container.systemState,
-        publishing: container.publishing
-      },
-      analytics: { repo: container.contentAlerts, goals: container.contentGoals, clock: container.clock, timezone }
-    });
-    const { sent, error } = await sendMessageCatalog({
-      messenger,
-      chatId: c.get('actor').telegramId,
-      intro: PREVIEW_INTRO,
-      studioUrl: `${appOrigin}/`,
-      sections
-    });
-    if (error !== null) {
-      container.logger.warn({
-        component: 'owner_notice',
-        operation: 'message_previews',
-        requestId: c.get('requestId'),
-        errorCode: error instanceof GrammyError ? 'TELEGRAM_REJECTED' : 'TELEGRAM_RESULT_UNKNOWN'
-      });
-      throw new AppError('UNAVAILABLE', 'Telegram did not accept every preview', { sent: String(sent) });
-    }
-    return c.json(messagePreviewsResultSchema.parse({ sent }));
   })
   .get('/goals', async (c) => {
     const container = c.get('container');

@@ -6,7 +6,7 @@ import {
   createD1ContentGoalRepository,
   raiseContentAlerts
 } from '../../src/modules/content-analytics';
-import { digestAlert, digestWeekEnd } from '../../src/modules/content-analytics/alerts';
+import { digestAlert, digestWeekEnd, itemAlerts } from '../../src/modules/content-analytics/alerts';
 import type { TelegramOwnerMessageApi } from '../../src/integrations/telegram/telegram-api';
 import { createLogger } from '../../src/platform/logging/logger';
 import { testDb } from '../helpers/db';
@@ -55,11 +55,10 @@ function messenger(behaviour: () => Promise<unknown>): TelegramOwnerMessageApi &
   const sent: string[] = [];
   return {
     sent,
-    sendMessageWithWebAppButton: async (_chat: string, { html }: { html: string }) => {
+    sendMessageWithKeyboard: async (_chat: string, { html }: { html: string }) => {
       sent.push(html);
       return behaviour();
-    },
-    sendMessageWithKeyboard: async () => undefined
+    }
   } as unknown as TelegramOwnerMessageApi & { sent: string[] };
 }
 
@@ -107,6 +106,37 @@ describe('content alerts', () => {
       linkPath: '/analytics?id=tiktok%3Anew'
     });
     expect(spaces(alert?.body)).toContain('2,1× обычного на 6 ч: 2 100 просмотров при обычных 1 000.');
+    expect(spaces(alert?.html ?? undefined)).toContain('🚀 <b>Залетает</b> · TikTok\n«Ролик new»');
+    expect(spaces(alert?.html ?? undefined)).toContain('<b>2,1×</b> обычного за 6 ч');
+  });
+
+  it('words a weak item without its ratio and drops hashtags from titles', () => {
+    const item = {
+      id: 'youtube:w',
+      platform: 'youtube' as const,
+      title: 'Пудж <мид> #dota2 #shorts',
+      url: 'https://example.test',
+      thumbnailUrl: null,
+      publishedAt: START - 6 * HOUR,
+      views: 300,
+      likes: null,
+      comments: null,
+      shares: null,
+      observedAt: START
+    };
+    const at6 = (id: string, views: number) => ({
+      id,
+      platform: 'youtube' as const,
+      views: { 1: null, 3: null, 6: views, 12: null, 24: null, 48: null, 72: null }
+    });
+    const [weak] = itemAlerts(
+      [item],
+      [at6('youtube:a', 1000), at6('youtube:b', 1000), at6('youtube:c', 1000), at6(item.id, 300)]
+    );
+    expect(weak?.id).toBe('item:youtube:w:below');
+    expect(weak?.html).toContain('«Пудж &lt;мид&gt;»');
+    expect(weak?.html).not.toContain('#');
+    expect(weak?.html).not.toContain('×');
   });
 
   it('raises a source outage after three hours of failures, once per outage', async () => {
@@ -158,6 +188,9 @@ describe('content alerts', () => {
     expect(digest?.title).toBe('Итоги недели 11 янв. — 17 янв.');
     expect(spaces(digest?.body)).toContain('Публикаций: 2, на прошлой неделе 2.');
     expect(digest?.body).toContain('1. «Ролик w1», Telegram: 900 (3×)');
+    // Each listed publication has its own button, numbered as in the text.
+    expect(digest?.html).toContain('1. <b>Telegram</b> — «Ролик w1», 900 просмотров');
+    expect(digest?.buttons[0]).toEqual({ text: '1. Telegram · Ролик w1', linkPath: '/analytics?id=telegram%3Aw1' });
   });
 
   it('keeps the digest week Monday to Sunday across a DST change', () => {
@@ -198,6 +231,9 @@ describe('content alerts', () => {
         kind: 'item',
         title: `T ${id}`,
         body: '<b>',
+        // An alert raised before migration 0049 has no HTML: its text is escaped.
+        html: null,
+        buttons: [],
         linkPath: '/analytics'
       })),
       START
@@ -219,13 +255,23 @@ describe('content alerts', () => {
     // Nothing left to send: a failed alert is never retried.
     expect(await sendContentAlerts(sendDeps(ok, clock))).toEqual({ sent: 0, failed: 0, unknown: 0 });
 
-    await repo.insert([{ id: 'digest:x', kind: 'digest', title: 'D', body: 'B', linkPath: '/analytics' }], START);
+    await repo.insert(
+      [
+        { id: 'digest:x', kind: 'digest', title: 'D', body: 'B', html: '<b>D</b>', buttons: [], linkPath: '/analytics' }
+      ],
+      START
+    );
     const lost = messenger(async () => {
       throw new Error('timeout');
     });
     expect(await sendContentAlerts(sendDeps(lost, clock))).toEqual({ sent: 0, failed: 0, unknown: 1 });
 
-    await repo.insert([{ id: 'digest:y', kind: 'digest', title: 'D', body: 'B', linkPath: '/analytics' }], START);
+    await repo.insert(
+      [
+        { id: 'digest:y', kind: 'digest', title: 'D', body: 'B', html: '<b>D</b>', buttons: [], linkPath: '/analytics' }
+      ],
+      START
+    );
     expect(await repo.claim('digest:y', clock.now())).toBe(true);
     clock.advance(3 * 60_000);
     expect(await sendContentAlerts(sendDeps(ok, clock))).toEqual({ sent: 0, failed: 0, unknown: 1 });
