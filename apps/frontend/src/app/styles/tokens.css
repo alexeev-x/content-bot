@@ -216,8 +216,8 @@
    Telegram and YouTube use their brand hues; TikTok's black/white mark follows the text colour. */
 :root,
 [data-theme] {
-  --color-platform-telegram: #2aabee;
-  --color-platform-youtube: #ff3b30;
+  --color-platform-telegram: #26a5e4;
+  --color-platform-youtube: #ff0000;
   --color-platform-tiktok: var(--color-text);
   /* A previous period or a «usual» reference next to the accent series. */
   --color-chart-muted: color-mix(in oklab, var(--color-text-muted) 55%, var(--color-surface-2));

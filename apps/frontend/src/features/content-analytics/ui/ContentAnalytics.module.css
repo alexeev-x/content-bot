@@ -455,3 +455,8 @@
 .standingVersus[data-tone='down'] {
   color: var(--color-status-failed-fg);
 }
+
+.logo {
+  flex: none;
+  display: block;
+}

@@ -22,6 +22,8 @@ Publishing-safety rules in `docs/BACKEND_ARCHITECTURE.md` always win. Product sc
 - Touch targets 44 px on touch/narrow screens; desktop controls 36 px.
 - Theme (owner, 14.10.2026): one of 6 themes shown as live miniature cards — «Telegram» (blue, default), «Полночь» (violet), «Dota» (red), «Бумага» (orange), «Лес» (green), «Графит» — each but «Telegram» and «Графит» tints `--color-bg`, surfaces and borders in both modes (tokens.css «Themes» block; text and status colours unchanged), or «Своя» with «Свой цвет» (colour area, hue slider, HEX field), the same for both themes (owner, 14.10.2026). The custom colour is stored as the single custom preset; `shared/lib/color/derive-accent.ts` derives per-theme tokens with on-accent and accent text >= 4.5:1 and focus ring >= 3:1, injected as `--custom-*`; a colour close to the failed/unknown status hue gets a soft warning.
 
+- Platform logos (Telegram, YouTube, TikTok) in analytics are the brands' own marks from Simple Icons 13.21.0 (CC0-1.0) in `features/content-analytics/ui/PlatformLogo.tsx`, in brand colours (`--color-platform-*`); always shown next to the platform's name, never as the only label.
+
 ## Design in code only (owner decision 03.10.2026, reaffirmed 07.10.2026)
 Figma is not needed at all: no Figma tasks, exports, templates or handoff. Design exists only as tokens, `shared/ui` primitives and browser screenshots. The dev-only route `/__catalog` (404 in production) shows every token and primitive state.
 

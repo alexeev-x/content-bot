@@ -1,19 +1,15 @@
 import type { ContentPlatform } from '@alexeev/contracts';
-import { Icon, type IconName } from '../../../shared/ui';
 import { PLATFORM_LABEL } from '../model/format';
 import styles from './ContentAnalytics.module.css';
+import { PlatformLogo } from './PlatformLogo';
 
-const ICON: Record<ContentPlatform, IconName> = { telegram: 'send', youtube: 'play', tiktok: 'music' };
+type Props = { platform: ContentPlatform; withLabel?: boolean; size?: number };
 
-type Props = { platform: ContentPlatform; withLabel?: boolean };
-
-/** Monochrome platform mark; the name is always there (as text or for assistive technology). */
-export function PlatformGlyph({ platform, withLabel = false }: Props) {
+/** The platform's logo; the name is always there (as text or for assistive technology). */
+export function PlatformGlyph({ platform, withLabel = false, size = 18 }: Props) {
   return (
     <span className={styles.glyph}>
-      <span className={styles.glyphIcon} data-platform={platform} aria-hidden="true">
-        <Icon name={ICON[platform]} size={14} />
-      </span>
+      <PlatformLogo platform={platform} size={size} />
       {withLabel ? (
         <span>{PLATFORM_LABEL[platform]}</span>
       ) : (
