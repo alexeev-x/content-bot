@@ -82,7 +82,9 @@ Agreed with the owner 15.10.2026. Publishing always needs the owner's approval.
 
 **Goal and acceptance (owner, 15.10.2026):** for now text only, written so that nobody can tell it is AI. Checked blind: 5 real posts mixed with 5 AI posts on the same topics; readers guessing no better than chance.
 
-**Order:** rubrics + provider port → style profile from the export → «Написать с ИИ» in the editor and in the bot → learning from edits → Reels topics from analytics → news autoposts.
+**Why a video flew or did not (owner, 15.10.2026: key).** At 72 h every Reel gets a short AI review in the owner's terms: the verdict against its usual curve and the reasons, read from audience signals (shares per 1 000 views as «relatable, sent to a friend» — the BKB video; comments and likes per 1 000 views; the first hours' pace), from the text (the hook, i.e. the first line: emotion and a recognisable situation vs a lesson; topic relatability; a reason to tag a friend) and, for YouTube, from comment texts (tags, «жиза», arguments); plus what to change in the text. A weekly batch summary names the hooks and topics that work for this owner; it feeds the style profile, so scripts and topic suggestions lean on what flew. Limits: TikTok's Display API gives counters only (no comment texts, no retention); the video's text comes from the studio script or the owner pastes it for old videos; YouTube retention needs the owner's OAuth (stage B).
+
+**Order:** rubrics + provider port → style profile from the export → «Написать с ИИ» in the editor and in the bot → learning from edits → video reviews «why it flew» and Reels topics from analytics → news autoposts.
 
 **Dota humour (owner, 15.10.2026: important).** A compact «Сленг и мемы» lexicon (term or meme, meaning, when it fits, an example line) sent cached with every request; the owner's own jokes and punchline habits extracted from his export as examples; the owner adds or retires entries in the studio in one line; posts about news see the news and its discussion, so fresh jokes come from there; a «шутка не зашла» button in the bot turns misses into rules. Owner input: 10–20 memes and words he uses or that are current.
 
