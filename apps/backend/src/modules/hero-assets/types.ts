@@ -42,6 +42,6 @@ export function objectKey(slug: string, kind: HeroAssetKind): string {
 
 /** The R2 side this module needs; `app/container.ts` adapts the bucket binding. */
 export interface HeroAssetStorage {
-  put(key: string, body: ReadableStream<Uint8Array>, size: number, contentType: string): Promise<void>;
+  put(key: string, body: ArrayBuffer, contentType: string): Promise<void>;
   get(key: string): Promise<{ body: ReadableStream<Uint8Array>; size: number } | null>;
 }

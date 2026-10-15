@@ -15,7 +15,9 @@ export const heroAssetSchema = z.object({
   kind: heroAssetKindSchema,
   status: heroAssetStatusSchema,
   /** Bytes in R2; null until stored. */
-  size: z.number().int().nonnegative().nullable()
+  size: z.number().int().nonnegative().nullable(),
+  /** Why the last attempt failed (a stable code such as HTTP_502); null when it did not. */
+  errorCode: z.string().max(80).nullable()
 });
 export const dotaHeroSchema = z.object({
   slug: heroSlugSchema,

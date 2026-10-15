@@ -13,6 +13,7 @@ export interface HeroAssetRow {
   heroName: string;
   status: HeroAssetStatus;
   size: number | null;
+  errorCode: string | null;
 }
 
 export interface HeroAssetRepository {
@@ -46,6 +47,7 @@ interface RawRow {
   hero_name: string;
   status: HeroAssetStatus;
   size: number | null;
+  error_code: string | null;
 }
 
 export function createD1HeroAssetRepository(db: D1Database): HeroAssetRepository {
@@ -112,7 +114,7 @@ export function createD1HeroAssetRepository(db: D1Database): HeroAssetRepository
     async list() {
       const rows = await db
         .prepare(
-          `SELECT hero_slug, kind, hero_id, hero_name, status, size FROM dota_hero_assets
+          `SELECT hero_slug, kind, hero_id, hero_name, status, size, error_code FROM dota_hero_assets
            ORDER BY hero_name, hero_slug, kind LIMIT 2000`
         )
         .all<RawRow>();
@@ -122,7 +124,8 @@ export function createD1HeroAssetRepository(db: D1Database): HeroAssetRepository
         heroId: row.hero_id,
         heroName: row.hero_name,
         status: row.status,
-        size: row.size
+        size: row.size,
+        errorCode: row.error_code
       }));
     },
 

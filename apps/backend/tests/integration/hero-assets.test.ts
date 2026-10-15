@@ -29,6 +29,8 @@ function fakeCdn(requested: string[]): typeof fetch {
     if (url.startsWith('https://www.dota2.com/datafeed/herolist')) return Response.json(HERO_LIST);
     if (url.endsWith('/renders/nevermore.mov')) return new Response('not found', { status: 404 });
     const body = `bytes of ${url.split('/apps/dota2/')[1]}`;
+    // The CDN may answer a Worker without Content-Length (compressed, chunked): the size is measured.
+    if (url.includes('/icons/')) return new Response(new Blob([body]).stream());
     return new Response(body, { headers: { 'content-length': String(body.length) } });
   }) as typeof fetch;
 }
@@ -72,6 +74,8 @@ describe('hero assets', () => {
     expect(file.status).toBe(200);
     expect(file.headers.get('content-type')).toBe('video/webm');
     expect(await file.text()).toBe('bytes of videos/dota_react/heroes/renders/pudge.webm');
+    const icon = await api.request('/api/v1/dota/hero-assets/pudge/icon');
+    expect(await icon.text()).toBe('bytes of images/dota_react/heroes/icons/pudge.png');
     await expectError(await api.request('/api/v1/dota/hero-assets/nevermore/render_mov'), 404, 'NOT_FOUND');
     await expectError(await api.request('/api/v1/dota/hero-assets/..%2Fx/icon'), 400, 'VALIDATION_ERROR');
 

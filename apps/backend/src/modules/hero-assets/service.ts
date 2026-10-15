@@ -139,16 +139,25 @@ async function copyAsset(
     await response.body?.cancel();
     return fail(`HTTP_${response.status}`);
   }
-  const size = Number(response.headers.get('content-length') ?? 'NaN');
-  if (!Number.isInteger(size) || size <= 0 || size > ASSET_MAX_BYTES) {
+  // Read whole (a few MB at most): the CDN may answer a Worker compressed and without Content-Length, so the
+  // size is measured, not trusted. A declared size over the limit is refused before reading.
+  if (Number(response.headers.get('content-length') ?? '0') > ASSET_MAX_BYTES) {
     await response.body.cancel();
     return fail('HERO_ASSET_SIZE');
   }
+  let bytes: ArrayBuffer;
+  try {
+    bytes = await response.arrayBuffer();
+  } catch {
+    return fail('HERO_ASSET_READ');
+  }
+  const size = bytes.byteLength;
+  if (size === 0 || size > ASSET_MAX_BYTES) return fail('HERO_ASSET_SIZE');
   try {
     deps.budget.charge(1);
-    await deps.storage.put(objectKey(slug, kind), response.body, size, spec.contentType);
-  } catch {
-    return fail('HERO_ASSET_STORE');
+    await deps.storage.put(objectKey(slug, kind), bytes, spec.contentType);
+  } catch (error) {
+    return fail(`HERO_ASSET_STORE${error instanceof Error && error.name !== 'Error' ? `_${error.name}` : ''}`);
   }
   await deps.repo.finish({
     slug,
@@ -168,7 +177,7 @@ export async function listHeroAssets(repo: HeroAssetRepository): Promise<DotaHer
   const heroes = new Map<string, DotaHeroDto>();
   for (const row of rows) {
     const hero = heroes.get(row.slug) ?? { slug: row.slug, id: row.heroId, name: row.heroName, assets: [] };
-    hero.assets.push({ kind: row.kind, status: row.status, size: row.size });
+    hero.assets.push({ kind: row.kind, status: row.status, size: row.size, errorCode: row.errorCode });
     heroes.set(row.slug, hero);
   }
   for (const hero of heroes.values())

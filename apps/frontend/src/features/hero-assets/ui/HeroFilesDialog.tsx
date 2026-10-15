@@ -56,7 +56,13 @@ export function HeroFilesDialog({ hero, onClose }: Props) {
               {asset.status === 'stored' ? (
                 <StoredFile slug={hero.slug} kind={asset.kind} size={asset.size} />
               ) : (
-                <p className={styles.note}>{asset.status === 'missing' ? copy.notAtValve : copy.notStored}</p>
+                <p className={styles.note}>
+                  {asset.status === 'missing'
+                    ? copy.notAtValve
+                    : asset.status === 'failed'
+                      ? copy.failedWith(asset.errorCode ?? '—')
+                      : copy.notStored}
+                </p>
               )}
             </li>
           ))}

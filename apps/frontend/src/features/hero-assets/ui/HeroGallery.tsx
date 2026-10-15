@@ -9,7 +9,17 @@ import { copy } from './copy';
 import { HeroFilesDialog } from './HeroFilesDialog';
 import styles from './HeroGallery.module.css';
 
-/** Настройки → Герои Dota: progress of the mirror and every hero, each opening its files. */
+/** The distinct reasons of the failed files, so a stuck mirror says why. */
+function failureCodes(heroes: readonly DotaHeroDto[]): string {
+  const codes = new Set(
+    heroes.flatMap((hero) =>
+      hero.assets.filter((asset) => asset.status === 'failed').map((asset) => asset.errorCode ?? '—')
+    )
+  );
+  return [...codes].slice(0, 3).join(', ');
+}
+
+/** Медиа → Герои Dota: progress of the mirror and every hero, each opening its files. */
 export function HeroGallery() {
   const list = useQuery(heroAssetsQueryOptions());
   const [open, setOpen] = useState<DotaHeroDto | null>(null);
@@ -27,7 +37,7 @@ export function HeroGallery() {
           <output className={styles.progress}>
             <strong>{copy.progress(data.stored, data.total)}</strong>
             {data.missing > 0 ? <span>{copy.missing(data.missing)}</span> : null}
-            {data.failed > 0 ? <span>{copy.failed(data.failed)}</span> : null}
+            {data.failed > 0 ? <span>{copy.failed(data.failed, failureCodes(data.heroes))}</span> : null}
           </output>
           <progress className={styles.bar} value={data.stored} max={data.total} aria-hidden="true" />
           <p className={styles.note}>{finished ? copy.done : copy.running}</p>
