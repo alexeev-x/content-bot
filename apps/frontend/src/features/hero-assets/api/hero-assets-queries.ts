@@ -1,5 +1,5 @@
-import { queryOptions } from '@tanstack/react-query';
-import { getHeroAssets } from './hero-assets-api';
+import { queryOptions, useMutation, useQueryClient } from '@tanstack/react-query';
+import { getHeroAssets, refreshHeroAssets } from './hero-assets-api';
 
 export const heroAssetsKeys = { all: ['hero-assets'] as const };
 
@@ -13,5 +13,14 @@ export function heroAssetsQueryOptions() {
       const data = query.state.data;
       return data !== undefined && data.total > 0 && data.stored + data.missing >= data.total ? false : 30_000;
     }
+  });
+}
+
+export function useRefreshHeroAssets() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: refreshHeroAssets,
+    retry: false,
+    onSuccess: (data) => client.setQueryData(heroAssetsKeys.all, data)
   });
 }

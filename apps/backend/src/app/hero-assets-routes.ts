@@ -1,6 +1,6 @@
 import { dotaHeroAssetsSchema, heroAssetParamsSchema } from '@alexeev/contracts';
 import { Hono } from 'hono';
-import { listHeroAssets, readHeroAsset } from '../modules/hero-assets';
+import { listHeroAssets, readHeroAsset, refreshHeroList } from '../modules/hero-assets';
 import { AppError } from '../shared/app-error';
 import type { AppBindings } from './env';
 import { validated } from './validation';
@@ -10,6 +10,11 @@ import { validated } from './validation';
 export const heroAssetsRoutes = new Hono<AppBindings>()
   .get('/', async (c) => {
     const container = c.get('container');
+    return c.json(dotaHeroAssetsSchema.parse(await listHeroAssets(container.heroAssets)));
+  })
+  .post('/refresh', async (c) => {
+    const container = c.get('container');
+    await refreshHeroList({ repo: container.heroAssets, fetchImpl: container.contentFetch, clock: container.clock });
     return c.json(dotaHeroAssetsSchema.parse(await listHeroAssets(container.heroAssets)));
   })
   .get('/:slug/:kind', validated('param', heroAssetParamsSchema), async (c) => {

@@ -17,7 +17,6 @@ export interface HeroAssetRow {
 }
 
 export interface HeroAssetRepository {
-  count(): Promise<number>;
   /** Adds a row per hero and kind; an existing row only gets the hero's current name. One statement. */
   upsertHeroes(heroes: readonly HeroRow[], now: number): Promise<void>;
   /** Moves up to `limit` due rows `leaseMs` forward and returns them: the caller that won owns them. */
@@ -36,6 +35,8 @@ export interface HeroAssetRepository {
     contentType?: string;
     errorCode?: string;
   }): Promise<void>;
+  /** Files Valve did not have are queued again (the owner asked to check). */
+  requeueMissing(now: number): Promise<void>;
   list(): Promise<HeroAssetRow[]>;
   status(slug: string, kind: HeroAssetKind): Promise<HeroAssetStatus | null>;
 }
@@ -52,11 +53,6 @@ interface RawRow {
 
 export function createD1HeroAssetRepository(db: D1Database): HeroAssetRepository {
   return {
-    async count() {
-      const row = await db.prepare('SELECT COUNT(*) AS n FROM dota_hero_assets').first<{ n: number }>();
-      return row?.n ?? 0;
-    },
-
     async upsertHeroes(heroes, now) {
       if (heroes.length === 0) return;
       // Heroes × kinds from two JSON arrays: one statement and two parameters whatever the hero count.
@@ -80,7 +76,7 @@ export function createD1HeroAssetRepository(db: D1Database): HeroAssetRepository
           `UPDATE dota_hero_assets SET next_attempt_at = ?1 + ?3, attempts = attempts + 1, updated_at = ?1
            WHERE (hero_slug, kind) IN (
              SELECT hero_slug, kind FROM dota_hero_assets INDEXED BY dota_hero_assets_due_idx
-             WHERE status IN ('pending', 'failed', 'missing') AND next_attempt_at <= ?1
+             WHERE status IN ('pending', 'failed', 'missing') AND status <> 'missing' AND next_attempt_at <= ?1
              ORDER BY next_attempt_at LIMIT ?2
            ) AND next_attempt_at <= ?1
            RETURNING hero_slug, kind, attempts`
@@ -108,6 +104,16 @@ export function createD1HeroAssetRepository(db: D1Database): HeroAssetRepository
           input.errorCode ?? null,
           input.now
         )
+        .run();
+    },
+
+    async requeueMissing(now) {
+      await db
+        .prepare(
+          `UPDATE dota_hero_assets SET status = 'pending', next_attempt_at = ?1, error_code = NULL, updated_at = ?1
+           WHERE status = 'missing'`
+        )
+        .bind(now)
         .run();
     },
 

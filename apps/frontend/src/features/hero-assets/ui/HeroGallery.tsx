@@ -2,9 +2,18 @@ import type { DotaHeroDto } from '@alexeev/contracts';
 import { useQuery } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
 import { useMediaOriginal } from '../../../shared/lib/use-media-thumbnail';
-import { EmptyState, ErrorState, LoadingImage, MediaSkeleton, Panel, Skeleton } from '../../../shared/ui';
+import {
+  Button,
+  EmptyState,
+  ErrorState,
+  LoadingImage,
+  MediaSkeleton,
+  Panel,
+  Skeleton,
+  useToast
+} from '../../../shared/ui';
 import { getHeroAssetContent } from '../api/hero-assets-api';
-import { heroAssetsQueryOptions } from '../api/hero-assets-queries';
+import { heroAssetsQueryOptions, useRefreshHeroAssets } from '../api/hero-assets-queries';
 import { copy } from './copy';
 import { HeroFilesDialog } from './HeroFilesDialog';
 import styles from './HeroGallery.module.css';
@@ -27,7 +36,8 @@ export function HeroGallery() {
     return <ErrorState message={copy.loadError} onRetry={() => void list.refetch()} />;
   if (list.data === undefined) return <Skeleton />;
   const data = list.data;
-  if (data.total === 0) return <EmptyState title={copy.emptyTitle} description={copy.emptyText} />;
+  if (data.total === 0)
+    return <EmptyState title={copy.emptyTitle} description={copy.emptyText} action={<CheckButton />} />;
   const finished = data.stored + data.missing >= data.total;
   return (
     <>
@@ -41,6 +51,10 @@ export function HeroGallery() {
           </output>
           <progress className={styles.bar} value={data.stored} max={data.total} aria-hidden="true" />
           <p className={styles.note}>{finished ? copy.done : copy.running}</p>
+          <div className={styles.check}>
+            <CheckButton />
+            <span className={styles.note}>{copy.checkHint}</span>
+          </div>
         </div>
       </Panel>
       <ul className={styles.grid} aria-label={copy.gridLabel}>
@@ -52,6 +66,26 @@ export function HeroGallery() {
       </ul>
       <HeroFilesDialog hero={open} onClose={() => setOpen(null)} />
     </>
+  );
+}
+
+function CheckButton() {
+  const refresh = useRefreshHeroAssets();
+  const toast = useToast();
+  return (
+    <Button
+      variant="secondary"
+      icon="retry"
+      isLoading={refresh.isPending}
+      onPress={() =>
+        refresh.mutate(undefined, {
+          onSuccess: () => toast.show({ tone: 'success', title: copy.checked }),
+          onError: () => toast.show({ tone: 'error', title: copy.checkFailed })
+        })
+      }
+    >
+      {copy.check}
+    </Button>
   );
 }
 

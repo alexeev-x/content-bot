@@ -20,8 +20,6 @@ const FETCH_TIMEOUT_MS = 20_000;
 /** A claimed file not finished within this is claimable again (the Worker was cut off). */
 const LEASE_MS = 10 * 60 * 1000;
 const HOUR_MS = 60 * 60 * 1000;
-/** Valve has no such file: looked at again weekly (a new hero's render often comes later). */
-const MISSING_RECHECK_MS = 7 * 24 * HOUR_MS;
 /** One file costs a CDN fetch, an R2 write and one D1 update. */
 const ASSET_COST = 3;
 /** About 16 subrequests of the 50 a Free-plan invocation allows; the budget check lowers it when less is left. */
@@ -80,9 +78,26 @@ function backoff(attempts: number): number {
 }
 
 /**
- * One Cron step: refreshes the hero list when asked (or when nothing is listed yet), then copies up to
- * HERO_ASSETS_PER_TICK due files from Valve's CDN into R2. Each file is one claim, one fetch, one streamed R2
- * write and one update; the subrequest budget decides how many fit.
+ * The owner's «Проверить у Valve» (owner decision 15.10.2026: Cron never asks Valve on its own): reads the hero
+ * list, adds new heroes and queues again the files Valve did not have before. One fetch, two statements.
+ */
+export async function refreshHeroList(deps: {
+  repo: HeroAssetRepository;
+  fetchImpl: typeof fetch;
+  clock: Clock;
+}): Promise<{ listed: number }> {
+  const heroes = await fetchHeroList(deps.fetchImpl).catch((error: unknown) => {
+    throw new AppError('UNAVAILABLE', `The Dota hero list is unavailable${reason(error)}`);
+  });
+  await deps.repo.upsertHeroes(heroes, deps.clock.now());
+  await deps.repo.requeueMissing(deps.clock.now());
+  return { listed: heroes.length };
+}
+
+/**
+ * One Cron step: copies up to HERO_ASSETS_PER_TICK queued or failed files from Valve's CDN into R2. With
+ * nothing queued it is one indexed read and never contacts Valve. Each file is one fetch, one R2 write and one
+ * update; the subrequest budget decides how many fit.
  */
 export async function mirrorHeroAssets(deps: {
   repo: HeroAssetRepository;
@@ -91,16 +106,9 @@ export async function mirrorHeroAssets(deps: {
   clock: Clock;
   budget: { charge(count: number): void; remaining(): number };
   reserve: number;
-  refreshList: boolean;
   logger: Logger;
-}): Promise<{ listed: number; stored: number; missing: number; failed: number }> {
-  const summary = { listed: 0, stored: 0, missing: 0, failed: 0 };
-  if (deps.refreshList || (await deps.repo.count()) === 0) {
-    deps.budget.charge(1);
-    const heroes = await fetchHeroList(deps.fetchImpl);
-    await deps.repo.upsertHeroes(heroes, deps.clock.now());
-    summary.listed = heroes.length;
-  }
+}): Promise<{ stored: number; missing: number; failed: number }> {
+  const summary = { stored: 0, missing: 0, failed: 0 };
   const fits = Math.floor((deps.budget.remaining() - deps.reserve - 1) / ASSET_COST);
   const claimed = await deps.repo.claimDue(deps.clock.now(), Math.min(HERO_ASSETS_PER_TICK, fits), LEASE_MS);
   for (const { slug, kind, attempts } of claimed) {
@@ -146,7 +154,8 @@ async function copyAsset(
       kind,
       now: deps.clock.now(),
       status: 'missing',
-      nextAttemptAt: deps.clock.now() + MISSING_RECHECK_MS,
+      // Not claimed again: «Проверить у Valve» queues it once more.
+      nextAttemptAt: deps.clock.now(),
       errorCode: `HTTP_${response.status}`
     });
     return 'missing';

@@ -46,7 +46,6 @@ function deps(fetchImpl: typeof fetch, clock = fakeClock()) {
     clock,
     budget: { charge: () => undefined, remaining: () => 50 },
     reserve: 3,
-    refreshList: false,
     logger
   };
 }
@@ -57,17 +56,25 @@ beforeEach(async () => {
 });
 
 describe('hero assets', () => {
-  it('lists heroes, copies due files into R2 a batch per run and marks a file Valve does not have as missing', async () => {
+  it("lists heroes on the owner's check, copies queued files a batch per run, never asks Valve when idle", async () => {
     const requested: string[] = [];
     const clock = fakeClock();
+    // Cron alone never fetches the hero list: nothing is listed, nothing is asked.
+    expect(await mirrorHeroAssets(deps(fakeCdn(requested), clock))).toEqual({ stored: 0, missing: 0, failed: 0 });
+    expect(requested).toEqual([]);
+
+    const api = createApi({ clock, contentFetch: fakeCdn(requested) });
+    const checked = dotaHeroAssetsSchema.parse(
+      await (await api.request('/api/v1/dota/hero-assets/refresh', { method: 'POST' })).json()
+    );
+    // A name that is not a plain slug never becomes a path.
+    expect(checked).toMatchObject({ total: 12, stored: 0 });
+    expect(requested.filter((url) => url.includes('herolist'))).toHaveLength(1);
+
     const first = await mirrorHeroAssets(deps(fakeCdn(requested), clock));
-    // A name that is not a plain slug never becomes a path; one run copies at most HERO_ASSETS_PER_TICK files.
-    expect(first.listed).toBe(2);
     expect(first.stored + first.missing + first.failed).toBe(HERO_ASSETS_PER_TICK);
     expect(requested.some((url) => url.includes('evil'))).toBe(false);
-
     for (let run = 0; run < 2; run += 1) await mirrorHeroAssets(deps(fakeCdn(requested), clock));
-    const api = createApi({ clock });
     const list = dotaHeroAssetsSchema.parse(await (await api.request('/api/v1/dota/hero-assets')).json());
     // A failed call keeps the runtime's words, so the gallery says why.
     expect(list).toMatchObject({ total: 12, stored: 10, missing: 1, failed: 1 });
@@ -86,10 +93,9 @@ describe('hero assets', () => {
     await expectError(await api.request('/api/v1/dota/hero-assets/nevermore/render_mov'), 404, 'NOT_FOUND');
     await expectError(await api.request('/api/v1/dota/hero-assets/..%2Fx/icon'), 400, 'VALIDATION_ERROR');
 
-    // Nothing is due any more: a stored file is never copied again, a missing one waits a week.
+    // Nothing is due any more: a stored file is never copied again, a missing one waits for the owner's check.
     const before = requested.length;
     expect(await mirrorHeroAssets(deps(fakeCdn(requested), clock))).toEqual({
-      listed: 0,
       stored: 0,
       missing: 0,
       failed: 0

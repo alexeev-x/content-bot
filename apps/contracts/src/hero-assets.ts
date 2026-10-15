@@ -28,7 +28,7 @@ export const dotaHeroSchema = z.object({
 export type DotaHeroDto = z.infer<typeof dotaHeroSchema>;
 
 // GET /api/v1/dota/hero-assets → 200 DotaHeroAssetsDto: every hero (by name) with each file's state and the
-// totals. Read-only, one bounded read. Before the first Cron run the list is empty.
+// totals. Read-only, one bounded read. Empty until «Проверить у Valve» was pressed once.
 export const dotaHeroAssetsSchema = z.object({
   total: z.number().int().nonnegative(),
   stored: z.number().int().nonnegative(),
@@ -37,6 +37,10 @@ export const dotaHeroAssetsSchema = z.object({
   heroes: z.array(dotaHeroSchema).max(300)
 });
 export type DotaHeroAssetsDto = z.infer<typeof dotaHeroAssetsSchema>;
+
+// POST /api/v1/dota/hero-assets/refresh (no body) → 200 DotaHeroAssetsDto: «Проверить у Valve». Reads the hero
+// list, adds new heroes and queues again the files Valve did not have; Cron then copies them. Safe to repeat.
+// errors: UNAVAILABLE 503 (the hero list did not answer), UNAUTHORIZED, FORBIDDEN
 
 // GET /api/v1/dota/hero-assets/{slug}/{kind} → private binary stream of a stored file (not a public R2 URL).
 // errors: NOT_FOUND 404 (unknown or not stored yet), UNAVAILABLE 503 (no R2 binding), UNAUTHORIZED, FORBIDDEN
