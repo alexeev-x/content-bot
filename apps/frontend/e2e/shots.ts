@@ -14,6 +14,8 @@ const PAGES = [
   '/sources',
   '/analytics',
   '/analytics?id=youtube%3Ayt000000002',
+  '/analytics?tab=items',
+  '/analytics?tab=audience',
   '/sources?tab=heroes',
   '/settings/channels',
   '/settings/appearance',
@@ -48,7 +50,7 @@ for (const path of PAGES) {
         await page.screenshot({
           path: `../../.logs/shots/${name}-${viewport.width}-${colorScheme}.png`,
           // The analytics page is long: the whole page is the thing to judge.
-          fullPage: path === '/analytics'
+          fullPage: path.startsWith('/analytics') && !path.includes('id=')
         });
         if (path === '/settings/general') {
           await page.getByRole('heading', { name: /Уведомлять/ }).scrollIntoViewIfNeeded();

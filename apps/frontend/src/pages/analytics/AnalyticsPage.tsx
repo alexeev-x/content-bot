@@ -17,6 +17,7 @@ export function AnalyticsPage() {
   const search = useSearch({ from: '/analytics' });
   const navigate = useNavigate({ from: '/analytics' });
   const view: AnalyticsView = {
+    tab: search.tab ?? 'overview',
     days: search.days ?? 30,
     platform: search.platform,
     page: search.page ?? 1,
@@ -40,6 +41,7 @@ export function AnalyticsPage() {
         const next = { ...view, ...patch };
         return {
           ...previous,
+          tab: next.tab === 'overview' ? undefined : next.tab,
           days: next.days === 30 ? undefined : next.days,
           platform: next.platform,
           page: next.page === 1 ? undefined : next.page,

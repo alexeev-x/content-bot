@@ -3,7 +3,19 @@ import { useQuery } from '@tanstack/react-query';
 import { useMemo } from 'react';
 import { ApiError } from '../../../shared/api/http-client';
 import { useNow } from '../../../shared/lib/use-now';
-import { Button, ErrorState, Panel, SegmentedControl, StaleRegion, type TableSort, useToast } from '../../../shared/ui';
+import {
+  Button,
+  ErrorState,
+  Panel,
+  SegmentedControl,
+  StaleRegion,
+  Tab,
+  TabList,
+  TabPanel,
+  Tabs,
+  type TableSort,
+  useToast
+} from '../../../shared/ui';
 import {
   contentOverviewQueryOptions,
   contentReportQueryOptions,
@@ -24,9 +36,7 @@ import {
 } from '../model/report';
 import { copy } from './copy';
 import { CompareVideosPanel } from './CompareVideosPanel';
-import { DistributionPanel } from './DistributionPanel';
 import { DynamicsPanel } from './DynamicsPanel';
-import { FreshPanel } from './FreshPanel';
 import { TrendingPanel } from './TrendingPanel';
 import { FollowersPanel } from './FollowersPanel';
 import { InsightsPanel } from './InsightsPanel';
@@ -34,13 +44,16 @@ import { ItemDrawer } from './ItemDrawer';
 import { ItemsTable } from './ItemsTable';
 import { type Kpi, KpiStrip } from './KpiStrip';
 import { PerformancePanel } from './PerformancePanel';
-import { AudiencePanels, PlatformComparison } from './PlatformComparison';
+import { PlatformComparison } from './PlatformComparison';
 import { PostingHeatmap } from './PostingHeatmap';
 import { type RankedItem, RankedLists } from './RankedLists';
 import styles from './Report.module.css';
 import { SourceStatusRow } from './SourceStatusRow';
 
+export type AnalyticsTab = 'overview' | 'items' | 'audience';
+
 export type AnalyticsView = {
+  tab: AnalyticsTab;
   days: ContentReportPeriod;
   platform: ContentPlatform | undefined;
   page: number;
@@ -196,81 +209,79 @@ export function AnalyticsBoard({ timezone, view, onViewChange }: Props) {
       <SourceStatusRow overview={overview.data} now={now} />
       {report?.truncated ? <p className={styles.note}>{copy.truncated}</p> : null}
       <StaleRegion busy={reportQuery.isPlaceholderData}>
-        <div className={styles.sections}>
-          <Panel
-            title="Сводка за период"
-            headingLevel={2}
-            quiet
-            note={
-              report
-                ? `${days} дней по дате публикации: ${formatDay(report.from.slice(0, 10))} — ${formatDay(report.to.slice(0, 10))}`
-                : undefined
-            }
-          >
-            <div className={styles.summaryBody}>
-              <KpiStrip kpis={derived?.kpis} days={days} />
+        <Tabs selectedKey={view.tab} onSelectionChange={(key) => onViewChange({ tab: key as AnalyticsTab })}>
+          <TabList aria-label="Разделы аналитики">
+            <Tab id="overview">Обзор</Tab>
+            <Tab id="items">Публикации</Tab>
+            <Tab id="audience">Аудитория</Tab>
+          </TabList>
+          <TabPanel id="overview">
+            <div className={styles.sections}>
+              <Panel
+                title="Сводка за период"
+                headingLevel={2}
+                quiet
+                note={
+                  report
+                    ? `${days} дней по дате публикации: ${formatDay(report.from.slice(0, 10))} — ${formatDay(report.to.slice(0, 10))}`
+                    : undefined
+                }
+              >
+                <div className={styles.summaryBody}>
+                  <KpiStrip kpis={derived?.kpis} days={days} />
+                </div>
+              </Panel>
+              <InsightsPanel insights={derived?.insights} days={days} onOpenItem={open} />
+              <TrendingPanel
+                items={derived?.current}
+                baselines={baselines}
+                medians={derived?.medians ?? {}}
+                now={now}
+                timezone={timezone}
+                onOpen={open}
+                limit={5}
+                allLabel="Все публикации"
+                onOpenAll={() =>
+                  onViewChange({ tab: 'items', sort: { column: 'published', direction: 'descending' }, page: 1 })
+                }
+              />
+              <PerformancePanel items={derived?.current} platform={platform} timezone={timezone} onOpen={open} />
+              <DynamicsPanel report={report} platform={platform} days={days} />
             </div>
-          </Panel>
-          <InsightsPanel insights={derived?.insights} days={days} onOpenItem={open} />
-          <DynamicsPanel
-            report={report}
-            current={derived?.current}
-            previous={derived?.previous}
-            days={days}
-            timezone={timezone}
-          />
-          <div className={styles.pair}>
-            <DistributionPanel items={derived?.current} />
-            <FollowersPanel report={report} platform={platform} />
-          </div>
-          <div className={styles.pair}>
-            <TrendingPanel
-              items={derived?.current}
-              baselines={baselines}
-              medians={derived?.medians ?? {}}
-              now={now}
-              timezone={timezone}
-              onOpen={open}
-            />
-            <FreshPanel
-              items={derived?.current}
-              baselines={baselines}
-              medians={derived?.medians ?? {}}
-              now={now}
-              timezone={timezone}
-              onOpen={open}
-            />
-          </div>
-          <PerformancePanel items={derived?.current} platform={platform} timezone={timezone} onOpen={open} />
-          <CompareVideosPanel
-            items={derived?.current}
-            baselines={baselines}
-            medians={derived?.medians ?? {}}
-            timezone={timezone}
-            onOpen={open}
-          />
-          <RankedLists best={derived?.best} worst={derived?.worst} onOpen={open} />
-          {platform === undefined ? (
-            <>
-              <PlatformComparison report={report} />
-              <AudiencePanels report={report} />
-            </>
-          ) : null}
-          <PostingHeatmap items={derived?.current} platform={platform} timezone={timezone} />
-          <ItemsTable
-            items={derived?.current}
-            medians={derived?.medians ?? {}}
-            baselines={baselines}
-            now={now}
-            timezone={timezone}
-            page={view.page}
-            onPageChange={(page) => onViewChange({ page })}
-            sort={view.sort}
-            onSortChange={(sort) => onViewChange({ sort, page: 1 })}
-            activeId={view.openId}
-            onOpen={open}
-          />
-        </div>
+          </TabPanel>
+          <TabPanel id="items">
+            <div className={styles.sections}>
+              <RankedLists best={derived?.best} worst={derived?.worst} onOpen={open} />
+              <ItemsTable
+                items={derived?.current}
+                medians={derived?.medians ?? {}}
+                baselines={baselines}
+                now={now}
+                timezone={timezone}
+                page={view.page}
+                onPageChange={(page) => onViewChange({ page })}
+                sort={view.sort}
+                onSortChange={(sort) => onViewChange({ sort, page: 1 })}
+                activeId={view.openId}
+                onOpen={open}
+              />
+              <CompareVideosPanel
+                items={derived?.current}
+                baselines={baselines}
+                medians={derived?.medians ?? {}}
+                timezone={timezone}
+                onOpen={open}
+              />
+            </div>
+          </TabPanel>
+          <TabPanel id="audience">
+            <div className={styles.sections}>
+              <FollowersPanel report={report} platform={platform} />
+              {platform === undefined ? <PlatformComparison report={report} /> : null}
+              <PostingHeatmap items={derived?.current} platform={platform} timezone={timezone} />
+            </div>
+          </TabPanel>
+        </Tabs>
       </StaleRegion>
       <ItemDrawer
         id={view.openId}

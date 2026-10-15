@@ -274,7 +274,8 @@ export async function readContentReport(
         .filter((row) => row.platform === platform)
         .map((row) => ({ day: row.day, followers: row.followers }))
     })).filter((series) => series.points.length > 0),
-    baselines: CONTENT_PLATFORMS.map((platform) => baselineFor(checkpoints, platform))
+    baselines: CONTENT_PLATFORMS.map((platform) => baselineFor(checkpoints, platform)),
+    growth: rows.growth
   };
 }
 

@@ -182,6 +182,12 @@ export const contentReportSchema = z.object({
     .array(z.object({ platform: contentPlatformSchema, points: z.array(followersPointSchema).max(200) }))
     .max(3),
   /** Usual curves per platform, for the «на том же возрасте» status of young items. */
-  baselines: z.array(contentBaselineSchema).max(3)
+  baselines: z.array(contentBaselineSchema).max(3),
+  /**
+   * Views gained per UTC day and platform since `previousFrom`, from the daily snapshots: the last reading
+   * of each item that day minus its previous one (an item published that day counts from zero). History
+   * starts with the first collection, so early days may be missing.
+   */
+  growth: z.array(z.object({ platform: contentPlatformSchema, day: dayKeySchema, views: countSchema })).max(3 * 200)
 });
 export type ContentReportDto = z.infer<typeof contentReportSchema>;

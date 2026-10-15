@@ -22,6 +22,8 @@ type Props = {
   /** Dashboard: a link to the whole page under the list. */
   onOpenAll?: () => void;
   limit?: number;
+  /** Text of the link under the list (with `onOpenAll`). */
+  allLabel?: string;
   /** Inside a dashboard widget that already draws the frame and the title. */
   bare?: boolean;
 };
@@ -38,6 +40,7 @@ export function TrendingPanel({
   onOpen,
   onOpenAll,
   limit = 3,
+  allLabel = 'Открыть аналитику',
   bare = false
 }: Props) {
   const young = (items ?? [])
@@ -103,7 +106,7 @@ export function TrendingPanel({
         </span>
         {onOpenAll ? (
           <AriaButton className={styles.link} onPress={onOpenAll}>
-            Открыть аналитику <Icon name="arrow-right" size={14} />
+            {allLabel} <Icon name="arrow-right" size={14} />
           </AriaButton>
         ) : null}
       </div>

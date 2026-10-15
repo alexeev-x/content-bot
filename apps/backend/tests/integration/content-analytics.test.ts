@@ -223,3 +223,26 @@ describe('views at the same age', () => {
     ]);
   });
 });
+
+describe('daily view growth', () => {
+  it('counts each day as the change of the last reading, and a same-day item from zero', async () => {
+    const clock = fakeClock();
+    const repo = createD1ContentAnalyticsRepository(testDb());
+    let views = { old: 100, fresh: 10 };
+    const sources = telegramSource(async () => ({
+      followers: 836,
+      items: [post(1, START - 2 * DAY, views.old), post(2, START - 60_000, views.fresh)]
+    }));
+    await collectContentAnalytics({ repo, sources, clock, logger, requestId: 't' });
+    clock.advance(DAY);
+    views = { old: 160, fresh: 50 };
+    await collectContentAnalytics({ repo, sources, clock, logger, requestId: 't' });
+
+    const report = await readContentReport({ repo, clock }, { days: 7 });
+    const day = (at: number) => new Date(at).toISOString().slice(0, 10);
+    expect(report.growth).toEqual([
+      { platform: 'telegram', day: day(START), views: 10 },
+      { platform: 'telegram', day: day(START + DAY), views: 100 }
+    ]);
+  });
+});

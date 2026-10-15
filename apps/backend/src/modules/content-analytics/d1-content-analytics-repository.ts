@@ -103,6 +103,7 @@ export interface ContentAnalyticsRepository {
   readReport(input: { publishedFrom: number; fromDay: string; limit: number }): Promise<{
     items: ItemRow[];
     followers: OverviewRows['followers'];
+    growth: { platform: ContentPlatform; day: string; views: number }[];
   }>;
 }
 
@@ -316,7 +317,7 @@ export function createD1ContentAnalyticsRepository(db: D1Database): ContentAnaly
     },
 
     async readReport({ publishedFrom, fromDay, limit }) {
-      const [items, followers] = await db.batch([
+      const [items, followers, growth] = await db.batch([
         db
           .prepare(
             `SELECT ${ITEM_COLUMNS} FROM content_items WHERE published_at >= ?
@@ -328,11 +329,38 @@ export function createD1ContentAnalyticsRepository(db: D1Database): ContentAnaly
             `SELECT platform, day, followers FROM content_audience_days
              WHERE platform IN ('telegram', 'youtube', 'tiktok') AND day >= ? ORDER BY platform, day`
           )
-          .bind(fromDay)
+          .bind(fromDay),
+        // One day before the window is read too, so the first day has a previous reading to subtract. The
+        // index is pinned: without table statistics SQLite would scan every snapshot ever stored.
+        db
+          .prepare(
+            `WITH daily AS (
+               SELECT s.item_id, i.platform, date(i.published_at / 1000, 'unixepoch') AS published_day,
+                      date(s.observed_at / 1000, 'unixepoch') AS day, MAX(s.views) AS views
+               FROM content_item_snapshots AS s INDEXED BY content_item_snapshots_observed_idx
+               JOIN content_items AS i ON i.id = s.item_id
+               WHERE s.observed_at >= ?1 AND s.views IS NOT NULL
+               GROUP BY s.item_id, day
+             ), deltas AS (
+               SELECT platform, day,
+                      CASE
+                        WHEN LAG(day) OVER w IS NULL THEN CASE WHEN published_day = day THEN views END
+                        -- Only consecutive days: an old item read weekly would put a week of views on one day.
+                        WHEN julianday(day) - julianday(LAG(day) OVER w) = 1 THEN views - LAG(views) OVER w
+                      END AS delta
+               FROM daily
+               WINDOW w AS (PARTITION BY item_id ORDER BY day)
+             )
+             SELECT platform, day, SUM(MAX(delta, 0)) AS views FROM deltas
+             WHERE delta IS NOT NULL AND day >= ?2
+             GROUP BY platform, day ORDER BY day LIMIT 600`
+          )
+          .bind(publishedFrom - 24 * HOUR_MS, fromDay)
       ]);
       return {
         items: ((items?.results ?? []) as RawItem[]).map(toItem),
-        followers: (followers?.results ?? []) as OverviewRows['followers']
+        followers: (followers?.results ?? []) as OverviewRows['followers'],
+        growth: (growth?.results ?? []) as { platform: ContentPlatform; day: string; views: number }[]
       };
     },
 

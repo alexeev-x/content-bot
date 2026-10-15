@@ -112,14 +112,14 @@ export function ItemsTable({
       {
         id: 'published',
         header: 'Дата',
-        width: 104,
+        width: 128,
         allowsSorting: true,
         cell: (item) => <span className={styles.nowrap}>{formatPublished(item.publishedAt, timezone)}</span>
       },
       {
         id: 'views',
         header: copy.table.views,
-        width: 104,
+        width: 96,
         align: 'end',
         allowsSorting: true,
         compactSlot: 'trailing',
@@ -146,7 +146,7 @@ export function ItemsTable({
       {
         id: 'likes',
         header: copy.table.likes,
-        width: 80,
+        width: 72,
         align: 'end',
         allowsSorting: true,
         cell: (item) => <span className={styles.num}>{formatCount(item.likes)}</span>

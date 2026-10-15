@@ -1,7 +1,7 @@
 import type { ContentPlatform, ContentReportDto } from '@alexeev/contracts';
 import { type ReactNode, useMemo } from 'react';
-import { DataTable, type DataColumn, Icon, Panel } from '../../../shared/ui';
-import { formatCount, PLATFORM_LABEL } from '../model/format';
+import { DataTable, type DataColumn, Panel } from '../../../shared/ui';
+import { formatCount } from '../model/format';
 import { followersStats, percentChange, periodStats, PLATFORMS, splitPeriods } from '../model/report';
 import { PlatformGlyph } from './PlatformGlyph';
 import styles from './Report.module.css';
@@ -135,54 +135,5 @@ export function PlatformComparison({ report }: { report: ContentReportDto | unde
         flush
       />
     </Panel>
-  );
-}
-
-/** Followers per platform as bars on one scale, and the one conclusion worth acting on. */
-export function AudiencePanels({ report }: { report: ContentReportDto | undefined }) {
-  const rows = report ? comparisonRows(report) : [];
-  const max = Math.max(1, ...rows.map((row) => row.followers ?? 0));
-  const withViews = rows.filter((row) => row.perFollower !== null && row.perFollower > 0);
-  const best = [...withViews].sort((a, b) => (b.perFollower ?? 0) - (a.perFollower ?? 0))[0];
-  const other = withViews.find((row) => row.platform !== best?.platform);
-  const ratio =
-    best && other && other.perFollower ? Math.round(((best.perFollower ?? 0) / other.perFollower) * 10) / 10 : null;
-  return (
-    <div className={styles.pair}>
-      <Panel title="Подписчики" headingLevel={2} quiet note="Сейчас, по платформам">
-        <div className={widgets.body}>
-          <ul className={widgets.hbars}>
-            {rows.map((row) => (
-              <li key={row.platform} className={widgets.hbar}>
-                <PlatformGlyph platform={row.platform} withLabel />
-                <strong className={widgets.num}>{formatCount(row.followers)}</strong>
-                <span className={widgets.hbarTrack} aria-hidden="true">
-                  <span style={{ width: `${((row.followers ?? 0) / max) * 100}%` }} />
-                </span>
-              </li>
-            ))}
-          </ul>
-        </div>
-      </Panel>
-      <Panel title="Ключевой вывод" headingLevel={2} quiet>
-        <div className={widgets.body}>
-          {best && other && ratio !== null && ratio >= 1.2 ? (
-            <p className={widgets.callout}>
-              <Icon name="sparkle" size={18} />
-              <span>
-                {PLATFORM_LABEL[best.platform]} даёт{' '}
-                <strong>в {ratio.toLocaleString('ru-RU')} раза больше просмотров на подписчика</strong>, чем{' '}
-                {PLATFORM_LABEL[other.platform]}. Там ролики уходят далеко за пределы своей аудитории: ведите оттуда в
-                Telegram ссылкой в описании и вопросом в конце ролика.
-              </span>
-            </p>
-          ) : (
-            <p className={widgets.muted}>
-              Вывод появится, когда у двух платформ будут и подписчики, и просмотры за период.
-            </p>
-          )}
-        </div>
-      </Panel>
-    </div>
   );
 }

@@ -169,7 +169,28 @@ export function buildInsights(input: {
     });
   }
 
-  // 8. Cadence: publishing less is the most common reason for fewer views.
+  // 8. Reach beyond the audience: views per follower, the platform that brings strangers.
+  if (platform === undefined) {
+    const perFollower = PLATFORMS.map((each) => {
+      const followers = followersStats(report, each).now;
+      const views = periodStats(current.filter((item) => item.platform === each)).views;
+      return { each, value: followers !== null && followers > 0 && views > 0 ? views / followers : null };
+    }).filter((entry): entry is { each: ContentPlatform; value: number } => entry.value !== null);
+    const sorted = [...perFollower].sort((a, b) => b.value - a.value);
+    const top = sorted[0];
+    const low = sorted.at(-1);
+    if (top && low && top.each !== low.each && top.value / low.value >= 1.2) {
+      const ratio = Math.round((top.value / low.value) * 10) / 10;
+      insights.push({
+        id: 'per-follower',
+        tone: 'neutral',
+        title: `${PLATFORM_LABEL[top.each]} даёт ${times(ratio)} больше просмотров на подписчика, чем ${PLATFORM_LABEL[low.each]}`,
+        detail: `Там ролики уходят далеко за пределы своей аудитории: ведите оттуда в Telegram ссылкой в описании и вопросом в конце ролика.`
+      });
+    }
+  }
+
+  // 9. Cadence: publishing less is the most common reason for fewer views.
   if (before.items > 0 && now.items > 0) {
     const change = percentChange(now.items, before.items);
     if (change !== null && Math.abs(change) >= 25) {
