@@ -9,11 +9,13 @@ import {
   contentItemsQuerySchema,
   contentReportQuerySchema,
   contentReportSchema,
+  messagePreviewsResultSchema,
   tiktokConnectSchema
 } from '@alexeev/contracts';
 import { Hono } from 'hono';
 import { z } from 'zod';
 import {
+  buildMessagePreviews,
   collectContentAnalytics,
   listContentItems,
   readContentAnalyticsOverview,
@@ -28,11 +30,16 @@ import {
   startTikTokConnect,
   TIKTOK_STATE_TTL_SEC
 } from '../modules/content-analytics';
+import { getOwnerOperationsSettings } from '../modules/settings';
 import { AppError } from '../shared/app-error';
+import { appOriginOf } from './bot/app-origin';
 import { deleteCookie, getCookie, setCookie } from 'hono/cookie';
 import { rateLimitClientKey } from '../platform/rate-limit/client-key';
 import type { AppBindings } from './env';
 import { validated } from './validation';
+
+/** One answer each; the whole set (17 messages) stays well inside a request. */
+const PREVIEW_SEND_TIMEOUT_MS = 5_000;
 
 const itemParamsSchema = z.strictObject({ id: contentItemIdSchema });
 // TikTok's redirect: every field optional and bounded; anything else in the query is ignored.
@@ -174,6 +181,57 @@ export const contentAnalyticsRoutes = new Hono<AppBindings>()
         await readContentItem({ repo: container.contentAnalytics, clock: container.clock }, c.req.valid('param').id)
       )
     );
+  })
+  .post('/message-previews', async (c) => {
+    const container = c.get('container');
+    const messenger = container.ownerMessenger;
+    if (messenger === null) throw new AppError('UNAVAILABLE', 'The bot token is not configured');
+    const { timezone } = await getOwnerOperationsSettings({
+      repo: container.settings,
+      logger: container.logger,
+      requestId: c.get('requestId')
+    });
+    const { intro, messages } = await buildMessagePreviews({
+      repo: container.contentAlerts,
+      goals: container.contentGoals,
+      clock: container.clock,
+      timezone
+    });
+    const chatId = c.get('actor').telegramId;
+    const origin = appOriginOf(c.req.url);
+    let sent = 0;
+    try {
+      await messenger.sendMessageWithWebAppButton(
+        chatId,
+        { html: intro, button: { text: 'Открыть аналитику', url: new URL('/analytics', origin).toString() } },
+        AbortSignal.timeout(PREVIEW_SEND_TIMEOUT_MS)
+      );
+      sent += 1;
+      // One after another, so they arrive in order.
+      for (const message of messages) {
+        await messenger.sendMessageWithWebAppButton(
+          chatId,
+          {
+            html: message.html,
+            button: {
+              text: message.kind === 'source' ? 'Открыть настройки' : 'Открыть аналитику',
+              url: new URL(message.linkPath, origin).toString()
+            }
+          },
+          AbortSignal.timeout(PREVIEW_SEND_TIMEOUT_MS)
+        );
+        sent += 1;
+      }
+    } catch (error) {
+      container.logger.warn({
+        component: 'content-alerts',
+        operation: 'message_previews',
+        requestId: c.get('requestId'),
+        errorCode: error instanceof Error ? error.name : 'UNKNOWN'
+      });
+      throw new AppError('UNAVAILABLE', 'Telegram did not accept every preview', { sent: String(sent) });
+    }
+    return c.json(messagePreviewsResultSchema.parse({ sent }));
   })
   .get('/goals', async (c) => {
     const container = c.get('container');

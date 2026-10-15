@@ -189,6 +189,8 @@ Each collection also records an item's views at 1, 3, 6, 12, 24, 48 and 72 hours
 
 Bot alerts (no endpoint; Cron every 10 minutes at minute 8 on idle ticks, migration 0047): a publication of the last 26 hours whose latest recorded 3, 6 or 24 h checkpoint is ≥ 1.5× or ≤ 0.7× the usual curve (usual ≥ 20 views), once per publication and direction; a source that collected before and has failed for 3 hours (a TikTok reconnect at once), once per outage; on Monday from 10:00 in the owner's zone a digest of the previous Monday–Sunday in the owner's zone (its publication count against the week before, the median views at 24 h per platform against the week before when each week has 3 measured publications, follower change by the end of Sunday, each goal with its pace and forecast, the best three and the weakest three publications older than 72 hours against the 30-day median of their platform). At most 3 new alerts are raised per tick. The dedup key is the alert id; each alert is sent once with a button to the studio, and a send without a confirmed answer stays `unknown`, never retried.
 
+Alert style previews (`POST /api/v1/content-analytics/message-previews`, Настройки → Аналитика → «Прислать примеры в бота»): sends the owner an intro and every alert kind (weekly digest from last week's real numbers, «Залетает», «Идёт слабее обычного», a source outage, a TikTok reconnect) in each candidate style, so the owner picks how alerts should look. Not idempotent: each press sends the set again. Answers `{ sent }`; `UNAVAILABLE` when the bot is not configured or Telegram rejects or does not answer a message.
+
 ## Owner settings
 
 Schemas and error codes: `apps/contracts/src/settings.ts`.

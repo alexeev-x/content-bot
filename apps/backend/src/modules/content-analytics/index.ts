@@ -8,6 +8,7 @@ export {
   type TikTokConnectionRepository
 } from './tiktok-connection';
 export { raiseContentAlerts } from './alerts';
+export { buildMessagePreviews, type MessagePreview } from './message-previews';
 export { createD1ContentGoalRepository } from './d1-content-goals-repository';
 export { type ContentGoalRepository, readContentGoals, removeContentGoal, setContentGoal } from './goals';
 export {

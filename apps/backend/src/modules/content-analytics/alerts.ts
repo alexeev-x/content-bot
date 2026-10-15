@@ -16,8 +16,8 @@ const DAY_MS = 24 * HOUR_MS;
 const ALERT_CHECKPOINTS = [24, 6, 3] as const;
 /** The 24 h checkpoint is recorded by 25.5 h; older items no longer raise alerts. */
 const ITEM_ALERT_WINDOW_MS = 26 * HOUR_MS;
-const RISING = 1.5;
-const BELOW = 0.7;
+export const RISING = 1.5;
+export const BELOW = 0.7;
 /** A usual value this small is noise (a few views either way doubles it). */
 const MIN_USUAL_VIEWS = 20;
 /** Usual curves come from items tracked from birth over this window, as on the page. */
@@ -36,25 +36,29 @@ const DIGEST_AGE_HOURS = 24;
 /** Alerts inserted per tick; the rest still qualify on the next tick. Keeps the D1 budget fixed. */
 export const NEW_ALERTS_PER_TICK = 3;
 
-const PLATFORM_LABEL: Record<ContentPlatform, string> = { telegram: 'Telegram', youtube: 'YouTube', tiktok: 'TikTok' };
+export const PLATFORM_LABEL: Record<ContentPlatform, string> = {
+  telegram: 'Telegram',
+  youtube: 'YouTube',
+  tiktok: 'TikTok'
+};
 
 const exact = new Intl.NumberFormat('ru-RU');
 const compact = new Intl.NumberFormat('ru-RU', { notation: 'compact', maximumFractionDigits: 1 });
 
-function count(value: number): string {
+export function count(value: number): string {
   const whole = Math.round(value);
   return whole < 10_000 ? exact.format(whole) : compact.format(whole);
 }
 
-function multiple(value: number): string {
+export function multiple(value: number): string {
   return `${(Math.round(value * 10) / 10).toLocaleString('ru-RU')}×`;
 }
 
-function signed(value: number): string {
+export function signed(value: number): string {
   return value > 0 ? `+${count(value)}` : value < 0 ? `−${count(-value)}` : '0';
 }
 
-function itemTitle(item: ItemRow, max: number): string {
+export function itemTitle(item: ItemRow, max: number): string {
   const title = item.title.trim() || (item.thumbnailUrl === null ? 'Без текста' : 'Фото или видео');
   // By code point, so an emoji is never cut in half.
   const chars = Array.from(title);
@@ -101,11 +105,11 @@ function zonedDate(at: number, timezone: string): string {
   return new Intl.DateTimeFormat('en-CA', { timeZone: timezone }).format(new Date(at));
 }
 
-function shortDay(at: number, timezone: string): string {
+export function shortDay(at: number, timezone: string): string {
   return new Intl.DateTimeFormat('ru-RU', { timeZone: timezone, day: 'numeric', month: 'short' }).format(new Date(at));
 }
 
-function shortTime(at: number, timezone: string): string {
+export function shortTime(at: number, timezone: string): string {
   return new Intl.DateTimeFormat('ru-RU', {
     timeZone: timezone,
     day: 'numeric',
@@ -113,6 +117,25 @@ function shortTime(at: number, timezone: string): string {
     hour: '2-digit',
     minute: '2-digit'
   }).format(new Date(at));
+}
+
+export interface ItemAlertFacts {
+  item: ItemRow;
+  direction: 'rising' | 'below';
+  hours: number;
+  views: number;
+  usual: number;
+}
+
+export function itemAlertText({ item, direction, hours, views, usual }: ItemAlertFacts): {
+  title: string;
+  body: string;
+} {
+  const where = `«${itemTitle(item, 80)}» в ${PLATFORM_LABEL[item.platform]}`;
+  const numbers = `${multiple(views / usual)} обычного на ${hours} ч: ${count(views)} просмотров при обычных ${count(usual)}.`;
+  return direction === 'rising'
+    ? { title: `Залетает: ${where}`, body: `${numbers}\nПовторите тему или первую фразу, пока интерес высокий.` }
+    : { title: `Идёт слабее обычного: ${where}`, body: `${numbers}\nПроверьте первую строку, обложку и время выхода.` };
 }
 
 /** A young item against its platform's usual curve at the latest recorded alert checkpoint. */
@@ -130,22 +153,12 @@ export function itemAlerts(items: readonly ItemRow[], checkpoints: readonly Chec
       // The latest recorded checkpoint decides, even when it has nothing to compare with yet.
       if (usual !== null && usual >= MIN_USUAL_VIEWS) {
         const ratio = views / usual;
-        const where = `«${itemTitle(item, 80)}» в ${PLATFORM_LABEL[item.platform]}`;
-        const numbers = `${multiple(ratio)} обычного на ${hours} ч: ${count(views)} просмотров при обычных ${count(usual)}.`;
-        if (ratio >= RISING)
+        const direction = ratio >= RISING ? 'rising' : ratio <= BELOW ? 'below' : null;
+        if (direction !== null)
           alerts.push({
-            id: `item:${item.id}:rising`,
+            id: `item:${item.id}:${direction}`,
             kind: 'item',
-            title: `Залетает: ${where}`,
-            body: `${numbers}\nПовторите тему или первую фразу, пока интерес высокий.`,
-            linkPath: itemLink(item)
-          });
-        else if (ratio <= BELOW)
-          alerts.push({
-            id: `item:${item.id}:below`,
-            kind: 'item',
-            title: `Идёт слабее обычного: ${where}`,
-            body: `${numbers}\nПроверьте первую строку, обложку и время выхода.`,
+            ...itemAlertText({ item, direction, hours, views, usual }),
             linkPath: itemLink(item)
           });
       }
@@ -153,6 +166,25 @@ export function itemAlerts(items: readonly ItemRow[], checkpoints: readonly Chec
     }
   }
   return alerts;
+}
+
+export interface SourceAlertFacts {
+  platform: ContentPlatform;
+  lastSuccessAt: number;
+  lastErrorCode: string | null;
+}
+
+export function sourceAlertText(source: SourceAlertFacts, timezone: string): { title: string; body: string } {
+  const label = PLATFORM_LABEL[source.platform];
+  return source.lastErrorCode === 'TIKTOK_RECONNECT'
+    ? {
+        title: `${label}: нужно войти заново`,
+        body: `${label} отозвал доступ, статистика не обновляется. Войдите заново: Настройки → Аналитика.`
+      }
+    : {
+        title: `Не собирается статистика ${label}`,
+        body: `Последний успешный сбор ${shortTime(source.lastSuccessAt, timezone)}, ошибка ${source.lastErrorCode ?? 'неизвестна'}. Графики не обновляются, сбор повторяется каждые 15 минут.`
+      };
 }
 
 /** A source that worked before and now fails: after SOURCE_OUTAGE_MS, or at once when it needs a new sign-in. */
@@ -163,14 +195,13 @@ export function sourceAlerts(sources: readonly SourceRow[], now: number, timezon
       continue;
     const reconnect = source.lastErrorCode === 'TIKTOK_RECONNECT';
     if (!reconnect && now - source.lastSuccessAt < SOURCE_OUTAGE_MS) continue;
-    const label = PLATFORM_LABEL[source.platform];
     alerts.push({
       id: `source:${source.platform}:${source.lastSuccessAt}`,
       kind: 'source',
-      title: reconnect ? `${label}: нужно войти заново` : `Не собирается статистика ${label}`,
-      body: reconnect
-        ? `${label} отозвал доступ, статистика не обновляется. Войдите заново: Настройки → Аналитика.`
-        : `Последний успешный сбор ${shortTime(source.lastSuccessAt, timezone)}, ошибка ${source.lastErrorCode ?? 'неизвестна'}. Графики не обновляются, сбор повторяется каждые 15 минут.`,
+      ...sourceAlertText(
+        { platform: source.platform, lastSuccessAt: source.lastSuccessAt, lastErrorCode: source.lastErrorCode },
+        timezone
+      ),
       linkPath: '/settings/analytics'
     });
   }
@@ -190,8 +221,27 @@ export function digestWeekEnd(now: number, timezone: string): number | null {
   return zonedMidnight(now, timezone);
 }
 
-/** The Monday digest of the week that ended at `weekEnd`. */
-export function digestAlert(input: {
+export interface DigestEntry {
+  item: ItemRow;
+  ratio: number;
+}
+
+/** What a weekly digest says, before it is worded; the bot message and the preview variants share it. */
+export interface DigestData {
+  weekStart: number;
+  weekEnd: number;
+  published: number;
+  publishedBefore: number;
+  /** Median views at DIGEST_AGE_HOURS per platform with three measured publications; change in % or null. */
+  atAge: { platform: ContentPlatform; views: number; change: number | null }[];
+  /** The last follower count by the end of Sunday and its change over the week (null without a base). */
+  followers: { platform: ContentPlatform; followers: number; change: number | null }[];
+  goals: readonly ContentGoalDto[];
+  best: DigestEntry[];
+  worst: DigestEntry[];
+}
+
+export interface DigestInput {
   items: readonly ItemRow[];
   checkpoints: readonly CheckpointRow[];
   followers: readonly { platform: ContentPlatform; day: string; followers: number }[];
@@ -199,7 +249,10 @@ export function digestAlert(input: {
   weekEnd: number;
   now: number;
   timezone: string;
-}): NewContentAlert {
+}
+
+/** The numbers of the week that ended at `weekEnd`. */
+export function digestData(input: DigestInput): DigestData {
   const { items, checkpoints, followers, goals = [], weekEnd, now, timezone } = input;
   // Noon a week back is always inside the previous Monday, whatever a DST change did to the week.
   const weekStart = zonedMidnight(weekEnd - 7 * DAY_MS + 12 * HOUR_MS, timezone);
@@ -231,54 +284,79 @@ export function digestAlert(input: {
       const usual = medians.get(item.platform) ?? null;
       return { item, ratio: item.views === null || usual === null || usual === 0 ? null : item.views / usual };
     })
-    .filter((entry): entry is { item: ItemRow; ratio: number } => entry.ratio !== null);
+    .filter((entry): entry is DigestEntry => entry.ratio !== null);
   const best = [...ranked].sort((a, b) => b.ratio - a.ratio).slice(0, DIGEST_LIST);
   const worst = ranked
     .filter((entry) => !best.includes(entry))
     .sort((a, b) => a.ratio - b.ratio)
     .slice(0, DIGEST_LIST);
-  const line = (entry: { item: ItemRow; ratio: number }, index: number) =>
-    `${index + 1}. «${itemTitle(entry.item, 60)}», ${PLATFORM_LABEL[entry.item.platform]}: ${count(entry.item.views ?? 0)} (${multiple(entry.ratio)})`;
 
-  const lines: string[] = [];
-  if (week.length === 0) lines.push('За неделю публикаций не было.');
-  else lines.push(`Публикаций: ${week.length}, на прошлой неделе ${before.length}.`);
   // Weeks compared at the same age: the median views at 24 h per platform (totals so far would always
   // favour the older week). Needs three measured publications in each week.
-  const ageParts = CONTENT_PLATFORMS.flatMap((platform) => {
-    const at = (list: readonly ItemRow[]) =>
-      median(
-        list
-          .filter((item) => item.platform === platform)
-          .map((item) => atAge.get(item.id) ?? null)
-          .filter((value): value is number => value !== null)
-      );
-    const counted = (list: readonly ItemRow[]) =>
-      list.filter((item) => item.platform === platform && (atAge.get(item.id) ?? null) !== null).length;
-    if (counted(week) < 3) return [];
-    const now24 = at(week);
-    const before24 = counted(before) >= 3 ? at(before) : null;
-    if (now24 === null) return [];
-    const change = before24 === null || before24 === 0 ? null : Math.round(((now24 - before24) / before24) * 100);
-    return [
-      `${PLATFORM_LABEL[platform]} ${count(now24)}${change === null ? '' : ` (${change > 0 ? '+' : change < 0 ? '−' : ''}${Math.abs(change)}%)`}`
-    ];
+  const ageRows = CONTENT_PLATFORMS.flatMap((platform) => {
+    const measured = (list: readonly ItemRow[]) =>
+      list
+        .filter((item) => item.platform === platform)
+        .map((item) => atAge.get(item.id) ?? null)
+        .filter((value): value is number => value !== null);
+    const now24 = measured(week);
+    if (now24.length < 3) return [];
+    const views = median(now24);
+    const earlier = measured(before);
+    const before24 = earlier.length >= 3 ? median(earlier) : null;
+    if (views === null) return [];
+    const change = before24 === null || before24 === 0 ? null : Math.round(((views - before24) / before24) * 100);
+    return [{ platform, views, change }];
   });
-  if (ageParts.length > 0) lines.push(`Обычно за первые ${DIGEST_AGE_HOURS} ч: ${ageParts.join(' · ')}.`);
   // Daily follower counts are stored per UTC day: the last reading by the end of each Sunday.
   const endDay = new Date(weekEnd - 1).toISOString().slice(0, 10);
   const startDay = new Date(weekStart - 1).toISOString().slice(0, 10);
-  const followerParts = CONTENT_PLATFORMS.flatMap((platform) => {
+  const followerRows = CONTENT_PLATFORMS.flatMap((platform) => {
     const own = followers.filter((point) => point.platform === platform);
     const last = own.filter((point) => point.day <= endDay).at(-1);
     const base = own.filter((point) => point.day <= startDay).at(-1);
     if (last === undefined) return [];
-    return [
-      `${PLATFORM_LABEL[platform]} ${base === undefined || base === last ? '' : `${signed(last.followers - base.followers)} `}(${count(last.followers)})`
-    ];
+    const change = base === undefined || base === last ? null : last.followers - base.followers;
+    return [{ platform, followers: last.followers, change }];
   });
+  return {
+    weekStart,
+    weekEnd,
+    published: week.length,
+    publishedBefore: before.length,
+    atAge: ageRows,
+    followers: followerRows,
+    goals,
+    best,
+    worst
+  };
+}
+
+export function digestTitle(data: DigestData, timezone: string): string {
+  return `Итоги недели ${shortDay(data.weekStart, timezone)} — ${shortDay(data.weekEnd - 1, timezone)}`;
+}
+
+/** The Monday digest of the week that ended at `weekEnd`. */
+export function digestAlert(input: DigestInput): NewContentAlert {
+  const { timezone } = input;
+  const data = digestData(input);
+  const line = (entry: DigestEntry, index: number) =>
+    `${index + 1}. «${itemTitle(entry.item, 60)}», ${PLATFORM_LABEL[entry.item.platform]}: ${count(entry.item.views ?? 0)} (${multiple(entry.ratio)})`;
+
+  const lines: string[] = [];
+  if (data.published === 0) lines.push('За неделю публикаций не было.');
+  else lines.push(`Публикаций: ${data.published}, на прошлой неделе ${data.publishedBefore}.`);
+  const ageParts = data.atAge.map(
+    ({ platform, views, change }) =>
+      `${PLATFORM_LABEL[platform]} ${count(views)}${change === null ? '' : ` (${change > 0 ? '+' : change < 0 ? '−' : ''}${Math.abs(change)}%)`}`
+  );
+  if (ageParts.length > 0) lines.push(`Обычно за первые ${DIGEST_AGE_HOURS} ч: ${ageParts.join(' · ')}.`);
+  const followerParts = data.followers.map(
+    ({ platform, followers, change }) =>
+      `${PLATFORM_LABEL[platform]} ${change === null ? '' : `${signed(change)} `}(${count(followers)})`
+  );
   if (followerParts.length > 0) lines.push(`Подписчики: ${followerParts.join(' · ')}.`);
-  for (const goal of goals) {
+  for (const goal of data.goals) {
     const label = PLATFORM_LABEL[goal.platform];
     if (goal.reached) {
       lines.push(`Цель ${label}: ${count(goal.target)} достигнута.`);
@@ -286,21 +364,60 @@ export function digestAlert(input: {
     }
     const parts = [`Цель ${label}: ${goal.followers === null ? '—' : count(goal.followers)} из ${count(goal.target)}`];
     if (goal.perWeek !== null) parts.push(`${signed(goal.perWeek)} в неделю`);
-    if (goal.forecastDay !== null)
-      parts.push(`при таком темпе к ${shortDay(Date.parse(`${goal.forecastDay}T12:00:00Z`), timezone)}`);
+    if (goal.forecastDay !== null) parts.push(`при таком темпе к ${forecastDay(goal.forecastDay, timezone)}`);
     else if (goal.perWeek !== null && goal.perWeek <= 0) parts.push('рост стоит');
     // A short month already ends with a dot («нояб.»).
     lines.push(`${parts.join(', ')}.`.replace(/\.\.$/, '.'));
   }
-  if (best.length > 0) lines.push('', 'Лучшие к обычному своей платформы (старше 3 дней):', ...best.map(line));
-  if (worst.length > 0) lines.push('', 'Слабее всего:', ...worst.map(line));
+  if (data.best.length > 0)
+    lines.push('', 'Лучшие к обычному своей платформы (старше 3 дней):', ...data.best.map(line));
+  if (data.worst.length > 0) lines.push('', 'Слабее всего:', ...data.worst.map(line));
 
   return {
-    id: `digest:${zonedDate(weekEnd, timezone)}`,
+    id: `digest:${zonedDate(input.weekEnd, timezone)}`,
     kind: 'digest',
-    title: `Итоги недели ${shortDay(weekStart, timezone)} — ${shortDay(weekEnd - 1, timezone)}`,
+    title: digestTitle(data, timezone),
     body: lines.join('\n').slice(0, 3000),
     linkPath: '/analytics'
+  };
+}
+
+export function forecastDay(day: string, timezone: string): string {
+  return shortDay(Date.parse(`${day}T12:00:00Z`), timezone);
+}
+
+/** The owner-zone Monday 00:00 that ended the last full week before `now`. */
+export function lastWeekEnd(now: number, timezone: string): number {
+  const today = zonedMidnight(now, timezone);
+  // Noon keeps the day right across a DST change inside the week.
+  return zonedMidnight(today - zoned(now, timezone).weekday * DAY_MS + 12 * HOUR_MS, timezone);
+}
+
+/** Everything a digest of the week that ended at `weekEnd` reads: four bounded reads. */
+export async function loadDigestInput(deps: {
+  repo: ContentAlertRepository;
+  goals: ContentGoalRepository;
+  clock: Clock;
+  timezone: string;
+  weekEnd: number;
+}): Promise<DigestInput> {
+  const { weekEnd } = deps;
+  const now = deps.clock.now();
+  const from = Math.min(now - MEDIAN_WINDOW_MS, weekEnd - 15 * DAY_MS);
+  const [history, checkpoints, followers, goals] = await Promise.all([
+    deps.repo.readRecent({ itemsFrom: from, limit: DIGEST_ITEM_LIMIT }),
+    deps.repo.readCheckpoints(weekEnd - 15 * DAY_MS),
+    deps.repo.readFollowers(new Date(weekEnd - 15 * DAY_MS).toISOString().slice(0, 10)),
+    readContentGoals({ repo: deps.goals, clock: deps.clock })
+  ]);
+  return {
+    items: history.items,
+    checkpoints,
+    followers,
+    goals: goals.goals,
+    weekEnd,
+    now,
+    timezone: deps.timezone
   };
 }
 
@@ -330,24 +447,7 @@ export async function raiseContentAlerts(deps: {
   ]);
   const fresh = alerts.filter((alert) => !known.has(alert.id));
   if (weekEnd !== null && digestId !== null && !known.has(digestId) && fresh.length < NEW_ALERTS_PER_TICK) {
-    const from = Math.min(now - MEDIAN_WINDOW_MS, weekEnd - 15 * DAY_MS);
-    const [history, checkpoints, followers, goals] = await Promise.all([
-      deps.repo.readRecent({ itemsFrom: from, limit: DIGEST_ITEM_LIMIT }),
-      deps.repo.readCheckpoints(weekEnd - 15 * DAY_MS),
-      deps.repo.readFollowers(new Date(weekEnd - 15 * DAY_MS).toISOString().slice(0, 10)),
-      readContentGoals({ repo: deps.goals, clock: deps.clock })
-    ]);
-    fresh.push(
-      digestAlert({
-        items: history.items,
-        checkpoints,
-        followers,
-        goals: goals.goals,
-        weekEnd,
-        now,
-        timezone: deps.timezone
-      })
-    );
+    fresh.push(digestAlert(await loadDigestInput({ ...deps, weekEnd })));
   }
   return { raised: await deps.repo.insert(fresh.slice(0, NEW_ALERTS_PER_TICK), now) };
 }

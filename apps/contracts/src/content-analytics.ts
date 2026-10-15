@@ -231,3 +231,10 @@ export const contentGoalSchema = z.object({
 export type ContentGoalDto = z.infer<typeof contentGoalSchema>;
 export const contentGoalsSchema = z.object({ goals: z.array(contentGoalSchema).max(3) });
 export type ContentGoalsDto = z.infer<typeof contentGoalsSchema>;
+
+// POST /api/v1/content-analytics/message-previews (no body) → 200 MessagePreviewsResultDto: sends the owner
+// every bot alert kind in each candidate style (last week's real digest) to compare them in the bot.
+// Not idempotent by design: each press sends the set again; the button is disabled while it runs.
+// errors: UNAVAILABLE 503 (bot not configured, Telegram rejected or did not answer), UNAUTHORIZED, FORBIDDEN
+export const messagePreviewsResultSchema = z.object({ sent: z.number().int().nonnegative() });
+export type MessagePreviewsResultDto = z.infer<typeof messagePreviewsResultSchema>;
