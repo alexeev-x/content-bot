@@ -1,0 +1,10 @@
+node_modules/
+models/*.bin
+downloads/
+tmp/
+out/
+analysis/*/audio.wav
+analysis/*/audio.m4a
+analysis/*/head.wav
+analysis/*/c*.wav
+analysis/*/frames/
