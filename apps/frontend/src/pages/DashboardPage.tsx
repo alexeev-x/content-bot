@@ -1,9 +1,17 @@
 import { useState } from 'react';
-import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
+import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
 import { useDocumentTitle } from '../app/use-document-title';
-import { AudienceSummary, TrendingSummary } from '../features/content-analytics';
-import { Dashboard, DateChip, useDashboardQuery, type PageBindings } from '../features/dashboard';
+import {
+  contentOverviewQueryOptions,
+  CrossPlatformSummary,
+  LatestVideoSummary,
+  PlatformLogo,
+  TrendingSummary,
+  WeekStatsSummary
+} from '../features/content-analytics';
+import { sourceEventsQueryOptions } from '../features/dota-intelligence';
+import { Dashboard, DateChip, type PageBindings, type SourceRow, useDashboardQuery } from '../features/dashboard';
 import { destinationsInfiniteQueryOptions } from '../features/destinations';
 import { MediaPanel, MediaThumb } from '../features/media';
 import { PublicationDrawer, publicationQueryOptions } from '../features/publications';
@@ -11,7 +19,8 @@ import { useOwnerTimezone } from '../features/owner-settings';
 import { utcOffsetLabel } from '../shared/lib/owner-timezone';
 import { useNow } from '../shared/lib/use-now';
 import { ru } from '../shared/lib/ru';
-import { Button, PageHeader, useMediaQuery } from '../shared/ui';
+import { relativeTimeRu } from '../shared/lib/ru-format';
+import { Button, Icon, PageHeader, useMediaQuery } from '../shared/ui';
 
 type Props = {
   /** Test hook: dashboard poll interval in ms (production uses the 60 s default). */
@@ -37,6 +46,53 @@ export function DashboardPage({ pollMs, openPublicationId, onOpenPublicationChan
       ? onOpenPublicationChange(id)
       : id && void navigate({ to: '/publications', search: { id } });
 
+  const queryClient = useQueryClient();
+  const openAnalyticsItem = (id: string) => void navigate({ to: '/analytics', search: { id } });
+  // «Новости и источники»: the latest Dota updates, then the analytics sources that need a look.
+  const events = useQuery(sourceEventsQueryOptions({ page: 1, limit: 3 }));
+  const overview = useQuery(contentOverviewQueryOptions());
+  const nowMs = now.getTime();
+  const sourceRows: SourceRow[] | undefined =
+    events.data === undefined && overview.data === undefined
+      ? undefined
+      : [
+          ...(events.data?.items ?? []).map((event): SourceRow => ({
+            id: event.id,
+            mark: <Icon name="zap" size={18} />,
+            title: event.sourceName,
+            subtitle: event.title,
+            time: relativeTimeRu(event.publishedAt, nowMs),
+            action: event.draft
+              ? {
+                  label: 'Открыть',
+                  onPress: () => void navigate({ to: '/posts/$id', params: { id: event.draft!.postId } })
+                }
+              : {
+                  label: 'Создать пост',
+                  primary: true,
+                  onPress: () => void navigate({ to: '/sources', search: { update: event.id } })
+                }
+          })),
+          ...(overview.data?.sources ?? [])
+            .filter((source) => source.state === 'error' || source.connection === 'available')
+            .map((source): SourceRow => ({
+              id: `analytics:${source.platform}`,
+              mark: <PlatformLogo platform={source.platform} size={22} />,
+              title: source.state === 'error' ? 'Источник с ошибкой' : 'Источник не подключён',
+              subtitle: `${source.platform === 'telegram' ? 'Telegram' : source.platform === 'youtube' ? 'YouTube' : 'TikTok'}: ${source.state === 'error' ? 'сбор не удался' : 'нужен вход'}`,
+              attention: true,
+              action: { label: 'Проверить', onPress: () => void navigate({ to: '/settings/analytics' }) }
+            }))
+        ];
+  const active = (overview.data?.sources ?? []).filter((source) => source.state === 'ok').length;
+  const lastSync = (overview.data?.sources ?? [])
+    .map((source) => source.lastSyncedAt)
+    .filter((value): value is string => value !== null)
+    .sort()
+    .at(-1);
+  const sourcesFooter = overview.data
+    ? `Активных источников аналитики: ${active} из ${overview.data.sources.length}${lastSync ? `. Последняя синхронизация ${relativeTimeRu(lastSync, nowMs)}` : ''}`
+    : undefined;
   const bindings: PageBindings = {
     query: dashboard,
     zoneNote,
@@ -49,10 +105,18 @@ export function DashboardPage({ pollMs, openPublicationId, onOpenPublicationChan
     onOpenMedia: (media) => setOpenMedia(media),
     renderMediaPreview: (media) => <MediaThumb mediaId={media.id} fileName={media.fileName} />,
     analytics: {
-      audience: <AudienceSummary />,
-      top: <TrendingSummary timezone={timezone} onOpen={(id) => void navigate({ to: '/analytics', search: { id } })} />,
+      latestYoutube: <LatestVideoSummary platform="youtube" onOpen={openAnalyticsItem} />,
+      latestTiktok: <LatestVideoSummary platform="tiktok" onOpen={openAnalyticsItem} />,
+      trending: <TrendingSummary timezone={timezone} onOpen={openAnalyticsItem} />,
+      crossPlatform: <CrossPlatformSummary onOpen={openAnalyticsItem} />,
+      weekStats: <WeekStatsSummary timezone={timezone} />,
       onOpenAll: () => void navigate({ to: '/analytics' })
-    }
+    },
+    sources: { rows: sourceRows, footer: sourcesFooter },
+    onEditPublication: (id) =>
+      void queryClient
+        .fetchQuery(publicationQueryOptions(id))
+        .then((publication) => navigate({ to: '/posts/$id', params: { id: publication.postId } }))
   };
   // The panel's own detail query (same key): it tells which channel the message link belongs to.
   const openDetail = useQuery({

@@ -24,7 +24,9 @@ export function DashboardSkeleton({
         onNewPost: ignore,
         onPublishDraft: ignore,
         dayEvents: undefined,
-        onOpenActivity: ignore
+        onOpenActivity: ignore,
+        onOpenPost: ignore,
+        onEditPublication: ignore
       }}
     />
   );

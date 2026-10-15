@@ -9,7 +9,9 @@ import styles from './Dashboard.module.css';
 import { DateChip } from './DateChip';
 import { DayTimeline } from './DayTimeline';
 import { AnalyticsWidget } from './AnalyticsWidget';
-import { Drafts } from './Drafts';
+import { ContentInWork } from './ContentInWork';
+import { NextPublication } from './NextPublication';
+import { SourcesWidget } from './SourcesWidget';
 import { WeekBars } from './WeekBars';
 import type { WidgetEnv } from './widget-env';
 
@@ -41,22 +43,59 @@ function renderWidget(item: LayoutItem, env: Omit<WidgetEnv, 'phone'>, phone: bo
           onOpenActivity={env.onOpenActivity}
         />
       );
-    case 'audience':
-      return env.analytics ? (
-        <AnalyticsWidget id="audience" title={copy.analytics.audience} onOpenAll={env.analytics.onOpenAll}>
-          {env.analytics.audience}
-        </AnalyticsWidget>
-      ) : null;
-    case 'contentTop':
-      return env.analytics ? (
-        <AnalyticsWidget id="contentTop" title={copy.analytics.top} onOpenAll={env.analytics.onOpenAll}>
-          {env.analytics.top}
-        </AnalyticsWidget>
-      ) : null;
+    case 'nextPublication':
+      return (
+        <NextPublication
+          next={dashboard?.upcoming[0]}
+          loading={dashboard === undefined}
+          now={now}
+          timezone={timezone}
+          onOpenPublication={env.onOpenPublication}
+          onEditPublication={env.onEditPublication}
+          onNewPost={env.onNewPost}
+        />
+      );
     case 'week':
-      return <WeekBars query={env.week} now={now} timezone={timezone} onOpenDay={env.onOpenDay} />;
-    case 'drafts':
-      return <Drafts query={env.drafts} now={now} onPublish={env.onPublishDraft} onNewPost={env.onNewPost} />;
+      return (
+        <WeekBars
+          query={env.week}
+          now={now}
+          timezone={timezone}
+          onOpenDay={env.onOpenDay}
+          stats={env.analytics?.weekStats}
+          onOpenAll={env.analytics?.onOpenAll}
+        />
+      );
+    case 'latestYoutube':
+      return env.analytics ? (
+        <AnalyticsWidget id="latestYoutube" title="Последний ролик · YouTube" onOpenAll={env.analytics.onOpenAll}>
+          {env.analytics.latestYoutube}
+        </AnalyticsWidget>
+      ) : null;
+    case 'latestTiktok':
+      return env.analytics ? (
+        <AnalyticsWidget id="latestTiktok" title="Последний ролик · TikTok" onOpenAll={env.analytics.onOpenAll}>
+          {env.analytics.latestTiktok}
+        </AnalyticsWidget>
+      ) : null;
+    case 'trending':
+      return env.analytics ? (
+        <AnalyticsWidget id="trending" title={copy.analytics.top} onOpenAll={env.analytics.onOpenAll}>
+          {env.analytics.trending}
+        </AnalyticsWidget>
+      ) : null;
+    case 'crossPlatform':
+      return env.analytics ? (
+        <AnalyticsWidget id="crossPlatform" title="Один ролик на площадках" onOpenAll={env.analytics.onOpenAll}>
+          {env.analytics.crossPlatform}
+        </AnalyticsWidget>
+      ) : null;
+    case 'contentInWork':
+      return <ContentInWork now={now} onOpenPost={env.onOpenPost} />;
+    case 'sources':
+      return (
+        <SourcesWidget rows={env.sources?.rows} {...(env.sources?.footer ? { footer: env.sources.footer } : {})} />
+      );
   }
 }
 

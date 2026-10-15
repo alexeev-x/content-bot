@@ -6,6 +6,7 @@ export const copy = {
   analytics: {
     audience: 'Аудитория',
     top: 'Что залетает сейчас',
+    weekTitle: 'Итоги недели',
     all: 'Вся аналитика'
   },
   activity: {
@@ -47,7 +48,7 @@ export const copy = {
       `${clock}, ${status}: «${title}», ${channel}`
   },
   week: {
-    title: 'Неделя',
+    title: 'Итоги недели',
     scheduled: 'Запланировано',
     sent: 'Отправлено',
     problem: 'Проблемы',

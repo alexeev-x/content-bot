@@ -64,7 +64,7 @@ export function TrendingPanel({
       ) : young.length === 0 ? (
         <p className={styles.muted}>За последние 72 часа публикаций нет.</p>
       ) : (
-        <ul className={styles.rows}>
+        <ul className={`${styles.rows} ${styles.trendList}`}>
           {young.map(({ item, verdict }, index) => {
             const detail = details[index]?.data;
             const points = detail ? ageCurve(detail) : [];

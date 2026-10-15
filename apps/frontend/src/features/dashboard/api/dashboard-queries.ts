@@ -1,11 +1,20 @@
 import { queryOptions } from '@tanstack/react-query';
-import { getDashboard, getNewestDrafts, getWeekPublications, type DayRange } from './dashboard-api';
+import {
+  getDashboard,
+  getNewestDrafts,
+  getPostCount,
+  getRecentPosts,
+  getScheduledCount,
+  getWeekPublications,
+  type DayRange
+} from './dashboard-api';
 
 const dashboardKeys = {
   all: ['dashboard'] as const,
   day: (range: DayRange) => [...dashboardKeys.all, range.from, range.to] as const,
   week: (range: DayRange) => [...dashboardKeys.all, 'week', range.from, range.to] as const,
-  drafts: () => [...dashboardKeys.all, 'drafts'] as const
+  drafts: () => [...dashboardKeys.all, 'drafts'] as const,
+  work: (part: string) => [...dashboardKeys.all, 'work', part] as const
 };
 
 const DASHBOARD_POLL_MS = 60_000;
@@ -40,4 +49,30 @@ export function draftsQueryOptions() {
     queryFn: ({ signal }) => getNewestDrafts(signal),
     staleTime: 30_000
   });
+}
+
+/** «Контент в работе»: counts by status and the posts edited last. */
+export function workQueryOptions() {
+  return {
+    drafts: queryOptions({
+      queryKey: dashboardKeys.work('drafts'),
+      queryFn: ({ signal }) => getPostCount('draft', signal),
+      staleTime: 30_000
+    }),
+    approved: queryOptions({
+      queryKey: dashboardKeys.work('approved'),
+      queryFn: ({ signal }) => getPostCount('approved', signal),
+      staleTime: 30_000
+    }),
+    scheduled: queryOptions({
+      queryKey: dashboardKeys.work('scheduled'),
+      queryFn: ({ signal }) => getScheduledCount(signal),
+      staleTime: 30_000
+    }),
+    recent: queryOptions({
+      queryKey: dashboardKeys.work('recent'),
+      queryFn: ({ signal }) => getRecentPosts(signal),
+      staleTime: 30_000
+    })
+  };
 }

@@ -135,3 +135,7 @@
   gap: var(--space-3);
   min-height: 128px;
 }
+
+.stats {
+  margin-bottom: var(--space-4);
+}

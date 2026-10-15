@@ -21,3 +21,21 @@ export function getNewestDrafts(signal?: AbortSignal) {
   const query = buildQuery({ status: 'draft', limit: DRAFTS_LIMIT });
   return apiRequest(`/api/v1/posts${query}`, postPageSchema, { signal });
 }
+
+/** How many posts have a status: the first page of one row carries `totalCount`. */
+export function getPostCount(status: 'draft' | 'approved', signal?: AbortSignal) {
+  const query = buildQuery({ status, page: 1, limit: 1 });
+  return apiRequest(`/api/v1/posts${query}`, postPageSchema, { signal });
+}
+
+/** Publications still waiting for their time. */
+export function getScheduledCount(signal?: AbortSignal) {
+  const query = buildQuery({ status: 'scheduled', page: 1, limit: 1 });
+  return apiRequest(`/api/v1/publications${query}`, publicationPageSchema, { signal });
+}
+
+/** The posts edited last, whatever their status. */
+export function getRecentPosts(signal?: AbortSignal) {
+  const query = buildQuery({ sort: 'updated', direction: 'desc', limit: 3 });
+  return apiRequest(`/api/v1/posts${query}`, postPageSchema, { signal });
+}

@@ -1,6 +1,7 @@
 import type { ActivityItemDto, PostPageDto, PublicationPageDto } from '@alexeev/contracts';
 import type { UseQueryResult } from '@tanstack/react-query';
 import type { ReactNode } from 'react';
+import type { SourceRow } from './SourcesWidget';
 import type { DashboardView } from './view-model';
 
 /** What every widget needs from the page; the page owns the data and the navigation, the widgets only draw. */
@@ -26,10 +27,19 @@ export type WidgetEnv = {
   onOpenActivity: (items: readonly ActivityItemDto[]) => void;
   /** Bodies of the content-analytics widgets, composed by the page (features never import each other). */
   analytics?: AnalyticsSlots | undefined;
+  /** Rows of «Новости и источники», composed by the page from the Dota feed and the analytics sources. */
+  sources?: { rows: readonly SourceRow[] | undefined; footer?: string } | undefined;
+  onOpenPost: (postId: string) => void;
+  /** Opens the post behind a publication for editing. */
+  onEditPublication: (publicationId: string) => void;
 };
 
 export type AnalyticsSlots = {
-  audience: ReactNode;
-  top: ReactNode;
+  latestYoutube: ReactNode;
+  latestTiktok: ReactNode;
+  trending: ReactNode;
+  crossPlatform: ReactNode;
+  /** The analytics numbers of «Итоги недели» (above the bars). */
+  weekStats: ReactNode;
   onOpenAll: () => void;
 };
