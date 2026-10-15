@@ -682,3 +682,40 @@
   font-weight: var(--font-weight-regular);
   color: var(--color-text-muted);
 }
+
+/* Heat levels: four steps of the accent; the number in the cell carries the value. */
+.heatCell[data-level='low'] {
+  background: color-mix(in oklab, var(--color-accent) 12%, var(--color-surface-2));
+}
+.heatCell[data-level='usual'] {
+  background: color-mix(in oklab, var(--color-accent) 30%, var(--color-surface-2));
+}
+.heatCell[data-level='high'] {
+  background: color-mix(in oklab, var(--color-accent) 60%, var(--color-surface-2));
+  color: var(--color-on-accent);
+}
+.heatCell[data-level='top'] {
+  background: var(--color-accent);
+  color: var(--color-on-accent);
+  font-weight: var(--font-weight-semibold);
+}
+.heatLevels {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0 0 var(--space-3);
+  padding: 0;
+  list-style: none;
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+}
+.heatLevels li {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.heatLevels .heatCell {
+  display: inline-block;
+  width: 20px;
+  height: 14px;
+}

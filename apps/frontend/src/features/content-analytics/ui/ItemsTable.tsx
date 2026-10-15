@@ -154,7 +154,7 @@ export function ItemsTable({
       {
         id: 'comments',
         header: 'Комм.',
-        width: 84,
+        width: 76,
         align: 'end',
         allowsSorting: true,
         cell: (item) => <span className={styles.num}>{formatCount(item.comments)}</span>
@@ -173,7 +173,7 @@ export function ItemsTable({
       {
         id: 'status',
         header: 'Статус',
-        width: 148,
+        width: 176,
         cell: (item) => {
           const verdict = verdicts.get(item.id);
           return verdict ? <StatusChip verdict={verdict} /> : null;

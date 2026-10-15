@@ -1,6 +1,6 @@
 import type { ContentBaselineDto, ContentItemDetailDto, ContentItemDto, ContentPlatform } from '@alexeev/contracts';
 import { useQuery } from '@tanstack/react-query';
-import { useState } from 'react';
+import { type CSSProperties, useState } from 'react';
 import { relativeTimeRu } from '../../../shared/lib/ru-format';
 import {
   Drawer,
@@ -20,6 +20,7 @@ import { ageCurve, baselineCurve, formatAge } from '../model/curves';
 import { engagementRate, formatCount, formatExact, formatPublished, likesLabel, PLATFORM_LABEL } from '../model/format';
 import { median, multipleOf } from '../model/report';
 import { rankOf, verdictFor } from '../model/status';
+import { RefreshAnalyticsButton } from './RefreshAnalyticsButton';
 import { copy } from './copy';
 import styles from './Drawer.module.css';
 import { ItemCover } from './ItemCover';
@@ -106,13 +107,51 @@ function DrawerBody({
   const rate = engagementRate(item);
   const usualRate = medianOf((entry) => engagementRate(entry));
 
-  type Metric = { label: string; icon: IconName; value: number | null; usual: number | null; percent?: boolean };
+  type Metric = {
+    label: string;
+    icon: IconName;
+    color: string;
+    value: number | null;
+    usual: number | null;
+    percent?: boolean;
+  };
   const allMetrics: Metric[] = [
-    { label: copy.table.views, icon: 'eye', value: item.views, usual: medianOf((entry) => entry.views) },
-    { label: likesLabel(item.platform), icon: 'heart', value: item.likes, usual: medianOf((entry) => entry.likes) },
-    { label: copy.table.comments, icon: 'message', value: item.comments, usual: medianOf((entry) => entry.comments) },
-    { label: 'Репосты', icon: 'send', value: item.shares, usual: medianOf((entry) => entry.shares) },
-    { label: copy.table.er, icon: 'sparkle', value: rate, usual: usualRate, percent: true }
+    {
+      label: copy.table.views,
+      icon: 'eye',
+      color: 'var(--color-accent)',
+      value: item.views,
+      usual: medianOf((entry) => entry.views)
+    },
+    {
+      label: likesLabel(item.platform),
+      icon: 'heart',
+      color: 'var(--color-status-failed-fg)',
+      value: item.likes,
+      usual: medianOf((entry) => entry.likes)
+    },
+    {
+      label: copy.table.comments,
+      icon: 'message',
+      color: 'var(--color-series-2)',
+      value: item.comments,
+      usual: medianOf((entry) => entry.comments)
+    },
+    {
+      label: 'Репосты',
+      icon: 'send',
+      color: 'var(--color-series-3)',
+      value: item.shares,
+      usual: medianOf((entry) => entry.shares)
+    },
+    {
+      label: copy.table.er,
+      icon: 'sparkle',
+      color: 'var(--color-series-4)',
+      value: rate,
+      usual: usualRate,
+      percent: true
+    }
   ];
   const metrics = allMetrics.filter((metric) => metric.value !== null);
 
@@ -196,7 +235,7 @@ function DrawerBody({
                     : null;
                 return (
                   <li key={metric.label} className={styles.metric}>
-                    <span className={styles.metricIcon}>
+                    <span className={styles.metricIcon} style={{ '--metric': metric.color } as CSSProperties}>
                       <Icon name={metric.icon} size={16} />
                     </span>
                     <span className={styles.metricText}>
@@ -322,7 +361,10 @@ function DrawerBody({
         </TabPanel>
       </Tabs>
 
-      <p className={styles.muted}>{copy.detail.observed(relativeTimeRu(item.observedAt, now))}</p>
+      <div className={styles.footer}>
+        <p className={styles.muted}>{copy.detail.observed(relativeTimeRu(item.observedAt, now))}</p>
+        <RefreshAnalyticsButton />
+      </div>
     </div>
   );
 }

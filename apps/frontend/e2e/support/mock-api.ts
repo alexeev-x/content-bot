@@ -296,6 +296,21 @@ export async function mockApi(page: Page): Promise<void> {
         )
       );
     }
+    // TikTok copies of the newest videos, a few hours later: the cross-posted panel and the third platform.
+    for (const video of items.filter((entry) => entry.platform === 'youtube').slice(0, 4)) {
+      const hours = (now - Date.parse(video.publishedAt)) / 3_600_000 - 3;
+      items.push(
+        item(
+          `7400${video.id.slice(2)}`,
+          'tiktok',
+          video.title,
+          Math.max(1, hours),
+          Math.round((video.views ?? 0) * 2.4),
+          Math.round((video.likes ?? 0) * 2),
+          video.comments
+        )
+      );
+    }
     items.sort((a, b) => Date.parse(b.publishedAt) - Date.parse(a.publishedAt));
     const series = (start: number, gain: number) =>
       Array.from({ length: 30 }, (_, index) => ({

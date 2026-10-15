@@ -2,7 +2,7 @@ import type { ContentItemDto, ContentPlatform } from '@alexeev/contracts';
 import { type CSSProperties, useState } from 'react';
 import { Icon, Panel, SegmentedControl } from '../../../shared/ui';
 import { formatCount, PLATFORM_LABEL } from '../model/format';
-import { HOUR_BLOCKS, PLATFORMS, postingHeatmap } from '../model/report';
+import { HEAT_BLOCKS, PLATFORMS, postingHeatmap } from '../model/report';
 import styles from './Report.module.css';
 import widgets from './Widgets.module.css';
 
@@ -32,7 +32,7 @@ export function PostingHeatmap({ items, platform, timezone }: Props) {
       )
     : [];
   const best = cells
-    .filter((cell) => cell.items >= MIN_ITEMS && cell.multiple !== null)
+    .filter((cell) => cell.items >= MIN_ITEMS && cell.multiple !== null && cell.multiple >= 1.1)
     .sort((a, b) => (b.multiple ?? 0) - (a.multiple ?? 0))[0];
 
   return (
@@ -65,7 +65,7 @@ export function PostingHeatmap({ items, platform, timezone }: Props) {
                 <th scope="col">
                   <span className={widgets.srOnly}>День</span>
                 </th>
-                {HOUR_BLOCKS.map((start) => (
+                {HEAT_BLOCKS.map((start) => (
                   <th key={start} scope="col">
                     {String(start).padStart(2, '0')}
                   </th>
@@ -76,19 +76,27 @@ export function PostingHeatmap({ items, platform, timezone }: Props) {
               {WEEKDAYS.map((weekday, row) => (
                 <tr key={weekday}>
                   <th scope="row">{weekday}</th>
-                  {HOUR_BLOCKS.map((start, block) => {
+                  {HEAT_BLOCKS.map((start, block) => {
                     const cell = cells.find((entry) => entry.weekday === row && entry.block === block);
                     const enough = (cell?.items ?? 0) >= MIN_ITEMS && cell?.multiple !== null;
                     const multiple = cell?.multiple ?? null;
-                    const strength = enough && multiple !== null ? Math.min(1, Math.max(0.1, multiple / 2.2)) : 0;
+                    const level =
+                      multiple === null || !cell?.items
+                        ? null
+                        : multiple >= 1.8
+                          ? 'top'
+                          : multiple >= 1.2
+                            ? 'high'
+                            : multiple >= 0.8
+                              ? 'usual'
+                              : 'low';
                     return (
                       <td
                         key={start}
                         className={styles.heatCell}
-                        data-empty={enough ? undefined : ''}
-                        data-strong={enough && multiple !== null && multiple >= 1.3 ? '' : undefined}
+                        data-empty={level === null ? '' : undefined}
+                        data-level={level ?? undefined}
                         data-best={best && cell === best ? '' : undefined}
-                        style={{ '--heat': strength } as CSSProperties}
                       >
                         {enough && multiple !== null ? (
                           <>
@@ -124,8 +132,8 @@ export function PostingHeatmap({ items, platform, timezone }: Props) {
               <>
                 <p className={styles.heatBestTime}>
                   <Icon name="sparkle" size={16} />
-                  {WEEKDAYS[best.weekday]} · {String(HOUR_BLOCKS[best.block]).padStart(2, '0')}:00–
-                  {String((HOUR_BLOCKS[best.block] ?? 0) + 4).padStart(2, '0')}:00
+                  {WEEKDAYS[best.weekday]} · {String(HEAT_BLOCKS[best.block]).padStart(2, '0')}:00–
+                  {String((HEAT_BLOCKS[best.block] ?? 0) + 2).padStart(2, '0')}:00
                   <span className={styles.multipleBadge} data-tone="up">
                     {best.multiple.toLocaleString('ru-RU')}×
                   </span>
@@ -136,11 +144,27 @@ export function PostingHeatmap({ items, platform, timezone }: Props) {
                 </p>
               </>
             ) : (
-              <p className={widgets.muted}>Пока мало публикаций, чтобы назвать лучшее время.</p>
+              <p className={widgets.muted}>
+                Явно лучшего времени пока нет: нужно больше публикаций в одних и тех же слотах.
+              </p>
             )}
           </section>
           <section>
             <h3 className={styles.rankedHeading}>Как читать</h3>
+            <ul className={styles.heatLevels}>
+              <li>
+                <span className={styles.heatCell} data-level="low" /> Ниже обычного
+              </li>
+              <li>
+                <span className={styles.heatCell} data-level="usual" /> Обычно
+              </li>
+              <li>
+                <span className={styles.heatCell} data-level="high" /> Выше обычного
+              </li>
+              <li>
+                <span className={styles.heatCell} data-level="top" /> Значительно выше
+              </li>
+            </ul>
             <ul className={styles.heatKey}>
               <li>
                 <span className={styles.heatCell} data-strong="" style={{ '--heat': 0.9 } as CSSProperties}>

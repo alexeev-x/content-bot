@@ -14,10 +14,9 @@ import {
   TabList,
   TabPanel,
   Tabs,
-  type TableSort,
-  useToast
+  type TableSort
 } from '../../../shared/ui';
-import { contentReportQueryOptions, useSyncContent } from '../api/content-analytics-queries';
+import { contentReportQueryOptions } from '../api/content-analytics-queries';
 import { formatCount, formatDay, formatPublished, PLATFORM_LABEL } from '../model/format';
 import { buildInsights } from '../model/insights';
 import {
@@ -35,7 +34,9 @@ import {
 import { useSourcesAttention } from './AnalyticsSources';
 import { useLastSyncedText } from './last-synced';
 import { copy } from './copy';
+import { RefreshAnalyticsButton } from './RefreshAnalyticsButton';
 import { CompareVideosPanel } from './CompareVideosPanel';
+import { CrossPostedPanel } from './CrossPostedPanel';
 import { DynamicsPanel } from './DynamicsPanel';
 import { TrendingPanel } from './TrendingPanel';
 import { FollowersPanel } from './FollowersPanel';
@@ -354,6 +355,7 @@ export function AnalyticsBoard({ timezone, view, onViewChange, onOpenSettings }:
             <div className={styles.sections}>
               <FollowersPanel report={report} platform={platform} />
               {platform === undefined ? <PlatformComparison report={report} /> : null}
+              <CrossPostedPanel items={derived?.current} now={now} onOpen={open} />
               <PostingHeatmap items={derived?.current} platform={platform} timezone={timezone} />
             </div>
           </TabPanel>
@@ -397,25 +399,4 @@ function telegramReachKpi(report: NonNullable<Parameters<typeof splitPeriods>[0]
     series: perPost,
     tips: posts.map((item, index) => `${formatPublished(item.publishedAt, timezone)}: ${perPost[index]}%`)
   };
-}
-
-/** Page header action: collects now (the server skips a source collected in the last 5 minutes). */
-export function RefreshAnalyticsButton() {
-  const sync = useSyncContent();
-  const toast = useToast();
-  return (
-    <Button
-      variant="secondary"
-      icon="retry"
-      isLoading={sync.isPending}
-      onPress={() =>
-        sync.mutate(undefined, {
-          onSuccess: () => toast.show({ tone: 'success', title: copy.refreshed }),
-          onError: () => toast.show({ tone: 'error', title: copy.refreshFailed })
-        })
-      }
-    >
-      {copy.refresh}
-    </Button>
-  );
 }

@@ -2,12 +2,18 @@ import type { ContentPlatform, ContentReportDto } from '@alexeev/contracts';
 import { AreaChart, Panel } from '../../../shared/ui';
 import { formatCount, formatDay, PLATFORM_LABEL } from '../model/format';
 import { followersStats, PLATFORMS } from '../model/report';
-import { copy } from './copy';
-import styles from './Report.module.css';
+import { PlatformLogo } from './PlatformLogo';
+import styles from './Audience.module.css';
 
 type Props = { report: ContentReportDto | undefined; platform: ContentPlatform | undefined };
 
-/** Daily followers per platform; until two days are stored it says when the history started. */
+const COLOR: Record<ContentPlatform, string> = {
+  telegram: 'var(--color-platform-telegram)',
+  youtube: 'var(--color-platform-youtube)',
+  tiktok: 'var(--color-series-3)'
+};
+
+/** Followers per platform: the count, its change over the period and the daily curve in the platform's colour. */
 export function FollowersPanel({ report, platform }: Props) {
   // A platform without any stored count (not connected) has nothing to draw.
   const platforms = PLATFORMS.filter(
@@ -16,50 +22,52 @@ export function FollowersPanel({ report, platform }: Props) {
       (report === undefined || followersStats(report, each).now !== null)
   );
   return (
-    <Panel title={copy.followersPanel.title} headingLevel={2} quiet>
-      <div className={styles.followers}>
+    <Panel title="Подписчики" headingLevel={2} quiet note="Динамика и прирост за период">
+      <ul className={styles.followers}>
         {platforms.map((each) => {
           const stats = report ? followersStats(report, each) : undefined;
           const first = stats?.points[0];
-          const last = stats?.points.at(-1);
+          const base = stats && stats.now !== null && stats.change !== null ? stats.now - stats.change : null;
+          const percent =
+            base && stats?.change !== null && stats?.change !== undefined
+              ? Math.round((stats.change / base) * 1000) / 10
+              : null;
           return (
-            <section key={each} className={styles.followerCell} aria-label={PLATFORM_LABEL[each]}>
-              <h3 className={styles.multipleTitle}>{PLATFORM_LABEL[each]}</h3>
-              <p className={styles.followerValue}>
-                {formatCount(stats?.now ?? null)}
+            <li key={each} className={styles.follower}>
+              <PlatformLogo platform={each} size={36} />
+              <span className={styles.followerText}>
+                <span className={styles.followerName}>{PLATFORM_LABEL[each]}</span>
+                <strong>{formatCount(stats?.now ?? null)}</strong>
                 {stats?.change !== null && stats?.change !== undefined ? (
-                  <span data-tone={stats.change > 0 ? 'up' : stats.change < 0 ? 'down' : 'flat'}>
+                  <span
+                    data-tone={stats.change > 0 ? 'up' : stats.change < 0 ? 'down' : 'flat'}
+                    className={styles.delta}
+                  >
                     {stats.change > 0 ? '+' : stats.change < 0 ? '−' : ''}
                     {formatCount(Math.abs(stats.change))}
+                    {percent !== null ? ` (${percent > 0 ? '+' : ''}${percent.toLocaleString('ru-RU')}%)` : ''}
                   </span>
                 ) : null}
-              </p>
+              </span>
               {stats && stats.points.length >= 2 ? (
-                <>
+                <span className={styles.followerChart}>
                   <AreaChart
                     points={stats.points.map((point) => point.followers)}
-                    height={64}
-                    tips={stats.points.map(
-                      (point) => `${formatDay(point.day)}: ${formatCount(point.followers)} подписчиков`
-                    )}
-                    label={copy.followersPanel.chartLabel(PLATFORM_LABEL[each], formatCount(stats.now))}
+                    height={48}
+                    color={COLOR[each]}
+                    label={`${PLATFORM_LABEL[each]}: подписчики по дням`}
+                    tips={stats.points.map((point) => `${formatDay(point.day)}: ${formatCount(point.followers)}`)}
                   />
-                  <div className={styles.axisRow} aria-hidden="true">
-                    <span>{first ? formatDay(first.day) : ''}</span>
-                    <span>{last ? formatDay(last.day) : ''}</span>
-                  </div>
-                </>
+                </span>
               ) : (
-                <p className={styles.note}>
-                  {stats?.now === null || stats === undefined
-                    ? copy.followersPanel.none
-                    : copy.followersPanel.collecting(first ? formatDay(first.day) : '')}
-                </p>
+                <span className={styles.note}>
+                  История копится{first ? ` с ${formatDay(first.day)}` : ''}: график появится со второго дня.
+                </span>
               )}
-            </section>
+            </li>
           );
         })}
-      </div>
+      </ul>
     </Panel>
   );
 }

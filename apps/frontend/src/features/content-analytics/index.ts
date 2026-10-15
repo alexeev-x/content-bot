@@ -1,4 +1,5 @@
-export { AnalyticsBoard, type AnalyticsView, RefreshAnalyticsButton } from './ui/AnalyticsBoard';
+export { AnalyticsBoard, type AnalyticsView } from './ui/AnalyticsBoard';
+export { RefreshAnalyticsButton } from './ui/RefreshAnalyticsButton';
 export { AudienceSummary, TopSummary, TrendingSummary } from './ui/DashboardSummaries';
 export { contentOverviewQueryOptions } from './api/content-analytics-queries';
 export { copy as contentAnalyticsCopy } from './ui/copy';

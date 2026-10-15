@@ -120,8 +120,10 @@ export function zonedParts(iso: string, timezone: string): ZonedParts {
   };
 }
 
-/** Four-hour blocks of the day: 0–4, 4–8, … 20–24. */
+/** Four-hour blocks of the day for the «best time» conclusion: 0–4, 4–8, … 20–24. */
 export const HOUR_BLOCKS = [0, 4, 8, 12, 16, 20] as const;
+/** Two-hour columns of the «Когда публиковать» grid. */
+export const HEAT_BLOCKS = [0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22] as const;
 
 export type HeatCell = {
   weekday: number;
@@ -131,19 +133,19 @@ export type HeatCell = {
   multiple: number | null;
 };
 
-/** When posting worked: the median views of the items published in each weekday × 4-hour block, against the overall median. */
+/** When posting worked: the median views of the items published in each weekday × 2-hour column, against the overall median. */
 export function postingHeatmap(items: readonly ContentItemDto[], timezone: string): HeatCell[] {
   const overall = median(items.filter((item) => item.views !== null).map((item) => item.views ?? 0));
   const buckets = new Map<string, number[]>();
   for (const item of items) {
     if (item.views === null) continue;
     const { weekday, hour } = zonedParts(item.publishedAt, timezone);
-    const key = `${weekday}:${Math.floor(hour / 4)}`;
+    const key = `${weekday}:${Math.floor(hour / 2)}`;
     buckets.set(key, [...(buckets.get(key) ?? []), item.views]);
   }
   const cells: HeatCell[] = [];
   for (let weekday = 0; weekday < 7; weekday += 1) {
-    for (let block = 0; block < HOUR_BLOCKS.length; block += 1) {
+    for (let block = 0; block < HEAT_BLOCKS.length; block += 1) {
       const views = buckets.get(`${weekday}:${block}`) ?? [];
       const cellMedian = median(views);
       cells.push({
@@ -211,4 +213,34 @@ export function viewsByDay(
     days[position]!.items += 1;
   }
   return days;
+}
+
+/** Normalised start of a title, to find one video posted on several platforms. */
+function titleKey(title: string): string {
+  return title
+    .toLocaleLowerCase('ru-RU')
+    .replace(/[^\p{L}\p{N}]+/gu, '')
+    .slice(0, 24);
+}
+
+/**
+ * One video published on several platforms: items with the same start of the title published within
+ * four days of each other, newest groups first. Telegram posts rarely repeat a title, videos usually do.
+ */
+export function crossPosted(items: readonly ContentItemDto[], limit = 5): ContentItemDto[][] {
+  const groups: ContentItemDto[][] = [];
+  const sorted = [...items].sort((a, b) => Date.parse(b.publishedAt) - Date.parse(a.publishedAt));
+  for (const item of sorted) {
+    const key = titleKey(item.title);
+    if (key.length < 8) continue;
+    const group = groups.find(
+      (candidate) =>
+        titleKey(candidate[0]!.title) === key &&
+        !candidate.some((entry) => entry.platform === item.platform) &&
+        Math.abs(Date.parse(candidate[0]!.publishedAt) - Date.parse(item.publishedAt)) <= 4 * 86_400_000
+    );
+    if (group) group.push(item);
+    else groups.push([item]);
+  }
+  return groups.filter((group) => group.length >= 2).slice(0, limit);
 }
