@@ -31,7 +31,8 @@ function report(items: ContentItemDto[]): ContentReportDto {
     truncated: false,
     followers: [{ platform: 'telegram', points: [{ day: '2026-10-15', followers: 1000 }] }],
     baselines: [],
-    growth: []
+    growth: [],
+    tracked: []
   };
 }
 

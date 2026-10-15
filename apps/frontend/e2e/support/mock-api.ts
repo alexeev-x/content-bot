@@ -362,6 +362,10 @@ export async function mockApi(page: Page): Promise<void> {
         previousFrom: new Date(previousFrom).toISOString(),
         items: items.filter((entry) => Date.parse(entry.publishedAt) >= previousFrom),
         truncated: false,
+        // Tracked from their first hours: the items of the last ten days.
+        tracked: items
+          .filter((entry) => now - Date.parse(entry.publishedAt) < 10 * 86_400_000)
+          .map((entry) => entry.id),
         // Daily readings started five days ago: growth exists for those days only.
         growth: [4, 3, 2, 1, 0].flatMap((ago) => [
           { platform: 'telegram', day: day(ago), views: 900 + ago * 70 },

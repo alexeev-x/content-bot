@@ -188,6 +188,8 @@ export const contentReportSchema = z.object({
    * of each item that day minus its previous one (an item published that day counts from zero). History
    * starts with the first collection, so early days may be missing.
    */
-  growth: z.array(z.object({ platform: contentPlatformSchema, day: dayKeySchema, views: countSchema })).max(3 * 200)
+  growth: z.array(z.object({ platform: contentPlatformSchema, day: dayKeySchema, views: countSchema })).max(3 * 200),
+  /** Items of the last 90 days tracked from their first hours (they have «same age» readings): comparable curves. */
+  tracked: z.array(z.string().min(3).max(160)).max(2000)
 });
 export type ContentReportDto = z.infer<typeof contentReportSchema>;

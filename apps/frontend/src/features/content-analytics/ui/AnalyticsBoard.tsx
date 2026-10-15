@@ -282,8 +282,8 @@ export function AnalyticsBoard({ timezone, view, onViewChange, onOpenSettings }:
               />
               <CompareVideosPanel
                 items={derived?.current}
+                tracked={report?.tracked ?? []}
                 baselines={baselines}
-                medians={derived?.medians ?? {}}
                 timezone={timezone}
                 onOpen={open}
               />
