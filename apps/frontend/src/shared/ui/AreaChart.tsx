@@ -76,7 +76,10 @@ export function AreaChart({ points, x, label, baseline = 'data', height = 48, ti
         {has && variant === 'bars' ? (
           points.map((value, index) => {
             const width = (VIEW_W / points.length) * 0.62;
-            const top = pad + (1 - (value - Math.min(0, min)) / (span || 1)) * (height - 2 * pad);
+            // Bars stand on zero: scaled over 0..max, so no bar rises above the chart (with a data baseline
+            // above zero, the old span made tall bars overflow onto the text above).
+            const floor = Math.min(0, min);
+            const top = pad + (1 - (value - floor) / (Math.max(...points) - floor || 1)) * (height - 2 * pad);
             return (
               <rect
                 key={index}

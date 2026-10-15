@@ -64,7 +64,7 @@ export function KpiStrip({ kpis, days }: Props) {
               <span className={styles.chart}>
                 <AreaChart
                   points={kpi.series}
-                  height={40}
+                  height={32}
                   variant={kpi.chart ?? 'area'}
                   {...(kpi.color ? { color: kpi.color } : {})}
                   {...(kpi.tips ? { tips: kpi.tips } : {})}
