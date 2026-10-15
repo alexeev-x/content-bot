@@ -1,4 +1,9 @@
-import { contentAnalyticsOverviewSchema, contentItemDetailSchema, contentItemsPageSchema } from '@alexeev/contracts';
+import {
+  contentAnalyticsOverviewSchema,
+  contentItemDetailSchema,
+  contentItemsPageSchema,
+  contentReportSchema
+} from '@alexeev/contracts';
 import { beforeEach, describe, expect, it } from 'vitest';
 import {
   collectContentAnalytics,
@@ -165,6 +170,13 @@ describe('content analytics routes', () => {
     await expectError(await api.request('/api/v1/content-analytics/items/bogus'), 400, 'VALIDATION_ERROR');
     await expectError(await api.request('/api/v1/content-analytics/items?cursor=zzz'), 400, 'VALIDATION_ERROR');
     await expectError(await api.request('/api/v1/content-analytics', { token: null }), 401, 'UNAUTHORIZED');
+    // The report holds this period and the previous one: all three posts are within 7 days.
+    const report = contentReportSchema.parse(
+      await (await api.request('/api/v1/content-analytics/report?days=7')).json()
+    );
+    expect(report.items.map((i) => i.id)).toEqual(['telegram:1', 'telegram:2', 'telegram:3']);
+    expect(report.truncated).toBe(false);
+    await expectError(await api.request('/api/v1/content-analytics/report?days=5'), 400, 'VALIDATION_ERROR');
     const sync = await api.request('/api/v1/content-analytics/sync', { method: 'POST' });
     expect(sync.status).toBe(200);
   });

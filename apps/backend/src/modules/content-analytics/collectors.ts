@@ -1,7 +1,12 @@
-import { ChannelPreviewError, fetchChannelPreview } from '../../integrations/telegram-preview/channel-preview';
+import {
+  ChannelPreviewError,
+  fetchChannelHistory,
+  PREVIEW_HISTORY_PAGES
+} from '../../integrations/telegram-preview/channel-preview';
 import {
   fetchYouTubeChannelStats,
   isYouTubeChannelId,
+  YOUTUBE_MAX_REQUESTS,
   YouTubeApiError
 } from '../../integrations/youtube/youtube-data-api';
 import { type CollectedItem, ContentCollectError, type ContentCollector } from './types';
@@ -41,11 +46,12 @@ export function configuredCollectors(config: CollectorConfig, fetchImpl: typeof 
       platform: 'telegram',
       handle: telegram,
       profileUrl,
-      requests: 1,
+      requests: PREVIEW_HISTORY_PAGES,
       async collect() {
         try {
-          const preview = await fetchChannelPreview(telegram, fetchImpl);
+          const preview = await fetchChannelHistory(telegram, fetchImpl);
           return {
+            ...(preview.partial === undefined ? {} : { warning: `TELEGRAM_HISTORY_${preview.partial}` }),
             followers: preview.subscribers,
             items: preview.posts.map((post): CollectedItem => ({
               externalId: String(post.messageId),
@@ -77,7 +83,7 @@ export function configuredCollectors(config: CollectorConfig, fetchImpl: typeof 
         platform: 'youtube',
         handle: channelId,
         profileUrl,
-        requests: 3,
+        requests: YOUTUBE_MAX_REQUESTS,
         async collect() {
           try {
             const stats = await fetchYouTubeChannelStats({ apiKey, channelId }, fetchImpl);

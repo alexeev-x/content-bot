@@ -48,9 +48,10 @@ export const copy = {
     platform: 'Платформа',
     published: 'Опубликовано',
     views: 'Просмотры',
-    likes: 'Лайки, реакции',
+    likes: 'Лайки',
     comments: 'Комментарии',
     er: 'Вовлечённость',
+    multiple: 'К обычному',
     untitled: 'Без текста',
     more: 'Показать ещё',
     shown: (n: number) => `Показано: ${n}`,
@@ -64,9 +65,80 @@ export const copy = {
     growthLabel: (views: string) => `График просмотров, сейчас ${views}`,
     growthEmpty: 'Кривая появится после второго замера: первые 72 часа замеры каждый час, потом раз в день.',
     observed: (when: string) => `Последний замер ${when}`,
+    rank: (rank: number, total: number, platform: string, days: number) =>
+      `${rank}-е место из ${total} в ${platform} за ${days} дней`,
+    versus: (multiple: number, median: string) =>
+      multiple >= 1
+        ? `В ${multiple.toLocaleString('ru-RU')} раза больше медианы (${median})`
+        : `${Math.round(multiple * 100)}% от медианы (${median})`,
     error: 'Не удалось загрузить публикацию.'
   },
   loadError: 'Не удалось загрузить аналитику.',
+  truncated: 'Публикаций больше 1000: самые старые в расчёт не вошли. Выберите период короче.',
+  filters: { period: 'Период', platform: 'Платформа' },
+  sources: { label: 'Источники данных' },
+  insights: {
+    title: (days: number) => `Главное за ${days} дней`,
+    empty: 'Пока мало данных для выводов. Они появятся после первых сборов.'
+  },
+  kpi: {
+    views: 'Просмотры',
+    items: 'Публикации',
+    median: 'Медиана просмотров',
+    reach: 'Охват Telegram',
+    engagement: 'Вовлечённость',
+    followers: 'Подписчики',
+    noBase: 'Не с чем сравнить',
+    followersCollecting: 'История копится с первого сбора'
+  },
+  performance: {
+    title: 'Каждая публикация',
+    note: 'По порядку выхода; наведите или выберите стрелками',
+    legend: 'Обозначения',
+    strong: 'Выше 1,5× медианы',
+    soft: 'Остальные',
+    median: 'Медиана',
+    empty: 'За период публикаций нет.',
+    summary: (count: number, median: string) => `${count} публ., медиана ${median}`,
+    chartLabel: (platform: string, count: number, median: string) =>
+      `${platform}: просмотры ${count} публикаций по порядку выхода, медиана ${median}. Стрелки выбирают публикацию, Enter открывает.`,
+    multiple: (multiple: number) =>
+      multiple >= 1
+        ? `${(Math.round(multiple * 10) / 10).toLocaleString('ru-RU')}× к медиане`
+        : `${Math.round(multiple * 100)}% от медианы`
+  },
+  followersPanel: {
+    title: 'Подписчики',
+    chartLabel: (platform: string, now: string) => `${platform}: подписчики по дням, сейчас ${now}`,
+    none: 'Нет данных',
+    collecting: (since: string) => `История копится с ${since}: график появится со второго дня.`
+  },
+  heatmap: {
+    title: 'Когда публиковать',
+    note: (timezone: string) => `Медиана просмотров к обычной, ${timezone}`,
+    none: 'Нет публикаций',
+    weekday: 'День',
+    cell: (items: number, median: string, multiple: number | null) =>
+      `${items} публ., медиана ${median}${multiple === null ? '' : `, ${multiple.toLocaleString('ru-RU')}× к обычной`}`
+  },
+  compare: {
+    title: 'Сравнение платформ',
+    note: 'В скобках — изменение к прошлому периоду',
+    platform: 'Платформа',
+    followers: 'Подписчики',
+    items: 'Публикаций',
+    views: 'Просмотры',
+    median: 'Медиана',
+    engagement: 'Вовлечённость',
+    reach: 'Охват'
+  },
+  ranked: {
+    best: 'Лучшие',
+    worst: 'Ниже обычного',
+    note: 'Во сколько раз выше медианы своей платформы',
+    worstNote: 'Без последних двух суток: они ещё набирают',
+    empty: 'Пока нечего сравнивать.'
+  },
   widget: {
     audience: 'Аудитория',
     top: 'Лучшее за 30 дней',

@@ -20,6 +20,8 @@ export interface CollectedItem {
 export interface Collection {
   followers: number | null;
   items: CollectedItem[];
+  /** Stable code of a non-fatal problem (e.g. an older page failed); logged, the collection still counts. */
+  warning?: string;
 }
 
 /** A configured source of one platform; an unconfigured platform has none. */

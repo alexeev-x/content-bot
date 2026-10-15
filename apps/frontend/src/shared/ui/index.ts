@@ -53,6 +53,8 @@ export { Pagination } from './Pagination';
 export { Slider } from './Slider';
 export { Sparkline } from './Sparkline';
 export { AreaChart } from './AreaChart';
+export { BarChart } from './BarChart';
+export type { ChartBar } from './BarChart';
 export type { ProgressTone } from './Progress';
 export { Spinner } from './Spinner';
 export { StatusBadge } from './StatusBadge';

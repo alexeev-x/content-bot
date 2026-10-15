@@ -417,3 +417,29 @@
   font-variant-numeric: tabular-nums;
   color: var(--color-text-muted);
 }
+
+/* ===== Where the item stands in the period ===== */
+.standing {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-2);
+  background: var(--color-surface-2);
+}
+.standingRank {
+  margin: 0;
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-semibold);
+}
+.standingVersus {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+}
+.standingVersus[data-tone='up'] {
+  color: var(--color-status-done-fg);
+}
+.standingVersus[data-tone='down'] {
+  color: var(--color-status-failed-fg);
+}

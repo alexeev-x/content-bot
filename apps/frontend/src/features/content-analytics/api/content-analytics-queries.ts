@@ -1,13 +1,20 @@
-import type { ContentPlatform } from '@alexeev/contracts';
+import type { ContentPlatform, ContentReportPeriod } from '@alexeev/contracts';
 import { infiniteQueryOptions, queryOptions, useMutation, useQueryClient } from '@tanstack/react-query';
 import { nextCursor } from '../../../shared/api/query-string';
-import { getContentItem, getContentItems, getContentOverview, syncContent } from './content-analytics-api';
+import {
+  getContentItem,
+  getContentItems,
+  getContentOverview,
+  getContentReport,
+  syncContent
+} from './content-analytics-api';
 
 export const contentAnalyticsKeys = {
   all: ['content-analytics'] as const,
   overview: () => [...contentAnalyticsKeys.all, 'overview'] as const,
   items: (platform: ContentPlatform | undefined) => [...contentAnalyticsKeys.all, 'items', platform ?? 'all'] as const,
-  item: (id: string) => [...contentAnalyticsKeys.all, 'item', id] as const
+  item: (id: string) => [...contentAnalyticsKeys.all, 'item', id] as const,
+  report: (days: ContentReportPeriod) => [...contentAnalyticsKeys.all, 'report', days] as const
 };
 
 // The server collects about once an hour, so a few minutes of staleness costs nothing.
@@ -31,6 +38,16 @@ export function contentItemsQueryOptions(platform: ContentPlatform | undefined) 
   });
 }
 
+export function contentReportQueryOptions(days: ContentReportPeriod) {
+  return queryOptions({
+    queryKey: contentAnalyticsKeys.report(days),
+    queryFn: ({ signal }) => getContentReport(days, signal),
+    staleTime: OVERVIEW_STALE_MS,
+    // A new period keeps the previous one on screen at reduced opacity instead of a skeleton.
+    placeholderData: (previous) => previous
+  });
+}
+
 export function contentItemQueryOptions(id: string) {
   return queryOptions({
     queryKey: contentAnalyticsKeys.item(id),
@@ -47,6 +64,7 @@ export function useSyncContent() {
     onSuccess: (overview) => {
       client.setQueryData(contentAnalyticsKeys.overview(), overview);
       void client.invalidateQueries({ queryKey: [...contentAnalyticsKeys.all, 'items'] });
+      void client.invalidateQueries({ queryKey: [...contentAnalyticsKeys.all, 'report'] });
       void client.invalidateQueries({ queryKey: [...contentAnalyticsKeys.all, 'item'] });
     }
   });

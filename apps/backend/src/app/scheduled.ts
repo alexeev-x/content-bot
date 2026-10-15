@@ -27,8 +27,9 @@ import { collectContentAnalytics } from '../modules/content-analytics';
 export const CLEANUP_LIMIT = 100;
 // The heartbeat upsert plus slack for the final log line's bookkeeping.
 const HEARTBEAT_RESERVE = 3;
-// Claims, writes and outbound calls of one content-analytics run over every source.
-const CONTENT_ANALYTICS_RESERVE = 20;
+// Claims, writes and outbound calls of one content-analytics run over every source
+// (Telegram 5 pages + YouTube 9 calls + about 10 D1 statements).
+const CONTENT_ANALYTICS_RESERVE = 26;
 // The tick of this UTC minute purges expired archived posts (cleanup runs at minute 0).
 const PURGE_MINUTE = 30;
 // Ended sessions stay this long for diagnosis before they are deleted.
@@ -371,7 +372,7 @@ export async function handleScheduled(controller: ScheduledController, container
 
   // 7b. content analytics: the owner's Telegram/YouTube counters, on idle ticks of minutes ending in 3.
   // The per-source claim keeps it to about once an hour (sooner after a failure); a source needs at
-  // most 4 D1 statements and 3 outbound requests, so the step runs only with that budget left.
+  // most 5 D1 statements and 9 outbound requests, so the step runs only with that budget left.
   if (
     minute % 10 === 3 &&
     (counts.due ?? 0) === 0 &&

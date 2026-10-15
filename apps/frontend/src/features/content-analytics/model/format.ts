@@ -6,7 +6,8 @@ const exact = new Intl.NumberFormat('ru-RU');
 /** «836», «12,5 тыс.», «1,2 млн»; a missing counter is a dash. */
 export function formatCount(value: number | null | undefined): string {
   if (value === null || value === undefined) return '—';
-  return value < 10_000 ? exact.format(value) : compact.format(value);
+  const whole = Math.round(value);
+  return whole < 10_000 ? exact.format(whole) : compact.format(whole);
 }
 
 export function formatExact(value: number | null | undefined): string {

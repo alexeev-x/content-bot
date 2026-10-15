@@ -11,6 +11,9 @@ export const EARLY_WINDOW_MS = 72 * HOUR_MS;
 // Guards below one period, so a tick that runs a few minutes early still records its snapshot.
 const HOURLY_GUARD_MS = 50 * 60 * 1000;
 const DAILY_GUARD_MS = 23 * HOUR_MS;
+/** Items older than this change little: one snapshot a week keeps the history bounded. */
+const LATE_WINDOW_MS = 30 * 24 * HOUR_MS;
+const WEEKLY_GUARD_MS = 7 * 24 * HOUR_MS - HOUR_MS;
 
 export interface SourceRow {
   platform: ContentPlatform;
@@ -77,6 +80,10 @@ export interface ContentAnalyticsRepository {
     limit: number;
   }): Promise<ItemRow[]>;
   readItem(id: string): Promise<{ item: ItemRow; snapshots: SnapshotRow[] } | null>;
+  readReport(input: { publishedFrom: number; fromDay: string; limit: number }): Promise<{
+    items: ItemRow[];
+    followers: OverviewRows['followers'];
+  }>;
 }
 
 const ITEM_COLUMNS =
@@ -126,7 +133,8 @@ export function createD1ContentAnalyticsRepository(db: D1Database): ContentAnaly
     },
 
     async recordSuccess({ platform, now, day, followers, items }) {
-      // One JSON parameter per statement: D1 allows 100 bound values, and a source reports up to 50 items.
+      // One JSON parameter per statement: D1 allows 100 bound values, and a source reports up to 200 items
+      // (about 70–150 KB of JSON, well under D1's 2 MB value limit).
       const json = JSON.stringify(
         items.map((item) => ({
           id: `${platform}:${item.externalId}`,
@@ -163,10 +171,11 @@ export function createD1ContentAnalyticsRepository(db: D1Database): ContentAnaly
              WHERE NOT EXISTS (
                SELECT 1 FROM content_item_snapshots AS s
                WHERE s.item_id = j.value ->> 'id'
-                 AND s.observed_at > ?2 - CASE WHEN j.value ->> 'published' > ?2 - ?3 THEN ?4 ELSE ?5 END
+                 AND s.observed_at > ?2 - CASE WHEN j.value ->> 'published' > ?2 - ?3 THEN ?4
+                                                WHEN j.value ->> 'published' > ?2 - ?6 THEN ?5 ELSE ?7 END
              )`
           )
-          .bind(json, now, EARLY_WINDOW_MS, HOURLY_GUARD_MS, DAILY_GUARD_MS),
+          .bind(json, now, EARLY_WINDOW_MS, HOURLY_GUARD_MS, DAILY_GUARD_MS, LATE_WINDOW_MS, WEEKLY_GUARD_MS),
         db
           .prepare(
             'UPDATE content_sources SET last_success_at = ?, last_error_at = NULL, last_error_code = NULL WHERE platform = ?'
@@ -254,6 +263,27 @@ export function createD1ContentAnalyticsRepository(db: D1Database): ContentAnaly
         .bind(...values, limit)
         .all<RawItem>();
       return rows.results.map(toItem);
+    },
+
+    async readReport({ publishedFrom, fromDay, limit }) {
+      const [items, followers] = await db.batch([
+        db
+          .prepare(
+            `SELECT ${ITEM_COLUMNS} FROM content_items WHERE published_at >= ?
+             ORDER BY published_at DESC, id DESC LIMIT ?`
+          )
+          .bind(publishedFrom, limit),
+        db
+          .prepare(
+            `SELECT platform, day, followers FROM content_audience_days
+             WHERE platform IN ('telegram', 'youtube', 'tiktok') AND day >= ? ORDER BY platform, day`
+          )
+          .bind(fromDay)
+      ]);
+      return {
+        items: ((items?.results ?? []) as RawItem[]).map(toItem),
+        followers: (followers?.results ?? []) as OverviewRows['followers']
+      };
     },
 
     async readItem(id) {

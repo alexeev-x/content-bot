@@ -13,7 +13,7 @@ const PAGES = [
   '/media',
   '/sources',
   '/analytics',
-  '/analytics?id=youtube%3Ayt0000000a1',
+  '/analytics?id=youtube%3Ayt000000002',
   '/sources?tab=heroes',
   '/settings/channels',
   '/settings/appearance',
@@ -45,7 +45,11 @@ for (const path of PAGES) {
         await page.waitForLoadState('networkidle');
         // Skeletons swap to data a moment after the mocked responses; polling keeps the network busy.
         await page.waitForTimeout(1200);
-        await page.screenshot({ path: `../../.logs/shots/${name}-${viewport.width}-${colorScheme}.png` });
+        await page.screenshot({
+          path: `../../.logs/shots/${name}-${viewport.width}-${colorScheme}.png`,
+          // The analytics page is long: the whole page is the thing to judge.
+          fullPage: path === '/analytics'
+        });
         if (path === '/settings/general') {
           await page.getByRole('heading', { name: /Уведомлять/ }).scrollIntoViewIfNeeded();
           await page.waitForTimeout(200);

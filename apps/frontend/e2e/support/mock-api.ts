@@ -242,15 +242,61 @@ export async function mockApi(page: Page): Promise<void> {
       shares: null,
       observedAt: iso(0.3)
     });
-    const items = [
-      item('680', 'telegram', 'Оракл, один из легчайших саппортов для руина игры', 20, 312, 9, null),
-      item('yt0000000a1', 'youtube', 'БКБ покупают только те, кто не умеет играть', 30, 41_200, 2_310, 184),
-      item('679', 'telegram', 'Открыл обучение, ничего не понял, закрыл игру', 52, 167, 4, null),
-      item('yt0000000a2', 'youtube', 'Откуда саппорту брать деньги?', 80, 18_900, 1_020, 77),
-      item('661', 'telegram', 'Трансформация', 160, 353, 8, null),
-      item('yt0000000a3', 'youtube', 'Учусь играть, часть 14', 200, 6_400, 380, 21),
-      item('yt0000000a4', 'youtube', '90% саппортов совершают эту ошибку', 400, 27_300, 1_640, 133)
+    // Deterministic history: Telegram posts every ~1.5 days (≈300 views), YouTube every ~4 days with hits.
+    let seed = 7;
+    const rand = () => {
+      seed = (seed * 16_807) % 2_147_483_647;
+      return seed / 2_147_483_647;
+    };
+    const tgTitles = [
+      'Оракл — лёгкий саппорт для руина игры',
+      'Открыл обучение, ничего не понял',
+      'Трансформация',
+      'Мем дня',
+      'Вердикт чата: кто виноват?',
+      'Учу фидить: правило дня',
+      'Итоги недели'
     ];
+    const ytTitles = [
+      'БКБ покупают только те, кто не умеет играть',
+      'Откуда саппорту брать деньги?',
+      'Учусь играть, часть 14',
+      '90% саппортов совершают эту ошибку',
+      'Как правильно стакать лагеря',
+      'Устал проигрывать на миде?',
+      'Я взял героя и пожалел'
+    ];
+    const items: ReturnType<typeof item>[] = [];
+    for (let hours = 6, n = 700; hours < 180 * 24; hours += 20 + Math.round(rand() * 30), n -= 1) {
+      const evening = new Date(now - hours * 3_600_000).getUTCHours() >= 15;
+      items.push(
+        item(
+          String(n),
+          'telegram',
+          tgTitles[n % tgTitles.length]!,
+          hours,
+          Math.round((evening ? 360 : 240) * (0.6 + rand())),
+          Math.round(4 + rand() * 12),
+          null
+        )
+      );
+    }
+    for (let hours = 30, n = 0; hours < 180 * 24; hours += 60 + Math.round(rand() * 70), n += 1) {
+      const hit = rand() > 0.82;
+      const views = Math.round((hit ? 120_000 : 14_000) * (0.4 + rand()) * (1 + (180 * 24 - hours) / 6000));
+      items.push(
+        item(
+          `yt${String(n).padStart(9, '0')}`,
+          'youtube',
+          ytTitles[n % ytTitles.length]!,
+          hours,
+          views,
+          Math.round(views * 0.055),
+          Math.round(views * 0.004)
+        )
+      );
+    }
+    items.sort((a, b) => Date.parse(b.publishedAt) - Date.parse(a.publishedAt));
     const series = (start: number, gain: number) =>
       Array.from({ length: 30 }, (_, index) => ({
         day: day(29 - index),
@@ -304,6 +350,21 @@ export async function mockApi(page: Page): Promise<void> {
       top: [...items].sort((a, b) => b.views - a.views).slice(0, 5)
     };
     await page.route(/\/api\/v1\/content-analytics(\/sync)?$/, (route) => json(route, overview));
+    await page.route(/\/api\/v1\/content-analytics\/report(\?.*)?$/, (route) => {
+      const days = Number(new URL(route.request().url()).searchParams.get('days') ?? '30');
+      const previousFrom = now - 2 * days * 86_400_000;
+      json(route, {
+        from: iso(days * 24),
+        to: iso(0),
+        previousFrom: new Date(previousFrom).toISOString(),
+        items: items.filter((entry) => Date.parse(entry.publishedAt) >= previousFrom),
+        truncated: false,
+        followers: [
+          { platform: 'telegram', points: series(700, 4.6).filter((point) => point.day >= day(2 * days)) },
+          { platform: 'youtube', points: series(1_010, 5.8).filter((point) => point.day >= day(2 * days)) }
+        ]
+      });
+    });
     await page.route(/\/api\/v1\/content-analytics\/items(\?.*)?$/, (route) => {
       const platform = new URL(route.request().url()).searchParams.get('platform');
       json(route, {

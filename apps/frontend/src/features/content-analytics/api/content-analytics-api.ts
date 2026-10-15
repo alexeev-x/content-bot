@@ -2,7 +2,9 @@ import {
   contentAnalyticsOverviewSchema,
   contentItemDetailSchema,
   contentItemsPageSchema,
-  type ContentPlatform
+  contentReportSchema,
+  type ContentPlatform,
+  type ContentReportPeriod
 } from '@alexeev/contracts';
 import { apiRequest } from '../../../shared/api/http-client';
 import { buildQuery } from '../../../shared/api/query-string';
@@ -29,4 +31,8 @@ export function getContentItems(
 
 export function getContentItem(id: string, signal?: AbortSignal) {
   return apiRequest(`/api/v1/content-analytics/items/${encodeURIComponent(id)}`, contentItemDetailSchema, { signal });
+}
+
+export function getContentReport(days: ContentReportPeriod, signal?: AbortSignal) {
+  return apiRequest(`/api/v1/content-analytics/report${buildQuery({ days })}`, contentReportSchema, { signal });
 }

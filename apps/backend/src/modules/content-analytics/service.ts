@@ -4,6 +4,9 @@ import {
   type ContentItemDetailDto,
   type ContentItemDto,
   type ContentItemsQuery,
+  CONTENT_REPORT_ITEM_LIMIT,
+  type ContentReportDto,
+  type ContentReportQuery,
   type ContentSourceDto
 } from '@alexeev/contracts';
 import { z } from 'zod';
@@ -99,13 +102,14 @@ export async function collectContentAnalytics(deps: {
       continue;
     }
     collected += 1;
-    deps.logger.info({
+    const event = {
       requestId: deps.requestId,
       component: 'content-analytics',
       operation: `collect_${collector.platform}`,
-      status: 'ok',
       durationMs: deps.clock.now() - startedAt
-    });
+    };
+    if (collection.warning === undefined) deps.logger.info({ ...event, status: 'ok' });
+    else deps.logger.warn({ ...event, status: 'partial', errorCode: collection.warning });
   }
   return { collected, failed };
 }
@@ -211,5 +215,32 @@ export async function readContentItem(repo: ContentAnalyticsRepository, id: stri
       ...snapshot,
       observedAt: new Date(snapshot.observedAt).toISOString()
     }))
+  };
+}
+
+export async function readContentReport(
+  deps: { repo: ContentAnalyticsRepository; clock: Clock },
+  query: ContentReportQuery
+): Promise<ContentReportDto> {
+  const now = deps.clock.now();
+  const from = now - query.days * DAY_MS;
+  const previousFrom = from - query.days * DAY_MS;
+  const rows = await deps.repo.readReport({
+    publishedFrom: previousFrom,
+    fromDay: utcDay(previousFrom),
+    limit: CONTENT_REPORT_ITEM_LIMIT + 1
+  });
+  return {
+    from: new Date(from).toISOString(),
+    to: new Date(now).toISOString(),
+    previousFrom: new Date(previousFrom).toISOString(),
+    items: rows.items.slice(0, CONTENT_REPORT_ITEM_LIMIT).map(toItemDto),
+    truncated: rows.items.length > CONTENT_REPORT_ITEM_LIMIT,
+    followers: CONTENT_PLATFORMS.map((platform) => ({
+      platform,
+      points: rows.followers
+        .filter((row) => row.platform === platform)
+        .map((row) => ({ day: row.day, followers: row.followers }))
+    })).filter((series) => series.points.length > 0)
   };
 }

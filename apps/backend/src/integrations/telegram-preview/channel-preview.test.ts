@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseChannelPreview, parseCompactCount } from './channel-preview';
+import { fetchChannelHistory, parseChannelPreview, parseCompactCount } from './channel-preview';
 
 // Trimmed from the real markup of https://t.me/s/<channel> (14.10.2026).
 const PAGE = `
@@ -56,6 +56,38 @@ describe('parseChannelPreview', () => {
         reactions: null,
         thumbnailUrl: null
       }
+    ]);
+  });
+});
+
+describe('fetchChannelHistory', () => {
+  const page = (ids: number[]) =>
+    ids
+      .map(
+        (id) => `<div class="tgme_widget_message" data-post="alexeev_x/${id}">
+          <span class="tgme_widget_message_views">${id}</span>
+          <a class="tgme_widget_message_date"><time datetime="2026-10-0${(id % 9) + 1}T10:00:00+00:00"></time></a></div>`
+      )
+      .join('');
+
+  it('walks older pages with ?before= and keeps what it read when an older page fails', async () => {
+    const urls: string[] = [];
+    const fake = (async (input: RequestInfo | URL) => {
+      const url = String(input);
+      urls.push(url);
+      if (url.endsWith('/s/alexeev_x')) return new Response(page([5, 6]));
+      if (url.endsWith('?before=5')) return new Response(page([3, 4]));
+      return new Response('', { status: 500 });
+    }) as typeof fetch;
+
+    const history = await fetchChannelHistory('alexeev_x', fake, 5);
+
+    expect(history.posts.map((post) => post.messageId)).toEqual([5, 6, 3, 4]);
+    expect(history.partial).toBe('PREVIEW_HTTP');
+    expect(urls).toEqual([
+      'https://t.me/s/alexeev_x',
+      'https://t.me/s/alexeev_x?before=5',
+      'https://t.me/s/alexeev_x?before=3'
     ]);
   });
 });

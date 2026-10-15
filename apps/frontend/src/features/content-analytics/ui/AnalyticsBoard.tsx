@@ -1,56 +1,254 @@
-import type { ContentPlatform } from '@alexeev/contracts';
+import type { ContentPlatform, ContentReportPeriod } from '@alexeev/contracts';
 import { useQuery } from '@tanstack/react-query';
+import { useMemo } from 'react';
 import { ApiError } from '../../../shared/api/http-client';
 import { useNow } from '../../../shared/lib/use-now';
-import { Button, ErrorState, Panel, useToast } from '../../../shared/ui';
-import { contentOverviewQueryOptions, useSyncContent } from '../api/content-analytics-queries';
+import { Button, ErrorState, SegmentedControl, StaleRegion, type TableSort, useToast } from '../../../shared/ui';
+import {
+  contentOverviewQueryOptions,
+  contentReportQueryOptions,
+  useSyncContent
+} from '../api/content-analytics-queries';
+import { formatCount, PLATFORM_LABEL } from '../model/format';
+import { buildInsights } from '../model/insights';
+import {
+  followersStats,
+  mediansByPlatform,
+  multipleOf,
+  percentChange,
+  periodStats,
+  PLATFORMS,
+  cumulative,
+  splitPeriods,
+  viewsByDay
+} from '../model/report';
 import { copy } from './copy';
-import styles from './ContentAnalytics.module.css';
+import { FollowersPanel } from './FollowersPanel';
+import { InsightsPanel } from './InsightsPanel';
 import { ItemDrawer } from './ItemDrawer';
 import { ItemsTable } from './ItemsTable';
-import { SourceTiles } from './SourceTiles';
-import { TopList } from './TopList';
+import { type Kpi, KpiStrip } from './KpiStrip';
+import { PerformancePanel } from './PerformancePanel';
+import { PlatformComparison } from './PlatformComparison';
+import { PostingHeatmap } from './PostingHeatmap';
+import { type RankedItem, RankedLists } from './RankedLists';
+import styles from './Report.module.css';
+import { SourceStatusRow } from './SourceStatusRow';
+
+export type AnalyticsView = {
+  days: ContentReportPeriod;
+  platform: ContentPlatform | undefined;
+  page: number;
+  sort: TableSort;
+  openId: string | undefined;
+};
 
 type Props = {
   timezone: string;
-  platform: ContentPlatform | undefined;
-  onPlatformChange: (platform: ContentPlatform | undefined) => void;
-  openId: string | undefined;
-  onOpenChange: (id: string | undefined) => void;
+  view: AnalyticsView;
+  onViewChange: (patch: Partial<AnalyticsView>) => void;
 };
 
-/** «Аналитика»: the platform strip, the month's leaders and every collected post or video. */
-export function AnalyticsBoard({ timezone, platform, onPlatformChange, openId, onOpenChange }: Props) {
+const PERIODS = [
+  { id: '7', label: '7 дней' },
+  { id: '30', label: '30 дней' },
+  { id: '90', label: '90 дней' }
+] as const;
+const PLATFORM_FILTERS = [
+  { id: 'all', label: copy.table.all },
+  ...PLATFORMS.map((platform) => ({ id: platform, label: PLATFORM_LABEL[platform] }))
+];
+const SETTLED_MS = 48 * 3_600_000;
+const RANKED_LIMIT = 5;
+
+/**
+ * «Аналитика»: filters in one row on top, then the conclusions, the headline numbers against the previous
+ * period, every publication against the usual, platforms side by side, followers, the best time to post,
+ * leaders and laggards, and every row in a paged table. All of it is computed from one report.
+ */
+export function AnalyticsBoard({ timezone, view, onViewChange }: Props) {
+  const { days, platform } = view;
   const overview = useQuery(contentOverviewQueryOptions());
+  const reportQuery = useQuery(contentReportQueryOptions(days));
+  const report = reportQuery.data;
   const now = useNow().getTime();
 
-  if (overview.isError && overview.data === undefined) {
-    const requestId = overview.error instanceof ApiError ? overview.error.requestId : undefined;
+  const derived = useMemo(() => {
+    if (!report) return undefined;
+    const { current, previous } = splitPeriods(report, platform);
+    const stats = periodStats(current);
+    const before = periodStats(previous);
+    const medians = mediansByPlatform(current);
+    const daily = viewsByDay(current, report.from, report.to, timezone);
+    const followers = (platform === undefined ? PLATFORMS : [platform]).map((each) => followersStats(report, each));
+    const followersNow = followers.reduce<number | null>(
+      (sum, entry) => (entry.now === null ? sum : (sum ?? 0) + entry.now),
+      null
+    );
+    const followersChange = followers.reduce<number | null>(
+      (sum, entry) => (entry.change === null ? sum : (sum ?? 0) + entry.change),
+      null
+    );
+    const kpis: Kpi[] = [
+      {
+        id: 'views',
+        label: copy.kpi.views,
+        value: formatCount(stats.views),
+        change: before.items > 0 ? percentChange(stats.views, before.views) : null,
+        hint: copy.kpi.noBase,
+        series: cumulative(daily.map((entry) => entry.views))
+      },
+      {
+        id: 'items',
+        label: copy.kpi.items,
+        value: String(stats.items),
+        change: before.items > 0 ? percentChange(stats.items, before.items) : null,
+        hint: copy.kpi.noBase,
+        series: cumulative(daily.map((entry) => entry.items))
+      },
+      // One median across Telegram and YouTube means nothing (300 against 100 000): with every platform
+      // shown, the tile gives the Telegram reach instead, the measure the channel's ads are sold on.
+      platform === undefined
+        ? telegramReachKpi(report)
+        : {
+            id: 'median',
+            label: copy.kpi.median,
+            value: formatCount(stats.medianViews),
+            change: percentChange(stats.medianViews, before.medianViews),
+            hint: copy.kpi.noBase
+          },
+      {
+        id: 'engagement',
+        label: copy.kpi.engagement,
+        value: stats.engagement === null ? '—' : `${stats.engagement.toLocaleString('ru-RU')}%`,
+        change: percentChange(stats.engagement, before.engagement),
+        hint: copy.kpi.noBase
+      },
+      {
+        id: 'followers',
+        label: copy.kpi.followers,
+        value: formatCount(followersNow),
+        change: null,
+        absolute: followersChange,
+        hint: copy.kpi.followersCollecting
+      }
+    ];
+    const ranked = current
+      .map((item) => ({ item, multiple: multipleOf(item, medians) }))
+      .filter((entry): entry is RankedItem => entry.multiple !== null);
+    const best = [...ranked].sort((a, b) => b.multiple - a.multiple).slice(0, RANKED_LIMIT);
+    // The last two days are still collecting views: they would always look weak.
+    const worst = ranked
+      .filter((entry) => Date.parse(report.to) - Date.parse(entry.item.publishedAt) > SETTLED_MS)
+      .filter((entry) => !best.some((leader) => leader.item.id === entry.item.id))
+      .sort((a, b) => a.multiple - b.multiple)
+      .slice(0, RANKED_LIMIT);
+    return {
+      current,
+      medians,
+      kpis,
+      best,
+      worst,
+      insights: buildInsights({ report, platform, days, timezone })
+    };
+  }, [report, platform, days, timezone]);
+
+  const openContext = useMemo(() => {
+    if (!derived || view.openId === undefined) return undefined;
+    const item = derived.current.find((entry) => entry.id === view.openId);
+    if (!item) return undefined;
+    const samePlatform = derived.current
+      .filter((entry) => entry.platform === item.platform && entry.views !== null)
+      .sort((a, b) => (b.views ?? 0) - (a.views ?? 0));
+    return {
+      multiple: multipleOf(item, derived.medians),
+      rank: samePlatform.findIndex((entry) => entry.id === item.id) + 1,
+      total: samePlatform.length,
+      median: derived.medians[item.platform] ?? null,
+      days
+    };
+  }, [derived, view.openId, days]);
+
+  if (reportQuery.isError && report === undefined) {
+    const requestId = reportQuery.error instanceof ApiError ? reportQuery.error.requestId : undefined;
     return (
       <ErrorState
         message={copy.loadError}
         {...(requestId ? { requestId } : {})}
-        onRetry={() => void overview.refetch()}
+        onRetry={() => void reportQuery.refetch()}
       />
     );
   }
 
+  const open = (id: string) => onViewChange({ openId: id });
   return (
-    <div className={styles.board} aria-busy={overview.isPending || undefined}>
-      <SourceTiles overview={overview.data} now={now} />
-      <Panel title={copy.top.title} headingLevel={2} quiet>
-        <TopList items={overview.data?.top} onOpen={onOpenChange} />
-      </Panel>
-      <ItemsTable
-        platform={platform}
-        onPlatformChange={onPlatformChange}
+    <div className={styles.board}>
+      <div className={styles.filters}>
+        <SegmentedControl
+          label={copy.filters.period}
+          options={PERIODS}
+          value={String(days)}
+          onChange={(id) => onViewChange({ days: Number(id) as ContentReportPeriod, page: 1 })}
+        />
+        <SegmentedControl
+          label={copy.filters.platform}
+          options={PLATFORM_FILTERS}
+          value={platform ?? 'all'}
+          onChange={(id) => onViewChange({ platform: id === 'all' ? undefined : (id as ContentPlatform), page: 1 })}
+        />
+      </div>
+      <SourceStatusRow overview={overview.data} now={now} />
+      {report?.truncated ? <p className={styles.note}>{copy.truncated}</p> : null}
+      <StaleRegion busy={reportQuery.isPlaceholderData}>
+        <div className={styles.sections}>
+          <InsightsPanel insights={derived?.insights} days={days} onOpenItem={open} />
+          <KpiStrip kpis={derived?.kpis} days={days} />
+          <PerformancePanel items={derived?.current} platform={platform} timezone={timezone} onOpen={open} />
+          {platform === undefined ? <PlatformComparison report={report} /> : null}
+          <div className={styles.pair}>
+            <FollowersPanel report={report} platform={platform} />
+            <PostingHeatmap items={derived?.current} platform={platform} timezone={timezone} />
+          </div>
+          <RankedLists best={derived?.best} worst={derived?.worst} onOpen={open} />
+          <ItemsTable
+            items={derived?.current}
+            medians={derived?.medians ?? {}}
+            timezone={timezone}
+            page={view.page}
+            onPageChange={(page) => onViewChange({ page })}
+            sort={view.sort}
+            onSortChange={(sort) => onViewChange({ sort, page: 1 })}
+            activeId={view.openId}
+            onOpen={open}
+          />
+        </div>
+      </StaleRegion>
+      <ItemDrawer
+        id={view.openId}
+        onClose={() => onViewChange({ openId: undefined })}
         timezone={timezone}
-        activeId={openId}
-        onOpen={onOpenChange}
+        now={now}
+        context={openContext}
       />
-      <ItemDrawer id={openId} onClose={() => onOpenChange(undefined)} timezone={timezone} now={now} />
     </div>
   );
+}
+
+function telegramReachKpi(report: NonNullable<Parameters<typeof splitPeriods>[0]>): Kpi {
+  const { current, previous } = splitPeriods(report, 'telegram');
+  const followers = followersStats(report, 'telegram').now;
+  const reach = (items: typeof current) => {
+    const value = periodStats(items).medianViews;
+    return followers === null || followers === 0 || value === null ? null : Math.round((value / followers) * 100);
+  };
+  const now = reach(current);
+  return {
+    id: 'reach',
+    label: copy.kpi.reach,
+    value: now === null ? '—' : `${now}%`,
+    change: percentChange(now, reach(previous)),
+    hint: copy.kpi.noBase
+  };
 }
 
 /** Page header action: collects now (the server skips a source collected in the last 5 minutes). */

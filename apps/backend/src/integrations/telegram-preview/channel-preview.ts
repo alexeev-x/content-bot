@@ -24,6 +24,8 @@ export interface ChannelPreviewPost {
 export interface ChannelPreview {
   subscribers: number | null;
   posts: ChannelPreviewPost[];
+  /** An older page failed: the history is shorter than asked, the newest page is complete. */
+  partial?: ChannelPreviewErrorCode;
 }
 
 export type ChannelPreviewErrorCode = 'PREVIEW_FETCH' | 'PREVIEW_HTTP' | 'PREVIEW_BODY_LIMIT' | 'PREVIEW_SHAPE';
@@ -187,10 +189,48 @@ function decodeEntities(text: string): string {
     .replace(/&amp;/g, '&');
 }
 
-export async function fetchChannelPreview(username: string, fetchImpl: typeof fetch = fetch): Promise<ChannelPreview> {
+/** Older pages read per run (`?before=<id>`), ~20 posts each: the history behind the comparisons. */
+export const PREVIEW_HISTORY_PAGES = 5;
+
+// The newest page, then older pages until PREVIEW_HISTORY_PAGES or the channel's start. A failure on an
+// older page keeps what was read: the newest page alone is still a valid collection.
+export async function fetchChannelHistory(
+  username: string,
+  fetchImpl: typeof fetch = fetch,
+  pages: number = PREVIEW_HISTORY_PAGES
+): Promise<ChannelPreview> {
+  const first = await fetchChannelPreview(username, fetchImpl);
+  const posts = [...first.posts];
+  for (let page = 1; page < pages; page += 1) {
+    const oldest = Math.min(...posts.map((post) => post.messageId));
+    if (!Number.isFinite(oldest) || oldest <= 1) break;
+    let older: ChannelPreview;
+    try {
+      older = await fetchChannelPreview(username, fetchImpl, oldest);
+    } catch (error) {
+      // Reported, not thrown: the collector logs it and keeps what was read.
+      return {
+        subscribers: first.subscribers,
+        posts,
+        partial: error instanceof ChannelPreviewError ? error.code : 'PREVIEW_FETCH'
+      };
+    }
+    const fresh = older.posts.filter((post) => post.messageId < oldest);
+    if (fresh.length === 0) break;
+    posts.push(...fresh);
+  }
+  return { subscribers: first.subscribers, posts };
+}
+
+export async function fetchChannelPreview(
+  username: string,
+  fetchImpl: typeof fetch = fetch,
+  before?: number
+): Promise<ChannelPreview> {
   let response: Response;
   try {
-    response = await fetchImpl(`https://t.me/s/${encodeURIComponent(username)}`, {
+    const query = before === undefined ? '' : `?before=${before}`;
+    response = await fetchImpl(`https://t.me/s/${encodeURIComponent(username)}${query}`, {
       method: 'GET',
       headers: { accept: 'text/html' },
       signal: AbortSignal.timeout(PREVIEW_TIMEOUT_MS),

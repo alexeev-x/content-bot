@@ -3,7 +3,9 @@ import {
   contentItemDetailSchema,
   contentItemIdSchema,
   contentItemsPageSchema,
-  contentItemsQuerySchema
+  contentItemsQuerySchema,
+  contentReportQuerySchema,
+  contentReportSchema
 } from '@alexeev/contracts';
 import { Hono } from 'hono';
 import { z } from 'zod';
@@ -11,7 +13,8 @@ import {
   collectContentAnalytics,
   listContentItems,
   readContentAnalyticsOverview,
-  readContentItem
+  readContentItem,
+  readContentReport
 } from '../modules/content-analytics';
 import type { AppBindings } from './env';
 import { validated } from './validation';
@@ -46,6 +49,14 @@ export const contentAnalyticsRoutes = new Hono<AppBindings>()
     return c.json(
       contentAnalyticsOverviewSchema.parse(
         await readContentAnalyticsOverview({ repo, sources, clock: container.clock })
+      )
+    );
+  })
+  .get('/report', validated('query', contentReportQuerySchema), async (c) => {
+    const container = c.get('container');
+    return c.json(
+      contentReportSchema.parse(
+        await readContentReport({ repo: container.contentAnalytics, clock: container.clock }, c.req.valid('query'))
       )
     );
   })

@@ -175,10 +175,11 @@ Read-only counters of the owner's own Telegram, YouTube and TikTok, collected by
 |---|---|
 | `GET /api/v1/content-analytics` | Overview: one state per platform (`ok`, `pending`, `not_configured`, `error` with a stable code), followers and their change against the closest stored day 7+ days ago, views and count of items published in the last 7 days, 30 days of daily follower counts, the newest items and the 30-day leaders by views |
 | `POST /api/v1/content-analytics/sync` | Collects now every configured source whose last claim is at least 5 minutes old (a source claimed by a concurrent Cron tick is skipped), then returns the overview. No body, safe to repeat |
+| `GET /api/v1/content-analytics/report?days=7\|30\|90` | Everything the «Аналитика» page compares in one bounded read (≤ 1000 items): the items published in the period and in the previous period of the same length, plus daily followers over both. Medians, period changes, «× к обычному», best posting time and the conclusions are computed by the client from these rows |
 | `GET /api/v1/content-analytics/items` | Keyset page of posts and videos, newest first, optional `platform` |
 | `GET /api/v1/content-analytics/items/:id` | One item with its snapshots: hourly while it is younger than 72 hours, then daily; `404` when unknown |
 
-Sources are configured per environment: `ANALYTICS_TELEGRAM_CHANNEL` and `ANALYTICS_YOUTUBE_CHANNEL_ID` in `apps/backend/wrangler.jsonc`, the secret `YOUTUBE_API_KEY`. TikTok reports `not_configured` until its sign-in exists. Telegram previews expose views and reactions only (`comments` and `shares` are null). Errors: `VALIDATION_ERROR` 400, `UNAUTHORIZED` 401, `FORBIDDEN` 403, `NOT_FOUND` 404 (item), `UNAVAILABLE` 503.
+Each run reads history as well as new posts: up to 5 preview pages of Telegram (~100 posts) and the 200 newest YouTube uploads (at most 9 API calls). Snapshots of items older than 30 days are weekly. Sources are configured per environment: `ANALYTICS_TELEGRAM_CHANNEL` and `ANALYTICS_YOUTUBE_CHANNEL_ID` in `apps/backend/wrangler.jsonc`, the secret `YOUTUBE_API_KEY`. TikTok reports `not_configured` until its sign-in exists. Telegram previews expose views and reactions only (`comments` and `shares` are null). Errors: `VALIDATION_ERROR` 400, `UNAUTHORIZED` 401, `FORBIDDEN` 403, `NOT_FOUND` 404 (item), `UNAVAILABLE` 503.
 
 ## Owner settings
 

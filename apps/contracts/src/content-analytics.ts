@@ -107,3 +107,40 @@ export const contentItemDetailSchema = z.object({
   snapshots: z.array(contentItemSnapshotSchema).max(CONTENT_ITEM_SNAPSHOT_LIMIT)
 });
 export type ContentItemDetailDto = z.infer<typeof contentItemDetailSchema>;
+
+export const CONTENT_REPORT_PERIODS = [7, 30, 90] as const;
+export type ContentReportPeriod = (typeof CONTENT_REPORT_PERIODS)[number];
+export const CONTENT_REPORT_ITEM_LIMIT = 1000;
+
+// GET /api/v1/content-analytics/report?days=7|30|90 → 200 ContentReportDto. Everything the analytics
+// page compares, in one bounded read: the items published in this period and the previous one of the
+// same length (newest first) and the daily follower counts over both. Comparisons, medians and
+// conclusions are computed by the client from these rows.
+// Errors: VALIDATION_ERROR 400, UNAUTHORIZED 401, FORBIDDEN 403, UNAVAILABLE 503.
+export const contentReportQuerySchema = z.strictObject({
+  days: z.coerce
+    .number()
+    .int()
+    .refine((days) => (CONTENT_REPORT_PERIODS as readonly number[]).includes(days), {
+      error: 'days must be 7, 30 or 90'
+    })
+    .default(30)
+});
+export type ContentReportQuery = z.infer<typeof contentReportQuerySchema>;
+
+export const contentReportSchema = z.object({
+  /** Start of the period (inclusive) and now. */
+  from: z.iso.datetime(),
+  to: z.iso.datetime(),
+  /** Start of the previous period of the same length; it ends at `from`. */
+  previousFrom: z.iso.datetime(),
+  /** Items published since `previousFrom`, newest first. */
+  items: z.array(contentItemSchema).max(CONTENT_REPORT_ITEM_LIMIT),
+  /** True when more items existed than the limit; the oldest are left out. */
+  truncated: z.boolean(),
+  /** Daily follower counts since `previousFrom`, oldest first. */
+  followers: z
+    .array(z.object({ platform: contentPlatformSchema, points: z.array(followersPointSchema).max(200) }))
+    .max(3)
+});
+export type ContentReportDto = z.infer<typeof contentReportSchema>;

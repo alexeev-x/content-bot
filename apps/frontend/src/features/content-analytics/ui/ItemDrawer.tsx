@@ -12,10 +12,12 @@ type Props = {
   onClose: () => void;
   timezone: string;
   now: number;
+  /** Where the item stands in the open period; absent when it is outside it. */
+  context?: { multiple: number | null; rank: number; total: number; median: number | null; days: number } | undefined;
 };
 
 /** One post or video: its counters and the views curve from the stored snapshots. */
-export function ItemDrawer({ id, onClose, timezone, now }: Props) {
+export function ItemDrawer({ id, onClose, timezone, now, context }: Props) {
   const query = useQuery({ ...contentItemQueryOptions(id ?? ''), enabled: id !== undefined });
   const detail = query.data;
   const item = detail?.item;
@@ -49,6 +51,22 @@ export function ItemDrawer({ id, onClose, timezone, now }: Props) {
               </a>
             </div>
           </div>
+
+          {context && context.rank > 0 ? (
+            <div className={styles.standing}>
+              <p className={styles.standingRank}>
+                {copy.detail.rank(context.rank, context.total, PLATFORM_LABEL[item.platform], context.days)}
+              </p>
+              {context.multiple !== null ? (
+                <p
+                  className={styles.standingVersus}
+                  data-tone={context.multiple >= 1.5 ? 'up' : context.multiple <= 0.5 ? 'down' : 'flat'}
+                >
+                  {copy.detail.versus(context.multiple, formatCount(context.median))}
+                </p>
+              ) : null}
+            </div>
+          ) : null}
 
           <dl className={styles.counters}>
             <div>
