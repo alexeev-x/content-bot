@@ -3,7 +3,6 @@ import {
   createPostInputSchema,
   POST_BODY_MAX,
   POST_ENTITIES_MAX,
-  POST_TITLE_MAX,
   type PostEntity,
   postEntitySchema
 } from '@alexeev/contracts';
@@ -11,11 +10,6 @@ import type { MessageEntity } from 'grammy/types';
 
 export type DraftFromMessage =
   { ok: true; input: CreatePostInput } | { ok: false; reason: 'TOO_LONG' | 'INVALID_TEXT' };
-
-const ELLIPSIS = '…';
-
-/** Title of a draft whose message carried media but no caption (or whose caption has not arrived yet). */
-export const MEDIA_DRAFT_TITLE = 'Медиа из Telegram';
 
 // One UTF-16 unit of the message together with its index in the original text, so every cut and
 // trim below keeps the entity offsets of Telegram (which count units of the original text) resolvable.
@@ -32,18 +26,6 @@ function trimUnits(units: Unit[]): Unit[] {
   while (start < end && /\s/.test(units[start]?.char ?? '')) start += 1;
   while (end > start && /\s/.test(units[end - 1]?.char ?? '')) end -= 1;
   return units.slice(start, end);
-}
-
-// Runs of tabs and blanks mean nothing in a title (and a title may not hold a tab).
-function collapseBlanks(units: Unit[]): Unit[] {
-  const out: Unit[] = [];
-  for (const unit of units) {
-    const blank = unit.char === ' ' || unit.char === '\t';
-    const previous = out[out.length - 1];
-    if (blank && previous !== undefined && previous.char === ' ') continue;
-    out.push(blank ? { char: ' ', at: unit.at } : unit);
-  }
-  return out;
 }
 
 function normalizeLineBreaks(text: string): Unit[] {
@@ -114,40 +96,19 @@ function entitiesOfBody(entities: readonly MessageEntity[], body: readonly Unit[
   return out;
 }
 
-// The text is kept whole: the first line becomes the title and everything after it the body. A first
-// line longer than the title allows is cut at the limit (never between the two halves of an emoji) and the
-// remainder of that line stays at the start of the body, so no character is lost. Telegram formatting
-// (`entities`, offsets in UTF-16 units) is carried to the body; the part that falls into the title is
-// dropped. If the contract refuses the carried formatting (say, an overlap the editor cannot hold), the
-// draft keeps its text and loses only the formatting.
+// The text is kept whole, as the post's body (owner, 16.10.2026: no title — a first line read as a bold title
+// broke a post that starts with a joke). The post is named after its start by the server and only the body is
+// sent. Telegram formatting (`entities`, offsets in UTF-16 units) is carried over. If the contract refuses the
+// carried formatting (say, an overlap the editor cannot hold), the draft keeps its text and loses only that.
 export function draftFromMessageText(text: string, entities: readonly MessageEntity[] = []): DraftFromMessage {
-  const units = trimUnits(normalizeLineBreaks(text));
-  const newline = units.findIndex((unit) => unit.char === '\n');
-  const firstLine = newline === -1 ? units : units.slice(0, newline);
-  let body = newline === -1 ? [] : trimUnits(units.slice(newline + 1));
-
-  let title = trimUnits(collapseBlanks(firstLine));
-  if (title.length > POST_TITLE_MAX) {
-    // Room for the ellipsis; the cut moves back by one when it would split a surrogate pair.
-    let cut = POST_TITLE_MAX - ELLIPSIS.length;
-    const last = (title[cut - 1]?.char ?? '').charCodeAt(0);
-    if (last >= 0xd800 && last <= 0xdbff) cut -= 1;
-    const rest = trimUnits(title.slice(cut));
-    title = [...trimUnits(title.slice(0, cut)), { char: ELLIPSIS, at: title[cut - 1]?.at ?? 0 }];
-    const separator = { char: '\n', at: newline === -1 ? (rest[rest.length - 1]?.at ?? 0) : (units[newline]?.at ?? 0) };
-    body = rest.length === 0 ? body : body.length === 0 ? rest : [...rest, separator, ...body];
-  }
+  const body = trimUnits(normalizeLineBreaks(text));
   if (body.length > POST_BODY_MAX) return { ok: false, reason: 'TOO_LONG' };
 
   const bodyText = toText(body);
   // The contract schema is the one authority on what a post may hold (control characters, lone surrogates).
-  const withFormatting = createPostInputSchema.safeParse({
-    title: toText(title),
-    body: bodyText,
-    entities: entitiesOfBody(entities, body)
-  });
+  const withFormatting = createPostInputSchema.safeParse({ body: bodyText, entities: entitiesOfBody(entities, body) });
   if (withFormatting.success) return { ok: true, input: withFormatting.data };
-  const plain = createPostInputSchema.safeParse({ title: toText(title), body: bodyText });
+  const plain = createPostInputSchema.safeParse({ body: bodyText });
   return plain.success ? { ok: true, input: plain.data } : { ok: false, reason: 'INVALID_TEXT' };
 }
 
@@ -161,5 +122,5 @@ export function draftFromCaption(
 }
 
 export function mediaOnlyDraft(): CreatePostInput {
-  return { title: MEDIA_DRAFT_TITLE, body: '', entities: [] };
+  return { body: '', entities: [] };
 }

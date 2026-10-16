@@ -54,7 +54,10 @@ describe('buildEventDraft', () => {
   it('patch: watched first, capped at 15 with «и ещё N», link, no invented facts', () => {
     const watched = new Set([watchKey('hero', 'hero 19')]);
     const draft = buildEventDraft({ ...base, type: 'patch' }, entities(20), watched);
-    expect(draft.title).toBe('Патч 7.41: что изменилось');
+    // No post title: the heading is the bold first line of the body, sent once.
+    expect(draft.title).toBeUndefined();
+    expect(draft.body.startsWith('Патч 7.41: что изменилось\n\n')).toBe(true);
+    expect(draft.entities).toEqual([{ type: 'bold', offset: 0, length: 'Патч 7.41: что изменилось'.length }]);
     const lines = draft.body.split('\n');
     expect(lines.filter((line) => line.startsWith('— '))).toHaveLength(15);
     expect(lines.find((line) => line.startsWith('— '))).toBe('— Hero 19 (герой)');
@@ -76,9 +79,8 @@ describe('buildEventDraft', () => {
       []
     );
     expect(draft).toEqual({
-      title: 'Новая сокровищница: Cryptic Beacon',
       body: 'Новая сокровищница: Cryptic Beacon\n\nNew sets are here.\n\nИсточник: https://s/1',
-      entities: []
+      entities: [{ type: 'bold', offset: 0, length: 'Новая сокровищница: Cryptic Beacon'.length }]
     });
   });
   it('news: title, first sentence, link', () => {

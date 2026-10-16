@@ -129,15 +129,21 @@ export function buildEventDraft(
       lines.length === 0
         ? 'Список изменений пока не разобран: откройте официальные заметки.'
         : `Изменились:\n${lines.join('\n')}`;
-    return { title, body: `${title}\n\n${list}\n\n${link}`, entities: [] };
+    return headed(title, `${title}\n\n${list}\n\n${link}`);
   }
   const summary = firstSentence(source.excerpt);
   if (source.type === 'treasure') {
     const title = clip(`Новая сокровищница: ${source.title}`, MAX_TITLE);
     const parts = [title, ...(summary === null ? [] : [summary]), link];
-    return { title, body: parts.join('\n\n'), entities: [] };
+    return headed(title, parts.join('\n\n'));
   }
   const title = clip(source.title, MAX_TITLE);
   const parts = [title, ...(summary === null || summary === title ? [] : [summary]), link];
-  return { title, body: parts.join('\n\n'), entities: [] };
+  return headed(title, parts.join('\n\n'));
+}
+
+// No post title (owner, 16.10.2026): the heading is the body's first line, made bold — sent once, not as a
+// title above a body that repeats it. Offsets are UTF-16 units, which String#length counts.
+function headed(heading: string, body: string): CreatePostInput {
+  return { body, entities: [{ type: 'bold', offset: 0, length: heading.length }] };
 }

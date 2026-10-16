@@ -122,8 +122,9 @@ describe('a text from the owner becomes a draft', () => {
     expect(rows.results).toEqual([
       {
         id: expect.any(String),
+        // The studio name is the first line; the whole text is the body that goes out (no title).
         title: 'Релиз 7.40 🚀',
-        body: 'Герои 👩‍💻 и 𝒳 баланс\n- первое',
+        body: text,
         status: 'draft',
         revision: 0
       }
@@ -143,10 +144,10 @@ describe('a text from the owner becomes a draft', () => {
   });
 
   it('keeps a body of exactly the contract limit and refuses one unit more, without a draft', async () => {
-    await deliver(textUpdate(`Заголовок\n${'😀'.repeat(2048)}`));
+    await deliver(textUpdate('😀'.repeat(2048)));
     expect(await count('posts')).toBe(1);
 
-    await deliver(textUpdate(`Заголовок\n${'😀'.repeat(2049)}`));
+    await deliver(textUpdate('😀'.repeat(2049)));
     expect(await count('posts')).toBe(1);
     expect(replies.at(-1)?.text).toBe('Текст длиннее 4096 символов, черновик не создан.');
   });
@@ -389,7 +390,7 @@ describe('the owner commands over the webhook', () => {
       .filter((statement) => /^\s*SELECT\b/i.test(statement))
       .filter((statement) => !/\bLIMIT\b/i.test(statement))
       // Primary-key lookups: the bot identity is not read (BOT_INFO is set); a revision, a cron row, a destination.
-      .filter((statement) => !/WHERE (key|id|post_id)\s*=/i.test(statement));
+      .filter((statement) => !/WHERE (\w+\.)?(key|id|post_id)\s*=/i.test(statement));
     expect(unbounded).toEqual([]);
   });
 });

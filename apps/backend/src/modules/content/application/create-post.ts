@@ -4,6 +4,7 @@ import { sha256Hex } from '../../../platform/security/sha256';
 import { AppError } from '../../../shared/app-error';
 import { emptySummary, toPostDto } from './post-dto';
 import type { IdempotencyGate, PostRecord, PostRepository } from './ports';
+import { postNameFromBody } from '../domain/post-name';
 
 export interface CreatePostDeps {
   repo: PostRepository;
@@ -53,9 +54,11 @@ export async function createPost(deps: CreatePostDeps, command: CreatePostComman
       break;
   }
 
+  // Without a title (owner, 16.10.2026: no title field) only the body is sent; the title is just its studio name.
   const record: PostRecord = {
     id: deps.newId(),
-    title: input.title,
+    title: input.title ?? postNameFromBody(input.body),
+    titleInMessage: input.title !== undefined,
     body: input.body,
     entities: input.entities,
     status: 'draft',

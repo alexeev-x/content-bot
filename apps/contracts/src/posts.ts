@@ -76,6 +76,11 @@ export const postSchema = z.object({
   publicationSummary: postPublicationSummarySchema,
   /** Set by GET /posts and GET /posts/{id}; null — written by the owner. Absent in other responses. */
   origin: postOriginSchema.nullable().optional(),
+  /**
+   * Whether `title` goes out as the bold first line of the message. False for posts created without a title
+   * (owner, 16.10.2026): `title` is then only the studio name, taken from the start of the body. Fixed at creation.
+   */
+  titleInMessage: z.boolean().default(true),
   createdAt: z.iso.datetime(),
   updatedAt: z.iso.datetime()
 });
@@ -86,9 +91,11 @@ export type PostDto = z.infer<typeof postSchema>;
 // Errors: VALIDATION_ERROR 400 (body, missing key, or details.reason ENTITIES_* when the entity list does not
 // fit the body) or 413 (request over 32 KB), CONFLICT 409 (details.reason IDEMPOTENCY_KEY_REUSED | IN_FLIGHT),
 // UNAUTHORIZED 401, FORBIDDEN 403.
+// `title` is optional (owner, 16.10.2026: no title field in the studio). Without it the post has no title in its
+// message: the server names it after the start of the body for lists and search, and only the body is sent.
 export const createPostInputSchema = z
   .strictObject({
-    title: titleSchema,
+    title: titleSchema.optional(),
     body: bodySchema.default(''),
     entities: postEntityListSchema.default([])
   })

@@ -26,6 +26,7 @@ import { PostFields } from './PostFields';
 import { PostMediaEditor } from './PostMediaEditor';
 import { PostPreview } from './PostPreview';
 import styles from './PostEditor.module.css';
+import { OriginMark } from './OriginMark';
 import { SaveIndicator } from './SaveIndicator';
 
 type Props = {
@@ -94,7 +95,7 @@ export function PostEditor({ post, onCreated, approvedActions, aside, headerActi
       0;
   const showApprovedPreview = isApproved && !isArchived && !hasConflict;
   const canApprove =
-    editor.title.trim().length > 0 &&
+    (!editor.hasTitle || editor.title.trim().length > 0) &&
     !editor.readOnly &&
     !hasConflict &&
     !editor.isSaving &&
@@ -148,6 +149,7 @@ export function PostEditor({ post, onCreated, approvedActions, aside, headerActi
       control={editor.form.control}
       setValue={editor.form.setValue}
       title={editor.title}
+      hasTitle={editor.hasTitle}
       body={editor.body}
       entities={editor.entities}
       isReadOnly={editor.readOnly}
@@ -177,7 +179,7 @@ export function PostEditor({ post, onCreated, approvedActions, aside, headerActi
   const previewPanel = (
     <>
       <PostPreview
-        title={editor.title}
+        title={editor.hasTitle ? editor.title : ''}
         body={editor.body}
         entities={editor.entities}
         length={editor.length}
@@ -243,6 +245,8 @@ export function PostEditor({ post, onCreated, approvedActions, aside, headerActi
           <h1 ref={statusRef} tabIndex={-1}>
             {editor.isNew ? 'Новый пост' : editor.title.trim() || copy.untitled}
           </h1>
+          {/* Studio-only: who wrote the post (owner, 16.10.2026: «внутри поста я нигде не вижу, что это ИИ»). */}
+          <OriginMark origin={baseline?.origin} />
           <span className={styles.saveStatus}>
             <span className={styles.statusDot} data-state={editor.saveState} />
             <SaveIndicator state={editor.saveState} savedAt={baseline?.updatedAt} compact={narrow} />

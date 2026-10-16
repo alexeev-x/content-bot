@@ -18,10 +18,10 @@ const hasControl = (value: string, allowBreaks: boolean) =>
 /** Client validation is UX only: the server validates again. The combined Telegram limit is a warning, not an error. */
 export const postFormSchema = z
   .object({
+    // Empty for a post without a title (owner, 16.10.2026); an older titled post is checked by the server.
     title: z
       .string()
       .trim()
-      .min(1, { error: copy.titleRequired })
       .max(POST_TITLE_MAX, { error: copy.titleTooLong(POST_TITLE_MAX) })
       .refine((value) => !hasControl(value, false), { error: copy.forbiddenChars }),
     body: z

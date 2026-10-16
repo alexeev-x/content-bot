@@ -58,11 +58,11 @@ export function attachMedia(postId: string, revision: number, mediaIds: string[]
   });
 }
 
-/** Empty draft that receives the files; the title is required by the server and the editor renames it. */
+/** Empty draft that receives the files; no title (owner, 16.10.2026), so only its text will be sent. */
 export function createDraft(idempotencyKey: string) {
   return apiRequest('/api/v1/posts', postSchema, {
     method: 'POST',
-    body: { title: 'Новый пост', body: '' },
+    body: { body: '' },
     headers: { 'Idempotency-Key': idempotencyKey }
   });
 }

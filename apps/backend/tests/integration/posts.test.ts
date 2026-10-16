@@ -10,7 +10,8 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { sha256Hex } from '../../src/platform/security/sha256';
 import { testDb } from '../helpers/db';
 import { buildPostsListSql } from '../../src/app/posts-list-query';
-import { postTitleSortKey } from '../../src/modules/content';
+import { createD1PostRepository, postTitleSortKey } from '../../src/modules/content';
+import { formatPublicationText } from '../../src/modules/publishing/domain/format-message';
 import { type Api, createApi, fakeClock, OWNER_ID, OWNER_TOKEN, resetDb, seedSession, START } from '../helpers/harness';
 
 let api: Api;
@@ -25,7 +26,7 @@ beforeEach(async () => {
 
 const nextKey = () => `key-${++keyCounter}`;
 
-async function create(input: { title: string; body?: string }, key = nextKey()): Promise<PostDto> {
+async function create(input: { title?: string; body?: string }, key = nextKey()): Promise<PostDto> {
   const response = await api.request('/api/v1/posts', {
     method: 'POST',
     headers: { 'idempotency-key': key },
@@ -193,7 +194,6 @@ describe('POST /api/v1/posts', () => {
 
   it.each([
     ['a blank title', { title: '   ' }],
-    ['a missing title', { body: 'x' }],
     ['a title over 200 characters', { title: 't'.repeat(201) }],
     ['a body over 4096 characters', { title: 'T', body: 'b'.repeat(4097) }],
     ['an unknown field', { title: 'T', status: 'approved' }]
@@ -280,6 +280,42 @@ describe('POST /api/v1/posts', () => {
     await seedSession({ token: 'stranger-token', telegramId: '777' });
     const stranger = await api.request('/api/v1/posts', { method: 'POST', token: 'stranger-token', json: {} });
     await expectError(stranger, 403, 'FORBIDDEN');
+  });
+});
+
+describe('a post without a title (owner, 16.10.2026)', () => {
+  it('is named after the start of its body, renamed on edit, and keeps a title only when it was given one', async () => {
+    const untitled = await create({ body: 'Если бы тиммейтов можно было денаить, я бы до врагов не доходил.\n\nP.S.' });
+    expect(untitled).toMatchObject({
+      title: 'Если бы тиммейтов можно было денаить, я бы до врагов не доходил.',
+      titleInMessage: false
+    });
+    // An edit of the body renames it; a client title is ignored for such a post.
+    const edited = postSchema.parse(
+      await (
+        await patch(untitled.id, {
+          revision: untitled.revision,
+          title: 'чужой',
+          body: 'Новая первая строка',
+          entities: []
+        })
+      ).json()
+    );
+    expect(edited).toMatchObject({ title: 'Новая первая строка', titleInMessage: false });
+
+    const titled = await create({ title: 'Старый заголовок', body: 'Текст' });
+    expect(titled).toMatchObject({ title: 'Старый заголовок', titleInMessage: true });
+
+    // What a channel receives: only the body for the untitled post, the bold title and the body for the other.
+    const repo = createD1PostRepository(testDb());
+    const sentUntitled = formatPublicationText((await repo.findRevision(edited.id, edited.revision))!);
+    expect(sentUntitled).toEqual({ ok: true, text: 'Новая первая строка', entities: [] });
+    const sentTitled = formatPublicationText((await repo.findRevision(titled.id, titled.revision))!);
+    expect(sentTitled).toMatchObject({ ok: true, text: 'Старый заголовок\n\nТекст' });
+  });
+
+  it('is named «Без текста» while the body is empty', async () => {
+    expect(await create({ body: '' })).toMatchObject({ title: 'Без текста', titleInMessage: false });
   });
 });
 

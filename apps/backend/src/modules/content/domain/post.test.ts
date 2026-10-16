@@ -4,6 +4,7 @@ import { approve, canEdit, type Post } from './post';
 const draft: Post = {
   id: 'p1',
   title: 'T',
+  titleInMessage: true,
   body: 'Hello',
   entities: [],
   revision: 3,

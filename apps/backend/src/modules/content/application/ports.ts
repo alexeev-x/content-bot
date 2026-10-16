@@ -65,7 +65,14 @@ export interface PostRepository {
   findRevision(
     postId: string,
     revision: number
-  ): Promise<{ title: string; body: string; entities: PostEntity[]; media: PostRevisionMedia[] } | null>;
+  ): Promise<{
+    title: string;
+    /** Whether the title is the message's bold first line (the post's flag, fixed at creation). */
+    titleInMessage: boolean;
+    body: string;
+    entities: PostEntity[];
+    media: PostRevisionMedia[];
+  } | null>;
   list(query: ListPostsQuery): Promise<PostRecord[]>;
   count(view: 'live' | 'archive', status?: PostStatus): Promise<number>;
   /** How many posts are in the archive (it only holds the retention period, so the count is small). */

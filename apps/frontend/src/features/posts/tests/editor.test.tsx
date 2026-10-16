@@ -19,7 +19,6 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-const titleBox = () => screen.getByRole('textbox', { name: /Заголовок/ });
 const bodyBox = () => screen.getByRole('textbox', { name: 'Текст' });
 
 /** user-event puts the caret at the start of a contenteditable (it keeps the end of a textarea): move it by hand. */
@@ -100,52 +99,40 @@ describe('mobile editor navigation', () => {
 });
 
 describe('create', () => {
-  it('does not create a draft when the blank editor is only visited', async () => {
+  // No title field (owner, 16.10.2026): a new post is only its text; the server names it after the start.
+  const untitled = (overrides: Parameters<typeof post>[0] = {}) =>
+    post({ title: 'Текст', titleInMessage: false, body: 'Текст', ...overrides });
+
+  it('shows no title field and does not create a draft when the blank editor is only visited', async () => {
     let creates = 0;
     server.use(
       http.post('*/api/v1/posts', () => {
         creates += 1;
-        return HttpResponse.json(post(), { status: 201 });
+        return HttpResponse.json(untitled(), { status: 201 });
       })
     );
     renderEditorApp('/posts/new');
-    await screen.findByRole('textbox', { name: /Заголовок/ });
+    await screen.findByRole('textbox', { name: 'Текст' });
+    expect(screen.queryByRole('textbox', { name: /Заголовок/ })).toBeNull();
     await new Promise((resolve) => window.setTimeout(resolve, 1_400));
     expect(creates).toBe(0);
   });
 
-  it('autosaves a new post after the first valid title without a manual save action', async () => {
+  it('autosaves a new post after the first text, without a title, and without a manual save', async () => {
     const user = userEvent.setup();
-    let creates = 0;
-    server.use(
-      http.post('*/api/v1/posts', () => {
-        creates += 1;
-        return HttpResponse.json(post({ title: 'Новая публикация' }), { status: 201 });
-      })
-    );
-    const { router } = renderEditorApp('/posts/new');
-    await user.type(await screen.findByRole('textbox', { name: /Заголовок/ }), 'Новая публикация');
-
-    await waitFor(() => expect(router.state.location.pathname).toBe(`/posts/${ids.post}`), { timeout: 5_000 });
-    expect(creates).toBe(1);
-  });
-
-  it('shows an editable default title and autosaves when body text is entered first', async () => {
-    const user = userEvent.setup();
-    let createdTitle: string | undefined;
+    const bodies: unknown[] = [];
     server.use(
       http.post('*/api/v1/posts', async ({ request }) => {
-        const input = (await request.json()) as { title: string; body: string };
-        createdTitle = input.title;
-        return HttpResponse.json(post(input), { status: 201 });
+        bodies.push(await request.json());
+        return HttpResponse.json(untitled({ title: 'Сначала текст', body: 'Сначала текст' }), { status: 201 });
       })
     );
     const { router } = renderEditorApp('/posts/new');
     await user.type(await screen.findByRole('textbox', { name: 'Текст' }), 'Сначала текст');
 
     await waitFor(() => expect(router.state.location.pathname).toBe(`/posts/${ids.post}`), { timeout: 5_000 });
-    expect(createdTitle).toMatch(/^Публикация от /);
-    expect((screen.getByRole('textbox', { name: /Заголовок/ }) as HTMLInputElement).value).toBe(createdTitle);
+    expect(bodies).toEqual([{ body: 'Сначала текст', entities: [] }]);
+    expect(screen.queryByRole('textbox', { name: /Заголовок/ })).toBeNull();
   });
 
   it('saves and continues to publication settings without approving', async () => {
@@ -154,15 +141,15 @@ describe('create', () => {
     server.use(
       http.post('*/api/v1/posts', () => {
         calls.push('create');
-        return HttpResponse.json(post({ title: 'Новый пост' }), { status: 201 });
+        return HttpResponse.json(untitled(), { status: 201 });
       }),
       http.post('*/api/v1/posts/:id/approve', () => {
         calls.push('approve');
-        return HttpResponse.json(post({ title: 'Новый пост', status: 'approved', revision: 1 }));
+        return HttpResponse.json(untitled({ status: 'approved', revision: 1 }));
       })
     );
     const { router } = renderEditorApp('/posts/new');
-    await user.type(await screen.findByRole('textbox', { name: /Заголовок/ }), 'Новый пост');
+    await user.type(await screen.findByRole('textbox', { name: 'Текст' }), 'Текст');
     await user.click(screen.getByRole('button', { name: 'К публикации' }));
     await waitFor(() => expect(router.state.location.pathname).toBe(`/posts/${ids.post}/publish`));
     // Approval belongs to the publish screen, together with the send.
@@ -175,39 +162,42 @@ describe('create', () => {
     server.use(
       http.post('*/api/v1/posts', async ({ request }) => {
         seen.push({ key: request.headers.get('Idempotency-Key'), body: await request.json() });
-        return HttpResponse.json(post({ title: 'Новый', body: 'Текст' }), { status: 201 });
+        return HttpResponse.json(untitled(), { status: 201 });
       })
     );
     const { router } = renderEditorApp('/posts/new');
-    await user.type(await screen.findByRole('textbox', { name: /Заголовок/ }), 'Новый');
-    await user.type(bodyBox(), 'Текст');
+    await user.type(await screen.findByRole('textbox', { name: 'Текст' }), 'Текст');
     await user.keyboard('{Control>}s{/Control}');
 
     await waitFor(() => expect(router.state.location.pathname).toBe(`/posts/${ids.post}`));
     expect(seen).toHaveLength(1);
     expect(seen[0]?.key).toBeTruthy();
-    expect(seen[0]?.body).toEqual({ title: 'Новый', body: 'Текст', entities: [] });
+    expect(seen[0]?.body).toEqual({ body: 'Текст', entities: [] });
     // The leave guard did not interrupt the navigation that follows a successful create.
     expect(screen.queryByRole('alertdialog')).toBeNull();
     expect(await screen.findByText(/Сохранено в/)).toBeTruthy();
   });
 
-  it('shows validation and sends nothing when the title is empty', async () => {
+  it('sends nothing when an empty new post is saved', async () => {
     const user = userEvent.setup();
     let calls = 0;
     server.use(
       http.post('*/api/v1/posts', () => {
         calls += 1;
-        return HttpResponse.json(post(), { status: 201 });
+        return HttpResponse.json(untitled(), { status: 201 });
       })
     );
     renderEditorApp('/posts/new');
-    await screen.findByRole('textbox', { name: /Заголовок/ });
+    await screen.findByRole('textbox', { name: 'Текст' });
     await user.keyboard('{Control>}s{/Control}');
-    expect(await screen.findByText('Введите заголовок')).toBeTruthy();
-    expect(titleBox().getAttribute('aria-invalid')).toBe('true');
+    await new Promise((resolve) => window.setTimeout(resolve, 300));
     expect(calls).toBe(0);
-    expect(bodyBox().textContent).toBe('');
+  });
+
+  it('keeps the title field of an older post that has a title', async () => {
+    server.use(http.get('*/api/v1/posts/:id', () => HttpResponse.json(post())));
+    renderEditorApp(`/posts/${ids.post}`);
+    expect(await screen.findByRole('textbox', { name: /Заголовок/ })).toBeTruthy();
   });
 });
 

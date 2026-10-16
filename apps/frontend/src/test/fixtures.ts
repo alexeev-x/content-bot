@@ -58,6 +58,7 @@ export const emptySummary = (overrides: Partial<PostPublicationSummary> = {}): P
 export const post = (overrides: Partial<PostDto> = {}): PostDto => ({
   id: ids.post,
   title: 'Заголовок',
+  titleInMessage: true,
   body: 'Текст поста',
   entities: [],
   revision: 0,

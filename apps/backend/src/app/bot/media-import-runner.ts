@@ -4,7 +4,6 @@ import { getPost, updatePost, uploadPostMedia } from '../../modules/content';
 import { getOwnerOperationsSettings } from '../../modules/settings';
 import { AppError } from '../../shared/app-error';
 import type { Container } from '../container';
-import { MEDIA_DRAFT_TITLE } from './draft-from-message';
 import { createTelegramFileSource } from './media-import';
 import { createPublishActions, type PublishActionsContainer } from './publish-actions';
 import { publishKeyboard } from './publish-keyboard';
@@ -92,12 +91,17 @@ export function createMediaImportRunner(
       for (let attempt = 0; attempt < CAPTION_ATTEMPTS; attempt += 1) {
         const current = await getPost({ ...postsDeps(), summaries: container.postSummaries }, postId);
         // The owner may have written text meanwhile: it wins over the caption.
-        if (current.title !== MEDIA_DRAFT_TITLE || current.body !== '') return;
+        if (current.body !== '') return;
         try {
           await updatePost(postsDeps(), {
             actor,
             id: postId,
-            input: { revision: current.revision, title: input.title, body: input.body, entities: input.entities }
+            input: {
+              revision: current.revision,
+              ...(input.title === undefined ? {} : { title: input.title }),
+              body: input.body,
+              entities: input.entities
+            }
           });
           return;
         } catch (error) {

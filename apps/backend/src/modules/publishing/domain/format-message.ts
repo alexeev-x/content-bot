@@ -11,12 +11,18 @@ export type FormattedMessage =
 
 const TITLE_SEPARATOR = '\n\n';
 
-export function formatPublicationText(post: { title: string; body: string; entities: PostEntity[] }): FormattedMessage {
+export function formatPublicationText(post: {
+  title: string;
+  /** False: the title is only the studio name and is never sent (owner, 16.10.2026). Absent: sent, as before. */
+  titleInMessage?: boolean;
+  body: string;
+  entities: PostEntity[];
+}): FormattedMessage {
   // Stored entities were checked when written; checking again here keeps a damaged row from reaching
   // Telegram, where it would be refused after the send was marked.
   if (validatePostEntities(post.body, post.entities) !== null) return { ok: false, reason: 'ENTITIES_INVALID' };
 
-  const title = post.title.trim();
+  const title = post.titleInMessage === false ? '' : post.title.trim();
   const body = post.body.trim();
   // Telegram counts the text after entity parsing: the plain parts joined by the blank line.
   // UTF-16 code units (String#length) never undercount, so a message that passes here fits.

@@ -63,7 +63,9 @@ export function PostPublishPage({ id }: Props) {
   }
 
   const post = query.data;
-  const length = messageLength(post.title, post.body);
+  // Exactly what the dispatcher sends: an untitled post goes out as its body alone.
+  const sentTitle = post.titleInMessage ? post.title : '';
+  const length = messageLength(sentTitle, post.body);
   const limit = post.media.length > 0 ? 1024 : 4096;
   const unsupported = post.media.length > 1 && post.media.some((item) => item.kind === 'animation');
 
@@ -101,7 +103,7 @@ export function PostPublishPage({ id }: Props) {
           onPublished={(publication) => void navigate({ to: '/publications', search: { id: publication.id } })}
         >
           <PostPreview
-            title={post.title}
+            title={sentTitle}
             body={post.body}
             entities={post.entities}
             length={length}

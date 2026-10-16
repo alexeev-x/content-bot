@@ -119,6 +119,21 @@ describe('formatPublicationText', () => {
     });
   });
 
+  it('sends only the body of a post without a title in its message, its entities unshifted (owner, 16.10.2026)', () => {
+    expect(
+      formatPublicationText({
+        title: 'Если бы тиммейтов можно было денаить',
+        titleInMessage: false,
+        body: 'Если бы тиммейтов можно было денаить, я бы до врагов не доходил))',
+        entities: [{ type: 'italic', offset: 3, length: 4 }]
+      })
+    ).toEqual({
+      ok: true,
+      text: 'Если бы тиммейтов можно было денаить, я бы до врагов не доходил))',
+      entities: [{ type: 'italic', offset: 3, length: 4 }]
+    });
+  });
+
   it('a post with no entities reads exactly as before: same visible text, bold title', () => {
     const result = formatPublicationText(plain('Old post', 'Written before entities existed.'));
 

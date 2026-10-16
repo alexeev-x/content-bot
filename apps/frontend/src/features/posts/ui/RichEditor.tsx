@@ -1,6 +1,6 @@
 import type { PostEntity } from '@alexeev/contracts';
 import { EditorContent } from '@tiptap/react';
-import { useId, useState } from 'react';
+import { useEffect, useId, useState } from 'react';
 import { ru } from '../../../shared/lib/ru';
 import { VisuallyHidden } from '../../../shared/ui';
 import type { RichValue } from '../model/entities-doc';
@@ -22,6 +22,10 @@ type Props = {
   isReadOnly?: boolean | undefined;
   errorMessage?: string | undefined;
   limit: number;
+  /** The label stays only for assistive technology (the field names itself through `aria-label` anyway). */
+  hideLabel?: boolean | undefined;
+  /** Puts the caret in the field once it is ready (a fresh draft: the owner came here to write). */
+  autoFocus?: boolean | undefined;
 };
 
 /** Rich text field for a Telegram post. The toolbar is hidden while the field is read-only. */
@@ -34,7 +38,9 @@ export function RichEditor({
   onBlur,
   isReadOnly = false,
   errorMessage,
-  limit
+  limit,
+  hideLabel = false,
+  autoFocus = false
 }: Props) {
   const id = useId();
   const descriptionId = `${id}-description`;
@@ -58,6 +64,11 @@ export function RichEditor({
       spellcheck: 'true'
     }
   });
+
+  // Once, when the editor exists: syncing focus with the external editor instance.
+  useEffect(() => {
+    if (autoFocus && editor && !isReadOnly) editor.commands.focus('end');
+  }, [autoFocus, editor, isReadOnly]);
 
   function openLink() {
     if (!editor || isReadOnly) return;
@@ -99,7 +110,7 @@ export function RichEditor({
   return (
     <div className={styles.field}>
       <span className={styles.label}>
-        <span>{label}</span>
+        {hideLabel ? <VisuallyHidden>{label}</VisuallyHidden> : <span>{label}</span>}
         <span className={`${styles.labelCounter} mono`}>{ru.ui.counter(body.length, limit)}</span>
       </span>
       <div className={styles.box} data-invalid={errorMessage ? '' : undefined} data-readonly={isReadOnly || undefined}>

@@ -42,7 +42,6 @@ export type PostWriteLock = {
 };
 
 const EMPTY: PostFormValues = { title: '', body: '', entities: [] };
-const makeDefaultTitle = () => `Публикация от ${new Intl.DateTimeFormat('ru-RU').format(new Date())}`;
 const valuesOf = (post: PostDto | null): PostFormValues =>
   post ? { title: post.title, body: post.body, entities: post.entities } : EMPTY;
 // Entities are always in the contract's normal form on both sides, so a plain JSON comparison is exact.
@@ -85,11 +84,10 @@ export function usePostEditor({ post, onCreated, rootRef, dirtyRef, mediaWriteLo
     name: ['title', 'body', 'entities']
   });
 
-  useEffect(() => {
-    if (baseline === null && body.trim().length > 0 && title.trim().length === 0) {
-      form.setValue('title', makeDefaultTitle(), { shouldDirty: true, shouldValidate: true });
-    }
-  }, [baseline, body, form, title]);
+  // No title field (owner, 16.10.2026): a new post is created without one and sends only its text. Only an older
+  // post that was given a title keeps it (and the field) — it still goes out as the bold first line.
+  const hasTitle = baseline?.titleInMessage === true;
+  const sentTitle = hasTitle ? title : '';
 
   const base = valuesOf(baseline);
   const dirty = title !== base.title || body !== base.body || !sameEntities(entities, base.entities);
@@ -164,13 +162,12 @@ export function usePostEditor({ post, onCreated, rootRef, dirtyRef, mediaWriteLo
     try {
       if (!(await validate())) return null;
       const submitted = form.getValues();
+      // Nothing written yet: no empty draft (the required title used to stop this; media go through
+      // ensureDraftForMedia).
+      if (baseline === null && submitted.body.trim() === '') return null;
       try {
         if (baseline === null) {
-          const created = await create.mutateAsync({
-            title: submitted.title,
-            body: submitted.body,
-            entities: submitted.entities
-          });
+          const created = await create.mutateAsync({ body: submitted.body, entities: submitted.entities });
           // The navigation that follows must not trip the leave guard for the draft we just stored.
           dirtyRef.current = false;
           adopt(created, submitted);
@@ -182,7 +179,7 @@ export function usePostEditor({ post, onCreated, rootRef, dirtyRef, mediaWriteLo
           id: baseline.id,
           input: {
             revision: baseline.revision,
-            ...(submitted.title !== base.title ? { title: submitted.title } : {}),
+            ...(hasTitle && submitted.title !== base.title ? { title: submitted.title } : {}),
             // The server refuses a body without its entities, and offsets only mean something next to their text.
             ...(textChanged ? { body: submitted.body, entities: submitted.entities } : {})
           }
@@ -204,9 +201,6 @@ export function usePostEditor({ post, onCreated, rootRef, dirtyRef, mediaWriteLo
     // A queued local file marks media pending before confirmation; that state must not block its own draft creation.
     if (isSaving || isApproving || readOnly || conflict !== null || !mediaWriteLock.tryAcquire()) return null;
     try {
-      const submitted = form.getValues();
-      const title = submitted.title.trim() || makeDefaultTitle();
-      if (title !== submitted.title) form.setValue('title', title, { shouldDirty: true, shouldValidate: true });
       const valid = await form.trigger();
       if (!valid) {
         setFocusTick((tick) => tick + 1);
@@ -214,7 +208,7 @@ export function usePostEditor({ post, onCreated, rootRef, dirtyRef, mediaWriteLo
       }
       const values = form.getValues();
       try {
-        const created = await create.mutateAsync({ title: values.title, body: values.body, entities: values.entities });
+        const created = await create.mutateAsync({ body: values.body, entities: values.entities });
         adopt(created, values);
         return created;
       } catch (error) {
@@ -240,7 +234,7 @@ export function usePostEditor({ post, onCreated, rootRef, dirtyRef, mediaWriteLo
         id: baseline.id,
         input: {
           revision: fresh.revision,
-          title: submitted.title,
+          ...(hasTitle ? { title: submitted.title } : {}),
           body: submitted.body,
           entities: submitted.entities
         }
@@ -339,8 +333,9 @@ export function usePostEditor({ post, onCreated, rootRef, dirtyRef, mediaWriteLo
     dirty,
     readOnly,
     changeKey,
+    hasTitle,
     canAutosave:
-      (baseline !== null || title.trim().length > 0) &&
+      (baseline !== null || body.trim().length > 0) &&
       dirty &&
       !readOnly &&
       conflict === null &&
@@ -358,9 +353,9 @@ export function usePostEditor({ post, onCreated, rootRef, dirtyRef, mediaWriteLo
     mediaPending,
     setMediaPending,
     adoptMedia,
-    length: messageLength(title, body),
+    length: messageLength(sentTitle, body),
     messageLimit: baseline?.media.length ? 1024 : 4096,
-    overflow: messageOverflow(title, body, baseline?.media.length ? 1024 : 4096),
+    overflow: messageOverflow(sentTitle, body, baseline?.media.length ? 1024 : 4096),
     save,
     ensureDraftForMedia,
     approvePost,

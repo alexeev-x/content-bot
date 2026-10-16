@@ -2,6 +2,7 @@ import { type PostEntity, type PostMediaDto, postEntityListSchema, postMediaSche
 import { completeIdempotencyStatement, ownsClaimSql } from '../../../platform/idempotency/d1-idempotency-store';
 import type { ListPostsQuery, PostChange, PostRecord, PostRepository } from '../application/ports';
 import type { PostStatus } from '../domain/post';
+import { postNameFromBody } from '../domain/post-name';
 import { postTitleSortKey } from '../domain/post-title-sort-key';
 
 interface PostRow {
@@ -15,9 +16,16 @@ interface PostRow {
   archived_at: number | null;
   created_at: number;
   updated_at: number;
+  /** 0 for a post created without a title (migration 0063). */
+  title_in_message: number;
 }
 
-const POST_COLUMNS = 'id, title, body, entities, status, revision, archived_at, created_at, updated_at';
+// A post without a title in its message is named after its body (?8) and ignores a client title; a post with one
+// takes the client's (?3). Both keep the stored value when nothing new comes.
+const NEW_TITLE = 'CASE WHEN title_in_message = 0 THEN COALESCE(?8, title) ELSE COALESCE(?3, title) END';
+
+const POST_COLUMNS =
+  'id, title, body, entities, status, revision, archived_at, created_at, updated_at, title_in_message';
 
 // Every write goes through the contract schemas, so a stored list that does not parse is damaged data:
 // it fails loudly instead of being sent or shown with other offsets.
@@ -29,6 +37,7 @@ function toRecord(row: PostRow): PostRecord {
   return {
     id: row.id,
     title: row.title,
+    titleInMessage: row.title_in_message !== 0,
     body: row.body,
     entities: parseEntities(row.entities),
     status: row.status,
@@ -150,8 +159,9 @@ export function createD1PostRepository(db: D1Database): PostRepository {
       const results = await db.batch([
         db
           .prepare(
-            `INSERT INTO posts (id, title, title_sort_key, body, entities, status, revision, created_at, updated_at)
-             SELECT ?1, ?2, ?3, ?4, ?5, 'draft', 0, ?6, ?6 WHERE ${ownsClaimSql(7)}`
+            `INSERT INTO posts (id, title, title_sort_key, body, entities, status, revision, created_at, updated_at,
+               title_in_message)
+             SELECT ?1, ?2, ?3, ?4, ?5, 'draft', 0, ?6, ?6, ?${7 + claim.length} WHERE ${ownsClaimSql(7)}`
           )
           .bind(
             record.id,
@@ -160,7 +170,8 @@ export function createD1PostRepository(db: D1Database): PostRepository {
             record.body,
             entities,
             record.createdAt,
-            ...claim
+            ...claim,
+            record.titleInMessage ? 1 : 0
           ),
         db
           .prepare(
@@ -208,14 +219,18 @@ export function createD1PostRepository(db: D1Database): PostRepository {
     async findRevision(postId, revision) {
       const { results } = await db
         .prepare(
-          `SELECT r.title, r.body, r.entities, m.id, m.kind, m.file_name, m.content_type, m.object_key
-             FROM post_revisions r LEFT JOIN json_each(r.media_json) j
+          // The title flag is per post and fixed at creation, so the post row holds it for every revision.
+          `SELECT r.title, COALESCE(p.title_in_message, 1) AS title_in_message, r.body, r.entities,
+                  m.id, m.kind, m.file_name, m.content_type, m.object_key
+             FROM post_revisions r LEFT JOIN posts p ON p.id = r.post_id
+             LEFT JOIN json_each(r.media_json) j
              LEFT JOIN media_assets m ON m.id = j.value
-            WHERE post_id = ?1 AND revision = ?2 ORDER BY CAST(j.key AS INTEGER)`
+            WHERE r.post_id = ?1 AND r.revision = ?2 ORDER BY CAST(j.key AS INTEGER)`
         )
         .bind(postId, revision)
         .all<{
           title: string;
+          title_in_message: number;
           body: string;
           entities: string;
           id: string | null;
@@ -228,6 +243,7 @@ export function createD1PostRepository(db: D1Database): PostRepository {
       if (row === undefined) return null;
       return {
         title: row.title,
+        titleInMessage: row.title_in_message !== 0,
         body: row.body,
         entities: parseEntities(row.entities),
         media: results.flatMap((item) =>
@@ -290,14 +306,25 @@ export function createD1PostRepository(db: D1Database): PostRepository {
         db
           .prepare(
             `INSERT INTO post_revisions (post_id, revision, title, body, entities, status, created_at, media_json)
-             SELECT id, revision + 1, COALESCE(?3, title), COALESCE(?4, body), COALESCE(?5, entities), status, ?6, '[]'
+             SELECT id, revision + 1, ${NEW_TITLE}, COALESCE(?4, body), COALESCE(?5, entities), status, ?6, '[]'
              FROM posts WHERE ${GUARD}`
           )
-          .bind(change.id, change.expectedRevision, change.title ?? null, change.body ?? null, entities, change.now),
+          .bind(
+            change.id,
+            change.expectedRevision,
+            change.title ?? null,
+            change.body ?? null,
+            entities,
+            change.now,
+            null,
+            change.body === undefined ? null : postNameFromBody(change.body)
+          ),
         auditStatement(db, 'post.update', change, { revision: change.expectedRevision + 1, fields }),
         db
           .prepare(
-            `UPDATE posts SET title = COALESCE(?3, title), title_sort_key = COALESCE(?7, title_sort_key),
+            `UPDATE posts SET title = ${NEW_TITLE},
+               title_sort_key = CASE WHEN title_in_message = 0 THEN COALESCE(?9, title_sort_key)
+                 ELSE COALESCE(?7, title_sort_key) END,
                body = COALESCE(?4, body), entities = COALESCE(?5, entities),
                revision = revision + 1, updated_at = ?6
              WHERE ${GUARD} RETURNING ${POST_COLUMNS}`
@@ -309,7 +336,9 @@ export function createD1PostRepository(db: D1Database): PostRepository {
             change.body ?? null,
             entities,
             change.now,
-            change.title === undefined ? null : postTitleSortKey(change.title)
+            change.title === undefined ? null : postTitleSortKey(change.title),
+            change.body === undefined ? null : postNameFromBody(change.body),
+            change.body === undefined ? null : postTitleSortKey(postNameFromBody(change.body))
           ),
         // Read in the same batch as the write, so the media returned is the media of the revision returned.
         mediaStatement(db, [change.id])

@@ -115,7 +115,13 @@ export function useDuplicatePost() {
   return useMutation({
     mutationFn: async (source: PostDto): Promise<PostDto> => {
       const mediaIds = source.media.map((media) => media.id);
-      const input: CreatePostBody = { title: source.title, body: source.body, entities: source.entities };
+      // An untitled post's `title` is only its studio name: sending it would give the copy a bold title line
+      // that repeats the text. Only a post that has a title passes it on.
+      const input: CreatePostBody = {
+        ...(source.titleInMessage ? { title: source.title } : {}),
+        body: source.body,
+        entities: source.entities
+      };
       const fingerprint = JSON.stringify({ sourceId: source.id, input, mediaIds });
       let operation = operations.current.get(source.id);
       if (!operation || operation.fingerprint !== fingerprint) {
@@ -132,7 +138,8 @@ export function useDuplicatePost() {
 
       if (
         copy.status !== 'draft' ||
-        copy.title !== input.title ||
+        (input.title !== undefined && copy.title !== input.title) ||
+        copy.titleInMessage !== source.titleInMessage ||
         copy.body !== input.body ||
         JSON.stringify(copy.entities) !== JSON.stringify(input.entities)
       ) {

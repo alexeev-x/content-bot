@@ -11,6 +11,8 @@ type Props = {
   control: Control<PostFormValues>;
   setValue: UseFormSetValue<PostFormValues>;
   title: string;
+  /** Only an older post that was given a title keeps the field (owner, 16.10.2026: no title field). */
+  hasTitle: boolean;
   body: string;
   entities: PostFormValues['entities'];
   isReadOnly: boolean;
@@ -21,38 +23,53 @@ type Props = {
 
 const copy = postsCopy.editor;
 
-export function PostFields({ control, setValue, title, body, entities, isReadOnly, isNew, length, overflow }: Props) {
+export function PostFields({
+  control,
+  setValue,
+  title,
+  hasTitle,
+  body,
+  entities,
+  isReadOnly,
+  isNew,
+  length,
+  overflow
+}: Props) {
   // Shown as soon as the marks cannot be written as Telegram entities, not only after a failed save.
   const entityIssue = validatePostEntities(body, normalizeEntities(entities));
   return (
     <Panel>
       <div className={styles.fields}>
-        <Controller
-          control={control}
-          name="title"
-          render={({ field, fieldState }) => (
-            // The first field of a fresh draft takes focus: the operator came here to write.
-            <TextField
-              label={copy.titleLabel}
-              value={field.value}
-              onChange={field.onChange}
-              onBlur={field.onBlur}
-              name={field.name}
-              isReadOnly={isReadOnly}
-              isRequired
-              // oxlint-disable-next-line jsx-a11y/no-autofocus
-              autoFocus={isNew}
-              counter={copy.titleCounter(title.trim().length, POST_TITLE_MAX)}
-              errorMessage={fieldState.error?.message}
-            />
-          )}
-        />
+        {hasTitle ? (
+          <Controller
+            control={control}
+            name="title"
+            render={({ field, fieldState }) => (
+              <TextField
+                label={copy.titleLabel}
+                value={field.value}
+                onChange={field.onChange}
+                onBlur={field.onBlur}
+                name={field.name}
+                isReadOnly={isReadOnly}
+                isRequired
+                counter={copy.titleCounter(title.trim().length, POST_TITLE_MAX)}
+                errorMessage={fieldState.error?.message}
+              />
+            )}
+          />
+        ) : null}
         <Controller
           control={control}
           name="body"
           render={({ field, fieldState }) => (
             <RichEditor
               label={copy.bodyLabel}
+              // The editor is the post: no visible «Текст» above it (owner, 16.10.2026); the name stays for
+              // assistive technology. A fresh draft starts with the caret in it.
+              hideLabel
+              // oxlint-disable-next-line jsx-a11y/no-autofocus
+              autoFocus={isNew}
               body={field.value}
               entities={entities}
               limit={POST_BODY_MAX}

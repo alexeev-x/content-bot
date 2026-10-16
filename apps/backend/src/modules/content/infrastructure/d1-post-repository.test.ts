@@ -60,6 +60,7 @@ describe('create guard', () => {
       record: {
         id: crypto.randomUUID(),
         title: 'T',
+        titleInMessage: true,
         body: '',
         entities: [],
         status: 'draft',
@@ -104,8 +105,20 @@ describe('findRevision', () => {
     ]);
     const repo = createD1PostRepository(db);
 
-    expect(await repo.findRevision(id, 0)).toEqual({ title: 'Old', body: 'Old body', entities: [], media: [] });
-    expect(await repo.findRevision(id, 1)).toEqual({ title: 'New', body: 'Newer body', entities: [], media: [] });
+    expect(await repo.findRevision(id, 0)).toEqual({
+      title: 'Old',
+      titleInMessage: true,
+      body: 'Old body',
+      entities: [],
+      media: []
+    });
+    expect(await repo.findRevision(id, 1)).toEqual({
+      title: 'New',
+      titleInMessage: true,
+      body: 'Newer body',
+      entities: [],
+      media: []
+    });
     expect(await repo.findRevision(id, 2)).toBeNull();
     expect(await repo.findRevision(crypto.randomUUID(), 0)).toBeNull();
   });

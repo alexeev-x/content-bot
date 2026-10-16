@@ -122,7 +122,7 @@ const posts = () =>
     .all<{ id: string; title: string; body: string; entities: string }>();
 
 describe('forwarded text keeps its formatting', () => {
-  it('carries entities of the body and drops the ones in the title', async () => {
+  it('keeps the whole text and every entity: nothing is cut into a title (owner, 16.10.2026)', async () => {
     const text = 'Заголовок\nЖирный 😀 и ссылка';
     await deliver(
       message({
@@ -135,10 +135,11 @@ describe('forwarded text keeps its formatting', () => {
       })
     );
     const [row] = (await posts()).results;
-    expect(row?.body).toBe('Жирный 😀 и ссылка');
+    expect(row?.body).toBe(text);
     expect(JSON.parse(row?.entities ?? '[]')).toEqual([
-      { type: 'bold', offset: 0, length: 6 },
-      { type: 'text_link', offset: 12, length: 6, url: 'https://example.com/a' }
+      { type: 'bold', offset: 0, length: 9 },
+      { type: 'bold', offset: 10, length: 6 },
+      { type: 'text_link', offset: 22, length: 6, url: 'https://example.com/a' }
     ]);
   });
 });
@@ -200,8 +201,8 @@ describe('media from the owner becomes a draft', () => {
     ).toEqual(['Открыть в Студии']);
     await settleWithCron();
     const [row] = (await posts()).results;
-    expect(row).toMatchObject({ title: 'Подпись', body: 'Текст' });
-    expect(JSON.parse(row?.entities ?? '[]')).toEqual([{ type: 'italic', offset: 0, length: 5 }]);
+    expect(row).toMatchObject({ title: 'Подпись', body: 'Подпись\nТекст' });
+    expect(JSON.parse(row?.entities ?? '[]')).toEqual([{ type: 'italic', offset: 8, length: 5 }]);
     expect(await mediaOf(row?.id)).toHaveProperty('results.length', 1);
     expect(api.ownerMessages.map((m) => m.html)).toEqual(['Файлы загружены в черновик: 1.']);
     expect(api.ownerMessages[0]?.button).toEqual({
@@ -248,7 +249,7 @@ describe('media from the owner becomes a draft', () => {
     await settleWithCron();
     const rows = (await posts()).results;
     expect(rows).toHaveLength(1);
-    expect(rows[0]).toMatchObject({ title: 'Альбом', body: '' });
+    expect(rows[0]).toMatchObject({ title: 'Альбом', body: 'Альбом' });
     expect((await mediaOf(rows[0]?.id)).results.map((media) => media.fileName)).toEqual(
       ids.map((id) => `telegram-u-${id}.jpg`)
     );
@@ -340,7 +341,7 @@ describe('review fixes', () => {
     await settleWithCron();
     expect(replyTexts()).toEqual(['Черновик создан, файлы загружаются…']);
     expect(await count('post_media')).toBe(2);
-    expect((await posts()).results[0]?.title).toBe('Медиа из Telegram');
+    expect((await posts()).results[0]?.title).toBe('Без текста');
     expect(api.ownerMessages.map((m) => m.html)).toEqual([
       'Файлы загружены в черновик: 2.\nПодпись длиннее 4096 символов, она не сохранена.'
     ]);

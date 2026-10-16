@@ -4,7 +4,10 @@ export type PostStatus = 'draft' | 'approved';
 
 export interface Post {
   id: string;
+  /** The bold first line of the message when `titleInMessage`; otherwise only the studio name (`postNameFromBody`). */
   title: string;
+  /** Fixed at creation: false for posts created without a title (owner, 16.10.2026). */
+  titleInMessage: boolean;
   body: string;
   /** Telegram entities of `body` in their normal form; offsets are UTF-16 code units. */
   entities: PostEntity[];

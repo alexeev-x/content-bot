@@ -456,7 +456,8 @@ describe('drafts from messages', () => {
 
     expect(setup.drafts).toEqual([
       {
-        input: { title: 'Релиз 7.40 🚀', body: 'Новые герои 👩‍💻 и баланс\n- первое\n- второе', entities: [] },
+        // No title (owner, 16.10.2026): the whole text is the body; the server names the post after its start.
+        input: { body: 'Релиз 7.40 🚀\n\nНовые герои 👩‍💻 и баланс\n- первое\n- второе', entities: [] },
         key: 'tg-update-100'
       }
     ]);
@@ -474,25 +475,17 @@ describe('drafts from messages', () => {
     expect(calls[0]?.payload).not.toHaveProperty('parse_mode');
   });
 
-  it('a single line is the title with an empty body', async () => {
+  it('a single line is the body, trimmed, with no title', async () => {
     const setup = harness();
     await runUpdates([textUpdate(4242, '  Просто строка  ')], { setup });
-    expect(setup.drafts[0]?.input).toEqual({ title: 'Просто строка', body: '', entities: [] });
+    expect(setup.drafts[0]?.input).toEqual({ body: 'Просто строка', entities: [] });
   });
 
-  it('cuts a first line longer than the title limit between whole characters and keeps the rest in the body', async () => {
-    // 199 units of text, then an emoji (two units) that would straddle the 199-unit cut.
+  it('keeps a long first line whole in the body: nothing is cut into a title', async () => {
     const line = `${'а'.repeat(198)}🚀${'б'.repeat(50)}`;
     const setup = harness();
     await runUpdates([textUpdate(4242, `${line}\nвторая строка`)], { setup });
-
-    const input = setup.drafts[0]?.input;
-    expect(input?.title.length).toBeLessThanOrEqual(200);
-    expect(input?.title.endsWith('…')).toBe(true);
-    // Whole code points on both sides of the cut, and nothing lost.
-    expect(input?.title).toBe(`${'а'.repeat(198)}…`);
-    expect(input?.body).toBe(`🚀${'б'.repeat(50)}\nвторая строка`);
-    expect(`${input?.title.slice(0, -1)}${input?.body.split('\n')[0]}`).toBe(line);
+    expect(setup.drafts[0]?.input).toEqual({ body: `${line}\nвторая строка`, entities: [] });
   });
 
   it('refuses a body over the contract limit without creating a draft, counting UTF-16 units', async () => {
@@ -508,7 +501,7 @@ describe('drafts from messages', () => {
 
   it('accepts a body of exactly 4096 units', async () => {
     const setup = harness();
-    await runUpdates([textUpdate(4242, `T\n${'😀'.repeat(2048)}`)], { setup });
+    await runUpdates([textUpdate(4242, '😀'.repeat(2048))], { setup });
     expect(setup.drafts).toHaveLength(1);
   });
 

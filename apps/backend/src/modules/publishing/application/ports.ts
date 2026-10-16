@@ -57,7 +57,14 @@ export interface PostRevisionSource {
   findRevision(
     postId: string,
     revision: number
-  ): Promise<{ title: string; body: string; entities: PostEntity[]; media: readonly PublicationMedia[] } | null>;
+  ): Promise<{
+    title: string;
+    /** False for a post created without a title: only the body is sent (owner, 16.10.2026). */
+    titleInMessage: boolean;
+    body: string;
+    entities: PostEntity[];
+    media: readonly PublicationMedia[];
+  } | null>;
 }
 
 export interface ClaimedJob {

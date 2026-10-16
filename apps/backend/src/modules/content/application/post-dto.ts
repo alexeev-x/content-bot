@@ -30,6 +30,7 @@ export function toPostDto(record: PostRecord, summary: PostPublicationSummary = 
   return {
     id: record.id,
     title: record.title,
+    titleInMessage: record.titleInMessage,
     body: record.body,
     entities: record.entities,
     revision: record.revision,

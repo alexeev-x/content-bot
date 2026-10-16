@@ -370,7 +370,13 @@ export function createContainer(env: ContainerEnv, overrides: ContainerOverrides
               body: object.body
             });
           }
-          return { title: snapshot.title, body: snapshot.body, entities: snapshot.entities, media };
+          return {
+            title: snapshot.title,
+            titleInMessage: snapshot.titleInMessage,
+            body: snapshot.body,
+            entities: snapshot.entities,
+            media
+          };
         }
       };
     },
