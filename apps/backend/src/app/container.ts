@@ -1,4 +1,3 @@
-import { OpenDotaError, readDotaPlayer } from '../integrations/opendota/opendota-api';
 import {
   createD1PostRepository,
   createD1PostMediaRepository,
@@ -59,8 +58,6 @@ import {
   createD1AuthorProfileRepository,
   createD1WriterRepository,
   type AuthorProfileRepository,
-  type DotaProfileReader,
-  DotaReadError,
   createOpenAiProvider,
   type WriterRepository
 } from '../modules/ai';
@@ -186,8 +183,6 @@ export interface Container {
   aiWriter: WriterRepository;
   /** «Обо мне»: the author's state for every AI request (migration 0058). */
   aiProfiles: AuthorProfileRepository;
-  /** The owner's public Dota profile from OpenDota. */
-  dotaReader: DotaProfileReader;
   heroAssetStorage: HeroAssetStorage | undefined;
   housekeeping: {
     purgeExpired(input: { now: number; limit: number }): Promise<{ idempotencyKeys: number; rateLimits: number }>;
@@ -479,17 +474,6 @@ export function createContainer(env: ContainerEnv, overrides: ContainerOverrides
     },
     get aiProfiles() {
       return createD1AuthorProfileRepository(db());
-    },
-    get dotaReader(): DotaProfileReader {
-      const fetchImpl = this.contentFetch;
-      return async (accountId, signal) => {
-        try {
-          return await readDotaPlayer(fetchImpl, accountId, signal);
-        } catch (error) {
-          if (error instanceof OpenDotaError) throw new DotaReadError(error.code);
-          throw error;
-        }
-      };
     },
     get aiProvider() {
       if (overrides.aiProvider !== undefined) return overrides.aiProvider;

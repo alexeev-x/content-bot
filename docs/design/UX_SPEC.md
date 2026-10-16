@@ -19,6 +19,5 @@ Conventions: responsive on every route from 320 px phones to 1920 px+ desktops. 
 | [`docs/design/ux/settings-login.md`](./ux/settings-login.md) | §3.6–3.8 Настройки, вход, 404 / «Раздел в разработке» |
 | [`docs/design/ux/sources.md`](./ux/sources.md) | §3.9 Источники и разбор события |
 | [`docs/design/ux/media.md`](./ux/media.md) | §3.10 Медиатека |
-| [`docs/design/ux/ai-editor.md`](./ux/ai-editor.md) | §3.11 ИИ-редактор: «Обо мне» |
 | [`docs/design/ux/flows.md`](./ux/flows.md) | §4 Key flows, §5 API needs |
 | [`docs/design/ux/previews.md`](./ux/previews.md) | §6 Former preview specs (analytics, calendar, automations…; history, prototype removed 14.10.2026) |

@@ -11,6 +11,7 @@ import {
 } from '../features/content-analytics';
 import { AiSpendSummary, AiStatusBadge } from '../features/ai-settings';
 import { sourceEventsQueryOptions } from '../features/dota-intelligence';
+import { DotaSummary } from '../features/dota-profile';
 import { Dashboard, DateChip, type PageBindings, type SourceRow, useDashboardQuery } from '../features/dashboard';
 import { destinationsInfiniteQueryOptions } from '../features/destinations';
 import { MediaPanel, MediaThumb } from '../features/media';
@@ -115,7 +116,8 @@ export function DashboardPage({ pollMs, openPublicationId, onOpenPublicationChan
     ai: {
       badge: <AiStatusBadge />,
       body: <AiSpendSummary onOpenSettings={() => void navigate({ to: '/settings/ai' })} />
-    }
+    },
+    dota: <DotaSummary />
   };
   // The panel's own detail query (same key): it tells which channel the message link belongs to.
   const openDetail = useQuery({

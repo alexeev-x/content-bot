@@ -32,6 +32,7 @@ export type PageBindings = {
   analytics?: WidgetEnv['analytics'];
   sources?: WidgetEnv['sources'];
   ai?: WidgetEnv['ai'];
+  dota?: WidgetEnv['dota'];
 };
 
 /** The fixed Обзор: the day summary is read once for all the widgets that need it. */
@@ -48,7 +49,8 @@ export function Dashboard({
   renderMediaPreview,
   analytics,
   sources,
-  ai
+  ai,
+  dota
 }: PageBindings) {
   const today = useTodayRange(timezone);
   const week = useWeekQuery(timezone, today.from);
@@ -111,6 +113,7 @@ export function Dashboard({
     analytics,
     sources,
     ai,
+    dota,
     onOpenPost
   };
   return (

@@ -1,5 +1,6 @@
 import {
   aiAuthorProfileSchema,
+  aiDotaSnapshotInputSchema,
   aiDraftResultSchema,
   aiOverviewSchema,
   createAiDraftInputSchema,
@@ -13,7 +14,7 @@ import {
   generateDraft,
   readAiOverview,
   readAuthorProfile,
-  syncAuthorDota,
+  saveAuthorDota,
   updateAiSettings,
   updateAuthorProfile
 } from '../modules/ai';
@@ -34,8 +35,8 @@ const DRAFT_LIMIT = 20;
 const DRAFT_WINDOW_MS = 10 * 60 * 1000;
 /** A request from the studio has no Telegram deadline; the model still gets a bound. */
 const DRAFT_TIMEOUT_MS = 60_000;
-/** OpenDota is free but rate-limited: a refresh button, not a loop. */
-const DOTA_LIMIT = 5;
+/** The studio sends a read when the last one is a day old: a handful per window is plenty. */
+const DOTA_LIMIT = 10;
 const DOTA_WINDOW_MS = 10 * 60 * 1000;
 
 async function deps(c: Context<AppBindings>) {
@@ -133,8 +134,14 @@ export const aiRoutes = new Hono<AppBindings>()
     await updateAuthorProfile({ repo: container.aiProfiles, clock: container.clock }, c.req.valid('json'));
     return c.json(aiAuthorProfileSchema.parse(await readAuthorProfile(container.aiProfiles)));
   })
-  .post('/profile/dota', rateLimit({ name: 'ai-dota', limit: DOTA_LIMIT, windowMs: DOTA_WINDOW_MS }), async (c) => {
-    const container = c.get('container');
-    await syncAuthorDota({ repo: container.aiProfiles, clock: container.clock, readDota: container.dotaReader });
-    return c.json(aiAuthorProfileSchema.parse(await readAuthorProfile(container.aiProfiles)));
-  });
+  .post(
+    '/profile/dota',
+    rateLimit({ name: 'ai-dota', limit: DOTA_LIMIT, windowMs: DOTA_WINDOW_MS }),
+    limitBody(MAX_BODY_BYTES),
+    validated('json', aiDotaSnapshotInputSchema),
+    async (c) => {
+      const container = c.get('container');
+      await saveAuthorDota({ repo: container.aiProfiles, clock: container.clock }, c.req.valid('json'));
+      return c.json(aiAuthorProfileSchema.parse(await readAuthorProfile(container.aiProfiles)));
+    }
+  );

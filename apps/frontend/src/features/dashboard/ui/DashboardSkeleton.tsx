@@ -8,7 +8,8 @@ export function DashboardSkeleton({
   zoneNote = '',
   timezone = 'Europe/Moscow',
   analytics,
-  ai
+  ai,
+  dota
 }: {
   zoneNote?: string;
   timezone?: string;
@@ -16,6 +17,8 @@ export function DashboardSkeleton({
   analytics?: { latestYoutube: ReactNode; latestTiktok: ReactNode; trending: ReactNode };
   /** «ИИ расходы» skeleton body, composed by the app, so the first row has its loaded height. */
   ai?: ReactNode;
+  /** «Дота» skeleton body, composed by the app. */
+  dota?: ReactNode;
 }) {
   return (
     <DashboardLayout
@@ -34,6 +37,7 @@ export function DashboardSkeleton({
         onOpenActivity: ignore,
         onOpenPost: ignore,
         ...(ai ? { ai: { badge: null, body: ai } } : {}),
+        ...(dota ? { dota } : {}),
         ...(analytics ? { analytics: { ...analytics, onOpenAll: ignore } } : {})
       }}
     />

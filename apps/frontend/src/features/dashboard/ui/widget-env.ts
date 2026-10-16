@@ -32,6 +32,8 @@ export type WidgetEnv = {
   onOpenPost: (postId: string) => void;
   /** «ИИ расходы», composed by the page from the AI settings feature; without it «Лента дня» takes the row. */
   ai?: { badge: ReactNode; body: ReactNode } | undefined;
+  /** «Дота»: rank and stats, composed by the page; without it the row keeps two widgets. */
+  dota?: ReactNode;
 };
 
 export type AnalyticsSlots = {

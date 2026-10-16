@@ -19,7 +19,6 @@ export const NAV_ITEMS: readonly NavItem[] = [
   { to: '/posts', label: ru.nav.posts, icon: 'file', primary: true },
   { to: '/publications', label: ru.nav.publications, icon: 'send', primary: true, badge: 'incidents' },
   { to: '/analytics', label: ru.nav.analytics, icon: 'chart', primary: false },
-  { to: '/ai', label: ru.nav.aiEditor, icon: 'sparkle', primary: false },
   { to: '/media', label: ru.nav.media, icon: 'image', primary: false },
   { to: '/sources', label: ru.nav.sources, icon: 'link', primary: false },
   { to: '/settings', label: ru.nav.settings, icon: 'settings', primary: false, pinned: true }

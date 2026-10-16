@@ -4,23 +4,17 @@ import { authorStateText, rankLabel } from '../../src/modules/ai';
 import { expectError } from '../helpers/expect-error';
 import { createApi, fakeClock, OWNER_TOKEN, resetDb, seedSession } from '../helpers/harness';
 
-// OpenDota answers for one account: Герой 2 with Dota Plus, public matches and three heroes.
-const openDota: typeof fetch = async (input) => {
-  const url = String(input);
-  if (url.endsWith('/players/337578062')) return Response.json({ profile: { plus: true }, rank_tier: 42 });
-  if (url.endsWith('/players/337578062/wl')) return Response.json({ win: 60, lose: 40 });
-  if (url.endsWith('/players/337578062/heroes'))
-    return Response.json([
-      { hero_id: '68', games: 30, win: 18 },
-      { hero_id: 111, games: 25, win: 10 },
-      { hero_id: 2, games: 0, win: 0 }
-    ]);
-  if (url.endsWith('/heroes'))
-    return Response.json([
-      { id: 68, localized_name: 'Ancient Apparition' },
-      { id: 111, localized_name: 'Oracle' }
-    ]);
-  return new Response('nope', { status: 500 });
+// What the studio reads from OpenDota in the owner's browser: Герой 2 with Dota Plus and two heroes.
+const SNAPSHOT = {
+  rankTier: 42,
+  plus: true,
+  publicMatchData: true,
+  wins: 60,
+  losses: 40,
+  topHeroes: [
+    { id: 68, name: 'Ancient Apparition', games: 30, winRate: 0.6 },
+    { id: 111, name: 'Oracle', games: 25, winRate: 0.4 }
+  ]
 };
 
 const FIELDS = {
@@ -38,12 +32,21 @@ beforeEach(async () => {
 });
 
 describe('«Обо мне»', () => {
-  it('starts from the seed, saves under a revision and reads Dota into the prompt state', async () => {
-    const api = createApi({ clock: fakeClock(), contentFetch: openDota });
+  it('starts from the seed, saves under a revision and stores a Dota read for the prompt state', async () => {
+    const api = createApi({ clock: fakeClock() });
     const seed = aiAuthorProfileSchema.parse(await (await api.request('/api/v1/ai/profile')).json());
     expect(seed).toMatchObject({ revision: 0, dota: null, dotaAccountId: null });
-    // Without an account there is nothing to read.
-    await expectError(await api.request('/api/v1/ai/profile/dota', { method: 'POST' }), 503, 'UNAVAILABLE');
+    // Without an account a read has nobody to belong to; a malformed read is refused.
+    await expectError(
+      await api.request('/api/v1/ai/profile/dota', { method: 'POST', json: SNAPSHOT }),
+      409,
+      'CONFLICT'
+    );
+    await expectError(
+      await api.request('/api/v1/ai/profile/dota', { method: 'POST', json: { ...SNAPSHOT, rankTier: 'Герой' } }),
+      400,
+      'VALIDATION_ERROR'
+    );
 
     const saved = await api.request('/api/v1/ai/profile', { method: 'PUT', json: { revision: 0, ...FIELDS } });
     expect(aiAuthorProfileSchema.parse(await saved.json())).toMatchObject({ revision: 1, hours: 750 });
@@ -54,7 +57,7 @@ describe('«Обо мне»', () => {
     );
 
     const synced = aiAuthorProfileSchema.parse(
-      await (await api.request('/api/v1/ai/profile/dota', { method: 'POST' })).json()
+      await (await api.request('/api/v1/ai/profile/dota', { method: 'POST', json: SNAPSHOT })).json()
     );
     expect(synced.dota).toMatchObject({
       rankTier: 42,

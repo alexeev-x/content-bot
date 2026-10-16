@@ -4,18 +4,15 @@ import {
   aiAuthorDotaSchema,
   aiAuthorFieldsSchema,
   type AiAuthorProfileDto,
+  type AiDotaSnapshotInput,
   type UpdateAiAuthorProfileInput
 } from '@alexeev/contracts';
 import type { Clock } from '../../platform/clock';
 import { AppError } from '../../shared/app-error';
 import type { AuthorProfileRepository } from './d1-author-repository';
-import { type DotaProfileReader, DotaReadError } from './ports';
 
 // «ИИ-редактор → Обо мне»: the author's current state (architecture item 6). Git holds only the seed
 // (docs/ai/pack/state.md); the living version is this row, sent with every AI request after the stable prefix.
-const DOTA_TIMEOUT_MS = 15_000;
-/** Cron reads Dota again after this long (once a day, with slack for the tick). */
-const DOTA_REFRESH_MS = 20 * 60 * 60 * 1000;
 
 /** Before the first save: the seed of docs/ai/pack/state.md. */
 const SEED: AiAuthorFields = {
@@ -70,22 +67,14 @@ export async function updateAuthorProfile(
   if (!saved) throw new AppError('CONFLICT', 'The profile changed', { reason: 'STALE_REVISION' });
 }
 
-/** Reads the owner's Dota profile now and stores it. */
-export async function syncAuthorDota(deps: {
-  repo: AuthorProfileRepository;
-  clock: Clock;
-  readDota: DotaProfileReader;
-}): Promise<void> {
+/** Stores a read of the owner's Dota profile (made by the studio in the owner's browser). */
+export async function saveAuthorDota(
+  deps: { repo: AuthorProfileRepository; clock: Clock },
+  snapshot: AiDotaSnapshotInput
+): Promise<void> {
   const profile = await readAuthorProfile(deps.repo);
   if (profile.dotaAccountId === null)
-    throw new AppError('UNAVAILABLE', 'No Dota account is set', { reason: 'NO_ACCOUNT' });
-  let snapshot;
-  try {
-    snapshot = await deps.readDota(profile.dotaAccountId, AbortSignal.timeout(DOTA_TIMEOUT_MS));
-  } catch (error) {
-    if (!(error instanceof DotaReadError)) throw error;
-    throw new AppError('UNAVAILABLE', 'OpenDota did not answer', { reason: 'DOTA_UNREACHABLE', code: error.code });
-  }
+    throw new AppError('CONFLICT', 'No Dota account is set', { reason: 'NO_ACCOUNT' });
   const now = deps.clock.now();
   const { revision: _revision, updatedAt: _updatedAt, dota: _dota, promptText: _promptText, ...fields } = profile;
   await deps.repo.saveDota({
@@ -93,15 +82,6 @@ export async function syncAuthorDota(deps: {
     seed: fields,
     now
   });
-}
-
-/** Whether Cron should read Dota again: an account is set and the last read is a day old. */
-export async function authorDotaDue(repo: AuthorProfileRepository, now: number): Promise<boolean> {
-  const row = await repo.read();
-  const fields = row && parse(row.document, aiAuthorFieldsSchema);
-  return (
-    Boolean(fields?.dotaAccountId) && (row?.dotaSyncedAt === null || now - (row?.dotaSyncedAt ?? 0) >= DOTA_REFRESH_MS)
-  );
 }
 
 /** The author's state as the prompt reads it, in Russian. */

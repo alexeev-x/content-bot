@@ -80,6 +80,12 @@ function renderWidget(item: LayoutItem, env: Omit<WidgetEnv, 'phone'>, phone: bo
           {env.ai.body}
         </Widget>
       ) : null;
+    case 'dota':
+      return env.dota ? (
+        <Widget id="dota" title={copy.dota.title}>
+          {env.dota}
+        </Widget>
+      ) : null;
     case 'sources':
       return (
         <SourcesWidget rows={env.sources?.rows} {...(env.sources?.footer ? { footer: env.sources.footer } : {})} />
@@ -110,8 +116,15 @@ export function DashboardLayout({ env, loading, banner, zoneNote }: LayoutProps)
       {banner}
       <DateChip placement="below" zoneNote={zoneNote} timezone={env.timezone} />
       <div className={styles.grid}>
-        {LAYOUT.filter((item) => item.id !== 'ai' || env.ai !== undefined)
+        {LAYOUT.filter(
+          (item) => (item.id !== 'ai' || env.ai !== undefined) && (item.id !== 'dota' || env.dota !== undefined)
+        )
           .map((item) => (item.id === 'today' && env.ai === undefined ? { ...item, w: 12 as const } : item))
+          .map((item) =>
+            (item.id === 'nextPublication' || item.id === 'week') && env.dota === undefined
+              ? { ...item, w: 6 as const }
+              : item
+          )
           .map((item) => (
             <div key={item.id} className={styles.cell} style={cellStyle(item)}>
               {renderWidget(item, full, phone)}

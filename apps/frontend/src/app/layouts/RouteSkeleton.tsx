@@ -1,4 +1,5 @@
 import { AiSpendSkeleton } from '../../features/ai-settings';
+import { DotaSummarySkeleton } from '../../features/dota-profile';
 import { AnalyticsSkeleton, LatestVideoSkeleton, TrendingSummarySkeleton } from '../../features/content-analytics';
 import { DashboardSkeleton } from '../../features/dashboard';
 import { SourcesBoardSkeleton } from '../../features/dota-intelligence';
@@ -46,6 +47,7 @@ export function RouteSkeleton({ pathname, title }: Props) {
             trending: <TrendingSummarySkeleton />
           }}
           ai={<AiSpendSkeleton />}
+          dota={<DotaSummarySkeleton />}
         />
       </>
     );

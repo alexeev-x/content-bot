@@ -241,9 +241,29 @@ export type AiAuthorProfileDto = z.infer<typeof aiAuthorProfileSchema>;
 
 // GET /api/v1/ai/profile → 200 AiAuthorProfileDto.
 // PUT /api/v1/ai/profile { revision, ...fields } → 200 AiAuthorProfileDto; CONFLICT 409 (STALE_REVISION).
-// POST /api/v1/ai/profile/dota (no body) → 200 AiAuthorProfileDto: reads OpenDota now; UNAVAILABLE 503
-// (details.reason NO_ACCOUNT | DOTA_UNREACHABLE), RATE_LIMIT 429 (5 per 10 minutes). Cron reads it once a day.
+// POST /api/v1/ai/profile/dota AiDotaSnapshotInput → 200 AiAuthorProfileDto: stores a read of OpenDota made by
+// the studio in the owner's browser (OpenDota answers 429 to Cloudflare's shared egress, 16.10.2026); the server
+// adds the rank label and the time. CONFLICT 409 (details.reason NO_ACCOUNT), RATE_LIMIT 429 (10 per 10 minutes).
 // errors also: VALIDATION_ERROR 400, UNAUTHORIZED, FORBIDDEN.
+export const aiDotaSnapshotInputSchema = z.strictObject({
+  rankTier: z.number().int().min(0).max(99).nullable(),
+  plus: z.boolean(),
+  publicMatchData: z.boolean(),
+  wins: z.number().int().min(0).max(1_000_000),
+  losses: z.number().int().min(0).max(1_000_000),
+  topHeroes: z
+    .array(
+      z.strictObject({
+        id: z.number().int().positive().max(1000),
+        name: z.string().trim().min(1).max(60),
+        games: z.number().int().min(0).max(1_000_000),
+        winRate: z.number().min(0).max(1)
+      })
+    )
+    .max(5)
+});
+export type AiDotaSnapshotInput = z.infer<typeof aiDotaSnapshotInputSchema>;
+
 export const updateAiAuthorProfileInputSchema = aiAuthorFieldsSchema.extend({
   revision: z.number().int().nonnegative()
 });
