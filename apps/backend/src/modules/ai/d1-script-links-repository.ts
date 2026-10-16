@@ -20,13 +20,17 @@ export interface ScriptLinksRepository {
   /** Links the video to the script, replacing an earlier link. */
   link(input: { itemId: string; revisionId: string; now: number }): Promise<void>;
   unlink(itemId: string): Promise<void>;
+  /** The format of the script a video is linked to. */
+  formatOf(itemId: string): Promise<ReelsFormat | null>;
+  /** Videos linked to scripts of `format`, at most 500 (a few Reels a week). */
+  itemsOf(format: ReelsFormat): Promise<string[]>;
 }
 
 const SCRIPT_COLUMNS = `r.id AS revisionId, g.format, r.text, r.created_at AS approvedAt`;
 const APPROVED = `r.provenance IN ('OWNER_APPROVED', 'OWNER_PREAPPROVED') AND g.format <> 'telegram'`;
 
 export function createD1ScriptLinksRepository(db: D1Database): ScriptLinksRepository {
-  return {
+  const repo: ScriptLinksRepository = {
     async approvedScripts({ from, to, limit }) {
       const rows = await db
         .prepare(
@@ -72,6 +76,23 @@ export function createD1ScriptLinksRepository(db: D1Database): ScriptLinksReposi
 
     async unlink(itemId) {
       await db.prepare('DELETE FROM content_ai_links WHERE content_item_id = ?1').bind(itemId).run();
+    },
+
+    async formatOf(itemId) {
+      return (await repo.linkOf(itemId))?.format ?? null;
+    },
+
+    async itemsOf(format) {
+      const rows = await db
+        .prepare(
+          `SELECT l.content_item_id AS id FROM content_ai_links l
+           JOIN ai_text_revisions r ON r.id = l.revision_id JOIN ai_generations g ON g.id = r.generation_id
+           WHERE g.format = ?1 LIMIT 500`
+        )
+        .bind(format)
+        .all<{ id: string }>();
+      return rows.results.map((row) => row.id);
     }
   };
+  return repo;
 }

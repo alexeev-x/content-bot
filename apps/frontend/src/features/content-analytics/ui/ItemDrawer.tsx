@@ -34,11 +34,22 @@ import { RefreshAnalyticsButton } from './RefreshAnalyticsButton';
 import { copy } from './copy';
 import styles from './Drawer.module.css';
 import { ItemCover } from './ItemCover';
-import { ItemScript } from './ItemScript';
+import { FORMAT, ItemScript } from './ItemScript';
 import { PlatformGlyph } from './PlatformGlyph';
 import { StatusChip } from './StatusChip';
 
 /** What the page knows about the period, so the panel can place the item among its peers. */
+/** What the usual curve rests on: same-format videos only when five share each checkpoint (docs/ai/architecture.md, item 1). */
+function baselineBasis(detail: ContentItemDetailDto): string {
+  if (detail.baseline.format)
+    return `Сравнение с роликами рубрики «${FORMAT[detail.baseline.format]}» того же возраста.`;
+  if (detail.format) {
+    const items = detail.formatItems ?? 0;
+    return `Роликов рубрики «${FORMAT[detail.format]}» пока ${items} из 5 нужных — сравнение со всеми роликами платформы, оно приблизительное.`;
+  }
+  return 'Сравнение со всеми роликами платформы. Привяжите сценарий ниже, чтобы сравнивать с роликами своей рубрики.';
+}
+
 export type DrawerContext = {
   items: readonly ContentItemDto[];
   medians: Partial<Record<ContentPlatform, number | null>>;
@@ -278,7 +289,9 @@ function DrawerBody({
                   : verdict.status === 'below'
                     ? 'Ролик идёт слабее обычного: проверьте первую строку и время выхода.'
                     : verdict.status === 'normal'
-                      ? 'Ролик идёт в пределах обычного для платформы.'
+                      ? detail.baseline.format
+                        ? `Ролик идёт в пределах обычного для рубрики «${FORMAT[detail.baseline.format]}».`
+                        : 'Ролик идёт в пределах обычного для платформы.'
                       : 'Статус появится, когда накопятся замеры на том же возрасте у других роликов.'}
               </p>
             </div>
@@ -343,6 +356,7 @@ function DrawerBody({
                       ? 'Пока не с чем сравнить на этом возрасте.'
                       : `${verdict.basis === 'age' ? `На ${formatAge(ageHours)}` : 'За всё время'} ролик набрал ${formatViews(item)} при обычных ${formatCount(verdict.usual)} — ${verdict.multiple.toLocaleString('ru-RU')}×.`}
                   </p>
+                  {item.platform !== 'telegram' ? <p className={styles.heroNote}>{baselineBasis(detail)}</p> : null}
                 </div>
                 <div className={styles.finding} data-tone="violet">
                   <p className={styles.findingTitle}>

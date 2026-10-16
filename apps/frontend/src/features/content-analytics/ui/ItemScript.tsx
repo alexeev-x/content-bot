@@ -5,7 +5,7 @@ import { itemScriptQueryOptions, useLinkItemScript } from '../api/content-analyt
 import { formatPublished } from '../model/format';
 import styles from './Drawer.module.css';
 
-const FORMAT: Record<AiReelsScriptDto['format'], string> = {
+export const FORMAT: Record<AiReelsScriptDto['format'], string> = {
   fidit: 'Учу фидить',
   igrat: 'Учусь играть',
   standalone: 'Отдельный рилс'

@@ -4,6 +4,18 @@ export type { ContentPlatform };
 
 export const CONTENT_PLATFORMS: readonly ContentPlatform[] = ['telegram', 'youtube', 'tiktok'];
 
+export type VideoFormat = 'fidit' | 'igrat' | 'standalone';
+
+/**
+ * Consumer-owned port: the rubric of a video, which the owner confirms by linking it to its AI script (the AI
+ * module holds those links; `app/container.ts` wires them here).
+ */
+export interface ItemFormats {
+  formatOf(itemId: string): Promise<VideoFormat | null>;
+  /** Ids of the videos linked to scripts of `format` (bounded by the adapter). */
+  itemsOf(format: VideoFormat): Promise<string[]>;
+}
+
 /** One post or video as a source reports it now. */
 export interface CollectedItem {
   externalId: string;

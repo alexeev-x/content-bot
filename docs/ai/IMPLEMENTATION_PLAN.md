@@ -94,10 +94,10 @@ Stages 2 and 3 can be designed independently; implement 3 before 5, and do not s
 
 ## Stage 3 — correct video baselines by format and content age (P0 for analytics learning)
 
-- [ ] Carry known format (fidit / igrat / standalone / telegram / unknown) from the approved script or post to the analytics item, without classifying known items again.
+- [x] Carry known format (fidit / igrat / standalone / telegram / unknown) from the approved script or post to the analytics item, without classifying known items again.
 - [ ] Provide explicit owner classification or a separate low-cost path for genuinely legacy/unknown items; never silently guess their format.
-- [ ] Compare only **same platform + same format + same exact checkpoint age**. Never mix YouTube and TikTok or use a neighbouring snapshot time.
-- [ ] Require at least **five clean comparable items** for learning evidence; if fewer, label comparison weak and do not promote rules. Existing analytics UI's N ≥ 3 presentation threshold is a separate display policy.
+- [x] Compare only **same platform + same format + same exact checkpoint age**. Never mix YouTube and TikTok or use a neighbouring snapshot time.
+- [x] Require at least **five clean comparable items** for learning evidence; if fewer, label comparison weak and do not promote rules. Existing analytics UI's N ≥ 3 presentation threshold is a separate display policy.
 - [ ] Mark contamination only from confirmed recommendation restrictions, deleted/unavailable content, platform incidents or broken/incomplete collection. Poor performance is a valid observation, not contamination.
 - [ ] Use only metrics actually available: TikTok public counters, YouTube available counters, Telegram views/reactions. No invented TikTok retention/shares or Telegram comment metrics.
 - [ ] Unit/integration tests with mixed formats, short samples, misaligned timestamps, sparse snapshots and confirmed contamination.
@@ -174,3 +174,4 @@ Stages 2 and 3 can be designed independently; implement 3 before 5, and do not s
 | 2026-10-16 | 969d451 | structured writer responses, migration 0062, needs_facts guard, recent per-format facets | live Telegram flow; DEV migration confirmation |
 | 2026-10-16 | a93f228 | configurable DEV draft rate limit (200/10 minutes), production default 20 | DEV smoke; budget regression |
 | 2026-10-16 | owner-provided paired control run | complete texts 14/20 → 17/20; three correctly classified fact requests; five consecutive free Telegram posts | not a code test; owner-rated writing quality and future A/B controls |
+| 2026-10-16 | stage 3 (part) | a video linked to an AI script carries its format; item curve is same platform + format + exact checkpoint from 5 videos, else the platform curve labelled weak | owner classification of unlinked legacy videos; contamination marks; DEV check |

@@ -1,4 +1,4 @@
-import { aiItemScriptSchema, apiErrorSchema } from '@alexeev/contracts';
+import { aiItemScriptSchema, apiErrorSchema, contentItemDetailSchema } from '@alexeev/contracts';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { testDb } from '../helpers/db';
 import { type Api, createApi, fakeClock, OWNER_TOKEN, resetDb, seedSession, START } from '../helpers/harness';
@@ -55,6 +55,46 @@ beforeEach(async () => {
   await seedApproved(SCRIPT, 'igrat', 'Сегодня играл на оракле и понял, что лечить надо раньше.', START - 3 * DAY);
   await seedApproved(OTHER, 'fidit', 'Учу фидить: варды решают.', START - 5 * DAY);
   await seedApproved(TELEGRAM_TEXT, 'telegram', 'Оракл в патче стал сильнее.', START - 2 * DAY);
+});
+
+describe('same-format baseline', () => {
+  /** A TikTok video with a 24 h checkpoint, optionally linked to an «Учусь играть» script. */
+  async function seedVideo(n: number, views24: number, linked: boolean) {
+    const id = `tiktok:v${n}`;
+    await testDb()
+      .prepare(
+        `INSERT INTO content_items (id, platform, title, url, published_at, views, observed_at, v24h)
+         VALUES (?, 'tiktok', 'ролик', 'https://example.com/v', ?, ?, ?, ?)`
+      )
+      .bind(id, START - (n + 2) * DAY, views24, START, views24)
+      .run();
+    if (linked) {
+      await testDb()
+        .prepare('INSERT INTO content_ai_links (content_item_id, revision_id, linked_at) VALUES (?, ?, ?)')
+        .bind(id, SCRIPT, START)
+        .run();
+    }
+  }
+  const detail = async (id: string) =>
+    contentItemDetailSchema.parse(await (await api.request(`/api/v1/content-analytics/items/${id}`)).json());
+
+  it('compares a linked video with its own format from five videos, else with the platform as a weak curve', async () => {
+    for (let n = 1; n <= 4; n += 1) await seedVideo(n, 1000, true);
+    for (let n = 5; n <= 9; n += 1) await seedVideo(n, 50_000, false);
+    await seedVideo(10, 2000, true);
+
+    // Four other «Учусь играть» videos: not enough, so the platform curve, with the format known.
+    const weak = await detail('tiktok:v10');
+    expect(weak).toMatchObject({ format: 'igrat', formatItems: 4, baseline: { platform: 'tiktok' } });
+    expect(weak.baseline.format ?? null).toBeNull();
+
+    await seedVideo(11, 1000, true);
+    const strong = await detail('tiktok:v10');
+    expect(strong.baseline).toMatchObject({ format: 'igrat', points: [{ ageHours: 24, views: 1000, items: 5 }] });
+
+    // An unlinked video keeps the platform curve.
+    expect((await detail('tiktok:v5')).format).toBeNull();
+  });
 });
 
 describe('/api/v1/ai/scripts/{itemId}', () => {

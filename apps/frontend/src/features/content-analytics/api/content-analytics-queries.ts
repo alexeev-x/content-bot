@@ -42,7 +42,11 @@ export function useLinkItemScript(itemId: string) {
     mutationFn: (revisionId: string | null) =>
       revisionId === null ? unlinkItemScript(itemId) : linkItemScript(itemId, revisionId),
     retry: false,
-    onSuccess: (script) => client.setQueryData(contentAnalyticsKeys.script(itemId), script)
+    onSuccess: (script) => {
+      client.setQueryData(contentAnalyticsKeys.script(itemId), script);
+      // The link sets the video's format, so its usual curve may now be the format's.
+      void client.invalidateQueries({ queryKey: contentAnalyticsKeys.item(itemId) });
+    }
   });
 }
 

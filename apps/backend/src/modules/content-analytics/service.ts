@@ -24,7 +24,7 @@ import {
   type ContentAnalyticsRepository,
   type ItemRow
 } from './d1-content-analytics-repository';
-import { CONTENT_PLATFORMS, ContentCollectError } from './types';
+import { CONTENT_PLATFORMS, ContentCollectError, type ItemFormats } from './types';
 
 const MINUTE_MS = 60 * 1000;
 const DAY_MS = 24 * 60 * MINUTE_MS;
@@ -241,7 +241,7 @@ export async function listContentItems(
 }
 
 export async function readContentItem(
-  deps: { repo: ContentAnalyticsRepository; clock: Clock },
+  deps: { repo: ContentAnalyticsRepository; clock: Clock; formats?: ItemFormats },
   id: string
 ): Promise<ContentItemDetailDto> {
   const found = await deps.repo.readItem(id);
@@ -250,8 +250,30 @@ export async function readContentItem(
     publishedFrom: deps.clock.now() - BASELINE_WINDOW_MS,
     platform: found.item.platform
   });
+  const platformCurve = baselineFor(checkpoints, found.item.platform, found.item.id);
+  const format = deps.formats && found.item.platform !== 'telegram' ? await deps.formats.formatOf(found.item.id) : null;
+  if (format === null || deps.formats === undefined) {
+    return { ...detailOf(found), baseline: platformCurve, format: null };
+  }
+  // Same platform, same format, exact checkpoints, at least 5 videos (architecture item 1); else the platform
+  // curve, which the page marks as a weak comparison.
+  const ids = new Set(await deps.formats.itemsOf(format));
+  ids.delete(found.item.id);
+  const formatCurve = baselineFor(checkpoints, found.item.platform, found.item.id, {
+    ids,
+    minItems: FORMAT_BASELINE_MIN_ITEMS
+  });
+  const formatItems = checkpoints.filter((row) => ids.has(row.id) && row.platform === found.item.platform).length;
   return {
-    baseline: baselineFor(checkpoints, found.item.platform, found.item.id),
+    ...detailOf(found),
+    baseline: formatCurve.points.length > 0 ? { ...formatCurve, format } : platformCurve,
+    format,
+    formatItems
+  };
+}
+
+function detailOf(found: NonNullable<Awaited<ReturnType<ContentAnalyticsRepository['readItem']>>>) {
+  return {
     item: toItemDto(found.item),
     snapshots: found.snapshots.map((snapshot) => ({
       ...snapshot,
@@ -322,6 +344,8 @@ export async function readCachedContentReport(
 /** Items tracked from birth over the last 90 days make the usual curve. */
 const BASELINE_WINDOW_MS = 90 * DAY_MS;
 const BASELINE_MIN_ITEMS = 3;
+/** A format curve is evidence only from five clean videos per checkpoint (architecture item 1). */
+const FORMAT_BASELINE_MIN_ITEMS = 5;
 
 function medianOf(values: number[]): number {
   const sorted = [...values].sort((a, b) => a - b);
@@ -341,13 +365,16 @@ function quantileOf(values: number[], q: number): number {
 export function baselineFor(
   rows: readonly CheckpointRow[],
   platform: ContentPlatform,
-  excludeId?: string
+  excludeId?: string,
+  only?: { ids: ReadonlySet<string>; minItems: number }
 ): ContentBaselineDto {
-  const own = rows.filter((row) => row.platform === platform && row.id !== excludeId);
+  const own = rows.filter(
+    (row) => row.platform === platform && row.id !== excludeId && (only === undefined || only.ids.has(row.id))
+  );
   const points: ContentBaselineDto['points'] = [];
   for (const hours of CHECKPOINT_HOURS) {
     const values = own.map((row) => row.views[hours]).filter((value): value is number => value !== null);
-    if (values.length >= BASELINE_MIN_ITEMS)
+    if (values.length >= (only?.minItems ?? BASELINE_MIN_ITEMS))
       points.push({
         ageHours: hours,
         views: medianOf(values),

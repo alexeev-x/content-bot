@@ -116,8 +116,17 @@ export const CONTENT_CHECKPOINT_HOURS = [1, 3, 6, 12, 24, 48, 72] as const;
  * 90 days that were tracked from their first hours, with how many items it rests on. A checkpoint with
  * fewer than 3 items is left out.
  */
+/** The rubric of a Reels video, known once the owner links it to its AI script (docs/ai/architecture.md, item 1). */
+export const contentVideoFormatSchema = z.enum(['fidit', 'igrat', 'standalone']);
+export type ContentVideoFormat = z.infer<typeof contentVideoFormatSchema>;
+
 export const contentBaselineSchema = z.object({
   platform: contentPlatformSchema,
+  /**
+   * Set when the curve rests on videos of this format only (at least 5 per checkpoint); absent or null — every
+   * item of the platform, which for a video of a known format is a weak comparison.
+   */
+  format: contentVideoFormatSchema.nullable().optional(),
   points: z
     .array(
       z.object({
@@ -136,8 +145,12 @@ export type ContentBaselineDto = z.infer<typeof contentBaselineSchema>;
 export const contentItemDetailSchema = z.object({
   item: contentItemSchema,
   snapshots: z.array(contentItemSnapshotSchema).max(CONTENT_ITEM_SNAPSHOT_LIMIT),
-  /** The usual curve of the item's platform (the item itself excluded). */
-  baseline: contentBaselineSchema
+  /** The usual curve of the item's format when enough videos share it, else of its platform (itself excluded). */
+  baseline: contentBaselineSchema,
+  /** The video's format from its linked script; null — not linked (or a Telegram post). */
+  format: contentVideoFormatSchema.nullable().optional(),
+  /** Other tracked videos of that format, so the page can say how far the format curve is (5 needed). */
+  formatItems: z.number().int().nonnegative().optional()
 });
 export type ContentItemDetailDto = z.infer<typeof contentItemDetailSchema>;
 

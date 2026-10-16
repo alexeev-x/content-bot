@@ -174,7 +174,11 @@ export const contentAnalyticsRoutes = new Hono<AppBindings>()
     const container = c.get('container');
     return c.json(
       contentItemDetailSchema.parse(
-        await readContentItem({ repo: container.contentAnalytics, clock: container.clock }, c.req.valid('param').id)
+        await readContentItem(
+          // The format comes from the AI module's script links (consumer-owned port ItemFormats).
+          { repo: container.contentAnalytics, clock: container.clock, formats: container.aiScriptLinks },
+          c.req.valid('param').id
+        )
       )
     );
   })
