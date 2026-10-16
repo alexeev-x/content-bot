@@ -28,26 +28,25 @@
   align-items: center;
   gap: var(--space-2);
 }
+/* At least the screen, and taller with a long text: the field grows and the page scrolls (owner, 16.10.2026:
+   a screen-high grid cut the text under the media block instead). */
 .panes {
   display: grid;
-  flex: 1;
-  grid-template-rows: minmax(0, 1fr);
+  flex: 1 0 auto;
+  grid-template-rows: 1fr;
   grid-template-columns: minmax(0, 66fr) minmax(0, 32fr);
   gap: var(--space-4);
   align-items: stretch;
-  min-height: 0;
 }
 .leftColumn {
   display: flex;
   flex-direction: column;
   gap: var(--space-4);
   min-width: 0;
-  min-height: 0;
 }
 .writeCard {
   display: flex;
-  flex: 1;
-  min-height: 0;
+  flex: 1 0 auto;
 }
 .writeCard > section {
   display: flex;
@@ -58,7 +57,6 @@
   display: flex;
   flex: 1;
   flex-direction: column;
-  min-height: 0;
 }
 .previewCollapsed {
   grid-template-columns: minmax(0, 1fr);
@@ -154,8 +152,9 @@
   max-width: var(--measure-reading);
 }
 @media (min-width: 860px) {
+  /* A floor, not a cap: a fixed height cut a long text (owner, 16.10.2026); the preview stays sticky. */
   .editor {
-    height: min(calc(100dvh - var(--space-6) * 2), 48rem);
+    min-height: min(calc(100dvh - var(--space-6) * 2), 48rem);
   }
   .previewInPane {
     position: sticky;
@@ -164,26 +163,22 @@
 }
 .fields {
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr) auto;
+  grid-template-rows: auto 1fr auto;
   gap: var(--space-4);
   flex: 1;
-  min-height: 0;
   padding: var(--space-4);
 }
-.writeCard .fields > div:has([contenteditable='true']) {
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-}
-.writeCard .fields > div:has([contenteditable='true']) > div[class*='box'] {
+/* Field → box → RichEditor's content wrapper → the editable: each one a flex column, so a short text fills the
+   card and a long one makes it taller (the wrapper was the missing link, so the text overflowed the box). */
+.writeCard .fields > div:has([contenteditable='true']),
+.writeCard .fields > div:has([contenteditable='true']) > div[class*='box'],
+.writeCard .fields div[class*='box'] > div:has(> [contenteditable='true']) {
   display: flex;
   flex: 1;
   flex-direction: column;
-  min-height: 0;
 }
 .writeCard .fields [contenteditable='true'] {
   flex: 1;
-  min-height: 0;
   max-height: none;
 }
 .previewBody {
