@@ -28,8 +28,7 @@ import { CompareVideosPanel } from './CompareVideosPanel';
 import { CrossPostedPanel } from './CrossPostedPanel';
 import { DynamicsPanel } from './DynamicsPanel';
 import { TrendingPanel } from './TrendingPanel';
-import { FollowersPanel } from './FollowersPanel';
-import { GoalsPanel } from './GoalsPanel';
+import { FollowersGoalsPanel } from './FollowersGoalsPanel';
 import { InsightsPanel, type InsightsSummary } from './InsightsPanel';
 import { ItemDrawer } from './ItemDrawer';
 import { ItemsTable } from './ItemsTable';
@@ -290,8 +289,7 @@ export function AnalyticsBoard({ timezone, view, onViewChange, onOpenSettings }:
           </TabPanel>
           <TabPanel id="audience">
             <div className={styles.sections}>
-              <FollowersPanel report={report} platform={platform} />
-              <GoalsPanel report={report} platform={platform} />
+              <FollowersGoalsPanel report={report} platform={platform} />
               {platform === undefined ? <PlatformComparison report={report} /> : null}
               <CrossPostedPanel items={derived?.current} now={now} onOpen={open} />
               <PostingHeatmap items={derived?.current} platform={platform} timezone={timezone} />

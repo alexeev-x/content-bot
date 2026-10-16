@@ -540,6 +540,91 @@ export async function mockApi(page: Page): Promise<void> {
       nextCursor: null
     });
   });
+  // «Настройки → ИИ» and the overview widget: on, one cheap check this month.
+  await page.route(/\/api\/v1\/ai$/, (route) =>
+    json(route, {
+      settings: {
+        provider: 'openai',
+        enabled: true,
+        draftModel: 'gpt-6.1-sol',
+        cheapModel: 'gpt-6-luna',
+        prices: [],
+        monthlyBudgetUsd: 5,
+        dailyCapUsd: 1,
+        warnAtPercent: 70,
+        revision: 3,
+        updatedAt: '2026-10-16T06:30:00.000Z'
+      },
+      connection: {
+        provider: 'openai',
+        keyConfigured: true,
+        keyName: 'OPENAI_API_KEY',
+        lastCheck: { at: '2026-10-16T06:36:00.000Z', ok: true, model: 'gpt-6-luna', errorCode: null }
+      },
+      spend: {
+        month: '2026-10',
+        spentUsd: 0.00005,
+        todayUsd: 0.00005,
+        leftUsd: 5,
+        requests: 1,
+        averageUsd: 0.00005,
+        unpricedRequests: 0,
+        byKind: [{ kind: 'check', requests: 1, spentUsd: 0.00005 }],
+        blockedBy: null
+      },
+      catalog: {
+        provider: 'openai',
+        providerLabel: 'OpenAI',
+        pricesCheckedOn: '2026-10-15',
+        models: [
+          {
+            id: 'gpt-6.1-sol',
+            label: 'GPT-6.1 Sol',
+            note: 'Рекомендуем для черновиков: лучшее качество за свои деньги',
+            roles: ['draft'],
+            recommendedFor: 'draft',
+            inputPerMillion: 2,
+            cachedInputPerMillion: 0.2,
+            outputPerMillion: 12
+          },
+          {
+            id: 'gpt-6-luna',
+            label: 'GPT-6 Luna',
+            note: 'Самая дешёвая из новых: проверки и теги; можно попробовать и для черновиков',
+            roles: ['draft', 'cheap'],
+            recommendedFor: 'cheap',
+            inputPerMillion: 0.1,
+            cachedInputPerMillion: 0.01,
+            outputPerMillion: 0.5
+          }
+        ]
+      }
+    })
+  );
+  await page.route(/\/api\/v1\/content-analytics\/goals$/, (route) =>
+    json(route, {
+      goals: [
+        {
+          platform: 'telegram',
+          target: 1000,
+          followers: 836,
+          perWeek: 30,
+          forecastDay: '2026-11-24',
+          reached: false,
+          setAt: T
+        },
+        {
+          platform: 'youtube',
+          target: 10000,
+          followers: 1181,
+          perWeek: 40,
+          forecastDay: null,
+          reached: false,
+          setAt: T
+        }
+      ]
+    })
+  );
   await page.route('**/api/v1/health', (route) =>
     json(route, { status: 'ok', service: 'e2e', publishingEnabled: false, time: T })
   );

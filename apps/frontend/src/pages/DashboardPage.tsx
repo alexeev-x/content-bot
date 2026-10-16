@@ -9,6 +9,7 @@ import {
   PlatformLogo,
   TrendingSummary
 } from '../features/content-analytics';
+import { AiSpendSummary, AiStatusBadge } from '../features/ai-settings';
 import { sourceEventsQueryOptions } from '../features/dota-intelligence';
 import { Dashboard, DateChip, type PageBindings, type SourceRow, useDashboardQuery } from '../features/dashboard';
 import { destinationsInfiniteQueryOptions } from '../features/destinations';
@@ -110,7 +111,11 @@ export function DashboardPage({ pollMs, openPublicationId, onOpenPublicationChan
       trending: <TrendingSummary timezone={timezone} onOpen={openAnalyticsItem} />,
       onOpenAll: () => void navigate({ to: '/analytics' })
     },
-    sources: { rows: sourceRows, footer: sourcesFooter }
+    sources: { rows: sourceRows, footer: sourcesFooter },
+    ai: {
+      badge: <AiStatusBadge />,
+      body: <AiSpendSummary onOpenSettings={() => void navigate({ to: '/settings/ai' })} />
+    }
   };
   // The panel's own detail query (same key): it tells which channel the message link belongs to.
   const openDetail = useQuery({

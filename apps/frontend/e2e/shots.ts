@@ -21,6 +21,7 @@ const PAGES = [
   '/settings/analytics',
   '/settings/appearance',
   '/settings/general',
+  '/settings/ai',
   '/login'
 ];
 const WIDTHS = [
@@ -51,7 +52,7 @@ for (const path of PAGES) {
         await page.screenshot({
           path: `../../.logs/shots/${name}-${viewport.width}-${colorScheme}.png`,
           // The analytics page is long: the whole page is the thing to judge.
-          fullPage: (path.startsWith('/analytics') && !path.includes('id=')) || path === '/'
+          fullPage: (path.startsWith('/analytics') && !path.includes('id=')) || path === '/' || path === '/settings/ai'
         });
         if (path === '/settings/general') {
           await page.getByRole('heading', { name: /Уведомлять/ }).scrollIntoViewIfNeeded();

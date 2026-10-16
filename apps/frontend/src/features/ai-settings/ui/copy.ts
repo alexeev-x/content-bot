@@ -56,9 +56,16 @@ export const copy = {
   saved: 'Сохранено',
   saveFailed: 'Не удалось сохранить. Попробуйте ещё раз.',
   conflict: 'Настройки изменились в другом окне — загрузили свежие, повторите.',
-  spendTitle: (month: string) => `Расходы в ${MONTHS[Number(month.slice(5, 7)) - 1] ?? month}`,
+  spendTitle: 'Расходы и лимиты',
+  spentIn: (month: string) => `Потрачено в ${MONTHS[Number(month.slice(5, 7)) - 1] ?? month}`,
+  monthLabel: (month: string) =>
+    new Date(`${month}-15T00:00:00Z`)
+      .toLocaleString('ru-RU', { month: 'long', year: 'numeric', timeZone: 'UTC' })
+      .replace(' г.', '')
+      .replace(/^./, (letter) => letter.toUpperCase()),
+  used: (percent: number) => `${percent < 1 && percent > 0 ? '< 1' : Math.round(percent)}% использовано`,
   of: 'из',
-  left: (value: string) => `осталось ${value}`,
+  left: (value: string) => `Осталось ${value}`,
   spendBar: 'Потрачено от месячного бюджета',
   today: 'Сегодня',
   requests: 'Запросов',
@@ -72,8 +79,9 @@ export const copy = {
     profile: 'профиль стиля',
     other: 'другое'
   } satisfies Record<AiUsageKind, string>,
-  modelsTitle: 'Модели',
-  modelsNote: (provider: string) => `из списка ${provider}`,
+  modelsTitle: 'Модели и задачи',
+  modelsIntro: (provider: string) =>
+    `Какая модель ${provider} пишет черновики, а какая проверяет их. Подсказки под списком — что лучше по цене и качеству.`,
   perDraft: (cents: number) => `≈ ${cents < 0.1 ? cents.toFixed(2) : cents.toFixed(1)} ¢ за черновик`,
   draftModel: 'Пишет черновики',
   draftModelHint: 'Посты и сценарии твоим голосом.',
@@ -96,6 +104,17 @@ export const copy = {
   output: 'Выход',
   pricesHint: 'USD за 1 млн токенов, со страницы цен провайдера. По ним считаются расходы.',
   voiceTitle: 'Голос',
+  extraTitle: 'Дополнительно',
+  widget: {
+    month: 'Расходы за месяц',
+    today: 'Расходы сегодня',
+    budget: 'Месячный бюджет',
+    requests: 'Запросов за месяц',
+    left: 'Осталось бюджета',
+    used: 'Использовано',
+    settings: 'Настройки',
+    loadError: 'Не удалось загрузить расходы ИИ.'
+  },
   loading: 'Загружаем настройки ИИ…',
   voiceBody:
     'Подготовлены профиль стиля (по 526 постам канала), база из 520 постов и справочник сленга и мемов Доты. Подключатся к генерации на следующем шаге, вместе с «Моим опытом» — правилами из ваших правок и разборов роликов.',

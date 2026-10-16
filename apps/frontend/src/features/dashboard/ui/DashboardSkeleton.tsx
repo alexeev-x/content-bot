@@ -1,4 +1,6 @@
 import type { ReactNode } from 'react';
+import { Skeleton } from '../../../shared/ui';
+import styles from './Dashboard.module.css';
 import { DashboardLayout } from './DashboardLayout';
 
 const ignore = () => {};
@@ -30,6 +32,15 @@ export function DashboardSkeleton({
         dayEvents: undefined,
         onOpenActivity: ignore,
         onOpenPost: ignore,
+        // «ИИ расходы» keeps its place beside «Лента дня», so the row does not reflow when the page loads.
+        ai: {
+          badge: null,
+          body: (
+            <div aria-hidden="true" className={styles.aiSkeleton}>
+              <Skeleton lines={6} height={20} />
+            </div>
+          )
+        },
         ...(analytics ? { analytics: { ...analytics, onOpenAll: ignore } } : {})
       }}
     />

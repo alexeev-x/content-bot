@@ -30,6 +30,8 @@ export type WidgetEnv = {
   /** Rows of «Новости и источники», composed by the page from the Dota feed and the analytics sources. */
   sources?: { rows: readonly SourceRow[] | undefined; footer?: string } | undefined;
   onOpenPost: (postId: string) => void;
+  /** «ИИ расходы», composed by the page from the AI settings feature; without it «Лента дня» takes the row. */
+  ai?: { badge: ReactNode; body: ReactNode } | undefined;
 };
 
 export type AnalyticsSlots = {

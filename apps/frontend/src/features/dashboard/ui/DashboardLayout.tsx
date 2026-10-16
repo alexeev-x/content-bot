@@ -12,6 +12,7 @@ import { AnalyticsWidget } from './AnalyticsWidget';
 import { NextUp } from './NextUp';
 import { SourcesWidget } from './SourcesWidget';
 import { WeekBars } from './WeekBars';
+import { Widget } from './Widget';
 import type { WidgetEnv } from './widget-env';
 
 type LayoutProps = {
@@ -73,6 +74,12 @@ function renderWidget(item: LayoutItem, env: Omit<WidgetEnv, 'phone'>, phone: bo
           {env.analytics.trending}
         </AnalyticsWidget>
       ) : null;
+    case 'ai':
+      return env.ai ? (
+        <Widget id="ai" title={copy.ai.title} action={env.ai.badge}>
+          {env.ai.body}
+        </Widget>
+      ) : null;
     case 'sources':
       return (
         <SourcesWidget rows={env.sources?.rows} {...(env.sources?.footer ? { footer: env.sources.footer } : {})} />
@@ -103,11 +110,13 @@ export function DashboardLayout({ env, loading, banner, zoneNote }: LayoutProps)
       {banner}
       <DateChip placement="below" zoneNote={zoneNote} timezone={env.timezone} />
       <div className={styles.grid}>
-        {LAYOUT.map((item) => (
-          <div key={item.id} className={styles.cell} style={cellStyle(item)}>
-            {renderWidget(item, full, phone)}
-          </div>
-        ))}
+        {LAYOUT.filter((item) => item.id !== 'ai' || env.ai !== undefined)
+          .map((item) => (item.id === 'today' && env.ai === undefined ? { ...item, w: 12 as const } : item))
+          .map((item) => (
+            <div key={item.id} className={styles.cell} style={cellStyle(item)}>
+              {renderWidget(item, full, phone)}
+            </div>
+          ))}
       </div>
     </div>
   );

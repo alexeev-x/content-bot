@@ -9,6 +9,7 @@ import {
   Disclosure,
   DisclosureGroup,
   ErrorState,
+  Icon,
   Panel,
   ProgressBar,
   SegmentedControl,
@@ -60,29 +61,36 @@ export function AiSettingsSkeleton() {
           <Skeleton width="45%" height="1lh" />
         </p>
       </section>
-      <Panel title={copy.spendTitle(month)} reserveRows={2.95} reservePhoneRows={3.85}>
-        <div className={styles.spend}>
-          <Skeleton lines={3} height={20} />
+      <div className={styles.columns}>
+        <Panel title={copy.modelsTitle} icon={<Icon name="sparkle" />} reserveRows={5} reservePhoneRows={6}>
+          <div className={styles.models}>
+            <Skeleton lines={2} height={36} />
+          </div>
+        </Panel>
+        <Panel
+          title={copy.spendTitle}
+          icon={<Icon name="chart" />}
+          action={<span className={styles.meta}>{copy.monthLabel(month)}</span>}
+          reserveRows={8}
+          reservePhoneRows={10}
+        >
+          <div className={styles.spend}>
+            <Skeleton lines={4} height={24} />
+          </div>
+        </Panel>
+      </div>
+      <Panel title={copy.extraTitle} icon={<Icon name="settings" />}>
+        <div className={styles.extra}>
+          <DisclosureGroup>
+            <Disclosure id="prices" title={copy.pricesTitle('OpenAI', `${month}-01`)}>
+              {null}
+            </Disclosure>
+            <Disclosure id="voice" title={copy.voiceTitle}>
+              {null}
+            </Disclosure>
+          </DisclosureGroup>
         </div>
       </Panel>
-      <Panel title={copy.modelsTitle} reserveRows={2.1} reservePhoneRows={4.2}>
-        <div className={styles.models}>
-          <Skeleton lines={2} height={36} />
-        </div>
-      </Panel>
-      <Panel title={copy.budgetTitle} reserveRows={3.6} reservePhoneRows={6}>
-        <div className={styles.budget}>
-          <Skeleton lines={3} height={36} />
-        </div>
-      </Panel>
-      <DisclosureGroup>
-        <Disclosure id="prices" title={copy.pricesTitle('OpenAI', `${month}-01`)}>
-          {null}
-        </Disclosure>
-        <Disclosure id="voice" title={copy.voiceTitle}>
-          {null}
-        </Disclosure>
-      </DisclosureGroup>
     </div>
   );
 }
@@ -197,154 +205,162 @@ function AiSettings({ overview, onReload }: { overview: AiOverviewDto; onReload:
         ) : null}
       </section>
 
-      <Panel title={copy.spendTitle(spend.month)}>
-        <div className={styles.spend}>
-          <div className={styles.spendMain}>
-            <p className={styles.spendValue}>
-              <strong>{usd(spend.spentUsd)}</strong> {copy.of} {usd(settings.monthlyBudgetUsd)}
-            </p>
-            <p className={styles.meta}>{copy.left(usd(spend.leftUsd))}</p>
+      <div className={styles.columns}>
+        <Panel title={copy.modelsTitle} icon={<Icon name="sparkle" />}>
+          <p className={styles.intro}>{copy.modelsIntro(catalog.providerLabel)}</p>
+          <div className={styles.models}>
+            <Select
+              label={copy.draftModel}
+              description={chosenNote(settings.draftModel, 'draft') ?? copy.draftModelHint}
+              options={catalog.models
+                .filter((model) => model.roles.includes('draft'))
+                .map((model) => modelOption(model, 'draft'))}
+              value={settings.draftModel}
+              onChange={(draftModel) => change({ draftModel })}
+            />
+            <Select
+              label={copy.cheapModel}
+              description={chosenNote(settings.cheapModel, 'cheap') ?? copy.cheapModelHint}
+              options={catalog.models
+                .filter((model) => model.roles.includes('cheap'))
+                .map((model) => modelOption(model, 'cheap'))}
+              value={settings.cheapModel}
+              onChange={(cheapModel) => change({ cheapModel })}
+            />
           </div>
-          <ProgressBar label={copy.spendBar} value={share} tone={share >= 100 ? 'failed' : 'accent'} />
-          <dl className={styles.facts}>
-            <div>
-              <dt>{copy.today}</dt>
-              <dd>
-                {usd(spend.todayUsd)} {copy.of} {usd(settings.dailyCapUsd)}
-              </dd>
+        </Panel>
+        <Panel
+          title={copy.spendTitle}
+          icon={<Icon name="chart" />}
+          action={<span className={styles.meta}>{copy.monthLabel(spend.month)}</span>}
+        >
+          <div className={styles.spend}>
+            <p className={styles.spendLabel}>{copy.spentIn(spend.month)}</p>
+            <div className={styles.spendMain}>
+              <p className={styles.spendValue}>
+                <strong>{usd(spend.spentUsd)}</strong> {copy.of} {usd(settings.monthlyBudgetUsd)}
+              </p>
+              <p className={styles.meta}>{copy.left(usd(spend.leftUsd))}</p>
             </div>
-            <div>
-              <dt>{copy.requests}</dt>
-              <dd>{spend.requests}</dd>
-            </div>
-            <div>
-              <dt>{copy.average}</dt>
-              <dd>{spend.averageUsd === null ? '—' : usd(spend.averageUsd)}</dd>
-            </div>
-          </dl>
-          {spend.byKind.length > 0 ? (
-            <p className={styles.meta}>
-              {spend.byKind.map((row) => `${copy.kind[row.kind]}: ${row.requests} (${usd(row.spentUsd)})`).join(', ')}
-            </p>
-          ) : (
-            <p className={styles.meta}>{copy.noSpend}</p>
-          )}
-        </div>
-      </Panel>
-
-      <Panel title={copy.modelsTitle} note={copy.modelsNote(catalog.providerLabel)}>
-        <div className={styles.models}>
-          <Select
-            label={copy.draftModel}
-            description={chosenNote(settings.draftModel, 'draft') ?? copy.draftModelHint}
-            options={catalog.models
-              .filter((model) => model.roles.includes('draft'))
-              .map((model) => modelOption(model, 'draft'))}
-            value={settings.draftModel}
-            onChange={(draftModel) => change({ draftModel })}
-          />
-          <Select
-            label={copy.cheapModel}
-            description={chosenNote(settings.cheapModel, 'cheap') ?? copy.cheapModelHint}
-            options={catalog.models
-              .filter((model) => model.roles.includes('cheap'))
-              .map((model) => modelOption(model, 'cheap'))}
-            value={settings.cheapModel}
-            onChange={(cheapModel) => change({ cheapModel })}
-          />
-        </div>
-      </Panel>
-
-      <Panel title={copy.budgetTitle}>
-        <div className={styles.budget}>
-          <BudgetRow label={copy.monthly}>
-            <SegmentedControl
-              label={copy.monthly}
-              options={[
-                ...BUDGET_PRESETS.map((value) => ({ id: String(value), label: `$${value}` })),
-                { id: 'custom', label: copy.custom }
-              ]}
-              value={budgetValue}
-              onChange={(id) => {
-                if (id === 'custom') setCustomBudget(String(settings.monthlyBudgetUsd));
-                else {
-                  setCustomBudget(null);
-                  change({ monthlyBudgetUsd: Number(id) });
-                }
-              }}
-            />
-          </BudgetRow>
-          {budgetValue === 'custom' ? (
-            <div className={styles.custom}>
-              <TextField
-                label={copy.customLabel}
-                inputMode="decimal"
-                value={customBudget ?? String(settings.monthlyBudgetUsd)}
-                onChange={setCustomBudget}
-              />
-              <Button
-                variant="secondary"
-                onPress={() => {
-                  const value = Number((customBudget ?? '').replace(',', '.'));
-                  if (Number.isFinite(value) && value >= 0 && value <= 10_000) change({ monthlyBudgetUsd: value });
-                  else toast.show({ tone: 'error', title: copy.customInvalid });
+            <ProgressBar label={copy.spendBar} value={share} tone={share >= 100 ? 'failed' : 'accent'} />
+            <p className={styles.meta}>{copy.used(share)}</p>
+            <dl className={styles.facts}>
+              <div>
+                <dt>{copy.today}</dt>
+                <dd>{usd(spend.todayUsd)}</dd>
+                <dd className={styles.meta}>
+                  {spend.byKind.length > 0
+                    ? spend.byKind
+                        .map((row) => `${copy.kind[row.kind]}: ${row.requests} (${usd(row.spentUsd)})`)
+                        .join(', ')
+                    : copy.noSpend}
+                </dd>
+              </div>
+              <div>
+                <dt>{copy.requests}</dt>
+                <dd>{spend.requests}</dd>
+              </div>
+              <div>
+                <dt>{copy.average}</dt>
+                <dd>{spend.averageUsd === null ? '—' : usd(spend.averageUsd)}</dd>
+              </div>
+            </dl>
+          </div>
+          <h3 className={styles.subhead}>{copy.budgetTitle}</h3>
+          <div className={styles.budget}>
+            <BudgetRow label={copy.monthly}>
+              <SegmentedControl
+                label={copy.monthly}
+                options={[
+                  ...BUDGET_PRESETS.map((value) => ({ id: String(value), label: `$${value}` })),
+                  { id: 'custom', label: copy.custom }
+                ]}
+                value={budgetValue}
+                onChange={(id) => {
+                  if (id === 'custom') setCustomBudget(String(settings.monthlyBudgetUsd));
+                  else {
+                    setCustomBudget(null);
+                    change({ monthlyBudgetUsd: Number(id) });
+                  }
                 }}
-              >
-                {copy.apply}
-              </Button>
-            </div>
-          ) : null}
-          <p className={styles.meta}>{copy.monthlyHint}</p>
-          <BudgetRow label={copy.daily}>
-            <SegmentedControl
-              label={copy.daily}
-              options={[
-                ...DAILY_PRESETS.map((value) => ({ id: String(value), label: `$${value}` })),
-                { id: 'all', label: copy.noDaily }
-              ]}
-              value={DAILY_PRESETS.includes(settings.dailyCapUsd) || dailyValue === 'all' ? dailyValue : 'all'}
-              onChange={(id) => change({ dailyCapUsd: id === 'all' ? settings.monthlyBudgetUsd : Number(id) })}
-            />
-          </BudgetRow>
-          <BudgetRow label={copy.warnAt}>
-            <SegmentedControl
-              label={copy.warnAt}
-              options={WARN_PRESETS.map((value) => ({ id: String(value), label: `${value}%` }))}
-              value={String(settings.warnAtPercent)}
-              onChange={(id) => change({ warnAtPercent: Number(id) })}
-            />
-          </BudgetRow>
+              />
+            </BudgetRow>
+            {budgetValue === 'custom' ? (
+              <div className={styles.custom}>
+                <TextField
+                  label={copy.customLabel}
+                  inputMode="decimal"
+                  value={customBudget ?? String(settings.monthlyBudgetUsd)}
+                  onChange={setCustomBudget}
+                />
+                <Button
+                  variant="secondary"
+                  onPress={() => {
+                    const value = Number((customBudget ?? '').replace(',', '.'));
+                    if (Number.isFinite(value) && value >= 0 && value <= 10_000) change({ monthlyBudgetUsd: value });
+                    else toast.show({ tone: 'error', title: copy.customInvalid });
+                  }}
+                >
+                  {copy.apply}
+                </Button>
+              </div>
+            ) : null}
+            <p className={styles.meta}>{copy.monthlyHint}</p>
+            <BudgetRow label={copy.daily}>
+              <SegmentedControl
+                label={copy.daily}
+                options={[
+                  ...DAILY_PRESETS.map((value) => ({ id: String(value), label: `$${value}` })),
+                  { id: 'all', label: copy.noDaily }
+                ]}
+                value={DAILY_PRESETS.includes(settings.dailyCapUsd) || dailyValue === 'all' ? dailyValue : 'all'}
+                onChange={(id) => change({ dailyCapUsd: id === 'all' ? settings.monthlyBudgetUsd : Number(id) })}
+              />
+            </BudgetRow>
+            <BudgetRow label={copy.warnAt}>
+              <SegmentedControl
+                label={copy.warnAt}
+                options={WARN_PRESETS.map((value) => ({ id: String(value), label: `${value}%` }))}
+                value={String(settings.warnAtPercent)}
+                onChange={(id) => change({ warnAtPercent: Number(id) })}
+              />
+            </BudgetRow>
+          </div>
+        </Panel>
+      </div>
+
+      <Panel title={copy.extraTitle} icon={<Icon name="settings" />}>
+        <div className={styles.extra}>
+          <DisclosureGroup>
+            <Disclosure id="prices" title={copy.pricesTitle(catalog.providerLabel, catalog.pricesCheckedOn)}>
+              <table className={styles.prices}>
+                <thead>
+                  <tr>
+                    <th scope="col">{copy.model}</th>
+                    <th scope="col">{copy.input}</th>
+                    <th scope="col">{copy.cached}</th>
+                    <th scope="col">{copy.output}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {catalog.models.map((model) => (
+                    <tr key={model.id}>
+                      <th scope="row">{model.label}</th>
+                      <td>${model.inputPerMillion}</td>
+                      <td>${model.cachedInputPerMillion}</td>
+                      <td>${model.outputPerMillion}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <p className={styles.meta}>{copy.pricesHint}</p>
+            </Disclosure>
+            <Disclosure id="voice" title={copy.voiceTitle}>
+              <p className={styles.meta}>{copy.voiceBody}</p>
+            </Disclosure>
+          </DisclosureGroup>
         </div>
       </Panel>
-
-      <DisclosureGroup>
-        <Disclosure id="prices" title={copy.pricesTitle(catalog.providerLabel, catalog.pricesCheckedOn)}>
-          <table className={styles.prices}>
-            <thead>
-              <tr>
-                <th scope="col">{copy.model}</th>
-                <th scope="col">{copy.input}</th>
-                <th scope="col">{copy.cached}</th>
-                <th scope="col">{copy.output}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {catalog.models.map((model) => (
-                <tr key={model.id}>
-                  <th scope="row">{model.label}</th>
-                  <td>${model.inputPerMillion}</td>
-                  <td>${model.cachedInputPerMillion}</td>
-                  <td>${model.outputPerMillion}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          <p className={styles.meta}>{copy.pricesHint}</p>
-        </Disclosure>
-        <Disclosure id="voice" title={copy.voiceTitle}>
-          <p className={styles.meta}>{copy.voiceBody}</p>
-        </Disclosure>
-      </DisclosureGroup>
 
       {spend.blockedBy === 'monthly_budget' ? <Banner tone="warning" title={copy.blocked.monthly_budget} /> : null}
     </div>

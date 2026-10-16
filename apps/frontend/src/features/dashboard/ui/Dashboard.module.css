@@ -180,3 +180,8 @@ button.more {
     display: inline-flex;
   }
 }
+
+/* «ИИ расходы» before the page composes it. */
+.aiSkeleton {
+  padding: 0 var(--space-4) var(--space-3);
+}

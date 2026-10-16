@@ -9,7 +9,7 @@ import { useQuery } from '@tanstack/react-query';
 import { type CSSProperties, useState } from 'react';
 import { Controller, useForm } from 'react-hook-form';
 import { z } from 'zod';
-import { Banner, Button, Dialog, ErrorState, Panel, Skeleton, TextField } from '../../../shared/ui';
+import { AreaChart, Banner, Button, Dialog, Icon, Panel, TextField } from '../../../shared/ui';
 import { contentGoalsQueryOptions, useSaveContentGoal } from '../api/content-analytics-queries';
 import { formatCount, formatDay, formatDelta, PLATFORM_LABEL } from '../model/format';
 import { followersStats, PLATFORMS } from '../model/report';
@@ -32,57 +32,66 @@ const formSchema = z.object({
 type FormInput = z.input<typeof formSchema>;
 type FormOutput = z.output<typeof formSchema>;
 
-/** The same panel before its goals exist and without a request, for the route skeleton. */
-export function GoalsPanelSkeleton() {
-  return (
-    <PanelSkeleton title="Цели" note="Темп за последние 4 недели и дата при таком темпе" rows={3.7} phoneRows={4.5} />
-  );
+const COLOR: Record<ContentPlatform, string> = {
+  telegram: 'var(--color-platform-telegram)',
+  youtube: 'var(--color-platform-youtube)',
+  tiktok: 'var(--color-series-3)'
+};
+const TITLE = 'Подписчики и цели';
+const NOTE = 'Текущие показатели и прогресс к целям';
+
+/** The same panel before the report and goals exist, without a request, for the route skeleton. */
+export function FollowersGoalsPanelSkeleton() {
+  return <PanelSkeleton title={TITLE} note={NOTE} rows={5.4} phoneRows={9} />;
 }
 
-/** «Цели»: a follower target per platform with progress, the pace of the last four weeks and the forecast. */
-export function GoalsPanel({ report, platform }: Props) {
+/**
+ * «Подписчики и цели» (owner, 16.10.2026: one card instead of two, design-refs): per platform the follower count,
+ * its change and daily curve, then the goal's progress and its edit button.
+ */
+export function FollowersGoalsPanel({ report, platform }: Props) {
   const goalsQuery = useQuery(contentGoalsQueryOptions());
   const [editing, setEditing] = useState<ContentPlatform | null>(null);
-  // Platforms with stored follower counts can have a goal; one without counts has nothing to measure.
+  if (report === undefined || goalsQuery.isPending) return <FollowersGoalsPanelSkeleton />;
   const goals = goalsQuery.data?.goals ?? [];
-  // A platform with follower counts can get a goal; one that already has a goal stays listed so it can be
-  // changed or removed even after its source stopped.
+  // A platform with follower counts or a goal is listed; one that has neither (not connected) has nothing to show.
   const platforms = PLATFORMS.filter(
     (each) =>
       (platform === undefined || platform === each) &&
-      (report === undefined ||
-        followersStats(report, each).now !== null ||
-        goals.some((goal) => goal.platform === each))
+      (followersStats(report, each).now !== null || goals.some((goal) => goal.platform === each))
   );
   return (
-    <Panel
-      title="Цели"
-      headingLevel={2}
-      quiet
-      note="Темп за последние 4 недели и дата при таком темпе"
-      {...(goalsQuery.isPending ? { reserveRows: 3.7, reservePhoneRows: 4.5 } : {})}
-    >
-      {goalsQuery.isPending ? (
-        <Skeleton lines={3} />
-      ) : goalsQuery.isError ? (
-        <ErrorState message="Не удалось загрузить цели." onRetry={() => void goalsQuery.refetch()} />
-      ) : platforms.length === 0 ? (
-        <p className={styles.empty}>Цель можно задать после первого сбора подписчиков.</p>
+    <Panel title={TITLE} headingLevel={2} quiet icon={<Icon name="users" />} note={NOTE}>
+      {goalsQuery.isError ? (
+        <div className={styles.banner}>
+          <Banner
+            tone="error"
+            title="Не удалось загрузить цели"
+            action={
+              <Button size="sm" variant="secondary" onPress={() => void goalsQuery.refetch()}>
+                Повторить
+              </Button>
+            }
+          />
+        </div>
+      ) : null}
+      {platforms.length === 0 ? (
+        <p className={styles.empty}>Подписчики появятся после первого сбора; тогда же можно задать цель.</p>
       ) : (
         <ul className={styles.list}>
           {platforms.map((each) => {
             const goal = goals.find((entry) => entry.platform === each);
             return (
-              <li key={each} className={styles.row}>
-                <PlatformLogo platform={each} size={32} />
-                {goal ? (
-                  <GoalProgress goal={goal} />
-                ) : (
-                  <span className={styles.empty}>{PLATFORM_LABEL[each]}: цель не задана</span>
+              <li key={each} className={styles.row} style={{ '--tone': COLOR[each] } as CSSProperties}>
+                <Followers report={report} platform={each} />
+                <span className={styles.goal}>
+                  {goal ? <GoalProgress goal={goal} /> : <span className={styles.empty}>Цель не задана</span>}
+                </span>
+                {goalsQuery.isError ? null : (
+                  <Button size="sm" variant="secondary" onPress={() => setEditing(each)}>
+                    {goal ? 'Изменить' : 'Задать цель'}
+                  </Button>
                 )}
-                <Button size="sm" variant="secondary" onPress={() => setEditing(each)}>
-                  {goal ? 'Изменить' : 'Задать цель'}
-                </Button>
               </li>
             );
           })}
@@ -99,19 +108,57 @@ export function GoalsPanel({ report, platform }: Props) {
   );
 }
 
+function Followers({ report, platform }: { report: ContentReportDto; platform: ContentPlatform }) {
+  const stats = followersStats(report, platform);
+  const first = stats.points[0];
+  const base = stats.now !== null && stats.change !== null ? stats.now - stats.change : null;
+  const percent = base && stats.change !== null ? Math.round((stats.change / base) * 1000) / 10 : null;
+  return (
+    <>
+      <PlatformLogo platform={platform} size={40} />
+      <span className={styles.followers}>
+        <span className={styles.name}>{PLATFORM_LABEL[platform]}</span>
+        <strong>{formatCount(stats.now)}</strong>
+        {stats.change !== null ? (
+          <span data-tone={stats.change > 0 ? 'up' : stats.change < 0 ? 'down' : 'flat'} className={styles.delta}>
+            {stats.change > 0 ? '↑ +' : stats.change < 0 ? '↓ −' : ''}
+            {formatCount(Math.abs(stats.change))}
+            {percent !== null ? ` (${percent > 0 ? '+' : ''}${percent.toLocaleString('ru-RU')}%)` : ''}
+          </span>
+        ) : null}
+      </span>
+      {stats.points.length >= 2 ? (
+        <span className={styles.chart}>
+          <AreaChart
+            points={stats.points.map((point) => point.followers)}
+            height={56}
+            color={COLOR[platform]}
+            label={`${PLATFORM_LABEL[platform]}: подписчики по дням`}
+            tips={stats.points.map((point) => `${formatDay(point.day)}: ${formatCount(point.followers)}`)}
+          />
+        </span>
+      ) : (
+        <span className={`${styles.chart} ${styles.empty}`}>
+          История копится{first ? ` с ${formatDay(first.day)}` : ''}: график появится со второго дня.
+        </span>
+      )}
+    </>
+  );
+}
+
 function GoalProgress({ goal }: { goal: ContentGoalDto }) {
   const share = goal.followers === null ? 0 : Math.min(1, goal.followers / goal.target);
-  const pace = goal.reached
-    ? 'Цель достигнута'
-    : goal.perWeek === null
-      ? 'Темп появится через неделю сбора'
+  const left = goal.followers === null ? null : Math.max(0, goal.target - goal.followers);
+  const pace =
+    goal.perWeek === null || goal.reached
+      ? null
       : goal.perWeek <= 0
-        ? `${formatDelta(goal.perWeek)} в неделю: рост стоит`
+        ? 'рост стоит'
         : goal.forecastDay === null
-          ? `${formatDelta(goal.perWeek)} в неделю: дольше 5 лет`
-          : `${formatDelta(goal.perWeek)} в неделю, при таком темпе к ${formatDay(goal.forecastDay)}`;
+          ? null
+          : `при темпе ${formatDelta(goal.perWeek)} в неделю — к ${formatDay(goal.forecastDay)}`;
   return (
-    <span className={styles.progress}>
+    <>
       <span className={styles.numbers}>
         <strong>{formatCount(goal.followers)}</strong> из {formatCount(goal.target)}
         <span className={styles.percent}>{Math.round(share * 100)}%</span>
@@ -125,19 +172,17 @@ function GoalProgress({ goal }: { goal: ContentGoalDto }) {
       />
       {/* The drawn bar; the meter above carries the value for assistive technology. */}
       <span className={styles.track} aria-hidden="true">
-        <span
-          className={styles.fill}
-          data-reached={goal.reached || undefined}
-          style={{ '--share': share } as CSSProperties}
-        />
+        <span className={styles.fill} style={{ '--share': share } as CSSProperties} />
       </span>
-      <span
-        className={styles.pace}
-        data-tone={goal.perWeek !== null && goal.perWeek <= 0 && !goal.reached ? 'down' : undefined}
-      >
-        {pace}
+      <span className={styles.pace}>
+        {goal.reached
+          ? 'Цель достигнута'
+          : left === null
+            ? 'Ждём первый сбор'
+            : `Осталось ${formatCount(left)} до цели`}
+        {pace ? ` · ${pace}` : ''}
       </span>
-    </span>
+    </>
   );
 }
 

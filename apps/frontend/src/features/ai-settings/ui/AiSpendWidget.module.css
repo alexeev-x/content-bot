@@ -1,0 +1,95 @@
+.body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: 0 var(--space-4) var(--space-3);
+}
+
+.skeleton {
+  flex: 1;
+}
+
+.meta {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.total {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2);
+  margin-block-start: calc(-1 * var(--space-2));
+}
+
+.total p {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.total strong {
+  color: var(--color-text);
+  font-size: var(--font-size-xl);
+}
+
+/* Two columns split by a rule, as in design-refs (ИИ расходы). */
+.facts {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  row-gap: var(--space-3);
+  margin: 0;
+}
+
+.facts > div {
+  display: grid;
+  gap: 2px;
+  padding-inline-end: var(--space-3);
+}
+
+.facts > div:nth-child(even) {
+  padding-inline: var(--space-4) 0;
+  border-inline-start: 1px solid var(--color-border-subtle);
+}
+
+.facts dt {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+}
+
+.facts dd {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.accent {
+  color: var(--color-accent-text);
+}
+
+.settings {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: var(--size-target-min);
+  margin-block-start: auto;
+  padding: var(--space-2) 0 0;
+  border: 0;
+  border-block-start: 1px solid var(--color-border-subtle);
+  background: transparent;
+  color: var(--color-accent-text);
+  font: inherit;
+  font-size: var(--font-size-sm);
+  cursor: pointer;
+}
+
+.settings span {
+  flex: 1;
+  text-align: start;
+}
+
+.settings[data-focus-visible] {
+  outline: var(--focus-ring-width) solid var(--color-focus-ring);
+  outline-offset: var(--focus-ring-offset);
+}

@@ -5,8 +5,7 @@ import type { AnalyticsTab } from './AnalyticsBoard';
 import { CompareVideosPanel } from './CompareVideosPanel';
 import { CrossPostedPanel } from './CrossPostedPanel';
 import { DynamicsPanel } from './DynamicsPanel';
-import { FollowersPanel } from './FollowersPanel';
-import { GoalsPanelSkeleton } from './GoalsPanel';
+import { FollowersGoalsPanelSkeleton } from './FollowersGoalsPanel';
 import { InsightsPanel } from './InsightsPanel';
 import { ItemsTable } from './ItemsTable';
 import { PerformancePanel } from './PerformancePanel';
@@ -86,8 +85,7 @@ export function AnalyticsSkeleton({ tab, timezone }: { tab: AnalyticsTab; timezo
           </TabPanel>
           <TabPanel id="audience">
             <div className={styles.sections}>
-              <FollowersPanel report={undefined} platform={undefined} />
-              <GoalsPanelSkeleton />
+              <FollowersGoalsPanelSkeleton />
               <PlatformComparison report={undefined} />
               <CrossPostedPanel items={undefined} now={0} onOpen={ignore} />
               <PostingHeatmap items={undefined} platform={undefined} timezone={timezone} />

@@ -1,6 +1,7 @@
 .page {
   display: grid;
   gap: var(--space-4);
+  container-type: inline-size;
 }
 
 /* The one bold element: the state and the next step, with a status-coloured edge. */
@@ -106,8 +107,24 @@
 .facts {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: var(--space-3);
   margin: 0;
+  padding-block: var(--space-3);
+  border-block: 1px solid var(--color-border-subtle);
+}
+
+.facts > div {
+  display: grid;
+  align-content: start;
+  gap: var(--space-1);
+  padding-inline: var(--space-3);
+}
+
+.facts > div:first-child {
+  padding-inline-start: 0;
+}
+
+.facts > div + div {
+  border-inline-start: 1px solid var(--color-border-subtle);
 }
 
 .facts dt {
@@ -122,9 +139,13 @@
 
 .models {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
   gap: var(--space-4);
   padding: var(--space-4);
+}
+
+.models > * + * {
+  padding-block-start: var(--space-4);
+  border-block-start: 1px solid var(--color-border-subtle);
 }
 
 .custom {
@@ -154,12 +175,6 @@
   font-weight: var(--font-weight-medium);
 }
 
-@media (max-width: 480px) {
-  .facts {
-    grid-template-columns: 1fr 1fr;
-  }
-}
-
 .budgetRow {
   display: grid;
   grid-template-columns: 180px minmax(0, 1fr);
@@ -177,5 +192,52 @@
   .budgetRow {
     grid-template-columns: 1fr;
     gap: var(--space-1);
+  }
+}
+
+/* Models beside spend and limits on a wide screen; one column on a phone. */
+.columns {
+  display: grid;
+  align-items: start;
+  gap: var(--space-4);
+}
+
+/* Two columns only when the budget choices still fit beside their labels. */
+@container (min-width: 1000px) {
+  .columns {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.08fr);
+  }
+}
+
+.intro {
+  margin: 0;
+  padding: var(--space-4) var(--space-4) 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+  max-inline-size: 60ch;
+}
+
+.spendLabel {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+}
+
+.subhead {
+  margin: 0;
+  padding: var(--space-4) var(--space-4) 0;
+  border-block-start: 1px solid var(--color-border-subtle);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+}
+
+.extra {
+  padding: var(--space-3);
+}
+
+@media (max-width: 640px) {
+  /* The phone reference drops the intro: the hints under each list say the same. */
+  .intro {
+    display: none;
   }
 }

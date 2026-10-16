@@ -31,6 +31,7 @@ export type PageBindings = {
   /** The content-analytics widget bodies; without them those widgets are not drawn. */
   analytics?: WidgetEnv['analytics'];
   sources?: WidgetEnv['sources'];
+  ai?: WidgetEnv['ai'];
 };
 
 /** The fixed Обзор: the day summary is read once for all the widgets that need it. */
@@ -46,7 +47,8 @@ export function Dashboard({
   onOpenMedia,
   renderMediaPreview,
   analytics,
-  sources
+  sources,
+  ai
 }: PageBindings) {
   const today = useTodayRange(timezone);
   const week = useWeekQuery(timezone, today.from);
@@ -108,6 +110,7 @@ export function Dashboard({
     onOpenActivity: setActivity,
     analytics,
     sources,
+    ai,
     onOpenPost
   };
   return (
