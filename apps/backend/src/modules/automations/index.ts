@@ -155,7 +155,24 @@ export function createD1AutomationRepository(db: D1Database): AutomationReposito
   const readSummary = async (now: number): Promise<AutomationSummaryDto[]> => {
     const result = await db
       .prepare(
-        `SELECT a.id, a.enabled, a.revision,
+        // The latest and the active run are picked first, once per automation, and then read by primary key. A
+        // join on a correlated subquery let the planner walk every run and re-run the pick per row (~11 000 rows a
+        // call on DEV, 16.10.2026); MATERIALIZED keeps the order of work fixed.
+        `WITH picked AS MATERIALIZED (
+           SELECT a.id AS automation_id,
+             (SELECT latest.id FROM automation_runs latest
+               WHERE latest.automation_id = a.id
+                 AND NOT (latest.status = 'queued' AND latest.scheduled_at > ?1)
+               ORDER BY latest.requested_at DESC, latest.id DESC LIMIT 1) AS last_id,
+             (SELECT current.id FROM automation_runs current
+               WHERE current.automation_id = a.id AND current.status IN ('queued', 'running')
+                 AND NOT (current.status = 'queued' AND current.scheduled_at > ?1)
+               ORDER BY current.requested_at, current.id LIMIT 1) AS active_id
+           FROM automations a
+           -- Rows of removed automations (dota-hero-statistics, 14.10.2026) stay in D1 but are not listed.
+           WHERE a.id IN ('dota-intelligence')
+         )
+         SELECT a.id, a.enabled, a.revision,
           r.id AS last_run_id, r.origin AS last_origin, r.status AS last_status,
           r.requested_at AS last_requested_at, r.scheduled_at AS last_scheduled_at,
           r.started_at AS last_started_at, r.completed_at AS last_completed_at,
@@ -168,21 +185,10 @@ export function createD1AutomationRepository(db: D1Database): AutomationReposito
               AND coalesce(r.completed_at, r.started_at, r.requested_at) > ?1 - 300000 THEN 0
             ELSE 1
           END AS run_now_eligible
-         FROM automations a
-         LEFT JOIN automation_runs r ON r.id = (
-           SELECT latest.id FROM automation_runs latest
-           WHERE latest.automation_id = a.id
-             AND NOT (latest.status = 'queued' AND latest.scheduled_at > ?1)
-           ORDER BY latest.requested_at DESC, latest.id DESC LIMIT 1
-         )
-         LEFT JOIN automation_runs active ON active.id = (
-           SELECT current.id FROM automation_runs current
-           WHERE current.automation_id = a.id AND current.status IN ('queued', 'running')
-             AND NOT (current.status = 'queued' AND current.scheduled_at > ?1)
-           ORDER BY current.requested_at, current.id LIMIT 1
-         )
-         -- Rows of removed automations (dota-hero-statistics, 14.10.2026) stay in D1 but are not listed.
-         WHERE a.id IN ('dota-intelligence')
+         FROM picked p
+         JOIN automations a ON a.id = p.automation_id
+         LEFT JOIN automation_runs r ON r.id = p.last_id
+         LEFT JOIN automation_runs active ON active.id = p.active_id
          ORDER BY a.id`
       )
       .bind(now)
