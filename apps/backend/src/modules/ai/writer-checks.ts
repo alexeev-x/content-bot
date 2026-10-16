@@ -17,6 +17,7 @@ const AI_PHRASES: readonly [RegExp, string][] = [
 ];
 // JS `\b` does not see Cyrillic letters, so the boundary is spelled out.
 const SELF_EXPERIENCE = /(^|[^а-яёa-z])(я (играл|попробовал|поиграл|сыграл|затестил)|мне (понравил|зашл))/i;
+const SELF_DOUBT = /мой тупой мозг|я тупой|я не умею|путаюсь в кнопках|я на такое не способен/i;
 const EMOJI_BULLET = /^\s*[\u{1F300}-\u{1FAFF}☀-➿]/mu;
 const CAPS_LINE = /^[^a-zа-яё\n]*[A-ZА-ЯЁ]{4,}[^a-zа-яё\n]*$/mu;
 const WORDS: Record<WriterFormat, [number, number]> = {
@@ -36,6 +37,9 @@ export function checkDraft(format: WriterFormat, mode: WriterMode, text: string)
   if (format === 'fidit' && subscribe) codes.push('ENDING_FIDIT_CTA');
   if (format === 'igrat' && !subscribe) codes.push('ENDING_IGRAT_CTA_MISSING');
   if (mode === 'automatic' && SELF_EXPERIENCE.test(text)) codes.push('INVENTED_EXPERIENCE');
+  // «Учу фидить» is told with full confidence: the pseudo-expert never puts himself down (owner, 16.10.2026).
+  if (format === 'fidit' && SELF_DOUBT.test(text)) codes.push('FIDIT_SELF_DOUBT');
+  if ((text.match(/мужчин/gi) ?? []).length > 1) codes.push('ADDRESS_REPEATED');
   const words = text.split(/\s+/).filter(Boolean).length;
   const [min, max] = WORDS[format];
   if (words < min) codes.push('TOO_SHORT');
@@ -53,6 +57,9 @@ export function describeCheck(code: string): string {
     ENDING_FIDIT_CTA: '«подпишись» в «Учу фидить» — так нельзя',
     ENDING_IGRAT_CTA_MISSING: 'нет концовки «А ты подпишись уже, заебал»',
     INVENTED_EXPERIENCE: 'выдуманный личный опыт («я играл», «мне понравилось»)',
+    FIDIT_SELF_DOUBT: 'в «Учу фидить» автор принижает себя — там только уверенный тон',
+    ADDRESS_REPEATED: '«мужчины» больше одного раза',
+    NEEDS_FACTS: 'нужен ваш опыт',
     TOO_SHORT: 'короче формата',
     TOO_LONG: 'длиннее формата'
   };
