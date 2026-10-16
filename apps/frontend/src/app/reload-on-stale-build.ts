@@ -1,3 +1,5 @@
+import { whenRefreshIdle } from '../shared/api/http-client';
+
 const KEY = 'stale-build-reload-at';
 /** A second failure this soon after a reload is not a stale build; let the error show instead of looping. */
 const LOOP_GUARD_MS = 30_000;
@@ -17,6 +19,7 @@ export function reloadOnStaleBuild() {
       return;
     }
     event.preventDefault();
-    window.location.reload();
+    // Never in the middle of a session refresh: cutting one short signs the owner out (http-client.ts).
+    void whenRefreshIdle(() => window.location.reload());
   });
 }

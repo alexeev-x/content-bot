@@ -199,8 +199,28 @@ async function performRefresh(startGeneration: number, startEpoch: number): Prom
 // one just rotated. Without the API (old browsers, tests) behaviour is per-tab single-flight only.
 function withRefreshLock<T>(task: () => Promise<T>): Promise<T> {
   const locks = typeof navigator === 'undefined' ? undefined : navigator.locks;
-  return locks ? locks.request('alexeev-refresh', task) : task();
+  return locks ? locks.request(REFRESH_LOCK, task) : task();
 }
+const REFRESH_LOCK = 'alexeev-refresh';
+
+/**
+ * Runs `task` (a reload) once no refresh is in flight in this tab or any other, holding the refresh lock so none
+ * starts before the page goes. A reload that cuts a refresh short loses the rotated cookie: the server already
+ * spent the old one, so the next refresh looks like reuse and revokes the session (owner signed out after a
+ * deploy reload, 16.10.2026).
+ */
+export async function whenRefreshIdle(task: () => void): Promise<void> {
+  await refreshInFlight?.catch(() => undefined);
+  const locks = typeof navigator === 'undefined' ? undefined : navigator.locks;
+  if (!locks) return task();
+  // Held until the page unloads, so no refresh begins meanwhile, but bounded: a reload the owner cancels
+  // («Остаться» on a dirty draft) leaves the page alive, and a lock held forever would hang every refresh.
+  await locks.request(REFRESH_LOCK, async () => {
+    task();
+    await new Promise<void>((resolve) => setTimeout(resolve, RELOAD_HOLD_MS));
+  });
+}
+const RELOAD_HOLD_MS = 10_000;
 
 /** Renews the access token; concurrent callers share one request. A 401/403 ends the session. */
 export function refreshSession(): Promise<AccessTokenDto> {
