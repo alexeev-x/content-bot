@@ -82,7 +82,8 @@ function renderWidget(item: LayoutItem, env: Omit<WidgetEnv, 'phone'>, phone: bo
       ) : null;
     case 'dota':
       return env.dota ? (
-        <Widget id="dota" title={copy.dota.title}>
+        // The medal and the rank name say what this is; the heading stays for screen readers (owner, 16.10.2026).
+        <Widget id="dota" title={copy.dota.title} bare>
           {env.dota}
         </Widget>
       ) : null;

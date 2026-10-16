@@ -5,6 +5,25 @@ import { Button, Skeleton, TextField } from '../../../shared/ui';
 import { DOTA_REFRESH_MS, dotaProfileQueryOptions, useRefreshDota, useSetDotaAccount } from '../api/dota-profile';
 import styles from './DotaSummary.module.css';
 
+// Medals and stars from OpenDota's public assets (Valve art), bundled so no external image host is needed.
+const images = import.meta.glob<string>('../assets/*.webp', { eager: true, import: 'default', query: '?url' });
+const image = (name: string) => images[`../assets/${name}.webp`];
+
+/** rank_tier is medal × 10 + stars: 42 is the 4th medal (Герой) with 2 stars; Immortal (8x) has none. */
+function RankMedal({ rankTier }: { rankTier: number | null }) {
+  const medal = rankTier === null ? undefined : image(`rank-icon-${Math.floor(rankTier / 10)}`);
+  if (rankTier === null || medal === undefined) return null;
+  const stars = rankTier % 10;
+  const star = stars > 0 && rankTier < 80 ? image(`rank-star-${stars}`) : undefined;
+  // Decorative: the rank name beside it says the same in words.
+  return (
+    <span className={styles.medal} aria-hidden="true">
+      <img src={medal} alt="" />
+      {star ? <img src={star} alt="" /> : null}
+    </span>
+  );
+}
+
 const percent = (share: number) => `${Math.round(share * 100)}%`;
 const fetchedOn = (iso: string) =>
   new Date(iso).toLocaleString('ru-RU', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' });
@@ -41,6 +60,7 @@ export function DotaSummary() {
   return (
     <div className={styles.body}>
       <div className={styles.rank}>
+        <RankMedal rankTier={dota.rankTier} />
         <strong>{dota.rankLabel ?? 'Без ранга'}</strong>
         {dota.plus ? <span className={styles.plus}>Dota Plus</span> : null}
       </div>

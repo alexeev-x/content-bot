@@ -86,6 +86,8 @@
   --size-crop-handle: 12px;
   --size-ratio-tile: 56px;
   --size-action-row: 64px;
+  /* «Дота» on Обзор: the rank medal beside the rank name. */
+  --size-rank-medal: 56px;
   /* Wide media dialogs (add media, crop). */
   --measure-dialog-media: 760px;
 
