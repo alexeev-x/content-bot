@@ -51,6 +51,13 @@ const REQUEST_TTL_MS = 30 * 60 * 1000;
 const HISTORY_TURNS = 8;
 const TURN_MAX = 1200;
 const END_CHAT = 'rd:end';
+/** Format buttons under /redactor (owner, 16.10.2026: a Telegram post and the two rubrics, no plain Reel). */
+const FORMAT_BUTTONS: readonly [WriterFormat, string][] = [
+  ['telegram', 'Пост в ТГ'],
+  ['fidit', 'Учу фидить'],
+  ['igrat', 'Учусь играть']
+];
+const FORMAT_CALLBACK = /^rd:(telegram|fidit|igrat)$/;
 const ASK_TOPIC_TEXT =
   'Редактор на связи. Пишите, что нужно: пост, рилс, идею или вопрос. Чат идёт, пока не нажмёте «Закончить» (или 30 минут тишины).';
 const CHAT_ENDED_TEXT = 'Чат с редактором закончен. Обычные сообщения снова становятся черновиками.';
@@ -196,6 +203,12 @@ export function registerAiWriter(bot: Bot, runtime: AiWriterRuntime): void {
   // A free request: «напиши рилс учусь играть про …» still becomes a draft with its buttons; anything else gets
   // one answer in the author's voice.
   const endKeyboard = () => new InlineKeyboard().text('Закончить', END_CHAT);
+  // A tap picks the format of the next message; a second tap on the same one clears it.
+  const chatKeyboard = (chosen: WriterFormat | null) => {
+    const board = new InlineKeyboard();
+    for (const [format, label] of FORMAT_BUTTONS) board.text(format === chosen ? `✓ ${label}` : label, `rd:${format}`);
+    return board.row().text('Закончить', END_CHAT);
+  };
 
   // A message to the editor: «напиши пост …» / «придумай рилс …» still becomes a draft with its buttons;
   // anything else is answered in the author's voice with the conversation so far (`history` is null outside
@@ -250,7 +263,7 @@ export function registerAiWriter(bot: Bot, runtime: AiWriterRuntime): void {
     const chatId = ctx.chat.id;
     const now = runtime.clock.now();
     const deps = await runtime.writer();
-    const message = task === '' ? await ctx.reply(ASK_TOPIC_TEXT, { reply_markup: endKeyboard() }) : null;
+    const message = task === '' ? await ctx.reply(ASK_TOPIC_TEXT, { reply_markup: chatKeyboard(null) }) : null;
     await deps.writer.openRequest({
       chatId,
       promptMessageId: message?.message_id ?? ctx.message?.message_id ?? 0,
@@ -258,6 +271,36 @@ export function registerAiWriter(bot: Bot, runtime: AiWriterRuntime): void {
       expiresAt: now + REQUEST_TTL_MS
     });
     if (task !== '') await free(ctx, task, []);
+  });
+
+  bot.callbackQuery(FORMAT_CALLBACK, async (ctx) => {
+    const chatId = ctx.chat?.id;
+    const messageId = ctx.callbackQuery.message?.message_id;
+    if (chatId === undefined || messageId === undefined) return;
+    const picked = (ctx.match[1] ?? 'telegram') as WriterFormat;
+    // The ✓ on the message says what is picked now; tapping it again clears it.
+    const current = ctx.callbackQuery.message?.reply_markup?.inline_keyboard
+      .flat()
+      .some(
+        (button) => button.text.startsWith('✓') && 'callback_data' in button && button.callback_data === `rd:${picked}`
+      );
+    const format = current ? null : picked;
+    const open = await (
+      await runtime.writer()
+    ).writer.setRequestFormat({
+      chatId,
+      promptMessageId: messageId,
+      format,
+      now: runtime.clock.now()
+    });
+    if (!open) {
+      await ctx.answerCallbackQuery({ text: 'Чат закончен, отправьте /redactor ещё раз' }).catch(() => undefined);
+      return;
+    }
+    await ctx.answerCallbackQuery(format === null ? {} : { text: 'Следующее сообщение — тема' }).catch(() => undefined);
+    await ctx.editMessageReplyMarkup({ reply_markup: chatKeyboard(format) }).catch((error: unknown) => {
+      if (!(error instanceof GrammyError && error.description.includes('message is not modified'))) throw error;
+    });
   });
 
   bot.callbackQuery(END_CHAT, async (ctx) => {
@@ -294,9 +337,15 @@ export function registerAiWriter(bot: Bot, runtime: AiWriterRuntime): void {
     // The topic for an open /redactor request.
     // Inside a /redactor chat every text goes to the editor, and the chat stays open.
     const now = runtime.clock.now();
-    const history = await (await runtime.writer()).writer.touchRequest(ctx.chat.id, now, now + REQUEST_TTL_MS);
-    if (history !== null) {
-      await free(ctx, ctx.message.text, history);
+    const writer = (await runtime.writer()).writer;
+    const chat = await writer.touchRequest(ctx.chat.id, now, now + REQUEST_TTL_MS);
+    if (chat !== null) {
+      if (chat.format === null) await free(ctx, ctx.message.text, chat.history);
+      else {
+        // A picked format applies to one message; the chat goes on free after it.
+        await writer.setRequestFormat({ chatId: ctx.chat.id, promptMessageId: null, format: null, now });
+        await draft(ctx, chat.format, ctx.message.text);
+      }
       return;
     }
     const intent = writerIntent(ctx.message.text);

@@ -66,8 +66,22 @@ export interface WriterRepository {
   recent(limit: number): Promise<GenerationRow[]>;
   /** Opens (or restarts) the chat's /redactor conversation with an empty history. */
   openRequest(input: { chatId: number; promptMessageId: number; now: number; expiresAt: number }): Promise<void>;
-  /** The open conversation's history, its expiry moved to `expiresAt`; null when none is open or it expired. */
-  touchRequest(chatId: number, now: number, expiresAt: number): Promise<ChatTurn[] | null>;
+  /**
+   * The open conversation, its expiry moved to `expiresAt`: the history and the format a button picked for the
+   * next message (null: a free message); null when none is open or it expired.
+   */
+  touchRequest(
+    chatId: number,
+    now: number,
+    expiresAt: number
+  ): Promise<{ history: ChatTurn[]; format: WriterFormat | null } | null>;
+  /** A format button on the chat's own message (null clears it); false when that chat is gone or replaced. */
+  setRequestFormat(input: {
+    chatId: number;
+    promptMessageId: number | null;
+    format: WriterFormat | null;
+    now: number;
+  }): Promise<boolean>;
   /** Stores the conversation's history (the caller bounds it). */
   saveHistory(chatId: number, history: readonly ChatTurn[]): Promise<void>;
   /** Ends the conversation («Закончить»). */
@@ -123,6 +137,23 @@ function toGeneration(row: RawGeneration): GenerationRow {
     chatMessageId: row.chat_message_id,
     createdAt: row.created_at
   };
+}
+
+function parseHistory(raw: string): ChatTurn[] {
+  try {
+    const value: unknown = JSON.parse(raw);
+    return Array.isArray(value)
+      ? value.filter(
+          (turn): turn is ChatTurn =>
+            typeof turn === 'object' &&
+            turn !== null &&
+            ((turn as ChatTurn).role === 'owner' || (turn as ChatTurn).role === 'editor') &&
+            typeof (turn as ChatTurn).text === 'string'
+        )
+      : [];
+  } catch {
+    return [];
+  }
 }
 
 export function createD1WriterRepository(db: D1Database): WriterRepository {
@@ -257,25 +288,22 @@ export function createD1WriterRepository(db: D1Database): WriterRepository {
       const row = await db
         .prepare(
           `UPDATE ai_writer_requests SET expires_at = ?3, updated_at = ?2
-           WHERE chat_id = ?1 AND expires_at > ?2 RETURNING history`
+           WHERE chat_id = ?1 AND expires_at > ?2 RETURNING history, format`
         )
         .bind(chatId, now, expiresAt)
-        .first<{ history: string }>();
-      if (row === null) return null;
-      try {
-        const value: unknown = JSON.parse(row.history);
-        return Array.isArray(value)
-          ? value.filter(
-              (turn): turn is ChatTurn =>
-                typeof turn === 'object' &&
-                turn !== null &&
-                ((turn as ChatTurn).role === 'owner' || (turn as ChatTurn).role === 'editor') &&
-                typeof (turn as ChatTurn).text === 'string'
-            )
-          : [];
-      } catch {
-        return [];
-      }
+        .first<{ history: string; format: WriterFormat | null }>();
+      return row === null ? null : { history: parseHistory(row.history), format: row.format };
+    },
+
+    async setRequestFormat({ chatId, promptMessageId, format, now }) {
+      const result = await db
+        .prepare(
+          `UPDATE ai_writer_requests SET format = ?3, updated_at = ?4
+           WHERE chat_id = ?1 AND (?2 IS NULL OR prompt_message_id = ?2) AND expires_at > ?4`
+        )
+        .bind(chatId, promptMessageId, format, now)
+        .run();
+      return result.meta.changes === 1;
     },
 
     async saveHistory(chatId, history) {

@@ -128,16 +128,24 @@ describe('/redactor chat', () => {
   it('keeps the conversation open with its history until it expires or is closed', async () => {
     const repo = createD1WriterRepository(testDb());
     await repo.openRequest({ chatId: 1, promptMessageId: 10, now: 0, expiresAt: 1000 });
-    expect(await repo.touchRequest(1, 2, 2000)).toEqual([]);
+    expect(await repo.touchRequest(1, 2, 2000)).toEqual({ history: [], format: null });
+    // A button picks the format of the next message; a button of an older /redactor changes nothing.
+    expect(await repo.setRequestFormat({ chatId: 1, promptMessageId: 9, format: 'igrat', now: 3 })).toBe(false);
+    expect(await repo.setRequestFormat({ chatId: 1, promptMessageId: 10, format: 'igrat', now: 3 })).toBe(true);
+    expect((await repo.touchRequest(1, 4, 2000))?.format).toBe('igrat');
+    await repo.setRequestFormat({ chatId: 1, promptMessageId: null, format: null, now: 5 });
     await repo.saveHistory(1, [
       { role: 'owner', text: 'привет' },
       { role: 'editor', text: 'здарова' }
     ]);
     // The second message is still in the chat (not a plain draft) and sees the first turn.
-    expect(await repo.touchRequest(1, 1500, 3000)).toEqual([
-      { role: 'owner', text: 'привет' },
-      { role: 'editor', text: 'здарова' }
-    ]);
+    expect(await repo.touchRequest(1, 1500, 3000)).toEqual({
+      history: [
+        { role: 'owner', text: 'привет' },
+        { role: 'editor', text: 'здарова' }
+      ],
+      format: null
+    });
     expect(await repo.touchRequest(1, 3000, 4000)).toBeNull();
     await repo.openRequest({ chatId: 1, promptMessageId: 11, now: 0, expiresAt: 1000 });
     await repo.closeRequest(1);
