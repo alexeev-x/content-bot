@@ -220,9 +220,9 @@ export function CompareVideosPanel({ items, tracked, baselines, timezone, picked
           {rows.map((row) => (
             <li key={row.item.id} className={styles.pick}>
               <span className={styles.swatch} style={{ '--swatch': row.color } as CSSProperties} />
-              <PlatformGlyph platform={row.item.platform} withLabel size={14} />
+              <PlatformGlyph platform={row.item.platform} size={14} />
               <span className={styles.pickTitle} title={row.item.title || undefined}>
-                {itemTitle(row.item)}
+                {PLATFORM_LABEL[row.item.platform]} · {itemTitle(row.item)}
               </span>
               <IconButton
                 icon="x"
@@ -449,6 +449,11 @@ function nameOf(row: Row, rows: readonly Row[]): string {
 }
 
 /** Per 1000 views: reactions of a big and a small video compare only as a rate. */
+/** A rate below 10 keeps one decimal: «0,4 против 1,2», not «0 против 1». */
+function rateText(rate: number): string {
+  return rate < 10 ? (Math.round(rate * 10) / 10).toLocaleString('ru-RU') : formatCount(Math.round(rate));
+}
+
 function per1000(value: number | null, views: number | null): number | null {
   return value === null || views === null || views < 100 ? null : (value / views) * 1000;
 }
@@ -495,11 +500,16 @@ function keyDifferences(rows: readonly Row[], mixed: boolean, horizon: number): 
       .sort((a, b) => b.rate - a.rate);
     if (rates.length < 2) continue;
     const [first, last] = [rates[0]!, rates.at(-1)!];
-    if (first.rate >= 1 && first.rate >= last.rate * 1.3)
+    if (first.rate >= 1 && first.rate >= last.rate * 1.3) {
+      // The rate explanation once, on the first rate fact.
+      const why = result.some((entry) => entry.detail.includes('на 1000'))
+        ? ''
+        : ' На 1000 просмотров, поэтому большой и маленький охват сравнимы.';
       result.push({
-        title: `${nameOf(first.row, rows)} сильнее цепляет: ${formatCount(Math.round(first.rate))} ${noun} на 1000 просмотров`,
-        detail: `У ${nameOf(last.row, rows)} — ${formatCount(Math.round(last.rate))}. Считается на 1000 просмотров, поэтому большой и маленький охват сравнимы.`
+        title: `${nameOf(first.row, rows)} сильнее цепляет: ${rateText(first.rate)} ${noun} на 1000 просмотров`,
+        detail: `У ${nameOf(last.row, rows)} — ${rateText(last.rate)}.${why}`
       });
+    }
   }
   const later = rows
     .filter((row) => row.at24 !== null && row.at48 !== null && (row.at24 ?? 0) > 0)

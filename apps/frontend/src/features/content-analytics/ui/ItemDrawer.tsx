@@ -412,8 +412,8 @@ function DrawerBody({
                             {entry.id === item.id ? ' · этот' : ''}
                           </span>
                           <span className={styles.metricLabel}>
-                            {formatViews(entry)} просм. · {formatCount(entry.likes)}{' '}
-                            {likesLabel(entry.platform).toLowerCase()}
+                            {formatViews(entry)} просм. · {likesLabel(entry.platform).toLowerCase()}:{' '}
+                            {formatCount(entry.likes)}
                             {engagementRate(entry) !== null
                               ? ` · ER ${engagementRate(entry)?.toLocaleString('ru-RU')}%`
                               : ''}
