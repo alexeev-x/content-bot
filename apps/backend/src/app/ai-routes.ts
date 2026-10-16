@@ -38,9 +38,17 @@ const ALERT_TIMEOUT_MS = 5_000;
 /** A check costs a fraction of a cent; a few per 10 minutes is plenty and bounds a stuck button or a loop. */
 const CHECK_LIMIT = 5;
 const CHECK_WINDOW_MS = 10 * 60 * 1000;
-/** A studio draft is a paid request: enough for a control run of 15 topics, bounded against a loop. */
+/**
+ * A studio draft is a paid request, bounded against a loop. 20 per 10 minutes by default; dev sets AI_DRAFT_LIMIT
+ * higher so a control run (20+ tasks) is not cut (owner, 16.10.2026). The money limits («Бюджет») still apply.
+ */
 const DRAFT_LIMIT = 20;
+const DRAFT_LIMIT_MAX = 500;
 const DRAFT_WINDOW_MS = 10 * 60 * 1000;
+const draftLimit = (env: { AI_DRAFT_LIMIT?: string }): number => {
+  const value = Number(env.AI_DRAFT_LIMIT);
+  return Number.isInteger(value) && value > 0 ? Math.min(value, DRAFT_LIMIT_MAX) : DRAFT_LIMIT;
+};
 /** A request from the studio has no Telegram deadline; the model still gets a bound. */
 const DRAFT_TIMEOUT_MS = 60_000;
 /** The studio sends a read when the last one is a day old: a handful per window is plenty. */
@@ -110,7 +118,7 @@ export const aiRoutes = new Hono<AppBindings>()
   })
   .post(
     '/drafts',
-    rateLimit({ name: 'ai-draft', limit: DRAFT_LIMIT, windowMs: DRAFT_WINDOW_MS }),
+    rateLimit({ name: 'ai-draft', limit: draftLimit, windowMs: DRAFT_WINDOW_MS }),
     limitBody(MAX_BODY_BYTES),
     validated('json', createAiDraftInputSchema),
     async (c) => {
