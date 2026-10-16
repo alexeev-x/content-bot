@@ -45,7 +45,13 @@
   background: var(--color-surface-2);
   font-size: var(--font-size-sm);
 }
+/* Only the title gives way in a narrow chip: a shrunk logo box let the logo overlap the text. */
+.pick > * {
+  flex-shrink: 0;
+}
 .pickTitle {
+  flex-shrink: 1;
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -269,6 +275,11 @@
   min-width: 0;
   font-size: var(--font-size-sm);
   font-weight: var(--font-weight-medium);
+}
+.cardTitle .swatch {
+  display: inline-block;
+  margin-inline-end: var(--space-2);
+  vertical-align: 0.05em;
 }
 .cardMeta {
   font-size: var(--font-size-xs);

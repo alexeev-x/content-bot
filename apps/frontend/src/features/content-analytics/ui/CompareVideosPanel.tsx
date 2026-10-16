@@ -298,7 +298,8 @@ export function CompareVideosPanel({ items, tracked, baselines, timezone, picked
                     <ItemCover item={row.item} size="sm" />
                     <span className={styles.cardTitle}>
                       <span>
-                        <span className={styles.swatch} /> {itemTitle(row.item)}
+                        <span className={styles.swatch} />
+                        {itemTitle(row.item)}
                       </span>
                       <span className={styles.cardMeta}>
                         {PLATFORM_LABEL[row.item.platform]}, {formatPublished(row.item.publishedAt, timezone)}
