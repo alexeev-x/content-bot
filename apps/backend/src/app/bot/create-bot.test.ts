@@ -110,7 +110,7 @@ function harness(overrides: Partial<BotRuntime> = {}): Harness {
       // No /redactor request and no AI drafts: plain texts stay plain drafts.
       writer: () =>
         Promise.resolve({
-          writer: { takeRequest: () => Promise.resolve(null), findByChatMessage: () => Promise.resolve(null) }
+          writer: { touchRequest: () => Promise.resolve(null), findByChatMessage: () => Promise.resolve(null) }
         } as unknown as WriterDeps),
       ...overrides
     }

@@ -139,14 +139,30 @@ export function packRevision(): string {
   return hash.toString(16).padStart(8, '0');
 }
 
-/** A free request to the editor (no format chosen): the author's voice, the task as he wrote it. */
-export function buildFreePrompt(task: string): { instructions: string; input: string } {
-  const instructions = [AI_PACK.core, AI_PACK.lessons, AI_PACK.state].join('\n\n');
+/** What the editor can do, so «что ты умеешь?» gets a true answer. */
+const EDITOR_ABOUT = [
+  'Ты редактор автора в его Telegram-боте студии. Ты умеешь:',
+  '- писать посты для Telegram-канала его голосом; после «Одобрить» пост становится черновиком в студии и публикуется оттуда;',
+  '- писать сценарии рилсов: «Учу фидить», «Учусь играть» и отдельные — с тремя вариантами хука;',
+  '- переписывать короче или смешнее, давать другой вариант;',
+  '- обсуждать идеи, придумывать темы, названия и шутки.',
+  'Чтобы получить черновик с кнопками, автор пишет «напиши пост про …» или «придумай рилс учусь играть про …».'
+].join('\n');
+
+/** A free request to the editor (no format): the author's voice, the conversation so far, the new message. */
+export function buildFreePrompt(
+  task: string,
+  history: readonly { role: 'owner' | 'editor'; text: string }[] = []
+): { instructions: string; input: string } {
+  const instructions = [AI_PACK.core, AI_PACK.lessons, AI_PACK.state, EDITOR_ABOUT].join('\n\n');
   const lexicon = matchLexicon(task);
   const parts = [
     lexicon.length > 0 ? `Сленг и мемы из задания:\n${lexicon.join('\n')}` : '',
-    'РЕЖИМ: свободная просьба автора. Выполни её его голосом, коротко и по делу. Без «ХУКИ:» и «ТЕКСТ:».',
-    `ПРОСЬБА:\n${task}`
+    'РЕЖИМ: разговор с автором. Отвечай его голосом, коротко и по делу. Без «ХУКИ:» и «ТЕКСТ:».',
+    history.length > 0
+      ? `РАЗГОВОР ДО ЭТОГО:\n${history.map((turn) => `${turn.role === 'owner' ? 'Автор' : 'Ты'}: ${turn.text}`).join('\n')}`
+      : '',
+    `СООБЩЕНИЕ АВТОРА:\n${task}`
   ];
   return { instructions, input: parts.filter(Boolean).join('\n\n') };
 }

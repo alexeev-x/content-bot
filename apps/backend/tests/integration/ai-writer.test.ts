@@ -124,14 +124,24 @@ describe('AI writer', () => {
   });
 });
 
-describe('/redactor request', () => {
-  it('is taken once as a free request and expires', async () => {
+describe('/redactor chat', () => {
+  it('keeps the conversation open with its history until it expires or is closed', async () => {
     const repo = createD1WriterRepository(testDb());
     await repo.openRequest({ chatId: 1, promptMessageId: 10, now: 0, expiresAt: 1000 });
-    expect(await repo.takeRequest(1, 2)).toEqual({ format: null });
-    expect(await repo.takeRequest(1, 3)).toBeNull();
+    expect(await repo.touchRequest(1, 2, 2000)).toEqual([]);
+    await repo.saveHistory(1, [
+      { role: 'owner', text: 'привет' },
+      { role: 'editor', text: 'здарова' }
+    ]);
+    // The second message is still in the chat (not a plain draft) and sees the first turn.
+    expect(await repo.touchRequest(1, 1500, 3000)).toEqual([
+      { role: 'owner', text: 'привет' },
+      { role: 'editor', text: 'здарова' }
+    ]);
+    expect(await repo.touchRequest(1, 3000, 4000)).toBeNull();
     await repo.openRequest({ chatId: 1, promptMessageId: 11, now: 0, expiresAt: 1000 });
-    expect(await repo.takeRequest(1, 1000)).toBeNull();
+    await repo.closeRequest(1);
+    expect(await repo.touchRequest(1, 1, 2000)).toBeNull();
   });
 });
 

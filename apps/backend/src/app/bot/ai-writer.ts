@@ -14,6 +14,7 @@ import {
   recordFeedback,
   rewriteDraft,
   saveOwnerEdit,
+  type ChatTurn,
   type WriterDeps,
   type WriterFormat,
   type WriterResult
@@ -45,8 +46,14 @@ const NOT_A_POST_TEXT =
 const EDIT_SAVED_TEXT = 'Сохранил вашу версию. Одобрить её?';
 
 /** The /redactor request waits this long for the topic. */
-const REQUEST_TTL_MS = 15 * 60 * 1000;
-const ASK_TOPIC_TEXT = 'Что написать? Пост, рилс или что угодно — просто опишите.';
+const REQUEST_TTL_MS = 30 * 60 * 1000;
+/** Turns of the conversation the editor sees, and the length of each. */
+const HISTORY_TURNS = 8;
+const TURN_MAX = 1200;
+const END_CHAT = 'rd:end';
+const ASK_TOPIC_TEXT =
+  'Редактор на связи. Пишите, что нужно: пост, рилс, идею или вопрос. Чат идёт, пока не нажмёте «Закончить» (или 30 минут тишины).';
+const CHAT_ENDED_TEXT = 'Чат с редактором закончен. Обычные сообщения снова становятся черновиками.';
 
 const REWRITES = {
   more: 'другой вариант: другой заход, другие шутки, тот же смысл',
@@ -188,7 +195,12 @@ export function registerAiWriter(bot: Bot, runtime: AiWriterRuntime): void {
   // after the command, is a free request; «придумай рилс …» or «напиши пост …» in it still makes a draft.
   // A free request: «напиши рилс учусь играть про …» still becomes a draft with its buttons; anything else gets
   // one answer in the author's voice.
-  async function free(ctx: Context, text: string) {
+  const endKeyboard = () => new InlineKeyboard().text('Закончить', END_CHAT);
+
+  // A message to the editor: «напиши пост …» / «придумай рилс …» still becomes a draft with its buttons;
+  // anything else is answered in the author's voice with the conversation so far (`history` is null outside
+  // a /redactor chat).
+  async function free(ctx: Context, text: string, history: ChatTurn[] | null) {
     const intent = writerIntent(text);
     if (intent !== null) {
       await draft(ctx, intent.format, intent.task);
@@ -201,14 +213,27 @@ export function registerAiWriter(bot: Bot, runtime: AiWriterRuntime): void {
       (async () => {
         try {
           const deps = await runtime.writer();
-          const answer = await askEditor(deps, { task: text, signal: AbortSignal.timeout(MODEL_TIMEOUT_MS) });
+          const answer = await askEditor(deps, {
+            task: text,
+            history: history ?? [],
+            signal: AbortSignal.timeout(MODEL_TIMEOUT_MS)
+          });
           for (const event of answer.budgetEvents)
             await ctx.api.sendMessage(chatId, formatAiBudgetAlert(event), { parse_mode: 'HTML' });
           const shown =
             answer.text === null
               ? FAILED_TEXT
               : escapeHtml(answer.text.length > 4000 ? `${answer.text.slice(0, 4000)}…` : answer.text);
-          await edit(ctx, chatId, message.message_id, shown);
+          await edit(ctx, chatId, message.message_id, shown, history === null ? undefined : endKeyboard());
+          if (history !== null && answer.text !== null)
+            await deps.writer.saveHistory(
+              chatId,
+              [
+                ...history,
+                { role: 'owner' as const, text: text.slice(0, TURN_MAX) },
+                { role: 'editor' as const, text: answer.text.slice(0, TURN_MAX) }
+              ].slice(-HISTORY_TURNS)
+            );
         } catch (error) {
           const unavailable = error instanceof AppError && error.code === 'UNAVAILABLE';
           if (!unavailable) runtime.onError(error);
@@ -223,19 +248,25 @@ export function registerAiWriter(bot: Bot, runtime: AiWriterRuntime): void {
   bot.command('redactor', async (ctx) => {
     const task = ctx.match.trim();
     const chatId = ctx.chat.id;
-    if (task !== '') {
-      await free(ctx, task);
-      return;
-    }
-    const message = await ctx.reply(ASK_TOPIC_TEXT);
     const now = runtime.clock.now();
     const deps = await runtime.writer();
+    const message = task === '' ? await ctx.reply(ASK_TOPIC_TEXT, { reply_markup: endKeyboard() }) : null;
     await deps.writer.openRequest({
       chatId,
-      promptMessageId: message.message_id,
+      promptMessageId: message?.message_id ?? ctx.message?.message_id ?? 0,
       now,
       expiresAt: now + REQUEST_TTL_MS
     });
+    if (task !== '') await free(ctx, task, []);
+  });
+
+  bot.callbackQuery(END_CHAT, async (ctx) => {
+    const chatId = ctx.chat?.id;
+    if (chatId === undefined) return;
+    await (await runtime.writer()).writer.closeRequest(chatId);
+    await ctx.answerCallbackQuery().catch((error: unknown) => runtime.onError(error));
+    await ctx.editMessageReplyMarkup().catch(() => undefined);
+    await ctx.reply(CHAT_ENDED_TEXT);
   });
 
   bot.on('message:text', async (ctx, next) => {
@@ -261,9 +292,11 @@ export function registerAiWriter(bot: Bot, runtime: AiWriterRuntime): void {
     // A forward is someone else's text: always a plain draft, never a paid model call.
     if (ctx.message.forward_origin !== undefined) return next();
     // The topic for an open /redactor request.
-    const requested = await (await runtime.writer()).writer.takeRequest(ctx.chat.id, runtime.clock.now());
-    if (requested !== null) {
-      await (requested.format === null ? free(ctx, ctx.message.text) : draft(ctx, requested.format, ctx.message.text));
+    // Inside a /redactor chat every text goes to the editor, and the chat stays open.
+    const now = runtime.clock.now();
+    const history = await (await runtime.writer()).writer.touchRequest(ctx.chat.id, now, now + REQUEST_TTL_MS);
+    if (history !== null) {
+      await free(ctx, ctx.message.text, history);
       return;
     }
     const intent = writerIntent(ctx.message.text);

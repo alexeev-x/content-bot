@@ -1,7 +1,7 @@
 import type { Clock } from '../../platform/clock';
 import { AppError } from '../../shared/app-error';
 import type { AiRepository } from './d1-ai-repository';
-import type { FeedbackKind, GenerationRow, RevisionRow, WriterRepository } from './d1-writer-repository';
+import type { ChatTurn, FeedbackKind, GenerationRow, RevisionRow, WriterRepository } from './d1-writer-repository';
 import { type AiTextProvider, AiProviderError } from './ports';
 import { assertAiReady, type BudgetEvent, readAiSettings, recordAiUsage } from './service';
 import { checkDraft, editRatio } from './writer-checks';
@@ -318,7 +318,7 @@ export async function recordFeedback(deps: WriterDeps, generationId: string, kin
  */
 export async function askEditor(
   deps: WriterDeps,
-  input: { task: string; signal: AbortSignal }
+  input: { task: string; history?: readonly ChatTurn[]; signal: AbortSignal }
 ): Promise<{ text: string | null; errorCode: string | null; budgetEvents: BudgetEvent[] }> {
   const task = input.task.trim().slice(0, MAX_TASK);
   if (task === '') throw new AppError('VALIDATION_ERROR', 'The task is empty');
@@ -327,7 +327,7 @@ export async function askEditor(
   try {
     const result = await provider.complete({
       model,
-      ...buildFreePrompt(task),
+      ...buildFreePrompt(task, input.history),
       maxOutputTokens: MAX_OUTPUT_TOKENS,
       signal: input.signal
     });

@@ -31,6 +31,12 @@ export interface RevisionRow {
   createdAt: number;
 }
 
+/** One turn of a /redactor conversation. */
+export interface ChatTurn {
+  role: 'owner' | 'editor';
+  text: string;
+}
+
 export interface WriterRepository {
   createGeneration(
     row: Omit<GenerationRow, 'status' | 'errorCode' | 'model' | 'hooks' | 'warnings' | 'chatMessageId'> & {
@@ -58,10 +64,14 @@ export interface WriterRepository {
   attachPost(revisionId: string, postId: string): Promise<void>;
   addFeedback(input: { id: string; generationId: string; kind: FeedbackKind; now: number }): Promise<void>;
   recent(limit: number): Promise<GenerationRow[]>;
-  /** Opens (or restarts) the chat's /redactor request as a free one (no format). */
+  /** Opens (or restarts) the chat's /redactor conversation with an empty history. */
   openRequest(input: { chatId: number; promptMessageId: number; now: number; expiresAt: number }): Promise<void>;
-  /** Takes the open request once: `format` is null for a free request; null when none is open or it expired. */
-  takeRequest(chatId: number, now: number): Promise<{ format: WriterFormat | null } | null>;
+  /** The open conversation's history, its expiry moved to `expiresAt`; null when none is open or it expired. */
+  touchRequest(chatId: number, now: number, expiresAt: number): Promise<ChatTurn[] | null>;
+  /** Stores the conversation's history (the caller bounds it). */
+  saveHistory(chatId: number, history: readonly ChatTurn[]): Promise<void>;
+  /** Ends the conversation («Закончить»). */
+  closeRequest(chatId: number): Promise<void>;
 }
 
 interface RawGeneration {
@@ -234,21 +244,49 @@ export function createD1WriterRepository(db: D1Database): WriterRepository {
     async openRequest({ chatId, promptMessageId, now, expiresAt }) {
       await db
         .prepare(
-          `INSERT INTO ai_writer_requests (chat_id, format, prompt_message_id, expires_at, updated_at)
-           VALUES (?1, NULL, ?2, ?3, ?4)
-           ON CONFLICT (chat_id) DO UPDATE SET format = NULL, prompt_message_id = ?2, expires_at = ?3, updated_at = ?4`
+          `INSERT INTO ai_writer_requests (chat_id, format, prompt_message_id, expires_at, updated_at, history)
+           VALUES (?1, NULL, ?2, ?3, ?4, '[]')
+           ON CONFLICT (chat_id) DO UPDATE SET format = NULL, prompt_message_id = ?2, expires_at = ?3, updated_at = ?4,
+             history = '[]'`
         )
         .bind(chatId, promptMessageId, expiresAt, now)
         .run();
     },
 
-    async takeRequest(chatId, now) {
-      // One statement: two texts arriving together cannot both take the request.
+    async touchRequest(chatId, now, expiresAt) {
       const row = await db
-        .prepare('DELETE FROM ai_writer_requests WHERE chat_id = ? RETURNING format, expires_at AS expiresAt')
-        .bind(chatId)
-        .first<{ format: WriterFormat | null; expiresAt: number }>();
-      return row !== null && row.expiresAt > now ? { format: row.format } : null;
+        .prepare(
+          `UPDATE ai_writer_requests SET expires_at = ?3, updated_at = ?2
+           WHERE chat_id = ?1 AND expires_at > ?2 RETURNING history`
+        )
+        .bind(chatId, now, expiresAt)
+        .first<{ history: string }>();
+      if (row === null) return null;
+      try {
+        const value: unknown = JSON.parse(row.history);
+        return Array.isArray(value)
+          ? value.filter(
+              (turn): turn is ChatTurn =>
+                typeof turn === 'object' &&
+                turn !== null &&
+                ((turn as ChatTurn).role === 'owner' || (turn as ChatTurn).role === 'editor') &&
+                typeof (turn as ChatTurn).text === 'string'
+            )
+          : [];
+      } catch {
+        return [];
+      }
+    },
+
+    async saveHistory(chatId, history) {
+      await db
+        .prepare('UPDATE ai_writer_requests SET history = ? WHERE chat_id = ?')
+        .bind(JSON.stringify(history), chatId)
+        .run();
+    },
+
+    async closeRequest(chatId) {
+      await db.prepare('DELETE FROM ai_writer_requests WHERE chat_id = ?').bind(chatId).run();
     },
 
     async recent(limit) {

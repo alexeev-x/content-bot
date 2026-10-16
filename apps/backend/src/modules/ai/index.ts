@@ -16,7 +16,12 @@ export {
   spendWindows,
   updateAiSettings
 } from './service';
-export { createD1WriterRepository, type FeedbackKind, type WriterRepository } from './d1-writer-repository';
+export {
+  type ChatTurn,
+  createD1WriterRepository,
+  type FeedbackKind,
+  type WriterRepository
+} from './d1-writer-repository';
 export {
   approveDraft,
   askEditor,
