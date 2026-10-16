@@ -25,13 +25,10 @@ const bodyBox = () => screen.getByRole('textbox', { name: 'Текст' });
 /** user-event puts the caret at the start of a contenteditable (it keeps the end of a textarea): move it by hand. */
 // The caret goes to the end through ProseMirror's keymap (select all, then →), and the text arrives as one input:
 // a DOM selection plus key-by-key typing lost a character under CI load (selectionchange arrives late).
+// ArrowRight moves only the DOM selection, which ProseMirror reads on a later selectionchange, so under load the
+// paste replaced the whole Ctrl+A selection. Rewriting the one-paragraph body through the keymap has no such race.
 async function typeAtEnd(user: ReturnType<typeof userEvent.setup>, text: string) {
-  const box = bodyBox();
-  const before = box.textContent ?? '';
-  box.focus();
-  await user.keyboard('{Control>}a{/Control}{ArrowRight}');
-  await user.paste(text);
-  await waitFor(() => expect(box.textContent).toBe(before + text));
+  await replaceBody(user, (bodyBox().textContent ?? '') + text);
 }
 
 // Ctrl+A goes through ProseMirror's own keymap; a DOM selection (user.clear) reaches the editor state only on a
