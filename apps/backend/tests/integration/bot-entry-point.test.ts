@@ -15,7 +15,8 @@ import {
   OWNER_TOKEN,
   resetDb,
   seedSession,
-  START
+  START,
+  openPostMode
 } from '../helpers/harness';
 import { meteredDb, type Meter } from '../helpers/metered-db';
 import { count, seedApprovedPost, seedDestination, seedPublication } from '../helpers/publishing';
@@ -33,6 +34,7 @@ let logLines: string[];
 
 beforeEach(async () => {
   await resetDb();
+  await openPostMode();
   await seedSession({ token: OWNER_TOKEN, expiresAt: START + 400 * 24 * HOUR });
   clock = fakeClock();
   const metered = meteredDb(testDb());
@@ -131,7 +133,7 @@ describe('a text from the owner becomes a draft', () => {
     expect(replies[0]).toMatchObject({ chat_id: Number(OWNER_ID), text: 'Черновик создан' });
     expect(buttonOf(replies[0])).toEqual({
       text: 'Открыть в Студии',
-      web_app: { url: `${ORIGIN}/posts/${postId}/publish` }
+      web_app: { url: `${ORIGIN}/posts/${postId}` }
     });
     const audit = await testDb()
       .prepare("SELECT actor_telegram_id FROM audit_log WHERE entity_id = ?1 AND action = 'post.create'")

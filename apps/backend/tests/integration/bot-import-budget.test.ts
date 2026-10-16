@@ -3,7 +3,16 @@ import { createMediaImportRunner } from '../../src/app/bot/media-import-runner';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { fakeBotAdminApi } from '../helpers/fake-bot-admin-api';
 import { testDb } from '../helpers/db';
-import { createApi, fakeClock, OWNER_ID, OWNER_TOKEN, resetDb, seedSession, TEST_BOT_TOKEN } from '../helpers/harness';
+import {
+  createApi,
+  fakeClock,
+  OWNER_ID,
+  OWNER_TOKEN,
+  resetDb,
+  seedSession,
+  TEST_BOT_TOKEN,
+  openPostMode
+} from '../helpers/harness';
 import { meteredDb } from '../helpers/metered-db';
 import { testMediaBucket } from '../helpers/media-bucket';
 import { count, seedDestination, seedDraftPost } from '../helpers/publishing';
@@ -23,6 +32,7 @@ let sent: string[];
 
 beforeEach(async () => {
   await resetDb();
+  await openPostMode();
   sent = [];
   vi.spyOn(console, 'log').mockImplementation(() => {});
   vi.spyOn(globalThis, 'fetch').mockImplementation((input, init) => {

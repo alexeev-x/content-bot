@@ -21,7 +21,7 @@ import type { OwnerReply, OwnerReports } from './owner-reports';
 import type { TelegramCaller } from './telegram-call';
 import type { UpdateDedup } from './update-dedup';
 import type { WriterDeps } from '../../modules/ai';
-import { registerAiWriter } from './ai-writer';
+import { NO_MODE_TEXT, registerAiWriter, REQUEST_TTL_MS } from './ai-writer';
 
 export interface BotSettings {
   token: string;
@@ -290,12 +290,13 @@ export function createBot(config: BotConfig, runtime: BotRuntime): Bot {
   // Before the plain draft handler: a request for a text or a reply to an AI draft is the writer's.
   registerAiWriter(bot, runtime);
 
-  // Whatever the owner sends or forwards becomes a draft. An unknown command is not a post.
+  // In /post mode whatever the owner sends or forwards becomes a draft. An unknown command is not a post.
   const draftReplyOptions = async (post: { id: string; revision: number }) => {
     const markup = publishKeyboard({
       appOrigin: runtime.appOrigin,
       postId: post.id,
-      buttons: await runtime.publish.buttons(post)
+      buttons: await runtime.publish.buttons(post),
+      studio: 'post'
     });
     return markup === undefined ? {} : { reply_markup: markup };
   };
@@ -323,6 +324,13 @@ export function createBot(config: BotConfig, runtime: BotRuntime): Bot {
   // `media_group_id`: they all resolve to the same draft through one idempotency key.
   bot.on(['message:photo', 'message:video', 'message:animation'], async (ctx) => {
     const message = ctx.message;
+    // Files become drafts only in /post mode (owner, 16.10.2026). An album says so once (its captioned item).
+    const now = runtime.clock.now();
+    const mode = await (await runtime.writer()).writer.touchRequest(ctx.chat.id, now, now + REQUEST_TTL_MS);
+    if (mode?.kind !== 'post') {
+      if (message.media_group_id === undefined || message.caption !== undefined) await ctx.reply(NO_MODE_TEXT);
+      return;
+    }
     const file = mediaFileOf(message);
     if (file === null) return;
     const albumId = message.media_group_id;
@@ -360,7 +368,7 @@ export function createBot(config: BotConfig, runtime: BotRuntime): Bot {
     // One answer per draft: the others of an album stay silent.
     // No publish buttons here: the files are not attached yet, and the report that follows carries them.
     if (first) {
-      const markup = publishKeyboard({ appOrigin: runtime.appOrigin, postId: post.id, buttons: [] });
+      const markup = publishKeyboard({ appOrigin: runtime.appOrigin, postId: post.id, buttons: [], studio: 'post' });
       await ctx.reply(MEDIA_DRAFT_CREATED_TEXT, markup === undefined ? {} : { reply_markup: markup });
     }
   });

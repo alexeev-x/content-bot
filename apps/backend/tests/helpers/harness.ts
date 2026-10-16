@@ -233,3 +233,14 @@ export function createApi(
     }
   };
 }
+
+/** Opens /post mode in the owner's chat, so the bot turns texts and files into drafts (owner, 16.10.2026). */
+export async function openPostMode(chatId = Number(OWNER_ID)): Promise<void> {
+  await testDb()
+    .prepare(
+      `INSERT OR REPLACE INTO ai_writer_requests (chat_id, format, prompt_message_id, expires_at, updated_at, history, kind)
+       VALUES (?, NULL, 1, 9000000000000000, 0, '[]', 'post')`
+    )
+    .bind(chatId)
+    .run();
+}

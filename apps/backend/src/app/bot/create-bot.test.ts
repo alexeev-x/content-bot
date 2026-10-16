@@ -107,10 +107,13 @@ function harness(overrides: Partial<BotRuntime> = {}): Harness {
         origins.push(origin);
         return Promise.resolve();
       },
-      // No /redactor request and no AI drafts: plain texts stay plain drafts.
       writer: () =>
         Promise.resolve({
-          writer: { touchRequest: () => Promise.resolve(null), findByChatMessage: () => Promise.resolve(null) }
+          writer: {
+            // /post mode is open: plain texts and files become drafts.
+            touchRequest: () => Promise.resolve({ kind: 'post', history: [], format: null }),
+            findByChatMessage: () => Promise.resolve(null)
+          }
         } as unknown as WriterDeps),
       ...overrides
     }
@@ -274,7 +277,7 @@ describe('bot', () => {
         }
       }
     });
-    expect(adminCalls).toEqual(['setChatCommands 4242 start,redactor,plan,status', 'setChatMenuCommands 4242']);
+    expect(adminCalls).toEqual(['setChatCommands 4242 start,redactor,post,plan,status', 'setChatMenuCommands 4242']);
   });
 
   it('still replies when setting the commands fails, and logs a stable code', async () => {
@@ -286,7 +289,7 @@ describe('bot', () => {
     await expect(settleBackground()).resolves.toBeDefined();
     expect(calls).toHaveLength(1);
     expect(calls[0]?.method).toBe('sendMessage');
-    expect(adminCalls).toEqual(['setChatCommands 4242 start,redactor,plan,status']);
+    expect(adminCalls).toEqual(['setChatCommands 4242 start,redactor,post,plan,status']);
     expect(events).toEqual([
       { component: 'telegram', operation: 'owner_chat.set_commands', status: 503, errorCode: 'telegram_http_400' }
     ]);
@@ -425,6 +428,27 @@ describe('owner commands', () => {
 });
 
 describe('drafts from messages', () => {
+  it('outside /post and /redactor a text or a forward is not a post: the bot names the two commands', async () => {
+    const setup = harness({
+      writer: () =>
+        Promise.resolve({
+          writer: { touchRequest: () => Promise.resolve(null), findByChatMessage: () => Promise.resolve(null) }
+        } as unknown as WriterDeps)
+    });
+    const { calls } = await runUpdates(
+      [textUpdate(4242, 'Привет'), textUpdate(4242, 'Новость', { updateId: 2, forwarded: true })],
+      {
+        setup
+      }
+    );
+
+    expect(setup.drafts).toEqual([]);
+    expect(calls.filter((call) => call.method === 'sendMessage').map((call) => call.payload.text)).toEqual([
+      'Чтобы сделать пост — /post, чтобы написать с ИИ — /redactor.',
+      'Чтобы сделать пост — /post, чтобы написать с ИИ — /redactor.'
+    ]);
+  });
+
   it('turns a forwarded text into a draft, keeps emoji whole and replies with an Open button', async () => {
     const text = 'Релиз 7.40 🚀\n\nНовые герои 👩‍💻 и баланс\n- первое\n- второе';
     const setup = harness();
@@ -443,9 +467,7 @@ describe('drafts from messages', () => {
         chat_id: 4242,
         text: 'Черновик создан',
         reply_markup: {
-          inline_keyboard: [
-            [{ text: 'Открыть в Студии', web_app: { url: 'https://studio.example.com/posts/post-1/publish' } }]
-          ]
+          inline_keyboard: [[{ text: 'Открыть в Студии', web_app: { url: 'https://studio.example.com/posts/post-1' } }]]
         }
       }
     });

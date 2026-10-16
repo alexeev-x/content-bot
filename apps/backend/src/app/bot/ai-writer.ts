@@ -45,8 +45,8 @@ const NOT_A_POST_TEXT =
   'Текст не влезает в пост (длиннее 4096 символов или с недопустимыми символами). Нажмите «Короче» или ответьте своей версией.';
 const EDIT_SAVED_TEXT = 'Сохранил вашу версию. Одобрить её?';
 
-/** The /redactor request waits this long for the topic. */
-const REQUEST_TTL_MS = 30 * 60 * 1000;
+/** A /redactor or /post mode ends after this long without a message. */
+export const REQUEST_TTL_MS = 30 * 60 * 1000;
 /** Turns of the conversation the editor sees, and the length of each. */
 const HISTORY_TURNS = 8;
 const TURN_MAX = 1200;
@@ -60,7 +60,11 @@ const FORMAT_BUTTONS: readonly [WriterFormat, string][] = [
 const FORMAT_CALLBACK = /^rd:(telegram|fidit|igrat)$/;
 const ASK_TOPIC_TEXT =
   'Редактор на связи. Пишите, что нужно: пост, рилс, идею или вопрос. Чат идёт, пока не нажмёте «Закончить» (или 30 минут тишины).';
-const CHAT_ENDED_TEXT = 'Чат с редактором закончен. Обычные сообщения снова становятся черновиками.';
+const CHAT_ENDED_TEXT = 'Готово, режим закончен.';
+/** Outside /post and /redactor a plain message is not a post (owner, 16.10.2026). */
+export const NO_MODE_TEXT = 'Чтобы сделать пост — /post, чтобы написать с ИИ — /redactor.';
+const POST_MODE_TEXT =
+  'Режим постов: каждое сообщение, фото или альбом станет черновиком. Нажмите «Закончить», когда хватит (или 30 минут тишины).';
 
 const REWRITES = {
   more: 'другой вариант: другой заход, другие шутки, тот же смысл',
@@ -303,6 +307,20 @@ export function registerAiWriter(bot: Bot, runtime: AiWriterRuntime): void {
     });
   });
 
+  bot.command('post', async (ctx) => {
+    const now = runtime.clock.now();
+    const message = await ctx.reply(POST_MODE_TEXT, { reply_markup: endKeyboard() });
+    await (
+      await runtime.writer()
+    ).writer.openRequest({
+      chatId: ctx.chat.id,
+      promptMessageId: message.message_id,
+      now,
+      expiresAt: now + REQUEST_TTL_MS,
+      kind: 'post'
+    });
+  });
+
   bot.callbackQuery(END_CHAT, async (ctx) => {
     const chatId = ctx.chat?.id;
     if (chatId === undefined) return;
@@ -332,13 +350,11 @@ export function registerAiWriter(bot: Bot, runtime: AiWriterRuntime): void {
         return;
       }
     }
-    // A forward is someone else's text: always a plain draft, never a paid model call.
-    if (ctx.message.forward_origin !== undefined) return next();
-    // The topic for an open /redactor request.
-    // Inside a /redactor chat every text goes to the editor, and the chat stays open.
+    // The chat's mode decides: /post makes every message a draft, /redactor sends it to the editor.
     const now = runtime.clock.now();
     const writer = (await runtime.writer()).writer;
     const chat = await writer.touchRequest(ctx.chat.id, now, now + REQUEST_TTL_MS);
+    if (chat?.kind === 'post') return next();
     if (chat !== null) {
       if (chat.format === null) await free(ctx, ctx.message.text, chat.history);
       else {
@@ -348,8 +364,16 @@ export function registerAiWriter(bot: Bot, runtime: AiWriterRuntime): void {
       }
       return;
     }
+    // Outside a mode a forward is someone else's text: never a paid model call, and no longer a post either.
+    if (ctx.message.forward_origin !== undefined) {
+      await ctx.reply(NO_MODE_TEXT);
+      return;
+    }
     const intent = writerIntent(ctx.message.text);
-    if (intent === null) return next();
+    if (intent === null) {
+      await ctx.reply(NO_MODE_TEXT);
+      return;
+    }
     await draft(ctx, intent.format, intent.task);
   });
 

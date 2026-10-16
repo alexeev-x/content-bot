@@ -121,7 +121,7 @@ export function createMediaImportRunner(
           : await publishActions.buttons({ id: postId, revision: state.revision });
       // Cron has no request to learn the origin from: without one the text still goes out, minus the Studio button.
       container.queryBudget.charge(1);
-      const markup = publishKeyboard({ appOrigin: origin, postId, buttons });
+      const markup = publishKeyboard({ appOrigin: origin, postId, buttons, studio: 'post' });
       if (markup === undefined) {
         await api.sendMessage(chatId, html, { parse_mode: 'HTML' }, signal as never);
         return;

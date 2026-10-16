@@ -9,7 +9,8 @@ import {
   OWNER_ID,
   OWNER_TOKEN,
   resetDb,
-  seedSession
+  seedSession,
+  openPostMode
 } from '../helpers/harness';
 import { createContainer } from '../../src/app/container';
 import { count, seedDestination, seedPublication } from '../helpers/publishing';
@@ -34,6 +35,7 @@ let updateId = 9000;
 
 beforeEach(async () => {
   await resetDb();
+  await openPostMode();
   clock = fakeClock();
   api = createApi({ clock, botInfo: BOT_INFO, webhookSecret: SECRET, botAdminApi: fakeBotAdminApi() });
   await seedSession({ token: OWNER_TOKEN, createdAt: clock.now(), expiresAt: clock.now() + 10 * DAY_MS });
@@ -109,7 +111,7 @@ describe('publish buttons under a draft reply', () => {
       'Опубликовать сейчас → Second',
       'Открыть в Студии'
     ]);
-    expect(buttons.at(-1)?.web_app?.url).toBe(`${ORIGIN}/posts/${post?.id}/publish`);
+    expect(buttons.at(-1)?.web_app?.url).toBe(`${ORIGIN}/posts/${post?.id}`);
     for (const button of buttons.slice(0, -1)) {
       expect(new TextEncoder().encode(button.callback_data).length).toBeLessThanOrEqual(64);
     }

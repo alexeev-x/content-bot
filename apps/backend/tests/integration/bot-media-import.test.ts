@@ -12,7 +12,8 @@ import {
   OWNER_TOKEN,
   resetDb,
   seedSession,
-  TEST_BOT_TOKEN
+  TEST_BOT_TOKEN,
+  openPostMode
 } from '../helpers/harness';
 import { testMediaBucket } from '../helpers/media-bucket';
 import { count, seedDraftPost } from '../helpers/publishing';
@@ -43,6 +44,7 @@ function jpeg(): Uint8Array {
 
 beforeEach(async () => {
   await resetDb();
+  await openPostMode();
   api = createApi({ clock: fakeClock(), botInfo: BOT_INFO, webhookSecret: SECRET, botAdminApi: fakeBotAdminApi() });
   replies = [];
   files = new Map();
@@ -204,7 +206,7 @@ describe('media from the owner becomes a draft', () => {
     expect(api.ownerMessages.map((m) => m.html)).toEqual(['Файлы загружены в черновик: 1.']);
     expect(api.ownerMessages[0]?.button).toEqual({
       text: 'Открыть в Студии',
-      url: `${ORIGIN}/posts/${row?.id}/publish`
+      url: `${ORIGIN}/posts/${row?.id}`
     });
   });
 

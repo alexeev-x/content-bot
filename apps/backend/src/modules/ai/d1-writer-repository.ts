@@ -31,6 +31,9 @@ export interface RevisionRow {
   createdAt: number;
 }
 
+/** The chat's mode: talking to the editor, or turning every message into a draft. */
+export type ChatMode = 'editor' | 'post';
+
 /** One turn of a /redactor conversation. */
 export interface ChatTurn {
   role: 'owner' | 'editor';
@@ -64,8 +67,14 @@ export interface WriterRepository {
   attachPost(revisionId: string, postId: string): Promise<void>;
   addFeedback(input: { id: string; generationId: string; kind: FeedbackKind; now: number }): Promise<void>;
   recent(limit: number): Promise<GenerationRow[]>;
-  /** Opens (or restarts) the chat's /redactor conversation with an empty history. */
-  openRequest(input: { chatId: number; promptMessageId: number; now: number; expiresAt: number }): Promise<void>;
+  /** Opens (or restarts) the chat's mode: the /redactor conversation (empty history) or /post. */
+  openRequest(input: {
+    chatId: number;
+    promptMessageId: number;
+    now: number;
+    expiresAt: number;
+    kind?: ChatMode;
+  }): Promise<void>;
   /**
    * The open conversation, its expiry moved to `expiresAt`: the history and the format a button picked for the
    * next message (null: a free message); null when none is open or it expired.
@@ -74,7 +83,7 @@ export interface WriterRepository {
     chatId: number,
     now: number,
     expiresAt: number
-  ): Promise<{ history: ChatTurn[]; format: WriterFormat | null } | null>;
+  ): Promise<{ kind: ChatMode; history: ChatTurn[]; format: WriterFormat | null } | null>;
   /** A format button on the chat's own message (null clears it); false when that chat is gone or replaced. */
   setRequestFormat(input: {
     chatId: number;
@@ -272,15 +281,15 @@ export function createD1WriterRepository(db: D1Database): WriterRepository {
         .run();
     },
 
-    async openRequest({ chatId, promptMessageId, now, expiresAt }) {
+    async openRequest({ chatId, promptMessageId, now, expiresAt, kind = 'editor' }) {
       await db
         .prepare(
-          `INSERT INTO ai_writer_requests (chat_id, format, prompt_message_id, expires_at, updated_at, history)
-           VALUES (?1, NULL, ?2, ?3, ?4, '[]')
+          `INSERT INTO ai_writer_requests (chat_id, format, prompt_message_id, expires_at, updated_at, history, kind)
+           VALUES (?1, NULL, ?2, ?3, ?4, '[]', ?5)
            ON CONFLICT (chat_id) DO UPDATE SET format = NULL, prompt_message_id = ?2, expires_at = ?3, updated_at = ?4,
-             history = '[]'`
+             history = '[]', kind = ?5`
         )
-        .bind(chatId, promptMessageId, expiresAt, now)
+        .bind(chatId, promptMessageId, expiresAt, now, kind)
         .run();
     },
 
@@ -288,11 +297,11 @@ export function createD1WriterRepository(db: D1Database): WriterRepository {
       const row = await db
         .prepare(
           `UPDATE ai_writer_requests SET expires_at = ?3, updated_at = ?2
-           WHERE chat_id = ?1 AND expires_at > ?2 RETURNING history, format`
+           WHERE chat_id = ?1 AND expires_at > ?2 RETURNING history, format, kind`
         )
         .bind(chatId, now, expiresAt)
-        .first<{ history: string; format: WriterFormat | null }>();
-      return row === null ? null : { history: parseHistory(row.history), format: row.format };
+        .first<{ history: string; format: WriterFormat | null; kind: ChatMode }>();
+      return row === null ? null : { kind: row.kind, history: parseHistory(row.history), format: row.format };
     },
 
     async setRequestFormat({ chatId, promptMessageId, format, now }) {

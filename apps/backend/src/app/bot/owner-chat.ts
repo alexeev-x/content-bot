@@ -5,6 +5,7 @@ import type { TelegramCaller } from './telegram-call';
 export const OWNER_COMMANDS = [
   { command: 'start', description: 'Открыть студию' },
   { command: 'redactor', description: 'ИИ-редактор: написать пост или рилс' },
+  { command: 'post', description: 'Создать пост: сообщения становятся черновиками' },
   { command: 'plan', description: 'План: сегодня и ближайшие публикации' },
   { command: 'status', description: 'Публикация, Cron и проблемы' }
 ];
