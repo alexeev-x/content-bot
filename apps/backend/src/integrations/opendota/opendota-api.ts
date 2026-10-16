@@ -10,7 +10,8 @@ const MAX_BODY_BYTES = 600_000;
 const TOP_HEROES = 5;
 
 export class OpenDotaError extends Error {
-  constructor(readonly code: 'DOTA_UNREACHABLE' | 'DOTA_SHAPE' | 'DOTA_NOT_FOUND') {
+  /** DOTA_UNREACHABLE (no answer), DOTA_HTTP_<status>, DOTA_SHAPE or DOTA_NOT_FOUND. */
+  constructor(readonly code: string) {
     super(code);
     this.name = 'OpenDotaError';
   }
@@ -38,14 +39,19 @@ const heroNamesSchema = z.array(z.object({ id: z.number().int(), localized_name:
 async function get<T>(fetchImpl: typeof fetch, path: string, schema: z.ZodType<T>, signal: AbortSignal): Promise<T> {
   let response: Response;
   try {
-    response = await fetchImpl(`${API}${path}`, { headers: { accept: 'application/json' }, signal });
+    response = await fetchImpl(`${API}${path}`, {
+      // Some APIs behind Cloudflare refuse a request without a User-Agent; Workers send none by default.
+      headers: { accept: 'application/json', 'user-agent': 'alexeev-studio (+https://dev.alexeevs.workers.dev)' },
+      signal
+    });
   } catch {
     throw new OpenDotaError('DOTA_UNREACHABLE');
   }
   if (response.status === 404) throw new OpenDotaError('DOTA_NOT_FOUND');
   if (!response.ok) {
     await response.body?.cancel();
-    throw new OpenDotaError('DOTA_UNREACHABLE');
+    // The status says why (a 429 is OpenDota's rate limit, a 403 a block), so it is kept in the code.
+    throw new OpenDotaError(`DOTA_HTTP_${response.status}`);
   }
   const text = await readCappedText(response, MAX_BODY_BYTES);
   if (text === null) throw new OpenDotaError('DOTA_SHAPE');
