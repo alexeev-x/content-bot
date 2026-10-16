@@ -186,3 +186,85 @@ export const aiDraftResultSchema = z.object({
   warnings: z.array(z.string()).max(30)
 });
 export type AiDraftResultDto = z.infer<typeof aiDraftResultSchema>;
+
+/** What the owner tells the editor about themselves («ИИ-редактор → Обо мне»); sent with every request. */
+export const aiAuthorFieldsSchema = z.strictObject({
+  /** Dota Friend ID (Steam account id), for the daily read of rank and heroes from OpenDota. */
+  dotaAccountId: z
+    .string()
+    .regex(/^\d{1,12}$/)
+    .nullable(),
+  hours: z.number().int().min(0).max(100_000).nullable(),
+  learningHeroes: z.array(z.string().trim().min(1).max(40)).max(10),
+  /** What the owner does not understand in the game yet («тайминги Рошана, стаки»). */
+  unknownAspects: z.string().max(1000),
+  /** Current experiments of the rubrics. */
+  experiments: z.string().max(1000),
+  /** Temporary context: streams, giveaways, a CTA of the week. */
+  notes: z.string().max(1000)
+});
+export type AiAuthorFields = z.infer<typeof aiAuthorFieldsSchema>;
+
+export const aiAuthorDotaSchema = z.object({
+  /** OpenDota rank tier (tens: medal 1–8, units: stars); null when hidden or unranked. */
+  rankTier: z.number().int().min(0).max(99).nullable(),
+  /** «Герой 2», «Легенда 5»; null without a rank. */
+  rankLabel: z.string().max(40).nullable(),
+  plus: z.boolean(),
+  /** False when «Expose Public Match Data» is off in Dota: no matches, wins or heroes are visible. */
+  publicMatchData: z.boolean(),
+  wins: z.number().int().nonnegative(),
+  losses: z.number().int().nonnegative(),
+  topHeroes: z
+    .array(
+      z.object({
+        id: z.number().int().positive(),
+        name: z.string().max(60),
+        games: z.number().int().nonnegative(),
+        winRate: z.number().min(0).max(1)
+      })
+    )
+    .max(5),
+  fetchedAt: z.iso.datetime()
+});
+export type AiAuthorDotaDto = z.infer<typeof aiAuthorDotaSchema>;
+
+export const aiAuthorProfileSchema = aiAuthorFieldsSchema.extend({
+  dota: aiAuthorDotaSchema.nullable(),
+  /** 0 before the first save (the seed from docs/ai/pack/state.md). */
+  revision: z.number().int().nonnegative(),
+  updatedAt: z.iso.datetime().nullable(),
+  /** Exactly what the editor reads with every request, built from the fields and the Dota read. */
+  promptText: z.string().max(8000)
+});
+export type AiAuthorProfileDto = z.infer<typeof aiAuthorProfileSchema>;
+
+// GET /api/v1/ai/profile → 200 AiAuthorProfileDto.
+// PUT /api/v1/ai/profile { revision, ...fields } → 200 AiAuthorProfileDto; CONFLICT 409 (STALE_REVISION).
+// POST /api/v1/ai/profile/dota AiDotaSnapshotInput → 200 AiAuthorProfileDto: stores a read of OpenDota made by
+// the studio in the owner's browser (OpenDota answers 429 to Cloudflare's shared egress, 16.10.2026); the server
+// adds the rank label and the time. CONFLICT 409 (details.reason NO_ACCOUNT), RATE_LIMIT 429 (10 per 10 minutes).
+// errors also: VALIDATION_ERROR 400, UNAUTHORIZED, FORBIDDEN.
+export const aiDotaSnapshotInputSchema = z.strictObject({
+  rankTier: z.number().int().min(0).max(99).nullable(),
+  plus: z.boolean(),
+  publicMatchData: z.boolean(),
+  wins: z.number().int().min(0).max(1_000_000),
+  losses: z.number().int().min(0).max(1_000_000),
+  topHeroes: z
+    .array(
+      z.strictObject({
+        id: z.number().int().positive().max(1000),
+        name: z.string().trim().min(1).max(60),
+        games: z.number().int().min(0).max(1_000_000),
+        winRate: z.number().min(0).max(1)
+      })
+    )
+    .max(5)
+});
+export type AiDotaSnapshotInput = z.infer<typeof aiDotaSnapshotInputSchema>;
+
+export const updateAiAuthorProfileInputSchema = aiAuthorFieldsSchema.extend({
+  revision: z.number().int().nonnegative()
+});
+export type UpdateAiAuthorProfileInput = z.infer<typeof updateAiAuthorProfileInputSchema>;

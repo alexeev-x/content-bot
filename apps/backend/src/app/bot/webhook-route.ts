@@ -104,6 +104,7 @@ export const telegramWebhook = new Hono<AppBindings>().post(
       writer: async () => ({
         repo: container.aiRepository,
         writer: container.aiWriter,
+        profiles: container.aiProfiles,
         clock: container.clock,
         newId: container.newId,
         provider: container.aiProvider,

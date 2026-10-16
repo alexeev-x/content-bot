@@ -1,11 +1,23 @@
 import {
+  aiAuthorProfileSchema,
+  aiDotaSnapshotInputSchema,
   aiDraftResultSchema,
   aiOverviewSchema,
   createAiDraftInputSchema,
+  updateAiAuthorProfileInputSchema,
   updateAiSettingsInputSchema
 } from '@alexeev/contracts';
 import { type Context, Hono } from 'hono';
-import { type BudgetEvent, checkAiConnection, generateDraft, readAiOverview, updateAiSettings } from '../modules/ai';
+import {
+  type BudgetEvent,
+  checkAiConnection,
+  generateDraft,
+  readAiOverview,
+  readAuthorProfile,
+  saveAuthorDota,
+  updateAiSettings,
+  updateAuthorProfile
+} from '../modules/ai';
 import { getOwnerOperationsSettings } from '../modules/settings';
 import { appOriginOf } from './bot/app-origin';
 import type { AppBindings } from './env';
@@ -23,6 +35,9 @@ const DRAFT_LIMIT = 20;
 const DRAFT_WINDOW_MS = 10 * 60 * 1000;
 /** A request from the studio has no Telegram deadline; the model still gets a bound. */
 const DRAFT_TIMEOUT_MS = 60_000;
+/** The studio sends a read when the last one is a day old: a handful per window is plenty. */
+const DOTA_LIMIT = 10;
+const DOTA_WINDOW_MS = 10 * 60 * 1000;
 
 async function deps(c: Context<AppBindings>) {
   const container = c.get('container');
@@ -93,7 +108,7 @@ export const aiRoutes = new Hono<AppBindings>()
       const container = c.get('container');
       const input = c.req.valid('json');
       const result = await generateDraft(
-        { ...base, newId: container.newId, provider: container.aiProvider },
+        { ...base, profiles: container.aiProfiles, newId: container.newId, provider: container.aiProvider },
         { ...input, source: 'studio', signal: AbortSignal.timeout(DRAFT_TIMEOUT_MS) }
       );
       sendBudgetAlerts(c, result.budgetEvents);
@@ -109,5 +124,24 @@ export const aiRoutes = new Hono<AppBindings>()
           warnings: generation.warnings
         })
       );
+    }
+  )
+  .get('/profile', async (c) =>
+    c.json(aiAuthorProfileSchema.parse(await readAuthorProfile(c.get('container').aiProfiles)))
+  )
+  .put('/profile', limitBody(MAX_BODY_BYTES), validated('json', updateAiAuthorProfileInputSchema), async (c) => {
+    const container = c.get('container');
+    await updateAuthorProfile({ repo: container.aiProfiles, clock: container.clock }, c.req.valid('json'));
+    return c.json(aiAuthorProfileSchema.parse(await readAuthorProfile(container.aiProfiles)));
+  })
+  .post(
+    '/profile/dota',
+    rateLimit({ name: 'ai-dota', limit: DOTA_LIMIT, windowMs: DOTA_WINDOW_MS }),
+    limitBody(MAX_BODY_BYTES),
+    validated('json', aiDotaSnapshotInputSchema),
+    async (c) => {
+      const container = c.get('container');
+      await saveAuthorDota({ repo: container.aiProfiles, clock: container.clock }, c.req.valid('json'));
+      return c.json(aiAuthorProfileSchema.parse(await readAuthorProfile(container.aiProfiles)));
     }
   );

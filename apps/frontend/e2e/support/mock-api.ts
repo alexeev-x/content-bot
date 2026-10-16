@@ -540,6 +540,30 @@ export async function mockApi(page: Page): Promise<void> {
       nextCursor: null
     });
   });
+  await page.route(/\/api\/v1\/ai\/profile$/, (route) =>
+    json(route, {
+      dotaAccountId: '337578062',
+      hours: 750,
+      learningHeroes: ['Оракл', 'Феникс'],
+      unknownAspects: 'тайминги Рошана, стаки',
+      experiments: 'В «Учусь играть» открывать личным косяком.',
+      notes: 'Стрим в пятницу в 20:00',
+      dota: {
+        rankTier: 42,
+        rankLabel: 'Герой 2',
+        plus: true,
+        publicMatchData: false,
+        wins: 0,
+        losses: 0,
+        topHeroes: [],
+        fetchedAt: '2026-10-16T06:17:00.000Z'
+      },
+      revision: 2,
+      updatedAt: '2026-10-16T06:20:00.000Z',
+      promptText:
+        'СОСТОЯНИЕ АВТОРА (сейчас, из студии; опыт не выдумывай сверх этого):\n- Ранг: Герой 2 (по OpenDota на 16.10.2026).\n- В Доте около 750 часов.\n- Сейчас учит героев: Оракл, Феникс.'
+    })
+  );
   // «Настройки → ИИ» and the overview widget: on, one cheap check this month.
   await page.route(/\/api\/v1\/ai$/, (route) =>
     json(route, {

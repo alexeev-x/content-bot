@@ -39,3 +39,5 @@ export {
 } from './writer';
 export { describeCheck } from './writer-checks';
 export { FORMAT_LABEL, WRITER_FORMATS, type WriterFormat } from './writer-types';
+export { authorStateText, rankLabel, readAuthorProfile, saveAuthorDota, updateAuthorProfile } from './author-profile';
+export { type AuthorProfileRepository, createD1AuthorProfileRepository } from './d1-author-repository';

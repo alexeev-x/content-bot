@@ -55,7 +55,9 @@ import {
   type AiRepository,
   type AiTextProvider,
   createD1AiRepository,
+  createD1AuthorProfileRepository,
   createD1WriterRepository,
+  type AuthorProfileRepository,
   createOpenAiProvider,
   type WriterRepository
 } from '../modules/ai';
@@ -179,6 +181,8 @@ export interface Container {
   aiProvider: AiTextProvider | null;
   /** AI drafts, their revisions with provenance and the owner's feedback (migration 0054). */
   aiWriter: WriterRepository;
+  /** «Обо мне»: the author's state for every AI request (migration 0058). */
+  aiProfiles: AuthorProfileRepository;
   heroAssetStorage: HeroAssetStorage | undefined;
   housekeeping: {
     purgeExpired(input: { now: number; limit: number }): Promise<{ idempotencyKeys: number; rateLimits: number }>;
@@ -467,6 +471,9 @@ export function createContainer(env: ContainerEnv, overrides: ContainerOverrides
     },
     get aiWriter() {
       return createD1WriterRepository(db());
+    },
+    get aiProfiles() {
+      return createD1AuthorProfileRepository(db());
     },
     get aiProvider() {
       if (overrides.aiProvider !== undefined) return overrides.aiProvider;

@@ -1,6 +1,8 @@
 import type { Clock } from '../../platform/clock';
 import { AppError } from '../../shared/app-error';
+import { readAuthorProfile } from './author-profile';
 import type { AiRepository } from './d1-ai-repository';
+import type { AuthorProfileRepository } from './d1-author-repository';
 import type { ChatTurn, FeedbackKind, GenerationRow, RevisionRow, WriterRepository } from './d1-writer-repository';
 import { type AiTextProvider, AiProviderError } from './ports';
 import { assertAiReady, type BudgetEvent, readAiSettings, recordAiUsage } from './service';
@@ -19,6 +21,8 @@ export const NEEDS_FACTS = 'NEEDS_FACTS';
 export interface WriterDeps {
   repo: AiRepository;
   writer: WriterRepository;
+  /** «Обо мне»: sent with every request. */
+  profiles: AuthorProfileRepository;
   clock: Clock;
   timezone: string;
   newId: () => string;
@@ -37,6 +41,8 @@ export interface Approval {
   /** False when the draft was approved before (a repeated tap): the caller must not create a second post. */
   created: boolean;
 }
+
+const author = async (deps: Pick<WriterDeps, 'profiles'>) => (await readAuthorProfile(deps.profiles)).promptText;
 
 /** The text the owner sees now: the newest revision. */
 export function currentRevision(revisions: readonly RevisionRow[]): RevisionRow | null {
@@ -189,7 +195,13 @@ export async function generateDraft(
   return call(
     deps,
     row,
-    buildWriterPrompt({ format: input.format, mode: input.mode, task, holdOut: input.holdOut ?? [] }),
+    buildWriterPrompt({
+      format: input.format,
+      mode: input.mode,
+      task,
+      holdOut: input.holdOut ?? [],
+      author: await author(deps)
+    }),
     input.signal
   );
 }
@@ -222,7 +234,8 @@ export async function rewriteDraft(
     format: parent.format,
     mode: parent.mode,
     task: parent.task,
-    rewrite: { text: current.text, instruction }
+    rewrite: { text: current.text, instruction },
+    author: await author(deps)
   });
   return call(deps, row, prompt, input.signal);
 }
@@ -339,7 +352,7 @@ export async function askEditor(
   try {
     const result = await provider.complete({
       model,
-      ...buildFreePrompt(task, input.history),
+      ...buildFreePrompt(task, input.history, await author(deps)),
       maxOutputTokens: MAX_OUTPUT_TOKENS,
       signal: input.signal
     });

@@ -4,6 +4,7 @@ import { pluralRu } from '../../../shared/lib/ru-format';
 export const copy = {
   loading: 'Загружаем обзор…',
   ai: { title: 'ИИ расходы' },
+  dota: { title: 'Дота' },
   analytics: {
     audience: 'Аудитория',
     top: 'Что залетает сейчас',
