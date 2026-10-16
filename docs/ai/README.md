@@ -1,5 +1,7 @@
 # AI writer: what the model reads
 
+**Execution roadmap and actual implementation status:** [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md). Component design and checklist: [architecture.md](architecture.md). The live learning cycle and T+72 reviews are not yet built.
+
 Owner decision 16.10.2026: the studio controls the AI writer; this folder is its only source. Model-facing text is Russian and terse (imperatives, no tables, no sources or dates inside it); everything a person needs to know is in this README.
 
 | Path | What | Sent to the model |
@@ -7,7 +9,7 @@ Owner decision 16.10.2026: the studio controls the AI writer; this folder is its
 | `pack/core.md` | voice of ALEXEEV + «don't sound like AI» | always |
 | `pack/format-*.md` | one card per format: `uchu-fidit`, `uchus-igrat`, `standalone` (Reels), `telegram` | the task's format only |
 | `pack/state.md` | seed for the current state (rank, heroes being learnt, experiments); at runtime the state lives in D1 and is edited in the studio | always (from D1) |
-| `pack/lessons.md` | seed for «Мой опыт» (what analytics showed so far); at runtime rules and «Мой опыт» live in D1, never written back to Git | always (from D1) |
+| `pack/lessons.md` | static seed for «Мой опыт» (past hypotheses); **currently bundled in AI_PACK.lessons**, not yet updated from D1; runtime rules/memory are planned | always (currently static; D1 later) |
 | `pack/output.md` | answer shape and the final self-check | always |
 | `lexicon.jsonl` | Dota slang, nicknames, memes: `w` words that match, `m` meaning, `s` kind, `t` classic/current/owner | only entries whose words occur in the task (≤ 15) |
 | `examples/reels.jsonl` | 37 exact Reels texts: `f` format (`fidit`, `igrat`, `solo`), `r` role (`g` gold, `r` reference, `a` anti), `ok` approved exact text, `t` text, `m` metrics snapshot, `n` note | 3–4 of the same format, gold first, then closest by topic |
