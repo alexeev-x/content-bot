@@ -30,6 +30,11 @@
   justify-content: center;
   max-width: 100%;
 }
+/* Telegram's widget page is light. In the dark theme a color-scheme mismatch makes the browser paint an opaque
+   white backdrop behind the cross-origin iframe; matching its scheme keeps the iframe transparent. */
+.host iframe {
+  color-scheme: light;
+}
 /* The iframe keeps loading while invisible: it must exist to post `ready`. */
 .host[data-loading] {
   visibility: hidden;
