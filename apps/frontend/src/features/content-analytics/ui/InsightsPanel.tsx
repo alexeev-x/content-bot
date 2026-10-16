@@ -50,7 +50,7 @@ export function InsightsPanel({ insights, summary, days, onOpenItem }: Props) {
   const shown = all ? relevant : relevant.slice(0, FIRST);
   const hidden = relevant.length - shown.length;
   if (insights === undefined && summary === undefined)
-    return <PanelSkeleton title={copy.insights.title(days)} rows={17.1} phoneRows={42.5} />;
+    return <PanelSkeleton title={copy.insights.title(days)} rows={11.1} phoneRows={26} />;
   return (
     <Panel title={copy.insights.title(days)} headingLevel={2} quiet>
       <div className={styles.body}>
