@@ -21,9 +21,9 @@ const SELF_DOUBT = /мой тупой мозг|я тупой|я не умею|п
 const EMOJI_BULLET = /^\s*[\u{1F300}-\u{1FAFF}☀-➿]/mu;
 const CAPS_LINE = /^[^a-zа-яё\n]*[A-ZА-ЯЁ]{4,}[^a-zа-яё\n]*$/mu;
 const WORDS: Record<WriterFormat, [number, number]> = {
-  fidit: [80, 200],
-  igrat: [90, 220],
-  standalone: [60, 200],
+  fidit: [80, 230],
+  igrat: [90, 230],
+  standalone: [60, 230],
   telegram: [1, 320]
 };
 
