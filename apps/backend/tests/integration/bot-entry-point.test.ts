@@ -98,6 +98,10 @@ interface ReplyButton {
   web_app: { url: string };
 }
 const buttonOf = (reply: (typeof replies)[number] | undefined): ReplyButton | undefined =>
+  // The Mini App button: /plan puts its view switch above it.
+  (reply?.reply_markup as { inline_keyboard: ReplyButton[][] } | undefined)?.inline_keyboard
+    .flat()
+    .find((button) => 'web_app' in button) ??
   (reply?.reply_markup as { inline_keyboard: ReplyButton[][] } | undefined)?.inline_keyboard[0]?.[0];
 
 describe('a text from the owner becomes a draft', () => {

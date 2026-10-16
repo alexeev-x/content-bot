@@ -156,6 +156,8 @@ export interface BotRuntime {
 // under the webhook's 10 s deadline (grammY's own default is 500 s).
 const REPLY_TIMEOUT_SECONDS = 4;
 
+type PlanView = 'today' | 'next';
+
 const START_TEXT = 'Студия на связи. Откройте её кнопкой ниже.';
 const REPORT_FAILED_TEXT = 'Не удалось получить данные. Попробуйте ещё раз.';
 const DRAFT_FAILED_TEXT = 'Не удалось создать черновик. Отправьте текст ещё раз.';
@@ -235,14 +237,51 @@ export function createBot(config: BotConfig, runtime: BotRuntime): Bot {
     }
     await replyWithButton(ctx, answer);
   };
-  bot.command(
-    'today',
-    report(() => runtime.reports.today())
-  );
-  bot.command(
-    'next',
-    report(() => runtime.reports.next())
-  );
+  // /plan: today and the next publications in one message (owner, 16.10.2026); the buttons switch the view
+  // in place.
+  const planView = async (view: PlanView) => {
+    const answer = await (view === 'today' ? runtime.reports.today() : runtime.reports.next());
+    return {
+      html: answer.html,
+      options: {
+        parse_mode: 'HTML' as const,
+        link_preview_options: { is_disabled: true },
+        reply_markup: new InlineKeyboard()
+          .text(view === 'today' ? '✓ Сегодня' : 'Сегодня', 'plan:today')
+          .text(view === 'next' ? '✓ Ближайшие' : 'Ближайшие', 'plan:next')
+          .row()
+          .webApp(answer.button.text, answer.button.url)
+      }
+    };
+  };
+  // /today and /next stay as typed shortcuts to the two views; only /plan is in the menu.
+  bot.command(['plan', 'today', 'next'], async (ctx) => {
+    let view: Awaited<ReturnType<typeof planView>>;
+    try {
+      view = await planView(ctx.message?.text.startsWith('/next') ? 'next' : 'today');
+    } catch (error) {
+      runtime.onError(error);
+      await ctx.reply(REPORT_FAILED_TEXT);
+      return;
+    }
+    await ctx.reply(view.html, view.options);
+  });
+  bot.callbackQuery(/^plan:(today|next)$/, async (ctx) => {
+    await ctx.answerCallbackQuery().catch((error: unknown) => runtime.onError(error));
+    let view: Awaited<ReturnType<typeof planView>>;
+    try {
+      view = await planView(ctx.match[1] === 'next' ? 'next' : 'today');
+    } catch (error) {
+      runtime.onError(error);
+      await ctx.reply(REPORT_FAILED_TEXT);
+      return;
+    }
+    try {
+      await ctx.editMessageText(view.html, view.options);
+    } catch (error) {
+      if (!(error instanceof GrammyError && error.description.includes('message is not modified'))) throw error;
+    }
+  });
   bot.command(
     'status',
     report(() => runtime.reports.status())

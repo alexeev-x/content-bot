@@ -60,13 +60,6 @@ export interface WriterRepository {
   recent(limit: number): Promise<GenerationRow[]>;
   /** Opens (or restarts) the chat's /redactor request as a free one (no format). */
   openRequest(input: { chatId: number; promptMessageId: number; now: number; expiresAt: number }): Promise<void>;
-  /** A format button on the request's own message; false when that request is gone or replaced. */
-  setRequestFormat(input: {
-    chatId: number;
-    promptMessageId: number;
-    format: WriterFormat;
-    now: number;
-  }): Promise<boolean>;
   /** Takes the open request once: `format` is null for a free request; null when none is open or it expired. */
   takeRequest(chatId: number, now: number): Promise<{ format: WriterFormat | null } | null>;
 }
@@ -247,17 +240,6 @@ export function createD1WriterRepository(db: D1Database): WriterRepository {
         )
         .bind(chatId, promptMessageId, expiresAt, now)
         .run();
-    },
-
-    async setRequestFormat({ chatId, promptMessageId, format, now }) {
-      const result = await db
-        .prepare(
-          `UPDATE ai_writer_requests SET format = ?3, updated_at = ?4
-           WHERE chat_id = ?1 AND prompt_message_id = ?2 AND expires_at > ?4`
-        )
-        .bind(chatId, promptMessageId, format, now)
-        .run();
-      return result.meta.changes === 1;
     },
 
     async takeRequest(chatId, now) {

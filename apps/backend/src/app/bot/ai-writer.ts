@@ -46,23 +46,7 @@ const EDIT_SAVED_TEXT = 'Сохранил вашу версию. Одобрит�
 
 /** The /redactor request waits this long for the topic. */
 const REQUEST_TTL_MS = 15 * 60 * 1000;
-const ASK_TOPIC_TEXT = 'Что написать? Выберите рубрику кнопкой или просто напишите, что нужно.';
-const FORMAT_BUTTONS: readonly [WriterFormat, string][] = [
-  ['telegram', 'Пост'],
-  ['fidit', 'Учу фидить'],
-  ['igrat', 'Учусь играть'],
-  ['standalone', 'Рилс']
-];
-const FORMAT_CALLBACK = /^aw:(telegram|fidit|igrat|standalone)$/;
-
-function formatKeyboard(chosen: WriterFormat | null): InlineKeyboardMarkup {
-  const board = new InlineKeyboard();
-  FORMAT_BUTTONS.forEach(([format, label], index) => {
-    board.text(format === chosen ? `✓ ${label}` : label, `aw:${format}`);
-    if (index === 1) board.row();
-  });
-  return board;
-}
+const ASK_TOPIC_TEXT = 'Что написать? Пост, рилс или что угодно — просто опишите.';
 
 const REWRITES = {
   more: 'другой вариант: другой заход, другие шутки, тот же смысл',
@@ -200,8 +184,8 @@ export function registerAiWriter(bot: Bot, runtime: AiWriterRuntime): void {
       generateDraft(deps, { format, mode: 'direct', source: 'bot', task, signal })
     );
 
-  // /redactor: one command for everything. A format button makes the next text a draft of that format; without
-  // one, the next text (or the words after the command) is a free request.
+  // /redactor: one command for everything (owner, 16.10.2026: no format buttons). The next text, or the words
+  // after the command, is a free request; «придумай рилс …» or «напиши пост …» in it still makes a draft.
   // A free request: «напиши рилс учусь играть про …» still becomes a draft with its buttons; anything else gets
   // one answer in the author's voice.
   async function free(ctx: Context, text: string) {
@@ -243,7 +227,7 @@ export function registerAiWriter(bot: Bot, runtime: AiWriterRuntime): void {
       await free(ctx, task);
       return;
     }
-    const message = await ctx.reply(ASK_TOPIC_TEXT, { reply_markup: formatKeyboard(null) });
+    const message = await ctx.reply(ASK_TOPIC_TEXT);
     const now = runtime.clock.now();
     const deps = await runtime.writer();
     await deps.writer.openRequest({
@@ -251,28 +235,6 @@ export function registerAiWriter(bot: Bot, runtime: AiWriterRuntime): void {
       promptMessageId: message.message_id,
       now,
       expiresAt: now + REQUEST_TTL_MS
-    });
-  });
-
-  bot.callbackQuery(FORMAT_CALLBACK, async (ctx) => {
-    const format = (ctx.match[1] ?? 'telegram') as WriterFormat;
-    const chatId = ctx.chat?.id;
-    const messageId = ctx.callbackQuery.message?.message_id;
-    if (chatId === undefined || messageId === undefined) return;
-    const deps = await runtime.writer();
-    const open = await deps.writer.setRequestFormat({
-      chatId,
-      promptMessageId: messageId,
-      format,
-      now: runtime.clock.now()
-    });
-    if (!open) {
-      await ctx.answerCallbackQuery({ text: 'Запрос устарел, отправьте /redactor ещё раз' }).catch(() => undefined);
-      return;
-    }
-    await ctx.answerCallbackQuery().catch((error: unknown) => runtime.onError(error));
-    await ctx.editMessageReplyMarkup({ reply_markup: formatKeyboard(format) }).catch((error: unknown) => {
-      if (!(error instanceof GrammyError && error.description.includes('message is not modified'))) throw error;
     });
   });
 

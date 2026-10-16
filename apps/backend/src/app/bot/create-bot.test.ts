@@ -274,7 +274,7 @@ describe('bot', () => {
         }
       }
     });
-    expect(adminCalls).toEqual(['setChatCommands 4242 start,today,next,status,redactor', 'setChatMenuCommands 4242']);
+    expect(adminCalls).toEqual(['setChatCommands 4242 start,redactor,plan,status', 'setChatMenuCommands 4242']);
   });
 
   it('still replies when setting the commands fails, and logs a stable code', async () => {
@@ -286,7 +286,7 @@ describe('bot', () => {
     await expect(settleBackground()).resolves.toBeDefined();
     expect(calls).toHaveLength(1);
     expect(calls[0]?.method).toBe('sendMessage');
-    expect(adminCalls).toEqual(['setChatCommands 4242 start,today,next,status,redactor']);
+    expect(adminCalls).toEqual(['setChatCommands 4242 start,redactor,plan,status']);
     expect(events).toEqual([
       { component: 'telegram', operation: 'owner_chat.set_commands', status: 503, errorCode: 'telegram_http_400' }
     ]);
@@ -349,22 +349,42 @@ function textUpdate(
 const sentMessages = (calls: { method: string }[]) => calls.filter((call) => call.method === 'sendMessage');
 
 describe('owner commands', () => {
-  it.each([
-    ['today', 'https://studio.example.com/today'],
-    ['next', 'https://studio.example.com/next'],
-    ['status', 'https://studio.example.com/status']
-  ])('/%s answers with its report as HTML and one Mini App button', async (command, url) => {
-    const { calls } = await runUpdates([textUpdate(4242, `/${command}`, { command: true })]);
+  it('/status answers with its report as HTML and one Mini App button', async () => {
+    const { calls } = await runUpdates([textUpdate(4242, '/status', { command: true })]);
 
     expect(calls).toHaveLength(1);
     expect(calls[0]).toMatchObject({
       method: 'sendMessage',
       payload: {
         chat_id: 4242,
-        text: command,
+        text: 'status',
         parse_mode: 'HTML',
         link_preview_options: { is_disabled: true },
-        reply_markup: { inline_keyboard: [[{ text: `button of ${command}`, web_app: { url } }]] }
+        reply_markup: {
+          inline_keyboard: [[{ text: 'button of status', web_app: { url: 'https://studio.example.com/status' } }]]
+        }
+      }
+    });
+  });
+
+  it('/plan shows today with buttons to switch to the next publications', async () => {
+    const { calls } = await runUpdates([textUpdate(4242, '/plan', { command: true })]);
+
+    expect(calls).toHaveLength(1);
+    expect(calls[0]).toMatchObject({
+      method: 'sendMessage',
+      payload: {
+        text: 'today',
+        parse_mode: 'HTML',
+        reply_markup: {
+          inline_keyboard: [
+            [
+              { text: '✓ Сегодня', callback_data: 'plan:today' },
+              { text: 'Ближайшие', callback_data: 'plan:next' }
+            ],
+            [{ text: 'button of today', web_app: { url: 'https://studio.example.com/today' } }]
+          ]
+        }
       }
     });
   });
@@ -377,7 +397,7 @@ describe('owner commands', () => {
         status: () => Promise.reject(new Error('x'))
       }
     });
-    const { calls, events } = await runUpdates([textUpdate(4242, '/today', { command: true })], { setup });
+    const { calls, events } = await runUpdates([textUpdate(4242, '/plan', { command: true })], { setup });
 
     expect(calls).toHaveLength(1);
     expect(calls[0]).toMatchObject({
@@ -505,7 +525,7 @@ describe('drafts from messages', () => {
 
 describe('who the bot answers', () => {
   it.each([
-    ['a command', '/today', true],
+    ['a command', '/plan', true],
     ['a text', 'Привет', false]
   ])('ignores %s from anyone but the owner: no reply, no draft, no stored update id', async (_name, text, command) => {
     const setup = harness();
