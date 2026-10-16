@@ -14,7 +14,13 @@ import styles from './DashboardWidgets.module.css';
 import cardStyles from './Widgets.module.css';
 
 function Change({ value, suffix }: { value: number | null; suffix?: string }) {
-  if (value === null) return null;
+  // No comparison yet: the line keeps its height so the card is the same with and without one.
+  if (value === null)
+    return (
+      <span className={styles.change} aria-hidden="true">
+        {'\u00a0'}
+      </span>
+    );
   return (
     <span className={styles.change} data-tone={value > 0 ? 'up' : value < 0 ? 'down' : 'flat'}>
       {value > 0 ? '↑ +' : value < 0 ? '↓ −' : ''}
@@ -28,10 +34,8 @@ export function LatestVideoSkeleton() {
   return (
     <div className={styles.body} aria-hidden="true">
       <div className={styles.head}>
-        <span>
-          <span className={cardStyles.cover}>
-            <MediaSkeleton />
-          </span>
+        <span className={cardStyles.cover}>
+          <MediaSkeleton />
         </span>
         <span className={styles.headText}>
           <span className={styles.titleSkeleton}>

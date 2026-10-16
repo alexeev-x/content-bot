@@ -46,6 +46,14 @@
   background: var(--color-surface-2);
   color: var(--color-text-muted);
 }
+/* Two lines always (clamped): a long description no longer changes the row's height, and the skeleton has the same. */
+.sourceSubtitle {
+  display: -webkit-box;
+  min-height: 2lh;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
 .sourceTime {
   font-size: var(--font-size-xs);
   color: var(--color-text-muted);
@@ -85,8 +93,5 @@
   }
   .source > :last-child {
     grid-area: action;
-  }
-  .source .recentTitle {
-    white-space: normal;
   }
 }

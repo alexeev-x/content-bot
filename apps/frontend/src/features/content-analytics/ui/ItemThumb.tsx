@@ -1,5 +1,6 @@
 import type { ContentItemDto } from '@alexeev/contracts';
 import { useState } from 'react';
+import { MediaSkeleton } from '../../../shared/ui';
 import styles from './ContentAnalytics.module.css';
 import { PlatformGlyph } from './PlatformGlyph';
 
@@ -26,6 +27,15 @@ export function ItemThumb({ item, size = 'sm' }: Props) {
         referrerPolicy="no-referrer"
         onError={() => setBroken(true)}
       />
+    </span>
+  );
+}
+
+/** The thumbnail's box, shimmering, for a row that is still loading. */
+export function ItemThumbSkeleton() {
+  return (
+    <span className={styles.thumb}>
+      <MediaSkeleton />
     </span>
   );
 }

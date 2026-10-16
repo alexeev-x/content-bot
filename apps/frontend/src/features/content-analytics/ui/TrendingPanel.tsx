@@ -51,11 +51,18 @@ export function TrendingRowsSkeleton({ count }: { count: number }) {
               </span>
             </span>
             <span className={styles.trendViews}>
-              <Skeleton width={56} height="1lh" />
+              <strong>
+                <Skeleton width={56} height="1lh" />
+              </strong>
+              <span className={styles.small}>
+                <Skeleton width={36} height="1lh" />
+              </span>
             </span>
             <span className={styles.trendStatus}>
               <Skeleton width={110} height={26} />
-              <Skeleton width={190} height="1lh" />
+              <span className={styles.small}>
+                <Skeleton width={190} height="1lh" />
+              </span>
             </span>
             <span className={styles.trendSpark}>
               <Skeleton width="100%" height={28} />

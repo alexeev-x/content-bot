@@ -33,7 +33,7 @@ export type DataColumn<T> = {
   width?: number | string;
   /** `density="compact"` on narrow screens: `trailing` puts the cell (a status) at the right of the title; the other columns form one meta line. */
   compactSlot?: 'trailing';
-  /** Placeholder of this cell while loading, when the cell is taller than a line of text (a thumbnail with two lines). Used by the card title on narrow screens. */
+  /** Placeholder of this cell while loading, when the cell is taller or wider than a default one (a thumbnail with two lines, a status chip). Used by the card title on narrow screens and by the meta line of a compact card. */
   skeleton?: ReactNode;
 };
 
@@ -269,8 +269,14 @@ function CardList<T>({
               <dl className={styles.details}>
                 {detailColumns.map((column) => (
                   <div key={column.id} className={styles.detail}>
-                    <Skeleton height="1lh" width="30%" />
-                    <Skeleton height="1lh" width="20%" />
+                    {compact ? (
+                      (column.skeleton ?? <Skeleton height="1lh" width={40} />)
+                    ) : (
+                      <>
+                        <Skeleton height="1lh" width="30%" />
+                        <Skeleton height="1lh" width="20%" />
+                      </>
+                    )}
                   </div>
                 ))}
               </dl>

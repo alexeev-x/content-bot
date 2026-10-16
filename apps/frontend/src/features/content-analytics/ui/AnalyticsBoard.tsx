@@ -21,7 +21,7 @@ import {
   zonedParts
 } from '../model/report';
 import { useSourcesAttention } from './AnalyticsSources';
-import { useLastSyncedText } from './last-synced';
+import { useLastSynced } from './last-synced';
 import { copy } from './copy';
 import { AnalyticsHeader } from './AnalyticsHeader';
 import { CompareVideosPanel } from './CompareVideosPanel';
@@ -74,7 +74,7 @@ export function AnalyticsBoard({ timezone, view, onViewChange, onOpenSettings }:
   const now = useNow().getTime();
   const baselines = report?.baselines ?? [];
   const attention = useSourcesAttention();
-  const lastSynced = useLastSyncedText();
+  const lastSynced = useLastSynced();
 
   const derived = useMemo(() => {
     if (!report) return undefined;
@@ -229,23 +229,12 @@ export function AnalyticsBoard({ timezone, view, onViewChange, onOpenSettings }:
       <StaleRegion busy={reportQuery.isPlaceholderData}>
         <Tabs selectedKey={view.tab} onSelectionChange={(key) => onViewChange({ tab: key as AnalyticsTab })}>
           <AnalyticsHeader
-            description={lastSynced ?? copy.subtitle}
+            description={lastSynced.text ?? (lastSynced.pending ? '\u00a0' : copy.subtitle)}
             days={days}
             platform={platform}
             onDaysChange={(next) => onViewChange({ days: next, page: 1 })}
             onPlatformChange={(next) => onViewChange({ platform: next, page: 1 })}
           />
-          {attention ? (
-            <Banner
-              tone={attention.tone}
-              title={attention.text}
-              action={
-                <Button size="sm" variant="secondary" onPress={onOpenSettings}>
-                  Открыть настройки
-                </Button>
-              }
-            />
-          ) : null}
           <TabPanel id="overview">
             <div className={styles.sections}>
               <SummarySection days={days} {...(report ? { range: report } : {})} kpis={derived?.kpis} />
@@ -308,6 +297,18 @@ export function AnalyticsBoard({ timezone, view, onViewChange, onOpenSettings }:
               <PostingHeatmap items={derived?.current} platform={platform} timezone={timezone} />
             </div>
           </TabPanel>
+          {/* After the content, not above it: the notice arrives with its own query, and above the summary it shifted the whole page. */}
+          {attention ? (
+            <Banner
+              tone={attention.tone}
+              title={attention.text}
+              action={
+                <Button size="sm" variant="secondary" onPress={onOpenSettings}>
+                  Открыть настройки
+                </Button>
+              }
+            />
+          ) : null}
         </Tabs>
       </StaleRegion>
       <ItemDrawer

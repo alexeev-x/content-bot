@@ -5,19 +5,9 @@ import { useEffect, useState } from 'react';
 import { ApiError } from '../../../shared/api/http-client';
 import { PAGE_SIZE } from '../../../shared/api/page-query';
 import { useNow } from '../../../shared/lib/use-now';
-import {
-  Banner,
-  EmptyState,
-  ErrorState,
-  Pagination,
-  Panel,
-  PanelList,
-  PanelRow,
-  Select,
-  Skeleton
-} from '../../../shared/ui';
+import { Banner, EmptyState, ErrorState, Pagination, Panel, PanelList, PanelRow, Select } from '../../../shared/ui';
 import { sourceEventsQueryOptions, useCreateSourceEventDraft, useSetSourceEventHidden } from '../api/sources-queries';
-import { SourceEventCard } from './SourceEventCard';
+import { SourceEventCard, SourceEventCardSkeleton } from './SourceEventCard';
 import styles from './SourceFeed.module.css';
 
 export type FeedFilters = { status: SourceEventStatus; page: number };
@@ -179,13 +169,15 @@ export function SourceFeed({ filters, timezone, onFiltersChange }: Props) {
     </div>
   );
 }
-/** A page of event cards as they will look (about 190 px each), so the list keeps its height. */
+/** A page of event cards in the loaded list's own rows, so the list keeps its height. */
 export function FeedCardsSkeleton() {
   return (
-    <div className={styles.skeleton} aria-busy="true">
+    <PanelList aria-label="Загрузка событий">
       {Array.from({ length: PAGE_SIZE }, (_, key) => (
-        <Skeleton key={key} height={190} />
+        <PanelRow key={key}>
+          <SourceEventCardSkeleton />
+        </PanelRow>
       ))}
-    </div>
+    </PanelList>
   );
 }

@@ -501,6 +501,18 @@
   align-items: center;
   gap: 4px var(--space-2);
 }
+/* One line each, clipped: a long caption no longer makes some rows (and the skeleton rows) differ in height. */
+.trendRow .meta {
+  flex-wrap: nowrap;
+  overflow: hidden;
+  white-space: nowrap;
+}
+.trendStatus > .small {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .trendViews {
   display: flex;
   flex-direction: column;

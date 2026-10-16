@@ -107,6 +107,14 @@
   color: var(--color-text-muted);
   font-size: var(--font-size-xs);
 }
+.card .meta {
+  /* Two lines always (clamped): a long size/dimensions line no longer makes some cards, and the skeleton, differ in height. */
+  display: -webkit-box;
+  min-height: 2lh;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
 .check {
   position: absolute;
   top: var(--space-3);

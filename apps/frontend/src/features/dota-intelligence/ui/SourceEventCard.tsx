@@ -152,3 +152,29 @@ export function SourceEventCard({
     </article>
   );
 }
+
+/** A typical card (status, two-line title, source line, three summary lines, two actions) in the card's own classes and line heights. */
+export function SourceEventCardSkeleton() {
+  const lines = (count: number) =>
+    Array.from({ length: count }, (_, index) => (
+      <span key={index} className={styles.placeholderLine}>
+        {'\u00a0'}
+      </span>
+    ));
+  return (
+    <article className={styles.card} aria-hidden="true">
+      <div className={styles.head}>
+        <span className={`${styles.placeholder} ${styles.placeholderBadge}`}>{'\u00a0'}</span>
+      </div>
+      <h3 className={styles.title}>{lines(2)}</h3>
+      <p className={styles.source}>
+        <span className={`${styles.placeholder} ${styles.placeholderLink}`}>{'\u00a0'}</span>
+      </p>
+      <p className={styles.summary}>{lines(3)}</p>
+      <div className={styles.actions}>
+        <span className={`${styles.placeholder} ${styles.placeholderButton}`} />
+        <span className={`${styles.placeholder} ${styles.placeholderButton}`} />
+      </div>
+    </article>
+  );
+}

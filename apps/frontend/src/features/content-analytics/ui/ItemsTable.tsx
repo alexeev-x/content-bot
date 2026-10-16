@@ -3,7 +3,6 @@ import { useMemo, useState } from 'react';
 import {
   DataTable,
   EmptyState,
-  MediaSkeleton,
   type DataColumn,
   Pagination,
   Panel,
@@ -16,7 +15,7 @@ import { engagementRate, formatCount, formatPublished, formatViews, itemTitle, P
 import { multipleOf } from '../model/report';
 import { type ItemStatus, verdictFor } from '../model/status';
 import { copy } from './copy';
-import { ItemThumb } from './ItemThumb';
+import { ItemThumb, ItemThumbSkeleton } from './ItemThumb';
 import styles from './Report.module.css';
 import { StatusChip } from './StatusChip';
 
@@ -99,9 +98,7 @@ export function ItemsTable({
         isRowHeader: true,
         skeleton: (
           <span className={styles.itemCell}>
-            <span className={styles.thumb}>
-              <MediaSkeleton />
-            </span>
+            <ItemThumbSkeleton />
             <span className={styles.cellStack}>
               <span className={styles.itemTitle}>
                 <Skeleton width="70%" height="1lh" />
@@ -131,6 +128,7 @@ export function ItemsTable({
         header: 'Дата',
         width: 128,
         allowsSorting: true,
+        skeleton: <Skeleton height="1lh" width={91} />,
         cell: (item) => <span className={styles.nowrap}>{formatPublished(item.publishedAt, timezone)}</span>
       },
       {
@@ -191,6 +189,7 @@ export function ItemsTable({
         id: 'status',
         header: 'Статус',
         width: 176,
+        skeleton: <Skeleton height={26} width={86} radius="var(--radius-pill)" />,
         cell: (item) => {
           const verdict = verdicts.get(item.id);
           return verdict ? <StatusChip verdict={verdict} /> : null;

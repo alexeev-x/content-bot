@@ -3,7 +3,6 @@ import { StaleRegion, TabPanel, Tabs, VisuallyHidden } from '../../../shared/ui'
 import { AnalyticsHeader } from './AnalyticsHeader';
 import type { AnalyticsTab } from './AnalyticsBoard';
 import { CompareVideosPanel } from './CompareVideosPanel';
-import { copy } from './copy';
 import { CrossPostedPanel } from './CrossPostedPanel';
 import { DynamicsPanel } from './DynamicsPanel';
 import { FollowersPanel } from './FollowersPanel';
@@ -34,7 +33,7 @@ export function AnalyticsSkeleton({ tab, timezone }: { tab: AnalyticsTab; timezo
       <StaleRegion busy={false}>
         <Tabs selectedKey={tab} onSelectionChange={ignore}>
           <AnalyticsHeader
-            description={copy.subtitle}
+            description={'\u00a0'}
             days={30}
             platform={undefined}
             onDaysChange={ignore}

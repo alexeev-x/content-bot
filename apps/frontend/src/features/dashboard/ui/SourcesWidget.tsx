@@ -45,7 +45,7 @@ export function SourcesWidget({ rows, footer }: Props) {
                   <span className={styles.recentTitle}>
                     <Skeleton width="50%" height="1lh" />
                   </span>
-                  <span className={shell.quiet}>
+                  <span className={`${shell.quiet} ${styles.sourceSubtitle}`}>
                     <Skeleton width="85%" height="2lh" />
                   </span>
                 </span>
@@ -65,7 +65,9 @@ export function SourcesWidget({ rows, footer }: Props) {
                 <span className={styles.sourceMark}>{row.mark}</span>
                 <span className={styles.recentText}>
                   <span className={styles.recentTitle}>{row.title}</span>
-                  <span className={shell.quiet}>{row.subtitle}</span>
+                  <span className={`${shell.quiet} ${styles.sourceSubtitle}`} title={row.subtitle}>
+                    {row.subtitle}
+                  </span>
                 </span>
                 <span className={styles.sourceTime}>
                   {row.attention ? (
