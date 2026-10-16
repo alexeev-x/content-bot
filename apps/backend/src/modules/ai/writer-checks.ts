@@ -27,7 +27,7 @@ const WORDS: Record<WriterFormat, [number, number]> = {
   telegram: [1, 320]
 };
 
-export function checkDraft(format: WriterFormat, mode: WriterMode, text: string): string[] {
+export function checkDraft(format: WriterFormat, mode: WriterMode, text: string, task = ''): string[] {
   const codes: string[] = [];
   for (const [pattern, name] of AI_PHRASES) if (pattern.test(text)) codes.push(`AI_PHRASE:${name}`);
   if ((text.match(/—/g) ?? []).length > 4) codes.push('EM_DASH_MANY');
@@ -45,8 +45,16 @@ export function checkDraft(format: WriterFormat, mode: WriterMode, text: string)
   const [min, max] = WORDS[format];
   if (words < min) codes.push('TOO_SHORT');
   if (words > max) codes.push('TOO_LONG');
+  // A slip like «что что» or «на на»: cheap to catch, easy to miss when reading a script aloud.
+  if (DOUBLED_WORD.test(text)) codes.push('DOUBLED_WORD');
+  // A patch change stated as fact that the task never mentioned: to check before it goes out (owner review).
+  if (PATCH_CLAIM.test(text) && !PATCH_SOURCE.test(task)) codes.push('PATCH_UNVERIFIED');
   return codes;
 }
+
+const DOUBLED_WORD = /(?<![а-яёa-z])([а-яёa-z]{2,})\s+\1(?![а-яёa-z])/iu;
+const PATCH_CLAIM = /(в (новом|последнем|этом|свежем) патче|понерф|нерфнул|бафнул|бафф?ну)/i;
+const PATCH_SOURCE = /патч|нерф|баф|обнов/i;
 
 /** What a finding means, in the owner's words (shown under the draft). */
 export function describeCheck(code: string): string {
@@ -65,7 +73,9 @@ export function describeCheck(code: string): string {
     NEEDS_FACTS: 'нужен ваш опыт',
     TOO_SHORT: 'короче формата',
     TOO_LONG: 'длиннее формата',
-    TOPIC_REPEATED: 'тема повторяет недавний черновик'
+    TOPIC_REPEATED: 'тема повторяет недавний черновик',
+    DOUBLED_WORD: 'слово повторено подряд',
+    PATCH_UNVERIFIED: 'изменение патча не из задания — проверьте'
   };
   return map[code] ?? code;
 }

@@ -15,7 +15,7 @@ import {
   type WriterDeps
 } from '../../src/modules/ai';
 import { changedParts, checkDraft, editRatio } from '../../src/modules/ai/writer-checks';
-import { buildWriterPrompt, pickExamples } from '../../src/modules/ai/writer-prompt';
+import { buildWriterPrompt, overusedPhrases, pickExamples } from '../../src/modules/ai/writer-prompt';
 import { authorStateText } from '../../src/modules/ai/author-profile';
 import { writerIntent } from '../../src/app/bot/ai-writer';
 import { AppError } from '../../src/shared/app-error';
@@ -235,9 +235,52 @@ describe('AI writer', () => {
     // The same topic again: flagged by code, no extra model call.
     expect(second.generation.warnings).toContain('TOPIC_REPEATED');
     expect(requests).toHaveLength(2);
-    // A concrete topic is not a request to invent one.
-    await draft(writer, 'как я апнул 3к на Лионе');
+    // A concrete topic is not a request to invent one, and the topic the owner names is never flagged a repeat.
+    const named = await draft(writer, 'как я апнул 3к на Лионе');
     expect(requests[2]?.input).not.toContain('ЗАПРОС: тема на твой выбор');
+    expect(named.generation.warnings).not.toContain('TOPIC_REPEATED');
+
+    // Recent ideas of every format: a Reels prompt sees what the posts were about.
+    await generateDraft(writer, {
+      format: 'standalone',
+      mode: 'direct',
+      source: 'bot',
+      task: 'придумай сам',
+      signal: AbortSignal.timeout(1000)
+    });
+    expect(requests[3]?.input).toContain('Учусь играть: апнул 3к и понял про варды');
+  });
+
+  it('rests a signature phrase that came in two of the latest drafts (frequency, not a ban)', async () => {
+    expect(overusedPhrases(['мой тупой мозг не понял', 'и тут мой тупой мозг', 'Запомни: керри'])).toEqual([
+      'мой тупой мозг'
+    ]);
+    const writer = deps(
+      answering(writerAnswer({ text: 'Мой тупой мозг опять не понял, куда идти. Я учусь.', topic: 'куда идти' }))
+    );
+    const requests: string[] = [];
+    const recording: AiTextProvider = {
+      provider: 'openai',
+      complete: (request) => {
+        requests.push(request.input);
+        return answering(writerAnswer({ text: 'Мой тупой мозг снова.', topic: 'ещё' })).complete(request);
+      }
+    };
+    await draft(writer);
+    await draft(writer);
+    await draft({ ...writer, provider: recording });
+    expect(requests[0]).toContain('СЕЙЧАС БЕЗ: «мой тупой мозг»');
+  });
+
+  it('flags a doubled word and a patch change the task never mentioned', () => {
+    expect(checkDraft('telegram', 'direct', 'Я что что нажал?')).toContain('DOUBLED_WORD');
+    expect(checkDraft('telegram', 'direct', 'Я нажал что-то не то.')).not.toContain('DOUBLED_WORD');
+    expect(checkDraft('standalone', 'direct', 'В новом патче Оракла понерфили.', 'рилс про Оракла')).toContain(
+      'PATCH_UNVERIFIED'
+    );
+    expect(
+      checkDraft('standalone', 'direct', 'В новом патче Оракла понерфили.', 'реакция на нерф Оракла в патче')
+    ).not.toContain('PATCH_UNVERIFIED');
   });
 
   it('refuses before any row when AI is off, and stores a provider failure', async () => {

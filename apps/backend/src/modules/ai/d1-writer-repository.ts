@@ -87,8 +87,10 @@ export interface WriterRepository {
     ideas?: string[];
     facets?: { topic: string; device: string; ending: string };
   }): Promise<void>;
-  /** Topic, comic device and ending of the latest drafts of a format, newest first (at most 20). */
-  recentFacets(format: WriterFormat, limit: number): Promise<{ topic: string; device: string; ending: string }[]>;
+  /** Topic, comic device and ending of the latest drafts of every format, newest first (at most 30). */
+  recentFacets(limit: number): Promise<{ format: WriterFormat; topic: string; device: string; ending: string }[]>;
+  /** The AI texts of the latest drafts (at most 10), to count signature phrases; never voice examples. */
+  recentDraftTexts(limit: number): Promise<string[]>;
   setChatMessage(id: string, messageId: number, now: number): Promise<void>;
   findGeneration(id: string): Promise<GenerationRow | null>;
   findByChatMessage(messageId: number): Promise<GenerationRow | null>;
@@ -267,20 +269,22 @@ export function createD1WriterRepository(db: D1Database): WriterRepository {
         .run();
     },
 
-    async recentFacets(format, limit) {
+    async recentFacets(limit) {
+      // Every format: the same idea in a post and in a Reels is a repeat for the viewer too.
       const rows = await db
         .prepare(
-          `SELECT facets FROM ai_generations WHERE format = ?1 AND result = 'draft' AND facets IS NOT NULL
-           ORDER BY created_at DESC LIMIT ?2`
+          `SELECT format, facets FROM ai_generations WHERE result = 'draft' AND facets IS NOT NULL
+           ORDER BY created_at DESC LIMIT ?1`
         )
-        .bind(format, Math.min(limit, 20))
-        .all<{ facets: string }>();
+        .bind(Math.min(limit, 30))
+        .all<{ format: WriterFormat; facets: string }>();
       return rows.results.flatMap((row) => {
         try {
           const value = JSON.parse(row.facets) as Partial<Record<'topic' | 'device' | 'ending', unknown>>;
           return typeof value.topic === 'string'
             ? [
                 {
+                  format: row.format,
                   topic: value.topic,
                   device: typeof value.device === 'string' ? value.device : '',
                   ending: typeof value.ending === 'string' ? value.ending : ''
@@ -291,6 +295,19 @@ export function createD1WriterRepository(db: D1Database): WriterRepository {
           return [];
         }
       });
+    },
+
+    async recentDraftTexts(limit) {
+      // Only to count the author's signature phrases (how often, not how to write): never a voice example.
+      const rows = await db
+        .prepare(
+          `SELECT r.text FROM ai_generations g JOIN ai_text_revisions r ON r.generation_id = g.id
+           WHERE g.result = 'draft' AND r.provenance = 'AI_DRAFT'
+           ORDER BY g.created_at DESC LIMIT ?1`
+        )
+        .bind(Math.min(limit, 10))
+        .all<{ text: string }>();
+      return rows.results.map((row) => row.text);
     },
 
     async setChatMessage(id, messageId, now) {

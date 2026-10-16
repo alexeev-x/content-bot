@@ -118,22 +118,33 @@ export function buildWriterPrompt(input: {
   author?: string;
   /** The owner's approved, owner-changed texts of this format, newest first (`ownerExamples`). */
   ownerTexts?: readonly string[];
-  /** Topic, device and ending of the latest drafts of this format, newest first (`recentFacets`). */
-  recent?: readonly { topic: string; device: string; ending: string }[];
+  /** Topic, device and ending of the latest drafts of every format, newest first (`recentFacets`). */
+  recent?: readonly { format?: WriterFormat; topic: string; device: string; ending: string }[];
+  /** Signature phrases worn out by the latest drafts (`overusedPhrases`): this draft goes without them. */
+  resting?: readonly string[];
 }): { instructions: string; input: string } {
   // The author's state changes often: it goes with the request, after the cached prefix (architecture item 6).
   const instructions = [AI_PACK.core, AI_PACK.formats[input.format], AI_PACK.output, AI_PACK.lessons].join('\n\n');
   const lexicon = matchLexicon(`${input.task} ${input.rewrite?.instruction ?? ''}`);
   const recent = (input.recent ?? []).slice(0, MAX_RECENT);
+  const resting = input.resting ?? [];
   const parts = [
     stateFor(input.format, input.author || SEED_STATE),
     lexicon.length > 0 ? `Сленг и мемы из задания:\n${lexicon.join('\n')}` : '',
     ...examplesWithOwner(pickExamples(input.format, input.task, input.holdOut), input.ownerTexts ?? []),
-    // Facets only, never the texts: an AI draft is not a voice example (architecture item 2).
+    // Facets only, never the texts: an AI draft is not a voice example (architecture item 2). Every format,
+    // so a post does not retell the idea of yesterday's Reels.
     recent.length > 0
-      ? `НЕДАВНИЕ (тема · приём · концовка — не повторяй):\n${recent
-          .map((facet) => `- ${[facet.topic, facet.device, facet.ending].filter(Boolean).join(' · ')}`)
+      ? `НЕДАВНИЕ (формат: тема · приём · концовка — не повторяй, если автор сам не просит эту тему):\n${recent
+          .map(
+            (facet) =>
+              `- ${facet.format ? `${SHORT_NAME[facet.format]}: ` : ''}${[facet.topic, facet.device, facet.ending].filter(Boolean).join(' · ')}`
+          )
           .join('\n')}`
+      : '',
+    // Frequency, not a ban: a phrase of the author's voice rests after it came in recent drafts.
+    resting.length > 0
+      ? `СЕЙЧАС БЕЗ: ${resting.map((phrase) => `«${phrase}»`).join(', ')} — было в недавних текстах, найди другую шутку.`
       : '',
     `ФОРМАТ: ${FORMAT_NAME[input.format]}`,
     `РЕЖИМ: ${input.mode === 'direct' ? 'прямой запрос автора' : 'автоматический повод (только факты задания)'}`
@@ -152,7 +163,34 @@ export function buildWriterPrompt(input: {
   return { instructions, input: parts.filter(Boolean).join('\n\n') };
 }
 
-const MAX_RECENT = 15;
+const MAX_RECENT = 20;
+const SHORT_NAME: Record<WriterFormat, string> = {
+  fidit: 'Учу фидить',
+  igrat: 'Учусь играть',
+  standalone: 'Рилс',
+  telegram: 'Пост'
+};
+
+/**
+ * The author's signature phrases: right once, a crutch when every draft has one (owner review 16.10.2026).
+ * Endings a format requires («подпишись уже, заебал» in «Учусь играть») are not here.
+ */
+const SIGNATURE_PHRASES: readonly [string, RegExp][] = [
+  ['мой тупой мозг', /тупой мозг/i],
+  ['серьёзный человек', /серь[её]зный человек/i],
+  ['запомни', /запомни/i],
+  ['умнейший человек планеты', /умнейш\w* человек/i],
+  ['бедный саппорт', /бедный саппорт/i]
+];
+/** A phrase rests once it came in this many of the latest drafts. */
+const PHRASE_REST_AT = 2;
+
+/** Signature phrases found in at least two of `texts` (the latest AI drafts). */
+export function overusedPhrases(texts: readonly string[]): string[] {
+  return SIGNATURE_PHRASES.filter(
+    ([, pattern]) => texts.filter((text) => pattern.test(text)).length >= PHRASE_REST_AT
+  ).map(([phrase]) => phrase);
+}
 const INVENT = /придума|сам выбер|выбери сам|сам тему|на (свою|любую|твою) тему|любой пост|на твой выбор|без темы/i;
 
 /** The owner asks the writer to pick the topic («придумай сам», «на свою тему»). */

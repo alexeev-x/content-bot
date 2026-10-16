@@ -8,7 +8,14 @@ import type { ChatTurn, FeedbackKind, GenerationRow, RevisionRow, WriterReposito
 import { type AiTextProvider, AiProviderError } from './ports';
 import { assertAiReady, type BudgetEvent, readAiSettings, recordAiUsage } from './service';
 import { changedParts, checkDraft, editRatio } from './writer-checks';
-import { buildFreePrompt, buildWriterPrompt, packRevision, repeatsRecentTopic } from './writer-prompt';
+import {
+  asksToInvent,
+  buildFreePrompt,
+  buildWriterPrompt,
+  overusedPhrases,
+  packRevision,
+  repeatsRecentTopic
+} from './writer-prompt';
 import { type DraftFacets, parseWriterAnswer, WRITER_ANSWER_JSON_SCHEMA } from './writer-answer';
 import type { WriterFormat, WriterMode } from './writer-types';
 
@@ -19,8 +26,10 @@ const MAX_TASK = 4000;
 const MAX_TEXT = 8000;
 /** The model asked for the owner's experience instead of writing (see `call`). */
 export const NEEDS_FACTS = 'NEEDS_FACTS';
-/** Drafts of the same format whose topic, device and ending the next prompt lists (antirepeat). */
-const RECENT_FACETS = 15;
+/** Latest drafts of every format whose topic, device and ending the next prompt lists (antirepeat). */
+const RECENT_FACETS = 20;
+/** Latest AI drafts in which a signature phrase is counted (it rests after two). */
+const PHRASE_WINDOW = 5;
 
 export interface WriterDeps {
   repo: AiRepository;
@@ -157,7 +166,7 @@ async function call(
       };
     }
     const text = answer.text.slice(0, MAX_TEXT);
-    const warnings = checkDraft(generation.format, generation.mode, text);
+    const warnings = checkDraft(generation.format, generation.mode, text, generation.task);
     if (recent.length > 0 && repeatsRecentTopic(answer.facets.topic, recent)) warnings.push('TOPIC_REPEATED');
     // A rewrite keeps the parent's hooks unless the model sent new ones.
     const hooks = answer.hooks.length > 0 ? answer.hooks : generation.hooks;
@@ -234,7 +243,10 @@ export async function generateDraft(
     hooks: [],
     createdAt: now
   };
-  const recent = await deps.writer.recentFacets(input.format, RECENT_FACETS);
+  const recent = await deps.writer.recentFacets(RECENT_FACETS);
+  const resting = overusedPhrases(await deps.writer.recentDraftTexts(PHRASE_WINDOW));
+  // A topic the owner names is never a repeat to flag; only a topic the writer picked itself.
+  const invent = input.mode === 'direct' && asksToInvent(task);
   return call(
     deps,
     row,
@@ -245,10 +257,11 @@ export async function generateDraft(
       holdOut: input.holdOut ?? [],
       author: await author(deps),
       ownerTexts: await deps.writer.ownerExamples({ format: input.format, limit: 2 }),
-      recent
+      recent,
+      resting
     }),
     input.signal,
-    recent
+    invent ? recent : []
   );
 }
 
