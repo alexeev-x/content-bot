@@ -1,12 +1,12 @@
+import { useState } from 'react';
 import { Button as AriaButton } from 'react-aria-components';
-import { AreaChart, Icon, type IconName, Panel, Skeleton } from '../../../shared/ui';
+import { Button, Icon, type IconName, Panel, Skeleton } from '../../../shared/ui';
 import type { Insight } from '../model/insights';
 import { copy } from './copy';
 import styles from './Insights.module.css';
 import { PanelSkeleton } from './PanelSkeleton';
 
 export type InsightsSummary = {
-  views: { value: string; change: number | null; series: readonly number[]; tips: readonly string[] };
   hits: { hits: number; total: number; diff: number | null };
   cadence: { perWeek: string; change: number | null };
 };
@@ -17,6 +17,10 @@ type Props = {
   days: number;
   onOpenItem: (id: string) => void;
 };
+
+/** Conclusions shown before «Показать ещё»: a wall of twelve cards hid the ones that matter. */
+const FIRST = 6;
+const TONE_ORDER: Record<Insight['tone'], number> = { bad: 0, good: 1, neutral: 2 };
 
 const ICON: Record<Insight['tone'], IconName> = { good: 'arrow-up', bad: 'arrow-down', neutral: 'info' };
 const TONE_LABEL = { good: 'Хорошо', bad: 'Внимание', neutral: 'Наблюдение' } as const;
@@ -37,6 +41,14 @@ function Change({ value, unit = '%', suffix }: { value: number | null; unit?: st
 
 /** «Главное»: three headline numbers, then each conclusion with the figure it rests on. */
 export function InsightsPanel({ insights, summary, days, onOpenItem }: Props) {
+  const [all, setAll] = useState(false);
+  // «Просмотры +N% к прошлым дням» repeats the KPI strip. What needs attention comes first, then good news,
+  // then observations (a stable sort keeps the model's order inside each group), so the cut hides the least.
+  const relevant = (insights ?? [])
+    .filter((insight) => insight.id !== 'views-change')
+    .sort((a, b) => TONE_ORDER[a.tone] - TONE_ORDER[b.tone]);
+  const shown = all ? relevant : relevant.slice(0, FIRST);
+  const hidden = relevant.length - shown.length;
   if (insights === undefined && summary === undefined)
     return <PanelSkeleton title={copy.insights.title(days)} rows={17.1} phoneRows={42.5} />;
   return (
@@ -44,19 +56,6 @@ export function InsightsPanel({ insights, summary, days, onOpenItem }: Props) {
       <div className={styles.body}>
         {summary ? (
           <ul className={styles.stats}>
-            <li className={styles.stat}>
-              <span className={styles.statIcon}>
-                <Icon name="eye" size={18} />
-              </span>
-              <span className={styles.statText}>
-                <span className={styles.statLabel}>Просмотры</span>
-                <strong>{summary.views.value}</strong>
-                <Change value={summary.views.change} suffix={`против прошлых ${days} дней`} />
-              </span>
-              <span className={styles.statChart}>
-                <AreaChart points={summary.views.series} tips={summary.views.tips} variant="bars" height={36} />
-              </span>
-            </li>
             <li className={styles.stat}>
               <span className={styles.statIcon}>
                 <Icon name="file" size={18} />
@@ -93,7 +92,7 @@ export function InsightsPanel({ insights, summary, days, onOpenItem }: Props) {
           <p className={styles.muted}>{copy.insights.empty}</p>
         ) : (
           <ul className={styles.grid}>
-            {insights.map((insight) => (
+            {shown.map((insight) => (
               <li key={insight.id} className={styles.card} data-tone={insight.tone}>
                 <span className={styles.icon}>
                   <Icon name={ICON[insight.tone]} size={16} />
@@ -130,6 +129,11 @@ export function InsightsPanel({ insights, summary, days, onOpenItem }: Props) {
             ))}
           </ul>
         )}
+        {hidden > 0 ? (
+          <Button variant="secondary" size="sm" icon="chevron-down" onPress={() => setAll(true)}>
+            {`Показать ещё ${hidden}`}
+          </Button>
+        ) : null}
       </div>
     </Panel>
   );

@@ -147,13 +147,23 @@ export function ItemsTable({
         align: 'end',
         allowsSorting: true,
         cell: (item) => {
-          const multiple = multipleOf(item, medians, now);
+          // A young item has no settled «×» yet: the usual curve at its age stands in, and «рано» when even that
+          // has too few items, so the column no longer reads «—» for every fresh video.
+          const settled = multipleOf(item, medians, now);
+          const verdict = verdicts.get(item.id);
+          const atAge = settled === null && verdict?.basis === 'age' ? verdict.multiple : null;
+          const multiple = settled ?? atAge;
           return (
             <span
               className={styles.multipleCell}
               data-tone={multiple === null ? 'flat' : multiple >= 1.5 ? 'up' : multiple <= 0.5 ? 'down' : 'flat'}
+              title={atAge !== null ? 'К обычному на этом возрасте' : undefined}
             >
-              {multiple === null ? '—' : `${multiple.toLocaleString('ru-RU')}×`}
+              {multiple !== null
+                ? `${atAge !== null ? '≈ ' : ''}${multiple.toLocaleString('ru-RU')}×`
+                : verdict?.status === 'collecting'
+                  ? 'рано'
+                  : '—'}
             </span>
           );
         }

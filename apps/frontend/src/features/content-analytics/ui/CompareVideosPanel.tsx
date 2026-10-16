@@ -491,6 +491,7 @@ function keyDifferences(rows: readonly Row[], mixed: boolean, horizon: number): 
       });
     }
   }
+  let explained = false;
   for (const [pick, noun] of [
     [(item: ContentItemDto) => item.likes, 'лайков'],
     [(item: ContentItemDto) => item.comments, 'комментариев']
@@ -503,9 +504,8 @@ function keyDifferences(rows: readonly Row[], mixed: boolean, horizon: number): 
     const [first, last] = [rates[0]!, rates.at(-1)!];
     if (first.rate >= 1 && first.rate >= last.rate * 1.3) {
       // The rate explanation once, on the first rate fact.
-      const why = result.some((entry) => entry.detail.includes('на 1000'))
-        ? ''
-        : ' На 1000 просмотров, поэтому большой и маленький охват сравнимы.';
+      const why = explained ? '' : ' На 1000 просмотров, поэтому большой и маленький охват сравнимы.';
+      explained = true;
       result.push({
         title: `${nameOf(first.row, rows)} сильнее цепляет: ${rateText(first.rate)} ${noun} на 1000 просмотров`,
         detail: `У ${nameOf(last.row, rows)} — ${rateText(last.rate)}.${why}`

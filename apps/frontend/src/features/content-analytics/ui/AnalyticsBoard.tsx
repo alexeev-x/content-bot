@@ -190,13 +190,8 @@ export function AnalyticsBoard({ timezone, view, onViewChange, onOpenSettings }:
       return items.filter((item) => (multipleOf(item, ownMedians, at) ?? 0) >= 1.5).length;
     };
     const hits = hitsOf(current);
+    // No views tile: the KPI strip right above already shows them (owner, 16.10.2026: the same number three times).
     const summary: InsightsSummary = {
-      views: {
-        value: formatCount(stats.views),
-        change: before.items > 0 ? percentChange(stats.views, before.views) : null,
-        series: daily.map((entry) => entry.views),
-        tips: daily.map((entry) => `${formatDay(entry.day)}: ${formatCount(entry.views)}`)
-      },
       hits: { hits, total: settledItems(current, at).length, diff: before.items > 0 ? hits - hitsOf(previous) : null },
       cadence: {
         perWeek: (Math.round((stats.items / days) * 7 * 10) / 10).toLocaleString('ru-RU'),

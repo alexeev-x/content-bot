@@ -316,7 +316,7 @@ function DrawerBody({
               })}
             </ul>
 
-            <GrowthChart curve={curve} usualCurve={usualCurve} usualBand={usualBand} range={range} onRange={setRange} />
+            {/* The growth chart lives on «Динамика» only: the same chart on both tabs read as a repeat (owner, 16.10.2026). */}
 
             <section aria-labelledby="item-findings">
               <h3 id="item-findings" className={styles.sectionTitle}>
