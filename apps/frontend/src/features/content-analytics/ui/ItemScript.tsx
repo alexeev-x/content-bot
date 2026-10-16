@@ -1,7 +1,12 @@
-import type { AiReelsScriptDto, ContentItemDto } from '@alexeev/contracts';
+import {
+  type AiReelsScriptDto,
+  type ContentItemDto,
+  type ContentVideoFormat,
+  contentVideoFormatSchema
+} from '@alexeev/contracts';
 import { useQuery } from '@tanstack/react-query';
-import { Button, Skeleton } from '../../../shared/ui';
-import { itemScriptQueryOptions, useLinkItemScript } from '../api/content-analytics-queries';
+import { Button, Select, Skeleton } from '../../../shared/ui';
+import { itemScriptQueryOptions, useLinkItemScript, useMarkItemFormat } from '../api/content-analytics-queries';
 import { formatPublished } from '../model/format';
 import styles from './Drawer.module.css';
 
@@ -11,13 +16,29 @@ export const FORMAT: Record<AiReelsScriptDto['format'], string> = {
   standalone: 'Отдельный рилс'
 };
 
+const NO_FORMAT = 'none';
+const FORMAT_OPTIONS = [
+  { id: NO_FORMAT, label: 'Не указана' },
+  ...contentVideoFormatSchema.options.map((format) => ({ id: format, label: FORMAT[format] }))
+];
+
 /**
  * «Сценарий»: which approved AI-editor script a YouTube/TikTok video was filmed from. Reels go out outside the
  * studio, so the studio proposes and the owner confirms in one tap (docs/ai/architecture.md, item 3).
  */
-export function ItemScript({ item, timezone }: { item: ContentItemDto; timezone: string }) {
+export function ItemScript({
+  item,
+  timezone,
+  ownerFormat
+}: {
+  item: ContentItemDto;
+  timezone: string;
+  /** The owner's manual mark; shown only while no script is linked (a linked script's format wins). */
+  ownerFormat: ContentVideoFormat | null;
+}) {
   const query = useQuery(itemScriptQueryOptions(item.id));
   const link = useLinkItemScript(item.id);
+  const mark = useMarkItemFormat(item.id);
   const data = query.data;
   return (
     <section className={styles.compareBlock} aria-labelledby="item-script">
@@ -69,7 +90,17 @@ export function ItemScript({ item, timezone }: { item: ContentItemDto; timezone:
           </ul>
         </>
       )}
-      {link.isError ? <p className={styles.muted}>Не удалось сохранить. Попробуйте ещё раз.</p> : null}
+      {data !== undefined && !data.linked ? (
+        <Select
+          label="Рубрика ролика"
+          description="Ролик снят без сценария? Укажите рубрику — он будет сравниваться с роликами своей рубрики."
+          options={FORMAT_OPTIONS}
+          value={ownerFormat ?? NO_FORMAT}
+          isDisabled={mark.isPending}
+          onChange={(id) => mark.mutate(id === NO_FORMAT ? null : contentVideoFormatSchema.parse(id))}
+        />
+      ) : null}
+      {link.isError || mark.isError ? <p className={styles.muted}>Не удалось сохранить. Попробуйте ещё раз.</p> : null}
     </section>
   );
 }

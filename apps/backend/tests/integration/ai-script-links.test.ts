@@ -95,6 +95,39 @@ describe('same-format baseline', () => {
     // An unlinked video keeps the platform curve.
     expect((await detail('tiktok:v5')).format).toBeNull();
   });
+
+  it('counts videos the owner marked, lets a linked script win, and never marks a Telegram post', async () => {
+    for (let n = 1; n <= 3; n += 1) await seedVideo(n, 1000, true);
+    for (let n = 4; n <= 7; n += 1) await seedVideo(n, 50_000, false);
+    await seedVideo(10, 2000, true);
+    const mark = (id: string, format: string | null) =>
+      api.request(`/api/v1/content-analytics/items/${encodeURIComponent(id)}/format`, {
+        method: 'PUT',
+        json: { format }
+      });
+
+    // Two legacy «Учусь играть» videos marked by hand join the three linked ones: five, a format curve.
+    expect((await mark('tiktok:v4', 'igrat')).status).toBe(204);
+    expect((await mark('tiktok:v5', 'igrat')).status).toBe(204);
+    expect((await mark('tiktok:v5', 'igrat')).status).toBe(204);
+    expect((await detail('tiktok:v4')).formatSource).toBe('owner');
+    expect((await detail('tiktok:v10')).baseline).toMatchObject({ format: 'igrat', points: [{ items: 5 }] });
+
+    // A video linked to a script of another format is not counted by its stale mark; clearing removes a mark.
+    await testDb()
+      .prepare('INSERT INTO content_ai_links (content_item_id, revision_id, linked_at) VALUES (?, ?, ?)')
+      .bind('tiktok:v5', OTHER, START)
+      .run();
+    expect(await detail('tiktok:v5')).toMatchObject({ format: 'fidit', formatSource: 'script' });
+    expect((await mark('tiktok:v4', null)).status).toBe(204);
+    expect((await detail('tiktok:v10')).baseline.format ?? null).toBeNull();
+
+    const post = await mark(POST, 'igrat');
+    expect(post.status).toBe(400);
+    expect(apiErrorSchema.parse(await post.json()).error.code).toBe('VALIDATION_ERROR');
+    expect((await mark('tiktok:missing', 'igrat')).status).toBe(404);
+    expect((await mark('tiktok:v4', 'news')).status).toBe(400);
+  });
 });
 
 describe('/api/v1/ai/scripts/{itemId}', () => {

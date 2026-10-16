@@ -23,6 +23,7 @@ export {
   listContentItems,
   readContentAnalyticsOverview,
   readContentItem,
+  markContentItemFormat,
   readCachedContentReport,
   readContentReport,
   SOURCE_D1_STATEMENTS

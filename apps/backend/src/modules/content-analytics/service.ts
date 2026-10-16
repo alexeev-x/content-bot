@@ -24,7 +24,7 @@ import {
   type ContentAnalyticsRepository,
   type ItemRow
 } from './d1-content-analytics-repository';
-import { CONTENT_PLATFORMS, ContentCollectError, type ItemFormats } from './types';
+import { CONTENT_PLATFORMS, ContentCollectError, type ItemFormats, type VideoFormat } from './types';
 
 const MINUTE_MS = 60 * 1000;
 const DAY_MS = 24 * 60 * MINUTE_MS;
@@ -251,13 +251,16 @@ export async function readContentItem(
     platform: found.item.platform
   });
   const platformCurve = baselineFor(checkpoints, found.item.platform, found.item.id);
-  const format = deps.formats && found.item.platform !== 'telegram' ? await deps.formats.formatOf(found.item.id) : null;
-  if (format === null || deps.formats === undefined) {
-    return { ...detailOf(found), baseline: platformCurve, format: null };
+  const video = found.item.platform !== 'telegram';
+  const linked = video && deps.formats ? await deps.formats.formatOf(found.item.id) : null;
+  // A linked script is the owner's confirmation; the manual mark covers videos filmed without one.
+  const format = linked ?? (video ? found.ownerFormat : null);
+  if (format === null) {
+    return { ...detailOf(found), baseline: platformCurve, format: null, formatSource: null };
   }
   // Same platform, same format, exact checkpoints, at least 5 videos (architecture item 1); else the platform
   // curve, which the page marks as a weak comparison.
-  const ids = new Set(await deps.formats.itemsOf(format));
+  const ids = await idsOfFormat(deps, format);
   ids.delete(found.item.id);
   const formatCurve = baselineFor(checkpoints, found.item.platform, found.item.id, {
     ids,
@@ -268,8 +271,42 @@ export async function readContentItem(
     ...detailOf(found),
     baseline: formatCurve.points.length > 0 ? { ...formatCurve, format } : platformCurve,
     format,
+    formatSource: linked === null ? 'owner' : 'script',
     formatItems
   };
+}
+
+const VIDEO_FORMATS: readonly VideoFormat[] = ['fidit', 'igrat', 'standalone'];
+
+/** Videos of `format`: linked to its scripts, or marked by the owner and not linked to a script of another one. */
+async function idsOfFormat(
+  deps: { repo: ContentAnalyticsRepository; formats?: ItemFormats },
+  format: VideoFormat
+): Promise<Set<string>> {
+  const marked = await deps.repo.itemsMarked(format);
+  if (deps.formats === undefined) return new Set(marked);
+  const formats = deps.formats;
+  const ids = new Set(await formats.itemsOf(format));
+  if (marked.length === 0) return ids;
+  const elsewhere = new Set(
+    (await Promise.all(VIDEO_FORMATS.filter((other) => other !== format).map((other) => formats.itemsOf(other)))).flat()
+  );
+  for (const id of marked) if (!elsewhere.has(id)) ids.add(id);
+  return ids;
+}
+
+/** The owner's format mark of a video; a Telegram post has no Reels format. */
+export async function markContentItemFormat(
+  deps: { repo: ContentAnalyticsRepository; clock: Clock },
+  id: string,
+  format: VideoFormat | null
+): Promise<void> {
+  const found = await deps.repo.readItem(id);
+  if (found === null) throw new AppError('NOT_FOUND', 'Content item not found');
+  if (found.item.platform === 'telegram') {
+    throw new AppError('VALIDATION_ERROR', 'A Telegram post has no video format', { reason: 'NOT_A_VIDEO' });
+  }
+  await deps.repo.markFormat({ id, format, now: deps.clock.now() });
 }
 
 function detailOf(found: NonNullable<Awaited<ReturnType<ContentAnalyticsRepository['readItem']>>>) {

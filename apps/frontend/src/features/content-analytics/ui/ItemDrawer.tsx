@@ -47,7 +47,7 @@ function baselineBasis(detail: ContentItemDetailDto): string {
     const items = detail.formatItems ?? 0;
     return `Роликов рубрики «${FORMAT[detail.format]}» пока ${items} из 5 нужных — сравнение со всеми роликами платформы, оно приблизительное.`;
   }
-  return 'Сравнение со всеми роликами платформы. Привяжите сценарий ниже, чтобы сравнивать с роликами своей рубрики.';
+  return 'Сравнение со всеми роликами платформы. Привяжите сценарий или укажите рубрику ниже, чтобы сравнивать с роликами своей рубрики.';
 }
 
 export type DrawerContext = {
@@ -371,7 +371,13 @@ function DrawerBody({
               </div>
             </section>
 
-            {item.platform !== 'telegram' ? <ItemScript item={item} timezone={timezone} /> : null}
+            {item.platform !== 'telegram' ? (
+              <ItemScript
+                item={item}
+                timezone={timezone}
+                ownerFormat={detail.formatSource === 'owner' ? (detail.format ?? null) : null}
+              />
+            ) : null}
           </div>
         </TabPanel>
 

@@ -1,4 +1,4 @@
-import type { ContentPlatform, ContentReportPeriod } from '@alexeev/contracts';
+import type { ContentPlatform, ContentReportPeriod, ContentVideoFormat } from '@alexeev/contracts';
 import { infiniteQueryOptions, queryOptions, useMutation, useQueryClient } from '@tanstack/react-query';
 import { nextCursor } from '../../../shared/api/query-string';
 import {
@@ -11,6 +11,7 @@ import {
   getContentReport,
   getItemScript,
   linkItemScript,
+  markItemFormat,
   removeContentGoal,
   unlinkItemScript,
   setContentGoal,
@@ -47,6 +48,15 @@ export function useLinkItemScript(itemId: string) {
       // The link sets the video's format, so its usual curve may now be the format's.
       void client.invalidateQueries({ queryKey: contentAnalyticsKeys.item(itemId) });
     }
+  });
+}
+
+export function useMarkItemFormat(itemId: string) {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (format: ContentVideoFormat | null) => markItemFormat(itemId, format),
+    retry: false,
+    onSuccess: () => client.invalidateQueries({ queryKey: contentAnalyticsKeys.item(itemId) })
   });
 }
 

@@ -7,7 +7,8 @@ import {
   contentReportSchema,
   tiktokConnectSchema,
   type ContentPlatform,
-  type ContentReportPeriod
+  type ContentReportPeriod,
+  type ContentVideoFormat
 } from '@alexeev/contracts';
 import { apiRequest, apiRequestNoContent } from '../../../shared/api/http-client';
 import { buildQuery } from '../../../shared/api/query-string';
@@ -34,6 +35,14 @@ export function getContentItems(
 
 export function getContentItem(id: string, signal?: AbortSignal) {
   return apiRequest(`/api/v1/content-analytics/items/${encodeURIComponent(id)}`, contentItemDetailSchema, { signal });
+}
+
+/** The owner's format mark for a video filmed without an AI script; null clears it. */
+export function markItemFormat(itemId: string, format: ContentVideoFormat | null) {
+  return apiRequestNoContent(`/api/v1/content-analytics/items/${encodeURIComponent(itemId)}/format`, {
+    method: 'PUT',
+    body: { format }
+  });
 }
 
 const scriptPath = (itemId: string) => `/api/v1/ai/scripts/${encodeURIComponent(itemId)}`;

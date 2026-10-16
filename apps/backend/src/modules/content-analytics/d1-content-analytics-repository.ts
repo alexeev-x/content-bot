@@ -3,7 +3,7 @@ import {
   CONTENT_ANALYTICS_TOP_LIMIT,
   CONTENT_ITEM_SNAPSHOT_LIMIT
 } from '@alexeev/contracts';
-import type { CollectedItem, ContentPlatform } from './types';
+import type { CollectedItem, ContentPlatform, VideoFormat } from './types';
 
 const HOUR_MS = 60 * 60 * 1000;
 /** Items younger than this get an hourly snapshot; older ones a daily one. */
@@ -97,7 +97,12 @@ export interface ContentAnalyticsRepository {
     after?: readonly [number, string] | undefined;
     limit: number;
   }): Promise<ItemRow[]>;
-  readItem(id: string): Promise<{ item: ItemRow; snapshots: SnapshotRow[] } | null>;
+  /** The item, its newest snapshots and the owner's format mark, in one round trip. */
+  readItem(id: string): Promise<{ item: ItemRow; snapshots: SnapshotRow[]; ownerFormat: VideoFormat | null } | null>;
+  /** Items the owner marked with `format`, at most 500. */
+  itemsMarked(format: VideoFormat): Promise<string[]>;
+  /** Sets (or with null clears) the owner's mark of an existing item. */
+  markFormat(input: { id: string; format: VideoFormat | null; now: number }): Promise<void>;
   /** Checkpoint views of the items published since `publishedFrom` that have any. */
   readCheckpoints(input: { publishedFrom: number; platform?: ContentPlatform }): Promise<CheckpointRow[]>;
   readReport(input: { publishedFrom: number; fromDay: string; limit: number }): Promise<{
@@ -399,8 +404,9 @@ export function createD1ContentAnalyticsRepository(db: D1Database): ContentAnaly
     },
 
     async readItem(id) {
-      const [item, snapshots] = await db.batch([
+      const [item, snapshots, mark] = await db.batch([
         db.prepare(`SELECT ${ITEM_COLUMNS} FROM content_items WHERE id = ?`).bind(id),
+
         // The newest snapshots, returned oldest first.
         db
           .prepare(
@@ -409,11 +415,36 @@ export function createD1ContentAnalyticsRepository(db: D1Database): ContentAnaly
                WHERE item_id = ? ORDER BY observed_at DESC LIMIT ?
              ) ORDER BY observedAt`
           )
-          .bind(id, CONTENT_ITEM_SNAPSHOT_LIMIT)
+          .bind(id, CONTENT_ITEM_SNAPSHOT_LIMIT),
+        db.prepare('SELECT format FROM content_item_formats WHERE item_id = ?').bind(id)
       ]);
       const row = (item?.results as RawItem[] | undefined)?.[0];
       if (row === undefined) return null;
-      return { item: toItem(row), snapshots: (snapshots?.results ?? []) as SnapshotRow[] };
+      return {
+        item: toItem(row),
+        snapshots: (snapshots?.results ?? []) as SnapshotRow[],
+        ownerFormat: (mark?.results as { format: VideoFormat }[] | undefined)?.[0]?.format ?? null
+      };
+    },
+
+    async itemsMarked(format) {
+      const rows = await db
+        .prepare('SELECT item_id AS id FROM content_item_formats WHERE format = ? LIMIT 500')
+        .bind(format)
+        .all<{ id: string }>();
+      return rows.results.map((row) => row.id);
+    },
+
+    async markFormat({ id, format, now }) {
+      await db
+        .prepare(
+          format === null
+            ? 'DELETE FROM content_item_formats WHERE item_id = ?1'
+            : `INSERT INTO content_item_formats (item_id, format, set_at) VALUES (?1, ?2, ?3)
+               ON CONFLICT (item_id) DO UPDATE SET format = excluded.format, set_at = excluded.set_at`
+        )
+        .bind(...(format === null ? [id] : [id, format, now]))
+        .run();
     }
   };
 }

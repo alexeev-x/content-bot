@@ -147,12 +147,20 @@ export const contentItemDetailSchema = z.object({
   snapshots: z.array(contentItemSnapshotSchema).max(CONTENT_ITEM_SNAPSHOT_LIMIT),
   /** The usual curve of the item's format when enough videos share it, else of its platform (itself excluded). */
   baseline: contentBaselineSchema,
-  /** The video's format from its linked script; null — not linked (or a Telegram post). */
+  /** The video's format: from its linked script, else as the owner marked it; null — unknown (or a Telegram post). */
   format: contentVideoFormatSchema.nullable().optional(),
+  /** Where `format` comes from: a linked script wins over the owner's mark; null when unknown. */
+  formatSource: z.enum(['script', 'owner']).nullable().optional(),
   /** Other tracked videos of that format, so the page can say how far the format curve is (5 needed). */
   formatItems: z.number().int().nonnegative().optional()
 });
 export type ContentItemDetailDto = z.infer<typeof contentItemDetailSchema>;
+
+// PUT /api/v1/content-analytics/items/:id/format  body ContentItemFormatInput → 204 (replaces; safe to repeat).
+// The owner's mark for a video filmed without an AI script (a linked script's format still wins); null clears it.
+// Errors: VALIDATION_ERROR 400 (also for a Telegram post), NOT_FOUND 404, UNAUTHORIZED 401, FORBIDDEN 403.
+export const contentItemFormatInputSchema = z.strictObject({ format: contentVideoFormatSchema.nullable() });
+export type ContentItemFormatInput = z.infer<typeof contentItemFormatInputSchema>;
 
 // POST /api/v1/content-analytics/tiktok/connect (no body) → 200 { authorizeUrl }: the browser goes there to
 // approve access on TikTok. Errors: UNAUTHORIZED 401, FORBIDDEN 403, UNAVAILABLE 503 (app keys not set).

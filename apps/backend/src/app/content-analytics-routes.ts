@@ -4,6 +4,7 @@ import {
   contentGoalParamsSchema,
   contentGoalsSchema,
   contentItemDetailSchema,
+  contentItemFormatInputSchema,
   contentItemIdSchema,
   contentItemsPageSchema,
   contentItemsQuerySchema,
@@ -22,6 +23,7 @@ import {
   disconnectTikTok,
   readContentItem,
   readContentGoals,
+  markContentItemFormat,
   readCachedContentReport,
   removeContentGoal,
   setContentGoal,
@@ -182,6 +184,20 @@ export const contentAnalyticsRoutes = new Hono<AppBindings>()
       )
     );
   })
+  .put(
+    '/items/:id/format',
+    validated('param', itemParamsSchema),
+    validated('json', contentItemFormatInputSchema),
+    async (c) => {
+      const container = c.get('container');
+      await markContentItemFormat(
+        { repo: container.contentAnalytics, clock: container.clock },
+        c.req.valid('param').id,
+        c.req.valid('json').format
+      );
+      return c.body(null, 204);
+    }
+  )
   .get('/goals', async (c) => {
     const container = c.get('container');
     return c.json(
