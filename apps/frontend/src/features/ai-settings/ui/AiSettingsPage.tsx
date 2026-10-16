@@ -79,6 +79,11 @@ export function AiSettingsSkeleton() {
           </div>
         </Panel>
       </div>
+      <Panel title={copy.quality.title(30)} icon={<Icon name="check-circle" />} reserveRows={3} reservePhoneRows={4}>
+        <div className={styles.spend}>
+          <Skeleton lines={2} height={24} />
+        </div>
+      </Panel>
       <Panel title={copy.extraTitle} icon={<Icon name="settings" />}>
         <div className={styles.extra}>
           <DisclosureGroup>
@@ -329,6 +334,8 @@ function AiSettings({ overview, onReload }: { overview: AiOverviewDto; onReload:
         </Panel>
       </div>
 
+      <QualityPanel quality={overview.quality} />
+
       <Panel title={copy.extraTitle} icon={<Icon name="settings" />}>
         <div className={styles.extra}>
           <DisclosureGroup>
@@ -364,5 +371,43 @@ function AiSettings({ overview, onReload }: { overview: AiOverviewDto; onReload:
 
       {spend.blockedBy === 'monthly_budget' ? <Banner tone="warning" title={copy.blocked.monthly_budget} /> : null}
     </div>
+  );
+}
+
+/** «Качество»: how much the owner changes before approving, and what the checks and buttons say. */
+function QualityPanel({ quality }: { quality: AiOverviewDto['quality'] }) {
+  const ratio = quality.averageEditRatio;
+  return (
+    <Panel title={copy.quality.title(quality.days)} icon={<Icon name="check-circle" />}>
+      {quality.drafts + quality.rewrites + quality.failed === 0 ? (
+        <p className={styles.intro}>{copy.quality.empty}</p>
+      ) : (
+        <div className={styles.spend}>
+          <dl className={styles.facts}>
+            <div>
+              <dt>{copy.quality.editRatio}</dt>
+              <dd>{ratio === null ? '—' : `${Math.round(ratio * 100)}%`}</dd>
+              <dd className={styles.meta}>
+                {ratio === null ? copy.quality.noApprovals : copy.quality.editHint(ratio)}
+              </dd>
+            </div>
+            <div>
+              <dt>{copy.quality.approved}</dt>
+              <dd>
+                {quality.approved} {copy.of} {quality.drafts}
+              </dd>
+              <dd className={styles.meta}>{copy.quality.unchanged(quality.approvedUnchanged)}</dd>
+            </div>
+            <div>
+              <dt>{copy.quality.draftCost}</dt>
+              <dd>{quality.averageDraftUsd === null ? '—' : usd(quality.averageDraftUsd)}</dd>
+            </div>
+          </dl>
+          <p className={styles.meta}>
+            {copy.quality.details(quality.rewrites, quality.jokeMissed, quality.withWarnings, quality.failed)}
+          </p>
+        </div>
+      )}
+    </Panel>
   );
 }

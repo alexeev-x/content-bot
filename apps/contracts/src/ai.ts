@@ -122,15 +122,62 @@ export const aiConnectionSchema = z.object({
 });
 export type AiConnectionDto = z.infer<typeof aiConnectionSchema>;
 
+/** How the writer did over the last 30 days (docs/ai/architecture.md item 15): never a model's self-score. */
+export const aiQualitySchema = z.object({
+  days: z.number().int().positive(),
+  /** First drafts written (ready), their rewrites («Короче», «Смешнее», «Ещё вариант») and failed calls. */
+  drafts: z.number().int().nonnegative(),
+  rewrites: z.number().int().nonnegative(),
+  failed: z.number().int().nonnegative(),
+  /** Drafts and rewrites whose code checks found something. */
+  withWarnings: z.number().int().nonnegative(),
+  approved: z.number().int().nonnegative(),
+  /** Approved with at most 5 % of the words changed. */
+  approvedUnchanged: z.number().int().nonnegative(),
+  /** Mean share of words the owner changed before approving, 0–1; null without approvals. */
+  averageEditRatio: z.number().min(0).max(1).nullable(),
+  jokeMissed: z.number().int().nonnegative(),
+  /** Mean cost of a priced first draft; null without one. */
+  averageDraftUsd: z.number().nonnegative().nullable()
+});
+export type AiQualityDto = z.infer<typeof aiQualitySchema>;
+
 // GET /api/v1/ai → 200 AiOverviewDto. Read-only, a few bounded reads.
 export const aiOverviewSchema = z.object({
   settings: aiSettingsSchema,
   connection: aiConnectionSchema,
   spend: aiSpendSchema,
-  catalog: aiCatalogSchema
+  catalog: aiCatalogSchema,
+  quality: aiQualitySchema
 });
 export type AiOverviewDto = z.infer<typeof aiOverviewSchema>;
 
 // POST /api/v1/ai/check (no body) → 200 AiOverviewDto: one tiny request to the cheap (or draft) model; the
 // result and its cost are recorded. errors: UNAVAILABLE 503 (details.reason: NO_KEY | NO_MODEL | DISABLED |
 // NO_PRICE | BUDGET), RATE_LIMIT 429 (a few checks per 10 minutes), UNAUTHORIZED, FORBIDDEN. A provider failure is not an error: it is the check's result.
+
+export const AI_WRITER_FORMATS = ['fidit', 'igrat', 'standalone', 'telegram'] as const;
+export const aiWriterFormatSchema = z.enum(AI_WRITER_FORMATS);
+
+// POST /api/v1/ai/drafts { format, mode, task } → 200 AiDraftResultDto: one draft written from the studio
+// (stored as AI_DRAFT, never publishable without approval). Not idempotent: every call is a paid request.
+// errors: VALIDATION_ERROR 400, UNAVAILABLE 503 (details.reason as for /check), RATE_LIMIT 429 (20 per 10
+// minutes), UNAUTHORIZED, FORBIDDEN. A provider failure is not an error: status «failed» with its code.
+export const createAiDraftInputSchema = z.strictObject({
+  format: aiWriterFormatSchema,
+  mode: z.enum(['direct', 'automatic']),
+  task: z.string().trim().min(1).max(4000)
+});
+export type CreateAiDraftInput = z.infer<typeof createAiDraftInputSchema>;
+
+export const aiDraftResultSchema = z.object({
+  generationId: z.uuid(),
+  status: z.enum(['ready', 'failed']),
+  errorCode: z.string().max(80).nullable(),
+  model: z.string().nullable(),
+  hooks: z.array(z.string()).max(3),
+  text: z.string().nullable(),
+  /** Code-check findings, stable codes (writer-checks.ts). */
+  warnings: z.array(z.string()).max(30)
+});
+export type AiDraftResultDto = z.infer<typeof aiDraftResultSchema>;

@@ -572,6 +572,18 @@ export async function mockApi(page: Page): Promise<void> {
         byKind: [{ kind: 'check', requests: 1, spentUsd: 0.00005 }],
         blockedBy: null
       },
+      quality: {
+        days: 30,
+        drafts: 6,
+        rewrites: 3,
+        failed: 0,
+        withWarnings: 2,
+        approved: 4,
+        approvedUnchanged: 1,
+        averageEditRatio: 0.18,
+        jokeMissed: 1,
+        averageDraftUsd: 0.011
+      },
       catalog: {
         provider: 'openai',
         providerLabel: 'OpenAI',

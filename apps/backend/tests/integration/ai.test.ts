@@ -1,4 +1,4 @@
-import { aiOverviewSchema, type UpdateAiSettingsInput } from '@alexeev/contracts';
+import { aiDraftResultSchema, aiOverviewSchema, type UpdateAiSettingsInput } from '@alexeev/contracts';
 import { beforeEach, describe, expect, it } from 'vitest';
 import {
   AiProviderError,
@@ -88,6 +88,40 @@ describe('AI settings, spend and connection', () => {
     const checked = aiOverviewSchema.parse(await (await api.request('/api/v1/ai/check', { method: 'POST' })).json());
     expect(checked.connection.lastCheck).toMatchObject({ ok: false, errorCode: 'AI_KEY_REJECTED' });
     expect(checked.spend.requests).toBe(0);
+  });
+
+  it('writes a studio draft as AI_DRAFT, counts it in «Качество», and refuses bad input or AI off', async () => {
+    const answer = () =>
+      Promise.resolve({
+        text: 'ХУКИ:\n- Первый хук.\nТЕКСТ:\nПатч вышел. Стоит отметить, что Тинкер снова в игре.',
+        model: 'gpt-6.1-sol',
+        usage: { inputTokens: 3000, cachedInputTokens: 0, cacheWriteTokens: 0, outputTokens: 300 }
+      });
+    const api = createApi({ clock: fakeClock(), aiProvider: fakeProvider(answer) });
+    const draftJson = { format: 'telegram', mode: 'automatic', task: 'Патч 7.40: Тинкер вернулся в Captains Mode' };
+    // Off by default: refused before any request.
+    await expectError(await api.request('/api/v1/ai/drafts', { method: 'POST', json: draftJson }), 503, 'UNAVAILABLE');
+    await api.request('/api/v1/ai/settings', { method: 'PUT', json: { revision: 0, ...SETTINGS } });
+    await expectError(
+      await api.request('/api/v1/ai/drafts', { method: 'POST', json: { ...draftJson, format: 'reel' } }),
+      400,
+      'VALIDATION_ERROR'
+    );
+
+    const response = await api.request('/api/v1/ai/drafts', { method: 'POST', json: draftJson });
+    expect(response.status).toBe(200);
+    const result = aiDraftResultSchema.parse(await response.json());
+    expect(result).toMatchObject({ status: 'ready', hooks: ['Первый хук.'], warnings: ['AI_PHRASE:стоит отметить'] });
+
+    const overview = aiOverviewSchema.parse(await (await api.request('/api/v1/ai')).json());
+    expect(overview.quality).toMatchObject({
+      days: 30,
+      drafts: 1,
+      withWarnings: 1,
+      approved: 0,
+      averageEditRatio: null
+    });
+    expect(overview.quality.averageDraftUsd).toBeGreaterThan(0);
   });
 
   it('refuses a chosen model without a price: its requests would never count against the budget', async () => {

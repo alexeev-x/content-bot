@@ -31,6 +31,18 @@ export interface RevisionRow {
   createdAt: number;
 }
 
+export interface QualityRows {
+  drafts: number;
+  rewrites: number;
+  failed: number;
+  withWarnings: number;
+  approved: number;
+  approvedUnchanged: number;
+  averageEditRatio: number | null;
+  jokeMissed: number;
+  averageDraftMicroUsd: number | null;
+}
+
 /** The chat's mode: talking to the editor, or turning every message into a draft. */
 export type ChatMode = 'editor' | 'post';
 
@@ -67,6 +79,8 @@ export interface WriterRepository {
   attachPost(revisionId: string, postId: string): Promise<void>;
   addFeedback(input: { id: string; generationId: string; kind: FeedbackKind; now: number }): Promise<void>;
   recent(limit: number): Promise<GenerationRow[]>;
+  /** Counts of the writer's work since `since` (UTC ms), for «Качество». */
+  quality(since: number): Promise<QualityRows>;
   /** Opens (or restarts) the chat's mode: the /redactor conversation (empty history) or /post. */
   openRequest(input: {
     chatId: number;
@@ -324,6 +338,49 @@ export function createD1WriterRepository(db: D1Database): WriterRepository {
 
     async closeRequest(chatId) {
       await db.prepare('DELETE FROM ai_writer_requests WHERE chat_id = ?').bind(chatId).run();
+    },
+
+    async quality(since) {
+      const [generations, approvals, feedback, cost] = await db.batch([
+        db
+          .prepare(
+            `SELECT kind, status, COUNT(*) AS n,
+                    SUM(CASE WHEN warnings IS NOT NULL AND warnings <> '[]' THEN 1 ELSE 0 END) AS warned
+             FROM ai_generations WHERE created_at >= ? GROUP BY kind, status`
+          )
+          .bind(since),
+        db
+          .prepare(
+            `SELECT COUNT(*) AS n, SUM(CASE WHEN edit_ratio <= 0.05 THEN 1 ELSE 0 END) AS unchanged,
+                    AVG(edit_ratio) AS ratio
+             FROM ai_text_revisions
+             WHERE provenance IN ('OWNER_APPROVED', 'OWNER_PREAPPROVED') AND created_at >= ?`
+          )
+          .bind(since),
+        db.prepare(`SELECT COUNT(*) AS n FROM ai_feedback WHERE kind = 'joke_missed' AND created_at >= ?`).bind(since),
+        db
+          .prepare(
+            `SELECT AVG(u.cost_micro_usd) AS cost FROM ai_generations g JOIN ai_usage u ON u.id = g.usage_id
+             WHERE g.kind = 'draft' AND g.created_at >= ? AND u.cost_micro_usd IS NOT NULL`
+          )
+          .bind(since)
+      ]);
+      const rows = (generations?.results ?? []) as { kind: string; status: string; n: number; warned: number | null }[];
+      const sum = (match: (row: (typeof rows)[number]) => boolean) =>
+        rows.filter(match).reduce((total, row) => total + row.n, 0);
+      const approval = approvals?.results[0] as
+        { n: number; unchanged: number | null; ratio: number | null } | undefined;
+      return {
+        drafts: sum((row) => row.kind === 'draft' && row.status === 'ready'),
+        rewrites: sum((row) => row.kind === 'rewrite' && row.status === 'ready'),
+        failed: sum((row) => row.status === 'failed'),
+        withWarnings: rows.reduce((total, row) => total + (row.warned ?? 0), 0),
+        approved: approval?.n ?? 0,
+        approvedUnchanged: approval?.unchanged ?? 0,
+        averageEditRatio: approval?.ratio ?? null,
+        jokeMissed: (feedback?.results[0] as { n: number } | undefined)?.n ?? 0,
+        averageDraftMicroUsd: (cost?.results[0] as { cost: number | null } | undefined)?.cost ?? null
+      };
     },
 
     async recent(limit) {

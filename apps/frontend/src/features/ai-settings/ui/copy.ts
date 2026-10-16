@@ -105,6 +105,19 @@ export const copy = {
   pricesHint: 'USD за 1 млн токенов, со страницы цен провайдера. По ним считаются расходы.',
   voiceTitle: 'Голос',
   extraTitle: 'Дополнительно',
+  quality: {
+    title: (days: number) => `Качество за ${days} дней`,
+    empty: 'Черновиков ещё не было. Напишите боту /redactor — здесь появится, сколько вы правите тексты ИИ.',
+    editRatio: 'Правите перед «Одобрить»',
+    noApprovals: 'одобрений пока нет',
+    editHint: (ratio: number) =>
+      ratio <= 0.15 ? 'почти ваш текст' : ratio <= 0.5 ? 'заметно правите' : 'переписываете почти всё',
+    approved: 'Одобрено черновиков',
+    unchanged: (count: number) => `без правок: ${count}`,
+    draftCost: 'Цена черновика',
+    details: (rewrites: number, jokes: number, warned: number, failed: number) =>
+      `Переписываний: ${rewrites}. «Шутка не зашла»: ${jokes}. Замечания проверки: ${warned}. Ошибок модели: ${failed}.`
+  },
   widget: {
     month: 'Расходы за месяц',
     today: 'Расходы сегодня',

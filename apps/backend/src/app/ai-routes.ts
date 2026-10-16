@@ -1,6 +1,11 @@
-import { aiOverviewSchema, updateAiSettingsInputSchema } from '@alexeev/contracts';
+import {
+  aiDraftResultSchema,
+  aiOverviewSchema,
+  createAiDraftInputSchema,
+  updateAiSettingsInputSchema
+} from '@alexeev/contracts';
 import { type Context, Hono } from 'hono';
-import { type BudgetEvent, checkAiConnection, readAiOverview, updateAiSettings } from '../modules/ai';
+import { type BudgetEvent, checkAiConnection, generateDraft, readAiOverview, updateAiSettings } from '../modules/ai';
 import { getOwnerOperationsSettings } from '../modules/settings';
 import { appOriginOf } from './bot/app-origin';
 import type { AppBindings } from './env';
@@ -13,6 +18,11 @@ const ALERT_TIMEOUT_MS = 5_000;
 /** A check costs a fraction of a cent; a few per 10 minutes is plenty and bounds a stuck button or a loop. */
 const CHECK_LIMIT = 5;
 const CHECK_WINDOW_MS = 10 * 60 * 1000;
+/** A studio draft is a paid request: enough for a control run of 15 topics, bounded against a loop. */
+const DRAFT_LIMIT = 20;
+const DRAFT_WINDOW_MS = 10 * 60 * 1000;
+/** A request from the studio has no Telegram deadline; the model still gets a bound. */
+const DRAFT_TIMEOUT_MS = 60_000;
 
 async function deps(c: Context<AppBindings>) {
   const container = c.get('container');
@@ -23,6 +33,7 @@ async function deps(c: Context<AppBindings>) {
   });
   return {
     repo: container.aiRepository,
+    writer: container.aiWriter,
     clock: container.clock,
     timezone,
     keyConfigured: container.aiProvider !== null
@@ -71,4 +82,32 @@ export const aiRoutes = new Hono<AppBindings>()
     const events = await checkAiConnection({ ...base, newId: container.newId, provider: container.aiProvider });
     sendBudgetAlerts(c, events);
     return c.json(aiOverviewSchema.parse(await readAiOverview(base)));
-  });
+  })
+  .post(
+    '/drafts',
+    rateLimit({ name: 'ai-draft', limit: DRAFT_LIMIT, windowMs: DRAFT_WINDOW_MS }),
+    limitBody(MAX_BODY_BYTES),
+    validated('json', createAiDraftInputSchema),
+    async (c) => {
+      const base = await deps(c);
+      const container = c.get('container');
+      const input = c.req.valid('json');
+      const result = await generateDraft(
+        { ...base, newId: container.newId, provider: container.aiProvider },
+        { ...input, source: 'studio', signal: AbortSignal.timeout(DRAFT_TIMEOUT_MS) }
+      );
+      sendBudgetAlerts(c, result.budgetEvents);
+      const { generation } = result;
+      return c.json(
+        aiDraftResultSchema.parse({
+          generationId: generation.id,
+          status: generation.status === 'ready' ? 'ready' : 'failed',
+          errorCode: generation.errorCode,
+          model: generation.model,
+          hooks: generation.hooks,
+          text: result.text,
+          warnings: generation.warnings
+        })
+      );
+    }
+  );

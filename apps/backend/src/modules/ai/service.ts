@@ -11,6 +11,7 @@ import {
 import type { Clock } from '../../platform/clock';
 import { AppError } from '../../shared/app-error';
 import type { AiRepository } from './d1-ai-repository';
+import type { WriterRepository } from './d1-writer-repository';
 import { AI_CATALOG } from './catalog';
 import { type AiTextProvider, type AiUsage, AiProviderError } from './ports';
 
@@ -192,16 +193,20 @@ async function readSpend(
   };
 }
 
+const QUALITY_DAYS = 30;
+
 export async function readAiOverview(deps: {
   repo: AiRepository;
+  writer: WriterRepository;
   clock: Clock;
   timezone: string;
   keyConfigured: boolean;
 }): Promise<AiOverviewDto> {
   const settings = await readAiSettings(deps.repo);
-  const [spend, lastCheck] = await Promise.all([
+  const [spend, lastCheck, quality] = await Promise.all([
     readSpend(deps, settings, deps.keyConfigured),
-    deps.repo.readLastCheck()
+    deps.repo.readLastCheck(),
+    deps.writer.quality(deps.clock.now() - QUALITY_DAYS * 24 * 60 * 60 * 1000)
   ]);
   return {
     settings,
@@ -220,7 +225,19 @@ export async function readAiOverview(deps: {
             }
     },
     spend,
-    catalog: AI_CATALOG[settings.provider]
+    catalog: AI_CATALOG[settings.provider],
+    quality: {
+      days: QUALITY_DAYS,
+      drafts: quality.drafts,
+      rewrites: quality.rewrites,
+      failed: quality.failed,
+      withWarnings: quality.withWarnings,
+      approved: quality.approved,
+      approvedUnchanged: quality.approvedUnchanged,
+      averageEditRatio: quality.averageEditRatio === null ? null : Math.round(quality.averageEditRatio * 1000) / 1000,
+      jokeMissed: quality.jokeMissed,
+      averageDraftUsd: quality.averageDraftMicroUsd === null ? null : toUsd(quality.averageDraftMicroUsd)
+    }
   };
 }
 
