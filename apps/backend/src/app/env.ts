@@ -11,6 +11,8 @@ export type AppEnv = Env & {
   BOT_INFO?: string;
   /** YouTube Data API v3 key for content analytics (public counters only). */
   YOUTUBE_API_KEY?: string;
+  /** OpenAI key for the AI writer (Worker secret the owner sets; never logged or returned). */
+  OPENAI_API_KEY?: string;
   /** TikTok for Developers app keys (Login Kit + Display API). */
   TIKTOK_CLIENT_KEY?: string;
   TIKTOK_CLIENT_SECRET?: string;

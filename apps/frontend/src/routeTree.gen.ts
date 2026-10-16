@@ -21,6 +21,7 @@ import { Route as PostsIndexRouteImport } from './routes/posts/index';
 import { Route as PostsIdRouteImport } from './routes/posts/$id';
 import { Route as PostsNewRouteImport } from './routes/posts/new';
 import { Route as SettingsIndexRouteImport } from './routes/settings.index';
+import { Route as SettingsAiRouteImport } from './routes/settings.ai';
 import { Route as SettingsAnalyticsRouteImport } from './routes/settings.analytics';
 import { Route as SettingsAppearanceRouteImport } from './routes/settings.appearance';
 import { Route as SettingsChannelsRouteImport } from './routes/settings.channels';
@@ -89,6 +90,11 @@ const SettingsIndexRoute = SettingsIndexRouteImport.update({
   path: '/',
   getParentRoute: () => SettingsRoute,
 } as any);
+const SettingsAiRoute = SettingsAiRouteImport.update({
+  id: '/ai',
+  path: '/ai',
+  getParentRoute: () => SettingsRoute,
+} as any);
 const SettingsAnalyticsRoute = SettingsAnalyticsRouteImport.update({
   id: '/analytics',
   path: '/analytics',
@@ -136,6 +142,7 @@ export interface FileRoutesByFullPath {
   '/sources': typeof SourcesRoute;
   '/posts/$id': typeof PostsIdRouteWithChildren;
   '/posts/new': typeof PostsNewRoute;
+  '/settings/ai': typeof SettingsAiRoute;
   '/settings/analytics': typeof SettingsAnalyticsRoute;
   '/settings/appearance': typeof SettingsAppearanceRoute;
   '/settings/channels': typeof SettingsChannelsRoute;
@@ -156,6 +163,7 @@ export interface FileRoutesByTo {
   '/sources': typeof SourcesRoute;
   '/posts/$id': typeof PostsIdRouteWithChildren;
   '/posts/new': typeof PostsNewRoute;
+  '/settings/ai': typeof SettingsAiRoute;
   '/settings/analytics': typeof SettingsAnalyticsRoute;
   '/settings/appearance': typeof SettingsAppearanceRoute;
   '/settings/channels': typeof SettingsChannelsRoute;
@@ -178,6 +186,7 @@ export interface FileRoutesById {
   '/sources': typeof SourcesRoute;
   '/posts/$id': typeof PostsIdRouteWithChildren;
   '/posts/new': typeof PostsNewRoute;
+  '/settings/ai': typeof SettingsAiRoute;
   '/settings/analytics': typeof SettingsAnalyticsRoute;
   '/settings/appearance': typeof SettingsAppearanceRoute;
   '/settings/channels': typeof SettingsChannelsRoute;
@@ -201,6 +210,7 @@ export interface FileRouteTypes {
     | '/sources'
     | '/posts/$id'
     | '/posts/new'
+    | '/settings/ai'
     | '/settings/analytics'
     | '/settings/appearance'
     | '/settings/channels'
@@ -221,6 +231,7 @@ export interface FileRouteTypes {
     | '/sources'
     | '/posts/$id'
     | '/posts/new'
+    | '/settings/ai'
     | '/settings/analytics'
     | '/settings/appearance'
     | '/settings/channels'
@@ -242,6 +253,7 @@ export interface FileRouteTypes {
     | '/sources'
     | '/posts/$id'
     | '/posts/new'
+    | '/settings/ai'
     | '/settings/analytics'
     | '/settings/appearance'
     | '/settings/channels'
@@ -353,6 +365,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SettingsIndexRouteImport;
       parentRoute: typeof SettingsRoute;
     };
+    '/settings/ai': {
+      id: '/settings/ai';
+      path: '/ai';
+      fullPath: '/settings/ai';
+      preLoaderRoute: typeof SettingsAiRouteImport;
+      parentRoute: typeof SettingsRoute;
+    };
     '/settings/analytics': {
       id: '/settings/analytics';
       path: '/analytics';
@@ -406,6 +425,7 @@ declare module '@tanstack/react-router' {
 }
 
 interface SettingsRouteChildren {
+  SettingsAiRoute: typeof SettingsAiRoute;
   SettingsAnalyticsRoute: typeof SettingsAnalyticsRoute;
   SettingsAppearanceRoute: typeof SettingsAppearanceRoute;
   SettingsChannelsRoute: typeof SettingsChannelsRoute;
@@ -416,6 +436,7 @@ interface SettingsRouteChildren {
 }
 
 const SettingsRouteChildren: SettingsRouteChildren = {
+  SettingsAiRoute: SettingsAiRoute,
   SettingsAnalyticsRoute: SettingsAnalyticsRoute,
   SettingsAppearanceRoute: SettingsAppearanceRoute,
   SettingsChannelsRoute: SettingsChannelsRoute,

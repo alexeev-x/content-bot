@@ -1,3 +1,4 @@
+import type { AiTextProvider } from '../../src/modules/ai';
 import type {
   TelegramBotAdminApi,
   TelegramChatReadApi,
@@ -53,6 +54,10 @@ export async function resetDb(): Promise<void> {
       'content_alerts',
       'content_goals',
       'dota_hero_assets',
+      'ai_usage',
+      'ai_settings',
+      'ai_budget_alerts',
+      'ai_connection_checks',
       'content_items',
       'content_audience_days',
       'content_connections',
@@ -167,6 +172,8 @@ export function createApi(
     env?: Partial<AppEnv>;
     /** Replaces the outbound fetch of the content integrations (TikTok, YouTube, Telegram preview). */
     contentFetch?: typeof fetch;
+    /** Replaces the AI provider; null means «no key». Default: no key. */
+    aiProvider?: AiTextProvider | null;
     /** Mounts the `npm run dev` sign-in (app/local-sign-in-route.ts), as src/index.ts does on the dev server. */
     localSignIn?: boolean;
   } = {}
@@ -179,6 +186,7 @@ export function createApi(
     telegramBotAdminApi: options.botAdminApi,
     ownerMessenger: options.ownerMessenger ?? (options.botToken === null ? undefined : messenger),
     ...(options.contentFetch === undefined ? {} : { contentFetch: options.contentFetch }),
+    aiProvider: options.aiProvider ?? null,
     ...(options.localSignIn === true ? { mountBeforeGuard: mountLocalSignIn } : {})
   });
   const env = {

@@ -9,6 +9,7 @@ import styles from './SettingsLayout.module.css';
 const SECTIONS = [
   { to: '/settings/channels', label: ru.settings.channels, icon: 'channel' },
   { to: '/settings/analytics', label: ru.settings.analytics, icon: 'chart' },
+  { to: '/settings/ai', label: ru.settings.ai, icon: 'sparkle' },
   { to: '/settings/general', label: ru.settings.general, icon: 'settings' },
   { to: '/settings/appearance', label: ru.settings.appearance, icon: 'sparkle' }
 ] as const satisfies readonly { to: string; label: string; icon: IconName }[];

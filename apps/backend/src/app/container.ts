@@ -51,6 +51,7 @@ import { purgeExpiredPlatformRows, purgeOperationalRows } from '../platform/hous
 import { createD1RateLimiter, type RateLimiter } from '../platform/rate-limit/d1-rate-limiter';
 import { randomToken } from '../platform/security/random-token';
 import { createLogger, type Logger } from '../platform/logging/logger';
+import { type AiRepository, type AiTextProvider, createD1AiRepository, createOpenAiProvider } from '../modules/ai';
 import { createD1HeroAssetRepository, type HeroAssetRepository, type HeroAssetStorage } from '../modules/hero-assets';
 import { createR2HeroAssetStorage } from './r2-hero-asset-storage';
 import { createR2MediaStorage } from './r2-media-storage';
@@ -165,6 +166,10 @@ export interface Container {
   contentFetch: typeof fetch;
   /** Official hero media mirrored from Valve's CDN into R2 (migration 0050). */
   heroAssets: HeroAssetRepository;
+  /** AI writer settings, spend and connection checks (migration 0053). */
+  aiRepository: AiRepository;
+  /** The configured text-model provider; null without its key. */
+  aiProvider: AiTextProvider | null;
   heroAssetStorage: HeroAssetStorage | undefined;
   housekeeping: {
     purgeExpired(input: { now: number; limit: number }): Promise<{ idempotencyKeys: number; rateLimits: number }>;
@@ -196,6 +201,7 @@ export interface ContainerEnv {
   ANALYTICS_YOUTUBE_CHANNEL_ID?: string;
   /** Worker secret: YouTube Data API v3 key (public counters only). */
   YOUTUBE_API_KEY?: string;
+  OPENAI_API_KEY?: string;
   /** Worker secrets: TikTok for Developers app (Login Kit + Display API). */
   TIKTOK_CLIENT_KEY?: string;
   TIKTOK_CLIENT_SECRET?: string;
@@ -219,6 +225,8 @@ export interface ContainerOverrides {
   dotaWatcher?: Container['dotaWatcher'];
   /** Replaces the outbound fetch of the content collectors (tests script it). */
   contentFetch?: typeof fetch;
+  /** Replaces the AI provider (tests); null forces «no key». */
+  aiProvider?: AiTextProvider | null;
 }
 
 const botIdSchema = z.object({ id: z.number().int().positive() });
@@ -444,6 +452,14 @@ export function createContainer(env: ContainerEnv, overrides: ContainerOverrides
       // A wrapper, not the global itself: Workers' fetch throws «Illegal invocation» when a caller invokes it
       // as a method of another object (`deps.fetchImpl(url)`).
       return overrides.contentFetch ?? ((input, init) => fetch(input, init));
+    },
+    get aiRepository() {
+      return createD1AiRepository(db());
+    },
+    get aiProvider() {
+      if (overrides.aiProvider !== undefined) return overrides.aiProvider;
+      const key = env.OPENAI_API_KEY?.trim();
+      return key ? createOpenAiProvider(key, (input, init) => fetch(input, init)) : null;
     },
     get heroAssets() {
       return createD1HeroAssetRepository(db());

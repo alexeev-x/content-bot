@@ -13,6 +13,7 @@ import { botRoutes } from './bot-routes';
 import { activityRoutes } from './activity-routes';
 import { dashboardRoutes } from './dashboard-routes';
 import { destinationsRoutes } from './destinations-routes';
+import { aiRoutes } from './ai-routes';
 import { dotaRoutes } from './dota-routes';
 import { heroAssetsRoutes } from './hero-assets-routes';
 import { incidentsRoutes } from './incidents-routes';
@@ -62,7 +63,7 @@ function unexpectedErrorCode(error: unknown): string {
 export function createApp(
   options: Pick<
     ContainerOverrides,
-    'clock' | 'telegramChatApi' | 'telegramBotAdminApi' | 'ownerMessenger' | 'contentFetch'
+    'clock' | 'telegramChatApi' | 'telegramBotAdminApi' | 'ownerMessenger' | 'contentFetch' | 'aiProvider'
   > & {
     /** Routes registered before the session guard: the `npm run dev` sign-in (local-sign-in-route.ts). */
     mountBeforeGuard?: (app: Hono<AppBindings>) => void;
@@ -109,6 +110,7 @@ export function createApp(
     PUBLIC_ROUTES.has(`${c.req.method} ${c.req.path}`) ? next() : requireOwner(c, next)
   );
   app.route('/api/v1/auth', authRoutes);
+  app.route('/api/v1/ai', aiRoutes);
   app.route('/api/v1/analytics', analyticsRoutes);
   app.route('/api/v1/content-analytics', contentAnalyticsRoutes);
   app.route('/api/v1/automations', automationsRoutes);
