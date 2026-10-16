@@ -212,6 +212,19 @@
     grid-template-columns: 1fr;
     gap: var(--space-1);
   }
+  /* Three columns of 100 px broke the labels word by word: stacked rows on a phone. */
+  .facts {
+    grid-template-columns: 1fr;
+    gap: var(--space-3);
+  }
+  .facts > div {
+    padding-inline: 0;
+  }
+  .facts > div + div {
+    padding-block-start: var(--space-3);
+    border-inline-start: 0;
+    border-block-start: 1px solid var(--color-border-subtle);
+  }
 }
 
 .intro {
