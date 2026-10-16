@@ -3,7 +3,7 @@
 A fixed set of topics (`control-set.jsonl`) rerun after a model, prompt or pack change, so a change is judged
 on the same tasks. Reels topics hold their original out of the prompt (`holdOut`), so the draft is compared
 with a text the model did not see. Run through the studio API `POST /api/v1/ai/drafts` on DEV, one topic at a
-time (20 per 10 minutes). Results stay out of Git (`.logs/ai-eval/`); the summary of each run is below.
+time (20 per 10 minutes). Results stay out of Git (`.logs/ai-eval/`); each run's drafts side by side with the originals are in `run-N.md`, the summary below.
 
 ## Run 1 — 16.10.2026, gpt-6.1-sol, pack as of commit 888e87d
 
