@@ -23,6 +23,7 @@ import { sendDotaWatchlistAlerts } from './workflows/process-dota-watchlist-aler
 import { notifyOwnerOfDeliveries } from './notifications/sent-notice';
 import { collectContentAnalytics, raiseContentAlerts, SOURCE_D1_STATEMENTS } from '../modules/content-analytics';
 import { mirrorHeroAssets } from '../modules/hero-assets';
+import { authorDotaDue, syncAuthorDota } from '../modules/ai';
 import { sendContentAlerts } from './workflows/send-content-alerts';
 
 // Per table and per hourly tick; leftovers wait for the next hour.
@@ -84,6 +85,8 @@ type TickContainer = Pick<
   | 'contentFetch'
   | 'heroAssets'
   | 'heroAssetStorage'
+  | 'aiProfiles'
+  | 'dotaReader'
 >;
 
 // Cron entry point, once a minute (docs/BACKEND_ARCHITECTURE.md §5). Ticks may overlap or repeat:
@@ -101,6 +104,7 @@ type TickContainer = Pick<
 //   7. dota watch: on five-minute UTC boundaries after publication work, only when that tick was idle and
 //      not on the hourly housekeeping ticks; bounded work leaves the publishing D1 budget untouched
 //   8a. bot media import: leftovers of the files the owner sent to the bot (idle ticks only, last, on what the tick has left)
+//   9. hero media; 10. the owner's Dota profile for «Обо мне», once a day on an idle tick of minute 17
 //   8. heartbeat: one upsert that records this run for the owner's /status
 export async function handleScheduled(controller: ScheduledController, container: TickContainer): Promise<void> {
   const { clock, logger } = container;
@@ -484,6 +488,20 @@ export async function handleScheduled(controller: ScheduledController, container
         heroAssetsMissing: result.missing,
         heroAssetsFailed: result.failed
       };
+    });
+  }
+
+  // 10. «Обо мне»: rank and heroes from OpenDota once a day (an idle tick of minute 17; four GETs, two reads).
+  if (
+    (counts.due ?? 0) === 0 &&
+    raised.length === 0 &&
+    minute === 17 &&
+    container.queryBudget.remaining() >= 2 + HEARTBEAT_RESERVE &&
+    (await authorDotaDue(container.aiProfiles, clock.now()))
+  ) {
+    await step('author-dota', async () => {
+      await syncAuthorDota({ repo: container.aiProfiles, clock, readDota: container.dotaReader });
+      return { authorDota: 1 };
     });
   }
 

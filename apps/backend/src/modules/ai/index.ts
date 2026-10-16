@@ -1,7 +1,13 @@
 export { type AiRepository, createD1AiRepository } from './d1-ai-repository';
 export { AI_CATALOG } from './catalog';
 export { createOpenAiProvider } from './openai-provider';
-export { type AiTextProvider, AiProviderError } from './ports';
+export {
+  type AiTextProvider,
+  AiProviderError,
+  type DotaProfileReader,
+  DotaReadError,
+  type DotaSnapshot
+} from './ports';
 export {
   AI_KEY_NAME,
   assertAiReady,
@@ -39,3 +45,12 @@ export {
 } from './writer';
 export { describeCheck } from './writer-checks';
 export { FORMAT_LABEL, WRITER_FORMATS, type WriterFormat } from './writer-types';
+export {
+  authorDotaDue,
+  authorStateText,
+  rankLabel,
+  readAuthorProfile,
+  syncAuthorDota,
+  updateAuthorProfile
+} from './author-profile';
+export { type AuthorProfileRepository, createD1AuthorProfileRepository } from './d1-author-repository';

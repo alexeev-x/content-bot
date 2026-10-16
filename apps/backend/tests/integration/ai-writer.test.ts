@@ -6,6 +6,7 @@ import {
   approveDraft,
   attachPost,
   createD1AiRepository,
+  createD1AuthorProfileRepository,
   createD1WriterRepository,
   generateDraft,
   publishableText,
@@ -46,6 +47,7 @@ function deps(provider: AiTextProvider | null): WriterDeps {
   return {
     repo: createD1AiRepository(db),
     writer: createD1WriterRepository(db),
+    profiles: createD1AuthorProfileRepository(db),
     clock: fakeClock(),
     timezone: 'UTC',
     newId: () => `00000000-0000-4000-8000-${String((ids += 1)).padStart(12, '0')}`,
@@ -175,6 +177,15 @@ describe('AI writer checks', () => {
     expect(pickExamples('fidit', task, ['uchu-fidit-wards']).join('\n')).not.toContain(
       '«Как правильно ставить варды?»'
     );
+  });
+
+  it('flags self-doubt in «Учу фидить» and a repeated «мужчины» (owner feedback 16.10.2026)', () => {
+    expect(checkDraft('fidit', 'direct', 'Вообще, мой тупой мозг и так путается в кнопках.')).toContain(
+      'FIDIT_SELF_DOUBT'
+    );
+    expect(checkDraft('igrat', 'direct', 'Мой тупой мозг этого не умеет.')).not.toContain('FIDIT_SELF_DOUBT');
+    expect(checkDraft('telegram', 'direct', 'Мужчины, стрим. Мужчины, заходите.')).toContain('ADDRESS_REPEATED');
+    expect(checkDraft('telegram', 'direct', 'Мужчины, стрим в 20:00.')).not.toContain('ADDRESS_REPEATED');
   });
 
   it('parses hooks and text, and measures the owner edit', () => {

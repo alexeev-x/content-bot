@@ -54,3 +54,23 @@ export interface UsageRow {
   usage: AiUsage;
   costMicroUsd: number | null;
 }
+
+/** The owner's public Dota profile, as the profile reader returns it (adapter: integrations/opendota). */
+export interface DotaSnapshot {
+  rankTier: number | null;
+  plus: boolean;
+  publicMatchData: boolean;
+  wins: number;
+  losses: number;
+  topHeroes: { id: number; name: string; games: number; winRate: number }[];
+}
+
+/** Reads a Dota account; throws `DotaReadError` with a stable code. */
+export type DotaProfileReader = (accountId: string, signal: AbortSignal) => Promise<DotaSnapshot>;
+
+export class DotaReadError extends Error {
+  constructor(readonly code: string) {
+    super(code);
+    this.name = 'DotaReadError';
+  }
+}

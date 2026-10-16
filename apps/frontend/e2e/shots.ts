@@ -22,6 +22,7 @@ const PAGES = [
   '/settings/appearance',
   '/settings/general',
   '/settings/ai',
+  '/ai',
   '/login'
 ];
 const WIDTHS = [

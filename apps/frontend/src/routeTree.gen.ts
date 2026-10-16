@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root';
 import { Route as IndexRouteImport } from './routes/index';
+import { Route as AiRouteImport } from './routes/ai';
 import { Route as AnalyticsRouteImport } from './routes/analytics';
 import { Route as IncidentsRouteImport } from './routes/incidents';
 import { Route as LoginRouteImport } from './routes/login';
@@ -33,6 +34,11 @@ import { Route as PostsIdPublishRouteImport } from './routes/posts/$id.publish';
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any);
+const AiRoute = AiRouteImport.update({
+  id: '/ai',
+  path: '/ai',
   getParentRoute: () => rootRouteImport,
 } as any);
 const AnalyticsRoute = AnalyticsRouteImport.update({
@@ -133,6 +139,7 @@ const PostsIdPublishRoute = PostsIdPublishRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute;
+  '/ai': typeof AiRoute;
   '/analytics': typeof AnalyticsRoute;
   '/incidents': typeof IncidentsRoute;
   '/login': typeof LoginRoute;
@@ -155,6 +162,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute;
+  '/ai': typeof AiRoute;
   '/analytics': typeof AnalyticsRoute;
   '/incidents': typeof IncidentsRoute;
   '/login': typeof LoginRoute;
@@ -177,6 +185,7 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport;
   '/': typeof IndexRoute;
+  '/ai': typeof AiRoute;
   '/analytics': typeof AnalyticsRoute;
   '/incidents': typeof IncidentsRoute;
   '/login': typeof LoginRoute;
@@ -201,6 +210,7 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath;
   fullPaths:
     | '/'
+    | '/ai'
     | '/analytics'
     | '/incidents'
     | '/login'
@@ -223,6 +233,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo;
   to:
     | '/'
+    | '/ai'
     | '/analytics'
     | '/incidents'
     | '/login'
@@ -244,6 +255,7 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
+    | '/ai'
     | '/analytics'
     | '/incidents'
     | '/login'
@@ -267,6 +279,7 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute;
+  AiRoute: typeof AiRoute;
   AnalyticsRoute: typeof AnalyticsRoute;
   IncidentsRoute: typeof IncidentsRoute;
   LoginRoute: typeof LoginRoute;
@@ -286,6 +299,13 @@ declare module '@tanstack/react-router' {
       path: '/';
       fullPath: '/';
       preLoaderRoute: typeof IndexRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
+    '/ai': {
+      id: '/ai';
+      path: '/ai';
+      fullPath: '/ai';
+      preLoaderRoute: typeof AiRouteImport;
       parentRoute: typeof rootRouteImport;
     };
     '/analytics': {
@@ -463,6 +483,7 @@ const PostsIdRouteWithChildren =
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AiRoute: AiRoute,
   AnalyticsRoute: AnalyticsRoute,
   IncidentsRoute: IncidentsRoute,
   LoginRoute: LoginRoute,

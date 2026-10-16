@@ -82,16 +82,14 @@ export function buildWriterPrompt(input: {
   /** For a rewrite: the current text and the owner's instruction. */
   rewrite?: { text: string; instruction: string };
   holdOut?: readonly string[];
+  /** The author's state from the studio (`authorStateText`); the seed of pack/state.md when empty. */
+  author?: string;
 }): { instructions: string; input: string } {
-  const instructions = [
-    AI_PACK.core,
-    AI_PACK.formats[input.format],
-    AI_PACK.output,
-    AI_PACK.lessons,
-    AI_PACK.state
-  ].join('\n\n');
+  // The author's state changes often: it goes with the request, after the cached prefix (architecture item 6).
+  const instructions = [AI_PACK.core, AI_PACK.formats[input.format], AI_PACK.output, AI_PACK.lessons].join('\n\n');
   const lexicon = matchLexicon(`${input.task} ${input.rewrite?.instruction ?? ''}`);
   const parts = [
+    input.author || AI_PACK.state,
     lexicon.length > 0 ? `Сленг и мемы из задания:\n${lexicon.join('\n')}` : '',
     ...pickExamples(input.format, input.task, input.holdOut),
     `ФОРМАТ: ${FORMAT_NAME[input.format]}`,
@@ -154,11 +152,13 @@ const EDITOR_ABOUT = [
 /** A free request to the editor (no format): the author's voice, the conversation so far, the new message. */
 export function buildFreePrompt(
   task: string,
-  history: readonly { role: 'owner' | 'editor'; text: string }[] = []
+  history: readonly { role: 'owner' | 'editor'; text: string }[] = [],
+  author = ''
 ): { instructions: string; input: string } {
-  const instructions = [AI_PACK.core, AI_PACK.lessons, AI_PACK.state, EDITOR_ABOUT].join('\n\n');
+  const instructions = [AI_PACK.core, AI_PACK.lessons, EDITOR_ABOUT].join('\n\n');
   const lexicon = matchLexicon(task);
   const parts = [
+    author || AI_PACK.state,
     lexicon.length > 0 ? `Сленг и мемы из задания:\n${lexicon.join('\n')}` : '',
     'РЕЖИМ: разговор с автором. Отвечай его голосом, коротко и по делу. Без «ХУКИ:» и «ТЕКСТ:».',
     history.length > 0
