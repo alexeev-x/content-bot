@@ -166,7 +166,12 @@ export const aiWriterFormatSchema = z.enum(AI_WRITER_FORMATS);
 export const createAiDraftInputSchema = z.strictObject({
   format: aiWriterFormatSchema,
   mode: z.enum(['direct', 'automatic']),
-  task: z.string().trim().min(1).max(4000)
+  task: z.string().trim().min(1).max(4000),
+  /** Reels example ids kept out of the prompt, so a control run compares the draft with an unseen original. */
+  holdOut: z
+    .array(z.string().regex(/^[a-z0-9-]{1,80}$/))
+    .max(20)
+    .optional()
 });
 export type CreateAiDraftInput = z.infer<typeof createAiDraftInputSchema>;
 

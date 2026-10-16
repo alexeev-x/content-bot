@@ -161,6 +161,8 @@ export async function generateDraft(
     source: 'bot' | 'studio';
     task: string;
     preApprovedPublishAt?: number | null;
+    /** Reels example ids kept out of the prompt (control run). */
+    holdOut?: readonly string[];
     signal: AbortSignal;
   }
 ): Promise<WriterResult> {
@@ -179,7 +181,12 @@ export async function generateDraft(
     hooks: [],
     createdAt: now
   };
-  return call(deps, row, buildWriterPrompt({ format: input.format, mode: input.mode, task }), input.signal);
+  return call(
+    deps,
+    row,
+    buildWriterPrompt({ format: input.format, mode: input.mode, task, holdOut: input.holdOut ?? [] }),
+    input.signal
+  );
 }
 
 /** A new version of a draft by the owner's instruction («короче», «смешнее», «ещё вариант»). */

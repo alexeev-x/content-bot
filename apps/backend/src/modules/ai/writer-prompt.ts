@@ -55,7 +55,8 @@ export function matchLexicon(task: string): string[] {
 }
 
 /** 3–4 examples of the format: gold first, then by topic overlap; the most relevant is placed last. */
-export function pickExamples(format: WriterFormat, task: string): string[] {
+/** `holdOut`: Reels example ids kept out of the prompt (a control run compares the draft with that original). */
+export function pickExamples(format: WriterFormat, task: string, holdOut: readonly string[] = []): string[] {
   const taskWords = words(task);
   if (format === 'telegram') {
     const review = /обзор|медал|габен|на геро|игр на/i.test(task);
@@ -66,7 +67,7 @@ export function pickExamples(format: WriterFormat, task: string): string[] {
       .reverse()
       .map(({ row }) => `Пример поста:\n${clip(row.t)}`);
   }
-  return AI_REEL_EXAMPLES.filter((row) => row.f === REEL_FORMAT[format] && row.r !== 'a')
+  return AI_REEL_EXAMPLES.filter((row) => row.f === REEL_FORMAT[format] && row.r !== 'a' && !holdOut.includes(row.id))
     .map((row) => ({ row, score: overlap(taskWords, `${row.title} ${row.t}`) * 2 + (row.r === 'g' ? 3 : 0) }))
     .sort((a, b) => b.score - a.score)
     .slice(0, 3)
@@ -80,6 +81,7 @@ export function buildWriterPrompt(input: {
   task: string;
   /** For a rewrite: the current text and the owner's instruction. */
   rewrite?: { text: string; instruction: string };
+  holdOut?: readonly string[];
 }): { instructions: string; input: string } {
   const instructions = [
     AI_PACK.core,
@@ -91,7 +93,7 @@ export function buildWriterPrompt(input: {
   const lexicon = matchLexicon(`${input.task} ${input.rewrite?.instruction ?? ''}`);
   const parts = [
     lexicon.length > 0 ? `Сленг и мемы из задания:\n${lexicon.join('\n')}` : '',
-    ...pickExamples(input.format, input.task),
+    ...pickExamples(input.format, input.task, input.holdOut),
     `ФОРМАТ: ${FORMAT_NAME[input.format]}`,
     `РЕЖИМ: ${input.mode === 'direct' ? 'прямой запрос автора' : 'автоматический повод (только факты задания)'}`
   ];

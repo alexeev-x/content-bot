@@ -14,7 +14,7 @@ import {
   type WriterDeps
 } from '../../src/modules/ai';
 import { checkDraft, editRatio } from '../../src/modules/ai/writer-checks';
-import { parseWriterOutput } from '../../src/modules/ai/writer-prompt';
+import { parseWriterOutput, pickExamples } from '../../src/modules/ai/writer-prompt';
 import { writerIntent } from '../../src/app/bot/ai-writer';
 import { AppError } from '../../src/shared/app-error';
 import { testDb } from '../helpers/db';
@@ -162,6 +162,14 @@ describe('AI writer checks', () => {
     );
     expect(checkDraft('telegram', 'direct', text)).not.toContain('INVENTED_EXPERIENCE');
     expect(checkDraft('telegram', 'automatic', 'Патч 7.40 вышел: Тинкер снова в игре.')).toEqual([]);
+  });
+
+  it('keeps a held-out original out of the examples, so a control run is not a copy', () => {
+    const task = 'Как правильно ставить варды?';
+    expect(pickExamples('fidit', task).join('\n')).toContain('Как правильно ставить варды?');
+    expect(pickExamples('fidit', task, ['uchu-fidit-wards']).join('\n')).not.toContain(
+      '«Как правильно ставить варды?»'
+    );
   });
 
   it('parses hooks and text, and measures the owner edit', () => {
