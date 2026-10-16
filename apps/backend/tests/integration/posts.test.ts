@@ -283,6 +283,36 @@ describe('POST /api/v1/posts', () => {
   });
 });
 
+describe('post origin (studio only)', () => {
+  it('marks a post made from an approved AI draft and leaves an owner post unmarked, in the list and the post', async () => {
+    const own = await create({ title: 'Свой пост', body: 'Написал сам.' });
+    const fromAi = await create({ title: 'Из редактора', body: 'Текст из бота.' });
+    const generation = '00000000-0000-4000-8000-0000000000a1';
+    await testDb().batch([
+      testDb()
+        .prepare(
+          `INSERT INTO ai_generations (id, kind, format, mode, source, task, status, pack_revision, created_at, updated_at)
+           VALUES (?, 'draft', 'telegram', 'direct', 'bot', 'пост про патч', 'ready', 'pack', ?, ?)`
+        )
+        .bind(generation, START, START),
+      testDb()
+        .prepare(
+          `INSERT INTO ai_text_revisions (id, generation_id, provenance, text, edit_ratio, post_id, created_at)
+           VALUES ('00000000-0000-4000-8000-0000000000b1', ?, 'OWNER_APPROVED', 'Текст из бота.', 0.25, ?, ?)`
+        )
+        .bind(generation, fromAi.id, START)
+    ]);
+
+    const list = postPageSchema.parse(await (await api.request('/api/v1/posts?limit=20')).json());
+    const byId = new Map(list.items.map((post) => [post.id, post.origin]));
+    expect(byId.get(fromAi.id)).toEqual({ kind: 'ai', source: 'bot', editRatio: 0.25 });
+    expect(byId.get(own.id)).toBeNull();
+
+    const one = postSchema.parse(await (await api.request(`/api/v1/posts/${fromAi.id}`)).json());
+    expect(one.origin).toEqual({ kind: 'ai', source: 'bot', editRatio: 0.25 });
+  });
+});
+
 describe('GET /api/v1/posts/:id', () => {
   it('returns the post', async () => {
     const created = await create({ title: 'Read me', body: 'Body' });
@@ -290,7 +320,7 @@ describe('GET /api/v1/posts/:id', () => {
     const response = await api.request(`/api/v1/posts/${created.id}`);
 
     expect(response.status).toBe(200);
-    expect(postSchema.parse(await response.json())).toEqual(created);
+    expect(postSchema.parse(await response.json())).toEqual({ ...created, origin: null });
   });
 
   it('answers 404 for an unknown id and for a malformed one', async () => {
@@ -359,7 +389,7 @@ describe('PATCH /api/v1/posts/:id', () => {
     expect(await count('post_revisions', `post_id = '${created.id}'`)).toBe(2);
     expect(await count('audit_log', "action = 'post.update'")).toBe(1);
     const stored = await api.request(`/api/v1/posts/${created.id}`);
-    expect(postSchema.parse(await stored.json())).toEqual(winner);
+    expect(postSchema.parse(await stored.json())).toEqual({ ...winner, origin: null });
   });
 
   it('answers 409 STALE_REVISION for an old revision and writes nothing', async () => {

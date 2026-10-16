@@ -87,6 +87,10 @@ export interface WriterRepository {
    * style examples for the next draft. An AI_DRAFT, or an approval of the model's words unchanged, never is one.
    */
   ownerExamples(input: { format: WriterFormat; limit: number }): Promise<string[]>;
+  /** Which of these posts (at most 100) came from an approved AI draft: where it was written and how much was edited. */
+  postOrigins(
+    postIds: readonly string[]
+  ): Promise<{ postId: string; source: 'bot' | 'studio'; editRatio: number | null }[]>;
   /** Counts of the writer's work since `since` (UTC ms), for «Качество». */
   quality(since: number): Promise<QualityRows>;
   /** Opens (or restarts) the chat's mode: the /redactor conversation (empty history) or /post. */
@@ -402,6 +406,21 @@ export function createD1WriterRepository(db: D1Database): WriterRepository {
         .bind(format, OWNER_EXAMPLE_MIN_EDIT, Math.min(limit, 4))
         .all<{ text: string }>();
       return rows.results.map((row) => row.text);
+    },
+
+    async postOrigins(postIds) {
+      // D1 binds at most 100 parameters; a posts page is at most 100 rows.
+      const ids = [...new Set(postIds)].slice(0, 100);
+      if (ids.length === 0) return [];
+      const rows = await db
+        .prepare(
+          `SELECT r.post_id AS postId, g.source, r.edit_ratio AS editRatio
+           FROM ai_text_revisions r JOIN ai_generations g ON g.id = r.generation_id
+           WHERE r.post_id IN (${ids.map(() => '?').join(', ')})`
+        )
+        .bind(...ids)
+        .all<{ postId: string; source: 'bot' | 'studio'; editRatio: number | null }>();
+      return rows.results;
     },
 
     async recent(limit) {

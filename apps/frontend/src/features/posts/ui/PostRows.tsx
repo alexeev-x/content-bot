@@ -20,6 +20,7 @@ import { formatExact, formatRelative } from '../model/format-time';
 import { ARCHIVE_WARNING_DAYS, daysLeftOf, deleteBlockOf, listStateOf, type DeleteBlock } from '../model/post-state';
 import type { PostSort, PostSortKey } from '../model/post-sort';
 import { postsCopy } from './copy';
+import { OriginMark } from './OriginMark';
 import { PostStateBadge } from './PostStateBadge';
 import styles from './PostRows.module.css';
 import { postRowText, shortFormat } from './row-text';
@@ -224,7 +225,10 @@ function Grid(props: Props) {
           <span className={styles.cellMedia} data-post-id={post.id}>
             <MediaTile size={40} />
             <span className={styles.cellTitle}>
-              <strong className={styles.title}>{titleOf(post)}</strong>
+              <span className={styles.titleLine}>
+                <strong className={styles.title}>{titleOf(post)}</strong>
+                <OriginMark origin={post.origin} />
+              </span>
               {reason ? (
                 <Failure reason={reason} />
               ) : (
@@ -334,13 +338,18 @@ function Cards(props: Props) {
               media={<MediaTile size={44} />}
               {...(live ? { status: <PostStateBadge post={post} /> } : {})}
               meta={
-                live
-                  ? state.kind === 'scheduled' && state.at
-                    ? copy.list.sendAt(shortFormat.format(new Date(state.at)))
-                    : formatRelative(post.updatedAt, now)
-                  : daysLeft === null
-                    ? copy.archive.noChannels
-                    : copy.archive.daysLeft(daysLeft)
+                <span className={styles.titleLine}>
+                  <OriginMark origin={post.origin} />
+                  <span>
+                    {live
+                      ? state.kind === 'scheduled' && state.at
+                        ? copy.list.sendAt(shortFormat.format(new Date(state.at)))
+                        : formatRelative(post.updatedAt, now)
+                      : daysLeft === null
+                        ? copy.archive.noChannels
+                        : copy.archive.daysLeft(daysLeft)}
+                  </span>
+                </span>
               }
               {...(reason
                 ? { warning: copy.selection.failedReason(reason) }

@@ -47,6 +47,18 @@ export const postPublicationSummarySchema = z.object({
 });
 export type PostPublicationSummary = z.infer<typeof postPublicationSummarySchema>;
 
+/**
+ * Who wrote a post, for the owner only (never sent to a channel or shown to readers): `ai` — it came from an
+ * approved AI-editor draft, written in the bot or the studio, with the share of words the owner changed before
+ * approval (null when unknown). A post without an origin was written by the owner.
+ */
+export const postOriginSchema = z.object({
+  kind: z.literal('ai'),
+  source: z.enum(['bot', 'studio']),
+  editRatio: z.number().min(0).max(1).nullable()
+});
+export type PostOriginDto = z.infer<typeof postOriginSchema>;
+
 export const postSchema = z.object({
   id: z.uuid(),
   title: z.string(),
@@ -62,6 +74,8 @@ export const postSchema = z.object({
   /** `archivedAt` + the retention period (30 days, server setting); null for a live post. */
   autoDeleteAt: z.iso.datetime().nullable(),
   publicationSummary: postPublicationSummarySchema,
+  /** Set by GET /posts and GET /posts/{id}; null — written by the owner. Absent in other responses. */
+  origin: postOriginSchema.nullable().optional(),
   createdAt: z.iso.datetime(),
   updatedAt: z.iso.datetime()
 });

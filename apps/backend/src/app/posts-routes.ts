@@ -28,6 +28,7 @@ import {
   updatePost,
   uploadPostMedia
 } from '../modules/content';
+import { readPostOrigins } from '../modules/ai';
 import { deletePost, deletePosts, restorePosts } from '../modules/lifecycle';
 import { AppError } from '../shared/app-error';
 import type { AppBindings } from './env';
@@ -78,9 +79,12 @@ export const postsRoutes = new Hono<AppBindings>()
   .get('/', validated('query', listPostsQuerySchema), async (c) => {
     const container = c.get('container');
     if (c.env.DB === undefined) throw new AppError('UNAVAILABLE', 'Database is not configured');
-    return c.json(
-      await listPostsFromApp({ container, db: c.env.DB, now: container.clock.now() }, c.req.valid('query'))
+    const page = await listPostsFromApp({ container, db: c.env.DB, now: container.clock.now() }, c.req.valid('query'));
+    const origins = await readPostOrigins(
+      { writer: container.aiWriter },
+      page.items.map((post) => post.id)
     );
+    return c.json({ ...page, items: page.items.map((post) => ({ ...post, origin: origins.get(post.id) ?? null })) });
   })
   .post(
     '/delete',
@@ -113,9 +117,13 @@ export const postsRoutes = new Hono<AppBindings>()
   .get('/:id', validated('param', idParamSchema), async (c) => {
     const container = c.get('container');
     const id = postId(c.req.valid('param').id);
-    return c.json(
-      await getPost({ repo: container.posts, summaries: container.postSummaries, now: container.clock.now() }, id)
+    const post = await getPost(
+      { repo: container.posts, summaries: container.postSummaries, now: container.clock.now() },
+      id
     );
+    // Studio-only: who wrote the post. The channel gets only the text and media (sending never reads it).
+    const origin = (await readPostOrigins({ writer: container.aiWriter }, [post.id])).get(post.id) ?? null;
+    return c.json({ ...post, origin });
   })
   .post(
     '/:id/media/attach',

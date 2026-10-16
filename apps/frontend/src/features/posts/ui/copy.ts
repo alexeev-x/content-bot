@@ -355,5 +355,13 @@ export const postsCopy = {
     revision: (revision: number) => `ред. ${revision}`,
     created: 'Публикация создана',
     openAll: 'Все публикации'
+  },
+  // Only the owner sees it; a channel never gets the mark (owner, 16.10.2026).
+  origin: {
+    short: 'ИИ',
+    full: (source: 'bot' | 'studio', editRatio: number | null) =>
+      `Из ИИ-редактора (${source === 'bot' ? 'бот' : 'студия'})${
+        editRatio === null ? '' : `, вы поправили ${Math.round(editRatio * 100)}%`
+      }. Видно только вам.`
   }
 } as const;

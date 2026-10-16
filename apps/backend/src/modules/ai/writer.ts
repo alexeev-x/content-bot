@@ -1,3 +1,4 @@
+import type { PostOriginDto } from '@alexeev/contracts';
 import type { Clock } from '../../platform/clock';
 import { AppError } from '../../shared/app-error';
 import { readAuthorProfile } from './author-profile';
@@ -328,6 +329,18 @@ export async function publishableText(deps: Pick<WriterDeps, 'writer'>, generati
   const approved = approvedRevision(await deps.writer.revisions(generationId));
   if (approved === null) throw new AppError('CONFLICT', 'The AI text is not approved', { reason: 'NOT_APPROVED' });
   return approved;
+}
+
+/**
+ * The studio-only origin of each post: from an approved AI draft (bot or studio, with the owner's edit share)
+ * or absent — written by the owner. Never part of what a channel receives.
+ */
+export async function readPostOrigins(
+  deps: Pick<WriterDeps, 'writer'>,
+  postIds: readonly string[]
+): Promise<Map<string, PostOriginDto>> {
+  const rows = await deps.writer.postOrigins(postIds);
+  return new Map(rows.map((row) => [row.postId, { kind: 'ai', source: row.source, editRatio: row.editRatio }]));
 }
 
 export async function attachPost(deps: Pick<WriterDeps, 'writer'>, revisionId: string, postId: string): Promise<void> {

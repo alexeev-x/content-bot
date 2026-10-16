@@ -31,6 +31,7 @@ export {
   generateDraft,
   NEEDS_FACTS,
   publishableText,
+  readPostOrigins,
   recordFeedback,
   rewriteDraft,
   saveOwnerEdit,
