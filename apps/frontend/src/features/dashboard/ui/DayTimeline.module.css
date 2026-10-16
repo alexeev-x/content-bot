@@ -7,9 +7,15 @@
   --pub-h: calc(var(--marker) + (var(--lanes) - 1) * var(--lane-step) + 12px);
   --evt-h: 0px;
   --axis: 22px;
+  /* Height the card has beyond the minimum (resolved inside `top`, so 100% is the plot's height): the lanes
+     spread over it instead of leaving it empty under the chart (owner, 16.10.2026). */
+  --extra: max(0px, 100% - var(--top) - var(--pub-h) - var(--evt-h) - var(--axis));
+  --pub-y: calc(var(--top) + var(--extra) * 0.25);
+  --evt-y: calc(var(--top) + var(--pub-h) + var(--evt-h) / 2 + var(--extra) * 0.75);
   display: grid;
+  flex: 1;
   grid-template-columns: minmax(0, 1fr);
-  height: calc(var(--top) + var(--pub-h) + var(--evt-h) + var(--axis));
+  min-height: calc(var(--top) + var(--pub-h) + var(--evt-h) + var(--axis));
   padding-inline: var(--space-4);
 }
 .chart[data-events] {
@@ -34,10 +40,10 @@
   white-space: nowrap;
 }
 .labelPub {
-  top: calc(var(--top) + 6px + var(--marker) / 2);
+  top: calc(var(--pub-y) + 6px + var(--marker) / 2);
 }
 .labelEvents {
-  top: calc(var(--top) + var(--pub-h) + var(--evt-h) / 2);
+  top: var(--evt-y);
 }
 .plot {
   position: relative;
@@ -76,7 +82,7 @@
 .track,
 .trackDone {
   position: absolute;
-  top: calc(var(--top) + 6px + var(--marker) / 2 - 1px);
+  top: calc(var(--pub-y) + 6px + var(--marker) / 2 - 1px);
   height: 2px;
   border-radius: var(--radius-pill);
 }
@@ -91,7 +97,7 @@
 }
 .eventsTrack {
   position: absolute;
-  top: calc(var(--top) + var(--pub-h) + var(--evt-h) / 2);
+  top: var(--evt-y);
   inset-inline: 0;
   border-top: 1px dashed var(--color-border-strong);
 }
@@ -129,7 +135,7 @@
 }
 .markerSlot {
   position: absolute;
-  top: calc(var(--top) + 6px + var(--lane) * var(--lane-step));
+  top: calc(var(--pub-y) + 6px + var(--lane) * var(--lane-step));
   width: 0;
 }
 /* A marker in a lower lane keeps a stem up to the line, so it still reads as «at this time». */
@@ -222,7 +228,7 @@
 }
 .eventSlot {
   position: absolute;
-  top: calc(var(--top) + var(--pub-h) + var(--evt-h) / 2 - var(--size-target-min) / 2);
+  top: calc(var(--evt-y) - var(--size-target-min) / 2);
   width: 0;
   pointer-events: auto;
 }
