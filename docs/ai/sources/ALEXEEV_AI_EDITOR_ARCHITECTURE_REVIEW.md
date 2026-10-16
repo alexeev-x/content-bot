@@ -853,3 +853,190 @@ Stable prefix держать в одном порядке.
 > **«AI пишет из маленького релевантного контекста, хранит мои правки, связывает финальный текст с результатом ролика, делает осторожные выводы внутри той же рубрики и добавляет в память только подтверждённые правила»**
 
 значит система ещё не готова быть редактором ALEXEEV.
+
+---
+
+# FOLLOW-UP ПОСЛЕ ОТВЕТА CLAUDE — 16.10.2026
+
+Ответ в `docs/ai/architecture.md` в целом принят. Направление хорошее. Перед реализацией learning loop нужно поправить следующие пункты.
+
+## 1. Не использовать соседний checkpoint как обычный fallback
+
+В `architecture.md` сейчас предложено:
+
+`same format → neighbouring checkpoint → platform baseline`.
+
+Это нужно изменить.
+
+### Как должно быть
+
+Основное сравнение:
+
+`platform + format/rubric + exact checkpoint age`
+
+Пример:
+
+`TikTok + fidit + T+24`.
+
+Нельзя сравнивать T+24 с T+12 как обычную замену: это нарушает принцип одинакового возраста.
+
+### Минимальный порог
+
+Надёжный baseline строится только при:
+
+`N >= 5 clean items`
+
+одной:
+- platform;
+- rubric/format;
+- exact checkpoint.
+
+Если N < 5:
+- показать, что rubric baseline пока недостаточен;
+- можно дать общий baseline той же платформы и **того же checkpoint** только как слабый ориентир;
+- такой fallback явно маркировать как `weak comparison`;
+- не использовать его как сильное evidence для learning rule.
+
+---
+
+## 2. Не классифицировать новый ролик cheap-model вызовом, если формат уже известен
+
+Для контента, который родился внутри AI-редактора, формат известен заранее.
+
+### Как должно быть
+
+`generation.format → final_revision.format → published content item.format`
+
+Cheap-model classification нужна только для:
+- старых импортированных роликов;
+- внешних публикаций без связи с generation;
+- legacy content, где format неизвестен.
+
+Не нужно тратить отдельный model call на классификацию каждого нового ролика по title.
+
+Это:
+- дешевле;
+- точнее;
+- сохраняет provenance.
+
+---
+
+## 3. Runtime memory должна жить в D1, а не в изменяемых Git-файлах
+
+Сейчас `pack/state.md` полезен как разделение static/current, но живое состояние приложения не должно обновляться через Git.
+
+Также weekly learning не должен физически переписывать `pack/lessons.md` из Worker.
+
+### Как должно быть
+
+### Static / versioned in Git
+
+- `core.md`
+- `format-*.md`
+- `output.md`
+- seed/default values
+- редакционные системные правила
+
+### Dynamic / runtime in D1
+
+- `current_state`
+- `learning_rules`
+- `learning_evidence`
+- `my_experience`
+- owner-added preferences
+- temporary experiments
+- current rank / heroes / CTA state
+
+Context assembler собирает:
+
+`static Git pack + dynamic D1 memory + retrieved examples + task`.
+
+`pack/state.md` можно оставить как seed/fallback/default, но не как основной runtime storage.
+
+`pack/lessons.md` — тоже seed/manual source. Weekly consolidation должна писать в D1 `my_experience`, а не коммитить Git.
+
+---
+
+## 4. «Ролик перестал набирать» сам по себе НЕ является confounder
+
+В текущем ответе сказано, что flagged video можно исключать из baselines/rules. Здесь нужна более строгая логика.
+
+Ролик, который просто перестал набирать просмотры, может быть обычным слабым роликом. Его как раз нельзя выбрасывать из обучения.
+
+### Исключать / понижать вес только при подтверждённом confounder
+
+Например:
+- recommendation restriction;
+- removed / unavailable;
+- platform incident;
+- incomplete analytics;
+- технический сбой сбора;
+- явно повреждённые данные;
+- другой подтверждённый внешний фактор.
+
+### Не считать confounder автоматически
+
+- `stopped gaining views`;
+- низкие просмотры;
+- плохой share rate;
+- ранний plateau.
+
+Это результаты, а не причины исключения.
+
+Carry90 — пример contaminated case, потому что было ограничение рекомендаций. Обычный слабый ролик без ограничения должен оставаться в baseline и evidence.
+
+---
+
+## 5. Approval policy пока не должна считаться полностью BUILT для AI
+
+В product policy уже правильно зафиксировано:
+
+> ничего не публикуется без подтверждения владельца.
+
+Но AI generation pipeline ещё не построен, поэтому runtime enforcement для AI drafts пока отсутствует.
+
+### Корректный статус
+
+- Product rule / decision: **accepted**
+- Existing normal publishing approval: **built**
+- AI-specific guard: **missing/designed until AI draft pipeline exists**
+
+Нужен реальный state transition:
+
+`AI_DRAFT → OWNER_EDITED/OWNER_APPROVED → publishable`
+
+И тест, что:
+- `AI_DRAFT` нельзя отправить в publication;
+- automatic news generation не может обойти approval;
+- publish endpoint/command проверяет approved revision, а не только UI-кнопку.
+
+---
+
+# Дополнительное уточнение по readiness
+
+До включения learning loop считаем P0:
+
+1. exact-age same-format baseline с `N >= 5 clean`;
+2. provenance;
+3. draft → final → publication → platform item → analytics;
+4. runtime dynamic memory в D1;
+5. owner approval guard;
+6. confirmed confounder semantics;
+7. AI_DRAFT никогда не попадает в style retrieval как доказательство стиля.
+
+После этого можно строить:
+- T+72 review;
+- evidence;
+- candidate/supported/strong rules;
+- weekly `My Experience`.
+
+---
+
+# Итог
+
+Текущий `docs/ai/architecture.md` в целом хороший и принят как основа.
+
+Главная поправка к архитектуре:
+
+> **Git хранит стабильную редакционную систему. D1 хранит живую память. Аналитика сравнивает только одинаковый возраст и формат при достаточной чистой выборке. Слабый ролик не исключается только потому, что перестал расти. Новый контент не классифицируется моделью, если его формат уже известен. AI-текст не может попасть в публикацию без реального server-side owner approval.**
+
