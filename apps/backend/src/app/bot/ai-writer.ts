@@ -10,6 +10,7 @@ import {
   describeCheck,
   FORMAT_LABEL,
   generateDraft,
+  NEEDS_FACTS,
   publishableText,
   recordFeedback,
   rewriteDraft,
@@ -114,6 +115,14 @@ function draftHtml(result: {
   warnings: readonly string[];
   text: string;
 }) {
+  if (result.warnings.includes(NEEDS_FACTS))
+    return [
+      `<b>${FORMAT_LABEL[result.format]}: нужны ваши детали</b>`,
+      '',
+      escapeHtml(result.text),
+      '',
+      '<i>Ответьте на это сообщение — напишу сценарий по вашему опыту.</i>'
+    ].join('\n');
   const lines = [`<b>${FORMAT_LABEL[result.format]}</b>`];
   if (result.hooks.length > 0)
     lines.push('', 'Хуки:', ...result.hooks.map((hook, index) => `${index + 1}. ${escapeHtml(hook)}`));
@@ -186,7 +195,10 @@ export function registerAiWriter(bot: Bot, runtime: AiWriterRuntime): void {
             chatId,
             message.message_id,
             draftHtml({ ...generation, text: result.text }),
-            keyboard(generation.id, generation.hooks, runtime.appOrigin)
+            // A question has nothing to approve or rewrite yet: the owner answers it.
+            generation.warnings.includes(NEEDS_FACTS)
+              ? undefined
+              : keyboard(generation.id, generation.hooks, runtime.appOrigin)
           );
         } catch (error) {
           if (!(error instanceof AppError && error.code === 'UNAVAILABLE')) runtime.onError(error);
@@ -336,6 +348,14 @@ export function registerAiWriter(bot: Bot, runtime: AiWriterRuntime): void {
     if (replyTo !== undefined && replyTo.from?.id === ctx.me.id) {
       const deps = await runtime.writer();
       const generation = await deps.writer.findByChatMessage(replyTo.message_id);
+      if (generation !== null && generation.warnings.includes(NEEDS_FACTS)) {
+        // The answer to the model's question: the draft is written again with the owner's experience added.
+        const task = `${generation.task}\n\nОпыт автора (его слова):\n${ctx.message.text}`.slice(0, 4000);
+        await write(ctx, WRITING_TEXT, (writerDeps, signal) =>
+          generateDraft(writerDeps, { format: generation.format, mode: generation.mode, source: 'bot', task, signal })
+        );
+        return;
+      }
       if (generation !== null) {
         try {
           await saveOwnerEdit(deps, generation.id, ctx.message.text);

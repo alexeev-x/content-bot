@@ -111,6 +111,11 @@ describe('AI writer', () => {
     expect((await publishableText(writer, result.generation.id)).postId).toBe('post-1');
   });
 
+  it('marks a question for the owner instead of checking it as a script', async () => {
+    const result = await draft(deps(answering('Как у тебя прошли игры на Личе: что понравилось, где накосячил?')));
+    expect(result.generation.warnings).toEqual(['NEEDS_FACTS']);
+  });
+
   it('refuses before any row when AI is off, and stores a provider failure', async () => {
     await expect(draft(deps(null))).rejects.toMatchObject({ code: 'UNAVAILABLE', details: { reason: 'NO_KEY' } });
     expect(await deps(null).writer.recent(10)).toHaveLength(0);

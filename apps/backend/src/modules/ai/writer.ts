@@ -13,6 +13,8 @@ import type { WriterFormat, WriterMode } from './writer-types';
 const MAX_OUTPUT_TOKENS = 2500;
 const MAX_TASK = 4000;
 const MAX_TEXT = 8000;
+/** The model asked for the owner's experience instead of writing (see `call`). */
+export const NEEDS_FACTS = 'NEEDS_FACTS';
 
 export interface WriterDeps {
   repo: AiRepository;
@@ -111,7 +113,10 @@ async function call(
         budgetEvents
       };
     }
-    const warnings = checkDraft(generation.format, generation.mode, text);
+    // Without the owner's experience the model asks one short question instead of a script (pack/output.md):
+    // that is not a draft to check or approve, the owner's answer is.
+    const asksForFacts = parsed.hooks.length === 0 && text.length <= 400 && text.trimEnd().endsWith('?');
+    const warnings = asksForFacts ? [NEEDS_FACTS] : checkDraft(generation.format, generation.mode, text);
     // A rewrite keeps the parent's hooks unless the model sent new ones.
     const hooks = parsed.hooks.length > 0 ? parsed.hooks : generation.hooks;
     await deps.writer.addRevision({

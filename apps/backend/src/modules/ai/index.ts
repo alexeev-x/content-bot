@@ -29,6 +29,7 @@ export {
   attachPost,
   chooseHook,
   generateDraft,
+  NEEDS_FACTS,
   publishableText,
   recordFeedback,
   rewriteDraft,

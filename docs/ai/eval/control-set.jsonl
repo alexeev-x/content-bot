@@ -1,0 +1,15 @@
+{"id":"fidit-wards","format":"fidit","mode":"direct","task":"Учу фидить: как правильно ставить варды","holdOut":["uchu-fidit-wards"],"original":"uchu-fidit-wards"}
+{"id":"fidit-bkb","format":"fidit","mode":"direct","task":"Учу фидить: почему нельзя покупать БКБ","holdOut":["uchu-fidit-bkb"],"original":"uchu-fidit-bkb"}
+{"id":"fidit-support-money","format":"fidit","mode":"direct","task":"Учу фидить: откуда бедному сапорту брать деньги","holdOut":["uchu-fidit-support-money"],"original":"uchu-fidit-support-money"}
+{"id":"fidit-draft","format":"fidit","mode":"direct","task":"Учу фидить: как правильно драфтить в доте","holdOut":["uchu-fidit-draft"],"original":"uchu-fidit-draft"}
+{"id":"fidit-lane","format":"fidit","mode":"direct","task":"Учу фидить: как никогда не проигрывать свою линию","holdOut":["uchu-fidit-lane"],"original":"uchu-fidit-lane"}
+{"id":"igrat-stacks","format":"igrat","mode":"direct","task":"Учусь играть: стаки и отводы","holdOut":["uchus-igrat-02"],"original":"uchus-igrat-02"}
+{"id":"igrat-lich","format":"igrat","mode":"direct","task":"Учусь играть: Лич","holdOut":["uchus-igrat-07"],"original":"uchus-igrat-07"}
+{"id":"igrat-ranked","format":"igrat","mode":"direct","task":"Учусь играть: открыл рейтинг","holdOut":["uchus-igrat-08"],"original":"uchus-igrat-08"}
+{"id":"igrat-jakiro","format":"igrat","mode":"direct","task":"Учусь играть: Джакиро","holdOut":["uchus-igrat-15"],"original":"uchus-igrat-15"}
+{"id":"igrat-oracle","format":"igrat","mode":"direct","task":"Учусь играть: Оракл","holdOut":["uchus-igrat-oracle"],"original":"uchus-igrat-oracle"}
+{"id":"tg-patch","format":"telegram","mode":"automatic","task":"Вышел патч 7.40c: Тинкер снова доступен в Captains Mode, у Пуджа хук перезаряжается на 1 секунду дольше, BKB подешевел на 50 золота."}
+{"id":"tg-stream","format":"telegram","mode":"direct","task":"Пост: сегодня в 20:00 стрим, буду играть на Оракле в рейтинге, заходите"}
+{"id":"tg-rank","format":"telegram","mode":"direct","task":"Пост: апнул Героя 2, 700 часов в доте, до сих пор не понимаю тайминги рошана"}
+{"id":"tg-poll","format":"telegram","mode":"direct","task":"Пост-опрос: какого героя разобрать в следующем выпуске Учусь играть"}
+{"id":"tg-event","format":"telegram","mode":"direct","task":"Пост: моё мнение про новый ивент — награды норм, но фармить их скучно"}
