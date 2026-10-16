@@ -20,6 +20,8 @@ import { configureOwnerChat } from './owner-chat';
 import type { OwnerReply, OwnerReports } from './owner-reports';
 import type { TelegramCaller } from './telegram-call';
 import type { UpdateDedup } from './update-dedup';
+import type { WriterDeps } from '../../modules/ai';
+import { registerAiWriter } from './ai-writer';
 
 export interface BotSettings {
   token: string;
@@ -121,6 +123,8 @@ export interface BotRuntime {
   createDraft: (input: CreatePostInput, idempotencyKey: string) => Promise<{ id: string; revision: number }>;
   /** The «publish now» buttons under a draft reply and what a tap does. */
   publish: PublishActions;
+  /** The AI writer's dependencies, built on first use (they read the owner's time zone). */
+  writer: () => Promise<WriterDeps>;
   /** Records the file in D1 (fast) and starts the import after the webhook answered. */
   mediaImports: {
     /** `first` is true for the update that made the draft's import record: the only one that answers. */
@@ -243,6 +247,9 @@ export function createBot(config: BotConfig, runtime: BotRuntime): Bot {
     'status',
     report(() => runtime.reports.status())
   );
+
+  // Before the plain draft handler: a request for a text or a reply to an AI draft is the writer's.
+  registerAiWriter(bot, runtime);
 
   // Whatever the owner sends or forwards becomes a draft. An unknown command is not a post.
   const draftReplyOptions = async (post: { id: string; revision: number }) => {

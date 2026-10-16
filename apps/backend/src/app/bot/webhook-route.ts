@@ -101,6 +101,15 @@ export const telegramWebhook = new Hono<AppBindings>().post(
         next: () => reports().next(),
         status: () => reports().status()
       },
+      writer: async () => ({
+        repo: container.aiRepository,
+        writer: container.aiWriter,
+        clock: container.clock,
+        newId: container.newId,
+        provider: container.aiProvider,
+        timezone: (await getOwnerOperationsSettings({ repo: container.settings, logger: container.logger, requestId }))
+          .timezone
+      }),
       createDraft: async (input, idempotencyKey) =>
         createPost(
           {

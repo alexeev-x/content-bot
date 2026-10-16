@@ -236,12 +236,20 @@ export type BudgetEvent =
  */
 export async function recordAiUsage(
   deps: { repo: AiRepository; clock: Clock; timezone: string; newId: () => string },
-  input: { kind: AiUsageKind; provider: string; model: string; usage: AiUsage; settings: AiSettingsDto }
+  input: {
+    kind: AiUsageKind;
+    provider: string;
+    model: string;
+    usage: AiUsage;
+    settings: AiSettingsDto;
+    /** The ledger row's id, when the caller links it (an AI draft keeps its usage id). */
+    id?: string;
+  }
 ): Promise<BudgetEvent[]> {
   const now = deps.clock.now();
   const price = priceFor(effectivePrices(input.settings), input.model);
   await deps.repo.recordUsage({
-    id: deps.newId(),
+    id: input.id ?? deps.newId(),
     at: now,
     kind: input.kind,
     provider: input.provider,
@@ -280,6 +288,27 @@ export async function recordAiUsage(
 }
 
 /**
+ * Refuses a model request before it is made when AI is off, the key or the model is missing, or the budget is
+ * spent; returns the provider and the model to call.
+ */
+export async function assertAiReady(
+  deps: { repo: AiRepository; clock: Clock; timezone: string; provider: AiTextProvider | null },
+  settings: AiSettingsDto,
+  model: string | null
+): Promise<{ provider: AiTextProvider; model: string }> {
+  const spend = await readSpend(deps, settings, deps.provider !== null);
+  if (deps.provider === null) throw new AppError('UNAVAILABLE', 'The AI key is not set', { reason: 'NO_KEY' });
+  if (!settings.enabled) throw new AppError('UNAVAILABLE', 'AI is turned off', { reason: 'DISABLED' });
+  if (model === null) throw new AppError('UNAVAILABLE', 'No model is chosen', { reason: 'NO_MODEL' });
+  // A request without a price would never count against the budget: refused, not run for free.
+  if (spend.blockedBy === 'no_price')
+    throw new AppError('UNAVAILABLE', 'The chosen model has no price', { reason: 'NO_PRICE' });
+  if (spend.blockedBy === 'monthly_budget' || spend.blockedBy === 'daily_cap')
+    throw new AppError('UNAVAILABLE', 'The AI budget is spent', { reason: 'BUDGET' });
+  return { provider: deps.provider, model };
+}
+
+/**
  * «Проверить подключение»: one tiny request to the cheap model (or the draft model). A provider failure is the
  * check's result, not an API error; it is stored for the page. Refused before any request when AI is off, the
  * key or a model is missing, or the budget is spent.
@@ -292,18 +321,9 @@ export async function checkAiConnection(deps: {
   provider: AiTextProvider | null;
 }): Promise<BudgetEvent[]> {
   const settings = await readAiSettings(deps.repo);
-  const spend = await readSpend(deps, settings, deps.provider !== null);
-  const model = settings.cheapModel ?? settings.draftModel;
-  if (deps.provider === null) throw new AppError('UNAVAILABLE', 'The AI key is not set', { reason: 'NO_KEY' });
-  if (!settings.enabled) throw new AppError('UNAVAILABLE', 'AI is turned off', { reason: 'DISABLED' });
-  if (model === null) throw new AppError('UNAVAILABLE', 'No model is chosen', { reason: 'NO_MODEL' });
-  // A request without a price would never count against the budget: refused, not run for free.
-  if (spend.blockedBy === 'no_price')
-    throw new AppError('UNAVAILABLE', 'The chosen model has no price', { reason: 'NO_PRICE' });
-  if (spend.blockedBy === 'monthly_budget' || spend.blockedBy === 'daily_cap')
-    throw new AppError('UNAVAILABLE', 'The AI budget is spent', { reason: 'BUDGET' });
+  const { provider, model } = await assertAiReady(deps, settings, settings.cheapModel ?? settings.draftModel);
   try {
-    const result = await deps.provider.complete({
+    const result = await provider.complete({
       model,
       instructions: 'Ответь одним словом.',
       input: 'Скажи «работает».',
@@ -319,7 +339,7 @@ export async function checkAiConnection(deps: {
     });
     return await recordAiUsage(deps, {
       kind: 'check',
-      provider: deps.provider.provider,
+      provider: provider.provider,
       model: result.model,
       usage: result.usage,
       settings

@@ -51,7 +51,14 @@ import { purgeExpiredPlatformRows, purgeOperationalRows } from '../platform/hous
 import { createD1RateLimiter, type RateLimiter } from '../platform/rate-limit/d1-rate-limiter';
 import { randomToken } from '../platform/security/random-token';
 import { createLogger, type Logger } from '../platform/logging/logger';
-import { type AiRepository, type AiTextProvider, createD1AiRepository, createOpenAiProvider } from '../modules/ai';
+import {
+  type AiRepository,
+  type AiTextProvider,
+  createD1AiRepository,
+  createD1WriterRepository,
+  createOpenAiProvider,
+  type WriterRepository
+} from '../modules/ai';
 import { createD1HeroAssetRepository, type HeroAssetRepository, type HeroAssetStorage } from '../modules/hero-assets';
 import { createR2HeroAssetStorage } from './r2-hero-asset-storage';
 import { createR2MediaStorage } from './r2-media-storage';
@@ -170,6 +177,8 @@ export interface Container {
   aiRepository: AiRepository;
   /** The configured text-model provider; null without its key. */
   aiProvider: AiTextProvider | null;
+  /** AI drafts, their revisions with provenance and the owner's feedback (migration 0054). */
+  aiWriter: WriterRepository;
   heroAssetStorage: HeroAssetStorage | undefined;
   housekeeping: {
     purgeExpired(input: { now: number; limit: number }): Promise<{ idempotencyKeys: number; rateLimits: number }>;
@@ -455,6 +464,9 @@ export function createContainer(env: ContainerEnv, overrides: ContainerOverrides
     },
     get aiRepository() {
       return createD1AiRepository(db());
+    },
+    get aiWriter() {
+      return createD1WriterRepository(db());
     },
     get aiProvider() {
       if (overrides.aiProvider !== undefined) return overrides.aiProvider;

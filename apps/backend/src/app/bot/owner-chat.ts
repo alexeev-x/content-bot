@@ -6,7 +6,11 @@ export const OWNER_COMMANDS = [
   { command: 'start', description: 'Открыть студию' },
   { command: 'today', description: 'План и итоги на сегодня' },
   { command: 'next', description: 'Ближайшие 5 публикаций' },
-  { command: 'status', description: 'Публикация, Cron и проблемы' }
+  { command: 'status', description: 'Публикация, Cron и проблемы' },
+  { command: 'post', description: 'ИИ: пост в Telegram' },
+  { command: 'fidit', description: 'ИИ: рилс «Учу фидить»' },
+  { command: 'igrat', description: 'ИИ: рилс «Учусь играть»' },
+  { command: 'reel', description: 'ИИ: отдельный рилс' }
 ];
 
 // The owner's private chat: its command list and a menu button that shows it (owner decision 15.10.2026:
