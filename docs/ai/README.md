@@ -22,4 +22,6 @@ Owner decision 16.10.2026: the studio controls the AI writer; this folder is its
 
 **Text fixes in examples:** obvious speech-to-text slips are fixed («дату» → «Доту», «Гобен» → «Габен», «сопорт» → «саппорт», «Леон» → «Лион», «Эмигма» → «Энигма»); three garbled endings («Очень дату», «Очень офигеть!», «Очень фиолетовую ноту») are removed (confirmed as noise by the owner 16.10.2026). The wording is otherwise the owner's; originals are in `sources/`.
 
+**Author state is background** (owner, 16.10.2026: a post about turbo got «я кнопки на Оракле читаю»): it goes under a «фон, не тема» header and never supplies experience — that comes only from the task; a Telegram post gets it without the Reels rubric lines («Рубрики», «Текущие эксперименты»). The address («мужики», «мужчины», «парни») is off by default and flagged by the code check.
+
 **Kept in code, not in the prompt:** an approved text is stored exactly and never «improved»; drafts are never called final; endings stay per format; metrics are compared within one format at the same age.

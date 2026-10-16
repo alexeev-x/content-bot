@@ -85,6 +85,14 @@ export async function saveAuthorDota(
 }
 
 /** The author's state as the prompt reads it, in Russian. */
+/**
+ * The state is background for the model, never the post's material: «опыт не выдумывай сверх этого» read as
+ * leave to write the listed heroes as the author's experience («я кнопки на Оракле читаю» in a post about
+ * turbo, owner 16.10.2026).
+ */
+export const AUTHOR_STATE_HEADER =
+  'СОСТОЯНИЕ АВТОРА (фон, не тема: не вставляй в текст героев, ранг и эксперименты отсюда, если автор сам не написал о них в задании; опыт берётся только из задания):';
+
 export function authorStateText(profile: Omit<AiAuthorProfileDto, 'promptText'>): string {
   const dota = profile.dota;
   const day = dota ? new Date(dota.fetchedAt).toISOString().slice(0, 10).split('-').reverse().join('.') : null;
@@ -101,7 +109,5 @@ export function authorStateText(profile: Omit<AiAuthorProfileDto, 'promptText'>)
     profile.experiments.trim() ? `- Текущие эксперименты рубрик: ${profile.experiments.trim()}` : '',
     profile.notes.trim() ? `- Сейчас актуально: ${profile.notes.trim()}` : ''
   ].filter(Boolean);
-  return lines.length === 0
-    ? ''
-    : `СОСТОЯНИЕ АВТОРА (сейчас, из студии; опыт не выдумывай сверх этого):\n${lines.join('\n')}`;
+  return lines.length === 0 ? '' : `${AUTHOR_STATE_HEADER}\n${lines.join('\n')}`;
 }

@@ -1,10 +1,25 @@
 import { AI_LEXICON, AI_PACK, AI_REEL_EXAMPLES, AI_TELEGRAM_EXAMPLES } from './pack.generated';
+import { AUTHOR_STATE_HEADER } from './author-profile';
 import type { WriterFormat, WriterMode } from './writer-types';
 
 // Builds one request from the bundled pack (docs/ai/README.md): the stable part first (core, format card,
 // answer rules, lessons, state) so the provider can cache it, then the matched lexicon lines, 3–4 examples
 // with the most relevant last, then the task.
 const MAX_LEXICON = 15;
+// Without a profile the seed of pack/state.md stands in, under the same «background, not the topic» header.
+const SEED_STATE = `${AUTHOR_STATE_HEADER}\n${AI_PACK.state.replace(/^#[^\n]*\n+/, '')}`;
+// Lines about the Reels rubrics (their list, their experiments): a Telegram post is about whatever the owner
+// asks, and these lines pulled «Учусь играть» into it (owner, 16.10.2026).
+const RUBRIC_LINE = /^- (Рубрики|Текущие эксперименты)/;
+
+/** The author state for this format: a Telegram post gets it without the Reels rubric lines. */
+function stateFor(format: WriterFormat | null, state: string): string {
+  if (format !== 'telegram' && format !== null) return state;
+  return state
+    .split('\n')
+    .filter((line) => !RUBRIC_LINE.test(line))
+    .join('\n');
+}
 const MAX_EXAMPLE_CHARS = 1400;
 const REEL_FORMAT: Record<Exclude<WriterFormat, 'telegram'>, 'fidit' | 'igrat' | 'solo'> = {
   fidit: 'fidit',
@@ -108,7 +123,7 @@ export function buildWriterPrompt(input: {
   const instructions = [AI_PACK.core, AI_PACK.formats[input.format], AI_PACK.output, AI_PACK.lessons].join('\n\n');
   const lexicon = matchLexicon(`${input.task} ${input.rewrite?.instruction ?? ''}`);
   const parts = [
-    input.author || AI_PACK.state,
+    stateFor(input.format, input.author || SEED_STATE),
     lexicon.length > 0 ? `Сленг и мемы из задания:\n${lexicon.join('\n')}` : '',
     ...examplesWithOwner(pickExamples(input.format, input.task, input.holdOut), input.ownerTexts ?? []),
     `ФОРМАТ: ${FORMAT_NAME[input.format]}`,
@@ -177,7 +192,7 @@ export function buildFreePrompt(
   const instructions = [AI_PACK.core, AI_PACK.lessons, EDITOR_ABOUT].join('\n\n');
   const lexicon = matchLexicon(task);
   const parts = [
-    author || AI_PACK.state,
+    stateFor(null, author || SEED_STATE),
     lexicon.length > 0 ? `Сленг и мемы из задания:\n${lexicon.join('\n')}` : '',
     'РЕЖИМ: разговор с автором. Отвечай его голосом, коротко и по делу. Без «ХУКИ:» и «ТЕКСТ:».',
     history.length > 0

@@ -15,7 +15,8 @@ import {
   type WriterDeps
 } from '../../src/modules/ai';
 import { changedParts, checkDraft, editRatio } from '../../src/modules/ai/writer-checks';
-import { parseWriterOutput, pickExamples } from '../../src/modules/ai/writer-prompt';
+import { buildWriterPrompt, parseWriterOutput, pickExamples } from '../../src/modules/ai/writer-prompt';
+import { authorStateText } from '../../src/modules/ai/author-profile';
 import { writerIntent } from '../../src/app/bot/ai-writer';
 import { AppError } from '../../src/shared/app-error';
 import { testDb } from '../helpers/db';
@@ -236,8 +237,39 @@ describe('AI writer checks', () => {
       'FIDIT_SELF_DOUBT'
     );
     expect(checkDraft('igrat', 'direct', 'Мой тупой мозг этого не умеет.')).not.toContain('FIDIT_SELF_DOUBT');
-    expect(checkDraft('telegram', 'direct', 'Мужчины, стрим. Мужчины, заходите.')).toContain('ADDRESS_REPEATED');
-    expect(checkDraft('telegram', 'direct', 'Мужчины, стрим в 20:00.')).not.toContain('ADDRESS_REPEATED');
+    // Owner, 16.10.2026: «почему он постоянно говорит мужчина» — any address is flagged, not only a repeat.
+    expect(checkDraft('telegram', 'direct', 'Мужики, дайте разобраться, кого я лечу.')).toContain('ADDRESS_USED');
+    expect(checkDraft('telegram', 'direct', 'Мужчины, стрим в 20:00.')).toContain('ADDRESS_USED');
+    expect(checkDraft('telegram', 'direct', 'Стрим в 20:00, заходите.')).not.toContain('ADDRESS_USED');
+  });
+
+  it('sends the author state as background, not as experience to write about (owner, 16.10.2026)', () => {
+    // «В турбо потеют» got «я кнопки на Оракле читаю»: the state's heroes were taken as the post's experience.
+    const prompt = buildWriterPrompt({
+      format: 'telegram',
+      mode: 'direct',
+      task: 'в турбо слишком потеют игроки и я не понимаю почему',
+      author: authorStateText({
+        dotaAccountId: null,
+        hours: null,
+        learningHeroes: ['Оракл'],
+        unknownAspects: '',
+        experiments: '',
+        notes: '',
+        dota: null,
+        revision: 0,
+        updatedAt: '2026-10-16T00:00:00.000Z'
+      })
+    });
+    expect(prompt.input).toContain('не тема');
+    // The seed used without a profile no longer names heroes of past videos.
+    const seed = buildWriterPrompt({ format: 'telegram', mode: 'direct', task: 'турбо' });
+    expect(seed.input).not.toMatch(/Оракл/);
+    expect(seed.input).toContain('не тема');
+    // A Telegram post is about anything the owner asks: the Reels rubrics and their experiments stay out.
+    expect(seed.input).not.toMatch(/Рубрики:|Текущие эксперименты/);
+    const reels = buildWriterPrompt({ format: 'igrat', mode: 'direct', task: 'турбо' });
+    expect(reels.input).toMatch(/Текущие эксперименты/);
   });
 
   it('parses hooks and text, and measures the owner edit', () => {

@@ -39,7 +39,8 @@ export function checkDraft(format: WriterFormat, mode: WriterMode, text: string)
   if (mode === 'automatic' && SELF_EXPERIENCE.test(text)) codes.push('INVENTED_EXPERIENCE');
   // «Учу фидить» is told with full confidence: the pseudo-expert never puts himself down (owner, 16.10.2026).
   if (format === 'fidit' && SELF_DOUBT.test(text)) codes.push('FIDIT_SELF_DOUBT');
-  if ((text.match(/мужчин/gi) ?? []).length > 1) codes.push('ADDRESS_REPEATED');
+  // Owner, 16.10.2026: the address came in nearly every post; by default a post goes without one.
+  if (/(?<![а-яё])(мужчин|мужик|парни|пацаны)/iu.test(text)) codes.push('ADDRESS_USED');
   const words = text.split(/\s+/).filter(Boolean).length;
   const [min, max] = WORDS[format];
   if (words < min) codes.push('TOO_SHORT');
@@ -58,6 +59,8 @@ export function describeCheck(code: string): string {
     ENDING_IGRAT_CTA_MISSING: 'нет концовки «А ты подпишись уже, заебал»',
     INVENTED_EXPERIENCE: 'выдуманный личный опыт («я играл», «мне понравилось»)',
     FIDIT_SELF_DOUBT: 'в «Учу фидить» автор принижает себя — там только уверенный тон',
+    ADDRESS_USED: 'обращение «мужики/мужчины/парни» (по умолчанию без него)',
+    // Older drafts keep the code of the earlier rule.
     ADDRESS_REPEATED: '«мужчины» больше одного раза',
     NEEDS_FACTS: 'нужен ваш опыт',
     TOO_SHORT: 'короче формата',
