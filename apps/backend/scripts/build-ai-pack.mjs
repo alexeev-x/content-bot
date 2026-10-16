@@ -7,10 +7,12 @@ import { fileURLToPath } from 'node:url';
 const root = join(fileURLToPath(import.meta.url), '../../../..');
 const docs = join(root, 'docs/ai');
 const out = join(root, 'apps/backend/src/modules/ai/pack.generated.ts');
+// Windows checkouts with core.autocrlf turn LF into CRLF; normalize so the pack and --check match CI.
+const read = (path) => readFileSync(path, 'utf8').replace(/\r\n/g, '\n');
 
-const md = (name) => readFileSync(join(docs, 'pack', name), 'utf8').trim();
+const md = (name) => read(join(docs, 'pack', name)).trim();
 const jsonl = (path) =>
-  readFileSync(join(docs, path), 'utf8')
+  read(join(docs, path))
     .split('\n')
     .filter((line) => line.trim() !== '')
     .map((line) => JSON.parse(line));
@@ -58,7 +60,7 @@ export const AI_TELEGRAM_EXAMPLES: readonly { k: string; t: string; g?: 1 }[] = 
 if (process.argv.includes('--check')) {
   let current = '';
   try {
-    current = readFileSync(out, 'utf8');
+    current = read(out);
   } catch {}
   if (current !== text) {
     console.error('apps/backend/src/modules/ai/pack.generated.ts is out of date: run `npm run ai:pack`');
