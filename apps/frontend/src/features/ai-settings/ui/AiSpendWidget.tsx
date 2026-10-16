@@ -1,3 +1,4 @@
+import type { AiOverviewDto } from '@alexeev/contracts';
 import { useQuery } from '@tanstack/react-query';
 import { Button as AriaButton } from 'react-aria-components';
 import { Icon, ProgressBar, Skeleton, StatusPill } from '../../../shared/ui';
@@ -17,67 +18,87 @@ export function AiStatusBadge() {
 /** Body of «ИИ расходы» on Обзор: this month against the budget, today, and the way to the settings. */
 export function AiSpendSummary({ onOpenSettings }: { onOpenSettings: () => void }) {
   const query = useQuery(aiOverviewQueryOptions());
-  const overview = query.data;
-  const footer = (
-    <AriaButton className={styles.settings} onPress={onOpenSettings}>
+  if (query.data === undefined && query.isError)
+    return (
+      <div className={styles.body}>
+        <p className={styles.meta}>{copy.widget.loadError}</p>
+        <SettingsLink onPress={onOpenSettings} />
+      </div>
+    );
+  return <SpendBody overview={query.data} onOpenSettings={onOpenSettings} />;
+}
+
+/** The same body without data and without a request: the route skeleton, at the loaded height. */
+export function AiSpendSkeleton() {
+  return <SpendBody overview={undefined} onOpenSettings={() => undefined} />;
+}
+
+function SettingsLink({ onPress }: { onPress: () => void }) {
+  return (
+    <AriaButton className={styles.settings} onPress={onPress}>
       <Icon name="settings" size={16} />
       <span>{copy.widget.settings}</span>
       <Icon name="chevron-right" size={16} />
     </AriaButton>
   );
-  if (overview === undefined)
-    return (
-      <div className={styles.body}>
-        {query.isError ? (
-          <p className={styles.meta}>{copy.widget.loadError}</p>
-        ) : (
-          <div aria-hidden="true" className={styles.skeleton}>
-            <Skeleton lines={5} height={20} />
-          </div>
-        )}
-        {footer}
-      </div>
-    );
-  const { spend, settings } = overview;
-  const share = settings.monthlyBudgetUsd > 0 ? Math.min(100, (spend.spentUsd / settings.monthlyBudgetUsd) * 100) : 0;
+}
+
+// One layout for loading and loaded: each value is a one-line skeleton until the overview arrives, so the
+// widget (and «Лента дня» beside it, which takes the row's height) never changes height.
+function SpendBody({ overview, onOpenSettings }: { overview: AiOverviewDto | undefined; onOpenSettings: () => void }) {
+  const value = (text: (data: AiOverviewDto) => string, width = 64) =>
+    overview === undefined ? <Skeleton width={width} height="1lh" /> : text(overview);
+  const share =
+    overview === undefined || overview.settings.monthlyBudgetUsd <= 0
+      ? 0
+      : Math.min(100, (overview.spend.spentUsd / overview.settings.monthlyBudgetUsd) * 100);
   const percent = share > 0 && share < 1 ? '< 1%' : `${Math.round(share)}%`;
   return (
-    <div className={styles.body}>
+    <div className={styles.body} aria-busy={overview === undefined || undefined}>
       <p className={styles.meta}>{copy.widget.month}</p>
       <div className={styles.total}>
         <p>
-          <strong>{usd(spend.spentUsd)}</strong> {copy.of} {usd(settings.monthlyBudgetUsd)}
+          {overview === undefined ? (
+            // Inside <strong>, so the line is the big figure's height.
+            <strong>
+              <Skeleton width={150} height="1lh" />
+            </strong>
+          ) : (
+            <>
+              <strong>{usd(overview.spend.spentUsd)}</strong> {copy.of} {usd(overview.settings.monthlyBudgetUsd)}
+            </>
+          )}
         </p>
-        <span className={styles.meta}>{percent}</span>
+        <span className={styles.meta}>{value(() => percent, 32)}</span>
       </div>
       <ProgressBar label={copy.spendBar} value={share} tone={share >= 100 ? 'failed' : 'accent'} />
       <dl className={styles.facts}>
         <div>
           <dt>{copy.widget.today}</dt>
-          <dd>{usd(spend.todayUsd)}</dd>
+          <dd>{value((data) => usd(data.spend.todayUsd))}</dd>
         </div>
         <div>
           <dt>{copy.widget.budget}</dt>
-          <dd>{usd(settings.monthlyBudgetUsd)}</dd>
+          <dd>{value((data) => usd(data.settings.monthlyBudgetUsd))}</dd>
         </div>
         <div>
           <dt>{copy.widget.requests}</dt>
-          <dd>{spend.requests}</dd>
+          <dd>{value((data) => String(data.spend.requests), 24)}</dd>
         </div>
         <div>
           <dt>{copy.widget.left}</dt>
-          <dd className={styles.accent}>{usd(spend.leftUsd)}</dd>
+          <dd className={styles.accent}>{value((data) => usd(data.spend.leftUsd))}</dd>
         </div>
         <div>
           <dt>{copy.average}</dt>
-          <dd>{spend.averageUsd === null ? '—' : usd(spend.averageUsd)}</dd>
+          <dd>{value((data) => (data.spend.averageUsd === null ? '—' : usd(data.spend.averageUsd)))}</dd>
         </div>
         <div>
           <dt>{copy.widget.used}</dt>
-          <dd>{percent}</dd>
+          <dd>{value(() => percent, 40)}</dd>
         </div>
       </dl>
-      {footer}
+      <SettingsLink onPress={onOpenSettings} />
     </div>
   );
 }

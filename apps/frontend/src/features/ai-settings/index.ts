@@ -1,2 +1,2 @@
 export { AiSettingsPage, AiSettingsSkeleton } from './ui/AiSettingsPage';
-export { AiSpendSummary, AiStatusBadge } from './ui/AiSpendWidget';
+export { AiSpendSkeleton, AiSpendSummary, AiStatusBadge } from './ui/AiSpendWidget';

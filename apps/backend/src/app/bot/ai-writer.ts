@@ -370,7 +370,12 @@ export function registerAiWriter(bot: Bot, runtime: AiWriterRuntime): void {
     const approved = await publishableText(deps, generationId);
     if (approved.postId !== null) {
       // Already a post (idempotency keys expire, the link does not): never a second one.
-      const markup = publishKeyboard({ appOrigin: runtime.appOrigin, postId: approved.postId, buttons: [] });
+      const markup = publishKeyboard({
+        appOrigin: runtime.appOrigin,
+        postId: approved.postId,
+        buttons: [],
+        studio: 'post'
+      });
       await ctx.reply(ALREADY_APPROVED_TEXT, markup === undefined ? {} : { reply_markup: markup });
       return;
     }
@@ -385,8 +390,17 @@ export function registerAiWriter(bot: Bot, runtime: AiWriterRuntime): void {
     const markup = publishKeyboard({
       appOrigin: runtime.appOrigin,
       postId: post.id,
-      buttons: await runtime.publish.buttons(post)
+      buttons: await runtime.publish.buttons(post),
+      studio: 'post'
     });
-    await ctx.reply('Одобрено, черновик поста создан', markup === undefined ? {} : { reply_markup: markup });
+    // The final text first, so the owner sees exactly what the post holds before any publish button.
+    await ctx.reply(
+      `<b>Одобрено, это черновик поста в студии:</b>\n\n${escapeHtml(approved.text.length > SHOWN_TEXT_MAX ? `${approved.text.slice(0, SHOWN_TEXT_MAX)}…` : approved.text)}`,
+      {
+        parse_mode: 'HTML',
+        link_preview_options: { is_disabled: true },
+        ...(markup === undefined ? {} : { reply_markup: markup })
+      }
+    );
   }
 }

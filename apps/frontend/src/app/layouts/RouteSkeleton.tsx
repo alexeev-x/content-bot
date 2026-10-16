@@ -1,3 +1,4 @@
+import { AiSpendSkeleton } from '../../features/ai-settings';
 import { AnalyticsSkeleton, LatestVideoSkeleton, TrendingSummarySkeleton } from '../../features/content-analytics';
 import { DashboardSkeleton } from '../../features/dashboard';
 import { SourcesBoardSkeleton } from '../../features/dota-intelligence';
@@ -44,6 +45,7 @@ export function RouteSkeleton({ pathname, title }: Props) {
             latestTiktok: <LatestVideoSkeleton />,
             trending: <TrendingSummarySkeleton />
           }}
+          ai={<AiSpendSkeleton />}
         />
       </>
     );

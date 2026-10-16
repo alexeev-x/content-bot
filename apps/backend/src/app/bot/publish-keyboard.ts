@@ -13,12 +13,19 @@ export function publishKeyboard(input: {
   appOrigin: string | null;
   postId: string;
   buttons: readonly PublishButton[];
+  /** Where the Studio button opens: the publish screen (default) or the post itself. */
+  studio?: 'publish' | 'post';
 }): InlineKeyboardMarkup | undefined {
   const rows: InlineKeyboardButton[][] = input.buttons.map((button) => [
     { text: `Опубликовать сейчас → ${shortTitle(button.channelTitle)}`, callback_data: callbackDataOf(button.token) }
   ]);
   if (input.appOrigin !== null) {
-    rows.push([{ text: STUDIO_BUTTON_TEXT, web_app: { url: `${input.appOrigin}/posts/${input.postId}/publish` } }]);
+    rows.push([
+      {
+        text: STUDIO_BUTTON_TEXT,
+        web_app: { url: `${input.appOrigin}/posts/${input.postId}${input.studio === 'post' ? '' : '/publish'}` }
+      }
+    ]);
   }
   return rows.length === 0 ? undefined : { inline_keyboard: rows };
 }
