@@ -6,7 +6,12 @@ import { DOTA_REFRESH_MS, dotaProfileQueryOptions, useRefreshDota, useSetDotaAcc
 import styles from './DotaSummary.module.css';
 
 // Medals and stars from OpenDota's public assets (Valve art), bundled so no external image host is needed.
-const images = import.meta.glob<string>('../assets/*.webp', { eager: true, import: 'default', query: '?url' });
+// `no-inline` keeps them files: inlined, all 13 would sit as base64 in the first-screen bundle.
+const images = import.meta.glob<string>('../assets/*.webp', {
+  eager: true,
+  import: 'default',
+  query: '?url&no-inline'
+});
 const image = (name: string) => images[`../assets/${name}.webp`];
 
 /** rank_tier is medal × 10 + stars: 42 is the 4th medal (Герой) with 2 stars; Immortal (8x) has none. */
@@ -90,9 +95,7 @@ export function DotaSummary() {
           ) : null}
         </>
       ) : (
-        <p className={styles.meta}>
-          Матчи скрыты. В Доте: Настройки → Опции → Социальные → «Открыть публичный доступ к данным матчей».
-        </p>
+        <p className={styles.meta}>Матчи скрыты. Включите в Dota 2 настройку «Публичный доступ к данным матчей».</p>
       )}
       <p className={`${styles.meta} ${styles.footer}`}>
         {refresh.isPending ? 'Обновляем…' : `Обновлено ${fetchedOn(dota.fetchedAt)}, дальше раз в день`}
