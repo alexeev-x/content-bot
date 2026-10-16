@@ -64,7 +64,8 @@ export function describeCheck(code: string): string {
     ADDRESS_REPEATED: '«мужчины» больше одного раза',
     NEEDS_FACTS: 'нужен ваш опыт',
     TOO_SHORT: 'короче формата',
-    TOO_LONG: 'длиннее формата'
+    TOO_LONG: 'длиннее формата',
+    TOPIC_REPEATED: 'тема повторяет недавний черновик'
   };
   return map[code] ?? code;
 }

@@ -9,6 +9,7 @@ import {
   chooseHook,
   describeCheck,
   FORMAT_LABEL,
+  type GenerationRow,
   generateDraft,
   NEEDS_FACTS,
   publishableText,
@@ -109,6 +110,25 @@ function keyboard(generationId: string, hooks: readonly string[], appOrigin: str
   return board;
 }
 
+/** The model asked for the owner's facts (result needs_facts, or the NEEDS_FACTS warning of an older row). */
+function isRequestForFacts(generation: Pick<GenerationRow, 'result' | 'warnings'>): boolean {
+  return generation.result === 'needs_facts' || generation.warnings.includes(NEEDS_FACTS);
+}
+
+function factsHtml(generation: Pick<GenerationRow, 'format' | 'question' | 'ideas'>): string {
+  const lines = [`<b>${FORMAT_LABEL[generation.format]}: нужны ваши детали</b>`, ''];
+  if (generation.ideas.length > 0)
+    lines.push('Идеи:', ...generation.ideas.map((idea, index) => `${index + 1}. ${escapeHtml(idea)}`), '');
+  lines.push(
+    escapeHtml(generation.question ?? 'Что было в игре?'),
+    '',
+    generation.ideas.length > 0
+      ? '<i>Ответьте на это сообщение: номер идеи и что у вас было — напишу сценарий по вашему опыту.</i>'
+      : '<i>Ответьте на это сообщение — напишу сценарий по вашему опыту.</i>'
+  );
+  return lines.join('\n');
+}
+
 function draftHtml(result: {
   format: WriterFormat;
   hooks: readonly string[];
@@ -184,21 +204,24 @@ export function registerAiWriter(bot: Bot, runtime: AiWriterRuntime): void {
           const result = await work(deps, AbortSignal.timeout(MODEL_TIMEOUT_MS));
           for (const event of result.budgetEvents)
             await ctx.api.sendMessage(chatId, formatAiBudgetAlert(event), { parse_mode: 'HTML' });
+          const { generation } = result;
+          if (isRequestForFacts(generation)) {
+            // A question has nothing to approve or rewrite: no keyboard; the owner's reply continues it.
+            await deps.writer.setChatMessage(generation.id, message.message_id, runtime.clock.now());
+            await edit(ctx, chatId, message.message_id, factsHtml(generation));
+            return;
+          }
           if (result.text === null) {
             await edit(ctx, chatId, message.message_id, FAILED_TEXT);
             return;
           }
-          const { generation } = result;
           await deps.writer.setChatMessage(generation.id, message.message_id, runtime.clock.now());
           await edit(
             ctx,
             chatId,
             message.message_id,
             draftHtml({ ...generation, text: result.text }),
-            // A question has nothing to approve or rewrite yet: the owner answers it.
-            generation.warnings.includes(NEEDS_FACTS)
-              ? undefined
-              : keyboard(generation.id, generation.hooks, runtime.appOrigin)
+            keyboard(generation.id, generation.hooks, runtime.appOrigin)
           );
         } catch (error) {
           if (!(error instanceof AppError && error.code === 'UNAVAILABLE')) runtime.onError(error);
@@ -348,9 +371,14 @@ export function registerAiWriter(bot: Bot, runtime: AiWriterRuntime): void {
     if (replyTo !== undefined && replyTo.from?.id === ctx.me.id) {
       const deps = await runtime.writer();
       const generation = await deps.writer.findByChatMessage(replyTo.message_id);
-      if (generation !== null && generation.warnings.includes(NEEDS_FACTS)) {
-        // The answer to the model's question: the draft is written again with the owner's experience added.
-        const task = `${generation.task}\n\nОпыт автора (его слова):\n${ctx.message.text}`.slice(0, 4000);
+      if (generation !== null && isRequestForFacts(generation)) {
+        // The answer to the model's question: the draft is written again from the same task, the ideas it offered
+        // and the owner's experience, so nothing of the original request is lost.
+        const ideas =
+          generation.ideas.length > 0
+            ? `\n\nИдеи редактора:\n${generation.ideas.map((idea, index) => `${index + 1}. ${idea}`).join('\n')}`
+            : '';
+        const task = `${generation.task}${ideas}\n\nОпыт автора (его слова):\n${ctx.message.text}`.slice(0, 4000);
         await write(ctx, WRITING_TEXT, (writerDeps, signal) =>
           generateDraft(writerDeps, { format: generation.format, mode: generation.mode, source: 'bot', task, signal })
         );

@@ -8,7 +8,8 @@ import type { ChatTurn, FeedbackKind, GenerationRow, RevisionRow, WriterReposito
 import { type AiTextProvider, AiProviderError } from './ports';
 import { assertAiReady, type BudgetEvent, readAiSettings, recordAiUsage } from './service';
 import { changedParts, checkDraft, editRatio } from './writer-checks';
-import { buildFreePrompt, buildWriterPrompt, packRevision, parseWriterOutput } from './writer-prompt';
+import { buildFreePrompt, buildWriterPrompt, packRevision, repeatsRecentTopic } from './writer-prompt';
+import { type DraftFacets, parseWriterAnswer, WRITER_ANSWER_JSON_SCHEMA } from './writer-answer';
 import type { WriterFormat, WriterMode } from './writer-types';
 
 // The AI writer (docs/ai/architecture.md items 2, 4, 7, 9, 20): a draft is stored as AI_DRAFT, the owner's
@@ -18,6 +19,8 @@ const MAX_TASK = 4000;
 const MAX_TEXT = 8000;
 /** The model asked for the owner's experience instead of writing (see `call`). */
 export const NEEDS_FACTS = 'NEEDS_FACTS';
+/** Drafts of the same format whose topic, device and ending the next prompt lists (antirepeat). */
+const RECENT_FACETS = 15;
 
 export interface WriterDeps {
   repo: AiRepository;
@@ -77,7 +80,9 @@ async function call(
   deps: WriterDeps,
   row: NewGeneration,
   prompt: { instructions: string; input: string },
-  signal: AbortSignal
+  signal: AbortSignal,
+  /** Facets of the latest drafts of the format, to flag a repeated topic. */
+  recent: readonly DraftFacets[] = []
 ): Promise<WriterResult> {
   const settings = await readAiSettings(deps.repo);
   // Refused before a row exists when AI cannot run: nothing pending is left behind.
@@ -89,10 +94,19 @@ async function call(
     errorCode: null,
     model: null,
     warnings: [],
-    chatMessageId: null
+    chatMessageId: null,
+    result: null,
+    question: null,
+    ideas: []
   };
   try {
-    const result = await provider.complete({ model, ...prompt, maxOutputTokens: MAX_OUTPUT_TOKENS, signal });
+    const result = await provider.complete({
+      model,
+      ...prompt,
+      maxOutputTokens: MAX_OUTPUT_TOKENS,
+      jsonSchema: WRITER_ANSWER_JSON_SCHEMA,
+      signal
+    });
     const usageId = deps.newId();
     const budgetEvents = await recordAiUsage(deps, {
       id: usageId,
@@ -102,30 +116,51 @@ async function call(
       usage: result.usage,
       settings
     });
-    const parsed = parseWriterOutput(result.text);
-    const text = parsed.text.slice(0, MAX_TEXT);
+    const answer = parseWriterAnswer(result.text);
     const now = deps.clock.now();
-    if (text === '') {
+    if (answer === null) {
+      // Paid and recorded, but not the agreed shape: never guessed into a draft.
       await deps.writer.finishGeneration({
         id: generation.id,
         now,
         status: 'failed',
-        errorCode: 'AI_EMPTY_ANSWER',
+        errorCode: 'AI_BAD_FORMAT',
         model: result.model,
         usageId
       });
+      return { generation: { ...generation, status: 'failed', errorCode: 'AI_BAD_FORMAT' }, text: null, budgetEvents };
+    }
+    if (answer.kind === 'needs_facts') {
+      // The model asks for the owner's experience (pack/output.md): no AI_DRAFT, nothing to check or approve;
+      // the owner's answer starts a new draft.
+      await deps.writer.finishGeneration({
+        id: generation.id,
+        now,
+        status: 'ready',
+        model: result.model,
+        usageId,
+        result: 'needs_facts',
+        question: answer.question,
+        ideas: answer.ideas
+      });
       return {
-        generation: { ...generation, status: 'failed', errorCode: 'AI_EMPTY_ANSWER' },
+        generation: {
+          ...generation,
+          status: 'ready',
+          model: result.model,
+          result: 'needs_facts',
+          question: answer.question,
+          ideas: answer.ideas
+        },
         text: null,
         budgetEvents
       };
     }
-    // Without the owner's experience the model asks one short question instead of a script (pack/output.md):
-    // that is not a draft to check or approve, the owner's answer is.
-    const asksForFacts = parsed.hooks.length === 0 && text.length <= 400 && text.trimEnd().endsWith('?');
-    const warnings = asksForFacts ? [NEEDS_FACTS] : checkDraft(generation.format, generation.mode, text);
+    const text = answer.text.slice(0, MAX_TEXT);
+    const warnings = checkDraft(generation.format, generation.mode, text);
+    if (recent.length > 0 && repeatsRecentTopic(answer.facets.topic, recent)) warnings.push('TOPIC_REPEATED');
     // A rewrite keeps the parent's hooks unless the model sent new ones.
-    const hooks = parsed.hooks.length > 0 ? parsed.hooks : generation.hooks;
+    const hooks = answer.hooks.length > 0 ? answer.hooks : generation.hooks;
     await deps.writer.addRevision({
       id: deps.newId(),
       generationId: generation.id,
@@ -142,9 +177,15 @@ async function call(
       model: result.model,
       usageId,
       hooks,
-      warnings
+      warnings,
+      result: 'draft',
+      facets: answer.facets
     });
-    return { generation: { ...generation, status: 'ready', model: result.model, hooks, warnings }, text, budgetEvents };
+    return {
+      generation: { ...generation, status: 'ready', model: result.model, hooks, warnings, result: 'draft' },
+      text,
+      budgetEvents
+    };
   } catch (error) {
     if (!(error instanceof AiProviderError)) {
       // Never left pending: the row ends failed, the error still reaches the caller's log.
@@ -193,6 +234,7 @@ export async function generateDraft(
     hooks: [],
     createdAt: now
   };
+  const recent = await deps.writer.recentFacets(input.format, RECENT_FACETS);
   return call(
     deps,
     row,
@@ -202,9 +244,11 @@ export async function generateDraft(
       task,
       holdOut: input.holdOut ?? [],
       author: await author(deps),
-      ownerTexts: await deps.writer.ownerExamples({ format: input.format, limit: 2 })
+      ownerTexts: await deps.writer.ownerExamples({ format: input.format, limit: 2 }),
+      recent
     }),
-    input.signal
+    input.signal,
+    recent
   );
 }
 
@@ -214,6 +258,7 @@ export async function rewriteDraft(
   input: { generationId: string; instruction: string; signal: AbortSignal }
 ): Promise<WriterResult> {
   const parent = await deps.writer.findGeneration(input.generationId);
+  if (parent !== null) refuseRequestForFacts(parent);
   if (parent === null) throw new AppError('NOT_FOUND', 'The draft is gone');
   const current = currentRevision(await deps.writer.revisions(parent.id));
   if (current === null) throw new AppError('CONFLICT', 'The draft has no text', { reason: 'NO_TEXT' });
@@ -248,6 +293,7 @@ export async function chooseHook(deps: WriterDeps, generationId: string, index: 
   const generation = await deps.writer.findGeneration(generationId);
   const hook = generation?.hooks[index];
   if (generation === null || hook === undefined) throw new AppError('NOT_FOUND', 'The hook is gone');
+  refuseRequestForFacts(generation);
   const revisions = await deps.writer.revisions(generationId);
   const current = currentRevision(revisions);
   if (current === null) throw new AppError('CONFLICT', 'The draft has no text', { reason: 'NO_TEXT' });
@@ -271,6 +317,7 @@ export async function chooseHook(deps: WriterDeps, generationId: string, index: 
 
 /** The owner's own version of the text (a reply to the draft in the bot, or an edit in the studio). */
 export async function saveOwnerEdit(deps: WriterDeps, generationId: string, text: string): Promise<RevisionRow> {
+  await assertDraft(deps, generationId);
   const clean = text.trim();
   if (clean === '' || clean.length > MAX_TEXT) throw new AppError('VALIDATION_ERROR', 'The text is empty or too long');
   const revisions = await deps.writer.revisions(generationId);
@@ -299,6 +346,7 @@ export async function approveDraft(
   generationId: string,
   provenance: 'OWNER_APPROVED' | 'OWNER_PREAPPROVED' = 'OWNER_APPROVED'
 ): Promise<Approval> {
+  await assertDraft(deps, generationId);
   const revisions = await deps.writer.revisions(generationId);
   const existing = approvedRevision(revisions);
   if (existing !== null) return { revision: existing, created: false };
@@ -329,6 +377,7 @@ export async function approveDraft(
  * draft is approved, so an AI_DRAFT or an owner edit without approval never reaches a channel.
  */
 export async function publishableText(deps: Pick<WriterDeps, 'writer'>, generationId: string): Promise<RevisionRow> {
+  await assertDraft(deps, generationId);
   const approved = approvedRevision(await deps.writer.revisions(generationId));
   if (approved === null) throw new AppError('CONFLICT', 'The AI text is not approved', { reason: 'NOT_APPROVED' });
   return approved;
@@ -387,4 +436,18 @@ export async function askEditor(
     if (!(error instanceof AiProviderError)) throw error;
     return { text: null, errorCode: error.code, budgetEvents: [] };
   }
+}
+
+/** A request for the owner's facts is not a draft: never edited, rewritten, approved or published. */
+function refuseRequestForFacts(generation: GenerationRow): void {
+  // Older rows (before migration 0062) mark the question only by its NEEDS_FACTS warning.
+  if (generation.result === 'needs_facts' || generation.warnings.includes(NEEDS_FACTS)) {
+    throw new AppError('CONFLICT', 'The answer is a question, not a draft', { reason: 'NOT_A_DRAFT' });
+  }
+}
+
+async function assertDraft(deps: Pick<WriterDeps, 'writer'>, generationId: string): Promise<void> {
+  const generation = await deps.writer.findGeneration(generationId);
+  if (generation === null) throw new AppError('NOT_FOUND', 'The draft is gone');
+  refuseRequestForFacts(generation);
 }

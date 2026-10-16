@@ -118,48 +118,58 @@ export function buildWriterPrompt(input: {
   author?: string;
   /** The owner's approved, owner-changed texts of this format, newest first (`ownerExamples`). */
   ownerTexts?: readonly string[];
+  /** Topic, device and ending of the latest drafts of this format, newest first (`recentFacets`). */
+  recent?: readonly { topic: string; device: string; ending: string }[];
 }): { instructions: string; input: string } {
   // The author's state changes often: it goes with the request, after the cached prefix (architecture item 6).
   const instructions = [AI_PACK.core, AI_PACK.formats[input.format], AI_PACK.output, AI_PACK.lessons].join('\n\n');
   const lexicon = matchLexicon(`${input.task} ${input.rewrite?.instruction ?? ''}`);
+  const recent = (input.recent ?? []).slice(0, MAX_RECENT);
   const parts = [
     stateFor(input.format, input.author || SEED_STATE),
     lexicon.length > 0 ? `Сленг и мемы из задания:\n${lexicon.join('\n')}` : '',
     ...examplesWithOwner(pickExamples(input.format, input.task, input.holdOut), input.ownerTexts ?? []),
+    // Facets only, never the texts: an AI draft is not a voice example (architecture item 2).
+    recent.length > 0
+      ? `НЕДАВНИЕ (тема · приём · концовка — не повторяй):\n${recent
+          .map((facet) => `- ${[facet.topic, facet.device, facet.ending].filter(Boolean).join(' · ')}`)
+          .join('\n')}`
+      : '',
     `ФОРМАТ: ${FORMAT_NAME[input.format]}`,
     `РЕЖИМ: ${input.mode === 'direct' ? 'прямой запрос автора' : 'автоматический повод (только факты задания)'}`
   ];
   if (input.rewrite) {
     parts.push(
       `ТЕКУЩИЙ ТЕКСТ:\n${input.rewrite.text}`,
-      `ЗАДАНИЕ: перепиши текст — ${input.rewrite.instruction}. Сохрани голос, формат и всё удачное. Верни строку «ТЕКСТ:» и текст.`
+      `ЗАДАНИЕ: перепиши текст — ${input.rewrite.instruction}. Сохрани голос, формат и всё удачное. Ответ — kind «draft».`
     );
   } else {
+    // «Придумай сам» is the owner's own request without a topic, not the automatic mode of a news item.
+    if (input.mode === 'direct' && asksToInvent(input.task))
+      parts.push('ЗАПРОС: тема на твой выбор (см. «Как отвечать»).');
     parts.push(`ЗАДАНИЕ:\n${input.task}`);
   }
   return { instructions, input: parts.filter(Boolean).join('\n\n') };
 }
 
-/** Hooks and text from the model's answer («ХУКИ:» lines, then «ТЕКСТ:»); a plain answer is the text. */
-export function parseWriterOutput(raw: string): { hooks: string[]; text: string } {
-  const trimmed = raw.trim();
-  const textAt = trimmed.search(/(^|\n)\s*ТЕКСТ:\s*/);
-  if (textAt === -1) return { hooks: [], text: trimmed.replace(/^ХУКИ:[\s\S]*$/m, '').trim() || trimmed };
-  const head = trimmed.slice(0, textAt);
-  const text = trimmed
-    .slice(textAt)
-    .replace(/^\s*ТЕКСТ:\s*/, '')
-    .trim();
-  const hooks = head
-    .split('\n')
-    .map((line) => line.trim())
-    .filter((line) => line.startsWith('-'))
-    .map((line) => line.replace(/^-\s*/, '').trim())
-    .filter(Boolean)
-    .slice(0, 3)
-    // A hook is two sentences; a runaway line must not push the bot message past Telegram's limit.
-    .map((hook) => hook.slice(0, 200));
-  return { hooks, text };
+const MAX_RECENT = 15;
+const INVENT = /придума|сам выбер|выбери сам|сам тему|на (свою|любую|твою) тему|любой пост|на твой выбор|без темы/i;
+
+/** The owner asks the writer to pick the topic («придумай сам», «на свою тему»). */
+export function asksToInvent(task: string): boolean {
+  return INVENT.test(task);
+}
+
+/** A new topic that shares most of its words with a recent one (antirepeat; no model call). */
+export function repeatsRecentTopic(topic: string, recent: readonly { topic: string }[]): boolean {
+  const stems = (text: string) => new Set([...words(text)].map((word) => word.slice(0, 5)));
+  const own = stems(topic);
+  if (own.size === 0) return false;
+  return recent.some((facet) => {
+    const other = stems(facet.topic);
+    const shared = [...own].filter((stem) => other.has(stem)).length;
+    return shared / Math.min(own.size, other.size || 1) >= 0.6;
+  });
 }
 
 /** The pack the prompt was built from, as a short stable hash (FNV-1a). */

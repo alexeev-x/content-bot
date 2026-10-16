@@ -188,11 +188,19 @@ export type CreateAiDraftInput = z.infer<typeof createAiDraftInputSchema>;
 
 export const aiDraftResultSchema = z.object({
   generationId: z.uuid(),
-  status: z.enum(['ready', 'failed']),
+  /**
+   * `ready` — a full draft (text, hooks) to edit and approve; `needs_facts` — the model asks for the owner's
+   * experience (`question`, maybe `ideas`), there is no draft and it can never be approved (CONFLICT NOT_A_DRAFT);
+   * `failed` — a provider failure or an answer of the wrong shape (`errorCode`, e.g. AI_BAD_FORMAT).
+   */
+  status: z.enum(['ready', 'needs_facts', 'failed']),
   errorCode: z.string().max(80).nullable(),
   model: z.string().nullable(),
   hooks: z.array(z.string()).max(3),
   text: z.string().nullable(),
+  question: z.string().max(1000).nullable(),
+  /** Up to 3 topic ideas offered with the question («придумай сам» in a format that needs real experience). */
+  ideas: z.array(z.string().max(160)).max(3),
   /** Code-check findings, stable codes (writer-checks.ts). */
   warnings: z.array(z.string()).max(30)
 });

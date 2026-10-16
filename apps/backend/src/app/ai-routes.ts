@@ -126,11 +126,14 @@ export const aiRoutes = new Hono<AppBindings>()
       return c.json(
         aiDraftResultSchema.parse({
           generationId: generation.id,
-          status: generation.status === 'ready' ? 'ready' : 'failed',
+          status:
+            generation.status !== 'ready' ? 'failed' : generation.result === 'needs_facts' ? 'needs_facts' : 'ready',
           errorCode: generation.errorCode,
           model: generation.model,
-          hooks: generation.hooks,
+          hooks: generation.result === 'needs_facts' ? [] : generation.hooks,
           text: result.text,
+          question: generation.question,
+          ideas: generation.ideas,
           warnings: generation.warnings
         })
       );

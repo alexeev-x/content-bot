@@ -20,6 +20,7 @@ export {
   type ChatTurn,
   createD1WriterRepository,
   type FeedbackKind,
+  type GenerationRow,
   type WriterRepository
 } from './d1-writer-repository';
 export {

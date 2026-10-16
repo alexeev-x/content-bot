@@ -15,12 +15,13 @@ import {
   type WriterDeps
 } from '../../src/modules/ai';
 import { changedParts, checkDraft, editRatio } from '../../src/modules/ai/writer-checks';
-import { buildWriterPrompt, parseWriterOutput, pickExamples } from '../../src/modules/ai/writer-prompt';
+import { buildWriterPrompt, pickExamples } from '../../src/modules/ai/writer-prompt';
 import { authorStateText } from '../../src/modules/ai/author-profile';
 import { writerIntent } from '../../src/app/bot/ai-writer';
 import { AppError } from '../../src/shared/app-error';
 import { testDb } from '../helpers/db';
 import { fakeClock, resetDb } from '../helpers/harness';
+import { writerAnswer } from '../helpers/writer-answer';
 
 const SETTINGS: Omit<UpdateAiSettingsInput, 'revision'> = {
   provider: 'openai',
@@ -33,14 +34,13 @@ const SETTINGS: Omit<UpdateAiSettingsInput, 'revision'> = {
   warnAtPercent: 80
 };
 
-const ANSWER = [
-  'ХУКИ:',
-  '- Я апнул 3к и понял одну вещь.',
-  '- Три тысячи ММР, и я всё ещё фидлю.',
-  '- Апнул 3к. Рассказываю, как.',
-  'ТЕКСТ:',
-  'Я апнул 3к и понял одну вещь. Варды решают больше, чем мой фарм. Дальше будет только лучше, подпишись.'
-].join('\n');
+const ANSWER = writerAnswer({
+  hooks: ['Я апнул 3к и понял одну вещь.', 'Три тысячи ММР, и я всё ещё фидлю.', 'Апнул 3к. Рассказываю, как.'],
+  text: 'Я апнул 3к и понял одну вещь. Варды решают больше, чем мой фарм. Дальше будет только лучше, подпишись.',
+  topic: 'апнул 3к и понял про варды',
+  device: 'признание новичка',
+  ending: 'призыв подписаться'
+});
 
 let ids = 0;
 function deps(provider: AiTextProvider | null): WriterDeps {
@@ -166,9 +166,78 @@ describe('AI writer', () => {
     expect(quality.changedParts).toEqual([{ part: 'hook', count: 1 }]);
   });
 
-  it('marks a question for the owner instead of checking it as a script', async () => {
-    const result = await draft(deps(answering('Как у тебя прошли игры на Личе: что понравилось, где накосячил?')));
-    expect(result.generation.warnings).toEqual(['NEEDS_FACTS']);
+  it('stores a request for facts as needs_facts, never as a draft, and refuses to edit, approve or publish it', async () => {
+    const writer = deps(
+      answering(
+        writerAnswer({
+          kind: 'ideas',
+          question: 'По какой расскажешь и что было в игре?',
+          ideas: ['Первый Пудж: хуки мимо', 'Лион: кому палец', 'Варды, которые никто не видел']
+        })
+      )
+    );
+    const result = await draft(writer, 'придумай сам тему для «Учусь играть»');
+    expect(result.text).toBeNull();
+    expect(result.generation).toMatchObject({
+      status: 'ready',
+      result: 'needs_facts',
+      question: 'По какой расскажешь и что было в игре?',
+      ideas: ['Первый Пудж: хуки мимо', 'Лион: кому палец', 'Варды, которые никто не видел']
+    });
+    // No AI_DRAFT: nothing to check, approve or learn from.
+    expect(await writer.writer.revisions(result.generation.id)).toEqual([]);
+    const notADraft = { code: 'CONFLICT', details: { reason: 'NOT_A_DRAFT' } };
+    await expect(approveDraft(writer, result.generation.id)).rejects.toMatchObject(notADraft);
+    await expect(saveOwnerEdit(writer, result.generation.id, 'мой текст')).rejects.toMatchObject(notADraft);
+    await expect(publishableText(writer, result.generation.id)).rejects.toMatchObject(notADraft);
+    // The paid call is in the ledger like any other.
+    const usage = await testDb()
+      .prepare('SELECT COUNT(*) AS n FROM ai_generations g JOIN ai_usage u ON u.id = g.usage_id WHERE g.id = ?')
+      .bind(result.generation.id)
+      .first<{ n: number }>();
+    expect(usage?.n).toBe(1);
+  });
+
+  it('refuses to approve an older question stored as AI_DRAFT with its NEEDS_FACTS warning', async () => {
+    const writer = deps(answering(ANSWER));
+    const old = await draft(writer);
+    await testDb()
+      .prepare(`UPDATE ai_generations SET warnings = '["NEEDS_FACTS"]', result = NULL WHERE id = ?`)
+      .bind(old.generation.id)
+      .run();
+    await expect(approveDraft(writer, old.generation.id)).rejects.toMatchObject({ details: { reason: 'NOT_A_DRAFT' } });
+  });
+
+  it('fails an answer of the wrong shape with AI_BAD_FORMAT instead of guessing a draft', async () => {
+    const writer = deps(answering('ХУКИ:\n- старый формат\nТЕКСТ:\nтекст'));
+    const result = await draft(writer);
+    expect(result).toMatchObject({ text: null, generation: { status: 'failed', errorCode: 'AI_BAD_FORMAT' } });
+    expect(await writer.writer.revisions(result.generation.id)).toEqual([]);
+  });
+
+  it('asks for structured output, lists recent topics and flags a repeated one', async () => {
+    const requests: Parameters<AiTextProvider['complete']>[0][] = [];
+    const writer = deps({
+      provider: 'openai',
+      complete: (request) => {
+        requests.push(request);
+        return answering(ANSWER).complete(request);
+      }
+    });
+    const first = await draft(writer, 'придумай сам тему');
+    expect(requests[0]?.jsonSchema?.name).toBe('writer_answer');
+    expect(requests[0]?.input).toContain('ЗАПРОС: тема на твой выбор');
+    expect(first.generation.warnings).not.toContain('TOPIC_REPEATED');
+
+    const second = await draft(writer, 'придумай сам тему');
+    expect(requests[1]?.input).toContain('НЕДАВНИЕ');
+    expect(requests[1]?.input).toContain('апнул 3к и понял про варды · признание новичка · призыв подписаться');
+    // The same topic again: flagged by code, no extra model call.
+    expect(second.generation.warnings).toContain('TOPIC_REPEATED');
+    expect(requests).toHaveLength(2);
+    // A concrete topic is not a request to invent one.
+    await draft(writer, 'как я апнул 3к на Лионе');
+    expect(requests[2]?.input).not.toContain('ЗАПРОС: тема на твой выбор');
   });
 
   it('refuses before any row when AI is off, and stores a provider failure', async () => {
@@ -272,12 +341,7 @@ describe('AI writer checks', () => {
     expect(reels.input).toMatch(/Текущие эксперименты/);
   });
 
-  it('parses hooks and text, and measures the owner edit', () => {
-    expect(parseWriterOutput(ANSWER)).toMatchObject({
-      hooks: expect.any(Array),
-      text: expect.stringMatching(/^Я апнул/)
-    });
-    expect(parseWriterOutput('просто текст')).toEqual({ hooks: [], text: 'просто текст' });
+  it('measures the owner edit', () => {
     expect(editRatio('раз два три четыре', 'раз два три четыре')).toBe(0);
     expect(editRatio('раз два три четыре', 'раз два пять шесть')).toBe(0.5);
   });

@@ -8,6 +8,7 @@ import {
   priceFor
 } from '../../src/modules/ai';
 import { expectError } from '../helpers/expect-error';
+import { writerAnswer } from '../helpers/writer-answer';
 import { fakeOwnerMessenger } from '../helpers/fake-owner-messenger';
 import { createApi, fakeClock, OWNER_TOKEN, resetDb, seedSession } from '../helpers/harness';
 
@@ -93,7 +94,7 @@ describe('AI settings, spend and connection', () => {
   it('writes a studio draft as AI_DRAFT, counts it in «Качество», and refuses bad input or AI off', async () => {
     const answer = () =>
       Promise.resolve({
-        text: 'ХУКИ:\n- Первый хук.\nТЕКСТ:\nПатч вышел. Стоит отметить, что Тинкер снова в игре.',
+        text: writerAnswer({ hooks: ['Первый хук.'], text: 'Патч вышел. Стоит отметить, что Тинкер снова в игре.' }),
         model: 'gpt-6.1-sol',
         usage: { inputTokens: 3000, cachedInputTokens: 0, cacheWriteTokens: 0, outputTokens: 300 }
       });

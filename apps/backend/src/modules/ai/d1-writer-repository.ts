@@ -22,6 +22,12 @@ export interface GenerationRow {
   preApprovedPublishAt: number | null;
   chatMessageId: number | null;
   createdAt: number;
+  /** What the model answered (migration 0062): a draft or a request for facts; null on older rows and while pending. */
+  result: 'draft' | 'needs_facts' | null;
+  /** The model's question to the owner (needs_facts). */
+  question: string | null;
+  /** Topic ideas offered with the question (needs_facts). */
+  ideas: string[];
 }
 
 export interface RevisionRow {
@@ -60,7 +66,10 @@ export interface ChatTurn {
 
 export interface WriterRepository {
   createGeneration(
-    row: Omit<GenerationRow, 'status' | 'errorCode' | 'model' | 'hooks' | 'warnings' | 'chatMessageId'> & {
+    row: Omit<
+      GenerationRow,
+      'status' | 'errorCode' | 'model' | 'hooks' | 'warnings' | 'chatMessageId' | 'result' | 'question' | 'ideas'
+    > & {
       packRevision: string;
     }
   ): Promise<void>;
@@ -73,7 +82,13 @@ export interface WriterRepository {
     usageId?: string;
     hooks?: string[];
     warnings?: string[];
+    result?: 'draft' | 'needs_facts';
+    question?: string;
+    ideas?: string[];
+    facets?: { topic: string; device: string; ending: string };
   }): Promise<void>;
+  /** Topic, comic device and ending of the latest drafts of a format, newest first (at most 20). */
+  recentFacets(format: WriterFormat, limit: number): Promise<{ topic: string; device: string; ending: string }[]>;
   setChatMessage(id: string, messageId: number, now: number): Promise<void>;
   findGeneration(id: string): Promise<GenerationRow | null>;
   findByChatMessage(messageId: number): Promise<GenerationRow | null>;
@@ -144,10 +159,13 @@ interface RawGeneration {
   pre_approved_publish_at: number | null;
   chat_message_id: number | null;
   created_at: number;
+  result: 'draft' | 'needs_facts' | null;
+  question: string | null;
+  ideas: string | null;
 }
 
 const GENERATION_COLUMNS =
-  'id, kind, format, mode, source, task, parent_generation_id, status, error_code, model, hooks, warnings, pre_approved_publish_at, chat_message_id, created_at';
+  'id, kind, format, mode, source, task, parent_generation_id, status, error_code, model, hooks, warnings, pre_approved_publish_at, chat_message_id, created_at, result, question, ideas';
 
 function list(raw: string | null): string[] {
   if (raw === null) return [];
@@ -175,7 +193,10 @@ function toGeneration(row: RawGeneration): GenerationRow {
     warnings: list(row.warnings),
     preApprovedPublishAt: row.pre_approved_publish_at,
     chatMessageId: row.chat_message_id,
-    createdAt: row.created_at
+    createdAt: row.created_at,
+    result: row.result,
+    question: row.question,
+    ideas: list(row.ideas)
   };
 }
 
@@ -224,7 +245,9 @@ export function createD1WriterRepository(db: D1Database): WriterRepository {
       await db
         .prepare(
           `UPDATE ai_generations SET status = ?2, error_code = ?3, model = COALESCE(?4, model), usage_id = COALESCE(?5, usage_id),
-             hooks = COALESCE(?6, hooks), warnings = COALESCE(?7, warnings), updated_at = ?8
+             hooks = COALESCE(?6, hooks), warnings = COALESCE(?7, warnings), updated_at = ?8,
+             result = COALESCE(?9, result), question = COALESCE(?10, question), ideas = COALESCE(?11, ideas),
+             facets = COALESCE(?12, facets)
            WHERE id = ?1 AND status = 'pending'`
         )
         .bind(
@@ -235,9 +258,39 @@ export function createD1WriterRepository(db: D1Database): WriterRepository {
           input.usageId ?? null,
           input.hooks === undefined ? null : JSON.stringify(input.hooks),
           input.warnings === undefined ? null : JSON.stringify(input.warnings),
-          input.now
+          input.now,
+          input.result ?? null,
+          input.question ?? null,
+          input.ideas === undefined ? null : JSON.stringify(input.ideas),
+          input.facets === undefined ? null : JSON.stringify(input.facets)
         )
         .run();
+    },
+
+    async recentFacets(format, limit) {
+      const rows = await db
+        .prepare(
+          `SELECT facets FROM ai_generations WHERE format = ?1 AND result = 'draft' AND facets IS NOT NULL
+           ORDER BY created_at DESC LIMIT ?2`
+        )
+        .bind(format, Math.min(limit, 20))
+        .all<{ facets: string }>();
+      return rows.results.flatMap((row) => {
+        try {
+          const value = JSON.parse(row.facets) as Partial<Record<'topic' | 'device' | 'ending', unknown>>;
+          return typeof value.topic === 'string'
+            ? [
+                {
+                  topic: value.topic,
+                  device: typeof value.device === 'string' ? value.device : '',
+                  ending: typeof value.ending === 'string' ? value.ending : ''
+                }
+              ]
+            : [];
+        } catch {
+          return [];
+        }
+      });
     },
 
     async setChatMessage(id, messageId, now) {

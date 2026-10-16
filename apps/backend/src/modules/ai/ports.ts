@@ -29,6 +29,8 @@ export interface AiTextProvider {
     instructions: string;
     input: string;
     maxOutputTokens: number;
+    /** A strict JSON Schema the answer must follow (structured output); the caller still validates it. */
+    jsonSchema?: { name: string; schema: Record<string, unknown> };
     signal: AbortSignal;
   }): Promise<AiCompletion>;
 }

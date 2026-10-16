@@ -30,6 +30,7 @@ Accepted decisions that are in force. An agent does not propose an alternative t
 ## Publishing and data
 | Date | Decision | Details |
 |---|---|---|
+| 16.10.2026 | No automatic publication of AI texts: every AI draft reaches a channel only after the owner's «Одобрить» (bot or studio); pre-approval in the request («сам утверди и опубликуй») and automatic posts from news stay off until the owner is sure the writer writes well | `docs/ai/architecture.md` item 20 |
 | 03.10.2026 | `unknown` from Telegram — manual reconciliation only, never an automatic retry | skill `publishing-reliability` |
 | 13.10.2026 | Retention: purge terminal-job attempts after 90 days only when no open incident exists; purge resolved incidents 365 days after resolution; purge audit rows after 365 days. Open incidents and attempts for active jobs are never purged. Hourly Cron deletes at most 100 rows per table. | `docs/BACKEND_ARCHITECTURE.md` §10 |
 | 14.10.2026 | Hero statistics (OpenDota) removed: its keyless API answers 429 to Workers' shared egress IPs. A new source needs an owner decision; the `dota_hero_stats_*` tables stay unused. | `docs/stories/hero-statistics-feasibility.md` |
