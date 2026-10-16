@@ -6,8 +6,8 @@ const activityKeys = {
   day: (from: string, to: string) => [...activityKeys.all, 'day', from, to] as const
 };
 
-// Polls with Обзор: something the owner or Cron did a minute ago should show up without a reload.
-const ACTIVITY_POLL_MS = 60_000;
+// Polls with Обзор, every two minutes: each read walks the day's audit log, so a minute was too costly.
+const ACTIVITY_POLL_MS = 2 * 60_000;
 
 /** The day's events for the second lane of «Лента дня» (at most 50: a busy day shows its latest). */
 export function dayActivityQueryOptions(from: string, to: string) {

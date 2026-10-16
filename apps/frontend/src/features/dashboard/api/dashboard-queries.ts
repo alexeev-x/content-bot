@@ -9,6 +9,7 @@ const dashboardKeys = {
 };
 
 const DASHBOARD_POLL_MS = 60_000;
+const WEEK_POLL_MS = 5 * 60_000;
 
 /**
  * Besides the incidents screen, the dashboard is the only read that polls (the sidebar badge does not). TanStack's default
@@ -20,12 +21,14 @@ export function dashboardQueryOptions(range: DayRange, pollMs: number = DASHBOAR
     queryKey: dashboardKeys.day(range),
     queryFn: ({ signal }) => getDashboard(range, signal),
     staleTime: 0,
-    refetchInterval: pollMs
+    refetchInterval: pollMs,
+    // The one read that shows a send landing: worth a refetch on return, unlike the app default.
+    refetchOnWindowFocus: true
   });
 }
 
-/** The current week's publications for the bars; polls with the day so a send moves a bar from «запланировано» to «отправлено». */
-export function weekQueryOptions(range: DayRange, pollMs: number = DASHBOARD_POLL_MS) {
+/** The current week's publications for the bars; slower than the day, which already shows a send landing. */
+export function weekQueryOptions(range: DayRange, pollMs: number = WEEK_POLL_MS) {
   return queryOptions({
     queryKey: dashboardKeys.week(range),
     queryFn: ({ signal }) => getWeekPublications(range, signal),

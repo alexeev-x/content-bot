@@ -9,6 +9,8 @@ import styles from './ContentAnalytics.module.css';
 import { SourceTiles } from './SourceTiles';
 import { TopList } from './TopList';
 
+const WEEK_MS = 7 * 24 * 60 * 60_000;
+
 /** Body of the Обзор widget «Аудитория»: the three platform cells, compact. */
 export function AudienceSummary() {
   const overview = useQuery(contentOverviewQueryOptions());
@@ -38,10 +40,14 @@ function SummaryError({ onRetry }: { onRetry: () => void }) {
 /** Body of the Обзор widget «Что залетает сейчас»: the last 72 hours against the usual at the same age. */
 // The widget's own header already links to «Аналитика», so the list has no second link.
 export function TrendingSummary({ timezone, onOpen }: { timezone: string; onOpen: (id: string) => void }) {
-  const report = useQuery(contentReportQueryOptions(7));
+  // The 30-day report the other Обзор widgets read (one request, not two); medians stay those of the last week.
+  const report = useQuery(contentReportQueryOptions(30));
   const now = useNow().getTime();
   if (report.isError && report.data === undefined) return <SummaryError onRetry={() => void report.refetch()} />;
-  const current = report.data ? splitPeriods(report.data, undefined).current : undefined;
+  const weekFrom = report.data ? Date.parse(report.data.to) - WEEK_MS : 0;
+  const current = report.data
+    ? splitPeriods(report.data, undefined).current.filter((item) => Date.parse(item.publishedAt) >= weekFrom)
+    : undefined;
   return (
     <TrendingPanel
       bare
