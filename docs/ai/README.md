@@ -6,6 +6,7 @@ Owner decision 16.10.2026: the studio controls the AI writer; this folder is its
 |---|---|---|
 | `pack/core.md` | voice of ALEXEEV + «don't sound like AI» | always |
 | `pack/format-*.md` | one card per format: `uchu-fidit`, `uchus-igrat`, `standalone` (Reels), `telegram` | the task's format only |
+| `pack/state.md` | current state: rank, heroes being learnt, running experiments (edited often; sent after the stable prefix so edits don't break the cache) | always |
 | `pack/lessons.md` | what analytics showed so far (hypotheses); «Мой опыт» rules are appended here | always |
 | `pack/output.md` | answer shape and the final self-check | always |
 | `lexicon.jsonl` | Dota slang, nicknames, memes: `w` words that match, `m` meaning, `s` kind, `t` classic/current/owner | only entries whose words occur in the task (≤ 15) |
@@ -14,7 +15,7 @@ Owner decision 16.10.2026: the studio controls the AI writer; this folder is its
 | `research.md` | research on context engineering (for people) | never |
 | `sources/` | the owner's original guides, archives and analytics journal (for people; ChatGPT-era process rules there are superseded) | never |
 
-**Assembly order** (stable prefix first, so the provider can cache it): `core` → `format-*` → `lessons` → `output` → matched lexicon lines → examples → the task. Examples are rendered as plain text, not JSON: `Пример (Учу фидить, эталон):` and the text; lexicon lines as `слово/слово — смысл`. Anti examples are sent only with a «так не надо» label and only when the task risks the same mistake.
+**Assembly order** (stable prefix first, so the provider can cache it): `core` → `format-*` → `output` → `lessons` → `state` → matched lexicon lines → examples (most relevant last) → the task. Architecture and readiness checklist: `architecture.md`. Examples are rendered as plain text, not JSON: `Пример (Учу фидить, эталон):` and the text; lexicon lines as `слово/слово — смысл`. Anti examples are sent only with a «так не надо» label and only when the task risks the same mistake.
 
 **Budget per draft** (estimate, Russian ≈ 3 characters per token; real counts come from the usage log): stable prefix ≈ 5 500 characters ≈ 1 800 tokens; examples ≈ 900 tokens; lexicon ≈ 300; task ≈ 200 → ≈ 3 200 input tokens; answer (3 hooks + script) ≈ 600 tokens. GPT-6.1 Sol ≈ 1.2 ¢, GPT-6 Luna ≈ 0.06 ¢.
 
