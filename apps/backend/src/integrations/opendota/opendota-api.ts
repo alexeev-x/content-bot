@@ -10,7 +10,7 @@ const MAX_BODY_BYTES = 600_000;
 const TOP_HEROES = 5;
 
 export class OpenDotaError extends Error {
-  /** DOTA_UNREACHABLE (no answer), DOTA_HTTP_<status>, DOTA_SHAPE or DOTA_NOT_FOUND. */
+  /** DOTA_UNREACHABLE_<error name> (no answer), DOTA_HTTP_<status>, DOTA_SHAPE or DOTA_NOT_FOUND. */
   constructor(readonly code: string) {
     super(code);
     this.name = 'OpenDotaError';
@@ -44,8 +44,9 @@ async function get<T>(fetchImpl: typeof fetch, path: string, schema: z.ZodType<T
       headers: { accept: 'application/json', 'user-agent': 'alexeev-studio (+https://dev.alexeevs.workers.dev)' },
       signal
     });
-  } catch {
-    throw new OpenDotaError('DOTA_UNREACHABLE');
+  } catch (error) {
+    // The error's name (TimeoutError, TypeError…) tells a slow API from a refused connection; never its message.
+    throw new OpenDotaError(`DOTA_UNREACHABLE_${error instanceof Error ? error.name : 'unknown'}`.slice(0, 60));
   }
   if (response.status === 404) throw new OpenDotaError('DOTA_NOT_FOUND');
   if (!response.ok) {
