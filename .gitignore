@@ -22,3 +22,6 @@ worker-configuration.d.ts
 
 # Playwright MCP snapshots and console logs from browser walks
 .playwright-mcp/
+
+# Playwright run output
+test-results/
