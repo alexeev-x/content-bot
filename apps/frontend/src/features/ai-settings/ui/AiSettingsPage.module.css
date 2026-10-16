@@ -239,3 +239,13 @@
     display: none;
   }
 }
+
+/* «Голос» is the panel's only content: padded on every side, unlike the intro above a list. */
+.voice {
+  margin: 0;
+  padding: var(--space-4);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-body);
+  max-inline-size: 70ch;
+}

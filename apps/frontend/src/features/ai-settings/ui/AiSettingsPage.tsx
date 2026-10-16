@@ -79,7 +79,7 @@ export function AiSettingsSkeleton() {
         </div>
       </Panel>
       <Panel title={copy.voiceTitle} icon={<Icon name="message" />}>
-        <p className={styles.intro}>{copy.voiceBody}</p>
+        <p className={styles.voice}>{copy.voiceBody}</p>
       </Panel>
       <Panel title={copy.quality.title(30)} icon={<Icon name="check-circle" />} reserveRows={3} reservePhoneRows={4}>
         <div className={styles.spend}>
@@ -340,7 +340,7 @@ function AiSettings({ overview, onReload }: { overview: AiOverviewDto; onReload:
       </Panel>
 
       <Panel title={copy.voiceTitle} icon={<Icon name="message" />}>
-        <p className={styles.intro}>{copy.voiceBody}</p>
+        <p className={styles.voice}>{copy.voiceBody}</p>
       </Panel>
 
       <QualityPanel quality={overview.quality} />
