@@ -10,6 +10,12 @@
   gap: var(--space-5);
   min-width: 0;
 }
+
+/* Target of «Сравнить по часам»: lands below the sticky top bar. */
+.anchor {
+  min-width: 0;
+  scroll-margin-block-start: calc(var(--size-topbar) + var(--space-4));
+}
 .srOnly {
   position: absolute;
   width: 1px;

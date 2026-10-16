@@ -1,8 +1,9 @@
 import type { ContentBaselineDto, ContentItemDetailDto, ContentItemDto, ContentPlatform } from '@alexeev/contracts';
 import { useQuery } from '@tanstack/react-query';
 import { type CSSProperties, useState } from 'react';
-import { relativeTimeRu } from '../../../shared/lib/ru-format';
+import { pluralRu, relativeTimeRu } from '../../../shared/lib/ru-format';
 import {
+  Button,
   Drawer,
   ErrorState,
   Icon,
@@ -27,8 +28,8 @@ import {
   likesLabel,
   PLATFORM_LABEL
 } from '../model/format';
-import { isSettled, median, multipleOf, settledItems } from '../model/report';
-import { rankOf, verdictFor } from '../model/status';
+import { crossPosted, isSettled, median, multipleOf, settledItems } from '../model/report';
+import { rankOf, verdictFor, YOUNG_HOURS } from '../model/status';
 import { RefreshAnalyticsButton } from './RefreshAnalyticsButton';
 import { copy } from './copy';
 import styles from './Drawer.module.css';
@@ -51,6 +52,8 @@ type Props = {
   timezone: string;
   now: number;
   context?: DrawerContext | undefined;
+  /** «Сравнить по часам»: opens «Сравнение роликов» with these items. */
+  onCompare?: ((ids: string[]) => void) | undefined;
 };
 
 const RANGES = [
@@ -59,6 +62,16 @@ const RANGES = [
   { id: 'all', label: 'Всё время' }
 ] as const;
 
+/** `other` against `item` in words: «в 3,8 раза больше» / «в 2 раза меньше» / «примерно столько же». */
+function versus(other: ContentItemDto, item: ContentItemDto): string {
+  if (other.views === null || item.views === null || other.views === 0 || item.views === 0) return '—';
+  const ratio = other.views / item.views;
+  const fold = (value: number) => (Math.round(value * 10) / 10).toLocaleString('ru-RU');
+  if (ratio >= 1.15) return `в ${fold(ratio)} раза больше`;
+  if (ratio <= 1 / 1.15) return `в ${fold(1 / ratio)} раза меньше`;
+  return 'примерно столько же';
+}
+
 function times(multiple: number): string {
   if (multiple >= 1.15) return `В ${multiple.toLocaleString('ru-RU')} раза больше медианы`;
   if (multiple <= 0.85) return `${Math.round(multiple * 100)}% от медианы`;
@@ -66,7 +79,7 @@ function times(multiple: number): string {
 }
 
 /** One post or video: its place in the period, its numbers against the usual and its growth. */
-export function ItemDrawer({ id, onClose, onOpen, timezone, now, context }: Props) {
+export function ItemDrawer({ id, onClose, onOpen, timezone, now, context, onCompare }: Props) {
   const query = useQuery({ ...contentItemQueryOptions(id ?? ''), enabled: id !== undefined });
   const detail = query.data;
   return (
@@ -84,7 +97,14 @@ export function ItemDrawer({ id, onClose, onOpen, timezone, now, context }: Prop
           <Skeleton lines={4} />
         </div>
       ) : (
-        <DrawerBody detail={detail} timezone={timezone} now={now} context={context} onOpen={onOpen} />
+        <DrawerBody
+          detail={detail}
+          timezone={timezone}
+          now={now}
+          context={context}
+          onOpen={onOpen}
+          onCompare={onCompare}
+        />
       )}
     </Drawer>
   );
@@ -95,13 +115,15 @@ function DrawerBody({
   timezone,
   now,
   context,
-  onOpen
+  onOpen,
+  onCompare
 }: {
   detail: ContentItemDetailDto;
   timezone: string;
   now: number;
   context: DrawerContext | undefined;
   onOpen: (id: string) => void;
+  onCompare: ((ids: string[]) => void) | undefined;
 }) {
   const { item } = detail;
   // Opens on the range that fits the item's age: a 3-hour-old video is not shown on a 72-hour scale.
@@ -192,6 +214,18 @@ function DrawerBody({
         Math.abs(Date.parse(b.publishedAt) - Date.parse(item.publishedAt))
     )
     .slice(0, 4);
+  // The same video on the other platforms (matched as in «Один ролик на платформах»).
+  const twins = (
+    crossPosted(context?.items ?? [], Number.POSITIVE_INFINITY).find((group) =>
+      group.some((entry) => entry.id === item.id)
+    ) ?? []
+  ).filter((entry) => entry.id !== item.id);
+  // A young item gets its «×» once settled: say when, instead of «nothing to compare with».
+  const daysToSettle = Math.max(1, Math.ceil((YOUNG_HOURS - ageHours) / 24));
+  const compareIds = [item.id, ...(twins.length > 0 ? twins : similar.slice(0, 1)).map((entry) => entry.id)].slice(
+    0,
+    4
+  );
 
   return (
     <div className={styles.body}>
@@ -270,7 +304,11 @@ function DrawerBody({
                           multiple === null ? 'flat' : multiple >= 1.15 ? 'up' : multiple <= 0.85 ? 'down' : 'flat'
                         }
                       >
-                        {multiple === null ? 'Не с чем сравнить' : times(multiple)}
+                        {multiple !== null
+                          ? times(multiple)
+                          : inPeriod && !settled
+                            ? `Сравним через ${daysToSettle} ${pluralRu(daysToSettle, 'день', 'дня', 'дней')}`
+                            : 'Не с чем сравнить'}
                       </span>
                     </span>
                   </li>
@@ -352,32 +390,97 @@ function DrawerBody({
 
         <TabPanel id="compare">
           <div className={styles.section}>
-            <h3 className={styles.sectionTitle}>Соседние публикации в {PLATFORM_LABEL[item.platform]}</h3>
-            {similar.length === 0 ? (
-              <p className={styles.muted}>Других публикаций за период нет.</p>
-            ) : (
-              <ul className={styles.similar}>
-                {similar.map((entry) => {
-                  const multiple = multipleOf(entry, medians, now);
-                  return (
+            {twins.length > 0 ? (
+              <section className={styles.compareBlock} aria-labelledby="item-twins">
+                <h3 id="item-twins" className={styles.sectionTitle}>
+                  Этот ролик на других платформах
+                </h3>
+                <ul className={styles.similar}>
+                  {[item, ...twins].map((entry) => (
                     <li key={entry.id}>
-                      <button type="button" className={styles.similarRow} onClick={() => onOpen(entry.id)}>
-                        <ItemCover item={entry} size="sm" />
+                      <button
+                        type="button"
+                        className={styles.similarRow}
+                        data-current={entry.id === item.id || undefined}
+                        disabled={entry.id === item.id}
+                        onClick={() => onOpen(entry.id)}
+                      >
+                        <PlatformGlyph platform={entry.platform} />
                         <span className={styles.similarText}>
-                          <span className={styles.similarTitle}>{itemTitle(entry)}</span>
+                          <span className={styles.similarTitle}>
+                            {PLATFORM_LABEL[entry.platform]}
+                            {entry.id === item.id ? ' · этот' : ''}
+                          </span>
                           <span className={styles.metricLabel}>
-                            {formatPublished(entry.publishedAt, timezone)}, {formatViews(entry)} просм.
+                            {formatViews(entry)} просм. · {formatCount(entry.likes)}{' '}
+                            {likesLabel(entry.platform).toLowerCase()}
+                            {engagementRate(entry) !== null
+                              ? ` · ER ${engagementRate(entry)?.toLocaleString('ru-RU')}%`
+                              : ''}
                           </span>
                         </span>
-                        <span className={styles.multiple}>
-                          {multiple === null ? '—' : `${multiple.toLocaleString('ru-RU')}×`}
-                        </span>
+                        <span className={styles.multiple}>{entry.id === item.id ? '' : versus(entry, item)}</span>
                       </button>
                     </li>
-                  );
-                })}
-              </ul>
-            )}
+                  ))}
+                </ul>
+                <p className={styles.muted}>Просмотры на разных платформах — это разный охват, а не качество ролика.</p>
+              </section>
+            ) : null}
+
+            <section className={styles.compareBlock} aria-labelledby="item-neighbours">
+              <h3 id="item-neighbours" className={styles.sectionTitle}>
+                Соседние публикации в {PLATFORM_LABEL[item.platform]}
+              </h3>
+              {similar.length === 0 ? (
+                <p className={styles.muted}>Других публикаций за период нет.</p>
+              ) : (
+                <>
+                  <ul className={styles.similar}>
+                    {[item, ...similar].map((entry) => {
+                      const multiple = multipleOf(entry, medians, now);
+                      const current = entry.id === item.id;
+                      return (
+                        <li key={entry.id}>
+                          <button
+                            type="button"
+                            className={styles.similarRow}
+                            data-current={current || undefined}
+                            disabled={current}
+                            onClick={() => onOpen(entry.id)}
+                          >
+                            <ItemCover item={entry} size="sm" />
+                            <span className={styles.similarText}>
+                              <span className={styles.similarTitle}>{current ? 'Этот ролик' : itemTitle(entry)}</span>
+                              <span className={styles.metricLabel}>
+                                {formatPublished(entry.publishedAt, timezone)}, {formatViews(entry)} просм.
+                              </span>
+                            </span>
+                            <span className={styles.multiple}>
+                              {multiple !== null
+                                ? `${multiple.toLocaleString('ru-RU')}×`
+                                : isSettled(entry, now)
+                                  ? '—'
+                                  : 'рано'}
+                            </span>
+                          </button>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                  <p className={styles.muted}>
+                    × — во сколько раз больше медианы {PLATFORM_LABEL[item.platform]} за период. Свежие ролики получают
+                    его через 3 дня после выхода.
+                  </p>
+                </>
+              )}
+            </section>
+
+            {onCompare && compareIds.length > 1 ? (
+              <Button variant="secondary" icon="chart" onPress={() => onCompare(compareIds)}>
+                Сравнить по часам
+              </Button>
+            ) : null}
           </div>
         </TabPanel>
       </Tabs>

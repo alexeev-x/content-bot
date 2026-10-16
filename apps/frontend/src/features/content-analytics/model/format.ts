@@ -62,9 +62,14 @@ export function formatDay(day: string): string {
   return dateOnly.format(new Date(`${day}T12:00:00Z`));
 }
 
+// The hashtags videos end with (« #dota #dota2 #дота2») only take the room the words need; a title made of
+// hashtags alone keeps them.
+const TRAILING_TAGS = /(?:\s+#[\p{L}\p{N}_]+)+\s*$/u;
+
 /** A post with only a photo or video has no text: name it by what it holds. */
 export function itemTitle(item: Pick<ContentItemDto, 'title' | 'thumbnailUrl'>): string {
-  return item.title || (item.thumbnailUrl === null ? 'Без текста' : 'Фото или видео');
+  const words = item.title.replace(TRAILING_TAGS, '').trim();
+  return words || item.title || (item.thumbnailUrl === null ? 'Без текста' : 'Фото или видео');
 }
 
 /**

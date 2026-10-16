@@ -68,6 +68,15 @@ export function AnalyticsSkeleton({ tab, timezone }: { tab: AnalyticsTab; timezo
           <TabPanel id="items">
             <div className={styles.sections}>
               <RankedLists best={undefined} worst={undefined} onOpen={ignore} />
+              <CompareVideosPanel
+                items={undefined}
+                tracked={[]}
+                baselines={[]}
+                timezone={timezone}
+                picked={undefined}
+                onPickedChange={ignore}
+                onOpen={ignore}
+              />
               <ItemsTable
                 items={undefined}
                 medians={{}}
@@ -80,7 +89,6 @@ export function AnalyticsSkeleton({ tab, timezone }: { tab: AnalyticsTab; timezo
                 onSortChange={ignore}
                 onOpen={ignore}
               />
-              <CompareVideosPanel items={undefined} tracked={[]} baselines={[]} timezone={timezone} onOpen={ignore} />
             </div>
           </TabPanel>
           <TabPanel id="audience">

@@ -272,6 +272,18 @@
   text-align: start;
   cursor: pointer;
 }
+/* The item itself, first in each list: the row everything else is read against. */
+.similarRow[data-current] {
+  padding-inline: var(--space-2);
+  border-radius: var(--radius-2);
+  background: var(--color-surface-2);
+  cursor: default;
+}
+.compareBlock {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
 .similarRow:focus-visible {
   outline: var(--focus-ring-width) solid var(--color-focus-ring);
   outline-offset: var(--focus-ring-offset);

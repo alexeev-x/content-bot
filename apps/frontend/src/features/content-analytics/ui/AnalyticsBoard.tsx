@@ -1,6 +1,6 @@
 import type { ContentPlatform, ContentReportPeriod } from '@alexeev/contracts';
 import { useQuery } from '@tanstack/react-query';
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { ApiError } from '../../../shared/api/http-client';
 import { useNow } from '../../../shared/lib/use-now';
 import { Banner, Button, ErrorState, StaleRegion, TabPanel, Tabs, type TableSort } from '../../../shared/ui';
@@ -49,6 +49,8 @@ export type AnalyticsView = {
   page: number;
   sort: TableSort;
   openId: string | undefined;
+  /** «Сравнение роликов»; undefined means its default pair. */
+  compare: readonly string[] | undefined;
 };
 
 type Props = {
@@ -66,6 +68,8 @@ const RANKED_LIMIT = 5;
  * period, every publication against the usual, platforms side by side, followers, the best time to post,
  * leaders and laggards, and every row in a paged table. All of it is computed from one report.
  */
+const COMPARE_ANCHOR = 'compare-videos';
+
 export function AnalyticsBoard({ timezone, view, onViewChange, onOpenSettings }: Props) {
   const { days, platform } = view;
   const reportQuery = useQuery(contentReportQueryOptions(days));
@@ -74,6 +78,17 @@ export function AnalyticsBoard({ timezone, view, onViewChange, onOpenSettings }:
   const baselines = report?.baselines ?? [];
   const attention = useSourcesAttention();
   const lastSynced = useLastSynced();
+  // «Сравнить по часам» in the item panel switches the tab first; the panel exists only after that render.
+  const [scrollToCompare, setScrollToCompare] = useState(false);
+  const onItemsTab = view.tab === 'items';
+  useEffect(() => {
+    if (!scrollToCompare || !onItemsTab) return;
+    const frame = requestAnimationFrame(() => {
+      document.getElementById(COMPARE_ANCHOR)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      setScrollToCompare(false);
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [scrollToCompare, onItemsTab]);
 
   const derived = useMemo(() => {
     if (!report) return undefined;
@@ -265,6 +280,18 @@ export function AnalyticsBoard({ timezone, view, onViewChange, onOpenSettings }:
           <TabPanel id="items">
             <div className={styles.sections}>
               <RankedLists best={derived?.best} worst={derived?.worst} onOpen={open} />
+              {/* Above the table, not under its pages: the owner looked for it and did not find it (16.10.2026). */}
+              <div id={COMPARE_ANCHOR} className={styles.anchor}>
+                <CompareVideosPanel
+                  items={derived?.current}
+                  tracked={report?.tracked ?? []}
+                  baselines={baselines}
+                  timezone={timezone}
+                  picked={view.compare}
+                  onPickedChange={(compare) => onViewChange({ compare })}
+                  onOpen={open}
+                />
+              </div>
               <ItemsTable
                 items={derived?.current}
                 medians={derived?.medians ?? {}}
@@ -276,13 +303,6 @@ export function AnalyticsBoard({ timezone, view, onViewChange, onOpenSettings }:
                 sort={view.sort}
                 onSortChange={(sort) => onViewChange({ sort, page: 1 })}
                 activeId={view.openId}
-                onOpen={open}
-              />
-              <CompareVideosPanel
-                items={derived?.current}
-                tracked={report?.tracked ?? []}
-                baselines={baselines}
-                timezone={timezone}
                 onOpen={open}
               />
             </div>
@@ -316,6 +336,10 @@ export function AnalyticsBoard({ timezone, view, onViewChange, onOpenSettings }:
         timezone={timezone}
         now={now}
         context={derived ? { items: derived.current, medians: derived.medians, baselines, days } : undefined}
+        onCompare={(ids) => {
+          onViewChange({ tab: 'items', compare: ids, openId: undefined });
+          setScrollToCompare(true);
+        }}
       />
     </div>
   );

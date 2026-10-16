@@ -40,6 +40,9 @@ type Props = {
   tracked: readonly string[];
   baselines: readonly ContentBaselineDto[];
   timezone: string;
+  /** Chosen items, kept in the page URL; undefined means the default pair. */
+  picked: readonly string[] | undefined;
+  onPickedChange: (ids: string[]) => void;
   onOpen: (id: string) => void;
 };
 
@@ -59,18 +62,17 @@ function viewsAt(curve: readonly { x: number; y: number }[], hours: number): num
  * counts (with the usual curve when all share a platform); «К обычному» divides each by its own platform's
  * usual curve, so a Telegram post and a video compare fairly.
  */
-export function CompareVideosPanel({ items, tracked, baselines, timezone, onOpen }: Props) {
+export function CompareVideosPanel({ items, tracked, baselines, timezone, picked, onPickedChange, onOpen }: Props) {
   const trackedSet = useMemo(() => new Set(tracked), [tracked]);
   const sorted = useMemo(
     () => [...(items ?? [])].sort((a, b) => Date.parse(b.publishedAt) - Date.parse(a.publishedAt)),
     [items]
   );
-  const [picked, setPicked] = useState<string[] | null>(null);
   const [mode, setMode] = useState<'views' | 'index'>('views');
   const [horizon, setHorizon] = useState<'24' | '48' | '72'>('48');
   const [choosing, setChoosing] = useState(false);
   // By default the two newest items that have early readings: a comparison that can actually be drawn.
-  const ids =
+  const ids: readonly string[] =
     picked ??
     sorted
       .filter((item) => trackedSet.has(item.id))
@@ -116,6 +118,9 @@ export function CompareVideosPanel({ items, tracked, baselines, timezone, onOpen
       at24: scale(at24, 24),
       at48: scale(viewsAt(full, 48), 48),
       at72: viewsAt(full, 72),
+      // Raw counts for the head-to-head facts: the same hour of life, whatever the platform.
+      raw: (age: number) => viewsAt(full, age),
+      reach: full.at(-1)?.x ?? 0,
       usual: {
         views: medianOf((entry) => entry.views),
         likes: medianOf((entry) => entry.likes),
@@ -126,7 +131,7 @@ export function CompareVideosPanel({ items, tracked, baselines, timezone, onOpen
     };
   });
 
-  const differences = keyDifferences(rows, mixed);
+  const differences = keyDifferences(rows, mixed, hours);
 
   const series = rows.flatMap((row, index) => {
     const points =
@@ -142,7 +147,8 @@ export function CompareVideosPanel({ items, tracked, baselines, timezone, onOpen
       ? [
           {
             id: row.item.id,
-            label: itemTitle(row.item),
+            // The same video on two platforms has one title: the platform tells the lines apart.
+            label: `${PLATFORM_LABEL[row.item.platform]} · ${itemTitle(row.item)}`,
             points,
             color: row.color,
             area: index === 0 && mode === 'views'
@@ -214,7 +220,7 @@ export function CompareVideosPanel({ items, tracked, baselines, timezone, onOpen
           {rows.map((row) => (
             <li key={row.item.id} className={styles.pick}>
               <span className={styles.swatch} style={{ '--swatch': row.color } as CSSProperties} />
-              <PlatformGlyph platform={row.item.platform} size={14} />
+              <PlatformGlyph platform={row.item.platform} withLabel size={14} />
               <span className={styles.pickTitle} title={row.item.title || undefined}>
                 {itemTitle(row.item)}
               </span>
@@ -222,7 +228,7 @@ export function CompareVideosPanel({ items, tracked, baselines, timezone, onOpen
                 icon="x"
                 size="sm"
                 label={`Убрать «${itemTitle(row.item)}» из сравнения`}
-                onPress={() => setPicked(ids.filter((id) => id !== row.item.id))}
+                onPress={() => onPickedChange(ids.filter((id) => id !== row.item.id))}
               />
             </li>
           ))}
@@ -320,6 +326,9 @@ export function CompareVideosPanel({ items, tracked, baselines, timezone, onOpen
                       </dd>
                     </div>
                   </dl>
+                  <p className={styles.cardMeta}>
+                    Проценты — к медиане ваших публикаций в {PLATFORM_LABEL[row.item.platform]} за период
+                  </p>
                   {row.hourly.some((value) => value > 0) ? (
                     <div className={styles.hourly}>
                       <span className={styles.cardMeta}>Прирост просмотров по часам</span>
@@ -348,7 +357,7 @@ export function CompareVideosPanel({ items, tracked, baselines, timezone, onOpen
         exclude={ids}
         timezone={timezone}
         onPick={(id) => {
-          setPicked([...ids, id]);
+          onPickedChange([...ids, id]);
           setChoosing(false);
         }}
       />
@@ -417,6 +426,9 @@ type Row = {
   at6: number | null;
   at24: number | null;
   at48: number | null;
+  raw: (age: number) => number | null;
+  /** The oldest hour of life the readings reach. */
+  reach: number;
   usual: { views: number | null; likes: number | null; comments: number | null };
 };
 
@@ -424,26 +436,70 @@ function percent(a: number, b: number): number {
   return Math.round(((a - b) / b) * 100);
 }
 
-function shortTitle(item: ContentItemDto): string {
-  const title = itemTitle(item);
+function ratio(a: number, b: number): string {
+  return (Math.round((a / b) * 10) / 10).toLocaleString('ru-RU');
+}
+
+/** How a row is named in a sentence: its platform when another row has the same title, else its title. */
+function nameOf(row: Row, rows: readonly Row[]): string {
+  const title = itemTitle(row.item);
+  const twin = rows.some((other) => other !== row && itemTitle(other.item).slice(0, 20) === title.slice(0, 20));
+  if (twin) return PLATFORM_LABEL[row.item.platform];
   return title.length > 28 ? `«${title.slice(0, 27)}…»` : `«${title}»`;
 }
 
-/** What actually separates the compared items, in plain words; only the facts the readings support. */
-function keyDifferences(rows: readonly Row[], mixed: boolean): { title: string; detail: string }[] {
+/** Per 1000 views: reactions of a big and a small video compare only as a rate. */
+function per1000(value: number | null, views: number | null): number | null {
+  return value === null || views === null || views < 100 ? null : (value / views) * 1000;
+}
+
+/**
+ * What actually separates the compared items, in plain words: head to head on the same hour of life and
+ * per 1000 views, so it works across platforms without their usual curves; only the facts the readings support.
+ */
+function keyDifferences(rows: readonly Row[], mixed: boolean, horizon: number): { title: string; detail: string }[] {
   const result: { title: string; detail: string }[] = [];
-  const started = rows.filter((row) => row.at6 !== null && row.at6 > 0).sort((a, b) => (b.at6 ?? 0) - (a.at6 ?? 0));
-  if (started.length >= 2) {
-    const [first, second] = [started[0]!, started[1]!];
-    const gap = percent(first.at6 ?? 0, second.at6 ?? 1);
-    if (gap >= 10) {
+  // Views on the oldest hour every compared item has reached, within the chosen horizon.
+  const age = Math.min(horizon, ...rows.map((row) => Math.floor(row.reach)));
+  const atAge = rows
+    .map((row) => ({ row, views: age >= 1 ? row.raw(age) : null }))
+    .filter((entry): entry is { row: Row; views: number } => entry.views !== null && entry.views > 0)
+    .sort((a, b) => b.views - a.views);
+  if (atAge.length >= 2) {
+    const [first, last] = [atAge[0]!, atAge.at(-1)!];
+    if (first.views >= last.views * 1.15) {
       result.push({
-        title: `${shortTitle(first.item)} быстрее стартовал`,
-        detail: mixed
-          ? `За первые 6 часов: ${(Math.round((first.at6 ?? 0) * 10) / 10).toLocaleString('ru-RU')}× к обычному своей платформы против ${(Math.round((second.at6 ?? 0) * 10) / 10).toLocaleString('ru-RU')}× у ${shortTitle(second.item)}.`
-          : `За первые 6 часов набрал на ${gap}% больше, чем ${shortTitle(second.item)}.`
+        title: `${nameOf(first.row, rows)}: в ${ratio(first.views, last.views)} раза больше просмотров к ${age} ч`,
+        detail: `${formatCount(first.views)} против ${formatCount(last.views)} у ${nameOf(last.row, rows)}${mixed ? '. Разные платформы: сравнивается охват, а не качество ролика.' : '.'}`
       });
     }
+  }
+  const started = rows.filter((row) => row.at6 !== null && row.at6 > 0).sort((a, b) => (b.at6 ?? 0) - (a.at6 ?? 0));
+  if (mixed && started.length >= 2) {
+    // Against each platform's usual curve: the fair verdict across platforms, when both curves exist.
+    const [first, second] = [started[0]!, started[1]!];
+    if (percent(first.at6 ?? 0, second.at6 ?? 1) >= 10) {
+      result.push({
+        title: `${nameOf(first, rows)} сильнее стартовал для своей платформы`,
+        detail: `За первые 6 часов: ${ratio(first.at6 ?? 0, 1)}× к обычному против ${ratio(second.at6 ?? 0, 1)}× у ${nameOf(second, rows)}.`
+      });
+    }
+  }
+  for (const [pick, noun] of [
+    [(item: ContentItemDto) => item.likes, 'лайков'],
+    [(item: ContentItemDto) => item.comments, 'комментариев']
+  ] as const) {
+    const rates = rows
+      .map((row) => ({ row, rate: per1000(pick(row.item), row.item.views) }))
+      .filter((entry): entry is { row: Row; rate: number } => entry.rate !== null)
+      .sort((a, b) => b.rate - a.rate);
+    if (rates.length < 2) continue;
+    const [first, last] = [rates[0]!, rates.at(-1)!];
+    if (first.rate >= 1 && first.rate >= last.rate * 1.3)
+      result.push({
+        title: `${nameOf(first.row, rows)} сильнее цепляет: ${formatCount(Math.round(first.rate))} ${noun} на 1000 просмотров`,
+        detail: `У ${nameOf(last.row, rows)} — ${formatCount(Math.round(last.rate))}. Считается на 1000 просмотров, поэтому большой и маленький охват сравнимы.`
+      });
   }
   const later = rows
     .filter((row) => row.at24 !== null && row.at48 !== null && (row.at24 ?? 0) > 0)
@@ -451,21 +507,21 @@ function keyDifferences(rows: readonly Row[], mixed: boolean): { title: string; 
     .sort((a, b) => b.growth - a.growth);
   if (later.length >= 2 && later[0]!.growth - later.at(-1)!.growth >= 10) {
     result.push({
-      title: `${shortTitle(later[0]!.row.item)} лучше держит рост после суток`,
-      detail: `С 24 до 48 часов прирост +${later[0]!.growth}%, у ${shortTitle(later.at(-1)!.row.item)} — +${later.at(-1)!.growth}%.`
+      title: `${nameOf(later[0]!.row, rows)} лучше держит рост после суток`,
+      detail: `С 24 до 48 часов прирост +${later[0]!.growth}%, у ${nameOf(later.at(-1)!.row, rows)} — +${later.at(-1)!.growth}%.`
     });
   }
   const likes = rows.filter((row) => row.item.likes !== null && row.usual.likes);
-  if (likes.length > 0) {
+  if (result.length === 0 && likes.length > 0) {
     const below = likes.filter((row) => (row.item.likes ?? 0) < (row.usual.likes ?? 0));
     if (below.length === likes.length) {
       result.push({
-        title: likes.length > 1 ? 'Все ниже медианы по лайкам' : `${shortTitle(likes[0]!.item)} ниже медианы по лайкам`,
+        title: likes.length > 1 ? 'Все ниже медианы по лайкам' : `${nameOf(likes[0]!, rows)} ниже медианы по лайкам`,
         detail: 'Лайков меньше, чем обычно у ваших публикаций на этой платформе: проверьте призыв к реакции.'
       });
     } else if (below.length === 0) {
       result.push({
-        title: likes.length > 1 ? 'Все выше медианы по лайкам' : `${shortTitle(likes[0]!.item)} выше медианы по лайкам`,
+        title: likes.length > 1 ? 'Все выше медианы по лайкам' : `${nameOf(likes[0]!, rows)} выше медианы по лайкам`,
         detail: 'Аудитория реагирует активнее обычного.'
       });
     }

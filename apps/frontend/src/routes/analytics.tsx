@@ -15,6 +15,8 @@ const analyticsSearchSchema = z
     sort: z.enum(['published', 'views', 'likes', 'comments', 'er', 'multiple']).optional().catch(undefined),
     dir: z.literal('asc').optional().catch(undefined),
     id: contentItemIdSchema.optional().catch(undefined),
+    /** Items in «Сравнение роликов», in order; absent means the panel's default pair. */
+    compare: z.array(contentItemIdSchema).max(4).optional().catch(undefined),
     tiktok: tiktokConnectResultSchema.optional().catch(undefined)
   })
   .catch({});

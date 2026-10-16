@@ -17,7 +17,8 @@ export function AnalyticsPage() {
     platform: search.platform,
     page: search.page ?? 1,
     sort: { column: search.sort ?? 'published', direction: search.dir === 'asc' ? 'ascending' : 'descending' },
-    openId: search.id
+    openId: search.id,
+    compare: search.compare
   };
   const toast = useToast();
   const tiktokResult = search.tiktok;
@@ -42,7 +43,8 @@ export function AnalyticsPage() {
           page: next.page === 1 ? undefined : next.page,
           sort: next.sort.column === 'published' ? undefined : (next.sort.column as typeof previous.sort),
           dir: next.sort.direction === 'ascending' ? ('asc' as const) : undefined,
-          id: next.openId
+          id: next.openId,
+          compare: next.compare ? [...next.compare] : undefined
         };
       },
       // Opening an item is a step back can undo; filters and pages replace the entry.
