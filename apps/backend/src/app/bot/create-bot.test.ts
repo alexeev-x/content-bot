@@ -1,3 +1,4 @@
+import type { WriterDeps } from '../../modules/ai';
 import type { CreatePostInput } from '@alexeev/contracts';
 import type { Update, UserFromGetMe } from 'grammy/types';
 import { describe, expect, it } from 'vitest';
@@ -106,6 +107,11 @@ function harness(overrides: Partial<BotRuntime> = {}): Harness {
         origins.push(origin);
         return Promise.resolve();
       },
+      // No /redactor request and no AI drafts: plain texts stay plain drafts.
+      writer: () =>
+        Promise.resolve({
+          writer: { takeRequest: () => Promise.resolve(null), findByChatMessage: () => Promise.resolve(null) }
+        } as unknown as WriterDeps),
       ...overrides
     }
   };
@@ -268,10 +274,7 @@ describe('bot', () => {
         }
       }
     });
-    expect(adminCalls).toEqual([
-      'setChatCommands 4242 start,today,next,status,post,fidit,igrat,reel',
-      'setChatMenuCommands 4242'
-    ]);
+    expect(adminCalls).toEqual(['setChatCommands 4242 start,today,next,status,redactor', 'setChatMenuCommands 4242']);
   });
 
   it('still replies when setting the commands fails, and logs a stable code', async () => {
@@ -283,7 +286,7 @@ describe('bot', () => {
     await expect(settleBackground()).resolves.toBeDefined();
     expect(calls).toHaveLength(1);
     expect(calls[0]?.method).toBe('sendMessage');
-    expect(adminCalls).toEqual(['setChatCommands 4242 start,today,next,status,post,fidit,igrat,reel']);
+    expect(adminCalls).toEqual(['setChatCommands 4242 start,today,next,status,redactor']);
     expect(events).toEqual([
       { component: 'telegram', operation: 'owner_chat.set_commands', status: 503, errorCode: 'telegram_http_400' }
     ]);

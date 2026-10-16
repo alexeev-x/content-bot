@@ -19,6 +19,7 @@ export {
 export { createD1WriterRepository, type FeedbackKind, type WriterRepository } from './d1-writer-repository';
 export {
   approveDraft,
+  askEditor,
   approvedRevision,
   attachPost,
   chooseHook,

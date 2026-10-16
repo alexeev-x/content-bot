@@ -58,6 +58,17 @@ export interface WriterRepository {
   attachPost(revisionId: string, postId: string): Promise<void>;
   addFeedback(input: { id: string; generationId: string; kind: FeedbackKind; now: number }): Promise<void>;
   recent(limit: number): Promise<GenerationRow[]>;
+  /** Opens (or restarts) the chat's /redactor request as a free one (no format). */
+  openRequest(input: { chatId: number; promptMessageId: number; now: number; expiresAt: number }): Promise<void>;
+  /** A format button on the request's own message; false when that request is gone or replaced. */
+  setRequestFormat(input: {
+    chatId: number;
+    promptMessageId: number;
+    format: WriterFormat;
+    now: number;
+  }): Promise<boolean>;
+  /** Takes the open request once: `format` is null for a free request; null when none is open or it expired. */
+  takeRequest(chatId: number, now: number): Promise<{ format: WriterFormat | null } | null>;
 }
 
 interface RawGeneration {
@@ -225,6 +236,37 @@ export function createD1WriterRepository(db: D1Database): WriterRepository {
         .prepare('INSERT OR IGNORE INTO ai_feedback (id, generation_id, kind, created_at) VALUES (?, ?, ?, ?)')
         .bind(id, generationId, kind, now)
         .run();
+    },
+
+    async openRequest({ chatId, promptMessageId, now, expiresAt }) {
+      await db
+        .prepare(
+          `INSERT INTO ai_writer_requests (chat_id, format, prompt_message_id, expires_at, updated_at)
+           VALUES (?1, NULL, ?2, ?3, ?4)
+           ON CONFLICT (chat_id) DO UPDATE SET format = NULL, prompt_message_id = ?2, expires_at = ?3, updated_at = ?4`
+        )
+        .bind(chatId, promptMessageId, expiresAt, now)
+        .run();
+    },
+
+    async setRequestFormat({ chatId, promptMessageId, format, now }) {
+      const result = await db
+        .prepare(
+          `UPDATE ai_writer_requests SET format = ?3, updated_at = ?4
+           WHERE chat_id = ?1 AND prompt_message_id = ?2 AND expires_at > ?4`
+        )
+        .bind(chatId, promptMessageId, format, now)
+        .run();
+      return result.meta.changes === 1;
+    },
+
+    async takeRequest(chatId, now) {
+      // One statement: two texts arriving together cannot both take the request.
+      const row = await db
+        .prepare('DELETE FROM ai_writer_requests WHERE chat_id = ? RETURNING format, expires_at AS expiresAt')
+        .bind(chatId)
+        .first<{ format: WriterFormat | null; expiresAt: number }>();
+      return row !== null && row.expiresAt > now ? { format: row.format } : null;
     },
 
     async recent(limit) {

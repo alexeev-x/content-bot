@@ -138,3 +138,15 @@ export function packRevision(): string {
   }
   return hash.toString(16).padStart(8, '0');
 }
+
+/** A free request to the editor (no format chosen): the author's voice, the task as he wrote it. */
+export function buildFreePrompt(task: string): { instructions: string; input: string } {
+  const instructions = [AI_PACK.core, AI_PACK.lessons, AI_PACK.state].join('\n\n');
+  const lexicon = matchLexicon(task);
+  const parts = [
+    lexicon.length > 0 ? `Сленг и мемы из задания:\n${lexicon.join('\n')}` : '',
+    'РЕЖИМ: свободная просьба автора. Выполни её его голосом, коротко и по делу. Без «ХУКИ:» и «ТЕКСТ:».',
+    `ПРОСЬБА:\n${task}`
+  ];
+  return { instructions, input: parts.filter(Boolean).join('\n\n') };
+}

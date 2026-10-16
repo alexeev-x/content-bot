@@ -3,6 +3,7 @@ import { type Bot, type Context, GrammyError, InlineKeyboard } from 'grammy';
 import type { InlineKeyboardMarkup } from 'grammy/types';
 import {
   approveDraft,
+  askEditor,
   approvedRevision,
   attachPost,
   chooseHook,
@@ -35,20 +36,33 @@ const SHOWN_TEXT_MAX = 3300;
 
 const WRITING_TEXT = 'Пишу…';
 const REWRITING_TEXT = 'Переписываю…';
+const THINKING_TEXT = 'Думаю…';
 const FAILED_TEXT = 'Не получилось написать. Попробуйте ещё раз.';
-const EMPTY_TASK_TEXT = 'Напишите после команды, о чём текст. Например: /post как я апнул 3к';
 const APPROVED_REEL_TEXT = 'Одобрено. Текст сохранён, его правки ИИ запомнит.';
 const ALREADY_APPROVED_TEXT = 'Уже одобрено.';
 const NOT_A_POST_TEXT =
   'Текст не влезает в пост (длиннее 4096 символов или с недопустимыми символами). Нажмите «Короче» или ответьте своей версией.';
 const EDIT_SAVED_TEXT = 'Сохранил вашу версию. Одобрить её?';
 
-const COMMAND_FORMAT: Record<string, WriterFormat> = {
-  post: 'telegram',
-  fidit: 'fidit',
-  igrat: 'igrat',
-  reel: 'standalone'
-};
+/** The /redactor request waits this long for the topic. */
+const REQUEST_TTL_MS = 15 * 60 * 1000;
+const ASK_TOPIC_TEXT = 'Что написать? Выберите рубрику кнопкой или просто напишите, что нужно.';
+const FORMAT_BUTTONS: readonly [WriterFormat, string][] = [
+  ['telegram', 'Пост'],
+  ['fidit', 'Учу фидить'],
+  ['igrat', 'Учусь играть'],
+  ['standalone', 'Рилс']
+];
+const FORMAT_CALLBACK = /^aw:(telegram|fidit|igrat|standalone)$/;
+
+function formatKeyboard(chosen: WriterFormat | null): InlineKeyboardMarkup {
+  const board = new InlineKeyboard();
+  FORMAT_BUTTONS.forEach(([format, label], index) => {
+    board.text(format === chosen ? `✓ ${label}` : label, `aw:${format}`);
+    if (index === 1) board.row();
+  });
+  return board;
+}
 
 const REWRITES = {
   more: 'другой вариант: другой заход, другие шутки, тот же смысл',
@@ -186,15 +200,80 @@ export function registerAiWriter(bot: Bot, runtime: AiWriterRuntime): void {
       generateDraft(deps, { format, mode: 'direct', source: 'bot', task, signal })
     );
 
-  bot.command(Object.keys(COMMAND_FORMAT), async (ctx) => {
-    const format = COMMAND_FORMAT[ctx.message?.text.slice(1).split(/[\s@]/)[0] ?? ''];
-    const task = ctx.match.trim();
-    if (format === undefined) return;
-    if (task === '') {
-      await ctx.reply(EMPTY_TASK_TEXT);
+  // /redactor: one command for everything. A format button makes the next text a draft of that format; without
+  // one, the next text (or the words after the command) is a free request.
+  // A free request: «напиши рилс учусь играть про …» still becomes a draft with its buttons; anything else gets
+  // one answer in the author's voice.
+  async function free(ctx: Context, text: string) {
+    const intent = writerIntent(text);
+    if (intent !== null) {
+      await draft(ctx, intent.format, intent.task);
       return;
     }
-    await draft(ctx, format, task);
+    const chatId = ctx.chat?.id;
+    if (chatId === undefined) return;
+    const message = await ctx.reply(THINKING_TEXT);
+    runtime.waitUntil(
+      (async () => {
+        try {
+          const deps = await runtime.writer();
+          const answer = await askEditor(deps, { task: text, signal: AbortSignal.timeout(MODEL_TIMEOUT_MS) });
+          for (const event of answer.budgetEvents)
+            await ctx.api.sendMessage(chatId, formatAiBudgetAlert(event), { parse_mode: 'HTML' });
+          const shown =
+            answer.text === null
+              ? FAILED_TEXT
+              : escapeHtml(answer.text.length > 4000 ? `${answer.text.slice(0, 4000)}…` : answer.text);
+          await edit(ctx, chatId, message.message_id, shown);
+        } catch (error) {
+          const unavailable = error instanceof AppError && error.code === 'UNAVAILABLE';
+          if (!unavailable) runtime.onError(error);
+          await edit(ctx, chatId, message.message_id, unavailable ? unavailableText(error) : FAILED_TEXT).catch(
+            (editError: unknown) => runtime.onError(editError)
+          );
+        }
+      })()
+    );
+  }
+
+  bot.command('redactor', async (ctx) => {
+    const task = ctx.match.trim();
+    const chatId = ctx.chat.id;
+    if (task !== '') {
+      await free(ctx, task);
+      return;
+    }
+    const message = await ctx.reply(ASK_TOPIC_TEXT, { reply_markup: formatKeyboard(null) });
+    const now = runtime.clock.now();
+    const deps = await runtime.writer();
+    await deps.writer.openRequest({
+      chatId,
+      promptMessageId: message.message_id,
+      now,
+      expiresAt: now + REQUEST_TTL_MS
+    });
+  });
+
+  bot.callbackQuery(FORMAT_CALLBACK, async (ctx) => {
+    const format = (ctx.match[1] ?? 'telegram') as WriterFormat;
+    const chatId = ctx.chat?.id;
+    const messageId = ctx.callbackQuery.message?.message_id;
+    if (chatId === undefined || messageId === undefined) return;
+    const deps = await runtime.writer();
+    const open = await deps.writer.setRequestFormat({
+      chatId,
+      promptMessageId: messageId,
+      format,
+      now: runtime.clock.now()
+    });
+    if (!open) {
+      await ctx.answerCallbackQuery({ text: 'Запрос устарел, отправьте /redactor ещё раз' }).catch(() => undefined);
+      return;
+    }
+    await ctx.answerCallbackQuery().catch((error: unknown) => runtime.onError(error));
+    await ctx.editMessageReplyMarkup({ reply_markup: formatKeyboard(format) }).catch((error: unknown) => {
+      if (!(error instanceof GrammyError && error.description.includes('message is not modified'))) throw error;
+    });
   });
 
   bot.on('message:text', async (ctx, next) => {
@@ -218,7 +297,14 @@ export function registerAiWriter(bot: Bot, runtime: AiWriterRuntime): void {
       }
     }
     // A forward is someone else's text: always a plain draft, never a paid model call.
-    const intent = ctx.message.forward_origin === undefined ? writerIntent(ctx.message.text) : null;
+    if (ctx.message.forward_origin !== undefined) return next();
+    // The topic for an open /redactor request.
+    const requested = await (await runtime.writer()).writer.takeRequest(ctx.chat.id, runtime.clock.now());
+    if (requested !== null) {
+      await (requested.format === null ? free(ctx, ctx.message.text) : draft(ctx, requested.format, ctx.message.text));
+      return;
+    }
+    const intent = writerIntent(ctx.message.text);
     if (intent === null) return next();
     await draft(ctx, intent.format, intent.task);
   });

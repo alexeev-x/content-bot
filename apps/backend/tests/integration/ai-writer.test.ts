@@ -124,6 +124,24 @@ describe('AI writer', () => {
   });
 });
 
+describe('/redactor request', () => {
+  it('is taken once with the chosen format, is free without one and expires', async () => {
+    const repo = createD1WriterRepository(testDb());
+    await repo.openRequest({ chatId: 1, promptMessageId: 10, now: 0, expiresAt: 1000 });
+    // A button on another (older) prompt changes nothing.
+    expect(await repo.setRequestFormat({ chatId: 1, promptMessageId: 9, format: 'igrat', now: 1 })).toBe(false);
+    expect(await repo.setRequestFormat({ chatId: 1, promptMessageId: 10, format: 'igrat', now: 1 })).toBe(true);
+    expect(await repo.takeRequest(1, 2)).toEqual({ format: 'igrat' });
+    expect(await repo.takeRequest(1, 3)).toBeNull();
+
+    await repo.openRequest({ chatId: 1, promptMessageId: 11, now: 0, expiresAt: 1000 });
+    // No button pressed: a free request.
+    expect(await repo.takeRequest(1, 5)).toEqual({ format: null });
+    await repo.openRequest({ chatId: 1, promptMessageId: 12, now: 0, expiresAt: 1000 });
+    expect(await repo.takeRequest(1, 1000)).toBeNull();
+  });
+});
+
 describe('AI writer checks', () => {
   it('flags invented experience only in automatic mode, and AI phrases always', () => {
     const text = 'Патч 7.40 вышел. Я попробовал нового героя, мне понравилось. Стоит отметить, что это важно.';

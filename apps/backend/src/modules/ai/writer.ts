@@ -5,7 +5,7 @@ import type { FeedbackKind, GenerationRow, RevisionRow, WriterRepository } from 
 import { type AiTextProvider, AiProviderError } from './ports';
 import { assertAiReady, type BudgetEvent, readAiSettings, recordAiUsage } from './service';
 import { checkDraft, editRatio } from './writer-checks';
-import { buildWriterPrompt, packRevision, parseWriterOutput } from './writer-prompt';
+import { buildFreePrompt, buildWriterPrompt, packRevision, parseWriterOutput } from './writer-prompt';
 import type { WriterFormat, WriterMode } from './writer-types';
 
 // The AI writer (docs/ai/architecture.md items 2, 4, 7, 9, 20): a draft is stored as AI_DRAFT, the owner's
@@ -310,4 +310,38 @@ export async function attachPost(deps: Pick<WriterDeps, 'writer'>, revisionId: s
 export async function recordFeedback(deps: WriterDeps, generationId: string, kind: FeedbackKind): Promise<void> {
   if ((await deps.writer.findGeneration(generationId)) === null) throw new AppError('NOT_FOUND', 'The draft is gone');
   await deps.writer.addFeedback({ id: deps.newId(), generationId, kind, now: deps.clock.now() });
+}
+
+/**
+ * A free request in /redactor (no format button): one answer in the author's voice. Not a draft: nothing here
+ * can become a post; a request for a post or a Reel goes through `generateDraft` instead.
+ */
+export async function askEditor(
+  deps: WriterDeps,
+  input: { task: string; signal: AbortSignal }
+): Promise<{ text: string | null; errorCode: string | null; budgetEvents: BudgetEvent[] }> {
+  const task = input.task.trim().slice(0, MAX_TASK);
+  if (task === '') throw new AppError('VALIDATION_ERROR', 'The task is empty');
+  const settings = await readAiSettings(deps.repo);
+  const { provider, model } = await assertAiReady(deps, settings, settings.draftModel ?? settings.cheapModel);
+  try {
+    const result = await provider.complete({
+      model,
+      ...buildFreePrompt(task),
+      maxOutputTokens: MAX_OUTPUT_TOKENS,
+      signal: input.signal
+    });
+    const budgetEvents = await recordAiUsage(deps, {
+      kind: 'other',
+      provider: provider.provider,
+      model: result.model,
+      usage: result.usage,
+      settings
+    });
+    const text = result.text.trim().slice(0, MAX_TEXT);
+    return { text: text === '' ? null : text, errorCode: text === '' ? 'AI_EMPTY_ANSWER' : null, budgetEvents };
+  } catch (error) {
+    if (!(error instanceof AiProviderError)) throw error;
+    return { text: null, errorCode: error.code, budgetEvents: [] };
+  }
 }
