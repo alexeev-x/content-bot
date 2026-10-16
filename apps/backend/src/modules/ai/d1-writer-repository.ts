@@ -44,6 +44,9 @@ export interface QualityRows {
   averageEditRatio: number | null;
   jokeMissed: number;
   averageDraftMicroUsd: number | null;
+  /** Approvals tagged with changed parts (migration 0061) and how many of them changed each part. */
+  tagged: number;
+  changedParts: { part: string; count: number }[];
 }
 
 /** The chat's mode: talking to the editor, or turning every message into a draft. */
@@ -78,7 +81,9 @@ export interface WriterRepository {
   revisions(generationId: string): Promise<RevisionRow[]>;
   addRevision(row: Omit<RevisionRow, 'postId'> & { parentId: string | null }): Promise<void>;
   /** The approval of a draft, once; false when it was approved already (a repeated tap or a race). */
-  addApproval(row: Omit<RevisionRow, 'postId'> & { parentId: string | null }): Promise<boolean>;
+  addApproval(
+    row: Omit<RevisionRow, 'postId'> & { parentId: string | null; changedParts: readonly string[] }
+  ): Promise<boolean>;
   attachPost(revisionId: string, postId: string): Promise<void>;
   addFeedback(input: { id: string; generationId: string; kind: FeedbackKind; now: number }): Promise<void>;
   recent(limit: number): Promise<GenerationRow[]>;
@@ -285,10 +290,20 @@ export function createD1WriterRepository(db: D1Database): WriterRepository {
     async addApproval(row) {
       const result = await db
         .prepare(
-          `INSERT OR IGNORE INTO ai_text_revisions (id, generation_id, parent_id, provenance, text, edit_ratio, created_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?)`
+          `INSERT OR IGNORE INTO ai_text_revisions
+             (id, generation_id, parent_id, provenance, text, edit_ratio, changed_parts, created_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
         )
-        .bind(row.id, row.generationId, row.parentId, row.provenance, row.text, row.editRatio, row.createdAt)
+        .bind(
+          row.id,
+          row.generationId,
+          row.parentId,
+          row.provenance,
+          row.text,
+          row.editRatio,
+          JSON.stringify(row.changedParts),
+          row.createdAt
+        )
         .run();
       return result.meta.changes === 1;
     },
@@ -353,7 +368,7 @@ export function createD1WriterRepository(db: D1Database): WriterRepository {
     },
 
     async quality(since) {
-      const [generations, approvals, feedback, cost] = await db.batch([
+      const [generations, approvals, feedback, cost, tagged, parts] = await db.batch([
         db
           .prepare(
             `SELECT kind, status, COUNT(*) AS n,
@@ -375,6 +390,20 @@ export function createD1WriterRepository(db: D1Database): WriterRepository {
             `SELECT AVG(u.cost_micro_usd) AS cost FROM ai_generations g JOIN ai_usage u ON u.id = g.usage_id
              WHERE g.kind = 'draft' AND g.created_at >= ? AND u.cost_micro_usd IS NOT NULL`
           )
+          .bind(since),
+        db
+          .prepare(
+            `SELECT COUNT(*) AS n FROM ai_text_revisions
+             WHERE provenance IN ('OWNER_APPROVED', 'OWNER_PREAPPROVED') AND created_at >= ? AND changed_parts IS NOT NULL`
+          )
+          .bind(since),
+        db
+          .prepare(
+            `SELECT j.value AS part, COUNT(*) AS n FROM ai_text_revisions r, json_each(r.changed_parts) j
+             WHERE r.provenance IN ('OWNER_APPROVED', 'OWNER_PREAPPROVED') AND r.created_at >= ?
+               AND r.changed_parts IS NOT NULL
+             GROUP BY j.value`
+          )
           .bind(since)
       ]);
       const rows = (generations?.results ?? []) as { kind: string; status: string; n: number; warned: number | null }[];
@@ -391,7 +420,12 @@ export function createD1WriterRepository(db: D1Database): WriterRepository {
         approvedUnchanged: approval?.unchanged ?? 0,
         averageEditRatio: approval?.ratio ?? null,
         jokeMissed: (feedback?.results[0] as { n: number } | undefined)?.n ?? 0,
-        averageDraftMicroUsd: (cost?.results[0] as { cost: number | null } | undefined)?.cost ?? null
+        averageDraftMicroUsd: (cost?.results[0] as { cost: number | null } | undefined)?.cost ?? null,
+        tagged: (tagged?.results[0] as { n: number } | undefined)?.n ?? 0,
+        changedParts: ((parts?.results ?? []) as { part: string; n: number }[]).map((row) => ({
+          part: row.part,
+          count: row.n
+        }))
       };
     },
 

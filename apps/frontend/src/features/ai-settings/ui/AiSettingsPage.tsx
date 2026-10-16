@@ -384,6 +384,8 @@ function AiSettings({ overview, onReload }: { overview: AiOverviewDto; onReload:
 function QualityPanel({ quality }: { quality: AiOverviewDto['quality'] }) {
   const ratio = quality.averageEditRatio;
   const details = copy.quality.details(quality.rewrites, quality.jokeMissed, quality.withWarnings, quality.failed);
+  // The three parts changed most, from a tenth of approvals up: rarer ones are noise at this volume.
+  const parts = quality.changedParts.filter((row) => row.share >= 0.1).slice(0, 3);
   return (
     <Panel title={copy.quality.title(quality.days)} icon={<Icon name="check-circle" />}>
       {quality.drafts + quality.rewrites + quality.failed === 0 ? (
@@ -410,6 +412,12 @@ function QualityPanel({ quality }: { quality: AiOverviewDto['quality'] }) {
               <dd>{quality.averageDraftUsd === null ? '—' : usd(quality.averageDraftUsd)}</dd>
             </div>
           </dl>
+          {parts.length > 0 ? (
+            <p className={styles.meta}>
+              {copy.quality.partsLead}
+              {parts.map((row) => `${copy.quality.part[row.part]} — ${Math.round(row.share * 100)}%`).join(' · ')}
+            </p>
+          ) : null}
           {details ? <p className={styles.meta}>{details}</p> : null}
         </div>
       )}

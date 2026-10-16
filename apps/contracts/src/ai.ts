@@ -123,6 +123,10 @@ export const aiConnectionSchema = z.object({
 export type AiConnectionDto = z.infer<typeof aiConnectionSchema>;
 
 /** How the writer did over the last 30 days (docs/ai/architecture.md item 15): never a model's self-score. */
+/** Parts of an AI draft the owner can change before approval (docs/ai/architecture.md, item 4). */
+export const AI_CHANGED_PARTS = ['hook', 'ending', 'length', 'structure', 'swearing', 'ai_wording'] as const;
+export type AiChangedPart = (typeof AI_CHANGED_PARTS)[number];
+
 export const aiQualitySchema = z.object({
   days: z.number().int().positive(),
   /** First drafts written (ready), their rewrites («Короче», «Смешнее», «Ещё вариант») and failed calls. */
@@ -138,7 +142,14 @@ export const aiQualitySchema = z.object({
   averageEditRatio: z.number().min(0).max(1).nullable(),
   jokeMissed: z.number().int().nonnegative(),
   /** Mean cost of a priced first draft; null without one. */
-  averageDraftUsd: z.number().nonnegative().nullable()
+  averageDraftUsd: z.number().nonnegative().nullable(),
+  /**
+   * Which parts the owner changes before approving (tagged by code, migration 0061): the share of tagged
+   * approvals that changed each part, most changed first; empty without tagged approvals.
+   */
+  changedParts: z
+    .array(z.object({ part: z.enum(AI_CHANGED_PARTS), share: z.number().min(0).max(1) }))
+    .max(AI_CHANGED_PARTS.length)
 });
 export type AiQualityDto = z.infer<typeof aiQualitySchema>;
 

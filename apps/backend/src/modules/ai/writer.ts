@@ -7,7 +7,7 @@ import type { AuthorProfileRepository } from './d1-author-repository';
 import type { ChatTurn, FeedbackKind, GenerationRow, RevisionRow, WriterRepository } from './d1-writer-repository';
 import { type AiTextProvider, AiProviderError } from './ports';
 import { assertAiReady, type BudgetEvent, readAiSettings, recordAiUsage } from './service';
-import { checkDraft, editRatio } from './writer-checks';
+import { changedParts, checkDraft, editRatio } from './writer-checks';
 import { buildFreePrompt, buildWriterPrompt, packRevision, parseWriterOutput } from './writer-prompt';
 import type { WriterFormat, WriterMode } from './writer-types';
 
@@ -314,7 +314,10 @@ export async function approveDraft(
     postId: null,
     createdAt: deps.clock.now()
   };
-  if (await deps.writer.addApproval({ ...revision, parentId: current.id })) return { revision, created: true };
+  const parts = changedParts(firstDraft.text, current.text);
+  if (await deps.writer.addApproval({ ...revision, parentId: current.id, changedParts: parts })) {
+    return { revision, created: true };
+  }
   // Another tap won the race: its approval is the one.
   const winner = approvedRevision(await deps.writer.revisions(generationId));
   if (winner === null) throw new AppError('CONFLICT', 'The approval was not saved', { reason: 'APPROVAL_LOST' });

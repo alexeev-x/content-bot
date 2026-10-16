@@ -83,3 +83,48 @@ export function editRatio(draft: string, final: string): number {
   const common = row[b.length] ?? 0;
   return Math.round((1 - common / Math.max(a.length, b.length)) * 1000) / 1000;
 }
+
+/** The parts of a draft the owner can change before approval (architecture item 4), in a stable order. */
+export const CHANGED_PARTS = ['hook', 'ending', 'length', 'structure', 'swearing', 'ai_wording'] as const;
+export type ChangedPart = (typeof CHANGED_PARTS)[number];
+
+// A sentence counts as rewritten past a third of its words; a length change past a fifth.
+const REWRITTEN = 0.3;
+const LENGTH_CHANGE = 0.2;
+const SWEARING = /(?<![а-яё])(ху[йеёияю]|пизд|бля|[её]б[аиул]|сук[аи])/giu;
+
+function sentences(text: string): string[] {
+  return text
+    .split(/(?<=[.!?…])\s+|\n+/)
+    .map((part) => part.trim())
+    .filter(Boolean);
+}
+
+function paragraphs(text: string): number {
+  return text.split(/\n\s*\n/).filter((part) => part.trim() !== '').length;
+}
+
+function aiPhrases(text: string): number {
+  return AI_PHRASES.filter(([pattern]) => pattern.test(text)).length;
+}
+
+/**
+ * Which parts the owner changed between the AI draft and the approved text, by code only (the cheap model
+ * tags «joke» and «structure of meaning» later): evidence of what the owner fixes, never a rule by itself.
+ */
+export function changedParts(draft: string, final: string): ChangedPart[] {
+  const a = sentences(draft);
+  const b = sentences(final);
+  const words = (text: string) => text.split(/\s+/).filter(Boolean).length;
+  const parts = new Set<ChangedPart>();
+  if (a.length > 0 && b.length > 0) {
+    if (editRatio(a[0]!, b[0]!) > REWRITTEN) parts.add('hook');
+    if (editRatio(a.at(-1)!, b.at(-1)!) > REWRITTEN) parts.add('ending');
+  }
+  const before = words(draft);
+  if (before > 0 && Math.abs(words(final) - before) / before > LENGTH_CHANGE) parts.add('length');
+  if (paragraphs(draft) !== paragraphs(final)) parts.add('structure');
+  if ((draft.match(SWEARING) ?? []).length !== (final.match(SWEARING) ?? []).length) parts.add('swearing');
+  if (aiPhrases(final) < aiPhrases(draft)) parts.add('ai_wording');
+  return CHANGED_PARTS.filter((part) => parts.has(part));
+}

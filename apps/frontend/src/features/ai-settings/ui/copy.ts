@@ -115,6 +115,16 @@ export const copy = {
     approved: 'Одобрено черновиков',
     unchanged: (count: number) => `без правок: ${count}`,
     draftCost: 'Цена черновика',
+    // Accusative: «Чаще всего правите хук, концовку…».
+    part: {
+      hook: 'хук',
+      ending: 'концовку',
+      length: 'длину',
+      structure: 'разбивку на абзацы',
+      swearing: 'мат',
+      ai_wording: 'ИИ-обороты'
+    },
+    partsLead: 'Чаще всего правите: ',
     // Only the counters that happened: a row of zeros read as noise.
     details: (rewrites: number, jokes: number, warned: number, failed: number) =>
       (

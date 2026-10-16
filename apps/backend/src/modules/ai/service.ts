@@ -1,5 +1,7 @@
 import {
+  AI_CHANGED_PARTS,
   AI_USAGE_KINDS,
+  type AiChangedPart,
   type AiModelPriceDto,
   type AiOverviewDto,
   type AiSettingsDto,
@@ -236,7 +238,16 @@ export async function readAiOverview(deps: {
       approvedUnchanged: quality.approvedUnchanged,
       averageEditRatio: quality.averageEditRatio === null ? null : Math.round(quality.averageEditRatio * 1000) / 1000,
       jokeMissed: quality.jokeMissed,
-      averageDraftUsd: quality.averageDraftMicroUsd === null ? null : toUsd(quality.averageDraftMicroUsd)
+      averageDraftUsd: quality.averageDraftMicroUsd === null ? null : toUsd(quality.averageDraftMicroUsd),
+      changedParts:
+        quality.tagged === 0
+          ? []
+          : quality.changedParts
+              .filter((row): row is { part: AiChangedPart; count: number } =>
+                (AI_CHANGED_PARTS as readonly string[]).includes(row.part)
+              )
+              .map((row) => ({ part: row.part, share: Math.round((row.count / quality.tagged) * 100) / 100 }))
+              .sort((a, b) => b.share - a.share)
     }
   };
 }

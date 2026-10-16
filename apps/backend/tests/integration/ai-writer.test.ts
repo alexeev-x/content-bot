@@ -14,7 +14,7 @@ import {
   updateAiSettings,
   type WriterDeps
 } from '../../src/modules/ai';
-import { checkDraft, editRatio } from '../../src/modules/ai/writer-checks';
+import { changedParts, checkDraft, editRatio } from '../../src/modules/ai/writer-checks';
 import { parseWriterOutput, pickExamples } from '../../src/modules/ai/writer-prompt';
 import { writerIntent } from '../../src/app/bot/ai-writer';
 import { AppError } from '../../src/shared/app-error';
@@ -150,6 +150,21 @@ describe('AI writer', () => {
     expect(prompt.indexOf('Свой текст:')).toBeGreaterThan(prompt.lastIndexOf('Пример ('));
   });
 
+  it('stores the changed parts on approval and counts them for «Качество»', async () => {
+    const writer = deps(answering(ANSWER));
+    const edited = await draft(writer);
+    const text = (edited.text ?? '').replace('Я апнул 3к и понял одну вещь.', 'Три тысячи ММР, а я всё ещё фидлю.');
+    await saveOwnerEdit(writer, edited.generation.id, text);
+    await approveDraft(writer, edited.generation.id);
+    const unchanged = await draft(writer);
+    await approveDraft(writer, unchanged.generation.id);
+
+    const quality = await writer.writer.quality(0);
+    expect(quality.tagged).toBe(2);
+    // One of the two approvals rewrote the hook; the unchanged one tagged nothing.
+    expect(quality.changedParts).toEqual([{ part: 'hook', count: 1 }]);
+  });
+
   it('marks a question for the owner instead of checking it as a script', async () => {
     const result = await draft(deps(answering('Как у тебя прошли игры на Личе: что понравилось, где накосячил?')));
     expect(result.generation.warnings).toEqual(['NEEDS_FACTS']);
@@ -233,6 +248,23 @@ describe('AI writer checks', () => {
     expect(parseWriterOutput('просто текст')).toEqual({ hooks: [], text: 'просто текст' });
     expect(editRatio('раз два три четыре', 'раз два три четыре')).toBe(0);
     expect(editRatio('раз два три четыре', 'раз два пять шесть')).toBe(0.5);
+  });
+
+  it('tags which parts of the draft the owner changed, by code', () => {
+    const draft =
+      'Я апнул 3к и понял одну вещь. Давайте разберёмся, почему варды решают больше фарма. ' +
+      'Ставлю их на рунах и у Рошана. Подпишись, дальше будет только лучше.';
+    // Only the middle touched: no part tag.
+    expect(changedParts(draft, draft.replace('у Рошана', 'возле Рошана'))).toEqual([]);
+    // A new first line, a removed AI phrase, swearing added and a new ending in its own paragraph.
+    const final =
+      'Три тысячи ММР, а я всё ещё фидлю. Варды решают больше фарма. Ставлю их на рунах и у Рошана, блять.' +
+      '\n\nКороче, ставь варды.';
+    expect(changedParts(draft, final)).toEqual(['hook', 'ending', 'structure', 'swearing', 'ai_wording']);
+    // Cut by more than a fifth: length.
+    expect(changedParts(draft, 'Я апнул 3к и понял одну вещь. Подпишись, дальше будет только лучше.')).toContain(
+      'length'
+    );
   });
 
   it('reads a writing request in plain words and leaves other text a plain draft', () => {
