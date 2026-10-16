@@ -28,7 +28,12 @@ export function SourceStatusRow({ overview, now, layout = 'row' }: Props) {
           <li key={platform} className={styles.source} data-tone={tone}>
             <PlatformGlyph platform={platform} withLabel />
             {source === undefined ? (
-              <Skeleton width={120} height={12} />
+              <>
+                <Skeleton width={120} height={12} />
+                {platform === 'tiktok' ? (
+                  <Skeleton width={104} height="var(--size-button-sm)" radius="var(--radius-2)" />
+                ) : null}
+              </>
             ) : (
               <span className={styles.sourceState}>
                 {source.state === 'ok' ? <Icon name="check-circle" size={14} /> : null}

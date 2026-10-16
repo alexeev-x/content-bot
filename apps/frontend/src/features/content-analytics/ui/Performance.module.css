@@ -32,11 +32,6 @@
   background: color-mix(in oklab, var(--color-accent) 10%, transparent);
   outline: 1px solid color-mix(in oklab, var(--color-accent) 25%, transparent);
 }
-.skeleton {
-  height: 200px;
-  border-radius: var(--radius-2);
-  background: var(--color-surface-2);
-}
 .muted {
   margin: 0;
   font-size: var(--font-size-sm);

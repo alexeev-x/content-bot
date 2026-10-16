@@ -3,6 +3,7 @@ import { AreaChart, Icon, type IconName, Panel, Skeleton } from '../../../shared
 import type { Insight } from '../model/insights';
 import { copy } from './copy';
 import styles from './Insights.module.css';
+import { PanelSkeleton } from './PanelSkeleton';
 
 export type InsightsSummary = {
   views: { value: string; change: number | null; series: readonly number[]; tips: readonly string[] };
@@ -36,6 +37,8 @@ function Change({ value, unit = '%', suffix }: { value: number | null; unit?: st
 
 /** «Главное»: three headline numbers, then each conclusion with the figure it rests on. */
 export function InsightsPanel({ insights, summary, days, onOpenItem }: Props) {
+  if (insights === undefined && summary === undefined)
+    return <PanelSkeleton title={copy.insights.title(days)} rows={17.1} phoneRows={42.5} />;
   return (
     <Panel title={copy.insights.title(days)} headingLevel={2} quiet>
       <div className={styles.body}>

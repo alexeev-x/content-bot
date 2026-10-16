@@ -47,10 +47,13 @@ export function NextUp({ today, upcoming, now, timezone, onOpenPublication, onNe
       <div className={`${shell.body}`}>
         {!loaded ? (
           <>
-            <div className={styles.hero} aria-hidden="true">
-              <Skeleton width="60%" height={40} />
-              <Skeleton width="80%" height={18} />
-              <Skeleton width="40%" height={14} />
+            {/* The card's own gradient surface pulses; the placeholders only hold its height and stay invisible. */}
+            <div className={`${styles.hero} ${styles.heroLoading}`} aria-hidden="true">
+              <span className={styles.heroHold}>
+                <Skeleton width="60%" height={40} />
+                <Skeleton width="80%" height={18} />
+                <Skeleton width="40%" height={14} />
+              </span>
             </div>
           </>
         ) : !next ? (

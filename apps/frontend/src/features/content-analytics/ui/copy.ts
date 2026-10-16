@@ -2,6 +2,7 @@ import type { ContentPlatform } from '@alexeev/contracts';
 
 export const copy = {
   title: 'Аналитика',
+  subtitle: 'Telegram, YouTube и TikTok в одном месте',
   refresh: 'Обновить',
   refreshed: 'Данные обновлены',
   refreshFailed: 'Не удалось обновить. Попробуйте ещё раз через минуту.',

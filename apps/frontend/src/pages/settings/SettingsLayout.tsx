@@ -1,20 +1,9 @@
-import { Link, Outlet, useRouterState } from '@tanstack/react-router';
+import { Outlet, useRouterState } from '@tanstack/react-router';
 import { useEffect, useRef, useState } from 'react';
-import { ru } from '../../shared/lib/ru';
-import { isInsideTelegram } from '../../shared/telegram/web-app';
-import { Icon, PageHeader, useMediaQuery, type IconName } from '../../shared/ui';
+import { useMediaQuery } from '../../shared/ui';
 import { SectionActionsSlot } from './section-actions';
+import { SECTIONS, SettingsFrame, type SectionPath } from './SettingsFrame';
 import styles from './SettingsLayout.module.css';
-
-const SECTIONS = [
-  { to: '/settings/channels', label: ru.settings.channels, icon: 'channel' },
-  { to: '/settings/analytics', label: ru.settings.analytics, icon: 'chart' },
-  { to: '/settings/ai', label: ru.settings.ai, icon: 'sparkle' },
-  { to: '/settings/general', label: ru.settings.general, icon: 'settings' },
-  { to: '/settings/appearance', label: ru.settings.appearance, icon: 'sparkle' }
-] as const satisfies readonly { to: string; label: string; icon: IconName }[];
-
-type SectionPath = (typeof SECTIONS)[number]['to'];
 
 /** Settings as master/detail: a section list beside the detail on wide screens, list and detail as two screens on narrow ones. */
 export function SettingsLayout() {
@@ -22,7 +11,6 @@ export function SettingsLayout() {
   const pathname = useRouterState({ select: (state) => state.location.pathname });
   const section = SECTIONS.find((candidate) => pathname.startsWith(candidate.to));
   const atList = section === undefined;
-  const showList = wide || atList;
   const rows = useRef(new Map<SectionPath, HTMLAnchorElement>());
   const lastOpened = useRef<SectionPath | null>(null);
   const [actionsSlot, setActionsSlot] = useState<HTMLElement | null>(null);
@@ -43,53 +31,22 @@ export function SettingsLayout() {
   }, [wide, atList]);
 
   return (
-    <>
-      {!wide && section && !isInsideTelegram() ? (
-        <Link to="/settings" className={styles.back}>
-          <Icon name="chevron-left" size={16} />
-          {ru.settings.back}
-        </Link>
-      ) : null}
-      <PageHeader
-        title={wide || atList ? ru.pages.settings : (section?.label ?? ru.pages.settings)}
-        actions={wide ? undefined : slot}
-      />
-      <div className={styles.layout} data-wide={wide || undefined}>
-        {showList ? (
-          <nav aria-label={ru.settings.navLabel} className={styles.nav}>
-            {SECTIONS.map((item) => (
-              <Link
-                key={item.to}
-                to={item.to}
-                className={styles.link}
-                ref={(node) => {
-                  if (node) rows.current.set(item.to, node);
-                  else rows.current.delete(item.to);
-                }}
-              >
-                <Icon name={item.icon} size={18} />
-                <span className={styles.label}>{item.label}</span>
-                {wide ? null : <Icon name="chevron-right" size={18} />}
-              </Link>
-            ))}
-          </nav>
-        ) : null}
-        {atList ? (
+    <SettingsFrame
+      wide={wide}
+      section={section}
+      slot={slot}
+      rowRef={(to) => (node: HTMLAnchorElement | null) => {
+        if (node) rows.current.set(to, node);
+        else rows.current.delete(to);
+      }}
+    >
+      {atList ? (
+        <Outlet />
+      ) : (
+        <SectionActionsSlot.Provider value={actionsSlot}>
           <Outlet />
-        ) : (
-          <section className={styles.detail} aria-label={section.label}>
-            {wide ? (
-              <div className={styles.detailHeader}>
-                <h2 className={styles.detailTitle}>{section.label}</h2>
-                {slot}
-              </div>
-            ) : null}
-            <SectionActionsSlot.Provider value={actionsSlot}>
-              <Outlet />
-            </SectionActionsSlot.Provider>
-          </section>
-        )}
-      </div>
-    </>
+        </SectionActionsSlot.Provider>
+      )}
+    </SettingsFrame>
   );
 }

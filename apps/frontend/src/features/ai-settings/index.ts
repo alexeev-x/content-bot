@@ -1,1 +1,1 @@
-export { AiSettingsPage } from './ui/AiSettingsPage';
+export { AiSettingsPage, AiSettingsSkeleton } from './ui/AiSettingsPage';

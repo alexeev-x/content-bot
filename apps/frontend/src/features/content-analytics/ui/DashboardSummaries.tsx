@@ -55,3 +55,19 @@ export function TrendingSummary({ timezone, onOpen }: { timezone: string; onOpen
     />
   );
 }
+
+/** The same widget body before its data exists, with no request: for the route skeleton. */
+export function TrendingSummarySkeleton() {
+  return (
+    <TrendingPanel
+      bare
+      limit={2}
+      items={undefined}
+      baselines={[]}
+      medians={{}}
+      now={0}
+      timezone="UTC"
+      onOpen={() => {}}
+    />
+  );
+}

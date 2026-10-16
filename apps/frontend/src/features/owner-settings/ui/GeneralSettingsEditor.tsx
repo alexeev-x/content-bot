@@ -1,7 +1,7 @@
 import { ApiError } from '../../../shared/api/http-client';
 import { useNow } from '../../../shared/lib/use-now';
 import { ru } from '../../../shared/lib/ru';
-import { Banner, Button, ErrorState, Panel, Skeleton, Switch } from '../../../shared/ui';
+import { Banner, Button, ErrorState, Panel, Skeleton, Switch, VisuallyHidden } from '../../../shared/ui';
 import { useGeneralSettings, type SettingsPatch } from '../model/use-general-settings';
 import styles from './GeneralSettingsEditor.module.css';
 import { TimezoneField } from './TimezoneField';
@@ -14,11 +14,28 @@ const SWITCHES = [
   { key: 'recoveryAlerts', label: ru.general.recovery, description: ru.general.recoveryHint }
 ] as const satisfies readonly { key: keyof SettingsPatch; label: string; description: string }[];
 
-function Loading() {
+/** The two panels with their real titles and the height their fields fill, no request: also the route skeleton. */
+export function GeneralSettingsSkeleton() {
   return (
     <div className={styles.page} aria-busy="true">
-      <Skeleton height={190} radius="var(--radius-2)" />
-      <Skeleton height={250} radius="var(--radius-2)" />
+      <VisuallyHidden>
+        <output>{ru.ui.loading}</output>
+      </VisuallyHidden>
+      <Panel title={ru.general.timezoneTitle} reserveRows={3} reservePhoneRows={3.6}>
+        <div className={styles.body}>
+          <Skeleton height="var(--size-control)" />
+        </div>
+      </Panel>
+      <Panel
+        title={ru.general.notificationsTitle}
+        note={ru.general.notificationsNote}
+        reserveRows={6.6}
+        reservePhoneRows={9.4}
+      >
+        <div className={styles.body}>
+          <Skeleton lines={3} height={20} />
+        </div>
+      </Panel>
     </div>
   );
 }
@@ -30,7 +47,7 @@ export function GeneralSettingsEditor() {
   const { query, view, problem, status, isFetching, change, keepMine, loadCurrent } = useGeneralSettings();
   const now = useNow();
 
-  if (query.isPending) return <Loading />;
+  if (query.isPending) return <GeneralSettingsSkeleton />;
   if (query.isError || !view) {
     const error = query.error;
     const forbidden = error instanceof ApiError && error.status === 403;

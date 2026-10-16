@@ -1,5 +1,5 @@
 export type { FeedFilters } from './ui/SourceFeed';
-export { SourcesBoard } from './ui/SourcesBoard';
+export { SourcesBoard, SourcesBoardSkeleton } from './ui/SourcesBoard';
 export { DotaEventDetail } from './ui/DotaEventDetail';
-export { DotaWatchlists } from './ui/DotaWatchlists';
+export { DotaWatchlists, DotaWatchlistsSkeleton } from './ui/DotaWatchlists';
 export { sourceEventsQueryOptions } from './api/sources-queries';

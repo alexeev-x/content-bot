@@ -37,7 +37,25 @@ export function SourcesWidget({ rows, footer }: Props) {
     >
       <div className={styles.body}>
         {rows === undefined ? (
-          <Skeleton lines={4} height={44} />
+          <ul className={styles.sources} aria-hidden="true">
+            {[0, 1, 2, 3].map((key) => (
+              <li key={key} className={styles.source}>
+                <span className={styles.sourceMark} />
+                <span className={styles.recentText}>
+                  <span className={styles.recentTitle}>
+                    <Skeleton width="50%" height="1lh" />
+                  </span>
+                  <span className={shell.quiet}>
+                    <Skeleton width="85%" height="2lh" />
+                  </span>
+                </span>
+                <span className={styles.sourceTime}>
+                  <Skeleton width={56} height="1lh" />
+                </span>
+                <Skeleton width={104} height="var(--size-button-sm)" radius="var(--radius-2)" />
+              </li>
+            ))}
+          </ul>
         ) : rows.length === 0 ? (
           <p className={shell.quiet}>Новостей пока нет.</p>
         ) : (
@@ -65,7 +83,13 @@ export function SourcesWidget({ rows, footer }: Props) {
             ))}
           </ul>
         )}
-        {footer ? <p className={styles.sourcesFooter}>{footer}</p> : null}
+        {footer ? (
+          <p className={styles.sourcesFooter}>{footer}</p>
+        ) : rows === undefined ? (
+          <p className={styles.sourcesFooter} aria-hidden="true">
+            <Skeleton width="70%" height="2lh" />
+          </p>
+        ) : null}
       </div>
     </Widget>
   );

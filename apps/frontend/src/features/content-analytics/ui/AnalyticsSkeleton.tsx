@@ -1,0 +1,101 @@
+import { ru } from '../../../shared/lib/ru';
+import { StaleRegion, TabPanel, Tabs, VisuallyHidden } from '../../../shared/ui';
+import { AnalyticsHeader } from './AnalyticsHeader';
+import type { AnalyticsTab } from './AnalyticsBoard';
+import { CompareVideosPanel } from './CompareVideosPanel';
+import { copy } from './copy';
+import { CrossPostedPanel } from './CrossPostedPanel';
+import { DynamicsPanel } from './DynamicsPanel';
+import { FollowersPanel } from './FollowersPanel';
+import { GoalsPanelSkeleton } from './GoalsPanel';
+import { InsightsPanel } from './InsightsPanel';
+import { ItemsTable } from './ItemsTable';
+import { PerformancePanel } from './PerformancePanel';
+import { PlatformComparison } from './PlatformComparison';
+import { PostingHeatmap } from './PostingHeatmap';
+import { RankedLists } from './RankedLists';
+import styles from './Report.module.css';
+import { SummarySection } from './SummarySection';
+import { TrendingPanel } from './TrendingPanel';
+
+const ignore = () => {};
+
+/**
+ * «Аналитика» before the session exists: the board's own tree with no data, so the header, tabs and every
+ * panel already stand where they will be, and no request leaves without a token. The panels draw their own
+ * loading state; only «Цели» needs a stand-in because it reads its own query.
+ */
+export function AnalyticsSkeleton({ tab, timezone }: { tab: AnalyticsTab; timezone: string }) {
+  return (
+    <div className={styles.board} aria-busy="true">
+      <VisuallyHidden>
+        <output>{ru.shell.loadingPage}</output>
+      </VisuallyHidden>
+      <StaleRegion busy={false}>
+        <Tabs selectedKey={tab} onSelectionChange={ignore}>
+          <AnalyticsHeader
+            description={copy.subtitle}
+            days={30}
+            platform={undefined}
+            onDaysChange={ignore}
+            onPlatformChange={ignore}
+            inert
+          />
+          <TabPanel id="overview">
+            <div className={styles.sections}>
+              <SummarySection days={30} kpis={undefined} />
+              <InsightsPanel insights={undefined} summary={undefined} days={30} onOpenItem={ignore} />
+              <TrendingPanel
+                items={undefined}
+                baselines={[]}
+                medians={{}}
+                now={0}
+                timezone={timezone}
+                onOpen={ignore}
+                limit={5}
+                allLabel="Все публикации"
+                onOpenAll={ignore}
+              />
+              <PerformancePanel
+                items={undefined}
+                at={0}
+                platform={undefined}
+                timezone={timezone}
+                onOpen={ignore}
+                onOpenAll={ignore}
+              />
+              <DynamicsPanel report={undefined} platform={undefined} days={30} />
+            </div>
+          </TabPanel>
+          <TabPanel id="items">
+            <div className={styles.sections}>
+              <RankedLists best={undefined} worst={undefined} onOpen={ignore} />
+              <ItemsTable
+                items={undefined}
+                medians={{}}
+                baselines={[]}
+                now={0}
+                timezone={timezone}
+                page={1}
+                onPageChange={ignore}
+                sort={{ column: 'published', direction: 'descending' }}
+                onSortChange={ignore}
+                onOpen={ignore}
+              />
+              <CompareVideosPanel items={undefined} tracked={[]} baselines={[]} timezone={timezone} onOpen={ignore} />
+            </div>
+          </TabPanel>
+          <TabPanel id="audience">
+            <div className={styles.sections}>
+              <FollowersPanel report={undefined} platform={undefined} />
+              <GoalsPanelSkeleton />
+              <PlatformComparison report={undefined} />
+              <CrossPostedPanel items={undefined} now={0} onOpen={ignore} />
+              <PostingHeatmap items={undefined} platform={undefined} timezone={timezone} />
+            </div>
+          </TabPanel>
+        </Tabs>
+      </StaleRegion>
+    </div>
+  );
+}

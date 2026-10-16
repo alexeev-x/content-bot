@@ -3,7 +3,7 @@ import { Link } from '@tanstack/react-router';
 import type { CSSProperties } from 'react';
 import { Button as AriaButton } from 'react-aria-components';
 import { formatClock } from '../../../shared/lib/clock';
-import { Button, Icon, statusMeta, Tooltip } from '../../../shared/ui';
+import { Button, Icon, Skeleton, statusMeta, Tooltip } from '../../../shared/ui';
 import { activityView, groupByTime } from '../model/activity-view';
 import { dayPercent, placeMarkers } from '../model/timeline';
 import { avatarLetter, toneStyle } from '../model/tone';
@@ -230,7 +230,13 @@ export function DayTimeline({
             {total > items.length ? <li className={styles.statNote}>{copy.line.more(items.length, total)}</li> : null}
           </ul>
         ) : (
-          <span className={styles.hintSpacer} />
+          <ul className={styles.stats} aria-hidden="true">
+            <li className={styles.stat}>
+              <strong>
+                <Skeleton width={72} height="1lh" />
+              </strong>
+            </li>
+          </ul>
         )}
       </div>
     </Widget>

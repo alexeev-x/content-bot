@@ -1,3 +1,4 @@
+import type { ContentAnalyticsOverviewDto } from '@alexeev/contracts';
 import { useQuery } from '@tanstack/react-query';
 import { useNow } from '../../../shared/lib/use-now';
 import { ErrorState, Panel } from '../../../shared/ui';
@@ -14,13 +15,22 @@ export function AnalyticsSources() {
   if (overview.isError && overview.data === undefined) {
     return <ErrorState message={copy.loadError} onRetry={() => void overview.refetch()} />;
   }
-  const missing = (overview.data?.sources ?? []).filter(
+  return <SourcesPanel overview={overview.data} now={now} />;
+}
+
+/** The same panel before its data exists and without a request, for the route skeleton. */
+export function AnalyticsSourcesSkeleton() {
+  return <SourcesPanel overview={undefined} now={0} />;
+}
+
+function SourcesPanel({ overview, now }: { overview: ContentAnalyticsOverviewDto | undefined; now: number }) {
+  const missing = (overview?.sources ?? []).filter(
     (source) => source.state === 'not_configured' && source.connection !== 'available'
   );
   return (
     <Panel title="Источники данных" headingLevel={2} quiet note="Сбор раз в час; «Обновить» собирает сразу">
       <div className={styles.body}>
-        <SourceStatusRow overview={overview.data} now={now} layout="list" />
+        <SourceStatusRow overview={overview} now={now} layout="list" />
         {missing.map((source) => (
           <p key={source.platform} className={styles.muted}>
             {PLATFORM_LABEL[source.platform]}: {copy.setup[source.platform]}

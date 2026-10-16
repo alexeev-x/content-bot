@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Button as AriaButton } from 'react-aria-components';
 import { relativeTimeRu } from '../../../shared/lib/ru-format';
 import { useNow } from '../../../shared/lib/use-now';
-import { Skeleton } from '../../../shared/ui';
+import { MediaSkeleton, Skeleton } from '../../../shared/ui';
 import { contentReportQueryOptions } from '../api/content-analytics-queries';
 import { engagementRate, formatCount, itemTitle, likesLabel, PLATFORM_LABEL } from '../model/format';
 import { median, mediansByPlatform, percentChange, settledItems, splitPeriods } from '../model/report';
@@ -11,6 +11,7 @@ import { verdictFor } from '../model/status';
 import { ItemCover } from './ItemCover';
 import { StatusChip } from './StatusChip';
 import styles from './DashboardWidgets.module.css';
+import cardStyles from './Widgets.module.css';
 
 function Change({ value, suffix }: { value: number | null; suffix?: string }) {
   if (value === null) return null;
@@ -19,6 +20,45 @@ function Change({ value, suffix }: { value: number | null; suffix?: string }) {
       {value > 0 ? '↑ +' : value < 0 ? '↓ −' : ''}
       {Math.abs(value)}%{suffix ? <span className={styles.muted}> {suffix}</span> : null}
     </span>
+  );
+}
+
+/** The widget body as it will look: cover, title, status and four figures in the same boxes. */
+export function LatestVideoSkeleton() {
+  return (
+    <div className={styles.body} aria-hidden="true">
+      <div className={styles.head}>
+        <span>
+          <span className={cardStyles.cover}>
+            <MediaSkeleton />
+          </span>
+        </span>
+        <span className={styles.headText}>
+          <span className={styles.titleSkeleton}>
+            <Skeleton width="80%" height="2lh" />
+          </span>
+          <span className={styles.muted}>
+            <Skeleton width={96} height="1lh" />
+          </span>
+          <Skeleton width={120} height={26} />
+        </span>
+      </div>
+      <dl className={styles.metrics}>
+        {[0, 1, 2, 3].map((key) => (
+          <div key={key}>
+            <dt>
+              <Skeleton width="60%" height="1lh" />
+            </dt>
+            <dd>
+              <Skeleton width="50%" height="1lh" />
+            </dd>
+            <span className={styles.change}>
+              <Skeleton width="70%" height="1lh" />
+            </span>
+          </div>
+        ))}
+      </dl>
+    </div>
   );
 }
 
@@ -31,7 +71,7 @@ export function LatestVideoSummary({ platform, onOpen }: { platform: ContentPlat
   const now = useNow().getTime();
   const current = report.data ? splitPeriods(report.data, platform).current : undefined;
   const latest = [...(current ?? [])].sort((a, b) => Date.parse(b.publishedAt) - Date.parse(a.publishedAt))[0];
-  if (report.isPending) return <Skeleton height={220} />;
+  if (report.isPending) return <LatestVideoSkeleton />;
   if (!latest) return <p className={styles.empty}>За 30 дней публикаций в {PLATFORM_LABEL[platform]} нет.</p>;
   const medians = mediansByPlatform(current ?? [], now);
   const verdict = verdictFor(latest, now, report.data?.baselines ?? [], medians);

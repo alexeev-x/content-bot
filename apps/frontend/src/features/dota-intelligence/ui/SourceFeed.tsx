@@ -99,14 +99,8 @@ export function SourceFeed({ filters, timezone, onFiltersChange }: Props) {
     return (
       <div className={styles.feed}>
         {toolbar}
-        <Panel
-          reserveRows={3}
-          footer={<Pagination page={1} pageSize={PAGE_SIZE} totalCount={0} onPageChange={() => {}} isLoading />}
-        >
-          <div className={styles.skeleton} aria-busy="true">
-            <Skeleton height={140} />
-            <Skeleton height={140} />
-          </div>
+        <Panel footer={<Pagination page={1} pageSize={PAGE_SIZE} totalCount={0} onPageChange={() => {}} isLoading />}>
+          <FeedCardsSkeleton />
         </Panel>
       </div>
     );
@@ -182,6 +176,16 @@ export function SourceFeed({ filters, timezone, onFiltersChange }: Props) {
           </PanelList>
         )}
       </Panel>
+    </div>
+  );
+}
+/** A page of event cards as they will look (about 190 px each), so the list keeps its height. */
+export function FeedCardsSkeleton() {
+  return (
+    <div className={styles.skeleton} aria-busy="true">
+      {Array.from({ length: PAGE_SIZE }, (_, key) => (
+        <Skeleton key={key} height={190} />
+      ))}
     </div>
   );
 }

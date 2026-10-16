@@ -17,6 +17,8 @@ type Props = {
   action?: ReactNode;
   /** Rows the body reserves, so the panel keeps its height from skeleton to data. */
   reserveRows?: number;
+  /** The same on a phone (under 860 px), when the loaded body is taller or shorter there. */
+  reservePhoneRows?: number;
   /** Quiet header: no tint and no rule under it, for dense dashboards. */
   quiet?: boolean;
   /** Makes an internally scrollable body keyboard-focusable. */
@@ -36,6 +38,7 @@ export function Panel({
   note,
   action,
   reserveRows,
+  reservePhoneRows,
   quiet,
   scrollableBody = false,
   footer,
@@ -43,7 +46,13 @@ export function Panel({
 }: Props) {
   const headingId = useId();
   const Heading = `h${headingLevel}` as ElementType;
-  const body = reserveRows ? ({ '--reserve-rows': reserveRows } as CSSProperties) : undefined;
+  const body =
+    reserveRows || reservePhoneRows
+      ? ({
+          '--reserve-rows': reserveRows ?? 0,
+          '--reserve-phone-rows': reservePhoneRows ?? reserveRows ?? 0
+        } as CSSProperties)
+      : undefined;
   return (
     <section
       className={styles.panel}

@@ -4,6 +4,7 @@ import { formatCount, formatDay, PLATFORM_LABEL } from '../model/format';
 import { followersStats, PLATFORMS } from '../model/report';
 import { PlatformLogo } from './PlatformLogo';
 import styles from './Audience.module.css';
+import { PanelSkeleton } from './PanelSkeleton';
 
 type Props = { report: ContentReportDto | undefined; platform: ContentPlatform | undefined };
 
@@ -21,6 +22,8 @@ export function FollowersPanel({ report, platform }: Props) {
       (platform === undefined || platform === each) &&
       (report === undefined || followersStats(report, each).now !== null)
   );
+  if (report === undefined)
+    return <PanelSkeleton title="Подписчики" note="Динамика и прирост за период" rows={3.5} phoneRows={3.7} />;
   return (
     <Panel title="Подписчики" headingLevel={2} quiet note="Динамика и прирост за период">
       <ul className={styles.followers}>

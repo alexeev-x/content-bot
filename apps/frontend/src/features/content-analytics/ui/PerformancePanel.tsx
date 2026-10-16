@@ -13,6 +13,7 @@ import {
 import { isSettled, median, PLATFORMS, quantile } from '../model/report';
 import { PlatformLogo } from './PlatformLogo';
 import styles from './Performance.module.css';
+import { PanelSkeleton } from './PanelSkeleton';
 
 type Props = {
   items: readonly ContentItemDto[] | undefined;
@@ -41,6 +42,15 @@ export function PerformancePanel({ items, at, platform, timezone, onOpen, onOpen
   const platforms = PLATFORMS.filter(
     (each) => (platform === undefined || platform === each) && (items ?? []).some((item) => item.platform === each)
   );
+  if (items === undefined)
+    return (
+      <PanelSkeleton
+        title="Каждая публикация"
+        note="По порядку выхода, к медиане своей платформы"
+        rows={19.1}
+        phoneRows={25.2}
+      />
+    );
   return (
     <Panel title="Каждая публикация" headingLevel={2} quiet note="По порядку выхода, к медиане своей платформы">
       <div className={styles.body}>
@@ -72,9 +82,7 @@ export function PerformancePanel({ items, at, platform, timezone, onOpen, onOpen
             Обычно: средняя половина публикаций
           </li>
         </ul>
-        {items === undefined ? (
-          <div className={styles.skeleton} aria-hidden="true" />
-        ) : platforms.length === 0 ? (
+        {platforms.length === 0 ? (
           <p className={styles.muted}>За период публикаций нет.</p>
         ) : (
           platforms.map((each) => {

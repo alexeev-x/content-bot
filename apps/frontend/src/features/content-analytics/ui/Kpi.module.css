@@ -58,3 +58,14 @@
   margin-top: auto;
   padding-top: var(--space-2);
 }
+
+/* The comparison line wraps to two lines in the narrow cards of a wide screen, and fits one on a phone. */
+.changeSkeleton {
+  display: block;
+  height: 2lh;
+}
+@media (max-width: 599px) {
+  .changeSkeleton {
+    height: 1lh;
+  }
+}

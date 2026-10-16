@@ -787,3 +787,55 @@ export function MediaLibrary({
     </div>
   );
 }
+
+/** /media before the session exists: header, kind tabs, the panel with its toolbar and a page of cards, no request. */
+export function MediaPageSkeleton() {
+  return (
+    <div className={styles.page}>
+      <PageHeader
+        title={ru.pages.media}
+        actions={
+          <Button icon="upload" isDisabled>
+            Загрузить
+          </Button>
+        }
+      />
+      <div className={styles.tabs}>
+        <Tabs selectedKey="all" isDisabled>
+          <TabList aria-label="Тип медиа">
+            {KIND_OPTIONS.map((option) => (
+              <Tab key={option.id} id={option.id}>
+                {option.label}
+              </Tab>
+            ))}
+          </TabList>
+        </Tabs>
+        <Panel footer={<Pagination page={1} pageSize={PAGE_SIZE} totalCount={0} onPageChange={() => {}} isLoading />}>
+          <div className={styles.toolbar}>
+            <div className={styles.search}>
+              <SearchField
+                label="Поиск по имени файла"
+                placeholder="Имя файла"
+                value=""
+                onChange={() => {}}
+                isDisabled
+              />
+            </div>
+            <Select
+              label="Использование"
+              inlineLabel
+              options={USAGE_OPTIONS}
+              value="all"
+              isDisabled
+              onChange={() => {}}
+            />
+          </div>
+          <div className={styles.activeFilters} />
+          <div className={styles.content}>
+            <MediaSkeleton view="grid" />
+          </div>
+        </Panel>
+      </div>
+    </div>
+  );
+}

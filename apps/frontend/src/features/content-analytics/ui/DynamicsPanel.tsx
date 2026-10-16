@@ -5,6 +5,7 @@ import { formatCount, formatDay, PLATFORM_LABEL } from '../model/format';
 import { percentChange, PLATFORMS } from '../model/report';
 import { PlatformLogo } from './PlatformLogo';
 import styles from './Dynamics.module.css';
+import { PanelSkeleton } from './PanelSkeleton';
 
 type Props = {
   report: ContentReportDto | undefined;
@@ -33,9 +34,12 @@ export function DynamicsPanel({ report, platform, days }: Props) {
   const [hidden, setHidden] = useState<ReadonlySet<ContentPlatform>>(new Set());
   if (!report) {
     return (
-      <Panel title="Динамика по платформам" headingLevel={2} quiet>
-        <div className={styles.skeleton} aria-hidden="true" />
-      </Panel>
+      <PanelSkeleton
+        title="Динамика по платформам"
+        note="Сколько просмотров набрали за день публикации младше 30 дней"
+        rows={5.1}
+        phoneRows={8.7}
+      />
     );
   }
   const platforms = PLATFORMS.filter(

@@ -34,6 +34,7 @@ Foundation: use a native element first and ARIA only when nothing native fits (n
 
 ## Loading, empty and error
 - Loading: a skeleton that matches the final layout, with `aria-busy` on the region and no layout jump.
+- Skeleton = the page layout (real rows, heights); one for `RouteSkeleton` and query state.
 - Empty: explain why and offer one primary action. Distinguish "no data yet" from "filters hide everything" (which offers «Сбросить фильтры»).
 - Error: short text, the `requestId`, and retry only for safe reads. A 403 shows no data.
 

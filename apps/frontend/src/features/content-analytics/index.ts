@@ -1,11 +1,12 @@
 export { AnalyticsBoard, type AnalyticsView } from './ui/AnalyticsBoard';
 export { RefreshAnalyticsButton } from './ui/RefreshAnalyticsButton';
-export { AudienceSummary, TopSummary, TrendingSummary } from './ui/DashboardSummaries';
+export { AudienceSummary, TopSummary, TrendingSummary, TrendingSummarySkeleton } from './ui/DashboardSummaries';
 export { contentOverviewQueryOptions } from './api/content-analytics-queries';
 export { copy as contentAnalyticsCopy } from './ui/copy';
 export { useLastSyncedText } from './ui/last-synced';
-export { AnalyticsSources } from './ui/AnalyticsSources';
-export { LatestVideoSummary } from './ui/DashboardWidgets';
+export { AnalyticsSources, AnalyticsSourcesSkeleton } from './ui/AnalyticsSources';
+export { LatestVideoSkeleton, LatestVideoSummary } from './ui/DashboardWidgets';
 export { DashboardItemDrawer } from './ui/DashboardItemDrawer';
 export { PlatformLogo } from './ui/PlatformLogo';
 export { useSourcesAttention } from './ui/AnalyticsSources';
+export { AnalyticsSkeleton } from './ui/AnalyticsSkeleton';

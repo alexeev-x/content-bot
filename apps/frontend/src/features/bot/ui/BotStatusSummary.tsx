@@ -8,19 +8,24 @@ import styles from './BotStatusSummary.module.css';
 
 const copy = botCopy;
 
+/** The panel before its data exists, in the loaded row's shape (badge, state line), without a request. */
+export function BotStatusSkeleton() {
+  return (
+    <Panel title="Связь с ботом">
+      <output className={styles.summary} aria-busy="true" aria-label={copy.loading}>
+        <Skeleton width={96} height="var(--size-target-min)" radius="var(--radius-pill)" />
+        <p className={styles.state}>
+          <Skeleton width={140} height="1lh" />
+        </p>
+      </output>
+    </Panel>
+  );
+}
+
 export function BotStatusSummary() {
   const query = useQuery(botStatusQueryOptions());
 
-  if (query.isPending) {
-    return (
-      <Panel title="Связь с ботом">
-        <output className={styles.loading} aria-busy="true" aria-label={copy.loading}>
-          <Skeleton width={160} height={24} />
-          <Skeleton width={240} height={16} />
-        </output>
-      </Panel>
-    );
-  }
+  if (query.isPending) return <BotStatusSkeleton />;
 
   if (query.isError) {
     const forbidden = query.error instanceof ApiError && query.error.status === 403;

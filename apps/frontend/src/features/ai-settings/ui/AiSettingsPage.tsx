@@ -2,6 +2,7 @@ import type { AiCatalogModelDto, AiOverviewDto, UpdateAiSettingsInput } from '@a
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import { ApiError } from '../../../shared/api/http-client';
+import { useNow } from '../../../shared/lib/use-now';
 import {
   Banner,
   Button,
@@ -15,6 +16,7 @@ import {
   Skeleton,
   StatusPill,
   Switch,
+  VisuallyHidden,
   TextField,
   useToast
 } from '../../../shared/ui';
@@ -28,8 +30,61 @@ export function AiSettingsPage() {
   const overview = useQuery(aiOverviewQueryOptions());
   if (overview.isError && overview.data === undefined)
     return <ErrorState message={copy.loadError} onRetry={() => void overview.refetch()} />;
-  if (overview.data === undefined) return <Skeleton height={420} radius="var(--radius-2)" />;
+  if (overview.data === undefined) return <AiSettingsSkeleton />;
   return <AiSettings overview={overview.data} onReload={() => void overview.refetch()} />;
+}
+
+/** The page before its data exists, no request: the status block, three panels at the height they fill, the two disclosures. Also the route skeleton. */
+export function AiSettingsSkeleton() {
+  const now = useNow();
+  const month = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  return (
+    <div className={styles.page} aria-busy="true">
+      <VisuallyHidden>
+        <output>{copy.loading}</output>
+      </VisuallyHidden>
+      <section className={styles.status} data-tone="muted" aria-hidden="true">
+        <div className={styles.statusHead}>
+          <div className={styles.statusTitle}>
+            <Skeleton width={96} height="1lh" />
+          </div>
+          <div className={styles.statusActions}>
+            <Skeleton width={120} height="var(--size-button)" radius="var(--radius-2)" />
+            <Skeleton width={148} height="var(--size-button)" radius="var(--radius-2)" />
+          </div>
+        </div>
+        <p className={styles.statusText}>
+          <Skeleton width="60%" height="1lh" />
+        </p>
+        <p className={styles.meta}>
+          <Skeleton width="45%" height="1lh" />
+        </p>
+      </section>
+      <Panel title={copy.spendTitle(month)} reserveRows={2.95} reservePhoneRows={3.85}>
+        <div className={styles.spend}>
+          <Skeleton lines={3} height={20} />
+        </div>
+      </Panel>
+      <Panel title={copy.modelsTitle} reserveRows={2.1} reservePhoneRows={4.2}>
+        <div className={styles.models}>
+          <Skeleton lines={2} height={36} />
+        </div>
+      </Panel>
+      <Panel title={copy.budgetTitle} reserveRows={3.6} reservePhoneRows={6}>
+        <div className={styles.budget}>
+          <Skeleton lines={3} height={36} />
+        </div>
+      </Panel>
+      <DisclosureGroup>
+        <Disclosure id="prices" title={copy.pricesTitle('OpenAI', `${month}-01`)}>
+          {null}
+        </Disclosure>
+        <Disclosure id="voice" title={copy.voiceTitle}>
+          {null}
+        </Disclosure>
+      </DisclosureGroup>
+    </div>
+  );
 }
 
 function modelOption(model: AiCatalogModelDto, role: 'draft' | 'cheap') {

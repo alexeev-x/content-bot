@@ -1,8 +1,12 @@
+import { AnalyticsSkeleton, LatestVideoSkeleton, TrendingSummarySkeleton } from '../../features/content-analytics';
 import { DashboardSkeleton } from '../../features/dashboard';
+import { SourcesBoardSkeleton } from '../../features/dota-intelligence';
+import { MediaPageSkeleton } from '../../features/media';
 import { PostsSkeleton } from '../../features/posts';
 import { browserTimeZone, PublicationsSkeleton, utcOffsetLabel } from '../../features/publications';
+import { SettingsSkeleton } from '../../pages/settings/SettingsSkeleton';
 import { ru } from '../../shared/lib/ru';
-import { Panel, PageHeader, Skeleton, VisuallyHidden, useMediaQuery } from '../../shared/ui';
+import { PageHeader, Skeleton, VisuallyHidden } from '../../shared/ui';
 import styles from './RouteSkeleton.module.css';
 
 type Props = {
@@ -14,51 +18,6 @@ type Props = {
 function zoneNote(): string {
   const zone = browserTimeZone();
   return `${zone}, ${utcOffsetLabel(new Date(), zone)}`;
-}
-
-const SETTINGS_ROWS = 3;
-
-/** /settings/*: the section nav beside a panel of rows on wide screens; on a phone the section list or the panel alone. */
-function SettingsSkeleton({ title, atList }: { title: string; atList: boolean }) {
-  const wide = useMediaQuery('(min-width: 860px)');
-  const rows = (count: number) =>
-    Array.from({ length: count }, (_, index) => (
-      <div key={index} className={styles.tallRow}>
-        <Skeleton width={40} height={40} radius="var(--radius-pill)" />
-        <Skeleton width={index % 2 === 0 ? '45%' : '35%'} height="1em" />
-        <Skeleton width={88} height={22} radius="var(--radius-pill)" />
-      </div>
-    ));
-  const list = (
-    <div className={styles.navList} aria-hidden="true">
-      <Skeleton width="100%" height="var(--size-control)" radius="var(--radius-2)" />
-      <Skeleton width="100%" height="var(--size-control)" radius="var(--radius-2)" />
-    </div>
-  );
-  const detail = (
-    <div className={styles.detail} aria-hidden="true">
-      <Skeleton width={140} height={24} />
-      <Panel reserveRows={SETTINGS_ROWS}>{rows(SETTINGS_ROWS)}</Panel>
-    </div>
-  );
-  return (
-    <div aria-busy="true">
-      <VisuallyHidden>
-        <output>{ru.shell.loadingPage}</output>
-      </VisuallyHidden>
-      <PageHeader title={title} />
-      {wide ? (
-        <div className={styles.settings}>
-          {list}
-          {detail}
-        </div>
-      ) : atList ? (
-        list
-      ) : (
-        detail
-      )}
-    </div>
-  );
 }
 
 /**
@@ -78,7 +37,14 @@ export function RouteSkeleton({ pathname, title }: Props) {
             </>
           }
         />
-        <DashboardSkeleton zoneNote={zoneNote()} />
+        <DashboardSkeleton
+          zoneNote={zoneNote()}
+          analytics={{
+            latestYoutube: <LatestVideoSkeleton />,
+            latestTiktok: <LatestVideoSkeleton />,
+            trending: <TrendingSummarySkeleton />
+          }}
+        />
       </>
     );
   }
@@ -94,8 +60,23 @@ export function RouteSkeleton({ pathname, title }: Props) {
       </>
     );
   }
+  if (page === '/analytics') {
+    const tab = new URLSearchParams(window.location.search).get('tab');
+    return (
+      <AnalyticsSkeleton tab={tab === 'items' || tab === 'audience' ? tab : 'overview'} timezone={browserTimeZone()} />
+    );
+  }
+  if (page === '/media') return <MediaPageSkeleton />;
+  if (page === '/sources') {
+    return (
+      <>
+        <PageHeader title={title} />
+        <SourcesBoardSkeleton />
+      </>
+    );
+  }
   if (page === '/settings' || page.startsWith('/settings/')) {
-    return <SettingsSkeleton title={title} atList={page === '/settings'} />;
+    return <SettingsSkeleton pathname={page} />;
   }
   return (
     <div aria-busy="true">

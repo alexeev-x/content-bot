@@ -6,6 +6,7 @@ import { followersStats, percentChange, periodStats, PLATFORMS, splitPeriods } f
 import { PlatformGlyph } from './PlatformGlyph';
 import styles from './Report.module.css';
 import widgets from './Widgets.module.css';
+import { PanelSkeleton } from './PanelSkeleton';
 
 type Row = {
   platform: ContentPlatform;
@@ -122,6 +123,15 @@ export function PlatformComparison({ report }: { report: ContentReportDto | unde
     ],
     []
   );
+  if (report === undefined)
+    return (
+      <PanelSkeleton
+        title="Сравнение платформ"
+        note="Под значением — изменение к прошлому периоду"
+        rows={3.2}
+        phoneRows={17.1}
+      />
+    );
   return (
     <Panel title="Сравнение платформ" headingLevel={2} quiet note="Под значением — изменение к прошлому периоду">
       <div className={styles.tableInset}>

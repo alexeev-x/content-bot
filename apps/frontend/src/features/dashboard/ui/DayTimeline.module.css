@@ -207,9 +207,7 @@
   gap: var(--space-3);
   padding-top: var(--space-2);
 }
-.hintText,
-/* Same height as the hint row, so the widget does not jump between its states. */
-.hintSpacer {
+.hintText {
   display: block;
   min-height: calc(var(--size-control-sm) + var(--space-2));
 }

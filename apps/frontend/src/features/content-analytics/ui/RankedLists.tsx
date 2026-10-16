@@ -6,6 +6,7 @@ import { ItemCover } from './ItemCover';
 import { PlatformGlyph } from './PlatformGlyph';
 import styles from './Report.module.css';
 import widgets from './Widgets.module.css';
+import { PanelSkeleton } from './PanelSkeleton';
 
 export type RankedItem = { item: ContentItemDto; multiple: number };
 
@@ -17,6 +18,15 @@ type Props = {
 
 /** «Лучшие и худшие»: leaders and laggards against their own platform's median, side by side. */
 export function RankedLists({ best, worst, onOpen }: Props) {
+  if (best === undefined && worst === undefined)
+    return (
+      <PanelSkeleton
+        title="Лучшие и худшие"
+        note="Во сколько раз выше или ниже медианы своей платформы"
+        rows={6.1}
+        phoneRows={14.2}
+      />
+    );
   return (
     <Panel title="Лучшие и худшие" headingLevel={2} quiet note="Во сколько раз выше или ниже медианы своей платформы">
       <div className={styles.rankedPair}>

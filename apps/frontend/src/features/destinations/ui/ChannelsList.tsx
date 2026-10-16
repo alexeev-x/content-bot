@@ -1,9 +1,10 @@
 import { useInfiniteQuery } from '@tanstack/react-query';
 import { ApiError } from '../../../shared/api/http-client';
 import { classifyApiError } from '../../../shared/api/error-kind';
-import { Button, EmptyState, ErrorState, Panel, Skeleton } from '../../../shared/ui';
+import { Button, EmptyState, ErrorState, Panel } from '../../../shared/ui';
 import { destinationsInfiniteQueryOptions } from '../api/destinations-queries';
 import { ChannelRow } from './ChannelRow';
+import { ChannelsSkeleton } from './ChannelsSkeleton';
 import { channelsCopy } from './copy';
 import styles from './ChannelsList.module.css';
 
@@ -19,21 +20,7 @@ type Props = {
 export function ChannelsList({ rights, onOpen, onAdd }: Props) {
   const query = useInfiniteQuery(destinationsInfiniteQueryOptions());
 
-  if (query.isPending) {
-    return (
-      <Panel reserveRows={3}>
-        <output className={styles.skeleton} aria-busy="true" aria-label={copy.loading}>
-          {[0, 1, 2].map((key) => (
-            <div key={key} className={styles.skeletonRow}>
-              <Skeleton width={40} height={40} radius="var(--radius-pill)" />
-              <Skeleton lines={2} height={14} />
-              <Skeleton width={88} height={22} radius="var(--radius-pill)" />
-            </div>
-          ))}
-        </output>
-      </Panel>
-    );
-  }
+  if (query.isPending) return <ChannelsSkeleton />;
   if (query.isError) {
     const forbidden = classifyApiError(query.error) === 'forbidden';
     return (

@@ -3,10 +3,12 @@ import { useMemo, useState } from 'react';
 import {
   DataTable,
   EmptyState,
+  MediaSkeleton,
   type DataColumn,
   Pagination,
   Panel,
   SearchField,
+  Skeleton,
   Select,
   type TableSort
 } from '../../../shared/ui';
@@ -95,6 +97,21 @@ export function ItemsTable({
         id: 'item',
         header: copy.table.item,
         isRowHeader: true,
+        skeleton: (
+          <span className={styles.itemCell}>
+            <span className={styles.thumb}>
+              <MediaSkeleton />
+            </span>
+            <span className={styles.cellStack}>
+              <span className={styles.itemTitle}>
+                <Skeleton width="70%" height="1lh" />
+              </span>
+              <span className={styles.cellDelta}>
+                <Skeleton width={72} height="1lh" />
+              </span>
+            </span>
+          </span>
+        ),
         cell: (item) => (
           <span className={styles.itemCell}>
             <ItemThumb item={item} />

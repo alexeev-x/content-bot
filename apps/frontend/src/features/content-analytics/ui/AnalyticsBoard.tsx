@@ -3,21 +3,9 @@ import { useQuery } from '@tanstack/react-query';
 import { useMemo } from 'react';
 import { ApiError } from '../../../shared/api/http-client';
 import { useNow } from '../../../shared/lib/use-now';
-import {
-  Banner,
-  Button,
-  ErrorState,
-  PageHeader,
-  Select,
-  StaleRegion,
-  Tab,
-  TabList,
-  TabPanel,
-  Tabs,
-  type TableSort
-} from '../../../shared/ui';
+import { Banner, Button, ErrorState, StaleRegion, TabPanel, Tabs, type TableSort } from '../../../shared/ui';
 import { contentReportQueryOptions } from '../api/content-analytics-queries';
-import { formatCount, formatDay, formatPublished, PLATFORM_LABEL } from '../model/format';
+import { formatCount, formatDay, formatPublished } from '../model/format';
 import { buildInsights } from '../model/insights';
 import {
   PLATFORMS,
@@ -35,7 +23,7 @@ import {
 import { useSourcesAttention } from './AnalyticsSources';
 import { useLastSyncedText } from './last-synced';
 import { copy } from './copy';
-import { RefreshAnalyticsButton } from './RefreshAnalyticsButton';
+import { AnalyticsHeader } from './AnalyticsHeader';
 import { CompareVideosPanel } from './CompareVideosPanel';
 import { CrossPostedPanel } from './CrossPostedPanel';
 import { DynamicsPanel } from './DynamicsPanel';
@@ -45,7 +33,8 @@ import { GoalsPanel } from './GoalsPanel';
 import { InsightsPanel, type InsightsSummary } from './InsightsPanel';
 import { ItemDrawer } from './ItemDrawer';
 import { ItemsTable } from './ItemsTable';
-import { type Kpi, KpiStrip } from './KpiStrip';
+import type { Kpi } from './KpiStrip';
+import { SummarySection } from './SummarySection';
 import { PerformancePanel } from './PerformancePanel';
 import { PlatformComparison } from './PlatformComparison';
 import { PostingHeatmap } from './PostingHeatmap';
@@ -71,15 +60,6 @@ type Props = {
   onOpenSettings: () => void;
 };
 
-const PERIODS = [
-  { id: '7', label: '7 дней' },
-  { id: '30', label: '30 дней' },
-  { id: '90', label: '90 дней' }
-] as const;
-const PLATFORM_FILTERS = [
-  { id: 'all', label: copy.table.all },
-  ...PLATFORMS.map((platform) => ({ id: platform, label: PLATFORM_LABEL[platform] }))
-];
 const RANKED_LIMIT = 5;
 
 /**
@@ -248,39 +228,12 @@ export function AnalyticsBoard({ timezone, view, onViewChange, onOpenSettings }:
       {report?.truncated ? <p className={styles.note}>{copy.truncated}</p> : null}
       <StaleRegion busy={reportQuery.isPlaceholderData}>
         <Tabs selectedKey={view.tab} onSelectionChange={(key) => onViewChange({ tab: key as AnalyticsTab })}>
-          <PageHeader
-            title={copy.title}
-            description={lastSynced ?? 'Telegram, YouTube и TikTok в одном месте'}
-            focusHeadingOnMount
-            wideActions
-            actions={
-              <div className={styles.toolbar}>
-                <TabList aria-label="Разделы аналитики">
-                  <Tab id="overview">Обзор</Tab>
-                  <Tab id="items">Публикации</Tab>
-                  <Tab id="audience">Аудитория</Tab>
-                </TabList>
-                <div className={styles.toolbarFilters}>
-                  <Select
-                    label={copy.filters.period}
-                    inlineLabel
-                    options={PERIODS}
-                    value={String(days)}
-                    onChange={(id) => onViewChange({ days: Number(id) as ContentReportPeriod, page: 1 })}
-                  />
-                  <Select
-                    label={copy.filters.platform}
-                    inlineLabel
-                    options={PLATFORM_FILTERS}
-                    value={platform ?? 'all'}
-                    onChange={(id) =>
-                      onViewChange({ platform: id === 'all' ? undefined : (id as ContentPlatform), page: 1 })
-                    }
-                  />
-                  <RefreshAnalyticsButton />
-                </div>
-              </div>
-            }
+          <AnalyticsHeader
+            description={lastSynced ?? copy.subtitle}
+            days={days}
+            platform={platform}
+            onDaysChange={(next) => onViewChange({ days: next, page: 1 })}
+            onPlatformChange={(next) => onViewChange({ platform: next, page: 1 })}
           />
           {attention ? (
             <Banner
@@ -295,17 +248,7 @@ export function AnalyticsBoard({ timezone, view, onViewChange, onOpenSettings }:
           ) : null}
           <TabPanel id="overview">
             <div className={styles.sections}>
-              <section className={styles.summary} aria-labelledby="summary-title">
-                <h2 id="summary-title" className={styles.summaryTitle}>
-                  Сводка за {days} дней
-                  {report ? (
-                    <span>
-                      {formatDay(report.from.slice(0, 10))} — {formatDay(report.to.slice(0, 10))}
-                    </span>
-                  ) : null}
-                </h2>
-                <KpiStrip kpis={derived?.kpis} days={days} />
-              </section>
+              <SummarySection days={days} {...(report ? { range: report } : {})} kpis={derived?.kpis} />
               <InsightsPanel insights={derived?.insights} summary={derived?.summary} days={days} onOpenItem={open} />
               <TrendingPanel
                 items={derived?.current}

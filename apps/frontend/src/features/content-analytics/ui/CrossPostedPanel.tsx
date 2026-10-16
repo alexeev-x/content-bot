@@ -7,6 +7,7 @@ import { crossPosted } from '../model/report';
 import { ItemCover } from './ItemCover';
 import { PlatformLogo } from './PlatformLogo';
 import styles from './Audience.module.css';
+import { PanelSkeleton } from './PanelSkeleton';
 
 type Props = {
   items: readonly ContentItemDto[] | undefined;
@@ -20,6 +21,15 @@ type Props = {
  */
 export function CrossPostedPanel({ items, now, onOpen }: Props) {
   const groups = crossPosted(items ?? []);
+  if (items === undefined)
+    return (
+      <PanelSkeleton
+        title="Один ролик на платформах"
+        note="Совпадает название, вышли в пределах 4 дней"
+        rows={6.4}
+        phoneRows={13}
+      />
+    );
   if (groups.length === 0) return null;
   return (
     <Panel title="Один ролик на платформах" headingLevel={2} quiet note="Совпадает название, вышли в пределах 4 дней">

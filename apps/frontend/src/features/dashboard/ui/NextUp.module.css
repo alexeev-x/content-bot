@@ -69,3 +69,31 @@
   font-size: var(--font-size-lg);
   font-weight: var(--font-weight-medium);
 }
+
+.heroLoading {
+  cursor: default;
+  animation: heroPulse 1.8s ease-in-out infinite;
+}
+.heroLoading:hover {
+  border-color: var(--color-border-subtle);
+}
+.heroHold {
+  display: grid;
+  gap: var(--space-2);
+  width: 100%;
+  visibility: hidden;
+}
+@keyframes heroPulse {
+  0%,
+  100% {
+    opacity: 0.6;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .heroLoading {
+    animation: none;
+  }
+}

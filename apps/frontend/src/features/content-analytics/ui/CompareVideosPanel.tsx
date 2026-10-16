@@ -20,6 +20,7 @@ import { usualAt } from '../model/status';
 import { ItemCover } from './ItemCover';
 import { PlatformGlyph } from './PlatformGlyph';
 import styles from './Compare.module.css';
+import { PanelSkeleton } from './PanelSkeleton';
 
 const COLORS = ['var(--color-accent)', 'var(--color-series-2)', 'var(--color-series-3)', 'var(--color-series-4)'];
 const MAX = 4;
@@ -176,6 +177,15 @@ export function CompareVideosPanel({ items, tracked, baselines, timezone, onOpen
           ]
         : [];
 
+  if (items === undefined)
+    return (
+      <PanelSkeleton
+        title="Сравнение роликов"
+        note="На одинаковом возрасте после публикации"
+        rows={10.5}
+        phoneRows={22.4}
+      />
+    );
   return (
     <Panel
       title="Сравнение роликов"

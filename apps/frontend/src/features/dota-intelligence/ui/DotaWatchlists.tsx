@@ -27,6 +27,19 @@ function mutationError(error: unknown): string {
   return 'Изменение не подтверждено сервером. Список сохранён.';
 }
 
+const WATCHLISTS_TITLE = 'Уведомлять, если в патче изменили';
+
+/** The panel before its data exists and without a request, for the route skeleton. */
+export function DotaWatchlistsSkeleton() {
+  return (
+    <Panel title={WATCHLISTS_TITLE} reserveRows={2}>
+      <div className={styles.loading} aria-busy="true">
+        <Skeleton height={36} />
+      </div>
+    </Panel>
+  );
+}
+
 /** Settings → Общие: who the owner is told about when a patch changes them. Adding happens in the patch breakdown. */
 export function DotaWatchlists() {
   const query = useDotaWatchlists();
@@ -35,7 +48,7 @@ export function DotaWatchlists() {
   const watches: DotaWatchlistDto[] = query.data?.watches ?? [];
 
   return (
-    <Panel title="Уведомлять, если в патче изменили">
+    <Panel title={WATCHLISTS_TITLE} {...(query.isPending ? { reserveRows: 2 } : {})}>
       {query.isPending ? (
         <div className={styles.loading} aria-busy="true">
           <Skeleton height={36} />

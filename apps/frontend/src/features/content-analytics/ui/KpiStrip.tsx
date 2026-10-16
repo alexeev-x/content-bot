@@ -30,9 +30,23 @@ export function KpiStrip({ kpis, days }: Props) {
       <ul className={styles.kpis} aria-hidden="true">
         {[0, 1, 2, 3, 4].map((key) => (
           <li key={key} className={styles.kpi}>
-            <Skeleton width="50%" height={12} />
-            <Skeleton width="70%" height={28} />
-            <Skeleton width="60%" height={12} />
+            <span className={styles.head}>
+              <span className={styles.label}>
+                <Skeleton width={80} height="1lh" />
+              </span>
+              <span className={styles.icon} />
+            </span>
+            <span className={styles.value}>
+              <Skeleton width="55%" height="1lh" />
+            </span>
+            <span className={styles.change}>
+              <span className={styles.changeSkeleton}>
+                <Skeleton width="85%" height="100%" />
+              </span>
+            </span>
+            <span className={styles.chart}>
+              <Skeleton height={32} />
+            </span>
           </li>
         ))}
       </ul>

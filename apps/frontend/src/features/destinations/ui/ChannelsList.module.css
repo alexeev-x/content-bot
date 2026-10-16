@@ -14,19 +14,3 @@
 .more p {
   margin: 0;
 }
-.skeleton {
-  display: flex;
-  flex-direction: column;
-}
-.skeletonRow {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
-  align-items: center;
-  gap: var(--space-4);
-  min-height: 72px;
-  padding: var(--space-3) var(--space-4);
-  border-bottom: 1px solid var(--color-border-subtle);
-}
-.skeletonRow:last-child {
-  border-bottom: 0;
-}

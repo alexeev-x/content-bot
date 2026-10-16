@@ -3,7 +3,7 @@ import { useQueries } from '@tanstack/react-query';
 import { Button as AriaButton } from 'react-aria-components';
 import { relativeTimeRu } from '../../../shared/lib/ru-format';
 import { useState } from 'react';
-import { AreaChart, Icon, Panel, SegmentedControl, Skeleton } from '../../../shared/ui';
+import { AreaChart, Icon, MediaSkeleton, Panel, SegmentedControl, Skeleton } from '../../../shared/ui';
 import { PLATFORMS } from '../model/report';
 import { contentItemQueryOptions } from '../api/content-analytics-queries';
 import { ageCurve, formatAge } from '../model/curves';
@@ -31,6 +31,41 @@ type Props = {
 };
 
 const ORDER: Record<ItemVerdict['status'], number> = { rising: 0, normal: 1, collecting: 2, below: 3 };
+
+/** The rows of the list as they will look: the same row grid, so the data replaces them in place. */
+export function TrendingRowsSkeleton({ count }: { count: number }) {
+  return (
+    <ul className={`${styles.rows} ${styles.trendList}`} aria-hidden="true">
+      {Array.from({ length: count }, (_, index) => (
+        <li key={index}>
+          <div className={styles.trendRow}>
+            <span className={styles.cover}>
+              <MediaSkeleton />
+            </span>
+            <span className={styles.text}>
+              <span className={styles.trendTitle}>
+                <Skeleton width="55%" height="1lh" />
+              </span>
+              <span className={styles.meta}>
+                <Skeleton width="30%" height="1lh" />
+              </span>
+            </span>
+            <span className={styles.trendViews}>
+              <Skeleton width={56} height="1lh" />
+            </span>
+            <span className={styles.trendStatus}>
+              <Skeleton width={110} height={26} />
+              <Skeleton width={190} height="1lh" />
+            </span>
+            <span className={styles.trendSpark}>
+              <Skeleton width="100%" height={28} />
+            </span>
+          </div>
+        </li>
+      ))}
+    </ul>
+  );
+}
 
 /** «Что залетает сейчас»: the newest publications (first 72 hours) against the usual at the same age. */
 export function TrendingPanel({
@@ -60,7 +95,7 @@ export function TrendingPanel({
   const content = (
     <div className={styles.body}>
       {items === undefined ? (
-        <Skeleton lines={3} height={48} />
+        <TrendingRowsSkeleton count={limit} />
       ) : young.length === 0 ? (
         <p className={styles.muted}>За последние 72 часа публикаций нет.</p>
       ) : (

@@ -5,6 +5,7 @@ import { formatCount, PLATFORM_LABEL } from '../model/format';
 import { HEAT_BLOCKS, PLATFORMS, postingHeatmap } from '../model/report';
 import styles from './Report.module.css';
 import widgets from './Widgets.module.css';
+import { PanelSkeleton } from './PanelSkeleton';
 
 const WEEKDAYS = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
 const WEEKDAYS_FULL = ['понедельник', 'вторник', 'среда', 'четверг', 'пятница', 'суббота', 'воскресенье'];
@@ -35,6 +36,15 @@ export function PostingHeatmap({ items, platform, timezone }: Props) {
     .filter((cell) => cell.items >= MIN_ITEMS && cell.multiple !== null && cell.multiple >= 1.1)
     .sort((a, b) => (b.multiple ?? 0) - (a.multiple ?? 0))[0];
 
+  if (items === undefined)
+    return (
+      <PanelSkeleton
+        title="Когда публиковать"
+        note={`Медиана просмотров к обычной, ${timezone}`}
+        rows={7.7}
+        phoneRows={15.5}
+      />
+    );
   return (
     <Panel
       title="Когда публиковать"

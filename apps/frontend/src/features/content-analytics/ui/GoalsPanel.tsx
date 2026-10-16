@@ -15,6 +15,7 @@ import { formatCount, formatDay, formatDelta, PLATFORM_LABEL } from '../model/fo
 import { followersStats, PLATFORMS } from '../model/report';
 import { PlatformLogo } from './PlatformLogo';
 import styles from './Goals.module.css';
+import { PanelSkeleton } from './PanelSkeleton';
 
 type Props = { report: ContentReportDto | undefined; platform: ContentPlatform | undefined };
 
@@ -30,6 +31,13 @@ const formSchema = z.object({
 });
 type FormInput = z.input<typeof formSchema>;
 type FormOutput = z.output<typeof formSchema>;
+
+/** The same panel before its goals exist and without a request, for the route skeleton. */
+export function GoalsPanelSkeleton() {
+  return (
+    <PanelSkeleton title="Цели" note="Темп за последние 4 недели и дата при таком темпе" rows={3.7} phoneRows={4.5} />
+  );
+}
 
 /** «Цели»: a follower target per platform with progress, the pace of the last four weeks and the forecast. */
 export function GoalsPanel({ report, platform }: Props) {
@@ -47,7 +55,13 @@ export function GoalsPanel({ report, platform }: Props) {
         goals.some((goal) => goal.platform === each))
   );
   return (
-    <Panel title="Цели" headingLevel={2} quiet note="Темп за последние 4 недели и дата при таком темпе">
+    <Panel
+      title="Цели"
+      headingLevel={2}
+      quiet
+      note="Темп за последние 4 недели и дата при таком темпе"
+      {...(goalsQuery.isPending ? { reserveRows: 3.7, reservePhoneRows: 4.5 } : {})}
+    >
       {goalsQuery.isPending ? (
         <Skeleton lines={3} />
       ) : goalsQuery.isError ? (

@@ -34,12 +34,16 @@ const MODE_OPTIONS = [
 ] as const;
 const isMode = (id: string): id is ThemeMode => id === 'light' || id === 'dark' || id === 'system';
 
-function Loading() {
+/** The theme panel with its real title and the height its controls fill, no request: also the route skeleton. */
+export function AppearanceSkeleton() {
   return (
     <div aria-busy="true" className={styles.grid}>
       <VisuallyHidden>{ru.ui.loading}</VisuallyHidden>
-      <Skeleton height={150} radius="var(--radius-2)" />
-      <Skeleton height={230} radius="var(--radius-2)" />
+      <Panel title={ru.appearance.themeTitle} note={ru.appearance.themeNote} reserveRows={7.25} reservePhoneRows={14}>
+        <div className={styles.body}>
+          <Skeleton lines={3} height={20} />
+        </div>
+      </Panel>
     </div>
   );
 }
@@ -59,7 +63,7 @@ export function AppearanceEditor({ preview }: Props) {
   }, [toast]);
   const { choose, chooseSoon } = useAppearanceSaver({ preview, onFailure });
 
-  if (query.isPending) return <Loading />;
+  if (query.isPending) return <AppearanceSkeleton />;
   if (query.isError || !query.data) {
     const error = query.error;
     return (

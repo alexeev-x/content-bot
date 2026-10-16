@@ -33,6 +33,8 @@ export type DataColumn<T> = {
   width?: number | string;
   /** `density="compact"` on narrow screens: `trailing` puts the cell (a status) at the right of the title; the other columns form one meta line. */
   compactSlot?: 'trailing';
+  /** Placeholder of this cell while loading, when the cell is taller than a line of text (a thumbnail with two lines). Used by the card title on narrow screens. */
+  skeleton?: ReactNode;
 };
 
 export type RowSelection = 'all' | ReadonlySet<string>;
@@ -249,10 +251,29 @@ function CardList<T>({
       ) : null}
       {isLoading ? (
         <ul className={styles.list} aria-label={rest['aria-label']}>
-          {Array.from({ length: Math.min(loadingCount ?? SKELETON_CARDS, SKELETON_CARDS) }, (_, index) => (
+          {Array.from({ length: loadingCount ?? SKELETON_CARDS }, (_, index) => (
             <li key={index} className={styles.card}>
-              <Skeleton height={18} width="60%" />
-              {compact ? <Skeleton height={14} width="40%" /> : <Skeleton lines={2} height={14} />}
+              <div className={styles.cardHead}>
+                <div className={styles.cardTitle}>
+                  {/* An actionable title is a button with a minimum target height; a plain one is a line of text. */}
+                  {titleColumn?.skeleton ?? (
+                    <Skeleton
+                      height={onRowAction ? (compact ? 'var(--size-target-min)' : 'var(--size-target)') : '1lh'}
+                      width="60%"
+                    />
+                  )}
+                </div>
+                {trailingColumn ? <Skeleton height={22} width={88} radius="var(--radius-pill)" /> : null}
+              </div>
+              {/* The same label: value lines the data card has, so the list keeps its height. */}
+              <dl className={styles.details}>
+                {detailColumns.map((column) => (
+                  <div key={column.id} className={styles.detail}>
+                    <Skeleton height="1lh" width="30%" />
+                    <Skeleton height="1lh" width="20%" />
+                  </div>
+                ))}
+              </dl>
             </li>
           ))}
         </ul>
