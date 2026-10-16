@@ -39,6 +39,8 @@ export {
   type WriterResult
 } from './writer';
 export { describeCheck } from './writer-checks';
+export { createD1ScriptLinksRepository, type ScriptLinksRepository } from './d1-script-links-repository';
+export { type LinkedVideo, linkItemScript, readItemScript, unlinkItemScript } from './script-links';
 export { FORMAT_LABEL, WRITER_FORMATS, type WriterFormat } from './writer-types';
 export { authorStateText, rankLabel, readAuthorProfile, saveAuthorDota, updateAuthorProfile } from './author-profile';
 export { type AuthorProfileRepository, createD1AuthorProfileRepository } from './d1-author-repository';

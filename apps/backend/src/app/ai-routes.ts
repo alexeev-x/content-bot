@@ -2,22 +2,30 @@ import {
   aiAuthorProfileSchema,
   aiDotaSnapshotInputSchema,
   aiDraftResultSchema,
+  aiItemScriptSchema,
   aiOverviewSchema,
+  contentItemIdSchema,
   createAiDraftInputSchema,
+  linkAiScriptInputSchema,
   updateAiAuthorProfileInputSchema,
   updateAiSettingsInputSchema
 } from '@alexeev/contracts';
 import { type Context, Hono } from 'hono';
+import { z } from 'zod';
 import {
   type BudgetEvent,
   checkAiConnection,
   generateDraft,
+  linkItemScript,
   readAiOverview,
   readAuthorProfile,
+  readItemScript,
   saveAuthorDota,
+  unlinkItemScript,
   updateAiSettings,
   updateAuthorProfile
 } from '../modules/ai';
+import { readContentItem } from '../modules/content-analytics';
 import { getOwnerOperationsSettings } from '../modules/settings';
 import { appOriginOf } from './bot/app-origin';
 import type { AppBindings } from './env';
@@ -38,6 +46,8 @@ const DRAFT_TIMEOUT_MS = 60_000;
 /** The studio sends a read when the last one is a day old: a handful per window is plenty. */
 const DOTA_LIMIT = 10;
 const DOTA_WINDOW_MS = 10 * 60 * 1000;
+
+const scriptParamsSchema = z.strictObject({ itemId: contentItemIdSchema });
 
 async function deps(c: Context<AppBindings>) {
   const container = c.get('container');
@@ -144,4 +154,32 @@ export const aiRoutes = new Hono<AppBindings>()
       await saveAuthorDota({ repo: container.aiProfiles, clock: container.clock }, c.req.valid('json'));
       return c.json(aiAuthorProfileSchema.parse(await readAuthorProfile(container.aiProfiles)));
     }
-  );
+  )
+  .get('/scripts/:itemId', validated('param', scriptParamsSchema), async (c) => {
+    const { links, video } = await scriptDeps(c, c.req.valid('param').itemId);
+    return c.json(aiItemScriptSchema.parse(await readItemScript(links, video)));
+  })
+  .put(
+    '/scripts/:itemId',
+    limitBody(MAX_BODY_BYTES),
+    validated('param', scriptParamsSchema),
+    validated('json', linkAiScriptInputSchema),
+    async (c) => {
+      const { links, video } = await scriptDeps(c, c.req.valid('param').itemId);
+      return c.json(aiItemScriptSchema.parse(await linkItemScript(links, video, c.req.valid('json').revisionId)));
+    }
+  )
+  .delete('/scripts/:itemId', validated('param', scriptParamsSchema), async (c) => {
+    const { links, video } = await scriptDeps(c, c.req.valid('param').itemId);
+    return c.json(aiItemScriptSchema.parse(await unlinkItemScript(links, video)));
+  });
+
+/** The video from the analytics module (NOT_FOUND when it is not collected) and the links store. */
+async function scriptDeps(c: Context<AppBindings>, itemId: string) {
+  const container = c.get('container');
+  const { item } = await readContentItem({ repo: container.contentAnalytics, clock: container.clock }, itemId);
+  return {
+    links: { links: container.aiScriptLinks, clock: container.clock },
+    video: { id: item.id, platform: item.platform, title: item.title, publishedAt: Date.parse(item.publishedAt) }
+  };
+}

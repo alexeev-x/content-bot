@@ -1,4 +1,5 @@
 import {
+  aiItemScriptSchema,
   contentAnalyticsOverviewSchema,
   contentGoalsSchema,
   contentItemDetailSchema,
@@ -33,6 +34,21 @@ export function getContentItems(
 
 export function getContentItem(id: string, signal?: AbortSignal) {
   return apiRequest(`/api/v1/content-analytics/items/${encodeURIComponent(id)}`, contentItemDetailSchema, { signal });
+}
+
+const scriptPath = (itemId: string) => `/api/v1/ai/scripts/${encodeURIComponent(itemId)}`;
+
+/** The approved AI script a video is linked to, or the candidates to confirm. */
+export function getItemScript(itemId: string, signal?: AbortSignal) {
+  return apiRequest(scriptPath(itemId), aiItemScriptSchema, { signal });
+}
+
+export function linkItemScript(itemId: string, revisionId: string) {
+  return apiRequest(scriptPath(itemId), aiItemScriptSchema, { method: 'PUT', body: { revisionId } });
+}
+
+export function unlinkItemScript(itemId: string) {
+  return apiRequest(scriptPath(itemId), aiItemScriptSchema, { method: 'DELETE' });
 }
 
 export function getContentReport(days: ContentReportPeriod, signal?: AbortSignal) {

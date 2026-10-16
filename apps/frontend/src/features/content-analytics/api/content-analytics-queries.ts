@@ -9,7 +9,10 @@ import {
   getContentItems,
   getContentOverview,
   getContentReport,
+  getItemScript,
+  linkItemScript,
   removeContentGoal,
+  unlinkItemScript,
   setContentGoal,
   syncContent
 } from './content-analytics-api';
@@ -20,8 +23,28 @@ export const contentAnalyticsKeys = {
   items: (platform: ContentPlatform | undefined) => [...contentAnalyticsKeys.all, 'items', platform ?? 'all'] as const,
   item: (id: string) => [...contentAnalyticsKeys.all, 'item', id] as const,
   report: (days: ContentReportPeriod) => [...contentAnalyticsKeys.all, 'report', days] as const,
-  goals: () => [...contentAnalyticsKeys.all, 'goals'] as const
+  goals: () => [...contentAnalyticsKeys.all, 'goals'] as const,
+  script: (id: string) => [...contentAnalyticsKeys.all, 'script', id] as const
 };
+
+export function itemScriptQueryOptions(itemId: string) {
+  return queryOptions({
+    queryKey: contentAnalyticsKeys.script(itemId),
+    queryFn: ({ signal }) => getItemScript(itemId, signal),
+    staleTime: 60_000
+  });
+}
+
+/** Confirms (revisionId) or removes (null) the script of a video; the answer replaces the cached one. */
+export function useLinkItemScript(itemId: string) {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (revisionId: string | null) =>
+      revisionId === null ? unlinkItemScript(itemId) : linkItemScript(itemId, revisionId),
+    retry: false,
+    onSuccess: (script) => client.setQueryData(contentAnalyticsKeys.script(itemId), script)
+  });
+}
 
 export function contentGoalsQueryOptions() {
   return queryOptions({

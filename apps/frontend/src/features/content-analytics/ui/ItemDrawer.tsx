@@ -34,6 +34,7 @@ import { RefreshAnalyticsButton } from './RefreshAnalyticsButton';
 import { copy } from './copy';
 import styles from './Drawer.module.css';
 import { ItemCover } from './ItemCover';
+import { ItemScript } from './ItemScript';
 import { PlatformGlyph } from './PlatformGlyph';
 import { StatusChip } from './StatusChip';
 
@@ -355,6 +356,8 @@ function DrawerBody({
                 </div>
               </div>
             </section>
+
+            {item.platform !== 'telegram' ? <ItemScript item={item} timezone={timezone} /> : null}
           </div>
         </TabPanel>
 

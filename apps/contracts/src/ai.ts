@@ -187,6 +187,33 @@ export const aiDraftResultSchema = z.object({
 });
 export type AiDraftResultDto = z.infer<typeof aiDraftResultSchema>;
 
+/** An approved Reels script of the AI editor (architecture item 3): what a published video can be linked to. */
+export const aiReelsScriptSchema = z.object({
+  revisionId: z.uuid(),
+  format: z.enum(['fidit', 'igrat', 'standalone']),
+  /** The start of the approved text, at most 200 characters. */
+  excerpt: z.string().max(200),
+  approvedAt: z.iso.datetime()
+});
+export type AiReelsScriptDto = z.infer<typeof aiReelsScriptSchema>;
+
+// GET /api/v1/ai/scripts/{itemId} → 200 AiItemScriptDto: the script a YouTube or TikTok video is linked to,
+// or up to 3 candidates (approved Reels scripts approved in the 14 days before the video, closest title first).
+// A Telegram post has no candidates (its link is the post itself, PostDto.origin).
+// PUT /api/v1/ai/scripts/{itemId} { revisionId } → 200 AiItemScriptDto: the owner confirms the link; repeating
+// it or choosing another script replaces it (one script per video; one script may serve several videos).
+// DELETE /api/v1/ai/scripts/{itemId} → 200 AiItemScriptDto with `linked: null`; repeating it is a no-op.
+// Errors: VALIDATION_ERROR 400 (bad id; PUT on a Telegram post, details.reason NOT_A_VIDEO), NOT_FOUND 404
+// (no such video or approved Reels script), UNAUTHORIZED 401, FORBIDDEN 403.
+export const aiItemScriptSchema = z.object({
+  linked: aiReelsScriptSchema.nullable(),
+  candidates: z.array(aiReelsScriptSchema).max(3)
+});
+export type AiItemScriptDto = z.infer<typeof aiItemScriptSchema>;
+
+export const linkAiScriptInputSchema = z.strictObject({ revisionId: z.uuid() });
+export type LinkAiScriptInput = z.infer<typeof linkAiScriptInputSchema>;
+
 /** What the owner tells the editor about themselves («ИИ-редактор → Обо мне»); sent with every request. */
 export const aiAuthorFieldsSchema = z.strictObject({
   /** Dota Friend ID (Steam account id), for the daily read of rank and heroes from OpenDota. */
