@@ -7,7 +7,7 @@ import {
   runAutomationNowResponseSchema
 } from '@alexeev/contracts';
 import { beforeEach, describe, expect, it } from 'vitest';
-import { createD1AutomationRepository } from '../../src/modules/automations';
+import { AUTOMATION_HISTORY_PURGE_SQL, createD1AutomationRepository } from '../../src/modules/automations';
 import { seedDueJob } from '../helpers/dispatch';
 import { testDb } from '../helpers/db';
 import { createApi, fakeClock, OWNER_TOKEN, resetDb, seedSession, START } from '../helpers/harness';
@@ -15,6 +15,51 @@ import { createApi, fakeClock, OWNER_TOKEN, resetDb, seedSession, START } from '
 beforeEach(async () => {
   await resetDb();
   await seedSession({ token: OWNER_TOKEN, expiresAt: START + 86_400_000 });
+});
+
+describe('automation history retention', () => {
+  beforeEach(async () => {
+    await resetDb();
+  });
+
+  it('keeps the newest 100 finished runs, deletes the oldest and never a running one', async () => {
+    const db = testDb();
+    const id = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`;
+    const finished = Array.from({ length: 130 }, (_, n) =>
+      db
+        .prepare(
+          `INSERT INTO automation_runs (id, automation_id, origin, status, requested_at, started_at, completed_at)
+           VALUES (?, 'dota-intelligence', 'manual', 'succeeded', ?, ?, ?)`
+        )
+        .bind(id(n), START + n, START + n, START + n)
+    );
+    const running = db
+      .prepare(
+        `INSERT INTO automation_runs (id, automation_id, origin, status, requested_at, started_at, lease_until)
+         VALUES (?, 'dota-intelligence', 'manual', 'running', ?, ?, ?)`
+      )
+      .bind(id(999), START, START, START + 60_000);
+    await db.batch([...finished, running]);
+
+    const repo = createD1AutomationRepository(db);
+    expect(await repo.purgeHistory(START + 1_000)).toBe(30);
+    const left = await db
+      .prepare('SELECT id, status FROM automation_runs ORDER BY requested_at, id')
+      .all<{ id: string; status: string }>();
+    // The 30 oldest finished runs are gone; the 100 newest and the running one stay.
+    expect(left.results.filter((row) => row.status === 'succeeded').map((row) => row.id)).toEqual(
+      Array.from({ length: 100 }, (_, n) => id(n + 30))
+    );
+    expect(left.results.some((row) => row.id === id(999))).toBe(true);
+    expect(await repo.purgeHistory(START + 1_000)).toBe(0);
+
+    // One pass over the table, not a recount of it per row (that read ~11 500 rows a run on DEV, 16.10.2026).
+    const plan = await db
+      .prepare(`EXPLAIN QUERY PLAN ${AUTOMATION_HISTORY_PURGE_SQL}`)
+      .bind(100, START)
+      .all<{ detail: string }>();
+    expect(plan.results.map((row) => row.detail).join(' | ')).not.toMatch(/CORRELATED/);
+  });
 });
 
 describe('Automation Center API', () => {

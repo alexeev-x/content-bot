@@ -102,22 +102,23 @@ function scheduleAt(now: number): number {
   return Math.ceil(now / (5 * 60_000)) * 5 * 60_000;
 }
 
+/**
+ * Finished runs past the newest `?1` of each automation, oldest first, at most 100 a call. One window pass over the
+ * table: the earlier correlated count recounted the table for every row and read ~11 500 rows a run on DEV,
+ * half of the D1 free daily read limit (16.10.2026).
+ */
+export const AUTOMATION_HISTORY_PURGE_SQL = `DELETE FROM automation_runs WHERE id IN (
+  SELECT id FROM (
+    SELECT id, completed_at,
+      ROW_NUMBER() OVER (PARTITION BY automation_id ORDER BY completed_at DESC, id DESC) AS newer_count
+    FROM automation_runs WHERE completed_at IS NOT NULL
+  )
+  WHERE newer_count > ?1 AND completed_at <= ?2
+  ORDER BY completed_at LIMIT 100
+)`;
+
 async function purgeAutomationHistory(db: D1Database, now: number, limit = HISTORY_LIMIT): Promise<number> {
-  const result = await db
-    .prepare(
-      `DELETE FROM automation_runs WHERE id IN (
-        SELECT older.id FROM automation_runs older
-        WHERE older.completed_at IS NOT NULL AND older.completed_at <= ?2
-          AND (SELECT count(*) FROM automation_runs newer
-               WHERE newer.automation_id = older.automation_id
-                 AND newer.completed_at IS NOT NULL
-                 AND (newer.completed_at > older.completed_at OR
-                   (newer.completed_at = older.completed_at AND newer.id >= older.id))) > ?1
-        ORDER BY older.completed_at LIMIT 100
-      )`
-    )
-    .bind(limit, now)
-    .run();
+  const result = await db.prepare(AUTOMATION_HISTORY_PURGE_SQL).bind(limit, now).run();
   return result.meta.changes;
 }
 
