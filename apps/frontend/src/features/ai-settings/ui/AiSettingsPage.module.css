@@ -3,75 +3,179 @@
   gap: var(--space-4);
 }
 
-.body {
+/* The one bold element: the state and the next step, with a status-coloured edge. */
+.status {
   display: grid;
-  gap: var(--space-3);
+  gap: var(--space-2);
   padding: var(--space-4);
+  border: 1px solid var(--color-border-subtle);
+  border-inline-start: 3px solid var(--color-status-pending-fg);
+  border-radius: var(--radius-2);
+  background: var(--color-surface-1);
 }
 
-.grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: var(--space-3);
-  padding: var(--space-4);
+.status[data-tone='done'] {
+  border-inline-start-color: var(--color-status-done-fg);
 }
 
-.row,
-.actions {
+.status[data-tone='failed'] {
+  border-inline-start-color: var(--color-status-failed-fg);
+}
+
+.status[data-tone='unknown'],
+.status[data-tone='retry'] {
+  border-inline-start-color: var(--color-status-unknown-fg);
+}
+
+.status[data-tone='muted'] {
+  border-inline-start-color: var(--color-border-strong);
+}
+
+.statusHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.statusTitle {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.statusTitle h2 {
+  margin: 0;
+  font-size: var(--font-size-lg);
+}
+
+.statusActions {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: var(--space-3);
 }
 
-.actions {
-  justify-content: flex-end;
+.statusText {
+  margin: 0;
+  max-inline-size: 70ch;
 }
 
-.priceRow {
+.steps {
   display: grid;
-  grid-template-columns: 2fr repeat(3, 1fr) auto;
-  align-items: end;
-  gap: var(--space-2);
+  gap: var(--space-1);
+  margin: 0;
+  padding-inline-start: var(--space-5);
+  max-inline-size: 75ch;
 }
 
-@media (max-width: 640px) {
-  .priceRow {
-    grid-template-columns: 1fr 1fr;
-  }
-}
-
-.note {
+.meta {
   margin: 0;
   color: var(--color-text-muted);
   font-size: var(--font-size-sm);
 }
 
-.error {
-  color: var(--color-status-failed-fg);
-  font-size: var(--font-size-sm);
+.spend,
+.budget {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-4);
 }
 
-.stats {
+.spendMain {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.spendValue {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.spendValue strong {
+  color: var(--color-text);
+  font-size: var(--font-size-xl);
+}
+
+.facts {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: var(--space-3);
   margin: 0;
 }
 
-.stats dt {
+.facts dt {
   color: var(--color-text-muted);
   font-size: var(--font-size-xs);
 }
 
-.stats dd {
+.facts dd {
   margin: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.models {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: var(--space-4);
+  padding: var(--space-4);
+}
+
+.custom {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: var(--space-2);
+}
+
+.prices {
+  inline-size: 100%;
+  border-collapse: collapse;
+  font-size: var(--font-size-sm);
+  font-variant-numeric: tabular-nums;
+}
+
+.prices th,
+.prices td {
+  padding: var(--space-1) var(--space-2);
+  border-block-end: 1px solid var(--color-border-subtle);
+  text-align: end;
+}
+
+.prices th[scope='row'],
+.prices thead th:first-child {
+  text-align: start;
   font-weight: var(--font-weight-medium);
 }
 
-.kinds {
-  margin: 0;
-  padding-inline-start: var(--space-4);
-  color: var(--color-text-muted);
+@media (max-width: 480px) {
+  .facts {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.budgetRow {
+  display: grid;
+  grid-template-columns: 180px minmax(0, 1fr);
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.budgetLabel {
+  color: var(--color-text);
   font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+}
+
+@media (max-width: 640px) {
+  .budgetRow {
+    grid-template-columns: 1fr;
+    gap: var(--space-1);
+  }
 }

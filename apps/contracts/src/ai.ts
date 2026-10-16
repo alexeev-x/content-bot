@@ -23,6 +23,32 @@ export const aiModelPriceSchema = z.object({
 });
 export type AiModelPriceDto = z.infer<typeof aiModelPriceSchema>;
 
+export const aiCatalogModelSchema = z.object({
+  id: aiModelIdSchema,
+  label: z.string().min(1).max(60),
+  /** One line in the owner's words: what it is good for and how it compares. */
+  note: z.string().max(200),
+  roles: z
+    .array(z.enum(['draft', 'cheap']))
+    .min(1)
+    .max(2),
+  recommendedFor: z.enum(['draft', 'cheap']).nullable(),
+  inputPerMillion: usd,
+  cachedInputPerMillion: usd,
+  outputPerMillion: usd
+});
+export type AiCatalogModelDto = z.infer<typeof aiCatalogModelSchema>;
+
+/** The provider's models the owner picks from, with the provider's prices. */
+export const aiCatalogSchema = z.object({
+  provider: aiProviderSchema,
+  providerLabel: z.string(),
+  /** When the prices were read from the provider's pricing page (YYYY-MM-DD). */
+  pricesCheckedOn: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  models: z.array(aiCatalogModelSchema).max(30)
+});
+export type AiCatalogDto = z.infer<typeof aiCatalogSchema>;
+
 const settingsFields = {
   provider: aiProviderSchema,
   /** Off: no request is made, whatever else is set. */
@@ -31,6 +57,7 @@ const settingsFields = {
   draftModel: aiModelIdSchema.nullable(),
   /** Checks, tags, classification. */
   cheapModel: aiModelIdSchema.nullable(),
+  /** The owner's own prices; a model without one uses the catalog's price. */
   prices: z.array(aiModelPriceSchema).max(10),
   monthlyBudgetUsd: usd,
   dailyCapUsd: usd,
@@ -39,21 +66,15 @@ const settingsFields = {
 };
 
 // PUT /api/v1/ai/settings { revision, ...settings } → 200 AiOverviewDto.
+// A chosen model must have a price (catalog or own), or the save is VALIDATION_ERROR with details.reason
+// NO_PRICE: its requests would never count against the budget.
 // errors: VALIDATION_ERROR 400, CONFLICT 409 (details.reason STALE_REVISION), UNAUTHORIZED, FORBIDDEN
 export const updateAiSettingsInputSchema = z
   .strictObject({ revision: z.number().int().nonnegative(), ...settingsFields })
   .refine((value) => new Set(value.prices.map((price) => price.model)).size === value.prices.length, {
     message: 'One price per model',
     path: ['prices']
-  })
-  // Spend is counted from prices: a chosen model without one would never count against the budget.
-  .refine(
-    (value) =>
-      [value.draftModel, value.cheapModel].every(
-        (model) => model === null || value.prices.some((price) => price.model === model)
-      ),
-    { message: 'Every chosen model needs a price', path: ['prices'] }
-  );
+  });
 export type UpdateAiSettingsInput = z.infer<typeof updateAiSettingsInputSchema>;
 
 export const aiSettingsSchema = z.object({
@@ -105,7 +126,8 @@ export type AiConnectionDto = z.infer<typeof aiConnectionSchema>;
 export const aiOverviewSchema = z.object({
   settings: aiSettingsSchema,
   connection: aiConnectionSchema,
-  spend: aiSpendSchema
+  spend: aiSpendSchema,
+  catalog: aiCatalogSchema
 });
 export type AiOverviewDto = z.infer<typeof aiOverviewSchema>;
 

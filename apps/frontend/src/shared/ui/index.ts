@@ -59,6 +59,7 @@ export type { DonutSlice } from './DonutChart';
 export { LineChart } from './LineChart';
 export type { LineSeries } from './LineChart';
 export type { ChartBar } from './BarChart';
+export { ProgressBar } from './Progress';
 export type { ProgressTone } from './Progress';
 export { Spinner } from './Spinner';
 export { StatusBadge } from './StatusBadge';

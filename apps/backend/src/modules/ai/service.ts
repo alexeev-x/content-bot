@@ -11,19 +11,17 @@ import {
 import type { Clock } from '../../platform/clock';
 import { AppError } from '../../shared/app-error';
 import type { AiRepository } from './d1-ai-repository';
+import { AI_CATALOG } from './catalog';
 import { type AiTextProvider, type AiUsage, AiProviderError } from './ports';
 
-// Defaults: AI off until the owner turns it on. Models and prices are OpenAI's list on 15.10.2026
-// (developers.openai.com/api/docs/pricing); the owner keeps them current in «Настройки → ИИ».
+// Defaults: AI off until the owner turns it on; the recommended models of the catalog (catalog.ts), whose
+// prices apply unless the owner sets his own.
 const DEFAULTS: Omit<AiSettingsDto, 'revision' | 'updatedAt'> = {
   provider: 'openai',
   enabled: false,
   draftModel: 'gpt-6.1-sol',
   cheapModel: 'gpt-6-luna',
-  prices: [
-    { model: 'gpt-6.1-sol', inputPerMillion: 2, cachedInputPerMillion: 0.1, outputPerMillion: 10 },
-    { model: 'gpt-6-luna', inputPerMillion: 0.1, cachedInputPerMillion: 0.01, outputPerMillion: 0.5 }
-  ],
+  prices: [],
   monthlyBudgetUsd: 5,
   dailyCapUsd: 1,
   warnAtPercent: 80
@@ -85,6 +83,22 @@ export function priceFor(prices: readonly AiModelPriceDto[], model: string): AiM
   );
 }
 
+/** The owner's own prices first, then the provider catalog's. */
+export function effectivePrices(settings: Pick<AiSettingsDto, 'provider' | 'prices'>): AiModelPriceDto[] {
+  const own = new Set(settings.prices.map((price) => price.model));
+  return [
+    ...settings.prices,
+    ...AI_CATALOG[settings.provider].models
+      .filter((model) => !own.has(model.id))
+      .map(({ id, inputPerMillion, cachedInputPerMillion, outputPerMillion }) => ({
+        model: id,
+        inputPerMillion,
+        cachedInputPerMillion,
+        outputPerMillion
+      }))
+  ];
+}
+
 /** Cost in micro-USD from the model's price, or null when the model has none. */
 export function costMicroUsd(usage: AiUsage, price: AiModelPriceDto | undefined): number | null {
   if (price === undefined) return null;
@@ -120,6 +134,12 @@ export async function updateAiSettings(
   input: UpdateAiSettingsInput
 ): Promise<void> {
   const { revision, ...document } = input;
+  const prices = effectivePrices(document);
+  // Spend is counted from prices: a chosen model without one would never count against the budget.
+  if (
+    [document.draftModel, document.cheapModel].some((model) => model !== null && priceFor(prices, model) === undefined)
+  )
+    throw new AppError('VALIDATION_ERROR', 'Every chosen model needs a price', { reason: 'NO_PRICE' });
   const saved = await deps.repo.saveSettings({
     document: JSON.stringify(document),
     expectedRevision: revision,
@@ -148,7 +168,7 @@ async function readSpend(
       : settings.draftModel === null && settings.cheapModel === null
         ? 'no_model'
         : [settings.draftModel, settings.cheapModel].some(
-              (model) => model !== null && priceFor(settings.prices, model) === undefined
+              (model) => model !== null && priceFor(effectivePrices(settings), model) === undefined
             )
           ? 'no_price'
           : spentUsd >= settings.monthlyBudgetUsd
@@ -199,7 +219,8 @@ export async function readAiOverview(deps: {
               errorCode: lastCheck.errorCode
             }
     },
-    spend
+    spend,
+    catalog: AI_CATALOG[settings.provider]
   };
 }
 
@@ -218,7 +239,7 @@ export async function recordAiUsage(
   input: { kind: AiUsageKind; provider: string; model: string; usage: AiUsage; settings: AiSettingsDto }
 ): Promise<BudgetEvent[]> {
   const now = deps.clock.now();
-  const price = priceFor(input.settings.prices, input.model);
+  const price = priceFor(effectivePrices(input.settings), input.model);
   await deps.repo.recordUsage({
     id: deps.newId(),
     at: now,
