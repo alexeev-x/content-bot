@@ -148,6 +148,18 @@
   border-block-start: 1px solid var(--color-border-subtle);
 }
 
+/* Side by side once each list keeps a readable width: one model name did not need the whole row. */
+@container (min-width: 760px) {
+  .models {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-5);
+  }
+  .models > * + * {
+    padding-block-start: 0;
+    border-block-start: 0;
+  }
+}
+
 .custom {
   display: flex;
   flex-wrap: wrap;
@@ -192,20 +204,6 @@
   .budgetRow {
     grid-template-columns: 1fr;
     gap: var(--space-1);
-  }
-}
-
-/* Models beside spend and limits on a wide screen; one column on a phone. */
-.columns {
-  display: grid;
-  align-items: start;
-  gap: var(--space-4);
-}
-
-/* Two columns only when the budget choices still fit beside their labels. */
-@container (min-width: 1000px) {
-  .columns {
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1.08fr);
   }
 }
 

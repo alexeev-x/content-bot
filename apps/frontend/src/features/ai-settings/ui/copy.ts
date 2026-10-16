@@ -115,8 +115,19 @@ export const copy = {
     approved: 'Одобрено черновиков',
     unchanged: (count: number) => `без правок: ${count}`,
     draftCost: 'Цена черновика',
+    // Only the counters that happened: a row of zeros read as noise.
     details: (rewrites: number, jokes: number, warned: number, failed: number) =>
-      `Переписываний: ${rewrites}. «Шутка не зашла»: ${jokes}. Замечания проверки: ${warned}. Ошибок модели: ${failed}.`
+      (
+        [
+          ['Переписываний', rewrites],
+          ['«Шутка не зашла»', jokes],
+          ['Замечания проверки', warned],
+          ['Ошибок модели', failed]
+        ] as const
+      )
+        .filter(([, count]) => count > 0)
+        .map(([label, count]) => `${label}: ${count}`)
+        .join(' · ')
   },
   widget: {
     month: 'Расходы за месяц',
