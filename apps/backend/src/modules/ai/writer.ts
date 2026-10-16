@@ -200,7 +200,8 @@ export async function generateDraft(
       mode: input.mode,
       task,
       holdOut: input.holdOut ?? [],
-      author: await author(deps)
+      author: await author(deps),
+      ownerTexts: await deps.writer.ownerExamples({ format: input.format, limit: 2 })
     }),
     input.signal
   );
@@ -235,7 +236,8 @@ export async function rewriteDraft(
     mode: parent.mode,
     task: parent.task,
     rewrite: { text: current.text, instruction },
-    author: await author(deps)
+    author: await author(deps),
+    ownerTexts: await deps.writer.ownerExamples({ format: parent.format, limit: 2 })
   });
   return call(deps, row, prompt, input.signal);
 }

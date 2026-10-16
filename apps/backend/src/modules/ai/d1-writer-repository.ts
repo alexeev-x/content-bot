@@ -3,6 +3,9 @@ import type { WriterFormat, WriterMode } from './writer-types';
 export type Provenance = 'AI_DRAFT' | 'OWNER_EDITED' | 'OWNER_APPROVED' | 'OWNER_PREAPPROVED';
 export type FeedbackKind = 'joke_missed' | 'not_my_style' | 'fact_wrong';
 
+// The «unchanged» line of «Качество» (≤ 5% edited): below it an approval is the model's words, not the owner's.
+const OWNER_EXAMPLE_MIN_EDIT = 0.05;
+
 export interface GenerationRow {
   id: string;
   kind: 'draft' | 'rewrite';
@@ -79,6 +82,11 @@ export interface WriterRepository {
   attachPost(revisionId: string, postId: string): Promise<void>;
   addFeedback(input: { id: string; generationId: string; kind: FeedbackKind; now: number }): Promise<void>;
   recent(limit: number): Promise<GenerationRow[]>;
+  /**
+   * The owner's approved texts of one format that the owner actually changed (edit ratio > 5%), newest first:
+   * style examples for the next draft. An AI_DRAFT, or an approval of the model's words unchanged, never is one.
+   */
+  ownerExamples(input: { format: WriterFormat; limit: number }): Promise<string[]>;
   /** Counts of the writer's work since `since` (UTC ms), for «Качество». */
   quality(since: number): Promise<QualityRows>;
   /** Opens (or restarts) the chat's mode: the /redactor conversation (empty history) or /post. */
@@ -381,6 +389,19 @@ export function createD1WriterRepository(db: D1Database): WriterRepository {
         jokeMissed: (feedback?.results[0] as { n: number } | undefined)?.n ?? 0,
         averageDraftMicroUsd: (cost?.results[0] as { cost: number | null } | undefined)?.cost ?? null
       };
+    },
+
+    async ownerExamples({ format, limit }) {
+      // One approval per draft (unique index), so each row is a distinct text.
+      const rows = await db
+        .prepare(
+          `SELECT r.text FROM ai_text_revisions r JOIN ai_generations g ON g.id = r.generation_id
+           WHERE g.format = ?1 AND r.provenance IN ('OWNER_APPROVED', 'OWNER_PREAPPROVED') AND r.edit_ratio > ?2
+           ORDER BY r.created_at DESC LIMIT ?3`
+        )
+        .bind(format, OWNER_EXAMPLE_MIN_EDIT, Math.min(limit, 4))
+        .all<{ text: string }>();
+      return rows.results.map((row) => row.text);
     },
 
     async recent(limit) {

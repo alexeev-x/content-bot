@@ -113,6 +113,43 @@ describe('AI writer', () => {
     expect((await publishableText(writer, result.generation.id)).postId).toBe('post-1');
   });
 
+  it('learns the voice only from texts the owner changed and approved, in the same format', async () => {
+    const inputs: string[] = [];
+    const writer = deps({
+      provider: 'openai',
+      complete: (request) => {
+        inputs.push(request.input);
+        return answering(ANSWER).complete(request);
+      }
+    });
+    // Changed and approved: the owner's words, the only style evidence.
+    const edited = await draft(writer);
+    await saveOwnerEdit(writer, edited.generation.id, 'Свой текст: варды важнее фарма, проверено на Лионе.');
+    await approveDraft(writer, edited.generation.id);
+    // Approved without a change: the model's words, and an AI draft never approved — both stay out.
+    const unchanged = await draft(writer);
+    await approveDraft(writer, unchanged.generation.id);
+    await draft(writer);
+    // Another format's owner text does not leak into this one.
+    const post = await generateDraft(writer, {
+      format: 'telegram',
+      mode: 'direct',
+      source: 'bot',
+      task: 'пост про патч',
+      signal: AbortSignal.timeout(1000)
+    });
+    await saveOwnerEdit(writer, post.generation.id, 'Телеграм-текст автора про патч и нерфы.');
+    await approveDraft(writer, post.generation.id);
+
+    await draft(writer, 'как я учусь вардить');
+    const prompt = inputs.at(-1) ?? '';
+    expect(prompt).toContain('Свой текст: варды важнее фарма, проверено на Лионе.');
+    expect(prompt.match(/Пример \(текст автора/g)).toHaveLength(1);
+    expect(prompt).not.toContain('Телеграм-текст автора');
+    // The owner's text sits right before the task: the most relevant example comes last.
+    expect(prompt.indexOf('Свой текст:')).toBeGreaterThan(prompt.lastIndexOf('Пример ('));
+  });
+
   it('marks a question for the owner instead of checking it as a script', async () => {
     const result = await draft(deps(answering('Как у тебя прошли игры на Личе: что понравилось, где накосячил?')));
     expect(result.generation.warnings).toEqual(['NEEDS_FACTS']);

@@ -75,6 +75,23 @@ export function pickExamples(format: WriterFormat, task: string, holdOut: readon
     .map(({ row }) => `Пример (${row.r === 'g' ? 'эталон' : 'референс'}, «${row.title}»):\n${clip(row.t)}`);
 }
 
+const MAX_OWNER_EXAMPLES = 2;
+const MAX_EXAMPLES = 4;
+
+/**
+ * The owner's own approved texts outrank the archive (architecture items 2 and 17): up to two of them go last,
+ * right before the task, and the bundled examples give way so the total stays within 3–4.
+ */
+function examplesWithOwner(bundled: readonly string[], ownerTexts: readonly string[]): string[] {
+  const own = ownerTexts
+    .slice(0, MAX_OWNER_EXAMPLES)
+    .map((text) => `Пример (текст автора, одобрен в студии):\n${clip(text)}`);
+  // `bundled` is ordered most relevant last, so the cut drops the least relevant from the front.
+  const kept = bundled.slice(Math.max(0, bundled.length - (MAX_EXAMPLES - own.length)));
+  // Newest owner text last of all: closest to the author's current voice.
+  return [...kept, ...own.reverse()];
+}
+
 export function buildWriterPrompt(input: {
   format: WriterFormat;
   mode: WriterMode;
@@ -84,6 +101,8 @@ export function buildWriterPrompt(input: {
   holdOut?: readonly string[];
   /** The author's state from the studio (`authorStateText`); the seed of pack/state.md when empty. */
   author?: string;
+  /** The owner's approved, owner-changed texts of this format, newest first (`ownerExamples`). */
+  ownerTexts?: readonly string[];
 }): { instructions: string; input: string } {
   // The author's state changes often: it goes with the request, after the cached prefix (architecture item 6).
   const instructions = [AI_PACK.core, AI_PACK.formats[input.format], AI_PACK.output, AI_PACK.lessons].join('\n\n');
@@ -91,7 +110,7 @@ export function buildWriterPrompt(input: {
   const parts = [
     input.author || AI_PACK.state,
     lexicon.length > 0 ? `Сленг и мемы из задания:\n${lexicon.join('\n')}` : '',
-    ...pickExamples(input.format, input.task, input.holdOut),
+    ...examplesWithOwner(pickExamples(input.format, input.task, input.holdOut), input.ownerTexts ?? []),
     `ФОРМАТ: ${FORMAT_NAME[input.format]}`,
     `РЕЖИМ: ${input.mode === 'direct' ? 'прямой запрос автора' : 'автоматический повод (только факты задания)'}`
   ];

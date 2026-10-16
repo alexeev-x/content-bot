@@ -12,6 +12,7 @@ Owner decision 16.10.2026: the studio controls the AI writer; this folder is its
 | `lexicon.jsonl` | Dota slang, nicknames, memes: `w` words that match, `m` meaning, `s` kind, `t` classic/current/owner | only entries whose words occur in the task (≤ 15) |
 | `examples/reels.jsonl` | 37 exact Reels texts: `f` format (`fidit`, `igrat`, `solo`), `r` role (`g` gold, `r` reference, `a` anti), `ok` approved exact text, `t` text, `m` metrics snapshot, `n` note | 3–4 of the same format, gold first, then closest by topic |
 | `examples/telegram.jsonl` | 520 channel posts: `d` date, `k` kind (`caption`, `call`, `post`, `review`), `t` text, `g` best | 3–4 of the same kind, best and closest first |
+| D1 `ai_text_revisions` | the owner's approved texts of the task's format that the owner changed (edit ratio > 5%); never an AI_DRAFT or an approval of the model's words unchanged | up to 2, newest last, right before the task; the bundled examples give way so the total stays 3–4 |
 | `research.md` | research on context engineering (for people) | never |
 | `sources/` | the owner's original guides, archives and analytics journal (for people; ChatGPT-era process rules there are superseded) | never |
 
