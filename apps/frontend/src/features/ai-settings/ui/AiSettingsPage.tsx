@@ -349,27 +349,29 @@ function AiSettings({ overview, onReload }: { overview: AiOverviewDto; onReload:
         <div className={styles.extra}>
           <DisclosureGroup>
             <Disclosure id="prices" title={copy.pricesTitle(catalog.providerLabel, catalog.pricesCheckedOn)}>
-              <table className={styles.prices}>
-                <thead>
-                  <tr>
-                    <th scope="col">{copy.model}</th>
-                    <th scope="col">{copy.input}</th>
-                    <th scope="col">{copy.cached}</th>
-                    <th scope="col">{copy.output}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {catalog.models.map((model) => (
-                    <tr key={model.id}>
-                      <th scope="row">{model.label}</th>
-                      <td>${model.inputPerMillion}</td>
-                      <td>${model.cachedInputPerMillion}</td>
-                      <td>${model.outputPerMillion}</td>
+              <div className={styles.pricesBody}>
+                <table className={styles.prices}>
+                  <thead>
+                    <tr>
+                      <th scope="col">{copy.model}</th>
+                      <th scope="col">{copy.input}</th>
+                      <th scope="col">{copy.cached}</th>
+                      <th scope="col">{copy.output}</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-              <p className={styles.meta}>{copy.pricesHint}</p>
+                  </thead>
+                  <tbody>
+                    {catalog.models.map((model) => (
+                      <tr key={model.id}>
+                        <th scope="row">{model.label}</th>
+                        <td>${model.inputPerMillion}</td>
+                        <td>${model.cachedInputPerMillion}</td>
+                        <td>${model.outputPerMillion}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                <p className={styles.meta}>{copy.pricesHint}</p>
+              </div>
             </Disclosure>
           </DisclosureGroup>
         </div>
