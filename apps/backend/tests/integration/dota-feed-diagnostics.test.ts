@@ -167,3 +167,31 @@ describe('dota feed sync with real-shaped payloads', () => {
     expect(sources.find((source) => source.key === 'patch_notes')?.lastError).toBeNull();
   });
 });
+
+describe('dota feed store', () => {
+  it('stores the whole first feed, then only items near the newest stored one', async () => {
+    const repo = createD1DotaWatcherRepository(testDb());
+    const DAY = 24 * 60 * 60_000;
+    const news = (id: string, publishedAt: number) => ({
+      sourceKey: 'steam_news' as const,
+      externalId: id,
+      title: `News ${id}`,
+      sourceUrl: `https://store.steampowered.com/news/app/570/view/${id}`,
+      publishedAt,
+      excerpt: null
+    });
+    const first = await repo.storeSourceSync({
+      sourceKey: 'steam_news',
+      items: [news('old', T0 - 90 * DAY), news('newest', T0)],
+      detectedAt: T0
+    });
+    expect(first.inserted).toBe(2);
+    // A new post and a late one inside the window are stored; one far older than the newest is not re-sent.
+    const next = await repo.storeSourceSync({
+      sourceKey: 'steam_news',
+      items: [news('fresh', T0 + DAY), news('late', T0 - 10 * DAY), news('ancient', T0 - 60 * DAY), news('newest', T0)],
+      detectedAt: T0 + DAY
+    });
+    expect(next.inserted).toBe(2);
+  });
+});

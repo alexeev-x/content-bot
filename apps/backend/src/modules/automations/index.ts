@@ -337,12 +337,15 @@ export function createD1AutomationRepository(db: D1Database): AutomationReposito
     },
 
     async claimNext({ id, now, dueOnly = false }) {
+      // The literal IN matches the partial index of the one active run (at most one row); `status = 'queued'`
+      // alone made the planner walk the whole history of the automation every minute.
       const candidate = await db
         .prepare(
           `SELECT id, automation_id, origin, status, requested_at, scheduled_at, started_at, completed_at,
           lease_until, output_count, error_code FROM automation_runs
-         WHERE automation_id = ?1 AND status = 'queued' AND (?2 IS NULL OR scheduled_at IS NULL OR scheduled_at <= ?2)
-         ORDER BY requested_at, id LIMIT 1`
+         WHERE automation_id = ?1 AND status IN ('queued', 'running') AND status = 'queued'
+           AND (?2 IS NULL OR scheduled_at IS NULL OR scheduled_at <= ?2)
+         LIMIT 1`
         )
         .bind(id, dueOnly ? now : null)
         .first<RunRow>();
@@ -374,11 +377,12 @@ export function createD1AutomationRepository(db: D1Database): AutomationReposito
     },
 
     async markExpiredUnknown(now) {
+      // Bounded without LIMIT: one active run per automation (automation_runs_one_active_idx).
       const result = await db
         .prepare(
           `UPDATE automation_runs SET status = 'unknown', completed_at = ?1, lease_until = NULL,
           error_code = 'AUTOMATION_LEASE_EXPIRED'
-         WHERE id IN (SELECT id FROM automation_runs WHERE status = 'running' AND lease_until <= ?1 ORDER BY lease_until LIMIT 20)`
+         WHERE status = 'running' AND lease_until <= ?1`
         )
         .bind(now)
         .run();

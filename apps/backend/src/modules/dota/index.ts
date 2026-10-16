@@ -73,6 +73,8 @@ const FETCH_TIMEOUT_MS = 8_000;
 // D1 allows 100 bound parameters per statement: 7 per Steam row, 5 per patch row.
 const STEAM_INSERT_CHUNK_SIZE = 14;
 const PATCH_INSERT_CHUNK_SIZE = 20;
+/** How far before the newest stored item a sync still sends items (a late or re-dated post). */
+const RESYNC_WINDOW_MS = 30 * 24 * 60 * 60_000;
 
 export class DotaWatchError extends Error {
   constructor(
@@ -969,7 +971,15 @@ export function createD1DotaWatcherRepository(db: D1Database): DotaWatcherReposi
       return { inserted: stored.reduce((sum, entry) => sum + entry.inserted, 0) };
     },
 
-    async storeSourceSync({ sourceKey, items, detectedAt }) {
+    async storeSourceSync({ sourceKey, items: fetched, detectedAt }) {
+      // Feeds return their whole history (up to 100 news, 200 patches) every 5 minutes. Only items near the
+      // newest stored one can be new; re-sending the rest cost ~1 row read each, every run.
+      const newest = await db
+        .prepare('SELECT MAX(published_at) AS newest FROM dota_update_items WHERE source_key = ?1')
+        .bind(sourceKey)
+        .first<{ newest: number | null }>();
+      const from = newest?.newest == null ? null : newest.newest - RESYNC_WINDOW_MS;
+      const items = from === null ? fetched : fetched.filter((item) => item.publishedAt >= from);
       const statements: D1PreparedStatement[] = [
         db
           .prepare('INSERT OR IGNORE INTO dota_source_state (source_key, baseline_seeded) VALUES (?1, 0)')
