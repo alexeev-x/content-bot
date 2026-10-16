@@ -18,3 +18,4 @@ time (20 per 10 minutes). Results stay out of Git (`.logs/ai-eval/`); each run's
   with the owner's words added.
 - Telegram (5): short posts in the channel voice («Мужчины», «))», «p.s.»); the automatic patch post states
   only the given facts. One odd line (the poll post ends with «пойду фидить катку»).
+~~~~
