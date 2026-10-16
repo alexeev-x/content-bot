@@ -169,6 +169,7 @@ Lazy loading per route (`React.lazy` or lazy route modules), a shared lightweigh
 
 ## 11. Performance and memory leaks
 
+- A tab opened before a deploy asks for chunks the deploy removed, and the SPA fallback answers with index.html: `app/reload-on-stale-build.ts` reloads once on `vite:preloadError` (guarded for 30 s through `sessionStorage`).
 - Route lazy load, an import tree without heavy SDKs on the main screen. Check the Vite bundle size from the build report; load large dependencies only on the route that needs them.
 - `useEffect` only for connecting to external systems; timers/subscriptions/AbortController must be cleaned up on unmount. Polling stops when the tab is hidden and when the screen unmounts; do not create parallel intervals.
 - Large lists are paginated on the server; virtualization only for truly large screens when needed. Do not apply `useMemo`/`useCallback` everywhere without profiling.
