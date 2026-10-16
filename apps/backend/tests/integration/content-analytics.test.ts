@@ -9,6 +9,7 @@ import {
   collectContentAnalytics,
   type ConfiguredSources,
   createD1ContentAnalyticsRepository,
+  readCachedContentReport,
   readContentAnalyticsOverview,
   readContentReport
 } from '../../src/modules/content-analytics';
@@ -247,5 +248,45 @@ describe('daily view growth', () => {
       { platform: 'telegram', day: day(START), views: 10 },
       { platform: 'telegram', day: day(START + DAY), views: 100 }
     ]);
+  });
+});
+
+describe('report cache', () => {
+  it('reuses the built report until a source is collected or an hour passes', async () => {
+    const clock = fakeClock();
+    const repo = createD1ContentAnalyticsRepository(testDb());
+    const sources = telegramSource(async () => ({ followers: 836, items: [post(1, START - HOUR, 100)] }));
+    await collectContentAnalytics({ repo, sources, clock, logger, requestId: 't' });
+    const ids = async () => (await readCachedContentReport({ repo, clock }, { days: 7 })).items.map((i) => i.id);
+    expect(await ids()).toEqual(['telegram:1']);
+
+    // A row no collection wrote: the stored report stays in use, which proves it is not rebuilt.
+    await testDb().prepare('UPDATE content_items SET title = ? WHERE id = ?').bind('Изменён', 'telegram:1').run();
+    clock.advance(30 * 60_000);
+    expect((await readCachedContentReport({ repo, clock }, { days: 7 })).items[0]?.title).toBe('Пост 1');
+    // Another period is its own entry.
+    expect((await readCachedContentReport({ repo, clock }, { days: 30 })).items[0]?.title).toBe('Изменён');
+
+    // A collection changes the version.
+    clock.advance(60_000);
+    await collectContentAnalytics({
+      repo,
+      sources: telegramSource(async () => ({
+        followers: 836,
+        items: [post(1, START - HOUR, 150), post(2, START, 10)]
+      })),
+      clock,
+      logger,
+      requestId: 't',
+      manual: true
+    });
+    expect(await ids()).toEqual(['telegram:2', 'telegram:1']);
+
+    // An hour without a collection rebuilds it too.
+    await testDb().prepare('DELETE FROM content_items WHERE id = ?').bind('telegram:2').run();
+    clock.advance(59 * 60_000);
+    expect(await ids()).toEqual(['telegram:2', 'telegram:1']);
+    clock.advance(2 * 60_000);
+    expect(await ids()).toEqual(['telegram:1']);
   });
 });

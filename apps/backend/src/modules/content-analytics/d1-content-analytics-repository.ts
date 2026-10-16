@@ -105,6 +105,15 @@ export interface ContentAnalyticsRepository {
     followers: OverviewRows['followers'];
     growth: { platform: ContentPlatform; day: string; views: number }[];
   }>;
+  /** The sources' collection version and the stored report of `days`, in one round trip. */
+  readReportCache(days: number): Promise<{ version: string; cached: CachedReport | null }>;
+  storeReportCache(input: { days: number } & CachedReport): Promise<void>;
+}
+
+export interface CachedReport {
+  version: string;
+  builtAt: number;
+  report: string;
 }
 
 export const ITEM_COLUMNS =
@@ -362,6 +371,31 @@ export function createD1ContentAnalyticsRepository(db: D1Database): ContentAnaly
         followers: (followers?.results ?? []) as OverviewRows['followers'],
         growth: (growth?.results ?? []) as { platform: ContentPlatform; day: string; views: number }[]
       };
+    },
+
+    async readReportCache(days) {
+      const [version, cached] = await db.batch([
+        db.prepare(
+          `SELECT group_concat(platform || ':' || IFNULL(last_success_at, ''), ',') AS version
+           FROM (SELECT platform, last_success_at FROM content_sources ORDER BY platform)`
+        ),
+        db.prepare('SELECT version, built_at AS builtAt, report FROM content_report_cache WHERE days = ?').bind(days)
+      ]);
+      return {
+        version: (version?.results as { version: string | null }[] | undefined)?.[0]?.version ?? '',
+        cached: (cached?.results as CachedReport[] | undefined)?.[0] ?? null
+      };
+    },
+
+    async storeReportCache({ days, version, builtAt, report }) {
+      await db
+        .prepare(
+          `INSERT INTO content_report_cache (days, version, built_at, report) VALUES (?1, ?2, ?3, ?4)
+           ON CONFLICT (days) DO UPDATE SET version = excluded.version, built_at = excluded.built_at,
+             report = excluded.report`
+        )
+        .bind(days, version, builtAt, report)
+        .run();
     },
 
     async readItem(id) {

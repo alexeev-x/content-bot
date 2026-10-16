@@ -7,6 +7,7 @@ import {
   CONTENT_REPORT_ITEM_LIMIT,
   type ContentReportDto,
   type ContentReportQuery,
+  contentReportSchema,
   type ContentBaselineDto,
   type ContentPlatform,
   type ContentSourceDto
@@ -290,6 +291,32 @@ export async function readContentReport(
     growth: rows.growth,
     tracked: checkpoints.map((row) => row.id)
   };
+}
+
+/** A stored report is reused for at most an hour, so its period end moves on at least hourly. */
+const REPORT_CACHE_TTL_MS = 60 * MINUTE_MS;
+/** Part of the cache version: bump it when the report's shape or computation changes. */
+const REPORT_CACHE_SHAPE = '1';
+
+/**
+ * The report, reused while no source has been collected since it was built (its data changes only then) and it
+ * is younger than `REPORT_CACHE_TTL_MS`. Overlapping misses each compute and store; the last write wins.
+ */
+export async function readCachedContentReport(
+  deps: { repo: ContentAnalyticsRepository; clock: Clock },
+  query: ContentReportQuery
+): Promise<ContentReportDto> {
+  const now = deps.clock.now();
+  const { version: sources, cached } = await deps.repo.readReportCache(query.days);
+  const version = `${REPORT_CACHE_SHAPE}|${sources}`;
+  const age = cached ? now - cached.builtAt : -1;
+  if (cached?.version === version && age >= 0 && age < REPORT_CACHE_TTL_MS) {
+    const parsed = contentReportSchema.safeParse(JSON.parse(cached.report));
+    if (parsed.success) return parsed.data;
+  }
+  const report = await readContentReport(deps, query);
+  await deps.repo.storeReportCache({ days: query.days, version, builtAt: now, report: JSON.stringify(report) });
+  return report;
 }
 
 /** Items tracked from birth over the last 90 days make the usual curve. */

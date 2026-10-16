@@ -22,7 +22,7 @@ import {
   disconnectTikTok,
   readContentItem,
   readContentGoals,
-  readContentReport,
+  readCachedContentReport,
   removeContentGoal,
   setContentGoal,
   startTikTokConnect,
@@ -91,7 +91,10 @@ export const contentAnalyticsRoutes = new Hono<AppBindings>()
     const container = c.get('container');
     return c.json(
       contentReportSchema.parse(
-        await readContentReport({ repo: container.contentAnalytics, clock: container.clock }, c.req.valid('query'))
+        await readCachedContentReport(
+          { repo: container.contentAnalytics, clock: container.clock },
+          c.req.valid('query')
+        )
       )
     );
   })
