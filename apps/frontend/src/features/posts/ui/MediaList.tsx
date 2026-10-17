@@ -71,7 +71,7 @@ export function MediaList({
             >
               {entry.previewUrl ? (
                 entry.file?.type.startsWith('video/') ? (
-                  <video className={styles.preview} src={entry.previewUrl} controls preload="metadata" />
+                  <video className={styles.preview} src={entry.previewUrl} muted preload="metadata" />
                 ) : (
                   <LoadingImage
                     className={styles.preview}
@@ -103,8 +103,10 @@ export function MediaList({
                 />
               ) : null}
               <div className={`${styles.details} ${mediaItem && !entry.actionError ? styles.tileDetails : ''}`}>
-                <strong>{entry.file?.name ?? entry.media?.fileName}</strong>
-                <span>
+                <strong className={!mediaItem ? styles.srOnly : undefined}>
+                  {entry.file?.name ?? entry.media?.fileName}
+                </strong>
+                <span className={!mediaItem ? styles.srOnly : undefined}>
                   {entry.media?.kind === 'video' || entry.file?.type.startsWith('video/')
                     ? 'Видео'
                     : entry.media?.kind === 'animation' || entry.file?.type === 'image/gif'
@@ -114,7 +116,7 @@ export function MediaList({
                   {((entry.file?.size ?? entry.media?.sizeBytes ?? 0) / 1_000_000).toFixed(1)} МБ
                   {entry.media?.durationMs ? ` · ${Math.round(entry.media.durationMs / 1000)} с` : ''}
                 </span>
-                {entry.status === 'local' ? <span>{entry.error ?? 'Выбрано · ещё не загружено'}</span> : null}
+                {entry.status === 'local' ? <span>{entry.error ?? (busy ? 'В очереди' : 'Не загружено')}</span> : null}
                 {/* oxlint-disable-next-line jsx-a11y/prefer-tag-over-role -- This status is intentionally a concise live announcement. */}
                 {entry.actionError ? (
                   <span className={styles.error} role="alert">
@@ -126,7 +128,11 @@ export function MediaList({
                     Повторить удаление
                   </Button>
                 ) : null}
-                {entry.status === 'uploading' ? <span role="status">Загрузка: {entry.progress ?? 0}%</span> : null}
+                {entry.status === 'uploading' ? (
+                  <span role="status" aria-label={`Загрузка: ${entry.progress ?? 0}%`}>
+                    {(entry.progress ?? 0) >= 99 ? 'Сохраняем…' : `${entry.progress ?? 0}%`}
+                  </span>
+                ) : null}
                 {entry.status === 'failed' ? <span className={styles.error}>{entry.error}</span> : null}
                 {entry.status === 'uploaded' ? <span>Загружено на сервер</span> : null}
                 {entry.status === 'uploading' ? (
@@ -145,14 +151,14 @@ export function MediaList({
               </div>
               {!mediaItem ? (
                 <Button
+                  className={styles.pendingRemove}
                   variant="ghost"
                   size="sm"
+                  icon="x"
                   aria-label={`Убрать ${entry.file?.name ?? 'файл'}`}
                   isDisabled={busy || disabled}
                   onPress={() => onRemove(entry)}
-                >
-                  Убрать
-                </Button>
+                />
               ) : null}
             </li>
           );

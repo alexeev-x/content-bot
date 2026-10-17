@@ -68,10 +68,9 @@ export function MediaSourceDialog({
             if (key === 'device') library.setSourceTab('device');
             if (key === 'library') {
               library.setSourceTab('library');
-              if (library.items.length === 0 || library.kind !== 'all') {
-                library.resetListing();
-                void library.openLibrary('all');
-              }
+              // Always re-read: a file uploaded since the last look must be there (the cached page is invalidated).
+              if (library.kind !== 'all') library.resetListing();
+              void library.openLibrary('all');
             }
           }}
         >

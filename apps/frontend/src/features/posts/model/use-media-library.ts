@@ -113,7 +113,11 @@ export function useMediaLibrary(state: MediaState) {
 
   return {
     sourceOpen,
-    openSource: () => setSourceOpen(true),
+    // Reopened on the library tab, the dialog re-reads the listing instead of showing the old one.
+    openSource: () => {
+      setSourceOpen(true);
+      if (sourceTab === 'library') void openLibrary(kind);
+    },
     // A selection kept from an earlier opening can outgrow the free slots (files uploaded meanwhile) and then
     // block every tile, so a closed dialog forgets it.
     closeSource: () => {
