@@ -41,11 +41,11 @@ export function EditorToolbar({ editor, onLink, onCodeLanguage }: Props) {
   const compact = useMediaQuery('(max-width: 859px), (pointer: coarse)');
   const [moreOpen, setMoreOpen] = useState(false);
   const [emojiOpen, setEmojiOpen] = useState(false);
-  // Inserted where the cursor was, or over the selection, as one undo step; the editor gets its focus back.
+  // Inserted where the cursor was, or over the selection, as one undo step. The picker stays open so several go in a
+  // row; the editor keeps its selection without focus, so each next one lands after the previous.
   const pickEmoji = (char: string) => {
-    editor.chain().focus().insertContent(char).run();
+    editor.chain().insertContent(char).run();
     rememberEmoji(char);
-    setEmojiOpen(false);
   };
   const state = useEditorState({
     editor,
