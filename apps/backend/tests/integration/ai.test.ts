@@ -7,6 +7,8 @@ import {
   createOpenAiProvider,
   priceFor
 } from '../../src/modules/ai';
+import { draftLimit } from '../../src/app/ai-routes';
+import { testDb } from '../helpers/db';
 import { expectError } from '../helpers/expect-error';
 import { writerAnswer } from '../helpers/writer-answer';
 import { fakeOwnerMessenger } from '../helpers/fake-owner-messenger';
@@ -123,6 +125,36 @@ describe('AI settings, spend and connection', () => {
       averageEditRatio: null
     });
     expect(overview.quality.averageDraftUsd).toBeGreaterThan(0);
+  });
+
+  it('bounds studio drafts per 10 minutes: a refused one never reaches the model or the ledger', async () => {
+    let calls = 0;
+    const answer = () => {
+      calls += 1;
+      return Promise.resolve({
+        text: writerAnswer({ hooks: ['Хук.'], text: 'Патч вышел, Тинкер вернулся.' }),
+        model: 'gpt-6.1-sol',
+        usage: { inputTokens: 3000, cachedInputTokens: 0, cacheWriteTokens: 0, outputTokens: 300 }
+      });
+    };
+    const draftJson = { format: 'telegram', mode: 'automatic', task: 'Патч 7.40' };
+    const api = createApi({ clock: fakeClock(), aiProvider: fakeProvider(answer), env: { AI_DRAFT_LIMIT: '2' } });
+    await api.request('/api/v1/ai/settings', { method: 'PUT', json: { revision: 0, ...SETTINGS } });
+    for (let n = 0; n < 2; n += 1) {
+      expect((await api.request('/api/v1/ai/drafts', { method: 'POST', json: draftJson })).status).toBe(200);
+    }
+    await expectError(await api.request('/api/v1/ai/drafts', { method: 'POST', json: draftJson }), 429, 'RATE_LIMIT');
+    expect(calls).toBe(2);
+    const usage = await testDb()
+      .prepare("SELECT COUNT(*) AS n FROM ai_usage WHERE kind = 'draft'")
+      .first<{ n: number }>();
+    expect(usage?.n).toBe(2);
+
+    // Production has no override: 20. A typo or a huge value never authorises more than 500.
+    expect(draftLimit({})).toBe(20);
+    expect(draftLimit({ AI_DRAFT_LIMIT: '200' })).toBe(200);
+    expect(draftLimit({ AI_DRAFT_LIMIT: '100000' })).toBe(500);
+    for (const bad of ['', 'abc', '0', '-5', '1.5']) expect(draftLimit({ AI_DRAFT_LIMIT: bad })).toBe(20);
   });
 
   it('refuses a chosen model without a price: its requests would never count against the budget', async () => {

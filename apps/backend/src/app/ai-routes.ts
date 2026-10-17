@@ -45,7 +45,7 @@ const CHECK_WINDOW_MS = 10 * 60 * 1000;
 const DRAFT_LIMIT = 20;
 const DRAFT_LIMIT_MAX = 500;
 const DRAFT_WINDOW_MS = 10 * 60 * 1000;
-const draftLimit = (env: { AI_DRAFT_LIMIT?: string }): number => {
+export const draftLimit = (env: { AI_DRAFT_LIMIT?: string }): number => {
   const value = Number(env.AI_DRAFT_LIMIT);
   return Number.isInteger(value) && value > 0 ? Math.min(value, DRAFT_LIMIT_MAX) : DRAFT_LIMIT;
 };

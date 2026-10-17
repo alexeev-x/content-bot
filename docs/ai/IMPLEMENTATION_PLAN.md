@@ -60,9 +60,9 @@ Stages 2 and 3 can be designed independently; implement 3 before 5, and do not s
 - [ ] Verify DEV CI migration 0062 actually applied and endpoint returns the new result shape; record the commit and test time.
 - [ ] Live Telegram smoke: /redactor → "Учусь играть" → "придумай сам" → select an idea and reply with a real match detail → get a full draft → edit/approve. Confirm original task survives, and question/ideas show no approval keyboard.
 - [x] Fix quality aggregation in d1-writer-repository.ts: a generation with status ready but result needs_facts must not be counted as a completed draft (or rewrite). Keep separate counts, including legacy rows, with explicit tests; check the Settings → AI quality denominator.
-- [ ] Regression-test the DEV limit 200/10 min, production default 20/10 min, budget gate and billed retries. Limit changes must not silently authorize higher spend.
+- [x] Regression-test the DEV limit 200/10 min, production default 20/10 min, budget gate and billed retries. Limit changes must not silently authorize higher spend.
 - [ ] Record the 20-prompt paired eval and five-repeat-topic eval method, model, pack revision and observed costs; distinguish manual ratings from automated pass/fail.
-- [ ] Reconcile the outdated rate-limit statement in docs/ai/eval/README.md.
+- [x] Reconcile the outdated rate-limit statement in docs/ai/eval/README.md.
 - [ ] Confirm separately reported Reels-format frontend work is accounted for before any overlapping UI change; do not overwrite uncommitted local changes.
 
 **Acceptance:** one complete live Telegram question → answer → draft → approval flow; no way to approve a question; valid API status/quality counts; existing draft approval and budget tests green. **Files:** writer.ts, bot/ai-writer.ts, d1-writer-repository.ts, service.ts, ai-routes.ts, contracts only if needed, integration tests, eval guide. **No new model calls by default.**
@@ -99,8 +99,8 @@ Stages 2 and 3 can be designed independently; implement 3 before 5, and do not s
 - [x] Compare only **same platform + same format + same exact checkpoint age**. Never mix YouTube and TikTok or use a neighbouring snapshot time.
 - [x] Require at least **five clean comparable items** for learning evidence; if fewer, label comparison weak and do not promote rules. Existing analytics UI's N ≥ 3 presentation threshold is a separate display policy.
 - [x] Mark contamination only from confirmed recommendation restrictions, deleted/unavailable content, platform incidents or broken/incomplete collection. Poor performance is a valid observation, not contamination.
-- [ ] Use only metrics actually available: TikTok public counters, YouTube available counters, Telegram views/reactions. No invented TikTok retention/shares or Telegram comment metrics.
-- [ ] Unit/integration tests with mixed formats, short samples, misaligned timestamps, sparse snapshots and confirmed contamination.
+- [x] Use only metrics actually available: TikTok public counters, YouTube available counters, Telegram views/reactions. No invented TikTok retention/shares or Telegram comment metrics.
+- [x] Unit/integration tests with mixed formats, short samples, misaligned timestamps, sparse snapshots and confirmed contamination.
 
 **Acceptance:** a weak "Учусь играть" video cannot be judged against strong "Учу фидить" videos, and an unsupported metric or confounded video never produces learning evidence. **Files:** content-analytics module, shared DTOs, D1 migrations and tests. **Spec:** architecture.md items 1, 11 and 12.
 
@@ -179,3 +179,5 @@ Stages 2 and 3 can be designed independently; implement 3 before 5, and do not s
 | 2026-10-17 | stage 3 (contamination) | migration 0066: the owner confirms a reason in the item panel; the item leaves every usual curve and the stored report rebuilds | DEV check |
 | 2026-10-17 | stage 0 (quality counts) | «Качество» counts a needs_facts answer as `questions`, not a draft; a legacy row without a result stays a draft | — |
 | 2026-10-17 | stage 3 (alert button) | «Ограничение подтвердилось» / «Удаление подтвердилось» under the TikTok freeze and disappearance alerts: the owner's tap marks the video contaminated | live tap on DEV |
+| 2026-10-17 | stage 0 (limits) | draft limit test: the env limit holds, a refused draft never reaches the model or the ledger, the override is capped at 500; budget gate already covered (ai.test.ts); eval README reconciled | — |
+| 2026-10-17 | stage 3 (metrics, tests) | collectors keep unavailable counters null (Telegram comments/shares, YouTube shares, no TikTok retention), engagement compares within one platform; checkpoint window, short samples, mixed formats and contamination are covered by tests | — |
