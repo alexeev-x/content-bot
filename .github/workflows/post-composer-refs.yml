@@ -1,0 +1,51 @@
+name: Render composer design references
+
+on:
+  push:
+    branches: [develop]
+    paths:
+      - 'design-refs/posts/composer-template.html'
+      - 'design-refs/posts/render-composer.mjs'
+      - '.github/workflows/post-composer-refs.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: post-composer-design-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  render:
+    if: github.ref_name == 'develop'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - name: Install project dependencies
+        run: npm ci
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Render 12 design screenshots
+        run: node design-refs/posts/render-composer.mjs
+      - name: Commit image references to develop
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add design-refs/posts/compose_desktop_*.png design-refs/posts/compose_mobile_*.png
+          if git diff --cached --quiet; then
+            echo "No image changes"
+            exit 0
+          fi
+          git commit -m "design(posts): render 12 visual reference PNGs"
+          git pull --rebase origin develop
+          git push origin HEAD:develop
