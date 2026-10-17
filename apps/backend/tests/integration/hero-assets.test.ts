@@ -110,6 +110,11 @@ describe('hero assets', () => {
       failed: 0
     });
     expect(requested.length).toBe(before);
+
+    // «Проверить у Valve»: the missing and the failed file are tried again at once, their backoff started over.
+    await createD1HeroAssetRepository(testDb()).requeueUnfinished(clock.now());
+    const again = await mirrorHeroAssets(deps(fakeCdn(requested), clock));
+    expect(again.stored + again.missing + again.failed).toBe(2);
   });
 
   it('lets overlapping runs claim different files', async () => {

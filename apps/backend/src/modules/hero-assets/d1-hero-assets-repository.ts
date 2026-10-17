@@ -35,8 +35,11 @@ export interface HeroAssetRepository {
     contentType?: string;
     errorCode?: string;
   }): Promise<void>;
-  /** Files Valve did not have are queued again (the owner asked to check). */
-  requeueMissing(now: number): Promise<void>;
+  /**
+   * The owner asked to check: files Valve did not have and files that failed are queued again now, with their
+   * backoff started over (a failed file otherwise waits up to a day between attempts).
+   */
+  requeueUnfinished(now: number): Promise<void>;
   list(): Promise<HeroAssetRow[]>;
   status(slug: string, kind: HeroAssetKind): Promise<HeroAssetStatus | null>;
 }
@@ -107,11 +110,12 @@ export function createD1HeroAssetRepository(db: D1Database): HeroAssetRepository
         .run();
     },
 
-    async requeueMissing(now) {
+    async requeueUnfinished(now) {
       await db
         .prepare(
-          `UPDATE dota_hero_assets SET status = 'pending', next_attempt_at = ?1, error_code = NULL, updated_at = ?1
-           WHERE status = 'missing'`
+          `UPDATE dota_hero_assets SET status = 'pending', next_attempt_at = ?1, error_code = NULL, attempts = 0,
+             updated_at = ?1
+           WHERE status IN ('missing', 'failed')`
         )
         .bind(now)
         .run();

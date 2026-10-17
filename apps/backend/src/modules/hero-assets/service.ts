@@ -90,7 +90,7 @@ export async function refreshHeroList(deps: {
     throw new AppError('UNAVAILABLE', `The Dota hero list is unavailable${reason(error)}`);
   });
   await deps.repo.upsertHeroes(heroes, deps.clock.now());
-  await deps.repo.requeueMissing(deps.clock.now());
+  await deps.repo.requeueUnfinished(deps.clock.now());
   return { listed: heroes.length };
 }
 
