@@ -148,7 +148,9 @@ describe('tapping «publish now»', () => {
     const order = calls.map((call) => call.method);
     expect(order.indexOf('answerCallbackQuery')).toBeLessThan(order.indexOf('editMessageText'));
     const keyboard = edits().at(-1)?.body.reply_markup?.inline_keyboard.flat();
-    expect(keyboard?.map((button) => button.text)).toEqual(['Открыть в Студии']);
+    // Queued: the button opens the post's publications, never the publish screen (a second publication).
+    expect(keyboard?.map((button) => button.text)).toEqual(['Открыть в Публикациях']);
+    expect(keyboard?.[0]?.web_app?.url).toMatch(/\/publications\?post=[0-9a-f-]{36}$/);
   });
 
   it('answers a repeated tap and a redelivered callback with the same single publication', async () => {

@@ -401,7 +401,10 @@ export function createBot(config: BotConfig, runtime: BotRuntime): Bot {
     const outcome = await runtime.publish.perform(ctx.match[1] ?? '');
     if (outcome.kind === 'busy') return;
     const { text, postId } = outcomeText(outcome);
-    const markup = postId === null ? undefined : publishKeyboard({ appOrigin: runtime.appOrigin, postId, buttons: [] });
+    // Queued or already on its way: its publications, never the publish screen again.
+    const studio = outcome.kind === 'queued' || outcome.kind === 'duplicate' ? 'publications' : 'post';
+    const markup =
+      postId === null ? undefined : publishKeyboard({ appOrigin: runtime.appOrigin, postId, buttons: [], studio });
     try {
       await ctx.editMessageText(text, {
         parse_mode: 'HTML',
