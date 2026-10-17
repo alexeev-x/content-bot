@@ -110,10 +110,12 @@ export function PostMediaEditor(props: MediaEditorProps) {
               <span className={styles.emptyDropzoneIcon} aria-hidden="true">
                 <Icon name="image-plus" size={28} />
               </span>
-              <strong>Добавьте фото или видео</strong>
-              <span>Перетащите файлы сюда или вставьте из буфера</span>
+              <span className={styles.emptyDropzoneText}>
+                <strong>Добавьте фото или видео</strong>
+                <span>Перетащите файлы сюда, вставьте из буфера или выберите из медиатеки</span>
+              </span>
               <Button
-                variant="primary"
+                variant="secondary"
                 size="sm"
                 icon="plus"
                 isDisabled={disabled || busy}

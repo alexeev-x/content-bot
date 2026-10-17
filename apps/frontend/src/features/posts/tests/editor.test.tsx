@@ -65,8 +65,9 @@ describe('mobile editor navigation', () => {
     await openExisting({ body: 'Сохранённый текст' });
 
     expect(screen.getByRole('textbox', { name: 'Заголовок' })).toBeTruthy();
-    expect(screen.queryByRole('tablist')).toBeNull();
-    expect(screen.queryByRole('tab')).toBeNull();
+    // Only «Редактор / Опрос / Настройки» (post-composer.md §2): text and media stay on one screen, never tabs.
+    expect(screen.getByRole('tablist', { name: 'Тип публикации' })).toBeTruthy();
+    expect(screen.getAllByRole('tab').map((tab) => tab.textContent)).toEqual(['Редактор', 'Опрос', 'Настройки']);
     const mediaHeading = screen.getByRole('heading', { name: 'Фото и видео' });
     expect(screen.getAllByRole('heading', { name: 'Фото и видео' })).toHaveLength(1);
     expect(screen.queryByRole('figure', { name: /Предпросмотр в Telegram/ })).toBeNull();

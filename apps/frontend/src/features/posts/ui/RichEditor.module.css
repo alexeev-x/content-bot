@@ -21,28 +21,25 @@
 .box {
   min-width: 0;
   border-radius: var(--radius-2);
-  background: var(--color-surface-1);
-  transition: border-color var(--motion-fast);
+  background: transparent;
+  transition: box-shadow var(--motion-fast);
 }
 .box[data-readonly] {
   background: var(--color-surface-2);
 }
+/* No frame and no constant blue ring around the text (post-composer.md §1): while typing, a thin accent bar on
+   the left says where the focus is. */
 .content {
   min-width: 0;
-  border: 1px solid var(--color-border-strong);
-  border-radius: var(--radius-2);
-}
-.box:not([data-readonly]) .content {
-  border-top-left-radius: 0;
-  border-top-right-radius: 0;
-  border-top: 0;
+  border-radius: 0 0 var(--radius-2) var(--radius-2);
+  box-shadow: inset 2px 0 0 transparent;
+  transition: box-shadow var(--motion-fast);
 }
 .box:focus-within .content {
-  border-color: var(--color-focus-ring);
-  box-shadow: 0 0 0 1px var(--color-focus-ring);
+  box-shadow: inset 2px 0 0 var(--color-focus-ring);
 }
 .box[data-invalid] .content {
-  border-color: var(--color-danger);
+  box-shadow: inset 2px 0 0 var(--color-danger);
 }
 .description {
   display: flex;
@@ -71,7 +68,7 @@
 
 /* The editable element is created by ProseMirror, so its styles are reached through :global. */
 .content :global(.tiptap) {
-  min-height: 12rem;
+  min-height: 10rem;
   max-height: 60vh;
   overflow-y: auto;
   scroll-padding-block: var(--space-3) calc(var(--size-target) * 2 + var(--space-6) + env(safe-area-inset-bottom));

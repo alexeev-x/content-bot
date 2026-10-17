@@ -44,9 +44,10 @@
   gap: var(--space-4);
   min-width: 0;
 }
+/* Its own height: stretched to the column it left an empty card under a short text (owner, 17.10.2026). */
 .writeCard {
   display: flex;
-  flex: 1 0 auto;
+  flex: 0 0 auto;
 }
 .writeCard > section {
   display: flex;
@@ -117,6 +118,17 @@
 /* Inactive tab panes stay mounted (the form keeps its focus and scroll) but leave layout and the tab order. */
 .tabsRoot [inert] {
   display: none;
+}
+.composerNote {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+  max-width: 60ch;
+}
+.composerNote p {
+  margin: 0;
 }
 .previewColumn {
   display: grid;

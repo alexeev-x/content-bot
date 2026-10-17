@@ -7,6 +7,7 @@ import {
   ConfirmDialog,
   Icon,
   IconButton,
+  Panel,
   Tab,
   TabList,
   TabPanel,
@@ -41,6 +42,8 @@ type Props = {
 };
 
 const copy = postsCopy.editor;
+
+type ComposerTab = 'editor' | 'poll' | 'settings';
 const NARROW = '(max-width: 859px)';
 
 export function PostEditor({ post, onCreated, approvedActions, aside, headerActions }: Props) {
@@ -70,6 +73,7 @@ export function PostEditor({ post, onCreated, approvedActions, aside, headerActi
   const [compareOpen, setCompareOpen] = useState(false);
   const [mobilePreviewOpen, setMobilePreviewOpen] = useState(false);
   const [desktopPreviewOpen, setDesktopPreviewOpen] = useState(true);
+  const [composerTab, setComposerTab] = useState<ComposerTab>('editor');
   const [overwriteOpen, setOverwriteOpen] = useState(false);
 
   useSaveShortcut(() => void editor.save());
@@ -207,6 +211,51 @@ export function PostEditor({ post, onCreated, approvedActions, aside, headerActi
     </div>
   );
 
+  // «Редактор / Опрос / Настройки» (docs/design/ux/post-composer.md §2). The editor stays mounted while another
+  // tab is shown: the text, the selection and the undo history must survive a look at the other tabs.
+  const editingArea = narrow ? (
+    <div className={styles.phoneStack}>
+      {fields}
+      {mediaEditor}
+    </div>
+  ) : (
+    <div className={`${styles.panes} ${!desktopPreviewOpen ? styles.previewCollapsed : ''}`}>
+      <div className={styles.leftColumn}>
+        <div className={styles.writeCard}>{fields}</div>
+        {mediaEditor}
+      </div>
+      {desktopPreviewOpen ? side : null}
+    </div>
+  );
+  const composer = (
+    <div className={styles.tabsRoot}>
+      <Tabs selectedKey={composerTab} onSelectionChange={(key) => setComposerTab(String(key) as ComposerTab)}>
+        <TabList aria-label={copy.composer.label}>
+          <Tab id="editor">{copy.composer.editor}</Tab>
+          <Tab id="poll">{copy.composer.poll}</Tab>
+          <Tab id="settings">{copy.composer.settings}</Tab>
+        </TabList>
+        <TabPanel id="editor" shouldForceMount>
+          {editingArea}
+        </TabPanel>
+        <TabPanel id="poll">
+          <Panel title={copy.composer.pollTitle} icon={<Icon name="list" />}>
+            <div className={styles.composerNote}>
+              <p>{copy.composer.pollSoon}</p>
+            </div>
+          </Panel>
+        </TabPanel>
+        <TabPanel id="settings">
+          <Panel title={copy.composer.settingsTitle} icon={<Icon name="settings" />}>
+            <div className={styles.composerNote}>
+              <p>{copy.composer.settingsBody}</p>
+            </div>
+          </Panel>
+        </TabPanel>
+      </Tabs>
+    </div>
+  );
+
   const actions = isApproved ? (
     baseline && approvedActions && !isArchived ? (
       approvedActions(baseline)
@@ -243,7 +292,7 @@ export function PostEditor({ post, onCreated, approvedActions, aside, headerActi
         ) : null}
         <div className={styles.titleCopy}>
           <h1 ref={statusRef} tabIndex={-1}>
-            {editor.isNew ? 'Новый пост' : editor.title.trim() || copy.untitled}
+            {editor.isNew ? copy.composer.newTitle : editor.title.trim() || copy.untitled}
           </h1>
           {/* Studio-only: who wrote the post (owner, 16.10.2026: «внутри поста я нигде не вижу, что это ИИ»). */}
           <OriginMark origin={baseline?.origin} />
@@ -325,24 +374,7 @@ export function PostEditor({ post, onCreated, approvedActions, aside, headerActi
         </Banner>
       ) : null}
 
-      {showApprovedPreview ? (
-        side
-      ) : narrow && mobilePreviewOpen ? (
-        previewPanel
-      ) : narrow ? (
-        <div className={styles.phoneStack}>
-          {fields}
-          {mediaEditor}
-        </div>
-      ) : (
-        <div className={`${styles.panes} ${!desktopPreviewOpen ? styles.previewCollapsed : ''}`}>
-          <div className={styles.leftColumn}>
-            <div className={styles.writeCard}>{fields}</div>
-            {mediaEditor}
-          </div>
-          {desktopPreviewOpen ? side : null}
-        </div>
-      )}
+      {showApprovedPreview ? side : narrow && mobilePreviewOpen ? previewPanel : composer}
       <footer className={narrow ? styles.actionBar : styles.footerBar}>
         <Button variant="secondary" size={narrow ? 'sm' : 'xl'} icon="arrow-left" onPress={() => void backToPosts()}>
           К постам

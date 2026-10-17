@@ -1,12 +1,12 @@
+/* One thin line under the tools, no box of its own (design-refs/posts, docs/design/ux/post-composer.md §1). */
 .toolbar {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: var(--space-1) var(--space-2);
-  padding: var(--space-1);
-  border: 1px solid var(--color-border-subtle);
-  border-radius: var(--radius-2) var(--radius-2) 0 0;
-  background: var(--color-surface-2);
+  padding: var(--space-1) 0;
+  border-bottom: 1px solid var(--color-border-subtle);
+  background: transparent;
 }
 .group {
   display: flex;
