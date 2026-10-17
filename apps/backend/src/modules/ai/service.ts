@@ -239,6 +239,7 @@ export async function readAiOverview(deps: {
       approvedUnchanged: quality.approvedUnchanged,
       averageEditRatio: quality.averageEditRatio === null ? null : Math.round(quality.averageEditRatio * 1000) / 1000,
       jokeMissed: quality.jokeMissed,
+      feedback: quality.feedback,
       averageDraftUsd: quality.averageDraftMicroUsd === null ? null : toUsd(quality.averageDraftMicroUsd),
       changedParts:
         quality.tagged === 0

@@ -1,7 +1,9 @@
+import type { AiFeedbackKind } from '@alexeev/contracts';
 import type { WriterFormat, WriterMode } from './writer-types';
 
 export type Provenance = 'AI_DRAFT' | 'OWNER_EDITED' | 'OWNER_APPROVED' | 'OWNER_PREAPPROVED';
-export type FeedbackKind = 'joke_missed' | 'not_my_style' | 'fact_wrong';
+/** The owner's verdicts on a draft (migration 0067). */
+export type FeedbackKind = AiFeedbackKind;
 
 // The «unchanged» line of «Качество» (≤ 5% edited): below it an approval is the model's words, not the owner's.
 const OWNER_EXAMPLE_MIN_EDIT = 0.05;
@@ -54,6 +56,8 @@ export interface QualityRows {
   approvedUnchanged: number;
   averageEditRatio: number | null;
   jokeMissed: number;
+  /** The owner's verdicts by reason, most given first. */
+  feedback: { kind: FeedbackKind; count: number }[];
   averageDraftMicroUsd: number | null;
   /** Approvals tagged with changed parts (migration 0061) and how many of them changed each part. */
   tagged: number;
@@ -107,7 +111,14 @@ export interface WriterRepository {
     row: Omit<RevisionRow, 'postId'> & { parentId: string | null; changedParts: readonly string[] }
   ): Promise<boolean>;
   attachPost(revisionId: string, postId: string): Promise<void>;
-  addFeedback(input: { id: string; generationId: string; kind: FeedbackKind; now: number }): Promise<void>;
+  /** Once per draft and kind: a repeated tap records nothing new. */
+  addFeedback(input: {
+    id: string;
+    generationId: string;
+    kind: FeedbackKind;
+    revisionId: string | null;
+    now: number;
+  }): Promise<void>;
   recent(limit: number): Promise<GenerationRow[]>;
   /**
    * The owner's approved texts of one format that the owner actually changed (edit ratio > 5%), newest first:
@@ -390,10 +401,12 @@ export function createD1WriterRepository(db: D1Database): WriterRepository {
         .run();
     },
 
-    async addFeedback({ id, generationId, kind, now }) {
+    async addFeedback({ id, generationId, kind, revisionId, now }) {
       await db
-        .prepare('INSERT OR IGNORE INTO ai_feedback (id, generation_id, kind, created_at) VALUES (?, ?, ?, ?)')
-        .bind(id, generationId, kind, now)
+        .prepare(
+          'INSERT OR IGNORE INTO ai_feedback (id, generation_id, kind, revision_id, created_at) VALUES (?, ?, ?, ?, ?)'
+        )
+        .bind(id, generationId, kind, revisionId, now)
         .run();
     },
 
@@ -459,7 +472,11 @@ export function createD1WriterRepository(db: D1Database): WriterRepository {
              WHERE provenance IN ('OWNER_APPROVED', 'OWNER_PREAPPROVED') AND created_at >= ?`
           )
           .bind(since),
-        db.prepare(`SELECT COUNT(*) AS n FROM ai_feedback WHERE kind = 'joke_missed' AND created_at >= ?`).bind(since),
+        db
+          .prepare(
+            `SELECT kind, COUNT(*) AS n FROM ai_feedback WHERE created_at >= ? GROUP BY kind ORDER BY n DESC, kind`
+          )
+          .bind(since),
         db
           .prepare(
             `SELECT AVG(u.cost_micro_usd) AS cost FROM ai_generations g JOIN ai_usage u ON u.id = g.usage_id
@@ -481,6 +498,10 @@ export function createD1WriterRepository(db: D1Database): WriterRepository {
           )
           .bind(since)
       ]);
+      const verdicts = ((feedback?.results ?? []) as { kind: FeedbackKind; n: number }[]).map((row) => ({
+        kind: row.kind,
+        count: row.n
+      }));
       const rows = (generations?.results ?? []) as {
         kind: string;
         status: string;
@@ -503,7 +524,8 @@ export function createD1WriterRepository(db: D1Database): WriterRepository {
         approved: approval?.n ?? 0,
         approvedUnchanged: approval?.unchanged ?? 0,
         averageEditRatio: approval?.ratio ?? null,
-        jokeMissed: (feedback?.results[0] as { n: number } | undefined)?.n ?? 0,
+        jokeMissed: verdicts.find((row) => row.kind === 'joke_missed')?.count ?? 0,
+        feedback: verdicts,
         averageDraftMicroUsd: (cost?.results[0] as { cost: number | null } | undefined)?.cost ?? null,
         tagged: (tagged?.results[0] as { n: number } | undefined)?.n ?? 0,
         changedParts: ((parts?.results ?? []) as { part: string; n: number }[]).map((row) => ({

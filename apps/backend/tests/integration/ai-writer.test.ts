@@ -1,4 +1,5 @@
 import type { UpdateAiSettingsInput } from '@alexeev/contracts';
+import { applyD1Migrations, env } from 'cloudflare:test';
 import { beforeEach, describe, expect, it } from 'vitest';
 import {
   AiProviderError,
@@ -10,6 +11,7 @@ import {
   createD1WriterRepository,
   generateDraft,
   publishableText,
+  recordFeedback,
   saveOwnerEdit,
   updateAiSettings,
   type WriterDeps
@@ -149,6 +151,67 @@ describe('AI writer', () => {
     expect(prompt).not.toContain('Телеграм-текст автора');
     // The owner's text sits right before the task: the most relevant example comes last.
     expect(prompt.indexOf('Свой текст:')).toBeGreaterThan(prompt.lastIndexOf('Пример ('));
+  });
+
+  it('records a reason once per draft on the text the owner judged, and counts reasons for «Качество»', async () => {
+    const writer = deps(answering(ANSWER));
+    const result = await draft(writer);
+    const revision = (await writer.writer.revisions(result.generation.id)).at(-1)?.id;
+    await recordFeedback(writer, result.generation.id, 'weak_hook');
+    await recordFeedback(writer, result.generation.id, 'weak_hook');
+    await recordFeedback(writer, result.generation.id, 'joke_missed');
+    const rows = await testDb()
+      .prepare('SELECT kind, revision_id AS revisionId FROM ai_feedback ORDER BY kind')
+      .all<{ kind: string; revisionId: string | null }>();
+    expect(rows.results).toEqual([
+      { kind: 'joke_missed', revisionId: revision },
+      { kind: 'weak_hook', revisionId: revision }
+    ]);
+    const quality = await writer.writer.quality(0);
+    expect(quality.jokeMissed).toBe(1);
+    expect(quality.feedback).toEqual([
+      { kind: 'joke_missed', count: 1 },
+      { kind: 'weak_hook', count: 1 }
+    ]);
+  });
+
+  it('migration 0067 keeps every earlier verdict and accepts only the known reasons', async () => {
+    const writer = deps(answering(ANSWER));
+    const result = await draft(writer);
+    const migration = env.TEST_MIGRATIONS.find(({ name }) => name === '0067_ai_feedback_reasons.sql');
+    expect(migration).toBeDefined();
+    // The table as migration 0054 made it, with a verdict in it.
+    await testDb().batch([
+      testDb().prepare('DROP TABLE ai_feedback'),
+      testDb().prepare(
+        `CREATE TABLE ai_feedback (
+           id TEXT PRIMARY KEY CHECK (length(id) = 36),
+           generation_id TEXT NOT NULL REFERENCES ai_generations (id),
+           kind TEXT NOT NULL CHECK (kind IN ('joke_missed', 'not_my_style', 'fact_wrong')),
+           created_at INTEGER NOT NULL,
+           UNIQUE (generation_id, kind)
+         )`
+      ),
+      testDb()
+        .prepare("INSERT INTO ai_feedback (id, generation_id, kind, created_at) VALUES (?, ?, 'not_my_style', 5)")
+        .bind('00000000-0000-4000-8000-0000000000f1', result.generation.id),
+      testDb().prepare('DELETE FROM d1_migrations WHERE name = ?1').bind(migration?.name)
+    ]);
+    await applyD1Migrations(testDb(), migration === undefined ? [] : [migration]);
+
+    const kept = await testDb()
+      .prepare('SELECT id, kind, revision_id AS revisionId, created_at AS createdAt FROM ai_feedback')
+      .all();
+    expect(kept.results).toEqual([
+      { id: '00000000-0000-4000-8000-0000000000f1', kind: 'not_my_style', revisionId: null, createdAt: 5 }
+    ]);
+    await recordFeedback(writer, result.generation.id, 'missed_task');
+    await expect(
+      testDb()
+        .prepare("INSERT INTO ai_feedback (id, generation_id, kind, created_at) VALUES (?, ?, 'meh', 6)")
+        .bind('00000000-0000-4000-8000-0000000000f2', result.generation.id)
+        .run()
+    ).rejects.toThrow();
   });
 
   it('ranks the owner texts by the task first and by recency only among equals', () => {

@@ -606,6 +606,10 @@ export async function mockApi(page: Page): Promise<void> {
         approvedUnchanged: 1,
         averageEditRatio: 0.18,
         jokeMissed: 1,
+        feedback: [
+          { kind: 'weak_hook', count: 2 },
+          { kind: 'joke_missed', count: 1 }
+        ],
         averageDraftUsd: 0.011,
         questions: 2,
         changedParts: [

@@ -1,4 +1,4 @@
-import type { AiSpendDto, AiUsageKind } from '@alexeev/contracts';
+import type { AiFeedbackKind, AiSpendDto, AiUsageKind } from '@alexeev/contracts';
 
 const MONTHS = [
   'январе',
@@ -141,11 +141,21 @@ export const copy = {
     },
     partsLead: 'Чаще всего правите: ',
     // Only the counters that happened: a row of zeros read as noise.
-    details: (questions: number, jokes: number, warned: number, failed: number) =>
+    // «Что не так?» in the bot, lower case after «Отзывы: ».
+    feedback: {
+      topic_repeated: 'тема повторяется',
+      weak_hook: 'слабый хук',
+      joke_missed: 'шутка не зашла',
+      not_my_style: 'не мой стиль',
+      too_long: 'слишком длинно',
+      fact_wrong: 'ошибка в фактах',
+      missed_task: 'не то задание'
+    } satisfies Record<AiFeedbackKind, string>,
+    feedbackLead: 'Отзывы: ',
+    details: (questions: number, warned: number, failed: number) =>
       (
         [
           ['Уточняющих вопросов', questions],
-          ['«Шутка не зашла»', jokes],
           ['Замечания проверки', warned],
           ['Ошибок модели', failed]
         ] as const

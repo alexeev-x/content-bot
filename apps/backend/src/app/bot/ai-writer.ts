@@ -8,6 +8,7 @@ import {
   attachPost,
   chooseHook,
   describeCheck,
+  type FeedbackKind,
   FORMAT_LABEL,
   type GenerationRow,
   generateDraft,
@@ -73,8 +74,21 @@ const REWRITES = {
   short: 'короче примерно на треть, без потери главного',
   fun: 'смешнее: больше живых шуток и мемов автора, без кринжа'
 } as const;
-type Action = 'h0' | 'h1' | 'h2' | keyof typeof REWRITES | 'joke' | 'ok';
-const CALLBACK = /^ai:([0-9a-f-]{36}):(h[0-2]|more|short|fun|joke|ok)$/;
+/** «Что не так?»: the reasons of the plan's stage 2, each recorded once per draft and only recorded. */
+const REASONS = {
+  topic: { kind: 'topic_repeated', label: 'Тема повторяется', noted: 'тема повторяется' },
+  hook: { kind: 'weak_hook', label: 'Слабый хук', noted: 'слабый хук' },
+  joke: { kind: 'joke_missed', label: 'Шутка не зашла', noted: 'шутка не зашла' },
+  style: { kind: 'not_my_style', label: 'Не мой стиль', noted: 'не мой стиль' },
+  long: { kind: 'too_long', label: 'Слишком длинно', noted: 'слишком длинно' },
+  fact: { kind: 'fact_wrong', label: 'Ошибка в фактах', noted: 'ошибка в фактах' },
+  task: { kind: 'missed_task', label: 'Не то задание', noted: 'не то задание' }
+} as const satisfies Record<string, { kind: FeedbackKind; label: string; noted: string }>;
+type Reason = keyof typeof REASONS;
+// `joke` stays for the buttons of messages sent before «Что не так?».
+type Action = 'h0' | 'h1' | 'h2' | keyof typeof REWRITES | 'joke' | 'ok' | 'why' | 'back' | `r:${Reason}`;
+const CALLBACK =
+  /^ai:([0-9a-f-]{36}):(h[0-2]|more|short|fun|joke|ok|why|back|r:(?:topic|hook|joke|style|long|fact|task))$/;
 
 const escapeHtml = (value: string): string =>
   value.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;');
@@ -105,9 +119,19 @@ function keyboard(generationId: string, hooks: readonly string[], appOrigin: str
   hooks.forEach((_hook, index) => board.text(`Хук ${index + 1}`, data(`h${index}` as Action)));
   if (hooks.length > 0) board.row();
   board.text('Ещё вариант', data('more')).text('Короче', data('short')).text('Смешнее', data('fun')).row();
-  board.text('Шутка не зашла', data('joke')).text('Одобрить', data('ok'));
+  board.text('Что не так?', data('why')).text('Одобрить', data('ok'));
   if (appOrigin !== null) board.row().webApp('Открыть студию', `${appOrigin}/`);
   return board;
+}
+
+/** The reasons, two per row, and the way back to the draft's buttons. */
+function reasonsKeyboard(generationId: string): InlineKeyboardMarkup {
+  const board = new InlineKeyboard();
+  (Object.keys(REASONS) as Reason[]).forEach((reason, index) => {
+    board.text(REASONS[reason].label, `ai:${generationId}:r:${reason}`);
+    if (index % 2 === 1) board.row();
+  });
+  return board.text('← Назад', `ai:${generationId}:back`);
 }
 
 /** The model asked for the owner's facts (result needs_facts, or the NEEDS_FACTS warning of an older row). */
@@ -171,6 +195,15 @@ async function edit(ctx: Context, chatId: number, messageId: number, html: strin
       link_preview_options: { is_disabled: true },
       ...(markup === undefined ? {} : { reply_markup: markup })
     });
+  } catch (error) {
+    if (!(error instanceof GrammyError && error.description.includes('message is not modified'))) throw error;
+  }
+}
+
+/** Replaces the message's buttons; a double tap asks for the same buttons again, which Telegram calls an error. */
+async function swapButtons(ctx: Context, markup: InlineKeyboardMarkup): Promise<void> {
+  try {
+    await ctx.editMessageReplyMarkup({ reply_markup: markup });
   } catch (error) {
     if (!(error instanceof GrammyError && error.description.includes('message is not modified'))) throw error;
   }
@@ -440,9 +473,19 @@ export function registerAiWriter(bot: Bot, runtime: AiWriterRuntime): void {
     }
     const deps = await runtime.writer();
     try {
-      if (action === 'joke') {
-        await recordFeedback(deps, generationId, 'joke_missed');
-        await ctx.answerCallbackQuery({ text: 'Записал: шутка не зашла' });
+      if (action === 'why') {
+        await ctx.answerCallbackQuery().catch((error: unknown) => runtime.onError(error));
+        await swapButtons(ctx, reasonsKeyboard(generationId));
+        return;
+      }
+      if (action === 'joke' || action === 'back' || action.startsWith('r:')) {
+        const reason: Reason | null =
+          action === 'joke' ? 'joke' : action === 'back' ? null : (action.slice(2) as Reason);
+        if (reason !== null) await recordFeedback(deps, generationId, REASONS[reason].kind);
+        await ctx.answerCallbackQuery(reason === null ? {} : { text: `Записал: ${REASONS[reason].noted}` });
+        const generation = await deps.writer.findGeneration(generationId);
+        if (generation !== null && action !== 'joke')
+          await swapButtons(ctx, keyboard(generation.id, generation.hooks, runtime.appOrigin));
         return;
       }
       if (action === 'ok') {

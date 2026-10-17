@@ -402,12 +402,10 @@ function AiSettings({ overview, onReload }: { overview: AiOverviewDto; onReload:
 /** «Качество»: how much the owner changes before approving, and what the checks and buttons say. */
 function QualityPanel({ quality }: { quality: AiOverviewDto['quality'] }) {
   const ratio = quality.averageEditRatio;
-  const details = copy.quality.details(
-    quality.questions ?? 0,
-    quality.jokeMissed,
-    quality.withWarnings,
-    quality.failed
-  );
+  const details = copy.quality.details(quality.questions ?? 0, quality.withWarnings, quality.failed);
+  // An older server sends only the «Шутка не зашла» count.
+  const verdicts =
+    quality.feedback ?? (quality.jokeMissed > 0 ? [{ kind: 'joke_missed' as const, count: quality.jokeMissed }] : []);
   // The three parts changed most, from a tenth of approvals up: rarer ones are noise at this volume.
   const parts = quality.changedParts.filter((row) => row.share >= 0.1).slice(0, 3);
   const approved = approvalPercent(quality);
@@ -449,6 +447,12 @@ function QualityPanel({ quality }: { quality: AiOverviewDto['quality'] }) {
             <p className={styles.meta}>
               {copy.quality.partsLead}
               {parts.map((row) => `${copy.quality.part[row.part]} — ${Math.round(row.share * 100)}%`).join(' · ')}
+            </p>
+          ) : null}
+          {verdicts.length > 0 ? (
+            <p className={styles.meta}>
+              {copy.quality.feedbackLead}
+              {verdicts.map((row) => `${copy.quality.feedback[row.kind]} — ${row.count}`).join(' · ')}
             </p>
           ) : null}
           {details ? <p className={styles.meta}>{details}</p> : null}

@@ -127,6 +127,18 @@ export type AiConnectionDto = z.infer<typeof aiConnectionSchema>;
 export const AI_CHANGED_PARTS = ['hook', 'ending', 'length', 'structure', 'swearing', 'ai_wording'] as const;
 export type AiChangedPart = (typeof AI_CHANGED_PARTS)[number];
 
+/** The owner's reasons for a verdict on a draft (migration 0067); recorded only, never a rule by themselves. */
+export const AI_FEEDBACK_KINDS = [
+  'topic_repeated',
+  'weak_hook',
+  'joke_missed',
+  'not_my_style',
+  'too_long',
+  'fact_wrong',
+  'missed_task'
+] as const;
+export type AiFeedbackKind = (typeof AI_FEEDBACK_KINDS)[number];
+
 export const aiQualitySchema = z.object({
   days: z.number().int().positive(),
   /**
@@ -146,6 +158,11 @@ export const aiQualitySchema = z.object({
   /** Mean share of words the owner changed before approving, 0–1; null without approvals. */
   averageEditRatio: z.number().min(0).max(1).nullable(),
   jokeMissed: z.number().int().nonnegative(),
+  /** The owner's verdicts by reason over the period, most given first. */
+  feedback: z
+    .array(z.object({ kind: z.enum(AI_FEEDBACK_KINDS), count: z.number().int().positive() }))
+    .max(AI_FEEDBACK_KINDS.length)
+    .optional(),
   /** Mean cost of a priced first draft; null without one. */
   averageDraftUsd: z.number().nonnegative().nullable(),
   /**

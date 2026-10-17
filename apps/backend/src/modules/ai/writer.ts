@@ -426,7 +426,9 @@ export async function attachPost(deps: Pick<WriterDeps, 'writer'>, revisionId: s
 
 export async function recordFeedback(deps: WriterDeps, generationId: string, kind: FeedbackKind): Promise<void> {
   if ((await deps.writer.findGeneration(generationId)) === null) throw new AppError('NOT_FOUND', 'The draft is gone');
-  await deps.writer.addFeedback({ id: deps.newId(), generationId, kind, now: deps.clock.now() });
+  // Tied to the text the owner judged: the latest revision when the button was pressed.
+  const revisionId = (await deps.writer.revisions(generationId)).at(-1)?.id ?? null;
+  await deps.writer.addFeedback({ id: deps.newId(), generationId, kind, revisionId, now: deps.clock.now() });
 }
 
 /**
