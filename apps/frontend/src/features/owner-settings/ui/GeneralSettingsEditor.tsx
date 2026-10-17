@@ -1,18 +1,77 @@
 import { ApiError } from '../../../shared/api/http-client';
 import { useNow } from '../../../shared/lib/use-now';
 import { ru } from '../../../shared/lib/ru';
-import { Banner, Button, ErrorState, Panel, Skeleton, Switch, VisuallyHidden } from '../../../shared/ui';
+import {
+  Banner,
+  Button,
+  ErrorState,
+  Icon,
+  IconBadge,
+  type IconName,
+  Panel,
+  Skeleton,
+  type StatusGroup,
+  Switch,
+  VisuallyHidden
+} from '../../../shared/ui';
 import { useGeneralSettings, type SettingsPatch } from '../model/use-general-settings';
 import styles from './GeneralSettingsEditor.module.css';
 import { TimezoneField } from './TimezoneField';
 
 const SWITCHES = [
-  { key: 'scheduleNotices', label: ru.general.scheduleNotices, description: ru.general.scheduleNoticesHint },
-  { key: 'sentNotices', label: ru.general.sentNotices, description: ru.general.sentNoticesHint },
-  { key: 'publicationAlerts', label: ru.general.publications, description: ru.general.publicationsHint },
-  { key: 'sourceAlerts', label: ru.general.sources, description: ru.general.sourcesHint },
-  { key: 'recoveryAlerts', label: ru.general.recovery, description: ru.general.recoveryHint }
-] as const satisfies readonly { key: keyof SettingsPatch; label: string; description: string }[];
+  {
+    key: 'scheduleNotices',
+    label: ru.general.scheduleNotices,
+    description: ru.general.scheduleNoticesHint,
+    icon: 'calendar',
+    tone: 'done'
+  },
+  {
+    key: 'sentNotices',
+    label: ru.general.sentNotices,
+    description: ru.general.sentNoticesHint,
+    icon: 'send',
+    tone: 'accent'
+  },
+  {
+    key: 'publicationAlerts',
+    label: ru.general.publications,
+    description: ru.general.publicationsHint,
+    icon: 'alert',
+    tone: 'unknown'
+  },
+  { key: 'sourceAlerts', label: ru.general.sources, description: ru.general.sourcesHint, icon: 'link', tone: 'retry' },
+  {
+    key: 'recoveryAlerts',
+    label: ru.general.recovery,
+    description: ru.general.recoveryHint,
+    icon: 'retry',
+    tone: 'failed'
+  }
+] as const satisfies readonly {
+  key: keyof SettingsPatch;
+  label: string;
+  description: string;
+  icon: IconName;
+  tone: StatusGroup | 'accent';
+}[];
+
+/** «15:32» and «UTC+3» in the chosen zone; an unknown zone shows nothing rather than the browser's time. */
+function zoneClock(now: Date, timezone: string): { time: string; offset: string } | null {
+  try {
+    const time = new Intl.DateTimeFormat('ru-RU', { timeZone: timezone, hour: '2-digit', minute: '2-digit' }).format(
+      now
+    );
+    const offset =
+      new Intl.DateTimeFormat('en-US', { timeZone: timezone, timeZoneName: 'shortOffset' })
+        .formatToParts(now)
+        .find((part) => part.type === 'timeZoneName')
+        ?.value.replace('GMT', 'UTC') ?? '';
+    return { time, offset: offset === 'UTC' ? 'UTC+0' : offset };
+  } catch {
+    return null;
+  }
+}
 
 /** The two panels with their real titles and the height their fields fill, no request: also the route skeleton. */
 export function GeneralSettingsSkeleton() {
@@ -21,13 +80,14 @@ export function GeneralSettingsSkeleton() {
       <VisuallyHidden>
         <output>{ru.ui.loading}</output>
       </VisuallyHidden>
-      <Panel title={ru.general.timezoneTitle} reserveRows={3} reservePhoneRows={3.6}>
+      <Panel title={ru.general.timezoneTitle} icon={<Icon name="clock" />} reserveRows={3} reservePhoneRows={3.6}>
         <div className={styles.body}>
           <Skeleton height="var(--size-control)" />
         </div>
       </Panel>
       <Panel
         title={ru.general.notificationsTitle}
+        icon={<Icon name="bell" />}
         note={ru.general.notificationsNote}
         reserveRows={6.6}
         reservePhoneRows={9.4}
@@ -46,6 +106,7 @@ const STATUS_TEXT = { idle: '', saving: ru.general.saving, saved: ru.general.sav
 export function GeneralSettingsEditor() {
   const { query, view, problem, status, isFetching, change, keepMine, loadCurrent } = useGeneralSettings();
   const now = useNow();
+  const clock = view ? zoneClock(now, view.timezone) : null;
 
   if (query.isPending) return <GeneralSettingsSkeleton />;
   if (query.isError || !view) {
@@ -87,26 +148,55 @@ export function GeneralSettingsEditor() {
           </div>
         </Banner>
       ) : null}
-      <Panel title={ru.general.timezoneTitle}>
-        <div className={styles.body}>
+      <Panel title={ru.general.timezoneTitle} icon={<Icon name="clock" />}>
+        <div className={styles.timezone}>
           <TimezoneField value={view.timezone} now={now} onChange={(timezone) => change({ timezone })} />
+          {clock ? (
+            <div className={styles.clock}>
+              <span className={styles.clockLabel}>{ru.general.localTime}</span>
+              <time className={styles.clockTime} dateTime={now.toISOString()}>
+                {clock.time}
+              </time>
+              <span className={styles.clockLabel}>{clock.offset}</span>
+            </div>
+          ) : null}
         </div>
       </Panel>
-      <Panel title={ru.general.notificationsTitle} note={ru.general.notificationsNote}>
-        <div className={styles.switches}>
-          {SWITCHES.map(({ key, label, description }) => (
-            <Switch
-              key={key}
-              variant="row"
-              isSelected={view[key]}
-              onChange={(value) => change({ [key]: value })}
-              description={description}
-            >
-              {label}
-            </Switch>
+      <Panel
+        title={ru.general.notificationsTitle}
+        icon={<Icon name="bell" />}
+        note={ru.general.notificationsNote}
+        action={
+          <Button
+            variant="secondary"
+            size="sm"
+            isDisabled={SWITCHES.every(({ key }) => view[key])}
+            onPress={() => change(Object.fromEntries(SWITCHES.map(({ key }) => [key, true])) as SettingsPatch)}
+          >
+            {ru.general.enableAll}
+          </Button>
+        }
+      >
+        <ul className={styles.switches}>
+          {SWITCHES.map(({ key, label, description, icon, tone }) => (
+            <li key={key} className={styles.notice}>
+              <IconBadge name={icon} tone={tone} />
+              <Switch
+                variant="row"
+                isSelected={view[key]}
+                onChange={(value) => change({ [key]: value })}
+                description={description}
+              >
+                {label}
+              </Switch>
+            </li>
           ))}
+        </ul>
+        <div className={styles.critical}>
+          <Banner tone="warning" title={ru.general.criticalTitle}>
+            {ru.general.criticalBody}
+          </Banner>
         </div>
-        <p className={styles.critical}>{ru.general.critical}</p>
       </Panel>
       <output className={styles.status}>{STATUS_TEXT[status]}</output>
     </div>

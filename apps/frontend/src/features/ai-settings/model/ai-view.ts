@@ -32,3 +32,17 @@ export function aiStatus(overview: AiOverviewDto): { label: string; group: Statu
     };
   return { label: copy.status.ready, group: 'done', icon: 'check-circle', next: copy.next.ready };
 }
+
+/** Approved drafts as a whole percent; null without a draft. */
+export function approvalPercent(quality: AiOverviewDto['quality']): number | null {
+  return quality.drafts === 0 ? null : Math.round((quality.approved / quality.drafts) * 100);
+}
+
+/** Below this share of approvals over at least this many drafts, the page suggests what to change. */
+const LOW_APPROVAL_PERCENT = 30;
+const LOW_APPROVAL_MIN_DRAFTS = 5;
+
+export function lowApproval(quality: AiOverviewDto['quality']): boolean {
+  const percent = approvalPercent(quality);
+  return percent !== null && quality.drafts >= LOW_APPROVAL_MIN_DRAFTS && percent < LOW_APPROVAL_PERCENT;
+}

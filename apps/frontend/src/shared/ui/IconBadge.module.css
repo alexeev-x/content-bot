@@ -1,0 +1,64 @@
+.badge {
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  inline-size: 2.5rem;
+  block-size: 2.5rem;
+  border: 1px solid var(--color-status-active-ring);
+  border-radius: var(--radius-2);
+  background: var(--color-status-active-bg);
+  color: var(--color-status-active-fg);
+}
+
+.badge[data-size='sm'] {
+  inline-size: 2rem;
+  block-size: 2rem;
+}
+
+.badge[data-size='lg'] {
+  inline-size: 3rem;
+  block-size: 3rem;
+  border-radius: var(--radius-3);
+}
+
+.badge[data-tone='accent'] {
+  border-color: var(--color-accent-soft);
+  background: var(--color-accent-soft);
+  color: var(--color-accent-text);
+}
+
+.badge[data-tone='done'] {
+  border-color: var(--color-status-done-ring);
+  background: var(--color-status-done-bg);
+  color: var(--color-status-done-fg);
+}
+
+.badge[data-tone='pending'] {
+  border-color: var(--color-status-pending-ring);
+  background: var(--color-status-pending-bg);
+  color: var(--color-status-pending-fg);
+}
+
+.badge[data-tone='retry'] {
+  border-color: var(--color-status-retry-ring);
+  background: var(--color-status-retry-bg);
+  color: var(--color-status-retry-fg);
+}
+
+.badge[data-tone='failed'] {
+  border-color: var(--color-status-failed-ring);
+  background: var(--color-status-failed-bg);
+  color: var(--color-status-failed-fg);
+}
+
+.badge[data-tone='unknown'] {
+  border-color: var(--color-status-unknown-ring);
+  background: var(--color-status-unknown-bg);
+  color: var(--color-status-unknown-fg);
+}
+
+.badge[data-tone='muted'] {
+  border-color: var(--color-status-muted-ring);
+  background: var(--color-status-muted-bg);
+  color: var(--color-status-muted-fg);
+}

@@ -606,7 +606,12 @@ export async function mockApi(page: Page): Promise<void> {
         approvedUnchanged: 1,
         averageEditRatio: 0.18,
         jokeMissed: 1,
-        averageDraftUsd: 0.011
+        averageDraftUsd: 0.011,
+        questions: 2,
+        changedParts: [
+          { part: 'hook', share: 0.5 },
+          { part: 'ending', share: 0.25 }
+        ]
       },
       catalog: {
         provider: 'openai',

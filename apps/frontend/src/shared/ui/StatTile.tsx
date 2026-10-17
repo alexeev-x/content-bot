@@ -1,0 +1,47 @@
+import type { ReactNode } from 'react';
+import { IconBadge } from './IconBadge';
+import type { IconName } from './Icon';
+import type { StatusGroup } from './status-meta';
+import styles from './StatTile.module.css';
+
+type GridProps = {
+  /** The tiles; a description list, so each label stays tied to its value for a screen reader. */
+  children: ReactNode;
+  /** Narrowest tile before the grid wraps to fewer columns. */
+  minTile?: 'sm' | 'md';
+};
+
+/** A row of figures that wraps by available width (two columns on a phone). */
+export function StatGrid({ children, minTile = 'sm' }: GridProps) {
+  return (
+    <dl className={styles.grid} data-min={minTile}>
+      {children}
+    </dl>
+  );
+}
+
+type Props = {
+  label: string;
+  value: ReactNode;
+  /** One quiet line under the value: a share, a breakdown, a limit. */
+  meta?: ReactNode;
+  icon?: IconName;
+  /** Tints the icon; colour is never the only signal, the label says what it is. */
+  tone?: StatusGroup | 'accent';
+};
+
+/** One figure with its label: the tile of «Расходы», «Качество» and the bot's numbers. */
+export function StatTile({ label, value, meta, icon, tone = 'accent' }: Props) {
+  return (
+    <div className={styles.tile}>
+      <dt className={styles.label}>{label}</dt>
+      <dd className={styles.value}>{value}</dd>
+      {meta === undefined || meta === null ? null : <dd className={styles.meta}>{meta}</dd>}
+      {icon ? (
+        <dd className={styles.icon} aria-hidden="true">
+          <IconBadge name={icon} tone={tone} size="sm" />
+        </dd>
+      ) : null}
+    </div>
+  );
+}

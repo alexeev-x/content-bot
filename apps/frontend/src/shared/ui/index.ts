@@ -22,6 +22,8 @@ export { Drawer } from './Drawer';
 export { EmptyState } from './EmptyState';
 export { ErrorState } from './ErrorState';
 export { Icon } from './Icon';
+export { IconBadge } from './IconBadge';
+export { StatGrid, StatTile } from './StatTile';
 export type { IconName } from './Icon';
 export { IconButton } from './IconButton';
 export { MediaCropDialog } from './MediaCropDialog';

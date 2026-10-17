@@ -7,6 +7,7 @@ import {
   ConfirmDialog,
   EmptyState,
   ErrorState,
+  Icon,
   Menu,
   Panel,
   PanelList,
@@ -32,7 +33,7 @@ const WATCHLISTS_TITLE = 'Уведомлять, если в патче изме�
 /** The panel before its data exists and without a request, for the route skeleton. */
 export function DotaWatchlistsSkeleton() {
   return (
-    <Panel title={WATCHLISTS_TITLE} reserveRows={2}>
+    <Panel title={WATCHLISTS_TITLE} icon={<Icon name="list" />} reserveRows={2}>
       <div className={styles.loading} aria-busy="true">
         <Skeleton height={36} />
       </div>
@@ -48,7 +49,7 @@ export function DotaWatchlists() {
   const watches: DotaWatchlistDto[] = query.data?.watches ?? [];
 
   return (
-    <Panel title={WATCHLISTS_TITLE} {...(query.isPending ? { reserveRows: 2 } : {})}>
+    <Panel title={WATCHLISTS_TITLE} icon={<Icon name="list" />} {...(query.isPending ? { reserveRows: 2 } : {})}>
       {query.isPending ? (
         <div className={styles.loading} aria-busy="true">
           <Skeleton height={36} />

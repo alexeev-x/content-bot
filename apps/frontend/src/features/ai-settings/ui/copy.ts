@@ -70,6 +70,14 @@ export const copy = {
   today: 'Сегодня',
   requests: 'Запросов',
   average: 'В среднем за запрос',
+  tiles: {
+    left: 'Осталось бюджета',
+    leftShare: (percent: number) => `${Math.max(0, Math.round(100 - percent))}% от бюджета`,
+    today: 'Потрачено сегодня',
+    dailyOf: (value: string) => `из ${value} в день`,
+    requests: 'Запросов за месяц',
+    average: 'Средняя цена запроса'
+  },
   noSpend: 'Запросов ещё не было.',
   kind: {
     check: 'проверки',
@@ -103,7 +111,7 @@ export const copy = {
   cached: 'Из кэша',
   output: 'Выход',
   pricesHint: 'USD за 1 млн токенов, со страницы цен провайдера. По ним считаются расходы.',
-  voiceTitle: 'Голос',
+  voiceTitle: 'Голос и правила',
   extraTitle: 'Дополнительно',
   quality: {
     title: (days: number) => `Качество за ${days} дней`,
@@ -115,6 +123,13 @@ export const copy = {
     approved: 'Одобрено черновиков',
     unchanged: (count: number) => `без правок: ${count}`,
     draftCost: 'Цена черновика',
+    draftCostMeta: 'в среднем',
+    rewrites: 'Переписываний',
+    rewritesMeta: '«Короче», «Смешнее», «Ещё вариант»',
+    approvedShare: (percent: number) => `${percent}% черновиков`,
+    lowTitle: 'Одобряете мало черновиков',
+    lowBody: (percent: number) =>
+      `За 30 дней одобрено ${percent}% черновиков. Посмотрите, что вы правите чаще всего, и пишите это в задании — или выберите модель посильнее.`,
     // Accusative: «Чаще всего правите хук, концовку…».
     part: {
       hook: 'хук',
@@ -126,10 +141,9 @@ export const copy = {
     },
     partsLead: 'Чаще всего правите: ',
     // Only the counters that happened: a row of zeros read as noise.
-    details: (rewrites: number, questions: number, jokes: number, warned: number, failed: number) =>
+    details: (questions: number, jokes: number, warned: number, failed: number) =>
       (
         [
-          ['Переписываний', rewrites],
           ['Уточняющих вопросов', questions],
           ['«Шутка не зашла»', jokes],
           ['Замечания проверки', warned],
