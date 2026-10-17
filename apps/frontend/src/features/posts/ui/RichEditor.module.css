@@ -27,19 +27,9 @@
 .box[data-readonly] {
   background: var(--color-surface-2);
 }
-/* No frame and no constant blue ring around the text (post-composer.md §1): while typing, a thin accent bar on
-   the left says where the focus is. */
+/* No frame of its own (post-composer.md §1): the card around the editor shows focus and errors. */
 .content {
   min-width: 0;
-  border-radius: 0 0 var(--radius-2) var(--radius-2);
-  box-shadow: inset 2px 0 0 transparent;
-  transition: box-shadow var(--motion-fast);
-}
-.box:focus-within .content {
-  box-shadow: inset 2px 0 0 var(--color-focus-ring);
-}
-.box[data-invalid] .content {
-  box-shadow: inset 2px 0 0 var(--color-danger);
 }
 .description {
   display: flex;

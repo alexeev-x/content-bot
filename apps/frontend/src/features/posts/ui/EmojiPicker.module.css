@@ -8,6 +8,7 @@
   display: grid;
   gap: var(--space-3);
   max-block-size: 18rem;
+  overflow-x: hidden;
   overflow-y: auto;
   overscroll-behavior: contain;
 }
@@ -21,13 +22,16 @@
   font-size: var(--font-size-xs);
   font-weight: var(--font-weight-medium);
 }
+/* A cell fits the widest glyph (Segoe UI Emoji draws ~1.65em), so no emoji pushes the grid sideways. */
 .grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(var(--size-target-min), 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(2.25rem, 1fr));
 }
 .emoji {
   display: grid;
-  min-block-size: var(--size-target-min);
+  min-inline-size: 0;
+  min-block-size: 2.25rem;
+  overflow: hidden;
   place-items: center;
   border: 0;
   border-radius: var(--radius-1);
@@ -59,7 +63,7 @@
     max-block-size: 50dvh;
   }
   .grid {
-    grid-template-columns: repeat(auto-fill, minmax(var(--size-target), 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(max(var(--size-target), 2.75rem), 1fr));
   }
   .emoji {
     min-block-size: var(--size-target);

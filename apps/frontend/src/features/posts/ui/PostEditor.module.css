@@ -53,6 +53,14 @@
   display: flex;
   flex: 1;
   flex-direction: column;
+  transition: border-color var(--motion-fast);
+}
+/* While typing, the whole card is outlined: one clear frame, not a bar clipped by the rounded corner. */
+.writeCard > section:has([contenteditable='true']:focus) {
+  border-color: var(--color-focus-ring);
+}
+.writeCard > section:has([data-invalid]) {
+  border-color: var(--color-danger);
 }
 .writeCard > section > div {
   display: flex;
