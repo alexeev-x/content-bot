@@ -6,6 +6,7 @@ import {
   contentItemsPageSchema,
   contentReportSchema,
   tiktokConnectSchema,
+  type ContentContaminationReason,
   type ContentPlatform,
   type ContentReportPeriod,
   type ContentVideoFormat
@@ -42,6 +43,14 @@ export function markItemFormat(itemId: string, format: ContentVideoFormat | null
   return apiRequestNoContent(`/api/v1/content-analytics/items/${encodeURIComponent(itemId)}/format`, {
     method: 'PUT',
     body: { format }
+  });
+}
+
+/** The owner's confirmation of what distorted an item's numbers; null clears it. */
+export function markItemContamination(itemId: string, reason: ContentContaminationReason | null) {
+  return apiRequestNoContent(`/api/v1/content-analytics/items/${encodeURIComponent(itemId)}/contamination`, {
+    method: 'PUT',
+    body: { reason }
   });
 }
 

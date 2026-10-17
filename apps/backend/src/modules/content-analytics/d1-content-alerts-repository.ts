@@ -1,6 +1,7 @@
 import {
   CHECKPOINT_HOURS,
   type CheckpointRow,
+  checkpointSelect,
   ITEM_COLUMNS,
   type ItemRow,
   type RawItem,
@@ -116,7 +117,7 @@ export function createD1ContentAlertRepository(db: D1Database): ContentAlertRepo
       const columns = CHECKPOINT_HOURS.map((hours) => `v${hours}h`);
       const rows = await db
         .prepare(
-          `SELECT id, platform, ${columns.join(', ')} FROM content_items
+          `${checkpointSelect(columns)}
            WHERE published_at >= ?1 AND (${columns.map((column) => `${column} IS NOT NULL`).join(' OR ')})
            LIMIT 2000`
         )
@@ -127,7 +128,8 @@ export function createD1ContentAlertRepository(db: D1Database): ContentAlertRepo
         platform: row['platform'] as ContentPlatform,
         views: Object.fromEntries(
           CHECKPOINT_HOURS.map((hours) => [hours, (row[`v${hours}h`] as number | null) ?? null])
-        ) as CheckpointRow['views']
+        ) as CheckpointRow['views'],
+        contaminated: row['contaminated'] === 1
       }));
     },
 

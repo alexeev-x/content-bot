@@ -1,4 +1,5 @@
 import {
+  type ContentContaminationReason,
   CONTENT_ANALYTICS_RECENT_LIMIT,
   CONTENT_ANALYTICS_TOP_LIMIT,
   CONTENT_ITEM_SNAPSHOT_LIMIT
@@ -59,6 +60,20 @@ export interface CheckpointRow {
   platform: ContentPlatform;
   /** Views by checkpoint hour; null where the item has no reading for it. */
   views: Record<(typeof CHECKPOINT_HOURS)[number], number | null>;
+  /** The owner confirmed its numbers are distorted, so no usual curve counts it. */
+  contaminated: boolean;
+}
+
+/** A checkpoint read's columns; `contaminated` comes from the owner's confirmations (migration 0066). */
+export function checkpointSelect(columns: readonly string[]): string {
+  return `SELECT id, platform, ${columns.join(', ')},
+    EXISTS (SELECT 1 FROM content_item_contamination c WHERE c.item_id = content_items.id) AS contaminated
+    FROM content_items`;
+}
+
+export interface Contamination {
+  reason: ContentContaminationReason;
+  setAt: number;
 }
 
 export interface OverviewRows {
@@ -97,12 +112,19 @@ export interface ContentAnalyticsRepository {
     after?: readonly [number, string] | undefined;
     limit: number;
   }): Promise<ItemRow[]>;
-  /** The item, its newest snapshots and the owner's format mark, in one round trip. */
-  readItem(id: string): Promise<{ item: ItemRow; snapshots: SnapshotRow[]; ownerFormat: VideoFormat | null } | null>;
+  /** The item, its newest snapshots, the owner's format mark and contamination, in one round trip. */
+  readItem(id: string): Promise<{
+    item: ItemRow;
+    snapshots: SnapshotRow[];
+    ownerFormat: VideoFormat | null;
+    contamination: Contamination | null;
+  } | null>;
   /** Items the owner marked with `format`, at most 500. */
   itemsMarked(format: VideoFormat): Promise<string[]>;
   /** Sets (or with null clears) the owner's mark of an existing item. */
   markFormat(input: { id: string; format: VideoFormat | null; now: number }): Promise<void>;
+  /** Sets (or with null clears) the owner's contamination confirmation of an existing item. */
+  markContamination(input: { id: string; reason: ContentContaminationReason | null; now: number }): Promise<void>;
   /** Checkpoint views of the items published since `publishedFrom` that have any. */
   readCheckpoints(input: { publishedFrom: number; platform?: ContentPlatform }): Promise<CheckpointRow[]>;
   readReport(input: { publishedFrom: number; fromDay: string; limit: number }): Promise<{
@@ -110,7 +132,7 @@ export interface ContentAnalyticsRepository {
     followers: OverviewRows['followers'];
     growth: { platform: ContentPlatform; day: string; views: number }[];
   }>;
-  /** The sources' collection version and the stored report of `days`, in one round trip. */
+  /** The sources' collection and contamination version and the stored report of `days`, in one round trip. */
   readReportCache(days: number): Promise<{ version: string; cached: CachedReport | null }>;
   storeReportCache(input: { days: number } & CachedReport): Promise<void>;
 }
@@ -314,7 +336,7 @@ export function createD1ContentAnalyticsRepository(db: D1Database): ContentAnaly
       const columns = CHECKPOINT_HOURS.map((hours) => `v${hours}h`);
       const rows = await db
         .prepare(
-          `SELECT id, platform, ${columns.join(', ')} FROM content_items
+          `${checkpointSelect(columns)}
            WHERE published_at >= ?1 AND (?2 IS NULL OR platform = ?2)
              AND (${columns.map((column) => `${column} IS NOT NULL`).join(' OR ')})
            LIMIT 2000`
@@ -326,7 +348,8 @@ export function createD1ContentAnalyticsRepository(db: D1Database): ContentAnaly
         platform: row['platform'] as ContentPlatform,
         views: Object.fromEntries(
           CHECKPOINT_HOURS.map((hours) => [hours, (row[`v${hours}h`] as number | null) ?? null])
-        ) as CheckpointRow['views']
+        ) as CheckpointRow['views'],
+        contaminated: row['contaminated'] === 1
       }));
     },
 
@@ -381,7 +404,12 @@ export function createD1ContentAnalyticsRepository(db: D1Database): ContentAnaly
     async readReportCache(days) {
       const [version, cached] = await db.batch([
         db.prepare(
-          `SELECT group_concat(platform || ':' || IFNULL(last_success_at, ''), ',') AS version
+          // The set of contaminated items shapes the curves, so it is part of the version; a count or a time
+          // would repeat after a mark is cleared. Marks are rare owner confirmations, so the list stays short.
+          `SELECT IFNULL(group_concat(platform || ':' || IFNULL(last_success_at, ''), ','), '') || '|' || IFNULL(
+               (SELECT group_concat(item_id, ',') FROM (SELECT item_id FROM content_item_contamination ORDER BY item_id)),
+               ''
+             ) AS version
            FROM (SELECT platform, last_success_at FROM content_sources ORDER BY platform)`
         ),
         db.prepare('SELECT version, built_at AS builtAt, report FROM content_report_cache WHERE days = ?').bind(days)
@@ -404,7 +432,7 @@ export function createD1ContentAnalyticsRepository(db: D1Database): ContentAnaly
     },
 
     async readItem(id) {
-      const [item, snapshots, mark] = await db.batch([
+      const [item, snapshots, mark, contamination] = await db.batch([
         db.prepare(`SELECT ${ITEM_COLUMNS} FROM content_items WHERE id = ?`).bind(id),
 
         // The newest snapshots, returned oldest first.
@@ -416,14 +444,16 @@ export function createD1ContentAnalyticsRepository(db: D1Database): ContentAnaly
              ) ORDER BY observedAt`
           )
           .bind(id, CONTENT_ITEM_SNAPSHOT_LIMIT),
-        db.prepare('SELECT format FROM content_item_formats WHERE item_id = ?').bind(id)
+        db.prepare('SELECT format FROM content_item_formats WHERE item_id = ?').bind(id),
+        db.prepare('SELECT reason, set_at AS setAt FROM content_item_contamination WHERE item_id = ?').bind(id)
       ]);
       const row = (item?.results as RawItem[] | undefined)?.[0];
       if (row === undefined) return null;
       return {
         item: toItem(row),
         snapshots: (snapshots?.results ?? []) as SnapshotRow[],
-        ownerFormat: (mark?.results as { format: VideoFormat }[] | undefined)?.[0]?.format ?? null
+        ownerFormat: (mark?.results as { format: VideoFormat }[] | undefined)?.[0]?.format ?? null,
+        contamination: (contamination?.results as Contamination[] | undefined)?.[0] ?? null
       };
     },
 
@@ -444,6 +474,18 @@ export function createD1ContentAnalyticsRepository(db: D1Database): ContentAnaly
                ON CONFLICT (item_id) DO UPDATE SET format = excluded.format, set_at = excluded.set_at`
         )
         .bind(...(format === null ? [id] : [id, format, now]))
+        .run();
+    },
+
+    async markContamination({ id, reason, now }) {
+      await db
+        .prepare(
+          reason === null
+            ? 'DELETE FROM content_item_contamination WHERE item_id = ?1'
+            : `INSERT INTO content_item_contamination (item_id, reason, set_at) VALUES (?1, ?2, ?3)
+               ON CONFLICT (item_id) DO UPDATE SET reason = excluded.reason, set_at = excluded.set_at`
+        )
+        .bind(...(reason === null ? [id] : [id, reason, now]))
         .run();
     }
   };

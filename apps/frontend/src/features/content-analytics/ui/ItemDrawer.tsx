@@ -34,6 +34,7 @@ import { RefreshAnalyticsButton } from './RefreshAnalyticsButton';
 import { copy } from './copy';
 import styles from './Drawer.module.css';
 import { ItemCover } from './ItemCover';
+import { CONTAMINATION, ItemContamination } from './ItemContamination';
 import { FORMAT, ItemScript } from './ItemScript';
 import { PlatformGlyph } from './PlatformGlyph';
 import { StatusChip } from './StatusChip';
@@ -41,6 +42,8 @@ import { StatusChip } from './StatusChip';
 /** What the page knows about the period, so the panel can place the item among its peers. */
 /** What the usual curve rests on: same-format videos only when five share each checkpoint (docs/ai/architecture.md, item 1). */
 function baselineBasis(detail: ContentItemDetailDto): string {
+  if (detail.contamination)
+    return `Цифры искажены (${CONTAMINATION[detail.contamination.reason].toLowerCase()}): ролик не входит в сравнения других роликов.`;
   if (detail.baseline.format)
     return `Сравнение с роликами рубрики «${FORMAT[detail.baseline.format]}» того же возраста.`;
   if (detail.format) {
@@ -356,7 +359,9 @@ function DrawerBody({
                       ? 'Пока не с чем сравнить на этом возрасте.'
                       : `${verdict.basis === 'age' ? `На ${formatAge(ageHours)}` : 'За всё время'} ролик набрал ${formatViews(item)} при обычных ${formatCount(verdict.usual)} — ${verdict.multiple.toLocaleString('ru-RU')}×.`}
                   </p>
-                  {item.platform !== 'telegram' ? <p className={styles.heroNote}>{baselineBasis(detail)}</p> : null}
+                  {item.platform !== 'telegram' || detail.contamination ? (
+                    <p className={styles.heroNote}>{baselineBasis(detail)}</p>
+                  ) : null}
                 </div>
                 <div className={styles.finding} data-tone="violet">
                   <p className={styles.findingTitle}>
@@ -378,6 +383,7 @@ function DrawerBody({
                 ownerFormat={detail.formatSource === 'owner' ? (detail.format ?? null) : null}
               />
             ) : null}
+            <ItemContamination detail={detail} />
           </div>
         </TabPanel>
 

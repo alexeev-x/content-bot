@@ -3,6 +3,7 @@ import {
   contentGoalInputSchema,
   contentGoalParamsSchema,
   contentGoalsSchema,
+  contentItemContaminationInputSchema,
   contentItemDetailSchema,
   contentItemFormatInputSchema,
   contentItemIdSchema,
@@ -23,6 +24,7 @@ import {
   disconnectTikTok,
   readContentItem,
   readContentGoals,
+  markContentItemContamination,
   markContentItemFormat,
   readCachedContentReport,
   removeContentGoal,
@@ -194,6 +196,20 @@ export const contentAnalyticsRoutes = new Hono<AppBindings>()
         { repo: container.contentAnalytics, clock: container.clock },
         c.req.valid('param').id,
         c.req.valid('json').format
+      );
+      return c.body(null, 204);
+    }
+  )
+  .put(
+    '/items/:id/contamination',
+    validated('param', itemParamsSchema),
+    validated('json', contentItemContaminationInputSchema),
+    async (c) => {
+      const container = c.get('container');
+      await markContentItemContamination(
+        { repo: container.contentAnalytics, clock: container.clock },
+        c.req.valid('param').id,
+        c.req.valid('json').reason
       );
       return c.body(null, 204);
     }

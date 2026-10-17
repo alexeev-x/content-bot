@@ -9,6 +9,7 @@ import {
   type ContentReportQuery,
   contentReportSchema,
   type ContentBaselineDto,
+  type ContentContaminationReason,
   type ContentPlatform,
   type ContentSourceDto
 } from '@alexeev/contracts';
@@ -266,7 +267,9 @@ export async function readContentItem(
     ids,
     minItems: FORMAT_BASELINE_MIN_ITEMS
   });
-  const formatItems = checkpoints.filter((row) => ids.has(row.id) && row.platform === found.item.platform).length;
+  const formatItems = checkpoints.filter(
+    (row) => ids.has(row.id) && row.platform === found.item.platform && !row.contaminated
+  ).length;
   return {
     ...detailOf(found),
     baseline: formatCurve.points.length > 0 ? { ...formatCurve, format } : platformCurve,
@@ -295,6 +298,16 @@ async function idsOfFormat(
   return ids;
 }
 
+/** The owner's confirmation that an item's numbers are distorted (architecture item 12); null clears it. */
+export async function markContentItemContamination(
+  deps: { repo: ContentAnalyticsRepository; clock: Clock },
+  id: string,
+  reason: ContentContaminationReason | null
+): Promise<void> {
+  if ((await deps.repo.readItem(id)) === null) throw new AppError('NOT_FOUND', 'Content item not found');
+  await deps.repo.markContamination({ id, reason, now: deps.clock.now() });
+}
+
 /** The owner's format mark of a video; a Telegram post has no Reels format. */
 export async function markContentItemFormat(
   deps: { repo: ContentAnalyticsRepository; clock: Clock },
@@ -315,7 +328,11 @@ function detailOf(found: NonNullable<Awaited<ReturnType<ContentAnalyticsReposito
     snapshots: found.snapshots.map((snapshot) => ({
       ...snapshot,
       observedAt: new Date(snapshot.observedAt).toISOString()
-    }))
+    })),
+    contamination:
+      found.contamination === null
+        ? null
+        : { reason: found.contamination.reason, setAt: new Date(found.contamination.setAt).toISOString() }
   };
 }
 
@@ -355,7 +372,7 @@ export async function readContentReport(
 /** A stored report is reused for at most an hour, so its period end moves on at least hourly. */
 const REPORT_CACHE_TTL_MS = 60 * MINUTE_MS;
 /** Part of the cache version: bump it when the report's shape or computation changes. */
-const REPORT_CACHE_SHAPE = '1';
+const REPORT_CACHE_SHAPE = '2';
 
 /**
  * The report, reused while no source has been collected since it was built (its data changes only then) and it
@@ -405,8 +422,13 @@ export function baselineFor(
   excludeId?: string,
   only?: { ids: ReadonlySet<string>; minItems: number }
 ): ContentBaselineDto {
+  // A confirmed contaminated item distorts any curve; a merely weak one stays (architecture item 12).
   const own = rows.filter(
-    (row) => row.platform === platform && row.id !== excludeId && (only === undefined || only.ids.has(row.id))
+    (row) =>
+      row.platform === platform &&
+      row.id !== excludeId &&
+      !row.contaminated &&
+      (only === undefined || only.ids.has(row.id))
   );
   const points: ContentBaselineDto['points'] = [];
   for (const hours of CHECKPOINT_HOURS) {

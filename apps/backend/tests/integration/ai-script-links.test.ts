@@ -1,4 +1,4 @@
-import { aiItemScriptSchema, apiErrorSchema, contentItemDetailSchema } from '@alexeev/contracts';
+import { aiItemScriptSchema, apiErrorSchema, contentItemDetailSchema, contentReportSchema } from '@alexeev/contracts';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { testDb } from '../helpers/db';
 import { type Api, createApi, fakeClock, OWNER_TOKEN, resetDb, seedSession, START } from '../helpers/harness';
@@ -127,6 +127,46 @@ describe('same-format baseline', () => {
     expect(apiErrorSchema.parse(await post.json()).error.code).toBe('VALIDATION_ERROR');
     expect((await mark('tiktok:missing', 'igrat')).status).toBe(404);
     expect((await mark('tiktok:v4', 'news')).status).toBe(400);
+  });
+
+  it('leaves a confirmed contaminated video out of every curve, keeps a weak one, and rebuilds the report', async () => {
+    for (let n = 1; n <= 5; n += 1) await seedVideo(n, 1000, true);
+    await seedVideo(6, 10, false);
+    await seedVideo(10, 2000, true);
+    const contaminate = (id: string, reason: string | null) =>
+      api.request(`/api/v1/content-analytics/items/${encodeURIComponent(id)}/contamination`, {
+        method: 'PUT',
+        json: { reason }
+      });
+    const tiktokCurve = async () =>
+      contentReportSchema
+        .parse(await (await api.request('/api/v1/content-analytics/report?days=7')).json())
+        .baselines.find((curve) => curve.platform === 'tiktok')?.points[0]?.items;
+
+    expect((await detail('tiktok:v10')).baseline).toMatchObject({ format: 'igrat', points: [{ items: 5 }] });
+    // The weak unrestricted v6 is a result, so it stays in the platform curve: v1–v6 and v10.
+    expect(await tiktokCurve()).toBe(7);
+
+    expect((await contaminate('tiktok:v1', 'restricted')).status).toBe(204);
+    expect((await contaminate('tiktok:v1', 'restricted')).status).toBe(204);
+    expect(await detail('tiktok:v1')).toMatchObject({ contamination: { reason: 'restricted' } });
+    // Four clean videos of the format are not enough; the platform curve also drops v1.
+    const weak = await detail('tiktok:v10');
+    expect(weak).toMatchObject({ formatItems: 4, contamination: null, baseline: { points: [{ items: 5 }] } });
+    expect(weak.baseline.format ?? null).toBeNull();
+    // The stored report is rebuilt at once, not after its hour.
+    expect(await tiktokCurve()).toBe(6);
+
+    // A Telegram post can be contaminated too; clearing restores the curve.
+    expect((await contaminate(POST, 'collection_failure')).status).toBe(204);
+    expect((await contaminate('tiktok:v1', null)).status).toBe(204);
+    expect((await detail('tiktok:v10')).baseline).toMatchObject({ format: 'igrat', points: [{ items: 5 }] });
+    expect(await tiktokCurve()).toBe(7);
+
+    const invalid = await contaminate('tiktok:v1', 'low_views');
+    expect(invalid.status).toBe(400);
+    expect(apiErrorSchema.parse(await invalid.json()).error.code).toBe('VALIDATION_ERROR');
+    expect((await contaminate('tiktok:missing', 'removed')).status).toBe(404);
   });
 });
 

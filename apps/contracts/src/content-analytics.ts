@@ -142,6 +142,19 @@ export const contentBaselineSchema = z.object({
 });
 export type ContentBaselineDto = z.infer<typeof contentBaselineSchema>;
 
+/**
+ * A confirmed factor outside the content that distorted an item's numbers (docs/ai/architecture.md item 12):
+ * restricted recommendations, removed or unavailable, a platform incident, a broken or incomplete collection.
+ * A weak result alone is never one.
+ */
+export const contentContaminationReasonSchema = z.enum([
+  'restricted',
+  'removed',
+  'platform_incident',
+  'collection_failure'
+]);
+export type ContentContaminationReason = z.infer<typeof contentContaminationReasonSchema>;
+
 export const contentItemDetailSchema = z.object({
   item: contentItemSchema,
   snapshots: z.array(contentItemSnapshotSchema).max(CONTENT_ITEM_SNAPSHOT_LIMIT),
@@ -152,7 +165,9 @@ export const contentItemDetailSchema = z.object({
   /** Where `format` comes from: a linked script wins over the owner's mark; null when unknown. */
   formatSource: z.enum(['script', 'owner']).nullable().optional(),
   /** Other tracked videos of that format, so the page can say how far the format curve is (5 needed). */
-  formatItems: z.number().int().nonnegative().optional()
+  formatItems: z.number().int().nonnegative().optional(),
+  /** The owner's confirmation that the item's numbers are distorted; such an item is left out of every curve. */
+  contamination: z.object({ reason: contentContaminationReasonSchema, setAt: z.iso.datetime() }).nullable().optional()
 });
 export type ContentItemDetailDto = z.infer<typeof contentItemDetailSchema>;
 
@@ -160,6 +175,14 @@ export type ContentItemDetailDto = z.infer<typeof contentItemDetailSchema>;
 // The owner's mark for a video filmed without an AI script (a linked script's format still wins); null clears it.
 // Errors: VALIDATION_ERROR 400 (also for a Telegram post), NOT_FOUND 404, UNAUTHORIZED 401, FORBIDDEN 403.
 export const contentItemFormatInputSchema = z.strictObject({ format: contentVideoFormatSchema.nullable() });
+
+// PUT /api/v1/content-analytics/items/:id/contamination  body ContentItemContaminationInput → 204 (replaces; safe
+// to repeat). The owner confirms why an item's numbers are distorted, on any platform; null clears it.
+// Errors: VALIDATION_ERROR 400, NOT_FOUND 404, UNAUTHORIZED 401, FORBIDDEN 403.
+export const contentItemContaminationInputSchema = z.strictObject({
+  reason: contentContaminationReasonSchema.nullable()
+});
+export type ContentItemContaminationInput = z.infer<typeof contentItemContaminationInputSchema>;
 export type ContentItemFormatInput = z.infer<typeof contentItemFormatInputSchema>;
 
 // POST /api/v1/content-analytics/tiktok/connect (no body) → 200 { authorizeUrl }: the browser goes there to

@@ -1,4 +1,9 @@
-import type { ContentPlatform, ContentReportPeriod, ContentVideoFormat } from '@alexeev/contracts';
+import type {
+  ContentContaminationReason,
+  ContentPlatform,
+  ContentReportPeriod,
+  ContentVideoFormat
+} from '@alexeev/contracts';
 import { infiniteQueryOptions, queryOptions, useMutation, useQueryClient } from '@tanstack/react-query';
 import { nextCursor } from '../../../shared/api/query-string';
 import {
@@ -11,6 +16,7 @@ import {
   getContentReport,
   getItemScript,
   linkItemScript,
+  markItemContamination,
   markItemFormat,
   removeContentGoal,
   unlinkItemScript,
@@ -57,6 +63,21 @@ export function useMarkItemFormat(itemId: string) {
     mutationFn: (format: ContentVideoFormat | null) => markItemFormat(itemId, format),
     retry: false,
     onSuccess: () => client.invalidateQueries({ queryKey: contentAnalyticsKeys.item(itemId) })
+  });
+}
+
+export function useMarkItemContamination(itemId: string) {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (reason: ContentContaminationReason | null) => markItemContamination(itemId, reason),
+    retry: false,
+    onSuccess: async () => {
+      // The item joins or leaves every usual curve, so other items' details and the report change too.
+      await Promise.all([
+        client.invalidateQueries({ queryKey: [...contentAnalyticsKeys.all, 'item'] }),
+        client.invalidateQueries({ queryKey: [...contentAnalyticsKeys.all, 'report'] })
+      ]);
+    }
   });
 }
 
