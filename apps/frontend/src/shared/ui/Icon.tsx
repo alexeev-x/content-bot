@@ -36,7 +36,8 @@ const PATHS = {
   conflict: 'M7 4v10a3 3 0 0 0 3 3h7M7 4a2 2 0 1 0 0 .01M17 17a2 2 0 1 0 0 .01M14 14l3 3-3 3',
   trash: 'M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v6M14 11v6',
   edit: 'M4 20h4L19 9l-4-4L4 16zM13 7l4 4',
-  sparkle: 'M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z',
+  // Centred on the 24 px grid (it sat 2 px high).
+  sparkle: 'M12 5l1.8 5.2L19 12l-5.2 1.8L12 19l-1.8-5.2L5 12l5.2-1.8z',
   menu: 'M4 6h16M4 12h16M4 18h16',
   // A broadcast channel (megaphone): kept apart from «send», which means a publication.
   channel: 'M3 10.5v3a1 1 0 0 0 1 1h2.5L12 19V5L6.5 9.5H4a1 1 0 0 0-1 1zM15.5 9a4 4 0 0 1 0 6M18.5 6a8 8 0 0 1 0 12',
