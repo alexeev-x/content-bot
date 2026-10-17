@@ -36,6 +36,7 @@ export type { MenuEntry } from './Menu';
 
 export { PageHeader, PageHeaderTools } from './PageHeader';
 export { Panel, PanelList, PanelRow } from './Panel';
+export { PopoverDialog } from './PopoverDialog';
 export { Radio, RadioGroup } from './RadioGroup';
 export { RatioTileGroup } from './RatioTileGroup';
 export type { RatioTileOption } from './RatioTileGroup';

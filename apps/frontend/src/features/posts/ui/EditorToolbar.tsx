@@ -2,8 +2,10 @@ import type { Editor } from '@tiptap/core';
 import { useEditorState } from '@tiptap/react';
 import { useState, type ReactNode } from 'react';
 import { Button, Separator, ToggleButton, Toolbar } from 'react-aria-components';
-import { Drawer, Icon, Tooltip, useMediaQuery } from '../../../shared/ui';
+import { Drawer, Icon, PopoverDialog, Tooltip, useMediaQuery } from '../../../shared/ui';
+import { rememberEmoji } from '../model/emoji-data';
 import { toggleListPrefix } from '../model/list-prefix';
+import { EmojiPicker } from './EmojiPicker';
 import { postsCopy } from './copy';
 import styles from './EditorToolbar.module.css';
 
@@ -38,6 +40,13 @@ type Item = {
 export function EditorToolbar({ editor, onLink, onCodeLanguage }: Props) {
   const compact = useMediaQuery('(max-width: 859px), (pointer: coarse)');
   const [moreOpen, setMoreOpen] = useState(false);
+  const [emojiOpen, setEmojiOpen] = useState(false);
+  // Inserted where the cursor was, or over the selection, as one undo step; the editor gets its focus back.
+  const pickEmoji = (char: string) => {
+    editor.chain().focus().insertContent(char).run();
+    rememberEmoji(char);
+    setEmojiOpen(false);
+  };
   const state = useEditorState({
     editor,
     selector: ({ editor: current }) => ({
@@ -211,6 +220,14 @@ export function EditorToolbar({ editor, onLink, onCodeLanguage }: Props) {
               );
             })}
             <Button
+              className={styles.button}
+              aria-label={copy.emoji}
+              preventFocusOnPress
+              onPress={() => setEmojiOpen(true)}
+            >
+              <Icon name="smile" size={19} />
+            </Button>
+            <Button
               className={`${styles.button} ${styles.moreButton}`}
               aria-label="Ещё форматирование"
               preventFocusOnPress
@@ -220,6 +237,9 @@ export function EditorToolbar({ editor, onLink, onCodeLanguage }: Props) {
             </Button>
           </div>
         </Toolbar>
+        <Drawer variant="bottom" title={copy.emoji} isOpen={emojiOpen} onOpenChange={setEmojiOpen}>
+          <EmojiPicker onPick={pickEmoji} />
+        </Drawer>
         <Drawer variant="bottom" title="Форматирование" isOpen={moreOpen} onOpenChange={setMoreOpen}>
           <div className={styles.moreList}>
             {more.map((item) =>
@@ -288,6 +308,21 @@ export function EditorToolbar({ editor, onLink, onCodeLanguage }: Props) {
           })}
         </div>
       ))}
+      <div className={styles.group} role="presentation">
+        <Separator orientation="vertical" className={styles.separator} />
+        <PopoverDialog
+          label={copy.emoji}
+          isOpen={emojiOpen}
+          onOpenChange={setEmojiOpen}
+          trigger={
+            <Button className={styles.button} aria-label={copy.emoji}>
+              <Icon name="smile" size={18} />
+            </Button>
+          }
+        >
+          <EmojiPicker onPick={pickEmoji} />
+        </PopoverDialog>
+      </div>
     </Toolbar>
   );
 }

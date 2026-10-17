@@ -56,7 +56,17 @@ export function useRichEditor({ value, onChange, onBlur, onLinkShortcut, isReadO
   useEffect(() => {
     if (!editor || key === emitted.current) return;
     emitted.current = key;
+    // The server's answer to the first save can differ from our last emit while the document is the same:
+    // replacing it then moved the cursor while the owner typed. Same document, nothing to do.
+    const { issue: _issue, ...current } = docToValue(editor.getJSON());
+    if (keyOf(current) === key) return;
+    // A real change from outside (the server version after a conflict): keep the cursor where it can stay.
+    const { from, to } = editor.state.selection;
     editor.commands.setContent(valueToDoc(value), { emitUpdate: false });
+    if (editor.isFocused) {
+      const end = editor.state.doc.content.size;
+      editor.commands.setTextSelection({ from: Math.min(from, end), to: Math.min(to, end) });
+    }
     // `value` is read through `key`: it changes exactly when the content does.
     // oxlint-disable-next-line react-hooks/exhaustive-deps
   }, [editor, key]);

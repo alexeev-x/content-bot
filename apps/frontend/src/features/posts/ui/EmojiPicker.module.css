@@ -1,0 +1,68 @@
+.picker {
+  display: grid;
+  gap: var(--space-2);
+  inline-size: min(20rem, calc(100vw - 2 * var(--space-4)));
+  padding: var(--space-3);
+}
+.scroll {
+  display: grid;
+  gap: var(--space-3);
+  max-block-size: 18rem;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.section {
+  display: grid;
+  gap: var(--space-1);
+}
+.heading {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+}
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(var(--size-target-min), 1fr));
+}
+.emoji {
+  display: grid;
+  min-block-size: var(--size-target-min);
+  place-items: center;
+  border: 0;
+  border-radius: var(--radius-1);
+  background: transparent;
+  font-size: 1.25rem;
+  line-height: 1;
+  cursor: pointer;
+}
+.emoji[data-hovered],
+.emoji[data-focus-visible] {
+  background: var(--color-surface-3);
+}
+.emoji[data-focus-visible] {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: -2px;
+}
+.empty {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+/* A phone: the drawer is the frame, the picker fills it and targets grow to 44 px. */
+@media (max-width: 859px), (pointer: coarse) {
+  .picker {
+    inline-size: auto;
+    padding: 0;
+  }
+  .scroll {
+    max-block-size: 50dvh;
+  }
+  .grid {
+    grid-template-columns: repeat(auto-fill, minmax(var(--size-target), 1fr));
+  }
+  .emoji {
+    min-block-size: var(--size-target);
+    font-size: 1.5rem;
+  }
+}
