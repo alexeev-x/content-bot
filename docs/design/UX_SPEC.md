@@ -15,6 +15,7 @@ Conventions: responsive on every route from 320 px phones to 1920 px+ desktops. 
 | [`docs/design/ux/patterns.md`](./ux/patterns.md) | §2 Pattern system: header, controls, toolbar, table vs card, state matrix, skeletons, status chip, destructive actions |
 | [`docs/design/ux/overview.md`](./ux/overview.md) | §3.1 Обзор `/` |
 | [`docs/design/ux/posts.md`](./ux/posts.md) | §3.2–3.3 Посты, редактор поста |
+| [`docs/design/ux/post-composer.md`](./ux/post-composer.md) | **17.10.2026: целевое ТЗ для новых экранов создания публикации — desktop/mobile, без заголовка, emoji, ИИ-улучшение, опрос (API need), настройки** |
 | [`docs/design/ux/publications.md`](./ux/publications.md) | §3.4–3.5 Публикации, инциденты и сверка |
 | [`docs/design/ux/settings-login.md`](./ux/settings-login.md) | §3.6–3.8 Настройки, вход, 404 / «Раздел в разработке» |
 | [`docs/design/ux/sources.md`](./ux/sources.md) | §3.9 Источники и разбор события |
