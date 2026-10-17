@@ -5,6 +5,8 @@ export type FeedbackKind = 'joke_missed' | 'not_my_style' | 'fact_wrong';
 
 // The «unchanged» line of «Качество» (≤ 5% edited): below it an approval is the model's words, not the owner's.
 const OWNER_EXAMPLE_MIN_EDIT = 0.05;
+/** Candidates the writer ranks by relevance to the task; the prompt still gets at most two. */
+const OWNER_EXAMPLE_CANDIDATES = 20;
 
 export interface GenerationRow {
   id: string;
@@ -519,7 +521,7 @@ export function createD1WriterRepository(db: D1Database): WriterRepository {
            WHERE g.format = ?1 AND r.provenance IN ('OWNER_APPROVED', 'OWNER_PREAPPROVED') AND r.edit_ratio > ?2
            ORDER BY r.created_at DESC LIMIT ?3`
         )
-        .bind(format, OWNER_EXAMPLE_MIN_EDIT, Math.min(limit, 4))
+        .bind(format, OWNER_EXAMPLE_MIN_EDIT, Math.min(limit, OWNER_EXAMPLE_CANDIDATES))
         .all<{ text: string }>();
       return rows.results.map((row) => row.text);
     },

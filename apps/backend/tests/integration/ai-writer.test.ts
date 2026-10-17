@@ -15,7 +15,7 @@ import {
   type WriterDeps
 } from '../../src/modules/ai';
 import { changedParts, checkDraft, editRatio } from '../../src/modules/ai/writer-checks';
-import { buildWriterPrompt, overusedPhrases, pickExamples } from '../../src/modules/ai/writer-prompt';
+import { buildWriterPrompt, overusedPhrases, pickExamples, rankOwnerTexts } from '../../src/modules/ai/writer-prompt';
 import { authorStateText } from '../../src/modules/ai/author-profile';
 import { writerIntent } from '../../src/app/bot/ai-writer';
 import { AppError } from '../../src/shared/app-error';
@@ -149,6 +149,18 @@ describe('AI writer', () => {
     expect(prompt).not.toContain('Телеграм-текст автора');
     // The owner's text sits right before the task: the most relevant example comes last.
     expect(prompt.indexOf('Свой текст:')).toBeGreaterThan(prompt.lastIndexOf('Пример ('));
+  });
+
+  it('ranks the owner texts by the task first and by recency only among equals', () => {
+    const newestFirst = ['Лион: кому отдать палец.', 'Пудж: хуки мимо.', 'Варды на изи-лайне решают игру.'];
+    // The oldest text shares the task's stem («вард»): it wins over two fresher ones.
+    expect(rankOwnerTexts('как я учусь вардить', newestFirst, 2)).toEqual([
+      'Варды на изи-лайне решают игру.',
+      'Лион: кому отдать палец.'
+    ]);
+    // Nothing in common (or no task words): the newest first, as before.
+    expect(rankOwnerTexts('придумай сам', newestFirst, 2)).toEqual(newestFirst.slice(0, 2));
+    expect(rankOwnerTexts('', newestFirst, 5)).toEqual(newestFirst);
   });
 
   it('stores the changed parts on approval and counts them for «Качество»', async () => {

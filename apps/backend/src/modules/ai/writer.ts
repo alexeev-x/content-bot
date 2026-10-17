@@ -14,6 +14,7 @@ import {
   buildWriterPrompt,
   overusedPhrases,
   packRevision,
+  rankOwnerTexts,
   repeatsRecentTopic
 } from './writer-prompt';
 import { type DraftFacets, parseWriterAnswer, WRITER_ANSWER_JSON_SCHEMA } from './writer-answer';
@@ -30,6 +31,9 @@ export const NEEDS_FACTS = 'NEEDS_FACTS';
 const RECENT_FACETS = 20;
 /** Latest AI drafts in which a signature phrase is counted (it rests after two). */
 const PHRASE_WINDOW = 5;
+/** The owner's edited approvals of the format ranked against the task, and how many reach the prompt. */
+const OWNER_CANDIDATES = 20;
+const OWNER_TEXTS = 2;
 
 export interface WriterDeps {
   repo: AiRepository;
@@ -256,7 +260,11 @@ export async function generateDraft(
       task,
       holdOut: input.holdOut ?? [],
       author: await author(deps),
-      ownerTexts: await deps.writer.ownerExamples({ format: input.format, limit: 2 }),
+      ownerTexts: rankOwnerTexts(
+        task,
+        await deps.writer.ownerExamples({ format: input.format, limit: OWNER_CANDIDATES }),
+        OWNER_TEXTS
+      ),
       recent,
       resting
     }),
@@ -296,7 +304,11 @@ export async function rewriteDraft(
     task: parent.task,
     rewrite: { text: current.text, instruction },
     author: await author(deps),
-    ownerTexts: await deps.writer.ownerExamples({ format: parent.format, limit: 2 })
+    ownerTexts: rankOwnerTexts(
+      parent.task,
+      await deps.writer.ownerExamples({ format: parent.format, limit: OWNER_CANDIDATES }),
+      OWNER_TEXTS
+    )
   });
   return call(deps, row, prompt, input.signal);
 }

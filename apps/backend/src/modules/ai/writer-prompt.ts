@@ -116,7 +116,7 @@ export function buildWriterPrompt(input: {
   holdOut?: readonly string[];
   /** The author's state from the studio (`authorStateText`); the seed of pack/state.md when empty. */
   author?: string;
-  /** The owner's approved, owner-changed texts of this format, newest first (`ownerExamples`). */
+  /** The owner's approved, owner-changed texts of this format, most relevant first (`rankOwnerTexts`). */
   ownerTexts?: readonly string[];
   /** Topic, device and ending of the latest drafts of every format, newest first (`recentFacets`). */
   recent?: readonly { format?: WriterFormat; topic: string; device: string; ending: string }[];
@@ -208,6 +208,27 @@ export function repeatsRecentTopic(topic: string, recent: readonly { topic: stri
     const shared = [...own].filter((stem) => other.has(stem)).length;
     return shared / Math.min(own.size, other.size || 1) >= 0.6;
   });
+}
+
+/** Shared stems outweigh this bonus: recency only orders texts equally relevant to the task (plan stage 2). */
+const RECENCY_WEIGHT = 0.3;
+
+/**
+ * The owner texts for a task, best first: the share of the task's word stems a text shares, plus a small bonus
+ * for being recent. Four-letter stems, so «варды» and «вардить» meet; a task without words ranks by recency.
+ */
+export function rankOwnerTexts(task: string, newestFirst: readonly string[], count: number): string[] {
+  const stems = (text: string) => new Set([...words(text)].map((word) => word.slice(0, 4)));
+  const own = stems(task);
+  return newestFirst
+    .map((text, index) => {
+      const other = stems(text);
+      const shared = own.size === 0 ? 0 : [...own].filter((stem) => other.has(stem)).length / own.size;
+      return { text, index, score: shared + RECENCY_WEIGHT * (1 - index / newestFirst.length) };
+    })
+    .sort((a, b) => b.score - a.score || a.index - b.index)
+    .slice(0, count)
+    .map((entry) => entry.text);
 }
 
 /** The pack the prompt was built from, as a short stable hash (FNV-1a). */
