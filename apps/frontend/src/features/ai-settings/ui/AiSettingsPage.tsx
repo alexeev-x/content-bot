@@ -248,13 +248,26 @@ function AiSettings({ overview, onReload }: { overview: AiOverviewDto; onReload:
               <ProgressBar label={copy.spendBar} value={share} tone={share >= 100 ? 'failed' : 'accent'} />
             </div>
             <StatGrid>
-              <StatTile label={copy.tiles.left} value={usd(spend.leftUsd)} meta={copy.tiles.leftShare(share)} />
               <StatTile
+                label={copy.tiles.left}
+                value={usd(spend.leftUsd)}
+                meta={copy.tiles.leftShare(share)}
+                icon="wallet"
+                tone="muted"
+                iconAt="start"
+              />
+              <StatTile
+                icon="calendar"
+                tone="muted"
+                iconAt="start"
                 label={copy.tiles.today}
                 value={usd(spend.todayUsd)}
                 meta={dailyValue === 'all' ? null : copy.tiles.dailyOf(usd(settings.dailyCapUsd))}
               />
               <StatTile
+                icon="file"
+                tone="muted"
+                iconAt="start"
                 label={copy.tiles.requests}
                 value={spend.requests}
                 meta={
@@ -263,7 +276,13 @@ function AiSettings({ overview, onReload }: { overview: AiOverviewDto; onReload:
                     : copy.noSpend
                 }
               />
-              <StatTile label={copy.tiles.average} value={spend.averageUsd === null ? '—' : usd(spend.averageUsd)} />
+              <StatTile
+                label={copy.tiles.average}
+                value={spend.averageUsd === null ? '—' : usd(spend.averageUsd)}
+                icon="tag"
+                tone="muted"
+                iconAt="start"
+              />
             </StatGrid>
           </div>
         </Panel>
@@ -417,11 +436,17 @@ function QualityPanel({ quality }: { quality: AiOverviewDto['quality'] }) {
         <div className={styles.body}>
           <StatGrid>
             <StatTile
+              icon="file"
+              tone="muted"
+              iconAt="start"
               label={copy.quality.editRatio}
               value={ratio === null ? '—' : `${Math.round(ratio * 100)}%`}
               meta={ratio === null ? copy.quality.noApprovals : copy.quality.editHint(ratio)}
             />
             <StatTile
+              icon="check-circle"
+              tone="done"
+              iconAt="start"
               label={copy.quality.approved}
               value={`${quality.approved} ${copy.of} ${quality.drafts}`}
               meta={[
@@ -432,30 +457,48 @@ function QualityPanel({ quality }: { quality: AiOverviewDto['quality'] }) {
                 .join(' · ')}
             />
             <StatTile
+              icon="tag"
+              tone="muted"
+              iconAt="start"
               label={copy.quality.draftCost}
               value={quality.averageDraftUsd === null ? '—' : usd(quality.averageDraftUsd)}
               meta={copy.quality.draftCostMeta}
             />
-            <StatTile label={copy.quality.rewrites} value={quality.rewrites} meta={copy.quality.rewritesMeta} />
+            <StatTile
+              label={copy.quality.rewrites}
+              value={quality.rewrites}
+              meta={copy.quality.rewritesMeta}
+              icon="retry"
+              tone="muted"
+              iconAt="start"
+            />
           </StatGrid>
           {lowApproval(quality) && approved !== null ? (
             <Banner tone="warning" title={copy.quality.lowTitle}>
               {copy.quality.lowBody(approved)}
             </Banner>
           ) : null}
-          {parts.length > 0 ? (
-            <p className={styles.meta}>
-              {copy.quality.partsLead}
-              {parts.map((row) => `${copy.quality.part[row.part]} — ${Math.round(row.share * 100)}%`).join(' · ')}
-            </p>
+          {/* The secondary counts, under a rule as one quiet footer (design-refs/ai-spend-quality). */}
+          {parts.length > 0 || verdicts.length > 0 || details ? (
+            <div className={styles.notes}>
+              <Icon name="info" size={16} className={styles.notesIcon} />
+              <div className={styles.notesText}>
+                {parts.length > 0 ? (
+                  <p className={styles.meta}>
+                    {copy.quality.partsLead}
+                    {parts.map((row) => `${copy.quality.part[row.part]} — ${Math.round(row.share * 100)}%`).join(' · ')}
+                  </p>
+                ) : null}
+                {verdicts.length > 0 ? (
+                  <p className={styles.meta}>
+                    {copy.quality.feedbackLead}
+                    {verdicts.map((row) => `${copy.quality.feedback[row.kind]} — ${row.count}`).join(' · ')}
+                  </p>
+                ) : null}
+                {details ? <p className={styles.meta}>{details}</p> : null}
+              </div>
+            </div>
           ) : null}
-          {verdicts.length > 0 ? (
-            <p className={styles.meta}>
-              {copy.quality.feedbackLead}
-              {verdicts.map((row) => `${copy.quality.feedback[row.kind]} — ${row.count}`).join(' · ')}
-            </p>
-          ) : null}
-          {details ? <p className={styles.meta}>{details}</p> : null}
           {verdictCount > 0 ? (
             <DisclosureGroup
               expandedKeys={feedbackOpen ? ['feedback'] : []}

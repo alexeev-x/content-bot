@@ -196,6 +196,7 @@ export const copy = {
   } satisfies Record<NonNullable<AiSpendDto['blockedBy']>, string>
 };
 
-// A check costs thousandths of a cent: shown as «< $0.0001», never as a misleading «$0.0000».
+// A check costs thousandths of a cent: shown as «< $0.0001», never as a misleading «$0.0000». A no-break space
+// keeps «<» with the amount in a narrow tile.
 export const usd = (value: number) =>
-  value === 0 ? '$0' : value < 0.0001 ? '< $0.0001' : value < 0.01 ? `$${value.toFixed(4)}` : `$${value.toFixed(2)}`;
+  value === 0 ? '$0' : value < 0.0001 ? '< $0.0001' : value < 0.01 ? `$${value.toFixed(4)}` : `$${value.toFixed(2)}`;

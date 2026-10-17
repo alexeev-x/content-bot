@@ -28,12 +28,14 @@ type Props = {
   icon?: IconName;
   /** Tints the icon; colour is never the only signal, the label says what it is. */
   tone?: StatusGroup | 'accent';
+  /** `start`: the icon leads the text (spend and quality figures); `end`: it sits in the corner. */
+  iconAt?: 'start' | 'end';
 };
 
 /** One figure with its label: the tile of «Расходы», «Качество» and the bot's numbers. */
-export function StatTile({ label, value, meta, icon, tone = 'accent' }: Props) {
+export function StatTile({ label, value, meta, icon, tone = 'accent', iconAt = 'end' }: Props) {
   return (
-    <div className={styles.tile}>
+    <div className={styles.tile} data-icon-at={icon ? iconAt : undefined}>
       <dt className={styles.label}>{label}</dt>
       <dd className={styles.value}>{value}</dd>
       {meta === undefined || meta === null ? null : <dd className={styles.meta}>{meta}</dd>}
