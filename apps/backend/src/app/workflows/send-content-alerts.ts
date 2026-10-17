@@ -48,7 +48,11 @@ export async function sendContentAlerts(deps: {
     ];
     const markup = {
       inline_keyboard: [
-        ...alert.buttons.map((extra) => button(extra.text, extra.linkPath)),
+        ...alert.buttons.map((extra) =>
+          'callbackData' in extra
+            ? [{ text: extra.text, callback_data: extra.callbackData }]
+            : button(extra.text, extra.linkPath)
+        ),
         button(
           alert.kind === 'source'
             ? 'Открыть и обновить'

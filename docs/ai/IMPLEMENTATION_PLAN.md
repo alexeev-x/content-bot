@@ -1,4 +1,3 @@
-| 2026-10-17 | stage 0 (quality counts) | «Качество» counts a needs_facts answer as `questions`, not a draft; a legacy row without a result stays a draft | — |
 # AI editor — implementation plan
 
 **Status snapshot:** 2026-10-16, based on repository develop at a93f228 (commits 969d451 and a93f228 included).
@@ -177,4 +176,6 @@ Stages 2 and 3 can be designed independently; implement 3 before 5, and do not s
 | 2026-10-16 | owner-provided paired control run | complete texts 14/20 → 17/20; three correctly classified fact requests; five consecutive free Telegram posts | not a code test; owner-rated writing quality and future A/B controls |
 | 2026-10-16 | stage 3 (part) | a video linked to an AI script carries its format; item curve is same platform + format + exact checkpoint from 5 videos, else the platform curve labelled weak | owner classification of unlinked legacy videos; contamination marks; DEV check |
 | 2026-10-16 | stage 3 (owner mark) | migration 0065: the owner marks the rubric of an unlinked video; a linked script still wins; Telegram posts have none | contamination marks; DEV check |
-| 2026-10-17 | stage 3 (contamination) | migration 0066: the owner confirms a reason in the item panel; the item leaves every usual curve and the stored report rebuilds | a «Ограничение подтвердилось» button under the bot alert; DEV check |
+| 2026-10-17 | stage 3 (contamination) | migration 0066: the owner confirms a reason in the item panel; the item leaves every usual curve and the stored report rebuilds | DEV check |
+| 2026-10-17 | stage 0 (quality counts) | «Качество» counts a needs_facts answer as `questions`, not a draft; a legacy row without a result stays a draft | — |
+| 2026-10-17 | stage 3 (alert button) | «Ограничение подтвердилось» / «Удаление подтвердилось» under the TikTok freeze and disappearance alerts: the owner's tap marks the video contaminated | live tap on DEV |

@@ -99,6 +99,7 @@ function harness(overrides: Partial<BotRuntime> = {}): Harness {
         status: () => Promise.resolve(answer('status'))
       },
       publish: { buttons: () => Promise.resolve([]), perform: () => Promise.resolve({ kind: 'busy' }) },
+      contamination: () => Promise.resolve(),
       createDraft: (input, key) => {
         drafts.push({ input, key });
         return Promise.resolve({ id: `post-${drafts.length}`, revision: 0 });

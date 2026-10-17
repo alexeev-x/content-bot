@@ -190,6 +190,23 @@ describe('content alerts', () => {
     expect(frozen?.html).toContain('⛔ <b>Ролик перестал набирать</b> · TikTok\n«Ролик frozen»');
     expect(frozen?.html).toContain('за последние 6 ч: +0');
     expect(frozen?.html).toContain('<a href="https://www.tiktok.com/@a/video/frozen">Открыть в TikTok</a>');
+    // Only the owner's tap confirms a restriction or a removal: the alert carries the button, never the mark.
+    expect(frozen?.buttons).toEqual([{ text: 'Ограничение подтвердилось', callbackData: 'cc:r:tiktok:frozen' }]);
+    expect(alerts.find((alert) => alert.id.endsWith(':gone'))?.buttons).toEqual([
+      { text: 'Удаление подтвердилось', callbackData: 'cc:d:tiktok:gone' }
+    ]);
+    const markups: unknown[] = [];
+    const api = {
+      sendMessageWithKeyboard: async (_chat: string, { markup }: { markup: unknown }) => {
+        markups.push(markup);
+        return {};
+      }
+    } as unknown as TelegramOwnerMessageApi;
+    await sendContentAlerts(sendDeps(api, clock));
+    expect(JSON.stringify(markups)).toContain(
+      '{"text":"Ограничение подтвердилось","callback_data":"cc:r:tiktok:frozen"}'
+    );
+    expect(await testDb().prepare('SELECT COUNT(*) AS n FROM content_item_contamination').first('n')).toBe(0);
   });
 
   it('raises a source outage after three hours of failures, once per outage', async () => {

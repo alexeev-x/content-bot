@@ -2,6 +2,7 @@ import { webhookCallback } from 'grammy';
 import { Hono } from 'hono';
 import { bodyLimit } from 'hono/body-limit';
 import { createPost } from '../../modules/content';
+import { markContentItemContamination } from '../../modules/content-analytics';
 import { timingSafeEqualStrings } from '../../platform/security/timing-safe-equal';
 import { AppError } from '../../shared/app-error';
 import type { AppBindings } from '../env';
@@ -94,6 +95,8 @@ export const telegramWebhook = new Hono<AppBindings>().post(
     const bot = createBot(config, {
       appOrigin,
       publish,
+      contamination: (itemId, reason) =>
+        markContentItemContamination({ repo: container.contentAnalytics, clock: container.clock }, itemId, reason),
       clock: container.clock,
       updates: { claim: (updateId, now) => container.webhookUpdates.claim(updateId, now) },
       reports: {

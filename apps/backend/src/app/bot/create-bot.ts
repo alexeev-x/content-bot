@@ -21,6 +21,7 @@ import type { OwnerReply, OwnerReports } from './owner-reports';
 import type { TelegramCaller } from './telegram-call';
 import type { UpdateDedup } from './update-dedup';
 import type { WriterDeps } from '../../modules/ai';
+import { CONTAMINATION_CALLBACK, parseContaminationCallback } from '../../modules/content-analytics';
 import { NO_MODE_TEXT, registerAiWriter, REQUEST_TTL_MS } from './ai-writer';
 
 export interface BotSettings {
@@ -123,6 +124,8 @@ export interface BotRuntime {
   createDraft: (input: CreatePostInput, idempotencyKey: string) => Promise<{ id: string; revision: number }>;
   /** The «publish now» buttons under a draft reply and what a tap does. */
   publish: PublishActions;
+  /** The owner confirmed under an alert why a video's numbers are distorted. Throws `AppError` NOT_FOUND. */
+  contamination: (itemId: string, reason: 'restricted' | 'removed') => Promise<void>;
   /** The AI writer's dependencies, built on first use (they read the owner's time zone). */
   writer: () => Promise<WriterDeps>;
   /** Records the file in D1 (fast) and starts the import after the webhook answered. */
@@ -170,6 +173,9 @@ const DUPLICATE_TEXT = 'Уже в очереди или опубликовано
 const EXPIRED_TEXT = 'Кнопка устарела, откройте в Студии';
 const UNSUPPORTED_TEXT = 'Этот тип сообщения пока не превращается в черновик';
 const DRAFT_INVALID_TEXT = 'Текст содержит недопустимые символы, черновик не создан.';
+const CONTAMINATED_TEXT = 'Отмечено: ролик больше не входит в сравнения других роликов.';
+const ITEM_GONE_TEXT = 'Ролик не найден в аналитике — откройте в Студии';
+const MARK_FAILED_TEXT = 'Не удалось отметить. Попробуйте ещё раз.';
 
 // Only private chats with the owner: the bot never answers in a group the owner happens to share with it.
 function privateChatOnly() {
@@ -404,6 +410,37 @@ export function createBot(config: BotConfig, runtime: BotRuntime): Bot {
       });
     } catch (error) {
       // A repeated tap writes the same text again; Telegram calls that an error, it is not one.
+      if (!(error instanceof GrammyError && error.description.includes('message is not modified'))) throw error;
+    }
+  });
+
+  // «Ограничение подтвердилось» under an alert: the tap is the owner's confirmation (architecture item 12).
+  // Safe to repeat; on success the button leaves the message so it is not tapped again.
+  bot.callbackQuery(CONTAMINATION_CALLBACK, async (ctx) => {
+    const data = ctx.callbackQuery.data;
+    const parsed = parseContaminationCallback(data);
+    let text = EXPIRED_TEXT;
+    if (parsed !== null) {
+      try {
+        await runtime.contamination(parsed.itemId, parsed.reason);
+        text = CONTAMINATED_TEXT;
+      } catch (error) {
+        if (error instanceof AppError && error.code === 'NOT_FOUND') text = ITEM_GONE_TEXT;
+        else {
+          runtime.onError(error);
+          text = MARK_FAILED_TEXT;
+        }
+      }
+    }
+    await ctx.answerCallbackQuery({ text }).catch((error: unknown) => runtime.onError(error));
+    const keyboard = ctx.callbackQuery.message?.reply_markup?.inline_keyboard;
+    if (text !== CONTAMINATED_TEXT || keyboard === undefined) return;
+    const rows = keyboard
+      .map((row) => row.filter((button) => !('callback_data' in button && button.callback_data === data)))
+      .filter((row) => row.length > 0);
+    try {
+      await ctx.editMessageReplyMarkup({ reply_markup: { inline_keyboard: rows } });
+    } catch (error) {
       if (!(error instanceof GrammyError && error.description.includes('message is not modified'))) throw error;
     }
   });

@@ -3,6 +3,7 @@ import type { Clock } from '../../platform/clock';
 import type { AlertButton, ContentAlertRepository, NewContentAlert } from './d1-content-alerts-repository';
 import type { CheckpointRow, ItemRow, SourceRow } from './d1-content-analytics-repository';
 import { type ContentGoalRepository, readContentGoals } from './goals';
+import { type AlertContamination, contaminationCallbackData } from './contamination-callback';
 import { baselineFor } from './service';
 import { CONTENT_PLATFORMS, type ContentPlatform } from './types';
 
@@ -298,7 +299,7 @@ export function tiktokWatchAlerts(
         title: `Ролик пропал из TikTok: «${itemTitle(item, 80)}»`,
         body: 'TikTok перестал его возвращать: удалён, скрыт или на проверке. Проверьте уведомления TikTok и при блокировке подайте апелляцию.',
         html: `🚫 <b>Ролик пропал из TikTok</b>\n${title}\n\nTikTok перестал его отдавать: удалён, скрыт или на проверке.\n💡 <i>Проверь уведомления в TikTok и, если это блокировка, подай апелляцию.</i>${link}`,
-        buttons: [],
+        buttons: confirmButton('Удаление подтвердилось', 'removed', item.id),
         linkPath: itemLink(item)
       });
       continue;
@@ -326,11 +327,20 @@ export function tiktokWatchAlerts(
         `<blockquote>👀 ${count(views)} просмотров\n📈 за ${hours} ч до этого: +${count(before - earlier)}\n⏸ за последние ${hours} ч: +0</blockquote>`,
         `💡 <i>Похоже на блокировку или ограничение показа. Проверь уведомления в TikTok и подай апелляцию.</i>${link}`
       ].join('\n'),
-      buttons: [],
+      buttons: confirmButton('Ограничение подтвердилось', 'restricted', item.id),
       linkPath: itemLink(item)
     });
   }
   return alerts;
+}
+
+/**
+ * The owner's confirmation under a freeze or disappearance alert: only the tap marks the video contaminated, so
+ * it leaves the usual curves (docs/ai/architecture.md item 12); the alert itself proves nothing.
+ */
+function confirmButton(text: string, reason: AlertContamination, itemId: string): AlertButton[] {
+  const callbackData = contaminationCallbackData(reason, itemId);
+  return callbackData === null ? [] : [{ text, callbackData }];
 }
 
 /** The owner-zone 00:00 of the day `at` falls on (correct across a DST change of that zone). */

@@ -10,10 +10,8 @@ import {
 } from './d1-content-analytics-repository';
 import type { ContentPlatform } from './types';
 
-export interface AlertButton {
-  text: string;
-  linkPath: string;
-}
+/** A studio link, or a bot action the owner's tap performs (`callbackData`, see contamination-callback.ts). */
+export type AlertButton = { text: string; linkPath: string } | { text: string; callbackData: string };
 
 export type ContentAlertKind = 'item' | 'source' | 'digest';
 export type ContentAlertStatus = 'pending' | 'sending' | 'sent' | 'failed' | 'unknown';
@@ -78,13 +76,14 @@ function parseButtons(raw: string | null): AlertButton[] {
     const value: unknown = JSON.parse(raw);
     if (!Array.isArray(value)) return [];
     return value
-      .filter(
-        (entry): entry is AlertButton =>
-          typeof entry === 'object' &&
-          entry !== null &&
-          typeof (entry as AlertButton).text === 'string' &&
-          typeof (entry as AlertButton).linkPath === 'string'
-      )
+      .filter((entry): entry is AlertButton => {
+        if (typeof entry !== 'object' || entry === null) return false;
+        const button = entry as Record<string, unknown>;
+        return (
+          typeof button['text'] === 'string' &&
+          (typeof button['linkPath'] === 'string' || typeof button['callbackData'] === 'string')
+        );
+      })
       .slice(0, 6);
   } catch {
     return [];
