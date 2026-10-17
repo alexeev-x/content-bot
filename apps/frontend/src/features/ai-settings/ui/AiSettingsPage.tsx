@@ -247,7 +247,7 @@ function AiSettings({ overview, onReload }: { overview: AiOverviewDto; onReload:
               </div>
               <ProgressBar label={copy.spendBar} value={share} tone={share >= 100 ? 'failed' : 'accent'} />
             </div>
-            <StatGrid>
+            <StatGrid columns="two">
               <StatTile
                 label={copy.tiles.left}
                 value={usd(spend.leftUsd)}
@@ -434,7 +434,7 @@ function QualityPanel({ quality }: { quality: AiOverviewDto['quality'] }) {
         <p className={styles.voice}>{copy.quality.empty}</p>
       ) : (
         <div className={styles.body}>
-          <StatGrid>
+          <StatGrid columns="two">
             <StatTile
               icon="file"
               tone="muted"

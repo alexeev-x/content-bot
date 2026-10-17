@@ -9,12 +9,14 @@ type GridProps = {
   children: ReactNode;
   /** Narrowest tile before the grid wraps to fewer columns. */
   minTile?: 'sm' | 'md';
+  /** `two`: at most two tiles per row, one below 19rem (tiles with a leading icon need the room). */
+  columns?: 'auto' | 'two';
 };
 
 /** A row of figures that wraps by available width (two columns on a phone). */
-export function StatGrid({ children, minTile = 'sm' }: GridProps) {
+export function StatGrid({ children, minTile = 'sm', columns = 'auto' }: GridProps) {
   return (
-    <dl className={styles.grid} data-min={minTile}>
+    <dl className={styles.grid} data-min={minTile} data-columns={columns}>
       {children}
     </dl>
   );

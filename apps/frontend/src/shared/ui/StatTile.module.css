@@ -9,6 +9,11 @@
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr));
 }
 
+/* A tile is at least half the row (so never three in a row) and at least 9.5rem (so one per row when narrow). */
+.grid[data-columns='two'] {
+  grid-template-columns: repeat(auto-fit, minmax(max(9.5rem, calc((100% - var(--space-2)) / 2)), 1fr));
+}
+
 .tile {
   position: relative;
   display: grid;
@@ -32,7 +37,10 @@
   font-size: var(--font-size-xl);
   font-weight: 600;
   font-variant-numeric: tabular-nums;
-  overflow-wrap: anywhere;
+  /* A figure never breaks inside («$0.00 / 90» on DEV, owner 17.10.2026); a too long one ends with «…». */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .meta {
@@ -49,7 +57,7 @@
 
 /* The icon leads the text: the text column starts after it. */
 .tile[data-icon-at='start'] {
-  padding-inline-start: calc(var(--space-3) + 2.75rem);
+  padding-inline-start: calc(var(--space-3) + 2.5rem);
 }
 
 .tile[data-icon-at='start'] .icon {

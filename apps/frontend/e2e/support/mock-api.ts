@@ -609,13 +609,19 @@ export async function mockApi(page: Page): Promise<void> {
       },
       spend: {
         month: '2026-10',
-        spentUsd: 0.00005,
+        // As on DEV (owner's screenshot, 17.10.2026): long breakdowns and four-decimal prices.
+        spentUsd: 0.82,
         todayUsd: 0.00005,
-        leftUsd: 5,
-        requests: 1,
-        averageUsd: 0.00005,
+        leftUsd: 4.18,
+        requests: 100,
+        averageUsd: 0.0082,
         unpricedRequests: 0,
-        byKind: [{ kind: 'check', requests: 1, spentUsd: 0.00005 }],
+        byKind: [
+          { kind: 'check', requests: 3, spentUsd: 0.0002 },
+          { kind: 'draft', requests: 88, spentUsd: 0.79 },
+          { kind: 'rewrite', requests: 1, spentUsd: 0.01 },
+          { kind: 'other', requests: 8, spentUsd: 0.02 }
+        ],
         blockedBy: null
       },
       quality: {
