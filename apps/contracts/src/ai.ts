@@ -149,6 +149,11 @@ export const aiQualitySchema = z.object({
   rewrites: z.number().int().nonnegative(),
   /** Answers that asked the owner for facts or offered ideas instead of a text. */
   questions: z.number().int().nonnegative().optional(),
+  /**
+   * Drafts written from the studio (control runs). Only the bot's drafts can be approved, so every other count
+   * here is the bot's alone and these never enter a share.
+   */
+  studioDrafts: z.number().int().nonnegative().optional(),
   failed: z.number().int().nonnegative(),
   /** Drafts and rewrites whose code checks found something. */
   withWarnings: z.number().int().nonnegative(),

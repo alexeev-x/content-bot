@@ -626,17 +626,18 @@ export async function mockApi(page: Page): Promise<void> {
       },
       quality: {
         days: 30,
-        drafts: 82,
+        drafts: 2,
         rewrites: 1,
         failed: 0,
-        withWarnings: 12,
+        withWarnings: 1,
         approved: 1,
         approvedUnchanged: 1,
         averageEditRatio: 0,
         jokeMissed: 0,
         feedback: [],
         averageDraftUsd: 0.011,
-        questions: 6,
+        questions: 1,
+        studioDrafts: 80,
         changedParts: []
       },
       catalog: {

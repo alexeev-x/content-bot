@@ -233,6 +233,7 @@ export async function readAiOverview(deps: {
       drafts: quality.drafts,
       rewrites: quality.rewrites,
       questions: quality.questions,
+      studioDrafts: quality.studioDrafts,
       failed: quality.failed,
       withWarnings: quality.withWarnings,
       approved: quality.approved,

@@ -59,6 +59,8 @@ export interface QualityRows {
   rewrites: number;
   /** Ready answers that asked the owner for facts (needs_facts, migration 0062): no text to approve. */
   questions: number;
+  /** Drafts written from the studio (control runs): they cannot be approved, so they stay out of every share. */
+  studioDrafts: number;
   failed: number;
   withWarnings: number;
   approved: number;
@@ -488,9 +490,9 @@ export function createD1WriterRepository(db: D1Database): WriterRepository {
       const [generations, approvals, feedback, cost, tagged, parts] = await db.batch([
         db
           .prepare(
-            `SELECT kind, status, result, COUNT(*) AS n,
+            `SELECT kind, status, result, source, COUNT(*) AS n,
                     SUM(CASE WHEN warnings IS NOT NULL AND warnings <> '[]' THEN 1 ELSE 0 END) AS warned
-             FROM ai_generations WHERE created_at >= ? GROUP BY kind, status, result`
+             FROM ai_generations WHERE created_at >= ? GROUP BY kind, status, result, source`
           )
           .bind(since),
         db
@@ -535,21 +537,26 @@ export function createD1WriterRepository(db: D1Database): WriterRepository {
         kind: string;
         status: string;
         result: string | null;
+        source: string;
         n: number;
         warned: number | null;
       }[];
+      // Only the bot's drafts can be approved, so only they make «Качество» (owner, 17.10.2026); the studio's
+      // control runs are counted apart and never enter a share.
+      const bot = rows.filter((row) => row.source === 'bot');
       // Rows before migration 0062 have no result; the writer could only answer with a draft then.
       const text = (row: (typeof rows)[number]) => row.status === 'ready' && row.result !== 'needs_facts';
-      const sum = (match: (row: (typeof rows)[number]) => boolean) =>
-        rows.filter(match).reduce((total, row) => total + row.n, 0);
+      const sum = (from: typeof rows, match: (row: (typeof rows)[number]) => boolean) =>
+        from.filter(match).reduce((total, row) => total + row.n, 0);
       const approval = approvals?.results[0] as
         { n: number; unchanged: number | null; ratio: number | null } | undefined;
       return {
-        drafts: sum((row) => row.kind === 'draft' && text(row)),
-        rewrites: sum((row) => row.kind === 'rewrite' && text(row)),
-        questions: sum((row) => row.status === 'ready' && row.result === 'needs_facts'),
-        failed: sum((row) => row.status === 'failed'),
-        withWarnings: rows.reduce((total, row) => total + (row.warned ?? 0), 0),
+        drafts: sum(bot, (row) => row.kind === 'draft' && text(row)),
+        rewrites: sum(bot, (row) => row.kind === 'rewrite' && text(row)),
+        questions: sum(bot, (row) => row.status === 'ready' && row.result === 'needs_facts'),
+        failed: sum(bot, (row) => row.status === 'failed'),
+        withWarnings: bot.reduce((total, row) => total + (row.warned ?? 0), 0),
+        studioDrafts: sum(rows, (row) => row.source === 'studio' && row.kind === 'draft'),
         approved: approval?.n ?? 0,
         approvedUnchanged: approval?.unchanged ?? 0,
         averageEditRatio: approval?.ratio ?? null,

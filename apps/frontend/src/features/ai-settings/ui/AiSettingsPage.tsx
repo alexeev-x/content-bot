@@ -428,12 +428,17 @@ function QualityPanel({ quality }: { quality: AiOverviewDto['quality'] }) {
   // The list loads only once opened: most visits never look at it.
   const [feedbackOpen, setFeedbackOpen] = useState(false);
   const verdictCount = verdicts.reduce((total, row) => total + row.count, 0);
+  const studioRuns = quality.studioDrafts ?? 0;
   return (
     <Panel title={copy.quality.title(quality.days)} icon={<Icon name="check-circle" />}>
       {quality.drafts + quality.rewrites + (quality.questions ?? 0) + quality.failed === 0 ? (
-        <p className={styles.voice}>{copy.quality.empty}</p>
+        <div className={styles.body}>
+          <p className={styles.meta}>{copy.quality.empty}</p>
+          {studioRuns > 0 ? <p className={styles.meta}>{copy.quality.studioRuns(studioRuns)}</p> : null}
+        </div>
       ) : (
         <div className={styles.body}>
+          <p className={styles.spendLabel}>{copy.quality.lead}</p>
           <StatGrid columns="two">
             <StatTile
               icon="file"
@@ -477,7 +482,7 @@ function QualityPanel({ quality }: { quality: AiOverviewDto['quality'] }) {
             <Banner tone="warning" size="sm" title={copy.quality.lowTitle(approved)} />
           ) : null}
           {/* The secondary counts, under a rule as one quiet footer (design-refs/ai-spend-quality). */}
-          {parts.length > 0 || verdicts.length > 0 || details ? (
+          {parts.length > 0 || verdicts.length > 0 || details || studioRuns > 0 ? (
             <div className={styles.notes}>
               <Icon name="info" size={16} className={styles.notesIcon} />
               <div className={styles.notesText}>
@@ -494,6 +499,7 @@ function QualityPanel({ quality }: { quality: AiOverviewDto['quality'] }) {
                   </p>
                 ) : null}
                 {details ? <p className={styles.meta}>{details}</p> : null}
+                {studioRuns > 0 ? <p className={styles.meta}>{copy.quality.studioRuns(studioRuns)}</p> : null}
               </div>
             </div>
           ) : null}

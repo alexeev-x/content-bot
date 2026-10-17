@@ -93,7 +93,7 @@ describe('AI settings, spend and connection', () => {
     expect(checked.spend.requests).toBe(0);
   });
 
-  it('writes a studio draft as AI_DRAFT, counts it in «Качество», and refuses bad input or AI off', async () => {
+  it('writes a studio draft as AI_DRAFT, keeps it out of «Качество» shares, and refuses bad input or AI off', async () => {
     const answer = () =>
       Promise.resolve({
         text: writerAnswer({ hooks: ['Первый хук.'], text: 'Патч вышел. Стоит отметить, что Тинкер снова в игре.' }),
@@ -117,10 +117,12 @@ describe('AI settings, spend and connection', () => {
     expect(result).toMatchObject({ status: 'ready', hooks: ['Первый хук.'], warnings: ['AI_PHRASE:стоит отметить'] });
 
     const overview = aiOverviewSchema.parse(await (await api.request('/api/v1/ai')).json());
+    // A studio draft (a control run) cannot be approved: it is counted apart, never in the bot's shares.
     expect(overview.quality).toMatchObject({
       days: 30,
-      drafts: 1,
-      withWarnings: 1,
+      drafts: 0,
+      studioDrafts: 1,
+      withWarnings: 0,
       approved: 0,
       averageEditRatio: null
     });
