@@ -3,7 +3,6 @@ import { AppearanceSkeleton } from '../../features/appearance';
 import { BotStatusSkeleton } from '../../features/bot';
 import { AnalyticsSourcesSkeleton } from '../../features/content-analytics';
 import { ChannelsSkeleton } from '../../features/destinations';
-import { DotaWatchlistsSkeleton } from '../../features/dota-intelligence';
 import { GeneralSettingsSkeleton } from '../../features/owner-settings';
 import { useMediaQuery } from '../../shared/ui';
 import styles from './GeneralPage.module.css';
@@ -22,7 +21,6 @@ function SectionSkeleton({ to }: { to: string }) {
         <div className={`reading-width ${styles.page}`}>
           <BotStatusSkeleton />
           <GeneralSettingsSkeleton />
-          <DotaWatchlistsSkeleton />
         </div>
       );
     default:

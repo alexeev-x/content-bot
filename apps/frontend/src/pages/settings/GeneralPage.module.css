@@ -2,24 +2,4 @@
   display: grid;
   align-content: start;
   gap: var(--space-4);
-  container-type: inline-size;
-}
-
-.main,
-.aside {
-  display: grid;
-  align-content: start;
-  gap: var(--space-4);
-  min-inline-size: 0;
-}
-
-/* Side column once the main one keeps its reading width; below that the actions follow the settings. */
-@container (min-width: 1000px) {
-  .page {
-    grid-template-columns: minmax(0, 1fr) minmax(16rem, 20rem);
-  }
-  .aside {
-    position: sticky;
-    inset-block-start: var(--space-4);
-  }
 }

@@ -55,7 +55,7 @@ for (const path of PAGES) {
           fullPage: (path.startsWith('/analytics') && !path.includes('id=')) || path === '/' || path === '/settings/ai'
         });
         if (path === '/settings/general') {
-          await page.getByRole('heading', { name: /Уведомлять/ }).scrollIntoViewIfNeeded();
+          await page.getByRole('heading', { name: 'Уведомления' }).scrollIntoViewIfNeeded();
           await page.waitForTimeout(200);
           await page.screenshot({ path: `../../.logs/shots/${name}-${viewport.width}-${colorScheme}-end.png` });
         }

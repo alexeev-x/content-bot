@@ -31,15 +31,6 @@ export const botCopy = {
     addressOther: 'другой сервер',
     addressNone: 'не задан'
   },
-  quick: {
-    title: 'Быстрые действия',
-    openChat: 'Открыть чат с ботом',
-    check: 'Проверить бота',
-    checked: 'Состояние бота обновлено',
-    checkFailed: 'Не удалось получить состояние бота',
-    channels: 'Каналы публикации',
-    sources: 'Источники Dota'
-  },
   missingList: (names: string) => `Не заданы или заданы неверно: ${names}`,
   secretRule: 'TELEGRAM_WEBHOOK_SECRET: только латинские буквы, цифры, «_» и «-», до 256 символов.',
   missingHint: 'Задайте их в Cloudflare → Workers → Settings → Variables and Secrets',
