@@ -152,6 +152,15 @@ export const copy = {
       missed_task: 'не то задание'
     } satisfies Record<AiFeedbackKind, string>,
     feedbackLead: 'Отзывы: ',
+    feedbackListTitle: (count: number) => `Записанные отзывы (${count})`,
+    feedbackListHint:
+      'Отзыв только записывается: правилом стиля он не становится. Ошиблись кнопкой — удалите и нажмите нужную причину в боте.',
+    feedbackEmpty: 'Отзывов пока нет. Нажмите «Что не так?» под черновиком в боте.',
+    feedbackLoadError: 'Не удалось загрузить отзывы.',
+    feedbackDelete: (reason: string) => `Удалить отзыв «${reason}»`,
+    feedbackDeleted: 'Отзыв удалён',
+    feedbackDeleteFailed: 'Не удалось удалить отзыв. Попробуйте ещё раз.',
+    format: { fidit: 'Учу фидить', igrat: 'Учусь играть', standalone: 'Рилс', telegram: 'Пост в ТГ' },
     details: (questions: number, warned: number, failed: number) =>
       (
         [

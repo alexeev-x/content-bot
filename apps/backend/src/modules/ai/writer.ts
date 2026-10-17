@@ -1,4 +1,9 @@
-import type { PostOriginDto } from '@alexeev/contracts';
+import {
+  AI_FEEDBACK_EXCERPT,
+  AI_FEEDBACK_LIST_LIMIT,
+  type AiFeedbackListDto,
+  type PostOriginDto
+} from '@alexeev/contracts';
 import type { Clock } from '../../platform/clock';
 import { AppError } from '../../shared/app-error';
 import { readAuthorProfile } from './author-profile';
@@ -429,6 +434,29 @@ export async function recordFeedback(deps: WriterDeps, generationId: string, kin
   // Tied to the text the owner judged: the latest revision when the button was pressed.
   const revisionId = (await deps.writer.revisions(generationId)).at(-1)?.id ?? null;
   await deps.writer.addFeedback({ id: deps.newId(), generationId, kind, revisionId, now: deps.clock.now() });
+}
+
+const excerpt = (text: string) =>
+  text.length > AI_FEEDBACK_EXCERPT ? `${text.slice(0, AI_FEEDBACK_EXCERPT - 1)}…` : text;
+
+/** The owner's recorded verdicts, newest first, so a wrong one can be taken back (plan stage 2). */
+export async function readFeedback(deps: Pick<WriterDeps, 'writer'>): Promise<AiFeedbackListDto> {
+  const rows = await deps.writer.listFeedback(AI_FEEDBACK_LIST_LIMIT);
+  return {
+    items: rows.map((row) => ({
+      id: row.id,
+      kind: row.kind,
+      format: row.format,
+      task: excerpt(row.task),
+      text: row.text === null ? null : excerpt(row.text),
+      createdAt: new Date(row.createdAt).toISOString()
+    }))
+  };
+}
+
+/** Takes a verdict back; one already gone is a no-op. */
+export async function removeFeedback(deps: Pick<WriterDeps, 'writer'>, id: string): Promise<void> {
+  await deps.writer.deleteFeedback(id);
 }
 
 /**

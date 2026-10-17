@@ -5,6 +5,15 @@ export type Provenance = 'AI_DRAFT' | 'OWNER_EDITED' | 'OWNER_APPROVED' | 'OWNER
 /** The owner's verdicts on a draft (migration 0067). */
 export type FeedbackKind = AiFeedbackKind;
 
+export interface FeedbackRow {
+  id: string;
+  kind: FeedbackKind;
+  format: WriterFormat;
+  task: string;
+  text: string | null;
+  createdAt: number;
+}
+
 // The «unchanged» line of «Качество» (≤ 5% edited): below it an approval is the model's words, not the owner's.
 const OWNER_EXAMPLE_MIN_EDIT = 0.05;
 /** Candidates the writer ranks by relevance to the task; the prompt still gets at most two. */
@@ -111,6 +120,9 @@ export interface WriterRepository {
     row: Omit<RevisionRow, 'postId'> & { parentId: string | null; changedParts: readonly string[] }
   ): Promise<boolean>;
   attachPost(revisionId: string, postId: string): Promise<void>;
+  /** The newest verdicts with the draft's format and task and the judged text, at most `limit` (≤ 30). */
+  listFeedback(limit: number): Promise<FeedbackRow[]>;
+  deleteFeedback(id: string): Promise<void>;
   /** Once per draft and kind: a repeated tap records nothing new. */
   addFeedback(input: {
     id: string;
@@ -399,6 +411,23 @@ export function createD1WriterRepository(db: D1Database): WriterRepository {
         .prepare('UPDATE ai_text_revisions SET post_id = ? WHERE id = ? AND post_id IS NULL')
         .bind(postId, revisionId)
         .run();
+    },
+
+    async listFeedback(limit) {
+      const rows = await db
+        .prepare(
+          `SELECT f.id, f.kind, g.format, g.task, r.text, f.created_at AS createdAt
+           FROM ai_feedback f JOIN ai_generations g ON g.id = f.generation_id
+           LEFT JOIN ai_text_revisions r ON r.id = f.revision_id
+           ORDER BY f.created_at DESC, f.id LIMIT ?`
+        )
+        .bind(Math.min(limit, 30))
+        .all<FeedbackRow>();
+      return rows.results;
+    },
+
+    async deleteFeedback(id) {
+      await db.prepare('DELETE FROM ai_feedback WHERE id = ?').bind(id).run();
     },
 
     async addFeedback({ id, generationId, kind, revisionId, now }) {

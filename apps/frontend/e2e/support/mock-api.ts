@@ -564,6 +564,28 @@ export async function mockApi(page: Page): Promise<void> {
         'СОСТОЯНИЕ АВТОРА (сейчас, из студии; опыт не выдумывай сверх этого):\n- Ранг: Герой 2 (по OpenDota на 16.10.2026).\n- В Доте около 750 часов.\n- Сейчас учит героев: Оракл, Феникс.'
     })
   );
+  await page.route(/\/api\/v1\/ai\/feedback$/, (route) =>
+    json(route, {
+      items: [
+        {
+          id: '00000000-0000-4000-8000-0000000000f1',
+          kind: 'weak_hook',
+          format: 'igrat',
+          task: 'сделай рилс учусь играть про оракла',
+          text: 'Сегодня играл на оракле и понял, что лечить надо раньше, а не когда тиммейт уже серый.',
+          createdAt: '2026-10-16T18:20:00.000Z'
+        },
+        {
+          id: '00000000-0000-4000-8000-0000000000f2',
+          kind: 'joke_missed',
+          format: 'telegram',
+          task: 'напиши пост в тг про патч 7.40',
+          text: null,
+          createdAt: '2026-10-15T09:05:00.000Z'
+        }
+      ]
+    })
+  );
   // «Настройки → ИИ» and the overview widget: on, one cheap check this month.
   await page.route(/\/api\/v1\/ai$/, (route) =>
     json(route, {

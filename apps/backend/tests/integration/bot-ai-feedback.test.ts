@@ -1,7 +1,8 @@
+import { aiFeedbackListSchema, apiErrorSchema } from '@alexeev/contracts';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { fakeBotAdminApi } from '../helpers/fake-bot-admin-api';
 import { testDb } from '../helpers/db';
-import { type Api, createApi, fakeClock, OWNER_ID, resetDb, START } from '../helpers/harness';
+import { type Api, createApi, fakeClock, OWNER_ID, OWNER_TOKEN, resetDb, seedSession, START } from '../helpers/harness';
 
 const SECRET = 'hook-secret-PLACEHOLDER';
 const BOT_INFO = JSON.stringify({ id: 123456, is_bot: true, first_name: 'Bot', username: 'content_bot' });
@@ -21,6 +22,7 @@ let updateId = 8000;
 
 beforeEach(async () => {
   await resetDb();
+  await seedSession({ token: OWNER_TOKEN, expiresAt: START + 86_400_000 });
   api = createApi({ clock: fakeClock(), botInfo: BOT_INFO, webhookSecret: SECRET, botAdminApi: fakeBotAdminApi() });
   await testDb().batch([
     testDb()
@@ -108,5 +110,23 @@ describe('«Что не так?» under an AI draft', () => {
     await tap('joke');
     const kinds = await testDb().prepare('SELECT kind FROM ai_feedback ORDER BY kind').all<{ kind: string }>();
     expect(kinds.results.map((row) => row.kind)).toEqual(['joke_missed', 'weak_hook']);
+  });
+});
+
+describe('/api/v1/ai/feedback', () => {
+  it('lists the recorded verdicts with the draft and lets the owner take one back, safely repeated', async () => {
+    await tap('r:hook');
+    const list = aiFeedbackListSchema.parse(await (await api.request('/api/v1/ai/feedback')).json());
+    expect(list.items).toEqual([
+      expect.objectContaining({ kind: 'weak_hook', format: 'igrat', task: 'задание', text: 'Текст черновика.' })
+    ]);
+    const id = list.items[0]?.id ?? '';
+    for (let n = 0; n < 2; n += 1) {
+      expect((await api.request(`/api/v1/ai/feedback/${id}`, { method: 'DELETE' })).status).toBe(204);
+    }
+    expect(aiFeedbackListSchema.parse(await (await api.request('/api/v1/ai/feedback')).json()).items).toEqual([]);
+    const bad = await api.request('/api/v1/ai/feedback/not-an-id', { method: 'DELETE' });
+    expect(bad.status).toBe(400);
+    expect(apiErrorSchema.parse(await bad.json()).error.code).toBe('VALIDATION_ERROR');
   });
 });

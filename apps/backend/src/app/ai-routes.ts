@@ -2,6 +2,8 @@ import {
   aiAuthorProfileSchema,
   aiDotaSnapshotInputSchema,
   aiDraftResultSchema,
+  aiFeedbackListSchema,
+  aiFeedbackParamsSchema,
   aiItemScriptSchema,
   aiOverviewSchema,
   contentItemIdSchema,
@@ -19,7 +21,9 @@ import {
   linkItemScript,
   readAiOverview,
   readAuthorProfile,
+  readFeedback,
   readItemScript,
+  removeFeedback,
   saveAuthorDota,
   unlinkItemScript,
   updateAiSettings,
@@ -166,6 +170,13 @@ export const aiRoutes = new Hono<AppBindings>()
       return c.json(aiAuthorProfileSchema.parse(await readAuthorProfile(container.aiProfiles)));
     }
   )
+  .get('/feedback', async (c) =>
+    c.json(aiFeedbackListSchema.parse(await readFeedback({ writer: c.get('container').aiWriter })))
+  )
+  .delete('/feedback/:id', validated('param', aiFeedbackParamsSchema), async (c) => {
+    await removeFeedback({ writer: c.get('container').aiWriter }, c.req.valid('param').id);
+    return c.body(null, 204);
+  })
   .get('/scripts/:itemId', validated('param', scriptParamsSchema), async (c) => {
     const { links, video } = await scriptDeps(c, c.req.valid('param').itemId);
     return c.json(aiItemScriptSchema.parse(await readItemScript(links, video)));

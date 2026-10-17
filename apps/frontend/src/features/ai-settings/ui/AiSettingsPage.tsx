@@ -34,6 +34,7 @@ import {
   lowApproval,
   WARN_PRESETS
 } from '../model/ai-view';
+import { AiFeedbackList } from './AiFeedbackList';
 import { copy, usd } from './copy';
 import styles from './AiSettingsPage.module.css';
 
@@ -409,6 +410,9 @@ function QualityPanel({ quality }: { quality: AiOverviewDto['quality'] }) {
   // The three parts changed most, from a tenth of approvals up: rarer ones are noise at this volume.
   const parts = quality.changedParts.filter((row) => row.share >= 0.1).slice(0, 3);
   const approved = approvalPercent(quality);
+  // The list loads only once opened: most visits never look at it.
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
+  const verdictCount = verdicts.reduce((total, row) => total + row.count, 0);
   return (
     <Panel title={copy.quality.title(quality.days)} icon={<Icon name="check-circle" />}>
       {quality.drafts + quality.rewrites + (quality.questions ?? 0) + quality.failed === 0 ? (
@@ -456,6 +460,16 @@ function QualityPanel({ quality }: { quality: AiOverviewDto['quality'] }) {
             </p>
           ) : null}
           {details ? <p className={styles.meta}>{details}</p> : null}
+          {verdictCount > 0 ? (
+            <DisclosureGroup
+              expandedKeys={feedbackOpen ? ['feedback'] : []}
+              onExpandedChange={(keys) => setFeedbackOpen(keys.has('feedback'))}
+            >
+              <Disclosure id="feedback" title={copy.quality.feedbackListTitle(verdictCount)}>
+                {feedbackOpen ? <AiFeedbackList /> : null}
+              </Disclosure>
+            </DisclosureGroup>
+          ) : null}
         </div>
       )}
     </Panel>

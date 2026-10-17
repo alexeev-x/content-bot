@@ -336,3 +336,23 @@ export const updateAiAuthorProfileInputSchema = aiAuthorFieldsSchema.extend({
   revision: z.number().int().nonnegative()
 });
 export type UpdateAiAuthorProfileInput = z.infer<typeof updateAiAuthorProfileInputSchema>;
+
+// GET /api/v1/ai/feedback → 200 AiFeedbackListDto: the owner's newest recorded verdicts («Что не так?» in the bot),
+// at most AI_FEEDBACK_LIST_LIMIT, each with the draft's format and the start of its task and of the judged text.
+// DELETE /api/v1/ai/feedback/{id} → 204: the owner takes a verdict back; a verdict already gone is a no-op.
+// Errors: VALIDATION_ERROR 400 (id), UNAUTHORIZED 401, FORBIDDEN 403.
+export const AI_FEEDBACK_LIST_LIMIT = 30;
+export const AI_FEEDBACK_EXCERPT = 160;
+export const aiFeedbackSchema = z.object({
+  id: z.uuid(),
+  kind: z.enum(AI_FEEDBACK_KINDS),
+  format: aiWriterFormatSchema,
+  task: z.string().max(AI_FEEDBACK_EXCERPT),
+  /** The start of the judged text; null for a verdict recorded before migration 0067. */
+  text: z.string().max(AI_FEEDBACK_EXCERPT).nullable(),
+  createdAt: z.iso.datetime()
+});
+export type AiFeedbackDto = z.infer<typeof aiFeedbackSchema>;
+export const aiFeedbackListSchema = z.object({ items: z.array(aiFeedbackSchema).max(AI_FEEDBACK_LIST_LIMIT) });
+export type AiFeedbackListDto = z.infer<typeof aiFeedbackListSchema>;
+export const aiFeedbackParamsSchema = z.strictObject({ id: z.uuid() });
