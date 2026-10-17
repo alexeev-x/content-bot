@@ -476,7 +476,15 @@ export function createBot(config: BotConfig, runtime: BotRuntime): Bot {
     // Queued or already on its way: its publications, never the publish screen again.
     const studio = outcome.kind === 'queued' || outcome.kind === 'duplicate' ? 'publications' : 'post';
     const markup =
-      postId === null ? undefined : publishKeyboard({ appOrigin: runtime.appOrigin, postId, buttons: [], studio });
+      postId === null
+        ? undefined
+        : publishKeyboard({
+            appOrigin: runtime.appOrigin,
+            postId,
+            buttons: [],
+            studio,
+            publicationId: outcome.kind === 'queued' || outcome.kind === 'duplicate' ? outcome.publicationId : null
+          });
     return { text, postId, markup };
   }
 

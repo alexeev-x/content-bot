@@ -25,6 +25,8 @@ export function publishKeyboard(input: {
    * after «Поставлено в очередь» the publish screen only invited a second publication (owner, 17.10.2026).
    */
   studio?: 'publish' | 'post' | 'publications';
+  /** With `publications`: open this one publication (owner, 17.10.2026), not the post's whole list. */
+  publicationId?: string | null;
 }): InlineKeyboardMarkup | undefined {
   // Per channel: send now, and «🕒» to pick a time (owner, 17.10.2026: scheduling only in the Studio was too far).
   const rows: InlineKeyboardButton[][] = input.buttons.flatMap((button) => [
@@ -34,7 +36,9 @@ export function publishKeyboard(input: {
   if (input.appOrigin !== null) {
     const path =
       input.studio === 'publications'
-        ? `/publications?post=${input.postId}`
+        ? input.publicationId
+          ? `/publications?post=${input.postId}&id=${input.publicationId}`
+          : `/publications?post=${input.postId}`
         : `/posts/${input.postId}${input.studio === 'post' ? '' : '/publish'}`;
     rows.push([
       {

@@ -24,9 +24,16 @@ export type PublishOutcome =
   /** The post's files are still being imported: publishing now would send it without them. */
   | { kind: 'importing'; postId: string }
   /** The post already has a live or finished publication to this channel. */
-  | { kind: 'duplicate'; postId: string }
+  | { kind: 'duplicate'; postId: string; publicationId: string | null }
   /** `scheduledAt`: when it goes out (the tap's instant for «now», the owner's choice for «🕒»). */
-  | { kind: 'queued'; postId: string; channelTitle: string; status: PublicationStatus; scheduledAt: number };
+  | {
+      kind: 'queued';
+      postId: string;
+      publicationId: string;
+      channelTitle: string;
+      status: PublicationStatus;
+      scheduledAt: number;
+    };
 
 export interface PublishActions {
   /** The buttons for a draft at `post.revision`; empty when there is no channel or too many. Never throws. */
@@ -109,20 +116,22 @@ export function createPublishActions(
 
   // A live, sent or unresolved publication of this post to this channel. The one this very action made
   // before a crash (same instant and revision) is not a duplicate: the idempotency key answers for it.
-  async function hasActivePublication(
+  /** The live or finished publication of this post to this channel other than this action's own; its id, or null. */
+  async function activePublication(
     action: { postId: string; destinationId: string },
     revision: number,
     instant: number
-  ): Promise<boolean> {
+  ): Promise<string | null> {
     const page = await listPublications(
       { repo: container.publications, now: clock.now() },
       { postId: action.postId, destinationId: action.destinationId, limit: ACTIVE_CHECK_LIMIT, order: 'desc' }
     );
-    return page.items.some(
+    const found = page.items.find(
       (item) =>
         !INACTIVE_STATUSES.has(item.status) &&
         !(item.postRevision === revision && Date.parse(item.scheduledAt) === instant)
     );
+    return found?.id ?? null;
   }
 
   async function run(action: NonNullable<Awaited<ReturnType<PublishActionStore['find']>>>): Promise<PublishOutcome> {
@@ -165,9 +174,10 @@ export function createPublishActions(
 
     // The owner's chosen time, or the instant of the «now» tap; fixed by the claim, so a repeat asks the same.
     const instant = action.scheduledAt ?? action.usedAt ?? clock.now();
-    if (await hasActivePublication(action, post.revision, instant)) {
+    const existing = await activePublication(action, post.revision, instant);
+    if (existing !== null) {
       await store.refuse(action.id);
-      return { kind: 'duplicate', postId: action.postId };
+      return { kind: 'duplicate', postId: action.postId, publicationId: existing };
     }
     let publication;
     try {
@@ -202,7 +212,11 @@ export function createPublishActions(
       // The Studio queued the same post to this channel between our check and our write.
       if (reason === 'ALREADY_PUBLISHED') {
         await store.refuse(action.id);
-        return { kind: 'duplicate', postId: action.postId };
+        return {
+          kind: 'duplicate',
+          postId: action.postId,
+          publicationId: await activePublication(action, post.revision, instant)
+        };
       }
       if (reason === 'SCHEDULE_OUT_OF_RANGE') return { kind: 'expired', postId: action.postId };
       if (reason !== undefined && CHANGED_REASONS.has(reason)) {
@@ -215,6 +229,7 @@ export function createPublishActions(
     return {
       kind: 'queued',
       postId: action.postId,
+      publicationId: publication.id,
       channelTitle: destination.title,
       status: publication.status,
       scheduledAt: Date.parse(publication.scheduledAt)
@@ -234,6 +249,7 @@ export function createPublishActions(
       return {
         kind: 'queued',
         postId: action.postId,
+        publicationId: publication.id,
         channelTitle: destination?.title ?? '',
         status: publication.status,
         scheduledAt: Date.parse(publication.scheduledAt)

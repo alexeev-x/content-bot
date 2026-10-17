@@ -152,7 +152,11 @@ describe('tapping «publish now»', () => {
     const keyboard = edits().at(-1)?.body.reply_markup?.inline_keyboard.flat();
     // Queued: the button opens the post's publications, never the publish screen (a second publication).
     expect(keyboard?.map((button) => button.text)).toEqual(['Открыть в Публикациях']);
-    expect(keyboard?.[0]?.web_app?.url).toMatch(/\/publications\?post=[0-9a-f-]{36}$/);
+    // This very publication, not the post's list.
+    const publicationRow = await testDb().prepare('SELECT id FROM publications').first<{ id: string }>();
+    expect(keyboard?.[0]?.web_app?.url).toBe(
+      `${ORIGIN}/publications?post=${(await postRow())?.id}&id=${publicationRow?.id}`
+    );
   });
 
   it('answers a repeated tap and a redelivered callback with the same single publication', async () => {
