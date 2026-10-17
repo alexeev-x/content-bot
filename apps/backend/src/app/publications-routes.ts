@@ -20,6 +20,7 @@ import {
   reschedulePublication,
   resolveUnknownPublication
 } from '../modules/publishing';
+import { readPostOrigins } from '../modules/ai';
 import { getOwnerOperationsSettings } from '../modules/settings';
 import { AppError } from '../shared/app-error';
 import { appOriginOf } from './bot/app-origin';
@@ -106,14 +107,28 @@ export const publicationsRoutes = new Hono<AppBindings>()
   )
   .get('/', validated('query', listPublicationsQuerySchema), async (c) => {
     const container = c.get('container');
-    return c.json(
-      await listPublications({ repo: container.publications, now: container.clock.now() }, c.req.valid('query'))
+    const page = await listPublications(
+      { repo: container.publications, now: container.clock.now() },
+      c.req.valid('query')
     );
+    // Which posts the AI editor wrote: «ИИ» beside the title (owner, 17.10.2026), as in the posts list.
+    const origins = await readPostOrigins(
+      { writer: container.aiWriter },
+      page.items.map((item) => item.postId)
+    );
+    return c.json({
+      ...page,
+      items: page.items.map((item) => ({ ...item, postOrigin: origins.get(item.postId) ?? null }))
+    });
   })
   .get('/:id', validated('param', idParamSchema), async (c) => {
     const container = c.get('container');
     const id = publicationId(c.req.valid('param').id);
-    return c.json(await getPublication({ repo: container.publications, now: container.clock.now() }, id));
+    const publication = await getPublication({ repo: container.publications, now: container.clock.now() }, id);
+    const origin = (await readPostOrigins({ writer: container.aiWriter }, [publication.postId])).get(
+      publication.postId
+    );
+    return c.json({ ...publication, postOrigin: origin ?? null });
   })
   .get('/:id/history', validated('param', idParamSchema), async (c) => {
     const container = c.get('container');

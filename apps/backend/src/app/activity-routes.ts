@@ -7,6 +7,13 @@ import { validated } from './validation';
 export const activityRoutes = new Hono<AppBindings>().get('/', validated('query', activityQuerySchema), async (c) => {
   const container = c.get('container');
   return c.json(
-    await readActivity({ repo: container.activity, ownerId: c.get('actor').telegramId }, c.req.valid('query'))
+    await readActivity(
+      {
+        repo: container.activity,
+        ownerId: c.get('actor').telegramId,
+        aiPosts: async (postIds) => new Set((await container.aiWriter.postOrigins(postIds)).map((row) => row.postId))
+      },
+      c.req.valid('query')
+    )
   );
 });

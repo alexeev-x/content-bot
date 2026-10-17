@@ -375,7 +375,7 @@ describe('GET /api/v1/publications/{id}', () => {
     const response = await api.request(`/api/v1/publications/${created.id}`);
 
     expect(response.status).toBe(200);
-    expect(publicationSchema.parse(await response.json())).toEqual(created);
+    expect(publicationSchema.parse(await response.json())).toEqual({ ...created, postOrigin: null });
     await expectError(await api.request(`/api/v1/publications/${crypto.randomUUID()}`), 404, 'NOT_FOUND');
     await expectError(await api.request('/api/v1/publications/nope'), 404, 'NOT_FOUND');
   });

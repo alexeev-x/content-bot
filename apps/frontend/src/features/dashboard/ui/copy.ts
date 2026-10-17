@@ -29,6 +29,7 @@ export const copy = {
     when: 'Когда',
     who: 'Кто',
     owner: 'Вы',
+    ai: 'ИИ-редактор (одобрили вы)',
     system: 'Студия (автоматически)',
     channel: 'Канал',
     planned: 'План',

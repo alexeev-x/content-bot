@@ -7,6 +7,7 @@ import {
   pageSchema
 } from './pagination';
 import { normalizeAndCheckEntities, normalizeEntities, postEntityListSchema, postEntitySchema } from './post-entities';
+import { postOriginSchema } from './post-origin';
 import { publicationStatusSchema } from './publications';
 import { cleanText } from './text';
 import { postMediaSchema } from './media';
@@ -47,17 +48,7 @@ export const postPublicationSummarySchema = z.object({
 });
 export type PostPublicationSummary = z.infer<typeof postPublicationSummarySchema>;
 
-/**
- * Who wrote a post, for the owner only (never sent to a channel or shown to readers): `ai` — it came from an
- * approved AI-editor draft, written in the bot or the studio, with the share of words the owner changed before
- * approval (null when unknown). A post without an origin was written by the owner.
- */
-export const postOriginSchema = z.object({
-  kind: z.literal('ai'),
-  source: z.enum(['bot', 'studio']),
-  editRatio: z.number().min(0).max(1).nullable()
-});
-export type PostOriginDto = z.infer<typeof postOriginSchema>;
+export { postOriginSchema, type PostOriginDto } from './post-origin';
 
 export const postSchema = z.object({
   id: z.uuid(),

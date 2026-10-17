@@ -19,18 +19,6 @@
   gap: var(--space-2);
   min-width: 0;
 }
-.origin {
-  display: inline-flex;
-  flex: none;
-  align-items: center;
-  gap: 2px;
-  padding: 0 var(--space-1);
-  border: 1px solid var(--color-border-subtle);
-  border-radius: var(--radius-1);
-  color: var(--color-text-muted);
-  font-size: var(--font-size-xs);
-  font-weight: var(--font-weight-medium);
-}
 .title {
   overflow: hidden;
   font-weight: var(--font-weight-medium);

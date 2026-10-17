@@ -59,8 +59,11 @@ export const activityItemSchema = z.object({
   at: z.iso.datetime(),
   action: activityActionSchema,
   category: activityCategorySchema,
-  /** `owner` for the owner's own actions (admin or bot), `system` for Cron and automations. */
-  actor: z.enum(['owner', 'system']),
+  /**
+   * `owner` for the owner's own actions (admin or bot), `system` for Cron and automations, `ai` for a post the
+   * AI editor wrote (made from an approved AI draft; owner, 17.10.2026: «Кто: Вы» there was wrong).
+   */
+  actor: z.enum(['owner', 'system', 'ai']),
   entityType: z.enum(['post', 'media', 'publication', 'destination', 'automation', 'incident', 'job']),
   entityId: z.string(),
   /** Post title, file name, channel or automation name at read time; null when the object is gone. */

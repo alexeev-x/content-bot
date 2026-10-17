@@ -34,6 +34,8 @@ export const copy = {
     allPosts: 'Показать все',
     unknownPost: 'Пост недоступен',
     postDeleted: 'Пост удалён',
+    aiPost: 'Пост написал ИИ-редактор, одобрили вы. Видно только вам.',
+    aiShort: 'ИИ',
     unknownChannel: 'Канал недоступен',
     noMessage: '—',
     noText: 'Без текста',

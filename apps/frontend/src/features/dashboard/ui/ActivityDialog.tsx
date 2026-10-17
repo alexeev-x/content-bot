@@ -67,7 +67,13 @@ export function ActivityDialog({
                   </div>
                   <div>
                     <dt>{copy.activity.who}</dt>
-                    <dd>{item.actor === 'owner' ? copy.activity.owner : copy.activity.system}</dd>
+                    <dd>
+                      {item.actor === 'ai'
+                        ? copy.activity.ai
+                        : item.actor === 'owner'
+                          ? copy.activity.owner
+                          : copy.activity.system}
+                    </dd>
                   </div>
                   {item.channelTitle ? (
                     <div>

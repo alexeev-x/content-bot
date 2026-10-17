@@ -21,6 +21,7 @@ export { Disclosure, DisclosureGroup } from './Disclosure';
 export { Drawer } from './Drawer';
 export { EmptyState } from './EmptyState';
 export { ErrorState } from './ErrorState';
+export { AiMark } from './AiMark';
 export { Icon } from './Icon';
 export { IconBadge } from './IconBadge';
 export { StatGrid, StatTile } from './StatTile';

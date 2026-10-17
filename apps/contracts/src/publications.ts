@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { postMediaSchema } from './media';
+import { postOriginSchema } from './post-origin';
 import { postEntitySchema } from './post-entities';
 import {
   CURSOR_XOR_PAGE_ISSUE,
@@ -74,6 +75,8 @@ export const publicationSchema = z.object({
    * longer be opened or edited, so `postSnapshot` carries what was sent. The server always sends the flag.
    */
   postDeleted: z.boolean().optional(),
+  /** Studio-only: the post came from an approved AI draft (as `PostDto.origin`); null — the owner wrote it. */
+  postOrigin: postOriginSchema.nullable().optional(),
   /** The sent revision, only with `postDeleted`; a media file removed by retention is missing from `media`. */
   postSnapshot: z
     .object({

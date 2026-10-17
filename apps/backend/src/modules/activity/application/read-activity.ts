@@ -56,7 +56,7 @@ function parseDetails(raw: string | null): z.infer<typeof detailsSchema> {
   }
 }
 
-function toItem(row: ActivityRow, ownerId: string): ActivityItemDto | null {
+function toItem(row: ActivityRow, ownerId: string, aiPosts: ReadonlySet<string>): ActivityItemDto | null {
   const action = activityActionSchema.safeParse(row.action);
   const entityType = ENTITY_TYPES.find((type) => type === row.entityType);
   if (!action.success || entityType === undefined) return null;
@@ -66,7 +66,13 @@ function toItem(row: ActivityRow, ownerId: string): ActivityItemDto | null {
     at: new Date(row.at).toISOString(),
     action: action.data,
     category: CATEGORY[action.data],
-    actor: row.actor === ownerId ? 'owner' : 'system',
+    // A post made from an approved AI draft was written by the AI editor, though the owner's tap created it.
+    actor:
+      action.data === 'post.create' && row.postId !== null && aiPosts.has(row.postId)
+        ? 'ai'
+        : row.actor === ownerId
+          ? 'owner'
+          : 'system',
     entityType,
     entityId: row.entityId,
     title: row.title,
@@ -80,7 +86,12 @@ function toItem(row: ActivityRow, ownerId: string): ActivityItemDto | null {
 
 /** What happened in the studio, newest first, from the audit log (owner, 14.10.2026). */
 export async function readActivity(
-  deps: { repo: ActivityRepository; ownerId: string },
+  deps: {
+    repo: ActivityRepository;
+    ownerId: string;
+    /** Consumer-owned port: which of these posts came from an approved AI draft (the AI module knows). */
+    aiPosts?: (postIds: readonly string[]) => Promise<ReadonlySet<string>>;
+  },
   query: ActivityQuery
 ): Promise<ActivityPageDto> {
   const key = query.cursor === undefined ? undefined : decodeKeysetCursor(query.cursor, cursorSchema);
@@ -97,8 +108,13 @@ export async function readActivity(
   });
   const page = rows.slice(0, query.limit);
   const last = page.at(-1);
+  const created = page.filter((row) => row.action === 'post.create' && row.postId !== null);
+  const aiPosts =
+    deps.aiPosts === undefined || created.length === 0
+      ? new Set<string>()
+      : await deps.aiPosts(created.map((row) => row.postId ?? ''));
   return {
-    items: page.flatMap((row) => toItem(row, deps.ownerId) ?? []),
+    items: page.flatMap((row) => toItem(row, deps.ownerId, aiPosts) ?? []),
     nextCursor: rows.length > query.limit && last !== undefined ? encodeKeysetCursor([last.at, last.id]) : null
   };
 }

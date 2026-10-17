@@ -2,6 +2,7 @@ import { PAGE_SIZE } from '../../../shared/api/page-query';
 import type { PublicationDto } from '@alexeev/contracts';
 import { useMemo } from 'react';
 import {
+  AiMark,
   DataTable,
   Checkbox,
   MediaTile,
@@ -82,7 +83,15 @@ function MessageCell({
   );
 }
 
-function PostCell({ value, deleted }: { value: PostPreview | undefined; deleted: boolean }) {
+function PostCell({
+  value,
+  deleted,
+  origin
+}: {
+  value: PostPreview | undefined;
+  deleted: boolean;
+  origin: PublicationDto['postOrigin'];
+}) {
   if (!value) {
     return (
       <span className={styles.cellMedia}>
@@ -97,7 +106,7 @@ function PostCell({ value, deleted }: { value: PostPreview | undefined; deleted:
       <MediaTile size={40} />
       <span className={styles.cellTitle}>
         <strong className={styles.title} title={value.title}>
-          {value.title}
+          {origin ? <AiMark text={copy.list.aiPost} /> : null} {value.title}
           {deleted ? <span className={styles.deletedBadge}>{copy.list.postDeleted}</span> : null}
         </strong>
         <span className={styles.excerpt} title={value.body}>
@@ -137,7 +146,7 @@ function Grid(props: Props) {
         id: 'post',
         header: copy.list.columns.post,
         isRowHeader: true,
-        cell: (row) => <PostCell value={post(row)} deleted={row.postDeleted === true} />
+        cell: (row) => <PostCell value={post(row)} deleted={row.postDeleted === true} origin={row.postOrigin} />
       },
       {
         id: 'channel',
@@ -211,7 +220,7 @@ function Cards({ rows, post, channel, onOpen, activeId, isLoading, selectable, s
             title={post(row)?.title ?? copy.list.unknownPost}
             media={<MediaTile size={44} />}
             status={<StatusBadge status={status} />}
-            meta={`${formatShort(row.scheduledAt, zone)} · ${place}${row.postDeleted === true ? ` · ${copy.list.postDeleted}` : ''}`}
+            meta={`${row.postOrigin ? `${copy.list.aiShort} · ` : ''}${formatShort(row.scheduledAt, zone)} · ${place}${row.postDeleted === true ? ` · ${copy.list.postDeleted}` : ''}`}
             {...(status === 'unknown' ? { warning: copy.list.checkChannel } : {})}
             isActive={activeId === row.id || selected?.has(row.id) === true}
             onPress={() => (selectable ? onToggle?.(row, !selected?.has(row.id)) : onOpen(row.id))}
