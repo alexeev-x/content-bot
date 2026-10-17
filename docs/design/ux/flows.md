@@ -2,14 +2,18 @@
 
 Common: every step names its exit (Esc / back / close) and nothing blocks leaving except a failed save.
 
-### 4.1 Create post -> schedule/publish
-1. Entry: Обзор «Новый пост», Посты «Новый пост», `/posts/new`. Mini App: BackButton visible.
-2. Type title/body; indicator «Сохраняем…» -> «Сохранено, 14:32»; first non-empty text creates the draft silently. Leave anytime (toast «Черновик сохранён»); empty form creates nothing.
-3. «Одобрить» (needs saved draft; dialog «Одобрить пост? Править его можно будет после возврата в черновик.»). Result: chip «Одобрен», button becomes «Опубликовать…».
-4. PublishDialog: channel (required; disabled channel not offered), When = «Сейчас» / «Запланировать» (date-time with timezone line). Duplicate guard: «Этот пост уже запланирован или опубликован в этом канале. Опубликовать ещё раз?»
-5. Confirm. Result **only on server answer**: 202 «Отправка принята» is NOT «опубликовано»; the Публикации block shows status chip from the DTO (queued -> sending -> sent). Toast «Запланировано на 8 окт., 12:00» with link «Открыть публикацию».
-6. Exit/cancel: Esc in dialog, nothing created. Undo of schedule = «Отменить публикацию» in the block (confirm names channel and time).
-- G/W/T: Given approved post and a working channel, When I choose «Сейчас» and confirm, Then the dialog shows a pending state, no "Опубликовано" text appears until the server returns `sent`. Given 409/offline, Then the dialog stays with the error and the retry is safe (idempotency key).
+### 4.1 Create post -> schedule/publish (current flow and planned UI)
+
+For the target 17.10.2026 composer, see [post-composer.md](post-composer.md). “Редактор / Опрос / Настройки” is a **planned UI**; emoji and AI improvement are also **new work**, native poll requires a new API.
+
+1. Enter from `/posts/new` or a post's editor. New post starts with a single text body, **no title**; empty untouched form creates nothing. Existing legacy titled posts retain their title.
+2. Type/format text; optional media is added **below the editor**; autosave shows real state. The Telegram preview shows **media above caption**. Editing error/offline/stale revision never silently overwrites text.
+3. Optional proposed “Улучшить через ИИ”: choose a mode and text scope → wait for paid suggestion → compare “Было/Стало” → only an explicit “Применить” changes editable body; cancellation never changes content or publishes.
+4. Press **“К публикации”**. This saves the draft and navigates to the **existing** `/posts/:id/publish` page; do not move channel/now/schedule to another unimplemented backend flow.
+5. On the publication page choose destination and now/schedule, and explicitly confirm. The backend approves the current revision and follows the usual idempotent send/scheduling path. `202`/queued does not mean `sent`; an `unknown` publication requires manual reconciliation, never blind retry.
+6. Back/Esc on non-confirmed send returns without sending; already scheduled publication is cancelled via existing guarded actions, not an imagined undo.
+
+Checks: no new title in outgoing Telegram text; no AI-induced implicit approval; media caption length validated; scheduled and sent statuses use server values; API change for polls comes separately.
 
 ### 4.2 Find a publication -> inspect -> safe action
 1. Публикации -> tab (e.g. Запланированные) -> search/filter. 2. Row -> inspector (URL `?id=`). 3. Read facts. 4. Action per 3.4 table: Перенести (dialog with date-time, shows old -> new), Отменить публикацию (confirm). 5. Row updates from the server response; toast with «Отменено» (no undo promise because cancel is not reversible; reschedule available only from posts: say so in confirm copy: «Её можно будет запланировать заново из поста»). Exit: Esc / close, focus back on the row.
