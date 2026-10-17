@@ -11,6 +11,17 @@ export function scheduleOutOfRange(): AppError {
   });
 }
 
+/** The post is already on its way to this channel (owner, 17.10.2026); after a sent one it may go again. */
+export function alreadyPublished(): AppError {
+  return new AppError(
+    'CONFLICT',
+    'This post is already scheduled, queued, being sent or unresolved for this destination',
+    {
+      reason: 'ALREADY_PUBLISHED'
+    }
+  );
+}
+
 export function staleRevision(): AppError {
   return new AppError('CONFLICT', 'The publication changed since this revision was read', {
     reason: 'STALE_REVISION'

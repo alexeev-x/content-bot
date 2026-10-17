@@ -180,6 +180,7 @@ const endpoints: Endpoint[] = [
       stale,
       err(409, 'CONFLICT', 'post_not_approved', 'POST_NOT_APPROVED'),
       err(409, 'CONFLICT', 'destination_disabled', 'DESTINATION_DISABLED'),
+      err(409, 'CONFLICT', 'already_published', 'ALREADY_PUBLISHED'),
       ...idempotency,
       ...common
     ]

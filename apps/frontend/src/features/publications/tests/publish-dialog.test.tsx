@@ -83,7 +83,7 @@ describe('PublishDialog', () => {
     await waitFor(() => expect(sent).toHaveLength(1));
     expect(screen.queryByRole('alertdialog', { name: 'Подтвердить публикацию?' })).toBeNull();
   });
-  it('PublicationSettings sends once on the press, shows no dialog, and asks only about a real duplicate', async () => {
+  it('PublicationSettings sends once on the press, refuses a second one while the first is on its way', async () => {
     const sent = captureCreate(() => accepted());
     server.use(http.get('*/api/v1/publications', () => HttpResponse.json(publicationPage([]))));
     await renderInApp(
@@ -96,14 +96,15 @@ describe('PublishDialog', () => {
     await waitFor(() => expect(sent).toHaveLength(1));
     expect(screen.queryByRole('dialog', { name: 'Опубликовать пост' })).toBeNull();
     expect(await screen.findByText('Запланировано')).toBeTruthy();
-    // Pressing again with the same post and channel finds the existing publication and asks first.
+    // Pressing again while the first is still on its way is refused (owner, 17.10.2026): no second request.
     server.use(
       http.get('*/api/v1/publications', () =>
         HttpResponse.json(publicationPage([publication({ status: 'scheduled' })]))
       )
     );
     await user.click(screen.getByRole('button', { name: 'Опубликовать' }));
-    expect(await screen.findByRole('alertdialog', { name: /уже запланирован или опубликован/ })).toBeTruthy();
+    expect(await screen.findByText('Этот пост уже в очереди в этом канале')).toBeTruthy();
+    expect(screen.queryByRole('alertdialog', { name: /Опубликовать ещё раз/ })).toBeNull();
     expect(sent).toHaveLength(1);
   });
 
@@ -383,7 +384,7 @@ describe('publish intent (lost 202 must never create a second publication)', () 
     const sent = captureCreate(() => accepted());
     const { user, dialog } = await open({ existing: [publication({ status: 'sent', externalMessageId: '7' })] });
     await user.click(within(dialog).getByRole('button', { name: 'Отправить сейчас' }));
-    const confirm = await screen.findByRole('alertdialog', { name: /уже запланирован или опубликован/ });
+    const confirm = await screen.findByRole('alertdialog', { name: /уже опубликован в этом канале/ });
     expect(document.activeElement).toBe(within(confirm).getByRole('button', { name: 'Не публиковать' }));
     expect(sent).toHaveLength(0);
 
@@ -445,7 +446,7 @@ describe('publish intent follow-ups', () => {
     const sent = captureCreate(() => accepted());
     const { user, dialog } = await open({ existing: [publication({ status: 'sent', externalMessageId: '7' })] });
     await user.click(within(dialog).getByRole('button', { name: 'Отправить сейчас' }));
-    const confirm = await screen.findByRole('alertdialog', { name: /уже запланирован или опубликован/ });
+    const confirm = await screen.findByRole('alertdialog', { name: /уже опубликован в этом канале/ });
     expect(sent).toHaveLength(0);
     await user.click(within(confirm).getByRole('button', { name: 'Опубликовать ещё раз' }));
     await waitFor(() => expect(sent).toHaveLength(1));

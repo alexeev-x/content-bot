@@ -33,6 +33,8 @@ export function describeActionError(error: unknown, context: ActionContext): Act
   switch (kind) {
     case 'post_not_approved':
       return make('error', e.postNotApproved);
+    case 'already_published':
+      return make('conflict', e.alreadyPublished);
     case 'post_archived':
       return make('conflict', e.postArchived);
     case 'stale_revision':

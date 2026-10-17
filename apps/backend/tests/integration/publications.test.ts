@@ -1,4 +1,5 @@
 import {
+  apiErrorSchema,
   type PublicationDto,
   publicationHistorySchema,
   publicationPageSchema,
@@ -58,8 +59,31 @@ function schedule(overrides: Record<string, unknown> = {}, key: string | null = 
   });
 }
 
+/**
+ * A publication as a fixture. A post goes to a channel once at a time (ALREADY_PUBLISHED), but list, count and
+ * race tests need several of one post in one channel: the live ones are parked as sent while this one is written,
+ * then put back. The rule itself is tested through `schedule` directly.
+ */
 async function scheduleOk(overrides: Record<string, unknown> = {}): Promise<PublicationDto> {
+  const target = { postId, destinationId, ...overrides } as { postId: string; destinationId: string };
+  const live = await testDb()
+    .prepare(
+      `SELECT j.id, j.status FROM jobs j JOIN publications p ON p.id = j.publication_id
+       WHERE p.post_id = ? AND p.destination_id = ? AND j.status IN ('pending', 'claimed', 'retry_wait', 'unknown')`
+    )
+    .bind(target.postId, target.destinationId)
+    .all<{ id: string; status: string }>();
+  const park = (status: (row: { status: string }) => string) =>
+    live.results.length === 0
+      ? Promise.resolve()
+      : testDb().batch(
+          live.results.map((row) =>
+            testDb().prepare('UPDATE jobs SET status = ? WHERE id = ?').bind(status(row), row.id)
+          )
+        );
+  await park(() => 'succeeded');
   const response = await schedule(overrides);
+  await park((row) => row.status);
   expect(response.status).toBe(202);
   return publicationSchema.parse(await response.json());
 }
@@ -137,8 +161,8 @@ describe('POST /api/v1/publications', () => {
   });
 
   it('accepts the exact edges of the window and refuses one millisecond beyond', async () => {
-    expect((await schedule({ scheduledAt: iso(START - 5 * MINUTE) })).status).toBe(202);
-    expect((await schedule({ scheduledAt: iso(START + 366 * DAY) })).status).toBe(202);
+    await scheduleOk({ scheduledAt: iso(START - 5 * MINUTE) });
+    await scheduleOk({ scheduledAt: iso(START + 366 * DAY) });
     const before = await count('publications');
 
     await expectError(await schedule({ scheduledAt: iso(START - 5 * MINUTE - 1) }), 400, 'VALIDATION_ERROR', {
@@ -302,12 +326,24 @@ describe('POST /api/v1/publications', () => {
     expect(await count('publications')).toBe(1);
   });
 
-  it('allows the same post to be scheduled again as a new intent', async () => {
+  it('refuses the same post to the same channel while one is on its way; allows it once that one ended', async () => {
     const first = await scheduleOk();
-    const second = await scheduleOk();
+    const again = await schedule();
+    expect(again.status).toBe(409);
+    expect(apiErrorSchema.parse(await again.json()).error.details?.reason).toBe('ALREADY_PUBLISHED');
+    // Another channel is another publication.
+    const other = (await seedDestination(api, { title: 'Second' })).id;
+    expect((await schedule({ destinationId: other })).status).toBe(202);
 
-    expect(second.id).not.toBe(first.id);
-    expect(await count('jobs')).toBe(2);
+    // Two requests at once: one wins, the other is refused by the write's own guard.
+    const target = (await seedDestination(api, { title: 'Third' })).id;
+    const raced = await Promise.all([schedule({ destinationId: target }), schedule({ destinationId: target })]);
+    expect(raced.map((response) => response.status).sort()).toEqual([202, 409]);
+
+    // A sent one may be published again on purpose (the owner fixed and reposted it); a cancelled one too.
+    await setJob(first.id, { status: 'succeeded' });
+    expect((await schedule()).status).toBe(202);
+    expect(await count('jobs')).toBe(4);
   });
 
   it.each([

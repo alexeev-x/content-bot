@@ -540,6 +540,17 @@ export function createD1PublicationRepository(db: D1Database): PublicationReposi
   }
 
   return {
+    async hasLivePublication(postId, destinationId) {
+      const row = await db
+        .prepare(
+          `SELECT EXISTS (SELECT 1 FROM publications lp JOIN jobs lj ON lj.publication_id = lp.id
+                 WHERE lp.post_id = ?1 AND +lp.destination_id = ?2 AND lj.status IN ('pending', 'claimed', 'retry_wait', 'unknown')) AS live`
+        )
+        .bind(postId, destinationId)
+        .first<{ live: number }>();
+      return row?.live === 1;
+    },
+
     async create(input) {
       const claim = [
         input.idempotency.scope,
@@ -558,7 +569,12 @@ export function createD1PublicationRepository(db: D1Database): PublicationReposi
              SELECT ?1, ?2, ?3, ?4, ?5, ?6, 0, ?7, ?7
              WHERE ${ownsClaimSql(8)}
                AND EXISTS (SELECT 1 FROM posts WHERE id = ?2 AND revision = ?3 AND status = 'approved' AND archived_at IS NULL AND deleted_at IS NULL)
-               AND EXISTS (SELECT 1 FROM destinations WHERE id = ?4 AND enabled = 1)`
+               AND EXISTS (SELECT 1 FROM destinations WHERE id = ?4 AND enabled = 1)
+               -- No second publication of a post to a channel while one is scheduled, queued, sending or unknown
+               -- (owner, 17.10.2026). After a sent one the owner may publish again on purpose; the Studio asks first.
+               -- «+lp.destination_id» keeps the planner on the post index: a post has few publications, a channel many.
+               AND NOT EXISTS (SELECT 1 FROM publications lp JOIN jobs lj ON lj.publication_id = lp.id
+                 WHERE lp.post_id = ?2 AND +lp.destination_id = ?4 AND lj.status IN ('pending', 'claimed', 'retry_wait', 'unknown'))`
           )
           .bind(
             input.id,

@@ -122,6 +122,28 @@ describe('create guards (a change after the use case read the state must write n
     await nothingWritten(input.idempotency.key);
   });
 
+  it('writes nothing while the same post is on its way to the same channel; writes after it was sent', async () => {
+    await seedPost();
+    await seedDestination();
+    const repo = createD1PublicationRepository(testDb());
+    expect(await repo.create(await newPublication())).toBe(true);
+    expect(await repo.hasLivePublication(POST, DESTINATION)).toBe(true);
+
+    // The guard in the insert itself, not only the use case's read: the second write makes nothing.
+    for (const status of ['pending', 'claimed', 'retry_wait', 'unknown']) {
+      await testDb().prepare('UPDATE jobs SET status = ?').bind(status).run();
+      const second = await newPublication();
+      expect(await repo.create(second)).toBe(false);
+      expect(await count('publications')).toBe(1);
+      expect(await count('jobs')).toBe(1);
+      expect(await count('idempotency_keys', `key = '${second.idempotency.key}' AND status = 'in_flight'`)).toBe(1);
+    }
+
+    await testDb().prepare("UPDATE jobs SET status = 'succeeded'").run();
+    expect(await repo.hasLivePublication(POST, DESTINATION)).toBe(false);
+    expect(await repo.create(await newPublication())).toBe(true);
+  });
+
   it('refuses when the idempotency claim is not ours', async () => {
     await seedPost();
     await seedDestination();
@@ -622,14 +644,21 @@ describe('summarizeByPost', () => {
     await seedDestination();
     const repo = createD1PublicationRepository(testDb());
     const expected: PublicationStatus[] = [];
+    // One post in one channel is written once at a time (ALREADY_PUBLISHED): each is written while the earlier
+    // ones read as sent, and every job gets its variant afterwards.
+    const written: string[] = [];
     for (const variant of variants) {
+      await testDb().prepare("UPDATE jobs SET status = 'succeeded'").run();
       const input = await newPublication();
-      await repo.create(input);
+      expect(await repo.create(input)).toBe(true);
+      written.push(input.id);
+      expected.push(projectPublicationStatus(variant, NOW));
+    }
+    for (const [index, variant] of variants.entries()) {
       await testDb()
         .prepare('UPDATE jobs SET status = ?2, run_at = ?3, send_started_at = ?4 WHERE publication_id = ?1')
-        .bind(input.id, variant.status, variant.runAt, variant.sendStartedAt)
+        .bind(written[index], variant.status, variant.runAt, variant.sendStartedAt)
         .run();
-      expected.push(projectPublicationStatus(variant, NOW));
     }
     expect(new Set(expected).size).toBe(variants.length);
 

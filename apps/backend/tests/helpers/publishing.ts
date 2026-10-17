@@ -56,15 +56,35 @@ export async function seedDestination(
   return destinationSchema.parse(await response.json());
 }
 
+/**
+ * A publication as a fixture. A post goes to a channel once at a time (ALREADY_PUBLISHED); tests that need
+ * several of one post in one channel get them: the live ones read as sent while this one is written, then are
+ * put back. The rule itself is tested in publications.test.ts.
+ */
 export async function seedPublication(
   api: Api,
   input: { postId: string; revision: number; destinationId: string; scheduledAt: string; timezone?: string }
 ): Promise<PublicationDto> {
+  const live = await testDb()
+    .prepare(
+      `SELECT j.id, j.status FROM jobs j JOIN publications p ON p.id = j.publication_id
+       WHERE p.post_id = ? AND p.destination_id = ? AND j.status IN ('pending', 'claimed', 'retry_wait', 'unknown')`
+    )
+    .bind(input.postId, input.destinationId)
+    .all<{ id: string; status: string }>();
+  const park = async (status: (row: { status: string }) => string) => {
+    if (live.results.length > 0)
+      await testDb().batch(
+        live.results.map((row) => testDb().prepare('UPDATE jobs SET status = ? WHERE id = ?').bind(status(row), row.id))
+      );
+  };
+  await park(() => 'succeeded');
   const response = await api.request('/api/v1/publications', {
     method: 'POST',
     headers: { 'idempotency-key': nextKey() },
     json: { timezone: 'Europe/Moscow', ...input }
   });
+  await park((row) => row.status);
   expect(response.status).toBe(202);
   return publicationSchema.parse(await response.json());
 }

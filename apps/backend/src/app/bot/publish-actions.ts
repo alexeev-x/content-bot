@@ -183,6 +183,11 @@ export function createPublishActions(
     } catch (error) {
       const reason = reasonOf(error);
       if (reason === 'IN_FLIGHT') return { kind: 'busy' };
+      // The Studio queued the same post to this channel between our check and our write.
+      if (reason === 'ALREADY_PUBLISHED') {
+        await store.refuse(action.id);
+        return { kind: 'duplicate', postId: action.postId };
+      }
       if (reason === 'SCHEDULE_OUT_OF_RANGE') return { kind: 'expired', postId: action.postId };
       if (reason !== undefined && CHANGED_REASONS.has(reason)) {
         await store.refuse(action.id);

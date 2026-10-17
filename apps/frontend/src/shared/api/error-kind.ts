@@ -25,6 +25,7 @@ export type ApiErrorKind =
   | 'idempotency_key_reused'
   | 'in_flight'
   | 'post_not_approved'
+  | 'already_published'
   | 'destination_disabled'
   | 'not_cancellable'
   | 'not_reschedulable'
@@ -53,6 +54,7 @@ const REASONS: Partial<Record<ApiError['code'], Record<string, ApiErrorKind>>> =
     IDEMPOTENCY_KEY_REUSED: 'idempotency_key_reused',
     IN_FLIGHT: 'in_flight',
     POST_NOT_APPROVED: 'post_not_approved',
+    ALREADY_PUBLISHED: 'already_published',
     DESTINATION_DISABLED: 'destination_disabled',
     NOT_CANCELLABLE: 'not_cancellable',
     NOT_RESCHEDULABLE: 'not_reschedulable',

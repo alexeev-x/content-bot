@@ -426,6 +426,8 @@ export interface PublicationRepository {
    * Returns false when a guard or the idempotency claim no longer holds; nothing was written.
    */
   create(input: NewPublication): Promise<boolean>;
+  /** A publication of this post to this channel is scheduled, queued, sending or unknown (no duplicate in flight). */
+  hasLivePublication(postId: string, destinationId: string): Promise<boolean>;
   findById(id: string): Promise<PublicationRecord | null>;
   /** Owner actions and send attempts of one publication, oldest first; null when it does not exist. */
   history(id: string, limit: number): Promise<PublicationHistoryRows | null>;

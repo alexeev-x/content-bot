@@ -8,7 +8,6 @@ import { count, jobOf, seedApprovedPost, seedDestination } from '../helpers/publ
 let api: Api;
 let postId: string;
 let revision: number;
-let destinationId: string;
 
 beforeEach(async () => {
   await resetDb();
@@ -17,9 +16,9 @@ beforeEach(async () => {
   const post = await seedApprovedPost(api);
   postId = post.id;
   revision = post.revision;
-  destinationId = (await seedDestination(api)).id;
 });
 
+// Each in its own channel: one post goes to one channel once at a time (ALREADY_PUBLISHED).
 async function schedule(status: 'succeeded' | 'failed' | 'cancelled' | 'pending' | 'claimed' | 'unknown') {
   const response = await api.request('/api/v1/publications', {
     method: 'POST',
@@ -27,7 +26,7 @@ async function schedule(status: 'succeeded' | 'failed' | 'cancelled' | 'pending'
     json: {
       postId,
       revision,
-      destinationId,
+      destinationId: (await seedDestination(api, { title: `Канал ${crypto.randomUUID().slice(0, 8)}` })).id,
       scheduledAt: new Date(START + 60_000).toISOString(),
       timezone: 'Europe/Chisinau'
     }

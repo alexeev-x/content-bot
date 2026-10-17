@@ -20,13 +20,12 @@ import {
   type PublishIntent
 } from './publish-intent';
 
-/** Only these can be in (or on the way to) the channel; a failed or cancelled attempt must not block «Отправить снова». */
-const MAY_REACH_CHANNEL: ReadonlySet<PublicationDto['status']> = new Set([
+/** On the way to the channel: a second publication is refused (the server says ALREADY_PUBLISHED too). */
+const ON_THE_WAY: ReadonlySet<PublicationDto['status']> = new Set([
   'scheduled',
   'queued',
   'preparing',
   'sending',
-  'sent',
   'retry_wait',
   'unknown'
 ]);
@@ -99,25 +98,44 @@ export function usePublish(post: PostDto, timezone: string | undefined, options:
     }
   }
 
-  // Second safety net: the same post already scheduled or published in this channel. `null` = the lookup failed.
-  async function hasPublication(destinationId: string): Promise<boolean | null> {
+  // The same post in this channel: on its way (refused) or already sent (a repost the owner confirms).
+  // A failed or cancelled one blocks nothing. `null` = the lookup failed.
+  async function existingPublication(destinationId: string): Promise<'on_the_way' | 'sent' | 'none' | null> {
     try {
       const page = await queryClient.fetchQuery({
         ...publicationsPageQueryOptions({ postId: post.id, destinationId }),
         staleTime: 0
       });
-      return page.items.some((item) => MAY_REACH_CHANNEL.has(item.status));
+      if (page.items.some((item) => ON_THE_WAY.has(item.status))) return 'on_the_way';
+      return page.items.some((item) => item.status === 'sent') ? 'sent' : 'none';
     } catch {
       return null;
+    }
+  }
+
+  /** «Already on its way»: said where the owner looks, the banner or (with the dialog closed) a toast. */
+  function refuseOnTheWay(target: PostDto) {
+    const error = { kind: 'already_published' as const, tone: 'conflict' as const, ...copy.errors.alreadyPublished };
+    setFailure({ error, revision: target.revision });
+    if (!(options.canShowBanner?.() ?? false)) {
+      toast.show({ tone: 'error', title: error.title, description: error.body });
+      options.onSettled?.();
     }
   }
 
   /** `target` is the post just approved by the caller: its state may not have reached this render yet. */
   async function start(formValues: PublishFormValues, skipDuplicateCheck = false, target: PostDto = post) {
     if (create.isPending) return;
-    if (!skipDuplicateCheck && (await hasPublication(formValues.destinationId)) === true) {
-      setDuplicate(formValues);
-      return;
+    if (!skipDuplicateCheck) {
+      const existing = await existingPublication(formValues.destinationId);
+      if (existing === 'on_the_way') {
+        refuseOnTheWay(target);
+        return;
+      }
+      if (existing === 'sent') {
+        setDuplicate(formValues);
+        return;
+      }
     }
     const intent = newIntent({
       postId: target.id,
@@ -140,7 +158,7 @@ export function usePublish(post: PostDto, timezone: string | undefined, options:
       await send(intent, target);
       return;
     }
-    const found = await hasPublication(intent.destinationId);
+    const found = await existingPublication(intent.destinationId);
     if (found === null) {
       setFailure({
         error: { kind: 'unavailable', tone: 'warning', ...copy.errors.staleIntentCheckFailed },
@@ -154,7 +172,9 @@ export function usePublish(post: PostDto, timezone: string | undefined, options:
           description: copy.errors.staleIntentCheckFailed.body
         });
       }
-    } else if (found) {
+    } else if (found === 'on_the_way') {
+      refuseOnTheWay(target);
+    } else if (found === 'sent') {
       setStaleIntent(intent);
     } else {
       await send(intent, target);

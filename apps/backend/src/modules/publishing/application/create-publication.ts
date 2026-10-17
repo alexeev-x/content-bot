@@ -11,7 +11,7 @@ import type {
   PublicationRepository,
   ScheduleNotifier
 } from './ports';
-import { scheduleOutOfRange, scheduleRefusal } from './publication-errors';
+import { alreadyPublished, scheduleOutOfRange, scheduleRefusal } from './publication-errors';
 import { toPublicationDto } from './publication-dto';
 
 export interface CreatePublicationDeps {
@@ -57,6 +57,7 @@ export async function createPublication(
 
       const refusal = await findRefusal(deps, input);
       if (refusal !== null) throw scheduleRefusal(refusal);
+      if (await deps.publications.hasLivePublication(input.postId, input.destinationId)) throw alreadyPublished();
 
       const record: PublicationRecord = {
         id: deps.newId(),
@@ -96,7 +97,10 @@ export async function createPublication(
       // The write is guarded by the post and destination state, so a change between our read and
       // the write refuses it. Read again to say what changed; if nothing did, our claim was lost.
       const changed = await findRefusal(deps, input);
-      throw changed === null ? inFlight() : scheduleRefusal(changed);
+      if (changed !== null) throw scheduleRefusal(changed);
+      // A second request for the same post and channel won the race: the write's guard refused this one.
+      if (await deps.publications.hasLivePublication(input.postId, input.destinationId)) throw alreadyPublished();
+      throw inFlight();
     }
   );
 }

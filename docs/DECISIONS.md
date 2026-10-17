@@ -41,6 +41,7 @@ Accepted decisions that are in force. An agent does not propose an alternative t
 | 13.10.2026 | Analytics v2 uses manual observations/import only; no MTProto user session or new Telegram-user credential in the Bot API Worker. Measurements must carry metric, source, content age and observation time. | `docs/stories/analytics-v2.md` |
 | 06.10.2026 | Stale draft revision travels in the request body; a stale one is 409 `CONFLICT` with `details.reason = STALE_REVISION` (no `If-Match` / 412) | `apps/contracts/src/posts.ts`, `docs/API_CONTRACTS.md` |
 | 08.10.2026 | Post approval stores an immutable content snapshot; publication sends exactly that snapshot; the revision number guards against stale edits | — |
+| 17.10.2026 | A post is never sent to the same channel twice at once: while one publication of it there is scheduled, queued, being sent or unknown, a second is refused (`ALREADY_PUBLISHED`, from the bot and the Studio alike). After a sent one the owner may publish it again on purpose (delete, fix, repost); the Studio asks first | `docs/API_CONTRACTS.md` publications |
 
 ## Auth and security
 | Date | Decision | Details |
