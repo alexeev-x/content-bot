@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { ApiError } from '../../../shared/api/http-client';
 import { useCropSession } from '../../../shared/lib/use-crop-session';
 import { videoCropErrorMessage, VideoCropError } from '../../../shared/lib/video-crop';
-import { cropPostMedia, getPostMediaContent, reorderPostMedia } from '../api/post-media-api';
+import { cropPostMedia, getPostMediaContent, reorderPostMedia, invalidateMediaListings } from '../api/post-media-api';
 import { cropErrorMessage, friendlyError } from './media-errors';
 import type { MediaState } from './use-media-state';
 
@@ -87,7 +87,7 @@ export function useMediaCrop(state: MediaState) {
         media.fileName.replace(/\.[^.]+$/, extension),
         crypto.randomUUID()
       );
-      void queryClient.invalidateQueries({ queryKey: ['post-media', 'library'] });
+      invalidateMediaListings(queryClient);
       const next = mediaRef.current.map((item) => (item.id === media.id ? result.media : item));
       state.applyServerMedia(result.revision, next);
       setEntries((current) =>

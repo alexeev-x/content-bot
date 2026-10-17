@@ -1,7 +1,7 @@
 import { POST_MEDIA_MAX_ITEMS, type PostDto } from '@alexeev/contracts';
 import { useEffect, useRef, useState, type DragEvent, type RefObject } from 'react';
 import { ApiError } from '../../../shared/api/http-client';
-import { deletePostMedia, reorderPostMedia, uploadPostMedia } from '../api/post-media-api';
+import { deletePostMedia, reorderPostMedia, uploadPostMedia, invalidateMediaListings } from '../api/post-media-api';
 import { fileType, maxBytes, replaceAtLimitNotice, type Entry } from './media-entry';
 import { friendlyError } from './media-errors';
 import type { MediaState } from './use-media-state';
@@ -114,7 +114,7 @@ export function useMediaUpload(state: MediaState, { inputRef, closeSource }: Opt
         idempotencyKey: entry.idempotencyKey ?? crypto.randomUUID(),
         onProgress: (progress) => updateEntry(entry.key, { progress })
       });
-      void queryClient.invalidateQueries({ queryKey: ['post-media', 'library'] });
+      invalidateMediaListings(queryClient);
       let nextRevision = uploaded.revision;
       let nextMedia = [...mediaRef.current, uploaded.media].sort((left, right) => left.position - right.position);
       applyServerMedia(nextRevision, nextMedia);
@@ -258,7 +258,7 @@ export function useMediaUpload(state: MediaState, { inputRef, closeSource }: Opt
     setBusy(true);
     try {
       const result = await deletePostMedia(postId, entry.media.id, revisionRef.current);
-      void queryClient.invalidateQueries({ queryKey: ['post-media', 'library'] });
+      invalidateMediaListings(queryClient);
       const next = mediaRef.current.filter((item) => item.id !== entry.media?.id);
       setEntries((current) => current.filter((item) => item.key !== entry.key));
       applyServerMedia(result.revision, next);

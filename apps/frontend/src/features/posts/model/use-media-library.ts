@@ -1,7 +1,12 @@
 import { POST_MEDIA_MAX_ITEMS, type PostDto } from '@alexeev/contracts';
 import { useRef, useState } from 'react';
 import { ApiError } from '../../../shared/api/http-client';
-import { attachLibraryMedia, mediaLibraryPageQueryOptions, type listMediaLibrary } from '../api/post-media-api';
+import {
+  attachLibraryMedia,
+  mediaLibraryPageQueryOptions,
+  type listMediaLibrary,
+  invalidateMediaListings
+} from '../api/post-media-api';
 import { libraryAttachError } from './media-errors';
 import type { MediaState } from './use-media-state';
 
@@ -88,7 +93,7 @@ export function useMediaLibrary(state: MediaState) {
     setErrorAction(null);
     try {
       const result = await attachLibraryMedia(activePostId, revisionRef.current, selection);
-      void queryClient.invalidateQueries({ queryKey: ['post-media', 'library'] });
+      invalidateMediaListings(queryClient);
       state.applyServerMedia(result.revision, result.media);
       setSourceOpen(false);
       setSelection([]);

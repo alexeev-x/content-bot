@@ -1,3 +1,4 @@
+import type { QueryClient } from '@tanstack/react-query';
 import {
   attachPostMediaResultSchema,
   changePostMediaResultSchema,
@@ -139,6 +140,15 @@ export function listMediaLibrary(kind: 'all' | 'photo' | 'video', cursor?: strin
   const query = new URLSearchParams({ kind, limit: '30' });
   if (cursor) query.set('cursor', cursor);
   return apiRequest(`/api/v1/media?${query.toString()}`, mediaLibraryPageSchema, { signal });
+}
+
+/**
+ * A post's file changed (uploaded, attached, cropped, removed): both listings of the same files go stale — the
+ * composer's library picker and the Media page (`['media-library']`, features/media/api/media-queries.ts).
+ */
+export function invalidateMediaListings(queryClient: QueryClient): void {
+  void queryClient.invalidateQueries({ queryKey: ['post-media', 'library'] });
+  void queryClient.invalidateQueries({ queryKey: ['media-library'] });
 }
 
 export function mediaLibraryPageQueryOptions(kind: 'all' | 'photo' | 'video', cursor?: string) {
