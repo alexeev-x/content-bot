@@ -1,3 +1,4 @@
+| 2026-10-17 | stage 0 (quality counts) | «Качество» counts a needs_facts answer as `questions`, not a draft; a legacy row without a result stays a draft | — |
 # AI editor — implementation plan
 
 **Status snapshot:** 2026-10-16, based on repository develop at a93f228 (commits 969d451 and a93f228 included).
@@ -59,7 +60,7 @@ Stages 2 and 3 can be designed independently; implement 3 before 5, and do not s
 - [x] Store and pass the recent 15 topic/device/ending facets within a format.
 - [ ] Verify DEV CI migration 0062 actually applied and endpoint returns the new result shape; record the commit and test time.
 - [ ] Live Telegram smoke: /redactor → "Учусь играть" → "придумай сам" → select an idea and reply with a real match detail → get a full draft → edit/approve. Confirm original task survives, and question/ideas show no approval keyboard.
-- [ ] Fix quality aggregation in d1-writer-repository.ts: a generation with status ready but result needs_facts must not be counted as a completed draft (or rewrite). Keep separate counts, including legacy rows, with explicit tests; check the Settings → AI quality denominator.
+- [x] Fix quality aggregation in d1-writer-repository.ts: a generation with status ready but result needs_facts must not be counted as a completed draft (or rewrite). Keep separate counts, including legacy rows, with explicit tests; check the Settings → AI quality denominator.
 - [ ] Regression-test the DEV limit 200/10 min, production default 20/10 min, budget gate and billed retries. Limit changes must not silently authorize higher spend.
 - [ ] Record the 20-prompt paired eval and five-repeat-topic eval method, model, pack revision and observed costs; distinguish manual ratings from automated pass/fail.
 - [ ] Reconcile the outdated rate-limit statement in docs/ai/eval/README.md.

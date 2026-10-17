@@ -383,12 +383,18 @@ function AiSettings({ overview, onReload }: { overview: AiOverviewDto; onReload:
 /** «Качество»: how much the owner changes before approving, and what the checks and buttons say. */
 function QualityPanel({ quality }: { quality: AiOverviewDto['quality'] }) {
   const ratio = quality.averageEditRatio;
-  const details = copy.quality.details(quality.rewrites, quality.jokeMissed, quality.withWarnings, quality.failed);
+  const details = copy.quality.details(
+    quality.rewrites,
+    quality.questions ?? 0,
+    quality.jokeMissed,
+    quality.withWarnings,
+    quality.failed
+  );
   // The three parts changed most, from a tenth of approvals up: rarer ones are noise at this volume.
   const parts = quality.changedParts.filter((row) => row.share >= 0.1).slice(0, 3);
   return (
     <Panel title={copy.quality.title(quality.days)} icon={<Icon name="check-circle" />}>
-      {quality.drafts + quality.rewrites + quality.failed === 0 ? (
+      {quality.drafts + quality.rewrites + (quality.questions ?? 0) + quality.failed === 0 ? (
         <p className={styles.intro}>{copy.quality.empty}</p>
       ) : (
         <div className={styles.spend}>

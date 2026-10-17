@@ -196,6 +196,18 @@ describe('AI writer', () => {
       .bind(result.generation.id)
       .first<{ n: number }>();
     expect(usage?.n).toBe(1);
+
+    // «Качество»: the question is not a draft, so it never inflates «approved of drafts»; a row from before
+    // migration 0062 (no result) is a draft, as the writer could only answer with one then.
+    await draft(deps(answering(ANSWER)));
+    await testDb()
+      .prepare(
+        `INSERT INTO ai_generations (id, kind, format, mode, source, task, status, pack_revision, created_at, updated_at)
+         VALUES ('00000000-0000-4000-8000-0000000000e1', 'draft', 'igrat', 'direct', 'bot', 'задание', 'ready', 'pack', 1, 1)`
+      )
+      .run();
+    const quality = await writer.writer.quality(0);
+    expect(quality).toMatchObject({ drafts: 2, questions: 1 });
   });
 
   it('refuses to approve an older question stored as AI_DRAFT with its NEEDS_FACTS warning', async () => {

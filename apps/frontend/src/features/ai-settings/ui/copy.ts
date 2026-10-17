@@ -126,10 +126,11 @@ export const copy = {
     },
     partsLead: 'Чаще всего правите: ',
     // Only the counters that happened: a row of zeros read as noise.
-    details: (rewrites: number, jokes: number, warned: number, failed: number) =>
+    details: (rewrites: number, questions: number, jokes: number, warned: number, failed: number) =>
       (
         [
           ['Переписываний', rewrites],
+          ['Уточняющих вопросов', questions],
           ['«Шутка не зашла»', jokes],
           ['Замечания проверки', warned],
           ['Ошибок модели', failed]

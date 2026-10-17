@@ -129,9 +129,14 @@ export type AiChangedPart = (typeof AI_CHANGED_PARTS)[number];
 
 export const aiQualitySchema = z.object({
   days: z.number().int().positive(),
-  /** First drafts written (ready), their rewrites («Короче», «Смешнее», «Ещё вариант») and failed calls. */
+  /**
+   * First drafts written (ready, with a text), their rewrites («Короче», «Смешнее», «Ещё вариант») and failed
+   * calls. A request for facts is not a draft: it is counted in `questions`, so «approved of drafts» stays honest.
+   */
   drafts: z.number().int().nonnegative(),
   rewrites: z.number().int().nonnegative(),
+  /** Answers that asked the owner for facts or offered ideas instead of a text. */
+  questions: z.number().int().nonnegative().optional(),
   failed: z.number().int().nonnegative(),
   /** Drafts and rewrites whose code checks found something. */
   withWarnings: z.number().int().nonnegative(),

@@ -41,8 +41,11 @@ export interface RevisionRow {
 }
 
 export interface QualityRows {
+  /** Ready drafts and rewrites that hold a text; a request for facts is counted in `questions` instead. */
   drafts: number;
   rewrites: number;
+  /** Ready answers that asked the owner for facts (needs_facts, migration 0062): no text to approve. */
+  questions: number;
   failed: number;
   withWarnings: number;
   approved: number;
@@ -441,9 +444,9 @@ export function createD1WriterRepository(db: D1Database): WriterRepository {
       const [generations, approvals, feedback, cost, tagged, parts] = await db.batch([
         db
           .prepare(
-            `SELECT kind, status, COUNT(*) AS n,
+            `SELECT kind, status, result, COUNT(*) AS n,
                     SUM(CASE WHEN warnings IS NOT NULL AND warnings <> '[]' THEN 1 ELSE 0 END) AS warned
-             FROM ai_generations WHERE created_at >= ? GROUP BY kind, status`
+             FROM ai_generations WHERE created_at >= ? GROUP BY kind, status, result`
           )
           .bind(since),
         db
@@ -476,14 +479,23 @@ export function createD1WriterRepository(db: D1Database): WriterRepository {
           )
           .bind(since)
       ]);
-      const rows = (generations?.results ?? []) as { kind: string; status: string; n: number; warned: number | null }[];
+      const rows = (generations?.results ?? []) as {
+        kind: string;
+        status: string;
+        result: string | null;
+        n: number;
+        warned: number | null;
+      }[];
+      // Rows before migration 0062 have no result; the writer could only answer with a draft then.
+      const text = (row: (typeof rows)[number]) => row.status === 'ready' && row.result !== 'needs_facts';
       const sum = (match: (row: (typeof rows)[number]) => boolean) =>
         rows.filter(match).reduce((total, row) => total + row.n, 0);
       const approval = approvals?.results[0] as
         { n: number; unchanged: number | null; ratio: number | null } | undefined;
       return {
-        drafts: sum((row) => row.kind === 'draft' && row.status === 'ready'),
-        rewrites: sum((row) => row.kind === 'rewrite' && row.status === 'ready'),
+        drafts: sum((row) => row.kind === 'draft' && text(row)),
+        rewrites: sum((row) => row.kind === 'rewrite' && text(row)),
+        questions: sum((row) => row.status === 'ready' && row.result === 'needs_facts'),
         failed: sum((row) => row.status === 'failed'),
         withWarnings: rows.reduce((total, row) => total + (row.warned ?? 0), 0),
         approved: approval?.n ?? 0,
