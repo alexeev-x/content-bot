@@ -47,6 +47,17 @@ const ALREADY_APPROVED_TEXT = 'Уже одобрено.';
 const NOT_A_POST_TEXT =
   'Текст не влезает в пост (длиннее 4096 символов или с недопустимыми символами). Нажмите «Короче» или ответьте своей версией.';
 const EDIT_SAVED_TEXT = 'Сохранил вашу версию. Одобрить её?';
+const EDIT_CANCELLED_TEXT = 'Правка отменена';
+/** The text shown to copy from in «✏️ Изменить»: a Telegram message holds 4096 characters. */
+const EDIT_SHOWN_MAX = 3500;
+const editPromptHtml = (text: string) =>
+  [
+    '<b>✏️ Пришлите свою версию следующим сообщением</b> — сохраню как правку. Отвечать на сообщение не нужно.',
+    '',
+    'Текст сейчас (можно скопировать):',
+    // Cut by code points: a cut through an emoji's surrogate pair makes Telegram refuse the message.
+    `<blockquote expandable>${escapeHtml(Array.from(text).length > EDIT_SHOWN_MAX ? `${Array.from(text).slice(0, EDIT_SHOWN_MAX).join('')}…` : text)}</blockquote>`
+  ].join('\n');
 
 /** A /redactor or /post mode ends after this long without a message. */
 export const REQUEST_TTL_MS = 30 * 60 * 1000;
@@ -86,9 +97,10 @@ const REASONS = {
 } as const satisfies Record<string, { kind: FeedbackKind; label: string; noted: string }>;
 type Reason = keyof typeof REASONS;
 // `joke` stays for the buttons of messages sent before «Что не так?».
-type Action = 'h0' | 'h1' | 'h2' | keyof typeof REWRITES | 'joke' | 'ok' | 'why' | 'back' | `r:${Reason}`;
+type Action =
+  'h0' | 'h1' | 'h2' | keyof typeof REWRITES | 'joke' | 'ok' | 'why' | 'back' | 'edit' | 'noedit' | `r:${Reason}`;
 const CALLBACK =
-  /^ai:([0-9a-f-]{36}):(h[0-2]|more|short|fun|joke|ok|why|back|r:(?:topic|hook|joke|style|long|fact|task))$/;
+  /^ai:([0-9a-f-]{36}):(h[0-2]|more|short|fun|joke|ok|why|back|edit|noedit|r:(?:topic|hook|joke|style|long|fact|task))$/;
 
 const escapeHtml = (value: string): string =>
   value.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;');
@@ -119,7 +131,8 @@ function keyboard(generationId: string, hooks: readonly string[], appOrigin: str
   hooks.forEach((_hook, index) => board.text(`Хук ${index + 1}`, data(`h${index}` as Action)));
   if (hooks.length > 0) board.row();
   board.text('Ещё вариант', data('more')).text('Короче', data('short')).text('Смешнее', data('fun')).row();
-  board.text('Что не так?', data('why')).text('Одобрить', data('ok'));
+  board.text('✏️ Изменить', data('edit')).text('Что не так?', data('why')).row();
+  board.text('Одобрить', data('ok'));
   if (appOrigin !== null) board.row().webApp('Открыть студию', `${appOrigin}/`);
   return board;
 }
@@ -147,8 +160,8 @@ function factsHtml(generation: Pick<GenerationRow, 'format' | 'question' | 'idea
     escapeHtml(generation.question ?? 'Что было в игре?'),
     '',
     generation.ideas.length > 0
-      ? '<i>Ответьте на это сообщение: номер идеи и что у вас было — напишу сценарий по вашему опыту.</i>'
-      : '<i>Ответьте на это сообщение — напишу сценарий по вашему опыту.</i>'
+      ? '<i>Напишите следующим сообщением номер идеи и что у вас было — напишу сценарий по вашему опыту.</i>'
+      : '<i>Напишите следующим сообщением, что у вас было, — напишу сценарий по вашему опыту.</i>'
   );
   return lines.join('\n');
 }
@@ -165,7 +178,7 @@ function draftHtml(result: {
       '',
       escapeHtml(result.text),
       '',
-      '<i>Ответьте на это сообщение — напишу сценарий по вашему опыту.</i>'
+      '<i>Напишите следующим сообщением, что у вас было, — напишу сценарий по вашему опыту.</i>'
     ].join('\n');
   const lines = [`<b>${FORMAT_LABEL[result.format]}</b>`];
   if (result.hooks.length > 0)
@@ -174,7 +187,7 @@ function draftHtml(result: {
   lines.push('', escapeHtml(text));
   if (result.warnings.length > 0)
     lines.push('', `<i>Проверка: ${escapeHtml(result.warnings.map(describeCheck).join('; '))}</i>`);
-  lines.push('', '<i>Ответьте на это сообщение своей версией — сохраню как правку.</i>');
+  lines.push('', '<i>Своя версия — кнопка «✏️ Изменить».</i>');
   return lines.join('\n');
 }
 
@@ -241,6 +254,9 @@ export function registerAiWriter(bot: Bot, runtime: AiWriterRuntime): void {
           if (isRequestForFacts(generation)) {
             // A question has nothing to approve or rewrite: no keyboard; the owner's reply continues it.
             await deps.writer.setChatMessage(generation.id, message.message_id, runtime.clock.now());
+            // The next plain message answers it (owner, 17.10.2026: replying to a message is awkward).
+            const now = runtime.clock.now();
+            await deps.writer.setEditing({ chatId, generationId: generation.id, now, expiresAt: now + REQUEST_TTL_MS });
             await edit(ctx, chatId, message.message_id, factsHtml(generation));
             return;
           }
@@ -398,36 +414,51 @@ export function registerAiWriter(bot: Bot, runtime: AiWriterRuntime): void {
     await ctx.reply(CHAT_ENDED_TEXT);
   });
 
+  /** The owner's words for a draft: the answer to its question, or the owner's own version of its text. */
+  async function continueGeneration(
+    ctx: Context & { message: { text: string } },
+    deps: WriterDeps,
+    generation: GenerationRow
+  ) {
+    if (isRequestForFacts(generation)) {
+      // The answer to the model's question: the draft is written again from the same task, the ideas it offered
+      // and the owner's experience, so nothing of the original request is lost.
+      const ideas =
+        generation.ideas.length > 0
+          ? `\n\nИдеи редактора:\n${generation.ideas.map((idea, index) => `${index + 1}. ${idea}`).join('\n')}`
+          : '';
+      const task = `${generation.task}${ideas}\n\nОпыт автора (его слова):\n${ctx.message.text}`.slice(0, 4000);
+      await write(ctx, WRITING_TEXT, (writerDeps, signal) =>
+        generateDraft(writerDeps, { format: generation.format, mode: generation.mode, source: 'bot', task, signal })
+      );
+      return;
+    }
+    try {
+      await saveOwnerEdit(deps, generation.id, ctx.message.text);
+    } catch (error) {
+      if (!(error instanceof AppError)) throw error;
+      await ctx.reply(error.code === 'CONFLICT' ? ALREADY_APPROVED_TEXT : FAILED_TEXT);
+      return;
+    }
+    await ctx.reply(EDIT_SAVED_TEXT, {
+      reply_markup: new InlineKeyboard().text('Одобрить', `ai:${generation.id}:ok`)
+    });
+  }
+
   bot.on('message:text', async (ctx, next) => {
     const replyTo = ctx.message.reply_to_message;
-    // A reply to a draft message: the owner's own version of the text.
+    // A reply to a draft message still works: the owner's own version of the text, or the answer to its question.
     if (replyTo !== undefined && replyTo.from?.id === ctx.me.id) {
       const deps = await runtime.writer();
       const generation = await deps.writer.findByChatMessage(replyTo.message_id);
-      if (generation !== null && isRequestForFacts(generation)) {
-        // The answer to the model's question: the draft is written again from the same task, the ideas it offered
-        // and the owner's experience, so nothing of the original request is lost.
-        const ideas =
-          generation.ideas.length > 0
-            ? `\n\nИдеи редактора:\n${generation.ideas.map((idea, index) => `${index + 1}. ${idea}`).join('\n')}`
-            : '';
-        const task = `${generation.task}${ideas}\n\nОпыт автора (его слова):\n${ctx.message.text}`.slice(0, 4000);
-        await write(ctx, WRITING_TEXT, (writerDeps, signal) =>
-          generateDraft(writerDeps, { format: generation.format, mode: generation.mode, source: 'bot', task, signal })
-        );
-        return;
-      }
       if (generation !== null) {
-        try {
-          await saveOwnerEdit(deps, generation.id, ctx.message.text);
-        } catch (error) {
-          if (!(error instanceof AppError)) throw error;
-          await ctx.reply(error.code === 'CONFLICT' ? ALREADY_APPROVED_TEXT : FAILED_TEXT);
-          return;
-        }
-        await ctx.reply(EDIT_SAVED_TEXT, {
-          reply_markup: new InlineKeyboard().text('Одобрить', `ai:${generation.id}:ok`)
+        await deps.writer.setEditing({
+          chatId: ctx.chat.id,
+          generationId: null,
+          now: runtime.clock.now(),
+          expiresAt: runtime.clock.now() + REQUEST_TTL_MS
         });
+        await continueGeneration(ctx, deps, generation);
         return;
       }
     }
@@ -435,6 +466,16 @@ export function registerAiWriter(bot: Bot, runtime: AiWriterRuntime): void {
     const now = runtime.clock.now();
     const writer = (await runtime.writer()).writer;
     const chat = await writer.touchRequest(ctx.chat.id, now, now + REQUEST_TTL_MS);
+    // «✏️ Изменить» or an open question: this one message belongs to that draft, whatever the mode.
+    if (chat?.editing) {
+      const deps = await runtime.writer();
+      await writer.setEditing({ chatId: ctx.chat.id, generationId: null, now, expiresAt: now + REQUEST_TTL_MS });
+      const generation = await deps.writer.findGeneration(chat.editing);
+      if (generation !== null) {
+        await continueGeneration(ctx, deps, generation);
+        return;
+      }
+    }
     if (chat?.kind === 'post') return next();
     if (chat !== null) {
       if (chat.format === null) await free(ctx, ctx.message.text, chat.history);
@@ -473,6 +514,26 @@ export function registerAiWriter(bot: Bot, runtime: AiWriterRuntime): void {
     }
     const deps = await runtime.writer();
     try {
+      if (action === 'edit') {
+        await ctx.answerCallbackQuery().catch((error: unknown) => runtime.onError(error));
+        const generation = await deps.writer.findGeneration(generationId);
+        if (generation === null) throw new AppError('NOT_FOUND', 'The draft is gone');
+        const current = (await deps.writer.revisions(generationId)).at(-1)?.text ?? '';
+        const now = runtime.clock.now();
+        await deps.writer.setEditing({ chatId, generationId, now, expiresAt: now + REQUEST_TTL_MS });
+        await ctx.reply(editPromptHtml(current), {
+          parse_mode: 'HTML',
+          reply_markup: new InlineKeyboard().text('Отмена', `ai:${generationId}:noedit`)
+        });
+        return;
+      }
+      if (action === 'noedit') {
+        const now = runtime.clock.now();
+        await deps.writer.setEditing({ chatId, generationId: null, now, expiresAt: now + REQUEST_TTL_MS });
+        await ctx.answerCallbackQuery({ text: EDIT_CANCELLED_TEXT }).catch((error: unknown) => runtime.onError(error));
+        await ctx.editMessageReplyMarkup().catch(() => undefined);
+        return;
+      }
       if (action === 'why') {
         await ctx.answerCallbackQuery().catch((error: unknown) => runtime.onError(error));
         await swapButtons(ctx, reasonsKeyboard(generationId));

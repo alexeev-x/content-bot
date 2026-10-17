@@ -161,7 +161,12 @@ export interface WriterRepository {
     chatId: number,
     now: number,
     expiresAt: number
-  ): Promise<{ kind: ChatMode; history: ChatTurn[]; format: WriterFormat | null } | null>;
+  ): Promise<{ kind: ChatMode; history: ChatTurn[]; format: WriterFormat | null; editing: string | null } | null>;
+  /**
+   * «✏️ Изменить»: the chat waits for the owner's version of `generationId` (null stops waiting). Opens the
+   * chat row when none is open, so the next plain message is the edit whatever mode the chat is in.
+   */
+  setEditing(input: { chatId: number; generationId: string | null; now: number; expiresAt: number }): Promise<void>;
   /** A format button on the chat's own message (null clears it); false when that chat is gone or replaced. */
   setRequestFormat(input: {
     chatId: number;
@@ -447,7 +452,7 @@ export function createD1WriterRepository(db: D1Database): WriterRepository {
           `INSERT INTO ai_writer_requests (chat_id, format, prompt_message_id, expires_at, updated_at, history, kind)
            VALUES (?1, NULL, ?2, ?3, ?4, '[]', ?5)
            ON CONFLICT (chat_id) DO UPDATE SET format = NULL, prompt_message_id = ?2, expires_at = ?3, updated_at = ?4,
-             history = '[]', kind = ?5`
+             history = '[]', kind = ?5, editing_generation_id = NULL`
         )
         .bind(chatId, promptMessageId, expiresAt, now, kind)
         .run();
@@ -457,11 +462,41 @@ export function createD1WriterRepository(db: D1Database): WriterRepository {
       const row = await db
         .prepare(
           `UPDATE ai_writer_requests SET expires_at = ?3, updated_at = ?2
-           WHERE chat_id = ?1 AND expires_at > ?2 RETURNING history, format, kind`
+           WHERE chat_id = ?1 AND expires_at > ?2 RETURNING history, format, kind, editing_generation_id AS editing`
         )
         .bind(chatId, now, expiresAt)
-        .first<{ history: string; format: WriterFormat | null; kind: ChatMode }>();
-      return row === null ? null : { kind: row.kind, history: parseHistory(row.history), format: row.format };
+        .first<{ history: string; format: WriterFormat | null; kind: ChatMode; editing: string | null }>();
+      return row === null
+        ? null
+        : { kind: row.kind, history: parseHistory(row.history), format: row.format, editing: row.editing };
+    },
+
+    async setEditing({ chatId, generationId, now, expiresAt }) {
+      if (generationId === null) {
+        // Stop waiting. A row made only for the wait (prompt_message_id 0) goes with it, so an edit never leaves
+        // a /redactor chat open behind it (a paid model call for the next «привет»).
+        await db.batch([
+          db.prepare('UPDATE ai_writer_requests SET editing_generation_id = NULL WHERE chat_id = ?').bind(chatId),
+          db.prepare('DELETE FROM ai_writer_requests WHERE chat_id = ? AND prompt_message_id = 0').bind(chatId)
+        ]);
+        return;
+      }
+      // A live chat keeps its mode, history and buttons; without one (or an expired one) the row exists only for
+      // the wait: prompt_message_id 0 matches no format button, and it is removed once the edit arrives.
+      await db
+        .prepare(
+          `INSERT INTO ai_writer_requests
+             (chat_id, format, prompt_message_id, expires_at, updated_at, history, kind, editing_generation_id)
+           VALUES (?1, NULL, 0, ?3, ?4, '[]', 'editor', ?2)
+           ON CONFLICT (chat_id) DO UPDATE SET editing_generation_id = ?2, expires_at = ?3, updated_at = ?4,
+             history = CASE WHEN ai_writer_requests.expires_at > ?4 THEN ai_writer_requests.history ELSE '[]' END,
+             kind = CASE WHEN ai_writer_requests.expires_at > ?4 THEN ai_writer_requests.kind ELSE 'editor' END,
+             format = CASE WHEN ai_writer_requests.expires_at > ?4 THEN ai_writer_requests.format ELSE NULL END,
+             prompt_message_id = CASE WHEN ai_writer_requests.expires_at > ?4
+               THEN ai_writer_requests.prompt_message_id ELSE 0 END`
+        )
+        .bind(chatId, generationId, expiresAt, now)
+        .run();
     },
 
     async setRequestFormat({ chatId, promptMessageId, format, now }) {

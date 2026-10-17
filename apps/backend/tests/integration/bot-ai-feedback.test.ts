@@ -130,3 +130,68 @@ describe('/api/v1/ai/feedback', () => {
     expect(apiErrorSchema.parse(await bad.json()).error.code).toBe('VALIDATION_ERROR');
   });
 });
+
+const say = (text: string, replyTo?: number) =>
+  api.request(`${ORIGIN}/webhooks/telegram`, {
+    method: 'POST',
+    token: null,
+    headers: { 'x-telegram-bot-api-secret-token': SECRET },
+    json: {
+      update_id: ++updateId,
+      message: {
+        message_id: updateId,
+        date: 1,
+        chat: { id: Number(OWNER_ID), type: 'private', first_name: 'X' },
+        from: { id: Number(OWNER_ID), is_bot: false, first_name: 'X' },
+        text,
+        ...(replyTo === undefined
+          ? {}
+          : {
+              reply_to_message: {
+                message_id: replyTo,
+                date: 1,
+                chat: { id: Number(OWNER_ID), type: 'private', first_name: 'X' },
+                from: { id: 123456, is_bot: true, first_name: 'Bot' },
+                text: 'черновик'
+              }
+            })
+      }
+    }
+  });
+
+const edits = () =>
+  testDb()
+    .prepare("SELECT text FROM ai_text_revisions WHERE provenance = 'OWNER_EDITED' ORDER BY text")
+    .all<{ text: string }>()
+    .then((rows) => rows.results.map((row) => row.text));
+const sent = () => calls.filter((call) => call.method === 'sendMessage').map((call) => call.body.text ?? '');
+
+describe('«✏️ Изменить» under an AI draft', () => {
+  it('takes the next plain message as the edit, once; «Отмена» stops waiting; a reply still works', async () => {
+    await tap('edit');
+    expect(sent().at(-1)).toContain('Пришлите свою версию следующим сообщением');
+    expect(sent().at(-1)).toContain('Текст черновика.');
+
+    await say('Моя версия текста.');
+    expect(await edits()).toEqual(['Моя версия текста.']);
+    expect(sent().at(-1)).toBe('Сохранил вашу версию. Одобрить её?');
+
+    // One message only: the next one is not an edit, and no /redactor chat was left open (no paid model call).
+    await say('А это уже просто вопрос.');
+    expect(await edits()).toEqual(['Моя версия текста.']);
+    expect(sent()).not.toContain('Думаю…');
+    expect(await testDb().prepare('SELECT COUNT(*) AS n FROM ai_writer_requests').first('n')).toBe(0);
+
+    await tap('edit');
+    await tap('noedit');
+    await say('После отмены не правка.');
+    expect(await edits()).toEqual(['Моя версия текста.']);
+    expect(sent()).not.toContain('Думаю…');
+    expect(await testDb().prepare('SELECT COUNT(*) AS n FROM ai_writer_requests').first('n')).toBe(0);
+
+    // The reply to the draft message keeps working.
+    await testDb().prepare('UPDATE ai_generations SET chat_message_id = 77 WHERE id = ?').bind(GENERATION).run();
+    await say('Версия ответом.', 77);
+    expect(await edits()).toEqual(['Версия ответом.', 'Моя версия текста.']);
+  });
+});
