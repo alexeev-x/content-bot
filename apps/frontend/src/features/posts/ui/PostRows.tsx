@@ -1,4 +1,5 @@
 import { PAGE_SIZE } from '../../../shared/api/page-query';
+import { postHeadline } from '../../../shared/lib/post-headline';
 import type { PostDto } from '@alexeev/contracts';
 import type { ReactNode } from 'react';
 import {
@@ -15,7 +16,6 @@ import {
   type RowSelection,
   type TableSort
 } from '../../../shared/ui';
-import { excerptOf } from '../model/excerpt';
 import { formatExact, formatRelative } from '../model/format-time';
 import { ARCHIVE_WARNING_DAYS, daysLeftOf, deleteBlockOf, listStateOf, type DeleteBlock } from '../model/post-state';
 import type { PostSort, PostSortKey } from '../model/post-sort';
@@ -53,7 +53,10 @@ type Props = {
 
 const copy = postsCopy;
 export const POST_ROW_LOADING = PAGE_SIZE;
-const titleOf = (post: PostDto) => post.title.trim() || copy.list.untitled;
+const titleOf = (post: PostDto) => postHeadline(post.title, post.body).headline || copy.list.untitled;
+/** The second line: only what follows the headline; nothing when the post is that one line. */
+const restOf = (post: PostDto) =>
+  post.body.trim() === '' ? copy.list.emptyBody : postHeadline(post.title, post.body).rest;
 
 // The row itself is keyboard-activatable; keep its nested action menu from also opening the post.
 const keepRowAction = {
@@ -231,9 +234,9 @@ function Grid(props: Props) {
               </span>
               {reason ? (
                 <Failure reason={reason} />
-              ) : (
-                <span className={styles.excerpt}>{excerptOf(post.body) || copy.list.emptyBody}</span>
-              )}
+              ) : restOf(post) ? (
+                <span className={styles.excerpt}>{restOf(post)}</span>
+              ) : null}
             </span>
           </span>
         );

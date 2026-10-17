@@ -1,4 +1,5 @@
 import { PAGE_SIZE } from '../../../shared/api/page-query';
+import { postHeadline } from '../../../shared/lib/post-headline';
 import type { PublicationDto } from '@alexeev/contracts';
 import { useMemo } from 'react';
 import {
@@ -56,8 +57,6 @@ const keepPress = {
   onKeyUp: (event: { stopPropagation: () => void }) => event.stopPropagation()
 };
 
-const flat = (body: string) => body.replace(/\s+/g, ' ').trim().slice(0, 140);
-
 function MessageCell({
   publication,
   channel
@@ -101,17 +100,22 @@ function PostCell({
       </span>
     );
   }
+  const { headline, rest } = postHeadline(value.title, value.body);
   return (
     <span className={styles.cellMedia}>
       <MediaTile size={40} />
       <span className={styles.cellTitle}>
-        <strong className={styles.title} title={value.title}>
-          {origin ? <AiMark text={copy.list.aiPost} /> : null} {value.title}
+        <strong className={styles.title} title={headline}>
+          {origin ? <AiMark text={copy.list.aiPost} /> : null} {headline || value.title}
           {deleted ? <span className={styles.deletedBadge}>{copy.list.postDeleted}</span> : null}
         </strong>
-        <span className={styles.excerpt} title={value.body}>
-          {flat(value.body) || copy.list.noText}
-        </span>
+        {value.body.trim() === '' ? (
+          <span className={styles.excerpt}>{copy.list.noText}</span>
+        ) : rest ? (
+          <span className={styles.excerpt} title={value.body}>
+            {rest}
+          </span>
+        ) : null}
       </span>
     </span>
   );
