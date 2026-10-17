@@ -252,8 +252,15 @@ export function PostEditor({ post, onCreated, approvedActions, aside, headerActi
             <SaveIndicator state={editor.saveState} savedAt={baseline?.updatedAt} compact={narrow} />
           </span>
         </div>
+        {/* A toggle (owner, 17.10.2026: a second press did nothing and the eye did not say where you are): the eye
+            opens the preview, the pencil brings the editor back. */}
         {narrow && !showApprovedPreview ? (
-          <IconButton label={copy.tabs.preview} icon="eye" onPress={() => setMobilePreviewOpen(true)} />
+          <IconButton
+            label={mobilePreviewOpen ? copy.previewReturn : copy.tabs.preview}
+            icon={mobilePreviewOpen ? 'edit' : 'eye'}
+            variant={mobilePreviewOpen ? 'secondary' : 'ghost'}
+            onPress={() => setMobilePreviewOpen((open) => !open)}
+          />
         ) : null}
         {headerActions ? <span className={styles.headerActions}>{headerActions}</span> : null}
         {!narrow && !showApprovedPreview && !desktopPreviewOpen ? (
