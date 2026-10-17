@@ -2,11 +2,13 @@ import type { PostEntity } from '@alexeev/contracts';
 import { EditorContent } from '@tiptap/react';
 import { useEffect, useId, useState } from 'react';
 import { ru } from '../../../shared/lib/ru';
-import { VisuallyHidden } from '../../../shared/ui';
+import { Button, VisuallyHidden } from '../../../shared/ui';
 import type { RichValue } from '../model/entities-doc';
 import { parseLinkInput } from '../model/link-url';
 import { useRichEditor } from '../model/use-rich-editor';
+import { AiImproveDialog } from './AiImproveDialog';
 import { CodeLanguageDialog } from './CodeLanguageDialog';
+import { postsCopy } from './copy';
 import { EditorToolbar } from './EditorToolbar';
 import { LinkDialog, type LinkDialogStart } from './LinkDialog';
 import styles from './RichEditor.module.css';
@@ -47,6 +49,8 @@ export function RichEditor({
   const errorId = `${id}-error`;
   const [linkStart, setLinkStart] = useState<LinkDialogStart | null>(null);
   const [language, setLanguage] = useState<string | null>(null);
+  const [improveOpen, setImproveOpen] = useState(false);
+  const canImprove = body.trim() !== '';
 
   const editor = useRichEditor({
     value: { body, entities },
@@ -123,15 +127,37 @@ export function RichEditor({
         ) : null}
         <EditorContent editor={editor} className={styles.content} />
       </div>
-      <p id={descriptionId} className={styles.description}>
-        <VisuallyHidden>{description}</VisuallyHidden>
-        <span className={`mono ${body.length > limit ? styles.over : ''}`}>{ru.ui.counter(body.length, limit)}</span>
-      </p>
+      <div className={styles.footer}>
+        {editor && !isReadOnly ? (
+          <Button
+            variant="ghost"
+            size="sm"
+            icon="sparkle"
+            isDisabled={!canImprove}
+            aria-describedby={canImprove ? undefined : `${id}-ai-hint`}
+            onPress={() => setImproveOpen(true)}
+          >
+            {postsCopy.ai.button}
+          </Button>
+        ) : null}
+        {editor && !isReadOnly && !canImprove ? (
+          <span id={`${id}-ai-hint`} className={styles.aiHint}>
+            {postsCopy.ai.emptyHint}
+          </span>
+        ) : null}
+        <p id={descriptionId} className={styles.description}>
+          <VisuallyHidden>{description}</VisuallyHidden>
+          <span className={`mono ${body.length > limit ? styles.over : ''}`}>{ru.ui.counter(body.length, limit)}</span>
+        </p>
+      </div>
       <p id={errorId} className={styles.error} role={errorMessage ? 'alert' : undefined}>
         {errorMessage}
       </p>
       {linkStart ? (
         <LinkDialog start={linkStart} onApply={applyLink} onRemove={removeLink} onClose={() => setLinkStart(null)} />
+      ) : null}
+      {editor && improveOpen ? (
+        <AiImproveDialog editor={editor} isOpen={improveOpen} onOpenChange={setImproveOpen} limit={limit} />
       ) : null}
       {language !== null ? (
         <CodeLanguageDialog language={language} onApply={applyLanguage} onClose={() => setLanguage(null)} />

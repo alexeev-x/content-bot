@@ -1,0 +1,58 @@
+.choose,
+.result {
+  display: grid;
+  gap: var(--space-3);
+  min-width: 0;
+}
+/* «Было / Стало»: side by side when there is room, one under the other on a phone. */
+.compare {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+  gap: var(--space-3);
+}
+.version {
+  display: grid;
+  align-content: start;
+  gap: var(--space-2);
+  min-width: 0;
+  padding: var(--space-3);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-2);
+  background: var(--color-surface-2);
+}
+.after {
+  border-color: var(--color-accent);
+}
+.heading {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-2);
+  margin: 0;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+}
+.heading :global(.mono) {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-regular);
+}
+.heading .over {
+  color: var(--color-danger);
+}
+.note {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+}
+.text {
+  max-block-size: 50dvh;
+  margin: 0;
+  overflow: auto;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+.overLine {
+  margin: 0;
+  color: var(--color-danger);
+  font-size: var(--font-size-sm);
+}

@@ -42,6 +42,7 @@ export {
   type WriterResult
 } from './writer';
 export { describeCheck } from './writer-checks';
+export { improveText } from './improve';
 export { createD1ScriptLinksRepository, type ScriptLinksRepository } from './d1-script-links-repository';
 export { type LinkedVideo, linkItemScript, readItemScript, unlinkItemScript } from './script-links';
 export { FORMAT_LABEL, WRITER_FORMATS, type WriterFormat } from './writer-types';

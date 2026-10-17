@@ -31,6 +31,21 @@
 .content {
   min-width: 0;
 }
+/* Under the text: the AI action on the left, the counter on the right. */
+.footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+.footer > .description {
+  flex: 1;
+}
+.aiHint {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+}
 .description {
   display: flex;
   justify-content: space-between;

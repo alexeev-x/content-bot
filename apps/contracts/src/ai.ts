@@ -233,6 +233,45 @@ export const aiDraftResultSchema = z.object({
 });
 export type AiDraftResultDto = z.infer<typeof aiDraftResultSchema>;
 
+// POST /api/v1/ai/improve → 200 AiImproveResultDto: a suggestion for a fragment of the post being edited (the
+// selection or the whole text, as the editor's HTML: p, strong, em, u, s, code, pre, blockquote, a, span
+// data-spoiler). Saves nothing and sends nothing: the owner applies a variant in the editor, which then saves
+// through PATCH /posts/{id} under its revision. Each call is paid; not idempotent. Errors: VALIDATION_ERROR 400,
+// UNAVAILABLE 503 (details.reason NO_KEY, DISABLED, NO_MODEL, NO_PRICE, BUDGET), RATE_LIMIT 429, UNAUTHORIZED,
+// FORBIDDEN. A provider failure is `status: failed` with its code, not an HTTP error.
+export const AI_IMPROVE_ACTIONS = ['improve', 'shorter', 'funnier', 'fix', 'variants', 'custom'] as const;
+export const aiImproveActionSchema = z.enum(AI_IMPROVE_ACTIONS);
+export type AiImproveAction = z.infer<typeof aiImproveActionSchema>;
+/** Room for a full 4096-character post with its tags. */
+export const AI_IMPROVE_HTML_MAX = 16_000;
+
+export const aiImproveInputSchema = z
+  .strictObject({
+    action: aiImproveActionSchema,
+    scope: z.enum(['selection', 'all']),
+    html: z.string().trim().min(1).max(AI_IMPROVE_HTML_MAX),
+    /** The owner's own wish; required for `custom`, an extra note otherwise. */
+    instruction: z.string().trim().max(300).optional()
+  })
+  .refine((input) => input.action !== 'custom' || (input.instruction ?? '') !== '', {
+    path: ['instruction'],
+    message: 'A custom request needs an instruction'
+  });
+export type AiImproveInput = z.infer<typeof aiImproveInputSchema>;
+
+export const aiImproveResultSchema = z.object({
+  /**
+   * `ready` — 1 to 3 variants (3 for `variants`); `needs_facts` — the model asks the owner something instead
+   * (`question`), there is nothing to apply; `failed` — a provider failure or a wrong-shaped answer (`errorCode`).
+   */
+  status: z.enum(['ready', 'needs_facts', 'failed']),
+  errorCode: z.string().max(80).nullable(),
+  model: z.string().nullable(),
+  variants: z.array(z.strictObject({ html: z.string().max(AI_IMPROVE_HTML_MAX), note: z.string().max(200) })).max(3),
+  question: z.string().max(1000).nullable()
+});
+export type AiImproveResultDto = z.infer<typeof aiImproveResultSchema>;
+
 /** An approved Reels script of the AI editor (architecture item 3): what a published video can be linked to. */
 export const aiReelsScriptSchema = z.object({
   revisionId: z.uuid(),

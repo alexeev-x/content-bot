@@ -2,6 +2,8 @@ import {
   aiAuthorProfileSchema,
   aiDotaSnapshotInputSchema,
   aiDraftResultSchema,
+  aiImproveInputSchema,
+  aiImproveResultSchema,
   aiFeedbackListSchema,
   aiFeedbackParamsSchema,
   aiItemScriptSchema,
@@ -18,6 +20,7 @@ import {
   type BudgetEvent,
   checkAiConnection,
   generateDraft,
+  improveText,
   linkItemScript,
   readAiOverview,
   readAuthorProfile,
@@ -38,6 +41,8 @@ import { rateLimit } from './rate-limit';
 import { limitBody, validated } from './validation';
 
 const MAX_BODY_BYTES = 8 * 1024;
+/** A whole post as HTML (contracts AI_IMPROVE_HTML_MAX, 16 000 characters, up to 3 bytes each) plus the JSON. */
+const IMPROVE_BODY_BYTES = 52 * 1024;
 const ALERT_TIMEOUT_MS = 5_000;
 /** A check costs a fraction of a cent; a few per 10 minutes is plenty and bounds a stuck button or a loop. */
 const CHECK_LIMIT = 5;
@@ -149,6 +154,23 @@ export const aiRoutes = new Hono<AppBindings>()
           warnings: generation.warnings
         })
       );
+    }
+  )
+  .post(
+    '/improve',
+    // The same paid-request bound as a studio draft, counted separately.
+    rateLimit({ name: 'ai-improve', limit: draftLimit, windowMs: DRAFT_WINDOW_MS }),
+    limitBody(IMPROVE_BODY_BYTES),
+    validated('json', aiImproveInputSchema),
+    async (c) => {
+      const base = await deps(c);
+      const container = c.get('container');
+      const { result, budgetEvents } = await improveText(
+        { ...base, profiles: container.aiProfiles, newId: container.newId, provider: container.aiProvider },
+        { ...c.req.valid('json'), signal: AbortSignal.timeout(DRAFT_TIMEOUT_MS) }
+      );
+      sendBudgetAlerts(c, budgetEvents);
+      return c.json(aiImproveResultSchema.parse(result));
     }
   )
   .get('/profile', async (c) =>

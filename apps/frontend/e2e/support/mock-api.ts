@@ -564,6 +564,22 @@ export async function mockApi(page: Page): Promise<void> {
         'СОСТОЯНИЕ АВТОРА (сейчас, из студии; опыт не выдумывай сверх этого):\n- Ранг: Герой 2 (по OpenDota на 16.10.2026).\n- В Доте около 750 часов.\n- Сейчас учит героев: Оракл, Феникс.'
     })
   );
+  // «Улучшить через ИИ»: three variants for «variants», one otherwise; the fragment's text comes back changed.
+  await page.route(/\/api\/v1\/ai\/improve$/, (route) => {
+    const input = route.request().postDataJSON() as { action: string; html: string };
+    const plain = input.html.replace(/<[^>]+>/g, '');
+    const one = (prefix: string, note: string) => ({ html: `<p><strong>${prefix}</strong> ${plain}</p>`, note });
+    return json(route, {
+      status: 'ready',
+      errorCode: null,
+      model: 'gpt-6.1-sol',
+      variants:
+        input.action === 'variants'
+          ? [one('Вариант А:', 'другой заход'), one('Вариант Б:', 'с вопросом в начале'), one('Вариант В:', 'короче')]
+          : [one('Лучше:', 'убрал повтор, усилил начало')],
+      question: null
+    });
+  });
   await page.route(/\/api\/v1\/ai\/feedback$/, (route) =>
     json(route, {
       items: [
