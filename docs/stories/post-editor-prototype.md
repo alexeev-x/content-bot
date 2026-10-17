@@ -1,5 +1,7 @@
 # Post editor — UX handoff v3 (reference-exact)
 
+> **Historical visual reference, superseded for composer layout on 17.10.2026:** see [`docs/design/ux/post-composer.md`](../design/ux/post-composer.md). Its newer owner decisions remove title input and enclosing rich-editor card, add emoji/AI improvement as TODO, and treat poll as a separate API need. This old 09.10 reference is **not** a current implementation plan; preserve only compatible media/safety details.
+
 **Status:** expert review, not validated with users. Revision v3, 09.10.2026. Replaces v1/v2 entirely. Prototype-only: it does not authorize production UI changes, real API calls, uploads, saves, scheduling or Telegram sends in `/__proto`.
 
 ## 0. Governing rule
