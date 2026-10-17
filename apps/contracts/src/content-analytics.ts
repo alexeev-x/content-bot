@@ -162,8 +162,8 @@ export const contentItemDetailSchema = z.object({
   baseline: contentBaselineSchema,
   /** The video's format: from its linked script, else as the owner marked it; null — unknown (or a Telegram post). */
   format: contentVideoFormatSchema.nullable().optional(),
-  /** Where `format` comes from: a linked script wins over the owner's mark; null when unknown. */
-  formatSource: z.enum(['script', 'owner']).nullable().optional(),
+  /** Where `format` comes from: a linked script, an earlier manual mark, else the video's title; null for a post. */
+  formatSource: z.enum(['script', 'owner', 'title']).nullable().optional(),
   /** Other tracked videos of that format, so the page can say how far the format curve is (5 needed). */
   formatItems: z.number().int().nonnegative().optional(),
   /** The owner's confirmation that the item's numbers are distorted; such an item is left out of every curve. */

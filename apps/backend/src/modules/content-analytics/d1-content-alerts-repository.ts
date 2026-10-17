@@ -125,6 +125,7 @@ export function createD1ContentAlertRepository(db: D1Database): ContentAlertRepo
       return rows.results.map((row) => ({
         id: String(row['id']),
         platform: row['platform'] as ContentPlatform,
+        title: String(row['title'] ?? ''),
         views: Object.fromEntries(
           CHECKPOINT_HOURS.map((hours) => [hours, (row[`v${hours}h`] as number | null) ?? null])
         ) as CheckpointRow['views'],

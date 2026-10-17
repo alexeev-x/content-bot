@@ -35,7 +35,7 @@ import { copy } from './copy';
 import styles from './Drawer.module.css';
 import { ItemCover } from './ItemCover';
 import { CONTAMINATION, ItemContamination } from './ItemContamination';
-import { FORMAT, ItemScript } from './ItemScript';
+import { ItemScript, rubricOf } from './ItemScript';
 import { PlatformGlyph } from './PlatformGlyph';
 import { StatusChip } from './StatusChip';
 
@@ -44,13 +44,13 @@ import { StatusChip } from './StatusChip';
 function baselineBasis(detail: ContentItemDetailDto): string {
   if (detail.contamination)
     return `Цифры искажены (${CONTAMINATION[detail.contamination.reason].toLowerCase()}): ролик не входит в сравнения других роликов.`;
-  if (detail.baseline.format)
-    return `Сравнение с роликами рубрики «${FORMAT[detail.baseline.format]}» того же возраста.`;
+  // The rubric comes from the linked script, else from the title the owner writes it in.
+  if (detail.baseline.format) return `Сравнение с роликами ${rubricOf(detail.baseline.format)} того же возраста.`;
   if (detail.format) {
     const items = detail.formatItems ?? 0;
-    return `Роликов рубрики «${FORMAT[detail.format]}» пока ${items} из 5 нужных — сравнение со всеми роликами платформы, оно приблизительное.`;
+    return `Роликов ${rubricOf(detail.format)} пока ${items} из 5 нужных — сравнение со всеми роликами платформы, оно приблизительное.`;
   }
-  return 'Сравнение со всеми роликами платформы. Привяжите сценарий или укажите рубрику ниже, чтобы сравнивать с роликами своей рубрики.';
+  return 'Сравнение со всеми роликами платформы.';
 }
 
 export type DrawerContext = {
@@ -293,7 +293,7 @@ function DrawerBody({
                     ? 'Ролик идёт слабее обычного: проверьте первую строку и время выхода.'
                     : verdict.status === 'normal'
                       ? detail.baseline.format
-                        ? `Ролик идёт в пределах обычного для рубрики «${FORMAT[detail.baseline.format]}».`
+                        ? `Ролик идёт в пределах обычного для роликов ${rubricOf(detail.baseline.format)}.`
                         : 'Ролик идёт в пределах обычного для платформы.'
                       : 'Статус появится, когда накопятся замеры на том же возрасте у других роликов.'}
               </p>
@@ -376,13 +376,7 @@ function DrawerBody({
               </div>
             </section>
 
-            {item.platform !== 'telegram' ? (
-              <ItemScript
-                item={item}
-                timezone={timezone}
-                ownerFormat={detail.formatSource === 'owner' ? (detail.format ?? null) : null}
-              />
-            ) : null}
+            {item.platform !== 'telegram' ? <ItemScript item={item} timezone={timezone} /> : null}
             <ItemContamination detail={detail} />
           </div>
         </TabPanel>

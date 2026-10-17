@@ -25,6 +25,7 @@ import {
   type ContentAnalyticsRepository,
   type ItemRow
 } from './d1-content-analytics-repository';
+import { titleFormat } from './title-format';
 import { CONTENT_PLATFORMS, ContentCollectError, type ItemFormats, type VideoFormat } from './types';
 
 const MINUTE_MS = 60 * 1000;
@@ -254,14 +255,15 @@ export async function readContentItem(
   const platformCurve = baselineFor(checkpoints, found.item.platform, found.item.id);
   const video = found.item.platform !== 'telegram';
   const linked = video && deps.formats ? await deps.formats.formatOf(found.item.id) : null;
-  // A linked script is the owner's confirmation; the manual mark covers videos filmed without one.
-  const format = linked ?? (video ? found.ownerFormat : null);
+  // A linked script is the owner's confirmation; an earlier manual mark comes next; else the rubric the owner
+  // writes in the title (owner, 17.10.2026), and a title without one is a video outside the rubrics.
+  const format = linked ?? (video ? (found.ownerFormat ?? titleFormat(found.item.title)) : null);
   if (format === null) {
     return { ...detailOf(found), baseline: platformCurve, format: null, formatSource: null };
   }
   // Same platform, same format, exact checkpoints, at least 5 videos (architecture item 1); else the platform
   // curve, which the page marks as a weak comparison.
-  const ids = await idsOfFormat(deps, format);
+  const ids = await idsOfFormat(deps, format, checkpoints);
   ids.delete(found.item.id);
   const formatCurve = baselineFor(checkpoints, found.item.platform, found.item.id, {
     ids,
@@ -274,28 +276,39 @@ export async function readContentItem(
     ...detailOf(found),
     baseline: formatCurve.points.length > 0 ? { ...formatCurve, format } : platformCurve,
     format,
-    formatSource: linked === null ? 'owner' : 'script',
+    formatSource: linked !== null ? 'script' : found.ownerFormat !== null ? 'owner' : 'title',
     formatItems
   };
 }
 
 const VIDEO_FORMATS: readonly VideoFormat[] = ['fidit', 'igrat', 'standalone'];
 
-/** Videos of `format`: linked to its scripts, or marked by the owner and not linked to a script of another one. */
+/** The tracked videos of `format`, each by the same order as the item itself: script, mark, then title. */
 async function idsOfFormat(
   deps: { repo: ContentAnalyticsRepository; formats?: ItemFormats },
-  format: VideoFormat
+  format: VideoFormat,
+  rows: readonly CheckpointRow[]
 ): Promise<Set<string>> {
-  const marked = await deps.repo.itemsMarked(format);
-  if (deps.formats === undefined) return new Set(marked);
   const formats = deps.formats;
-  const ids = new Set(await formats.itemsOf(format));
-  if (marked.length === 0) return ids;
-  const elsewhere = new Set(
-    (await Promise.all(VIDEO_FORMATS.filter((other) => other !== format).map((other) => formats.itemsOf(other)))).flat()
+  const [scripts, marks] = await Promise.all([
+    formats === undefined
+      ? []
+      : Promise.all(VIDEO_FORMATS.map(async (each) => ({ format: each, ids: await formats.itemsOf(each) }))),
+    Promise.all(VIDEO_FORMATS.map(async (each) => ({ format: each, ids: await deps.repo.itemsMarked(each) })))
+  ]);
+  const index = (lists: readonly { format: VideoFormat; ids: string[] }[]) =>
+    new Map(lists.flatMap((list) => list.ids.map((id) => [id, list.format] as const)));
+  const byScript = index(scripts);
+  const byMark = index(marks);
+  return new Set(
+    rows
+      .filter(
+        (row) =>
+          row.platform !== 'telegram' &&
+          (byScript.get(row.id) ?? byMark.get(row.id) ?? titleFormat(row.title)) === format
+      )
+      .map((row) => row.id)
   );
-  for (const id of marked) if (!elsewhere.has(id)) ids.add(id);
-  return ids;
 }
 
 /** The owner's confirmation that an item's numbers are distorted (architecture item 12); null clears it. */

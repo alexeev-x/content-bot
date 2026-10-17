@@ -184,3 +184,4 @@ Stages 2 and 3 can be designed independently; implement 3 before 5, and do not s
 | 2026-10-17 | stage 2 (example ranking, part) | the owner's edited approvals of the format are ranked against the task (shared stems first, recency as a bonus) before two reach the prompt | intent, length and owner-confirmed quality as factors |
 | 2026-10-17 | stage 2 (feedback reasons, part) | migration 0067: «Что не так?» in the bot records one of seven reasons per draft on the revision on screen; «Качество» counts them | the owner's note |
 | 2026-10-17 | stage 2 (verdicts shown) | «Настройки → ИИ → Качество → Записанные отзывы»: the 30 newest verdicts with the draft and the judged text; the owner deletes a wrong one | the owner's note on a verdict |
+| 2026-10-17 | stage 3 (rubric from title) | the rubric is read from the end of the video title (owner decision 17.10.2026, typos and case aside); the manual rubric choice is gone from the item panel | — |

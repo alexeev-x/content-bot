@@ -128,7 +128,8 @@ describe('content alerts', () => {
       id,
       platform: 'youtube' as const,
       views: { 1: null, 3: null, 6: views, 12: null, 24: null, 48: null, 72: null },
-      contaminated: false
+      contaminated: false,
+      title: 'ролик'
     });
     const [weak] = itemAlerts(
       [item],

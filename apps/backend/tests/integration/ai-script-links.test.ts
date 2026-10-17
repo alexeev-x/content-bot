@@ -1,5 +1,6 @@
 import { aiItemScriptSchema, apiErrorSchema, contentItemDetailSchema, contentReportSchema } from '@alexeev/contracts';
 import { beforeEach, describe, expect, it } from 'vitest';
+import { titleFormat } from '../../src/modules/content-analytics/title-format';
 import { testDb } from '../helpers/db';
 import { type Api, createApi, fakeClock, OWNER_TOKEN, resetDb, seedSession, START } from '../helpers/harness';
 
@@ -92,8 +93,64 @@ describe('same-format baseline', () => {
     const strong = await detail('tiktok:v10');
     expect(strong.baseline).toMatchObject({ format: 'igrat', points: [{ ageHours: 24, views: 1000, items: 5 }] });
 
-    // An unlinked video keeps the platform curve.
-    expect((await detail('tiktok:v5')).format).toBeNull();
+    // An unlinked video without a rubric in its title is outside the rubrics.
+    expect(await detail('tiktok:v5')).toMatchObject({ format: 'standalone', formatSource: 'title' });
+  });
+
+  it('finds the rubric in a title despite a typo, by «Часть N», and never in an unrelated one', () => {
+    for (const title of [
+      'Учусь играть в доту. Часть 69',
+      'Пудж через мид, хуки мимо, тиммейты в шоке, а я снова в таверне. уЧуСь ИгРаТь в доту',
+      'Оракл: кому палец, кому лечение, и почему керри меня ненавидит после этой катки. Учусь иград в доту. Часть 72',
+      'Учусь игарть в доту. Часть 70',
+      'Учус играт в доту',
+      'Часть 71: Лич',
+      '#учусьиграть оракл'
+    ])
+      expect(titleFormat(title)).toBe('igrat');
+    for (const title of ['Учу фидить в доту', 'Учу фидить: правило дня', 'Учу фидиь на миде', '#учуфидить'])
+      expect(titleFormat(title)).toBe('fidit');
+    for (const title of ['Мем про патч 7.40', 'Играю в доту с подписчиками', 'Учусь готовить', 'Лучший фидер года'])
+      expect(titleFormat(title)).toBe('standalone');
+  });
+
+  it('reads the rubric from the title of an unlinked video; a linked script still wins', async () => {
+    const titled = async (n: number, title: string, views24: number) =>
+      testDb()
+        .prepare(
+          `INSERT INTO content_items (id, platform, title, url, published_at, views, observed_at, v24h)
+           VALUES (?, 'tiktok', ?, 'https://example.com/v', ?, ?, ?, ?)`
+        )
+        .bind(`tiktok:t${n}`, title, START - (n + 2) * DAY, views24, START, views24)
+        .run();
+    const titles = [
+      'Учусь играть в доту! Лич',
+      'Оракл. #учусьиграть',
+      'УЧУСЬ ИГРАТЬ: стаки',
+      'Учусь  играть, часть 14',
+      'учусь играть — Пудж'
+    ];
+    for (const [n, title] of titles.entries()) await titled(n + 1, title, 1000);
+    await titled(6, 'Учу фидить: правило дня', 90_000);
+    await titled(7, 'Мем про патч', 90_000);
+    await titled(10, 'Учусь играть в доту! Инвокер', 2000);
+
+    // Five «Учусь играть» titles make the format curve; the «Учу фидить» and outside videos stay out of it.
+    expect(await detail('tiktok:t10')).toMatchObject({
+      format: 'igrat',
+      formatSource: 'title',
+      baseline: { format: 'igrat', points: [{ ageHours: 24, views: 1000, items: 5 }] }
+    });
+    expect(await detail('tiktok:t6')).toMatchObject({ format: 'fidit', formatSource: 'title' });
+    expect(await detail('tiktok:t7')).toMatchObject({ format: 'standalone', formatSource: 'title' });
+
+    // A script of another rubric overrides the title.
+    await testDb()
+      .prepare('INSERT INTO content_ai_links (content_item_id, revision_id, linked_at) VALUES (?, ?, ?)')
+      .bind('tiktok:t1', OTHER, START)
+      .run();
+    expect(await detail('tiktok:t1')).toMatchObject({ format: 'fidit', formatSource: 'script' });
+    expect((await detail('tiktok:t10')).baseline.format ?? null).toBeNull();
   });
 
   it('counts videos the owner marked, lets a linked script win, and never marks a Telegram post', async () => {

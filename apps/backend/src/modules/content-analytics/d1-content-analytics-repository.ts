@@ -58,6 +58,8 @@ export interface SnapshotRow {
 export interface CheckpointRow {
   id: string;
   platform: ContentPlatform;
+  /** The video's rubric is read from it (`titleFormat`). */
+  title: string;
   /** Views by checkpoint hour; null where the item has no reading for it. */
   views: Record<(typeof CHECKPOINT_HOURS)[number], number | null>;
   /** The owner confirmed its numbers are distorted, so no usual curve counts it. */
@@ -66,7 +68,7 @@ export interface CheckpointRow {
 
 /** A checkpoint read's columns; `contaminated` comes from the owner's confirmations (migration 0066). */
 export function checkpointSelect(columns: readonly string[]): string {
-  return `SELECT id, platform, ${columns.join(', ')},
+  return `SELECT id, platform, title, ${columns.join(', ')},
     EXISTS (SELECT 1 FROM content_item_contamination c WHERE c.item_id = content_items.id) AS contaminated
     FROM content_items`;
 }
@@ -346,6 +348,7 @@ export function createD1ContentAnalyticsRepository(db: D1Database): ContentAnaly
       return rows.results.map((row) => ({
         id: String(row['id']),
         platform: row['platform'] as ContentPlatform,
+        title: String(row['title'] ?? ''),
         views: Object.fromEntries(
           CHECKPOINT_HOURS.map((hours) => [hours, (row[`v${hours}h`] as number | null) ?? null])
         ) as CheckpointRow['views'],
