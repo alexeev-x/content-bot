@@ -11,11 +11,9 @@
 - **States:** 2.5; empty Все: «Пока нет постов» + «Новый пост»; empty Архив: «Здесь будут опубликованные посты 30 дней».
 
 ## 3.3 Редактор поста `/posts/new`, `/posts/:id`
-- **Purpose:** write a post and send it. **Primary:** one button whose label follows state: «Одобрить» (draft, saved) -> «Опубликовать…» (approved; opens PublishDialog: channel, now/schedule). Desktop: top-right of the header. Phone/browser: pinned action bar; Mini App: MainButton with the same label (action bar hidden).
-- **Header (compact, ~56 px, replaces today's ~110 px):** `← Посты` (back, 44 px) · title (inline editable text on phone: growing textarea) · SaveIndicator («Не сохранено / Сохраняем… / Сохранено, 14:32 / Не удалось сохранить · Повторить») · status chip · `⋯` (Удалить, История правок, Вернуть в черновик when allowed). Remove «Черновик ещё не создан» and «Ревизия N» from the header.
-- **Desktop 1440:** two columns: writing column (max 720 px: title, formatting toolbar, body, one counter in the field corner «0 / 4096») + right side column 360 px with tabs **Превью** (Telegram-style) · **Публикации поста** (rows: channel, short time, status chip, `⋯` Перенести/Отменить). No bottom action bar on desktop; Ctrl/Cmd+S forces a save.
-- **Phone:** full-screen (tab bar and app bar hidden). Segmented-style tabs **Текст · Превью · Публикации** under the header. Pinned action bar above the keyboard (visualViewport); the formatting toolbar becomes a single horizontally *non-scrolling* row of the 6 most-used marks + «⋯» sheet for the rest (code, quote, lists) as today. Counter on one line.
-- **Approved/archived:** read-only banner with the way out («Вернуть в черновик» / «Вернуть из архива»). `unknown`/sending publication: banner links to reconciliation.
-- **States:** new-empty (nothing created), dirty (autosave pending), saving, saved, save-failed (leave guard only here), 409 (ConflictBanner + compare), offline (indicator + disabled publish), preview failure (inline note, editor still usable), long text (4096 limit counter turns warning at 90%, error at limit, with text, not colour only).
-- **No title (owner, 16.10.2026):** the writing column is the editor alone — no «Заголовок» field and no visible «Текст» label (the field keeps its accessible name); a new draft starts with the caret in the text. The studio name of the post (header, lists) is the start of the text, cut by the layout with an ellipsis. Posts created earlier with a title keep the field, and their title still goes out as the bold first line. A post from the AI editor shows the studio-only «✦ ИИ» mark next to its name.
-- **Focus:** after approve -> focus on the primary action label change (live-announced «Пост одобрен»); after leave -> h1 of the target.
+
+**Актуальная спецификация целевого дизайна от 17.10.2026:** [post-composer.md](post-composer.md). Это единый источник порядка блоков, desktop/mobile, вкладок, emoji picker и кнопки «Улучшить через ИИ». Новые вкладки/опрос/ИИ-улучшение пока не означают готовый API.
+
+**Уже реализовано в приложении:** один текстовый редактор без поля заголовка для новых постов, форматирование через Telegram entities, автосохранение, медиа под текстом, Telegram preview, состояние approved и отдельный шаг `/posts/:id/publish`. Старые посты с заголовком сохраняют исходное поведение.
+
+**Инварианты:** правило неизменяемой одобренной ревизии, `409 STALE_REVISION`, сверка неопределённой публикации и подтверждение владельца перед отправкой важнее макетов. Кнопка **«К публикации»** открывает существующий шаг выбора канала/времени.
