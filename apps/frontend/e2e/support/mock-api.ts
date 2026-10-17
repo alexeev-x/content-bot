@@ -629,21 +629,15 @@ export async function mockApi(page: Page): Promise<void> {
         drafts: 82,
         rewrites: 1,
         failed: 0,
-        withWarnings: 2,
+        withWarnings: 12,
         approved: 1,
         approvedUnchanged: 1,
-        averageEditRatio: 0.18,
-        jokeMissed: 1,
-        feedback: [
-          { kind: 'weak_hook', count: 2 },
-          { kind: 'joke_missed', count: 1 }
-        ],
+        averageEditRatio: 0,
+        jokeMissed: 0,
+        feedback: [],
         averageDraftUsd: 0.011,
-        questions: 2,
-        changedParts: [
-          { part: 'hook', share: 0.5 },
-          { part: 'ending', share: 0.25 }
-        ]
+        questions: 6,
+        changedParts: []
       },
       catalog: {
         provider: 'openai',

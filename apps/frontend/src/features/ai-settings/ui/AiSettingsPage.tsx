@@ -474,9 +474,7 @@ function QualityPanel({ quality }: { quality: AiOverviewDto['quality'] }) {
             />
           </StatGrid>
           {lowApproval(quality) && approved !== null ? (
-            <Banner tone="warning" title={copy.quality.lowTitle}>
-              {copy.quality.lowBody(approved)}
-            </Banner>
+            <Banner tone="warning" size="sm" title={copy.quality.lowTitle(approved)} />
           ) : null}
           {/* The secondary counts, under a rule as one quiet footer (design-refs/ai-spend-quality). */}
           {parts.length > 0 || verdicts.length > 0 || details ? (

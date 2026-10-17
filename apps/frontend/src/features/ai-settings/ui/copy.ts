@@ -116,7 +116,7 @@ export const copy = {
   quality: {
     title: (days: number) => `Качество за ${days} дней`,
     empty: 'Черновиков ещё не было. Напишите боту /redactor — здесь появится, сколько вы правите тексты ИИ.',
-    editRatio: 'Правите перед «Одобрить»',
+    editRatio: 'Доля правок',
     noApprovals: 'одобрений пока нет',
     editHint: (ratio: number) =>
       ratio <= 0.15 ? 'почти ваш текст' : ratio <= 0.5 ? 'заметно правите' : 'переписываете почти всё',
@@ -125,11 +125,10 @@ export const copy = {
     draftCost: 'Цена черновика',
     draftCostMeta: 'в среднем',
     rewrites: 'Переписываний',
-    rewritesMeta: '«Короче», «Смешнее», «Ещё вариант»',
-    approvedShare: (percent: number) => `${percent}% черновиков`,
-    lowTitle: 'Одобряете мало черновиков',
-    lowBody: (percent: number) =>
-      `За 30 дней одобрено ${percent}% черновиков. Посмотрите, что вы правите чаще всего, и пишите это в задании — или выберите модель посильнее.`,
+    rewritesMeta: 'кнопками в боте',
+    approvedShare: (percent: number) => `${percent}%`,
+    // One line, so «Качество» stays as tall as «Расходы» beside it (owner, 17.10.2026).
+    lowTitle: (percent: number) => `Одобрено мало: ${percent}% — уточняйте задание или смените модель`,
     // Accusative: «Чаще всего правите хук, концовку…».
     part: {
       hook: 'хук',

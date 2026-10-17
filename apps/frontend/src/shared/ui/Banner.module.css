@@ -9,6 +9,11 @@
   /* A faint wash of the tone over the panel surface: the icon and title carry the signal, not a coloured slab. */
   background: color-mix(in srgb, var(--tone-fg) 7%, var(--color-surface-1));
 }
+.banner[data-size='sm'] {
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--font-size-sm);
+}
 .banner[data-tone='info'] {
   --tone-fg: var(--color-status-pending-fg);
   --tone-bg: var(--color-status-pending-bg);
