@@ -74,11 +74,11 @@
   color: var(--color-text-muted);
   font-size: var(--font-size-sm);
 }
+/* Only the list scrolls, and only up and down (owner, 17.10.2026): the box around it used to scroll too. */
 .popover {
   z-index: var(--z-overlay);
   width: var(--trigger-width);
-  max-height: 320px;
-  overflow: auto;
+  overflow: hidden;
   border: 1px solid var(--color-border-strong);
   border-radius: var(--radius-2);
   background: var(--color-surface-1);
@@ -87,22 +87,30 @@
 .list {
   /* Virtualized: a fixed-height scroller with fixed-height rows (ROW_HEIGHT in TimezoneField.tsx). */
   display: block;
-  height: min(336px, 50dvh);
-  overflow: auto;
-  padding: var(--space-1);
+  height: min(320px, 50dvh);
+  overflow-x: hidden;
+  overflow-y: auto;
   outline: none;
 }
 .item {
   display: grid;
-  grid-template-columns: 1fr auto;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
   column-gap: var(--space-2);
   box-sizing: border-box;
   height: 48px;
+  min-width: 0;
   padding: var(--space-1) var(--space-3);
   border-radius: var(--radius-1);
   cursor: pointer;
   outline: none;
+}
+/* A long zone name ends with «…» rather than widening the row past the list. */
+.item > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .item[data-focused],
 .item[data-hovered] {

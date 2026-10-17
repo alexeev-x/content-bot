@@ -95,16 +95,14 @@ export function AiSettingsSkeleton() {
           <Skeleton height={36} />
         </div>
       </Panel>
-      <div className={styles.pairWide}>
-        <Panel title={copy.budgetTitle} icon={<Icon name="zap" />} reserveRows={3} reservePhoneRows={8}>
-          <div className={styles.body}>
-            <Skeleton lines={2} height={32} />
-          </div>
-        </Panel>
-        <Panel title={copy.voiceTitle} icon={<Icon name="message" />}>
-          <p className={styles.voice}>{copy.voiceBody}</p>
-        </Panel>
-      </div>
+      <Panel title={copy.budgetTitle} icon={<Icon name="zap" />} reserveRows={3} reservePhoneRows={8}>
+        <div className={styles.body}>
+          <Skeleton lines={2} height={32} />
+        </div>
+      </Panel>
+      <Panel title={copy.voiceTitle} icon={<Icon name="message" />}>
+        <p className={styles.voice}>{copy.voiceBody}</p>
+      </Panel>
       <div className={styles.extra}>
         <DisclosureGroup>
           <Disclosure id="prices" title={copy.pricesTitle('OpenAI', `${month}-01`)}>
@@ -297,75 +295,73 @@ function AiSettings({ overview, onReload }: { overview: AiOverviewDto; onReload:
         </div>
       </Panel>
 
-      <div className={styles.pairWide}>
-        <Panel title={copy.budgetTitle} icon={<Icon name="zap" />}>
-          <div className={styles.body}>
-            <div className={styles.budget}>
-              <BudgetColumn label={copy.monthly}>
-                <SegmentedControl
-                  label={copy.monthly}
-                  options={[
-                    ...BUDGET_PRESETS.map((value) => ({ id: String(value), label: `$${value}` })),
-                    { id: 'custom', label: copy.custom }
-                  ]}
-                  value={budgetValue}
-                  onChange={(id) => {
-                    if (id === 'custom') setCustomBudget(String(settings.monthlyBudgetUsd));
-                    else {
-                      setCustomBudget(null);
-                      change({ monthlyBudgetUsd: Number(id) });
-                    }
-                  }}
-                />
-              </BudgetColumn>
-              <BudgetColumn label={copy.daily}>
-                <SegmentedControl
-                  label={copy.daily}
-                  options={[
-                    ...DAILY_PRESETS.map((value) => ({ id: String(value), label: `$${value}` })),
-                    { id: 'all', label: copy.noDaily }
-                  ]}
-                  value={DAILY_PRESETS.includes(settings.dailyCapUsd) || dailyValue === 'all' ? dailyValue : 'all'}
-                  onChange={(id) => change({ dailyCapUsd: id === 'all' ? settings.monthlyBudgetUsd : Number(id) })}
-                />
-              </BudgetColumn>
-              <BudgetColumn label={copy.warnAt}>
-                <SegmentedControl
-                  label={copy.warnAt}
-                  options={WARN_PRESETS.map((value) => ({ id: String(value), label: `${value}%` }))}
-                  value={String(settings.warnAtPercent)}
-                  onChange={(id) => change({ warnAtPercent: Number(id) })}
-                />
-              </BudgetColumn>
-            </div>
-            {budgetValue === 'custom' ? (
-              <div className={styles.custom}>
-                <TextField
-                  label={copy.customLabel}
-                  inputMode="decimal"
-                  value={customBudget ?? String(settings.monthlyBudgetUsd)}
-                  onChange={setCustomBudget}
-                />
-                <Button
-                  variant="secondary"
-                  onPress={() => {
-                    const value = Number((customBudget ?? '').replace(',', '.'));
-                    if (Number.isFinite(value) && value >= 0 && value <= 10_000) change({ monthlyBudgetUsd: value });
-                    else toast.show({ tone: 'error', title: copy.customInvalid });
-                  }}
-                >
-                  {copy.apply}
-                </Button>
-              </div>
-            ) : null}
-            <p className={styles.meta}>{copy.monthlyHint}</p>
+      <Panel title={copy.budgetTitle} icon={<Icon name="zap" />}>
+        <div className={styles.body}>
+          <div className={styles.budget}>
+            <BudgetColumn label={copy.monthly}>
+              <SegmentedControl
+                label={copy.monthly}
+                options={[
+                  ...BUDGET_PRESETS.map((value) => ({ id: String(value), label: `$${value}` })),
+                  { id: 'custom', label: copy.custom }
+                ]}
+                value={budgetValue}
+                onChange={(id) => {
+                  if (id === 'custom') setCustomBudget(String(settings.monthlyBudgetUsd));
+                  else {
+                    setCustomBudget(null);
+                    change({ monthlyBudgetUsd: Number(id) });
+                  }
+                }}
+              />
+            </BudgetColumn>
+            <BudgetColumn label={copy.daily}>
+              <SegmentedControl
+                label={copy.daily}
+                options={[
+                  ...DAILY_PRESETS.map((value) => ({ id: String(value), label: `$${value}` })),
+                  { id: 'all', label: copy.noDaily }
+                ]}
+                value={DAILY_PRESETS.includes(settings.dailyCapUsd) || dailyValue === 'all' ? dailyValue : 'all'}
+                onChange={(id) => change({ dailyCapUsd: id === 'all' ? settings.monthlyBudgetUsd : Number(id) })}
+              />
+            </BudgetColumn>
+            <BudgetColumn label={copy.warnAt}>
+              <SegmentedControl
+                label={copy.warnAt}
+                options={WARN_PRESETS.map((value) => ({ id: String(value), label: `${value}%` }))}
+                value={String(settings.warnAtPercent)}
+                onChange={(id) => change({ warnAtPercent: Number(id) })}
+              />
+            </BudgetColumn>
           </div>
-        </Panel>
+          {budgetValue === 'custom' ? (
+            <div className={styles.custom}>
+              <TextField
+                label={copy.customLabel}
+                inputMode="decimal"
+                value={customBudget ?? String(settings.monthlyBudgetUsd)}
+                onChange={setCustomBudget}
+              />
+              <Button
+                variant="secondary"
+                onPress={() => {
+                  const value = Number((customBudget ?? '').replace(',', '.'));
+                  if (Number.isFinite(value) && value >= 0 && value <= 10_000) change({ monthlyBudgetUsd: value });
+                  else toast.show({ tone: 'error', title: copy.customInvalid });
+                }}
+              >
+                {copy.apply}
+              </Button>
+            </div>
+          ) : null}
+          <p className={styles.meta}>{copy.monthlyHint}</p>
+        </div>
+      </Panel>
 
-        <Panel title={copy.voiceTitle} icon={<Icon name="message" />}>
-          <p className={styles.voice}>{copy.voiceBody}</p>
-        </Panel>
-      </div>
+      <Panel title={copy.voiceTitle} icon={<Icon name="message" />}>
+        <p className={styles.voice}>{copy.voiceBody}</p>
+      </Panel>
 
       <div className={styles.extra}>
         <DisclosureGroup>

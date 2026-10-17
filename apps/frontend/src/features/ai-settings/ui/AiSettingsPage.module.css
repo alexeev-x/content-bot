@@ -71,9 +71,9 @@
   font-size: var(--font-size-sm);
 }
 
-/* Two blocks side by side once each keeps a readable width; stacked below it. */
-.pair,
-.pairWide {
+/* Two blocks side by side once each keeps a readable width; stacked below it. Each keeps its own height: a
+   short block stretched to its neighbour read as an empty card (owner, 17.10.2026). */
+.pair {
   display: grid;
   gap: var(--space-4);
   align-items: start;
@@ -83,15 +83,6 @@
   .pair {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
-  /* The budget's three choice rows need more room than the voice text. */
-  .pairWide {
-    grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
-  }
-}
-
-.pair > *,
-.pairWide > * {
-  block-size: 100%;
 }
 
 .body {
@@ -143,17 +134,19 @@
   }
 }
 
+/* Each choice row as wide as its buttons, wrapping to the next line when the row is full: a column narrower
+   than its buttons scrolled them sideways (owner, 17.10.2026). */
 .budget {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr));
-  gap: var(--space-4);
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4) var(--space-6);
 }
 
 .budgetColumn {
   display: grid;
   align-content: start;
   gap: var(--space-2);
-  min-inline-size: 0;
+  max-inline-size: 100%;
 }
 
 .budgetLabel {

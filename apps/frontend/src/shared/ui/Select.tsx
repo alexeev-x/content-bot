@@ -71,7 +71,9 @@ export function Select({
         </Text>
       ) : null}
       <FieldError className={styles.error}>{errorMessage}</FieldError>
-      <Popover className={selectStyles.popover} offset={6}>
+      {/* Non-modal (owner, 17.10.2026): the page keeps scrolling while the list is open; a scroll, a click
+          outside or Esc closes it. A modal list froze the whole page. */}
+      <Popover className={selectStyles.popover} offset={6} isNonModal>
         <ListBox className={selectStyles.list} items={options}>
           {(option) => (
             <ListBoxItem
