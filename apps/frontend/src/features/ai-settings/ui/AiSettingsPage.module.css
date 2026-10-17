@@ -71,18 +71,11 @@
   font-size: var(--font-size-sm);
 }
 
-/* Two blocks side by side once each keeps a readable width; stacked below it. Each keeps its own height: a
-   short block stretched to its neighbour read as an empty card (owner, 17.10.2026). */
+/* «Расходы» and «Качество» one under the other at every width, each its own height (owner, 17.10.2026): side
+   by side they never matched and left a gap under the shorter one. */
 .pair {
   display: grid;
   gap: var(--space-4);
-  align-items: start;
-}
-
-@container (min-width: 860px) {
-  .pair {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
 }
 
 .body {
