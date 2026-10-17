@@ -15,7 +15,14 @@ import { draftFromCaption, draftFromMessageText, mediaOnlyDraft } from './draft-
 import { type BotMediaFile, mediaLimit } from './media-import';
 import { ALBUM_SETTLE_MS } from './media-import-worker';
 import { CALLBACK_PREFIX, type PublishActions, type PublishOutcome } from './publish-actions';
-import { publishKeyboard } from './publish-keyboard';
+import {
+  publishKeyboard,
+  SCHEDULE_PREFIX,
+  type ScheduleChoice,
+  scheduleDataOf,
+  scheduleKeyboard
+} from './publish-keyboard';
+import { describeTime, parseScheduleTime } from './schedule-time';
 import { configureOwnerChat } from './owner-chat';
 import type { OwnerReply, OwnerReports } from './owner-reports';
 import type { TelegramCaller } from './telegram-call';
@@ -171,6 +178,21 @@ const CHANGED_TEXT = 'Пост изменился — откройте в Сту
 const IMPORTING_TEXT = 'Файлы ещё загружаются — дождитесь отчёта или откройте в Студии';
 const DUPLICATE_TEXT = 'Уже в очереди или опубликовано в этом канале — откройте в Студии';
 const EXPIRED_TEXT = 'Кнопка устарела, откройте в Студии';
+const ASK_TIME_TEXT = (timezone: string) =>
+  `Когда опубликовать? Напишите как удобно: «завтра в 2 дня», «в 19:00», «через 2 часа», «в пятницу в 10», «20.10 18:00». Время по поясу ${timezone}.`;
+const TIME_NOT_UNDERSTOOD_TEXT =
+  'Не понял время. Например: «завтра в 2 дня», «в 19:00», «через 2 часа», «20.10 18:00». Или нажмите «Отмена».';
+const TIME_PAST_TEXT = 'Это время уже прошло. Напишите другое или нажмите «Отмена».';
+const SCHEDULE_CANCELLED_TEXT = 'Планирование отменено';
+const TIME_TOO_FAR_TEXT =
+  'Можно запланировать не дальше чем на год вперёд. Напишите другое время или нажмите «Отмена».';
+/** The server's window: up to 366 days ahead. */
+const SCHEDULE_MAX_AHEAD_MS = 366 * 24 * 60 * 60_000;
+/** A typed time is a short line; anything longer is a post or a question, not a time. */
+const TIME_TEXT_MAX = 40;
+/** A chosen time this close to now is a «now» the owner did not ask for: asked again instead. */
+const SCHEDULE_MIN_AHEAD_MS = 60_000;
+const SCHEDULE_CALLBACK = new RegExp(`^${SCHEDULE_PREFIX}([A-Za-z0-9]{8,32})(?::(h1|t19|m10|own|back|cancel))?$`);
 const UNSUPPORTED_TEXT = 'Этот тип сообщения пока не превращается в черновик';
 const DRAFT_INVALID_TEXT = 'Текст содержит недопустимые символы, черновик не создан.';
 const CONTAMINATED_TEXT = 'Отмечено: ролик больше не входит в сравнения других роликов.';
@@ -294,6 +316,46 @@ export function createBot(config: BotConfig, runtime: BotRuntime): Bot {
   );
 
   // Before the plain draft handler: a request for a text or a reply to an AI draft is the writer's.
+  // «Своё время» under «🕒»: the next text is the time (before the AI writer, which would take it as a request).
+  bot.on('message:text', async (ctx, next) => {
+    // A command, or a reply (an edit of an AI draft, the answer to its question), is never the time.
+    if (ctx.message.text.startsWith('/') || ctx.message.reply_to_message !== undefined) return next();
+    const token = await runtime.publish.awaitingTime();
+    if (token === null) return next();
+    // A time is a short line. A longer text is the owner moving on (a post saying «стрим в 20:00» must not
+    // schedule the earlier draft): the wait ends and the text goes on as usual.
+    if (ctx.message.text.length > TIME_TEXT_MAX || ctx.message.text.includes('\n')) {
+      await runtime.publish.stopAwaitingTime(token);
+      return next();
+    }
+    const timezone = await runtime.publish.timezone();
+    const now = runtime.clock.now();
+    const parsed = parseScheduleTime(ctx.message.text, now, timezone);
+    const cancel = { inline_keyboard: [[{ text: 'Отмена', callback_data: scheduleDataOf(token, 'cancel') }]] };
+    if (!parsed.ok) {
+      await ctx.reply(TIME_NOT_UNDERSTOOD_TEXT, { reply_markup: cancel });
+      return;
+    }
+    if (parsed.at < now + SCHEDULE_MIN_AHEAD_MS) {
+      await ctx.reply(TIME_PAST_TEXT, { reply_markup: cancel });
+      return;
+    }
+    // Asked before the claim: a time the server refuses would fix it on the token and kill «сейчас» too.
+    if (parsed.at > now + SCHEDULE_MAX_AHEAD_MS) {
+      await ctx.reply(TIME_TOO_FAR_TEXT, { reply_markup: cancel });
+      return;
+    }
+    await runtime.publish.stopAwaitingTime(token);
+    const outcome = await runtime.publish.perform(token, parsed.at);
+    if (outcome.kind === 'busy') return;
+    const { text, postId, markup } = await outcomeMessage(outcome);
+    await ctx.reply(text, {
+      parse_mode: 'HTML',
+      link_preview_options: { is_disabled: true },
+      ...(markup === undefined || postId === null ? {} : { reply_markup: markup })
+    });
+  });
+
   registerAiWriter(bot, runtime);
 
   // In /post mode whatever the owner sends or forwards becomes a draft. An unknown command is not a post.
@@ -400,11 +462,26 @@ export function createBot(config: BotConfig, runtime: BotRuntime): Bot {
     await ctx.answerCallbackQuery().catch((error: unknown) => runtime.onError(error));
     const outcome = await runtime.publish.perform(ctx.match[1] ?? '');
     if (outcome.kind === 'busy') return;
-    const { text, postId } = outcomeText(outcome);
+    await writeOutcome(ctx, outcome);
+  });
+
+  /** The outcome's words, with the time in the owner's zone for a scheduled one, and its one button. */
+  async function outcomeMessage(outcome: Exclude<PublishOutcome, { kind: 'busy' }>) {
+    const now = runtime.clock.now();
+    const when =
+      outcome.kind === 'queued' && outcome.status === 'scheduled'
+        ? describeTime(outcome.scheduledAt, now, await runtime.publish.timezone())
+        : null;
+    const { text, postId } = outcomeText(outcome, when);
     // Queued or already on its way: its publications, never the publish screen again.
     const studio = outcome.kind === 'queued' || outcome.kind === 'duplicate' ? 'publications' : 'post';
     const markup =
       postId === null ? undefined : publishKeyboard({ appOrigin: runtime.appOrigin, postId, buttons: [], studio });
+    return { text, postId, markup };
+  }
+
+  async function writeOutcome(ctx: Context, outcome: Exclude<PublishOutcome, { kind: 'busy' }>) {
+    const { text, markup } = await outcomeMessage(outcome);
     try {
       await ctx.editMessageText(text, {
         parse_mode: 'HTML',
@@ -415,6 +492,77 @@ export function createBot(config: BotConfig, runtime: BotRuntime): Bot {
       // A repeated tap writes the same text again; Telegram calls that an error, it is not one.
       if (!(error instanceof GrammyError && error.description.includes('message is not modified'))) throw error;
     }
+  }
+
+  // «🕒 Запланировать»: the choices replace the draft's buttons; a choice publishes at that time through the same
+  // token (so the same refusals and the duplicate guard apply); «Своё время» waits for the next message.
+  bot.callbackQuery(SCHEDULE_CALLBACK, async (ctx) => {
+    const token = ctx.match[1] ?? '';
+    const choice = ctx.match[2] as ScheduleChoice | undefined;
+    const now = runtime.clock.now();
+    const timezone = await runtime.publish.timezone();
+    const swap = async (markup: Parameters<Context['editMessageReplyMarkup']>[0]) => {
+      try {
+        await ctx.editMessageReplyMarkup(markup);
+      } catch (error) {
+        if (!(error instanceof GrammyError && error.description.includes('message is not modified'))) throw error;
+      }
+    };
+    if (choice === 'cancel') {
+      await runtime.publish.stopAwaitingTime(token);
+      await ctx
+        .answerCallbackQuery({ text: SCHEDULE_CANCELLED_TEXT })
+        .catch((error: unknown) => runtime.onError(error));
+      await swap(undefined);
+      return;
+    }
+    await ctx.answerCallbackQuery().catch((error: unknown) => runtime.onError(error));
+    if (choice === undefined) {
+      const evening = parseScheduleTime('сегодня в 19:00', now, timezone);
+      await swap({
+        reply_markup: scheduleKeyboard(token, { evening: evening.ok && evening.at > now + SCHEDULE_MIN_AHEAD_MS })
+      });
+      return;
+    }
+    if (choice === 'back') {
+      const found = await runtime.publish.buttonsFor(token);
+      const markup =
+        found === null
+          ? undefined
+          : publishKeyboard({
+              appOrigin: runtime.appOrigin,
+              postId: found.postId,
+              buttons: found.buttons,
+              studio: 'post'
+            });
+      await swap(markup === undefined ? undefined : { reply_markup: markup });
+      return;
+    }
+    if (choice === 'own') {
+      // One wait at a time: «Своё время» ends a «✏️ Изменить» wait of the AI editor in this chat.
+      const chatId = ctx.chat?.id;
+      if (chatId !== undefined)
+        await (await runtime.writer()).writer.setEditing({ chatId, generationId: null, now, expiresAt: now });
+      if (!(await runtime.publish.awaitTime(token))) {
+        await writeOutcome(ctx, { kind: 'expired', postId: null });
+        return;
+      }
+      await ctx.reply(ASK_TIME_TEXT(timezone), {
+        reply_markup: { inline_keyboard: [[{ text: 'Отмена', callback_data: scheduleDataOf(token, 'cancel') }]] }
+      });
+      return;
+    }
+    const picked =
+      choice === 'h1'
+        ? { ok: true as const, at: now + 60 * 60_000 }
+        : parseScheduleTime(choice === 't19' ? 'сегодня в 19:00' : 'завтра в 10:00', now, timezone);
+    if (!picked.ok || picked.at < now + SCHEDULE_MIN_AHEAD_MS) {
+      await ctx.reply(TIME_PAST_TEXT);
+      return;
+    }
+    const outcome = await runtime.publish.perform(token, picked.at);
+    if (outcome.kind === 'busy') return;
+    await writeOutcome(ctx, outcome);
   });
 
   // «Ограничение подтвердилось» under an alert: the tap is the owner's confirmation (architecture item 12).
@@ -520,10 +668,19 @@ const STATUS_LABEL: Record<PublicationStatus, string> = {
 const escapeHtml = (value: string): string =>
   value.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;');
 
-function outcomeText(outcome: Exclude<PublishOutcome, { kind: 'busy' }>): { text: string; postId: string | null } {
+function outcomeText(
+  outcome: Exclude<PublishOutcome, { kind: 'busy' }>,
+  when: string | null
+): { text: string; postId: string | null } {
   switch (outcome.kind) {
     case 'queued':
-      return { text: `${STATUS_LABEL[outcome.status]}: ${escapeHtml(outcome.channelTitle)}`, postId: outcome.postId };
+      return {
+        text:
+          when === null
+            ? `${STATUS_LABEL[outcome.status]}: ${escapeHtml(outcome.channelTitle)}`
+            : `Запланировано: ${escapeHtml(outcome.channelTitle)}, ${when}`,
+        postId: outcome.postId
+      };
     case 'changed':
       return { text: CHANGED_TEXT, postId: outcome.postId };
     case 'importing':

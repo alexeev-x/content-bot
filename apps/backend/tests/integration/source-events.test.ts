@@ -339,7 +339,11 @@ describe('the Cron workflow: auto-draft and one owner notice per event', () => {
     expect(newsNotice?.html).toBe('<b>Новость: Qualifiers update — черновик готов</b>');
     expect(treasureNotice?.html).toBe('<b>Сокровищница: Treasure of the Beacon — черновик готов</b>');
     const labels = newsNotice?.markup?.inline_keyboard.flat().map((button) => button.text);
-    expect(labels).toEqual(['Опубликовать сейчас → Main channel', 'Открыть в Студии']);
+    expect(labels).toEqual([
+      'Опубликовать сейчас → Main channel',
+      '🕒 Запланировать → Main channel',
+      'Открыть в Студии'
+    ]);
 
     const second = await processDotaUpdates(deps({ messenger }));
     expect(second).toMatchObject({ draftsCreated: 1, draftAlertsSent: 1 });

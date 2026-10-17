@@ -108,7 +108,9 @@ describe('publish buttons under a draft reply', () => {
     const post = await postRow();
     expect(buttons.map((button) => button.text)).toEqual([
       'Опубликовать сейчас → Main channel',
+      '🕒 Запланировать → Main channel',
       'Опубликовать сейчас → Second',
+      '🕒 Запланировать → Second',
       'Открыть в Студии'
     ]);
     expect(buttons.at(-1)?.web_app?.url).toBe(`${ORIGIN}/posts/${post?.id}`);
@@ -322,3 +324,88 @@ describe('tapping «publish now»', () => {
 
 const destinationId = async () =>
   (await testDb().prepare('SELECT id FROM destinations').first<{ id: string }>())?.id ?? '';
+
+describe('«🕒 Запланировать» under a draft reply', () => {
+  const sentTexts = () => calls.filter((call) => call.method === 'sendMessage').map((call) => call.body.text ?? '');
+  const scheduledAt = () => testDb().prepare('SELECT scheduled_at AS at FROM publications').first<{ at: number }>();
+
+  async function scheduleButton() {
+    await seedDestination(api, { title: 'Main' });
+    const buttons = await sendText();
+    return buttons.find((button) => button.text.startsWith('🕒'))?.callback_data ?? '';
+  }
+
+  it('offers the choices and schedules «Через 1 час» through the same token', async () => {
+    const data = await scheduleButton();
+    expect(new TextEncoder().encode(`${data}:cancel`).length).toBeLessThanOrEqual(64);
+    await tap(data);
+    const choices = calls
+      .filter((call) => call.method === 'editMessageReplyMarkup')
+      .at(-1)
+      ?.body.reply_markup?.inline_keyboard.flat()
+      .map((button) => button.text);
+    expect(choices).toEqual(expect.arrayContaining(['Через 1 час', 'Завтра 10:00', 'Своё время', '← Назад']));
+
+    await tap(`${data}:h1`);
+    expect(await publications()).toBe(1);
+    expect((await scheduledAt())?.at).toBe(clock.now() + 60 * 60_000);
+    expect(lastEditText()).toMatch(/^Запланировано: Main, (сегодня|завтра) в \d\d:\d\d$/);
+    // A second choice on the same token is the same publication, never a second one.
+    await tap(`${data}:m10`);
+    expect(await publications()).toBe(1);
+  });
+
+  it('takes the owner words as the time; a bad one publishes nothing', async () => {
+    const data = await scheduleButton();
+    await tap(`${data}:own`);
+    expect(sentTexts().at(-1)).toContain('Когда опубликовать?');
+
+    await sendText('когда-нибудь потом');
+    expect(sentTexts().at(-1)).toContain('Не понял время');
+    await sendText('сегодня в 00:01');
+    expect(sentTexts().at(-1)).toContain('уже прошло');
+    expect(await publications()).toBe(0);
+
+    await sendText('через 2 часа');
+    expect(await publications()).toBe(1);
+    expect((await scheduledAt())?.at).toBe(clock.now() + 2 * 60 * 60_000);
+    expect(sentTexts().at(-1)).toMatch(/^Запланировано: Main, /);
+
+    // The wait is over: the next text is a draft again (this chat is in /post mode).
+    const before = await count('posts');
+    await sendText('Новый пост');
+    expect(await count('posts')).toBe(before + 1);
+  });
+
+  it('never takes a post text, a reply or a time beyond a year as the time', async () => {
+    const data = await scheduleButton();
+    await tap(`${data}:own`);
+    // Too far: asked again, and the token still works afterwards.
+    await sendText('20.10.2030 18:00');
+    expect(sentTexts().at(-1)).toContain('не дальше чем на год');
+    expect(await publications()).toBe(0);
+
+    // A post that mentions a time is a post: the wait ends, the draft is made, nothing is scheduled.
+    const before = await count('posts');
+    await sendText('Друзья, стрим сегодня в 20:00! Приходите, будет весело и много Доты');
+    expect(await publications()).toBe(0);
+    expect(await count('posts')).toBe(before + 1);
+    await sendText('через 2 часа');
+    expect(await publications()).toBe(0);
+
+    // Waiting again, the button still publishes.
+    await tap(`${data}:own`);
+    await sendText('через 2 часа');
+    expect(await publications()).toBe(1);
+  });
+
+  it('«Отмена» stops the wait', async () => {
+    const data = await scheduleButton();
+    await tap(`${data}:own`);
+    await tap(`${data}:cancel`);
+    const before = await count('posts');
+    await sendText('завтра в 2 дня');
+    expect(await publications()).toBe(0);
+    expect(await count('posts')).toBe(before + 1);
+  });
+});

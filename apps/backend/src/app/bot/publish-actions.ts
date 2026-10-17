@@ -25,13 +25,27 @@ export type PublishOutcome =
   | { kind: 'importing'; postId: string }
   /** The post already has a live or finished publication to this channel. */
   | { kind: 'duplicate'; postId: string }
-  | { kind: 'queued'; postId: string; channelTitle: string; status: PublicationStatus };
+  /** `scheduledAt`: when it goes out (the tap's instant for «now», the owner's choice for «🕒»). */
+  | { kind: 'queued'; postId: string; channelTitle: string; status: PublicationStatus; scheduledAt: number };
 
 export interface PublishActions {
   /** The buttons for a draft at `post.revision`; empty when there is no channel or too many. Never throws. */
   buttons(post: { id: string; revision: number }): Promise<PublishButton[]>;
-  perform(token: string): Promise<PublishOutcome>;
+  /** Publishes now, or at `at` (UTC ms) for «🕒 Запланировать». */
+  perform(token: string, at?: number): Promise<PublishOutcome>;
+  /** The draft's buttons again, for «← Назад» under the time choices; null when the token names nothing. */
+  buttonsFor(token: string): Promise<{ postId: string; buttons: PublishButton[] } | null>;
+  /** «Своё время»: the chat's next message is this action's time for a while; false when it is no longer pending. */
+  awaitTime(token: string): Promise<boolean>;
+  /** The action the chat waits a time for, if any. */
+  awaitingTime(): Promise<string | null>;
+  stopAwaitingTime(token: string): Promise<void>;
+  /** The owner's zone: times are read and shown in it. */
+  timezone(): Promise<string>;
 }
+
+/** How long «Своё время» waits for the owner's message. */
+export const AWAIT_TIME_MS = 10 * 60 * 1000;
 
 export type PublishActionsContainer = Pick<
   Container,
@@ -77,7 +91,8 @@ export function createPublishActions(
   const store = {
     create: (...args: Parameters<PublishActionStore['create']>) => container.publishActions.create(...args),
     find: (id: string) => container.publishActions.find(id),
-    claim: (id: string, now: number) => container.publishActions.claim(id, now),
+    claim: (id: string, now: number, scheduledAt: number | null) =>
+      container.publishActions.claim(id, now, scheduledAt),
     complete: (id: string, publicationId: string) => container.publishActions.complete(id, publicationId),
     refuse: (id: string) => container.publishActions.refuse(id)
   };
@@ -97,7 +112,7 @@ export function createPublishActions(
   async function hasActivePublication(
     action: { postId: string; destinationId: string },
     revision: number,
-    usedAt: number
+    instant: number
   ): Promise<boolean> {
     const page = await listPublications(
       { repo: container.publications, now: clock.now() },
@@ -106,7 +121,7 @@ export function createPublishActions(
     return page.items.some(
       (item) =>
         !INACTIVE_STATUSES.has(item.status) &&
-        !(item.postRevision === revision && Date.parse(item.scheduledAt) === usedAt)
+        !(item.postRevision === revision && Date.parse(item.scheduledAt) === instant)
     );
   }
 
@@ -148,8 +163,9 @@ export function createPublishActions(
       return changed;
     }
 
-    const usedAt = action.usedAt ?? clock.now();
-    if (await hasActivePublication(action, post.revision, usedAt)) {
+    // The owner's chosen time, or the instant of the «now» tap; fixed by the claim, so a repeat asks the same.
+    const instant = action.scheduledAt ?? action.usedAt ?? clock.now();
+    if (await hasActivePublication(action, post.revision, instant)) {
       await store.refuse(action.id);
       return { kind: 'duplicate', postId: action.postId };
     }
@@ -175,7 +191,7 @@ export function createPublishActions(
             postId: action.postId,
             revision: post.revision,
             destinationId: action.destinationId,
-            scheduledAt: new Date(usedAt).toISOString(),
+            scheduledAt: new Date(instant).toISOString(),
             timezone: await config.timezone()
           }
         }
@@ -200,11 +216,12 @@ export function createPublishActions(
       kind: 'queued',
       postId: action.postId,
       channelTitle: destination.title,
-      status: publication.status
+      status: publication.status,
+      scheduledAt: Date.parse(publication.scheduledAt)
     };
   }
 
-  async function perform(token: string): Promise<PublishOutcome> {
+  async function perform(token: string, at?: number): Promise<PublishOutcome> {
     const action = await store.find(token);
     if (action === null) return { kind: 'expired', postId: null };
 
@@ -218,7 +235,8 @@ export function createPublishActions(
         kind: 'queued',
         postId: action.postId,
         channelTitle: destination?.title ?? '',
-        status: publication.status
+        status: publication.status,
+        scheduledAt: Date.parse(publication.scheduledAt)
       };
     }
     if (action.status === 'done') return { kind: 'changed', postId: action.postId };
@@ -230,45 +248,58 @@ export function createPublishActions(
       if (await container.mediaImports.hasOpenImport(action.postId))
         return { kind: 'importing', postId: action.postId };
       // The loser of a race reads the winner's instant, so both build the same publication request.
-      await store.claim(action.id, clock.now());
+      await store.claim(action.id, clock.now(), at ?? null);
       const claimed = await store.find(action.id);
       if (claimed === null) return { kind: 'expired', postId: action.postId };
       // Another tap may have finished meanwhile: its result is the answer.
-      return claimed.status === 'claimed' ? run(claimed) : perform(token);
+      return claimed.status === 'claimed' ? run(claimed) : perform(token, at);
     }
     return run(action);
   }
 
+  async function buttons(post: { id: string; revision: number }): Promise<PublishButton[]> {
+    try {
+      const page = await listDestinations(
+        { repo: container.destinations },
+        { enabled: 'true', limit: MAX_PUBLISH_BUTTONS + 1 }
+      );
+      if (page.items.length === 0 || page.items.length > MAX_PUBLISH_BUTTONS) return [];
+      const wanted = page.items.map((destination) => ({
+        // 20 random hex characters; the UUID's dashes and version digits add nothing.
+        id: container.newId().replaceAll('-', '').slice(0, 20),
+        postId: post.id,
+        destinationId: destination.id,
+        postRevision: post.revision
+      }));
+      const tokens = await store.create(wanted, clock.now());
+      return page.items.map((destination, index) => ({
+        token: tokens[index] ?? '',
+        channelTitle: destination.title
+      }));
+    } catch (error) {
+      logger.error({
+        component: 'bot',
+        operation: 'publish_actions.create',
+        requestId: config.requestId,
+        errorCode: error instanceof AppError ? error.code : error instanceof Error ? error.name : 'unknown'
+      });
+      return [];
+    }
+  }
+
   return {
     perform,
-    async buttons(post) {
-      try {
-        const page = await listDestinations(
-          { repo: container.destinations },
-          { enabled: 'true', limit: MAX_PUBLISH_BUTTONS + 1 }
-        );
-        if (page.items.length === 0 || page.items.length > MAX_PUBLISH_BUTTONS) return [];
-        const wanted = page.items.map((destination) => ({
-          // 20 random hex characters; the UUID's dashes and version digits add nothing.
-          id: container.newId().replaceAll('-', '').slice(0, 20),
-          postId: post.id,
-          destinationId: destination.id,
-          postRevision: post.revision
-        }));
-        const tokens = await store.create(wanted, clock.now());
-        return page.items.map((destination, index) => ({
-          token: tokens[index] ?? '',
-          channelTitle: destination.title
-        }));
-      } catch (error) {
-        logger.error({
-          component: 'bot',
-          operation: 'publish_actions.create',
-          requestId: config.requestId,
-          errorCode: error instanceof AppError ? error.code : error instanceof Error ? error.name : 'unknown'
-        });
-        return [];
-      }
-    }
+    buttons,
+    async buttonsFor(token) {
+      const action = await store.find(token);
+      if (action === null) return null;
+      return { postId: action.postId, buttons: await buttons({ id: action.postId, revision: action.postRevision }) };
+    },
+    async awaitTime(token) {
+      return container.publishActions.awaitTime(token, clock.now() + AWAIT_TIME_MS);
+    },
+    awaitingTime: () => container.publishActions.findAwaitingTime(clock.now()),
+    stopAwaitingTime: (token) => container.publishActions.stopAwaitingTime(token),
+    timezone: () => config.timezone()
   };
 }

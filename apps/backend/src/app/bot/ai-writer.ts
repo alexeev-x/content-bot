@@ -228,7 +228,7 @@ export interface AiWriterRuntime {
   clock: Clock;
   writer: () => Promise<WriterDeps>;
   createDraft: (input: CreatePostInput, idempotencyKey: string) => Promise<{ id: string; revision: number }>;
-  publish: Pick<PublishActions, 'buttons'>;
+  publish: Pick<PublishActions, 'buttons' | 'awaitingTime' | 'stopAwaitingTime'>;
   waitUntil: (work: Promise<unknown>) => void;
   onError: (error: unknown) => void;
 }
@@ -520,6 +520,9 @@ export function registerAiWriter(bot: Bot, runtime: AiWriterRuntime): void {
         if (generation === null) throw new AppError('NOT_FOUND', 'The draft is gone');
         const current = (await deps.writer.revisions(generationId)).at(-1)?.text ?? '';
         const now = runtime.clock.now();
+        // One wait at a time: «✏️ Изменить» ends a «Своё время» wait for a publication time.
+        const timeWait = await runtime.publish.awaitingTime();
+        if (timeWait !== null) await runtime.publish.stopAwaitingTime(timeWait);
         await deps.writer.setEditing({ chatId, generationId, now, expiresAt: now + REQUEST_TTL_MS });
         await ctx.reply(editPromptHtml(current), {
           parse_mode: 'HTML',

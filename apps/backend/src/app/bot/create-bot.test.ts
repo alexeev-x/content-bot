@@ -98,7 +98,15 @@ function harness(overrides: Partial<BotRuntime> = {}): Harness {
         next: () => Promise.resolve(answer('next')),
         status: () => Promise.resolve(answer('status'))
       },
-      publish: { buttons: () => Promise.resolve([]), perform: () => Promise.resolve({ kind: 'busy' }) },
+      publish: {
+        buttons: () => Promise.resolve([]),
+        perform: () => Promise.resolve({ kind: 'busy' }),
+        buttonsFor: () => Promise.resolve(null),
+        awaitTime: () => Promise.resolve(false),
+        awaitingTime: () => Promise.resolve(null),
+        stopAwaitingTime: () => Promise.resolve(),
+        timezone: () => Promise.resolve('UTC')
+      },
       contamination: () => Promise.resolve(),
       createDraft: (input, key) => {
         drafts.push({ input, key });
