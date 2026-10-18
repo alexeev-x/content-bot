@@ -14,6 +14,7 @@ import {
   getContentItems,
   getContentOverview,
   getContentReport,
+  getItemReview,
   getItemScript,
   linkItemScript,
   markItemContamination,
@@ -31,13 +32,23 @@ export const contentAnalyticsKeys = {
   item: (id: string) => [...contentAnalyticsKeys.all, 'item', id] as const,
   report: (days: ContentReportPeriod) => [...contentAnalyticsKeys.all, 'report', days] as const,
   goals: () => [...contentAnalyticsKeys.all, 'goals'] as const,
-  script: (id: string) => [...contentAnalyticsKeys.all, 'script', id] as const
+  script: (id: string) => [...contentAnalyticsKeys.all, 'script', id] as const,
+  review: (id: string) => [...contentAnalyticsKeys.all, 'review', id] as const
 };
 
 export function itemScriptQueryOptions(itemId: string) {
   return queryOptions({
     queryKey: contentAnalyticsKeys.script(itemId),
     queryFn: ({ signal }) => getItemScript(itemId, signal),
+    staleTime: 60_000
+  });
+}
+
+/** Built once by Cron and never regenerated on read, so a minute of staleness is harmless. */
+export function itemReviewQueryOptions(itemId: string) {
+  return queryOptions({
+    queryKey: contentAnalyticsKeys.review(itemId),
+    queryFn: ({ signal }) => getItemReview(itemId, signal),
     staleTime: 60_000
   });
 }

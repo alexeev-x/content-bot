@@ -315,6 +315,16 @@ function AiSettings({ overview, onReload }: { overview: AiOverviewDto; onReload:
             onChange={(cheapModel) => change({ cheapModel })}
           />
         </div>
+        <div className={styles.reviewSwitch}>
+          <Switch
+            variant="row"
+            description={copy.videoReviewsHint}
+            isSelected={settings.videoReviews}
+            onChange={(videoReviews) => change({ videoReviews })}
+          >
+            {copy.videoReviews}
+          </Switch>
+        </div>
       </Panel>
 
       <Panel title={copy.budgetTitle} icon={<Icon name="zap" />}>

@@ -225,3 +225,9 @@
   display: grid;
   gap: var(--space-1);
 }
+
+/* The stage 5 switch under the two model pickers: the panel's own padding and a divider. */
+.reviewSwitch {
+  padding: var(--space-2) var(--space-4);
+  border-top: 1px solid var(--color-border-subtle);
+}

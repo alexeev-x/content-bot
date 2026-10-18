@@ -246,8 +246,17 @@ export async function readContentItem(
   deps: { repo: ContentAnalyticsRepository; clock: Clock; formats?: ItemFormats },
   id: string
 ): Promise<ContentItemDetailDto> {
+  const loaded = await loadContentItem(deps, id);
+  if (loaded === null) throw new AppError('NOT_FOUND', 'Content item not found');
+  return loaded.detail;
+}
+
+async function loadContentItem(
+  deps: { repo: ContentAnalyticsRepository; clock: Clock; formats?: ItemFormats },
+  id: string
+): Promise<{ detail: ContentItemDetailDto; checkpoints: CheckpointRow[] } | null> {
   const found = await deps.repo.readItem(id);
-  if (found === null) throw new AppError('NOT_FOUND', 'Content item not found');
+  if (found === null) return null;
   const checkpoints = await deps.repo.readCheckpoints({
     publishedFrom: deps.clock.now() - BASELINE_WINDOW_MS,
     platform: found.item.platform
@@ -259,7 +268,7 @@ export async function readContentItem(
   // writes in the title (owner, 17.10.2026), and a title without one is a video outside the rubrics.
   const format = linked ?? (video ? (found.ownerFormat ?? titleFormat(found.item.title)) : null);
   if (format === null) {
-    return { ...detailOf(found), baseline: platformCurve, format: null, formatSource: null };
+    return { detail: { ...detailOf(found), baseline: platformCurve, format: null, formatSource: null }, checkpoints };
   }
   // Same platform, same format, exact checkpoints, at least 5 videos (architecture item 1); else the platform
   // curve, which the page marks as a weak comparison.
@@ -273,12 +282,79 @@ export async function readContentItem(
     (row) => ids.has(row.id) && row.platform === found.item.platform && !row.contaminated
   ).length;
   return {
-    ...detailOf(found),
-    baseline: formatCurve.points.length > 0 ? { ...formatCurve, format } : platformCurve,
-    format,
-    formatSource: linked !== null ? 'script' : found.ownerFormat !== null ? 'owner' : 'title',
-    formatItems
+    detail: {
+      ...detailOf(found),
+      baseline: formatCurve.points.length > 0 ? { ...formatCurve, format } : platformCurve,
+      format,
+      formatSource: linked !== null ? 'script' : found.ownerFormat !== null ? 'owner' : 'title',
+      formatItems
+    },
+    checkpoints
   };
+}
+
+/** A video as its review needs it (stage 5 of the AI plan); the ai module's consumer port is satisfied by it. */
+export interface ReviewVideo {
+  id: string;
+  platform: 'youtube' | 'tiktok';
+  publishedAt: number;
+  /** Views at the 72 h checkpoint; null when that reading is missing. */
+  views72: number | null;
+  /** The latest counters; null where the platform has none. */
+  views: number | null;
+  likes: number | null;
+  comments: number | null;
+  shares: number | null;
+  contaminated: boolean;
+  format: VideoFormat | null;
+  /** The curve at 72 h: `format` is set only for a same-format curve of 5+ clean videos, else the platform's. */
+  baseline: {
+    format: VideoFormat | null;
+    items: number;
+    views: number | null;
+    low: number | null;
+    high: number | null;
+  };
+}
+
+/** The video for its review; null when it is unknown or not a YouTube/TikTok video. */
+export async function readReviewVideo(
+  deps: { repo: ContentAnalyticsRepository; clock: Clock; formats?: ItemFormats },
+  id: string
+): Promise<ReviewVideo | null> {
+  const loaded = await loadContentItem(deps, id);
+  if (loaded === null) return null;
+  const { item, baseline, format, contamination } = loaded.detail;
+  if (item.platform === 'telegram') return null;
+  const point = baseline.points.find((candidate) => candidate.ageHours === 72);
+  const own = loaded.checkpoints.find((row) => row.id === item.id);
+  return {
+    id: item.id,
+    platform: item.platform,
+    publishedAt: Date.parse(item.publishedAt),
+    views72: own?.views[72] ?? null,
+    views: item.views,
+    likes: item.likes,
+    comments: item.comments,
+    shares: item.shares,
+    contaminated: contamination != null,
+    format: format ?? null,
+    baseline: {
+      format: point === undefined ? null : (baseline.format ?? null),
+      items: point?.items ?? 0,
+      views: point?.views ?? null,
+      low: point?.low ?? null,
+      high: point?.high ?? null
+    }
+  };
+}
+
+/** YouTube/TikTok videos published in [from, to], newest first, at most `limit` (up to 100). */
+export function listReviewVideoIds(
+  repo: ContentAnalyticsRepository,
+  input: { from: number; to: number; limit: number }
+): Promise<string[]> {
+  return repo.videoIdsPublished({ ...input, limit: Math.min(input.limit, 100) });
 }
 
 const VIDEO_FORMATS: readonly VideoFormat[] = ['fidit', 'igrat', 'standalone'];

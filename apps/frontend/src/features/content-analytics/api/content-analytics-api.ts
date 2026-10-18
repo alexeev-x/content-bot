@@ -1,5 +1,6 @@
 import {
   aiItemScriptSchema,
+  aiVideoReviewResultSchema,
   contentAnalyticsOverviewSchema,
   contentGoalsSchema,
   contentItemDetailSchema,
@@ -59,6 +60,11 @@ const scriptPath = (itemId: string) => `/api/v1/ai/scripts/${encodeURIComponent(
 /** The approved AI script a video is linked to, or the candidates to confirm. */
 export function getItemScript(itemId: string, signal?: AbortSignal) {
   return apiRequest(scriptPath(itemId), aiItemScriptSchema, { signal });
+}
+
+/** The 72 h review of a video; `review` is null while it is not due (or the item is not a video). */
+export function getItemReview(itemId: string, signal?: AbortSignal) {
+  return apiRequest(`/api/v1/ai/reviews/${encodeURIComponent(itemId)}`, aiVideoReviewResultSchema, { signal });
 }
 
 export function linkItemScript(itemId: string, revisionId: string) {

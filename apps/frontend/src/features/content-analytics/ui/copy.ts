@@ -1,4 +1,4 @@
-import type { AiChainWarning, AiChangedPart, ContentPlatform } from '@alexeev/contracts';
+import type { AiChainWarning, AiChangedPart, AiReviewLimit, ContentPlatform } from '@alexeev/contracts';
 
 export const copy = {
   title: 'Аналитика',
@@ -191,6 +191,43 @@ export const copy = {
       approved_after_video: 'Сценарий одобрен после выхода видео — возможно, привязан не тот',
       approved_long_before: 'Сценарий одобрен больше чем за 14 дней до видео — проверьте привязку'
     } satisfies Record<AiChainWarning, string>
+  },
+  // «Разбор через 72 часа» (plan stage 5): facts, the same-format observation, hypotheses that are not conclusions.
+  review: {
+    title: 'Разбор через 72 часа',
+    notDue: 'Разбор появится, когда видео исполнится 72 часа',
+    pending: 'Разбор готовится',
+    loadError: 'Не удалось загрузить разбор.',
+    retry: 'Повторить',
+    views: 'Просмотры на 72-м часу',
+    likes: 'Лайков на 1 000',
+    comments: 'Комментариев на 1 000',
+    shares: 'Репостов на 1 000',
+    position: {
+      above: 'Выше обычного для формата',
+      within: 'В обычных пределах',
+      below: 'Ниже обычного'
+    },
+    range: (median: string, low: string, high: string) => `Медиана ${median}, обычно ${low}–${high}`,
+    basedOn: (count: number, format: string | null) =>
+      format === null
+        ? `по ${count} видео платформы: сравнение со всеми видео платформы — слабое`
+        : `по ${count} видео формата «${format}»`,
+    hypotheses: 'Гипотезы (не выводы)',
+    nextTest: 'Следующий тест',
+    meta: (model: string | null, cost: string | null) =>
+      [model === null ? null : `модель ${model}`, cost === null ? null : `стоимость ${cost}`]
+        .filter((part) => part !== null)
+        .join(' · '),
+    limited: {
+      no_script: 'Нет привязанного сценария — гипотез нет',
+      weak_baseline: 'Мало видео этого формата для сравнения',
+      no_snapshot: 'Нет замера на 72 часах',
+      contaminated: 'Видео отмечено как искажённое',
+      reviews_off: 'Разборы ИИ выключены в настройках',
+      budget: 'ИИ сейчас недоступен: бюджет, лимит, ключ или модель',
+      model_failed: 'Модель не ответила — только цифры'
+    } satisfies Record<AiReviewLimit, string>
   },
   widget: {
     audience: 'Аудитория',

@@ -57,6 +57,11 @@ const settingsFields = {
   draftModel: aiModelIdSchema.nullable(),
   /** Checks, tags, classification. */
   cheapModel: aiModelIdSchema.nullable(),
+  /**
+   * Stage 5: one cheap-model call per video at 72 h adds up to two hypotheses and one next test to its review. Off
+   * (the default, owner decision pending): reviews stay facts and the same-format comparison only, and no request is made.
+   */
+  videoReviews: z.boolean().default(false),
   /** The owner's own prices; a model without one uses the catalog's price. */
   prices: z.array(aiModelPriceSchema).max(10),
   monthlyBudgetUsd: usd,

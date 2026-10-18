@@ -702,6 +702,50 @@ export async function mockApi(page: Page): Promise<void> {
       ]
     })
   );
+  // Stage 5: the 72 h review by item id: yt…2 ready, yt…3 limited (no format), yt…4 pending, the rest not due.
+  await page.route(/\/api\/v1\/ai\/reviews\/[^/?]+$/, (route) => {
+    const id = decodeURIComponent(new URL(route.request().url()).pathname.split('/').pop() ?? '');
+    const base = {
+      itemId: id,
+      limitedReason: null,
+      facts: { views: 18_400, likesPer1000: 54.3, commentsPer1000: 3.2, sharesPer1000: null },
+      observation: {
+        format: 'igrat',
+        baselineViews: 12_100,
+        baselineItems: 14,
+        low: 7_800,
+        high: 19_500,
+        position: 'above'
+      },
+      hypotheses: [
+        'Возможно, сработал вопрос в первых секундах: просмотры выросли именно после него.',
+        'Возможно, тема патча привлекла тех, кто раньше не смотрел рубрику.'
+      ],
+      nextTest: 'Снять следующий выпуск с тем же началом, но без упоминания патча.',
+      model: 'gpt-6-luna',
+      costUsd: 0.0007,
+      createdAt: '2026-10-16T10:00:00.000Z'
+    };
+    if (id.endsWith('2')) return json(route, { review: { ...base, status: 'ready' } });
+    if (id.endsWith('3'))
+      return json(route, {
+        review: {
+          ...base,
+          status: 'limited',
+          limitedReason: 'weak_baseline',
+          observation: { ...base.observation, format: null, baselineItems: 3, position: 'within' },
+          hypotheses: [],
+          nextTest: null,
+          model: null,
+          costUsd: null
+        }
+      });
+    if (id.endsWith('4'))
+      return json(route, {
+        review: { ...base, status: 'pending', facts: { ...base.facts, views: null }, hypotheses: [], nextTest: null }
+      });
+    return json(route, { review: null });
+  });
   // «Настройки → ИИ» and the overview widget: on, one cheap check this month.
   await page.route(/\/api\/v1\/ai$/, (route) =>
     json(route, {
@@ -710,6 +754,7 @@ export async function mockApi(page: Page): Promise<void> {
         enabled: true,
         draftModel: 'gpt-6.1-sol',
         cheapModel: 'gpt-6-luna',
+        videoReviews: false,
         prices: [],
         monthlyBudgetUsd: 5,
         dailyCapUsd: 1,

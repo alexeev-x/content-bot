@@ -24,6 +24,7 @@ const SETTINGS: Omit<UpdateAiSettingsInput, 'revision'> = {
   enabled: true,
   draftModel: 'gpt-6.1-sol',
   cheapModel: 'gpt-6-luna',
+  videoReviews: false,
   prices: [
     { model: 'gpt-6.1-sol', inputPerMillion: 2, cachedInputPerMillion: 0.1, outputPerMillion: 10 },
     { model: 'gpt-6-luna', inputPerMillion: 0.1, cachedInputPerMillion: 0.01, outputPerMillion: 0.5 }

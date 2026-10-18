@@ -334,3 +334,45 @@
   padding-top: var(--space-3);
   border-top: 1px solid var(--color-border-subtle);
 }
+/* «Разбор через 72 часа»: facts in a grid, the observation in words, hypotheses as a list. */
+.reviewFacts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(8rem, 1fr));
+  gap: var(--space-3);
+  margin: 0;
+}
+.reviewFacts dd {
+  margin: 0;
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-semibold);
+  font-variant-numeric: tabular-nums;
+}
+.reviewObservation {
+  display: grid;
+  gap: var(--space-1);
+  padding: var(--space-3);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-2);
+  background: var(--color-surface-2);
+}
+.reviewObservation p {
+  margin: 0;
+}
+.reviewVerdict {
+  font-weight: var(--font-weight-semibold);
+}
+.reviewBlock {
+  display: grid;
+  gap: var(--space-1);
+}
+.reviewHeading {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+}
+.reviewList {
+  margin: 0;
+  padding-inline-start: var(--space-4);
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-body);
+}

@@ -25,6 +25,7 @@ const DEFAULTS: Omit<AiSettingsDto, 'revision' | 'updatedAt'> = {
   enabled: false,
   draftModel: 'gpt-6.1-sol',
   cheapModel: 'gpt-6-luna',
+  videoReviews: false,
   prices: [],
   monthlyBudgetUsd: 5,
   dailyCapUsd: 1,

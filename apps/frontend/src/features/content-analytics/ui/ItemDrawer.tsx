@@ -35,6 +35,7 @@ import { copy } from './copy';
 import styles from './Drawer.module.css';
 import { ItemCover } from './ItemCover';
 import { CONTAMINATION, ItemContamination } from './ItemContamination';
+import { ItemReview } from './ItemReview';
 import { ItemScript, rubricOf } from './ItemScript';
 import { PlatformGlyph } from './PlatformGlyph';
 import { StatusChip } from './StatusChip';
@@ -377,6 +378,7 @@ function DrawerBody({
             </section>
 
             {item.platform !== 'telegram' ? <ItemScript item={item} timezone={timezone} onOpen={onOpen} /> : null}
+            {item.platform !== 'telegram' ? <ItemReview item={item} /> : null}
             <ItemContamination detail={detail} />
           </div>
         </TabPanel>

@@ -36,7 +36,7 @@
 | 2 | Make learning from owner edits useful | PARTIAL | 0–1 | curated, relevant examples and attributable feedback |
 | 3 | Establish format-aware video measurement | DEV CHECK | 0 | honest comparisons within format and content age |
 | 4 | Complete draft-to-video traceability | DEV CHECK | 2–3 | every review sees the approved script and provenance |
-| 5 | Add evidence-safe T+72 reviews | TODO | 3–4 | observations and hypotheses, not invented explanations |
+| 5 | Add evidence-safe T+72 reviews | DEV CHECK | 3–4 | observations and hypotheses, not invented explanations |
 | 6 | Add learning rules and weekly runtime memory | TODO | 2, 5 | evidence-backed, owner-controlled improvement loop |
 | 7 | Validate and expose the learning process | TODO | 1–6 | visible effect, controlled comparisons, quality monitoring |
 | 8 | Consider optional optimization and future automation | DEFERRED | stable 7 | embeddings/news drafting only if justified |
@@ -90,13 +90,10 @@ Stages 2 and 3 can be designed independently; implement 3 before 5, and do not s
 
 ## Stage 5 — T+72 video review with guarded conclusions (P1)
 
-- [ ] At an eligible video age, collect reliable snapshots at the same age and the same-format baseline; schedule bounded, idempotent review through existing application/Cron components, not a new service.
-- [ ] Separate **fact** (actual counters and source timestamps), **observation** (comparison), and **hypothesis** (why it might have worked). Do not claim that a hook caused success from one video.
-- [ ] When baseline is weak or data is incomplete, show an honest limited review instead of a fabricated verdict.
-- [ ] Analyze the approved hook, topic and structure with only supported platform signals; possible reasons remain explicitly uncertain.
-- [ ] Produce a compact report: 1–3 observations, at most 2 hypotheses, one next experiment. Attach evidence references and model/cost metadata.
-- [ ] Review must be retrievable alongside its source video; add deterministic schema/code checks and bounded optional cheap-model processing.
-- [ ] Test no double review under overlapping Cron, incomplete snapshots, unknown format, missing approved script, unexpected platform outages and budget exhaustion.
+In code since 18.10.2026 (migration 0072, Cron step «ai-reviews», the video panel and the «Разборы видео через 72 часа» switch, off by default).
+
+- [ ] The owner decides whether to turn the model part on (one cheap call per video).
+- [ ] On DEV: a video past 74 h gets a review; facts match the panel; a weak or missing comparison shows the limit instead of hypotheses; overlapping ticks make one call.
 
 **Acceptance:** owner can open a traceable T+72 report and distinguish measured facts from interpretations; reviews without adequate evidence do not create strong learning rules. **Spec:** architecture.md items 11–13.
 

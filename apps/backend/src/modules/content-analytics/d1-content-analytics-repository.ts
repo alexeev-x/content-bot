@@ -121,6 +121,8 @@ export interface ContentAnalyticsRepository {
     ownerFormat: VideoFormat | null;
     contamination: Contamination | null;
   } | null>;
+  /** Ids of YouTube/TikTok videos published in [from, to], newest first. */
+  videoIdsPublished(input: { from: number; to: number; limit: number }): Promise<string[]>;
   /** Items the owner marked with `format`, at most 500. */
   itemsMarked(format: VideoFormat): Promise<string[]>;
   /** Sets (or with null clears) the owner's mark of an existing item. */
@@ -458,6 +460,17 @@ export function createD1ContentAnalyticsRepository(db: D1Database): ContentAnaly
         ownerFormat: (mark?.results as { format: VideoFormat }[] | undefined)?.[0]?.format ?? null,
         contamination: (contamination?.results as Contamination[] | undefined)?.[0] ?? null
       };
+    },
+
+    async videoIdsPublished({ from, to, limit }) {
+      const rows = await db
+        .prepare(
+          `SELECT id FROM content_items WHERE platform IN ('youtube', 'tiktok') AND published_at >= ?1 AND published_at <= ?2
+           ORDER BY published_at DESC, id DESC LIMIT ?3`
+        )
+        .bind(from, to, limit)
+        .all<{ id: string }>();
+      return rows.results.map((row) => row.id);
     },
 
     async itemsMarked(format) {

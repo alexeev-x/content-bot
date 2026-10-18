@@ -11,6 +11,7 @@ const SETTINGS: Omit<UpdateAiSettingsInput, 'revision'> = {
   enabled: true,
   draftModel: 'gpt-6.1-sol',
   cheapModel: 'gpt-6-luna',
+  videoReviews: false,
   prices: [],
   monthlyBudgetUsd: 5,
   dailyCapUsd: 1,

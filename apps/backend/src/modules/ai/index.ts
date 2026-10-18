@@ -57,3 +57,6 @@ export {
 export { FORMAT_LABEL, WRITER_FORMATS, type WriterFormat } from './writer-types';
 export { authorStateText, rankLabel, readAuthorProfile, saveAuthorDota, updateAuthorProfile } from './author-profile';
 export { type AuthorProfileRepository, createD1AuthorProfileRepository } from './d1-author-repository';
+export { createD1ReviewRepository, type ReviewRepository } from './d1-review-repository';
+export type { ReviewVideo, ReviewVideoSource } from './ports';
+export { readVideoReview, type ReviewDeps, runVideoReviews, REVIEWS_PER_TICK } from './video-reviews';

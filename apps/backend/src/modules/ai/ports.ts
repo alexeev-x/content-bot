@@ -75,3 +75,41 @@ export interface OwnerPostSource {
   recent(limit: number): Promise<OwnerPost[]>;
   find(id: string): Promise<OwnerPost | null>;
 }
+
+export type ReviewVideoFormat = 'fidit' | 'igrat' | 'standalone';
+
+/** A YouTube/TikTok video as its review needs it. */
+export interface ReviewVideo {
+  id: string;
+  platform: 'youtube' | 'tiktok';
+  publishedAt: number;
+  /** Views at the 72 h checkpoint; null when that reading is missing. */
+  views72: number | null;
+  /** The latest counters; null where the platform gives none. */
+  views: number | null;
+  likes: number | null;
+  comments: number | null;
+  shares: number | null;
+  /** The owner confirmed the numbers are distorted. */
+  contaminated: boolean;
+  /** The curve at 72 h; `format` is set only for a same-format curve of five or more clean videos. */
+  baseline: {
+    format: ReviewVideoFormat | null;
+    items: number;
+    views: number | null;
+    low: number | null;
+    high: number | null;
+  };
+}
+
+/**
+ * Where the reviews read videos from (the content-analytics module, wired in `app/container.ts`): the ai module
+ * never reads content tables.
+ */
+export interface ReviewVideoSource {
+  /** YouTube/TikTok videos published in [from, to], newest first, at most `limit`. */
+  dueIds(input: { from: number; to: number; limit: number }): Promise<string[]>;
+  read(id: string): Promise<ReviewVideo | null>;
+  /** Just the platform and the publishing time; null when the id is not a YouTube/TikTok video. */
+  find(id: string): Promise<{ platform: 'youtube' | 'tiktok'; publishedAt: number } | null>;
+}

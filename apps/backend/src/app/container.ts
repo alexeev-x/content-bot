@@ -57,11 +57,14 @@ import {
   type AiTextProvider,
   createD1AiRepository,
   createD1AuthorProfileRepository,
+  createD1ReviewRepository,
   createD1ScriptLinksRepository,
   createD1WriterRepository,
   type AuthorProfileRepository,
   createOpenAiProvider,
   type OwnerPostSource,
+  type ReviewRepository,
+  type ReviewVideoSource,
   type ScriptLinksRepository,
   type WriterRepository
 } from '../modules/ai';
@@ -96,6 +99,8 @@ import {
   type ContentGoalRepository,
   createD1ContentAnalyticsRepository,
   createD1TikTokConnectionRepository,
+  listReviewVideoIds,
+  readReviewVideo,
   type TikTokConnectionRepository
 } from '../modules/content-analytics';
 
@@ -191,6 +196,10 @@ export interface Container {
   aiProfiles: AuthorProfileRepository;
   /** Published videos ↔ approved AI scripts, confirmed by the owner (migration 0060). */
   aiScriptLinks: ScriptLinksRepository;
+  /** One review per YouTube/TikTok video at 72 h (migration 0072). */
+  aiReviews: ReviewRepository;
+  /** The videos the reviews read, through the content-analytics module (consumer-owned port). */
+  aiReviewVideos: ReviewVideoSource;
   heroAssetStorage: HeroAssetStorage | undefined;
   housekeeping: {
     purgeExpired(input: { now: number; limit: number }): Promise<{ idempotencyKeys: number; rateLimits: number }>;
@@ -521,6 +530,24 @@ export function createContainer(env: ContainerEnv, overrides: ContainerOverrides
     },
     get aiScriptLinks() {
       return createD1ScriptLinksRepository(db());
+    },
+    get aiReviews() {
+      return createD1ReviewRepository(db());
+    },
+    get aiReviewVideos(): ReviewVideoSource {
+      const repo = createD1ContentAnalyticsRepository(db());
+      const formats = createD1ScriptLinksRepository(db());
+      const clock = overrides.clock ?? systemClock;
+      return {
+        dueIds: (input) => listReviewVideoIds(repo, input),
+        read: (id) => readReviewVideo({ repo, clock, formats }, id),
+        find: async (id) => {
+          const found = await repo.readItem(id);
+          return found === null || found.item.platform === 'telegram'
+            ? null
+            : { platform: found.item.platform, publishedAt: found.item.publishedAt };
+        }
+      };
     },
     get aiProvider() {
       if (overrides.aiProvider !== undefined) return overrides.aiProvider;

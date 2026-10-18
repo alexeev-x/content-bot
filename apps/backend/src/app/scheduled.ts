@@ -24,6 +24,7 @@ import { notifyOwnerOfDeliveries } from './notifications/sent-notice';
 import { collectContentAnalytics, raiseContentAlerts, SOURCE_D1_STATEMENTS } from '../modules/content-analytics';
 import { mirrorHeroAssets } from '../modules/hero-assets';
 import { sendContentAlerts } from './workflows/send-content-alerts';
+import { runAiReviews } from './workflows/run-ai-reviews';
 
 // Per table and per hourly tick; leftovers wait for the next hour.
 export const CLEANUP_LIMIT = 100;
@@ -40,6 +41,13 @@ const CONTENT_ALERTS_RESERVE = 24;
 const HERO_ASSETS_MIN = 6;
 // The tick of this UTC minute purges expired archived posts (cleanup runs at minute 0).
 const PURGE_MINUTE = 30;
+// AI reviews of 72 h old videos: D1 statements of one review (claim, reading the video and its curve, the budget
+// gate with its spend reads, the usage row, a possible alert claim, the result) and of the step's own scan.
+const AI_REVIEW_STATEMENTS = 30;
+const AI_REVIEW_SCAN_STATEMENTS = 6;
+// Ticks of these UTC minutes (14, 34, 54): their own slots, so no other step moves.
+const AI_REVIEW_MINUTE_MOD = 20;
+const AI_REVIEW_MINUTE = 14;
 // Ended sessions stay this long for diagnosis before they are deleted.
 const SESSION_GRACE_MS = 24 * 60 * 60 * 1000;
 
@@ -84,6 +92,11 @@ type TickContainer = Pick<
   | 'contentFetch'
   | 'heroAssets'
   | 'heroAssetStorage'
+  | 'aiReviews'
+  | 'aiReviewVideos'
+  | 'aiScriptLinks'
+  | 'aiRepository'
+  | 'aiProvider'
 >;
 
 // Cron entry point, once a minute (docs/BACKEND_ARCHITECTURE.md §5). Ticks may overlap or repeat:
@@ -100,6 +113,7 @@ type TickContainer = Pick<
 //      (best effort, nothing is retried; a tick without incidents spends nothing here)
 //   7. dota watch: on five-minute UTC boundaries after publication work, only when that tick was idle and
 //      not on the hourly housekeeping ticks; bounded work leaves the publishing D1 budget untouched
+//   7d. ai reviews: videos that turned 72 hours old, idle ticks of minutes 14, 34, 54 (one step, two videos at most)
 //   8a. bot media import: leftovers of the files the owner sent to the bot (idle ticks only, last, on what the tick has left)
 //   8. heartbeat: one upsert that records this run for the owner's /status
 export async function handleScheduled(controller: ScheduledController, container: TickContainer): Promise<void> {
@@ -438,6 +452,45 @@ export async function handleScheduled(controller: ScheduledController, container
         contentAlertsSent: sent.sent,
         contentAlertsFailed: sent.failed,
         contentAlertsUnknown: sent.unknown
+      };
+    });
+  }
+
+  // 10. AI reviews of videos that became 72 hours old, on idle ticks of minutes 14, 34 and 54: at most two videos
+  // per tick, only on what the tick has left. Facts and the same-format observation need no model; the cheap
+  // model is asked only for a review nothing limits (settings, budget), once per video.
+  if (
+    (counts.due ?? 0) === 0 &&
+    raised.length === 0 &&
+    minute % AI_REVIEW_MINUTE_MOD === AI_REVIEW_MINUTE &&
+    container.queryBudget.remaining() >= AI_REVIEW_SCAN_STATEMENTS + HEARTBEAT_RESERVE
+  ) {
+    await step('ai-reviews', async () => {
+      const result = await runAiReviews({
+        review: {
+          reviews: container.aiReviews,
+          source: container.aiReviewVideos,
+          links: container.aiScriptLinks,
+          repo: container.aiRepository,
+          provider: container.aiProvider,
+          clock,
+          timezone: async () => (await readPreferences()).timezone,
+          newId: container.newId,
+          afford: () => container.queryBudget.remaining() >= AI_REVIEW_STATEMENTS + HEARTBEAT_RESERVE
+        },
+        messenger: container.ownerMessenger,
+        ownerChatId: container.ownerChatId,
+        readAppOrigin,
+        charge: (count) => container.queryBudget.charge(count),
+        logger
+      });
+      return {
+        aiReviewsQueued: result.enqueued,
+        aiReviewsReopened: result.reopened,
+        aiReviewsReady: result.ready,
+        aiReviewsLimited: result.limited,
+        aiReviewsRetry: result.retry,
+        aiReviewsLost: result.lost
       };
     });
   }
