@@ -67,7 +67,11 @@ export function PublicationsPage({ search, onSearchChange, onOpenPosts, onPublis
   useDocumentTitle(copy.list.title);
   const narrow = useMediaQuery(NARROW);
   const timezone = useOwnerTimezone();
-  const { list, switching, shownView, items, post, postTitle, channel } = usePublicationsData(search, timezone, pollMs);
+  const { list, postDetailsPending, switching, shownView, items, post, postTitle, channel } = usePublicationsData(
+    search,
+    timezone,
+    pollMs
+  );
   const [publishOpen, setPublishOpen] = useState(false);
   const [deleteTargets, setDeleteTargets] = useState<ReturnType<typeof deleteTargetOf>[] | null>(null);
   const [resendFor, setResendFor] = useState<PublicationDto | null>(null);
@@ -316,7 +320,7 @@ export function PublicationsPage({ search, onSearchChange, onOpenPosts, onPublis
                         onQueryChange={setQuery}
                         order={search.order}
                         defaultOrder={defaultOrder}
-                        isLoading={list.isPending}
+                        isLoading={list.isPending || postDetailsPending}
                         onOrderChange={(next) => onSearchChange({ order: next })}
                       />
                     ) : null}

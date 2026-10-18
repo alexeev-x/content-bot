@@ -208,7 +208,7 @@ function Grid(props: Props) {
         : {})}
       activeId={activeId}
       isLoading={isLoading ?? false}
-      loadingRows={PUBLICATION_ROW_LOADING}
+      loadingRows={rows.length > 0 ? rows.length : PUBLICATION_ROW_LOADING}
       {...(order ? { sort: { column: 'time', direction: order === 'asc' ? 'ascending' : 'descending' } } : {})}
       onSortChange={(next) => onOrderChange?.(next.direction === 'ascending' ? 'asc' : 'desc')}
     />
@@ -217,7 +217,13 @@ function Grid(props: Props) {
 
 function Cards({ rows, post, channel, onOpen, activeId, isLoading, selectable, selected, onToggle, timezone }: Props) {
   const zone = timezone ?? browserTimeZone();
-  if (isLoading) return <PhoneSkeletonRows label={copy.list.tableLabel} />;
+  if (isLoading) {
+    return (
+      <div aria-busy="true">
+        <PhoneSkeletonRows {...(rows.length > 0 ? { count: rows.length } : {})} label={copy.list.tableLabel} />
+      </div>
+    );
+  }
   return (
     <PanelList aria-label={copy.list.tableLabel}>
       {rows.map((row) => {

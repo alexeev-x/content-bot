@@ -74,6 +74,18 @@ export function usePublicationsData(search: PublicationsSearch, timeZone: string
   ].join(',');
   const postIds = useMemo(() => (idKey ? idKey.split(',') : []), [idKey]);
   const posts = useQueries({ queries: postIds.map((id) => postQueryOptions(id)) });
+  const visiblePostIds = useMemo(
+    () => new Set(items.filter((item) => item.postDeleted !== true).map((item) => item.postId)),
+    [items]
+  );
+  const postDetailsPending = useMemo(
+    () =>
+      posts.some((result, index) => {
+        const id = postIds[index];
+        return id !== undefined && visiblePostIds.has(id) && result.isPending;
+      }),
+    [posts, postIds, visiblePostIds]
+  );
   const postById = useMemo(() => {
     const map = new Map<string, PostDto>();
     for (const result of posts) if (result.data) map.set(result.data.id, result.data);
@@ -102,6 +114,7 @@ export function usePublicationsData(search: PublicationsSearch, timeZone: string
 
   return {
     list,
+    postDetailsPending,
     counts: counts.data,
     switching,
     shownView: shownScope as PublicationView,
