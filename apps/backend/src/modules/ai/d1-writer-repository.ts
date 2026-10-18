@@ -1,5 +1,5 @@
 import type { AiFeedbackKind } from '@alexeev/contracts';
-import type { WriterFormat, WriterMode } from './writer-types';
+import { WRITER_FORMATS, type WriterFormat, type WriterMode } from './writer-types';
 
 export type Provenance = 'AI_DRAFT' | 'OWNER_EDITED' | 'OWNER_APPROVED' | 'OWNER_PREAPPROVED';
 /** The owner's verdicts on a draft (migration 0067). */
@@ -106,6 +106,39 @@ export interface QualityRows {
   /** Approvals tagged with changed parts (migration 0061) and how many of them changed each part. */
   tagged: number;
   changedParts: { part: string; count: number }[];
+  /** Every writer format over the same period (the bot's drafts only), zeros included. */
+  byFormat: FormatQualityRow[];
+}
+
+export interface FormatQualityRow {
+  format: WriterFormat;
+  drafts: number;
+  questions: number;
+  approved: number;
+  approvedUnchanged: number;
+  averageEditRatio: number | null;
+  /** Shares over tagged approvals; null without any. */
+  hookChangedShare: number | null;
+  endingChangedShare: number | null;
+  jokeMissed: number;
+  medianMinutesToApproval: number | null;
+}
+
+/** Approvals of a period, for the comparison with the one before it. */
+export interface PeriodApprovals {
+  approved: number;
+  averageEditRatio: number | null;
+}
+
+/** Most approvals read to find the median time to approval: bounds the work and the rows. */
+const MEDIAN_ROWS = 500;
+
+export function median(values: readonly number[]): number | null {
+  if (values.length === 0) return null;
+  const sorted = [...values].sort((a, b) => a - b);
+  const middle = Math.floor(sorted.length / 2);
+  const high = sorted[middle] ?? 0;
+  return sorted.length % 2 === 1 ? high : ((sorted[middle - 1] ?? 0) + high) / 2;
 }
 
 /** The chat's mode: talking to the editor, or turning every message into a draft. */
@@ -188,6 +221,8 @@ export interface WriterRepository {
   ): Promise<{ postId: string; source: 'bot' | 'studio'; editRatio: number | null }[]>;
   /** Counts of the writer's work since `since` (UTC ms), for «Качество». */
   quality(since: number): Promise<QualityRows>;
+  /** Approvals in [from, to): the period right before «Качество», compared with it. */
+  periodApprovals(from: number, to: number): Promise<PeriodApprovals>;
   /** Opens (or restarts) the chat's mode: the /redactor conversation (empty history) or /post. */
   openRequest(input: {
     chatId: number;
@@ -634,53 +669,83 @@ export function createD1WriterRepository(db: D1Database): WriterRepository {
     },
 
     async quality(since) {
-      const [generations, approvals, feedback, cost, tagged, parts] = await db.batch([
-        db
-          .prepare(
-            `SELECT kind, status, result, source, COUNT(*) AS n,
+      const [generations, approvals, feedback, cost, tagged, parts, formatApprovals, formatJokes, approvalTimes] =
+        await db.batch([
+          db
+            .prepare(
+              `SELECT format, kind, status, result, source, COUNT(*) AS n,
                     SUM(CASE WHEN warnings IS NOT NULL AND warnings <> '[]' THEN 1 ELSE 0 END) AS warned
-             FROM ai_generations WHERE created_at >= ? GROUP BY kind, status, result, source`
-          )
-          .bind(since),
-        db
-          .prepare(
-            `SELECT COUNT(*) AS n, SUM(CASE WHEN edit_ratio <= 0.05 THEN 1 ELSE 0 END) AS unchanged,
+             FROM ai_generations WHERE created_at >= ? GROUP BY format, kind, status, result, source`
+            )
+            .bind(since),
+          db
+            .prepare(
+              `SELECT COUNT(*) AS n, SUM(CASE WHEN edit_ratio <= 0.05 THEN 1 ELSE 0 END) AS unchanged,
                     AVG(edit_ratio) AS ratio
              FROM ai_text_revisions
              WHERE provenance IN ('OWNER_APPROVED', 'OWNER_PREAPPROVED') AND created_at >= ?`
-          )
-          .bind(since),
-        db
-          .prepare(
-            `SELECT kind, COUNT(*) AS n FROM ai_feedback WHERE created_at >= ? GROUP BY kind ORDER BY n DESC, kind`
-          )
-          .bind(since),
-        db
-          .prepare(
-            `SELECT AVG(u.cost_micro_usd) AS cost FROM ai_generations g JOIN ai_usage u ON u.id = g.usage_id
+            )
+            .bind(since),
+          db
+            .prepare(
+              `SELECT kind, COUNT(*) AS n FROM ai_feedback WHERE created_at >= ? GROUP BY kind ORDER BY n DESC, kind`
+            )
+            .bind(since),
+          db
+            .prepare(
+              `SELECT AVG(u.cost_micro_usd) AS cost FROM ai_generations g JOIN ai_usage u ON u.id = g.usage_id
              WHERE g.kind = 'draft' AND g.created_at >= ? AND u.cost_micro_usd IS NOT NULL`
-          )
-          .bind(since),
-        db
-          .prepare(
-            `SELECT COUNT(*) AS n FROM ai_text_revisions
+            )
+            .bind(since),
+          db
+            .prepare(
+              `SELECT COUNT(*) AS n FROM ai_text_revisions
              WHERE provenance IN ('OWNER_APPROVED', 'OWNER_PREAPPROVED') AND created_at >= ? AND changed_parts IS NOT NULL`
-          )
-          .bind(since),
-        db
-          .prepare(
-            `SELECT j.value AS part, COUNT(*) AS n FROM ai_text_revisions r, json_each(r.changed_parts) j
+            )
+            .bind(since),
+          db
+            .prepare(
+              `SELECT j.value AS part, COUNT(*) AS n FROM ai_text_revisions r, json_each(r.changed_parts) j
              WHERE r.provenance IN ('OWNER_APPROVED', 'OWNER_PREAPPROVED') AND r.created_at >= ?
                AND r.changed_parts IS NOT NULL
              GROUP BY j.value`
-          )
-          .bind(since)
-      ]);
+            )
+            .bind(since),
+          db
+            .prepare(
+              `SELECT g.format AS format, COUNT(*) AS n, SUM(CASE WHEN r.edit_ratio <= 0.05 THEN 1 ELSE 0 END) AS unchanged,
+                    AVG(r.edit_ratio) AS ratio,
+                    SUM(CASE WHEN r.changed_parts IS NOT NULL THEN 1 ELSE 0 END) AS tagged,
+                    SUM(CASE WHEN r.changed_parts IS NOT NULL
+                              AND EXISTS (SELECT 1 FROM json_each(r.changed_parts) WHERE value = 'hook') THEN 1 ELSE 0 END) AS hook,
+                    SUM(CASE WHEN r.changed_parts IS NOT NULL
+                              AND EXISTS (SELECT 1 FROM json_each(r.changed_parts) WHERE value = 'ending') THEN 1 ELSE 0 END) AS ending
+             FROM ai_text_revisions r JOIN ai_generations g ON g.id = r.generation_id
+             WHERE r.provenance IN ('OWNER_APPROVED', 'OWNER_PREAPPROVED') AND r.created_at >= ?
+             GROUP BY g.format`
+            )
+            .bind(since),
+          db
+            .prepare(
+              `SELECT g.format AS format, COUNT(*) AS n FROM ai_feedback f JOIN ai_generations g ON g.id = f.generation_id
+             WHERE f.kind = 'joke_missed' AND f.created_at >= ? GROUP BY g.format`
+            )
+            .bind(since),
+          db
+            .prepare(
+              `SELECT g.format AS format, r.created_at - g.created_at AS ms
+             FROM ai_text_revisions r JOIN ai_generations g ON g.id = r.generation_id
+             WHERE r.provenance IN ('OWNER_APPROVED', 'OWNER_PREAPPROVED') AND r.created_at >= ?
+             ORDER BY r.created_at DESC LIMIT ${MEDIAN_ROWS}`
+            )
+            .bind(since)
+        ]);
       const verdicts = ((feedback?.results ?? []) as { kind: FeedbackKind; n: number }[]).map((row) => ({
         kind: row.kind,
         count: row.n
       }));
       const rows = (generations?.results ?? []) as {
+        format: string;
         kind: string;
         status: string;
         result: string | null;
@@ -697,7 +762,37 @@ export function createD1WriterRepository(db: D1Database): WriterRepository {
         from.filter(match).reduce((total, row) => total + row.n, 0);
       const approval = approvals?.results[0] as
         { n: number; unchanged: number | null; ratio: number | null } | undefined;
+      const formatRows = (formatApprovals?.results ?? []) as {
+        format: string;
+        n: number;
+        unchanged: number | null;
+        ratio: number | null;
+        tagged: number | null;
+        hook: number | null;
+        ending: number | null;
+      }[];
+      const jokes = (formatJokes?.results ?? []) as { format: string; n: number }[];
+      const times = (approvalTimes?.results ?? []) as { format: string; ms: number }[];
+      const share = (count: number | null, of: number | null) => (of === null || of === 0 ? null : (count ?? 0) / of);
+      const byFormat = WRITER_FORMATS.map((format): FormatQualityRow => {
+        const mine = bot.filter((row) => row.format === format);
+        const done = formatRows.find((row) => row.format === format);
+        const minutes = median(times.filter((row) => row.format === format).map((row) => Math.max(0, row.ms) / 60000));
+        return {
+          format,
+          drafts: sum(mine, (row) => row.kind === 'draft' && text(row)),
+          questions: sum(mine, (row) => row.status === 'ready' && row.result === 'needs_facts'),
+          approved: done?.n ?? 0,
+          approvedUnchanged: done?.unchanged ?? 0,
+          averageEditRatio: done?.ratio ?? null,
+          hookChangedShare: share(done?.hook ?? null, done?.tagged ?? null),
+          endingChangedShare: share(done?.ending ?? null, done?.tagged ?? null),
+          jokeMissed: jokes.find((row) => row.format === format)?.n ?? 0,
+          medianMinutesToApproval: minutes
+        };
+      });
       return {
+        byFormat,
         drafts: sum(bot, (row) => row.kind === 'draft' && text(row)),
         rewrites: sum(bot, (row) => row.kind === 'rewrite' && text(row)),
         questions: sum(bot, (row) => row.status === 'ready' && row.result === 'needs_facts'),
@@ -716,6 +811,17 @@ export function createD1WriterRepository(db: D1Database): WriterRepository {
           count: row.n
         }))
       };
+    },
+
+    async periodApprovals(from, to) {
+      const row = await db
+        .prepare(
+          `SELECT COUNT(*) AS n, AVG(edit_ratio) AS ratio FROM ai_text_revisions
+           WHERE provenance IN ('OWNER_APPROVED', 'OWNER_PREAPPROVED') AND created_at >= ? AND created_at < ?`
+        )
+        .bind(from, to)
+        .first<{ n: number; ratio: number | null }>();
+      return { approved: row?.n ?? 0, averageEditRatio: row?.ratio ?? null };
     },
 
     async ownerExamples({ format, limit }) {

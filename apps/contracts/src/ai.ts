@@ -139,6 +139,26 @@ export const AI_FEEDBACK_KINDS = [
 ] as const;
 export type AiFeedbackKind = (typeof AI_FEEDBACK_KINDS)[number];
 
+/** Approvals each period needs before two periods are compared (stage 7: no uplift from a handful of texts). */
+export const AI_QUALITY_MIN_APPROVED = 10;
+
+/** One writer format over the quality period (stage 7, docs/ai/architecture.md item 15). */
+export const aiFormatQualitySchema = z.object({
+  format: z.enum(['fidit', 'igrat', 'standalone', 'telegram']),
+  drafts: z.number().int().nonnegative(),
+  questions: z.number().int().nonnegative(),
+  approved: z.number().int().nonnegative(),
+  approvedUnchanged: z.number().int().nonnegative(),
+  averageEditRatio: z.number().min(0).max(1).nullable(),
+  /** Share of tagged approvals where the owner rewrote the hook / the ending; null without tagged approvals. */
+  hookChangedShare: z.number().min(0).max(1).nullable(),
+  endingChangedShare: z.number().min(0).max(1).nullable(),
+  jokeMissed: z.number().int().nonnegative(),
+  /** Median minutes from the first draft to its approval; null without approvals. */
+  medianMinutesToApproval: z.number().nonnegative().nullable()
+});
+export type AiFormatQualityDto = z.infer<typeof aiFormatQualitySchema>;
+
 export const aiQualitySchema = z.object({
   days: z.number().int().positive(),
   /**
@@ -176,7 +196,21 @@ export const aiQualitySchema = z.object({
    */
   changedParts: z
     .array(z.object({ part: z.enum(AI_CHANGED_PARTS), share: z.number().min(0).max(1) }))
-    .max(AI_CHANGED_PARTS.length)
+    .max(AI_CHANGED_PARTS.length),
+  /** Stage 7: the same period by format (the bot's drafts only), every writer format present, zeros included. */
+  byFormat: z.array(aiFormatQualitySchema).max(4).optional(),
+  /**
+   * Stage 7: the previous period of the same length, for a comparison the owner can trust. `comparable` is true only
+   * when both periods have at least AI_QUALITY_MIN_APPROVED approvals; otherwise the UI says there is too little to
+   * compare and shows no direction. Never a cause, only the two numbers.
+   */
+  previous: z
+    .object({
+      approved: z.number().int().nonnegative(),
+      averageEditRatio: z.number().min(0).max(1).nullable(),
+      comparable: z.boolean()
+    })
+    .optional()
 });
 export type AiQualityDto = z.infer<typeof aiQualitySchema>;
 
@@ -479,3 +513,61 @@ export const aiUnlinkedScriptsSchema = z.object({
   items: z.array(aiReelsScriptSchema).max(AI_UNLINKED_LIMIT)
 });
 export type AiUnlinkedScriptsDto = z.infer<typeof aiUnlinkedScriptsSchema>;
+
+// Stage 5 of docs/ai/IMPLEMENTATION_PLAN.md (architecture items 11–13): a review of a YouTube/TikTok video once it is
+// 72 hours old. Facts are the measured numbers, the observation compares them with the same-format curve, hypotheses
+// say «возможно» and never become a rule by themselves. Built by Cron, once per video; nothing is re-generated on read.
+// GET /api/v1/ai/reviews/{itemId} → 200 AiVideoReviewResultDto: `review` null while the video is younger than
+// AI_REVIEW_AGE_HOURS, older than AI_REVIEW_MAX_AGE_DAYS when reviews began, or not a video.
+// Errors: VALIDATION_ERROR 400 (bad id), UNAUTHORIZED 401, FORBIDDEN 403.
+export const AI_REVIEW_AGE_HOURS = 72;
+export const AI_REVIEW_MAX_AGE_DAYS = 30;
+export const AI_REVIEW_TEXT_MAX = 300;
+/**
+ * Why a review has no hypotheses: no linked script to judge (`no_script`), the same-format curve rests on fewer than
+ * 5 videos (`weak_baseline`), no snapshot at 72 h (`no_snapshot`), the owner marked the video distorted
+ * (`contaminated`), reviews by the model are off (`reviews_off`), the budget or cap stopped the call (`budget`), or
+ * the model failed or answered in the wrong shape (`model_failed`).
+ */
+export const aiReviewLimitSchema = z.enum([
+  'no_script',
+  'weak_baseline',
+  'no_snapshot',
+  'contaminated',
+  'reviews_off',
+  'budget',
+  'model_failed'
+]);
+export type AiReviewLimit = z.infer<typeof aiReviewLimitSchema>;
+export const aiVideoReviewSchema = z.object({
+  itemId: z.string().min(3).max(160),
+  /** `pending`: due and waiting for the next Cron tick; `ready`: with hypotheses; `limited`: facts only. */
+  status: z.enum(['pending', 'ready', 'limited']),
+  limitedReason: aiReviewLimitSchema.nullable(),
+  facts: z.object({
+    /** Views at the 72 h checkpoint; null when that snapshot is missing. */
+    views: z.number().int().nonnegative().nullable(),
+    /** The latest counters the platform gives, per 1 000 views; null where the platform has none. */
+    likesPer1000: z.number().nonnegative().nullable(),
+    commentsPer1000: z.number().nonnegative().nullable(),
+    sharesPer1000: z.number().nonnegative().nullable()
+  }),
+  observation: z.object({
+    /** The video's format, or null when it was compared with the whole platform (a weak comparison). */
+    format: z.enum(['fidit', 'igrat', 'standalone']).nullable(),
+    baselineViews: z.number().int().nonnegative().nullable(),
+    baselineItems: z.number().int().nonnegative(),
+    low: z.number().int().nonnegative().nullable(),
+    high: z.number().int().nonnegative().nullable(),
+    /** Against the middle half of the curve at 72 h; null without a curve or a snapshot. */
+    position: z.enum(['above', 'within', 'below']).nullable()
+  }),
+  hypotheses: z.array(z.string().max(AI_REVIEW_TEXT_MAX)).max(2),
+  nextTest: z.string().max(AI_REVIEW_TEXT_MAX).nullable(),
+  model: z.string().max(80).nullable(),
+  costUsd: z.number().nonnegative().nullable(),
+  createdAt: z.iso.datetime()
+});
+export type AiVideoReviewDto = z.infer<typeof aiVideoReviewSchema>;
+export const aiVideoReviewResultSchema = z.object({ review: aiVideoReviewSchema.nullable() });
+export type AiVideoReviewResultDto = z.infer<typeof aiVideoReviewResultSchema>;

@@ -114,9 +114,7 @@ Stages 2 and 3 can be designed independently; implement 3 before 5, and do not s
 
 ## Stage 7 — measurable quality and acceptance (P1)
 
-- [ ] Fix remaining quality accounting differences: draft vs needs_facts, revisions vs first drafts, approved unchanged vs human-edited, and denominators.
-- [ ] Show rolling metrics by format: true ready count, needs_facts, owner approval, edit ratio, hook/ending changes, joke-missed feedback, usable-draft cost and relevant reasons for rejection.
-- [ ] Make change-over-time comparisons conditional on a sufficient number of approved texts, with no invented uplift or causal attribution.
+- [ ] Fix remaining quality accounting differences: revisions vs first drafts and a full-rewrite rate (draft vs needs_facts, by-format counts, time to approval and the guarded comparison with the previous 30 days are in code since 18.10.2026).
 - [ ] Add/maintain a fixed DEV A/B control run before any prompt, pack or model change; preserve exact brief, model snapshot, pack revision, generation type and spend.
 - [ ] Run a small blinded owner/style test (real vs model text on comparable topics); record human preferences separately from model self-scores.
 - [ ] Give the owner a clear stage-by-stage checklist with test evidence and examples of actual improvements.

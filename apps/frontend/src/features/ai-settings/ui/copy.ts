@@ -164,6 +164,26 @@ export const copy = {
     feedbackDeleteFailed: 'Не удалось удалить отзыв. Попробуйте ещё раз.',
     feedbackNote: (note: string) => `«${note}»`,
     format: { fidit: 'Учу фидить', igrat: 'Учусь играть', standalone: 'Рилс', telegram: 'Пост в ТГ' },
+    byFormat: {
+      title: 'По форматам',
+      label: 'Качество по форматам',
+      drafts: 'Черновики',
+      questions: 'Вопросы',
+      approved: 'Одобрено',
+      unchanged: 'Без правок',
+      edits: 'Правки',
+      hook: 'Хук переписан',
+      ending: 'Концовка переписана',
+      joke: 'Шутка не зашла',
+      time: 'Время до одобрения',
+      idle: (names: string) => `Нет черновиков: ${names}`
+    },
+    compare: {
+      line: (days: number, approved: number, ratio: number | null) =>
+        `За прошлые ${days} дней: одобрено ${approved}${ratio === null ? '' : `, правок в среднем ${ratio}%`}`,
+      direction: { less: 'сейчас правок меньше', more: 'сейчас правок больше', same: 'правок столько же' },
+      tooLittle: (min: number) => `Для сравнения нужно не меньше ${min} одобренных текстов за каждый период`
+    },
     details: (questions: number, warned: number, failed: number) =>
       (
         [

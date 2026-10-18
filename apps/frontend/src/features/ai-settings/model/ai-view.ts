@@ -1,4 +1,4 @@
-import type { AiCatalogModelDto, AiOverviewDto } from '@alexeev/contracts';
+import type { AiCatalogModelDto, AiFormatQualityDto, AiOverviewDto } from '@alexeev/contracts';
 import type { IconName, StatusGroup } from '../../../shared/ui';
 import { copy } from '../ui/copy';
 
@@ -45,4 +45,42 @@ const LOW_APPROVAL_MIN_DRAFTS = 5;
 export function lowApproval(quality: AiOverviewDto['quality']): boolean {
   const percent = approvalPercent(quality);
   return percent !== null && quality.drafts >= LOW_APPROVAL_MIN_DRAFTS && percent < LOW_APPROVAL_PERCENT;
+}
+
+/** Median minutes to approval as «12 мин», «2 ч», «2 ч 5 мин»; «—» without approvals. */
+export function formatMinutes(minutes: number | null): string {
+  if (minutes === null) return '—';
+  const total = Math.max(1, Math.round(minutes));
+  const hours = Math.floor(total / 60);
+  const rest = total % 60;
+  if (hours === 0) return `${total} мин`;
+  return rest === 0 ? `${hours} ч` : `${hours} ч ${rest} мин`;
+}
+
+export function sharePercent(share: number | null): string {
+  return share === null ? '—' : `${Math.round(share * 100)}%`;
+}
+
+/** Formats that wrote nothing and approved nothing collapse into one muted line. */
+export function splitFormats(rows: readonly AiFormatQualityDto[]): {
+  active: AiFormatQualityDto[];
+  idle: AiFormatQualityDto[];
+} {
+  const idle = rows.filter((row) => row.drafts === 0 && row.approved === 0);
+  return { active: rows.filter((row) => !idle.includes(row)), idle };
+}
+
+export type QualityComparison =
+  | { comparable: false }
+  | { comparable: true; approved: number; ratioPercent: number | null; direction: 'less' | 'more' | 'same' | null };
+
+/** The previous period next to the current one: two numbers and a direction, never a cause. */
+export function qualityComparison(quality: AiOverviewDto['quality']): QualityComparison | null {
+  const { previous } = quality;
+  if (!previous) return null;
+  if (!previous.comparable) return { comparable: false };
+  const before = previous.averageEditRatio === null ? null : Math.round(previous.averageEditRatio * 100);
+  const now = quality.averageEditRatio === null ? null : Math.round(quality.averageEditRatio * 100);
+  const direction = before === null || now === null ? null : now < before ? 'less' : now > before ? 'more' : 'same';
+  return { comparable: true, approved: previous.approved, ratioPercent: before, direction };
 }

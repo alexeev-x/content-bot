@@ -1,5 +1,6 @@
 import {
   AI_CHANGED_PARTS,
+  AI_QUALITY_MIN_APPROVED,
   AI_USAGE_KINDS,
   type AiChangedPart,
   type AiModelPriceDto,
@@ -205,11 +206,16 @@ export async function readAiOverview(deps: {
   keyConfigured: boolean;
 }): Promise<AiOverviewDto> {
   const settings = await readAiSettings(deps.repo);
-  const [spend, lastCheck, quality] = await Promise.all([
+  const now = deps.clock.now();
+  const since = now - QUALITY_DAYS * 24 * 60 * 60 * 1000;
+  const [spend, lastCheck, quality, before] = await Promise.all([
     readSpend(deps, settings, deps.keyConfigured),
     deps.repo.readLastCheck(),
-    deps.writer.quality(deps.clock.now() - QUALITY_DAYS * 24 * 60 * 60 * 1000)
+    deps.writer.quality(since),
+    deps.writer.periodApprovals(since - (now - since), since)
   ]);
+  const round = (value: number | null, digits: number) =>
+    value === null ? null : Math.round(value * 10 ** digits) / 10 ** digits;
   return {
     settings,
     connection: {
@@ -238,7 +244,19 @@ export async function readAiOverview(deps: {
       withWarnings: quality.withWarnings,
       approved: quality.approved,
       approvedUnchanged: quality.approvedUnchanged,
-      averageEditRatio: quality.averageEditRatio === null ? null : Math.round(quality.averageEditRatio * 1000) / 1000,
+      averageEditRatio: round(quality.averageEditRatio, 3),
+      byFormat: quality.byFormat.map((row) => ({
+        ...row,
+        averageEditRatio: round(row.averageEditRatio, 3),
+        hookChangedShare: round(row.hookChangedShare, 2),
+        endingChangedShare: round(row.endingChangedShare, 2),
+        medianMinutesToApproval: round(row.medianMinutesToApproval, 1)
+      })),
+      previous: {
+        approved: before.approved,
+        averageEditRatio: round(before.averageEditRatio, 3),
+        comparable: before.approved >= AI_QUALITY_MIN_APPROVED && quality.approved >= AI_QUALITY_MIN_APPROVED
+      },
       jokeMissed: quality.jokeMissed,
       feedback: quality.feedback,
       averageDraftUsd: quality.averageDraftMicroUsd === null ? null : toUsd(quality.averageDraftMicroUsd),

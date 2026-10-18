@@ -36,6 +36,7 @@ import {
 } from '../model/ai-view';
 import { AiFeedbackList } from './AiFeedbackList';
 import { AiLearningList } from './AiLearningList';
+import { AiQualityByFormat, AiQualityComparison } from './AiQualityExtras';
 import { AiUnlinkedScripts } from './AiUnlinkedScripts';
 import { copy, usd } from './copy';
 import styles from './AiSettingsPage.module.css';
@@ -482,9 +483,11 @@ function QualityPanel({ quality }: { quality: AiOverviewDto['quality'] }) {
               iconAt="start"
             />
           </StatGrid>
+          <AiQualityComparison quality={quality} />
           {lowApproval(quality) && approved !== null ? (
             <Banner tone="warning" size="sm" title={copy.quality.lowTitle(approved)} />
           ) : null}
+          <AiQualityByFormat rows={quality.byFormat} />
           {/* The secondary counts, under a rule as one quiet footer (design-refs/ai-spend-quality). */}
           {parts.length > 0 || verdicts.length > 0 || details || studioRuns > 0 ? (
             <div className={styles.notes}>

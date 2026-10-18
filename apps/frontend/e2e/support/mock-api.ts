@@ -757,7 +757,58 @@ export async function mockApi(page: Page): Promise<void> {
         averageDraftUsd: 0.011,
         questions: 1,
         studioDrafts: 80,
-        changedParts: []
+        changedParts: [],
+        byFormat: [
+          {
+            format: 'fidit',
+            drafts: 1,
+            questions: 0,
+            approved: 1,
+            approvedUnchanged: 1,
+            averageEditRatio: 0,
+            hookChangedShare: 0,
+            endingChangedShare: null,
+            jokeMissed: 1,
+            medianMinutesToApproval: 125
+          },
+          {
+            format: 'igrat',
+            drafts: 1,
+            questions: 1,
+            approved: 0,
+            approvedUnchanged: 0,
+            averageEditRatio: null,
+            hookChangedShare: null,
+            endingChangedShare: null,
+            jokeMissed: 0,
+            medianMinutesToApproval: null
+          },
+          {
+            format: 'standalone',
+            drafts: 0,
+            questions: 0,
+            approved: 0,
+            approvedUnchanged: 0,
+            averageEditRatio: null,
+            hookChangedShare: null,
+            endingChangedShare: null,
+            jokeMissed: 0,
+            medianMinutesToApproval: null
+          },
+          {
+            format: 'telegram',
+            drafts: 0,
+            questions: 0,
+            approved: 0,
+            approvedUnchanged: 0,
+            averageEditRatio: null,
+            hookChangedShare: null,
+            endingChangedShare: null,
+            jokeMissed: 0,
+            medianMinutesToApproval: null
+          }
+        ],
+        previous: { approved: 4, averageEditRatio: 0.3, comparable: false }
       },
       catalog: {
         provider: 'openai',
