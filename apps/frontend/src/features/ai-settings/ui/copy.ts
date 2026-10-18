@@ -162,6 +162,7 @@ export const copy = {
     feedbackDelete: (reason: string) => `Удалить отзыв «${reason}»`,
     feedbackDeleted: 'Отзыв удалён',
     feedbackDeleteFailed: 'Не удалось удалить отзыв. Попробуйте ещё раз.',
+    feedbackNote: (note: string) => `«${note}»`,
     format: { fidit: 'Учу фидить', igrat: 'Учусь играть', standalone: 'Рилс', telegram: 'Пост в ТГ' },
     details: (questions: number, warned: number, failed: number) =>
       (
@@ -174,6 +175,18 @@ export const copy = {
         .filter(([, count]) => count > 0)
         .map(([label, count]) => `${label}: ${count}`)
         .join(' · ')
+  },
+  learning: {
+    title: 'На чём учится ИИ',
+    hint: 'Это ваши тексты, которые писатель берёт как примеры: поправленные ИИ-черновики и посты, написанные вами. Выключите «Учитывать», если текст не образец.',
+    empty:
+      'Пока не на чем учиться: ИИ учится на одобренных черновиках, которые вы заметно поправили, и на постах, написанных вами',
+    loadError: 'Не удалось загрузить тексты для обучения.',
+    revision: (percent: number) => `Правка ИИ-черновика · изменено ${percent}%`,
+    revisionParts: (parts: string) => `Правили: ${parts}`,
+    ownPost: 'Пост, написанный вами',
+    include: 'Учитывать',
+    saveFailed: 'Не удалось сохранить. Попробуйте ещё раз.'
   },
   widget: {
     month: 'Расходы за месяц',

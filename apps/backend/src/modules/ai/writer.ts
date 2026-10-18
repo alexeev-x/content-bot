@@ -1,7 +1,15 @@
 import {
+  AI_CHANGED_PARTS,
   AI_FEEDBACK_EXCERPT,
   AI_FEEDBACK_LIST_LIMIT,
+  AI_FEEDBACK_NOTE_MAX,
+  cleanText,
+  AI_LEARNING_EXCERPT,
+  AI_LEARNING_LIST_LIMIT,
   type AiFeedbackListDto,
+  type AiLearningItemDto,
+  type AiLearningListDto,
+  type AiLearningSource,
   type PostOriginDto
 } from '@alexeev/contracts';
 import type { Clock } from '../../platform/clock';
@@ -9,8 +17,15 @@ import { AppError } from '../../shared/app-error';
 import { readAuthorProfile } from './author-profile';
 import type { AiRepository } from './d1-ai-repository';
 import type { AuthorProfileRepository } from './d1-author-repository';
-import type { ChatTurn, FeedbackKind, GenerationRow, RevisionRow, WriterRepository } from './d1-writer-repository';
-import { type AiTextProvider, AiProviderError } from './ports';
+import type {
+  ChatTurn,
+  FeedbackKind,
+  GenerationRow,
+  LearningRevisionRow,
+  RevisionRow,
+  WriterRepository
+} from './d1-writer-repository';
+import { type AiTextProvider, AiProviderError, type OwnerPost, type OwnerPostSource } from './ports';
 import { assertAiReady, type BudgetEvent, readAiSettings, recordAiUsage } from './service';
 import { changedParts, checkDraft, editRatio } from './writer-checks';
 import {
@@ -39,6 +54,8 @@ const PHRASE_WINDOW = 5;
 /** The owner's edited approvals of the format ranked against the task, and how many reach the prompt. */
 const OWNER_CANDIDATES = 20;
 const OWNER_TEXTS = 2;
+/** The owner's latest posts looked at for his own words (the port's bound, and the one of `postOrigins`). */
+const OWNER_POST_CANDIDATES = 100;
 
 export interface WriterDeps {
   repo: AiRepository;
@@ -49,6 +66,8 @@ export interface WriterDeps {
   timezone: string;
   newId: () => string;
   provider: AiTextProvider | null;
+  /** The owner's own Telegram posts (stage 2 of the plan); without it only his edits of AI drafts teach the writer. */
+  ownerPosts?: OwnerPostSource;
 }
 
 export interface WriterResult {
@@ -65,6 +84,31 @@ export interface Approval {
 }
 
 const author = async (deps: Pick<WriterDeps, 'profiles'>) => (await readAuthorProfile(deps.profiles)).promptText;
+
+/** Live Telegram posts the owner wrote himself: no AI draft stands behind them. `excluded` is his «Не учиться». */
+async function ownerWrittenPosts(
+  deps: Pick<WriterDeps, 'writer' | 'ownerPosts'>
+): Promise<(OwnerPost & { excluded: boolean })[]> {
+  if (deps.ownerPosts === undefined) return [];
+  const posts = (await deps.ownerPosts.recent(OWNER_POST_CANDIDATES)).filter((post) => post.text.trim() !== '');
+  const aiLinked = new Set((await deps.writer.postOrigins(posts.map((post) => post.id))).map((row) => row.postId));
+  const own = posts.filter((post) => !aiLinked.has(post.id));
+  const excluded = await deps.writer.excludedPosts(own.map((post) => post.id));
+  return own.map((post) => ({ ...post, excluded: excluded.has(post.id) }));
+}
+
+/**
+ * The owner's confirmed words of a format, newest first, for the prompt (the caller ranks them): the AI texts he
+ * changed and approved, and for a Telegram post also the posts he wrote himself. Excluded and disliked texts never.
+ */
+async function ownerTexts(deps: WriterDeps, format: WriterFormat): Promise<string[]> {
+  const edited = await deps.writer.ownerExamples({ format, limit: OWNER_CANDIDATES });
+  const own = format === 'telegram' ? (await ownerWrittenPosts(deps)).filter((post) => !post.excluded) : [];
+  return [...edited, ...own]
+    .sort((a, b) => b.createdAt - a.createdAt)
+    .slice(0, OWNER_CANDIDATES)
+    .map((row) => row.text);
+}
 
 /** The text the owner sees now: the newest revision. */
 export function currentRevision(revisions: readonly RevisionRow[]): RevisionRow | null {
@@ -265,11 +309,7 @@ export async function generateDraft(
       task,
       holdOut: input.holdOut ?? [],
       author: await author(deps),
-      ownerTexts: rankOwnerTexts(
-        task,
-        await deps.writer.ownerExamples({ format: input.format, limit: OWNER_CANDIDATES }),
-        OWNER_TEXTS
-      ),
+      ownerTexts: rankOwnerTexts(task, await ownerTexts(deps, input.format), OWNER_TEXTS),
       recent,
       resting
     }),
@@ -309,11 +349,7 @@ export async function rewriteDraft(
     task: parent.task,
     rewrite: { text: current.text, instruction },
     author: await author(deps),
-    ownerTexts: rankOwnerTexts(
-      parent.task,
-      await deps.writer.ownerExamples({ format: parent.format, limit: OWNER_CANDIDATES }),
-      OWNER_TEXTS
-    )
+    ownerTexts: rankOwnerTexts(parent.task, await ownerTexts(deps, parent.format), OWNER_TEXTS)
   });
   return call(deps, row, prompt, input.signal);
 }
@@ -429,15 +465,33 @@ export async function attachPost(deps: Pick<WriterDeps, 'writer'>, revisionId: s
   await deps.writer.attachPost(revisionId, postId);
 }
 
-export async function recordFeedback(deps: WriterDeps, generationId: string, kind: FeedbackKind): Promise<void> {
+export async function recordFeedback(deps: WriterDeps, generationId: string, kind: FeedbackKind): Promise<string> {
   if ((await deps.writer.findGeneration(generationId)) === null) throw new AppError('NOT_FOUND', 'The draft is gone');
   // Tied to the text the owner judged: the latest revision when the button was pressed.
   const revisionId = (await deps.writer.revisions(generationId)).at(-1)?.id ?? null;
-  await deps.writer.addFeedback({ id: deps.newId(), generationId, kind, revisionId, now: deps.clock.now() });
+  // The id of the verdict (the first one when the button was tapped twice): the note is asked for on it.
+  return deps.writer.addFeedback({ id: deps.newId(), generationId, kind, revisionId, now: deps.clock.now() });
 }
 
-const excerpt = (text: string) =>
-  text.length > AI_FEEDBACK_EXCERPT ? `${text.slice(0, AI_FEEDBACK_EXCERPT - 1)}…` : text;
+// Line breaks and tabs are fine in a note; other control characters and lone surrogates are not.
+const cleanNote = cleanText(true);
+
+/**
+ * The owner's note on a verdict, written in the bot right after the reason. Recorded only: it never becomes a
+ * rule. VALIDATION_ERROR for an empty, too long or unclean text, NOT_FOUND when the verdict was taken back.
+ */
+export async function saveFeedbackNote(
+  deps: Pick<WriterDeps, 'writer'>,
+  feedbackId: string,
+  text: string
+): Promise<void> {
+  const note = text.trim();
+  if (note === '' || Array.from(note).length > AI_FEEDBACK_NOTE_MAX || !cleanNote(note))
+    throw new AppError('VALIDATION_ERROR', 'The note is empty, too long or has forbidden characters');
+  if (!(await deps.writer.setFeedbackNote(feedbackId, note))) throw new AppError('NOT_FOUND', 'The verdict is gone');
+}
+
+const cut = (text: string, max: number) => (text.length > max ? `${text.slice(0, max - 1)}…` : text);
 
 /** The owner's recorded verdicts, newest first, so a wrong one can be taken back (plan stage 2). */
 export async function readFeedback(deps: Pick<WriterDeps, 'writer'>): Promise<AiFeedbackListDto> {
@@ -447,8 +501,9 @@ export async function readFeedback(deps: Pick<WriterDeps, 'writer'>): Promise<Ai
       id: row.id,
       kind: row.kind,
       format: row.format,
-      task: excerpt(row.task),
-      text: row.text === null ? null : excerpt(row.text),
+      task: cut(row.task, AI_FEEDBACK_EXCERPT),
+      text: row.text === null ? null : cut(row.text, AI_FEEDBACK_EXCERPT),
+      note: row.note,
       createdAt: new Date(row.createdAt).toISOString()
     }))
   };
@@ -457,6 +512,63 @@ export async function readFeedback(deps: Pick<WriterDeps, 'writer'>): Promise<Ai
 /** Takes a verdict back; one already gone is a no-op. */
 export async function removeFeedback(deps: Pick<WriterDeps, 'writer'>, id: string): Promise<void> {
   await deps.writer.deleteFeedback(id);
+}
+
+const PART_NAMES: readonly string[] = AI_CHANGED_PARTS;
+
+const revisionItem = (row: LearningRevisionRow): AiLearningItemDto => ({
+  source: 'revision',
+  id: row.id,
+  format: row.format,
+  excerpt: cut(row.text, AI_LEARNING_EXCERPT),
+  changedParts: row.changedParts.filter((part): part is AiLearningItemDto['changedParts'][number] =>
+    PART_NAMES.includes(part)
+  ),
+  editRatio: Math.min(1, Math.max(0, row.editRatio)),
+  excluded: row.excluded,
+  createdAt: new Date(row.createdAt).toISOString()
+});
+
+const postItem = (post: OwnerPost & { excluded: boolean }): AiLearningItemDto => ({
+  source: 'post',
+  id: post.id,
+  format: 'telegram',
+  excerpt: cut(post.text, AI_LEARNING_EXCERPT),
+  changedParts: [],
+  editRatio: null,
+  excluded: post.excluded,
+  createdAt: new Date(post.createdAt).toISOString()
+});
+
+/**
+ * What the writer can learn from (plan stage 2), newest first: the approved AI texts the owner changed (not the ones
+ * he gave a verdict) and the posts he wrote himself. `excluded` marks what he took out.
+ */
+export async function readLearning(deps: Pick<WriterDeps, 'writer' | 'ownerPosts'>): Promise<AiLearningListDto> {
+  const [revisions, posts] = await Promise.all([
+    deps.writer.learningRevisions(AI_LEARNING_LIST_LIMIT),
+    ownerWrittenPosts(deps)
+  ]);
+  const items = [...revisions.map(revisionItem), ...posts.map(postItem)];
+  items.sort((a, b) => b.createdAt.localeCompare(a.createdAt) || a.id.localeCompare(b.id));
+  return { items: items.slice(0, AI_LEARNING_LIST_LIMIT) };
+}
+
+/** «Не учиться на этом» (or back) for one text; NOT_FOUND when it is not one the writer would learn from. */
+export async function setLearningExcluded(
+  deps: Pick<WriterDeps, 'writer' | 'ownerPosts' | 'clock'>,
+  input: { source: AiLearningSource; id: string; excluded: boolean }
+): Promise<AiLearningItemDto> {
+  const item =
+    input.source === 'revision'
+      ? await deps.writer.findLearningRevision(input.id).then((row) => (row === null ? null : revisionItem(row)))
+      : await ownerWrittenPosts(deps).then((posts) => {
+          const post = posts.find((candidate) => candidate.id === input.id);
+          return post === undefined ? null : postItem(post);
+        });
+  if (item === null) throw new AppError('NOT_FOUND', 'This text is not one the writer learns from');
+  await deps.writer.setExcluded({ ...input, now: deps.clock.now() });
+  return { ...item, excluded: input.excluded };
 }
 
 /**

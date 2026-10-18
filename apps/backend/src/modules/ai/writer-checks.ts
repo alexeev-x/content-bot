@@ -49,12 +49,21 @@ export function checkDraft(format: WriterFormat, mode: WriterMode, text: string,
   if (DOUBLED_WORD.test(text)) codes.push('DOUBLED_WORD');
   // A patch change stated as fact that the task never mentioned: to check before it goes out (owner review).
   if (PATCH_CLAIM.test(text) && !PATCH_SOURCE.test(task)) codes.push('PATCH_UNVERIFIED');
+  // Stage 1: a joke explained after the punchline kills it.
+  if (JOKE_EXPLAINED.test(text)) codes.push('JOKE_EXPLAINED');
+  // Stage 1: an invitation in the channel says when or where (a time, a day, a link or an @channel).
+  if (format === 'telegram' && INVITATION.test(text) && !INVITATION_DETAIL.test(text)) codes.push('INVITE_NO_DETAILS');
   return codes;
 }
 
 const DOUBLED_WORD = /(?<![а-яёa-z])([а-яёa-z]{2,})\s+\1(?![а-яёa-z])/iu;
 const PATCH_CLAIM = /(в (новом|последнем|этом|свежем) патче|понерф|нерфнул|бафнул|бафф?ну)/i;
 const PATCH_SOURCE = /патч|нерф|баф|обнов/i;
+const JOKE_EXPLAINED =
+  /(шутка (в том|была в том)|это (была )?шутка|если (вы |ты )?не понял|понял(и)? шутку|поясню шутку)/i;
+const INVITATION = /(?<![а-яё])(стрим|эфир|турнир|розыгрыш|заходи|приходи|залетай|подключайтесь|жду вас)/iu;
+const INVITATION_DETAIL =
+  /\d{1,2}[:.]\d{2}|(?<![а-яё])(сегодня|завтра|вечером|в (понедельник|вторник|среду|четверг|пятницу|субботу|воскресенье))|https?:\/\/|t\.me\/|@[a-z0-9_]{4,}/iu;
 
 /** What a finding means, in the owner's words (shown under the draft). */
 export function describeCheck(code: string): string {
@@ -75,7 +84,9 @@ export function describeCheck(code: string): string {
     TOO_LONG: 'длиннее формата',
     TOPIC_REPEATED: 'тема повторяет недавний черновик',
     DOUBLED_WORD: 'слово повторено подряд',
-    PATCH_UNVERIFIED: 'изменение патча не из задания — проверьте'
+    PATCH_UNVERIFIED: 'изменение патча не из задания — проверьте',
+    JOKE_EXPLAINED: 'шутку объясняют после панчлайна',
+    INVITE_NO_DETAILS: 'приглашение без времени или ссылки'
   };
   return map[code] ?? code;
 }

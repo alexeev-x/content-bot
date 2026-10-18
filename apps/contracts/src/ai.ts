@@ -387,6 +387,7 @@ export type UpdateAiAuthorProfileInput = z.infer<typeof updateAiAuthorProfileInp
 // Errors: VALIDATION_ERROR 400 (id), UNAUTHORIZED 401, FORBIDDEN 403.
 export const AI_FEEDBACK_LIST_LIMIT = 30;
 export const AI_FEEDBACK_EXCERPT = 160;
+export const AI_FEEDBACK_NOTE_MAX = 500;
 export const aiFeedbackSchema = z.object({
   id: z.uuid(),
   kind: z.enum(AI_FEEDBACK_KINDS),
@@ -394,9 +395,45 @@ export const aiFeedbackSchema = z.object({
   task: z.string().max(AI_FEEDBACK_EXCERPT),
   /** The start of the judged text; null for a verdict recorded before migration 0067. */
   text: z.string().max(AI_FEEDBACK_EXCERPT).nullable(),
+  /** The owner's own words on the verdict, written in the bot right after the reason (migration 0071); null — none. */
+  note: z.string().max(AI_FEEDBACK_NOTE_MAX).nullable().default(null),
   createdAt: z.iso.datetime()
 });
 export type AiFeedbackDto = z.infer<typeof aiFeedbackSchema>;
 export const aiFeedbackListSchema = z.object({ items: z.array(aiFeedbackSchema).max(AI_FEEDBACK_LIST_LIMIT) });
 export type AiFeedbackListDto = z.infer<typeof aiFeedbackListSchema>;
 export const aiFeedbackParamsSchema = z.strictObject({ id: z.uuid() });
+
+// What the writer learns from (docs/ai/IMPLEMENTATION_PLAN.md stage 2): the texts that can go into a prompt as the
+// owner's examples, newest first, and whether the owner took one out. Two sources:
+// - `revision`: an approved AI draft the owner changed noticeably (an unchanged approval is never one, and a draft
+//   the owner gave a «Что не так?» verdict is not shown here: a disliked text is not an example);
+// - `post`: a Telegram post the owner wrote himself in the studio and approved (no AI draft behind it).
+// GET /api/v1/ai/learning → 200 AiLearningListDto, at most AI_LEARNING_LIST_LIMIT items.
+// PUT /api/v1/ai/learning/{source}/{id} { excluded } → 200 AiLearningItemDto: «Не учиться на этом» / back;
+// repeating it is a no-op. Errors: VALIDATION_ERROR 400, NOT_FOUND 404 (not an eligible text), UNAUTHORIZED 401,
+// FORBIDDEN 403.
+export const AI_LEARNING_LIST_LIMIT = 40;
+export const AI_LEARNING_EXCERPT = 240;
+export const aiLearningSourceSchema = z.enum(['revision', 'post']);
+export type AiLearningSource = z.infer<typeof aiLearningSourceSchema>;
+export const aiLearningItemSchema = z.object({
+  source: aiLearningSourceSchema,
+  id: z.uuid(),
+  format: aiWriterFormatSchema,
+  /** The start of the text as it would go into the prompt. */
+  excerpt: z.string().max(AI_LEARNING_EXCERPT),
+  /** What the owner changed in the AI draft (empty for a post written by the owner). */
+  changedParts: z.array(z.enum(AI_CHANGED_PARTS)),
+  /** Share of the AI draft's words the owner changed; null for a post written by the owner. */
+  editRatio: z.number().min(0).max(1).nullable(),
+  /** True: the owner took it out, it never goes into a prompt. */
+  excluded: z.boolean(),
+  createdAt: z.iso.datetime()
+});
+export type AiLearningItemDto = z.infer<typeof aiLearningItemSchema>;
+export const aiLearningListSchema = z.object({ items: z.array(aiLearningItemSchema).max(AI_LEARNING_LIST_LIMIT) });
+export type AiLearningListDto = z.infer<typeof aiLearningListSchema>;
+export const aiLearningParamsSchema = z.strictObject({ source: aiLearningSourceSchema, id: z.uuid() });
+export const setAiLearningExcludedInputSchema = z.strictObject({ excluded: z.boolean() });
+export type SetAiLearningExcludedInput = z.infer<typeof setAiLearningExcludedInputSchema>;

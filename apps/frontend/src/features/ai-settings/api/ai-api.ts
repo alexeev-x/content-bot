@@ -1,4 +1,11 @@
-import { aiFeedbackListSchema, aiOverviewSchema, type UpdateAiSettingsInput } from '@alexeev/contracts';
+import {
+  aiFeedbackListSchema,
+  aiLearningItemSchema,
+  aiLearningListSchema,
+  aiOverviewSchema,
+  type AiLearningSource,
+  type UpdateAiSettingsInput
+} from '@alexeev/contracts';
 import { apiRequest, apiRequestNoContent } from '../../../shared/api/http-client';
 
 /** The owner's recorded verdicts on drafts, newest first. */
@@ -22,4 +29,17 @@ export function saveAiSettings(input: UpdateAiSettingsInput) {
 /** One tiny request to the model: shows whether the key and the model work. */
 export function checkAiConnection() {
   return apiRequest('/api/v1/ai/check', aiOverviewSchema, { method: 'POST' });
+}
+
+/** The owner's texts the writer takes as examples, newest first. */
+export function getAiLearning(signal?: AbortSignal) {
+  return apiRequest('/api/v1/ai/learning', aiLearningListSchema, { signal });
+}
+
+/** «Учитывать» off/on for one text; repeating it is a no-op on the server. */
+export function setAiLearningExcluded(input: { source: AiLearningSource; id: string; excluded: boolean }) {
+  return apiRequest(`/api/v1/ai/learning/${input.source}/${encodeURIComponent(input.id)}`, aiLearningItemSchema, {
+    method: 'PUT',
+    body: { excluded: input.excluded }
+  });
 }

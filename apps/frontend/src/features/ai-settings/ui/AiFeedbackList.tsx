@@ -43,6 +43,7 @@ export function AiFeedbackList() {
                     </span>
                   </p>
                   <p className={styles.excerpt}>{item.text ?? item.task}</p>
+                  {item.note ? <p className={styles.note}>{copy.quality.feedbackNote(item.note)}</p> : null}
                 </div>
                 <IconButton
                   label={copy.quality.feedbackDelete(reason)}

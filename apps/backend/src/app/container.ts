@@ -2,6 +2,7 @@ import {
   createD1PostRepository,
   createD1PostMediaRepository,
   type IdempotencyGate,
+  type Post,
   type PostPublicationSummarySource,
   type PostMediaRepository,
   type PostRepository
@@ -60,6 +61,7 @@ import {
   createD1WriterRepository,
   type AuthorProfileRepository,
   createOpenAiProvider,
+  type OwnerPostSource,
   type ScriptLinksRepository,
   type WriterRepository
 } from '../modules/ai';
@@ -183,6 +185,8 @@ export interface Container {
   aiProvider: AiTextProvider | null;
   /** AI drafts, their revisions with provenance and the owner's feedback (migration 0054). */
   aiWriter: WriterRepository;
+  /** The owner's own Telegram posts for the writer, read through the content module (stage 2 of the AI plan). */
+  aiOwnerPosts: OwnerPostSource;
   /** «Обо мне»: the author's state for every AI request (migration 0058). */
   aiProfiles: AuthorProfileRepository;
   /** Published videos ↔ approved AI scripts, confirmed by the owner (migration 0060). */
@@ -486,6 +490,31 @@ export function createContainer(env: ContainerEnv, overrides: ContainerOverrides
     },
     get aiWriter() {
       return createD1WriterRepository(db());
+    },
+    get aiOwnerPosts(): OwnerPostSource {
+      const posts = createD1PostRepository(db());
+      const own = (post: Post | null) =>
+        post !== null && post.status === 'approved' && post.kind === 'text' && post.body.trim() !== ''
+          ? { id: post.id, text: post.body, createdAt: post.updatedAt }
+          : null;
+      return {
+        // A sent post goes to the archive, so the archive is read too (it holds only the retention period).
+        recent: async (limit) => {
+          const half = Math.min(Math.ceil(limit / 2), 50);
+          const [live, archived] = await Promise.all([
+            posts.list({ view: 'live', status: 'approved', limit: half }),
+            posts.list({ view: 'archive', limit: half })
+          ]);
+          return [...live, ...archived]
+            .flatMap((post) => {
+              const row = own(post);
+              return row === null ? [] : [row];
+            })
+            .sort((a, b) => b.createdAt - a.createdAt)
+            .slice(0, limit);
+        },
+        find: async (id) => own(await posts.findById(id))
+      };
     },
     get aiProfiles() {
       return createD1AuthorProfileRepository(db());

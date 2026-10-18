@@ -7,10 +7,14 @@ import {
   aiFeedbackListSchema,
   aiFeedbackParamsSchema,
   aiItemScriptSchema,
+  aiLearningListSchema,
+  aiLearningItemSchema,
+  aiLearningParamsSchema,
   aiOverviewSchema,
   contentItemIdSchema,
   createAiDraftInputSchema,
   linkAiScriptInputSchema,
+  setAiLearningExcludedInputSchema,
   updateAiAuthorProfileInputSchema,
   updateAiSettingsInputSchema
 } from '@alexeev/contracts';
@@ -26,8 +30,10 @@ import {
   readAuthorProfile,
   readFeedback,
   readItemScript,
+  readLearning,
   removeFeedback,
   saveAuthorDota,
+  setLearningExcluded,
   unlinkItemScript,
   updateAiSettings,
   updateAuthorProfile
@@ -135,7 +141,13 @@ export const aiRoutes = new Hono<AppBindings>()
       const container = c.get('container');
       const input = c.req.valid('json');
       const result = await generateDraft(
-        { ...base, profiles: container.aiProfiles, newId: container.newId, provider: container.aiProvider },
+        {
+          ...base,
+          profiles: container.aiProfiles,
+          newId: container.newId,
+          provider: container.aiProvider,
+          ownerPosts: container.aiOwnerPosts
+        },
         { ...input, source: 'studio', signal: AbortSignal.timeout(DRAFT_TIMEOUT_MS) }
       );
       sendBudgetAlerts(c, result.budgetEvents);
@@ -199,6 +211,26 @@ export const aiRoutes = new Hono<AppBindings>()
     await removeFeedback({ writer: c.get('container').aiWriter }, c.req.valid('param').id);
     return c.body(null, 204);
   })
+  .get('/learning', async (c) => {
+    const container = c.get('container');
+    return c.json(
+      aiLearningListSchema.parse(await readLearning({ writer: container.aiWriter, ownerPosts: container.aiOwnerPosts }))
+    );
+  })
+  .put(
+    '/learning/:source/:id',
+    limitBody(MAX_BODY_BYTES),
+    validated('param', aiLearningParamsSchema),
+    validated('json', setAiLearningExcludedInputSchema),
+    async (c) => {
+      const container = c.get('container');
+      const item = await setLearningExcluded(
+        { writer: container.aiWriter, ownerPosts: container.aiOwnerPosts, clock: container.clock },
+        { ...c.req.valid('param'), excluded: c.req.valid('json').excluded }
+      );
+      return c.json(aiLearningItemSchema.parse(item));
+    }
+  )
   .get('/scripts/:itemId', validated('param', scriptParamsSchema), async (c) => {
     const { links, video } = await scriptDeps(c, c.req.valid('param').itemId);
     return c.json(aiItemScriptSchema.parse(await readItemScript(links, video)));

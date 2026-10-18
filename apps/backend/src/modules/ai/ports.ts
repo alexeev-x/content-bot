@@ -56,3 +56,22 @@ export interface UsageRow {
   usage: AiUsage;
   costMicroUsd: number | null;
 }
+
+/** A Telegram text post the owner wrote and approved in the studio. */
+export interface OwnerPost {
+  id: string;
+  text: string;
+  /** UTC epoch milliseconds. */
+  createdAt: number;
+}
+
+/**
+ * Where the writer reads the owner's own posts from (the content module, wired in `app/container.ts`): the ai
+ * module never reads content tables. Only live approved text posts with a body; whether an AI draft stands behind
+ * a post, or the owner excluded it, is decided here from the ai tables.
+ */
+export interface OwnerPostSource {
+  /** Newest first, at most `limit` (≤ 100). */
+  recent(limit: number): Promise<OwnerPost[]>;
+  find(id: string): Promise<OwnerPost | null>;
+}

@@ -1,7 +1,7 @@
 export { type AiRepository, createD1AiRepository } from './d1-ai-repository';
 export { AI_CATALOG } from './catalog';
 export { createOpenAiProvider } from './openai-provider';
-export { type AiTextProvider, AiProviderError } from './ports';
+export { type AiTextProvider, AiProviderError, type OwnerPost, type OwnerPostSource } from './ports';
 export {
   AI_KEY_NAME,
   assertAiReady,
@@ -34,10 +34,13 @@ export {
   publishableText,
   readPostOrigins,
   readFeedback,
+  readLearning,
   recordFeedback,
   removeFeedback,
   rewriteDraft,
+  saveFeedbackNote,
   saveOwnerEdit,
+  setLearningExcluded,
   type WriterDeps,
   type WriterResult
 } from './writer';

@@ -16,6 +16,7 @@ import {
   publishableText,
   recordFeedback,
   rewriteDraft,
+  saveFeedbackNote,
   saveOwnerEdit,
   type ChatTurn,
   type WriterDeps,
@@ -48,6 +49,14 @@ const NOT_A_POST_TEXT =
   'Текст не влезает в пост (длиннее 4096 символов или с недопустимыми символами). Нажмите «Короче» или ответьте своей версией.';
 const EDIT_SAVED_TEXT = 'Сохранил вашу версию. Одобрить её?';
 const EDIT_CANCELLED_TEXT = 'Правка отменена';
+const NOTE_PROMPT_TEXT =
+  'Если хотите, поясните одним сообщением (до 500 знаков) — я только запишу это, правилом оно не станет. Следующее сообщение станет пояснением.';
+const NOTE_SAVED_TEXT = 'Записал пояснение.';
+const NOTE_INVALID_TEXT =
+  'Пояснение — от 1 до 500 знаков, без служебных символов. Пришлите короче или нажмите «Без пояснения».';
+const NOTE_GONE_TEXT = 'Этот вердикт уже снят, пояснение не записал.';
+const NOTE_SKIPPED_TEXT = 'Хорошо, без пояснения';
+const NO_NOTE = 'ai:nonote';
 /** The text shown to copy from in «✏️ Изменить»: a Telegram message holds 4096 characters. */
 const EDIT_SHOWN_MAX = 3500;
 const editPromptHtml = (text: string) =>
@@ -466,6 +475,7 @@ export function registerAiWriter(bot: Bot, runtime: AiWriterRuntime): void {
     const now = runtime.clock.now();
     const writer = (await runtime.writer()).writer;
     const chat = await writer.touchRequest(ctx.chat.id, now, now + REQUEST_TTL_MS);
+    // One wait at a time (the last one started wins): «✏️ Изменить» or an open question first, then a note.
     // «✏️ Изменить» or an open question: this one message belongs to that draft, whatever the mode.
     if (chat?.editing) {
       const deps = await runtime.writer();
@@ -476,6 +486,29 @@ export function registerAiWriter(bot: Bot, runtime: AiWriterRuntime): void {
         return;
       }
     }
+    // The note after a «Что не так?» reason: the next message that is not a command. A reply counts too (a reply
+    // to a draft was taken above): the natural answer to «Следующее сообщение станет пояснением» is a reply to it.
+    if (chat?.noting && !ctx.message.text.startsWith('/')) {
+      const deps = await runtime.writer();
+      try {
+        await saveFeedbackNote(deps, chat.noting, ctx.message.text);
+      } catch (error) {
+        if (!(error instanceof AppError)) throw error;
+        if (error.code === 'VALIDATION_ERROR') {
+          // Still waiting: the owner may send a shorter one.
+          await ctx.reply(NOTE_INVALID_TEXT);
+          return;
+        }
+        await writer.setNoting({ chatId: ctx.chat.id, feedbackId: null, now, expiresAt: now + REQUEST_TTL_MS });
+        await ctx.reply(NOTE_GONE_TEXT);
+        return;
+      }
+      await writer.setNoting({ chatId: ctx.chat.id, feedbackId: null, now, expiresAt: now + REQUEST_TTL_MS });
+      await ctx.reply(NOTE_SAVED_TEXT);
+      return;
+    }
+    // An unknown command while a note is awaited goes to no paid model call (the row may exist only for the wait).
+    if (chat?.noting) return next();
     if (chat?.kind === 'post') return next();
     if (chat !== null) {
       if (chat.format === null) await free(ctx, ctx.message.text, chat.history);
@@ -497,6 +530,15 @@ export function registerAiWriter(bot: Bot, runtime: AiWriterRuntime): void {
       return;
     }
     await draft(ctx, intent.format, intent.task);
+  });
+
+  bot.callbackQuery(NO_NOTE, async (ctx) => {
+    const chatId = ctx.chat?.id;
+    if (chatId === undefined) return;
+    const now = runtime.clock.now();
+    await (await runtime.writer()).writer.setNoting({ chatId, feedbackId: null, now, expiresAt: now + REQUEST_TTL_MS });
+    await ctx.answerCallbackQuery({ text: NOTE_SKIPPED_TEXT }).catch((error: unknown) => runtime.onError(error));
+    await ctx.editMessageReplyMarkup().catch(() => undefined);
   });
 
   bot.callbackQuery(CALLBACK, async (ctx) => {
@@ -545,11 +587,19 @@ export function registerAiWriter(bot: Bot, runtime: AiWriterRuntime): void {
       if (action === 'joke' || action === 'back' || action.startsWith('r:')) {
         const reason: Reason | null =
           action === 'joke' ? 'joke' : action === 'back' ? null : (action.slice(2) as Reason);
-        if (reason !== null) await recordFeedback(deps, generationId, REASONS[reason].kind);
+        const feedbackId = reason === null ? null : await recordFeedback(deps, generationId, REASONS[reason].kind);
         await ctx.answerCallbackQuery(reason === null ? {} : { text: `Записал: ${REASONS[reason].noted}` });
         const generation = await deps.writer.findGeneration(generationId);
         if (generation !== null && action !== 'joke')
           await swapButtons(ctx, keyboard(generation.id, generation.hooks, runtime.appOrigin));
+        if (feedbackId !== null && action !== 'joke') {
+          // The next plain message is the note; it ends a «Своё время» wait, like «✏️ Изменить» does.
+          const now = runtime.clock.now();
+          const timeWait = await runtime.publish.awaitingTime();
+          if (timeWait !== null) await runtime.publish.stopAwaitingTime(timeWait);
+          await deps.writer.setNoting({ chatId, feedbackId, now, expiresAt: now + REQUEST_TTL_MS });
+          await ctx.reply(NOTE_PROMPT_TEXT, { reply_markup: new InlineKeyboard().text('Без пояснения', NO_NOTE) });
+        }
         return;
       }
       if (action === 'ok') {

@@ -11,6 +11,19 @@ export interface FeedbackRow {
   format: WriterFormat;
   task: string;
   text: string | null;
+  /** The owner's own words on the verdict (migration 0071). */
+  note: string | null;
+  createdAt: number;
+}
+
+/** An approved AI text the owner changed, as a candidate for the writer's examples. */
+export interface LearningRevisionRow {
+  id: string;
+  format: WriterFormat;
+  text: string;
+  editRatio: number;
+  changedParts: string[];
+  excluded: boolean;
   createdAt: number;
 }
 
@@ -18,6 +31,26 @@ export interface FeedbackRow {
 const OWNER_EXAMPLE_MIN_EDIT = 0.05;
 /** Candidates the writer ranks by relevance to the task; the prompt still gets at most two. */
 const OWNER_EXAMPLE_CANDIDATES = 20;
+/** Most revisions «Чему учится ИИ» lists. */
+const LEARNING_REVISIONS_MAX = 40;
+/** What counts as the owner's confirmed words: an approved text he changed, without a «Что не так?» verdict. */
+const LEARNING_REVISION = `r.provenance IN ('OWNER_APPROVED', 'OWNER_PREAPPROVED') AND r.edit_ratio > ?1
+  AND NOT EXISTS (SELECT 1 FROM ai_feedback f WHERE f.generation_id = r.generation_id)`;
+const EXCLUDED_REVISION = `EXISTS (SELECT 1 FROM ai_learning_exclusions x WHERE x.source = 'revision' AND x.source_id = r.id)`;
+
+interface RawLearningRevision {
+  id: string;
+  format: WriterFormat;
+  text: string;
+  editRatio: number;
+  changedParts: string | null;
+  excluded: number;
+  createdAt: number;
+}
+
+function toLearningRevision(row: RawLearningRevision): LearningRevisionRow {
+  return { ...row, changedParts: list(row.changedParts), excluded: row.excluded === 1 };
+}
 
 export interface GenerationRow {
   id: string;
@@ -132,13 +165,23 @@ export interface WriterRepository {
     kind: FeedbackKind;
     revisionId: string | null;
     now: number;
-  }): Promise<void>;
+  }): Promise<string>;
+  /** Stores the owner's note on a verdict; false when the verdict is gone. */
+  setFeedbackNote(id: string, note: string): Promise<boolean>;
   recent(limit: number): Promise<GenerationRow[]>;
   /**
    * The owner's approved texts of one format that the owner actually changed (edit ratio > 5%), newest first:
    * style examples for the next draft. An AI_DRAFT, or an approval of the model's words unchanged, never is one.
    */
-  ownerExamples(input: { format: WriterFormat; limit: number }): Promise<string[]>;
+  ownerExamples(input: { format: WriterFormat; limit: number }): Promise<{ text: string; createdAt: number }[]>;
+  /** Approved texts the owner changed, newest first, with the owner's exclusion (any format; at most 40). */
+  learningRevisions(limit: number): Promise<LearningRevisionRow[]>;
+  /** One such text; null when it is not eligible (not approved, not changed, or disliked). */
+  findLearningRevision(id: string): Promise<LearningRevisionRow | null>;
+  /** The excluded ones among these post ids (at most 100). */
+  excludedPosts(ids: readonly string[]): Promise<Set<string>>;
+  /** Takes a text out of the writer's examples, or brings it back; repeating is a no-op. */
+  setExcluded(input: { source: 'revision' | 'post'; id: string; excluded: boolean; now: number }): Promise<void>;
   /** Which of these posts (at most 100) came from an approved AI draft: where it was written and how much was edited. */
   postOrigins(
     postIds: readonly string[]
@@ -161,12 +204,24 @@ export interface WriterRepository {
     chatId: number,
     now: number,
     expiresAt: number
-  ): Promise<{ kind: ChatMode; history: ChatTurn[]; format: WriterFormat | null; editing: string | null } | null>;
+  ): Promise<{
+    kind: ChatMode;
+    history: ChatTurn[];
+    format: WriterFormat | null;
+    editing: string | null;
+    noting: string | null;
+  } | null>;
   /**
    * «✏️ Изменить»: the chat waits for the owner's version of `generationId` (null stops waiting). Opens the
    * chat row when none is open, so the next plain message is the edit whatever mode the chat is in.
    */
   setEditing(input: { chatId: number; generationId: string | null; now: number; expiresAt: number }): Promise<void>;
+  /**
+   * After a «Что не так?» reason: the chat waits for the owner's note on `feedbackId` (null stops waiting). Like
+   * `setEditing`, it opens a row of its own when no chat is open; starting it ends an awaited edit, so one wait is
+   * open at a time.
+   */
+  setNoting(input: { chatId: number; feedbackId: string | null; now: number; expiresAt: number }): Promise<void>;
   /** A format button on the chat's own message (null clears it); false when that chat is gone or replaced. */
   setRequestFormat(input: {
     chatId: number;
@@ -423,7 +478,7 @@ export function createD1WriterRepository(db: D1Database): WriterRepository {
     async listFeedback(limit) {
       const rows = await db
         .prepare(
-          `SELECT f.id, f.kind, g.format, g.task, r.text, f.created_at AS createdAt
+          `SELECT f.id, f.kind, g.format, g.task, r.text, f.note, f.created_at AS createdAt
            FROM ai_feedback f JOIN ai_generations g ON g.id = f.generation_id
            LEFT JOIN ai_text_revisions r ON r.id = f.revision_id
            ORDER BY f.created_at DESC, f.id LIMIT ?`
@@ -438,12 +493,21 @@ export function createD1WriterRepository(db: D1Database): WriterRepository {
     },
 
     async addFeedback({ id, generationId, kind, revisionId, now }) {
-      await db
-        .prepare(
-          'INSERT OR IGNORE INTO ai_feedback (id, generation_id, kind, revision_id, created_at) VALUES (?, ?, ?, ?, ?)'
-        )
-        .bind(id, generationId, kind, revisionId, now)
-        .run();
+      const [, row] = await db.batch([
+        db
+          .prepare(
+            'INSERT OR IGNORE INTO ai_feedback (id, generation_id, kind, revision_id, created_at) VALUES (?, ?, ?, ?, ?)'
+          )
+          .bind(id, generationId, kind, revisionId, now),
+        db.prepare('SELECT id FROM ai_feedback WHERE generation_id = ? AND kind = ?').bind(generationId, kind)
+      ]);
+      // A repeated tap finds the verdict recorded first: its note is the one to ask for.
+      return (row?.results[0] as { id: string } | undefined)?.id ?? id;
+    },
+
+    async setFeedbackNote(id, note) {
+      const result = await db.prepare('UPDATE ai_feedback SET note = ? WHERE id = ?').bind(note, id).run();
+      return result.meta.changes === 1;
     },
 
     async openRequest({ chatId, promptMessageId, now, expiresAt, kind = 'editor' }) {
@@ -452,7 +516,7 @@ export function createD1WriterRepository(db: D1Database): WriterRepository {
           `INSERT INTO ai_writer_requests (chat_id, format, prompt_message_id, expires_at, updated_at, history, kind)
            VALUES (?1, NULL, ?2, ?3, ?4, '[]', ?5)
            ON CONFLICT (chat_id) DO UPDATE SET format = NULL, prompt_message_id = ?2, expires_at = ?3, updated_at = ?4,
-             history = '[]', kind = ?5, editing_generation_id = NULL`
+             history = '[]', kind = ?5, editing_generation_id = NULL, noting_feedback_id = NULL`
         )
         .bind(chatId, promptMessageId, expiresAt, now, kind)
         .run();
@@ -462,13 +526,26 @@ export function createD1WriterRepository(db: D1Database): WriterRepository {
       const row = await db
         .prepare(
           `UPDATE ai_writer_requests SET expires_at = ?3, updated_at = ?2
-           WHERE chat_id = ?1 AND expires_at > ?2 RETURNING history, format, kind, editing_generation_id AS editing`
+           WHERE chat_id = ?1 AND expires_at > ?2 RETURNING history, format, kind, editing_generation_id AS editing,
+             noting_feedback_id AS noting`
         )
         .bind(chatId, now, expiresAt)
-        .first<{ history: string; format: WriterFormat | null; kind: ChatMode; editing: string | null }>();
+        .first<{
+          history: string;
+          format: WriterFormat | null;
+          kind: ChatMode;
+          editing: string | null;
+          noting: string | null;
+        }>();
       return row === null
         ? null
-        : { kind: row.kind, history: parseHistory(row.history), format: row.format, editing: row.editing };
+        : {
+            kind: row.kind,
+            history: parseHistory(row.history),
+            format: row.format,
+            editing: row.editing,
+            noting: row.noting
+          };
     },
 
     async setEditing({ chatId, generationId, now, expiresAt }) {
@@ -477,7 +554,11 @@ export function createD1WriterRepository(db: D1Database): WriterRepository {
         // a /redactor chat open behind it (a paid model call for the next «привет»).
         await db.batch([
           db.prepare('UPDATE ai_writer_requests SET editing_generation_id = NULL WHERE chat_id = ?').bind(chatId),
-          db.prepare('DELETE FROM ai_writer_requests WHERE chat_id = ? AND prompt_message_id = 0').bind(chatId)
+          db
+            .prepare(
+              'DELETE FROM ai_writer_requests WHERE chat_id = ? AND prompt_message_id = 0 AND noting_feedback_id IS NULL'
+            )
+            .bind(chatId)
         ]);
         return;
       }
@@ -488,7 +569,8 @@ export function createD1WriterRepository(db: D1Database): WriterRepository {
           `INSERT INTO ai_writer_requests
              (chat_id, format, prompt_message_id, expires_at, updated_at, history, kind, editing_generation_id)
            VALUES (?1, NULL, 0, ?3, ?4, '[]', 'editor', ?2)
-           ON CONFLICT (chat_id) DO UPDATE SET editing_generation_id = ?2, expires_at = ?3, updated_at = ?4,
+           ON CONFLICT (chat_id) DO UPDATE SET editing_generation_id = ?2, noting_feedback_id = NULL,
+             expires_at = ?3, updated_at = ?4,
              history = CASE WHEN ai_writer_requests.expires_at > ?4 THEN ai_writer_requests.history ELSE '[]' END,
              kind = CASE WHEN ai_writer_requests.expires_at > ?4 THEN ai_writer_requests.kind ELSE 'editor' END,
              format = CASE WHEN ai_writer_requests.expires_at > ?4 THEN ai_writer_requests.format ELSE NULL END,
@@ -496,6 +578,36 @@ export function createD1WriterRepository(db: D1Database): WriterRepository {
                THEN ai_writer_requests.prompt_message_id ELSE 0 END`
         )
         .bind(chatId, generationId, expiresAt, now)
+        .run();
+    },
+
+    async setNoting({ chatId, feedbackId, now, expiresAt }) {
+      if (feedbackId === null) {
+        // Same as `setEditing(null)`: a row made only for the wait goes with it, unless an edit is awaited on it.
+        await db.batch([
+          db.prepare('UPDATE ai_writer_requests SET noting_feedback_id = NULL WHERE chat_id = ?').bind(chatId),
+          db
+            .prepare(
+              'DELETE FROM ai_writer_requests WHERE chat_id = ? AND prompt_message_id = 0 AND editing_generation_id IS NULL'
+            )
+            .bind(chatId)
+        ]);
+        return;
+      }
+      await db
+        .prepare(
+          `INSERT INTO ai_writer_requests
+             (chat_id, format, prompt_message_id, expires_at, updated_at, history, kind, noting_feedback_id)
+           VALUES (?1, NULL, 0, ?3, ?4, '[]', 'editor', ?2)
+           ON CONFLICT (chat_id) DO UPDATE SET noting_feedback_id = ?2, editing_generation_id = NULL,
+             expires_at = ?3, updated_at = ?4,
+             history = CASE WHEN ai_writer_requests.expires_at > ?4 THEN ai_writer_requests.history ELSE '[]' END,
+             kind = CASE WHEN ai_writer_requests.expires_at > ?4 THEN ai_writer_requests.kind ELSE 'editor' END,
+             format = CASE WHEN ai_writer_requests.expires_at > ?4 THEN ai_writer_requests.format ELSE NULL END,
+             prompt_message_id = CASE WHEN ai_writer_requests.expires_at > ?4
+               THEN ai_writer_requests.prompt_message_id ELSE 0 END`
+        )
+        .bind(chatId, feedbackId, expiresAt, now)
         .run();
     },
 
@@ -610,13 +722,62 @@ export function createD1WriterRepository(db: D1Database): WriterRepository {
       // One approval per draft (unique index), so each row is a distinct text.
       const rows = await db
         .prepare(
-          `SELECT r.text FROM ai_text_revisions r JOIN ai_generations g ON g.id = r.generation_id
-           WHERE g.format = ?1 AND r.provenance IN ('OWNER_APPROVED', 'OWNER_PREAPPROVED') AND r.edit_ratio > ?2
+          `SELECT r.text, r.created_at AS createdAt FROM ai_text_revisions r JOIN ai_generations g ON g.id = r.generation_id
+           WHERE g.format = ?2 AND ${LEARNING_REVISION} AND NOT ${EXCLUDED_REVISION}
            ORDER BY r.created_at DESC LIMIT ?3`
         )
-        .bind(format, OWNER_EXAMPLE_MIN_EDIT, Math.min(limit, OWNER_EXAMPLE_CANDIDATES))
-        .all<{ text: string }>();
-      return rows.results.map((row) => row.text);
+        .bind(OWNER_EXAMPLE_MIN_EDIT, format, Math.min(limit, OWNER_EXAMPLE_CANDIDATES))
+        .all<{ text: string; createdAt: number }>();
+      return rows.results;
+    },
+
+    async learningRevisions(limit) {
+      const rows = await db
+        .prepare(
+          `SELECT r.id, g.format, r.text, r.edit_ratio AS editRatio, r.changed_parts AS changedParts,
+                  ${EXCLUDED_REVISION} AS excluded, r.created_at AS createdAt
+           FROM ai_text_revisions r JOIN ai_generations g ON g.id = r.generation_id
+           WHERE ${LEARNING_REVISION}
+           ORDER BY r.created_at DESC, r.id LIMIT ?2`
+        )
+        .bind(OWNER_EXAMPLE_MIN_EDIT, Math.min(limit, LEARNING_REVISIONS_MAX))
+        .all<RawLearningRevision>();
+      return rows.results.map(toLearningRevision);
+    },
+
+    async findLearningRevision(id) {
+      const row = await db
+        .prepare(
+          `SELECT r.id, g.format, r.text, r.edit_ratio AS editRatio, r.changed_parts AS changedParts,
+                  ${EXCLUDED_REVISION} AS excluded, r.created_at AS createdAt
+           FROM ai_text_revisions r JOIN ai_generations g ON g.id = r.generation_id
+           WHERE r.id = ?2 AND ${LEARNING_REVISION}`
+        )
+        .bind(OWNER_EXAMPLE_MIN_EDIT, id)
+        .first<RawLearningRevision>();
+      return row === null ? null : toLearningRevision(row);
+    },
+
+    async excludedPosts(ids) {
+      if (ids.length === 0) return new Set();
+      const rows = await db
+        .prepare(
+          `SELECT source_id AS id FROM ai_learning_exclusions
+           WHERE source = 'post' AND source_id IN (SELECT value FROM json_each(?1))`
+        )
+        .bind(JSON.stringify(ids.slice(0, 100)))
+        .all<{ id: string }>();
+      return new Set(rows.results.map((row) => row.id));
+    },
+
+    async setExcluded({ source, id, excluded, now }) {
+      await (
+        excluded
+          ? db
+              .prepare('INSERT OR IGNORE INTO ai_learning_exclusions (source, source_id, created_at) VALUES (?, ?, ?)')
+              .bind(source, id, now)
+          : db.prepare('DELETE FROM ai_learning_exclusions WHERE source = ? AND source_id = ?').bind(source, id)
+      ).run();
     },
 
     async postOrigins(postIds) {

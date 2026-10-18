@@ -220,6 +220,40 @@ const incidents = (): Array<Record<string, unknown>> => [
 
 const json = (route: Route, body: unknown, status = 200) =>
   route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) });
+// «На чём учится ИИ»: an edited draft, an own post, one switched off; long text to see the clamp.
+const LEARNING = [
+  {
+    source: 'revision',
+    id: '00000000-0000-4000-8000-0000000000a1',
+    format: 'telegram',
+    excerpt:
+      'Патч 7.40 вышел, и оракл снова в мете. Разбираю, что поменялось в его способностях, почему лечить надо раньше и как не отдать тиммейта на первых минутах. Дальше про предметы и тайминги.',
+    changedParts: ['hook', 'ending'],
+    editRatio: 0.34,
+    excluded: false,
+    createdAt: '2026-10-17T10:00:00.000Z'
+  },
+  {
+    source: 'post',
+    id: '00000000-0000-4000-8000-0000000000a2',
+    format: 'igrat',
+    excerpt: 'Сегодня играл на оракле и понял, что лечить надо раньше.',
+    changedParts: [],
+    editRatio: null,
+    excluded: false,
+    createdAt: '2026-10-16T10:00:00.000Z'
+  },
+  {
+    source: 'revision',
+    id: '00000000-0000-4000-8000-0000000000a3',
+    format: 'fidit',
+    excerpt: 'Коротко про фид: не умирай на линии.',
+    changedParts: ['length'],
+    editRatio: 0.12,
+    excluded: true,
+    createdAt: '2026-10-14T10:00:00.000Z'
+  }
+];
 // Page-number lists also carry `page` and `totalCount`; plain cursor lists ignore the extra fields.
 const page_ = <T>(items: T[]) => ({ items, nextCursor: null, page: 1, totalCount: items.length });
 
@@ -593,6 +627,14 @@ export async function mockApi(page: Page): Promise<void> {
       question: null
     });
   });
+  await page.route(/\/api\/v1\/ai\/learning(\/.*)?$/, (route) => {
+    if (route.request().method() === 'PUT') {
+      const [, source, id] = /learning\/(\w+)\/([^/]+)$/.exec(route.request().url()) ?? [];
+      const excluded = (route.request().postDataJSON() as { excluded: boolean }).excluded;
+      return json(route, { ...LEARNING.find((row) => row.id === id && row.source === source), excluded });
+    }
+    return json(route, { items: LEARNING });
+  });
   await page.route(/\/api\/v1\/ai\/feedback$/, (route) =>
     json(route, {
       items: [
@@ -602,6 +644,7 @@ export async function mockApi(page: Page): Promise<void> {
           format: 'igrat',
           task: 'сделай рилс учусь играть про оракла',
           text: 'Сегодня играл на оракле и понял, что лечить надо раньше, а не когда тиммейт уже серый.',
+          note: 'Начало как у всех постов про патчи, хочется живее.',
           createdAt: '2026-10-16T18:20:00.000Z'
         },
         {
@@ -663,7 +706,10 @@ export async function mockApi(page: Page): Promise<void> {
         approvedUnchanged: 1,
         averageEditRatio: 0,
         jokeMissed: 0,
-        feedback: [],
+        feedback: [
+          { kind: 'weak_hook', count: 1 },
+          { kind: 'joke_missed', count: 1 }
+        ],
         averageDraftUsd: 0.011,
         questions: 1,
         studioDrafts: 80,

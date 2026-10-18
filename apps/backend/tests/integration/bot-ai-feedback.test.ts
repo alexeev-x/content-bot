@@ -195,3 +195,90 @@ describe('«✏️ Изменить» under an AI draft', () => {
     expect(await edits()).toEqual(['Версия ответом.', 'Моя версия текста.']);
   });
 });
+
+const noteOf = () =>
+  testDb()
+    .prepare('SELECT note FROM ai_feedback')
+    .all<{ note: string | null }>()
+    .then((rows) => rows.results.map((row) => row.note));
+const waiting = () =>
+  testDb().prepare('SELECT noting_feedback_id AS n, editing_generation_id AS e FROM ai_writer_requests').first<{
+    n: string | null;
+    e: string | null;
+  }>();
+
+describe('the note after a «Что не так?» reason', () => {
+  it('stores the next plain message as the note, once, and shows it in the verdict list', async () => {
+    await tap('r:hook');
+    expect(sent().at(-1)).toContain('Следующее сообщение станет пояснением');
+    expect(await waiting()).toMatchObject({ n: expect.any(String), e: null });
+
+    // A command is not the note, and nothing goes to the paid model while a note is awaited.
+    await say('/unknowncmd');
+    expect(await noteOf()).toEqual([null]);
+    expect(sent()).not.toContain('Думаю…');
+
+    // A reply to the bot's prompt is the natural way to answer it: it is the note.
+    await say('  Хук слабый: нет интриги.  ', 777);
+    expect(sent()).not.toContain('Думаю…');
+    expect(await noteOf()).toEqual(['Хук слабый: нет интриги.']);
+    expect(sent().at(-1)).toBe('Записал пояснение.');
+    expect(await testDb().prepare('SELECT COUNT(*) AS n FROM ai_writer_requests').first('n')).toBe(0);
+
+    await say('Это уже не пояснение.');
+    expect(await noteOf()).toEqual(['Хук слабый: нет интриги.']);
+
+    const list = aiFeedbackListSchema.parse(await (await api.request('/api/v1/ai/feedback')).json());
+    expect(list.items[0]?.note).toBe('Хук слабый: нет интриги.');
+  });
+
+  it('refuses a note over 500 characters but keeps waiting; «Без пояснения» stops waiting', async () => {
+    await tap('r:hook');
+    await say('я'.repeat(501));
+    expect(await noteOf()).toEqual([null]);
+    expect(await waiting()).toMatchObject({ n: expect.any(String) });
+    await say('Коротко.');
+    expect(await noteOf()).toEqual(['Коротко.']);
+
+    await tap('r:style');
+    await api.request(`${ORIGIN}/webhooks/telegram`, {
+      method: 'POST',
+      token: null,
+      headers: { 'x-telegram-bot-api-secret-token': SECRET },
+      json: {
+        update_id: ++updateId,
+        callback_query: {
+          id: `cb-${updateId}`,
+          chat_instance: 'x',
+          from: { id: Number(OWNER_ID), is_bot: false, first_name: 'X' },
+          data: 'ai:nonote',
+          message: {
+            message_id: 22,
+            date: 1,
+            chat: { id: Number(OWNER_ID), type: 'private', first_name: 'X' },
+            text: 'x'
+          }
+        }
+      }
+    });
+    await say('Уже не пояснение.');
+    expect((await noteOf()).sort()).toEqual([null, 'Коротко.']);
+  });
+
+  it('never takes a message that an awaited edit owns: the last wait started wins', async () => {
+    await tap('r:hook');
+    await tap('edit');
+    expect(await waiting()).toMatchObject({ n: null, e: GENERATION });
+    await say('Моя версия текста.');
+    expect(await edits()).toEqual(['Моя версия текста.']);
+    expect(await noteOf()).toEqual([null]);
+
+    // And the other way round: a reason after «✏️ Изменить» turns the wait into a note.
+    await tap('edit');
+    await tap('r:style');
+    expect(await waiting()).toMatchObject({ n: expect.any(String), e: null });
+    await say('Не правка, а пояснение.');
+    expect(await edits()).toEqual(['Моя версия текста.']);
+    expect((await noteOf()).sort()).toEqual([null, 'Не правка, а пояснение.']);
+  });
+});

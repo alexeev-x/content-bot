@@ -35,6 +35,7 @@ import {
   WARN_PRESETS
 } from '../model/ai-view';
 import { AiFeedbackList } from './AiFeedbackList';
+import { AiLearningList } from './AiLearningList';
 import { copy, usd } from './copy';
 import styles from './AiSettingsPage.module.css';
 
@@ -428,6 +429,7 @@ function QualityPanel({ quality }: { quality: AiOverviewDto['quality'] }) {
   // The list loads only once opened: most visits never look at it.
   const [feedbackOpen, setFeedbackOpen] = useState(false);
   const verdictCount = verdicts.reduce((total, row) => total + row.count, 0);
+  const [learningOpen, setLearningOpen] = useState(false);
   const studioRuns = quality.studioDrafts ?? 0;
   return (
     <Panel title={copy.quality.title(quality.days)} icon={<Icon name="check-circle" />}>
@@ -515,6 +517,16 @@ function QualityPanel({ quality }: { quality: AiOverviewDto['quality'] }) {
           ) : null}
         </div>
       )}
+      <div className={styles.body}>
+        <DisclosureGroup
+          expandedKeys={learningOpen ? ['learning'] : []}
+          onExpandedChange={(keys) => setLearningOpen(keys.has('learning'))}
+        >
+          <Disclosure id="learning" title={copy.learning.title}>
+            {learningOpen ? <AiLearningList /> : null}
+          </Disclosure>
+        </DisclosureGroup>
+      </div>
     </Panel>
   );
 }

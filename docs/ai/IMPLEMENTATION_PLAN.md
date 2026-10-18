@@ -49,8 +49,7 @@ Stages 2 and 3 can be designed independently; implement 3 before 5, and do not s
 
 - [ ] Verify DEV CI migration 0062 actually applied and endpoint returns the new result shape; record the commit and test time.
 - [ ] Live Telegram smoke: /redactor → "Учусь играть" → "придумай сам" → select an idea and reply with a real match detail → get a full draft → edit/approve. Confirm original task survives, and question/ideas show no approval keyboard.
-- [ ] Record the 20-prompt paired eval and five-repeat-topic eval method, model, pack revision and observed costs; distinguish manual ratings from automated pass/fail.
-- [ ] Confirm separately reported Reels-format frontend work is accounted for before any overlapping UI change; do not overwrite uncommitted local changes.
+- [ ] Run and record the owner's 20-brief paired set and the five-repeat check by the method in [eval/README.md](eval/README.md) (method written 18.10.2026; the runs need the owner and DEV).
 
 **Acceptance:** one complete live Telegram question → answer → draft → approval flow; no way to approve a question; valid API status/quality counts; existing draft approval and budget tests green. **Files:** writer.ts, bot/ai-writer.ts, d1-writer-repository.ts, service.ts, ai-routes.ts, contracts only if needed, integration tests, eval guide. **No new model calls by default.**
 
@@ -61,7 +60,7 @@ Stages 2 and 3 can be designed independently; implement 3 before 5, and do not s
 - [ ] Rotate comedic devices (absurdly confident advice, escalating proof, pub dialogue, inversion, personal failure, unexpected payoff), **not** a hard-coded template order.
 - [ ] Reduce repeated generic wording ("мой тупой мозг", "Запомни", blaming supports), but never impose blanket bans on authentic author phrasing.
 - [ ] Detect near-duplicate central ideas across formats as advisory information. Preserve an explicit owner topic even if it repeats; avoid cross-format false positives.
-- [ ] Check that a Telegram invitation has a concrete action, a personal Reels story uses supplied facts, and patch claims have an authoritative fact source; flag obvious grammatical slips.
+- [ ] Check that a personal Reels story uses the facts the owner supplied (an invitation without a time or link, an explained punchline, a doubled word and an unsourced patch claim are flagged in code since 18.10.2026).
 - [ ] Deterministic checks first; optional cheap-model review/rewrite **only for a specific finding**, with bounded attempts, logs and budget control. Do not revise a clean script simply because a judge can produce a variant.
 - [ ] Rerun the fixed 20 briefs and the five-identical-request sequence on DEV; compare acceptance, duplicate themes, factual errors, wordiness and owner-rated humor. Keep old outputs for side-by-side review.
 
@@ -70,12 +69,9 @@ Stages 2 and 3 can be designed independently; implement 3 before 5, and do not s
 ## Stage 2 — learn reliably from the owner's edits (P1)
 
 - [ ] Preserve current immutable provenance and per-approval diff/editRatio; make changes to the evidence model backward-compatible.
-- [ ] Add the optional owner note to a «Что не так?» verdict (the seven reasons per revision are recorded already). No inference of author preferences from a single dislike.
-- [ ] Improve owner-example selection beyond shared stems and recency (in code): intent, length and explicitly owner-confirmed quality; use recency as one factor, not the only factor. Keep a 3–4 example/token bound.
-- [ ] Distinguish OWNER_ORIGINAL, OWNER_EDITED and mere unchanged AI approval. Never promote unchanged AI text to human-authored evidence.
+- [ ] Improve owner-example selection by intent and length (shared stems, recency, a disliked draft left out and the owner's own Telegram posts are in code since 18.10.2026); keep a 3–4 example/token bound.
 - [ ] Build a lightweight per-edit evidence record with before/after, changed part and feedback; store facts in D1 and never silently rewrite Git's style pack.
-- [ ] Show the owner which correction was learned as evidence (verdicts are listed and deletable in «Настройки → ИИ → Качество»); avoid self-referential AI learning.
-- [ ] Add tests: only eligible human-edited/confirmed text enters retrieval; relevance ranking; removal/supersession; no learning from draft-only or nonapproved examples.
+- [ ] Add tests for relevance ranking by intent/length and for supersession once those exist (eligibility, exclusion and disliked drafts are covered).
 
 **Acceptance:** an owner edit measurably influences a relevant later brief, while an unedited AI output and an isolated negative rating cannot create a global rule. **Files:** writer.ts, writer-prompt.ts, d1-writer-repository.ts, migrations/contracts when approved, bot/UI and tests. **Dependency:** stage 6 activates general rules after enough evidence.
 
