@@ -1,7 +1,7 @@
 # §3.4–3.5 Публикации, инциденты и сверка
 
 ## 3.4 Публикации `/publications` (+ inspector)
-- **Purpose:** find a send/schedule and act safely. **Primary:** «Опубликовать пост» in the header (renamed from «Создать публикацию»; opens PublishDialog with a post select, API exists: `postId` + `destinationId`).
+- **Purpose:** find a send/schedule and act safely. **Primary:** «Опубликовать пост» in the header (renamed from «Создать публикацию»; opens a post select, then the post's publish screen `/posts/:id/publish`; drafts with something to send are offered too and are approved together with the send — owner, 18.10.2026).
 - **Views (tabs, URL):** Все · Запланированные · Отправленные · Ошибки (Ошибки = failed + unknown; badge count). The tabs map to the server status; search (post, channel, status label, time) and sort by time are the only controls: no Статус/Канал filters, search runs over loaded rows. Period «Сегодня»: **API need**.
 - **Desktop:** header -> tabs -> Panel{ Toolbar, DataTable: Время (mono, tabular) · Пост (title + excerpt) · Канал · Статус · Сообщение (Telegram id link) } . No timezone note: times are in the owner zone, the zone is shown only in Settings.
 - **Phone:** cards: title + chip; meta `7 окт., 12:00 · Канал`; Telegram link only in sheet. Drop the avatar/icon column.
