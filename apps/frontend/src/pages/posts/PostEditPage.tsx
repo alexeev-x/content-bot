@@ -16,7 +16,7 @@ import {
 } from '../../features/posts';
 import { classifyApiError } from '../../shared/api/error-kind';
 import { ApiError } from '../../shared/api/http-client';
-import { Banner, Button, Card, ErrorState, Menu, Skeleton } from '../../shared/ui';
+import { Banner, Button, Card, ErrorState, Menu, Skeleton, VisuallyHidden } from '../../shared/ui';
 import { BackToPosts } from './BackToPosts';
 import { PostPublications } from './PostPublications';
 import styles from './PostPages.module.css';
@@ -33,22 +33,55 @@ export function PostEditPage({ id }: Props) {
 
   if (query.isPending) {
     return (
-      <div className={styles.skeleton} aria-busy="true">
-        <BackToPosts />
-        <Skeleton height={36} width="50%" />
-        <div className={styles.skeletonPanes}>
+      <div className={styles.editorSkeleton} aria-busy="true">
+        <VisuallyHidden>
+          <output>{copy.editor.loading}</output>
+        </VisuallyHidden>
+        <header className={styles.skeletonHeader}>
+          <span className={styles.skeletonBack} aria-hidden="true">
+            <Skeleton height={20} width={20} />
+          </span>
+          <Skeleton height={32} width="min(50%, 20rem)" />
+          <Skeleton height={20} width="6rem" />
+        </header>
+        <div className={styles.skeletonTabs} aria-hidden="true">
+          <Skeleton height={36} width="5rem" />
+          <Skeleton height={36} width="5rem" />
+        </div>
+        <div className={styles.editorSkeletonPanes}>
+          <div className={styles.editorSkeletonMain}>
+            <Card>
+              <div className={styles.editorSkeletonFields}>
+                <Skeleton height={24} width="40%" />
+                <Skeleton height={44} />
+                <Skeleton lines={5} height={20} />
+                <Skeleton height={18} width="20%" />
+              </div>
+            </Card>
+            <Card>
+              <div className={styles.editorSkeletonMedia}>
+                <Skeleton height={22} width="35%" />
+                <Skeleton height={128} width="100%" radius="var(--radius-2)" />
+              </div>
+            </Card>
+          </div>
           <Card>
-            <Skeleton lines={6} height={20} />
-          </Card>
-          <Card>
-            <Skeleton lines={4} height={20} />
+            <div className={styles.editorSkeletonPreview}>
+              <Skeleton height={22} width="45%" />
+              <Skeleton lines={5} height={20} />
+              <Skeleton height={180} width="100%" radius="var(--radius-2)" />
+            </div>
           </Card>
         </div>
+        <footer className={styles.editorSkeletonFooter} aria-hidden="true">
+          <Skeleton height={44} width="8rem" />
+          <Skeleton height={44} width="12rem" />
+        </footer>
       </div>
     );
   }
 
-  if (query.isError) {
+  if (query.isError && query.data === undefined) {
     const notFound = classifyApiError(query.error) === 'not_found';
     return (
       <>

@@ -26,9 +26,91 @@
   grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);
   gap: var(--space-5);
 }
+.editorSkeleton {
+  display: grid;
+  gap: var(--space-4);
+  min-height: min(calc(100dvh - var(--space-6) * 2), 48rem);
+}
+.skeletonHeader {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  min-height: var(--size-control);
+}
+.skeletonBack {
+  display: none;
+}
+.skeletonTabs {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: var(--size-control);
+  border-bottom: 1px solid var(--color-border-subtle);
+}
+.editorSkeletonPanes {
+  display: grid;
+  grid-template-columns: minmax(0, 66fr) minmax(0, 32fr);
+  gap: var(--space-4);
+  align-items: start;
+}
+.editorSkeletonMain,
+.editorSkeletonFields,
+.editorSkeletonMedia,
+.editorSkeletonPreview {
+  display: grid;
+  gap: var(--space-4);
+  min-width: 0;
+}
+.editorSkeletonFields,
+.editorSkeletonMedia,
+.editorSkeletonPreview {
+  padding: var(--space-4);
+}
+.editorSkeletonFooter {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-3);
+}
 @media (max-width: 859px) {
   .skeletonPanes {
     grid-template-columns: minmax(0, 1fr);
+  }
+  .editorSkeleton {
+    gap: var(--space-3);
+    margin-block-start: calc(-1 * var(--space-4));
+  }
+  .editorSkeletonPanes {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .editorSkeletonPanes > :last-child {
+    display: none;
+  }
+  .skeletonHeader {
+    min-height: 56px;
+    gap: var(--space-2);
+  }
+  .skeletonBack {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: none;
+    width: var(--size-target);
+    min-width: var(--size-target);
+  }
+  .editorSkeletonFooter {
+    position: fixed;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    z-index: var(--z-sticky);
+    justify-content: stretch;
+    padding: var(--space-3);
+    padding-bottom: max(var(--space-3), env(safe-area-inset-bottom), var(--tg-content-safe-area-inset-bottom, 0px));
+    border-top: 1px solid var(--color-border-subtle);
+    background: var(--color-surface-1);
+  }
+  .editorSkeletonFooter > span {
+    flex: 1;
   }
 }
 .publications {
