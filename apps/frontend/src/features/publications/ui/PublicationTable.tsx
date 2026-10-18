@@ -9,6 +9,7 @@ import {
   MediaTile,
   PanelList,
   PhoneSkeletonRows,
+  PollMark,
   RowCard,
   StatusBadge,
   type DataColumn,
@@ -109,7 +110,11 @@ function PostCell({
           {origin ? <AiMark text={copy.list.aiPost} /> : null} {headline || value.title}
           {deleted ? <span className={styles.deletedBadge}>{copy.list.postDeleted}</span> : null}
         </strong>
-        {value.body.trim() === '' ? (
+        {value.kind === 'poll' ? (
+          <span className={styles.excerpt}>
+            <PollMark label={copy.list.poll} />
+          </span>
+        ) : value.body.trim() === '' ? (
           <span className={styles.excerpt}>{copy.list.noText}</span>
         ) : rest ? (
           <span className={styles.excerpt} title={value.body}>

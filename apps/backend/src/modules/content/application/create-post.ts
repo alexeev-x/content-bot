@@ -1,4 +1,4 @@
-import { type CreatePostInput, type PostDto, postSchema } from '@alexeev/contracts';
+import { type CreatePostInput, DEFAULT_SEND_OPTIONS, EMPTY_POLL, type PostDto, postSchema } from '@alexeev/contracts';
 import { z } from 'zod';
 import { sha256Hex } from '../../../platform/security/sha256';
 import { AppError } from '../../../shared/app-error';
@@ -23,12 +23,15 @@ export async function createPost(deps: CreatePostDeps, command: CreatePostComman
   const { actor, idempotencyKey, input } = command;
   // Field order is fixed here, so equal payloads always hash equally.
   // Entities join the hash only when there are some, so a key claimed before they existed still replays.
+  // Kind, poll and send options join it only when set, for the same reason.
   const requestHash = await sha256Hex(
-    JSON.stringify(
-      input.entities.length === 0
-        ? { title: input.title, body: input.body }
-        : { title: input.title, body: input.body, entities: input.entities }
-    )
+    JSON.stringify({
+      title: input.title,
+      body: input.body,
+      ...(input.entities.length === 0 ? {} : { entities: input.entities }),
+      ...(input.kind === 'poll' ? { kind: input.kind, poll: input.poll } : {}),
+      ...(input.sendOptions === undefined ? {} : { sendOptions: input.sendOptions })
+    })
   );
   const ref = { scope: actor, key: idempotencyKey, requestHash, claimedAt: deps.now };
 
@@ -55,12 +58,17 @@ export async function createPost(deps: CreatePostDeps, command: CreatePostComman
   }
 
   // Without a title (owner, 16.10.2026: no title field) only the body is sent; the title is just its studio name.
+  // A poll post is named after its question and never carries a title in the message.
+  const poll = input.kind === 'poll' ? (input.poll ?? EMPTY_POLL) : null;
   const record: PostRecord = {
     id: deps.newId(),
-    title: input.title ?? postNameFromBody(input.body),
-    titleInMessage: input.title !== undefined,
+    title: poll === null ? (input.title ?? postNameFromBody(input.body)) : postNameFromBody(poll.question),
+    titleInMessage: poll === null && input.title !== undefined,
     body: input.body,
     entities: input.entities,
+    kind: input.kind,
+    poll,
+    sendOptions: input.sendOptions ?? DEFAULT_SEND_OPTIONS,
     status: 'draft',
     archivedAt: null,
     revision: 0,

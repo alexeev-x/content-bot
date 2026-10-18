@@ -466,7 +466,7 @@ describe('drafts from messages', () => {
     expect(setup.drafts).toEqual([
       {
         // No title (owner, 16.10.2026): the whole text is the body; the server names the post after its start.
-        input: { body: 'Релиз 7.40 🚀\n\nНовые герои 👩‍💻 и баланс\n- первое\n- второе', entities: [] },
+        input: { body: 'Релиз 7.40 🚀\n\nНовые герои 👩‍💻 и баланс\n- первое\n- второе', entities: [], kind: 'text' },
         key: 'tg-update-100'
       }
     ]);
@@ -487,14 +487,14 @@ describe('drafts from messages', () => {
   it('a single line is the body, trimmed, with no title', async () => {
     const setup = harness();
     await runUpdates([textUpdate(4242, '  Просто строка  ')], { setup });
-    expect(setup.drafts[0]?.input).toEqual({ body: 'Просто строка', entities: [] });
+    expect(setup.drafts[0]?.input).toEqual({ body: 'Просто строка', entities: [], kind: 'text' });
   });
 
   it('keeps a long first line whole in the body: nothing is cut into a title', async () => {
     const line = `${'а'.repeat(198)}🚀${'б'.repeat(50)}`;
     const setup = harness();
     await runUpdates([textUpdate(4242, `${line}\nвторая строка`)], { setup });
-    expect(setup.drafts[0]?.input).toEqual({ body: `${line}\nвторая строка`, entities: [] });
+    expect(setup.drafts[0]?.input).toEqual({ body: `${line}\nвторая строка`, entities: [], kind: 'text' });
   });
 
   it('refuses a body over the contract limit without creating a draft, counting UTF-16 units', async () => {

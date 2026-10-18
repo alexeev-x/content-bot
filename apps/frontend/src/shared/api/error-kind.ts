@@ -14,6 +14,8 @@ export type ApiErrorKind =
   | 'entities_split_surrogate'
   | 'entities_invalid_nesting'
   | 'entities_required'
+  | 'kind_mismatch'
+  | 'poll_invalid'
   | 'schedule_out_of_range'
   | 'not_found'
   | 'post_not_found'
@@ -44,7 +46,9 @@ const REASONS: Partial<Record<ApiError['code'], Record<string, ApiErrorKind>>> =
     ENTITIES_OUT_OF_RANGE: 'entities_out_of_range',
     ENTITIES_SPLIT_SURROGATE: 'entities_split_surrogate',
     ENTITIES_INVALID_NESTING: 'entities_invalid_nesting',
-    ENTITIES_REQUIRED: 'entities_required'
+    ENTITIES_REQUIRED: 'entities_required',
+    KIND_MISMATCH: 'kind_mismatch',
+    POLL_INVALID: 'poll_invalid'
   },
   NOT_FOUND: { POST_NOT_FOUND: 'post_not_found', DESTINATION_NOT_FOUND: 'destination_not_found' },
   CONFLICT: {

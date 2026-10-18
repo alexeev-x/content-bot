@@ -1,4 +1,4 @@
-import type { PostEntity } from '@alexeev/contracts';
+import { type PostEntity, type PostPoll, type PostSendOptions, pollIssue } from '@alexeev/contracts';
 import type { Clock } from '../../../platform/clock';
 import type { Logger } from '../../../platform/logging/logger';
 import { attemptsExhausted, DISPATCH_BATCH, LEASE_MS, minLeaseForSend, retryRunAt } from '../domain/dispatch-policy';
@@ -138,7 +138,16 @@ async function dispatchJob(deps: DispatchDeps, jobId: string, budget: TickBudget
   const revision = await deps.posts.findRevision(target.postId, target.postRevision);
   if (revision === null) return refuse('CONTENT_INVALID', 'revision_missing');
   context.postTitle = revision.title;
-  const message = formatPublicationText(revision);
+  // A poll is checked again here: the approved snapshot passed pollIssue, but a damaged row must be refused as a
+  // permanent failure before the mark, never sent and never left unknown.
+  let poll: PostPoll | null = null;
+  if (revision.kind === 'poll') {
+    if (revision.poll === null || pollIssue(revision.poll) !== null || revision.media.length > 0) {
+      return refuse('CONTENT_INVALID', 'poll_invalid');
+    }
+    poll = revision.poll;
+  }
+  const message = poll === null ? formatPublicationText(revision) : { ok: true as const, text: '', entities: [] };
   if (!message.ok) return refuse('CONTENT_INVALID', message.reason.toLowerCase());
   const media = revision.media;
   if (media.length > 10 || (media.length > 1 && media.some(({ kind }) => kind === 'animation'))) {
@@ -163,7 +172,7 @@ async function dispatchJob(deps: DispatchDeps, jobId: string, budget: TickBudget
     return 'not_sent';
   }
 
-  const outcome = await sendOnce(deps, target.chatId, { ...message, media });
+  const outcome = await sendOnce(deps, target.chatId, { ...message, media, options: revision.sendOptions, poll });
   return resolveSent(deps, budget, claimed, startedAt, context, outcome);
 }
 
@@ -171,10 +180,16 @@ async function dispatchJob(deps: DispatchDeps, jobId: string, budget: TickBudget
 async function sendOnce(
   deps: DispatchDeps,
   chatId: string,
-  message: { text: string; entities: PostEntity[]; media: readonly import('./ports').PublicationMedia[] }
+  message: {
+    text: string;
+    entities: PostEntity[];
+    media: readonly import('./ports').PublicationMedia[];
+    options: PostSendOptions;
+    poll: PostPoll | null;
+  }
 ): Promise<SendOutcome> {
   try {
-    return await deps.transport.send({ chatId, text: message.text, entities: message.entities, media: message.media });
+    return await deps.transport.send({ chatId, ...message });
   } catch {
     return { kind: 'unknown', reason: 'transport_threw' };
   }

@@ -10,7 +10,8 @@ export const ids = {
   post: '11111111-1111-4111-8111-111111111111',
   destination: '22222222-2222-4222-8222-222222222222',
   destination2: '22222222-2222-4222-8222-333333333333',
-  publication: '33333333-3333-4333-8333-333333333333'
+  publication: '33333333-3333-4333-8333-333333333333',
+  poll: '11111111-1111-4111-8111-555555555555'
 } as const;
 
 const NO_COUNTS = {
@@ -96,6 +97,18 @@ const posts = [
   }),
   post('11111111-1111-4111-8111-444444444444', 'Идёт отправка', 'approved', {
     publicationSummary: summary({ sending: 1 })
+  }),
+  // A poll post: no text, the name is the question.
+  post(ids.poll, 'Какой формат роликов интереснее?', 'draft', {
+    kind: 'poll',
+    body: '',
+    titleInMessage: false,
+    poll: {
+      question: 'Какой формат роликов интереснее?',
+      options: ['Учу фидить', 'Учусь играть', ''],
+      allowsMultipleAnswers: false,
+      quiz: null
+    }
   })
 ];
 const archivedPosts = [archived(1, LONG_POST_TITLE, 20), archived(2, 'Итоги недели', 2), archived(3, UNBROKEN, 12)];

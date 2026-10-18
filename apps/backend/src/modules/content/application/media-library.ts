@@ -16,6 +16,7 @@ import {
 import { AppError } from '../../../shared/app-error';
 import type { Logger } from '../../../platform/logging/logger';
 import type { MediaObjectStorage, PostMediaRepository } from './media-ports';
+import { kindMismatch } from './post-errors';
 
 function decodeCursor(cursor: string | undefined): { createdAt: number; id: string } | undefined {
   if (cursor === undefined) return undefined;
@@ -68,6 +69,7 @@ export async function attachRetainedPostMedia(
 ): Promise<AttachPostMediaResultDto> {
   const state = await deps.repo.findPostState(command.postId);
   if (state === null) throw new AppError('NOT_FOUND', 'Post not found');
+  if (state.kind === 'poll') throw kindMismatch('A poll post has no media');
   if (state.status !== 'draft')
     throw new AppError('CONFLICT', 'Only drafts can be changed', { reason: 'NOT_EDITABLE' });
   if (state.revision !== command.revision)

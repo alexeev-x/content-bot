@@ -1,4 +1,13 @@
-import type { PostDto } from '@alexeev/contracts';
+import {
+  DEFAULT_SEND_OPTIONS,
+  EMPTY_POLL,
+  pollIssue,
+  type PollIssue,
+  type PostDto,
+  type PostKind,
+  type PostPoll,
+  type PostSendOptions
+} from '@alexeev/contracts';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef, useState, type RefObject } from 'react';
@@ -14,6 +23,7 @@ import {
 import { postsCopy } from '../ui/copy';
 import { messageLength, messageOverflow } from './message-length';
 import { toEditorNotice, type EditorNotice } from './post-errors';
+import { isPollBlank, samePoll } from './poll-model';
 import { postFormSchema, type PostFormValues } from './post-form';
 
 export type SaveState = 'new' | 'saved' | 'dirty' | 'saving' | 'failed';
@@ -33,6 +43,8 @@ type Options = {
   /** Server post for an existing record; undefined for a new draft. */
   post?: PostDto | undefined;
   onCreated?: ((post: PostDto) => void) | undefined;
+  /** What a new post becomes on its first save: the tab the operator writes in. Fixed by the server afterwards. */
+  createKind?: PostKind | undefined;
 };
 
 export type PostWriteLock = {
@@ -47,12 +59,23 @@ const valuesOf = (post: PostDto | null): PostFormValues =>
 // Entities are always in the contract's normal form on both sides, so a plain JSON comparison is exact.
 const sameEntities = (a: PostFormValues['entities'], b: PostFormValues['entities']) =>
   JSON.stringify(a) === JSON.stringify(b);
+const sameSend = (a: PostSendOptions, b: PostSendOptions) => JSON.stringify(a) === JSON.stringify(b);
+
+/** What went to the server in one request, to tell later whether the operator kept editing meanwhile. */
+type Sent = { poll: PostPoll; sendOptions: PostSendOptions };
 
 /**
  * Editor state machine. The baseline is the last server-confirmed post; it only moves on a server success or an
  * explicit «take the server version», never from a background refetch, so local text is never replaced silently.
  */
-export function usePostEditor({ post, onCreated, rootRef, dirtyRef, mediaWriteLock: externalMediaWriteLock }: Options) {
+export function usePostEditor({
+  post,
+  onCreated,
+  rootRef,
+  dirtyRef,
+  mediaWriteLock: externalMediaWriteLock,
+  createKind = 'text'
+}: Options) {
   const mediaWriteLock = externalMediaWriteLock ?? {
     isLocked: () => false,
     tryAcquire: () => true,
@@ -73,6 +96,20 @@ export function usePostEditor({ post, onCreated, rootRef, dirtyRef, mediaWriteLo
   const [focusTick, setFocusTick] = useState(0);
   const [mediaPending, setMediaPending] = useState(false);
 
+  // A poll and the send options are small objects replaced as a whole; refs keep the live value readable after an await.
+  const [poll, setPollState] = useState<PostPoll>(post?.poll ?? EMPTY_POLL);
+  const pollRef = useRef(poll);
+  const setPoll = (next: PostPoll) => {
+    pollRef.current = next;
+    setPollState(next);
+  };
+  const [sendOptions, setSendOptionsState] = useState<PostSendOptions>(post?.sendOptions ?? DEFAULT_SEND_OPTIONS);
+  const sendOptionsRef = useRef(sendOptions);
+  const setSendOptions = (next: PostSendOptions) => {
+    sendOptionsRef.current = next;
+    setSendOptionsState(next);
+  };
+
   const form = useForm<PostFormValues>({
     resolver: zodResolver(postFormSchema),
     defaultValues: valuesOf(post ?? null),
@@ -86,12 +123,21 @@ export function usePostEditor({ post, onCreated, rootRef, dirtyRef, mediaWriteLo
 
   // No title field (owner, 16.10.2026): a new post is created without one and sends only its text. Only an older
   // post that was given a title keeps it (and the field) — it still goes out as the bold first line.
-  const hasTitle = baseline?.titleInMessage === true;
+  const kind: PostKind = baseline?.kind ?? createKind;
+  const hasTitle = baseline?.kind !== 'poll' && baseline?.titleInMessage === true;
   const sentTitle = hasTitle ? title : '';
 
   const base = valuesOf(baseline);
-  const dirty = title !== base.title || body !== base.body || !sameEntities(entities, base.entities);
-  const changeKey = JSON.stringify([title, body, entities]);
+  const basePoll = baseline?.poll ?? EMPTY_POLL;
+  const baseSend = baseline?.sendOptions ?? DEFAULT_SEND_OPTIONS;
+  const textDirty = title !== base.title || body !== base.body || !sameEntities(entities, base.entities);
+  const pollDirty = !samePoll(poll, basePoll);
+  const sendDirty = !sameSend(sendOptions, baseSend);
+  const dirty = textDirty || pollDirty || sendDirty;
+  const changeKey = JSON.stringify([title, body, entities, poll, sendOptions]);
+  // Before the first save one post cannot be both: typed text plus a typed poll waits for the operator to pick one.
+  const mixed = baseline === null && body.trim() !== '' && !isPollBlank(poll);
+  const issue: PollIssue | null = kind === 'poll' ? pollIssue(poll) : null;
   const failed = failedKey === changeKey;
   const readOnly = baseline?.status === 'approved' || conflict?.kind === 'locked';
   const isSaving = create.isPending || update.isPending;
@@ -118,9 +164,14 @@ export function usePostEditor({ post, onCreated, rootRef, dirtyRef, mediaWriteLo
         : 'saved';
 
   /** Adopts a server post as the new baseline. A field edited while the request was in flight keeps the newer text. */
-  function adopt(saved: PostDto, submitted: PostFormValues | null) {
+  function adopt(saved: PostDto, submitted: PostFormValues | null, sent: Sent | null = null) {
     baselineRef.current = saved;
     setBaseline(saved);
+    // Like the text: a poll or an option changed while the request was in flight keeps the newer value.
+    setPoll(sent === null || samePoll(pollRef.current, sent.poll) ? (saved.poll ?? EMPTY_POLL) : pollRef.current);
+    setSendOptions(
+      sent === null || sameSend(sendOptionsRef.current, sent.sendOptions) ? saved.sendOptions : sendOptionsRef.current
+    );
     const current = form.getValues();
     form.reset({
       title: submitted === null || current.title === submitted.title ? saved.title : current.title,
@@ -158,19 +209,26 @@ export function usePostEditor({ post, onCreated, rootRef, dirtyRef, mediaWriteLo
 
   /** Saves the form; resolves with the confirmed post, or null when invalid, blocked or rejected. */
   async function save(): Promise<PostDto | null> {
-    if (isBusy || readOnly || (baseline !== null && !dirty) || !mediaWriteLock.tryAcquire()) return null;
+    if (isBusy || readOnly || mixed || (baseline !== null && !dirty) || !mediaWriteLock.tryAcquire()) return null;
     try {
       if (!(await validate())) return null;
       const submitted = form.getValues();
       // Nothing written yet: no empty draft (the required title used to stop this; media go through
       // ensureDraftForMedia).
-      if (baseline === null && submitted.body.trim() === '') return null;
+      const sent: Sent = { poll: pollRef.current, sendOptions: sendOptionsRef.current };
+      if (baseline === null && (kind === 'poll' ? isPollBlank(sent.poll) : submitted.body.trim() === '')) return null;
       try {
         if (baseline === null) {
-          const created = await create.mutateAsync({ body: submitted.body, entities: submitted.entities });
+          // Options at their defaults are left out: the server fills them in.
+          const options = sameSend(sent.sendOptions, DEFAULT_SEND_OPTIONS) ? {} : { sendOptions: sent.sendOptions };
+          const created = await create.mutateAsync(
+            kind === 'poll'
+              ? { kind: 'poll', poll: sent.poll, ...options }
+              : { body: submitted.body, entities: submitted.entities, ...options }
+          );
           // The navigation that follows must not trip the leave guard for the draft we just stored.
           dirtyRef.current = false;
-          adopt(created, submitted);
+          adopt(created, submitted, sent);
           onCreated?.(created);
           return created;
         }
@@ -181,10 +239,12 @@ export function usePostEditor({ post, onCreated, rootRef, dirtyRef, mediaWriteLo
             revision: baseline.revision,
             ...(hasTitle && submitted.title !== base.title ? { title: submitted.title } : {}),
             // The server refuses a body without its entities, and offsets only mean something next to their text.
-            ...(textChanged ? { body: submitted.body, entities: submitted.entities } : {})
+            ...(textChanged && baseline.kind === 'text' ? { body: submitted.body, entities: submitted.entities } : {}),
+            ...(baseline.kind === 'poll' && !samePoll(sent.poll, basePoll) ? { poll: sent.poll } : {}),
+            ...(!sameSend(sent.sendOptions, baseSend) ? { sendOptions: sent.sendOptions } : {})
           }
         });
-        adopt(saved, submitted);
+        adopt(saved, submitted, sent);
         return saved;
       } catch (error) {
         handleError(error, baseline?.id ?? null, postsCopy.editor.errors.saveTitle);
@@ -199,7 +259,7 @@ export function usePostEditor({ post, onCreated, rootRef, dirtyRef, mediaWriteLo
   async function ensureDraftForMedia(): Promise<PostDto | null> {
     if (baseline) return baseline;
     // A queued local file marks media pending before confirmation; that state must not block its own draft creation.
-    if (isSaving || isApproving || readOnly || conflict !== null || !mediaWriteLock.tryAcquire()) return null;
+    if (isSaving || isApproving || readOnly || mixed || conflict !== null || !mediaWriteLock.tryAcquire()) return null;
     try {
       const valid = await form.trigger();
       if (!valid) {
@@ -208,8 +268,10 @@ export function usePostEditor({ post, onCreated, rootRef, dirtyRef, mediaWriteLo
       }
       const values = form.getValues();
       try {
-        const created = await create.mutateAsync({ body: values.body, entities: values.entities });
-        adopt(created, values);
+        const sent: Sent = { poll: pollRef.current, sendOptions: sendOptionsRef.current };
+        const options = sameSend(sent.sendOptions, DEFAULT_SEND_OPTIONS) ? {} : { sendOptions: sent.sendOptions };
+        const created = await create.mutateAsync({ body: values.body, entities: values.entities, ...options });
+        adopt(created, values, sent);
         return created;
       } catch (error) {
         handleError(error, null, postsCopy.editor.errors.saveTitle);
@@ -230,17 +292,23 @@ export function usePostEditor({ post, onCreated, rootRef, dirtyRef, mediaWriteLo
         setConflict({ kind: 'locked', server: fresh, status: 'ready' });
         return;
       }
+      const sent: Sent = { poll: pollRef.current, sendOptions: sendOptionsRef.current };
       const saved = await update.mutateAsync({
         id: baseline.id,
         input: {
           revision: fresh.revision,
-          ...(hasTitle ? { title: submitted.title } : {}),
-          body: submitted.body,
-          entities: submitted.entities
+          ...(sameSend(sent.sendOptions, fresh.sendOptions) ? {} : { sendOptions: sent.sendOptions }),
+          ...(baseline.kind === 'poll'
+            ? { poll: sent.poll }
+            : {
+                ...(hasTitle ? { title: submitted.title } : {}),
+                body: submitted.body,
+                entities: submitted.entities
+              })
         }
       });
       setConflict(null);
-      adopt(saved, submitted);
+      adopt(saved, submitted, sent);
     } catch (error) {
       handleError(error, baseline.id, postsCopy.editor.errors.saveTitle);
     }
@@ -267,7 +335,11 @@ export function usePostEditor({ post, onCreated, rootRef, dirtyRef, mediaWriteLo
     const current = form.getValues();
     const saved = valuesOf(baselineRef.current);
     dirtyRef.current =
-      current.title !== saved.title || current.body !== saved.body || !sameEntities(current.entities, saved.entities);
+      current.title !== saved.title ||
+      current.body !== saved.body ||
+      !sameEntities(current.entities, saved.entities) ||
+      pollDirty ||
+      sendDirty;
   }
 
   function retryServerVersion(): void {
@@ -334,8 +406,16 @@ export function usePostEditor({ post, onCreated, rootRef, dirtyRef, mediaWriteLo
     readOnly,
     changeKey,
     hasTitle,
+    kind,
+    poll,
+    setPoll,
+    sendOptions,
+    setSendOptions,
+    pollIssue: issue,
+    mixed,
     canAutosave:
-      (baseline !== null || body.trim().length > 0) &&
+      (baseline !== null || (kind === 'poll' ? !isPollBlank(poll) : body.trim().length > 0)) &&
+      !mixed &&
       dirty &&
       !readOnly &&
       conflict === null &&

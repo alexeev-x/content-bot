@@ -24,7 +24,7 @@ async function count(table: string): Promise<number> {
 
 describe('createPost', () => {
   it('keeps the same key independent between two Telegram users', async () => {
-    const input = { title: 'Same payload', body: 'Same', entities: [] };
+    const input = { title: 'Same payload', body: 'Same', entities: [], kind: 'text' as const };
 
     const mine = await createPost(deps(), { actor: '4242', idempotencyKey: 'shared', input });
     const theirs = await createPost(deps(), { actor: '777', idempotencyKey: 'shared', input });
@@ -39,7 +39,7 @@ describe('createPost', () => {
   it('releases the key when the write fails, so the client can retry at once', async () => {
     // Bypasses the contract validation on purpose: the 201-character title trips the table CHECK
     // and makes the batch throw after the key was claimed.
-    const broken = { title: 't'.repeat(201), body: '', entities: [] };
+    const broken = { title: 't'.repeat(201), body: '', entities: [], kind: 'text' as const };
 
     await expect(createPost(deps(), { actor: '4242', idempotencyKey: 'retry', input: broken })).rejects.toThrow();
 
@@ -48,7 +48,7 @@ describe('createPost', () => {
     const retried = await createPost(deps(), {
       actor: '4242',
       idempotencyKey: 'retry',
-      input: { title: 'Fixed', body: '', entities: [] }
+      input: { title: 'Fixed', body: '', entities: [], kind: 'text' }
     });
     expect(retried.title).toBe('Fixed');
   });

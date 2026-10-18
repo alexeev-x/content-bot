@@ -10,6 +10,7 @@ import {
   Menu,
   PanelList,
   PhoneSkeletonRows,
+  PollMark,
   RowCard,
   type DataColumn,
   type MenuEntry,
@@ -53,10 +54,16 @@ type Props = {
 
 const copy = postsCopy;
 export const POST_ROW_LOADING = PAGE_SIZE;
-const titleOf = (post: PostDto) => postHeadline(post.title, post.body).headline || copy.list.untitled;
+// A poll post has no text: the server names it after the question and the second line stays empty.
+const titleOf = (post: PostDto) =>
+  post.kind === 'poll'
+    ? post.title.trim() || post.poll?.question.trim() || copy.list.untitled
+    : postHeadline(post.title, post.body).headline || copy.list.untitled;
 /** The second line: only what follows the headline; nothing when the post is that one line. */
 const restOf = (post: PostDto) =>
-  post.body.trim() === '' ? copy.list.emptyBody : postHeadline(post.title, post.body).rest;
+  post.kind === 'poll' ? '' : post.body.trim() === '' ? copy.list.emptyBody : postHeadline(post.title, post.body).rest;
+
+const KindMark = ({ post }: { post: PostDto }) => (post.kind === 'poll' ? <PollMark label={copy.poll.mark} /> : null);
 
 // The row itself is keyboard-activatable; keep its nested action menu from also opening the post.
 const keepRowAction = {
@@ -230,6 +237,7 @@ function Grid(props: Props) {
             <span className={styles.cellTitle}>
               <span className={styles.titleLine}>
                 <strong className={styles.title}>{titleOf(post)}</strong>
+                <KindMark post={post} />
                 <OriginMark origin={post.origin} />
               </span>
               {reason ? (
@@ -342,6 +350,7 @@ function Cards(props: Props) {
               {...(live ? { status: <PostStateBadge post={post} /> } : {})}
               meta={
                 <span className={styles.titleLine}>
+                  <KindMark post={post} />
                   <OriginMark origin={post.origin} />
                   <span>
                     {live

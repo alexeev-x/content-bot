@@ -8,32 +8,50 @@ export interface TelegramSendApi {
   sendMessage(
     chatId: string,
     text: string,
-    other: { entities: PostEntity[]; link_preview_options: { is_disabled: boolean } },
+    other: TelegramSendFlags & { entities: PostEntity[]; link_preview_options?: { is_disabled: boolean } },
     signal: AbortSignal
   ): Promise<unknown>;
   sendPhoto(
     chatId: string,
     photo: InputFile,
-    other: { caption: string; caption_entities: PostEntity[] },
+    other: TelegramSendFlags & { caption: string; caption_entities: PostEntity[] },
     signal: AbortSignal
   ): Promise<unknown>;
   sendVideo(
     chatId: string,
     video: InputFile,
-    other: { caption: string; caption_entities: PostEntity[] },
+    other: TelegramSendFlags & { caption: string; caption_entities: PostEntity[] },
     signal: AbortSignal
   ): Promise<unknown>;
   sendAnimation(
     chatId: string,
     animation: InputFile,
-    other: { caption: string; caption_entities: PostEntity[] },
+    other: TelegramSendFlags & { caption: string; caption_entities: PostEntity[] },
     signal: AbortSignal
   ): Promise<unknown>;
   sendMediaGroup(
     chatId: string,
     media: (InputMediaPhoto<InputFile> | InputMediaVideo<InputFile>)[],
+    other: TelegramSendFlags,
     signal: AbortSignal
   ): Promise<unknown>;
+  sendPoll(chatId: string, poll: TelegramPollParams, signal: AbortSignal): Promise<unknown>;
+}
+
+// Per-post send options (disable_notification: no sound; protect_content: no forwarding or saving).
+export interface TelegramSendFlags {
+  disable_notification: boolean;
+  protect_content: boolean;
+}
+
+// The Bot API sendPoll fields we use. A channel poll must be anonymous, so is_anonymous is always true.
+export interface TelegramPollParams extends TelegramSendFlags {
+  question: string;
+  options: string[];
+  type: 'regular' | 'quiz';
+  allows_multiple_answers: boolean;
+  correct_option_ids?: number[];
+  explanation?: string;
 }
 
 // grammY's raw Api: no auto-retry plugin and no retry of its own, so a failed send is reported
@@ -47,7 +65,16 @@ export function createTelegramApi(token: string): TelegramSendApi {
     sendPhoto: (chatId, photo, other, signal) => api.sendPhoto(chatId, photo, other, signal as never),
     sendVideo: (chatId, video, other, signal) => api.sendVideo(chatId, video, other, signal as never),
     sendAnimation: (chatId, animation, other, signal) => api.sendAnimation(chatId, animation, other, signal as never),
-    sendMediaGroup: (chatId, media, signal) => api.sendMediaGroup(chatId, media, undefined, signal as never)
+    sendMediaGroup: (chatId, media, other, signal) => api.sendMediaGroup(chatId, media, other, signal as never),
+    // The question and options go as plain strings (no parse_mode, no entities): nothing in them is read as markup.
+    sendPoll: (chatId, { question, options, ...rest }, signal) =>
+      api.sendPoll(
+        chatId,
+        question,
+        options.map((text) => ({ text })),
+        { is_anonymous: true, ...rest },
+        signal as never
+      )
   };
 }
 

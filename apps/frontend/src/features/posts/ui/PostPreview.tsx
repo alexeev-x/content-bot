@@ -1,8 +1,8 @@
 import { useQueryClient } from '@tanstack/react-query';
-import type { PostEntity, PostMediaDto } from '@alexeev/contracts';
+import type { PostEntity, PostMediaDto, PostPoll } from '@alexeev/contracts';
 import { useEffect, useState } from 'react';
 import { ApiError } from '../../../shared/api/http-client';
-import { Icon, IconButton, Panel, TelegramPreview } from '../../../shared/ui';
+import { Icon, IconButton, Panel, TelegramPoll, TelegramPreview } from '../../../shared/ui';
 import { getPostMediaContent } from '../api/post-media-api';
 import { previewMessage } from '../model/preview-message';
 import { postsCopy } from './copy';
@@ -17,11 +17,14 @@ type Props = {
   length: number;
   limit?: number;
   media?: PostMediaDto[];
+  /** A poll post: the preview is the empty poll as a channel shows it, never votes or percentages. */
+  poll?: PostPoll | null | undefined;
   desktopHeader?: boolean;
   onCollapse?: (() => void) | undefined;
 };
 
 const copy = postsCopy.editor;
+const pollCopy = postsCopy.poll;
 const emptyMedia: PostMediaDto[] = [];
 const previewLabels = {
   previous: 'Предыдущее фото',
@@ -32,7 +35,15 @@ const previewLabels = {
 };
 
 /** The dispatcher sends the bold title, a blank line and the body as plain text plus entities, link previews off. */
-export function PostPreview({ title, body, entities, media = emptyMedia, desktopHeader = false, onCollapse }: Props) {
+export function PostPreview({
+  title,
+  body,
+  entities,
+  media = emptyMedia,
+  poll = null,
+  desktopHeader = false,
+  onCollapse
+}: Props) {
   const isEmpty = title.trim() === '' && body === '';
   const message = previewMessage(title, body, entities);
   const [mediaUrls, setMediaUrls] = useState<ReadonlyMap<string, string>>(() => new Map());
@@ -109,7 +120,21 @@ export function PostPreview({ title, body, entities, media = emptyMedia, desktop
     >
       <div className={styles.previewBody}>
         <TelegramPreview
-          body={isEmpty ? copy.previewEmpty : <EntityText text={message.text} entities={message.entities} />}
+          body={
+            poll ? (
+              <TelegramPoll
+                question={poll.question.trim() || pollCopy.preview.empty}
+                options={poll.options}
+                multiple={poll.allowsMultipleAnswers}
+                kindLabel={poll.quiz ? pollCopy.preview.quiz : pollCopy.preview.anonymous}
+                emptyOption={pollCopy.optionLabel}
+              />
+            ) : isEmpty ? (
+              copy.previewEmpty
+            ) : (
+              <EntityText text={message.text} entities={message.entities} />
+            )
+          }
           media={previewMedia}
           mediaMode={media.length > 1 ? 'album' : 'single'}
           showCounter

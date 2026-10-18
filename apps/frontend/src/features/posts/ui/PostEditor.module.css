@@ -38,6 +38,17 @@
   gap: var(--space-4);
   align-items: stretch;
 }
+.paneMain {
+  display: grid;
+  align-content: start;
+  gap: var(--space-4);
+  min-width: 0;
+}
+.pollStack {
+  display: grid;
+  gap: var(--space-4);
+  min-width: 0;
+}
 .leftColumn {
   display: flex;
   flex-direction: column;
@@ -126,17 +137,6 @@
 /* Inactive tab panes stay mounted (the form keeps its focus and scroll) but leave layout and the tab order. */
 .tabsRoot [inert] {
   display: none;
-}
-.composerNote {
-  display: grid;
-  gap: var(--space-3);
-  padding: var(--space-4);
-  color: var(--color-text-muted);
-  font-size: var(--font-size-sm);
-  max-width: 60ch;
-}
-.composerNote p {
-  margin: 0;
 }
 .previewColumn {
   display: grid;

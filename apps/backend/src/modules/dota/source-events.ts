@@ -145,5 +145,5 @@ export function buildEventDraft(
 // No post title (owner, 16.10.2026): the heading is the body's first line, made bold — sent once, not as a
 // title above a body that repeats it. Offsets are UTF-16 units, which String#length counts.
 function headed(heading: string, body: string): CreatePostInput {
-  return { body, entities: [{ type: 'bold', offset: 0, length: heading.length }] };
+  return { body, entities: [{ type: 'bold', offset: 0, length: heading.length }], kind: 'text' };
 }

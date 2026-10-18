@@ -1,6 +1,6 @@
 import { InputFile } from 'grammy';
 import type { InputMediaPhoto, InputMediaVideo } from '@grammyjs/types';
-import type { PostEntity } from '@alexeev/contracts';
+import type { PostEntity, PostPoll } from '@alexeev/contracts';
 import type { PublicationTransport } from '../application/ports';
 import { SEND_TIMEOUT_MS } from '../domain/dispatch-policy';
 import { classifySendResult, classifyTelegramError } from './classify-telegram-result';
@@ -10,51 +10,74 @@ export interface TelegramSender {
   sendMessage(
     chatId: string,
     text: string,
-    other: { entities: PostEntity[]; link_preview_options: { is_disabled: boolean } },
+    other: SendFlags & { entities: PostEntity[]; link_preview_options?: { is_disabled: boolean } },
     signal: AbortSignal
   ): Promise<unknown>;
   sendPhoto(
     chatId: string,
     photo: InputFile,
-    other: { caption: string; caption_entities: PostEntity[] },
+    other: SendFlags & { caption: string; caption_entities: PostEntity[] },
     signal: AbortSignal
   ): Promise<unknown>;
   sendVideo(
     chatId: string,
     video: InputFile,
-    other: { caption: string; caption_entities: PostEntity[] },
+    other: SendFlags & { caption: string; caption_entities: PostEntity[] },
     signal: AbortSignal
   ): Promise<unknown>;
   sendAnimation(
     chatId: string,
     animation: InputFile,
-    other: { caption: string; caption_entities: PostEntity[] },
+    other: SendFlags & { caption: string; caption_entities: PostEntity[] },
     signal: AbortSignal
   ): Promise<unknown>;
   sendMediaGroup(
     chatId: string,
     media: (InputMediaPhoto<InputFile> | InputMediaVideo<InputFile>)[],
+    other: SendFlags,
+    signal: AbortSignal
+  ): Promise<unknown>;
+  sendPoll(
+    chatId: string,
+    poll: SendFlags & {
+      question: string;
+      options: string[];
+      type: 'regular' | 'quiz';
+      allows_multiple_answers: boolean;
+      correct_option_ids?: number[];
+      explanation?: string;
+    },
     signal: AbortSignal
   ): Promise<unknown>;
 }
 
+interface SendFlags {
+  disable_notification: boolean;
+  protect_content: boolean;
+}
+
 // Never throws: every answer, error and timeout becomes a SendOutcome, so "unclear means unknown"
 // is visible in the types (docs/BACKEND_ARCHITECTURE.md §4). The message is plain text plus the
-// entities made by formatPublicationText, with no parse_mode; link previews are switched off
-// explicitly so a pasted link never turns a curated post into a surprise card.
+// entities made by formatPublicationText, with no parse_mode. The link preview is switched off only when the post
+// says so (a text message without media; a caption or a poll has none). A poll is always anonymous: channels
+// accept no other kind.
 export function createTelegramPublicationTransport(
   sender: TelegramSender,
   timeoutMs: number = SEND_TIMEOUT_MS
 ): PublicationTransport {
   return {
-    async send({ chatId, text, entities, media }) {
+    async send({ chatId, text, entities, media, options, poll }) {
       const signal = AbortSignal.timeout(timeoutMs);
+      const flags: SendFlags = { disable_notification: options.silent, protect_content: options.protectContent };
       try {
+        if (poll !== null) {
+          return classifySendResult(await sender.sendPoll(chatId, pollParams(poll, flags), signal));
+        }
         if (media.length === 0) {
           const message = await sender.sendMessage(
             chatId,
             text,
-            { entities, link_preview_options: { is_disabled: true } },
+            { entities, ...flags, ...(options.linkPreview ? {} : { link_preview_options: { is_disabled: true } }) },
             signal
           );
           return classifySendResult(message);
@@ -63,13 +86,13 @@ export function createTelegramPublicationTransport(
           const item = media[0];
           if (item === undefined) return { kind: 'unknown', reason: 'media_missing' };
           const file = new InputFile(streamChunks(item.body), item.fileName);
-          const options = { caption: text, caption_entities: entities };
+          const captionOptions = { caption: text, caption_entities: entities, ...flags };
           const message =
             item.kind === 'photo'
-              ? await sender.sendPhoto(chatId, file, options, signal)
+              ? await sender.sendPhoto(chatId, file, captionOptions, signal)
               : item.kind === 'video'
-                ? await sender.sendVideo(chatId, file, options, signal)
-                : await sender.sendAnimation(chatId, file, options, signal);
+                ? await sender.sendVideo(chatId, file, captionOptions, signal)
+                : await sender.sendAnimation(chatId, file, captionOptions, signal);
           return classifySendResult(message);
         }
         if (media.length > 10 || media.some(({ kind }) => kind === 'animation')) {
@@ -82,7 +105,7 @@ export function createTelegramPublicationTransport(
           };
           return item.kind === 'photo' ? { type: 'photo' as const, ...common } : { type: 'video' as const, ...common };
         });
-        const messages = await sender.sendMediaGroup(chatId, group, signal);
+        const messages = await sender.sendMediaGroup(chatId, group, flags, signal);
         return classifySendGroupResult(messages, media.length);
       } catch (error) {
         // grammY reports an aborted request as a network error; the timeout is the more useful reason.
@@ -90,6 +113,18 @@ export function createTelegramPublicationTransport(
         return classifyTelegramError(error);
       }
     }
+  };
+}
+
+function pollParams(poll: PostPoll, flags: SendFlags): Parameters<TelegramSender['sendPoll']>[1] {
+  return {
+    question: poll.question.trim(),
+    options: poll.options.map((option) => option.trim()),
+    type: poll.quiz === null ? 'regular' : 'quiz',
+    allows_multiple_answers: poll.allowsMultipleAnswers,
+    ...(poll.quiz === null ? {} : { correct_option_ids: [poll.quiz.correctOptionIndex] }),
+    ...(poll.quiz === null || poll.quiz.explanation.trim() === '' ? {} : { explanation: poll.quiz.explanation.trim() }),
+    ...flags
   };
 }
 

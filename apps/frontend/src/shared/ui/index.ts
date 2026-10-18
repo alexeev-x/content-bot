@@ -87,3 +87,5 @@ export type { UploadRowState } from './UploadRow';
 export { useMediaQuery } from './use-media-query';
 export { VisuallyHidden } from './VisuallyHidden';
 export { FilterButton, SortSheet, FooterLine, PhoneSkeletonRows, PhoneToolbar, PhoneToolbarSearch } from './ListParts';
+export { TelegramPoll } from './TelegramPoll';
+export { PollMark } from './PollMark';

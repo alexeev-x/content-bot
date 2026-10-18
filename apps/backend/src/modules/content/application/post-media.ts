@@ -13,6 +13,7 @@ import { AppError } from '../../../shared/app-error';
 import { sha256Hex } from '../../../platform/security/sha256';
 import type { MediaObjectStorage, PostMediaRepository, StoredMediaObject } from './media-ports';
 import { safeMediaFileName, streamAndValidateMedia } from './media-stream';
+import { kindMismatch } from './post-errors';
 
 function conflict(reason: 'STALE_REVISION' | 'NOT_EDITABLE' | 'IDEMPOTENCY_KEY_REUSED' | 'IN_FLIGHT'): AppError {
   return new AppError('CONFLICT', 'The media operation conflicts with the current post state', { reason });
@@ -61,6 +62,7 @@ function classifyPostState(
   revision: number
 ): asserts state is NonNullable<typeof state> {
   if (state === null) throw new AppError('NOT_FOUND', 'Post not found');
+  if (state.kind === 'poll') throw kindMismatch('A poll post has no media');
   if (state.status !== 'draft') throw conflict('NOT_EDITABLE');
   if (state.revision !== revision) throw conflict('STALE_REVISION');
   if (state.media.length >= POST_MEDIA_MAX_ITEMS)

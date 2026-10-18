@@ -611,6 +611,8 @@ describe('what Telegram answers', () => {
     expect((await publicationOf(publicationId)).external_message_id).toBe('321');
     expect(sender.requests[0]?.other).toEqual({
       entities: [{ type: 'bold', offset: 0, length: 'Patch 7.40'.length }],
+      disable_notification: false,
+      protect_content: false,
       link_preview_options: { is_disabled: true }
     });
     expect(sender.requests[0]?.other).not.toHaveProperty('parse_mode');

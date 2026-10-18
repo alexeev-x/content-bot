@@ -1,10 +1,10 @@
-import type { PublicationDto } from '@alexeev/contracts';
+import type { PostKind, PublicationDto } from '@alexeev/contracts';
 import { ru } from '../../../shared/lib/ru';
 import { formatShort } from './format-time';
 import { displayStatus } from './publication-view';
 
 /** What a row shows of its post: the live post, or the snapshot that was sent when the post is deleted. */
-export type PostPreview = { title: string; body: string };
+export type PostPreview = { title: string; body: string; kind?: PostKind };
 
 /**
  * Everything the row shows as text, in one string: the search matches the post title and text, the channel, the

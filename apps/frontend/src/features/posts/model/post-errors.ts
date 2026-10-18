@@ -22,6 +22,10 @@ function messageFor(kind: ApiErrorKind): string {
       return copy.entitiesInvalidNesting;
     case 'entities_required':
       return copy.entitiesRequired;
+    case 'kind_mismatch':
+      return copy.kindMismatch;
+    case 'poll_invalid':
+      return copy.pollInvalid;
     case 'payload_too_large':
       return copy.tooLarge;
     case 'unavailable':

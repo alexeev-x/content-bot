@@ -3,7 +3,7 @@ import { AppError } from '../../../shared/app-error';
 import { approve, canEdit } from '../domain/post';
 import { toPostDto } from './post-dto';
 import type { PostRepository } from './ports';
-import { conflict, notFound } from './post-errors';
+import { conflict, kindMismatch, notFound } from './post-errors';
 
 export interface ChangePostDeps {
   repo: PostRepository;
@@ -20,10 +20,17 @@ export async function updatePost(
   const { actor, id, input } = command;
   // The contract schema already refuses this; repeated here so no caller can store offsets of another text.
   if (input.body !== undefined && input.entities === undefined) throw entitiesIssue('ENTITIES_REQUIRED');
+  // The kind is fixed at creation and only the server knows it. It is read only when the change names a field that
+  // belongs to one kind; the write below is guarded by the revision, and the kind never changes, so the read stays true.
+  const touchesText = input.title !== undefined || input.body !== undefined || input.entities !== undefined;
+  const current = touchesText || input.poll !== undefined ? await deps.repo.findById(id) : null;
+  if (current !== null) {
+    if (current.kind === 'poll' && touchesText) throw kindMismatch('A poll post has no title, body or entities');
+    if (current.kind === 'text' && input.poll !== undefined) throw kindMismatch('A text post has no poll');
+  }
   // Formatting without a new body is checked against the stored one. The write below is guarded by the
   // revision, and a body only changes with a revision bump, so the body read here is the body it applies to.
   if (input.body === undefined && input.entities !== undefined) {
-    const current = await deps.repo.findById(id);
     if (current === null) throw notFound();
     if (!canEdit(current)) throw conflict('NOT_EDITABLE');
     if (current.revision !== input.revision) throw conflict('STALE_REVISION');
@@ -36,15 +43,17 @@ export async function updatePost(
     title: input.title,
     body: input.body,
     entities: input.entities,
+    poll: input.poll,
+    sendOptions: input.sendOptions,
     actor,
     now: deps.now
   });
   if (updated !== null) return toPostDto(updated);
 
-  const current = await deps.repo.findById(id);
-  if (current === null) throw notFound();
+  const latest = await deps.repo.findById(id);
+  if (latest === null) throw notFound();
   // An approved post cannot be edited whatever revision the client holds, so say that first.
-  throw conflict(canEdit(current) ? 'STALE_REVISION' : 'NOT_EDITABLE');
+  throw conflict(canEdit(latest) ? 'STALE_REVISION' : 'NOT_EDITABLE');
 }
 
 export async function approvePost(
@@ -58,6 +67,11 @@ export async function approvePost(
   const decision = approve(current, deps.now);
   if (!decision.ok && decision.reason === 'ALREADY_APPROVED') throw conflict('ALREADY_APPROVED');
   if (current.revision !== input.revision) throw conflict('STALE_REVISION');
+  if (!decision.ok && decision.reason === 'POLL_INVALID')
+    throw new AppError('VALIDATION_ERROR', 'The poll is not ready to be approved', {
+      reason: decision.reason,
+      issue: decision.issue
+    });
   if (!decision.ok)
     throw new AppError('VALIDATION_ERROR', 'A post needs text or attached media to be approved', {
       reason: decision.reason

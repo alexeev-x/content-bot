@@ -1,4 +1,4 @@
-import type { PostEntity } from '@alexeev/contracts';
+import { DEFAULT_SEND_OPTIONS, type PostEntity, type PostPoll, type PostSendOptions } from '@alexeev/contracts';
 import type { InputMediaPhoto, InputMediaVideo } from '@grammyjs/types';
 import { GrammyError, HttpError, type InputFile } from 'grammy';
 import { describe, expect, it } from 'vitest';
@@ -24,12 +24,19 @@ function senderOf(step: (signal: AbortSignal) => Promise<unknown>): TelegramSend
       requests.push(['animation', chatId, animation, other]);
       return step(signal);
     },
-    sendMediaGroup(chatId, media: (InputMediaPhoto<InputFile> | InputMediaVideo<InputFile>)[], signal) {
-      requests.push(['group', chatId, media]);
+    sendMediaGroup(chatId, media: (InputMediaPhoto<InputFile> | InputMediaVideo<InputFile>)[], other, signal) {
+      requests.push(['group', chatId, media, other]);
+      return step(signal);
+    },
+    sendPoll(chatId, poll, signal) {
+      requests.push(['poll', chatId, poll]);
       return step(signal);
     }
   };
 }
+
+const options = DEFAULT_SEND_OPTIONS;
+const text = { options, poll: null };
 
 const apiError = (code: number, description: string, parameters: Record<string, number> = {}) =>
   new GrammyError(description, { ok: false, error_code: code, description, parameters }, 'sendMessage', {
@@ -37,7 +44,7 @@ const apiError = (code: number, description: string, parameters: Record<string, 
   });
 
 describe('the Telegram transport adapter', () => {
-  it('sends plain text with entities and link previews disabled', async () => {
+  it('sends plain text with entities, with the link preview off by default', async () => {
     const sender = senderOf(() => Promise.resolve({ message_id: 12 }));
     const entities: PostEntity[] = [
       { type: 'bold', offset: 0, length: 1 },
@@ -47,10 +54,98 @@ describe('the Telegram transport adapter', () => {
       chatId: '-100',
       text: 'x <b>',
       entities,
-      media: []
+      media: [],
+      ...text
     });
     expect(outcome).toEqual({ kind: 'sent', externalMessageIds: ['12'] });
-    expect(sender.requests).toEqual([['-100', 'x <b>', { entities, link_preview_options: { is_disabled: true } }]]);
+    expect(sender.requests).toEqual([
+      [
+        '-100',
+        'x <b>',
+        { entities, disable_notification: false, protect_content: false, link_preview_options: { is_disabled: true } }
+      ]
+    ]);
+  });
+
+  it('passes silent, protected and the disabled link preview to a text message', async () => {
+    const sender = senderOf(() => Promise.resolve({ message_id: 13 }));
+    const flags: PostSendOptions = { silent: true, protectContent: true, linkPreview: false };
+    await createTelegramPublicationTransport(sender).send({
+      chatId: '-100',
+      text: 't',
+      entities: [],
+      media: [],
+      options: flags,
+      poll: null
+    });
+    expect(sender.requests).toEqual([
+      [
+        '-100',
+        't',
+        { entities: [], disable_notification: true, protect_content: true, link_preview_options: { is_disabled: true } }
+      ]
+    ]);
+  });
+
+  it('sends a quiz as one anonymous poll with the correct option, explanation and send flags', async () => {
+    const sender = senderOf(() => Promise.resolve({ message_id: 30 }));
+    const poll: PostPoll = {
+      question: ' Q? ',
+      options: ['a', 'b', 'c'],
+      allowsMultipleAnswers: false,
+      quiz: { correctOptionIndex: 2, explanation: 'because' }
+    };
+    const outcome = await createTelegramPublicationTransport(sender).send({
+      chatId: '-100',
+      text: '',
+      entities: [],
+      media: [],
+      options: { silent: true, protectContent: true, linkPreview: true },
+      poll
+    });
+    expect(outcome).toEqual({ kind: 'sent', externalMessageIds: ['30'] });
+    expect(sender.requests).toEqual([
+      [
+        'poll',
+        '-100',
+        {
+          question: 'Q?',
+          options: ['a', 'b', 'c'],
+          type: 'quiz',
+          allows_multiple_answers: false,
+          correct_option_ids: [2],
+          explanation: 'because',
+          disable_notification: true,
+          protect_content: true
+        }
+      ]
+    ]);
+  });
+
+  it('sends a regular poll without quiz fields', async () => {
+    const sender = senderOf(() => Promise.resolve({ message_id: 31 }));
+    await createTelegramPublicationTransport(sender).send({
+      chatId: '-100',
+      text: '',
+      entities: [],
+      media: [],
+      options,
+      poll: { question: 'Q', options: ['a', 'b'], allowsMultipleAnswers: true, quiz: null }
+    });
+    expect(sender.requests).toEqual([
+      [
+        'poll',
+        '-100',
+        {
+          question: 'Q',
+          options: ['a', 'b'],
+          type: 'regular',
+          allows_multiple_answers: true,
+          disable_notification: false,
+          protect_content: false
+        }
+      ]
+    ]);
   });
 
   it('sends a mixed album exactly once and retains every returned message id', async () => {
@@ -63,7 +158,8 @@ describe('the Telegram transport adapter', () => {
       chatId: '-100',
       text: 'caption',
       entities: [],
-      media
+      media,
+      ...text
     });
     expect(result).toEqual({ kind: 'sent', externalMessageIds: ['20', '21'] });
     expect(sender.requests).toHaveLength(1);
@@ -83,7 +179,8 @@ describe('the Telegram transport adapter', () => {
       chatId: '1',
       text: 't',
       entities: [],
-      media: []
+      media: [],
+      ...text
     });
     expect(received).toBeInstanceOf(AbortSignal);
     expect(outcome).toEqual({ kind: 'unknown', reason: 'timeout' });
@@ -97,14 +194,14 @@ describe('the Telegram transport adapter', () => {
   ])('maps API errors to their safe outcome', async (error, expected) => {
     const sender = senderOf(() => Promise.reject(error));
     await expect(
-      createTelegramPublicationTransport(sender).send({ chatId: '1', text: 't', entities: [], media: [] })
+      createTelegramPublicationTransport(sender).send({ chatId: '1', text: 't', entities: [], media: [], ...text })
     ).resolves.toEqual(expected);
   });
 
   it('treats a successful response without message id as unknown', async () => {
     const sender = senderOf(() => Promise.resolve({ chat: { id: 1 } }));
     await expect(
-      createTelegramPublicationTransport(sender).send({ chatId: '1', text: 't', entities: [], media: [] })
+      createTelegramPublicationTransport(sender).send({ chatId: '1', text: 't', entities: [], media: [], ...text })
     ).resolves.toEqual({ kind: 'unknown', reason: 'ok_without_message_id' });
   });
 });

@@ -375,6 +375,9 @@ export function createContainer(env: ContainerEnv, overrides: ContainerOverrides
             titleInMessage: snapshot.titleInMessage,
             body: snapshot.body,
             entities: snapshot.entities,
+            kind: snapshot.kind,
+            poll: snapshot.poll,
+            sendOptions: snapshot.sendOptions,
             media
           };
         }

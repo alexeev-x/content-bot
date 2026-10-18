@@ -40,6 +40,8 @@ export function postRowText(post: PostDto, now: number): string {
   return [
     post.title,
     post.body,
+    post.kind === 'poll' ? copy.poll.mark : '',
+    post.poll?.question ?? '',
     stateLabel(post),
     state.kind === 'scheduled' && state.at ? copy.list.scheduledAt(shortFormat.format(new Date(state.at))) : '',
     formatRelative(post.updatedAt, now),

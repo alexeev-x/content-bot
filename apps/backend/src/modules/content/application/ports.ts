@@ -1,4 +1,11 @@
-import type { PostEntity, PostMediaDto, PublicationStatus } from '@alexeev/contracts';
+import type {
+  PostEntity,
+  PostKind,
+  PostMediaDto,
+  PostPoll,
+  PostSendOptions,
+  PublicationStatus
+} from '@alexeev/contracts';
 import type { IdempotencyClaim } from '../../../platform/idempotency/d1-idempotency-store';
 import type { Post, PostStatus } from '../domain/post';
 
@@ -71,6 +78,10 @@ export interface PostRepository {
     titleInMessage: boolean;
     body: string;
     entities: PostEntity[];
+    /** Kind, poll and send options as approved: the revision's own snapshot, never the post's current values. */
+    kind: PostKind;
+    poll: PostPoll | null;
+    sendOptions: PostSendOptions;
     media: PostRevisionMedia[];
   } | null>;
   list(query: ListPostsQuery): Promise<PostRecord[]>;
@@ -78,7 +89,15 @@ export interface PostRepository {
   /** How many posts are in the archive (it only holds the retention period, so the count is small). */
   countArchived(): Promise<number>;
   /** Null when the guard (revision matches and the post is a draft) did not hold. */
-  update(change: PostChange & { title?: string; body?: string; entities?: PostEntity[] }): Promise<PostRecord | null>;
+  update(
+    change: PostChange & {
+      title?: string;
+      body?: string;
+      entities?: PostEntity[];
+      poll?: PostPoll;
+      sendOptions?: PostSendOptions;
+    }
+  ): Promise<PostRecord | null>;
   /** Null when the guard (revision matches and the post is a draft) did not hold. */
   approve(change: PostChange): Promise<PostRecord | null>;
 }

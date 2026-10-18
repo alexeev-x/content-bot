@@ -104,8 +104,17 @@ function fakeSender(step: SenderStep): FakeSender {
         )
       ]);
     },
-    sendMediaGroup(chatId, media, signal) {
+    sendMediaGroup(chatId, media, _other, signal) {
       requests.push({ chatId, text: 'group', other: media });
+      return Promise.race([
+        step(),
+        new Promise<never>((_resolve, reject) =>
+          signal.addEventListener('abort', () => reject(signal.reason as Error), { once: true })
+        )
+      ]);
+    },
+    sendPoll(chatId, poll, signal) {
+      requests.push({ chatId, text: 'poll', other: poll });
       return Promise.race([
         step(),
         new Promise<never>((_resolve, reject) =>

@@ -12,3 +12,8 @@ export function conflict(reason: 'STALE_REVISION' | 'NOT_EDITABLE' | 'ALREADY_AP
   }[reason];
   return new AppError('CONFLICT', message, { reason });
 }
+
+/** A poll post has no body or media and a text post has no poll (owner, 18.10.2026). */
+export function kindMismatch(message: string): AppError {
+  return new AppError('VALIDATION_ERROR', message, { reason: 'KIND_MISMATCH' });
+}

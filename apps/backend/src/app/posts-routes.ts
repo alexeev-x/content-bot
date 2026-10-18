@@ -57,7 +57,7 @@ export const postsRoutes = new Hono<AppBindings>()
     '/',
     limitBody(MAX_BODY_BYTES),
     validated('header', idempotencyHeaderSchema),
-    validated('json', createPostInputSchema, { reasons: POST_ENTITY_ISSUE_CODES }),
+    validated('json', createPostInputSchema, { reasons: [...POST_ENTITY_ISSUE_CODES, 'KIND_MISMATCH'] }),
     async (c) => {
       const container = c.get('container');
       const post = await createPost(

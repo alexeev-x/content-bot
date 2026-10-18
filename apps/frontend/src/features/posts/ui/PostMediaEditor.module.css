@@ -163,6 +163,11 @@
   border-radius: var(--radius-2);
   background: var(--color-surface-2);
 }
+/* The big drop target appears only while a file is dragged over (post-composer.md §3.3). */
+.emptyDropzone[data-active] {
+  min-height: calc(var(--size-target) * 3);
+  border-color: var(--color-accent);
+}
 .emptyDropzoneText {
   display: grid;
   gap: 2px;

@@ -1,3 +1,4 @@
+import type { PollIssue } from '@alexeev/contracts';
 // Copy of the posts screens. Kept next to the feature so parallel screens do not collide in the shared ru.ts.
 export const postsCopy = {
   list: {
@@ -246,11 +247,7 @@ export const postsCopy = {
       editor: 'Редактор',
       poll: 'Опрос',
       settings: 'Настройки',
-      pollTitle: 'Опрос в Telegram',
-      pollSoon:
-        'Скоро здесь можно будет собрать опрос: вопрос, варианты ответов и его настройки. Пока опрос создать нельзя — здесь ничего не сохраняется.',
-      settingsTitle: 'Настройки публикации',
-      settingsBody: 'Канал и время выбираются на следующем шаге — кнопка «К публикации» внизу.'
+      mobilePreview: 'Предпросмотр'
     },
     overLimit: 'Лимит превышен',
     previewHeading: 'Так увидят в Telegram',
@@ -346,6 +343,9 @@ export const postsCopy = {
       entitiesInvalidNesting:
         'Сервер не принял форматирование: ссылка, код или цитата частично пересекаются с другим выделением. Выделите их целиком.',
       entitiesRequired: 'Сервер не получил форматирование вместе с текстом. Сохраните ещё раз.',
+      kindMismatch:
+        'Тип поста не меняется после создания: текст нельзя добавить в опрос, а опрос — в текстовый пост. Создайте отдельную публикацию.',
+      pollInvalid: 'Сервер не принял опрос: проверьте вопрос, варианты и режим викторины.',
       tooLarge: 'Пост слишком большой для сервера. Сократите текст.',
       unavailable: 'Сервер сейчас недоступен. Повторите чуть позже.',
       rate: 'Слишком много запросов. Повторите чуть позже.',
@@ -368,6 +368,87 @@ export const postsCopy = {
     revision: (revision: number) => `ред. ${revision}`,
     created: 'Публикация создана',
     openAll: 'Все публикации'
+  },
+  // The «Опрос» tab (post-composer.md §5): a poll is a separate Telegram message, never mixed into a text post.
+  poll: {
+    title: 'Новый опрос',
+    mark: 'Опрос',
+    questionLabel: 'Вопрос',
+    questionPlaceholder: 'О чём спросить подписчиков?',
+    optionsLabel: 'Варианты ответов',
+    optionLabel: (index: number) => `Вариант ${index + 1}`,
+    add: 'Добавить вариант',
+    addFull: (max: number) => `Не больше ${max} вариантов`,
+    remove: (index: number) => `Удалить вариант ${index + 1}`,
+    removeMin: (min: number) => `Нужно не меньше ${min} вариантов`,
+    moveUp: (index: number) => `Поднять вариант ${index + 1}`,
+    moveDown: (index: number) => `Опустить вариант ${index + 1}`,
+    count: (count: number, max: number) => `${count} из ${max}`,
+    settingsTitle: 'Настройки опроса',
+    anonymousNote: 'В каналах опросы всегда анонимные: Telegram не показывает, кто как ответил.',
+    multiple: 'Несколько ответов',
+    multipleDescription: 'Можно выбрать больше одного варианта',
+    multipleBlockedByQuiz: 'В викторине верный ответ один, поэтому несколько ответов недоступны.',
+    quiz: 'Режим викторины',
+    quizDescription: 'Один верный ответ; пояснение Telegram покажет после ответа',
+    quizBlockedByMultiple: 'Сначала выключите «Несколько ответов»: в викторине верный ответ один.',
+    correctLabel: 'Верный ответ',
+    correctOption: (index: number, text: string) =>
+      text.trim() ? `${index + 1}. ${text.trim()}` : `Вариант ${index + 1}`,
+    explanationLabel: 'Пояснение',
+    explanationDescription: 'Необязательно. Видно после ответа; не больше двух переносов строки.',
+    issueIntro: 'Опрос ещё нельзя отправить',
+    issues: {
+      QUESTION_EMPTY: 'Напишите вопрос.',
+      TOO_FEW_OPTIONS: 'Добавьте хотя бы два варианта ответа.',
+      OPTION_EMPTY: 'Заполните все варианты или удалите пустые.',
+      OPTION_DUPLICATE: 'Варианты ответов не должны повторяться.',
+      QUIZ_MULTIPLE_ANSWERS: 'В викторине нельзя выбирать несколько ответов.',
+      QUIZ_ANSWER_MISSING: 'Выберите верный ответ.',
+      EXPLANATION_LINE_FEEDS: 'В пояснении не больше двух переносов строки.'
+    } satisfies Record<PollIssue, string>,
+    ready: 'Опрос готов к публикации.',
+    textPostTitle: 'Это текстовый пост',
+    textPostBody: 'Опрос — отдельная публикация в Telegram: его нельзя добавить к посту с текстом и медиа.',
+    createPoll: 'Создать опрос',
+    pollPostTitle: 'Это опрос',
+    pollPostBody: 'Опрос — отдельная публикация без текста и медиа. Пост с текстом и фото пишется отдельно.',
+    createText: 'Создать пост с текстом',
+    mixedTitle: 'Текст и опрос — разные публикации',
+    mixedBody:
+      'В редакторе уже есть текст, а на вкладке «Опрос» — опрос. Оставьте что-то одно: после первого сохранения тип поста не меняется. Ничего не потеряно.',
+    preview: { anonymous: 'Анонимный опрос', quiz: 'Викторина', empty: 'Вопрос опроса' }
+  },
+  // The «Настройки» tab: per-post Telegram send options (owner, 18.10.2026). Channel and time live on the next step.
+  sendSettings: {
+    title: 'Настройки публикации',
+    note: 'Канал, дата и время выбираются на следующем шаге.',
+    toPublish: 'К публикации',
+    thisPost: 'Этот пост',
+    type: 'Тип сообщения',
+    typeText: 'Текст и медиа',
+    typePoll: 'Опрос',
+    status: 'Статус',
+    statusDraft: 'Черновик',
+    statusApproved: 'Одобрен',
+    saving: 'Сохранение',
+    savingAuto: 'Автоматически',
+    savingNew: 'После первого изменения',
+    optionsTitle: 'Параметры отправки',
+    silent: 'Без звука',
+    silentDescription: 'Подписчики получат сообщение без звукового уведомления',
+    protect: 'Запретить пересылку и сохранение',
+    protectDescription: 'Сообщение нельзя будет переслать или сохранить из Telegram',
+    linkPreview: 'Предпросмотр ссылок',
+    linkPreviewDescription: 'Карточка страницы под текстом, если в нём есть ссылка',
+    linkPreviewOnlyText: 'Только для текста без фото и видео: у подписи и опроса карточки ссылки нет.',
+    readOnly: 'Пост одобрен: параметры отправки не меняются, пока он не возвращён в черновик.',
+    summary: {
+      silent: 'без звука',
+      protect: 'без пересылки',
+      linkPreview: 'с предпросмотром ссылок'
+    },
+    summaryLead: 'Параметры отправки: '
   },
   // Only the owner sees it; a channel never gets the mark (owner, 16.10.2026).
   origin: {

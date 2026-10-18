@@ -362,7 +362,12 @@ describe('normalizeEntities splits partially overlapping free styles', () => {
 
 describe('createPostInputSchema', () => {
   it('defaults entities to none', () => {
-    expect(createPostInputSchema.parse({ title: 'T', body: 'x' })).toEqual({ title: 'T', body: 'x', entities: [] });
+    expect(createPostInputSchema.parse({ title: 'T', body: 'x' })).toEqual({
+      title: 'T',
+      body: 'x',
+      entities: [],
+      kind: 'text'
+    });
   });
 
   it('accepts partially overlapping free styles by splitting them', () => {

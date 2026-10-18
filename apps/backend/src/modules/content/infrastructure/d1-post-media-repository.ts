@@ -188,8 +188,8 @@ export function createD1PostMediaRepository(db: D1Database): PostMediaRepository
             WHERE media_id = ?2 AND post_id IN (SELECT id FROM posts WHERE status = 'draft' AND deleted_at IS NULL) AND ${guard}`
       ),
       prepare(
-        `INSERT INTO post_revisions (post_id, revision, title, body, entities, status, created_at, media_json)
-           SELECT p.id, p.revision + 1, p.title, p.body, p.entities, p.status, ?6, '[]' FROM posts p
+        `INSERT INTO post_revisions (post_id, revision, title, body, entities, status, created_at, media_json, kind, poll_json, send_silent, send_protected, link_preview_disabled)
+           SELECT p.id, p.revision + 1, p.title, p.body, p.entities, p.status, ?6, '[]', p.kind, p.poll_json, p.send_silent, p.send_protected, p.link_preview_disabled FROM posts p
             WHERE ${swapped} AND ${guard}`
       ),
       prepare(
@@ -322,9 +322,9 @@ export function createD1PostMediaRepository(db: D1Database): PostMediaRepository
 
     async findPostState(postId): Promise<MediaPostState | null> {
       const post = await db
-        .prepare('SELECT revision, status FROM posts WHERE id = ?1 AND deleted_at IS NULL')
+        .prepare('SELECT revision, status, kind FROM posts WHERE id = ?1 AND deleted_at IS NULL')
         .bind(postId)
-        .first<{ revision: number; status: 'draft' | 'approved' }>();
+        .first<{ revision: number; status: 'draft' | 'approved'; kind: 'text' | 'poll' }>();
       if (post === null) return null;
       const { results } = await db
         .prepare(
@@ -335,7 +335,7 @@ export function createD1PostMediaRepository(db: D1Database): PostMediaRepository
         )
         .bind(postId)
         .all<MediaRow>();
-      return { revision: post.revision, status: post.status, media: results.map(toMedia) };
+      return { revision: post.revision, status: post.status, kind: post.kind, media: results.map(toMedia) };
     },
 
     async listLibrary({ kind, search, usage, after, offset, limit }) {
@@ -614,8 +614,8 @@ export function createD1PostMediaRepository(db: D1Database): PostMediaRepository
       statements.push(
         db
           .prepare(
-            `INSERT INTO post_revisions (post_id, revision, title, body, entities, status, created_at, media_json)
-          SELECT id, revision + 1, title, body, entities, status, ?3, ?4 FROM posts
+            `INSERT INTO post_revisions (post_id, revision, title, body, entities, status, created_at, media_json, kind, poll_json, send_silent, send_protected, link_preview_disabled)
+          SELECT id, revision + 1, title, body, entities, status, ?3, ?4, kind, poll_json, send_silent, send_protected, link_preview_disabled FROM posts
           WHERE id = ?1 AND ${guard(5, fullIds.length, { nextRevision: true })}`
           )
           .bind(postId, expectedRevision, now, JSON.stringify(fullIds), JSON.stringify(originalIds)),
@@ -703,8 +703,8 @@ export function createD1PostMediaRepository(db: D1Database): PostMediaRepository
           .bind(input.postId, input.expectedRevision, input.idempotencyKey, asset.id, input.payloadHash),
         db
           .prepare(
-            `INSERT INTO post_revisions (post_id, revision, title, body, entities, status, created_at, media_json)
-             SELECT id, revision + 1, title, body, entities, status, ?6, '[]' FROM posts
+            `INSERT INTO post_revisions (post_id, revision, title, body, entities, status, created_at, media_json, kind, poll_json, send_silent, send_protected, link_preview_disabled)
+             SELECT id, revision + 1, title, body, entities, status, ?6, '[]', kind, poll_json, send_silent, send_protected, link_preview_disabled FROM posts
               WHERE ${guardedPost} AND ${claimGuard}`
           )
           .bind(input.postId, input.expectedRevision, input.idempotencyKey, asset.id, input.payloadHash, input.now),
@@ -807,8 +807,8 @@ export function createD1PostMediaRepository(db: D1Database): PostMediaRepository
           ),
         db
           .prepare(
-            `INSERT INTO post_revisions (post_id, revision, title, body, entities, status, created_at, media_json)
-           SELECT id, revision + 1, title, body, entities, status, ?7, '[]' FROM posts
+            `INSERT INTO post_revisions (post_id, revision, title, body, entities, status, created_at, media_json, kind, poll_json, send_silent, send_protected, link_preview_disabled)
+           SELECT id, revision + 1, title, body, entities, status, ?7, '[]', kind, poll_json, send_silent, send_protected, link_preview_disabled FROM posts
             WHERE id = ?1 AND revision = ?2 AND status = 'draft' AND deleted_at IS NULL AND ${reservation}
               AND EXISTS (SELECT 1 FROM post_media WHERE post_id = ?1 AND media_id = ?6)`
           )
@@ -898,8 +898,8 @@ export function createD1PostMediaRepository(db: D1Database): PostMediaRepository
       statements.push(
         db
           .prepare(
-            `INSERT INTO post_revisions (post_id, revision, title, body, entities, status, created_at, media_json)
-             SELECT id, revision + 1, title, body, entities, status, ?3, '[]' FROM posts WHERE ${guardedPost}`
+            `INSERT INTO post_revisions (post_id, revision, title, body, entities, status, created_at, media_json, kind, poll_json, send_silent, send_protected, link_preview_disabled)
+             SELECT id, revision + 1, title, body, entities, status, ?3, '[]', kind, poll_json, send_silent, send_protected, link_preview_disabled FROM posts WHERE ${guardedPost}`
           )
           .bind(input.postId, input.expectedRevision, input.now),
         db
@@ -1060,8 +1060,8 @@ export function createD1PostMediaRepository(db: D1Database): PostMediaRepository
           ? [
               db
                 .prepare(
-                  `${free}INSERT INTO post_revisions (post_id, revision, title, body, entities, status, created_at, media_json)
-                 SELECT p.id, p.revision + 1, p.title, p.body, p.entities, p.status, ?2, '[]' FROM posts p WHERE ${holders}`
+                  `${free}INSERT INTO post_revisions (post_id, revision, title, body, entities, status, created_at, media_json, kind, poll_json, send_silent, send_protected, link_preview_disabled)
+                 SELECT p.id, p.revision + 1, p.title, p.body, p.entities, p.status, ?2, '[]', p.kind, p.poll_json, p.send_silent, p.send_protected, p.link_preview_disabled FROM posts p WHERE ${holders}`
                 )
                 .bind(ids, now),
               db

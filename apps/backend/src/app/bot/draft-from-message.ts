@@ -122,5 +122,5 @@ export function draftFromCaption(
 }
 
 export function mediaOnlyDraft(): CreatePostInput {
-  return { body: '', entities: [] };
+  return { body: '', entities: [], kind: 'text' };
 }

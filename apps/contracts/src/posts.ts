@@ -11,6 +11,9 @@ import { postOriginSchema } from './post-origin';
 import { publicationStatusSchema } from './publications';
 import { cleanText } from './text';
 import { postMediaSchema } from './media';
+import { DEFAULT_SEND_OPTIONS, postKindSchema, postPollSchema, postSendOptionsSchema } from './post-poll';
+
+export * from './post-poll';
 
 // Editorial state only; scheduling and delivery live in publications.
 export const postStatusSchema = z.enum(['draft', 'approved']);
@@ -72,6 +75,11 @@ export const postSchema = z.object({
    * (owner, 16.10.2026): `title` is then only the studio name, taken from the start of the body. Fixed at creation.
    */
   titleInMessage: z.boolean().default(true),
+  /** Fixed at creation. A poll post keeps `body` empty and has no media; its name is taken from the question. */
+  kind: postKindSchema.default('text'),
+  /** The poll of a `kind: 'poll'` post (a draft may be incomplete, see `pollIssue`); null for a text post. */
+  poll: postPollSchema.nullable().default(null),
+  sendOptions: postSendOptionsSchema.default(DEFAULT_SEND_OPTIONS),
   createdAt: z.iso.datetime(),
   updatedAt: z.iso.datetime()
 });
@@ -84,11 +92,23 @@ export type PostDto = z.infer<typeof postSchema>;
 // UNAUTHORIZED 401, FORBIDDEN 403.
 // `title` is optional (owner, 16.10.2026: no title field in the studio). Without it the post has no title in its
 // message: the server names it after the start of the body for lists and search, and only the body is sent.
+// `kind: 'poll'` (owner, 18.10.2026) creates a poll post: `poll` defaults to EMPTY_POLL, and a title, body or entities
+// are VALIDATION_ERROR (details.reason KIND_MISMATCH), as is a poll on a text post. `sendOptions` defaults to
+// DEFAULT_SEND_OPTIONS.
 export const createPostInputSchema = z
   .strictObject({
     title: titleSchema.optional(),
     body: bodySchema.default(''),
-    entities: postEntityListSchema.default([])
+    entities: postEntityListSchema.default([]),
+    kind: postKindSchema.default('text'),
+    poll: postPollSchema.optional(),
+    sendOptions: postSendOptionsSchema.optional()
+  })
+  .superRefine((input, ctx) => {
+    const hasText = input.title !== undefined || input.body !== '' || input.entities.length > 0;
+    if ((input.kind === 'poll' && hasText) || (input.kind === 'text' && input.poll !== undefined)) {
+      ctx.addIssue({ code: 'custom', message: 'KIND_MISMATCH', path: ['kind'] });
+    }
   })
   .transform((input, ctx) => ({ ...input, entities: normalizeAndCheckEntities(input.body, input.entities, ctx) }));
 export type CreatePostInput = z.infer<typeof createPostInputSchema>;
@@ -99,18 +119,29 @@ export type CreatePostInput = z.infer<typeof createPostInputSchema>;
 // offsets of the old list would point into other text, so a body alone is VALIDATION_ERROR with
 // details.reason ENTITIES_REQUIRED, never a silent keep. `entities` alone is allowed (formatting change)
 // and is checked against the stored body by the server. A title-only update keeps both.
-// Errors: VALIDATION_ERROR 400 (details.reason ENTITIES_REQUIRED | ENTITIES_*) or 413 (request over 32 KB),
-// NOT_FOUND 404, CONFLICT 409 (details.reason STALE_REVISION | NOT_EDITABLE), UNAUTHORIZED 401, FORBIDDEN 403.
+// `poll` replaces the whole poll of a poll post; `sendOptions` replaces all send options of any post. A poll on a text
+// post, or a title, body or entities on a poll post, is VALIDATION_ERROR with details.reason KIND_MISMATCH (the kind
+// lives only on the server, so the route decides it).
+// Errors: VALIDATION_ERROR 400 (details.reason ENTITIES_REQUIRED | ENTITIES_* | KIND_MISMATCH) or 413 (request over
+// 32 KB), NOT_FOUND 404, CONFLICT 409 (details.reason STALE_REVISION | NOT_EDITABLE), UNAUTHORIZED 401, FORBIDDEN 403.
 export const updatePostInputSchema = z
   .strictObject({
     revision: revisionSchema,
     title: titleSchema.optional(),
     body: bodySchema.optional(),
-    entities: postEntityListSchema.optional()
+    entities: postEntityListSchema.optional(),
+    poll: postPollSchema.optional(),
+    sendOptions: postSendOptionsSchema.optional()
   })
-  .refine((input) => input.title !== undefined || input.body !== undefined || input.entities !== undefined, {
-    error: 'Nothing to update'
-  })
+  .refine(
+    (input) =>
+      input.title !== undefined ||
+      input.body !== undefined ||
+      input.entities !== undefined ||
+      input.poll !== undefined ||
+      input.sendOptions !== undefined,
+    { error: 'Nothing to update' }
+  )
   .transform((input, ctx) => {
     const { entities, body } = input;
     if (body !== undefined && entities === undefined) {
@@ -127,7 +158,8 @@ export const updatePostInputSchema = z
 export type UpdatePostInput = z.infer<typeof updatePostInputSchema>;
 
 // POST /api/v1/posts/{id}/approve → 200 PostDto (status 'approved', revision + 1).
-// Errors: VALIDATION_ERROR 400 (details.reason EMPTY_BODY) or 413 (request over 32 KB), NOT_FOUND 404, CONFLICT 409
+// A poll post is approved only when `pollIssue` finds nothing; otherwise details.reason POLL_INVALID, details.issue.
+// Errors: VALIDATION_ERROR 400 (details.reason EMPTY_BODY | POLL_INVALID) or 413 (request over 32 KB), NOT_FOUND 404, CONFLICT 409
 // (details.reason STALE_REVISION | ALREADY_APPROVED), UNAUTHORIZED 401, FORBIDDEN 403.
 export const approvePostInputSchema = z.strictObject({
   revision: revisionSchema

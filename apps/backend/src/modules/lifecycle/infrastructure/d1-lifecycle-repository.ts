@@ -124,9 +124,11 @@ const RETURN_TO_DRAFT_AUDIT = `${RETURN_TO_DRAFT_TARGET}
          json_object('revision', po.revision + 1, 'restoredFromArchive', po.archived_at IS NOT NULL)
   FROM target t JOIN posts po ON po.id = t.id`;
 const RETURN_TO_DRAFT_REVISION = `${RETURN_TO_DRAFT_TARGET}
-  INSERT INTO post_revisions (post_id, revision, title, body, entities, status, created_at, media_json)
+  INSERT INTO post_revisions (post_id, revision, title, body, entities, status, created_at, media_json,
+    kind, poll_json, send_silent, send_protected, link_preview_disabled)
   SELECT po.id, po.revision + 1, po.title, po.body, po.entities, 'draft', ?3,
-         COALESCE((SELECT r.media_json FROM post_revisions r WHERE r.post_id = po.id AND r.revision = po.revision), '[]')
+         COALESCE((SELECT r.media_json FROM post_revisions r WHERE r.post_id = po.id AND r.revision = po.revision), '[]'),
+         po.kind, po.poll_json, po.send_silent, po.send_protected, po.link_preview_disabled
   FROM target t JOIN posts po ON po.id = t.id`;
 const RETURN_TO_DRAFT_UPDATE = `${RETURN_TO_DRAFT_TARGET}
   UPDATE posts SET status = 'draft', revision = revision + 1, archived_at = NULL,

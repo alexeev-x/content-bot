@@ -117,7 +117,9 @@ export function createOwnerReports(deps: OwnerReportDeps): OwnerReports {
         upcoming.map((item) => deps.posts.findRevision(item.postId, item.postRevision))
       );
       const lines = upcoming.map((item, index) => {
-        const title = revisions[index]?.title.trim() || 'Без названия';
+        const revision = revisions[index];
+        const name = revision?.title.trim() || 'Без названия';
+        const title = revision?.kind === 'poll' ? `📊 ${name}` : name;
         return `${index + 1}. ${escapeHtml(formatShortDateTime(item.scheduledAt, zone))} · ${escapeHtml(clip(item.destinationTitle))} · ${escapeHtml(clip(title))}`;
       });
       return {

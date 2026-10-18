@@ -18,6 +18,7 @@ export interface StoredUpload {
 export interface MediaPostState {
   revision: number;
   status: 'draft' | 'approved';
+  kind: 'text' | 'poll';
   media: PostMediaDto[];
 }
 

@@ -106,12 +106,12 @@ export function PostMediaEditor(props: MediaEditorProps) {
               onUpload={(entry) => void upload.upload(entry)}
             />
           ) : (
-            <div className={styles.emptyDropzone}>
+            <div className={styles.emptyDropzone} data-active={upload.isDropTarget || undefined}>
               <span className={styles.emptyDropzoneIcon} aria-hidden="true">
                 <Icon name="image-plus" size={28} />
               </span>
               <span className={styles.emptyDropzoneText}>
-                <strong>Добавьте фото или видео</strong>
+                <strong>{upload.isDropTarget ? 'Отпустите файлы, чтобы добавить' : 'Добавьте фото или видео'}</strong>
                 <span>Перетащите файлы сюда, вставьте из буфера или выберите из медиатеки</span>
               </span>
               <Button

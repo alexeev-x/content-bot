@@ -1,3 +1,4 @@
+import { DEFAULT_SEND_OPTIONS } from '@alexeev/contracts';
 import type {
   AccessTokenDto,
   ApiErrorCode,
@@ -61,6 +62,9 @@ export const post = (overrides: Partial<PostDto> = {}): PostDto => ({
   titleInMessage: true,
   body: 'Текст поста',
   entities: [],
+  kind: 'text',
+  poll: null,
+  sendOptions: DEFAULT_SEND_OPTIONS,
   revision: 0,
   status: 'draft',
   media: [],

@@ -80,7 +80,8 @@ describe('buildEventDraft', () => {
     );
     expect(draft).toEqual({
       body: 'Новая сокровищница: Cryptic Beacon\n\nNew sets are here.\n\nИсточник: https://s/1',
-      entities: [{ type: 'bold', offset: 0, length: 'Новая сокровищница: Cryptic Beacon'.length }]
+      entities: [{ type: 'bold', offset: 0, length: 'Новая сокровищница: Cryptic Beacon'.length }],
+      kind: 'text'
     });
   });
   it('news: title, first sentence, link', () => {

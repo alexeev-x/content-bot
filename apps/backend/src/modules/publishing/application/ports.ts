@@ -6,7 +6,10 @@ import type {
   ManualObservationInput,
   ManualObservationQuery,
   PostEntity,
+  PostKind,
   PostMediaDto,
+  PostPoll,
+  PostSendOptions,
   PublicationAnalyticsQuery,
   PublicationAnalyticsReportDto,
   PublicationDto,
@@ -31,6 +34,9 @@ export interface PublicationTransport {
     text: string;
     entities: PostEntity[];
     media: readonly PublicationMedia[];
+    options: PostSendOptions;
+    /** When set the message is a native poll and `text`, `entities` and `media` are not used. */
+    poll: PostPoll | null;
   }): Promise<SendOutcome>;
 }
 
@@ -63,6 +69,9 @@ export interface PostRevisionSource {
     titleInMessage: boolean;
     body: string;
     entities: PostEntity[];
+    kind: PostKind;
+    poll: PostPoll | null;
+    sendOptions: PostSendOptions;
     media: readonly PublicationMedia[];
   } | null>;
 }

@@ -5,9 +5,9 @@ import {
   Banner,
   Button,
   ConfirmDialog,
+  Disclosure,
   Icon,
   IconButton,
-  Panel,
   Tab,
   TabList,
   TabPanel,
@@ -21,6 +21,9 @@ import { useLeaveGuard } from '../model/use-leave-guard';
 import { usePostEditor } from '../model/use-post-editor';
 import { useSaveShortcut } from '../model/use-save-shortcut';
 import { CompareDialog } from './CompareDialog';
+import { PollEditor } from './PollEditor';
+import { PostKindNote } from './PostKindNote';
+import { PostSettingsPanel } from './PostSettingsPanel';
 import { ConflictBanner } from './ConflictBanner';
 import { postsCopy } from './copy';
 import { PostFields } from './PostFields';
@@ -39,14 +42,17 @@ type Props = {
   /** Extra cards under the preview (this post's publications). */
   aside?: ReactNode;
   headerActions?: ReactNode;
+  /** Tab the editor opens on; «Создать опрос» sends a new post straight to the poll form. */
+  initialTab?: 'editor' | 'poll' | undefined;
 };
 
 const copy = postsCopy.editor;
 
 type ComposerTab = 'editor' | 'poll' | 'settings';
+type ContentTab = Exclude<ComposerTab, 'settings'>;
 const NARROW = '(max-width: 859px)';
 
-export function PostEditor({ post, onCreated, approvedActions, aside, headerActions }: Props) {
+export function PostEditor({ post, onCreated, approvedActions, aside, headerActions, initialTab }: Props) {
   const rootRef = useRef<HTMLDivElement>(null);
   const dirtyRef = useRef(false);
   const mediaWriteLockState = useRef(false);
@@ -61,7 +67,18 @@ export function PostEditor({ post, onCreated, approvedActions, aside, headerActi
       mediaWriteLockState.current = false;
     }
   };
-  const editor = usePostEditor({ post, onCreated, rootRef, dirtyRef, mediaWriteLock });
+  const startTab: ContentTab = initialTab ?? (post?.kind === 'poll' ? 'poll' : 'editor');
+  const [composerTab, setComposerTab] = useState<ComposerTab>(startTab);
+  // The last tab that holds content: a new post saved from «Настройки» becomes what the operator was writing.
+  const [contentTab, setContentTab] = useState<ContentTab>(startTab);
+  const editor = usePostEditor({
+    post,
+    onCreated,
+    rootRef,
+    dirtyRef,
+    mediaWriteLock,
+    createKind: contentTab === 'poll' ? 'poll' : 'text'
+  });
   const setEditorMediaPending = editor.setMediaPending;
   const setMediaPending = useCallback((pending: boolean) => setEditorMediaPending(pending), [setEditorMediaPending]);
   const { baseline, conflict, notice } = editor;
@@ -73,7 +90,6 @@ export function PostEditor({ post, onCreated, approvedActions, aside, headerActi
   const [compareOpen, setCompareOpen] = useState(false);
   const [mobilePreviewOpen, setMobilePreviewOpen] = useState(false);
   const [desktopPreviewOpen, setDesktopPreviewOpen] = useState(true);
-  const [composerTab, setComposerTab] = useState<ComposerTab>('editor');
   const [overwriteOpen, setOverwriteOpen] = useState(false);
 
   useSaveShortcut(() => void editor.save());
@@ -98,8 +114,11 @@ export function PostEditor({ post, onCreated, approvedActions, aside, headerActi
       activeCounts.retry_wait ===
       0;
   const showApprovedPreview = isApproved && !isArchived && !hasConflict;
+  const isPoll = editor.kind === 'poll';
   const canApprove =
     (!editor.hasTitle || editor.title.trim().length > 0) &&
+    editor.pollIssue === null &&
+    !editor.mixed &&
     !editor.readOnly &&
     !hasConflict &&
     !editor.isSaving &&
@@ -187,7 +206,8 @@ export function PostEditor({ post, onCreated, approvedActions, aside, headerActi
         body={editor.body}
         entities={editor.entities}
         length={editor.length}
-        media={baseline?.media ?? []}
+        media={isPoll ? [] : (baseline?.media ?? [])}
+        poll={isPoll ? editor.poll : null}
         desktopHeader={!narrow}
         onCollapse={!narrow && !showApprovedPreview ? () => setDesktopPreviewOpen(false) : undefined}
       />
@@ -213,45 +233,90 @@ export function PostEditor({ post, onCreated, approvedActions, aside, headerActi
 
   // «Редактор / Опрос / Настройки» (docs/design/ux/post-composer.md §2). The editor stays mounted while another
   // tab is shown: the text, the selection and the undo history must survive a look at the other tabs.
+  // A saved post keeps its kind: the tab of the other kind only explains that and offers a new post.
+  const savedKind = editor.isNew ? null : editor.kind;
   const editingArea = narrow ? (
     <div className={styles.phoneStack}>
       {fields}
       {mediaEditor}
     </div>
   ) : (
-    <div className={`${styles.panes} ${!desktopPreviewOpen ? styles.previewCollapsed : ''}`}>
-      <div className={styles.leftColumn}>
-        <div className={styles.writeCard}>{fields}</div>
-        {mediaEditor}
-      </div>
-      {desktopPreviewOpen ? side : null}
+    <div className={styles.leftColumn}>
+      <div className={styles.writeCard}>{fields}</div>
+      {mediaEditor}
+    </div>
+  );
+  const mixedNotice = editor.mixed ? (
+    <Banner tone="warning" title={postsCopy.poll.mixedTitle}>
+      {postsCopy.poll.mixedBody}
+    </Banner>
+  ) : null;
+  const pollForm = (
+    <div className={styles.pollStack}>
+      {mixedNotice}
+      <PollEditor poll={editor.poll} onChange={editor.setPoll} issue={editor.pollIssue} isReadOnly={editor.readOnly} />
+      {narrow ? (
+        <Disclosure id="poll-preview" title={copy.composer.mobilePreview}>
+          {previewPanel}
+        </Disclosure>
+      ) : null}
     </div>
   );
   const composer = (
     <div className={styles.tabsRoot}>
-      <Tabs selectedKey={composerTab} onSelectionChange={(key) => setComposerTab(String(key) as ComposerTab)}>
+      <Tabs
+        selectedKey={composerTab}
+        onSelectionChange={(key) => {
+          const next = String(key) as ComposerTab;
+          setComposerTab(next);
+          if (next !== 'settings') setContentTab(next);
+        }}
+      >
         <TabList aria-label={copy.composer.label}>
           <Tab id="editor">{copy.composer.editor}</Tab>
           <Tab id="poll">{copy.composer.poll}</Tab>
           <Tab id="settings">{copy.composer.settings}</Tab>
         </TabList>
-        <TabPanel id="editor" shouldForceMount>
-          {editingArea}
-        </TabPanel>
-        <TabPanel id="poll">
-          <Panel title={copy.composer.pollTitle} icon={<Icon name="list" />}>
-            <div className={styles.composerNote}>
-              <p>{copy.composer.pollSoon}</p>
-            </div>
-          </Panel>
-        </TabPanel>
-        <TabPanel id="settings">
-          <Panel title={copy.composer.settingsTitle} icon={<Icon name="settings" />}>
-            <div className={styles.composerNote}>
-              <p>{copy.composer.settingsBody}</p>
-            </div>
-          </Panel>
-        </TabPanel>
+        {/* The preview column sits beside whichever panel is open, so there is one live preview, not one per tab. */}
+        <div className={narrow ? undefined : `${styles.panes} ${!desktopPreviewOpen ? styles.previewCollapsed : ''}`}>
+          <div className={styles.paneMain}>
+            {/* The editor stays mounted while another tab is shown: text, selection and undo history must survive. */}
+            <TabPanel id="editor" shouldForceMount>
+              {savedKind === 'poll' ? (
+                <PostKindNote kind="poll" onCreate={() => void navigate({ to: '/posts/new' })} />
+              ) : (
+                <>
+                  {composerTab === 'editor' ? mixedNotice : null}
+                  {editingArea}
+                </>
+              )}
+            </TabPanel>
+            <TabPanel id="poll">
+              {savedKind === 'text' ? (
+                <PostKindNote
+                  kind="text"
+                  onCreate={() => void navigate({ to: '/posts/new', search: { tab: 'poll' } })}
+                />
+              ) : (
+                pollForm
+              )}
+            </TabPanel>
+            <TabPanel id="settings">
+              <PostSettingsPanel
+                kind={editor.kind}
+                status={baseline?.status ?? 'draft'}
+                isNew={editor.isNew}
+                sendOptions={editor.sendOptions}
+                onChange={editor.setSendOptions}
+                isReadOnly={editor.readOnly}
+                hasMedia={(baseline?.media.length ?? 0) > 0}
+                canContinue={canApprove}
+                onContinue={() => void continueToPublish()}
+              />
+            </TabPanel>
+          </div>
+          {!narrow && desktopPreviewOpen ? side : null}
+        </div>
       </Tabs>
     </div>
   );

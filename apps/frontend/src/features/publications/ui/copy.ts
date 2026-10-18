@@ -39,6 +39,7 @@ export const copy = {
     unknownChannel: 'Канал недоступен',
     noMessage: '—',
     noText: 'Без текста',
+    poll: 'Опрос',
     checkChannel: 'Проверьте канал',
     panel: { all: 'Все публикации', upcoming: 'Запланированные', recent: 'Отправленные', errors: 'Ошибки' },
     loaded: (count: number, total: number, hasMore: boolean) =>

@@ -6,7 +6,7 @@ const FALLBACK_TITLE = 'Без названия';
 
 export interface ScheduleNoticeInput {
   kind: 'scheduled' | 'rescheduled' | 'cancelled';
-  post: { title: string; body: string } | null;
+  post: { title: string; body: string; kind?: 'text' | 'poll' } | null;
   channelTitle: string | null;
   /** UTC epoch milliseconds. */
   scheduledAt: number;
@@ -26,6 +26,8 @@ export interface ScheduleNotice {
 function postLabel(post: ScheduleNoticeInput['post']): string {
   if (post === null) return FALLBACK_TITLE;
   const title = post.title.trim();
+  // A poll has no body; its title is the question's start.
+  if (post.kind === 'poll') return clip(`📊 ${title === '' ? FALLBACK_TITLE : title}`);
   if (title !== '') return clip(title);
   const excerpt = post.body.replace(/\s+/g, ' ').trim();
   return excerpt === '' ? FALLBACK_TITLE : clip(excerpt);

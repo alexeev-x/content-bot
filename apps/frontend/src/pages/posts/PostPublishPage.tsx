@@ -1,8 +1,16 @@
+import { pollIssue } from '@alexeev/contracts';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
 import { PublicationSettings, type EnsureApproved } from '../../features/publications';
 import { useOwnerTimezone } from '../../features/owner-settings';
-import { messageLength, PostPreview, postQueryOptions, postsCopy, useApprovePost } from '../../features/posts';
+import {
+  messageLength,
+  PostPreview,
+  postQueryOptions,
+  postsCopy,
+  SendOptionsSummary,
+  useApprovePost
+} from '../../features/posts';
 import { ErrorState, IconButton, PageHeader, Panel, Skeleton, Banner, useMediaQuery } from '../../shared/ui';
 import { BackToPosts } from './BackToPosts';
 import { classifyApiError } from '../../shared/api/error-kind';
@@ -30,9 +38,11 @@ export function PostPublishPage({ id }: Props) {
       const message =
         kind === 'empty_body'
           ? copy.validation.emptyBody
-          : kind === 'stale_revision' || kind === 'not_editable' || kind === 'already_approved'
-            ? 'Пост изменился на сервере. Вернитесь в редактор и откройте актуальную версию.'
-            : 'Пост не подтверждён и не опубликован. Повторите попытку.';
+          : kind === 'poll_invalid'
+            ? copy.errors.pollInvalid
+            : kind === 'stale_revision' || kind === 'not_editable' || kind === 'already_approved'
+              ? 'Пост изменился на сервере. Вернитесь в редактор и откройте актуальную версию.'
+              : 'Пост не подтверждён и не опубликован. Повторите попытку.';
       const requestId = error instanceof ApiError && error.requestId ? ` Код запроса: ${error.requestId}.` : '';
       return { ok: false, title: copy.errors.approveTitle, message: `${message}${requestId}` };
     }
@@ -67,6 +77,8 @@ export function PostPublishPage({ id }: Props) {
   const sentTitle = post.titleInMessage ? post.title : '';
   const length = messageLength(sentTitle, post.body);
   const limit = post.media.length > 0 ? 1024 : 4096;
+  const isPoll = post.kind === 'poll';
+  const issue = isPoll && post.poll ? pollIssue(post.poll) : null;
   const unsupported = post.media.length > 1 && post.media.some((item) => item.kind === 'animation');
 
   return (
@@ -82,6 +94,11 @@ export function PostPublishPage({ id }: Props) {
           />
         }
       />
+      {issue !== null ? (
+        <Banner tone="error" title={postsCopy.poll.issueIntro}>
+          {postsCopy.poll.issues[issue]} Вернитесь в редактор и исправьте опрос.
+        </Banner>
+      ) : null}
       {length > limit ? (
         <Banner tone="error" title="Текст не помещается в сообщение Telegram">
           {post.media.length > 0
@@ -109,7 +126,9 @@ export function PostPublishPage({ id }: Props) {
             length={length}
             limit={limit}
             media={post.media}
+            poll={isPoll ? post.poll : null}
           />
+          <SendOptionsSummary options={post.sendOptions} isPoll={isPoll} hasMedia={post.media.length > 0} />
         </PublicationSettings>
       </div>
     </>
