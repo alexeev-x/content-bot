@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { cleanText } from './text';
 
-// A post is one Telegram message of one kind (docs/design/ux/post-composer.md §1.7): text with optional media, or a
+// A post is one Telegram message of one kind: text with optional media, or a
 // native poll. The kind is fixed at creation; a poll never carries a body or media.
 export const postKindSchema = z.enum(['text', 'poll']);
 export type PostKind = z.infer<typeof postKindSchema>;

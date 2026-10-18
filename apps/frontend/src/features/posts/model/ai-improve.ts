@@ -2,7 +2,7 @@ import { type Editor, generateJSON, getHTMLFromFragment, type JSONContent } from
 import { createEditorExtensions } from './editor-extensions';
 import { docToValue, type RichValue } from './entities-doc';
 
-// «✦ Улучшить через ИИ» (docs/design/ux/post-composer.md §4): the editor's fragment goes out as HTML, a variant
+// «✦ Улучшить через ИИ»: the editor's fragment goes out as HTML, a variant
 // comes back as HTML and is parsed by the editor's own schema (unknown tags flatten to text, links pass the
 // editor's URL check), so a suggestion can hold exactly what the post can.
 

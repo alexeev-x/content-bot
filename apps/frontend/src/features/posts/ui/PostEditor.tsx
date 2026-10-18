@@ -236,7 +236,7 @@ export function PostEditor({ post, onCreated, approvedActions, aside, headerActi
     </div>
   );
 
-  // «Редактор / Опрос» (docs/design/ux/post-composer.md §2; send options are on the publish step). The editor stays mounted while another
+  // «Редактор / Опрос» (send options are on the publish step). The editor stays mounted while another
   // tab is shown: the text, the selection and the undo history must survive a look at the other tabs.
   // A saved post keeps its kind: the tab of the other kind only explains that and offers a new post.
   const savedKind = editor.isNew ? null : editor.kind;

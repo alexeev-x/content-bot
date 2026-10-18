@@ -34,7 +34,7 @@ function Grid({
   );
 }
 
-/** Plain Unicode emoji with search by Russian words and this browser's recent ones (post-composer.md §3.2). */
+/** Plain Unicode emoji with search by Russian words and this browser's recent ones. */
 export function EmojiPicker({ onPick }: Props) {
   const [query, setQuery] = useState('');
   const [recent] = useState(readRecentEmoji);

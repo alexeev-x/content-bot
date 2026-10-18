@@ -1,6 +1,6 @@
 # AI editor — implementation plan
 
-**Status snapshot:** 2026-10-16, based on repository develop at a93f228 (commits 969d451 and a93f228 included).
+**Status snapshot:** 2026-10-18. Only what is not done is listed (owner, 18.10.2026); finished work lives in the code, `git log` and [architecture.md](architecture.md).
 **Purpose:** a single ordered execution checklist for Claude Code and the owner. This is a plan, not evidence of deployed functionality.
 
 **Sources of truth:** [architecture.md](architecture.md) for component readiness, data design and analytics constraints; [README.md](README.md) for the prompt assembly and source corpus; [../DECISIONS.md](../DECISIONS.md) for accepted product decisions; [../PLAN.md](../PLAN.md) for the broader product roadmap. Keep detailed design in those documents; update this file for execution status, dependencies and acceptance.
@@ -9,19 +9,12 @@
 
 | Capability | State on develop | Evidence / boundary |
 | --- | --- | --- |
-| OpenAI text provider, budgets and usage ledger | DONE in code | modules/ai/openai-provider.ts and service.ts; no production deployment claim |
-| Voice and format packs, lexicon, 37 Reels and 520 Telegram examples | DONE in code | docs/ai/pack, examples and writer-prompt.ts |
-| Drafts, rewrites, hooks, owner edits, approvals and server-side publish guard | DONE in code | writer.ts, d1-writer-repository.ts, bot/ai-writer.ts |
-| Explicit draft / needs_facts / ideas answer, protection from approving questions | DONE in code | migration 0062, writer-answer.ts, tests; Telegram live continuation not yet checked |
-| Recent topic/device/ending memory (15 per format) | DONE in code | writer-prompt.ts and d1-writer-repository.ts; not cross-format |
 | Saved owner feedback, changed-part tags, edit ratio and quality panel | PARTIAL | records and reports findings, but feedback does not create active learned rules |
 | Approved Reels script ↔ published TikTok/YouTube item | PARTIAL | manual link exists; full task → edit → video → outcome view absent |
-| Same-format, exact-age analytic baselines | TODO | current analytics comparison is platform-wide, not format-specific |
+| Same-format, exact-age analytic baselines | CODE DONE | stage 3 in code (migrations 0065–0066, rubric from the title); DEV check and a live alert tap remain |
 | T+72 AI reviews and evidence-backed learning rules | TODO | specified in architecture only |
 | Weekly D1 runtime "My experience" and automatic rule retrieval | TODO | current generation uses static AI_PACK.lessons from Git |
 | Autonomous news drafts and any automatic AI publication | DEFERRED | news generation source flow unfinished; owner approval mandatory |
-
-The owner's 16.10.2026 paired control run reports 14/20 complete texts before and 17/20 after, plus three explicit needs_facts results. This is a **manual evaluation observation**, not a verified regression-suite pass or production metric. Save repeatable prompts/results outside Git as the evaluation guide requires; do not train on unreviewed AI outputs.
 
 ### Hard rules for all stages
 
@@ -40,8 +33,8 @@ The owner's 16.10.2026 paired control run reports 14/20 complete texts before an
 | --- | --- | --- | --- | --- |
 | 0 | Stabilize the shipped editor and measurement | NEXT | none | trustworthy ready/needs_facts counts and bot round-trip |
 | 1 | Improve writing quality and variety | TODO | 0 | better hooks, jokes, endings, fewer repeats |
-| 2 | Make learning from owner edits useful | TODO | 0–1 | curated, relevant examples and attributable feedback |
-| 3 | Establish format-aware video measurement | TODO | 0 | honest comparisons within format and content age |
+| 2 | Make learning from owner edits useful | PARTIAL | 0–1 | curated, relevant examples and attributable feedback |
+| 3 | Establish format-aware video measurement | DEV CHECK | 0 | honest comparisons within format and content age |
 | 4 | Complete draft-to-video traceability | TODO | 2–3 | every review sees the approved script and provenance |
 | 5 | Add evidence-safe T+72 reviews | TODO | 3–4 | observations and hypotheses, not invented explanations |
 | 6 | Add learning rules and weekly runtime memory | TODO | 2, 5 | evidence-backed, owner-controlled improvement loop |
@@ -52,17 +45,11 @@ Stages 2 and 3 can be designed independently; implement 3 before 5, and do not s
 
 ## Stage 0 — stabilize the current editor (NEXT, P0)
 
-**Why now:** commits 969d451/a93f228 fixed important correctness issues, but DEV operation and quality-count semantics still need verification.
+**Why now:** the code is in place; what is left is checking it on DEV and in a live Telegram chat.
 
-- [x] Use structured output for draft vs needs_facts/ideas; no AI_DRAFT revision for a question.
-- [x] Block edit, hook change, approval and publication for needs_facts, including legacy warning-only rows (automated tests).
-- [x] Store and pass the recent 15 topic/device/ending facets within a format.
 - [ ] Verify DEV CI migration 0062 actually applied and endpoint returns the new result shape; record the commit and test time.
 - [ ] Live Telegram smoke: /redactor → "Учусь играть" → "придумай сам" → select an idea and reply with a real match detail → get a full draft → edit/approve. Confirm original task survives, and question/ideas show no approval keyboard.
-- [x] Fix quality aggregation in d1-writer-repository.ts: a generation with status ready but result needs_facts must not be counted as a completed draft (or rewrite). Keep separate counts, including legacy rows, with explicit tests; check the Settings → AI quality denominator.
-- [x] Regression-test the DEV limit 200/10 min, production default 20/10 min, budget gate and billed retries. Limit changes must not silently authorize higher spend.
 - [ ] Record the 20-prompt paired eval and five-repeat-topic eval method, model, pack revision and observed costs; distinguish manual ratings from automated pass/fail.
-- [x] Reconcile the outdated rate-limit statement in docs/ai/eval/README.md.
 - [ ] Confirm separately reported Reels-format frontend work is accounted for before any overlapping UI change; do not overwrite uncommitted local changes.
 
 **Acceptance:** one complete live Telegram question → answer → draft → approval flow; no way to approve a question; valid API status/quality counts; existing draft approval and budget tests green. **Files:** writer.ts, bot/ai-writer.ts, d1-writer-repository.ts, service.ts, ai-routes.ts, contracts only if needed, integration tests, eval guide. **No new model calls by default.**
@@ -83,30 +70,24 @@ Stages 2 and 3 can be designed independently; implement 3 before 5, and do not s
 ## Stage 2 — learn reliably from the owner's edits (P1)
 
 - [ ] Preserve current immutable provenance and per-approval diff/editRatio; make changes to the evidence model backward-compatible.
-- [ ] Extend feedback with precise reasons (repeated topic, weak hook, bad punchline, not my style, too long, factual error, missed task), with an optional owner note and association to a specific revision. No inference of author preferences from a single dislike.
-- [ ] Improve owner-example selection: same format first, then hero/topic, intent, length and explicitly owner-confirmed quality; use recency as one factor, not the only factor. Keep a 3–4 example/token bound.
+- [ ] Add the optional owner note to a «Что не так?» verdict (the seven reasons per revision are recorded already). No inference of author preferences from a single dislike.
+- [ ] Improve owner-example selection beyond shared stems and recency (in code): intent, length and explicitly owner-confirmed quality; use recency as one factor, not the only factor. Keep a 3–4 example/token bound.
 - [ ] Distinguish OWNER_ORIGINAL, OWNER_EDITED and mere unchanged AI approval. Never promote unchanged AI text to human-authored evidence.
 - [ ] Build a lightweight per-edit evidence record with before/after, changed part and feedback; store facts in D1 and never silently rewrite Git's style pack.
-- [ ] Show the owner which correction was learned as evidence, with the ability to correct/delete the feedback; avoid self-referential AI learning.
+- [ ] Show the owner which correction was learned as evidence (verdicts are listed and deletable in «Настройки → ИИ → Качество»); avoid self-referential AI learning.
 - [ ] Add tests: only eligible human-edited/confirmed text enters retrieval; relevance ranking; removal/supersession; no learning from draft-only or nonapproved examples.
 
 **Acceptance:** an owner edit measurably influences a relevant later brief, while an unedited AI output and an isolated negative rating cannot create a global rule. **Files:** writer.ts, writer-prompt.ts, d1-writer-repository.ts, migrations/contracts when approved, bot/UI and tests. **Dependency:** stage 6 activates general rules after enough evidence.
 
 ## Stage 3 — correct video baselines by format and content age (P0 for analytics learning)
 
-- [x] Carry known format (fidit / igrat / standalone / telegram / unknown) from the approved script or post to the analytics item, without classifying known items again.
-- [x] Provide explicit owner classification or a separate low-cost path for genuinely legacy/unknown items; never silently guess their format.
-- [x] Compare only **same platform + same format + same exact checkpoint age**. Never mix YouTube and TikTok or use a neighbouring snapshot time.
-- [x] Require at least **five clean comparable items** for learning evidence; if fewer, label comparison weak and do not promote rules. Existing analytics UI's N ≥ 3 presentation threshold is a separate display policy.
-- [x] Mark contamination only from confirmed recommendation restrictions, deleted/unavailable content, platform incidents or broken/incomplete collection. Poor performance is a valid observation, not contamination.
-- [x] Use only metrics actually available: TikTok public counters, YouTube available counters, Telegram views/reactions. No invented TikTok retention/shares or Telegram comment metrics.
-- [x] Unit/integration tests with mixed formats, short samples, misaligned timestamps, sparse snapshots and confirmed contamination.
+- [ ] DEV check of the format-aware curves, the rubric read from video titles and the contamination marks (migrations 0065–0066).
+- [ ] Live tap on DEV of «Ограничение подтвердилось» / «Удаление подтвердилось» under the TikTok alerts.
 
 **Acceptance:** a weak "Учусь играть" video cannot be judged against strong "Учу фидить" videos, and an unsupported metric or confounded video never produces learning evidence. **Files:** content-analytics module, shared DTOs, D1 migrations and tests. **Spec:** architecture.md items 1, 11 and 12.
 
 ## Stage 4 — finish the approved-script → video chain (P1, before reviews)
 
-- [x] Store AI_DRAFT/OWNER_EDITED/OWNER_APPROVED revisions and link approved Reels scripts to TikTok/YouTube video items with owner confirmation.
 - [ ] Show verified chain: prompt → model/pack revision → original text → owner edits → approved text → published post/video → exact-age analytics.
 - [ ] Surface missing/unlinked, ambiguous and mistakenly linked scripts; allow owner unlink/relink. Do not invent a script for legacy videos.
 - [ ] Track real usage of an approved script in more than one platform item separately from raw output text or unchanged model approvals.
@@ -166,22 +147,3 @@ Stages 2 and 3 can be designed independently; implement 3 before 5, and do not s
 4. **Safety:** provenance and approval guard, honest data, bounded requests, idempotency, costs and rollback/compatibility.
 5. **Delivery:** commit SHA(s), changed paths, checks actually run, DEV validation status, real token/cost report, remaining risks and unchecked manual steps.
 6. **Update this plan:** mark checkboxes only when evidence exists; record a short date/commit note below. Keep structural design in architecture.md, not duplicated here.
-
-## Progress log
-
-| Date | Commit / evidence | What changed | Remaining verification |
-| --- | --- | --- | --- |
-| 2026-10-16 | 969d451 | structured writer responses, migration 0062, needs_facts guard, recent per-format facets | live Telegram flow; DEV migration confirmation |
-| 2026-10-16 | a93f228 | configurable DEV draft rate limit (200/10 minutes), production default 20 | DEV smoke; budget regression |
-| 2026-10-16 | owner-provided paired control run | complete texts 14/20 → 17/20; three correctly classified fact requests; five consecutive free Telegram posts | not a code test; owner-rated writing quality and future A/B controls |
-| 2026-10-16 | stage 3 (part) | a video linked to an AI script carries its format; item curve is same platform + format + exact checkpoint from 5 videos, else the platform curve labelled weak | owner classification of unlinked legacy videos; contamination marks; DEV check |
-| 2026-10-16 | stage 3 (owner mark) | migration 0065: the owner marks the rubric of an unlinked video; a linked script still wins; Telegram posts have none | contamination marks; DEV check |
-| 2026-10-17 | stage 3 (contamination) | migration 0066: the owner confirms a reason in the item panel; the item leaves every usual curve and the stored report rebuilds | DEV check |
-| 2026-10-17 | stage 0 (quality counts) | «Качество» counts a needs_facts answer as `questions`, not a draft; a legacy row without a result stays a draft | — |
-| 2026-10-17 | stage 3 (alert button) | «Ограничение подтвердилось» / «Удаление подтвердилось» under the TikTok freeze and disappearance alerts: the owner's tap marks the video contaminated | live tap on DEV |
-| 2026-10-17 | stage 0 (limits) | draft limit test: the env limit holds, a refused draft never reaches the model or the ledger, the override is capped at 500; budget gate already covered (ai.test.ts); eval README reconciled | — |
-| 2026-10-17 | stage 3 (metrics, tests) | collectors keep unavailable counters null (Telegram comments/shares, YouTube shares, no TikTok retention), engagement compares within one platform; checkpoint window, short samples, mixed formats and contamination are covered by tests | — |
-| 2026-10-17 | stage 2 (example ranking, part) | the owner's edited approvals of the format are ranked against the task (shared stems first, recency as a bonus) before two reach the prompt | intent, length and owner-confirmed quality as factors |
-| 2026-10-17 | stage 2 (feedback reasons, part) | migration 0067: «Что не так?» in the bot records one of seven reasons per draft on the revision on screen; «Качество» counts them | the owner's note |
-| 2026-10-17 | stage 2 (verdicts shown) | «Настройки → ИИ → Качество → Записанные отзывы»: the 30 newest verdicts with the draft and the judged text; the owner deletes a wrong one | the owner's note on a verdict |
-| 2026-10-17 | stage 3 (rubric from title) | the rubric is read from the end of the video title (owner decision 17.10.2026, typos and case aside); the manual rubric choice is gone from the item panel | — |

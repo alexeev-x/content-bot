@@ -65,7 +65,7 @@ describe('mobile editor navigation', () => {
     await openExisting({ body: 'Сохранённый текст' });
 
     expect(screen.getByRole('textbox', { name: 'Заголовок' })).toBeTruthy();
-    // Only «Редактор / Опрос» (post-composer.md §2): text and media stay on one screen, never tabs.
+    // Only «Редактор / Опрос»: text and media stay on one screen, never tabs.
     expect(screen.getByRole('tablist', { name: 'Тип публикации' })).toBeTruthy();
     expect(screen.getAllByRole('tab').map((tab) => tab.textContent)).toEqual(['Редактор', 'Опрос']);
     const mediaHeading = screen.getByRole('heading', { name: 'Фото и видео' });

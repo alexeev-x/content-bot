@@ -152,7 +152,7 @@
   color: var(--color-text-muted);
   font-size: var(--font-size-sm);
 }
-/* A flat row, not a 200 px box (post-composer.md §3.3): the big drop area shows only while dragging. */
+/* A flat row, not a 200 px box: the big drop area shows only while dragging. */
 .emptyDropzone {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
@@ -163,7 +163,7 @@
   border-radius: var(--radius-2);
   background: var(--color-surface-2);
 }
-/* The big drop target appears only while a file is dragged over (post-composer.md §3.3). */
+/* The big drop target appears only while a file is dragged over. */
 .emptyDropzone[data-active] {
   min-height: calc(var(--size-target) * 3);
   border-color: var(--color-accent);

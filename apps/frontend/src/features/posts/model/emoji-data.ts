@@ -1,4 +1,4 @@
-// Plain Unicode emoji for the post editor (docs/design/ux/post-composer.md §3.2): no network, no Telegram custom
+// Plain Unicode emoji for the post editor: no network, no Telegram custom
 // emoji. Each one carries Russian words to search by. A short curated set, Dota-flavoured, not the whole standard.
 
 export type EmojiEntry = { char: string; words: string };

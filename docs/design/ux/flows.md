@@ -2,9 +2,7 @@
 
 Common: every step names its exit (Esc / back / close) and nothing blocks leaving except a failed save.
 
-### 4.1 Create post -> schedule/publish (current flow and planned UI)
-
-For the target 17.10.2026 composer, see [post-composer.md](post-composer.md). “Редактор / Опрос / Настройки” is a **planned UI**; emoji and AI improvement are also **new work**, native poll requires a new API.
+### 4.1 Create post -> schedule/publish
 
 1. Enter from `/posts/new` or a post's editor. New post starts with a single text body, **no title**; empty untouched form creates nothing. Existing legacy titled posts retain their title.
 2. Type/format text; optional media is added **below the editor**; autosave shows real state. The Telegram preview shows **media above caption**. Editing error/offline/stale revision never silently overwrites text.
@@ -13,7 +11,7 @@ For the target 17.10.2026 composer, see [post-composer.md](post-composer.md). �
 5. On the publication page choose destination and now/schedule, and explicitly confirm. The backend approves the current revision and follows the usual idempotent send/scheduling path. `202`/queued does not mean `sent`; an `unknown` publication requires manual reconciliation, never blind retry.
 6. Back/Esc on non-confirmed send returns without sending; already scheduled publication is cancelled via existing guarded actions, not an imagined undo.
 
-Checks: no new title in outgoing Telegram text; no AI-induced implicit approval; media caption length validated; scheduled and sent statuses use server values; API change for polls comes separately.
+Checks: no new title in outgoing Telegram text; no AI-induced implicit approval; media caption length validated; scheduled and sent statuses use server values.
 
 ### 4.2 Find a publication -> inspect -> safe action
 1. Публикации -> tab (e.g. Запланированные) -> search/filter. 2. Row -> inspector (URL `?id=`). 3. Read facts. 4. Action per 3.4 table: Перенести (dialog with date-time, shows old -> new), Отменить публикацию (confirm). 5. Row updates from the server response; toast with «Отменено» (no undo promise because cancel is not reversible; reschedule available only from posts: say so in confirm copy: «Её можно будет запланировать заново из поста»). Exit: Esc / close, focus back on the row.

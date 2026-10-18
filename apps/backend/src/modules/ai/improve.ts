@@ -6,7 +6,7 @@ import { assertAiReady, type BudgetEvent, readAiSettings, recordAiUsage } from '
 import type { WriterDeps } from './writer';
 import { buildImprovePrompt } from './writer-prompt';
 
-// «✦ Улучшить через ИИ» in the post editor (docs/design/ux/post-composer.md §4): one paid call that returns
+// «✦ Улучшить через ИИ» in the post editor: one paid call that returns
 // suggestions for a fragment of the post. Nothing is stored or sent; the owner applies a variant in the editor.
 
 const MAX_HTML = 16_000;

@@ -27,7 +27,7 @@
 .box[data-readonly] {
   background: var(--color-surface-2);
 }
-/* No frame of its own (post-composer.md §1): the card around the editor shows focus and errors. */
+/* No frame of its own: the card around the editor shows focus and errors. */
 .content {
   min-width: 0;
 }

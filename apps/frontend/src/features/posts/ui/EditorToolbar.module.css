@@ -1,4 +1,4 @@
-/* One thin line under the tools, no box of its own (design-refs/posts, docs/design/ux/post-composer.md §1). */
+/* One thin line under the tools, no box of its own. */
 .toolbar {
   display: flex;
   flex-wrap: wrap;

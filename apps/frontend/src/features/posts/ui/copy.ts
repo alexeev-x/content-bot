@@ -369,7 +369,7 @@ export const postsCopy = {
     created: 'Публикация создана',
     openAll: 'Все публикации'
   },
-  // The «Опрос» tab (post-composer.md §5): a poll is a separate Telegram message, never mixed into a text post.
+  // The «Опрос» tab: a poll is a separate Telegram message, never mixed into a text post.
   poll: {
     title: 'Новый опрос',
     mark: 'Опрос',
@@ -448,7 +448,7 @@ export const postsCopy = {
         editRatio === null ? '' : `, вы поправили ${Math.round(editRatio * 100)}%`
       }. Видно только вам.`
   },
-  // «✦ Улучшить через ИИ» (post-composer.md §4): a suggestion is never put into the text without «Применить».
+  // «✦ Улучшить через ИИ»: a suggestion is never put into the text without «Применить».
   ai: {
     button: 'Улучшить через ИИ',
     emptyHint: 'Сначала напишите текст',
