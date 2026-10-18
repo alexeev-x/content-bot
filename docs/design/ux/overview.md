@@ -16,7 +16,6 @@ Owner decision 08.10.2026: the single-column Обзор is rejected; the composi
 - **Phone reserve** (skeleton rows) = min(expected rows, 2).
 Where the bullets above or the table below conflict with this note, this note wins.
 
-**DEV-only previews, NOT built in the real app now:** the §6 pages (Аналитика, Календарь, Медиатека, Автоматизации, Источники) and the palette's mock results exist only in the prototype (`/__proto`). The real app builds only the five nav sections (Обзор, Посты, Публикации, Инциденты, Настройки); the ПРЕВЬЮ panels on Обзор stay DEV-only.
 - **Purpose:** open it and in one screen know what goes out today, what needs me and whether the system is alive. **Primary action:** «Новый пост» (header, desktop right of the title block; phone: header button 44 px; Mini App: MainButton **not** used, it is a hub).
 - **Header:** h1 «Обзор», no subtitle (owner, 14.10.2026); right: date/time chip («Вт, 7 окт. 2025 · 21:05», minute precision, owner's timezone, no seconds, not `aria-live`) then «Новый пост». Top bar (1.1) carries read-only timezone chip «Europe/Chisinau (UTC+3)» (display only, not a button until a timezone setting exists), «Сервисы работают» status chip (2.7), theme, owner.
 - **Desktop composition (container >= 1200 px; at 1440 the content is ~1180 px, drawn 12-col grid, 16 px gaps):**

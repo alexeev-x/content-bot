@@ -20,4 +20,3 @@ Conventions: responsive on every route from 320 px phones to 1920 px+ desktops. 
 | [`docs/design/ux/sources.md`](./ux/sources.md) | §3.9 Источники и разбор события |
 | [`docs/design/ux/media.md`](./ux/media.md) | §3.10 Медиатека |
 | [`docs/design/ux/flows.md`](./ux/flows.md) | §4 Key flows, §5 API needs |
-| [`docs/design/ux/previews.md`](./ux/previews.md) | §6 Former preview specs (analytics, calendar, automations…; history, prototype removed 14.10.2026) |

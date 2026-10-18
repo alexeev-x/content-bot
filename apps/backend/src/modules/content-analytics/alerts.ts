@@ -7,7 +7,7 @@ import { type AlertContamination, contaminationCallbackData } from './contaminat
 import { baselineFor } from './service';
 import { CONTENT_PLATFORMS, type ContentPlatform } from './types';
 
-// Bot alerts raised from the collected counters (docs/PLAN.md, stage B item 2). Every rule reads what the
+// Bot alerts raised from the collected counters. Every rule reads what the
 // analytics page already computes; the dedup key in the alert id keeps overlapping ticks from raising
 // one alert twice.
 
