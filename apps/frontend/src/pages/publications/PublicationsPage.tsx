@@ -67,7 +67,7 @@ export function PublicationsPage({ search, onSearchChange, onOpenPosts, onPublis
   useDocumentTitle(copy.list.title);
   const narrow = useMediaQuery(NARROW);
   const timezone = useOwnerTimezone();
-  const { list, postDetailsPending, switching, shownView, items, post, postTitle, channel } = usePublicationsData(
+  const { list, detailsPending, switching, shownView, items, post, postTitle, channel } = usePublicationsData(
     search,
     timezone,
     pollMs
@@ -320,7 +320,7 @@ export function PublicationsPage({ search, onSearchChange, onOpenPosts, onPublis
                         onQueryChange={setQuery}
                         order={search.order}
                         defaultOrder={defaultOrder}
-                        isLoading={list.isPending || postDetailsPending}
+                        isLoading={list.isPending || detailsPending}
                         onOrderChange={(next) => onSearchChange({ order: next })}
                       />
                     ) : null}
@@ -361,7 +361,7 @@ export function PublicationsPage({ search, onSearchChange, onOpenPosts, onPublis
                         narrow={narrow}
                         rows={rows}
                         rowText={textOf}
-                        isLoading={list.isPending}
+                        isLoading={list.isPending || detailsPending}
                         post={post}
                         channel={channel}
                         activeId={search.id}

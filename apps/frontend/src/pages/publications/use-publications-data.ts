@@ -114,7 +114,8 @@ export function usePublicationsData(search: PublicationsSearch, timeZone: string
 
   return {
     list,
-    postDetailsPending,
+    // Rows wait for their posts and channels, so they never flash «Пост недоступен» / «Канал недоступен».
+    detailsPending: postDetailsPending || destinations.isPending,
     counts: counts.data,
     switching,
     shownView: shownScope as PublicationView,
