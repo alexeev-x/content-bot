@@ -35,16 +35,42 @@ export function removeOption(poll: PostPoll, index: number): PostPoll {
   return { ...poll, options, quiz: { ...poll.quiz, correctOptionIndex: next } };
 }
 
-export function moveOption(poll: PostPoll, index: number, delta: -1 | 1): PostPoll {
-  const target = index + delta;
-  if (target < 0 || target >= poll.options.length) return poll;
-  const options = [...poll.options];
-  const [moved] = options.splice(index, 1);
-  options.splice(target, 0, moved ?? '');
+/** Takes the option at `from` out and puts it at `to`; the others close up. The quiz answer follows its option. */
+export function moveOption(poll: PostPoll, from: number, to: number): PostPoll {
+  if (from === to || to < 0 || to >= poll.options.length || from < 0 || from >= poll.options.length) return poll;
+  const options = moveItem(poll.options, from, to);
   if (poll.quiz === null) return { ...poll, options };
-  const correct = poll.quiz.correctOptionIndex;
-  const next = correct === index ? target : correct === target ? index : correct;
-  return { ...poll, options, quiz: { ...poll.quiz, correctOptionIndex: next } };
+  const order = moveItem(
+    poll.options.map((_, at) => at),
+    from,
+    to
+  );
+  return { ...poll, options, quiz: { ...poll.quiz, correctOptionIndex: order.indexOf(poll.quiz.correctOptionIndex) } };
+}
+
+export function moveItem<T>(items: readonly T[], from: number, to: number): T[] {
+  const next = [...items];
+  const [moved] = next.splice(from, 1);
+  if (moved !== undefined) next.splice(to, 0, moved);
+  return next;
+}
+
+export type PollFieldErrors = { question: boolean; options: ('empty' | 'duplicate' | null)[]; tooFew: boolean };
+
+/** Which fields stop the poll from being sent, shown on each field after «К публикации» (owner, 18.10.2026). */
+export function pollFieldErrors(poll: PostPoll): PollFieldErrors {
+  const seen = new Set<string>();
+  return {
+    question: poll.question.trim() === '',
+    options: poll.options.map((option) => {
+      const text = option.trim().toLowerCase();
+      if (text === '') return 'empty';
+      if (seen.has(text)) return 'duplicate';
+      seen.add(text);
+      return null;
+    }),
+    tooFew: poll.options.length < POLL_OPTIONS_MIN
+  };
 }
 
 export function setMultiple(poll: PostPoll, on: boolean): PostPoll {

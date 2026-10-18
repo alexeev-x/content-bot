@@ -65,9 +65,9 @@ describe('mobile editor navigation', () => {
     await openExisting({ body: 'Сохранённый текст' });
 
     expect(screen.getByRole('textbox', { name: 'Заголовок' })).toBeTruthy();
-    // Only «Редактор / Опрос / Настройки» (post-composer.md §2): text and media stay on one screen, never tabs.
+    // Only «Редактор / Опрос» (post-composer.md §2): text and media stay on one screen, never tabs.
     expect(screen.getByRole('tablist', { name: 'Тип публикации' })).toBeTruthy();
-    expect(screen.getAllByRole('tab').map((tab) => tab.textContent)).toEqual(['Редактор', 'Опрос', 'Настройки']);
+    expect(screen.getAllByRole('tab').map((tab) => tab.textContent)).toEqual(['Редактор', 'Опрос']);
     const mediaHeading = screen.getByRole('heading', { name: 'Фото и видео' });
     expect(screen.getAllByRole('heading', { name: 'Фото и видео' })).toHaveLength(1);
     expect(screen.queryByRole('figure', { name: /Предпросмотр в Telegram/ })).toBeNull();
@@ -512,7 +512,18 @@ describe('limits and preview', () => {
     await user.paste('b'.repeat(POST_BODY_MAX - 5));
     expect(await screen.findByText(/Сообщение длиннее лимита Telegram на 6/)).toBeTruthy();
     expect(screen.getByRole('button', { name: 'К постам' }).hasAttribute('disabled')).toBe(false);
-    expect(screen.getByRole('button', { name: 'К публикации' }).hasAttribute('disabled')).toBe(true);
+    await user.click(screen.getByRole('button', { name: 'К публикации' }));
+    expect(screen.queryByRole('heading', { name: 'Настройки публикации' })).toBeNull();
+    expect(bodyBox().getAttribute('aria-invalid')).toBe('true');
+  });
+
+  it('on «К публикации» without text or media says what is missing and stays in the editor', async () => {
+    const user = userEvent.setup();
+    await openExisting({ body: '', media: [] });
+    await user.click(screen.getByRole('button', { name: 'К публикации' }));
+    expect(await screen.findByText('Напишите текст или добавьте фото или видео')).toBeTruthy();
+    expect(screen.queryByRole('heading', { name: 'Настройки публикации' })).toBeNull();
+    await waitFor(() => expect(document.activeElement).toBe(bodyBox()));
   });
 
   it('previews the title and body as plain text, so markup is shown literally', async () => {

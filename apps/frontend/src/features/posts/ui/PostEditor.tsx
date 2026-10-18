@@ -23,7 +23,6 @@ import { useSaveShortcut } from '../model/use-save-shortcut';
 import { CompareDialog } from './CompareDialog';
 import { PollEditor } from './PollEditor';
 import { PostKindNote } from './PostKindNote';
-import { PostSettingsPanel } from './PostSettingsPanel';
 import { ConflictBanner } from './ConflictBanner';
 import { postsCopy } from './copy';
 import { PostFields } from './PostFields';
@@ -48,8 +47,7 @@ type Props = {
 
 const copy = postsCopy.editor;
 
-type ComposerTab = 'editor' | 'poll' | 'settings';
-type ContentTab = Exclude<ComposerTab, 'settings'>;
+type ComposerTab = 'editor' | 'poll';
 const NARROW = '(max-width: 859px)';
 
 export function PostEditor({ post, onCreated, approvedActions, aside, headerActions, initialTab }: Props) {
@@ -67,17 +65,18 @@ export function PostEditor({ post, onCreated, approvedActions, aside, headerActi
       mediaWriteLockState.current = false;
     }
   };
-  const startTab: ContentTab = initialTab ?? (post?.kind === 'poll' ? 'poll' : 'editor');
-  const [composerTab, setComposerTab] = useState<ComposerTab>(startTab);
-  // The last tab that holds content: a new post saved from «Настройки» becomes what the operator was writing.
-  const [contentTab, setContentTab] = useState<ContentTab>(startTab);
+  const [composerTab, setComposerTab] = useState<ComposerTab>(
+    initialTab ?? (post?.kind === 'poll' ? 'poll' : 'editor')
+  );
+  // «К публикации» was pressed with something missing: from then on the fields show what stops the post.
+  const [publishTried, setPublishTried] = useState(false);
   const editor = usePostEditor({
     post,
     onCreated,
     rootRef,
     dirtyRef,
     mediaWriteLock,
-    createKind: contentTab === 'poll' ? 'poll' : 'text'
+    createKind: composerTab === 'poll' ? 'poll' : 'text'
   });
   const setEditorMediaPending = editor.setMediaPending;
   const setMediaPending = useCallback((pending: boolean) => setEditorMediaPending(pending), [setEditorMediaPending]);
@@ -115,15 +114,14 @@ export function PostEditor({ post, onCreated, approvedActions, aside, headerActi
       0;
   const showApprovedPreview = isApproved && !isArchived && !hasConflict;
   const isPoll = editor.kind === 'poll';
-  const canApprove =
-    (!editor.hasTitle || editor.title.trim().length > 0) &&
-    editor.pollIssue === null &&
-    !editor.mixed &&
-    !editor.readOnly &&
-    !hasConflict &&
-    !editor.isSaving &&
-    !editor.mediaPending &&
-    editor.overflow === 0;
+  // Nothing to send: a text post needs text or at least one file (owner, 18.10.2026: say so, not a dead button).
+  const missingContent = !isPoll && editor.body.trim() === '' && (baseline?.media.length ?? 0) === 0;
+  const publishBlocked =
+    (isPoll ? editor.pollIssue !== null : missingContent) ||
+    (editor.hasTitle && editor.title.trim().length === 0) ||
+    editor.mixed ||
+    editor.overflow > 0;
+  const canContinue = !editor.readOnly && !hasConflict && !editor.isSaving && !editor.mediaPending;
 
   async function saveAndExit() {
     if (editor.dirty) {
@@ -150,6 +148,12 @@ export function PostEditor({ post, onCreated, approvedActions, aside, headerActi
   }
 
   async function continueToPublish() {
+    if (publishBlocked) {
+      setPublishTried(true);
+      // After the errors render: focus the first field that says what is missing.
+      requestAnimationFrame(() => rootRef.current?.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus());
+      return;
+    }
     // Approval happens on the publish screen together with the send; here only the text is saved.
     let id = baseline?.id ?? null;
     if (editor.dirty || baseline === null) {
@@ -179,6 +183,7 @@ export function PostEditor({ post, onCreated, approvedActions, aside, headerActi
       isNew={editor.isNew}
       length={editor.length}
       overflow={editor.overflow}
+      contentError={publishTried && missingContent ? copy.validation.nothingToSend : undefined}
     />
   );
   const mediaEditor = (
@@ -231,7 +236,7 @@ export function PostEditor({ post, onCreated, approvedActions, aside, headerActi
     </div>
   );
 
-  // «Редактор / Опрос / Настройки» (docs/design/ux/post-composer.md §2). The editor stays mounted while another
+  // «Редактор / Опрос» (docs/design/ux/post-composer.md §2; send options are on the publish step). The editor stays mounted while another
   // tab is shown: the text, the selection and the undo history must survive a look at the other tabs.
   // A saved post keeps its kind: the tab of the other kind only explains that and offers a new post.
   const savedKind = editor.isNew ? null : editor.kind;
@@ -254,7 +259,13 @@ export function PostEditor({ post, onCreated, approvedActions, aside, headerActi
   const pollForm = (
     <div className={styles.pollStack}>
       {mixedNotice}
-      <PollEditor poll={editor.poll} onChange={editor.setPoll} issue={editor.pollIssue} isReadOnly={editor.readOnly} />
+      <PollEditor
+        poll={editor.poll}
+        onChange={editor.setPoll}
+        issue={editor.pollIssue}
+        isReadOnly={editor.readOnly}
+        showErrors={publishTried}
+      />
       {narrow ? (
         <Disclosure id="poll-preview" title={copy.composer.mobilePreview}>
           {previewPanel}
@@ -264,18 +275,10 @@ export function PostEditor({ post, onCreated, approvedActions, aside, headerActi
   );
   const composer = (
     <div className={styles.tabsRoot}>
-      <Tabs
-        selectedKey={composerTab}
-        onSelectionChange={(key) => {
-          const next = String(key) as ComposerTab;
-          setComposerTab(next);
-          if (next !== 'settings') setContentTab(next);
-        }}
-      >
+      <Tabs selectedKey={composerTab} onSelectionChange={(key) => setComposerTab(String(key) as ComposerTab)}>
         <TabList aria-label={copy.composer.label}>
           <Tab id="editor">{copy.composer.editor}</Tab>
           <Tab id="poll">{copy.composer.poll}</Tab>
-          <Tab id="settings">{copy.composer.settings}</Tab>
         </TabList>
         {/* The preview column sits beside whichever panel is open, so there is one live preview, not one per tab. */}
         <div className={narrow ? undefined : `${styles.panes} ${!desktopPreviewOpen ? styles.previewCollapsed : ''}`}>
@@ -301,19 +304,6 @@ export function PostEditor({ post, onCreated, approvedActions, aside, headerActi
                 pollForm
               )}
             </TabPanel>
-            <TabPanel id="settings">
-              <PostSettingsPanel
-                kind={editor.kind}
-                status={baseline?.status ?? 'draft'}
-                isNew={editor.isNew}
-                sendOptions={editor.sendOptions}
-                onChange={editor.setSendOptions}
-                isReadOnly={editor.readOnly}
-                hasMedia={(baseline?.media.length ?? 0) > 0}
-                canContinue={canApprove}
-                onContinue={() => void continueToPublish()}
-              />
-            </TabPanel>
           </div>
           {!narrow && desktopPreviewOpen ? side : null}
         </div>
@@ -330,7 +320,7 @@ export function PostEditor({ post, onCreated, approvedActions, aside, headerActi
       size="xl"
       icon="arrow-right"
       isLoading={editor.isSaving}
-      isDisabled={!canApprove}
+      isDisabled={!canContinue}
       onPress={() => void continueToPublish()}
     >
       К публикации

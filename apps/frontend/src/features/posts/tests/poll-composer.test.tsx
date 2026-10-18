@@ -1,11 +1,13 @@
 import { DEFAULT_SEND_OPTIONS } from '@alexeev/contracts';
-import { cleanup, screen, waitFor } from '@testing-library/react';
+import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { http, HttpResponse } from 'msw';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { clearSession, setSession } from '../../../shared/api/session';
 import { accessToken, errorBody, ids, post } from '../../../test/fixtures';
 import { server, setupMswServer } from '../../../test/msw';
+import { createWrapper } from '../../../test/query-wrapper';
+import { SendOptionsPanel } from '../ui/SendOptionsPanel';
 import { renderEditorApp } from './harness';
 
 setupMswServer();
@@ -45,19 +47,58 @@ describe('poll form', () => {
     expect(patches[0]).toEqual({ revision: 0, poll: { ...poll, question: 'Какой формат?!' } });
   });
 
-  it('keeps «К публикации» disabled while the poll has an issue and shows it in Russian', async () => {
+  it('on «К публикации» marks a repeated option and stays in the editor until it is fixed', async () => {
     const user = userEvent.setup();
     await openPost(pollPost({ poll: { ...poll, options: ['Раз', 'Раз'] } }));
-    expect(screen.getByText('Варианты ответов не должны повторяться.')).toBeTruthy();
-    const next = screen.getByRole('button', { name: 'К публикации' });
-    expect(next.hasAttribute('disabled')).toBe(true);
+    expect(screen.queryByText('Такой вариант уже есть')).toBeNull();
+    await user.click(screen.getByRole('button', { name: 'К публикации' }));
+    expect(await screen.findByText('Такой вариант уже есть')).toBeTruthy();
     const second = screen.getByRole('textbox', { name: 'Вариант 2' });
+    expect(second.getAttribute('aria-invalid')).toBe('true');
+    expect(screen.queryByRole('heading', { name: 'Настройки публикации' })).toBeNull();
     await user.clear(second);
     await user.type(second, 'Два');
+    expect(screen.queryByText('Такой вариант уже есть')).toBeNull();
     expect(screen.getByText('Опрос готов к публикации.')).toBeTruthy();
-    await waitFor(() =>
-      expect(screen.getByRole('button', { name: 'К публикации' }).hasAttribute('disabled')).toBe(false)
+  });
+
+  it('on «К публикации» asks for the question and the empty options of a blank poll', async () => {
+    const user = userEvent.setup();
+    await openPost(pollPost({ poll: { ...poll, question: '', options: ['Раз', ''] } }));
+    await user.click(screen.getByRole('button', { name: 'К публикации' }));
+    expect(await screen.findByText('Напишите вопрос')).toBeTruthy();
+    expect(screen.getByText('Заполните вариант или удалите его')).toBeTruthy();
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('textbox', { name: /Вопрос/ })));
+  });
+
+  it('moves an option with the arrow keys on its handle and saves the new order', async () => {
+    const user = userEvent.setup();
+    const patches: unknown[] = [];
+    server.use(
+      http.patch('*/api/v1/posts/:id', async ({ request }) => {
+        patches.push(await request.json());
+        return HttpResponse.json(pollPost({ revision: 1, poll: { ...poll, options: ['Два', 'Раз'] } }));
+      })
     );
+    await openPost(pollPost());
+    screen.getByRole('button', { name: 'Переместить вариант 1' }).focus();
+    await user.keyboard('{ArrowDown}');
+    expect((screen.getByRole('textbox', { name: 'Вариант 1' }) as HTMLInputElement).value).toBe('Два');
+    expect(screen.getByText('Вариант перемещён на место 2')).toBeTruthy();
+    await waitFor(() => expect(patches).toHaveLength(1), { timeout: 4000 });
+    expect(patches[0]).toEqual({ revision: 0, poll: { ...poll, options: ['Два', 'Раз'] } });
+  });
+
+  it('moves an option without dragging: press its handle, then the handle of the place', async () => {
+    const user = userEvent.setup();
+    await openPost(pollPost({ poll: { ...poll, options: ['Раз', 'Два', 'Три'] } }));
+    await user.click(screen.getByRole('button', { name: 'Переместить вариант 3' }));
+    expect(screen.getByRole('button', { name: 'Переместить вариант 3' }).getAttribute('aria-pressed')).toBe('true');
+    await user.click(screen.getByRole('button', { name: 'Переместить вариант 1' }));
+    const values = ['Вариант 1', 'Вариант 2', 'Вариант 3'].map(
+      (name) => (screen.getByRole('textbox', { name }) as HTMLInputElement).value
+    );
+    expect(values).toEqual(['Три', 'Раз', 'Два']);
   });
 
   it('makes quiz and several answers exclusive', async () => {
@@ -103,8 +144,7 @@ describe('send options', () => {
         return HttpResponse.json(post({ revision: 1 }));
       })
     );
-    await openPost(post());
-    await user.click(tab('Настройки'));
+    render(<SendOptionsPanel post={post()} />, { wrapper: createWrapper() });
     await user.click(screen.getByRole('switch', { name: /Без звука/ }));
     await waitFor(() => expect(patches).toHaveLength(1), { timeout: 4000 });
     expect(patches[0]).toEqual({
@@ -113,10 +153,14 @@ describe('send options', () => {
     });
   });
 
-  it('disables the link preview switch for a poll and says why', async () => {
-    const user = userEvent.setup();
-    await openPost(pollPost());
-    await user.click(tab('Настройки'));
+  it('keeps the options of an approved post fixed', () => {
+    render(<SendOptionsPanel post={post({ status: 'approved' })} />, { wrapper: createWrapper() });
+    expect(screen.getByRole('switch', { name: /Без звука/ }).hasAttribute('disabled')).toBe(true);
+    expect(screen.getByText(/Пост одобрен/)).toBeTruthy();
+  });
+
+  it('disables the link preview switch for a poll and says why', () => {
+    render(<SendOptionsPanel post={pollPost()} />, { wrapper: createWrapper() });
     expect(screen.getByRole('switch', { name: /Предпросмотр ссылок/ }).hasAttribute('disabled')).toBe(true);
     expect(screen.getByText(/Только для текста без фото и видео/)).toBeTruthy();
   });

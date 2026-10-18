@@ -44,10 +44,53 @@
 }
 .optionRow {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: end;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: start;
   gap: var(--space-1);
   min-width: 0;
+  border-radius: var(--radius-2);
+}
+/* Pressed once to move without dragging: the row waits for the place where it goes. */
+.optionRow[data-lifted] {
+  outline: var(--focus-ring-width) dashed var(--color-accent);
+  outline-offset: var(--focus-ring-offset);
+}
+/* The grip at the start of the row (owner, 18.10.2026: drag, not arrows). touch-action keeps a finger drag from
+   scrolling the page; the button stays a 44 px target on a phone. */
+.handle {
+  display: grid;
+  place-items: center;
+  width: var(--size-target);
+  height: var(--size-control);
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-2);
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: grab;
+  touch-action: none;
+}
+.handle:hover:not(:disabled) {
+  color: var(--color-text);
+  background: var(--color-surface-2);
+}
+.handle:focus-visible {
+  outline: var(--focus-ring-width) solid var(--color-focus-ring);
+  outline-offset: var(--focus-ring-offset);
+}
+.handle[data-dragging] {
+  cursor: grabbing;
+  color: var(--color-text);
+  background: var(--color-surface-2);
+}
+.handle:disabled {
+  color: var(--color-text-disabled);
+  cursor: not-allowed;
+}
+/* Level with the input, not with the label above it or an error under it: skip one label line and its gap. */
+.handle,
+.rowActions {
+  margin-top: calc(var(--font-size-sm) * var(--line-height-body) + var(--space-1));
 }
 .rowActions {
   display: flex;
@@ -90,6 +133,9 @@
   margin: 0;
   color: var(--color-text-muted);
   font-size: var(--font-size-sm);
+}
+.status[data-error] {
+  color: var(--color-danger);
 }
 .status[data-ready] {
   color: var(--color-status-done-fg);

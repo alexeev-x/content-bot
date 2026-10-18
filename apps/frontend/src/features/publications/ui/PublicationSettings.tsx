@@ -62,6 +62,8 @@ type Props = {
   post: PostDto;
   onBack: () => void;
   children: ReactNode;
+  /** More settings of this publication under «Куда и когда» (the post's send options), composed by the page. */
+  settings?: ReactNode;
   timezone?: string;
   /** Approves a draft just before sending. Composed by the page because features never import each other. */
   ensureApproved?: EnsureApproved;
@@ -70,7 +72,15 @@ type Props = {
 };
 
 /** In-page settings for the second editor screen: «Опубликовать» here is the final action and sends at once. */
-export function PublicationSettings({ post, onBack, children, timezone, ensureApproved, onPublished }: Props) {
+export function PublicationSettings({
+  post,
+  onBack,
+  children,
+  settings,
+  timezone,
+  ensureApproved,
+  onPublished
+}: Props) {
   const timeZone = timezone ?? browserTimeZone();
   const narrow = useMediaQuery('(max-width: 859px)');
   const destinations = useQuery(publishDestinationsQueryOptions());
@@ -203,6 +213,7 @@ export function PublicationSettings({ post, onBack, children, timezone, ensureAp
             />
           </>
         ) : null}
+        {settings}
       </section>
       <section className={styles.previewColumn} aria-label="Предпросмотр публикации">
         <h2>Предпросмотр публикации</h2>

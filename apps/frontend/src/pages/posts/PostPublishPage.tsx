@@ -8,7 +8,7 @@ import {
   PostPreview,
   postQueryOptions,
   postsCopy,
-  SendOptionsSummary,
+  SendOptionsPanel,
   useApprovePost
 } from '../../features/posts';
 import { ErrorState, IconButton, PageHeader, Panel, Skeleton, Banner, useMediaQuery } from '../../shared/ui';
@@ -117,6 +117,7 @@ export function PostPublishPage({ id }: Props) {
           post={post}
           onBack={() => void navigate({ to: '/posts/$id', params: { id } })}
           ensureApproved={ensureApproved}
+          settings={<SendOptionsPanel post={post} />}
           onPublished={(publication) => void navigate({ to: '/publications', search: { id: publication.id } })}
         >
           <PostPreview
@@ -128,7 +129,6 @@ export function PostPublishPage({ id }: Props) {
             media={post.media}
             poll={isPoll ? post.poll : null}
           />
-          <SendOptionsSummary options={post.sendOptions} isPoll={isPoll} hasMedia={post.media.length > 0} />
         </PublicationSettings>
       </div>
     </>

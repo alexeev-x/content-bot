@@ -8,12 +8,25 @@ import {
   type PostPoll
 } from '@alexeev/contracts';
 import { useId, useRef, useState } from 'react';
-import { Button, Icon, IconButton, Panel, Radio, RadioGroup, Switch, TextArea, TextField } from '../../../shared/ui';
+import {
+  Button,
+  Icon,
+  IconButton,
+  Panel,
+  Radio,
+  RadioGroup,
+  Switch,
+  TextArea,
+  TextField,
+  VisuallyHidden
+} from '../../../shared/ui';
 import {
   addOption,
   canAddOption,
   canRemoveOption,
+  moveItem,
   moveOption,
+  pollFieldErrors,
   removeOption,
   setCorrectOption,
   setExplanation,
@@ -21,6 +34,7 @@ import {
   setOption,
   setQuizEnabled
 } from '../model/poll-model';
+import { useOptionDrag } from '../model/use-option-drag';
 import { postsCopy } from './copy';
 import styles from './PollEditor.module.css';
 
@@ -30,12 +44,14 @@ type Props = {
   /** Why this poll cannot be sent yet; null when it is ready. */
   issue: PollIssue | null;
   isReadOnly: boolean;
+  /** After «К публикации» with an unfinished poll: each field says what is missing. */
+  showErrors?: boolean;
 };
 
 const copy = postsCopy.poll;
 
 /** The «Опрос» tab: question, 2–12 options, multiple answers or a quiz. A draft may be incomplete; `issue` says what is missing. */
-export function PollEditor({ poll, onChange, issue, isReadOnly }: Props) {
+export function PollEditor({ poll, onChange, issue, isReadOnly, showErrors = false }: Props) {
   const listRef = useRef<HTMLUListElement>(null);
   const newId = () => crypto.randomUUID();
   // Options are plain strings; these ids follow them through add, remove and move so a row keeps its focus.
@@ -43,6 +59,17 @@ export function PollEditor({ poll, onChange, issue, isReadOnly }: Props) {
   const keys = poll.options.map((_, index) => ids[index] ?? `extra-${index}`);
   const multipleHintId = useId();
   const quizHintId = useId();
+  const dragHintId = useId();
+  const errors = showErrors ? pollFieldErrors(poll) : null;
+  const reorder = useOptionDrag({
+    listRef,
+    count: poll.options.length,
+    isDisabled: isReadOnly || poll.options.length < 2,
+    onMove: (from, to) => {
+      setIds(moveItem(keys, from, to));
+      onChange(moveOption(poll, from, to));
+    }
+  });
 
   const quiz = poll.quiz;
   const full = !canAddOption(poll);
@@ -62,15 +89,29 @@ export function PollEditor({ poll, onChange, issue, isReadOnly }: Props) {
             minRows={2}
             maxLength={POLL_QUESTION_MAX}
             isReadOnly={isReadOnly}
+            errorMessage={errors?.question ? copy.errors.question : undefined}
           />
           <fieldset className={styles.options}>
             <legend className={styles.legend}>
               <span>{copy.optionsLabel}</span>
               <span className={styles.count}>{copy.count(poll.options.length, POLL_OPTIONS_MAX)}</span>
             </legend>
+            <VisuallyHidden>
+              <span id={dragHintId}>{copy.dragHint}</span>
+              <output>{reorder.movedTo === null ? '' : copy.moved(reorder.movedTo)}</output>
+            </VisuallyHidden>
             <ul ref={listRef} className={styles.list}>
               {poll.options.map((option, index) => (
-                <li key={keys[index]} className={styles.optionRow}>
+                <li key={keys[index]} className={styles.optionRow} data-lifted={reorder.lifted === index || undefined}>
+                  <button
+                    type="button"
+                    className={styles.handle}
+                    aria-label={copy.dragLabel(index)}
+                    aria-describedby={dragHintId}
+                    {...reorder.handleProps(index)}
+                  >
+                    <Icon name="grip" size={18} />
+                  </button>
                   <TextField
                     label={copy.optionLabel(index)}
                     value={option}
@@ -78,28 +119,15 @@ export function PollEditor({ poll, onChange, issue, isReadOnly }: Props) {
                     limit={POLL_OPTION_MAX}
                     maxLength={POLL_OPTION_MAX}
                     isReadOnly={isReadOnly}
+                    errorMessage={
+                      errors?.options[index] === 'empty'
+                        ? copy.errors.optionEmpty
+                        : errors?.options[index] === 'duplicate'
+                          ? copy.errors.optionDuplicate
+                          : undefined
+                    }
                   />
                   <div className={styles.rowActions}>
-                    <IconButton
-                      label={copy.moveUp(index)}
-                      icon="arrow-up"
-                      size="target"
-                      isDisabled={isReadOnly || index === 0}
-                      onPress={() => {
-                        setIds(swap(keys, index, -1));
-                        onChange(moveOption(poll, index, -1));
-                      }}
-                    />
-                    <IconButton
-                      label={copy.moveDown(index)}
-                      icon="arrow-down"
-                      size="target"
-                      isDisabled={isReadOnly || index === poll.options.length - 1}
-                      onPress={() => {
-                        setIds(swap(keys, index, 1));
-                        onChange(moveOption(poll, index, 1));
-                      }}
-                    />
                     <IconButton
                       label={canRemoveOption(poll) ? copy.remove(index) : copy.removeMin(POLL_OPTIONS_MIN)}
                       icon="trash"
@@ -206,22 +234,15 @@ export function PollEditor({ poll, onChange, issue, isReadOnly }: Props) {
       </Panel>
 
       {isReadOnly ? null : (
-        <output className={styles.status} data-ready={issue === null || undefined}>
+        <output
+          className={styles.status}
+          data-ready={issue === null || undefined}
+          data-error={(showErrors && issue !== null) || undefined}
+        >
           <Icon name={issue === null ? 'check-circle' : 'info'} size={16} />
           {issue === null ? copy.ready : copy.issues[issue]}
         </output>
       )}
     </div>
   );
-}
-
-function swap(keys: string[], index: number, delta: -1 | 1): string[] {
-  const next = [...keys];
-  const target = index + delta;
-  const a = next[index];
-  const b = next[target];
-  if (a === undefined || b === undefined) return keys;
-  next[index] = b;
-  next[target] = a;
-  return next;
 }

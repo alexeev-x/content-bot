@@ -13,4 +13,4 @@ export { LifecycleBanner } from './ui/LifecycleBanner';
 export { useRestoreActions } from './model/use-restore';
 export type { LifecycleNotice } from './model/lifecycle-notices';
 export { deleteBlockOf } from './model/post-state';
-export { SendOptionsSummary } from './ui/SendOptionsSummary';
+export { SendOptionsPanel } from './ui/SendOptionsPanel';

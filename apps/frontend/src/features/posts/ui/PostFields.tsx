@@ -19,6 +19,8 @@ type Props = {
   isNew: boolean;
   length: number;
   overflow: number;
+  /** Set after «К публикации» found nothing to send: no text and no media. */
+  contentError?: string | undefined;
 };
 
 const copy = postsCopy.editor;
@@ -33,7 +35,8 @@ export function PostFields({
   isReadOnly,
   isNew,
   length,
-  overflow
+  overflow,
+  contentError
 }: Props) {
   // Shown as soon as the marks cannot be written as Telegram entities, not only after a failed save.
   const entityIssue = validatePostEntities(body, normalizeEntities(entities));
@@ -84,7 +87,8 @@ export function PostFields({
               errorMessage={
                 fieldState.error?.message ??
                 (entityIssue ? copy.validation.entities[entityIssue.code] : undefined) ??
-                (overflow > 0 ? copy.messageTooLong(overflow) : undefined)
+                (overflow > 0 ? copy.messageTooLong(overflow) : undefined) ??
+                contentError
               }
             />
           )}

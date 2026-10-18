@@ -1,13 +1,4 @@
-import {
-  DEFAULT_SEND_OPTIONS,
-  EMPTY_POLL,
-  pollIssue,
-  type PollIssue,
-  type PostDto,
-  type PostKind,
-  type PostPoll,
-  type PostSendOptions
-} from '@alexeev/contracts';
+import { EMPTY_POLL, pollIssue, type PollIssue, type PostDto, type PostKind, type PostPoll } from '@alexeev/contracts';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef, useState, type RefObject } from 'react';
@@ -59,10 +50,9 @@ const valuesOf = (post: PostDto | null): PostFormValues =>
 // Entities are always in the contract's normal form on both sides, so a plain JSON comparison is exact.
 const sameEntities = (a: PostFormValues['entities'], b: PostFormValues['entities']) =>
   JSON.stringify(a) === JSON.stringify(b);
-const sameSend = (a: PostSendOptions, b: PostSendOptions) => JSON.stringify(a) === JSON.stringify(b);
 
 /** What went to the server in one request, to tell later whether the operator kept editing meanwhile. */
-type Sent = { poll: PostPoll; sendOptions: PostSendOptions };
+type Sent = { poll: PostPoll };
 
 /**
  * Editor state machine. The baseline is the last server-confirmed post; it only moves on a server success or an
@@ -96,18 +86,12 @@ export function usePostEditor({
   const [focusTick, setFocusTick] = useState(0);
   const [mediaPending, setMediaPending] = useState(false);
 
-  // A poll and the send options are small objects replaced as a whole; refs keep the live value readable after an await.
+  // A poll is a small object replaced as a whole; refs keep the live value readable after an await.
   const [poll, setPollState] = useState<PostPoll>(post?.poll ?? EMPTY_POLL);
   const pollRef = useRef(poll);
   const setPoll = (next: PostPoll) => {
     pollRef.current = next;
     setPollState(next);
-  };
-  const [sendOptions, setSendOptionsState] = useState<PostSendOptions>(post?.sendOptions ?? DEFAULT_SEND_OPTIONS);
-  const sendOptionsRef = useRef(sendOptions);
-  const setSendOptions = (next: PostSendOptions) => {
-    sendOptionsRef.current = next;
-    setSendOptionsState(next);
   };
 
   const form = useForm<PostFormValues>({
@@ -129,12 +113,10 @@ export function usePostEditor({
 
   const base = valuesOf(baseline);
   const basePoll = baseline?.poll ?? EMPTY_POLL;
-  const baseSend = baseline?.sendOptions ?? DEFAULT_SEND_OPTIONS;
   const textDirty = title !== base.title || body !== base.body || !sameEntities(entities, base.entities);
   const pollDirty = !samePoll(poll, basePoll);
-  const sendDirty = !sameSend(sendOptions, baseSend);
-  const dirty = textDirty || pollDirty || sendDirty;
-  const changeKey = JSON.stringify([title, body, entities, poll, sendOptions]);
+  const dirty = textDirty || pollDirty;
+  const changeKey = JSON.stringify([title, body, entities, poll]);
   // Before the first save one post cannot be both: typed text plus a typed poll waits for the operator to pick one.
   const mixed = baseline === null && body.trim() !== '' && !isPollBlank(poll);
   const issue: PollIssue | null = kind === 'poll' ? pollIssue(poll) : null;
@@ -167,11 +149,8 @@ export function usePostEditor({
   function adopt(saved: PostDto, submitted: PostFormValues | null, sent: Sent | null = null) {
     baselineRef.current = saved;
     setBaseline(saved);
-    // Like the text: a poll or an option changed while the request was in flight keeps the newer value.
+    // Like the text: a poll changed while the request was in flight keeps the newer value.
     setPoll(sent === null || samePoll(pollRef.current, sent.poll) ? (saved.poll ?? EMPTY_POLL) : pollRef.current);
-    setSendOptions(
-      sent === null || sameSend(sendOptionsRef.current, sent.sendOptions) ? saved.sendOptions : sendOptionsRef.current
-    );
     const current = form.getValues();
     form.reset({
       title: submitted === null || current.title === submitted.title ? saved.title : current.title,
@@ -215,16 +194,12 @@ export function usePostEditor({
       const submitted = form.getValues();
       // Nothing written yet: no empty draft (the required title used to stop this; media go through
       // ensureDraftForMedia).
-      const sent: Sent = { poll: pollRef.current, sendOptions: sendOptionsRef.current };
+      const sent: Sent = { poll: pollRef.current };
       if (baseline === null && (kind === 'poll' ? isPollBlank(sent.poll) : submitted.body.trim() === '')) return null;
       try {
         if (baseline === null) {
-          // Options at their defaults are left out: the server fills them in.
-          const options = sameSend(sent.sendOptions, DEFAULT_SEND_OPTIONS) ? {} : { sendOptions: sent.sendOptions };
           const created = await create.mutateAsync(
-            kind === 'poll'
-              ? { kind: 'poll', poll: sent.poll, ...options }
-              : { body: submitted.body, entities: submitted.entities, ...options }
+            kind === 'poll' ? { kind: 'poll', poll: sent.poll } : { body: submitted.body, entities: submitted.entities }
           );
           // The navigation that follows must not trip the leave guard for the draft we just stored.
           dirtyRef.current = false;
@@ -240,8 +215,7 @@ export function usePostEditor({
             ...(hasTitle && submitted.title !== base.title ? { title: submitted.title } : {}),
             // The server refuses a body without its entities, and offsets only mean something next to their text.
             ...(textChanged && baseline.kind === 'text' ? { body: submitted.body, entities: submitted.entities } : {}),
-            ...(baseline.kind === 'poll' && !samePoll(sent.poll, basePoll) ? { poll: sent.poll } : {}),
-            ...(!sameSend(sent.sendOptions, baseSend) ? { sendOptions: sent.sendOptions } : {})
+            ...(baseline.kind === 'poll' && !samePoll(sent.poll, basePoll) ? { poll: sent.poll } : {})
           }
         });
         adopt(saved, submitted, sent);
@@ -268,9 +242,8 @@ export function usePostEditor({
       }
       const values = form.getValues();
       try {
-        const sent: Sent = { poll: pollRef.current, sendOptions: sendOptionsRef.current };
-        const options = sameSend(sent.sendOptions, DEFAULT_SEND_OPTIONS) ? {} : { sendOptions: sent.sendOptions };
-        const created = await create.mutateAsync({ body: values.body, entities: values.entities, ...options });
+        const sent: Sent = { poll: pollRef.current };
+        const created = await create.mutateAsync({ body: values.body, entities: values.entities });
         adopt(created, values, sent);
         return created;
       } catch (error) {
@@ -292,12 +265,11 @@ export function usePostEditor({
         setConflict({ kind: 'locked', server: fresh, status: 'ready' });
         return;
       }
-      const sent: Sent = { poll: pollRef.current, sendOptions: sendOptionsRef.current };
+      const sent: Sent = { poll: pollRef.current };
       const saved = await update.mutateAsync({
         id: baseline.id,
         input: {
           revision: fresh.revision,
-          ...(sameSend(sent.sendOptions, fresh.sendOptions) ? {} : { sendOptions: sent.sendOptions }),
           ...(baseline.kind === 'poll'
             ? { poll: sent.poll }
             : {
@@ -338,8 +310,7 @@ export function usePostEditor({
       current.title !== saved.title ||
       current.body !== saved.body ||
       !sameEntities(current.entities, saved.entities) ||
-      pollDirty ||
-      sendDirty;
+      pollDirty;
   }
 
   function retryServerVersion(): void {
@@ -409,8 +380,6 @@ export function usePostEditor({
     kind,
     poll,
     setPoll,
-    sendOptions,
-    setSendOptions,
     pollIssue: issue,
     mixed,
     canAutosave:

@@ -246,7 +246,6 @@ export const postsCopy = {
       newTitle: 'Создание публикации',
       editor: 'Редактор',
       poll: 'Опрос',
-      settings: 'Настройки',
       mobilePreview: 'Предпросмотр'
     },
     overLimit: 'Лимит превышен',
@@ -278,6 +277,7 @@ export const postsCopy = {
       bodyTooLong: (max: number) => `Текст не длиннее ${max} символов`,
       forbiddenChars: 'Уберите управляющие символы: допустимы только переносы строк и табуляция',
       emptyBody: 'Добавьте текст поста: без него одобрить нельзя',
+      nothingToSend: 'Напишите текст или добавьте фото или видео',
       entities: {
         ENTITIES_TOO_MANY: 'В тексте слишком много форматирования. Уберите часть выделений.',
         ENTITIES_TOO_LARGE: 'Форматирование слишком объёмное, чаще всего из-за длинных ссылок. Уберите часть ссылок.',
@@ -381,8 +381,15 @@ export const postsCopy = {
     addFull: (max: number) => `Не больше ${max} вариантов`,
     remove: (index: number) => `Удалить вариант ${index + 1}`,
     removeMin: (min: number) => `Нужно не меньше ${min} вариантов`,
-    moveUp: (index: number) => `Поднять вариант ${index + 1}`,
-    moveDown: (index: number) => `Опустить вариант ${index + 1}`,
+    dragLabel: (index: number) => `Переместить вариант ${index + 1}`,
+    dragHint:
+      'Перетащите вариант за ручку. Или нажмите ручку, затем ручку того места, куда его поставить. С клавиатуры — стрелки вверх и вниз.',
+    moved: (index: number) => `Вариант перемещён на место ${index + 1}`,
+    errors: {
+      question: 'Напишите вопрос',
+      optionEmpty: 'Заполните вариант или удалите его',
+      optionDuplicate: 'Такой вариант уже есть'
+    },
     count: (count: number, max: number) => `${count} из ${max}`,
     settingsTitle: 'Настройки опроса',
     anonymousNote: 'В каналах опросы всегда анонимные: Telegram не показывает, кто как ответил.',
@@ -421,19 +428,6 @@ export const postsCopy = {
   },
   // The «Настройки» tab: per-post Telegram send options (owner, 18.10.2026). Channel and time live on the next step.
   sendSettings: {
-    title: 'Настройки публикации',
-    note: 'Канал, дата и время выбираются на следующем шаге.',
-    toPublish: 'К публикации',
-    thisPost: 'Этот пост',
-    type: 'Тип сообщения',
-    typeText: 'Текст и медиа',
-    typePoll: 'Опрос',
-    status: 'Статус',
-    statusDraft: 'Черновик',
-    statusApproved: 'Одобрен',
-    saving: 'Сохранение',
-    savingAuto: 'Автоматически',
-    savingNew: 'После первого изменения',
     optionsTitle: 'Параметры отправки',
     silent: 'Без звука',
     silentDescription: 'Подписчики получат сообщение без звукового уведомления',
@@ -443,12 +437,8 @@ export const postsCopy = {
     linkPreviewDescription: 'Карточка страницы под текстом, если в нём есть ссылка',
     linkPreviewOnlyText: 'Только для текста без фото и видео: у подписи и опроса карточки ссылки нет.',
     readOnly: 'Пост одобрен: параметры отправки не меняются, пока он не возвращён в черновик.',
-    summary: {
-      silent: 'без звука',
-      protect: 'без пересылки',
-      linkPreview: 'с предпросмотром ссылок'
-    },
-    summaryLead: 'Параметры отправки: '
+    stale: 'Пост изменился в другой вкладке. Обновите страницу и повторите.',
+    failed: 'Не удалось сохранить параметр. Проверьте связь и переключите ещё раз.'
   },
   // Only the owner sees it; a channel never gets the mark (owner, 16.10.2026).
   origin: {
