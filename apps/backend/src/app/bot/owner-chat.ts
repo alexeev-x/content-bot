@@ -1,13 +1,13 @@
 import type { TelegramBotAdminApi } from '../../integrations/telegram/telegram-api';
 import type { TelegramCaller } from './telegram-call';
 
-// Only commands the bot really answers are registered.
+// Only commands the bot really answers are registered. /status still answers when typed, but is not in the menu
+// (owner, 18.10.2026).
 export const OWNER_COMMANDS = [
   { command: 'start', description: 'Открыть студию' },
   { command: 'redactor', description: 'ИИ-редактор: написать пост или рилс' },
   { command: 'post', description: 'Создать пост: сообщения становятся черновиками' },
-  { command: 'plan', description: 'План: сегодня и ближайшие публикации' },
-  { command: 'status', description: 'Публикация, Cron и проблемы' }
+  { command: 'plan', description: 'План: сегодня и ближайшие публикации' }
 ];
 
 // The owner's private chat: its command list and a menu button that shows it (owner decision 15.10.2026:

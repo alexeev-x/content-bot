@@ -55,11 +55,22 @@
 }
 /* A phone: the drawer is the frame, the picker fills it and targets grow to 44 px. */
 @media (max-width: 859px), (pointer: coarse) {
+  /* The search stays put and only the emoji scroll (owner, 18.10.2026: the field scrolled away with the grid). The
+     picker fills the sheet's body, so the body itself never has anything to scroll. */
   .picker {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    min-block-size: 0;
     inline-size: auto;
     padding: 0;
   }
+  .picker > :first-child {
+    flex: none;
+  }
   .scroll {
+    flex: 1;
+    min-block-size: 0;
     max-block-size: 50dvh;
   }
   .grid {
