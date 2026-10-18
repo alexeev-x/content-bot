@@ -49,6 +49,24 @@
   gap: var(--space-1);
   min-width: 0;
   border-radius: var(--radius-2);
+  /* Rows slide apart to show where the dragged one lands. */
+  transition: transform var(--motion-base) ease;
+}
+/* The grabbed row: lifted above the others and following the pointer, with no lag. */
+.optionRow[data-dragged] {
+  position: relative;
+  z-index: 1;
+  scale: 1.02;
+  background: var(--color-surface-2);
+  box-shadow: var(--shadow-pop);
+  transition: none;
+}
+.optionRow[data-settling] {
+  transition: none;
+}
+.list[data-dragging] {
+  cursor: grabbing;
+  user-select: none;
 }
 /* Pressed once to move without dragging: the row waits for the place where it goes. */
 .optionRow[data-lifted] {
@@ -78,7 +96,7 @@
   outline: var(--focus-ring-width) solid var(--color-focus-ring);
   outline-offset: var(--focus-ring-offset);
 }
-.handle[data-dragging] {
+.optionRow[data-dragged] .handle {
   cursor: grabbing;
   color: var(--color-text);
   background: var(--color-surface-2);

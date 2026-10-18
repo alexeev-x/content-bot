@@ -100,9 +100,14 @@ export function PollEditor({ poll, onChange, issue, isReadOnly, showErrors = fal
               <span id={dragHintId}>{copy.dragHint}</span>
               <output>{reorder.movedTo === null ? '' : copy.moved(reorder.movedTo)}</output>
             </VisuallyHidden>
-            <ul ref={listRef} className={styles.list}>
+            <ul ref={listRef} className={styles.list} data-dragging={reorder.isDragging || undefined}>
               {poll.options.map((option, index) => (
-                <li key={keys[index]} className={styles.optionRow} data-lifted={reorder.lifted === index || undefined}>
+                <li
+                  key={keys[index]}
+                  className={styles.optionRow}
+                  data-lifted={reorder.lifted === index || undefined}
+                  {...reorder.rowProps(index)}
+                >
                   <button
                     type="button"
                     className={styles.handle}
