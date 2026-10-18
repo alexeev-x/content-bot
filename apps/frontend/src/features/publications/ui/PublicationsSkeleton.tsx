@@ -9,6 +9,7 @@ import {
   PhoneToolbar,
   PhoneToolbarSearch,
   SearchField,
+  Select,
   Tab,
   TabList,
   Tabs,
@@ -37,6 +38,15 @@ export function PublicationsSkeleton() {
       <VisuallyHidden>
         <output>{ru.shell.loadingPage}</output>
       </VisuallyHidden>
+      <div className={styles.period}>
+        <Select
+          label="Период публикаций"
+          options={[{ id: 'all', label: 'За всё время' }]}
+          value="all"
+          onChange={noop}
+          isDisabled
+        />
+      </div>
       <Tabs selectedKey="all" isDisabled>
         <TabList aria-label={copy.tabs.label}>
           <Tab id="all">{copy.tabs.all}</Tab>
@@ -58,7 +68,7 @@ export function PublicationsSkeleton() {
               </PhoneToolbarSearch>
               <FilterButton
                 count={0}
-                sort={{ label: copy.filters.sort, value: '', spoken: '' }}
+                sort={{ label: copy.filters.sort, value: `${copy.list.columns.time} ↓`, spoken: '' }}
                 isDisabled
                 onPress={noop}
               />

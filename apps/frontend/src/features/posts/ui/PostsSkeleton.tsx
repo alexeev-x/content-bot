@@ -57,7 +57,7 @@ export function PostsSkeleton() {
               </PhoneToolbarSearch>
               <FilterButton
                 count={0}
-                sort={{ label: copy.filters.sort, value: '', spoken: '' }}
+                sort={{ label: copy.filters.sort, value: copy.filters.sort, spoken: '' }}
                 isDisabled
                 onPress={noop}
               />

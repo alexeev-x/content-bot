@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { ApiError } from '../../../shared/api/http-client';
 import {
   Banner,
+  Button,
   ErrorState,
   IconBadge,
   IconButton,
@@ -30,11 +31,39 @@ export function BotStatusSkeleton() {
         <div className={styles.head}>
           <IconBadge name="send" size="lg" tone="muted" />
           <div className={styles.headText}>
-            <h2 className={styles.title}>{copy.card.title}</h2>
-            <Skeleton width={180} height="1lh" />
+            <div className={styles.titleRow}>
+              <h2 className={styles.title}>{copy.card.title}</h2>
+            </div>
+            <p className={styles.state}>
+              <Skeleton width={120} height="1lh" />
+            </p>
           </div>
         </div>
-        <Skeleton height="var(--size-control)" radius="var(--radius-2)" />
+        <div className={styles.nameRow}>
+          <div className={styles.name}>
+            <span className={styles.nameLabel}>{copy.card.username}</span>
+            <Skeleton width={120} height="1lh" />
+          </div>
+          <Button variant="secondary" isDisabled>
+            {copy.card.openChat}
+          </Button>
+        </div>
+        <StatGrid minTile="md">
+          <StatTile label={copy.card.address} value={<Skeleton width={120} height="1lh" />} icon="link" tone="muted" />
+          <StatTile
+            label={copy.card.pending}
+            value={<Skeleton width={32} height="1lh" />}
+            meta={copy.card.pendingMeta}
+            icon="clock"
+            tone="muted"
+          />
+          <StatTile
+            label={copy.card.lastError}
+            value={<Skeleton width={64} height="1lh" />}
+            icon="check-circle"
+            tone="muted"
+          />
+        </StatGrid>
       </output>
     </Panel>
   );

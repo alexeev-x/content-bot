@@ -12,7 +12,7 @@ import {
   Virtualizer
 } from 'react-aria-components';
 import { ru } from '../../../shared/lib/ru';
-import { Button, Icon } from '../../../shared/ui';
+import { Button, Icon, Skeleton } from '../../../shared/ui';
 import { browserTimezone, timezoneOptions } from '../model/timezone-options';
 import styles from './TimezoneField.module.css';
 
@@ -96,6 +96,24 @@ export function TimezoneField({ value, now, onChange }: Props) {
             {ru.general.timezoneBrowser}
           </Button>
         ) : null}
+      </div>
+    </div>
+  );
+}
+
+/** The field before the settings arrive: its label, box and hint in place, placeholders for the value and «Сейчас». */
+export function TimezoneFieldSkeleton() {
+  return (
+    <div className={styles.wrap} aria-hidden="true">
+      <div className={styles.field}>
+        <span className={styles.label}>{ru.general.timezoneLabel}</span>
+        <Skeleton height="var(--size-control)" radius="var(--radius-2)" />
+        <p className={styles.hint}>{ru.general.timezoneHint}</p>
+      </div>
+      <div className={styles.row}>
+        <p className={styles.now}>
+          <Skeleton width={220} height="1lh" />
+        </p>
       </div>
     </div>
   );

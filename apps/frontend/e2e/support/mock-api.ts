@@ -1,3 +1,4 @@
+import { fileURLToPath } from 'node:url';
 import type { Page, Route } from '@playwright/test';
 
 const T = '2026-10-06T09:00:00.000Z';
@@ -1160,7 +1161,7 @@ export async function mockApi(page: Page): Promise<void> {
   );
   // Private media bytes: one real photo, so thumbnails and previews render like production.
   await page.route(/\/api\/v1\/(media|posts\/[^/]+\/media)\/[^/]+\/content$/, (route) =>
-    route.fulfill({ path: new URL('./crop-lake-demo.png', import.meta.url).pathname })
+    route.fulfill({ path: fileURLToPath(new URL('./crop-lake-demo.png', import.meta.url)) })
   );
   await page.route('**/api/v1/dota/watchlists', (route) =>
     json(route, {

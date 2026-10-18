@@ -314,3 +314,10 @@
     display: none;
   }
 }
+/* Phones fit two or three chips per row: the summary keeps two rows from the skeleton on, so loading does not push the page. */
+@media (max-width: 599px) {
+  .stats {
+    min-height: calc(var(--space-3) + var(--space-2) + 2 * (var(--font-size-sm) * var(--line-height-body) + 4px));
+    align-content: flex-start;
+  }
+}

@@ -135,3 +135,8 @@
   gap: var(--space-3);
   min-height: 128px;
 }
+/* A skeleton bar fills its whole column from the bottom, as the loaded bar will (flex-basis 0 would squash it). */
+.bar > .fill {
+  display: flex;
+  flex: 1 0 0;
+}

@@ -42,7 +42,7 @@ const NOTE = 'Текущие показатели и прогресс к цел�
 
 /** The same panel before the report and goals exist, without a request, for the route skeleton. */
 export function FollowersGoalsPanelSkeleton() {
-  return <PanelSkeleton title={TITLE} note={NOTE} rows={5.4} phoneRows={9} />;
+  return <PanelSkeleton title={TITLE} note={NOTE} icon={<Icon name="users" />} rows={3.8} phoneRows={6.9} />;
 }
 
 /**

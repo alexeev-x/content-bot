@@ -1,7 +1,7 @@
 import type { AiAuthorProfileDto } from '@alexeev/contracts';
 import { useQuery } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
-import { Button, Skeleton, TextField } from '../../../shared/ui';
+import { Button, Skeleton, TextField, useMediaQuery } from '../../../shared/ui';
 import { DOTA_REFRESH_MS, dotaProfileQueryOptions, useRefreshDota, useSetDotaAccount } from '../api/dota-profile';
 import styles from './DotaSummary.module.css';
 
@@ -104,11 +104,29 @@ export function DotaSummary() {
   );
 }
 
+/**
+ * The loaded geometry of the owner's account (medal and rank, the «matches hidden» note, the footer) with
+ * placeholders in place of values. An account with public matches grows by its facts and heroes once.
+ */
 export function DotaSummarySkeleton() {
+  // A phone wraps the note to three lines.
+  const phone = useMediaQuery('(max-width: 599px)');
   return (
     <div className={styles.body} aria-hidden="true">
-      <Skeleton width={120} height={28} />
-      <Skeleton lines={4} height={20} />
+      <div className={styles.rank}>
+        <span className={styles.medal}>
+          <Skeleton width="100%" height="100%" radius="50%" />
+        </span>
+        <strong>
+          <Skeleton width={120} height="1lh" />
+        </strong>
+      </div>
+      <p className={styles.meta}>
+        <Skeleton lines={phone ? 3 : 2} height="1lh" />
+      </p>
+      <p className={`${styles.meta} ${styles.footer}`}>
+        <Skeleton width="75%" height="1lh" />
+      </p>
     </div>
   );
 }

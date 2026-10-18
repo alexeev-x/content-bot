@@ -24,7 +24,7 @@ export function RankedLists({ best, worst, onOpen }: Props) {
         title="Лучшие и худшие"
         note="Во сколько раз выше или ниже медианы своей платформы"
         rows={6.1}
-        phoneRows={14.2}
+        phoneRows={15.6}
       />
     );
   return (

@@ -10,7 +10,9 @@ import {
   LineChart,
   Panel,
   SearchField,
-  SegmentedControl
+  SegmentedControl,
+  Skeleton,
+  VisuallyHidden
 } from '../../../shared/ui';
 import { contentItemQueryOptions } from '../api/content-analytics-queries';
 import { ageCurve, baselineCurve } from '../model/curves';
@@ -188,8 +190,8 @@ export function CompareVideosPanel({ items, tracked, baselines, timezone, picked
       <PanelSkeleton
         title="Сравнение роликов"
         note="На одинаковом возрасте после публикации"
-        rows={10.5}
-        phoneRows={22.4}
+        rows={12.5}
+        phoneRows={31.6}
       />
     );
   return (
@@ -246,11 +248,18 @@ export function CompareVideosPanel({ items, tracked, baselines, timezone, picked
             Выберите ролики. Сравнивать по часам можно те, что отслеживаются с первых часов после выхода — новые
             публикации попадают сюда автоматически.
           </p>
+        ) : series.length === 0 && rows.some((row) => row.loading) ? (
+          // The chart's own height while the hourly series load, so the cards below stay where they will be.
+          <div className={styles.chartRow} aria-busy="true">
+            <div className={styles.chartCell}>
+              <VisuallyHidden>Загружаем замеры…</VisuallyHidden>
+              <Skeleton height={260} />
+            </div>
+          </div>
         ) : series.length === 0 ? (
           <p className={styles.muted}>
-            {rows.some((row) => row.loading)
-              ? 'Загружаем замеры…'
-              : 'У выбранных роликов нет замеров первых часов: они вышли до начала отслеживания. Выберите отмеченные «с первых часов».'}
+            У выбранных роликов нет замеров первых часов: они вышли до начала отслеживания. Выберите отмеченные «с
+            первых часов».
           </p>
         ) : (
           <div className={styles.chartRow}>

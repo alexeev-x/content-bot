@@ -27,7 +27,7 @@ export function CrossPostedPanel({ items, now, onOpen }: Props) {
         title="Один ролик на платформах"
         note="Совпадает название, вышли в пределах 4 дней"
         rows={6.4}
-        phoneRows={13}
+        phoneRows={12.7}
       />
     );
   if (groups.length === 0) return null;

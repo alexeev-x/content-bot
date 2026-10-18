@@ -1,14 +1,14 @@
 import { AiSpendSkeleton } from '../../features/ai-settings';
 import { DotaSummarySkeleton } from '../../features/dota-profile';
 import { AnalyticsSkeleton, LatestVideoSkeleton, TrendingSummarySkeleton } from '../../features/content-analytics';
-import { DashboardSkeleton } from '../../features/dashboard';
+import { DashboardSkeleton, DateChip } from '../../features/dashboard';
 import { SourcesBoardSkeleton } from '../../features/dota-intelligence';
 import { MediaPageSkeleton } from '../../features/media';
 import { PostsSkeleton } from '../../features/posts';
 import { browserTimeZone, PublicationsSkeleton, utcOffsetLabel } from '../../features/publications';
 import { SettingsSkeleton } from '../../pages/settings/SettingsSkeleton';
 import { ru } from '../../shared/lib/ru';
-import { PageHeader, Skeleton, VisuallyHidden } from '../../shared/ui';
+import { PageHeader, Skeleton, useMediaQuery, VisuallyHidden } from '../../shared/ui';
 import styles from './RouteSkeleton.module.css';
 
 type Props = {
@@ -27,6 +27,8 @@ function zoneNote(): string {
  * where it exists, otherwise a generic page frame. No page renders yet, so no request leaves without a token.
  */
 export function RouteSkeleton({ pathname, title }: Props) {
+  // Same breakpoint as the dashboard: a phone has no «Новый пост» in the header.
+  const phone = useMediaQuery('(max-width: 859px)');
   if (pathname === '/') {
     return (
       <>
@@ -34,8 +36,8 @@ export function RouteSkeleton({ pathname, title }: Props) {
           title={title}
           actions={
             <>
-              <Skeleton width={196} height="var(--size-control)" radius="var(--radius-2)" />
-              <Skeleton width={128} height="var(--size-button)" radius="var(--radius-2)" />
+              <DateChip placement="header" zoneNote={zoneNote()} timezone={browserTimeZone()} />
+              {phone ? null : <Skeleton width={128} height="var(--size-button)" radius="var(--radius-2)" />}
             </>
           }
         />
@@ -70,7 +72,8 @@ export function RouteSkeleton({ pathname, title }: Props) {
       <AnalyticsSkeleton tab={tab === 'items' || tab === 'audience' ? tab : 'overview'} timezone={browserTimeZone()} />
     );
   }
-  if (page === '/media') return <MediaPageSkeleton />;
+  // The route adds the heroes tab to the library (routes/media.tsx), so the skeleton draws it too.
+  if (page === '/media') return <MediaPageSkeleton extraTabLabel="Герои Dota" />;
   if (page === '/sources') {
     return (
       <>

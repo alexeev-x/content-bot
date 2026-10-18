@@ -16,7 +16,7 @@ import {
 } from '../../../shared/ui';
 import { useGeneralSettings, type SettingsPatch } from '../model/use-general-settings';
 import styles from './GeneralSettingsEditor.module.css';
-import { TimezoneField } from './TimezoneField';
+import { TimezoneField, TimezoneFieldSkeleton } from './TimezoneField';
 
 const SWITCHES = [
   {
@@ -80,20 +80,45 @@ export function GeneralSettingsSkeleton() {
       <VisuallyHidden>
         <output>{ru.ui.loading}</output>
       </VisuallyHidden>
-      <Panel title={ru.general.timezoneTitle} icon={<Icon name="clock" />} reserveRows={3} reservePhoneRows={3.6}>
-        <div className={styles.body}>
-          <Skeleton height="var(--size-control)" />
+      <Panel title={ru.general.timezoneTitle} icon={<Icon name="clock" />}>
+        <div className={styles.timezone}>
+          <TimezoneFieldSkeleton />
+          <div className={styles.clock} aria-hidden="true">
+            <span className={styles.clockLabel}>{ru.general.localTime}</span>
+            <span className={styles.clockTime}>
+              <Skeleton width={64} height="1lh" />
+            </span>
+            <span className={styles.clockLabel}>
+              <Skeleton width={40} height="1lh" />
+            </span>
+          </div>
         </div>
       </Panel>
       <Panel
         title={ru.general.notificationsTitle}
         icon={<Icon name="bell" />}
         note={ru.general.notificationsNote}
-        reserveRows={6.6}
-        reservePhoneRows={9.4}
+        action={
+          <Button variant="secondary" size="sm" isDisabled>
+            {ru.general.enableAll}
+          </Button>
+        }
       >
-        <div className={styles.body}>
-          <Skeleton lines={3} height={20} />
+        {/* The rows are static: only the switch positions wait for the settings, so they show disabled until then. */}
+        <ul className={styles.switches} aria-hidden="true">
+          {SWITCHES.map(({ key, label, description, icon }) => (
+            <li key={key} className={styles.notice}>
+              <IconBadge name={icon} tone="muted" />
+              <Switch variant="row" isDisabled isSelected={false} description={description}>
+                {label}
+              </Switch>
+            </li>
+          ))}
+        </ul>
+        <div className={styles.critical}>
+          <Banner tone="warning" title={ru.general.criticalTitle}>
+            {ru.general.criticalBody}
+          </Banner>
         </div>
       </Panel>
     </div>

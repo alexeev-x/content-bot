@@ -17,7 +17,8 @@
     "test": "vitest run && node --test scripts/*.test.mjs",
     "deploy": "wrangler deploy",
     "deploy:check": "wrangler deploy --dry-run",
-    "shots": "playwright test --config playwright.shots.config.ts"
+    "shots": "playwright test --config playwright.shots.config.ts",
+    "layout:check": "playwright test --config playwright.layout.config.ts"
   },
   "dependencies": {
     "@alexeev/contracts": "*",

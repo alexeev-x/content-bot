@@ -1,5 +1,5 @@
 import { AI_QUALITY_MIN_APPROVED, type AiFormatQualityDto, type AiOverviewDto } from '@alexeev/contracts';
-import { DataTable, useMediaQuery, type DataColumn } from '../../../shared/ui';
+import { DataTable, Skeleton, useMediaQuery, type DataColumn } from '../../../shared/ui';
 import { formatMinutes, qualityComparison, sharePercent, splitFormats } from '../model/ai-view';
 import { copy } from './copy';
 import styles from './AiQualityExtras.module.css';
@@ -79,5 +79,37 @@ export function AiQualityComparison({ quality }: { quality: AiOverviewDto['quali
     <p className={styles.compare}>
       {comparison.direction ? `${line} · ${copy.quality.compare.direction[comparison.direction]}` : line}
     </p>
+  );
+}
+
+/** «По форматам» before the overview: the real metric rows, two format columns of placeholders (the usual pair). */
+export function AiQualityByFormatSkeleton() {
+  const narrow = useMediaQuery(NARROW);
+  const placeholder = () => <Skeleton width={32} height="1lh" />;
+  const columns: readonly DataColumn<Metric>[] = [
+    { id: 'metric', header: 'Показатель', isRowHeader: true, cell: (row) => row.label, width: '34%' },
+    // A no-break space keeps the header row at its loaded height; the format names are not known yet.
+    { id: 'first', header: ' ', cell: placeholder, align: 'end' },
+    { id: 'second', header: ' ', cell: placeholder, align: 'end' }
+  ];
+  return (
+    <section className={styles.section} aria-hidden="true">
+      <h3 className={styles.title}>{t.title}</h3>
+      {narrow ? (
+        <DataTable
+          aria-label={t.label}
+          columns={COLUMNS}
+          rows={[]}
+          getRowId={(row) => row.format}
+          isLoading
+          loadingRows={2}
+        />
+      ) : (
+        <DataTable aria-label={t.label} columns={columns} rows={METRICS} getRowId={(row) => row.id} flush />
+      )}
+      <p className={styles.muted}>
+        <Skeleton width="50%" height="1lh" />
+      </p>
+    </section>
   );
 }

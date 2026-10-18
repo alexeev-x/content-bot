@@ -36,7 +36,7 @@ import {
 } from '../model/ai-view';
 import { AiFeedbackList } from './AiFeedbackList';
 import { AiLearningList } from './AiLearningList';
-import { AiQualityByFormat, AiQualityComparison } from './AiQualityExtras';
+import { AiQualityByFormat, AiQualityByFormatSkeleton, AiQualityComparison } from './AiQualityExtras';
 import { AiUnlinkedScripts } from './AiUnlinkedScripts';
 import { copy, usd } from './copy';
 import styles from './AiSettingsPage.module.css';
@@ -62,56 +62,186 @@ export function AiSettingsSkeleton() {
       <VisuallyHidden>
         <output>{copy.loading}</output>
       </VisuallyHidden>
-      <section className={styles.status} aria-hidden="true">
-        <IconBadge name="sparkle" size="lg" tone="muted" />
-        <div className={styles.statusBody}>
-          <Skeleton width={160} height="1lh" />
-          <Skeleton width="60%" height="1lh" />
-          <Skeleton width="40%" height="1lh" />
+      {/* Disabled look-alike controls: hidden from assistive technology, which hears only the loading status. */}
+      <div className={styles.contents} aria-hidden="true">
+        <section className={styles.status} aria-hidden="true">
+          <IconBadge name="sparkle" size="lg" tone="muted" />
+          <div className={styles.statusBody}>
+            <div className={styles.statusTitle}>
+              <h2>OpenAI</h2>
+              <Skeleton width={96} height="1lh" radius="var(--radius-pill)" />
+            </div>
+            <p className={styles.statusText}>
+              <Skeleton width="60%" height="1lh" />
+            </p>
+            <p className={styles.meta}>
+              <Skeleton lines={2} width="70%" height="1lh" />
+            </p>
+          </div>
+          <div className={styles.statusActions}>
+            <Switch isDisabled isSelected={false}>
+              {copy.enabled}
+            </Switch>
+            <Button variant="secondary" icon="zap" isDisabled>
+              {copy.check}
+            </Button>
+          </div>
+        </section>
+        <div className={styles.pair}>
+          <Panel
+            title={copy.spendTitle}
+            icon={<Icon name="chart" />}
+            action={<span className={styles.meta}>{copy.monthLabel(month)}</span>}
+          >
+            <div className={styles.body}>
+              <div className={styles.spend}>
+                <p className={styles.spendLabel}>{copy.spentIn(month)}</p>
+                <div className={styles.spendMain}>
+                  <p className={styles.spendValue}>
+                    <Skeleton width={120} height="1lh" />
+                  </p>
+                  <p className={styles.meta}>
+                    <Skeleton width={180} height="1lh" />
+                  </p>
+                </div>
+                <ProgressBar label={copy.spendBar} value={0} />
+              </div>
+              <StatGrid columns="two">
+                {[copy.tiles.left, copy.tiles.today, copy.tiles.requests, copy.tiles.average].map((label) => (
+                  <StatTile
+                    key={label}
+                    label={label}
+                    value={<Skeleton width={72} height="1lh" />}
+                    meta={<Skeleton width="80%" height="1lh" />}
+                    icon="file"
+                    tone="muted"
+                    iconAt="start"
+                  />
+                ))}
+              </StatGrid>
+            </div>
+          </Panel>
+          <Panel title={copy.quality.title(30)} icon={<Icon name="check-circle" />}>
+            <div className={styles.body}>
+              <p className={styles.spendLabel}>{copy.quality.lead}</p>
+              <StatGrid columns="two">
+                {[copy.quality.editRatio, copy.quality.approved, copy.quality.draftCost, copy.quality.rewrites].map(
+                  (label) => (
+                    <StatTile
+                      key={label}
+                      label={label}
+                      value={<Skeleton width={56} height="1lh" />}
+                      meta={<Skeleton width="70%" height="1lh" />}
+                      icon="file"
+                      tone="muted"
+                      iconAt="start"
+                    />
+                  )
+                )}
+              </StatGrid>
+              <p className={styles.meta}>
+                <Skeleton width="80%" height="1lh" />
+              </p>
+              <AiQualityByFormatSkeleton />
+              <div className={styles.notes}>
+                <Icon name="info" size={16} className={styles.notesIcon} />
+                <div className={styles.notesText}>
+                  <p className={styles.meta}>
+                    <Skeleton lines={3} width="80%" height="1lh" />
+                  </p>
+                </div>
+              </div>
+            </div>
+            <div className={styles.body}>
+              <DisclosureGroup>
+                <Disclosure id="learning" title={copy.learning.title}>
+                  {null}
+                </Disclosure>
+              </DisclosureGroup>
+              <DisclosureGroup>
+                <Disclosure id="unlinked" title={copy.unlinked.title}>
+                  {null}
+                </Disclosure>
+              </DisclosureGroup>
+            </div>
+          </Panel>
         </div>
-        <div className={styles.statusActions}>
-          <Skeleton width={120} height="var(--size-button)" radius="var(--radius-2)" />
-          <Skeleton width={120} height="var(--size-button)" radius="var(--radius-2)" />
-        </div>
-      </section>
-      <div className={styles.pair}>
-        <Panel
-          title={copy.spendTitle}
-          icon={<Icon name="chart" />}
-          action={<span className={styles.meta}>{copy.monthLabel(month)}</span>}
-          reserveRows={6}
-          reservePhoneRows={8}
-        >
-          <div className={styles.body}>
-            <Skeleton lines={3} height={24} />
+        <Panel title={copy.modelsTitle} icon={<Icon name="settings" />}>
+          <p className={styles.intro}>{copy.modelsIntro('OpenAI')}</p>
+          <div className={styles.models}>
+            <Select
+              label={copy.draftModel}
+              description={copy.draftModelHint}
+              options={[]}
+              value={null}
+              isDisabled
+              onChange={() => {}}
+            />
+            <Select
+              label={copy.cheapModel}
+              description={copy.cheapModelHint}
+              options={[]}
+              value={null}
+              isDisabled
+              onChange={() => {}}
+            />
+          </div>
+          <div className={styles.reviewSwitch}>
+            <Switch variant="row" description={copy.videoReviewsHint} isDisabled isSelected={false}>
+              {copy.videoReviews}
+            </Switch>
           </div>
         </Panel>
-        <Panel title={copy.quality.title(30)} icon={<Icon name="check-circle" />} reserveRows={6} reservePhoneRows={8}>
+        <Panel title={copy.budgetTitle} icon={<Icon name="zap" />}>
           <div className={styles.body}>
-            <Skeleton lines={3} height={24} />
+            <div className={styles.budget}>
+              <BudgetColumn label={copy.monthly}>
+                <SegmentedControl
+                  label={copy.monthly}
+                  options={[
+                    ...BUDGET_PRESETS.map((value) => ({ id: String(value), label: `$${value}` })),
+                    { id: 'custom', label: copy.custom }
+                  ]}
+                  value=""
+                  isDisabled
+                  onChange={() => {}}
+                />
+              </BudgetColumn>
+              <BudgetColumn label={copy.daily}>
+                <SegmentedControl
+                  label={copy.daily}
+                  options={[
+                    ...DAILY_PRESETS.map((value) => ({ id: String(value), label: `$${value}` })),
+                    { id: 'all', label: copy.noDaily }
+                  ]}
+                  value=""
+                  isDisabled
+                  onChange={() => {}}
+                />
+              </BudgetColumn>
+              <BudgetColumn label={copy.warnAt}>
+                <SegmentedControl
+                  label={copy.warnAt}
+                  options={WARN_PRESETS.map((value) => ({ id: String(value), label: `${value}%` }))}
+                  value=""
+                  isDisabled
+                  onChange={() => {}}
+                />
+              </BudgetColumn>
+            </div>
+            <p className={styles.meta}>{copy.monthlyHint}</p>
           </div>
         </Panel>
-      </div>
-      <Panel title={copy.modelsTitle} icon={<Icon name="settings" />} reserveRows={3} reservePhoneRows={6}>
-        <div className={styles.models}>
-          <Skeleton height={36} />
-          <Skeleton height={36} />
+        <Panel title={copy.voiceTitle} icon={<Icon name="message" />}>
+          <p className={styles.voice}>{copy.voiceBody}</p>
+        </Panel>
+        <div className={styles.extra}>
+          <DisclosureGroup>
+            <Disclosure id="prices" title={copy.pricesTitle('OpenAI', `${month}-01`)}>
+              {null}
+            </Disclosure>
+          </DisclosureGroup>
         </div>
-      </Panel>
-      <Panel title={copy.budgetTitle} icon={<Icon name="zap" />} reserveRows={3} reservePhoneRows={8}>
-        <div className={styles.body}>
-          <Skeleton lines={2} height={32} />
-        </div>
-      </Panel>
-      <Panel title={copy.voiceTitle} icon={<Icon name="message" />}>
-        <p className={styles.voice}>{copy.voiceBody}</p>
-      </Panel>
-      <div className={styles.extra}>
-        <DisclosureGroup>
-          <Disclosure id="prices" title={copy.pricesTitle('OpenAI', `${month}-01`)}>
-            {null}
-          </Disclosure>
-        </DisclosureGroup>
       </div>
     </div>
   );

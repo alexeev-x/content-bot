@@ -4,7 +4,6 @@ import { Button, Icon, type IconName, Panel, Skeleton } from '../../../shared/ui
 import type { Insight } from '../model/insights';
 import { copy } from './copy';
 import styles from './Insights.module.css';
-import { PanelSkeleton } from './PanelSkeleton';
 
 export type InsightsSummary = {
   hits: { hits: number; total: number; diff: number | null };
@@ -49,8 +48,7 @@ export function InsightsPanel({ insights, summary, days, onOpenItem }: Props) {
     .sort((a, b) => TONE_ORDER[a.tone] - TONE_ORDER[b.tone]);
   const shown = all ? relevant : relevant.slice(0, FIRST);
   const hidden = relevant.length - shown.length;
-  if (insights === undefined && summary === undefined)
-    return <PanelSkeleton title={copy.insights.title(days)} rows={11.1} phoneRows={26} />;
+  if (insights === undefined && summary === undefined) return <InsightsSkeleton days={days} />;
   return (
     <Panel title={copy.insights.title(days)} headingLevel={2} quiet>
       <div className={styles.body}>
@@ -81,13 +79,7 @@ export function InsightsPanel({ insights, summary, days, onOpenItem }: Props) {
           </ul>
         ) : null}
         {insights === undefined ? (
-          <div className={styles.grid} aria-hidden="true">
-            {[0, 1, 2, 3].map((key) => (
-              <div key={key} className={styles.card}>
-                <Skeleton width="70%" height={16} />
-              </div>
-            ))}
-          </div>
+          <InsightCardsSkeleton />
         ) : insights.length === 0 ? (
           <p className={styles.muted}>{copy.insights.empty}</p>
         ) : (
@@ -136,5 +128,57 @@ export function InsightsPanel({ insights, summary, days, onOpenItem }: Props) {
         ) : null}
       </div>
     </Panel>
+  );
+}
+
+/** The loaded geometry before the report: two summary tiles, six cards in their grid, the «show more» row. */
+function InsightsSkeleton({ days }: { days: number }) {
+  return (
+    <Panel title={copy.insights.title(days)} headingLevel={2} quiet>
+      <div className={styles.body} aria-hidden="true">
+        <ul className={styles.stats}>
+          {[
+            { icon: 'file' as const, label: 'Удачные публикации' },
+            { icon: 'calendar' as const, label: 'Частота публикаций' }
+          ].map((stat) => (
+            <li key={stat.label} className={styles.stat}>
+              <span className={styles.statIcon}>
+                <Icon name={stat.icon} size={18} />
+              </span>
+              <span className={styles.statText}>
+                <span className={styles.statLabel}>{stat.label}</span>
+                <strong>
+                  <Skeleton width={96} height="1lh" />
+                </strong>
+                <Skeleton width={160} height="1lh" />
+              </span>
+            </li>
+          ))}
+        </ul>
+        <InsightCardsSkeleton />
+        <Button variant="secondary" size="sm" icon="chevron-down" isDisabled>
+          Показать ещё
+        </Button>
+      </div>
+    </Panel>
+  );
+}
+
+function InsightCardsSkeleton() {
+  return (
+    <div className={styles.grid} aria-hidden="true">
+      {Array.from({ length: FIRST }, (_, key) => (
+        <div key={key} className={styles.card}>
+          <span className={styles.icon} />
+          <span className={styles.text}>
+            <Skeleton width="80%" height="1lh" />
+            <Skeleton lines={2} height="1lh" />
+          </span>
+          <span className={styles.badge}>
+            <Skeleton width={48} height="1lh" />
+          </span>
+        </div>
+      ))}
+    </div>
   );
 }

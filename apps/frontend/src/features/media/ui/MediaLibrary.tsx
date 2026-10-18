@@ -789,7 +789,8 @@ export function MediaLibrary({
 }
 
 /** /media before the session exists: header, kind tabs, the panel with its toolbar and a page of cards, no request. */
-export function MediaPageSkeleton() {
+export function MediaPageSkeleton({ extraTabLabel }: { extraTabLabel?: string }) {
+  const narrow = useMediaQuery('(max-width: 859px)');
   return (
     <div className={styles.page}>
       <PageHeader
@@ -808,6 +809,7 @@ export function MediaPageSkeleton() {
                 {option.label}
               </Tab>
             ))}
+            {extraTabLabel === undefined ? null : <Tab id="extra">{extraTabLabel}</Tab>}
           </TabList>
           <TabPanel id="all">
             <Panel
@@ -831,6 +833,17 @@ export function MediaPageSkeleton() {
                   isDisabled
                   onChange={() => {}}
                 />
+                {narrow ? null : (
+                  <div className={styles.toolbarEnd}>
+                    <SegmentedControl
+                      label="Вид файлов"
+                      options={VIEW_OPTIONS}
+                      value="grid"
+                      isDisabled
+                      onChange={() => {}}
+                    />
+                  </div>
+                )}
               </div>
               <div className={styles.activeFilters} />
               <div className={styles.content}>

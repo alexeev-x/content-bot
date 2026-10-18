@@ -66,6 +66,8 @@
   flex-wrap: wrap;
   align-items: center;
   gap: var(--space-3);
+  /* As tall with «Как в браузере» as without it, so the button showing up for another zone moves nothing. */
+  min-height: var(--size-control);
 }
 .now {
   margin: 0;

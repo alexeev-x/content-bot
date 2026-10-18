@@ -75,7 +75,9 @@ export function WeekBars({ query, now, timezone, onOpenDay }: Props) {
                         <span className={styles.total} />
                         <span className={styles.stack}>
                           <span className={styles.bar} style={{ height: `${SKELETON_HEIGHTS[index]}%` }}>
-                            <Skeleton height="100%" radius="var(--radius-1)" />
+                            <span className={styles.fill}>
+                              <Skeleton height="100%" radius="var(--radius-1)" />
+                            </span>
                           </span>
                         </span>
                         <span className={styles.day}>{day.short}</span>

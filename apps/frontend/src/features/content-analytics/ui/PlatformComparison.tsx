@@ -129,7 +129,7 @@ export function PlatformComparison({ report }: { report: ContentReportDto | unde
         title="Сравнение платформ"
         note="Под значением — изменение к прошлому периоду"
         rows={3.2}
-        phoneRows={17.1}
+        phoneRows={16.5}
       />
     );
   return (
