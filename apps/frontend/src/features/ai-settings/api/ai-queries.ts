@@ -6,6 +6,7 @@ import {
   getAiFeedback,
   getAiLearning,
   getAiOverview,
+  getAiUnlinkedScripts,
   saveAiSettings,
   setAiLearningExcluded
 } from './ai-api';
@@ -13,7 +14,8 @@ import {
 export const aiKeys = {
   overview: ['ai', 'overview'] as const,
   feedback: ['ai', 'feedback'] as const,
-  learning: ['ai', 'learning'] as const
+  learning: ['ai', 'learning'] as const,
+  unlinkedScripts: ['ai', 'scripts', 'unlinked'] as const
 };
 
 export function aiFeedbackQueryOptions() {
@@ -72,5 +74,14 @@ export function useSetAiLearningExcluded() {
           ? { items: list.items.map((row) => (row.id === item.id && row.source === item.source ? item : row)) }
           : list
       )
+  });
+}
+
+/** A link made in the video's panel (Аналитика) changes this list; it is re-read when opened, after a short rest. */
+export function aiUnlinkedScriptsQueryOptions() {
+  return queryOptions({
+    queryKey: aiKeys.unlinkedScripts,
+    queryFn: ({ signal }) => getAiUnlinkedScripts(signal),
+    staleTime: 30_000
   });
 }

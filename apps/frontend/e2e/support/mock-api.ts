@@ -627,6 +627,50 @@ export async function mockApi(page: Page): Promise<void> {
       question: null
     });
   });
+  // Stage 4: scripts no video is linked to, and the way of the script linked to a video (long text, a warning).
+  await page.route(/\/api\/v1\/ai\/scripts\/unlinked$/, (route) =>
+    json(route, {
+      items: [
+        {
+          revisionId: '00000000-0000-4000-8000-0000000000c1',
+          format: 'igrat',
+          excerpt: 'Сегодня играл на Оракле и понял, что лечить надо раньше, а не когда тиммейт уже серый.',
+          approvedAt: '2026-10-14T10:00:00.000Z'
+        },
+        {
+          revisionId: '00000000-0000-4000-8000-0000000000c2',
+          format: 'fidit',
+          excerpt: 'Фидил на мидере три катки подряд и нашёл, где именно теряю линию.',
+          approvedAt: '2026-10-02T10:00:00.000Z'
+        }
+      ]
+    })
+  );
+  await page.route(/\/api\/v1\/ai\/scripts\/(?!unlinked)[^/?]+$/, (route) => {
+    const text =
+      'Сегодня играл на Оракле и понял, что лечить надо раньше, а не когда тиммейт уже серый. Разбираю три момента из катки: где я пропустил ульт, где зря потратил фалс промис и где надо было просто стоять за деревом. В конце вывод, который я себе записал.';
+    return json(route, {
+      linked: {
+        revisionId: '00000000-0000-4000-8000-0000000000b1',
+        format: 'igrat',
+        excerpt: text.slice(0, 120),
+        approvedAt: '2026-10-16T10:00:00.000Z'
+      },
+      candidates: [],
+      chain: {
+        task: 'сделай рилс учусь играть про оракла',
+        model: 'gpt-6.1-sol',
+        packRevision: 'a1b2c3d4e5f6',
+        draft: text.replace('Сегодня', 'В этой катке'),
+        approved: text,
+        editRatio: 0.34,
+        changedParts: ['hook', 'ending'],
+        draftedAt: '2026-10-15T10:00:00.000Z',
+        otherItems: ['tiktok:tt000000001'],
+        warnings: ['approved_after_video']
+      }
+    });
+  });
   await page.route(/\/api\/v1\/ai\/learning(\/.*)?$/, (route) => {
     if (route.request().method() === 'PUT') {
       const [, source, id] = /learning\/(\w+)\/([^/]+)$/.exec(route.request().url()) ?? [];

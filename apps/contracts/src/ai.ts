@@ -290,9 +290,41 @@ export type AiReelsScriptDto = z.infer<typeof aiReelsScriptSchema>;
 // DELETE /api/v1/ai/scripts/{itemId} → 200 AiItemScriptDto with `linked: null`; repeating it is a no-op.
 // Errors: VALIDATION_ERROR 400 (bad id; PUT on a Telegram post, details.reason NOT_A_VIDEO), NOT_FOUND 404
 // (no such video or approved Reels script), UNAUTHORIZED 401, FORBIDDEN 403.
+// Stage 4 of docs/ai/IMPLEMENTATION_PLAN.md: the whole way of a linked script, from the task to the videos, so a
+// review reads the exact approved text and where it came from. Only stored facts; nothing is re-generated.
+export const AI_CHAIN_TEXT_MAX = 4000;
+export const AI_CHAIN_TASK_MAX = 300;
+/**
+ * Why a link may be a mistake: the script was approved after the video went out (`approved_after_video`), or more
+ * than 14 days before it (`approved_long_before`). Shown to the owner; the link stays until they change it.
+ */
+export const aiChainWarningSchema = z.enum(['approved_after_video', 'approved_long_before']);
+export type AiChainWarning = z.infer<typeof aiChainWarningSchema>;
+export const aiScriptChainSchema = z.object({
+  /** The owner's task as it was sent (cut to AI_CHAIN_TASK_MAX). */
+  task: z.string().max(AI_CHAIN_TASK_MAX),
+  /** The model that wrote the first draft, and the hash of the pack it was written with. */
+  model: z.string().max(80).nullable(),
+  packRevision: z.string().max(40).nullable(),
+  /** The first AI draft of this script, before any of the owner's edits; null when none was stored. */
+  draft: z.string().max(AI_CHAIN_TEXT_MAX).nullable(),
+  /** The approved text, in full (cut to AI_CHAIN_TEXT_MAX). */
+  approved: z.string().max(AI_CHAIN_TEXT_MAX),
+  /** Share of the draft's words the owner changed, and what was changed (empty when nothing was). */
+  editRatio: z.number().min(0).max(1).nullable(),
+  changedParts: z.array(z.enum(AI_CHANGED_PARTS)),
+  draftedAt: z.iso.datetime(),
+  /** The other videos filmed from the same script (`<platform>:<external id>`), this one excluded. */
+  otherItems: z.array(z.string().min(3).max(160)).max(10),
+  warnings: z.array(aiChainWarningSchema)
+});
+export type AiScriptChainDto = z.infer<typeof aiScriptChainSchema>;
+
 export const aiItemScriptSchema = z.object({
   linked: aiReelsScriptSchema.nullable(),
-  candidates: z.array(aiReelsScriptSchema).max(3)
+  candidates: z.array(aiReelsScriptSchema).max(3),
+  /** Set with `linked` (stage 4): the way from the task to this video. Absent from responses of older servers. */
+  chain: aiScriptChainSchema.nullable().default(null)
 });
 export type AiItemScriptDto = z.infer<typeof aiItemScriptSchema>;
 
@@ -437,3 +469,13 @@ export type AiLearningListDto = z.infer<typeof aiLearningListSchema>;
 export const aiLearningParamsSchema = z.strictObject({ source: aiLearningSourceSchema, id: z.uuid() });
 export const setAiLearningExcludedInputSchema = z.strictObject({ excluded: z.boolean() });
 export type SetAiLearningExcludedInput = z.infer<typeof setAiLearningExcludedInputSchema>;
+
+// GET /api/v1/ai/scripts/unlinked → 200 AiUnlinkedScriptsDto (stage 4): approved Reels scripts of the last
+// AI_UNLINKED_DAYS days that no video is linked to yet, newest first — filmed but not linked, or not filmed.
+// Errors: UNAUTHORIZED 401, FORBIDDEN 403.
+export const AI_UNLINKED_DAYS = 60;
+export const AI_UNLINKED_LIMIT = 30;
+export const aiUnlinkedScriptsSchema = z.object({
+  items: z.array(aiReelsScriptSchema).max(AI_UNLINKED_LIMIT)
+});
+export type AiUnlinkedScriptsDto = z.infer<typeof aiUnlinkedScriptsSchema>;

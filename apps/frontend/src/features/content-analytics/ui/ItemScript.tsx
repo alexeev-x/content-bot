@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Button, Skeleton } from '../../../shared/ui';
 import { itemScriptQueryOptions, useLinkItemScript } from '../api/content-analytics-queries';
 import { formatPublished } from '../model/format';
+import { ScriptChain } from './ScriptChain';
 import styles from './Drawer.module.css';
 
 export const FORMAT: Record<AiReelsScriptDto['format'], string> = {
@@ -19,10 +20,24 @@ export const rubricOf = (format: AiReelsScriptDto['format']) =>
  * «Сценарий»: which approved AI-editor script a YouTube/TikTok video was filmed from. Reels go out outside the
  * studio, so the studio proposes and the owner confirms in one tap (docs/ai/architecture.md, item 3).
  */
-export function ItemScript({ item, timezone }: { item: ContentItemDto; timezone: string }) {
+export function ItemScript({
+  item,
+  timezone,
+  onOpen
+}: {
+  item: ContentItemDto;
+  timezone: string;
+  onOpen: (id: string) => void;
+}) {
   const query = useQuery(itemScriptQueryOptions(item.id));
   const link = useLinkItemScript(item.id);
   const data = query.data;
+  // The warning banner carries the action itself; without a warning it sits under the script.
+  const unlinkButton = (
+    <Button size="sm" variant="secondary" isLoading={link.isPending} onPress={() => link.mutate(null)}>
+      Отвязать
+    </Button>
+  );
   return (
     <section className={styles.compareBlock} aria-labelledby="item-script">
       <h3 id="item-script" className={styles.sectionTitle}>
@@ -43,9 +58,10 @@ export function ItemScript({ item, timezone }: { item: ContentItemDto; timezone:
             {FORMAT[data.linked.format]} · одобрен {formatPublished(data.linked.approvedAt, timezone)}
           </p>
           <p className={styles.scriptText}>{data.linked.excerpt}</p>
-          <Button size="sm" variant="secondary" isLoading={link.isPending} onPress={() => link.mutate(null)}>
-            Отвязать
-          </Button>
+          {data.chain && data.chain.warnings.length > 0 ? null : unlinkButton}
+          {data.chain ? (
+            <ScriptChain chain={data.chain} timezone={timezone} onOpen={onOpen} unlink={unlinkButton} />
+          ) : null}
         </div>
       ) : data.candidates.length === 0 ? (
         <p className={styles.muted}>Одобренных сценариев рилсов за две недели до выхода нет.</p>

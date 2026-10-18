@@ -1,4 +1,4 @@
-import type { ContentPlatform } from '@alexeev/contracts';
+import type { AiChainWarning, AiChangedPart, ContentPlatform } from '@alexeev/contracts';
 
 export const copy = {
   title: 'Аналитика',
@@ -161,6 +161,36 @@ export const copy = {
     note: 'Во сколько раз выше медианы своей платформы',
     worstNote: 'Без последних двух суток: они ещё набирают',
     empty: 'Пока нечего сравнивать.'
+  },
+  // «Сценарий из ИИ-редактора» → the way from the task to this video (plan stage 4).
+  chain: {
+    label: 'Путь сценария',
+    task: 'Задание',
+    draft: 'Черновик ИИ',
+    noDraft: 'Первый черновик не сохранился',
+    edits: 'Ваши правки',
+    approved: 'Одобренный текст',
+    sameVideo: 'Это же видео',
+    model: (model: string) => `модель ${model}`,
+    pack: (hash: string) => `набор ${hash}`,
+    changed: (percent: number) => `изменено ${percent}%`,
+    unchanged: 'без правок',
+    parts: (parts: string) => `Правили: ${parts}`,
+    showAll: 'Показать полностью',
+    showLess: 'Свернуть',
+    open: (label: string) => `Открыть видео: ${label}`,
+    part: {
+      hook: 'хук',
+      ending: 'концовку',
+      length: 'длину',
+      structure: 'разбивку на абзацы',
+      swearing: 'мат',
+      ai_wording: 'ИИ-обороты'
+    } satisfies Record<AiChangedPart, string>,
+    warning: {
+      approved_after_video: 'Сценарий одобрен после выхода видео — возможно, привязан не тот',
+      approved_long_before: 'Сценарий одобрен больше чем за 14 дней до видео — проверьте привязку'
+    } satisfies Record<AiChainWarning, string>
   },
   widget: {
     audience: 'Аудитория',

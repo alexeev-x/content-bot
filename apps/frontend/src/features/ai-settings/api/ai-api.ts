@@ -3,6 +3,7 @@ import {
   aiLearningItemSchema,
   aiLearningListSchema,
   aiOverviewSchema,
+  aiUnlinkedScriptsSchema,
   type AiLearningSource,
   type UpdateAiSettingsInput
 } from '@alexeev/contracts';
@@ -42,4 +43,9 @@ export function setAiLearningExcluded(input: { source: AiLearningSource; id: str
     method: 'PUT',
     body: { excluded: input.excluded }
   });
+}
+
+/** Approved Reels scripts of the last 60 days that no video is linked to, newest first. */
+export function getAiUnlinkedScripts(signal?: AbortSignal) {
+  return apiRequest('/api/v1/ai/scripts/unlinked', aiUnlinkedScriptsSchema, { signal });
 }

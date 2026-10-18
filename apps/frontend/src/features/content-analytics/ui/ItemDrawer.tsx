@@ -376,7 +376,7 @@ function DrawerBody({
               </div>
             </section>
 
-            {item.platform !== 'telegram' ? <ItemScript item={item} timezone={timezone} /> : null}
+            {item.platform !== 'telegram' ? <ItemScript item={item} timezone={timezone} onOpen={onOpen} /> : null}
             <ItemContamination detail={detail} />
           </div>
         </TabPanel>

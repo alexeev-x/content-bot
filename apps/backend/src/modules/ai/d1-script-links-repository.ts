@@ -10,7 +10,27 @@ export interface ApprovedScriptRow {
   approvedAt: number;
 }
 
+/** The stored facts of a script's way from the task to the approval, as the database holds them. */
+export interface ScriptChainRow {
+  task: string;
+  model: string | null;
+  packRevision: string | null;
+  /** The generation's first AI_DRAFT text; null for a generation that has none. */
+  draft: string | null;
+  approved: string;
+  editRatio: number | null;
+  /** JSON array of stable codes, as stored. */
+  changedParts: string | null;
+  draftedAt: number;
+  approvedAt: number;
+  otherItems: string[];
+}
+
 export interface ScriptLinksRepository {
+  /** The chain of an approved script, with the other videos linked to it (this one excluded, at most 10). */
+  chainOf(input: { revisionId: string; itemId: string }): Promise<ScriptChainRow | null>;
+  /** Approved Reels scripts approved at or after `from` that no video is linked to, newest first. */
+  unlinkedScripts(input: { from: number; limit: number }): Promise<ApprovedScriptRow[]>;
   /** Approved Reels scripts approved in [from, to), newest first, at most `limit` (≤ 50). */
   approvedScripts(input: { from: number; to: number; limit: number }): Promise<ApprovedScriptRow[]>;
   /** One approved Reels script; null when the id is not one. */
@@ -31,6 +51,44 @@ const APPROVED = `r.provenance IN ('OWNER_APPROVED', 'OWNER_PREAPPROVED') AND g.
 
 export function createD1ScriptLinksRepository(db: D1Database): ScriptLinksRepository {
   const repo: ScriptLinksRepository = {
+    async chainOf({ revisionId, itemId }) {
+      const [script, others] = await db.batch([
+        db
+          .prepare(
+            `SELECT g.task, g.model, g.pack_revision AS packRevision, g.created_at AS draftedAt,
+                    r.text AS approved, r.edit_ratio AS editRatio, r.changed_parts AS changedParts,
+                    r.created_at AS approvedAt,
+                    (SELECT d.text FROM ai_text_revisions d WHERE d.generation_id = g.id AND d.provenance = 'AI_DRAFT'
+                     ORDER BY d.created_at, d.rowid LIMIT 1) AS draft
+             FROM ai_text_revisions r JOIN ai_generations g ON g.id = r.generation_id
+             WHERE r.id = ?1`
+          )
+          .bind(revisionId),
+        db
+          .prepare(
+            `SELECT content_item_id AS id FROM content_ai_links
+             WHERE revision_id = ?1 AND content_item_id <> ?2 ORDER BY linked_at, content_item_id LIMIT 10`
+          )
+          .bind(revisionId, itemId)
+      ]);
+      const row = (script?.results as Omit<ScriptChainRow, 'otherItems'>[] | undefined)?.[0];
+      if (row === undefined) return null;
+      return { ...row, otherItems: ((others?.results ?? []) as { id: string }[]).map((other) => other.id) };
+    },
+
+    async unlinkedScripts({ from, limit }) {
+      const rows = await db
+        .prepare(
+          `SELECT ${SCRIPT_COLUMNS} FROM ai_text_revisions r JOIN ai_generations g ON g.id = r.generation_id
+           WHERE ${APPROVED} AND r.created_at >= ?1
+             AND NOT EXISTS (SELECT 1 FROM content_ai_links l WHERE l.revision_id = r.id)
+           ORDER BY r.created_at DESC LIMIT ?2`
+        )
+        .bind(from, Math.min(limit, 50))
+        .all<ApprovedScriptRow>();
+      return rows.results;
+    },
+
     async approvedScripts({ from, to, limit }) {
       const rows = await db
         .prepare(

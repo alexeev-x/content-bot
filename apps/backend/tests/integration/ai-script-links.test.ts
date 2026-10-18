@@ -1,4 +1,10 @@
-import { aiItemScriptSchema, apiErrorSchema, contentItemDetailSchema, contentReportSchema } from '@alexeev/contracts';
+import {
+  aiItemScriptSchema,
+  aiUnlinkedScriptsSchema,
+  apiErrorSchema,
+  contentItemDetailSchema,
+  contentReportSchema
+} from '@alexeev/contracts';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { titleFormat } from '../../src/modules/content-analytics/title-format';
 import { testDb } from '../helpers/db';
@@ -254,7 +260,8 @@ describe('/api/v1/ai/scripts/{itemId}', () => {
   it('refuses what is not a video, an unknown video and a text that is not an approved Reels script', async () => {
     expect(aiItemScriptSchema.parse((await read(`/api/v1/ai/scripts/${POST}`)).body)).toEqual({
       linked: null,
-      candidates: []
+      candidates: [],
+      chain: null
     });
     const notVideo = await read(`/api/v1/ai/scripts/${POST}`, { method: 'PUT', json: { revisionId: SCRIPT } });
     expect(notVideo.status).toBe(400);
@@ -274,5 +281,109 @@ describe('/api/v1/ai/scripts/{itemId}', () => {
     const badId = await read('/api/v1/ai/scripts/not-an-id');
     expect(badId.status).toBe(400);
     expect(apiErrorSchema.parse(badId.body).error.code).toBe('VALIDATION_ERROR');
+  });
+});
+
+describe('the chain of a linked script', () => {
+  const GENERATION = '00000000-0000-4000-8000-0000000000d9';
+  const SECOND_VIDEO = 'youtube:abcdefghijk';
+  const FIRST_DRAFT = '00000000-0000-4000-8000-0000000000e1';
+  const EDITED = '00000000-0000-4000-8000-0000000000e2';
+  const APPROVED = '00000000-0000-4000-8000-0000000000e3';
+
+  /** One generation: the first draft, the owner's edit and the approval of the edited text. */
+  async function seedChain(at: number) {
+    const revision = (
+      id: string,
+      provenance: string,
+      text: string,
+      when: number,
+      ratio: number | null,
+      parts: string | null
+    ) =>
+      testDb()
+        .prepare(
+          `INSERT INTO ai_text_revisions (id, generation_id, provenance, text, edit_ratio, changed_parts, created_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?)`
+        )
+        .bind(id, GENERATION, provenance, text, ratio, parts, when);
+    await testDb().batch([
+      testDb()
+        .prepare(
+          `INSERT INTO ai_generations (id, kind, format, mode, source, task, status, model, pack_revision, created_at, updated_at)
+           VALUES (?, 'draft', 'igrat', 'direct', 'studio', ?, 'ready', 'gpt-test', 'pack123', ?, ?)`
+        )
+        .bind(GENERATION, 'з'.repeat(400), at - 5000, at),
+      revision(FIRST_DRAFT, 'AI_DRAFT', 'Первый черновик модели', at - 4000, null, null),
+      revision(EDITED, 'OWNER_EDITED', 'Правка владельца', at - 2000, null, null),
+      revision(APPROVED, 'OWNER_APPROVED', 'Утверждённый текст', at, 0.4, '["hook"]')
+    ]);
+  }
+  const link = (item: string, revision: string) =>
+    testDb()
+      .prepare('INSERT INTO content_ai_links (content_item_id, revision_id, linked_at) VALUES (?, ?, ?)')
+      .bind(item, revision, START)
+      .run();
+  const chainOf = async () => aiItemScriptSchema.parse((await read(`/api/v1/ai/scripts/${VIDEO}`)).body).chain;
+
+  it('shows the exact approved text and first draft of the linked script, never another generation, and the second video', async () => {
+    await seedChain(START - 2 * DAY);
+    await seedItem(SECOND_VIDEO, 'youtube', 'Тот же ролик', START - DAY);
+    await link(VIDEO, APPROVED);
+    await link(SECOND_VIDEO, APPROVED);
+    // Another script is linked elsewhere; it must not leak into this chain.
+    await link('youtube:zzzzzzzzzzz', SCRIPT);
+
+    const chain = await chainOf();
+    expect(chain).toMatchObject({
+      model: 'gpt-test',
+      packRevision: 'pack123',
+      draft: 'Первый черновик модели',
+      approved: 'Утверждённый текст',
+      editRatio: 0.4,
+      changedParts: ['hook'],
+      otherItems: [SECOND_VIDEO],
+      warnings: []
+    });
+    expect(chain?.task).toHaveLength(300);
+    expect(chain?.draftedAt).toBe(new Date(START - 2 * DAY - 5000).toISOString());
+
+    // PUT returns the chain of the new script; one without a stored first draft says so (null), never the approved text.
+    const put = await read(`/api/v1/ai/scripts/${VIDEO}`, { method: 'PUT', json: { revisionId: SCRIPT } });
+    expect(aiItemScriptSchema.parse(put.body).chain).toMatchObject({
+      draft: null,
+      otherItems: ['youtube:zzzzzzzzzzz']
+    });
+  });
+
+  it('warns when the script was approved after the video or more than 14 days before it', async () => {
+    await seedChain(START);
+    await link(VIDEO, APPROVED);
+    const setApproval = (at: number) =>
+      testDb().prepare('UPDATE ai_text_revisions SET created_at = ? WHERE id = ?').bind(at, APPROVED).run();
+    // The video went out at START - DAY, a day before the approval.
+    expect((await chainOf())?.warnings).toEqual(['approved_after_video']);
+
+    await setApproval(START - 20 * DAY);
+    expect((await chainOf())?.warnings).toEqual(['approved_long_before']);
+
+    await setApproval(START - 10 * DAY);
+    expect((await chainOf())?.warnings).toEqual([]);
+  });
+});
+
+describe('/api/v1/ai/scripts/unlinked', () => {
+  it('lists recent approved Reels scripts without a video, newest first, and nothing else', async () => {
+    const OLD = '00000000-0000-4000-8000-0000000000c4';
+    await seedApproved(OLD, 'igrat', 'Старый сценарий', START - 61 * DAY);
+    await testDb()
+      .prepare('INSERT INTO content_ai_links (content_item_id, revision_id, linked_at) VALUES (?, ?, ?)')
+      .bind(VIDEO, SCRIPT, START)
+      .run();
+
+    const response = await read('/api/v1/ai/scripts/unlinked');
+    expect(response.status).toBe(200);
+    // SCRIPT is linked, OLD is past the window, the Telegram text is not a Reels script: only OTHER is left.
+    expect(aiUnlinkedScriptsSchema.parse(response.body).items.map((item) => item.revisionId)).toEqual([OTHER]);
   });
 });

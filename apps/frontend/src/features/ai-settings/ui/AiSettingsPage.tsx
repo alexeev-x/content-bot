@@ -36,6 +36,7 @@ import {
 } from '../model/ai-view';
 import { AiFeedbackList } from './AiFeedbackList';
 import { AiLearningList } from './AiLearningList';
+import { AiUnlinkedScripts } from './AiUnlinkedScripts';
 import { copy, usd } from './copy';
 import styles from './AiSettingsPage.module.css';
 
@@ -430,6 +431,7 @@ function QualityPanel({ quality }: { quality: AiOverviewDto['quality'] }) {
   const [feedbackOpen, setFeedbackOpen] = useState(false);
   const verdictCount = verdicts.reduce((total, row) => total + row.count, 0);
   const [learningOpen, setLearningOpen] = useState(false);
+  const [unlinkedOpen, setUnlinkedOpen] = useState(false);
   const studioRuns = quality.studioDrafts ?? 0;
   return (
     <Panel title={copy.quality.title(quality.days)} icon={<Icon name="check-circle" />}>
@@ -524,6 +526,14 @@ function QualityPanel({ quality }: { quality: AiOverviewDto['quality'] }) {
         >
           <Disclosure id="learning" title={copy.learning.title}>
             {learningOpen ? <AiLearningList /> : null}
+          </Disclosure>
+        </DisclosureGroup>
+        <DisclosureGroup
+          expandedKeys={unlinkedOpen ? ['unlinked'] : []}
+          onExpandedChange={(keys) => setUnlinkedOpen(keys.has('unlinked'))}
+        >
+          <Disclosure id="unlinked" title={copy.unlinked.title}>
+            {unlinkedOpen ? <AiUnlinkedScripts /> : null}
           </Disclosure>
         </DisclosureGroup>
       </div>

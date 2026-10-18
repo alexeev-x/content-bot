@@ -11,6 +11,7 @@ import {
   aiLearningItemSchema,
   aiLearningParamsSchema,
   aiOverviewSchema,
+  aiUnlinkedScriptsSchema,
   contentItemIdSchema,
   createAiDraftInputSchema,
   linkAiScriptInputSchema,
@@ -31,6 +32,7 @@ import {
   readFeedback,
   readItemScript,
   readLearning,
+  readUnlinkedScripts,
   removeFeedback,
   saveAuthorDota,
   setLearningExcluded,
@@ -231,6 +233,14 @@ export const aiRoutes = new Hono<AppBindings>()
       return c.json(aiLearningItemSchema.parse(item));
     }
   )
+  .get('/scripts/unlinked', async (c) => {
+    const container = c.get('container');
+    return c.json(
+      aiUnlinkedScriptsSchema.parse(
+        await readUnlinkedScripts({ links: container.aiScriptLinks, clock: container.clock })
+      )
+    );
+  })
   .get('/scripts/:itemId', validated('param', scriptParamsSchema), async (c) => {
     const { links, video } = await scriptDeps(c, c.req.valid('param').itemId);
     return c.json(aiItemScriptSchema.parse(await readItemScript(links, video)));

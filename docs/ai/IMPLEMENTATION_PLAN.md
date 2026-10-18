@@ -35,7 +35,7 @@
 | 1 | Improve writing quality and variety | TODO | 0 | better hooks, jokes, endings, fewer repeats |
 | 2 | Make learning from owner edits useful | PARTIAL | 0–1 | curated, relevant examples and attributable feedback |
 | 3 | Establish format-aware video measurement | DEV CHECK | 0 | honest comparisons within format and content age |
-| 4 | Complete draft-to-video traceability | TODO | 2–3 | every review sees the approved script and provenance |
+| 4 | Complete draft-to-video traceability | DEV CHECK | 2–3 | every review sees the approved script and provenance |
 | 5 | Add evidence-safe T+72 reviews | TODO | 3–4 | observations and hypotheses, not invented explanations |
 | 6 | Add learning rules and weekly runtime memory | TODO | 2, 5 | evidence-backed, owner-controlled improvement loop |
 | 7 | Validate and expose the learning process | TODO | 1–6 | visible effect, controlled comparisons, quality monitoring |
@@ -84,10 +84,7 @@ Stages 2 and 3 can be designed independently; implement 3 before 5, and do not s
 
 ## Stage 4 — finish the approved-script → video chain (P1, before reviews)
 
-- [ ] Show verified chain: prompt → model/pack revision → original text → owner edits → approved text → published post/video → exact-age analytics.
-- [ ] Surface missing/unlinked, ambiguous and mistakenly linked scripts; allow owner unlink/relink. Do not invent a script for legacy videos.
-- [ ] Track real usage of an approved script in more than one platform item separately from raw output text or unchanged model approvals.
-- [ ] Test editing/approval states, link ownership, repeated calls and missing-data states in both browser and Mini App.
+- [ ] On DEV, in the browser and the Mini App: the chain in a video's panel, «Сценарии без видео», unlink/relink after a warning (the chain, the unlinked list and the warnings are in code since 18.10.2026).
 
 **Acceptance:** a linked video review can retrieve the exact approved text and provenance and cannot analyze an unrelated/unchecked draft. **Files:** script-links.ts, its D1 repository, analytics API/UI and tests. **Spec:** architecture.md items 2–4.
 

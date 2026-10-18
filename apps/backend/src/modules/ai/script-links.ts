@@ -1,7 +1,18 @@
-import type { AiItemScriptDto, AiReelsScriptDto } from '@alexeev/contracts';
+import {
+  AI_CHAIN_TASK_MAX,
+  AI_CHAIN_TEXT_MAX,
+  AI_CHANGED_PARTS,
+  AI_UNLINKED_DAYS,
+  AI_UNLINKED_LIMIT,
+  type AiChainWarning,
+  type AiItemScriptDto,
+  type AiReelsScriptDto,
+  type AiScriptChainDto,
+  type AiUnlinkedScriptsDto
+} from '@alexeev/contracts';
 import type { Clock } from '../../platform/clock';
 import { AppError } from '../../shared/app-error';
-import type { ApprovedScriptRow, ScriptLinksRepository } from './d1-script-links-repository';
+import type { ApprovedScriptRow, ScriptChainRow, ScriptLinksRepository } from './d1-script-links-repository';
 
 // A published video ↔ the approved AI script it was filmed from (docs/ai/architecture.md, item 3). Reels go out
 // outside the studio, so the studio only proposes; the link exists once the owner confirms it.
@@ -58,16 +69,64 @@ function rank(video: LinkedVideo, rows: readonly ApprovedScriptRow[]): ApprovedS
     .map(({ row }) => row);
 }
 
+function parts(stored: string | null): AiScriptChainDto['changedParts'] {
+  if (stored === null) return [];
+  try {
+    const parsed: unknown = JSON.parse(stored);
+    if (!Array.isArray(parsed)) return [];
+    return AI_CHANGED_PARTS.filter((part) => parsed.includes(part));
+  } catch {
+    return [];
+  }
+}
+
+function toChain(row: ScriptChainRow, video: LinkedVideo): AiScriptChainDto {
+  const warnings: AiChainWarning[] = [];
+  if (row.approvedAt > video.publishedAt) warnings.push('approved_after_video');
+  else if (video.publishedAt - row.approvedAt > BEFORE_MS) warnings.push('approved_long_before');
+  return {
+    task: row.task.slice(0, AI_CHAIN_TASK_MAX),
+    model: row.model,
+    packRevision: row.packRevision,
+    // Never the approved text in its place: the chain shows only what was stored.
+    draft: row.draft === null ? null : row.draft.slice(0, AI_CHAIN_TEXT_MAX),
+    approved: row.approved.slice(0, AI_CHAIN_TEXT_MAX),
+    editRatio: row.editRatio,
+    changedParts: parts(row.changedParts),
+    draftedAt: new Date(row.draftedAt).toISOString(),
+    otherItems: row.otherItems,
+    warnings
+  };
+}
+
+async function linkedResult(
+  deps: ScriptLinkDeps,
+  video: LinkedVideo,
+  script: ApprovedScriptRow
+): Promise<AiItemScriptDto> {
+  const chain = await deps.links.chainOf({ revisionId: script.revisionId, itemId: video.id });
+  return { linked: toDto(script), candidates: [], chain: chain === null ? null : toChain(chain, video) };
+}
+
+/** Approved Reels scripts of the last AI_UNLINKED_DAYS days that no video is linked to. */
+export async function readUnlinkedScripts(deps: ScriptLinkDeps): Promise<AiUnlinkedScriptsDto> {
+  const rows = await deps.links.unlinkedScripts({
+    from: deps.clock.now() - AI_UNLINKED_DAYS * DAY_MS,
+    limit: AI_UNLINKED_LIMIT
+  });
+  return { items: rows.map(toDto) };
+}
+
 export async function readItemScript(deps: ScriptLinkDeps, video: LinkedVideo): Promise<AiItemScriptDto> {
-  if (video.platform === 'telegram') return { linked: null, candidates: [] };
+  if (video.platform === 'telegram') return { linked: null, candidates: [], chain: null };
   const linked = await deps.links.linkOf(video.id);
-  if (linked !== null) return { linked: toDto(linked), candidates: [] };
+  if (linked !== null) return linkedResult(deps, video, linked);
   const rows = await deps.links.approvedScripts({
     from: video.publishedAt - BEFORE_MS,
     to: video.publishedAt + AFTER_MS,
     limit: SCAN
   });
-  return { linked: null, candidates: rank(video, rows).slice(0, CANDIDATES).map(toDto) };
+  return { linked: null, candidates: rank(video, rows).slice(0, CANDIDATES).map(toDto), chain: null };
 }
 
 export async function linkItemScript(
@@ -81,7 +140,7 @@ export async function linkItemScript(
   const script = await deps.links.findScript(revisionId);
   if (script === null) throw new AppError('NOT_FOUND', 'No such approved Reels script');
   await deps.links.link({ itemId: video.id, revisionId, now: deps.clock.now() });
-  return { linked: toDto(script), candidates: [] };
+  return linkedResult(deps, video, script);
 }
 
 export async function unlinkItemScript(deps: ScriptLinkDeps, video: LinkedVideo): Promise<AiItemScriptDto> {
