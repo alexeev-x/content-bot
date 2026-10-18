@@ -94,3 +94,16 @@ button:disabled,
 [aria-disabled='true'] {
   cursor: not-allowed;
 }
+
+/* Owner, 18.10.2026: on a phone a tap into a field zoomed the whole page in, and the zoom stayed, pushing the fixed
+   «К публикации» bar out of view. iOS (Safari and the Telegram web view) zooms into any text field under 16 px, so on
+   touch screens every text field is at least 16 px. !important: field primitives set their own size by class, and this
+   one rule must win over all of them without touching each. */
+@media (pointer: coarse) {
+  input:not([type='checkbox'], [type='radio'], [type='range'], [type='file']),
+  textarea,
+  select,
+  [contenteditable='true'] {
+    font-size: var(--font-size-field-touch) !important;
+  }
+}

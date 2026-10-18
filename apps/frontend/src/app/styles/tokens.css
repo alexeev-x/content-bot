@@ -20,6 +20,8 @@
   --font-size-xs: 0.8125rem;
   --font-size-sm: 0.875rem;
   --font-size-md: 0.9375rem;
+  /* iOS zooms into any text field under 16 px on focus and stays zoomed; touch screens use this for fields. */
+  --font-size-field-touch: max(1rem, 16px);
   --font-size-lg: 1.125rem;
   /* Page title: 20 px on desktop, 18 px under the touch/narrow query below. */
   --font-size-xl: 1.25rem;

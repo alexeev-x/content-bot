@@ -41,7 +41,8 @@ export function noticeHtml(input: {
 }): string {
   const lines = [`${ICON[input.tone]} <b>${escapeHtml(input.status)}</b>`];
   const subject = input.subject?.trim() ?? '';
-  if (subject !== '') lines.push(`<b>${escapeHtml(clip(subject))}</b>`);
+  // A blank line after the status (owner, 18.10.2026: the post's name stuck to it looked unspaced).
+  if (subject !== '') lines.push('', `<b>${escapeHtml(clip(subject))}</b>`);
   const facts = (input.facts ?? []).filter((fact): fact is NoticeFact => fact !== null && fact.text.trim() !== '');
   if (facts.length > 0) {
     lines.push('');
