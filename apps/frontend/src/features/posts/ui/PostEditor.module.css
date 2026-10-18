@@ -265,9 +265,11 @@
   gap: var(--space-3);
   min-width: 0;
 }
+/* Owner, 18.10.2026: three fixed lines were too little to write in. Seven to start, growing to twelve, then it
+   scrolls, so the toolbar and the action bar stay in reach above the keyboard. */
 .editor .phoneStack .fields [contenteditable='true'] {
-  min-height: calc(var(--line-height-editor) * 3);
-  max-height: calc(var(--line-height-editor) * 3);
+  min-height: calc(var(--line-height-editor) * 7);
+  max-height: calc(var(--line-height-editor) * 12);
   overflow-y: auto;
 }
 .editor .fields [contenteditable='true'] {

@@ -157,6 +157,32 @@
     flex: 1 1 100%;
   }
 }
+/* Owner, 18.10.2026: on a phone a dialog that is not full screen comes up from the bottom as a sheet (logout,
+   confirmations, pickers), not in the middle of the screen. The full-screen search keeps its own layout above. */
+@media (max-width: 859px) {
+  .overlay:not([data-size='search']) {
+    place-items: end stretch;
+    padding: max(var(--space-6), env(safe-area-inset-top)) 0 0;
+  }
+  .overlay:not([data-size='search']) .modal {
+    width: 100%;
+    max-height: 100%;
+    border-bottom: 0;
+    border-radius: var(--radius-4) var(--radius-4) 0 0;
+    padding-bottom: max(env(safe-area-inset-bottom), var(--tg-content-safe-area-inset-bottom, 0px));
+  }
+  .overlay:not([data-size='search']) .modal[data-entering] {
+    animation: sheet-up var(--motion-base) ease-out;
+  }
+  .overlay:not([data-size='search']) .modal[data-exiting] {
+    animation: sheet-up var(--motion-fast) ease-in reverse;
+  }
+}
+@keyframes sheet-up {
+  from {
+    transform: translateY(100%);
+  }
+}
 @keyframes fade {
   from {
     opacity: 0;
