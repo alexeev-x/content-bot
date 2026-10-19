@@ -152,8 +152,9 @@ export function buildWriterPrompt(input: {
   ];
   if (input.rewrite) {
     parts.push(
+      `ИСХОДНОЕ ЗАДАНИЕ И ПОДТВЕРЖДЁННЫЕ ФАКТЫ:\n${input.task}`,
       `ТЕКУЩИЙ ТЕКСТ:\n${input.rewrite.text}`,
-      `ЗАДАНИЕ: перепиши текст — ${input.rewrite.instruction}. Сохрани голос, формат и всё удачное. Ответ — kind «draft».`
+      `ЗАДАНИЕ: перепиши текст — ${input.rewrite.instruction}. Сохрани голос, формат, подтверждённые факты и всё удачное. Ответ — kind «draft».`
     );
   } else {
     // «Придумай сам» is the owner's own request without a topic, not the automatic mode of a news item.

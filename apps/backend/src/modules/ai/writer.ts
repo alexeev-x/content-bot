@@ -379,8 +379,11 @@ export async function chooseHook(
   if (approvedRevision(revisions) !== null)
     throw new AppError('CONFLICT', 'The draft is approved', { reason: 'APPROVED' });
   const used = generation.hooks.find((candidate) => current.text.startsWith(candidate));
-  const rest = used !== undefined ? current.text.slice(used.length) : current.text.replace(/^[^\n]*(\n|$)/, '\n');
-  const text = `${hook}${rest}`.trim().slice(0, MAX_TEXT);
+  // Only remove a known model hook. A different first line may contain the owner's facts.
+  const rest = used !== undefined ? current.text.slice(used.length) : `\n${current.text}`;
+  const text = `${hook}${rest}`.trim();
+  if (text.length > MAX_TEXT)
+    throw new AppError('CONFLICT', 'The hook would truncate the draft', { reason: 'TOO_LONG' });
   if (
     !(await deps.writer.addRevision({
       id: deps.newId(),

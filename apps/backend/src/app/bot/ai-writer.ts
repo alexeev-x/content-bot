@@ -125,6 +125,10 @@ const CALLBACK =
 const escapeHtml = (value: string): string =>
   value.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;');
 
+/** Telegram counts UTF-16 positions; never end a shortened message on half of an emoji. */
+const shortenForTelegram = (value: string, max: number): string =>
+  value.length > max ? `${value.slice(0, max).replace(/[\uD800-\uDBFF]$/, '')}…` : value;
+
 /**
  * A request for a text in plain words: «напиши пост в тг про …», «сделай рилс учусь играть про …». Anything
  * else stays an ordinary draft, as before. Returns the format and the task (the whole message).
@@ -213,7 +217,7 @@ function draftHtml(result: {
   const lines = [`<b>${FORMAT_LABEL[result.format]}</b>`];
   if (result.hooks.length > 0)
     lines.push('', 'Хуки:', ...result.hooks.map((hook, index) => `${index + 1}. ${escapeHtml(hook)}`));
-  const text = result.text.length > SHOWN_TEXT_MAX ? `${result.text.slice(0, SHOWN_TEXT_MAX)}…` : result.text;
+  const text = shortenForTelegram(result.text, SHOWN_TEXT_MAX);
   lines.push('', escapeHtml(text));
   if (result.warnings.length > 0)
     lines.push('', `<i>Проверка: ${escapeHtml(result.warnings.map(describeCheck).join('; '))}</i>`);
@@ -356,10 +360,7 @@ export function registerAiWriter(bot: Bot, runtime: AiWriterRuntime): void {
           });
           for (const event of answer.budgetEvents)
             await ctx.api.sendMessage(chatId, formatAiBudgetAlert(event), { parse_mode: 'HTML' });
-          const shown =
-            answer.text === null
-              ? FAILED_TEXT
-              : escapeHtml(answer.text.length > 4000 ? `${answer.text.slice(0, 4000)}…` : answer.text);
+          const shown = answer.text === null ? FAILED_TEXT : escapeHtml(shortenForTelegram(answer.text, 4000));
           await edit(ctx, chatId, message.message_id, shown, history === null ? undefined : endKeyboard());
           if (history !== null && answer.text !== null)
             await deps.writer.saveHistory(

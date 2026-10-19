@@ -92,6 +92,13 @@ beforeEach(async () => {
         .pop() ?? '';
     const body = JSON.parse(String(init?.body ?? '{}')) as TelegramCall['body'];
     calls.push({ method, body });
+    const visibleText = body.text
+      ?.replace(/<[^>]+>/g, '')
+      .replaceAll('&lt;', '<')
+      .replaceAll('&gt;', '>')
+      .replaceAll('&amp;', '&');
+    if (method === 'editMessageText' && (visibleText?.length ?? 0) > 4096)
+      return Promise.resolve(Response.json({ ok: false, error_code: 400, description: 'message is too long' }));
     if (method === 'editMessageText' && failEdits)
       return Promise.resolve(Response.json({ ok: false, error_code: 500, description: 'DEV Telegram failure' }));
     const result =
@@ -164,6 +171,140 @@ async function askForFacts() {
 }
 
 describe('Telegram AI writer', () => {
+  it('keeps the saved facts through a hook choice and a shorter rewrite', async () => {
+    modelAnswers = [
+      questionAnswer,
+      writerAnswer({
+        hooks: ['Пять хуков — один крип.', 'Я думал, что попал.', 'Пудж и промахи.'],
+        // The draft is a single factual line and does not start with a proposed hook.
+        text: OWNER_FACTS,
+        topic: 'Пудж и промахи хуком',
+        device: 'личная неудача',
+        ending: 'крип вместо героя'
+      })
+    ];
+    await askForFacts();
+    expect((await deliver(message(OWNER_FACTS))).status).toBe(200);
+    await api.settle();
+    const draft = await testDb()
+      .prepare("SELECT id, chat_message_id AS messageId FROM ai_generations WHERE result = 'draft'")
+      .first<{ id: string; messageId: number }>();
+    const firstRevision = await testDb()
+      .prepare('SELECT id FROM ai_text_revisions WHERE generation_id = ? ORDER BY created_at, rowid LIMIT 1')
+      .bind(draft?.id)
+      .first<{ id: string }>();
+    expect(
+      (await deliver(callback(`ai:${draft?.id}:h1:${firstRevision?.id.slice(-12)}`, draft?.messageId ?? 0))).status
+    ).toBe(200);
+    const chosen = await testDb()
+      .prepare(
+        'SELECT id, text FROM ai_text_revisions WHERE generation_id = ? ORDER BY created_at DESC, rowid DESC LIMIT 1'
+      )
+      .bind(draft?.id)
+      .first<{ id: string; text: string }>();
+    expect(chosen?.text.startsWith('Я думал, что попал.')).toBe(true);
+    expect(chosen?.text).toContain(OWNER_FACTS);
+    modelAnswers.push(draftAnswer);
+    expect(
+      (await deliver(callback(`ai:${draft?.id}:short:${chosen?.id.slice(-12)}`, draft?.messageId ?? 0))).status
+    ).toBe(200);
+    await api.settle();
+    expect(modelInputs).toHaveLength(3);
+    expect(modelInputs[2]).toContain(OWNER_FACTS);
+    expect(modelInputs[2]).toContain(chosen?.text ?? '');
+  });
+
+  it('keeps buttons and revision identities separate for two drafts in one chat', async () => {
+    await askForFacts();
+    expect((await deliver(message(OWNER_FACTS))).status).toBe(200);
+    await api.settle();
+    const first = await testDb()
+      .prepare(
+        "SELECT id, chat_message_id AS messageId FROM ai_generations WHERE result = 'draft' ORDER BY created_at, rowid LIMIT 1"
+      )
+      .first<{ id: string; messageId: number }>();
+    modelAnswers.push(draftAnswer);
+    expect((await deliver(message('Напиши пост про выбор героя в Dota'))).status).toBe(200);
+    await api.settle();
+    const second = await testDb()
+      .prepare(
+        "SELECT id, chat_message_id AS messageId FROM ai_generations WHERE result = 'draft' ORDER BY created_at DESC, rowid DESC LIMIT 1"
+      )
+      .first<{ id: string; messageId: number }>();
+    expect(second?.id).not.toBe(first?.id);
+    expect(second?.messageId).not.toBe(first?.messageId);
+    const firstRevision = await testDb()
+      .prepare('SELECT id FROM ai_text_revisions WHERE generation_id = ? ORDER BY created_at, rowid LIMIT 1')
+      .bind(first?.id)
+      .first<{ id: string }>();
+    expect(
+      (await deliver(callback(`ai:${first?.id}:h1:${firstRevision?.id.slice(-12)}`, first?.messageId ?? 0))).status
+    ).toBe(200);
+    expect(
+      await testDb()
+        .prepare('SELECT COUNT(*) AS n FROM ai_text_revisions WHERE generation_id = ?')
+        .bind(first?.id)
+        .first<{ n: number }>()
+    ).toEqual({ n: 2 });
+    expect(
+      await testDb()
+        .prepare('SELECT COUNT(*) AS n FROM ai_text_revisions WHERE generation_id = ?')
+        .bind(second?.id)
+        .first<{ n: number }>()
+    ).toEqual({ n: 1 });
+  });
+
+  it('renders long HTML and emoji text without cutting a Unicode character', async () => {
+    modelAnswers = [
+      questionAnswer,
+      writerAnswer({
+        hooks: ['<Хук & 1>', 'Хук 2', 'Хук 3'],
+        text: `X<&${'😀'.repeat(2300)} конец`,
+        topic: 'Игра',
+        device: 'ирония',
+        ending: 'вывод'
+      })
+    ];
+    await askForFacts();
+    expect((await deliver(message(OWNER_FACTS))).status).toBe(200);
+    await api.settle();
+    const shown = calls.filter((call) => call.method === 'editMessageText').at(-1)?.body.text ?? '';
+    expect(shown).toContain('&lt;Хук &amp; 1&gt;');
+    expect(shown).toContain('X&lt;&amp;');
+    expect(Array.from(shown).some((character) => /^[\uD800-\uDFFF]$/.test(character))).toBe(false);
+    expect(shown).not.toContain('конец');
+    const saved = await testDb()
+      .prepare("SELECT text FROM ai_text_revisions WHERE provenance = 'AI_DRAFT'")
+      .first<{ text: string }>();
+    expect((saved?.text.length ?? 0) > 4096).toBe(true);
+    expect(saved?.text).toContain('конец');
+  });
+
+  it('keeps an HTML-heavy preview under the visible Telegram limit', async () => {
+    modelAnswers = [
+      questionAnswer,
+      writerAnswer({
+        hooks: ['Хук <&>', 'Ещё хук', 'Третий хук'],
+        text: '<&'.repeat(2700),
+        topic: 'Игра',
+        device: 'ирония',
+        ending: 'вывод'
+      })
+    ];
+    await askForFacts();
+    expect((await deliver(message(OWNER_FACTS))).status).toBe(200);
+    await api.settle();
+    const shown = calls.filter((call) => call.method === 'editMessageText').at(-1)?.body.text ?? '';
+    expect(shown.length).toBeGreaterThan(4096); // Raw HTML is escaped; Telegram checks after entity parsing.
+    const visible = shown
+      .replace(/<[^>]+>/g, '')
+      .replaceAll('&lt;', '<')
+      .replaceAll('&gt;', '>')
+      .replaceAll('&amp;', '&');
+    expect(visible.length).toBeLessThanOrEqual(4096);
+    expect(shown).toContain('&lt;&amp;');
+  });
+
   it('keeps the brief through a facts question and permits approval only after a draft', async () => {
     await askForFacts();
 
@@ -195,6 +336,41 @@ describe('Telegram AI writer', () => {
       .bind(draft?.id)
       .all<{ provenance: string }>();
     expect(revisions.results.map((row) => row.provenance)).toEqual(['AI_DRAFT', 'OWNER_APPROVED']);
+  });
+
+  it('ignores a stranger: no facts answer, approval, rewrite or Telegram call (TG-10)', async () => {
+    await askForFacts();
+    const asStranger = <T extends { message?: { from: { id: number } }; callback_query?: { from: { id: number } } }>(
+      update: T
+    ): T => {
+      if (update.message) update.message.from.id = 777;
+      if (update.callback_query) update.callback_query.from.id = 777;
+      return update;
+    };
+    calls.length = 0;
+    expect((await deliver(asStranger(message(OWNER_FACTS)))).status).toBe(200);
+    await api.settle();
+    expect(modelInputs).toHaveLength(1);
+    expect(calls).toEqual([]);
+
+    expect((await deliver(message(OWNER_FACTS))).status).toBe(200);
+    await api.settle();
+    const draft = await testDb()
+      .prepare("SELECT id, chat_message_id FROM ai_generations WHERE result = 'draft'")
+      .first<{ id: string; chat_message_id: number }>();
+    calls.length = 0;
+    for (const action of ['ok', 'short'])
+      expect(
+        (await deliver(asStranger(callback(`ai:${draft?.id}:${action}`, draft?.chat_message_id ?? 0)))).status
+      ).toBe(200);
+    await api.settle();
+    expect(calls).toEqual([]);
+    expect(modelInputs).toHaveLength(2);
+    const revisions = await testDb()
+      .prepare('SELECT provenance FROM ai_text_revisions WHERE generation_id = ?')
+      .bind(draft?.id)
+      .all<{ provenance: string }>();
+    expect(revisions.results.map((row) => row.provenance)).toEqual(['AI_DRAFT']);
   });
 
   it('consumes an open facts question once when two replies arrive together', async () => {

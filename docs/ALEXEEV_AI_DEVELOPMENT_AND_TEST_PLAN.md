@@ -1,5 +1,7 @@
 # ALEXEEV AI — техническое задание, план внедрения и протокол приёмки
 
+Additional P1 edge-case evidence: [rewrite, draft identity, and long-text report](ai/eval/P1_EDITOR_EDGE_CASES_PROGRESS.md). This does not change the P1 acceptance status below.
+
 **Версия документа:** 1.0 · 18.10.2026
 **Статус:** P0: локальная инвентаризация и контрольный набор выполнены 19.10.2026; P1: локальная стабилизация Telegram-редактора продолжается. DEV и приёмка не проверены. Подробности — в [отчёте P0](ai/eval/P0_BASELINE.md), [первом](ai/eval/P1_TELEGRAM_EDITOR_PROGRESS.md) и [втором](ai/eval/P1_RECOVERY_PROGRESS.md) отчётах P1. Миграция 0073 добавлена в код; её применение на DEV ещё не подтверждено. Production не затрагивался.
 **Основа:** обсуждённые с владельцем требования и аудит `alexeev-x/content-bot`, ветка `develop`, HEAD `9fc410e` на момент предыдущей проверки 18.10.2026. До начала разработки агент обязан перепроверить текущий HEAD, `AGENTS.md`, планы, рабочее дерево и реальные схемы/ограничения.
