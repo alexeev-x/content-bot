@@ -12,6 +12,24 @@ import { sendBudgetAlerts } from './run-ai-reviews';
 /** A reasoning model at its default effort, as for the owner's scripts: quality over speed (owner, 19.10.2026). */
 const REVIEW_TIMEOUT_MS = 120_000;
 
+/** The script's opening the analyst judges a hook by: about the first three sentences. */
+const SCRIPT_OPENING_MAX = 400;
+
+/**
+ * The opening of the script each video was filmed from, where the owner confirmed the link in the studio (an
+ * unconfirmed candidate could be another video's script). Owner, 19.10.2026: the review should see the hook.
+ */
+async function scriptLines(container: Container, items: readonly { key: string; itemId: string }[]): Promise<string[]> {
+  const lines: string[] = [];
+  for (const item of items) {
+    const script = await container.aiScriptLinks.linkOf(item.itemId);
+    if (script === null) continue;
+    const opening = Array.from(script.text.replace(/\s+/g, ' ').trim()).slice(0, SCRIPT_OPENING_MAX).join('');
+    lines.push(`${item.key} сценарий (подтверждён автором), начало: «${opening}»`);
+  }
+  return lines;
+}
+
 /** «AI_DISABLED», «AI_BUDGET»… from the gate's reason; the report says it in words. */
 function unavailableCode(error: AppError): string {
   const reason = error.details?.reason;
@@ -25,8 +43,13 @@ export async function runDailyReview(
   onError: (error: unknown) => void
 ): Promise<void> {
   const reports = container.contentDailyReports;
-  const input = await dailyReviewInput(reports, reportId);
-  if (input === null) return;
+  const found = await dailyReviewInput(reports, reportId);
+  if (found === null) return;
+  const scripts = await scriptLines(container, found.items);
+  const input = {
+    facts: scripts.length === 0 ? found.facts : `${found.facts}\n\nСценарии:\n${scripts.join('\n')}`,
+    videos: found.videos
+  };
   let review: DailyReview | null = null;
   let reviewError: string | null = null;
   let model: string | null = null;

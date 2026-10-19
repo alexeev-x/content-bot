@@ -126,7 +126,12 @@ function keyedRows(daily: DailyAnalytics): KeyedRow[] {
 }
 
 /** The facts the AI review may use, one line per video, every number already formatted as the report shows it. */
-export function dailyReviewFacts(data: DailyReportData): { facts: string; videos: string[] } {
+export function dailyReviewFacts(data: DailyReportData): {
+  facts: string;
+  videos: string[];
+  /** Each key with its stored item, so the app can add what other modules know (a linked script). */
+  items: { key: string; itemId: string }[];
+} {
   const rows = keyedRows(data.daily);
   const lines = data.daily.platforms.flatMap((platform) => {
     const header =
@@ -159,7 +164,11 @@ export function dailyReviewFacts(data: DailyReportData): { facts: string; videos
         })
     ];
   });
-  return { facts: lines.join('\n'), videos: rows.map((row) => row.key) };
+  return {
+    facts: lines.join('\n'),
+    videos: rows.map((row) => row.key),
+    items: rows.map((row) => ({ key: row.key, itemId: row.row.id }))
+  };
 }
 
 const signed = (value: number) => (value > 0 ? `+${value}` : value < 0 ? `−${Math.abs(value)}` : '0');
@@ -437,7 +446,7 @@ function dataOf(report: DailyReportRow): DailyReportData {
 export async function dailyReviewInput(
   reports: Pick<ContentDailyReportRepository, 'find'>,
   id: string
-): Promise<{ facts: string; videos: string[] } | null> {
+): Promise<ReturnType<typeof dailyReviewFacts> | null> {
   const report = await reports.find(id);
   return report === null || report.status !== 'waiting' ? null : dailyReviewFacts(dataOf(report));
 }

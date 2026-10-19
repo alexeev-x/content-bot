@@ -262,21 +262,23 @@ describe('daily report on the Cron tick and the review job', () => {
 
   // Regression (review 19.10.2026): the step once needed 49 of the tick's 50 statements and never ran.
   it('stores the day on a minute-2 tick, queues the review, and the job releases it with the review', async () => {
-    const clock = fakeClock(Date.UTC(2026, 9, 15, 10, 0));
+    const clock = fakeClock();
     await collectHours(clock, 3, 0);
     await enable(clock);
     const sent: unknown[] = [];
+    const inputs: string[] = [];
     const answer = JSON.stringify(REVIEW);
     const provider: AiTextProvider = {
       provider: 'openai',
-      complete: async () => ({
+      complete: async (request) => ({
+        ...(inputs.push(request.input) ? {} : {}),
         text: answer,
         model: 'gpt-6.1-sol',
         usage: { inputTokens: 1000, cachedInputTokens: 0, cacheWriteTokens: 0, outputTokens: 200 }
       })
     };
     const raise = tickAt(
-      Date.UTC(2026, 9, 15, 13, 2),
+      START + 3 * HOUR + 2 * 60_000,
       (container) =>
         ({
           ...container,
@@ -310,16 +312,31 @@ describe('daily report on the Cron tick and the review job', () => {
     );
     const job = sent[0] as { reportId: string };
     const consumer = tickAt(
-      Date.UTC(2026, 9, 15, 13, 3),
-      (container) => ({ ...container, aiProvider: provider }) as typeof container
+      START + 3 * HOUR + 3 * 60_000,
+      (container) =>
+        ({
+          ...container,
+          aiProvider: provider,
+          // The owner confirmed in the studio that the newest video was filmed from this script.
+          aiScriptLinks: {
+            ...container.aiScriptLinks,
+            linkOf: async (itemId: string) =>
+              itemId === 'youtube:0'
+                ? { revisionId: 'r', format: 'fidit' as const, text: 'Купи БКБ и стой. Это база.', approvedAt: 0 }
+                : null
+          }
+        }) as typeof container
     );
     await runDailyReview(job.reportId, consumer.container, 't', () => {});
     expect(await reportRows()).toMatchObject([{ status: 'reviewed' }]);
+    // The review sees the hook of a confirmed script (owner, 19.10.2026), and only of that one.
+    expect(inputs[0]).toContain('Сценарии:\nY1 сценарий (подтверждён автором), начало: «Купи БКБ и стой. Это база.»');
+    expect(inputs[0]).not.toContain('Y2 сценарий');
 
     // The content-alert step runs where sources are configured.
     const sources = youtube(async () => ({ followers: 10, items: [] }));
     const send = tickAt(
-      Date.UTC(2026, 9, 15, 13, 8),
+      START + 3 * HOUR + 8 * 60_000,
       (container) => ({ ...container, contentSources: sources }) as typeof container
     );
     await send.run();
@@ -328,7 +345,7 @@ describe('daily report on the Cron tick and the review job', () => {
   });
 
   it('releases the numbers alone with the reason when AI is off', async () => {
-    const clock = fakeClock(Date.UTC(2026, 9, 15, 10, 0));
+    const clock = fakeClock();
     await collectHours(clock, 3, 0);
     await enable(clock);
     const { reportId } = await raiseDailyReport({ ...repos(), clock, timezone: ZONE, hour: 0 });
