@@ -20,7 +20,8 @@ export async function runAiReviews(deps: {
   return counts;
 }
 
-async function sendBudgetAlerts(
+/** The owner hears of a budget threshold the call crossed (each is claimed once a month in D1). */
+export async function sendBudgetAlerts(
   deps: Pick<Parameters<typeof runAiReviews>[0], 'messenger' | 'ownerChatId' | 'readAppOrigin' | 'charge' | 'logger'>,
   events: readonly BudgetEvent[]
 ): Promise<void> {

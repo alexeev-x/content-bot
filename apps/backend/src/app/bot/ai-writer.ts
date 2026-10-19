@@ -28,7 +28,7 @@ import { AppError } from '../../shared/app-error';
 import { formatAiBudgetAlert } from '../notifications/ai-budget-alert';
 import type { Clock } from '../../platform/clock';
 import type { PublishActions } from './publish-actions';
-import type { AiJob, AiJobBase } from './ai-job';
+import type { AiJob, AiJobBase, WriterJob } from './ai-job';
 import { draftFromMessageText } from './draft-from-message';
 import { publishKeyboard } from './publish-keyboard';
 
@@ -338,7 +338,7 @@ function failureOf(error: unknown, runtime: AiJobRuntime): string {
 }
 
 async function jobResult(
-  job: Exclude<AiJob, { kind: 'chat' }>,
+  job: Exclude<WriterJob, { kind: 'chat' }>,
   deps: WriterDeps,
   runtime: AiJobRuntime
 ): Promise<WriterResult> {
@@ -447,7 +447,7 @@ async function recordRemark(
  * Runs one queued model call and turns its «Пишу…» message into the draft, the facts question or the reason
  * it failed. Never throws: every failure is shown in that message (and logged unless it is AI being off).
  */
-export async function runAiJob(job: AiJob, runtime: AiJobRuntime): Promise<void> {
+export async function runAiJob(job: WriterJob, runtime: AiJobRuntime): Promise<void> {
   const { api, clock } = runtime;
   const { chatId, messageId } = job;
   const failureMarkup = job.kind === 'facts' ? retryKeyboard(job.generationId) : undefined;

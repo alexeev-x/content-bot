@@ -21,6 +21,8 @@ const base = {
 const formatSchema = z.enum(['telegram', 'fidit', 'igrat', 'standalone']);
 
 export const aiJobSchema = z.discriminatedUnion('kind', [
+  /** The AI review of a stored daily analytics report (AI plan P6): no chat message, the report row is its state. */
+  z.object({ id: z.uuid(), kind: z.literal('daily_review'), reportId: z.string().min(1).max(100) }),
   z.object({ ...base, kind: z.literal('draft'), format: formatSchema, task: z.string().min(1).max(TEXT_MAX) }),
   z.object({
     ...base,
@@ -61,4 +63,6 @@ export const aiJobSchema = z.discriminatedUnion('kind', [
 ]);
 
 export type AiJob = z.infer<typeof aiJobSchema>;
-export type AiJobBase = Pick<AiJob, keyof typeof base>;
+export type AiJobBase = z.infer<z.ZodObject<typeof base>>;
+/** The jobs of the bot's AI writer: each has the chat message it ends in. */
+export type WriterJob = Exclude<AiJob, { kind: 'daily_review' }>;

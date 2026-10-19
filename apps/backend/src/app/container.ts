@@ -94,9 +94,11 @@ import {
   type ConfiguredSources,
   type ContentAlertRepository,
   type ContentAnalyticsRepository,
+  type ContentDailyReportRepository,
   type ContentForecastRepository,
   configuredCollectors,
   createD1ContentAlertRepository,
+  createD1ContentDailyReportRepository,
   createD1ContentForecastRepository,
   createD1ContentGoalRepository,
   type ContentGoalRepository,
@@ -181,6 +183,8 @@ export interface Container {
   contentGoals: ContentGoalRepository;
   /** The daily report's forecasts and their scores (0076). */
   contentForecasts: ContentForecastRepository;
+  /** The daily reports: stored numbers, the AI review and its status (0077). */
+  contentDailyReports: ContentDailyReportRepository;
   /** The content sources this environment configures (vars, the YouTube key, the TikTok app keys). */
   contentSources: ConfiguredSources;
   /** The connected TikTok account: OAuth states and encrypted tokens (migration 0044). */
@@ -483,6 +487,9 @@ export function createContainer(env: ContainerEnv, overrides: ContainerOverrides
     },
     get contentForecasts() {
       return createD1ContentForecastRepository(db());
+    },
+    get contentDailyReports() {
+      return createD1ContentDailyReportRepository(db());
     },
     get contentSources() {
       return configuredCollectors(

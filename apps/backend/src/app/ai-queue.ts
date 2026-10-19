@@ -2,6 +2,7 @@ import { Api } from 'grammy';
 import { aiJobSchema } from './bot/ai-job';
 import { runAiJob } from './bot/ai-writer';
 import { createWriterDeps } from './bot/writer-deps';
+import { runDailyReview } from './workflows/daily-review';
 import type { Container } from './container';
 
 // Consumer of Queue AI_JOBS (docs/backend/bot.md «AI writer»): one model call per message, with the 15 minutes
@@ -24,6 +25,25 @@ export async function handleAiQueue(batch: MessageBatch<unknown>, container: Con
       continue;
     }
     const job = parsed.data;
+    const onError = (error: unknown) =>
+      logger.error({
+        component: 'ai_queue',
+        operation: job.kind,
+        requestId,
+        errorCode: error instanceof Error ? error.name : 'unknown'
+      });
+    if (job.kind === 'daily_review') {
+      // The report row is the state: its review is written once, and a redelivered job finds it released.
+      try {
+        if (await container.aiWriter.claimJob(job.id, container.clock.now()))
+          await runDailyReview(job.reportId, container, requestId, onError);
+      } catch (error) {
+        // D1 failed: the Cron fallback releases the numbers alone after its deadline.
+        onError(error);
+      }
+      message.ack();
+      continue;
+    }
     if (token === '') {
       // Without the token the chat cannot be reached at all; the job is dropped with the code.
       logger.error({ component: 'ai_queue', operation: 'run', requestId, errorCode: 'BOT_TOKEN_MISSING' });
@@ -38,13 +58,7 @@ export async function handleAiQueue(batch: MessageBatch<unknown>, container: Con
       // A redelivered message finds its claim and stops: the model is never called twice for one job.
       claim: () => container.aiWriter.claimJob(job.id, container.clock.now()),
       writer: () => createWriterDeps(container, requestId),
-      onError: (error) =>
-        logger.error({
-          component: 'ai_queue',
-          operation: job.kind,
-          requestId,
-          errorCode: error instanceof Error ? error.name : 'unknown'
-        })
+      onError
     });
     message.ack();
   }

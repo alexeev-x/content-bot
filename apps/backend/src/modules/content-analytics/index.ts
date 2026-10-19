@@ -21,7 +21,19 @@ export { configuredCollectors, type CollectorConfig, type ConfiguredSources } fr
 export { type ContentAnalyticsRepository, createD1ContentAnalyticsRepository } from './d1-content-analytics-repository';
 export { type DailyAnalytics, type DailyPlatform, readDailyAnalytics } from './daily-analytics';
 export type { DailyComparison, DailyGrowth, DailyRow } from './daily-table';
-export { DAILY_REPORT_VERSION, dailyReportNow, raiseDailyReport } from './daily-report';
+export {
+  DAILY_REPORT_VERSION,
+  type DailyReview,
+  dailyReportNow,
+  dailyReviewInput,
+  raiseDailyReport,
+  releaseDailyReport,
+  releaseOverdueReports
+} from './daily-report';
+export {
+  type ContentDailyReportRepository,
+  createD1ContentDailyReportRepository
+} from './d1-content-daily-reports-repository';
 export { type ContentForecastRepository, createD1ContentForecastRepository } from './d1-content-forecasts-repository';
 export {
   collectContentAnalytics,

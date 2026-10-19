@@ -1,6 +1,7 @@
 export { type AiRepository, createD1AiRepository } from './d1-ai-repository';
 export { AI_CATALOG } from './catalog';
 export { createOpenAiProvider } from './openai-provider';
+export { type AnalyticsReview, writeAnalyticsReview } from './analytics-review';
 export { type AiTextProvider, AiProviderError, type OwnerPost, type OwnerPostSource } from './ports';
 export {
   AI_KEY_NAME,

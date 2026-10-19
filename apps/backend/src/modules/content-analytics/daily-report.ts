@@ -1,29 +1,59 @@
 import { zoned, zonedDate } from './alerts';
 import { type DailyAnalytics, readDailyAnalytics } from './daily-analytics';
-import type { DailyGrowth } from './daily-table';
+import { type DailyComparison, type DailyGrowth, shortTitleOf } from './daily-table';
 import type { ContentAlertRepository } from './d1-content-alerts-repository';
 import type { ContentAnalyticsRepository } from './d1-content-analytics-repository';
+import type { ContentDailyReportRepository, DailyReportRow } from './d1-content-daily-reports-repository';
 import type { ContentForecastRepository, ForecastOutcome } from './d1-content-forecasts-repository';
 import { factAt } from './forecast-backtest';
 import type { Clock } from '../../platform/clock';
-import type { ItemFormats } from './types';
+import type { ItemFormats, VideoFormat } from './types';
 
-// The daily analytics report in the owner's private chat (AI plan P6, §4.2–4.3). The numbers come from the P4
-// table and the P5 forecasts; the text is rendered here, by code, with no model. It is raised once a day as a
-// content alert (`daily:<owner-zone date>:v1`, the alert id is the dedup key), so the existing sender gives it
-// one attempt and leaves an unconfirmed send `unknown`, never resent.
+// The daily analytics report in the owner's private chat (AI plan P6, §4.2–4.3; owner 19.10.2026: a short
+// presentation — what works, what does not and why; the details are in the studio). Code computes every number
+// (P4 table, P5 forecasts) and stores them first (migration 0077); the AI review only explains them and may be
+// missing. The finished message is raised once as content alert `daily:<owner-zone date>:v1`, so the existing
+// sender gives it one attempt and leaves an unconfirmed send `unknown`, never resent.
 
 const HOUR_MS = 60 * 60 * 1000;
 export const DAILY_REPORT_VERSION = 'v1';
+/** A report still without its review after this long goes out with the numbers alone. */
+export const REVIEW_DEADLINE_MS = 30 * 60 * 1000;
+/** A report still waiting after this long is about a day gone: it is closed, not sent. */
+const REPORT_STALE_MS = 20 * 60 * 60 * 1000;
 /** The scorer waits until the widest fact tolerance (6 h) has passed, so the closest reading exists. */
 const SCORE_AFTER_MS = 6 * HOUR_MS;
 const SCORE_LIMIT = 36;
-/** A forecast shown in the conclusions needs this many readings behind it (plan §4.2: reliable history). */
+/** A forecast shown needs this many readings behind it (plan §4.2: reliable history). */
 const FORECAST_SHOWN_READINGS = 6;
 /** Fewer scored forecasts than this is said to be too few to judge. */
 const ACCURACY_MIN = 5;
-const TITLE_CELL = 12;
+const TITLE_MAX = 48;
+/** «↑ +80%» from a quarter above the usual, «↓ −40%» from a fifth below; between is «≈ обычно». */
+const ABOVE_USUAL = 1.25;
+const BELOW_USUAL = 0.8;
 const PLATFORM_NAME = { youtube: 'YouTube', tiktok: 'TikTok' } as const;
+const PLATFORM_ICON = { youtube: '▶️', tiktok: '🎵' } as const;
+const PLATFORM_KEY = { youtube: 'Y', tiktok: 'T' } as const;
+const FORMAT_NAME: Record<VideoFormat, string> = {
+  fidit: '«Учу фидить»',
+  igrat: '«Учусь играть»',
+  standalone: 'вне рубрик'
+};
+
+/** The stored report: numbers at `asOf` and the forecast accuracy shown with them. */
+export interface DailyReportData {
+  daily: DailyAnalytics;
+  accuracy: { scored: number; inBand: number };
+}
+
+/** The AI review as the report shows it (modules/ai `AnalyticsReview`, passed through the app). */
+export interface DailyReview {
+  summary: string;
+  rising: { video: string; note: string }[];
+  weak: { video: string; note: string; hypotheses: { text: string; confidence: 'low' | 'medium' }[] }[];
+  next: string;
+}
 
 const escapeHtml = (value: string) =>
   value.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;');
@@ -37,43 +67,102 @@ export function compactCount(value: number): string {
   return `${(value / 1_000_000).toFixed(1)}м`;
 }
 
-/** The table's growth cell: «+12.4к», «+1.2к/20ч» for another length, «сброс» for a dropped counter, «н/д». */
-export function growthCell(growth: DailyGrowth): string {
-  if (growth.kind === 'day') return `+${compactCount(growth.views)}`;
-  if (growth.kind === 'window') return `+${compactCount(growth.views)}/${growth.hours}ч`;
-  return growth.kind === 'anomaly' ? 'сброс' : 'н/д';
+/** «+12.4к за 24ч», «+1.2к за 20ч», «счётчик уменьшился», «прирост н/д». */
+export function growthText(growth: DailyGrowth): string {
+  if (growth.kind === 'day' || growth.kind === 'window') return `+${compactCount(growth.views)} за ${growth.hours}ч`;
+  return growth.kind === 'anomaly' ? 'счётчик уменьшился' : 'прирост н/д';
 }
 
-/** A fixed-width cell: wide emoji and pictographs would break the columns on a phone, so they go. */
-function cell(text: string, width: number): string {
-  const letters = Array.from(text.replace(/\p{Extended_Pictographic}|️/gu, '').trim());
-  return (letters.length > width ? [...letters.slice(0, width - 1), '…'] : letters).join('').padEnd(width);
+/** The ratio to the usual at the same age, only for a comparison strong enough to say it. */
+export function usualRatio(comparison: DailyComparison | null): number | null {
+  if (comparison === null || comparison.weak || comparison.median <= 0) return null;
+  return Math.round((comparison.views / comparison.median) * 10) / 10;
 }
 
-function platformBlock(platform: DailyAnalytics['platforms'][number], timezone: string): string[] {
-  const name = PLATFORM_NAME[platform.platform];
-  const lines = [`<b>${name}</b> · ${platform.rows.length} последних`];
-  if (platform.state === 'pending') return [...lines, 'Данных ещё нет: источник не собирался.'];
-  if (platform.state === 'error')
-    lines.push(
-      `⚠️ Последний сбор не удался (${escapeHtml(platform.errorCode ?? 'ошибка')}); цифры на ${time(platform.lastSuccessAt, timezone)}.`
-    );
-  if (platform.rows.length === 0) return [...lines, 'Роликов пока нет.'];
-  const table = [
-    `#  ${'Ролик'.padEnd(TITLE_CELL)} ${'Всего'.padStart(6)} ${'+24ч'.padStart(9)}`,
-    ...platform.rows.map(
-      (row, index) =>
-        `${String(index + 1).padEnd(2)} ${cell(row.shortTitle, TITLE_CELL)} ${(row.views === null ? '—' : compactCount(row.views)).padStart(6)} ${growthCell(row.growth).padStart(9)}`
-    )
-  ];
-  lines.push(`<pre>${escapeHtml(table.join('\n'))}</pre>`);
-  lines.push(
-    `Ролики: ${platform.rows.map((row, index) => `<a href="${escapeHtml(row.url)}">${index + 1}</a>`).join(' · ')}`
+/** The difference from the usual in per cent, for a comparison strong enough to say it: 80 for ×1.8. */
+export function usualPercent(comparison: DailyComparison | null): number | null {
+  const ratio = usualRatio(comparison);
+  return ratio === null ? null : Math.round((ratio - 1) * 100);
+}
+
+function usualMark(comparison: DailyComparison | null): string | null {
+  const ratio = usualRatio(comparison);
+  const percent = usualPercent(comparison);
+  if (ratio === null || percent === null) return null;
+  if (ratio >= ABOVE_USUAL) return `↑ +${percent}%`;
+  return ratio <= BELOW_USUAL ? `↓ −${Math.abs(percent)}%` : '≈ обычно';
+}
+
+function ageText(hours: number): string {
+  return hours < 48 ? `${hours} ч` : `${Math.floor(hours / 24)} дн`;
+}
+
+/** The link without tracking parameters (TikTok adds a long `utm_*` tail). */
+function cleanUrl(url: string): string {
+  try {
+    const parsed = new URL(url);
+    parsed.search = '';
+    parsed.hash = '';
+    return parsed.toString();
+  } catch {
+    return url;
+  }
+}
+
+interface KeyedRow {
+  key: string;
+  platform: 'youtube' | 'tiktok';
+  row: DailyAnalytics['platforms'][number]['rows'][number];
+}
+
+function keyedRows(daily: DailyAnalytics): KeyedRow[] {
+  return daily.platforms.flatMap((platform) =>
+    platform.rows.map((row, index) => ({
+      key: `${PLATFORM_KEY[platform.platform]}${index + 1}`,
+      platform: platform.platform,
+      row
+    }))
   );
-  const stale = platform.rows.flatMap((row, index) => (row.status === 'ok' ? [] : [index + 1]));
-  if (stale.length > 0) lines.push(`Нет свежего замера: ${stale.join(', ')}.`);
-  return lines;
 }
+
+/** The facts the AI review may use, one line per video, every number already formatted as the report shows it. */
+export function dailyReviewFacts(data: DailyReportData): { facts: string; videos: string[] } {
+  const rows = keyedRows(data.daily);
+  const lines = data.daily.platforms.flatMap((platform) => {
+    const header =
+      platform.state === 'ok'
+        ? `${PLATFORM_NAME[platform.platform]}:`
+        : `${PLATFORM_NAME[platform.platform]}: ${platform.state === 'pending' ? 'данных ещё нет' : 'последний сбор не удался'}`;
+    return [
+      header,
+      ...rows
+        .filter((each) => each.platform === platform.platform)
+        .map(({ key, row }) => {
+          const ratio = usualRatio(row.comparison);
+          const comparison =
+            row.comparison === null
+              ? 'сравнить не с чем'
+              : ratio === null
+                ? 'сравнение слабое: мало похожих роликов'
+                : `обычно для рубрики к ${row.comparison.ageHours}ч: ${compactCount(row.comparison.median)}, у ролика ${compactCount(row.comparison.views)} (${signed(usualPercent(row.comparison) ?? 0)}% к обычному, сравнение надёжное)`;
+          return [
+            `${key} «${shortTitleOf(row.title, 80)}»`,
+            `рубрика ${FORMAT_NAME[row.format]}`,
+            `возраст ${ageText(row.ageHours)}`,
+            `всего ${row.views === null ? 'н/д' : compactCount(row.views)}`,
+            growthText(row.growth),
+            row.growth.viewsPerHour === null ? null : `${row.growth.viewsPerHour}/ч`,
+            comparison
+          ]
+            .filter(Boolean)
+            .join(' · ');
+        })
+    ];
+  });
+  return { facts: lines.join('\n'), videos: rows.map((row) => row.key) };
+}
+
+const signed = (value: number) => (value > 0 ? `+${value}` : value < 0 ? `−${Math.abs(value)}` : '0');
 
 function time(at: number | null, timezone: string): string {
   if (at === null) return '—';
@@ -82,56 +171,177 @@ function time(at: number | null, timezone: string): string {
   );
 }
 
-/** Up to three short conclusions, each from stored numbers only (plan §4.2). */
-function conclusions(daily: DailyAnalytics, accuracy: { scored: number; inBand: number }): string[] {
-  const rows = daily.platforms.flatMap((platform) =>
-    platform.rows.map((row) => ({ ...row, name: PLATFORM_NAME[platform.platform] }))
-  );
-  const lines: string[] = [];
-  const leader = rows
-    .filter((row) => row.growth.kind === 'day')
-    .sort((a, b) => (b.growth.views ?? 0) - (a.growth.views ?? 0))[0];
-  if (leader !== undefined && leader.growth.kind === 'day')
+const REVIEW_MISSING: Record<string, string> = {
+  AI_DISABLED: 'ИИ выключен',
+  AI_NO_KEY: 'ключ ИИ не задан',
+  AI_BUDGET: 'бюджет ИИ исчерпан',
+  REVIEW_TIMEOUT: 'не успел за 30 минут',
+  AI_TIMEOUT: 'модель не ответила вовремя',
+  AI_NUMBERS_UNVERIFIED: 'в ответе модели были цифры не из отчёта — не показываю',
+  AI_BAD_FORMAT: 'модель ответила не в том формате',
+  AI_NO_MODEL: 'не выбрана модель ИИ',
+  AI_NO_PRICE: 'у модели ИИ нет цены',
+  AI_TOO_LONG: 'разбор не влез в сообщение'
+};
+
+/** Telegram counts a message's characters after entity parsing; this much room is kept below its 4096. */
+const MESSAGE_MAX = 3900;
+
+/** The characters Telegram counts: the text without tags, entities decoded. */
+export function visibleLength(html: string): number {
+  return Array.from(
+    html
+      .replace(/<[^>]+>/g, '')
+      .replaceAll('&lt;', '<')
+      .replaceAll('&gt;', '>')
+      .replaceAll('&quot;', '"')
+      .replaceAll('&amp;', '&')
+  ).length;
+}
+
+function reviewBlock(review: DailyReview, rows: readonly KeyedRow[]): string[] {
+  const link = (key: string) => {
+    const found = rows.find((row) => row.key === key);
+    return found === undefined
+      ? key
+      : `<a href="${escapeHtml(cleanUrl(found.row.url))}">${escapeHtml(shortTitleOf(found.row.title, TITLE_MAX))}</a> (${PLATFORM_NAME[found.platform]})`;
+  };
+  const lines = ['<b>🧠 Разбор</b>'];
+  if (review.summary !== '') lines.push(escapeHtml(review.summary));
+  if (review.rising.length > 0)
     lines.push(
-      `🔥 Больше всех за сутки: ${escapeHtml(leader.shortTitle)} (${leader.name}) +${compactCount(leader.growth.views)}.`
+      '',
+      '📈 <b>Набирает</b>',
+      ...review.rising.map((row) => `• ${link(row.video)} — ${escapeHtml(row.note)}`)
     );
-  const forecast = rows
-    .filter((row) => row.forecast.quality === 'ok' && row.forecast.readings >= FORECAST_SHOWN_READINGS)
-    .sort((a, b) => (b.views ?? 0) - (a.views ?? 0))[0];
-  if (forecast !== undefined && forecast.forecast.quality === 'ok') {
-    const week = forecast.forecast.horizons.find((row) => row.hours === 168);
-    if (week !== undefined)
+  if (review.weak.length > 0)
+    lines.push(
+      '',
+      '📉 <b>Не заходит</b>',
+      ...review.weak.flatMap((row) => [
+        `• ${link(row.video)} — ${escapeHtml(row.note)}`,
+        ...row.hypotheses.map(
+          (hypothesis) =>
+            `   <i>Гипотеза (${hypothesis.confidence === 'medium' ? 'средняя' : 'низкая'} уверенность): ${escapeHtml(hypothesis.text)}</i>`
+        )
+      ])
+    );
+  if (review.next !== '') lines.push('', `🎬 <b>Попробовать:</b> ${escapeHtml(review.next)}`);
+  return lines;
+}
+
+/** A platform's cell in a video's line: its icon as the link, views, the day's growth and the usual. */
+function platformCell(platform: 'youtube' | 'tiktok', row: KeyedRow['row']): string {
+  const growth =
+    row.growth.kind === 'day'
+      ? `+${compactCount(row.growth.views)}`
+      : row.growth.kind === 'window'
+        ? `+${compactCount(row.growth.views)}/${row.growth.hours}ч`
+        : row.growth.kind === 'anomaly'
+          ? 'сброс'
+          : 'н/д';
+  return [
+    `<a href="${escapeHtml(cleanUrl(row.url))}">${PLATFORM_ICON[platform]}</a> ${row.views === null ? '—' : compactCount(row.views)}`,
+    growth,
+    usualMark(row.comparison),
+    row.status === 'ok' ? null : '⏳'
+  ]
+    .filter(Boolean)
+    .join(' ');
+}
+
+/**
+ * One line per video, newest first: the owner posts the same video on both platforms, so a title read once
+ * carries both platforms' numbers (owner, 19.10.2026: the same list twice was noise).
+ */
+function videoLines(daily: DailyAnalytics, timezone: string): string[] {
+  const lines = ['<b>📋 Ролики</b> · прирост за сутки'];
+  for (const platform of daily.platforms) {
+    if (platform.state === 'pending')
+      lines.push(`${PLATFORM_ICON[platform.platform]} данных ещё нет: источник не собирался.`);
+    if (platform.state === 'error')
       lines.push(
-        `🔮 ${escapeHtml(forecast.shortTitle)} (${forecast.name}) через 7 дней: ${compactCount(week.low)}–${compactCount(week.high)}.`
+        `⚠️ ${PLATFORM_NAME[platform.platform]}: последний сбор не удался — цифры на ${time(platform.lastSuccessAt, timezone)}.`
       );
   }
-  if (accuracy.scored > 0)
-    lines.push(
-      `📈 Прогнозы за сутки: ${accuracy.inBand} из ${accuracy.scored} в диапазоне${accuracy.scored < ACCURACY_MIN ? ' (пока мало, рано судить)' : ''}.`
+  const videos = new Map<string, { title: string; publishedAt: number; ageHours: number; cells: string[] }>();
+  for (const platform of daily.platforms)
+    for (const row of platform.rows) {
+      const title = shortTitleOf(row.title, TITLE_MAX);
+      const key = title.toLowerCase().replaceAll('ё', 'е');
+      const video = videos.get(key) ?? { title, publishedAt: row.publishedAt, ageHours: row.ageHours, cells: [] };
+      video.publishedAt = Math.max(video.publishedAt, row.publishedAt);
+      video.ageHours = Math.min(video.ageHours, row.ageHours);
+      video.cells.push(platformCell(platform.platform, row));
+      videos.set(key, video);
+    }
+  if (videos.size === 0) return [...lines, 'Роликов пока нет.'];
+  [...videos.values()]
+    .sort((a, b) => b.publishedAt - a.publishedAt)
+    .forEach((video, index) =>
+      lines.push(
+        `${index + 1}. ${escapeHtml(video.title)} · ${ageText(video.ageHours)}`,
+        `    ${video.cells.join('  ·  ')}`
+      )
     );
-  return lines.slice(0, 3);
+  return lines;
+}
+
+/** The day's growth of each platform: the sum over its videos; «≈» when some growth is not a 24-hour pair. */
+function dayTotals(daily: DailyAnalytics): string | null {
+  const parts = daily.platforms.flatMap((platform) => {
+    const counted = platform.rows.filter((row) => row.growth.kind === 'day' || row.growth.kind === 'window');
+    if (counted.length === 0) return [];
+    const total = counted.reduce((sum, row) => sum + (row.growth.views ?? 0), 0);
+    const approximate = counted.some((row) => row.growth.kind === 'window');
+    return [`${PLATFORM_ICON[platform.platform]} ${approximate ? '≈' : ''}+${compactCount(total)}`];
+  });
+  return parts.length === 0 ? null : `За сутки: ${parts.join(' · ')}`;
+}
+
+/** The forecast of the most watched video with a reliable history, as one line; null when none qualifies. */
+function forecastLine(rows: readonly KeyedRow[], timezone: string): string | null {
+  const best = rows
+    .filter(({ row }) => row.forecast.quality === 'ok' && row.forecast.readings >= FORECAST_SHOWN_READINGS)
+    .sort((a, b) => (b.row.views ?? 0) - (a.row.views ?? 0))[0];
+  if (best === undefined || best.row.forecast.quality !== 'ok') return null;
+  const week = best.row.forecast.horizons.find((point) => point.hours === 168);
+  if (week === undefined) return null;
+  const day = new Intl.DateTimeFormat('ru-RU', { timeZone: timezone, day: 'numeric', month: 'long' }).format(
+    new Date(week.at)
+  );
+  return `🔮 ${escapeHtml(shortTitleOf(best.row.title, 32))} (${PLATFORM_NAME[best.platform]}): к ${day} — ${compactCount(week.low)}–${compactCount(week.high)} просмотров`;
 }
 
 export function dailyReportHtml(input: {
-  daily: DailyAnalytics;
+  data: DailyReportData;
   timezone: string;
-  accuracy: { scored: number; inBand: number };
+  /** The AI review, or why there is none; `null` with no reason for «/analytics», which never asks the model. */
+  review: DailyReview | null;
+  reviewError?: string | null;
 }): string {
-  const { daily, timezone } = input;
-  const day = new Intl.DateTimeFormat('ru-RU', { timeZone: timezone, day: 'numeric', month: 'long' }).format(
+  const { daily, accuracy } = input.data;
+  const day = new Intl.DateTimeFormat('ru-RU', { timeZone: input.timezone, day: 'numeric', month: 'long' }).format(
     new Date(daily.asOf)
   );
+  const rows = keyedRows(daily);
+  const totals = dayTotals(daily);
   const lines = [
     `<b>📊 Аналитика · ${day}</b>`,
-    `Данные на ${time(daily.asOf, timezone)}${daily.partial ? ' · частично' : ''}`
+    `Данные на ${time(daily.asOf, input.timezone)}${daily.partial ? ' · частично' : ''}`,
+    ...(totals === null ? [] : [totals])
   ];
-  for (const platform of daily.platforms) lines.push('', ...platformBlock(platform, timezone));
-  if (daily.platforms.some((platform) => platform.rows.some((row) => row.growth.kind === 'window')))
-    lines.push('', '<i>«/20ч» — прирост не за сутки, а за указанные часы.</i>');
-  if (daily.platforms.some((platform) => platform.rows.some((row) => row.growth.kind === 'anomaly')))
-    lines.push('<i>«сброс» — счётчик уменьшился, прирост не считается.</i>');
-  const found = conclusions(daily, input.accuracy);
-  if (found.length > 0) lines.push('', ...found);
+  if (input.review !== null) lines.push('', ...reviewBlock(input.review, rows));
+  else if (input.reviewError)
+    lines.push('', `<i>🧠 Разбор недоступен: ${REVIEW_MISSING[input.reviewError] ?? 'ошибка ИИ'}.</i>`);
+  lines.push('', ...videoLines(daily, input.timezone));
+  const tail = [
+    forecastLine(rows, input.timezone),
+    accuracy.scored > 0
+      ? `🎯 Прогнозы за сутки: ${accuracy.inBand} из ${accuracy.scored} в диапазоне${accuracy.scored < ACCURACY_MIN ? ' (пока мало, рано судить)' : ''}`
+      : null
+  ].filter((value): value is string => value !== null);
+  if (tail.length > 0) lines.push('', ...tail);
   return lines.join('\n');
 }
 
@@ -161,22 +371,24 @@ async function scoreDueForecasts(deps: {
 }
 
 /**
- * Raises today's report once the owner-zone hour is reached: scores due forecasts, builds the table, stores the
- * alert and the forecasts it shows. A report raised already, or an hour not reached, does nothing.
+ * Stores today's report once the owner-zone hour is reached: scores due forecasts, builds the table, stores the
+ * forecasts it shows and then the report row, the day's claim. Returns the new report's id for its review job;
+ * null when the hour is not reached or the report exists.
  */
 export async function raiseDailyReport(deps: {
   analytics: ContentAnalyticsRepository;
   alerts: ContentAlertRepository;
   forecasts: ContentForecastRepository;
+  reports: ContentDailyReportRepository;
   formats?: ItemFormats;
   clock: Clock;
   timezone: string;
   hour: number;
-}): Promise<{ raised: boolean }> {
+}): Promise<{ reportId: string | null }> {
   const now = deps.clock.now();
-  if (zoned(now, deps.timezone).hour < deps.hour) return { raised: false };
+  if (zoned(now, deps.timezone).hour < deps.hour) return { reportId: null };
   const id = `daily:${zonedDate(now, deps.timezone)}:${DAILY_REPORT_VERSION}`;
-  if ((await deps.alerts.existing([id])).has(id)) return { raised: false };
+  if ((await deps.reports.find(id)) !== null) return { reportId: null };
   await scoreDueForecasts({ alerts: deps.alerts, forecasts: deps.forecasts, now });
   const accuracy = await deps.forecasts.accuracy(now - 24 * HOUR_MS);
   const daily = await readDailyAnalytics({
@@ -184,9 +396,8 @@ export async function raiseDailyReport(deps: {
     clock: deps.clock,
     ...(deps.formats ? { formats: deps.formats } : {})
   });
-  const html = dailyReportHtml({ daily, timezone: deps.timezone, accuracy });
-  // The forecasts first, keyed by the report id: a Worker cut off before the alert leaves them, and the next tick
-  // raises the alert (its forecasts are already stored, a repeat is ignored). The alert last is the day's claim.
+  // The forecasts first, keyed by the report id: a Worker cut off before the report row leaves them, and the
+  // next tick claims the day (a repeat of the forecasts is ignored).
   await deps.forecasts.insert(
     daily.platforms.flatMap((platform) =>
       platform.rows.flatMap((row) =>
@@ -207,10 +418,58 @@ export async function raiseDailyReport(deps: {
     ),
     now
   );
-  const raised = await deps.alerts.insert(
+  const data: DailyReportData = { daily, accuracy };
+  const claimed = await deps.reports.claim({
+    id,
+    asOf: daily.asOf,
+    timezone: deps.timezone,
+    data: JSON.stringify(data),
+    now
+  });
+  return { reportId: claimed ? id : null };
+}
+
+function dataOf(report: DailyReportRow): DailyReportData {
+  return JSON.parse(report.data) as DailyReportData;
+}
+
+/** The facts for the review job of a stored report; null when it is gone or no longer waiting. */
+export async function dailyReviewInput(
+  reports: Pick<ContentDailyReportRepository, 'find'>,
+  id: string
+): Promise<{ facts: string; videos: string[] } | null> {
+  const report = await reports.find(id);
+  return report === null || report.status !== 'waiting' ? null : dailyReviewFacts(dataOf(report));
+}
+
+/**
+ * Turns a waiting report into its message, with the review or the reason there is none, and raises it as the
+ * day's content alert. The alert first (its id dedups a second releaser), then the report row ends.
+ */
+export async function releaseDailyReport(
+  deps: {
+    reports: ContentDailyReportRepository;
+    alerts: Pick<ContentAlertRepository, 'insert'>;
+    now: number;
+  },
+  input: { id: string; review: DailyReview | null; reviewError: string | null; model: string | null }
+): Promise<boolean> {
+  const report = await deps.reports.find(input.id);
+  if (report === null || report.status !== 'waiting') return false;
+  const render = (review: DailyReview | null, reviewError: string | null) =>
+    dailyReportHtml({ data: dataOf(report), timezone: report.timezone, review, reviewError });
+  let { review, reviewError } = input;
+  let html = render(review, reviewError);
+  // A review that does not fit would make Telegram refuse the whole message: the numbers go alone instead.
+  if (review !== null && visibleLength(html) > MESSAGE_MAX) {
+    review = null;
+    reviewError = 'AI_TOO_LONG';
+    html = render(null, reviewError);
+  }
+  const inserted = await deps.alerts.insert(
     [
       {
-        id,
+        id: report.id,
         kind: 'digest',
         title: 'Аналитика за день',
         body: 'Ежедневный отчёт по YouTube и TikTok.',
@@ -219,12 +478,47 @@ export async function raiseDailyReport(deps: {
         linkPath: '/analytics'
       }
     ],
-    now
+    deps.now
   );
-  return { raised: raised > 0 };
+  // Only the releaser whose alert went in records what was sent; the other one changes nothing.
+  if (inserted === 0) return false;
+  return deps.reports.finish({
+    id: report.id,
+    status: review === null ? 'unreviewed' : 'reviewed',
+    review: review === null ? null : JSON.stringify(review),
+    reviewError,
+    model: input.model,
+    now: deps.now
+  });
 }
 
-/** «Аналитика сейчас» in the bot: the same message at this moment, stored nowhere (no second daily report). */
+/** Reports whose review did not come in time go out with the numbers alone (AI off, a lost job, a slow model). */
+export async function releaseOverdueReports(deps: {
+  reports: ContentDailyReportRepository;
+  alerts: Pick<ContentAlertRepository, 'insert'>;
+  now: number;
+}): Promise<number> {
+  let released = 0;
+  for (const report of await deps.reports.listWaiting(deps.now - REVIEW_DEADLINE_MS, 2)) {
+    // A day long gone (the report was off, then on again) is closed without a message about old numbers.
+    if (report.createdAt < deps.now - REPORT_STALE_MS) {
+      await deps.reports.finish({
+        id: report.id,
+        status: 'unreviewed',
+        review: null,
+        reviewError: 'EXPIRED',
+        model: null,
+        now: deps.now
+      });
+      continue;
+    }
+    if (await releaseDailyReport(deps, { id: report.id, review: null, reviewError: 'REVIEW_TIMEOUT', model: null }))
+      released += 1;
+  }
+  return released;
+}
+
+/** «/analytics» in the bot: the same numbers now, without the review (no model call), stored nowhere. */
 export async function dailyReportNow(deps: {
   analytics: ContentAnalyticsRepository;
   forecasts: Pick<ContentForecastRepository, 'accuracy'>;
@@ -237,5 +531,6 @@ export async function dailyReportNow(deps: {
     readDailyAnalytics({ repo: deps.analytics, clock: deps.clock, ...(deps.formats ? { formats: deps.formats } : {}) }),
     deps.forecasts.accuracy(now - 24 * HOUR_MS)
   ]);
-  return dailyReportHtml({ daily, timezone: deps.timezone, accuracy });
+  const html = dailyReportHtml({ data: { daily, accuracy }, timezone: deps.timezone, review: null });
+  return `${html}\n\n<i>Разбор ИИ приходит в ежедневном отчёте.</i>`;
 }

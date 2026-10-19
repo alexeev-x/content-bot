@@ -85,7 +85,7 @@ export interface DailyRow {
 }
 
 /** The table's short name: the title without the rubric the owner closes it with, cut at a word. */
-export function shortTitleOf(title: string): string {
+export function shortTitleOf(title: string, max = SHORT_TITLE_MAX): string {
   const bare = title
     .replace(/#\S+/g, ' ')
     .replace(/(учу\s*фидить|учусь\s*играть)[\s\S]*$/i, ' ')
@@ -94,8 +94,8 @@ export function shortTitleOf(title: string): string {
     .trim();
   const text = bare === '' ? title.trim() : bare;
   const letters = Array.from(text);
-  if (letters.length <= SHORT_TITLE_MAX) return text;
-  const cut = letters.slice(0, SHORT_TITLE_MAX).join('');
+  if (letters.length <= max) return text;
+  const cut = letters.slice(0, max).join('');
   const atWord = cut.lastIndexOf(' ');
   return `${(atWord >= 4 ? cut.slice(0, atWord) : cut).trimEnd()}…`;
 }

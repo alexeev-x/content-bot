@@ -25,6 +25,7 @@ import {
   collectContentAnalytics,
   raiseContentAlerts,
   raiseDailyReport,
+  releaseOverdueReports,
   SOURCE_D1_STATEMENTS
 } from '../modules/content-analytics';
 import { mirrorHeroAssets } from '../modules/hero-assets';
@@ -42,11 +43,12 @@ const CONTENT_SOURCE_MIN = 5 + SOURCE_D1_STATEMENTS;
 // Raising (settings, at most ten reads with the digest's goals, NEW_ALERTS_PER_TICK inserts) and sending two
 // alerts (stuck sweep, pending read, app origin, then claim, Telegram call and finish each).
 const CONTENT_ALERTS_RESERVE = 24;
-// The daily report, every statement counted (a batch counts each): settings, the dedup read, scoring (due list,
-// readings, one update), the accuracy read, the table (two item lists, a two-statement batch, checkpoints, six
-// format lists), the forecasts insert and the alert insert. Its own minute-2 slot, so the content alerts of
+// The daily report, every statement counted (a batch counts each): settings, the overdue release (its list and,
+// rarely, a read, an alert and an update), the dedup read, scoring (due list, readings, one update), the accuracy
+// read, the table (two item lists, a two-statement batch, checkpoints, six format lists), the forecasts insert
+// and the report row. Its own minute-2 slot, so the content alerts of
 // minute 8 keep their budget and send it six minutes later.
-const DAILY_REPORT_STATEMENTS = 20;
+const DAILY_REPORT_STATEMENTS = 24;
 /** A claim and one file (fetch, R2 write, update); more files when more is left. */
 const HERO_ASSETS_MIN = 6;
 // The tick of this UTC minute purges expired archived posts (cleanup runs at minute 0).
@@ -99,6 +101,8 @@ type TickContainer = Pick<
   | 'contentAlerts'
   | 'contentGoals'
   | 'contentForecasts'
+  | 'contentDailyReports'
+  | 'aiJobs'
   | 'contentSources'
   | 'contentFetch'
   | 'heroAssets'
@@ -432,9 +436,10 @@ export async function handleScheduled(controller: ScheduledController, container
     });
   }
 
-  // 7c'. the daily analytics report (AI plan P6): off until the owner switches it on in «Настройки». Raised once
-  // per owner-zone day from its hour as a content alert on idle minute-2 ticks, so step 7c sends it at minute 8
-  // with the same rules: one attempt, an unconfirmed send stays `unknown`.
+  // 7c'. the daily analytics report (AI plan P6): off until the owner switches it on in «Настройки». On idle
+  // minute-2 ticks from its owner-zone hour the day's numbers are stored once and the AI review is queued; the
+  // review job raises the content alert, and a report still waiting after 30 minutes goes out with the numbers
+  // alone. Step 7c sends it at minute 8: one attempt, an unconfirmed send stays `unknown`.
   if (
     minute % 10 === 2 &&
     (counts.due ?? 0) === 0 &&
@@ -444,15 +449,39 @@ export async function handleScheduled(controller: ScheduledController, container
     const { timezone, notifications } = await readPreferences();
     if (notifications.dailyReport)
       await step('daily-report', async () => {
+        const released = await releaseOverdueReports({
+          reports: container.contentDailyReports,
+          alerts: container.contentAlerts,
+          now: clock.now()
+        });
         const report = await raiseDailyReport({
           analytics: container.contentAnalytics,
           alerts: container.contentAlerts,
           forecasts: container.contentForecasts,
+          reports: container.contentDailyReports,
           clock,
           timezone,
           hour: notifications.dailyReportHour
         });
-        return { dailyReportRaised: report.raised ? 1 : 0 };
+        let queued = 0;
+        if (report.reportId !== null) {
+          try {
+            await container.aiJobs.send({ id: crypto.randomUUID(), kind: 'daily_review', reportId: report.reportId });
+            queued = 1;
+          } catch (error) {
+            // Not queued: the report waits and goes out with the numbers alone after the deadline.
+            logger.error({
+              component: 'scheduled',
+              operation: 'daily_review.enqueue',
+              errorCode: error instanceof Error ? error.name : 'unknown'
+            });
+          }
+        }
+        return {
+          dailyReportRaised: report.reportId === null ? 0 : 1,
+          dailyReviewQueued: queued,
+          dailyReportReleased: released
+        };
       });
   }
 
