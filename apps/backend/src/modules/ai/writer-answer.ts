@@ -22,6 +22,18 @@ export const WRITER_ANSWER_JSON_SCHEMA: { name: string; schema: Record<string, u
   }
 };
 
+/** A continuation (owner's answer, rewrite) is a draft: one question per task (plan TG-03), never a second. */
+export const WRITER_DRAFT_JSON_SCHEMA: { name: string; schema: Record<string, unknown> } = {
+  name: 'writer_draft',
+  schema: {
+    ...WRITER_ANSWER_JSON_SCHEMA.schema,
+    properties: {
+      ...(WRITER_ANSWER_JSON_SCHEMA.schema.properties as Record<string, unknown>),
+      kind: { type: 'string', enum: ['draft'] }
+    }
+  }
+};
+
 const answerSchema = z.object({
   kind: z.enum(['draft', 'needs_facts', 'ideas']),
   hooks: z.array(z.string()).max(3),

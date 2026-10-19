@@ -112,6 +112,8 @@ export function buildWriterPrompt(input: {
   format: WriterFormat;
   mode: WriterMode;
   task: string;
+  /** The owner already answered the model's question: the task ends with those facts. */
+  answered?: boolean;
   /** For a rewrite: the current text and the owner's instruction. */
   rewrite?: { text: string; instruction: string };
   holdOut?: readonly string[];
@@ -161,6 +163,10 @@ export function buildWriterPrompt(input: {
     if (input.mode === 'direct' && asksToInvent(input.task))
       parts.push('ЗАПРОС: тема на твой выбор (см. «Как отвечать»).');
     parts.push(`ЗАДАНИЕ:\n${input.task}`);
+    if (input.answered)
+      parts.push(
+        'Автор уже ответил на твой вопрос. Пиши черновик (kind «draft») из того, что есть; второй вопрос не задавай, недостающее не выдумывай.'
+      );
   }
   return { instructions, input: parts.filter(Boolean).join('\n\n') };
 }

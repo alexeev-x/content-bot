@@ -24,6 +24,7 @@ type TelegramCall = { method: string; body: { text?: string; reply_markup?: unkn
 let api: Api;
 let calls: TelegramCall[];
 let modelInputs: string[];
+let modelSchemas: (string | undefined)[];
 let nextMessageId: number;
 let nextUpdateId: number;
 let modelAnswers: (string | AiProviderError)[];
@@ -60,6 +61,7 @@ beforeEach(async () => {
   await updateAiSettings({ repo: createD1AiRepository(testDb()), clock: fakeClock() }, { revision: 0, ...settings });
   calls = [];
   modelInputs = [];
+  modelSchemas = [];
   nextMessageId = 20;
   nextUpdateId = 9000;
   modelAnswers = [questionAnswer, draftAnswer];
@@ -68,6 +70,7 @@ beforeEach(async () => {
     provider: 'openai',
     complete: (request) => {
       modelInputs.push(request.input);
+      modelSchemas.push(request.jsonSchema?.name);
       const answer = modelAnswers.shift();
       if (answer instanceof AiProviderError) return Promise.reject(answer);
       return Promise.resolve({
@@ -384,6 +387,9 @@ describe('Telegram AI writer', () => {
     expect((await deliver(message(OWNER_FACTS))).status).toBe(200);
     await api.settle();
     expect(modelInputs[1]).toContain(OWNER_FACTS);
+    // One question per task (TG-03, owner DEV run 19.10.2026): the answer may only produce a draft.
+    expect(modelSchemas).toEqual(['writer_answer', 'writer_draft']);
+    expect(modelInputs[1]).toContain('второй вопрос не задавай');
     expect(
       await testDb().prepare("SELECT COUNT(*) AS n FROM ai_generations WHERE result = 'draft'").first<{ n: number }>()
     ).toEqual({ n: 1 });

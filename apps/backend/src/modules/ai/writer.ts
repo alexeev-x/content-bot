@@ -37,7 +37,12 @@ import {
   rankOwnerTexts,
   repeatsRecentTopic
 } from './writer-prompt';
-import { type DraftFacets, parseWriterAnswer, WRITER_ANSWER_JSON_SCHEMA } from './writer-answer';
+import {
+  type DraftFacets,
+  parseWriterAnswer,
+  WRITER_ANSWER_JSON_SCHEMA,
+  WRITER_DRAFT_JSON_SCHEMA
+} from './writer-answer';
 import type { WriterFormat, WriterMode } from './writer-types';
 
 // The AI writer (docs/ai/architecture.md items 2, 4, 7, 9, 20): a draft is stored as AI_DRAFT, the owner's
@@ -166,7 +171,7 @@ async function call(
       model,
       ...prompt,
       maxOutputTokens: MAX_OUTPUT_TOKENS,
-      jsonSchema: WRITER_ANSWER_JSON_SCHEMA,
+      jsonSchema: row.parentGenerationId === null ? WRITER_ANSWER_JSON_SCHEMA : WRITER_DRAFT_JSON_SCHEMA,
       signal
     });
     const usageId = deps.newId();
@@ -311,6 +316,7 @@ export async function generateDraft(
       format: input.format,
       mode: input.mode,
       task,
+      answered: row.parentGenerationId !== null,
       holdOut: input.holdOut ?? [],
       author: await author(deps),
       ownerTexts: rankOwnerTexts(task, await ownerTexts(deps, input.format), OWNER_TEXTS),
