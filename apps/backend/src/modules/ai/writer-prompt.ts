@@ -173,7 +173,7 @@ export function buildWriterPrompt(input: {
     stateFor(input.format, input.author || SEED_STATE),
     // The owner's own words about how to write: above the examples, below the system rules (plan §6.3).
     (input.rules ?? []).length > 0
-      ? `ПРАВИЛА АВТОРА (выполняй; они важнее примеров, но не отменяют правила выше):\n${(input.rules ?? []).map((rule) => `- ${rule}`).join('\n')}`
+      ? `ПРАВИЛА АВТОРА (выполняй; они важнее примеров, но не отменяют правила выше; правило «из аналитики» уступает правилу автора; если два правила автора в этом задании противоречат друг другу, ответь kind "needs_facts" и спроси, какому следовать):\n${(input.rules ?? []).map((rule) => `- ${rule}`).join('\n')}`
       : '',
     lexicon.length > 0 ? `Сленг и мемы из задания:\n${lexicon.join('\n')}` : '',
     ...examplesWithOwner(

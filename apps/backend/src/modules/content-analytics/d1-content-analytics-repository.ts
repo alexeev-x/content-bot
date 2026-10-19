@@ -116,6 +116,8 @@ export interface ContentAnalyticsRepository {
     after?: readonly [number, string] | undefined;
     limit: number;
   }): Promise<ItemRow[]>;
+  /** The ids among `ids` whose numbers the owner marked distorted (at most 100 ids), in one query. */
+  contaminatedAmong(ids: readonly string[]): Promise<Set<string>>;
   /** The item, its newest snapshots, the owner's format mark and contamination, in one round trip. */
   readItem(id: string): Promise<{
     item: ItemRow;
@@ -465,6 +467,18 @@ export function createD1ContentAnalyticsRepository(db: D1Database): ContentAnaly
         )
         .bind(days, version, builtAt, report)
         .run();
+    },
+
+    async contaminatedAmong(ids) {
+      if (ids.length === 0) return new Set();
+      const rows = await db
+        .prepare(
+          `SELECT item_id AS id FROM content_item_contamination
+           WHERE item_id IN (SELECT value FROM json_each(?1)) LIMIT 100`
+        )
+        .bind(JSON.stringify(ids.slice(0, 100)))
+        .all<{ id: string }>();
+      return new Set(rows.results.map((row) => row.id));
     },
 
     async readItem(id) {

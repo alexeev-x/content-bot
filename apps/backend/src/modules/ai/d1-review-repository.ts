@@ -31,6 +31,17 @@ export interface ReviewResult {
   usageId: string | null;
 }
 
+/** A reviewed video's measured result with the approved Reels script it was filmed from, in one query. */
+export interface ReviewResultRow {
+  itemId: string;
+  result: 'above' | 'below';
+  /** When the review was queued, at the 72 h settle: never later than the result, so a rule's freshness errs safe. */
+  measuredAt: number;
+  revisionId: string;
+  format: 'fidit' | 'igrat' | 'standalone';
+  script: string;
+}
+
 export interface ReviewRepository {
   /** Adds a pending row per id; an existing row (in any state) stays as it is. Returns how many were new. */
   enqueue(ids: readonly string[], now: number): Promise<number>;
@@ -44,6 +55,11 @@ export interface ReviewRepository {
   /** Gives a failed attempt back for the next tick; false when the lease was lost. */
   release(input: { itemId: string; leaseUntil: number; now: number }): Promise<boolean>;
   find(itemId: string): Promise<ReviewRow | null>;
+  /**
+   * Reviews written since `from` whose video ended above or below the same-rubric videos at 72 h, newest first, at
+   * most `limit`: the measured results the weekly rule consolidation weighs (AI plan P7).
+   */
+  recentResults(input: { from: number; limit: number }): Promise<ReviewResultRow[]>;
   /**
    * Puts back to pending at most `limit` reviews among `ids` that were limited only because reviews were off or the
    * budget refused: once the owner turns reviews on, videos still in the window get their hypotheses. Returns how many.
@@ -147,6 +163,25 @@ export function createD1ReviewRepository(db: D1Database): ReviewRepository {
         .bind(now, itemId, leaseUntil)
         .run();
       return done.meta.changes === 1;
+    },
+
+    async recentResults({ from, limit }) {
+      const rows = await db
+        .prepare(
+          `SELECT v.item_id AS itemId, json_extract(v.observation_json, '$.position') AS result,
+                  v.created_at AS measuredAt, r.id AS revisionId, g.format, r.text AS script
+           FROM ai_video_reviews v
+           JOIN content_ai_links l ON l.content_item_id = v.item_id
+           JOIN ai_text_revisions r ON r.id = l.revision_id JOIN ai_generations g ON g.id = r.generation_id
+           WHERE v.status IN ('ready', 'limited') AND v.created_at >= ?1
+             AND (v.limited_reason IS NULL OR v.limited_reason NOT IN ('contaminated', 'no_snapshot', 'weak_baseline'))
+             AND json_extract(v.observation_json, '$.position') IN ('above', 'below')
+             AND g.format IN ('fidit', 'igrat', 'standalone')
+           ORDER BY v.created_at DESC LIMIT ?2`
+        )
+        .bind(from, Math.min(limit, 100))
+        .all<ReviewResultRow>();
+      return rows.results;
     },
 
     async find(itemId) {

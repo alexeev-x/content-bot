@@ -3,6 +3,7 @@ import { dailyReviewInput, type DailyReview, releaseDailyReport } from '../../mo
 import { getOwnerOperationsSettings } from '../../modules/settings';
 import { AppError } from '../../shared/app-error';
 import type { Container } from '../container';
+import { runRuleConsolidation } from './rule-consolidation';
 import { sendBudgetAlerts } from './run-ai-reviews';
 
 // The AI review of a stored daily report (AI plan P6), run by the AI_JOBS consumer: the model explains the stored
@@ -94,4 +95,6 @@ export async function runDailyReview(
     { reports, alerts: container.contentAlerts, now: container.clock.now() },
     { id: reportId, review, reviewError, model }
   );
+  // Once a week, after the report is out: the analysis rules are weighed against the new results (AI plan P7).
+  if (found.period === 'week') await runRuleConsolidation(reportId, container, requestId, onError);
 }

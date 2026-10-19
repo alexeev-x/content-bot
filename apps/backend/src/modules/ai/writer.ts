@@ -84,7 +84,9 @@ export interface WriterDeps {
 const PROMPT_RULES = RULES_IN_USE_MAX;
 
 async function rulesFor(deps: WriterDeps, format: WriterFormat): Promise<string[]> {
-  return ((await deps.rules?.forPrompt(format, PROMPT_RULES)) ?? []).map((rule) => rule.text);
+  return ((await deps.rules?.forPrompt(format, PROMPT_RULES)) ?? []).map((rule) =>
+    rule.source === 'analysis' ? `(из аналитики) ${rule.text}` : rule.text
+  );
 }
 
 export interface WriterResult {

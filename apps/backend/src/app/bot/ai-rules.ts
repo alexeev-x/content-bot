@@ -24,7 +24,7 @@ const BY_CODE = Object.fromEntries(Object.entries(CODE).map(([scope, code]) => [
   string,
   RuleScope
 >;
-export const RULE_CALLBACK = /^rl:([0-9a-f-]{36}):([aifts]|x|off)$/;
+export const RULE_CALLBACK = /^rl:([0-9a-f-]{36}):([aifts]|x|off|ok|no)$/;
 
 const USAGE_TEXT =
   'Напишите правило после команды, например: <code>/rule в «Учусь играть» не начинай с описания героя</code>';
@@ -85,6 +85,45 @@ export function registerAiRules(bot: Bot, runtime: AiRulesRuntime): void {
     const rule = await rules.find(id);
     if (rule === null) {
       await ctx.answerCallbackQuery({ text: 'Эта кнопка устарела.' });
+      return;
+    }
+    if (action === 'ok') {
+      // An analysis rule the evidence supports (app/workflows/rule-consolidation.ts): in use only after this «Да».
+      const approved = await rules.approve({ id, now });
+      const full = !approved && rule.approvedAt === null && rule.status !== 'disabled' && rule.status !== 'deprecated';
+      await ctx.answerCallbackQuery({
+        text: approved
+          ? 'Учту в новых сценариях.'
+          : full && rule.status !== 'candidate'
+            ? `Уже ${RULES_IN_USE_MAX} правил. Отключите лишнее в /rules и нажмите снова.`
+            : 'Эта кнопка устарела.'
+      });
+      if (approved)
+        await ctx
+          .editMessageText(
+            `💡 Учитываю в новых сценариях:
+«${escapeHtml(rule.text)}»
+
+Отключить — /rules.`,
+            {
+              parse_mode: 'HTML'
+            }
+          )
+          .catch(runtime.onError);
+      return;
+    }
+    if (action === 'no') {
+      // Turned down: never used and never proposed again (MEM-07).
+      const done = rule.source === 'analysis' && rule.approvedAt === null && (await rules.disable({ id, now }));
+      await ctx.answerCallbackQuery({ text: done ? 'Не буду учитывать.' : 'Эта кнопка устарела.' });
+      if (done)
+        await ctx
+          .editMessageText(
+            `Не учитываю:
+«${escapeHtml(rule.text)}»`,
+            { parse_mode: 'HTML' }
+          )
+          .catch(runtime.onError);
       return;
     }
     if (action === 'off' || action === 'x') {

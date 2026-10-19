@@ -6,9 +6,18 @@ export {
   type RuleRow,
   type RuleScope,
   type RulesRepository,
-  RULES_IN_USE_MAX
+  RULES_IN_USE_MAX,
+  ANALYSIS_RULES_MAX,
+  type RuleEvidence
 } from './d1-rules-repository';
 export { type AnalyticsReview, writeAnalyticsReview } from './analytics-review';
+export {
+  CONSOLIDATION_MAX_VIDEOS,
+  CONSOLIDATION_MIN_VIDEOS,
+  consolidateRules,
+  type ConsolidationResult,
+  type RuleVideo
+} from './rule-consolidation';
 export { type AiTextProvider, AiProviderError, type OwnerPost, type OwnerPostSource } from './ports';
 export {
   AI_KEY_NAME,
@@ -74,6 +83,6 @@ export {
 export { FORMAT_LABEL, WRITER_FORMATS, type WriterFormat } from './writer-types';
 export { authorStateText, rankLabel, readAuthorProfile, saveAuthorDota, updateAuthorProfile } from './author-profile';
 export { type AuthorProfileRepository, createD1AuthorProfileRepository } from './d1-author-repository';
-export { createD1ReviewRepository, type ReviewRepository } from './d1-review-repository';
+export { createD1ReviewRepository, type ReviewRepository, type ReviewResultRow } from './d1-review-repository';
 export type { ReviewVideo, ReviewVideoSource } from './ports';
 export { readVideoReview, type ReviewDeps, runVideoReviews, REVIEWS_PER_TICK } from './video-reviews';

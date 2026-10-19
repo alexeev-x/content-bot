@@ -186,4 +186,40 @@ describe('owner rules', () => {
     expect(list.length).toBeLessThan(4096);
     expect(buttons().filter((data) => data.endsWith(':off'))).toHaveLength(RULES_IN_USE_MAX);
   });
+
+  it('puts an analysis rule into prompts only after «Учитывать», and «Нет» turns it down for good', async () => {
+    const insert = (id: string, status: string) =>
+      testDb()
+        .prepare(
+          `INSERT INTO ai_rules (id, text, scope, source, status, created_at, updated_at)
+           VALUES (?1, ?2, 'igrat', 'analysis', ?3, 1, 1)`
+        )
+        .bind(id, `${RULE} ${status}`, status)
+        .run();
+    const ok = '00000000-0000-4000-8000-000000000001';
+    const no = '00000000-0000-4000-8000-000000000002';
+    const early = '00000000-0000-4000-8000-000000000003';
+    await insert(ok, 'supported');
+    await insert(no, 'strong');
+    await insert(early, 'candidate');
+    await tap(`rl:${early}:ok`);
+    await tap(`rl:${no}:no`);
+    await tap(`rl:${no}:ok`);
+    await tap(`rl:${ok}:ok`);
+    const statuses = await testDb()
+      .prepare('SELECT id, status, approved_at IS NOT NULL AS approved FROM ai_rules ORDER BY id')
+      .all<{ id: string; status: string; approved: number }>();
+    expect(statuses.results).toEqual([
+      { id: ok, status: 'supported', approved: 1 },
+      { id: no, status: 'disabled', approved: 0 },
+      { id: early, status: 'candidate', approved: 0 }
+    ]);
+    await say('/rules', true);
+    expect(calls.filter((call) => call.method === 'sendMessage').at(-1)?.body.text).toContain('из аналитики');
+    await say('Учусь играть на Пудже: промахнулся хуком');
+    await api.settle();
+    expect(inputs[0]).toContain(`${RULE} supported`);
+    expect(inputs[0]).not.toContain(`${RULE} strong`);
+    expect(inputs[0]).not.toContain(`${RULE} candidate`);
+  });
 });
