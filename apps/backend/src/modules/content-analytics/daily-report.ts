@@ -25,11 +25,10 @@ const FORECAST_SHOWN_READINGS = 6;
 /** Fewer scored forecasts than this is said to be too few to judge. */
 const ACCURACY_MIN = 5;
 const TITLE_MAX = 48;
-/** «↑ +80%» from a quarter above the usual, «↓ −40%» from a fifth below; between is «≈ обычно». */
+/** «↑» from a quarter above the usual, «↓» from a fifth below. */
 const ABOVE_USUAL = 1.25;
 const BELOW_USUAL = 0.8;
 const PLATFORM_NAME = { youtube: 'YouTube', tiktok: 'TikTok' } as const;
-const PLATFORM_ICON = { youtube: '▶️', tiktok: '🎵' } as const;
 const PLATFORM_KEY = { youtube: 'Y', tiktok: 'T' } as const;
 const FORMAT_NAME: Record<VideoFormat, string> = {
   fidit: '«Учу фидить»',
@@ -79,14 +78,6 @@ export function usualRatio(comparison: DailyComparison | null): number | null {
 export function usualPercent(comparison: DailyComparison | null): number | null {
   const ratio = usualRatio(comparison);
   return ratio === null ? null : Math.round((ratio - 1) * 100);
-}
-
-export function usualMark(comparison: DailyComparison | null): string | null {
-  const ratio = usualRatio(comparison);
-  const percent = usualPercent(comparison);
-  if (ratio === null || percent === null) return null;
-  if (ratio >= ABOVE_USUAL) return `↑ +${percent}%`;
-  return ratio <= BELOW_USUAL ? `↓ −${Math.abs(percent)}%` : '≈ обычно';
 }
 
 function ageText(hours: number): string {
@@ -215,60 +206,101 @@ export function reviewBlock(review: DailyReview, link: (key: string) => string):
   return lines;
 }
 
-/** A platform's cell in a video's line: its icon as the link, views, the day's growth and the usual. */
-function platformCell(platform: 'youtube' | 'tiktok', row: KeyedRow['row']): string {
-  const growth =
-    row.growth.kind === 'day'
-      ? `+${compactCount(row.growth.views)}`
-      : row.growth.kind === 'window'
-        ? `+${compactCount(row.growth.views)}/${row.growth.hours}ч`
-        : row.growth.kind === 'anomaly'
-          ? 'сброс'
-          : 'н/д';
-  return [
-    `<a href="${escapeHtml(cleanUrl(row.url))}">${PLATFORM_ICON[platform]}</a> ${row.views === null ? '—' : compactCount(row.views)}`,
-    growth,
-    usualMark(row.comparison),
-    row.status === 'ok' ? null : '⏳'
-  ]
-    .filter(Boolean)
-    .join(' ');
+/** One row of a platform table: the change column is the day's growth or the difference from the usual. */
+export interface TableRow {
+  title: string;
+  url: string;
+  views: number | null;
+  change: string;
+  /** «↑» well above the usual for the age, «↓» well below, «» otherwise. */
+  mark: '↑' | '↓' | '';
+  /** The numbers did not update in the last collection. */
+  stale: boolean;
 }
 
+/** Title room in a row: the whole row stays about 32 characters, one phone line (plan §4.2). */
+const TABLE_TITLE = 17;
+
+const fitTitle = (title: string) => {
+  const letters = Array.from(shortTitleOf(title, 80));
+  return letters.length > TABLE_TITLE
+    ? `${letters
+        .slice(0, TABLE_TITLE - 1)
+        .join('')
+        .trimEnd()}…`
+    : letters.join('');
+};
+
 /**
- * One line per video, newest first: the owner posts the same video on both platforms, so a title read once
- * carries both platforms' numbers (owner, 19.10.2026: the same list twice was noise).
+ * A platform's videos as a monospace table (owner, 19.10.2026: the line-per-video list with ▶️/🎵 looked bad;
+ * plan §4.2), then the row numbers as links: Telegram has no links inside `<pre>`.
  */
-function videoLines(daily: DailyAnalytics, timezone: string): string[] {
-  const lines = ['<b>📋 Ролики</b> · прирост за сутки'];
+export function platformTable(
+  platform: 'youtube' | 'tiktok',
+  changeLabel: string,
+  rows: readonly TableRow[]
+): string[] {
+  const line = (number: string, views: string, change: string, mark: string, title: string) =>
+    `${number.padEnd(1)} ${views.padStart(5)} ${change.padStart(5)}${mark.padEnd(1)} ${title}`;
+  const table = [
+    line('#', 'Всего', changeLabel, '', 'Ролик'),
+    ...rows.map((row, index) =>
+      line(
+        String(index + 1),
+        `${row.views === null ? '—' : compactCount(row.views)}${row.stale ? '*' : ''}`,
+        row.change,
+        row.mark,
+        fitTitle(row.title)
+      )
+    )
+  ];
+  const lines = [`<b>${PLATFORM_NAME[platform]}</b>`, `<pre>${escapeHtml(table.join('\n'))}</pre>`];
+  if (rows.length > 0)
+    lines.push(
+      `Открыть: ${rows.map((row, index) => `<a href="${escapeHtml(cleanUrl(row.url))}">${index + 1}</a>`).join(' · ')}`
+    );
+  if (rows.some((row) => row.stale)) lines.push('<i>* цифры не обновились при последнем сборе</i>');
+  return lines;
+}
+
+export function usualArrow(comparison: DailyComparison | null): '↑' | '↓' | '' {
+  const ratio = usualRatio(comparison);
+  if (ratio === null) return '';
+  return ratio >= ABOVE_USUAL ? '↑' : ratio <= BELOW_USUAL ? '↓' : '';
+}
+
+function growthCell(growth: DailyGrowth): string {
+  if (growth.kind === 'day') return `+${compactCount(growth.views)}`;
+  if (growth.kind === 'window') return `≈+${compactCount(growth.views)}`;
+  return growth.kind === 'anomaly' ? 'сброс' : 'н/д';
+}
+
+/** One table per platform, newest first (owner, 19.10.2026: «Две таблицы»). */
+function videoTables(daily: DailyAnalytics, timezone: string): string[] {
+  const lines: string[] = [];
   for (const platform of daily.platforms) {
-    if (platform.state === 'pending')
-      lines.push(`${PLATFORM_ICON[platform.platform]} данных ещё нет: источник не собирался.`);
+    if (lines.length > 0) lines.push('');
+    if (platform.state === 'pending') {
+      lines.push(`<b>${PLATFORM_NAME[platform.platform]}</b>`, 'Данных ещё нет: источник не собирался.');
+      continue;
+    }
     if (platform.state === 'error')
       lines.push(
         `⚠️ ${PLATFORM_NAME[platform.platform]}: последний сбор не удался — цифры на ${time(platform.lastSuccessAt, timezone)}.`
       );
+    const rows = [...platform.rows]
+      .sort((a, b) => b.publishedAt - a.publishedAt)
+      .map((row) => ({
+        title: row.title,
+        url: row.url,
+        views: row.views,
+        change: growthCell(row.growth),
+        mark: usualArrow(row.comparison),
+        stale: row.status !== 'ok'
+      }));
+    if (rows.length === 0) lines.push(`<b>${PLATFORM_NAME[platform.platform]}</b>`, 'Роликов пока нет.');
+    else lines.push(...platformTable(platform.platform, '+сут', rows));
   }
-  const videos = new Map<string, { title: string; publishedAt: number; ageHours: number; cells: string[] }>();
-  for (const platform of daily.platforms)
-    for (const row of platform.rows) {
-      const title = shortTitleOf(row.title, TITLE_MAX);
-      const key = title.toLowerCase().replaceAll('ё', 'е');
-      const video = videos.get(key) ?? { title, publishedAt: row.publishedAt, ageHours: row.ageHours, cells: [] };
-      video.publishedAt = Math.max(video.publishedAt, row.publishedAt);
-      video.ageHours = Math.min(video.ageHours, row.ageHours);
-      video.cells.push(platformCell(platform.platform, row));
-      videos.set(key, video);
-    }
-  if (videos.size === 0) return [...lines, 'Роликов пока нет.'];
-  [...videos.values()]
-    .sort((a, b) => b.publishedAt - a.publishedAt)
-    .forEach((video, index) =>
-      lines.push(
-        `${index + 1}. ${escapeHtml(video.title)} · ${ageText(video.ageHours)}`,
-        `    ${video.cells.join('  ·  ')}`
-      )
-    );
   return lines;
 }
 
@@ -279,7 +311,7 @@ function dayTotals(daily: DailyAnalytics): string | null {
     if (counted.length === 0) return [];
     const total = counted.reduce((sum, row) => sum + (row.growth.views ?? 0), 0);
     const approximate = counted.some((row) => row.growth.kind === 'window');
-    return [`${PLATFORM_ICON[platform.platform]} ${approximate ? '≈' : ''}+${compactCount(total)}`];
+    return [`${PLATFORM_NAME[platform.platform]} ${approximate ? '≈' : ''}+${compactCount(total)}`];
   });
   return parts.length === 0 ? null : `За сутки: ${parts.join(' · ')}`;
 }
@@ -312,8 +344,7 @@ export function dailyReportHtml(input: {
   const rows = keyedRows(daily);
   const totals = dayTotals(daily);
   const lines = [
-    `<b>📊 Аналитика · ${day}</b>`,
-    `Данные на ${time(daily.asOf, input.timezone)}${daily.partial ? ' · частично' : ''}`,
+    `<b>📈 Аналитика · ${day}, ${time(daily.asOf, input.timezone)}</b>${daily.partial ? ' · данные частично' : ''}`,
     ...(totals === null ? [] : [totals])
   ];
   const link = (key: string) => {
@@ -325,7 +356,7 @@ export function dailyReportHtml(input: {
   if (input.review !== null) lines.push('', ...reviewBlock(input.review, link));
   else if (input.reviewError)
     lines.push('', `<i>🧠 Разбор недоступен: ${REVIEW_MISSING[input.reviewError] ?? 'ошибка ИИ'}.</i>`);
-  lines.push('', ...videoLines(daily, input.timezone));
+  lines.push('', ...videoTables(daily, input.timezone));
   const tail = [
     forecastLine(rows, input.timezone),
     accuracy.scored > 0

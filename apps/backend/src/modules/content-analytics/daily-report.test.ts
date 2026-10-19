@@ -78,9 +78,9 @@ describe('daily report text', () => {
     );
     expect(html).toContain('<i>Гипотеза (низкая уверенность): длинное начало</i>');
     expect(html).toContain('🎬 <b>Попробовать:</b> Начать с косяка.');
-    expect(html).toContain(
-      '1. Как я на оракле играл · 30 ч\n    <a href="https://www.tiktok.com/@alexeev_x/video/769">▶️</a> 2.7к +173 ↑ +80%'
-    );
+    // Above the usual is an arrow by the growth; the title is cut to keep the row one phone line.
+    expect(html).toContain('\n1  2.7к  +173↑ Как я на оракле…</pre>');
+    expect(html).toContain('Открыть: <a href="https://www.tiktok.com/@alexeev_x/video/769">1</a>');
     expect(html).not.toContain('utm_');
   });
 

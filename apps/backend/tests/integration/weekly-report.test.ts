@@ -100,16 +100,16 @@ describe('weekly report', () => {
       .bind(ids[0])
       .first<{ title: string; html: string }>();
     expect(alert?.title).toBe('Итоги недели');
-    expect(alert?.html).toContain('<b>📊 Итоги недели · 12 октября — 18 октября</b>');
-    expect(alert?.html).toContain('Подписчики: ✈️ 831 (+11)');
+    expect(alert?.html).toContain('<b>📈 Итоги недели · 12 октября — 18 октября</b>');
+    expect(alert?.html).toContain('Подписчики: Telegram 831 (+11)');
     expect(alert?.html).toMatch(/🎯 Telegram: 831 из 1\s000/u);
     expect(alert?.html).toContain('<b>🧠 Разбор</b>\nНеделя ровная.');
-    // One line per video across both platforms, clean links.
-    expect(alert?.html).toMatch(
-      /1\. Как я на оракле играл\n {4}<a href="https:\/\/example\.com\/youtube:o">▶️<\/a> 4\.2к {2}· {2}<a href="https:\/\/example\.com\/tiktok:o">🎵<\/a> 12\.6к/
-    );
+    // One table per platform, as in the daily report; clean links under each.
+    expect(alert?.html).toMatch(/<b>YouTube<\/b>\n<pre>#\s+Всего\s+обыч.\s+Ролик\n1\s+4\.2к\s+\S+\s+Как я на оракле…/u);
+    expect(alert?.html).toMatch(/<b>TikTok<\/b>\n<pre>#\s+Всего\s+обыч.\s+Ролик\n1\s+12\.6к\s+\S+\s+Как я на оракле…/u);
+    expect(alert?.html).toContain('Открыть: <a href="https://example.com/youtube:o">1</a>');
     expect(alert?.html).toContain(
-      '<b>✈️ Посты недели</b>\n1. <a href="https://example.com/telegram:1">Открыл обучение, ничего не понял</a> · 366'
+      '<b>Telegram</b> · посты недели\n1. <a href="https://example.com/telegram:1">Открыл обучение, ничего не понял</a> · 366'
     );
     expect(alert?.html).not.toContain('utm_');
   });
@@ -130,7 +130,7 @@ describe('weekly report followers', () => {
       .prepare('SELECT html FROM content_alerts WHERE id = ?')
       .bind(reportId)
       .first<{ html: string }>();
-    expect(alert?.html).toContain('Подписчики: ✈️ 831 (+11)');
-    expect(alert?.html).not.toContain('🎵');
+    expect(alert?.html).toContain('Подписчики: Telegram 831 (+11)');
+    expect(alert?.html).not.toContain('Подписчики: TikTok');
   });
 });

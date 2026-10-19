@@ -133,12 +133,14 @@ describe('daily report', () => {
     ).toBe(false);
     const [alert] = await alertRows();
     expect(alert?.html).toContain('<b>🧠 Разбор</b>\nДень ровный.');
+    // One monospace table per platform, the row numbers as links below it (owner, 19.10.2026).
     expect(alert?.html).toMatch(
-      /1\. Ролик &lt;0&gt; · \d+ ч\n {4}<a href="https:\/\/youtube\.com\/shorts\/0">▶️<\/a> 3\.5к \+2\.4к/
+      /<b>YouTube<\/b>\n<pre>#\s+Всего\s+\+сут\s+Ролик\n1\s+3\.5к\s+\+2\.4к\s+Ролик &lt;0&gt;\n/u
     );
-    expect(alert?.html).toContain('За сутки: ▶️ +7.2к');
-    expect(alert?.html).toContain('href="https://youtube.com/shorts/0"');
-    expect(alert?.html).toContain('🎵 данных ещё нет: источник не собирался.');
+    expect(alert?.html).toContain('За сутки: YouTube +7.2к');
+    expect(alert?.html).toContain('Открыть: <a href="https://youtube.com/shorts/0">1</a> · ');
+    expect(alert?.html).toContain('<b>TikTok</b>\nДанных ещё нет: источник не собирался.');
+    expect(alert?.html).not.toMatch(/▶️|🎵|📊|📋/u);
     expect(Array.from(alert?.html ?? '').length).toBeLessThan(4096);
     expect(await reportRows()).toMatchObject([{ status: 'reviewed', reviewError: null }]);
   });

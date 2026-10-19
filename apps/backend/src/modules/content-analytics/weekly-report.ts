@@ -8,7 +8,8 @@ import {
   type DailyReview,
   reviewBlock,
   REVIEW_MISSING,
-  usualMark,
+  platformTable,
+  usualArrow,
   usualPercent
 } from './daily-report';
 import { comparisonOf, type DailyComparison, shortTitleOf } from './daily-table';
@@ -36,7 +37,6 @@ const POSTS_MAX = 3;
 const ITEM_LIMIT = 1000;
 const TITLE_MAX = 48;
 const PLATFORM_NAME: Record<ContentPlatform, string> = { youtube: 'YouTube', tiktok: 'TikTok', telegram: 'Telegram' };
-const PLATFORM_ICON: Record<ContentPlatform, string> = { youtube: '▶️', tiktok: '🎵', telegram: '✈️' };
 const FORMAT_NAME: Record<VideoFormat, string> = {
   fidit: '«Учу фидить»',
   igrat: '«Учусь играть»',
@@ -269,7 +269,7 @@ export function weeklyReportHtml(input: {
 }): string {
   const { data, timezone } = input;
   const lines = [
-    `<b>📊 Итоги недели · ${range(data, timezone)}</b>`,
+    `<b>📈 Итоги недели · ${range(data, timezone)}</b>`,
     data.published === 0
       ? 'За неделю публикаций не было.'
       : `Публикаций: ${data.published} (неделей раньше ${data.publishedBefore})`
@@ -279,7 +279,7 @@ export function weeklyReportHtml(input: {
       `Подписчики: ${data.followers
         .map(
           (row) =>
-            `${PLATFORM_ICON[row.platform]} ${exact.format(row.followers)}${row.change === null ? '' : ` (${signedCount(row.change)})`}`
+            `${PLATFORM_NAME[row.platform]} ${exact.format(row.followers)}${row.change === null ? '' : ` (${signedCount(row.change)})`}`
         )
         .join(' · ')}`
     );
@@ -321,25 +321,29 @@ export function weeklyReportHtml(input: {
       `<b>🏷 Рубрики</b> · ${rubrics.map((row) => `${FORMAT_NAME[row.format]} ${signedPercent(row.percent)}`).join(' · ')}`
     );
   if (data.videos.length > 0) {
-    lines.push('', '<b>📋 Ролики недели</b> · к обычному для рубрики того же возраста');
-    data.videos.forEach((video, index) =>
-      lines.push(
-        `${index + 1}. ${escapeHtml(shortTitleOf(video.title, TITLE_MAX))}`,
-        `    ${video.cells
-          .map((cell) =>
-            [
-              `<a href="${escapeHtml(cleanUrl(cell.url))}">${PLATFORM_ICON[cell.platform]}</a> ${cell.views === null ? '—' : compactCount(cell.views)}`,
-              usualMark(cell.comparison)
-            ]
-              .filter(Boolean)
-              .join(' ')
-          )
-          .join('  ·  ')}`
-      )
-    );
+    lines.push('', '<i>Ролики недели; «обыч.» — к обычному для рубрики того же возраста.</i>');
+    // One table per platform, as in the daily report (owner, 19.10.2026: «Две таблицы»).
+    for (const platform of ['youtube', 'tiktok'] as const) {
+      const rows = data.videos.flatMap((video) =>
+        video.cells
+          .filter((cell) => cell.platform === platform)
+          .map((cell) => {
+            const percent = usualPercent(cell.comparison);
+            return {
+              title: video.title,
+              url: cell.url,
+              views: cell.views,
+              change: percent === null ? '—' : signedPercent(percent),
+              mark: usualArrow(cell.comparison),
+              stale: false
+            };
+          })
+      );
+      if (rows.length > 0) lines.push('', ...platformTable(platform, 'обыч.', rows));
+    }
   }
   if (data.posts.length > 0) {
-    lines.push('', '<b>✈️ Посты недели</b>');
+    lines.push('', '<b>Telegram</b> · посты недели');
     data.posts.forEach((post, index) =>
       lines.push(
         `${index + 1}. <a href="${escapeHtml(cleanUrl(post.url))}">${escapeHtml(shortTitleOf(post.title, TITLE_MAX))}</a> · ${post.views === null ? '—' : compactCount(post.views)}`
