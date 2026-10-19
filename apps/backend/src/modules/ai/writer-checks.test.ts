@@ -30,6 +30,14 @@ describe('stage 1 code checks', () => {
     );
   });
 
+  it('flags the rubric opener and «подпишись» in «Учусь играть»: the author says them himself (19.10.2026)', () => {
+    expect(checkDraft('igrat', 'direct', 'Учусь играть в Доту. Пудж ловит крипов.')).toContain('IGRAT_FIXED_LINES');
+    expect(checkDraft('igrat', 'direct', 'Пудж ловит крипов. А ты подпишись уже, заебал.')).toContain(
+      'IGRAT_FIXED_LINES'
+    );
+    expect(checkDraft('igrat', 'direct', 'Пудж ловит крипов. Бронзовый Габен.')).not.toContain('IGRAT_FIXED_LINES');
+  });
+
   it('describes both codes in the owner words', () => {
     expect(describeCheck('JOKE_EXPLAINED')).toBe('шутку объясняют после панчлайна');
     expect(describeCheck('INVITE_NO_DETAILS')).toBe('приглашение без времени или ссылки');

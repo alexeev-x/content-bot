@@ -51,6 +51,17 @@ function overlap(task: Set<string>, text: string): number {
   return score;
 }
 
+/**
+ * Owner, 19.10.2026: the author says «Учусь играть в Доту» and «подпишись, заебал» himself, so the examples of
+ * that rubric go without them and the model does not spend tokens repeating them.
+ */
+export function withoutIgratFixedLines(text: string): string {
+  return text
+    .replace(/^\s*учусь играть в доту[!.]?\s*/i, '')
+    .replace(/\s*[^.!?\n]*подпишись[^\n]*$/i, '')
+    .trim();
+}
+
 function clip(text: string): string {
   return text.length > MAX_EXAMPLE_CHARS ? `${text.slice(0, MAX_EXAMPLE_CHARS).trimEnd()}…` : text;
 }
@@ -88,7 +99,10 @@ export function pickExamples(format: WriterFormat, task: string, holdOut: readon
     .sort((a, b) => b.score - a.score)
     .slice(0, 3)
     .reverse()
-    .map(({ row }) => `Пример (${row.r === 'g' ? 'эталон' : 'референс'}, «${row.title}»):\n${clip(row.t)}`);
+    .map(
+      ({ row }) =>
+        `Пример (${row.r === 'g' ? 'эталон' : 'референс'}, «${row.title}»):\n${clip(format === 'igrat' ? withoutIgratFixedLines(row.t) : row.t)}`
+    );
 }
 
 const MAX_OWNER_EXAMPLES = 2;
@@ -134,7 +148,10 @@ export function buildWriterPrompt(input: {
   const parts = [
     stateFor(input.format, input.author || SEED_STATE),
     lexicon.length > 0 ? `Сленг и мемы из задания:\n${lexicon.join('\n')}` : '',
-    ...examplesWithOwner(pickExamples(input.format, input.task, input.holdOut), input.ownerTexts ?? []),
+    ...examplesWithOwner(
+      pickExamples(input.format, input.task, input.holdOut),
+      (input.ownerTexts ?? []).map((text) => (input.format === 'igrat' ? withoutIgratFixedLines(text) : text))
+    ),
     // Facets only, never the texts: an AI draft is not a voice example (architecture item 2). Every format,
     // so a post does not retell the idea of yesterday's Reels.
     recent.length > 0

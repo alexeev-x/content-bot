@@ -549,6 +549,19 @@ describe('AI writer checks', () => {
     );
   });
 
+  it('gives «Учусь играть» examples without the opener and «подпишись» (owner, 19.10.2026)', () => {
+    const { input } = buildWriterPrompt({
+      format: 'igrat',
+      mode: 'direct',
+      task: 'Учусь играть на Пудже',
+      ownerTexts: ['Учусь играть в Доту! Пудж ловит крипов. А ты подпишись уже, заебал.']
+    });
+    expect(input).toContain('одобрен в студии):\nПудж ловит крипов.\n');
+    const examples = pickExamples('igrat', 'Учусь играть на Пудже');
+    expect(examples.length).toBeGreaterThan(0);
+    for (const example of examples) expect(example).not.toMatch(/учусь играть в доту|подпишись/i);
+  });
+
   it('reads a writing request in plain words and leaves other text a plain draft', () => {
     expect(writerIntent('напиши пост в тг про новый патч')).toMatchObject({ format: 'telegram' });
     expect(writerIntent('Сделай рилс учусь играть про варды')).toMatchObject({ format: 'igrat' });

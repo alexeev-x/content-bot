@@ -35,7 +35,8 @@ export function checkDraft(format: WriterFormat, mode: WriterMode, text: string,
   if (CAPS_LINE.test(text)) codes.push('CAPS_LINE');
   const subscribe = /подпишись/i.test(text);
   if (format === 'fidit' && subscribe) codes.push('ENDING_FIDIT_CTA');
-  if (format === 'igrat' && !subscribe) codes.push('ENDING_IGRAT_CTA_MISSING');
+  // Owner, 19.10.2026: the author says the rubric opener and «подпишись» himself; the text goes without them.
+  if (format === 'igrat' && (subscribe || IGRAT_OPENER.test(text))) codes.push('IGRAT_FIXED_LINES');
   if (mode === 'automatic' && SELF_EXPERIENCE.test(text)) codes.push('INVENTED_EXPERIENCE');
   // «Учу фидить» is told with full confidence: the pseudo-expert never puts himself down (owner, 16.10.2026).
   if (format === 'fidit' && SELF_DOUBT.test(text)) codes.push('FIDIT_SELF_DOUBT');
@@ -57,6 +58,7 @@ export function checkDraft(format: WriterFormat, mode: WriterMode, text: string,
 }
 
 const DOUBLED_WORD = /(?<![а-яёa-z])([а-яёa-z]{2,})\s+\1(?![а-яёa-z])/iu;
+const IGRAT_OPENER = /учусь играть в доту/i;
 const PATCH_CLAIM = /(в (новом|последнем|этом|свежем) патче|понерф|нерфнул|бафнул|бафф?ну)/i;
 const PATCH_SOURCE = /патч|нерф|баф|обнов/i;
 const JOKE_EXPLAINED =
@@ -73,6 +75,8 @@ export function describeCheck(code: string): string {
     EMOJI_BULLETS: 'эмодзи вместо пунктов',
     CAPS_LINE: 'строка капсом',
     ENDING_FIDIT_CTA: '«подпишись» в «Учу фидить» — так нельзя',
+    IGRAT_FIXED_LINES: '«Учусь играть в Доту» и «подпишись» автор говорит сам — уберите из текста',
+    // Older drafts keep the code of the earlier rule (before 19.10.2026).
     ENDING_IGRAT_CTA_MISSING: 'нет концовки «А ты подпишись уже, заебал»',
     INVENTED_EXPERIENCE: 'выдуманный личный опыт («я играл», «мне понравилось»)',
     FIDIT_SELF_DOUBT: 'в «Учу фидить» автор принижает себя — там только уверенный тон',
