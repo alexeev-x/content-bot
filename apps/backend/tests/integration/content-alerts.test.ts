@@ -1,12 +1,8 @@
 import { GrammyError } from 'grammy';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { sendContentAlerts } from '../../src/app/workflows/send-content-alerts';
-import {
-  createD1ContentAlertRepository,
-  createD1ContentGoalRepository,
-  raiseContentAlerts
-} from '../../src/modules/content-analytics';
-import { digestAlert, digestWeekEnd, itemAlerts } from '../../src/modules/content-analytics/alerts';
+import { createD1ContentAlertRepository, raiseContentAlerts } from '../../src/modules/content-analytics';
+import { itemAlerts } from '../../src/modules/content-analytics/alerts';
 import type { TelegramOwnerMessageApi } from '../../src/integrations/telegram/telegram-api';
 import { createLogger } from '../../src/platform/logging/logger';
 import { testDb } from '../helpers/db';
@@ -92,13 +88,9 @@ describe('content alerts', () => {
     await insertItem({ id: 'calm', publishedAt: START - 6 * HOUR, views: 1000, v6h: 1000 });
     const repo = createD1ContentAlertRepository(testDb());
 
-    expect(
-      await raiseContentAlerts({ repo, goals: createD1ContentGoalRepository(testDb()), clock, timezone: TZ })
-    ).toEqual({ raised: 1 });
+    expect(await raiseContentAlerts({ repo, clock, timezone: TZ })).toEqual({ raised: 1 });
     // An overlapping or later tick raises nothing new.
-    expect(
-      await raiseContentAlerts({ repo, goals: createD1ContentGoalRepository(testDb()), clock, timezone: TZ })
-    ).toEqual({ raised: 0 });
+    expect(await raiseContentAlerts({ repo, clock, timezone: TZ })).toEqual({ raised: 0 });
     const [alert] = await repo.listPending(5);
     expect(alert).toMatchObject({
       id: 'item:tiktok:new:rising',
@@ -182,9 +174,8 @@ describe('content alerts', () => {
     // The last collection did not return it.
     await item('gone', START - 5 * HOUR, 800, START - 3 * HOUR);
 
-    const goals = createD1ContentGoalRepository(testDb());
-    await raiseContentAlerts({ repo, goals, clock, timezone: TZ });
-    await raiseContentAlerts({ repo, goals, clock, timezone: TZ });
+    await raiseContentAlerts({ repo, clock, timezone: TZ });
+    await raiseContentAlerts({ repo, clock, timezone: TZ });
     const alerts = await repo.listPending(10);
     expect(alerts.map((alert) => alert.id).sort()).toEqual(['item:tiktok:frozen:stalled', 'item:tiktok:gone:gone']);
     const frozen = alerts.find((alert) => alert.id.endsWith(':stalled'));
@@ -220,77 +211,12 @@ describe('content alerts', () => {
       )
       .bind(START - 2 * HOUR, START - 10 * 60_000)
       .run();
-    expect(
-      await raiseContentAlerts({ repo, goals: createD1ContentGoalRepository(testDb()), clock, timezone: TZ })
-    ).toEqual({ raised: 0 });
+    expect(await raiseContentAlerts({ repo, clock, timezone: TZ })).toEqual({ raised: 0 });
     clock.advance(HOUR + 60_000);
-    expect(
-      await raiseContentAlerts({ repo, goals: createD1ContentGoalRepository(testDb()), clock, timezone: TZ })
-    ).toEqual({ raised: 1 });
+    expect(await raiseContentAlerts({ repo, clock, timezone: TZ })).toEqual({ raised: 1 });
     clock.advance(HOUR);
-    expect(
-      await raiseContentAlerts({ repo, goals: createD1ContentGoalRepository(testDb()), clock, timezone: TZ })
-    ).toEqual({ raised: 0 });
+    expect(await raiseContentAlerts({ repo, clock, timezone: TZ })).toEqual({ raised: 0 });
     expect((await alertRows()).map((row) => row.id)).toEqual([`source:telegram:${START - 2 * HOUR}`]);
-  });
-
-  it('raises the digest on Monday after 10:00 in the owner zone, once a week', async () => {
-    const monday = Date.parse('2027-01-18T09:30:00Z'); // 11:30 in Chisinau (UTC+2)
-    const clock = fakeClock(Date.parse('2027-01-18T07:30:00Z')); // 09:30 there: too early
-    const repo = createD1ContentAlertRepository(testDb());
-    await insertItem({ id: 'w1', platform: 'telegram', publishedAt: monday - 4 * DAY, views: 900 });
-    await insertItem({ id: 'w2', platform: 'telegram', publishedAt: monday - 5 * DAY, views: 300 });
-    await insertItem({ id: 'p1', platform: 'telegram', publishedAt: monday - 10 * DAY, views: 300 });
-    await insertItem({ id: 'p2', platform: 'telegram', publishedAt: monday - 11 * DAY, views: 300 });
-    expect(
-      await raiseContentAlerts({ repo, goals: createD1ContentGoalRepository(testDb()), clock, timezone: TZ })
-    ).toEqual({ raised: 0 });
-
-    clock.set(monday);
-    expect(
-      await raiseContentAlerts({ repo, goals: createD1ContentGoalRepository(testDb()), clock, timezone: TZ })
-    ).toEqual({ raised: 1 });
-    clock.advance(HOUR);
-    expect(
-      await raiseContentAlerts({ repo, goals: createD1ContentGoalRepository(testDb()), clock, timezone: TZ })
-    ).toEqual({ raised: 0 });
-    const [digest] = await repo.listPending(5);
-    expect(digest?.id).toBe('digest:2027-01-18');
-    expect(digest?.title).toBe('Итоги недели 11 янв. — 17 янв.');
-    expect(spaces(digest?.body)).toContain('Публикаций: 2, на прошлой неделе 2.');
-    expect(digest?.body).toContain('1. «Ролик w1», Telegram: 900 (3×)');
-    // Each listed publication has its own button, numbered as in the text.
-    expect(digest?.html).toContain('1. <b>Telegram</b> — «Ролик w1», 900 просмотров');
-    expect(digest?.buttons[0]).toEqual({ text: '1. Telegram · Ролик w1', linkPath: '/analytics?id=telegram%3Aw1' });
-  });
-
-  it('keeps the digest week Monday to Sunday across a DST change', () => {
-    // Chisinau leaves summer time on Sunday 25.10.2026: that week is 169 hours long.
-    const now = Date.parse('2026-10-26T09:00:00Z');
-    const weekEnd = digestWeekEnd(now, TZ);
-    expect(weekEnd).toBe(Date.parse('2026-10-25T22:00:00Z'));
-    const digest = digestAlert({ items: [], checkpoints: [], followers: [], weekEnd: weekEnd!, now, timezone: TZ });
-    expect(digest.title).toBe('Итоги недели 19 окт. — 25 окт.');
-    const withGoal = digestAlert({
-      items: [],
-      checkpoints: [],
-      followers: [],
-      goals: [
-        {
-          platform: 'telegram',
-          target: 1000,
-          followers: 900,
-          perWeek: 35,
-          forecastDay: '2026-11-15',
-          reached: false,
-          setAt: new Date(now).toISOString()
-        }
-      ],
-      weekEnd: weekEnd!,
-      now,
-      timezone: TZ
-    });
-    expect(spaces(withGoal.body)).toContain('Цель Telegram: 900 из 1 000, +35 в неделю, при таком темпе к 15 нояб.');
   });
 
   it('sends each alert once: a rejection fails, a lost answer stays unknown, a stuck send becomes unknown', async () => {

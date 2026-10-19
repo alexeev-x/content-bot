@@ -14,10 +14,16 @@ const MAX_OUTPUT_TOKENS = 3000;
 const SUMMARY_MAX = 300;
 const NOTE_MAX = 160;
 
+/** What the review is about: the day's videos, or the week's with its themes and rubrics. */
+const PERIOD = {
+  day: 'Пишешь короткий разбор дня для автора: что заходит, что нет и почему, без воды.',
+  week: 'Пишешь разбор недели для автора: какие темы и рубрики заходили, какие нет и почему, что повторить на следующей неделе, без воды. Ролики называй ключами V1…, посты P1….'
+} as const;
+
 const INSTRUCTIONS = [
-  'Ты — аналитик канала автора ALEXEEV (шортсы про Доту на YouTube и TikTok). Пишешь короткий разбор дня для автора: что заходит, что нет и почему, без воды.',
+  'Ты — аналитик канала автора ALEXEEV (шортсы про Доту на YouTube и TikTok, Telegram-канал).',
   'ДАННЫЕ ниже — единственный источник. Каждое число в ответе бери только оттуда, слово в слово, со знаком и единицей (например «2.7к», «+80%», «−40%», «+173»). Новых чисел не считай и не придумывай: не «в 2 раза», не «10 тысяч».',
-  'Ролик называй только его ключом из данных (Y1…Y6, T1…T6) в полях video; в текстах названия не повторяй.',
+  'Ролик называй только его ключом из данных в полях video; в текстах названия не повторяй.',
   'Нельзя: удержание, досмотры, секунды, CTR, причины «по алгоритму» — этих данных нет. Не обещай рост.',
   'Гипотезы «почему» — только для роликов с пометкой «сравнение надёжное», по тому, что видно: тема, рубрика, возраст, название, а если есть сценарий — его начало (хук): сразу ли косяк или шутка, или заход через объяснение героя. Уверенность только low или medium. Где сравнение слабое — гипотез нет.',
   'rising — до 3 роликов выше обычного или с заметным приростом; weak — до 3 роликов ниже обычного. summary — 1–3 предложения о дне. next — один конкретный совет для следующего ролика. Пустое поле допустимо, выдумывать нельзя.',
@@ -125,7 +131,7 @@ export interface AnalyticsReviewDeps {
  */
 export async function writeAnalyticsReview(
   deps: AnalyticsReviewDeps,
-  input: { facts: string; videos: readonly string[]; signal: AbortSignal }
+  input: { facts: string; videos: readonly string[]; period?: keyof typeof PERIOD; signal: AbortSignal }
 ): Promise<{
   review: AnalyticsReview | null;
   errorCode: string | null;
@@ -139,7 +145,7 @@ export async function writeAnalyticsReview(
   try {
     result = await provider.complete({
       model,
-      instructions: INSTRUCTIONS,
+      instructions: `${INSTRUCTIONS}\n${PERIOD[input.period ?? 'day']}`,
       input: `ДАННЫЕ:\n${input.facts}`,
       maxOutputTokens: MAX_OUTPUT_TOKENS,
       jsonSchema: ANALYTICS_REVIEW_JSON_SCHEMA,

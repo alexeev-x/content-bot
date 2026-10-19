@@ -48,7 +48,8 @@ export async function runDailyReview(
   const scripts = await scriptLines(container, found.items);
   const input = {
     facts: scripts.length === 0 ? found.facts : `${found.facts}\n\nСценарии:\n${scripts.join('\n')}`,
-    videos: found.videos
+    videos: found.videos,
+    period: found.period
   };
   let review: DailyReview | null = null;
   let reviewError: string | null = null;

@@ -177,7 +177,7 @@ export interface Container {
   automations: AutomationRepository;
   /** Counters of the owner's own Telegram, YouTube and TikTok (migration 0043). */
   contentAnalytics: ContentAnalyticsRepository;
-  /** Bot alerts about the counters: a publication off its usual curve, a source outage, the digest (0047). */
+  /** Bot alerts about the counters: a publication off its usual curve, a source outage, the reports (0047). */
   contentAlerts: ContentAlertRepository;
   /** Follower goals per platform (0048). */
   contentGoals: ContentGoalRepository;

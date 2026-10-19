@@ -25,6 +25,7 @@ import {
   collectContentAnalytics,
   raiseContentAlerts,
   raiseDailyReport,
+  raiseWeeklyReport,
   releaseOverdueReports,
   SOURCE_D1_STATEMENTS
 } from '../modules/content-analytics';
@@ -41,15 +42,16 @@ const HEARTBEAT_RESERVE = 3;
 // 45 of the 50 subrequests, more than an idle tick has left, so the step collects what fits and defers the
 // rest to the next minute-3 tick ten minutes later (each source keeps its own hourly schedule).
 const CONTENT_SOURCE_MIN = 5 + SOURCE_D1_STATEMENTS;
-// Raising (settings, at most ten reads with the digest's goals, NEW_ALERTS_PER_TICK inserts) and sending two
+// Raising (settings, at most eight reads, NEW_ALERTS_PER_TICK inserts) and sending two
 // alerts (stuck sweep, pending read, app origin, then claim, Telegram call and finish each).
 const CONTENT_ALERTS_RESERVE = 24;
 // The daily report, every statement counted (a batch counts each): settings, the overdue release (its list and,
 // rarely, a read, an alert and an update), the dedup read, scoring (due list, readings, one update), the accuracy
 // read, the table (two item lists, a two-statement batch, checkpoints, six format lists), the forecasts insert
-// and the report row. Its own minute-2 slot, so the content alerts of
-// minute 8 keep their budget and send it six minutes later.
-const DAILY_REPORT_STATEMENTS = 24;
+// and the report row; the week's report instead takes its own reads (items, checkpoints, followers, goals, the
+// format lists, the row), plus its dedup read on Monday. Its own minute-2 slot, so the content alerts of minute
+// 8 keep their budget and send it six minutes later.
+const DAILY_REPORT_STATEMENTS = 26;
 // New videos' scripts, every statement counted: settings, two item lists, the prompts and links reads, at most two
 // videos handled (scripts read, the prompt with up to two links, the close: five each), the open prompts and
 // their messages read, up to two scripts and one alert batch of up to two — 22 at most.
@@ -443,10 +445,11 @@ export async function handleScheduled(controller: ScheduledController, container
     });
   }
 
-  // 7c'. the daily analytics report (AI plan P6): off until the owner switches it on in «Настройки». On idle
-  // minute-2 ticks from its owner-zone hour the day's numbers are stored once and the AI review is queued; the
-  // review job raises the content alert, and a report still waiting after 30 minutes goes out with the numbers
-  // alone. Step 7c sends it at minute 8: one attempt, an unconfirmed send stays `unknown`.
+  // 7c'. the analytics reports (AI plan P6). On idle minute-2 ticks: reports still waiting for their AI review
+  // after 30 minutes go out with the numbers alone; on Monday from 10:00 the week's report is stored once (always,
+  // like the digest it replaced); otherwise, when the owner switched it on, the day's report from its hour. A
+  // stored report's review is queued and the review job raises the content alert; step 7c sends it at minute 8.
+  // One report per tick keeps the tick's statements bounded.
   if (
     minute % 10 === 2 &&
     (counts.due ?? 0) === 0 &&
@@ -454,42 +457,55 @@ export async function handleScheduled(controller: ScheduledController, container
     container.queryBudget.remaining() >= DAILY_REPORT_STATEMENTS + HEARTBEAT_RESERVE
   ) {
     const { timezone, notifications } = await readPreferences();
-    if (notifications.dailyReport)
-      await step('daily-report', async () => {
-        const released = await releaseOverdueReports({
-          reports: container.contentDailyReports,
-          alerts: container.contentAlerts,
-          now: clock.now()
-        });
-        const report = await raiseDailyReport({
-          analytics: container.contentAnalytics,
-          alerts: container.contentAlerts,
-          forecasts: container.contentForecasts,
-          reports: container.contentDailyReports,
-          clock,
-          timezone,
-          hour: notifications.dailyReportHour
-        });
-        let queued = 0;
-        if (report.reportId !== null) {
-          try {
-            await container.aiJobs.send({ id: crypto.randomUUID(), kind: 'daily_review', reportId: report.reportId });
-            queued = 1;
-          } catch (error) {
-            // Not queued: the report waits and goes out with the numbers alone after the deadline.
-            logger.error({
-              component: 'scheduled',
-              operation: 'daily_review.enqueue',
-              errorCode: error instanceof Error ? error.name : 'unknown'
-            });
-          }
-        }
-        return {
-          dailyReportRaised: report.reportId === null ? 0 : 1,
-          dailyReviewQueued: queued,
-          dailyReportReleased: released
-        };
+    await step('reports', async () => {
+      const released = await releaseOverdueReports({
+        reports: container.contentDailyReports,
+        alerts: container.contentAlerts,
+        now: clock.now()
       });
+      const weekly = await raiseWeeklyReport({
+        analytics: container.contentAnalytics,
+        alerts: container.contentAlerts,
+        goals: container.contentGoals,
+        reports: container.contentDailyReports,
+        clock,
+        timezone
+      });
+      // A weekly attempt (even one that lost its claim to an overlapping run) takes this tick's statements.
+      const daily =
+        !weekly.attempted && notifications.dailyReport
+          ? await raiseDailyReport({
+              analytics: container.contentAnalytics,
+              alerts: container.contentAlerts,
+              forecasts: container.contentForecasts,
+              reports: container.contentDailyReports,
+              clock,
+              timezone,
+              hour: notifications.dailyReportHour
+            })
+          : { reportId: null };
+      const reportId = weekly.reportId ?? daily.reportId;
+      let queued = 0;
+      if (reportId !== null) {
+        try {
+          await container.aiJobs.send({ id: crypto.randomUUID(), kind: 'daily_review', reportId });
+          queued = 1;
+        } catch (error) {
+          // Not queued: the report waits and goes out with the numbers alone after the deadline.
+          logger.error({
+            component: 'scheduled',
+            operation: 'report_review.enqueue',
+            errorCode: error instanceof Error ? error.name : 'unknown'
+          });
+        }
+      }
+      return {
+        weeklyReportRaised: weekly.reportId === null ? 0 : 1,
+        dailyReportRaised: daily.reportId === null ? 0 : 1,
+        dailyReviewQueued: queued,
+        dailyReportReleased: released
+      };
+    });
   }
 
   // 7c''. each new video's approved script (owner, 19.10.2026): a confident match is linked and reported, any
@@ -528,7 +544,6 @@ export async function handleScheduled(controller: ScheduledController, container
       const { timezone } = await readPreferences();
       const raisedAlerts = await raiseContentAlerts({
         repo: container.contentAlerts,
-        goals: container.contentGoals,
         clock,
         timezone
       });

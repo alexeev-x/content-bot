@@ -3,7 +3,7 @@ import { type DailyAnalytics, readDailyAnalytics } from './daily-analytics';
 import { type DailyComparison, type DailyGrowth, shortTitleOf } from './daily-table';
 import type { ContentAlertRepository } from './d1-content-alerts-repository';
 import type { ContentAnalyticsRepository } from './d1-content-analytics-repository';
-import type { ContentDailyReportRepository, DailyReportRow } from './d1-content-daily-reports-repository';
+import type { ContentDailyReportRepository } from './d1-content-daily-reports-repository';
 import type { ContentForecastRepository, ForecastOutcome } from './d1-content-forecasts-repository';
 import { factAt } from './forecast-backtest';
 import type { Clock } from '../../platform/clock';
@@ -17,10 +17,6 @@ import type { ItemFormats, VideoFormat } from './types';
 
 const HOUR_MS = 60 * 60 * 1000;
 export const DAILY_REPORT_VERSION = 'v1';
-/** A report still without its review after this long goes out with the numbers alone. */
-export const REVIEW_DEADLINE_MS = 30 * 60 * 1000;
-/** A report still waiting after this long is about a day gone: it is closed, not sent. */
-const REPORT_STALE_MS = 20 * 60 * 60 * 1000;
 /** The scorer waits until the widest fact tolerance (6 h) has passed, so the closest reading exists. */
 const SCORE_AFTER_MS = 6 * HOUR_MS;
 const SCORE_LIMIT = 36;
@@ -55,7 +51,7 @@ export interface DailyReview {
   next: string;
 }
 
-const escapeHtml = (value: string) =>
+export const escapeHtml = (value: string) =>
   value.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;');
 
 /** 950 → «950», 12 400 → «12.4к», 410 000 → «410к», 1 250 000 → «1.3м». */
@@ -85,7 +81,7 @@ export function usualPercent(comparison: DailyComparison | null): number | null 
   return ratio === null ? null : Math.round((ratio - 1) * 100);
 }
 
-function usualMark(comparison: DailyComparison | null): string | null {
+export function usualMark(comparison: DailyComparison | null): string | null {
   const ratio = usualRatio(comparison);
   const percent = usualPercent(comparison);
   if (ratio === null || percent === null) return null;
@@ -98,7 +94,7 @@ function ageText(hours: number): string {
 }
 
 /** The link without tracking parameters (TikTok adds a long `utm_*` tail). */
-function cleanUrl(url: string): string {
+export function cleanUrl(url: string): string {
   try {
     const parsed = new URL(url);
     parsed.search = '';
@@ -180,7 +176,7 @@ function time(at: number | null, timezone: string): string {
   );
 }
 
-const REVIEW_MISSING: Record<string, string> = {
+export const REVIEW_MISSING: Record<string, string> = {
   AI_DISABLED: 'ИИ выключен',
   AI_NO_KEY: 'ключ ИИ не задан',
   AI_BUDGET: 'бюджет ИИ исчерпан',
@@ -193,28 +189,8 @@ const REVIEW_MISSING: Record<string, string> = {
   AI_TOO_LONG: 'разбор не влез в сообщение'
 };
 
-/** Telegram counts a message's characters after entity parsing; this much room is kept below its 4096. */
-const MESSAGE_MAX = 3900;
-
-/** The characters Telegram counts: the text without tags, entities decoded. */
-export function visibleLength(html: string): number {
-  return Array.from(
-    html
-      .replace(/<[^>]+>/g, '')
-      .replaceAll('&lt;', '<')
-      .replaceAll('&gt;', '>')
-      .replaceAll('&quot;', '"')
-      .replaceAll('&amp;', '&')
-  ).length;
-}
-
-function reviewBlock(review: DailyReview, rows: readonly KeyedRow[]): string[] {
-  const link = (key: string) => {
-    const found = rows.find((row) => row.key === key);
-    return found === undefined
-      ? key
-      : `<a href="${escapeHtml(cleanUrl(found.row.url))}">${escapeHtml(shortTitleOf(found.row.title, TITLE_MAX))}</a> (${PLATFORM_NAME[found.platform]})`;
-  };
+/** The review as the message shows it; `link` turns a video key of the facts into its title and link. */
+export function reviewBlock(review: DailyReview, link: (key: string) => string): string[] {
   const lines = ['<b>🧠 Разбор</b>'];
   if (review.summary !== '') lines.push(escapeHtml(review.summary));
   if (review.rising.length > 0)
@@ -340,7 +316,13 @@ export function dailyReportHtml(input: {
     `Данные на ${time(daily.asOf, input.timezone)}${daily.partial ? ' · частично' : ''}`,
     ...(totals === null ? [] : [totals])
   ];
-  if (input.review !== null) lines.push('', ...reviewBlock(input.review, rows));
+  const link = (key: string) => {
+    const found = rows.find((row) => row.key === key);
+    return found === undefined
+      ? key
+      : `<a href="${escapeHtml(cleanUrl(found.row.url))}">${escapeHtml(shortTitleOf(found.row.title, TITLE_MAX))}</a> (${PLATFORM_NAME[found.platform]})`;
+  };
+  if (input.review !== null) lines.push('', ...reviewBlock(input.review, link));
   else if (input.reviewError)
     lines.push('', `<i>🧠 Разбор недоступен: ${REVIEW_MISSING[input.reviewError] ?? 'ошибка ИИ'}.</i>`);
   lines.push('', ...videoLines(daily, input.timezone));
@@ -436,95 +418,6 @@ export async function raiseDailyReport(deps: {
     now
   });
   return { reportId: claimed ? id : null };
-}
-
-function dataOf(report: DailyReportRow): DailyReportData {
-  return JSON.parse(report.data) as DailyReportData;
-}
-
-/** The facts for the review job of a stored report; null when it is gone or no longer waiting. */
-export async function dailyReviewInput(
-  reports: Pick<ContentDailyReportRepository, 'find'>,
-  id: string
-): Promise<ReturnType<typeof dailyReviewFacts> | null> {
-  const report = await reports.find(id);
-  return report === null || report.status !== 'waiting' ? null : dailyReviewFacts(dataOf(report));
-}
-
-/**
- * Turns a waiting report into its message, with the review or the reason there is none, and raises it as the
- * day's content alert. The alert first (its id dedups a second releaser), then the report row ends.
- */
-export async function releaseDailyReport(
-  deps: {
-    reports: ContentDailyReportRepository;
-    alerts: Pick<ContentAlertRepository, 'insert'>;
-    now: number;
-  },
-  input: { id: string; review: DailyReview | null; reviewError: string | null; model: string | null }
-): Promise<boolean> {
-  const report = await deps.reports.find(input.id);
-  if (report === null || report.status !== 'waiting') return false;
-  const render = (review: DailyReview | null, reviewError: string | null) =>
-    dailyReportHtml({ data: dataOf(report), timezone: report.timezone, review, reviewError });
-  let { review, reviewError } = input;
-  let html = render(review, reviewError);
-  // A review that does not fit would make Telegram refuse the whole message: the numbers go alone instead.
-  if (review !== null && visibleLength(html) > MESSAGE_MAX) {
-    review = null;
-    reviewError = 'AI_TOO_LONG';
-    html = render(null, reviewError);
-  }
-  const inserted = await deps.alerts.insert(
-    [
-      {
-        id: report.id,
-        kind: 'digest',
-        title: 'Аналитика за день',
-        body: 'Ежедневный отчёт по YouTube и TikTok.',
-        html,
-        buttons: [],
-        linkPath: '/analytics'
-      }
-    ],
-    deps.now
-  );
-  // Only the releaser whose alert went in records what was sent; the other one changes nothing.
-  if (inserted === 0) return false;
-  return deps.reports.finish({
-    id: report.id,
-    status: review === null ? 'unreviewed' : 'reviewed',
-    review: review === null ? null : JSON.stringify(review),
-    reviewError,
-    model: input.model,
-    now: deps.now
-  });
-}
-
-/** Reports whose review did not come in time go out with the numbers alone (AI off, a lost job, a slow model). */
-export async function releaseOverdueReports(deps: {
-  reports: ContentDailyReportRepository;
-  alerts: Pick<ContentAlertRepository, 'insert'>;
-  now: number;
-}): Promise<number> {
-  let released = 0;
-  for (const report of await deps.reports.listWaiting(deps.now - REVIEW_DEADLINE_MS, 2)) {
-    // A day long gone (the report was off, then on again) is closed without a message about old numbers.
-    if (report.createdAt < deps.now - REPORT_STALE_MS) {
-      await deps.reports.finish({
-        id: report.id,
-        status: 'unreviewed',
-        review: null,
-        reviewError: 'EXPIRED',
-        model: null,
-        now: deps.now
-      });
-      continue;
-    }
-    if (await releaseDailyReport(deps, { id: report.id, review: null, reviewError: 'REVIEW_TIMEOUT', model: null }))
-      released += 1;
-  }
-  return released;
 }
 
 /** «/analytics» in the bot: the same numbers now, without the review (no model call), stored nowhere. */
