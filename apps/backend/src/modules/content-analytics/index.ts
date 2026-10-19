@@ -19,6 +19,8 @@ export {
 } from './d1-content-alerts-repository';
 export { configuredCollectors, type CollectorConfig, type ConfiguredSources } from './collectors';
 export { type ContentAnalyticsRepository, createD1ContentAnalyticsRepository } from './d1-content-analytics-repository';
+export { type DailyAnalytics, type DailyPlatform, readDailyAnalytics } from './daily-analytics';
+export type { DailyComparison, DailyGrowth, DailyRow } from './daily-table';
 export {
   collectContentAnalytics,
   listContentItems,

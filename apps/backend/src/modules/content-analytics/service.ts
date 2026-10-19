@@ -359,12 +359,14 @@ export function listReviewVideoIds(
 
 const VIDEO_FORMATS: readonly VideoFormat[] = ['fidit', 'igrat', 'standalone'];
 
-/** The tracked videos of `format`, each by the same order as the item itself: script, mark, then title. */
-async function idsOfFormat(
-  deps: { repo: ContentAnalyticsRepository; formats?: ItemFormats },
-  format: VideoFormat,
-  rows: readonly CheckpointRow[]
-): Promise<Set<string>> {
+/**
+ * Every video's format by the same order as one item's: a linked script, then the owner's mark, then the title.
+ * Two lists per format, read once, so a caller classifies any number of videos without more queries.
+ */
+export async function formatIndex(deps: {
+  repo: ContentAnalyticsRepository;
+  formats?: ItemFormats;
+}): Promise<(item: { id: string; title: string }) => { format: VideoFormat; source: 'script' | 'owner' | 'title' }> {
   const formats = deps.formats;
   const [scripts, marks] = await Promise.all([
     formats === undefined
@@ -376,14 +378,25 @@ async function idsOfFormat(
     new Map(lists.flatMap((list) => list.ids.map((id) => [id, list.format] as const)));
   const byScript = index(scripts);
   const byMark = index(marks);
+  return (item) => {
+    const script = byScript.get(item.id);
+    if (script !== undefined) return { format: script, source: 'script' };
+    const mark = byMark.get(item.id);
+    return mark !== undefined
+      ? { format: mark, source: 'owner' }
+      : { format: titleFormat(item.title), source: 'title' };
+  };
+}
+
+/** The tracked videos of `format`, each by the same order as the item itself: script, mark, then title. */
+async function idsOfFormat(
+  deps: { repo: ContentAnalyticsRepository; formats?: ItemFormats },
+  format: VideoFormat,
+  rows: readonly CheckpointRow[]
+): Promise<Set<string>> {
+  const formatOf = await formatIndex(deps);
   return new Set(
-    rows
-      .filter(
-        (row) =>
-          row.platform !== 'telegram' &&
-          (byScript.get(row.id) ?? byMark.get(row.id) ?? titleFormat(row.title)) === format
-      )
-      .map((row) => row.id)
+    rows.filter((row) => row.platform !== 'telegram' && formatOf(row).format === format).map((row) => row.id)
   );
 }
 
@@ -485,10 +498,10 @@ export async function readCachedContentReport(
 }
 
 /** Items tracked from birth over the last 90 days make the usual curve. */
-const BASELINE_WINDOW_MS = 90 * DAY_MS;
+export const BASELINE_WINDOW_MS = 90 * DAY_MS;
 const BASELINE_MIN_ITEMS = 3;
 /** A format curve is evidence only from five clean videos per checkpoint (architecture item 1). */
-const FORMAT_BASELINE_MIN_ITEMS = 5;
+export const FORMAT_BASELINE_MIN_ITEMS = 5;
 
 function medianOf(values: number[]): number {
   const sorted = [...values].sort((a, b) => a - b);

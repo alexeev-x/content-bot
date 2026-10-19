@@ -15,6 +15,8 @@ const DAILY_GUARD_MS = 23 * HOUR_MS;
 /** Items older than this change little: one snapshot a week keeps the history bounded. */
 const LATE_WINDOW_MS = 30 * 24 * HOUR_MS;
 const WEEKLY_GUARD_MS = 7 * 24 * HOUR_MS - HOUR_MS;
+/** Twelve videos read about hourly over two days, with room: the daily table's snapshot bound. */
+const DAILY_SNAPSHOT_LIMIT = 800;
 /** Ages (hours) at which an item's views are kept for «at the same age» comparisons. */
 export const CHECKPOINT_HOURS = [1, 3, 6, 12, 24, 48, 72] as const;
 // A checkpoint is taken by the first collection within 90 minutes after it; later readings (a backfill,
@@ -129,6 +131,14 @@ export interface ContentAnalyticsRepository {
   markFormat(input: { id: string; format: VideoFormat | null; now: number }): Promise<void>;
   /** Sets (or with null clears) the owner's contamination confirmation of an existing item. */
   markContamination(input: { id: string; reason: ContentContaminationReason | null; now: number }): Promise<void>;
+  /**
+   * The daily table's inputs (plan P4) in one round trip: the sources' state and the views of `ids` read since
+   * `from` (bounded: at most 800 rows in all, newest kept).
+   */
+  readDaily(input: { ids: readonly string[]; from: number }): Promise<{
+    sources: SourceRow[];
+    snapshots: { itemId: string; observedAt: number; views: number | null }[];
+  }>;
   /** Checkpoint views of the items published since `publishedFrom` that have any. */
   readCheckpoints(input: { publishedFrom: number; platform?: ContentPlatform }): Promise<CheckpointRow[]>;
   readReport(input: { publishedFrom: number; fromDay: string; limit: number }): Promise<{
@@ -334,6 +344,27 @@ export function createD1ContentAnalyticsRepository(db: D1Database): ContentAnaly
         .bind(...values, limit)
         .all<RawItem>();
       return rows.results.map(toItem);
+    },
+
+    async readDaily({ ids, from }) {
+      const [sources, snapshots] = await db.batch([
+        db.prepare(
+          `SELECT platform, next_run_at AS nextRunAt, last_success_at AS lastSuccessAt, last_error_at AS lastErrorAt,
+                  last_error_code AS lastErrorCode
+           FROM content_sources`
+        ),
+        db
+          .prepare(
+            `SELECT item_id AS itemId, observed_at AS observedAt, views FROM content_item_snapshots
+             WHERE item_id IN (SELECT value FROM json_each(?1)) AND observed_at >= ?2
+             ORDER BY observed_at DESC LIMIT ${DAILY_SNAPSHOT_LIMIT}`
+          )
+          .bind(JSON.stringify(ids.slice(0, 12)), from)
+      ]);
+      return {
+        sources: (sources?.results ?? []) as SourceRow[],
+        snapshots: (snapshots?.results ?? []) as { itemId: string; observedAt: number; views: number | null }[]
+      };
     },
 
     async readCheckpoints({ publishedFrom, platform }) {
