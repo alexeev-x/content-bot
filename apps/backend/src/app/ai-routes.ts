@@ -11,6 +11,11 @@ import {
   aiLearningItemSchema,
   aiLearningParamsSchema,
   aiOverviewSchema,
+  aiRuleEvidenceParamsSchema,
+  aiRuleParamsSchema,
+  aiRuleSchema,
+  aiRulesSchema,
+  changeAiRuleInputSchema,
   aiUnlinkedScriptsSchema,
   aiVideoReviewResultSchema,
   contentItemIdSchema,
@@ -27,15 +32,18 @@ import {
   checkAiConnection,
   generateDraft,
   improveText,
+  changeRule,
   linkItemScript,
   readAiOverview,
   readAuthorProfile,
   readFeedback,
   readItemScript,
   readLearning,
+  readRules,
   readUnlinkedScripts,
   readVideoReview,
   removeFeedback,
+  removeRuleEvidence,
   saveAuthorDota,
   setLearningExcluded,
   unlinkItemScript,
@@ -150,7 +158,9 @@ export const aiRoutes = new Hono<AppBindings>()
           profiles: container.aiProfiles,
           newId: container.newId,
           provider: container.aiProvider,
-          ownerPosts: container.aiOwnerPosts
+          ownerPosts: container.aiOwnerPosts,
+          // The same rules as the bot's drafts: a rule switched off in the studio leaves both (SYS-02).
+          rules: container.aiRules
         },
         { ...input, source: 'studio', signal: AbortSignal.timeout(DRAFT_TIMEOUT_MS) }
       );
@@ -235,6 +245,26 @@ export const aiRoutes = new Hono<AppBindings>()
       return c.json(aiLearningItemSchema.parse(item));
     }
   )
+  .get('/rules', async (c) => c.json(aiRulesSchema.parse(await readRules(c.get('container').aiRules))))
+  .put(
+    '/rules/:id',
+    limitBody(MAX_BODY_BYTES),
+    validated('param', aiRuleParamsSchema),
+    validated('json', changeAiRuleInputSchema),
+    async (c) => {
+      const container = c.get('container');
+      const rule = await changeRule(
+        { rules: container.aiRules, clock: container.clock },
+        { ...c.req.valid('param'), ...c.req.valid('json') }
+      );
+      return c.json(aiRuleSchema.parse(rule));
+    }
+  )
+  .delete('/rules/:id/evidence/:key', validated('param', aiRuleEvidenceParamsSchema), async (c) => {
+    const container = c.get('container');
+    const rule = await removeRuleEvidence({ rules: container.aiRules, clock: container.clock }, c.req.valid('param'));
+    return c.json(aiRuleSchema.parse(rule));
+  })
   .get('/scripts/unlinked', async (c) => {
     const container = c.get('container');
     return c.json(

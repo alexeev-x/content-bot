@@ -11,6 +11,7 @@ export {
   type RuleEvidence
 } from './d1-rules-repository';
 export { type AnalyticsReview, writeAnalyticsReview } from './analytics-review';
+export { changeRule, readRules, removeRuleEvidence } from './rules-admin';
 export {
   CONSOLIDATION_MAX_VIDEOS,
   CONSOLIDATION_MIN_VIDEOS,

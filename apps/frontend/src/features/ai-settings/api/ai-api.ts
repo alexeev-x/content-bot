@@ -3,6 +3,9 @@ import {
   aiLearningItemSchema,
   aiLearningListSchema,
   aiOverviewSchema,
+  aiRuleSchema,
+  aiRulesSchema,
+  type ChangeAiRuleInput,
   aiUnlinkedScriptsSchema,
   type AiLearningSource,
   type UpdateAiSettingsInput
@@ -43,6 +46,28 @@ export function setAiLearningExcluded(input: { source: AiLearningSource; id: str
     method: 'PUT',
     body: { excluded: input.excluded }
   });
+}
+
+/** The writer's rules: the owner's and the analysis ones, with the videos behind each. */
+export function getAiRules(signal?: AbortSignal) {
+  return apiRequest('/api/v1/ai/rules', aiRulesSchema, { signal });
+}
+
+/** Switch a rule on or off, or approve a supported analysis rule; repeating it is a no-op. */
+export function changeAiRule(input: { id: string } & ChangeAiRuleInput) {
+  return apiRequest(`/api/v1/ai/rules/${encodeURIComponent(input.id)}`, aiRuleSchema, {
+    method: 'PUT',
+    body: { action: input.action }
+  });
+}
+
+/** Removes one wrong observation; the rule is counted again. */
+export function removeAiRuleEvidence(input: { id: string; key: string }) {
+  return apiRequest(
+    `/api/v1/ai/rules/${encodeURIComponent(input.id)}/evidence/${encodeURIComponent(input.key)}`,
+    aiRuleSchema,
+    { method: 'DELETE' }
+  );
 }
 
 /** Approved Reels scripts of the last 60 days that no video is linked to, newest first. */

@@ -16,6 +16,16 @@ export interface RuleEvidence {
   sourceRef: string;
 }
 
+/** A stored evidence row as the studio shows it. */
+export interface EvidenceRow {
+  ruleId: string;
+  key: string;
+  polarity: 'support' | 'contradict';
+  sourceRef: string | null;
+  createdAt: number;
+  script: string | null;
+}
+
 export interface RuleRow {
   id: string;
   text: string;
@@ -71,6 +81,17 @@ export interface RulesRepository {
     evidence: readonly RuleEvidence[],
     now: number
   ): Promise<{ added: number; retired: Pick<RuleRow, 'id' | 'text' | 'scope' | 'status'>[] }>;
+  /** The studio list (AI plan P8): every rule but a scope never picked; in use first, then open, then closed. */
+  studioList(limit: number): Promise<RuleRow[]>;
+  /** The evidence of these rules, newest first, at most `perRule` each, with the start of the script it names. */
+  evidenceOf(ruleIds: readonly string[], perRule: number): Promise<EvidenceRow[]>;
+  /** An owner rule switched off in the studio back on, while fewer than RULES_IN_USE_MAX are in use. */
+  enable(input: { id: string; now: number }): Promise<boolean>;
+  /**
+   * Removes one wrong observation and counts the status again, taking the approval off a rule that fell out of
+   * supported (MEM-13), in one batch. False when there was no such row.
+   */
+  removeEvidence(input: { ruleId: string; key: string; now: number }): Promise<boolean>;
   /** The owner said «Да» to a supported analysis rule: in use, while fewer than RULES_IN_USE_MAX are. */
   approve(input: { id: string; now: number }): Promise<boolean>;
 }
@@ -232,6 +253,67 @@ export function createD1RulesRepository(db: D1Database): RulesRepository {
         added: inserted?.meta.changes ?? 0,
         retired: (cleared?.results ?? []) as Pick<RuleRow, 'id' | 'text' | 'scope' | 'status'>[]
       };
+    },
+
+    async studioList(limit) {
+      const rows = await db
+        .prepare(
+          `SELECT ${COLUMNS} FROM ai_rules WHERE status <> 'pending_scope'
+           ORDER BY ${IN_USE} DESC, status IN ('candidate', 'supported', 'strong') DESC, updated_at DESC LIMIT ?`
+        )
+        .bind(Math.min(limit, 100))
+        .all<RuleRow>();
+      return rows.results;
+    },
+
+    async evidenceOf(ruleIds, perRule) {
+      if (ruleIds.length === 0) return [];
+      const rows = await db
+        .prepare(
+          `SELECT ruleId, key, polarity, sourceRef, createdAt, script FROM (
+             SELECT e.rule_id AS ruleId, e.evidence_key AS key, e.polarity, e.source_ref AS sourceRef,
+                    e.created_at AS createdAt, substr(r.text, 1, 240) AS script,
+                    row_number() OVER (PARTITION BY e.rule_id ORDER BY e.created_at DESC, e.evidence_key) AS n
+             FROM ai_rule_evidence e
+             LEFT JOIN ai_text_revisions r ON e.evidence_key = 'script:' || r.id
+             WHERE e.rule_id IN (SELECT value FROM json_each(?1)))
+           WHERE n <= ?2 LIMIT 3000`
+        )
+        .bind(JSON.stringify(ruleIds.slice(0, 100)), Math.min(perRule, 30))
+        .all<EvidenceRow>();
+      return rows.results;
+    },
+
+    async enable({ id, now }) {
+      const result = await db
+        .prepare(
+          `UPDATE ai_rules SET status = 'active', disabled_at = NULL, updated_at = ?2
+           WHERE id = ?1 AND source = 'owner' AND status = 'disabled'
+             AND (SELECT count(*) FROM ai_rules WHERE ${IN_USE}) < ?3`
+        )
+        .bind(id, now, RULES_IN_USE_MAX)
+        .run();
+      return result.meta.changes === 1;
+    },
+
+    async removeEvidence({ ruleId, key, now }) {
+      const [removed] = await db.batch([
+        db.prepare('DELETE FROM ai_rule_evidence WHERE rule_id = ?1 AND evidence_key = ?2').bind(ruleId, key),
+        // A rule retired by the removed observation is counted again; a turned-down one stays off.
+        db
+          .prepare(
+            "UPDATE ai_rules SET status = 'candidate' WHERE id = ?1 AND source = 'analysis' AND status = 'deprecated'"
+          )
+          .bind(ruleId),
+        db.prepare(RECOUNT).bind(now, now - DECAY_MS),
+        db
+          .prepare(
+            `UPDATE ai_rules SET approved_at = NULL, updated_at = ?1
+             WHERE source = 'analysis' AND approved_at IS NOT NULL AND status IN ('candidate', 'deprecated')`
+          )
+          .bind(now)
+      ]);
+      return (removed?.meta.changes ?? 0) === 1;
     },
 
     async approve({ id, now }) {

@@ -36,6 +36,7 @@ import {
 } from '../model/ai-view';
 import { AiFeedbackList } from './AiFeedbackList';
 import { AiLearningList } from './AiLearningList';
+import { AiRulesList } from './AiRulesList';
 import { AiQualityByFormat, AiQualityByFormatSkeleton, AiQualityComparison } from './AiQualityExtras';
 import { AiUnlinkedScripts } from './AiUnlinkedScripts';
 import { copy, usd } from './copy';
@@ -572,6 +573,7 @@ function QualityPanel({ quality }: { quality: AiOverviewDto['quality'] }) {
   const [feedbackOpen, setFeedbackOpen] = useState(false);
   const verdictCount = verdicts.reduce((total, row) => total + row.count, 0);
   const [learningOpen, setLearningOpen] = useState(false);
+  const [rulesOpen, setRulesOpen] = useState(false);
   const [unlinkedOpen, setUnlinkedOpen] = useState(false);
   const studioRuns = quality.studioDrafts ?? 0;
   return (
@@ -663,6 +665,14 @@ function QualityPanel({ quality }: { quality: AiOverviewDto['quality'] }) {
         </div>
       )}
       <div className={styles.body}>
+        <DisclosureGroup
+          expandedKeys={rulesOpen ? ['rules'] : []}
+          onExpandedChange={(keys) => setRulesOpen(keys.has('rules'))}
+        >
+          <Disclosure id="rules" title={copy.rules.title}>
+            {rulesOpen ? <AiRulesList /> : null}
+          </Disclosure>
+        </DisclosureGroup>
         <DisclosureGroup
           expandedKeys={learningOpen ? ['learning'] : []}
           onExpandedChange={(keys) => setLearningOpen(keys.has('learning'))}

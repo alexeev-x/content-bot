@@ -672,6 +672,67 @@ export async function mockApi(page: Page): Promise<void> {
       }
     });
   });
+  await page.route(/\/api\/v1\/ai\/rules$/, (route) =>
+    json(route, {
+      inUseMax: 15,
+      items: [
+        {
+          id: '00000000-0000-4000-8000-0000000000d1',
+          text: 'Не начинай с описания героя, сразу с косяка',
+          scope: 'igrat',
+          source: 'owner',
+          status: 'active',
+          inUse: true,
+          approvedAt: null,
+          createdAt: '2026-10-17T10:00:00.000Z',
+          supports: 0,
+          contradicts: 0,
+          evidence: []
+        },
+        {
+          id: '00000000-0000-4000-8000-0000000000d2',
+          text: 'Начинай с промаха и его цены в первой фразе',
+          scope: 'igrat',
+          source: 'analysis',
+          status: 'supported',
+          inUse: false,
+          approvedAt: null,
+          createdAt: '2026-10-10T10:00:00.000Z',
+          supports: 3,
+          contradicts: 1,
+          evidence: [
+            {
+              key: 'script:00000000-0000-4000-8000-0000000000e1',
+              polarity: 'support',
+              origin: true,
+              scriptExcerpt: 'Промахнулся хуком по Лиону и отдал первую кровь. Вот почему так вышло и что я понял.',
+              createdAt: '2026-10-10T10:00:00.000Z'
+            },
+            {
+              key: 'script:00000000-0000-4000-8000-0000000000e2',
+              polarity: 'contradict',
+              origin: false,
+              scriptExcerpt: 'Не вбил ни одной стрелы на Миране и проиграл линию за пять минут.',
+              createdAt: '2026-10-17T10:00:00.000Z'
+            }
+          ]
+        },
+        {
+          id: '00000000-0000-4000-8000-0000000000d3',
+          text: 'Заканчивай вопросом к зрителю',
+          scope: 'fidit',
+          source: 'analysis',
+          status: 'deprecated',
+          inUse: false,
+          approvedAt: null,
+          createdAt: '2026-09-20T10:00:00.000Z',
+          supports: 1,
+          contradicts: 3,
+          evidence: []
+        }
+      ]
+    })
+  );
   await page.route(/\/api\/v1\/ai\/learning(\/.*)?$/, (route) => {
     if (route.request().method() === 'PUT') {
       const [, source, id] = /learning\/(\w+)\/([^/]+)$/.exec(route.request().url()) ?? [];

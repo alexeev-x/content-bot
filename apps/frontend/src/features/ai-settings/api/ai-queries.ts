@@ -1,12 +1,15 @@
-import type { AiLearningListDto } from '@alexeev/contracts';
+import type { AiLearningListDto, AiRuleDto, AiRulesDto } from '@alexeev/contracts';
 import { queryOptions, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
+  changeAiRule,
   checkAiConnection,
   deleteAiFeedback,
   getAiFeedback,
   getAiLearning,
   getAiOverview,
+  getAiRules,
   getAiUnlinkedScripts,
+  removeAiRuleEvidence,
   saveAiSettings,
   setAiLearningExcluded
 } from './ai-api';
@@ -15,6 +18,7 @@ export const aiKeys = {
   overview: ['ai', 'overview'] as const,
   feedback: ['ai', 'feedback'] as const,
   learning: ['ai', 'learning'] as const,
+  rules: ['ai', 'rules'] as const,
   unlinkedScripts: ['ai', 'scripts', 'unlinked'] as const
 };
 
@@ -76,6 +80,27 @@ export function useSetAiLearningExcluded() {
       )
   });
 }
+
+/** The bot's «/rule» and the weekly run change this list too: re-read when opened, after a short rest. */
+export function aiRulesQueryOptions() {
+  return queryOptions({ queryKey: aiKeys.rules, queryFn: ({ signal }) => getAiRules(signal), staleTime: 30_000 });
+}
+
+function useRuleWrite<T>(mutationFn: (input: T) => Promise<AiRuleDto>) {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn,
+    retry: false,
+    // Only the confirmed rule is written into the list; nothing is guessed before the server answers.
+    onSuccess: (rule) =>
+      client.setQueryData<AiRulesDto>(aiKeys.rules, (list) =>
+        list ? { ...list, items: list.items.map((row) => (row.id === rule.id ? rule : row)) } : list
+      )
+  });
+}
+
+export const useChangeAiRule = () => useRuleWrite(changeAiRule);
+export const useRemoveAiRuleEvidence = () => useRuleWrite(removeAiRuleEvidence);
 
 /** A link made in the video's panel (Аналитика) changes this list; it is re-read when opened, after a short rest. */
 export function aiUnlinkedScriptsQueryOptions() {

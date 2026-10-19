@@ -576,3 +576,65 @@ export const aiVideoReviewSchema = z.object({
 export type AiVideoReviewDto = z.infer<typeof aiVideoReviewSchema>;
 export const aiVideoReviewResultSchema = z.object({ review: aiVideoReviewSchema.nullable() });
 export type AiVideoReviewResultDto = z.infer<typeof aiVideoReviewResultSchema>;
+
+// The writer's rules in the studio (AI plan P8, §6.1; migration 0079): the owner's rules from «/rule» and the
+// analysis rules from the weekly consolidation, with the videos behind each. In use, closed rules last.
+// GET /api/v1/ai/rules → 200 AiRulesDto, at most AI_RULES_LIST_LIMIT rules, each with at most
+// AI_RULE_EVIDENCE_LIMIT evidence rows (newest first).
+// PUT /api/v1/ai/rules/{id} { action } → 200 AiRuleDto. `disable`: off for good for an analysis rule, off until
+// `enable` for an owner rule; `enable`: an owner rule back on; `approve`: a supported analysis rule into prompts
+// (the bot's «Учитывать»). Repeating the state it already has is a no-op. Errors: VALIDATION_ERROR 400, NOT_FOUND
+// 404, CONFLICT 409 with details.reason LIMIT (15 rules in use) or STATE (the rule cannot take that action:
+// a closed analysis rule, a candidate, a scope never picked), UNAUTHORIZED 401, FORBIDDEN 403.
+// DELETE /api/v1/ai/rules/{id}/evidence/{key} → 200 AiRuleDto: a wrong observation removed and the status counted
+// again (MEM-13); an approved rule that falls out of supported loses its approval. NOT_FOUND 404 when either is
+// unknown; only analysis rules have evidence.
+export const AI_RULES_LIST_LIMIT = 60;
+export const AI_RULE_EVIDENCE_LIMIT = 30;
+export const AI_RULE_TEXT_MAX = 300;
+export const aiRuleScopeSchema = z.enum(['all', ...AI_WRITER_FORMATS]);
+export const aiRuleStatusSchema = z.enum([
+  'pending_scope',
+  'active',
+  'candidate',
+  'supported',
+  'strong',
+  'disabled',
+  'deprecated'
+]);
+export const aiRuleEvidenceSchema = z.object({
+  /** `script:<approved revision id>`: one script, whatever platforms its video went to. */
+  key: z.string().min(1).max(300),
+  polarity: z.enum(['support', 'contradict']),
+  /** True: measured before the rule existed, so it never counts as the fresh support a rule needs. */
+  origin: z.boolean(),
+  /** The start of the approved script; null when it is no longer stored. */
+  scriptExcerpt: z.string().max(AI_LEARNING_EXCERPT).nullable(),
+  createdAt: z.iso.datetime()
+});
+export type AiRuleEvidenceDto = z.infer<typeof aiRuleEvidenceSchema>;
+export const aiRuleSchema = z.object({
+  id: z.uuid(),
+  text: z.string().min(1).max(AI_RULE_TEXT_MAX),
+  scope: aiRuleScopeSchema,
+  source: z.enum(['owner', 'analysis']),
+  status: aiRuleStatusSchema,
+  /** True: the writer's prompts of its scope get it now. */
+  inUse: z.boolean(),
+  approvedAt: z.iso.datetime().nullable(),
+  createdAt: z.iso.datetime(),
+  supports: z.number().int().nonnegative(),
+  contradicts: z.number().int().nonnegative(),
+  evidence: z.array(aiRuleEvidenceSchema).max(AI_RULE_EVIDENCE_LIMIT)
+});
+export type AiRuleDto = z.infer<typeof aiRuleSchema>;
+export const aiRulesSchema = z.object({
+  items: z.array(aiRuleSchema).max(AI_RULES_LIST_LIMIT),
+  /** At most this many rules are in use at once. */
+  inUseMax: z.number().int().positive()
+});
+export type AiRulesDto = z.infer<typeof aiRulesSchema>;
+export const aiRuleParamsSchema = z.strictObject({ id: z.uuid() });
+export const aiRuleEvidenceParamsSchema = z.strictObject({ id: z.uuid(), key: z.string().min(1).max(300) });
+export const changeAiRuleInputSchema = z.strictObject({ action: z.enum(['enable', 'disable', 'approve']) });
+export type ChangeAiRuleInput = z.infer<typeof changeAiRuleInputSchema>;
