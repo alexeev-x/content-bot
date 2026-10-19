@@ -374,6 +374,9 @@ describe('AI writer', () => {
     const named = await draft(writer, 'как я апнул 3к на Лионе');
     expect(requests[2]?.input).not.toContain('ЗАПРОС: тема на твой выбор');
     expect(named.generation.warnings).not.toContain('TOPIC_REPEATED');
+    // With the owner's topic the recent ones stay out of the prompt: their jokes leaked into unrelated texts
+    // (owner DEV run 19.10.2026).
+    expect(requests[2]?.input).not.toContain('НЕДАВНИЕ');
 
     // Recent ideas of every format: a Reels prompt sees what the posts were about.
     await generateDraft(writer, {

@@ -316,10 +316,12 @@ export async function generateDraft(
     hooks: [],
     createdAt: now
   };
-  const recent = await deps.writer.recentFacets(RECENT_FACETS);
-  const resting = overusedPhrases(await deps.writer.recentDraftTexts(PHRASE_WINDOW));
-  // A topic the owner names is never a repeat to flag; only a topic the writer picked itself.
+  // A topic the owner names is never a repeat to flag; only a topic the writer picked itself. The recent topics
+  // go into the prompt only then: shown with an owner topic, the model pulled their jokes into unrelated texts
+  // (owner DEV run 19.10.2026: the morning's creep in a patch post and an Invoker hook).
   const invent = input.mode === 'direct' && asksToInvent(task);
+  const recent = invent ? await deps.writer.recentFacets(RECENT_FACETS) : [];
+  const resting = overusedPhrases(await deps.writer.recentDraftTexts(PHRASE_WINDOW));
   return call(
     deps,
     row,

@@ -210,6 +210,9 @@ function isRequestForFacts(generation: Pick<GenerationRow, 'result' | 'warnings'
   return generation.result === 'needs_facts' || generation.warnings.includes(NEEDS_FACTS);
 }
 
+/** What the answer to a facts question becomes: a post is a post, not a script (owner DEV run 19.10.2026). */
+const writesWhat = (format: WriterFormat) => (format === 'telegram' ? 'пост' : 'сценарий');
+
 function factsHtml(generation: Pick<GenerationRow, 'format' | 'question' | 'ideas'>): string {
   const lines = [`<b>${FORMAT_LABEL[generation.format]}: нужны ваши детали</b>`, ''];
   if (generation.ideas.length > 0)
@@ -218,8 +221,8 @@ function factsHtml(generation: Pick<GenerationRow, 'format' | 'question' | 'idea
     escapeHtml(generation.question ?? 'Что было в игре?'),
     '',
     generation.ideas.length > 0
-      ? '<i>Напишите следующим сообщением номер идеи и что у вас было — напишу сценарий по вашему опыту.</i>'
-      : '<i>Напишите следующим сообщением, что у вас было, — напишу сценарий по вашему опыту.</i>'
+      ? `<i>Напишите следующим сообщением номер идеи и что у вас было — напишу ${writesWhat(generation.format)} по вашему опыту.</i>`
+      : `<i>Напишите следующим сообщением, что у вас было, — напишу ${writesWhat(generation.format)} по вашему опыту.</i>`
   );
   return lines.join('\n');
 }
@@ -238,7 +241,7 @@ function draftHtml(result: {
       '',
       escapeHtml(result.text),
       '',
-      '<i>Напишите следующим сообщением, что у вас было, — напишу сценарий по вашему опыту.</i>'
+      `<i>Напишите следующим сообщением, что у вас было, — напишу ${writesWhat(result.format)} по вашему опыту.</i>`
     ].join('\n');
   const lines = [`<b>${FORMAT_LABEL[result.format]}</b>`];
   if (result.hooks.length > 0)
