@@ -271,7 +271,13 @@ export interface WriterRepository {
   /** Consumes one awaited edit/question; a concurrent reply to the same generation loses without a model call. */
   consumeEditing(input: { chatId: number; generationId: string; now: number }): Promise<boolean>;
   /** Claims a queued AI job once (migration 0074); false for a redelivered message. Prunes week-old claims. */
-  claimJob(id: string, now: number): Promise<boolean>;
+  claimJob(id: string, now: number, message?: { chatId: number; messageId: number }): Promise<boolean>;
+  /** The job's run ended; a repeat changes nothing. */
+  finishJob(id: string, now: number): Promise<void>;
+  /** Chat jobs claimed before `before` whose run never ended (the Worker died), oldest first, at most `limit`. */
+  lostJobs(before: number, limit: number): Promise<{ id: string; chatId: number; messageId: number }[]>;
+  /** Marks a lost job reported, once; false when it ended or was reported already. */
+  markLost(id: string, now: number): Promise<boolean>;
   /** Saves the owner's facts and consumes the matching wait in one D1 batch; only the first answer wins. */
   claimFactAnswer(input: { chatId: number; generationId: string; answer: string; now: number }): Promise<boolean>;
   /** A failed facts generation can be retried by an explicit owner tap, never by a background retry. */
@@ -727,12 +733,37 @@ export function createD1WriterRepository(db: D1Database): WriterRepository {
       return true;
     },
 
-    async claimJob(id, now) {
+    async claimJob(id, now, message) {
       const [claim] = await db.batch([
-        db.prepare('INSERT OR IGNORE INTO ai_queue_jobs (id, claimed_at) VALUES (?1, ?2)').bind(id, now),
+        db
+          .prepare('INSERT OR IGNORE INTO ai_queue_jobs (id, claimed_at, chat_id, message_id) VALUES (?1, ?2, ?3, ?4)')
+          .bind(id, now, message?.chatId ?? null, message?.messageId ?? null),
         db.prepare('DELETE FROM ai_queue_jobs WHERE claimed_at < ?1').bind(now - JOB_CLAIM_KEPT_MS)
       ]);
       return claim?.meta.changes === 1;
+    },
+    async finishJob(id, now) {
+      await db
+        .prepare('UPDATE ai_queue_jobs SET finished_at = ?2 WHERE id = ?1 AND finished_at IS NULL')
+        .bind(id, now)
+        .run();
+    },
+    async lostJobs(before, limit) {
+      const rows = await db
+        .prepare(
+          `SELECT id, chat_id AS chatId, message_id AS messageId FROM ai_queue_jobs
+           WHERE finished_at IS NULL AND chat_id IS NOT NULL AND claimed_at < ?1 ORDER BY claimed_at LIMIT ?2`
+        )
+        .bind(before, Math.min(limit, 5))
+        .all<{ id: string; chatId: number; messageId: number }>();
+      return rows.results;
+    },
+    async markLost(id, now) {
+      const result = await db
+        .prepare('UPDATE ai_queue_jobs SET finished_at = ?2 WHERE id = ?1 AND finished_at IS NULL')
+        .bind(id, now)
+        .run();
+      return result.meta.changes === 1;
     },
     async claimFactAnswer({ chatId, generationId, answer, now }) {
       const [claim] = await db.batch([

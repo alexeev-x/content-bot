@@ -116,6 +116,48 @@ describe('script prompts', () => {
     expect((await handleScriptPromptTap(deps(), `sl:${promptId}:u:0`)).notice).toBe('Эта кнопка устарела.');
   });
 
+  it('marks an automatic link as such until the owner taps «✅ Верно» (review 19.10.2026)', async () => {
+    await seedApproved(ORACLE, 'igrat', 'Как я на Оракле играл: лечил врагов, кидал фортуну мимо.', START - 2 * DAY);
+    await seedItem(
+      'youtube:o',
+      'youtube',
+      'Как я на оракле играл. Лечил врагов, фортуна мимо. Учусь играть в доту',
+      START - DAY
+    );
+    await raiseScriptPrompts(deps());
+    const origins = () =>
+      testDb()
+        .prepare('SELECT origin FROM content_ai_links ORDER BY content_item_id')
+        .all<{ origin: string }>()
+        .then((rows) => rows.results.map((row) => row.origin));
+    expect(await origins()).toEqual(['auto']);
+    expect(await createD1ScriptLinksRepository(testDb()).linkOf('youtube:o')).toMatchObject({ confirmed: false });
+    const [alert] = await alerts();
+    expect(alert?.buttons).toContain('✅ Верно');
+    const promptId = alert!.id.slice('script:'.length);
+    expect((await handleScriptPromptTap(deps(), `sl:${promptId}:c:0`)).notice).toContain('снят по этому сценарию');
+    expect(await origins()).toEqual(['owner']);
+    // Confirmed: both buttons are stale now, the owner's word stands.
+    expect((await handleScriptPromptTap(deps(), `sl:${promptId}:u:0`)).notice).toBe('Эта кнопка устарела.');
+    expect((await handleScriptPromptTap(deps(), `sl:${promptId}:c:0`)).notice).toBe('Эта кнопка устарела.');
+  });
+
+  it('keeps a video relinked in the studio when the old «✅ Верно» is tapped (review 19.10.2026)', async () => {
+    await seedApproved(ORACLE, 'igrat', 'Как я на Оракле играл: лечил врагов, кидал фортуну мимо.', START - 2 * DAY);
+    await seedApproved(LION, 'igrat', 'Лион: ульта в крипа.', START - 3 * DAY);
+    await seedItem(
+      'youtube:o',
+      'youtube',
+      'Как я на оракле играл. Лечил врагов, фортуна мимо. Учусь играть в доту',
+      START - DAY
+    );
+    await raiseScriptPrompts(deps());
+    await createD1ScriptLinksRepository(testDb()).link({ itemId: 'youtube:o', revisionId: LION, now: START });
+    const [alert] = await alerts();
+    await handleScriptPromptTap(deps(), `sl:${alert!.id.slice('script:'.length)}:c:0`);
+    expect(await links()).toEqual([{ item: 'youtube:o', revision: LION }]);
+  });
+
   it('asks when unsure, shows the next candidate on «Другой», and links on «Да»', async () => {
     await seedApproved(LION, 'igrat', 'Лион: ульта в крипа.', START - 2 * DAY);
     await seedApproved(ORACLE, 'igrat', 'Оракл: фортуна мимо.', START - 4 * DAY);

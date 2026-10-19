@@ -21,9 +21,9 @@ const EXCERPT = 220;
 const MESSAGE_RETRY_MS = 24 * HOUR_MS;
 const TOAST_TITLE_MAX = 60;
 
-export const SCRIPT_PROMPT_CALLBACK = /^sl:([0-9a-f-]{36}):(y|o|x|u):(\d)$/;
+export const SCRIPT_PROMPT_CALLBACK = /^sl:([0-9a-f-]{36}):(y|o|x|u|c):(\d)$/;
 
-const callback = (promptId: string, action: 'y' | 'o' | 'x' | 'u', index: number) =>
+const callback = (promptId: string, action: 'y' | 'o' | 'x' | 'u' | 'c', index: number) =>
   `sl:${promptId}:${action}:${index}`;
 
 function excerpt(text: string): string {
@@ -126,7 +126,10 @@ export async function raiseScriptPrompts(deps: {
               `Сценарий, одобрен ${day(script.approvedAt, deps.timezone)}:`,
               `<blockquote>${escapeHtml(excerpt(script.text))}</blockquote>`
             ].join('\n'),
-            buttons: [{ text: 'Не тот сценарий', callbackData: callback(prompt.id, 'u', 0) }]
+            buttons: [
+              { text: '✅ Верно', callbackData: callback(prompt.id, 'c', 0) },
+              { text: 'Не тот сценарий', callbackData: callback(prompt.id, 'u', 0) }
+            ]
           }
     );
   }
@@ -148,7 +151,9 @@ export async function handleScriptPromptTap(
   const match = SCRIPT_PROMPT_CALLBACK.exec(data);
   if (match === null) return { notice: 'Эта кнопка устарела.', edit: null };
   const [, promptId = '', code = '', index = '0'] = match;
-  const action = ({ y: 'yes', o: 'other', x: 'none', u: 'undo' } as const)[code as 'y' | 'o' | 'x' | 'u'];
+  const action = ({ y: 'yes', o: 'other', x: 'none', u: 'undo', c: 'confirm' } as const)[
+    code as 'y' | 'o' | 'x' | 'u' | 'c'
+  ];
   const answer = await answerScriptPrompt(
     { links: deps.links, clock: deps.clock },
     { promptId, action, index: Number(index) }
@@ -161,6 +166,8 @@ export async function handleScriptPromptTap(
       return done('Отметил: ролик без сценария.');
     case 'undone':
       return done('Отвязал. Ролик теперь без сценария.');
+    case 'confirmed':
+      return done(`Отметил: «${Array.from(answer.title).slice(0, TOAST_TITLE_MAX).join('')}» снят по этому сценарию.`);
     case 'no_more':
       return { notice: 'Других сценариев за две недели до ролика нет.', edit: null };
     case 'next':

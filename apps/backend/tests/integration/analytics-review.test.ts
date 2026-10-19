@@ -97,4 +97,33 @@ describe('analytics review', () => {
     );
     expect(result).toMatchObject({ review: null, errorCode: 'AI_NUMBERS_UNVERIFIED' });
   });
+
+  it('checks the numbers of a video against that video and drops hypotheses on a weak comparison (review 19.10.2026)', async () => {
+    const facts = [
+      FACTS,
+      'Y2 «Лион» · рубрика «Учусь играть» · возраст 50 ч · всего 900 · +12 за 24ч · сравнение слабое: мало похожих роликов'
+    ].join('\n');
+    const base = { summary: '', rising: [], next: '' };
+    // 2.7к is a real number of the report, but it is Y1's, not Y2's.
+    expect(unverifiedNumbers({ ...base, weak: [{ video: 'Y2', note: 'всего 2.7к', hypotheses: [] }] }, facts)).toEqual([
+      '2.7к'
+    ]);
+    expect(unverifiedNumbers({ ...base, weak: [{ video: 'Y2', note: 'всего 900', hypotheses: [] }] }, facts)).toEqual(
+      []
+    );
+    const result = await writeAnalyticsReview(
+      deps(
+        answering({
+          summary: 'День ровный.',
+          rising: [],
+          weak: [
+            { video: 'Y2', note: 'набрал мало', hypotheses: [{ text: 'возможно, слабый хук', confidence: 'low' }] }
+          ],
+          next: ''
+        })
+      ),
+      { facts, videos: ['Y1', 'Y2'], signal: AbortSignal.timeout(1000) }
+    );
+    expect(result.review?.weak).toEqual([{ video: 'Y2', note: 'набрал мало', hypotheses: [] }]);
+  });
 });

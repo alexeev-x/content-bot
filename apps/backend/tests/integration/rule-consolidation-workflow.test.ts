@@ -119,7 +119,12 @@ beforeEach(async () => {
 
 describe('weekly rule run', () => {
   it('weighs one result per script within the query budget, and asks about a supported rule once', async () => {
+    // A link the title match made and the owner never confirmed teaches nothing (review 19.10.2026).
+    await testDb().prepare("UPDATE content_ai_links SET origin = 'auto' WHERE content_item_id = 'youtube:c'").run();
     await weeklyRun('weekly:1');
+    expect(inputs).toHaveLength(0);
+    await testDb().prepare("UPDATE content_ai_links SET origin = 'owner' WHERE content_item_id = 'youtube:c'").run();
+    await weeklyRun('weekly:1b');
     expect(inputs).toHaveLength(1);
     const scripts = inputs[0]!.match(/Сценарий [A-E]/g);
     expect(scripts?.sort()).toEqual(['Сценарий A', 'Сценарий C', 'Сценарий D']);

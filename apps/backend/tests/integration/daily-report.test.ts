@@ -326,8 +326,22 @@ describe('daily report on the Cron tick and the review job', () => {
             ...container.aiScriptLinks,
             linkOf: async (itemId: string) =>
               itemId === 'youtube:0'
-                ? { revisionId: 'r', format: 'fidit' as const, text: 'Купи БКБ и стой. Это база.', approvedAt: 0 }
-                : null
+                ? {
+                    revisionId: 'r',
+                    format: 'fidit' as const,
+                    text: 'Купи БКБ и стой. Это база.',
+                    approvedAt: 0,
+                    confirmed: true
+                  }
+                : itemId === 'youtube:1'
+                  ? {
+                      revisionId: 'q',
+                      format: 'fidit' as const,
+                      text: 'Вард на руне.',
+                      approvedAt: 0,
+                      confirmed: false
+                    }
+                  : null
           }
         }) as typeof container
     );
@@ -341,7 +355,8 @@ describe('daily report on the Cron tick and the review job', () => {
     expect(linked?.kind).toBe('other');
     // The review sees the hook of a confirmed script (owner, 19.10.2026), and only of that one.
     expect(inputs[0]).toContain('Сценарии:\nY1 сценарий (подтверждён автором), начало: «Купи БКБ и стой. Это база.»');
-    expect(inputs[0]).not.toContain('Y2 сценарий');
+    // An automatic match by title is said as one, never as the owner's word (review 19.10.2026).
+    expect(inputs[0]).toContain('сценарий (привязан автоматически по названию), начало: «Вард на руне.»');
 
     // The content-alert step runs where sources are configured.
     const sources = youtube(async () => ({ followers: 10, items: [] }));

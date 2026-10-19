@@ -8,6 +8,8 @@ export interface ApprovedScriptRow {
   text: string;
   /** When it was approved, UTC ms. */
   approvedAt: number;
+  /** For a linked video: the owner linked or confirmed it; false for the automatic match by title (0083). */
+  confirmed?: boolean;
 }
 
 /** The stored facts of a script's way from the task to the approval, as the database holds them. */
@@ -73,7 +75,8 @@ export interface ScriptLinksRepository {
     nextShown?: number;
     revisionId: string | null;
     itemIds: readonly string[];
-    link: 'set' | 'remove' | 'keep';
+    /** `confirm`: the owner's word on the links the prompt made, only where they still point at its script. */
+    link: 'set' | 'remove' | 'keep' | 'confirm';
     now: number;
   }): Promise<boolean>;
 }
@@ -194,21 +197,23 @@ export function createD1ScriptLinksRepository(db: D1Database): ScriptLinksReposi
     },
 
     async linkOf(itemId) {
-      return db
+      const row = await db
         .prepare(
-          `SELECT ${SCRIPT_COLUMNS} FROM content_ai_links l
+          `SELECT ${SCRIPT_COLUMNS}, l.origin = 'owner' AS confirmed FROM content_ai_links l
            JOIN ai_text_revisions r ON r.id = l.revision_id JOIN ai_generations g ON g.id = r.generation_id
            WHERE l.content_item_id = ?1`
         )
         .bind(itemId)
-        .first<ApprovedScriptRow>();
+        .first<Omit<ApprovedScriptRow, 'confirmed'> & { confirmed: number }>();
+      return row === null ? null : { ...row, confirmed: row.confirmed === 1 };
     },
 
     async link({ itemId, revisionId, now }) {
       await db
         .prepare(
-          `INSERT INTO content_ai_links (content_item_id, revision_id, linked_at) VALUES (?1, ?2, ?3)
-           ON CONFLICT (content_item_id) DO UPDATE SET revision_id = excluded.revision_id, linked_at = excluded.linked_at`
+          `INSERT INTO content_ai_links (content_item_id, revision_id, linked_at, origin) VALUES (?1, ?2, ?3, 'owner')
+           ON CONFLICT (content_item_id) DO UPDATE
+             SET revision_id = excluded.revision_id, linked_at = excluded.linked_at, origin = 'owner'`
         )
         .bind(itemId, revisionId, now)
         .run();
@@ -276,8 +281,9 @@ export function createD1ScriptLinksRepository(db: D1Database): ScriptLinksReposi
         ...itemIds.map((itemId) =>
           db
             .prepare(
-              `INSERT INTO content_ai_links (content_item_id, revision_id, linked_at)
-               SELECT ?1, revision_id, ?2 FROM ai_script_prompts WHERE id = ?3 AND revision_id IS NOT NULL AND ${linked}
+              `INSERT INTO content_ai_links (content_item_id, revision_id, linked_at, origin)
+               SELECT ?1, revision_id, ?2, CASE status WHEN 'auto' THEN 'auto' ELSE 'owner' END
+               FROM ai_script_prompts WHERE id = ?3 AND revision_id IS NOT NULL AND ${linked}
                ON CONFLICT (content_item_id) DO NOTHING`
             )
             .bind(itemId, now, id)
@@ -310,8 +316,8 @@ export function createD1ScriptLinksRepository(db: D1Database): ScriptLinksReposi
           ? itemIds.map((itemId) =>
               db
                 .prepare(
-                  `INSERT INTO content_ai_links (content_item_id, revision_id, linked_at)
-                   SELECT ?1, ?2, ?3 WHERE EXISTS (SELECT 1 FROM ai_script_prompts WHERE id = ?4 AND status = 'auto')
+                  `INSERT INTO content_ai_links (content_item_id, revision_id, linked_at, origin)
+                   SELECT ?1, ?2, ?3, 'auto' WHERE EXISTS (SELECT 1 FROM ai_script_prompts WHERE id = ?4 AND status = 'auto')
                    ON CONFLICT (content_item_id) DO NOTHING`
                 )
                 .bind(itemId, revisionId, now, id)
@@ -339,16 +345,27 @@ export function createD1ScriptLinksRepository(db: D1Database): ScriptLinksReposi
       // The links follow only the tap that moved the prompt: the row now holds this tap's state and time.
       const moved = 'EXISTS (SELECT 1 FROM ai_script_prompts WHERE id = ?3 AND status = ?4 AND updated_at = ?5)';
       const links = itemIds.map((itemId) =>
-        link === 'set'
-          ? db
+        link === 'confirm'
+          ? // A video relinked in the studio since keeps that link (review 19.10.2026): only a link still to this
+            // script becomes the owner's.
+            db
               .prepare(
-                `INSERT INTO content_ai_links (content_item_id, revision_id, linked_at) SELECT ?1, ?2, ?5 WHERE ${moved}
-                 ON CONFLICT (content_item_id) DO UPDATE SET revision_id = excluded.revision_id, linked_at = excluded.linked_at`
+                `UPDATE content_ai_links SET origin = 'owner'
+                 WHERE content_item_id = ?1 AND revision_id = ?2 AND ${moved}`
               )
               .bind(itemId, revisionId, id, to, now)
-          : db
-              .prepare(`DELETE FROM content_ai_links WHERE content_item_id = ?1 AND revision_id = ?2 AND ${moved}`)
-              .bind(itemId, revisionId, id, to, now)
+          : link === 'set'
+            ? db
+                .prepare(
+                  `INSERT INTO content_ai_links (content_item_id, revision_id, linked_at, origin)
+                 SELECT ?1, ?2, ?5, 'owner' WHERE ${moved}
+                 ON CONFLICT (content_item_id) DO UPDATE
+                   SET revision_id = excluded.revision_id, linked_at = excluded.linked_at, origin = 'owner'`
+                )
+                .bind(itemId, revisionId, id, to, now)
+            : db
+                .prepare(`DELETE FROM content_ai_links WHERE content_item_id = ?1 AND revision_id = ?2 AND ${moved}`)
+                .bind(itemId, revisionId, id, to, now)
       );
       const [result] = await db.batch([update, ...(link === 'keep' ? [] : links)]);
       return result?.meta.changes === 1;

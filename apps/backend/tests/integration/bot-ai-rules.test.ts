@@ -143,6 +143,10 @@ describe('owner rules', () => {
     await api.settle();
     await say('Учу фидить на Пудже');
     await api.settle();
+    // A job that ran is marked finished, so the lost-job check never reports it (review 19.10.2026).
+    expect(
+      await testDb().prepare('SELECT count(*) AS n FROM ai_queue_jobs WHERE finished_at IS NULL').first<{ n: number }>()
+    ).toEqual({ n: 0 });
     expect(inputs[0]).toContain(`ПРАВИЛА АВТОРА`);
     expect(inputs[0]).toContain(`- ${RULE}`);
     expect(inputs[1]).not.toContain(RULE);

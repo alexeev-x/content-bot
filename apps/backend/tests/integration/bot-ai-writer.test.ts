@@ -430,6 +430,37 @@ describe('Telegram AI writer', () => {
     });
   });
 
+  it('marks a job finished only from the delivery that ran it, on every path (review 19.10.2026)', async () => {
+    const job = {
+      id: crypto.randomUUID(),
+      chatId: CHAT_ID,
+      messageId: 78,
+      appOrigin: ORIGIN,
+      kind: 'draft' as const,
+      format: 'igrat' as const,
+      task: 'Учусь играть на Пудже'
+    };
+    const run = async (claimed: boolean) => {
+      let finished = 0;
+      await runAiJob(job, {
+        api: new BotApi('123456:PLACEHOLDER'),
+        clock: fakeClock(),
+        claim: () => Promise.resolve(claimed),
+        finish: () => {
+          finished += 1;
+          return Promise.resolve();
+        },
+        // Fails after the claim: the run still ends, so the job must not be reported lost.
+        writer: () => Promise.reject(new Error('D1 down')),
+        onError: () => {}
+      });
+      return finished;
+    };
+    // A redelivered copy (claim refused) leaves a crashed first run for the lost-job check.
+    expect(await run(false)).toBe(0);
+    expect(await run(true)).toBe(1);
+  });
+
   it('shows a failure, not «Пишу…» forever, when D1 fails at the claim before the model', async () => {
     const errors: unknown[] = [];
     await runAiJob(
@@ -446,6 +477,7 @@ describe('Telegram AI writer', () => {
         api: new BotApi('123456:PLACEHOLDER'),
         clock: fakeClock(),
         claim: () => Promise.reject(new Error('D1 down')),
+        finish: () => Promise.resolve(),
         writer: () => Promise.reject(new Error('not reached')),
         onError: (error) => errors.push(error)
       }

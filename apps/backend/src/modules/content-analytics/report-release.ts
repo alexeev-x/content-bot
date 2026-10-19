@@ -25,6 +25,26 @@ export function visibleLength(html: string): number {
   ).length;
 }
 
+const CUT_NOTE = '<i>Сообщение длинное — целиком отчёт в Студии: Аналитика → Отчёты.</i>';
+
+/**
+ * The numbers alone may still not fit (review 19.10.2026): whole blocks go from the end, never a line inside a
+ * `<pre>` table (an unclosed tag would make Telegram refuse the message), and the message says where the rest is.
+ */
+export function fitMessage(html: string): string {
+  if (visibleLength(html) <= MESSAGE_MAX) return html;
+  const blocks = html.split('\n\n');
+  while (blocks.length > 1 && visibleLength([...blocks, CUT_NOTE].join('\n\n')) > MESSAGE_MAX) blocks.pop();
+  const fitted = [...blocks, CUT_NOTE].join('\n\n');
+  // One block longer than a message on its own: plain text cut, no tags left to break.
+  return visibleLength(fitted) <= MESSAGE_MAX
+    ? fitted
+    : `${Array.from(fitted.replace(/<[^>]+>/g, ''))
+        .slice(0, MESSAGE_MAX - 1)
+        .join('')
+        .replace(/&[a-z]*$/, '')}…`;
+}
+
 type StoredReport = DailyReportData | WeeklyData;
 
 /** The stored JSON: a weekly report says so; a daily one is the older shape without `kind`. */
@@ -80,6 +100,7 @@ export async function releaseDailyReport(
     reviewError = 'AI_TOO_LONG';
     html = render(null, reviewError);
   }
+  html = fitMessage(html);
   const inserted = await deps.alerts.insert(
     [
       {

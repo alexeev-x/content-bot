@@ -169,6 +169,7 @@ export async function proposeScriptLinks(
 export type ScriptPromptAnswer =
   | { kind: 'linked'; title: string; script: ApprovedScriptRow }
   | { kind: 'next'; prompt: ScriptPromptRow; script: ApprovedScriptRow; index: number }
+  | { kind: 'confirmed'; title: string }
   | { kind: 'no_more' | 'none' | 'undone' | 'stale' | 'gone' };
 
 /**
@@ -177,7 +178,7 @@ export type ScriptPromptAnswer =
  */
 export async function answerScriptPrompt(
   deps: Omit<ScriptPromptDeps, 'newId'>,
-  input: { promptId: string; action: 'yes' | 'other' | 'none' | 'undo'; index: number }
+  input: { promptId: string; action: 'yes' | 'other' | 'none' | 'undo' | 'confirm'; index: number }
 ): Promise<ScriptPromptAnswer> {
   const prompt = await deps.links.findPrompt(input.promptId);
   if (prompt === null) return { kind: 'gone' };
@@ -197,6 +198,15 @@ export async function answerScriptPrompt(
       now,
       ...extra
     });
+  if (input.action === 'confirm') {
+    // «✅ Верно» under an automatic link: the owner confirms it, so it may teach analysis rules (review 19.10.2026).
+    if (prompt.status !== 'auto' || prompt.revisionId === null) return { kind: 'stale' };
+    const script = await deps.links.findScript(prompt.revisionId);
+    if (script === null) return { kind: 'stale' };
+    return (await move('auto', 'linked', { revisionId: prompt.revisionId, link: 'confirm' }))
+      ? { kind: 'confirmed', title: prompt.title }
+      : { kind: 'stale' };
+  }
   if (input.action === 'undo') {
     if (prompt.status !== 'auto' || prompt.revisionId === null) return { kind: 'stale' };
     return (await move('auto', 'undone', { revisionId: prompt.revisionId, link: 'remove' }))

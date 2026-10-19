@@ -31,6 +31,7 @@ import {
 } from '../modules/content-analytics';
 import { mirrorHeroAssets } from '../modules/hero-assets';
 import { sendContentAlerts } from './workflows/send-content-alerts';
+import { LOST_JOB_STATEMENTS, reportLostAiJobs } from './workflows/lost-ai-jobs';
 import { raiseScriptPrompts } from './workflows/script-prompts';
 import { runAiReviews } from './workflows/run-ai-reviews';
 
@@ -107,6 +108,7 @@ type TickContainer = Pick<
   | 'contentAnalytics'
   | 'contentAlerts'
   | 'contentGoals'
+  | 'aiWriter'
   | 'contentForecasts'
   | 'contentDailyReports'
   | 'aiScriptLinks'
@@ -529,6 +531,24 @@ export async function handleScheduled(controller: ScheduledController, container
       });
       return { scriptPromptsRaised: prompts };
     });
+  }
+
+  // 7c'''. AI writer jobs whose Worker died after the claim (review 19.10.2026): the owner is told once, so the
+  // task can be sent again. Idle ticks of minutes 4, 24 and 44 (14, 34 and 54 are the video reviews'); the message
+  // goes out with the content alerts at minute 8.
+  if (
+    minute % 20 === 4 &&
+    (counts.due ?? 0) === 0 &&
+    raised.length === 0 &&
+    container.queryBudget.remaining() >= LOST_JOB_STATEMENTS + HEARTBEAT_RESERVE
+  ) {
+    await step('lost-ai-jobs', async () => ({
+      lostAiJobsReported: await reportLostAiJobs({
+        writer: container.aiWriter,
+        alerts: container.contentAlerts,
+        now: clock.now()
+      })
+    }));
   }
 
   // 7c. content alerts: five minutes after collection, on idle ticks. Raising is idempotent (the alert id

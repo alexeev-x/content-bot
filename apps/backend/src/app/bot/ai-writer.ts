@@ -322,6 +322,8 @@ export interface AiJobRuntime {
   clock: Clock;
   /** Claims the job once in D1; false for a redelivered message, whose first delivery owns the chat message. */
   claim: () => Promise<boolean>;
+  /** The run ended, whatever its result: the job is no longer one Cron would report as lost. */
+  finish: () => Promise<void>;
   writer: () => Promise<WriterDeps>;
   onError: (error: unknown) => void;
 }
@@ -448,23 +450,41 @@ async function recordRemark(
  * it failed. Never throws: every failure is shown in that message (and logged unless it is AI being off).
  */
 export async function runAiJob(job: WriterJob, runtime: AiJobRuntime): Promise<void> {
+  let claimed = false;
+  try {
+    claimed = await runClaimed(job, runtime);
+  } finally {
+    // Only the delivery that ran it: a redelivered copy must not mark a job whose first run died (review 19.10.2026).
+    if (claimed) await runtime.finish().catch((error: unknown) => runtime.onError(error));
+  }
+}
+
+/** Runs the job when this delivery claims it; true when it did (the claim taken, whatever happened next). */
+async function runClaimed(job: WriterJob, runtime: AiJobRuntime): Promise<boolean> {
   const { api, clock } = runtime;
   const { chatId, messageId } = job;
   const failureMarkup = job.kind === 'facts' ? retryKeyboard(job.generationId) : undefined;
   let deps: WriterDeps;
   try {
-    if (!(await runtime.claim())) return;
-    deps = await runtime.writer();
+    if (!(await runtime.claim())) return false;
   } catch (error) {
-    // D1 failed before the model: the message still says so instead of «Пишу…» forever.
+    // D1 failed before the claim: the message still says so instead of «Пишу…» forever.
     await edit(api, chatId, messageId, failureOf(error, runtime), failureMarkup).catch((editError: unknown) =>
       runtime.onError(editError)
     );
-    return;
+    return false;
+  }
+  try {
+    deps = await runtime.writer();
+  } catch (error) {
+    await edit(api, chatId, messageId, failureOf(error, runtime), failureMarkup).catch((editError: unknown) =>
+      runtime.onError(editError)
+    );
+    return true;
   }
   if (job.kind === 'chat') {
     await runChatJob(job, deps, runtime);
-    return;
+    return true;
   }
   try {
     const result = await jobResult(job, deps, runtime);
@@ -478,11 +498,11 @@ export async function runAiJob(job: WriterJob, runtime: AiJobRuntime): Promise<v
       const now = clock.now();
       await deps.writer.setEditing({ chatId, generationId: generation.id, now, expiresAt: now + REQUEST_TTL_MS });
       await edit(api, chatId, messageId, factsHtml(generation));
-      return;
+      return true;
     }
     if (result.text === null) {
       await edit(api, chatId, messageId, failedText(generation.errorCode), failureMarkup);
-      return;
+      return true;
     }
     await deps.writer.setChatMessage(generation.id, messageId, clock.now());
     const revisionId = (await deps.writer.revisions(generation.id)).at(-1)?.id;
@@ -501,6 +521,7 @@ export async function runAiJob(job: WriterJob, runtime: AiJobRuntime): Promise<v
       runtime.onError(editError)
     );
   }
+  return true;
 }
 
 export function registerAiWriter(bot: Bot, runtime: AiWriterRuntime): void {

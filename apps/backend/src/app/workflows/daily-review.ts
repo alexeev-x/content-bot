@@ -17,8 +17,8 @@ const REVIEW_TIMEOUT_MS = 120_000;
 const SCRIPT_OPENING_MAX = 400;
 
 /**
- * The opening of the script each video was filmed from, where the owner confirmed the link in the studio (an
- * unconfirmed candidate could be another video's script). Owner, 19.10.2026: the review should see the hook.
+ * The opening of the script each video was filmed from (owner, 19.10.2026: the review should see the hook), said
+ * as the owner's link or as the automatic match by title, never the one passed off as the other (review 19.10.2026).
  */
 async function scriptLines(container: Container, items: readonly { key: string; itemId: string }[]): Promise<string[]> {
   const lines: string[] = [];
@@ -26,7 +26,8 @@ async function scriptLines(container: Container, items: readonly { key: string; 
     const script = await container.aiScriptLinks.linkOf(item.itemId);
     if (script === null) continue;
     const opening = Array.from(script.text.replace(/\s+/g, ' ').trim()).slice(0, SCRIPT_OPENING_MAX).join('');
-    lines.push(`${item.key} сценарий (подтверждён автором), начало: «${opening}»`);
+    const origin = script.confirmed === true ? 'подтверждён автором' : 'привязан автоматически по названию';
+    lines.push(`${item.key} сценарий (${origin}), начало: «${opening}»`);
   }
   return lines;
 }

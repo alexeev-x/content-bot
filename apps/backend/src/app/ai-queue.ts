@@ -56,7 +56,9 @@ export async function handleAiQueue(batch: MessageBatch<unknown>, container: Con
       api: new Api(token, { timeoutSeconds: TELEGRAM_TIMEOUT_SECONDS }),
       clock: container.clock,
       // A redelivered message finds its claim and stops: the model is never called twice for one job.
-      claim: () => container.aiWriter.claimJob(job.id, container.clock.now()),
+      claim: () =>
+        container.aiWriter.claimJob(job.id, container.clock.now(), { chatId: job.chatId, messageId: job.messageId }),
+      finish: () => container.aiWriter.finishJob(job.id, container.clock.now()),
       writer: () => createWriterDeps(container, requestId),
       onError
     });

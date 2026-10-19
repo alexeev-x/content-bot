@@ -177,6 +177,8 @@ export function createD1ReviewRepository(db: D1Database): ReviewRepository {
              AND (v.limited_reason IS NULL OR v.limited_reason NOT IN ('contaminated', 'no_snapshot', 'weak_baseline'))
              AND json_extract(v.observation_json, '$.position') IN ('above', 'below')
              AND g.format IN ('fidit', 'igrat', 'standalone')
+             -- Only the owner's links teach rules: a title match could be another video's script (review 19.10.2026).
+             AND l.origin = 'owner'
            ORDER BY v.created_at DESC LIMIT ?2`
         )
         .bind(from, Math.min(limit, 100))

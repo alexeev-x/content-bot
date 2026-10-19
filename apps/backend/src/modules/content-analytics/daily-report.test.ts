@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { DailyAnalytics } from './daily-analytics';
 import { compactCount, dailyReportHtml, dailyReviewFacts, growthText } from './daily-report';
+import { fitMessage, visibleLength } from './report-release';
 
 // The report's text (plan §4.2, owner 19.10.2026: a presentation with the AI review): a wrong suffix, a growth
 // called a day when it is not, or a review that names the wrong video would mislead the owner.
@@ -92,5 +93,17 @@ describe('daily report text', () => {
       reviewError: 'AI_DISABLED'
     });
     expect(html).toContain('🧠 Разбор недоступен: ИИ выключен.');
+  });
+});
+
+describe('a report that does not fit one Telegram message (review 19.10.2026)', () => {
+  it('drops whole blocks from the end, never a line of a table, and says where the rest is', () => {
+    const table = `<b>YouTube</b>\n<pre>${'1  2.7к  +173  Ролик\n'.repeat(60)}</pre>`;
+    const html = [`<b>📈 Аналитика</b>`, table, table, table, table].join('\n\n');
+    const fitted = fitMessage(html);
+    expect(visibleLength(fitted)).toBeLessThanOrEqual(3900);
+    expect(fitted.split('<pre>').length).toBe(fitted.split('</pre>').length);
+    expect(fitted).toContain('целиком отчёт в Студии');
+    expect(fitMessage('<b>коротко</b>')).toBe('<b>коротко</b>');
   });
 });

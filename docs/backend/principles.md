@@ -4,7 +4,7 @@
 
 - `fetch` — the admin UI (SPA from static assets, `not_found_handling: "single-page-application"`), the API `/api/v1/*` and the bot webhook `/webhooks/telegram` (`run_worker_first` only for these paths);
 - `scheduled` — Cron once a minute: reconcile and dispatch publications first, then bounded owner-managed automations when publication work is idle;
-- `queue` — consumer of `AI_JOBS` (`app/ai-queue.ts`): one AI writer model call per message, claimed once in D1, never retried by the queue (docs/backend/bot.md «AI writer»).
+- `queue` — consumer of `AI_JOBS` (`app/ai-queue.ts`): one AI writer model call per message, claimed once in D1, never retried by the queue; a chat job records when its run ended, so Cron tells the owner about one that never did (docs/backend/cron.md item 10).
 
 The same Worker serves the frontend (built via `@cloudflare/vite-plugin`), without Pages, Pages Functions or a BFF. **The bot is part of this same backend** (inbound adapter `app/bot`), not a separate service: Telegram itself sends updates to the webhook. No mandatory AI. Images from the owner's sources via HTML/CSS templates; expensive rendering is split out only after measurements.
 

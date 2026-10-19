@@ -102,19 +102,42 @@ const NUMBER = /[+\-−]?\d+(?:[.,]\d+)?(?:\s?(?:%|тыс[а-яё]*|млн[а-я
 const normal = (value: string) => value.replace(',', '.').replace('-', '−').replace(/\s/g, '').toLowerCase();
 const bareSmall = (value: string) => /^\d+$/.test(value) && Number(value) <= FREE_NUMBER_MAX;
 
-/** The numbers of the review that the facts do not contain; empty when the review only repeats them. */
-export function unverifiedNumbers(review: AnalyticsReview, facts: string): string[] {
-  const known = new Set((facts.match(NUMBER) ?? []).map(normal));
-  const texts = [
-    review.summary,
-    review.next,
-    ...review.rising.map((row) => row.note),
-    ...review.weak.flatMap((row) => [row.note, ...row.hypotheses.map((hypothesis) => hypothesis.text)])
-  ];
-  return texts
+/** The facts' lines about one video: each starts with its key («Y1 «Пудж» · …»). */
+export function videoFacts(facts: string, video: string): string {
+  return facts
+    .split('\n')
+    .filter((line) => line.trimStart().startsWith(`${video} `))
+    .join('\n');
+}
+
+const numbersOf = (text: string) => new Set((text.match(NUMBER) ?? []).map(normal));
+const missing = (texts: readonly string[], known: Set<string>) =>
+  texts
     .flatMap((text) => text.match(NUMBER) ?? [])
     .map(normal)
     .filter((value) => !known.has(value) && !bareSmall(value));
+
+/**
+ * The numbers of the review that the facts do not contain; empty when the review only repeats them. A note about a
+ * video may only use that video's own numbers (review 19.10.2026: another video's real number passed the old check).
+ */
+export function unverifiedNumbers(review: AnalyticsReview, facts: string): string[] {
+  const rows = [
+    ...review.rising.map((row) => ({ video: row.video, texts: [row.note] })),
+    ...review.weak.map((row) => ({
+      video: row.video,
+      texts: [row.note, ...row.hypotheses.map((hypothesis) => hypothesis.text)]
+    }))
+  ];
+  return [
+    ...missing([review.summary, review.next], numbersOf(facts)),
+    ...rows.flatMap((row) => missing(row.texts, numbersOf(videoFacts(facts, row.video))))
+  ];
+}
+
+/** A hypothesis only where the video's comparison is reliable: checked here, not left to the instructions. */
+export function reliableComparison(facts: string, video: string): boolean {
+  return videoFacts(facts, video).includes('сравнение надёжное');
 }
 
 export interface AnalyticsReviewDeps {
@@ -177,7 +200,9 @@ export async function writeAnalyticsReview(
   review = {
     ...review,
     rising: review.rising.filter((row) => known.has(row.video)),
-    weak: review.weak.filter((row) => known.has(row.video))
+    weak: review.weak
+      .filter((row) => known.has(row.video))
+      .map((row) => (reliableComparison(input.facts, row.video) ? row : { ...row, hypotheses: [] }))
   };
   if (unverifiedNumbers(review, input.facts).length > 0)
     return { review: null, errorCode: 'AI_NUMBERS_UNVERIFIED', model: result.model, usageId, budgetEvents };
