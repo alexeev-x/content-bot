@@ -199,7 +199,7 @@ Schemas and error codes: `apps/contracts/src/settings.ts`.
 |---|---|
 | `GET /api/v1/settings/appearance` | Theme mode (system/light/dark) and the accent preset; the client writes the same preset to `lightAccent` and `darkAccent` and an empty `customPresets` (custom colours are no longer offered; the fields stay for compatibility). Preset ids: cobalt, indigo, copper, orchid, mono, teal, green, red |
 | `PUT /api/v1/settings/appearance` | Replaces the whole document; the current `revision` goes in the body. Stale → `409` `STALE_REVISION`; an accent pointing to a custom preset that is not in the list → `400` `UNKNOWN_CUSTOM_PRESET`; repeated preset id → `400` `DUPLICATE_PRESET_ID`; body over 8 KB → `413` |
-| `GET /api/v1/settings/operations` | Owner timezone and notification preferences; never saved → `Europe/Moscow`, enabled notification preferences and revision 0. The UI uses this shared timezone for scheduling and the dashboard's local-day range; Telegram `/today` and `/next` use it too |
+| `GET /api/v1/settings/operations` | Owner timezone and notification preferences; never saved → `Europe/Moscow`, enabled notification preferences and revision 0. The UI uses this shared timezone for scheduling and the dashboard's local-day range; Telegram `/today` and `/next` use it too. `dailyReport` (default off) and `dailyReportHour` (default 9, owner zone) control the daily analytics report (AI plan P6); a document saved before has neither and reads the defaults |
 | `PUT /api/v1/settings/operations` | Replaces the complete timezone and notification-preference document using its current `revision`; stale or concurrent saves return `409` `STALE_REVISION` |
 
 

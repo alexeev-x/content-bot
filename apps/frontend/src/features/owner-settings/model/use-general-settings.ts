@@ -16,6 +16,8 @@ export type SettingsPatch = Partial<{
   recoveryAlerts: boolean;
   scheduleNotices: boolean;
   sentNotices: boolean;
+  dailyReport: boolean;
+  dailyReportHour: number;
 }>;
 
 export type SettingsProblem = { kind: 'conflict' | 'failed'; requestId?: string | undefined };
@@ -37,7 +39,9 @@ function toInput(base: OwnerOperationsSettingsDto, patch: SettingsPatch) {
       dotaWatchlistAlerts: sources,
       recoveryAlerts: patch.recoveryAlerts ?? base.notifications.recoveryAlerts,
       scheduleNotices: patch.scheduleNotices ?? base.notifications.scheduleNotices,
-      sentNotices: patch.sentNotices ?? base.notifications.sentNotices
+      sentNotices: patch.sentNotices ?? base.notifications.sentNotices,
+      dailyReport: patch.dailyReport ?? base.notifications.dailyReport,
+      dailyReportHour: patch.dailyReportHour ?? base.notifications.dailyReportHour
     }
   };
 }
@@ -132,7 +136,9 @@ export function useGeneralSettings() {
         sourceAlerts: pending.sourceAlerts ?? data.notifications.sourceAlerts,
         recoveryAlerts: pending.recoveryAlerts ?? data.notifications.recoveryAlerts,
         scheduleNotices: pending.scheduleNotices ?? data.notifications.scheduleNotices,
-        sentNotices: pending.sentNotices ?? data.notifications.sentNotices
+        sentNotices: pending.sentNotices ?? data.notifications.sentNotices,
+        dailyReport: pending.dailyReport ?? data.notifications.dailyReport,
+        dailyReportHour: pending.dailyReportHour ?? data.notifications.dailyReportHour
       }
     : null;
 

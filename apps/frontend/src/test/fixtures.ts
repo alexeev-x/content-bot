@@ -138,6 +138,8 @@ export const ownerOperationsSettings = (
       scheduleNotices: boolean;
       sentNotices: boolean;
       dotaWatchlistAlerts: boolean;
+      dailyReport: boolean;
+      dailyReportHour: number;
     }>;
     revision?: number;
     updatedAt?: string | null;
@@ -153,6 +155,8 @@ export const ownerOperationsSettings = (
     scheduleNotices: true,
     sentNotices: true,
     dotaWatchlistAlerts: true,
+    dailyReport: false,
+    dailyReportHour: 9,
     ...overrides.notifications
   },
   revision: overrides.revision ?? 0,

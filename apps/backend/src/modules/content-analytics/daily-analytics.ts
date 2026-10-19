@@ -1,5 +1,6 @@
 import type { Clock } from '../../platform/clock';
 import { type DailyRow, dailyRowsOf } from './daily-table';
+import { type Forecast, forecastViews } from './forecast';
 import type { ContentAnalyticsRepository } from './d1-content-analytics-repository';
 import { BASELINE_WINDOW_MS, baselineFor, FORMAT_BASELINE_MIN_ITEMS, formatIndex } from './service';
 import type { ItemFormats } from './types';
@@ -20,7 +21,8 @@ export interface DailyPlatform {
   state: 'ok' | 'error' | 'pending';
   lastSuccessAt: number | null;
   errorCode: string | null;
-  rows: DailyRow[];
+  /** Each row with its forecast from the same readings (plan P5): numbers or `insufficient_data`. */
+  rows: (DailyRow & { forecast: Forecast })[];
 }
 
 export interface DailyAnalytics {
@@ -76,7 +78,13 @@ export async function readDailyAnalytics(deps: {
       state: failedLast ? 'error' : lastSuccessAt === null ? 'pending' : 'ok',
       lastSuccessAt,
       errorCode: failedLast ? (source?.lastErrorCode ?? 'COLLECT_FAILED') : null,
-      rows: dailyRowsOf(items, asOf, PER_PLATFORM)
+      rows: dailyRowsOf(items, asOf, PER_PLATFORM).map((row) => {
+        const item = items.find((each) => each.id === row.id)!;
+        return {
+          ...row,
+          forecast: forecastViews({ readings: item.snapshots, publishedAt: item.publishedAt, origin: asOf })
+        };
+      })
     };
   });
   return {

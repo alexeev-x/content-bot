@@ -97,7 +97,7 @@ function median(values: readonly number[]): number | null {
 }
 
 /** Hour, minute and weekday (0 = Monday) of an instant in the owner's zone. */
-function zoned(at: number, timezone: string): { weekday: number; hour: number; minute: number; second: number } {
+export function zoned(at: number, timezone: string): { weekday: number; hour: number; minute: number; second: number } {
   const parts = new Intl.DateTimeFormat('en-GB', {
     timeZone: timezone,
     weekday: 'short',
@@ -115,7 +115,7 @@ function zoned(at: number, timezone: string): { weekday: number; hour: number; m
   };
 }
 
-function zonedDate(at: number, timezone: string): string {
+export function zonedDate(at: number, timezone: string): string {
   // en-CA gives YYYY-MM-DD.
   return new Intl.DateTimeFormat('en-CA', { timeZone: timezone }).format(new Date(at));
 }

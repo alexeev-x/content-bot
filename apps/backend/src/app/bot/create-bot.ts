@@ -128,6 +128,8 @@ export interface BotRuntime {
   updates: UpdateDedup;
   /** The answers of /today, /next and /status. */
   reports: OwnerReports;
+  /** «Аналитика сейчас» (AI plan P6): the daily table at this moment; never a second daily report. */
+  analyticsNow: () => Promise<OwnerReply>;
   /** Stores a draft post; a repeated key returns the same post. Throws `AppError` or a D1 error. */
   createDraft: (input: CreatePostInput, idempotencyKey: string) => Promise<{ id: string; revision: number }>;
   /** The «publish now» buttons under a draft reply and what a tap does. */
@@ -316,6 +318,10 @@ export function createBot(config: BotConfig, runtime: BotRuntime): Bot {
   bot.command(
     'status',
     report(() => runtime.reports.status())
+  );
+  bot.command(
+    'analytics',
+    report(() => runtime.analyticsNow())
   );
 
   // Before the plain draft handler: a request for a text or a reply to an AI draft is the writer's.

@@ -114,7 +114,9 @@ describe('GET and PUT /api/v1/settings/operations', () => {
         recoveryAlerts: true,
         dotaWatchlistAlerts: true,
         scheduleNotices: true,
-        sentNotices: true
+        sentNotices: true,
+        dailyReport: false,
+        dailyReportHour: 9
       },
       revision: 0,
       updatedAt: null

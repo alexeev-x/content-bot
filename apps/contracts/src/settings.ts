@@ -25,7 +25,12 @@ export const notificationPreferencesSchema = z.object({
   /** «Запланировано», «Перенесено» and «Отменено» notices for the owner's own planning. */
   scheduleNotices: z.boolean().default(true),
   /** «Опубликовано» after a confirmed send. */
-  sentNotices: z.boolean().default(true)
+  sentNotices: z.boolean().default(true),
+  // Added 19.10.2026 (AI plan P6): the daily analytics report is off until the owner switches it on.
+  /** The daily report of the six latest videos per platform, in the owner's private chat. */
+  dailyReport: z.boolean().default(false),
+  /** The owner-zone hour it is sent at. */
+  dailyReportHour: z.number().int().min(0).max(23).default(9)
 });
 
 export const ownerOperationsSettingsSchema = z.object({

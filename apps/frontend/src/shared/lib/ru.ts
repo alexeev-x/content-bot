@@ -226,6 +226,11 @@ export const ru = {
     scheduleNoticesHint: 'Публикация запланирована, перенесена или отменена.',
     sentNotices: 'Опубликовано',
     sentNoticesHint: 'Сообщение ушло в канал, со ссылкой на него.',
+    dailyReportTitle: 'Ежедневный отчёт',
+    dailyReport: 'Отчёт в Telegram',
+    dailyReportHint: 'Раз в день: 6 последних роликов YouTube и TikTok, прирост и прогнозы. Только по вашим данным.',
+    dailyReportHour: 'Время отправки',
+    dailyReportHourOption: (hour: number) => `${String(hour).padStart(2, '0')}:00`,
     critical:
       'Критические уведомления о неподтверждённой отправке всегда включены: они помогают избежать повторной публикации.',
     criticalTitle: 'Критические уведомления всегда включены',

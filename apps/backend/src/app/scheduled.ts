@@ -21,7 +21,12 @@ import { DotaWatchError } from '../modules/dota';
 import { processPostMediaCleanup } from '../modules/content';
 import { sendDotaWatchlistAlerts } from './workflows/process-dota-watchlist-alerts';
 import { notifyOwnerOfDeliveries } from './notifications/sent-notice';
-import { collectContentAnalytics, raiseContentAlerts, SOURCE_D1_STATEMENTS } from '../modules/content-analytics';
+import {
+  collectContentAnalytics,
+  raiseContentAlerts,
+  raiseDailyReport,
+  SOURCE_D1_STATEMENTS
+} from '../modules/content-analytics';
 import { mirrorHeroAssets } from '../modules/hero-assets';
 import { sendContentAlerts } from './workflows/send-content-alerts';
 import { runAiReviews } from './workflows/run-ai-reviews';
@@ -37,6 +42,11 @@ const CONTENT_SOURCE_MIN = 5 + SOURCE_D1_STATEMENTS;
 // Raising (settings, at most ten reads with the digest's goals, NEW_ALERTS_PER_TICK inserts) and sending two
 // alerts (stuck sweep, pending read, app origin, then claim, Telegram call and finish each).
 const CONTENT_ALERTS_RESERVE = 24;
+// The daily report, every statement counted (a batch counts each): settings, the dedup read, scoring (due list,
+// readings, one update), the accuracy read, the table (two item lists, a two-statement batch, checkpoints, six
+// format lists), the forecasts insert and the alert insert. Its own minute-2 slot, so the content alerts of
+// minute 8 keep their budget and send it six minutes later.
+const DAILY_REPORT_STATEMENTS = 20;
 /** A claim and one file (fetch, R2 write, update); more files when more is left. */
 const HERO_ASSETS_MIN = 6;
 // The tick of this UTC minute purges expired archived posts (cleanup runs at minute 0).
@@ -88,6 +98,7 @@ type TickContainer = Pick<
   | 'contentAnalytics'
   | 'contentAlerts'
   | 'contentGoals'
+  | 'contentForecasts'
   | 'contentSources'
   | 'contentFetch'
   | 'heroAssets'
@@ -419,6 +430,30 @@ export async function handleScheduled(controller: ScheduledController, container
       });
       return { contentCollected: result.collected, contentFailed: result.failed, contentDeferred: result.deferred };
     });
+  }
+
+  // 7c'. the daily analytics report (AI plan P6): off until the owner switches it on in «Настройки». Raised once
+  // per owner-zone day from its hour as a content alert on idle minute-2 ticks, so step 7c sends it at minute 8
+  // with the same rules: one attempt, an unconfirmed send stays `unknown`.
+  if (
+    minute % 10 === 2 &&
+    (counts.due ?? 0) === 0 &&
+    raised.length === 0 &&
+    container.queryBudget.remaining() >= DAILY_REPORT_STATEMENTS + HEARTBEAT_RESERVE
+  ) {
+    const { timezone, notifications } = await readPreferences();
+    if (notifications.dailyReport)
+      await step('daily-report', async () => {
+        const report = await raiseDailyReport({
+          analytics: container.contentAnalytics,
+          alerts: container.contentAlerts,
+          forecasts: container.contentForecasts,
+          clock,
+          timezone,
+          hour: notifications.dailyReportHour
+        });
+        return { dailyReportRaised: report.raised ? 1 : 0 };
+      });
   }
 
   // 7c. content alerts: five minutes after collection, on idle ticks. Raising is idempotent (the alert id

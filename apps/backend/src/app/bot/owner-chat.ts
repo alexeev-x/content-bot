@@ -8,6 +8,7 @@ export const OWNER_COMMANDS = [
   { command: 'redactor', description: 'ИИ-редактор: написать пост или рилс' },
   { command: 'post', description: 'Создать пост: сообщения становятся черновиками' },
   { command: 'plan', description: 'План: сегодня и ближайшие публикации' },
+  { command: 'analytics', description: 'Аналитика сейчас: 6 последних роликов' },
   { command: 'stop', description: 'Выйти из редактора или режима постов' }
 ];
 

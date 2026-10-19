@@ -9,6 +9,7 @@ import {
   IconBadge,
   type IconName,
   Panel,
+  Select,
   Skeleton,
   type StatusGroup,
   Switch,
@@ -55,6 +56,11 @@ const SWITCHES = [
   icon: IconName;
   tone: StatusGroup | 'accent';
 }[];
+
+const HOURS = Array.from({ length: 24 }, (_, hour) => ({
+  id: String(hour),
+  label: ru.general.dailyReportHourOption(hour)
+}));
 
 /** «15:32» and «UTC+3» in the chosen zone; an unknown zone shows nothing rather than the browser's time. */
 function zoneClock(now: Date, timezone: string): { time: string; offset: string } | null {
@@ -221,6 +227,27 @@ export function GeneralSettingsEditor() {
           <Banner tone="warning" title={ru.general.criticalTitle}>
             {ru.general.criticalBody}
           </Banner>
+        </div>
+      </Panel>
+      {/* Its own panel: «Включить все» never starts a daily message the owner did not choose (plan §4.3). */}
+      <Panel title={ru.general.dailyReportTitle} icon={<Icon name="chart" />}>
+        <div className={styles.switches}>
+          <Switch
+            variant="row"
+            isSelected={view.dailyReport}
+            onChange={(value) => change({ dailyReport: value })}
+            description={ru.general.dailyReportHint}
+          >
+            {ru.general.dailyReport}
+          </Switch>
+          {view.dailyReport ? (
+            <Select
+              label={ru.general.dailyReportHour}
+              options={HOURS}
+              value={String(view.dailyReportHour)}
+              onChange={(id) => change({ dailyReportHour: Number(id) })}
+            />
+          ) : null}
         </div>
       </Panel>
       <output className={styles.status}>{STATUS_TEXT[status]}</output>

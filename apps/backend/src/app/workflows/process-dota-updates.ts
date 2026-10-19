@@ -264,7 +264,9 @@ const ALL_NOTIFICATIONS_ON: OwnerOperationsSettingsDto['notifications'] = {
   recoveryAlerts: true,
   dotaWatchlistAlerts: true,
   scheduleNotices: true,
-  sentNotices: true
+  sentNotices: true,
+  dailyReport: false,
+  dailyReportHour: 9
 };
 
 async function readPreferences(

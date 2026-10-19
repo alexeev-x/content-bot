@@ -2,7 +2,7 @@ import { webhookCallback } from 'grammy';
 import { Hono } from 'hono';
 import { bodyLimit } from 'hono/body-limit';
 import { createPost } from '../../modules/content';
-import { markContentItemContamination } from '../../modules/content-analytics';
+import { dailyReportNow, markContentItemContamination } from '../../modules/content-analytics';
 import { timingSafeEqualStrings } from '../../platform/security/timing-safe-equal';
 import { AppError } from '../../shared/app-error';
 import type { AppBindings } from '../env';
@@ -105,6 +105,17 @@ export const telegramWebhook = new Hono<AppBindings>().post(
         next: () => reports().next(),
         status: () => reports().status()
       },
+      analyticsNow: async () => ({
+        html: await dailyReportNow({
+          analytics: container.contentAnalytics,
+          forecasts: container.contentForecasts,
+          clock: container.clock,
+          timezone: (
+            await getOwnerOperationsSettings({ repo: container.settings, logger: container.logger, requestId })
+          ).timezone
+        }),
+        button: { text: 'Открыть аналитику', url: `${appOrigin}/analytics` }
+      }),
       writer: () => createWriterDeps(container, requestId),
       enqueueAiJob: (job) => container.aiJobs.send(job),
       createDraft: async (input, idempotencyKey) =>
