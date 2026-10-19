@@ -45,6 +45,7 @@ import {
   WRITER_DRAFT_JSON_SCHEMA,
   WRITER_FIX_JSON_SCHEMA
 } from './writer-answer';
+import { RULES_IN_USE_MAX, type RulesRepository } from './d1-rules-repository';
 import type { WriterFormat, WriterMode } from './writer-types';
 
 // The AI writer (docs/ai/architecture.md items 2, 4, 7, 9, 20): a draft is stored as AI_DRAFT, the owner's
@@ -75,6 +76,15 @@ export interface WriterDeps {
   provider: AiTextProvider | null;
   /** The owner's own Telegram posts (stage 2 of the plan); without it only his edits of AI drafts teach the writer. */
   ownerPosts?: OwnerPostSource;
+  /** The managed memory (AI plan P7): the rules in use for the format reach the prompt. */
+  rules?: Pick<RulesRepository, 'forPrompt'>;
+}
+
+/** At most this many rules in one prompt: the owner's first, then approved analysis rules (plan §6.2 budget). */
+const PROMPT_RULES = RULES_IN_USE_MAX;
+
+async function rulesFor(deps: WriterDeps, format: WriterFormat): Promise<string[]> {
+  return ((await deps.rules?.forPrompt(format, PROMPT_RULES)) ?? []).map((rule) => rule.text);
 }
 
 export interface WriterResult {
@@ -334,7 +344,8 @@ export async function generateDraft(
       author: await author(deps),
       ownerTexts: rankOwnerTexts(task, await ownerTexts(deps, input.format), OWNER_TEXTS),
       recent,
-      resting
+      resting,
+      rules: await rulesFor(deps, input.format)
     }),
     input.signal,
     invent ? recent : []
@@ -380,6 +391,7 @@ export async function rewriteDraft(
     mode: parent.mode,
     task: parent.task,
     rewrite: { text: current.text, instruction, ...(input.remark ? { remark: input.remark } : {}) },
+    rules: await rulesFor(deps, parent.format),
     author: await author(deps),
     ownerTexts: rankOwnerTexts(parent.task, await ownerTexts(deps, parent.format), OWNER_TEXTS)
   });

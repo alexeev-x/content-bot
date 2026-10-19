@@ -56,9 +56,11 @@ import { createLogger, type Logger } from '../platform/logging/logger';
 import {
   type AiRepository,
   type AiTextProvider,
+  type RulesRepository,
   createD1AiRepository,
   createD1AuthorProfileRepository,
   createD1ReviewRepository,
+  createD1RulesRepository,
   createD1ScriptLinksRepository,
   createD1WriterRepository,
   type AuthorProfileRepository,
@@ -197,6 +199,8 @@ export interface Container {
   aiRepository: AiRepository;
   /** The configured text-model provider; null without its key. */
   aiProvider: AiTextProvider | null;
+  /** The AI writer's managed memory: the owner's rules and the approved analysis rules (0079). */
+  aiRules: RulesRepository;
   /** The bot's AI model calls go through Queue AI_JOBS (owner, 19.10.2026); UNAVAILABLE without the binding. */
   aiJobs: { send: (job: AiJob) => Promise<void> };
   /** AI drafts, their revisions with provenance and the owner's feedback (migration 0054). */
@@ -571,6 +575,9 @@ export function createContainer(env: ContainerEnv, overrides: ContainerOverrides
       if (overrides.aiProvider !== undefined) return overrides.aiProvider;
       const key = env.OPENAI_API_KEY?.trim();
       return key ? createOpenAiProvider(key, (input, init) => fetch(input, init)) : null;
+    },
+    get aiRules() {
+      return createD1RulesRepository(db());
     },
     get aiJobs() {
       return {

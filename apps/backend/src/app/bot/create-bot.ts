@@ -27,10 +27,11 @@ import { configureOwnerChat } from './owner-chat';
 import type { OwnerReply, OwnerReports } from './owner-reports';
 import type { TelegramCaller } from './telegram-call';
 import type { UpdateDedup } from './update-dedup';
-import type { WriterDeps } from '../../modules/ai';
+import type { RulesRepository, WriterDeps } from '../../modules/ai';
 import { CONTAMINATION_CALLBACK, parseContaminationCallback } from '../../modules/content-analytics';
 import type { AiJob } from './ai-job';
 import { NO_MODE_TEXT, registerAiWriter, REQUEST_TTL_MS } from './ai-writer';
+import { registerAiRules } from './ai-rules';
 import { SCRIPT_PROMPT_CALLBACK, type ScriptPromptReply } from '../workflows/script-prompts';
 
 export interface BotSettings {
@@ -129,6 +130,8 @@ export interface BotRuntime {
   updates: UpdateDedup;
   /** The answer of /status. */
   reports: OwnerReports;
+  /** The AI writer's rules (AI plan P7): «/rule» and «/rules». */
+  rules: () => Promise<RulesRepository>;
   /** A tap on «Снят по этому сценарию?» or «Привязал сценарий» (owner, 19.10.2026). */
   scriptPromptTap: (data: string) => Promise<ScriptPromptReply>;
   /** «Аналитика сейчас» (AI plan P6): the daily table at this moment; never a second daily report. */
@@ -321,6 +324,13 @@ export function createBot(config: BotConfig, runtime: BotRuntime): Bot {
     });
   });
 
+  // Before the writer: in a /redactor chat its text handler would take «/rule …» as a message to the editor.
+  registerAiRules(bot, {
+    clock: runtime.clock,
+    newId: () => crypto.randomUUID(),
+    rules: runtime.rules,
+    onError: runtime.onError
+  });
   registerAiWriter(bot, runtime);
 
   // In /post mode whatever the owner sends or forwards becomes a draft. An unknown command is not a post.

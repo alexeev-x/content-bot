@@ -1,6 +1,13 @@
 export { type AiRepository, createD1AiRepository } from './d1-ai-repository';
 export { AI_CATALOG } from './catalog';
 export { createOpenAiProvider } from './openai-provider';
+export {
+  createD1RulesRepository,
+  type RuleRow,
+  type RuleScope,
+  type RulesRepository,
+  RULES_IN_USE_MAX
+} from './d1-rules-repository';
 export { type AnalyticsReview, writeAnalyticsReview } from './analytics-review';
 export { type AiTextProvider, AiProviderError, type OwnerPost, type OwnerPostSource } from './ports';
 export {

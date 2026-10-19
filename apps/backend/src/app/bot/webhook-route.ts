@@ -118,6 +118,7 @@ export const telegramWebhook = new Hono<AppBindings>().post(
         button: { text: 'Открыть аналитику', url: `${appOrigin}/analytics` }
       }),
       writer: () => createWriterDeps(container, requestId),
+      rules: () => Promise.resolve(container.aiRules),
       enqueueAiJob: (job) => container.aiJobs.send(job),
       createDraft: async (input, idempotencyKey) =>
         createPost(

@@ -12,6 +12,7 @@ export async function createWriterDeps(container: Container, requestId: string):
     clock: container.clock,
     newId: container.newId,
     provider: container.aiProvider,
+    rules: container.aiRules,
     timezone: (await getOwnerOperationsSettings({ repo: container.settings, logger: container.logger, requestId }))
       .timezone
   };

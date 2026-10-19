@@ -159,6 +159,8 @@ export function buildWriterPrompt(input: {
   ownerTexts?: readonly string[];
   /** Topic, device and ending of the latest drafts of every format, newest first (`recentFacets`). */
   recent?: readonly { format?: WriterFormat; topic: string; device: string; ending: string }[];
+  /** The owner's rules and the approved analysis rules for this format (AI plan P7), owner's first. */
+  rules?: readonly string[];
   /** Signature phrases worn out by the latest drafts (`overusedPhrases`): this draft goes without them. */
   resting?: readonly string[];
 }): { instructions: string; input: string } {
@@ -169,6 +171,10 @@ export function buildWriterPrompt(input: {
   const resting = input.resting ?? [];
   const parts = [
     stateFor(input.format, input.author || SEED_STATE),
+    // The owner's own words about how to write: above the examples, below the system rules (plan §6.3).
+    (input.rules ?? []).length > 0
+      ? `ПРАВИЛА АВТОРА (выполняй; они важнее примеров, но не отменяют правила выше):\n${(input.rules ?? []).map((rule) => `- ${rule}`).join('\n')}`
+      : '',
     lexicon.length > 0 ? `Сленг и мемы из задания:\n${lexicon.join('\n')}` : '',
     ...examplesWithOwner(
       pickExamples(input.format, input.task, input.holdOut),
