@@ -135,6 +135,9 @@ const shortenForTelegram = (value: string, max: number): string =>
  */
 export function writerIntent(text: string): { format: WriterFormat; task: string } | null {
   const lower = text.toLowerCase();
+  // A message that opens with a rubric name is its task (plan 3.1: «Учусь играть про Пуджа: …»), quotes aside.
+  const rubric = /^[\s«"„“]*(учусь играть|уч(у|им) фид)/.exec(lower);
+  if (rubric !== null) return { format: rubric[1] === 'учусь играть' ? 'igrat' : 'fidit', task: text.trim() };
   if (!/^\s*(напиши|сделай|придумай|накидай|набросай)\s/.test(lower)) return null;
   const head = lower.slice(0, 120);
   const format: WriterFormat | null = /уч(у|им) фид/.test(head)

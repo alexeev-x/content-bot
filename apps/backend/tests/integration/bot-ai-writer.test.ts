@@ -373,6 +373,22 @@ describe('Telegram AI writer', () => {
     expect(revisions.results.map((row) => row.provenance)).toEqual(['AI_DRAFT']);
   });
 
+  it('treats a typed rubric name in /redactor as the task, not a chat answer (owner DEV run 19.10.2026)', async () => {
+    expect((await deliver(message('/redactor', true))).status).toBe(200);
+    expect((await deliver(message('Учусь играть на Пудже'))).status).toBe(200);
+    await api.settle();
+    expect(
+      await testDb().prepare('SELECT format, result, task FROM ai_generations').all<Record<string, string>>()
+    ).toMatchObject({ results: [{ format: 'igrat', result: 'needs_facts', task: 'Учусь играть на Пудже' }] });
+
+    expect((await deliver(message(OWNER_FACTS))).status).toBe(200);
+    await api.settle();
+    expect(modelInputs[1]).toContain(OWNER_FACTS);
+    expect(
+      await testDb().prepare("SELECT COUNT(*) AS n FROM ai_generations WHERE result = 'draft'").first<{ n: number }>()
+    ).toEqual({ n: 1 });
+  });
+
   it('consumes an open facts question once when two replies arrive together', async () => {
     await askForFacts();
     const responses = await Promise.all([

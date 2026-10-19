@@ -553,6 +553,10 @@ describe('AI writer checks', () => {
     expect(writerIntent('напиши пост в тг про новый патч')).toMatchObject({ format: 'telegram' });
     expect(writerIntent('Сделай рилс учусь играть про варды')).toMatchObject({ format: 'igrat' });
     expect(writerIntent('придумай сценарий учу фидить на пуджа')).toMatchObject({ format: 'fidit' });
+    // A rubric name at the start is the task itself (owner DEV run 19.10.2026: it became a plain chat answer).
+    expect(writerIntent('«Учусь играть на Пудже')).toMatchObject({ format: 'igrat', task: '«Учусь играть на Пудже' });
+    expect(writerIntent('Учу фидить на Пудже')).toMatchObject({ format: 'fidit' });
+    expect(writerIntent('Я учусь играть на Пудже')).toBeNull();
     expect(writerIntent('Сегодня стрим в 20:00')).toBeNull();
     expect(writerIntent('напиши мне потом')).toBeNull();
   });
