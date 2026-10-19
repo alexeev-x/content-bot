@@ -561,7 +561,15 @@ describe('AI writer checks', () => {
     expect(input).toContain('одобрен в студии):\nПудж ловит крипов.\n');
     const examples = pickExamples('igrat', 'Учусь играть на Пудже');
     expect(examples.length).toBeGreaterThan(0);
-    for (const example of examples) expect(example).not.toMatch(/учусь играть в доту|подпишись/i);
+    const medal = /(бронзов|серебрян|золот|алмазн)\S*\s+габен/i;
+    for (const example of examples) {
+      expect(example).not.toMatch(/учусь играть в доту|подпишись/i);
+      expect(example).not.toMatch(medal);
+    }
+    // The medal is cut from Telegram examples too: the author gives it himself (owner, 19.10.2026).
+    const reviews = pickExamples('telegram', 'обзор героя Шейкер');
+    expect(reviews.length).toBeGreaterThan(0);
+    for (const example of reviews) expect(example).not.toMatch(medal);
   });
 
   it('reads a writing request in plain words and leaves other text a plain draft', () => {

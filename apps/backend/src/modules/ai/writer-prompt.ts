@@ -62,6 +62,25 @@ export function withoutIgratFixedLines(text: string): string {
     .trim();
 }
 
+/**
+ * Owner, 19.10.2026: the Gaben medal is the author's own verdict. It is cut from the examples rather than
+ * forbidden by a rule: a model that never sees one does not invent one, and a medal the author names stays in
+ * his words.
+ */
+export function withoutGabenMedal(text: string): string {
+  return text
+    .replace(/[^.!?\n]*(бронзов|серебрян|золот|алмазн)\S*\s+габен[^.!?\n]*[.!?]*/gi, '')
+    .replace(/[ \t]{2,}/g, ' ')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
+/** An example as the model sees it: without the lines the author says himself and without his verdict. */
+function asExample(format: WriterFormat, text: string): string {
+  if (format === 'igrat') return withoutGabenMedal(withoutIgratFixedLines(text));
+  return format === 'telegram' ? withoutGabenMedal(text) : text;
+}
+
 function clip(text: string): string {
   return text.length > MAX_EXAMPLE_CHARS ? `${text.slice(0, MAX_EXAMPLE_CHARS).trimEnd()}…` : text;
 }
@@ -92,7 +111,7 @@ export function pickExamples(format: WriterFormat, task: string, holdOut: readon
       .sort((a, b) => b.score - a.score)
       .slice(0, 4)
       .reverse()
-      .map(({ row }) => `Пример поста:\n${clip(row.t)}`);
+      .map(({ row }) => `Пример поста:\n${clip(asExample(format, row.t))}`);
   }
   return AI_REEL_EXAMPLES.filter((row) => row.f === REEL_FORMAT[format] && row.r !== 'a' && !holdOut.includes(row.id))
     .map((row) => ({ row, score: overlap(taskWords, `${row.title} ${row.t}`) * 2 + (row.r === 'g' ? 3 : 0) }))
@@ -101,7 +120,7 @@ export function pickExamples(format: WriterFormat, task: string, holdOut: readon
     .reverse()
     .map(
       ({ row }) =>
-        `Пример (${row.r === 'g' ? 'эталон' : 'референс'}, «${row.title}»):\n${clip(format === 'igrat' ? withoutIgratFixedLines(row.t) : row.t)}`
+        `Пример (${row.r === 'g' ? 'эталон' : 'референс'}, «${row.title}»):\n${clip(asExample(format, row.t))}`
     );
 }
 
@@ -153,7 +172,7 @@ export function buildWriterPrompt(input: {
     lexicon.length > 0 ? `Сленг и мемы из задания:\n${lexicon.join('\n')}` : '',
     ...examplesWithOwner(
       pickExamples(input.format, input.task, input.holdOut),
-      (input.ownerTexts ?? []).map((text) => (input.format === 'igrat' ? withoutIgratFixedLines(text) : text))
+      (input.ownerTexts ?? []).map((text) => asExample(input.format, text))
     ),
     // Facets only, never the texts: an AI draft is not a voice example (architecture item 2). Every format,
     // so a post does not retell the idea of yesterday's Reels.

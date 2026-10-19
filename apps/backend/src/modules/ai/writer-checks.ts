@@ -50,6 +50,8 @@ export function checkDraft(format: WriterFormat, mode: WriterMode, text: string,
   if (DOUBLED_WORD.test(text)) codes.push('DOUBLED_WORD');
   // A patch change stated as fact that the task never mentioned: to check before it goes out (owner review).
   if (PATCH_CLAIM.test(text) && !PATCH_SOURCE.test(task)) codes.push('PATCH_UNVERIFIED');
+  // Owner, 19.10.2026: the Gaben medal is the author's own verdict; a medal the task never named is invented.
+  if (GABEN_MEDAL.test(text) && !MEDAL_WORD.test(task)) codes.push('MEDAL_INVENTED');
   // Stage 1: a joke explained after the punchline kills it.
   if (JOKE_EXPLAINED.test(text)) codes.push('JOKE_EXPLAINED');
   // Stage 1: an invitation in the channel says when or where (a time, a day, a link or an @channel).
@@ -58,6 +60,8 @@ export function checkDraft(format: WriterFormat, mode: WriterMode, text: string,
 }
 
 const DOUBLED_WORD = /(?<![а-яёa-z])([а-яёa-z]{2,})\s+\1(?![а-яёa-z])/iu;
+const GABEN_MEDAL = /(бронзов|серебрян|золот|алмазн)\S*\s+габен/i;
+const MEDAL_WORD = /бронзов|серебрян|золот|алмазн/i;
 const IGRAT_OPENER = /учусь играть в доту/i;
 const PATCH_CLAIM = /(в (новом|последнем|этом|свежем) патче|понерф|нерфнул|бафнул|бафф?ну)/i;
 const PATCH_SOURCE = /патч|нерф|баф|обнов/i;
@@ -89,6 +93,7 @@ export function describeCheck(code: string): string {
     TOPIC_REPEATED: 'тема повторяет недавний черновик',
     DOUBLED_WORD: 'слово повторено подряд',
     PATCH_UNVERIFIED: 'изменение патча не из задания — проверьте',
+    MEDAL_INVENTED: 'медаль Габена, которую вы не называли, — уберите или поставьте свою',
     JOKE_EXPLAINED: 'шутку объясняют после панчлайна',
     INVITE_NO_DETAILS: 'приглашение без времени или ссылки'
   };

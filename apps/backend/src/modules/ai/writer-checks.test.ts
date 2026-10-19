@@ -38,6 +38,18 @@ describe('stage 1 code checks', () => {
     expect(checkDraft('igrat', 'direct', 'Пудж ловит крипов. Бронзовый Габен.')).not.toContain('IGRAT_FIXED_LINES');
   });
 
+  it('flags a Gaben medal the task never named: the medal is the author verdict (19.10.2026)', () => {
+    expect(
+      checkDraft('igrat', 'direct', 'Пудж ловит крипов. Пока бронзовый Габен.', 'Учусь играть на Пудже')
+    ).toContain('MEDAL_INVENTED');
+    expect(
+      checkDraft('igrat', 'direct', 'Пудж ловит крипов. Пока бронзовый Габен.', 'Пудж, даю бронзового Габена')
+    ).not.toContain('MEDAL_INVENTED');
+    expect(checkDraft('igrat', 'direct', 'Габен опять виноват в лагах.', 'Учусь играть на Пудже')).not.toContain(
+      'MEDAL_INVENTED'
+    );
+  });
+
   it('describes both codes in the owner words', () => {
     expect(describeCheck('JOKE_EXPLAINED')).toBe('шутку объясняют после панчлайна');
     expect(describeCheck('INVITE_NO_DETAILS')).toBe('приглашение без времени или ссылки');
