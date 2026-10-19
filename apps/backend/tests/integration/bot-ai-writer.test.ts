@@ -395,6 +395,24 @@ describe('Telegram AI writer', () => {
     ).toEqual({ n: 1 });
   });
 
+  it('names the reason of a failed draft and says an unchanged approval is only saved (owner DEV run 19.10.2026)', async () => {
+    modelAnswers = [new AiProviderError('AI_TIMEOUT')];
+    expect((await deliver(message('Учу фидить на Пудже'))).status).toBe(200);
+    await api.settle();
+    expect(calls.filter((call) => call.method === 'editMessageText').at(-1)?.body.text).toBe(
+      'Не получилось написать: модель не ответила за 25 секунд (AI_TIMEOUT). Попробуйте ещё раз.'
+    );
+
+    modelAnswers = [draftAnswer];
+    expect((await deliver(message('Учусь играть на Пудже'))).status).toBe(200);
+    await api.settle();
+    const draft = await testDb()
+      .prepare("SELECT id, chat_message_id FROM ai_generations WHERE result = 'draft'")
+      .first<{ id: string; chat_message_id: number }>();
+    expect((await deliver(callback(`ai:${draft?.id}:ok`, draft?.chat_message_id ?? 0))).status).toBe(200);
+    expect(calls.filter((call) => call.method === 'sendMessage').at(-1)?.body.text).toBe('Одобрено. Текст сохранён.');
+  });
+
   it('consumes an open facts question once when two replies arrive together', async () => {
     await askForFacts();
     const responses = await Promise.all([

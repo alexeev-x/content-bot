@@ -43,7 +43,9 @@ const WRITING_TEXT = 'Пишу…';
 const REWRITING_TEXT = 'Переписываю…';
 const THINKING_TEXT = 'Думаю…';
 const FAILED_TEXT = 'Не получилось написать. Попробуйте ещё раз.';
-const APPROVED_REEL_TEXT = 'Одобрено. Текст сохранён, его правки ИИ запомнит.';
+// Only an owner-changed text teaches the voice (plan 3.1): an unchanged AI text is just saved.
+const APPROVED_REEL_TEXT = 'Одобрено. Текст сохранён.';
+const APPROVED_EDITED_REEL_TEXT = 'Одобрено. Текст сохранён, ваши правки ИИ запомнит.';
 const ALREADY_APPROVED_TEXT = 'Уже одобрено.';
 const NOT_A_POST_TEXT =
   'Текст не влезает в пост (длиннее 4096 символов или с недопустимыми символами). Нажмите «Короче» или ответьте своей версией.';
@@ -228,6 +230,24 @@ function draftHtml(result: {
   return lines.join('\n');
 }
 
+/** A failed generation says why (plan 3.2: an OpenAI failure is shown honestly), with its stored code. */
+const FAILURE_REASON: Record<string, string> = {
+  AI_TIMEOUT: 'модель не ответила за 25 секунд',
+  AI_PROVIDER_UNREACHABLE: 'OpenAI недоступен',
+  AI_RATE_OR_QUOTA: 'OpenAI: лимит запросов или квота аккаунта',
+  AI_KEY_REJECTED: 'OpenAI отклонил ключ',
+  AI_MODEL_NOT_FOUND: 'OpenAI не нашёл модель из «Настройки → ИИ»',
+  AI_BAD_REQUEST: 'OpenAI отклонил запрос',
+  AI_BAD_FORMAT: 'модель ответила не в том формате',
+  AI_RESPONSE_SHAPE: 'модель ответила не в том формате'
+};
+
+function failedText(errorCode: string | null): string {
+  if (errorCode === null) return FAILED_TEXT;
+  const reason = FAILURE_REASON[errorCode];
+  return `Не получилось написать${reason === undefined ? '' : `: ${reason}`} (${errorCode}). Попробуйте ещё раз.`;
+}
+
 function unavailableText(error: AppError): string {
   const reason = error.details?.reason;
   if (reason === 'DISABLED') return 'ИИ выключен. Включите его в «Настройки → ИИ».';
@@ -299,7 +319,7 @@ export function registerAiWriter(bot: Bot, runtime: AiWriterRuntime): void {
             return;
           }
           if (result.text === null) {
-            await edit(ctx, chatId, message.message_id, FAILED_TEXT, failureMarkup);
+            await edit(ctx, chatId, message.message_id, failedText(generation.errorCode), failureMarkup);
             return;
           }
           await deps.writer.setChatMessage(generation.id, message.message_id, runtime.clock.now());
@@ -834,9 +854,15 @@ export function registerAiWriter(bot: Bot, runtime: AiWriterRuntime): void {
         return;
       }
     }
-    const { created } = await approveDraft(deps, generationId);
+    const { created, revision } = await approveDraft(deps, generationId);
     if (generation.format !== 'telegram') {
-      await ctx.reply(created ? APPROVED_REEL_TEXT : ALREADY_APPROVED_TEXT);
+      await ctx.reply(
+        !created
+          ? ALREADY_APPROVED_TEXT
+          : (revision.editRatio ?? 0) > 0
+            ? APPROVED_EDITED_REEL_TEXT
+            : APPROVED_REEL_TEXT
+      );
       return;
     }
     const approved = await publishableText(deps, generationId);

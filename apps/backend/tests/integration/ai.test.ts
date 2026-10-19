@@ -313,5 +313,15 @@ describe('OpenAI adapter', () => {
         signal: AbortSignal.timeout(1000)
       })
     ).rejects.toMatchObject({ code: 'AI_KEY_REJECTED' });
+
+    // Our own timeout is told apart from an outage.
+    const failing = createOpenAiProvider('sk-test', (async () => Promise.reject(new Error('aborted'))) as typeof fetch);
+    const request = { model: 'm', instructions: 'i', input: 'x', maxOutputTokens: 10 };
+    await expect(failing.complete({ ...request, signal: AbortSignal.abort() })).rejects.toMatchObject({
+      code: 'AI_TIMEOUT'
+    });
+    await expect(failing.complete({ ...request, signal: AbortSignal.timeout(1000) })).rejects.toMatchObject({
+      code: 'AI_PROVIDER_UNREACHABLE'
+    });
   });
 });

@@ -84,7 +84,8 @@ export function createOpenAiProvider(apiKey: string, fetchImpl: typeof fetch): A
           signal
         });
       } catch {
-        throw new AiProviderError('AI_PROVIDER_UNREACHABLE');
+        // Our own timeout is not an outage: the owner needs to know which one it was.
+        throw new AiProviderError(signal?.aborted ? 'AI_TIMEOUT' : 'AI_PROVIDER_UNREACHABLE');
       }
       if (response.status === 401 || response.status === 429) {
         await response.body?.cancel();
