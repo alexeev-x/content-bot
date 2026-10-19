@@ -9,7 +9,7 @@ time (DEV allows 200 per 10 minutes through `AI_DRAFT_LIMIT` in `apps/backend/wr
 
 So two runs can be compared (stage 0 of [IMPLEMENTATION_PLAN.md](../IMPLEMENTATION_PLAN.md)):
 
-- **Set:** the control set above (20 briefs: the original 15 plus five engineering cases added for P0), or the owner's paired set — the same briefs before and after one change. The five new cases have no owner originals and are not a substitute for the owner's 20-brief paired set.
+- **Set:** the control set above (21 briefs: the original 15, five engineering cases added for P0, and `tg-patch-direct` from the owner's DEV run of 19.10.2026), or the owner's paired set — the same briefs before and after one change. The five new cases have no owner originals and are not a substitute for the owner's 20-brief paired set.
   The five-repeat check sends one brief five times in a row and counts repeated topics, devices and endings.
 - **Model and pack:** the model from the draft's `model` field and the commit of `docs/ai/pack` deployed on DEV (the
   generation row keeps the pack hash in `ai_generations.pack_revision`).
