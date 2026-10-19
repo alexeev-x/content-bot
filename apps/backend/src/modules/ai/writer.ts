@@ -40,8 +40,10 @@ import {
 import {
   type DraftFacets,
   parseWriterAnswer,
+  parseFixNotes,
   WRITER_ANSWER_JSON_SCHEMA,
-  WRITER_DRAFT_JSON_SCHEMA
+  WRITER_DRAFT_JSON_SCHEMA,
+  WRITER_FIX_JSON_SCHEMA
 } from './writer-answer';
 import type { WriterFormat, WriterMode } from './writer-types';
 
@@ -80,6 +82,8 @@ export interface WriterResult {
   /** The draft's current text; null when the model failed (generation.errorCode says why). */
   text: string | null;
   budgetEvents: BudgetEvent[];
+  /** A version fixed by the owner's remark: what changed and the reasons the remark names (plan P2). */
+  fix?: { changes: string; reasons: FeedbackKind[] };
 }
 
 export interface Approval {
@@ -149,7 +153,9 @@ async function call(
   prompt: { instructions: string; input: string },
   signal: AbortSignal,
   /** Facets of the latest drafts of the format, to flag a repeated topic. */
-  recent: readonly DraftFacets[] = []
+  recent: readonly DraftFacets[] = [],
+  /** A fix by the owner's remark: the answer also says what changed and which reasons the remark names. */
+  fixing = false
 ): Promise<WriterResult> {
   const settings = await readAiSettings(deps.repo);
   // Refused before a row exists when AI cannot run: nothing pending is left behind.
@@ -171,7 +177,11 @@ async function call(
       model,
       ...prompt,
       maxOutputTokens: MAX_OUTPUT_TOKENS,
-      jsonSchema: row.parentGenerationId === null ? WRITER_ANSWER_JSON_SCHEMA : WRITER_DRAFT_JSON_SCHEMA,
+      jsonSchema: fixing
+        ? WRITER_FIX_JSON_SCHEMA
+        : row.parentGenerationId === null
+          ? WRITER_ANSWER_JSON_SCHEMA
+          : WRITER_DRAFT_JSON_SCHEMA,
       signal
     });
     const usageId = deps.newId();
@@ -254,7 +264,8 @@ async function call(
     return {
       generation: { ...generation, status: 'ready', model: result.model, hooks, warnings, result: 'draft' },
       text,
-      budgetEvents
+      budgetEvents,
+      ...(fixing ? { fix: parseFixNotes(result.text) } : {})
     };
   } catch (error) {
     if (!(error instanceof AiProviderError)) {
@@ -331,7 +342,14 @@ export async function generateDraft(
 /** A new version of a draft by the owner's instruction («короче», «смешнее», «ещё вариант»). */
 export async function rewriteDraft(
   deps: WriterDeps,
-  input: { generationId: string; instruction: string; signal: AbortSignal; revisionToken?: string }
+  input: {
+    generationId: string;
+    instruction: string;
+    signal: AbortSignal;
+    revisionToken?: string;
+    /** The owner's remark on this version («Что не так?»): the model fixes only what it names. */
+    remark?: { note: string; reason: string | null };
+  }
 ): Promise<WriterResult> {
   const parent = await deps.writer.findGeneration(input.generationId);
   if (parent !== null) refuseRequestForFacts(parent);
@@ -359,11 +377,11 @@ export async function rewriteDraft(
     format: parent.format,
     mode: parent.mode,
     task: parent.task,
-    rewrite: { text: current.text, instruction },
+    rewrite: { text: current.text, instruction, ...(input.remark ? { remark: input.remark } : {}) },
     author: await author(deps),
     ownerTexts: rankOwnerTexts(parent.task, await ownerTexts(deps, parent.format), OWNER_TEXTS)
   });
-  return call(deps, row, prompt, input.signal);
+  return call(deps, row, prompt, input.signal, [], input.remark !== undefined);
 }
 
 /** The opening replaced by the chosen hook (the script starts with its best hook). Stays AI text. */
@@ -515,6 +533,12 @@ const cleanNote = cleanText(true);
  * The owner's note on a verdict, written in the bot right after the reason. Recorded only: it never becomes a
  * rule. VALIDATION_ERROR for an empty, too long or unclean text, NOT_FOUND when the verdict was taken back.
  */
+/** A note or a remark as stored: trimmed, 1–500 characters, clean; null when it is not acceptable. */
+export function feedbackNoteOf(text: string): string | null {
+  const note = text.trim();
+  return note === '' || Array.from(note).length > AI_FEEDBACK_NOTE_MAX || !cleanNote(note) ? null : note;
+}
+
 export async function saveFeedbackNote(
   deps: Pick<WriterDeps, 'writer'>,
   feedbackId: string,

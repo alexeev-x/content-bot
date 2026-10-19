@@ -39,6 +39,7 @@ export {
   removeFeedback,
   rewriteDraft,
   saveFeedbackNote,
+  feedbackNoteOf,
   saveOwnerEdit,
   setLearningExcluded,
   type WriterDeps,

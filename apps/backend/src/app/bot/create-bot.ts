@@ -550,12 +550,13 @@ export function createBot(config: BotConfig, runtime: BotRuntime): Bot {
       return;
     }
     if (choice === 'own') {
-      // One wait at a time: «Своё время» ends a «✏️ Изменить» or a note wait of the AI editor in this chat.
+      // One wait at a time: «Своё время» ends a «✏️ Изменить», a note or a remark wait of the AI editor here.
       const chatId = ctx.chat?.id;
       if (chatId !== undefined) {
         const { writer } = await runtime.writer();
         await writer.setEditing({ chatId, generationId: null, now, expiresAt: now });
         await writer.setNoting({ chatId, feedbackId: null, now, expiresAt: now });
+        await writer.setFixing({ chatId, generationId: null, now, expiresAt: now });
       }
       if (!(await runtime.publish.awaitTime(token))) {
         await writeOutcome(ctx, { kind: 'expired', postId: null });

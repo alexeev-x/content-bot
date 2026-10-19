@@ -290,7 +290,7 @@ const waiting = () =>
 describe('the note after a «Что не так?» reason', () => {
   it('stores the next plain message as the note, once, and shows it in the verdict list', async () => {
     await tap('r:hook');
-    expect(sent().at(-1)).toContain('Следующее сообщение станет пояснением');
+    expect(sent().at(-1)).toContain('исправлю текст');
     expect(await waiting()).toMatchObject({ n: expect.any(String), e: null });
 
     // A command is not the note, and nothing goes to the paid model while a note is awaited.
@@ -302,7 +302,8 @@ describe('the note after a «Что не так?» reason', () => {
     await say('  Хук слабый: нет интриги.  ', 777);
     expect(sent()).not.toContain('Думаю…');
     expect(await noteOf()).toEqual(['Хук слабый: нет интриги.']);
-    expect(sent().at(-1)).toBe('Записал пояснение.');
+    // The note is the remark: a fixed version is queued (plan P2).
+    expect(sent().at(-1)).toBe('Переписываю…');
     expect(await testDb().prepare('SELECT COUNT(*) AS n FROM ai_writer_requests').first('n')).toBe(0);
 
     await say('Это уже не пояснение.');

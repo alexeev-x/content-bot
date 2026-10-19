@@ -440,7 +440,8 @@ describe('/redactor chat', () => {
       history: [],
       format: null,
       editing: null,
-      noting: null
+      noting: null,
+      fixing: null
     });
     // A button picks the format of the next message; a button of an older /redactor changes nothing.
     expect(await repo.setRequestFormat({ chatId: 1, promptMessageId: 9, format: 'igrat', now: 3 })).toBe(false);
@@ -460,7 +461,8 @@ describe('/redactor chat', () => {
       ],
       format: null,
       editing: null,
-      noting: null
+      noting: null,
+      fixing: null
     });
     expect(await repo.touchRequest(1, 3000, 4000)).toBeNull();
     await repo.openRequest({ chatId: 1, promptMessageId: 11, now: 0, expiresAt: 1000 });

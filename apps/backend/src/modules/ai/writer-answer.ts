@@ -1,3 +1,4 @@
+import { AI_FEEDBACK_KINDS, type AiFeedbackKind } from '@alexeev/contracts';
 import { z } from 'zod';
 
 // The writer's answer is typed by the model through structured output (docs/ai/pack/output.md), so a question
@@ -33,6 +34,38 @@ export const WRITER_DRAFT_JSON_SCHEMA: { name: string; schema: Record<string, un
     }
   }
 };
+
+/**
+ * A version fixed by the owner's remark («Что не так?», plan P2): a draft, what changed in one line, and which of
+ * the known reasons the remark names. The reasons are only recorded with the remark, never turned into a rule.
+ */
+export const WRITER_FIX_JSON_SCHEMA: { name: string; schema: Record<string, unknown> } = {
+  name: 'writer_fix',
+  schema: {
+    ...WRITER_DRAFT_JSON_SCHEMA.schema,
+    required: [...(WRITER_DRAFT_JSON_SCHEMA.schema.required as string[]), 'changes', 'reasons'],
+    properties: {
+      ...(WRITER_DRAFT_JSON_SCHEMA.schema.properties as Record<string, unknown>),
+      changes: { type: 'string' },
+      reasons: { type: 'array', items: { type: 'string', enum: [...AI_FEEDBACK_KINDS] }, maxItems: 3 }
+    }
+  }
+};
+
+const fixSchema = z.object({ changes: z.string(), reasons: z.array(z.enum(AI_FEEDBACK_KINDS)).max(3) });
+
+/** What a fixed version changed and the reasons its remark names; empty when the answer lacks them. */
+export function parseFixNotes(raw: string): { changes: string; reasons: AiFeedbackKind[] } {
+  try {
+    const data = fixSchema.parse(JSON.parse(raw));
+    return {
+      changes: Array.from(data.changes.replace(/\s+/g, ' ').trim()).slice(0, 200).join(''),
+      reasons: [...new Set(data.reasons)]
+    };
+  } catch {
+    return { changes: '', reasons: [] };
+  }
+}
 
 const answerSchema = z.object({
   kind: z.enum(['draft', 'needs_facts', 'ideas']),

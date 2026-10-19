@@ -496,6 +496,116 @@ describe('Telegram AI writer', () => {
     expect(calls.at(-1)?.body.text).toBe('Чтобы сделать пост — /post, чтобы написать с ИИ — /redactor.');
   });
 
+  describe('«Что не так?» fixes the version by the owner remark (plan P2)', () => {
+    const REMARK = 'Шутка банальная, в начале долго. Концовку сохрани.';
+    const fixAnswer = JSON.stringify({
+      ...JSON.parse(draftAnswer),
+      text: 'Четыре промаха, пятый — в крипа. Вчера я промахнулся четыре раза, а на пятом зацепил крипа.',
+      changes: 'Изменил начало и шутку; оставил концовку',
+      reasons: ['joke_missed', 'too_long']
+    });
+
+    async function readyDraft() {
+      modelAnswers = [draftAnswer];
+      expect((await deliver(message('Учусь играть на Пудже'))).status).toBe(200);
+      await api.settle();
+      const draft = await testDb()
+        .prepare("SELECT id, chat_message_id AS messageId FROM ai_generations WHERE result = 'draft'")
+        .first<{ id: string; messageId: number }>();
+      const revision = await testDb()
+        .prepare('SELECT id FROM ai_text_revisions WHERE generation_id = ?')
+        .bind(draft?.id)
+        .first<{ id: string }>();
+      return { id: draft?.id ?? '', messageId: draft?.messageId ?? 0, token: revision?.id.slice(-12) ?? '' };
+    }
+
+    const feedback = () =>
+      testDb()
+        .prepare('SELECT generation_id AS generationId, kind, note FROM ai_feedback')
+        .all<{ generationId: string; kind: string; note: string | null }>()
+        .then((rows) => rows.results);
+
+    it('takes the next message as the remark, writes a fixed version and records the remark once (TG-06, TG-07)', async () => {
+      const draft = await readyDraft();
+      expect((await deliver(callback(`ai:${draft.id}:why:${draft.token}`, draft.messageId))).status).toBe(200);
+      expect(calls.at(-1)?.body.text).toContain('Напишите своими словами, что не так');
+
+      modelAnswers = [fixAnswer];
+      const both = await Promise.all([deliver(message(REMARK)), deliver(message('Второе сообщение'))]);
+      expect(both.map((response) => response.status)).toEqual([200, 200]);
+      await api.settle();
+      expect(modelInputs).toHaveLength(2);
+      expect(modelSchemas.at(-1)).toBe('writer_fix');
+      expect(modelInputs[1]).toContain(REMARK);
+      expect(modelInputs[1]).toContain('Пять хуков — один крип.');
+
+      const shown = calls.filter((call) => call.method === 'editMessageText').at(-1);
+      expect(shown?.body.text).toContain('Что изменил: Изменил начало и шутку; оставил концовку');
+      expect(JSON.stringify(shown?.body.reply_markup)).toContain('↩ Вернуть прошлый');
+      // Recorded on the judged draft, with the first reason the model named; only recorded, never a rule.
+      expect(await feedback()).toEqual([{ generationId: draft.id, kind: 'joke_missed', note: REMARK }]);
+    });
+
+    it('fixes by the note after a reason button, without a second verdict', async () => {
+      const draft = await readyDraft();
+      await deliver(callback(`ai:${draft.id}:why:${draft.token}`, draft.messageId));
+      await deliver(callback(`ai:${draft.id}:r:hook:${draft.token}`, draft.messageId));
+      modelAnswers = [fixAnswer];
+      expect((await deliver(message('Нет интриги в первой фразе'))).status).toBe(200);
+      await api.settle();
+      expect(modelInputs[1]).toContain('причина: слабый хук');
+      expect(modelInputs[1]).toContain('Нет интриги в первой фразе');
+      expect(await feedback()).toEqual([
+        { generationId: draft.id, kind: 'weak_hook', note: 'Нет интриги в первой фразе' }
+      ]);
+    });
+
+    it('two notes at the same moment make one paid fix (review 19.10.2026)', async () => {
+      const draft = await readyDraft();
+      await deliver(callback(`ai:${draft.id}:r:hook:${draft.token}`, draft.messageId));
+      modelAnswers = [fixAnswer, fixAnswer];
+      await Promise.all([deliver(message('Нет интриги')), deliver(message('Совсем нет интриги'))]);
+      await api.settle();
+      expect(modelSchemas.filter((name) => name === 'writer_fix')).toHaveLength(1);
+      expect(calls.some((call) => call.body.text === 'Замечание уже принято, исправляю.')).toBe(true);
+    });
+
+    it('«Своё время» ends the remark wait: the time is no remark and starts no fix (review 19.10.2026)', async () => {
+      const draft = await readyDraft();
+      await deliver(callback(`ai:${draft.id}:why:${draft.token}`, draft.messageId));
+      const repo = createD1WriterRepository(testDb());
+      // What the «Своё время» handler does to the editor's waits (create-bot.ts).
+      await repo.setFixing({ chatId: CHAT_ID, generationId: null, now: START, expiresAt: START });
+      expect((await repo.touchRequest(CHAT_ID, START, START + 1000))?.fixing ?? null).toBeNull();
+    });
+
+    it('«↩ Вернуть прошлый» shows the version the fix came from, with its own buttons', async () => {
+      const draft = await readyDraft();
+      await deliver(callback(`ai:${draft.id}:why:${draft.token}`, draft.messageId));
+      modelAnswers = [fixAnswer];
+      await deliver(message(REMARK));
+      await api.settle();
+      const fixed = await testDb()
+        .prepare('SELECT id, chat_message_id AS messageId FROM ai_generations WHERE parent_generation_id = ?')
+        .bind(draft.id)
+        .first<{ id: string; messageId: number }>();
+      expect((await deliver(callback(`ai:${fixed?.id}:undo`, fixed?.messageId ?? 0))).status).toBe(200);
+      const back = calls.filter((call) => call.method === 'sendMessage').at(-1);
+      expect(back?.body.text).toContain('Вчера я промахнулся четыре раза');
+      expect(JSON.stringify(back?.body.reply_markup)).toContain(`ai:${draft.id}:ok`);
+      expect(modelInputs).toHaveLength(2);
+    });
+
+    it('«← Назад» ends the wait: the next message is no remark', async () => {
+      const draft = await readyDraft();
+      await deliver(callback(`ai:${draft.id}:why:${draft.token}`, draft.messageId));
+      await deliver(callback(`ai:${draft.id}:back:${draft.token}`, draft.messageId));
+      await deliver(message(REMARK));
+      await api.settle();
+      expect(modelSchemas).not.toContain('writer_fix');
+    });
+  });
+
   it('consumes an open facts question once when two replies arrive together', async () => {
     await askForFacts();
     const responses = await Promise.all([

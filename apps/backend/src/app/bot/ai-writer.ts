@@ -17,6 +17,7 @@ import {
   recordFeedback,
   rewriteDraft,
   saveFeedbackNote,
+  feedbackNoteOf,
   saveOwnerEdit,
   type ChatTurn,
   type WriterDeps,
@@ -56,7 +57,12 @@ const NOT_A_POST_TEXT =
 const EDIT_SAVED_TEXT = 'Сохранил вашу версию. Одобрить её?';
 const EDIT_CANCELLED_TEXT = 'Правка отменена';
 const NOTE_PROMPT_TEXT =
-  'Если хотите, поясните одним сообщением (до 500 знаков) — я только запишу это, правилом оно не станет. Следующее сообщение станет пояснением.';
+  'Поясните одним сообщением (до 500 знаков), что не так, — исправлю текст. Правилом для других текстов это не станет. «Без пояснения» — только записать причину.';
+const FIX_PROMPT_TEXT =
+  'Напишите своими словами, что не так (до 500 знаков), — исправлю эту версию. Или выберите причину кнопкой.';
+const REMARK_TOO_LONG_TEXT = 'Замечание — от 1 до 500 знаков, без служебных символов. Пришлите короче.';
+const REMARK_TAKEN_TEXT = 'Замечание уже принято, исправляю.';
+const NO_PREVIOUS_TEXT = 'Прошлой версии нет.';
 const NOTE_SAVED_TEXT = 'Записал пояснение.';
 const NOTE_INVALID_TEXT =
   'Пояснение — от 1 до 500 знаков, без служебных символов. Пришлите короче или нажмите «Без пояснения».';
@@ -111,6 +117,11 @@ const REASONS = {
   task: { kind: 'missed_task', label: 'Не то задание', noted: 'не то задание' }
 } as const satisfies Record<string, { kind: FeedbackKind; label: string; noted: string }>;
 type Reason = keyof typeof REASONS;
+/** A reason in the owner's words by its stored kind: the label a fix prompt and a reply show. */
+const REASON_NOTED = Object.fromEntries(Object.values(REASONS).map((reason) => [reason.kind, reason.noted])) as Record<
+  FeedbackKind,
+  string
+>;
 // `joke` stays for the buttons of messages sent before «Что не так?».
 type Action =
   | 'h0'
@@ -124,9 +135,10 @@ type Action =
   | 'edit'
   | 'noedit'
   | 'retry'
+  | 'undo'
   | `r:${Reason}`;
 const CALLBACK =
-  /^ai:([0-9a-f-]{36}):(h[0-2]|more|short|fun|joke|ok|why|back|edit|noedit|retry|r:(?:topic|hook|joke|style|long|fact|task))(?::([0-9a-f]{12}))?$/;
+  /^ai:([0-9a-f-]{36}):(h[0-2]|more|short|fun|joke|ok|why|back|edit|noedit|retry|undo|r:(?:topic|hook|joke|style|long|fact|task))(?::([0-9a-f]{12}))?$/;
 
 const escapeHtml = (value: string): string =>
   value.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;');
@@ -162,7 +174,9 @@ function keyboard(
   generationId: string,
   hooks: readonly string[],
   appOrigin: string | null,
-  revisionId: string
+  revisionId: string,
+  /** A version fixed by the owner's remark: «↩ Вернуть прошлый» shows the version it came from again. */
+  undo = false
 ): InlineKeyboardMarkup {
   const data = (action: Action) => `ai:${generationId}:${action}`;
   const revisionData = (action: Action) => `${data(action)}:${revisionId.slice(-12)}`;
@@ -176,6 +190,7 @@ function keyboard(
     .row();
   board.text('✏️ Изменить', data('edit')).text('Что не так?', revisionData('why')).row();
   board.text('Одобрить', data('ok'));
+  if (undo) board.text('↩ Вернуть прошлый', data('undo'));
   if (appOrigin !== null) board.row().webApp('Открыть студию', `${appOrigin}/`);
   return board;
 }
@@ -214,6 +229,8 @@ function draftHtml(result: {
   hooks: readonly string[];
   warnings: readonly string[];
   text: string;
+  /** A version fixed by the owner's remark: what changed, in the model's one line. */
+  changes?: string;
 }) {
   if (result.warnings.includes(NEEDS_FACTS))
     return [
@@ -228,6 +245,7 @@ function draftHtml(result: {
     lines.push('', 'Хуки:', ...result.hooks.map((hook, index) => `${index + 1}. ${escapeHtml(hook)}`));
   const text = shortenForTelegram(result.text, SHOWN_TEXT_MAX);
   lines.push('', escapeHtml(text));
+  if (result.changes) lines.push('', `<i>Что изменил: ${escapeHtml(result.changes)}</i>`);
   if (result.warnings.length > 0)
     lines.push('', `<i>Проверка: ${escapeHtml(result.warnings.map(describeCheck).join('; '))}</i>`);
   lines.push('', '<i>Своя версия — кнопка «✏️ Изменить».</i>');
@@ -324,6 +342,14 @@ async function jobResult(
   const signal = AbortSignal.timeout(MODEL_TIMEOUT_MS);
   if (job.kind === 'draft')
     return generateDraft(deps, { format: job.format, mode: 'direct', source: 'bot', task: job.task, signal });
+  if (job.kind === 'fix')
+    return rewriteDraft(deps, {
+      generationId: job.generationId,
+      instruction: 'исправить по замечанию автора',
+      revisionToken: job.revisionToken,
+      remark: { note: job.note, reason: job.reason === null ? null : REASON_NOTED[job.reason] },
+      signal
+    });
   if (job.kind === 'rewrite')
     return rewriteDraft(deps, {
       generationId: job.generationId,
@@ -395,6 +421,26 @@ async function runChatJob(
 }
 
 /**
+ * A remark written without a reason button is recorded with the first reason the model named, on the version it
+ * judged; only recorded, never a rule (plan §3.1). A failure here is logged: the fixed text is already shown.
+ */
+async function recordRemark(
+  job: Extract<AiJob, { kind: 'fix' }>,
+  result: WriterResult,
+  deps: WriterDeps,
+  runtime: AiJobRuntime
+): Promise<void> {
+  const kind = result.fix?.reasons[0];
+  if (job.feedbackId !== null || kind === undefined) return;
+  try {
+    const feedbackId = await recordFeedback(deps, job.generationId, kind, job.revisionToken);
+    await saveFeedbackNote(deps, feedbackId, job.note);
+  } catch (error) {
+    runtime.onError(error);
+  }
+}
+
+/**
  * Runs one queued model call and turns its «Пишу…» message into the draft, the facts question or the reason
  * it failed. Never throws: every failure is shown in that message (and logged unless it is AI being off).
  */
@@ -438,13 +484,15 @@ export async function runAiJob(job: AiJob, runtime: AiJobRuntime): Promise<void>
     await deps.writer.setChatMessage(generation.id, messageId, clock.now());
     const revisionId = (await deps.writer.revisions(generation.id)).at(-1)?.id;
     if (revisionId === undefined) throw new AppError('CONFLICT', 'The draft has no text');
+    const fixed = job.kind === 'fix';
     await edit(
       api,
       chatId,
       messageId,
-      draftHtml({ ...generation, text: result.text }),
-      keyboard(generation.id, generation.hooks, job.appOrigin, revisionId)
+      draftHtml({ ...generation, text: result.text, ...(fixed && result.fix ? { changes: result.fix.changes } : {}) }),
+      keyboard(generation.id, generation.hooks, job.appOrigin, revisionId, fixed)
     );
+    if (fixed) await recordRemark(job, result, deps, runtime);
   } catch (error) {
     await edit(api, chatId, messageId, failureOf(error, runtime), failureMarkup).catch((editError: unknown) =>
       runtime.onError(editError)
@@ -709,6 +757,37 @@ export function registerAiWriter(bot: Bot, runtime: AiWriterRuntime): void {
         return;
       }
     }
+    // «Что не так?» in the owner's own words: this message is the remark, and a fixed version is written.
+    if (chat?.fixing && !ctx.message.text.startsWith('/')) {
+      const note = feedbackNoteOf(ctx.message.text);
+      if (note === null) {
+        // Still waiting: the owner may send a shorter one.
+        await ctx.reply(REMARK_TOO_LONG_TEXT);
+        return;
+      }
+      const generationId = chat.fixing;
+      // A second message at the same moment loses here, without a model call.
+      if (!(await writer.consumeFixing({ chatId: ctx.chat.id, generationId, now }))) {
+        await ctx.reply(REMARK_TAKEN_TEXT);
+        return;
+      }
+      const revisionId = (await writer.revisions(generationId)).at(-1)?.id;
+      if (revisionId === undefined) {
+        await ctx.reply(FAILED_TEXT);
+        return;
+      }
+      await enqueue(ctx, REWRITING_TEXT, (base) => ({
+        ...base,
+        kind: 'fix',
+        generationId,
+        revisionToken: revisionId.slice(-12),
+        note,
+        feedbackId: null,
+        reason: null
+      }));
+      return;
+    }
+    if (chat?.fixing) return next();
     // The note after a «Что не так?» reason: the next message that is not a command. A reply counts too (a reply
     // to a draft was taken above): the natural answer to «Следующее сообщение станет пояснением» is a reply to it.
     if (chat?.noting && !ctx.message.text.startsWith('/')) {
@@ -726,8 +805,27 @@ export function registerAiWriter(bot: Bot, runtime: AiWriterRuntime): void {
         await ctx.reply(NOTE_GONE_TEXT);
         return;
       }
-      await writer.setNoting({ chatId: ctx.chat.id, feedbackId: null, now, expiresAt: now + REQUEST_TTL_MS });
-      await ctx.reply(NOTE_SAVED_TEXT);
+      // The note is the remark: the draft it judged is fixed by it (plan P2), once — a second note at the same
+      // moment loses this claim and makes no paid model call.
+      if (!(await writer.cancelNoting({ chatId: ctx.chat.id, feedbackId: chat.noting }))) {
+        await ctx.reply(REMARK_TAKEN_TEXT);
+        return;
+      }
+      const target = await writer.feedbackTarget(chat.noting);
+      if (target?.revisionId == null) {
+        await ctx.reply(NOTE_SAVED_TEXT);
+        return;
+      }
+      const { generationId, kind, revisionId } = target;
+      await enqueue(ctx, REWRITING_TEXT, (base) => ({
+        ...base,
+        kind: 'fix',
+        generationId,
+        revisionToken: revisionId.slice(-12),
+        note: ctx.message.text.trim(),
+        feedbackId: chat.noting,
+        reason: kind
+      }));
       return;
     }
     // An unknown command while a note is awaited goes to no paid model call (the row may exist only for the wait).
@@ -871,6 +969,33 @@ export function registerAiWriter(bot: Bot, runtime: AiWriterRuntime): void {
       if (action === 'why') {
         await ctx.answerCallbackQuery().catch((error: unknown) => runtime.onError(error));
         await swapButtons(ctx, reasonsKeyboard(generationId, revisionToken ?? ''));
+        // The next plain message is the owner's remark on this draft (plan P2); one wait at a time.
+        const now = runtime.clock.now();
+        const timeWait = await runtime.publish.awaitingTime();
+        if (timeWait !== null) await runtime.publish.stopAwaitingTime(timeWait);
+        await deps.writer.setFixing({ chatId, generationId, now, expiresAt: now + REQUEST_TTL_MS });
+        await ctx.reply(FIX_PROMPT_TEXT);
+        return;
+      }
+      if (action === 'undo') {
+        const generation = await deps.writer.findGeneration(generationId);
+        const parent =
+          generation?.parentGenerationId == null
+            ? null
+            : await deps.writer.findGeneration(generation.parentGenerationId);
+        const revision = parent === null ? undefined : (await deps.writer.revisions(parent.id)).at(-1);
+        if (parent === null || revision === undefined) {
+          await ctx.answerCallbackQuery({ text: NO_PREVIOUS_TEXT });
+          return;
+        }
+        await ctx.answerCallbackQuery().catch((error: unknown) => runtime.onError(error));
+        // The earlier version again, as the newest message with its own buttons; nothing is deleted.
+        const message = await ctx.reply(draftHtml({ ...parent, text: revision.text }), {
+          parse_mode: 'HTML',
+          link_preview_options: { is_disabled: true },
+          reply_markup: keyboard(parent.id, parent.hooks, runtime.appOrigin, revision.id)
+        });
+        await deps.writer.setChatMessage(parent.id, message.message_id, runtime.clock.now());
         return;
       }
       if (action === 'joke' || action === 'back' || action.startsWith('r:')) {
@@ -878,6 +1003,10 @@ export function registerAiWriter(bot: Bot, runtime: AiWriterRuntime): void {
           action === 'joke' ? 'joke' : action === 'back' ? null : (action.slice(2) as Reason);
         const feedbackId =
           reason === null ? null : await recordFeedback(deps, generationId, REASONS[reason].kind, revisionToken ?? '');
+        if (reason === null) {
+          const now = runtime.clock.now();
+          await deps.writer.setFixing({ chatId, generationId: null, now, expiresAt: now + REQUEST_TTL_MS });
+        }
         await ctx.answerCallbackQuery(reason === null ? {} : { text: `Записал: ${REASONS[reason].noted}` });
         const generation = await deps.writer.findGeneration(generationId);
         if (generation !== null && action !== 'joke')

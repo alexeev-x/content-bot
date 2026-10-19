@@ -1,3 +1,4 @@
+import { AI_FEEDBACK_KINDS, AI_FEEDBACK_NOTE_MAX } from '@alexeev/contracts';
 import { z } from 'zod';
 
 // One model call of the bot's AI writer, sent through the AI_JOBS queue (docs/backend/bot.md «AI writer»):
@@ -30,6 +31,23 @@ export const aiJobSchema = z.discriminatedUnion('kind', [
   }),
   /** The owner answered a needs_facts question; `task` is the question's task with that answer. */
   z.object({ ...base, kind: z.literal('facts'), generationId: z.uuid(), task: z.string().min(1).max(TEXT_MAX) }),
+  /**
+   * «Что не так?» (plan P2): a version fixed by the owner's remark. `feedbackId` and `reason` when a reason button
+   * came first (the remark is its note); otherwise the model names the reasons and the remark is recorded with them.
+   */
+  z.object({
+    ...base,
+    kind: z.literal('fix'),
+    generationId: z.uuid(),
+    revisionToken: z.string().max(12),
+    // The note limit counts characters; an emoji is two UTF-16 units here.
+    note: z
+      .string()
+      .min(1)
+      .max(AI_FEEDBACK_NOTE_MAX * 2),
+    feedbackId: z.uuid().nullable(),
+    reason: z.enum(AI_FEEDBACK_KINDS).nullable()
+  }),
   /** A free message in a /redactor chat; `history` is null outside a chat. */
   z.object({
     ...base,

@@ -29,6 +29,8 @@ export interface LearningRevisionRow {
 
 // The «unchanged» line of «Качество» (≤ 5% edited): below it an approval is the model's words, not the owner's.
 /** A queued AI job claim outlives the 24 h a queue keeps a message (migration 0074). */
+/** A row made only for a wait (prompt_message_id 0) is removed once no wait is left on it. */
+const NO_WAIT = 'editing_generation_id IS NULL AND noting_feedback_id IS NULL AND fixing_generation_id IS NULL';
 const JOB_CLAIM_KEPT_MS = 7 * 24 * 60 * 60 * 1000;
 /** A facts answer stays claimed this long: the queue delivery plus the two-minute model call, with room. */
 const FACT_LEASE_MS = 5 * 60 * 1000;
@@ -205,6 +207,8 @@ export interface WriterRepository {
   }): Promise<string>;
   /** Stores the owner's note on a verdict; false when the verdict is gone. */
   setFeedbackNote(id: string, note: string): Promise<boolean>;
+  /** The draft and the text a verdict judged; null when the verdict is gone. */
+  feedbackTarget(id: string): Promise<{ generationId: string; kind: FeedbackKind; revisionId: string | null } | null>;
   recent(limit: number): Promise<GenerationRow[]>;
   /**
    * The owner's approved texts of one format that the owner actually changed (edit ratio > 5%), newest first:
@@ -249,12 +253,21 @@ export interface WriterRepository {
     format: WriterFormat | null;
     editing: string | null;
     noting: string | null;
+    /** «Что не так?»: the draft whose remark the next plain message is (migration 0075). */
+    fixing: string | null;
   } | null>;
   /**
    * «✏️ Изменить»: the chat waits for the owner's version of `generationId` (null stops waiting). Opens the
    * chat row when none is open, so the next plain message is the edit whatever mode the chat is in.
    */
   setEditing(input: { chatId: number; generationId: string | null; now: number; expiresAt: number }): Promise<void>;
+  /**
+   * «Что не так?»: the chat waits for the owner's remark on `generationId` (null stops waiting). One wait at a time,
+   * like `setEditing` and `setNoting` (migration 0075).
+   */
+  setFixing(input: { chatId: number; generationId: string | null; now: number; expiresAt: number }): Promise<void>;
+  /** Consumes the awaited remark once; a concurrent message loses without a model call. */
+  consumeFixing(input: { chatId: number; generationId: string; now: number }): Promise<boolean>;
   /** Consumes one awaited edit/question; a concurrent reply to the same generation loses without a model call. */
   consumeEditing(input: { chatId: number; generationId: string; now: number }): Promise<boolean>;
   /** Claims a queued AI job once (migration 0074); false for a redelivered message. Prunes week-old claims. */
@@ -572,6 +585,13 @@ export function createD1WriterRepository(db: D1Database): WriterRepository {
       return (row?.results[0] as { id: string } | undefined)?.id ?? id;
     },
 
+    async feedbackTarget(id) {
+      return db
+        .prepare('SELECT generation_id AS generationId, kind, revision_id AS revisionId FROM ai_feedback WHERE id = ?')
+        .bind(id)
+        .first<{ generationId: string; kind: FeedbackKind; revisionId: string | null }>();
+    },
+
     async setFeedbackNote(id, note) {
       const result = await db.prepare('UPDATE ai_feedback SET note = ? WHERE id = ?').bind(note, id).run();
       return result.meta.changes === 1;
@@ -583,7 +603,7 @@ export function createD1WriterRepository(db: D1Database): WriterRepository {
           `INSERT INTO ai_writer_requests (chat_id, format, prompt_message_id, expires_at, updated_at, history, kind)
            VALUES (?1, NULL, ?2, ?3, ?4, '[]', ?5)
            ON CONFLICT (chat_id) DO UPDATE SET format = NULL, prompt_message_id = ?2, expires_at = ?3, updated_at = ?4,
-             history = '[]', kind = ?5, editing_generation_id = NULL, noting_feedback_id = NULL`
+             history = '[]', kind = ?5, editing_generation_id = NULL, noting_feedback_id = NULL, fixing_generation_id = NULL`
         )
         .bind(chatId, promptMessageId, expiresAt, now, kind)
         .run();
@@ -594,7 +614,7 @@ export function createD1WriterRepository(db: D1Database): WriterRepository {
         .prepare(
           `UPDATE ai_writer_requests SET expires_at = ?3, updated_at = ?2
            WHERE chat_id = ?1 AND expires_at > ?2 RETURNING history, format, kind, editing_generation_id AS editing,
-             noting_feedback_id AS noting`
+             noting_feedback_id AS noting, fixing_generation_id AS fixing`
         )
         .bind(chatId, now, expiresAt)
         .first<{
@@ -603,6 +623,7 @@ export function createD1WriterRepository(db: D1Database): WriterRepository {
           kind: ChatMode;
           editing: string | null;
           noting: string | null;
+          fixing: string | null;
         }>();
       return row === null
         ? null
@@ -611,7 +632,8 @@ export function createD1WriterRepository(db: D1Database): WriterRepository {
             history: parseHistory(row.history),
             format: row.format,
             editing: row.editing,
-            noting: row.noting
+            noting: row.noting,
+            fixing: row.fixing
           };
     },
 
@@ -622,9 +644,7 @@ export function createD1WriterRepository(db: D1Database): WriterRepository {
         await db.batch([
           db.prepare('UPDATE ai_writer_requests SET editing_generation_id = NULL WHERE chat_id = ?').bind(chatId),
           db
-            .prepare(
-              'DELETE FROM ai_writer_requests WHERE chat_id = ? AND prompt_message_id = 0 AND noting_feedback_id IS NULL'
-            )
+            .prepare(`DELETE FROM ai_writer_requests WHERE chat_id = ? AND prompt_message_id = 0 AND ${NO_WAIT}`)
             .bind(chatId)
         ]);
         return;
@@ -636,7 +656,7 @@ export function createD1WriterRepository(db: D1Database): WriterRepository {
           `INSERT INTO ai_writer_requests
              (chat_id, format, prompt_message_id, expires_at, updated_at, history, kind, editing_generation_id)
            VALUES (?1, NULL, 0, ?3, ?4, '[]', 'editor', ?2)
-           ON CONFLICT (chat_id) DO UPDATE SET editing_generation_id = ?2, noting_feedback_id = NULL,
+           ON CONFLICT (chat_id) DO UPDATE SET editing_generation_id = ?2, noting_feedback_id = NULL, fixing_generation_id = NULL,
              expires_at = ?3, updated_at = ?4,
              history = CASE WHEN ai_writer_requests.expires_at > ?4 THEN ai_writer_requests.history ELSE '[]' END,
              kind = CASE WHEN ai_writer_requests.expires_at > ?4 THEN ai_writer_requests.kind ELSE 'editor' END,
@@ -658,9 +678,50 @@ export function createD1WriterRepository(db: D1Database): WriterRepository {
         .run();
       if (result.meta.changes !== 1) return false;
       await db
+        .prepare(`DELETE FROM ai_writer_requests WHERE chat_id = ? AND prompt_message_id = 0 AND ${NO_WAIT}`)
+        .bind(chatId)
+        .run();
+      return true;
+    },
+
+    async setFixing({ chatId, generationId, now, expiresAt }) {
+      if (generationId === null) {
+        await db.batch([
+          db.prepare('UPDATE ai_writer_requests SET fixing_generation_id = NULL WHERE chat_id = ?').bind(chatId),
+          db
+            .prepare(`DELETE FROM ai_writer_requests WHERE chat_id = ? AND prompt_message_id = 0 AND ${NO_WAIT}`)
+            .bind(chatId)
+        ]);
+        return;
+      }
+      await db
         .prepare(
-          'DELETE FROM ai_writer_requests WHERE chat_id = ? AND prompt_message_id = 0 AND editing_generation_id IS NULL AND noting_feedback_id IS NULL'
+          `INSERT INTO ai_writer_requests
+             (chat_id, format, prompt_message_id, expires_at, updated_at, history, kind, fixing_generation_id)
+           VALUES (?1, NULL, 0, ?3, ?4, '[]', 'editor', ?2)
+           ON CONFLICT (chat_id) DO UPDATE SET fixing_generation_id = ?2, editing_generation_id = NULL,
+             noting_feedback_id = NULL, expires_at = ?3, updated_at = ?4,
+             history = CASE WHEN ai_writer_requests.expires_at > ?4 THEN ai_writer_requests.history ELSE '[]' END,
+             kind = CASE WHEN ai_writer_requests.expires_at > ?4 THEN ai_writer_requests.kind ELSE 'editor' END,
+             format = CASE WHEN ai_writer_requests.expires_at > ?4 THEN ai_writer_requests.format ELSE NULL END,
+             prompt_message_id = CASE WHEN ai_writer_requests.expires_at > ?4
+               THEN ai_writer_requests.prompt_message_id ELSE 0 END`
         )
+        .bind(chatId, generationId, expiresAt, now)
+        .run();
+    },
+
+    async consumeFixing({ chatId, generationId, now }) {
+      const result = await db
+        .prepare(
+          `UPDATE ai_writer_requests SET fixing_generation_id = NULL
+           WHERE chat_id = ? AND fixing_generation_id = ? AND expires_at > ?`
+        )
+        .bind(chatId, generationId, now)
+        .run();
+      if (result.meta.changes !== 1) return false;
+      await db
+        .prepare(`DELETE FROM ai_writer_requests WHERE chat_id = ? AND prompt_message_id = 0 AND ${NO_WAIT}`)
         .bind(chatId)
         .run();
       return true;
@@ -694,10 +755,7 @@ export function createD1WriterRepository(db: D1Database): WriterRepository {
           )
           .bind(chatId, generationId),
         db
-          .prepare(
-            `DELETE FROM ai_writer_requests
-             WHERE chat_id = ? AND prompt_message_id = 0 AND editing_generation_id IS NULL AND noting_feedback_id IS NULL`
-          )
+          .prepare(`DELETE FROM ai_writer_requests WHERE chat_id = ? AND prompt_message_id = 0 AND ${NO_WAIT}`)
           .bind(chatId)
       ]);
       return claim?.meta.changes === 1;
@@ -743,9 +801,7 @@ export function createD1WriterRepository(db: D1Database): WriterRepository {
         await db.batch([
           db.prepare('UPDATE ai_writer_requests SET noting_feedback_id = NULL WHERE chat_id = ?').bind(chatId),
           db
-            .prepare(
-              'DELETE FROM ai_writer_requests WHERE chat_id = ? AND prompt_message_id = 0 AND editing_generation_id IS NULL'
-            )
+            .prepare(`DELETE FROM ai_writer_requests WHERE chat_id = ? AND prompt_message_id = 0 AND ${NO_WAIT}`)
             .bind(chatId)
         ]);
         return;
@@ -755,7 +811,7 @@ export function createD1WriterRepository(db: D1Database): WriterRepository {
           `INSERT INTO ai_writer_requests
              (chat_id, format, prompt_message_id, expires_at, updated_at, history, kind, noting_feedback_id)
            VALUES (?1, NULL, 0, ?3, ?4, '[]', 'editor', ?2)
-           ON CONFLICT (chat_id) DO UPDATE SET noting_feedback_id = ?2, editing_generation_id = NULL,
+           ON CONFLICT (chat_id) DO UPDATE SET noting_feedback_id = ?2, editing_generation_id = NULL, fixing_generation_id = NULL,
              expires_at = ?3, updated_at = ?4,
              history = CASE WHEN ai_writer_requests.expires_at > ?4 THEN ai_writer_requests.history ELSE '[]' END,
              kind = CASE WHEN ai_writer_requests.expires_at > ?4 THEN ai_writer_requests.kind ELSE 'editor' END,
@@ -774,9 +830,7 @@ export function createD1WriterRepository(db: D1Database): WriterRepository {
         .run();
       if (result.meta.changes !== 1) return false;
       await db
-        .prepare(
-          'DELETE FROM ai_writer_requests WHERE chat_id = ? AND prompt_message_id = 0 AND editing_generation_id IS NULL AND noting_feedback_id IS NULL'
-        )
+        .prepare(`DELETE FROM ai_writer_requests WHERE chat_id = ? AND prompt_message_id = 0 AND ${NO_WAIT}`)
         .bind(chatId)
         .run();
       return true;
