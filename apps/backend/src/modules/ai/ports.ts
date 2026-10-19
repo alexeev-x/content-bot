@@ -31,6 +31,8 @@ export interface AiTextProvider {
     maxOutputTokens: number;
     /** A strict JSON Schema the answer must follow (structured output); the caller still validates it. */
     jsonSchema?: { name: string; schema: Record<string, unknown> };
+    /** How long a reasoning model thinks; omitted, the model's default (medium for the listed models). */
+    reasoningEffort?: 'low';
     signal: AbortSignal;
   }): Promise<AiCompletion>;
 }
