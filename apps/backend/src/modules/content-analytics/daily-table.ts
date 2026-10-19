@@ -1,7 +1,7 @@
 import type { ContentBaselineDto } from '@alexeev/contracts';
 import type { ContentPlatform, VideoFormat } from './types';
 
-// The numbers of the daily analytics table (stage P4 of docs/ALEXEEV_AI_DEVELOPMENT_AND_TEST_PLAN.md §4.1):
+// The numbers of the daily analytics table (owner decision 6 of docs/ALEXEEV_AI_DEVELOPMENT_AND_TEST_PLAN.md):
 // deterministic, from stored snapshots only, for one fixed `asOf`. Nothing here is guessed: a value that cannot
 // be computed is null (shown as «—»), never 0, and a growth is called «+24ч» only for a real 24 h ± 2 h pair.
 

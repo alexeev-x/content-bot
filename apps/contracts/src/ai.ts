@@ -329,7 +329,7 @@ export type AiReelsScriptDto = z.infer<typeof aiReelsScriptSchema>;
 // DELETE /api/v1/ai/scripts/{itemId} → 200 AiItemScriptDto with `linked: null`; repeating it is a no-op.
 // Errors: VALIDATION_ERROR 400 (bad id; PUT on a Telegram post, details.reason NOT_A_VIDEO), NOT_FOUND 404
 // (no such video or approved Reels script), UNAUTHORIZED 401, FORBIDDEN 403.
-// Stage 4 of docs/ai/IMPLEMENTATION_PLAN.md: the whole way of a linked script, from the task to the videos, so a
+// The whole way of a linked script, from the task to the videos, so a
 // review reads the exact approved text and where it came from. Only stored facts; nothing is re-generated.
 export const AI_CHAIN_TEXT_MAX = 4000;
 export const AI_CHAIN_TASK_MAX = 300;
@@ -475,7 +475,7 @@ export const aiFeedbackListSchema = z.object({ items: z.array(aiFeedbackSchema).
 export type AiFeedbackListDto = z.infer<typeof aiFeedbackListSchema>;
 export const aiFeedbackParamsSchema = z.strictObject({ id: z.uuid() });
 
-// What the writer learns from (docs/ai/IMPLEMENTATION_PLAN.md stage 2): the texts that can go into a prompt as the
+// What the writer learns from: the texts that can go into a prompt as the
 // owner's examples, newest first, and whether the owner took one out. Two sources:
 // - `revision`: an approved AI draft the owner changed noticeably (an unchanged approval is never one, and a draft
 //   the owner gave a «Что не так?» verdict is not shown here: a disliked text is not an example);
@@ -519,7 +519,7 @@ export const aiUnlinkedScriptsSchema = z.object({
 });
 export type AiUnlinkedScriptsDto = z.infer<typeof aiUnlinkedScriptsSchema>;
 
-// Stage 5 of docs/ai/IMPLEMENTATION_PLAN.md (architecture items 11–13): a review of a YouTube/TikTok video once it is
+// Architecture items 11–13: a review of a YouTube/TikTok video once it is
 // 72 hours old. Facts are the measured numbers, the observation compares them with the same-format curve, hypotheses
 // say «возможно» and never become a rule by themselves. Built by Cron, once per video; nothing is re-generated on read.
 // GET /api/v1/ai/reviews/{itemId} → 200 AiVideoReviewResultDto: `review` null while the video is younger than

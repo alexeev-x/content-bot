@@ -47,8 +47,6 @@ Git holds the stable editorial system; D1 holds the living memory. Analytics com
 
 P0 before the learning loop: exact-age same-format baseline with N ≥ 5 clean; provenance; draft → final → publication → platform item → analytics; runtime memory in D1; the server-side approval guard; confirmed-confounder semantics; AI_DRAFT never in style retrieval. Then: T+72 review, evidence, candidate/supported/strong rules, weekly «Мой опыт».
 
-## Execution order (live checklist)
+## What is left
 
-Use [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md) for the current develop snapshot, **ordered stages 0–8**, dependencies, checked vs unchecked work, tests, DEV gates and progress log. This architecture file owns component designs and technical acceptance constraints; do not treat a planned item here as implemented.
-
-The next stage is **0 — stabilize current writer** (verify Telegram needs_facts continuation, DEV migration 0062 and quality aggregation). Then **1 — quality and variety**, **2 — learning from owner edits**, **3 — same-format exact-age baselines**, **4 — full text/video traceability**, **5 — T+72 reviews**, **6 — evidence-backed rules and weekly D1 memory**, **7 — verification and quality tracking**. Stage 8 is deferred optimization/news drafting; AI auto-publication stays disabled by owner decision.
+Only in [ALEXEEV_AI_DEVELOPMENT_AND_TEST_PLAN.md](../ALEXEEV_AI_DEVELOPMENT_AND_TEST_PLAN.md); this file owns component designs and their technical constraints.

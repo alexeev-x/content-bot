@@ -40,7 +40,7 @@ Sources: OpenDota keyless 60 req/min and 3 000/day; official datafeed keyless an
 
 ### A. AI that writes like the owner
 
-Owned by `docs/ai/IMPLEMENTATION_PLAN.md`.
+Owned by `docs/ALEXEEV_AI_DEVELOPMENT_AND_TEST_PLAN.md` (only what is left).
 
 ### B. Video analytics
 

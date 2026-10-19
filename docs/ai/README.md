@@ -1,6 +1,6 @@
 # AI writer: what the model reads
 
-**Execution roadmap and actual implementation status:** [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md). Component design and checklist: [architecture.md](architecture.md). The live learning cycle and T+72 reviews are not yet built.
+What is left of the AI plan: [ALEXEEV_AI_DEVELOPMENT_AND_TEST_PLAN.md](../ALEXEEV_AI_DEVELOPMENT_AND_TEST_PLAN.md). Component design and checklist: [architecture.md](architecture.md); the learning cycle (owner rules, analysis rules, lessons from edits) is item 10 there.
 
 Owner decision 16.10.2026: the studio controls the AI writer; this folder is its only source. Model-facing text is Russian and terse (imperatives, no tables, no sources or dates inside it); everything a person needs to know is in this README.
 
