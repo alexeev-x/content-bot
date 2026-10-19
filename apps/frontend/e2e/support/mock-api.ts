@@ -672,6 +672,90 @@ export async function mockApi(page: Page): Promise<void> {
       }
     });
   });
+  await page.route(/\/api\/v1\/content-analytics\/reports(\?.*)?$/, (route) =>
+    json(route, {
+      items: [
+        {
+          id: 'daily:2026-10-19:v1',
+          kind: 'day',
+          asOf: '2026-10-19T06:00:00.000Z',
+          timezone: 'Europe/Moscow',
+          status: 'reviewed',
+          reviewError: null,
+          model: 'gpt-6.1-sol',
+          costUsd: 0.0125
+        },
+        {
+          id: 'weekly:2026-10-19:v1',
+          kind: 'week',
+          asOf: '2026-10-19T07:00:00.000Z',
+          timezone: 'Europe/Moscow',
+          status: 'unreviewed',
+          reviewError: 'AI_BUDGET',
+          model: null,
+          costUsd: null
+        }
+      ],
+      nextCursor: null
+    })
+  );
+  await page.route(/\/api\/v1\/content-analytics\/reports\/[^/?]+$/, (route) =>
+    json(route, {
+      report: {
+        id: 'daily:2026-10-19:v1',
+        kind: 'day',
+        asOf: '2026-10-19T06:00:00.000Z',
+        timezone: 'Europe/Moscow',
+        status: 'reviewed',
+        reviewError: null,
+        model: 'gpt-6.1-sol',
+        costUsd: 0.0125
+      },
+      text: [
+        '📈 Аналитика · 19 октября, 09:00',
+        'За сутки: YouTube +286 · TikTok +3.2к',
+        '',
+        '🧠 Разбор',
+        'День ровный: оракл набирает быстрее обычного, старые ролики почти стоят.',
+        '',
+        'YouTube',
+        '# Всего  +сут  Ролик',
+        '1  2.7к  +173↑ Как я на оракле…',
+        '2  4.2к   +19  Я выбил аркану н…',
+        'Открыть: 1 · 2'
+      ].join('\n'),
+      forecasts: [
+        {
+          itemId: 'youtube:yt000000001',
+          title: 'Как я на оракле играл',
+          platform: 'youtube',
+          method: 'decay-v1',
+          origin: '2026-10-19T06:00:00.000Z',
+          horizonHours: 24,
+          targetAt: '2026-10-20T06:00:00.000Z',
+          expected: 3000,
+          low: 2800,
+          high: 3400,
+          fact: 3100,
+          outcome: 'in_band'
+        },
+        {
+          itemId: 'youtube:yt000000001',
+          title: 'Как я на оракле играл',
+          platform: 'youtube',
+          method: 'decay-v1',
+          origin: '2026-10-19T06:00:00.000Z',
+          horizonHours: 168,
+          targetAt: '2026-10-26T06:00:00.000Z',
+          expected: 5200,
+          low: 4100,
+          high: 6900,
+          fact: null,
+          outcome: null
+        }
+      ]
+    })
+  );
   await page.route(/\/api\/v1\/ai\/rules$/, (route) =>
     json(route, {
       inUseMax: 15,

@@ -23,6 +23,19 @@ export interface DueForecast {
   high: number;
 }
 
+export interface StoredForecast {
+  itemId: string;
+  method: string;
+  origin: number;
+  hours: ForecastHorizon;
+  targetAt: number;
+  expected: number;
+  low: number;
+  high: number;
+  fact: number | null;
+  outcome: ForecastOutcome | null;
+}
+
 export type ForecastOutcome = 'in_band' | 'below' | 'above' | 'no_fact';
 
 export interface ContentForecastRepository {
@@ -32,6 +45,8 @@ export interface ContentForecastRepository {
   listDue(before: number, limit: number): Promise<DueForecast[]>;
   /** Scores each forecast once: a second scorer of the same forecast changes nothing. */
   score(rows: readonly { id: string; fact: number | null; outcome: ForecastOutcome }[], now: number): Promise<void>;
+  /** One report's forecasts (at most 36), by video then horizon. */
+  ofReport(reportId: string): Promise<StoredForecast[]>;
   /** Forecasts scored since `since` with a fact: how many, and how many had it inside their band. */
   accuracy(since: number): Promise<{ scored: number; inBand: number }>;
 }
@@ -83,6 +98,18 @@ export function createD1ContentForecastRepository(db: D1Database): ContentForeca
         )
         .bind(JSON.stringify(bounded), now)
         .run();
+    },
+
+    async ofReport(reportId) {
+      const rows = await db
+        .prepare(
+          `SELECT item_id AS itemId, method, origin, horizon_hours AS hours, target_at AS targetAt, expected, low, high,
+                  fact, outcome
+           FROM content_forecasts WHERE report_id = ? ORDER BY item_id, horizon_hours LIMIT ${INSERT_LIMIT}`
+        )
+        .bind(reportId)
+        .all<StoredForecast>();
+      return rows.results;
     },
 
     async accuracy(since) {

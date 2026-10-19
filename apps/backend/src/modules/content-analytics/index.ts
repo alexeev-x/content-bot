@@ -8,6 +8,7 @@ export {
   type TikTokConnectionRepository
 } from './tiktok-connection';
 export { raiseContentAlerts } from './alerts';
+export { listReports, readReport, type ReportSummary } from './report-history';
 export { CONTAMINATION_CALLBACK, parseContaminationCallback } from './contamination-callback';
 export type { ItemFormats, VideoFormat } from './types';
 export { createD1ContentGoalRepository } from './d1-content-goals-repository';

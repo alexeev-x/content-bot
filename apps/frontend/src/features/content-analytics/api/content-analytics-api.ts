@@ -5,7 +5,9 @@ import {
   contentGoalsSchema,
   contentItemDetailSchema,
   contentItemsPageSchema,
+  contentReportDetailSchema,
   contentReportSchema,
+  contentReportsPageSchema,
   tiktokConnectSchema,
   type ContentContaminationReason,
   type ContentPlatform,
@@ -33,6 +35,18 @@ export function getContentItems(
 ) {
   const query = buildQuery({ platform, cursor, limit: ITEMS_PAGE_SIZE });
   return apiRequest(`/api/v1/content-analytics/items${query}`, contentItemsPageSchema, { signal });
+}
+
+/** The released daily and Monday reports, newest first. */
+export function getContentReports(cursor: string | undefined, signal?: AbortSignal) {
+  return apiRequest(`/api/v1/content-analytics/reports${buildQuery({ cursor })}`, contentReportsPageSchema, { signal });
+}
+
+/** One report: its text and, for a daily one, its forecasts with their scores. */
+export function getContentReportDetail(id: string, signal?: AbortSignal) {
+  return apiRequest(`/api/v1/content-analytics/reports/${encodeURIComponent(id)}`, contentReportDetailSchema, {
+    signal
+  });
 }
 
 export function getContentItem(id: string, signal?: AbortSignal) {

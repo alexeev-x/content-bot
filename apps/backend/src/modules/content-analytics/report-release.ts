@@ -57,7 +57,13 @@ export async function releaseDailyReport(
     alerts: Pick<ContentAlertRepository, 'insert'>;
     now: number;
   },
-  input: { id: string; review: DailyReview | null; reviewError: string | null; model: string | null }
+  input: {
+    id: string;
+    review: DailyReview | null;
+    reviewError: string | null;
+    model: string | null;
+    usageId?: string | null;
+  }
 ): Promise<boolean> {
   const report = await deps.reports.find(input.id);
   if (report === null || report.status !== 'waiting') return false;
@@ -96,6 +102,7 @@ export async function releaseDailyReport(
     review: review === null ? null : JSON.stringify(review),
     reviewError,
     model: input.model,
+    usageId: input.usageId ?? null,
     now: deps.now
   });
 }

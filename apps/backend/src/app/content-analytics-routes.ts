@@ -9,8 +9,13 @@ import {
   contentItemIdSchema,
   contentItemsPageSchema,
   contentItemsQuerySchema,
+  contentReportDetailSchema,
+  contentReportParamsSchema,
   contentReportQuerySchema,
   contentReportSchema,
+  contentReportsPageSchema,
+  contentReportsQuerySchema,
+  type ContentReportSummaryDto,
   tiktokConnectSchema
 } from '@alexeev/contracts';
 import { Hono } from 'hono';
@@ -18,6 +23,9 @@ import { z } from 'zod';
 import {
   collectContentAnalytics,
   listContentItems,
+  listReports,
+  readReport,
+  type ReportSummary,
   readContentAnalyticsOverview,
   completeTikTokConnect,
   type ConnectResult,
@@ -32,7 +40,9 @@ import {
   startTikTokConnect,
   TIKTOK_STATE_TTL_SEC
 } from '../modules/content-analytics';
+import { readUsageCosts } from '../modules/ai';
 import { AppError } from '../shared/app-error';
+import type { Container } from './container';
 import { deleteCookie, getCookie, setCookie } from 'hono/cookie';
 import { rateLimitClientKey } from '../platform/rate-limit/client-key';
 import type { AppBindings } from './env';
@@ -58,6 +68,22 @@ function tiktokDeps(container: AppBindings['Variables']['container']) {
   const config = container.contentSources.tiktok;
   if (config === null) throw new AppError('UNAVAILABLE', 'TikTok app keys are not configured');
   return { repo: container.tiktokConnections, config, clock: container.clock, fetchImpl: container.contentFetch };
+}
+
+/** A report's review cost comes from the AI module's usage ledger, joined here (modules never import each other). */
+async function withCosts(container: Container, reports: readonly ReportSummary[]): Promise<ContentReportSummaryDto[]> {
+  const ids = reports.flatMap((report) => (report.usageId === null ? [] : [report.usageId]));
+  const costs = await readUsageCosts(container.aiRepository, ids);
+  return reports.map((report) => ({
+    id: report.id,
+    kind: report.kind,
+    asOf: new Date(report.asOf).toISOString(),
+    timezone: report.timezone,
+    status: report.status,
+    reviewError: report.reviewError,
+    model: report.model,
+    costUsd: report.usageId === null ? null : (costs.get(report.usageId) ?? null)
+  }));
 }
 
 export const contentAnalyticsRoutes = new Hono<AppBindings>()
@@ -172,6 +198,42 @@ export const contentAnalyticsRoutes = new Hono<AppBindings>()
     const container = c.get('container');
     return c.json(
       contentItemsPageSchema.parse(await listContentItems(container.contentAnalytics, c.req.valid('query')))
+    );
+  })
+  .get('/reports', validated('query', contentReportsQuerySchema), async (c) => {
+    const container = c.get('container');
+    const page = await listReports(container.contentDailyReports, c.req.valid('query').cursor);
+    const items = await withCosts(container, page.items);
+    return c.json(contentReportsPageSchema.parse({ items, nextCursor: page.nextCursor }));
+  })
+  .get('/reports/:id', validated('param', contentReportParamsSchema), async (c) => {
+    const container = c.get('container');
+    const detail = await readReport(
+      { reports: container.contentDailyReports, forecasts: container.contentForecasts },
+      c.req.valid('param').id
+    );
+    if (detail === null) throw new AppError('NOT_FOUND', 'Report not found');
+    const [report] = await withCosts(container, [detail.summary]);
+    const iso = (ms: number) => new Date(ms).toISOString();
+    return c.json(
+      contentReportDetailSchema.parse({
+        report,
+        text: detail.text,
+        forecasts: detail.forecasts.map((row) => ({
+          itemId: row.itemId,
+          title: row.title,
+          platform: row.platform,
+          method: row.method,
+          origin: iso(row.origin),
+          horizonHours: row.hours,
+          targetAt: iso(row.targetAt),
+          expected: row.expected,
+          low: row.low,
+          high: row.high,
+          fact: row.fact,
+          outcome: row.outcome
+        }))
+      })
     );
   })
   .get('/items/:id', validated('param', itemParamsSchema), async (c) => {

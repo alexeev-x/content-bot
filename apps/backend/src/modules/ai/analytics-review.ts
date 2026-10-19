@@ -136,6 +136,8 @@ export async function writeAnalyticsReview(
   review: AnalyticsReview | null;
   errorCode: string | null;
   model: string | null;
+  /** The ai_usage row of the call (the studio shows its cost); null when no call was answered. */
+  usageId: string | null;
   budgetEvents: BudgetEvent[];
 }> {
   const settings = await readAiSettings(deps.repo);
@@ -153,9 +155,11 @@ export async function writeAnalyticsReview(
     });
   } catch (error) {
     if (!(error instanceof AiProviderError)) throw error;
-    return { review: null, errorCode: error.code, model: null, budgetEvents: [] };
+    return { review: null, errorCode: error.code, model: null, usageId: null, budgetEvents: [] };
   }
+  const usageId = deps.newId();
   const budgetEvents = await recordAiUsage(deps, {
+    id: usageId,
     kind: 'other',
     provider: provider.provider,
     model: result.model,
@@ -166,7 +170,7 @@ export async function writeAnalyticsReview(
   try {
     review = analyticsReviewSchema.parse(JSON.parse(result.text));
   } catch {
-    return { review: null, errorCode: 'AI_BAD_FORMAT', model: result.model, budgetEvents };
+    return { review: null, errorCode: 'AI_BAD_FORMAT', model: result.model, usageId, budgetEvents };
   }
   const known = new Set(input.videos);
   // A video the facts do not list is dropped rather than guessed.
@@ -176,6 +180,6 @@ export async function writeAnalyticsReview(
     weak: review.weak.filter((row) => known.has(row.video))
   };
   if (unverifiedNumbers(review, input.facts).length > 0)
-    return { review: null, errorCode: 'AI_NUMBERS_UNVERIFIED', model: result.model, budgetEvents };
-  return { review, errorCode: null, model: result.model, budgetEvents };
+    return { review: null, errorCode: 'AI_NUMBERS_UNVERIFIED', model: result.model, usageId, budgetEvents };
+  return { review, errorCode: null, model: result.model, usageId, budgetEvents };
 }

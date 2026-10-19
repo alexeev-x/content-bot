@@ -40,6 +40,7 @@ export function AnalyticsHeader({ description, days, platform, onDaysChange, onP
             <Tab id="overview">Обзор</Tab>
             <Tab id="items">Публикации</Tab>
             <Tab id="audience">Аудитория</Tab>
+            <Tab id="reports">Отчёты</Tab>
           </TabList>
           <div className={styles.toolbarFilters}>
             <Select

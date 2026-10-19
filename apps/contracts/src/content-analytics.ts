@@ -275,3 +275,57 @@ export const contentGoalSchema = z.object({
 export type ContentGoalDto = z.infer<typeof contentGoalSchema>;
 export const contentGoalsSchema = z.object({ goals: z.array(contentGoalSchema).max(3) });
 export type ContentGoalsDto = z.infer<typeof contentGoalsSchema>;
+
+// The history of the daily and Monday reports (AI plan P8; SYS-03, SYS-04). Owner-only, read-only.
+// GET /api/v1/content-analytics/reports?cursor → 200 ContentReportsPageDto, released reports newest first,
+// CONTENT_REPORTS_PAGE a page. Errors: VALIDATION_ERROR 400 (a bad cursor), UNAUTHORIZED 401, FORBIDDEN 403.
+// GET /api/v1/content-analytics/reports/{id} → 200 ContentReportDetailDto: the text from the stored numbers and
+// review (today's layout), and a daily report's forecasts with their scores. NOT_FOUND 404 for an unknown id or
+// a report still waiting for its review.
+export const CONTENT_REPORTS_PAGE = 20;
+export const CONTENT_REPORT_TEXT_MAX = 20_000;
+export const contentReportSummarySchema = z.object({
+  id: z.string().min(1).max(100),
+  kind: z.enum(['day', 'week']),
+  asOf: z.iso.datetime(),
+  timezone: z.string().min(1).max(100),
+  status: z.enum(['reviewed', 'unreviewed']),
+  /** Why the review is missing (AI_DISABLED, AI_BUDGET, REVIEW_TIMEOUT, AI_NUMBERS_UNVERIFIED…); null with it. */
+  reviewError: z.string().max(100).nullable(),
+  model: z.string().max(100).nullable(),
+  /** The review's recorded cost; null without a model call, without a price or before migration 0080. */
+  costUsd: z.number().nonnegative().nullable()
+});
+export type ContentReportSummaryDto = z.infer<typeof contentReportSummarySchema>;
+export const contentReportsQuerySchema = z.strictObject({ cursor: z.string().min(1).max(512).optional() });
+export const contentReportsPageSchema = z.object({
+  items: z.array(contentReportSummarySchema).max(CONTENT_REPORTS_PAGE),
+  nextCursor: z.string().nullable()
+});
+export type ContentReportsPageDto = z.infer<typeof contentReportsPageSchema>;
+export const contentReportForecastSchema = z.object({
+  itemId: z.string().min(1).max(200),
+  /** The video's title in the report; null when the stored numbers do not name it. */
+  title: z.string().max(500).nullable(),
+  platform: contentPlatformSchema.nullable(),
+  method: z.string().min(1).max(40),
+  /** The reading the forecast started from. */
+  origin: z.iso.datetime(),
+  horizonHours: z.union([z.literal(24), z.literal(72), z.literal(168)]),
+  targetAt: z.iso.datetime(),
+  expected: z.number().int().nonnegative(),
+  low: z.number().int().nonnegative(),
+  high: z.number().int().nonnegative(),
+  /** The reading near the horizon; null before scoring or when there was none (`no_fact`). */
+  fact: z.number().int().nonnegative().nullable(),
+  /** null: not scored yet. */
+  outcome: z.enum(['in_band', 'below', 'above', 'no_fact']).nullable()
+});
+export type ContentReportForecastDto = z.infer<typeof contentReportForecastSchema>;
+export const contentReportDetailSchema = z.object({
+  report: contentReportSummarySchema,
+  text: z.string().max(CONTENT_REPORT_TEXT_MAX),
+  forecasts: z.array(contentReportForecastSchema).max(36)
+});
+export type ContentReportDetailDto = z.infer<typeof contentReportDetailSchema>;
+export const contentReportParamsSchema = z.strictObject({ id: z.string().min(1).max(100) });

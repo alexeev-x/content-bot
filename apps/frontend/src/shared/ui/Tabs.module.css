@@ -141,8 +141,9 @@
   }
 }
 
-/* Four tabs («Все / Планы / Отправлено / Ошибки») fit a 320px screen without a hidden sideways scroll. */
-@media (max-width: 359px) {
+/* Four tabs fit a phone without a hidden sideways scroll: «Все / Планы / Отправлено / Ошибки» at 320 px, the
+   analytics «Обзор / Публикации / Аудитория / Отчёты» from 375 px. */
+@media (max-width: 479px) {
   .tab {
     padding: 0 var(--space-2);
   }

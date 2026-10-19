@@ -55,6 +55,7 @@ export async function runDailyReview(
   let review: DailyReview | null = null;
   let reviewError: string | null = null;
   let model: string | null = null;
+  let usageId: string | null = null;
   try {
     const { timezone } = await getOwnerOperationsSettings({
       repo: container.settings,
@@ -74,6 +75,7 @@ export async function runDailyReview(
     review = result.review;
     reviewError = result.errorCode;
     model = result.model;
+    usageId = result.usageId;
     await sendBudgetAlerts(
       {
         messenger: container.ownerMessenger,
@@ -93,7 +95,7 @@ export async function runDailyReview(
   }
   await releaseDailyReport(
     { reports, alerts: container.contentAlerts, now: container.clock.now() },
-    { id: reportId, review, reviewError, model }
+    { id: reportId, review, reviewError, model, usageId }
   );
   // Once a week, after the report is out: the analysis rules are weighed against the new results (AI plan P7).
   if (found.period === 'week') await runRuleConsolidation(reportId, container, requestId, onError);

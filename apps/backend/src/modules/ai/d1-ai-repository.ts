@@ -18,6 +18,8 @@ export interface AiRepository {
   /** Guarded by the revision: false when another save won. */
   saveSettings(input: { document: string; expectedRevision: number; now: number }): Promise<boolean>;
   recordUsage(row: UsageRow): Promise<void>;
+  /** The recorded cost of these usage rows (at most 100), in micro-USD; an unpriced row maps to null. */
+  costsOf(ids: readonly string[]): Promise<Map<string, number | null>>;
   readSpend(input: { monthStart: number; dayStart: number }): Promise<SpendRows>;
   /** Marks a budget alert as sent; false when it already was (one per period). */
   claimBudgetAlert(id: string, now: number): Promise<boolean>;
@@ -69,6 +71,17 @@ export function createD1AiRepository(db: D1Database): AiRepository {
           row.costMicroUsd
         )
         .run();
+    },
+
+    async costsOf(ids) {
+      if (ids.length === 0) return new Map();
+      const rows = await db
+        .prepare(
+          'SELECT id, cost_micro_usd AS cost FROM ai_usage WHERE id IN (SELECT value FROM json_each(?1)) LIMIT 100'
+        )
+        .bind(JSON.stringify(ids.slice(0, 100)))
+        .all<{ id: string; cost: number | null }>();
+      return new Map(rows.results.map((row) => [row.id, row.cost]));
     },
 
     async readSpend({ monthStart, dayStart }) {

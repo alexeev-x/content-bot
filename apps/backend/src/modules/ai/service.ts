@@ -400,3 +400,17 @@ export async function checkAiConnection(deps: {
     return [];
   }
 }
+
+/** The cost of these usage rows in USD (the studio's report history, AI plan P8); unknown or unpriced is null. */
+export async function readUsageCosts(
+  repo: Pick<AiRepository, 'costsOf'>,
+  ids: readonly string[]
+): Promise<Map<string, number | null>> {
+  const costs = await repo.costsOf(ids);
+  return new Map(
+    ids.map((id) => {
+      const cost = costs.get(id);
+      return [id, cost === undefined || cost === null ? null : cost / 1_000_000];
+    })
+  );
+}

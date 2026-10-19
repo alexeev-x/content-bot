@@ -9,7 +9,7 @@ const analyticsSearchSchema = z
       .union([z.literal(7), z.literal(30), z.literal(90)])
       .optional()
       .catch(undefined),
-    tab: z.enum(['items', 'audience']).optional().catch(undefined),
+    tab: z.enum(['items', 'audience', 'reports']).optional().catch(undefined),
     platform: contentPlatformSchema.optional().catch(undefined),
     page: z.number().int().min(1).max(1000).optional().catch(undefined),
     sort: z.enum(['published', 'views', 'likes', 'comments', 'er', 'multiple']).optional().catch(undefined),

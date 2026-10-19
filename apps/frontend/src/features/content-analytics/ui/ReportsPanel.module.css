@@ -1,0 +1,56 @@
+.body {
+  display: grid;
+  gap: var(--space-3);
+  padding: 0 var(--space-4) var(--space-4);
+}
+
+.heading {
+  display: grid;
+  gap: 2px;
+  padding-block: var(--space-2);
+}
+
+.hint {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+  max-inline-size: 70ch;
+}
+
+.meta {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+  font-weight: 400;
+}
+
+.detail {
+  display: grid;
+  gap: var(--space-3);
+  min-inline-size: 0;
+}
+
+/* The report as the bot built it: its own line breaks and the monospace tables. */
+.text {
+  margin: 0;
+  overflow-x: auto;
+  padding: var(--space-3);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-2);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-sm);
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* A phone keeps a 32-character table row on one line, as in Telegram. */
+@media (max-width: 480px) {
+  .body {
+    padding-inline: var(--space-3);
+  }
+
+  .text {
+    padding: var(--space-2);
+    font-size: var(--font-size-2xs);
+  }
+}

@@ -1,3 +1,4 @@
+import { contentReportDetailSchema, contentReportsPageSchema } from '@alexeev/contracts';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { createD1SystemState } from '../../src/app/system-state';
 import { runDailyReview } from '../../src/app/workflows/daily-review';
@@ -21,7 +22,8 @@ import { createD1SettingsRepository, saveOwnerOperationsSettings } from '../../s
 import { createLogger } from '../../src/platform/logging/logger';
 import { testDb } from '../helpers/db';
 import { fakeTransport, makeTick, tickCount } from '../helpers/dispatch';
-import { type FakeClock, fakeClock, resetDb, START } from '../helpers/harness';
+import { expectError } from '../helpers/expect-error';
+import { createApi, type FakeClock, fakeClock, OWNER_TOKEN, resetDb, seedSession, START } from '../helpers/harness';
 
 // The daily report (AI plan P6) end to end in a migrated D1: its numbers stored once per owner-zone day from its
 // hour, the AI review queued and released with the message, the numbers alone after the deadline, the
@@ -331,6 +333,12 @@ describe('daily report on the Cron tick and the review job', () => {
     );
     await runDailyReview(job.reportId, consumer.container, 't', () => {});
     expect(await reportRows()).toMatchObject([{ status: 'reviewed' }]);
+    // The review's usage row is linked, so the studio can show what it cost (migration 0080).
+    const linked = await testDb()
+      .prepare('SELECT u.kind FROM content_daily_reports r JOIN ai_usage u ON u.id = r.usage_id WHERE r.id = ?')
+      .bind(job.reportId)
+      .first<{ kind: string }>();
+    expect(linked?.kind).toBe('other');
     // The review sees the hook of a confirmed script (owner, 19.10.2026), and only of that one.
     expect(inputs[0]).toContain('Сценарии:\nY1 сценарий (подтверждён автором), начало: «Купи БКБ и стой. Это база.»');
     expect(inputs[0]).not.toContain('Y2 сценарий');
@@ -357,5 +365,53 @@ describe('daily report on the Cron tick and the review job', () => {
     expect(report?.status).toBe('unreviewed');
     expect(report?.reviewError).toMatch(/^AI_/);
     expect((await alertRows())[0]?.html).toContain('🧠 Разбор недоступен');
+  });
+});
+
+describe('report history in the studio (AI plan P8; SYS-03, SYS-04)', () => {
+  it('lists released reports with the review cost, and opens one with its text and scored forecasts', async () => {
+    const clock = fakeClock();
+    await collectHours(clock, 26, 0);
+    const deps = repos();
+    const { reportId } = await raiseDailyReport({ ...deps, clock, timezone: ZONE, hour: 0 });
+    const usageId = '00000000-0000-4000-8000-00000000aa01';
+    await testDb()
+      .prepare(
+        `INSERT INTO ai_usage (id, at, kind, provider, model, input_tokens, cached_input_tokens, output_tokens, cost_micro_usd)
+         VALUES (?, ?, 'other', 'openai', 'gpt-6.1-sol', 1000, 0, 100, 12500)`
+      )
+      .bind(usageId, clock.now())
+      .run();
+    await seedSession({ token: OWNER_TOKEN, expiresAt: clock.now() + 86_400_000 });
+    const api = createApi({ clock });
+    // Still waiting for its review: not in the history yet.
+    expect(
+      contentReportsPageSchema.parse(await (await api.request('/api/v1/content-analytics/reports')).json()).items
+    ).toEqual([]);
+    await expectError(await api.request(`/api/v1/content-analytics/reports/${reportId}`), 404, 'NOT_FOUND');
+
+    await releaseDailyReport(
+      { reports: deps.reports, alerts: deps.alerts, now: clock.now() },
+      { id: reportId!, review: REVIEW, reviewError: null, model: 'gpt-6.1-sol', usageId }
+    );
+    const page = contentReportsPageSchema.parse(await (await api.request('/api/v1/content-analytics/reports')).json());
+    expect(page).toMatchObject({
+      items: [{ id: reportId, kind: 'day', status: 'reviewed', model: 'gpt-6.1-sol', costUsd: 0.0125 }],
+      nextCursor: null
+    });
+    const detail = contentReportDetailSchema.parse(
+      await (await api.request(`/api/v1/content-analytics/reports/${encodeURIComponent(reportId!)}`)).json()
+    );
+    expect(detail.text).toContain('День ровный.');
+    expect(detail.text).toContain('Ролик <0>');
+    // Without their links the «Открыть: 1 · 2» rows would be bare numbers.
+    expect(detail.text).not.toContain('Открыть:');
+    expect(detail.text).not.toMatch(/<\/?[a-z]+>/);
+    expect(detail.forecasts.length).toBeGreaterThan(0);
+    expect(detail.forecasts[0]).toMatchObject({ method: expect.any(String), outcome: null, fact: null });
+    expect(detail.forecasts[0]?.title).toMatch(/^Ролик <\d>/);
+
+    await expectError(await api.request('/api/v1/content-analytics/reports', { token: null }), 401, 'UNAUTHORIZED');
+    await expectError(await api.request('/api/v1/content-analytics/reports?cursor=bad'), 400, 'VALIDATION_ERROR');
   });
 });

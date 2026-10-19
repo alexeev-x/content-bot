@@ -11,6 +11,10 @@ export interface DailyReportRow {
   data: string;
   status: DailyReportStatus;
   review: string | null;
+  reviewError: string | null;
+  model: string | null;
+  /** The ai_usage row of the review (migration 0080). */
+  usageId: string | null;
   createdAt: number;
 }
 
@@ -25,13 +29,17 @@ export interface ContentDailyReportRepository {
     review: string | null;
     reviewError: string | null;
     model: string | null;
+    usageId?: string | null;
     now: number;
   }): Promise<boolean>;
   /** Reports still waiting for their review since before `before`, oldest first. */
   listWaiting(before: number, limit: number): Promise<DailyReportRow[]>;
+  /** Released reports newest first, after the keyset `after` (as_of, id), at most `limit` (≤ 50). */
+  listReleased(input: { after: { asOf: number; id: string } | null; limit: number }): Promise<DailyReportRow[]>;
 }
 
-const COLUMNS = 'id, as_of AS asOf, timezone, data, status, review, created_at AS createdAt';
+const COLUMNS =
+  'id, as_of AS asOf, timezone, data, status, review, review_error AS reviewError, model, usage_id AS usageId, created_at AS createdAt';
 
 export function createD1ContentDailyReportRepository(db: D1Database): ContentDailyReportRepository {
   return {
@@ -50,15 +58,28 @@ export function createD1ContentDailyReportRepository(db: D1Database): ContentDai
       return db.prepare(`SELECT ${COLUMNS} FROM content_daily_reports WHERE id = ?`).bind(id).first<DailyReportRow>();
     },
 
-    async finish({ id, status, review, reviewError, model, now }) {
+    async finish({ id, status, review, reviewError, model, usageId, now }) {
       const result = await db
         .prepare(
-          `UPDATE content_daily_reports SET status = ?2, review = ?3, review_error = ?4, model = ?5, updated_at = ?6
+          `UPDATE content_daily_reports
+           SET status = ?2, review = ?3, review_error = ?4, model = ?5, updated_at = ?6, usage_id = ?7
            WHERE id = ?1 AND status = 'waiting'`
         )
-        .bind(id, status, review, reviewError, model, now)
+        .bind(id, status, review, reviewError, model, now, usageId ?? null)
         .run();
       return result.meta.changes === 1;
+    },
+
+    async listReleased({ after, limit }) {
+      const rows = await db
+        .prepare(
+          `SELECT ${COLUMNS} FROM content_daily_reports
+           WHERE status <> 'waiting' AND (?1 IS NULL OR as_of < ?1 OR (as_of = ?1 AND id < ?2))
+           ORDER BY as_of DESC, id DESC LIMIT ?3`
+        )
+        .bind(after?.asOf ?? null, after?.id ?? '', Math.min(limit, 50))
+        .all<DailyReportRow>();
+      return rows.results;
     },
 
     async listWaiting(before, limit) {

@@ -38,9 +38,10 @@ import { PerformancePanel } from './PerformancePanel';
 import { PlatformComparison } from './PlatformComparison';
 import { PostingHeatmap } from './PostingHeatmap';
 import { type RankedItem, RankedLists } from './RankedLists';
+import { ReportsPanel } from './ReportsPanel';
 import styles from './Report.module.css';
 
-export type AnalyticsTab = 'overview' | 'items' | 'audience';
+export type AnalyticsTab = 'overview' | 'items' | 'audience' | 'reports';
 
 export type AnalyticsView = {
   tab: AnalyticsTab;
@@ -300,6 +301,11 @@ export function AnalyticsBoard({ timezone, view, onViewChange, onOpenSettings }:
                 activeId={view.openId}
                 onOpen={open}
               />
+            </div>
+          </TabPanel>
+          <TabPanel id="reports">
+            <div className={styles.sections}>
+              <ReportsPanel />
             </div>
           </TabPanel>
           <TabPanel id="audience">

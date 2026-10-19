@@ -14,6 +14,8 @@ import {
   getContentItems,
   getContentOverview,
   getContentReport,
+  getContentReportDetail,
+  getContentReports,
   getItemReview,
   getItemScript,
   linkItemScript,
@@ -33,8 +35,32 @@ export const contentAnalyticsKeys = {
   report: (days: ContentReportPeriod) => [...contentAnalyticsKeys.all, 'report', days] as const,
   goals: () => [...contentAnalyticsKeys.all, 'goals'] as const,
   script: (id: string) => [...contentAnalyticsKeys.all, 'script', id] as const,
-  review: (id: string) => [...contentAnalyticsKeys.all, 'review', id] as const
+  review: (id: string) => [...contentAnalyticsKeys.all, 'review', id] as const,
+  reports: () => [...contentAnalyticsKeys.all, 'reports'] as const,
+  reportDetail: (id: string) => [...contentAnalyticsKeys.all, 'reports', id] as const
 };
+
+/** A new report comes once a day: the history is re-read when the tab opens after a few minutes. */
+const REPORTS_STALE_MS = 5 * 60_000;
+
+export function contentReportsQueryOptions() {
+  return infiniteQueryOptions({
+    queryKey: contentAnalyticsKeys.reports(),
+    queryFn: ({ pageParam, signal }) => getContentReports(pageParam, signal),
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: nextCursor,
+    staleTime: REPORTS_STALE_MS
+  });
+}
+
+/** A released report never changes; its forecasts get scored later, so it is re-read after a while. */
+export function contentReportDetailQueryOptions(id: string) {
+  return queryOptions({
+    queryKey: contentAnalyticsKeys.reportDetail(id),
+    queryFn: ({ signal }) => getContentReportDetail(id, signal),
+    staleTime: REPORTS_STALE_MS
+  });
+}
 
 export function itemScriptQueryOptions(itemId: string) {
   return queryOptions({
