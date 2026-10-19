@@ -94,8 +94,6 @@ function harness(overrides: Partial<BotRuntime> = {}): Harness {
         }
       },
       reports: {
-        today: () => Promise.resolve(answer('today')),
-        next: () => Promise.resolve(answer('next')),
         status: () => Promise.resolve(answer('status'))
       },
       publish: {
@@ -286,10 +284,7 @@ describe('bot', () => {
         }
       }
     });
-    expect(adminCalls).toEqual([
-      'setChatCommands 4242 start,redactor,post,plan,analytics,stop',
-      'setChatMenuCommands 4242'
-    ]);
+    expect(adminCalls).toEqual(['setChatCommands 4242 start,redactor,post,analytics,stop', 'setChatMenuCommands 4242']);
   });
 
   it('still replies when setting the commands fails, and logs a stable code', async () => {
@@ -301,7 +296,7 @@ describe('bot', () => {
     await expect(settleBackground()).resolves.toBeDefined();
     expect(calls).toHaveLength(1);
     expect(calls[0]?.method).toBe('sendMessage');
-    expect(adminCalls).toEqual(['setChatCommands 4242 start,redactor,post,plan,analytics,stop']);
+    expect(adminCalls).toEqual(['setChatCommands 4242 start,redactor,post,analytics,stop']);
     expect(events).toEqual([
       { component: 'telegram', operation: 'owner_chat.set_commands', status: 503, errorCode: 'telegram_http_400' }
     ]);
@@ -382,37 +377,13 @@ describe('owner commands', () => {
     });
   });
 
-  it('/plan shows today with buttons to switch to the next publications', async () => {
-    const { calls } = await runUpdates([textUpdate(4242, '/plan', { command: true })]);
-
-    expect(calls).toHaveLength(1);
-    expect(calls[0]).toMatchObject({
-      method: 'sendMessage',
-      payload: {
-        text: 'today',
-        parse_mode: 'HTML',
-        reply_markup: {
-          inline_keyboard: [
-            [
-              { text: '✓ Сегодня', callback_data: 'plan:today' },
-              { text: 'Ближайшие', callback_data: 'plan:next' }
-            ],
-            [{ text: 'button of today', web_app: { url: 'https://studio.example.com/today' } }]
-          ]
-        }
-      }
-    });
-  });
-
   it('answers a failed read with a plain message, logs a stable code and no payload', async () => {
     const setup = harness({
       reports: {
-        today: () => Promise.reject(new Error('D1 down: secret-detail')),
-        next: () => Promise.reject(new Error('x')),
-        status: () => Promise.reject(new Error('x'))
+        status: () => Promise.reject(new Error('D1 down: secret-detail'))
       }
     });
-    const { calls, events } = await runUpdates([textUpdate(4242, '/plan', { command: true })], { setup });
+    const { calls, events } = await runUpdates([textUpdate(4242, '/status', { command: true })], { setup });
 
     expect(calls).toHaveLength(1);
     expect(calls[0]).toMatchObject({
@@ -552,7 +523,7 @@ describe('drafts from messages', () => {
 
 describe('who the bot answers', () => {
   it.each([
-    ['a command', '/plan', true],
+    ['a command', '/status', true],
     ['a text', 'Привет', false]
   ])('ignores %s from anyone but the owner: no reply, no draft, no stored update id', async (_name, text, command) => {
     const setup = harness();

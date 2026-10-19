@@ -64,16 +64,7 @@ export const telegramWebhook = new Hono<AppBindings>().post(
         clock: container.clock,
         appOrigin,
         publications: container.publications,
-        ownerTimezone: async () =>
-          (
-            await getOwnerOperationsSettings({
-              repo: container.settings,
-              logger: container.logger,
-              requestId: c.get('requestId')
-            })
-          ).timezone,
         incidents: container.dispatchJobs,
-        posts: container.postRevisions,
         cron: container.systemState,
         publishing: container.publishing
       });
@@ -101,8 +92,6 @@ export const telegramWebhook = new Hono<AppBindings>().post(
       clock: container.clock,
       updates: { claim: (updateId, now) => container.webhookUpdates.claim(updateId, now) },
       reports: {
-        today: () => reports().today(),
-        next: () => reports().next(),
         status: () => reports().status()
       },
       analyticsNow: async () => ({

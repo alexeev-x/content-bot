@@ -1,7 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createD1UpdateDedup, UPDATE_RETENTION_MS } from '../../src/app/bot/update-dedup';
 import { createD1SystemState } from '../../src/app/system-state';
-import { RANGE_SUMMARY_SQL, UPCOMING_SQL } from '../../src/modules/publishing/infrastructure/d1-publication-repository';
 import { testDb } from '../helpers/db';
 import { expectError } from '../helpers/expect-error';
 import { fakeBotAdminApi } from '../helpers/fake-bot-admin-api';
@@ -100,7 +99,6 @@ interface ReplyButton {
   web_app: { url: string };
 }
 const buttonOf = (reply: (typeof replies)[number] | undefined): ReplyButton | undefined =>
-  // The Mini App button: /plan puts its view switch above it.
   (reply?.reply_markup as { inline_keyboard: ReplyButton[][] } | undefined)?.inline_keyboard
     .flat()
     .find((button) => 'web_app' in button) ??
@@ -216,109 +214,6 @@ async function seedPlan(): Promise<{ later: string; sooner: string }> {
 }
 
 describe('the owner commands over the webhook', () => {
-  it('/today counts the plan and the results of the day in the zone of the latest publication', async () => {
-    await seedPlan();
-
-    await deliver(command('today'));
-
-    expect(replies).toHaveLength(1);
-    expect(replies[0]).toMatchObject({ parse_mode: 'HTML' });
-    expect(replies[0]?.text).toBe(
-      [
-        '<b>Сегодня, 15 января</b> (Europe/Moscow)',
-        '',
-        'План: ждут отправки 2, ближайшая в 12:00.',
-        'Итоги: отправлено 1.'
-      ].join('\n')
-    );
-    expect(buttonOf(replies[0])).toEqual({ text: 'Открыть студию', web_app: { url: `${ORIGIN}/` } });
-  });
-
-  it('/today with nothing scheduled says so, in Europe/Moscow', async () => {
-    await deliver(command('today'));
-
-    expect(replies[0]?.text).toBe(
-      ['<b>Сегодня, 15 января</b> (Europe/Moscow)', '', 'На сегодня публикаций нет.'].join('\n')
-    );
-  });
-
-  it('/today uses the zone of the latest publication', async () => {
-    await api.request('/api/v1/settings/operations', {
-      method: 'PUT',
-      json: {
-        revision: 0,
-        timezone: 'Asia/Tokyo',
-        notifications: {
-          warningsEnabled: true,
-          publicationAlerts: true,
-          sourceAlerts: true,
-          automationAlerts: true,
-          recoveryAlerts: true,
-          dotaWatchlistAlerts: true
-        }
-      }
-    });
-    const post = await seedApprovedPost(api, 'Токио');
-    const channel = await seedDestination(api);
-    await seedPublication(api, {
-      postId: post.id,
-      revision: post.revision,
-      destinationId: channel.id,
-      scheduledAt: new Date(START + 2 * HOUR).toISOString(),
-      timezone: 'Asia/Tokyo'
-    });
-
-    await deliver(command('today'));
-
-    // 2027-01-15 08:00Z is 17:00 in Tokyo, the same day; the publication is at 19:00 there.
-    expect(replies[0]?.text).toContain('(Asia/Tokyo)');
-    expect(replies[0]?.text).toContain('ближайшая в 19:00');
-  });
-
-  it('/next lists the next five, earliest first, escaped, with a button to the scheduled ones', async () => {
-    await seedPlan();
-
-    await deliver(command('next'));
-
-    expect(replies[0]?.text).toBe(
-      [
-        '<b>Ближайшие публикации</b> (Europe/Moscow)',
-        '',
-        '1. 15 янв., 12:00 · Канал Б · Второй &lt;b&gt;',
-        '2. 15 янв., 14:00 · Канал А · Первый'
-      ].join('\n')
-    );
-    expect(buttonOf(replies[0])).toEqual({
-      text: 'Все запланированные',
-      web_app: { url: `${ORIGIN}/publications?status=scheduled` }
-    });
-  });
-
-  it('/next lists at most five of seven', async () => {
-    const channel = await seedDestination(api);
-    for (let i = 0; i < 7; i += 1) {
-      const post = await seedApprovedPost(api, `Пост ${i}`);
-      await seedPublication(api, {
-        postId: post.id,
-        revision: post.revision,
-        destinationId: channel.id,
-        scheduledAt: new Date(START + (i + 1) * HOUR).toISOString()
-      });
-    }
-
-    await deliver(command('next'));
-
-    const lines = (replies[0]?.text ?? '').split('\n').filter((line) => /^\d\./.test(line));
-    expect(lines).toHaveLength(5);
-    expect(lines[0]).toContain('Пост 0');
-    expect(lines[4]).toContain('Пост 4');
-  });
-
-  it('/next with nothing waiting says so', async () => {
-    await deliver(command('next'));
-    expect(replies[0]?.text).toBe('Запланированных публикаций нет.');
-  });
-
   it('/status reports publishing, the last Cron run and the open problems, and links to the failed ones', async () => {
     await seedDueJob(api, { title: 'Не ушло' });
     await makeTick({
@@ -367,17 +262,13 @@ describe('the owner commands over the webhook', () => {
   });
 
   it('answers every command from the owner only', async () => {
-    for (const name of ['today', 'next', 'status']) {
+    for (const name of ['status']) {
       await deliver(textUpdate(`/${name}`, { from: 777, command: true }));
     }
     expect(replies).toEqual([]);
   });
 
-  it.each([
-    ['today', 8],
-    ['next', 8],
-    ['status', 8]
-  ])('/%s costs a handful of D1 statements, all bounded', async (name, budget) => {
+  it.each([['status', 8]])('/%s costs a handful of D1 statements, all bounded', async (name, budget) => {
     await seedPlan();
     const before = meter.statements;
     const sqlBefore = meter.sql.length;
@@ -427,18 +318,6 @@ async function planOf(sql: string, ...bindings: (string | number)[]): Promise<st
 }
 
 describe('queries behind the owner commands and alerts', () => {
-  it('the upcoming list walks the jobs_due partial index, never scans jobs or publications', async () => {
-    const plan = await planOf(UPCOMING_SQL, 5);
-    expect(plan).toContain('USING INDEX jobs_due');
-    expect(plan).not.toMatch(/SCAN (jobs|publications)\b/);
-  });
-
-  it('the day summary reads the day from publications_scheduled_idx', async () => {
-    const plan = await planOf(RANGE_SUMMARY_SQL, START, START + 24 * HOUR, START);
-    expect(plan).toContain('INDEX publications_scheduled_idx (scheduled_at>? AND scheduled_at<?)');
-    expect(plan).not.toMatch(/SCAN publications\b/);
-  });
-
   it('the open-incident count walks incidents_open_idx', async () => {
     const plan = await planOf(
       'SELECT count(*) AS n FROM (SELECT 1 FROM incidents WHERE resolved_at IS NULL LIMIT ?1)',

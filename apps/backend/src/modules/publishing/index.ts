@@ -7,9 +7,7 @@ export type {
   PublicationMedia,
   OwnerIncidentAlertGroup,
   RaisedIncident,
-  RangeSummary,
-  SendOutcome,
-  UpcomingPublication
+  SendOutcome
 } from './application/ports';
 export type {
   ChatInspection,

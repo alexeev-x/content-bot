@@ -398,24 +398,6 @@ export interface PostPublicationSummary {
   destinations: { id: string; title: string }[];
 }
 
-/** A publication that is waiting to be sent, with what a one-line summary needs. */
-export interface UpcomingPublication {
-  id: string;
-  postId: string;
-  postRevision: number;
-  destinationTitle: string;
-  /** UTC epoch milliseconds. */
-  scheduledAt: number;
-  timezone: string;
-}
-
-/** What the publications scheduled inside one time range amount to. */
-export interface RangeSummary {
-  counts: Record<PublicationStatus, number>;
-  /** The earliest `scheduledAt` among the waiting ones (scheduled, queued, retry_wait). */
-  nextWaitingAt: number | null;
-}
-
 export interface PublicationHistoryRows {
   /** `publication.create|reschedule|cancel|resolve_unknown` rows; `details` is the stored JSON metadata. */
   audit: { at: number; action: string; details: string | null }[];
@@ -464,10 +446,6 @@ export interface PublicationRepository {
    * separates `scheduled` from `queued`.
    */
   summarizeByPost(postIds: readonly string[], now: number): Promise<Map<string, PostPublicationSummary>>;
-  /** The next jobs to run (pending or retry_wait), earliest first; at most `limit`. */
-  listUpcoming(limit: number): Promise<UpcomingPublication[]>;
-  /** Counts of the publications scheduled in [from, to), read from at most RANGE_SUMMARY_ROWS of them. */
-  summarizeRange(range: { from: number; to: number; now: number }): Promise<RangeSummary>;
 }
 
 /** Read-only report over immutable snapshots written by publication resolution batches. */

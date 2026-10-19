@@ -218,7 +218,7 @@ describe('POST /api/v1/bot/connect', () => {
       'deleteMyCommands default ru',
       'deleteMyCommands all_private_chats ru',
       `deleteMyCommands chat ${OWNER_ID} ru`,
-      `setChatCommands ${OWNER_ID} start,redactor,post,plan,analytics,stop`,
+      `setChatCommands ${OWNER_ID} start,redactor,post,analytics,stop`,
       `setChatMenuCommands ${OWNER_ID}`,
       'getWebhookInfo'
     ]);
@@ -463,7 +463,7 @@ describe('POST /webhooks/telegram /start', () => {
     expect(sent[0]?.body).toContain(`${ORIGIN}/`);
     await Promise.all(api.background);
     expect(telegram.calls).toEqual([
-      `setChatCommands ${OWNER_ID} start,redactor,post,plan,analytics,stop`,
+      `setChatCommands ${OWNER_ID} start,redactor,post,analytics,stop`,
       `setChatMenuCommands ${OWNER_ID}`
     ]);
   });
@@ -488,7 +488,7 @@ describe('POST /webhooks/telegram /start', () => {
       expect.stringContaining('/sendMessage')
     ]);
     expect(telegram.calls).toEqual([
-      `setChatCommands ${OWNER_ID} start,redactor,post,plan,analytics,stop`,
+      `setChatCommands ${OWNER_ID} start,redactor,post,analytics,stop`,
       `setChatMenuCommands ${OWNER_ID}`
     ]);
   });

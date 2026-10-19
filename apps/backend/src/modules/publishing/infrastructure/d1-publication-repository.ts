@@ -8,9 +8,7 @@ import type {
   PublicationDeleteOutcome,
   PublicationHistoryRows,
   PublicationRecord,
-  PublicationRepository,
-  RangeSummary,
-  UpcomingPublication
+  PublicationRepository
 } from '../application/ports';
 import { type JobState, projectPublicationStatus } from '../domain/status-projection';
 import { jobConditionForStatus } from './publication-status-sql';
@@ -414,83 +412,6 @@ function summarizeRows(rows: readonly SummaryRow[], now: number): Map<string, Po
   return summaries;
 }
 
-// The next jobs to run. Like the due scan, each branch repeats the partial index predicate and seeks
-// one status, so both walk jobs_due in (run_at, id) order and stop after `limit` rows; the outer query
-// merges at most 2 x limit rows. Joined to the publication and its channel by primary key afterwards.
-const UPCOMING_BRANCH = (status: string) => `SELECT id, run_at, publication_id FROM jobs
-    WHERE status IN ('pending', 'retry_wait') AND status = '${status}' AND kind = 'publish'
-    ORDER BY run_at, id LIMIT ?1`;
-
-export const UPCOMING_SQL = `
-  WITH next_jobs AS (
-    SELECT id, run_at, publication_id FROM (
-      SELECT id, run_at, publication_id FROM (${UPCOMING_BRANCH('pending')})
-      UNION ALL
-      SELECT id, run_at, publication_id FROM (${UPCOMING_BRANCH('retry_wait')})
-    ) ORDER BY run_at, id LIMIT ?1
-  )
-  SELECT p.id AS id, p.post_id AS post_id, p.post_revision AS post_revision, p.scheduled_at AS scheduled_at,
-         p.timezone AS timezone, d.title AS destination_title
-  FROM next_jobs n
-  JOIN publications p ON p.id = n.publication_id
-  JOIN destinations d ON d.id = p.destination_id
-  ORDER BY n.run_at, n.id`;
-
-interface UpcomingRow {
-  id: string;
-  post_id: string;
-  post_revision: number;
-  scheduled_at: number;
-  timezone: string;
-  destination_title: string;
-}
-
-/** One day of publications is far below this; the cap only bounds the read if something goes wrong. */
-const RANGE_SUMMARY_ROWS = 500;
-
-// The same grouping as SUMMARY_SQL, over the publications scheduled in a range: publications_scheduled_idx
-// gives the range in order and the inner LIMIT bounds what is read.
-export const RANGE_SUMMARY_SQL = `
-  SELECT status AS job_status, in_future, not_started, count(*) AS n, min(scheduled_at) AS first_scheduled_at
-  FROM (
-    SELECT j.status AS status,
-           CASE WHEN j.status = 'pending' THEN j.run_at > ?3 END AS in_future,
-           CASE WHEN j.status = 'claimed' THEN j.send_started_at IS NULL END AS not_started,
-           p.scheduled_at AS scheduled_at
-    FROM publications p CROSS JOIN jobs j ON j.publication_id = p.id AND j.kind = 'publish'
-    WHERE p.scheduled_at >= ?1 AND p.scheduled_at < ?2
-    ORDER BY p.scheduled_at DESC LIMIT ${RANGE_SUMMARY_ROWS}
-  )
-  GROUP BY status, in_future, not_started`;
-
-interface RangeRow {
-  job_status: JobState;
-  in_future: number | null;
-  not_started: number | null;
-  n: number;
-  first_scheduled_at: number;
-}
-
-function summarizeRangeRows(rows: readonly RangeRow[], now: number): RangeSummary {
-  const counts = emptyCounts();
-  let nextWaitingAt: number | null = null;
-  for (const row of rows) {
-    const status = projectPublicationStatus(
-      {
-        status: row.job_status,
-        runAt: row.in_future === 1 ? now + 1 : now,
-        sendStartedAt: row.not_started === 1 ? null : now
-      },
-      now
-    );
-    counts[status] += row.n;
-    if (WAITING.includes(status) && (nextWaitingAt === null || row.first_scheduled_at < nextWaitingAt)) {
-      nextWaitingAt = row.first_scheduled_at;
-    }
-  }
-  return { counts, nextWaitingAt };
-}
-
 export function createD1PublicationRepository(db: D1Database): PublicationRepository {
   const selectOne = (id: string) =>
     db.prepare(`SELECT ${PUBLICATION_COLUMNS} ${FROM_PUBLICATIONS} WHERE p.id = ?1`).bind(id);
@@ -685,23 +606,6 @@ export function createD1PublicationRepository(db: D1Database): PublicationReposi
       if (postIds.length === 0) return new Map();
       const { results } = await db.prepare(SUMMARY_SQL).bind(JSON.stringify(postIds), now).all<SummaryRow>();
       return summarizeRows(results, now);
-    },
-
-    async listUpcoming(limit) {
-      const { results } = await db.prepare(UPCOMING_SQL).bind(limit).all<UpcomingRow>();
-      return results.map((row): UpcomingPublication => ({
-        id: row.id,
-        postId: row.post_id,
-        postRevision: row.post_revision,
-        destinationTitle: row.destination_title,
-        scheduledAt: row.scheduled_at,
-        timezone: row.timezone
-      }));
-    },
-
-    async summarizeRange({ from, to, now }) {
-      const { results } = await db.prepare(RANGE_SUMMARY_SQL).bind(from, to, now).all<RangeRow>();
-      return summarizeRangeRows(results, now);
     },
 
     reschedule(change) {
