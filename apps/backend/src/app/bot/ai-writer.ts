@@ -563,6 +563,15 @@ export function registerAiWriter(bot: Bot, runtime: AiWriterRuntime): void {
     });
   });
 
+  // /stop: one way out from anywhere, when the «Закончить» button has scrolled away (owner, 19.10.2026). It ends
+  // the /redactor or /post mode and every wait of the chat (a facts answer, the owner's version, a note, a time).
+  bot.command('stop', async (ctx) => {
+    await (await runtime.writer()).writer.closeRequest(ctx.chat.id);
+    const timeWait = await runtime.publish.awaitingTime();
+    if (timeWait !== null) await runtime.publish.stopAwaitingTime(timeWait);
+    await ctx.reply(CHAT_ENDED_TEXT);
+  });
+
   bot.callbackQuery(END_CHAT, async (ctx) => {
     const chatId = ctx.chat?.id;
     if (chatId === undefined) return;

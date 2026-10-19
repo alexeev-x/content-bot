@@ -485,6 +485,17 @@ describe('Telegram AI writer', () => {
     });
   });
 
+  it('/stop ends the editor and its open question: the next text is no answer (owner, 19.10.2026)', async () => {
+    await askForFacts();
+    expect((await deliver(message('/stop', true))).status).toBe(200);
+    expect(calls.at(-1)?.body.text).toBe('Готово, режим закончен.');
+
+    expect((await deliver(message(OWNER_FACTS))).status).toBe(200);
+    await api.settle();
+    expect(modelInputs).toHaveLength(1);
+    expect(calls.at(-1)?.body.text).toBe('Чтобы сделать пост — /post, чтобы написать с ИИ — /redactor.');
+  });
+
   it('consumes an open facts question once when two replies arrive together', async () => {
     await askForFacts();
     const responses = await Promise.all([

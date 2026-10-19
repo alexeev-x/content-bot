@@ -7,7 +7,8 @@ export const OWNER_COMMANDS = [
   { command: 'start', description: 'Открыть студию' },
   { command: 'redactor', description: 'ИИ-редактор: написать пост или рилс' },
   { command: 'post', description: 'Создать пост: сообщения становятся черновиками' },
-  { command: 'plan', description: 'План: сегодня и ближайшие публикации' }
+  { command: 'plan', description: 'План: сегодня и ближайшие публикации' },
+  { command: 'stop', description: 'Выйти из редактора или режима постов' }
 ];
 
 // The owner's private chat: its command list and a menu button that shows it (owner decision 15.10.2026:
