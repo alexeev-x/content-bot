@@ -117,6 +117,53 @@ describe('AI writer', () => {
     expect((await publishableText(writer, result.generation.id)).postId).toBe('post-1');
   });
 
+  it('the D1 write guard cannot append an edit after approval', async () => {
+    const writer = deps(answering(ANSWER));
+    const result = await draft(writer);
+    await approveDraft(writer, result.generation.id);
+    const inserted = await writer.writer.addRevision({
+      id: crypto.randomUUID(),
+      generationId: result.generation.id,
+      parentId: null,
+      provenance: 'OWNER_EDITED',
+      text: 'Поздняя версия',
+      editRatio: null,
+      createdAt: fakeClock().now()
+    });
+    expect(inserted).toBe(false);
+    expect((await writer.writer.revisions(result.generation.id)).map((revision) => revision.provenance)).toEqual([
+      'AI_DRAFT',
+      'OWNER_APPROVED'
+    ]);
+  });
+
+  it('approval rereads the text when an owner edit arrives before its guarded insert', async () => {
+    const writer = deps(answering(ANSWER));
+    const result = await draft(writer);
+    const addApproval = writer.writer.addApproval.bind(writer.writer);
+    let inserted = false;
+    writer.writer.addApproval = async (row) => {
+      if (!inserted) {
+        inserted = true;
+        expect(
+          await writer.writer.addRevision({
+            id: crypto.randomUUID(),
+            generationId: result.generation.id,
+            parentId: row.parentId,
+            provenance: 'OWNER_EDITED',
+            text: 'Новая версия владельца',
+            editRatio: null,
+            createdAt: fakeClock().now()
+          })
+        ).toBe(true);
+      }
+      return addApproval(row);
+    };
+    const approval = await approveDraft(writer, result.generation.id);
+    expect(approval.revision.text).toBe('Новая версия владельца');
+    expect((await publishableText(writer, result.generation.id)).text).toBe('Новая версия владельца');
+  });
+
   it('learns the voice only from texts the owner changed and approved, in the same format', async () => {
     const inputs: string[] = [];
     const writer = deps({

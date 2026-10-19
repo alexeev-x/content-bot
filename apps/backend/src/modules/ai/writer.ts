@@ -223,15 +223,18 @@ async function call(
     if (recent.length > 0 && repeatsRecentTopic(answer.facets.topic, recent)) warnings.push('TOPIC_REPEATED');
     // A rewrite keeps the parent's hooks unless the model sent new ones.
     const hooks = answer.hooks.length > 0 ? answer.hooks : generation.hooks;
-    await deps.writer.addRevision({
-      id: deps.newId(),
-      generationId: generation.id,
-      parentId: null,
-      provenance: 'AI_DRAFT',
-      text,
-      editRatio: null,
-      createdAt: now
-    });
+    if (
+      !(await deps.writer.addRevision({
+        id: deps.newId(),
+        generationId: generation.id,
+        parentId: null,
+        provenance: 'AI_DRAFT',
+        text,
+        editRatio: null,
+        createdAt: now
+      }))
+    )
+      throw new AppError('CONFLICT', 'The draft is approved', { reason: 'APPROVED' });
     await deps.writer.finishGeneration({
       id: generation.id,
       now,
@@ -275,6 +278,7 @@ export async function generateDraft(
     mode: WriterMode;
     source: 'bot' | 'studio';
     task: string;
+    parentGenerationId?: string | null;
     preApprovedPublishAt?: number | null;
     /** Reels example ids kept out of the prompt (control run). */
     holdOut?: readonly string[];
@@ -291,7 +295,7 @@ export async function generateDraft(
     mode: input.mode,
     source: input.source,
     task,
-    parentGenerationId: null,
+    parentGenerationId: input.parentGenerationId ?? null,
     preApprovedPublishAt: input.preApprovedPublishAt ?? null,
     hooks: [],
     createdAt: now
@@ -321,13 +325,15 @@ export async function generateDraft(
 /** A new version of a draft by the owner's instruction («короче», «смешнее», «ещё вариант»). */
 export async function rewriteDraft(
   deps: WriterDeps,
-  input: { generationId: string; instruction: string; signal: AbortSignal }
+  input: { generationId: string; instruction: string; signal: AbortSignal; revisionToken?: string }
 ): Promise<WriterResult> {
   const parent = await deps.writer.findGeneration(input.generationId);
   if (parent !== null) refuseRequestForFacts(parent);
   if (parent === null) throw new AppError('NOT_FOUND', 'The draft is gone');
   const current = currentRevision(await deps.writer.revisions(parent.id));
   if (current === null) throw new AppError('CONFLICT', 'The draft has no text', { reason: 'NO_TEXT' });
+  if (input.revisionToken !== undefined && current.id.slice(-12) !== input.revisionToken)
+    throw new AppError('CONFLICT', 'The button is stale', { reason: 'STALE_REVISION' });
   const instruction = input.instruction.trim().slice(0, 500);
   if (instruction === '') throw new AppError('VALIDATION_ERROR', 'The instruction is empty');
   const row: NewGeneration = {
@@ -355,7 +361,12 @@ export async function rewriteDraft(
 }
 
 /** The opening replaced by the chosen hook (the script starts with its best hook). Stays AI text. */
-export async function chooseHook(deps: WriterDeps, generationId: string, index: number): Promise<string> {
+export async function chooseHook(
+  deps: WriterDeps,
+  generationId: string,
+  index: number,
+  revisionToken?: string
+): Promise<string> {
   const generation = await deps.writer.findGeneration(generationId);
   const hook = generation?.hooks[index];
   if (generation === null || hook === undefined) throw new AppError('NOT_FOUND', 'The hook is gone');
@@ -363,21 +374,26 @@ export async function chooseHook(deps: WriterDeps, generationId: string, index: 
   const revisions = await deps.writer.revisions(generationId);
   const current = currentRevision(revisions);
   if (current === null) throw new AppError('CONFLICT', 'The draft has no text', { reason: 'NO_TEXT' });
+  if (revisionToken !== undefined && current.id.slice(-12) !== revisionToken)
+    throw new AppError('CONFLICT', 'The button is stale', { reason: 'STALE_REVISION' });
   if (approvedRevision(revisions) !== null)
     throw new AppError('CONFLICT', 'The draft is approved', { reason: 'APPROVED' });
   const used = generation.hooks.find((candidate) => current.text.startsWith(candidate));
   const rest = used !== undefined ? current.text.slice(used.length) : current.text.replace(/^[^\n]*(\n|$)/, '\n');
   const text = `${hook}${rest}`.trim().slice(0, MAX_TEXT);
-  await deps.writer.addRevision({
-    id: deps.newId(),
-    generationId,
-    parentId: current.id,
-    // Words picked by the owner but written by the model: still an AI draft, never style evidence.
-    provenance: current.provenance === 'OWNER_EDITED' ? 'OWNER_EDITED' : 'AI_DRAFT',
-    text,
-    editRatio: null,
-    createdAt: deps.clock.now()
-  });
+  if (
+    !(await deps.writer.addRevision({
+      id: deps.newId(),
+      generationId,
+      parentId: current.id,
+      // Words picked by the owner but written by the model: still an AI draft, never style evidence.
+      provenance: 'AI_DRAFT',
+      text,
+      editRatio: null,
+      createdAt: deps.clock.now()
+    }))
+  )
+    throw new AppError('CONFLICT', 'The draft is approved', { reason: 'APPROVED' });
   return text;
 }
 
@@ -399,7 +415,8 @@ export async function saveOwnerEdit(deps: WriterDeps, generationId: string, text
     postId: null,
     createdAt: deps.clock.now()
   };
-  await deps.writer.addRevision({ ...revision, parentId: currentRevision(revisions)?.id ?? null });
+  if (!(await deps.writer.addRevision({ ...revision, parentId: currentRevision(revisions)?.id ?? null })))
+    throw new AppError('CONFLICT', 'The draft is approved', { reason: 'APPROVED' });
   return revision;
 }
 
@@ -413,29 +430,31 @@ export async function approveDraft(
   provenance: 'OWNER_APPROVED' | 'OWNER_PREAPPROVED' = 'OWNER_APPROVED'
 ): Promise<Approval> {
   await assertDraft(deps, generationId);
-  const revisions = await deps.writer.revisions(generationId);
-  const existing = approvedRevision(revisions);
-  if (existing !== null) return { revision: existing, created: false };
-  const current = currentRevision(revisions);
-  if (current === null) throw new AppError('NOT_FOUND', 'The draft is gone');
-  const firstDraft = revisions.find((revision) => revision.provenance === 'AI_DRAFT') ?? current;
-  const revision: RevisionRow = {
-    id: deps.newId(),
-    generationId,
-    provenance,
-    text: current.text,
-    editRatio: editRatio(firstDraft.text, current.text),
-    postId: null,
-    createdAt: deps.clock.now()
-  };
-  const parts = changedParts(firstDraft.text, current.text);
-  if (await deps.writer.addApproval({ ...revision, parentId: current.id, changedParts: parts })) {
-    return { revision, created: true };
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const revisions = await deps.writer.revisions(generationId);
+    const existing = approvedRevision(revisions);
+    if (existing !== null) return { revision: existing, created: false };
+    const current = currentRevision(revisions);
+    if (current === null) throw new AppError('NOT_FOUND', 'The draft is gone');
+    const firstDraft = revisions.find((revision) => revision.provenance === 'AI_DRAFT') ?? current;
+    const revision: RevisionRow = {
+      id: deps.newId(),
+      generationId,
+      provenance,
+      text: current.text,
+      editRatio: editRatio(firstDraft.text, current.text),
+      postId: null,
+      createdAt: deps.clock.now()
+    };
+    const parts = changedParts(firstDraft.text, current.text);
+    if (await deps.writer.addApproval({ ...revision, parentId: current.id, changedParts: parts })) {
+      return { revision, created: true };
+    }
+    // Either another approval won or an owner edit arrived after this attempt read the current revision.
   }
-  // Another tap won the race: its approval is the one.
   const winner = approvedRevision(await deps.writer.revisions(generationId));
-  if (winner === null) throw new AppError('CONFLICT', 'The approval was not saved', { reason: 'APPROVAL_LOST' });
-  return { revision: winner, created: false };
+  if (winner !== null) return { revision: winner, created: false };
+  throw new AppError('CONFLICT', 'The text changed during approval', { reason: 'STALE_REVISION' });
 }
 
 /**
@@ -465,10 +484,17 @@ export async function attachPost(deps: Pick<WriterDeps, 'writer'>, revisionId: s
   await deps.writer.attachPost(revisionId, postId);
 }
 
-export async function recordFeedback(deps: WriterDeps, generationId: string, kind: FeedbackKind): Promise<string> {
+export async function recordFeedback(
+  deps: WriterDeps,
+  generationId: string,
+  kind: FeedbackKind,
+  revisionToken?: string
+): Promise<string> {
   if ((await deps.writer.findGeneration(generationId)) === null) throw new AppError('NOT_FOUND', 'The draft is gone');
   // Tied to the text the owner judged: the latest revision when the button was pressed.
   const revisionId = (await deps.writer.revisions(generationId)).at(-1)?.id ?? null;
+  if (revisionToken !== undefined && revisionId?.slice(-12) !== revisionToken)
+    throw new AppError('CONFLICT', 'The button is stale', { reason: 'STALE_REVISION' });
   // The id of the verdict (the first one when the button was tapped twice): the note is asked for on it.
   return deps.writer.addFeedback({ id: deps.newId(), generationId, kind, revisionId, now: deps.clock.now() });
 }

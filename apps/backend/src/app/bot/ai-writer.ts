@@ -56,7 +56,7 @@ const NOTE_INVALID_TEXT =
   'Пояснение — от 1 до 500 знаков, без служебных символов. Пришлите короче или нажмите «Без пояснения».';
 const NOTE_GONE_TEXT = 'Этот вердикт уже снят, пояснение не записал.';
 const NOTE_SKIPPED_TEXT = 'Хорошо, без пояснения';
-const NO_NOTE = 'ai:nonote';
+const NO_NOTE = /^ai:nonote:([0-9a-f-]{36})$/;
 /** The text shown to copy from in «✏️ Изменить»: a Telegram message holds 4096 characters. */
 const EDIT_SHOWN_MAX = 3500;
 const editPromptHtml = (text: string) =>
@@ -107,9 +107,20 @@ const REASONS = {
 type Reason = keyof typeof REASONS;
 // `joke` stays for the buttons of messages sent before «Что не так?».
 type Action =
-  'h0' | 'h1' | 'h2' | keyof typeof REWRITES | 'joke' | 'ok' | 'why' | 'back' | 'edit' | 'noedit' | `r:${Reason}`;
+  | 'h0'
+  | 'h1'
+  | 'h2'
+  | keyof typeof REWRITES
+  | 'joke'
+  | 'ok'
+  | 'why'
+  | 'back'
+  | 'edit'
+  | 'noedit'
+  | 'retry'
+  | `r:${Reason}`;
 const CALLBACK =
-  /^ai:([0-9a-f-]{36}):(h[0-2]|more|short|fun|joke|ok|why|back|edit|noedit|r:(?:topic|hook|joke|style|long|fact|task))$/;
+  /^ai:([0-9a-f-]{36}):(h[0-2]|more|short|fun|joke|ok|why|back|edit|noedit|retry|r:(?:topic|hook|joke|style|long|fact|task))(?::([0-9a-f]{12}))?$/;
 
 const escapeHtml = (value: string): string =>
   value.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;');
@@ -134,26 +145,36 @@ export function writerIntent(text: string): { format: WriterFormat; task: string
   return format === null ? null : { format, task: text.trim() };
 }
 
-function keyboard(generationId: string, hooks: readonly string[], appOrigin: string | null): InlineKeyboardMarkup {
+function keyboard(
+  generationId: string,
+  hooks: readonly string[],
+  appOrigin: string | null,
+  revisionId: string
+): InlineKeyboardMarkup {
   const data = (action: Action) => `ai:${generationId}:${action}`;
+  const revisionData = (action: Action) => `${data(action)}:${revisionId.slice(-12)}`;
   const board = new InlineKeyboard();
-  hooks.forEach((_hook, index) => board.text(`Хук ${index + 1}`, data(`h${index}` as Action)));
+  hooks.forEach((_hook, index) => board.text(`Хук ${index + 1}`, revisionData(`h${index}` as Action)));
   if (hooks.length > 0) board.row();
-  board.text('Ещё вариант', data('more')).text('Короче', data('short')).text('Смешнее', data('fun')).row();
-  board.text('✏️ Изменить', data('edit')).text('Что не так?', data('why')).row();
+  board
+    .text('Ещё вариант', revisionData('more'))
+    .text('Короче', revisionData('short'))
+    .text('Смешнее', revisionData('fun'))
+    .row();
+  board.text('✏️ Изменить', data('edit')).text('Что не так?', revisionData('why')).row();
   board.text('Одобрить', data('ok'));
   if (appOrigin !== null) board.row().webApp('Открыть студию', `${appOrigin}/`);
   return board;
 }
 
 /** The reasons, two per row, and the way back to the draft's buttons. */
-function reasonsKeyboard(generationId: string): InlineKeyboardMarkup {
+function reasonsKeyboard(generationId: string, revisionId: string): InlineKeyboardMarkup {
   const board = new InlineKeyboard();
   (Object.keys(REASONS) as Reason[]).forEach((reason, index) => {
-    board.text(REASONS[reason].label, `ai:${generationId}:r:${reason}`);
+    board.text(REASONS[reason].label, `ai:${generationId}:r:${reason}:${revisionId.slice(-12)}`);
     if (index % 2 === 1) board.row();
   });
-  return board.text('← Назад', `ai:${generationId}:back`);
+  return board.text('← Назад', `ai:${generationId}:back:${revisionId.slice(-12)}`);
 }
 
 /** The model asked for the owner's facts (result needs_facts, or the NEEDS_FACTS warning of an older row). */
@@ -247,11 +268,12 @@ export function registerAiWriter(bot: Bot, runtime: AiWriterRuntime): void {
   async function write(
     ctx: Context,
     placeholder: string,
-    work: (deps: WriterDeps, signal: AbortSignal) => Promise<WriterResult>
+    work: (deps: WriterDeps, signal: AbortSignal) => Promise<WriterResult>,
+    failureMarkup?: InlineKeyboardMarkup
   ) {
     const chatId = ctx.chat?.id;
     if (chatId === undefined) return;
-    const message = await ctx.reply(placeholder);
+    const message = await ctx.reply(placeholder, failureMarkup === undefined ? {} : { reply_markup: failureMarkup });
     runtime.waitUntil(
       (async () => {
         try {
@@ -270,21 +292,25 @@ export function registerAiWriter(bot: Bot, runtime: AiWriterRuntime): void {
             return;
           }
           if (result.text === null) {
-            await edit(ctx, chatId, message.message_id, FAILED_TEXT);
+            await edit(ctx, chatId, message.message_id, FAILED_TEXT, failureMarkup);
             return;
           }
           await deps.writer.setChatMessage(generation.id, message.message_id, runtime.clock.now());
+          const revisionId = (await deps.writer.revisions(generation.id)).at(-1)?.id;
+          if (revisionId === undefined) throw new AppError('CONFLICT', 'The draft has no text');
           await edit(
             ctx,
             chatId,
             message.message_id,
             draftHtml({ ...generation, text: result.text }),
-            keyboard(generation.id, generation.hooks, runtime.appOrigin)
+            keyboard(generation.id, generation.hooks, runtime.appOrigin, revisionId)
           );
         } catch (error) {
           if (!(error instanceof AppError && error.code === 'UNAVAILABLE')) runtime.onError(error);
           const text = error instanceof AppError && error.code === 'UNAVAILABLE' ? unavailableText(error) : FAILED_TEXT;
-          await edit(ctx, chatId, message.message_id, text).catch((editError: unknown) => runtime.onError(editError));
+          await edit(ctx, chatId, message.message_id, text, failureMarkup).catch((editError: unknown) =>
+            runtime.onError(editError)
+          );
         }
       })()
     );
@@ -424,24 +450,90 @@ export function registerAiWriter(bot: Bot, runtime: AiWriterRuntime): void {
   });
 
   /** The owner's words for a draft: the answer to its question, or the owner's own version of its text. */
+  function factsTask(generation: GenerationRow, answer: string): string | null {
+    const facts = `\n\nОпыт автора (его слова):\n${answer}`;
+    const essential = `${generation.task}${facts}`;
+    if (essential.length > 4000) return null;
+    const ideas =
+      generation.ideas.length > 0
+        ? `\n\nИдеи редактора:\n${generation.ideas.map((idea, index) => `${index + 1}. ${idea}`).join('\n')}`
+        : '';
+    return ideas.length + essential.length <= 4000 ? `${generation.task}${ideas}${facts}` : essential;
+  }
+
+  async function writeFactDraft(ctx: Context, generation: GenerationRow, task: string) {
+    await write(
+      ctx,
+      WRITING_TEXT,
+      async (deps, signal) => {
+        try {
+          const result = await generateDraft(deps, {
+            format: generation.format,
+            mode: generation.mode,
+            source: 'bot',
+            task,
+            parentGenerationId: generation.id,
+            signal
+          });
+          await deps.writer.finishFactAnswer({
+            generationId: generation.id,
+            draftGenerationId: result.generation.id,
+            status: result.generation.status === 'failed' ? 'failed' : 'ready',
+            now: runtime.clock.now()
+          });
+          return result;
+        } catch (error) {
+          await deps.writer.finishFactAnswer({
+            generationId: generation.id,
+            draftGenerationId: null,
+            status: 'failed',
+            now: runtime.clock.now()
+          });
+          throw error;
+        }
+      },
+      new InlineKeyboard().text('Повторить по сохранённому ответу', `ai:${generation.id}:retry`)
+    );
+  }
+
+  async function acceptFacts(
+    ctx: Context & { message: { text: string } },
+    deps: WriterDeps,
+    generation: GenerationRow
+  ) {
+    const chatId = ctx.chat?.id;
+    if (chatId === undefined) return;
+    const task = factsTask(generation, ctx.message.text);
+    if (task === null) {
+      await ctx.reply(
+        'Задание и ответ вместе слишком длинные. Сократите ответ или начните /redactor с более коротким заданием.'
+      );
+      return;
+    }
+    const claimed = await deps.writer.claimFactAnswer({
+      chatId,
+      generationId: generation.id,
+      answer: ctx.message.text,
+      now: runtime.clock.now()
+    });
+    if (!claimed) {
+      await ctx.reply(
+        'Ответ на этот вопрос уже принят. Если черновик не появился, повторите по сохранённому ответу через минуту.',
+        {
+          reply_markup: new InlineKeyboard().text('Повторить по сохранённому ответу', `ai:${generation.id}:retry`)
+        }
+      );
+      return;
+    }
+    await writeFactDraft(ctx, generation, task);
+  }
+
+  /** The owner's words for a draft: an edited version of its text. */
   async function continueGeneration(
     ctx: Context & { message: { text: string } },
     deps: WriterDeps,
     generation: GenerationRow
   ) {
-    if (isRequestForFacts(generation)) {
-      // The answer to the model's question: the draft is written again from the same task, the ideas it offered
-      // and the owner's experience, so nothing of the original request is lost.
-      const ideas =
-        generation.ideas.length > 0
-          ? `\n\nИдеи редактора:\n${generation.ideas.map((idea, index) => `${index + 1}. ${idea}`).join('\n')}`
-          : '';
-      const task = `${generation.task}${ideas}\n\nОпыт автора (его слова):\n${ctx.message.text}`.slice(0, 4000);
-      await write(ctx, WRITING_TEXT, (writerDeps, signal) =>
-        generateDraft(writerDeps, { format: generation.format, mode: generation.mode, source: 'bot', task, signal })
-      );
-      return;
-    }
     try {
       await saveOwnerEdit(deps, generation.id, ctx.message.text);
     } catch (error) {
@@ -462,15 +554,8 @@ export function registerAiWriter(bot: Bot, runtime: AiWriterRuntime): void {
       const generation = await deps.writer.findByChatMessage(replyTo.message_id);
       if (generation !== null) {
         if (isRequestForFacts(generation)) {
-          const claimed = await deps.writer.consumeEditing({
-            chatId: ctx.chat.id,
-            generationId: generation.id,
-            now: runtime.clock.now()
-          });
-          if (!claimed) {
-            await ctx.reply('Ответ на этот вопрос уже принят.');
-            return;
-          }
+          await acceptFacts(ctx, deps, generation);
+          return;
         } else {
           await deps.writer.setEditing({
             chatId: ctx.chat.id,
@@ -491,12 +576,18 @@ export function registerAiWriter(bot: Bot, runtime: AiWriterRuntime): void {
     // «✏️ Изменить» or an open question: this one message belongs to that draft, whatever the mode.
     if (chat?.editing) {
       const deps = await runtime.writer();
+      const generation = await deps.writer.findGeneration(chat.editing);
+      if (generation !== null) {
+        if (isRequestForFacts(generation)) {
+          await acceptFacts(ctx, deps, generation);
+          return;
+        }
+      }
       const claimed = await writer.consumeEditing({ chatId: ctx.chat.id, generationId: chat.editing, now });
       if (!claimed) {
         await ctx.reply('Ответ на этот вопрос уже принят.');
         return;
       }
-      const generation = await deps.writer.findGeneration(chat.editing);
       if (generation !== null) {
         await continueGeneration(ctx, deps, generation);
         return;
@@ -548,35 +639,68 @@ export function registerAiWriter(bot: Bot, runtime: AiWriterRuntime): void {
     await draft(ctx, intent.format, intent.task);
   });
 
+  bot.callbackQuery('ai:nonote', async (ctx) => {
+    await ctx.answerCallbackQuery({ text: 'Эта кнопка устарела.' });
+  });
+
   bot.callbackQuery(NO_NOTE, async (ctx) => {
     const chatId = ctx.chat?.id;
     if (chatId === undefined) return;
-    const now = runtime.clock.now();
-    await (await runtime.writer()).writer.setNoting({ chatId, feedbackId: null, now, expiresAt: now + REQUEST_TTL_MS });
-    await ctx.answerCallbackQuery({ text: NOTE_SKIPPED_TEXT }).catch((error: unknown) => runtime.onError(error));
-    await ctx.editMessageReplyMarkup().catch(() => undefined);
+    const feedbackId = ctx.match[1] ?? '';
+    const cancelled = await (await runtime.writer()).writer.cancelNoting({ chatId, feedbackId });
+    await ctx
+      .answerCallbackQuery({ text: cancelled ? NOTE_SKIPPED_TEXT : 'Эта кнопка устарела.' })
+      .catch((error: unknown) => runtime.onError(error));
+    if (cancelled) await ctx.editMessageReplyMarkup().catch(() => undefined);
   });
 
   bot.callbackQuery(CALLBACK, async (ctx) => {
     const generationId = ctx.match[1] ?? '';
     const action = (ctx.match[2] ?? '') as Action;
+    const revisionToken = ctx.match[3] ?? null;
     const chatId = ctx.chat?.id;
     const messageId = ctx.callbackQuery.message?.message_id;
     if (chatId === undefined || messageId === undefined) return;
-    if (action === 'more' || action === 'short' || action === 'fun') {
-      await ctx.answerCallbackQuery().catch((error: unknown) => runtime.onError(error));
-      await write(ctx, REWRITING_TEXT, (deps, signal) =>
-        rewriteDraft(deps, { generationId, instruction: REWRITES[action], signal })
-      );
-      return;
-    }
     const deps = await runtime.writer();
     try {
-      if (action === 'edit') {
+      if (
+        action.startsWith('h') ||
+        action === 'why' ||
+        action === 'back' ||
+        action.startsWith('r:') ||
+        action === 'joke' ||
+        action === 'more' ||
+        action === 'short' ||
+        action === 'fun'
+      ) {
+        const currentRevisionId = (await deps.writer.revisions(generationId)).at(-1)?.id;
+        if (revisionToken === null || currentRevisionId?.slice(-12) !== revisionToken) {
+          await ctx.answerCallbackQuery({ text: 'Эта кнопка устарела.' });
+          return;
+        }
+      }
+      if (action === 'more' || action === 'short' || action === 'fun') {
         await ctx.answerCallbackQuery().catch((error: unknown) => runtime.onError(error));
+        await write(ctx, REWRITING_TEXT, (deps, signal) =>
+          rewriteDraft(deps, {
+            generationId,
+            instruction: REWRITES[action],
+            revisionToken: revisionToken ?? '',
+            signal
+          })
+        );
+        return;
+      }
+      if (action === 'edit') {
         const generation = await deps.writer.findGeneration(generationId);
         if (generation === null) throw new AppError('NOT_FOUND', 'The draft is gone');
-        const current = (await deps.writer.revisions(generationId)).at(-1)?.text ?? '';
+        const revisions = await deps.writer.revisions(generationId);
+        if (approvedRevision(revisions) !== null || isRequestForFacts(generation)) {
+          await ctx.answerCallbackQuery({ text: 'Этот текст уже нельзя изменить.' });
+          return;
+        }
+        const current = revisions.at(-1)?.text ?? '';
+        await ctx.answerCallbackQuery().catch((error: unknown) => runtime.onError(error));
         const now = runtime.clock.now();
         // One wait at a time: «✏️ Изменить» ends a «Своё время» wait for a publication time.
         const timeWait = await runtime.publish.awaitingTime();
@@ -590,31 +714,76 @@ export function registerAiWriter(bot: Bot, runtime: AiWriterRuntime): void {
       }
       if (action === 'noedit') {
         const now = runtime.clock.now();
-        await deps.writer.setEditing({ chatId, generationId: null, now, expiresAt: now + REQUEST_TTL_MS });
-        await ctx.answerCallbackQuery({ text: EDIT_CANCELLED_TEXT }).catch((error: unknown) => runtime.onError(error));
-        await ctx.editMessageReplyMarkup().catch(() => undefined);
+        const cancelled = await deps.writer.consumeEditing({ chatId, generationId, now });
+        await ctx
+          .answerCallbackQuery({ text: cancelled ? EDIT_CANCELLED_TEXT : 'Эта кнопка устарела.' })
+          .catch((error: unknown) => runtime.onError(error));
+        if (cancelled) await ctx.editMessageReplyMarkup().catch(() => undefined);
+        return;
+      }
+      if (action === 'retry') {
+        const generation = await deps.writer.findGeneration(generationId);
+        if (generation === null || !isRequestForFacts(generation))
+          throw new AppError('NOT_FOUND', 'The question is gone');
+        const answer = await deps.writer.claimFactRetry({ chatId, generationId, now: runtime.clock.now() });
+        if (answer === null) {
+          const draftId = await deps.writer.readyFactDraft({ chatId, generationId });
+          if (draftId !== null) {
+            const draft = await deps.writer.findGeneration(draftId);
+            const revision = (await deps.writer.revisions(draftId)).at(-1);
+            if (draft !== null && revision !== undefined) {
+              await ctx.answerCallbackQuery();
+              await edit(
+                ctx,
+                chatId,
+                messageId,
+                draftHtml({ ...draft, text: revision.text }),
+                keyboard(draft.id, draft.hooks, runtime.appOrigin, revision.id)
+              );
+              await deps.writer.setChatMessage(draft.id, messageId, runtime.clock.now());
+              return;
+            }
+          }
+          await ctx.answerCallbackQuery({ text: 'Ответ уже обрабатывается или черновик готов.' });
+          return;
+        }
+        const task = factsTask(generation, answer);
+        if (task === null) throw new AppError('CONFLICT', 'The saved answer is too long');
+        await ctx.answerCallbackQuery();
+        await writeFactDraft(ctx, generation, task);
         return;
       }
       if (action === 'why') {
         await ctx.answerCallbackQuery().catch((error: unknown) => runtime.onError(error));
-        await swapButtons(ctx, reasonsKeyboard(generationId));
+        await swapButtons(ctx, reasonsKeyboard(generationId, revisionToken ?? ''));
         return;
       }
       if (action === 'joke' || action === 'back' || action.startsWith('r:')) {
         const reason: Reason | null =
           action === 'joke' ? 'joke' : action === 'back' ? null : (action.slice(2) as Reason);
-        const feedbackId = reason === null ? null : await recordFeedback(deps, generationId, REASONS[reason].kind);
+        const feedbackId =
+          reason === null ? null : await recordFeedback(deps, generationId, REASONS[reason].kind, revisionToken ?? '');
         await ctx.answerCallbackQuery(reason === null ? {} : { text: `Записал: ${REASONS[reason].noted}` });
         const generation = await deps.writer.findGeneration(generationId);
         if (generation !== null && action !== 'joke')
-          await swapButtons(ctx, keyboard(generation.id, generation.hooks, runtime.appOrigin));
+          await swapButtons(
+            ctx,
+            keyboard(
+              generation.id,
+              generation.hooks,
+              runtime.appOrigin,
+              (await deps.writer.revisions(generationId)).at(-1)?.id ?? ''
+            )
+          );
         if (feedbackId !== null && action !== 'joke') {
           // The next plain message is the note; it ends a «Своё время» wait, like «✏️ Изменить» does.
           const now = runtime.clock.now();
           const timeWait = await runtime.publish.awaitingTime();
           if (timeWait !== null) await runtime.publish.stopAwaitingTime(timeWait);
           await deps.writer.setNoting({ chatId, feedbackId, now, expiresAt: now + REQUEST_TTL_MS });
-          await ctx.reply(NOTE_PROMPT_TEXT, { reply_markup: new InlineKeyboard().text('Без пояснения', NO_NOTE) });
+          await ctx.reply(NOTE_PROMPT_TEXT, {
+            reply_markup: new InlineKeyboard().text('Без пояснения', `ai:nonote:${feedbackId}`)
+          });
         }
         return;
       }
@@ -623,7 +792,7 @@ export function registerAiWriter(bot: Bot, runtime: AiWriterRuntime): void {
         await approve(ctx, deps, generationId);
         return;
       }
-      const text = await chooseHook(deps, generationId, Number(action.slice(1)));
+      const text = await chooseHook(deps, generationId, Number(action.slice(1)), revisionToken ?? '');
       await ctx.answerCallbackQuery();
       const generation = await deps.writer.findGeneration(generationId);
       if (generation !== null)
@@ -632,7 +801,12 @@ export function registerAiWriter(bot: Bot, runtime: AiWriterRuntime): void {
           chatId,
           messageId,
           draftHtml({ ...generation, text }),
-          keyboard(generation.id, generation.hooks, runtime.appOrigin)
+          keyboard(
+            generation.id,
+            generation.hooks,
+            runtime.appOrigin,
+            (await deps.writer.revisions(generationId)).at(-1)?.id ?? ''
+          )
         );
     } catch (error) {
       if (!(error instanceof AppError)) throw error;

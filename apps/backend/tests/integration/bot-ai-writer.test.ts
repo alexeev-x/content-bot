@@ -1,9 +1,15 @@
 import type { UpdateAiSettingsInput } from '@alexeev/contracts';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { createD1AiRepository, type AiTextProvider, updateAiSettings } from '../../src/modules/ai';
+import {
+  AiProviderError,
+  createD1AiRepository,
+  createD1WriterRepository,
+  type AiTextProvider,
+  updateAiSettings
+} from '../../src/modules/ai';
 import { testDb } from '../helpers/db';
 import { fakeBotAdminApi } from '../helpers/fake-bot-admin-api';
-import { type Api, createApi, fakeClock, OWNER_ID, resetDb } from '../helpers/harness';
+import { type Api, createApi, fakeClock, OWNER_ID, resetDb, START } from '../helpers/harness';
 import { writerAnswer } from '../helpers/writer-answer';
 
 const SECRET = 'hook-secret-PLACEHOLDER';
@@ -20,6 +26,22 @@ let calls: TelegramCall[];
 let modelInputs: string[];
 let nextMessageId: number;
 let nextUpdateId: number;
+let modelAnswers: (string | AiProviderError)[];
+let provider: AiTextProvider;
+let failEdits: boolean;
+
+const questionAnswer = writerAnswer({
+  kind: 'ideas',
+  question: 'Что случилось с хуками в твоём матче?',
+  ideas: ['Пудж и хуки']
+});
+const draftAnswer = writerAnswer({
+  hooks: ['Пять хуков — один крип.', 'Я думал, что попал.', 'Пудж и промахи.'],
+  text: 'Пять хуков — один крип. Вчера я промахнулся четыре раза, а на пятом зацепил крипа.',
+  topic: 'Пудж и промахи хуком',
+  device: 'личная неудача',
+  ending: 'крип вместо героя'
+});
 
 const settings: Omit<UpdateAiSettingsInput, 'revision'> = {
   provider: 'openai',
@@ -40,22 +62,16 @@ beforeEach(async () => {
   modelInputs = [];
   nextMessageId = 20;
   nextUpdateId = 9000;
-  const answers = [
-    writerAnswer({ kind: 'ideas', question: 'Что случилось с хуками в твоём матче?', ideas: ['Пудж и хуки'] }),
-    writerAnswer({
-      hooks: ['Пять хуков — один крип.', 'Я думал, что попал.', 'Пудж и промахи.'],
-      text: 'Пять хуков — один крип. Вчера я промахнулся четыре раза, а на пятом зацепил крипа.',
-      topic: 'Пудж и промахи хуком',
-      device: 'личная неудача',
-      ending: 'крип вместо героя'
-    })
-  ];
-  const provider: AiTextProvider = {
+  modelAnswers = [questionAnswer, draftAnswer];
+  failEdits = false;
+  provider = {
     provider: 'openai',
     complete: (request) => {
       modelInputs.push(request.input);
+      const answer = modelAnswers.shift();
+      if (answer instanceof AiProviderError) return Promise.reject(answer);
       return Promise.resolve({
-        text: answers.shift() ?? '',
+        text: answer ?? '',
         model: 'gpt-6.1-sol',
         usage: { inputTokens: 3000, cachedInputTokens: 0, cacheWriteTokens: 0, outputTokens: 400 }
       });
@@ -76,6 +92,8 @@ beforeEach(async () => {
         .pop() ?? '';
     const body = JSON.parse(String(init?.body ?? '{}')) as TelegramCall['body'];
     calls.push({ method, body });
+    if (method === 'editMessageText' && failEdits)
+      return Promise.resolve(Response.json({ ok: false, error_code: 500, description: 'DEV Telegram failure' }));
     const result =
       method === 'sendMessage'
         ? {
@@ -204,5 +222,144 @@ describe('Telegram AI writer', () => {
     expect((await deliver(message('Повторяю ответ', false, question?.messageId))).status).toBe(200);
     await api.settle();
     expect(modelInputs).toHaveLength(2);
+  });
+
+  it('keeps the owner answer after a provider failure and retries only on an explicit tap', async () => {
+    modelAnswers = [questionAnswer, new AiProviderError('AI_PROVIDER_UNREACHABLE'), draftAnswer];
+    await askForFacts();
+    const question = await testDb()
+      .prepare("SELECT id, chat_message_id AS messageId FROM ai_generations WHERE result = 'needs_facts'")
+      .first<{ id: string; messageId: number }>();
+    expect((await deliver(message(OWNER_FACTS, false, question?.messageId))).status).toBe(200);
+    await api.settle();
+
+    const saved = await testDb()
+      .prepare('SELECT answer, status FROM ai_writer_fact_answers WHERE question_generation_id = ?')
+      .bind(question?.id)
+      .first<{ answer: string; status: string }>();
+    expect(saved).toEqual({ answer: OWNER_FACTS, status: 'failed' });
+    expect(modelInputs).toHaveLength(2);
+    expect(calls.filter((call) => call.method === 'editMessageText').at(-1)?.body.reply_markup).toEqual(
+      expect.objectContaining({
+        inline_keyboard: [[expect.objectContaining({ callback_data: `ai:${question?.id}:retry` })]]
+      })
+    );
+
+    // The saved answer survives a new Worker instance; a retry does not depend on isolate memory.
+    api = createApi({
+      clock: fakeClock(),
+      botInfo: BOT_INFO,
+      webhookSecret: SECRET,
+      botAdminApi: fakeBotAdminApi(),
+      aiProvider: provider
+    });
+    const retryMessageId = nextMessageId;
+    const retries = await Promise.all([
+      deliver(callback(`ai:${question?.id}:retry`, retryMessageId)),
+      deliver(callback(`ai:${question?.id}:retry`, retryMessageId))
+    ]);
+    expect(retries.map((response) => response.status)).toEqual([200, 200]);
+    await api.settle();
+    expect(modelInputs).toHaveLength(3);
+    expect(modelInputs[2]).toContain(OWNER_FACTS);
+    expect(
+      await testDb()
+        .prepare('SELECT status FROM ai_writer_fact_answers WHERE question_generation_id = ?')
+        .bind(question?.id)
+        .first<{ status: string }>()
+    ).toEqual({ status: 'ready' });
+  });
+
+  it('recovers a persisted answer after Worker stops before the model finishes', async () => {
+    await askForFacts();
+    const question = await testDb()
+      .prepare("SELECT id, chat_message_id AS messageId FROM ai_generations WHERE result = 'needs_facts'")
+      .first<{ id: string; messageId: number }>();
+    expect(question).not.toBeNull();
+    expect(
+      await createD1WriterRepository(testDb()).claimFactAnswer({
+        chatId: CHAT_ID,
+        generationId: question?.id ?? '',
+        answer: OWNER_FACTS,
+        now: START
+      })
+    ).toBe(true);
+
+    // A fresh isolate sees only D1. The first tap is too early to overlap a live 25 s model call.
+    expect((await deliver(message(OWNER_FACTS, false, question?.messageId))).status).toBe(200);
+    const retryMessageId = nextMessageId;
+    expect((await deliver(callback(`ai:${question?.id}:retry`, retryMessageId))).status).toBe(200);
+    expect(modelInputs).toHaveLength(1);
+
+    api = createApi({
+      clock: fakeClock(START + 61_000),
+      botInfo: BOT_INFO,
+      webhookSecret: SECRET,
+      botAdminApi: fakeBotAdminApi(),
+      aiProvider: provider
+    });
+    expect((await deliver(callback(`ai:${question?.id}:retry`, retryMessageId))).status).toBe(200);
+    await api.settle();
+    expect(modelInputs).toHaveLength(2);
+    expect(modelInputs[1]).toContain(OWNER_FACTS);
+    expect(
+      await testDb()
+        .prepare('SELECT status FROM ai_writer_fact_answers WHERE question_generation_id = ?')
+        .bind(question?.id)
+        .first<{ status: string }>()
+    ).toEqual({ status: 'ready' });
+  });
+
+  it('redelivers a saved ready draft without another model call after Telegram edit fails', async () => {
+    await askForFacts();
+    const question = await testDb()
+      .prepare("SELECT id FROM ai_generations WHERE result = 'needs_facts'")
+      .first<{ id: string }>();
+    failEdits = true;
+    expect((await deliver(message(OWNER_FACTS))).status).toBe(200);
+    await api.settle();
+    expect(modelInputs).toHaveLength(2);
+    const saved = await testDb()
+      .prepare(
+        'SELECT status, draft_generation_id AS draftId FROM ai_writer_fact_answers WHERE question_generation_id = ?'
+      )
+      .bind(question?.id)
+      .first<{ status: string; draftId: string }>();
+    expect(saved?.status).toBe('ready');
+    expect(saved?.draftId).toBeTruthy();
+
+    failEdits = false;
+    api = createApi({
+      clock: fakeClock(),
+      botInfo: BOT_INFO,
+      webhookSecret: SECRET,
+      botAdminApi: fakeBotAdminApi(),
+      aiProvider: provider
+    });
+    const retryMessageId = nextMessageId;
+    expect((await deliver(callback(`ai:${question?.id}:retry`, retryMessageId))).status).toBe(200);
+    expect(modelInputs).toHaveLength(2);
+    expect(calls.filter((call) => call.method === 'editMessageText').at(-1)?.body.text).toContain('Пять хуков');
+    expect(
+      await testDb()
+        .prepare('SELECT chat_message_id AS messageId FROM ai_generations WHERE id = ?')
+        .bind(saved?.draftId)
+        .first<{ messageId: number }>()
+    ).toEqual({ messageId: retryMessageId });
+  });
+
+  it('does not silently truncate long owner facts', async () => {
+    await askForFacts();
+    expect((await deliver(message('ф'.repeat(3990)))).status).toBe(200);
+    expect(modelInputs).toHaveLength(1);
+    expect(calls.filter((call) => call.method === 'sendMessage').at(-1)?.body.text).toContain('слишком длинные');
+    expect(await testDb().prepare('SELECT COUNT(*) AS n FROM ai_writer_fact_answers').first<{ n: number }>()).toEqual({
+      n: 0
+    });
+
+    expect((await deliver(message(OWNER_FACTS))).status).toBe(200);
+    await api.settle();
+    expect(modelInputs).toHaveLength(2);
+    expect(modelInputs[1]).toContain(OWNER_FACTS);
   });
 });

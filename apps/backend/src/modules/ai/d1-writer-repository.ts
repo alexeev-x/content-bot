@@ -182,7 +182,7 @@ export interface WriterRepository {
   findByChatMessage(messageId: number): Promise<GenerationRow | null>;
   /** The draft's revisions, oldest first (at most 50). */
   revisions(generationId: string): Promise<RevisionRow[]>;
-  addRevision(row: Omit<RevisionRow, 'postId'> & { parentId: string | null }): Promise<void>;
+  addRevision(row: Omit<RevisionRow, 'postId'> & { parentId: string | null }): Promise<boolean>;
   /** The approval of a draft, once; false when it was approved already (a repeated tap or a race). */
   addApproval(
     row: Omit<RevisionRow, 'postId'> & { parentId: string | null; changedParts: readonly string[] }
@@ -253,12 +253,26 @@ export interface WriterRepository {
   setEditing(input: { chatId: number; generationId: string | null; now: number; expiresAt: number }): Promise<void>;
   /** Consumes one awaited edit/question; a concurrent reply to the same generation loses without a model call. */
   consumeEditing(input: { chatId: number; generationId: string; now: number }): Promise<boolean>;
+  /** Saves the owner's facts and consumes the matching wait in one D1 batch; only the first answer wins. */
+  claimFactAnswer(input: { chatId: number; generationId: string; answer: string; now: number }): Promise<boolean>;
+  /** A failed facts generation can be retried by an explicit owner tap, never by a background retry. */
+  claimFactRetry(input: { chatId: number; generationId: string; now: number }): Promise<string | null>;
+  /** Existing draft to show again when Telegram delivery failed after the model result was saved. */
+  readyFactDraft(input: { chatId: number; generationId: string }): Promise<string | null>;
+  finishFactAnswer(input: {
+    generationId: string;
+    draftGenerationId: string | null;
+    status: 'failed' | 'ready';
+    now: number;
+  }): Promise<void>;
   /**
    * After a «Что не так?» reason: the chat waits for the owner's note on `feedbackId` (null stops waiting). Like
    * `setEditing`, it opens a row of its own when no chat is open; starting it ends an awaited edit, so one wait is
    * open at a time.
    */
   setNoting(input: { chatId: number; feedbackId: string | null; now: number; expiresAt: number }): Promise<void>;
+  /** A cancel button may clear only the note wait it created. */
+  cancelNoting(input: { chatId: number; feedbackId: string }): Promise<boolean>;
   /** A format button on the chat's own message (null clears it); false when that chat is gone or replaced. */
   setRequestFormat(input: {
     chatId: number;
@@ -475,13 +489,20 @@ export function createD1WriterRepository(db: D1Database): WriterRepository {
     },
 
     async addRevision(row) {
-      await db
+      const result = await db
         .prepare(
           `INSERT INTO ai_text_revisions (id, generation_id, parent_id, provenance, text, edit_ratio, created_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?)`
+           SELECT ?1, ?2, ?3, ?4, ?5, ?6, ?7
+           WHERE NOT EXISTS (
+             SELECT 1 FROM ai_text_revisions
+             WHERE generation_id = ?2 AND provenance IN ('OWNER_APPROVED', 'OWNER_PREAPPROVED')
+           ) AND ?3 IS (
+             SELECT id FROM ai_text_revisions WHERE generation_id = ?2 ORDER BY created_at DESC, rowid DESC LIMIT 1
+           )`
         )
         .bind(row.id, row.generationId, row.parentId, row.provenance, row.text, row.editRatio, row.createdAt)
         .run();
+      return result.meta.changes === 1;
     },
 
     async addApproval(row) {
@@ -489,7 +510,10 @@ export function createD1WriterRepository(db: D1Database): WriterRepository {
         .prepare(
           `INSERT OR IGNORE INTO ai_text_revisions
              (id, generation_id, parent_id, provenance, text, edit_ratio, changed_parts, created_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+           SELECT ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8
+           WHERE ?3 = (
+             SELECT id FROM ai_text_revisions WHERE generation_id = ?2 ORDER BY created_at DESC, rowid DESC LIMIT 1
+           )`
         )
         .bind(
           row.id,
@@ -636,6 +660,70 @@ export function createD1WriterRepository(db: D1Database): WriterRepository {
       return true;
     },
 
+    async claimFactAnswer({ chatId, generationId, answer, now }) {
+      const [claim] = await db.batch([
+        db
+          .prepare(
+            `INSERT OR IGNORE INTO ai_writer_fact_answers
+               (question_generation_id, chat_id, answer, status, claimed_at, updated_at)
+             SELECT ?2, ?1, ?3, 'processing', ?4, ?4
+             WHERE EXISTS (
+               SELECT 1 FROM ai_writer_requests
+               WHERE chat_id = ?1 AND editing_generation_id = ?2 AND expires_at > ?4
+             )`
+          )
+          .bind(chatId, generationId, answer, now),
+        db
+          .prepare(
+            `UPDATE ai_writer_requests SET editing_generation_id = NULL
+             WHERE chat_id = ?1 AND editing_generation_id = ?2
+               AND EXISTS (SELECT 1 FROM ai_writer_fact_answers WHERE question_generation_id = ?2)`
+          )
+          .bind(chatId, generationId),
+        db
+          .prepare(
+            `DELETE FROM ai_writer_requests
+             WHERE chat_id = ? AND prompt_message_id = 0 AND editing_generation_id IS NULL AND noting_feedback_id IS NULL`
+          )
+          .bind(chatId)
+      ]);
+      return claim?.meta.changes === 1;
+    },
+
+    async claimFactRetry({ chatId, generationId, now }) {
+      const row = await db
+        .prepare(
+          `UPDATE ai_writer_fact_answers SET status = 'processing', claimed_at = ?3, updated_at = ?3
+           WHERE chat_id = ?1 AND question_generation_id = ?2
+             AND (status = 'failed' OR (status = 'processing' AND claimed_at <= ?3 - 60000))
+           RETURNING answer`
+        )
+        .bind(chatId, generationId, now)
+        .first<{ answer: string }>();
+      return row?.answer ?? null;
+    },
+
+    async readyFactDraft({ chatId, generationId }) {
+      const row = await db
+        .prepare(
+          `SELECT draft_generation_id AS draftGenerationId FROM ai_writer_fact_answers
+           WHERE chat_id = ? AND question_generation_id = ? AND status = 'ready'`
+        )
+        .bind(chatId, generationId)
+        .first<{ draftGenerationId: string | null }>();
+      return row?.draftGenerationId ?? null;
+    },
+
+    async finishFactAnswer({ generationId, draftGenerationId, status, now }) {
+      await db
+        .prepare(
+          `UPDATE ai_writer_fact_answers SET status = ?2, draft_generation_id = ?3, updated_at = ?4
+           WHERE question_generation_id = ?1 AND status = 'processing'`
+        )
+        .bind(generationId, status, draftGenerationId, now)
+        .run();
+    },
+
     async setNoting({ chatId, feedbackId, now, expiresAt }) {
       if (feedbackId === null) {
         // Same as `setEditing(null)`: a row made only for the wait goes with it, unless an edit is awaited on it.
@@ -664,6 +752,21 @@ export function createD1WriterRepository(db: D1Database): WriterRepository {
         )
         .bind(chatId, feedbackId, expiresAt, now)
         .run();
+    },
+
+    async cancelNoting({ chatId, feedbackId }) {
+      const result = await db
+        .prepare('UPDATE ai_writer_requests SET noting_feedback_id = NULL WHERE chat_id = ? AND noting_feedback_id = ?')
+        .bind(chatId, feedbackId)
+        .run();
+      if (result.meta.changes !== 1) return false;
+      await db
+        .prepare(
+          'DELETE FROM ai_writer_requests WHERE chat_id = ? AND prompt_message_id = 0 AND editing_generation_id IS NULL AND noting_feedback_id IS NULL'
+        )
+        .bind(chatId)
+        .run();
+      return true;
     },
 
     async setRequestFormat({ chatId, promptMessageId, format, now }) {

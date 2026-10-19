@@ -1,5 +1,6 @@
 import { aiFeedbackListSchema, apiErrorSchema } from '@alexeev/contracts';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { createD1WriterRepository } from '../../src/modules/ai';
 import { fakeBotAdminApi } from '../helpers/fake-bot-admin-api';
 import { testDb } from '../helpers/db';
 import { type Api, createApi, fakeClock, OWNER_ID, OWNER_TOKEN, resetDb, seedSession, START } from '../helpers/harness';
@@ -54,7 +55,7 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-const tap = (action: string) =>
+const tapData = (data: string) =>
   api.request(`${ORIGIN}/webhooks/telegram`, {
     method: 'POST',
     token: null,
@@ -65,7 +66,7 @@ const tap = (action: string) =>
         id: `cb-${updateId}`,
         chat_instance: 'x',
         from: { id: Number(OWNER_ID), is_bot: false, first_name: 'X' },
-        data: `ai:${GENERATION}:${action}`,
+        data,
         message: {
           message_id: 21,
           date: 1,
@@ -75,6 +76,19 @@ const tap = (action: string) =>
       }
     }
   });
+const tap = async (action: string) => {
+  const guarded =
+    action === 'why' || action === 'back' || action === 'joke' || action.startsWith('r:') || /^h[0-2]$/.test(action);
+  const revision = guarded
+    ? await testDb()
+        .prepare(
+          'SELECT id FROM ai_text_revisions WHERE generation_id = ? ORDER BY created_at DESC, rowid DESC LIMIT 1'
+        )
+        .bind(GENERATION)
+        .first<{ id: string }>()
+    : null;
+  return tapData(`ai:${GENERATION}:${action}${guarded ? `:${revision?.id.slice(-12)}` : ''}`);
+};
 
 const lastMarkup = () =>
   calls
@@ -84,6 +98,30 @@ const lastMarkup = () =>
     .map((button) => button.text);
 
 describe('«Что не так?» under an AI draft', () => {
+  it('an old cancel button cannot clear a newer draft edit wait', async () => {
+    const newer = '00000000-0000-4000-8000-0000000000d2';
+    await testDb()
+      .prepare(
+        `INSERT INTO ai_generations (id, kind, format, mode, source, task, status, pack_revision, created_at, updated_at)
+         VALUES (?, 'draft', 'igrat', 'direct', 'bot', 'другое задание', 'ready', 'pack', ?, ?)`
+      )
+      .bind(newer, START, START)
+      .run();
+    await createD1WriterRepository(testDb()).setEditing({
+      chatId: Number(OWNER_ID),
+      generationId: newer,
+      now: START,
+      expiresAt: START + 60_000
+    });
+
+    expect((await tap('noedit')).status).toBe(200);
+    const row = await testDb()
+      .prepare('SELECT editing_generation_id AS editing FROM ai_writer_requests WHERE chat_id = ?')
+      .bind(Number(OWNER_ID))
+      .first<{ editing: string | null }>();
+    expect(row?.editing).toBe(newer);
+  });
+
   it('opens the reasons, records the tapped one on the current text and brings the draft buttons back', async () => {
     await tap('why');
     expect(lastMarkup()).toEqual([
@@ -167,6 +205,31 @@ const edits = () =>
 const sent = () => calls.filter((call) => call.method === 'sendMessage').map((call) => call.body.text ?? '');
 
 describe('«✏️ Изменить» under an AI draft', () => {
+  it('ignores old hook and feedback buttons after the owner edits the draft', async () => {
+    await testDb()
+      .prepare('UPDATE ai_generations SET hooks = ? WHERE id = ?')
+      .bind(JSON.stringify(['Новый хук']), GENERATION)
+      .run();
+    await tap('edit');
+    await say('Мой окончательный текст.');
+    const staleToken = REVISION.slice(-12);
+    expect((await tapData(`ai:${GENERATION}:h0:${staleToken}`)).status).toBe(200);
+    expect((await tapData(`ai:${GENERATION}:r:hook:${staleToken}`)).status).toBe(200);
+    const sentBeforeRewrite = sent().length;
+    expect((await tapData(`ai:${GENERATION}:more:${staleToken}`)).status).toBe(200);
+    expect(sent()).toHaveLength(sentBeforeRewrite);
+    expect((await tapData(`ai:${GENERATION}:h0`)).status).toBe(200);
+    const rows = await testDb()
+      .prepare('SELECT provenance, text FROM ai_text_revisions WHERE generation_id = ? ORDER BY created_at, rowid')
+      .bind(GENERATION)
+      .all<{ provenance: string; text: string }>();
+    expect(rows.results).toEqual([
+      { provenance: 'AI_DRAFT', text: 'Текст черновика.' },
+      { provenance: 'OWNER_EDITED', text: 'Мой окончательный текст.' }
+    ]);
+    expect(await testDb().prepare('SELECT COUNT(*) AS n FROM ai_feedback').first<{ n: number }>()).toEqual({ n: 0 });
+  });
+
   it('takes the next plain message as the edit, once; «Отмена» stops waiting; a reply still works', async () => {
     await tap('edit');
     expect(sent().at(-1)).toContain('Пришлите свою версию следующим сообщением');
@@ -193,6 +256,23 @@ describe('«✏️ Изменить» under an AI draft', () => {
     await testDb().prepare('UPDATE ai_generations SET chat_message_id = 77 WHERE id = ?').bind(GENERATION).run();
     await say('Версия ответом.', 77);
     expect(await edits()).toEqual(['Версия ответом.', 'Моя версия текста.']);
+  });
+
+  it('approves the owner-edited text once and rejects a later edit', async () => {
+    await tap('edit');
+    await say('Исправленный хук. Остальное без изменений.');
+    await tap('ok');
+    await tap('ok');
+    const approved = await testDb()
+      .prepare("SELECT text FROM ai_text_revisions WHERE generation_id = ? AND provenance = 'OWNER_APPROVED'")
+      .bind(GENERATION)
+      .all<{ text: string }>();
+    expect(approved.results).toEqual([{ text: 'Исправленный хук. Остальное без изменений.' }]);
+    const sentBeforeStaleTap = sent().length;
+    await tap('edit');
+    expect(sent()).toHaveLength(sentBeforeStaleTap);
+    await say('Поздняя правка.');
+    expect(await edits()).toEqual(['Исправленный хук. Остальное без изменений.']);
   });
 });
 
@@ -241,28 +321,20 @@ describe('the note after a «Что не так?» reason', () => {
     expect(await noteOf()).toEqual(['Коротко.']);
 
     await tap('r:style');
-    await api.request(`${ORIGIN}/webhooks/telegram`, {
-      method: 'POST',
-      token: null,
-      headers: { 'x-telegram-bot-api-secret-token': SECRET },
-      json: {
-        update_id: ++updateId,
-        callback_query: {
-          id: `cb-${updateId}`,
-          chat_instance: 'x',
-          from: { id: Number(OWNER_ID), is_bot: false, first_name: 'X' },
-          data: 'ai:nonote',
-          message: {
-            message_id: 22,
-            date: 1,
-            chat: { id: Number(OWNER_ID), type: 'private', first_name: 'X' },
-            text: 'x'
-          }
-        }
-      }
-    });
+    const current = await waiting();
+    await tapData(`ai:nonote:${current?.n}`);
     await say('Уже не пояснение.');
     expect((await noteOf()).sort()).toEqual([null, 'Коротко.']);
+  });
+
+  it('an old note-cancel button cannot clear a newer note wait', async () => {
+    await tap('r:hook');
+    const older = (await waiting())?.n;
+    await tap('r:style');
+    const newer = (await waiting())?.n;
+    expect(older).not.toBe(newer);
+    await tapData(`ai:nonote:${older}`);
+    expect((await waiting())?.n).toBe(newer);
   });
 
   it('never takes a message that an awaited edit owns: the last wait started wins', async () => {
