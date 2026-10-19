@@ -1,9 +1,12 @@
 import type { AiLearningListDto, AiRuleDto, AiRulesDto } from '@alexeev/contracts';
-import { queryOptions, useMutation, useQueryClient } from '@tanstack/react-query';
+import { infiniteQueryOptions, queryOptions, useMutation, useQueryClient } from '@tanstack/react-query';
+import { nextCursor } from '../../../shared/api/query-string';
 import {
   changeAiRule,
   checkAiConnection,
   deleteAiFeedback,
+  getAiDraftChain,
+  getAiDrafts,
   getAiFeedback,
   getAiLearning,
   getAiOverview,
@@ -19,6 +22,8 @@ export const aiKeys = {
   feedback: ['ai', 'feedback'] as const,
   learning: ['ai', 'learning'] as const,
   rules: ['ai', 'rules'] as const,
+  drafts: ['ai', 'drafts'] as const,
+  draft: (id: string) => ['ai', 'drafts', id] as const,
   unlinkedScripts: ['ai', 'scripts', 'unlinked'] as const
 };
 
@@ -78,6 +83,25 @@ export function useSetAiLearningExcluded() {
           ? { items: list.items.map((row) => (row.id === item.id && row.source === item.source ? item : row)) }
           : list
       )
+  });
+}
+
+/** The bot writes drafts all day: the history is re-read when opened after a short rest. */
+export function aiDraftsQueryOptions() {
+  return infiniteQueryOptions({
+    queryKey: aiKeys.drafts,
+    queryFn: ({ pageParam, signal }) => getAiDrafts(pageParam, signal),
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: nextCursor,
+    staleTime: 30_000
+  });
+}
+
+export function aiDraftChainQueryOptions(id: string) {
+  return queryOptions({
+    queryKey: aiKeys.draft(id),
+    queryFn: ({ signal }) => getAiDraftChain(id, signal),
+    staleTime: 30_000
   });
 }
 

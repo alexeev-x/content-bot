@@ -13,6 +13,8 @@ export {
 export { type AnalyticsReview, writeAnalyticsReview } from './analytics-review';
 export { readUsageCosts } from './service';
 export { changeRule, readRules, removeRuleEvidence } from './rules-admin';
+export { readDraftChain, readDrafts } from './draft-history';
+export { createD1DraftHistoryRepository, type DraftHistoryRepository } from './d1-draft-history-repository';
 export {
   CONSOLIDATION_MAX_VIDEOS,
   CONSOLIDATION_MIN_VIDEOS,

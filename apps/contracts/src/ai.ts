@@ -638,3 +638,77 @@ export const aiRuleParamsSchema = z.strictObject({ id: z.uuid() });
 export const aiRuleEvidenceParamsSchema = z.strictObject({ id: z.uuid(), key: z.string().min(1).max(300) });
 export const changeAiRuleInputSchema = z.strictObject({ action: z.enum(['enable', 'disable', 'approve']) });
 export type ChangeAiRuleInput = z.infer<typeof changeAiRuleInputSchema>;
+
+// The history of AI drafts in the studio (AI plan P8; SYS-01): every first draft from the bot or the studio with
+// the versions that hang off it (rewrites, fixes, the draft after a facts answer), their texts with provenance
+// and the owner's verdicts. Read-only.
+// GET /api/v1/ai/drafts?cursor → 200 AiDraftsPageDto, newest first, AI_DRAFTS_PAGE a page. Errors: VALIDATION_ERROR
+// 400 (a bad cursor), UNAUTHORIZED 401, FORBIDDEN 403.
+// GET /api/v1/ai/drafts/{id} → 200 AiDraftChainDto. NOT_FOUND 404 when `id` is not a first draft.
+export const AI_DRAFTS_PAGE = 20;
+export const AI_DRAFT_CHAIN_MAX = 31;
+export const AI_DRAFT_TEXTS_MAX = 60;
+export const aiTextProvenanceSchema = z.enum(['AI_DRAFT', 'OWNER_EDITED', 'OWNER_APPROVED', 'OWNER_PREAPPROVED']);
+export const aiDraftSummarySchema = z.object({
+  id: z.uuid(),
+  format: aiWriterFormatSchema,
+  source: z.enum(['bot', 'studio']),
+  /** The start of the owner's task. */
+  task: z.string().max(300),
+  createdAt: z.iso.datetime(),
+  /** The first draft and every version after it. */
+  versions: z.number().int().positive(),
+  approved: z.boolean(),
+  /** The owner wrote their own version of a text. */
+  edited: z.boolean(),
+  feedbackCount: z.number().int().nonnegative(),
+  /** The recorded cost of every model call of the chain; null when none was priced. */
+  costUsd: z.number().nonnegative().nullable()
+});
+export type AiDraftSummaryDto = z.infer<typeof aiDraftSummarySchema>;
+export const aiDraftsQuerySchema = z.strictObject({ cursor: z.string().min(1).max(512).optional() });
+export const aiDraftsPageSchema = z.object({
+  items: z.array(aiDraftSummarySchema).max(AI_DRAFTS_PAGE),
+  nextCursor: z.string().nullable()
+});
+export type AiDraftsPageDto = z.infer<typeof aiDraftsPageSchema>;
+export const aiDraftTextSchema = z.object({
+  id: z.uuid(),
+  provenance: aiTextProvenanceSchema,
+  text: z.string().min(1).max(8000),
+  /** Share of the AI draft's words the owner changed, on an approval. */
+  editRatio: z.number().min(0).max(1).nullable(),
+  /** The studio post an approved Telegram text became. */
+  postId: z.string().nullable(),
+  createdAt: z.iso.datetime()
+});
+export type AiDraftTextDto = z.infer<typeof aiDraftTextSchema>;
+export const aiDraftVersionSchema = z.object({
+  id: z.uuid(),
+  parentId: z.uuid().nullable(),
+  kind: z.enum(['draft', 'rewrite']),
+  status: z.enum(['pending', 'ready', 'failed']),
+  /** `needs_facts`: the editor asked a question instead of writing. */
+  result: z.enum(['draft', 'needs_facts']).nullable(),
+  question: z.string().max(1000).nullable(),
+  errorCode: z.string().max(100).nullable(),
+  model: z.string().max(100).nullable(),
+  costUsd: z.number().nonnegative().nullable(),
+  createdAt: z.iso.datetime(),
+  texts: z.array(aiDraftTextSchema).max(AI_DRAFT_TEXTS_MAX),
+  feedback: z
+    .array(
+      // The bot counts a note's 500 characters by code point; an emoji is two UTF-16 units here.
+      z.object({ kind: z.string().max(40), note: z.string().max(1000).nullable(), createdAt: z.iso.datetime() })
+    )
+    .max(50)
+});
+export type AiDraftVersionDto = z.infer<typeof aiDraftVersionSchema>;
+export const aiDraftChainSchema = z.object({
+  draft: aiDraftSummarySchema,
+  versions: z.array(aiDraftVersionSchema).max(AI_DRAFT_CHAIN_MAX),
+  /** True: the chain has more versions or texts than shown (the newest texts are kept). */
+  truncated: z.boolean()
+});
+export type AiDraftChainDto = z.infer<typeof aiDraftChainSchema>;
+export const aiDraftParamsSchema = z.strictObject({ id: z.uuid() });

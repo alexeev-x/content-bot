@@ -1,7 +1,11 @@
 import {
   aiAuthorProfileSchema,
   aiDotaSnapshotInputSchema,
+  aiDraftChainSchema,
+  aiDraftParamsSchema,
   aiDraftResultSchema,
+  aiDraftsPageSchema,
+  aiDraftsQuerySchema,
   aiImproveInputSchema,
   aiImproveResultSchema,
   aiFeedbackListSchema,
@@ -38,6 +42,8 @@ import {
   readAuthorProfile,
   readFeedback,
   readItemScript,
+  readDraftChain,
+  readDrafts,
   readLearning,
   readRules,
   readUnlinkedScripts,
@@ -244,6 +250,12 @@ export const aiRoutes = new Hono<AppBindings>()
       );
       return c.json(aiLearningItemSchema.parse(item));
     }
+  )
+  .get('/drafts', validated('query', aiDraftsQuerySchema), async (c) =>
+    c.json(aiDraftsPageSchema.parse(await readDrafts(c.get('container').aiDraftHistory, c.req.valid('query').cursor)))
+  )
+  .get('/drafts/:id', validated('param', aiDraftParamsSchema), async (c) =>
+    c.json(aiDraftChainSchema.parse(await readDraftChain(c.get('container').aiDraftHistory, c.req.valid('param').id)))
   )
   .get('/rules', async (c) => c.json(aiRulesSchema.parse(await readRules(c.get('container').aiRules))))
   .put(

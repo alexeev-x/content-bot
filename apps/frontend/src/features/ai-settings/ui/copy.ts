@@ -211,6 +211,30 @@ export const copy = {
     include: 'Учитывать',
     saveFailed: 'Не удалось сохранить. Попробуйте ещё раз.'
   },
+  drafts: {
+    title: 'История черновиков',
+    hint: 'Все черновики ИИ из бота и студии: каждый вариант, ваша версия, одобрение и отзывы.',
+    empty: 'Черновиков пока нет. Напишите в боте /redactor или создайте черновик в студии.',
+    loadError: 'Не удалось загрузить историю черновиков.',
+    chainError: 'Не удалось загрузить варианты.',
+    more: 'Показать ещё',
+    source: { bot: 'Бот', studio: 'Студия' } as Record<string, string>,
+    versions: (count: number) => `Вариантов: ${count}`,
+    approved: 'Одобрен',
+    edited: 'Есть ваша версия',
+    feedback: (count: number) => `Отзывов: ${count}`,
+    kind: { draft: 'Черновик', rewrite: 'Переделка' } as Record<string, string>,
+    status: { pending: 'Пишется', failed: 'Не получилось' } as Record<string, string>,
+    question: 'Редактор спросил',
+    provenance: {
+      AI_DRAFT: 'Текст ИИ',
+      OWNER_EDITED: 'Ваша версия',
+      OWNER_APPROVED: 'Одобрено',
+      OWNER_PREAPPROVED: 'Одобрено заранее'
+    } as Record<string, string>,
+    editRatio: (percent: number) => `изменено ${percent}%`,
+    truncated: 'Цепочка длинная: показаны первые 31 вариант и последние 60 текстов.'
+  },
   rules: {
     title: 'Правила редактора',
     hint: (max: number) =>

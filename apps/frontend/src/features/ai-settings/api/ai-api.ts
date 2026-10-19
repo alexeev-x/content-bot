@@ -1,4 +1,6 @@
 import {
+  aiDraftChainSchema,
+  aiDraftsPageSchema,
   aiFeedbackListSchema,
   aiLearningItemSchema,
   aiLearningListSchema,
@@ -11,6 +13,17 @@ import {
   type UpdateAiSettingsInput
 } from '@alexeev/contracts';
 import { apiRequest, apiRequestNoContent } from '../../../shared/api/http-client';
+import { buildQuery } from '../../../shared/api/query-string';
+
+/** First AI drafts from the bot and the studio, newest first. */
+export function getAiDrafts(cursor: string | undefined, signal?: AbortSignal) {
+  return apiRequest(`/api/v1/ai/drafts${buildQuery({ cursor })}`, aiDraftsPageSchema, { signal });
+}
+
+/** One draft with every version after it, their texts and the owner's verdicts. */
+export function getAiDraftChain(id: string, signal?: AbortSignal) {
+  return apiRequest(`/api/v1/ai/drafts/${encodeURIComponent(id)}`, aiDraftChainSchema, { signal });
+}
 
 /** The owner's recorded verdicts on drafts, newest first. */
 export function getAiFeedback(signal?: AbortSignal) {

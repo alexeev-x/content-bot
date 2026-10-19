@@ -756,6 +756,102 @@ export async function mockApi(page: Page): Promise<void> {
       ]
     })
   );
+  const DRAFT = {
+    id: '00000000-0000-4000-8000-0000000000c1',
+    format: 'igrat',
+    source: 'bot',
+    task: 'Учусь играть на Пудже: промахнулся хуком по Лиону и отдал первую кровь на второй минуте',
+    createdAt: '2026-10-19T10:00:00.000Z',
+    versions: 2,
+    approved: true,
+    edited: true,
+    feedbackCount: 1,
+    costUsd: 0.025
+  };
+  await page.route(/\/api\/v1\/ai\/drafts(\?.*)?$/, (route) =>
+    route.request().method() === 'GET'
+      ? json(route, {
+          items: [
+            DRAFT,
+            {
+              ...DRAFT,
+              id: '00000000-0000-4000-8000-0000000000c2',
+              format: 'telegram',
+              source: 'studio',
+              task: 'Пост про патч 7.40',
+              versions: 1,
+              approved: false,
+              edited: false,
+              feedbackCount: 0,
+              costUsd: 0.011
+            }
+          ],
+          nextCursor: null
+        })
+      : route.fallback()
+  );
+  await page.route(/\/api\/v1\/ai\/drafts\/[^/?]+$/, (route) =>
+    json(route, {
+      draft: DRAFT,
+      truncated: false,
+      versions: [
+        {
+          id: DRAFT.id,
+          parentId: null,
+          kind: 'draft',
+          status: 'ready',
+          result: 'draft',
+          question: null,
+          errorCode: null,
+          model: 'gpt-6.1-sol',
+          costUsd: 0.02,
+          createdAt: '2026-10-19T10:00:00.000Z',
+          texts: [
+            {
+              id: '00000000-0000-4000-8000-0000000000c3',
+              provenance: 'AI_DRAFT',
+              text: 'Хотел красиво зайти хуком. Промахнулся. Лион сказал спасибо и забрал первую кровь.',
+              editRatio: null,
+              postId: null,
+              createdAt: '2026-10-19T10:00:00.000Z'
+            }
+          ],
+          feedback: [{ kind: 'weak_hook', note: 'Начало вялое', createdAt: '2026-10-19T10:01:00.000Z' }]
+        },
+        {
+          id: '00000000-0000-4000-8000-0000000000c4',
+          parentId: DRAFT.id,
+          kind: 'rewrite',
+          status: 'ready',
+          result: 'draft',
+          question: null,
+          errorCode: null,
+          model: 'gpt-6.1-sol',
+          costUsd: 0.005,
+          createdAt: '2026-10-19T10:02:00.000Z',
+          texts: [
+            {
+              id: '00000000-0000-4000-8000-0000000000c5',
+              provenance: 'AI_DRAFT',
+              text: 'Промахнулся хуком на второй минуте — и Лион уже бежит за мной.',
+              editRatio: null,
+              postId: null,
+              createdAt: '2026-10-19T10:02:00.000Z'
+            },
+            {
+              id: '00000000-0000-4000-8000-0000000000c6',
+              provenance: 'OWNER_APPROVED',
+              text: 'Промахнулся хуком на второй минуте. Лион не промахнулся.',
+              editRatio: 0.4,
+              postId: null,
+              createdAt: '2026-10-19T10:03:00.000Z'
+            }
+          ],
+          feedback: []
+        }
+      ]
+    })
+  );
   await page.route(/\/api\/v1\/ai\/rules$/, (route) =>
     json(route, {
       inUseMax: 15,
