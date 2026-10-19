@@ -58,15 +58,7 @@ async function readBounded(response: Response, maxBytes: number): Promise<string
 export function createOpenAiProvider(apiKey: string, fetchImpl: typeof fetch): AiTextProvider {
   return {
     provider: 'openai',
-    async complete({
-      model,
-      instructions,
-      input,
-      maxOutputTokens,
-      jsonSchema,
-      reasoningEffort,
-      signal
-    }): Promise<AiCompletion> {
+    async complete({ model, instructions, input, maxOutputTokens, jsonSchema, signal }): Promise<AiCompletion> {
       let response: Response;
       try {
         // A plain call: the runtime's fetch throws «Illegal invocation» when called as a method of another object.
@@ -80,7 +72,6 @@ export function createOpenAiProvider(apiKey: string, fetchImpl: typeof fetch): A
             input,
             max_output_tokens: maxOutputTokens,
             store: false,
-            ...(reasoningEffort ? { reasoning: { effort: reasoningEffort } } : {}),
             // Structured output: the answer is JSON of this schema (Responses API `text.format`).
             ...(jsonSchema
               ? {

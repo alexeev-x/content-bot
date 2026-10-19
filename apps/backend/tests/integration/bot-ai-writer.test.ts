@@ -1,4 +1,5 @@
 import type { UpdateAiSettingsInput } from '@alexeev/contracts';
+import { Api as BotApi } from 'grammy';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   AiProviderError,
@@ -11,6 +12,7 @@ import { testDb } from '../helpers/db';
 import { fakeBotAdminApi } from '../helpers/fake-bot-admin-api';
 import { type Api, createApi, fakeClock, OWNER_ID, resetDb, START } from '../helpers/harness';
 import { writerAnswer } from '../helpers/writer-answer';
+import { runAiJob } from '../../src/app/bot/ai-writer';
 
 const SECRET = 'hook-secret-PLACEHOLDER';
 const BOT_INFO = JSON.stringify({ id: 123456, is_bot: true, first_name: 'Bot', username: 'content_bot' });
@@ -25,7 +27,6 @@ let api: Api;
 let calls: TelegramCall[];
 let modelInputs: string[];
 let modelSchemas: (string | undefined)[];
-let efforts: (string | undefined)[];
 let nextMessageId: number;
 let nextUpdateId: number;
 let modelAnswers: (string | AiProviderError)[];
@@ -63,7 +64,6 @@ beforeEach(async () => {
   calls = [];
   modelInputs = [];
   modelSchemas = [];
-  efforts = [];
   nextMessageId = 20;
   nextUpdateId = 9000;
   modelAnswers = [questionAnswer, draftAnswer];
@@ -73,7 +73,6 @@ beforeEach(async () => {
     complete: (request) => {
       modelInputs.push(request.input);
       modelSchemas.push(request.jsonSchema?.name);
-      efforts.push(request.reasoningEffort);
       const answer = modelAnswers.shift();
       if (answer instanceof AiProviderError) return Promise.reject(answer);
       return Promise.resolve({
@@ -392,7 +391,6 @@ describe('Telegram AI writer', () => {
     expect(modelInputs[1]).toContain(OWNER_FACTS);
     // One question per task (TG-03, owner DEV run 19.10.2026): the answer may only produce a draft.
     expect(modelSchemas).toEqual(['writer_answer', 'writer_draft']);
-    expect(efforts).toEqual(['low', 'low']);
     expect(modelInputs[1]).toContain('второй вопрос не задавай');
     expect(
       await testDb().prepare("SELECT COUNT(*) AS n FROM ai_generations WHERE result = 'draft'").first<{ n: number }>()
@@ -415,6 +413,76 @@ describe('Telegram AI writer', () => {
       .first<{ id: string; chat_message_id: number }>();
     expect((await deliver(callback(`ai:${draft?.id}:ok`, draft?.chat_message_id ?? 0))).status).toBe(200);
     expect(calls.filter((call) => call.method === 'sendMessage').at(-1)?.body.text).toBe('Одобрено. Текст сохранён.');
+  });
+
+  it('calls the model once for a queued job delivered twice, and drops a malformed message (Queue AI_JOBS)', async () => {
+    modelAnswers = [draftAnswer];
+    expect((await deliver(message('Учусь играть на Пудже'))).status).toBe(200);
+    await api.settle();
+    expect(api.aiJobs.sent).toHaveLength(1);
+    expect(api.aiJobs.sent[0]).toMatchObject({ kind: 'draft', format: 'igrat', task: 'Учусь играть на Пудже' });
+
+    await api.aiJobs.deliver(api.aiJobs.sent[0]);
+    await api.aiJobs.deliver({ kind: 'draft', task: 'no id' });
+    expect(modelInputs).toHaveLength(1);
+    expect(await testDb().prepare('SELECT COUNT(*) AS n FROM ai_generations').first<{ n: number }>()).toEqual({
+      n: 1
+    });
+  });
+
+  it('shows a failure, not «Пишу…» forever, when D1 fails at the claim before the model', async () => {
+    const errors: unknown[] = [];
+    await runAiJob(
+      {
+        id: crypto.randomUUID(),
+        chatId: CHAT_ID,
+        messageId: 77,
+        appOrigin: ORIGIN,
+        kind: 'draft',
+        format: 'igrat',
+        task: 'Учусь играть на Пудже'
+      },
+      {
+        api: new BotApi('123456:PLACEHOLDER'),
+        clock: fakeClock(),
+        claim: () => Promise.reject(new Error('D1 down')),
+        writer: () => Promise.reject(new Error('not reached')),
+        onError: (error) => errors.push(error)
+      }
+    );
+    expect(calls.at(-1)).toMatchObject({
+      method: 'editMessageText',
+      body: { message_id: 77, text: 'Не получилось написать. Попробуйте ещё раз.' }
+    });
+    expect(modelInputs).toHaveLength(0);
+    expect(errors).toHaveLength(1);
+  });
+
+  it('says so when the queue refuses a job and frees the saved facts answer for the retry at once', async () => {
+    await askForFacts();
+    const refusing = createApi({
+      clock: fakeClock(),
+      botInfo: BOT_INFO,
+      webhookSecret: SECRET,
+      botAdminApi: fakeBotAdminApi(),
+      aiProvider: provider,
+      env: { AI_JOBS: { send: () => Promise.reject(new Error('queue down')) } as never }
+    });
+    calls.length = 0;
+    const response = await refusing.request(`${ORIGIN}/webhooks/telegram`, {
+      method: 'POST',
+      token: null,
+      headers: { 'x-telegram-bot-api-secret-token': SECRET },
+      json: message(OWNER_FACTS)
+    });
+    expect(response.status).toBe(200);
+    expect(calls.find((call) => call.method === 'editMessageText')?.body.text).toBe(
+      'Не получилось написать. Попробуйте ещё раз.'
+    );
+    expect(modelInputs).toHaveLength(1);
+    expect(await testDb().prepare('SELECT status FROM ai_writer_fact_answers').first<{ status: string }>()).toEqual({
+      status: 'failed'
+    });
   });
 
   it('consumes an open facts question once when two replies arrive together', async () => {
@@ -505,19 +573,26 @@ describe('Telegram AI writer', () => {
       })
     ).toBe(true);
 
-    // A fresh isolate sees only D1. The first tap is too early to overlap a live 25 s model call.
+    // A fresh isolate sees only D1. A tap within the 5-minute lease may overlap a queued two-minute model call.
     expect((await deliver(message(OWNER_FACTS, false, question?.messageId))).status).toBe(200);
     const retryMessageId = nextMessageId;
     expect((await deliver(callback(`ai:${question?.id}:retry`, retryMessageId))).status).toBe(200);
     expect(modelInputs).toHaveLength(1);
 
-    api = createApi({
-      clock: fakeClock(START + 61_000),
-      botInfo: BOT_INFO,
-      webhookSecret: SECRET,
-      botAdminApi: fakeBotAdminApi(),
-      aiProvider: provider
-    });
+    const at = (offset: number) =>
+      createApi({
+        clock: fakeClock(START + offset),
+        botInfo: BOT_INFO,
+        webhookSecret: SECRET,
+        botAdminApi: fakeBotAdminApi(),
+        aiProvider: provider
+      });
+    api = at(4 * 60_000);
+    expect((await deliver(callback(`ai:${question?.id}:retry`, retryMessageId))).status).toBe(200);
+    await api.settle();
+    expect(modelInputs).toHaveLength(1);
+
+    api = at(5 * 60_000 + 1000);
     expect((await deliver(callback(`ai:${question?.id}:retry`, retryMessageId))).status).toBe(200);
     await api.settle();
     expect(modelInputs).toHaveLength(2);

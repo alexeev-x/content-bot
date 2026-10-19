@@ -29,6 +29,7 @@ import type { TelegramCaller } from './telegram-call';
 import type { UpdateDedup } from './update-dedup';
 import type { WriterDeps } from '../../modules/ai';
 import { CONTAMINATION_CALLBACK, parseContaminationCallback } from '../../modules/content-analytics';
+import type { AiJob } from './ai-job';
 import { NO_MODE_TEXT, registerAiWriter, REQUEST_TTL_MS } from './ai-writer';
 
 export interface BotSettings {
@@ -156,6 +157,8 @@ export interface BotRuntime {
   /** Used by /start to refresh the owner's commands and menu button. */
   adminApi: TelegramBotAdminApi;
   call: TelegramCaller;
+  /** Sends one AI writer model call to the AI_JOBS queue. */
+  enqueueAiJob: (job: AiJob) => Promise<void>;
   /** Keeps work alive after the webhook answered (the request's `ctx.waitUntil`). */
   waitUntil: (work: Promise<unknown>) => void;
   /** Records a failed update (stable code only); the webhook still answers 200. */

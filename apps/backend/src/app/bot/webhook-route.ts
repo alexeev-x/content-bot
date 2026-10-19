@@ -14,6 +14,7 @@ import { WEBHOOK_IMPORT_BUDGET_MS } from './media-import-worker';
 import { createOwnerReports } from './owner-reports';
 import { getOwnerOperationsSettings } from '../../modules/settings';
 import { createTelegramCaller } from './telegram-call';
+import { createWriterDeps } from './writer-deps';
 
 const MAX_UPDATE_BYTES = 256 * 1024;
 // grammY's default is 10 s, the point where Telegram gives up on the webhook. The handler only does D1
@@ -104,17 +105,8 @@ export const telegramWebhook = new Hono<AppBindings>().post(
         next: () => reports().next(),
         status: () => reports().status()
       },
-      writer: async () => ({
-        repo: container.aiRepository,
-        writer: container.aiWriter,
-        profiles: container.aiProfiles,
-        ownerPosts: container.aiOwnerPosts,
-        clock: container.clock,
-        newId: container.newId,
-        provider: container.aiProvider,
-        timezone: (await getOwnerOperationsSettings({ repo: container.settings, logger: container.logger, requestId }))
-          .timezone
-      }),
+      writer: () => createWriterDeps(container, requestId),
+      enqueueAiJob: (job) => container.aiJobs.send(job),
       createDraft: async (input, idempotencyKey) =>
         createPost(
           {

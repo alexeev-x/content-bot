@@ -172,9 +172,6 @@ async function call(
       ...prompt,
       maxOutputTokens: MAX_OUTPUT_TOKENS,
       jsonSchema: row.parentGenerationId === null ? WRITER_ANSWER_JSON_SCHEMA : WRITER_DRAFT_JSON_SCHEMA,
-      // The bot writes after the webhook answered, and Workers end that work 30 s later; the default medium
-      // effort ran past 25 s on DEV (owner run 19.10.2026, AI_TIMEOUT on «Учу фидить»).
-      reasoningEffort: 'low',
       signal
     });
     const usageId = deps.newId();

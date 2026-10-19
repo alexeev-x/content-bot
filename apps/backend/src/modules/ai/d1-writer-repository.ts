@@ -28,6 +28,10 @@ export interface LearningRevisionRow {
 }
 
 // The «unchanged» line of «Качество» (≤ 5% edited): below it an approval is the model's words, not the owner's.
+/** A queued AI job claim outlives the 24 h a queue keeps a message (migration 0074). */
+const JOB_CLAIM_KEPT_MS = 7 * 24 * 60 * 60 * 1000;
+/** A facts answer stays claimed this long: the queue delivery plus the two-minute model call, with room. */
+const FACT_LEASE_MS = 5 * 60 * 1000;
 const OWNER_EXAMPLE_MIN_EDIT = 0.05;
 /** Candidates the writer ranks by relevance to the task; the prompt still gets at most two. */
 const OWNER_EXAMPLE_CANDIDATES = 20;
@@ -253,6 +257,8 @@ export interface WriterRepository {
   setEditing(input: { chatId: number; generationId: string | null; now: number; expiresAt: number }): Promise<void>;
   /** Consumes one awaited edit/question; a concurrent reply to the same generation loses without a model call. */
   consumeEditing(input: { chatId: number; generationId: string; now: number }): Promise<boolean>;
+  /** Claims a queued AI job once (migration 0074); false for a redelivered message. Prunes week-old claims. */
+  claimJob(id: string, now: number): Promise<boolean>;
   /** Saves the owner's facts and consumes the matching wait in one D1 batch; only the first answer wins. */
   claimFactAnswer(input: { chatId: number; generationId: string; answer: string; now: number }): Promise<boolean>;
   /** A failed facts generation can be retried by an explicit owner tap, never by a background retry. */
@@ -660,6 +666,13 @@ export function createD1WriterRepository(db: D1Database): WriterRepository {
       return true;
     },
 
+    async claimJob(id, now) {
+      const [claim] = await db.batch([
+        db.prepare('INSERT OR IGNORE INTO ai_queue_jobs (id, claimed_at) VALUES (?1, ?2)').bind(id, now),
+        db.prepare('DELETE FROM ai_queue_jobs WHERE claimed_at < ?1').bind(now - JOB_CLAIM_KEPT_MS)
+      ]);
+      return claim?.meta.changes === 1;
+    },
     async claimFactAnswer({ chatId, generationId, answer, now }) {
       const [claim] = await db.batch([
         db
@@ -695,10 +708,10 @@ export function createD1WriterRepository(db: D1Database): WriterRepository {
         .prepare(
           `UPDATE ai_writer_fact_answers SET status = 'processing', claimed_at = ?3, updated_at = ?3
            WHERE chat_id = ?1 AND question_generation_id = ?2
-             AND (status = 'failed' OR (status = 'processing' AND claimed_at <= ?3 - 60000))
+             AND (status = 'failed' OR (status = 'processing' AND claimed_at <= ?3 - ?4))
            RETURNING answer`
         )
-        .bind(chatId, generationId, now)
+        .bind(chatId, generationId, now, FACT_LEASE_MS)
         .first<{ answer: string }>();
       return row?.answer ?? null;
     },

@@ -26,6 +26,13 @@
     }
   ],
   "r2_buckets": [{ "binding": "MEDIA_BUCKET", "bucket_name": "content-r2-test" }],
+  // The bot's AI model calls (owner, 19.10.2026): a consumer has 15 min of wall time, a webhook's waitUntil 30 s.
+  // Like D1, queues are not inherited: each environment names its own, which the owner creates once.
+  "queues": {
+    "producers": [{ "binding": "AI_JOBS", "queue": "content-ai-local" }],
+    // One job at a time, no automatic retry: a model call is paid and its failure is shown in the chat.
+    "consumers": [{ "queue": "content-ai-local", "max_batch_size": 1, "max_batch_timeout": 0, "max_retries": 0 }]
+  },
   "vars": {
     // The only Telegram user allowed to use the admin, the Mini App and bot commands.
     "OWNER_TELEGRAM_ID": "768918661",
@@ -56,6 +63,11 @@
         }
       ],
       "r2_buckets": [{ "binding": "MEDIA_BUCKET", "bucket_name": "content-r2-dev" }],
+      "queues": {
+        "producers": [{ "binding": "AI_JOBS", "queue": "content-ai-dev" }],
+        // One job at a time, no automatic retry: a model call is paid and its failure is shown in the chat.
+        "consumers": [{ "queue": "content-ai-dev", "max_batch_size": 1, "max_batch_timeout": 0, "max_retries": 0 }]
+      },
       "vars": {
         "OWNER_TELEGRAM_ID": "768918661",
         "PUBLISHING_ENABLED": "true",
@@ -79,6 +91,11 @@
         }
       ],
       "r2_buckets": [{ "binding": "MEDIA_BUCKET", "bucket_name": "content-r2-prod" }],
+      "queues": {
+        "producers": [{ "binding": "AI_JOBS", "queue": "content-ai-prod" }],
+        // One job at a time, no automatic retry: a model call is paid and its failure is shown in the chat.
+        "consumers": [{ "queue": "content-ai-prod", "max_batch_size": 1, "max_batch_timeout": 0, "max_retries": 0 }]
+      },
       "vars": {
         "OWNER_TELEGRAM_ID": "768918661",
         "PUBLISHING_ENABLED": "false",

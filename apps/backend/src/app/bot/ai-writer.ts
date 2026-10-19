@@ -1,5 +1,5 @@
 import type { CreatePostInput } from '@alexeev/contracts';
-import { type Bot, type Context, GrammyError, InlineKeyboard } from 'grammy';
+import { type Api, type Bot, type Context, GrammyError, InlineKeyboard } from 'grammy';
 import type { InlineKeyboardMarkup } from 'grammy/types';
 import {
   approveDraft,
@@ -27,6 +27,7 @@ import { AppError } from '../../shared/app-error';
 import { formatAiBudgetAlert } from '../notifications/ai-budget-alert';
 import type { Clock } from '../../platform/clock';
 import type { PublishActions } from './publish-actions';
+import type { AiJob, AiJobBase } from './ai-job';
 import { draftFromMessageText } from './draft-from-message';
 import { publishKeyboard } from './publish-keyboard';
 
@@ -34,8 +35,11 @@ import { publishKeyboard } from './publish-keyboard';
 // becomes a draft; buttons rewrite, pick a hook, give feedback or approve; a reply with text is the owner's
 // edit. Only an approved Telegram text becomes a studio post, through the usual draft and publish flow.
 
-/** Telegram ends a webhook's background work after ~30 s; the model gets most of it. */
-const MODEL_TIMEOUT_MS = 25_000;
+/**
+ * A queued job has 15 minutes of wall time; a reasoning model at its default effort took over 25 s on DEV
+ * (owner run 19.10.2026), so it gets two minutes and is never asked to think less.
+ */
+const MODEL_TIMEOUT_MS = 120_000;
 /** A message is at most 4096 characters; the rest stays in the draft. */
 const SHOWN_TEXT_MAX = 3300;
 
@@ -258,9 +262,9 @@ function unavailableText(error: AppError): string {
   return FAILED_TEXT;
 }
 
-async function edit(ctx: Context, chatId: number, messageId: number, html: string, markup?: InlineKeyboardMarkup) {
+async function edit(api: Api, chatId: number, messageId: number, html: string, markup?: InlineKeyboardMarkup) {
   try {
-    await ctx.api.editMessageText(chatId, messageId, html, {
+    await api.editMessageText(chatId, messageId, html, {
       parse_mode: 'HTML',
       link_preview_options: { is_disabled: true },
       ...(markup === undefined ? {} : { reply_markup: markup })
@@ -286,73 +290,201 @@ export interface AiWriterRuntime {
   writer: () => Promise<WriterDeps>;
   createDraft: (input: CreatePostInput, idempotencyKey: string) => Promise<{ id: string; revision: number }>;
   publish: Pick<PublishActions, 'buttons' | 'awaitingTime' | 'stopAwaitingTime'>;
-  waitUntil: (work: Promise<unknown>) => void;
+  /** Sends a model call to the AI_JOBS queue (app/ai-queue.ts runs it). Throws when the queue refuses it. */
+  enqueueAiJob: (job: AiJob) => Promise<void>;
   onError: (error: unknown) => void;
 }
 
+/** What a queued AI job needs (app/ai-queue.ts builds it for each message). */
+export interface AiJobRuntime {
+  api: Api;
+  clock: Clock;
+  /** Claims the job once in D1; false for a redelivered message, whose first delivery owns the chat message. */
+  claim: () => Promise<boolean>;
+  writer: () => Promise<WriterDeps>;
+  onError: (error: unknown) => void;
+}
+
+const retryKeyboard = (generationId: string) =>
+  new InlineKeyboard().text('Повторить по сохранённому ответу', `ai:${generationId}:retry`);
+
+const endKeyboard = () => new InlineKeyboard().text('Закончить', END_CHAT);
+
+function failureOf(error: unknown, runtime: AiJobRuntime): string {
+  const unavailable = error instanceof AppError && error.code === 'UNAVAILABLE';
+  if (!unavailable) runtime.onError(error);
+  return unavailable ? unavailableText(error) : FAILED_TEXT;
+}
+
+async function jobResult(
+  job: Exclude<AiJob, { kind: 'chat' }>,
+  deps: WriterDeps,
+  runtime: AiJobRuntime
+): Promise<WriterResult> {
+  const signal = AbortSignal.timeout(MODEL_TIMEOUT_MS);
+  if (job.kind === 'draft')
+    return generateDraft(deps, { format: job.format, mode: 'direct', source: 'bot', task: job.task, signal });
+  if (job.kind === 'rewrite')
+    return rewriteDraft(deps, {
+      generationId: job.generationId,
+      instruction: REWRITES[job.action],
+      revisionToken: job.revisionToken,
+      signal
+    });
+  try {
+    const question = await deps.writer.findGeneration(job.generationId);
+    if (question === null) throw new AppError('NOT_FOUND', 'The question is gone');
+    const result = await generateDraft(deps, {
+      format: question.format,
+      mode: question.mode,
+      source: 'bot',
+      task: job.task,
+      parentGenerationId: question.id,
+      signal
+    });
+    await deps.writer.finishFactAnswer({
+      generationId: job.generationId,
+      draftGenerationId: result.generation.id,
+      status: result.generation.status === 'failed' ? 'failed' : 'ready',
+      now: runtime.clock.now()
+    });
+    return result;
+  } catch (error) {
+    await deps.writer.finishFactAnswer({
+      generationId: job.generationId,
+      draftGenerationId: null,
+      status: 'failed',
+      now: runtime.clock.now()
+    });
+    throw error;
+  }
+}
+
+/** A free message in a /redactor chat: one answer in the author's voice, kept in the chat's history. */
+async function runChatJob(
+  job: Extract<AiJob, { kind: 'chat' }>,
+  deps: WriterDeps,
+  runtime: AiJobRuntime
+): Promise<void> {
+  const { api } = runtime;
+  const { chatId, messageId, history } = job;
+  try {
+    const answer = await askEditor(deps, {
+      task: job.text,
+      history: history ?? [],
+      signal: AbortSignal.timeout(MODEL_TIMEOUT_MS)
+    });
+    for (const event of answer.budgetEvents)
+      await api.sendMessage(chatId, formatAiBudgetAlert(event), { parse_mode: 'HTML' });
+    const shown = answer.text === null ? FAILED_TEXT : escapeHtml(shortenForTelegram(answer.text, 4000));
+    await edit(api, chatId, messageId, shown, history === null ? undefined : endKeyboard());
+    if (history !== null && answer.text !== null)
+      await deps.writer.saveHistory(
+        chatId,
+        [
+          ...history,
+          { role: 'owner' as const, text: job.text.slice(0, TURN_MAX) },
+          { role: 'editor' as const, text: answer.text.slice(0, TURN_MAX) }
+        ].slice(-HISTORY_TURNS)
+      );
+  } catch (error) {
+    await edit(api, chatId, messageId, failureOf(error, runtime)).catch((editError: unknown) =>
+      runtime.onError(editError)
+    );
+  }
+}
+
+/**
+ * Runs one queued model call and turns its «Пишу…» message into the draft, the facts question or the reason
+ * it failed. Never throws: every failure is shown in that message (and logged unless it is AI being off).
+ */
+export async function runAiJob(job: AiJob, runtime: AiJobRuntime): Promise<void> {
+  const { api, clock } = runtime;
+  const { chatId, messageId } = job;
+  const failureMarkup = job.kind === 'facts' ? retryKeyboard(job.generationId) : undefined;
+  let deps: WriterDeps;
+  try {
+    if (!(await runtime.claim())) return;
+    deps = await runtime.writer();
+  } catch (error) {
+    // D1 failed before the model: the message still says so instead of «Пишу…» forever.
+    await edit(api, chatId, messageId, failureOf(error, runtime), failureMarkup).catch((editError: unknown) =>
+      runtime.onError(editError)
+    );
+    return;
+  }
+  if (job.kind === 'chat') {
+    await runChatJob(job, deps, runtime);
+    return;
+  }
+  try {
+    const result = await jobResult(job, deps, runtime);
+    for (const event of result.budgetEvents)
+      await api.sendMessage(chatId, formatAiBudgetAlert(event), { parse_mode: 'HTML' });
+    const { generation } = result;
+    if (isRequestForFacts(generation)) {
+      // A question has nothing to approve or rewrite: no keyboard; the owner's reply continues it.
+      await deps.writer.setChatMessage(generation.id, messageId, clock.now());
+      // The next plain message answers it (owner, 17.10.2026: replying to a message is awkward).
+      const now = clock.now();
+      await deps.writer.setEditing({ chatId, generationId: generation.id, now, expiresAt: now + REQUEST_TTL_MS });
+      await edit(api, chatId, messageId, factsHtml(generation));
+      return;
+    }
+    if (result.text === null) {
+      await edit(api, chatId, messageId, failedText(generation.errorCode), failureMarkup);
+      return;
+    }
+    await deps.writer.setChatMessage(generation.id, messageId, clock.now());
+    const revisionId = (await deps.writer.revisions(generation.id)).at(-1)?.id;
+    if (revisionId === undefined) throw new AppError('CONFLICT', 'The draft has no text');
+    await edit(
+      api,
+      chatId,
+      messageId,
+      draftHtml({ ...generation, text: result.text }),
+      keyboard(generation.id, generation.hooks, job.appOrigin, revisionId)
+    );
+  } catch (error) {
+    await edit(api, chatId, messageId, failureOf(error, runtime), failureMarkup).catch((editError: unknown) =>
+      runtime.onError(editError)
+    );
+  }
+}
+
 export function registerAiWriter(bot: Bot, runtime: AiWriterRuntime): void {
-  // Answers «Пишу…» at once, then writes after the webhook answered and turns that message into the draft.
-  async function write(
+  // Answers «Пишу…» at once and queues the model call; the consumer turns that message into the result.
+  // False when the queue refused the job: that message then says so.
+  async function enqueue(
     ctx: Context,
     placeholder: string,
-    work: (deps: WriterDeps, signal: AbortSignal) => Promise<WriterResult>,
+    job: (base: AiJobBase) => AiJob,
     failureMarkup?: InlineKeyboardMarkup
-  ) {
+  ): Promise<boolean> {
     const chatId = ctx.chat?.id;
-    if (chatId === undefined) return;
+    if (chatId === undefined) return false;
     const message = await ctx.reply(placeholder, failureMarkup === undefined ? {} : { reply_markup: failureMarkup });
-    runtime.waitUntil(
-      (async () => {
-        try {
-          const deps = await runtime.writer();
-          const result = await work(deps, AbortSignal.timeout(MODEL_TIMEOUT_MS));
-          for (const event of result.budgetEvents)
-            await ctx.api.sendMessage(chatId, formatAiBudgetAlert(event), { parse_mode: 'HTML' });
-          const { generation } = result;
-          if (isRequestForFacts(generation)) {
-            // A question has nothing to approve or rewrite: no keyboard; the owner's reply continues it.
-            await deps.writer.setChatMessage(generation.id, message.message_id, runtime.clock.now());
-            // The next plain message answers it (owner, 17.10.2026: replying to a message is awkward).
-            const now = runtime.clock.now();
-            await deps.writer.setEditing({ chatId, generationId: generation.id, now, expiresAt: now + REQUEST_TTL_MS });
-            await edit(ctx, chatId, message.message_id, factsHtml(generation));
-            return;
-          }
-          if (result.text === null) {
-            await edit(ctx, chatId, message.message_id, failedText(generation.errorCode), failureMarkup);
-            return;
-          }
-          await deps.writer.setChatMessage(generation.id, message.message_id, runtime.clock.now());
-          const revisionId = (await deps.writer.revisions(generation.id)).at(-1)?.id;
-          if (revisionId === undefined) throw new AppError('CONFLICT', 'The draft has no text');
-          await edit(
-            ctx,
-            chatId,
-            message.message_id,
-            draftHtml({ ...generation, text: result.text }),
-            keyboard(generation.id, generation.hooks, runtime.appOrigin, revisionId)
-          );
-        } catch (error) {
-          if (!(error instanceof AppError && error.code === 'UNAVAILABLE')) runtime.onError(error);
-          const text = error instanceof AppError && error.code === 'UNAVAILABLE' ? unavailableText(error) : FAILED_TEXT;
-          await edit(ctx, chatId, message.message_id, text, failureMarkup).catch((editError: unknown) =>
-            runtime.onError(editError)
-          );
-        }
-      })()
-    );
+    try {
+      await runtime.enqueueAiJob(
+        job({ id: crypto.randomUUID(), chatId, messageId: message.message_id, appOrigin: runtime.appOrigin })
+      );
+      return true;
+    } catch (error) {
+      runtime.onError(error);
+      await edit(ctx.api, chatId, message.message_id, FAILED_TEXT, failureMarkup).catch((editError: unknown) =>
+        runtime.onError(editError)
+      );
+      return false;
+    }
   }
 
   const draft = (ctx: Context, format: WriterFormat, task: string) =>
-    write(ctx, WRITING_TEXT, (deps, signal) =>
-      generateDraft(deps, { format, mode: 'direct', source: 'bot', task, signal })
-    );
+    enqueue(ctx, WRITING_TEXT, (base) => ({ ...base, kind: 'draft', format, task }));
 
   // /redactor: one command for everything (owner, 16.10.2026: no format buttons). The next text, or the words
   // after the command, is a free request; «придумай рилс …» or «напиши пост …» in it still makes a draft.
   // A free request: «напиши рилс учусь играть про …» still becomes a draft with its buttons; anything else gets
   // one answer in the author's voice.
-  const endKeyboard = () => new InlineKeyboard().text('Закончить', END_CHAT);
   // A tap picks the format of the next message; a second tap on the same one clears it.
   const chatKeyboard = (chosen: WriterFormat | null) => {
     const board = new InlineKeyboard();
@@ -369,40 +501,7 @@ export function registerAiWriter(bot: Bot, runtime: AiWriterRuntime): void {
       await draft(ctx, intent.format, intent.task);
       return;
     }
-    const chatId = ctx.chat?.id;
-    if (chatId === undefined) return;
-    const message = await ctx.reply(THINKING_TEXT);
-    runtime.waitUntil(
-      (async () => {
-        try {
-          const deps = await runtime.writer();
-          const answer = await askEditor(deps, {
-            task: text,
-            history: history ?? [],
-            signal: AbortSignal.timeout(MODEL_TIMEOUT_MS)
-          });
-          for (const event of answer.budgetEvents)
-            await ctx.api.sendMessage(chatId, formatAiBudgetAlert(event), { parse_mode: 'HTML' });
-          const shown = answer.text === null ? FAILED_TEXT : escapeHtml(shortenForTelegram(answer.text, 4000));
-          await edit(ctx, chatId, message.message_id, shown, history === null ? undefined : endKeyboard());
-          if (history !== null && answer.text !== null)
-            await deps.writer.saveHistory(
-              chatId,
-              [
-                ...history,
-                { role: 'owner' as const, text: text.slice(0, TURN_MAX) },
-                { role: 'editor' as const, text: answer.text.slice(0, TURN_MAX) }
-              ].slice(-HISTORY_TURNS)
-            );
-        } catch (error) {
-          const unavailable = error instanceof AppError && error.code === 'UNAVAILABLE';
-          if (!unavailable) runtime.onError(error);
-          await edit(ctx, chatId, message.message_id, unavailable ? unavailableText(error) : FAILED_TEXT).catch(
-            (editError: unknown) => runtime.onError(editError)
-          );
-        }
-      })()
-    );
+    await enqueue(ctx, THINKING_TEXT, (base) => ({ ...base, kind: 'chat', text, history }));
   }
 
   bot.command('redactor', async (ctx) => {
@@ -486,38 +585,22 @@ export function registerAiWriter(bot: Bot, runtime: AiWriterRuntime): void {
   }
 
   async function writeFactDraft(ctx: Context, generation: GenerationRow, task: string) {
-    await write(
+    const queued = await enqueue(
       ctx,
       WRITING_TEXT,
-      async (deps, signal) => {
-        try {
-          const result = await generateDraft(deps, {
-            format: generation.format,
-            mode: generation.mode,
-            source: 'bot',
-            task,
-            parentGenerationId: generation.id,
-            signal
-          });
-          await deps.writer.finishFactAnswer({
-            generationId: generation.id,
-            draftGenerationId: result.generation.id,
-            status: result.generation.status === 'failed' ? 'failed' : 'ready',
-            now: runtime.clock.now()
-          });
-          return result;
-        } catch (error) {
-          await deps.writer.finishFactAnswer({
-            generationId: generation.id,
-            draftGenerationId: null,
-            status: 'failed',
-            now: runtime.clock.now()
-          });
-          throw error;
-        }
-      },
-      new InlineKeyboard().text('Повторить по сохранённому ответу', `ai:${generation.id}:retry`)
+      (base) => ({ ...base, kind: 'facts', generationId: generation.id, task }),
+      retryKeyboard(generation.id)
     );
+    // Not queued: the saved answer is free for the retry button at once, not after the processing lease.
+    if (!queued)
+      await (
+        await runtime.writer()
+      ).writer.finishFactAnswer({
+        generationId: generation.id,
+        draftGenerationId: null,
+        status: 'failed',
+        now: runtime.clock.now()
+      });
   }
 
   async function acceptFacts(
@@ -542,9 +625,9 @@ export function registerAiWriter(bot: Bot, runtime: AiWriterRuntime): void {
     });
     if (!claimed) {
       await ctx.reply(
-        'Ответ на этот вопрос уже принят. Если черновик не появился, повторите по сохранённому ответу через минуту.',
+        'Ответ на этот вопрос уже принят. Если черновик не появился, повторите по сохранённому ответу через 5 минут.',
         {
-          reply_markup: new InlineKeyboard().text('Повторить по сохранённому ответу', `ai:${generation.id}:retry`)
+          reply_markup: retryKeyboard(generation.id)
         }
       );
       return;
@@ -705,14 +788,13 @@ export function registerAiWriter(bot: Bot, runtime: AiWriterRuntime): void {
       }
       if (action === 'more' || action === 'short' || action === 'fun') {
         await ctx.answerCallbackQuery().catch((error: unknown) => runtime.onError(error));
-        await write(ctx, REWRITING_TEXT, (deps, signal) =>
-          rewriteDraft(deps, {
-            generationId,
-            instruction: REWRITES[action],
-            revisionToken: revisionToken ?? '',
-            signal
-          })
-        );
+        await enqueue(ctx, REWRITING_TEXT, (base) => ({
+          ...base,
+          kind: 'rewrite',
+          generationId,
+          action,
+          revisionToken: revisionToken ?? ''
+        }));
         return;
       }
       if (action === 'edit') {
@@ -758,7 +840,7 @@ export function registerAiWriter(bot: Bot, runtime: AiWriterRuntime): void {
             if (draft !== null && revision !== undefined) {
               await ctx.answerCallbackQuery();
               await edit(
-                ctx,
+                ctx.api,
                 chatId,
                 messageId,
                 draftHtml({ ...draft, text: revision.text }),
@@ -821,7 +903,7 @@ export function registerAiWriter(bot: Bot, runtime: AiWriterRuntime): void {
       const generation = await deps.writer.findGeneration(generationId);
       if (generation !== null)
         await edit(
-          ctx,
+          ctx.api,
           chatId,
           messageId,
           draftHtml({ ...generation, text }),

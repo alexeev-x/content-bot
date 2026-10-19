@@ -4,6 +4,8 @@ import type {
   TelegramChatReadApi,
   TelegramOwnerMessageApi
 } from '../../src/integrations/telegram/telegram-api';
+import { handleAiQueue } from '../../src/app/ai-queue';
+import { createContainer, type ContainerOverrides } from '../../src/app/container';
 import { createApp } from '../../src/app/create-app';
 import type { AppEnv } from '../../src/app/env';
 import { mountLocalSignIn } from '../../src/app/local-sign-in-route';
@@ -58,6 +60,7 @@ export async function resetDb(): Promise<void> {
       'content_goals',
       'dota_hero_assets',
       'ai_writer_requests',
+      'ai_queue_jobs',
       'ai_writer_fact_answers',
       'ai_author_profile',
       'content_ai_links',
@@ -158,6 +161,8 @@ export interface Api {
   background: Promise<unknown>[];
   /** Notices that would reach the owner's chat (the fake that replaced Telegram). */
   ownerMessages: FakeOwnerMessenger['sent'];
+  /** Queue AI_JOBS: what the app sent, and a redelivery of a sent body through the consumer. */
+  aiJobs: { sent: unknown[]; deliver: (body: unknown) => Promise<void> };
   /** Waits until everything handed to `waitUntil` so far has ended. */
   settle(): Promise<void>;
   request(path: string, init?: RequestInit & { token?: string | null; json?: unknown }): Promise<Response>;
@@ -192,15 +197,38 @@ export function createApi(
 ): Api {
   const messenger = fakeOwnerMessenger();
   const clock = options.clock ?? fakeClock();
-  const app = createApp({
+  const overrides: ContainerOverrides = {
     clock,
     telegramChatApi: options.chatApi,
     telegramBotAdminApi: options.botAdminApi,
     ownerMessenger: options.ownerMessenger ?? (options.botToken === null ? undefined : messenger),
     ...(options.contentFetch === undefined ? {} : { contentFetch: options.contentFetch }),
-    aiProvider: options.aiProvider ?? null,
+    aiProvider: options.aiProvider ?? null
+  };
+  const app = createApp({
+    ...overrides,
     ...(options.localSignIn === true ? { mountBeforeGuard: mountLocalSignIn } : {})
   });
+  const background: Promise<unknown>[] = [];
+  // Queue AI_JOBS: a sent job runs at once through the real consumer, as background work `settle()` waits for.
+  // A test sends the same body twice through `redeliver` to check the single claim.
+  const aiJobs = {
+    sent: [] as unknown[],
+    send(body: unknown) {
+      aiJobs.sent.push(body);
+      background.push(aiJobs.deliver(body));
+      return Promise.resolve();
+    },
+    deliver(body: unknown) {
+      const message = { id: crypto.randomUUID(), timestamp: new Date(), body, attempts: 1, ack() {}, retry() {} };
+      const batch = { queue: 'content-ai-local', messages: [message], ackAll() {}, retryAll() {} };
+      return handleAiQueue(
+        batch as unknown as MessageBatch<unknown>,
+        createContainer(env, overrides),
+        env.TELEGRAM_BOT_TOKEN ?? ''
+      );
+    }
+  };
   const env = {
     DB: options.db ?? testDb(),
     OWNER_TELEGRAM_ID: options.ownerTelegramId ?? OWNER_ID,
@@ -209,9 +237,9 @@ export function createApi(
     ...(options.webhookSecret === undefined ? {} : { TELEGRAM_WEBHOOK_SECRET: options.webhookSecret }),
     MEDIA_BUCKET: testMediaBucket(),
     ...(options.botToken === null ? {} : { TELEGRAM_BOT_TOKEN: options.botToken ?? TEST_BOT_TOKEN }),
+    AI_JOBS: aiJobs,
     ...options.env
   } as AppEnv;
-  const background: Promise<unknown>[] = [];
   const executionCtx = {
     waitUntil: (work: Promise<unknown>) => {
       background.push(work);
@@ -221,6 +249,7 @@ export function createApi(
   return {
     clock,
     background,
+    aiJobs,
     ownerMessages: messenger.sent,
     async settle() {
       await Promise.allSettled(background);

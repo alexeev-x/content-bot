@@ -302,17 +302,6 @@ describe('OpenAI adapter', () => {
       store: false,
       max_output_tokens: 300
     });
-    expect(body).not.toHaveProperty('reasoning');
-
-    await provider.complete({
-      model: 'gpt-6.1-sol',
-      instructions: 'i',
-      input: 'x',
-      maxOutputTokens: 10,
-      reasoningEffort: 'low',
-      signal: AbortSignal.timeout(1000)
-    });
-    expect(body).toMatchObject({ reasoning: { effort: 'low' } });
 
     const rejected = createOpenAiProvider('bad', (async () => new Response('{}', { status: 401 })) as typeof fetch);
     await expect(

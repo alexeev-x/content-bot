@@ -1,3 +1,4 @@
+import { handleAiQueue } from './app/ai-queue';
 import { createApp } from './app/create-app';
 import { createContainer } from './app/container';
 import type { AppEnv } from './app/env';
@@ -14,5 +15,6 @@ const app = createApp(
 
 export default {
   fetch: app.fetch,
-  scheduled: (controller, env) => handleScheduled(controller, createContainer(env))
+  scheduled: (controller, env) => handleScheduled(controller, createContainer(env)),
+  queue: (batch, env) => handleAiQueue(batch, createContainer(env), env.TELEGRAM_BOT_TOKEN?.trim() ?? '')
 } satisfies ExportedHandler<AppEnv>;

@@ -43,6 +43,7 @@ import {
   type TelegramChatReadApi,
   type TelegramOwnerMessageApi
 } from '../integrations/telegram/telegram-api';
+import type { AiJob } from './bot/ai-job';
 import { type BotIdentityStore, createD1BotIdentityStore } from './bot/bot-identity-store';
 import { createD1MediaImportStore, type MediaImportStore } from './bot/media-import-store';
 import { createD1PublishActionStore, type PublishActionStore } from './bot/publish-action-store';
@@ -188,6 +189,8 @@ export interface Container {
   aiRepository: AiRepository;
   /** The configured text-model provider; null without its key. */
   aiProvider: AiTextProvider | null;
+  /** The bot's AI model calls go through Queue AI_JOBS (owner, 19.10.2026); UNAVAILABLE without the binding. */
+  aiJobs: { send: (job: AiJob) => Promise<void> };
   /** AI drafts, their revisions with provenance and the owner's feedback (migration 0054). */
   aiWriter: WriterRepository;
   /** The owner's own Telegram posts for the writer, read through the content module (stage 2 of the AI plan). */
@@ -218,6 +221,7 @@ export interface Container {
 // is a 503 instead of a crash.
 export interface ContainerEnv {
   DB?: D1Database;
+  AI_JOBS?: Queue<AiJob>;
   MEDIA_BUCKET?: R2Bucket;
   TELEGRAM_BOT_TOKEN?: string;
   /** Optional override: JSON of the Bot API `getMe` result. Without it connect stores the identity in D1. */
@@ -553,6 +557,15 @@ export function createContainer(env: ContainerEnv, overrides: ContainerOverrides
       if (overrides.aiProvider !== undefined) return overrides.aiProvider;
       const key = env.OPENAI_API_KEY?.trim();
       return key ? createOpenAiProvider(key, (input, init) => fetch(input, init)) : null;
+    },
+    get aiJobs() {
+      return {
+        send: async (job: AiJob) => {
+          if (env.AI_JOBS === undefined)
+            throw new AppError('UNAVAILABLE', 'The AI queue is not bound', { reason: 'NO_QUEUE' });
+          await env.AI_JOBS.send(job);
+        }
+      };
     },
     get heroAssets() {
       return createD1HeroAssetRepository(db());
