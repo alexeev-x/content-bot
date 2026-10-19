@@ -15,7 +15,8 @@ import { AppError } from '../../shared/app-error';
 import type { ApprovedScriptRow, ScriptChainRow, ScriptLinksRepository } from './d1-script-links-repository';
 
 // A published video ↔ the approved AI script it was filmed from (docs/ai/architecture.md, item 3). Reels go out
-// outside the studio, so the studio only proposes; the link exists once the owner confirms it.
+// outside the studio: the item panel proposes and the owner confirms; new videos are also handled by the Cron
+// (script-prompts.ts).
 
 const DAY_MS = 86_400_000;
 /** A script is filmed and published within two weeks of its approval; a little after covers clock skew. */

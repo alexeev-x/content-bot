@@ -31,6 +31,7 @@ import type { WriterDeps } from '../../modules/ai';
 import { CONTAMINATION_CALLBACK, parseContaminationCallback } from '../../modules/content-analytics';
 import type { AiJob } from './ai-job';
 import { NO_MODE_TEXT, registerAiWriter, REQUEST_TTL_MS } from './ai-writer';
+import { SCRIPT_PROMPT_CALLBACK, type ScriptPromptReply } from '../workflows/script-prompts';
 
 export interface BotSettings {
   token: string;
@@ -128,6 +129,8 @@ export interface BotRuntime {
   updates: UpdateDedup;
   /** The answer of /status. */
   reports: OwnerReports;
+  /** A tap on «Снят по этому сценарию?» or «Привязал сценарий» (owner, 19.10.2026). */
+  scriptPromptTap: (data: string) => Promise<ScriptPromptReply>;
   /** «Аналитика сейчас» (AI plan P6): the daily table at this moment; never a second daily report. */
   analyticsNow: () => Promise<OwnerReply>;
   /** Stores a draft post; a repeated key returns the same post. Throws `AppError` or a D1 error. */
@@ -541,6 +544,27 @@ export function createBot(config: BotConfig, runtime: BotRuntime): Bot {
 
   // «Ограничение подтвердилось» under an alert: the tap is the owner's confirmation (architecture item 12).
   // Safe to repeat; on success the button leaves the message so it is not tapped again.
+  bot.callbackQuery(SCRIPT_PROMPT_CALLBACK, async (ctx) => {
+    let reply: ScriptPromptReply;
+    try {
+      reply = await runtime.scriptPromptTap(ctx.callbackQuery.data);
+    } catch (error) {
+      runtime.onError(error);
+      await ctx.answerCallbackQuery({ text: MARK_FAILED_TEXT }).catch(() => undefined);
+      return;
+    }
+    await ctx.answerCallbackQuery({ text: reply.notice }).catch((error: unknown) => runtime.onError(error));
+    if (reply.edit === null) return;
+    try {
+      await ctx.editMessageText(reply.edit.html, {
+        parse_mode: 'HTML',
+        reply_markup: { inline_keyboard: reply.edit.buttons }
+      });
+    } catch (error) {
+      if (!(error instanceof GrammyError && error.description.includes('message is not modified'))) throw error;
+    }
+  });
+
   bot.callbackQuery(CONTAMINATION_CALLBACK, async (ctx) => {
     const data = ctx.callbackQuery.data;
     const parsed = parseContaminationCallback(data);

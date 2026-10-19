@@ -15,6 +15,7 @@ export { type ContentGoalRepository, readContentGoals, removeContentGoal, setCon
 export {
   type ContentAlert,
   type ContentAlertRepository,
+  type NewContentAlert,
   createD1ContentAlertRepository
 } from './d1-content-alerts-repository';
 export { configuredCollectors, type CollectorConfig, type ConfiguredSources } from './collectors';

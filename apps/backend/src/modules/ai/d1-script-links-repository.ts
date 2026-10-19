@@ -44,9 +44,91 @@ export interface ScriptLinksRepository {
   formatOf(itemId: string): Promise<ReelsFormat | null>;
   /** Videos linked to scripts of `format`, at most 500 (a few Reels a week). */
   itemsOf(format: ReelsFormat): Promise<string[]>;
+  /** Of `itemIds`, the ones linked to a script (one read; at most 50 ids). */
+  linkedAmong(itemIds: readonly string[]): Promise<Set<string>>;
+  /** Of `groupKeys`, the prompts that exist, by key (one read; at most 50 keys). */
+  promptsAmong(groupKeys: readonly string[]): Promise<Map<string, ScriptPromptRow>>;
+  /**
+   * A copy of the video collected later on the other platform joins its prompt; when the prompt is linked
+   * (`auto` or `linked`), the new items get the same script in the same batch.
+   */
+  addPromptItems(input: { id: string; itemIds: readonly string[]; now: number }): Promise<void>;
+  /** Prompts waiting for the owner or linked by the Worker since `since`, oldest first, at most `limit`. */
+  openPrompts(since: number, limit: number): Promise<ScriptPromptRow[]>;
+  /**
+   * Stores the prompt of one video once (its group key is UNIQUE) and, for an `auto` one, links its items in
+   * the same batch; false when the video was handled before.
+   */
+  createPrompt(input: NewScriptPrompt): Promise<boolean>;
+  findPrompt(id: string): Promise<ScriptPromptRow | null>;
+  /**
+   * Moves a prompt from `from` (and, when given, the candidate on screen) to its new state, linking or unlinking
+   * its items in the same batch; false when another tap changed it first.
+   */
+  answerPrompt(input: {
+    id: string;
+    from: ScriptPromptStatus;
+    shown?: number;
+    to: ScriptPromptStatus;
+    nextShown?: number;
+    revisionId: string | null;
+    itemIds: readonly string[];
+    link: 'set' | 'remove' | 'keep';
+    now: number;
+  }): Promise<boolean>;
+}
+
+export type ScriptPromptStatus = 'auto' | 'asked' | 'linked' | 'none' | 'undone';
+
+export interface NewScriptPrompt {
+  id: string;
+  groupKey: string;
+  title: string;
+  itemIds: string[];
+  candidates: string[];
+  status: 'auto' | 'asked';
+  revisionId: string | null;
+  now: number;
+}
+
+export interface ScriptPromptRow {
+  id: string;
+  title: string;
+  itemIds: string[];
+  candidates: string[];
+  shown: number;
+  status: ScriptPromptStatus;
+  revisionId: string | null;
+  createdAt: number;
 }
 
 const SCRIPT_COLUMNS = `r.id AS revisionId, g.format, r.text, r.created_at AS approvedAt`;
+const PROMPT_COLUMNS =
+  'id, title, item_ids AS itemIds, candidates, shown, status, revision_id AS revisionId, created_at AS createdAt';
+
+interface RawPrompt {
+  id: string;
+  title: string;
+  itemIds: string;
+  candidates: string;
+  shown: number;
+  status: ScriptPromptStatus;
+  revisionId: string | null;
+  createdAt: number;
+}
+
+function toPrompt(row: RawPrompt): ScriptPromptRow {
+  return {
+    id: row.id,
+    title: row.title,
+    itemIds: JSON.parse(row.itemIds) as string[],
+    candidates: JSON.parse(row.candidates) as string[],
+    shown: row.shown,
+    status: row.status,
+    revisionId: row.revisionId,
+    createdAt: row.createdAt
+  };
+}
 const APPROVED = `r.provenance IN ('OWNER_APPROVED', 'OWNER_PREAPPROVED') AND g.format <> 'telegram'`;
 
 export function createD1ScriptLinksRepository(db: D1Database): ScriptLinksRepository {
@@ -150,6 +232,126 @@ export function createD1ScriptLinksRepository(db: D1Database): ScriptLinksReposi
         .bind(format)
         .all<{ id: string }>();
       return rows.results.map((row) => row.id);
+    },
+
+    async linkedAmong(itemIds) {
+      const ids = itemIds.slice(0, 50);
+      if (ids.length === 0) return new Set();
+      const rows = await db
+        .prepare(
+          'SELECT content_item_id AS id FROM content_ai_links WHERE content_item_id IN (SELECT value FROM json_each(?))'
+        )
+        .bind(JSON.stringify(ids))
+        .all<{ id: string }>();
+      return new Set(rows.results.map((row) => row.id));
+    },
+
+    async promptsAmong(groupKeys) {
+      const keys = groupKeys.slice(0, 50);
+      if (keys.length === 0) return new Map();
+      const rows = await db
+        .prepare(
+          `SELECT group_key AS key, ${PROMPT_COLUMNS} FROM ai_script_prompts
+           WHERE group_key IN (SELECT value FROM json_each(?))`
+        )
+        .bind(JSON.stringify(keys))
+        .all<RawPrompt & { key: string }>();
+      return new Map(rows.results.map((row) => [row.key, toPrompt(row)]));
+    },
+
+    async addPromptItems({ id, itemIds, now }) {
+      if (itemIds.length === 0) return;
+      const linked = "EXISTS (SELECT 1 FROM ai_script_prompts WHERE id = ?3 AND status IN ('auto', 'linked'))";
+      await db.batch([
+        db
+          .prepare(
+            `UPDATE ai_script_prompts SET item_ids = (
+               SELECT json_group_array(value) FROM (
+                 SELECT value FROM json_each(ai_script_prompts.item_ids)
+                 UNION SELECT value FROM json_each(?2)
+               )
+             ), updated_at = ?3 WHERE id = ?1`
+          )
+          .bind(id, JSON.stringify(itemIds), now),
+        ...itemIds.map((itemId) =>
+          db
+            .prepare(
+              `INSERT INTO content_ai_links (content_item_id, revision_id, linked_at)
+               SELECT ?1, revision_id, ?2 FROM ai_script_prompts WHERE id = ?3 AND revision_id IS NOT NULL AND ${linked}
+               ON CONFLICT (content_item_id) DO NOTHING`
+            )
+            .bind(itemId, now, id)
+        )
+      ]);
+    },
+
+    async openPrompts(since, limit) {
+      const rows = await db
+        .prepare(
+          `SELECT ${PROMPT_COLUMNS} FROM ai_script_prompts
+           WHERE status IN ('auto', 'asked') AND created_at >= ? ORDER BY created_at LIMIT ?`
+        )
+        .bind(since, Math.min(limit, 10))
+        .all<RawPrompt>();
+      return rows.results.map(toPrompt);
+    },
+
+    async createPrompt({ id, groupKey, title, itemIds, candidates, status, revisionId, now }) {
+      const insert = db
+        .prepare(
+          `INSERT OR IGNORE INTO ai_script_prompts
+             (id, group_key, title, item_ids, candidates, status, revision_id, created_at, updated_at)
+           VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?8)`
+        )
+        .bind(id, groupKey, title, JSON.stringify(itemIds), JSON.stringify(candidates), status, revisionId, now);
+      // The links only when this insert won: the row with this id exists and is this auto prompt.
+      const links =
+        status === 'auto' && revisionId !== null
+          ? itemIds.map((itemId) =>
+              db
+                .prepare(
+                  `INSERT INTO content_ai_links (content_item_id, revision_id, linked_at)
+                   SELECT ?1, ?2, ?3 WHERE EXISTS (SELECT 1 FROM ai_script_prompts WHERE id = ?4 AND status = 'auto')
+                   ON CONFLICT (content_item_id) DO NOTHING`
+                )
+                .bind(itemId, revisionId, now, id)
+            )
+          : [];
+      const [result] = await db.batch([insert, ...links]);
+      return result?.meta.changes === 1;
+    },
+
+    async findPrompt(id) {
+      const row = await db
+        .prepare(`SELECT ${PROMPT_COLUMNS} FROM ai_script_prompts WHERE id = ?`)
+        .bind(id)
+        .first<RawPrompt>();
+      return row === null ? null : toPrompt(row);
+    },
+
+    async answerPrompt({ id, from, shown, to, nextShown, revisionId, itemIds, link, now }) {
+      const update = db
+        .prepare(
+          `UPDATE ai_script_prompts SET status = ?3, revision_id = ?4, shown = COALESCE(?6, shown), updated_at = ?5
+           WHERE id = ?1 AND status = ?2 AND (?7 IS NULL OR shown = ?7)`
+        )
+        .bind(id, from, to, revisionId, now, nextShown ?? null, shown ?? null);
+      // The links follow only the tap that moved the prompt: the row now holds this tap's state and time.
+      const moved = 'EXISTS (SELECT 1 FROM ai_script_prompts WHERE id = ?3 AND status = ?4 AND updated_at = ?5)';
+      const links = itemIds.map((itemId) =>
+        link === 'set'
+          ? db
+              .prepare(
+                `INSERT INTO content_ai_links (content_item_id, revision_id, linked_at) SELECT ?1, ?2, ?5 WHERE ${moved}
+                 ON CONFLICT (content_item_id) DO UPDATE SET revision_id = excluded.revision_id, linked_at = excluded.linked_at`
+              )
+              .bind(itemId, revisionId, id, to, now)
+          : db
+              .prepare(`DELETE FROM content_ai_links WHERE content_item_id = ?1 AND revision_id = ?2 AND ${moved}`)
+              .bind(itemId, revisionId, id, to, now)
+      );
+      const [result] = await db.batch([update, ...(link === 'keep' ? [] : links)]);
+      return result?.meta.changes === 1;
     }
   };
   return repo;

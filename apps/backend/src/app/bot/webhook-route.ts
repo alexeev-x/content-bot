@@ -15,6 +15,7 @@ import { createOwnerReports } from './owner-reports';
 import { getOwnerOperationsSettings } from '../../modules/settings';
 import { createTelegramCaller } from './telegram-call';
 import { createWriterDeps } from './writer-deps';
+import { handleScriptPromptTap } from '../workflows/script-prompts';
 
 const MAX_UPDATE_BYTES = 256 * 1024;
 // grammY's default is 10 s, the point where Telegram gives up on the webhook. The handler only does D1
@@ -94,6 +95,17 @@ export const telegramWebhook = new Hono<AppBindings>().post(
       reports: {
         status: () => reports().status()
       },
+      scriptPromptTap: async (data) =>
+        handleScriptPromptTap(
+          {
+            links: container.aiScriptLinks,
+            clock: container.clock,
+            timezone: (
+              await getOwnerOperationsSettings({ repo: container.settings, logger: container.logger, requestId })
+            ).timezone
+          },
+          data
+        ),
       analyticsNow: async () => ({
         html: await dailyReportNow({
           analytics: container.contentAnalytics,

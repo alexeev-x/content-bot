@@ -30,6 +30,7 @@ import {
 } from '../modules/content-analytics';
 import { mirrorHeroAssets } from '../modules/hero-assets';
 import { sendContentAlerts } from './workflows/send-content-alerts';
+import { raiseScriptPrompts } from './workflows/script-prompts';
 import { runAiReviews } from './workflows/run-ai-reviews';
 
 // Per table and per hourly tick; leftovers wait for the next hour.
@@ -49,6 +50,10 @@ const CONTENT_ALERTS_RESERVE = 24;
 // and the report row. Its own minute-2 slot, so the content alerts of
 // minute 8 keep their budget and send it six minutes later.
 const DAILY_REPORT_STATEMENTS = 24;
+// New videos' scripts, every statement counted: settings, two item lists, the prompts and links reads, at most two
+// videos handled (scripts read, the prompt with up to two links, the close: five each), the open prompts and
+// their messages read, up to two scripts and one alert batch of up to two — 22 at most.
+const SCRIPT_PROMPT_STATEMENTS = 24;
 /** A claim and one file (fetch, R2 write, update); more files when more is left. */
 const HERO_ASSETS_MIN = 6;
 // The tick of this UTC minute purges expired archived posts (cleanup runs at minute 0).
@@ -102,6 +107,8 @@ type TickContainer = Pick<
   | 'contentGoals'
   | 'contentForecasts'
   | 'contentDailyReports'
+  | 'aiScriptLinks'
+  | 'newId'
   | 'aiJobs'
   | 'contentSources'
   | 'contentFetch'
@@ -483,6 +490,29 @@ export async function handleScheduled(controller: ScheduledController, container
           dailyReportReleased: released
         };
       });
+  }
+
+  // 7c''. each new video's approved script (owner, 19.10.2026): a confident match is linked and reported, any
+  // other is asked once; the message goes out with the content alerts. Idle minute-9 ticks.
+  if (
+    minute % 10 === 9 &&
+    (counts.due ?? 0) === 0 &&
+    raised.length === 0 &&
+    container.contentSources.collectors.length > 0 &&
+    container.queryBudget.remaining() >= SCRIPT_PROMPT_STATEMENTS + HEARTBEAT_RESERVE
+  ) {
+    await step('script-prompts', async () => {
+      const { timezone } = await readPreferences();
+      const prompts = await raiseScriptPrompts({
+        analytics: container.contentAnalytics,
+        alerts: container.contentAlerts,
+        links: container.aiScriptLinks,
+        clock,
+        newId: container.newId,
+        timezone
+      });
+      return { scriptPromptsRaised: prompts };
+    });
   }
 
   // 7c. content alerts: five minutes after collection, on idle ticks. Raising is idempotent (the alert id

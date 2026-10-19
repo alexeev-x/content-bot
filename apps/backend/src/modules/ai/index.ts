@@ -56,6 +56,14 @@ export {
   readUnlinkedScripts,
   unlinkItemScript
 } from './script-links';
+export {
+  answerScriptPrompt,
+  proposeScriptLinks,
+  scriptGroupKey,
+  type ScriptPromptAnswer,
+  type ScriptProposal,
+  type VideoForScript
+} from './script-prompts';
 export { FORMAT_LABEL, WRITER_FORMATS, type WriterFormat } from './writer-types';
 export { authorStateText, rankLabel, readAuthorProfile, saveAuthorDota, updateAuthorProfile } from './author-profile';
 export { type AuthorProfileRepository, createD1AuthorProfileRepository } from './d1-author-repository';
