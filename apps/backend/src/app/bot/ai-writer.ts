@@ -461,12 +461,24 @@ export function registerAiWriter(bot: Bot, runtime: AiWriterRuntime): void {
       const deps = await runtime.writer();
       const generation = await deps.writer.findByChatMessage(replyTo.message_id);
       if (generation !== null) {
-        await deps.writer.setEditing({
-          chatId: ctx.chat.id,
-          generationId: null,
-          now: runtime.clock.now(),
-          expiresAt: runtime.clock.now() + REQUEST_TTL_MS
-        });
+        if (isRequestForFacts(generation)) {
+          const claimed = await deps.writer.consumeEditing({
+            chatId: ctx.chat.id,
+            generationId: generation.id,
+            now: runtime.clock.now()
+          });
+          if (!claimed) {
+            await ctx.reply('Ответ на этот вопрос уже принят.');
+            return;
+          }
+        } else {
+          await deps.writer.setEditing({
+            chatId: ctx.chat.id,
+            generationId: null,
+            now: runtime.clock.now(),
+            expiresAt: runtime.clock.now() + REQUEST_TTL_MS
+          });
+        }
         await continueGeneration(ctx, deps, generation);
         return;
       }
@@ -479,7 +491,11 @@ export function registerAiWriter(bot: Bot, runtime: AiWriterRuntime): void {
     // «✏️ Изменить» or an open question: this one message belongs to that draft, whatever the mode.
     if (chat?.editing) {
       const deps = await runtime.writer();
-      await writer.setEditing({ chatId: ctx.chat.id, generationId: null, now, expiresAt: now + REQUEST_TTL_MS });
+      const claimed = await writer.consumeEditing({ chatId: ctx.chat.id, generationId: chat.editing, now });
+      if (!claimed) {
+        await ctx.reply('Ответ на этот вопрос уже принят.');
+        return;
+      }
       const generation = await deps.writer.findGeneration(chat.editing);
       if (generation !== null) {
         await continueGeneration(ctx, deps, generation);

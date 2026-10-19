@@ -251,6 +251,8 @@ export interface WriterRepository {
    * chat row when none is open, so the next plain message is the edit whatever mode the chat is in.
    */
   setEditing(input: { chatId: number; generationId: string | null; now: number; expiresAt: number }): Promise<void>;
+  /** Consumes one awaited edit/question; a concurrent reply to the same generation loses without a model call. */
+  consumeEditing(input: { chatId: number; generationId: string; now: number }): Promise<boolean>;
   /**
    * After a «Что не так?» reason: the chat waits for the owner's note on `feedbackId` (null stops waiting). Like
    * `setEditing`, it opens a row of its own when no chat is open; starting it ends an awaited edit, so one wait is
@@ -614,6 +616,24 @@ export function createD1WriterRepository(db: D1Database): WriterRepository {
         )
         .bind(chatId, generationId, expiresAt, now)
         .run();
+    },
+
+    async consumeEditing({ chatId, generationId, now }) {
+      const result = await db
+        .prepare(
+          `UPDATE ai_writer_requests SET editing_generation_id = NULL
+           WHERE chat_id = ? AND editing_generation_id = ? AND expires_at > ?`
+        )
+        .bind(chatId, generationId, now)
+        .run();
+      if (result.meta.changes !== 1) return false;
+      await db
+        .prepare(
+          'DELETE FROM ai_writer_requests WHERE chat_id = ? AND prompt_message_id = 0 AND editing_generation_id IS NULL AND noting_feedback_id IS NULL'
+        )
+        .bind(chatId)
+        .run();
+      return true;
     },
 
     async setNoting({ chatId, feedbackId, now, expiresAt }) {
