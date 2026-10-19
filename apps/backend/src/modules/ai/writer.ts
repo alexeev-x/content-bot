@@ -61,7 +61,8 @@ const RECENT_FACETS = 20;
 const PHRASE_WINDOW = 5;
 /** The owner's edited approvals of the format ranked against the task, and how many reach the prompt. */
 const OWNER_CANDIDATES = 20;
-const OWNER_TEXTS = 2;
+// Three of the four examples may be the owner's newest approved texts: the voice moves with the work (owner, 19.10.2026).
+const OWNER_TEXTS = 3;
 /** The owner's latest posts looked at for his own words (the port's bound, and the one of `postOrigins`). */
 const OWNER_POST_CANDIDATES = 100;
 

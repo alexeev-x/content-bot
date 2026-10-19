@@ -122,7 +122,8 @@ const RECOUNT = `UPDATE ai_rules SET updated_at = ?1, status = (
       FROM ai_rule_evidence WHERE rule_id = ai_rules.id))
   WHERE ${OPEN_ANALYSIS}`;
 /** In use: an active owner rule, or an analysis rule the owner approved that the evidence still supports. */
-const IN_USE = `(status = 'active' OR (source = 'analysis' AND status IN ('supported', 'strong') AND approved_at IS NOT NULL))`;
+export const RULES_IN_USE_SQL = `(status = 'active' OR (source = 'analysis' AND status IN ('supported', 'strong') AND approved_at IS NOT NULL))`;
+const IN_USE = RULES_IN_USE_SQL;
 
 export function createD1RulesRepository(db: D1Database): RulesRepository {
   return {

@@ -226,4 +226,56 @@ describe('owner rules', () => {
     expect(inputs[0]).not.toContain(`${RULE} strong`);
     expect(inputs[0]).not.toContain(`${RULE} candidate`);
   });
+
+  it('turns a style lesson into one rule on «Учитывать», even on a double tap, and «Нет» turns it down (P7c)', async () => {
+    const lesson = (id: string, text: string) =>
+      testDb()
+        .prepare(
+          `INSERT INTO ai_style_lessons (id, text, scope, status, created_at, updated_at)
+           VALUES (?1, ?2, 'igrat', 'asked', 1, 1)`
+        )
+        .bind(id, text)
+        .run();
+    const yes = '00000000-0000-4000-8000-0000000000e1';
+    const no = '00000000-0000-4000-8000-0000000000e2';
+    await lesson(yes, 'Не заканчивай призывом подписаться');
+    await lesson(no, 'Пиши капсом');
+    await tap(`sp:${yes}:ok`);
+    await tap(`sp:${yes}:ok`);
+    await tap(`sp:${no}:no`);
+    const rules = await testDb()
+      .prepare(`SELECT text, scope, status FROM ai_rules WHERE status <> 'disabled'`)
+      .all<{ text: string; scope: string; status: string }>();
+    expect(rules.results).toEqual([{ text: 'Не заканчивай призывом подписаться', scope: 'igrat', status: 'active' }]);
+    const states = await testDb()
+      .prepare('SELECT id, status, rule_id IS NOT NULL AS linked FROM ai_style_lessons ORDER BY id')
+      .all<{ id: string; status: string; linked: number }>();
+    expect(states.results).toEqual([
+      { id: yes, status: 'accepted', linked: 1 },
+      { id: no, status: 'rejected', linked: 0 }
+    ]);
+    await say('Учусь играть на Пудже: промахнулся хуком');
+    await api.settle();
+    expect(inputs[0]).toContain('- Не заканчивай призывом подписаться');
+    expect(inputs[0]).not.toContain('Пиши капсом');
+
+    // At the 15-rule cap the lesson waits, asked, and nothing half-made is left behind.
+    const full = '00000000-0000-4000-8000-0000000000e3';
+    await lesson(full, 'Короче второе предложение');
+    for (let index = 0; index < 14; index += 1)
+      await testDb()
+        .prepare(
+          `INSERT INTO ai_rules (id, text, scope, source, status, created_at, updated_at)
+           VALUES (?1, 'Ещё правило', 'all', 'owner', 'active', 1, 1)`
+        )
+        .bind(`00000000-0000-4000-8000-0000000001${String(index).padStart(2, '0')}`)
+        .run();
+    await tap(`sp:${full}:ok`);
+    expect(
+      await testDb().prepare('SELECT status, rule_id FROM ai_style_lessons WHERE id = ?').bind(full).first()
+    ).toEqual({ status: 'asked', rule_id: null });
+    expect(
+      await testDb().prepare(`SELECT count(*) AS n FROM ai_rules WHERE text = 'Короче второе предложение'`).first()
+    ).toEqual({ n: 0 });
+  });
 });

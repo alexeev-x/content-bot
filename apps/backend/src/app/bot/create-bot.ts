@@ -27,7 +27,7 @@ import { configureOwnerChat } from './owner-chat';
 import type { OwnerReply, OwnerReports } from './owner-reports';
 import type { TelegramCaller } from './telegram-call';
 import type { UpdateDedup } from './update-dedup';
-import type { RulesRepository, WriterDeps } from '../../modules/ai';
+import type { RulesRepository, StyleLessonsRepository, WriterDeps } from '../../modules/ai';
 import { CONTAMINATION_CALLBACK, parseContaminationCallback } from '../../modules/content-analytics';
 import type { AiJob } from './ai-job';
 import { NO_MODE_TEXT, registerAiWriter, REQUEST_TTL_MS } from './ai-writer';
@@ -132,6 +132,8 @@ export interface BotRuntime {
   reports: OwnerReports;
   /** The AI writer's rules (AI plan P7): «/rule» and «/rules». */
   rules: () => Promise<RulesRepository>;
+  /** What the owner's edits teach (AI plan P7c): «✅ Учитывать» / «Нет» under a lesson. */
+  styleLessons: () => Promise<StyleLessonsRepository>;
   /** A tap on «Снят по этому сценарию?» or «Привязал сценарий» (owner, 19.10.2026). */
   scriptPromptTap: (data: string) => Promise<ScriptPromptReply>;
   /** «Аналитика сейчас» (AI plan P6): the daily table at this moment; never a second daily report. */
@@ -329,6 +331,7 @@ export function createBot(config: BotConfig, runtime: BotRuntime): Bot {
     clock: runtime.clock,
     newId: () => crypto.randomUUID(),
     rules: runtime.rules,
+    lessons: runtime.styleLessons,
     onError: runtime.onError
   });
   registerAiWriter(bot, runtime);

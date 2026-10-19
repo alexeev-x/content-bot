@@ -13,6 +13,12 @@ export {
 export { type AnalyticsReview, writeAnalyticsReview } from './analytics-review';
 export { readUsageCosts } from './service';
 export { changeRule, readRules, removeRuleEvidence } from './rules-admin';
+export { LESSON_LOOKBACK_MS, learnFromEdits } from './style-lessons';
+export {
+  createD1StyleLessonsRepository,
+  type LessonRow,
+  type StyleLessonsRepository
+} from './d1-style-lessons-repository';
 export { readDraftChain, readDrafts } from './draft-history';
 export { createD1DraftHistoryRepository, type DraftHistoryRepository } from './d1-draft-history-repository';
 export {

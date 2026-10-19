@@ -31,6 +31,7 @@ import {
 } from '../modules/content-analytics';
 import { mirrorHeroAssets } from '../modules/hero-assets';
 import { sendContentAlerts } from './workflows/send-content-alerts';
+import { LESSON_LOOKBACK_MS } from '../modules/ai';
 import { LOST_JOB_STATEMENTS, reportLostAiJobs } from './workflows/lost-ai-jobs';
 import { raiseScriptPrompts } from './workflows/script-prompts';
 import { runAiReviews } from './workflows/run-ai-reviews';
@@ -109,6 +110,7 @@ type TickContainer = Pick<
   | 'contentAlerts'
   | 'contentGoals'
   | 'aiWriter'
+  | 'aiStyleLessons'
   | 'contentForecasts'
   | 'contentDailyReports'
   | 'aiScriptLinks'
@@ -533,11 +535,27 @@ export async function handleScheduled(controller: ScheduledController, container
     });
   }
 
-  // 7c'''. AI writer jobs whose Worker died after the claim (review 19.10.2026): the owner is told once, so the
-  // task can be sent again. Idle ticks of minutes 4, 24 and 44 (14, 34 and 54 are the video reviews'); the message
-  // goes out with the content alerts at minute 8.
+  // 7c''''. the owner's new edits and remarks (AI plan P7c): when any wait, one job on AI_JOBS reads them into
+  // style lessons. Idle minute-44 ticks, so the writer learns within the hour; three statements.
   if (
-    minute % 20 === 4 &&
+    minute === 44 &&
+    (counts.due ?? 0) === 0 &&
+    raised.length === 0 &&
+    container.queryBudget.remaining() >= 3 + HEARTBEAT_RESERVE
+  ) {
+    await step('style-lessons', async () => {
+      const waiting = await container.aiStyleLessons.unread(clock.now() - LESSON_LOOKBACK_MS, 1, clock.now());
+      if (waiting.length === 0) return { styleLessonsQueued: 0 };
+      await container.aiJobs.send({ id: crypto.randomUUID(), kind: 'style_lessons' });
+      return { styleLessonsQueued: 1 };
+    });
+  }
+
+  // 7c'''. AI writer jobs whose Worker died after the claim (review 19.10.2026): the owner is told once, so the
+  // task can be sent again. Idle ticks of minutes 4 and 24 (14, 34 and 54 are the video reviews', 44 the style
+  // lessons'); the message goes out with the content alerts at minute 8.
+  if (
+    (minute === 4 || minute === 24) &&
     (counts.due ?? 0) === 0 &&
     raised.length === 0 &&
     container.queryBudget.remaining() >= LOST_JOB_STATEMENTS + HEARTBEAT_RESERVE

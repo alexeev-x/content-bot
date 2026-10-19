@@ -1,5 +1,11 @@
 import { type Bot, InlineKeyboard } from 'grammy';
-import { type RuleRow, type RuleScope, type RulesRepository, RULES_IN_USE_MAX } from '../../modules/ai';
+import {
+  type RuleRow,
+  type RuleScope,
+  type RulesRepository,
+  RULES_IN_USE_MAX,
+  type StyleLessonsRepository
+} from '../../modules/ai';
 import type { Clock } from '../../platform/clock';
 import { escapeHtml } from '../notifications/notice-template';
 
@@ -33,8 +39,12 @@ export interface AiRulesRuntime {
   clock: Clock;
   newId: () => string;
   rules: () => Promise<RulesRepository>;
+  lessons: () => Promise<StyleLessonsRepository>;
   onError: (error: unknown) => void;
 }
+
+/** «✅ Учитывать» / «Нет» under a style lesson (app/workflows/style-lessons.ts). */
+export const LESSON_CALLBACK = /^sp:([0-9a-f-]{36}):(ok|no)$/;
 
 function cut(text: string): string {
   const letters = Array.from(text);
@@ -76,6 +86,45 @@ export function registerAiRules(bot: Bot, runtime: AiRulesRuntime): void {
   bot.command('rules', async (ctx) => {
     const { html, keyboard } = listHtml(await (await runtime.rules()).inUse(RULES_IN_USE_MAX));
     await ctx.reply(html, { parse_mode: 'HTML', reply_markup: keyboard });
+  });
+
+  bot.callbackQuery(LESSON_CALLBACK, async (ctx) => {
+    const [, id = '', action = ''] = ctx.match;
+    const lessons = await runtime.lessons();
+    const now = runtime.clock.now();
+    const lesson = await lessons.find(id);
+    if (lesson === null || lesson.status !== 'asked') {
+      await ctx.answerCallbackQuery({ text: 'Эта кнопка устарела.' });
+      return;
+    }
+    if (action === 'no') {
+      // Turned down: never used and never proposed again.
+      const done = await lessons.reject({ id, now });
+      await ctx.answerCallbackQuery({ text: done ? 'Не буду учитывать.' : 'Эта кнопка устарела.' });
+      if (done)
+        await ctx
+          .editMessageText(`Не учитываю:\n«${escapeHtml(lesson.text)}»`, { parse_mode: 'HTML' })
+          .catch(runtime.onError);
+      return;
+    }
+    // The lesson and its active rule in one batch: a double tap makes one rule, a crash makes none (review
+    // 19.10.2026); at the cap the lesson stays asked and the same button works later.
+    const accepted = await lessons.accept({ id, ruleId: runtime.newId(), now });
+    if (accepted !== 'accepted') {
+      await ctx.answerCallbackQuery({
+        text:
+          accepted === 'full'
+            ? `Уже ${RULES_IN_USE_MAX} правил. Отключите лишнее в /rules и нажмите снова.`
+            : 'Эта кнопка устарела.'
+      });
+      return;
+    }
+    await ctx.answerCallbackQuery({ text: 'Учту в новых текстах.' });
+    await ctx
+      .editMessageText(`✍️ Учитываю в новых текстах:\n«${escapeHtml(lesson.text)}»\n\nОтключить — /rules.`, {
+        parse_mode: 'HTML'
+      })
+      .catch(runtime.onError);
   });
 
   bot.callbackQuery(RULE_CALLBACK, async (ctx) => {

@@ -3,6 +3,7 @@ import { aiJobSchema } from './bot/ai-job';
 import { runAiJob } from './bot/ai-writer';
 import { createWriterDeps } from './bot/writer-deps';
 import { runDailyReview } from './workflows/daily-review';
+import { runStyleLessons } from './workflows/style-lessons';
 import type { Container } from './container';
 
 // Consumer of Queue AI_JOBS (docs/backend/bot.md «AI writer»): one model call per message, with the 15 minutes
@@ -39,6 +40,17 @@ export async function handleAiQueue(batch: MessageBatch<unknown>, container: Con
           await runDailyReview(job.reportId, container, requestId, onError);
       } catch (error) {
         // D1 failed: the Cron fallback releases the numbers alone after its deadline.
+        onError(error);
+      }
+      message.ack();
+      continue;
+    }
+    if (job.kind === 'style_lessons') {
+      try {
+        if (await container.aiWriter.claimJob(job.id, container.clock.now()))
+          await runStyleLessons(container, requestId, onError);
+      } catch (error) {
+        // D1 failed: the edits stay unread, the next hourly run takes them.
         onError(error);
       }
       message.ack();

@@ -124,11 +124,11 @@ export function pickExamples(format: WriterFormat, task: string, holdOut: readon
     );
 }
 
-const MAX_OWNER_EXAMPLES = 2;
+const MAX_OWNER_EXAMPLES = 3;
 const MAX_EXAMPLES = 4;
 
 /**
- * The owner's own approved texts outrank the archive (architecture items 2 and 17): up to two of them go last,
+ * The owner's own approved texts outrank the archive (architecture items 2 and 17): up to three of them go last,
  * right before the task, and the bundled examples give way so the total stays within 3–4.
  */
 function examplesWithOwner(bundled: readonly string[], ownerTexts: readonly string[]): string[] {
@@ -270,8 +270,11 @@ export function repeatsRecentTopic(topic: string, recent: readonly { topic: stri
   });
 }
 
-/** Shared stems outweigh this bonus: recency only orders texts equally relevant to the task (plan stage 2). */
-const RECENCY_WEIGHT = 0.3;
+/**
+ * Half the weight of a full topic match (owner, 19.10.2026: the voice moves with the work): the newest text ties one
+ * that shares half the task's stems, so new work leads unless an older text is clearly closer to the task.
+ */
+const RECENCY_WEIGHT = 0.5;
 
 /**
  * The owner texts for a task, best first: the share of the task's word stems a text shares, plus a small bonus
