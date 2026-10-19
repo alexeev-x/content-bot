@@ -165,7 +165,7 @@ export function ReportsPanel() {
       );
   }
   return (
-    <Panel title="Отчёты" icon={<Icon name="list-ordered" />}>
+    <Panel title="Отчёты" icon={<Icon name="file" />}>
       <div className={styles.body}>
         <p className={styles.hint}>
           Ежедневные отчёты и итоги недели, как их собрал бот: текст с разбором ИИ и прогнозы с тем, как они сбылись.

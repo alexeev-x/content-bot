@@ -1,7 +1,8 @@
 .body {
   display: grid;
   gap: var(--space-3);
-  padding: 0 var(--space-4) var(--space-4);
+  /* The panel body is flush: its content keeps the panel's own padding on every side. */
+  padding: var(--space-4);
 }
 
 .heading {

@@ -55,6 +55,12 @@
 .notice + .notice {
   border-top: 1px solid var(--color-border-subtle);
 }
+/* The switch row, then the hour field: the same side padding as the other panels and room under the field. */
+.report {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-4) var(--space-4);
+}
 .critical {
   padding: 0 var(--space-4) var(--space-4);
 }

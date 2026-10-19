@@ -231,7 +231,7 @@ export function GeneralSettingsEditor() {
       </Panel>
       {/* Its own panel: «Включить все» never starts a daily message the owner did not choose (plan §4.3). */}
       <Panel title={ru.general.dailyReportTitle} icon={<Icon name="chart" />}>
-        <div className={styles.switches}>
+        <div className={styles.report}>
           <Switch
             variant="row"
             isSelected={view.dailyReport}
