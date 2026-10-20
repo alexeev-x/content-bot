@@ -1,6 +1,7 @@
 import type { ContentItemDto, ContentReportDto } from '@alexeev/contracts';
 import { describe, expect, it } from 'vitest';
-import { buildActions } from './actions';
+import { buildActions, composeCards } from './actions';
+import type { Insight } from './insights';
 import { formatSeries } from './formats';
 
 const TO = Date.parse('2026-10-20T08:00:00.000Z');
@@ -59,7 +60,7 @@ describe('buildActions', () => {
     item('telegram', 'Что думаете, выиграем?', 216, 2)
   ];
 
-  it('puts the broken funnel, the pause in videos and the winning format first', () => {
+  it('puts the broken funnel and the winning format first; five days is no pause at a video every four', () => {
     const built = report(items, [834, 831]);
     const actions = buildActions({
       report: built,
@@ -67,10 +68,9 @@ describe('buildActions', () => {
       days: 30,
       series: formatSeries(built.items, TO)
     });
-    expect(actions.map((action) => action.id)).toEqual(['funnel', 'video-gap', 'format-gap']);
+    expect(actions.map((action) => action.id)).toEqual(['funnel', 'format-gap']);
     expect(actions[0]?.action?.kind).toBe('invite');
-    expect(actions[1]?.title).toBe('Роликов не было 5 дней');
-    expect(actions[2]?.title).toMatch(/^«Учу фидить в доту?» в \d+ раз(а)? сильнее «Учусь играть в доту»$/);
+    expect(actions[1]?.title).toMatch(/^«Учу фидить в доту?» в \d+ раз(а)? сильнее «Учусь играть в доту»$/);
   });
 
   it('says nothing about the funnel while Telegram grows', () => {
@@ -86,6 +86,40 @@ describe('buildActions', () => {
     ]);
     expect(buildActions({ report: built, platform: 'telegram', days: 30, series: [] }).map((a) => a.id)).toEqual([
       'funnel'
+    ]);
+  });
+
+  it('flags a pause past one and a half of the usual interval, saying what is usual', () => {
+    const steady = [2, 4, 6, 8, 10].map((daysAgo) => item('youtube', 'Ролик', 1000, daysAgo + 2));
+    const built = report(steady, [834, 834]);
+    const [pause] = buildActions({ report: built, platform: 'youtube', days: 30, series: [] });
+    expect(pause).toMatchObject({ id: 'video-gap', title: 'Роликов не было 4 дня' });
+    expect(pause?.detail).toMatch(/^Обычно вы выкладываете ролик раз в 2 дня./);
+    const onTime = report(
+      [2, 4, 6, 8, 10].map((daysAgo) => item('youtube', 'Ролик', 1000, daysAgo)),
+      [834, 834]
+    );
+    expect(buildActions({ report: onTime, platform: 'youtube', days: 30, series: [] })).toEqual([]);
+  });
+});
+
+describe('composeCards', () => {
+  const card = (id: string, title = id): Insight => ({ id, tone: 'neutral', title, detail: 'Деталь.' });
+
+  it('folds the turn in the latest videos into the format card and keeps four cards at most', () => {
+    const cards = composeCards(
+      [card('funnel'), card('video-gap'), card('format-gap')],
+      [card('recent-tiktok', 'Последние 5 в TikTok: −40% к обычному'), card('cadence'), card('extra')]
+    );
+    expect(cards.map((entry) => entry.id)).toEqual(['funnel', 'video-gap', 'format-gap', 'cadence']);
+    expect(cards[2]?.detail).toBe('Последние 5 в TikTok: −40% к обычному. Деталь.');
+  });
+
+  it('keeps the turn as its own card when no format wins', () => {
+    expect(composeCards([card('funnel')], [card('recent-tiktok'), card('cadence')]).map((entry) => entry.id)).toEqual([
+      'funnel',
+      'recent-tiktok',
+      'cadence'
     ]);
   });
 });

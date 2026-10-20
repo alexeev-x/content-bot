@@ -14,8 +14,13 @@ const DAY_MS = 86_400_000;
 const FUNNEL_MIN_VIEWS = 20_000;
 /** Telegram growth under this share of the channel per period counts as «no growth». */
 const FUNNEL_FLAT_SHARE = 0.01;
-/** A pause in videos from this many days is worth saying. */
+/** A pause in videos counts from this many days, and only past PAUSE_FACTOR of the owner's usual interval. */
 const VIDEO_GAP_DAYS = 3;
+const PAUSE_FACTOR = 1.5;
+/** Intervals between the latest videos that set «usual». */
+const USUAL_INTERVALS = 10;
+/** «Что сделать» shows at most this many cards (owner, 20.10.2026: four that matter, no «Показать ещё»). */
+export const CARDS_MAX = 4;
 /** A format «wins» at this many times the usual; it is set against another one at least this many times weaker. */
 const FORMAT_STRONG = 1.5;
 const FORMAT_GAP = 3;
@@ -25,6 +30,39 @@ const VIDEO_PLATFORMS: readonly ContentPlatform[] = ['youtube', 'tiktok'];
 function timesWord(multiple: number): string {
   const rounded = Math.round(multiple);
   return `в ${rounded} ${pluralRu(rounded, 'раз', 'раза', 'раз')}`;
+}
+
+/** Median days between the latest videos, newest first; null with fewer than three intervals. */
+function usualIntervalDays(newestFirst: readonly { publishedAt: string }[]): number | null {
+  const times = newestFirst.slice(0, USUAL_INTERVALS + 1).map((item) => Date.parse(item.publishedAt));
+  const intervals = times.slice(1).map((time, index) => ((times[index] ?? time) - time) / DAY_MS);
+  if (intervals.length < 3) return null;
+  const sorted = [...intervals].sort((a, b) => a - b);
+  const middle = Math.floor(sorted.length / 2);
+  return sorted.length % 2 === 1 ? sorted[middle]! : (sorted[middle - 1]! + sorted[middle]!) / 2;
+}
+
+/** «день», «2 дня». */
+function usualText(days: number): string {
+  const rounded = Math.max(1, Math.round(days));
+  return rounded === 1 ? 'день' : `${rounded} ${pluralRu(rounded, 'день', 'дня', 'дней')}`;
+}
+
+/**
+ * The cards of «Что сделать», at most CARDS_MAX: the actions, then the rule-based cards. A turn in the latest videos
+ * joins the format card when there is one (owner, 20.10.2026: the TikTok drop and the format winner told one story
+ * in two cards), so that card says both what changed and what to film.
+ */
+export function composeCards(actions: readonly Insight[], insights: readonly Insight[]): Insight[] {
+  const format = actions.find((card) => card.id === 'format-gap');
+  const turns = insights.filter((card) => card.id.startsWith('recent-'));
+  const cards = actions.map((card) =>
+    card === format && turns.length > 0
+      ? { ...card, detail: `${turns.map((turn) => `${turn.title}.`).join(' ')} ${card.detail}` }
+      : card
+  );
+  const rest = format === undefined ? insights : insights.filter((card) => !turns.includes(card));
+  return [...cards, ...rest].slice(0, CARDS_MAX);
 }
 
 export function buildActions(input: {
@@ -67,15 +105,18 @@ export function buildActions(input: {
     const videos = report.items.filter(
       (item) => VIDEO_PLATFORMS.includes(item.platform) && (platform === undefined || item.platform === platform)
     );
-    const latest = [...videos].sort((a, b) => Date.parse(b.publishedAt) - Date.parse(a.publishedAt))[0];
+    const sorted = [...videos].sort((a, b) => Date.parse(b.publishedAt) - Date.parse(a.publishedAt));
+    const latest = sorted[0];
     if (latest !== undefined) {
       const gap = Math.floor((at - Date.parse(latest.publishedAt)) / DAY_MS);
-      if (gap >= VIDEO_GAP_DAYS) {
+      // A pause counts against the owner's own rhythm: three days is nothing for a weekly channel.
+      const usual = usualIntervalDays(sorted);
+      if (gap >= VIDEO_GAP_DAYS && (usual === null || gap > usual * PAUSE_FACTOR)) {
         actions.push({
           id: 'video-gap',
           tone: 'bad',
           title: `Роликов не было ${gap} ${pluralRu(gap, 'день', 'дня', 'дней')}`,
-          detail: `Последний — «${itemTitle(latest)}». Ролики приводят основной трафик; без новых падает и охват канала.`,
+          detail: `${usual === null ? '' : `Обычно вы выкладываете ролик раз в ${usualText(usual)}. `}Последний — «${itemTitle(latest)}». Ролики приводят основной трафик; без новых падает и охват канала.`,
           itemId: latest.id,
           badge: { value: String(gap), sub: pluralRu(gap, 'день', 'дня', 'дней') },
           thumb: latest.thumbnailUrl

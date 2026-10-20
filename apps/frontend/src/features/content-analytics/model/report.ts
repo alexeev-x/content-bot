@@ -182,28 +182,6 @@ export function timeBlocks(items: readonly ContentItemDto[], timezone: string): 
   });
 }
 
-/** The best hour block over all weekdays, needing at least `minItems` items in it to count. */
-export function bestBlock(
-  items: readonly ContentItemDto[],
-  timezone: string,
-  minItems = 3
-): { block: number; medianViews: number; multiple: number; items: number } | null {
-  const overall = median(items.filter((item) => item.views !== null).map((item) => item.views ?? 0));
-  if (overall === null || overall === 0) return null;
-  let best: { block: number; medianViews: number; multiple: number; items: number } | null = null;
-  for (let block = 0; block < HOUR_BLOCKS.length; block += 1) {
-    const views = items
-      .filter((item) => item.views !== null && Math.floor(zonedParts(item.publishedAt, timezone).hour / 4) === block)
-      .map((item) => item.views ?? 0);
-    const value = median(views);
-    if (views.length < minItems || value === null) continue;
-    if (best === null || value > best.medianViews) {
-      best = { block, medianViews: value, multiple: Math.round((value / overall) * 10) / 10, items: views.length };
-    }
-  }
-  return best;
-}
-
 /** Running total of a daily series: the curve of a KPI tile rises instead of spiking on publishing days. */
 export function cumulative(values: readonly number[]): number[] {
   let sum = 0;

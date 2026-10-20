@@ -59,21 +59,19 @@ describe('report model', () => {
     expect(split.previous.map((entry) => entry.id)).toEqual(['telegram:2']);
   });
 
-  it('states the period change, the leader, the Telegram reach and its pace against the plan', () => {
+  it('states the Telegram pace against the plan, and nothing the tiles already show', () => {
     const items = [
       ...[3, 4, 5, 6, 7].map((n) => item(`c${n}`, 'telegram', n, n === 3 ? 900 : 300)),
       ...[10, 11].map((n) => item(`p${n}`, 'telegram', n, 300))
     ];
-    const insights = buildInsights({ report: report(items), platform: undefined, days: 7, timezone: 'Europe/Moscow' });
+    const insights = buildInsights({ report: report(items), platform: undefined, days: 7 });
     const byId = new Map(insights.map((insight) => [insight.id, insight]));
 
-    expect(byId.get('views-change')).toMatchObject({ tone: 'good', title: 'Просмотры +250% к прошлым 7 дням' });
-    expect(byId.get('leader')).toMatchObject({
-      tone: 'good',
-      title: '«Пост c3» в 3 раза выше обычного',
-      itemId: 'telegram:c3'
+    expect([...byId.keys()]).toEqual(['cadence']);
+    expect(byId.get('cadence')).toMatchObject({
+      tone: 'bad',
+      title: 'Telegram: 5 в неделю при плане 14–21',
+      badge: { value: '5 из 14', sub: 'в неделю' }
     });
-    expect(byId.get('tg-reach')).toMatchObject({ tone: 'good', title: 'Пост в Telegram видят 30% подписчиков' });
-    expect(byId.get('cadence')).toMatchObject({ tone: 'bad', title: 'Telegram: 5 в неделю при плане 14–21' });
   });
 });

@@ -91,6 +91,10 @@
   .grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+  /* An odd last card spans the row: no hole beside it. */
+  .card:last-child:nth-child(odd) {
+    grid-column: 1 / -1;
+  }
 }
 .card {
   display: grid;

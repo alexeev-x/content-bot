@@ -5,7 +5,7 @@ import { ApiError } from '../../../shared/api/http-client';
 import { useNow } from '../../../shared/lib/use-now';
 import { Banner, Button, ErrorState, StaleRegion, TabPanel, Tabs, type TableSort } from '../../../shared/ui';
 import { contentReportQueryOptions } from '../api/content-analytics-queries';
-import { buildActions } from '../model/actions';
+import { buildActions, composeCards } from '../model/actions';
 import { formatSeries } from '../model/formats';
 import { buildInsights } from '../model/insights';
 import { mediansByPlatform, multipleOf, splitPeriods } from '../model/report';
@@ -114,13 +114,13 @@ export function AnalyticsBoard({ timezone, view, onViewChange, onOpenSettings }:
       series,
       best,
       worst,
-      // What to do next first, then the rule-based conclusions (InsightsPanel orders and cuts them).
-      insights: [
-        ...buildActions({ report, platform, days, series }),
-        ...buildInsights({ report, platform, days, timezone })
-      ]
+      // What to do next first, then the rule-based cards, at most four (composeCards).
+      insights: composeCards(
+        buildActions({ report, platform, days, series }),
+        buildInsights({ report, platform, days })
+      )
     };
-  }, [report, platform, days, timezone]);
+  }, [report, platform, days]);
 
   if (reportQuery.isError && report === undefined) {
     const requestId = reportQuery.error instanceof ApiError ? reportQuery.error.requestId : undefined;
