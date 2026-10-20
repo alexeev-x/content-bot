@@ -73,6 +73,8 @@ function reviewLine(report: ContentReportSummaryDto): string {
   return `Без разбора ИИ: ${report.reviewError === null ? 'причина не записана' : (MISSING[report.reviewError] ?? report.reviewError)}${cost}`;
 }
 
+// «к 21 окт.»: the band and its date stay one phone line.
+const dayShort = (iso: string) => new Date(iso).toLocaleString('ru-RU', { day: 'numeric', month: 'short' });
 const dayMonth = (iso: string) => new Date(iso).toLocaleString('ru-RU', { day: 'numeric', month: 'long' });
 
 /** «Как я на оракле играл. Учусь играть в доту. Часть 69… #dota #dota2» → the words before the hashtags. */
@@ -97,7 +99,7 @@ function AccuracyBody({ data }: { data: ContentForecastAccuracyDto }) {
   const anyScored = judged.some((row) => row.total + row.noFact > 0);
   const pending =
     data.waiting > 0
-      ? `Ещё ${data.waiting} проверит следующий ежедневный отчёт.`
+      ? `Ждут проверки: ${data.waiting} — их проверит следующий ежедневный отчёт.`
       : data.nextTargetAt !== null
         ? `Ближайшая проверка — ${dayMonth(data.nextTargetAt)}.`
         : null;
@@ -140,7 +142,7 @@ function AccuracyBody({ data }: { data: ContentForecastAccuracyDto }) {
 function horizonResult(row: ContentReportForecastDto, now: number): string {
   if (row.outcome !== null)
     return row.fact === null ? OUTCOME[row.outcome] : `${count.format(row.fact)} · ${OUTCOME[row.outcome]}`;
-  return Date.parse(row.targetAt) > now ? `срок ${dayMonth(row.targetAt)}` : 'проверит следующий отчёт';
+  return Date.parse(row.targetAt) > now ? `к ${dayShort(row.targetAt)}` : 'проверит следующий отчёт';
 }
 
 /** `now`: when the report was loaded; a horizon that passed since then still reads as ahead until a re-read. */

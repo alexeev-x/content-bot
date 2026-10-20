@@ -114,7 +114,7 @@ describe('reports panel', () => {
     expect(await screen.findByText('В TikTok старые ролики набирают')).toBeTruthy();
     expect(screen.getByText('Без разбора ИИ: бюджет ИИ исчерпан')).toBeTruthy();
     expect(await screen.findByText('2 из 3')).toBeTruthy();
-    expect(screen.getByText('Ещё 1 проверит следующий ежедневный отчёт.')).toBeTruthy();
+    expect(screen.getByText('Ждут проверки: 1 — их проверит следующий ежедневный отчёт.')).toBeTruthy();
     // Nothing is loaded until a report is opened.
     expect(detailCalls).toBe(0);
     await userEvent.click(screen.getByText(/Ежедневный · 19 октября/));
