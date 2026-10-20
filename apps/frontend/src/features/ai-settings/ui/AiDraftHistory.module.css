@@ -119,3 +119,59 @@
   outline-offset: calc(-1 * var(--focus-ring-width));
   border-radius: var(--radius-1);
 }
+
+/* The drafts table (owner, 20.10.2026: a table like Посты): tools in the panel header, the task over its facts. */
+.tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}
+.tableInset {
+  display: grid;
+  gap: var(--space-2);
+}
+.tableInset > .hint {
+  padding: 0 var(--space-4);
+}
+.taskCell {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+.taskText {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.taskMeta {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+}
+.nowrap {
+  white-space: nowrap;
+}
+.num {
+  font-variant-numeric: tabular-nums;
+}
+.outcome {
+  font-size: var(--font-size-sm);
+  white-space: nowrap;
+}
+.outcome[data-tone='done'],
+.outcome[data-tone='edited'] {
+  color: var(--color-status-done-fg);
+}
+.outcome[data-tone='open'] {
+  color: var(--color-text-muted);
+}
+@media (max-width: 859px) {
+  .tools {
+    justify-content: flex-start;
+    width: 100%;
+  }
+  .tools > :first-child {
+    flex: 1 1 100%;
+  }
+}

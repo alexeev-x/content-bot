@@ -1,8 +1,20 @@
-import type { AiDraftSummaryDto, AiDraftVersionDto } from '@alexeev/contracts';
-import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
-import { useState } from 'react';
-import { Button as AriaButton } from 'react-aria-components';
-import { Button, Drawer, ErrorState, SegmentedControl, Skeleton } from '../../../shared/ui';
+import { AI_DRAFTS_PAGE, AI_WRITER_FORMATS, type AiDraftSummaryDto, type AiDraftVersionDto } from '@alexeev/contracts';
+import { useQuery } from '@tanstack/react-query';
+import { useEffect, useMemo, useState } from 'react';
+import {
+  type DataColumn,
+  DataTable,
+  Drawer,
+  EmptyState,
+  ErrorState,
+  Pagination,
+  Panel,
+  SearchField,
+  Select,
+  Skeleton,
+  type TableSort
+} from '../../../shared/ui';
+import type { AiDraftsListQuery } from '../api/ai-api';
 import { aiDraftChainQueryOptions, aiDraftsQueryOptions } from '../api/ai-queries';
 import { copy } from './copy';
 import styles from './AiDraftHistory.module.css';
@@ -81,97 +93,228 @@ export function Chain({ id }: { id: string }) {
   );
 }
 
-type Filter = 'all' | 'approved' | 'edited' | 'feedback' | 'open';
-const FILTERS: Record<Filter, (draft: AiDraftSummaryDto) => boolean> = {
-  all: () => true,
-  approved: (draft) => draft.approved,
-  edited: (draft) => draft.edited,
-  feedback: (draft) => draft.feedbackCount > 0,
-  open: (draft) => !draft.approved
-};
-const t = copy.editor.drafts;
+/** The table's state, kept in the URL by the page (`?q&source&format&outcome&sort&dir&page&draft`). */
+export type AiDraftsView = AiDraftsListQuery & { openId?: string | undefined };
 
 type Props = {
-  /** The draft open in its panel (`?draft=` on ИИ-редактор → Черновики), so a link and Back keep it. */
-  openId?: string | undefined;
-  onOpenChange?: ((id: string | null) => void) | undefined;
+  view?: AiDraftsView | undefined;
+  onViewChange?: ((patch: Partial<AiDraftsView>) => void) | undefined;
 };
 
+const t = copy.editor.drafts;
+const SEARCH_DEBOUNCE_MS = 300;
+const SOURCES = [
+  { id: 'bot', label: t.source.bot },
+  { id: 'studio', label: t.source.studio },
+  { id: 'all', label: t.source.all }
+];
+const FORMATS = [
+  { id: 'all', label: t.allFormats },
+  ...AI_WRITER_FORMATS.map((format) => ({ id: format, label: copy.quality.format[format] }))
+];
+const OUTCOMES = [
+  { id: 'all', label: t.filters.all },
+  { id: 'approved', label: t.filters.approved },
+  { id: 'edited', label: t.filters.edited },
+  { id: 'open', label: t.filters.open },
+  { id: 'feedback', label: t.filters.feedback }
+];
+
+/** «Одобрен», «Одобрен с правками» or «Не одобрен»: text, never colour alone. */
+function outcomeOf(draft: AiDraftSummaryDto): { label: string; tone: 'done' | 'edited' | 'open' } {
+  if (draft.approved && draft.edited) return { label: t.outcome.edited, tone: 'edited' };
+  if (draft.approved) return { label: t.outcome.approved, tone: 'done' };
+  return { label: t.outcome.open, tone: 'open' };
+}
+
 /**
- * Every AI draft (AI plan P8; SYS-01) as a list of one-line rows (owner, 20.10.2026: each draft opened in full made
- * a phone screen per draft). A row opens its versions, texts and verdicts in a side panel, a sheet on a phone.
+ * ИИ-редактор → Черновики (owner, 20.10.2026: «почему нельзя в виде таблицы, с сортировками и фильтрами, как везде»):
+ * the server's search, filters, sort and pages, the bot's drafts first (on DEV 133 of 147 were studio control runs).
+ * A row opens its versions, texts and verdicts in a side panel, a sheet on a phone.
  */
-export function AiDraftHistory({ openId, onOpenChange }: Props) {
-  const query = useInfiniteQuery(aiDraftsQueryOptions());
-  const [filter, setFilter] = useState<Filter>('all');
-  // Without a URL to keep it (tests, embedding), the panel keeps its own state.
-  const [ownOpen, setOwnOpen] = useState<string | null>(null);
-  const open = onOpenChange ? (openId ?? null) : ownOpen;
-  const setOpen = onOpenChange ?? setOwnOpen;
+export function AiDraftHistory({ view: outer, onViewChange }: Props) {
+  // Without a page to keep the URL (tests, embedding), the table keeps its own state.
+  const [own, setOwn] = useState<AiDraftsView>({});
+  const view = onViewChange ? (outer ?? {}) : own;
+  const change = (patch: Partial<AiDraftsView>) =>
+    onViewChange ? onViewChange(patch) : setOwn((current) => ({ ...current, ...patch }));
+  const { openId, ...query } = view;
+  const list = useQuery(aiDraftsQueryOptions(query));
+  const [search, setSearch] = useState(view.q ?? '');
+  // The URL follows the typing after a pause, so each letter is not a request.
+  useEffect(() => {
+    const next = search.trim() === '' ? undefined : search.trim();
+    if (next === view.q) return;
+    const timer = window.setTimeout(() => change({ q: next, page: undefined }), SEARCH_DEBOUNCE_MS);
+    return () => window.clearTimeout(timer);
+    // `change` is a new function each render; the pause restarts only when the text or the URL changes.
+    // oxlint-disable-next-line react-hooks/exhaustive-deps
+  }, [search, view.q]);
 
-  if (query.isPending)
-    return (
-      <div className={styles.body} aria-busy="true">
-        <Skeleton lines={3} height={20} />
-      </div>
-    );
-  if (query.isError) return <ErrorState message={copy.drafts.loadError} onRetry={() => void query.refetch()} />;
+  const sort: TableSort = {
+    column: view.sort ?? 'date',
+    direction: view.dir === 'asc' ? 'ascending' : 'descending'
+  };
+  const columns = useMemo<DataColumn<AiDraftSummaryDto>[]>(
+    () => [
+      {
+        id: 'task',
+        header: t.columns.task,
+        isRowHeader: true,
+        cell: (draft) => (
+          <span className={styles.taskCell}>
+            <span className={styles.taskText} title={draft.task}>
+              {draft.task}
+            </span>
+            <span className={styles.taskMeta}>
+              {copy.quality.format[draft.format]} · {copy.drafts.source[draft.source]}
+            </span>
+          </span>
+        )
+      },
+      {
+        id: 'date',
+        header: t.columns.date,
+        width: 132,
+        allowsSorting: true,
+        cell: (draft) => <span className={styles.nowrap}>{when(draft.createdAt)}</span>
+      },
+      {
+        id: 'versions',
+        header: t.columns.versions,
+        width: 96,
+        align: 'end',
+        allowsSorting: true,
+        cell: (draft) => <span className={styles.num}>{draft.versions}</span>
+      },
+      {
+        id: 'outcome',
+        header: t.columns.outcome,
+        width: 176,
+        compactSlot: 'trailing',
+        cell: (draft) => {
+          const outcome = outcomeOf(draft);
+          return (
+            <span className={styles.outcome} data-tone={outcome.tone}>
+              {outcome.label}
+              {draft.feedbackCount > 0 ? ` · ${copy.drafts.feedback(draft.feedbackCount)}` : ''}
+            </span>
+          );
+        }
+      },
+      {
+        id: 'cost',
+        header: t.columns.cost,
+        width: 92,
+        align: 'end',
+        allowsSorting: true,
+        cell: (draft) => <span className={styles.num}>{cost(draft.costUsd) ?? '—'}</span>
+      }
+    ],
+    []
+  );
 
-  const drafts = query.data.pages.flatMap((page) => page.items);
-  const shown = drafts.filter(FILTERS[filter]);
-  const opened = drafts.find((draft) => draft.id === open);
+  const data = list.data;
+  const opened = data?.items.find((draft) => draft.id === openId);
+  const filtered = Boolean(view.q || view.format || view.outcome);
   return (
-    <div className={styles.body}>
-      <p className={styles.hint}>{copy.drafts.hint}</p>
-      {drafts.length === 0 ? (
-        <p className={styles.hint}>{copy.drafts.empty}</p>
+    <Panel
+      title={copy.drafts.title}
+      headingLevel={2}
+      quiet
+      note={data ? t.count(data.totalCount) : undefined}
+      action={
+        <div className={styles.tools}>
+          <SearchField
+            label={t.search}
+            placeholder={t.searchHint}
+            maxLength={100}
+            value={search}
+            onChange={setSearch}
+          />
+          <Select
+            label={t.sourceLabel}
+            inlineLabel
+            options={SOURCES}
+            value={view.source ?? 'bot'}
+            onChange={(id) => change({ source: id === 'bot' ? undefined : (id as 'studio' | 'all'), page: undefined })}
+          />
+          <Select
+            label={t.formatLabel}
+            inlineLabel
+            options={FORMATS}
+            value={view.format ?? 'all'}
+            onChange={(id) =>
+              change({ format: id === 'all' ? undefined : (id as AiDraftsView['format']), page: undefined })
+            }
+          />
+          <Select
+            label={t.outcomeLabel}
+            inlineLabel
+            options={OUTCOMES}
+            value={view.outcome ?? 'all'}
+            onChange={(id) =>
+              change({ outcome: id === 'all' ? undefined : (id as AiDraftsView['outcome']), page: undefined })
+            }
+          />
+        </div>
+      }
+      footer={
+        <Pagination
+          page={data?.page ?? 1}
+          pageSize={AI_DRAFTS_PAGE}
+          totalCount={data?.totalCount ?? 0}
+          onPageChange={(page) => change({ page: page === 1 ? undefined : page })}
+          isLoading={list.isPending}
+        />
+      }
+    >
+      {list.isError && data === undefined ? (
+        <ErrorState message={copy.drafts.loadError} onRetry={() => void list.refetch()} />
       ) : (
-        <>
-          <div className={styles.filters}>
-            <SegmentedControl
-              label={t.filtersLabel}
-              options={(Object.keys(t.filters) as Filter[]).map((id) => ({ id, label: t.filters[id] }))}
-              value={filter}
-              onChange={(id) => setFilter(id as Filter)}
-            />
-          </div>
-          {shown.length === 0 ? (
-            <p className={styles.hint}>{t.none}</p>
-          ) : (
-            <ul className={styles.rows}>
-              {shown.map((draft) => (
-                <li key={draft.id}>
-                  <AriaButton className={styles.row} onPress={() => setOpen(draft.id)}>
-                    <span className={styles.task}>{draft.task}</span>
-                    <span className={styles.meta}>{summaryLine(draft)}</span>
-                  </AriaButton>
-                </li>
-              ))}
-            </ul>
-          )}
-        </>
+        <div className={styles.tableInset}>
+          {data?.capped ? <p className={styles.hint}>{t.capped}</p> : null}
+          <DataTable
+            aria-label={copy.drafts.title}
+            columns={columns}
+            rows={data?.items ?? []}
+            getRowId={(draft) => draft.id}
+            getRowText={(draft) => draft.task}
+            sort={sort}
+            onSortChange={(next) =>
+              change({
+                sort: next.column === 'date' ? undefined : (next.column as 'cost' | 'versions'),
+                dir: next.direction === 'ascending' ? 'asc' : undefined,
+                page: undefined
+              })
+            }
+            onRowAction={(id) => change({ openId: id })}
+            activeId={openId}
+            isLoading={list.isPending}
+            loadingRows={10}
+            density="compact"
+            flush
+            emptyState={
+              <EmptyState
+                icon="file"
+                title={filtered ? t.noMatch : copy.drafts.empty}
+                description={view.source === undefined && !filtered ? t.botHint : undefined}
+              />
+            }
+          />
+        </div>
       )}
-      {query.hasNextPage ? (
-        <Button
-          variant="secondary"
-          size="sm"
-          isLoading={query.isFetchingNextPage}
-          onPress={() => void query.fetchNextPage()}
-        >
-          {copy.drafts.more}
-        </Button>
-      ) : null}
       <Drawer
-        isOpen={open !== null}
+        isOpen={openId !== undefined}
         onOpenChange={(isOpen) => {
-          if (!isOpen) setOpen(null);
+          if (!isOpen) change({ openId: undefined });
         }}
         title={opened?.task ?? copy.drafts.title}
         size="wide"
       >
         {opened ? <p className={styles.meta}>{summaryLine(opened)}</p> : null}
-        {open !== null ? <Chain id={open} /> : null}
+        {openId !== undefined ? <Chain id={openId} /> : null}
       </Drawer>
-    </div>
+    </Panel>
   );
 }

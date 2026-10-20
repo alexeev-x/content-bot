@@ -1,12 +1,12 @@
 import type { AiLearningListDto, AiRuleDto, AiRulesDto } from '@alexeev/contracts';
-import { infiniteQueryOptions, queryOptions, useMutation, useQueryClient } from '@tanstack/react-query';
-import { nextCursor } from '../../../shared/api/query-string';
+import { keepPreviousData, queryOptions, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   changeAiRule,
   checkAiConnection,
   deleteAiFeedback,
   getAiDraftChain,
   getAiDrafts,
+  type AiDraftsListQuery,
   getAiFeedback,
   getAiLearning,
   getAiOverview,
@@ -88,13 +88,13 @@ export function useSetAiLearningExcluded() {
   });
 }
 
-/** The bot writes drafts all day: the history is re-read when opened after a short rest. */
-export function aiDraftsQueryOptions() {
-  return infiniteQueryOptions({
-    queryKey: aiKeys.drafts,
-    queryFn: ({ pageParam, signal }) => getAiDrafts(pageParam, signal),
-    initialPageParam: undefined as string | undefined,
-    getNextPageParam: nextCursor,
+/** One page of the drafts table; the previous page stays on screen while the next loads. */
+export function aiDraftsQueryOptions(query: AiDraftsListQuery) {
+  return queryOptions({
+    queryKey: [...aiKeys.drafts, query] as const,
+    queryFn: ({ signal }) => getAiDrafts(query, signal),
+    placeholderData: keepPreviousData,
+    // The bot writes drafts all day: a page is re-read when opened after a short rest.
     staleTime: 30_000
   });
 }

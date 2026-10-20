@@ -254,7 +254,7 @@ export const aiRoutes = new Hono<AppBindings>()
     }
   )
   .get('/drafts', validated('query', aiDraftsQuerySchema), async (c) =>
-    c.json(aiDraftsPageSchema.parse(await readDrafts(c.get('container').aiDraftHistory, c.req.valid('query').cursor)))
+    c.json(aiDraftsPageSchema.parse(await readDrafts(c.get('container').aiDraftHistory, c.req.valid('query'))))
   )
   .get('/drafts/:id', validated('param', aiDraftParamsSchema), async (c) =>
     c.json(aiDraftChainSchema.parse(await readDraftChain(c.get('container').aiDraftHistory, c.req.valid('param').id)))

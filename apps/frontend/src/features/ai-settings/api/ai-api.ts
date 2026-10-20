@@ -1,4 +1,5 @@
 import {
+  AI_WRITER_FORMATS,
   aiDraftChainSchema,
   aiDraftsPageSchema,
   aiFeedbackListSchema,
@@ -17,9 +18,20 @@ import { apiRequest, apiRequestNoContent } from '../../../shared/api/http-client
 import { buildQuery } from '../../../shared/api/query-string';
 
 /** First AI drafts from the bot and the studio, newest first. */
-export function getAiDrafts(cursor: string | undefined, signal?: AbortSignal) {
-  return apiRequest(`/api/v1/ai/drafts${buildQuery({ cursor })}`, aiDraftsPageSchema, { signal });
+/** The drafts table: one page of the server's search, filters and sort (defaults are left out of the URL). */
+export function getAiDrafts(query: AiDraftsListQuery, signal?: AbortSignal) {
+  return apiRequest(`/api/v1/ai/drafts${buildQuery(query)}`, aiDraftsPageSchema, { signal });
 }
+
+export type AiDraftsListQuery = {
+  q?: string | undefined;
+  source?: 'studio' | 'all' | undefined;
+  format?: (typeof AI_WRITER_FORMATS)[number] | undefined;
+  outcome?: 'approved' | 'edited' | 'open' | 'feedback' | undefined;
+  sort?: 'cost' | 'versions' | undefined;
+  dir?: 'asc' | undefined;
+  page?: number | undefined;
+};
 
 /** One draft with every version after it, their texts and the owner's verdicts. */
 export function getAiDraftChain(id: string, signal?: AbortSignal) {

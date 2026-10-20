@@ -1,3 +1,4 @@
+import { pluralRu } from '../../../shared/lib/ru-format';
 import type { AiFeedbackKind, AiSpendDto, AiUsageKind } from '@alexeev/contracts';
 
 const MONTHS = [
@@ -318,11 +319,26 @@ export const copy = {
       more: 'Подробнее о расходах'
     },
     drafts: {
-      filters: { all: 'Все', approved: 'Одобрены', edited: 'С правками', feedback: 'С отзывами', open: 'Не одобрены' },
-      filtersLabel: 'Какие черновики показать',
-      none: 'Таких черновиков среди загруженных нет.',
-      more: 'Показать ещё',
-      open: (task: string) => `Открыть черновик: ${task}`
+      filters: {
+        all: 'Любой',
+        approved: 'Одобрены',
+        edited: 'С правками',
+        feedback: 'С отзывами',
+        open: 'Не одобрены'
+      },
+      source: { bot: 'Из бота', studio: 'Контрольные прогоны', all: 'Все' },
+      allFormats: 'Все',
+      sourceLabel: 'Откуда',
+      formatLabel: 'Формат',
+      outcomeLabel: 'Итог',
+      search: 'Поиск по задаче',
+      searchHint: 'Поиск по задаче…',
+      columns: { task: 'Задача', date: 'Когда', versions: 'Вариантов', outcome: 'Итог', cost: 'Цена' },
+      outcome: { approved: 'Одобрен', edited: 'Одобрен с правками', open: 'Не одобрен' },
+      count: (count: number) => `${count} ${pluralRu(count, 'черновик', 'черновика', 'черновиков')}`,
+      capped: 'Показаны последние 1000 черновиков: более старые в поиск и сортировку не входят.',
+      noMatch: 'Таких черновиков нет. Измените поиск или фильтры.',
+      botHint: 'Черновики из бота появятся, когда вы напишете боту /redactor. Прогоны из студии — в «Откуда».'
     },
     learning: {
       intro:

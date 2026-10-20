@@ -786,7 +786,9 @@ export async function mockApi(page: Page): Promise<void> {
               costUsd: 0.011
             }
           ],
-          nextCursor: null
+          page: 1,
+          totalCount: 2,
+          capped: false
         })
       : route.fallback()
   );

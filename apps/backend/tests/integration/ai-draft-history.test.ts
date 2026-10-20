@@ -97,11 +97,12 @@ describe('AI draft history', () => {
     expect(chain.versions[1]).toMatchObject({ parentId: ROOT, costUsd: 0.005 });
   });
 
-  it('refuses a version that is not a first draft, a bad cursor and anyone but the owner (SYS-09)', async () => {
+  it('refuses a version that is not a first draft, a bad query and anyone but the owner (SYS-09)', async () => {
     const api = createApi({ clock: fakeClock() });
     await expectError(await api.request(`/api/v1/ai/drafts/${REWRITE}`), 404, 'NOT_FOUND');
     await expectError(await api.request(`/api/v1/ai/drafts/${uuid(77)}`), 404, 'NOT_FOUND');
-    await expectError(await api.request('/api/v1/ai/drafts?cursor=bad'), 400, 'VALIDATION_ERROR');
+    await expectError(await api.request('/api/v1/ai/drafts?sort=bad'), 400, 'VALIDATION_ERROR');
+    await expectError(await api.request('/api/v1/ai/drafts?page=0'), 400, 'VALIDATION_ERROR');
     await expectError(await api.request('/api/v1/ai/drafts', { token: null }), 401, 'UNAUTHORIZED');
     await expectError(await api.request(`/api/v1/ai/drafts/${ROOT}`, { token: null }), 401, 'UNAUTHORIZED');
   });
@@ -132,7 +133,7 @@ describe('AI draft history', () => {
     expect(chain.truncated).toBe(true);
   });
 
-  it('pages by the cursor and reads a page in a few statements', async () => {
+  it('shows the bot by default, pages the studio runs by number and reads a page in a few statements', async () => {
     await testDb().batch(
       Array.from({ length: 22 }, (_, index) =>
         testDb()
@@ -145,16 +146,34 @@ describe('AI draft history', () => {
     );
     const metered = meteredDb(testDb());
     const api = createApi({ clock: fakeClock(), db: metered.db });
-    const first = aiDraftsPageSchema.parse(await (await api.request('/api/v1/ai/drafts')).json());
+    // Owner, 20.10.2026: 133 of 147 drafts on DEV were studio control runs; the table opens on the bot's.
+    const bot = aiDraftsPageSchema.parse(await (await api.request('/api/v1/ai/drafts')).json());
+    expect(bot.items.every((row) => row.source === 'bot')).toBe(true);
+    expect(bot.totalCount).toBe(2);
+    const first = aiDraftsPageSchema.parse(await (await api.request('/api/v1/ai/drafts?source=studio')).json());
+    expect(first).toMatchObject({ page: 1, totalCount: 22, capped: false });
     expect(first.items).toHaveLength(20);
-    expect(first.nextCursor).not.toBeNull();
-    const second = aiDraftsPageSchema.parse(
-      await (await api.request(`/api/v1/ai/drafts?cursor=${encodeURIComponent(first.nextCursor ?? '')}`)).json()
-    );
-    expect(second.items).toHaveLength(4);
-    expect(second.nextCursor).toBeNull();
-    expect(new Set([...first.items, ...second.items].map((row) => row.id)).size).toBe(24);
+    const second = aiDraftsPageSchema.parse(await (await api.request('/api/v1/ai/drafts?source=studio&page=2')).json());
+    expect(second.items).toHaveLength(2);
+    expect(new Set([...first.items, ...second.items].map((row) => row.id)).size).toBe(22);
     // Session check, the roots and their totals per request.
-    expect(metered.meter.statements).toBeLessThanOrEqual(12);
+    expect(metered.meter.statements).toBeLessThanOrEqual(18);
+  });
+
+  it('searches the task in any case, filters by outcome and format, and sorts by cost', async () => {
+    const api = createApi({ clock: fakeClock() });
+    const list = async (query: string) =>
+      aiDraftsPageSchema
+        .parse(await (await api.request(`/api/v1/ai/drafts?${query}`)).json())
+        .items.map((row) => row.id);
+    expect(await list(`q=${encodeURIComponent('ПУДЖЕ')}`)).toEqual([ROOT]);
+    expect(await list('outcome=approved')).toEqual([ROOT]);
+    expect(await list('outcome=edited')).toEqual([ROOT]);
+    expect(await list('outcome=open')).toEqual([OTHER]);
+    expect(await list('outcome=feedback')).toEqual([ROOT]);
+    expect(await list('format=telegram')).toEqual([]);
+    // A draft without a priced call sorts below every priced one.
+    expect(await list('sort=cost&dir=desc')).toEqual([ROOT, OTHER]);
+    expect(await list('sort=cost&dir=asc')).toEqual([OTHER, ROOT]);
   });
 });

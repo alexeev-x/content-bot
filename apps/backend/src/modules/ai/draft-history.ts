@@ -1,6 +1,11 @@
-import { AI_DRAFTS_PAGE, type AiDraftChainDto, type AiDraftsPageDto, type AiDraftSummaryDto } from '@alexeev/contracts';
-import { z } from 'zod';
-import { decodeKeysetCursor, encodeKeysetCursor } from '../../platform/pagination/keyset-cursor';
+import {
+  AI_DRAFTS_PAGE,
+  AI_DRAFTS_SCAN,
+  type AiDraftChainDto,
+  type AiDraftsPageDto,
+  type AiDraftsQuery,
+  type AiDraftSummaryDto
+} from '@alexeev/contracts';
 import { AppError } from '../../shared/app-error';
 import { CHAIN_MAX, type DraftHistoryRepository, type DraftRootRow } from './d1-draft-history-repository';
 
@@ -9,7 +14,6 @@ import { CHAIN_MAX, type DraftHistoryRepository, type DraftRootRow } from './d1-
 
 const iso = (ms: number) => new Date(ms).toISOString();
 const usd = (micro: number | null) => (micro === null ? null : micro / 1_000_000);
-const cursorSchema = z.tuple([z.number().int().nonnegative(), z.uuid()]);
 
 function summary(row: DraftRootRow): AiDraftSummaryDto {
   return {
@@ -26,22 +30,41 @@ function summary(row: DraftRootRow): AiDraftSummaryDto {
   };
 }
 
-export async function readDrafts(
-  history: DraftHistoryRepository,
-  cursor: string | undefined
-): Promise<AiDraftsPageDto> {
-  const after = cursor === undefined ? undefined : decodeKeysetCursor(cursor, cursorSchema);
-  if (after === null) throw new AppError('VALIDATION_ERROR', 'Invalid cursor');
+const OUTCOMES: Record<NonNullable<AiDraftsQuery['outcome']>, (row: DraftRootRow) => boolean> = {
+  approved: (row) => row.approved > 0,
+  edited: (row) => row.approved > 0 && row.edited > 0,
+  open: (row) => row.approved === 0,
+  feedback: (row) => row.feedback > 0
+};
+const SORTS: Record<AiDraftsQuery['sort'], (row: DraftRootRow) => number> = {
+  date: (row) => row.createdAt,
+  cost: (row) => row.costMicroUsd ?? -1,
+  versions: (row) => row.versions
+};
+
+/** The drafts table (owner, 20.10.2026): a page of the bot's drafts by default, searched, filtered and sorted. */
+export async function readDrafts(history: DraftHistoryRepository, query: AiDraftsQuery): Promise<AiDraftsPageDto> {
   const rows = await history.roots({
-    after: after === undefined ? null : { createdAt: after[0], id: after[1] },
-    limit: AI_DRAFTS_PAGE + 1
+    source: query.source === 'all' ? null : query.source,
+    format: query.format ?? null,
+    limit: AI_DRAFTS_SCAN
   });
-  const page = rows.slice(0, AI_DRAFTS_PAGE);
-  const last = page.at(-1);
+  const needle = query.q?.toLocaleLowerCase('ru-RU') ?? '';
+  const outcome = query.outcome === undefined ? null : OUTCOMES[query.outcome];
+  const key = SORTS[query.sort];
+  const direction = query.dir === 'asc' ? 1 : -1;
+  const matched = rows
+    .filter(
+      (row) => (needle === '' || row.task.toLocaleLowerCase('ru-RU').includes(needle)) && (outcome?.(row) ?? true)
+    )
+    // Ties keep the newest first, so a page never reshuffles between requests.
+    .sort((a, b) => (key(a) - key(b)) * direction || b.createdAt - a.createdAt || b.id.localeCompare(a.id));
+  const start = (query.page - 1) * AI_DRAFTS_PAGE;
   return {
-    items: page.map(summary),
-    nextCursor:
-      rows.length > AI_DRAFTS_PAGE && last !== undefined ? encodeKeysetCursor([last.createdAt, last.id]) : null
+    items: matched.slice(start, start + AI_DRAFTS_PAGE).map(summary),
+    page: query.page,
+    totalCount: matched.length,
+    capped: rows.length >= AI_DRAFTS_SCAN
   };
 }
 

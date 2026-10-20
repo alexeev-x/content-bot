@@ -50,9 +50,26 @@ export function AiEditorPage() {
         </TabPanel>
         <TabPanel id="drafts">
           <AiDraftHistory
-            openId={search.draft}
-            onOpenChange={(id) =>
-              void navigate({ search: (previous) => ({ ...previous, draft: id ?? undefined }), resetScroll: false })
+            view={{
+              q: search.q,
+              source: search.source,
+              format: search.format,
+              outcome: search.outcome,
+              sort: search.sort,
+              dir: search.dir,
+              page: search.page,
+              openId: search.draft
+            }}
+            onViewChange={(patch) =>
+              void navigate({
+                search: (previous) => {
+                  const { openId, ...rest } = patch;
+                  return { ...previous, ...rest, ...('openId' in patch ? { draft: openId } : {}) };
+                },
+                // Opening a draft is a step Back can undo; filters and pages replace the entry.
+                replace: !('openId' in patch),
+                resetScroll: false
+              })
             }
           />
         </TabPanel>

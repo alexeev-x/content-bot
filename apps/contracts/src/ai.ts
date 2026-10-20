@@ -666,8 +666,11 @@ export type ChangeAiRuleInput = z.infer<typeof changeAiRuleInputSchema>;
 // The history of AI drafts in the studio (AI plan P8; SYS-01): every first draft from the bot or the studio with
 // the versions that hang off it (rewrites, fixes, the draft after a facts answer), their texts with provenance
 // and the owner's verdicts. Read-only.
-// GET /api/v1/ai/drafts?cursor → 200 AiDraftsPageDto, newest first, AI_DRAFTS_PAGE a page. Errors: VALIDATION_ERROR
-// 400 (a bad cursor), UNAUTHORIZED 401, FORBIDDEN 403.
+// GET /api/v1/ai/drafts?q&source&format&outcome&sort&dir&page → 200 AiDraftsPageDto, AI_DRAFTS_PAGE a page (owner,
+// 20.10.2026: a table like Посты). `source` defaults to the bot: on DEV 133 of 147 drafts were studio control runs.
+// Source and format are matched in SQL; of the newest AI_DRAFTS_SCAN matches the task search (any case, Cyrillic
+// too), `outcome` and the sort apply, so `capped` says when older drafts were left out. Errors: VALIDATION_ERROR 400,
+// UNAUTHORIZED 401, FORBIDDEN 403.
 // GET /api/v1/ai/drafts/{id} → 200 AiDraftChainDto. NOT_FOUND 404 when `id` is not a first draft.
 export const AI_DRAFTS_PAGE = 20;
 export const AI_DRAFT_CHAIN_MAX = 31;
@@ -690,10 +693,25 @@ export const aiDraftSummarySchema = z.object({
   costUsd: z.number().nonnegative().nullable()
 });
 export type AiDraftSummaryDto = z.infer<typeof aiDraftSummarySchema>;
-export const aiDraftsQuerySchema = z.strictObject({ cursor: z.string().min(1).max(512).optional() });
+/** Drafts read per request before `outcome` and the sort apply; older ones are left out and `capped` is true. */
+export const AI_DRAFTS_SCAN = 1000;
+export const aiDraftsQuerySchema = z.strictObject({
+  /** Words of the task, case-insensitive. */
+  q: z.string().trim().max(100).optional(),
+  source: z.enum(['bot', 'studio', 'all']).default('bot'),
+  format: aiWriterFormatSchema.optional(),
+  /** `approved`: approved as is or with edits; `edited`: approved with the owner's edits; `open`: not approved. */
+  outcome: z.enum(['approved', 'edited', 'open', 'feedback']).optional(),
+  sort: z.enum(['date', 'cost', 'versions']).default('date'),
+  dir: z.enum(['asc', 'desc']).default('desc'),
+  page: z.coerce.number().int().min(1).max(1000).default(1)
+});
+export type AiDraftsQuery = z.infer<typeof aiDraftsQuerySchema>;
 export const aiDraftsPageSchema = z.object({
   items: z.array(aiDraftSummarySchema).max(AI_DRAFTS_PAGE),
-  nextCursor: z.string().nullable()
+  page: z.number().int().positive(),
+  totalCount: z.number().int().nonnegative(),
+  capped: z.boolean()
 });
 export type AiDraftsPageDto = z.infer<typeof aiDraftsPageSchema>;
 export const aiDraftTextSchema = z.object({

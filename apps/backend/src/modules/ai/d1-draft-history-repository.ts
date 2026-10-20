@@ -1,3 +1,4 @@
+import { AI_DRAFTS_SCAN } from '@alexeev/contracts';
 import type { WriterFormat } from './writer-types';
 
 // The studio's history of AI drafts (AI plan P8; SYS-01): a first draft and every version that hangs off it
@@ -56,8 +57,12 @@ export interface ChainFeedbackRow {
 }
 
 export interface DraftHistoryRepository {
-  /** First drafts newest first, after the keyset `after` (created_at, id), at most `limit` (≤ 50), with totals. */
-  roots(input: { after: { createdAt: number; id: string } | null; limit: number }): Promise<DraftRootRow[]>;
+  /** First drafts of a source and format, newest first, at most `limit` (≤ AI_DRAFTS_SCAN), with their totals. */
+  roots(input: {
+    source: 'bot' | 'studio' | null;
+    format: WriterFormat | null;
+    limit: number;
+  }): Promise<DraftRootRow[]>;
   /** One first draft's whole chain; null when `id` is not a first draft. */
   chain(id: string): Promise<{
     root: DraftRootRow;
@@ -128,25 +133,19 @@ export function createD1DraftHistoryRepository(db: D1Database): DraftHistoryRepo
     (await db.prepare(`${COUNTED} ${TOTALS}`).bind(JSON.stringify(ids)).all<Totals>()).results;
 
   return {
-    async roots({ after, limit }) {
-      const capped = Math.min(limit, 50);
-      // Two statements: an `?1 IS NULL OR …` keyset turns the index search into a scan from the top.
-      const statement =
-        after === null
-          ? db
-              .prepare(
-                `SELECT ${ROOT_COLUMNS} FROM ai_generations WHERE parent_generation_id IS NULL
-                 ORDER BY created_at DESC, id DESC LIMIT ?1`
-              )
-              .bind(capped)
-          : db
-              .prepare(
-                `SELECT ${ROOT_COLUMNS} FROM ai_generations
-                 WHERE parent_generation_id IS NULL AND (created_at < ?1 OR (created_at = ?1 AND id < ?2))
-                 ORDER BY created_at DESC, id DESC LIMIT ?3`
-              )
-              .bind(after.createdAt, after.id, capped);
-      const roots = (await statement.all<RootBase>()).results.map(clipped);
+    async roots({ source, format, limit }) {
+      const capped = Math.min(limit, AI_DRAFTS_SCAN);
+      // `?1 IS NULL OR …` keeps one statement: the root index orders the scan, the filters only skip rows.
+      const roots = (
+        await db
+          .prepare(
+            `SELECT ${ROOT_COLUMNS} FROM ai_generations
+             WHERE parent_generation_id IS NULL AND (?1 IS NULL OR source = ?1) AND (?2 IS NULL OR format = ?2)
+             ORDER BY created_at DESC, id DESC LIMIT ?3`
+          )
+          .bind(source, format, capped)
+          .all<RootBase>()
+      ).results.map(clipped);
       return roots.length === 0 ? [] : withTotals(roots, await totalsOf(roots.map((root) => root.id)));
     },
 

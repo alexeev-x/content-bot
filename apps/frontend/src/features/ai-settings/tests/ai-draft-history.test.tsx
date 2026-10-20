@@ -1,6 +1,6 @@
 import type { AiDraftChainDto, AiDraftSummaryDto } from '@alexeev/contracts';
 import { QueryClientProvider } from '@tanstack/react-query';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { http, HttpResponse } from 'msw';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -92,21 +92,43 @@ const mount = () =>
 describe('AI draft history', () => {
   it('lists drafts with their totals and opens one with every version, text and verdict', async () => {
     server.use(
-      http.get('*/api/v1/ai/drafts', () => HttpResponse.json({ items: [draft], nextCursor: null })),
+      http.get('*/api/v1/ai/drafts', () =>
+        HttpResponse.json({ items: [draft], page: 1, totalCount: 1, capped: false })
+      ),
       http.get('*/api/v1/ai/drafts/:id', () => HttpResponse.json(chain))
     );
     mount();
     expect(await screen.findByText('Учусь играть на Пудже: промахнулся хуком')).toBeTruthy();
-    expect(screen.getByText(/Вариантов: 2 · Одобрен · Есть ваша версия · Отзывов: 1 · \$0\.0250/)).toBeTruthy();
-    await userEvent.click(screen.getByRole('button', { name: /Учусь играть на Пудже/ }));
+    const row = screen.getByRole('row', { name: /Учусь играть на Пудже/ });
+    expect(row.textContent).toContain('Одобрен с правками · Отзывов: 1');
+    expect(row.textContent).toContain('$0.0250');
+    await userEvent.click(screen.getByText('Учусь играть на Пудже: промахнулся хуком'));
     expect(await screen.findByText('Первый вариант.')).toBeTruthy();
     expect(screen.getByText('Одобрено · изменено 40%')).toBeTruthy();
     expect(screen.getByText(/«Начало вялое»/)).toBeTruthy();
     expect(screen.getByText(/Переделка · .* · gpt-6\.1-sol · \$0\.0050/)).toBeTruthy();
   });
 
+  it('asks the server for the bot by default and for the filters the owner picks', async () => {
+    const asked: string[] = [];
+    server.use(
+      http.get('*/api/v1/ai/drafts', ({ request }) => {
+        asked.push(new URL(request.url).search);
+        return HttpResponse.json({ items: [draft], page: 1, totalCount: 1, capped: false });
+      })
+    );
+    mount();
+    await screen.findByText('Учусь играть на Пудже: промахнулся хуком');
+    expect(asked[0]).toBe('');
+    await userEvent.click(screen.getByRole('button', { name: /Откуда/ }));
+    await userEvent.click(await screen.findByRole('option', { name: 'Контрольные прогоны' }));
+    await waitFor(() => expect(asked.at(-1)).toBe('?source=studio'));
+  });
+
   it('says when there are no drafts yet', async () => {
-    server.use(http.get('*/api/v1/ai/drafts', () => HttpResponse.json({ items: [], nextCursor: null })));
+    server.use(
+      http.get('*/api/v1/ai/drafts', () => HttpResponse.json({ items: [], page: 1, totalCount: 0, capped: false }))
+    );
     mount();
     expect(await screen.findByText(/Черновиков пока нет/)).toBeTruthy();
   });
