@@ -76,6 +76,11 @@ export function subscribeThemeChanged(handler: () => void): () => void {
   return subscribe('themeChanged', handler);
 }
 
+/** Telegram resizes the Mini App viewport (keyboard, expand); the browser's visualViewport may not see it. */
+export function subscribeViewportChanged(handler: () => void): () => void {
+  return subscribe('viewportChanged', handler);
+}
+
 /** The app when it is inside Telegram and supports `since`; otherwise undefined, so every caller is a no-op. */
 function appSupporting(since: string): TelegramWebApp | undefined {
   const app = getWebApp();

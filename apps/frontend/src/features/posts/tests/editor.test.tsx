@@ -59,25 +59,27 @@ function useNarrowViewport() {
 }
 
 describe('mobile editor navigation', () => {
-  it('keeps text, media and preview in one mobile flow and preserves editor content', async () => {
+  // Owner, 20.10.2026: on a phone the post is written as a Telegram message, the tools sit in a bottom bar and their
+  // panels take the keyboard's place.
+  it('writes the post as a message bubble with the tools in a bottom bar', async () => {
     useNarrowViewport();
     const user = userEvent.setup();
     await openExisting({ body: 'Сохранённый текст' });
 
-    expect(screen.getByRole('textbox', { name: 'Заголовок' })).toBeTruthy();
-    // Only «Редактор / Опрос»: text and media stay on one screen, never tabs.
-    expect(screen.getByRole('tablist', { name: 'Тип публикации' })).toBeTruthy();
-    expect(screen.getAllByRole('tab').map((tab) => tab.textContent)).toEqual(['Редактор', 'Опрос']);
-    const mediaHeading = screen.getByRole('heading', { name: 'Фото и видео' });
-    expect(screen.getAllByRole('heading', { name: 'Фото и видео' })).toHaveLength(1);
-    expect(screen.queryByRole('figure', { name: /Предпросмотр в Telegram/ })).toBeNull();
-    const mediaSection = mediaHeading.closest('section');
-    const mediaEditor = mediaSection?.parentElement;
-    expect(mediaEditor).toBeTruthy();
-    if (!mediaEditor) throw new Error('Media editor section is missing');
-    expect(mediaEditor.hasAttribute('hidden')).toBe(false);
-    expect(screen.getByRole('heading', { name: 'Фото и видео' })).toBeTruthy();
-    expect(screen.getAllByRole('heading', { name: 'Фото и видео' })).toHaveLength(1);
+    const message = screen.getByRole('article', { name: 'Пост в канале' });
+    expect(within(message).getByRole('textbox', { name: 'Заголовок' })).toBeTruthy();
+    expect(within(message).getByRole('textbox', { name: 'Текст' })).toBe(bodyBox());
+    expect(screen.queryByRole('tablist')).toBeNull();
+    const bar = screen.getByRole('toolbar', { name: 'Инструменты поста' });
+    expect(within(bar).getByRole('button', { name: 'К публикации' })).toBeTruthy();
+
+    await user.click(within(bar).getByRole('button', { name: 'Форматирование' }));
+    const panel = screen.getByRole('region', { name: 'Панель: Форматирование' });
+    expect(within(panel).getByRole('button', { name: 'Жирный' })).toBeTruthy();
+    // A second press returns to the keyboard: the text gets focus and the panel goes.
+    await user.click(within(bar).getByRole('button', { name: 'Клавиатура' }));
+    expect(document.activeElement).toBe(bodyBox());
+
     await user.click(bodyBox());
     await user.keyboard('!');
     expect(bodyBox().textContent).toContain('Сохранённый текст');

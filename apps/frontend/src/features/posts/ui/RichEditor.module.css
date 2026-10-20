@@ -135,3 +135,39 @@
     display: none;
   }
 }
+
+/* Phone composer: the field is the channel message bubble (the bubble's colours come from the composer). */
+.phoneField {
+  gap: 0;
+}
+.phoneBox {
+  position: relative;
+  min-width: 0;
+}
+.phoneField .content :global(.tiptap) {
+  min-height: 1lh;
+  max-height: none;
+  overflow: visible;
+  padding: 0;
+  color: inherit;
+}
+.phoneField .content :global(.tiptap a) {
+  color: var(--color-bubble-link);
+}
+.placeholder {
+  position: absolute;
+  inset: 0 auto auto 0;
+  color: var(--color-bubble-meta);
+  pointer-events: none;
+}
+.phoneDescription {
+  margin: 0;
+  font-size: var(--font-size-2xs);
+  text-align: end;
+}
+.phoneDescription:not(:has(.mono)) {
+  position: absolute;
+}
+.phoneField .error {
+  margin: var(--space-1) 0 0;
+}

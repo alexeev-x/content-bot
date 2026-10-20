@@ -13,6 +13,8 @@ type Props = {
   editor: Editor;
   onLink: () => void;
   onCodeLanguage: () => void;
+  /** `panel`: every action as a labelled tile in the phone panel that replaces the keyboard; the text stays blurred. */
+  variant?: 'bar' | 'panel';
 };
 
 const copy = postsCopy.editor.toolbar;
@@ -37,7 +39,8 @@ type Item = {
  * Formatting toolbar (WAI-ARIA toolbar: one tab stop, arrows move). Pressing a button keeps the editor's selection
  * and focus: it acts on the text, and focus returns to the editor after the dialogs close.
  */
-export function EditorToolbar({ editor, onLink, onCodeLanguage }: Props) {
+export function EditorToolbar({ editor, onLink, onCodeLanguage, variant = 'bar' }: Props) {
+  const inPanel = variant === 'panel';
   const compact = useMediaQuery('(max-width: 859px), (pointer: coarse)');
   const [moreOpen, setMoreOpen] = useState(false);
   const [emojiOpen, setEmojiOpen] = useState(false);
@@ -61,9 +64,11 @@ export function EditorToolbar({ editor, onLink, onCodeLanguage }: Props) {
       quote: current.isActive('blockquote')
     })
   });
+  // In the panel the text stays blurred: focusing it would bring the keyboard back over the panel.
+  const chain = () => (inPanel ? editor.chain() : editor.chain().focus());
   const run = (action: () => unknown) => () => {
     action();
-    editor.commands.focus();
+    if (!inPanel) editor.commands.focus();
   };
 
   const groups: Item[][] = [
@@ -76,7 +81,7 @@ export function EditorToolbar({ editor, onLink, onCodeLanguage }: Props) {
         glyph: <strong>B</strong>,
         isActive: state.bold,
         pressable: true,
-        onPress: run(() => editor.chain().focus().toggleBold().run())
+        onPress: run(() => chain().toggleBold().run())
       },
       {
         id: 'italic',
@@ -86,7 +91,7 @@ export function EditorToolbar({ editor, onLink, onCodeLanguage }: Props) {
         glyph: <em>I</em>,
         isActive: state.italic,
         pressable: true,
-        onPress: run(() => editor.chain().focus().toggleItalic().run())
+        onPress: run(() => chain().toggleItalic().run())
       },
       {
         id: 'underline',
@@ -96,7 +101,7 @@ export function EditorToolbar({ editor, onLink, onCodeLanguage }: Props) {
         glyph: <u>U</u>,
         isActive: state.underline,
         pressable: true,
-        onPress: run(() => editor.chain().focus().toggleUnderline().run())
+        onPress: run(() => chain().toggleUnderline().run())
       },
       {
         id: 'strike',
@@ -106,7 +111,7 @@ export function EditorToolbar({ editor, onLink, onCodeLanguage }: Props) {
         glyph: <s>S</s>,
         isActive: state.strike,
         pressable: true,
-        onPress: run(() => editor.chain().focus().toggleStrike().run())
+        onPress: run(() => chain().toggleStrike().run())
       },
       {
         id: 'spoiler',
@@ -116,7 +121,7 @@ export function EditorToolbar({ editor, onLink, onCodeLanguage }: Props) {
         glyph: <span className={styles.spoilerGlyph}>▒</span>,
         isActive: state.spoiler,
         pressable: true,
-        onPress: run(() => editor.chain().focus().toggleSpoiler().run())
+        onPress: run(() => chain().toggleSpoiler().run())
       },
       {
         id: 'link',
@@ -138,7 +143,7 @@ export function EditorToolbar({ editor, onLink, onCodeLanguage }: Props) {
         glyph: <span className={styles.mono}>{'<>'}</span>,
         isActive: state.code,
         pressable: true,
-        onPress: run(() => editor.chain().focus().toggleCode().run())
+        onPress: run(() => chain().toggleCode().run())
       },
       {
         id: 'codeBlock',
@@ -148,7 +153,7 @@ export function EditorToolbar({ editor, onLink, onCodeLanguage }: Props) {
         glyph: <span className={styles.mono}>{'{ }'}</span>,
         isActive: state.codeBlock,
         pressable: true,
-        onPress: run(() => editor.chain().focus().toggleCodeBlock().run())
+        onPress: run(() => chain().toggleCodeBlock().run())
       },
       {
         id: 'codeLanguage',
@@ -165,7 +170,7 @@ export function EditorToolbar({ editor, onLink, onCodeLanguage }: Props) {
         glyph: <span aria-hidden="true">“</span>,
         isActive: state.quote,
         pressable: true,
-        onPress: run(() => editor.chain().focus().toggleBlockquote().run())
+        onPress: run(() => chain().toggleBlockquote().run())
       }
     ],
     [
@@ -183,6 +188,44 @@ export function EditorToolbar({ editor, onLink, onCodeLanguage }: Props) {
       }
     ]
   ];
+
+  if (inPanel) {
+    return (
+      <Toolbar aria-label={copy.label} className={styles.panelGrid}>
+        {groups.flat().map((item) =>
+          item.pressable ? (
+            <ToggleButton
+              key={item.id}
+              className={styles.panelAction}
+              aria-keyshortcuts={item.aria}
+              isSelected={item.isActive === true}
+              isDisabled={item.isDisabled}
+              preventFocusOnPress
+              onChange={() => item.onPress()}
+            >
+              <span className={styles.panelGlyph} aria-hidden="true">
+                {item.glyph}
+              </span>
+              <span className={styles.panelLabel}>{item.label}</span>
+            </ToggleButton>
+          ) : (
+            <Button
+              key={item.id}
+              className={styles.panelAction}
+              isDisabled={item.isDisabled}
+              preventFocusOnPress
+              onPress={item.onPress}
+            >
+              <span className={styles.panelGlyph} aria-hidden="true">
+                {item.glyph}
+              </span>
+              <span className={styles.panelLabel}>{item.label}</span>
+            </Button>
+          )
+        )}
+      </Toolbar>
+    );
+  }
 
   if (compact) {
     const formatting = groups[0]!;

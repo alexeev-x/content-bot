@@ -424,3 +424,56 @@
     max-width: 100%;
   }
 }
+
+/* ===== Phone composer (PhoneComposer): header and the bubble's own fields ===== */
+.phoneHeading {
+  display: grid;
+  flex: 1;
+  min-width: 0;
+}
+.phoneHeading h1 {
+  overflow: hidden;
+  margin: 0;
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-semibold);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  outline: none;
+}
+.phoneStatus {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  overflow: hidden;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+  white-space: nowrap;
+}
+.phoneStatus svg {
+  display: none;
+}
+.phoneFields {
+  display: grid;
+  gap: var(--space-1);
+  min-width: 0;
+}
+.phoneTitle {
+  width: 100%;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-weight: var(--font-weight-semibold);
+  outline: none;
+}
+.phoneTitle::placeholder {
+  color: var(--color-bubble-meta);
+}
+.phoneTitleError {
+  margin: 0;
+  color: var(--color-danger);
+  font-size: var(--font-size-xs);
+}

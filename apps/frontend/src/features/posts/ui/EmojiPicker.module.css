@@ -81,3 +81,14 @@
     font-size: 1.5rem;
   }
 }
+
+/* Phone panel: fills the keyboard's place and scrolls inside it. */
+.picker[data-variant='panel'] {
+  grid-template-rows: minmax(0, 1fr);
+  inline-size: 100%;
+  block-size: 100%;
+  padding: var(--space-2) var(--space-3);
+}
+.picker[data-variant='panel'] .scroll {
+  max-block-size: none;
+}

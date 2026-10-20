@@ -7,6 +7,8 @@ import styles from './EmojiPicker.module.css';
 type Props = {
   /** Inserts at the cursor (or over the selection) and closes the picker; the caller keeps the editor's focus. */
   onPick: (char: string) => void;
+  /** `panel`: the phone panel in place of the keyboard; no search field, since typing would bring the keyboard back. */
+  variant?: 'popover' | 'panel';
 };
 
 const name = (entry: EmojiEntry) => entry.words.split(' ')[0] ?? entry.char;
@@ -35,7 +37,7 @@ function Grid({
 }
 
 /** Plain Unicode emoji with search by Russian words and this browser's recent ones. */
-export function EmojiPicker({ onPick }: Props) {
+export function EmojiPicker({ onPick, variant = 'popover' }: Props) {
   const [query, setQuery] = useState('');
   const [recent] = useState(readRecentEmoji);
   const found = searchEmoji(query);
@@ -44,16 +46,18 @@ export function EmojiPicker({ onPick }: Props) {
     .map((char) => all.find((item) => item.char === char) ?? { char, words: char })
     .slice(0, 16);
   return (
-    <div className={styles.picker}>
-      <SearchField
-        label="Найти эмодзи"
-        placeholder="Найти: огонь, смех, победа"
-        value={query}
-        onChange={setQuery}
-        // The picker opens on demand: typing a word right away is its fastest path; Esc returns focus to the text.
-        // oxlint-disable-next-line jsx-a11y/no-autofocus
-        autoFocus
-      />
+    <div className={styles.picker} data-variant={variant}>
+      {variant === 'panel' ? null : (
+        <SearchField
+          label="Найти эмодзи"
+          placeholder="Найти: огонь, смех, победа"
+          value={query}
+          onChange={setQuery}
+          // The picker opens on demand: typing a word right away is its fastest path; Esc returns focus to the text.
+          // oxlint-disable-next-line jsx-a11y/no-autofocus
+          autoFocus
+        />
+      )}
       <div className={styles.scroll}>
         {query.trim() !== '' ? (
           found.length > 0 ? (

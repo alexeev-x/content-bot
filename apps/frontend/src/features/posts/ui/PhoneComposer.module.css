@@ -1,0 +1,112 @@
+/* A fixed column over the page: header, the chat that scrolls, the bar and the panel in flow under it. Its height
+   and offset follow the visual viewport (set inline), so the keyboard or a panel lifts the bar and nothing jumps. */
+.root {
+  position: fixed;
+  top: 0;
+  right: var(--shell-safe-right, 0px);
+  left: var(--shell-safe-left, 0px);
+  z-index: var(--z-nav);
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  background: var(--color-chat-bg);
+  overscroll-behavior: none;
+}
+.header {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: var(--size-nav);
+  padding: calc(var(--space-2) + var(--shell-safe-top, 0px)) var(--space-2) var(--space-2);
+  border-bottom: 1px solid var(--color-border-subtle);
+  background: var(--color-surface-1);
+}
+.notices {
+  display: grid;
+  flex: none;
+  gap: var(--space-2);
+  max-height: 40%;
+  overflow-y: auto;
+  padding: var(--space-2) var(--space-3) 0;
+}
+/* The message sits at the bottom of the chat, like the last post in a channel; a long one scrolls. */
+.chat {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  justify-content: flex-end;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: var(--space-4) var(--space-3);
+}
+.message {
+  display: grid;
+  gap: var(--space-2);
+  width: 100%;
+  min-width: 0;
+  max-width: 30rem;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-4) var(--radius-4) var(--radius-4) var(--space-1);
+  background: var(--color-bubble);
+  color: var(--color-bubble-text);
+  overflow-wrap: anywhere;
+}
+.message:has([aria-invalid='true']) {
+  box-shadow: 0 0 0 1px var(--color-danger);
+}
+.bar {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-1) var(--space-2);
+  border-top: 1px solid var(--color-border-subtle);
+  background: var(--color-surface-1);
+}
+/* With no keyboard and no panel the bar is the bottom edge, so it clears the home indicator itself. */
+.bar:last-child,
+.bar:has(+ .panel[hidden]) {
+  padding-bottom: max(var(--space-1), var(--shell-safe-bottom, 0px));
+}
+.tool[aria-expanded='true'] {
+  color: var(--color-accent-text);
+}
+.spacer {
+  flex: 1;
+}
+.send {
+  flex: none;
+}
+.panel {
+  flex: none;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-bottom: var(--shell-safe-bottom, 0px);
+  border-top: 1px solid var(--color-border-subtle);
+  background: var(--color-surface-1);
+}
+.panel[hidden] {
+  display: none;
+}
+.meta {
+  display: inline-flex;
+  align-items: center;
+  justify-self: end;
+  gap: var(--space-1);
+  margin-top: calc(-1 * var(--space-1));
+  color: var(--color-bubble-meta);
+  font-size: var(--font-size-2xs);
+  font-variant-numeric: tabular-nums;
+}
+.form {
+  display: grid;
+  gap: var(--space-3);
+  min-width: 0;
+}
+/* The keyboard covers the home indicator: no safe-area gap between the bar and the keys. */
+.root[data-keyboard] .bar {
+  padding-bottom: var(--space-1);
+}

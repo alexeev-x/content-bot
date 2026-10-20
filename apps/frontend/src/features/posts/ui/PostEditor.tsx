@@ -8,6 +8,7 @@ import {
   Disclosure,
   Icon,
   IconButton,
+  Menu,
   Tab,
   TabList,
   TabPanel,
@@ -16,6 +17,7 @@ import {
   VisuallyHidden
 } from '../../../shared/ui';
 import { useClosingConfirmation } from '../../../shared/telegram/use-closing-confirmation';
+import { formatClock } from '../model/format-time';
 import { useAutosave } from '../model/use-autosave';
 import { useLeaveGuard } from '../model/use-leave-guard';
 import { usePostEditor } from '../model/use-post-editor';
@@ -30,6 +32,7 @@ import { PostMediaEditor } from './PostMediaEditor';
 import { PostPreview } from './PostPreview';
 import styles from './PostEditor.module.css';
 import { OriginMark } from './OriginMark';
+import { PhoneComposer } from './PhoneComposer';
 import { SaveIndicator } from './SaveIndicator';
 
 type Props = {
@@ -41,6 +44,8 @@ type Props = {
   /** Extra cards under the preview (this post's publications). */
   aside?: ReactNode;
   headerActions?: ReactNode;
+  /** Page-level banners (a failed delete): shown with the editor's own, so the phone composer does not cover them. */
+  notices?: ReactNode;
   /** Tab the editor opens on; «Создать опрос» sends a new post straight to the poll form. */
   initialTab?: 'editor' | 'poll' | undefined;
 };
@@ -50,7 +55,7 @@ const copy = postsCopy.editor;
 type ComposerTab = 'editor' | 'poll';
 const NARROW = '(max-width: 859px)';
 
-export function PostEditor({ post, onCreated, approvedActions, aside, headerActions, initialTab }: Props) {
+export function PostEditor({ post, onCreated, approvedActions, aside, headerActions, notices, initialTab }: Props) {
   const rootRef = useRef<HTMLDivElement>(null);
   const dirtyRef = useRef(false);
   const mediaWriteLockState = useRef(false);
@@ -326,6 +331,186 @@ export function PostEditor({ post, onCreated, approvedActions, aside, headerActi
       К публикации
     </Button>
   );
+  const banners = (
+    <>
+      {conflict ? (
+        <ConflictBanner
+          conflict={conflict}
+          isBusy={editor.isSaving || editor.isApproving || editor.isReturning}
+          onShowServer={() => setCompareOpen(true)}
+          onOverwrite={() => setOverwriteOpen(true)}
+          onRetry={editor.retryServerVersion}
+        />
+      ) : null}
+      {notice ? (
+        <Banner tone="error" title={notice.title} onDismiss={editor.dismissNotice}>
+          {notice.message}
+          {notice.requestId ? (
+            <>
+              {' '}
+              {copy.errors.requestId}: <code>{notice.requestId}</code>
+            </>
+          ) : null}
+        </Banner>
+      ) : null}
+      {notices}
+    </>
+  );
+  const dialogs = (
+    <>
+      <CompareDialog
+        isOpen={compareOpen}
+        onOpenChange={setCompareOpen}
+        mine={{ title: editor.title, body: editor.body }}
+        server={conflict?.server ?? null}
+        onUseServer={editor.acceptServer}
+      />
+      <ConfirmDialog
+        isOpen={overwriteOpen}
+        onOpenChange={setOverwriteOpen}
+        title={copy.conflict.overwriteDialog.title}
+        description={copy.conflict.overwriteDialog.description}
+        confirmLabel={copy.conflict.overwriteDialog.confirm}
+        cancelLabel={copy.conflict.overwriteDialog.cancel}
+        isPending={editor.isSaving}
+        onConfirm={() => void confirmOverwrite()}
+      />
+      <ConfirmDialog
+        isOpen={blocker.status === 'blocked'}
+        onOpenChange={(open) => {
+          if (!open) blocker.reset?.();
+        }}
+        title={copy.leave.title}
+        description={
+          editor.mediaPending
+            ? 'Есть файл, который не удалось загрузить или который ещё не сохранён на сервере. При выходе его локальная копия исчезнет — добавьте этот файл повторно. Текст и уже загруженные вложения останутся в черновике.'
+            : copy.leave.description
+        }
+        confirmLabel={copy.leave.confirm}
+        cancelLabel={copy.leave.cancel}
+        onConfirm={() => blocker.proceed?.()}
+      />
+    </>
+  );
+
+  // Phones write the post as a Telegram message (owner, 20.10.2026: «на мобилке ужасно — как в телеграме»). An
+  // approved or archived post is not being written: it keeps the preview and its publications.
+  if (narrow && !showApprovedPreview && !isArchived) {
+    const showPoll = editor.isNew ? composerTab === 'poll' : isPoll;
+    const savedAt = !editor.isNew && baseline ? formatClock(baseline.updatedAt) : null;
+    return (
+      <>
+        <PhoneComposer
+          rootRef={rootRef}
+          bubble={!showPoll}
+          hasTextTools={!showPoll}
+          canImprove={editor.body.trim() !== ''}
+          isReadOnly={editor.readOnly || hasConflict}
+          send={{ isLoading: editor.isSaving, isDisabled: !canContinue, onPress: () => void continueToPublish() }}
+          meta={
+            savedAt ? (
+              <>
+                {savedAt}
+                <Icon name={editor.saveState === 'saved' ? 'check' : 'clock'} size={14} />
+              </>
+            ) : null
+          }
+          header={
+            <>
+              <IconButton label={copy.back} icon="chevron-left" size="target" onPress={() => void backToPosts()} />
+              <div className={styles.phoneHeading}>
+                <h1 ref={statusRef} tabIndex={-1}>
+                  {editor.isNew ? copy.composer.newTitle : editor.title.trim() || copy.untitled}
+                </h1>
+                <span className={styles.phoneStatus}>
+                  <SaveIndicator state={editor.saveState} savedAt={baseline?.updatedAt} compact />
+                  <OriginMark origin={baseline?.origin} />
+                </span>
+              </div>
+              {editor.saveState === 'failed' && !editor.readOnly && !hasConflict ? (
+                <IconButton label={copy.errors.retry} icon="retry" size="target" onPress={() => void editor.save()} />
+              ) : null}
+              {/* The kind is chosen before the first save and fixed after it; a saved post's menu deletes it. */}
+              {editor.isNew ? (
+                <Menu
+                  label={copy.phone.kindMenu}
+                  triggerSize="target"
+                  selectionMode="single"
+                  selectedId={composerTab}
+                  items={[
+                    { id: 'editor', label: copy.phone.kindText, icon: 'edit' },
+                    { id: 'poll', label: copy.phone.kindPoll, icon: 'list' }
+                  ]}
+                  onSelect={(id) => setComposerTab(id === 'poll' ? 'poll' : 'editor')}
+                />
+              ) : (
+                headerActions
+              )}
+              <VisuallyHidden>
+                <output>{editor.justApproved ? copy.approved.announce : ''}</output>
+              </VisuallyHidden>
+            </>
+          }
+          notices={
+            conflict || notice || notices || editor.mixed ? (
+              <>
+                {banners}
+                {mixedNotice}
+              </>
+            ) : null
+          }
+        >
+          {(tools) =>
+            showPoll ? (
+              <PollEditor
+                poll={editor.poll}
+                onChange={editor.setPoll}
+                issue={editor.pollIssue}
+                isReadOnly={editor.readOnly}
+                showErrors={publishTried}
+              />
+            ) : (
+              <>
+                <PostMediaEditor
+                  postId={baseline?.id ?? null}
+                  revision={baseline?.revision ?? 0}
+                  media={baseline?.media ?? []}
+                  disabled={editor.readOnly || hasConflict}
+                  mediaWriteLock={mediaWriteLock}
+                  onServerChange={editor.adoptMedia}
+                  onPendingChange={setMediaPending}
+                  onEnsurePost={editor.ensureDraftForMedia}
+                  onMediaSaved={editor.syncLeaveGuardAfterMediaSave}
+                  onRevisionConflict={() => {
+                    editor.markMediaConflict();
+                    setCompareOpen(true);
+                  }}
+                  onDraftReady={(saved) => void navigate({ to: '/posts/$id', params: { id: saved.id }, replace: true })}
+                  phone={tools.media}
+                />
+                <PostFields
+                  control={editor.form.control}
+                  setValue={editor.form.setValue}
+                  title={editor.title}
+                  hasTitle={editor.hasTitle}
+                  body={editor.body}
+                  entities={editor.entities}
+                  isReadOnly={editor.readOnly}
+                  isNew={editor.isNew}
+                  length={editor.length}
+                  overflow={editor.overflow}
+                  contentError={publishTried && missingContent ? copy.validation.nothingToSend : undefined}
+                  phone={tools.text}
+                />
+              </>
+            )
+          }
+        </PhoneComposer>
+        {dialogs}
+      </>
+    );
+  }
+
   return (
     <div ref={rootRef} className={styles.editor}>
       <header className={styles.titleRow}>
@@ -382,26 +567,7 @@ export function PostEditor({ post, onCreated, approvedActions, aside, headerActi
         </VisuallyHidden>
       </header>
 
-      {conflict ? (
-        <ConflictBanner
-          conflict={conflict}
-          isBusy={editor.isSaving || editor.isApproving || editor.isReturning}
-          onShowServer={() => setCompareOpen(true)}
-          onOverwrite={() => setOverwriteOpen(true)}
-          onRetry={editor.retryServerVersion}
-        />
-      ) : null}
-      {notice ? (
-        <Banner tone="error" title={notice.title} onDismiss={editor.dismissNotice}>
-          {notice.message}
-          {notice.requestId ? (
-            <>
-              {' '}
-              {copy.errors.requestId}: <code>{notice.requestId}</code>
-            </>
-          ) : null}
-        </Banner>
-      ) : null}
+      {banners}
       {isApproved && !isArchived && !hasConflict ? (
         <Banner
           tone="info"
@@ -441,38 +607,7 @@ export function PostEditor({ post, onCreated, approvedActions, aside, headerActi
         <div className={styles.footerPrimary}>{actions}</div>
       </footer>
 
-      <CompareDialog
-        isOpen={compareOpen}
-        onOpenChange={setCompareOpen}
-        mine={{ title: editor.title, body: editor.body }}
-        server={conflict?.server ?? null}
-        onUseServer={editor.acceptServer}
-      />
-      <ConfirmDialog
-        isOpen={overwriteOpen}
-        onOpenChange={setOverwriteOpen}
-        title={copy.conflict.overwriteDialog.title}
-        description={copy.conflict.overwriteDialog.description}
-        confirmLabel={copy.conflict.overwriteDialog.confirm}
-        cancelLabel={copy.conflict.overwriteDialog.cancel}
-        isPending={editor.isSaving}
-        onConfirm={() => void confirmOverwrite()}
-      />
-      <ConfirmDialog
-        isOpen={blocker.status === 'blocked'}
-        onOpenChange={(open) => {
-          if (!open) blocker.reset?.();
-        }}
-        title={copy.leave.title}
-        description={
-          editor.mediaPending
-            ? 'Есть файл, который не удалось загрузить или который ещё не сохранён на сервере. При выходе его локальная копия исчезнет — добавьте этот файл повторно. Текст и уже загруженные вложения останутся в черновике.'
-            : copy.leave.description
-        }
-        confirmLabel={copy.leave.confirm}
-        cancelLabel={copy.leave.cancel}
-        onConfirm={() => blocker.proceed?.()}
-      />
+      {dialogs}
     </div>
   );
 }

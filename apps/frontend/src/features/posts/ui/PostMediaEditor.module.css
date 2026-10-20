@@ -441,3 +441,40 @@
   background: var(--color-media-scrim);
   color: var(--color-on-media-strong);
 }
+
+/* Phone composer: the tiles are the top of the message bubble, as an album in Telegram; the sources fill the panel. */
+.phoneMedia {
+  display: grid;
+  gap: var(--space-2);
+  min-width: 0;
+}
+.phoneMedia:not(:has(li, p, button)) {
+  display: none;
+}
+.phoneMedia .list {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-1);
+  overflow: visible;
+}
+.phoneMedia .list:has(> .item:only-child) {
+  grid-template-columns: minmax(0, 1fr);
+}
+.phoneMedia .list:has(> .item:nth-child(2):last-child) {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.phoneMedia .list .item {
+  width: 100%;
+  height: auto;
+  aspect-ratio: 1;
+  border-radius: var(--radius-1);
+}
+.phoneMedia .list .item:only-child {
+  aspect-ratio: 4 / 3;
+}
+.phoneSources {
+  display: grid;
+  align-content: start;
+  gap: var(--space-2);
+  padding: var(--space-3);
+}

@@ -155,8 +155,8 @@ function LoadedPost({ post }: { post: PostDto }) {
             />
           )
         }
+        notices={notice ? <LifecycleBanner notice={notice} onDismiss={() => setNotice(null)} /> : null}
       />
-      {notice ? <LifecycleBanner notice={notice} onDismiss={() => setNotice(null)} /> : null}
       {isArchived ? (
         <Banner
           tone="info"

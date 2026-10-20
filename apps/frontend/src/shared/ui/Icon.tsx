@@ -73,6 +73,12 @@ const PATHS = {
   undo: 'M9 14 4 9l5-5M4 9h10a6 6 0 0 1 0 12h-3',
   redo: 'm15 14 5-5-5-5M20 9H10a6 6 0 0 0 0 12h3',
   smile: 'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM8.5 14a4 4 0 0 0 7 0M9 9.5v.01M15 9.5v.01',
+  // Phone composer: attach (as Telegram's 📎) and back to the keyboard from a panel.
+  paperclip: 'M20 11.5 12.2 19.3a5 5 0 0 1-7.1-7.1l8.5-8.5a3.3 3.3 0 0 1 4.7 4.7l-8.5 8.5a1.7 1.7 0 0 1-2.4-2.4L15 6.9',
+  keyboard:
+    'M4 6h16a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1zM7 10h.01M11 10h.01M15 10h.01M17 10h.01M7 14h.01M17 14h.01M10 14h4',
+  // Text formatting (Aa) in the phone composer bar.
+  type: 'M4 7V5h11v2M9.5 5v14M7.5 19h4M14 13v-1.5h7V13M17.5 11.5V19M16 19h3',
   'rotate-left': 'M4 4v5h5M4.5 9A8 8 0 1 1 4 13',
   'rotate-right': 'M20 4v5h-5M19.5 9A8 8 0 1 0 20 13',
   crop: 'M6 2v14a2 2 0 0 0 2 2h14M2 6h14a2 2 0 0 1 2 2v14',

@@ -149,3 +149,53 @@
     display: none;
   }
 }
+
+/* Phone panel in place of the keyboard: every action is a labelled tile, three to a row. */
+.panelGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-2);
+  padding: var(--space-3);
+}
+.panelAction {
+  display: grid;
+  justify-items: center;
+  align-content: center;
+  gap: var(--space-1);
+  min-height: calc(var(--size-target) + var(--space-6));
+  padding: var(--space-2) var(--space-1);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-2);
+  background: var(--color-surface-2);
+  color: var(--color-text);
+  font: inherit;
+  touch-action: manipulation;
+}
+.panelAction[data-pressed] {
+  background: var(--color-surface-3);
+}
+.panelAction[data-selected] {
+  border-color: var(--color-accent);
+  background: var(--color-accent-soft);
+  color: var(--color-accent-text);
+}
+.panelAction[data-focus-visible] {
+  outline: var(--focus-ring-width) solid var(--color-focus-ring);
+  outline-offset: var(--focus-ring-offset);
+}
+.panelAction[data-disabled] {
+  color: var(--color-text-disabled);
+}
+.panelGlyph {
+  display: inline-grid;
+  place-items: center;
+  height: var(--space-6);
+  font-size: var(--font-size-lg);
+}
+.panelLabel {
+  max-width: 100%;
+  font-size: var(--font-size-xs);
+  line-height: var(--line-height-heading);
+  text-align: center;
+  hyphens: auto;
+}

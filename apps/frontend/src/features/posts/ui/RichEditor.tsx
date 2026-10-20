@@ -1,15 +1,19 @@
 import type { PostEntity } from '@alexeev/contracts';
 import { EditorContent } from '@tiptap/react';
 import { useEffect, useId, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { ru } from '../../../shared/lib/ru';
 import { Button, VisuallyHidden } from '../../../shared/ui';
+import { rememberEmoji } from '../model/emoji-data';
 import type { RichValue } from '../model/entities-doc';
+import type { PhonePanel } from '../model/use-keyboard-panel';
 import { parseLinkInput } from '../model/link-url';
 import { useRichEditor } from '../model/use-rich-editor';
 import { AiImproveDialog } from './AiImproveDialog';
 import { CodeLanguageDialog } from './CodeLanguageDialog';
 import { postsCopy } from './copy';
 import { EditorToolbar } from './EditorToolbar';
+import { EmojiPicker } from './EmojiPicker';
 import { LinkDialog, type LinkDialogStart } from './LinkDialog';
 import styles from './RichEditor.module.css';
 
@@ -28,7 +32,19 @@ type Props = {
   hideLabel?: boolean | undefined;
   /** Puts the caret in the field once it is ready (a fresh draft: the owner came here to write). */
   autoFocus?: boolean | undefined;
+  /** The phone composer: the field is the message bubble; formatting and emoji render into the panel that replaces the keyboard. */
+  phone?: PhoneTools | undefined;
 };
+
+export type PhoneTools = {
+  panel: PhonePanel | null;
+  panelTarget: HTMLElement | null;
+  improveOpen: boolean;
+  onImproveOpenChange: (open: boolean) => void;
+};
+
+/** The phone bubble shows the counter only near the limit (from 80 %), as the bubble has no room for a constant one. */
+const NEAR_LIMIT = 0.8;
 
 /** Rich text field for a Telegram post. The toolbar is hidden while the field is read-only. */
 export function RichEditor({
@@ -42,14 +58,17 @@ export function RichEditor({
   errorMessage,
   limit,
   hideLabel = false,
-  autoFocus = false
+  autoFocus = false,
+  phone
 }: Props) {
   const id = useId();
   const descriptionId = `${id}-description`;
   const errorId = `${id}-error`;
   const [linkStart, setLinkStart] = useState<LinkDialogStart | null>(null);
   const [language, setLanguage] = useState<string | null>(null);
-  const [improveOpen, setImproveOpen] = useState(false);
+  const [ownImproveOpen, setOwnImproveOpen] = useState(false);
+  const improveOpen = phone ? phone.improveOpen : ownImproveOpen;
+  const setImproveOpen = phone ? phone.onImproveOpenChange : setOwnImproveOpen;
   const canImprove = body.trim() !== '';
 
   const editor = useRichEditor({
@@ -111,6 +130,73 @@ export function RichEditor({
     setLanguage(null);
   }
 
+  const dialogs = (
+    <>
+      {linkStart ? (
+        <LinkDialog start={linkStart} onApply={applyLink} onRemove={removeLink} onClose={() => setLinkStart(null)} />
+      ) : null}
+      {editor && improveOpen ? (
+        <AiImproveDialog editor={editor} isOpen={improveOpen} onOpenChange={setImproveOpen} limit={limit} />
+      ) : null}
+      {language !== null ? (
+        <CodeLanguageDialog language={language} onApply={applyLanguage} onClose={() => setLanguage(null)} />
+      ) : null}
+    </>
+  );
+
+  if (phone) {
+    const target = phone.panelTarget;
+    const editable = editor !== null && !isReadOnly;
+    return (
+      <div className={`${styles.field} ${styles.phoneField}`}>
+        <div className={styles.phoneBox} data-invalid={errorMessage ? '' : undefined}>
+          {body === '' && !isReadOnly ? (
+            <span className={styles.placeholder} aria-hidden="true">
+              {postsCopy.editor.phone.placeholder}
+            </span>
+          ) : null}
+          <EditorContent editor={editor} className={styles.content} />
+        </div>
+        <p id={descriptionId} className={styles.phoneDescription}>
+          <VisuallyHidden>{description}</VisuallyHidden>
+          {body.length >= limit * NEAR_LIMIT ? (
+            <span className={`mono ${body.length > limit ? styles.over : ''}`}>
+              {ru.ui.counter(body.length, limit)}
+            </span>
+          ) : null}
+        </p>
+        <p id={errorId} className={styles.error} role={errorMessage ? 'alert' : undefined}>
+          {errorMessage}
+        </p>
+        {dialogs}
+        {editable && target && phone.panel === 'format'
+          ? createPortal(
+              <EditorToolbar
+                editor={editor}
+                variant="panel"
+                onLink={openLink}
+                onCodeLanguage={() => setLanguage(String(editor.getAttributes('codeBlock').language ?? ''))}
+              />,
+              target
+            )
+          : null}
+        {editable && target && phone.panel === 'emoji'
+          ? createPortal(
+              <EmojiPicker
+                variant="panel"
+                onPick={(char) => {
+                  // At the kept selection, without focus: focusing would bring the keyboard over the panel.
+                  editor.chain().insertContent(char).run();
+                  rememberEmoji(char);
+                }}
+              />,
+              target
+            )
+          : null}
+      </div>
+    );
+  }
+
   return (
     <div className={styles.field}>
       <span className={styles.label}>
@@ -153,15 +239,7 @@ export function RichEditor({
       <p id={errorId} className={styles.error} role={errorMessage ? 'alert' : undefined}>
         {errorMessage}
       </p>
-      {linkStart ? (
-        <LinkDialog start={linkStart} onApply={applyLink} onRemove={removeLink} onClose={() => setLinkStart(null)} />
-      ) : null}
-      {editor && improveOpen ? (
-        <AiImproveDialog editor={editor} isOpen={improveOpen} onOpenChange={setImproveOpen} limit={limit} />
-      ) : null}
-      {language !== null ? (
-        <CodeLanguageDialog language={language} onApply={applyLanguage} onClose={() => setLanguage(null)} />
-      ) : null}
+      {dialogs}
     </div>
   );
 }
