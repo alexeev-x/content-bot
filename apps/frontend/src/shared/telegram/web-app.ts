@@ -76,7 +76,7 @@ export function subscribeThemeChanged(handler: () => void): () => void {
   return subscribe('themeChanged', handler);
 }
 
-/** Telegram's own viewport numbers, for the temporary keyboard diagnostics; undefined outside Telegram. */
+/** Telegram's own viewport height: on an iPhone it arrives as the keyboard starts moving. Undefined outside Telegram. */
 export function readTelegramViewport(): { height: number; stable: number } | undefined {
   const app = getWebApp();
   if (!app || !isInsideTelegram()) return undefined;

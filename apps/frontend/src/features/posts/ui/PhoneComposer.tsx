@@ -1,9 +1,7 @@
 import { useRef, useState, type ReactNode, type RefObject } from 'react';
 import { Button, IconButton, type IconName } from '../../../shared/ui';
 import { useKeyboardPanel, type PhonePanel } from '../model/use-keyboard-panel';
-import { readAppEnvironment } from '../../../app/environment';
 import { postsCopy } from './copy';
-import { KeyboardDebug } from './KeyboardDebug';
 import type { PhoneMedia } from './PostMediaEditor';
 import type { PhonePollPanel } from './PhonePoll';
 import type { PhoneTools } from './RichEditor';
@@ -29,8 +27,6 @@ type Props = {
 };
 
 const copy = postsCopy.editor.phone;
-// TEMPORARY: the iPhone keyboard numbers on DEV (KeyboardDebug); never in production.
-const SHOW_KEYBOARD_DEBUG = readAppEnvironment() === 'dev';
 // What brings the soft keyboard up.
 const TEXT = '[contenteditable="true"], input[type="text"], textarea';
 type PanelButton = { id: PhonePanel; icon: IconName; label: string };
@@ -78,7 +74,6 @@ export function PhoneComposer({ rootRef, header, notices, children, meta, kind, 
   return (
     <div ref={rootRef} className={styles.root} data-keyboard={keyboard.keyboardOpen || undefined}>
       <header className={styles.header}>{header}</header>
-      {SHOW_KEYBOARD_DEBUG ? <KeyboardDebug rootRef={rootRef} /> : null}
       {notices ? <div className={styles.notices}>{notices}</div> : null}
       <div
         ref={chatRef}
