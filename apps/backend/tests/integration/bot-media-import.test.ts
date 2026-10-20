@@ -303,6 +303,68 @@ describe('media from the owner becomes a draft', () => {
     expect(replyTexts()).toEqual(['Этот тип сообщения пока не превращается в черновик']);
   });
 
+  const pollRows = () =>
+    testDb()
+      .prepare('SELECT kind, body, poll_json AS poll FROM posts')
+      .all<{ kind: string; body: string; poll: string }>()
+      .then((rows) => rows.results.map((row) => ({ ...row, poll: JSON.parse(row.poll) as unknown })));
+  const telegramPoll = (extra: Record<string, unknown> = {}) => ({
+    id: 'p1',
+    question: 'Кто мы такие',
+    options: ['не мы', 'мыв', 'мы'].map((text) => ({ text, voter_count: 0 })),
+    total_voter_count: 0,
+    is_closed: false,
+    is_anonymous: true,
+    type: 'regular',
+    allows_multiple_answers: false,
+    ...extra
+  });
+
+  it('turns a poll into a poll draft with its question and options (owner, 20.10.2026)', async () => {
+    await deliver(message({ poll: telegramPoll({ allows_multiple_answers: true }) }));
+    expect(await pollRows()).toEqual([
+      {
+        kind: 'poll',
+        body: '',
+        poll: { question: 'Кто мы такие', options: ['не мы', 'мыв', 'мы'], allowsMultipleAnswers: true, quiz: null }
+      }
+    ]);
+    expect(replyTexts()).toEqual(['Черновик-опрос создан']);
+  });
+
+  it('keeps a quiz with its one answer and explanation; a quiz without one answer becomes a regular poll', async () => {
+    await deliver(
+      message({ poll: telegramPoll({ type: 'quiz', correct_option_ids: [2], explanation: 'Конечно мы' }) })
+    );
+    await deliver(message({ poll: telegramPoll({ type: 'quiz', correct_option_ids: [0, 2] }) }, 11));
+    const [quiz, regular] = await pollRows();
+    expect(quiz?.poll).toMatchObject({ quiz: { correctOptionIndex: 2, explanation: 'Конечно мы' } });
+    expect(regular?.poll).toMatchObject({ quiz: null, allowsMultipleAnswers: false });
+  });
+
+  it('outside /post makes no poll draft and says how to make one', async () => {
+    await testDb().prepare('DELETE FROM ai_writer_requests').run();
+    await deliver(message({ poll: telegramPoll() }));
+    expect(await count('posts')).toBe(0);
+    expect(replyTexts()).toEqual(['Чтобы сделать пост — /post, чтобы написать с ИИ — /redactor.']);
+  });
+
+  it('cuts a question or option over our limits instead of refusing the poll', async () => {
+    await deliver(
+      message({
+        poll: telegramPoll({
+          question: 'в'.repeat(310),
+          options: [
+            { text: 'а'.repeat(120), voter_count: 0 },
+            { text: 'б', voter_count: 0 }
+          ]
+        })
+      })
+    );
+    const [row] = await pollRows();
+    expect(row?.poll).toMatchObject({ question: 'в'.repeat(300), options: ['а'.repeat(100), 'б'] });
+  });
+
   it('stays silent on a service message', async () => {
     await deliver(message({ write_access_allowed: { from_request: true } }));
     expect(replies).toEqual([]);

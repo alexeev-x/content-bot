@@ -11,7 +11,7 @@ import { parseOwnerTelegramId } from '../../modules/identity';
 import type { AppEnv } from '../env';
 import { parseEnvBotInfo } from './bot-info';
 import type { BotIdentityStore } from './bot-identity-store';
-import { draftFromCaption, draftFromMessageText, mediaOnlyDraft } from './draft-from-message';
+import { draftFromCaption, draftFromMessageText, draftFromPoll, mediaOnlyDraft } from './draft-from-message';
 import { type BotMediaFile, mediaLimit } from './media-import';
 import { ALBUM_SETTLE_MS } from './media-import-worker';
 import { CALLBACK_PREFIX, type PublishActions, type PublishOutcome } from './publish-actions';
@@ -183,6 +183,7 @@ const START_TEXT = 'Студия на связи. Откройте её кноп
 const REPORT_FAILED_TEXT = 'Не удалось получить данные. Попробуйте ещё раз.';
 const DRAFT_FAILED_TEXT = 'Не удалось создать черновик. Отправьте текст ещё раз.';
 const DRAFT_CREATED_TEXT = 'Черновик создан';
+const POLL_DRAFT_CREATED_TEXT = 'Черновик-опрос создан';
 const MEDIA_DRAFT_CREATED_TEXT = 'Черновик создан, файлы загружаются…';
 const DRAFT_TOO_LONG_TEXT = `Текст длиннее ${POST_BODY_MAX} символов, черновик не создан.`;
 const CHANGED_TEXT = 'Пост изменился — откройте в Студии';
@@ -364,6 +365,31 @@ export function createBot(config: BotConfig, runtime: BotRuntime): Bot {
       return;
     }
     await ctx.reply(DRAFT_CREATED_TEXT, await draftReplyOptions(post));
+  });
+
+  // A poll the owner made or forwarded in the chat becomes a poll draft (owner, 20.10.2026).
+  bot.on('message:poll', async (ctx) => {
+    // Like files, only in /post mode (owner, 16.10.2026).
+    const now = runtime.clock.now();
+    const mode = await (await runtime.writer()).writer.touchRequest(ctx.chat.id, now, now + REQUEST_TTL_MS);
+    if (mode?.kind !== 'post') {
+      await ctx.reply(NO_MODE_TEXT);
+      return;
+    }
+    const draft = draftFromPoll(ctx.message.poll);
+    if (!draft.ok) {
+      await ctx.reply(DRAFT_INVALID_TEXT);
+      return;
+    }
+    let post: { id: string; revision: number };
+    try {
+      post = await runtime.createDraft(draft.input, `tg-update-${ctx.update.update_id}`);
+    } catch (error) {
+      runtime.onError(error);
+      await ctx.reply(DRAFT_FAILED_TEXT);
+      return;
+    }
+    await ctx.reply(POLL_DRAFT_CREATED_TEXT, await draftReplyOptions(post));
   });
 
   // A photo, video or GIF with its caption. An album arrives as one update per file sharing a
@@ -624,7 +650,6 @@ const UNSUPPORTED_CONTENT = [
   'contact',
   'location',
   'venue',
-  'poll',
   'dice',
   'game',
   'story',

@@ -1,12 +1,16 @@
 import {
   type CreatePostInput,
   createPostInputSchema,
+  POLL_EXPLANATION_MAX,
+  POLL_OPTION_MAX,
+  POLL_OPTIONS_MAX,
+  POLL_QUESTION_MAX,
   POST_BODY_MAX,
   POST_ENTITIES_MAX,
   type PostEntity,
   postEntitySchema
 } from '@alexeev/contracts';
-import type { MessageEntity } from 'grammy/types';
+import type { MessageEntity, Poll } from 'grammy/types';
 
 export type DraftFromMessage =
   { ok: true; input: CreatePostInput } | { ok: false; reason: 'TOO_LONG' | 'INVALID_TEXT' };
@@ -123,4 +127,32 @@ export function draftFromCaption(
 
 export function mediaOnlyDraft(): CreatePostInput {
   return { body: '', entities: [], kind: 'text' };
+}
+
+/**
+ * A poll sent to the bot (owner, 20.10.2026: «чтобы с ТГ мог создавать») becomes a poll draft with the same question,
+ * options, multiple answers and quiz. Telegram's own limits match ours; anything longer is cut, so the draft is still
+ * made and the owner sees it in the studio. A quiz keeps its answer only when Telegram gave exactly one (it gives
+ * them in the private chat with the bot); otherwise the draft is a regular poll the owner can turn back into a quiz.
+ */
+export function draftFromPoll(poll: Poll): DraftFromMessage {
+  const cut = (value: string, max: number) => Array.from(value.trim()).slice(0, max).join('');
+  const options = poll.options.slice(0, POLL_OPTIONS_MAX).map((option) => cut(option.text, POLL_OPTION_MAX));
+  // Our quiz has one right answer; a quiz with several (or none given) becomes a regular poll.
+  const answers = poll.correct_option_ids ?? [];
+  const answer = answers.length === 1 ? answers[0] : undefined;
+  const quiz =
+    poll.type === 'quiz' && answer !== undefined && answer < options.length
+      ? { correctOptionIndex: answer, explanation: cut(poll.explanation ?? '', POLL_EXPLANATION_MAX) }
+      : null;
+  const parsed = createPostInputSchema.safeParse({
+    kind: 'poll',
+    poll: {
+      question: cut(poll.question, POLL_QUESTION_MAX),
+      options,
+      allowsMultipleAnswers: quiz === null && poll.allows_multiple_answers,
+      quiz
+    }
+  });
+  return parsed.success ? { ok: true, input: parsed.data } : { ok: false, reason: 'INVALID_TEXT' };
 }
