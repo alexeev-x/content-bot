@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { ApiError } from '../../../shared/api/http-client';
-import { Button, ErrorState, Icon, IconBadge, Panel, ProgressBar, Skeleton, StatusPill } from '../../../shared/ui';
+import { Button, ErrorState, Icon, IconBadge, Panel, Skeleton, StatusPill } from '../../../shared/ui';
 import {
   aiHypothesesQueryOptions,
   aiOverviewQueryOptions,
@@ -10,7 +10,7 @@ import {
 import { aiStatus } from '../model/ai-view';
 import { type DecisionTarget, pendingDecisions } from '../model/decisions';
 import { AiQualityPanel } from './AiQualityPanel';
-import { copy, usd } from './copy';
+import { copy } from './copy';
 import styles from './AiEditor.module.css';
 
 type Props = {
@@ -21,7 +21,7 @@ type Props = {
 const t = copy.editor;
 
 /**
- * ИИ-редактор → Сводка: whether the AI works, what needs the owner's decision, the month's money and how the drafts
+ * ИИ-редактор → Сводка: whether the AI works, what needs the owner's decision and how the drafts
  * go — the answer in ten seconds; the lists themselves are on the other tabs.
  */
 export function AiEditorOverview({ onNavigate }: Props) {
@@ -50,10 +50,6 @@ export function AiEditorOverview({ onNavigate }: Props) {
   });
   const status = data ? aiStatus(data) : null;
   const listsPending = rules.isPending || hypotheses.isPending || unlinked.isPending;
-  const share =
-    data && data.settings.monthlyBudgetUsd > 0
-      ? Math.min(100, (data.spend.spentUsd / data.settings.monthlyBudgetUsd) * 100)
-      : 0;
 
   return (
     <div className={styles.overview}>
@@ -108,42 +104,15 @@ export function AiEditorOverview({ onNavigate }: Props) {
         </div>
       </Panel>
 
-      <div className={styles.pair}>
-        <Panel title={t.money.title} headingLevel={2} quiet icon={<Icon name="wallet" />}>
+      {data === undefined ? (
+        <Panel title={copy.quality.title(30)} headingLevel={2} quiet icon={<Icon name="check-circle" />}>
           <div className={styles.money}>
-            {data === undefined ? (
-              <Skeleton lines={3} height={20} />
-            ) : (
-              <>
-                <p className={styles.meta}>{copy.spentIn(data.spend.month)}</p>
-                <p className={styles.moneyValue}>
-                  <strong>{usd(data.spend.spentUsd)}</strong> {copy.of} {usd(data.settings.monthlyBudgetUsd)}
-                </p>
-                <ProgressBar label={copy.spendBar} value={share} tone={share >= 100 ? 'failed' : 'accent'} />
-                <p className={styles.meta}>
-                  {t.money.today(
-                    usd(data.spend.todayUsd),
-                    data.settings.dailyCapUsd >= data.settings.monthlyBudgetUsd ? null : usd(data.settings.dailyCapUsd)
-                  )}{' '}
-                  · {copy.left(usd(data.spend.leftUsd))}
-                </p>
-                <Button variant="ghost" size="sm" icon="arrow-right" onPress={() => onNavigate('spend')}>
-                  {t.money.more}
-                </Button>
-              </>
-            )}
+            <Skeleton lines={4} height={20} />
           </div>
         </Panel>
-        {data === undefined ? (
-          <Panel title={copy.quality.title(30)} headingLevel={2} quiet icon={<Icon name="check-circle" />}>
-            <div className={styles.money}>
-              <Skeleton lines={4} height={20} />
-            </div>
-          </Panel>
-        ) : (
-          <AiQualityPanel quality={data.quality} />
-        )}
-      </div>
+      ) : (
+        <AiQualityPanel quality={data.quality} />
+      )}
     </div>
   );
 }

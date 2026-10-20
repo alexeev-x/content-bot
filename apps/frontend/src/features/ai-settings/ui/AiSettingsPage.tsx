@@ -1,6 +1,5 @@
 import type { AiCatalogModelDto, AiOverviewDto, UpdateAiSettingsInput } from '@alexeev/contracts';
 import { useQuery } from '@tanstack/react-query';
-import { useNavigate } from '@tanstack/react-router';
 import { useState } from 'react';
 import { ApiError } from '../../../shared/api/http-client';
 import {
@@ -10,7 +9,6 @@ import {
   Icon,
   IconBadge,
   Panel,
-  ProgressBar,
   SegmentedControl,
   Select,
   Skeleton,
@@ -22,7 +20,8 @@ import {
 } from '../../../shared/ui';
 import { aiOverviewQueryOptions, useCheckAiConnection, useSaveAiSettings } from '../api/ai-queries';
 import { aiStatus, BUDGET_PRESETS, DAILY_PRESETS, draftCostCents, WARN_PRESETS } from '../model/ai-view';
-import { copy, usd } from './copy';
+import { AiMoneyPanel } from './AiMoneyPanel';
+import { copy } from './copy';
 import styles from './AiSettingsPage.module.css';
 
 /**
@@ -69,7 +68,7 @@ export function AiSettingsSkeleton() {
             </Button>
           </div>
         </section>
-        <AiSpendLineSkeleton />
+        <AiMoneyPanel overview={undefined} />
         <Panel title={copy.modelsTitle} icon={<Icon name="settings" />}>
           <p className={styles.intro}>{copy.modelsIntro('OpenAI')}</p>
           <div className={styles.models}>
@@ -254,8 +253,8 @@ function AiSettings({ overview, onReload }: { overview: AiOverviewDto; onReload:
       {/* Right under the state, not after the whole page: it is why drafts stopped. */}
       {spend.blockedBy === 'monthly_budget' ? <Banner tone="warning" title={copy.blocked.monthly_budget} /> : null}
 
-      {/* Money lives in ИИ-редактор → Расходы (owner, 20.10.2026: settings hold only what is set); here one line. */}
-      <AiSpendLine overview={overview} />
+      {/* The month's money beside the budget it is set against (owner, 20.10.2026). */}
+      <AiMoneyPanel overview={overview} />
 
       <Panel title={copy.modelsTitle} icon={<Icon name="settings" />}>
         <p className={styles.intro}>{copy.modelsIntro(catalog.providerLabel)}</p>
@@ -355,39 +354,5 @@ function AiSettings({ overview, onReload }: { overview: AiOverviewDto; onReload:
         </div>
       </Panel>
     </div>
-  );
-}
-
-/** Money in one line with the way to it: the full picture is ИИ-редактор → Расходы. */
-function AiSpendLine({ overview }: { overview: AiOverviewDto }) {
-  const navigate = useNavigate();
-  const { spend, settings } = overview;
-  const share = settings.monthlyBudgetUsd > 0 ? Math.min(100, (spend.spentUsd / settings.monthlyBudgetUsd) * 100) : 0;
-  return (
-    <section className={styles.spendLine} aria-label={copy.spendTitle}>
-      <div className={styles.spendLineText}>
-        <p className={styles.meta}>{copy.spendLine(usd(spend.spentUsd), usd(settings.monthlyBudgetUsd))}</p>
-        <ProgressBar label={copy.spendBar} value={share} tone={share >= 100 ? 'failed' : 'accent'} />
-      </div>
-      <Button
-        size="sm"
-        variant="secondary"
-        icon="arrow-right"
-        onPress={() => void navigate({ to: '/ai', search: { tab: 'spend' } })}
-      >
-        {copy.spendLink}
-      </Button>
-    </section>
-  );
-}
-
-function AiSpendLineSkeleton() {
-  return (
-    <section className={styles.spendLine} aria-hidden="true">
-      <div className={styles.spendLineText}>
-        <Skeleton width="60%" height="1lh" />
-        <ProgressBar label={copy.spendBar} value={0} />
-      </div>
-    </section>
   );
 }
