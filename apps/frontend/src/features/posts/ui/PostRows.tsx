@@ -17,7 +17,7 @@ import {
   type RowSelection,
   type TableSort
 } from '../../../shared/ui';
-import { formatExact, formatRelative } from '../model/format-time';
+import { formatChatTime, formatExact, formatRelative } from '../model/format-time';
 import { ARCHIVE_WARNING_DAYS, daysLeftOf, deleteBlockOf, listStateOf, type DeleteBlock } from '../model/post-state';
 import type { PostSort, PostSortKey } from '../model/post-sort';
 import { postsCopy } from './copy';
@@ -346,6 +346,8 @@ function Cards(props: Props) {
             <RowCard
               key={post.id}
               title={titleOf(post)}
+              // As a chat list: the last change at the right of the title (owner, 20.10.2026: «как в телеграме»).
+              time={formatChatTime(post.updatedAt, now)}
               media={<MediaTile size={44} />}
               {...(live ? { status: <PostStateBadge post={post} /> } : {})}
               meta={
@@ -356,7 +358,7 @@ function Cards(props: Props) {
                     {live
                       ? state.kind === 'scheduled' && state.at
                         ? copy.list.sendAt(shortFormat.format(new Date(state.at)))
-                        : formatRelative(post.updatedAt, now)
+                        : null
                       : daysLeft === null
                         ? copy.archive.noChannels
                         : copy.archive.daysLeft(daysLeft)}

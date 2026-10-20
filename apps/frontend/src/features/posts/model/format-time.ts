@@ -32,3 +32,17 @@ export function formatRelative(iso: string, now: number): string {
   const step = STEPS.find((candidate) => abs >= candidate.ms) ?? STEPS[STEPS.length - 1]!;
   return relativeFormat.format(Math.round(diff / step.ms), step.unit);
 }
+
+const weekdayFormat = new Intl.DateTimeFormat('ru-RU', { weekday: 'short' });
+const dayMonthFormat = new Intl.DateTimeFormat('ru-RU', { day: 'numeric', month: 'short' });
+const fullDateFormat = new Intl.DateTimeFormat('ru-RU', { day: '2-digit', month: '2-digit', year: '2-digit' });
+
+/** The time of a chat in Telegram's list: «12:00» today, «пн» this week, «6 окт.» this year, «06.10.25» before. */
+export function formatChatTime(iso: string, now: number): string {
+  const date = new Date(iso);
+  const today = new Date(now);
+  if (date.toDateString() === today.toDateString()) return clockFormat.format(date);
+  if (now - date.getTime() < 6 * 86_400_000 && date.getTime() <= now) return weekdayFormat.format(date);
+  if (date.getFullYear() === today.getFullYear()) return dayMonthFormat.format(date);
+  return fullDateFormat.format(date);
+}

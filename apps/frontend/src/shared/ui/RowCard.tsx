@@ -5,6 +5,8 @@ import styles from './RowCard.module.css';
 type Props = {
   /** Up to two lines; the row's name for assistive tech. */
   title: string;
+  /** Right of the title, as the time of a chat in Telegram's list: the row's last change. */
+  time?: string;
   /** Status chip on the second line, before the meta. */
   status?: ReactNode;
   /** One muted line: channel · time. */
@@ -23,7 +25,19 @@ type Props = {
 };
 
 /** Phone row of a Panel list: fixed anatomy (title, then chip + meta, optional warning), whole row is the tap target. */
-export function RowCard({ title, status, meta, warning, onPress, leading, media, menu, isActive, isDimmed }: Props) {
+export function RowCard({
+  title,
+  time,
+  status,
+  meta,
+  warning,
+  onPress,
+  leading,
+  media,
+  menu,
+  isActive,
+  isDimmed
+}: Props) {
   return (
     <li className={styles.row} data-active={isActive || undefined} data-dimmed={isDimmed || undefined}>
       {leading ? <div className={styles.leading}>{leading}</div> : null}
@@ -32,6 +46,7 @@ export function RowCard({ title, status, meta, warning, onPress, leading, media,
         <span className={styles.body}>
           <span className={styles.top}>
             <span className={styles.title}>{title}</span>
+            {time ? <span className={styles.time}>{time}</span> : null}
           </span>
           {/* The status sits under the title, so a long title is never squeezed to «Публикация от…». */}
           {status || meta ? (

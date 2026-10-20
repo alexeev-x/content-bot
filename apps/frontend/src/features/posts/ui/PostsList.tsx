@@ -380,6 +380,9 @@ export function PostsList({
               <StaleRegion busy={switching}>
                 <Wrap narrow={narrow}>
                   <Panel
+                    // Phone: a chat list without a card around it (owner, 20.10.2026: «как в телеграме»).
+                    variant={narrow ? 'plain' : 'surface'}
+                    quiet={narrow}
                     title={PANEL_TITLE[shownView]}
                     {...(isArchive ? { note: postsCopy.archive.note } : {})}
                     action={panelAction}

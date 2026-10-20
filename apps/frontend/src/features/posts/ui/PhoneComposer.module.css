@@ -101,11 +101,6 @@
   font-size: var(--font-size-2xs);
   font-variant-numeric: tabular-nums;
 }
-.form {
-  display: grid;
-  gap: var(--space-3);
-  min-width: 0;
-}
 /* The keyboard covers the home indicator: no safe-area gap between the bar and the keys. */
 .root[data-keyboard] .bar {
   padding-bottom: var(--space-1);

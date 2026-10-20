@@ -106,3 +106,15 @@
   place-items: center;
   padding-right: var(--space-1);
 }
+
+.time {
+  flex: none;
+  padding-top: 2px;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.top:has(.time) .title {
+  flex: 1;
+}

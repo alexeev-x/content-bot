@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { subscribeViewportChanged } from '../../../shared/telegram/web-app';
 
-export type PhonePanel = 'format' | 'emoji' | 'media';
+export type PhonePanel = 'format' | 'emoji' | 'media' | 'poll';
 
 type Metrics = {
   /** The screen height without a keyboard: the tallest viewport seen at this width. */

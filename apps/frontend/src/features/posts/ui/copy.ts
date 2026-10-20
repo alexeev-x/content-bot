@@ -269,7 +269,11 @@ export const postsCopy = {
       gallery: 'Выбрать из галереи',
       galleryHint: 'Фото и видео с устройства',
       library: 'Медиабиблиотека',
-      libraryHint: 'Ваши сохранённые файлы'
+      libraryHint: 'Ваши сохранённые файлы',
+      pollSettings: 'Настройки опроса',
+      pollMultiple: 'несколько ответов',
+      pollExplanation: 'Пояснение после ответа (необязательно)',
+      pollQuizHint: 'Верный ответ отмечается кружком у варианта в опросе'
     },
     overLimit: 'Лимит превышен',
     previewHeading: 'Так увидят в Telegram',

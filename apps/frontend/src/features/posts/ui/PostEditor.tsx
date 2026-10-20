@@ -33,6 +33,7 @@ import { PostPreview } from './PostPreview';
 import styles from './PostEditor.module.css';
 import { OriginMark } from './OriginMark';
 import { PhoneComposer } from './PhoneComposer';
+import { PhonePoll } from './PhonePoll';
 import { SaveIndicator } from './SaveIndicator';
 
 type Props = {
@@ -402,8 +403,7 @@ export function PostEditor({ post, onCreated, approvedActions, aside, headerActi
       <>
         <PhoneComposer
           rootRef={rootRef}
-          bubble={!showPoll}
-          hasTextTools={!showPoll}
+          kind={showPoll ? 'poll' : 'text'}
           canImprove={editor.body.trim() !== ''}
           isReadOnly={editor.readOnly || hasConflict}
           send={{ isLoading: editor.isSaving, isDisabled: !canContinue, onPress: () => void continueToPublish() }}
@@ -462,12 +462,13 @@ export function PostEditor({ post, onCreated, approvedActions, aside, headerActi
         >
           {(tools) =>
             showPoll ? (
-              <PollEditor
+              <PhonePoll
                 poll={editor.poll}
                 onChange={editor.setPoll}
                 issue={editor.pollIssue}
                 isReadOnly={editor.readOnly}
                 showErrors={publishTried}
+                {...tools.poll}
               />
             ) : (
               <>
