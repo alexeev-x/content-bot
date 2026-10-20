@@ -1,6 +1,6 @@
 # Product plan
 
-Written 14.10.2026 with the owner; only what is not built yet. Production waits until stages A–C are done and the owner says the result is ready.
+Written 14.10.2026 with the owner; only what is not built yet. Production waits until stages A and D are done and the owner says the result is ready.
 
 ## Goal
 
@@ -42,23 +42,6 @@ Sources: OpenDota keyless 60 req/min and 3 000/day; official datafeed keyless an
 
 Owned by `docs/ALEXEEV_AI_DEVELOPMENT_AND_TEST_PLAN.md` (only what is left).
 
-### B. Video analytics
-
-Not built, each a separate task (numbers in the owner's terms):
-
-2. **Telegram channel metrics as in TGStat** (deferred 15.10.2026: no ads planned soon). ERR (average views of the last 30 days' posts ÷ subscribers), ERR24 (views at 24 h ÷ subscribers, from the 24 h checkpoint), average reach per post and its trend.
-3. **Studio rubrics against results.** Telegram posts published through the studio are matched to their collected statistics, so a rubric («Учу фидить», «Вердикт чата», …) gets its own median, reach and best time.
-4. **Ad and event marks** (deferred 15.10.2026: no ads planned soon). The owner marks an ad post, a giveaway or a viral video; charts show the marks, and an ad post gets a report (views, reach, joins via its invite link, leaves after 7 days) for the advertiser.
-5. **Media kit and export** (deferred 15.10.2026: no ads planned soon). A public page (or a PDF) with audience, reach, ERR and average views per platform for advertisers; CSV export of the publications table.
-6. **YouTube sign-in (OAuth, YouTube Analytics API):** retention curve and relative retention, traffic sources, subscribers gained per video, audience geography. The early verdict stays on public counters; retention is added to the item panel when it lands (2–3 days delay).
-
-Not available through the platforms' APIs: TikTok retention, traffic sources and demographics (the Display API has counters only); TGStat's citation index; YouTube Studio's «Research» tab.
-
-### C. Telegram growth features
-
-- «Топ героев недели»: a weekly hero statistics collection (needs a new source, see rubric 5), a card rendered from a template with official hero portraits, an AI caption, a draft and a bot alert.
-- Interactive rubrics (prediction of the day, chat verdict) drafted by the bot and scheduled through the existing publishing flow.
-
 ### D. Images
 
 - No paid plans (owner, 15.10.2026: the Workers Paid plan is not an option). The Worker's Free CPU limit cannot render images, so layers are composed by Cloudflare Images (free 5 000 unique transformations a month; over it a new image fails, nothing is charged): the owner's background, hero art or the news image, logo and a fixed set of pre-drawn labels («ПАТЧ», «СЛУХ», «ТУРНИР», «РОЗЫГРЫШ»). Free-form headline text on the image only if the binding can draw it; otherwise the text stays in the post.
@@ -73,5 +56,4 @@ Video production, streams, ad sales once the channel reaches about 3–5K subscr
 
 | Needed for | Input |
 |---|---|
-| B | YouTube sign-in for OAuth |
 | D | Enable Cloudflare Images (free); a background, a logo and 2–3 example images of the wanted style |
