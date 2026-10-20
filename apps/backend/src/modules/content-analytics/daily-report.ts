@@ -8,6 +8,7 @@ import type { ContentForecastRepository, ForecastOutcome } from './d1-content-fo
 import { factAt } from './forecast-backtest';
 import type { Clock } from '../../platform/clock';
 import type { ItemFormats, VideoFormat } from './types';
+import { type Reference, TREND_TEXT, TREND_WORD } from './video-signals';
 
 // The daily analytics report in the owner's private chat (AI plan P6, §4.2–4.3; owner 19.10.2026: a short
 // presentation — what works, what does not and why; the details are in the studio). Code computes every number
@@ -42,13 +43,28 @@ export interface DailyReportData {
   accuracy: { scored: number; inBand: number };
 }
 
-/** The AI review as the report shows it (modules/ai `AnalyticsReview`, passed through the app). */
-export interface DailyReview {
+/**
+ * The AI review as the report shows it (modules/ai `AnalyticsReview`, passed through the app): the main fact,
+ * numbered conclusions, a question and next steps (owner, 20.10.2026). Videos are named by their keys in the text.
+ */
+export interface ReviewV2 {
+  main: string;
+  points: { text: string; confidence: 'low' | 'medium' }[];
+  question: string;
+  steps: string[];
+}
+
+/** The review's shape before 20.10.2026, still stored with older reports and shown in the studio's history. */
+export interface LegacyReview {
   summary: string;
   rising: { video: string; note: string }[];
   weak: { video: string; note: string; hypotheses: { text: string; confidence: 'low' | 'medium' }[] }[];
   next: string;
 }
+
+export type DailyReview = ReviewV2 | LegacyReview;
+
+const isLegacy = (review: DailyReview): review is LegacyReview => 'rising' in review;
 
 export const escapeHtml = (value: string) =>
   value.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;');
@@ -141,21 +157,81 @@ export function dailyReviewFacts(data: DailyReportData): {
             `${key} «${shortTitleOf(row.title, 80)}»`,
             `рубрика ${FORMAT_NAME[row.format]}`,
             `возраст ${ageText(row.ageHours)}`,
+            row.trend === undefined ? null : `статус: ${TREND_TEXT[row.trend]}`,
             `всего ${row.views === null ? 'н/д' : compactCount(row.views)}`,
             growthText(row.growth),
             row.growth.viewsPerHour === null ? null : `${row.growth.viewsPerHour}/ч`,
-            comparison
+            yesterdayText(row.growth, row.previousGrowth),
+            ratesText(row.likesRate ?? null, row.sharesRate ?? null),
+            comparison,
+            peersText(row)
           ]
             .filter(Boolean)
             .join(' · ');
         })
     ];
   });
+  const references = keyedReferences(data.daily);
+  if (references.length > 0)
+    lines.push(
+      '',
+      'Ориентиры — самые просматриваемые ролики канала (разный возраст, сравнение слабое):',
+      ...references.map(referenceLine)
+    );
   return {
     facts: lines.join('\n'),
-    videos: rows.map((row) => row.key),
+    videos: [...rows.map((row) => row.key), ...references.map((each) => each.key)],
     items: rows.map((row) => ({ key: row.key, itemId: row.row.id }))
   };
+}
+
+/** The references with their keys: YR1… for YouTube, TR1… for TikTok. */
+function keyedReferences(daily: DailyAnalytics): { key: string; reference: Reference }[] {
+  return daily.platforms.flatMap((platform) =>
+    (platform.references ?? []).map((reference, index) => ({
+      key: `${PLATFORM_KEY[platform.platform]}R${index + 1}`,
+      reference
+    }))
+  );
+}
+
+/** «вчера +1.3к, сегодня −49% к вчера» from two real day pairs; null without both. */
+function yesterdayText(today: DailyGrowth, before: DailyGrowth | undefined): string | null {
+  if (before === undefined || before.kind !== 'day' || today.kind !== 'day') return null;
+  const change = before.views > 0 ? Math.round((today.views / before.views - 1) * 100) : null;
+  return `вчера +${compactCount(before.views)}${change === null ? '' : ` (сегодня ${signed(change)}% к вчера)`}`;
+}
+
+export function ratesText(likes: number | null, shares: number | null): string | null {
+  const parts = [likes === null ? null : `лайки ${likes}%`, shares === null ? null : `пересылки ${shares}%`].filter(
+    (part) => part !== null
+  );
+  return parts.length === 0 ? null : parts.join(', ');
+}
+
+/** «ровесники рубрики к 24ч: «Сайленсер» 4.7к (у ролика +58%)», from the stored peers; null without them. */
+function peersText(row: KeyedRow['row']): string | null {
+  const peers = row.peers;
+  const own = row.comparison?.views ?? null;
+  if (peers === undefined || peers === null || peers.videos.length === 0 || own === null) return null;
+  const list = peers.videos.map((peer) => {
+    const change = peer.views > 0 ? Math.round((own / peer.views - 1) * 100) : null;
+    return `«${shortTitleOf(peer.title, 40)}» ${compactCount(peer.views)}${change === null ? '' : ` (у ролика ${signed(change)}%)`}`;
+  });
+  return `у ролика к ${peers.ageHours}ч ${compactCount(own)}; ровесники рубрики к ${peers.ageHours}ч: ${list.join(', ')}`;
+}
+
+export function referenceLine({ key, reference }: { key: string; reference: Reference }): string {
+  return [
+    `${key} «${shortTitleOf(reference.title, 80)}»`,
+    PLATFORM_NAME[reference.platform],
+    `рубрика ${FORMAT_NAME[reference.format]}`,
+    `возраст ${reference.ageDays} дн`,
+    `всего ${compactCount(reference.views)}`,
+    ratesText(reference.likesRate, reference.sharesRate)
+  ]
+    .filter(Boolean)
+    .join(' · ');
 }
 
 const signed = (value: number) => (value > 0 ? `+${value}` : value < 0 ? `−${Math.abs(value)}` : '0');
@@ -180,8 +256,40 @@ export const REVIEW_MISSING: Record<string, string> = {
   AI_TOO_LONG: 'разбор не влез в сообщение'
 };
 
+const CONFIDENCE = { low: 'гипотеза', medium: 'похоже' } as const;
+const REVIEW_KEY = /\b(?:YR|TR|Y|T|V|P)\d{1,2}\b/g;
+
+/**
+ * The review's conclusions as the message shows them (owner, 20.10.2026): numbered, each with how sure it is, then
+ * the editorial question and the next steps. `link` turns a video key of the facts into its title and link.
+ */
+export function conclusionsBlock(review: ReviewV2, link: (key: string) => string): string[] {
+  const text = (value: string) => escapeHtml(value).replace(REVIEW_KEY, (key) => link(key));
+  const lines: string[] = [];
+  if (review.points.length > 0)
+    lines.push(
+      '<b>🧠 Выводы</b>',
+      ...review.points.map(
+        (point, index) => `${index + 1}. ${text(point.text)} <i>(${CONFIDENCE[point.confidence]})</i>`
+      )
+    );
+  if (review.question !== '') lines.push('', `❓ <b>Вопрос:</b> ${text(review.question)}`);
+  if (review.steps.length > 0) lines.push('', '🎬 <b>Дальше</b>', ...review.steps.map((step) => `• ${text(step)}`));
+  return lines;
+}
+
+/** The main fact of the review, one line under the header. */
+export function mainLine(review: DailyReview | null, link: (key: string) => string): string | null {
+  if (review === null || isLegacy(review) || review.main === '') return null;
+  return `<b>Главное:</b> ${escapeHtml(review.main).replace(REVIEW_KEY, (key) => link(key))}`;
+}
+
 /** The review as the message shows it; `link` turns a video key of the facts into its title and link. */
 export function reviewBlock(review: DailyReview, link: (key: string) => string): string[] {
+  return isLegacy(review) ? legacyReviewBlock(review, link) : conclusionsBlock(review, link);
+}
+
+function legacyReviewBlock(review: LegacyReview, link: (key: string) => string): string[] {
   const lines = ['<b>🧠 Разбор</b>'];
   if (review.summary !== '') lines.push(escapeHtml(review.summary));
   if (review.rising.length > 0)
@@ -216,20 +324,32 @@ export interface TableRow {
   mark: '↑' | '↓' | '';
   /** The numbers did not update in the last collection. */
   stale: boolean;
+  /**
+   * The reaction column (owner, 20.10.2026): shares in per cent on TikTok, likes on YouTube (it gives no shares),
+   * and the status word. Present, they replace the arrow and shorten the title so the row stays one phone line.
+   */
+  rate?: string;
+  trend?: string;
 }
 
 /** Title room in a row: the whole row stays about 32 characters, one phone line (plan §4.2). */
 const TABLE_TITLE = 17;
+/** With the reaction and status columns the row is about 36 characters. */
+const TABLE_TITLE_WIDE = 10;
 
-const fitTitle = (title: string) => {
+const fitTitle = (title: string, room = TABLE_TITLE) => {
   const letters = Array.from(shortTitleOf(title, 80));
-  return letters.length > TABLE_TITLE
+  return letters.length > room
     ? `${letters
-        .slice(0, TABLE_TITLE - 1)
+        .slice(0, room - 1)
         .join('')
         .trimEnd()}…`
     : letters.join('');
 };
+
+/** 5.07 → «5.07», 12.3 → «12.3»: four characters at most. */
+export const rateCell = (value: number | null | undefined) =>
+  value === null || value === undefined ? '—' : value < 10 ? value.toFixed(2) : value.toFixed(1);
 
 /**
  * A platform's videos as a monospace table (owner, 19.10.2026: the line-per-video list with ▶️/🎵 looked bad;
@@ -240,25 +360,38 @@ export function platformTable(
   changeLabel: string,
   rows: readonly TableRow[]
 ): string[] {
-  const line = (number: string, views: string, change: string, mark: string, title: string) =>
-    `${number.padEnd(1)} ${views.padStart(5)} ${change.padStart(5)}${mark.padEnd(1)} ${title}`;
-  const table = [
-    line('#', 'Всего', changeLabel, '', 'Ролик'),
-    ...rows.map((row, index) =>
-      line(
-        String(index + 1),
-        `${row.views === null ? '—' : compactCount(row.views)}${row.stale ? '*' : ''}`,
-        row.change,
-        row.mark,
-        fitTitle(row.title)
-      )
-    )
-  ];
+  const wide = rows.some((row) => row.rate !== undefined || row.trend !== undefined);
+  const views = (row: TableRow) => `${row.views === null ? '—' : compactCount(row.views)}${row.stale ? '*' : ''}`;
+  const line = (number: string, total: string, change: string, mark: string, title: string) =>
+    `${number.padEnd(1)} ${total.padStart(5)} ${change.padStart(5)}${mark.padEnd(1)} ${title}`;
+  // The weekly table has the reaction column without a status.
+  const withTrend = rows.some((row) => row.trend !== undefined);
+  const wideLine = (number: string, total: string, change: string, rate: string, trend: string, title: string) =>
+    `${number.padEnd(1)} ${total.padStart(5)} ${change.padStart(5)} ${rate.padStart(4)} ${withTrend ? `${trend.padEnd(6)} ` : ''}${title}`;
+  const table = wide
+    ? [
+        wideLine('#', 'Всего', changeLabel, platform === 'tiktok' ? '↗%' : '♥%', 'Статус', 'Ролик'),
+        ...rows.map((row, index) =>
+          wideLine(
+            String(index + 1),
+            views(row),
+            row.change,
+            row.rate ?? '—',
+            row.trend ?? '—',
+            fitTitle(row.title, TABLE_TITLE_WIDE)
+          )
+        )
+      ]
+    : [
+        line('#', 'Всего', changeLabel, '', 'Ролик'),
+        ...rows.map((row, index) => line(String(index + 1), views(row), row.change, row.mark, fitTitle(row.title)))
+      ];
   const lines = [`<b>${PLATFORM_NAME[platform]}</b>`, `<pre>${escapeHtml(table.join('\n'))}</pre>`];
   if (rows.length > 0)
     lines.push(
       `Открыть: ${rows.map((row, index) => `<a href="${escapeHtml(cleanUrl(row.url))}">${index + 1}</a>`).join(' · ')}`
     );
+  if (wide) lines.push(`<i>${platform === 'tiktok' ? '↗% — пересылки' : '♥% — лайки'} от просмотров</i>`);
   if (rows.some((row) => row.stale)) lines.push('<i>* цифры не обновились при последнем сборе</i>');
   return lines;
 }
@@ -296,7 +429,14 @@ function videoTables(daily: DailyAnalytics, timezone: string): string[] {
         views: row.views,
         change: growthCell(row.growth),
         mark: usualArrow(row.comparison),
-        stale: row.status !== 'ok'
+        stale: row.status !== 'ok',
+        // Reports stored before 20.10.2026 have no status: they keep the old table.
+        ...(row.trend === undefined
+          ? {}
+          : {
+              rate: rateCell(platform.platform === 'tiktok' ? row.sharesRate : row.likesRate),
+              trend: TREND_WORD[row.trend]
+            })
       }));
     if (rows.length === 0) lines.push(`<b>${PLATFORM_NAME[platform.platform]}</b>`, 'Роликов пока нет.');
     else lines.push(...platformTable(platform.platform, '+сут', rows));
@@ -347,16 +487,29 @@ export function dailyReportHtml(input: {
     `<b>📈 Аналитика · ${day}, ${time(daily.asOf, input.timezone)}</b>${daily.partial ? ' · данные частично' : ''}`,
     ...(totals === null ? [] : [totals])
   ];
+  const references = keyedReferences(daily);
   const link = (key: string) => {
     const found = rows.find((row) => row.key === key);
-    return found === undefined
-      ? key
-      : `<a href="${escapeHtml(cleanUrl(found.row.url))}">${escapeHtml(shortTitleOf(found.row.title, TITLE_MAX))}</a> (${PLATFORM_NAME[found.platform]})`;
+    const reference = references.find((each) => each.key === key)?.reference;
+    const anchor = (url: string, title: string, platform: 'youtube' | 'tiktok') =>
+      `<a href="${escapeHtml(cleanUrl(url))}">${escapeHtml(shortTitleOf(title, TITLE_MAX))}</a> (${PLATFORM_NAME[platform]})`;
+    if (found !== undefined) return anchor(found.row.url, found.row.title, found.platform);
+    return reference === undefined ? key : anchor(reference.url, reference.title, reference.platform);
   };
-  if (input.review !== null) lines.push('', ...reviewBlock(input.review, link));
-  else if (input.reviewError)
-    lines.push('', `<i>🧠 Разбор недоступен: ${REVIEW_MISSING[input.reviewError] ?? 'ошибка ИИ'}.</i>`);
-  lines.push('', ...videoTables(daily, input.timezone));
+  const review = input.review;
+  if (review !== null && !('rising' in review)) {
+    // The layout of 20.10.2026: the main fact, the tables, then the conclusions (owner's example).
+    const main = mainLine(review, link);
+    if (main !== null) lines.push(main);
+    lines.push('', ...videoTables(daily, input.timezone));
+    const conclusions = conclusionsBlock(review, link);
+    if (conclusions.length > 0) lines.push('', ...conclusions);
+  } else {
+    if (review !== null) lines.push('', ...reviewBlock(review, link));
+    else if (input.reviewError)
+      lines.push('', `<i>🧠 Разбор недоступен: ${REVIEW_MISSING[input.reviewError] ?? 'ошибка ИИ'}.</i>`);
+    lines.push('', ...videoTables(daily, input.timezone));
+  }
   const tail = [
     forecastLine(rows, input.timezone),
     accuracy.scored > 0

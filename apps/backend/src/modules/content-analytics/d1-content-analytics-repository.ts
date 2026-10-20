@@ -62,6 +62,7 @@ export interface CheckpointRow {
   platform: ContentPlatform;
   /** The video's rubric is read from it (`titleFormat`). */
   title: string;
+  publishedAt: number;
   /** Views by checkpoint hour; null where the item has no reading for it. */
   views: Record<(typeof CHECKPOINT_HOURS)[number], number | null>;
   /** The owner confirmed its numbers are distorted, so no usual curve counts it. */
@@ -70,7 +71,7 @@ export interface CheckpointRow {
 
 /** A checkpoint read's columns; `contaminated` comes from the owner's confirmations (migration 0066). */
 export function checkpointSelect(columns: readonly string[]): string {
-  return `SELECT id, platform, title, ${columns.join(', ')},
+  return `SELECT id, platform, title, published_at, ${columns.join(', ')},
     EXISTS (SELECT 1 FROM content_item_contamination c WHERE c.item_id = content_items.id) AS contaminated
     FROM content_items`;
 }
@@ -116,6 +117,11 @@ export interface ContentAnalyticsRepository {
     after?: readonly [number, string] | undefined;
     limit: number;
   }): Promise<ItemRow[]>;
+  /**
+   * The most viewed YouTube and TikTok videos, `limit` of each, in one round trip (the reports' references); a video
+   * the owner marked distorted is never a yardstick.
+   */
+  topVideos(limit: number): Promise<ItemRow[]>;
   /** The ids among `ids` whose numbers the owner marked distorted (at most 100 ids), in one query. */
   contaminatedAmong(ids: readonly string[]): Promise<Set<string>>;
   /** The item, its newest snapshots, the owner's format mark and contamination, in one round trip. */
@@ -348,6 +354,19 @@ export function createD1ContentAnalyticsRepository(db: D1Database): ContentAnaly
       return rows.results.map(toItem);
     },
 
+    async topVideos(limit) {
+      const top = (platform: ContentPlatform) =>
+        db
+          .prepare(
+            `SELECT ${ITEM_COLUMNS} FROM content_items WHERE platform = ? AND views IS NOT NULL
+               AND NOT EXISTS (SELECT 1 FROM content_item_contamination c WHERE c.item_id = content_items.id)
+             ORDER BY views DESC LIMIT ?`
+          )
+          .bind(platform, Math.min(limit, 10));
+      const results = await db.batch<RawItem>([top('youtube'), top('tiktok')]);
+      return results.flatMap((result) => result.results.map(toItem));
+    },
+
     async readDaily({ ids, from }) {
       const [sources, snapshots] = await db.batch([
         db.prepare(
@@ -384,6 +403,7 @@ export function createD1ContentAnalyticsRepository(db: D1Database): ContentAnaly
         id: String(row['id']),
         platform: row['platform'] as ContentPlatform,
         title: String(row['title'] ?? ''),
+        publishedAt: Number(row['published_at'] ?? 0),
         views: Object.fromEntries(
           CHECKPOINT_HOURS.map((hours) => [hours, (row[`v${hours}h`] as number | null) ?? null])
         ) as CheckpointRow['views'],

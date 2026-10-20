@@ -119,6 +119,7 @@ describe('content alerts', () => {
     const at6 = (id: string, views: number) => ({
       id,
       platform: 'youtube' as const,
+      publishedAt: 0,
       views: { 1: null, 3: null, 6: views, 12: null, 24: null, 48: null, 72: null },
       contaminated: false,
       title: 'ролик'

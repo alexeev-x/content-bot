@@ -79,6 +79,11 @@ export interface DailyRow {
   observedAt: number | null;
   views: number | null;
   growth: DailyGrowth;
+  /**
+   * The day before's growth, ending at the reading a day before the latest: «вчера» (owner, 20.10.2026). Absent in
+   * reports stored before then.
+   */
+  previousGrowth?: DailyGrowth;
   comparison: DailyComparison | null;
   /** `stale`: the latest reading is older than one missed collection; `no_data`: nothing read yet. */
   status: 'ok' | 'stale' | 'no_data';
@@ -134,6 +139,23 @@ export function growthOf(latest: DailySnapshot & { views: number }, earlier: rea
   };
 }
 
+const NO_GROWTH: DailyGrowth = { kind: 'none', views: null, hours: null, viewsPerHour: null };
+
+/** The growth over the day before: from the reading a day before the latest (24 h ± 2 h) back another day. */
+export function previousGrowthOf(latest: DailySnapshot, readings: readonly DailySnapshot[]): DailyGrowth {
+  const target = latest.observedAt - DAY_PAIR_MS;
+  const prior = readings
+    .filter(
+      (row): row is DailySnapshot & { views: number } =>
+        row.views !== null && Math.abs(row.observedAt - target) <= DAY_PAIR_TOLERANCE_MS
+    )
+    .sort((a, b) => Math.abs(a.observedAt - target) - Math.abs(b.observedAt - target))[0];
+  if (prior === undefined) return NO_GROWTH;
+  const growth = growthOf(prior, readings);
+  // Only a real day pair says «вчера»; a shorter window would compare unlike lengths.
+  return growth.kind === 'day' ? growth : NO_GROWTH;
+}
+
 /** The item against the usual curve at the latest checkpoint both have; null when there is none. */
 export function comparisonOf(item: Pick<DailyItemInput, 'checkpoints' | 'baseline'>): DailyComparison | null {
   const points = [...item.baseline.points].sort((a, b) => b.ageHours - a.ageHours);
@@ -176,7 +198,8 @@ export function dailyRowOf(item: DailyItemInput, asOf: number): DailyRow {
       ...base,
       observedAt: null,
       views: null,
-      growth: { kind: 'none', views: null, hours: null, viewsPerHour: null },
+      growth: NO_GROWTH,
+      previousGrowth: NO_GROWTH,
       status: 'no_data'
     };
   const staleAfter = ageMs < YOUNG_MS ? STALE_YOUNG_MS : STALE_OLD_MS;
@@ -185,6 +208,7 @@ export function dailyRowOf(item: DailyItemInput, asOf: number): DailyRow {
     observedAt: latest.observedAt,
     views: latest.views,
     growth: growthOf(latest, readings),
+    previousGrowth: previousGrowthOf(latest, readings),
     status: asOf - latest.observedAt > staleAfter ? 'stale' : 'ok'
   };
 }

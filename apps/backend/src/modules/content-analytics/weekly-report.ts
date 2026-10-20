@@ -5,13 +5,19 @@ import {
   compactCount,
   escapeHtml,
   cleanUrl,
+  conclusionsBlock,
+  rateCell,
   type DailyReview,
+  mainLine,
+  ratesText,
+  referenceLine,
   reviewBlock,
   REVIEW_MISSING,
   platformTable,
   usualArrow,
   usualPercent
 } from './daily-report';
+import { reactionRates, type Reference, referencesOf, REFERENCES_PER_PLATFORM } from './video-signals';
 import { comparisonOf, type DailyComparison, shortTitleOf } from './daily-table';
 import type { ContentAlertRepository } from './d1-content-alerts-repository';
 import type { ContentAnalyticsRepository } from './d1-content-analytics-repository';
@@ -49,6 +55,9 @@ export interface WeeklyVideoCell {
   url: string;
   views: number | null;
   comparison: DailyComparison | null;
+  /** Likes and shares as per cent of views at the week's end (owner, 20.10.2026); absent in older reports. */
+  likesRate?: number | null;
+  sharesRate?: number | null;
 }
 
 export interface WeeklyData {
@@ -70,6 +79,8 @@ export interface WeeklyData {
   /** The week's videos, one per title across YouTube and TikTok, newest first. */
   videos: { key: string; title: string; format: VideoFormat; publishedAt: number; cells: WeeklyVideoCell[] }[];
   posts: { key: string; title: string; url: string; views: number | null }[];
+  /** The channel's most viewed videos per platform, the review's yardstick; absent in older reports. */
+  references?: Reference[];
 }
 
 /** The owner-zone Monday 00:00 of this week, once it is Monday from WEEKLY_HOUR; else null. */
@@ -100,12 +111,13 @@ export async function readWeeklyData(deps: {
   // Noon a week back is always inside the previous Monday, whatever a DST change did to the week.
   const weekStart = zonedMidnight(weekEnd - 7 * DAY_MS + 12 * HOUR_MS, timezone);
   const previousStart = zonedMidnight(weekStart - 7 * DAY_MS + 12 * HOUR_MS, timezone);
-  const [recent, checkpoints, followers, goals, formatOf] = await Promise.all([
+  const [recent, checkpoints, followers, goals, formatOf, top] = await Promise.all([
     deps.alerts.readRecent({ itemsFrom: previousStart, limit: ITEM_LIMIT }),
     deps.analytics.readCheckpoints({ publishedFrom: weekEnd - BASELINE_WINDOW_MS }),
     deps.alerts.readFollowers(new Date(previousStart).toISOString().slice(0, 10)),
     readContentGoals({ repo: deps.goals, clock: deps.clock }),
-    formatIndex({ repo: deps.analytics, ...(deps.formats ? { formats: deps.formats } : {}) })
+    formatIndex({ repo: deps.analytics, ...(deps.formats ? { formats: deps.formats } : {}) }),
+    deps.analytics.topVideos(REFERENCES_PER_PLATFORM)
   ]);
   const week = recent.items.filter((item) => item.publishedAt >= weekStart && item.publishedAt < weekEnd);
   const before = recent.items.filter((item) => item.publishedAt >= previousStart && item.publishedAt < weekStart);
@@ -153,12 +165,15 @@ export async function readWeeklyData(deps: {
     // A title of hashtags alone has no words to match its copy by: it stays its own video.
     const key = titleKey(item.title) || item.id;
     const video = videos.get(key) ?? { key: '', title: item.title, format, publishedAt: item.publishedAt, cells: [] };
+    const rates = reactionRates(item);
     video.cells.push({
       platform,
       itemId: item.id,
       url: item.url,
       views: item.views,
-      comparison: comparisonOf({ checkpoints: own, baseline })
+      comparison: comparisonOf({ checkpoints: own, baseline }),
+      likesRate: rates.likes,
+      sharesRate: rates.shares
     });
     videos.set(key, video);
   }
@@ -184,8 +199,20 @@ export async function readWeeklyData(deps: {
     followers: followerRows,
     goals: goalRows,
     videos: videoList,
-    posts
+    posts,
+    references: referencesOf(top, (item) => formatById.get(item.id) ?? formatOf(item).format, weekEnd)
   };
+}
+
+const PLATFORM_KEY = { youtube: 'Y', tiktok: 'T' } as const;
+
+/** The references with their keys: YR1… for YouTube, TR1… for TikTok, as in the daily report. */
+function keyedReferences(data: WeeklyData): { key: string; reference: Reference }[] {
+  const count = { youtube: 0, tiktok: 0 };
+  return (data.references ?? []).map((reference) => {
+    count[reference.platform] += 1;
+    return { key: `${PLATFORM_KEY[reference.platform]}R${count[reference.platform]}`, reference };
+  });
 }
 
 const signedCount = (value: number) =>
@@ -245,7 +272,8 @@ export function weeklyReviewFacts(
               : percent === null
                 ? 'сравнение слабое: мало похожих роликов'
                 : `к ${cell.comparison.ageHours}ч ${compactCount(cell.comparison.views)}, обычно ${compactCount(cell.comparison.median)} (${percent > 0 ? '+' : percent < 0 ? '−' : ''}${Math.abs(percent)}% к обычному, сравнение надёжное)`;
-          return `${PLATFORM_NAME[cell.platform]} всего ${cell.views === null ? 'н/д' : compactCount(cell.views)}, ${compared}`;
+          const rates = ratesText(cell.likesRate ?? null, cell.sharesRate ?? null);
+          return `${PLATFORM_NAME[cell.platform]} всего ${cell.views === null ? 'н/д' : compactCount(cell.views)}${rates === null ? '' : `, ${rates}`}, ${compared}`;
         })
       ].join(' · ')
     ),
@@ -254,9 +282,20 @@ export function weeklyReviewFacts(
         `${post.key} пост «${shortTitleOf(post.title, 80)}» · ${post.views === null ? 'н/д' : compactCount(post.views)} просмотров`
     )
   ];
+  const references = keyedReferences(data);
+  if (references.length > 0)
+    lines.push(
+      '',
+      'Ориентиры — самые просматриваемые ролики канала (разный возраст, сравнение слабое):',
+      ...references.map(referenceLine)
+    );
   return {
     facts: lines.join('\n'),
-    videos: [...data.videos.map((video) => video.key), ...data.posts.map((post) => post.key)],
+    videos: [
+      ...data.videos.map((video) => video.key),
+      ...data.posts.map((post) => post.key),
+      ...references.map((each) => each.key)
+    ],
     items: data.videos.map((video) => ({ key: video.key, itemId: video.cells[0]?.itemId ?? '' }))
   };
 }
@@ -302,16 +341,26 @@ export function weeklyReportHtml(input: {
       `🎯 ${PLATFORM_NAME[goal.platform]}: ${exact.format(goal.followers)} из ${exact.format(goal.target)} <code>${bar(share)}</code> ${Math.min(100, Math.floor(share * 100))}%${pace === '' ? '' : ` · ${pace}`}`
     );
   }
+  const references = keyedReferences(data);
   const link = (key: string) => {
     const video = data.videos.find((each) => each.key === key);
     if (video !== undefined)
       return `<a href="${escapeHtml(cleanUrl(video.cells[0]?.url ?? ''))}">${escapeHtml(shortTitleOf(video.title, TITLE_MAX))}</a>`;
     const post = data.posts.find((each) => each.key === key);
-    return post === undefined
+    if (post !== undefined)
+      return `<a href="${escapeHtml(cleanUrl(post.url))}">${escapeHtml(shortTitleOf(post.title, TITLE_MAX))}</a> (Telegram)`;
+    const reference = references.find((each) => each.key === key)?.reference;
+    return reference === undefined
       ? key
-      : `<a href="${escapeHtml(cleanUrl(post.url))}">${escapeHtml(shortTitleOf(post.title, TITLE_MAX))}</a> (Telegram)`;
+      : `<a href="${escapeHtml(cleanUrl(reference.url))}">${escapeHtml(shortTitleOf(reference.title, TITLE_MAX))}</a> (${PLATFORM_NAME[reference.platform]})`;
   };
-  if (input.review !== null) lines.push('', ...reviewBlock(input.review, link));
+  const review = input.review;
+  // The layout of 20.10.2026 puts the conclusions after the tables; an older stored review keeps its place.
+  const current = review !== null && !('rising' in review) ? review : null;
+  if (current !== null) {
+    const main = mainLine(current, link);
+    if (main !== null) lines.push('', main);
+  } else if (review !== null) lines.push('', ...reviewBlock(review, link));
   else if (input.reviewError)
     lines.push('', `<i>🧠 Разбор недоступен: ${REVIEW_MISSING[input.reviewError] ?? 'ошибка ИИ'}.</i>`);
   const rubrics = rubricWeek(data);
@@ -335,7 +384,10 @@ export function weeklyReportHtml(input: {
               views: cell.views,
               change: percent === null ? '—' : signedPercent(percent),
               mark: usualArrow(cell.comparison),
-              stale: false
+              stale: false,
+              ...(cell.likesRate === undefined
+                ? {}
+                : { rate: rateCell(platform === 'tiktok' ? cell.sharesRate : cell.likesRate) })
             };
           })
       );
@@ -349,6 +401,10 @@ export function weeklyReportHtml(input: {
         `${index + 1}. <a href="${escapeHtml(cleanUrl(post.url))}">${escapeHtml(shortTitleOf(post.title, TITLE_MAX))}</a> · ${post.views === null ? '—' : compactCount(post.views)}`
       )
     );
+  }
+  if (current !== null) {
+    const conclusions = conclusionsBlock(current, link);
+    if (conclusions.length > 0) lines.push('', ...conclusions);
   }
   return lines.join('\n');
 }

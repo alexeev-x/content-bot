@@ -126,6 +126,7 @@ export function createD1ContentAlertRepository(db: D1Database): ContentAlertRepo
         id: String(row['id']),
         platform: row['platform'] as ContentPlatform,
         title: String(row['title'] ?? ''),
+        publishedAt: Number(row['published_at'] ?? 0),
         views: Object.fromEntries(
           CHECKPOINT_HOURS.map((hours) => [hours, (row[`v${hours}h`] as number | null) ?? null])
         ) as CheckpointRow['views'],

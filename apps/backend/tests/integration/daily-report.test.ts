@@ -90,10 +90,10 @@ const reportRows = () =>
     .then((rows) => rows.results);
 
 const REVIEW = {
-  summary: 'День ровный.',
-  rising: [{ video: 'Y1', note: 'растёт стабильно' }],
-  weak: [],
-  next: 'Начать с косяка.'
+  main: 'День ровный.',
+  points: [{ text: 'Y1 растёт стабильно', confidence: 'medium' as const }],
+  question: 'Почему Y1 растёт?',
+  steps: ['Начать с косяка.']
 };
 
 beforeEach(resetDb);
@@ -134,11 +134,20 @@ describe('daily report', () => {
       await releaseDailyReport(release, { id: reportId!, review: null, reviewError: 'REVIEW_TIMEOUT', model: null })
     ).toBe(false);
     const [alert] = await alertRows();
-    expect(alert?.html).toContain('<b>🧠 Разбор</b>\nДень ровный.');
-    // One monospace table per platform, the row numbers as links below it (owner, 19.10.2026).
+    // The layout of 20.10.2026: the main fact, the tables, then the numbered conclusions, question and steps.
+    expect(alert?.html).toContain('<b>Главное:</b> День ровный.');
+    // The conclusions name the video by its key; the message shows its title as a link.
     expect(alert?.html).toMatch(
-      /<b>YouTube<\/b>\n<pre>#\s+Всего\s+\+сут\s+Ролик\n1\s+3\.5к\s+\+2\.4к\s+Ролик &lt;0&gt;\n/u
+      /<b>🧠 Выводы<\/b>\n1\. <a href="[^"]+">[^<]+<\/a> \(YouTube\) растёт стабильно <i>\(похоже\)<\/i>/u
     );
+    expect(alert?.html).toContain('❓ <b>Вопрос:</b> Почему <a href=');
+    expect(alert?.html).toContain('🎬 <b>Дальше</b>\n• Начать с косяка.');
+    expect(alert?.html.indexOf('<b>YouTube</b>')).toBeLessThan(alert?.html.indexOf('🧠 Выводы') ?? 0);
+    // One monospace table per platform with likes (YouTube) and the status, the row numbers as links below it.
+    expect(alert?.html).toMatch(
+      /<b>YouTube<\/b>\n<pre>#\s+Всего\s+\+сут\s+♥%\s+Статус\s+Ролик\n1\s+3\.5к\s+\+2\.4к\s+—\s+\S+\s+Ролик &lt;0&gt;\n/u
+    );
+    expect(alert?.html).toContain('<i>♥% — лайки от просмотров</i>');
     expect(alert?.html).toContain('За сутки: YouTube +7.2к');
     expect(alert?.html).toContain('Открыть: <a href="https://youtube.com/shorts/0">1</a> · ');
     expect(alert?.html).toContain('<b>TikTok</b>\nДанных ещё нет: источник не собирался.');
@@ -152,7 +161,7 @@ describe('daily report', () => {
     await collectHours(clock, 3, 0);
     const deps = repos();
     const { reportId } = await raiseDailyReport({ ...deps, clock, timezone: ZONE, hour: 0 });
-    const long = { ...REVIEW, summary: 'очень длинно '.repeat(400) };
+    const long = { ...REVIEW, main: 'очень длинно '.repeat(400) };
     expect(
       await releaseDailyReport(
         { reports: deps.reports, alerts: deps.alerts, now: clock.now() },
@@ -365,7 +374,7 @@ describe('daily report on the Cron tick and the review job', () => {
       (container) => ({ ...container, contentSources: sources }) as typeof container
     );
     await send.run();
-    expect(send.ownerMessages.some((message) => message.html.includes('🧠 Разбор'))).toBe(true);
+    expect(send.ownerMessages.some((message) => message.html.includes('🧠 Выводы'))).toBe(true);
     expect((await alertRows())[0]?.status).toBe('sent');
   });
 

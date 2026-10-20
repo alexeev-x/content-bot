@@ -4,6 +4,16 @@ import { type Forecast, forecastViews } from './forecast';
 import type { ContentAnalyticsRepository } from './d1-content-analytics-repository';
 import { BASELINE_WINDOW_MS, baselineFor, FORMAT_BASELINE_MIN_ITEMS, formatIndex } from './service';
 import type { ItemFormats } from './types';
+import {
+  type Peer,
+  peersAt,
+  reactionRates,
+  type Reference,
+  referencesOf,
+  REFERENCES_PER_PLATFORM,
+  type VideoTrend,
+  videoTrend
+} from './video-signals';
 
 // The daily analytics table for both video platforms at one fixed `as_of` (plan P4, §4.1): the six latest
 // published videos of each, their growth from stored readings and the comparison with the same rubric. The
@@ -22,7 +32,19 @@ export interface DailyPlatform {
   lastSuccessAt: number | null;
   errorCode: string | null;
   /** Each row with its forecast from the same readings (plan P5): numbers or `insufficient_data`. */
-  rows: (DailyRow & { forecast: Forecast })[];
+  rows: (DailyRow & { forecast: Forecast } & DailySignals)[];
+  /** The platform's most viewed videos, the review's yardstick (owner, 20.10.2026); absent in older reports. */
+  references?: Reference[];
+}
+
+/** What a row says beyond its views (owner, 20.10.2026); absent in reports stored before then. */
+export interface DailySignals {
+  trend?: VideoTrend;
+  /** Likes and shares as per cent of views, from the item's latest counters. */
+  likesRate?: number | null;
+  sharesRate?: number | null;
+  /** Earlier videos of the same platform and rubric at the row's comparison age. */
+  peers?: { ageHours: number; videos: Peer[] } | null;
 }
 
 export interface DailyAnalytics {
@@ -42,10 +64,11 @@ export async function readDailyAnalytics(deps: {
     DAILY_PLATFORMS.map((platform) => deps.repo.listItems({ platform, limit: PER_PLATFORM }))
   );
   const ids = latest.flat().map((item) => item.id);
-  const [daily, checkpoints, formatOf] = await Promise.all([
+  const [daily, checkpoints, formatOf, top] = await Promise.all([
     deps.repo.readDaily({ ids, from: asOf - READINGS_BACK_MS }),
     deps.repo.readCheckpoints({ publishedFrom: asOf - BASELINE_WINDOW_MS }),
-    formatIndex(deps)
+    formatIndex(deps),
+    deps.repo.topVideos(REFERENCES_PER_PLATFORM)
   ]);
   // Classified once: reading a rubric from a title is the costly part (10 ms of CPU per request on Free).
   const formatById = new Map(checkpoints.map((row) => [row.id, formatOf(row).format]));
@@ -80,11 +103,35 @@ export async function readDailyAnalytics(deps: {
       errorCode: failedLast ? (source?.lastErrorCode ?? 'COLLECT_FAILED') : null,
       rows: dailyRowsOf(items, asOf, PER_PLATFORM).map((row) => {
         const item = items.find((each) => each.id === row.id)!;
+        const counters = (latest[index] ?? []).find((each) => each.id === row.id);
+        const rates = counters === undefined ? { likes: null, shares: null } : reactionRates(counters);
+        const peerAge = row.comparison?.ageHours ?? null;
         return {
           ...row,
-          forecast: forecastViews({ readings: item.snapshots, publishedAt: item.publishedAt, origin: asOf })
+          forecast: forecastViews({ readings: item.snapshots, publishedAt: item.publishedAt, origin: asOf }),
+          trend: videoTrend({
+            ageHours: row.ageHours,
+            views: row.views,
+            growth: row.growth,
+            previousGrowth: row.previousGrowth ?? { kind: 'none', views: null, hours: null, viewsPerHour: null },
+            comparison: row.comparison
+          }),
+          likesRate: rates.likes,
+          sharesRate: rates.shares,
+          peers:
+            peerAge === null
+              ? null
+              : {
+                  ageHours: peerAge,
+                  videos: peersAt(checkpoints, { ...row, ageHours: peerAge }, (id) => formatById.get(id))
+                }
         };
-      })
+      }),
+      references: referencesOf(
+        top.filter((item) => item.platform === platform),
+        (item) => formatById.get(item.id) ?? formatOf(item).format,
+        asOf
+      )
     };
   });
   return {

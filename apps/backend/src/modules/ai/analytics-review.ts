@@ -4,29 +4,43 @@ import type { AiRepository } from './d1-ai-repository';
 import { AiProviderError, type AiTextProvider } from './ports';
 import { assertAiReady, type BudgetEvent, readAiSettings, recordAiUsage } from './service';
 
-// The AI review of the daily analytics report (AI plan P6; owner 19.10.2026: «сводку от ИИ: что не заходит, что
-// набирает, гипотезы почему»). Code computes every number; the model only explains them (plan §5). It sees the
-// facts block alone, may only repeat its numbers (checked here), and names videos by their key, never retyped.
+// The AI review of the daily and weekly analytics reports (AI plan P6; owner 20.10.2026: like the ChatGPT reports —
+// the main fact, numbered conclusions with comparisons and hypotheses, an editorial question and next steps). Code
+// computes every number and comparison; the model only explains them (plan §5). It sees the facts block alone, may
+// only repeat numbers of the videos it names (checked here), and names videos by their key, never retyped.
 
 /** Room for a reasoning model's thinking before a short structured answer. */
-const MAX_OUTPUT_TOKENS = 3000;
-/** Short fields keep the whole message under Telegram's 4096 characters with the numbers below it. */
-const SUMMARY_MAX = 300;
-const NOTE_MAX = 160;
+const MAX_OUTPUT_TOKENS = 4000;
+const MAIN_MAX = 200;
+/** A conclusion is two or three short sentences; the whole review must leave room for the tables (4096). */
+const POINT_MAX = 280;
+const QUESTION_MAX = 200;
+const STEP_MAX = 200;
+/** The week's review says more (owner, 20.10.2026: «где недельный — подробнее»). */
+const POINTS_MAX = { day: 4, week: 6 } as const;
+const STEPS_MAX = { day: 2, week: 3 } as const;
 
 /** What the review is about: the day's videos, or the week's with its themes and rubrics. */
 const PERIOD = {
-  day: 'Пишешь короткий разбор дня для автора: что заходит, что нет и почему, без воды.',
-  week: 'Пишешь разбор недели для автора: какие темы и рубрики заходили, какие нет и почему, что повторить на следующей неделе, без воды. Ролики называй ключами V1…, посты P1….'
+  day: [
+    'Пишешь утренний разбор дня для автора.',
+    'points — 3–4 вывода о роликах дня. Весь ответ — не больше 1200 знаков.'
+  ].join('\n'),
+  week: [
+    'Пишешь разбор недели для автора — подробнее, чем за день.',
+    'points — 4–6 выводов: лучший и худший ролик недели и почему, рубрики и темы, пересылки, подписчики и цели, что из прошлых гипотез подтвердилось или нет.',
+    'steps — 2–3 шага на следующую неделю. Ролики недели — ключи V1…, посты — P1…. Весь ответ — не больше 1800 знаков: сообщение с таблицами ограничено.'
+  ].join('\n')
 } as const;
 
 const INSTRUCTIONS = [
-  'Ты — аналитик канала автора ALEXEEV (шортсы про Доту на YouTube и TikTok, Telegram-канал).',
-  'ДАННЫЕ ниже — единственный источник. Каждое число в ответе бери только оттуда, слово в слово, со знаком и единицей (например «2.7к», «+80%», «−40%», «+173»). Новых чисел не считай и не придумывай: не «в 2 раза», не «10 тысяч».',
-  'Ролик называй только его ключом из данных в полях video; в текстах названия не повторяй.',
-  'Нельзя: удержание, досмотры, секунды, CTR, причины «по алгоритму» — этих данных нет. Не обещай рост.',
-  'Гипотезы «почему» — только для роликов с пометкой «сравнение надёжное», по тому, что видно: тема, рубрика, возраст, название, а если есть сценарий — его начало (хук): сразу ли косяк или шутка, или заход через объяснение героя. Уверенность только low или medium. Где сравнение слабое — гипотез нет.',
-  'rising — до 3 роликов выше обычного или с заметным приростом; weak — до 3 роликов ниже обычного. summary — 1–3 предложения о дне. next — один конкретный совет для следующего ролика. Пустое поле допустимо, выдумывать нельзя.',
+  'Ты — аналитик канала автора ALEXEEV (шортсы про Доту на YouTube и TikTok, Telegram-канал). Автор читает разбор утром с телефона.',
+  'ДАННЫЕ ниже — единственный источник. Каждое число в ответе бери только оттуда, слово в слово, со знаком и единицей (например «2.7к», «+58%», «−49%», «5.07%»). Новых чисел не считай и не придумывай: не «в 2 раза», не «10 тысяч» — нужные сравнения уже посчитаны в данных.',
+  'Ролики называй только их ключами из данных (Y1, T3, V2, ориентиры YR1, TR2); код сам подставит названия и ссылки. Числа ролика бери из его строки.',
+  'main — одна фраза: главное за период.',
+  'points — выводы, не пересказ таблицы. Каждый: факт с числами → сравнение (с ровесниками рубрики, со вчерашним приростом, пересылки против ориентиров канала, рубрика против рубрики) → что это может значить. Пересылки — главный признак, что ролик зацепил. confidence: low или medium; доказательств причин у нас нет.',
+  'Нельзя: удержание, досмотры, секунды, CTR, «алгоритм», обещания роста — этих данных нет. Про хук и сценарий — только если в данных есть его начало.',
+  'question — один редакционный вопрос, на который стоит искать ответ. steps — конкретные шаги для следующих роликов (тема, рубрика, хук), без воды. Пустое поле допустимо, выдумывать нельзя.',
   'Пиши по-русски, просто и коротко, как другу-автору.'
 ].join('\n');
 
@@ -35,43 +49,21 @@ export const ANALYTICS_REVIEW_JSON_SCHEMA: { name: string; schema: Record<string
   schema: {
     type: 'object',
     additionalProperties: false,
-    required: ['summary', 'rising', 'weak', 'next'],
+    required: ['main', 'points', 'question', 'steps'],
     properties: {
-      summary: { type: 'string' },
-      rising: {
+      main: { type: 'string' },
+      points: {
         type: 'array',
-        maxItems: 3,
+        maxItems: POINTS_MAX.week,
         items: {
           type: 'object',
           additionalProperties: false,
-          required: ['video', 'note'],
-          properties: { video: { type: 'string' }, note: { type: 'string' } }
+          required: ['text', 'confidence'],
+          properties: { text: { type: 'string' }, confidence: { type: 'string', enum: ['low', 'medium'] } }
         }
       },
-      weak: {
-        type: 'array',
-        maxItems: 3,
-        items: {
-          type: 'object',
-          additionalProperties: false,
-          required: ['video', 'note', 'hypotheses'],
-          properties: {
-            video: { type: 'string' },
-            note: { type: 'string' },
-            hypotheses: {
-              type: 'array',
-              maxItems: 2,
-              items: {
-                type: 'object',
-                additionalProperties: false,
-                required: ['text', 'confidence'],
-                properties: { text: { type: 'string' }, confidence: { type: 'string', enum: ['low', 'medium'] } }
-              }
-            }
-          }
-        }
-      },
-      next: { type: 'string' }
+      question: { type: 'string' },
+      steps: { type: 'array', maxItems: STEPS_MAX.week, items: { type: 'string' } }
     }
   }
 };
@@ -79,18 +71,16 @@ export const ANALYTICS_REVIEW_JSON_SCHEMA: { name: string; schema: Record<string
 const line = (max: number) =>
   z.string().transform((value) => Array.from(value.replace(/\s+/g, ' ').trim()).slice(0, max).join(''));
 export const analyticsReviewSchema = z.object({
-  summary: line(SUMMARY_MAX),
-  rising: z.array(z.object({ video: z.string(), note: line(NOTE_MAX) })).max(3),
-  weak: z
-    .array(
-      z.object({
-        video: z.string(),
-        note: line(NOTE_MAX),
-        hypotheses: z.array(z.object({ text: line(NOTE_MAX), confidence: z.enum(['low', 'medium']) })).max(2)
-      })
-    )
-    .max(3),
-  next: line(SUMMARY_MAX)
+  main: line(MAIN_MAX),
+  points: z
+    .array(z.object({ text: line(POINT_MAX), confidence: z.enum(['low', 'medium']) }))
+    .max(POINTS_MAX.week)
+    .transform((points) => points.filter((point) => point.text !== '')),
+  question: line(QUESTION_MAX),
+  steps: z
+    .array(line(STEP_MAX))
+    .max(STEPS_MAX.week)
+    .transform((steps) => steps.filter((step) => step !== ''))
 });
 export type AnalyticsReview = z.infer<typeof analyticsReviewSchema>;
 
@@ -99,8 +89,12 @@ const FREE_NUMBER_MAX = 12;
 // A number with its sign and unit, so «40%» does not pass for «−40%» nor «173к» for «+173».
 // «к», «м», «ч» count as a unit only on their own («4 места» is a count, «4м» is not); «тысяч», «раза» do.
 const NUMBER = /[+\-−]?\d+(?:[.,]\d+)?(?:\s?(?:%|тыс[а-яё]*|млн[а-яё]*|раз[а-яё]*|[кмч](?![а-яё])))?/gi;
+/** A video's key in the facts and the review: Y1, T3, V2, P1, and the references YR1, TR2. */
+export const VIDEO_KEY = /\b(?:YR|TR|Y|T|V|P)\d{1,2}\b/g;
 const normal = (value: string) => value.replace(',', '.').replace('-', '−').replace(/\s/g, '').toLowerCase();
 const bareSmall = (value: string) => /^\d+$/.test(value) && Number(value) <= FREE_NUMBER_MAX;
+/** A key is not a number: «T4» must not pass «4» through the check, nor be flagged. */
+const withoutKeys = (text: string) => text.replace(VIDEO_KEY, ' ');
 
 /** The facts' lines about one video: each starts with its key («Y1 «Пудж» · …»). */
 export function videoFacts(facts: string, video: string): string {
@@ -110,34 +104,30 @@ export function videoFacts(facts: string, video: string): string {
     .join('\n');
 }
 
-const numbersOf = (text: string) => new Set((text.match(NUMBER) ?? []).map(normal));
-const missing = (texts: readonly string[], known: Set<string>) =>
-  texts
-    .flatMap((text) => text.match(NUMBER) ?? [])
-    .map(normal)
-    .filter((value) => !known.has(value) && !bareSmall(value));
-
-/**
- * The numbers of the review that the facts do not contain; empty when the review only repeats them. A note about a
- * video may only use that video's own numbers (review 19.10.2026: another video's real number passed the old check).
- */
-export function unverifiedNumbers(review: AnalyticsReview, facts: string): string[] {
-  const rows = [
-    ...review.rising.map((row) => ({ video: row.video, texts: [row.note] })),
-    ...review.weak.map((row) => ({
-      video: row.video,
-      texts: [row.note, ...row.hypotheses.map((hypothesis) => hypothesis.text)]
-    }))
-  ];
-  return [
-    ...missing([review.summary, review.next], numbersOf(facts)),
-    ...rows.flatMap((row) => missing(row.texts, numbersOf(videoFacts(facts, row.video))))
-  ];
+/** The facts' lines about no single video: totals, followers, rubric lines. */
+function generalFacts(facts: string): string {
+  return facts
+    .split('\n')
+    .filter((line) => !/^(?:YR|TR|Y|T|V|P)\d{1,2} /.test(line.trimStart()))
+    .join('\n');
 }
 
-/** A hypothesis only where the video's comparison is reliable: checked here, not left to the instructions. */
-export function reliableComparison(facts: string, video: string): boolean {
-  return videoFacts(facts, video).includes('сравнение надёжное');
+const numbersOf = (text: string) => new Set((withoutKeys(text).match(NUMBER) ?? []).map(normal));
+const missing = (text: string, known: Set<string>) =>
+  (withoutKeys(text).match(NUMBER) ?? []).map(normal).filter((value) => !known.has(value) && !bareSmall(value));
+
+/**
+ * The numbers of the review that the facts do not contain; empty when the review only repeats them. A text may use
+ * the numbers of the videos it names and of the general lines, never another video's (review 19.10.2026: another
+ * video's real number passed the old check).
+ */
+export function unverifiedNumbers(review: AnalyticsReview, facts: string): string[] {
+  const general = generalFacts(facts);
+  const allowed = (text: string) =>
+    numbersOf([general, ...[...new Set(text.match(VIDEO_KEY) ?? [])].map((key) => videoFacts(facts, key))].join('\n'));
+  return [review.main, review.question, ...review.steps, ...review.points.map((point) => point.text)].flatMap((text) =>
+    missing(text, allowed(text))
+  );
 }
 
 export interface AnalyticsReviewDeps {
@@ -163,6 +153,7 @@ export async function writeAnalyticsReview(
   usageId: string | null;
   budgetEvents: BudgetEvent[];
 }> {
+  const period = input.period ?? 'day';
   const settings = await readAiSettings(deps.repo);
   // The draft model, as for the owner's scripts: the review is read every day (owner: quality first).
   const { provider, model } = await assertAiReady(deps, settings, settings.draftModel ?? settings.cheapModel);
@@ -170,7 +161,7 @@ export async function writeAnalyticsReview(
   try {
     result = await provider.complete({
       model,
-      instructions: `${INSTRUCTIONS}\n${PERIOD[input.period ?? 'day']}`,
+      instructions: `${INSTRUCTIONS}\n${PERIOD[period]}`,
       input: `ДАННЫЕ:\n${input.facts}`,
       maxOutputTokens: MAX_OUTPUT_TOKENS,
       jsonSchema: ANALYTICS_REVIEW_JSON_SCHEMA,
@@ -196,13 +187,12 @@ export async function writeAnalyticsReview(
     return { review: null, errorCode: 'AI_BAD_FORMAT', model: result.model, usageId, budgetEvents };
   }
   const known = new Set(input.videos);
-  // A video the facts do not list is dropped rather than guessed.
+  // A point about a video the facts do not list is dropped rather than guessed.
+  const namesUnknown = (text: string) => (text.match(VIDEO_KEY) ?? []).some((key) => !known.has(key));
   review = {
     ...review,
-    rising: review.rising.filter((row) => known.has(row.video)),
-    weak: review.weak
-      .filter((row) => known.has(row.video))
-      .map((row) => (reliableComparison(input.facts, row.video) ? row : { ...row, hypotheses: [] }))
+    points: review.points.filter((point) => !namesUnknown(point.text)).slice(0, POINTS_MAX[period]),
+    steps: review.steps.filter((step) => !namesUnknown(step)).slice(0, STEPS_MAX[period])
   };
   if (unverifiedNumbers(review, input.facts).length > 0)
     return { review: null, errorCode: 'AI_NUMBERS_UNVERIFIED', model: result.model, usageId, budgetEvents };

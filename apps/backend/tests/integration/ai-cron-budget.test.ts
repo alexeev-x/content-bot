@@ -35,7 +35,7 @@ import { writerAnswer } from '../helpers/writer-answer';
 // others, and must both do its work and stay inside 50 statements and 50 round trips.
 //
 // Measured, statements / round trips (the limit is 50 of each):
-//   Cron   minute 2 daily 27/26, minute 2 Monday weekly 26/24, minute 4 and 24 lost jobs 16/16, minute 8 alerts 23/20,
+//   Cron   minute 2 daily 29/27, minute 2 Monday weekly 28/25 (the top videos of 20.10.2026: one batch of two), minute 4 and 24 lost jobs 16/16, minute 8 alerts 23/20,
 //          minute 9 script prompts 26/23, minutes 14, 34, 54 reviews 38/32, minute 44 style lessons 11/10
 //   Queue  draft 19/16, rewrite 20/17, facts 21/18, fix 25/21, chat 12/9, daily_review of the week with the rules
 //          summary 48/38 (the tightest: eight script reads, three new rules, four alerts, two budget notices).
@@ -397,10 +397,10 @@ describe('queue consumer, one call per job kind', () => {
   const CHAT_ID = Number(OWNER_ID);
   const MESSAGE_ID = 20;
   const REVIEW = {
-    summary: 'Неделя ровная.',
-    rising: [{ video: 'Y1', note: 'держится' }],
-    weak: [],
-    next: 'Начать с косяка.'
+    main: 'Неделя ровная.',
+    points: [{ text: 'V1 держится', confidence: 'low' }],
+    question: '',
+    steps: ['Начать с косяка.']
   };
   const draft = writerAnswer({
     hooks: ['Пять хуков — один крип.', 'Я думал, что попал.', 'Пудж и промахи.'],

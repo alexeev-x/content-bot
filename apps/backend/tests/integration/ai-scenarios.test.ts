@@ -169,7 +169,7 @@ function fakeModel() {
         return next;
       }
       case 'analytics_review':
-        return JSON.stringify({ summary: 'День ровный.', rising: [], weak: [], next: 'Начать с цены промаха.' });
+        return JSON.stringify({ main: 'День ровный.', points: [], question: '', steps: ['Начать с цены промаха.'] });
       case 'video_review':
         return JSON.stringify({ hypotheses: ['Возможно, хук поздно.'], nextTest: 'Начать с итога.' });
       case 'rule_consolidation':

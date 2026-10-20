@@ -51,9 +51,10 @@ const CONTENT_ALERTS_RESERVE = 24;
 // rarely, a read, an alert and an update), the dedup read, scoring (due list, readings, one update), the accuracy
 // read, the table (two item lists, a two-statement batch, checkpoints, six format lists), the forecasts insert
 // and the report row; the week's report instead takes its own reads (items, checkpoints, followers, goals, the
-// format lists, the row), plus its dedup read on Monday. Its own minute-2 slot, so the content alerts of minute
+// format lists, the row), plus its dedup read on Monday; both read the channel's top videos (two statements, the
+// references of the review, owner 20.10.2026). Its own minute-2 slot, so the content alerts of minute
 // 8 keep their budget and send it six minutes later.
-const DAILY_REPORT_STATEMENTS = 26;
+const DAILY_REPORT_STATEMENTS = 28;
 // New videos' scripts, every statement counted: settings, two item lists, the prompts and links reads, at most two
 // videos handled (scripts read, the prompt with up to two links, the close: five each), the open prompts and
 // their messages read, up to two scripts and one alert batch of up to two — 22 at most.

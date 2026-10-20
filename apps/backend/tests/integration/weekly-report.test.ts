@@ -89,7 +89,12 @@ describe('weekly report', () => {
         { reports: deps.reports, alerts: deps.alerts, now: MONDAY },
         {
           id: ids[0]!,
-          review: { summary: 'Неделя ровная.', rising: [{ video: 'V1', note: 'держится' }], weak: [], next: '' },
+          review: {
+            main: 'Неделя ровная.',
+            points: [{ text: 'V1 держится', confidence: 'low' }],
+            question: '',
+            steps: []
+          },
           reviewError: null,
           model: 'gpt-6.1-sol'
         }
@@ -103,10 +108,15 @@ describe('weekly report', () => {
     expect(alert?.html).toContain('<b>📈 Итоги недели · 12 октября — 18 октября</b>');
     expect(alert?.html).toContain('Подписчики: Telegram 831 (+11)');
     expect(alert?.html).toMatch(/🎯 Telegram: 831 из 1\s000/u);
-    expect(alert?.html).toContain('<b>🧠 Разбор</b>\nНеделя ровная.');
-    // One table per platform, as in the daily report; clean links under each.
-    expect(alert?.html).toMatch(/<b>YouTube<\/b>\n<pre>#\s+Всего\s+обыч.\s+Ролик\n1\s+4\.2к\s+\S+\s+Как я на оракле…/u);
-    expect(alert?.html).toMatch(/<b>TikTok<\/b>\n<pre>#\s+Всего\s+обыч.\s+Ролик\n1\s+12\.6к\s+\S+\s+Как я на оракле…/u);
+    expect(alert?.html).toContain('<b>Главное:</b> Неделя ровная.');
+    expect(alert?.html).toMatch(/<b>🧠 Выводы<\/b>\n1\. <a href=[^>]+>[^<]+<\/a> держится <i>\(гипотеза\)<\/i>/u);
+    // One table per platform, as in the daily report, with likes (YouTube) or shares (TikTok); clean links under each.
+    expect(alert?.html).toMatch(
+      /<b>YouTube<\/b>\n<pre>#\s+Всего\s+обыч.\s+♥%\s+Ролик\n1\s+4\.2к\s+\S+\s+\S+\s+Как я на…/u
+    );
+    expect(alert?.html).toMatch(
+      /<b>TikTok<\/b>\n<pre>#\s+Всего\s+обыч.\s+↗%\s+Ролик\n1\s+12\.6к\s+\S+\s+\S+\s+Как я на…/u
+    );
     expect(alert?.html).toContain('Открыть: <a href="https://example.com/youtube:o">1</a>');
     expect(alert?.html).toContain(
       '<b>Telegram</b> · посты недели\n1. <a href="https://example.com/telegram:1">Открыл обучение, ничего не понял</a> · 366'
