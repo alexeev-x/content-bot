@@ -74,7 +74,22 @@ export function AiEditorPage() {
           />
         </TabPanel>
         <TabPanel id="learning">
-          <AiLearningBoard />
+          <AiLearningBoard
+            examples={{ q: search.lq, state: search.luse, source: search.lfrom, page: search.lpage }}
+            onExamplesChange={(patch) =>
+              void navigate({
+                search: (previous) => ({
+                  ...previous,
+                  ...('q' in patch ? { lq: patch.q } : {}),
+                  ...('state' in patch ? { luse: patch.state } : {}),
+                  ...('source' in patch ? { lfrom: patch.source } : {}),
+                  ...('page' in patch ? { lpage: patch.page } : {})
+                }),
+                replace: true,
+                resetScroll: false
+              })
+            }
+          />
         </TabPanel>
         <TabPanel id="spend">
           <AiSpendBoard />

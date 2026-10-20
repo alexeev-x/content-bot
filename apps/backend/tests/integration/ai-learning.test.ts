@@ -6,6 +6,9 @@ import { expectError } from '../helpers/expect-error';
 import { writerAnswer } from '../helpers/writer-answer';
 import { createApi, fakeClock, OWNER_TOKEN, resetDb, seedSession, START } from '../helpers/harness';
 
+/** Owner, 20.10.2026: a text from that day on is off until switched on (`LEARNING_OPT_IN_SINCE`); START is later. */
+const BEFORE_OPT_IN = Date.UTC(2026, 9, 19);
+
 const SETTINGS: Omit<UpdateAiSettingsInput, 'revision'> = {
   provider: 'openai',
   enabled: true,
@@ -84,6 +87,14 @@ function createStudioApi() {
 const draft = (api: ReturnType<typeof createStudioApi>, format: 'telegram' | 'igrat') =>
   api.request('/api/v1/ai/drafts', { method: 'POST', json: { format, mode: 'direct', task: 'как я играю про варды' } });
 
+const switchOn = async (api: ReturnType<typeof createStudioApi>, path: string) =>
+  expect((await api.request(`/api/v1/ai/learning/${path}`, { method: 'PUT', json: { excluded: false } })).status).toBe(
+    200
+  );
+
+const learning = async (api: ReturnType<typeof createStudioApi>, search = '') =>
+  aiLearningListSchema.parse(await (await api.request(`/api/v1/ai/learning${search}`)).json());
+
 beforeEach(async () => {
   await resetDb();
   await seedSession({ token: OWNER_TOKEN, expiresAt: START + 86_400_000 });
@@ -95,10 +106,10 @@ describe('what the writer learns from', () => {
   it('never puts an excluded, disliked or AI-linked text into the prompt; owner posts teach Telegram only', async () => {
     const api = createStudioApi();
     await api.request('/api/v1/ai/settings', { method: 'PUT', json: { revision: 0, ...SETTINGS } });
-    await seedRevision({ text: EDITED, at: START + 1 });
+    const edited = await seedRevision({ text: EDITED, at: START + 1 });
     const disliked = await seedRevision({ text: DISLIKED, at: START + 2 });
     const excluded = await seedRevision({ text: EXCLUDED, at: START + 3 });
-    await seedRevision({ text: CHANNEL_OTHER, format: 'igrat', at: START + 4 });
+    const other = await seedRevision({ text: CHANNEL_OTHER, format: 'igrat', at: START + 4 });
     await testDb()
       .prepare("INSERT INTO ai_feedback (id, generation_id, kind, created_at) VALUES (?, ?, 'weak_hook', ?)")
       .bind(uuid(900), disliked.generation, START)
@@ -108,6 +119,8 @@ describe('what the writer learns from', () => {
     await seedRevision({ text: AI_POST, editRatio: 0.01, at: START + 7, postId: uuid(11) });
     await seedPost(uuid(12), EXCLUDED_POST, START + 8);
     await seedPost(uuid(13), 'Черновик, не одобрен.', START + 9, 'draft');
+    for (const path of [`revision/${edited.revision}`, `revision/${other.revision}`, `post/${uuid(10)}`])
+      await switchOn(api, path);
 
     expect(
       (
@@ -144,6 +157,29 @@ describe('what the writer learns from', () => {
     await draft(api, 'telegram');
     expect(prompts.at(-1) ?? '').not.toContain(AI_POST);
   });
+
+  it('keeps a new text out until the owner switches it on, while an older one counts until switched off', async () => {
+    const api = createStudioApi();
+    await api.request('/api/v1/ai/settings', { method: 'PUT', json: { revision: 0, ...SETTINGS } });
+    const fresh = await seedRevision({ text: EDITED, at: START + 1 });
+    await seedRevision({ text: EXCLUDED, at: BEFORE_OPT_IN });
+    await seedPost(uuid(10), OWN_POST, START + 5);
+    await seedPost(uuid(12), EXCLUDED_POST, BEFORE_OPT_IN);
+
+    await draft(api, 'telegram');
+    const before = prompts.at(-1) ?? '';
+    expect(before).not.toContain(EDITED);
+    expect(before).not.toContain(OWN_POST);
+    expect(before).toContain(EXCLUDED);
+    expect(before).toContain(EXCLUDED_POST);
+
+    await switchOn(api, `revision/${fresh.revision}`);
+    await switchOn(api, `post/${uuid(10)}`);
+    await draft(api, 'telegram');
+    const after = prompts.at(-1) ?? '';
+    expect(after).toContain(EDITED);
+    expect(after).toContain(OWN_POST);
+  });
 });
 
 describe('/api/v1/ai/learning', () => {
@@ -160,15 +196,26 @@ describe('/api/v1/ai/learning', () => {
     await seedPost(uuid(11), AI_POST, START + 6);
     await seedRevision({ text: AI_POST, editRatio: 0.3, at: START + 7, postId: uuid(11) });
 
-    const list = aiLearningListSchema.parse(await (await api.request('/api/v1/ai/learning')).json());
+    const list = await learning(api);
     // The AI-linked post's own approved revision is a revision source (the owner changed it); the post itself is not.
     expect(list.items.map((item) => `${item.source}:${item.excerpt}`)).toEqual([
       `revision:${AI_POST}`,
       `post:${OWN_POST}`,
       `revision:${EDITED}`
     ]);
-    expect(list.items[2]).toMatchObject({ changedParts: ['hook', 'length'], editRatio: 0.4, excluded: false });
+    // New texts are off until switched on.
+    expect(list).toMatchObject({ page: 1, totalCount: 3, includedCount: 0 });
+    expect(list.items[2]).toMatchObject({ changedParts: ['hook', 'length'], editRatio: 0.4, excluded: true });
     expect(list.items[1]).toMatchObject({ format: 'telegram', changedParts: [], editRatio: null });
+
+    await switchOn(api, `post/${uuid(10)}`);
+    expect((await learning(api, '?state=on')).items.map((item) => item.id)).toEqual([uuid(10)]);
+    expect((await learning(api, '?state=off&source=revision')).totalCount).toBe(2);
+    expect((await learning(api, `?q=${encodeURIComponent('ВАРДЫ')}`)).items.map((item) => item.excerpt)).toEqual([
+      EDITED
+    ]);
+    expect(await learning(api, '?page=2')).toMatchObject({ items: [], totalCount: 3, includedCount: 1 });
+    await expectError(await api.request('/api/v1/ai/learning?state=maybe'), 400, 'VALIDATION_ERROR');
 
     for (let n = 0; n < 2; n += 1) {
       const response = await api.request(`/api/v1/ai/learning/revision/${edited.revision}`, {
@@ -177,7 +224,7 @@ describe('/api/v1/ai/learning', () => {
       });
       expect(aiLearningItemSchema.parse(await response.json())).toMatchObject({ id: edited.revision, excluded: true });
     }
-    const after = aiLearningListSchema.parse(await (await api.request('/api/v1/ai/learning')).json());
+    const after = await learning(api);
     expect(after.items.find((item) => item.id === edited.revision)?.excluded).toBe(true);
     const back = await api.request(`/api/v1/ai/learning/revision/${edited.revision}`, {
       method: 'PUT',

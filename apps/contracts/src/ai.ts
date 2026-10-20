@@ -480,11 +480,13 @@ export const aiFeedbackParamsSchema = z.strictObject({ id: z.uuid() });
 // - `revision`: an approved AI draft the owner changed noticeably (an unchanged approval is never one, and a draft
 //   the owner gave a «Что не так?» verdict is not shown here: a disliked text is not an example);
 // - `post`: a Telegram post the owner wrote himself in the studio and approved (no AI draft behind it).
-// GET /api/v1/ai/learning → 200 AiLearningListDto, at most AI_LEARNING_LIST_LIMIT items.
-// PUT /api/v1/ai/learning/{source}/{id} { excluded } → 200 AiLearningItemDto: «Не учиться на этом» / back;
-// repeating it is a no-op. Errors: VALIDATION_ERROR 400, NOT_FOUND 404 (not an eligible text), UNAUTHORIZED 401,
-// FORBIDDEN 403.
-export const AI_LEARNING_LIST_LIMIT = 40;
+// A text from 20.10.2026 on is off until the owner switches it on (owner: «по умолчанию выключены»); an older one
+// stays on unless switched off.
+// GET /api/v1/ai/learning?q&state&source&page → 200 AiLearningListDto, AI_LEARNING_LIST_LIMIT a page, newest first.
+// `includedCount` counts the switched-on texts among all candidates, whatever the filters.
+// PUT /api/v1/ai/learning/{source}/{id} { excluded } → 200 AiLearningItemDto: switch off / on; repeating it is a
+// no-op. Errors: VALIDATION_ERROR 400, NOT_FOUND 404 (not an eligible text), UNAUTHORIZED 401, FORBIDDEN 403.
+export const AI_LEARNING_LIST_LIMIT = 20;
 export const AI_LEARNING_EXCERPT = 240;
 export const aiLearningSourceSchema = z.enum(['revision', 'post']);
 export type AiLearningSource = z.infer<typeof aiLearningSourceSchema>;
@@ -503,7 +505,21 @@ export const aiLearningItemSchema = z.object({
   createdAt: z.iso.datetime()
 });
 export type AiLearningItemDto = z.infer<typeof aiLearningItemSchema>;
-export const aiLearningListSchema = z.object({ items: z.array(aiLearningItemSchema).max(AI_LEARNING_LIST_LIMIT) });
+export const aiLearningQuerySchema = z.strictObject({
+  /** Words of the text, case-insensitive. */
+  q: z.string().trim().max(100).optional(),
+  /** `on`: goes into prompts; `off`: switched off or never switched on. */
+  state: z.enum(['on', 'off', 'all']).default('all'),
+  source: z.enum(['revision', 'post', 'all']).default('all'),
+  page: z.coerce.number().int().min(1).max(100).default(1)
+});
+export type AiLearningQuery = z.infer<typeof aiLearningQuerySchema>;
+export const aiLearningListSchema = z.object({
+  items: z.array(aiLearningItemSchema).max(AI_LEARNING_LIST_LIMIT),
+  page: z.number().int().positive(),
+  totalCount: z.number().int().nonnegative(),
+  includedCount: z.number().int().nonnegative()
+});
 export type AiLearningListDto = z.infer<typeof aiLearningListSchema>;
 export const aiLearningParamsSchema = z.strictObject({ source: aiLearningSourceSchema, id: z.uuid() });
 export const setAiLearningExcludedInputSchema = z.strictObject({ excluded: z.boolean() });

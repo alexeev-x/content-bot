@@ -37,12 +37,19 @@ const FACT_LEASE_MS = 5 * 60 * 1000;
 const OWNER_EXAMPLE_MIN_EDIT = 0.05;
 /** Candidates the writer ranks by relevance to the task; the prompt still gets at most two. */
 const OWNER_EXAMPLE_CANDIDATES = 20;
-/** Most revisions «Чему учится ИИ» lists. */
-const LEARNING_REVISIONS_MAX = 40;
+/** Most revisions the examples table reads (it pages and searches them in memory). */
+const LEARNING_REVISIONS_MAX = 200;
+/**
+ * From this instant a text counts as a style example only once the owner switches it on (owner, 20.10.2026: «по
+ * умолчанию выключены»; migration 0088). An older text keeps the old rule: it counts unless switched off.
+ */
+export const LEARNING_OPT_IN_SINCE = Date.UTC(2026, 9, 20);
 /** What counts as the owner's confirmed words: an approved text he changed, without a «Что не так?» verdict. */
 const LEARNING_REVISION = `r.provenance IN ('OWNER_APPROVED', 'OWNER_PREAPPROVED') AND r.edit_ratio > ?1
   AND NOT EXISTS (SELECT 1 FROM ai_feedback f WHERE f.generation_id = r.generation_id)`;
-const EXCLUDED_REVISION = `EXISTS (SELECT 1 FROM ai_learning_exclusions x WHERE x.source = 'revision' AND x.source_id = r.id)`;
+const EXCLUDED_REVISION = `(EXISTS (SELECT 1 FROM ai_learning_exclusions x WHERE x.source = 'revision' AND x.source_id = r.id)
+  OR (r.created_at >= ${LEARNING_OPT_IN_SINCE}
+    AND NOT EXISTS (SELECT 1 FROM ai_learning_inclusions i WHERE i.source = 'revision' AND i.source_id = r.id)))`;
 
 interface RawLearningRevision {
   id: string;
@@ -215,13 +222,13 @@ export interface WriterRepository {
    * style examples for the next draft. An AI_DRAFT, or an approval of the model's words unchanged, never is one.
    */
   ownerExamples(input: { format: WriterFormat; limit: number }): Promise<{ text: string; createdAt: number }[]>;
-  /** Approved texts the owner changed, newest first, with the owner's exclusion (any format; at most 40). */
-  learningRevisions(limit: number): Promise<LearningRevisionRow[]>;
+  /** Approved texts the owner changed, newest first, with the owner's exclusion (any format; at most LEARNING_REVISIONS_MAX). */
+  learningRevisions(): Promise<LearningRevisionRow[]>;
   /** One such text; null when it is not eligible (not approved, not changed, or disliked). */
   findLearningRevision(id: string): Promise<LearningRevisionRow | null>;
-  /** The excluded ones among these post ids (at most 100). */
-  excludedPosts(ids: readonly string[]): Promise<Set<string>>;
-  /** Takes a text out of the writer's examples, or brings it back; repeating is a no-op. */
+  /** The owner's switches among these post ids (at most 100): turned off and turned on. */
+  postChoices(ids: readonly string[]): Promise<{ excluded: Set<string>; included: Set<string> }>;
+  /** Switches a text off or on as a writer's example; repeating is a no-op. */
   setExcluded(input: { source: 'revision' | 'post'; id: string; excluded: boolean; now: number }): Promise<void>;
   /** Which of these posts (at most 100) came from an approved AI draft: where it was written and how much was edited. */
   postOrigins(
@@ -1058,7 +1065,7 @@ export function createD1WriterRepository(db: D1Database): WriterRepository {
       return rows.results;
     },
 
-    async learningRevisions(limit) {
+    async learningRevisions() {
       const rows = await db
         .prepare(
           `SELECT r.id, g.format, r.text, r.edit_ratio AS editRatio, r.changed_parts AS changedParts,
@@ -1067,7 +1074,7 @@ export function createD1WriterRepository(db: D1Database): WriterRepository {
            WHERE ${LEARNING_REVISION}
            ORDER BY r.created_at DESC, r.id LIMIT ?2`
         )
-        .bind(OWNER_EXAMPLE_MIN_EDIT, Math.min(limit, LEARNING_REVISIONS_MAX))
+        .bind(OWNER_EXAMPLE_MIN_EDIT, LEARNING_REVISIONS_MAX)
         .all<RawLearningRevision>();
       return rows.results.map(toLearningRevision);
     },
@@ -1085,26 +1092,35 @@ export function createD1WriterRepository(db: D1Database): WriterRepository {
       return row === null ? null : toLearningRevision(row);
     },
 
-    async excludedPosts(ids) {
-      if (ids.length === 0) return new Set();
+    async postChoices(ids) {
+      const excluded = new Set<string>();
+      const included = new Set<string>();
+      if (ids.length === 0) return { excluded, included };
       const rows = await db
         .prepare(
-          `SELECT source_id AS id FROM ai_learning_exclusions
+          `SELECT source_id AS id, 1 AS off FROM ai_learning_exclusions
+           WHERE source = 'post' AND source_id IN (SELECT value FROM json_each(?1))
+           UNION ALL
+           SELECT source_id AS id, 0 AS off FROM ai_learning_inclusions
            WHERE source = 'post' AND source_id IN (SELECT value FROM json_each(?1))`
         )
         .bind(JSON.stringify(ids.slice(0, 100)))
-        .all<{ id: string }>();
-      return new Set(rows.results.map((row) => row.id));
+        .all<{ id: string; off: number }>();
+      for (const row of rows.results) (row.off === 1 ? excluded : included).add(row.id);
+      return { excluded, included };
     },
 
     async setExcluded({ source, id, excluded, now }) {
-      await (
-        excluded
-          ? db
-              .prepare('INSERT OR IGNORE INTO ai_learning_exclusions (source, source_id, created_at) VALUES (?, ?, ?)')
-              .bind(source, id, now)
-          : db.prepare('DELETE FROM ai_learning_exclusions WHERE source = ? AND source_id = ?').bind(source, id)
-      ).run();
+      // One table gains the row and the other loses it in one atomic batch, so a text is never both on and off.
+      const [into, from] = excluded
+        ? ['ai_learning_exclusions', 'ai_learning_inclusions']
+        : ['ai_learning_inclusions', 'ai_learning_exclusions'];
+      await db.batch([
+        db
+          .prepare(`INSERT OR IGNORE INTO ${into} (source, source_id, created_at) VALUES (?, ?, ?)`)
+          .bind(source, id, now),
+        db.prepare(`DELETE FROM ${from} WHERE source = ? AND source_id = ?`).bind(source, id)
+      ]);
     },
 
     async postOrigins(postIds) {

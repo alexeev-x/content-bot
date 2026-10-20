@@ -40,6 +40,13 @@ const own: AiLearningItemDto = {
   createdAt: '2026-10-16T10:00:00.000Z'
 };
 
+const page = (items: AiLearningItemDto[]) => ({
+  items,
+  page: 1,
+  totalCount: items.length,
+  includedCount: items.filter((item) => !item.excluded).length
+});
+
 const mount = (ui: React.ReactNode) =>
   render(
     <QueryClientProvider client={createTestQueryClient()}>
@@ -49,7 +56,7 @@ const mount = (ui: React.ReactNode) =>
 
 describe('AI learning list', () => {
   it('lists both sources with their switches', async () => {
-    server.use(http.get('*/api/v1/ai/learning', () => HttpResponse.json({ items: [revision, own] })));
+    server.use(http.get('*/api/v1/ai/learning', () => HttpResponse.json(page([revision, own]))));
     mount(<AiLearningList />);
     expect(await screen.findByText(/Правка ИИ-черновика · изменено 34%/)).toBeTruthy();
     expect(screen.getByText('Пост, написанный вами')).toBeTruthy();
@@ -58,12 +65,32 @@ describe('AI learning list', () => {
     expect((switches[1] as HTMLInputElement).checked).toBe(false);
   });
 
+  it('asks the server for the picked filter and moves the count when a text is switched on', async () => {
+    const asked: string[] = [];
+    server.use(
+      http.get('*/api/v1/ai/learning', ({ request }) => {
+        asked.push(new URL(request.url).search);
+        return HttpResponse.json(page([own]));
+      }),
+      http.put('*/api/v1/ai/learning/:source/:id', () => HttpResponse.json({ ...own, excluded: false }))
+    );
+    mount(<AiLearningList />);
+    expect(await screen.findByText('В примерах: 0')).toBeTruthy();
+    expect(asked[0]).toBe('');
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('switch', { name: 'Учитывать' }));
+    expect(await screen.findByText('В примерах: 1')).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: /Учитывается/ }));
+    await user.click(await screen.findByRole('option', { name: 'Выключенные' }));
+    await waitFor(() => expect(asked.at(-1)).toBe('?state=off'));
+  });
+
   it('sends {excluded} and locks the switch while the request runs', async () => {
     let release: () => void = () => undefined;
     const gate = new Promise<void>((resolve) => (release = resolve));
     const sent: { url: string; body: unknown }[] = [];
     server.use(
-      http.get('*/api/v1/ai/learning', () => HttpResponse.json({ items: [revision] })),
+      http.get('*/api/v1/ai/learning', () => HttpResponse.json(page([revision]))),
       http.put('*/api/v1/ai/learning/:source/:id', async ({ request }) => {
         sent.push({ url: new URL(request.url).pathname, body: await request.json() });
         await gate;
@@ -83,7 +110,7 @@ describe('AI learning list', () => {
 
   it('restores the switch and shows an inline error when the save fails', async () => {
     server.use(
-      http.get('*/api/v1/ai/learning', () => HttpResponse.json({ items: [revision] })),
+      http.get('*/api/v1/ai/learning', () => HttpResponse.json(page([revision]))),
       http.put('*/api/v1/ai/learning/:source/:id', () => HttpResponse.json(errorBody('NOT_FOUND'), { status: 404 }))
     );
     mount(<AiLearningList />);

@@ -15,7 +15,12 @@ const aiSearchSchema = z
     outcome: z.enum(['approved', 'edited', 'open', 'feedback']).optional().catch(undefined),
     sort: z.enum(['cost', 'versions']).optional().catch(undefined),
     dir: z.literal('asc').optional().catch(undefined),
-    page: z.number().int().min(2).max(1000).optional().catch(undefined)
+    page: z.number().int().min(2).max(1000).optional().catch(undefined),
+    // «Обучение» → examples table, prefixed so it keeps its own state beside the drafts table.
+    lq: z.string().trim().min(1).max(100).optional().catch(undefined),
+    luse: z.enum(['on', 'off']).optional().catch(undefined),
+    lfrom: z.enum(['revision', 'post']).optional().catch(undefined),
+    lpage: z.number().int().min(2).max(100).optional().catch(undefined)
   })
   .catch({});
 

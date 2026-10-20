@@ -13,6 +13,7 @@ import {
   publishableText,
   recordFeedback,
   saveOwnerEdit,
+  setLearningExcluded,
   updateAiSettings,
   type WriterDeps
 } from '../../src/modules/ai';
@@ -176,7 +177,9 @@ describe('AI writer', () => {
     // Changed and approved: the owner's words, the only style evidence.
     const edited = await draft(writer);
     await saveOwnerEdit(writer, edited.generation.id, 'Свой текст: варды важнее фарма, проверено на Лионе.');
-    await approveDraft(writer, edited.generation.id);
+    const approval = await approveDraft(writer, edited.generation.id);
+    // A new text teaches only once the owner switches it on (owner, 20.10.2026).
+    await setLearningExcluded(writer, { source: 'revision', id: approval.revision.id, excluded: false });
     // Approved without a change: the model's words, and an AI draft never approved — both stay out.
     const unchanged = await draft(writer);
     await approveDraft(writer, unchanged.generation.id);
@@ -190,7 +193,8 @@ describe('AI writer', () => {
       signal: AbortSignal.timeout(1000)
     });
     await saveOwnerEdit(writer, post.generation.id, 'Телеграм-текст автора про патч и нерфы.');
-    await approveDraft(writer, post.generation.id);
+    const telegram = await approveDraft(writer, post.generation.id);
+    await setLearningExcluded(writer, { source: 'revision', id: telegram.revision.id, excluded: false });
 
     await draft(writer, 'как я учусь вардить');
     const prompt = inputs.at(-1) ?? '';

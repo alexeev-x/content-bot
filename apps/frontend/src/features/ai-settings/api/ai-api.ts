@@ -61,10 +61,17 @@ export function checkAiConnection() {
   return apiRequest('/api/v1/ai/check', aiOverviewSchema, { method: 'POST' });
 }
 
-/** The owner's texts the writer takes as examples, newest first. */
-export function getAiLearning(signal?: AbortSignal) {
-  return apiRequest('/api/v1/ai/learning', aiLearningListSchema, { signal });
+/** One page of the owner's texts the writer may take as examples, newest first (defaults are left out of the URL). */
+export function getAiLearning(query: AiLearningListQuery, signal?: AbortSignal) {
+  return apiRequest(`/api/v1/ai/learning${buildQuery(query)}`, aiLearningListSchema, { signal });
 }
+
+export type AiLearningListQuery = {
+  q?: string | undefined;
+  state?: 'on' | 'off' | undefined;
+  source?: AiLearningSource | undefined;
+  page?: number | undefined;
+};
 
 /** «Учитывать» off/on for one text; repeating it is a no-op on the server. */
 export function setAiLearningExcluded(input: { source: AiLearningSource; id: string; excluded: boolean }) {

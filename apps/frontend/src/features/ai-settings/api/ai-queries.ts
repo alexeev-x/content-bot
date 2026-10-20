@@ -1,4 +1,4 @@
-import type { AiLearningListDto, AiRuleDto, AiRulesDto } from '@alexeev/contracts';
+import type { AiLearningItemDto, AiLearningListDto, AiRuleDto, AiRulesDto } from '@alexeev/contracts';
 import { keepPreviousData, queryOptions, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   changeAiRule,
@@ -9,6 +9,7 @@ import {
   type AiDraftsListQuery,
   getAiFeedback,
   getAiLearning,
+  type AiLearningListQuery,
   getAiOverview,
   getAiHypotheses,
   getAiRules,
@@ -69,22 +70,43 @@ export function useCheckAiConnection() {
   });
 }
 
-export function aiLearningQueryOptions() {
-  return queryOptions({ queryKey: aiKeys.learning, queryFn: ({ signal }) => getAiLearning(signal), staleTime: 30_000 });
+/** One page of the examples table; the previous page stays on screen while the next loads. */
+export function aiLearningQueryOptions(query: AiLearningListQuery) {
+  return queryOptions({
+    queryKey: [...aiKeys.learning, query] as const,
+    queryFn: ({ signal }) => getAiLearning(query, signal),
+    placeholderData: keepPreviousData,
+    staleTime: 30_000
+  });
 }
 
-/** Only the confirmed row is written into the list; nothing is guessed before the server answers. */
+/**
+ * Only the confirmed row is written into every cached page; nothing is guessed before the server answers. A switched
+ * row stays where it is until the filters change, so it does not jump out from under the pointer.
+ */
 export function useSetAiLearningExcluded() {
   const client = useQueryClient();
   return useMutation({
     mutationFn: setAiLearningExcluded,
     retry: false,
-    onSuccess: (item) =>
-      client.setQueryData<AiLearningListDto>(aiKeys.learning, (list) =>
+    onSuccess: (item) => {
+      const same = (row: AiLearningItemDto) => row.id === item.id && row.source === item.source;
+      const before = client
+        .getQueriesData<AiLearningListDto>({ queryKey: aiKeys.learning })
+        .flatMap(([, list]) => list?.items ?? [])
+        .find(same);
+      // The count covers every text, so every cached page moves with it, not only the ones showing this row.
+      const delta = before === undefined || before.excluded === item.excluded ? 0 : item.excluded ? -1 : 1;
+      client.setQueriesData<AiLearningListDto>({ queryKey: aiKeys.learning }, (list) =>
         list
-          ? { items: list.items.map((row) => (row.id === item.id && row.source === item.source ? item : row)) }
+          ? {
+              ...list,
+              items: list.items.map((row) => (same(row) ? item : row)),
+              includedCount: list.includedCount + delta
+            }
           : list
-      )
+      );
+    }
   });
 }
 

@@ -14,6 +14,7 @@ import {
   aiLearningListSchema,
   aiLearningItemSchema,
   aiLearningParamsSchema,
+  aiLearningQuerySchema,
   aiOverviewSchema,
   aiRuleEvidenceParamsSchema,
   aiRuleParamsSchema,
@@ -233,10 +234,12 @@ export const aiRoutes = new Hono<AppBindings>()
     await removeFeedback({ writer: c.get('container').aiWriter }, c.req.valid('param').id);
     return c.body(null, 204);
   })
-  .get('/learning', async (c) => {
+  .get('/learning', validated('query', aiLearningQuerySchema), async (c) => {
     const container = c.get('container');
     return c.json(
-      aiLearningListSchema.parse(await readLearning({ writer: container.aiWriter, ownerPosts: container.aiOwnerPosts }))
+      aiLearningListSchema.parse(
+        await readLearning({ writer: container.aiWriter, ownerPosts: container.aiOwnerPosts }, c.req.valid('query'))
+      )
     );
   })
   .put(

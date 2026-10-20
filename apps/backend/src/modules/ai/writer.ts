@@ -9,6 +9,7 @@ import {
   type AiFeedbackListDto,
   type AiLearningItemDto,
   type AiLearningListDto,
+  type AiLearningQuery,
   type AiLearningSource,
   type PostOriginDto
 } from '@alexeev/contracts';
@@ -25,6 +26,7 @@ import type {
   RevisionRow,
   WriterRepository
 } from './d1-writer-repository';
+import { LEARNING_OPT_IN_SINCE } from './d1-writer-repository';
 import { type AiTextProvider, AiProviderError, type OwnerPost, type OwnerPostSource } from './ports';
 import { assertAiReady, type BudgetEvent, readAiSettings, recordAiUsage } from './service';
 import { changedParts, checkDraft, editRatio } from './writer-checks';
@@ -115,8 +117,12 @@ async function ownerWrittenPosts(
   const posts = (await deps.ownerPosts.recent(OWNER_POST_CANDIDATES)).filter((post) => post.text.trim() !== '');
   const aiLinked = new Set((await deps.writer.postOrigins(posts.map((post) => post.id))).map((row) => row.postId));
   const own = posts.filter((post) => !aiLinked.has(post.id));
-  const excluded = await deps.writer.excludedPosts(own.map((post) => post.id));
-  return own.map((post) => ({ ...post, excluded: excluded.has(post.id) }));
+  const { excluded, included } = await deps.writer.postChoices(own.map((post) => post.id));
+  // A post from LEARNING_OPT_IN_SINCE on counts only once the owner switched it on (owner, 20.10.2026).
+  return own.map((post) => ({
+    ...post,
+    excluded: excluded.has(post.id) || (post.createdAt >= LEARNING_OPT_IN_SINCE && !included.has(post.id))
+  }));
 }
 
 /**
@@ -618,16 +624,30 @@ const postItem = (post: OwnerPost & { excluded: boolean }): AiLearningItemDto =>
 
 /**
  * What the writer can learn from (plan stage 2), newest first: the approved AI texts the owner changed (not the ones
- * he gave a verdict) and the posts he wrote himself. `excluded` marks what he took out.
+ * he gave a verdict) and the posts he wrote himself. `excluded` marks what does not go into prompts. Both sources are
+ * bounded (LEARNING_REVISIONS_MAX, OWNER_POST_CANDIDATES), so search, filters and pages run in memory.
  */
-export async function readLearning(deps: Pick<WriterDeps, 'writer' | 'ownerPosts'>): Promise<AiLearningListDto> {
-  const [revisions, posts] = await Promise.all([
-    deps.writer.learningRevisions(AI_LEARNING_LIST_LIMIT),
-    ownerWrittenPosts(deps)
-  ]);
-  const items = [...revisions.map(revisionItem), ...posts.map(postItem)];
+export async function readLearning(
+  deps: Pick<WriterDeps, 'writer' | 'ownerPosts'>,
+  query: AiLearningQuery
+): Promise<AiLearningListDto> {
+  const [revisions, posts] = await Promise.all([deps.writer.learningRevisions(), ownerWrittenPosts(deps)]);
+  const all = [...revisions.map(revisionItem), ...posts.map(postItem)];
+  const words = query.q?.toLocaleLowerCase('ru-RU') ?? '';
+  const items = all.filter(
+    (item) =>
+      (query.source === 'all' || item.source === query.source) &&
+      (query.state === 'all' || item.excluded === (query.state === 'off')) &&
+      (words === '' || item.excerpt.toLocaleLowerCase('ru-RU').includes(words))
+  );
   items.sort((a, b) => b.createdAt.localeCompare(a.createdAt) || a.id.localeCompare(b.id));
-  return { items: items.slice(0, AI_LEARNING_LIST_LIMIT) };
+  const start = (query.page - 1) * AI_LEARNING_LIST_LIMIT;
+  return {
+    items: items.slice(start, start + AI_LEARNING_LIST_LIMIT),
+    page: query.page,
+    totalCount: items.length,
+    includedCount: all.filter((item) => !item.excluded).length
+  };
 }
 
 /** «Не учиться на этом» (or back) for one text; NOT_FOUND when it is not one the writer would learn from. */
