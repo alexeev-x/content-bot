@@ -17,3 +17,16 @@ So two runs can be compared:
 - **Cost:** the run's spend from «Настройки → ИИ» (before and after), never an estimate.
 - **Ratings:** the owner's ratings are a manual observation and are written as such, apart from automatic counts;
   a model never rates its own drafts.
+
+## Runs
+
+**20.10.2026, DEV, gpt-6.1-sol, 21 briefs** (drafts in `.logs/ai-eval/p3-run-1.json`, ratings beside it). Counts:
+16 ready, 5 needs_facts (every «Учусь играть» brief without the owner's experience asked a question), 0 failed,
+0 code-check warnings; 4–30 s per draft; cost $0.167. Owner's ratings (manual): «Учу фидить» — the bodies and the
+feed turn mostly «мой стиль», the hooks weak (they gave the harm away in the first phrase, skipped the topic as the
+opening question, read like three different videos, lacked emotion); «как не проиграть линию» «мимо»; all seven
+Telegram posts «норм». The pack was changed four times after the owner's words (hooks, news and patch posts, hooks of
+one video, patch numbers in plain words) and the «Учу фидить» briefs rerun (`p3-run-4.json`, $0.108): hooks now open
+with the topic or a controversial claim and belong to one video; bodies «норм», two of three hooks still too calm for
+the owner, who chose to teach hooks through his edits. A patch post from the real «Летняя чистка 2026» page was
+«норм»; patch posts are a separate task.
