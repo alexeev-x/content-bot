@@ -64,8 +64,6 @@
   --size-button-sm: 34px;
   --size-row: 44px;
   --size-topbar: 52px;
-  /* Tabs and segmented controls: items inside a compact bordered group. */
-  --size-tab: 32px;
   /* Reading width a page opts into with the .reading-width class. */
   --measure-reading: 760px;
   --measure-dashboard: 1280px;
@@ -120,7 +118,6 @@
     --font-size-xl: 1.125rem;
     --size-row: 52px;
     --size-topbar: 56px;
-    --size-tab: var(--size-target);
     --size-media-tile: 104px;
     --size-ratio-tile: 68px;
   }

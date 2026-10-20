@@ -4,13 +4,19 @@
   gap: var(--space-4);
   min-width: 0;
 }
-/* View tabs: a bordered group of compact items, the selected one raised (Cloudflare-dashboard style). */
+/*
+ * View tabs: a bordered group of compact items, the selected one raised (Cloudflare-dashboard style). The whole group,
+ * frame included, is one control tall, like a SegmentedControl, Select or IconButton in the same row (owner,
+ * 20.10.2026: «одну высоту»).
+ */
 .list {
   display: inline-flex;
+  box-sizing: border-box;
+  block-size: var(--size-control);
   align-self: flex-start;
   gap: 2px;
   max-width: 100%;
-  padding: 3px;
+  padding: 2px;
   overflow-x: auto;
   overflow-y: hidden;
   border: 1px solid var(--color-border-subtle);
@@ -24,7 +30,6 @@
   flex: none;
   align-items: center;
   gap: var(--space-2);
-  min-height: var(--size-tab);
   padding: 0 var(--space-3);
   border-radius: var(--radius-1);
   color: var(--color-text-muted);
@@ -66,6 +71,7 @@
 /* Card variant: three or more equal tiles. Selection shows by an accent border and fill, never by colour alone: the icon square also fills. */
 .tabs[data-variant='card'] .list {
   display: grid;
+  block-size: auto;
   align-self: stretch;
   padding: 0;
   border: 0;
