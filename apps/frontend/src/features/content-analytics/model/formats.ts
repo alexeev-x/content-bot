@@ -22,8 +22,13 @@ export type FormatSeries = {
 
 const WORD = /[\p{L}\p{N}]+/gu;
 
+// Hashtags close almost every video title («#dota #dota2 #дота2 #дота») and so repeat more than any series; they
+// name the topic, not the format.
+const HASHTAG = /#[\p{L}\p{N}_]+/gu;
+
 function sentencesOf(title: string): string[] {
   return title
+    .replace(HASHTAG, ' ')
     .split(/[.!?…]+\s*/u)
     .map((sentence) => sentence.trim())
     .filter((sentence) => sentence.length > 0);

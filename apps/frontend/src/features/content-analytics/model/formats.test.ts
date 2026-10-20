@@ -46,6 +46,20 @@ describe('formatSeries', () => {
     expect(series[0]!.multiple!).toBeGreaterThan(series[1]!.multiple!);
   });
 
+  it('does not take the closing hashtags for a series (DEV, 20.10.2026)', () => {
+    const tags = '#dota #dota2 #дота2 #дота';
+    const series = formatSeries(
+      [
+        video(`Откуда саппорту брать деньги? Учу фидить в доте. ${tags}`, 134_700),
+        video(`90% керри совершают одну ошибку. Учу фидить в доте. ${tags}`, 1_758),
+        video(`Как я на оракле играл. Учусь играть в доту. Часть 69 ${tags}`, 2_744),
+        video(`Как я на сале играл. Учусь играть в доту. Часть 68 ${tags}`, 3_115)
+      ],
+      AT
+    );
+    expect(series.map((entry) => entry.key).sort()).toEqual(['учу фидить', 'учусь играть']);
+  });
+
   it('leaves one-offs out and needs two publications for a series', () => {
     const series = formatSeries([video('Один ролик. Совсем один.', 100), video('Другой ролик про героя', 200)], AT);
     expect(series).toEqual([]);
