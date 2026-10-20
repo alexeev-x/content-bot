@@ -4,7 +4,6 @@ import {
   AiDraftHistory,
   AiEditorOverview,
   AiLearningBoard,
-  AiSpendBoard,
   aiCopy,
   type DecisionTarget
 } from '../../features/ai-settings';
@@ -12,12 +11,12 @@ import { ru } from '../../shared/lib/ru';
 import { PageHeader, Tab, TabList, TabPanel, Tabs } from '../../shared/ui';
 import styles from './AiEditorPage.module.css';
 
-type AiTab = 'overview' | 'drafts' | 'learning' | 'spend';
+type AiTab = 'overview' | 'drafts' | 'learning';
 const t = aiCopy.editor;
 
 /**
- * «ИИ-редактор» (owner, 20.10.2026): what the AI writes, what it learns and what it costs, apart from Настройки → ИИ,
- * which keeps only what is set. One tab at a time, kept in the URL (`?tab=`, `?draft=`).
+ * «ИИ-редактор» (owner, 20.10.2026): what the AI writes and what it learns, apart from Настройки → ИИ,
+ * which keeps what is set and what it costs. One tab at a time, kept in the URL (`?tab=`, `?draft=`).
  */
 export function AiEditorPage() {
   useDocumentTitle(ru.pages.ai);
@@ -41,7 +40,6 @@ export function AiEditorPage() {
               <Tab id="overview">{t.tabs.overview}</Tab>
               <Tab id="drafts">{t.tabs.drafts}</Tab>
               <Tab id="learning">{t.tabs.learning}</Tab>
-              <Tab id="spend">{t.tabs.spend}</Tab>
             </TabList>
           }
         />
@@ -90,9 +88,6 @@ export function AiEditorPage() {
               })
             }
           />
-        </TabPanel>
-        <TabPanel id="spend">
-          <AiSpendBoard />
         </TabPanel>
       </div>
     </Tabs>

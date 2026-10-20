@@ -133,6 +133,13 @@ describe('AI settings, spend and connection', () => {
       averageEditRatio: null
     });
     expect(overview.quality.averageDraftUsd).toBeGreaterThan(0);
+    // The money goes to the studio's runs, not the bot; nothing else asked the provider.
+    expect(overview.spend.bySource.map((row) => `${row.source}:${row.requests}`)).toEqual([
+      'bot:0',
+      'studio:1',
+      'other:0'
+    ]);
+    expect(overview.spend.bySource[1]?.spentUsd).toBe(overview.spend.spentUsd);
   });
 
   it('suggests variants for a fragment, records the spend, saves no post, and refuses bad input or AI off', async () => {

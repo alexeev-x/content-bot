@@ -105,6 +105,14 @@ export const aiSpendSchema = z.object({
   byKind: z.array(
     z.object({ kind: aiUsageKindSchema, requests: z.number().int().nonnegative(), spentUsd: z.number().nonnegative() })
   ),
+  /** Where the month's money went: the bot's drafts, the studio's control runs, everything else (reviews, reports). */
+  bySource: z.array(
+    z.object({
+      source: z.enum(['bot', 'studio', 'other']),
+      requests: z.number().int().nonnegative(),
+      spentUsd: z.number().nonnegative()
+    })
+  ),
   /** What stops a new request now: null when nothing does. */
   blockedBy: z.enum(['disabled', 'no_key', 'no_model', 'no_price', 'monthly_budget', 'daily_cap']).nullable()
 });

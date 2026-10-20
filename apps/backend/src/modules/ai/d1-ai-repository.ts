@@ -11,6 +11,8 @@ export interface SpendRows {
   /** Per kind, this month. */
   byKind: { kind: AiUsageKind; requests: number; costMicroUsd: number; unpriced: number }[];
   todayMicroUsd: number;
+  /** Writer requests this month by where the draft was asked: the bot or the studio's control runs. */
+  bySource: { source: 'bot' | 'studio'; requests: number; costMicroUsd: number }[];
 }
 
 export interface AiRepository {
@@ -20,7 +22,8 @@ export interface AiRepository {
   recordUsage(row: UsageRow): Promise<void>;
   /** The recorded cost of these usage rows (at most 100), in micro-USD; an unpriced row maps to null. */
   costsOf(ids: readonly string[]): Promise<Map<string, number | null>>;
-  readSpend(input: { monthStart: number; dayStart: number }): Promise<SpendRows>;
+  /** `bySource` only for the overview: budget checks run inside Cron jobs that count every D1 query. */
+  readSpend(input: { monthStart: number; dayStart: number; bySource: boolean }): Promise<SpendRows>;
   /** Marks a budget alert as sent; false when it already was (one per period). */
   claimBudgetAlert(id: string, now: number): Promise<boolean>;
   readLastCheck(): Promise<{ at: number; ok: boolean; model: string | null; errorCode: string | null } | null>;
@@ -84,8 +87,8 @@ export function createD1AiRepository(db: D1Database): AiRepository {
       return new Map(rows.results.map((row) => [row.id, row.cost]));
     },
 
-    async readSpend({ monthStart, dayStart }) {
-      const [kinds, today] = await db.batch([
+    async readSpend({ monthStart, dayStart, bySource }) {
+      const statements = [
         db
           .prepare(
             `SELECT kind, COUNT(*) AS requests, COALESCE(SUM(cost_micro_usd), 0) AS costMicroUsd,
@@ -93,11 +96,21 @@ export function createD1AiRepository(db: D1Database): AiRepository {
              FROM ai_usage WHERE at >= ? GROUP BY kind`
           )
           .bind(monthStart),
-        db.prepare('SELECT COALESCE(SUM(cost_micro_usd), 0) AS total FROM ai_usage WHERE at >= ?').bind(dayStart)
-      ]);
+        db.prepare('SELECT COALESCE(SUM(cost_micro_usd), 0) AS total FROM ai_usage WHERE at >= ?').bind(dayStart),
+        // A request is recorded with its generation, so the month's generations bound the scan (created_at index).
+        db
+          .prepare(
+            `SELECT g.source, COUNT(*) AS requests, COALESCE(SUM(u.cost_micro_usd), 0) AS costMicroUsd
+             FROM ai_generations g JOIN ai_usage u ON u.id = g.usage_id
+             WHERE g.created_at >= ?1 AND u.at >= ?1 GROUP BY g.source`
+          )
+          .bind(monthStart)
+      ];
+      const [kinds, today, sources] = await db.batch(bySource ? statements : statements.slice(0, 2));
       return {
         byKind: (kinds?.results ?? []) as SpendRows['byKind'],
-        todayMicroUsd: ((today?.results ?? [])[0] as { total: number } | undefined)?.total ?? 0
+        todayMicroUsd: ((today?.results ?? [])[0] as { total: number } | undefined)?.total ?? 0,
+        bySource: (sources?.results ?? []) as SpendRows['bySource']
       };
     },
 

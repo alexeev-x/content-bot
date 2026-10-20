@@ -13,7 +13,7 @@ import {
 } from '@alexeev/contracts';
 import type { Clock } from '../../platform/clock';
 import { AppError } from '../../shared/app-error';
-import type { AiRepository } from './d1-ai-repository';
+import type { AiRepository, SpendRows } from './d1-ai-repository';
 import type { WriterRepository } from './d1-writer-repository';
 import { AI_CATALOG } from './catalog';
 import { type AiTextProvider, type AiUsage, AiProviderError } from './ports';
@@ -153,13 +153,30 @@ export async function updateAiSettings(
   if (!saved) throw new AppError('CONFLICT', 'AI settings changed elsewhere', { reason: 'STALE_REVISION' });
 }
 
+/**
+ * The month's money by where it went (owner, 20.10.2026: on DEV $1.27 of $1.50 were studio control runs, not the bot):
+ * the bot's drafts, the studio's runs, and the rest (video reviews, reports, lessons, checks).
+ */
+function spendBySource(rows: SpendRows, requests: number, spentMicro: number): AiSpendDto['bySource'] {
+  const bot = rows.bySource.find((row) => row.source === 'bot');
+  const studio = rows.bySource.find((row) => row.source === 'studio');
+  const known = (bot?.requests ?? 0) + (studio?.requests ?? 0);
+  const knownMicro = (bot?.costMicroUsd ?? 0) + (studio?.costMicroUsd ?? 0);
+  return [
+    { source: 'bot', requests: bot?.requests ?? 0, spentUsd: toUsd(bot?.costMicroUsd ?? 0) },
+    { source: 'studio', requests: studio?.requests ?? 0, spentUsd: toUsd(studio?.costMicroUsd ?? 0) },
+    { source: 'other', requests: Math.max(0, requests - known), spentUsd: toUsd(Math.max(0, spentMicro - knownMicro)) }
+  ];
+}
+
 async function readSpend(
   deps: { repo: AiRepository; clock: Clock; timezone: string },
   settings: AiSettingsDto,
-  keyConfigured: boolean
+  keyConfigured: boolean,
+  bySource = false
 ): Promise<AiSpendDto> {
   const window = spendWindows(deps.clock.now(), deps.timezone);
-  const rows = await deps.repo.readSpend({ monthStart: window.monthStart, dayStart: window.dayStart });
+  const rows = await deps.repo.readSpend({ monthStart: window.monthStart, dayStart: window.dayStart, bySource });
   const spentMicro = rows.byKind.reduce((sum, row) => sum + row.costMicroUsd, 0);
   const requests = rows.byKind.reduce((sum, row) => sum + row.requests, 0);
   const unpriced = rows.byKind.reduce((sum, row) => sum + row.unpriced, 0);
@@ -193,6 +210,7 @@ async function readSpend(
       const row = rows.byKind.find((candidate) => candidate.kind === kind);
       return { kind, requests: row?.requests ?? 0, spentUsd: toUsd(row?.costMicroUsd ?? 0) };
     }).filter((row) => row.requests > 0),
+    bySource: spendBySource(rows, requests, spentMicro),
     blockedBy
   };
 }
@@ -210,7 +228,7 @@ export async function readAiOverview(deps: {
   const now = deps.clock.now();
   const since = now - QUALITY_DAYS * 24 * 60 * 60 * 1000;
   const [spend, lastCheck, quality, before] = await Promise.all([
-    readSpend(deps, settings, deps.keyConfigured),
+    readSpend(deps, settings, deps.keyConfigured, true),
     deps.repo.readLastCheck(),
     deps.writer.quality(since),
     deps.writer.periodApprovals(since - (now - since), since)

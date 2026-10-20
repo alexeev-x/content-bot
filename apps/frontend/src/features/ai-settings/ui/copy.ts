@@ -1,5 +1,5 @@
 import { pluralRu } from '../../../shared/lib/ru-format';
-import type { AiFeedbackKind, AiSpendDto, AiUsageKind } from '@alexeev/contracts';
+import type { AiFeedbackKind, AiSpendDto } from '@alexeev/contracts';
 
 const MONTHS = [
   'январе',
@@ -60,37 +60,11 @@ export const copy = {
   saved: 'Сохранено',
   saveFailed: 'Не удалось сохранить. Попробуйте ещё раз.',
   conflict: 'Настройки изменились в другом окне — загрузили свежие, повторите.',
-  spendTitle: 'Расходы и лимиты',
   spentIn: (month: string) => `Потрачено в ${MONTHS[Number(month.slice(5, 7)) - 1] ?? month}`,
-  monthLabel: (month: string) =>
-    new Date(`${month}-15T00:00:00Z`)
-      .toLocaleString('ru-RU', { month: 'long', year: 'numeric', timeZone: 'UTC' })
-      .replace(' г.', '')
-      .replace(/^./, (letter) => letter.toUpperCase()),
-  used: (percent: number) => `${percent < 1 && percent > 0 ? '< 1' : Math.round(percent)}% использовано`,
   of: 'из',
   left: (value: string) => `Осталось ${value}`,
   spendBar: 'Потрачено от месячного бюджета',
-  today: 'Сегодня',
-  requests: 'Запросов',
   average: 'В среднем за запрос',
-  tiles: {
-    left: 'Осталось бюджета',
-    leftShare: (percent: number) => `${Math.max(0, Math.round(100 - percent))}% от бюджета`,
-    today: 'Потрачено сегодня',
-    dailyOf: (value: string) => `из ${value} в день`,
-    requests: 'Запросов за месяц',
-    average: 'Средняя цена запроса'
-  },
-  noSpend: 'Запросов ещё не было.',
-  kind: {
-    check: 'проверки',
-    draft: 'черновики',
-    rewrite: 'правки',
-    review: 'разборы',
-    profile: 'профиль стиля',
-    other: 'другое'
-  } satisfies Record<AiUsageKind, string>,
   modelsTitle: 'Модели и задачи',
   modelsIntro: (provider: string) =>
     `Какая модель ${provider} пишет черновики, а какая проверяет их. Подсказки под списком — что лучше по цене и качеству.`,
@@ -313,8 +287,8 @@ export const copy = {
   },
   /** «ИИ-редактор» (owner, 20.10.2026): what the AI writes, learns and costs, apart from its settings. */
   editor: {
-    description: 'Как пишет ИИ, чему учится и сколько стоит',
-    tabs: { overview: 'Сводка', drafts: 'Черновики', learning: 'Обучение', spend: 'Расходы' },
+    description: 'Как пишет ИИ и чему учится',
+    tabs: { overview: 'Сводка', drafts: 'Черновики', learning: 'Обучение' },
     tabsLabel: 'Разделы ИИ-редактора',
     settings: 'Настройки ИИ',
     decisions: {
@@ -324,7 +298,9 @@ export const copy = {
     money: {
       title: 'Деньги',
       today: (spent: string, cap: string | null) => (cap === null ? `сегодня ${spent}` : `сегодня ${spent} из ${cap}`),
-      more: 'Подробнее о расходах'
+      sourcesLabel: 'Куда ушли деньги',
+      source: { bot: 'Черновики из бота', studio: 'Контрольные прогоны', other: 'Разборы, отчёты, проверки' },
+      requests: (count: number) => `${count} ${pluralRu(count, 'запрос', 'запроса', 'запросов')}`
     },
     drafts: {
       filters: {
@@ -378,8 +354,7 @@ export const copy = {
       unlinked: 'Сценарии без видео',
       feedback: (count: number) => `История отзывов (${count})`,
       examples: 'Примеры, на которых учится ИИ'
-    },
-    spend: { limits: 'Изменить лимиты' }
+    }
   },
   loading: 'Загружаем настройки ИИ…',
   voiceBody:

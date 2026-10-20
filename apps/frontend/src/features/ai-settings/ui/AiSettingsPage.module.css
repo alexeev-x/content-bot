@@ -84,30 +84,6 @@
   padding: var(--space-4);
 }
 
-.spend {
-  display: grid;
-  gap: var(--space-2);
-}
-
-.spendMain {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: var(--space-2);
-}
-
-.spendValue {
-  margin: 0;
-  color: var(--color-text-muted);
-  font-variant-numeric: tabular-nums;
-}
-
-.spendValue strong {
-  color: var(--color-text);
-  font-size: var(--font-size-xl);
-}
-
 .spendLabel {
   margin: 0;
   font-size: var(--font-size-sm);

@@ -3,6 +3,5 @@ export { AiSpendSkeleton, AiSpendSummary, AiStatusBadge } from './ui/AiSpendWidg
 export { AiEditorOverview } from './ui/AiEditorOverview';
 export { AiDraftHistory } from './ui/AiDraftHistory';
 export { AiLearningBoard } from './ui/AiLearningBoard';
-export { AiSpendBoard } from './ui/AiSpendBoard';
 export type { DecisionTarget } from './model/decisions';
 export { copy as aiCopy } from './ui/copy';

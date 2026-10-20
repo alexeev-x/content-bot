@@ -21,6 +21,7 @@ import {
 import { aiOverviewQueryOptions, useCheckAiConnection, useSaveAiSettings } from '../api/ai-queries';
 import { aiStatus, BUDGET_PRESETS, DAILY_PRESETS, draftCostCents, WARN_PRESETS } from '../model/ai-view';
 import { AiMoneyPanel } from './AiMoneyPanel';
+import { AiPricesPanel } from './AiPricesPanel';
 import { copy } from './copy';
 import styles from './AiSettingsPage.module.css';
 
@@ -353,6 +354,8 @@ function AiSettings({ overview, onReload }: { overview: AiOverviewDto; onReload:
           <p className={styles.meta}>{copy.monthlyHint}</p>
         </div>
       </Panel>
+
+      <AiPricesPanel overview={overview} />
     </div>
   );
 }

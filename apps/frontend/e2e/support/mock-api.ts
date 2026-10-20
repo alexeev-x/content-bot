@@ -1055,6 +1055,11 @@ export async function mockApi(page: Page): Promise<void> {
           { kind: 'rewrite', requests: 1, spentUsd: 0.01 },
           { kind: 'other', requests: 8, spentUsd: 0.02 }
         ],
+        bySource: [
+          { source: 'bot', requests: 12, spentUsd: 0.11 },
+          { source: 'studio', requests: 77, spentUsd: 0.69 },
+          { source: 'other', requests: 11, spentUsd: 0.02 }
+        ],
         blockedBy: null
       },
       quality: {

@@ -41,6 +41,7 @@ const overview = aiOverviewSchema.parse({
     averageUsd: null,
     unpricedRequests: 0,
     byKind: [],
+    bySource: [],
     blockedBy: null
   },
   quality: {

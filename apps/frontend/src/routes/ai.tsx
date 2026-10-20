@@ -5,7 +5,7 @@ import { AiEditorPage } from '../pages/ai/AiEditorPage';
 
 const aiSearchSchema = z
   .looseObject({
-    tab: z.enum(['drafts', 'learning', 'spend']).optional().catch(undefined),
+    tab: z.enum(['drafts', 'learning']).optional().catch(undefined),
     /** The draft open in «Черновики». */
     draft: z.uuid().optional().catch(undefined),
     // «Черновики» table: defaults are left out of the URL (source=bot, sort by date, newest first, page 1).

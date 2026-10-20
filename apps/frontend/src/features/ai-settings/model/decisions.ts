@@ -6,7 +6,7 @@ import { approvalPercent, lowApproval } from './ai-view';
 // It used to sit in six folded lists at the bottom of Настройки → ИИ, invisible until opened.
 
 /** Where the owner acts on a decision: a tab of «ИИ-редактор» or the AI settings. */
-export type DecisionTarget = 'learning' | 'drafts' | 'spend' | 'settings';
+export type DecisionTarget = 'learning' | 'drafts' | 'settings';
 
 export type Decision = {
   id: string;
@@ -56,8 +56,8 @@ export function pendingDecisions(input: {
         tone: 'warning',
         title: `Бюджет месяца израсходован на ${used}%`,
         detail: 'Когда он кончится, ИИ остановится до 1-го числа.',
-        target: 'spend',
-        action: 'Расходы'
+        target: 'settings',
+        action: 'Изменить бюджет'
       });
     }
   }
