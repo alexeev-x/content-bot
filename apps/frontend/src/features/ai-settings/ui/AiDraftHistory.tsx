@@ -103,6 +103,8 @@ type Props = {
 
 const t = copy.editor.drafts;
 const SEARCH_DEBOUNCE_MS = 300;
+// A task can be a whole patch note; as the panel's title it took half a phone screen (DEV, 20.10.2026).
+const TITLE_MAX = 80;
 const SOURCES = [
   { id: 'bot', label: t.source.bot },
   { id: 'studio', label: t.source.studio },
@@ -119,6 +121,8 @@ const OUTCOMES = [
   { id: 'open', label: t.filters.open },
   { id: 'feedback', label: t.filters.feedback }
 ];
+
+const shortTitle = (task: string) => (task.length > TITLE_MAX ? `${task.slice(0, TITLE_MAX - 1).trimEnd()}…` : task);
 
 /** «Одобрен», «Одобрен с правками» or «Не одобрен»: text, never colour alone. */
 function outcomeOf(draft: AiDraftSummaryDto): { label: string; tone: 'done' | 'edited' | 'open' } {
@@ -309,9 +313,10 @@ export function AiDraftHistory({ view: outer, onViewChange }: Props) {
         onOpenChange={(isOpen) => {
           if (!isOpen) change({ openId: undefined });
         }}
-        title={opened?.task ?? copy.drafts.title}
+        title={opened ? shortTitle(opened.task) : copy.drafts.title}
         size="wide"
       >
+        {opened && opened.task.length > TITLE_MAX ? <p className={styles.task}>{opened.task}</p> : null}
         {opened ? <p className={styles.meta}>{summaryLine(opened)}</p> : null}
         {openId !== undefined ? <Chain id={openId} /> : null}
       </Drawer>

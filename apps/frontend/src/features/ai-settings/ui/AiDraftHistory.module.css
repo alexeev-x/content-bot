@@ -18,16 +18,6 @@
   padding-block: var(--space-2);
 }
 
-/* The task is the draft's name: two lines at most, the rest is in the chain. */
-.task {
-  display: -webkit-box;
-  overflow: hidden;
-  overflow-wrap: anywhere;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-  line-clamp: 2;
-}
-
 .meta {
   margin: 0;
   color: var(--color-text-muted);
@@ -174,4 +164,10 @@
   .tools > :first-child {
     flex: 1 1 100%;
   }
+}
+
+/* The whole task when the panel's title had to cut it. */
+.task {
+  margin: 0;
+  overflow-wrap: anywhere;
 }
