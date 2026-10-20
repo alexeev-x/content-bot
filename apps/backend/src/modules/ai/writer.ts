@@ -5,6 +5,7 @@ import {
   AI_FEEDBACK_NOTE_MAX,
   cleanText,
   AI_LEARNING_EXCERPT,
+  AI_LEARNING_TEXT_MAX,
   AI_LEARNING_LIST_LIMIT,
   type AiFeedbackListDto,
   type AiLearningItemDto,
@@ -603,6 +604,7 @@ const revisionItem = (row: LearningRevisionRow): AiLearningItemDto => ({
   id: row.id,
   format: row.format,
   excerpt: cut(row.text, AI_LEARNING_EXCERPT),
+  text: cut(row.text, AI_LEARNING_TEXT_MAX),
   changedParts: row.changedParts.filter((part): part is AiLearningItemDto['changedParts'][number] =>
     PART_NAMES.includes(part)
   ),
@@ -616,6 +618,7 @@ const postItem = (post: OwnerPost & { excluded: boolean }): AiLearningItemDto =>
   id: post.id,
   format: 'telegram',
   excerpt: cut(post.text, AI_LEARNING_EXCERPT),
+  text: cut(post.text, AI_LEARNING_TEXT_MAX),
   changedParts: [],
   editRatio: null,
   excluded: post.excluded,
@@ -638,7 +641,7 @@ export async function readLearning(
     (item) =>
       (query.source === 'all' || item.source === query.source) &&
       (query.state === 'all' || item.excluded === (query.state === 'off')) &&
-      (words === '' || item.excerpt.toLocaleLowerCase('ru-RU').includes(words))
+      (words === '' || item.text.toLocaleLowerCase('ru-RU').includes(words))
   );
   items.sort((a, b) => b.createdAt.localeCompare(a.createdAt) || a.id.localeCompare(b.id));
   const start = (query.page - 1) * AI_LEARNING_LIST_LIMIT;

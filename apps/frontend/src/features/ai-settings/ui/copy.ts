@@ -193,6 +193,7 @@ export const copy = {
     revisionParts: (parts: string) => `Правили: ${parts}`,
     ownPost: 'Пост, написанный вами',
     include: 'Учитывать',
+    textTitle: 'Текст целиком',
     saveFailed: 'Не удалось сохранить. Попробуйте ещё раз.'
   },
   drafts: {

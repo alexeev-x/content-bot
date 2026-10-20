@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import {
   type DataColumn,
   DataTable,
+  Drawer,
   EmptyState,
   ErrorState,
   Pagination,
@@ -40,7 +41,7 @@ function sourceLabel(item: AiLearningItemDto) {
 }
 
 /** One text's switch: its own mutation, so only this switch is locked while the request runs. */
-function IncludeSwitch({ item }: { item: AiLearningItemDto }) {
+function IncludeSwitch({ item, labelled = false }: { item: AiLearningItemDto; labelled?: boolean }) {
   const mutation = useSetAiLearningExcluded();
   // While the request runs the switch shows the asked state; the cache changes only on the server's answer.
   const excluded = mutation.isPending ? mutation.variables.excluded : item.excluded;
@@ -51,7 +52,7 @@ function IncludeSwitch({ item }: { item: AiLearningItemDto }) {
         isDisabled={mutation.isPending}
         onChange={(included) => mutation.mutate({ source: item.source, id: item.id, excluded: !included })}
       >
-        <VisuallyHidden>{t.include}</VisuallyHidden>
+        {labelled ? t.include : <VisuallyHidden>{t.include}</VisuallyHidden>}
       </Switch>
       {mutation.isError ? (
         <span className={styles.error} role="alert">
@@ -138,6 +139,9 @@ export function AiLearningList({ view: outer, onViewChange }: Props) {
   );
 
   const data = list.data;
+  // Which text is open in full; local, like any open/closed state. A row gone from the page closes it.
+  const [openKey, setOpenKey] = useState<string>();
+  const opened = data?.items.find((item) => `${item.source}:${item.id}` === openKey);
   const filtered = Boolean(view.q || view.state || view.source);
   return (
     <Panel
@@ -193,6 +197,8 @@ export function AiLearningList({ view: outer, onViewChange }: Props) {
             rows={data?.items ?? []}
             getRowId={(item) => `${item.source}:${item.id}`}
             getRowText={(item) => item.excerpt}
+            onRowAction={setOpenKey}
+            activeId={opened ? openKey : undefined}
             isLoading={list.isPending}
             loadingRows={8}
             density="compact"
@@ -201,6 +207,31 @@ export function AiLearningList({ view: outer, onViewChange }: Props) {
           />
         </div>
       )}
+      <Drawer
+        isOpen={opened !== undefined}
+        onOpenChange={(isOpen) => {
+          if (!isOpen) setOpenKey(undefined);
+        }}
+        title={t.textTitle}
+        meta={
+          opened
+            ? `${sourceLabel(opened)} · ${copy.quality.format[opened.format]} · ${when(opened.createdAt)}`
+            : undefined
+        }
+        footer={opened ? <IncludeSwitch item={opened} labelled /> : undefined}
+        size="wide"
+      >
+        {opened ? (
+          <>
+            {opened.changedParts.length > 0 ? (
+              <p className={styles.meta}>
+                {t.revisionParts(opened.changedParts.map((part) => copy.quality.part[part]).join(', '))}
+              </p>
+            ) : null}
+            <p className={styles.fullText}>{opened.text}</p>
+          </>
+        ) : null}
+      </Drawer>
     </Panel>
   );
 }

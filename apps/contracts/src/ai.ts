@@ -496,6 +496,8 @@ export const aiFeedbackParamsSchema = z.strictObject({ id: z.uuid() });
 // no-op. Errors: VALIDATION_ERROR 400, NOT_FOUND 404 (not an eligible text), UNAUTHORIZED 401, FORBIDDEN 403.
 export const AI_LEARNING_LIST_LIMIT = 20;
 export const AI_LEARNING_EXCERPT = 240;
+/** Room for the longest AI draft (the writer cuts at 8000) and for a 4096-character post. */
+export const AI_LEARNING_TEXT_MAX = 8000;
 export const aiLearningSourceSchema = z.enum(['revision', 'post']);
 export type AiLearningSource = z.infer<typeof aiLearningSourceSchema>;
 export const aiLearningItemSchema = z.object({
@@ -504,6 +506,8 @@ export const aiLearningItemSchema = z.object({
   format: aiWriterFormatSchema,
   /** The start of the text as it would go into the prompt. */
   excerpt: z.string().max(AI_LEARNING_EXCERPT),
+  /** The whole text, so the owner can judge it before switching it on. */
+  text: z.string().max(AI_LEARNING_TEXT_MAX),
   /** What the owner changed in the AI draft (empty for a post written by the owner). */
   changedParts: z.array(z.enum(AI_CHANGED_PARTS)),
   /** Share of the AI draft's words the owner changed; null for a post written by the owner. */

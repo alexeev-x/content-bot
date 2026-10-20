@@ -24,6 +24,7 @@ const revision: AiLearningItemDto = {
   id: '00000000-0000-4000-8000-0000000000a1',
   format: 'telegram',
   excerpt: 'Поправленный текст про патч',
+  text: 'Поправленный текст про патч.\n\nВторой абзац, которого нет в таблице.',
   changedParts: ['hook', 'ending'],
   editRatio: 0.34,
   excluded: false,
@@ -34,6 +35,7 @@ const own: AiLearningItemDto = {
   id: '00000000-0000-4000-8000-0000000000a2',
   format: 'telegram',
   excerpt: 'Мой собственный пост',
+  text: 'Мой собственный пост',
   changedParts: [],
   editRatio: null,
   excluded: true,
@@ -106,6 +108,16 @@ describe('AI learning list', () => {
     release();
     await waitFor(() => expect(toggle.disabled).toBe(false));
     expect(toggle.checked).toBe(false);
+    expect(screen.queryByRole('dialog')).toBeNull();
+  });
+
+  it('opens the whole text from its row', async () => {
+    server.use(http.get('*/api/v1/ai/learning', () => HttpResponse.json(page([revision]))));
+    mount(<AiLearningList />);
+    await userEvent.setup().click(await screen.findByText('Поправленный текст про патч'));
+    const panel = await screen.findByRole('dialog');
+    expect(panel.textContent).toContain('Второй абзац, которого нет в таблице.');
+    expect(panel.textContent).toContain('Правили: хук, концовку');
   });
 
   it('restores the switch and shows an inline error when the save fails', async () => {

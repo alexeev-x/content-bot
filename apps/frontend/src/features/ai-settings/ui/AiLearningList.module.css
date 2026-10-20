@@ -116,3 +116,10 @@
     flex: 1 1 100%;
   }
 }
+
+/* The open text: as written, line breaks kept. */
+.fullText {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}

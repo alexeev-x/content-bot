@@ -183,6 +183,15 @@ describe('what the writer learns from', () => {
 });
 
 describe('/api/v1/ai/learning', () => {
+  it('gives the whole text and finds words past the excerpt', async () => {
+    const api = createStudioApi();
+    const long = `${'Начало поста. '.repeat(30)}Хвост про варды.`;
+    await seedPost(uuid(20), long, START);
+    const [item] = (await learning(api, `?q=${encodeURIComponent('хвост')}`)).items;
+    expect(item).toMatchObject({ id: uuid(20), text: long });
+    expect(item?.excerpt.length).toBeLessThan(long.length);
+  });
+
   it('lists both sources newest first, excludes and restores, repeating is safe, and refuses what is not eligible', async () => {
     const api = createStudioApi();
     const edited = await seedRevision({ text: EDITED, at: START + 1 });
