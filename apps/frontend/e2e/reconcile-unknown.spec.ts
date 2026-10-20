@@ -20,7 +20,8 @@ async function expectNoViolations(page: Page) {
 
 async function expectNoSidewaysScroll(page: Page) {
   const scroll = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
-  expect(scroll).toBe(0);
+  // An open drawer locks the page scroll and leaves the scrollbar's room (a negative value): still no sideways scroll.
+  expect(scroll).toBeLessThanOrEqual(0);
 }
 
 for (const width of [1280, 375]) {

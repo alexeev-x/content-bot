@@ -71,11 +71,12 @@ test.describe('Mini App', () => {
 });
 
 test.describe('Browser', () => {
-  test('keeps the top bar and the in-page back link', async ({ page }) => {
+  // The editor's back button is for narrow screens only; at 1280 the top bar's «Посты» leads back.
+  test('keeps the top bar with the way back to the posts', async ({ page }) => {
     await mockApi(page);
     await page.goto(`/posts/${ids.post}`);
     await expect(page.locator('main h1')).toBeVisible();
-    await expect(page.getByRole('link', { name: 'Все посты' })).toBeVisible();
+    await expect(page.getByRole('link', { name: 'Посты', exact: true })).toBeVisible();
     await expect(page.locator('header').first()).toBeVisible();
   });
 
