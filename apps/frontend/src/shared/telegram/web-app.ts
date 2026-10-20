@@ -76,6 +76,13 @@ export function subscribeThemeChanged(handler: () => void): () => void {
   return subscribe('themeChanged', handler);
 }
 
+/** Telegram's own viewport numbers, for the temporary keyboard diagnostics; undefined outside Telegram. */
+export function readTelegramViewport(): { height: number; stable: number } | undefined {
+  const app = getWebApp();
+  if (!app || !isInsideTelegram()) return undefined;
+  return { height: app.viewportHeight ?? 0, stable: app.viewportStableHeight ?? 0 };
+}
+
 /** Telegram resizes the Mini App viewport (keyboard, expand); the browser's visualViewport may not see it. */
 export function subscribeViewportChanged(handler: () => void): () => void {
   return subscribe('viewportChanged', handler);

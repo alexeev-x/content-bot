@@ -107,3 +107,18 @@
 .root[data-keyboard] .bar {
   padding-bottom: var(--space-1);
 }
+/* TEMPORARY keyboard diagnostics (KeyboardDebug), DEV only. */
+.debug {
+  position: absolute;
+  top: calc(var(--size-nav) + var(--shell-safe-top, 0px));
+  right: 0;
+  left: 0;
+  z-index: 1;
+  margin: 0;
+  padding: var(--space-1);
+  background: var(--color-media-scrim);
+  color: var(--color-on-media-strong);
+  font: var(--font-size-2xs) / 1.25 var(--font-mono);
+  white-space: pre-wrap;
+  pointer-events: none;
+}
