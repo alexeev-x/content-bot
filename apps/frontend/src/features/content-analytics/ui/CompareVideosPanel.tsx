@@ -3,6 +3,7 @@ import { useQueries } from '@tanstack/react-query';
 import { type CSSProperties, useMemo, useState } from 'react';
 import { Button as AriaButton } from 'react-aria-components';
 import {
+  Carousel,
   AreaChart,
   Button,
   Dialog,
@@ -298,7 +299,8 @@ export function CompareVideosPanel({ items, tracked, baselines, timezone, picked
         )}
 
         {rows.length > 0 ? (
-          <div className={styles.cards}>
+          // A swipeable strip on a phone: two or three detail cards stacked were a screen and a half (20.10.2026).
+          <Carousel label="Карточки сравниваемых публикаций" minCard="md">
             {rows.map((row) => {
               const strength = strengthOf(row, rows, mixed);
               return (
@@ -355,7 +357,7 @@ export function CompareVideosPanel({ items, tracked, baselines, timezone, picked
                 </article>
               );
             })}
-          </div>
+          </Carousel>
         ) : null}
       </div>
 

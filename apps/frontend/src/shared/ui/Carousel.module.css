@@ -4,6 +4,7 @@
 }
 /* Wide: a grid that fits every card on one row when it can. */
 .track {
+  position: relative;
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
   gap: var(--space-3);
@@ -20,7 +21,10 @@
   outline-offset: var(--focus-ring-offset);
   border-radius: var(--radius-2);
 }
+/* Positioned, so an absolutely placed child (visually hidden text) is clipped by the strip instead of widening the
+   page on a phone. */
 .card {
+  position: relative;
   display: flex;
   min-width: 0;
 }

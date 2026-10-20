@@ -152,43 +152,34 @@ export function zonedParts(iso: string, timezone: string): ZonedParts {
 
 /** Four-hour blocks of the day for the «best time» conclusion: 0–4, 4–8, … 20–24. */
 export const HOUR_BLOCKS = [0, 4, 8, 12, 16, 20] as const;
-/** Two-hour columns of the «Когда публиковать» grid. */
-export const HEAT_BLOCKS = [0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22] as const;
-
-export type HeatCell = {
-  weekday: number;
+export type TimeBlock = {
+  /** Index into HOUR_BLOCKS. */
   block: number;
   items: number;
   medianViews: number | null;
+  /** The block's median against the overall median; null without views. */
   multiple: number | null;
 };
 
-/** When posting worked: the median views of the items published in each weekday × 2-hour column, against the overall median. */
-export function postingHeatmap(items: readonly ContentItemDto[], timezone: string): HeatCell[] {
-  const overall = median(items.filter((item) => item.views !== null).map((item) => item.views ?? 0));
-  const buckets = new Map<string, number[]>();
-  for (const item of items) {
-    if (item.views === null) continue;
-    const { weekday, hour } = zonedParts(item.publishedAt, timezone);
-    const key = `${weekday}:${Math.floor(hour / 2)}`;
-    buckets.set(key, [...(buckets.get(key) ?? []), item.views]);
-  }
-  const cells: HeatCell[] = [];
-  for (let weekday = 0; weekday < 7; weekday += 1) {
-    for (let block = 0; block < HEAT_BLOCKS.length; block += 1) {
-      const views = buckets.get(`${weekday}:${block}`) ?? [];
-      const cellMedian = median(views);
-      cells.push({
-        weekday,
-        block,
-        items: views.length,
-        medianViews: cellMedian,
-        multiple:
-          cellMedian === null || overall === null || overall === 0 ? null : Math.round((cellMedian / overall) * 10) / 10
-      });
-    }
-  }
-  return cells;
+/**
+ * «Когда публиковать»: the median views of what was published in each 4-hour block of the day (owner zone, all
+ * weekdays together) against the overall median. A weekday × hour grid split 20 posts into 84 cells of 0–2 each.
+ */
+export function timeBlocks(items: readonly ContentItemDto[], timezone: string): TimeBlock[] {
+  const withViews = items.filter((item) => item.views !== null);
+  const overall = median(withViews.map((item) => item.views ?? 0));
+  return HOUR_BLOCKS.map((_, block) => {
+    const views = withViews
+      .filter((item) => Math.floor(zonedParts(item.publishedAt, timezone).hour / 4) === block)
+      .map((item) => item.views ?? 0);
+    const value = median(views);
+    return {
+      block,
+      items: views.length,
+      medianViews: value,
+      multiple: value === null || overall === null || overall === 0 ? null : Math.round((value / overall) * 10) / 10
+    };
+  });
 }
 
 /** The best hour block over all weekdays, needing at least `minItems` items in it to count. */

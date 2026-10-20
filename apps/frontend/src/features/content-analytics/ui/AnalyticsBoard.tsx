@@ -23,9 +23,8 @@ import { InsightsPanel } from './InsightsPanel';
 import { ItemDrawer } from './ItemDrawer';
 import { ItemsTable } from './ItemsTable';
 import { PerformancePanel } from './PerformancePanel';
-import { PlatformComparison } from './PlatformComparison';
 import { PlatformTiles } from './PlatformTiles';
-import { PostingHeatmap } from './PostingHeatmap';
+import { PostingTimesPanel } from './PostingTimesPanel';
 import { type RankedItem, RankedLists } from './RankedLists';
 import { ReportsPanel } from './ReportsPanel';
 import styles from './Report.module.css';
@@ -226,9 +225,8 @@ export function AnalyticsBoard({ timezone, view, onViewChange, onOpenSettings }:
                   <InviteLinksPanel days={days} onOpenSettings={onOpenSettings} />
                 </div>
               ) : null}
-              {platform === undefined ? <PlatformComparison report={report} /> : null}
               <CrossPostedPanel items={derived?.current} now={now} onOpen={open} />
-              <PostingHeatmap items={derived?.current} platform={platform} timezone={timezone} />
+              <PostingTimesPanel items={derived?.current} platform={platform} timezone={timezone} />
             </div>
           </TabPanel>
           {/* After the content, not above it: the notice arrives with its own query, and above the summary it shifted the whole page. */}

@@ -126,25 +126,6 @@ export const copy = {
     none: 'Нет данных',
     collecting: (since: string) => `История копится с ${since}: график появится со второго дня.`
   },
-  heatmap: {
-    title: 'Когда публиковать',
-    note: (timezone: string) => `Медиана просмотров к обычной, ${timezone}`,
-    none: 'Нет публикаций',
-    weekday: 'День',
-    cell: (items: number, median: string, multiple: number | null) =>
-      `${items} публ., медиана ${median}${multiple === null ? '' : `, ${multiple.toLocaleString('ru-RU')}× к обычной`}`
-  },
-  compare: {
-    title: 'Сравнение платформ',
-    note: 'В скобках — изменение к прошлому периоду',
-    platform: 'Платформа',
-    followers: 'Подписчики',
-    items: 'Публикаций',
-    views: 'Просмотры',
-    median: 'Медиана',
-    engagement: 'Вовлечённость',
-    reach: 'Охват'
-  },
   ranked: {
     best: 'Лучшие',
     worst: 'Ниже обычного',

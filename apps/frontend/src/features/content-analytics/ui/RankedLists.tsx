@@ -1,6 +1,7 @@
 import type { ContentItemDto } from '@alexeev/contracts';
+import { useState } from 'react';
 import { Button as AriaButton } from 'react-aria-components';
-import { Panel, Skeleton } from '../../../shared/ui';
+import { Panel, SegmentedControl, Skeleton, useMediaQuery } from '../../../shared/ui';
 import { formatViews, itemTitle, PLATFORM_LABEL } from '../model/format';
 import { ItemCover } from './ItemCover';
 import { PlatformGlyph } from './PlatformGlyph';
@@ -16,33 +17,54 @@ type Props = {
   onOpen: (id: string) => void;
 };
 
-/** «Лучшие и худшие»: leaders and laggards against their own platform's median, side by side. */
+/**
+ * «Лучшие и худшие»: leaders and laggards against their own platform's median, side by side; on a phone one list at a
+ * time behind a switch (owner, 20.10.2026: two stacked lists were two screens).
+ */
 export function RankedLists({ best, worst, onOpen }: Props) {
+  const narrow = useMediaQuery('(max-width: 859px)');
+  const [side, setSide] = useState<'best' | 'worst'>('best');
   if (best === undefined && worst === undefined)
     return (
       <PanelSkeleton
         title="Лучшие и худшие"
         note="Во сколько раз выше или ниже медианы своей платформы"
         rows={6.1}
-        phoneRows={15.6}
+        phoneRows={8.6}
       />
     );
   return (
     <Panel title="Лучшие и худшие" headingLevel={2} quiet note="Во сколько раз выше или ниже медианы своей платформы">
-      <div className={styles.rankedPair}>
-        <section aria-labelledby="ranked-best">
-          <h3 id="ranked-best" className={styles.rankedHeading}>
-            Лучшие
-          </h3>
-          <RankedList entries={best} onOpen={onOpen} tone="up" />
-        </section>
-        <section aria-labelledby="ranked-worst">
-          <h3 id="ranked-worst" className={styles.rankedHeading}>
-            Ниже обычного
-          </h3>
-          <RankedList entries={worst} onOpen={onOpen} tone="down" />
-        </section>
-      </div>
+      {narrow ? (
+        <div className={styles.rankedPair}>
+          <SegmentedControl
+            label="Какие публикации показать"
+            fullWidth
+            options={[
+              { id: 'best', label: 'Лучшие' },
+              { id: 'worst', label: 'Ниже обычного' }
+            ]}
+            value={side}
+            onChange={(id) => setSide(id === 'worst' ? 'worst' : 'best')}
+          />
+          <RankedList entries={side === 'best' ? best : worst} onOpen={onOpen} tone={side === 'best' ? 'up' : 'down'} />
+        </div>
+      ) : (
+        <div className={styles.rankedPair}>
+          <section aria-labelledby="ranked-best">
+            <h3 id="ranked-best" className={styles.rankedHeading}>
+              Лучшие
+            </h3>
+            <RankedList entries={best} onOpen={onOpen} tone="up" />
+          </section>
+          <section aria-labelledby="ranked-worst">
+            <h3 id="ranked-worst" className={styles.rankedHeading}>
+              Ниже обычного
+            </h3>
+            <RankedList entries={worst} onOpen={onOpen} tone="down" />
+          </section>
+        </div>
+      )}
     </Panel>
   );
 }

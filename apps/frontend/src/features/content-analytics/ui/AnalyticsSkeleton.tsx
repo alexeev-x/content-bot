@@ -8,8 +8,7 @@ import { FollowersGoalsPanelSkeleton } from './FollowersGoalsPanel';
 import { InsightsPanel } from './InsightsPanel';
 import { ItemsTable } from './ItemsTable';
 import { PerformancePanel } from './PerformancePanel';
-import { PlatformComparison } from './PlatformComparison';
-import { PostingHeatmap } from './PostingHeatmap';
+import { PostingTimesPanel } from './PostingTimesPanel';
 import { RankedLists } from './RankedLists';
 import styles from './Report.module.css';
 import { FormatsPanel } from './FormatsPanel';
@@ -96,9 +95,8 @@ export function AnalyticsSkeleton({ tab, timezone }: { tab: AnalyticsTab; timezo
             <div className={styles.sections}>
               <FollowersGoalsPanelSkeleton />
               <InviteLinksPanelSkeleton />
-              <PlatformComparison report={undefined} />
               <CrossPostedPanel items={undefined} now={0} onOpen={ignore} />
-              <PostingHeatmap items={undefined} platform={undefined} timezone={timezone} />
+              <PostingTimesPanel items={undefined} platform={undefined} timezone={timezone} />
             </div>
           </TabPanel>
         </Tabs>

@@ -16,6 +16,8 @@ export type PlatformSummary = {
   viewsChange: number | null;
   /** Median views of a settled publication. */
   median: number | null;
+  /** Reactions or likes, comments and shares per 100 views (from «Сравнение платформ», removed 20.10.2026). */
+  engagement: number | null;
   /** Telegram only: the median post's views per follower, percent. */
   reach: number | null;
   reachChange: number | null;
@@ -41,6 +43,7 @@ export function platformSummary(report: ContentReportDto, platform: ContentPlatf
     views: now.views,
     viewsChange: before.items > 0 ? percentChange(now.views, before.views) : null,
     median: settledNow.medianViews,
+    engagement: now.engagement,
     reach,
     reachChange: percentChange(reach, reachOf(before.medianViews))
   };

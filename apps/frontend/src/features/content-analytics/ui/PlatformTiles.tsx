@@ -101,6 +101,10 @@ function Tile({ summary, days }: { summary: PlatformSummary; days: number }) {
           </dd>
         </div>
         <div>
+          <dt title="Лайки, реакции, комментарии и репосты на 100 просмотров">Вовлечённость</dt>
+          <dd>{summary.engagement === null ? '—' : `${summary.engagement.toLocaleString('ru-RU')}%`}</dd>
+        </div>
+        <div>
           <dt>{isTelegram ? 'Обычный пост' : 'Обычный ролик'}</dt>
           <dd>{summary.median === null ? '—' : `${formatCount(summary.median)} просм.`}</dd>
         </div>
