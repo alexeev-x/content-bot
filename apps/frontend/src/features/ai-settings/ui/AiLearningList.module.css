@@ -104,3 +104,15 @@
   justify-items: start;
   gap: var(--space-1);
 }
+
+/* Phone: the search takes the row, the filters follow from the left, as in «Черновики». */
+@media (max-width: 859px) {
+  .tools {
+    justify-content: flex-start;
+    width: 100%;
+  }
+
+  .tools > :first-child {
+    flex: 1 1 100%;
+  }
+}
