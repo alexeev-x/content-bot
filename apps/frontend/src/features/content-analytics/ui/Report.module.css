@@ -682,6 +682,22 @@
     justify-content: flex-start;
     width: 100%;
   }
+  /* Period, platform and «Обновить» share one row: the platform field drops its «Платформа:» prefix (the field keeps
+     its name for assistive technology, and «Все платформы» says what it filters). */
+  .toolbarFilters {
+    flex-wrap: nowrap;
+    width: 100%;
+  }
+  .toolbarFilters > :first-child {
+    flex: none;
+  }
+  .toolbarFilters > :nth-child(2) {
+    flex: 1;
+    min-width: 0;
+  }
+  .toolbarFilters [class*='prefix'] {
+    display: none;
+  }
 }
 
 .summary {

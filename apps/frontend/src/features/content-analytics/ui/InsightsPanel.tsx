@@ -5,82 +5,48 @@ import type { Insight } from '../model/insights';
 import { copy } from './copy';
 import styles from './Insights.module.css';
 
-export type InsightsSummary = {
-  hits: { hits: number; total: number; diff: number | null };
-  cadence: { perWeek: string; change: number | null };
-};
-
 type Props = {
+  /** Actions first (actions.ts), then the rule-based conclusions (insights.ts). */
   insights: readonly Insight[] | undefined;
-  summary: InsightsSummary | undefined;
   days: number;
   onOpenItem: (id: string) => void;
+  onAction: (kind: NonNullable<Insight['action']>['kind']) => void;
 };
 
-/** Conclusions shown before «Показать ещё»: a wall of twelve cards hid the ones that matter. */
-const FIRST = 6;
+/** Shown before «Показать ещё» (owner, 20.10.2026: eight cards of restated numbers hid the two that mattered). */
+const FIRST = 3;
+// They restate the platform tiles right above: followers per platform, views against the previous period.
+const RESTATED = /^(views-|followers-)/;
 const TONE_ORDER: Record<Insight['tone'], number> = { bad: 0, good: 1, neutral: 2 };
+/** actions.ts: the conclusions about what to do next go first even without a button. */
+const ACTION_IDS = new Set(['funnel', 'video-gap', 'format-gap']);
 
 const ICON: Record<Insight['tone'], IconName> = { good: 'arrow-up', bad: 'arrow-down', neutral: 'info' };
 const TONE_LABEL = { good: 'Хорошо', bad: 'Внимание', neutral: 'Наблюдение' } as const;
 
-function Change({ value, unit = '%', suffix }: { value: number | null; unit?: string; suffix: string }) {
-  if (value === null) return <span className={styles.statSub}>{suffix}</span>;
-  return (
-    <span className={styles.statSub}>
-      <span data-tone={value > 0 ? 'up' : value < 0 ? 'down' : 'flat'} className={styles.delta}>
-        {value > 0 ? '↑ +' : value < 0 ? '↓ −' : ''}
-        {Math.abs(value)}
-        {unit}
-      </span>{' '}
-      {suffix}
-    </span>
-  );
-}
-
-/** «Главное»: three headline numbers, then each conclusion with the figure it rests on. */
-export function InsightsPanel({ insights, summary, days, onOpenItem }: Props) {
+/** «Что сделать»: the conclusions that change the next step, each with the figure it rests on and its action. */
+export function InsightsPanel({ insights, days, onOpenItem, onAction }: Props) {
   const [all, setAll] = useState(false);
-  // «Просмотры +N% к прошлым дням» repeats the KPI strip. What needs attention comes first, then good news,
-  // then observations (a stable sort keeps the model's order inside each group), so the cut hides the least.
+  // Actions keep their own order at the top; then what needs attention, good news and observations (a stable sort
+  // keeps the model's order inside each group), so the cut hides the least.
   const relevant = (insights ?? [])
-    .filter((insight) => insight.id !== 'views-change')
-    .sort((a, b) => TONE_ORDER[a.tone] - TONE_ORDER[b.tone]);
+    .filter((insight) => !RESTATED.test(insight.id))
+    .map((insight, index) => ({ insight, index }))
+    .sort(
+      (a, b) =>
+        Number(b.insight.action !== undefined || ACTION_IDS.has(b.insight.id)) -
+          Number(a.insight.action !== undefined || ACTION_IDS.has(a.insight.id)) ||
+        TONE_ORDER[a.insight.tone] - TONE_ORDER[b.insight.tone] ||
+        a.index - b.index
+    )
+    .map((entry) => entry.insight);
   const shown = all ? relevant : relevant.slice(0, FIRST);
   const hidden = relevant.length - shown.length;
-  if (insights === undefined && summary === undefined) return <InsightsSkeleton days={days} />;
+  if (insights === undefined) return <InsightsSkeleton days={days} />;
   return (
     <Panel title={copy.insights.title(days)} headingLevel={2} quiet>
       <div className={styles.body}>
-        {summary ? (
-          <ul className={styles.stats}>
-            <li className={styles.stat}>
-              <span className={styles.statIcon}>
-                <Icon name="file" size={18} />
-              </span>
-              <span className={styles.statText}>
-                <span className={styles.statLabel}>Удачные публикации</span>
-                <strong>
-                  {summary.hits.hits} из {summary.hits.total}
-                </strong>
-                <Change value={summary.hits.diff} unit="" suffix="к прошлому периоду" />
-              </span>
-            </li>
-            <li className={styles.stat}>
-              <span className={styles.statIcon}>
-                <Icon name="calendar" size={18} />
-              </span>
-              <span className={styles.statText}>
-                <span className={styles.statLabel}>Частота публикаций</span>
-                <strong>{summary.cadence.perWeek} в неделю</strong>
-                <Change value={summary.cadence.change} suffix={`против прошлых ${days} дней`} />
-              </span>
-            </li>
-          </ul>
-        ) : null}
-        {insights === undefined ? (
-          <InsightCardsSkeleton />
-        ) : insights.length === 0 ? (
+        {relevant.length === 0 ? (
           <p className={styles.muted}>{copy.insights.empty}</p>
         ) : (
           <ul className={styles.grid}>
@@ -99,6 +65,13 @@ export function InsightsPanel({ insights, summary, days, onOpenItem }: Props) {
                     <span className={styles.title}>{insight.title}</span>
                   )}
                   <span className={styles.detail}>{insight.detail}</span>
+                  {insight.action ? (
+                    <span className={styles.actionRow}>
+                      <Button size="sm" icon="link" onPress={() => onAction(insight.action!.kind)}>
+                        {insight.action.label}
+                      </Button>
+                    </span>
+                  ) : null}
                 </span>
                 {insight.badge ? (
                   <span className={styles.badge} data-tone={insight.tone}>
@@ -131,30 +104,11 @@ export function InsightsPanel({ insights, summary, days, onOpenItem }: Props) {
   );
 }
 
-/** The loaded geometry before the report: two summary tiles, six cards in their grid, the «show more» row. */
+/** The loaded geometry before the report: the first cards in their grid and the «show more» row. */
 function InsightsSkeleton({ days }: { days: number }) {
   return (
     <Panel title={copy.insights.title(days)} headingLevel={2} quiet>
       <div className={styles.body} aria-hidden="true">
-        <ul className={styles.stats}>
-          {[
-            { icon: 'file' as const, label: 'Удачные публикации' },
-            { icon: 'calendar' as const, label: 'Частота публикаций' }
-          ].map((stat) => (
-            <li key={stat.label} className={styles.stat}>
-              <span className={styles.statIcon}>
-                <Icon name={stat.icon} size={18} />
-              </span>
-              <span className={styles.statText}>
-                <span className={styles.statLabel}>{stat.label}</span>
-                <strong>
-                  <Skeleton width={96} height="1lh" />
-                </strong>
-                <Skeleton width={160} height="1lh" />
-              </span>
-            </li>
-          ))}
-        </ul>
         <InsightCardsSkeleton />
         <Button variant="secondary" size="sm" icon="chevron-down" isDisabled>
           Показать ещё

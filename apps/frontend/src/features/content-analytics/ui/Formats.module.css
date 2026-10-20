@@ -1,0 +1,137 @@
+.list {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0 var(--space-4);
+  list-style: none;
+  container-type: inline-size;
+}
+/* Series, its bar and «×», then its best publication. On a phone the bar takes the second line. */
+.row {
+  display: grid;
+  /* The best-publication column has a fixed width, so every bar starts and ends at the same place. */
+  grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr) 8.5rem;
+  align-items: center;
+  gap: var(--space-2) var(--space-4);
+  padding: var(--space-3) 0;
+  border-top: 1px solid var(--color-border-subtle);
+}
+.row:first-child {
+  border-top: 0;
+}
+.name {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+.name strong {
+  overflow: hidden;
+  font-weight: var(--font-weight-semibold);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.meta,
+.note,
+.empty {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+}
+.note {
+  margin: 0;
+  padding: var(--space-2) var(--space-4) var(--space-3);
+}
+.empty {
+  margin: 0;
+  padding: 0 var(--space-4) var(--space-4);
+  font-size: var(--font-size-sm);
+}
+.figure {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+.track {
+  flex: 1;
+  height: var(--space-2);
+  overflow: hidden;
+  border-radius: var(--radius-pill);
+  background: var(--color-surface-3);
+}
+.bar {
+  display: block;
+  width: calc(var(--share) * 100%);
+  height: 100%;
+  border-radius: inherit;
+  background: var(--color-text-muted);
+}
+.row[data-tone='good'] .bar {
+  background: var(--color-status-done-fg);
+}
+.row[data-tone='bad'] .bar {
+  background: var(--color-status-failed-fg);
+}
+.multiple {
+  flex: none;
+  min-width: 4.5ch;
+  font-weight: var(--font-weight-semibold);
+  font-variant-numeric: tabular-nums;
+  text-align: end;
+}
+.row[data-tone='good'] .multiple {
+  color: var(--color-status-done-fg);
+}
+.row[data-tone='bad'] .multiple {
+  color: var(--color-status-failed-fg);
+}
+.row[data-tone='young'] .multiple {
+  color: var(--color-text-muted);
+  font-weight: var(--font-weight-regular);
+  font-size: var(--font-size-xs);
+}
+.best {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: var(--size-target);
+  padding: var(--space-1);
+  border: 0;
+  border-radius: var(--radius-2);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  outline: none;
+}
+.best[data-hovered] {
+  background: var(--color-surface-2);
+}
+.best[data-focus-visible] {
+  outline: var(--focus-ring-width) solid var(--color-focus-ring);
+  outline-offset: var(--focus-ring-offset);
+}
+.bestText {
+  display: grid;
+  font-size: var(--font-size-sm);
+  font-variant-numeric: tabular-nums;
+  text-align: start;
+}
+.bestLabel {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-2xs);
+}
+@container (max-width: 560px) {
+  /* The name gets the whole first line; the bar and the best publication share the second. */
+  .row {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  .name {
+    grid-column: 1 / -1;
+  }
+  .figure {
+    grid-row: 2;
+  }
+}
+.more {
+  padding: var(--space-2) var(--space-4) 0;
+}

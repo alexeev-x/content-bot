@@ -101,18 +101,8 @@ export const copy = {
     }
   },
   insights: {
-    title: (days: number) => `Главное за ${days} дней`,
+    title: (days: number) => `Что сделать · ${days} дней`,
     empty: 'Пока мало данных для выводов. Они появятся после первых сборов.'
-  },
-  kpi: {
-    views: 'Просмотры',
-    items: 'Публикации',
-    median: 'Медиана просмотров',
-    reach: 'Охват Telegram',
-    engagement: 'Вовлечённость',
-    followers: 'Подписчики',
-    noBase: 'Не с чем сравнить',
-    followersCollecting: 'История копится с первого сбора'
   },
   performance: {
     title: 'Каждая публикация',

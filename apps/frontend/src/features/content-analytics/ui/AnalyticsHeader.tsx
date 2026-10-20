@@ -1,18 +1,19 @@
 import type { ContentPlatform, ContentReportPeriod } from '@alexeev/contracts';
-import { Button, PageHeader, Select, Tab, TabList } from '../../../shared/ui';
+import { IconButton, PageHeader, SegmentedControl, Select, Tab, TabList } from '../../../shared/ui';
 import { PLATFORM_LABEL } from '../model/format';
 import { PLATFORMS } from '../model/report';
 import { copy } from './copy';
 import { RefreshAnalyticsButton } from './RefreshAnalyticsButton';
 import styles from './Report.module.css';
 
+// One tap instead of a dropdown, and short enough to share a phone row with the platform and «Обновить».
 const PERIODS = [
-  { id: '7', label: '7 дней' },
-  { id: '30', label: '30 дней' },
-  { id: '90', label: '90 дней' }
+  { id: '7', label: '7д' },
+  { id: '30', label: '30д' },
+  { id: '90', label: '90д' }
 ] as const;
 const PLATFORM_FILTERS = [
-  { id: 'all', label: copy.table.all },
+  { id: 'all', label: 'Все платформы' },
   ...PLATFORMS.map((platform) => ({ id: platform, label: PLATFORM_LABEL[platform] }))
 ];
 
@@ -43,9 +44,8 @@ export function AnalyticsHeader({ description, days, platform, onDaysChange, onP
             <Tab id="reports">Отчёты</Tab>
           </TabList>
           <div className={styles.toolbarFilters}>
-            <Select
+            <SegmentedControl
               label={copy.filters.period}
-              inlineLabel
               options={PERIODS}
               value={String(days)}
               isDisabled={inert}
@@ -60,11 +60,9 @@ export function AnalyticsHeader({ description, days, platform, onDaysChange, onP
               onChange={(id) => onPlatformChange(id === 'all' ? undefined : (id as ContentPlatform))}
             />
             {inert ? (
-              <Button variant="secondary" icon="retry" isDisabled>
-                {copy.refresh}
-              </Button>
+              <IconButton variant="secondary" size="target" icon="retry" label={copy.refresh} isDisabled />
             ) : (
-              <RefreshAnalyticsButton />
+              <RefreshAnalyticsButton compact />
             )}
           </div>
         </div>

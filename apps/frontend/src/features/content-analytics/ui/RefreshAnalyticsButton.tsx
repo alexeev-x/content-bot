@@ -1,23 +1,30 @@
-import { Button, useToast } from '../../../shared/ui';
+import { Button, IconButton, useToast } from '../../../shared/ui';
 import { useSyncContent } from '../api/content-analytics-queries';
 import { copy } from './copy';
 
-/** Page header action: collects now (the server skips a source collected in the last 5 minutes). */
-export function RefreshAnalyticsButton() {
+/**
+ * Collects now (the server skips a source collected in the last 5 minutes). `compact`: an icon named «Обновить»,
+ * so the analytics filters fit one row on a phone.
+ */
+export function RefreshAnalyticsButton({ compact = false }: { compact?: boolean }) {
   const sync = useSyncContent();
   const toast = useToast();
-  return (
-    <Button
+  const refresh = () =>
+    sync.mutate(undefined, {
+      onSuccess: () => toast.show({ tone: 'success', title: copy.refreshed }),
+      onError: () => toast.show({ tone: 'error', title: copy.refreshFailed })
+    });
+  return compact ? (
+    <IconButton
       variant="secondary"
+      size="target"
       icon="retry"
+      label={copy.refresh}
       isLoading={sync.isPending}
-      onPress={() =>
-        sync.mutate(undefined, {
-          onSuccess: () => toast.show({ tone: 'success', title: copy.refreshed }),
-          onError: () => toast.show({ tone: 'error', title: copy.refreshFailed })
-        })
-      }
-    >
+      onPress={refresh}
+    />
+  ) : (
+    <Button variant="secondary" icon="retry" isLoading={sync.isPending} onPress={refresh}>
       {copy.refresh}
     </Button>
   );

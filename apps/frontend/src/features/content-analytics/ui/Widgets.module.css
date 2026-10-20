@@ -537,3 +537,13 @@
     display: block;
   }
 }
+/* Narrow: a small cover and the status on one line, so each publication is two short lines, not four. */
+@container (max-width: 759px) {
+  .trendRow .cover {
+    width: 56px;
+  }
+  .trendStatus {
+    flex-wrap: nowrap;
+    min-width: 0;
+  }
+}

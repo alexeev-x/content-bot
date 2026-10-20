@@ -5,38 +5,26 @@ import { ApiError } from '../../../shared/api/http-client';
 import { useNow } from '../../../shared/lib/use-now';
 import { Banner, Button, ErrorState, StaleRegion, TabPanel, Tabs, type TableSort } from '../../../shared/ui';
 import { contentReportQueryOptions } from '../api/content-analytics-queries';
-import { formatCount, formatDay, formatPublished } from '../model/format';
+import { buildActions } from '../model/actions';
+import { formatSeries } from '../model/formats';
 import { buildInsights } from '../model/insights';
-import {
-  PLATFORMS,
-  cumulative,
-  followersStats,
-  mediansByPlatform,
-  multipleOf,
-  percentChange,
-  periodStats,
-  settledItems,
-  splitPeriods,
-  viewsByDay,
-  zonedParts
-} from '../model/report';
+import { mediansByPlatform, multipleOf, splitPeriods } from '../model/report';
 import { useSourcesAttention } from './AnalyticsSources';
 import { useLastSynced } from './last-synced';
 import { copy } from './copy';
 import { AnalyticsHeader } from './AnalyticsHeader';
 import { CompareVideosPanel } from './CompareVideosPanel';
 import { CrossPostedPanel } from './CrossPostedPanel';
-import { DynamicsPanel } from './DynamicsPanel';
 import { TrendingPanel } from './TrendingPanel';
 import { FollowersGoalsPanel } from './FollowersGoalsPanel';
 import { InviteLinksPanel } from './InviteLinksPanel';
-import { InsightsPanel, type InsightsSummary } from './InsightsPanel';
+import { FormatsPanel } from './FormatsPanel';
+import { InsightsPanel } from './InsightsPanel';
 import { ItemDrawer } from './ItemDrawer';
 import { ItemsTable } from './ItemsTable';
-import type { Kpi } from './KpiStrip';
-import { SummarySection } from './SummarySection';
 import { PerformancePanel } from './PerformancePanel';
 import { PlatformComparison } from './PlatformComparison';
+import { PlatformTiles } from './PlatformTiles';
 import { PostingHeatmap } from './PostingHeatmap';
 import { type RankedItem, RankedLists } from './RankedLists';
 import { ReportsPanel } from './ReportsPanel';
@@ -71,6 +59,7 @@ const RANKED_LIMIT = 5;
  * leaders and laggards, and every row in a paged table. All of it is computed from one report.
  */
 const COMPARE_ANCHOR = 'compare-videos';
+const INVITES_ANCHOR = 'invite-links';
 
 export function AnalyticsBoard({ timezone, view, onViewChange, onOpenSettings }: Props) {
   const { days, platform } = view;
@@ -82,6 +71,17 @@ export function AnalyticsBoard({ timezone, view, onViewChange, onOpenSettings }:
   const lastSynced = useLastSynced();
   // «Сравнить по часам» in the item panel switches the tab first; the panel exists only after that render.
   const [scrollToCompare, setScrollToCompare] = useState(false);
+  // «Создать ссылку» on «Ролики не приводят людей в Telegram» opens Аудитория at the invite links.
+  const [scrollToInvites, setScrollToInvites] = useState(false);
+  const onAudienceTab = view.tab === 'audience';
+  useEffect(() => {
+    if (!scrollToInvites || !onAudienceTab) return;
+    const frame = requestAnimationFrame(() => {
+      document.getElementById(INVITES_ANCHOR)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      setScrollToInvites(false);
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [scrollToInvites, onAudienceTab]);
   const onItemsTab = view.tab === 'items';
   useEffect(() => {
     if (!scrollToCompare || !onItemsTab) return;
@@ -96,110 +96,8 @@ export function AnalyticsBoard({ timezone, view, onViewChange, onOpenSettings }:
     if (!report) return undefined;
     const { current, previous } = splitPeriods(report, platform);
     const at = Date.parse(report.to);
-    const stats = periodStats(current);
-    const before = periodStats(previous);
     const medians = mediansByPlatform(current, at);
-    const daily = viewsByDay(current, report.from, report.to, timezone);
-    const followers = (platform === undefined ? PLATFORMS : [platform]).map((each) => followersStats(report, each));
-    const followersNow = followers.reduce<number | null>(
-      (sum, entry) => (entry.now === null ? sum : (sum ?? 0) + entry.now),
-      null
-    );
-    const followersByDay = new Map<string, number>();
-    for (const entry of followers) {
-      for (const point of entry.points)
-        followersByDay.set(point.day, (followersByDay.get(point.day) ?? 0) + point.followers);
-    }
-    const followersSeries = [...followersByDay]
-      .sort(([a], [b]) => a.localeCompare(b))
-      .map(([day, value]) => ({ day, followers: value }));
-    const followersChange = followers.reduce<number | null>(
-      (sum, entry) => (entry.change === null ? sum : (sum ?? 0) + entry.change),
-      null
-    );
-    const viewsTotal = cumulative(daily.map((entry) => entry.views));
-    // Engagement per day of publishing: reactions, comments and shares per 100 views of that day's items.
-    const engagementByDay = daily.map((entry) => {
-      const ofDay = current.filter((item) => zonedParts(item.publishedAt, timezone).day === entry.day);
-      return periodStats(ofDay).engagement ?? 0;
-    });
-    const kpis: Kpi[] = [
-      {
-        id: 'views',
-        label: copy.kpi.views,
-        icon: 'eye',
-        value: formatCount(stats.views),
-        change: before.items > 0 ? percentChange(stats.views, before.views) : null,
-        hint: copy.kpi.noBase,
-        series: viewsTotal,
-        tips: daily.map(
-          (entry, index) =>
-            `${formatDay(entry.day)}: ${formatCount(viewsTotal[index] ?? 0)} всего, +${formatCount(entry.views)} за день`
-        )
-      },
-      {
-        id: 'items',
-        label: copy.kpi.items,
-        icon: 'file',
-        value: String(stats.items),
-        change: before.items > 0 ? percentChange(stats.items, before.items) : null,
-        hint: copy.kpi.noBase,
-        chart: 'bars',
-        series: daily.map((entry) => entry.items),
-        tips: daily.map((entry) => `${formatDay(entry.day)}: ${entry.items} публ.`)
-      },
-      // One median across Telegram and YouTube means nothing (300 against 100 000): with every platform
-      // shown, the tile gives the Telegram reach instead, the measure the channel's ads are sold on.
-      platform === undefined
-        ? telegramReachKpi(report, timezone)
-        : {
-            id: 'median',
-            label: copy.kpi.median,
-            icon: 'chart',
-            // Settled items only: a post of the last hours would pull the median down.
-            value: formatCount(periodStats(settledItems(current, at)).medianViews),
-            change: percentChange(periodStats(settledItems(current, at)).medianViews, before.medianViews),
-            hint: copy.kpi.noBase
-          },
-      {
-        id: 'engagement',
-        label: copy.kpi.engagement,
-        icon: 'heart',
-        value: stats.engagement === null ? '—' : `${stats.engagement.toLocaleString('ru-RU')}%`,
-        change: percentChange(stats.engagement, before.engagement),
-        hint: copy.kpi.noBase,
-        color: 'var(--color-series-2)',
-        series: engagementByDay,
-        tips: daily.map(
-          (entry, index) => `${formatDay(entry.day)}: ${(engagementByDay[index] ?? 0).toLocaleString('ru-RU')}%`
-        )
-      },
-      {
-        id: 'followers',
-        label: copy.kpi.followers,
-        icon: 'users',
-        value: formatCount(followersNow),
-        change: null,
-        absolute: followersChange,
-        hint: copy.kpi.followersCollecting,
-        color: 'var(--color-series-3)',
-        series: followersSeries.map((point) => point.followers),
-        tips: followersSeries.map((point) => `${formatDay(point.day)}: ${formatCount(point.followers)}`)
-      }
-    ];
-    const hitsOf = (items: typeof current) => {
-      const ownMedians = mediansByPlatform(items, at);
-      return items.filter((item) => (multipleOf(item, ownMedians, at) ?? 0) >= 1.5).length;
-    };
-    const hits = hitsOf(current);
-    // No views tile: the KPI strip right above already shows them (owner, 16.10.2026: the same number three times).
-    const summary: InsightsSummary = {
-      hits: { hits, total: settledItems(current, at).length, diff: before.items > 0 ? hits - hitsOf(previous) : null },
-      cadence: {
-        perWeek: (Math.round((stats.items / days) * 7 * 10) / 10).toLocaleString('ru-RU'),
-        change: before.items > 0 ? percentChange(stats.items, before.items) : null
-      }
-    };
+    const series = formatSeries(current, at);
     const ranked = current
       .map((item) => ({ item, multiple: multipleOf(item, medians, at) }))
       .filter((entry): entry is RankedItem => entry.multiple !== null);
@@ -214,11 +112,14 @@ export function AnalyticsBoard({ timezone, view, onViewChange, onOpenSettings }:
       current,
       previous,
       medians,
-      kpis,
-      summary,
+      series,
       best,
       worst,
-      insights: buildInsights({ report, platform, days, timezone })
+      // What to do next first, then the rule-based conclusions (InsightsPanel orders and cuts them).
+      insights: [
+        ...buildActions({ report, platform, days, series }),
+        ...buildInsights({ report, platform, days, timezone })
+      ]
     };
   }, [report, platform, days, timezone]);
 
@@ -248,8 +149,17 @@ export function AnalyticsBoard({ timezone, view, onViewChange, onOpenSettings }:
           />
           <TabPanel id="overview">
             <div className={styles.sections}>
-              <SummarySection days={days} {...(report ? { range: report } : {})} kpis={derived?.kpis} />
-              <InsightsPanel insights={derived?.insights} summary={derived?.summary} days={days} onOpenItem={open} />
+              <PlatformTiles report={report} platform={platform} days={days} />
+              <InsightsPanel
+                insights={derived?.insights}
+                days={days}
+                onOpenItem={open}
+                onAction={() => {
+                  onViewChange({ tab: 'audience', platform: undefined });
+                  setScrollToInvites(true);
+                }}
+              />
+              <FormatsPanel series={derived?.series} onOpen={open} />
               <TrendingPanel
                 items={derived?.current}
                 baselines={baselines}
@@ -271,7 +181,6 @@ export function AnalyticsBoard({ timezone, view, onViewChange, onOpenSettings }:
                 onOpen={open}
                 onOpenAll={(each) => onViewChange({ tab: 'items', platform: each, page: 1 })}
               />
-              <DynamicsPanel report={report} platform={platform} days={days} />
             </div>
           </TabPanel>
           <TabPanel id="items">
@@ -313,7 +222,9 @@ export function AnalyticsBoard({ timezone, view, onViewChange, onOpenSettings }:
             <div className={styles.sections}>
               <FollowersGoalsPanel report={report} platform={platform} />
               {platform === undefined || platform === 'telegram' ? (
-                <InviteLinksPanel days={days} onOpenSettings={onOpenSettings} />
+                <div id={INVITES_ANCHOR} className={styles.anchor}>
+                  <InviteLinksPanel days={days} onOpenSettings={onOpenSettings} />
+                </div>
               ) : null}
               {platform === undefined ? <PlatformComparison report={report} /> : null}
               <CrossPostedPanel items={derived?.current} now={now} onOpen={open} />
@@ -348,35 +259,4 @@ export function AnalyticsBoard({ timezone, view, onViewChange, onOpenSettings }:
       />
     </div>
   );
-}
-
-function telegramReachKpi(report: NonNullable<Parameters<typeof splitPeriods>[0]>, timezone: string): Kpi {
-  const split = splitPeriods(report, 'telegram');
-  // Only settled posts: a post of the last hours has not reached its readers yet.
-  const current = settledItems(split.current, Date.parse(report.to));
-  const previous = split.previous;
-  const followers = followersStats(report, 'telegram').now;
-  const reach = (items: typeof current) => {
-    const value = periodStats(items).medianViews;
-    return followers === null || followers === 0 || value === null ? null : Math.round((value / followers) * 100);
-  };
-  const now = reach(current);
-  // Each post's reach in publishing order: what a reader of the channel actually saw.
-  const posts = [...current]
-    .filter((item) => item.views !== null)
-    .sort((a, b) => Date.parse(a.publishedAt) - Date.parse(b.publishedAt))
-    .slice(-30);
-  const perPost = posts.map((item) => (followers ? Math.round(((item.views ?? 0) / followers) * 100) : 0));
-  return {
-    id: 'reach',
-    label: copy.kpi.reach,
-    icon: 'send',
-    value: now === null ? '—' : `${now}%`,
-    change: percentChange(now, reach(previous)),
-    hint: copy.kpi.noBase,
-    chart: 'bars',
-    color: 'var(--color-platform-telegram)',
-    series: perPost,
-    tips: posts.map((item, index) => `${formatPublished(item.publishedAt, timezone)}: ${perPost[index]}%`)
-  };
 }

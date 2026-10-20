@@ -5,6 +5,7 @@ export { ActionRow, BottomSheet } from './BottomSheet';
 export { Button } from './Button';
 export type { ButtonSize, ButtonVariant } from './Button';
 export { Card } from './Card';
+export { Carousel } from './Carousel';
 export { Checkbox } from './Checkbox';
 export { ColorField } from './ColorField';
 export { ColorPicker } from './ColorPicker';

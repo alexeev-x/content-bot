@@ -1,6 +1,6 @@
 import type { ContentItemDto, ContentPlatform } from '@alexeev/contracts';
-import type { CSSProperties } from 'react';
-import { BarChart, Button, Icon, Panel } from '../../../shared/ui';
+import { type CSSProperties, useState } from 'react';
+import { BarChart, Button, Icon, Panel, SegmentedControl } from '../../../shared/ui';
 import {
   formatCount,
   formatDay,
@@ -32,6 +32,11 @@ const STRONG = 1.5;
 const WEAK = 0.7;
 /** The «обычно» range needs this many settled publications to mean anything. */
 const BAND_MIN_ITEMS = 4;
+// On DEV two viral videos (163 тыс., 591 тыс.) flattened every other bar to a line. Where the top is over this many
+// medians, heights go on a log scale; without such an outlier the plain scale keeps small differences visible.
+const OUTLIER = 8;
+const linear = (views: number) => views;
+const logarithmic = (views: number) => Math.log10(views + 1);
 
 /**
  * «Каждая публикация»: one bar per post or video in publishing order against its platform's median, with
@@ -39,21 +44,33 @@ const BAND_MIN_ITEMS = 4;
  * scale (small multiples), since they differ by orders of magnitude.
  */
 export function PerformancePanel({ items, at, platform, timezone, onOpen, onOpenAll }: Props) {
-  const platforms = PLATFORMS.filter(
+  const available = PLATFORMS.filter(
     (each) => (platform === undefined || platform === each) && (items ?? []).some((item) => item.platform === each)
   );
+  // One platform at a time (owner, 20.10.2026: three charts in a row were one and a half phone screens).
+  const [picked, setPicked] = useState<ContentPlatform | null>(null);
+  const current = picked !== null && available.includes(picked) ? picked : (available[0] ?? null);
+  const platforms = current === null ? [] : [current];
   if (items === undefined)
     return (
       <PanelSkeleton
         title="Каждая публикация"
         note="По порядку выхода, к медиане своей платформы"
-        rows={19.1}
-        phoneRows={25.2}
+        rows={9}
+        phoneRows={11}
       />
     );
   return (
     <Panel title="Каждая публикация" headingLevel={2} quiet note="По порядку выхода, к медиане своей платформы">
       <div className={styles.body}>
+        {available.length > 1 && current !== null ? (
+          <SegmentedControl
+            label="Платформа графика"
+            options={available.map((each) => ({ id: each, label: PLATFORM_LABEL[each] }))}
+            value={current}
+            onChange={(id) => setPicked(id as ContentPlatform)}
+          />
+        ) : null}
         <ul className={styles.legend} aria-label="Обозначения">
           <li>
             <span className={styles.key} style={{ '--key': 'var(--color-accent)' } as CSSProperties} />
@@ -97,6 +114,8 @@ export function PerformancePanel({ items, at, platform, timezone, onOpen, onOpen
               .slice(0, LIMIT)
               .reverse();
             const video = each !== 'telegram';
+            const top = Math.max(0, ...shown.map((item) => item.views ?? 0));
+            const height = usual > 0 && top / usual > OUTLIER ? logarithmic : linear;
             return (
               <section key={each} className={styles.section} aria-label={PLATFORM_LABEL[each]}>
                 <header className={styles.head}>
@@ -127,7 +146,7 @@ export function PerformancePanel({ items, at, platform, timezone, onOpen, onOpen
                     const rounded = multiple === null ? null : Math.round(multiple * 10) / 10;
                     return {
                       id: item.id,
-                      value: item.views ?? 0,
+                      value: height(item.views ?? 0),
                       tone:
                         multiple === null
                           ? 'normal'
@@ -155,10 +174,14 @@ export function PerformancePanel({ items, at, platform, timezone, onOpen, onOpen
                   })}
                   band={
                     low !== null && high !== null
-                      ? { low, high, label: `Обычно ${formatCount(low)}–${formatCount(high)}` }
+                      ? {
+                          low: height(low),
+                          high: height(high),
+                          label: `Обычно ${formatCount(low)}–${formatCount(high)}`
+                        }
                       : undefined
                   }
-                  reference={usual > 0 ? { value: usual, label: `Медиана ${formatCount(usual)}` } : undefined}
+                  reference={usual > 0 ? { value: height(usual), label: `Медиана ${formatCount(usual)}` } : undefined}
                   height={video ? 230 : 190}
                   onSelect={onOpen}
                 />

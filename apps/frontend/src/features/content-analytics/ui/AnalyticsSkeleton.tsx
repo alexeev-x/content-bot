@@ -4,7 +4,6 @@ import { AnalyticsHeader } from './AnalyticsHeader';
 import type { AnalyticsTab } from './AnalyticsBoard';
 import { CompareVideosPanel } from './CompareVideosPanel';
 import { CrossPostedPanel } from './CrossPostedPanel';
-import { DynamicsPanel } from './DynamicsPanel';
 import { FollowersGoalsPanelSkeleton } from './FollowersGoalsPanel';
 import { InsightsPanel } from './InsightsPanel';
 import { ItemsTable } from './ItemsTable';
@@ -13,7 +12,9 @@ import { PlatformComparison } from './PlatformComparison';
 import { PostingHeatmap } from './PostingHeatmap';
 import { RankedLists } from './RankedLists';
 import styles from './Report.module.css';
-import { SummarySection } from './SummarySection';
+import { FormatsPanel } from './FormatsPanel';
+import { InviteLinksPanelSkeleton } from './InviteLinksPanel';
+import { PlatformTiles } from './PlatformTiles';
 import { TrendingPanel } from './TrendingPanel';
 
 const ignore = () => {};
@@ -41,8 +42,9 @@ export function AnalyticsSkeleton({ tab, timezone }: { tab: AnalyticsTab; timezo
           />
           <TabPanel id="overview">
             <div className={styles.sections}>
-              <SummarySection days={30} kpis={undefined} />
-              <InsightsPanel insights={undefined} summary={undefined} days={30} onOpenItem={ignore} />
+              <PlatformTiles report={undefined} platform={undefined} days={30} />
+              <InsightsPanel insights={undefined} days={30} onOpenItem={ignore} onAction={ignore} />
+              <FormatsPanel series={undefined} onOpen={ignore} />
               <TrendingPanel
                 items={undefined}
                 baselines={[]}
@@ -62,7 +64,6 @@ export function AnalyticsSkeleton({ tab, timezone }: { tab: AnalyticsTab; timezo
                 onOpen={ignore}
                 onOpenAll={ignore}
               />
-              <DynamicsPanel report={undefined} platform={undefined} days={30} />
             </div>
           </TabPanel>
           <TabPanel id="items">
@@ -94,6 +95,7 @@ export function AnalyticsSkeleton({ tab, timezone }: { tab: AnalyticsTab; timezo
           <TabPanel id="audience">
             <div className={styles.sections}>
               <FollowersGoalsPanelSkeleton />
+              <InviteLinksPanelSkeleton />
               <PlatformComparison report={undefined} />
               <CrossPostedPanel items={undefined} now={0} onOpen={ignore} />
               <PostingHeatmap items={undefined} platform={undefined} timezone={timezone} />
