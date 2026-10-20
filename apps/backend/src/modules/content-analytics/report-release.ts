@@ -67,6 +67,17 @@ export async function dailyReviewInput(
     : { ...dailyReviewFacts(data), period: 'day' };
 }
 
+/** The facts of a stored report whatever its status: the Monday hypotheses job reads the released week. */
+export async function storedReportFacts(
+  reports: Pick<ContentDailyReportRepository, 'find'>,
+  id: string
+): Promise<string | null> {
+  const report = await reports.find(id);
+  if (report === null) return null;
+  const data = dataOf(report);
+  return isWeekly(data) ? weeklyReviewFacts(data, report.timezone).facts : dailyReviewFacts(data).facts;
+}
+
 /**
  * Turns a waiting report into its message, with the review or the reason there is none, and raises it as the
  * day's content alert. The alert first (its id dedups a second releaser), then the report row ends.

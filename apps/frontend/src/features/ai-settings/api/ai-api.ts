@@ -5,6 +5,7 @@ import {
   aiLearningItemSchema,
   aiLearningListSchema,
   aiOverviewSchema,
+  aiHypothesesSchema,
   aiRuleSchema,
   aiRulesSchema,
   type ChangeAiRuleInput,
@@ -59,6 +60,11 @@ export function setAiLearningExcluded(input: { source: AiLearningSource; id: str
     method: 'PUT',
     body: { excluded: input.excluded }
   });
+}
+
+/** The analyst's hypotheses H1, H2…: newest change first (read-only). */
+export function getAiHypotheses(signal?: AbortSignal) {
+  return apiRequest('/api/v1/ai/hypotheses', aiHypothesesSchema, { signal });
 }
 
 /** The writer's rules: the owner's and the analysis ones, with the videos behind each. */

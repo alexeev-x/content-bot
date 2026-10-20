@@ -16,6 +16,7 @@ const MAIN_MAX = 200;
 const POINT_MAX = 280;
 const QUESTION_MAX = 200;
 const STEP_MAX = 200;
+const HYPOTHESIS_MAX = 300;
 /** The week's review says more (owner, 20.10.2026: «где недельный — подробнее»). */
 const POINTS_MAX = { day: 4, week: 6 } as const;
 const STEPS_MAX = { day: 2, week: 3 } as const;
@@ -24,12 +25,14 @@ const STEPS_MAX = { day: 2, week: 3 } as const;
 const PERIOD = {
   day: [
     'Пишешь утренний разбор дня для автора.',
-    'points — 3–4 вывода о роликах дня. Весь ответ — не больше 1200 знаков.'
+    'points — 3–4 вывода о роликах дня. Весь ответ — не больше 1200 знаков.',
+    'hypothesis — одна новая гипотеза, если цифры показывают закономерность, которой нет среди гипотез H… в данных: проверяемое «если …, то …» про то, как писать (kind writing: хук, конфликт, длина, концовка) или о чём снимать (kind topic: тема, герой, рубрика); scope — рубрика. Нет такой — text пустой.'
   ].join('\n'),
   week: [
     'Пишешь разбор недели для автора — подробнее, чем за день.',
-    'points — 4–6 выводов: лучший и худший ролик недели и почему, рубрики и темы, пересылки, подписчики и цели, что из прошлых гипотез подтвердилось или нет.',
-    'steps — 2–3 шага на следующую неделю. Ролики недели — ключи V1…, посты — P1…. Весь ответ — не больше 1800 знаков: сообщение с таблицами ограничено.'
+    'points — 4–6 выводов: лучший и худший ролик недели и почему, рубрики и темы, пересылки, подписчики и цели.',
+    'steps — 2–3 шага на следующую неделю. Ролики недели — ключи V1…, посты — P1…. Весь ответ — не больше 1800 знаков: сообщение с таблицами ограничено.',
+    'hypothesis — оставь text пустым: гипотезы пересматриваются отдельно после этого разбора.'
   ].join('\n')
 } as const;
 
@@ -40,6 +43,7 @@ const INSTRUCTIONS = [
   'main — одна фраза: главное за период.',
   'points — выводы, не пересказ таблицы. Каждый: факт с числами → сравнение (с ровесниками рубрики, со вчерашним приростом, пересылки против ориентиров канала, рубрика против рубрики) → что это может значить. Пересылки — главный признак, что ролик зацепил. confidence: low или medium; доказательств причин у нас нет.',
   'Нельзя: удержание, досмотры, секунды, CTR, «алгоритм», обещания роста — этих данных нет. Про хук и сценарий — только если в данных есть его начало.',
+  'Гипотезы H… в данных — твоя память о прошлых выводах: если цифры их поддерживают или опровергают, скажи это в выводе и назови номер (H3).',
   'question — один редакционный вопрос, на который стоит искать ответ. steps — конкретные шаги для следующих роликов (тема, рубрика, хук), без воды. Пустое поле допустимо, выдумывать нельзя.',
   'Пиши по-русски, просто и коротко, как другу-автору.'
 ].join('\n');
@@ -49,7 +53,7 @@ export const ANALYTICS_REVIEW_JSON_SCHEMA: { name: string; schema: Record<string
   schema: {
     type: 'object',
     additionalProperties: false,
-    required: ['main', 'points', 'question', 'steps'],
+    required: ['main', 'points', 'question', 'steps', 'hypothesis'],
     properties: {
       main: { type: 'string' },
       points: {
@@ -63,7 +67,17 @@ export const ANALYTICS_REVIEW_JSON_SCHEMA: { name: string; schema: Record<string
         }
       },
       question: { type: 'string' },
-      steps: { type: 'array', maxItems: STEPS_MAX.week, items: { type: 'string' } }
+      steps: { type: 'array', maxItems: STEPS_MAX.week, items: { type: 'string' } },
+      hypothesis: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['text', 'scope', 'kind'],
+        properties: {
+          text: { type: 'string' },
+          scope: { type: 'string', enum: ['fidit', 'igrat', 'standalone', 'telegram'] },
+          kind: { type: 'string', enum: ['writing', 'topic'] }
+        }
+      }
     }
   }
 };
@@ -80,7 +94,15 @@ export const analyticsReviewSchema = z.object({
   steps: z
     .array(line(STEP_MAX))
     .max(STEPS_MAX.week)
-    .transform((steps) => steps.filter((step) => step !== ''))
+    .transform((steps) => steps.filter((step) => step !== '')),
+  /** A new hypothesis for the analyst's memory (owner, 20.10.2026); an empty text proposes none. */
+  hypothesis: z
+    .object({
+      text: line(HYPOTHESIS_MAX),
+      scope: z.enum(['fidit', 'igrat', 'standalone', 'telegram']),
+      kind: z.enum(['writing', 'topic'])
+    })
+    .optional()
 });
 export type AnalyticsReview = z.infer<typeof analyticsReviewSchema>;
 
@@ -94,7 +116,9 @@ export const VIDEO_KEY = /\b(?:YR|TR|Y|T|V|P)\d{1,2}\b/g;
 const normal = (value: string) => value.replace(',', '.').replace('-', '−').replace(/\s/g, '').toLowerCase();
 const bareSmall = (value: string) => /^\d+$/.test(value) && Number(value) <= FREE_NUMBER_MAX;
 /** A key is not a number: «T4» must not pass «4» through the check, nor be flagged. */
-const withoutKeys = (text: string) => text.replace(VIDEO_KEY, ' ');
+/** A hypothesis number (H3) is not a number either. */
+const HYPOTHESIS_KEY = /\bH\d{1,4}\b/g;
+const withoutKeys = (text: string) => text.replace(VIDEO_KEY, ' ').replace(HYPOTHESIS_KEY, ' ');
 
 /** The facts' lines about one video: each starts with its key («Y1 «Пудж» · …»). */
 export function videoFacts(facts: string, video: string): string {
@@ -106,10 +130,14 @@ export function videoFacts(facts: string, video: string): string {
 
 /** The facts' lines about no single video: totals, followers, rubric lines. */
 function generalFacts(facts: string): string {
-  return facts
-    .split('\n')
-    .filter((line) => !/^(?:YR|TR|Y|T|V|P)\d{1,2} /.test(line.trimStart()))
-    .join('\n');
+  return (
+    facts
+      .split('\n')
+      // The hypotheses' lines (H3 · …) are memory, not this period's numbers: none of theirs may be repeated
+      // (review 20.10.2026).
+      .filter((line) => !/^(?:YR|TR|Y|T|V|P)\d{1,2} |^H\d{1,4} /.test(line.trimStart()))
+      .join('\n')
+  );
 }
 
 const numbersOf = (text: string) => new Set((withoutKeys(text).match(NUMBER) ?? []).map(normal));
@@ -121,13 +149,16 @@ const missing = (text: string, known: Set<string>) =>
  * the numbers of the videos it names and of the general lines, never another video's (review 19.10.2026: another
  * video's real number passed the old check).
  */
-export function unverifiedNumbers(review: AnalyticsReview, facts: string): string[] {
+export function unverifiedNumbers(
+  review: Pick<AnalyticsReview, 'main' | 'points' | 'question' | 'steps' | 'hypothesis'>,
+  facts: string
+): string[] {
   const general = generalFacts(facts);
   const allowed = (text: string) =>
     numbersOf([general, ...[...new Set(text.match(VIDEO_KEY) ?? [])].map((key) => videoFacts(facts, key))].join('\n'));
-  return [review.main, review.question, ...review.steps, ...review.points.map((point) => point.text)].flatMap((text) =>
-    missing(text, allowed(text))
-  );
+  const texts = [review.main, review.question, ...review.steps, ...review.points.map((point) => point.text)];
+  if (review.hypothesis !== undefined) texts.push(review.hypothesis.text);
+  return texts.flatMap((text) => missing(text, allowed(text)));
 }
 
 export interface AnalyticsReviewDeps {
@@ -189,6 +220,19 @@ export async function writeAnalyticsReview(
   const known = new Set(input.videos);
   // A point about a video the facts do not list is dropped rather than guessed.
   const namesUnknown = (text: string) => (text.match(VIDEO_KEY) ?? []).some((key) => !known.has(key));
+  // A new hypothesis comes from a day (the week's are weighed by their own job, modules/ai/hypotheses.ts). One with a
+  // number of its own or an unknown video is dropped alone, not the day's review with it (review 20.10.2026).
+  const hypothesis = review.hypothesis;
+  if (
+    period === 'week' ||
+    hypothesis === undefined ||
+    hypothesis.text === '' ||
+    namesUnknown(hypothesis.text) ||
+    unverifiedNumbers({ main: '', points: [], question: '', steps: [], hypothesis }, input.facts).length > 0
+  ) {
+    const { hypothesis: _dropped, ...rest } = review;
+    review = rest;
+  }
   review = {
     ...review,
     points: review.points.filter((point) => !namesUnknown(point.text)).slice(0, POINTS_MAX[period]),

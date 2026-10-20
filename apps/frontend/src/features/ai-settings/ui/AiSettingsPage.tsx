@@ -37,6 +37,7 @@ import {
 import { AiFeedbackList } from './AiFeedbackList';
 import { AiLearningList } from './AiLearningList';
 import { AiDraftHistory } from './AiDraftHistory';
+import { AiHypothesesList } from './AiHypothesesList';
 import { AiRulesList } from './AiRulesList';
 import { AiQualityByFormat, AiQualityByFormatSkeleton, AiQualityComparison } from './AiQualityExtras';
 import { AiUnlinkedScripts } from './AiUnlinkedScripts';
@@ -575,6 +576,7 @@ function QualityPanel({ quality }: { quality: AiOverviewDto['quality'] }) {
   const verdictCount = verdicts.reduce((total, row) => total + row.count, 0);
   const [learningOpen, setLearningOpen] = useState(false);
   const [rulesOpen, setRulesOpen] = useState(false);
+  const [hypothesesOpen, setHypothesesOpen] = useState(false);
   const [draftsOpen, setDraftsOpen] = useState(false);
   const [unlinkedOpen, setUnlinkedOpen] = useState(false);
   const studioRuns = quality.studioDrafts ?? 0;
@@ -681,6 +683,14 @@ function QualityPanel({ quality }: { quality: AiOverviewDto['quality'] }) {
         >
           <Disclosure id="rules" title={copy.rules.title}>
             {rulesOpen ? <AiRulesList /> : null}
+          </Disclosure>
+        </DisclosureGroup>
+        <DisclosureGroup
+          expandedKeys={hypothesesOpen ? ['hypotheses'] : []}
+          onExpandedChange={(keys) => setHypothesesOpen(keys.has('hypotheses'))}
+        >
+          <Disclosure id="hypotheses" title={copy.hypotheses.title}>
+            {hypothesesOpen ? <AiHypothesesList /> : null}
           </Disclosure>
         </DisclosureGroup>
         <DisclosureGroup

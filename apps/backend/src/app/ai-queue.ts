@@ -3,6 +3,7 @@ import { aiJobSchema } from './bot/ai-job';
 import { runAiJob } from './bot/ai-writer';
 import { createWriterDeps } from './bot/writer-deps';
 import { runDailyReview } from './workflows/daily-review';
+import { runHypothesesReview } from './workflows/hypotheses';
 import { runStyleLessons } from './workflows/style-lessons';
 import type { Container } from './container';
 
@@ -51,6 +52,17 @@ export async function handleAiQueue(batch: MessageBatch<unknown>, container: Con
           await runStyleLessons(container, requestId, onError);
       } catch (error) {
         // D1 failed: the edits stay unread, the next hourly run takes them.
+        onError(error);
+      }
+      message.ack();
+      continue;
+    }
+    if (job.kind === 'hypotheses') {
+      try {
+        if (await container.aiWriter.claimJob(job.id, container.clock.now()))
+          await runHypothesesReview(job.reportId, container, requestId, onError);
+      } catch (error) {
+        // D1 failed: the hypotheses stay as they were until next Monday.
         onError(error);
       }
       message.ack();

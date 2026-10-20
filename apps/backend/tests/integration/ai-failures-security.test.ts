@@ -284,6 +284,7 @@ describe('owner alerts when Telegram refuses', () => {
     const lesson = lessonAlert({
       id: UUID,
       text: 'Не заканчивай призывом',
+      origin: 'edit',
       scope: 'igrat',
       status: 'asked',
       fromRemark: true,
@@ -465,6 +466,7 @@ describe('buttons of the AI bot flows', () => {
         lessonAlert({
           id: crypto.randomUUID(),
           text: 'Не заканчивай призывом',
+          origin: 'edit',
           scope: 'igrat',
           status: 'asked',
           fromRemark: false,

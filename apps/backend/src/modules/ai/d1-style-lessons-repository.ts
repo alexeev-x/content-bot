@@ -12,6 +12,8 @@ export interface LessonRow {
   scope: WriterFormat;
   status: LessonStatus;
   fromRemark: boolean;
+  /** 'analytics': a supported hypothesis of the reports (migration 0086), asked in its own words. */
+  origin: 'edit' | 'analytics';
   ruleId: string | null;
   /** Distinct drafts it was read off. */
   drafts: number;
@@ -84,7 +86,7 @@ export interface StyleLessonsRepository {
   forgetStale(before: number, now: number): Promise<number>;
 }
 
-const COLUMNS = `l.id, l.text, l.scope, l.status, l.from_remark AS fromRemark, l.rule_id AS ruleId, l.created_at AS createdAt,
+const COLUMNS = `l.id, l.text, l.scope, l.status, l.from_remark AS fromRemark, l.origin, l.rule_id AS ruleId, l.created_at AS createdAt,
   (SELECT count(DISTINCT s.generation_id) FROM ai_style_sources s WHERE s.lesson_id = l.id) AS drafts`;
 
 type RawLesson = Omit<LessonRow, 'fromRemark'> & { fromRemark: number };

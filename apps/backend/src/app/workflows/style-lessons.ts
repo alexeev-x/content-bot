@@ -27,9 +27,11 @@ export function lessonAlert(lesson: LessonRow): NewContentAlert {
     title: 'Как вы правите',
     body: lesson.text,
     html: [
-      lesson.fromRemark
-        ? `✍️ <b>Понял из вашего замечания</b> (${SCOPE_LABEL[lesson.scope]}):`
-        : `✍️ <b>Похоже, вы всегда так правите</b> в ${SCOPE_LABEL[lesson.scope]}:`,
+      lesson.origin === 'analytics'
+        ? `💡 <b>Аналитика подтверждает</b> для ${SCOPE_LABEL[lesson.scope]}:`
+        : lesson.fromRemark
+          ? `✍️ <b>Понял из вашего замечания</b> (${SCOPE_LABEL[lesson.scope]}):`
+          : `✍️ <b>Похоже, вы всегда так правите</b> в ${SCOPE_LABEL[lesson.scope]}:`,
       `«${escapeHtml(lesson.text)}»`,
       'Учитывать в новых текстах?'
     ].join('\n'),

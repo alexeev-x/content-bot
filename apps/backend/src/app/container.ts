@@ -59,12 +59,14 @@ import {
   type DraftHistoryRepository,
   type RulesRepository,
   type StyleLessonsRepository,
+  type HypothesesRepository,
   createD1AiRepository,
   createD1AuthorProfileRepository,
   createD1ReviewRepository,
   createD1DraftHistoryRepository,
   createD1RulesRepository,
   createD1StyleLessonsRepository,
+  createD1HypothesesRepository,
   createD1ScriptLinksRepository,
   createD1WriterRepository,
   type AuthorProfileRepository,
@@ -207,6 +209,8 @@ export interface Container {
   aiRules: RulesRepository;
   /** What the owner's edits and remarks teach the writer (AI plan P7c, migration 0084). */
   aiStyleLessons: StyleLessonsRepository;
+  /** The analyst's hypotheses H1, H2… (migration 0086), reviewed every Monday. */
+  aiHypotheses: HypothesesRepository;
   /** The studio's history of AI drafts (AI plan P8, read-only). */
   aiDraftHistory: DraftHistoryRepository;
   /** The bot's AI model calls go through Queue AI_JOBS (owner, 19.10.2026); UNAVAILABLE without the binding. */
@@ -589,6 +593,9 @@ export function createContainer(env: ContainerEnv, overrides: ContainerOverrides
     },
     get aiStyleLessons() {
       return createD1StyleLessonsRepository(db());
+    },
+    get aiHypotheses() {
+      return createD1HypothesesRepository(db());
     },
     get aiRules() {
       return createD1RulesRepository(db());

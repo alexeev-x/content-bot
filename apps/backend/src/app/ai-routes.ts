@@ -18,6 +18,7 @@ import {
   aiRuleEvidenceParamsSchema,
   aiRuleParamsSchema,
   aiRuleSchema,
+  aiHypothesesSchema,
   aiRulesSchema,
   changeAiRuleInputSchema,
   aiUnlinkedScriptsSchema,
@@ -45,6 +46,7 @@ import {
   readDraftChain,
   readDrafts,
   readLearning,
+  readHypotheses,
   readRules,
   readUnlinkedScripts,
   readVideoReview,
@@ -256,6 +258,9 @@ export const aiRoutes = new Hono<AppBindings>()
   )
   .get('/drafts/:id', validated('param', aiDraftParamsSchema), async (c) =>
     c.json(aiDraftChainSchema.parse(await readDraftChain(c.get('container').aiDraftHistory, c.req.valid('param').id)))
+  )
+  .get('/hypotheses', async (c) =>
+    c.json(aiHypothesesSchema.parse(await readHypotheses(c.get('container').aiHypotheses)))
   )
   .get('/rules', async (c) => c.json(aiRulesSchema.parse(await readRules(c.get('container').aiRules))))
   .put(

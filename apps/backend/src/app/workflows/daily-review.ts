@@ -1,4 +1,4 @@
-import { writeAnalyticsReview } from '../../modules/ai';
+import { ACTIVE_HYPOTHESES_MAX, hypothesisLines, writeAnalyticsReview } from '../../modules/ai';
 import { dailyReviewInput, type DailyReview, releaseDailyReport } from '../../modules/content-analytics';
 import { getOwnerOperationsSettings } from '../../modules/settings';
 import { AppError } from '../../shared/app-error';
@@ -48,11 +48,20 @@ export async function runDailyReview(
   const found = await dailyReviewInput(reports, reportId);
   if (found === null) return;
   const scripts = await scriptLines(container, found.items);
-  const input = {
-    facts: scripts.length === 0 ? found.facts : `${found.facts}\n\nСценарии:\n${scripts.join('\n')}`,
-    videos: found.videos,
-    period: found.period
-  };
+  // The day sees the analyst's open hypotheses (owner, 20.10.2026: «запоминает»); the week's job, at 48 of its 50
+  // D1 statements, does not read them: Monday's own hypotheses job weighs them after this one.
+  const active = found.period === 'day' ? await container.aiHypotheses.active(ACTIVE_HYPOTHESES_MAX) : [];
+  const hypotheses = hypothesisLines(active);
+  // Compared here, not in SQL: SQLite's lower() leaves Cyrillic as it is.
+  const known = new Set(active.map((row) => row.text.trim().toLowerCase()));
+  const facts = [
+    found.facts,
+    scripts.length === 0 ? null : `Сценарии:\n${scripts.join('\n')}`,
+    hypotheses.length === 0 ? null : `Гипотезы:\n${hypotheses.join('\n')}`
+  ]
+    .filter((part) => part !== null)
+    .join('\n\n');
+  const input = { facts, videos: found.videos, period: found.period };
   let review: DailyReview | null = null;
   let reviewError: string | null = null;
   let model: string | null = null;
@@ -77,6 +86,23 @@ export async function runDailyReview(
     reviewError = result.errorCode;
     model = result.model;
     usageId = result.usageId;
+    const proposed = result.review?.hypothesis;
+    if (proposed !== undefined && proposed.text.length >= 3 && !known.has(proposed.text.trim().toLowerCase())) {
+      // A failed insert loses the hypothesis, never the written review or its budget notices (review 20.10.2026).
+      try {
+        await container.aiHypotheses.create({
+          id: container.newId(),
+          text: proposed.text,
+          scope: proposed.scope,
+          kind: proposed.kind,
+          confidence: 'low',
+          sourceRef: reportId,
+          now: container.clock.now()
+        });
+      } catch (error) {
+        onError(error);
+      }
+    }
     await sendBudgetAlerts(
       {
         messenger: container.ownerMessenger,
@@ -99,5 +125,14 @@ export async function runDailyReview(
     { id: reportId, review, reviewError, model, usageId }
   );
   // Once a week, after the report is out: the analysis rules are weighed against the new results (AI plan P7).
-  if (found.period === 'week') await runRuleConsolidation(reportId, container, requestId, onError);
+  if (found.period === 'week') {
+    await runRuleConsolidation(reportId, container, requestId, onError);
+    // Then the analyst's hypotheses, in a job of their own: this one has no D1 statements left for them.
+    try {
+      await container.aiJobs.send({ id: crypto.randomUUID(), kind: 'hypotheses', reportId });
+    } catch (error) {
+      // Not queued: the hypotheses wait for next Monday as they are.
+      onError(error);
+    }
+  }
 }

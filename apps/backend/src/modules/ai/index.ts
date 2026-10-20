@@ -11,6 +11,13 @@ export {
   type RuleEvidence
 } from './d1-rules-repository';
 export { type AnalyticsReview, writeAnalyticsReview } from './analytics-review';
+export {
+  ACTIVE_HYPOTHESES_MAX,
+  createD1HypothesesRepository,
+  type HypothesesRepository,
+  type HypothesisRow
+} from './d1-hypotheses-repository';
+export { type HypothesisChange, hypothesisLines, readHypotheses, reviewHypotheses } from './hypotheses';
 export { readUsageCosts } from './service';
 export { changeRule, readRules, removeRuleEvidence } from './rules-admin';
 export { LESSON_LOOKBACK_MS, learnFromEdits } from './style-lessons';

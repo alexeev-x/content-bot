@@ -24,7 +24,7 @@ export { type ContentAnalyticsRepository, createD1ContentAnalyticsRepository } f
 export { type DailyAnalytics, type DailyPlatform, readDailyAnalytics } from './daily-analytics';
 export type { DailyComparison, DailyGrowth, DailyRow } from './daily-table';
 export { DAILY_REPORT_VERSION, type DailyReview, dailyReportNow, raiseDailyReport } from './daily-report';
-export { dailyReviewInput, releaseDailyReport, releaseOverdueReports } from './report-release';
+export { dailyReviewInput, releaseDailyReport, releaseOverdueReports, storedReportFacts } from './report-release';
 export { raiseWeeklyReport } from './weekly-report';
 export {
   type ContentDailyReportRepository,

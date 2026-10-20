@@ -577,6 +577,30 @@ export type AiVideoReviewDto = z.infer<typeof aiVideoReviewSchema>;
 export const aiVideoReviewResultSchema = z.object({ review: aiVideoReviewSchema.nullable() });
 export type AiVideoReviewResultDto = z.infer<typeof aiVideoReviewResultSchema>;
 
+// The analyst's hypotheses in the studio (owner, 20.10.2026; migration 0086): raised by the daily report's review,
+// weighed every Monday; a supported writing one is asked in the bot and becomes a rule only on «Учитывать».
+// GET /api/v1/ai/hypotheses → 200 AiHypothesesDto, at most AI_HYPOTHESES_LIST_LIMIT, newest change first.
+// Read-only. Errors: UNAUTHORIZED 401, FORBIDDEN 403.
+export const AI_HYPOTHESES_LIST_LIMIT = 50;
+export const aiHypothesisSchema = z.object({
+  /** Shown as H<code>, the number the reports cite. */
+  code: z.number().int().positive(),
+  text: z.string().min(1).max(300),
+  scope: aiWriterFormatSchema,
+  /** `writing`: how a text is written (can become a rule); `topic`: what to film or post. */
+  kind: z.enum(['writing', 'topic']),
+  status: z.enum(['open', 'supported', 'refuted']),
+  confidence: z.enum(['low', 'medium']),
+  /** The last review's reason, with its numbers; null before the first Monday. */
+  note: z.string().max(300).nullable(),
+  /** A supported writing hypothesis put to the owner as «Учитывать?». */
+  asked: z.boolean(),
+  updatedAt: z.iso.datetime()
+});
+export type AiHypothesisDto = z.infer<typeof aiHypothesisSchema>;
+export const aiHypothesesSchema = z.object({ items: z.array(aiHypothesisSchema).max(AI_HYPOTHESES_LIST_LIMIT) });
+export type AiHypothesesDto = z.infer<typeof aiHypothesesSchema>;
+
 // The writer's rules in the studio (AI plan P8, §6.1; migration 0079): the owner's rules from «/rule» and the
 // analysis rules from the weekly consolidation, with the videos behind each. In use, closed rules last.
 // GET /api/v1/ai/rules → 200 AiRulesDto, at most AI_RULES_LIST_LIMIT rules, each with at most

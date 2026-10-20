@@ -117,6 +117,11 @@ describe('analytics review', () => {
     expect(unverifiedNumbers({ ...base, points: [point('Y2: всего 900')] }, facts)).toEqual([]);
     // Naming both videos allows both videos' numbers: the comparison the owner asked for.
     expect(unverifiedNumbers({ ...base, points: [point('Y1 2.7к против 900 у Y2')] }, facts)).toEqual([]);
+    // A hypothesis line is memory: its old numbers are not this day's (review 20.10.2026).
+    const withMemory = `${facts}\n\nГипотезы:\nH3 · «Учу фидить» · как писать · открыта (низкая): x · последнее: пересылки 3.1%`;
+    expect(unverifiedNumbers({ ...base, points: [point('Y1: пересылки 3.1%, как в H3')] }, withMemory)).toEqual([
+      '3.1%'
+    ]);
   });
 
   it('keeps the day to four points and two steps, the week to six and three', async () => {

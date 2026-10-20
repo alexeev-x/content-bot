@@ -10,6 +10,7 @@ import {
   getAiFeedback,
   getAiLearning,
   getAiOverview,
+  getAiHypotheses,
   getAiRules,
   getAiUnlinkedScripts,
   removeAiRuleEvidence,
@@ -22,6 +23,7 @@ export const aiKeys = {
   feedback: ['ai', 'feedback'] as const,
   learning: ['ai', 'learning'] as const,
   rules: ['ai', 'rules'] as const,
+  hypotheses: ['ai', 'hypotheses'] as const,
   drafts: ['ai', 'drafts'] as const,
   draft: (id: string) => ['ai', 'drafts', id] as const,
   unlinkedScripts: ['ai', 'scripts', 'unlinked'] as const
@@ -101,6 +103,15 @@ export function aiDraftChainQueryOptions(id: string) {
   return queryOptions({
     queryKey: aiKeys.draft(id),
     queryFn: ({ signal }) => getAiDraftChain(id, signal),
+    staleTime: 30_000
+  });
+}
+
+/** The daily review and Monday's job change them on the server only: re-read when opened, after a short rest. */
+export function aiHypothesesQueryOptions() {
+  return queryOptions({
+    queryKey: aiKeys.hypotheses,
+    queryFn: ({ signal }) => getAiHypotheses(signal),
     staleTime: 30_000
   });
 }

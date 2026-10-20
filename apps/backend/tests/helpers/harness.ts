@@ -61,6 +61,7 @@ export async function resetDb(): Promise<void> {
       'dota_hero_assets',
       'ai_writer_requests',
       'ai_queue_jobs',
+      'ai_hypotheses',
       'ai_style_sources',
       'ai_style_lessons',
       'ai_rule_evidence',
