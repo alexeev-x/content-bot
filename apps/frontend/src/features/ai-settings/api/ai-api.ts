@@ -4,6 +4,9 @@ import {
   aiDraftsPageSchema,
   aiFeedbackListSchema,
   aiLearningItemSchema,
+  aiLessonAnswerSchema,
+  aiLessonsSchema,
+  type AnswerAiLessonInput,
   aiLearningListSchema,
   aiOverviewSchema,
   aiHypothesesSchema,
@@ -78,6 +81,19 @@ export function setAiLearningExcluded(input: { source: AiLearningSource; id: str
   return apiRequest(`/api/v1/ai/learning/${input.source}/${encodeURIComponent(input.id)}`, aiLearningItemSchema, {
     method: 'PUT',
     body: { excluded: input.excluded }
+  });
+}
+
+/** Lessons not answered yet: asked in the bot first, then the ones noted once. */
+export function getAiLessons(signal?: AbortSignal) {
+  return apiRequest('/api/v1/ai/lessons', aiLessonsSchema, { signal });
+}
+
+/** «Учитывать» / «Не учитывать» for an asked lesson; the same answer again is a no-op on the server. */
+export function answerAiLesson(input: { id: string } & AnswerAiLessonInput) {
+  return apiRequest(`/api/v1/ai/lessons/${encodeURIComponent(input.id)}`, aiLessonAnswerSchema, {
+    method: 'PUT',
+    body: { answer: input.answer }
   });
 }
 

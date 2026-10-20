@@ -72,6 +72,8 @@ export interface StyleLessonsRepository {
   known(scope: WriterFormat): Promise<LessonRow[]>;
   /** Seen lessons with two drafts behind them or the owner's own words: the questions to ask, at most `limit`. */
   toAsk(limit: number): Promise<LessonRow[]>;
+  /** Lessons not answered yet, for «ИИ-редактор → Обучение»: the asked ones first, then by drafts, newest first. */
+  open(limit: number): Promise<LessonRow[]>;
   /** seen → asked, once. */
   markAsked(id: string, now: number): Promise<boolean>;
   find(id: string): Promise<LessonRow | null>;
@@ -249,6 +251,17 @@ export function createD1StyleLessonsRepository(db: D1Database): StyleLessonsRepo
            ORDER BY l.updated_at LIMIT ?`
         )
         .bind(Math.min(limit, 10))
+        .all<RawLesson>();
+      return rows.results.map(toRow);
+    },
+
+    async open(limit) {
+      const rows = await db
+        .prepare(
+          `SELECT ${COLUMNS} FROM ai_style_lessons l WHERE l.status IN ('seen', 'asked')
+           ORDER BY l.status = 'asked' DESC, drafts DESC, l.created_at DESC, l.id LIMIT ?`
+        )
+        .bind(Math.min(limit, OPEN_LESSONS_MAX))
         .all<RawLesson>();
       return rows.results.map(toRow);
     },

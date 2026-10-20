@@ -41,7 +41,7 @@ describe('scripts without a video', () => {
     expect(await screen.findByText('Фидил на мидере и понял одну вещь')).toBeTruthy();
     expect(screen.getByText('Учу фидить')).toBeTruthy();
     expect(screen.getByText(/одобрен 12 окт/)).toBeTruthy();
-    expect(screen.getByText(/привязывается из панели видео в «Аналитике»/)).toBeTruthy();
+    expect(screen.getByText(/в панели видео в «Аналитике»/)).toBeTruthy();
   });
 
   it('shows the empty state', async () => {

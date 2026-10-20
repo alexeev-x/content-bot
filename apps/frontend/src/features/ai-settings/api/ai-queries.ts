@@ -1,6 +1,7 @@
-import type { AiLearningItemDto, AiLearningListDto, AiRuleDto, AiRulesDto } from '@alexeev/contracts';
+import type { AiLearningItemDto, AiLearningListDto, AiLessonsDto, AiRuleDto, AiRulesDto } from '@alexeev/contracts';
 import { keepPreviousData, queryOptions, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
+  answerAiLesson,
   changeAiRule,
   checkAiConnection,
   deleteAiFeedback,
@@ -9,6 +10,7 @@ import {
   type AiDraftsListQuery,
   getAiFeedback,
   getAiLearning,
+  getAiLessons,
   type AiLearningListQuery,
   getAiOverview,
   getAiHypotheses,
@@ -23,6 +25,7 @@ export const aiKeys = {
   overview: ['ai', 'overview'] as const,
   feedback: ['ai', 'feedback'] as const,
   learning: ['ai', 'learning'] as const,
+  lessons: ['ai', 'lessons'] as const,
   rules: ['ai', 'rules'] as const,
   hypotheses: ['ai', 'hypotheses'] as const,
   drafts: ['ai', 'drafts'] as const,
@@ -165,5 +168,25 @@ export function aiUnlinkedScriptsQueryOptions() {
     queryKey: aiKeys.unlinkedScripts,
     queryFn: ({ signal }) => getAiUnlinkedScripts(signal),
     staleTime: 30_000
+  });
+}
+
+/** The nightly run adds lessons and the bot answers them: re-read when opened, after a short rest. */
+export function aiLessonsQueryOptions() {
+  return queryOptions({ queryKey: aiKeys.lessons, queryFn: ({ signal }) => getAiLessons(signal), staleTime: 30_000 });
+}
+
+/** An answered lesson leaves the list; an accepted one is a new rule, so the rules are read again. */
+export function useAnswerAiLesson() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: answerAiLesson,
+    retry: false,
+    onSuccess: async (answer) => {
+      client.setQueryData<AiLessonsDto>(aiKeys.lessons, (list) =>
+        list ? { items: list.items.filter((lesson) => lesson.id !== answer.id) } : list
+      );
+      if (answer.status === 'accepted') await client.invalidateQueries({ queryKey: aiKeys.rules });
+    }
   });
 }

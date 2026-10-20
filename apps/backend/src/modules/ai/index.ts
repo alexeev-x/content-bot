@@ -20,6 +20,7 @@ export {
 export { type HypothesisChange, hypothesisLines, readHypotheses, reviewHypotheses } from './hypotheses';
 export { readUsageCosts } from './service';
 export { changeRule, readRules, removeRuleEvidence } from './rules-admin';
+export { answerLesson, readLessons } from './lessons-admin';
 export { LESSON_LOOKBACK_MS, learnFromEdits } from './style-lessons';
 export {
   createD1StyleLessonsRepository,

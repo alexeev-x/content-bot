@@ -679,6 +679,35 @@ export const aiRuleEvidenceParamsSchema = z.strictObject({ id: z.uuid(), key: z.
 export const changeAiRuleInputSchema = z.strictObject({ action: z.enum(['enable', 'disable', 'approve']) });
 export type ChangeAiRuleInput = z.infer<typeof changeAiRuleInputSchema>;
 
+// Lessons the writer read off the owner's edits and «Что не так?» remarks, or a supported analytics hypothesis
+// (AI plan P7c, migrations 0084 and 0086), not answered yet. `seen`: noted once, waits for a second draft; `asked`:
+// the bot asked «Учитывать?». «Учитывать» turns an asked lesson into an owner rule, «Не учитывать» drops it for good.
+// GET /api/v1/ai/lessons → 200 AiLessonsDto, asked first, at most AI_LESSONS_LIMIT.
+// PUT /api/v1/ai/lessons/{id} { answer } → 200 AiLessonAnswerDto; the same answer again is a no-op (also after the
+// bot's button). Errors: VALIDATION_ERROR 400, NOT_FOUND 404 (unknown, or not asked), CONFLICT 409 (details.reason
+// LIMIT: the rules in use are full; STATE: answered the other way or expired), UNAUTHORIZED 401, FORBIDDEN 403.
+export const AI_LESSONS_LIMIT = 40;
+export const aiLessonSchema = z.object({
+  id: z.uuid(),
+  text: z.string().min(1).max(400),
+  scope: aiWriterFormatSchema,
+  status: z.enum(['seen', 'asked']),
+  origin: z.enum(['edit', 'analytics']),
+  /** The owner said it in words («Что не так?»). */
+  fromRemark: z.boolean(),
+  /** Distinct drafts it was read off. */
+  drafts: z.number().int().nonnegative(),
+  createdAt: z.iso.datetime()
+});
+export type AiLessonDto = z.infer<typeof aiLessonSchema>;
+export const aiLessonsSchema = z.object({ items: z.array(aiLessonSchema).max(AI_LESSONS_LIMIT) });
+export type AiLessonsDto = z.infer<typeof aiLessonsSchema>;
+export const aiLessonParamsSchema = z.strictObject({ id: z.uuid() });
+export const answerAiLessonInputSchema = z.strictObject({ answer: z.enum(['accept', 'reject']) });
+export type AnswerAiLessonInput = z.infer<typeof answerAiLessonInputSchema>;
+export const aiLessonAnswerSchema = z.object({ id: z.uuid(), status: z.enum(['accepted', 'rejected']) });
+export type AiLessonAnswerDto = z.infer<typeof aiLessonAnswerSchema>;
+
 // The history of AI drafts in the studio (AI plan P8; SYS-01): every first draft from the bot or the studio with
 // the versions that hang off it (rewrites, fixes, the draft after a facts answer), their texts with provenance
 // and the owner's verdicts. Read-only.

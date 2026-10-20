@@ -17,6 +17,10 @@ import {
   aiLearningQuerySchema,
   aiOverviewSchema,
   aiRuleEvidenceParamsSchema,
+  aiLessonAnswerSchema,
+  aiLessonParamsSchema,
+  aiLessonsSchema,
+  answerAiLessonInputSchema,
   aiRuleParamsSchema,
   aiRuleSchema,
   aiHypothesesSchema,
@@ -38,7 +42,9 @@ import {
   checkAiConnection,
   generateDraft,
   improveText,
+  answerLesson,
   changeRule,
+  readLessons,
   linkItemScript,
   readAiOverview,
   readAuthorProfile,
@@ -285,6 +291,21 @@ export const aiRoutes = new Hono<AppBindings>()
     const rule = await removeRuleEvidence({ rules: container.aiRules, clock: container.clock }, c.req.valid('param'));
     return c.json(aiRuleSchema.parse(rule));
   })
+  .get('/lessons', async (c) => c.json(aiLessonsSchema.parse(await readLessons(c.get('container').aiStyleLessons))))
+  .put(
+    '/lessons/:id',
+    limitBody(MAX_BODY_BYTES),
+    validated('param', aiLessonParamsSchema),
+    validated('json', answerAiLessonInputSchema),
+    async (c) => {
+      const container = c.get('container');
+      const answer = await answerLesson(
+        { lessons: container.aiStyleLessons, clock: container.clock, newId: container.newId },
+        { ...c.req.valid('param'), ...c.req.valid('json') }
+      );
+      return c.json(aiLessonAnswerSchema.parse(answer));
+    }
+  )
   .get('/scripts/unlinked', async (c) => {
     const container = c.get('container');
     return c.json(
