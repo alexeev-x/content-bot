@@ -23,3 +23,7 @@ show in Аналитика → «Рубрики Telegram».
 ## 3. News
 
 The AI turns new source events into news posts in the owner's voice: what happened, why it matters to a player.
+
+## Next: video
+
+Once 1–3 are done (owner, 20.10.2026): video. Planned with the owner when it starts.
