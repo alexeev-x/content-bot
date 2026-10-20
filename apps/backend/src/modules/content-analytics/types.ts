@@ -27,6 +27,8 @@ export interface CollectedItem {
   likes: number | null;
   comments: number | null;
   shares: number | null;
+  /** A Telegram post's hashtags (lower case, no «#»): a rubric marker past the stored first line. */
+  tags?: string[];
 }
 
 export interface Collection {

@@ -17,6 +17,7 @@ import {
   createD1DashboardRepository,
   createD1DestinationRepository,
   createD1DispatchRepository,
+  createD1SentMessagesReader,
   createD1IncidentRepository,
   createD1PublicationRepository,
   createD1PublicationAnalyticsRepository,
@@ -106,10 +107,13 @@ import {
   type ContentAnalyticsRepository,
   type ContentDailyReportRepository,
   type ContentForecastRepository,
+  type ContentRubricRepository,
+  type StudioTelegramMessages,
   configuredCollectors,
   createD1ContentAlertRepository,
   createD1ContentDailyReportRepository,
   createD1ContentForecastRepository,
+  createD1ContentRubricRepository,
   createD1ContentGoalRepository,
   type ContentGoalRepository,
   createD1InviteLinkRepository,
@@ -201,6 +205,10 @@ export interface Container {
   analyticsTelegramChannel: string | undefined;
   /** The daily report's forecasts and their scores (0076). */
   contentForecasts: ContentForecastRepository;
+  /** Telegram rubrics and the owner's picks for studio posts (0089). */
+  contentRubrics: ContentRubricRepository;
+  /** Which studio post a channel message was sent from: the rubrics' port into publishing. */
+  studioTelegramMessages: StudioTelegramMessages;
   /** The daily reports: stored numbers, the AI review and its status (0077). */
   contentDailyReports: ContentDailyReportRepository;
   /** The content sources this environment configures (vars, the YouTube key, the TikTok app keys). */
@@ -529,6 +537,12 @@ export function createContainer(env: ContainerEnv, overrides: ContainerOverrides
     },
     get contentForecasts() {
       return createD1ContentForecastRepository(db());
+    },
+    get contentRubrics() {
+      return createD1ContentRubricRepository(db());
+    },
+    get studioTelegramMessages() {
+      return createD1SentMessagesReader(db());
     },
     get contentDailyReports() {
       return createD1ContentDailyReportRepository(db());

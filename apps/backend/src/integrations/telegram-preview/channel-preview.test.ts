@@ -43,6 +43,7 @@ describe('parseChannelPreview', () => {
       {
         messageId: 661,
         text: 'Учу фидить & побеждать\nвторая строка',
+        hashtags: [],
         publishedAt: Date.parse('2026-10-08T16:01:58Z'),
         views: 12_500,
         reactions: 1108,
@@ -51,12 +52,32 @@ describe('parseChannelPreview', () => {
       {
         messageId: 662,
         text: '',
+        hashtags: [],
         publishedAt: Date.parse('2026-10-09T10:00:00Z'),
         views: 37,
         reactions: null,
         thumbnailUrl: null
       }
     ]);
+  });
+  it('reads a reply by its own text, not the quoted post (QA, 20.10.2026: t.me/s puts the quote first)', async () => {
+    const page = `<div class="tgme_widget_message" data-post="alexeev_x/8">
+      <a class="tgme_widget_message_reply"><div class="tgme_widget_message_text js-message_reply_text">Вердикт чата: кто прав?</div></a>
+      <div class="tgme_widget_message_text js-message_text">Ответ на вердикт <a href="?q=%23dota">#dota</a></div>
+      <a class="tgme_widget_message_date"><time datetime="2026-10-09T10:00:00+00:00"></time></a></div>`;
+    const [post] = (await parseChannelPreview(page, 'alexeev_x')).posts;
+    expect(post?.text).toBe('Ответ на вердикт #dota');
+    expect(post?.hashtags).toEqual(['dota']);
+  });
+  it('reads the hashtags of the whole post, past the text cut (plan B3: a rubric tag closes a long post)', async () => {
+    const long = 'слово '.repeat(120);
+    const page = `<div class="tgme_widget_message" data-post="alexeev_x/7">
+      <div class="tgme_widget_message_text">${long}<a href="?q=%23%D0%92%D0%B5%D1%80%D0%B4%D0%B8%D0%BA%D1%82">#Вердикт</a> <a href="?q=%23dota">#dota</a> <a href="?q=%23dota">#dota</a> <a href="https://t.me/x">#не_тег</a></div>
+      <span class="tgme_widget_message_views">5</span>
+      <a class="tgme_widget_message_date"><time datetime="2026-10-09T10:00:00+00:00"></time></a></div>`;
+    const [post] = (await parseChannelPreview(page, 'alexeev_x')).posts;
+    expect(post?.text.length).toBeLessThan(long.length);
+    expect(post?.hashtags).toEqual(['вердикт', 'dota']);
   });
 });
 

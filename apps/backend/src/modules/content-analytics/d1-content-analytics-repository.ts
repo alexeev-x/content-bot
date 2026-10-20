@@ -224,21 +224,23 @@ export function createD1ContentAnalyticsRepository(db: D1Database): ContentAnaly
           views: item.views,
           likes: item.likes,
           comments: item.comments,
-          shares: item.shares
+          shares: item.shares,
+          tags: item.tags === undefined ? null : item.tags.slice(0, 10)
         }))
       );
       const statements = [
         db
           .prepare(
-            `INSERT INTO content_items (${ITEM_COLUMNS})
+            `INSERT INTO content_items (${ITEM_COLUMNS}, tags)
              SELECT j.value ->> 'id', ?2, j.value ->> 'title', j.value ->> 'url', j.value ->> 'thumb',
                     j.value ->> 'published', j.value ->> 'views', j.value ->> 'likes', j.value ->> 'comments',
-                    j.value ->> 'shares', ?3
+                    j.value ->> 'shares', ?3, j.value ->> 'tags'
              FROM json_each(?1) AS j WHERE true
              ON CONFLICT (id) DO UPDATE SET
                title = excluded.title, url = excluded.url, thumbnail_url = excluded.thumbnail_url,
                published_at = excluded.published_at, views = excluded.views, likes = excluded.likes,
-               comments = excluded.comments, shares = excluded.shares, observed_at = excluded.observed_at`
+               comments = excluded.comments, shares = excluded.shares, observed_at = excluded.observed_at,
+               tags = excluded.tags`
           )
           .bind(json, platform, now),
         db

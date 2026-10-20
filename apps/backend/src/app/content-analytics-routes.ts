@@ -15,6 +15,16 @@ import {
   contentReportSchema,
   contentReportsPageSchema,
   contentReportsQuerySchema,
+  CONTENT_RUBRICS_MAX,
+  contentPostRubricParamsSchema,
+  contentPostRubricSchema,
+  contentRubricInputSchema,
+  contentRubricParamsSchema,
+  contentRubricSchema,
+  contentRubricsQuerySchema,
+  contentRubricsSchema,
+  type ContentReportPeriod,
+  setContentPostRubricInputSchema,
   CONTENT_FORECAST_ACCURACY_DAYS,
   contentForecastAccuracySchema,
   type ContentReportSummaryDto,
@@ -42,6 +52,12 @@ import {
   disconnectTikTok,
   readContentItem,
   readContentGoals,
+  createRubric,
+  readPostRubric,
+  readRubrics,
+  removeRubric,
+  setPostRubric,
+  updateRubric,
   markContentItemContamination,
   markContentItemFormat,
   readCachedContentReport,
@@ -51,6 +67,9 @@ import {
   TIKTOK_STATE_TTL_SEC
 } from '../modules/content-analytics';
 import { readUsageCosts } from '../modules/ai';
+
+/** A public channel's username, as Telegram allows it. */
+const TELEGRAM_USERNAME = /^[A-Za-z][A-Za-z0-9_]{3,31}$/;
 import { AppError } from '../shared/app-error';
 import type { Container } from './container';
 import { deleteCookie, getCookie, setCookie } from 'hono/cookie';
@@ -341,6 +360,65 @@ export const contentAnalyticsRoutes = new Hono<AppBindings>()
     );
     return c.json(contentGoalsSchema.parse(goals));
   })
+  .get('/rubrics', validated('query', contentRubricsQuerySchema), async (c) => {
+    const container = c.get('container');
+    // The channel the analytics reads, as the studio's destination would save it (@username).
+    const channel = container.analyticsTelegramChannel?.trim().replace(/^@/, '') ?? '';
+    const rubrics = await readRubrics(
+      {
+        rubrics: container.contentRubrics,
+        studio: container.studioTelegramMessages,
+        channel: TELEGRAM_USERNAME.test(channel) ? channel : null,
+        clock: container.clock
+      },
+      { days: c.req.valid('query').days as ContentReportPeriod | undefined }
+    );
+    return c.json(contentRubricsSchema.parse(rubrics));
+  })
+  .post('/rubrics', validated('json', contentRubricInputSchema), async (c) => {
+    const container = c.get('container');
+    const rubric = await createRubric(
+      { rubrics: container.contentRubrics, clock: container.clock },
+      { ...c.req.valid('json'), max: CONTENT_RUBRICS_MAX }
+    );
+    return c.json(contentRubricSchema.parse(rubric), 201);
+  })
+  .put(
+    '/rubrics/:id',
+    validated('param', contentRubricParamsSchema),
+    validated('json', contentRubricInputSchema),
+    async (c) => {
+      const rubric = await updateRubric(
+        { rubrics: c.get('container').contentRubrics },
+        { id: c.req.valid('param').id, ...c.req.valid('json') }
+      );
+      return c.json(contentRubricSchema.parse(rubric));
+    }
+  )
+  .delete('/rubrics/:id', validated('param', contentRubricParamsSchema), async (c) => {
+    await removeRubric({ rubrics: c.get('container').contentRubrics }, c.req.valid('param').id);
+    return c.body(null, 204);
+  })
+  .get('/posts/:postId/rubric', validated('param', contentPostRubricParamsSchema), async (c) =>
+    c.json(
+      contentPostRubricSchema.parse(
+        await readPostRubric({ rubrics: c.get('container').contentRubrics }, c.req.valid('param').postId)
+      )
+    )
+  )
+  .put(
+    '/posts/:postId/rubric',
+    validated('param', contentPostRubricParamsSchema),
+    validated('json', setContentPostRubricInputSchema),
+    async (c) => {
+      const container = c.get('container');
+      const picked = await setPostRubric(
+        { rubrics: container.contentRubrics, clock: container.clock },
+        { postId: c.req.valid('param').postId, rubricId: c.req.valid('json').rubricId }
+      );
+      return c.json(contentPostRubricSchema.parse(picked));
+    }
+  )
   .get('/invite-links', validated('query', contentReportQuerySchema), async (c) => {
     const links = await readInviteLinks(inviteDeps(c.get('container'), c.get('requestId')), c.req.valid('query').days);
     return c.json(inviteLinksSchema.parse(links));

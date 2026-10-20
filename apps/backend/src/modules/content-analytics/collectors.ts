@@ -84,7 +84,8 @@ export function configuredCollectors(
               views: post.views,
               likes: post.reactions,
               comments: null,
-              shares: null
+              shares: null,
+              tags: post.hashtags
             }))
           };
         } catch (error) {

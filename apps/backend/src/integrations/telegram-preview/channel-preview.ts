@@ -9,11 +9,19 @@ export const PREVIEW_TIMEOUT_MS = 8_000;
 const MAX_BODY_BYTES = 1_000_000;
 const MAX_POSTS = 30;
 const MAX_TEXT = 400;
+const MAX_HASHTAGS = 10;
+/** Telegram links a hashtag in the preview to a channel search: `?q=%23tag`. */
+const HASHTAG_HREF = '?q=%23';
 
 export interface ChannelPreviewPost {
   /** The message id inside the channel. */
   messageId: number;
   text: string;
+  /**
+   * The post's hashtags without «#», lower case, at most MAX_HASHTAGS: read from the whole text, past the MAX_TEXT cut
+   * (a rubric tag usually closes a long post).
+   */
+  hashtags: string[];
   publishedAt: number;
   views: number | null;
   /** The sum of the shown reaction counters. */
@@ -62,6 +70,7 @@ export async function parseChannelPreview(body: string, username: string): Promi
   let viewsText = '';
   let reactionText = '';
   let inText = false;
+  let hashtag: string | null = null;
   const prefix = `${username.toLowerCase()}/`;
 
   const finish = (): void => {
@@ -108,6 +117,7 @@ export async function parseChannelPreview(body: string, username: string): Promi
         current = {
           messageId: id,
           text: '',
+          hashtags: [],
           publishedAt: Number.NaN,
           views: null,
           reactions: null,
@@ -119,6 +129,9 @@ export async function parseChannelPreview(body: string, username: string): Promi
     .on('.tgme_widget_message_text', {
       element(element) {
         if (current === null || current.text !== '') return;
+        // A reply quotes the post it answers in the same class before its own text: the quote is not this post (its
+        // first line would become the title and put the reply in the quoted post's rubric).
+        if ((element.getAttribute('class') ?? '').includes('js-message_reply_text')) return;
         inText = true;
         element.onEndTag(() => {
           inText = false;
@@ -126,6 +139,21 @@ export async function parseChannelPreview(body: string, username: string): Promi
       },
       text(chunk) {
         if (current !== null && inText && current.text.length < MAX_TEXT) current.text += decodeEntities(chunk.text);
+      }
+    })
+    .on('.tgme_widget_message_text a', {
+      element(element) {
+        if (current === null || !inText || !(element.getAttribute('href') ?? '').startsWith(HASHTAG_HREF)) return;
+        hashtag = '';
+        element.onEndTag(() => {
+          const tag = (hashtag ?? '').trim().replace(/^#/, '').toLowerCase();
+          hashtag = null;
+          if (current === null || !/^[\p{L}\p{N}_]{2,32}$/u.test(tag)) return;
+          if (!current.hashtags.includes(tag) && current.hashtags.length < MAX_HASHTAGS) current.hashtags.push(tag);
+        });
+      },
+      text(chunk) {
+        if (hashtag !== null) hashtag += decodeEntities(chunk.text);
       }
     })
     .on('.tgme_widget_message_text br', {

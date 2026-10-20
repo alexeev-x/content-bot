@@ -59,6 +59,8 @@ export async function resetDb(): Promise<void> {
       'content_item_contamination',
       'content_alerts',
       'content_goals',
+      'content_post_rubrics',
+      'content_rubrics',
       'channel_joins',
       'invite_links',
       'dota_hero_assets',

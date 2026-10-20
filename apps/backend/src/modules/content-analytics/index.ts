@@ -57,3 +57,14 @@ export {
   readContentReport,
   SOURCE_D1_STATEMENTS
 } from './service';
+export { createD1ContentRubricRepository } from './d1-content-rubrics-repository';
+export {
+  type ContentRubricRepository,
+  createRubric,
+  readPostRubric,
+  readRubrics,
+  removeRubric,
+  setPostRubric,
+  type StudioTelegramMessages,
+  updateRubric
+} from './rubrics';

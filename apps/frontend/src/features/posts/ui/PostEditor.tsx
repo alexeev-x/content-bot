@@ -45,6 +45,8 @@ type Props = {
   /** Extra cards under the preview (this post's publications). */
   aside?: ReactNode;
   headerActions?: ReactNode;
+  /** Under the text and media: post settings the page composes from other features (the analytics rubric). */
+  postSettings?: ReactNode;
   /** Page-level banners (a failed delete): shown with the editor's own, so the phone composer does not cover them. */
   notices?: ReactNode;
   /** Tab the editor opens on; «Создать опрос» sends a new post straight to the poll form. */
@@ -56,7 +58,16 @@ const copy = postsCopy.editor;
 type ComposerTab = 'editor' | 'poll';
 const NARROW = '(max-width: 859px)';
 
-export function PostEditor({ post, onCreated, approvedActions, aside, headerActions, notices, initialTab }: Props) {
+export function PostEditor({
+  post,
+  onCreated,
+  approvedActions,
+  aside,
+  headerActions,
+  postSettings,
+  notices,
+  initialTab
+}: Props) {
   const rootRef = useRef<HTMLDivElement>(null);
   const dirtyRef = useRef(false);
   const mediaWriteLockState = useRef(false);
@@ -250,11 +261,13 @@ export function PostEditor({ post, onCreated, approvedActions, aside, headerActi
     <div className={styles.phoneStack}>
       {fields}
       {mediaEditor}
+      {postSettings}
     </div>
   ) : (
     <div className={styles.leftColumn}>
       <div className={styles.writeCard}>{fields}</div>
       {mediaEditor}
+      {postSettings}
     </div>
   );
   const mixedNotice = editor.mixed ? (

@@ -2,6 +2,7 @@ import type {
   ContentContaminationReason,
   ContentPlatform,
   ContentReportPeriod,
+  ContentRubricInput,
   ContentVideoFormat
 } from '@alexeev/contracts';
 import { infiniteQueryOptions, queryOptions, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -13,6 +14,12 @@ import {
   getInviteLinks,
   revokeInviteLink,
   getContentGoals,
+  getContentRubrics,
+  createContentRubric,
+  deleteContentRubric,
+  getPostRubric,
+  setPostRubric,
+  updateContentRubric,
   getContentItem,
   getContentItems,
   getContentOverview,
@@ -38,6 +45,10 @@ export const contentAnalyticsKeys = {
   item: (id: string) => [...contentAnalyticsKeys.all, 'item', id] as const,
   report: (days: ContentReportPeriod) => [...contentAnalyticsKeys.all, 'report', days] as const,
   goals: () => [...contentAnalyticsKeys.all, 'goals'] as const,
+  rubrics: () => [...contentAnalyticsKeys.all, 'rubrics'] as const,
+  rubricsOf: (days: ContentReportPeriod | undefined) =>
+    [...contentAnalyticsKeys.all, 'rubrics', days ?? 'names'] as const,
+  postRubric: (postId: string) => [...contentAnalyticsKeys.all, 'post-rubric', postId] as const,
   inviteLinks: (days?: ContentReportPeriod) =>
     days === undefined
       ? ([...contentAnalyticsKeys.all, 'invite-links'] as const)
@@ -242,5 +253,62 @@ export function useDisconnectTikTok() {
     mutationFn: disconnectTikTok,
     retry: false,
     onSuccess: () => void client.invalidateQueries({ queryKey: contentAnalyticsKeys.all })
+  });
+}
+
+/** Rubrics change only by the owner's hand; a post's rubric in the report changes with collection. */
+const RUBRICS_STALE_MS = 60_000;
+
+/** `days`: with each Telegram post's rubric in the report's window; without it, the names only (cheap). */
+export function contentRubricsQueryOptions(days?: ContentReportPeriod) {
+  return queryOptions({
+    queryKey: contentAnalyticsKeys.rubricsOf(days),
+    queryFn: ({ signal }) => getContentRubrics(days, signal),
+    staleTime: RUBRICS_STALE_MS
+  });
+}
+
+/** Adds (no id) or edits a rubric; every list of rubrics is re-read after the server's answer. */
+export function useSaveContentRubric() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, input }: { id?: string | undefined; input: ContentRubricInput }) =>
+      id === undefined ? createContentRubric(input) : updateContentRubric(id, input),
+    retry: false,
+    onSuccess: () => client.invalidateQueries({ queryKey: contentAnalyticsKeys.rubrics() })
+  });
+}
+
+export function useDeleteContentRubric() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => deleteContentRubric(id),
+    retry: false,
+    onSuccess: () =>
+      Promise.all([
+        client.invalidateQueries({ queryKey: contentAnalyticsKeys.rubrics() }),
+        client.invalidateQueries({ queryKey: [...contentAnalyticsKeys.all, 'post-rubric'] })
+      ])
+  });
+}
+
+export function postRubricQueryOptions(postId: string) {
+  return queryOptions({
+    queryKey: contentAnalyticsKeys.postRubric(postId),
+    queryFn: ({ signal }) => getPostRubric(postId, signal),
+    staleTime: RUBRICS_STALE_MS
+  });
+}
+
+/** The owner's pick for a studio post; the analytics' rubric list follows it. */
+export function useSetPostRubric(postId: string) {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (rubricId: string | null) => setPostRubric(postId, rubricId),
+    retry: false,
+    onSuccess: (picked) => {
+      client.setQueryData(contentAnalyticsKeys.postRubric(postId), picked);
+      return client.invalidateQueries({ queryKey: contentAnalyticsKeys.rubrics() });
+    }
   });
 }
