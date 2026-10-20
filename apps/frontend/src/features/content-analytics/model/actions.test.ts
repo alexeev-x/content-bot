@@ -100,6 +100,18 @@ describe('buildActions', () => {
       [834, 834]
     );
     expect(buildActions({ report: onTime, platform: 'youtube', days: 30, series: [] })).toEqual([]);
+    // The same video on TikTok an hour later is one release: the rhythm stays «раз в 2 дня».
+    const crossPosted = [
+      ...steady,
+      ...[2, 4, 6, 8, 10].map((daysAgo) => item('tiktok', 'Ролик', 1000, daysAgo + 2.04))
+    ];
+    const [again] = buildActions({
+      report: report(crossPosted, [834, 834]),
+      platform: undefined,
+      days: 30,
+      series: []
+    });
+    expect(again?.detail).toMatch(/^Обычно вы выкладываете ролик раз в 2 дня/);
   });
 });
 

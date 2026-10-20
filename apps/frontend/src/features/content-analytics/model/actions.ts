@@ -19,6 +19,8 @@ const VIDEO_GAP_DAYS = 3;
 const PAUSE_FACTOR = 1.5;
 /** Intervals between the latest videos that set «usual». */
 const USUAL_INTERVALS = 10;
+/** Publications closer than this are one release cross-posted, not two. */
+const SAME_RELEASE_MS = DAY_MS / 2;
 /** «Что сделать» shows at most this many cards (owner, 20.10.2026: four that matter, no «Показать ещё»). */
 export const CARDS_MAX = 4;
 /** A format «wins» at this many times the usual; it is set against another one at least this many times weaker. */
@@ -34,7 +36,13 @@ function timesWord(multiple: number): string {
 
 /** Median days between the latest videos, newest first; null with fewer than three intervals. */
 function usualIntervalDays(newestFirst: readonly { publishedAt: string }[]): number | null {
-  const times = newestFirst.slice(0, USUAL_INTERVALS + 1).map((item) => Date.parse(item.publishedAt));
+  // One video goes to YouTube and TikTok within hours: on DEV those pairs made «раз в день» of a video every four.
+  const times: number[] = [];
+  for (const item of newestFirst) {
+    const time = Date.parse(item.publishedAt);
+    if (times.length === 0 || times.at(-1)! - time >= SAME_RELEASE_MS) times.push(time);
+    if (times.length > USUAL_INTERVALS) break;
+  }
   const intervals = times.slice(1).map((time, index) => ((times[index] ?? time) - time) / DAY_MS);
   if (intervals.length < 3) return null;
   const sorted = [...intervals].sort((a, b) => a - b);
