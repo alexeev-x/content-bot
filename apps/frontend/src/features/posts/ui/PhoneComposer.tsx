@@ -81,10 +81,6 @@ export function PhoneComposer({ rootRef, header, notices, children, meta, kind, 
         onFocus={(event) => {
           if (event.target.matches(TEXT)) keyboard.textFocused();
         }}
-        onBlur={(event) => {
-          // Focus moving to another field keeps the keyboard up.
-          if (!(event.relatedTarget instanceof Element && event.relatedTarget.matches(TEXT))) keyboard.textBlurred();
-        }}
       >
         <article className={styles.message} aria-label={copy.message}>
           {children(tools)}

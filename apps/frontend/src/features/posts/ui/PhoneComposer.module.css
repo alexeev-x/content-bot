@@ -107,7 +107,3 @@
 .root[data-keyboard] .bar {
   padding-bottom: var(--space-1);
 }
-/* Moves along the keyboard's own animation while the bar follows a predicted keyboard (useKeyboardPanel). */
-.root[data-animate] {
-  transition: height calc(var(--motion-base) + var(--motion-fast)) cubic-bezier(0.2, 0.8, 0.2, 1);
-}
