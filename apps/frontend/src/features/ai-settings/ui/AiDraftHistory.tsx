@@ -182,7 +182,7 @@ export function AiDraftHistory({ view: outer, onViewChange }: Props) {
       {
         id: 'versions',
         header: t.columns.versions,
-        width: 96,
+        width: 124,
         align: 'end',
         allowsSorting: true,
         cell: (draft) => <span className={styles.num}>{draft.versions}</span>

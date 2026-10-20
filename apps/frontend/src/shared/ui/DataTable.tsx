@@ -72,6 +72,9 @@ type Props<T> = {
 };
 
 const SELECT_COLUMN_WIDTH = 52;
+/** Least width of a column without a fixed one (the title), and of one sized in per cent. */
+const FLUID_COLUMN_MIN = 200;
+const SHARE_COLUMN_MIN = 96;
 const SKELETON_ROWS = 5;
 const SKELETON_CARDS = 3;
 const SKELETON_WIDTHS = [64, 48, 72, 40] as const;
@@ -112,6 +115,19 @@ function Grid<T>({
     () => Array.from({ length: loadingCount }, (_, index) => ({ id: `skeleton-${index}` })),
     [loadingCount]
   );
+  // Fixed columns take their widths first, so on a narrow screen a column without one (the title) was squeezed to
+  // a few pixels and its header cut. Below this width the table scrolls inside its frame instead.
+  const minWidth =
+    columns.reduce(
+      (sum, column) =>
+        sum +
+        (typeof column.width === 'number'
+          ? column.width
+          : column.width === undefined
+            ? FLUID_COLUMN_MIN
+            : SHARE_COLUMN_MIN),
+      0
+    ) + (selectionMode === 'multiple' ? SELECT_COLUMN_WIDTH : 0);
   return (
     <div
       className={styles.wrap}
@@ -122,6 +138,7 @@ function Grid<T>({
       <Table
         aria-label={rest['aria-label']}
         className={styles.table}
+        style={{ minWidth }}
         selectionMode={selectionMode}
         selectedKeys={selected as Selection | undefined}
         disabledKeys={disabledIds}
