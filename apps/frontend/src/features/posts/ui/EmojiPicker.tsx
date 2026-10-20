@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { Button } from 'react-aria-components';
 import { SearchField } from '../../../shared/ui';
 import { EMOJI_CATEGORIES, type EmojiEntry, readRecentEmoji, searchEmoji } from '../model/emoji-data';
 import styles from './EmojiPicker.module.css';
@@ -27,9 +26,17 @@ function Grid({
       <h3 className={styles.heading}>{label}</h3>
       <div className={styles.grid}>
         {items.map((item) => (
-          <Button key={item.char} className={styles.emoji} aria-label={name(item)} onPress={() => onPick(item.char)}>
+          // Native buttons: hundreds of React Aria buttons took a quarter second to render the phone panel, long
+          // enough to show an empty gap where the keyboard had been (owner's iPhone screenshots, 20.10.2026).
+          <button
+            key={item.char}
+            type="button"
+            className={styles.emoji}
+            aria-label={name(item)}
+            onClick={() => onPick(item.char)}
+          >
             {item.char}
-          </Button>
+          </button>
         ))}
       </div>
     </section>

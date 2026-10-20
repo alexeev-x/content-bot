@@ -122,3 +122,7 @@
   white-space: pre-wrap;
   pointer-events: none;
 }
+/* The keyboard is moving (useKeyboardPanel): the bar travels along with it to the height Telegram announced. */
+.root[data-animate] {
+  transition: height calc(var(--motion-base) + var(--motion-fast)) cubic-bezier(0.2, 0.8, 0.2, 1);
+}

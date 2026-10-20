@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type RefObject } from 'react';
-import { subscribeViewportChanged } from '../../../shared/telegram/web-app';
+import { readTelegramViewport, subscribeViewportChanged } from '../../../shared/telegram/web-app';
 
 export type PhonePanel = 'format' | 'emoji' | 'media' | 'poll';
 
@@ -8,6 +8,8 @@ type Metrics = {
   full: number;
   /** What is visible now: smaller than `full` while the keyboard is up. */
   visible: number;
+  /** Where the column ends: Telegram's viewport when it is inside Telegram, else `visible`. */
+  target: number;
   top: number;
 };
 
@@ -20,14 +22,19 @@ const KEYBOARD_WAIT_MS = 600;
 const fullByWidth = new Map<number, number>();
 const keyboardByWidth = new Map<number, number>();
 
+// Telegram on an iPhone (owner's screenshots, 20.10.2026): `viewportChanged` brings the new height as the keyboard
+// starts to move, while the page itself is resized only ~0.4 s later, when the keyboard is already up. Following the
+// page left the bar under the keyboard and then made it jump; Telegram's number is exact and early.
 function measure(): Metrics {
   const viewport = window.visualViewport;
   const visible = Math.round(viewport?.height ?? window.innerHeight);
+  const telegram = readTelegramViewport();
+  const target = telegram && telegram.height > 0 ? Math.round(telegram.height) : visible;
   const width = window.innerWidth;
-  const full = Math.max(fullByWidth.get(width) ?? 0, window.innerHeight, visible);
+  const full = Math.max(fullByWidth.get(width) ?? 0, window.innerHeight, visible, target);
   fullByWidth.set(width, full);
-  if (full - visible >= KEYBOARD_MIN) keyboardByWidth.set(width, full - visible);
-  return { full, visible, top: Math.max(0, Math.round(viewport?.offsetTop ?? 0)) };
+  if (full - target >= KEYBOARD_MIN) keyboardByWidth.set(width, full - target);
+  return { full, visible, target, top: Math.max(0, Math.round(viewport?.offsetTop ?? 0)) };
 }
 
 const panelHeightFor = (full: number) =>
@@ -38,7 +45,7 @@ const panelHeightFor = (full: number) =>
  * and a panel (emoji, formatting, media) comes, and back (owner, 20.10.2026: «никаких скачков»).
  *
  * While a panel is open the column is the full screen and the panel is the keyboard's height; otherwise the column is
- * exactly the visible viewport, following every report of it. The height is written straight to the column's style,
+ * the viewport, following every report of it (inside Telegram, Telegram's own early report). The height is written straight to the column's style,
  * never through React state, so a resize does not re-render the editor. Nothing is predicted or animated here: a
  * guessed keyboard fought the real one and made the bar twitch (owner, 20.10.2026: «туда-сюда дёргается»).
  */
@@ -48,24 +55,37 @@ export function useKeyboardPanel(rootRef: RefObject<HTMLElement | null>) {
   const [keyboardOpen, setKeyboardOpen] = useState(false);
   const panelRef = useRef<PhonePanel | null>(null);
 
-  /** The column fits the visible viewport (the full screen under a panel). Style only, no React state. */
-  const place = useCallback(() => {
-    const metrics = measure();
-    const root = rootRef.current;
-    if (root) {
-      root.style.height = `${panelRef.current === null ? metrics.visible : metrics.full}px`;
-      root.style.transform = metrics.top === 0 ? '' : `translateY(${metrics.top}px)`;
-      root.style.setProperty('--panel-height', `${panelHeightFor(metrics.full)}px`);
-    }
-    return metrics.full - metrics.visible >= KEYBOARD_MIN;
-  }, [rootRef]);
+  /**
+   * The column fits the viewport (the full screen under a panel). Style only, no React state. `animate`: a keyboard
+   * is moving, so the bar travels with it instead of stepping.
+   */
+  const place = useCallback(
+    (animate: boolean) => {
+      const metrics = measure();
+      const root = rootRef.current;
+      if (root) {
+        const height = `${panelRef.current === null ? metrics.target : metrics.full}px`;
+        // An unchanged height leaves a running transition alone (the page's late resize repeats Telegram's number).
+        if (root.style.height !== height) {
+          if (animate) root.dataset.animate = '';
+          else delete root.dataset.animate;
+          root.style.height = height;
+        }
+        root.style.transform = metrics.top === 0 ? '' : `translateY(${metrics.top}px)`;
+        root.style.setProperty('--panel-height', `${panelHeightFor(metrics.full)}px`);
+      }
+      // The real page, not Telegram's early number: an open panel waits until the keyboard really covers it.
+      return metrics.full - metrics.visible >= KEYBOARD_MIN;
+    },
+    [rootRef]
+  );
 
   useEffect(() => {
     let frame = 0;
     const onViewport = () => {
       cancelAnimationFrame(frame);
       // React learns only whether the keyboard is up, which changes twice per keyboard.
-      frame = requestAnimationFrame(() => setKeyboardOpen(place()));
+      frame = requestAnimationFrame(() => setKeyboardOpen(place(true)));
     };
     const viewport = window.visualViewport;
     viewport?.addEventListener('resize', onViewport);
@@ -84,7 +104,7 @@ export function useKeyboardPanel(rootRef: RefObject<HTMLElement | null>) {
   // A panel opens or closes in the same frame as the column's height changes, so the bar does not move.
   useLayoutEffect(() => {
     panelRef.current = panel;
-    place();
+    place(false);
   }, [panel, place]);
 
   // The text was tapped with a panel open: the panel stays under the rising keyboard and goes once it is up.

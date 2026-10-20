@@ -33,18 +33,26 @@
   min-block-size: 2.25rem;
   overflow: hidden;
   place-items: center;
+  padding: 0;
   border: 0;
   border-radius: var(--radius-1);
   background: transparent;
+  color: inherit;
   font-size: 1.25rem;
+  touch-action: manipulation;
   line-height: 1;
   cursor: pointer;
 }
-.emoji[data-hovered],
-.emoji[data-focus-visible] {
+.emoji:focus-visible,
+.emoji:active {
   background: var(--color-surface-3);
 }
-.emoji[data-focus-visible] {
+@media (hover: hover) {
+  .emoji:hover {
+    background: var(--color-surface-3);
+  }
+}
+.emoji:focus-visible {
   outline: 2px solid var(--color-focus-ring);
   outline-offset: -2px;
 }
