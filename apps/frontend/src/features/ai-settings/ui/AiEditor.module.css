@@ -1,0 +1,135 @@
+.overview,
+.sections {
+  display: grid;
+  gap: var(--space-4);
+  min-width: 0;
+}
+.intro {
+  margin: 0;
+  max-inline-size: 75ch;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+.meta {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+/* The state in one row: the provider, its status, what is next, and the way to the settings. */
+.state {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-2);
+  background: var(--color-surface-1);
+}
+.stateText {
+  display: grid;
+  flex: 1;
+  gap: 2px;
+  min-width: 0;
+}
+.stateTitle {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  font-weight: var(--font-weight-semibold);
+}
+.decisions {
+  padding: 0 var(--space-4) var(--space-4);
+}
+.calm {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  color: var(--color-status-done-fg);
+  font-size: var(--font-size-sm);
+}
+.decisionList {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+/* Icon, what and why, the one button that leads to where it is decided. */
+.decision {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) 0;
+  border-top: 1px solid var(--color-border-subtle);
+}
+.decision:first-child {
+  border-top: 0;
+  padding-top: 0;
+}
+.decisionIcon {
+  display: grid;
+  place-items: center;
+  width: var(--size-control);
+  height: var(--size-control);
+  border-radius: var(--radius-2);
+  background: var(--color-surface-2);
+  color: var(--color-text-muted);
+}
+.decision[data-tone='warning'] .decisionIcon {
+  background: var(--color-status-unknown-bg);
+  color: var(--color-status-unknown-fg);
+}
+.decisionText {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  font-size: var(--font-size-sm);
+}
+.decisionText span {
+  color: var(--color-text-muted);
+}
+.pair {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
+  gap: var(--space-4);
+  align-items: start;
+}
+.money {
+  display: grid;
+  gap: var(--space-2);
+  padding: 0 var(--space-4) var(--space-4);
+}
+.moneyValue {
+  margin: 0;
+  color: var(--color-text-muted);
+}
+.moneyValue strong {
+  color: var(--color-text);
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-semibold);
+  font-variant-numeric: tabular-nums;
+}
+.money > :last-child {
+  justify-self: start;
+}
+.limits {
+  display: flex;
+  justify-content: flex-end;
+}
+@media (max-width: 1099px) {
+  .pair {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+@media (max-width: 599px) {
+  .decision {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+  .decision > :last-child {
+    grid-column: 2;
+    justify-self: start;
+  }
+}

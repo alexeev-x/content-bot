@@ -1,13 +1,11 @@
 import type { AiCatalogModelDto, AiOverviewDto, UpdateAiSettingsInput } from '@alexeev/contracts';
 import { useQuery } from '@tanstack/react-query';
+import { useNavigate } from '@tanstack/react-router';
 import { useState } from 'react';
 import { ApiError } from '../../../shared/api/http-client';
-import { useNow } from '../../../shared/lib/use-now';
 import {
   Banner,
   Button,
-  Disclosure,
-  DisclosureGroup,
   ErrorState,
   Icon,
   IconBadge,
@@ -16,8 +14,6 @@ import {
   SegmentedControl,
   Select,
   Skeleton,
-  StatGrid,
-  StatTile,
   StatusPill,
   Switch,
   VisuallyHidden,
@@ -25,22 +21,7 @@ import {
   useToast
 } from '../../../shared/ui';
 import { aiOverviewQueryOptions, useCheckAiConnection, useSaveAiSettings } from '../api/ai-queries';
-import {
-  aiStatus,
-  approvalPercent,
-  BUDGET_PRESETS,
-  DAILY_PRESETS,
-  draftCostCents,
-  lowApproval,
-  WARN_PRESETS
-} from '../model/ai-view';
-import { AiFeedbackList } from './AiFeedbackList';
-import { AiLearningList } from './AiLearningList';
-import { AiDraftHistory } from './AiDraftHistory';
-import { AiHypothesesList } from './AiHypothesesList';
-import { AiRulesList } from './AiRulesList';
-import { AiQualityByFormat, AiQualityByFormatSkeleton, AiQualityComparison } from './AiQualityExtras';
-import { AiUnlinkedScripts } from './AiUnlinkedScripts';
+import { aiStatus, BUDGET_PRESETS, DAILY_PRESETS, draftCostCents, WARN_PRESETS } from '../model/ai-view';
 import { copy, usd } from './copy';
 import styles from './AiSettingsPage.module.css';
 
@@ -58,8 +39,6 @@ export function AiSettingsPage() {
 
 /** The page before its data exists, no request: the same blocks at the height they fill. Also the route skeleton. */
 export function AiSettingsSkeleton() {
-  const now = useNow();
-  const month = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
   return (
     <div className={styles.page} aria-busy="true">
       <VisuallyHidden>
@@ -90,85 +69,7 @@ export function AiSettingsSkeleton() {
             </Button>
           </div>
         </section>
-        <div className={styles.pair}>
-          <Panel
-            title={copy.spendTitle}
-            icon={<Icon name="chart" />}
-            action={<span className={styles.meta}>{copy.monthLabel(month)}</span>}
-          >
-            <div className={styles.body}>
-              <div className={styles.spend}>
-                <p className={styles.spendLabel}>{copy.spentIn(month)}</p>
-                <div className={styles.spendMain}>
-                  <p className={styles.spendValue}>
-                    <Skeleton width={120} height="1lh" />
-                  </p>
-                  <p className={styles.meta}>
-                    <Skeleton width={180} height="1lh" />
-                  </p>
-                </div>
-                <ProgressBar label={copy.spendBar} value={0} />
-              </div>
-              <StatGrid columns="two">
-                {[copy.tiles.left, copy.tiles.today, copy.tiles.requests, copy.tiles.average].map((label) => (
-                  <StatTile
-                    key={label}
-                    label={label}
-                    value={<Skeleton width={72} height="1lh" />}
-                    meta={<Skeleton width="80%" height="1lh" />}
-                    icon="file"
-                    tone="muted"
-                    iconAt="start"
-                  />
-                ))}
-              </StatGrid>
-            </div>
-          </Panel>
-          <Panel title={copy.quality.title(30)} icon={<Icon name="check-circle" />}>
-            <div className={styles.body}>
-              <p className={styles.spendLabel}>{copy.quality.lead}</p>
-              <StatGrid columns="two">
-                {[copy.quality.editRatio, copy.quality.approved, copy.quality.draftCost, copy.quality.rewrites].map(
-                  (label) => (
-                    <StatTile
-                      key={label}
-                      label={label}
-                      value={<Skeleton width={56} height="1lh" />}
-                      meta={<Skeleton width="70%" height="1lh" />}
-                      icon="file"
-                      tone="muted"
-                      iconAt="start"
-                    />
-                  )
-                )}
-              </StatGrid>
-              <p className={styles.meta}>
-                <Skeleton width="80%" height="1lh" />
-              </p>
-              <AiQualityByFormatSkeleton />
-              <div className={styles.notes}>
-                <Icon name="info" size={16} className={styles.notesIcon} />
-                <div className={styles.notesText}>
-                  <p className={styles.meta}>
-                    <Skeleton lines={3} width="80%" height="1lh" />
-                  </p>
-                </div>
-              </div>
-            </div>
-            <div className={styles.body}>
-              <DisclosureGroup>
-                <Disclosure id="learning" title={copy.learning.title}>
-                  {null}
-                </Disclosure>
-              </DisclosureGroup>
-              <DisclosureGroup>
-                <Disclosure id="unlinked" title={copy.unlinked.title}>
-                  {null}
-                </Disclosure>
-              </DisclosureGroup>
-            </div>
-          </Panel>
-        </div>
+        <AiSpendLineSkeleton />
         <Panel title={copy.modelsTitle} icon={<Icon name="settings" />}>
           <p className={styles.intro}>{copy.modelsIntro('OpenAI')}</p>
           <div className={styles.models}>
@@ -235,16 +136,6 @@ export function AiSettingsSkeleton() {
             <p className={styles.meta}>{copy.monthlyHint}</p>
           </div>
         </Panel>
-        <Panel title={copy.voiceTitle} icon={<Icon name="message" />}>
-          <p className={styles.voice}>{copy.voiceBody}</p>
-        </Panel>
-        <div className={styles.extra}>
-          <DisclosureGroup>
-            <Disclosure id="prices" title={copy.pricesTitle('OpenAI', `${month}-01`)}>
-              {null}
-            </Disclosure>
-          </DisclosureGroup>
-        </div>
       </div>
     </div>
   );
@@ -310,7 +201,6 @@ function AiSettings({ overview, onReload }: { overview: AiOverviewDto; onReload:
     return model === undefined ? null : modelOption(model, role).description;
   };
   const last = connection.lastCheck;
-  const share = settings.monthlyBudgetUsd > 0 ? Math.min(100, (spend.spentUsd / settings.monthlyBudgetUsd) * 100) : 0;
   const budgetValue =
     BUDGET_PRESETS.includes(settings.monthlyBudgetUsd) && customBudget === null
       ? String(settings.monthlyBudgetUsd)
@@ -364,67 +254,8 @@ function AiSettings({ overview, onReload }: { overview: AiOverviewDto; onReload:
       {/* Right under the state, not after the whole page: it is why drafts stopped. */}
       {spend.blockedBy === 'monthly_budget' ? <Banner tone="warning" title={copy.blocked.monthly_budget} /> : null}
 
-      <div className={styles.pair}>
-        <Panel
-          title={copy.spendTitle}
-          icon={<Icon name="chart" />}
-          action={<span className={styles.meta}>{copy.monthLabel(spend.month)}</span>}
-        >
-          <div className={styles.body}>
-            <div className={styles.spend}>
-              <p className={styles.spendLabel}>{copy.spentIn(spend.month)}</p>
-              <div className={styles.spendMain}>
-                <p className={styles.spendValue}>
-                  <strong>{usd(spend.spentUsd)}</strong> {copy.of} {usd(settings.monthlyBudgetUsd)}
-                </p>
-                <p className={styles.meta}>
-                  {copy.left(usd(spend.leftUsd))} · {copy.used(share)}
-                </p>
-              </div>
-              <ProgressBar label={copy.spendBar} value={share} tone={share >= 100 ? 'failed' : 'accent'} />
-            </div>
-            <StatGrid columns="two">
-              <StatTile
-                label={copy.tiles.left}
-                value={usd(spend.leftUsd)}
-                meta={copy.tiles.leftShare(share)}
-                icon="wallet"
-                tone="muted"
-                iconAt="start"
-              />
-              <StatTile
-                icon="calendar"
-                tone="muted"
-                iconAt="start"
-                label={copy.tiles.today}
-                value={usd(spend.todayUsd)}
-                meta={dailyValue === 'all' ? null : copy.tiles.dailyOf(usd(settings.dailyCapUsd))}
-              />
-              <StatTile
-                icon="file"
-                tone="muted"
-                iconAt="start"
-                label={copy.tiles.requests}
-                value={spend.requests}
-                meta={
-                  spend.byKind.length > 0
-                    ? spend.byKind.map((row) => `${copy.kind[row.kind]}: ${row.requests}`).join(', ')
-                    : copy.noSpend
-                }
-              />
-              <StatTile
-                label={copy.tiles.average}
-                value={spend.averageUsd === null ? '—' : usd(spend.averageUsd)}
-                icon="tag"
-                tone="muted"
-                iconAt="start"
-              />
-            </StatGrid>
-          </div>
-        </Panel>
-
-        <QualityPanel quality={overview.quality} />
-      </div>
+      {/* Money lives in ИИ-редактор → Расходы (owner, 20.10.2026: settings hold only what is set); here one line. */}
+      <AiSpendLine overview={overview} />
 
       <Panel title={copy.modelsTitle} icon={<Icon name="settings" />}>
         <p className={styles.intro}>{copy.modelsIntro(catalog.providerLabel)}</p>
@@ -523,193 +354,40 @@ function AiSettings({ overview, onReload }: { overview: AiOverviewDto; onReload:
           <p className={styles.meta}>{copy.monthlyHint}</p>
         </div>
       </Panel>
-
-      <Panel title={copy.voiceTitle} icon={<Icon name="message" />}>
-        <p className={styles.voice}>{copy.voiceBody}</p>
-      </Panel>
-
-      <div className={styles.extra}>
-        <DisclosureGroup>
-          <Disclosure id="prices" title={copy.pricesTitle(catalog.providerLabel, catalog.pricesCheckedOn)}>
-            <div className={styles.pricesBody}>
-              <table className={styles.prices}>
-                <thead>
-                  <tr>
-                    <th scope="col">{copy.model}</th>
-                    <th scope="col">{copy.input}</th>
-                    <th scope="col">{copy.cached}</th>
-                    <th scope="col">{copy.output}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {catalog.models.map((model) => (
-                    <tr key={model.id}>
-                      <th scope="row">{model.label}</th>
-                      <td>${model.inputPerMillion}</td>
-                      <td>${model.cachedInputPerMillion}</td>
-                      <td>${model.outputPerMillion}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-              <p className={styles.meta}>{copy.pricesHint}</p>
-            </div>
-          </Disclosure>
-        </DisclosureGroup>
-      </div>
     </div>
   );
 }
 
-/** «Качество»: how much the owner changes before approving, and what the checks and buttons say. */
-function QualityPanel({ quality }: { quality: AiOverviewDto['quality'] }) {
-  const ratio = quality.averageEditRatio;
-  const details = copy.quality.details(quality.questions ?? 0, quality.withWarnings, quality.failed);
-  // An older server sends only the «Шутка не зашла» count.
-  const verdicts =
-    quality.feedback ?? (quality.jokeMissed > 0 ? [{ kind: 'joke_missed' as const, count: quality.jokeMissed }] : []);
-  // The three parts changed most, from a tenth of approvals up: rarer ones are noise at this volume.
-  const parts = quality.changedParts.filter((row) => row.share >= 0.1).slice(0, 3);
-  const approved = approvalPercent(quality);
-  // The list loads only once opened: most visits never look at it.
-  const [feedbackOpen, setFeedbackOpen] = useState(false);
-  const verdictCount = verdicts.reduce((total, row) => total + row.count, 0);
-  const [learningOpen, setLearningOpen] = useState(false);
-  const [rulesOpen, setRulesOpen] = useState(false);
-  const [hypothesesOpen, setHypothesesOpen] = useState(false);
-  const [draftsOpen, setDraftsOpen] = useState(false);
-  const [unlinkedOpen, setUnlinkedOpen] = useState(false);
-  const studioRuns = quality.studioDrafts ?? 0;
+/** Money in one line with the way to it: the full picture is ИИ-редактор → Расходы. */
+function AiSpendLine({ overview }: { overview: AiOverviewDto }) {
+  const navigate = useNavigate();
+  const { spend, settings } = overview;
+  const share = settings.monthlyBudgetUsd > 0 ? Math.min(100, (spend.spentUsd / settings.monthlyBudgetUsd) * 100) : 0;
   return (
-    <Panel title={copy.quality.title(quality.days)} icon={<Icon name="check-circle" />}>
-      {quality.drafts + quality.rewrites + (quality.questions ?? 0) + quality.failed === 0 ? (
-        <div className={styles.body}>
-          <p className={styles.meta}>{copy.quality.empty}</p>
-          {studioRuns > 0 ? <p className={styles.meta}>{copy.quality.studioRuns(studioRuns)}</p> : null}
-        </div>
-      ) : (
-        <div className={styles.body}>
-          <p className={styles.spendLabel}>{copy.quality.lead}</p>
-          <StatGrid columns="two">
-            <StatTile
-              icon="file"
-              tone="muted"
-              iconAt="start"
-              label={copy.quality.editRatio}
-              value={ratio === null ? '—' : `${Math.round(ratio * 100)}%`}
-              meta={ratio === null ? copy.quality.noApprovals : copy.quality.editHint(ratio)}
-            />
-            <StatTile
-              icon="check-circle"
-              tone="done"
-              iconAt="start"
-              label={copy.quality.approved}
-              value={`${quality.approved} ${copy.of} ${quality.drafts}`}
-              meta={[
-                approved === null ? null : copy.quality.approvedShare(approved),
-                copy.quality.unchanged(quality.approvedUnchanged)
-              ]
-                .filter(Boolean)
-                .join(' · ')}
-            />
-            <StatTile
-              icon="tag"
-              tone="muted"
-              iconAt="start"
-              label={copy.quality.draftCost}
-              value={quality.averageDraftUsd === null ? '—' : usd(quality.averageDraftUsd)}
-              meta={copy.quality.draftCostMeta}
-            />
-            <StatTile
-              label={copy.quality.rewrites}
-              value={quality.rewrites}
-              meta={copy.quality.rewritesMeta}
-              icon="retry"
-              tone="muted"
-              iconAt="start"
-            />
-          </StatGrid>
-          <AiQualityComparison quality={quality} />
-          {lowApproval(quality) && approved !== null ? (
-            <Banner tone="warning" size="sm" title={copy.quality.lowTitle(approved)} />
-          ) : null}
-          <AiQualityByFormat rows={quality.byFormat} />
-          {/* The secondary counts, under a rule as one quiet footer (design-refs/ai-spend-quality). */}
-          {parts.length > 0 || verdicts.length > 0 || details || studioRuns > 0 ? (
-            <div className={styles.notes}>
-              <Icon name="info" size={16} className={styles.notesIcon} />
-              <div className={styles.notesText}>
-                {parts.length > 0 ? (
-                  <p className={styles.meta}>
-                    {copy.quality.partsLead}
-                    {parts.map((row) => `${copy.quality.part[row.part]} — ${Math.round(row.share * 100)}%`).join(' · ')}
-                  </p>
-                ) : null}
-                {verdicts.length > 0 ? (
-                  <p className={styles.meta}>
-                    {copy.quality.feedbackLead}
-                    {verdicts.map((row) => `${copy.quality.feedback[row.kind]} — ${row.count}`).join(' · ')}
-                  </p>
-                ) : null}
-                {details ? <p className={styles.meta}>{details}</p> : null}
-                {studioRuns > 0 ? <p className={styles.meta}>{copy.quality.studioRuns(studioRuns)}</p> : null}
-              </div>
-            </div>
-          ) : null}
-          {verdictCount > 0 ? (
-            <DisclosureGroup
-              expandedKeys={feedbackOpen ? ['feedback'] : []}
-              onExpandedChange={(keys) => setFeedbackOpen(keys.has('feedback'))}
-            >
-              <Disclosure id="feedback" title={copy.quality.feedbackListTitle(verdictCount)}>
-                {feedbackOpen ? <AiFeedbackList /> : null}
-              </Disclosure>
-            </DisclosureGroup>
-          ) : null}
-        </div>
-      )}
-      <div className={styles.body}>
-        <DisclosureGroup
-          expandedKeys={draftsOpen ? ['drafts'] : []}
-          onExpandedChange={(keys) => setDraftsOpen(keys.has('drafts'))}
-        >
-          <Disclosure id="drafts" title={copy.drafts.title}>
-            {draftsOpen ? <AiDraftHistory /> : null}
-          </Disclosure>
-        </DisclosureGroup>
-        <DisclosureGroup
-          expandedKeys={rulesOpen ? ['rules'] : []}
-          onExpandedChange={(keys) => setRulesOpen(keys.has('rules'))}
-        >
-          <Disclosure id="rules" title={copy.rules.title}>
-            {rulesOpen ? <AiRulesList /> : null}
-          </Disclosure>
-        </DisclosureGroup>
-        <DisclosureGroup
-          expandedKeys={hypothesesOpen ? ['hypotheses'] : []}
-          onExpandedChange={(keys) => setHypothesesOpen(keys.has('hypotheses'))}
-        >
-          <Disclosure id="hypotheses" title={copy.hypotheses.title}>
-            {hypothesesOpen ? <AiHypothesesList /> : null}
-          </Disclosure>
-        </DisclosureGroup>
-        <DisclosureGroup
-          expandedKeys={learningOpen ? ['learning'] : []}
-          onExpandedChange={(keys) => setLearningOpen(keys.has('learning'))}
-        >
-          <Disclosure id="learning" title={copy.learning.title}>
-            {learningOpen ? <AiLearningList /> : null}
-          </Disclosure>
-        </DisclosureGroup>
-        <DisclosureGroup
-          expandedKeys={unlinkedOpen ? ['unlinked'] : []}
-          onExpandedChange={(keys) => setUnlinkedOpen(keys.has('unlinked'))}
-        >
-          <Disclosure id="unlinked" title={copy.unlinked.title}>
-            {unlinkedOpen ? <AiUnlinkedScripts /> : null}
-          </Disclosure>
-        </DisclosureGroup>
+    <section className={styles.spendLine} aria-label={copy.spendTitle}>
+      <div className={styles.spendLineText}>
+        <p className={styles.meta}>{copy.spendLine(usd(spend.spentUsd), usd(settings.monthlyBudgetUsd))}</p>
+        <ProgressBar label={copy.spendBar} value={share} tone={share >= 100 ? 'failed' : 'accent'} />
       </div>
-    </Panel>
+      <Button
+        size="sm"
+        variant="secondary"
+        icon="arrow-right"
+        onPress={() => void navigate({ to: '/ai', search: { tab: 'spend' } })}
+      >
+        {copy.spendLink}
+      </Button>
+    </section>
+  );
+}
+
+function AiSpendLineSkeleton() {
+  return (
+    <section className={styles.spendLine} aria-hidden="true">
+      <div className={styles.spendLineText}>
+        <Skeleton width="60%" height="1lh" />
+        <ProgressBar label={copy.spendBar} value={0} />
+      </div>
+    </section>
   );
 }

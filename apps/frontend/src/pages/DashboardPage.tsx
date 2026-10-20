@@ -115,7 +115,7 @@ export function DashboardPage({ pollMs, openPublicationId, onOpenPublicationChan
     sources: { rows: sourceRows, footer: sourcesFooter },
     ai: {
       badge: <AiStatusBadge />,
-      body: <AiSpendSummary onOpenSettings={() => void navigate({ to: '/settings/ai' })} />
+      body: <AiSpendSummary onOpenSettings={() => void navigate({ to: '/ai', search: { tab: 'spend' } })} />
     },
     dota: <DotaSummary />
   };

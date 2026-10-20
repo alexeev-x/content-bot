@@ -19,6 +19,8 @@ export const NAV_ITEMS: readonly NavItem[] = [
   { to: '/posts', label: ru.nav.posts, icon: 'file', primary: true },
   { to: '/publications', label: ru.nav.publications, icon: 'send', primary: true, badge: 'incidents' },
   { to: '/analytics', label: ru.nav.analytics, icon: 'chart', primary: false },
+  // What the AI writes, learns and costs (owner, 20.10.2026: it outgrew Настройки → ИИ, which keeps only settings).
+  { to: '/ai', label: ru.nav.ai, icon: 'sparkle', primary: false },
   { to: '/media', label: ru.nav.media, icon: 'image', primary: false },
   { to: '/sources', label: ru.nav.sources, icon: 'link', primary: false },
   { to: '/settings', label: ru.nav.settings, icon: 'settings', primary: false, pinned: true }

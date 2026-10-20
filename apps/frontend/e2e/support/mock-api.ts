@@ -852,6 +852,34 @@ export async function mockApi(page: Page): Promise<void> {
       ]
     })
   );
+  await page.route(/\/api\/v1\/ai\/hypotheses$/, (route) =>
+    json(route, {
+      items: [
+        {
+          code: 3,
+          text: 'Ролики, где ошибка названа в первой фразе, набирают больше к 24 часам.',
+          scope: 'fidit',
+          kind: 'writing',
+          status: 'supported',
+          confidence: 'medium',
+          note: '4 из 5 таких роликов выше обычного; без этого — 1 из 4.',
+          asked: true,
+          updatedAt: T
+        },
+        {
+          code: 4,
+          text: 'Серия «Учусь играть» проседает после 60-й части.',
+          scope: 'igrat',
+          kind: 'topic',
+          status: 'open',
+          confidence: 'low',
+          note: null,
+          asked: false,
+          updatedAt: T
+        }
+      ]
+    })
+  );
   await page.route(/\/api\/v1\/ai\/rules$/, (route) =>
     json(route, {
       inUseMax: 15,

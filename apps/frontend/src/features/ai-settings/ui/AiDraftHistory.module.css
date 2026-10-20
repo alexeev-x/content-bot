@@ -84,3 +84,38 @@
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
+
+/* One line per draft (owner, 20.10.2026): the task and its facts; the texts open in the side panel. */
+.filters {
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.rows {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.row {
+  display: grid;
+  gap: 2px;
+  width: 100%;
+  min-height: var(--size-target);
+  padding: var(--space-2) var(--space-1);
+  border: 0;
+  border-bottom: 1px solid var(--color-border-subtle);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+  outline: none;
+}
+.row[data-hovered] .task {
+  text-decoration: underline;
+}
+.row[data-focus-visible] {
+  outline: var(--focus-ring-width) solid var(--color-focus-ring);
+  outline-offset: calc(-1 * var(--focus-ring-width));
+  border-radius: var(--radius-1);
+}

@@ -1,5 +1,5 @@
 import { AI_QUALITY_MIN_APPROVED, type AiFormatQualityDto, type AiOverviewDto } from '@alexeev/contracts';
-import { DataTable, Skeleton, useMediaQuery, type DataColumn } from '../../../shared/ui';
+import { Carousel, DataTable, Skeleton, useMediaQuery, type DataColumn } from '../../../shared/ui';
 import { formatMinutes, qualityComparison, sharePercent, splitFormats } from '../model/ai-view';
 import { copy } from './copy';
 import styles from './AiQualityExtras.module.css';
@@ -51,13 +51,22 @@ export function AiQualityByFormat({ rows }: { rows: AiOverviewDto['quality']['by
         {t.title}
       </h3>
       {active.length === 0 ? null : narrow ? (
-        <DataTable
-          aria-label={t.label}
-          columns={COLUMNS}
-          rows={active}
-          getRowId={(row) => row.format}
-          getRowText={(row) => copy.quality.format[row.format]}
-        />
+        // A swipeable card per format on a phone (owner, 20.10.2026: nine-row tables one under another).
+        <Carousel label={t.label}>
+          {active.map((row) => (
+            <article key={row.format} className={styles.formatCard} aria-label={copy.quality.format[row.format]}>
+              <h4 className={styles.formatTitle}>{copy.quality.format[row.format]}</h4>
+              <dl className={styles.formatFacts}>
+                {METRICS.map((metric) => (
+                  <div key={metric.id}>
+                    <dt>{metric.label}</dt>
+                    <dd>{metric.value(row)}</dd>
+                  </div>
+                ))}
+              </dl>
+            </article>
+          ))}
+        </Carousel>
       ) : (
         <DataTable aria-label={t.label} columns={columns} rows={METRICS} getRowId={(row) => row.id} flush />
       )}
