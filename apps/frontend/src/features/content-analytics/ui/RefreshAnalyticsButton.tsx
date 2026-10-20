@@ -15,14 +15,7 @@ export function RefreshAnalyticsButton({ compact = false }: { compact?: boolean 
       onError: () => toast.show({ tone: 'error', title: copy.refreshFailed })
     });
   return compact ? (
-    <IconButton
-      variant="secondary"
-      size="target"
-      icon="retry"
-      label={copy.refresh}
-      isLoading={sync.isPending}
-      onPress={refresh}
-    />
+    <IconButton variant="secondary" icon="retry" label={copy.refresh} isLoading={sync.isPending} onPress={refresh} />
   ) : (
     <Button variant="secondary" icon="retry" isLoading={sync.isPending} onPress={refresh}>
       {copy.refresh}

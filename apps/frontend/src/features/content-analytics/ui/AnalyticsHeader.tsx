@@ -60,7 +60,7 @@ export function AnalyticsHeader({ description, days, platform, onDaysChange, onP
               onChange={(id) => onPlatformChange(id === 'all' ? undefined : (id as ContentPlatform))}
             />
             {inert ? (
-              <IconButton variant="secondary" size="target" icon="retry" label={copy.refresh} isDisabled />
+              <IconButton variant="secondary" icon="retry" label={copy.refresh} isDisabled />
             ) : (
               <RefreshAnalyticsButton compact />
             )}
