@@ -46,7 +46,6 @@ Owned by `docs/ALEXEEV_AI_DEVELOPMENT_AND_TEST_PLAN.md` (only what is left).
 
 Not built, each a separate task (numbers in the owner's terms):
 
-1. **Telegram invite links per source** (deferred by the owner 15.10.2026). The bot creates named invite links (TikTok bio, YouTube description, each ad post, each giveaway) and counts joins and leaves per link from `chat_member` updates. Answers which source brings subscribers and gives advertisers proof. Needs: the bot as channel admin with the «invite users» right; `chat_member` in the webhook's allowed updates.
 2. **Telegram channel metrics as in TGStat** (deferred 15.10.2026: no ads planned soon). ERR (average views of the last 30 days' posts ÷ subscribers), ERR24 (views at 24 h ÷ subscribers, from the 24 h checkpoint), average reach per post and its trend.
 3. **Studio rubrics against results.** Telegram posts published through the studio are matched to their collected statistics, so a rubric («Учу фидить», «Вердикт чата», …) gets its own median, reach and best time.
 4. **Ad and event marks** (deferred 15.10.2026: no ads planned soon). The owner marks an ad post, a giveaway or a viral video; charts show the marks, and an ad post gets a report (views, reach, joins via its invite link, leaves after 7 days) for the advertiser.

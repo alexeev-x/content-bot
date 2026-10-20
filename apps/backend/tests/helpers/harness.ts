@@ -1,6 +1,7 @@
 import type { AiTextProvider } from '../../src/modules/ai';
 import type {
   TelegramBotAdminApi,
+  TelegramInviteLinkApi,
   TelegramChatReadApi,
   TelegramOwnerMessageApi
 } from '../../src/integrations/telegram/telegram-api';
@@ -58,6 +59,8 @@ export async function resetDb(): Promise<void> {
       'content_item_contamination',
       'content_alerts',
       'content_goals',
+      'channel_joins',
+      'invite_links',
       'dota_hero_assets',
       'ai_writer_requests',
       'ai_queue_jobs',
@@ -187,6 +190,8 @@ export function createApi(
     publishingEnabled?: string;
     chatApi?: TelegramChatReadApi;
     botAdminApi?: TelegramBotAdminApi;
+    /** Scripts the invite link calls (createChatInviteLink, revokeChatInviteLink). */
+    inviteLinkApi?: TelegramInviteLinkApi;
     webhookSecret?: string;
     botInfo?: string;
     /** Replaces the default recording fake. Without a bot token the real container path (no messenger) is used. */
@@ -209,6 +214,7 @@ export function createApi(
     clock,
     telegramChatApi: options.chatApi,
     telegramBotAdminApi: options.botAdminApi,
+    telegramInviteLinkApi: options.inviteLinkApi,
     ownerMessenger: options.ownerMessenger ?? (options.botToken === null ? undefined : messenger),
     ...(options.contentFetch === undefined ? {} : { contentFetch: options.contentFetch }),
     aiProvider: options.aiProvider ?? null

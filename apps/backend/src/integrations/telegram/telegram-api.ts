@@ -100,6 +100,9 @@ export interface BotCommandDescription {
   description: string;
 }
 
+/** The updates the webhook asks for; `chat_member` (joins and leaves of the channel) is only sent when asked. */
+export type TelegramUpdateKind = 'message' | 'callback_query' | 'chat_member';
+
 // What registering the bot needs. Answers stay `unknown`: the caller parses what it relies on.
 // `deleteMyCommands` takes a scope and a language because Telegram keeps one list per pair, and a
 // list left by an older bot would shadow the one this bot sets.
@@ -107,7 +110,7 @@ export interface TelegramBotAdminApi {
   getMe(signal: AbortSignal): Promise<unknown>;
   getWebhookInfo(signal: AbortSignal): Promise<unknown>;
   setWebhook(
-    input: { url: string; secretToken: string; allowedUpdates: ('message' | 'callback_query')[] },
+    input: { url: string; secretToken: string; allowedUpdates: TelegramUpdateKind[] },
     signal: AbortSignal
   ): Promise<unknown>;
   deleteMyCommands(
@@ -236,5 +239,20 @@ export function createTelegramOwnerMessageApi(token: string): TelegramOwnerMessa
       if (kind === 'video') return api.sendVideo(chatId, file, other, signal as never);
       return api.sendAnimation(chatId, file, other, signal as never);
     }
+  };
+}
+
+// Named invite links of a channel (the bot must be its admin with the right to invite users). Answers stay
+// `unknown`: the caller parses what it relies on.
+export interface TelegramInviteLinkApi {
+  createChatInviteLink(chatId: string, name: string, signal: AbortSignal): Promise<unknown>;
+  revokeChatInviteLink(chatId: string, inviteLink: string, signal: AbortSignal): Promise<unknown>;
+}
+
+export function createTelegramInviteLinkApi(token: string): TelegramInviteLinkApi {
+  const api = new Api(token);
+  return {
+    createChatInviteLink: (chatId, name, signal) => api.createChatInviteLink(chatId, { name }, signal as never),
+    revokeChatInviteLink: (chatId, inviteLink, signal) => api.revokeChatInviteLink(chatId, inviteLink, signal as never)
   };
 }

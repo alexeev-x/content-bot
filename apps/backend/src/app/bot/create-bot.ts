@@ -1,7 +1,7 @@
 import type { BotSetting, CreatePostInput } from '@alexeev/contracts';
 import { POST_BODY_MAX } from '@alexeev/contracts';
 import { Bot, type Context, GrammyError, InlineKeyboard, type NextFunction } from 'grammy';
-import type { Message, UserFromGetMe } from 'grammy/types';
+import type { ChatMemberUpdated, Message, UserFromGetMe } from 'grammy/types';
 import type { PublicationStatus } from '@alexeev/contracts';
 import { AppError } from '../../shared/app-error';
 import type { Clock } from '../../platform/clock';
@@ -128,6 +128,11 @@ export interface BotRuntime {
   clock: Clock;
   /** The owner's updates are processed at most once each. */
   updates: UpdateDedup;
+  /**
+   * A join or a leave of a channel the bot administers (chat_member). Not the owner's update: it comes from any
+   * subscriber, so it is handled before the owner check and only ever writes a count (plan B1, invite links).
+   */
+  channelMember?: ((updateId: number, update: ChatMemberUpdated) => Promise<void>) | undefined;
   /** The answer of /status. */
   reports: OwnerReports;
   /** The AI writer's rules (AI plan P7): «/rule» and «/rules». */
@@ -241,6 +246,12 @@ export function createBot(config: BotConfig, runtime: BotRuntime): Bot {
     } catch (error) {
       runtime.onError(error);
     }
+  });
+  // Joins and leaves of the channel come from its subscribers: counted once each, never answered, and nothing else
+  // in the bot sees them.
+  bot.on('chat_member', async (ctx) => {
+    // The handler checks the chat before it claims the update, so another chat's joins store nothing.
+    await runtime.channelMember?.(ctx.update.update_id, ctx.chatMember);
   });
   bot.use(ownerOnly(config.ownerId));
   bot.use(privateChatOnly());

@@ -2,7 +2,12 @@ import { webhookCallback } from 'grammy';
 import { Hono } from 'hono';
 import { bodyLimit } from 'hono/body-limit';
 import { createPost } from '../../modules/content';
-import { dailyReportNow, markContentItemContamination } from '../../modules/content-analytics';
+import {
+  dailyReportNow,
+  markContentItemContamination,
+  memberChange,
+  recordChannelMember
+} from '../../modules/content-analytics';
 import { timingSafeEqualStrings } from '../../platform/security/timing-safe-equal';
 import { AppError } from '../../shared/app-error';
 import type { AppBindings } from '../env';
@@ -92,6 +97,24 @@ export const telegramWebhook = new Hono<AppBindings>().post(
         markContentItemContamination({ repo: container.contentAnalytics, clock: container.clock }, itemId, reason),
       clock: container.clock,
       updates: { claim: (updateId, now) => container.webhookUpdates.claim(updateId, now) },
+      channelMember: async (updateId, update) => {
+        const channel = container.analyticsTelegramChannel?.trim().replace(/^@/, '').toLowerCase();
+        if (!channel || update.chat.username?.toLowerCase() !== channel) return;
+        if (!(await container.webhookUpdates.claim(updateId, container.clock.now()))) return;
+        const recorded = await recordChannelMember(
+          { repo: container.inviteLinks, channel: container.analyticsTelegramChannel, newId: container.newId },
+          {
+            chatUsername: update.chat.username,
+            userId: update.new_chat_member.user.id,
+            isBot: update.new_chat_member.user.is_bot,
+            change: memberChange(update.old_chat_member, update.new_chat_member),
+            inviteUrl: update.invite_link?.invite_link ?? null,
+            at: update.date * 1000
+          }
+        );
+        // Only the outcome: never the person, the link or the raw update.
+        container.logger.info({ component: 'bot', operation: 'channel_member', requestId, status: recorded });
+      },
       reports: {
         status: () => reports().status()
       },
