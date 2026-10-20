@@ -23,12 +23,22 @@ type Props = {
   platform: ContentPlatform | undefined;
   onDaysChange: (days: ContentReportPeriod) => void;
   onPlatformChange: (platform: ContentPlatform | undefined) => void;
+  /** false on «Отчёты»: the reports are not cut by period or platform, so the filters would mislead. */
+  filters?: boolean;
   /** The route skeleton: the same header, inert, so no request or change leaves before the session exists. */
   inert?: boolean;
 };
 
 /** Title, section tabs, period and platform filters: one header for the loaded board and its skeleton. Lives inside `Tabs`. */
-export function AnalyticsHeader({ description, days, platform, onDaysChange, onPlatformChange, inert = false }: Props) {
+export function AnalyticsHeader({
+  description,
+  days,
+  platform,
+  onDaysChange,
+  onPlatformChange,
+  filters = true,
+  inert = false
+}: Props) {
   return (
     <PageHeader
       title={copy.title}
@@ -43,28 +53,30 @@ export function AnalyticsHeader({ description, days, platform, onDaysChange, onP
             <Tab id="audience">Аудитория</Tab>
             <Tab id="reports">Отчёты</Tab>
           </TabList>
-          <div className={styles.toolbarFilters}>
-            <SegmentedControl
-              label={copy.filters.period}
-              options={PERIODS}
-              value={String(days)}
-              isDisabled={inert}
-              onChange={(id) => onDaysChange(Number(id) as ContentReportPeriod)}
-            />
-            <Select
-              label={copy.filters.platform}
-              inlineLabel
-              options={PLATFORM_FILTERS}
-              value={platform ?? 'all'}
-              isDisabled={inert}
-              onChange={(id) => onPlatformChange(id === 'all' ? undefined : (id as ContentPlatform))}
-            />
-            {inert ? (
-              <IconButton variant="secondary" icon="retry" label={copy.refresh} isDisabled />
-            ) : (
-              <RefreshAnalyticsButton compact />
-            )}
-          </div>
+          {filters ? (
+            <div className={styles.toolbarFilters}>
+              <SegmentedControl
+                label={copy.filters.period}
+                options={PERIODS}
+                value={String(days)}
+                isDisabled={inert}
+                onChange={(id) => onDaysChange(Number(id) as ContentReportPeriod)}
+              />
+              <Select
+                label={copy.filters.platform}
+                inlineLabel
+                options={PLATFORM_FILTERS}
+                value={platform ?? 'all'}
+                isDisabled={inert}
+                onChange={(id) => onPlatformChange(id === 'all' ? undefined : (id as ContentPlatform))}
+              />
+              {inert ? (
+                <IconButton variant="secondary" icon="retry" label={copy.refresh} isDisabled />
+              ) : (
+                <RefreshAnalyticsButton compact />
+              )}
+            </div>
+          ) : null}
         </div>
       }
     />

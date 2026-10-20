@@ -1,23 +1,33 @@
-import type { ContentReportForecastDto, ContentReportSummaryDto } from '@alexeev/contracts';
+import type {
+  ContentForecastAccuracyDto,
+  ContentReportDetailDto,
+  ContentReportForecastDto,
+  ContentReportSummaryDto
+} from '@alexeev/contracts';
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import {
   Button,
   type DataColumn,
   DataTable,
-  Disclosure,
-  DisclosureGroup,
+  Drawer,
+  EmptyState,
   ErrorState,
   Icon,
   Panel,
   Skeleton
 } from '../../../shared/ui';
-import { contentReportDetailQueryOptions, contentReportsQueryOptions } from '../api/content-analytics-queries';
+import {
+  contentReportDetailQueryOptions,
+  contentReportsQueryOptions,
+  forecastAccuracyQueryOptions
+} from '../api/content-analytics-queries';
 import { PLATFORM_LABEL } from '../model/format';
 import styles from './ReportsPanel.module.css';
 
-// The history of the daily and Monday reports (AI plan P8; SYS-03, SYS-04): each one opens to the text it was
-// built from and, for a daily report, its forecasts with how they turned out.
+// The history of the daily and Monday reports (AI plan P8; SYS-03, SYS-04). Owner, 20.10.2026: a report was a raw
+// copy of the bot's message in monospace, two phone screens each, and nothing said whether the forecasts can be
+// trusted. Now: how the forecasts scored on top, one line per report with its main fact, the report in a side panel.
 
 const MISSING: Record<string, string> = {
   AI_DISABLED: 'ИИ выключен',
@@ -34,10 +44,10 @@ const MISSING: Record<string, string> = {
 };
 
 const OUTCOME: Record<NonNullable<ContentReportForecastDto['outcome']>, string> = {
-  in_band: 'Попал в диапазон',
-  below: 'Ниже диапазона',
-  above: 'Выше диапазона',
-  no_fact: 'Нет замера у срока'
+  in_band: 'попал',
+  below: 'ниже',
+  above: 'выше',
+  no_fact: 'нет замера'
 };
 
 const HORIZON: Record<ContentReportForecastDto['horizonHours'], string> = { 24: '24 ч', 72: '3 дня', 168: '7 дней' };
@@ -63,95 +73,183 @@ function reviewLine(report: ContentReportSummaryDto): string {
   return `Без разбора ИИ: ${report.reviewError === null ? 'причина не записана' : (MISSING[report.reviewError] ?? report.reviewError)}${cost}`;
 }
 
-const FORECAST_COLUMNS: DataColumn<ContentReportForecastDto & { key: string }>[] = [
-  {
-    id: 'video',
-    header: 'Ролик',
-    isRowHeader: true,
-    cell: (row) => `${row.title ?? row.itemId}${row.platform === null ? '' : ` · ${PLATFORM_LABEL[row.platform]}`}`
-  },
-  { id: 'horizon', header: 'Срок', width: 90, cell: (row) => HORIZON[row.horizonHours] },
-  {
-    id: 'band',
-    header: 'Прогноз',
-    width: 170,
-    align: 'end',
-    cell: (row) => `${count.format(row.low)}–${count.format(row.high)}`
-  },
-  {
-    id: 'fact',
-    header: 'Факт',
-    width: 110,
-    align: 'end',
-    cell: (row) => (row.fact === null ? '—' : count.format(row.fact))
-  },
-  {
-    id: 'outcome',
-    header: 'Итог',
-    width: 170,
-    compactSlot: 'trailing',
-    cell: (row) => (row.outcome === null ? 'Срок не наступил' : OUTCOME[row.outcome])
-  },
-  { id: 'method', header: 'Метод', width: 110, cell: (row) => row.method }
-];
+const dayMonth = (iso: string) => new Date(iso).toLocaleString('ru-RU', { day: 'numeric', month: 'long' });
+
+/** «Как я на оракле играл. Учусь играть в доту. Часть 69… #dota #dota2» → the words before the hashtags. */
+const shortTitle = (value: string) => value.replace(/#[\p{L}\p{N}_]+/gu, '').trim();
+
+function AccuracyPanel() {
+  const query = useQuery(forecastAccuracyQueryOptions());
+  let body;
+  if (query.isPending) body = <Skeleton lines={2} height={18} />;
+  else if (query.isError)
+    body = <ErrorState message="Не удалось загрузить точность прогнозов." onRetry={() => void query.refetch()} />;
+  else body = <AccuracyBody data={query.data} />;
+  return (
+    <Panel title="Как сбываются прогнозы" icon={<Icon name="check-circle" />} note="за 30 дней">
+      <div className={styles.body}>{body}</div>
+    </Panel>
+  );
+}
+
+function AccuracyBody({ data }: { data: ContentForecastAccuracyDto }) {
+  const judged = data.horizons.map((row) => ({ ...row, total: row.inBand + row.below + row.above }));
+  const anyScored = judged.some((row) => row.total + row.noFact > 0);
+  const pending =
+    data.waiting > 0
+      ? `Ещё ${data.waiting} проверит следующий ежедневный отчёт.`
+      : data.nextTargetAt !== null
+        ? `Ближайшая проверка — ${dayMonth(data.nextTargetAt)}.`
+        : null;
+  if (!anyScored)
+    return (
+      <p className={styles.hint}>
+        Проверенных прогнозов пока нет. {pending ?? 'Прогнозы появятся с первым ежедневным отчётом.'}
+      </p>
+    );
+  return (
+    <>
+      <ul className={styles.accuracy}>
+        {judged.map((row) => (
+          <li key={row.horizonHours} className={styles.accuracyRow}>
+            <span className={styles.accuracyHorizon}>{HORIZON[row.horizonHours]}</span>
+            {row.total === 0 ? (
+              <span className={styles.meta}>{row.noFact > 0 ? `без замера: ${row.noFact}` : 'ещё не проверялись'}</span>
+            ) : (
+              <span>
+                <strong>
+                  {row.inBand} из {row.total}
+                </strong>{' '}
+                в диапазоне
+                <span className={styles.meta}>
+                  {' '}
+                  · ниже {row.below} · выше {row.above}
+                  {row.noFact > 0 ? ` · без замера ${row.noFact}` : ''}
+                </span>
+              </span>
+            )}
+          </li>
+        ))}
+      </ul>
+      {pending ? <p className={styles.hint}>{pending}</p> : null}
+    </>
+  );
+}
+
+/** One line per horizon: the band, then the fact and how it went, or when it will be checked. */
+function horizonResult(row: ContentReportForecastDto, now: number): string {
+  if (row.outcome !== null)
+    return row.fact === null ? OUTCOME[row.outcome] : `${count.format(row.fact)} · ${OUTCOME[row.outcome]}`;
+  return Date.parse(row.targetAt) > now ? `срок ${dayMonth(row.targetAt)}` : 'проверит следующий отчёт';
+}
+
+/** `now`: when the report was loaded; a horizon that passed since then still reads as ahead until a re-read. */
+function Forecasts({ forecasts, now }: { forecasts: ContentReportDetailDto['forecasts']; now: number }) {
+  // One card per video: the same title three times read as three different forecasts.
+  const videos = new Map<string, ContentReportForecastDto[]>();
+  for (const row of forecasts) videos.set(row.itemId, [...(videos.get(row.itemId) ?? []), row]);
+  return (
+    <section className={styles.forecasts} aria-label="Прогнозы отчёта">
+      <h3 className={styles.sectionTitle}>Прогнозы просмотров</h3>
+      {[...videos].map(([itemId, rows]) => {
+        const first = rows[0]!;
+        return (
+          <div key={itemId} className={styles.forecast}>
+            <p className={styles.forecastTitle}>
+              {first.title === null ? itemId : shortTitle(first.title)}
+              {first.platform === null ? null : (
+                <span className={styles.meta}> · {PLATFORM_LABEL[first.platform]}</span>
+              )}
+            </p>
+            <dl className={styles.horizons}>
+              {rows.map((row) => (
+                <div key={row.horizonHours} className={styles.horizon}>
+                  <dt>{HORIZON[row.horizonHours]}</dt>
+                  <dd>
+                    {count.format(row.low)}–{count.format(row.high)}
+                    <span className={styles.meta}> → {horizonResult(row, now)}</span>
+                  </dd>
+                </div>
+              ))}
+            </dl>
+          </div>
+        );
+      })}
+    </section>
+  );
+}
 
 function ReportDetail({ id }: { id: string }) {
   const query = useQuery(contentReportDetailQueryOptions(id));
-  if (query.isPending) return <Skeleton lines={4} height={18} />;
+  if (query.isPending) return <Skeleton lines={6} height={18} />;
   if (query.isError) return <ErrorState message="Не удалось загрузить отчёт." onRetry={() => void query.refetch()} />;
-  const { text, forecasts } = query.data;
+  const { blocks, forecasts } = query.data;
   return (
     <div className={styles.detail}>
-      <pre className={styles.text}>{text}</pre>
-      {forecasts.length > 0 ? (
-        <DataTable
-          aria-label="Прогнозы отчёта"
-          columns={FORECAST_COLUMNS}
-          rows={forecasts.map((row) => ({ ...row, key: `${row.itemId}:${row.horizonHours}` }))}
-          getRowId={(row) => row.key}
-          density="compact"
-        />
-      ) : null}
+      {/* Prose reads as text; only the platform tables keep Telegram's monospace columns. */}
+      {blocks.map((block, index) =>
+        block.kind === 'table' ? (
+          // oxlint-disable-next-line react/no-array-index-key -- the blocks are a fixed, never reordered message.
+          <pre key={index} className={styles.table}>
+            {block.text}
+          </pre>
+        ) : (
+          // oxlint-disable-next-line react/no-array-index-key -- see above.
+          <p key={index} className={styles.prose}>
+            {block.text}
+          </p>
+        )
+      )}
+      {forecasts.length > 0 ? <Forecasts forecasts={forecasts} now={query.dataUpdatedAt} /> : null}
     </div>
   );
 }
 
 export function ReportsPanel() {
   const query = useInfiniteQuery(contentReportsQueryOptions());
-  // Only an opened report loads its text and forecasts.
-  const [open, setOpen] = useState<Set<string>>(new Set());
+  // The open report: local, like any open/closed state; only it loads its text and forecasts.
+  const [openId, setOpenId] = useState<string>();
+  const reports = useMemo(() => query.data?.pages.flatMap((page) => page.items) ?? [], [query.data]);
+  const opened = reports.find((report) => report.id === openId);
 
-  let body;
-  if (query.isPending) body = <Skeleton lines={4} height={20} />;
-  else if (query.isError)
-    body = <ErrorState message="Не удалось загрузить отчёты." onRetry={() => void query.refetch()} />;
-  else {
-    const reports = query.data.pages.flatMap((page) => page.items);
-    body =
-      reports.length === 0 ? (
-        <p className={styles.hint}>
-          Отчётов пока нет. Ежедневный отчёт включается в «Настройки → Общие», итоги недели приходят по понедельникам.
-        </p>
-      ) : (
-        <>
-          <DisclosureGroup expandedKeys={open} onExpandedChange={setOpen}>
-            {reports.map((report) => (
-              <Disclosure
-                key={report.id}
-                id={report.id}
-                title={
-                  // Two lines, not a side note: on a phone the review line squeezed the date into one word a line.
-                  <span className={styles.heading}>
-                    <span>{title(report)}</span>
-                    <span className={styles.meta}>{reviewLine(report)}</span>
-                  </span>
-                }
-              >
-                {open.has(report.id) ? <ReportDetail id={report.id} /> : null}
-              </Disclosure>
-            ))}
-          </DisclosureGroup>
-          {query.hasNextPage ? (
+  const columns = useMemo<DataColumn<ContentReportSummaryDto>[]>(
+    () => [
+      {
+        id: 'report',
+        header: 'Отчёт',
+        isRowHeader: true,
+        cell: (report) => (
+          <span className={styles.row}>
+            <span className={styles.rowTitle}>{title(report)}</span>
+            <span className={styles.headline}>{report.headline ?? reviewLine(report)}</span>
+          </span>
+        )
+      },
+      {
+        id: 'review',
+        header: 'Разбор ИИ',
+        width: 150,
+        align: 'end',
+        compactSlot: 'trailing',
+        cell: (report) =>
+          report.status === 'reviewed'
+            ? report.costUsd === null
+              ? '—'
+              : `$${report.costUsd.toFixed(4)}`
+            : 'без разбора'
+      }
+    ],
+    []
+  );
+
+  return (
+    <div className={styles.stack}>
+      <AccuracyPanel />
+      <Panel
+        title="Отчёты"
+        icon={<Icon name="file" />}
+        footer={
+          query.hasNextPage ? (
             <Button
               variant="secondary"
               size="sm"
@@ -160,18 +258,45 @@ export function ReportsPanel() {
             >
               Показать ещё
             </Button>
-          ) : null}
-        </>
-      );
-  }
-  return (
-    <Panel title="Отчёты" icon={<Icon name="file" />}>
-      <div className={styles.body}>
-        <p className={styles.hint}>
-          Ежедневные отчёты и итоги недели, как их собрал бот: текст с разбором ИИ и прогнозы с тем, как они сбылись.
-        </p>
-        {body}
-      </div>
-    </Panel>
+          ) : undefined
+        }
+      >
+        {query.isError ? (
+          <ErrorState message="Не удалось загрузить отчёты." onRetry={() => void query.refetch()} />
+        ) : (
+          <DataTable
+            aria-label="Отчёты"
+            columns={columns}
+            rows={reports}
+            getRowId={(report) => report.id}
+            getRowText={(report) => title(report)}
+            onRowAction={setOpenId}
+            activeId={opened ? openId : undefined}
+            isLoading={query.isPending}
+            loadingRows={4}
+            density="compact"
+            flush
+            emptyState={
+              <EmptyState
+                icon="file"
+                title="Отчётов пока нет"
+                description="Ежедневный отчёт включается в «Настройки → Общие», итоги недели приходят по понедельникам."
+              />
+            }
+          />
+        )}
+      </Panel>
+      <Drawer
+        isOpen={opened !== undefined}
+        onOpenChange={(isOpen) => {
+          if (!isOpen) setOpenId(undefined);
+        }}
+        title={opened ? title(opened) : 'Отчёт'}
+        meta={opened ? <span className={styles.meta}>{reviewLine(opened)}</span> : undefined}
+        size="wide"
+      >
+        {openId !== undefined ? <ReportDetail id={openId} /> : null}
+      </Drawer>
+    </div>
   );
 }

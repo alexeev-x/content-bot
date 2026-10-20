@@ -18,6 +18,7 @@ import {
   getContentOverview,
   getContentReport,
   getContentReportDetail,
+  getForecastAccuracy,
   getContentReports,
   getItemReview,
   getItemScript,
@@ -44,7 +45,8 @@ export const contentAnalyticsKeys = {
   script: (id: string) => [...contentAnalyticsKeys.all, 'script', id] as const,
   review: (id: string) => [...contentAnalyticsKeys.all, 'review', id] as const,
   reports: () => [...contentAnalyticsKeys.all, 'reports'] as const,
-  reportDetail: (id: string) => [...contentAnalyticsKeys.all, 'reports', id] as const
+  reportDetail: (id: string) => [...contentAnalyticsKeys.all, 'reports', id] as const,
+  forecastAccuracy: () => [...contentAnalyticsKeys.all, 'forecast-accuracy'] as const
 };
 
 /** A new report comes once a day: the history is re-read when the tab opens after a few minutes. */
@@ -56,6 +58,15 @@ export function contentReportsQueryOptions() {
     queryFn: ({ pageParam, signal }) => getContentReports(pageParam, signal),
     initialPageParam: undefined as string | undefined,
     getNextPageParam: nextCursor,
+    staleTime: REPORTS_STALE_MS
+  });
+}
+
+/** Scores change only when a daily report is built. */
+export function forecastAccuracyQueryOptions() {
+  return queryOptions({
+    queryKey: contentAnalyticsKeys.forecastAccuracy(),
+    queryFn: ({ signal }) => getForecastAccuracy(signal),
     staleTime: REPORTS_STALE_MS
   });
 }

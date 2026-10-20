@@ -1,4 +1,4 @@
-import { contentReportDetailSchema, contentReportsPageSchema } from '@alexeev/contracts';
+import { contentForecastAccuracySchema, contentReportDetailSchema, contentReportsPageSchema } from '@alexeev/contracts';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { createD1SystemState } from '../../src/app/system-state';
 import { runDailyReview } from '../../src/app/workflows/daily-review';
@@ -420,7 +420,16 @@ describe('report history in the studio (AI plan P8; SYS-03, SYS-04)', () => {
     );
     const page = contentReportsPageSchema.parse(await (await api.request('/api/v1/content-analytics/reports')).json());
     expect(page).toMatchObject({
-      items: [{ id: reportId, kind: 'day', status: 'reviewed', model: 'gpt-6.1-sol', costUsd: 0.0125 }],
+      items: [
+        {
+          id: reportId,
+          kind: 'day',
+          status: 'reviewed',
+          model: 'gpt-6.1-sol',
+          costUsd: 0.0125,
+          headline: 'День ровный.'
+        }
+      ],
       nextCursor: null
     });
     const detail = contentReportDetailSchema.parse(
@@ -434,8 +443,42 @@ describe('report history in the studio (AI plan P8; SYS-03, SYS-04)', () => {
     expect(detail.forecasts.length).toBeGreaterThan(0);
     expect(detail.forecasts[0]).toMatchObject({ method: expect.any(String), outcome: null, fact: null });
     expect(detail.forecasts[0]?.title).toMatch(/^Ролик <\d>/);
+    // The platform tables come apart from the prose, so the studio sets only them in monospace.
+    const tables = detail.blocks.filter((block) => block.kind === 'table');
+    expect(tables.length).toBeGreaterThan(0);
+    expect(tables.every((block) => block.text.includes('Ролик'))).toBe(true);
+    expect(detail.blocks.some((block) => block.kind === 'text' && block.text.includes('День ровный.'))).toBe(true);
 
     await expectError(await api.request('/api/v1/content-analytics/reports', { token: null }), 401, 'UNAUTHORIZED');
     await expectError(await api.request('/api/v1/content-analytics/reports?cursor=bad'), 400, 'VALIDATION_ERROR');
+  });
+
+  it('counts the forecasts per horizon, and the ones past it waiting for the next report', async () => {
+    const clock = fakeClock();
+    await collectHours(clock, 26, 0);
+    await raiseDailyReport({ ...repos(), clock, timezone: ZONE, hour: 0 });
+    await collectHours(clock, 31, 26);
+    await raiseDailyReport({ ...repos(), clock, timezone: ZONE, hour: 0 });
+    await seedSession({ token: OWNER_TOKEN, expiresAt: clock.now() + 10 * 86_400_000 });
+    const api = createApi({ clock });
+    const read = async () =>
+      contentForecastAccuracySchema.parse(
+        await (await api.request('/api/v1/content-analytics/forecasts/accuracy')).json()
+      );
+    const first = await read();
+    const day = first.horizons.find((row) => row.horizonHours === 24)!;
+    // The three 24-hour forecasts of the first report were scored by the second one.
+    expect(day.inBand + day.below + day.above + day.noFact).toBe(3);
+    expect(first.horizons.map((row) => row.horizonHours)).toEqual([24, 72, 168]);
+    expect(first.waiting).toBe(0);
+    expect(first.nextTargetAt).not.toBeNull();
+
+    clock.advance(2 * 86_400_000);
+    expect((await read()).waiting).toBeGreaterThan(0);
+    await expectError(
+      await api.request('/api/v1/content-analytics/forecasts/accuracy', { token: null }),
+      401,
+      'UNAUTHORIZED'
+    );
   });
 });

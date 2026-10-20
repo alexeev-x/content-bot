@@ -49,6 +49,20 @@ export interface ContentForecastRepository {
   ofReport(reportId: string): Promise<StoredForecast[]>;
   /** Forecasts scored since `since` with a fact: how many, and how many had it inside their band. */
   accuracy(since: number): Promise<{ scored: number; inBand: number }>;
+  /**
+   * Scores since `since` counted per horizon and outcome; the unscored ones past their horizon at `now`; the earliest
+   * horizon still ahead.
+   */
+  scoreboard(
+    since: number,
+    now: number
+  ): Promise<{ counts: ForecastCount[]; waiting: number; nextTargetAt: number | null }>;
+}
+
+export interface ForecastCount {
+  hours: ForecastHorizon;
+  outcome: ForecastOutcome;
+  count: number;
 }
 
 /** At most this many rows per statement: 12 videos × 3 horizons. */
@@ -121,6 +135,26 @@ export function createD1ContentForecastRepository(db: D1Database): ContentForeca
         .bind(since)
         .first<{ scored: number; inBand: number }>();
       return { scored: row?.scored ?? 0, inBand: row?.inBand ?? 0 };
+    },
+
+    async scoreboard(since, now) {
+      const [counts, waiting, next] = await db.batch([
+        db
+          .prepare(
+            `SELECT horizon_hours AS hours, outcome, COUNT(*) AS count FROM content_forecasts
+             WHERE scored_at >= ? AND outcome IS NOT NULL GROUP BY horizon_hours, outcome`
+          )
+          .bind(since),
+        db.prepare('SELECT COUNT(*) AS n FROM content_forecasts WHERE scored_at IS NULL AND target_at <= ?').bind(now),
+        db
+          .prepare('SELECT MIN(target_at) AS at FROM content_forecasts WHERE scored_at IS NULL AND target_at > ?')
+          .bind(now)
+      ]);
+      return {
+        counts: (counts?.results ?? []) as ForecastCount[],
+        waiting: ((waiting?.results[0] ?? { n: 0 }) as { n: number }).n,
+        nextTargetAt: ((next?.results[0] ?? { at: null }) as { at: number | null }).at
+      };
     }
   };
 }

@@ -15,6 +15,8 @@ import {
   contentReportSchema,
   contentReportsPageSchema,
   contentReportsQuerySchema,
+  CONTENT_FORECAST_ACCURACY_DAYS,
+  contentForecastAccuracySchema,
   type ContentReportSummaryDto,
   inviteLinkInputSchema,
   inviteLinkParamsSchema,
@@ -31,6 +33,7 @@ import {
   readInviteLinks,
   revokeInviteLink,
   listReports,
+  readForecastAccuracy,
   readReport,
   type ReportSummary,
   readContentAnalyticsOverview,
@@ -90,7 +93,8 @@ async function withCosts(container: Container, reports: readonly ReportSummary[]
     status: report.status,
     reviewError: report.reviewError,
     model: report.model,
-    costUsd: report.usageId === null ? null : (costs.get(report.usageId) ?? null)
+    costUsd: report.usageId === null ? null : (costs.get(report.usageId) ?? null),
+    headline: report.headline
   }));
 }
 
@@ -225,6 +229,20 @@ export const contentAnalyticsRoutes = new Hono<AppBindings>()
     const items = await withCosts(container, page.items);
     return c.json(contentReportsPageSchema.parse({ items, nextCursor: page.nextCursor }));
   })
+  .get('/forecasts/accuracy', async (c) => {
+    const container = c.get('container');
+    const accuracy = await readForecastAccuracy(container.contentForecasts, {
+      now: container.clock.now(),
+      days: CONTENT_FORECAST_ACCURACY_DAYS
+    });
+    return c.json(
+      contentForecastAccuracySchema.parse({
+        horizons: accuracy.horizons.map(({ hours, ...counts }) => ({ horizonHours: hours, ...counts })),
+        waiting: accuracy.waiting,
+        nextTargetAt: accuracy.nextTargetAt === null ? null : new Date(accuracy.nextTargetAt).toISOString()
+      })
+    );
+  })
   .get('/reports/:id', validated('param', contentReportParamsSchema), async (c) => {
     const container = c.get('container');
     const detail = await readReport(
@@ -238,6 +256,7 @@ export const contentAnalyticsRoutes = new Hono<AppBindings>()
       contentReportDetailSchema.parse({
         report,
         text: detail.text,
+        blocks: detail.blocks,
         forecasts: detail.forecasts.map((row) => ({
           itemId: row.itemId,
           title: row.title,

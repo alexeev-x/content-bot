@@ -1,14 +1,14 @@
-.body {
+/* «Отчёты»: the forecasts' track record on top, the reports below. */
+.stack {
   display: grid;
-  gap: var(--space-3);
-  /* The panel body is flush: its content keeps the panel's own padding on every side. */
-  padding: var(--space-4);
+  gap: var(--space-4);
 }
 
-.heading {
+.body {
   display: grid;
-  gap: 2px;
-  padding-block: var(--space-2);
+  gap: var(--space-2);
+  /* The panel body is flush: its content keeps the panel's own padding on every side. */
+  padding: var(--space-4);
 }
 
 .hint {
@@ -24,24 +24,116 @@
   font-weight: 400;
 }
 
+.accuracy {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: var(--space-2) var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.accuracyRow {
+  display: contents;
+}
+
+.accuracyHorizon {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+
+/* A report row: the date, then the review's main fact on one line. */
+.row {
+  display: grid;
+  gap: 2px;
+  min-inline-size: 0;
+}
+
+.rowTitle {
+  font-weight: var(--font-weight-medium);
+}
+
+.headline {
+  overflow: hidden;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .detail {
   display: grid;
   gap: var(--space-3);
   min-inline-size: 0;
 }
 
-/* The report as the bot built it: its own line breaks and the monospace tables. */
-.text {
+/* The bot's prose with its own line breaks, in the interface font. */
+.prose {
+  margin: 0;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* Only the platform tables keep Telegram's monospace columns. */
+.table {
   margin: 0;
   overflow-x: auto;
-  padding: var(--space-3);
+  padding: var(--space-2) var(--space-3);
   border: 1px solid var(--color-border-subtle);
   border-radius: var(--radius-2);
   font-family: var(--font-mono);
   font-size: var(--font-size-sm);
   line-height: 1.5;
-  white-space: pre-wrap;
+}
+
+.forecasts {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.sectionTitle {
+  margin: 0;
+  font-size: var(--font-size-md);
+}
+
+.forecast {
+  display: grid;
+  gap: var(--space-1);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-2);
+}
+
+.forecastTitle {
+  margin: 0;
+  font-weight: var(--font-weight-medium);
   overflow-wrap: anywhere;
+}
+
+.horizons {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 2px var(--space-3);
+  margin: 0;
+}
+
+.horizon {
+  display: contents;
+  font-variant-numeric: tabular-nums;
+}
+
+.horizon dd {
+  font-variant-numeric: tabular-nums;
+}
+
+.horizon dt {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.horizon dd {
+  margin: 0;
 }
 
 /* A phone keeps a 32-character table row on one line, as in Telegram. */
@@ -50,7 +142,7 @@
     padding-inline: var(--space-3);
   }
 
-  .text {
+  .table {
     padding: var(--space-2);
     font-size: var(--font-size-2xs);
   }

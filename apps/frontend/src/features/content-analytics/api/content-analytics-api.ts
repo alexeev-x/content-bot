@@ -5,6 +5,7 @@ import {
   contentGoalsSchema,
   contentItemDetailSchema,
   contentItemsPageSchema,
+  contentForecastAccuracySchema,
   contentReportDetailSchema,
   contentReportSchema,
   contentReportsPageSchema,
@@ -37,6 +38,11 @@ export function getContentItems(
 ) {
   const query = buildQuery({ platform, cursor, limit: ITEMS_PAGE_SIZE });
   return apiRequest(`/api/v1/content-analytics/items${query}`, contentItemsPageSchema, { signal });
+}
+
+/** How the daily report's forecasts scored in the last 30 days, per horizon. */
+export function getForecastAccuracy(signal?: AbortSignal) {
+  return apiRequest('/api/v1/content-analytics/forecasts/accuracy', contentForecastAccuracySchema, { signal });
 }
 
 /** The released daily and Monday reports, newest first. */

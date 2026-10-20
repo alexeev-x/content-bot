@@ -285,6 +285,7 @@ export type ContentGoalsDto = z.infer<typeof contentGoalsSchema>;
 // a report still waiting for its review.
 export const CONTENT_REPORTS_PAGE = 20;
 export const CONTENT_REPORT_TEXT_MAX = 20_000;
+export const CONTENT_REPORT_HEADLINE_MAX = 300;
 export const contentReportSummarySchema = z.object({
   id: z.string().min(1).max(100),
   kind: z.enum(['day', 'week']),
@@ -295,7 +296,9 @@ export const contentReportSummarySchema = z.object({
   reviewError: z.string().max(100).nullable(),
   model: z.string().max(100).nullable(),
   /** The review's recorded cost; null without a model call, without a price or before migration 0080. */
-  costUsd: z.number().nonnegative().nullable()
+  costUsd: z.number().nonnegative().nullable(),
+  /** The review's main line («Главное», or «Попробовать» in a review before 20.10.2026); null without one. */
+  headline: z.string().max(CONTENT_REPORT_HEADLINE_MAX).nullable()
 });
 export type ContentReportSummaryDto = z.infer<typeof contentReportSummarySchema>;
 export const contentReportsQuerySchema = z.strictObject({ cursor: z.string().min(1).max(512).optional() });
@@ -326,10 +329,36 @@ export type ContentReportForecastDto = z.infer<typeof contentReportForecastSchem
 export const contentReportDetailSchema = z.object({
   report: contentReportSummarySchema,
   text: z.string().max(CONTENT_REPORT_TEXT_MAX),
+  /** The same text in parts: prose, and the platform tables that Telegram shows in monospace. */
+  blocks: z.array(z.object({ kind: z.enum(['text', 'table']), text: z.string().max(CONTENT_REPORT_TEXT_MAX) })).max(40),
   forecasts: z.array(contentReportForecastSchema).max(36)
 });
 export type ContentReportDetailDto = z.infer<typeof contentReportDetailSchema>;
 export const contentReportParamsSchema = z.strictObject({ id: z.string().min(1).max(100) });
+
+// GET /api/v1/content-analytics/forecasts/accuracy → 200 ContentForecastAccuracyDto: how the daily report's
+// forecasts scored in the last 30 days, per horizon, and the ones past their horizon still waiting for the next
+// report to score them. Errors: UNAUTHORIZED 401, FORBIDDEN 403.
+export const CONTENT_FORECAST_ACCURACY_DAYS = 30;
+export const contentForecastAccuracySchema = z.object({
+  horizons: z
+    .array(
+      z.object({
+        horizonHours: z.union([z.literal(24), z.literal(72), z.literal(168)]),
+        inBand: z.number().int().nonnegative(),
+        below: z.number().int().nonnegative(),
+        above: z.number().int().nonnegative(),
+        /** No reading near the horizon: not counted as a hit or a miss. */
+        noFact: z.number().int().nonnegative()
+      })
+    )
+    .max(3),
+  /** Past their horizon, scored with the next daily report. */
+  waiting: z.number().int().nonnegative(),
+  /** The earliest horizon still ahead; null when none is. */
+  nextTargetAt: z.iso.datetime().nullable()
+});
+export type ContentForecastAccuracyDto = z.infer<typeof contentForecastAccuracySchema>;
 
 // Invite links (plan B1, owner 20.10.2026): named links into the analytics Telegram channel, one per traffic source
 // (TikTok bio, a YouTube description, an ad post). The bot creates them and counts who joined the channel through

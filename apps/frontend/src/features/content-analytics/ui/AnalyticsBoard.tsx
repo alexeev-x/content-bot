@@ -145,6 +145,7 @@ export function AnalyticsBoard({ timezone, view, onViewChange, onOpenSettings }:
             platform={platform}
             onDaysChange={(next) => onViewChange({ days: next, page: 1 })}
             onPlatformChange={(next) => onViewChange({ platform: next, page: 1 })}
+            filters={view.tab !== 'reports'}
           />
           <TabPanel id="overview">
             <div className={styles.sections}>
