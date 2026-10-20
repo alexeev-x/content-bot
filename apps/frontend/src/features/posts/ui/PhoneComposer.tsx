@@ -27,6 +27,8 @@ type Props = {
 };
 
 const copy = postsCopy.editor.phone;
+// What brings the soft keyboard up.
+const TEXT = '[contenteditable="true"], input[type="text"], textarea';
 type PanelButton = { id: PhonePanel; icon: IconName; label: string };
 const TEXT_PANELS: PanelButton[] = [
   { id: 'media', icon: 'paperclip', label: copy.media },
@@ -40,7 +42,7 @@ const POLL_PANELS: PanelButton[] = [{ id: 'poll', icon: 'settings', label: copy.
  * message, the tools sit in the bottom bar, and their panels open where the keyboard was.
  */
 export function PhoneComposer({ rootRef, header, notices, children, meta, kind, canImprove, isReadOnly, send }: Props) {
-  const keyboard = useKeyboardPanel();
+  const keyboard = useKeyboardPanel(rootRef);
   const chatRef = useRef<HTMLDivElement>(null);
   const [panelTarget, setPanelTarget] = useState<HTMLElement | null>(null);
   const [improveOpen, setImproveOpen] = useState(false);
@@ -70,19 +72,18 @@ export function PhoneComposer({ rootRef, header, notices, children, meta, kind, 
   };
 
   return (
-    <div
-      ref={rootRef}
-      className={styles.root}
-      data-keyboard={keyboard.keyboardOpen || undefined}
-      style={{ height: `${keyboard.height}px`, transform: `translateY(${keyboard.top}px)` }}
-    >
+    <div ref={rootRef} className={styles.root} data-keyboard={keyboard.keyboardOpen || undefined}>
       <header className={styles.header}>{header}</header>
       {notices ? <div className={styles.notices}>{notices}</div> : null}
       <div
         ref={chatRef}
         className={styles.chat}
         onFocus={(event) => {
-          if (event.target.matches('[contenteditable="true"], input[type="text"], textarea')) keyboard.textFocused();
+          if (event.target.matches(TEXT)) keyboard.textFocused();
+        }}
+        onBlur={(event) => {
+          // Focus moving to another field keeps the keyboard up.
+          if (!(event.relatedTarget instanceof Element && event.relatedTarget.matches(TEXT))) keyboard.textBlurred();
         }}
       >
         <article className={styles.message} aria-label={copy.message}>
@@ -150,7 +151,6 @@ export function PhoneComposer({ rootRef, header, notices, children, meta, kind, 
         className={styles.panel}
         aria-label={copy.panel(panelName)}
         hidden={keyboard.panel === null}
-        style={{ height: `${keyboard.panelHeight}px` }}
       />
     </div>
   );

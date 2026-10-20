@@ -32,6 +32,7 @@ import {
   setExplanation,
   setMultiple,
   setOption,
+  setQuestion,
   setQuizEnabled
 } from '../model/poll-model';
 import { useOptionDrag } from '../model/use-option-drag';
@@ -82,7 +83,7 @@ export function PollEditor({ poll, onChange, issue, isReadOnly, showErrors = fal
             label={copy.questionLabel}
             placeholder={copy.questionPlaceholder}
             value={poll.question}
-            onChange={(question) => onChange({ ...poll, question })}
+            onChange={(question) => onChange(setQuestion(poll, question))}
             limit={POLL_QUESTION_MAX}
             limitPlacement="label"
             rows={2}

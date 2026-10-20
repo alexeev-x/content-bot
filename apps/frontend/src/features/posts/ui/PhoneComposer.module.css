@@ -3,6 +3,7 @@
 .root {
   position: fixed;
   top: 0;
+  height: 100dvh;
   right: var(--shell-safe-right, 0px);
   left: var(--shell-safe-left, 0px);
   z-index: var(--z-nav);
@@ -81,6 +82,7 @@
 }
 .panel {
   flex: none;
+  height: var(--panel-height, 40dvh);
   min-height: 0;
   overflow-y: auto;
   overscroll-behavior: contain;
@@ -104,4 +106,8 @@
 /* The keyboard covers the home indicator: no safe-area gap between the bar and the keys. */
 .root[data-keyboard] .bar {
   padding-bottom: var(--space-1);
+}
+/* Moves along the keyboard's own animation while the bar follows a predicted keyboard (useKeyboardPanel). */
+.root[data-animate] {
+  transition: height calc(var(--motion-base) + var(--motion-fast)) cubic-bezier(0.2, 0.8, 0.2, 1);
 }

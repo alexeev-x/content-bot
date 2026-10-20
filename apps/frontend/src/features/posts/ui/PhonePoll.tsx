@@ -22,6 +22,7 @@ import {
   setExplanation,
   setMultiple,
   setOption,
+  setQuestion,
   setQuizEnabled
 } from '../model/poll-model';
 import { useOptionDrag } from '../model/use-option-drag';
@@ -79,6 +80,9 @@ export function PhonePoll({ poll, onChange, issue, isReadOnly, showErrors, panel
     .filter(Boolean)
     .join(' · ');
 
+  const optionInput = (index: number) =>
+    listRef.current?.querySelectorAll<HTMLInputElement>('input[type="text"]')[index] ?? null;
+
   function add() {
     setIds([...keys, newId()]);
     onChange(addOption(poll));
@@ -99,10 +103,17 @@ export function PhonePoll({ poll, onChange, issue, isReadOnly, showErrors, panel
         placeholder={copy.preview.empty}
         value={poll.question}
         rows={1}
+        enterKeyHint="next"
         maxLength={POLL_QUESTION_MAX}
         readOnly={isReadOnly}
         onInput={fit}
-        onChange={(event) => onChange({ ...poll, question: event.currentTarget.value })}
+        // Return goes on to the first option, as in Telegram: the question is one line.
+        onKeyDown={(event) => {
+          if (event.key !== 'Enter' || event.nativeEvent.isComposing) return;
+          event.preventDefault();
+          optionInput(0)?.focus();
+        }}
+        onChange={(event) => onChange(setQuestion(poll, event.currentTarget.value))}
       />
       {errors?.question ? (
         <p id={`${id}-question-error`} className={styles.error}>
@@ -160,6 +171,15 @@ export function PhonePoll({ poll, onChange, issue, isReadOnly, showErrors, panel
                 maxLength={POLL_OPTION_MAX}
                 readOnly={isReadOnly}
                 onChange={(event) => onChange(setOption(poll, index, event.currentTarget.value))}
+                // Return goes on to the next option; after the last one the keyboard goes.
+                onKeyDown={(event) => {
+                  if (event.key !== 'Enter' || event.nativeEvent.isComposing) return;
+                  event.preventDefault();
+                  const next = optionInput(index + 1);
+                  if (next) next.focus();
+                  else event.currentTarget.blur();
+                }}
+                enterKeyHint={index < poll.options.length - 1 ? 'next' : 'done'}
               />
               {isReadOnly ? null : (
                 <>

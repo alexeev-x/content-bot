@@ -17,8 +17,16 @@ export function isPollBlank(poll: PostPoll): boolean {
 export const canAddOption = (poll: PostPoll): boolean => poll.options.length < POLL_OPTIONS_MAX;
 export const canRemoveOption = (poll: PostPoll): boolean => poll.options.length > POLL_OPTIONS_MIN;
 
+// Telegram takes the question and the options as one line, and the server refuses a line break in them: a phone's
+// Return key or a pasted paragraph used to make every save fail («Не удалось сохранить»).
+const oneLine = (text: string) => text.replace(/\r\n?|\n/g, ' ');
+
+export function setQuestion(poll: PostPoll, text: string): PostPoll {
+  return { ...poll, question: oneLine(text) };
+}
+
 export function setOption(poll: PostPoll, index: number, text: string): PostPoll {
-  return { ...poll, options: poll.options.map((option, at) => (at === index ? text : option)) };
+  return { ...poll, options: poll.options.map((option, at) => (at === index ? oneLine(text) : option)) };
 }
 
 export function addOption(poll: PostPoll): PostPoll {
