@@ -115,6 +115,15 @@ export const sourceEventSeriesSchema = z.object({
 });
 export type SourceEventSeriesDto = z.infer<typeof sourceEventSeriesSchema>;
 
+/** Rewrites the version shown of one series post: a ready instruction, or the owner's own words. */
+export const rewriteSourceEventSeriesPostInputSchema = z.strictObject({
+  versionId: z.uuid(),
+  action: z.enum(['short', 'more', 'again', 'custom']),
+  // Required for `custom`: what to change, in the owner's words.
+  instruction: z.string().trim().min(1).max(300).optional()
+});
+export type RewriteSourceEventSeriesPostInput = z.infer<typeof rewriteSourceEventSeriesPostInputSchema>;
+
 export const approveSourceEventAiDraftInputSchema = z.strictObject({ versionId: z.uuid() });
 export const approveSourceEventAiDraftResponseSchema = z.object({ postId: z.uuid(), created: z.boolean() });
 export type ApproveSourceEventAiDraftResponse = z.infer<typeof approveSourceEventAiDraftResponseSchema>;
@@ -145,6 +154,8 @@ export type CreateSourceEventDraftResponse = z.infer<typeof createSourceEventDra
 // GET /api/v1/sources/events/{id}/series → 200 SourceEventSeriesDto (404 without one).
 // POST /api/v1/sources/events/{id}/series/{postId}/approve { versionId } → as …/ai-draft/approve, for one post of the
 //   series: its own studio post, with the media chosen for it.
+// POST /api/v1/sources/events/{id}/series/{postId}/rewrite { versionId, action, instruction? } → 200 SourceEventAiDraftDto
+//   (the new version). A paid model call; 409 CONFLICT when the version was approved or is not the newest.
 // GET /api/v1/sources/events/{id}/ai-draft → 200 SourceEventAiDraftDto (404 when there is none yet).
 // POST /api/v1/sources/events/{id}/ai-draft/approve { versionId } → 201 { postId, created: true }, or 200 with the
 //   same post when that version was approved before (here or in the bot). 404 for a version of another draft,

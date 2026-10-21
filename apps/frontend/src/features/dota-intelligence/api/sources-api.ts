@@ -6,6 +6,7 @@ import {
   sourceEventPageSchema,
   sourceEventSchema,
   sourceEventSeriesSchema,
+  type RewriteSourceEventSeriesPostInput,
   type SourceEventType,
   type SourceEventView
 } from '@alexeev/contracts';
@@ -62,6 +63,14 @@ export function approveSourceEventSeriesPost(id: string, postId: string, version
   return apiRequest(`${eventPath(id)}/series/${postId}/approve`, approveSourceEventAiDraftResponseSchema, {
     method: 'POST',
     body: { versionId }
+  });
+}
+
+/** Rewrites the version shown of one series post (a paid model call); answers the new version. */
+export function rewriteSourceEventSeriesPost(id: string, postId: string, input: RewriteSourceEventSeriesPostInput) {
+  return apiRequest(`${eventPath(id)}/series/${postId}/rewrite`, sourceEventAiDraftSchema, {
+    method: 'POST',
+    body: input
   });
 }
 

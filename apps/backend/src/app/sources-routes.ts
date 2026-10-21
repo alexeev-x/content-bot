@@ -4,9 +4,11 @@ import {
   listSourceEventsQuerySchema,
   sourceEventAiDraftSchema,
   sourceEventContentSchema,
+  rewriteSourceEventSeriesPostInputSchema,
   sourceEventIdSchema,
   sourceEventSeriesSchema
 } from '@alexeev/contracts';
+import { rewriteDraft } from '../modules/ai';
 import { Hono } from 'hono';
 import { z } from 'zod';
 import { parseSourceEventId } from '../modules/dota';
@@ -23,6 +25,13 @@ import { readSourceEventContent, requestSourceEventDraft } from './workflows/sou
 // Every «Написать через ИИ» is a paid model call.
 const AI_DRAFT_LIMIT = 10;
 const AI_DRAFT_WINDOW_MS = 10 * 60 * 1000;
+// A reasoning model at its default effort took over 25 s on DEV; the studio waits for it.
+const REWRITE_TIMEOUT_MS = 120_000;
+const REWRITES = {
+  short: 'короче примерно на треть, без потери главного',
+  more: 'подробнее: раскрой ещё одну-две детали из фактов задания, без воды',
+  again: 'другой вариант: другой заход, тот же смысл и те же факты'
+} as const;
 
 const eventParamsSchema = z.strictObject({ id: sourceEventIdSchema });
 
@@ -173,6 +182,34 @@ export const sourcesRoutes = new Hono<AppBindings>()
           urls: post.media
         });
       return c.json(approveSourceEventAiDraftResponseSchema.parse(result), result.created ? 201 : 200);
+    }
+  )
+  // One post of the series rewritten by the owner's instruction (owner, 21.10.2026: «переписать отдельный пост»).
+  .post(
+    '/events/:id/series/:postId/rewrite',
+    rateLimit({ name: 'source-ai-draft', limit: AI_DRAFT_LIMIT, windowMs: AI_DRAFT_WINDOW_MS }),
+    validated('param', z.strictObject({ id: sourceEventIdSchema, postId: z.uuid() })),
+    validated('json', rewriteSourceEventSeriesPostInputSchema),
+    async (c) => {
+      const container = c.get('container');
+      const event = await findEvent(c);
+      const post = await container.sourceSeries.findPost(c.req.valid('param').postId);
+      if (post === null || `steam_news:${post.externalId}` !== event.id || post.generationId === null)
+        throw new AppError('NOT_FOUND', 'No such post in this series');
+      const input = c.req.valid('json');
+      const current = await readSourceAiDraft(container, post.generationId);
+      // Only the version the owner sees, and only before approval: a stale or approved one is refused, not rewritten.
+      if (current.versionId !== input.versionId)
+        throw new AppError('CONFLICT', 'A newer version exists', { reason: 'STALE_REVISION' });
+      if (current.postId !== null) throw new AppError('CONFLICT', 'Already approved', { reason: 'APPROVED' });
+      if (input.action === 'custom' && input.instruction === undefined)
+        throw new AppError('VALIDATION_ERROR', 'Say what to change', { reason: 'NO_INSTRUCTION' });
+      await rewriteDraft(await createWriterDeps(container, c.get('requestId')), {
+        generationId: input.versionId,
+        instruction: input.action === 'custom' ? (input.instruction ?? '') : REWRITES[input.action],
+        signal: AbortSignal.timeout(REWRITE_TIMEOUT_MS)
+      });
+      return c.json(sourceEventAiDraftSchema.parse(await readSourceAiDraft(container, post.generationId)));
     }
   )
   // Attaches the announcement's images to the event's post again (a failed or partial run); one copy per image.

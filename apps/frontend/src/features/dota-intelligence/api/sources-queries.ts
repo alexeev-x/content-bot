@@ -1,8 +1,10 @@
+import type { RewriteSourceEventSeriesPostInput } from '@alexeev/contracts';
 import { keepPreviousData, queryOptions, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   approveSourceEventAiDraft,
   approveSourceEventSeriesPost,
   getSourceEventSeries,
+  rewriteSourceEventSeriesPost,
   attachSourceEventImages,
   createSourceEventDraft,
   getSourceEventAiDraft,
@@ -69,6 +71,34 @@ export function useApproveSourceEventSeriesPost() {
   return useMutation({
     mutationFn: ({ id, postId, versionId }: { id: string; postId: string; versionId: string }) =>
       approveSourceEventSeriesPost(id, postId, versionId),
+    retry: false,
+    onSettled: () => queryClient.invalidateQueries({ queryKey: sourceEventKeys.all })
+  });
+}
+
+/** Approves every ready post of a series in turn; a failure stops the rest, and the count says how far it got. */
+export function useApproveAllSeriesPosts() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, posts }: { id: string; posts: readonly { postId: string; versionId: string }[] }) => {
+      let approved = 0;
+      for (const post of posts) {
+        await approveSourceEventSeriesPost(id, post.postId, post.versionId);
+        approved += 1;
+      }
+      return approved;
+    },
+    retry: false,
+    onSettled: () => queryClient.invalidateQueries({ queryKey: sourceEventKeys.all })
+  });
+}
+
+/** Never retried by itself: every rewrite is a paid model call. */
+export function useRewriteSourceEventSeriesPost() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, postId, input }: { id: string; postId: string; input: RewriteSourceEventSeriesPostInput }) =>
+      rewriteSourceEventSeriesPost(id, postId, input),
     retry: false,
     onSettled: () => queryClient.invalidateQueries({ queryKey: sourceEventKeys.all })
   });

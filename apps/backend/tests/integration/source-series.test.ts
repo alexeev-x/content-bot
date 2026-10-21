@@ -129,6 +129,25 @@ describe('an event series', () => {
     ).toBe(404);
   });
 
+  it('rewrites only the version shown, never an approved one, and needs words for its own instruction', async () => {
+    const draftId = await writeDraft('Пост серии.');
+    await container().sourceSeries.finishPost({ id: FIRST, status: 'ready', generationId: draftId });
+    api.aiJobs.deliver = () => Promise.resolve();
+    const rewrite = (json: unknown) =>
+      api.request(`/api/v1/sources/events/${EVENT}/series/${FIRST}/rewrite`, { method: 'POST', json });
+    const stale = await rewrite({ versionId: crypto.randomUUID(), action: 'short' });
+    expect(stale.status).toBe(409);
+    expect(await stale.json()).toMatchObject({ error: { details: { reason: 'STALE_REVISION' } } });
+    expect((await rewrite({ versionId: draftId, action: 'custom' })).status).toBe(400);
+    await api.request(`/api/v1/sources/events/${EVENT}/series/${FIRST}/approve`, {
+      method: 'POST',
+      json: { versionId: draftId }
+    });
+    const approved = await rewrite({ versionId: draftId, action: 'again' });
+    expect(approved.status).toBe(409);
+    expect(await approved.json()).toMatchObject({ error: { details: { reason: 'APPROVED' } } });
+  });
+
   it('keeps each post task within the writer limit, the request before the facts', () => {
     const task = seriesPostTask({
       title: 'The Dark Carnival',
