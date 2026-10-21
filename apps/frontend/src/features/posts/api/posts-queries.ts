@@ -205,11 +205,14 @@ export function useReturnPostToDraft() {
 // A deleted post takes its publication records with it, so publication lists and details go stale too. The key is
 // the publications feature's public root key; features never import each other.
 const PUBLICATIONS_KEY = ['publications'] as const;
+// «Источники» shows an event's draft; a deleted one must not stay behind as «Открыть черновик» (owner, 21.10.2026).
+const SOURCE_EVENTS_KEY = ['source-events'] as const;
 
 function forgetPosts(queryClient: QueryClient, ids: readonly string[]): void {
   for (const id of ids) queryClient.removeQueries({ queryKey: postKeys.detail(id) });
   void queryClient.invalidateQueries({ queryKey: postKeys.lists() });
   void queryClient.invalidateQueries({ queryKey: PUBLICATIONS_KEY });
+  void queryClient.invalidateQueries({ queryKey: SOURCE_EVENTS_KEY });
 }
 
 /** Nothing leaves the cache before the server answers: lists are refetched, never edited. */
