@@ -7,6 +7,7 @@ import { runHypothesesReview } from './workflows/hypotheses';
 import { sourceEventWriter } from './workflows/source-event-ai-draft';
 import { attachSourceEventImages } from './workflows/source-event-media';
 import { planEventSeries, writeSeriesPost } from './workflows/source-event-series';
+import { PHOTO_MEDIA_MAX_BYTES } from '@alexeev/contracts';
 import { uploadPostMedia } from '../modules/content';
 import { AppError } from '../shared/app-error';
 import { runStyleLessons } from './workflows/style-lessons';
@@ -20,6 +21,31 @@ import type { Container } from './container';
 
 /** Same budget as a webhook's Bot API calls: a hung Telegram must not hold the consumer. */
 const TELEGRAM_TIMEOUT_SECONDS = 10;
+const TELEGRAM_FILE_TIMEOUT_MS = 30_000;
+
+/**
+ * An image Valve's CDN refuses to the Worker, fetched by Telegram: the bot sends it to the owner's chat silently by
+ * its address, takes Telegram's copy (JPEG) and deletes the message at once. The file URL holds the bot token, so it
+ * is never logged or put in an error.
+ */
+async function fetchViaTelegram(token: string, chatId: number, url: string): Promise<Uint8Array | null> {
+  const api = new Api(token, { timeoutSeconds: TELEGRAM_TIMEOUT_SECONDS });
+  const message = await api.sendPhoto(chatId, url, { disable_notification: true });
+  await api.deleteMessage(chatId, message.message_id).catch(() => undefined);
+  const photo = message.photo?.at(-1);
+  if (photo === undefined) return null;
+  const file = await api.getFile(photo.file_id);
+  if (file.file_path === undefined || (file.file_size ?? 0) > PHOTO_MEDIA_MAX_BYTES) return null;
+  const response = await fetch(`https://api.telegram.org/file/bot${token}/${file.file_path}`, {
+    signal: AbortSignal.timeout(TELEGRAM_FILE_TIMEOUT_MS)
+  }).catch(() => null);
+  if (response === null || !response.ok) {
+    await response?.body?.cancel().catch(() => undefined);
+    return null;
+  }
+  const bytes = new Uint8Array(await response.arrayBuffer());
+  return bytes.byteLength > PHOTO_MEDIA_MAX_BYTES ? null : bytes;
+}
 
 const EVENT_LABEL = { treasure: 'Сокровищница', news: 'Новость', patch: 'Патч' } as const;
 const eventWritingText = (type: keyof typeof EVENT_LABEL, title: string) =>
@@ -57,7 +83,8 @@ async function runSourceMediaJob(
             operation: 'attach',
             status: 'skipped',
             errorCode: reason
-          })
+          }),
+        ...(token === '' ? {} : { viaTelegram: (url: string) => fetchViaTelegram(token, job.chatId, url) })
       },
       job
     );

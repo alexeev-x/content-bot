@@ -11,26 +11,9 @@ import { AppError } from '../../shared/app-error';
 const STEAM_CDN = '.steamstatic.com';
 // The same announcement image on Steam's other CDNs: tried in turn when one refuses (DEV, 21.10.2026: no image
 // arrived while a local run got it). A redirect is followed only within steamstatic.com.
-// The event page's media likewise (DEV, 21.10.2026: cdn.steamstatic.com answered 403 to the Worker for an image).
-const MIRROR_GROUPS = [
-  ['clan.akamai.steamstatic.com', 'clan.fastly.steamstatic.com', 'clan.steamstatic.com'],
-  // Valve's older hosts last: on DEV every steamstatic.com mirror refused the page's images to the Worker.
-  [
-    'cdn.cloudflare.steamstatic.com',
-    'cdn.fastly.steamstatic.com',
-    'cdn.akamai.steamstatic.com',
-    'cdn.steamstatic.com',
-    'steamcdn-a.akamaihd.net',
-    'media.steampowered.com'
-  ]
-];
-// Some CDN edges refuse a request without a client name, and the event page's images are served to dota2.com
-// (DEV 21.10.2026: 403 from every mirror to the Worker; the CDN allows only that origin): sent as the page's own.
-const REQUEST_HEADERS = {
-  'user-agent': 'Mozilla/5.0 (compatible; alexeev-studio/1.0)',
-  accept: 'image/*,video/*;q=0.9,*/*;q=0.5',
-  referer: 'https://www.dota2.com/'
-};
+const MIRRORS = ['clan.akamai.steamstatic.com', 'clan.fastly.steamstatic.com', 'clan.steamstatic.com'];
+// Some CDN edges refuse a request without a client name.
+const REQUEST_HEADERS = { 'user-agent': 'Mozilla/5.0 (compatible; alexeev-studio/1.0)' };
 const MAX_REDIRECTS = 2;
 const DOWNLOAD_TIMEOUT_MS = 60_000;
 // A stale revision means the owner edited the draft meanwhile; the next try reads the new one.
@@ -48,11 +31,18 @@ export interface SourceMediaDeps {
     body: ReadableStream<Uint8Array>;
     idempotencyKey: string;
   }) => Promise<unknown>;
+  /**
+   * An image the CDN refuses to the Worker, fetched by Telegram instead (DEV 21.10.2026: every Valve host answered
+   * 403 to Cloudflare for the event page's images, while videos and browsers got them). JPEG bytes, or null.
+   */
+  viaTelegram?: (url: string) => Promise<Uint8Array | null>;
   fetchAnnouncement?: typeof fetchSteamAnnouncement;
   fetchImpl?: typeof fetch;
   /** Why a file was left out (a stable code with the HTTP status), for the log. */
   onSkip?: (reason: string) => void;
 }
+
+type File = { bytes: Uint8Array; contentType: string; fileName: string };
 
 /** How many of the files are on the post now (attached by this run or an earlier one). */
 export async function attachSourceEventImages(
@@ -78,7 +68,12 @@ export async function attachSourceEventImages(
   for (const [index, url] of files.entries()) {
     const target = new URL(url);
     if (target.protocol !== 'https:' || !target.hostname.endsWith(STEAM_CDN)) continue;
-    const file = await download(deps.fetchImpl ?? fetch, target, onSkip);
+    let file = await download(deps.fetchImpl ?? fetch, target, onSkip);
+    if (file === null && !isVideo(target.pathname) && deps.viaTelegram !== undefined) {
+      const bytes = await deps.viaTelegram(target.href).catch(() => null);
+      if (bytes === null) onSkip('TELEGRAM_FETCH_FAILED');
+      else file = { bytes, contentType: 'image/jpeg', fileName: `steam-${baseName(target.pathname)}.jpg` };
+    }
     if (file === null) continue;
     if (await attach(deps, input.postId, file, `source-image:${input.externalId}:${index}`)) attached += 1;
     else onSkip('ATTACH_REFUSED');
@@ -86,15 +81,15 @@ export async function attachSourceEventImages(
   return { attached, found: files.length };
 }
 
-async function download(
-  fetchImpl: typeof fetch,
-  url: URL,
-  onSkip: (reason: string) => void
-): Promise<{ bytes: Uint8Array; contentType: string; fileName: string } | null> {
+const isVideo = (path: string) => /\.mp4$/i.test(path);
+const baseName = (path: string) => (path.split('/').pop() ?? 'image').replace(/\.\w+$/, '');
+
+async function download(fetchImpl: typeof fetch, url: URL, onSkip: (reason: string) => void): Promise<File | null> {
   const path = url.pathname;
-  const group = MIRROR_GROUPS.find((hosts) => hosts.includes(url.hostname));
-  // The address's own host first, then its mirrors.
-  const hosts = group ? [url.hostname, ...group.filter((host) => host !== url.hostname)] : [url.hostname];
+  // An announcement image's own host first, then its mirrors.
+  const hosts = MIRRORS.includes(url.hostname)
+    ? [url.hostname, ...MIRRORS.filter((host) => host !== url.hostname)]
+    : [url.hostname];
   let response: Response | null = null;
   for (const host of hosts) {
     response = await fetchFrom(fetchImpl, `https://${host}${path}`).catch((error: unknown) => {
@@ -107,7 +102,7 @@ async function download(
     response = null;
   }
   if (response === null) return null;
-  const video = /\.mp4$/i.test(path);
+  const video = isVideo(path);
   const limit = video ? VIDEO_MEDIA_MAX_BYTES : PHOTO_MEDIA_MAX_BYTES;
   const length = Number(response.headers.get('content-length') ?? '0');
   if (length > limit) {
@@ -131,9 +126,7 @@ async function download(
   return { bytes, contentType, fileName: `steam-${name}`.slice(0, 255) };
 }
 
-const isValveCdn = (host: string) => host.endsWith(STEAM_CDN) || MIRROR_GROUPS.some((group) => group.includes(host));
-
-// Follows a redirect only to another Valve CDN address, at most twice.
+// Follows a redirect only to another steamstatic.com address, at most twice.
 async function fetchFrom(fetchImpl: typeof fetch, url: string): Promise<Response> {
   let next = url;
   for (let hop = 0; ; hop += 1) {
@@ -145,19 +138,14 @@ async function fetchFrom(fetchImpl: typeof fetch, url: string): Promise<Response
     const location = response.headers.get('location');
     if (response.status < 300 || response.status >= 400 || location === null || hop >= MAX_REDIRECTS) return response;
     const target = new URL(location, next);
-    if (target.protocol !== 'https:' || !isValveCdn(target.hostname)) return response;
+    if (target.protocol !== 'https:' || !target.hostname.endsWith(STEAM_CDN)) return response;
     await response.body?.cancel().catch(() => undefined);
     next = target.href;
   }
 }
 
 // The idempotency key per file makes a repeated job attach nothing twice.
-async function attach(
-  deps: SourceMediaDeps,
-  postId: string,
-  file: { bytes: Uint8Array; contentType: string; fileName: string },
-  idempotencyKey: string
-): Promise<boolean> {
+async function attach(deps: SourceMediaDeps, postId: string, file: File, idempotencyKey: string): Promise<boolean> {
   for (let attempt = 0; attempt < ATTACH_ATTEMPTS; attempt += 1) {
     const state = await deps.postState(postId);
     if (state === null || state.mediaCount >= POST_MEDIA_MAX_ITEMS) return false;
