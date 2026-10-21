@@ -38,6 +38,17 @@ export const aiJobSchema = z.discriminatedUnion('kind', [
     appOrigin: z.string().max(200),
     externalId: z.string().min(1).max(100)
   }),
+  /**
+   * The approved post of a Dota event announcement gets the announcement's images (owner, 21.10.2026: an event post
+   * always carries its picture). No model call; it rides this queue for its wall time, not the webhook's.
+   */
+  z.object({
+    id: z.uuid(),
+    kind: z.literal('source_media'),
+    chatId: z.number().int(),
+    postId: z.uuid(),
+    externalId: z.string().min(1).max(100)
+  }),
   z.object({ ...base, kind: z.literal('draft'), format: formatSchema, task: z.string().min(1).max(TEXT_MAX) }),
   z.object({
     ...base,
@@ -83,4 +94,5 @@ export type AiJobBase = z.infer<z.ZodObject<typeof base>>;
 export type EventWriterJob = AiJobBase & { kind: 'event'; externalId: string };
 /** The jobs of the bot's AI writer: each has the chat message it ends in. */
 export type WriterJob =
-  Exclude<AiJob, { kind: 'daily_review' | 'style_lessons' | 'hypotheses' | 'source_event' }> | EventWriterJob;
+  | Exclude<AiJob, { kind: 'daily_review' | 'style_lessons' | 'hypotheses' | 'source_event' | 'source_media' }>
+  | EventWriterJob;

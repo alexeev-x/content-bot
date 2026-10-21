@@ -5,8 +5,11 @@ import { createWriterDeps } from './bot/writer-deps';
 import { runDailyReview } from './workflows/daily-review';
 import { runHypothesesReview } from './workflows/hypotheses';
 import { sourceEventWriter } from './workflows/source-event-ai-draft';
+import { attachSourceEventImages } from './workflows/source-event-media';
+import { uploadPostMedia } from '../modules/content';
+import { AppError } from '../shared/app-error';
 import { runStyleLessons } from './workflows/style-lessons';
-import type { WriterJob } from './bot/ai-job';
+import type { AiJob, WriterJob } from './bot/ai-job';
 import type { Container } from './container';
 
 // Consumer of Queue AI_JOBS (docs/backend/bot.md «AI writer»): one model call per message, with the 15 minutes
@@ -21,6 +24,49 @@ const EVENT_LABEL = { treasure: 'Сокровищница', news: 'Новост�
 const eventWritingText = (type: keyof typeof EVENT_LABEL, title: string) =>
   `${EVENT_LABEL[type]} в Steam: ${title}
 Пишу пост…`;
+
+/** Attaches an approved event post's images once, then tells the owner how many arrived. Never throws. */
+async function runSourceMediaJob(
+  job: Extract<AiJob, { kind: 'source_media' }>,
+  container: Container,
+  token: string,
+  onError: (error: unknown) => void
+): Promise<void> {
+  let text: string;
+  try {
+    if (!(await container.aiWriter.claimJob(job.id, container.clock.now()))) return;
+    const storage = container.mediaStorage;
+    if (storage === undefined) throw new AppError('UNAVAILABLE', 'Media storage is not configured');
+    const { attached, found } = await attachSourceEventImages(
+      {
+        repo: container.dotaRepository,
+        postState: async (id) => {
+          const state = await container.postMedia.findPostState(id);
+          return state === null ? null : { revision: state.revision, mediaCount: state.media.length };
+        },
+        upload: (command) =>
+          uploadPostMedia(
+            { repo: container.postMedia, storage, now: container.clock.now(), newId: container.newId },
+            { ...command, actor: container.ownerChatId ?? 'system' }
+          )
+      },
+      job
+    );
+    if (found === 0) return;
+    text =
+      attached === found
+        ? `Картинки из анонса прикреплены к черновику: ${attached}.`
+        : `Прикреплено картинок из анонса: ${attached} из ${found}. Остальные добавьте в студии.`;
+    await container.aiWriter.finishJob(job.id, container.clock.now());
+  } catch (error) {
+    onError(error);
+    text = 'Не удалось прикрепить картинки из анонса. Добавьте их в студии.';
+  }
+  if (token === '') return;
+  await new Api(token, { timeoutSeconds: TELEGRAM_TIMEOUT_SECONDS })
+    .sendMessage(job.chatId, text)
+    .catch((error: unknown) => onError(error));
+}
 
 export async function handleAiQueue(batch: MessageBatch<unknown>, container: Container, token: string) {
   const { logger } = container;
@@ -72,6 +118,11 @@ export async function handleAiQueue(batch: MessageBatch<unknown>, container: Con
         // D1 failed: the hypotheses stay as they were until next Monday.
         onError(error);
       }
+      message.ack();
+      continue;
+    }
+    if (job.kind === 'source_media') {
+      await runSourceMediaJob(job, container, token, onError);
       message.ack();
       continue;
     }

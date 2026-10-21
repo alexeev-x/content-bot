@@ -3,6 +3,8 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { createPublishActions } from '../../src/app/bot/publish-actions';
 import { createContainer, type Container } from '../../src/app/container';
 import { processDotaUpdates } from '../../src/app/workflows/process-dota-updates';
+import { attachSourceEventImages } from '../../src/app/workflows/source-event-media';
+import { uploadPostMedia } from '../../src/modules/content';
 import type { AiJob } from '../../src/app/bot/ai-job';
 import { createD1DotaWatcherRepository, type DotaPatchInspection } from '../../src/modules/dota';
 import { createLogger } from '../../src/platform/logging/logger';
@@ -23,7 +25,7 @@ import {
 } from '../helpers/harness';
 import { meteredDb } from '../helpers/metered-db';
 import { testMediaBucket } from '../helpers/media-bucket';
-import { count, seedDestination } from '../helpers/publishing';
+import { count, seedDestination, seedDraftPost } from '../helpers/publishing';
 
 const DAY = 24 * 60 * 60_000;
 const ORIGIN = 'https://studio.example.com';
@@ -500,10 +502,10 @@ describe('an AI draft of a Steam announcement', () => {
     await repo().setAiGeneration({ externalId: '0999', jobId: job, generationId: GENERATION });
 
     // The owner approved a rewrite of that draft: the chain reaches the event.
-    expect(await repo().linkAiPost({ generationIds: [CHILD, GENERATION], postId: POST, now: START })).toBe(true);
+    expect(await repo().linkAiPost({ generationIds: [CHILD, GENERATION], postId: POST, now: START })).toBe('0999');
     expect(await row('0999')).toMatchObject({ draft_post_id: POST, owner_alert_claimed_at: START });
     const other = '00000000-0000-4000-8000-0000000000bb';
-    expect(await repo().linkAiPost({ generationIds: [GENERATION], postId: other, now: START })).toBe(false);
+    expect(await repo().linkAiPost({ generationIds: [GENERATION], postId: other, now: START })).toBeNull();
     expect(await row('0999')).toMatchObject({ draft_post_id: POST });
   });
 
@@ -512,7 +514,7 @@ describe('an AI draft of a Steam announcement', () => {
     await repo().claimAiDraft({ externalId: '1002', jobId: old, replay: false });
     await repo().claimAiDraft({ externalId: '1002', jobId: crypto.randomUUID(), replay: true });
     await repo().setAiGeneration({ externalId: '1002', jobId: old, generationId: GENERATION });
-    expect(await repo().linkAiPost({ generationIds: [GENERATION], postId: POST, now: START })).toBe(false);
+    expect(await repo().linkAiPost({ generationIds: [GENERATION], postId: POST, now: START })).toBeNull();
   });
 
   it('a hidden announcement is never replayed', async () => {
@@ -554,5 +556,52 @@ describe('the Cron tick that runs the watcher', () => {
     }
     expect(messenger.sent).toHaveLength(1);
     expect(await count('posts')).toBe(1);
+  });
+});
+
+describe("an event post's images", () => {
+  // A 2×3 PNG: enough for the upload's signature and dimension checks.
+  const png = new Uint8Array([
+    0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 13, 0x49, 0x48, 0x44, 0x52, 0, 0, 0, 2, 0, 0, 0, 3, 8, 2,
+    0, 0, 0, 0, 0, 0, 0
+  ]);
+  const CDN = 'https://clan.akamai.steamstatic.com/images/3703047';
+
+  it('attaches only Steam CDN images, once however often the job runs', async () => {
+    const container = createContainer(
+      { DB: testDb(), MEDIA_BUCKET: testMediaBucket(), OWNER_TELEGRAM_ID: OWNER_ID },
+      { clock: fakeClock() }
+    );
+    const post = await seedDraftPost(api);
+    const storage = container.mediaStorage;
+    if (storage === undefined) throw new Error('no storage');
+    const fetched: string[] = [];
+    const deps = {
+      repo: container.dotaRepository,
+      postState: async (id: string) => {
+        const state = await container.postMedia.findPostState(id);
+        return state === null ? null : { revision: state.revision, mediaCount: state.media.length };
+      },
+      upload: (command: Parameters<typeof uploadPostMedia>[1]) =>
+        uploadPostMedia({ repo: container.postMedia, storage, now: START, newId: container.newId }, command),
+      fetchAnnouncement: () =>
+        Promise.resolve({
+          text: 'x',
+          images: [`${CDN}/${'a'.repeat(40)}.png`, 'https://evil.example/x.png', `${CDN}/${'b'.repeat(40)}.png`]
+        }),
+      fetchImpl: ((url: string) => {
+        fetched.push(url);
+        return Promise.resolve(new Response(png, { headers: { 'content-type': 'image/png' } }));
+      }) as unknown as typeof fetch
+    };
+    const run = () =>
+      attachSourceEventImages(
+        { ...deps, upload: (command) => deps.upload({ ...command, actor: OWNER_ID }) },
+        { postId: post.id, externalId: '1001' }
+      );
+    expect(await run()).toEqual({ attached: 2, found: 3 });
+    expect(await run()).toEqual({ attached: 2, found: 3 });
+    expect(fetched.every((url) => url.startsWith(CDN))).toBe(true);
+    expect((await container.postMedia.findPostState(post.id))?.media).toHaveLength(2);
   });
 });

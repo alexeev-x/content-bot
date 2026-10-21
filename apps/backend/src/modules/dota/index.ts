@@ -767,9 +767,10 @@ export interface DotaWatcherRepository {
   setAiGeneration(input: { externalId: string; jobId: string; generationId: string }): Promise<void>;
   /**
    * The owner approved a draft of the event (`generationIds`: the draft and its ancestors): its post becomes the
-   * event's draft, with the notice counted as sent (the approval reply has the publish buttons). Once per event.
+   * event's draft, with the notice counted as sent (the approval reply has the publish buttons). Once per event:
+   * the linked announcement's id, null when nothing was linked.
    */
-  linkAiPost(input: { generationIds: readonly string[]; postId: string; now: number }): Promise<boolean>;
+  linkAiPost(input: { generationIds: readonly string[]; postId: string; now: number }): Promise<string | null>;
   findSteamAnnouncement(externalId: string): Promise<DotaDraftSource | null>;
   claimDraftOwnerAlert(input: { sourceKey: DotaSourceKey; externalId: string; claimedAt: number }): Promise<boolean>;
   listSourceIncidentAlerts(limit: number): Promise<DotaSourceIncident[]>;
@@ -1566,16 +1567,17 @@ export function createD1DotaWatcherRepository(db: D1Database): DotaWatcherReposi
     },
 
     async linkAiPost({ generationIds, postId, now }) {
-      if (generationIds.length === 0) return false;
-      const result = await db
+      if (generationIds.length === 0) return null;
+      const row = await db
         .prepare(
           `UPDATE dota_update_items SET draft_post_id = ?1, owner_alert_claimed_at = COALESCE(owner_alert_claimed_at, ?2)
            WHERE ai_generation_id IN (SELECT value FROM json_each(?3))
-             AND draft_post_id IS NULL AND hidden_at IS NULL`
+             AND draft_post_id IS NULL AND hidden_at IS NULL
+           RETURNING external_id`
         )
         .bind(postId, now, JSON.stringify(generationIds.slice(0, 20)))
-        .run();
-      return result.meta.changes > 0;
+        .first<{ external_id: string }>();
+      return row?.external_id ?? null;
     },
 
     async findSteamAnnouncement(externalId) {
