@@ -14,7 +14,15 @@ const STEAM_CDN = '.steamstatic.com';
 // The event page's media likewise (DEV, 21.10.2026: cdn.steamstatic.com answered 403 to the Worker for an image).
 const MIRROR_GROUPS = [
   ['clan.akamai.steamstatic.com', 'clan.fastly.steamstatic.com', 'clan.steamstatic.com'],
-  ['cdn.cloudflare.steamstatic.com', 'cdn.fastly.steamstatic.com', 'cdn.akamai.steamstatic.com', 'cdn.steamstatic.com']
+  // Valve's older hosts last: on DEV every steamstatic.com mirror refused the page's images to the Worker.
+  [
+    'cdn.cloudflare.steamstatic.com',
+    'cdn.fastly.steamstatic.com',
+    'cdn.akamai.steamstatic.com',
+    'cdn.steamstatic.com',
+    'steamcdn-a.akamaihd.net',
+    'media.steampowered.com'
+  ]
 ];
 // Some CDN edges refuse a request without a client name, and the event page's images are served to dota2.com
 // (DEV 21.10.2026: 403 from every mirror to the Worker; the CDN allows only that origin): sent as the page's own.
@@ -123,7 +131,9 @@ async function download(
   return { bytes, contentType, fileName: `steam-${name}`.slice(0, 255) };
 }
 
-// Follows a redirect only to another steamstatic.com address, at most twice.
+const isValveCdn = (host: string) => host.endsWith(STEAM_CDN) || MIRROR_GROUPS.some((group) => group.includes(host));
+
+// Follows a redirect only to another Valve CDN address, at most twice.
 async function fetchFrom(fetchImpl: typeof fetch, url: string): Promise<Response> {
   let next = url;
   for (let hop = 0; ; hop += 1) {
@@ -135,7 +145,7 @@ async function fetchFrom(fetchImpl: typeof fetch, url: string): Promise<Response
     const location = response.headers.get('location');
     if (response.status < 300 || response.status >= 400 || location === null || hop >= MAX_REDIRECTS) return response;
     const target = new URL(location, next);
-    if (target.protocol !== 'https:' || !target.hostname.endsWith(STEAM_CDN)) return response;
+    if (target.protocol !== 'https:' || !isValveCdn(target.hostname)) return response;
     await response.body?.cancel().catch(() => undefined);
     next = target.href;
   }
