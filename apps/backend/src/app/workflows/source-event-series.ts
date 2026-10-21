@@ -1,5 +1,5 @@
 import { Api, InlineKeyboard } from 'grammy';
-import { generateDraft, planSeries, SOURCE_LINK_LABEL } from '../../modules/ai';
+import { generateCheckedDraft, planSeries, SOURCE_LINK_LABEL } from '../../modules/ai';
 import { fetchEventPage, fetchSteamAnnouncement, type EventPage } from '../../modules/dota';
 import { createWriterDeps } from '../bot/writer-deps';
 import type { Container } from '../container';
@@ -144,7 +144,7 @@ export async function writeSeriesPost(
   if (post === null || post.status !== 'writing') return;
   try {
     const deps = await createWriterDeps(container, requestId);
-    const result = await generateDraft(deps, {
+    const result = await generateCheckedDraft(deps, {
       format: 'telegram',
       mode: 'automatic',
       source: 'bot',
@@ -154,7 +154,8 @@ export async function writeSeriesPost(
     await container.sourceSeries.finishPost({
       id: post.id,
       status: result.text === null ? 'failed' : 'ready',
-      generationId: result.generation.id
+      // The first version of the chain: a fix by the fact check is its child.
+      generationId: result.generation.parentGenerationId ?? result.generation.id
     });
   } catch (error) {
     onError(error);

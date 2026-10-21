@@ -11,6 +11,7 @@ import {
   type FeedbackKind,
   FORMAT_LABEL,
   type GenerationRow,
+  generateCheckedDraft,
   generateDraft,
   NEEDS_FACTS,
   publishableText,
@@ -360,8 +361,16 @@ async function jobResult(
     const events = runtime.sourceEvents;
     try {
       const task = await events.task(job.externalId);
-      const result = await generateDraft(deps, { format: 'telegram', mode: 'automatic', source: 'bot', task, signal });
-      await events.generated(job, result.generation.id);
+      // Automatic: the source's facts only, checked by a second pass before the owner sees it.
+      const result = await generateCheckedDraft(deps, {
+        format: 'telegram',
+        mode: 'automatic',
+        source: 'bot',
+        task,
+        signal
+      });
+      // The first version of the chain: a fix by the fact check is its child.
+      await events.generated(job, result.generation.parentGenerationId ?? result.generation.id);
       return result;
     } finally {
       // Success or failure, the event's «Написать через ИИ» unlocks.
