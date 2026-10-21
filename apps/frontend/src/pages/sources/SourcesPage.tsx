@@ -1,7 +1,7 @@
 import { Link, useNavigate, useSearch } from '@tanstack/react-router';
 import { useCallback, useEffect, useRef } from 'react';
 import { useDocumentTitle } from '../../app/use-document-title';
-import { DotaEventDetail, SourcesBoard, type FeedFilters } from '../../features/dota-intelligence';
+import { DotaEventDetail, SourcesBoard, type SourceTableView } from '../../features/dota-intelligence';
 import { useOwnerTimezone } from '../../features/owner-settings';
 import { ru } from '../../shared/lib/ru';
 import { PageHeader } from '../../shared/ui';
@@ -15,14 +15,15 @@ export function SourcesPage() {
   const externalId = parts.join(':');
   const validSourceKey = sourceKey === 'steam_news' || sourceKey === 'patch_notes' ? sourceKey : undefined;
   const validUpdate = validSourceKey !== undefined && /^[A-Za-z0-9._-]{1,100}$/.test(externalId);
-  const filters: FeedFilters = { status: search.status ?? 'new', page: search.page ?? 1 };
-  const onFiltersChange = useCallback(
-    (patch: Partial<FeedFilters>) =>
+  const state: SourceTableView = { view: search.view ?? 'active', page: search.page ?? 1, open: search.open };
+  const onChange = useCallback(
+    (patch: Partial<SourceTableView>) =>
       void navigate({
         search: (previous) => ({
           ...previous,
           ...patch,
-          ...(patch.page === 1 ? { page: undefined } : {})
+          ...(patch.page === 1 ? { page: undefined } : {}),
+          ...(patch.view === 'active' ? { view: undefined } : {})
         }),
         replace: true
       }),
@@ -39,7 +40,7 @@ export function SourcesPage() {
     <>
       <PageHeader title={ru.pages.sources} focusHeadingOnMount />
       <div hidden={Boolean(search.update)}>
-        <SourcesBoard timezone={timezone} filters={filters} onFiltersChange={onFiltersChange} />
+        <SourcesBoard timezone={timezone} state={state} onChange={onChange} />
       </div>
       {validUpdate && validSourceKey ? (
         <DotaEventDetail sourceKey={validSourceKey} externalId={externalId} timezone={timezone} />

@@ -24,20 +24,31 @@ export function classifyDotaEvent(input: {
 }
 
 // Steam announcement bodies are BBCode/HTML with image placeholders. Keep plain text only: tags,
-// links and image macros are dropped, never copied into a draft.
-export function cleanExcerpt(raw: string | undefined, max = EXCERPT_STORE_MAX): string | null {
+// links and image macros are dropped, never copied into a draft. `paragraphs` keeps a blank line between blocks
+// (the whole announcement in the side panel); otherwise everything is one line.
+export function cleanExcerpt(raw: string | undefined, max = EXCERPT_STORE_MAX, paragraphs = false): string | null {
   if (raw === undefined) return null;
-  const text = raw
-    .replace(/\{STEAM_CLAN_(?:LOC_)?IMAGE\}\S*/g, ' ')
+  const block = paragraphs ? '\n\n' : ' ';
+  const stripped = raw
+    // The tag before the macro: `[img src="{STEAM_CLAN_LOC_IMAGE}/….png"][/img]` would otherwise lose its macro first
+    // and leave `[img src="`; the macro stops at a quote or a bracket, so it never eats the next word.
     .replace(/\[(?:img|previewyoutube|video)[^\]]*\][\s\S]*?\[\/(?:img|previewyoutube|video)\]/gi, ' ')
-    .replace(/\[\/?(?:p|h\d|br|list|\*|quote|table|tr|td|hr)\b[^\]]{0,80}\]/gi, ' ')
+    .replace(/\{STEAM_CLAN_(?:LOC_)?IMAGE\}[^\s"[\]]*/g, ' ')
+    .replace(/\[\/?(?:p|h\d|br|list|\*|quote|table|tr|td|hr)\b[^\]]{0,80}\]/gi, block)
     .replace(/\[[^\]]{1,80}\]/g, '')
-    .replace(/<\/?(?:p|br|div|li|ul|h\d)\b[^>]{0,200}>/gi, ' ')
+    .replace(/<\/?(?:p|br|div|li|ul|h\d)\b[^>]{0,200}>/gi, block)
     .replace(/<[^>]{1,200}>/g, '')
     .replace(/https?:\/\/\S+/g, ' ')
     .replace(/&nbsp;/g, ' ')
-    .replace(/&amp;/g, '&')
-    .replace(/\s+/g, ' ')
+    .replace(/&amp;/g, '&');
+  const text = (
+    paragraphs
+      ? stripped
+          .replace(/[^\S\n]+/g, ' ')
+          .replace(/ ?\n ?/g, '\n')
+          .replace(/\n{3,}/g, '\n\n')
+      : stripped.replace(/\s+/g, ' ')
+  )
     .trim()
     .slice(0, max)
     .trim();

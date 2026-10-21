@@ -771,8 +771,6 @@ export interface DotaWatcherRepository {
    */
   linkAiPost(input: { generationIds: readonly string[]; postId: string; now: number }): Promise<boolean>;
   findSteamAnnouncement(externalId: string): Promise<DotaDraftSource | null>;
-  /** The latest Steam announcements, past ones included, newest first. */
-  listRecentAnnouncements(limit: number): Promise<DotaDraftSource[]>;
   claimDraftOwnerAlert(input: { sourceKey: DotaSourceKey; externalId: string; claimedAt: number }): Promise<boolean>;
   listSourceIncidentAlerts(limit: number): Promise<DotaSourceIncident[]>;
   claimSourceIncidentAlert(input: { id: string; claimedAt: number }): Promise<{ resolvedAt: number | null } | null>;
@@ -888,21 +886,31 @@ async function readBoundedJson(response: Response, maximumBytes: number, sourceK
   }
 }
 
-// The whole announcement for the AI writer: the feed keeps only Steam's first 500 characters. Steam has no
-// lookup by id, so this asks for the few announcements up to the event's own time and picks it by gid.
-const STEAM_ANNOUNCEMENT_TEXT_MAX = 3_500;
+// The whole announcement for the AI writer and the side panel: the feed keeps only Steam's first 500 characters.
+// Steam has no lookup by id, so this asks for the few announcements up to the event's own time and picks it by gid.
+const STEAM_ANNOUNCEMENT_TEXT_MAX = 20_000;
 const MAX_STEAM_ANNOUNCEMENT_BYTES = 512 * 1024;
+const MAX_ANNOUNCEMENT_IMAGES = 10;
+// Image macros of an announcement body, e.g. `{STEAM_CLAN_LOC_IMAGE}/3703047/<sha1>.png`, served by Steam's CDN.
+const STEAM_CLAN_IMAGE = /\{STEAM_CLAN_(?:LOC_)?IMAGE\}\/(\d{1,12}\/[0-9a-f]{40}\.(?:png|jpe?g|gif|webp))/gi;
 const steamAnnouncementSchema = z.object({
   appnews: z.object({
     newsitems: z.array(z.object({ gid: z.string().max(100), contents: z.string().max(200_000) })).max(10)
   })
 });
 
-/** Plain text of one Steam announcement (links and images dropped), at most 3 500 characters; null when gone. */
-export async function fetchSteamAnnouncementText(
+export interface SteamAnnouncement {
+  /** Plain text, links and markup dropped, at most 20 000 characters. */
+  text: string | null;
+  /** Its own images on Steam's CDN, in order, at most 10. */
+  images: string[];
+}
+
+/** One Steam announcement; null when Steam no longer returns it. */
+export async function fetchSteamAnnouncement(
   input: { externalId: string; publishedAt: number },
   fetchImpl: typeof fetch = fetch
-): Promise<string | null> {
+): Promise<SteamAnnouncement | null> {
   const url = new URL('https://api.steampowered.com/ISteamNews/GetNewsForApp/v2/');
   url.searchParams.set('appid', '570');
   url.searchParams.set('count', '5');
@@ -925,7 +933,16 @@ export async function fetchSteamAnnouncementText(
   );
   if (!parsed.success) throw new DotaWatchError('DOTA_SOURCE_SHAPE', 'steam_news', null, describeShape(parsed.error));
   const item = parsed.data.appnews.newsitems.find((news) => news.gid === input.externalId);
-  return item === undefined ? null : cleanExcerpt(item.contents, STEAM_ANNOUNCEMENT_TEXT_MAX);
+  if (item === undefined) return null;
+  const images = [
+    ...new Set(
+      Array.from(
+        item.contents.matchAll(STEAM_CLAN_IMAGE),
+        (match) => `https://clan.akamai.steamstatic.com/images/${match[1]}`
+      )
+    )
+  ].slice(0, MAX_ANNOUNCEMENT_IMAGES);
+  return { text: cleanExcerpt(item.contents, STEAM_ANNOUNCEMENT_TEXT_MAX, true), images };
 }
 
 // dota2.com shows the same announcement under the Steam event's own id, not the news feed's gid; Steam's events
@@ -1570,18 +1587,6 @@ export function createD1DotaWatcherRepository(db: D1Database): DotaWatcherReposi
         .bind(externalId)
         .first<DotaDraftRow>();
       return row === null ? null : toDraftSource(row);
-    },
-
-    async listRecentAnnouncements(limit) {
-      const { results } = await db
-        .prepare(
-          `SELECT ${STEAM_ANNOUNCEMENT_COLUMNS} FROM dota_update_items u
-           WHERE u.source_key = 'steam_news' AND u.hidden_at IS NULL
-           ORDER BY u.published_at DESC, u.external_id DESC LIMIT ?1`
-        )
-        .bind(Math.min(limit, 20))
-        .all<DotaDraftRow>();
-      return results.map(toDraftSource);
     },
 
     async listOwnerAlertWork(limit) {

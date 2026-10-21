@@ -34,6 +34,12 @@ describe('cleanExcerpt and firstSentence', () => {
     expect(cleanExcerpt('[img]a.png[/img]')).toBeNull();
     expect(cleanExcerpt(undefined)).toBeNull();
   });
+  it('drops an image tag around a macro whole, keeping the next word; paragraphs on request', () => {
+    // The Trove of Terror announcement (21.10.2026) lost «Some» and kept `[img src="`.
+    const raw = '[p][img src="{STEAM_CLAN_LOC_IMAGE}/3703047/ab.png"][/img][/p][p]Some time ago.[/p][p]Then more.[/p]';
+    expect(cleanExcerpt(raw)).toBe('Some time ago. Then more.');
+    expect(cleanExcerpt(raw, 600, true)).toBe('Some time ago.\n\nThen more.');
+  });
   it('takes the first sentence, bounded', () => {
     expect(firstSentence('One. Two.')).toBe('One.');
     expect(firstSentence('No end')).toBe('No end');

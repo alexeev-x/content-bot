@@ -1,0 +1,21 @@
+.titleCell {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+.title {
+  overflow: hidden;
+  font-weight: var(--font-weight-medium);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.meta {
+  overflow: hidden;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.nowrap {
+  white-space: nowrap;
+}

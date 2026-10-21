@@ -1,14 +1,15 @@
 import {
   createSourceEventDraftResponseSchema,
+  sourceEventContentSchema,
   sourceEventPageSchema,
   sourceEventSchema,
-  type SourceEventStatus,
-  type SourceEventType
+  type SourceEventType,
+  type SourceEventView
 } from '@alexeev/contracts';
 import { apiRequest } from '../../../shared/api/http-client';
 import { buildQuery } from '../../../shared/api/query-string';
 
-export type SourceEventsFilters = { status?: SourceEventStatus; type?: SourceEventType; page: number; limit: number };
+export type SourceEventsFilters = { view?: SourceEventView; type?: SourceEventType; page: number; limit: number };
 
 export function getSourceEvents(filters: SourceEventsFilters, signal?: AbortSignal) {
   return apiRequest(`/api/v1/sources/events${buildQuery(filters)}`, sourceEventPageSchema, { signal });
@@ -16,8 +17,18 @@ export function getSourceEvents(filters: SourceEventsFilters, signal?: AbortSign
 
 const eventPath = (id: string) => `/api/v1/sources/events/${encodeURIComponent(id)}`;
 
+/** The announcement itself (text, images, dota2.com link), read from Steam by the server. */
+export function getSourceEventContent(id: string, signal?: AbortSignal) {
+  return apiRequest(`${eventPath(id)}/content`, sourceEventContentSchema, { signal });
+}
+
 export function createSourceEventDraft(id: string) {
   return apiRequest(`${eventPath(id)}/draft`, createSourceEventDraftResponseSchema, { method: 'POST', body: {} });
+}
+
+/** Asks the AI writer for a post; the draft arrives in the bot for approval. Each call is a paid model call. */
+export function requestSourceEventAiDraft(id: string) {
+  return apiRequest(`${eventPath(id)}/ai-draft`, sourceEventSchema, { method: 'POST', body: {} });
 }
 
 export function setSourceEventHidden(id: string, hidden: boolean) {

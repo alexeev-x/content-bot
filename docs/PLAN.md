@@ -10,8 +10,17 @@ The AI makes the Telegram channel's content itself: news and rubric posts drafte
 ## 1. Sources
 
 - Today two are connected: Steam News of Dota 2 (`steam_news`) and the official patch notes (`patch_notes`). A Steam
-  announcement is drafted by the AI writer in the bot, and `/events` replays a past one. The owner has not seen it on
-  DEV yet; «The Dark Carnival» and «Inside the Trove of Terror» go first. Patch notes still use a template.
+  announcement is drafted by the AI writer in the bot; the studio's «Прошлые анонсы» lets the owner try a past one.
+  Patch notes still use a template.
+- A Dota event announcement (an event like «The Dark Carnival», a treasure, …) always carries its image in the post
+  (owner, 21.10.2026); other sources get their own rules later. Today the AI draft is text only.
+- A treasure post lists its sets, images and price. Liquipedia had the sets 35 minutes after Valve's announcement
+  (Trove of Terror) and never the price. To try first: Steam's item schema and asset prices with the owner's free Steam
+  Web API key (`STEAM_WEB_API_KEY`), which could give them at the announcement. Otherwise two posts (owner): the news at
+  once, then the sets with images (two posts when there are many), the last one ending with the price.
+- Sources come in two kinds (owner, 21.10.2026): important ones, whose news the studio writes and publishes by itself
+  as soon as it appears, and scheduled rubrics (e.g. a weekly «worst heroes» from a stats API). Publishing without the
+  owner needs a recorded decision and its safeguards first (`docs/DECISIONS.md`).
 - Find and add more that give a post a day without the owner's work; each must be free, keyless or with a free key,
   and allowed by its terms.
 

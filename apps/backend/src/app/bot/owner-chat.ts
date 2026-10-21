@@ -8,7 +8,6 @@ export const OWNER_COMMANDS = [
   { command: 'redactor', description: 'ИИ-редактор: написать пост или рилс' },
   { command: 'post', description: 'Создать пост: сообщения становятся черновиками' },
   { command: 'analytics', description: 'Аналитика сейчас: 6 последних роликов' },
-  { command: 'events', description: 'Прогнать анонс Steam через ИИ' },
   { command: 'stop', description: 'Выйти из редактора или режима постов' }
 ];
 

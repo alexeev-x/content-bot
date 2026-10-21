@@ -3,7 +3,8 @@ import type {
   SourceEventDto,
   SourceEventEntityDto,
   SourceEventPageDto,
-  SourceEventStatus
+  SourceEventStatus,
+  SourceEventView
 } from '@alexeev/contracts';
 import {
   eventSummary,
@@ -35,6 +36,7 @@ export interface SourceEventDraftInput {
 
 export interface SourceEventsRepository {
   list(input: {
+    view?: SourceEventView | undefined;
     status?: SourceEventStatus | undefined;
     type?: SourceEventType | undefined;
     page: number;
@@ -60,6 +62,8 @@ interface EventRow {
   post_id: string | null;
   post_title: string | null;
   job_status: string | null;
+  is_baseline: number;
+  ai_job_id: string | null;
   status: SourceEventStatus;
 }
 
@@ -69,26 +73,34 @@ const EVENT_TYPE_SQL = "CASE WHEN u.source_key = 'patch_notes' THEN 'patch' ELSE
 
 // Three layers because SQLite cannot reuse a select alias in the same SELECT: the job state of the draft's
 // latest publication, then the event status derived from it, then the filter and page.
-const eventsSql = (extraWhere: string, filter: string): string => `
+// `rows`: real events, or (view=past) the Steam announcements seeded before the watcher started.
+const eventsSql = (extraWhere: string, filter: string, rows: 'events' | 'past' | 'any' = 'events'): string => `
   SELECT source_key, external_id, title, source_url, published_at, detected_at, excerpt, event_type,
-         post_id, post_title, job_status, status
+         post_id, post_title, job_status, is_baseline, ai_job_id, status
   FROM (
     SELECT source_key, external_id, title, source_url, published_at, detected_at, excerpt, event_type,
-           post_id, post_title, job_status,
+           post_id, post_title, job_status, is_baseline, ai_job_id,
            CASE WHEN hidden_at IS NOT NULL THEN 'hidden'
                 WHEN post_id IS NULL THEN 'new'
                 WHEN job_status = 'succeeded' THEN 'published'
                 ELSE 'drafted' END AS status
     FROM (
       SELECT u.source_key, u.external_id, u.title, u.source_url, u.published_at, u.detected_at, u.excerpt,
-             ${EVENT_TYPE_SQL} AS event_type, u.hidden_at, p.id AS post_id, p.title AS post_title,
+             ${EVENT_TYPE_SQL} AS event_type, u.hidden_at, u.is_baseline, u.ai_job_id, p.id AS post_id,
+             p.title AS post_title,
              (SELECT j.status FROM publications pu JOIN jobs j ON j.publication_id = pu.id AND j.kind = 'publish'
               WHERE pu.post_id = p.id ORDER BY pu.created_at DESC, pu.id DESC LIMIT 1) AS job_status
       FROM dota_update_items u LEFT JOIN posts p ON p.id = u.draft_post_id AND p.deleted_at IS NULL
-      WHERE u.is_baseline = 0 ${extraWhere}
+      WHERE ${ROWS[rows]} ${extraWhere}
     )
   )
   WHERE 1 = 1 ${filter}`;
+
+const ROWS = {
+  events: 'u.is_baseline = 0',
+  past: "u.is_baseline = 1 AND u.source_key = 'steam_news'",
+  any: '1 = 1'
+} as const;
 
 const ORDER = 'ORDER BY published_at DESC, source_key ASC, external_id ASC';
 
@@ -165,6 +177,8 @@ export function createD1SourceEventsRepository(db: D1Database): SourceEventsRepo
       facts: row.event_type === 'patch' ? entities : [],
       watchHits: row.event_type === 'patch' ? hits : [],
       status: row.status,
+      isPast: row.is_baseline === 1,
+      aiRequested: row.ai_job_id !== null && row.post_id === null,
       draft: row.post_id === null ? null : { postId: row.post_id, title: row.post_title ?? '' },
       publication:
         row.post_id === null || row.job_status === null
@@ -180,19 +194,19 @@ export function createD1SourceEventsRepository(db: D1Database): SourceEventsRepo
   }
 
   return {
-    async list({ status, type, page, limit }) {
+    async list({ view = 'active', status, type, page, limit }) {
       const binds: string[] = [];
       let extra = '';
       if (type !== undefined) {
         binds.push(type);
         extra = ` AND ${EVENT_TYPE_SQL} = ?${binds.length}`;
       }
-      let filter = '';
+      let filter = view === 'hidden' ? " AND status = 'hidden'" : view === 'active' ? " AND status <> 'hidden'" : '';
       if (status !== undefined) {
         binds.push(status);
         filter = ` AND status = ?${binds.length}`;
       }
-      const base = eventsSql(extra, filter);
+      const base = eventsSql(extra, filter, view === 'past' ? 'past' : 'events');
       const [count, rows] = await db.batch([
         db.prepare(`SELECT COUNT(*) AS total FROM (${base})`).bind(...binds),
         db.prepare(`${base} ${ORDER} LIMIT ${Number(limit)} OFFSET ${Number((page - 1) * limit)}`).bind(...binds)
@@ -203,8 +217,9 @@ export function createD1SourceEventsRepository(db: D1Database): SourceEventsRepo
     },
 
     async find({ sourceKey, externalId }) {
+      // A past announcement too: the side panel opens on it, and the AI can be asked to write it.
       const row = await db
-        .prepare(eventsSql(' AND u.source_key = ?1 AND u.external_id = ?2', ''))
+        .prepare(eventsSql(' AND u.source_key = ?1 AND u.external_id = ?2', '', 'any'))
         .bind(sourceKey, externalId)
         .first<EventRow>();
       if (row === null) return null;

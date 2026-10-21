@@ -169,6 +169,43 @@ describe('GET /api/v1/sources/events', () => {
   it('requires the owner session', async () => {
     expect((await api.request('/api/v1/sources/events', { token: null })).status).toBe(401);
   });
+  it('one table: active hides the skipped ones, hidden lists only them, past lists the seeded Steam history', async () => {
+    await post(NEWS, 'hide');
+    const ids = async (query: string) =>
+      sourceEventPageSchema.parse(await (await get(query)).json()).items.map((item) => item.id);
+    expect(await ids('')).toEqual([PATCH, TREASURE]);
+    expect(await ids('?view=hidden')).toEqual([NEWS]);
+    const past = sourceEventPageSchema.parse(await (await get('?view=past')).json());
+    expect(past.items).toMatchObject([{ id: 'steam_news:0999', isPast: true, aiRequested: false, status: 'new' }]);
+  });
+});
+
+describe('POST /api/v1/sources/events/{id}/ai-draft', () => {
+  const aiDraft = (target: Api, id: string) =>
+    target.request(`/api/v1/sources/events/${encodeURIComponent(id)}/ai-draft`, { method: 'POST' });
+
+  it('queues the AI writer for a past announcement, which becomes an event waiting for the bot', async () => {
+    // No bot token: the consumer stops at once, so the test never reaches Telegram or Steam.
+    const offline = createApi({ clock: fakeClock(), botToken: null });
+    const response = await aiDraft(offline, 'steam_news:0999');
+    expect(response.status).toBe(202);
+    expect(sourceEventSchema.parse(await response.json())).toMatchObject({ isPast: false, aiRequested: true });
+    expect(offline.aiJobs.sent).toMatchObject([{ kind: 'source_event', externalId: '0999', chatId: Number(OWNER_ID) }]);
+    await offline.settle();
+    expect(sourceEventPageSchema.parse(await (await get('?view=past')).json()).totalCount).toBe(0);
+  });
+
+  it('refuses a patch and a hidden event, 404s an unknown one', async () => {
+    const offline = createApi({ clock: fakeClock(), botToken: null });
+    const patch = await aiDraft(offline, PATCH);
+    expect(patch.status).toBe(409);
+    expect(await patch.json()).toMatchObject({ error: { code: 'CONFLICT', details: { reason: 'NOT_AI_SOURCE' } } });
+    await post(NEWS, 'hide');
+    const hidden = await aiDraft(offline, NEWS);
+    expect(await hidden.json()).toMatchObject({ error: { details: { reason: 'EVENT_HIDDEN' } } });
+    expect((await aiDraft(offline, 'steam_news:404')).status).toBe(404);
+    expect(offline.aiJobs.sent).toHaveLength(0);
+  });
 });
 
 describe('POST /api/v1/sources/events/{id}/draft', () => {
