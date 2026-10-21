@@ -54,7 +54,6 @@ import type { WriterFormat, WriterMode } from './writer-types';
 // The AI writer (docs/ai/architecture.md items 2, 4, 7, 9, 20): a draft is stored as AI_DRAFT, the owner's
 // edits as OWNER_EDITED, and only an approval (OWNER_APPROVED / OWNER_PREAPPROVED) makes a text publishable.
 const MAX_OUTPUT_TOKENS = 2500;
-const MAX_IDEAS_OUTPUT_TOKENS = 8000;
 const MAX_TASK = 4000;
 const MAX_TEXT = 8000;
 /** The model asked for the owner's experience instead of writing (see `call`). */
@@ -188,19 +187,11 @@ async function call(
   /** Facets of the latest drafts of the format, to flag a repeated topic. */
   recent: readonly DraftFacets[] = [],
   /** A fix by the owner's remark: the answer also says what changed and which reasons the remark names. */
-  fixing = false,
-  /** A model other than the settings' draft model (the provider comparison). */
-  modelOverride?: string,
-  /** A longer answer than a post (the comparison's lists of ideas). */
-  outputTokens = MAX_OUTPUT_TOKENS
+  fixing = false
 ): Promise<WriterResult> {
   const settings = await readAiSettings(deps.repo);
   // Refused before a row exists when AI cannot run: nothing pending is left behind.
-  const { provider, model } = await assertAiReady(
-    deps,
-    settings,
-    modelOverride ?? settings.draftModel ?? settings.cheapModel
-  );
+  const { provider, model } = await assertAiReady(deps, settings, settings.draftModel ?? settings.cheapModel);
   await deps.writer.createGeneration({ ...row, packRevision: packRevision() });
   const generation: GenerationRow = {
     ...row,
@@ -217,7 +208,7 @@ async function call(
     const result = await provider.complete({
       model,
       ...prompt,
-      maxOutputTokens: outputTokens,
+      maxOutputTokens: MAX_OUTPUT_TOKENS,
       jsonSchema: fixing
         ? WRITER_FIX_JSON_SCHEMA
         : row.parentGenerationId === null
@@ -339,10 +330,6 @@ export async function generateDraft(
     preApprovedPublishAt?: number | null;
     /** Reels example ids kept out of the prompt (control run). */
     holdOut?: readonly string[];
-    /** A model other than the settings' draft model (the provider comparison). */
-    model?: string;
-    /** Room for a longer answer (the comparison's lists of ideas), capped at MAX_IDEAS_OUTPUT_TOKENS. */
-    maxOutputTokens?: number;
     signal: AbortSignal;
   }
 ): Promise<WriterResult> {
@@ -383,10 +370,7 @@ export async function generateDraft(
       rules: await rulesFor(deps, input.format)
     }),
     input.signal,
-    invent ? recent : [],
-    false,
-    input.model,
-    Math.min(input.maxOutputTokens ?? MAX_OUTPUT_TOKENS, MAX_IDEAS_OUTPUT_TOKENS)
+    invent ? recent : []
   );
 }
 
@@ -400,8 +384,6 @@ export async function rewriteDraft(
     revisionToken?: string;
     /** The owner's remark on this version («Что не так?»): the model fixes only what it names. */
     remark?: { note: string; reason: string | null };
-    /** A model other than the settings' draft model (the provider comparison). */
-    model?: string;
   }
 ): Promise<WriterResult> {
   const parent = await deps.writer.findGeneration(input.generationId);
@@ -435,7 +417,7 @@ export async function rewriteDraft(
     author: await author(deps),
     ownerTexts: rankOwnerTexts(parent.task, await ownerTexts(deps, parent.format), OWNER_TEXTS)
   });
-  return call(deps, row, prompt, input.signal, [], input.remark !== undefined, input.model);
+  return call(deps, row, prompt, input.signal, [], input.remark !== undefined);
 }
 
 /** The opening replaced by the chosen hook (the script starts with its best hook). Stays AI text. */

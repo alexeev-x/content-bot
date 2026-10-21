@@ -50,14 +50,10 @@ const answerSchema = z.object({
 /** The claims of a draft its task does not support; empty when all hold, null when the check could not run. */
 export async function checkFacts(
   deps: WriterDeps,
-  input: { task: string; text: string; signal: AbortSignal; model?: string | undefined }
+  input: { task: string; text: string; signal: AbortSignal }
 ): Promise<{ problems: { quote: string; why: string }[] | null; budgetEvents: BudgetEvent[] }> {
   const settings = await readAiSettings(deps.repo);
-  const { provider, model } = await assertAiReady(
-    deps,
-    settings,
-    input.model ?? settings.draftModel ?? settings.cheapModel
-  );
+  const { provider, model } = await assertAiReady(deps, settings, settings.draftModel ?? settings.cheapModel);
   let result;
   try {
     result = await provider.complete({
@@ -98,13 +94,7 @@ export async function generateCheckedDraft(
 ): Promise<WriterResult> {
   const draft = await generateDraft(deps, input);
   if (draft.text === null || draft.generation.result === 'needs_facts') return draft;
-  // The same model checks and fixes: a comparison compares the whole pipeline of each provider.
-  const check = await checkFacts(deps, {
-    task: draft.generation.task,
-    text: draft.text,
-    signal: input.signal,
-    model: input.model
-  });
+  const check = await checkFacts(deps, { task: draft.generation.task, text: draft.text, signal: input.signal });
   const budgetEvents = [...draft.budgetEvents, ...check.budgetEvents];
   if (check.problems === null || check.problems.length === 0) return { ...draft, budgetEvents };
   const note = [
@@ -118,8 +108,7 @@ export async function generateCheckedDraft(
       generationId: draft.generation.id,
       instruction: 'исправить по проверке фактов',
       remark: { note, reason: null },
-      signal: input.signal,
-      ...(input.model === undefined ? {} : { model: input.model })
+      signal: input.signal
     });
     if (fixed.text === null) return { ...draft, budgetEvents: [...budgetEvents, ...fixed.budgetEvents] };
     return { ...fixed, budgetEvents: [...budgetEvents, ...fixed.budgetEvents] };

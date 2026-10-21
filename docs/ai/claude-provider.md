@@ -1,9 +1,8 @@
 # Claude as a second AI provider: plan and what improves the writing (checked 21.10.2026)
 
 Decision: `docs/DECISIONS.md` (21.10.2026) — Claude joins next to the current provider for a blind comparison on the
-same writer tasks; the owner picks. Built: the adapter, the model router and the blind comparison (§3). Result of test
-№ 2 (21.10.2026): the writer stays on OpenAI (`docs/DECISIONS.md`); Claude writes nothing outside the comparison. The rest of this page is the plan and the reference it rests
-on (Anthropic's Claude API documentation as of October 2026).
+same writer tasks; the owner picks. Built: the adapter and the model router (a `claude-*` model in the AI settings goes to
+Anthropic). The blind comparison was run once and removed (§3): the writer stays on OpenAI (`docs/DECISIONS.md`).
 
 ## 1. How it fits
 
@@ -17,7 +16,7 @@ on (Anthropic's Claude API documentation as of October 2026).
   and writes (`cache_read_input_tokens`, `cache_creation_input_tokens`).
 - **Model and settings.** `claude-opus-5-5` (Anthropic's default, $4 / $20 per million input / output tokens, cache
   reads $0.20). Thinking is always on (it cannot be disabled on this model) and its depth is `output_config.effort`:
-  the default is `medium`, and the comparison runs `medium`. `max_tokens` 16 000 (thinking counts toward it).
+  the default is `medium`. `max_tokens` 16 000 (thinking counts toward it).
   No assistant prefill (the writer does not use it). A safety refusal (`stop_reason: "refusal"`) is handled, with
   Anthropic's server-side fallback (`fallbacks: "default"`) so a declined request is answered by another model.
 - **Settings and budget.** «Настройки → ИИ» gains the provider choice; the catalog lists Claude's models with prices,
@@ -31,23 +30,24 @@ the rest) and 1–3 thousand output tokens with thinking at `medium`. On Claude 
 draft, **10–15 ¢** with the fact check and an occasional fix; a five-post series with its plan **0.6–0.9 $**. Prompt
 caching cuts the repeated pack to a tenth after the first call; the measured figures replace these after the first runs.
 
-## 3. The blind comparison
+## 3. The blind comparison (run 21.10.2026, removed)
 
-- **Test set № 2** (owner, 21.10.2026; `app/workflows/ai-comparison-set.ts`): 13 tasks — R01–R06 Reels («Учу фидить»,
-  «Учусь играть», no rubric; a given topic and the model's own each), TG01–TG02 posts on news the model picks from
-  «Источники», TG03 a balance patch from «Источники», TG04–TG05 the «Тёмный карнавал» pair (how to take part; the
-  treasure and the automatons) on the event page's texts, IDEA-01–02 eight topics for each rubric. Topics of the first
-  test (Pudge, Invoker) are excluded.
-- **Writing:** «Запустить тест» (refused while pairs exist, so runs never mix) writes each task with the settings' draft
-  model and with `claude-opus-5-5` through the existing editor: the owner's tasks as a draft, the source posts with the
-  fact check and its fix. A/B is drawn per pair. TG02 and TG05 wait for TG01 and TG04 and get the same model's first post
-  in their task. A failed side is retried once (never on the budget); a question instead of a text is the answer too.
-  Each side keeps its error, cost (all its calls) and time (migrations 0093–0096, one queue job per pair).
-- **Studio:** «ИИ-редактор → Сравнение» shows each pair with its task and sources, A and B, «Лучше A/B», «Одинаково» and
-  an optional note. Models, costs and times stay hidden until every written pair is picked; «Показать модели» then shows
-  wins by format (Reels, Telegram, ideas), cost and time per model and the pairs, both versions of one in a side panel.
-  «Очистить» removes every pair. Nothing from the test reaches the editor's memory.
-- **Cost:** about $4–6 a run.
+Test № 2: 13 tasks — six Reels («Учу фидить», «Учусь играть», no rubric; a given topic and the model's own each), five
+Telegram posts (news from «Источники», a patch, the «Тёмный карнавал» pair) and two lists of eight ideas — each written
+by GPT-6.1 Sol and Claude Opus 5.5 through the same editor, A/B drawn per pair, picked blind by the owner.
+
+| Format | GPT-6.1 Sol | Claude Opus 5.5 |
+|---|---|---|
+| Reels | 3 | 3 |
+| Telegram | 3 | 2 |
+| Ideas | 0 | 2 |
+| Cost a text (all calls) | $0.018 | $0.054 |
+| Mean time | 32 s | 25 s |
+
+No pair failed. GPT won where use and accuracy count (the patch, how to take part in the event); Claude where a
+situation's humour counts and both lists of ideas. Both copied the pack's example phrases; those were cut. The set's
+weak spots, for a next run: the news digest held only The International, and the patch was a bug-fix list, not a
+balance patch. The comparison's code and data were removed (owner: «удали все эти тесты»).
 ## 4. What else makes Claude write better (ranked by value for cost)
 
 1. **An eval set and prompt iteration.** The surest gain on any model: a set of real tasks with the owner's approved

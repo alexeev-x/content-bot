@@ -289,7 +289,7 @@ export const copy = {
   /** «ИИ-редактор» (owner, 20.10.2026): what the AI writes, learns and costs, apart from its settings. */
   editor: {
     description: 'Как пишет ИИ и чему учится',
-    tabs: { overview: 'Сводка', drafts: 'Черновики', learning: 'Обучение', compare: 'Сравнение' },
+    tabs: { overview: 'Сводка', drafts: 'Черновики', learning: 'Обучение' },
     tabsLabel: 'Разделы ИИ-редактора',
     settings: 'Настройки ИИ',
     decisions: {

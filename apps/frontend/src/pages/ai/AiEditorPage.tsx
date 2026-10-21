@@ -1,7 +1,6 @@
 import { useNavigate, useSearch } from '@tanstack/react-router';
 import { useDocumentTitle } from '../../app/use-document-title';
 import {
-  AiComparison,
   AiDraftHistory,
   AiEditorOverview,
   AiLearningBoard,
@@ -12,7 +11,7 @@ import { ru } from '../../shared/lib/ru';
 import { PageHeader, Tab, TabList, TabPanel, Tabs } from '../../shared/ui';
 import styles from './AiEditorPage.module.css';
 
-type AiTab = 'overview' | 'drafts' | 'learning' | 'compare';
+type AiTab = 'overview' | 'drafts' | 'learning';
 const t = aiCopy.editor;
 
 /**
@@ -41,7 +40,6 @@ export function AiEditorPage() {
               <Tab id="overview">{t.tabs.overview}</Tab>
               <Tab id="drafts">{t.tabs.drafts}</Tab>
               <Tab id="learning">{t.tabs.learning}</Tab>
-              <Tab id="compare">{t.tabs.compare}</Tab>
             </TabList>
           }
         />
@@ -72,9 +70,6 @@ export function AiEditorPage() {
               })
             }
           />
-        </TabPanel>
-        <TabPanel id="compare">
-          <AiComparison />
         </TabPanel>
         <TabPanel id="learning">
           <AiLearningBoard

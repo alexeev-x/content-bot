@@ -1,7 +1,4 @@
-import { z } from 'zod';
 import {
-  aiComparisonSchema,
-  aiComparisonsSchema,
   AI_WRITER_FORMATS,
   aiDraftChainSchema,
   aiDraftsPageSchema,
@@ -130,26 +127,4 @@ export function removeAiRuleEvidence(input: { id: string; key: string }) {
 /** Approved Reels scripts of the last 60 days that no video is linked to, newest first. */
 export function getAiUnlinkedScripts(signal?: AbortSignal) {
   return apiRequest('/api/v1/ai/scripts/unlinked', aiUnlinkedScriptsSchema, { signal });
-}
-
-/** The blind provider comparison: the test set in its order. */
-export function getAiComparisons(signal?: AbortSignal) {
-  return apiRequest('/api/v1/ai/comparisons', aiComparisonsSchema, { signal });
-}
-
-/** Queues the test set to be written by both models (paid calls). */
-export function startAiComparisons() {
-  return apiRequest('/api/v1/ai/comparisons', z.object({ created: z.number().int() }), { method: 'POST', body: {} });
-}
-
-/** Removes every pair; the texts stay in the AI history. */
-export function clearAiComparisons() {
-  return apiRequestNoContent('/api/v1/ai/comparisons', { method: 'DELETE' });
-}
-
-export function chooseAiComparison(id: string, choice: 'a' | 'b' | 'same', note?: string) {
-  return apiRequest(`/api/v1/ai/comparisons/${id}/choice`, aiComparisonSchema, {
-    method: 'POST',
-    body: { choice, ...(note ? { note } : {}) }
-  });
 }

@@ -16,7 +16,7 @@ Owner decision 16.10.2026: the studio controls the AI writer; this folder is its
 | `examples/telegram.jsonl` | 520 channel posts: `d` date, `k` kind (`caption`, `call`, `post`, `review`), `t` text, `g` best | 3–4 of the same kind, best and closest first |
 | D1 `ai_text_revisions` | the owner's approved texts of the task's format that the owner changed (edit ratio > 5%); never an AI_DRAFT or an approval of the model's words unchanged | up to 2 of the 20 newest, ranked by the task's word stems they share (recency only breaks ties and adds a small bonus; `rankOwnerTexts`), the most relevant last, right before the task; the bundled examples give way so the total stays 3–4 |
 | `research.md` | research on context engineering (for people) | never |
-| `claude-provider.md` | Claude as a second provider: plan, cost, the blind comparison, what improves the writing (for people) | never |
+| `claude-provider.md` | Claude as a second provider: the adapter, the blind comparison's result, what improves the writing (for people) | never |
 | `sources/` | the owner's original guides, archives and analytics journal (for people; ChatGPT-era process rules there are superseded) | never |
 
 **Assembly order** (stable prefix first, so the provider can cache it): `core` → `format-*` → `output` → `lessons` → `state` → matched lexicon lines → examples (most relevant last) → the task. Architecture and readiness checklist: `architecture.md`. Examples are rendered as plain text, not JSON: `Пример (Учу фидить, эталон):` and the text; lexicon lines as `слово/слово — смысл`. Anti examples are sent only with a «так не надо» label and only when the task risks the same mistake.

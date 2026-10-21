@@ -74,8 +74,6 @@ import {
   createD1WriterRepository,
   type AuthorProfileRepository,
   createAnthropicProvider,
-  createD1ComparisonRepository,
-  type ComparisonRepository,
   createModelRouter,
   createOpenAiProvider,
   type OwnerPostSource,
@@ -233,7 +231,6 @@ export interface Container {
   /** Which AI providers have a key (the settings page and the comparison). */
   aiKeys: Record<'openai' | 'anthropic', boolean>;
   /** The blind provider comparison (migration 0093). */
-  aiComparisons: ComparisonRepository;
   /** The AI writer's managed memory: the owner's rules and the approved analysis rules (0079). */
   aiRules: RulesRepository;
   /** What the owner's edits and remarks teach the writer (AI plan P7c, migration 0084). */
@@ -647,9 +644,6 @@ export function createContainer(env: ContainerEnv, overrides: ContainerOverrides
         openai: openaiKey ? createOpenAiProvider(openaiKey, (input, init) => fetch(input, init)) : null,
         anthropic: anthropicKey ? createAnthropicProvider(anthropicKey) : null
       });
-    },
-    get aiComparisons() {
-      return createD1ComparisonRepository(db());
     },
     /** Which providers have a key (the settings page and the comparison need to know). */
     get aiKeys(): Record<'openai' | 'anthropic', boolean> {

@@ -1,9 +1,5 @@
 import {
   aiAuthorProfileSchema,
-  aiComparisonChoiceInputSchema,
-  aiComparisonParamsSchema,
-  aiComparisonSchema,
-  aiComparisonsSchema,
   aiDotaSnapshotInputSchema,
   aiDraftChainSchema,
   aiDraftParamsSchema,
@@ -41,7 +37,6 @@ import {
 } from '@alexeev/contracts';
 import { type Context, Hono } from 'hono';
 import { z } from 'zod';
-import { chooseComparison, readComparisons, startComparisons } from './workflows/ai-comparison';
 import {
   type BudgetEvent,
   checkAiConnection,
@@ -265,46 +260,6 @@ export const aiRoutes = new Hono<AppBindings>()
         { ...c.req.valid('param'), excluded: c.req.valid('json').excluded }
       );
       return c.json(aiLearningItemSchema.parse(item));
-    }
-  )
-  // The blind provider comparison (docs/ai/claude-provider.md §3): paid calls, so a run is bounded like a draft.
-  .post(
-    '/comparisons',
-    rateLimit({ name: 'ai-comparison', limit: 3, windowMs: DRAFT_WINDOW_MS }),
-    validated('json', z.strictObject({})),
-    async (c) => {
-      const container = c.get('container');
-      // Only the code: a failed announcement fetch for the patch task never logs its text.
-      const onError = (error: unknown) =>
-        container.logger.warn({
-          component: 'ai_comparison',
-          operation: 'start',
-          status: 'degraded',
-          errorCode: error instanceof Error ? error.name : 'unknown'
-        });
-      return c.json({ created: await startComparisons(container, onError) }, 202);
-    }
-  )
-  .delete('/comparisons', async (c) => {
-    await c.get('container').aiComparisons.clear();
-    return c.body(null, 204);
-  })
-  .get('/comparisons', async (c) => c.json(aiComparisonsSchema.parse(await readComparisons(c.get('container')))))
-  .post(
-    '/comparisons/:id/choice',
-    validated('param', aiComparisonParamsSchema),
-    validated('json', aiComparisonChoiceInputSchema),
-    async (c) => {
-      const input = c.req.valid('json');
-      return c.json(
-        aiComparisonSchema.parse(
-          await chooseComparison(c.get('container'), {
-            id: c.req.valid('param').id,
-            choice: input.choice,
-            note: input.note ?? null
-          })
-        )
-      );
     }
   )
   .get('/drafts', validated('query', aiDraftsQuerySchema), async (c) =>
