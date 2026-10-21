@@ -1,8 +1,8 @@
 # Claude as a second AI provider: plan and what improves the writing (checked 21.10.2026)
 
 Decision: `docs/DECISIONS.md` (21.10.2026) — Claude joins next to the current provider for a blind comparison on the
-same writer tasks; the owner picks. Built: the adapter, the model router and the blind comparison (§3); the provider
-choice in the settings waits for the comparison's result. The rest of this page is the plan and the reference it rests
+same writer tasks; the owner picks. Built: the adapter, the model router and the blind comparison (§3). Result of test
+№ 2 (21.10.2026): the writer stays on OpenAI (`docs/DECISIONS.md`); Claude writes nothing outside the comparison. The rest of this page is the plan and the reference it rests
 on (Anthropic's Claude API documentation as of October 2026).
 
 ## 1. How it fits
