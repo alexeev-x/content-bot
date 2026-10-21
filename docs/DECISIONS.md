@@ -34,6 +34,7 @@ Accepted decisions that are in force. An agent does not propose an alternative t
 ## Publishing and data
 | Date | Decision | Details |
 |---|---|---|
+| 21.10.2026 | An important source's news is written and published by the studio itself, without the owner's approval (owner: «он должен автоматом публиковать, ибо я спать буду: Valve всегда ночью публикует»). Supersedes «Dota 2 patch posts go through owner confirmation». A Dota event announcement always carries its image. Other sources keep approval until the owner marks them important | `docs/PLAN.md` §1; safeguards are designed with the build |
 | 20.10.2026 | Telegram invite links per traffic source are built now (owner: «давай сделаем пригласительные ссылки и я их сохраню»; plan B1 is no longer deferred). The bot creates named links in the analytics channel and counts joins and leaves per link from `chat_member` updates, which are handled before the owner check and only ever write counts; each join row keeps the subscriber's Telegram id so a leave can be matched to it | `docs/API_CONTRACTS.md` § Content analytics, migration 0087, `docs/backend/bot.md` |
 | 16.10.2026 | No post title: the studio has one text field and a new post sends only its body; the studio name of a post (lists, search, the bot's notices) is the start of the body. Posts created earlier with a title keep it as the bold first line | `docs/backend/cron.md` message format |
 | 16.10.2026 | No automatic publication of AI texts: every AI draft reaches a channel only after the owner's «Одобрить» (bot or studio); pre-approval in the request («сам утверди и опубликуй») and automatic posts from news stay off until the owner is sure the writer writes well | `docs/ai/architecture.md` item 20 |
@@ -99,7 +100,6 @@ Accepted decisions that are in force. An agent does not propose an alternative t
 | Question | Default recommendation |
 |---|---|
 | Text generation via AI | not in the MVP |
-| Dota 2 patch posts published without owner confirmation | after the MVP; until then patch posts go through owner confirmation, no paid AI/render APIs |
 | Session lifetime | token 60 min; Mini App ≤ 12 h; refresh cookie in the browser 30 days |
 | Publication status labels | table in skill `page-spec` |
 | Repeated `Idempotency-Key` with a different body | 409 `CONFLICT` with `details.reason` |

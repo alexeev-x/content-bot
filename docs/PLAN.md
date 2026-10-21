@@ -20,7 +20,7 @@ The AI makes the Telegram channel's content itself: news and rubric posts drafte
   once, then the sets with images (two posts when there are many), the last one ending with the price.
 - Sources come in two kinds (owner, 21.10.2026): important ones, whose news the studio writes and publishes by itself
   as soon as it appears, and scheduled rubrics (e.g. a weekly «worst heroes» from a stats API). Publishing without the
-  owner needs a recorded decision and its safeguards first (`docs/DECISIONS.md`).
+  owner is decided (`docs/DECISIONS.md`, 21.10.2026: Valve posts at the owner's night); its safeguards come with it.
 - Find and add more that give a post a day without the owner's work; each must be free, keyless or with a free key,
   and allowed by its terms.
 
