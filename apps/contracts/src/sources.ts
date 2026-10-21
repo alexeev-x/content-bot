@@ -54,6 +54,8 @@ export const sourceEventSchema = z.object({
   isPast: z.boolean(),
   // The AI writer was asked for a post and no post exists yet: the draft waits in the bot for approval.
   aiRequested: z.boolean(),
+  // The AI is writing it right now (at most 15 minutes): «Написать через ИИ» stays locked until it ends.
+  aiWriting: z.boolean(),
   draft: z.object({ postId: z.uuid(), title: z.string() }).nullable(),
   // Latest publication of the draft; null until one exists.
   publication: z.object({ status: publicationStatusSchema }).nullable()

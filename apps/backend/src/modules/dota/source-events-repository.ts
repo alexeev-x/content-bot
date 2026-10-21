@@ -64,6 +64,7 @@ interface EventRow {
   job_status: string | null;
   is_baseline: number;
   ai_job_id: string | null;
+  ai_requested_at: number | null;
   status: SourceEventStatus;
 }
 
@@ -76,17 +77,18 @@ const EVENT_TYPE_SQL = "CASE WHEN u.source_key = 'patch_notes' THEN 'patch' ELSE
 // `rows`: real events, or (view=past) the Steam announcements seeded before the watcher started.
 const eventsSql = (extraWhere: string, filter: string, rows: 'events' | 'past' | 'any' = 'events'): string => `
   SELECT source_key, external_id, title, source_url, published_at, detected_at, excerpt, event_type,
-         post_id, post_title, job_status, is_baseline, ai_job_id, status
+         post_id, post_title, job_status, is_baseline, ai_job_id, ai_requested_at, status
   FROM (
     SELECT source_key, external_id, title, source_url, published_at, detected_at, excerpt, event_type,
-           post_id, post_title, job_status, is_baseline, ai_job_id,
+           post_id, post_title, job_status, is_baseline, ai_job_id, ai_requested_at,
            CASE WHEN hidden_at IS NOT NULL THEN 'hidden'
                 WHEN post_id IS NULL THEN 'new'
                 WHEN job_status = 'succeeded' THEN 'published'
                 ELSE 'drafted' END AS status
     FROM (
       SELECT u.source_key, u.external_id, u.title, u.source_url, u.published_at, u.detected_at, u.excerpt,
-             ${EVENT_TYPE_SQL} AS event_type, u.hidden_at, u.is_baseline, u.ai_job_id, p.id AS post_id,
+             ${EVENT_TYPE_SQL} AS event_type, u.hidden_at, u.is_baseline, u.ai_job_id, u.ai_requested_at,
+             p.id AS post_id,
              p.title AS post_title,
              (SELECT j.status FROM publications pu JOIN jobs j ON j.publication_id = pu.id AND j.kind = 'publish'
               WHERE pu.post_id = p.id ORDER BY pu.created_at DESC, pu.id DESC LIMIT 1) AS job_status
@@ -127,7 +129,10 @@ interface FactRow {
 
 const MAX_ENTITIES_PER_EVENT = 500;
 
-export function createD1SourceEventsRepository(db: D1Database): SourceEventsRepository {
+/** How long a requested AI draft locks its event (the claim in `index.ts` uses the same window). */
+const AI_WRITING_MS = 15 * 60_000;
+
+export function createD1SourceEventsRepository(db: D1Database, now: () => number): SourceEventsRepository {
   async function watched(): Promise<{ keys: Set<string> }> {
     const { results } = await db
       .prepare('SELECT entity_type, entity_key FROM dota_watches WHERE removed_at IS NULL LIMIT 100')
@@ -179,6 +184,7 @@ export function createD1SourceEventsRepository(db: D1Database): SourceEventsRepo
       status: row.status,
       isPast: row.is_baseline === 1,
       aiRequested: row.ai_job_id !== null && row.post_id === null,
+      aiWriting: row.ai_requested_at !== null && row.ai_requested_at > now() - AI_WRITING_MS,
       draft: row.post_id === null ? null : { postId: row.post_id, title: row.post_title ?? '' },
       publication:
         row.post_id === null || row.job_status === null

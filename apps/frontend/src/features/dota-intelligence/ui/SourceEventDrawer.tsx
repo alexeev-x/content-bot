@@ -109,10 +109,10 @@ export function SourceEventDrawer({ event, now, timezone, onClose }: Props) {
           variant={event.draft ? 'secondary' : 'primary'}
           icon="sparkle"
           isLoading={aiDraft.isPending}
-          isDisabled={busy || event.status === 'hidden'}
+          isDisabled={busy || event.aiWriting || event.status === 'hidden'}
           onPress={() => aiDraft.mutate(event.id)}
         >
-          Написать через ИИ
+          {event.aiWriting ? 'ИИ пишет…' : 'Написать через ИИ'}
         </Button>
       ) : null}
       {event.draft ? (
@@ -201,19 +201,24 @@ export function SourceEventDrawer({ event, now, timezone, onClose }: Props) {
               </Link>
             ) : null}
           </p>
-          {event.aiRequested || aiDraft.isSuccess ? (
+          {event.aiWriting ? (
             <Banner tone="info" title="ИИ пишет пост">
-              Черновик придёт в бот: там его можно одобрить, переписать или поправить. После одобрения он появится
-              здесь.
+              Обычно это минута-две. Черновик придёт в бот: там его можно одобрить, переписать или поправить.
+            </Banner>
+          ) : event.aiRequested ? (
+            <Banner tone="info" title="Черновик в боте">
+              Одобрите его в боте — пост появится здесь вместе с картинками анонса.
             </Banner>
           ) : null}
           {error ? (
             <Banner tone={reason === 'EVENT_HIDDEN' ? 'warning' : 'error'} title="Не получилось">
               {reason === 'EVENT_HIDDEN'
                 ? 'Событие пропущено: верните его, чтобы сделать пост.'
-                : error instanceof ApiError && error.code === 'RATE_LIMIT'
-                  ? 'Слишком много запросов к ИИ подряд. Подождите несколько минут.'
-                  : 'Сервер не подтвердил действие, ничего не изменилось. Повторите.'}
+                : reason === 'AI_WRITING'
+                  ? 'ИИ уже пишет этот пост, дождитесь черновика в боте.'
+                  : error instanceof ApiError && error.code === 'RATE_LIMIT'
+                    ? 'Слишком много запросов к ИИ подряд. Подождите несколько минут.'
+                    : 'Сервер не подтвердил действие, ничего не изменилось. Повторите.'}
               {error instanceof ApiError && error.requestId ? ` Номер запроса: ${error.requestId}` : ''}
             </Banner>
           ) : null}

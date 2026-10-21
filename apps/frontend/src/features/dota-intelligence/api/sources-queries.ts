@@ -20,6 +20,8 @@ export function sourceEventsQueryOptions(filters: SourceEventsFilters) {
     queryFn: ({ signal }) => getSourceEvents(filters, signal),
     placeholderData: keepPreviousData,
     staleTime: 30_000,
+    // While the AI writes one of the shown events, re-read every 5 s so the lock lifts by itself (visible tab only).
+    refetchInterval: (query) => (query.state.data?.items.some((event) => event.aiWriting) ? 5_000 : false),
     retry: false
   });
 }

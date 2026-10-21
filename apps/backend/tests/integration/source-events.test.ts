@@ -496,8 +496,8 @@ describe('an AI draft of a Steam announcement', () => {
 
   it('a replay makes a past announcement an event; its approved draft becomes the event post, once', async () => {
     const job = crypto.randomUUID();
-    expect(await repo().claimAiDraft({ externalId: '0999', jobId: job, replay: false })).toBe(false);
-    expect(await repo().claimAiDraft({ externalId: '0999', jobId: job, replay: true })).toBe(true);
+    expect(await repo().claimAiDraft({ externalId: '0999', jobId: job, replay: false, now: START })).toBe(false);
+    expect(await repo().claimAiDraft({ externalId: '0999', jobId: job, replay: true, now: START })).toBe(true);
     expect(await row('0999')).toMatchObject({ is_baseline: 0, ai_job_id: job });
     await repo().setAiGeneration({ externalId: '0999', jobId: job, generationId: GENERATION });
 
@@ -513,15 +513,22 @@ describe('an AI draft of a Steam announcement', () => {
 
   it('a draft from an older job is not recorded once a replay took the event', async () => {
     const old = crypto.randomUUID();
-    await repo().claimAiDraft({ externalId: '1002', jobId: old, replay: false });
-    await repo().claimAiDraft({ externalId: '1002', jobId: crypto.randomUUID(), replay: true });
+    await repo().claimAiDraft({ externalId: '1002', jobId: old, replay: false, now: START });
+    // A request still writing locks the event; once it ends (or 15 minutes pass) a replay takes it.
+    expect(
+      await repo().claimAiDraft({ externalId: '1002', jobId: crypto.randomUUID(), replay: true, now: START })
+    ).toBe(false);
+    await repo().finishAiDraft({ externalId: '1002', jobId: old });
+    await repo().claimAiDraft({ externalId: '1002', jobId: crypto.randomUUID(), replay: true, now: START });
     await repo().setAiGeneration({ externalId: '1002', jobId: old, generationId: GENERATION });
     expect(await repo().linkAiPost({ generationIds: [GENERATION], postId: POST, now: START })).toBeNull();
   });
 
   it('a hidden announcement is never replayed', async () => {
     await post(NEWS, 'hide');
-    expect(await repo().claimAiDraft({ externalId: '1002', jobId: crypto.randomUUID(), replay: true })).toBe(false);
+    expect(
+      await repo().claimAiDraft({ externalId: '1002', jobId: crypto.randomUUID(), replay: true, now: START })
+    ).toBe(false);
   });
 });
 

@@ -760,7 +760,9 @@ export interface DotaWatcherRepository {
    * Claims the AI draft of a Steam announcement once per detection. `replay` is the owner asking again for any
    * announcement, a past one included: it becomes an event and takes the new job.
    */
-  claimAiDraft(input: { externalId: string; jobId: string; replay: boolean }): Promise<boolean>;
+  claimAiDraft(input: { externalId: string; jobId: string; replay: boolean; now: number }): Promise<boolean>;
+  /** The job ended, whatever its result: the event is no longer «writing». */
+  finishAiDraft(input: { externalId: string; jobId: string }): Promise<void>;
   /** The queue refused the job: the claim is given back, so the next tick asks again. */
   releaseAiDraft(input: { externalId: string; jobId: string }): Promise<void>;
   /** The model wrote the job's draft; ignored when a later replay took the event. */
@@ -805,6 +807,9 @@ const DOTA_AI_DRAFT_WORK_SQL = `
   WHERE u.is_baseline = 0 AND u.draft_post_id IS NULL AND u.hidden_at IS NULL AND u.source_key = 'steam_news'
     AND u.ai_job_id IS NULL
   ORDER BY u.published_at, u.source_key, u.external_id LIMIT ?1`;
+
+/** How long a requested AI draft locks its event; a lost job frees it after this (the read model shows the same). */
+const AI_WRITING_MS = 15 * 60_000;
 
 const STEAM_ANNOUNCEMENT_COLUMNS = `u.source_key, u.external_id, u.title, u.source_url, u.published_at, u.is_baseline,
   u.draft_post_id, u.excerpt, u.event_type`;
@@ -1533,23 +1538,35 @@ export function createD1DotaWatcherRepository(db: D1Database): DotaWatcherReposi
       return results.map(toDraftSource);
     },
 
-    async claimAiDraft({ externalId, jobId, replay }) {
+    async claimAiDraft({ externalId, jobId, replay, now }) {
       const result = await db
         .prepare(
-          // The earlier draft stays linked until the new job records its own, so approving it still counts.
-          `UPDATE dota_update_items SET ai_job_id = ?2, is_baseline = 0
+          // The earlier draft stays linked until the new job records its own, so approving it still counts. A
+          // request still writing locks the event (owner, 21.10.2026: one paid call per tap, not per click).
+          `UPDATE dota_update_items SET ai_job_id = ?2, ai_requested_at = ?4, is_baseline = 0
            WHERE source_key = 'steam_news' AND external_id = ?1 AND hidden_at IS NULL
+             AND (ai_requested_at IS NULL OR ai_requested_at <= ?4 - ${AI_WRITING_MS})
              AND (?3 = 1 OR (ai_job_id IS NULL AND is_baseline = 0 AND draft_post_id IS NULL))`
         )
-        .bind(externalId, jobId, replay ? 1 : 0)
+        .bind(externalId, jobId, replay ? 1 : 0, now)
         .run();
       return result.meta.changes === 1;
+    },
+
+    async finishAiDraft({ externalId, jobId }) {
+      await db
+        .prepare(
+          `UPDATE dota_update_items SET ai_requested_at = NULL
+           WHERE source_key = 'steam_news' AND external_id = ?1 AND ai_job_id = ?2`
+        )
+        .bind(externalId, jobId)
+        .run();
     },
 
     async releaseAiDraft({ externalId, jobId }) {
       await db
         .prepare(
-          `UPDATE dota_update_items SET ai_job_id = NULL
+          `UPDATE dota_update_items SET ai_job_id = NULL, ai_requested_at = NULL
            WHERE source_key = 'steam_news' AND external_id = ?1 AND ai_job_id = ?2`
         )
         .bind(externalId, jobId)

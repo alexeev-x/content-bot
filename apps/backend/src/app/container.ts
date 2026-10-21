@@ -504,7 +504,7 @@ export function createContainer(env: ContainerEnv, overrides: ContainerOverrides
       return overrides.dotaRepository ?? createD1DotaWatcherRepository(db());
     },
     get sourceEvents() {
-      return createD1SourceEventsRepository(db());
+      return createD1SourceEventsRepository(db(), () => (overrides.clock ?? systemClock).now());
     },
     get dotaWatchlists() {
       return createD1DotaWatchlists(db());

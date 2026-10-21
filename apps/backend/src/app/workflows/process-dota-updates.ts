@@ -367,7 +367,7 @@ async function requestAiDrafts(deps: Parameters<typeof processDotaUpdates>[0]): 
     deps.budget.charge(1);
     try {
       const claimed = await requestSourceEventDraft(
-        { repo: deps.repo, enqueue, newId: deps.newId },
+        { repo: deps.repo, enqueue, newId: deps.newId, now: deps.now },
         { externalId: source.externalId, chatId: Number(ready.ownerChatId), appOrigin: ready.origin, replay: false }
       );
       if (claimed) requested += 1;

@@ -66,15 +66,27 @@ export const sourcesRoutes = new Hono<AppBindings>()
       if (key.sourceKey !== 'steam_news')
         throw new AppError('CONFLICT', 'Only a Steam announcement is written by the AI', { reason: 'NOT_AI_SOURCE' });
       if (event.status === 'hidden') throw new AppError('CONFLICT', 'Event is hidden', { reason: 'EVENT_HIDDEN' });
+      if (event.aiWriting) throw new AppError('CONFLICT', 'The AI is writing it already', { reason: 'AI_WRITING' });
       const chatId = Number(container.ownerChatId);
       // The draft arrives in the owner's bot chat: without it there is nowhere to send it.
       if (container.ownerChatId === null || !Number.isSafeInteger(chatId))
         throw new AppError('UNAVAILABLE', 'The owner chat is not configured', { reason: 'NO_OWNER_CHAT' });
       const queued = await requestSourceEventDraft(
-        { repo: container.dotaRepository, enqueue: (job) => container.aiJobs.send(job), newId: container.newId },
+        {
+          repo: container.dotaRepository,
+          enqueue: (job) => container.aiJobs.send(job),
+          newId: container.newId,
+          now: () => container.clock.now()
+        },
         { externalId: key.externalId, chatId, appOrigin: appOriginOf(c.req.url), replay: true }
       );
-      if (!queued) throw new AppError('CONFLICT', 'Event is hidden', { reason: 'EVENT_HIDDEN' });
+      // Lost a race with another tap (or a hide): the claim decides, the read says which.
+      if (!queued) {
+        const now = await container.sourceEvents.find(key);
+        throw now?.aiWriting
+          ? new AppError('CONFLICT', 'The AI is writing it already', { reason: 'AI_WRITING' })
+          : new AppError('CONFLICT', 'Event is hidden', { reason: 'EVENT_HIDDEN' });
+      }
       const updated = await container.sourceEvents.find(key);
       if (updated === null) throw new AppError('NOT_FOUND', 'Event not found');
       return c.json(updated, 202);

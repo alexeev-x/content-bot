@@ -16,14 +16,16 @@ import type { AiJob, EventWriterJob } from '../bot/ai-job';
 /** Claims the event's AI draft and queues it. False when another request has it already. */
 export async function requestSourceEventDraft(
   deps: {
-    repo: Pick<DotaWatcherRepository, 'claimAiDraft' | 'releaseAiDraft'>;
+    repo: Pick<DotaWatcherRepository, 'claimAiDraft' | 'releaseAiDraft' | 'finishAiDraft'>;
     enqueue: (job: AiJob) => Promise<void>;
     newId: () => string;
+    now: () => number;
   },
   input: { externalId: string; chatId: number; appOrigin: string; replay: boolean }
 ): Promise<boolean> {
   const jobId = deps.newId();
-  if (!(await deps.repo.claimAiDraft({ externalId: input.externalId, jobId, replay: input.replay }))) return false;
+  if (!(await deps.repo.claimAiDraft({ externalId: input.externalId, jobId, replay: input.replay, now: deps.now() })))
+    return false;
   try {
     await deps.enqueue({
       id: jobId,
@@ -33,9 +35,10 @@ export async function requestSourceEventDraft(
       externalId: input.externalId
     });
   } catch (error) {
-    // Nothing was queued. Cron's claim goes back for the next tick. A replay's stays: given back, it would make the
-    // row look like a fresh event to Cron, and the owner, told it failed, simply taps again.
+    // Nothing was queued. Cron's claim goes back for the next tick. A replay's job stays (given back, the row would
+    // look like a fresh event to Cron) but stops «writing», so the owner, told it failed, can tap again.
     if (!input.replay) await deps.repo.releaseAiDraft({ externalId: input.externalId, jobId });
+    else await deps.repo.finishAiDraft({ externalId: input.externalId, jobId });
     throw error;
   }
   return true;
@@ -43,7 +46,7 @@ export async function requestSourceEventDraft(
 
 /** What the consumer's writer needs for an event job. */
 export function sourceEventWriter(deps: {
-  repo: Pick<DotaWatcherRepository, 'findSteamAnnouncement' | 'setAiGeneration'>;
+  repo: Pick<DotaWatcherRepository, 'findSteamAnnouncement' | 'setAiGeneration' | 'finishAiDraft'>;
   fetchAnnouncement?: typeof fetchSteamAnnouncement;
   findOfficialUrl?: typeof findDotaNewsEntryUrl;
   onError: (error: unknown) => void;
@@ -66,6 +69,10 @@ export function sourceEventWriter(deps: {
     },
     async generated(job: EventWriterJob, generationId: string): Promise<void> {
       await deps.repo.setAiGeneration({ externalId: job.externalId, jobId: job.id, generationId });
+    },
+    /** The job ended, whatever happened: the event's button unlocks. */
+    async finished(job: EventWriterJob): Promise<void> {
+      await deps.repo.finishAiDraft({ externalId: job.externalId, jobId: job.id });
     }
   };
 }

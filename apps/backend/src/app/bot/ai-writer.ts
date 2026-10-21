@@ -332,6 +332,7 @@ export interface AiJobRuntime {
   sourceEvents?: {
     task: (externalId: string) => Promise<string>;
     generated: (job: EventWriterJob, generationId: string) => Promise<void>;
+    finished: (job: EventWriterJob) => Promise<void>;
   };
 }
 
@@ -355,10 +356,16 @@ async function jobResult(
   if (job.kind === 'event') {
     if (runtime.sourceEvents === undefined) throw new AppError('UNAVAILABLE', 'Source events are not wired');
     // The source's facts only (automatic mode): the writer never adds what the announcement does not say.
-    const task = await runtime.sourceEvents.task(job.externalId);
-    const result = await generateDraft(deps, { format: 'telegram', mode: 'automatic', source: 'bot', task, signal });
-    await runtime.sourceEvents.generated(job, result.generation.id);
-    return result;
+    const events = runtime.sourceEvents;
+    try {
+      const task = await events.task(job.externalId);
+      const result = await generateDraft(deps, { format: 'telegram', mode: 'automatic', source: 'bot', task, signal });
+      await events.generated(job, result.generation.id);
+      return result;
+    } finally {
+      // Success or failure, the event's «Написать через ИИ» unlocks.
+      await events.finished(job).catch((error: unknown) => runtime.onError(error));
+    }
   }
   if (job.kind === 'draft')
     return generateDraft(deps, { format: job.format, mode: 'direct', source: 'bot', task: job.task, signal });
