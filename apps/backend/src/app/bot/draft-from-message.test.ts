@@ -2,29 +2,59 @@ import { describe, expect, it } from 'vitest';
 import { draftFromMessageText, linkTrailingSource } from './draft-from-message';
 
 const URL_ = 'https://www.dota2.com/newsentry/681888927386174386';
+const PAGE = 'https://www.dota2.com/darkcarnival';
+
+// Each case: the AI text, the post text, and the linked words with their URLs in order.
+const CASES: [string, string, [string, string][]][] = [
+  [
+    `Габен 🦈 вернул аркану.\n\nПодробности: ${URL_}`,
+    'Габен 🦈 вернул аркану.\n\nПодробности',
+    [['Подробности', URL_]]
+  ],
+  [`Текст.\n\n${URL_}`, 'Текст.\n\nПодробнее', [['Подробнее', URL_]]],
+  [`Наборы тут.\nПосмотреть наборы: ${PAGE}`, 'Наборы тут.\nПосмотреть наборы', [['Посмотреть наборы', PAGE]]],
+  [
+    `Как это выглядит в игре, смотрите на видео:\n${PAGE}`,
+    'Как это выглядит в игре, смотрите на видео',
+    [['Как это выглядит в игре, смотрите на видео', PAGE]]
+  ],
+  [
+    `Читай ${URL_} и думай, а потом ${PAGE} тоже.`,
+    'Читай ссылка и думай, а потом ссылка тоже.',
+    [
+      ['ссылка', URL_],
+      ['ссылка', PAGE]
+    ]
+  ],
+  [
+    `Первое: ${URL_}\nВторое.\nВсе подробности: ${PAGE}`,
+    'Первое\nВторое.\nВсе подробности',
+    [
+      ['Первое', URL_],
+      ['Все подробности', PAGE]
+    ]
+  ]
+];
 
 describe('linkTrailingSource', () => {
-  it('hides a trailing link behind its word, with UTF-16 offsets the post keeps', () => {
-    const cases: [string, string, string][] = [
-      [`Габен 🦈 вернул аркану.\n\nПодробности: ${URL_}`, 'Габен 🦈 вернул аркану.\n\nПодробности', 'Подробности'],
-      [`Текст.\n\n${URL_}`, 'Текст.\n\nПодробнее', 'Подробнее'],
-      [`Текст.\nИсточник ${URL_}\n`, 'Текст.\nИсточник', 'Источник']
-    ];
-    for (const [input, text, word] of cases) {
+  it('hides every address behind its words, with UTF-16 offsets the post keeps', () => {
+    for (const [input, text, words] of CASES) {
       const linked = linkTrailingSource(input);
       expect(linked.text).toBe(text);
-      expect(linked.entities).toEqual([
-        { type: 'text_link', offset: text.length - word.length, length: word.length, url: URL_ }
-      ]);
+      let from = 0;
+      const expected = words.map(([word, url]) => {
+        const offset = text.indexOf(word, from);
+        from = offset + word.length;
+        return { type: 'text_link', offset, length: word.length, url };
+      });
+      expect(linked.entities).toEqual(expected);
       const post = draftFromMessageText(linked.text, linked.entities);
-      expect(post.ok && post.input.entities).toEqual([
-        { type: 'text_link', offset: text.length - word.length, length: word.length, url: URL_ }
-      ]);
+      expect(post.ok && post.input.entities).toEqual(expected);
     }
   });
 
-  it('leaves a text without a trailing link as it is', () => {
-    const text = `Ссылка ${URL_} в середине.\nКонец.`;
+  it('leaves a text without an address as it is', () => {
+    const text = 'Без ссылок.\nКонец.';
     expect(linkTrailingSource(text)).toEqual({ text, entities: [] });
   });
 });

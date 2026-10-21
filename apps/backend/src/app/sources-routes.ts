@@ -128,7 +128,7 @@ export const sourcesRoutes = new Hono<AppBindings>()
     const container = c.get('container');
     const event = await findEvent(c);
     const key = parseSourceEventId(event.id);
-    const series = key === null ? null : await container.sourceSeries.latest(key.externalId);
+    const series = key === null ? null : await container.sourceSeries.latest(key.externalId, container.clock.now());
     if (series === null) throw new AppError('NOT_FOUND', 'No series');
     const posts = await Promise.all(
       series.posts.map(async (post) => ({

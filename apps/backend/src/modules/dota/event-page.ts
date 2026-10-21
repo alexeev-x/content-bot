@@ -15,8 +15,9 @@ const MAX_CHUNK_BYTES = 2 * 1024 * 1024;
 const MAX_TEXTS = 120;
 const MAX_TEXT_LENGTH = 1_500;
 const MAX_MEDIA = 80;
-// Page decoration, and what Telegram cannot show as a post's media (webm): never offered for a post.
-const DECORATION = /(?:^|\/)(?:header|backgrounds?|logos?)\/|_icon\.\w+$|\.webm$/i;
+// Page decoration (folders, and files named as a header or background: DEV 21.10.2026 picked the header's looping
+// video), and what Telegram cannot show as a post's media (webm): never offered for a post.
+const DECORATION = /(?:^|\/)(?:header|backgrounds?|logos?)\/|(?:header|background)[^/]*$|_icon\.\w+$|\.webm$/i;
 const MEDIA_EXTENSION = /\.(?:png|jpe?g|webp|gif|mp4|webm)$/i;
 const SLUG = /^[a-z0-9]{3,40}$/;
 // Site sections that are not an event page.

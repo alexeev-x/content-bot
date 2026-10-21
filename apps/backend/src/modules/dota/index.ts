@@ -1585,7 +1585,8 @@ export function createD1DotaWatcherRepository(db: D1Database): DotaWatcherReposi
     async setAiGeneration({ externalId, jobId, generationId }) {
       await db
         .prepare(
-          `UPDATE dota_update_items SET ai_generation_id = ?3
+          // The newest request wins: a single draft written after a series replaces it in the studio.
+          `UPDATE dota_update_items SET ai_generation_id = ?3, ai_series_id = NULL
            WHERE source_key = 'steam_news' AND external_id = ?1 AND ai_job_id = ?2`
         )
         .bind(externalId, jobId, generationId)

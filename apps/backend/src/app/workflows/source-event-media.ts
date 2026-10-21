@@ -11,7 +11,16 @@ import { AppError } from '../../shared/app-error';
 const STEAM_CDN = '.steamstatic.com';
 // The same announcement image on Steam's other CDNs: tried in turn when one refuses (DEV, 21.10.2026: no image
 // arrived while a local run got it). A redirect is followed only within steamstatic.com.
-const MIRRORS = ['clan.akamai.steamstatic.com', 'clan.fastly.steamstatic.com', 'clan.steamstatic.com'];
+// The event page's media likewise (DEV, 21.10.2026: cdn.steamstatic.com answered 403 to the Worker for an image).
+const MIRROR_GROUPS = [
+  ['clan.akamai.steamstatic.com', 'clan.fastly.steamstatic.com', 'clan.steamstatic.com'],
+  ['cdn.cloudflare.steamstatic.com', 'cdn.fastly.steamstatic.com', 'cdn.akamai.steamstatic.com', 'cdn.steamstatic.com']
+];
+// Some CDN edges refuse a request without a client name.
+const REQUEST_HEADERS = {
+  'user-agent': 'Mozilla/5.0 (compatible; alexeev-studio/1.0)',
+  accept: 'image/*,video/*;q=0.9,*/*;q=0.5'
+};
 const MAX_REDIRECTS = 2;
 const DOWNLOAD_TIMEOUT_MS = 60_000;
 // A stale revision means the owner edited the draft meanwhile; the next try reads the new one.
@@ -73,8 +82,9 @@ async function download(
   onSkip: (reason: string) => void
 ): Promise<{ bytes: Uint8Array; contentType: string; fileName: string } | null> {
   const path = url.pathname;
-  // Announcement images have mirrors; the event page's media live on one CDN.
-  const hosts = MIRRORS.includes(url.hostname) ? MIRRORS : [url.hostname];
+  const group = MIRROR_GROUPS.find((hosts) => hosts.includes(url.hostname));
+  // The address's own host first, then its mirrors.
+  const hosts = group ? [url.hostname, ...group.filter((host) => host !== url.hostname)] : [url.hostname];
   let response: Response | null = null;
   for (const host of hosts) {
     response = await fetchFrom(fetchImpl, `https://${host}${path}`).catch((error: unknown) => {
@@ -115,7 +125,11 @@ async function download(
 async function fetchFrom(fetchImpl: typeof fetch, url: string): Promise<Response> {
   let next = url;
   for (let hop = 0; ; hop += 1) {
-    const response = await fetchImpl(next, { redirect: 'manual', signal: AbortSignal.timeout(DOWNLOAD_TIMEOUT_MS) });
+    const response = await fetchImpl(next, {
+      headers: REQUEST_HEADERS,
+      redirect: 'manual',
+      signal: AbortSignal.timeout(DOWNLOAD_TIMEOUT_MS)
+    });
     const location = response.headers.get('location');
     if (response.status < 300 || response.status >= 400 || location === null || hop >= MAX_REDIRECTS) return response;
     const target = new URL(location, next);

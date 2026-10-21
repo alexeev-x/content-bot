@@ -32,6 +32,7 @@ export function seriesPostTask(input: {
     `Повод: серия постов о событии Dota 2 «${input.title}», пост ${input.position} из ${input.total} — ${input.topic}.`,
     `${SOURCE_LINK_LABEL}${input.pageUrl}`,
     `Что рассказать: ${input.brief}`,
+    'Пиши весело и живо, не сухую сводку: возьми самое интересное из фактов, не перечисляй всё.',
     input.position > 1
       ? 'Это не первый пост серии: о событии в целом уже рассказано, пиши только эту тему.'
       : 'Это первый пост серии: что вышло и самое цепляющее, подробности будут в следующих постах.',
@@ -109,14 +110,22 @@ export async function planEventSeries(
     now: container.clock.now(),
     posts
   });
-  for (const post of posts)
-    await container.aiJobs.send({
-      id: container.newId(),
-      kind: 'series_post',
-      chatId: job.chatId,
-      appOrigin: job.appOrigin,
-      seriesPostId: post.id
-    });
+  // From here the series exists: it never falls back to the one post (a second paid draft). A post whose job the
+  // queue refused is marked failed, so nothing waits for it.
+  for (const post of posts) {
+    try {
+      await container.aiJobs.send({
+        id: container.newId(),
+        kind: 'series_post',
+        chatId: job.chatId,
+        appOrigin: job.appOrigin,
+        seriesPostId: post.id
+      });
+    } catch (error) {
+      onError(error);
+      await container.sourceSeries.finishPost({ id: post.id, status: 'failed', generationId: null }).catch(onError);
+    }
+  }
   return true;
 }
 

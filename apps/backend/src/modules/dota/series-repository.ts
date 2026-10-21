@@ -40,7 +40,7 @@ export interface SeriesRepository {
    */
   claimNotice(seriesId: string, now: number): Promise<{ title: string; total: number; ready: number } | null>;
   /** The event's current series, its posts in order. */
-  latest(externalId: string): Promise<SeriesView | null>;
+  latest(externalId: string, now: number): Promise<SeriesView | null>;
   /** The owner approved a post of the series: its studio post. */
   setPost(input: { id: string; postId: string }): Promise<void>;
 }
@@ -59,7 +59,10 @@ interface PostDbRow {
 }
 
 const POST_COLUMNS = `p.id, p.series_id, s.external_id, p.position, p.topic, p.task, p.media_json, p.status, p.generation_id,
-  p.post_id`;
+  p.post_id, p.created_at`;
+
+/** Longer than a queue consumer's 15 minutes of wall time. */
+const WRITING_LOST_MS = 20 * 60_000;
 
 function toPost(row: PostDbRow): SeriesPostRow {
   let media: string[] = [];
@@ -148,7 +151,7 @@ export function createD1SeriesRepository(db: D1Database): SeriesRepository {
       return row === null ? null : { title: row.title, total: row.posts_total, ready: row.ready };
     },
 
-    async latest(externalId) {
+    async latest(externalId, now) {
       const series = await db
         .prepare(
           `SELECT s.id, s.title, s.page_url FROM dota_update_items u JOIN source_series s ON s.id = u.ai_series_id
@@ -163,8 +166,16 @@ export function createD1SeriesRepository(db: D1Database): SeriesRepository {
            WHERE p.series_id = ?1 ORDER BY p.position LIMIT 6`
         )
         .bind(series.id)
-        .all<PostDbRow>();
-      return { id: series.id, title: series.title, pageUrl: series.page_url, posts: results.map(toPost) };
+        .all<PostDbRow & { created_at: number }>();
+      // A job that died mid-write (no retries on this queue) leaves its post «writing»; past a queue job's wall
+      // time it reads as failed, so the studio stops waiting and the series can be asked for again.
+      const posts = results.map((row) => {
+        const post = toPost(row);
+        return post.status === 'writing' && row.created_at < now - WRITING_LOST_MS
+          ? { ...post, status: 'failed' as const }
+          : post;
+      });
+      return { id: series.id, title: series.title, pageUrl: series.page_url, posts };
     },
 
     async setPost({ id, postId }) {

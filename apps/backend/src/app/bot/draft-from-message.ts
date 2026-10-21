@@ -157,22 +157,97 @@ export function draftFromPoll(poll: Poll): DraftFromMessage {
   return parsed.success ? { ok: true, input: parsed.data } : { ok: false, reason: 'INVALID_TEXT' };
 }
 
-const TRAILING_LINK = /(?:^|\n)([^\n]{0,40}?)[ \t]*:?[ \t]*(https:\/\/[^\s]{1,300})[ \t]*$/;
+const URL_IN_TEXT = /https:\/\/[^\s]{1,300}/g;
+/** Longest words a link may hide behind; a longer line links only its last clause. */
+const LABEL_MAX = 60;
+const DEFAULT_LABEL = 'Подробнее';
+
+// The words a link hides behind: the line's text before it, or its last clause when the line is long.
+function labelOf(before: string): string {
+  const words = before.replace(/[\s:—–-]+$/u, '').trim();
+  if (words.length <= LABEL_MAX) return words;
+  const clause =
+    words
+      .split(/(?<=[.!?…])\s+|:\s+/u)
+      .pop()
+      ?.trim() ?? '';
+  return clause.length > 0 && clause.length <= LABEL_MAX ? clause : '';
+}
 
 /**
- * An approved AI text that ends with a link line («Подробности: https://…») hides the address behind its word
- * (owner, 21.10.2026: «нажимали на одно слово»): the line becomes that word as a text link, «Подробнее» when the
- * line is a bare address. Any other text is returned as it is.
+ * Every address in an approved AI text hides behind its words (owner, 21.10.2026: «все ссылки вшивай в текст»):
+ * «Посмотреть наборы: https://…» becomes «Посмотреть наборы» as a link; an address alone on its line links the line
+ * above when that line ends with a colon («смотрите на видео:»), else becomes «Подробнее»; one inside a sentence
+ * becomes «ссылка». Offsets are UTF-16 units, as Telegram counts them.
  */
 export function linkTrailingSource(text: string): { text: string; entities: MessageEntity[] } {
-  const trimmed = text.trimEnd();
-  const match = TRAILING_LINK.exec(trimmed);
-  if (match === null) return { text, entities: [] };
-  const [, rawLabel = '', url = ''] = match;
-  const label = rawLabel.trim() === '' ? 'Подробнее' : rawLabel.trim();
-  const start = trimmed.length - match[0].length + (match[0].startsWith('\n') ? 1 : 0);
+  const lines = text.trimEnd().split('\n');
+  const out: string[] = [];
+  // Links per output line: start and length within that line.
+  const links: { line: number; start: number; length: number; url: string }[] = [];
+  for (const line of lines) {
+    const urls = [...line.matchAll(URL_IN_TEXT)];
+    if (urls.length === 0) {
+      out.push(line);
+      continue;
+    }
+    const first = urls[0];
+    const url = first?.[0] ?? '';
+    const before = line.slice(0, first?.index ?? 0);
+    const after = line.slice((first?.index ?? 0) + url.length).trim();
+    if (urls.length === 1 && after === '' && before.trim() === '') {
+      // An address alone on its line: the line above, when it introduces it, carries the link.
+      const previous = out.length - 1;
+      const above = out[previous] ?? '';
+      if (above.trimEnd().endsWith(':') && !links.some((link) => link.line === previous)) {
+        const label = labelOf(above);
+        if (label !== '') {
+          const kept = above.replace(/[\s:]+$/u, '');
+          out[previous] = kept;
+          links.push({ line: previous, start: kept.length - label.length, length: label.length, url });
+          continue;
+        }
+      }
+      links.push({ line: out.length, start: 0, length: DEFAULT_LABEL.length, url });
+      out.push(DEFAULT_LABEL);
+      continue;
+    }
+    if (urls.length === 1 && after === '') {
+      // «Label: address» at the end of a line: the label carries the link.
+      const label = labelOf(before) || DEFAULT_LABEL;
+      const kept =
+        labelOf(before) === '' ? `${before.trimEnd()} ${DEFAULT_LABEL}`.trim() : before.replace(/[\s:—–-]+$/u, '');
+      links.push({ line: out.length, start: kept.length - label.length, length: label.length, url });
+      out.push(kept);
+      continue;
+    }
+    // Addresses inside a sentence: each becomes «ссылка».
+    let rebuilt = '';
+    let at = 0;
+    for (const match of urls) {
+      rebuilt += line.slice(at, match.index);
+      links.push({ line: out.length, start: rebuilt.length, length: 'ссылка'.length, url: match[0] });
+      rebuilt += 'ссылка';
+      at = (match.index ?? 0) + match[0].length;
+    }
+    out.push(rebuilt + line.slice(at));
+  }
+  if (links.length === 0) return { text, entities: [] };
+  const starts: number[] = [];
+  let offset = 0;
+  for (const line of out) {
+    starts.push(offset);
+    offset += line.length + 1;
+  }
   return {
-    text: `${trimmed.slice(0, start)}${label}`,
-    entities: [{ type: 'text_link', offset: start, length: label.length, url }]
+    text: out.join('\n'),
+    entities: links
+      .map((link) => ({
+        type: 'text_link' as const,
+        offset: (starts[link.line] ?? 0) + link.start,
+        length: link.length,
+        url: link.url
+      }))
+      .sort((a, b) => a.offset - b.offset)
   };
 }
