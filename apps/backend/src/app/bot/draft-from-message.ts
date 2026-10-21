@@ -156,3 +156,23 @@ export function draftFromPoll(poll: Poll): DraftFromMessage {
   });
   return parsed.success ? { ok: true, input: parsed.data } : { ok: false, reason: 'INVALID_TEXT' };
 }
+
+const TRAILING_LINK = /(?:^|\n)([^\n]{0,40}?)[ \t]*:?[ \t]*(https:\/\/[^\s]{1,300})[ \t]*$/;
+
+/**
+ * An approved AI text that ends with a link line («Подробности: https://…») hides the address behind its word
+ * (owner, 21.10.2026: «нажимали на одно слово»): the line becomes that word as a text link, «Подробнее» when the
+ * line is a bare address. Any other text is returned as it is.
+ */
+export function linkTrailingSource(text: string): { text: string; entities: MessageEntity[] } {
+  const trimmed = text.trimEnd();
+  const match = TRAILING_LINK.exec(trimmed);
+  if (match === null) return { text, entities: [] };
+  const [, rawLabel = '', url = ''] = match;
+  const label = rawLabel.trim() === '' ? 'Подробнее' : rawLabel.trim();
+  const start = trimmed.length - match[0].length + (match[0].startsWith('\n') ? 1 : 0);
+  return {
+    text: `${trimmed.slice(0, start)}${label}`,
+    entities: [{ type: 'text_link', offset: start, length: label.length, url }]
+  };
+}

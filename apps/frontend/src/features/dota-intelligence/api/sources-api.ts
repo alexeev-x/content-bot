@@ -46,6 +46,11 @@ export function approveSourceEventAiDraft(id: string, versionId: string) {
   });
 }
 
+/** Attaches the announcement's images to the event's post again; the bot says how many arrived. */
+export function attachSourceEventImages(id: string) {
+  return apiRequest(`${eventPath(id)}/images`, sourceEventSchema, { method: 'POST', body: {} });
+}
+
 export function setSourceEventHidden(id: string, hidden: boolean) {
   return apiRequest(`${eventPath(id)}/${hidden ? 'hide' : 'unhide'}`, sourceEventSchema, { method: 'POST', body: {} });
 }

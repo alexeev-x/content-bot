@@ -8,6 +8,10 @@ import { AppError } from '../../shared/app-error';
 // Only Steam's image CDN is fetched (the URLs come from `fetchSteamAnnouncement`, never from input).
 
 const IMAGE_HOST = 'clan.akamai.steamstatic.com';
+// The same image on Steam's other CDNs: tried in turn when one refuses (DEV, 21.10.2026: no image arrived while a
+// local run got it). A redirect is followed only within steamstatic.com.
+const MIRRORS = ['clan.akamai.steamstatic.com', 'clan.fastly.steamstatic.com', 'clan.steamstatic.com'];
+const MAX_REDIRECTS = 2;
 const DOWNLOAD_TIMEOUT_MS = 15_000;
 // A stale revision means the owner edited the draft meanwhile; the next try reads the new one.
 const ATTACH_ATTEMPTS = 4;
@@ -26,6 +30,8 @@ export interface SourceMediaDeps {
   }) => Promise<unknown>;
   fetchAnnouncement?: typeof fetchSteamAnnouncement;
   fetchImpl?: typeof fetch;
+  /** Why an image was left out (a stable code with the HTTP status), for the log. */
+  onSkip?: (reason: string) => void;
 }
 
 /** How many of the announcement's images are on the post now (attached by this run or an earlier one). */
@@ -43,26 +49,41 @@ export async function attachSourceEventImages(
   let attached = 0;
   for (const [index, url] of images.entries()) {
     if (new URL(url).hostname !== IMAGE_HOST) continue;
-    const image = await download(deps.fetchImpl ?? fetch, url);
+    const image = await download(deps.fetchImpl ?? fetch, url, deps.onSkip ?? (() => {}));
     if (image === null) continue;
     if (await attach(deps, input.postId, image, `source-image:${input.externalId}:${index}`)) attached += 1;
+    else deps.onSkip?.('ATTACH_REFUSED');
   }
   return { attached, found: images.length };
 }
 
 async function download(
   fetchImpl: typeof fetch,
-  url: string
+  url: string,
+  onSkip: (reason: string) => void
 ): Promise<{ bytes: Uint8Array; contentType: string; fileName: string } | null> {
-  const response = await fetchImpl(url, { redirect: 'manual', signal: AbortSignal.timeout(DOWNLOAD_TIMEOUT_MS) });
+  const path = new URL(url).pathname;
+  let response: Response | null = null;
+  for (const host of MIRRORS) {
+    response = await fetchFrom(fetchImpl, `https://${host}${path}`).catch((error: unknown) => {
+      onSkip(`DOWNLOAD_FAILED:${host}:${error instanceof Error ? error.name : 'unknown'}`);
+      return null;
+    });
+    if (response?.ok) break;
+    if (response !== null) onSkip(`DOWNLOAD_HTTP_${response.status}:${host}`);
+    await response?.body?.cancel().catch(() => undefined);
+    response = null;
+  }
+  if (response === null) return null;
   const length = Number(response.headers.get('content-length') ?? '0');
-  if (!response.ok || length > PHOTO_MEDIA_MAX_BYTES) {
+  if (length > PHOTO_MEDIA_MAX_BYTES) {
     await response.body?.cancel().catch(() => undefined);
+    onSkip('TOO_LARGE');
     return null;
   }
   const bytes = new Uint8Array(await response.arrayBuffer());
   if (bytes.byteLength > PHOTO_MEDIA_MAX_BYTES) return null;
-  const name = new URL(url).pathname.split('/').pop() ?? 'image.png';
+  const name = path.split('/').pop() ?? 'image.png';
   const extension = name.split('.').pop()?.toLowerCase();
   const contentType =
     extension === 'png'
@@ -73,6 +94,20 @@ async function download(
           ? 'image/gif'
           : 'image/jpeg';
   return { bytes, contentType, fileName: `steam-${name}`.slice(0, 255) };
+}
+
+// Follows a redirect only to another steamstatic.com address, at most twice.
+async function fetchFrom(fetchImpl: typeof fetch, url: string): Promise<Response> {
+  let next = url;
+  for (let hop = 0; ; hop += 1) {
+    const response = await fetchImpl(next, { redirect: 'manual', signal: AbortSignal.timeout(DOWNLOAD_TIMEOUT_MS) });
+    const location = response.headers.get('location');
+    if (response.status < 300 || response.status >= 400 || location === null || hop >= MAX_REDIRECTS) return response;
+    const target = new URL(location, next);
+    if (target.protocol !== 'https:' || !target.hostname.endsWith('.steamstatic.com')) return response;
+    await response.body?.cancel().catch(() => undefined);
+    next = target.href;
+  }
 }
 
 // The idempotency key per announcement image makes a repeated job attach nothing twice.

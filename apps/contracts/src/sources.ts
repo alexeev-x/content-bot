@@ -116,6 +116,8 @@ export type CreateSourceEventDraftResponse = z.infer<typeof createSourceEventDra
 // POST /api/v1/sources/events/{id}/ai-draft → 202 SourceEventDto with aiRequested: the AI writer drafts a Steam
 //   announcement (a past one included) in the bot. Each call asks again (paid). A patch is 409 CONFLICT
 //   (NOT_AI_SOURCE), a hidden event 409 CONFLICT (EVENT_HIDDEN), no queue or bot 503 UNAVAILABLE.
+// POST /api/v1/sources/events/{id}/images → 202 SourceEventDto: the announcement's images are attached to the
+//   event's post again (one copy per image). 409 CONFLICT (NO_POST) without a post or for a patch.
 // GET /api/v1/sources/events/{id}/ai-draft → 200 SourceEventAiDraftDto (404 when there is none yet).
 // POST /api/v1/sources/events/{id}/ai-draft/approve { versionId } → 201 { postId, created: true }, or 200 with the
 //   same post when that version was approved before (here or in the bot). 404 for a version of another draft,

@@ -48,7 +48,15 @@ async function runSourceMediaJob(
           uploadPostMedia(
             { repo: container.postMedia, storage, now: container.clock.now(), newId: container.newId },
             { ...command, actor: container.ownerChatId ?? 'system' }
-          )
+          ),
+        // Only a stable code with the CDN host and status, never a URL.
+        onSkip: (reason) =>
+          container.logger.warn({
+            component: 'source_media',
+            operation: 'attach',
+            status: 'skipped',
+            errorCode: reason
+          })
       },
       job
     );

@@ -9,6 +9,7 @@ import {
   useApproveSourceEventAiDraft,
   useCreateSourceEventDraft,
   useRequestSourceEventAiDraft,
+  useAttachSourceEventImages,
   useSetSourceEventHidden
 } from '../api/sources-queries';
 import { DotaTime } from './DotaTime';
@@ -174,7 +175,8 @@ export function SourceEventDrawer({ event, now, timezone, onClose }: Props) {
   const aiDraft = useRequestSourceEventAiDraft();
   const draft = useCreateSourceEventDraft();
   const visibility = useSetSourceEventHidden();
-  const error = aiDraft.error ?? draft.error ?? visibility.error;
+  const images = useAttachSourceEventImages();
+  const error = aiDraft.error ?? draft.error ?? visibility.error ?? images.error;
   const reason = error instanceof ApiError ? error.reason : undefined;
   const busy = aiDraft.isPending || draft.isPending || visibility.isPending;
 
@@ -210,6 +212,17 @@ export function SourceEventDrawer({ event, now, timezone, onClose }: Props) {
           >
             {event.status === 'published' ? 'Открыть пост' : 'Открыть черновик'}
           </Button>
+          {event.type !== 'patch' && event.status !== 'published' ? (
+            <Button
+              variant="ghost"
+              icon="image"
+              isLoading={images.isPending}
+              isDisabled={busy || images.isSuccess}
+              onPress={() => images.mutate(event.id)}
+            >
+              {images.isSuccess ? 'Картинки прикрепляются…' : 'Прикрепить картинки из анонса'}
+            </Button>
+          ) : null}
         </>
       ) : event.type === 'patch' ? (
         <Button

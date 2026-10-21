@@ -123,6 +123,25 @@ export const sourcesRoutes = new Hono<AppBindings>()
       return c.json(approveSourceEventAiDraftResponseSchema.parse(result), result.created ? 201 : 200);
     }
   )
+  // Attaches the announcement's images to the event's post again (a failed or partial run); one copy per image.
+  .post('/events/:id/images', validated('param', eventParamsSchema), async (c) => {
+    const container = c.get('container');
+    const event = await findEvent(c);
+    const key = parseSourceEventId(event.id);
+    if (key === null || key.sourceKey !== 'steam_news' || event.draft === null)
+      throw new AppError('CONFLICT', 'No announcement post to attach images to', { reason: 'NO_POST' });
+    const chatId = Number(container.ownerChatId);
+    if (container.ownerChatId === null || !Number.isSafeInteger(chatId))
+      throw new AppError('UNAVAILABLE', 'The owner chat is not configured', { reason: 'NO_OWNER_CHAT' });
+    await container.aiJobs.send({
+      id: container.newId(),
+      kind: 'source_media',
+      chatId,
+      postId: event.draft.postId,
+      externalId: key.externalId
+    });
+    return c.json(event, 202);
+  })
   .post('/events/:id/hide', validated('param', eventParamsSchema), (c) => setHidden(c, true))
   .post('/events/:id/unhide', validated('param', eventParamsSchema), (c) => setHidden(c, false));
 

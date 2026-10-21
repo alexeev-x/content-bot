@@ -1,6 +1,7 @@
 import { keepPreviousData, queryOptions, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   approveSourceEventAiDraft,
+  attachSourceEventImages,
   createSourceEventDraft,
   getSourceEventAiDraft,
   getSourceEventContent,
@@ -77,6 +78,11 @@ export function useRequestSourceEventAiDraft() {
     retry: false,
     onSettled: () => queryClient.invalidateQueries({ queryKey: sourceEventKeys.all })
   });
+}
+
+/** Re-queues the image attach; never retried by itself. */
+export function useAttachSourceEventImages() {
+  return useMutation({ mutationFn: attachSourceEventImages, retry: false });
 }
 
 export function useSetSourceEventHidden() {
