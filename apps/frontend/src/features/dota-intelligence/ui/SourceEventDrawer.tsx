@@ -112,7 +112,7 @@ export function SourceEventDrawer({ event, now, timezone, onClose }: Props) {
           isDisabled={busy || event.status === 'hidden'}
           onPress={() => aiDraft.mutate(event.id)}
         >
-          {event.aiRequested || event.draft ? 'Написать через ИИ заново' : 'Написать через ИИ'}
+          Написать через ИИ
         </Button>
       ) : null}
       {event.draft ? (
