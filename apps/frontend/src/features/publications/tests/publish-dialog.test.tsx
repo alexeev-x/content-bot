@@ -3,7 +3,7 @@ import { cleanup, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { http, HttpResponse } from 'msw';
 import { useState } from 'react';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from 'vitest';
 import { clearSession, setSession } from '../../../shared/api/session';
 import { accessToken, destination, errorBody, ids, post, publication, publicationPage } from '../../../test/fixtures';
 import { server, setupMswServer } from '../../../test/msw';
@@ -149,6 +149,13 @@ describe('PublishDialog', () => {
   });
 
   it('schedules for a later time: the default is a future quarter hour and the field shows the zone', async () => {
+    // Only Date is frozen, mid-quarter: on the real clock a run just before :00/:15/:30/:45 let the default
+    // pass into the past before the submit (CI 21.10.2026). Timers stay real for user-event and waitFor.
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-10-21T10:07:00Z'));
+    onTestFinished(() => {
+      vi.useRealTimers();
+    });
     const sent = captureCreate(() => accepted());
     const { user, dialog } = await open();
     await user.click(within(dialog).getByRole('radio', { name: 'Запланировать' }));
