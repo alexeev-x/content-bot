@@ -10,10 +10,13 @@ import {
 } from '@alexeev/contracts';
 import { AppError } from '../../shared/app-error';
 import { clipDetail, describeError, describeHttp, describeShape } from '../../shared/feed-diagnostics';
+import { eventPageSlugs } from './event-page';
 import { classifyDotaEvent, cleanExcerpt, type DotaSourceKey, type SourceEventType } from './source-events';
 
 export * from './source-events';
 export * from './source-events-repository';
+export * from './event-page';
+export * from './series-repository';
 
 export const DOTA_SOURCE_KEYS = ['steam_news', 'patch_notes'] as const;
 
@@ -910,6 +913,8 @@ export interface SteamAnnouncement {
   text: string | null;
   /** Its own images on Steam's CDN, in order, at most 10. */
   images: string[];
+  /** The event pages on dota2.com it links to (`eventPageSlugs`). */
+  pages: string[];
 }
 
 /** One Steam announcement; null when Steam no longer returns it. */
@@ -948,7 +953,11 @@ export async function fetchSteamAnnouncement(
       )
     )
   ].slice(0, MAX_ANNOUNCEMENT_IMAGES);
-  return { text: cleanExcerpt(item.contents, STEAM_ANNOUNCEMENT_TEXT_MAX, true), images };
+  return {
+    text: cleanExcerpt(item.contents, STEAM_ANNOUNCEMENT_TEXT_MAX, true),
+    images,
+    pages: eventPageSlugs(item.contents)
+  };
 }
 
 // dota2.com shows the same announcement under the Steam event's own id, not the news feed's gid; Steam's events

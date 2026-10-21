@@ -13,6 +13,7 @@ import {
   useSetSourceEventHidden
 } from '../api/sources-queries';
 import { DotaTime } from './DotaTime';
+import { EventSeries } from './EventSeries';
 import { EventStatus, TYPE_LABEL } from './event-status';
 import styles from './SourceEventDrawer.module.css';
 
@@ -185,7 +186,7 @@ export function SourceEventDrawer({ event, now, timezone, onClose }: Props) {
       {/* An announcement can always go to the AI, even with an older (template) draft (owner, 21.10.2026). */}
       {event.type !== 'patch' ? (
         <Button
-          variant={event.draft || event.aiDraftId !== null ? 'secondary' : 'primary'}
+          variant={event.draft || event.aiDraftId !== null || event.aiSeriesId !== null ? 'secondary' : 'primary'}
           icon="sparkle"
           isLoading={aiDraft.isPending}
           isDisabled={busy || event.aiWriting || event.status === 'hidden'}
@@ -295,6 +296,8 @@ export function SourceEventDrawer({ event, now, timezone, onClose }: Props) {
             <Banner tone="info" title="ИИ пишет пост">
               Обычно это минута-две. Черновик придёт в бот: там его можно одобрить, переписать или поправить.
             </Banner>
+          ) : event.aiSeriesId !== null ? (
+            <EventSeries event={event} seriesId={event.aiSeriesId} />
           ) : event.aiDraftId !== null ? (
             <AiDraft event={event} draftId={event.aiDraftId} />
           ) : null}

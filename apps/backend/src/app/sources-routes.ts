@@ -4,7 +4,8 @@ import {
   listSourceEventsQuerySchema,
   sourceEventAiDraftSchema,
   sourceEventContentSchema,
-  sourceEventIdSchema
+  sourceEventIdSchema,
+  sourceEventSeriesSchema
 } from '@alexeev/contracts';
 import { Hono } from 'hono';
 import { z } from 'zod';
@@ -120,6 +121,57 @@ export const sourcesRoutes = new Hono<AppBindings>()
         versionId: c.req.valid('json').versionId,
         actor: c.get('actor').telegramId
       });
+      return c.json(approveSourceEventAiDraftResponseSchema.parse(result), result.created ? 201 : 200);
+    }
+  )
+  .get('/events/:id/series', validated('param', eventParamsSchema), async (c) => {
+    const container = c.get('container');
+    const event = await findEvent(c);
+    const key = parseSourceEventId(event.id);
+    const series = key === null ? null : await container.sourceSeries.latest(key.externalId);
+    if (series === null) throw new AppError('NOT_FOUND', 'No series');
+    const posts = await Promise.all(
+      series.posts.map(async (post) => ({
+        id: post.id,
+        position: post.position,
+        topic: post.topic,
+        status: post.status,
+        draft: post.generationId === null ? null : await readSourceAiDraft(container, post.generationId),
+        media: post.media
+      }))
+    );
+    return c.json(
+      sourceEventSeriesSchema.parse({ id: series.id, title: series.title, pageUrl: series.pageUrl, posts })
+    );
+  })
+  .post(
+    '/events/:id/series/:postId/approve',
+    validated('param', z.strictObject({ id: sourceEventIdSchema, postId: z.uuid() })),
+    validated('json', approveSourceEventAiDraftInputSchema),
+    async (c) => {
+      const container = c.get('container');
+      const event = await findEvent(c);
+      const post = await container.sourceSeries.findPost(c.req.valid('param').postId);
+      if (post === null || `steam_news:${post.externalId}` !== event.id || post.generationId === null)
+        throw new AppError('NOT_FOUND', 'No such post in this series');
+      const result = await approveSourceAiDraft(container, await createWriterDeps(container, c.get('requestId')), {
+        rootId: post.generationId,
+        versionId: c.req.valid('json').versionId,
+        actor: c.get('actor').telegramId,
+        linkToEvent: false
+      });
+      await container.sourceSeries.setPost({ id: post.id, postId: result.postId });
+      // Its own images and videos, once per file (a repeated approval queues nothing new to attach).
+      const chatId = Number(container.ownerChatId);
+      if (result.created && post.media.length > 0 && container.ownerChatId !== null && Number.isSafeInteger(chatId))
+        await container.aiJobs.send({
+          id: container.newId(),
+          kind: 'source_media',
+          chatId,
+          postId: result.postId,
+          externalId: post.externalId,
+          urls: post.media
+        });
       return c.json(approveSourceEventAiDraftResponseSchema.parse(result), result.created ? 201 : 200);
     }
   )

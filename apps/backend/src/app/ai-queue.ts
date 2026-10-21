@@ -6,6 +6,7 @@ import { runDailyReview } from './workflows/daily-review';
 import { runHypothesesReview } from './workflows/hypotheses';
 import { sourceEventWriter } from './workflows/source-event-ai-draft';
 import { attachSourceEventImages } from './workflows/source-event-media';
+import { planEventSeries, writeSeriesPost } from './workflows/source-event-series';
 import { uploadPostMedia } from '../modules/content';
 import { AppError } from '../shared/app-error';
 import { runStyleLessons } from './workflows/style-lessons';
@@ -133,6 +134,38 @@ export async function handleAiQueue(batch: MessageBatch<unknown>, container: Con
       await runSourceMediaJob(job, container, token, onError);
       message.ack();
       continue;
+    }
+    if (job.kind === 'series_post') {
+      try {
+        if (await container.aiWriter.claimJob(job.id, container.clock.now())) {
+          await writeSeriesPost(container, job, token, requestId, onError);
+          await container.aiWriter.finishJob(job.id, container.clock.now());
+        }
+      } catch (error) {
+        onError(error);
+      }
+      message.ack();
+      continue;
+    }
+    if (job.kind === 'source_event') {
+      // An event with its own dota2.com page gets a planned series instead of one post (owner, 21.10.2026). Claimed
+      // here first, so a redelivered copy plans nothing twice; without a page (or a plan) the one post follows.
+      let planned = false;
+      try {
+        // A second id of the same job (its last character changed): the writer's own claim below keeps the job id.
+        if (!(await container.aiWriter.claimJob(`${job.id.slice(0, 35)}s`, container.clock.now()))) {
+          message.ack();
+          continue;
+        }
+        planned = await planEventSeries(container, job, requestId, onError);
+      } catch (error) {
+        onError(error);
+      }
+      if (planned) {
+        await container.dotaRepository.finishAiDraft({ externalId: job.externalId, jobId: job.id }).catch(onError);
+        message.ack();
+        continue;
+      }
     }
     if (token === '') {
       // Without the token the chat cannot be reached at all; the job is dropped with the code.

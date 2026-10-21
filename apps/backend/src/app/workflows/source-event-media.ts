@@ -1,18 +1,19 @@
-import { PHOTO_MEDIA_MAX_BYTES, POST_MEDIA_MAX_ITEMS } from '@alexeev/contracts';
+import { PHOTO_MEDIA_MAX_BYTES, POST_MEDIA_MAX_ITEMS, VIDEO_MEDIA_MAX_BYTES } from '@alexeev/contracts';
 import { HTTPException } from 'hono/http-exception';
 import { fetchSteamAnnouncement, type DotaWatcherRepository } from '../../modules/dota';
 import { AppError } from '../../shared/app-error';
 
-// A Dota event announcement's post always carries its images (owner, 21.10.2026). They are attached to the
-// approved draft through the same use case as an upload, so size, signature and dimension checks are the upload's.
-// Only Steam's image CDN is fetched (the URLs come from `fetchSteamAnnouncement`, never from input).
+// A Dota event announcement's post always carries its images (owner, 21.10.2026), and a series post the event page's
+// media its plan chose (images, and mp4 videos within the post's limit). They are attached through the same use case
+// as an upload, so size, signature and dimension checks are the upload's. Only Steam's CDN (steamstatic.com) is
+// fetched: the URLs come from Steam's announcement or Valve's event page, never from a request.
 
-const IMAGE_HOST = 'clan.akamai.steamstatic.com';
-// The same image on Steam's other CDNs: tried in turn when one refuses (DEV, 21.10.2026: no image arrived while a
-// local run got it). A redirect is followed only within steamstatic.com.
+const STEAM_CDN = '.steamstatic.com';
+// The same announcement image on Steam's other CDNs: tried in turn when one refuses (DEV, 21.10.2026: no image
+// arrived while a local run got it). A redirect is followed only within steamstatic.com.
 const MIRRORS = ['clan.akamai.steamstatic.com', 'clan.fastly.steamstatic.com', 'clan.steamstatic.com'];
 const MAX_REDIRECTS = 2;
-const DOWNLOAD_TIMEOUT_MS = 15_000;
+const DOWNLOAD_TIMEOUT_MS = 60_000;
 // A stale revision means the owner edited the draft meanwhile; the next try reads the new one.
 const ATTACH_ATTEMPTS = 4;
 
@@ -30,41 +31,52 @@ export interface SourceMediaDeps {
   }) => Promise<unknown>;
   fetchAnnouncement?: typeof fetchSteamAnnouncement;
   fetchImpl?: typeof fetch;
-  /** Why an image was left out (a stable code with the HTTP status), for the log. */
+  /** Why a file was left out (a stable code with the HTTP status), for the log. */
   onSkip?: (reason: string) => void;
 }
 
-/** How many of the announcement's images are on the post now (attached by this run or an earlier one). */
+/** How many of the files are on the post now (attached by this run or an earlier one). */
 export async function attachSourceEventImages(
   deps: SourceMediaDeps,
-  input: { postId: string; externalId: string }
+  /** `urls`: a series post's own media (Valve's CDN); without them, the announcement's images. */
+  input: { postId: string; externalId: string; urls?: readonly string[] | undefined }
 ): Promise<{ attached: number; found: number }> {
-  const source = await deps.repo.findSteamAnnouncement(input.externalId);
-  if (source === null) throw new AppError('NOT_FOUND', 'The announcement is gone');
-  const announcement = await (deps.fetchAnnouncement ?? fetchSteamAnnouncement)({
-    externalId: input.externalId,
-    publishedAt: source.publishedAt
-  });
-  const images = (announcement?.images ?? []).slice(0, POST_MEDIA_MAX_ITEMS);
-  let attached = 0;
-  for (const [index, url] of images.entries()) {
-    if (new URL(url).hostname !== IMAGE_HOST) continue;
-    const image = await download(deps.fetchImpl ?? fetch, url, deps.onSkip ?? (() => {}));
-    if (image === null) continue;
-    if (await attach(deps, input.postId, image, `source-image:${input.externalId}:${index}`)) attached += 1;
-    else deps.onSkip?.('ATTACH_REFUSED');
+  let files: readonly string[];
+  if (input.urls !== undefined) {
+    files = input.urls;
+  } else {
+    const source = await deps.repo.findSteamAnnouncement(input.externalId);
+    if (source === null) throw new AppError('NOT_FOUND', 'The announcement is gone');
+    const announcement = await (deps.fetchAnnouncement ?? fetchSteamAnnouncement)({
+      externalId: input.externalId,
+      publishedAt: source.publishedAt
+    });
+    files = announcement?.images ?? [];
   }
-  return { attached, found: images.length };
+  files = files.slice(0, POST_MEDIA_MAX_ITEMS);
+  const onSkip = deps.onSkip ?? (() => {});
+  let attached = 0;
+  for (const [index, url] of files.entries()) {
+    const target = new URL(url);
+    if (target.protocol !== 'https:' || !target.hostname.endsWith(STEAM_CDN)) continue;
+    const file = await download(deps.fetchImpl ?? fetch, target, onSkip);
+    if (file === null) continue;
+    if (await attach(deps, input.postId, file, `source-image:${input.externalId}:${index}`)) attached += 1;
+    else onSkip('ATTACH_REFUSED');
+  }
+  return { attached, found: files.length };
 }
 
 async function download(
   fetchImpl: typeof fetch,
-  url: string,
+  url: URL,
   onSkip: (reason: string) => void
 ): Promise<{ bytes: Uint8Array; contentType: string; fileName: string } | null> {
-  const path = new URL(url).pathname;
+  const path = url.pathname;
+  // Announcement images have mirrors; the event page's media live on one CDN.
+  const hosts = MIRRORS.includes(url.hostname) ? MIRRORS : [url.hostname];
   let response: Response | null = null;
-  for (const host of MIRRORS) {
+  for (const host of hosts) {
     response = await fetchFrom(fetchImpl, `https://${host}${path}`).catch((error: unknown) => {
       onSkip(`DOWNLOAD_FAILED:${host}:${error instanceof Error ? error.name : 'unknown'}`);
       return null;
@@ -75,18 +87,21 @@ async function download(
     response = null;
   }
   if (response === null) return null;
+  const video = /\.mp4$/i.test(path);
+  const limit = video ? VIDEO_MEDIA_MAX_BYTES : PHOTO_MEDIA_MAX_BYTES;
   const length = Number(response.headers.get('content-length') ?? '0');
-  if (length > PHOTO_MEDIA_MAX_BYTES) {
+  if (length > limit) {
     await response.body?.cancel().catch(() => undefined);
-    onSkip('TOO_LARGE');
+    onSkip(video ? 'VIDEO_TOO_LARGE' : 'TOO_LARGE');
     return null;
   }
   const bytes = new Uint8Array(await response.arrayBuffer());
-  if (bytes.byteLength > PHOTO_MEDIA_MAX_BYTES) return null;
+  if (bytes.byteLength > limit) return null;
   const name = path.split('/').pop() ?? 'image.png';
   const extension = name.split('.').pop()?.toLowerCase();
-  const contentType =
-    extension === 'png'
+  const contentType = video
+    ? 'video/mp4'
+    : extension === 'png'
       ? 'image/png'
       : extension === 'webp'
         ? 'image/webp'
@@ -104,17 +119,17 @@ async function fetchFrom(fetchImpl: typeof fetch, url: string): Promise<Response
     const location = response.headers.get('location');
     if (response.status < 300 || response.status >= 400 || location === null || hop >= MAX_REDIRECTS) return response;
     const target = new URL(location, next);
-    if (target.protocol !== 'https:' || !target.hostname.endsWith('.steamstatic.com')) return response;
+    if (target.protocol !== 'https:' || !target.hostname.endsWith(STEAM_CDN)) return response;
     await response.body?.cancel().catch(() => undefined);
     next = target.href;
   }
 }
 
-// The idempotency key per announcement image makes a repeated job attach nothing twice.
+// The idempotency key per file makes a repeated job attach nothing twice.
 async function attach(
   deps: SourceMediaDeps,
   postId: string,
-  image: { bytes: Uint8Array; contentType: string; fileName: string },
+  file: { bytes: Uint8Array; contentType: string; fileName: string },
   idempotencyKey: string
 ): Promise<boolean> {
   for (let attempt = 0; attempt < ATTACH_ATTEMPTS; attempt += 1) {
@@ -124,12 +139,12 @@ async function attach(
       await deps.upload({
         postId,
         revision: state.revision,
-        fileName: image.fileName,
-        contentType: image.contentType,
-        contentLength: image.bytes.byteLength,
+        fileName: file.fileName,
+        contentType: file.contentType,
+        contentLength: file.bytes.byteLength,
         body: new ReadableStream<Uint8Array>({
           start(controller) {
-            controller.enqueue(image.bytes);
+            controller.enqueue(file.bytes);
             controller.close();
           }
         }),

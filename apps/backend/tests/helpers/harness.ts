@@ -48,6 +48,8 @@ export async function resetDb(): Promise<void> {
       'dota_watches',
       'dota_patch_analyses',
       'dota_source_incidents',
+      'source_series_posts',
+      'source_series',
       'dota_update_items',
       'dota_source_state',
       'incidents',

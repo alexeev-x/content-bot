@@ -601,6 +601,7 @@ describe("an event post's images", () => {
       fetchAnnouncement: () =>
         Promise.resolve({
           text: 'x',
+          pages: [],
           images: [`${CDN}/${'a'.repeat(40)}.png`, 'https://evil.example/x.png', `${CDN}/${'b'.repeat(40)}.png`]
         }),
       fetchImpl: ((url: string) => {

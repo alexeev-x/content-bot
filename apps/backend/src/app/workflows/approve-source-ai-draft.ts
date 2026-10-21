@@ -67,7 +67,8 @@ export async function readSourceAiDraft(container: Container, rootId: string): P
 export async function approveSourceAiDraft(
   container: Container,
   deps: WriterDeps,
-  input: { rootId: string; versionId: string; actor: string }
+  /** `linkToEvent`: false for a series post, which keeps its own post and media (`source_series_posts`). */
+  input: { rootId: string; versionId: string; actor: string; linkToEvent?: boolean }
 ): Promise<{ postId: string; created: boolean }> {
   const chain = await readDraftChain(container.aiDraftHistory, input.rootId);
   if (!chain.versions.some((version) => version.id === input.versionId))
@@ -91,6 +92,7 @@ export async function approveSourceAiDraft(
     { actor: input.actor, idempotencyKey: `ai:${approved.id}`, input: post.input }
   );
   await attachPost(deps, approved.id, created.id);
+  if (input.linkToEvent === false) return { postId: created.id, created: true };
   await linkApprovedSourcePost(container, await lineage(deps, generation), created.id).catch((error: unknown) =>
     container.logger.warn({
       component: 'sources',

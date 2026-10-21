@@ -58,6 +58,8 @@ export const sourceEventSchema = z.object({
   aiWriting: z.boolean(),
   // The AI draft the latest request wrote (the first version of its chain); null until one exists.
   aiDraftId: z.uuid().nullable(),
+  // The event's planned series of posts (an event with its own dota2.com page); null without one.
+  aiSeriesId: z.uuid().nullable(),
   draft: z.object({ postId: z.uuid(), title: z.string() }).nullable(),
   // Latest publication of the draft; null until one exists.
   publication: z.object({ status: publicationStatusSchema }).nullable()
@@ -91,6 +93,28 @@ export const sourceEventAiDraftSchema = z.object({
 });
 export type SourceEventAiDraftDto = z.infer<typeof sourceEventAiDraftSchema>;
 
+/** An event's series of posts, each with its AI draft, for the side panel. */
+export const sourceEventSeriesSchema = z.object({
+  id: z.uuid(),
+  title: z.string(),
+  pageUrl: z.url(),
+  posts: z
+    .array(
+      z.object({
+        id: z.uuid(),
+        position: z.number().int().min(1).max(6),
+        topic: z.string(),
+        status: z.enum(['writing', 'ready', 'failed']),
+        // The post's AI draft; null while it is written or when it failed.
+        draft: sourceEventAiDraftSchema.nullable(),
+        // Valve's images and videos chosen for this post (attached when it is approved).
+        media: z.array(z.url()).max(10)
+      })
+    )
+    .max(6)
+});
+export type SourceEventSeriesDto = z.infer<typeof sourceEventSeriesSchema>;
+
 export const approveSourceEventAiDraftInputSchema = z.strictObject({ versionId: z.uuid() });
 export const approveSourceEventAiDraftResponseSchema = z.object({ postId: z.uuid(), created: z.boolean() });
 export type ApproveSourceEventAiDraftResponse = z.infer<typeof approveSourceEventAiDraftResponseSchema>;
@@ -118,6 +142,9 @@ export type CreateSourceEventDraftResponse = z.infer<typeof createSourceEventDra
 //   (NOT_AI_SOURCE), a hidden event 409 CONFLICT (EVENT_HIDDEN), no queue or bot 503 UNAVAILABLE.
 // POST /api/v1/sources/events/{id}/images → 202 SourceEventDto: the announcement's images are attached to the
 //   event's post again (one copy per image). 409 CONFLICT (NO_POST) without a post or for a patch.
+// GET /api/v1/sources/events/{id}/series → 200 SourceEventSeriesDto (404 without one).
+// POST /api/v1/sources/events/{id}/series/{postId}/approve { versionId } → as …/ai-draft/approve, for one post of the
+//   series: its own studio post, with the media chosen for it.
 // GET /api/v1/sources/events/{id}/ai-draft → 200 SourceEventAiDraftDto (404 when there is none yet).
 // POST /api/v1/sources/events/{id}/ai-draft/approve { versionId } → 201 { postId, created: true }, or 200 with the
 //   same post when that version was approved before (here or in the bot). 404 for a version of another draft,

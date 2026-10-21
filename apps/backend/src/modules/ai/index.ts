@@ -1,6 +1,7 @@
 export { type AiRepository, createD1AiRepository } from './d1-ai-repository';
 export { AI_CATALOG } from './catalog';
 export { SOURCE_LINK_LABEL } from './writer';
+export { planSeries, SERIES_POSTS_MAX, type SeriesPlanPost } from './series-planner';
 export { createOpenAiProvider } from './openai-provider';
 export {
   createD1RulesRepository,

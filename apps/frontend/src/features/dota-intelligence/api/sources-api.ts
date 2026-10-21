@@ -5,6 +5,7 @@ import {
   sourceEventContentSchema,
   sourceEventPageSchema,
   sourceEventSchema,
+  sourceEventSeriesSchema,
   type SourceEventType,
   type SourceEventView
 } from '@alexeev/contracts';
@@ -49,6 +50,19 @@ export function approveSourceEventAiDraft(id: string, versionId: string) {
 /** Attaches the announcement's images to the event's post again; the bot says how many arrived. */
 export function attachSourceEventImages(id: string) {
   return apiRequest(`${eventPath(id)}/images`, sourceEventSchema, { method: 'POST', body: {} });
+}
+
+/** The event's planned series of posts, each with its AI draft. */
+export function getSourceEventSeries(id: string, signal?: AbortSignal) {
+  return apiRequest(`${eventPath(id)}/series`, sourceEventSeriesSchema, { signal });
+}
+
+/** Approves the version shown of one series post: its own studio post, with the media chosen for it. */
+export function approveSourceEventSeriesPost(id: string, postId: string, versionId: string) {
+  return apiRequest(`${eventPath(id)}/series/${postId}/approve`, approveSourceEventAiDraftResponseSchema, {
+    method: 'POST',
+    body: { versionId }
+  });
 }
 
 export function setSourceEventHidden(id: string, hidden: boolean) {

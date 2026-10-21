@@ -47,7 +47,17 @@ export const aiJobSchema = z.discriminatedUnion('kind', [
     kind: z.literal('source_media'),
     chatId: z.number().int(),
     postId: z.uuid(),
-    externalId: z.string().min(1).max(100)
+    externalId: z.string().min(1).max(100),
+    /** A series post's own media (Valve's CDN); without it, the announcement's images. */
+    urls: z.array(z.url().max(500)).max(10).optional()
+  }),
+  /** One planned post of an event's series, written by the AI writer (no chat message: the studio shows it). */
+  z.object({
+    id: z.uuid(),
+    kind: z.literal('series_post'),
+    chatId: z.number().int(),
+    appOrigin: z.string().max(200),
+    seriesPostId: z.uuid()
   }),
   z.object({ ...base, kind: z.literal('draft'), format: formatSchema, task: z.string().min(1).max(TEXT_MAX) }),
   z.object({
@@ -94,5 +104,8 @@ export type AiJobBase = z.infer<z.ZodObject<typeof base>>;
 export type EventWriterJob = AiJobBase & { kind: 'event'; externalId: string };
 /** The jobs of the bot's AI writer: each has the chat message it ends in. */
 export type WriterJob =
-  | Exclude<AiJob, { kind: 'daily_review' | 'style_lessons' | 'hypotheses' | 'source_event' | 'source_media' }>
+  | Exclude<
+      AiJob,
+      { kind: 'daily_review' | 'style_lessons' | 'hypotheses' | 'source_event' | 'source_media' | 'series_post' }
+    >
   | EventWriterJob;

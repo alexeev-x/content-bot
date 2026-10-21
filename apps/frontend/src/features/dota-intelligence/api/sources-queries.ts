@@ -1,6 +1,8 @@
 import { keepPreviousData, queryOptions, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   approveSourceEventAiDraft,
+  approveSourceEventSeriesPost,
+  getSourceEventSeries,
   attachSourceEventImages,
   createSourceEventDraft,
   getSourceEventAiDraft,
@@ -15,7 +17,8 @@ const sourceEventKeys = {
   all: ['source-events'] as const,
   list: (filters: SourceEventsFilters) => [...sourceEventKeys.all, filters] as const,
   content: (id: string) => ['source-event-content', id] as const,
-  aiDraft: (id: string, draftId: string) => ['source-events', 'ai-draft', id, draftId] as const
+  aiDraft: (id: string, draftId: string) => ['source-events', 'ai-draft', id, draftId] as const,
+  series: (id: string, seriesId: string) => ['source-events', 'series', id, seriesId] as const
 };
 
 export function sourceEventsQueryOptions(filters: SourceEventsFilters) {
@@ -47,6 +50,27 @@ export function sourceEventAiDraftQueryOptions(id: string, draftId: string) {
     queryFn: ({ signal }) => getSourceEventAiDraft(id, signal),
     staleTime: 0,
     retry: false
+  });
+}
+
+/** While a post of the series is written, re-read every 5 s (visible tab only). */
+export function sourceEventSeriesQueryOptions(id: string, seriesId: string) {
+  return queryOptions({
+    queryKey: sourceEventKeys.series(id, seriesId),
+    queryFn: ({ signal }) => getSourceEventSeries(id, signal),
+    staleTime: 0,
+    refetchInterval: (query) => (query.state.data?.posts.some((post) => post.status === 'writing') ? 5_000 : false),
+    retry: false
+  });
+}
+
+export function useApproveSourceEventSeriesPost() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, postId, versionId }: { id: string; postId: string; versionId: string }) =>
+      approveSourceEventSeriesPost(id, postId, versionId),
+    retry: false,
+    onSettled: () => queryClient.invalidateQueries({ queryKey: sourceEventKeys.all })
   });
 }
 

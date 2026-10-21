@@ -87,7 +87,9 @@ import { z } from 'zod';
 import { AppError } from '../shared/app-error';
 import {
   createD1DotaWatcherRepository,
+  createD1SeriesRepository,
   createD1SourceEventsRepository,
+  type SeriesRepository,
   type SourceEventsRepository,
   createOfficialDotaFetcher,
   inspectOfficialPatch,
@@ -188,6 +190,7 @@ export interface Container {
   dotaRepository: DotaWatcherRepository;
   /** «Источники»: the events read model and hide flag over the Dota update items. */
   sourceEvents: SourceEventsRepository;
+  sourceSeries: SeriesRepository;
   dotaWatchlists: ReturnType<typeof createD1DotaWatchlists>;
   /** Owner-visible history and conditional control for fixed Dota recurring work. */
   automations: AutomationRepository;
@@ -502,6 +505,9 @@ export function createContainer(env: ContainerEnv, overrides: ContainerOverrides
     },
     get dotaRepository() {
       return overrides.dotaRepository ?? createD1DotaWatcherRepository(db());
+    },
+    get sourceSeries() {
+      return createD1SeriesRepository(db());
     },
     get sourceEvents() {
       return createD1SourceEventsRepository(db(), () => (overrides.clock ?? systemClock).now());

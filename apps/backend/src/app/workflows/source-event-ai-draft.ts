@@ -88,7 +88,7 @@ export async function readSourceEventContent(
     findOfficialUrl?: typeof findDotaNewsEntryUrl;
     onError: (error: unknown) => void;
   }
-): Promise<SteamAnnouncement & { officialUrl: string | null }> {
+): Promise<Omit<SteamAnnouncement, 'pages'> & { officialUrl: string | null }> {
   if (source.sourceKey !== 'steam_news') return { text: null, images: [], officialUrl: null };
   const [announcement, officialUrl] = await Promise.all([
     (deps.fetchAnnouncement ?? fetchSteamAnnouncement)(source).catch((error: unknown) => {
