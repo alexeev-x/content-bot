@@ -13,7 +13,7 @@ The AI makes the Telegram channel's content itself: news and rubric posts drafte
   announcement is drafted by the AI writer in the bot; the studio's «Прошлые анонсы» lets the owner try a past one.
   Patch notes still use a template.
 - A Dota event announcement (an event like «The Dark Carnival», a treasure, …) always carries its image in the post
-  (owner, 21.10.2026); other sources get their own rules later. Today the AI draft is text only.
+  (owner, 21.10.2026); other sources get their own rules later. Done for the approved AI post: its images are attached.
 - A treasure post lists its sets, images and price. Liquipedia had the sets 35 minutes after Valve's announcement
   (Trove of Terror: sets at once, drop rates and opening bonuses after ~4 h) and never the price. Steam's Web API gives
   neither for Dota (checked with the owner's key 21.10.2026: no item schema, no asset prices for app 570); the price is
