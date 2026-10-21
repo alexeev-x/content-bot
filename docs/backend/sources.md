@@ -1,6 +1,6 @@
 # «Источники»: the night watchman
 
-Status: built (backend and contracts); the screen is a later frontend task. AI text generation is not part of it.
+Status: built (backend and contracts); the screen is a later frontend task. A patch is drafted by a template, a Steam announcement by the AI writer (below).
 
 An event is a non-baseline row of `dota_update_items` (Steam announcements and official patch notes, detected by the Cron watcher). The read model and actions live in `modules/dota` (`source-events.ts` pure rules, `source-events-repository.ts` D1); the draft workflow in `app/workflows/` ties them to `content`. Endpoints: `docs/API_CONTRACTS.md` («Sources events»).
 
@@ -13,13 +13,18 @@ Fixed at detection, stored in `event_type` (migration 0037 backfills old rows fr
 ## Status
 `hidden` (owner dismissed) wins; else `new` (no draft post yet), `published` (the draft's latest publication job succeeded), `drafted`. `publication.status` is the coarse state of that latest publication (queued, sending, sent, failed, unknown, ...).
 
-## Auto-draft at detection
-`processDotaUpdates` (Cron, every 5 minutes, idle ticks only) makes one draft per new event: it reserves `draft_post_id` with a conditional UPDATE, then `createPost` with the idempotency key `dota:<sourceKey>:<externalId>`. The owner's «draft» endpoint uses the same reservation and key, so Cron, the endpoint, a re-detection and a rerun leave one post. Hidden events are skipped.
+## AI draft of a Steam announcement (migration 0090, owner 21.10.2026)
+A news or treasure event is written by the AI writer, not by a template. Cron (`processDotaUpdates`) claims `ai_job_id` with a conditional UPDATE (once per event) and sends a `source_event` job to Queue `AI_JOBS`; a refused send gives the claim back for the next tick. The consumer sends «<тип> в Steam: <заголовок> / Пишу пост…» to the owner, fetches the whole announcement from Steam (`GetNewsForApp` up to its date, picked by gid; cleaned, at most 3 500 characters: the feed keeps only 500) and runs the writer in automatic mode with those words as the only facts (`app/workflows/source-event-ai-draft.ts`). The message becomes the usual writer draft (`docs/backend/bot.md` «AI writer»); a failed fetch or model call is said in it, and nothing retries by itself. A failure before that message (D1, Telegram) gives the claim back, so the next tick asks again; no model was called yet. The draft's id is kept in `ai_generation_id`; approving it or one of its rewrites makes the post, which becomes the event's `draft_post_id` with the notice counted as sent (the approval reply has the publish buttons). The sourceAlerts preference does not stop it: the draft is the event's draft, not a notice.
+
+`/events` in the bot replays any of the latest announcements, a past one included: the claim is taken again, the row stops being baseline (it is an event from then on), and the same job runs. The earlier draft stays linked until the new one is written; a draft from a replaced job that finishes later is not. A replay the queue refused keeps its claim (released, the row would look new to Cron); the owner taps again. Template drafts from the screen («draft» endpoint) stay as they were.
+
+## Auto-draft at detection (patches)
+`processDotaUpdates` (Cron, every 5 minutes, idle ticks only) makes one template draft per new patch: it reserves `draft_post_id` with a conditional UPDATE, then `createPost` with the idempotency key `dota:<sourceKey>:<externalId>`. The owner's «draft» endpoint uses the same reservation and key, so Cron, the endpoint, a re-detection and a rerun leave one post. Hidden events are skipped.
 
 Templates (Russian, in `source-events.ts`; they only rearrange source text, never generate facts, never copy images):
 - patch: title `Патч <версия>: что изменилось`; body lists changed heroes and items from the stored parse, watched ones first, at most 15, then `и ещё N`; if the notes are not parsed it says so; then `Источник: <url>`.
-- treasure: title `Новая сокровищница: <название>`; first sentence of the announcement; link.
-- news: the title; first sentence of the announcement; link.
+- treasure (screen «draft» only): title `Новая сокровищница: <название>`; first sentence of the announcement; link.
+- news (screen «draft» only): the title; first sentence of the announcement; link.
 The announcement text is Steam's first 500 characters, cleaned of BBCode/HTML, links and image macros, kept in `excerpt` (at most 600).
 
 ## Owner notice

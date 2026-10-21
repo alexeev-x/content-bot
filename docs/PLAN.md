@@ -9,9 +9,9 @@ The AI makes the Telegram channel's content itself: news and rubric posts drafte
 
 ## 1. Sources
 
-- Today two are connected: Steam News of Dota 2 (`steam_news`) and the official patch notes (`patch_notes`). Not
-  verified end to end: neither has had a new event since, so nobody has seen the AI turn one into a post. Needs a way
-  to run the path on a past event without waiting for the next one.
+- Today two are connected: Steam News of Dota 2 (`steam_news`) and the official patch notes (`patch_notes`). A Steam
+  announcement is drafted by the AI writer in the bot, and `/events` replays a past one. The owner has not seen it on
+  DEV yet; «The Dark Carnival» and «Inside the Trove of Terror» go first. Patch notes still use a template.
 - Find and add more that give a post a day without the owner's work; each must be free, keyless or with a free key,
   and allowed by its terms.
 

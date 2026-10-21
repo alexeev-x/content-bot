@@ -1,3 +1,4 @@
+import { registerSourceEvents, type SourceEventsBotRuntime } from './source-events';
 import type { BotSetting, CreatePostInput } from '@alexeev/contracts';
 import { POST_BODY_MAX } from '@alexeev/contracts';
 import { Bot, type Context, GrammyError, InlineKeyboard, type NextFunction } from 'grammy';
@@ -174,6 +175,10 @@ export interface BotRuntime {
   call: TelegramCaller;
   /** Sends one AI writer model call to the AI_JOBS queue. */
   enqueueAiJob: (job: AiJob) => Promise<void>;
+  /** An approved AI draft of a source event becomes that event's post. */
+  linkSourceEventPost: (generationIds: readonly string[], postId: string) => Promise<void>;
+  /** /events: past Steam announcements sent to the AI writer again. */
+  sourceEvents: Pick<SourceEventsBotRuntime, 'recent' | 'replay'>;
   /** Keeps work alive after the webhook answered (the request's `ctx.waitUntil`). */
   waitUntil: (work: Promise<unknown>) => void;
   /** Records a failed update (stable code only); the webhook still answers 200. */
@@ -346,6 +351,8 @@ export function createBot(config: BotConfig, runtime: BotRuntime): Bot {
     lessons: runtime.styleLessons,
     onError: runtime.onError
   });
+  // Before the writer too: in a /redactor chat its text handler would take «/events» as a message.
+  registerSourceEvents(bot, { ...runtime.sourceEvents, onError: runtime.onError });
   registerAiWriter(bot, runtime);
 
   // In /post mode whatever the owner sends or forwards becomes a draft. An unknown command is not a post.

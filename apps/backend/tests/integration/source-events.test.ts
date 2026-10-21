@@ -3,7 +3,8 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { createPublishActions } from '../../src/app/bot/publish-actions';
 import { createContainer, type Container } from '../../src/app/container';
 import { processDotaUpdates } from '../../src/app/workflows/process-dota-updates';
-import type { DotaPatchInspection } from '../../src/modules/dota';
+import type { AiJob } from '../../src/app/bot/ai-job';
+import { createD1DotaWatcherRepository, type DotaPatchInspection } from '../../src/modules/dota';
 import { createLogger } from '../../src/platform/logging/logger';
 import { createD1SystemState } from '../../src/app/system-state';
 import { testDb } from '../helpers/db';
@@ -329,41 +330,70 @@ describe('the Cron workflow: auto-draft and one owner notice per event', () => {
     await seedDestination(api, { title: 'Main channel' });
   });
 
-  it('drafts each new event once and sends one notice with the publish keyboard; a rerun changes nothing', async () => {
+  // Steam announcements go to the AI writer through the queue (owner, 21.10.2026); a patch keeps its template.
+  function aiQueue(refuse = 0) {
+    const jobs: AiJob[] = [];
+    let refusals = refuse;
+    return {
+      jobs,
+      enqueueAiJob: (job: AiJob) => {
+        if (refusals > 0) {
+          refusals -= 1;
+          return Promise.reject(new Error('queue down'));
+        }
+        jobs.push(job);
+        return Promise.resolve();
+      }
+    };
+  }
+  const requested = (jobs: AiJob[]) => jobs.map((job) => (job.kind === 'source_event' ? job.externalId : job.kind));
+
+  it('drafts the patch once with one notice and asks the AI writer once per announcement; a rerun changes nothing', async () => {
     const messenger = fakeOwnerMessenger();
-    const first = await processDotaUpdates(deps({ messenger }));
-    expect(first).toMatchObject({ draftsCreated: 2, draftAlertsSent: 2 });
-    expect(await count('posts')).toBe(2);
-    expect(messenger.sent).toHaveLength(2);
-    const [newsNotice, treasureNotice] = messenger.sent;
-    expect(newsNotice?.html).toBe('<b>Новость: Qualifiers update — черновик готов</b>');
-    expect(treasureNotice?.html).toBe('<b>Сокровищница: Treasure of the Beacon — черновик готов</b>');
-    const labels = newsNotice?.markup?.inline_keyboard.flat().map((button) => button.text);
-    expect(labels).toEqual([
+    const queue = aiQueue();
+    const first = await processDotaUpdates(deps({ messenger, enqueueAiJob: queue.enqueueAiJob }));
+    expect(first).toMatchObject({ draftsCreated: 1, draftAlertsSent: 1, aiDraftsRequested: 2 });
+    expect(await count('posts')).toBe(1);
+    expect(requested(queue.jobs)).toEqual(['1002', '1001']);
+    expect(queue.jobs[0]).toMatchObject({ chatId: Number(OWNER_ID), appOrigin: ORIGIN });
+    expect(messenger.sent).toHaveLength(1);
+    const [patchNotice] = messenger.sent;
+    expect(patchNotice?.markup?.inline_keyboard.flat().map((button) => button.text)).toEqual([
       'Опубликовать сейчас → Main channel',
       '🕒 Запланировать → Main channel',
       'Открыть в Студии'
     ]);
 
-    const second = await processDotaUpdates(deps({ messenger }));
-    expect(second).toMatchObject({ draftsCreated: 1, draftAlertsSent: 1 });
-    expect(await count('posts')).toBe(3);
-    const third = await processDotaUpdates(deps({ messenger }));
-    expect(third).toMatchObject({ draftsCreated: 0, draftAlertsSent: 0 });
-    expect(await count('posts')).toBe(3);
-    expect(messenger.sent).toHaveLength(3);
-    expect(await count('bot_publish_actions')).toBe(3);
+    const second = await processDotaUpdates(deps({ messenger, enqueueAiJob: queue.enqueueAiJob }));
+    expect(second).toMatchObject({ draftsCreated: 0, draftAlertsSent: 0, aiDraftsRequested: 0 });
+    expect(await count('posts')).toBe(1);
+    expect(queue.jobs).toHaveLength(2);
+    expect(messenger.sent).toHaveLength(1);
   });
 
-  it('a draft made from the screen first is not duplicated by Cron and is still announced once', async () => {
+  it('a queue refusal gives the claim back: the next tick asks again, once', async () => {
+    const messenger = fakeOwnerMessenger();
+    const queue = aiQueue(2);
+    expect(await processDotaUpdates(deps({ messenger, enqueueAiJob: queue.enqueueAiJob }))).toMatchObject({
+      aiDraftsRequested: 0
+    });
+    await processDotaUpdates(deps({ messenger, enqueueAiJob: queue.enqueueAiJob }));
+    await processDotaUpdates(deps({ messenger, enqueueAiJob: queue.enqueueAiJob }));
+    expect(requested(queue.jobs)).toEqual(['1002', '1001']);
+  });
+
+  it('a template draft made from the screen first is announced once and gets no AI request', async () => {
     await post(TREASURE, 'draft');
     const messenger = fakeOwnerMessenger();
-    for (let tick = 0; tick < 4; tick += 1) await processDotaUpdates(deps({ messenger }));
-    expect(await count('posts')).toBe(3);
-    expect(messenger.sent).toHaveLength(3);
+    const queue = aiQueue();
+    for (let tick = 0; tick < 3; tick += 1)
+      await processDotaUpdates(deps({ messenger, enqueueAiJob: queue.enqueueAiJob }));
+    expect(await count('posts')).toBe(2);
+    expect(messenger.sent).toHaveLength(2);
+    expect(requested(queue.jobs)).toEqual(['1002']);
   });
 
-  it('with the source alerts preference off the events are drafted but never announced, and not later either', async () => {
+  it('with the source alerts preference off the patch is drafted but never announced, and not later either', async () => {
     const messenger = fakeOwnerMessenger();
     const off = {
       warningsEnabled: true,
@@ -379,27 +409,78 @@ describe('the Cron workflow: auto-draft and one owner notice per event', () => {
     };
     await processDotaUpdates(deps({ messenger, readNotificationPreferences: () => Promise.resolve(off) }));
     await processDotaUpdates(deps({ messenger }));
-    expect(await count('posts')).toBe(3);
-    expect(messenger.sent).toHaveLength(1);
+    expect(await count('posts')).toBe(1);
+    expect(messenger.sent).toHaveLength(0);
   });
 
-  it('a hidden event gets no draft and no notice', async () => {
+  it('a hidden event gets no draft, no notice and no AI request', async () => {
     await post(PATCH, 'hide');
     await post(TREASURE, 'hide');
     const messenger = fakeOwnerMessenger();
-    await processDotaUpdates(deps({ messenger }));
-    expect(await count('posts')).toBe(1);
-    expect(messenger.sent).toHaveLength(1);
+    const queue = aiQueue();
+    await processDotaUpdates(deps({ messenger, enqueueAiJob: queue.enqueueAiJob }));
+    expect(await count('posts')).toBe(0);
+    expect(messenger.sent).toHaveLength(0);
+    expect(requested(queue.jobs)).toEqual(['1002']);
   });
 
-  it('stops drafting when the invocation budget is spent, and loses nothing', async () => {
+  it('stops when the invocation budget is spent, and loses nothing', async () => {
     const messenger = fakeOwnerMessenger();
+    const queue = aiQueue();
     const budget = { limit: 50, used: () => 45, remaining: () => 5, charge: () => {} };
-    const starved = await processDotaUpdates(deps({ messenger, budget }));
-    expect(starved).toMatchObject({ draftsCreated: 0, draftAlertsSent: 0 });
+    const starved = await processDotaUpdates(deps({ messenger, budget, enqueueAiJob: queue.enqueueAiJob }));
+    expect(starved).toMatchObject({ draftsCreated: 0, draftAlertsSent: 0, aiDraftsRequested: 0 });
     expect(await count('posts')).toBe(0);
-    await processDotaUpdates(deps({ messenger }));
-    expect(await count('posts')).toBe(2);
+    await processDotaUpdates(deps({ messenger, enqueueAiJob: queue.enqueueAiJob }));
+    expect(await count('posts')).toBe(1);
+    expect(queue.jobs).toHaveLength(2);
+  });
+});
+
+describe('an AI draft of a Steam announcement', () => {
+  const repo = () => createD1DotaWatcherRepository(testDb());
+  const GENERATION = '00000000-0000-4000-8000-000000000001';
+  const CHILD = '00000000-0000-4000-8000-000000000002';
+  const POST = '00000000-0000-4000-8000-0000000000aa';
+  const row = (externalId: string) =>
+    testDb()
+      .prepare(
+        'SELECT is_baseline, ai_job_id, draft_post_id, owner_alert_claimed_at FROM dota_update_items WHERE external_id = ?1'
+      )
+      .bind(externalId)
+      .first<{
+        is_baseline: number;
+        ai_job_id: string | null;
+        draft_post_id: string | null;
+        owner_alert_claimed_at: number | null;
+      }>();
+
+  it('a replay makes a past announcement an event; its approved draft becomes the event post, once', async () => {
+    const job = crypto.randomUUID();
+    expect(await repo().claimAiDraft({ externalId: '0999', jobId: job, replay: false })).toBe(false);
+    expect(await repo().claimAiDraft({ externalId: '0999', jobId: job, replay: true })).toBe(true);
+    expect(await row('0999')).toMatchObject({ is_baseline: 0, ai_job_id: job });
+    await repo().setAiGeneration({ externalId: '0999', jobId: job, generationId: GENERATION });
+
+    // The owner approved a rewrite of that draft: the chain reaches the event.
+    expect(await repo().linkAiPost({ generationIds: [CHILD, GENERATION], postId: POST, now: START })).toBe(true);
+    expect(await row('0999')).toMatchObject({ draft_post_id: POST, owner_alert_claimed_at: START });
+    const other = '00000000-0000-4000-8000-0000000000bb';
+    expect(await repo().linkAiPost({ generationIds: [GENERATION], postId: other, now: START })).toBe(false);
+    expect(await row('0999')).toMatchObject({ draft_post_id: POST });
+  });
+
+  it('a draft from an older job is not recorded once a replay took the event', async () => {
+    const old = crypto.randomUUID();
+    await repo().claimAiDraft({ externalId: '1002', jobId: old, replay: false });
+    await repo().claimAiDraft({ externalId: '1002', jobId: crypto.randomUUID(), replay: true });
+    await repo().setAiGeneration({ externalId: '1002', jobId: old, generationId: GENERATION });
+    expect(await repo().linkAiPost({ generationIds: [GENERATION], postId: POST, now: START })).toBe(false);
+  });
+
+  it('a hidden announcement is never replayed', async () => {
+    await post(NEWS, 'hide');
+    expect(await repo().claimAiDraft({ externalId: '1002', jobId: crypto.randomUUID(), replay: true })).toBe(false);
   });
 });
 
@@ -422,7 +503,7 @@ describe('the Cron tick that runs the watcher', () => {
     expect(meter.statements + messenger.sent.length + 2).toBeLessThanOrEqual(50);
     expect(meter.roundTrips).toBeLessThanOrEqual(50);
     // What the first slot had no budget left to announce goes out in the next slots, each within the limit.
-    for (let slot = 2; slot <= 6 && messenger.sent.length < 3; slot += 1) {
+    for (let slot = 2; slot <= 6 && messenger.sent.length < 1; slot += 1) {
       const later = meteredDb(testDb());
       const before = messenger.sent.length;
       await makeTick({
@@ -434,7 +515,7 @@ describe('the Cron tick that runs the watcher', () => {
       }).run();
       expect(later.meter.statements + (messenger.sent.length - before) + 2).toBeLessThanOrEqual(50);
     }
-    expect(messenger.sent).toHaveLength(3);
-    expect(await count('posts')).toBe(3);
+    expect(messenger.sent).toHaveLength(1);
+    expect(await count('posts')).toBe(1);
   });
 });

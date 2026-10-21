@@ -90,6 +90,7 @@ function probe(
       listDraftWork: () => Promise.resolve([]),
       reserveDraft: () => Promise.resolve(null),
       listOwnerAlertWork: () => Promise.resolve([]),
+      listAiDraftWork: () => Promise.resolve([]),
       claimDraftOwnerAlert: () => Promise.resolve(false),
       recordSourceFailure: () => Promise.resolve('incident-id'),
       listSourceIncidentAlerts: () => Promise.resolve([]),

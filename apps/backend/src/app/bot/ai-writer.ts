@@ -28,7 +28,7 @@ import { AppError } from '../../shared/app-error';
 import { formatAiBudgetAlert } from '../notifications/ai-budget-alert';
 import type { Clock } from '../../platform/clock';
 import type { PublishActions } from './publish-actions';
-import type { AiJob, AiJobBase, WriterJob } from './ai-job';
+import type { AiJob, AiJobBase, EventWriterJob, WriterJob } from './ai-job';
 import { draftFromMessageText } from './draft-from-message';
 import { publishKeyboard } from './publish-keyboard';
 
@@ -313,6 +313,8 @@ export interface AiWriterRuntime {
   publish: Pick<PublishActions, 'buttons' | 'awaitingTime' | 'stopAwaitingTime'>;
   /** Sends a model call to the AI_JOBS queue (app/ai-queue.ts runs it). Throws when the queue refuses it. */
   enqueueAiJob: (job: AiJob) => Promise<void>;
+  /** An approved draft of a source event becomes that event's post («Источники»). */
+  linkSourceEventPost: (generationIds: readonly string[], postId: string) => Promise<void>;
   onError: (error: unknown) => void;
 }
 
@@ -326,6 +328,11 @@ export interface AiJobRuntime {
   finish: () => Promise<void>;
   writer: () => Promise<WriterDeps>;
   onError: (error: unknown) => void;
+  /** A source event's draft: its facts as the writer's task, and where the draft is recorded. */
+  sourceEvents?: {
+    task: (externalId: string) => Promise<string>;
+    generated: (job: EventWriterJob, generationId: string) => Promise<void>;
+  };
 }
 
 const retryKeyboard = (generationId: string) =>
@@ -345,6 +352,14 @@ async function jobResult(
   runtime: AiJobRuntime
 ): Promise<WriterResult> {
   const signal = AbortSignal.timeout(MODEL_TIMEOUT_MS);
+  if (job.kind === 'event') {
+    if (runtime.sourceEvents === undefined) throw new AppError('UNAVAILABLE', 'Source events are not wired');
+    // The source's facts only (automatic mode): the writer never adds what the announcement does not say.
+    const task = await runtime.sourceEvents.task(job.externalId);
+    const result = await generateDraft(deps, { format: 'telegram', mode: 'automatic', source: 'bot', task, signal });
+    await runtime.sourceEvents.generated(job, result.generation.id);
+    return result;
+  }
   if (job.kind === 'draft')
     return generateDraft(deps, { format: job.format, mode: 'direct', source: 'bot', task: job.task, signal });
   if (job.kind === 'fix')
@@ -522,6 +537,19 @@ async function runClaimed(job: WriterJob, runtime: AiJobRuntime): Promise<boolea
     );
   }
   return true;
+}
+
+/** Rewrites and a facts answer are child drafts: a source event knows only the first one. */
+const LINEAGE_MAX = 12;
+
+async function lineage(deps: WriterDeps, generation: GenerationRow): Promise<string[]> {
+  const ids = [generation.id];
+  let parent = generation.parentGenerationId;
+  while (parent !== null && ids.length < LINEAGE_MAX) {
+    ids.push(parent);
+    parent = (await deps.writer.findGeneration(parent))?.parentGenerationId ?? null;
+  }
+  return ids;
 }
 
 export function registerAiWriter(bot: Bot, runtime: AiWriterRuntime): void {
@@ -1129,6 +1157,10 @@ export function registerAiWriter(bot: Bot, runtime: AiWriterRuntime): void {
     // Keyed by the approved revision: a repeated tap returns the same post.
     const post = await runtime.createDraft(input.input, `ai:${approved.id}`);
     await attachPost(deps, approved.id, post.id);
+    // Not the owner's concern when it fails: the post exists, only the event's status lags.
+    await lineage(deps, generation)
+      .then((ids) => runtime.linkSourceEventPost(ids, post.id))
+      .catch((error: unknown) => runtime.onError(error));
     const markup = publishKeyboard({
       appOrigin: runtime.appOrigin,
       postId: post.id,

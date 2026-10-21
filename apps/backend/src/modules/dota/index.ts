@@ -754,6 +754,25 @@ export interface DotaWatcherRepository {
   listDraftWork(limit: number): Promise<DotaDraftSource[]>;
   reserveDraft(input: { sourceKey: DotaSourceKey; externalId: string; postId: string }): Promise<string | null>;
   listOwnerAlertWork(limit: number): Promise<DotaDraftSource[]>;
+  /** Steam announcements detected as events with no AI draft requested yet, oldest first. */
+  listAiDraftWork(limit: number): Promise<DotaDraftSource[]>;
+  /**
+   * Claims the AI draft of a Steam announcement once per detection. `replay` is the owner asking again for any
+   * announcement, a past one included: it becomes an event and takes the new job.
+   */
+  claimAiDraft(input: { externalId: string; jobId: string; replay: boolean }): Promise<boolean>;
+  /** The queue refused the job: the claim is given back, so the next tick asks again. */
+  releaseAiDraft(input: { externalId: string; jobId: string }): Promise<void>;
+  /** The model wrote the job's draft; ignored when a later replay took the event. */
+  setAiGeneration(input: { externalId: string; jobId: string; generationId: string }): Promise<void>;
+  /**
+   * The owner approved a draft of the event (`generationIds`: the draft and its ancestors): its post becomes the
+   * event's draft, with the notice counted as sent (the approval reply has the publish buttons). Once per event.
+   */
+  linkAiPost(input: { generationIds: readonly string[]; postId: string; now: number }): Promise<boolean>;
+  findSteamAnnouncement(externalId: string): Promise<DotaDraftSource | null>;
+  /** The latest Steam announcements, past ones included, newest first. */
+  listRecentAnnouncements(limit: number): Promise<DotaDraftSource[]>;
   claimDraftOwnerAlert(input: { sourceKey: DotaSourceKey; externalId: string; claimedAt: number }): Promise<boolean>;
   listSourceIncidentAlerts(limit: number): Promise<DotaSourceIncident[]>;
   claimSourceIncidentAlert(input: { id: string; claimedAt: number }): Promise<{ resolvedAt: number | null } | null>;
@@ -777,8 +796,19 @@ export interface DotaSourceIncident {
 const DOTA_DRAFT_WORK_SQL = `
   SELECT u.source_key, u.external_id, u.title, u.source_url, u.published_at, u.is_baseline, u.draft_post_id, u.excerpt, u.event_type
   FROM dota_update_items u INDEXED BY dota_draft_candidates_idx
-  WHERE u.is_baseline = 0 AND u.draft_post_id IS NULL AND u.hidden_at IS NULL
+  WHERE u.is_baseline = 0 AND u.draft_post_id IS NULL AND u.hidden_at IS NULL AND u.source_key = 'patch_notes'
   ORDER BY u.published_at, u.source_key, u.external_id LIMIT ?1`;
+
+// A Steam announcement is drafted by the AI writer in the owner's chat, not by a template (owner, 21.10.2026).
+const DOTA_AI_DRAFT_WORK_SQL = `
+  SELECT u.source_key, u.external_id, u.title, u.source_url, u.published_at, u.is_baseline, u.draft_post_id, u.excerpt, u.event_type
+  FROM dota_update_items u INDEXED BY dota_draft_candidates_idx
+  WHERE u.is_baseline = 0 AND u.draft_post_id IS NULL AND u.hidden_at IS NULL AND u.source_key = 'steam_news'
+    AND u.ai_job_id IS NULL
+  ORDER BY u.published_at, u.source_key, u.external_id LIMIT ?1`;
+
+const STEAM_ANNOUNCEMENT_COLUMNS = `u.source_key, u.external_id, u.title, u.source_url, u.published_at, u.is_baseline,
+  u.draft_post_id, u.excerpt, u.event_type`;
 
 const DOTA_PENDING_PATCH_ANALYSIS_SQL = `
   WITH candidates AS (
@@ -856,6 +886,46 @@ async function readBoundedJson(response: Response, maximumBytes: number, sourceK
   } catch (error) {
     throw new DotaWatchError('DOTA_SOURCE_JSON', sourceKey, null, describeError(error));
   }
+}
+
+// The whole announcement for the AI writer: the feed keeps only Steam's first 500 characters. Steam has no
+// lookup by id, so this asks for the few announcements up to the event's own time and picks it by gid.
+const STEAM_ANNOUNCEMENT_TEXT_MAX = 3_500;
+const MAX_STEAM_ANNOUNCEMENT_BYTES = 512 * 1024;
+const steamAnnouncementSchema = z.object({
+  appnews: z.object({
+    newsitems: z.array(z.object({ gid: z.string().max(100), contents: z.string().max(200_000) })).max(10)
+  })
+});
+
+/** Plain text of one Steam announcement (links and images dropped), at most 3 500 characters; null when gone. */
+export async function fetchSteamAnnouncementText(
+  input: { externalId: string; publishedAt: number },
+  fetchImpl: typeof fetch = fetch
+): Promise<string | null> {
+  const url = new URL('https://api.steampowered.com/ISteamNews/GetNewsForApp/v2/');
+  url.searchParams.set('appid', '570');
+  url.searchParams.set('count', '5');
+  url.searchParams.set('maxlength', '0');
+  url.searchParams.set('feeds', 'steam_community_announcements');
+  url.searchParams.set('enddate', String(Math.floor(input.publishedAt / 1_000)));
+  let response: Response;
+  try {
+    response = await fetchImpl(url, {
+      method: 'GET',
+      headers: { accept: 'application/json' },
+      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+      redirect: 'manual'
+    });
+  } catch (error) {
+    throw new DotaWatchError('DOTA_SOURCE_FETCH', 'steam_news', null, describeError(error));
+  }
+  const parsed = steamAnnouncementSchema.safeParse(
+    await readBoundedJson(response, MAX_STEAM_ANNOUNCEMENT_BYTES, 'steam_news')
+  );
+  if (!parsed.success) throw new DotaWatchError('DOTA_SOURCE_SHAPE', 'steam_news', null, describeShape(parsed.error));
+  const item = parsed.data.appnews.newsitems.find((news) => news.gid === input.externalId);
+  return item === undefined ? null : cleanExcerpt(item.contents, STEAM_ANNOUNCEMENT_TEXT_MAX);
 }
 
 function parseSteamNews(payload: unknown): DotaUpdateItem[] {
@@ -1399,6 +1469,80 @@ export function createD1DotaWatcherRepository(db: D1Database): DotaWatcherReposi
         .bind(sourceKey, externalId)
         .first<{ draft_post_id: string | null }>();
       return row?.draft_post_id ?? null;
+    },
+
+    async listAiDraftWork(limit) {
+      const { results } = await db.prepare(DOTA_AI_DRAFT_WORK_SQL).bind(limit).all<DotaDraftRow>();
+      return results.map(toDraftSource);
+    },
+
+    async claimAiDraft({ externalId, jobId, replay }) {
+      const result = await db
+        .prepare(
+          // The earlier draft stays linked until the new job records its own, so approving it still counts.
+          `UPDATE dota_update_items SET ai_job_id = ?2, is_baseline = 0
+           WHERE source_key = 'steam_news' AND external_id = ?1 AND hidden_at IS NULL
+             AND (?3 = 1 OR (ai_job_id IS NULL AND is_baseline = 0 AND draft_post_id IS NULL))`
+        )
+        .bind(externalId, jobId, replay ? 1 : 0)
+        .run();
+      return result.meta.changes === 1;
+    },
+
+    async releaseAiDraft({ externalId, jobId }) {
+      await db
+        .prepare(
+          `UPDATE dota_update_items SET ai_job_id = NULL
+           WHERE source_key = 'steam_news' AND external_id = ?1 AND ai_job_id = ?2`
+        )
+        .bind(externalId, jobId)
+        .run();
+    },
+
+    async setAiGeneration({ externalId, jobId, generationId }) {
+      await db
+        .prepare(
+          `UPDATE dota_update_items SET ai_generation_id = ?3
+           WHERE source_key = 'steam_news' AND external_id = ?1 AND ai_job_id = ?2`
+        )
+        .bind(externalId, jobId, generationId)
+        .run();
+    },
+
+    async linkAiPost({ generationIds, postId, now }) {
+      if (generationIds.length === 0) return false;
+      const result = await db
+        .prepare(
+          `UPDATE dota_update_items SET draft_post_id = ?1, owner_alert_claimed_at = COALESCE(owner_alert_claimed_at, ?2)
+           WHERE ai_generation_id IN (SELECT value FROM json_each(?3))
+             AND draft_post_id IS NULL AND hidden_at IS NULL`
+        )
+        .bind(postId, now, JSON.stringify(generationIds.slice(0, 20)))
+        .run();
+      return result.meta.changes > 0;
+    },
+
+    async findSteamAnnouncement(externalId) {
+      const row = await db
+        .prepare(
+          `SELECT ${STEAM_ANNOUNCEMENT_COLUMNS} FROM dota_update_items u
+           WHERE u.source_key = 'steam_news' AND u.external_id = ?1`
+        )
+        .bind(externalId)
+        .first<DotaDraftRow>();
+      return row === null ? null : toDraftSource(row);
+    },
+
+    async listRecentAnnouncements(limit) {
+      const { results } = await db
+        .prepare(
+          `SELECT ${STEAM_ANNOUNCEMENT_COLUMNS} FROM dota_update_items u
+           WHERE u.source_key = 'steam_news' AND u.hidden_at IS NULL
+           ORDER BY u.published_at DESC, u.external_id DESC LIMIT ?1`
+        )
+        .bind(Math.min(limit, 20))
+        .all<DotaDraftRow>();
+      return results.map(toDraftSource);
     },
 
     async listOwnerAlertWork(limit) {

@@ -1,3 +1,4 @@
+import { requestSourceEventDraft } from '../workflows/source-event-ai-draft';
 import { webhookCallback } from 'grammy';
 import { Hono } from 'hono';
 import { bodyLimit } from 'hono/body-limit';
@@ -144,6 +145,17 @@ export const telegramWebhook = new Hono<AppBindings>().post(
       rules: () => Promise.resolve(container.aiRules),
       styleLessons: () => Promise.resolve(container.aiStyleLessons),
       enqueueAiJob: (job) => container.aiJobs.send(job),
+      linkSourceEventPost: async (generationIds, postId) => {
+        await container.dotaRepository.linkAiPost({ generationIds, postId, now: container.clock.now() });
+      },
+      sourceEvents: {
+        recent: () => container.dotaRepository.listRecentAnnouncements(8),
+        replay: (externalId, chatId) =>
+          requestSourceEventDraft(
+            { repo: container.dotaRepository, enqueue: (job) => container.aiJobs.send(job), newId: container.newId },
+            { externalId, chatId, appOrigin, replay: true }
+          )
+      },
       createDraft: async (input, idempotencyKey) =>
         createPost(
           {

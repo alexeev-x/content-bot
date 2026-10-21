@@ -4,7 +4,9 @@ import { runAiJob } from './bot/ai-writer';
 import { createWriterDeps } from './bot/writer-deps';
 import { runDailyReview } from './workflows/daily-review';
 import { runHypothesesReview } from './workflows/hypotheses';
+import { sourceEventWriter } from './workflows/source-event-ai-draft';
 import { runStyleLessons } from './workflows/style-lessons';
+import type { WriterJob } from './bot/ai-job';
 import type { Container } from './container';
 
 // Consumer of Queue AI_JOBS (docs/backend/bot.md «AI writer»): one model call per message, with the 15 minutes
@@ -14,6 +16,11 @@ import type { Container } from './container';
 
 /** Same budget as a webhook's Bot API calls: a hung Telegram must not hold the consumer. */
 const TELEGRAM_TIMEOUT_SECONDS = 10;
+
+const EVENT_LABEL = { treasure: 'Сокровищница', news: 'Новость', patch: 'Патч' } as const;
+const eventWritingText = (type: keyof typeof EVENT_LABEL, title: string) =>
+  `${EVENT_LABEL[type]} в Steam: ${title}
+Пишу пост…`;
 
 export async function handleAiQueue(batch: MessageBatch<unknown>, container: Container, token: string) {
   const { logger } = container;
@@ -74,16 +81,59 @@ export async function handleAiQueue(batch: MessageBatch<unknown>, container: Con
       message.ack();
       continue;
     }
+    const api = new Api(token, { timeoutSeconds: TELEGRAM_TIMEOUT_SECONDS });
+    let writerJob: WriterJob;
+    if (job.kind === 'source_event') {
+      // Its «Пишу…» message is sent here, not by Cron. A redelivered copy loses the claim below and removes its own.
+      // Before that message nothing is claimed and no model is called: a failure gives the event back to Cron.
+      const release = () =>
+        container.dotaRepository
+          .releaseAiDraft({ externalId: job.externalId, jobId: job.id })
+          .catch((error: unknown) => onError(error));
+      let messageId: number;
+      try {
+        const source = await container.dotaRepository.findSteamAnnouncement(job.externalId);
+        if (source === null) {
+          logger.error({ component: 'ai_queue', operation: job.kind, requestId, errorCode: 'SOURCE_EVENT_GONE' });
+          message.ack();
+          continue;
+        }
+        messageId = (await api.sendMessage(job.chatId, eventWritingText(source.eventType, source.title))).message_id;
+      } catch (error) {
+        onError(error);
+        await release();
+        message.ack();
+        continue;
+      }
+      writerJob = {
+        id: job.id,
+        kind: 'event',
+        chatId: job.chatId,
+        messageId,
+        appOrigin: job.appOrigin,
+        externalId: job.externalId
+      };
+    } else {
+      writerJob = job;
+    }
     // Never throws: every failure, the D1 claim's included, ends in the job's own message. A throw would
     // redeliver the batch.
-    await runAiJob(job, {
-      api: new Api(token, { timeoutSeconds: TELEGRAM_TIMEOUT_SECONDS }),
+    await runAiJob(writerJob, {
+      api,
       clock: container.clock,
       // A redelivered message finds its claim and stops: the model is never called twice for one job.
-      claim: () =>
-        container.aiWriter.claimJob(job.id, container.clock.now(), { chatId: job.chatId, messageId: job.messageId }),
+      claim: async () => {
+        const claimed = await container.aiWriter.claimJob(job.id, container.clock.now(), {
+          chatId: writerJob.chatId,
+          messageId: writerJob.messageId
+        });
+        if (!claimed && writerJob.kind === 'event')
+          await api.deleteMessage(writerJob.chatId, writerJob.messageId).catch((error: unknown) => onError(error));
+        return claimed;
+      },
       finish: () => container.aiWriter.finishJob(job.id, container.clock.now()),
       writer: () => createWriterDeps(container, requestId),
+      sourceEvents: sourceEventWriter({ repo: container.dotaRepository }),
       onError
     });
     message.ack();

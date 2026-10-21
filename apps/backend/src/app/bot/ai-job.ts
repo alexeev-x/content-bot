@@ -27,6 +27,17 @@ export const aiJobSchema = z.discriminatedUnion('kind', [
   z.object({ id: z.uuid(), kind: z.literal('style_lessons') }),
   /** The Monday review of the analyst's hypotheses after the week's report (owner, 20.10.2026). */
   z.object({ id: z.uuid(), kind: z.literal('hypotheses'), reportId: z.string().min(1).max(100) }),
+  /**
+   * A Steam announcement to draft as a post (owner, 21.10.2026): Cron's new event or the owner's /events replay.
+   * The consumer sends its «Пишу…» message itself, so Cron spends no Telegram call on it.
+   */
+  z.object({
+    id: z.uuid(),
+    kind: z.literal('source_event'),
+    chatId: z.number().int(),
+    appOrigin: z.string().max(200),
+    externalId: z.string().min(1).max(100)
+  }),
   z.object({ ...base, kind: z.literal('draft'), format: formatSchema, task: z.string().min(1).max(TEXT_MAX) }),
   z.object({
     ...base,
@@ -68,5 +79,8 @@ export const aiJobSchema = z.discriminatedUnion('kind', [
 
 export type AiJob = z.infer<typeof aiJobSchema>;
 export type AiJobBase = z.infer<z.ZodObject<typeof base>>;
+/** A `source_event` job once the consumer has sent its «Пишу…» message. */
+export type EventWriterJob = AiJobBase & { kind: 'event'; externalId: string };
 /** The jobs of the bot's AI writer: each has the chat message it ends in. */
-export type WriterJob = Exclude<AiJob, { kind: 'daily_review' | 'style_lessons' | 'hypotheses' }>;
+export type WriterJob =
+  Exclude<AiJob, { kind: 'daily_review' | 'style_lessons' | 'hypotheses' | 'source_event' }> | EventWriterJob;

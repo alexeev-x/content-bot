@@ -18,6 +18,8 @@ import { createTelegramCaller } from '../bot/telegram-call';
 import type { PublishButton } from '../bot/publish-actions';
 import { publishKeyboard } from '../bot/publish-keyboard';
 import { formatDotaDraftAlert, formatDotaIncidentAlert } from '../notifications/dota-alert';
+import type { AiJob } from '../bot/ai-job';
+import { requestSourceEventDraft } from './source-event-ai-draft';
 
 // Keep each tick small enough to leave room for the existing publishing dispatch's 50-statement budget.
 const DOTA_DRAFT_BATCH_LIMIT = 2;
@@ -37,12 +39,16 @@ const DOTA_ALERT_MIN_BUDGET = 9;
 const DOTA_TAIL_RESERVE = 12;
 // Preferences, app origin and the alert list, read before the first notice.
 const DOTA_ALERT_SETUP = 3;
+// One AI draft request: the claim and the queue send (the list and the app origin are the setup).
+const DOTA_AI_REQUEST_COST = 2;
+const DOTA_AI_SETUP = 2;
 
 export interface DotaWorkflowSummary {
   feedsFetched: number;
   itemsInserted: number;
   draftsCreated: number;
   draftAlertsSent: number;
+  aiDraftsRequested: number;
   sourceAlertsSent: number;
   sourceFailures: number;
 }
@@ -64,6 +70,8 @@ export async function processDotaUpdates(deps: {
   watchedKeys: () => Promise<Set<string>>;
   /** The «Опубликовать сейчас» buttons for a draft; empty when there is no channel. Never throws. */
   publishButtons: (post: { id: string; revision: number }) => Promise<PublishButton[]>;
+  /** Queue AI_JOBS: a Steam announcement event is drafted by the AI writer. Without it such events wait. */
+  enqueueAiJob?: (job: AiJob) => Promise<void>;
   budget: QueryBudget;
   logger: Logger;
   timeoutMs?: number;
@@ -73,6 +81,7 @@ export async function processDotaUpdates(deps: {
     itemsInserted: 0,
     draftsCreated: 0,
     draftAlertsSent: 0,
+    aiDraftsRequested: 0,
     sourceAlertsSent: 0,
     sourceFailures: 0
   };
@@ -251,6 +260,7 @@ export async function processDotaUpdates(deps: {
     }
   }
 
+  summary.aiDraftsRequested = await requestAiDrafts(deps);
   summary.draftAlertsSent = await alertDrafts(deps);
   summary.sourceAlertsSent = await alertSourceIncidents(deps);
   return summary;
@@ -337,6 +347,40 @@ async function alertDrafts(deps: Parameters<typeof processDotaUpdates>[0]): Prom
     }
   }
   return sent;
+}
+
+// A Steam announcement event goes to the AI writer, once per detection (the claim is a conditional UPDATE). A
+// queue refusal gives the claim back for the next tick; Telegram is only reached by the consumer.
+async function requestAiDrafts(deps: Parameters<typeof processDotaUpdates>[0]): Promise<number> {
+  if (deps.budget.remaining() < DOTA_AI_SETUP + DOTA_AI_REQUEST_COST + DOTA_TAIL_RESERVE) return 0;
+  const enqueue = deps.enqueueAiJob;
+  const sources = await deps.repo.listAiDraftWork(DOTA_DRAFT_BATCH_LIMIT);
+  if (sources.length === 0) return 0;
+  const ready = enqueue === undefined ? null : await notificationPrerequisites(deps);
+  if (enqueue === undefined || ready === null) {
+    logSkipped(deps, 'dota_ai_draft', enqueue === undefined ? 'AI_QUEUE_MISSING' : missingPrerequisite(deps));
+    return 0;
+  }
+  let requested = 0;
+  for (const source of sources) {
+    if (deps.budget.remaining() < DOTA_AI_REQUEST_COST + DOTA_TAIL_RESERVE) break;
+    deps.budget.charge(1);
+    try {
+      const claimed = await requestSourceEventDraft(
+        { repo: deps.repo, enqueue, newId: deps.newId },
+        { externalId: source.externalId, chatId: Number(ready.ownerChatId), appOrigin: ready.origin, replay: false }
+      );
+      if (claimed) requested += 1;
+    } catch (error) {
+      deps.logger.warn({
+        component: 'dota',
+        operation: 'ai_draft_request',
+        status: 'failed',
+        errorCode: error instanceof AppError ? error.code : 'UNEXPECTED_ERROR'
+      });
+    }
+  }
+  return requested;
 }
 
 async function alertSourceIncidents(deps: Parameters<typeof processDotaUpdates>[0]): Promise<number> {

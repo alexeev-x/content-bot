@@ -25,7 +25,7 @@ export function classifyDotaEvent(input: {
 
 // Steam announcement bodies are BBCode/HTML with image placeholders. Keep plain text only: tags,
 // links and image macros are dropped, never copied into a draft.
-export function cleanExcerpt(raw: string | undefined): string | null {
+export function cleanExcerpt(raw: string | undefined, max = EXCERPT_STORE_MAX): string | null {
   if (raw === undefined) return null;
   const text = raw
     .replace(/\{STEAM_CLAN_(?:LOC_)?IMAGE\}\S*/g, ' ')
@@ -39,7 +39,7 @@ export function cleanExcerpt(raw: string | undefined): string | null {
     .replace(/&amp;/g, '&')
     .replace(/\s+/g, ' ')
     .trim()
-    .slice(0, EXCERPT_STORE_MAX)
+    .slice(0, max)
     .trim();
   return text === '' ? null : text;
 }

@@ -359,6 +359,7 @@ export async function handleScheduled(controller: ScheduledController, container
               .notifications,
           watchedKeys: () => container.sourceEvents.watchedKeys(),
           publishButtons: (post) => publishActions.buttons(post),
+          enqueueAiJob: (job) => container.aiJobs.send(job),
           budget: container.queryBudget,
           logger
         });
