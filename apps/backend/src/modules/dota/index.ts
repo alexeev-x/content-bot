@@ -767,8 +767,8 @@ export interface DotaWatcherRepository {
   setAiGeneration(input: { externalId: string; jobId: string; generationId: string }): Promise<void>;
   /**
    * The owner approved a draft of the event (`generationIds`: the draft and its ancestors): its post becomes the
-   * event's draft, with the notice counted as sent (the approval reply has the publish buttons). Once per event:
-   * the linked announcement's id, null when nothing was linked.
+   * event's draft, with the notice counted as sent (the approval reply has the publish buttons). It replaces an
+   * earlier draft that has no publication. The linked announcement's id, null when nothing was linked.
    */
   linkAiPost(input: { generationIds: readonly string[]; postId: string; now: number }): Promise<string | null>;
   findSteamAnnouncement(externalId: string): Promise<DotaDraftSource | null>;
@@ -1568,11 +1568,15 @@ export function createD1DotaWatcherRepository(db: D1Database): DotaWatcherReposi
 
     async linkAiPost({ generationIds, postId, now }) {
       if (generationIds.length === 0) return null;
+      // An older draft that never went out (the template of a past detection) gives way to the approved AI post;
+      // one with a publication stays the event's post.
       const row = await db
         .prepare(
           `UPDATE dota_update_items SET draft_post_id = ?1, owner_alert_claimed_at = COALESCE(owner_alert_claimed_at, ?2)
-           WHERE ai_generation_id IN (SELECT value FROM json_each(?3))
-             AND draft_post_id IS NULL AND hidden_at IS NULL
+           WHERE ai_generation_id IN (SELECT value FROM json_each(?3)) AND hidden_at IS NULL
+             AND (draft_post_id IS NULL
+                  OR NOT EXISTS (SELECT 1 FROM publications pu WHERE pu.post_id = dota_update_items.draft_post_id))
+             AND draft_post_id IS NOT ?1
            RETURNING external_id`
         )
         .bind(postId, now, JSON.stringify(generationIds.slice(0, 20)))

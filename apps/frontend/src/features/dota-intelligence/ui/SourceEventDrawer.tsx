@@ -103,6 +103,18 @@ export function SourceEventDrawer({ event, now, timezone, onClose }: Props) {
 
   const actions = event ? (
     <div className={styles.actions}>
+      {/* An announcement can always go to the AI, even with an older (template) draft (owner, 21.10.2026). */}
+      {event.type !== 'patch' ? (
+        <Button
+          variant={event.draft ? 'secondary' : 'primary'}
+          icon="sparkle"
+          isLoading={aiDraft.isPending}
+          isDisabled={busy || event.status === 'hidden'}
+          onPress={() => aiDraft.mutate(event.id)}
+        >
+          {event.aiRequested || event.draft ? 'Написать через ИИ заново' : 'Написать через ИИ'}
+        </Button>
+      ) : null}
       {event.draft ? (
         <>
           {event.status === 'drafted' ? (
@@ -138,17 +150,7 @@ export function SourceEventDrawer({ event, now, timezone, onClose }: Props) {
         >
           Сделать пост
         </Button>
-      ) : (
-        <Button
-          variant="primary"
-          icon="sparkle"
-          isLoading={aiDraft.isPending}
-          isDisabled={busy || event.status === 'hidden'}
-          onPress={() => aiDraft.mutate(event.id)}
-        >
-          {event.aiRequested ? 'Написать ещё раз' : 'Написать через ИИ'}
-        </Button>
-      )}
+      ) : null}
       {event.isPast ? null : event.status === 'hidden' ? (
         <Button
           variant="ghost"

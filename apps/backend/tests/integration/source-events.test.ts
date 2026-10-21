@@ -504,9 +504,11 @@ describe('an AI draft of a Steam announcement', () => {
     // The owner approved a rewrite of that draft: the chain reaches the event.
     expect(await repo().linkAiPost({ generationIds: [CHILD, GENERATION], postId: POST, now: START })).toBe('0999');
     expect(await row('0999')).toMatchObject({ draft_post_id: POST, owner_alert_claimed_at: START });
+    expect(await repo().linkAiPost({ generationIds: [GENERATION], postId: POST, now: START })).toBeNull();
+    // A draft that never went out (a template from an earlier detection) gives way to the approved AI post.
     const other = '00000000-0000-4000-8000-0000000000bb';
-    expect(await repo().linkAiPost({ generationIds: [GENERATION], postId: other, now: START })).toBeNull();
-    expect(await row('0999')).toMatchObject({ draft_post_id: POST });
+    expect(await repo().linkAiPost({ generationIds: [GENERATION], postId: other, now: START })).toBe('0999');
+    expect(await row('0999')).toMatchObject({ draft_post_id: other });
   });
 
   it('a draft from an older job is not recorded once a replay took the event', async () => {
