@@ -16,10 +16,12 @@ const MIRROR_GROUPS = [
   ['clan.akamai.steamstatic.com', 'clan.fastly.steamstatic.com', 'clan.steamstatic.com'],
   ['cdn.cloudflare.steamstatic.com', 'cdn.fastly.steamstatic.com', 'cdn.akamai.steamstatic.com', 'cdn.steamstatic.com']
 ];
-// Some CDN edges refuse a request without a client name.
+// Some CDN edges refuse a request without a client name, and the event page's images are served to dota2.com
+// (DEV 21.10.2026: 403 from every mirror to the Worker; the CDN allows only that origin): sent as the page's own.
 const REQUEST_HEADERS = {
   'user-agent': 'Mozilla/5.0 (compatible; alexeev-studio/1.0)',
-  accept: 'image/*,video/*;q=0.9,*/*;q=0.5'
+  accept: 'image/*,video/*;q=0.9,*/*;q=0.5',
+  referer: 'https://www.dota2.com/'
 };
 const MAX_REDIRECTS = 2;
 const DOWNLOAD_TIMEOUT_MS = 60_000;
