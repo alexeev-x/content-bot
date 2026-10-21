@@ -127,7 +127,7 @@ export async function planSeries(
   const budgetEvents = await recordAiUsage(deps, {
     id: deps.newId(),
     kind: 'other',
-    provider: provider.provider,
+    provider: result.provider ?? provider.provider,
     model: result.model,
     usage: result.usage,
     settings

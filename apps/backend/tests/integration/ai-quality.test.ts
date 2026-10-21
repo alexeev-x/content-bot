@@ -128,7 +128,7 @@ describe('AI quality by format and the previous period', () => {
           writer,
           clock,
           timezone: 'UTC',
-          keyConfigured: false
+          keys: { openai: false, anthropic: false }
         })
       ).quality;
     await approvals(9, now - DAY);

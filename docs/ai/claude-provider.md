@@ -1,13 +1,14 @@
 # Claude as a second AI provider: plan and what improves the writing (checked 21.10.2026)
 
 Decision: `docs/DECISIONS.md` (21.10.2026) — Claude joins next to the current provider for a blind comparison on the
-same writer tasks; the owner picks. Not built yet; this page is the plan and the reference it rests on (Anthropic's
-Claude API documentation as of October 2026).
+same writer tasks; the owner picks. Built: the adapter, the model router and the blind comparison (§3); the provider
+choice in the settings waits for the comparison's result. The rest of this page is the plan and the reference it rests
+on (Anthropic's Claude API documentation as of October 2026).
 
 ## 1. How it fits
 
 - **One port, one more adapter.** Every model call goes through `AiTextProvider` (`modules/ai/ports.ts`); OpenAI is the
-  first adapter. A Claude adapter (`modules/ai/anthropic-provider.ts`) uses the official `@anthropic-ai/sdk` (it runs on
+  first adapter. The Claude adapter (`modules/ai/anthropic-provider.ts`) uses the official `@anthropic-ai/sdk` (it runs on
   Workers: fetch-based). Nothing above the port changes: the writer, the planner, the fact check and the reviews call
   `provider.complete({ model, instructions, input, jsonSchema, maxOutputTokens, signal })` as today.
 - **Mapping.** `instructions` → `system` with `cache_control` (the pack is the stable prefix: core voice, the format,
@@ -16,7 +17,7 @@ Claude API documentation as of October 2026).
   and writes (`cache_read_input_tokens`, `cache_creation_input_tokens`).
 - **Model and settings.** `claude-opus-5-5` (Anthropic's default, $4 / $20 per million input / output tokens, cache
   reads $0.20). Thinking is always on (it cannot be disabled on this model) and its depth is `output_config.effort`:
-  the default is `medium`; the comparison runs `medium` and `high`. `max_tokens` 16 000 (thinking counts toward it).
+  the default is `medium`, and the comparison runs `medium`. `max_tokens` 16 000 (thinking counts toward it).
   No assistant prefill (the writer does not use it). A safety refusal (`stop_reason: "refusal"`) is handled, with
   Anthropic's server-side fallback (`fallbacks: "default"`) so a declined request is answered by another model.
 - **Settings and budget.** «Настройки → ИИ» gains the provider choice; the catalog lists Claude's models with prices,
@@ -32,9 +33,11 @@ caching cuts the repeated pack to a tenth after the first call; the measured fig
 
 ## 3. The blind comparison
 
-- **Tasks:** the same automatic tasks both providers get — the Dark Carnival series, Trove of Terror, a patch, two
-  rubric posts — each written once by each provider (same pack, same facts, same fact check).
-- **Studio:** a page «Сравнение» shows each task's two versions as A and B in random order, the provider hidden; the
+- **Tasks:** «Запустить сравнение» takes the 8 newest automatic writer tasks (source events, series posts) and writes
+  each with the settings' draft model and with `claude-opus-5-5` through the same pipeline: draft, fact check, fix
+  (`app/workflows/ai-comparison.ts`, one queue job per pair, migration 0093). Both keys and an OpenAI draft model are
+  needed, else `UNAVAILABLE` NO_KEY.
+- **Studio:** the tab «ИИ-редактор → Сравнение» shows each task's two versions as A and B in random order, the provider hidden; the
   owner picks the better one or «одинаково», with an optional note. The tally per provider decides; the notes feed the
   pack.
 - **Cost:** about 10 tasks × 2 providers — a few dollars.

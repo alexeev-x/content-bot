@@ -3,7 +3,7 @@ import { z } from 'zod';
 // The AI writer's settings, connection and spend (docs/API_CONTRACTS.md § AI). One provider port on the server;
 // OpenAI is the first adapter. The key is a Worker secret and never crosses the API.
 
-export const AI_PROVIDERS = ['openai'] as const;
+export const AI_PROVIDERS = ['openai', 'anthropic'] as const;
 export const aiProviderSchema = z.enum(AI_PROVIDERS);
 export type AiProvider = z.infer<typeof aiProviderSchema>;
 export const AI_USAGE_KINDS = ['check', 'draft', 'rewrite', 'review', 'profile', 'other'] as const;
@@ -811,3 +811,36 @@ export const aiDraftChainSchema = z.object({
 });
 export type AiDraftChainDto = z.infer<typeof aiDraftChainSchema>;
 export const aiDraftParamsSchema = z.strictObject({ id: z.uuid() });
+
+// The blind provider comparison (owner, 21.10.2026; docs/ai/claude-provider.md §3). Owner-only.
+// POST /api/v1/ai/comparisons → 202 { created }: the latest automatic writer tasks (up to 8), each queued to be written
+//   by the draft model of the settings and by Claude Opus 5.5, in random A/B order. 503 UNAVAILABLE (NO_KEY) when
+//   either provider has no key; refused like any AI request when AI is off or out of budget.
+// GET /api/v1/ai/comparisons → 200 AiComparisonsDto: the latest 30, newest first, with the tally.
+// POST /api/v1/ai/comparisons/{id}/choice { choice, note? } → 200 AiComparisonDto with the models revealed; a later
+//   choice replaces it. 409 CONFLICT (NOT_READY) while it is written.
+export const aiComparisonChoiceSchema = z.enum(['a', 'b', 'same']);
+export const aiComparisonSchema = z.object({
+  id: z.uuid(),
+  /** The task's first line (what the post is about). */
+  label: z.string(),
+  status: z.enum(['writing', 'ready', 'failed']),
+  a: z.string().nullable(),
+  b: z.string().nullable(),
+  choice: aiComparisonChoiceSchema.nullable(),
+  note: z.string().nullable(),
+  /** Which model wrote A and B: only after the choice, so the pick stays blind. */
+  models: z.object({ a: z.string(), b: z.string() }).nullable()
+});
+export type AiComparisonDto = z.infer<typeof aiComparisonSchema>;
+export const aiComparisonsSchema = z.object({
+  items: z.array(aiComparisonSchema).max(30),
+  /** Chosen comparisons per winning model, and the ties. */
+  tally: z.object({ wins: z.array(z.object({ model: z.string(), count: z.number().int() })), same: z.number().int() })
+});
+export type AiComparisonsDto = z.infer<typeof aiComparisonsSchema>;
+export const aiComparisonChoiceInputSchema = z.strictObject({
+  choice: aiComparisonChoiceSchema,
+  note: z.string().trim().max(500).optional()
+});
+export const aiComparisonParamsSchema = z.strictObject({ id: z.uuid() });

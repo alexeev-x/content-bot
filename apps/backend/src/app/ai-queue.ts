@@ -7,6 +7,7 @@ import { runHypothesesReview } from './workflows/hypotheses';
 import { sourceEventWriter } from './workflows/source-event-ai-draft';
 import { attachSourceEventImages } from './workflows/source-event-media';
 import { planEventSeries, writeSeriesPost } from './workflows/source-event-series';
+import { runComparison } from './workflows/ai-comparison';
 import { PHOTO_MEDIA_MAX_BYTES } from '@alexeev/contracts';
 import { uploadPostMedia } from '../modules/content';
 import { AppError } from '../shared/app-error';
@@ -159,6 +160,18 @@ export async function handleAiQueue(batch: MessageBatch<unknown>, container: Con
     }
     if (job.kind === 'source_media') {
       await runSourceMediaJob(job, container, token, onError);
+      message.ack();
+      continue;
+    }
+    if (job.kind === 'comparison') {
+      try {
+        if (await container.aiWriter.claimJob(job.id, container.clock.now())) {
+          await runComparison(container, job.comparisonId, requestId, onError);
+          await container.aiWriter.finishJob(job.id, container.clock.now());
+        }
+      } catch (error) {
+        onError(error);
+      }
       message.ack();
       continue;
     }

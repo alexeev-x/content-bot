@@ -91,7 +91,7 @@ export async function improveText(
     });
     const budgetEvents = await recordAiUsage(deps, {
       kind: 'rewrite',
-      provider: provider.provider,
+      provider: completion.provider ?? provider.provider,
       model: completion.model,
       usage: completion.usage,
       settings

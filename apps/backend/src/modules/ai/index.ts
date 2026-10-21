@@ -3,7 +3,14 @@ export { AI_CATALOG } from './catalog';
 export { SOURCE_LINK_LABEL } from './writer';
 export { planSeries, SERIES_POSTS_MAX, type SeriesPlanPost } from './series-planner';
 export { checkFacts, generateCheckedDraft } from './fact-check';
+export {
+  createD1ComparisonRepository,
+  type ComparisonRepository,
+  type ComparisonRow
+} from './d1-comparison-repository';
 export { createOpenAiProvider } from './openai-provider';
+export { createAnthropicProvider } from './anthropic-provider';
+export { createModelRouter, providerOfModel } from './model-router';
 export {
   createD1RulesRepository,
   type RuleRow,

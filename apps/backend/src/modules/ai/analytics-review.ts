@@ -206,7 +206,7 @@ export async function writeAnalyticsReview(
   const budgetEvents = await recordAiUsage(deps, {
     id: usageId,
     kind: 'other',
-    provider: provider.provider,
+    provider: result.provider ?? provider.provider,
     model: result.model,
     usage: result.usage,
     settings

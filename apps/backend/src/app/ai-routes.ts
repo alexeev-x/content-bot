@@ -1,5 +1,9 @@
 import {
   aiAuthorProfileSchema,
+  aiComparisonChoiceInputSchema,
+  aiComparisonParamsSchema,
+  aiComparisonSchema,
+  aiComparisonsSchema,
   aiDotaSnapshotInputSchema,
   aiDraftChainSchema,
   aiDraftParamsSchema,
@@ -37,6 +41,7 @@ import {
 } from '@alexeev/contracts';
 import { type Context, Hono } from 'hono';
 import { z } from 'zod';
+import { chooseComparison, readComparisons, startComparisons } from './workflows/ai-comparison';
 import {
   type BudgetEvent,
   checkAiConnection,
@@ -111,7 +116,7 @@ async function deps(c: Context<AppBindings>) {
     writer: container.aiWriter,
     clock: container.clock,
     timezone,
-    keyConfigured: container.aiProvider !== null
+    keys: container.aiKeys
   };
 }
 
@@ -260,6 +265,31 @@ export const aiRoutes = new Hono<AppBindings>()
         { ...c.req.valid('param'), excluded: c.req.valid('json').excluded }
       );
       return c.json(aiLearningItemSchema.parse(item));
+    }
+  )
+  // The blind provider comparison (docs/ai/claude-provider.md §3): paid calls, so a run is bounded like a draft.
+  .post(
+    '/comparisons',
+    rateLimit({ name: 'ai-comparison', limit: 3, windowMs: DRAFT_WINDOW_MS }),
+    validated('json', z.strictObject({})),
+    async (c) => c.json({ created: await startComparisons(c.get('container')) }, 202)
+  )
+  .get('/comparisons', async (c) => c.json(aiComparisonsSchema.parse(await readComparisons(c.get('container')))))
+  .post(
+    '/comparisons/:id/choice',
+    validated('param', aiComparisonParamsSchema),
+    validated('json', aiComparisonChoiceInputSchema),
+    async (c) => {
+      const input = c.req.valid('json');
+      return c.json(
+        aiComparisonSchema.parse(
+          await chooseComparison(c.get('container'), {
+            id: c.req.valid('param').id,
+            choice: input.choice,
+            note: input.note ?? null
+          })
+        )
+      );
     }
   )
   .get('/drafts', validated('query', aiDraftsQuerySchema), async (c) =>

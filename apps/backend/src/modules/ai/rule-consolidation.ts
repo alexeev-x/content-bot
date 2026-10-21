@@ -179,7 +179,7 @@ export async function consolidateRules(
   }
   const budgetEvents = await recordAiUsage(deps, {
     kind: 'other',
-    provider: provider.provider,
+    provider: completion.provider ?? provider.provider,
     model: completion.model,
     usage: completion.usage,
     settings

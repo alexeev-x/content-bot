@@ -5,3 +5,4 @@ export { AiDraftHistory } from './ui/AiDraftHistory';
 export { AiLearningBoard } from './ui/AiLearningBoard';
 export type { DecisionTarget } from './model/decisions';
 export { copy as aiCopy } from './ui/copy';
+export { AiComparison } from './ui/AiComparison';

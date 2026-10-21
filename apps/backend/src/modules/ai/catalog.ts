@@ -60,5 +60,54 @@ export const AI_CATALOG: Record<AiProvider, AiCatalogDto> = {
         outputPerMillion: 0.4
       }
     ]
+  },
+  // Anthropic's list and prices as of 06.10.2026 (Claude API skill reference, read 21.10.2026); thinking is billed as
+  // output. A cache write costs 1.25× input (CACHE_WRITE_FACTOR), a cache read the cached price below.
+  anthropic: {
+    provider: 'anthropic',
+    providerLabel: 'Anthropic',
+    pricesCheckedOn: '2026-10-06',
+    models: [
+      {
+        id: 'claude-opus-5-5',
+        label: 'Claude Opus 5.5',
+        note: 'Рекомендуем для черновиков: точнее с фактами, ясный текст',
+        roles: ['draft'],
+        recommendedFor: 'draft',
+        inputPerMillion: 4,
+        cachedInputPerMillion: 0.2,
+        outputPerMillion: 20
+      },
+      {
+        id: 'claude-fable-5-1',
+        label: 'Claude Fable 5.1',
+        note: 'Самая сильная, в 2,5 раза дороже Opus',
+        roles: ['draft'],
+        recommendedFor: null,
+        inputPerMillion: 10,
+        cachedInputPerMillion: 0.25,
+        outputPerMillion: 50
+      },
+      {
+        id: 'claude-sonnet-5-5',
+        label: 'Claude Sonnet 5.5',
+        note: 'Вдвое дешевле Opus, быстрее',
+        roles: ['draft'],
+        recommendedFor: null,
+        inputPerMillion: 2,
+        cachedInputPerMillion: 0.2,
+        outputPerMillion: 10
+      },
+      {
+        id: 'claude-haiku-5-5',
+        label: 'Claude Haiku 5.5',
+        note: 'Самая дешёвая: проверки и теги',
+        roles: ['cheap'],
+        recommendedFor: 'cheap',
+        inputPerMillion: 0.1,
+        cachedInputPerMillion: 0.01,
+        outputPerMillion: 0.5
+      }
+    ]
   }
 };

@@ -1,4 +1,7 @@
+import { z } from 'zod';
 import {
+  aiComparisonSchema,
+  aiComparisonsSchema,
   AI_WRITER_FORMATS,
   aiDraftChainSchema,
   aiDraftsPageSchema,
@@ -127,4 +130,21 @@ export function removeAiRuleEvidence(input: { id: string; key: string }) {
 /** Approved Reels scripts of the last 60 days that no video is linked to, newest first. */
 export function getAiUnlinkedScripts(signal?: AbortSignal) {
   return apiRequest('/api/v1/ai/scripts/unlinked', aiUnlinkedScriptsSchema, { signal });
+}
+
+/** The blind provider comparison: the latest pairs and the tally. */
+export function getAiComparisons(signal?: AbortSignal) {
+  return apiRequest('/api/v1/ai/comparisons', aiComparisonsSchema, { signal });
+}
+
+/** Queues the latest automatic tasks to be written by both models (paid calls). */
+export function startAiComparisons() {
+  return apiRequest('/api/v1/ai/comparisons', z.object({ created: z.number().int() }), { method: 'POST', body: {} });
+}
+
+export function chooseAiComparison(id: string, choice: 'a' | 'b' | 'same', note?: string) {
+  return apiRequest(`/api/v1/ai/comparisons/${id}/choice`, aiComparisonSchema, {
+    method: 'POST',
+    body: { choice, ...(note ? { note } : {}) }
+  });
 }

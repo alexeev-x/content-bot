@@ -128,7 +128,7 @@ export async function learnFromEdits(deps: StyleLessonDeps, input: { signal: Abo
       run.budgetEvents.push(
         ...(await recordAiUsage(deps, {
           kind: 'other',
-          provider: provider.provider,
+          provider: completion.provider ?? provider.provider,
           model: completion.model,
           usage: completion.usage,
           settings

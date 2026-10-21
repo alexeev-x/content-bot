@@ -15,6 +15,8 @@ export interface AiCompletion {
   /** The model that answered (the provider may name a dated snapshot). */
   model: string;
   usage: AiUsage;
+  /** The provider that answered, when one provider stands for several (`createModelRouter`). */
+  provider?: AiProvider;
 }
 
 /**

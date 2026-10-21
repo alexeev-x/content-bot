@@ -35,7 +35,10 @@ const DEFAULTS: Omit<AiSettingsDto, 'revision' | 'updatedAt'> = {
 const CACHE_WRITE_FACTOR = 1.25;
 const CHECK_TIMEOUT_MS = 20_000;
 
-export const AI_KEY_NAME: Record<AiSettingsDto['provider'], string> = { openai: 'OPENAI_API_KEY' };
+export const AI_KEY_NAME: Record<AiSettingsDto['provider'], string> = {
+  openai: 'OPENAI_API_KEY',
+  anthropic: 'ANTHROPIC_API_KEY'
+};
 
 function toUsd(micro: number): number {
   return Math.round(micro) / 1_000_000;
@@ -88,12 +91,13 @@ export function priceFor(prices: readonly AiModelPriceDto[], model: string): AiM
   );
 }
 
-/** The owner's own prices first, then the provider catalog's. */
+/** The owner's own prices first, then every provider catalog's (a comparison calls a model of the other provider too). */
 export function effectivePrices(settings: Pick<AiSettingsDto, 'provider' | 'prices'>): AiModelPriceDto[] {
   const own = new Set(settings.prices.map((price) => price.model));
   return [
     ...settings.prices,
-    ...AI_CATALOG[settings.provider].models
+    ...Object.values(AI_CATALOG)
+      .flatMap((catalog) => catalog.models)
       .filter((model) => !own.has(model.id))
       .map(({ id, inputPerMillion, cachedInputPerMillion, outputPerMillion }) => ({
         model: id,
@@ -222,13 +226,15 @@ export async function readAiOverview(deps: {
   writer: WriterRepository;
   clock: Clock;
   timezone: string;
-  keyConfigured: boolean;
+  /** Which providers have a key; the page reports the chosen provider's. */
+  keys: Record<AiSettingsDto['provider'], boolean>;
 }): Promise<AiOverviewDto> {
   const settings = await readAiSettings(deps.repo);
+  const keyConfigured = deps.keys[settings.provider];
   const now = deps.clock.now();
   const since = now - QUALITY_DAYS * 24 * 60 * 60 * 1000;
   const [spend, lastCheck, quality, before] = await Promise.all([
-    readSpend(deps, settings, deps.keyConfigured, true),
+    readSpend(deps, settings, keyConfigured, true),
     deps.repo.readLastCheck(),
     deps.writer.quality(since),
     deps.writer.periodApprovals(since - (now - since), since)
@@ -239,7 +245,7 @@ export async function readAiOverview(deps: {
     settings,
     connection: {
       provider: settings.provider,
-      keyConfigured: deps.keyConfigured,
+      keyConfigured,
       keyName: AI_KEY_NAME[settings.provider],
       lastCheck:
         lastCheck === null
@@ -407,7 +413,7 @@ export async function checkAiConnection(deps: {
     });
     return await recordAiUsage(deps, {
       kind: 'check',
-      provider: provider.provider,
+      provider: result.provider ?? provider.provider,
       model: result.model,
       usage: result.usage,
       settings

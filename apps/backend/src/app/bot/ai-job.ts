@@ -51,6 +51,8 @@ export const aiJobSchema = z.discriminatedUnion('kind', [
     /** A series post's own media (Valve's CDN); without it, the announcement's images. */
     urls: z.array(z.url().max(500)).max(10).optional()
   }),
+  /** One task of the blind provider comparison, written by both models (no chat message: the studio shows it). */
+  z.object({ id: z.uuid(), kind: z.literal('comparison'), comparisonId: z.uuid() }),
   /** One planned post of an event's series, written by the AI writer (no chat message: the studio shows it). */
   z.object({
     id: z.uuid(),
@@ -106,6 +108,15 @@ export type EventWriterJob = AiJobBase & { kind: 'event'; externalId: string };
 export type WriterJob =
   | Exclude<
       AiJob,
-      { kind: 'daily_review' | 'style_lessons' | 'hypotheses' | 'source_event' | 'source_media' | 'series_post' }
+      {
+        kind:
+          | 'daily_review'
+          | 'style_lessons'
+          | 'hypotheses'
+          | 'source_event'
+          | 'source_media'
+          | 'series_post'
+          | 'comparison';
+      }
     >
   | EventWriterJob;

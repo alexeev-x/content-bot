@@ -2,6 +2,9 @@ import type { AiLearningItemDto, AiLearningListDto, AiLessonsDto, AiRuleDto, AiR
 import { keepPreviousData, queryOptions, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   answerAiLesson,
+  chooseAiComparison,
+  getAiComparisons,
+  startAiComparisons,
   changeAiRule,
   checkAiConnection,
   deleteAiFeedback,
@@ -25,6 +28,7 @@ export const aiKeys = {
   overview: ['ai', 'overview'] as const,
   feedback: ['ai', 'feedback'] as const,
   learning: ['ai', 'learning'] as const,
+  comparisons: ['ai', 'comparisons'] as const,
   lessons: ['ai', 'lessons'] as const,
   rules: ['ai', 'rules'] as const,
   hypotheses: ['ai', 'hypotheses'] as const,
@@ -188,5 +192,35 @@ export function useAnswerAiLesson() {
       );
       if (answer.status === 'accepted') await client.invalidateQueries({ queryKey: aiKeys.rules });
     }
+  });
+}
+
+/** While a pair is written, re-read every 10 s (visible tab only). */
+export function aiComparisonsQueryOptions() {
+  return queryOptions({
+    queryKey: aiKeys.comparisons,
+    queryFn: ({ signal }) => getAiComparisons(signal),
+    staleTime: 0,
+    refetchInterval: (query) => (query.state.data?.items.some((item) => item.status === 'writing') ? 10_000 : false)
+  });
+}
+
+/** Paid: never retried by itself. */
+export function useStartAiComparisons() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: startAiComparisons,
+    retry: false,
+    onSettled: () => client.invalidateQueries({ queryKey: aiKeys.comparisons })
+  });
+}
+
+export function useChooseAiComparison() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, choice, note }: { id: string; choice: 'a' | 'b' | 'same'; note?: string }) =>
+      chooseAiComparison(id, choice, note),
+    retry: false,
+    onSettled: () => client.invalidateQueries({ queryKey: aiKeys.comparisons })
   });
 }

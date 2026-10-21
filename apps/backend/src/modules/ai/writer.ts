@@ -187,11 +187,17 @@ async function call(
   /** Facets of the latest drafts of the format, to flag a repeated topic. */
   recent: readonly DraftFacets[] = [],
   /** A fix by the owner's remark: the answer also says what changed and which reasons the remark names. */
-  fixing = false
+  fixing = false,
+  /** A model other than the settings' draft model (the provider comparison). */
+  modelOverride?: string
 ): Promise<WriterResult> {
   const settings = await readAiSettings(deps.repo);
   // Refused before a row exists when AI cannot run: nothing pending is left behind.
-  const { provider, model } = await assertAiReady(deps, settings, settings.draftModel ?? settings.cheapModel);
+  const { provider, model } = await assertAiReady(
+    deps,
+    settings,
+    modelOverride ?? settings.draftModel ?? settings.cheapModel
+  );
   await deps.writer.createGeneration({ ...row, packRevision: packRevision() });
   const generation: GenerationRow = {
     ...row,
@@ -220,7 +226,7 @@ async function call(
     const budgetEvents = await recordAiUsage(deps, {
       id: usageId,
       kind: generation.kind,
-      provider: provider.provider,
+      provider: result.provider ?? provider.provider,
       model: result.model,
       usage: result.usage,
       settings
@@ -330,6 +336,8 @@ export async function generateDraft(
     preApprovedPublishAt?: number | null;
     /** Reels example ids kept out of the prompt (control run). */
     holdOut?: readonly string[];
+    /** A model other than the settings' draft model (the provider comparison). */
+    model?: string;
     signal: AbortSignal;
   }
 ): Promise<WriterResult> {
@@ -370,7 +378,9 @@ export async function generateDraft(
       rules: await rulesFor(deps, input.format)
     }),
     input.signal,
-    invent ? recent : []
+    invent ? recent : [],
+    false,
+    input.model
   );
 }
 
@@ -384,6 +394,8 @@ export async function rewriteDraft(
     revisionToken?: string;
     /** The owner's remark on this version («Что не так?»): the model fixes only what it names. */
     remark?: { note: string; reason: string | null };
+    /** A model other than the settings' draft model (the provider comparison). */
+    model?: string;
   }
 ): Promise<WriterResult> {
   const parent = await deps.writer.findGeneration(input.generationId);
@@ -417,7 +429,7 @@ export async function rewriteDraft(
     author: await author(deps),
     ownerTexts: rankOwnerTexts(parent.task, await ownerTexts(deps, parent.format), OWNER_TEXTS)
   });
-  return call(deps, row, prompt, input.signal, [], input.remark !== undefined);
+  return call(deps, row, prompt, input.signal, [], input.remark !== undefined, input.model);
 }
 
 /** The opening replaced by the chosen hook (the script starts with its best hook). Stays AI text. */
@@ -703,7 +715,7 @@ export async function askEditor(
     });
     const budgetEvents = await recordAiUsage(deps, {
       kind: 'other',
-      provider: provider.provider,
+      provider: result.provider ?? provider.provider,
       model: result.model,
       usage: result.usage,
       settings
