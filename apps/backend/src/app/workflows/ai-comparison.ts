@@ -39,8 +39,13 @@ export async function startComparisons(container: Container, random: () => numbe
     settings.draftModel !== null && providerOfModel(settings.draftModel) === 'openai' ? settings.draftModel : null;
   if (other === null || !container.aiKeys.openai || !container.aiKeys.anthropic)
     throw new AppError('UNAVAILABLE', 'Both providers need a key and an OpenAI draft model', { reason: 'NO_KEY' });
-  const rubrics = await container.aiComparisons.rubricTasks(RUBRIC_TASKS);
-  const automatic = await container.aiComparisons.automaticTasks(TASKS - rubrics.length);
+  // A task already written by both models is not paid for again; a failed one is tried again.
+  const done = new Set(
+    (await container.aiComparisons.list()).filter((row) => row.status !== 'failed').map((row) => row.task)
+  );
+  const fresh = (list: ComparisonTask[]) => list.filter((task) => !done.has(task.task));
+  const rubrics = fresh(await container.aiComparisons.rubricTasks(20)).slice(0, RUBRIC_TASKS);
+  const automatic = fresh(await container.aiComparisons.automaticTasks(20)).slice(0, TASKS - rubrics.length);
   const tasks = [...automatic, ...rubrics];
   const now = container.clock.now();
   const rows = tasks.map((task) => {
