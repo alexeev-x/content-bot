@@ -56,6 +56,8 @@ export const sourceEventSchema = z.object({
   aiRequested: z.boolean(),
   // The AI is writing it right now (at most 15 minutes): «Написать через ИИ» stays locked until it ends.
   aiWriting: z.boolean(),
+  // The AI draft the latest request wrote (the first version of its chain); null until one exists.
+  aiDraftId: z.uuid().nullable(),
   draft: z.object({ postId: z.uuid(), title: z.string() }).nullable(),
   // Latest publication of the draft; null until one exists.
   publication: z.object({ status: publicationStatusSchema }).nullable()
@@ -75,6 +77,23 @@ export const sourceEventContentSchema = z.object({
   images: z.array(z.url()).max(10)
 });
 export type SourceEventContentDto = z.infer<typeof sourceEventContentSchema>;
+
+/** The newest version of an event's AI draft, for the side panel. */
+export const sourceEventAiDraftSchema = z.object({
+  // The version the owner sees; approval names it, so a newer rewrite is never approved unseen.
+  versionId: z.uuid(),
+  status: z.enum(['writing', 'ready', 'failed', 'question']),
+  text: z.string().max(8000).nullable(),
+  // The editor asked for facts instead of writing.
+  question: z.string().max(1000).nullable(),
+  // The studio post an approved version became.
+  postId: z.uuid().nullable()
+});
+export type SourceEventAiDraftDto = z.infer<typeof sourceEventAiDraftSchema>;
+
+export const approveSourceEventAiDraftInputSchema = z.strictObject({ versionId: z.uuid() });
+export const approveSourceEventAiDraftResponseSchema = z.object({ postId: z.uuid(), created: z.boolean() });
+export type ApproveSourceEventAiDraftResponse = z.infer<typeof approveSourceEventAiDraftResponseSchema>;
 
 export const createSourceEventDraftResponseSchema = z.object({
   event: sourceEventSchema,
@@ -97,4 +116,8 @@ export type CreateSourceEventDraftResponse = z.infer<typeof createSourceEventDra
 // POST /api/v1/sources/events/{id}/ai-draft → 202 SourceEventDto with aiRequested: the AI writer drafts a Steam
 //   announcement (a past one included) in the bot. Each call asks again (paid). A patch is 409 CONFLICT
 //   (NOT_AI_SOURCE), a hidden event 409 CONFLICT (EVENT_HIDDEN), no queue or bot 503 UNAVAILABLE.
+// GET /api/v1/sources/events/{id}/ai-draft → 200 SourceEventAiDraftDto (404 when there is none yet).
+// POST /api/v1/sources/events/{id}/ai-draft/approve { versionId } → 201 { postId, created: true }, or 200 with the
+//   same post when that version was approved before (here or in the bot). 404 for a version of another draft,
+//   409 CONFLICT (NOT_A_POST) when the text does not fit a post.
 // Errors: VALIDATION_ERROR 400, UNAUTHORIZED 401, FORBIDDEN 403, NOT_FOUND 404, CONFLICT 409, UNAVAILABLE 503.

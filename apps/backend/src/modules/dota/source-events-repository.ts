@@ -65,6 +65,7 @@ interface EventRow {
   is_baseline: number;
   ai_job_id: string | null;
   ai_requested_at: number | null;
+  ai_generation_id: string | null;
   status: SourceEventStatus;
 }
 
@@ -77,17 +78,17 @@ const EVENT_TYPE_SQL = "CASE WHEN u.source_key = 'patch_notes' THEN 'patch' ELSE
 // `rows`: real events, or (view=past) the Steam announcements seeded before the watcher started.
 const eventsSql = (extraWhere: string, filter: string, rows: 'events' | 'past' | 'any' = 'events'): string => `
   SELECT source_key, external_id, title, source_url, published_at, detected_at, excerpt, event_type,
-         post_id, post_title, job_status, is_baseline, ai_job_id, ai_requested_at, status
+         post_id, post_title, job_status, is_baseline, ai_job_id, ai_requested_at, ai_generation_id, status
   FROM (
     SELECT source_key, external_id, title, source_url, published_at, detected_at, excerpt, event_type,
-           post_id, post_title, job_status, is_baseline, ai_job_id, ai_requested_at,
+           post_id, post_title, job_status, is_baseline, ai_job_id, ai_requested_at, ai_generation_id,
            CASE WHEN hidden_at IS NOT NULL THEN 'hidden'
                 WHEN post_id IS NULL THEN 'new'
                 WHEN job_status = 'succeeded' THEN 'published'
                 ELSE 'drafted' END AS status
     FROM (
       SELECT u.source_key, u.external_id, u.title, u.source_url, u.published_at, u.detected_at, u.excerpt,
-             ${EVENT_TYPE_SQL} AS event_type, u.hidden_at, u.is_baseline, u.ai_job_id, u.ai_requested_at,
+             ${EVENT_TYPE_SQL} AS event_type, u.hidden_at, u.is_baseline, u.ai_job_id, u.ai_requested_at, u.ai_generation_id,
              p.id AS post_id,
              p.title AS post_title,
              (SELECT j.status FROM publications pu JOIN jobs j ON j.publication_id = pu.id AND j.kind = 'publish'
@@ -184,6 +185,7 @@ export function createD1SourceEventsRepository(db: D1Database, now: () => number
       status: row.status,
       isPast: row.is_baseline === 1,
       aiRequested: row.ai_job_id !== null && row.post_id === null,
+      aiDraftId: row.ai_generation_id,
       aiWriting: row.ai_requested_at !== null && row.ai_requested_at > now() - AI_WRITING_MS,
       draft: row.post_id === null ? null : { postId: row.post_id, title: row.post_title ?? '' },
       publication:

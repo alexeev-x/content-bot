@@ -1,5 +1,7 @@
 import {
+  approveSourceEventAiDraftResponseSchema,
   createSourceEventDraftResponseSchema,
+  sourceEventAiDraftSchema,
   sourceEventContentSchema,
   sourceEventPageSchema,
   sourceEventSchema,
@@ -29,6 +31,19 @@ export function createSourceEventDraft(id: string) {
 /** Asks the AI writer for a post; the draft arrives in the bot for approval. Each call is a paid model call. */
 export function requestSourceEventAiDraft(id: string) {
   return apiRequest(`${eventPath(id)}/ai-draft`, sourceEventSchema, { method: 'POST', body: {} });
+}
+
+/** The newest version of the event's AI draft (the bot's draft, readable here). */
+export function getSourceEventAiDraft(id: string, signal?: AbortSignal) {
+  return apiRequest(`${eventPath(id)}/ai-draft`, sourceEventAiDraftSchema, { signal });
+}
+
+/** Approves exactly the version shown: it becomes a studio post, linked to the event, with its images. */
+export function approveSourceEventAiDraft(id: string, versionId: string) {
+  return apiRequest(`${eventPath(id)}/ai-draft/approve`, approveSourceEventAiDraftResponseSchema, {
+    method: 'POST',
+    body: { versionId }
+  });
 }
 
 export function setSourceEventHidden(id: string, hidden: boolean) {

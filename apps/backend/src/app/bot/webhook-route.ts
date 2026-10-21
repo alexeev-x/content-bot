@@ -1,3 +1,4 @@
+import { linkApprovedSourcePost } from '../workflows/approve-source-ai-draft';
 import { webhookCallback } from 'grammy';
 import { Hono } from 'hono';
 import { bodyLimit } from 'hono/body-limit';
@@ -144,26 +145,7 @@ export const telegramWebhook = new Hono<AppBindings>().post(
       rules: () => Promise.resolve(container.aiRules),
       styleLessons: () => Promise.resolve(container.aiStyleLessons),
       enqueueAiJob: (job) => container.aiJobs.send(job),
-      linkSourceEventPost: async (generationIds, postId) => {
-        const externalId = await container.dotaRepository.linkAiPost({
-          generationIds,
-          postId,
-          now: container.clock.now()
-        });
-        // An event post always carries the announcement's images (owner, 21.10.2026); the queue fetches them.
-        if (
-          externalId !== null &&
-          container.ownerChatId !== null &&
-          Number.isSafeInteger(Number(container.ownerChatId))
-        )
-          await container.aiJobs.send({
-            id: container.newId(),
-            kind: 'source_media',
-            chatId: Number(container.ownerChatId),
-            postId,
-            externalId
-          });
-      },
+      linkSourceEventPost: (generationIds, postId) => linkApprovedSourcePost(container, generationIds, postId),
       createDraft: async (input, idempotencyKey) =>
         createPost(
           {

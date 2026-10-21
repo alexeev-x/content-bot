@@ -1,4 +1,11 @@
-import { listSourceEventsQuerySchema, sourceEventContentSchema, sourceEventIdSchema } from '@alexeev/contracts';
+import {
+  approveSourceEventAiDraftInputSchema,
+  approveSourceEventAiDraftResponseSchema,
+  listSourceEventsQuerySchema,
+  sourceEventAiDraftSchema,
+  sourceEventContentSchema,
+  sourceEventIdSchema
+} from '@alexeev/contracts';
 import { Hono } from 'hono';
 import { z } from 'zod';
 import { parseSourceEventId } from '../modules/dota';
@@ -7,6 +14,8 @@ import type { AppBindings } from './env';
 import { validated } from './validation';
 import { appOriginOf } from './bot/app-origin';
 import { rateLimit } from './rate-limit';
+import { createWriterDeps } from './bot/writer-deps';
+import { approveSourceAiDraft, readSourceAiDraft } from './workflows/approve-source-ai-draft';
 import { createSourceEventDraft } from './workflows/create-source-event-draft';
 import { readSourceEventContent, requestSourceEventDraft } from './workflows/source-event-ai-draft';
 
@@ -92,6 +101,28 @@ export const sourcesRoutes = new Hono<AppBindings>()
       return c.json(updated, 202);
     }
   )
+  .get('/events/:id/ai-draft', validated('param', eventParamsSchema), async (c) => {
+    const container = c.get('container');
+    const event = await findEvent(c);
+    if (event.aiDraftId === null) throw new AppError('NOT_FOUND', 'No AI draft yet');
+    return c.json(sourceEventAiDraftSchema.parse(await readSourceAiDraft(container, event.aiDraftId)));
+  })
+  .post(
+    '/events/:id/ai-draft/approve',
+    validated('param', eventParamsSchema),
+    validated('json', approveSourceEventAiDraftInputSchema),
+    async (c) => {
+      const container = c.get('container');
+      const event = await findEvent(c);
+      if (event.aiDraftId === null) throw new AppError('NOT_FOUND', 'No AI draft yet');
+      const result = await approveSourceAiDraft(container, await createWriterDeps(container, c.get('requestId')), {
+        rootId: event.aiDraftId,
+        versionId: c.req.valid('json').versionId,
+        actor: c.get('actor').telegramId
+      });
+      return c.json(approveSourceEventAiDraftResponseSchema.parse(result), result.created ? 201 : 200);
+    }
+  )
   .post('/events/:id/hide', validated('param', eventParamsSchema), (c) => setHidden(c, true))
   .post('/events/:id/unhide', validated('param', eventParamsSchema), (c) => setHidden(c, false));
 
@@ -101,6 +132,15 @@ const sourcesLog = (operation: string, error: unknown) => ({
   status: 'degraded',
   errorCode: error instanceof Error ? error.name : 'unknown'
 });
+
+async function findEvent(c: import('hono').Context<AppBindings, string, { out: { param: { id: string } } }>) {
+  const container = c.get('container');
+  if (c.env.DB === undefined) throw new AppError('UNAVAILABLE', 'Database is not configured');
+  const key = parseSourceEventId(c.req.valid('param').id);
+  const event = key === null ? null : await container.sourceEvents.find(key);
+  if (event === null) throw new AppError('NOT_FOUND', 'Event not found');
+  return event;
+}
 
 async function setHidden(
   c: import('hono').Context<AppBindings, string, { out: { param: { id: string } } }>,

@@ -1,4 +1,9 @@
-import { sourceEventPageSchema, sourceEventSchema } from '@alexeev/contracts';
+import {
+  approveSourceEventAiDraftResponseSchema,
+  sourceEventAiDraftSchema,
+  sourceEventPageSchema,
+  sourceEventSchema
+} from '@alexeev/contracts';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { createPublishActions } from '../../src/app/bot/publish-actions';
 import { createContainer, type Container } from '../../src/app/container';
@@ -612,5 +617,82 @@ describe("an event post's images", () => {
     expect(await run()).toEqual({ attached: 2, found: 3 });
     expect(fetched.every((url) => url.startsWith(CDN))).toBe(true);
     expect((await container.postMedia.findPostState(post.id))?.media).toHaveLength(2);
+  });
+});
+
+describe('an AI draft approved in the studio', () => {
+  it('shows the bot draft and makes one post, linked to the event, with its images queued', async () => {
+    const container = createContainer(
+      { DB: testDb(), MEDIA_BUCKET: testMediaBucket(), OWNER_TELEGRAM_ID: OWNER_ID },
+      { clock: fakeClock() }
+    );
+    const draftId = crypto.randomUUID();
+    await container.aiWriter.createGeneration({
+      id: draftId,
+      kind: 'draft',
+      format: 'telegram',
+      mode: 'automatic',
+      source: 'bot',
+      task: 'Повод: анонс',
+      parentGenerationId: null,
+      preApprovedPublishAt: null,
+      createdAt: START,
+      packRevision: 'test'
+    });
+    await container.aiWriter.addRevision({
+      id: crypto.randomUUID(),
+      generationId: draftId,
+      parentId: null,
+      provenance: 'AI_DRAFT',
+      text: 'Габен вернул аркану на дровку.',
+      editRatio: null,
+      createdAt: START
+    });
+    await container.aiWriter.finishGeneration({ id: draftId, now: START, status: 'ready', result: 'draft' });
+    await sql("UPDATE dota_update_items SET ai_generation_id = ?1 WHERE external_id = '1001'", draftId);
+
+    // The images job is checked as sent; running it would reach Steam.
+    api.aiJobs.deliver = () => Promise.resolve();
+    const shown = sourceEventAiDraftSchema.parse(
+      await (await api.request(`/api/v1/sources/events/${TREASURE}/ai-draft`)).json()
+    );
+    expect(shown).toMatchObject({
+      versionId: draftId,
+      status: 'ready',
+      text: 'Габен вернул аркану на дровку.',
+      postId: null
+    });
+
+    const approve = () =>
+      api.request(`/api/v1/sources/events/${TREASURE}/ai-draft/approve`, {
+        method: 'POST',
+        json: { versionId: draftId }
+      });
+    const first = await approve();
+    expect(first.status).toBe(201);
+    const { postId } = approveSourceEventAiDraftResponseSchema.parse(await first.json());
+    const again = await approve();
+    expect(again.status).toBe(200);
+    expect(approveSourceEventAiDraftResponseSchema.parse(await again.json()).postId).toBe(postId);
+    expect(await count('posts')).toBe(1);
+    expect(
+      sourceEventSchema.parse(
+        await (
+          await get('')
+        )
+          .json()
+          .then((page) => sourceEventPageSchema.parse(page).items.find((item) => item.id === TREASURE))
+      )
+    ).toMatchObject({
+      status: 'drafted',
+      draft: { postId }
+    });
+    expect(api.aiJobs.sent).toMatchObject([{ kind: 'source_media', postId, externalId: '1001' }]);
+
+    const foreign = await api.request(`/api/v1/sources/events/${TREASURE}/ai-draft/approve`, {
+      method: 'POST',
+      json: { versionId: crypto.randomUUID() }
+    });
+    expect(foreign.status).toBe(404);
   });
 });

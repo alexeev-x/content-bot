@@ -22,7 +22,6 @@ export function EventStatus({ event }: { event: SourceEventDto }) {
   if (event.status === 'drafted' && event.publication) return <StatusBadge status={event.publication.status} />;
   if (event.isPast && !event.aiRequested) return <StatusPill label="Прошлый анонс" group="muted" icon="minus-circle" />;
   if (event.aiWriting) return <StatusPill label="ИИ пишет" group="active" icon="sparkle" />;
-  if (event.aiRequested && event.status === 'new')
-    return <StatusPill label="Черновик в боте" group="active" icon="edit" />;
+  if (event.aiRequested && event.status === 'new') return <StatusPill label="Черновик ИИ" group="active" icon="edit" />;
   return <StatusPill {...STATUS_PILLS[event.status]} />;
 }

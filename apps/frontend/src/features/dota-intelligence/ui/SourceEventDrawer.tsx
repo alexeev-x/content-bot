@@ -4,7 +4,9 @@ import { Link, useNavigate } from '@tanstack/react-router';
 import { ApiError } from '../../../shared/api/http-client';
 import { Banner, Button, Drawer, ErrorState, Icon, LoadingImage, Skeleton, VisuallyHidden } from '../../../shared/ui';
 import {
+  sourceEventAiDraftQueryOptions,
   sourceEventContentQueryOptions,
+  useApproveSourceEventAiDraft,
   useCreateSourceEventDraft,
   useRequestSourceEventAiDraft,
   useSetSourceEventHidden
@@ -84,6 +86,81 @@ function Announcement({ event }: { event: SourceEventDto }) {
   );
 }
 
+/** The AI's draft of this event, the same one the bot shows; approving here or there makes the same post. */
+function AiDraft({ event, draftId }: { event: SourceEventDto; draftId: string }) {
+  const navigate = useNavigate();
+  const draft = useQuery(sourceEventAiDraftQueryOptions(event.id, draftId));
+  const approve = useApproveSourceEventAiDraft();
+  const openPost = (id: string) => void navigate({ to: '/posts/$id', params: { id } });
+  if (draft.isPending)
+    return (
+      <section className={styles.aiDraft} aria-busy="true">
+        <VisuallyHidden>Загружаю черновик ИИ</VisuallyHidden>
+        <Skeleton lines={5} />
+      </section>
+    );
+  if (!draft.data)
+    return (
+      <ErrorState
+        message="Не удалось загрузить черновик ИИ. Повторите."
+        {...(draft.error instanceof ApiError && draft.error.requestId ? { requestId: draft.error.requestId } : {})}
+        onRetry={() => void draft.refetch()}
+      />
+    );
+  const { status, text, question, postId, versionId } = draft.data;
+  if (status === 'failed')
+    return (
+      <Banner tone="warning" title="ИИ не смог написать пост">
+        Нажмите «Написать через ИИ» ещё раз.
+      </Banner>
+    );
+  if (status === 'question')
+    return (
+      <Banner tone="info" title="ИИ задал вопрос в боте">
+        {question ?? 'Ответьте ему в боте — после ответа он напишет пост.'}
+      </Banner>
+    );
+  const notAPost = approve.error instanceof ApiError && approve.error.reason === 'NOT_A_POST';
+  return (
+    <section className={styles.aiDraft} aria-labelledby={`ai-draft-${event.id}`}>
+      <h3 id={`ai-draft-${event.id}`} className={styles.aiDraftTitle}>
+        Черновик ИИ
+      </h3>
+      {text ? <p className={styles.aiDraftText}>{text}</p> : null}
+      {approve.error ? (
+        <Banner tone="error" title="Не получилось">
+          {notAPost
+            ? 'Текст не влезает в пост. Сократите его в боте («Короче») и одобрите снова.'
+            : 'Сервер не подтвердил одобрение, ничего не изменилось. Повторите.'}
+        </Banner>
+      ) : null}
+      <div className={styles.actions}>
+        {postId ? (
+          <Button variant="primary" icon="edit" onPress={() => openPost(postId)}>
+            Открыть пост
+          </Button>
+        ) : (
+          <Button
+            variant="primary"
+            icon="check-circle"
+            isLoading={approve.isPending}
+            onPress={() =>
+              approve.mutate({ id: event.id, versionId }, { onSuccess: (result) => openPost(result.postId) })
+            }
+          >
+            Одобрить
+          </Button>
+        )}
+      </div>
+      <p className={styles.muted}>
+        {postId
+          ? 'Одобрено: пост в студии, картинки анонса прикрепляются к нему сами.'
+          : 'Переписать или поправить можно в боте. Одобренный текст станет постом в студии с картинками анонса.'}
+      </p>
+    </section>
+  );
+}
+
 type Props = {
   event: SourceEventDto | undefined;
   now: number;
@@ -106,7 +183,7 @@ export function SourceEventDrawer({ event, now, timezone, onClose }: Props) {
       {/* An announcement can always go to the AI, even with an older (template) draft (owner, 21.10.2026). */}
       {event.type !== 'patch' ? (
         <Button
-          variant={event.draft ? 'secondary' : 'primary'}
+          variant={event.draft || event.aiDraftId !== null ? 'secondary' : 'primary'}
           icon="sparkle"
           isLoading={aiDraft.isPending}
           isDisabled={busy || event.aiWriting || event.status === 'hidden'}
@@ -205,10 +282,8 @@ export function SourceEventDrawer({ event, now, timezone, onClose }: Props) {
             <Banner tone="info" title="ИИ пишет пост">
               Обычно это минута-две. Черновик придёт в бот: там его можно одобрить, переписать или поправить.
             </Banner>
-          ) : event.aiRequested ? (
-            <Banner tone="info" title="Черновик в боте">
-              Одобрите его в боте — пост появится здесь вместе с картинками анонса.
-            </Banner>
+          ) : event.aiDraftId !== null ? (
+            <AiDraft event={event} draftId={event.aiDraftId} />
           ) : null}
           {error ? (
             <Banner tone={reason === 'EVENT_HIDDEN' ? 'warning' : 'error'} title="Не получилось">

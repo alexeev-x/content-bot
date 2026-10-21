@@ -31,6 +31,7 @@ import type { PublishActions } from './publish-actions';
 import type { AiJob, AiJobBase, EventWriterJob, WriterJob } from './ai-job';
 import { draftFromMessageText } from './draft-from-message';
 import { publishKeyboard } from './publish-keyboard';
+import { lineage } from '../workflows/approve-source-ai-draft';
 
 // The AI writer in the owner's chat (docs/backend/bot.md «AI writer»): a request in plain words or a command
 // becomes a draft; buttons rewrite, pick a hook, give feedback or approve; a reply with text is the owner's
@@ -544,19 +545,6 @@ async function runClaimed(job: WriterJob, runtime: AiJobRuntime): Promise<boolea
     );
   }
   return true;
-}
-
-/** Rewrites and a facts answer are child drafts: a source event knows only the first one. */
-const LINEAGE_MAX = 12;
-
-async function lineage(deps: WriterDeps, generation: GenerationRow): Promise<string[]> {
-  const ids = [generation.id];
-  let parent = generation.parentGenerationId;
-  while (parent !== null && ids.length < LINEAGE_MAX) {
-    ids.push(parent);
-    parent = (await deps.writer.findGeneration(parent))?.parentGenerationId ?? null;
-  }
-  return ids;
 }
 
 export function registerAiWriter(bot: Bot, runtime: AiWriterRuntime): void {

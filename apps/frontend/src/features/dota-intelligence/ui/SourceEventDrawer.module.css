@@ -72,3 +72,23 @@
   flex-wrap: wrap;
   gap: var(--space-2);
 }
+.aiDraft {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-2);
+}
+.aiDraftTitle {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+}
+/* The post as it will read in the channel: the writer's own line breaks. */
+.aiDraftText {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-body);
+  overflow-wrap: anywhere;
+  white-space: pre-line;
+}

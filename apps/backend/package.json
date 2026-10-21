@@ -4,7 +4,7 @@
   "type": "module",
   "scripts": {
     "dev": "node -e \"require('fs').mkdirSync('../frontend/dist/client',{recursive:true})\" && wrangler dev --test-scheduled --assets ../frontend/dist/client --port 8790",
-    "types": "wrangler types --strict-vars=false",
+    "types": "wrangler types --strict-vars=false --env-file types.vars",
     "typecheck": "npm run types && tsc --noEmit",
     "build": "npm run typecheck",
     "test": "vitest run",
