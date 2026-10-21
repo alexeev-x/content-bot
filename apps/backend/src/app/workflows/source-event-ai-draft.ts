@@ -1,4 +1,10 @@
-import { fetchSteamAnnouncementText, type DotaDraftSource, type DotaWatcherRepository } from '../../modules/dota';
+import { SOURCE_LINK_LABEL } from '../../modules/ai';
+import {
+  fetchSteamAnnouncementText,
+  findDotaNewsEntryUrl,
+  type DotaDraftSource,
+  type DotaWatcherRepository
+} from '../../modules/dota';
 import { AppError } from '../../shared/app-error';
 import type { AiJob, EventWriterJob } from '../bot/ai-job';
 
@@ -38,8 +44,11 @@ export async function requestSourceEventDraft(
 export function sourceEventWriter(deps: {
   repo: Pick<DotaWatcherRepository, 'findSteamAnnouncement' | 'setAiGeneration'>;
   fetchText?: typeof fetchSteamAnnouncementText;
+  findOfficialUrl?: typeof findDotaNewsEntryUrl;
+  onError: (error: unknown) => void;
 }) {
   const fetchText = deps.fetchText ?? fetchSteamAnnouncementText;
+  const findOfficialUrl = deps.findOfficialUrl ?? findDotaNewsEntryUrl;
   return {
     async task(externalId: string): Promise<string> {
       const source = await deps.repo.findSteamAnnouncement(externalId);
@@ -47,7 +56,12 @@ export function sourceEventWriter(deps: {
       // The feed's 500 characters are too little to write from; without the whole text the job fails visibly.
       const text = await fetchText({ externalId, publishedAt: source.publishedAt });
       if (text === null) throw new AppError('NOT_FOUND', 'Steam no longer returns the announcement');
-      return sourceEventTask(source, text);
+      // The post links to dota2.com (owner, 21.10.2026); Steam's page when that lookup fails.
+      const official = await findOfficialUrl({ publishedAt: source.publishedAt }).catch((error: unknown) => {
+        deps.onError(error);
+        return null;
+      });
+      return sourceEventTask(source, text, official ?? source.sourceUrl);
     },
     async generated(job: EventWriterJob, generationId: string): Promise<void> {
       await deps.repo.setAiGeneration({ externalId: job.externalId, jobId: job.id, generationId });
@@ -62,14 +76,14 @@ const TYPE_NAME: Record<DotaDraftSource['eventType'], string> = {
 };
 
 /** The writer's task: the announcement's own words as the only facts (automatic mode). */
-export function sourceEventTask(source: DotaDraftSource, text: string): string {
+export function sourceEventTask(source: DotaDraftSource, text: string, link: string): string {
   const date = new Date(source.publishedAt).toISOString().slice(0, 10).split('-').reverse().join('.');
   return [
     `Повод: официальный анонс Valve о Dota 2 в Steam (${TYPE_NAME[source.eventType]}).`,
     `Заголовок: ${source.title}`,
     `Дата: ${date}`,
-    `Ссылка на источник: ${source.sourceUrl}`,
-    'Напиши пост для канала: что вышло и чем это важно игроку. Чего нет в анонсе — не придумывай. В конце дай ссылку на источник.',
+    `${SOURCE_LINK_LABEL}${link}`,
+    'Напиши новость для канала: что вышло и чем это важно игроку. Пиши только то, что есть в анонсе.',
     // Last, so the writer's 4 000-character cap can only shorten the announcement, never the request.
     'Текст анонса (английский; факты бери только отсюда):',
     `<<<${text.replaceAll('>>>', '> > >').replaceAll('<<<', '< < <')}>>>`

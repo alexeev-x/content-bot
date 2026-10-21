@@ -133,7 +133,7 @@ export async function handleAiQueue(batch: MessageBatch<unknown>, container: Con
       },
       finish: () => container.aiWriter.finishJob(job.id, container.clock.now()),
       writer: () => createWriterDeps(container, requestId),
-      sourceEvents: sourceEventWriter({ repo: container.dotaRepository }),
+      sourceEvents: sourceEventWriter({ repo: container.dotaRepository, onError }),
       onError
     });
     message.ack();

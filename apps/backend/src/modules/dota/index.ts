@@ -928,6 +928,45 @@ export async function fetchSteamAnnouncementText(
   return item === undefined ? null : cleanExcerpt(item.contents, STEAM_ANNOUNCEMENT_TEXT_MAX);
 }
 
+// dota2.com shows the same announcement under the Steam event's own id, not the news feed's gid; Steam's events
+// list (the one dota2.com reads) has both that id and the post time, equal to the feed's to the second.
+const STEAM_EVENTS_URL =
+  'https://store.steampowered.com/events/ajaxgetpartnereventspageable/?clan_accountid=0&appid=570&offset=0&count=40&l=english';
+const MAX_STEAM_EVENTS_BYTES = 1024 * 1024;
+const steamEventsSchema = z.object({
+  events: z
+    .array(
+      z.object({
+        gid: z.string().regex(/^\d{1,25}$/),
+        announcement_body: z.object({ posttime: z.number().int().nonnegative() }).nullable().optional()
+      })
+    )
+    .max(100)
+});
+
+/** The announcement's page on dota2.com; null when it is not among Steam's 40 latest events. */
+export async function findDotaNewsEntryUrl(
+  input: { publishedAt: number },
+  fetchImpl: typeof fetch = fetch
+): Promise<string | null> {
+  let response: Response;
+  try {
+    response = await fetchImpl(STEAM_EVENTS_URL, {
+      method: 'GET',
+      headers: { accept: 'application/json' },
+      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+      redirect: 'manual'
+    });
+  } catch (error) {
+    throw new DotaWatchError('DOTA_SOURCE_FETCH', 'steam_news', null, describeError(error));
+  }
+  const parsed = steamEventsSchema.safeParse(await readBoundedJson(response, MAX_STEAM_EVENTS_BYTES, 'steam_news'));
+  if (!parsed.success) throw new DotaWatchError('DOTA_SOURCE_SHAPE', 'steam_news', null, describeShape(parsed.error));
+  const postTime = Math.floor(input.publishedAt / 1_000);
+  const event = parsed.data.events.find((item) => item.announcement_body?.posttime === postTime);
+  return event === undefined ? null : `https://www.dota2.com/newsentry/${event.gid}`;
+}
+
 function parseSteamNews(payload: unknown): DotaUpdateItem[] {
   const parsed = steamNewsSchema.safeParse(payload);
   if (!parsed.success) throw new DotaWatchError('DOTA_SOURCE_SHAPE', 'steam_news', null, describeShape(parsed.error));

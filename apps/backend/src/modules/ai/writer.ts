@@ -167,6 +167,18 @@ type NewGeneration = Pick<
   | 'createdAt'
 >;
 
+/** The line a task names its source with (`app/workflows/source-event-ai-draft.ts`). */
+export const SOURCE_LINK_LABEL = 'Ссылка на источник: ';
+const SOURCE_LINK = /^Ссылка на источник: (https:\/\/\S{1,300})$/m;
+
+// A post from a source ends with its link, whatever the model did with it (owner, 21.10.2026: the Trove draft
+// lost it). Every version keeps it: a rewrite and a facts answer carry the same task.
+function withSourceLink(format: WriterFormat, task: string, text: string): string {
+  const link = format === 'telegram' ? SOURCE_LINK.exec(task)?.[1] : undefined;
+  if (link === undefined || text.includes(link)) return text;
+  return `${text.trimEnd()}\n\n${link}`.slice(0, MAX_TEXT);
+}
+
 async function call(
   deps: WriterDeps,
   row: NewGeneration,
@@ -253,7 +265,7 @@ async function call(
         budgetEvents
       };
     }
-    const text = answer.text.slice(0, MAX_TEXT);
+    const text = withSourceLink(generation.format, generation.task, answer.text.slice(0, MAX_TEXT));
     const warnings = checkDraft(generation.format, generation.mode, text, generation.task);
     if (recent.length > 0 && repeatsRecentTopic(answer.facets.topic, recent)) warnings.push('TOPIC_REPEATED');
     // A rewrite keeps the parent's hooks unless the model sent new ones.
