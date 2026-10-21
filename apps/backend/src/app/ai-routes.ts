@@ -274,6 +274,10 @@ export const aiRoutes = new Hono<AppBindings>()
     validated('json', z.strictObject({})),
     async (c) => c.json({ created: await startComparisons(c.get('container')) }, 202)
   )
+  .delete('/comparisons', async (c) => {
+    await c.get('container').aiComparisons.clear();
+    return c.body(null, 204);
+  })
   .get('/comparisons', async (c) => c.json(aiComparisonsSchema.parse(await readComparisons(c.get('container')))))
   .post(
     '/comparisons/:id/choice',

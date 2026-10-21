@@ -142,6 +142,11 @@ export function startAiComparisons() {
   return apiRequest('/api/v1/ai/comparisons', z.object({ created: z.number().int() }), { method: 'POST', body: {} });
 }
 
+/** Removes every pair; the texts stay in the AI history. */
+export function clearAiComparisons() {
+  return apiRequestNoContent('/api/v1/ai/comparisons', { method: 'DELETE' });
+}
+
 export function chooseAiComparison(id: string, choice: 'a' | 'b' | 'same', note?: string) {
   return apiRequest(`/api/v1/ai/comparisons/${id}/choice`, aiComparisonSchema, {
     method: 'POST',

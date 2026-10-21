@@ -122,7 +122,7 @@ export async function runComparison(
     .catch(onError);
 }
 
-async function toDto(container: Container, row: ComparisonRow): Promise<AiComparisonDto> {
+async function toDto(container: Container, row: ComparisonRow, revealed: boolean): Promise<AiComparisonDto> {
   const textOf = async (generationId: string | null) =>
     generationId === null ? null : ((await container.aiWriter.revisions(generationId)).at(-1)?.text ?? null);
   return {
@@ -134,12 +134,16 @@ async function toDto(container: Container, row: ComparisonRow): Promise<AiCompar
     b: await textOf(row.bGenerationId),
     choice: row.choice,
     note: row.note,
-    models: row.choice === null ? null : { a: row.aModel, b: row.bModel }
+    models: revealed ? { a: row.aModel, b: row.bModel } : null
   };
 }
 
 export async function readComparisons(container: Container): Promise<AiComparisonsDto> {
   const rows = await container.aiComparisons.list();
+  // Blind to the end (owner, 21.10.2026): no model and no tally until every written pair has a choice.
+  const revealed =
+    rows.some((row) => row.status === 'ready') &&
+    rows.every((row) => row.status === 'failed' || (row.status === 'ready' && row.choice !== null));
   const wins = new Map<string, number>();
   let same = 0;
   for (const row of rows) {
@@ -150,8 +154,9 @@ export async function readComparisons(container: Container): Promise<AiCompariso
     }
   }
   return {
-    items: await Promise.all(rows.map((row) => toDto(container, row))),
-    tally: { wins: [...wins].map(([model, count]) => ({ model, count })), same }
+    items: await Promise.all(rows.map((row) => toDto(container, row, revealed))),
+    revealed,
+    tally: revealed ? { wins: [...wins].map(([model, count]) => ({ model, count })), same } : { wins: [], same: 0 }
   };
 }
 
@@ -163,5 +168,5 @@ export async function chooseComparison(
   if (row === null) throw new AppError('NOT_FOUND', 'No such comparison');
   if (!(await container.aiComparisons.choose({ ...input, now: container.clock.now() })))
     throw new AppError('CONFLICT', 'Still being written', { reason: 'NOT_READY' });
-  return toDto(container, { ...row, choice: input.choice, note: input.note });
+  return toDto(container, { ...row, choice: input.choice, note: input.note }, false);
 }

@@ -43,6 +43,8 @@ export interface ComparisonRepository {
   automaticTasks(limit: number): Promise<ComparisonTask[]>;
   /** The latest distinct rubric tasks the owner gave the bot that ended in a draft, newest first. */
   rubricTasks(limit: number): Promise<ComparisonTask[]>;
+  /** Removes every pair (owner, 21.10.2026: start the comparison over); a pair still writing finishes into nothing. */
+  clear(): Promise<void>;
   /** The owner's verdict; a later one replaces it. False when the row is not ready. */
   choose(input: { id: string; choice: 'a' | 'b' | 'same'; note: string | null; now: number }): Promise<boolean>;
 }
@@ -152,6 +154,9 @@ export function createD1ComparisonRepository(db: D1Database): ComparisonReposito
         .bind(Math.min(limit, 20))
         .all<{ task: string; format: 'igrat' | 'fidit' }>();
       return results.map((row) => ({ task: row.task, format: row.format, mode: 'direct' }));
+    },
+    async clear() {
+      await db.prepare('DELETE FROM ai_comparisons').run();
     },
     async choose({ id, choice, note, now }) {
       const result = await db

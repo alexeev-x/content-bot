@@ -3,6 +3,7 @@ import { keepPreviousData, queryOptions, useMutation, useQueryClient } from '@ta
 import {
   answerAiLesson,
   chooseAiComparison,
+  clearAiComparisons,
   getAiComparisons,
   startAiComparisons,
   changeAiRule,
@@ -210,6 +211,15 @@ export function useStartAiComparisons() {
   const client = useQueryClient();
   return useMutation({
     mutationFn: startAiComparisons,
+    retry: false,
+    onSettled: () => client.invalidateQueries({ queryKey: aiKeys.comparisons })
+  });
+}
+
+export function useClearAiComparisons() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: clearAiComparisons,
     retry: false,
     onSettled: () => client.invalidateQueries({ queryKey: aiKeys.comparisons })
   });

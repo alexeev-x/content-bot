@@ -831,13 +831,15 @@ export const aiComparisonSchema = z.object({
   b: z.string().nullable(),
   choice: aiComparisonChoiceSchema.nullable(),
   note: z.string().nullable(),
-  /** Which model wrote A and B: only after the choice, so the pick stays blind. */
+  /** Which model wrote A and B: only once every written pair is chosen, so the picks stay blind. */
   models: z.object({ a: z.string(), b: z.string() }).nullable()
 });
 export type AiComparisonDto = z.infer<typeof aiComparisonSchema>;
 export const aiComparisonsSchema = z.object({
   items: z.array(aiComparisonSchema).max(30),
-  /** Chosen comparisons per winning model, and the ties. */
+  /** Every written pair has a choice: the models and the tally are shown. */
+  revealed: z.boolean(),
+  /** Chosen comparisons per winning model, and the ties; empty until `revealed`. */
   tally: z.object({ wins: z.array(z.object({ model: z.string(), count: z.number().int() })), same: z.number().int() })
 });
 export type AiComparisonsDto = z.infer<typeof aiComparisonsSchema>;

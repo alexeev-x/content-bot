@@ -2,16 +2,25 @@ import type { AiComparisonDto } from '@alexeev/contracts';
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import { ApiError } from '../../../shared/api/http-client';
-import { Banner, Button, EmptyState, ErrorState, Panel, Skeleton, Spinner, TextField } from '../../../shared/ui';
-import { aiComparisonsQueryOptions, useChooseAiComparison, useStartAiComparisons } from '../api/ai-queries';
+import {
+  Banner,
+  Button,
+  ConfirmDialog,
+  EmptyState,
+  ErrorState,
+  Panel,
+  Skeleton,
+  Spinner,
+  TextField
+} from '../../../shared/ui';
+import {
+  aiComparisonsQueryOptions,
+  useChooseAiComparison,
+  useClearAiComparisons,
+  useStartAiComparisons
+} from '../api/ai-queries';
 import styles from './AiComparison.module.css';
-
-const MODEL_LABEL: Record<string, string> = {
-  'claude-opus-5-5': 'Claude Opus 5.5',
-  'gpt-6.1-sol': 'GPT-6.1 Sol',
-  'gpt-6-astra': 'GPT-6 Astra'
-};
-const label = (model: string) => MODEL_LABEL[model] ?? model;
+import { AiComparisonResults } from './AiComparisonResults';
 const CHOICE: Record<'a' | 'b' | 'same', string> = { a: 'Лучше A', b: 'Лучше B', same: 'Одинаково' };
 const CHOSEN: Record<'a' | 'b' | 'same', string> = { a: 'Выбран A', b: 'Выбран B', same: 'Одинаково' };
 
@@ -51,7 +60,6 @@ function Pair({ item, index }: { item: AiComparisonDto; index: number }) {
               >
                 <div className={styles.side}>
                   <span className={styles.letter}>{side.toUpperCase()}</span>
-                  {item.models ? <span className={styles.model}>{label(item.models[side])}</span> : null}
                 </div>
                 <p className={styles.text}>{item[side]}</p>
               </section>
@@ -96,6 +104,9 @@ function Pair({ item, index }: { item: AiComparisonDto; index: number }) {
 export function AiComparison() {
   const list = useQuery(aiComparisonsQueryOptions());
   const start = useStartAiComparisons();
+  const clear = useClearAiComparisons();
+  const [clearing, setClearing] = useState(false);
+  const [view, setView] = useState<'pick' | 'results'>('pick');
   const data = list.data;
   const reason = start.error instanceof ApiError ? start.error.reason : undefined;
   const hasPairs = data !== undefined && data.items.length > 0;
@@ -108,34 +119,42 @@ export function AiComparison() {
       quiet
       note={hasPairs ? `выбрано ${chosen} из ${ready.length}` : undefined}
       action={
-        <Button
-          variant={hasPairs ? 'secondary' : 'primary'}
-          icon="sparkle"
-          isLoading={start.isPending}
-          onPress={() => start.mutate()}
-        >
-          {hasPairs ? 'Новые пары' : 'Запустить сравнение'}
-        </Button>
+        <div className={styles.headActions}>
+          {data?.revealed ? (
+            <Button
+              variant={view === 'pick' ? 'primary' : 'secondary'}
+              icon={view === 'pick' ? 'eye' : undefined}
+              onPress={() => setView(view === 'pick' ? 'results' : 'pick')}
+            >
+              {view === 'pick' ? 'Показать модели' : 'К парам'}
+            </Button>
+          ) : null}
+          {hasPairs ? (
+            <Button variant="ghost" icon="trash" onPress={() => setClearing(true)}>
+              Очистить
+            </Button>
+          ) : null}
+          <Button
+            variant={hasPairs ? 'secondary' : 'primary'}
+            icon="sparkle"
+            isLoading={start.isPending}
+            onPress={() => start.mutate()}
+          >
+            {hasPairs ? 'Новые пары' : 'Запустить сравнение'}
+          </Button>
+        </div>
       }
     >
       <div className={styles.intro}>
         <p className={styles.muted}>
-          Обе модели пишут одни и те же задания — посты и рубрики. В каждой паре выберите текст лучше: какая модель его
-          написала, видно только после выбора. «Новые пары» берут свежие задания, каждый запуск платный.
+          Обе модели пишут одни и те же задания — посты и рубрики. В каждой паре выберите текст лучше. Какая модель что
+          написала, откроется только после выбора во всех парах. «Новые пары» берут свежие задания, каждый запуск
+          платный.
         </p>
-        {data && (data.tally.wins.length > 0 || data.tally.same > 0) ? (
-          <ul className={styles.tally} aria-label="Счёт">
-            {data.tally.wins.map((win) => (
-              <li key={win.model}>
-                <span className={styles.tallyModel}>{label(win.model)}</span>
-                <span className={styles.tallyCount}>{win.count}</span>
-              </li>
-            ))}
-            <li>
-              <span className={styles.tallyModel}>Одинаково</span>
-              <span className={styles.tallyCount}>{data.tally.same}</span>
-            </li>
-          </ul>
+        {data?.revealed && view === 'pick' ? (
+          <Banner tone="info" title="Все пары выбраны">
+            Теперь можно посмотреть, какая модель что написала.
+          </Banner>
         ) : null}
         {start.isError ? (
           <Banner tone="error" title="Не запустилось">
@@ -144,6 +163,11 @@ export function AiComparison() {
               : start.error instanceof ApiError && start.error.code === 'RATE_LIMIT'
                 ? 'Сравнение уже запускали недавно. Подождите несколько минут.'
                 : 'Сервер не подтвердил запуск. Повторите.'}
+          </Banner>
+        ) : null}
+        {clear.isError ? (
+          <Banner tone="error" title="Не очистилось">
+            Сервер не подтвердил удаление. Повторите.
           </Banner>
         ) : null}
         {start.isSuccess ? (
@@ -160,6 +184,8 @@ export function AiComparison() {
         <ErrorState message="Не удалось загрузить сравнение. Повторите." onRetry={() => void list.refetch()} />
       ) : data.items.length === 0 ? (
         <EmptyState icon="sparkle" title="Сравнений пока нет" description="Нажмите «Запустить сравнение»." />
+      ) : data.revealed && view === 'results' ? (
+        <AiComparisonResults data={data} />
       ) : (
         <ol className={styles.list}>
           {data.items.map((item, index) => (
@@ -167,6 +193,21 @@ export function AiComparison() {
           ))}
         </ol>
       )}
+      <ConfirmDialog
+        isOpen={clearing}
+        onOpenChange={setClearing}
+        title="Удалить все пары?"
+        description="Пропадут все пары, выборы и счёт. Тексты останутся в истории черновиков ИИ."
+        confirmLabel="Удалить"
+        cancelLabel="Оставить"
+        isPending={clear.isPending}
+        onConfirm={() => {
+          void clear.mutateAsync().then(
+            () => setClearing(false),
+            () => setClearing(false)
+          );
+        }}
+      />
     </Panel>
   );
 }

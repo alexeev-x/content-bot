@@ -38,9 +38,10 @@ caching cuts the repeated pack to a tenth after the first call; the measured fig
   settings' draft model and with `claude-opus-5-5` through the pipeline the task had: automatic posts get draft, fact
   check and fix, rubric tasks a draft (`app/workflows/ai-comparison.ts`, one queue job per pair, migrations 0093–0094). Both keys and an OpenAI draft model are
   needed, else `UNAVAILABLE` NO_KEY.
-- **Studio:** the tab «ИИ-редактор → Сравнение» shows each task's two versions as A and B in random order, the provider hidden; the
-  owner picks the better one or «одинаково», with an optional note. The tally per provider decides; the notes feed the
-  pack.
+- **Studio:** the tab «ИИ-редактор → Сравнение» shows each task's two versions as A and B in random order; the owner
+  picks the better one or «одинаково», with an optional note. The models stay hidden until every pair is picked; then
+  «Показать модели» opens a table (number, task, pick, winning model) with both versions of a row in a side panel, and
+  the tally per model. «Очистить» removes every pair. The notes feed the pack.
 - **Cost:** about 10 tasks × 2 providers — a few dollars.
 
 ## 4. What else makes Claude write better (ranked by value for cost)
