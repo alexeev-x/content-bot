@@ -149,15 +149,21 @@ ${CARNIVAL_COSMETICS}
 export const IDEAS_OUTPUT_TOKENS = 8000;
 
 const SKIP_IN_DIGEST = /carnival|карнавал|trove|treasure|сокровищ/i;
-const BALANCE = /7\.\d+|gameplay|геймплей|баланс/i;
+/** A balance patch by its title: Steam files «7.41f Gameplay Patch» as news, not as a patch (DEV, 21.10.2026). */
+const BALANCE = /gameplay patch|геймплейн|балансн|\b7\.\d+[a-z]?\b/i;
+const UPDATE = /\bupdate\b|обновлени/i;
 
 const isSteam = (event: SourceEventDto) => event.id.startsWith('steam_news:');
 
-async function events(container: Container, type: 'patch' | 'news'): Promise<SourceEventDto[]> {
+/** The Steam announcements of «Источники», newest first: the recent ones and those from before the watcher. */
+async function events(container: Container): Promise<SourceEventDto[]> {
   const pages = await Promise.all(
-    (['active', 'past'] as const).map((view) => container.sourceEvents.list({ view, type, page: 1, limit: 20 }))
+    (['active', 'past'] as const).map((view) => container.sourceEvents.list({ view, page: 1, limit: 30 }))
   );
-  return pages.flatMap((page) => page.items).filter(isSteam);
+  return pages
+    .flatMap((page) => page.items)
+    .filter(isSteam)
+    .sort((a, b) => b.publishedAt.localeCompare(a.publishedAt));
 }
 
 function digestTask(news: readonly SourceEventDto[]): string {
@@ -176,10 +182,16 @@ ${lines.join('\n')}
 
 /** The set with its source tasks filled in from «Источники»: the same text goes to both models. */
 export async function buildSetTasks(container: Container, onError: (error: unknown) => void): Promise<SetTask[]> {
-  const news = (await events(container, 'news')).filter((event) => !SKIP_IN_DIGEST.test(event.title));
+  const all = await events(container);
+  const news = all.filter(
+    (event) =>
+      event.type === 'news' &&
+      !SKIP_IN_DIGEST.test(event.title) &&
+      !BALANCE.test(event.title) &&
+      !UPDATE.test(event.title)
+  );
   if (news.length < 2) throw new AppError('CONFLICT', 'Too few news in the sources', { reason: 'NO_SOURCES' });
-  const patches = await events(container, 'patch');
-  const patch = patches.find((event) => BALANCE.test(event.title)) ?? patches[0];
+  const patch = all.find((event) => BALANCE.test(event.title));
   if (patch === undefined) throw new AppError('CONFLICT', 'No patch in the sources', { reason: 'NO_SOURCES' });
   const patchTask = await sourceEventWriter({ repo: container.dotaRepository, onError }).task(
     patch.id.slice('steam_news:'.length)
