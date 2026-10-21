@@ -132,12 +132,12 @@ export function getAiUnlinkedScripts(signal?: AbortSignal) {
   return apiRequest('/api/v1/ai/scripts/unlinked', aiUnlinkedScriptsSchema, { signal });
 }
 
-/** The blind provider comparison: the latest pairs and the tally. */
+/** The blind provider comparison: the test set in its order. */
 export function getAiComparisons(signal?: AbortSignal) {
   return apiRequest('/api/v1/ai/comparisons', aiComparisonsSchema, { signal });
 }
 
-/** Queues the latest automatic tasks to be written by both models (paid calls). */
+/** Queues the test set to be written by both models (paid calls). */
 export function startAiComparisons() {
   return apiRequest('/api/v1/ai/comparisons', z.object({ created: z.number().int() }), { method: 'POST', body: {} });
 }

@@ -33,17 +33,21 @@ caching cuts the repeated pack to a tenth after the first call; the measured fig
 
 ## 3. The blind comparison
 
-- **Tasks:** «Запустить сравнение» takes 8 recent writer tasks — up to 3 rubric tasks the owner gave the bot («Учусь
-  играть», «Учу фидить») and the newest automatic ones (source events, series posts) — and writes each with the
-  settings' draft model and with `claude-opus-5-5` through the pipeline the task had: automatic posts get draft, fact
-  check and fix, rubric tasks a draft (`app/workflows/ai-comparison.ts`, one queue job per pair, migrations 0093–0094). Both keys and an OpenAI draft model are
-  needed, else `UNAVAILABLE` NO_KEY.
-- **Studio:** the tab «ИИ-редактор → Сравнение» shows each task's two versions as A and B in random order; the owner
-  picks the better one or «одинаково», with an optional note. The models stay hidden until every pair is picked; then
-  «Показать модели» opens a table (number, task, pick, winning model) with both versions of a row in a side panel, and
-  the tally per model. «Очистить» removes every pair. The notes feed the pack.
-- **Cost:** about 10 tasks × 2 providers — a few dollars.
-
+- **Test set № 2** (owner, 21.10.2026; `app/workflows/ai-comparison-set.ts`): 13 tasks — R01–R06 Reels («Учу фидить»,
+  «Учусь играть», no rubric; a given topic and the model's own each), TG01–TG02 posts on news the model picks from
+  «Источники», TG03 a balance patch from «Источники», TG04–TG05 the «Тёмный карнавал» pair (how to take part; the
+  treasure and the automatons) on the event page's texts, IDEA-01–02 eight topics for each rubric. Topics of the first
+  test (Pudge, Invoker) are excluded.
+- **Writing:** «Запустить тест» (refused while pairs exist, so runs never mix) writes each task with the settings' draft
+  model and with `claude-opus-5-5` through the existing editor: the owner's tasks as a draft, the source posts with the
+  fact check and its fix. A/B is drawn per pair. TG02 and TG05 wait for TG01 and TG04 and get the same model's first post
+  in their task. A failed side is retried once (never on the budget); a question instead of a text is the answer too.
+  Each side keeps its error, cost (all its calls) and time (migrations 0093–0096, one queue job per pair).
+- **Studio:** «ИИ-редактор → Сравнение» shows each pair with its task and sources, A and B, «Лучше A/B», «Одинаково» and
+  an optional note. Models, costs and times stay hidden until every written pair is picked; «Показать модели» then shows
+  wins by format (Reels, Telegram, ideas), cost and time per model and the pairs, both versions of one in a side panel.
+  «Очистить» removes every pair. Nothing from the test reaches the editor's memory.
+- **Cost:** about $4–6 a run.
 ## 4. What else makes Claude write better (ranked by value for cost)
 
 1. **An eval set and prompt iteration.** The surest gain on any model: a set of real tasks with the owner's approved

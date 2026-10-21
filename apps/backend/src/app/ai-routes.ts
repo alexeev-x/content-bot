@@ -272,7 +272,18 @@ export const aiRoutes = new Hono<AppBindings>()
     '/comparisons',
     rateLimit({ name: 'ai-comparison', limit: 3, windowMs: DRAFT_WINDOW_MS }),
     validated('json', z.strictObject({})),
-    async (c) => c.json({ created: await startComparisons(c.get('container')) }, 202)
+    async (c) => {
+      const container = c.get('container');
+      // Only the code: a failed announcement fetch for the patch task never logs its text.
+      const onError = (error: unknown) =>
+        container.logger.warn({
+          component: 'ai_comparison',
+          operation: 'start',
+          status: 'degraded',
+          errorCode: error instanceof Error ? error.name : 'unknown'
+        });
+      return c.json({ created: await startComparisons(container, onError) }, 202);
+    }
   )
   .delete('/comparisons', async (c) => {
     await c.get('container').aiComparisons.clear();

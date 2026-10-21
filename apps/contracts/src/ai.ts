@@ -813,17 +813,31 @@ export type AiDraftChainDto = z.infer<typeof aiDraftChainSchema>;
 export const aiDraftParamsSchema = z.strictObject({ id: z.uuid() });
 
 // The blind provider comparison (owner, 21.10.2026; docs/ai/claude-provider.md §3). Owner-only.
-// POST /api/v1/ai/comparisons → 202 { created }: the latest automatic writer tasks (up to 8), each queued to be written
-//   by the draft model of the settings and by Claude Opus 5.5, in random A/B order. 503 UNAVAILABLE (NO_KEY) when
-//   either provider has no key; refused like any AI request when AI is off or out of budget.
-// GET /api/v1/ai/comparisons → 200 AiComparisonsDto: the latest 30, newest first, with the tally.
-// POST /api/v1/ai/comparisons/{id}/choice { choice, note? } → 200 AiComparisonDto with the models revealed; a later
-//   choice replaces it. 409 CONFLICT (NOT_READY) while it is written.
+// POST /api/v1/ai/comparisons → 202 { created }: the test set (13 tasks), each queued to be written by the draft model
+//   of the settings and by Claude Opus 5.5, A/B drawn per pair. 503 UNAVAILABLE (NO_KEY) when either provider has no
+//   key; 409 CONFLICT (NOT_EMPTY) while pairs exist, (NO_SOURCES) without news or a patch in «Источники».
+// GET /api/v1/ai/comparisons → 200 AiComparisonsDto: the test set in its order; models, costs and times only once every
+//   written pair is picked.
+// POST /api/v1/ai/comparisons/{id}/choice { choice, note? } → 200 AiComparisonDto, still blind; a later choice replaces
+//   it. 409 CONFLICT (NOT_READY) while it is written.
+// DELETE /api/v1/ai/comparisons → 204: every pair removed.
 export const aiComparisonChoiceSchema = z.enum(['a', 'b', 'same']);
+const aiComparisonSideStatsSchema = z.object({
+  /** The error code and stage when this side was not written. */
+  error: z.string().nullable(),
+  costUsd: z.number().nonnegative().nullable(),
+  ms: z.number().int().nonnegative().nullable()
+});
 export const aiComparisonSchema = z.object({
   id: z.uuid(),
-  /** The task's first line (what the post is about). */
+  /** The test set's code (R01…, TG01…, IDEA-01…); null for a pair from before the set. */
+  code: z.string().nullable(),
+  /** What the task is about, in a few words. */
   label: z.string(),
+  /** The whole task both models got: the brief and its source facts. */
+  task: z.string(),
+  /** The side wrote a question instead of a text (the writer asked for facts). */
+  asked: z.object({ a: z.boolean(), b: z.boolean() }),
   status: z.enum(['writing', 'ready', 'failed']),
   /** Why a failed pair was not written: the AI budget (daily cap or month) or another error; null otherwise. */
   failure: z.enum(['budget', 'error']).nullable(),
@@ -832,15 +846,15 @@ export const aiComparisonSchema = z.object({
   choice: aiComparisonChoiceSchema.nullable(),
   note: z.string().nullable(),
   /** Which model wrote A and B: only once every written pair is chosen, so the picks stay blind. */
-  models: z.object({ a: z.string(), b: z.string() }).nullable()
+  models: z.object({ a: z.string(), b: z.string() }).nullable(),
+  /** Each side's error, cost and time: hidden like the models. */
+  stats: z.object({ a: aiComparisonSideStatsSchema, b: aiComparisonSideStatsSchema }).nullable()
 });
 export type AiComparisonDto = z.infer<typeof aiComparisonSchema>;
 export const aiComparisonsSchema = z.object({
   items: z.array(aiComparisonSchema).max(30),
-  /** Every written pair has a choice: the models and the tally are shown. */
-  revealed: z.boolean(),
-  /** Chosen comparisons per winning model, and the ties; empty until `revealed`. */
-  tally: z.object({ wins: z.array(z.object({ model: z.string(), count: z.number().int() })), same: z.number().int() })
+  /** Every written pair has a choice: the models, costs and times are shown. */
+  revealed: z.boolean()
 });
 export type AiComparisonsDto = z.infer<typeof aiComparisonsSchema>;
 export const aiComparisonChoiceInputSchema = z.strictObject({

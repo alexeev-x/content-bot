@@ -6,6 +6,8 @@ import {
   Banner,
   Button,
   ConfirmDialog,
+  Disclosure,
+  DisclosureGroup,
   EmptyState,
   ErrorState,
   Panel,
@@ -24,7 +26,7 @@ import { AiComparisonResults } from './AiComparisonResults';
 const CHOICE: Record<'a' | 'b' | 'same', string> = { a: 'Лучше A', b: 'Лучше B', same: 'Одинаково' };
 const CHOSEN: Record<'a' | 'b' | 'same', string> = { a: 'Выбран A', b: 'Выбран B', same: 'Одинаково' };
 
-function Pair({ item, index }: { item: AiComparisonDto; index: number }) {
+function Pair({ item }: { item: AiComparisonDto }) {
   const choose = useChooseAiComparison();
   const [note, setNote] = useState(item.note ?? '');
   const pick = (choice: 'a' | 'b' | 'same') =>
@@ -32,12 +34,15 @@ function Pair({ item, index }: { item: AiComparisonDto; index: number }) {
   return (
     <li className={styles.pair}>
       <div className={styles.pairHead}>
-        <span className={styles.index} aria-hidden="true">
-          {index}
-        </span>
+        {item.code ? <span className={styles.index}>{item.code}</span> : null}
         <h3 className={styles.label}>{item.label}</h3>
         {item.choice ? <span className={styles.chosen}>{CHOSEN[item.choice]}</span> : null}
       </div>
+      <DisclosureGroup>
+        <Disclosure id={`task-${item.id}`} title="Задание и источники">
+          <p className={styles.task}>{item.task}</p>
+        </Disclosure>
+      </DisclosureGroup>
       {item.status === 'writing' ? (
         <p className={styles.state} aria-live="polite">
           <Spinner size={16} label="" /> Обе модели пишут этот текст…
@@ -45,8 +50,8 @@ function Pair({ item, index }: { item: AiComparisonDto; index: number }) {
       ) : item.status === 'failed' ? (
         <p className={styles.state}>
           {item.failure === 'budget'
-            ? 'Не написано: закончился лимит расходов на ИИ (день или месяц). Поднимите его в «Настройки → ИИ» и нажмите «Новые пары».'
-            : 'Не написано: модель вернула ошибку. Пара не считается; «Новые пары» попробуют это задание снова.'}
+            ? 'Не завершена: закончился лимит расходов на ИИ (день или месяц). Пара не считается.'
+            : 'Не завершена: одна из моделей не ответила и после повтора. Пара не считается; код ошибки откроется вместе с моделями.'}
         </p>
       ) : (
         <>
@@ -60,6 +65,7 @@ function Pair({ item, index }: { item: AiComparisonDto; index: number }) {
               >
                 <div className={styles.side}>
                   <span className={styles.letter}>{side.toUpperCase()}</span>
+                  {item.asked[side] ? <span className={styles.model}>задала вопрос вместо текста</span> : null}
                 </div>
                 <p className={styles.text}>{item[side]}</p>
               </section>
@@ -134,22 +140,19 @@ export function AiComparison() {
               Очистить
             </Button>
           ) : null}
-          <Button
-            variant={hasPairs ? 'secondary' : 'primary'}
-            icon="sparkle"
-            isLoading={start.isPending}
-            onPress={() => start.mutate()}
-          >
-            {hasPairs ? 'Новые пары' : 'Запустить сравнение'}
-          </Button>
+          {hasPairs ? null : (
+            <Button variant="primary" icon="sparkle" isLoading={start.isPending} onPress={() => start.mutate()}>
+              Запустить тест
+            </Button>
+          )}
         </div>
       }
     >
       <div className={styles.intro}>
         <p className={styles.muted}>
-          Обе модели пишут одни и те же задания — посты и рубрики. В каждой паре выберите текст лучше. Какая модель что
-          написала, откроется только после выбора во всех парах. «Новые пары» берут свежие задания, каждый запуск
-          платный.
+          Тест № 2: 13 заданий — Reels, рубрики, посты в Telegram, серия «Тёмного карнавала» и списки идей. Каждое пишут
+          обе модели через редактор; A и B распределены случайно в каждой паре. Выберите текст лучше — модели, цена и
+          время откроются только после выбора во всех парах. Запуск платный, около $4–6.
         </p>
         {data?.revealed && view === 'pick' ? (
           <Banner tone="info" title="Все пары выбраны">
@@ -160,9 +163,13 @@ export function AiComparison() {
           <Banner tone="error" title="Не запустилось">
             {reason === 'NO_KEY'
               ? 'Нужны ключи обеих моделей и модель OpenAI в настройках ИИ.'
-              : start.error instanceof ApiError && start.error.code === 'RATE_LIMIT'
-                ? 'Сравнение уже запускали недавно. Подождите несколько минут.'
-                : 'Сервер не подтвердил запуск. Повторите.'}
+              : reason === 'NOT_EMPTY'
+                ? 'Сначала очистите прошлые пары, чтобы тесты не смешались.'
+                : reason === 'NO_SOURCES'
+                  ? 'В «Источниках» не хватает новостей или патча для постов в Telegram.'
+                  : start.error instanceof ApiError && start.error.code === 'RATE_LIMIT'
+                    ? 'Сравнение уже запускали недавно. Подождите несколько минут.'
+                    : 'Сервер не подтвердил запуск. Повторите.'}
           </Banner>
         ) : null}
         {clear.isError ? (
@@ -172,7 +179,7 @@ export function AiComparison() {
         ) : null}
         {start.isSuccess ? (
           <Banner tone="info" title={`Запущено пар: ${start.data.created}`}>
-            Тексты появятся здесь через несколько минут.
+            Тексты появятся здесь через 5–15 минут; вторые посты серий пишутся после первых.
           </Banner>
         ) : null}
       </div>
@@ -183,13 +190,13 @@ export function AiComparison() {
       ) : !data ? (
         <ErrorState message="Не удалось загрузить сравнение. Повторите." onRetry={() => void list.refetch()} />
       ) : data.items.length === 0 ? (
-        <EmptyState icon="sparkle" title="Сравнений пока нет" description="Нажмите «Запустить сравнение»." />
+        <EmptyState icon="sparkle" title="Пар пока нет" description="Нажмите «Запустить тест»." />
       ) : data.revealed && view === 'results' ? (
         <AiComparisonResults data={data} />
       ) : (
         <ol className={styles.list}>
-          {data.items.map((item, index) => (
-            <Pair key={item.id} item={item} index={index + 1} />
+          {data.items.map((item) => (
+            <Pair key={item.id} item={item} />
           ))}
         </ol>
       )}

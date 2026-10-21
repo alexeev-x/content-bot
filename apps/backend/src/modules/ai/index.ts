@@ -7,6 +7,7 @@ export {
   createD1ComparisonRepository,
   type ComparisonRepository,
   type ComparisonRow,
+  type ComparisonSide,
   type ComparisonTask
 } from './d1-comparison-repository';
 export { createOpenAiProvider } from './openai-provider';
