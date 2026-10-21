@@ -16,6 +16,10 @@ jobs:
   changes:
     name: plan
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      # Reads which earlier run actually deployed (below).
+      actions: read
     outputs:
       base: ${{ steps.plan.outputs.base }}
       initial: ${{ steps.plan.outputs.initial }}
@@ -34,6 +38,7 @@ jobs:
         env:
           BEFORE: ${{ github.event.before }}
           PR_BASE: ${{ github.event.pull_request.base.sha }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
 
@@ -45,6 +50,26 @@ jobs:
           else
             BASE=""
             INITIAL=true
+          fi
+
+          # A develop push compares with the last commit that actually reached DEV, not with the previous push: a run
+          # cancelled by a newer push, followed by a docs-only one, left app changes undeployed (21.10.2026).
+          if [[ -z "${PR_BASE:-}" && "$GITHUB_REF_NAME" == "develop" ]]; then
+            DEPLOYED="$(
+              gh api "repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/runs?branch=develop&event=push&status=success&per_page=30" \
+                --jq '.workflow_runs[] | "\(.id) \(.head_sha)"' 2>/dev/null |
+                while read -r run sha; do
+                  if gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run/jobs" \
+                    --jq '.jobs[] | select(.name == "deploy" and .conclusion == "success") | .name' 2>/dev/null | grep -q deploy; then
+                    echo "$sha"
+                    break
+                  fi
+                done || true
+            )"
+            if [[ -n "$DEPLOYED" ]]; then
+              BASE="$DEPLOYED"
+              INITIAL=false
+            fi
           fi
 
           if [[ -n "$BASE" ]]; then
