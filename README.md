@@ -34,7 +34,7 @@ Local URLs: `npm run dev` prints the address (Vite, usually http://localhost:517
 
 The canonical project environment template is the root `.env.example`. Keep **development-only** values locally; production bot tokens and production destination IDs must not be used for local development.
 
-The Cloudflare Worker currently reads local runtime secrets from `apps/backend/.dev.vars`, so copy the Telegram values from the root template there when running the Worker locally. Both `.env` and `.dev.vars` are gitignored. `BOT_INFO` is optional: connecting the bot stores its identity in D1; set `BOT_INFO` only to override it.
+Keep local secrets in the root `.env` (from the root template): `npm run dev` and `npm run dev:backend` first merge its keys into `apps/backend/.dev.vars`, the only file the local Worker reads (a root key adds or replaces that key; other lines stay). Both `.env` and `.dev.vars` are gitignored. `BOT_INFO` is optional: connecting the bot stores its identity in D1; set `BOT_INFO` only to override it.
 
 Cloudflare deploys are branch-driven: after the owner provisions each environment's D1/vars/secrets, a green push to `develop` deploys Worker `dev` (`dev.alexeevs.workers.dev`); a green push to `main` deploys Worker `app` (`app.alexeevs.workers.dev`). Remote D1 migrations are an explicit owner action: apply every pending migration to an environment's D1 (Actions → D1 migrations) before pushing code that needs it.
 

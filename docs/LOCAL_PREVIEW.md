@@ -29,7 +29,7 @@ The data is real but local: posts, channels and settings live in `apps/backend/.
 
 ## Bot and sending to Telegram (optional)
 
-Without a bot token the admin works but shows «Бот не настроен», and sending to channels is unavailable. To try the bot locally, copy the Telegram values from the root `.env.example` into `apps/backend/.dev.vars` and use the token of the **dev bot and a test channel**, never production ones. `.dev.vars` is gitignored.
+Without a bot token the admin works but shows «Бот не настроен», and sending to channels is unavailable. To try the bot locally, put the Telegram values from the root `.env.example` into the root `.env` (`npm run dev` merges them into `apps/backend/.dev.vars`) and use the token of the **dev bot and a test channel**, never production ones. `.dev.vars` is gitignored.
 
 Scheduled sending is off locally: `PUBLISHING_ENABLED` in `apps/backend/wrangler.jsonc` is `"false"`.
 
