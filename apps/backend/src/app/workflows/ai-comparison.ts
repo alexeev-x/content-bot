@@ -73,6 +73,7 @@ export async function runComparison(
   });
   if (row === null || row.status !== 'writing') return;
   const ids: (string | null)[] = [];
+  let failure: 'budget' | 'error' | null = null;
   try {
     const deps = await createWriterDeps(container, requestId);
     // One after the other: the pair shares nothing but the task, and each has its own deadline.
@@ -90,16 +91,29 @@ export async function runComparison(
         row.mode === 'automatic' ? generateCheckedDraft(deps, input) : generateDraft(deps, input)
       ).catch((error: unknown) => {
         onError(error);
-        return null;
+        return error instanceof AppError && error.details?.reason === 'BUDGET'
+          ? ('budget' as const)
+          : ('error' as const);
       });
-      ids.push(result?.text ? result.generation.id : null);
+      if (typeof result === 'string' || !result.text) failure ??= typeof result === 'string' ? result : 'error';
+      ids.push(typeof result !== 'string' && result.text ? result.generation.id : null);
+      // The budget refused one model: the other would be refused too or make the pair lopsided.
+      if (result === 'budget') break;
     }
   } catch (error) {
     onError(error);
+    failure ??= 'error';
   }
   const [a = null, b = null] = ids;
+  const ready = a !== null && b !== null;
   await container.aiComparisons
-    .finish({ id: row.id, status: a !== null && b !== null ? 'ready' : 'failed', aGenerationId: a, bGenerationId: b })
+    .finish({
+      id: row.id,
+      status: ready ? 'ready' : 'failed',
+      aGenerationId: a,
+      bGenerationId: b,
+      failure: ready ? null : (failure ?? 'error')
+    })
     .catch(onError);
 }
 
@@ -110,6 +124,7 @@ async function toDto(container: Container, row: ComparisonRow): Promise<AiCompar
     id: row.id,
     label: row.label,
     status: row.status,
+    failure: row.failure,
     a: await textOf(row.aGenerationId),
     b: await textOf(row.bGenerationId),
     choice: row.choice,

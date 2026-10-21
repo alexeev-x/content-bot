@@ -34,7 +34,11 @@ function Pair({ item, index }: { item: AiComparisonDto; index: number }) {
           <Spinner size={16} label="" /> Обе модели пишут этот текст…
         </p>
       ) : item.status === 'failed' ? (
-        <p className={styles.state}>Одна из моделей не написала текст — эта пара не считается.</p>
+        <p className={styles.state}>
+          {item.failure === 'budget'
+            ? 'Не написано: закончился лимит расходов на ИИ (день или месяц). Поднимите его в «Настройки → ИИ» и нажмите «Новые пары».'
+            : 'Не написано: модель вернула ошибку. Пара не считается; «Новые пары» попробуют это задание снова.'}
+        </p>
       ) : (
         <>
           <div className={styles.columns}>

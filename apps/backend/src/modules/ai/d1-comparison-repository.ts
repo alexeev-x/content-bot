@@ -15,6 +15,8 @@ export interface ComparisonRow extends ComparisonTask {
   aModel: string;
   bModel: string;
   status: 'writing' | 'ready' | 'failed';
+  /** Why a failed pair was not written; null for older rows. */
+  failure: 'budget' | 'error' | null;
   aGenerationId: string | null;
   bGenerationId: string | null;
   choice: 'a' | 'b' | 'same' | null;
@@ -27,7 +29,7 @@ export interface ComparisonRepository {
     rows: readonly (ComparisonTask & { id: string; label: string; aModel: string; bModel: string; now: number })[]
   ): Promise<void>;
   find(id: string): Promise<ComparisonRow | null>;
-  /** The latest rows, newest first (at most 30). */
+  /** The latest rows, newest first (at most 30); a failed pair whose task was queued again later is left out. */
   list(): Promise<ComparisonRow[]>;
   /** Both versions written (or one failed); only a row still writing changes. */
   finish(input: {
@@ -35,6 +37,7 @@ export interface ComparisonRepository {
     status: 'ready' | 'failed';
     aGenerationId: string | null;
     bGenerationId: string | null;
+    failure: 'budget' | 'error' | null;
   }): Promise<void>;
   /** The latest distinct tasks of automatic drafts (events and series posts), newest first. */
   automaticTasks(limit: number): Promise<ComparisonTask[]>;
@@ -53,6 +56,7 @@ interface Row {
   a_model: string;
   b_model: string;
   status: ComparisonRow['status'];
+  failure: ComparisonRow['failure'];
   a_generation_id: string | null;
   b_generation_id: string | null;
   choice: ComparisonRow['choice'];
@@ -61,7 +65,7 @@ interface Row {
 }
 
 const COLUMNS =
-  'id, label, task, format, mode, a_model, b_model, status, a_generation_id, b_generation_id, choice, note, created_at';
+  'id, label, task, format, mode, a_model, b_model, status, failure, a_generation_id, b_generation_id, choice, note, created_at';
 
 const toRow = (row: Row): ComparisonRow => ({
   id: row.id,
@@ -72,6 +76,7 @@ const toRow = (row: Row): ComparisonRow => ({
   aModel: row.a_model,
   bModel: row.b_model,
   status: row.status,
+  failure: row.failure,
   aGenerationId: row.a_generation_id,
   bGenerationId: row.b_generation_id,
   choice: row.choice,
@@ -109,17 +114,22 @@ export function createD1ComparisonRepository(db: D1Database): ComparisonReposito
     },
     async list() {
       const { results } = await db
-        .prepare(`SELECT ${COLUMNS} FROM ai_comparisons ORDER BY created_at DESC, id LIMIT 30`)
+        .prepare(
+          `SELECT ${COLUMNS} FROM ai_comparisons c
+           WHERE NOT (status = 'failed' AND EXISTS (
+             SELECT 1 FROM ai_comparisons n WHERE n.task = c.task AND n.created_at > c.created_at))
+           ORDER BY created_at DESC, id LIMIT 30`
+        )
         .all<Row>();
       return results.map(toRow);
     },
-    async finish({ id, status, aGenerationId, bGenerationId }) {
+    async finish({ id, status, aGenerationId, bGenerationId, failure }) {
       await db
         .prepare(
-          `UPDATE ai_comparisons SET status = ?2, a_generation_id = ?3, b_generation_id = ?4
+          `UPDATE ai_comparisons SET status = ?2, a_generation_id = ?3, b_generation_id = ?4, failure = ?5
            WHERE id = ?1 AND status = 'writing'`
         )
-        .bind(id, status, aGenerationId, bGenerationId)
+        .bind(id, status, aGenerationId, bGenerationId, failure)
         .run();
     },
     async automaticTasks(limit) {

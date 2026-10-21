@@ -825,6 +825,8 @@ export const aiComparisonSchema = z.object({
   /** The task's first line (what the post is about). */
   label: z.string(),
   status: z.enum(['writing', 'ready', 'failed']),
+  /** Why a failed pair was not written: the AI budget (daily cap or month) or another error; null otherwise. */
+  failure: z.enum(['budget', 'error']).nullable(),
   a: z.string().nullable(),
   b: z.string().nullable(),
   choice: aiComparisonChoiceSchema.nullable(),
