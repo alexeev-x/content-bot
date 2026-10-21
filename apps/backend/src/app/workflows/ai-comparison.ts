@@ -1,5 +1,12 @@
 import type { AiComparisonDto, AiComparisonsDto } from '@alexeev/contracts';
-import { generateCheckedDraft, providerOfModel, readAiSettings, type ComparisonRow } from '../../modules/ai';
+import {
+  generateCheckedDraft,
+  generateDraft,
+  providerOfModel,
+  readAiSettings,
+  type ComparisonRow,
+  type ComparisonTask
+} from '../../modules/ai';
 import { AppError } from '../../shared/app-error';
 import { createWriterDeps } from '../bot/writer-deps';
 import type { Container } from '../container';
@@ -10,9 +17,20 @@ import type { Container } from '../container';
 
 export const CLAUDE_MODEL = 'claude-opus-5-5';
 const TASKS = 8;
+/** Rubric scripts among the pairs (owner, 21.10.2026: the rubrics are compared too); the rest are automatic posts. */
+const RUBRIC_TASKS = 3;
 const WRITE_TIMEOUT_MS = 180_000;
 
-const labelOf = (task: string) => (task.split('\n')[0] ?? task).replace(/^Повод:\s*/, '').slice(0, 200);
+const RUBRIC_LABEL: Partial<Record<ComparisonTask['format'], string>> = {
+  igrat: 'Учусь играть',
+  fidit: 'Учу фидить'
+};
+
+const labelOf = ({ task, format }: ComparisonTask) => {
+  const line = (task.split('\n')[0] ?? task).replace(/^Повод:\s*/, '');
+  const rubric = RUBRIC_LABEL[format];
+  return (rubric === undefined ? line : `${rubric} · ${line}`).slice(0, 200);
+};
 
 /** Queues the comparisons; the number queued. */
 export async function startComparisons(container: Container, random: () => number = Math.random): Promise<number> {
@@ -21,14 +39,16 @@ export async function startComparisons(container: Container, random: () => numbe
     settings.draftModel !== null && providerOfModel(settings.draftModel) === 'openai' ? settings.draftModel : null;
   if (other === null || !container.aiKeys.openai || !container.aiKeys.anthropic)
     throw new AppError('UNAVAILABLE', 'Both providers need a key and an OpenAI draft model', { reason: 'NO_KEY' });
-  const tasks = await container.aiComparisons.automaticTasks(TASKS);
+  const rubrics = await container.aiComparisons.rubricTasks(RUBRIC_TASKS);
+  const automatic = await container.aiComparisons.automaticTasks(TASKS - rubrics.length);
+  const tasks = [...automatic, ...rubrics];
   const now = container.clock.now();
   const rows = tasks.map((task) => {
     const claudeFirst = random() < 0.5;
     return {
+      ...task,
       id: container.newId(),
       label: labelOf(task),
-      task,
       aModel: claudeFirst ? CLAUDE_MODEL : other,
       bModel: claudeFirst ? other : CLAUDE_MODEL,
       now
@@ -57,14 +77,18 @@ export async function runComparison(
     const deps = await createWriterDeps(container, requestId);
     // One after the other: the pair shares nothing but the task, and each has its own deadline.
     for (const model of [row.aModel, row.bModel]) {
-      const result = await generateCheckedDraft(deps, {
-        format: 'telegram',
-        mode: 'automatic',
-        source: 'studio',
+      const input = {
+        format: row.format,
+        mode: row.mode,
+        source: 'studio' as const,
         task: row.task,
         model,
         signal: AbortSignal.timeout(WRITE_TIMEOUT_MS)
-      }).catch((error: unknown) => {
+      };
+      // The pipeline the task had in the bot: automatic posts get the fact check, the owner's rubric tasks do not.
+      const result = await (
+        row.mode === 'automatic' ? generateCheckedDraft(deps, input) : generateDraft(deps, input)
+      ).catch((error: unknown) => {
         onError(error);
         return null;
       });

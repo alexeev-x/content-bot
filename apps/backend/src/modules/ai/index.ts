@@ -6,7 +6,8 @@ export { checkFacts, generateCheckedDraft } from './fact-check';
 export {
   createD1ComparisonRepository,
   type ComparisonRepository,
-  type ComparisonRow
+  type ComparisonRow,
+  type ComparisonTask
 } from './d1-comparison-repository';
 export { createOpenAiProvider } from './openai-provider';
 export { createAnthropicProvider } from './anthropic-provider';

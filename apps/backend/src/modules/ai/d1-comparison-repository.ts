@@ -1,9 +1,17 @@
-// The provider comparison (migration 0093, docs/ai/claude-provider.md §3): each row is one task written by two models.
+// The provider comparison (migrations 0093–0094, docs/ai/claude-provider.md §3): each row is one task written by two
+// models, in the writer format and mode of the task it came from.
 
-export interface ComparisonRow {
+export type ComparisonFormat = 'fidit' | 'igrat' | 'standalone' | 'telegram';
+
+export interface ComparisonTask {
+  task: string;
+  format: ComparisonFormat;
+  mode: 'direct' | 'automatic';
+}
+
+export interface ComparisonRow extends ComparisonTask {
   id: string;
   label: string;
-  task: string;
   aModel: string;
   bModel: string;
   status: 'writing' | 'ready' | 'failed';
@@ -16,7 +24,7 @@ export interface ComparisonRow {
 
 export interface ComparisonRepository {
   create(
-    rows: readonly { id: string; label: string; task: string; aModel: string; bModel: string; now: number }[]
+    rows: readonly (ComparisonTask & { id: string; label: string; aModel: string; bModel: string; now: number })[]
   ): Promise<void>;
   find(id: string): Promise<ComparisonRow | null>;
   /** The latest rows, newest first (at most 30). */
@@ -29,7 +37,9 @@ export interface ComparisonRepository {
     bGenerationId: string | null;
   }): Promise<void>;
   /** The latest distinct tasks of automatic drafts (events and series posts), newest first. */
-  automaticTasks(limit: number): Promise<string[]>;
+  automaticTasks(limit: number): Promise<ComparisonTask[]>;
+  /** The latest distinct rubric tasks the owner gave the bot that ended in a draft, newest first. */
+  rubricTasks(limit: number): Promise<ComparisonTask[]>;
   /** The owner's verdict; a later one replaces it. False when the row is not ready. */
   choose(input: { id: string; choice: 'a' | 'b' | 'same'; note: string | null; now: number }): Promise<boolean>;
 }
@@ -38,6 +48,8 @@ interface Row {
   id: string;
   label: string;
   task: string;
+  format: ComparisonFormat;
+  mode: 'direct' | 'automatic';
   a_model: string;
   b_model: string;
   status: ComparisonRow['status'];
@@ -48,12 +60,15 @@ interface Row {
   created_at: number;
 }
 
-const COLUMNS = 'id, label, task, a_model, b_model, status, a_generation_id, b_generation_id, choice, note, created_at';
+const COLUMNS =
+  'id, label, task, format, mode, a_model, b_model, status, a_generation_id, b_generation_id, choice, note, created_at';
 
 const toRow = (row: Row): ComparisonRow => ({
   id: row.id,
   label: row.label,
   task: row.task,
+  format: row.format,
+  mode: row.mode,
   aModel: row.a_model,
   bModel: row.b_model,
   status: row.status,
@@ -72,9 +87,19 @@ export function createD1ComparisonRepository(db: D1Database): ComparisonReposito
         rows.map((row) =>
           db
             .prepare(
-              `INSERT INTO ai_comparisons (id, label, task, a_model, b_model, created_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6)`
+              `INSERT INTO ai_comparisons (id, label, task, format, mode, a_model, b_model, created_at)
+               VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)`
             )
-            .bind(row.id, row.label.slice(0, 200), row.task.slice(0, 4000), row.aModel, row.bModel, row.now)
+            .bind(
+              row.id,
+              row.label.slice(0, 200),
+              row.task.slice(0, 4000),
+              row.format,
+              row.mode,
+              row.aModel,
+              row.bModel,
+              row.now
+            )
         )
       );
     },
@@ -105,7 +130,18 @@ export function createD1ComparisonRepository(db: D1Database): ComparisonReposito
         )
         .bind(Math.min(limit, 20))
         .all<{ task: string }>();
-      return results.map((row) => row.task);
+      return results.map((row) => ({ task: row.task, format: 'telegram', mode: 'automatic' }));
+    },
+    async rubricTasks(limit) {
+      const { results } = await db
+        .prepare(
+          `SELECT task, format FROM ai_generations
+           WHERE format IN ('igrat', 'fidit') AND kind = 'draft' AND source = 'bot' AND (result IS NULL OR result = 'draft')
+           GROUP BY task ORDER BY MAX(created_at) DESC LIMIT ?1`
+        )
+        .bind(Math.min(limit, 20))
+        .all<{ task: string; format: 'igrat' | 'fidit' }>();
+      return results.map((row) => ({ task: row.task, format: row.format, mode: 'direct' }));
     },
     async choose({ id, choice, note, now }) {
       const result = await db

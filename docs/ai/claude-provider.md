@@ -33,9 +33,10 @@ caching cuts the repeated pack to a tenth after the first call; the measured fig
 
 ## 3. The blind comparison
 
-- **Tasks:** «Запустить сравнение» takes the 8 newest automatic writer tasks (source events, series posts) and writes
-  each with the settings' draft model and with `claude-opus-5-5` through the same pipeline: draft, fact check, fix
-  (`app/workflows/ai-comparison.ts`, one queue job per pair, migration 0093). Both keys and an OpenAI draft model are
+- **Tasks:** «Запустить сравнение» takes 8 recent writer tasks — up to 3 rubric tasks the owner gave the bot («Учусь
+  играть», «Учу фидить») and the newest automatic ones (source events, series posts) — and writes each with the
+  settings' draft model and with `claude-opus-5-5` through the pipeline the task had: automatic posts get draft, fact
+  check and fix, rubric tasks a draft (`app/workflows/ai-comparison.ts`, one queue job per pair, migrations 0093–0094). Both keys and an OpenAI draft model are
   needed, else `UNAVAILABLE` NO_KEY.
 - **Studio:** the tab «ИИ-редактор → Сравнение» shows each task's two versions as A and B in random order, the provider hidden; the
   owner picks the better one or «одинаково», with an optional note. The tally per provider decides; the notes feed the
