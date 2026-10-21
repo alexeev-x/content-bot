@@ -37,6 +37,8 @@ show in Аналитика → «Рубрики Telegram».
 
 ## 3. News
 
+Claude joins as a second provider for a blind comparison (owner, 21.10.2026); plan and reference: `docs/ai/claude-provider.md`. Waiting for the owner's Anthropic key.
+
 The AI turns new source events into news posts in the owner's voice: what happened, why it matters to a player.
 
 ## Next: video
