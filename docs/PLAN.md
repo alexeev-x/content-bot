@@ -18,6 +18,11 @@ The AI makes the Telegram channel's content itself: news and rubric posts drafte
   (Trove of Terror) and never the price. To try first: Steam's item schema and asset prices with the owner's free Steam
   Web API key (`STEAM_WEB_API_KEY`), which could give them at the announcement. Otherwise two posts (owner): the news at
   once, then the sets with images (two posts when there are many), the last one ending with the price.
+- An event with its own dota2.com page (e.g. dota2.com/darkcarnival) becomes a series of posts, not one (owner,
+  21.10.2026): the page's own texts — Valve's Russian translation among them (story, how it works, rewards, the
+  treasure's sets, personas) — and images are read; the AI first plans the series (how many posts, one topic each, in
+  a logical order, no repeats, which images go where), then writes each post; they go out spaced in time. A trailer
+  is linked when the page has one. Without such a page (Trove of Terror) the post comes from the announcement.
 - Sources come in two kinds (owner, 21.10.2026): important ones, whose news the studio writes and publishes by itself
   as soon as it appears, and scheduled rubrics (e.g. a weekly «worst heroes» from a stats API). Publishing without the
   owner is decided (`docs/DECISIONS.md`, 21.10.2026: Valve posts at the owner's night); its safeguards come with it.
