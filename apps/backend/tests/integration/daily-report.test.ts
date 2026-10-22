@@ -12,9 +12,11 @@ import {
   createD1ContentAnalyticsRepository,
   createD1ContentDailyReportRepository,
   createD1ContentForecastRepository,
+  createD1ContentVideoNameRepository,
   raiseDailyReport,
   releaseDailyReport,
-  releaseOverdueReports
+  releaseOverdueReports,
+  videoTitleKey
 } from '../../src/modules/content-analytics';
 import { zoned } from '../../src/modules/content-analytics/alerts';
 import type { Collection } from '../../src/modules/content-analytics/types';
@@ -121,38 +123,35 @@ describe('daily report', () => {
     expect(await raiseDailyReport({ ...deps, hour: 0 })).toEqual({ reportId: null });
   });
 
-  it('releases once with the review; a late second release changes nothing', async () => {
+  it('releases once with the review in the layout of 22.10.2026; a late second release changes nothing', async () => {
     const clock = fakeClock();
     await collectHours(clock, 26, 0);
     const deps = repos();
     const { reportId } = await raiseDailyReport({ ...deps, clock, timezone: ZONE, hour: 0 });
-    const release = { reports: deps.reports, alerts: deps.alerts, now: clock.now() };
+    const names = createD1ContentVideoNameRepository(testDb());
+    // The video's short name, stored once by an earlier review; the others show their title cut to the column.
+    await names.saveAi([{ key: videoTitleKey('Ролик <0> | Учу фидить в доту'), name: 'Оракл' }], clock.now());
+    const release = { reports: deps.reports, alerts: deps.alerts, names, now: clock.now() };
     expect(
       await releaseDailyReport(release, { id: reportId!, review: REVIEW, reviewError: null, model: 'gpt-6.1-sol' })
     ).toBe(true);
     expect(
       await releaseDailyReport(release, { id: reportId!, review: null, reviewError: 'REVIEW_TIMEOUT', model: null })
     ).toBe(false);
-    const [alert] = await alertRows();
-    // The layout of 20.10.2026: the main fact, the tables, then the numbered conclusions, question and steps.
-    expect(alert?.html).toContain('<b>Главное:</b> День ровный.');
-    // The conclusions name the video by its key; the message shows its title as a link.
-    expect(alert?.html).toMatch(
-      /<b>🧠 Выводы<\/b>\n1\. <a href="[^"]+">[^<]+<\/a> \(YouTube\) растёт стабильно <i>\(похоже\)<\/i>/u
+    const html = (await alertRows())[0]?.html ?? '';
+    // The day first: the channel had no post, the views of the day.
+    expect(html).toContain('<b>Telegram:</b> за сутки постов не было.');
+    expect(html).toContain('Просмотры за сутки: YouTube +7.2к');
+    // Every video of the month on one line, TikTok and YouTube side by side, by its short name and age.
+    expect(html).toMatch(/<b>Ролики за месяц<\/b>\n<pre>/u);
+    expect(html).toMatch(/Оракл\s+\d+д\s+—\s+—\s+3\.5к\s+\+2\.4к/u);
+    expect(html).toContain('<i>TikTok: данных ещё нет.</i>');
+    // Only what is new: the video named by its key shows as its name and link; no main line, question or steps.
+    expect(html).toMatch(
+      /<b>🧠 Что нового<\/b>\n• <a href="[^"]+">Оракл<\/a> \(YouTube\) растёт стабильно\n• Гипотезы без изменений\./u
     );
-    expect(alert?.html).toContain('❓ <b>Вопрос:</b> Почему <a href=');
-    expect(alert?.html).toContain('🎬 <b>Дальше</b>\n• Начать с косяка.');
-    expect(alert?.html.indexOf('<b>YouTube</b>')).toBeLessThan(alert?.html.indexOf('🧠 Выводы') ?? 0);
-    // One monospace table per platform with likes (YouTube) and the status, the row numbers as links below it.
-    expect(alert?.html).toMatch(
-      /<b>YouTube<\/b>\n<pre>#\s+Всего\s+\+сут\s+♥%\s+Статус\s+Ролик\n1\s+3\.5к\s+\+2\.4к\s+—\s+\S+\s+Ролик &lt;0&gt;\n/u
-    );
-    expect(alert?.html).toContain('<i>♥% — лайки от просмотров</i>');
-    expect(alert?.html).toContain('За сутки: YouTube +7.2к');
-    expect(alert?.html).toContain('Открыть: <a href="https://youtube.com/shorts/0">1</a> · ');
-    expect(alert?.html).toContain('<b>TikTok</b>\nДанных ещё нет: источник не собирался.');
-    expect(alert?.html).not.toMatch(/▶️|🎵|📊|📋/u);
-    expect(Array.from(alert?.html ?? '').length).toBeLessThan(4096);
+    expect(html).not.toMatch(/Главное|❓|🎬|♥%/u);
+    expect(Array.from(html).length).toBeLessThan(4096);
     expect(await reportRows()).toMatchObject([{ status: 'reviewed', reviewError: null }]);
   });
 
@@ -161,14 +160,14 @@ describe('daily report', () => {
     await collectHours(clock, 3, 0);
     const deps = repos();
     const { reportId } = await raiseDailyReport({ ...deps, clock, timezone: ZONE, hour: 0 });
-    const long = { ...REVIEW, main: 'очень длинно '.repeat(400) };
+    const long = { ...REVIEW, points: [{ text: 'очень длинно '.repeat(400), confidence: 'low' as const }] };
     expect(
       await releaseDailyReport(
         { reports: deps.reports, alerts: deps.alerts, now: clock.now() },
         { id: reportId!, review: long, reviewError: null, model: 'gpt-6.1-sol' }
       )
     ).toBe(true);
-    expect((await alertRows())[0]?.html).toContain('🧠 Разбор недоступен: разбор не влез в сообщение.');
+    expect((await alertRows())[0]?.html).toContain('Разбор недоступен: разбор не влез в сообщение.');
     expect(await reportRows()).toMatchObject([{ status: 'unreviewed', reviewError: 'AI_TOO_LONG' }]);
   });
 
@@ -196,7 +195,7 @@ describe('daily report', () => {
     });
     expect(await releaseOverdueReports(at(29))).toBe(0);
     expect(await releaseOverdueReports(at(31))).toBe(1);
-    expect((await alertRows())[0]?.html).toContain('🧠 Разбор недоступен: не успел за 30 минут.');
+    expect((await alertRows())[0]?.html).toContain('Разбор недоступен: не успел за 30 минут.');
     expect(await reportRows()).toMatchObject([{ status: 'unreviewed', reviewError: 'REVIEW_TIMEOUT' }]);
   });
 
@@ -374,7 +373,7 @@ describe('daily report on the Cron tick and the review job', () => {
       (container) => ({ ...container, contentSources: sources }) as typeof container
     );
     await send.run();
-    expect(send.ownerMessages.some((message) => message.html.includes('🧠 Выводы'))).toBe(true);
+    expect(send.ownerMessages.some((message) => message.html.includes('🧠 Что нового'))).toBe(true);
     expect((await alertRows())[0]?.status).toBe('sent');
   });
 
@@ -388,7 +387,7 @@ describe('daily report on the Cron tick and the review job', () => {
     const [report] = await reportRows();
     expect(report?.status).toBe('unreviewed');
     expect(report?.reviewError).toMatch(/^AI_/);
-    expect((await alertRows())[0]?.html).toContain('🧠 Разбор недоступен');
+    expect((await alertRows())[0]?.html).toContain('Разбор недоступен');
   });
 });
 
@@ -427,7 +426,7 @@ describe('report history in the studio (AI plan P8; SYS-03, SYS-04)', () => {
           status: 'reviewed',
           model: 'gpt-6.1-sol',
           costUsd: 0.0125,
-          headline: 'День ровный.'
+          headline: 'Ролик <0> (YouTube) растёт стабильно'
         }
       ],
       nextCursor: null
@@ -435,8 +434,8 @@ describe('report history in the studio (AI plan P8; SYS-03, SYS-04)', () => {
     const detail = contentReportDetailSchema.parse(
       await (await api.request(`/api/v1/content-analytics/reports/${encodeURIComponent(reportId!)}`)).json()
     );
-    expect(detail.text).toContain('День ровный.');
-    expect(detail.text).toContain('Ролик <0>');
+    expect(detail.text).toContain('растёт стабильно');
+    expect(detail.text).toContain('Ролики за месяц');
     // Without their links the «Открыть: 1 · 2» rows would be bare numbers.
     expect(detail.text).not.toContain('Открыть:');
     expect(detail.text).not.toMatch(/<\/?[a-z]+>/);
@@ -447,7 +446,7 @@ describe('report history in the studio (AI plan P8; SYS-03, SYS-04)', () => {
     const tables = detail.blocks.filter((block) => block.kind === 'table');
     expect(tables.length).toBeGreaterThan(0);
     expect(tables.every((block) => block.text.includes('Ролик'))).toBe(true);
-    expect(detail.blocks.some((block) => block.kind === 'text' && block.text.includes('День ровный.'))).toBe(true);
+    expect(detail.blocks.some((block) => block.kind === 'text' && block.text.includes('растёт стабильно'))).toBe(true);
 
     await expectError(await api.request('/api/v1/content-analytics/reports', { token: null }), 401, 'UNAUTHORIZED');
     await expectError(await api.request('/api/v1/content-analytics/reports?cursor=bad'), 400, 'VALIDATION_ERROR');

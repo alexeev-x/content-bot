@@ -13,11 +13,11 @@ const DAY_PAIR_TOLERANCE_MS = 2 * HOUR_MS;
 const WINDOW_MIN_MS = 6 * HOUR_MS;
 const WINDOW_MAX_MS = 48 * HOUR_MS;
 /**
- * A reading is stale after this long: videos under 72 h are read about hourly, older ones daily
+ * A reading is stale after this long: videos under 72 h are read about hourly, older ones every 3 hours
  * (d1-content-analytics-repository.ts), so each gets room for one missed collection.
  */
 const STALE_YOUNG_MS = 3 * HOUR_MS;
-const STALE_OLD_MS = 26 * HOUR_MS;
+const STALE_OLD_MS = 7 * HOUR_MS;
 const YOUNG_MS = 72 * HOUR_MS;
 /** A format comparison is evidence only from five comparable videos (architecture item 1). */
 const STRONG_COMPARISON_ITEMS = 5;

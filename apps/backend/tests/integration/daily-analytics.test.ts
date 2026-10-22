@@ -49,7 +49,7 @@ describe('daily analytics', () => {
     let fail = false;
     const sources = youtube(async () => {
       if (fail) throw new ContentCollectError('YOUTUBE_HTTP');
-      // Seven videos a day apart: the oldest is out of the six; views grow by 100 an hour.
+      // Seven videos a day apart, all of the last 30 days, so all are rows; views grow by 100 an hour.
       return {
         followers: 1000,
         items: Array.from({ length: 7 }, (_, index) => video(index, START - (index + 1) * 24 * HOUR, 1000 + 100 * hour))
@@ -65,7 +65,7 @@ describe('daily analytics', () => {
     expect(daily.asOf).toBe(clock.now());
     const [yt, tt] = daily.platforms;
     expect(yt?.state).toBe('ok');
-    expect(yt?.rows.map((row) => row.id)).toEqual([0, 1, 2, 3, 4, 5].map((index) => `youtube:${index}`));
+    expect(yt?.rows.map((row) => row.id)).toEqual([0, 1, 2, 3, 4, 5, 6].map((index) => `youtube:${index}`));
     // The newest video is read hourly: a real 24-hour pair, 100 views an hour.
     expect(yt?.rows[0]).toMatchObject({
       views: 1000 + 100 * 25,

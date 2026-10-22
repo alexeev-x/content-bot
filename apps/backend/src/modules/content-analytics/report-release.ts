@@ -1,6 +1,13 @@
 import type { ContentAlertRepository } from './d1-content-alerts-repository';
 import type { ContentDailyReportRepository, DailyReportRow } from './d1-content-daily-reports-repository';
-import { type DailyReportData, type DailyReview, dailyReportHtml, dailyReviewFacts } from './daily-report';
+import {
+  type DailyReportData,
+  type DailyReview,
+  dailyReportHtml,
+  dailyReviewFacts,
+  reportTitleKeys
+} from './daily-report';
+import type { ContentVideoNameRepository } from './d1-content-video-names-repository';
 import { type WeeklyData, weeklyReportHtml, weeklyReviewFacts } from './weekly-report';
 
 // Releasing a stored daily or weekly report (AI plan P6): the review job or the deadline turns it into its one
@@ -63,7 +70,7 @@ export async function dailyReviewInput(
   if (report === null || report.status !== 'waiting') return null;
   const data = dataOf(report);
   return isWeekly(data)
-    ? { ...weeklyReviewFacts(data, report.timezone), period: 'week' }
+    ? { ...weeklyReviewFacts(data, report.timezone), titles: [], period: 'week' }
     : { ...dailyReviewFacts(data), period: 'day' };
 }
 
@@ -86,6 +93,8 @@ export async function releaseDailyReport(
   deps: {
     reports: ContentDailyReportRepository;
     alerts: Pick<ContentAlertRepository, 'insert'>;
+    /** Short names of the videos (migration 0102); without it a title is cut to the column. */
+    names?: Pick<ContentVideoNameRepository, 'read'>;
     now: number;
   },
   input: {
@@ -99,10 +108,11 @@ export async function releaseDailyReport(
   const report = await deps.reports.find(input.id);
   if (report === null || report.status !== 'waiting') return false;
   const data = dataOf(report);
+  const names = isWeekly(data) || deps.names === undefined ? undefined : await deps.names.read(reportTitleKeys(data));
   const render = (review: DailyReview | null, reviewError: string | null) =>
     isWeekly(data)
       ? weeklyReportHtml({ data, timezone: report.timezone, review, reviewError })
-      : dailyReportHtml({ data, timezone: report.timezone, review, reviewError });
+      : dailyReportHtml({ data, timezone: report.timezone, review, reviewError, ...(names ? { names } : {}) });
   let { review, reviewError } = input;
   let html = render(review, reviewError);
   // A review that does not fit would make Telegram refuse the whole message: the numbers go alone instead.
@@ -143,6 +153,7 @@ export async function releaseDailyReport(
 export async function releaseOverdueReports(deps: {
   reports: ContentDailyReportRepository;
   alerts: Pick<ContentAlertRepository, 'insert'>;
+  names?: Pick<ContentVideoNameRepository, 'read'>;
   now: number;
 }): Promise<number> {
   let released = 0;

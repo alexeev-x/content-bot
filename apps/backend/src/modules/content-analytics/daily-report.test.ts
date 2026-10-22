@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import type { DailyAnalytics } from './daily-analytics';
-import { compactCount, dailyReportHtml, dailyReviewFacts, growthText } from './daily-report';
+import { type DailyAnalytics, followerCounts, weekViewsOf } from './daily-analytics';
+import { compactCount, dailyReportHtml, dailyReviewFacts, growthText, nextMilestone } from './daily-report';
 import { fitMessage, visibleLength } from './report-release';
 
 // The report's text (plan §4.2, owner 19.10.2026: a presentation with the AI review): a wrong suffix, a growth
@@ -105,5 +105,45 @@ describe('a report that does not fit one Telegram message (review 19.10.2026)', 
     expect(fitted.split('<pre>').length).toBe(fitted.split('</pre>').length);
     expect(fitted).toContain('целиком отчёт в Студии');
     expect(fitMessage('<b>коротко</b>')).toBe('<b>коротко</b>');
+  });
+});
+
+describe('the numbers of the layout of 22.10.2026', () => {
+  const DAY = 24 * 60 * 60 * 1000;
+
+  it('gives an older video its week from the reading about 7 days back, scaled to 7 days, else nothing', () => {
+    const latest = { views: 339_099, observedAt: 100 * DAY };
+    const reading = (daysBack: number, views: number) => ({ itemId: 'x', observedAt: (100 - daysBack) * DAY, views });
+    expect(weekViewsOf(latest, [reading(7, 331_676)])).toBe(7423);
+    // A reading 8 days back is scaled down to 7 days; none between 3 and 14 days back gives no week.
+    expect(weekViewsOf(latest, [reading(8, 330_000)])).toBe(Math.round((9099 * 7) / 8));
+    expect(weekViewsOf(latest, [reading(2, 330_000), reading(16, 300_000)])).toBeNull();
+    // A counter that went down is no growth.
+    expect(weekViewsOf(latest, [reading(7, 400_000)])).toBeNull();
+  });
+
+  it('says a milestone only when it is news: by the first digit from 100к, else 10к, 20к, 50к, 100к', () => {
+    expect([594_198, 163_220, 9_400, 13_314, 4_000, 2_761].map(nextMilestone)).toEqual([
+      600_000,
+      200_000,
+      10_000,
+      20_000,
+      null,
+      null
+    ]);
+  });
+
+  it('gives each platform its follower count and the change from the day before only', () => {
+    expect(
+      followerCounts([
+        { platform: 'telegram', day: '2026-10-21', followers: 832 },
+        { platform: 'telegram', day: '2026-10-22', followers: 830 },
+        { platform: 'tiktok', day: '2026-10-19', followers: 8600 },
+        { platform: 'tiktok', day: '2026-10-22', followers: 8675 }
+      ])
+    ).toEqual([
+      { platform: 'telegram', count: 830, change: -2 },
+      { platform: 'tiktok', count: 8675, change: null }
+    ]);
   });
 });

@@ -7,15 +7,17 @@ import {
 import type { CollectedItem, ContentPlatform, VideoFormat } from './types';
 
 const HOUR_MS = 60 * 60 * 1000;
-/** Items younger than this get an hourly snapshot; older ones a daily one. */
+/** Items younger than this get an hourly snapshot; older ones one every 3 hours. */
 export const EARLY_WINDOW_MS = 72 * HOUR_MS;
 // Guards below one period, so a tick that runs a few minutes early still records its snapshot.
 const HOURLY_GUARD_MS = 50 * 60 * 1000;
-const DAILY_GUARD_MS = 23 * HOUR_MS;
+// Every 3 hours, not daily (owner, 22.10.2026): a daily snapshot fell at the hour of the video's publication, so the
+// morning report's «+сут» of a video published later in the day was a day old.
+const MID_GUARD_MS = 3 * HOUR_MS - 10 * 60 * 1000;
 /** Items older than this change little: one snapshot a week keeps the history bounded. */
 const LATE_WINDOW_MS = 30 * 24 * HOUR_MS;
 const WEEKLY_GUARD_MS = 7 * 24 * HOUR_MS - HOUR_MS;
-/** Twelve videos read about hourly over two days, with room: the daily table's snapshot bound. */
+/** Up to 24 videos read every 3 hours (the youngest hourly) over two days, with room: the daily table's bound. */
 const DAILY_SNAPSHOT_LIMIT = 800;
 /** Ages (hours) at which an item's views are kept for «at the same age» comparisons. */
 export const CHECKPOINT_HOURS = [1, 3, 6, 12, 24, 48, 72] as const;
@@ -256,7 +258,7 @@ export function createD1ContentAnalyticsRepository(db: D1Database): ContentAnaly
                                                 WHEN j.value ->> 'published' > ?2 - ?6 THEN ?5 ELSE ?7 END
              )`
           )
-          .bind(json, now, EARLY_WINDOW_MS, HOURLY_GUARD_MS, DAILY_GUARD_MS, LATE_WINDOW_MS, WEEKLY_GUARD_MS),
+          .bind(json, now, EARLY_WINDOW_MS, HOURLY_GUARD_MS, MID_GUARD_MS, LATE_WINDOW_MS, WEEKLY_GUARD_MS),
         // After the upsert, so `views` is this collection's reading; `observed_at = now` keeps it to the items
         // this run actually read (a post missing from the source keeps its old, frozen count out).
         db
@@ -382,7 +384,7 @@ export function createD1ContentAnalyticsRepository(db: D1Database): ContentAnaly
              WHERE item_id IN (SELECT value FROM json_each(?1)) AND observed_at >= ?2
              ORDER BY observed_at DESC LIMIT ${DAILY_SNAPSHOT_LIMIT}`
           )
-          .bind(JSON.stringify(ids.slice(0, 12)), from)
+          .bind(JSON.stringify(ids.slice(0, 30)), from)
       ]);
       return {
         sources: (sources?.results ?? []) as SourceRow[],

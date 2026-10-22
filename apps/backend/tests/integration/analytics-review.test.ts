@@ -87,7 +87,7 @@ describe('analytics review', () => {
           steps: ['Начать с косяка.']
         })
       ),
-      { facts: FACTS, videos: ['Y1'], signal: AbortSignal.timeout(1000) }
+      { facts: FACTS, videos: ['Y1'], period: 'week', signal: AbortSignal.timeout(1000) }
     );
     expect(result.errorCode).toBeNull();
     expect(result.review).toEqual({
@@ -102,6 +102,7 @@ describe('analytics review', () => {
     const result = await writeAnalyticsReview(deps(answering({ ...base, main: 'Завтра будет 50к.' })), {
       facts: FACTS,
       videos: ['Y1'],
+      period: 'week',
       signal: AbortSignal.timeout(1000)
     });
     expect(result).toMatchObject({ review: null, errorCode: 'AI_NUMBERS_UNVERIFIED' });
@@ -124,7 +125,7 @@ describe('analytics review', () => {
     ]);
   });
 
-  it('keeps the day to four points and two steps, the week to six and three', async () => {
+  it('keeps the day to four points without a main line, question or steps (22.10.2026), the week to six and three', async () => {
     const many = {
       main: 'Неделя.',
       points: Array.from({ length: 6 }, (_, index) => point(`вывод номер ${index + 1}`)),
@@ -137,7 +138,7 @@ describe('analytics review', () => {
       signal: AbortSignal.timeout(1000)
     });
     expect(day.review?.points).toHaveLength(4);
-    expect(day.review?.steps).toHaveLength(2);
+    expect(day.review).toMatchObject({ main: '', question: '', steps: [] });
     const week = await writeAnalyticsReview(deps(answering(many)), {
       facts: FACTS,
       videos: ['Y1'],
@@ -146,5 +147,29 @@ describe('analytics review', () => {
     });
     expect(week.review?.points).toHaveLength(6);
     expect(week.review?.steps).toHaveLength(3);
+  });
+
+  it('keeps the short names of listed videos only, short and never one name twice (22.10.2026)', async () => {
+    const result = await writeAnalyticsReview(
+      deps(
+        answering({
+          ...base,
+          names: [
+            { id: 'N1', name: 'Оракл' },
+            { id: 'N2', name: 'оракл' },
+            { id: 'N3', name: 'Слишком длинное имя ролика' },
+            { id: 'N9', name: 'Чужой' }
+          ]
+        })
+      ),
+      {
+        facts: FACTS,
+        videos: ['Y1'],
+        naming: ['N1', 'N2', 'N3'].map((id) => ({ id, title: `Ролик ${id}` })),
+        signal: AbortSignal.timeout(1000)
+      }
+    );
+    expect(result.names).toEqual([{ id: 'N1', name: 'Оракл' }]);
+    expect(result.review).not.toHaveProperty('names');
   });
 });

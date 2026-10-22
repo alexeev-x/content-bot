@@ -1,5 +1,5 @@
 import { ACTIVE_HYPOTHESES_MAX, hypothesisLines, writeAnalyticsReview } from '../../modules/ai';
-import { dailyReviewInput, type DailyReview, releaseDailyReport } from '../../modules/content-analytics';
+import { dailyReviewInput, type DailyReview, releaseDailyReport, videoTitleKey } from '../../modules/content-analytics';
 import { getOwnerOperationsSettings } from '../../modules/settings';
 import { AppError } from '../../shared/app-error';
 import type { Container } from '../container';
@@ -32,6 +32,26 @@ async function scriptLines(container: Container, items: readonly { key: string; 
   return lines;
 }
 
+/** The report's videos that have no short name yet, one per title key, as N1… for the review to name. */
+async function unnamedVideos(
+  container: Container,
+  titles: readonly string[]
+): Promise<{ videos: { id: string; key: string; title: string }[]; taken: string[] }> {
+  const byKey = new Map<string, string>();
+  for (const title of titles) {
+    const key = videoTitleKey(title);
+    if (key !== '' && !byKey.has(key)) byKey.set(key, title);
+  }
+  const named = await container.contentVideoNames.read([...byKey.keys()]);
+  return {
+    videos: [...byKey.entries()]
+      .filter(([key]) => !named.has(key))
+      .map(([key, title], index) => ({ id: `N${index + 1}`, key, title })),
+    // The report's other videos keep their names: a new one may not take one of them.
+    taken: [...named.values()]
+  };
+}
+
 /** «AI_DISABLED», «AI_BUDGET»… from the gate's reason; the report says it in words. */
 function unavailableCode(error: AppError): string {
   const reason = error.details?.reason;
@@ -61,7 +81,19 @@ export async function runDailyReview(
   ]
     .filter((part) => part !== null)
     .join('\n\n');
-  const input = { facts, videos: found.videos, period: found.period };
+  // The videos without a short name yet are named by the same call (owner, 22.10.2026); a failed read only leaves
+  // them unnamed today.
+  const { videos: naming, taken } = await unnamedVideos(container, found.titles).catch((error: unknown) => {
+    onError(error);
+    return { videos: [], taken: [] };
+  });
+  const input = {
+    facts,
+    videos: found.videos,
+    period: found.period,
+    naming: naming.map(({ id, title }) => ({ id, title })),
+    taken
+  };
   let review: DailyReview | null = null;
   let reviewError: string | null = null;
   let model: string | null = null;
@@ -84,24 +116,42 @@ export async function runDailyReview(
     );
     review = result.review;
     reviewError = result.errorCode;
+    if (result.names.length > 0)
+      await container.contentVideoNames
+        .saveAi(
+          result.names.flatMap(({ id, name }) => {
+            const key = naming.find((video) => video.id === id)?.key;
+            return key === undefined ? [] : [{ key, name }];
+          }),
+          container.clock.now()
+        )
+        .catch(onError);
     model = result.model;
     usageId = result.usageId;
     const proposed = result.review?.hypothesis;
+    let raised = false;
     if (proposed !== undefined && proposed.text.length >= 3 && !known.has(proposed.text.trim().toLowerCase())) {
       // A failed insert loses the hypothesis, never the written review or its budget notices (review 20.10.2026).
       try {
-        await container.aiHypotheses.create({
-          id: container.newId(),
-          text: proposed.text,
-          scope: proposed.scope,
-          kind: proposed.kind,
-          confidence: 'low',
-          sourceRef: reportId,
-          now: container.clock.now()
-        });
+        // Null when nothing was stored (twelve open already, the same text, a lost race): no news then.
+        raised =
+          (await container.aiHypotheses.create({
+            id: container.newId(),
+            text: proposed.text,
+            scope: proposed.scope,
+            kind: proposed.kind,
+            confidence: 'low',
+            sourceRef: reportId,
+            now: container.clock.now()
+          })) !== null;
       } catch (error) {
         onError(error);
       }
+    }
+    // The message says «Новая гипотеза» only for one really kept; a repeat or a failed insert is not news.
+    if (!raised && review !== null && 'hypothesis' in review) {
+      const { hypothesis: _notRaised, ...rest } = review;
+      review = rest;
     }
     await sendBudgetAlerts(
       {
@@ -121,7 +171,7 @@ export async function runDailyReview(
     }
   }
   await releaseDailyReport(
-    { reports, alerts: container.contentAlerts, now: container.clock.now() },
+    { reports, alerts: container.contentAlerts, names: container.contentVideoNames, now: container.clock.now() },
     { id: reportId, review, reviewError, model, usageId }
   );
   // Once a week, after the report is out: the analysis rules are weighed against the new results (AI plan P7).

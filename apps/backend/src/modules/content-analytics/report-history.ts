@@ -3,7 +3,14 @@ import { decodeKeysetCursor, encodeKeysetCursor } from '../../platform/paginatio
 import { AppError } from '../../shared/app-error';
 import type { ContentDailyReportRepository, DailyReportRow } from './d1-content-daily-reports-repository';
 import type { ContentForecastRepository, StoredForecast } from './d1-content-forecasts-repository';
-import { type DailyReportData, type DailyReview, dailyReportHtml } from './daily-report';
+import {
+  type DailyReportData,
+  type DailyReview,
+  dailyReportHtml,
+  reportTitleKeys,
+  type VideoNames
+} from './daily-report';
+import type { ContentVideoNameRepository } from './d1-content-video-names-repository';
 import { type WeeklyData, weeklyReportHtml } from './weekly-report';
 
 // The studio's history of the daily and Monday reports (AI plan P8; SYS-03, SYS-04): what was stored, how the
@@ -95,7 +102,7 @@ export interface ReportDetail {
 }
 
 /** The report's message from its stored numbers and review, in today's layout; the numbers for the forecast titles. */
-function rendered(row: DailyReportRow): { html: string; data: StoredReport } {
+function rendered(row: DailyReportRow, names?: VideoNames): { html: string; data: StoredReport } {
   const data = JSON.parse(row.data) as StoredReport;
   let review: DailyReview | null = null;
   try {
@@ -106,11 +113,19 @@ function rendered(row: DailyReportRow): { html: string; data: StoredReport } {
   }
   const html = isWeekly(data)
     ? weeklyReportHtml({ data, timezone: row.timezone, review, reviewError: row.reviewError })
-    : dailyReportHtml({ data, timezone: row.timezone, review, reviewError: row.reviewError });
+    : dailyReportHtml({
+        data,
+        timezone: row.timezone,
+        review,
+        reviewError: row.reviewError,
+        ...(names ? { names } : {})
+      });
   return { html, data };
 }
 
 const HEADLINES = ['Главное: ', '🎬 Попробовать: '];
+/** The layout of 22.10.2026 has no main line: its first new fact stands for it. */
+const NEWS_HEADER = '🧠 Что нового';
 
 /** The line the history shows under the date: the review's main fact, or its suggestion in an older review. */
 function headlineOf(text: string): string | null {
@@ -122,7 +137,10 @@ function headlineOf(text: string): string | null {
       return value === '' ? null : value.length > HEADLINE_MAX ? `${value.slice(0, HEADLINE_MAX - 1)}…` : value;
     }
   }
-  return null;
+  const news = lines.indexOf(NEWS_HEADER);
+  const first = news === -1 ? undefined : lines[news + 1]?.replace(/^•\s*/, '').trim();
+  if (first === undefined || first === '') return null;
+  return first.length > HEADLINE_MAX ? `${first.slice(0, HEADLINE_MAX - 1)}…` : first;
 }
 
 /** A list row's headline; a row whose numbers do not parse loses only its headline, not the page. */
@@ -157,12 +175,16 @@ export async function readReport(
   deps: {
     reports: Pick<ContentDailyReportRepository, 'find'>;
     forecasts: Pick<ContentForecastRepository, 'ofReport'>;
+    names?: Pick<ContentVideoNameRepository, 'read'>;
   },
   id: string
 ): Promise<ReportDetail | null> {
   const row = await deps.reports.find(id);
   if (row === null || row.status === 'waiting') return null;
-  const { html, data } = rendered(row);
+  const stored = JSON.parse(row.data) as StoredReport;
+  const names =
+    isWeekly(stored) || deps.names === undefined ? undefined : await deps.names.read(reportTitleKeys(stored));
+  const { html, data } = rendered(row, names);
   const text = plainText(html);
   const videos = new Map<string, { title: string; platform: string }>();
   if (!isWeekly(data))

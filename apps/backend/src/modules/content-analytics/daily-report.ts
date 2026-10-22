@@ -1,12 +1,14 @@
 import { zoned, zonedDate } from './alerts';
-import { type DailyAnalytics, readDailyAnalytics } from './daily-analytics';
+import { type DailyAnalytics, type DailyPlatform, readDailyAnalytics } from './daily-analytics';
 import { type DailyComparison, type DailyGrowth, shortTitleOf } from './daily-table';
 import type { ContentAlertRepository } from './d1-content-alerts-repository';
 import type { ContentAnalyticsRepository } from './d1-content-analytics-repository';
 import type { ContentDailyReportRepository } from './d1-content-daily-reports-repository';
 import type { ContentForecastRepository, ForecastOutcome } from './d1-content-forecasts-repository';
+import type { ContentVideoNameRepository } from './d1-content-video-names-repository';
 import { factAt } from './forecast-backtest';
 import type { Clock } from '../../platform/clock';
+import { videoTitleKey } from './title-format';
 import type { ItemFormats, VideoFormat } from './types';
 import { type Reference, TREND_TEXT, TREND_WORD } from './video-signals';
 
@@ -52,6 +54,8 @@ export interface ReviewV2 {
   points: { text: string; confidence: 'low' | 'medium' }[];
   question: string;
   steps: string[];
+  /** A new hypothesis the day's review raised (its numbers checked); absent when it raised none. */
+  hypothesis?: { text: string };
 }
 
 /** The review's shape before 20.10.2026, still stored with older reports and shown in the studio's history. */
@@ -134,6 +138,8 @@ export function dailyReviewFacts(data: DailyReportData): {
   videos: string[];
   /** Each key with its stored item, so the app can add what other modules know (a linked script). */
   items: { key: string; itemId: string }[];
+  /** The titles of every video the report shows, so the review can name the ones without a short name. */
+  titles: string[];
 } {
   const rows = keyedRows(data.daily);
   const lines = data.daily.platforms.flatMap((platform) => {
@@ -178,11 +184,44 @@ export function dailyReviewFacts(data: DailyReportData): {
       'Ориентиры — самые просматриваемые ролики канала (разный возраст, сравнение слабое):',
       ...references.map(referenceLine)
     );
+  if (data.daily.layout === 2) lines.unshift(...generalFactsV2(data.daily), '');
   return {
     facts: lines.join('\n'),
     videos: [...rows.map((row) => row.key), ...references.map((each) => each.key)],
-    items: rows.map((row) => ({ key: row.key, itemId: row.row.id }))
+    items: rows.map((row) => ({ key: row.key, itemId: row.row.id })),
+    titles: [...rows.map((row) => row.row.title), ...(data.daily.older ?? []).map((video) => video.title)]
   };
+}
+
+const plainText = (html: string) =>
+  html
+    .replace(/<[^>]+>/g, '')
+    .replaceAll('&lt;', '<')
+    .replaceAll('&gt;', '>')
+    .replaceAll('&quot;', '"')
+    .replaceAll('&amp;', '&');
+
+/** The day's lines about no single video (layout 2): followers, the day's views, the channel, older videos, milestones. */
+function generalFactsV2(daily: DailyAnalytics): string[] {
+  const telegram = daily.telegram;
+  const older = olderLines(daily, undefined);
+  const milestones = milestonesOf(daily, undefined, 'UTC');
+  return [
+    followersLine(daily),
+    dayViewsLine(daily),
+    telegram === undefined
+      ? null
+      : telegram.posts.length === 0
+        ? 'Telegram: за сутки постов не было'
+        : `Telegram за сутки: ${telegram.posts
+            .map(
+              (post) =>
+                `пост «${shortTitleOf(post.title || 'без текста', 60)}» ${post.views === null ? '' : `${compactCount(post.views)} просм.`}`
+            )
+            .join('; ')}`,
+    ...older.map(plainText),
+    milestones.length === 0 ? null : `Вехи: ${plainText(milestones.join('; '))}`
+  ].filter((line): line is string => line !== null);
 }
 
 /** The references with their keys: YR1… for YouTube, TR1… for TikTok. */
@@ -470,13 +509,273 @@ function forecastLine(rows: readonly KeyedRow[], timezone: string): string | nul
   return `🔮 ${escapeHtml(shortTitleOf(best.row.title, 32))} (${PLATFORM_NAME[best.platform]}): к ${day} — ${compactCount(week.low)}–${compactCount(week.high)} просмотров`;
 }
 
+/** Short names by title key (migration 0102); a video without one shows its title cut to the column. */
+export type VideoNames = ReadonlyMap<string, string>;
+
+const NAME_WIDTH = 7;
+const OLDER_SHOWN = 6;
+/** An older platform's line appears once a video of it gained this many views in the week. */
+const OLDER_LINE_MIN = 300;
+const OLDER_ITEM_MIN = 100;
+/**
+ * The next count worth saying: from 100к by the first digit (594к → 600к), below it 10к, 20к, 50к, 100к, so a small
+ * step («до 9к») is never news. None below 5к.
+ */
+export function nextMilestone(views: number): number | null {
+  if (views >= 100_000) {
+    const step = 10 ** Math.floor(Math.log10(views));
+    return (Math.floor(views / step) + 1) * step;
+  }
+  return [10_000, 20_000, 50_000, 100_000].find((value) => value > views && views >= value / 2) ?? null;
+}
+/** A milestone is said when the day's pace reaches it within this many days. */
+const MILESTONE_DAYS = 4;
+const MILESTONES_SHOWN = 2;
+
+/** The title keys a report names: its videos, the older ones. */
+export function reportTitleKeys(data: DailyReportData): string[] {
+  return [
+    ...data.daily.platforms.flatMap((platform) => platform.rows.map((row) => videoTitleKey(row.title))),
+    ...(data.daily.older ?? []).map((video) => videoTitleKey(video.title))
+  ];
+}
+
+/** The video's short name: the stored one, else its title cut to the table's column. */
+export function videoName(title: string, names: VideoNames | undefined, width = NAME_WIDTH): string {
+  const stored = names?.get(videoTitleKey(title));
+  const name = stored ?? shortTitleOf(title, width);
+  const letters = Array.from(name);
+  return letters.length > width ? `${letters.slice(0, width - 1).join('')}…` : name;
+}
+
+const PLATFORM_ORDER = ['telegram', 'tiktok', 'youtube'] as const;
+const ALL_PLATFORM_NAME = { telegram: 'Telegram', ...PLATFORM_NAME } as const;
+const grouped = (value: number) => value.toLocaleString('ru-RU').replace(/\s/g, ' ');
+
+/** «Подписчики: Telegram 830 (−2) · TikTok 8 675 (+5) · YouTube 1 180 (0)». */
+function followersLine(daily: DailyAnalytics): string | null {
+  const counts = [...(daily.followers ?? [])].sort(
+    (a, b) => PLATFORM_ORDER.indexOf(a.platform) - PLATFORM_ORDER.indexOf(b.platform)
+  );
+  if (counts.length === 0) return null;
+  return `Подписчики: ${counts
+    .map(
+      (row) =>
+        `${ALL_PLATFORM_NAME[row.platform]} ${grouped(row.count)}${row.change === null ? '' : ` (${signed(row.change)})`}`
+    )
+    .join(' · ')}`;
+}
+
+/** «Просмотры за сутки: TikTok +4.7к · YouTube +78 · Telegram +89»; «≈» when some growth is not a 24-hour pair. */
+function dayViewsLine(daily: DailyAnalytics): string | null {
+  // TikTok first: it brings most of the day's views.
+  const ordered = [...daily.platforms].sort(
+    (a, b) => PLATFORM_ORDER.indexOf(a.platform) - PLATFORM_ORDER.indexOf(b.platform)
+  );
+  const parts = ordered.flatMap((platform) => {
+    const counted = platform.rows.filter((row) => row.growth.kind === 'day' || row.growth.kind === 'window');
+    if (counted.length === 0) return [];
+    const total = counted.reduce((sum, row) => sum + (row.growth.views ?? 0), 0);
+    const approximate = counted.some((row) => row.growth.kind === 'window');
+    return [`${PLATFORM_NAME[platform.platform]} ${approximate ? '≈' : ''}+${compactCount(total)}`];
+  });
+  const channel = daily.telegram?.dayViews;
+  if (channel !== undefined && channel !== null) parts.push(`Telegram +${compactCount(channel)}`);
+  return parts.length === 0 ? null : `Просмотры за сутки: ${parts.join(' · ')}`;
+}
+
+/** The channel's posts of the day, or that there were none: no post, no views (owner, 22.10.2026). */
+function telegramLines(daily: DailyAnalytics): string[] {
+  const telegram = daily.telegram;
+  if (telegram === undefined) return [];
+  if (telegram.posts.length === 0) return ['<b>Telegram:</b> за сутки постов не было.'];
+  return [
+    '<b>Telegram за сутки</b>',
+    ...telegram.posts.map((post) => {
+      const title = escapeHtml(shortTitleOf(post.title || 'Пост без текста', TITLE_MAX));
+      const numbers = [
+        post.views === null ? null : `${compactCount(post.views)} просм.`,
+        post.reactions === null ? null : `${post.reactions} реакц.`
+      ].filter((part) => part !== null);
+      return `• <a href="${escapeHtml(cleanUrl(post.url))}">${title}</a>${numbers.length === 0 ? '' : ` — ${numbers.join(', ')}`}`;
+    })
+  ];
+}
+
+interface VideoGroup {
+  key: string;
+  title: string;
+  publishedAt: number;
+  ageHours: number;
+  rows: Partial<Record<'youtube' | 'tiktok', DailyPlatform['rows'][number]>>;
+}
+
+/** A video's YouTube and TikTok copies as one group, newest first. */
+function videoGroups(daily: DailyAnalytics): VideoGroup[] {
+  const groups = new Map<string, VideoGroup>();
+  for (const platform of daily.platforms)
+    for (const row of platform.rows) {
+      const key = videoTitleKey(row.title) || row.id;
+      const group = groups.get(key) ?? {
+        key,
+        title: row.title,
+        publishedAt: row.publishedAt,
+        ageHours: row.ageHours,
+        rows: {}
+      };
+      group.rows[platform.platform] = row;
+      group.publishedAt = Math.min(group.publishedAt, row.publishedAt);
+      group.ageHours = Math.max(group.ageHours, row.ageHours);
+      groups.set(key, group);
+    }
+  return [...groups.values()].sort((a, b) => b.publishedAt - a.publishedAt);
+}
+
+/** One line per video, TikTok and YouTube side by side, about 34 characters: one phone line. */
+function videoTableV2(daily: DailyAnalytics, names: VideoNames | undefined): string[] {
+  const groups = videoGroups(daily);
+  if (groups.length === 0) return ['<b>Ролики за месяц</b>', 'Роликов за месяц нет.'];
+  const cell = (row: DailyPlatform['rows'][number] | undefined, width: number) =>
+    row === undefined
+      ? ['—'.padStart(5), '—'.padStart(width)]
+      : [(row.views === null ? '—' : compactCount(row.views)).padStart(5), growthCell(row.growth).padStart(width)];
+  const line = (name: string, age: string, cells: string[], stale: boolean) =>
+    `${name.padEnd(NAME_WIDTH)} ${age.padStart(3)} ${cells.join(' ')}${stale ? '*' : ''}`;
+  const table = [
+    `${' '.repeat(NAME_WIDTH + 5)}  TikTok     YouTube`,
+    line('Ролик', 'Дн', ['Всего', ' +сут', 'Всего', '+сут'], false),
+    ...groups.map((group) =>
+      line(
+        videoName(group.title, names),
+        `${Math.round(group.ageHours / 24)}д`,
+        [...cell(group.rows.tiktok, 5), ...cell(group.rows.youtube, 4)],
+        Object.values(group.rows).some((row) => row.status !== 'ok')
+      )
+    )
+  ];
+  const lines = ['<b>Ролики за месяц</b>', `<pre>${escapeHtml(table.join('\n'))}</pre>`];
+  for (const platform of daily.platforms)
+    if (platform.state === 'error')
+      lines.push(`<i>⚠️ ${PLATFORM_NAME[platform.platform]}: последний сбор не удался.</i>`);
+    else if (platform.state === 'pending') lines.push(`<i>${PLATFORM_NAME[platform.platform]}: данных ещё нет.</i>`);
+  if (groups.some((group) => Object.values(group.rows).some((row) => row.status !== 'ok')))
+    lines.push('<i>* цифры не обновились при последнем сборе</i>');
+  return lines;
+}
+
+/** «Старше месяца, TikTok за неделю: Варды +7.4к · Драфт +3.1к», one line per platform that moved. */
+function olderLines(daily: DailyAnalytics, names: VideoNames | undefined): string[] {
+  return (['tiktok', 'youtube'] as const).flatMap((platform) => {
+    const moved = (daily.older ?? [])
+      .filter((video) => video.platform === platform && (video.weekViews ?? 0) >= OLDER_ITEM_MIN)
+      .sort((a, b) => (b.weekViews ?? 0) - (a.weekViews ?? 0));
+    if ((moved[0]?.weekViews ?? 0) < OLDER_LINE_MIN) return [];
+    return [
+      `<b>Старше месяца, ${PLATFORM_NAME[platform]} за неделю:</b> ${moved
+        .slice(0, OLDER_SHOWN)
+        .map((video) => `${escapeHtml(videoName(video.title, names, 12))} +${compactCount(video.weekViews ?? 0)}`)
+        .join(' · ')}`
+    ];
+  });
+}
+
+/** The next round count a video reaches within four days at today's pace. */
+export function milestonesOf(daily: DailyAnalytics, names: VideoNames | undefined, timezone: string): string[] {
+  const near = daily.platforms.flatMap((platform) =>
+    platform.rows.flatMap((row) => {
+      if (row.views === null || row.growth.kind !== 'day' || row.growth.views <= 0) return [];
+      const views = row.views;
+      const next = nextMilestone(views);
+      if (next === null) return [];
+      const days = (next - views) / row.growth.views;
+      if (days > MILESTONE_DAYS) return [];
+      return [{ row, platform: platform.platform, next, days }];
+    })
+  );
+  return near
+    .sort((a, b) => a.days - b.days || b.next - a.next)
+    .slice(0, MILESTONES_SHOWN)
+    .map(({ row, platform, next, days }) => {
+      const day = new Intl.DateTimeFormat('ru-RU', { timeZone: timezone, day: 'numeric', month: 'long' }).format(
+        new Date(daily.asOf + days * 24 * HOUR_MS)
+      );
+      return `${escapeHtml(videoName(row.title, names, 12))} в ${PLATFORM_NAME[platform]} — ${compactCount(row.views ?? 0)}, до ${compactCount(next)} осталось ${compactCount(next - (row.views ?? 0))} (≈${day})`;
+    });
+}
+
+/** The day's review: only what is new; nothing new is said as such, not filled with old conclusions. */
+function newsBlock(
+  review: DailyReview | null,
+  reviewError: string | null | undefined,
+  link: (key: string) => string
+): string[] {
+  if (review === null)
+    return reviewError
+      ? ['<b>🧠 Что нового</b>', `<i>Разбор недоступен: ${REVIEW_MISSING[reviewError] ?? 'ошибка ИИ'}.</i>`]
+      : [];
+  if (isLegacy(review)) return reviewBlock(review, link);
+  const text = (value: string) => escapeHtml(value).replace(REVIEW_KEY, (key) => link(key));
+  const points = review.points.map((point) => `• ${text(point.text)}`);
+  const hypothesesNamed = review.points.some((point) => /\bH\d{1,4}\b/.test(point.text));
+  return [
+    '<b>🧠 Что нового</b>',
+    ...(points.length === 0 ? ['• За сутки ничего нового.'] : points),
+    ...(review.hypothesis !== undefined && review.hypothesis.text !== ''
+      ? [`• Новая гипотеза: ${text(review.hypothesis.text)}`]
+      : hypothesesNamed
+        ? []
+        : ['• Гипотезы без изменений.'])
+  ];
+}
+
+/** The layout of 22.10.2026 (owner): followers and day first, every video of the month, the older ones' week. */
+function dailyReportV2(input: {
+  data: DailyReportData;
+  timezone: string;
+  review: DailyReview | null;
+  reviewError?: string | null;
+  names?: VideoNames;
+}): string {
+  const { daily } = input.data;
+  const day = new Intl.DateTimeFormat('ru-RU', { timeZone: input.timezone, day: 'numeric', month: 'long' }).format(
+    new Date(daily.asOf)
+  );
+  const rows = keyedRows(daily);
+  const references = keyedReferences(daily);
+  const link = (key: string) => {
+    const found = rows.find((row) => row.key === key);
+    const reference = references.find((each) => each.key === key)?.reference;
+    const target =
+      found === undefined ? reference : { url: found.row.url, title: found.row.title, platform: found.platform };
+    if (target === undefined) return key;
+    return `<a href="${escapeHtml(cleanUrl(target.url))}">${escapeHtml(videoName(target.title, input.names, 12))}</a> (${PLATFORM_NAME[target.platform]})`;
+  };
+  const lines = [
+    `<b>📈 ${day} · ${time(daily.asOf, input.timezone)}</b>${daily.partial ? ' · данные частично' : ''}`,
+    ...[followersLine(daily), dayViewsLine(daily)].filter((line): line is string => line !== null)
+  ];
+  const telegram = telegramLines(daily);
+  if (telegram.length > 0) lines.push('', ...telegram);
+  lines.push('', ...videoTableV2(daily, input.names));
+  const older = olderLines(daily, input.names);
+  if (older.length > 0) lines.push(...older);
+  const milestones = milestonesOf(daily, input.names, input.timezone);
+  if (milestones.length > 0) lines.push('', `🏁 <b>Вехи:</b> ${milestones.join('; ')}`);
+  const news = newsBlock(input.review, input.reviewError, link);
+  if (news.length > 0) lines.push('', ...news);
+  return lines.join('\n');
+}
+
 export function dailyReportHtml(input: {
   data: DailyReportData;
   timezone: string;
   /** The AI review, or why there is none; `null` with no reason for «/analytics», which never asks the model. */
   review: DailyReview | null;
   reviewError?: string | null;
+  /** Short names of the videos (layout 2); without them a title is cut to the column. */
+  names?: VideoNames;
 }): string {
+  if (input.data.daily.layout === 2) return dailyReportV2(input);
   const { daily, accuracy } = input.data;
   const day = new Intl.DateTimeFormat('ru-RU', { timeZone: input.timezone, day: 'numeric', month: 'long' }).format(
     new Date(daily.asOf)
@@ -569,6 +868,7 @@ export async function raiseDailyReport(deps: {
   const daily = await readDailyAnalytics({
     repo: deps.analytics,
     clock: deps.clock,
+    alerts: deps.alerts,
     ...(deps.formats ? { formats: deps.formats } : {})
   });
   // The forecasts first, keyed by the report id: a Worker cut off before the report row leaves them, and the
@@ -608,15 +908,24 @@ export async function raiseDailyReport(deps: {
 export async function dailyReportNow(deps: {
   analytics: ContentAnalyticsRepository;
   forecasts: Pick<ContentForecastRepository, 'accuracy'>;
+  alerts?: Pick<ContentAlertRepository, 'readSnapshots' | 'readFollowers'>;
+  names?: ContentVideoNameRepository;
   formats?: ItemFormats;
   clock: Clock;
   timezone: string;
 }): Promise<string> {
   const now = deps.clock.now();
   const [daily, accuracy] = await Promise.all([
-    readDailyAnalytics({ repo: deps.analytics, clock: deps.clock, ...(deps.formats ? { formats: deps.formats } : {}) }),
+    readDailyAnalytics({
+      repo: deps.analytics,
+      clock: deps.clock,
+      ...(deps.alerts ? { alerts: deps.alerts } : {}),
+      ...(deps.formats ? { formats: deps.formats } : {})
+    }),
     deps.forecasts.accuracy(now - 24 * HOUR_MS)
   ]);
-  const html = dailyReportHtml({ data: { daily, accuracy }, timezone: deps.timezone, review: null });
+  const data = { daily, accuracy };
+  const names = deps.names === undefined ? undefined : await deps.names.read(reportTitleKeys(data));
+  const html = dailyReportHtml({ data, timezone: deps.timezone, review: null, ...(names ? { names } : {}) });
   return `${html}\n\n<i>Разбор ИИ приходит в ежедневном отчёте.</i>`;
 }

@@ -75,6 +75,7 @@ export async function resetDb(): Promise<void> {
       'ai_rule_evidence',
       'ai_rules',
       'content_daily_reports',
+      'content_video_names',
       'ai_script_prompts',
       'content_forecasts',
       'ai_writer_fact_answers',

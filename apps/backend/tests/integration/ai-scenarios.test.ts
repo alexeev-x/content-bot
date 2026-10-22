@@ -620,13 +620,9 @@ describe('AI scenarios from start to end', () => {
        WHERE scored_at IS NOT NULL AND outcome IN ('in_band', 'below', 'above')`
     );
     expect(scored.length).toBeGreaterThan(0);
+    // The daily message no longer says how they scored (owner, 22.10.2026: the layout without it); the studio does.
     for (const row of scored)
       expect(row.outcome).toBe(row.fact < row.low ? 'below' : row.fact > row.high ? 'above' : 'in_band');
-    expect(
-      await count(
-        "SELECT count(*) AS n FROM content_alerts WHERE id LIKE 'daily:%' AND html LIKE '%Прогнозы за сутки%'"
-      )
-    ).toBeGreaterThan(0);
 
     // Reviews: a hit is above the rubric's usual at 72 hours, a miss below it, each with the model's hypotheses.
     const positions = await all<{ id: string; position: string; status: string; hypotheses: string }>(

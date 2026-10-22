@@ -113,12 +113,14 @@ import {
   type ContentAnalyticsRepository,
   type ContentDailyReportRepository,
   type ContentForecastRepository,
+  type ContentVideoNameRepository,
   type ContentRubricRepository,
   type StudioTelegramMessages,
   configuredCollectors,
   createD1ContentAlertRepository,
   createD1ContentDailyReportRepository,
   createD1ContentForecastRepository,
+  createD1ContentVideoNameRepository,
   createD1ContentRubricRepository,
   createD1ContentGoalRepository,
   type ContentGoalRepository,
@@ -214,6 +216,7 @@ export interface Container {
   analyticsTelegramChannel: string | undefined;
   /** The daily report's forecasts and their scores (0076). */
   contentForecasts: ContentForecastRepository;
+  contentVideoNames: ContentVideoNameRepository;
   /** Telegram rubrics and the owner's picks for studio posts (0089). */
   contentRubrics: ContentRubricRepository;
   /** Which studio post a channel message was sent from: the rubrics' port into publishing. */
@@ -557,6 +560,9 @@ export function createContainer(env: ContainerEnv, overrides: ContainerOverrides
     },
     get contentForecasts() {
       return createD1ContentForecastRepository(db());
+    },
+    get contentVideoNames() {
+      return createD1ContentVideoNameRepository(db());
     },
     get contentRubrics() {
       return createD1ContentRubricRepository(db());

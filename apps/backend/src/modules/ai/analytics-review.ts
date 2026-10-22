@@ -17,15 +17,26 @@ const POINT_MAX = 280;
 const QUESTION_MAX = 200;
 const STEP_MAX = 200;
 const HYPOTHESIS_MAX = 300;
+/** Videos the review names in one call: the report's month and older ones. */
+const NAMING_MAX = 40;
+/** A short name fits the report's column: a word or two of letters; no digits, a number in it would pass no check. */
+const SHORT_NAME = /^\p{L}[\p{L} .-]{0,11}$/u;
+const NAMING = [
+  'names — для каждого ролика из списка «Без имени» (id N1…) короткое имя, как его назвал бы автор: одно слово, до 7 букв, по герою, предмету или теме, с большой буквы («Оракл», «БКБ», «Керри», «Варды», «Аркана»). Два ролика — разные имена, и не бери имена из «Уже заняты». Списка нет — names пустой.'
+].join('\n');
 /** The week's review says more (owner, 20.10.2026: «где недельный — подробнее»). */
 const POINTS_MAX = { day: 4, week: 6 } as const;
 const STEPS_MAX = { day: 2, week: 3 } as const;
 
 /** What the review is about: the day's videos, or the week's with its themes and rubrics. */
 const PERIOD = {
+  // Only what is new (owner, 22.10.2026: two days in a row said the same in other words; ChatGPT's report said «новых
+  // оснований менять гипотезы нет»). The deep conclusions, the question and the steps are Monday's.
   day: [
-    'Пишешь утренний разбор дня для автора.',
-    'points — 3–4 вывода о роликах дня. Весь ответ — не больше 1200 знаков.',
+    'Пишешь утренний разбор дня для автора: только то, что нового за сутки и чего он не заметит сам по таблице.',
+    'points — 0–4 коротких факта дня, каждый — одно-два предложения с числами: ролик резко пошёл или встал по сравнению со своим вчерашним приростом, ролик против ровесников своей рубрики того же возраста, старые ролики дают большую часть просмотров, веха, Telegram без постов и его просмотры. Сравнивай только похожее: та же рубрика и близкий возраст, или тот же ролик вчера. Сравнение с роликом другого возраста не делай вовсе; не пиши оговорок «возраст разный», «сравнение слабое», «причинность не доказана» — такой вывод просто не нужен.',
+    'Не повторяй то, что верно каждый день (одна рубрика сильнее другой, старый вирусный ролик набирает): это для разбора недели. Нового нет — points пустой, это нормальный ответ.',
+    'main, question, steps — оставь пустыми: в дневном разборе их нет. Весь ответ — не больше 900 знаков.',
     'hypothesis — одна новая гипотеза, если цифры показывают закономерность, которой нет среди гипотез H… в данных: проверяемое «если …, то …» про то, как писать (kind writing: хук, конфликт, длина, концовка) или о чём снимать (kind topic: тема, герой, рубрика); scope — рубрика. Нет такой — text пустой.'
   ].join('\n'),
   week: [
@@ -53,8 +64,18 @@ export const ANALYTICS_REVIEW_JSON_SCHEMA: { name: string; schema: Record<string
   schema: {
     type: 'object',
     additionalProperties: false,
-    required: ['main', 'points', 'question', 'steps', 'hypothesis'],
+    required: ['main', 'points', 'question', 'steps', 'hypothesis', 'names'],
     properties: {
+      names: {
+        type: 'array',
+        maxItems: NAMING_MAX,
+        items: {
+          type: 'object',
+          additionalProperties: false,
+          required: ['id', 'name'],
+          properties: { id: { type: 'string' }, name: { type: 'string' } }
+        }
+      },
       main: { type: 'string' },
       points: {
         type: 'array',
@@ -95,6 +116,11 @@ export const analyticsReviewSchema = z.object({
     .array(line(STEP_MAX))
     .max(STEPS_MAX.week)
     .transform((steps) => steps.filter((step) => step !== '')),
+  /** Short names of the videos listed without one (owner, 22.10.2026); stored by the app, never shown as facts. */
+  names: z
+    .array(z.object({ id: z.string(), name: z.string().transform((value) => value.replace(/\s+/g, ' ').trim()) }))
+    .max(NAMING_MAX)
+    .optional(),
   /** A new hypothesis for the analyst's memory (owner, 20.10.2026); an empty text proposes none. */
   hypothesis: z
     .object({
@@ -175,9 +201,20 @@ export interface AnalyticsReviewDeps {
  */
 export async function writeAnalyticsReview(
   deps: AnalyticsReviewDeps,
-  input: { facts: string; videos: readonly string[]; period?: keyof typeof PERIOD; signal: AbortSignal }
+  input: {
+    facts: string;
+    videos: readonly string[];
+    period?: keyof typeof PERIOD;
+    /** Videos without a short name, by id (N1…), for the review to name; their titles are not facts. */
+    naming?: readonly { id: string; title: string }[];
+    /** Names other videos of the report already have: none of them is given again. */
+    taken?: readonly string[];
+    signal: AbortSignal;
+  }
 ): Promise<{
   review: AnalyticsReview | null;
+  /** The short names the review gave, checked: a known id, a short name, no two alike. */
+  names: { id: string; name: string }[];
   errorCode: string | null;
   model: string | null;
   /** The ai_usage row of the call (the studio shows its cost); null when no call was answered. */
@@ -185,6 +222,12 @@ export async function writeAnalyticsReview(
   budgetEvents: BudgetEvent[];
 }> {
   const period = input.period ?? 'day';
+  const naming = (input.naming ?? []).slice(0, NAMING_MAX);
+  const taken = (input.taken ?? []).slice(0, NAMING_MAX);
+  const namingList =
+    naming.length === 0
+      ? ''
+      : `\n\nБез имени:\n${naming.map((video) => `${video.id} «${video.title.replace(/\s+/g, ' ').slice(0, 120)}»`).join('\n')}${taken.length === 0 ? '' : `\nУже заняты: ${taken.join(', ')}`}`;
   const settings = await readAiSettings(deps.repo);
   // The draft model, as for the owner's scripts: the review is read every day (owner: quality first).
   const { provider, model } = await assertAiReady(deps, settings, settings.draftModel ?? settings.cheapModel);
@@ -192,15 +235,15 @@ export async function writeAnalyticsReview(
   try {
     result = await provider.complete({
       model,
-      instructions: `${INSTRUCTIONS}\n${PERIOD[period]}`,
-      input: `ДАННЫЕ:\n${input.facts}`,
+      instructions: `${INSTRUCTIONS}\n${PERIOD[period]}\n${NAMING}`,
+      input: `ДАННЫЕ:\n${input.facts}${namingList}`,
       maxOutputTokens: MAX_OUTPUT_TOKENS,
       jsonSchema: ANALYTICS_REVIEW_JSON_SCHEMA,
       signal: input.signal
     });
   } catch (error) {
     if (!(error instanceof AiProviderError)) throw error;
-    return { review: null, errorCode: error.code, model: null, usageId: null, budgetEvents: [] };
+    return { review: null, names: [], errorCode: error.code, model: null, usageId: null, budgetEvents: [] };
   }
   const usageId = deps.newId();
   const budgetEvents = await recordAiUsage(deps, {
@@ -215,8 +258,12 @@ export async function writeAnalyticsReview(
   try {
     review = analyticsReviewSchema.parse(JSON.parse(result.text));
   } catch {
-    return { review: null, errorCode: 'AI_BAD_FORMAT', model: result.model, usageId, budgetEvents };
+    return { review: null, names: [], errorCode: 'AI_BAD_FORMAT', model: result.model, usageId, budgetEvents };
   }
+  const names = shortNames(review.names ?? [], naming, taken);
+  const { names: _named, ...reviewed } = review;
+  // The day says no main line, question or steps (owner, 22.10.2026): whatever the model put there is dropped.
+  review = period === 'day' ? { ...reviewed, main: '', question: '', steps: [] } : reviewed;
   const known = new Set(input.videos);
   // A point about a video the facts do not list is dropped rather than guessed.
   const namesUnknown = (text: string) => (text.match(VIDEO_KEY) ?? []).some((key) => !known.has(key));
@@ -239,6 +286,26 @@ export async function writeAnalyticsReview(
     steps: review.steps.filter((step) => !namesUnknown(step)).slice(0, STEPS_MAX[period])
   };
   if (unverifiedNumbers(review, input.facts).length > 0)
-    return { review: null, errorCode: 'AI_NUMBERS_UNVERIFIED', model: result.model, usageId, budgetEvents };
-  return { review, errorCode: null, model: result.model, usageId, budgetEvents };
+    // The names are kept even then: they are checked on their own and are no facts.
+    return { review: null, names, errorCode: 'AI_NUMBERS_UNVERIFIED', model: result.model, usageId, budgetEvents };
+  return { review, names, errorCode: null, model: result.model, usageId, budgetEvents };
+}
+
+/** The names the review gave: only for listed ids, short, and never one name for two videos. */
+function shortNames(
+  given: readonly { id: string; name: string }[],
+  naming: readonly { id: string }[],
+  taken: readonly string[]
+): { id: string; name: string }[] {
+  const ids = new Set(naming.map((video) => video.id));
+  const used = new Set(taken.map((name) => name.toLowerCase()));
+  const out: { id: string; name: string }[] = [];
+  for (const { id, name } of given) {
+    const key = name.toLowerCase();
+    if (!ids.has(id) || !SHORT_NAME.test(name) || used.has(key)) continue;
+    ids.delete(id);
+    used.add(key);
+    out.push({ id, name });
+  }
+  return out;
 }

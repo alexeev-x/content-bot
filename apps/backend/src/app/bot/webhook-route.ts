@@ -5,6 +5,7 @@ import { bodyLimit } from 'hono/body-limit';
 import { createPost } from '../../modules/content';
 import {
   dailyReportNow,
+  fitMessage,
   markContentItemContamination,
   memberChange,
   recordChannelMember
@@ -131,14 +132,19 @@ export const telegramWebhook = new Hono<AppBindings>().post(
           data
         ),
       analyticsNow: async () => ({
-        html: await dailyReportNow({
-          analytics: container.contentAnalytics,
-          forecasts: container.contentForecasts,
-          clock: container.clock,
-          timezone: (
-            await getOwnerOperationsSettings({ repo: container.settings, logger: container.logger, requestId })
-          ).timezone
-        }),
+        // Many posts in a day could pass Telegram's limit: whole blocks go from the end, as in the daily message.
+        html: fitMessage(
+          await dailyReportNow({
+            analytics: container.contentAnalytics,
+            forecasts: container.contentForecasts,
+            alerts: container.contentAlerts,
+            names: container.contentVideoNames,
+            clock: container.clock,
+            timezone: (
+              await getOwnerOperationsSettings({ repo: container.settings, logger: container.logger, requestId })
+            ).timezone
+          })
+        ),
         button: { text: 'Открыть аналитику', url: `${appOrigin}/analytics` }
       }),
       writer: () => createWriterDeps(container, requestId),

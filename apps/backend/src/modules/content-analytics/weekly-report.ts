@@ -17,6 +17,7 @@ import {
   usualArrow,
   usualPercent
 } from './daily-report';
+import { videoTitleKey } from './title-format';
 import { reactionRates, type Reference, referencesOf, REFERENCES_PER_PLATFORM } from './video-signals';
 import { comparisonOf, type DailyComparison, shortTitleOf } from './daily-table';
 import type { ContentAlertRepository } from './d1-content-alerts-repository';
@@ -90,14 +91,6 @@ export function weeklyReportWeekEnd(now: number, timezone: string): number | nul
   return zonedMidnight(now, timezone);
 }
 
-const titleKey = (title: string) =>
-  title
-    .toLowerCase()
-    .replaceAll('ё', 'е')
-    .replace(/#\S+/g, ' ')
-    .replace(/[^a-zа-я0-9]+/g, ' ')
-    .trim();
-
 export async function readWeeklyData(deps: {
   analytics: ContentAnalyticsRepository;
   alerts: Pick<ContentAlertRepository, 'readRecent' | 'readCheckpoints' | 'readFollowers'>;
@@ -163,7 +156,7 @@ export async function readWeeklyData(deps: {
     const baseline = byFormat.points.length > 0 ? { ...byFormat, format } : baselineFor(checkpoints, platform, item.id);
     const own = checkpoints.find((row) => row.id === item.id)?.views ?? {};
     // A title of hashtags alone has no words to match its copy by: it stays its own video.
-    const key = titleKey(item.title) || item.id;
+    const key = videoTitleKey(item.title) || item.id;
     const video = videos.get(key) ?? { key: '', title: item.title, format, publishedAt: item.publishedAt, cells: [] };
     const rates = reactionRates(item);
     video.cells.push({

@@ -72,8 +72,9 @@ describe('daily table rows', () => {
     expect(dailyRowOf(item(), AS_OF)).toMatchObject({ views: null, observedAt: null, status: 'no_data' });
     // Under 72 h a video is read about hourly: a 4-hour-old reading is stale.
     expect(dailyRowOf(item({ snapshots: [at(4, 100)] }), AS_OF).status).toBe('stale');
-    // Older videos are read daily: 20 hours is on time.
-    expect(dailyRowOf(item({ publishedAt: AS_OF - 10 * 24 * H, snapshots: [at(20, 100)] }), AS_OF).status).toBe('ok');
+    // Older videos are read every 3 hours: 5 hours is on time, 8 hours is not.
+    expect(dailyRowOf(item({ publishedAt: AS_OF - 10 * 24 * H, snapshots: [at(5, 100)] }), AS_OF).status).toBe('ok');
+    expect(dailyRowOf(item({ publishedAt: AS_OF - 10 * 24 * H, snapshots: [at(8, 100)] }), AS_OF).status).toBe('stale');
   });
 
   it('takes the six latest by publication time, not by views; fewer stay fewer; the future and duplicates are out', () => {

@@ -36,3 +36,12 @@ export function titleFormat(title: string): VideoFormat {
     return 'igrat';
   return 'standalone';
 }
+
+/** One key for a video's YouTube and TikTok copies: the title in lower case, «ё» as «е», no hashtags or punctuation. */
+export const videoTitleKey = (title: string): string =>
+  title
+    .toLowerCase()
+    .replaceAll('ё', 'е')
+    .replace(/#\S+/g, ' ')
+    .replace(/[^a-zа-я0-9]+/g, ' ')
+    .trim();

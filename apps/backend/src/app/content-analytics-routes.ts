@@ -265,7 +265,11 @@ export const contentAnalyticsRoutes = new Hono<AppBindings>()
   .get('/reports/:id', validated('param', contentReportParamsSchema), async (c) => {
     const container = c.get('container');
     const detail = await readReport(
-      { reports: container.contentDailyReports, forecasts: container.contentForecasts },
+      {
+        reports: container.contentDailyReports,
+        forecasts: container.contentForecasts,
+        names: container.contentVideoNames
+      },
       c.req.valid('param').id
     );
     if (detail === null) throw new AppError('NOT_FOUND', 'Report not found');
