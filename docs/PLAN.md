@@ -24,7 +24,8 @@ The AI makes the Telegram channel's content itself: news and rubric posts drafte
   name). Every 5 minutes one light request asks whether the page changed; the price never starts a watch (Liquipedia
   has none). Liquipedia fills a page in many small edits, so new details are collected until the page has been quiet
   for 30 minutes, then the AI writes the next post from what is new against what was published; later edits can give
-  another post. The watch ends after 8 hours. Open: whether these posts publish themselves or wait for approval.
+  another post. The watch ends 6 hours after Valve's announcement (owner, 22.10.2026: one window for the details and
+  the price, everything is out by then). Open: whether these posts publish themselves or wait for approval.
 - Price watch, Russian region (owner, 22.10.2026: the price in roubles matters). Trove of Terror (Valve 07.10 03:22
   MSK) was priced by Championat at 04:07 (only as «21 тыс. ₽ за аркану» in the title), esports.ru 07:41 (420 ₽),
   offstage.ru 08:40 (424 ₽, the first exact price), dota2.ru 10:02, PlayGround.ru 13:15 (424 ₽); no site is earlier,
@@ -33,8 +34,7 @@ The AI makes the Telegram channel's content itself: news and rubric posts drafte
   public API), the RSS of esports.ru (`/rss/`) and dota2.ru (`/news/rss/`), and PlayGround.ru's posts in the Steam
   News feed for app 570 (today the code keeps only Valve's feed). The price goes into a post only when two sources
   agree («≈ 424 ₽», source named); a figure derived from another (the arcana's 21 000 ₽ / 50) is only an estimate.
-  The price watch lasts 5 hours from Valve's announcement (owner, 22.10.2026: by then he is awake and checks the price
-  himself). Checked and not used: Steam Web API, Steam Market (marketable items only),
+  The price is watched in the same 6-hour window as the details; after it the owner adds the price by hand. Checked and not used: Steam Web API, Steam Market (marketable items only),
   dota2.com datafeed (no store data), GameTracking-Dota2 (no `items_game` since 07.10), Dota 2 Fandom (slower than
   Liquipedia), paid web search.
 - Built 21.10.2026, to be seen by the owner on DEV: an event with its own dota2.com page (e.g. dota2.com/darkcarnival) becomes a series of posts, not one (owner,
