@@ -13,7 +13,9 @@ const publicationsSearchShape = z.object({
   to: z.iso.datetime().optional().catch(undefined),
   post: z.uuid().optional().catch(undefined),
   order: z.enum(['asc', 'desc']).optional().catch(undefined),
-  id: z.uuid().optional().catch(undefined)
+  id: z.uuid().optional().catch(undefined),
+  /** Opens «Опубликовать серию» with these posts in order (an event series's «Опубликовать серию»). */
+  series: z.array(z.uuid()).min(2).max(5).optional().catch(undefined)
 });
 export const publicationsSearchSchema = z.preprocess((input) => {
   if (typeof input !== 'object' || input === null || !('view' in input) || input.view !== 'today') return input;

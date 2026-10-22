@@ -63,6 +63,8 @@ export interface EventPage {
   images: string[];
   /** In the treasure slider's order, from common to rarest: the last set is the top reward (owner, 22.10.2026). */
   treasure: TreasureSet[];
+  /** Items the page sells with their own price (an automaton persona): its store item id and its name's text key. */
+  storeItems: { itemId: number; nameKey: string }[];
   gaps: EventPageGap[];
 }
 
@@ -248,6 +250,23 @@ export function parseTreasure(
   return { sets: paired, orderKnown: false };
 }
 
+// A page's item with a price of its own: the component is given the store item id and the item's name key together
+// (`{…,nItemID:31367,name:"#darkcarnival_automoton_axe_heroname"}`).
+const STORE_ITEM = /nItem(?:ID|DefID):(\d{3,7}),name:"#(\w{1,120})"/g;
+const MAX_STORE_ITEMS = 10;
+
+/** The page's priced items whose name is one of its texts, without repeats. */
+export function parseStoreItems(chunk: string, texts: readonly EventPageText[]): { itemId: number; nameKey: string }[] {
+  const keys = new Set(texts.map((text) => text.key));
+  const items = new Map<number, string>();
+  for (const match of chunk.matchAll(STORE_ITEM)) {
+    const itemId = Number(match[1]);
+    const nameKey = match[2] ?? '';
+    if (keys.has(nameKey) && !items.has(itemId)) items.set(itemId, nameKey);
+  }
+  return Array.from(items, ([itemId, nameKey]) => ({ itemId, nameKey })).slice(0, MAX_STORE_ITEMS);
+}
+
 async function readText(fetchImpl: typeof fetch, url: string, maxBytes: number): Promise<string | null> {
   const response = await fetchImpl(url, {
     headers: { accept: 'text/html,application/javascript;q=0.9,*/*;q=0.5' },
@@ -303,5 +322,14 @@ export async function fetchEventPage(slug: string, fetchImpl: typeof fetch = fet
   if (media.images.length + setImages === 0) gaps.push('no_media');
   if (treasure.sets.length > 0 && !treasure.orderKnown) gaps.push('treasure_order_unknown');
   if (treasure.sets.some((set) => set.image === null)) gaps.push('treasure_images_missing');
-  return { slug, url, texts, language, ...media, treasure: treasure.sets, gaps };
+  return {
+    slug,
+    url,
+    texts,
+    language,
+    ...media,
+    treasure: treasure.sets,
+    storeItems: parseStoreItems(pageChunk, texts),
+    gaps
+  };
 }

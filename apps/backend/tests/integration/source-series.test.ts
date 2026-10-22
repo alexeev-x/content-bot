@@ -174,18 +174,23 @@ describe('an event series', () => {
 
   // The treasure post opens with the top reward, the last slide (owner, 22.10.2026), whatever the plan chose.
   it('opens the treasure post with the rarest set, and only that post', () => {
-    const { texts, media, topReward } = seriesMaterial({
-      slug: 'dc',
-      url: 'https://www.dota2.com/dc',
-      texts: [{ key: 'dc_title', text: 'Карнавал' }],
-      language: 'russian',
-      images: ['https://cdn.steamstatic.com/apps/dota2/images/dota_react/dc/poster.jpg'],
-      treasure: [
-        { hero: 'Pudge', set: 'The Woodcutter', image: set('pudge') },
-        { hero: 'Io', set: 'Madame Scrio', image: set('io') }
-      ],
-      gaps: []
-    });
+    const { texts, media, topReward } = seriesMaterial(
+      {
+        slug: 'dc',
+        url: 'https://www.dota2.com/dc',
+        texts: [{ key: 'dc_title', text: 'Карнавал' }],
+        language: 'russian',
+        images: ['https://cdn.steamstatic.com/apps/dota2/images/dota_react/dc/poster.jpg'],
+        treasure: [
+          { hero: 'Pudge', set: 'The Woodcutter', image: set('pudge') },
+          { hero: 'Io', set: 'Madame Scrio', image: set('io') }
+        ],
+        storeItems: [{ itemId: 31367, nameKey: 'dc_title' }],
+        gaps: []
+      },
+      new Map([[31367, '$14.99']])
+    );
+    expect(texts.find((text) => text.key === 'store_prices')?.text).toContain('Карнавал — $14.99');
     expect(topReward).toBe(set('io'));
     expect(texts.at(-1)?.text).toContain('последний — главная награда: Pudge — The Woodcutter; Io — Madame Scrio');
     expect(media).toHaveLength(3);

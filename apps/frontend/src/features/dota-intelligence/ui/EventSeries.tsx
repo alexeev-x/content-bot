@@ -192,6 +192,7 @@ function SeriesPost({ event, post, busy }: { event: SourceEventDto; post: Post; 
 /** The event's planned series (owner, 21.10.2026: several logical posts, not one): approved one by one or all at once. */
 export function EventSeries({ event, seriesId }: { event: SourceEventDto; seriesId: string }) {
   const series = useQuery(sourceEventSeriesQueryOptions(event.id, seriesId));
+  const navigate = useNavigate();
   const approveAll = useApproveAllSeriesPosts();
   if (series.isPending)
     return (
@@ -211,6 +212,9 @@ export function EventSeries({ event, seriesId }: { event: SourceEventDto; series
   const { posts } = series.data;
   const writing = posts.filter((post) => post.status === 'writing').length;
   const ready = posts.filter(approvable);
+  // Every post is in the studio: the series can go out in its order (owner, 22.10.2026).
+  const studioPosts = posts.map((post) => post.draft?.postId ?? null);
+  const publishable = posts.length >= 2 && studioPosts.every((id): id is string => id !== null);
   return (
     <section className={styles.aiDraft} aria-labelledby={`series-${event.id}`}>
       <h3 id={`series-${event.id}`} className={styles.aiDraftTitle}>
@@ -235,6 +239,22 @@ export function EventSeries({ event, seriesId }: { event: SourceEventDto; series
             }
           >
             Одобрить все ({ready.length})
+          </Button>
+        </div>
+      ) : null}
+      {publishable ? (
+        <div className={styles.actions}>
+          <Button
+            variant="primary"
+            icon="send"
+            onPress={() =>
+              void navigate({
+                to: '/publications',
+                search: { series: studioPosts.filter((id): id is string => id !== null) }
+              })
+            }
+          >
+            Опубликовать серию
           </Button>
         </div>
       ) : null}

@@ -16,6 +16,7 @@ import { classifyDotaEvent, cleanExcerpt, type DotaSourceKey, type SourceEventTy
 export * from './source-events';
 export * from './source-events-repository';
 export * from './event-page';
+export { fetchStorePrices } from './valve-store';
 export * from './series-repository';
 
 export const DOTA_SOURCE_KEYS = ['steam_news', 'patch_notes'] as const;

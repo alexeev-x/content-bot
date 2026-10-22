@@ -448,12 +448,17 @@ export function PublicationsPage({ search, onSearchChange, onOpenPosts, onPublis
         onOpenPosts={onOpenPosts}
         onPublish={onPublishPost}
       />
-      {seriesOpen ? (
+      {seriesOpen || search.series !== undefined ? (
         <PublishSeriesDialog
           timezone={timezone}
-          isOpen={seriesOpen}
-          onOpenChange={setSeriesOpen}
-          onPublished={(id) => onSearchChange({ id })}
+          isOpen
+          {...(search.series === undefined ? {} : { initialPostIds: search.series })}
+          onOpenChange={(open) => {
+            setSeriesOpen(open);
+            // Opened from an event's series: closing it leaves the address as a plain list.
+            if (!open && search.series !== undefined) onSearchChange({ series: undefined }, { replace: true });
+          }}
+          onPublished={(id) => onSearchChange({ id, series: undefined })}
         />
       ) : null}
       {deleteTargets ? (

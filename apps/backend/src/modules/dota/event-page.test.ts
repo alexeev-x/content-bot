@@ -7,6 +7,7 @@ import {
   pageChunkIds,
   parseMediaPaths,
   parseTextsChunk,
+  parseStoreItems,
   parseTreasure
 } from './event-page';
 
@@ -161,5 +162,17 @@ describe('event page', () => {
     }
   ])('reads the treasure from $shape', ({ chunk, texts: pageTexts, sets, orderKnown }) => {
     expect(parseTreasure(chunk, pageTexts)).toEqual({ sets, orderKnown });
+  });
+});
+
+describe('the page’s priced items', () => {
+  it('pairs each item id with its name text, once', () => {
+    const chunk =
+      '(0,e.jsx)(L,{additionalClassName:a().Axe,nItemID:31367,name:"#dc_automoton_axe_heroname",description:"#x"}),' +
+      '(0,e.jsx)(L,{nItemID:31367,name:"#dc_automoton_axe_heroname"}),(0,e.jsx)(L,{nItemID:31357,name:"#dc_missing"}),' +
+      '(0,e.jsx)(S.V,{strLocString:"#dc_price",nItemDefID:34452,strDefaultPrice:"$14.99 USD"})';
+    expect(parseStoreItems(chunk, [{ key: 'dc_automoton_axe_heroname', text: 'Акс' }])).toEqual([
+      { itemId: 31367, nameKey: 'dc_automoton_axe_heroname' }
+    ]);
   });
 });

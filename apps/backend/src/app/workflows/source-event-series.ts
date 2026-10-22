@@ -4,6 +4,7 @@ import { generateCheckedDraft, planSeries, SOURCE_LINK_LABEL } from '../../modul
 import {
   fetchEventPage,
   fetchSteamAnnouncement,
+  fetchStorePrices,
   type EventPage,
   type EventPageGap,
   type EventPageText
@@ -25,6 +26,7 @@ const ANNOUNCEMENT_FOR_PLAN = 3_000;
 const mediaName = (url: string) => url.replace(/^.*\/dota_react\/[^/]+\//, '');
 
 const TREASURE_TEXT_KEY = 'treasure_by_rarity';
+const STORE_PRICES_KEY = 'store_prices';
 const GAP_TEXT: Record<EventPageGap, string> = {
   texts_truncated: 'тексты страницы обрезаны',
   no_media: 'не нашлось ни одной картинки',
@@ -37,7 +39,11 @@ const GAP_TEXT: Record<EventPageGap, string> = {
  * names the top reward, and each set's image named by hero and set (owner, 22.10.2026: the treasure post shows the
  * rarest set).
  */
-export function seriesMaterial(page: EventPage): {
+export function seriesMaterial(
+  page: EventPage,
+  /** Valve's prices of the page's own items (`fetchStorePrices`), by item id. */
+  prices: ReadonlyMap<number, string> = new Map()
+): {
   texts: EventPageText[];
   media: string[];
   mediaNames: string[];
@@ -46,8 +52,18 @@ export function seriesMaterial(page: EventPage): {
 } {
   const media = [...page.images];
   const mediaNames = media.map(mediaName);
+  const textOf = new Map(page.texts.map((text) => [text.key, text.text]));
+  // Valve's own prices of what the page sells (an automaton persona): a fact for the post about it (owner, 22.10.2026).
+  const priced = page.storeItems
+    .map((item) => ({ name: textOf.get(item.nameKey), price: prices.get(item.itemId) }))
+    .filter((item): item is { name: string; price: string } => item.name !== undefined && item.price !== undefined)
+    .map((item) => `${item.name} — ${item.price}`);
+  const baseTexts =
+    priced.length === 0
+      ? page.texts
+      : [...page.texts, { key: STORE_PRICES_KEY, text: `Цены в магазине Dota 2 (Valve): ${priced.join('; ')}` }];
   const sets = page.treasure;
-  if (sets.length === 0) return { texts: page.texts, media, mediaNames, topReward: null };
+  if (sets.length === 0) return { texts: baseTexts, media, mediaNames, topReward: null };
   const ordered = !page.gaps.includes('treasure_order_unknown');
   const list = sets.map((set) => (set.hero === '' ? set.set : `${set.hero} — ${set.set}`)).join('; ');
   const text = ordered
@@ -60,7 +76,7 @@ export function seriesMaterial(page: EventPage): {
     mediaNames.push(`сокровищница: ${set.hero === '' ? set.set : `${set.hero} — ${set.set}`}${rarest}`);
   });
   const topReward = ordered ? (sets.at(-1)?.image ?? null) : null;
-  return { texts: [...page.texts, { key: TREASURE_TEXT_KEY, text }], media, mediaNames, topReward };
+  return { texts: [...baseTexts, { key: TREASURE_TEXT_KEY, text }], media, mediaNames, topReward };
 }
 
 /**
@@ -166,7 +182,8 @@ export async function planEventSeries(
         .catch(onError);
   }
 
-  const { texts, media, mediaNames, topReward } = seriesMaterial(page);
+  const prices = await fetchStorePrices(page.storeItems.map((item) => item.itemId));
+  const { texts, media, mediaNames, topReward } = seriesMaterial(page, prices);
   const deps = await createWriterDeps(container, requestId);
   const plan = await planSeries(deps, {
     title: source.title,
