@@ -7,7 +7,8 @@ const REASONS: Record<string, string> = {
   CONTENT_INVALID: 'Текст не принят Telegram',
   CHAT_MIGRATED: 'Канал сменил адрес',
   BOT_UNAUTHORIZED: 'Токен бота не принят',
-  PUBLICATION_MISSING: 'Публикация не найдена'
+  PUBLICATION_MISSING: 'Публикация не найдена',
+  TELEGRAM_MEDIA_TOO_LARGE: 'Файлы поста больше 90 МБ'
 };
 
 export function incidentReason(code: string): string {

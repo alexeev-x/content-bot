@@ -12,7 +12,9 @@ const FAILURE_REASONS: Record<string, string> = {
   DESTINATION_DISABLED: 'канал выключен в настройках',
   BOT_UNAUTHORIZED: 'Telegram отклонил токен бота',
   RETRIES_EXHAUSTED: 'исчерпаны повторные попытки',
-  PUBLICATION_MISSING: 'публикация не найдена'
+  PUBLICATION_MISSING: 'публикация не найдена',
+  TELEGRAM_MEDIA_UNSUPPORTED: 'Telegram не принимает такой набор медиа (больше 10 файлов или GIF в альбоме)',
+  TELEGRAM_MEDIA_TOO_LARGE: 'файлы поста вместе больше 90 МБ — их не успеть загрузить в Telegram'
 };
 
 export interface IncidentAlertMessage {

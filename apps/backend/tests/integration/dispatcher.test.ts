@@ -149,6 +149,30 @@ describe('a due job is sent once and recorded', () => {
     expect((await publicationOf(publication.id)).last_error_code).toBe('CONTENT_INVALID');
   });
 
+  // DEV 22.10.2026: a 40+ MB video was cut off by the 10 s bound and went unknown. Files that cannot be uploaded
+  // within the largest bound are refused visibly; nothing is marked or sent, so nothing is left to reconcile.
+  it('refuses files too large to upload within the send bound before marking or calling Telegram', async () => {
+    const { publicationId } = await seedDueJob(api);
+    const transport = fakeTransport(SENT);
+    const huge = { kind: 'video' as const, fileName: 'v.mp4', contentType: 'video/mp4', sizeBytes: 91_000_000 };
+
+    await tickWith(transport, {
+      tweak: (container) => ({
+        ...container,
+        postRevisions: {
+          async findRevision(postId, revision) {
+            const found = await container.postRevisions.findRevision(postId, revision);
+            return found && { ...found, media: [{ ...huge, body: new ReadableStream<Uint8Array>() }] };
+          }
+        }
+      })
+    }).run();
+
+    expect(transport.calls).toHaveLength(0);
+    expect(await jobOf(publicationId)).toMatchObject({ status: 'failed', send_started_at: null });
+    expect((await publicationOf(publicationId)).last_error_code).toBe('TELEGRAM_MEDIA_TOO_LARGE');
+  });
+
   it('sends the plain text with a bold title entity to the destination and marks everything in D1', async () => {
     const { publicationId, jobId, chatId } = await seedDueJob(api);
     const transport = fakeTransport(SENT);

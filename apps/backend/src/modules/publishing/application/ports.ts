@@ -44,6 +44,8 @@ export interface PublicationMedia {
   kind: 'photo' | 'video' | 'animation';
   fileName: string;
   contentType: string;
+  /** The stored file's size: the send's time bound grows with it. */
+  sizeBytes: number;
   body: ReadableStream<Uint8Array>;
 }
 

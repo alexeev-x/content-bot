@@ -151,8 +151,20 @@ describe('the Telegram transport adapter', () => {
   it('sends a mixed album exactly once and retains every returned message id', async () => {
     const sender = senderOf(() => Promise.resolve([{ message_id: 20 }, { message_id: 21 }]));
     const media = [
-      { kind: 'photo' as const, fileName: 'a.jpg', contentType: 'image/jpeg', body: new ReadableStream<Uint8Array>() },
-      { kind: 'video' as const, fileName: 'b.mp4', contentType: 'video/mp4', body: new ReadableStream<Uint8Array>() }
+      {
+        kind: 'photo' as const,
+        fileName: 'a.jpg',
+        contentType: 'image/jpeg',
+        sizeBytes: 1,
+        body: new ReadableStream<Uint8Array>()
+      },
+      {
+        kind: 'video' as const,
+        fileName: 'b.mp4',
+        contentType: 'video/mp4',
+        sizeBytes: 1,
+        body: new ReadableStream<Uint8Array>()
+      }
     ];
     const result = await createTelegramPublicationTransport(sender).send({
       chatId: '-100',

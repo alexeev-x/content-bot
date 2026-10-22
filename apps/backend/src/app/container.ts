@@ -437,6 +437,7 @@ export function createContainer(env: ContainerEnv, overrides: ContainerOverrides
               kind: asset.kind,
               fileName: asset.fileName,
               contentType: asset.contentType,
+              sizeBytes: object.size,
               body: object.body
             });
           }

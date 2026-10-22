@@ -1,7 +1,15 @@
 import { type PostEntity, type PostPoll, type PostSendOptions, pollIssue } from '@alexeev/contracts';
 import type { Clock } from '../../../platform/clock';
 import type { Logger } from '../../../platform/logging/logger';
-import { attemptsExhausted, DISPATCH_BATCH, LEASE_MS, minLeaseForSend, retryRunAt } from '../domain/dispatch-policy';
+import {
+  attemptsExhausted,
+  DISPATCH_BATCH,
+  LEASE_MS,
+  MAX_SEND_MEDIA_BYTES,
+  minLeaseForSend,
+  retryRunAt,
+  sendTimeoutMs
+} from '../domain/dispatch-policy';
 import { formatPublicationText } from '../domain/format-message';
 import type {
   ClaimedJob,
@@ -156,6 +164,8 @@ async function dispatchJob(deps: DispatchDeps, jobId: string, budget: TickBudget
   if (media.length > 0 && message.text.length > 1024) {
     return refuse('CONTENT_INVALID', 'caption_too_long');
   }
+  const mediaBytes = media.reduce((total, item) => total + item.sizeBytes, 0);
+  if (mediaBytes > MAX_SEND_MEDIA_BYTES) return refuse('TELEGRAM_MEDIA_TOO_LARGE', 'media_upload_exceeds_bound');
 
   // The mark must be confirmed before Telegram is called: if the Worker dies after the send, it
   // is the only evidence the post may be out there. Not confirmed: nothing was sent, and reconcile
@@ -165,7 +175,7 @@ async function dispatchJob(deps: DispatchDeps, jobId: string, budget: TickBudget
     jobId,
     attempt: claimed.attempt,
     now,
-    minLeaseUntil: minLeaseForSend(now)
+    minLeaseUntil: minLeaseForSend(now, sendTimeoutMs(mediaBytes))
   });
   if (!marked) {
     log(deps, claimed, startedAt, 'send_not_started', 'LEASE_LOST', 'warn');

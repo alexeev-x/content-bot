@@ -2,7 +2,7 @@ import { InputFile } from 'grammy';
 import type { InputMediaPhoto, InputMediaVideo } from '@grammyjs/types';
 import type { PostEntity, PostPoll } from '@alexeev/contracts';
 import type { PublicationTransport } from '../application/ports';
-import { SEND_TIMEOUT_MS } from '../domain/dispatch-policy';
+import { sendTimeoutMs } from '../domain/dispatch-policy';
 import { classifySendResult, classifyTelegramError } from './classify-telegram-result';
 
 // What the adapter needs to send: `integrations/telegram` provides it, tests script it.
@@ -60,14 +60,13 @@ interface SendFlags {
 // is visible in the types (docs/BACKEND_ARCHITECTURE.md §4). The message is plain text plus the
 // entities made by formatPublicationText, with no parse_mode. The link preview is switched off only when the post
 // says so (a text message without media; a caption or a poll has none). A poll is always anonymous: channels
-// accept no other kind.
-export function createTelegramPublicationTransport(
-  sender: TelegramSender,
-  timeoutMs: number = SEND_TIMEOUT_MS
-): PublicationTransport {
+// accept no other kind. The call's bound grows with the files it uploads (the same bound the dispatcher's lease
+// check used); `timeoutMs` fixes it for tests.
+export function createTelegramPublicationTransport(sender: TelegramSender, timeoutMs?: number): PublicationTransport {
   return {
     async send({ chatId, text, entities, media, options, poll }) {
-      const signal = AbortSignal.timeout(timeoutMs);
+      const mediaBytes = media.reduce((total, item) => total + item.sizeBytes, 0);
+      const signal = AbortSignal.timeout(timeoutMs ?? sendTimeoutMs(mediaBytes));
       const flags: SendFlags = { disable_notification: options.silent, protect_content: options.protectContent };
       try {
         if (poll !== null) {
