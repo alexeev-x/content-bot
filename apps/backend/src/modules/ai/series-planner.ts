@@ -5,11 +5,11 @@ import { AiProviderError, type AiTextProvider } from './ports';
 import { assertAiReady, type BudgetEvent, readAiSettings, recordAiUsage } from './service';
 
 // The plan of a series of posts about one Dota event (owner, 21.10.2026: «в 1 пост не сделаешь… разбить красиво»):
-// how many posts, one topic each, in an order that reads well, which of Valve's texts and media each one takes.
-// Each post is then written by the writer from its own facts; the plan itself writes no post text.
+// at most three posts on fixed topics (owner, 22.10.2026: five were too many), which of Valve's texts and images each
+// one takes. Each post is then written by the writer from its own facts; the plan itself writes no post text.
 
-export const SERIES_POSTS_MIN = 2;
-export const SERIES_POSTS_MAX = 6;
+export const SERIES_POSTS_MIN = 1;
+export const SERIES_POSTS_MAX = 3;
 // A Telegram album's limit (owner, 22.10.2026: five automatons get five photos).
 const MEDIA_PER_POST_MAX = 10;
 const MAX_OUTPUT_TOKENS = 4_000;
@@ -19,16 +19,19 @@ const INSTRUCTIONS = [
   'страницы события (ключ — текст), и список картинок страницы. Составь план серии постов, а не сами посты.',
   '',
   'Правила:',
-  `- От ${SERIES_POSTS_MIN} до ${SERIES_POSTS_MAX} постов. Сколько — решает материал: тема, о которой нечего сказать, не пост.`,
-  '- Первый пост — новость: что вышло и самое цепляющее для игрока. Дальше каждый пост — одна тема, которая интересна',
-  '  сама по себе (как устроено событие и что за него дают; сокровищница и сеты; новые облики и персонажи; платный',
-  '  комплект и т. п.). Порядок логичный: от общего к частному. Темы не повторяют друг друга.',
+  `- Не больше ${SERIES_POSTS_MAX} постов, только эти темы и в этом порядке; темы, которой нет в материале, нет и в плане:`,
+  '  1) само событие — что вышло, что игроку делать (например, проходить вагоны) и что за это дают; этот пост есть',
+  '     всегда, сюда же платные комплекты, монеты и прочие награды;',
+  '  2) новая косметика героев — новые личности, облики, персоны (например, пять автоматонов);',
+  '  3) новая сокровищница — её сеты и главная награда.',
+  '  Других тем нет. Темы не повторяют друг друга.',
   '- Событие большое, посты должны быть интересными, а не сухими: в brief назови 2–3 самых интересных игроку детали и',
   '  угол подачи (что неожиданного или любопытного в этой теме), а не «перечислить всё».',
   '- Для каждого поста: topic — короткое название темы; brief — 1–3 фразы, что именно рассказать и чем это важно',
   '  игроку; texts — ключи текстов, из которых брать факты (только из списка, все нужные); media — номера картинок',
   `  из списка, которые подходят посту (до ${MEDIA_PER_POST_MAX}). Пост показывает несколько героев, персон или сетов —`,
   '  у каждого своя картинка, одна, самая наглядная (пять персон — пять картинок). Пост об одном — 1–2 картинки.',
+  '  Пост о сокровищнице открывается картинкой главной награды (в списке она помечена «самый редкий»).',
   '- Ничего не выдумывай: тема без фактов в материале — не тема.'
 ].join('\n');
 

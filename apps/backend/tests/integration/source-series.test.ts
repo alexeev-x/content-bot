@@ -1,7 +1,7 @@
 import { approveSourceEventAiDraftResponseSchema, sourceEventSeriesSchema } from '@alexeev/contracts';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { createContainer } from '../../src/app/container';
-import { seriesPostTask } from '../../src/app/workflows/source-event-series';
+import { postImages, seriesMaterial, seriesPostTask } from '../../src/app/workflows/source-event-series';
 import { testDb } from '../helpers/db';
 import { createApi, fakeClock, OWNER_ID, OWNER_TOKEN, resetDb, seedSession, START, type Api } from '../helpers/harness';
 import { testMediaBucket } from '../helpers/media-bucket';
@@ -76,6 +76,8 @@ beforeEach(async () => {
   api = createApi({ clock: fakeClock() });
   await seed();
 });
+
+const set = (hero: string) => `https://cdn.steamstatic.com/apps/dota2/videos/dota_react/dc/treasure/set_${hero}.png`;
 
 describe('an event series', () => {
   it('tells the owner once, when no post is writing any more', async () => {
@@ -162,5 +164,27 @@ describe('an event series', () => {
     expect(task).toContain('Ссылка на источник: https://www.dota2.com/darkcarnival');
     expect(task).toContain('Это не первый пост серии');
     expect(task.endsWith('>>>')).toBe(true);
+  });
+
+  // The treasure post opens with the top reward, the last slide (owner, 22.10.2026), whatever the plan chose.
+  it('opens the treasure post with the rarest set, and only that post', () => {
+    const { texts, media, topReward } = seriesMaterial({
+      slug: 'dc',
+      url: 'https://www.dota2.com/dc',
+      texts: [{ key: 'dc_title', text: 'Карнавал' }],
+      language: 'russian',
+      images: ['https://cdn.steamstatic.com/apps/dota2/images/dota_react/dc/poster.jpg'],
+      treasure: [
+        { hero: 'Pudge', set: 'The Woodcutter', image: set('pudge') },
+        { hero: 'Io', set: 'Madame Scrio', image: set('io') }
+      ],
+      gaps: []
+    });
+    expect(topReward).toBe(set('io'));
+    expect(texts.at(-1)?.text).toContain('последний — главная награда: Pudge — The Woodcutter; Io — Madame Scrio');
+    expect(media).toHaveLength(3);
+    const planned = [set('pudge'), media[0] ?? ''];
+    expect(postImages(planned, { treasurePost: true, topReward, max: 2 })).toEqual([set('io'), set('pudge')]);
+    expect(postImages(planned, { treasurePost: false, topReward, max: 10 })).toEqual(planned);
   });
 });

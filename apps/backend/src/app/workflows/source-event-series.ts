@@ -1,4 +1,5 @@
 import { Api, InlineKeyboard } from 'grammy';
+import { POST_MEDIA_MAX_ITEMS } from '@alexeev/contracts';
 import { generateCheckedDraft, planSeries, SOURCE_LINK_LABEL } from '../../modules/ai';
 import {
   fetchEventPage,
@@ -36,11 +37,17 @@ const GAP_TEXT: Record<EventPageGap, string> = {
  * names the top reward, and each set's image named by hero and set (owner, 22.10.2026: the treasure post shows the
  * rarest set).
  */
-export function seriesMaterial(page: EventPage): { texts: EventPageText[]; media: string[]; mediaNames: string[] } {
+export function seriesMaterial(page: EventPage): {
+  texts: EventPageText[];
+  media: string[];
+  mediaNames: string[];
+  /** The rarest set's image when the rarity order is known: the treasure post opens with it. */
+  topReward: string | null;
+} {
   const media = [...page.images];
   const mediaNames = media.map(mediaName);
   const sets = page.treasure;
-  if (sets.length === 0) return { texts: page.texts, media, mediaNames };
+  if (sets.length === 0) return { texts: page.texts, media, mediaNames, topReward: null };
   const ordered = !page.gaps.includes('treasure_order_unknown');
   const list = sets.map((set) => (set.hero === '' ? set.set : `${set.hero} — ${set.set}`)).join('; ');
   const text = ordered
@@ -52,7 +59,20 @@ export function seriesMaterial(page: EventPage): { texts: EventPageText[]; media
     media.push(set.image);
     mediaNames.push(`сокровищница: ${set.hero === '' ? set.set : `${set.hero} — ${set.set}`}${rarest}`);
   });
-  return { texts: [...page.texts, { key: TREASURE_TEXT_KEY, text }], media, mediaNames };
+  const topReward = ordered ? (sets.at(-1)?.image ?? null) : null;
+  return { texts: [...page.texts, { key: TREASURE_TEXT_KEY, text }], media, mediaNames, topReward };
+}
+
+/**
+ * A post's images as planned; the treasure post (the one given the treasure text) opens with the top reward even when
+ * the plan left it out or put it later (owner, 22.10.2026).
+ */
+export function postImages(
+  planned: readonly string[],
+  input: { treasurePost: boolean; topReward: string | null; max: number }
+): string[] {
+  if (!input.treasurePost || input.topReward === null) return planned.slice(0, input.max);
+  return [input.topReward, ...planned.filter((url) => url !== input.topReward)].slice(0, input.max);
 }
 
 /** The writer's task for one post: its topic and brief, the link, and only its own facts (Valve's texts). */
@@ -122,7 +142,7 @@ export async function planEventSeries(
         .catch(onError);
   }
 
-  const { texts, media, mediaNames } = seriesMaterial(page);
+  const { texts, media, mediaNames, topReward } = seriesMaterial(page);
   const deps = await createWriterDeps(container, requestId);
   const plan = await planSeries(deps, {
     title: source.title,
@@ -156,7 +176,10 @@ export async function planEventSeries(
       brief: post.brief,
       facts: post.texts.map((key) => textOf.get(key) ?? '').filter((text) => text !== '')
     }),
-    media: post.media.map((index) => media[index]).filter((url): url is string => url !== undefined)
+    media: postImages(
+      post.media.map((number) => media[number]).filter((url): url is string => url !== undefined),
+      { treasurePost: post.texts.includes(TREASURE_TEXT_KEY), topReward, max: POST_MEDIA_MAX_ITEMS }
+    )
   }));
   await container.sourceSeries.create({
     id: job.id,
