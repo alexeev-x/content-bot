@@ -23,20 +23,29 @@ The AI makes the Telegram channel's content itself: news and rubric posts drafte
   rates or opening bonuses missing from what went out start a watch on the event's Liquipedia page (found by its
   name). Every 5 minutes one light request asks whether the page changed; the price never starts a watch (Liquipedia
   has none). Liquipedia fills a page in many small edits, so new details are collected until the page has been quiet
-  for 30 minutes, then the AI writes the next post from what is new against what was published; later edits can give
-  another post. The watch ends 6 hours after Valve's announcement (owner, 22.10.2026: one window for the details and
-  the price, everything is out by then). Open: whether these posts publish themselves or wait for approval.
+  for 30 minutes (see «Follow-up posts» below). The watch ends 6 hours after Valve's announcement (owner, 22.10.2026:
+  one window for the details and the price, everything is out by then).
 - Price watch, Russian region (owner, 22.10.2026: the price in roubles matters). Trove of Terror (Valve 07.10 03:22
   MSK) was priced by Championat at 04:07 (only as «21 тыс. ₽ за аркану» in the title), esports.ru 07:41 (420 ₽),
   offstage.ru 08:40 (424 ₽, the first exact price), dota2.ru 10:02, PlayGround.ru 13:15 (424 ₽); no site is earlier,
   Russian newsrooms start in the morning. Sources, all keyless: Championat's RSS `championat.com/rss/news/cybersport/`
   (title and lead only: its articles sit behind a Sber ID single sign-on wall, not to be bypassed, and it has no
   public API), the RSS of esports.ru (`/rss/`) and dota2.ru (`/news/rss/`), and PlayGround.ru's posts in the Steam
-  News feed for app 570 (today the code keeps only Valve's feed). The price goes into a post only when two sources
-  agree («≈ 424 ₽», source named); a figure derived from another (the arcana's 21 000 ₽ / 50) is only an estimate.
-  The price is watched in the same 6-hour window as the details; after it the owner adds the price by hand. Checked and not used: Steam Web API, Steam Market (marketable items only),
+  News feed for app 570 (today the code keeps only Valve's feed). A price goes into a post, always as «≈ N ₽» with
+  its source, when two sources agree within about 2%; a figure derived from another (the arcana's 21 000 ₽ / 50 =
+  420 ₽) counts as one of the two (owner, 22.10.2026). The price is watched in the same 6-hour window as the details;
+  after it the owner adds the price by hand. Checked and not used: Steam Web API, Steam Market (marketable items only),
   dota2.com datafeed (no store data), GameTracking-Dota2 (no `items_game` since 07.10), Dota 2 Fandom (slower than
   Liquipedia), paid web search.
+- Follow-up posts of an event publish themselves (owner, 22.10.2026). Each event keeps a record of the facts already
+  published (sets, drop rates, opening bonuses, price, trailer); a new fact is checked against it, so nothing, the
+  price above all, goes out twice. New facts wait in the event's pending set: the sets with their images are a large
+  fact, the rest are small. The pending set goes out after 30 quiet minutes when it holds a large fact or at least two
+  small ones, and whatever is left goes out when the 6-hour window ends. Small facts never edit an earlier post: they
+  go out as one «details» post (an edit reaches nobody who read the post, and a media caption is capped at 1024
+  characters). At most three posts per event: the news, the sets, the details. A price found later that differs from
+  the published one gives no new post: the bot asks the owner and offers to correct the published post. Trove of
+  Terror would give: news 03:22, sets ~04:35, drop rates, bonuses and «≈ 420 ₽» ~08:10.
 - Built 21.10.2026, to be seen by the owner on DEV: an event with its own dota2.com page (e.g. dota2.com/darkcarnival) becomes a series of posts, not one (owner,
   21.10.2026): the page's own texts — Valve's Russian translation among them (story, how it works, rewards, the
   treasure's sets, personas) — and images are read; the AI first plans the series (how many posts, one topic each, in
