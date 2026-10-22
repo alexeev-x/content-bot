@@ -1,11 +1,11 @@
 // Liquipedia's Dota 2 wiki as an on-demand source (owner, 22.10.2026): its MediaWiki API only, never its HTML pages
 // (its terms forbid automated access to anything else). At most one request per 2 s, a User-Agent naming the project
-// and where to find it, gzip accepted, and «Источник: Liquipedia» in the post (CC-BY-SA 3.0). Only facts are taken;
+// and a contact, gzip accepted, and «Источник: Liquipedia» in the post (CC-BY-SA 3.0). Only facts are taken;
 // its pictures stay there (the files are not part of the API).
 
 const API = 'https://liquipedia.net/dota2/api.php';
 export const LIQUIPEDIA_PAGE = 'https://liquipedia.net/dota2/';
-const USER_AGENT = 'AlexeevContentBot/1.0 (https://github.com/alexeev-x/content-bot)';
+const USER_AGENT = 'AlexeevContentBot/1.0 (https://github.com/alexeev-x/content-bot; al93wswha@gmail.com)';
 const TIMEOUT_MS = 15_000;
 const MAX_TEXT_BYTES = 400_000;
 /** Liquipedia asks for no more than one request per 2 seconds. */
