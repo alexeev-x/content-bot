@@ -523,11 +523,24 @@ export function createD1PublicationRepository(db: D1Database): PublicationReposi
       return row?.live === 1;
     },
 
+    async hasAnyPublication(postIds) {
+      if (postIds.length === 0) return false;
+      const row = await db
+        .prepare(
+          'SELECT EXISTS (SELECT 1 FROM publications WHERE post_id IN (SELECT value FROM json_each(?1))) AS found'
+        )
+        .bind(JSON.stringify(postIds))
+        .first<{ found: number }>();
+      return row?.found === 1;
+    },
+
     async countCreatedBy(actor, since) {
       const row = await db
         .prepare(
           `SELECT count(*) AS n FROM audit_log
-           WHERE action = 'publication.create' AND actor_telegram_id = ?1 AND created_at > ?2`
+           WHERE action = 'publication.create' AND actor_telegram_id = ?1 AND created_at > ?2
+             -- A series counts once: its later posts carry a position above 1.
+             AND coalesce(json_extract(details, '$.seriesPosition'), 1) = 1`
         )
         .bind(actor, since)
         .first<{ n: number }>();

@@ -90,7 +90,13 @@ describe('an event series', () => {
     await series.finishPost({ id: FIRST, status: 'ready', generationId: await writeDraft('Пост 1') });
     expect(await series.claimNotice(SERIES, START)).toBeNull();
     await series.finishPost({ id: SECOND, status: 'failed', generationId: null });
-    expect(await series.claimNotice(SERIES, START)).toEqual({ title: 'The Dark Carnival', total: 2, ready: 1 });
+    expect(await series.claimNotice(SERIES, START)).toEqual({
+      title: 'The Dark Carnival',
+      total: 2,
+      ready: 1,
+      automatic: false,
+      clean: 0
+    });
     expect(await series.claimNotice(SERIES, START)).toBeNull();
     // A finished post never goes back to writing.
     await series.finishPost({ id: FIRST, status: 'failed', generationId: null });

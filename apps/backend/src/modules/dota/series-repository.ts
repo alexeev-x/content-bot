@@ -29,16 +29,28 @@ export interface SeriesRepository {
     title: string;
     pageUrl: string;
     now: number;
+    /** From Cron's first draft of a new event: may be published without the owner (migration 0100). */
+    automatic?: boolean;
     posts: { id: string; position: number; topic: string; task: string; media: string[] }[];
   }): Promise<void>;
   findPost(id: string): Promise<SeriesPostRow | null>;
   /** The writer finished one post (a draft or a failure); only a post still writing changes. */
-  finishPost(input: { id: string; status: 'ready' | 'failed'; generationId: string | null }): Promise<void>;
+  finishPost(input: {
+    id: string;
+    status: 'ready' | 'failed';
+    generationId: string | null;
+    factCheck?: 'clean' | 'fixed' | 'unchecked' | null;
+  }): Promise<void>;
   /**
    * Once per series, when no post is writing any more: the title and how many posts have a draft. Null while one
    * is still writing or when the notice was claimed before.
    */
-  claimNotice(seriesId: string, now: number): Promise<{ title: string; total: number; ready: number } | null>;
+  claimNotice(
+    seriesId: string,
+    now: number
+  ): Promise<{ title: string; total: number; ready: number; automatic: boolean; clean: number } | null>;
+  /** The series's posts in order. */
+  posts(seriesId: string): Promise<SeriesPostRow[]>;
   /** The event's current series, its posts in order. */
   latest(externalId: string, now: number): Promise<SeriesView | null>;
   /** The owner approved a post of the series: its studio post. */
@@ -88,14 +100,14 @@ function toPost(row: PostDbRow): SeriesPostRow {
 
 export function createD1SeriesRepository(db: D1Database): SeriesRepository {
   return {
-    async create({ id, externalId, title, pageUrl, now, posts }) {
+    async create({ id, externalId, title, pageUrl, now, automatic, posts }) {
       await db.batch([
         db
           .prepare(
-            `INSERT INTO source_series (id, source_key, external_id, title, page_url, posts_total, created_at)
-             VALUES (?1, 'steam_news', ?2, ?3, ?4, ?5, ?6)`
+            `INSERT INTO source_series (id, source_key, external_id, title, page_url, posts_total, created_at, automatic)
+             VALUES (?1, 'steam_news', ?2, ?3, ?4, ?5, ?6, ?7)`
           )
-          .bind(id, externalId, title.slice(0, 500), pageUrl, posts.length, now),
+          .bind(id, externalId, title.slice(0, 500), pageUrl, posts.length, now, automatic === true ? 1 : 0),
         ...posts.map((post) =>
           db
             .prepare(
@@ -130,11 +142,25 @@ export function createD1SeriesRepository(db: D1Database): SeriesRepository {
       return row === null ? null : toPost(row);
     },
 
-    async finishPost({ id, status, generationId }) {
+    async finishPost({ id, status, generationId, factCheck }) {
       await db
-        .prepare(`UPDATE source_series_posts SET status = ?2, generation_id = ?3 WHERE id = ?1 AND status = 'writing'`)
-        .bind(id, status, generationId)
+        .prepare(
+          `UPDATE source_series_posts SET status = ?2, generation_id = ?3, fact_check = ?4
+           WHERE id = ?1 AND status = 'writing'`
+        )
+        .bind(id, status, generationId, factCheck ?? null)
         .run();
+    },
+
+    async posts(seriesId) {
+      const { results } = await db
+        .prepare(
+          `SELECT ${POST_COLUMNS} FROM source_series_posts p JOIN source_series s ON s.id = p.series_id
+           WHERE p.series_id = ?1 ORDER BY p.position LIMIT 6`
+        )
+        .bind(seriesId)
+        .all<PostDbRow>();
+      return results.map(toPost);
     },
 
     async claimNotice(seriesId, now) {
@@ -143,12 +169,22 @@ export function createD1SeriesRepository(db: D1Database): SeriesRepository {
           `UPDATE source_series SET notified_at = ?2
            WHERE id = ?1 AND notified_at IS NULL
              AND NOT EXISTS (SELECT 1 FROM source_series_posts WHERE series_id = ?1 AND status = 'writing')
-           RETURNING title, posts_total,
-             (SELECT count(*) FROM source_series_posts WHERE series_id = ?1 AND status = 'ready') AS ready`
+           RETURNING title, posts_total, automatic,
+             (SELECT count(*) FROM source_series_posts WHERE series_id = ?1 AND status = 'ready') AS ready,
+             (SELECT count(*) FROM source_series_posts
+              WHERE series_id = ?1 AND status = 'ready' AND fact_check = 'clean') AS clean`
         )
         .bind(seriesId, now)
-        .first<{ title: string; posts_total: number; ready: number }>();
-      return row === null ? null : { title: row.title, total: row.posts_total, ready: row.ready };
+        .first<{ title: string; posts_total: number; ready: number; automatic: number; clean: number }>();
+      return row === null
+        ? null
+        : {
+            title: row.title,
+            total: row.posts_total,
+            ready: row.ready,
+            automatic: row.automatic === 1,
+            clean: row.clean
+          };
     },
 
     async latest(externalId, now) {

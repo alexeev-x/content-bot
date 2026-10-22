@@ -9,6 +9,7 @@ import {
   type EventPageGap,
   type EventPageText
 } from '../../modules/dota';
+import { getOwnerOperationsSettings } from '../../modules/settings';
 import { createWriterDeps } from '../bot/writer-deps';
 import type { Container } from '../container';
 
@@ -145,7 +146,7 @@ export function seriesPostTask(input: {
  */
 export async function planEventSeries(
   container: Container,
-  job: { id: string; externalId: string; chatId: number; appOrigin: string },
+  job: { id: string; externalId: string; chatId: number; appOrigin: string; automatic?: boolean },
   token: string,
   requestId: string,
   onError: (error: unknown) => void
@@ -233,6 +234,7 @@ export async function planEventSeries(
     title: source.title,
     pageUrl: page.url,
     now: container.clock.now(),
+    automatic: job.automatic === true,
     posts
   });
   // From here the series exists: it never falls back to the one post (a second paid draft). A post whose job the
@@ -252,6 +254,12 @@ export async function planEventSeries(
     }
   }
   return true;
+}
+
+async function autopublishEnabled(container: Container, requestId: string): Promise<boolean> {
+  return getOwnerOperationsSettings({ repo: container.settings, logger: container.logger, requestId })
+    .then((settings) => settings.autopublish.enabled)
+    .catch(() => false);
 }
 
 /** Writes one planned post; the last one of its series tells the owner. Never throws: a failure marks the post. */
@@ -280,7 +288,8 @@ export async function writeSeriesPost(
       id: post.id,
       status: result.text === null ? 'failed' : 'ready',
       // The first version of the chain: a fix by the fact check is its child.
-      generationId: result.generation.parentGenerationId ?? result.generation.id
+      generationId: result.generation.parentGenerationId ?? result.generation.id,
+      factCheck: result.factCheck ?? null
     });
   } catch (error) {
     onError(error);
@@ -292,13 +301,35 @@ export async function writeSeriesPost(
       onError(error);
       return null;
     });
-  if (notice === null || token === '') return;
+  if (notice === null) return;
+  // Cron's series, every post written and its facts clean: published without the owner, one post per queue message
+  // (owner, 22.10.2026); anything that stops it on the way tells the owner then.
+  if (notice.automatic && notice.ready === notice.total && notice.clean === notice.total) {
+    try {
+      await container.aiJobs.send({
+        id: container.newId(),
+        kind: 'series_publish',
+        chatId: job.chatId,
+        appOrigin: job.appOrigin,
+        seriesId: post.seriesId,
+        position: 1
+      });
+      return;
+    } catch (error) {
+      onError(error);
+    }
+  }
+  if (token === '') return;
   const text =
     notice.ready === notice.total
       ? `Серия постов «${notice.title}» готова: ${notice.total}. Посмотрите и одобрите в студии.`
       : `Серия постов «${notice.title}»: готово ${notice.ready} из ${notice.total}. Остальные не написались — повторите в студии.`;
   const url = `${job.appOrigin}/sources?open=${encodeURIComponent(`steam_news:${post.externalId}`)}`;
   await new Api(token, { timeoutSeconds: TELEGRAM_TIMEOUT_SECONDS })
-    .sendMessage(job.chatId, text, { reply_markup: new InlineKeyboard().webApp('Открыть в студии', url) })
+    .sendMessage(job.chatId, text, {
+      reply_markup: new InlineKeyboard().webApp('Открыть в студии', url),
+      // With the automatic publishing on, Cron's series never wakes the owner at night (owner, 22.10.2026).
+      disable_notification: notice.automatic && (await autopublishEnabled(container, requestId))
+    })
     .catch(onError);
 }

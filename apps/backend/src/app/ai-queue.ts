@@ -12,6 +12,7 @@ import { uploadPostMedia } from '../modules/content';
 import { AppError } from '../shared/app-error';
 import { runStyleLessons } from './workflows/style-lessons';
 import { autopublishSourceEvent } from './workflows/autopublish-source-event';
+import { runSeriesPublishStep } from './workflows/autopublish-series';
 import { getOwnerOperationsSettings } from '../modules/settings';
 import { escapeHtml } from './notifications/notice-template';
 import type { AiJob, WriterJob } from './bot/ai-job';
@@ -172,6 +173,18 @@ export async function handleAiQueue(batch: MessageBatch<unknown>, container: Con
     }
     if (job.kind === 'source_media') {
       await runSourceMediaJob(job, container, token, onError);
+      message.ack();
+      continue;
+    }
+    if (job.kind === 'series_publish') {
+      await runSeriesPublishStep(
+        container,
+        job,
+        token,
+        (chatId) => sourceMediaDeps(container, token, chatId),
+        requestId,
+        onError
+      );
       message.ack();
       continue;
     }

@@ -64,6 +64,19 @@ export const aiJobSchema = z.discriminatedUnion('kind', [
     appOrigin: z.string().max(200),
     seriesPostId: z.uuid()
   }),
+  /**
+   * One step of publishing an event's series without the owner (owner, 22.10.2026): the post at `position` becomes an
+   * approved studio post with its pictures; after the last one, the series publication. One post per message keeps
+   * each inside the Free plan's subrequests.
+   */
+  z.object({
+    id: z.uuid(),
+    kind: z.literal('series_publish'),
+    chatId: z.number().int(),
+    appOrigin: z.string().max(200),
+    seriesId: z.uuid(),
+    position: z.number().int().min(1).max(6)
+  }),
   z.object({ ...base, kind: z.literal('draft'), format: formatSchema, task: z.string().min(1).max(TEXT_MAX) }),
   z.object({
     ...base,
@@ -112,7 +125,14 @@ export type WriterJob =
   | Exclude<
       AiJob,
       {
-        kind: 'daily_review' | 'style_lessons' | 'hypotheses' | 'source_event' | 'source_media' | 'series_post';
+        kind:
+          | 'daily_review'
+          | 'style_lessons'
+          | 'hypotheses'
+          | 'source_event'
+          | 'source_media'
+          | 'series_post'
+          | 'series_publish';
       }
     >
   | EventWriterJob;
