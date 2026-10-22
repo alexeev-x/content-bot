@@ -28,13 +28,15 @@ The AI makes the Telegram channel's content itself: news and rubric posts drafte
 - Price from Valve, first choice (owner, 22.10.2026: «идеально»): `https://www.dota2.com/react/getbpprices?item_defs=<id>`
   (keyless, several ids comma-separated) gives Valve's store price, e.g. `{"34454":"$4.99"}` for Trove of Terror; the
   event pages use it themselves. The currency follows the caller's country (USD from Moldova and from the owner's
-  browser; no parameter changes it). The item id comes from the event page's price component (`nItemDefID`) or,
-  without a page, from Liquipedia's `defindex`. Posts give this price in dollars as Valve returns it, no «≈» (owner,
+  browser; no parameter changes it). A treasure's item id comes from Liquipedia's `defindex` (Treasure of Wonders
+  31200, $2.49): the carnival page prices other items, not its treasure (the automaton personas `nItemID` 31367 etc.
+  $14.99, Secret Room Pack 34452 $14.99, 34472 $7.99). Posts give this price in dollars as Valve returns it, no «≈» (owner,
   22.10.2026: dollars are fine). The rouble sources below are only the fallback when no id is known.
 - An event page's treasure, read by our parser (checked on dota2.com/darkcarnival, 22.10.2026): the sets in slider
-  order (`{heroname:…}` in the page chunk; the owner: the top reward is usually the last slide), each set's image at
+  order (`{heroname:…}` in the page chunk), which is rarity from common to rarest (owner, 22.10.2026: the last slide
+  is the top reward, Io «Madame Scrio» in the carnival; the treasure post's image is the last slide's), each set's image at
   `cdn.steamstatic.com/apps/dota2/videos/dota_react/<slug>/treasure/set_<hero>.png` (the parser misses these today),
-  and the price item id. No drop rates on the page.
+  and the personas' item ids (their prices). No drop rates and no treasure price on the page.
 - Price watch, Russian region (owner, 22.10.2026: the price in roubles matters). Trove of Terror (Valve 07.10 03:22
   MSK) was priced by Championat at 04:07 (only as «21 тыс. ₽ за аркану» in the title), esports.ru 07:41 (420 ₽),
   offstage.ru 08:40 (424 ₽, the first exact price), dota2.ru 10:02, PlayGround.ru 13:15 (424 ₽); no site is earlier,
