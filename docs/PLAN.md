@@ -27,6 +27,13 @@ The AI makes the Telegram channel's content itself: news and rubric posts drafte
 - Sources come in two kinds (owner, 21.10.2026): important ones, whose news the studio writes and publishes by itself
   as soon as it appears, and scheduled rubrics (e.g. a weekly «worst heroes» from a stats API). Publishing without the
   owner is decided (`docs/DECISIONS.md`, 21.10.2026: Valve posts at the owner's night); its safeguards come with it.
+- Liquipedia Dota 2 as an on-demand source (owner, 22.10.2026): no Cron polling; the server fetches a page when a
+  post or rubric needs it. Only the MediaWiki `api.php` (wikitext and image URLs; HTML pages are forbidden by its
+  terms): at most 1 request per 2 s (`action=parse` 1 per 30 s), a `User-Agent` naming the project with a contact,
+  gzip accepted, «Источник: Liquipedia» in the post (CC-BY-SA 3.0; cosmetic images stay Valve's). It has heroes with
+  per-patch changelogs, items, patches, treasures and sets with images (no prices), tournaments, matches, teams,
+  rosters and transfers. LiquipediaDB (structured data) needs an approved key and is paid unless the use is
+  non-commercial; not planned.
 - Find and add more that give a post a day without the owner's work; each must be free, keyless or with a free key,
   and allowed by its terms.
 
@@ -34,6 +41,16 @@ The AI makes the Telegram channel's content itself: news and rubric posts drafte
 
 Many repeatable rubrics the AI drafts from the sources on its own schedule; the owner approves or edits. Their results
 show in Аналитика → «Рубрики Telegram».
+
+Ideas from Liquipedia, kept for later (owner, 22.10.2026: recorded, not chosen):
+- «Чей сет?»: a treasure set's image without the hero and a poll with four heroes; the answer the next day, or a
+  Telegram quiz poll (our polls are regular only today).
+- «Что сломали в патче»: after a patch, short posts on who was buffed or killed from the heroes' changelogs, then a
+  poll «кто теперь имба?».
+- Transfers of the week: who moved where, in the owner's voice.
+- «Этот день в Доте»: which tournament was won on this date years ago.
+- «Кто победит?»: a poll before a big match and the result after it; harder, it needs the tournament brackets parsed.
+- Open question: does the channel want esports (the last three) or only the game itself.
 
 ## 3. News
 
