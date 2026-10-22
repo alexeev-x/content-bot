@@ -51,6 +51,10 @@ The AI makes the Telegram channel's content itself: news and rubric posts drafte
   treasure's sets, personas) — and images are read; the AI first plans the series (how many posts, one topic each, in
   a logical order, no repeats, which images go where), then writes each post; they go out spaced in time. A trailer
   is linked when the page has one. Without such a page (Trove of Terror) the post comes from the announcement.
+  To change (owner, 22.10.2026: five posts are too many): at most three posts, one per fixed topic, a topic the page
+  lacks is skipped: the event itself (what players do, e.g. the carnival's wagons, and its rewards), the new hero
+  cosmetics (e.g. the five automaton personas) and the new treasure (its sets; details and price as in the watch
+  above). Today the planner picks 2–6 posts on any topics.
 - Sources come in two kinds (owner, 21.10.2026): important ones, whose news the studio writes and publishes by itself
   as soon as it appears, and scheduled rubrics (e.g. a weekly «worst heroes» from a stats API). Publishing without the
   owner is decided (`docs/DECISIONS.md`, 21.10.2026: Valve posts at the owner's night); its safeguards come with it.
