@@ -88,12 +88,10 @@ async function runSourceMediaJob(
       },
       job
     );
-    if (found === 0) return;
-    text =
-      attached === found
-        ? `Картинки из анонса прикреплены к черновику: ${attached}.`
-        : `Прикреплено картинок из анонса: ${attached} из ${found}. Остальные добавьте в студии.`;
     await container.aiWriter.finishJob(job.id, container.clock.now());
+    // Only what needs the owner's hand reaches the bot (owner, 22.10.2026: «эту инфу не надо мне в тг»).
+    if (attached === found) return;
+    text = `Прикреплено картинок из анонса: ${attached} из ${found}. Остальные добавьте в студии.`;
   } catch (error) {
     onError(error);
     text = 'Не удалось прикрепить картинки из анонса. Добавьте их в студии.';
