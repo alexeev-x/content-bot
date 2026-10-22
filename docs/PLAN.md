@@ -67,6 +67,20 @@ The AI makes the Telegram channel's content itself: news and rubric posts drafte
   per-patch changelogs, items, patches, treasures and sets with images (no prices), tournaments, matches, teams,
   rosters and transfers. LiquipediaDB (structured data) needs an approved key and is paid unless the use is
   non-commercial; not planned.
+- Patches (owner, 22.10.2026; all publish without the owner, `docs/DECISIONS.md`). Kinds, from Valve's
+  `datafeed/patchnoteslist` and the Steam announcement of the day (checked on 2023–2026):
+  - letter patch (7.41f: about 100 notes; at most ~310 seen): one short AI post without a picture (owner: «если мелкие
+    то без фотки коротко что изменили и ссылку»): what changed that matters, and the patch page linked for the rest;
+  - whole-number patch (7.41: ~1 700 notes, facets removed; at least ~630 seen): a series, mechanics first, then
+    heroes, then items;
+  - a patch whose Steam announcement links its own dota2.com page instead of `/patches/<v>` (7.38 /wanderingwaters,
+    7.40 /largo, 7.41e with /summerscrub2026): the event-page series, numbers from the datafeed;
+  - a Steam «Dota 2 Update - <date>» hotfix (no datafeed row, ~20 a year): a short post without a picture, linked to
+    the announcement, only when the AI finds something a player cares about (event rewards, a hidden nerf, a funny
+    bug), else a studio mark only.
+  - The picture, whole-number patches only: the patch number drawn by the server on one fixed background (glyphs pre-drawn in our font, the
+    subtitle baked in); to be measured against the Free plan's 10 ms CPU first. The background is designed once (GPT
+    variants, the owner picks). Hero portraits on big patches later.
 - Find and add more that give a post a day without the owner's work; each must be free, keyless or with a free key,
   and allowed by its terms.
 
