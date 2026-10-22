@@ -77,6 +77,22 @@ export const aiJobSchema = z.discriminatedUnion('kind', [
     seriesId: z.uuid(),
     position: z.number().int().min(1).max(6)
   }),
+  /** One run of the Liquipedia watch of treasures (migration 0101), queued by Cron's Dota step every 5 minutes; it reads the app origin itself. */
+  z.object({
+    id: z.uuid(),
+    kind: z.literal('treasure_watch'),
+    chatId: z.number().int()
+  }),
+  /** A follow-up post of a treasure: the new facts the watch found, written like Cron's event draft. */
+  z.object({
+    id: z.uuid(),
+    kind: z.literal('treasure_post'),
+    chatId: z.number().int(),
+    appOrigin: z.string().max(200),
+    externalId: z.string().min(1).max(100),
+    number: z.number().int().min(1).max(2),
+    task: z.string().min(1).max(TEXT_MAX)
+  }),
   z.object({ ...base, kind: z.literal('draft'), format: formatSchema, task: z.string().min(1).max(TEXT_MAX) }),
   z.object({
     ...base,
@@ -119,7 +135,13 @@ export const aiJobSchema = z.discriminatedUnion('kind', [
 export type AiJob = z.infer<typeof aiJobSchema>;
 export type AiJobBase = z.infer<z.ZodObject<typeof base>>;
 /** A `source_event` job once the consumer has sent its «Пишу…» message. */
-export type EventWriterJob = AiJobBase & { kind: 'event'; externalId: string; automatic?: boolean };
+export type EventWriterJob = AiJobBase & {
+  kind: 'event';
+  externalId: string;
+  automatic?: boolean;
+  /** A treasure's follow-up (1 or 2): its own task, and the event's own draft is left as it is. */
+  followUp?: { number: number; task: string };
+};
 /** The jobs of the bot's AI writer: each has the chat message it ends in. */
 export type WriterJob =
   | Exclude<
@@ -132,7 +154,9 @@ export type WriterJob =
           | 'source_event'
           | 'source_media'
           | 'series_post'
-          | 'series_publish';
+          | 'series_publish'
+          | 'treasure_watch'
+          | 'treasure_post';
       }
     >
   | EventWriterJob;

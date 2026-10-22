@@ -31,7 +31,14 @@ export async function autopublishSourceEvent(
   container: Container,
   deps: WriterDeps,
   media: SourceMediaDeps,
-  input: { externalId: string; rootId: string; versionId: string; requestId: string }
+  input: {
+    externalId: string;
+    rootId: string;
+    versionId: string;
+    requestId: string;
+    /** A treasure's follow-up (1 or 2): its own publication key, no pictures, not the event's own post. */
+    followUp?: number;
+  }
 ): Promise<AutopublishOutcome> {
   const settings = await getOwnerOperationsSettings({
     repo: container.settings,
@@ -54,7 +61,8 @@ export async function autopublishSourceEvent(
       versionId: input.versionId,
       actor: AUTOPUBLISH_ACTOR,
       provenance: 'OWNER_PREAPPROVED',
-      queueMedia: false
+      queueMedia: false,
+      ...(input.followUp === undefined ? {} : { linkToEvent: false })
     }));
     title = (await container.posts.findById(postId))?.title ?? '';
   } catch (error) {
@@ -69,11 +77,10 @@ export async function autopublishSourceEvent(
   try {
     // An event post always carries its picture (owner, 21.10.2026): attached before approval, since an approved post
     // no longer takes files. With pictures in the announcement and none of them arriving, the owner decides.
-    const { attached, found } = await attachSourceEventImages(media, {
-      postId,
-      externalId: input.externalId,
-      max: MAX_PICTURES
-    });
+    const { attached, found } =
+      input.followUp === undefined
+        ? await attachSourceEventImages(media, { postId, externalId: input.externalId, max: MAX_PICTURES })
+        : { attached: 0, found: 0 };
     if (found > 0 && attached === 0) return { kind: 'held', postId, title, reason: 'no_images' };
     const draft = await container.posts.findById(postId);
     if (draft === null) throw new Error('The approved post is gone');
@@ -98,7 +105,10 @@ export async function autopublishSourceEvent(
       },
       {
         actor: AUTOPUBLISH_ACTOR,
-        idempotencyKey: `autopublish:${input.externalId}`,
+        idempotencyKey:
+          input.followUp === undefined
+            ? `autopublish:${input.externalId}`
+            : `autopublish:${input.externalId}:follow-up-${input.followUp}`,
         input: {
           postId,
           revision: post.revision,

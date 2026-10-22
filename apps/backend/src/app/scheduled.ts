@@ -364,6 +364,20 @@ export async function handleScheduled(controller: ScheduledController, container
           logger
         });
         if (summary.sourceFailures > 0) failures += 1;
+        // The Liquipedia watch of new treasures runs in the queue (owner, 22.10.2026): one message per Dota run and no
+        // D1 query of this tick (the consumer reads the app origin, starts and serves the watches itself). A refused
+        // send is only logged: the next run sends again.
+        const ownerChat = Number(container.ownerChatId);
+        if (container.ownerChatId !== null && Number.isSafeInteger(ownerChat))
+          await container.aiJobs
+            .send({ id: container.newId(), kind: 'treasure_watch', chatId: ownerChat })
+            .catch((error: unknown) =>
+              logger.warn({
+                component: 'treasure_watch',
+                operation: 'enqueue',
+                errorCode: error instanceof Error ? error.name : 'unknown'
+              })
+            );
         const notifications = (
           await getOwnerOperationsSettings({ repo: container.settings, logger, requestId: 'scheduled' })
         ).notifications;

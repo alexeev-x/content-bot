@@ -17,6 +17,15 @@ export * from './source-events';
 export * from './source-events-repository';
 export * from './event-page';
 export { fetchStorePrices } from './valve-store';
+export {
+  findLiquipediaPages,
+  isTreasurePage,
+  LIQUIPEDIA_PAGE,
+  LIQUIPEDIA_SPACING_MS,
+  parseTreasureWikitext,
+  readLiquipediaPage,
+  type TreasureFacts
+} from './liquipedia';
 export * from './series-repository';
 
 export const DOTA_SOURCE_KEYS = ['steam_news', 'patch_notes'] as const;
@@ -1741,3 +1750,11 @@ function compareDotaSources(left: DotaDraftSource, right: DotaDraftSource): numb
     left.externalId.localeCompare(right.externalId)
   );
 }
+export {
+  createD1TreasureWatchRepository,
+  factKind,
+  type TreasureFactKind,
+  type TreasureFactTexts,
+  type TreasureWatch,
+  type TreasureWatchRepository
+} from './treasure-watch-repository';

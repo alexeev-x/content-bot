@@ -365,7 +365,8 @@ async function jobResult(
     // The source's facts only (automatic mode): the writer never adds what the announcement does not say.
     const events = runtime.sourceEvents;
     try {
-      const task = await events.task(job.externalId);
+      // A treasure's follow-up brings its own task (the watch's new facts).
+      const task = job.followUp?.task ?? (await events.task(job.externalId));
       // Automatic: the source's facts only, checked by a second pass before the owner sees it.
       const result = await generateCheckedDraft(deps, {
         format: 'telegram',
@@ -374,12 +375,14 @@ async function jobResult(
         task,
         signal
       });
-      // The first version of the chain: a fix by the fact check is its child.
-      await events.generated(job, result.generation.parentGenerationId ?? result.generation.id);
+      // The first version of the chain: a fix by the fact check is its child. A follow-up leaves the event's own
+      // draft and its «Написать через ИИ» as they are.
+      if (job.followUp === undefined)
+        await events.generated(job, result.generation.parentGenerationId ?? result.generation.id);
       return result;
     } finally {
       // Success or failure, the event's «Написать через ИИ» unlocks.
-      await events.finished(job).catch((error: unknown) => runtime.onError(error));
+      if (job.followUp === undefined) await events.finished(job).catch((error: unknown) => runtime.onError(error));
     }
   }
   if (job.kind === 'draft')

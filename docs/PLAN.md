@@ -19,7 +19,7 @@ The AI makes the Telegram channel's content itself: news and rubric posts drafte
   neither for Dota (checked with the owner's key 21.10.2026: no item schema, no asset prices for app 570); the price is
   shown only in the game, and Russian news sites print it the same morning (see the price watch below). So two posts (owner): the news at once, then the sets with images from Liquipedia or the event's
   dota2.com page (two posts when there are many).
-- Liquipedia watch for a published event post that lacks details (owner, 22.10.2026): the sets, their images, drop
+- Built 22.10.2026 (`docs/backend/sources.md` «Treasure follow-ups from Liquipedia»; follow-ups carry no set pictures: Liquipedia's files are outside its API). Liquipedia watch for a published event post that lacks details (owner, 22.10.2026): the sets, their images, drop
   rates or opening bonuses missing from what went out start a watch on the event's Liquipedia page (found by its
   name). Every 5 minutes one light request asks whether the page changed; the price never starts a watch (Liquipedia
   has none). Liquipedia fills a page in many small edits, so new details are collected until the page has been quiet

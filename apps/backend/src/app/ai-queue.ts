@@ -13,6 +13,7 @@ import { AppError } from '../shared/app-error';
 import { runStyleLessons } from './workflows/style-lessons';
 import { autopublishSourceEvent } from './workflows/autopublish-source-event';
 import { runSeriesPublishStep } from './workflows/autopublish-series';
+import { runTreasureWatch } from './workflows/treasure-watch';
 import { getOwnerOperationsSettings } from '../modules/settings';
 import { escapeHtml } from './notifications/notice-template';
 import type { AiJob, WriterJob } from './bot/ai-job';
@@ -176,6 +177,11 @@ export async function handleAiQueue(batch: MessageBatch<unknown>, container: Con
       message.ack();
       continue;
     }
+    if (job.kind === 'treasure_watch') {
+      await runTreasureWatch(container, job, requestId, onError);
+      message.ack();
+      continue;
+    }
     if (job.kind === 'series_publish') {
       await runSeriesPublishStep(
         container,
@@ -265,6 +271,37 @@ export async function handleAiQueue(batch: MessageBatch<unknown>, container: Con
         externalId: job.externalId,
         automatic: job.automatic
       };
+    } else if (job.kind === 'treasure_post') {
+      // A treasure's follow-up: written and, when allowed, published like Cron's event draft (owner, 22.10.2026).
+      let messageId: number;
+      try {
+        const source = await container.dotaRepository.findSteamAnnouncement(job.externalId);
+        const quiet = await autopublishOn(container, requestId).catch(() => false);
+        messageId = (
+          await api.sendMessage(
+            job.chatId,
+            `Сокровищница: ${source?.title ?? ''}
+Новые подробности, пишу пост…`,
+            {
+              disable_notification: quiet
+            }
+          )
+        ).message_id;
+      } catch (error) {
+        onError(error);
+        message.ack();
+        continue;
+      }
+      writerJob = {
+        id: job.id,
+        kind: 'event',
+        chatId: job.chatId,
+        messageId,
+        appOrigin: job.appOrigin,
+        externalId: job.externalId,
+        automatic: true,
+        followUp: { number: job.number, task: job.task }
+      };
     } else {
       writerJob = job;
     }
@@ -291,7 +328,12 @@ export async function handleAiQueue(batch: MessageBatch<unknown>, container: Con
           container,
           await createWriterDeps(container, requestId),
           sourceMediaDeps(container, token, eventJob.chatId),
-          { externalId: eventJob.externalId, ...draft, requestId }
+          {
+            externalId: eventJob.externalId,
+            ...draft,
+            requestId,
+            ...(eventJob.followUp === undefined ? {} : { followUp: eventJob.followUp.number })
+          }
         );
         container.logger.info({
           component: 'autopublish',
