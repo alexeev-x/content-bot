@@ -69,18 +69,26 @@ The AI makes the Telegram channel's content itself: news and rubric posts drafte
   non-commercial; not planned.
 - Patches (owner, 22.10.2026; all publish without the owner, `docs/DECISIONS.md`). Kinds, from Valve's
   `datafeed/patchnoteslist` and the Steam announcement of the day (checked on 2023–2026):
-  - letter patch (7.41f: about 100 notes; at most ~310 seen): one short AI post without a picture (owner: «если мелкие
-    то без фотки коротко что изменили и ссылку»): what changed that matters, and the patch page linked for the rest;
+  - what matters first (owner, 22.10.2026: «аспекты удалили — это важнее всего»): the patch's general notes (Valve's
+    first section: facets removed, a new mechanic, the map, modes) lead every patch post; then a new hero, new items and
+    the largest buffs and nerfs; small numbers are left to the linked patch page;
+  - letter patch (7.41f: about 100 notes; at most ~310 seen): one short AI post, what changed that matters, and the
+    patch page linked for the rest;
   - whole-number patch (7.41: ~1 700 notes, facets removed; at least ~630 seen): a series, mechanics first, then
     heroes, then items;
   - a patch whose Steam announcement links its own dota2.com page instead of `/patches/<v>` (7.38 /wanderingwaters,
     7.40 /largo, 7.41e with /summerscrub2026): the event-page series, numbers from the datafeed;
-  - a Steam «Dota 2 Update - <date>» hotfix (no datafeed row, ~20 a year): a short post without a picture, linked to
-    the announcement, only when the AI finds something a player cares about (event rewards, a hidden nerf, a funny
-    bug), else a studio mark only.
-  - The picture, whole-number patches only: the patch number drawn by the server on one fixed background (glyphs pre-drawn in our font, the
-    subtitle baked in); to be measured against the Free plan's 10 ms CPU first. The background is designed once (GPT
-    variants, the owner picks). Hero portraits on big patches later.
+  - a Steam «Dota 2 Update - <date>» hotfix (no datafeed row, ~20 a year): a short post, linked to the announcement,
+    only when the AI finds something a player cares about (event rewards, a hidden nerf, a funny bug), else a studio
+    mark only.
+  - The picture, every patch (owner, 22.10.2026: «всем чтобы была картинка, случайно»), 1000×500: drawn by GPT from
+    the owner's references (`design-refs/patch-cover/1–8.png`: the Dota logo, the number in cracked stone with a glow,
+    a line, 3–4 points with icons) in a theme picked at random (lava, red, blue lightning, cyan, green, purple). The
+    number and the points are given exactly: the points come from the patch data (hero changes or a new hero, item
+    changes or new items, the map, mechanics, modes; «Исправления ошибок» for a hotfix), the heaviest 3–4. A second
+    call reads the picture back; a number or a caption that differs means another try (at most three), then the post
+    goes without a picture and the owner gets a short note.
+  - With patches done, the AI over Dota's sources is closed (owner, 22.10.2026); other sources come next.
 - Find and add more that give a post a day without the owner's work; each must be free, keyless or with a free key,
   and allowed by its terms.
 
