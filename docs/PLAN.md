@@ -25,6 +25,15 @@ The AI makes the Telegram channel's content itself: news and rubric posts drafte
   has none). Liquipedia fills a page in many small edits, so new details are collected until the page has been quiet
   for 30 minutes (see «Follow-up posts» below). The watch ends 6 hours after Valve's announcement (owner, 22.10.2026:
   one window for the details and the price, everything is out by then).
+- Price from Valve, first choice (owner, 22.10.2026: «идеально»): `https://www.dota2.com/react/getbpprices?item_defs=<id>`
+  (keyless, several ids comma-separated) gives Valve's store price, e.g. `{"34454":"$4.99"}` for Trove of Terror; the
+  event pages use it themselves. The currency follows the caller's country (USD from Moldova and from the owner's
+  browser; no parameter changes it). The item id comes from the event page's price component (`nItemDefID`) or,
+  without a page, from Liquipedia's `defindex`. The Russian sources below remain the fallback when no id is known.
+- An event page's treasure, read by our parser (checked on dota2.com/darkcarnival, 22.10.2026): the sets in slider
+  order (`{heroname:…}` in the page chunk; the owner: the top reward is usually the last slide), each set's image at
+  `cdn.steamstatic.com/apps/dota2/videos/dota_react/<slug>/treasure/set_<hero>.png` (the parser misses these today),
+  and the price item id. No drop rates on the page.
 - Price watch, Russian region (owner, 22.10.2026: the price in roubles matters). Trove of Terror (Valve 07.10 03:22
   MSK) was priced by Championat at 04:07 (only as «21 тыс. ₽ за аркану» in the title), esports.ru 07:41 (420 ₽),
   offstage.ru 08:40 (424 ₽, the first exact price), dota2.ru 10:02, PlayGround.ru 13:15 (424 ₽); no site is earlier,
