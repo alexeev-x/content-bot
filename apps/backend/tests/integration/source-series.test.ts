@@ -1,7 +1,12 @@
 import { approveSourceEventAiDraftResponseSchema, sourceEventSeriesSchema } from '@alexeev/contracts';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { createContainer } from '../../src/app/container';
-import { postImages, seriesMaterial, seriesPostTask } from '../../src/app/workflows/source-event-series';
+import {
+  postImages,
+  seriesMaterial,
+  seriesPostTask,
+  withBackground
+} from '../../src/app/workflows/source-event-series';
 import { testDb } from '../helpers/db';
 import { createApi, fakeClock, OWNER_ID, OWNER_TOKEN, resetDb, seedSession, START, type Api } from '../helpers/harness';
 import { testMediaBucket } from '../helpers/media-bucket';
@@ -187,5 +192,28 @@ describe('an event series', () => {
     const planned = [set('pudge'), media[0] ?? ''];
     expect(postImages(planned, { treasurePost: true, topReward, max: 2 })).toEqual([set('io'), set('pudge')]);
     expect(postImages(planned, { treasurePost: false, topReward, max: 10 })).toEqual(planned);
+  });
+
+  // A picture with its background, not a cut-out on white (owner, 22.10.2026).
+  it('swaps a PNG for the one JPG of its folder, and keeps it when there is none or several', () => {
+    const img = (path: string) => `https://cdn.steamstatic.com/apps/dota2/images/dota_react/dc/${path}`;
+    const page = [
+      img('automatons/axe/axe_idle_poster.png'),
+      img('automatons/axe/axe_gameplay_poster.jpg'),
+      img('overworld/reward_treasure.png'),
+      img('overworld/poster.jpg'),
+      img('overworld/train.jpg'),
+      img('treasure/set_io.png')
+    ];
+    expect(
+      withBackground(
+        [img('automatons/axe/axe_idle_poster.png'), img('overworld/reward_treasure.png'), img('treasure/set_io.png')],
+        page
+      )
+    ).toEqual([
+      img('automatons/axe/axe_gameplay_poster.jpg'),
+      img('overworld/reward_treasure.png'),
+      img('treasure/set_io.png')
+    ]);
   });
 });

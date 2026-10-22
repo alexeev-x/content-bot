@@ -69,10 +69,29 @@ export function seriesMaterial(page: EventPage): {
  */
 export function postImages(
   planned: readonly string[],
-  input: { treasurePost: boolean; topReward: string | null; max: number }
+  input: { treasurePost: boolean; topReward: string | null; max: number; pageImages?: readonly string[] }
 ): string[] {
-  if (!input.treasurePost || input.topReward === null) return planned.slice(0, input.max);
-  return [input.topReward, ...planned.filter((url) => url !== input.topReward)].slice(0, input.max);
+  const shown = withBackground(planned, input.pageImages ?? []);
+  if (!input.treasurePost || input.topReward === null) return shown.slice(0, input.max);
+  return [input.topReward, ...shown.filter((url) => url !== input.topReward)].slice(0, input.max);
+}
+
+/**
+ * A picture with its background rather than a cut-out on Telegram's white (owner, 22.10.2026): Valve's PNGs are often
+ * transparent, its JPGs never. A PNG gives way to the one JPG of its own folder (an automaton's folder holds one
+ * gameplay frame); with no JPG there, or several, the PNG stays (a treasure's sets have PNGs only).
+ */
+export function withBackground(planned: readonly string[], pageImages: readonly string[]): string[] {
+  const folder = (url: string) => url.slice(0, url.lastIndexOf('/') + 1);
+  const result: string[] = [];
+  for (const url of planned) {
+    const jpgs = /\.png$/i.test(url)
+      ? pageImages.filter((image) => /\.jpe?g$/i.test(image) && folder(image) === folder(url))
+      : [];
+    const chosen = jpgs.length === 1 && jpgs[0] !== undefined ? jpgs[0] : url;
+    if (!result.includes(chosen)) result.push(chosen);
+  }
+  return result;
 }
 
 /**
@@ -183,7 +202,12 @@ export async function planEventSeries(
     }),
     media: postImages(
       post.media.map((number) => media[number]).filter((url): url is string => url !== undefined),
-      { treasurePost: post.texts.includes(TREASURE_TEXT_KEY), topReward, max: POST_MEDIA_MAX_ITEMS }
+      {
+        treasurePost: post.texts.includes(TREASURE_TEXT_KEY),
+        topReward,
+        max: POST_MEDIA_MAX_ITEMS,
+        pageImages: page.images
+      }
     )
   }));
   await container.sourceSeries.create({
