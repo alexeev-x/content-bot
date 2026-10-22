@@ -80,6 +80,11 @@ export async function uploadPostMedia(
     body: ReadableStream<Uint8Array>;
     actor: string;
     idempotencyKey: string;
+    /**
+     * A file the bot attached by itself (a source event's picture): kept out of the library and deleted with its
+     * post, a sent one included (owner, 22.10.2026).
+     */
+    hidden?: boolean;
   }
 ): Promise<UploadPostMediaResultDto> {
   const mediaId = deps.newId();
@@ -153,6 +158,7 @@ export async function uploadPostMedia(
       idempotencyKey: command.idempotencyKey,
       payloadHash,
       responseBody,
+      hidden: command.hidden === true,
       asset: { ...media, objectKey, sha256: stream.sha256, createdAt: deps.now }
     });
   } catch {

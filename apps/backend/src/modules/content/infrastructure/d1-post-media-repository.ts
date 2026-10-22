@@ -51,12 +51,15 @@ const guardedPost = "id = ?1 AND revision = ?2 AND status = 'draft' AND deleted_
 // An asset is retained, hence listed, readable and attachable, while a draft holds it, a revision snapshot
 // names it (for a replaced original, library_state 2, only a publication snapshot counts), a derivative (a crop) keeps it as its source, or it was saved to the library on its own. Every read and the attach guard share this
 // predicate, so anything the library lists can be attached.
+// A file the bot attached itself (attached_by_bot, migration 0099, owner 22.10.2026) is held by its post's attachment alone: it goes
+// with the post, a sent one included (the sent snapshot then shows it missing, as for any removed file).
 function revisionHoldSql(idExpression: string): string {
-  return `(EXISTS (SELECT 1 FROM media_assets draftable WHERE draftable.id = ${idExpression} AND draftable.library_state <> 2
+  return `(NOT EXISTS (SELECT 1 FROM media_assets own_bot WHERE own_bot.id = ${idExpression} AND own_bot.attached_by_bot = 1)
+    AND (EXISTS (SELECT 1 FROM media_assets draftable WHERE draftable.id = ${idExpression} AND draftable.library_state <> 2
       AND EXISTS (SELECT 1 FROM post_revisions r, json_each(r.media_json) j WHERE j.value = ${idExpression}))
     OR EXISTS (SELECT 1 FROM publications pu
       JOIN post_revisions r ON r.post_id = pu.post_id AND r.revision = pu.post_revision, json_each(r.media_json) j
-      WHERE j.value = ${idExpression}))`;
+      WHERE j.value = ${idExpression})))`;
 }
 
 function isRetainedSql(idExpression: string): string {
@@ -71,9 +74,10 @@ function isRetainedSql(idExpression: string): string {
 // (the delete then matches nothing) or finds the asset gone (the attach guard then fails).
 function isDeletableSql(idExpression: string): string {
   return `(NOT EXISTS (SELECT 1 FROM post_media pm WHERE pm.media_id = ${idExpression})
-    AND NOT EXISTS (SELECT 1 FROM publications pu
-      JOIN post_revisions r ON r.post_id = pu.post_id AND r.revision = pu.post_revision, json_each(r.media_json) j
-      WHERE j.value = ${idExpression})
+    AND (EXISTS (SELECT 1 FROM media_assets own_bot WHERE own_bot.id = ${idExpression} AND own_bot.attached_by_bot = 1)
+      OR NOT EXISTS (SELECT 1 FROM publications pu
+        JOIN post_revisions r ON r.post_id = pu.post_id AND r.revision = pu.post_revision, json_each(r.media_json) j
+        WHERE j.value = ${idExpression}))
     AND NOT EXISTS (SELECT 1 FROM media_assets derivative WHERE derivative.source_media_id = ${idExpression}))`;
 }
 
@@ -356,7 +360,8 @@ export function createD1PostMediaRepository(db: D1Database): PostMediaRepository
           : usage === 'unused'
             ? 'AND NOT EXISTS (SELECT 1 FROM post_media current_usage WHERE current_usage.media_id = m.id)'
             : '';
-      const filters = `WHERE ${isRetainedSql('m.id')} AND m.library_state <> 2 ${kindClause} ${searchClause} ${usageClause}`;
+      // A replaced original (library_state 2) and a file the bot attached itself (owner, 22.10.2026) never list.
+      const filters = `WHERE ${isRetainedSql('m.id')} AND m.library_state <> 2 AND m.attached_by_bot = 0 ${kindClause} ${searchClause} ${usageClause}`;
       const bindings: (string | number)[] = [...filterBindings];
       const nextParameter = () => `?${bindings.length + 1}`;
       const cursorClause =
@@ -676,8 +681,8 @@ export function createD1PostMediaRepository(db: D1Database): PostMediaRepository
         claim,
         db
           .prepare(
-            `INSERT INTO media_assets (id, object_key, sha256, kind, file_name, content_type, size_bytes, width, height, duration_ms, created_at)
-             SELECT ?4, ?6, ?5, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14 WHERE ${claimGuard}`
+            `INSERT INTO media_assets (id, object_key, sha256, kind, file_name, content_type, size_bytes, width, height, duration_ms, created_at, attached_by_bot)
+             SELECT ?4, ?6, ?5, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15 WHERE ${claimGuard}`
           )
           .bind(
             input.postId,
@@ -693,7 +698,8 @@ export function createD1PostMediaRepository(db: D1Database): PostMediaRepository
             asset.width,
             asset.height,
             asset.durationMs,
-            asset.createdAt
+            asset.createdAt,
+            input.hidden === true ? 1 : 0
           ),
         db
           .prepare(
@@ -753,8 +759,10 @@ export function createD1PostMediaRepository(db: D1Database): PostMediaRepository
       const statements: D1PreparedStatement[] = [
         db
           .prepare(
-            `INSERT INTO media_assets (id, object_key, sha256, kind, file_name, content_type, size_bytes, width, height, duration_ms, created_at, source_media_id)
-           SELECT ?7, ?8, ?9, ?17, ?10, ?11, ?12, ?13, ?14, ?18, ?15, ?16 WHERE ${guards}`
+            `INSERT INTO media_assets (id, object_key, sha256, kind, file_name, content_type, size_bytes, width, height, duration_ms, created_at, source_media_id, attached_by_bot)
+           SELECT ?7, ?8, ?9, ?17, ?10, ?11, ?12, ?13, ?14, ?18, ?15, ?16,
+             -- A crop of a picture the bot attached is the bot's too: out of the library, gone with its post.
+             coalesce((SELECT bot.attached_by_bot FROM media_assets bot WHERE bot.id = ?16), 0) WHERE ${guards}`
           )
           .bind(
             input.postId,

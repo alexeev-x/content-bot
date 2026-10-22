@@ -97,6 +97,8 @@ export interface PostMediaRepository {
     payloadHash: string;
     asset: MediaAssetInput;
     responseBody: string;
+    /** Kept out of the library and deleted with its post (attached_by_bot): a file the bot attached itself. */
+    hidden?: boolean;
   }): Promise<boolean>;
   replaceWithCrop(input: {
     postId: string;

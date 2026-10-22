@@ -74,7 +74,7 @@ async function runSourceMediaJob(
         upload: (command) =>
           uploadPostMedia(
             { repo: container.postMedia, storage, now: container.clock.now(), newId: container.newId },
-            { ...command, actor: container.ownerChatId ?? 'system' }
+            { ...command, actor: container.ownerChatId ?? 'system', hidden: true }
           ),
         // Only a stable code with the CDN host and status, never a URL.
         onSkip: (reason) =>
