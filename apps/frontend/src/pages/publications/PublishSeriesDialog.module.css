@@ -35,10 +35,14 @@
   color: var(--color-text-muted);
   font-variant-numeric: tabular-nums;
 }
+/* Two lines, so a phone still shows what the post is about next to its three buttons. */
 .title {
   flex: 1;
   min-width: 0;
+  display: -webkit-box;
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow-wrap: anywhere;
 }
