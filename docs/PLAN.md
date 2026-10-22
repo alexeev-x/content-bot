@@ -16,8 +16,8 @@ The AI makes the Telegram channel's content itself: news and rubric posts drafte
   (owner, 21.10.2026); other sources get their own rules later. Done for the approved AI post: its images are attached.
 - A treasure post lists its sets, images and price. Liquipedia had the sets 35 minutes after Valve's announcement
   (Trove of Terror: sets at once, drop rates and opening bonuses after ~4 h) and never the price. Steam's Web API gives
-  neither for Dota (checked with the owner's key 21.10.2026: no item schema, no asset prices for app 570); the price is
-  shown only in the game, and Russian news sites print it the same morning (see the price watch below). So two posts (owner): the news at once, then the sets with images from Liquipedia or the event's
+  neither for Dota (checked with the owner's key 21.10.2026: no item schema, no asset prices for app 570); the price comes
+  from Valve by the item id (below). So two posts (owner): the news at once, then the sets with images from Liquipedia or the event's
   dota2.com page (two posts when there are many).
 - Built 22.10.2026 (`docs/backend/sources.md` «Treasure follow-ups from Liquipedia»; follow-ups carry no set pictures: Liquipedia's files are outside its API). Liquipedia watch for a published event post that lacks details (owner, 22.10.2026): the sets, their images, drop
   rates or opening bonuses missing from what went out start a watch on the event's Liquipedia page (found by its
@@ -31,7 +31,7 @@ The AI makes the Telegram channel's content itself: news and rubric posts drafte
   browser; no parameter changes it). A treasure's item id comes from Liquipedia's `defindex` (Treasure of Wonders
   31200, $2.49): the carnival page prices other items, not its treasure (the automaton personas `nItemID` 31367 etc.
   $14.99, Secret Room Pack 34452 $14.99, 34472 $7.99). Posts give this price in dollars as Valve returns it, no «≈» (owner,
-  22.10.2026: dollars are fine). The rouble sources below are only the fallback when no id is known.
+  22.10.2026: dollars are fine; no rouble price, owner 22.10.2026).
 - An event page's treasure, read by our parser (checked on dota2.com/darkcarnival, 22.10.2026): the sets in slider
   order (`{heroname:…}` in the page chunk), which is rarity from common to rarest (owner, 22.10.2026: the last slide
   is the top reward, Io «Madame Scrio» in the carnival; the treasure post's image is the last slide's), each set's image at
@@ -39,18 +39,6 @@ The AI makes the Telegram channel's content itself: news and rubric posts drafte
   (their prices). No drop rates and no treasure price on the page. Built 22.10.2026 (`docs/backend/sources.md`):
   checked on 13 event pages of 2023–2026, texts read on 11 (not summer2023, deadreckoning), the treasure with images
   on all 5 that have one; the personas' prices too.
-- Price watch, Russian region (owner, 22.10.2026: the price in roubles matters). Trove of Terror (Valve 07.10 03:22
-  MSK) was priced by Championat at 04:07 (only as «21 тыс. ₽ за аркану» in the title), esports.ru 07:41 (420 ₽),
-  offstage.ru 08:40 (424 ₽, the first exact price), dota2.ru 10:02, PlayGround.ru 13:15 (424 ₽); no site is earlier,
-  Russian newsrooms start in the morning. Sources, all keyless: Championat's RSS `championat.com/rss/news/cybersport/`
-  (title and lead only: its articles sit behind a Sber ID single sign-on wall, not to be bypassed, and it has no
-  public API), the RSS of esports.ru (`/rss/`) and dota2.ru (`/news/rss/`), and PlayGround.ru's posts in the Steam
-  News feed for app 570 (today the code keeps only Valve's feed). A price goes into a post, always as «≈ N ₽» with
-  its source, when two sources agree within about 2%; a figure derived from another (the arcana's 21 000 ₽ / 50 =
-  420 ₽) counts as one of the two (owner, 22.10.2026). The price is watched in the same 6-hour window as the details;
-  after it the owner adds the price by hand. Checked and not used: Steam Web API, Steam Market (marketable items only),
-  dota2.com datafeed (no store data), GameTracking-Dota2 (no `items_game` since 07.10), Dota 2 Fandom (slower than
-  Liquipedia), paid web search.
 - Follow-up posts of an event publish themselves (owner, 22.10.2026). Each event keeps a record of the facts already
   published (sets, drop rates, opening bonuses, price, trailer); a new fact is checked against it, so nothing, the
   price above all, goes out twice. New facts wait in the event's pending set: the sets with their images are a large
@@ -67,8 +55,8 @@ The AI makes the Telegram channel's content itself: news and rubric posts drafte
   a logical order, no repeats, which images go where), then writes each post; they go out spaced in time. A trailer
   is linked when the page has one. Without such a page (Trove of Terror) the post comes from the announcement.
   Built 22.10.2026 (owner: five posts were too many): at most three posts on fixed topics (the event, the new hero
-  cosmetics, the treasure opening with its rarest set), photos only. Still to do: the spacing in time (with automatic
-  publishing) and the treasure's price and drop rates (the watch above).
+  cosmetics, the treasure opening with its rarest set), photos only. Spaced 10 minutes apart and published without the owner
+  when switched on; a treasure without its own page is followed on Liquipedia (above).
 - Sources come in two kinds (owner, 21.10.2026): important ones, whose news the studio writes and publishes by itself
   as soon as it appears, and scheduled rubrics (e.g. a weekly «worst heroes» from a stats API). Publishing without the
   owner is decided (`docs/DECISIONS.md`, 21.10.2026: Valve posts at the owner's night). Built 22.10.2026 for single news posts (`docs/backend/sources.md` «Automatic publishing»); an event series too (migration 0100).
