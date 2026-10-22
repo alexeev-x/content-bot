@@ -172,8 +172,10 @@
 .listRow button {
   min-height: var(--size-target-min);
 }
+/* One column as wide as the panel: an auto column grew to the picture's own width (600 px) and scrolled sideways. */
 .details {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--space-3);
 }
 .facts {
