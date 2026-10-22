@@ -10,12 +10,13 @@ import { assertAiReady, type BudgetEvent, readAiSettings, recordAiUsage } from '
 
 export const SERIES_POSTS_MIN = 2;
 export const SERIES_POSTS_MAX = 6;
-const MEDIA_PER_POST_MAX = 4;
+// A Telegram album's limit (owner, 22.10.2026: five automatons get five photos).
+const MEDIA_PER_POST_MAX = 10;
 const MAX_OUTPUT_TOKENS = 4_000;
 
 const INSTRUCTIONS = [
   'Ты редактор Telegram-канала про Доту. Тебе дают официальный материал Valve об одном событии: анонс и тексты',
-  'страницы события (ключ — текст), и список картинок и видео страницы. Составь план серии постов, а не сами посты.',
+  'страницы события (ключ — текст), и список картинок страницы. Составь план серии постов, а не сами посты.',
   '',
   'Правила:',
   `- От ${SERIES_POSTS_MIN} до ${SERIES_POSTS_MAX} постов. Сколько — решает материал: тема, о которой нечего сказать, не пост.`,
@@ -25,8 +26,9 @@ const INSTRUCTIONS = [
   '- Событие большое, посты должны быть интересными, а не сухими: в brief назови 2–3 самых интересных игроку детали и',
   '  угол подачи (что неожиданного или любопытного в этой теме), а не «перечислить всё».',
   '- Для каждого поста: topic — короткое название темы; brief — 1–3 фразы, что именно рассказать и чем это важно',
-  '  игроку; texts — ключи текстов, из которых брать факты (только из списка, все нужные); media — номера картинок и',
-  `  видео из списка, которые подходят посту (до ${MEDIA_PER_POST_MAX}, лучше 1–2 самых наглядных; видео — номер с «видео»).`,
+  '  игроку; texts — ключи текстов, из которых брать факты (только из списка, все нужные); media — номера картинок',
+  `  из списка, которые подходят посту (до ${MEDIA_PER_POST_MAX}). Пост показывает несколько героев, персон или сетов —`,
+  '  у каждого своя картинка, одна, самая наглядная (пять персон — пять картинок). Пост об одном — 1–2 картинки.',
   '- Ничего не выдумывай: тема без фактов в материале — не тема.'
 ].join('\n');
 
@@ -96,7 +98,7 @@ export async function planSeries(
     title: string;
     announcement: string;
     texts: readonly { key: string; text: string }[];
-    /** Names of the media, in the order their numbers refer to; a video's name says «видео». */
+    /** Names of the images, in the order their numbers refer to. */
     media: readonly string[];
     signal: AbortSignal;
   }

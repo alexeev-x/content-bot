@@ -21,8 +21,7 @@ const TASK_MAX = 4_000;
 const TELEGRAM_TIMEOUT_SECONDS = 10;
 const ANNOUNCEMENT_FOR_PLAN = 3_000;
 
-const mediaName = (url: string) =>
-  `${/\.(?:mp4|webm)$/i.test(url) ? 'видео: ' : ''}${url.replace(/^.*\/dota_react\/[^/]+\//, '')}`;
+const mediaName = (url: string) => url.replace(/^.*\/dota_react\/[^/]+\//, '');
 
 const TREASURE_TEXT_KEY = 'treasure_by_rarity';
 const GAP_TEXT: Record<EventPageGap, string> = {
@@ -38,7 +37,7 @@ const GAP_TEXT: Record<EventPageGap, string> = {
  * rarest set).
  */
 export function seriesMaterial(page: EventPage): { texts: EventPageText[]; media: string[]; mediaNames: string[] } {
-  const media = [...page.images, ...page.videos];
+  const media = [...page.images];
   const mediaNames = media.map(mediaName);
   const sets = page.treasure;
   if (sets.length === 0) return { texts: page.texts, media, mediaNames };

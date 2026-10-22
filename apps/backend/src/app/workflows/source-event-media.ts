@@ -1,10 +1,11 @@
-import { PHOTO_MEDIA_MAX_BYTES, POST_MEDIA_MAX_ITEMS, VIDEO_MEDIA_MAX_BYTES } from '@alexeev/contracts';
+import { PHOTO_MEDIA_MAX_BYTES, POST_MEDIA_MAX_ITEMS } from '@alexeev/contracts';
 import { HTTPException } from 'hono/http-exception';
 import { fetchSteamAnnouncement, type DotaWatcherRepository } from '../../modules/dota';
 import { AppError } from '../../shared/app-error';
 
 // A Dota event announcement's post always carries its images (owner, 21.10.2026), and a series post the event page's
-// media its plan chose (images, and mp4 videos within the post's limit). They are attached through the same use case
+// images its plan chose, never videos (owner, 22.10.2026: photos only, after two event videos made a 97 MB album that
+// Telegram could not take in time). They are attached through the same use case
 // as an upload, so size, signature and dimension checks are the upload's. Only Steam's CDN (steamstatic.com) is
 // fetched: the URLs come from Steam's announcement or Valve's event page, never from a request.
 
@@ -68,8 +69,13 @@ export async function attachSourceEventImages(
   for (const [index, url] of files.entries()) {
     const target = new URL(url);
     if (target.protocol !== 'https:' || !target.hostname.endsWith(STEAM_CDN)) continue;
+    // A series planned before 22.10.2026 may still list a video.
+    if (!IMAGE.test(target.pathname)) {
+      onSkip('NOT_AN_IMAGE');
+      continue;
+    }
     let file = await download(deps.fetchImpl ?? fetch, target, onSkip);
-    if (file === null && !isVideo(target.pathname) && deps.viaTelegram !== undefined) {
+    if (file === null && deps.viaTelegram !== undefined) {
       const bytes = await deps.viaTelegram(target.href).catch(() => null);
       if (bytes === null) onSkip('TELEGRAM_FETCH_FAILED');
       else file = { bytes, contentType: 'image/jpeg', fileName: `steam-${baseName(target.pathname)}.jpg` };
@@ -81,7 +87,7 @@ export async function attachSourceEventImages(
   return { attached, found: files.length };
 }
 
-const isVideo = (path: string) => /\.mp4$/i.test(path);
+const IMAGE = /\.(?:png|jpe?g|webp|gif)$/i;
 const baseName = (path: string) => (path.split('/').pop() ?? 'image').replace(/\.\w+$/, '');
 
 async function download(fetchImpl: typeof fetch, url: URL, onSkip: (reason: string) => void): Promise<File | null> {
@@ -102,21 +108,18 @@ async function download(fetchImpl: typeof fetch, url: URL, onSkip: (reason: stri
     response = null;
   }
   if (response === null) return null;
-  const video = isVideo(path);
-  const limit = video ? VIDEO_MEDIA_MAX_BYTES : PHOTO_MEDIA_MAX_BYTES;
   const length = Number(response.headers.get('content-length') ?? '0');
-  if (length > limit) {
+  if (length > PHOTO_MEDIA_MAX_BYTES) {
     await response.body?.cancel().catch(() => undefined);
-    onSkip(video ? 'VIDEO_TOO_LARGE' : 'TOO_LARGE');
+    onSkip('TOO_LARGE');
     return null;
   }
   const bytes = new Uint8Array(await response.arrayBuffer());
-  if (bytes.byteLength > limit) return null;
+  if (bytes.byteLength > PHOTO_MEDIA_MAX_BYTES) return null;
   const name = path.split('/').pop() ?? 'image.png';
   const extension = name.split('.').pop()?.toLowerCase();
-  const contentType = video
-    ? 'video/mp4'
-    : extension === 'png'
+  const contentType =
+    extension === 'png'
       ? 'image/png'
       : extension === 'webp'
         ? 'image/webp'

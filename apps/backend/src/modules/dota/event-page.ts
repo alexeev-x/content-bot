@@ -8,6 +8,7 @@
 
 const SITE = 'https://www.dota2.com';
 const IMAGE_BASE = 'https://cdn.steamstatic.com/apps/dota2/images/dota_react/';
+// Valve keeps the treasure slides' images next to their videos.
 const VIDEO_BASE = 'https://cdn.steamstatic.com/apps/dota2/videos/dota_react/';
 const FETCH_TIMEOUT_MS = 15_000;
 const MAX_HTML_BYTES = 512 * 1024;
@@ -21,9 +22,9 @@ const MAX_TEXT_LENGTH = 1_500;
 const MAX_MEDIA = 80;
 const MAX_TREASURE_SETS = 40;
 // Page decoration (folders, and files named as a header or background: DEV 21.10.2026 picked the header's looping
-// video), and what Telegram cannot show as a post's media (webm): never offered for a post.
-const DECORATION = /(?:^|\/)(?:header|backgrounds?|logos?)\/|(?:header|background)[^/]*$|_icon\.\w+$|\.webm$/i;
-const MEDIA_EXTENSION = /\.(?:png|jpe?g|webp|gif|mp4|webm)$/i;
+// video): never offered for a post.
+const DECORATION = /(?:^|\/)(?:header|backgrounds?|logos?)\/|(?:header|background)[^/]*$|_icon\.\w+$/i;
+const MEDIA_EXTENSION = /\.(?:png|jpe?g|webp|gif)$/i;
 const SLUG = /^[a-z0-9]{3,40}$/;
 // Site sections that are not an event page.
 const NOT_EVENTS = new Set([
@@ -60,7 +61,6 @@ export interface EventPage {
   texts: EventPageText[];
   language: 'russian' | 'english';
   images: string[];
-  videos: string[];
   /** In the treasure slider's order, from common to rarest: the last set is the top reward (owner, 22.10.2026). */
   treasure: TreasureSet[];
   gaps: EventPageGap[];
@@ -167,11 +167,11 @@ export function parseTextsChunk(chunk: string, route: string): { texts: EventPag
 }
 
 /**
- * The page's media from its code chunk: paths under the page's folders (its address and its route name), and the
+ * The page's images from its code chunk: paths under the page's folders (its address and its route name), and the
  * bare names of a folder the code fills in (`${slug}/automatons/${…}`) when there is exactly one such folder. Videos
- * live under Valve's video base.
+ * are not taken (owner, 22.10.2026: event posts carry photos; a video's poster is an image of its own).
  */
-export function parseMediaPaths(chunk: string, pageFolders: readonly string[]): { images: string[]; videos: string[] } {
+export function parseMediaPaths(chunk: string, pageFolders: readonly string[]): { images: string[] } {
   const full = new Set<string>();
   const bare = new Set<string>();
   for (const match of chunk.matchAll(/["`]([\w./-]{1,160})["`]/g)) {
@@ -184,12 +184,7 @@ export function parseMediaPaths(chunk: string, pageFolders: readonly string[]): 
     Array.from(chunk.matchAll(new RegExp(`\`((?:${under})/[\\w/-]{1,60}/)\\$\\{`, 'g')), (match) => match[1] ?? '')
   );
   const filled = folders.size === 1 ? Array.from(bare, (path) => `${[...folders][0]}${path}`) : [];
-  const all = [...full, ...filled].slice(0, MAX_MEDIA);
-  const isVideo = (path: string) => /\.(?:mp4|webm)$/i.test(path);
-  return {
-    images: all.filter((path) => !isVideo(path)).map((path) => `${IMAGE_BASE}${path}`),
-    videos: all.filter(isVideo).map((path) => `${VIDEO_BASE}${path}`)
-  };
+  return { images: [...full, ...filled].slice(0, MAX_MEDIA).map((path) => `${IMAGE_BASE}${path}`) };
 }
 
 // The treasure slider of 2023–2026 pages: a slide component showing `${…VIDEO_URL}/<folder>/${video}.png`, given
@@ -305,7 +300,7 @@ export async function fetchEventPage(slug: string, fetchImpl: typeof fetch = fet
   const gaps: EventPageGap[] = [];
   if (truncated) gaps.push('texts_truncated');
   const setImages = treasure.sets.filter((set) => set.image !== null).length;
-  if (media.images.length + media.videos.length + setImages === 0) gaps.push('no_media');
+  if (media.images.length + setImages === 0) gaps.push('no_media');
   if (treasure.sets.length > 0 && !treasure.orderKnown) gaps.push('treasure_order_unknown');
   if (treasure.sets.some((set) => set.image === null)) gaps.push('treasure_images_missing');
   return { slug, url, texts, language, ...media, treasure: treasure.sets, gaps };

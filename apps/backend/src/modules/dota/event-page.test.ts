@@ -76,7 +76,7 @@ describe('event page', () => {
     expect(parseTextsChunk('no json here', 'darkcarnival')).toEqual({ texts: [], truncated: false });
   });
 
-  it('takes the page media, joining bare names to the one folder the code fills in, without decoration', () => {
+  it('takes the page images, joining bare names to the one folder the code fills in, without decoration or videos', () => {
     const chunk =
       'image:"darkcarnival/overworld/reward_treasure.png",bg:"darkcarnival/header/clouds.png",reel:"darkcarnival/dc_event_reel.webm",' +
       'image:`darkcarnival/automatons/${n.portrait}`,video:`darkcarnival/automatons/${n.gameplayVideo}`,' +
@@ -86,9 +86,6 @@ describe('event page', () => {
       images: [
         'https://cdn.steamstatic.com/apps/dota2/images/dota_react/darkcarnival/overworld/reward_treasure.png',
         'https://cdn.steamstatic.com/apps/dota2/images/dota_react/darkcarnival/automatons/axe/npc_dota_hero_axe_carnival.png'
-      ],
-      videos: [
-        'https://cdn.steamstatic.com/apps/dota2/videos/dota_react/darkcarnival/automatons/axe_automaton_gameplay.mp4'
       ]
     });
   });

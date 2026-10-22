@@ -618,6 +618,17 @@ describe("an event post's images", () => {
     expect(await run()).toEqual({ attached: 2, found: 3 });
     expect(fetched.every((url) => url.startsWith(CDN))).toBe(true);
     expect((await container.postMedia.findPostState(post.id))?.media).toHaveLength(2);
+
+    // A series planned before 22.10.2026 may list a 47 MB video: it is never downloaded (photos only, owner).
+    fetched.length = 0;
+    const skipped: string[] = [];
+    const video = `${CDN}/darkcarnival/automatons/morphling_automaton_gameplay.mp4`;
+    await attachSourceEventImages(
+      { ...deps, upload: (command) => deps.upload({ ...command, actor: OWNER_ID }), onSkip: (r) => skipped.push(r) },
+      { postId: post.id, externalId: '1001', urls: [video] }
+    );
+    expect(fetched).toEqual([]);
+    expect(skipped).toEqual(['NOT_AN_IMAGE']);
   });
 });
 
