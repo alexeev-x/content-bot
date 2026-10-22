@@ -35,8 +35,10 @@ The AI makes the Telegram channel's content itself: news and rubric posts drafte
 - An event page's treasure, read by our parser (checked on dota2.com/darkcarnival, 22.10.2026): the sets in slider
   order (`{heroname:…}` in the page chunk), which is rarity from common to rarest (owner, 22.10.2026: the last slide
   is the top reward, Io «Madame Scrio» in the carnival; the treasure post's image is the last slide's), each set's image at
-  `cdn.steamstatic.com/apps/dota2/videos/dota_react/<slug>/treasure/set_<hero>.png` (the parser misses these today),
-  and the personas' item ids (their prices). No drop rates and no treasure price on the page.
+  `cdn.steamstatic.com/apps/dota2/videos/dota_react/<slug>/treasure/set_<hero>.png`, and the personas' item ids
+  (their prices). No drop rates and no treasure price on the page. Built 22.10.2026 (`docs/backend/sources.md`):
+  checked on 13 event pages of 2023–2026, texts read on 11 (not summer2023, deadreckoning), the treasure with images
+  on all 5 that have one; still to do: the personas' prices.
 - Price watch, Russian region (owner, 22.10.2026: the price in roubles matters). Trove of Terror (Valve 07.10 03:22
   MSK) was priced by Championat at 04:07 (only as «21 тыс. ₽ за аркану» in the title), esports.ru 07:41 (420 ₽),
   offstage.ru 08:40 (424 ₽, the first exact price), dota2.ru 10:02, PlayGround.ru 13:15 (424 ₽); no site is earlier,

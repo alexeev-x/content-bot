@@ -1,6 +1,12 @@
 import { Api, InlineKeyboard } from 'grammy';
 import { generateCheckedDraft, planSeries, SOURCE_LINK_LABEL } from '../../modules/ai';
-import { fetchEventPage, fetchSteamAnnouncement, type EventPage } from '../../modules/dota';
+import {
+  fetchEventPage,
+  fetchSteamAnnouncement,
+  type EventPage,
+  type EventPageGap,
+  type EventPageText
+} from '../../modules/dota';
 import { createWriterDeps } from '../bot/writer-deps';
 import type { Container } from '../container';
 
@@ -17,6 +23,38 @@ const ANNOUNCEMENT_FOR_PLAN = 3_000;
 
 const mediaName = (url: string) =>
   `${/\.(?:mp4|webm)$/i.test(url) ? 'видео: ' : ''}${url.replace(/^.*\/dota_react\/[^/]+\//, '')}`;
+
+const TREASURE_TEXT_KEY = 'treasure_by_rarity';
+const GAP_TEXT: Record<EventPageGap, string> = {
+  texts_truncated: 'тексты страницы обрезаны',
+  no_media: 'не нашлось ни одной картинки',
+  treasure_order_unknown: 'порядок сетов сокровищницы (редкость) не найден',
+  treasure_images_missing: 'нет картинок сетов сокровищницы'
+};
+
+/**
+ * The page's texts and media for the planner, with the treasure added: its sets by rarity as one text, so the post
+ * names the top reward, and each set's image named by hero and set (owner, 22.10.2026: the treasure post shows the
+ * rarest set).
+ */
+export function seriesMaterial(page: EventPage): { texts: EventPageText[]; media: string[]; mediaNames: string[] } {
+  const media = [...page.images, ...page.videos];
+  const mediaNames = media.map(mediaName);
+  const sets = page.treasure;
+  if (sets.length === 0) return { texts: page.texts, media, mediaNames };
+  const ordered = !page.gaps.includes('treasure_order_unknown');
+  const list = sets.map((set) => (set.hero === '' ? set.set : `${set.hero} — ${set.set}`)).join('; ');
+  const text = ordered
+    ? `Сеты сокровищницы по редкости, от обычного к самому редкому; последний — главная награда: ${list}`
+    : `Сеты сокровищницы (редкость неизвестна): ${list}`;
+  sets.forEach((set, index) => {
+    if (set.image === null) return;
+    const rarest = ordered && index === sets.length - 1 ? ' (самый редкий, главная награда)' : '';
+    media.push(set.image);
+    mediaNames.push(`сокровищница: ${set.hero === '' ? set.set : `${set.hero} — ${set.set}`}${rarest}`);
+  });
+  return { texts: [...page.texts, { key: TREASURE_TEXT_KEY, text }], media, mediaNames };
+}
 
 /** The writer's task for one post: its topic and brief, the link, and only its own facts (Valve's texts). */
 export function seriesPostTask(input: {
@@ -49,6 +87,7 @@ export function seriesPostTask(input: {
 export async function planEventSeries(
   container: Container,
   job: { id: string; externalId: string; chatId: number; appOrigin: string },
+  token: string,
   requestId: string,
   onError: (error: unknown) => void
 ): Promise<boolean> {
@@ -65,14 +104,32 @@ export async function planEventSeries(
     if (page !== null) break;
   }
   if (page === null) return false;
+  if (page.gaps.length > 0) {
+    container.logger.warn({
+      component: 'sources',
+      operation: 'event_page',
+      requestId,
+      status: 'partial',
+      errorCode: page.gaps.join(',')
+    });
+    // Nothing is lost silently (owner, 22.10.2026): the series is still planned from what was read.
+    if (token !== '')
+      await new Api(token, { timeoutSeconds: TELEGRAM_TIMEOUT_SECONDS })
+        .sendMessage(
+          job.chatId,
+          `Страница ${page.url} прочитана не полностью: ${page.gaps.map((gap) => GAP_TEXT[gap]).join('; ')}. ` +
+            'Серию пишу из того, что прочитал, — проверьте посты.'
+        )
+        .catch(onError);
+  }
 
-  const media = [...page.images, ...page.videos];
+  const { texts, media, mediaNames } = seriesMaterial(page);
   const deps = await createWriterDeps(container, requestId);
   const plan = await planSeries(deps, {
     title: source.title,
     announcement: (announcement.text ?? '').slice(0, ANNOUNCEMENT_FOR_PLAN),
-    texts: page.texts,
-    media: media.map(mediaName),
+    texts,
+    media: mediaNames,
     signal: AbortSignal.timeout(PLAN_TIMEOUT_MS)
   });
   if (plan.posts === null) {
@@ -86,7 +143,7 @@ export async function planEventSeries(
     return false;
   }
 
-  const textOf = new Map(page.texts.map((text) => [text.key, text.text]));
+  const textOf = new Map(texts.map((text) => [text.key, text.text]));
   const posts = plan.posts.map((post, index) => ({
     id: container.newId(),
     position: index + 1,

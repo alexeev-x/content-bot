@@ -184,7 +184,7 @@ export async function handleAiQueue(batch: MessageBatch<unknown>, container: Con
           message.ack();
           continue;
         }
-        planned = await planEventSeries(container, job, requestId, onError);
+        planned = await planEventSeries(container, job, token, requestId, onError);
       } catch (error) {
         onError(error);
       }

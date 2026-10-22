@@ -1,8 +1,10 @@
-// An event's own page on dota2.com (e.g. /darkcarnival): Valve's texts for it (the Russian translation among them)
-// and its media, for a series of posts (owner, 21.10.2026). The page is a React app: its texts are a localization
-// chunk and its media are paths in the page's code chunk, both found through the app's main bundle and chunk
-// manifest. Minified names change with every build, so only stable shapes are matched; when one is not found the
-// page counts as absent and the event is written from its announcement alone.
+// An event's own page on dota2.com (e.g. /darkcarnival): Valve's texts for it (the Russian translation among them),
+// its media and its treasure, for a series of posts (owner, 21.10.2026). The page is a React app: its texts are a
+// localization chunk and its media are paths in the page's code chunk, both found through the app's main bundle and
+// chunk manifest. Minified names change with every build and every event gets a page of its own (owner, 22.10.2026:
+// the content must be taken whatever the page), so only shapes shared by the pages of 2023–2026 are matched; what
+// could not be read is reported as a gap instead of being lost silently. Without texts the page counts as absent and
+// the event is written from its announcement alone.
 
 const SITE = 'https://www.dota2.com';
 const IMAGE_BASE = 'https://cdn.steamstatic.com/apps/dota2/images/dota_react/';
@@ -12,9 +14,12 @@ const MAX_HTML_BYTES = 512 * 1024;
 const MAX_MAIN_BYTES = 8 * 1024 * 1024;
 const MAX_MANIFEST_BYTES = 512 * 1024;
 const MAX_CHUNK_BYTES = 2 * 1024 * 1024;
-const MAX_TEXTS = 120;
+// Pages of 2023–2026 have up to ~300 texts; the planner reads them all, so the total is bounded too.
+const MAX_TEXTS = 400;
+const MAX_TEXTS_CHARS = 60_000;
 const MAX_TEXT_LENGTH = 1_500;
 const MAX_MEDIA = 80;
+const MAX_TREASURE_SETS = 40;
 // Page decoration (folders, and files named as a header or background: DEV 21.10.2026 picked the header's looping
 // video), and what Telegram cannot show as a post's media (webm): never offered for a post.
 const DECORATION = /(?:^|\/)(?:header|backgrounds?|logos?)\/|(?:header|background)[^/]*$|_icon\.\w+$|\.webm$/i;
@@ -38,6 +43,16 @@ export interface EventPageText {
   text: string;
 }
 
+/** One set of the page's treasure: its hero, its name and its image on Valve's CDN when the page shows one. */
+export interface TreasureSet {
+  hero: string;
+  set: string;
+  image: string | null;
+}
+
+/** What the page has but could not be read in full; the owner is told (owner, 22.10.2026). */
+export type EventPageGap = 'texts_truncated' | 'no_media' | 'treasure_order_unknown' | 'treasure_images_missing';
+
 export interface EventPage {
   slug: string;
   url: string;
@@ -46,6 +61,9 @@ export interface EventPage {
   language: 'russian' | 'english';
   images: string[];
   videos: string[];
+  /** In the treasure slider's order, from common to rarest: the last set is the top reward (owner, 22.10.2026). */
+  treasure: TreasureSet[];
+  gaps: EventPageGap[];
 }
 
 /** dota2.com pages an announcement links to (`http://dota2.com/darkcarnival`), in order, without repeats. */
@@ -72,14 +90,19 @@ export function bundleUrls(html: string): { main: string; manifest: string } | n
 const IDENT = '[A-Za-z_$][\\w$]*';
 const escape = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
-/** Chunk ids of the page's code and of its texts in one language, from the main bundle. */
+/**
+ * Chunk ids of the page's code and of its texts in one language, from the main bundle. The app names a page's route,
+ * texts and media folder by its own name, which is not always the address (`patch738` is /wanderingwaters,
+ * `winter2023` is /frostivus2023).
+ */
 export function pageChunkIds(
   main: string,
   slug: string,
   language: string
-): { page: number | null; texts: number | null } {
-  const texts = new RegExp(`"\\./${escape(slug)}_${escape(language)}\\.json":\\[(\\d{1,7})`).exec(main);
-  const component = new RegExp(`path:${IDENT}\\.${IDENT}\\.${escape(slug)}\\(\\),component:(${IDENT})`).exec(main);
+): { page: number | null; texts: number | null; route: string } {
+  const route = new RegExp(`[,{](${IDENT}):\\(\\)=>"/${escape(slug)}"`).exec(main)?.[1] ?? slug;
+  const texts = new RegExp(`"\\./${escape(route)}_${escape(language)}\\.json":\\[(\\d{1,7})`).exec(main);
+  const component = new RegExp(`path:${IDENT}\\.${IDENT}\\.${escape(route)}\\(\\),component:(${IDENT})`).exec(main);
   let page: number | null = null;
   if (component?.[1]) {
     const lazy = new RegExp(
@@ -87,7 +110,7 @@ export function pageChunkIds(
     ).exec(main);
     page = lazy?.[1] ? Number(lazy[1]) : null;
   }
-  return { page, texts: texts?.[1] ? Number(texts[1]) : null };
+  return { page, texts: texts?.[1] ? Number(texts[1]) : null, route };
 }
 
 /** The content hash of a code chunk: the manifest's first map is the scripts'. */
@@ -98,8 +121,8 @@ export function chunkHash(manifest: string, id: number): string | null {
 export const chunkUrl = (id: number, hash: string) =>
   `${SITE}/public/javascript/dota_react/${id}.js?contenthash=${hash}`;
 
-// A JavaScript single-quoted string body, as webpack emits a JSON module: `JSON.parse('…')`. Decoded by hand: the
-// chunk is data from another site and is never evaluated.
+// A JavaScript string body, as webpack emits a JSON module: `JSON.parse('…')`, or `JSON.parse(\`…\`)` in other builds.
+// Decoded by hand: the chunk is data from another site and is never evaluated.
 export function decodeJsString(body: string): string {
   return body.replace(/\\(x[0-9a-fA-F]{2}|u[0-9a-fA-F]{4}|u\{[0-9a-fA-F]{1,6}\}|[\s\S])/g, (_, escaped: string) => {
     if (escaped.startsWith('x') && escaped.length === 3) return String.fromCharCode(parseInt(escaped.slice(1), 16));
@@ -110,20 +133,24 @@ export function decodeJsString(body: string): string {
   });
 }
 
-/** The page's texts from its localization chunk: markup dropped, the comic's captions and the language tag left out. */
-export function parseTextsChunk(chunk: string, slug: string): EventPageText[] {
-  const body = /JSON\.parse\('((?:[^'\\]|\\[\s\S])*)'\)/.exec(chunk)?.[1];
-  if (body === undefined) return [];
+/**
+ * The page's texts from its localization chunk: markup dropped, the comic's captions and the language tag left out.
+ * `truncated` when the bounds cut texts off.
+ */
+export function parseTextsChunk(chunk: string, route: string): { texts: EventPageText[]; truncated: boolean } {
+  const body = /JSON\.parse\((['`])((?:(?!\1)[^\\]|\\[\s\S])*)\1\)/.exec(chunk)?.[2];
+  if (body === undefined) return { texts: [], truncated: false };
   let parsed: unknown;
   try {
     parsed = JSON.parse(decodeJsString(body));
   } catch {
-    return [];
+    return { texts: [], truncated: false };
   }
-  if (parsed === null || typeof parsed !== 'object') return [];
+  if (parsed === null || typeof parsed !== 'object') return { texts: [], truncated: false };
   const texts: EventPageText[] = [];
+  let chars = 0;
   for (const [key, value] of Object.entries(parsed as Record<string, unknown>)) {
-    if (typeof value !== 'string' || key === 'language' || key.startsWith(`${slug}comic`)) continue;
+    if (typeof value !== 'string' || key === 'language' || key.startsWith(`${route}comic`)) continue;
     const text = value
       .replace(/\[\/?[a-z]{1,10}\]/gi, '')
       .replace(/<[^>]{1,200}>/g, ' ')
@@ -131,26 +158,30 @@ export function parseTextsChunk(chunk: string, slug: string): EventPageText[] {
       .replace(/\s+/g, ' ')
       .trim()
       .slice(0, MAX_TEXT_LENGTH);
-    if (text !== '') texts.push({ key, text });
-    if (texts.length >= MAX_TEXTS) break;
+    if (text === '') continue;
+    if (texts.length >= MAX_TEXTS || chars + text.length > MAX_TEXTS_CHARS) return { texts, truncated: true };
+    texts.push({ key, text });
+    chars += text.length;
   }
-  return texts;
+  return { texts, truncated: false };
 }
 
 /**
- * The page's media from its code chunk: paths under the page's folder, and the bare names of a folder the code fills
- * in (`${slug}/automatons/${…}`) when there is exactly one such folder. Videos live under Valve's video base.
+ * The page's media from its code chunk: paths under the page's folders (its address and its route name), and the
+ * bare names of a folder the code fills in (`${slug}/automatons/${…}`) when there is exactly one such folder. Videos
+ * live under Valve's video base.
  */
-export function parseMediaPaths(chunk: string, slug: string): { images: string[]; videos: string[] } {
+export function parseMediaPaths(chunk: string, pageFolders: readonly string[]): { images: string[]; videos: string[] } {
   const full = new Set<string>();
   const bare = new Set<string>();
   for (const match of chunk.matchAll(/["`]([\w./-]{1,160})["`]/g)) {
     const path = match[1] ?? '';
     if (!MEDIA_EXTENSION.test(path) || DECORATION.test(path) || path.includes('..') || path.startsWith('/')) continue;
-    (path.startsWith(`${slug}/`) ? full : bare).add(path);
+    (pageFolders.some((folder) => path.startsWith(`${folder}/`)) ? full : bare).add(path);
   }
+  const under = pageFolders.map(escape).join('|');
   const folders = new Set(
-    Array.from(chunk.matchAll(new RegExp(`\`(${escape(slug)}/[\\w/-]{1,60}/)\\$\\{`, 'g')), (match) => match[1] ?? '')
+    Array.from(chunk.matchAll(new RegExp(`\`((?:${under})/[\\w/-]{1,60}/)\\$\\{`, 'g')), (match) => match[1] ?? '')
   );
   const filled = folders.size === 1 ? Array.from(bare, (path) => `${[...folders][0]}${path}`) : [];
   const all = [...full, ...filled].slice(0, MAX_MEDIA);
@@ -159,6 +190,67 @@ export function parseMediaPaths(chunk: string, slug: string): { images: string[]
     images: all.filter((path) => !isVideo(path)).map((path) => `${IMAGE_BASE}${path}`),
     videos: all.filter(isVideo).map((path) => `${VIDEO_BASE}${path}`)
   };
+}
+
+// The treasure slider of 2023–2026 pages: a slide component showing `${…VIDEO_URL}/<folder>/${video}.png`, given
+// `{index, video, name: "#<set key>", heroname: "#<hero key>"}` in one of three ways: slides written out one by one
+// (largo, frostivus2023), a map over `[{heroname:"io"},…]` (darkcarnival), or a map over a count (crownfall).
+const SLIDE_FOLDER = /TreasureVideo,src:`\$\{[\w$.]{1,40}VIDEO_URL\}\/([\w/-]{1,80})\/\$\{[\w$]{1,10}\}\.png`/;
+const LITERAL_SLIDE = /\{index:(\d{1,3}),video:"([\w-]{1,80})",name:"#(\w{1,120})",heroname:"#(\w{1,120})"/g;
+const PART = '([\\w-]{0,80})\\$\\{[\\w$]{1,10}(?:\\.([\\w$]{1,40}))?\\}([\\w-]{0,80})';
+const MAPPED_SLIDE = new RegExp(`\\{index:[\\w$]{1,10},video:\`${PART}\`,name:\`#${PART}\`,heroname:\`#${PART}\``);
+const TREASURE_KEY = /treasure/i;
+
+/**
+ * The page's treasure sets in slider order, each named by the page's own texts. Without a slider the sets are taken
+ * from texts that pair a hero with a set (`…treasure…_<x>` and `…treasure…_<x>_set`), in text order: then the order
+ * is not the rarity and `orderKnown` is false.
+ */
+export function parseTreasure(
+  chunk: string,
+  texts: readonly EventPageText[]
+): { sets: TreasureSet[]; orderKnown: boolean } {
+  const textOf = new Map(texts.map((text) => [text.key, text.text]));
+  const folder = SLIDE_FOLDER.exec(chunk)?.[1] ?? null;
+  const image = (video: string) => (folder === null ? null : `${VIDEO_BASE}${folder}/${video}.png`);
+  const slides: { video: string; name: string; hero: string }[] = [];
+  const literal = [...chunk.matchAll(LITERAL_SLIDE)].sort((a, b) => Number(a[1]) - Number(b[1]));
+  for (const match of literal) slides.push({ video: match[2] ?? '', name: match[3] ?? '', hero: match[4] ?? '' });
+  const mapped = slides.length === 0 ? MAPPED_SLIDE.exec(chunk) : null;
+  if (mapped !== null) {
+    const [, videoHead = '', field, videoTail = '', nameHead = '', , nameTail = '', heroHead = '', , heroTail = ''] =
+      mapped;
+    // The values the map runs over: a field of an array of objects (`{heroname:"io"}`), else the slide's index.
+    // Only values whose set text exists count, so another array with the same field adds nothing.
+    const values =
+      field === undefined
+        ? Array.from({ length: MAX_TREASURE_SETS }, (_, index) => String(index))
+        : [
+            ...new Set(
+              Array.from(chunk.matchAll(new RegExp(`\\{${escape(field)}:"(\\w{1,60})"`, 'g')), (m) => m[1] ?? '')
+            )
+          ];
+    for (const value of values)
+      slides.push({
+        video: `${videoHead}${value}${videoTail}`,
+        name: `${nameHead}${value}${nameTail}`,
+        hero: `${heroHead}${value}${heroTail}`
+      });
+  }
+  const sets = slides
+    .filter((slide) => textOf.has(slide.name))
+    .slice(0, MAX_TREASURE_SETS)
+    .map((slide) => ({
+      hero: textOf.get(slide.hero) ?? '',
+      set: textOf.get(slide.name) ?? '',
+      image: image(slide.video)
+    }));
+  if (sets.length > 0) return { sets, orderKnown: true };
+  const paired = texts
+    .filter((text) => TREASURE_KEY.test(text.key) && text.key.endsWith('_set'))
+    .slice(0, MAX_TREASURE_SETS)
+    .map((text) => ({ hero: textOf.get(text.key.slice(0, -'_set'.length)) ?? '', set: text.text, image: null }));
+  return { sets: paired, orderKnown: false };
 }
 
 async function readText(fetchImpl: typeof fetch, url: string, maxBytes: number): Promise<string | null> {
@@ -206,7 +298,15 @@ export async function fetchEventPage(slug: string, fetchImpl: typeof fetch = fet
     readText(fetchImpl, chunkUrl(ids.page, pageHash), MAX_CHUNK_BYTES)
   ]);
   if (textsChunk === null || pageChunk === null) return null;
-  const texts = parseTextsChunk(textsChunk, slug);
+  const { texts, truncated } = parseTextsChunk(textsChunk, ids.route);
   if (texts.length === 0) return null;
-  return { slug, url, texts, language, ...parseMediaPaths(pageChunk, slug) };
+  const media = parseMediaPaths(pageChunk, [...new Set([slug, ids.route])]);
+  const treasure = parseTreasure(pageChunk, texts);
+  const gaps: EventPageGap[] = [];
+  if (truncated) gaps.push('texts_truncated');
+  const setImages = treasure.sets.filter((set) => set.image !== null).length;
+  if (media.images.length + media.videos.length + setImages === 0) gaps.push('no_media');
+  if (treasure.sets.length > 0 && !treasure.orderKnown) gaps.push('treasure_order_unknown');
+  if (treasure.sets.some((set) => set.image === null)) gaps.push('treasure_images_missing');
+  return { slug, url, texts, language, ...media, treasure: treasure.sets, gaps };
 }
