@@ -33,7 +33,8 @@ The AI makes the Telegram channel's content itself: news and rubric posts drafte
   public API), the RSS of esports.ru (`/rss/`) and dota2.ru (`/news/rss/`), and PlayGround.ru's posts in the Steam
   News feed for app 570 (today the code keeps only Valve's feed). The price goes into a post only when two sources
   agree («≈ 424 ₽», source named); a figure derived from another (the arcana's 21 000 ₽ / 50) is only an estimate.
-  The price watch lasts up to 24 hours. Checked and not used: Steam Web API, Steam Market (marketable items only),
+  The price watch lasts 5 hours from Valve's announcement (owner, 22.10.2026: by then he is awake and checks the price
+  himself). Checked and not used: Steam Web API, Steam Market (marketable items only),
   dota2.com datafeed (no store data), GameTracking-Dota2 (no `items_game` since 07.10), Dota 2 Fandom (slower than
   Liquipedia), paid web search.
 - Built 21.10.2026, to be seen by the owner on DEV: an event with its own dota2.com page (e.g. dota2.com/darkcarnival) becomes a series of posts, not one (owner,
