@@ -19,6 +19,12 @@ The AI makes the Telegram channel's content itself: news and rubric posts drafte
   neither for Dota (checked with the owner's key 21.10.2026: no item schema, no asset prices for app 570); the price is
   only in the game. So two posts (owner): the news at once, then the sets with images from Liquipedia or the event's
   dota2.com page (two posts when there are many).
+- Liquipedia watch for a published event post that lacks details (owner, 22.10.2026): the sets, their images, drop
+  rates or opening bonuses missing from what went out start a watch on the event's Liquipedia page (found by its
+  name). Every 5 minutes one light request asks whether the page changed; the price never starts a watch (Liquipedia
+  has none). Liquipedia fills a page in many small edits, so new details are collected until the page has been quiet
+  for 30 minutes, then the AI writes the next post from what is new against what was published; later edits can give
+  another post. The watch ends after 8 hours. Open: whether these posts publish themselves or wait for approval.
 - Built 21.10.2026, to be seen by the owner on DEV: an event with its own dota2.com page (e.g. dota2.com/darkcarnival) becomes a series of posts, not one (owner,
   21.10.2026): the page's own texts — Valve's Russian translation among them (story, how it works, rewards, the
   treasure's sets, personas) — and images are read; the AI first plans the series (how many posts, one topic each, in
