@@ -12,6 +12,7 @@ import { AppError } from '../../shared/app-error';
 import { clipDetail, describeError, describeHttp, describeShape } from '../../shared/feed-diagnostics';
 import { eventPageSlugs } from './event-page';
 import { classifyDotaEvent, cleanExcerpt, type DotaSourceKey, type SourceEventType } from './source-events';
+import type { PatchDigest, PatchEntityNotes } from './patch-digest';
 
 export * from './source-events';
 export * from './source-events-repository';
@@ -235,20 +236,21 @@ const patchNamesSchema = z
                 z
                   .object({
                     id: z.number().int(),
-                    name_english_loc: z.string().trim().min(1).max(200).optional(),
-                    name_loc: z.string().trim().min(1).max(200).optional()
+                    name_english_loc: z.string().trim().max(200).optional(),
+                    name_loc: z.string().trim().max(200).optional()
                   })
                   .passthrough()
               )
               .max(200)
               .optional(),
+            // Valve leaves some names empty (37 items, 22.10.2026): such an item is skipped, not the whole list.
             itemabilities: z
               .array(
                 z
                   .object({
                     id: z.number().int(),
-                    name_english_loc: z.string().trim().min(1).max(200).optional(),
-                    name_loc: z.string().trim().min(1).max(200).optional()
+                    name_english_loc: z.string().trim().max(200).optional(),
+                    name_loc: z.string().trim().max(200).optional()
                   })
                   .passthrough()
               )
@@ -279,13 +281,13 @@ function parsePatchNameMaps(
     heroes: new Map(
       heroesParsed.data.result.data.heroes.map((entry) => [
         entry.id,
-        cleanPatchLabel(entry.name_english_loc ?? entry.name_loc)
+        cleanPatchLabel(entry.name_english_loc || entry.name_loc)
       ])
     ),
     items: new Map(
       itemsParsed.data.result.data.itemabilities.map((entry) => [
         entry.id,
-        cleanPatchLabel(entry.name_english_loc ?? entry.name_loc)
+        cleanPatchLabel(entry.name_english_loc || entry.name_loc)
       ])
     )
   };
@@ -318,6 +320,49 @@ export interface DotaPatchAnalysis {
 export interface DotaPatchInspection {
   summary: DotaPatchSummary | null;
   analysis: DotaPatchAnalysis;
+}
+
+/**
+ * The patch's notes grouped for its post (owner, 22.10.2026): general notes, heroes and items by name, every note as
+ * Valve wrote it. Null when Valve has no notes for the version (yet).
+ */
+export async function digestOfficialPatch(fetcher: DotaSourceFetcher, version: string): Promise<PatchDigest | null> {
+  const response = await fetcher.fetchPatchDetails(version);
+  const parsed = patchDetailsSchema.safeParse(await readBoundedJson(response, MAX_PATCH_BYTES, 'patch_notes'));
+  if (!parsed.success || parsed.data.patch_number.toLowerCase() !== version) return null;
+  const names = await fetcher.fetchPatchNameMaps();
+  const texts = (notes: { note: string }[] | undefined) =>
+    (notes ?? []).map((entry) => entry.note.trim()).filter(Boolean);
+  const entities = (
+    entries: z.infer<typeof patchEntityNotesSchema>[] | undefined,
+    byId: Map<number, string>,
+    key: 'hero_id' | 'ability_id'
+  ) =>
+    (entries ?? []).flatMap((entry): PatchEntityNotes[] => {
+      const id = entry[key];
+      const name = cleanPatchLabel(id === undefined ? entry.title : byId.get(id));
+      const notes = [
+        ...texts(entry.hero_notes),
+        ...texts(entry.ability_notes),
+        ...texts(entry.talent_notes),
+        ...(entry.abilities ?? []).flatMap((ability) => texts(ability.ability_notes))
+      ];
+      return name === '' || notes.length === 0 ? [] : [{ name, notes }];
+    });
+  const digest: PatchDigest = {
+    version,
+    general: (parsed.data.general_notes ?? [])
+      .map((group) => ({ title: cleanPatchLabel(group.title), notes: texts(group.generic) }))
+      .filter((group) => group.notes.length > 0),
+    heroes: entities(parsed.data.heroes, names.heroes, 'hero_id'),
+    items: entities(parsed.data.items, names.items, 'ability_id'),
+    neutralItems: entities(parsed.data.neutral_items, names.items, 'ability_id'),
+    noteCount: 0
+  };
+  digest.noteCount =
+    digest.general.reduce((sum, group) => sum + group.notes.length, 0) +
+    [...digest.heroes, ...digest.items, ...digest.neutralItems].reduce((sum, entity) => sum + entity.notes.length, 0);
+  return digest;
 }
 
 export async function inspectOfficialPatch(fetcher: DotaSourceFetcher, version: string): Promise<DotaPatchInspection> {
@@ -1758,3 +1803,10 @@ export {
   type TreasureWatch,
   type TreasureWatchRepository
 } from './treasure-watch-repository';
+export {
+  isHotfixTitle,
+  type PatchDigest,
+  patchDigestText,
+  type PatchEntityNotes,
+  patchVersionOf
+} from './patch-digest';

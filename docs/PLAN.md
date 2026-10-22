@@ -69,15 +69,11 @@ The AI makes the Telegram channel's content itself: news and rubric posts drafte
   non-commercial; not planned.
 - Patches (owner, 22.10.2026; all publish without the owner, `docs/DECISIONS.md`). Kinds, from Valve's
   `datafeed/patchnoteslist` and the Steam announcement of the day (checked on 2023–2026):
-  - what matters first (owner, 22.10.2026: «аспекты удалили — это важнее всего»): the patch's general notes (Valve's
-    first section: facets removed, a new mechanic, the map, modes) lead every patch post; then a new hero, new items and
-    the largest buffs and nerfs; small numbers are left to the linked patch page;
-  - letter patch (7.41f: about 100 notes; at most ~310 seen): one short AI post, what changed that matters, and the
-    patch page linked for the rest;
-  - whole-number patch (7.41: ~1 700 notes, facets removed; at least ~630 seen): a series, mechanics first, then
-    heroes, then items;
-  - a patch whose Steam announcement links its own dota2.com page instead of `/patches/<v>` (7.38 /wanderingwaters,
-    7.40 /largo, 7.41e with /summerscrub2026): the event-page series, numbers from the datafeed;
+  - one post per patch, big or small (owner, 22.10.2026: «на патч можно 1 пост»): the main change first, briefly and
+    with a joke when it fits (Valve's general notes: facets removed, a new mechanic, the map, modes), then who was cut
+    the hardest and who was buffed, then the items that changed most, and the patch page linked for the rest. Written
+    from Valve's datafeed of that version when the Steam announcement names one (7.41 «… Gameplay Patch», «Update 7.37
+    Is Here», a patch with its own page like 7.38 /wanderingwaters), not from the announcement's few lines;
   - a Steam «Dota 2 Update - <date>» hotfix (no datafeed row, ~20 a year): a short post, linked to the announcement,
     only when the AI finds something a player cares about (event rewards, a hidden nerf, a funny bug), else a studio
     mark only.

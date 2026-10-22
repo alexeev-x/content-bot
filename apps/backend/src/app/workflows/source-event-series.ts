@@ -7,7 +7,8 @@ import {
   fetchStorePrices,
   type EventPage,
   type EventPageGap,
-  type EventPageText
+  type EventPageText,
+  patchVersionOf
 } from '../../modules/dota';
 import { getOwnerOperationsSettings } from '../../modules/settings';
 import { createWriterDeps } from '../bot/writer-deps';
@@ -153,6 +154,8 @@ export async function planEventSeries(
 ): Promise<boolean> {
   const source = await container.dotaRepository.findSteamAnnouncement(job.externalId);
   if (source === null) return false;
+  // A patch is one post from its notes, its own page or not (owner, 22.10.2026: «на патч можно 1 пост»).
+  if (patchVersionOf(source.title) !== null) return false;
   const announcement = await fetchSteamAnnouncement({ externalId: job.externalId, publishedAt: source.publishedAt });
   if (announcement === null || announcement.pages.length === 0) return false;
   let page: EventPage | null = null;

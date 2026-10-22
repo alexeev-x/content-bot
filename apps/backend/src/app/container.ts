@@ -96,11 +96,13 @@ import {
   type SeriesRepository,
   type SourceEventsRepository,
   createOfficialDotaFetcher,
+  digestOfficialPatch,
   inspectOfficialPatch,
   summarizeOfficialPatch,
   syncDotaUpdates,
   type DotaPatchSummary,
   type DotaPatchInspection,
+  type PatchDigest,
   type DotaSourceFetcher,
   type DotaWatcherRepository
 } from '../modules/dota';
@@ -191,6 +193,8 @@ export interface Container {
     sync(input: { detectedAt: number }): Promise<{ inserted: number; fetched: number }>;
     summarizePatch(version: string): Promise<DotaPatchSummary | null>;
     inspectPatch?(version: string): Promise<DotaPatchInspection>;
+    /** A patch's notes for its post (owner, 22.10.2026); null when Valve has none for the version yet. */
+    digestPatch?(version: string): Promise<PatchDigest | null>;
   };
   /** D1 state for draft reservation, Dota owner notices and deduped source incidents. */
   dotaRepository: DotaWatcherRepository;
@@ -514,7 +518,8 @@ export function createContainer(env: ContainerEnv, overrides: ContainerOverrides
       return {
         sync: ({ detectedAt }: { detectedAt: number }) => syncDotaUpdates({ fetcher, repo, detectedAt }),
         summarizePatch: (version: string) => summarizeOfficialPatch(fetcher, version),
-        inspectPatch: (version: string) => inspectOfficialPatch(fetcher, version)
+        inspectPatch: (version: string) => inspectOfficialPatch(fetcher, version),
+        digestPatch: (version: string) => digestOfficialPatch(fetcher, version)
       };
     },
     get dotaRepository() {

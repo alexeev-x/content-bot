@@ -7,6 +7,7 @@ import { runHypothesesReview } from './workflows/hypotheses';
 import { sourceEventWriter } from './workflows/source-event-ai-draft';
 import { attachSourceEventImages, type SourceMediaDeps } from './workflows/source-event-media';
 import { planEventSeries, writeSeriesPost } from './workflows/source-event-series';
+import { skipDullHotfix } from './workflows/source-event-hotfix';
 import { PHOTO_MEDIA_MAX_BYTES } from '@alexeev/contracts';
 import { uploadPostMedia } from '../modules/content';
 import { AppError } from '../shared/app-error';
@@ -249,6 +250,10 @@ export async function handleAiQueue(batch: MessageBatch<unknown>, container: Con
           message.ack();
           continue;
         }
+        if (await skipDullHotfix(container, job, source, requestId, onError)) {
+          message.ack();
+          continue;
+        }
         // With the automatic publishing on, the owner may be asleep (owner, 22.10.2026): no sound for this message.
         const quiet = job.automatic && (await autopublishOn(container, requestId).catch(() => false));
         messageId = (
@@ -322,7 +327,11 @@ export async function handleAiQueue(batch: MessageBatch<unknown>, container: Con
       },
       finish: () => container.aiWriter.finishJob(job.id, container.clock.now()),
       writer: () => createWriterDeps(container, requestId),
-      sourceEvents: sourceEventWriter({ repo: container.dotaRepository, onError }),
+      sourceEvents: sourceEventWriter({
+        repo: container.dotaRepository,
+        ...(container.dotaWatcher.digestPatch === undefined ? {} : { digestPatch: container.dotaWatcher.digestPatch }),
+        onError
+      }),
       autopublish: async (eventJob, draft) => {
         const outcome = await autopublishSourceEvent(
           container,

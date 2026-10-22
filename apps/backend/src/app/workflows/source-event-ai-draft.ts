@@ -2,6 +2,9 @@ import { SOURCE_LINK_LABEL } from '../../modules/ai';
 import {
   fetchSteamAnnouncement,
   findDotaNewsEntryUrl,
+  type PatchDigest,
+  patchDigestText,
+  patchVersionOf,
   type SteamAnnouncement,
   type DotaDraftSource,
   type DotaWatcherRepository
@@ -50,6 +53,8 @@ export function sourceEventWriter(deps: {
   repo: Pick<DotaWatcherRepository, 'findSteamAnnouncement' | 'setAiGeneration' | 'finishAiDraft'>;
   fetchAnnouncement?: typeof fetchSteamAnnouncement;
   findOfficialUrl?: typeof findDotaNewsEntryUrl;
+  /** A patch's notes by version (Valve's datafeed); without it a patch is written from its announcement. */
+  digestPatch?: (version: string) => Promise<PatchDigest | null>;
   onError: (error: unknown) => void;
 }) {
   const fetchAnnouncement = deps.fetchAnnouncement ?? fetchSteamAnnouncement;
@@ -58,6 +63,16 @@ export function sourceEventWriter(deps: {
     async task(externalId: string): Promise<string> {
       const source = await deps.repo.findSteamAnnouncement(externalId);
       if (source === null) throw new AppError('NOT_FOUND', 'The announcement is gone');
+      // A patch is written from Valve's notes of that version, not from the announcement's few lines (owner,
+      // 22.10.2026); when Valve has no notes yet, from the announcement as any news.
+      const version = patchVersionOf(source.title);
+      if (version !== null && deps.digestPatch !== undefined) {
+        const digest = await deps.digestPatch(version).catch((error: unknown) => {
+          deps.onError(error);
+          return null;
+        });
+        if (digest !== null) return patchTask(source, digest);
+      }
       // The feed's 500 characters are too little to write from; without the whole text the job fails visibly.
       const text = (await fetchAnnouncement({ externalId, publishedAt: source.publishedAt }))?.text ?? null;
       if (text === null) throw new AppError('NOT_FOUND', 'Steam no longer returns the announcement');
@@ -111,6 +126,31 @@ const TYPE_NAME: Record<DotaDraftSource['eventType'], string> = {
   news: 'новость',
   patch: 'патч'
 };
+
+/** The patch's page on dota2.com, the post's link: the full notes are there. */
+export const patchPageUrl = (version: string) => `https://www.dota2.com/patches/${version}`;
+
+/**
+ * The writer's task of a patch (owner, 22.10.2026): one short post — the main change first (a joke welcome), then who
+ * was cut and who was buffed the most, then the items; the rest is on the linked patch page.
+ */
+export function patchTask(source: DotaDraftSource, digest: PatchDigest): string {
+  const date = new Date(source.publishedAt).toISOString().slice(0, 10).split('-').reverse().join('.');
+  const small = /[a-z]$/.test(digest.version);
+  return [
+    `Повод: вышел ${small ? 'небольшой ' : ''}патч Dota 2 ${digest.version} (официальные патчноуты Valve).`,
+    `Дата: ${date}`,
+    `${SOURCE_LINK_LABEL}${patchPageUrl(digest.version)}`,
+    `Напиши один ${small ? 'короткий ' : ''}пост о патче, по порядку:`,
+    '1. Главное изменение — первым: самое крупное из раздела «ГЛАВНОЕ», если он есть. Уместна одна короткая шутка о нём.',
+    '2. Кого ослабили сильнее всего и кого усилили — по 2–4 героя, по фразе на каждого, только самое заметное. Ослабление или усиление суди по самим изменениям (меньше перезарядка или больше урон — усиление).',
+    '3. Самые важные изменения предметов — коротко.',
+    'Мелкие числа не перечисляй: остальное — по ссылке на патч.',
+    // Last, so the writer's 4 000-character cap can only shorten the notes, never the request.
+    'Патчноуты Valve (английский; факты бери только отсюда):',
+    `<<<${patchDigestText(digest).replaceAll('>>>', '> > >').replaceAll('<<<', '< < <')}>>>`
+  ].join('\n');
+}
 
 /** The writer's task: the announcement's own words as the only facts (automatic mode). */
 export function sourceEventTask(source: DotaDraftSource, text: string, link: string): string {

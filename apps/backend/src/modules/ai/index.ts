@@ -16,6 +16,7 @@ export {
   type RuleEvidence
 } from './d1-rules-repository';
 export { type AnalyticsReview, writeAnalyticsReview } from './analytics-review';
+export { hotfixWorthPost } from './hotfix-check';
 export {
   ACTIVE_HYPOTHESES_MAX,
   createD1HypothesesRepository,
