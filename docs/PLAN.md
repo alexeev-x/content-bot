@@ -29,7 +29,8 @@ The AI makes the Telegram channel's content itself: news and rubric posts drafte
   (keyless, several ids comma-separated) gives Valve's store price, e.g. `{"34454":"$4.99"}` for Trove of Terror; the
   event pages use it themselves. The currency follows the caller's country (USD from Moldova and from the owner's
   browser; no parameter changes it). The item id comes from the event page's price component (`nItemDefID`) or,
-  without a page, from Liquipedia's `defindex`. The Russian sources below remain the fallback when no id is known.
+  without a page, from Liquipedia's `defindex`. Posts give this price in dollars as Valve returns it, no «≈» (owner,
+  22.10.2026: dollars are fine). The rouble sources below are only the fallback when no id is known.
 - An event page's treasure, read by our parser (checked on dota2.com/darkcarnival, 22.10.2026): the sets in slider
   order (`{heroname:…}` in the page chunk; the owner: the top reward is usually the last slide), each set's image at
   `cdn.steamstatic.com/apps/dota2/videos/dota_react/<slug>/treasure/set_<hero>.png` (the parser misses these today),
@@ -54,7 +55,8 @@ The AI makes the Telegram channel's content itself: news and rubric posts drafte
   go out as one «details» post (an edit reaches nobody who read the post, and a media caption is capped at 1024
   characters). At most three posts per event: the news, the sets, the details. A price found later that differs from
   the published one gives no new post: the bot asks the owner and offers to correct the published post. Trove of
-  Terror would give: news 03:22, sets ~04:35, drop rates, bonuses and «≈ 420 ₽» ~08:10.
+  Terror would give: news 03:22, sets with «$4.99» ~04:35 (Liquipedia's `defindex` gives the id), drop rates and
+  bonuses ~08:10.
 - Built 21.10.2026, to be seen by the owner on DEV: an event with its own dota2.com page (e.g. dota2.com/darkcarnival) becomes a series of posts, not one (owner,
   21.10.2026): the page's own texts — Valve's Russian translation among them (story, how it works, rewards, the
   treasure's sets, personas) — and images are read; the AI first plans the series (how many posts, one topic each, in
