@@ -17,7 +17,7 @@ The AI makes the Telegram channel's content itself: news and rubric posts drafte
 - A treasure post lists its sets, images and price. Liquipedia had the sets 35 minutes after Valve's announcement
   (Trove of Terror: sets at once, drop rates and opening bonuses after ~4 h) and never the price. Steam's Web API gives
   neither for Dota (checked with the owner's key 21.10.2026: no item schema, no asset prices for app 570); the price is
-  only in the game. So two posts (owner): the news at once, then the sets with images from Liquipedia or the event's
+  shown only in the game, and Russian news sites print it the same morning (see the price watch below). So two posts (owner): the news at once, then the sets with images from Liquipedia or the event's
   dota2.com page (two posts when there are many).
 - Liquipedia watch for a published event post that lacks details (owner, 22.10.2026): the sets, their images, drop
   rates or opening bonuses missing from what went out start a watch on the event's Liquipedia page (found by its
@@ -25,6 +25,17 @@ The AI makes the Telegram channel's content itself: news and rubric posts drafte
   has none). Liquipedia fills a page in many small edits, so new details are collected until the page has been quiet
   for 30 minutes, then the AI writes the next post from what is new against what was published; later edits can give
   another post. The watch ends after 8 hours. Open: whether these posts publish themselves or wait for approval.
+- Price watch, Russian region (owner, 22.10.2026: the price in roubles matters). Trove of Terror (Valve 07.10 03:22
+  MSK) was priced by Championat at 04:07 (only as «21 тыс. ₽ за аркану» in the title), esports.ru 07:41 (420 ₽),
+  offstage.ru 08:40 (424 ₽, the first exact price), dota2.ru 10:02, PlayGround.ru 13:15 (424 ₽); no site is earlier,
+  Russian newsrooms start in the morning. Sources, all keyless: Championat's RSS `championat.com/rss/news/cybersport/`
+  (title and lead only: its articles sit behind a Sber ID single sign-on wall, not to be bypassed, and it has no
+  public API), the RSS of esports.ru (`/rss/`) and dota2.ru (`/news/rss/`), and PlayGround.ru's posts in the Steam
+  News feed for app 570 (today the code keeps only Valve's feed). The price goes into a post only when two sources
+  agree («≈ 424 ₽», source named); a figure derived from another (the arcana's 21 000 ₽ / 50) is only an estimate.
+  The price watch lasts up to 24 hours. Checked and not used: Steam Web API, Steam Market (marketable items only),
+  dota2.com datafeed (no store data), GameTracking-Dota2 (no `items_game` since 07.10), Dota 2 Fandom (slower than
+  Liquipedia), paid web search.
 - Built 21.10.2026, to be seen by the owner on DEV: an event with its own dota2.com page (e.g. dota2.com/darkcarnival) becomes a series of posts, not one (owner,
   21.10.2026): the page's own texts — Valve's Russian translation among them (story, how it works, rewards, the
   treasure's sets, personas) — and images are read; the AI first plans the series (how many posts, one topic each, in
