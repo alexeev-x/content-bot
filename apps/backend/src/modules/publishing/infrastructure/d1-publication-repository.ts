@@ -31,16 +31,29 @@ interface PublicationRow {
   job_run_at: number;
   job_send_started_at: number | null;
   post_deleted_at: number | null;
+  series_id: string | null;
+  series_position: number | null;
+  series_total: number | null;
+  job_blocked: number;
+  previous_done_at: number | null;
+  chain_gap_ms: number | null;
 }
 
 const PUBLICATION_COLUMNS = `p.id, p.post_id, p.post_revision, p.destination_id, p.scheduled_at, p.timezone,
   p.revision, p.external_message_id, p.external_message_ids, p.last_error_code, p.created_at, p.updated_at,
   j.status AS job_status, j.run_at AS job_run_at, j.send_started_at AS job_send_started_at,
-  (SELECT dp.deleted_at FROM posts dp WHERE dp.id = p.post_id) AS post_deleted_at`;
+  (SELECT dp.deleted_at FROM posts dp WHERE dp.id = p.post_id) AS post_deleted_at,
+  p.series_id, p.series_position,
+  CASE WHEN p.series_id IS NULL THEN NULL
+       ELSE (SELECT count(*) FROM publications sp WHERE sp.series_id = p.series_id) END AS series_total,
+  j.blocked_by_job_id IS NOT NULL AS job_blocked, j.chain_gap_ms,
+  (SELECT pj.updated_at FROM jobs pj WHERE pj.id = j.blocked_by_job_id AND pj.status = 'succeeded') AS previous_done_at`;
 // CROSS JOIN pins SQLite's order: the left table is walked through its keyset index and the other
 // one is looked up by key, instead of scanning one side and sorting.
 const FROM_PUBLICATIONS = `FROM publications p CROSS JOIN jobs j ON j.publication_id = p.id AND j.kind = 'publish'`;
 const FROM_JOBS = `FROM jobs j CROSS JOIN publications p ON p.id = j.publication_id`;
+// Not JSON: `json()` of it fails the statement, which rolls back a series batch that lost a publication.
+const SERIES_INCOMPLETE = 'series incomplete';
 
 // The dedupe key keeps a detached final job and its attempts available as history after its
 // publication row is removed. Every statement recomputes the same revision- and status-guarded set.
@@ -105,7 +118,18 @@ function toRecord(row: PublicationRow): PublicationRecord {
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     job: { status: row.job_status, runAt: row.job_run_at, sendStartedAt: row.job_send_started_at },
-    postDeleted: row.post_deleted_at !== null
+    postDeleted: row.post_deleted_at !== null,
+    series:
+      row.series_id === null || row.series_position === null
+        ? null
+        : {
+            id: row.series_id,
+            position: row.series_position,
+            total: row.series_total ?? row.series_position,
+            blocked: row.job_blocked === 1,
+            previousDoneAt: row.previous_done_at,
+            gapMs: row.chain_gap_ms ?? 0
+          }
   };
 }
 
@@ -416,6 +440,33 @@ export function createD1PublicationRepository(db: D1Database): PublicationReposi
   const selectOne = (id: string) =>
     db.prepare(`SELECT ${PUBLICATION_COLUMNS} ${FROM_PUBLICATIONS} WHERE p.id = ?1`).bind(id);
 
+  // A cancelled series post cancels the later posts of its series that have not gone out: they would only wait for
+  // ever (owner, 22.10.2026). It runs only when this batch cancelled the post (its job is `cancelled` at `now`), and
+  // each one cancelled gets its own audit row, so its history says so. Its count is never what decides the change.
+  function cancelLaterInSeries(id: string, actor: string, now: number): D1PreparedStatement[] {
+    const later = `SELECT later.id FROM publications current
+      JOIN publications later ON later.series_id = current.series_id AND later.series_position > current.series_position
+      WHERE current.id = ?1 AND current.series_id IS NOT NULL`;
+    return [
+      db
+        .prepare(
+          `UPDATE jobs SET status = 'cancelled', lease_until = NULL, updated_at = ?2
+           WHERE kind = 'publish' AND status IN ('pending', 'retry_wait') AND publication_id IN (${later})
+             AND EXISTS (SELECT 1 FROM jobs own WHERE own.publication_id = ?1 AND own.kind = 'publish'
+                           AND own.status = 'cancelled' AND own.updated_at = ?2)`
+        )
+        .bind(id, now),
+      db
+        .prepare(
+          `INSERT INTO audit_log (actor_telegram_id, action, entity_type, entity_id, created_at, details)
+           SELECT ?3, 'publication.cancel', 'publication', j.publication_id, ?2, json_object('withSeriesPost', ?1)
+           FROM jobs j WHERE j.publication_id IN (${later}) AND j.kind = 'publish'
+             AND j.status = 'cancelled' AND j.updated_at = ?2`
+        )
+        .bind(id, now, actor)
+    ];
+  }
+
   // The job statement runs first and decides, with the publication revision in its guard evaluated
   // before anything in the batch has changed. The next statement bumps the revision only when the
   // job statement changed a row (`changes()` is that statement's count), and so does the audit row
@@ -539,6 +590,98 @@ export function createD1PublicationRepository(db: D1Database): PublicationReposi
       return results[0]?.meta.changes === 1;
     },
 
+    // The same guards as `create` for each publication. A guard refuses by writing nothing, not by failing, so the
+    // statement before the key is completed fails the batch on purpose when a publication is missing: D1 rolls the
+    // whole batch back and the series is written whole or not at all.
+    async createSeries(input) {
+      const claim = [
+        input.idempotency.scope,
+        input.idempotency.key,
+        input.idempotency.requestHash,
+        input.idempotency.claimedAt
+      ];
+      const statements = input.items.flatMap((item, index) => {
+        const previous = input.items[index - 1];
+        return [
+          db
+            .prepare(
+              `INSERT INTO publications
+                 (id, post_id, post_revision, destination_id, scheduled_at, timezone, revision, created_at, updated_at,
+                  series_id, series_position)
+               SELECT ?1, ?2, ?3, ?4, ?5, ?6, 0, ?7, ?7, ?12, ?13
+               WHERE ${ownsClaimSql(8)}
+                 AND EXISTS (SELECT 1 FROM posts WHERE id = ?2 AND revision = ?3 AND status = 'approved' AND archived_at IS NULL AND deleted_at IS NULL)
+                 AND EXISTS (SELECT 1 FROM destinations WHERE id = ?4 AND enabled = 1)
+                 AND NOT EXISTS (SELECT 1 FROM publications lp JOIN jobs lj ON lj.publication_id = lp.id
+                   WHERE lp.post_id = ?2 AND +lp.destination_id = ?4 AND lj.status IN ('pending', 'claimed', 'retry_wait', 'unknown'))`
+            )
+            .bind(
+              item.id,
+              item.postId,
+              item.postRevision,
+              input.destinationId,
+              item.scheduledAt,
+              input.timezone,
+              input.now,
+              ...claim,
+              input.seriesId,
+              index + 1
+            ),
+          db
+            .prepare(
+              `INSERT INTO jobs (id, kind, publication_id, status, run_at, attempts, dedupe_key, publication_scheduled_at,
+                                 created_at, updated_at, blocked_by_job_id, chain_gap_ms)
+               SELECT ?1, 'publish', ?2, 'pending', ?3, 0, ?4, ?3, ?5, ?5, ?6, ?7
+               WHERE EXISTS (SELECT 1 FROM publications WHERE id = ?2)`
+            )
+            .bind(
+              item.jobId,
+              item.id,
+              item.scheduledAt,
+              `publish:${item.id}`,
+              input.now,
+              previous?.jobId ?? null,
+              previous === undefined ? null : input.gapMs
+            ),
+          db
+            .prepare(
+              `INSERT INTO audit_log (actor_telegram_id, action, entity_type, entity_id, created_at, details)
+               SELECT ?1, 'publication.create', 'publication', ?2, ?3, ?4
+               WHERE EXISTS (SELECT 1 FROM publications WHERE id = ?2)`
+            )
+            .bind(
+              input.actor,
+              item.id,
+              input.now,
+              JSON.stringify({
+                postId: item.postId,
+                postRevision: item.postRevision,
+                destinationId: input.destinationId,
+                scheduledAt: item.scheduledAt,
+                seriesId: input.seriesId,
+                seriesPosition: index + 1
+              })
+            )
+        ];
+      });
+      try {
+        await db.batch([
+          ...statements,
+          db
+            .prepare(
+              `SELECT CASE WHEN (SELECT count(*) FROM publications WHERE series_id = ?1) < ?2
+                      THEN json('${SERIES_INCOMPLETE}') ELSE 1 END`
+            )
+            .bind(input.seriesId, input.items.length),
+          completeIdempotencyStatement(db, input.idempotency, input.response, input.now)
+        ]);
+        return true;
+      } catch (error) {
+        if (error instanceof Error && /malformed JSON/i.test(error.message)) return false;
+        throw error;
+      }
+    },
+
     async findById(id) {
       const row = await selectOne(id).first<PublicationRow>();
       return row === null ? null : ((await withPostSnapshots(db, [toRecord(row)]))[0] ?? null);
@@ -629,6 +772,7 @@ export function createD1PublicationRepository(db: D1Database): PublicationReposi
     cancel(change) {
       return changeJob({
         ...change,
+        after: cancelLaterInSeries(change.id, change.actor, change.now),
         action: 'publication.cancel',
         jobStatement: db
           .prepare(
@@ -749,6 +893,7 @@ export function createD1PublicationRepository(db: D1Database): PublicationReposi
         case 'cancel':
           return changeJob({
             ...common,
+            after: [...common.after, ...cancelLaterInSeries(change.id, change.actor, change.now)],
             jobStatement: db
               .prepare(`UPDATE jobs SET status = 'cancelled', lease_until = NULL, updated_at = ?3 WHERE ${jobGuard}`)
               .bind(change.id, change.expectedRevision, change.now),

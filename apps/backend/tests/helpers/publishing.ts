@@ -121,6 +121,9 @@ export async function claimJob(jobId: string, now: number, leaseUntil: number): 
        WHERE id = ?3 AND status IN ('pending', 'retry_wait')
          AND run_at <= ?2
          AND (lease_until IS NULL OR lease_until < ?2)
+         AND (blocked_by_job_id IS NULL OR EXISTS (
+           SELECT 1 FROM jobs previous WHERE previous.id = jobs.blocked_by_job_id AND previous.status = 'succeeded'
+             AND previous.updated_at + coalesce(jobs.chain_gap_ms, 0) <= ?2))
        RETURNING id, publication_id, attempts`
     )
     .bind(leaseUntil, now, jobId)

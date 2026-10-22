@@ -13,6 +13,7 @@ import { listEnabledDestinations } from './destination-options';
 import {
   cancelPublication,
   createPublication,
+  createPublicationSeries,
   deletePublication,
   deletePublications,
   getPublication,
@@ -23,6 +24,7 @@ import {
   type CancelPublicationBody,
   type BulkDeletePublicationsBody,
   type CreatePublicationBody,
+  type CreatePublicationSeriesBody,
   type DeletePublicationBody,
   type PublicationFilters,
   type ReschedulePublicationBody,
@@ -125,6 +127,17 @@ export function useSubmitPublication() {
     onSuccess: (publication) => {
       applyServerPublication(queryClient, publication);
     }
+  });
+}
+
+/** A series is never optimistic: lists refetch once the server stored it (202 is not a send). */
+export function useSubmitPublicationSeries() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ input, key }: { input: CreatePublicationSeriesBody; key: string }) =>
+      createPublicationSeries(input, key),
+    retry: false,
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: publicationKeys.all })
   });
 }
 

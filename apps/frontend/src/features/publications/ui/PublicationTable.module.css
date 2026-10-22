@@ -60,3 +60,14 @@
     max-width: none;
   }
 }
+
+/* A series post: its place and whether it waits for the previous one, under the status. */
+.statusCell {
+  display: grid;
+  gap: var(--space-1);
+  justify-items: start;
+}
+.seriesNote {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+}

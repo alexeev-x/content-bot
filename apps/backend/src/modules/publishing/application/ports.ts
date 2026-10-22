@@ -310,6 +310,16 @@ export interface PublicationRecord {
   job: JobSnapshot;
   /** True once the owner deleted the post; the publication stays as history. */
   postDeleted?: boolean;
+  /** Its place in a series (migration 0098); null or absent for a single publication. */
+  series?: {
+    id: string;
+    position: number;
+    total: number;
+    /** Waits for the previous post's job: until it succeeded (`previousDoneAt`) and `gapMs` passed since. */
+    blocked: boolean;
+    previousDoneAt: number | null;
+    gapMs: number;
+  } | null;
   /** The revision that was sent; set only with `postDeleted`, and only by the read paths that list or open it. */
   postSnapshot?: {
     title: string;
@@ -327,6 +337,21 @@ export interface NewPublication {
   destinationId: string;
   scheduledAt: number;
   timezone: string;
+  now: number;
+  actor: string;
+  idempotency: IdempotencyRef;
+  response: StoredResponse;
+}
+
+/** A series written in one batch: all of its publications or none (migration 0098). */
+export interface NewPublicationSeries {
+  seriesId: string;
+  destinationId: string;
+  timezone: string;
+  /** The least time between one post going out and the next. */
+  gapMs: number;
+  /** In series order; each later one waits for the job of the one before it. */
+  items: { id: string; jobId: string; postId: string; postRevision: number; scheduledAt: number }[];
   now: number;
   actor: string;
   idempotency: IdempotencyRef;
@@ -419,6 +444,8 @@ export interface PublicationRepository {
    * Returns false when a guard or the idempotency claim no longer holds; nothing was written.
    */
   create(input: NewPublication): Promise<boolean>;
+  /** False when any guard refused one of its publications: then nothing was written. */
+  createSeries(input: NewPublicationSeries): Promise<boolean>;
   /** A publication of this post to this channel is scheduled, queued, sending or unknown (no duplicate in flight). */
   hasLivePublication(postId: string, destinationId: string): Promise<boolean>;
   findById(id: string): Promise<PublicationRecord | null>;

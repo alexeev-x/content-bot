@@ -2,6 +2,7 @@ import {
   cancelPublicationInputSchema,
   bulkDeletePublicationsInputSchema,
   createPublicationInputSchema,
+  createPublicationSeriesInputSchema,
   deletePublicationInputSchema,
   listPublicationsQuerySchema,
   reschedulePublicationInputSchema,
@@ -12,6 +13,7 @@ import { z } from 'zod';
 import {
   cancelPublication,
   createPublication,
+  createPublicationSeries,
   deletePublication,
   deletePublications,
   getPublication,
@@ -103,6 +105,33 @@ export const publicationsRoutes = new Hono<AppBindings>()
       );
       // 202: the intent is stored; nothing has been sent yet.
       return c.json(publication, 202);
+    }
+  )
+  // Posts of one event in order with a gap (owner, 22.10.2026); written whole or not at all.
+  .post(
+    '/series',
+    limitBody(MAX_BODY_BYTES),
+    validated('header', idempotencyHeaderSchema),
+    validated('json', createPublicationSeriesInputSchema),
+    async (c) => {
+      const container = c.get('container');
+      const series = await createPublicationSeries(
+        {
+          publications: container.publications,
+          destinations: container.destinations,
+          posts: container.postSource,
+          idempotency: container.idempotency,
+          notifier: scheduleNotifier(c),
+          now: container.clock.now(),
+          newId: container.newId
+        },
+        {
+          actor: c.get('actor').telegramId,
+          idempotencyKey: c.req.valid('header')['idempotency-key'],
+          input: c.req.valid('json')
+        }
+      );
+      return c.json(series, 202);
     }
   )
   .get('/', validated('query', listPublicationsQuerySchema), async (c) => {

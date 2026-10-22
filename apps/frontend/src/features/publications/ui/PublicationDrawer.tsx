@@ -1,3 +1,4 @@
+import { seriesLabel } from '../model/series-label';
 import type { PublicationDto, ResolveUnknownOutcome } from '@alexeev/contracts';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
@@ -106,7 +107,14 @@ export function PublicationDrawer({
           onOpenChange(open);
         }}
         title={title}
-        meta={shown ? <StatusBadge status={shown} /> : undefined}
+        meta={
+          shown ? (
+            <>
+              <StatusBadge status={shown} />
+              {publication && seriesLabel(publication) ? <span>{seriesLabel(publication)}</span> : null}
+            </>
+          ) : undefined
+        }
         footer={
           publication && hasFooter(publication) ? (
             <DrawerActions

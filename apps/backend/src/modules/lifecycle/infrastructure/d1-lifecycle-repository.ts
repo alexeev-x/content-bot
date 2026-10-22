@@ -63,6 +63,15 @@ const WAITING_OF_TARGET = `${DELETE_TARGET}
   WHERE pu.post_id ${OF_TARGET} AND j.status IN ('pending', 'retry_wait')
   ORDER BY pu.post_id, pu.scheduled_at, pu.id`;
 
+// A deleted post's unsent publications go; the later posts of their series would wait for them for ever, so they are
+// cancelled first (owner, 22.10.2026; migration 0098). ?3 = now.
+const CANCEL_LATER_IN_SERIES = `${DELETE_TARGET}
+  UPDATE jobs SET status = 'cancelled', lease_until = NULL, updated_at = ?3
+  WHERE kind = 'publish' AND status IN ('pending', 'retry_wait') AND publication_id IN (
+    SELECT later.id FROM publications current
+    JOIN publications later ON later.series_id = current.series_id AND later.series_position > current.series_position
+    WHERE current.id IN (${DOOMED_PUBLICATIONS}) AND later.id NOT IN (${DOOMED_PUBLICATIONS}))`;
+
 // Children first: foreign keys point from attempts, incidents and jobs up to publications and posts.
 // A soft-deleted post keeps its sent publications with their jobs, attempts, incidents and the revision
 // they sent; the rest of its rows go like a hard delete (post_media and bot imports are cascades of the
@@ -210,6 +219,9 @@ export function createD1LifecycleRepository(db: D1Database): LifecycleRepository
     audit: { actor: string; action: string; now: number }
   ): D1PreparedStatement[] => [
     db.prepare(DELETE_AUDIT).bind(json, cutoff, audit.actor, audit.action, audit.now),
+    // The owner's delete only: an archived post (the purge) has no waiting publication; a failed one it may keep already
+    // holds the later posts until the owner cancels them, so purging it changes nothing for them.
+    ...(cutoff === null ? [db.prepare(CANCEL_LATER_IN_SERIES).bind(json, cutoff, audit.now)] : []),
     ...DELETE_STATEMENTS.map((sql) => db.prepare(sql).bind(json, cutoff)),
     db.prepare(DELETE_POSTS).bind(json, cutoff),
     db.prepare(SOFT_DELETE_POSTS).bind(json, cutoff, audit.now)

@@ -1120,6 +1120,18 @@ export function createD1PostMediaRepository(db: D1Database): PostMediaRepository
               WHERE id IN (${emptied})`
           )
           .bind(ids, now),
+        // The later posts of a cancelled post's series would wait for it for ever: cancelled with it (owner,
+        // 22.10.2026), while `emptied` still selects it, so before the update below.
+        db
+          .prepare(
+            `${free}UPDATE jobs SET status = 'cancelled', lease_until = NULL, updated_at = ?2
+              WHERE kind = 'publish' AND status IN ('pending', 'retry_wait') AND publication_id IN (
+                SELECT later.id FROM publications current
+                JOIN publications later ON later.series_id = current.series_id
+                 AND later.series_position > current.series_position
+                WHERE current.id IN (${emptied}))`
+          )
+          .bind(ids, now),
         db
           .prepare(
             `${free}UPDATE jobs SET status = 'cancelled', lease_until = NULL, updated_at = ?2

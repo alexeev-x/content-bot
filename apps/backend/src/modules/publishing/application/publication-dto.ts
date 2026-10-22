@@ -20,6 +20,17 @@ export function toPublicationDto(record: PublicationRecord, now: number): Public
     createdAt: new Date(record.createdAt).toISOString(),
     updatedAt: new Date(record.updatedAt).toISOString(),
     postDeleted: record.postDeleted === true,
+    series:
+      record.series == null
+        ? null
+        : {
+            id: record.series.id,
+            position: record.series.position,
+            total: record.series.total,
+            waitingForPrevious:
+              record.series.blocked &&
+              (record.series.previousDoneAt === null || record.series.previousDoneAt + record.series.gapMs > now)
+          },
     ...(record.postSnapshot === undefined ? {} : { postSnapshot: record.postSnapshot })
   };
 }

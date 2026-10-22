@@ -34,6 +34,7 @@ import {
 import type { RowSelection } from '../../shared/ui';
 import { periodOptions, PhoneFilters, SearchFilter, type Order } from './PublicationsFilters';
 import { PublishPostDialog } from './PublishPostDialog';
+import { PublishSeriesDialog } from './PublishSeriesDialog';
 import { ResendPublicationDialog } from './ResendPublicationDialog';
 import type { PublicationPeriod, PublicationsSearch, PublicationView } from './search';
 import { useDocumentTitle } from '../../app/use-document-title';
@@ -73,6 +74,7 @@ export function PublicationsPage({ search, onSearchChange, onOpenPosts, onPublis
     pollMs
   );
   const [publishOpen, setPublishOpen] = useState(false);
+  const [seriesOpen, setSeriesOpen] = useState(false);
   const [deleteTargets, setDeleteTargets] = useState<ReturnType<typeof deleteTargetOf>[] | null>(null);
   const [resendFor, setResendFor] = useState<PublicationDto | null>(null);
   const [query, setQuery] = useState(search.q ?? '');
@@ -204,9 +206,14 @@ export function PublicationsPage({ search, onSearchChange, onOpenPosts, onPublis
       <PageHeader
         title={copy.list.title}
         actions={
-          <Button icon="send" onPress={() => setPublishOpen(true)}>
-            {copy.list.publishPost}
-          </Button>
+          <>
+            <Button variant="secondary" icon="list" onPress={() => setSeriesOpen(true)}>
+              Опубликовать серию
+            </Button>
+            <Button icon="send" onPress={() => setPublishOpen(true)}>
+              {copy.list.publishPost}
+            </Button>
+          </>
         }
       />
       <div className={styles.page}>
@@ -441,6 +448,14 @@ export function PublicationsPage({ search, onSearchChange, onOpenPosts, onPublis
         onOpenPosts={onOpenPosts}
         onPublish={onPublishPost}
       />
+      {seriesOpen ? (
+        <PublishSeriesDialog
+          timezone={timezone}
+          isOpen={seriesOpen}
+          onOpenChange={setSeriesOpen}
+          onPublished={(id) => onSearchChange({ id })}
+        />
+      ) : null}
       {deleteTargets ? (
         <DeletePublicationsDialog
           targets={deleteTargets}

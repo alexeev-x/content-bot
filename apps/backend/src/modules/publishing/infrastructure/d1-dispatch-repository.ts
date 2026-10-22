@@ -180,8 +180,16 @@ interface ExpiredRow {
 // after `limit` rows: a backlog of due jobs costs at most 2 x limit reads per tick, not its size.
 // A plain `IN` with one ORDER BY would have to read every due row to sort it. The outer query
 // merges at most 2 x limit rows into one oldest-first order.
+//
+// A series post (migration 0098) is due only once the previous post's job is `succeeded` and the gap has passed
+// since then: the scan and the claim both check it, with `?now` the parameter holding the current time. Nothing is
+// written when the previous post goes out. Few series posts ever wait at once, so the walk stays short.
+export const SERIES_READY_SQL = (now: string) => `(blocked_by_job_id IS NULL OR EXISTS (
+      SELECT 1 FROM jobs previous WHERE previous.id = jobs.blocked_by_job_id AND previous.status = 'succeeded'
+        AND previous.updated_at + coalesce(jobs.chain_gap_ms, 0) <= ${now}))`;
 const DUE_BRANCH = (status: string) => `SELECT id, run_at FROM jobs
     WHERE status IN ('pending', 'retry_wait') AND status = '${status}' AND run_at <= ?1 AND kind = 'publish'
+      AND ${SERIES_READY_SQL('?1')}
     ORDER BY run_at, id LIMIT ?2`;
 
 export const DUE_JOBS_SQL = `SELECT id FROM (
@@ -247,6 +255,7 @@ export function createD1DispatchRepository(db: D1Database): DispatchRepository {
            WHERE id = ?3 AND status IN ('pending', 'retry_wait')
              AND run_at <= ?2
              AND (lease_until IS NULL OR lease_until < ?2)
+             AND ${SERIES_READY_SQL('?2')}
            RETURNING id, publication_id, attempts`
         )
         .bind(leaseUntil, now, jobId)

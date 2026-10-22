@@ -1,0 +1,44 @@
+.form {
+  display: grid;
+  gap: var(--space-4);
+  min-width: 0;
+}
+.heading {
+  margin: 0 0 var(--space-2);
+  font-size: var(--font-size-md);
+}
+.note {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+.list {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0 0 var(--space-3);
+  padding: 0;
+  list-style: none;
+}
+.item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-2);
+  background: var(--color-surface-1);
+}
+.position {
+  flex: none;
+  min-width: 1.5em;
+  color: var(--color-text-muted);
+  font-variant-numeric: tabular-nums;
+}
+.title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

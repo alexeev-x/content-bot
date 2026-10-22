@@ -9,7 +9,9 @@ export {
   PUBLICATION_POLL_MS,
   publicationQueryOptions,
   publicationsInfiniteQueryOptions,
-  publicationsPageQueryOptions
+  publicationsPageQueryOptions,
+  publishDestinationsQueryOptions,
+  useSubmitPublicationSeries
 } from './api/publications-queries';
 export { isConfirmedSent, type PublicationActions } from './model/publication-actions';
 export { browserTimeZone, utcOffsetLabel } from './model/format-time';

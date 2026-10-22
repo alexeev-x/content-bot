@@ -77,6 +77,20 @@ export const publicationSchema = z.object({
   postDeleted: z.boolean().optional(),
   /** Studio-only: the post came from an approved AI draft (as `PostDto.origin`); null — the owner wrote it. */
   postOrigin: postOriginSchema.nullable().optional(),
+  /**
+   * The series this publication belongs to (owner, 22.10.2026: posts of one event go out in order with a gap);
+   * null for a single publication. `waitingForPrevious`: the previous post has not gone out yet, so this one waits
+   * whatever its time says.
+   */
+  series: z
+    .object({
+      id: z.uuid(),
+      position: z.number().int().min(1).max(10),
+      total: z.number().int().min(1).max(10),
+      waitingForPrevious: z.boolean()
+    })
+    .nullable()
+    .optional(),
   /** The sent revision, only with `postDeleted`; a media file removed by retention is missing from `media`. */
   postSnapshot: z
     .object({
@@ -106,6 +120,34 @@ export const createPublicationInputSchema = z.strictObject({
   timezone: timezoneSchema
 });
 export type CreatePublicationInput = z.infer<typeof createPublicationInputSchema>;
+
+// Each post costs reads and three writes of one request: five keep it under the Free plan's 50 queries (35 on success).
+export const PUBLICATION_SERIES_MAX = 5;
+
+// POST /api/v1/publications/series, header Idempotency-Key (required) → 202 PublicationSeriesDto: one publication per
+// post, in this order, all to one destination. The first goes at `scheduledAt`; each next one only after the previous
+// went out and no sooner than `intervalMinutes` after it and after its own planned time. A post that does not go out
+// (failed, unknown) holds the later ones until the owner resolves it; cancelling one cancels the later ones.
+// Errors: as POST /api/v1/publications for any of its posts (the whole series is written or none of it), plus
+// VALIDATION_ERROR 400 for a post listed twice.
+export const createPublicationSeriesInputSchema = z.strictObject({
+  items: z
+    .array(z.strictObject({ postId: z.uuid(), revision: revisionSchema }))
+    .min(2)
+    .max(PUBLICATION_SERIES_MAX),
+  destinationId: z.uuid(),
+  scheduledAt: z.iso.datetime(),
+  timezone: timezoneSchema,
+  intervalMinutes: z.number().int().min(5).max(1440)
+});
+export type CreatePublicationSeriesInput = z.infer<typeof createPublicationSeriesInputSchema>;
+
+export const publicationSeriesSchema = z.object({
+  seriesId: z.uuid(),
+  /** In series order. */
+  publications: z.array(publicationSchema).min(2).max(PUBLICATION_SERIES_MAX)
+});
+export type PublicationSeriesDto = z.infer<typeof publicationSeriesSchema>;
 
 // POST /api/v1/publications/{id}/reschedule → 200 PublicationDto with revision + 1.
 // Only before sending starts (scheduled, queued, retry_wait).

@@ -55,7 +55,12 @@ const ATTENTION_SQL = `
   ORDER BY (t.kind = 'publish_unknown') DESC, t.created_at DESC, t.id DESC
   LIMIT ${DASHBOARD_ATTENTION_LIMIT}`;
 
-const DUE_PENDING = `FROM jobs WHERE status IN ('pending', 'retry_wait') AND status = 'pending' AND kind = 'publish'`;
+// A series post held by the previous one is not stuck (migration 0098): it counts only once it has been due past the
+// threshold, i.e. the previous post went out and the interval passed before ?1.
+const DUE_PENDING = `FROM jobs WHERE status IN ('pending', 'retry_wait') AND status = 'pending' AND kind = 'publish'
+  AND (blocked_by_job_id IS NULL OR EXISTS (
+    SELECT 1 FROM jobs previous WHERE previous.id = jobs.blocked_by_job_id AND previous.status = 'succeeded'
+      AND previous.updated_at + coalesce(jobs.chain_gap_ms, 0) <= ?1))`;
 
 // (b) Stuck: `scheduled`/`queued` publications whose time passed more than the threshold ago.
 // The repeated status predicate lets SQLite walk the partial jobs_due index in run_at order.

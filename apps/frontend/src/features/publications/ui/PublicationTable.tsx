@@ -1,3 +1,4 @@
+import { seriesLabel } from '../model/series-label';
 import { PAGE_SIZE } from '../../../shared/api/page-query';
 import { postHeadline } from '../../../shared/lib/post-headline';
 import type { PublicationDto } from '@alexeev/contracts';
@@ -176,7 +177,15 @@ function Grid(props: Props) {
         id: 'status',
         width: 170,
         header: copy.list.columns.status,
-        cell: (row) => <StatusBadge status={displayStatus(row)} />
+        cell: (row) => {
+          const series = seriesLabel(row);
+          return (
+            <span className={styles.statusCell}>
+              <StatusBadge status={displayStatus(row)} />
+              {series ? <span className={styles.seriesNote}>{series}</span> : null}
+            </span>
+          );
+        }
       },
       {
         id: 'message',
@@ -235,7 +244,7 @@ function Cards({ rows, post, channel, onOpen, activeId, isLoading, selectable, s
             title={post(row)?.title ?? copy.list.unknownPost}
             media={<MediaTile size={44} />}
             status={<StatusBadge status={status} />}
-            meta={`${row.postOrigin ? `${copy.list.aiShort} · ` : ''}${formatShort(row.scheduledAt, zone)} · ${place}${row.postDeleted === true ? ` · ${copy.list.postDeleted}` : ''}`}
+            meta={`${seriesLabel(row) ? `${seriesLabel(row)} · ` : ''}${row.postOrigin ? `${copy.list.aiShort} · ` : ''}${formatShort(row.scheduledAt, zone)} · ${place}${row.postDeleted === true ? ` · ${copy.list.postDeleted}` : ''}`}
             {...(status === 'unknown' ? { warning: copy.list.checkChannel } : {})}
             isActive={activeId === row.id || selected?.has(row.id) === true}
             onPress={() => (selectable ? onToggle?.(row, !selected?.has(row.id)) : onOpen(row.id))}

@@ -2,6 +2,8 @@ import {
   publicationHistorySchema,
   publicationPageSchema,
   publicationSchema,
+  publicationSeriesSchema,
+  type createPublicationSeriesInputSchema,
   bulkDeletePublicationsInputSchema,
   bulkDeletePublicationsResultSchema,
   deletePublicationInputSchema,
@@ -22,6 +24,7 @@ export type PublicationFilters = Pick<
   'status' | 'statusGroup' | 'postId' | 'destinationId' | 'q' | 'from' | 'to' | 'order'
 >;
 export type CreatePublicationBody = z.input<typeof createPublicationInputSchema>;
+export type CreatePublicationSeriesBody = z.input<typeof createPublicationSeriesInputSchema>;
 export type ReschedulePublicationBody = z.input<typeof reschedulePublicationInputSchema>;
 export type CancelPublicationBody = z.input<typeof cancelPublicationInputSchema>;
 export type ResolveUnknownBody = z.input<typeof resolveUnknownPublicationInputSchema>;
@@ -62,6 +65,15 @@ export function getPublicationHistory(id: string, signal?: AbortSignal) {
 /** 202 means accepted for scheduling, not sent: callers show the returned status. */
 export function createPublication(input: CreatePublicationBody, idempotencyKey: string) {
   return apiRequest('/api/v1/publications', publicationSchema, {
+    method: 'POST',
+    body: input,
+    headers: { 'Idempotency-Key': idempotencyKey }
+  });
+}
+
+/** Posts of one event in order with a gap (owner, 22.10.2026); 202 is not a claim that anything was sent. */
+export function createPublicationSeries(input: CreatePublicationSeriesBody, idempotencyKey: string) {
+  return apiRequest('/api/v1/publications/series', publicationSeriesSchema, {
     method: 'POST',
     body: input,
     headers: { 'Idempotency-Key': idempotencyKey }
