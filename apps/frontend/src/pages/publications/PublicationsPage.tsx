@@ -39,7 +39,7 @@ import type { PublicationPeriod, PublicationsSearch, PublicationView } from './s
 import { useDocumentTitle } from '../../app/use-document-title';
 import styles from './PublicationsPage.module.css';
 import { usePublicationsData } from './use-publications-data';
-import { OpenIncidents } from '../../features/incidents';
+import { OpenIncidents, useAcknowledgeFailedOnView } from '../../features/incidents';
 import { useOwnerTimezone } from '../../features/owner-settings';
 
 type Props = {
@@ -89,6 +89,7 @@ export function PublicationsPage({ search, onSearchChange, onOpenPosts, onPublis
   const announcement = useStatusAnnouncement(items);
   // The offset is read once per visit: it only changes at a DST switch, and render must stay pure.
 
+  useAcknowledgeFailedOnView(search.id ?? null);
   const openRow = search.id ? items.find((item) => item.id === search.id) : undefined;
   const openDestination = openRow ? channel(openRow) : undefined;
   const view = search.view ?? 'all';
