@@ -96,7 +96,8 @@ export async function generateCheckedDraft(
   if (draft.text === null || draft.generation.result === 'needs_facts') return draft;
   const check = await checkFacts(deps, { task: draft.generation.task, text: draft.text, signal: input.signal });
   const budgetEvents = [...draft.budgetEvents, ...check.budgetEvents];
-  if (check.problems === null || check.problems.length === 0) return { ...draft, budgetEvents };
+  if (check.problems === null) return { ...draft, budgetEvents, factCheck: 'unchecked' };
+  if (check.problems.length === 0) return { ...draft, budgetEvents, factCheck: 'clean' };
   const note = [
     'Проверка фактов: этого нет в фактах задания — убери или перепиши по фактам, остальное оставь как есть.',
     ...check.problems.map((problem) => `— «${problem.quote}»: ${problem.why}`)
@@ -110,9 +111,10 @@ export async function generateCheckedDraft(
       remark: { note, reason: null },
       signal: input.signal
     });
-    if (fixed.text === null) return { ...draft, budgetEvents: [...budgetEvents, ...fixed.budgetEvents] };
-    return { ...fixed, budgetEvents: [...budgetEvents, ...fixed.budgetEvents] };
+    if (fixed.text === null)
+      return { ...draft, budgetEvents: [...budgetEvents, ...fixed.budgetEvents], factCheck: 'unchecked' };
+    return { ...fixed, budgetEvents: [...budgetEvents, ...fixed.budgetEvents], factCheck: 'fixed' };
   } catch {
-    return { ...draft, budgetEvents };
+    return { ...draft, budgetEvents, factCheck: 'unchecked' };
   }
 }

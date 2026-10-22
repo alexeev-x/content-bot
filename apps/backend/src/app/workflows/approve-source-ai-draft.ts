@@ -33,11 +33,13 @@ export async function lineage(deps: Pick<WriterDeps, 'writer'>, generation: Gene
 export async function linkApprovedSourcePost(
   container: Container,
   generationIds: readonly string[],
-  postId: string
+  postId: string,
+  /** False when the caller attaches the pictures itself (the automatic publishing): no second download. */
+  queueMedia = true
 ): Promise<void> {
   const externalId = await container.dotaRepository.linkAiPost({ generationIds, postId, now: container.clock.now() });
   const chatId = Number(container.ownerChatId);
-  if (externalId === null || container.ownerChatId === null || !Number.isSafeInteger(chatId)) return;
+  if (!queueMedia || externalId === null || container.ownerChatId === null || !Number.isSafeInteger(chatId)) return;
   await container.aiJobs.send({ id: container.newId(), kind: 'source_media', chatId, postId, externalId });
 }
 
@@ -68,7 +70,16 @@ export async function approveSourceAiDraft(
   container: Container,
   deps: WriterDeps,
   /** `linkToEvent`: false for a series post, which keeps its own post and media (`source_series_posts`). */
-  input: { rootId: string; versionId: string; actor: string; linkToEvent?: boolean }
+  input: {
+    rootId: string;
+    versionId: string;
+    actor: string;
+    linkToEvent?: boolean;
+    /** OWNER_PREAPPROVED for a text the automatic publishing sent without the owner (owner, 21.10.2026). */
+    provenance?: 'OWNER_APPROVED' | 'OWNER_PREAPPROVED';
+    /** False: the event's pictures are not queued (the caller attaches them). */
+    queueMedia?: boolean;
+  }
 ): Promise<{ postId: string; created: boolean }> {
   const chain = await readDraftChain(container.aiDraftHistory, input.rootId);
   if (!chain.versions.some((version) => version.id === input.versionId))
@@ -80,7 +91,7 @@ export async function approveSourceAiDraft(
   // Checked before approving: an approved text can no longer be edited, so it must already fit a post.
   if (approvedRevision(revisions) === null && (current === undefined || !draftFromMessageText(current.text).ok))
     throw new AppError('CONFLICT', 'The text does not fit a post', { reason: 'NOT_A_POST' });
-  await approveDraft(deps, input.versionId);
+  await approveDraft(deps, input.versionId, input.provenance);
   const approved = await publishableText(deps, input.versionId);
   if (approved.postId !== null) return { postId: approved.postId, created: false };
   const linked = linkTrailingSource(approved.text);
@@ -93,13 +104,14 @@ export async function approveSourceAiDraft(
   );
   await attachPost(deps, approved.id, created.id);
   if (input.linkToEvent === false) return { postId: created.id, created: true };
-  await linkApprovedSourcePost(container, await lineage(deps, generation), created.id).catch((error: unknown) =>
-    container.logger.warn({
-      component: 'sources',
-      operation: 'link_ai_post',
-      status: 'failed',
-      errorCode: error instanceof Error ? error.name : 'unknown'
-    })
+  await linkApprovedSourcePost(container, await lineage(deps, generation), created.id, input.queueMedia).catch(
+    (error: unknown) =>
+      container.logger.warn({
+        component: 'sources',
+        operation: 'link_ai_post',
+        status: 'failed',
+        errorCode: error instanceof Error ? error.name : 'unknown'
+      })
   );
   return { postId: created.id, created: true };
 }

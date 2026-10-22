@@ -33,9 +33,24 @@ export const notificationPreferencesSchema = z.object({
   dailyReportHour: z.number().int().min(0).max(23).default(9)
 });
 
+/**
+ * Valve's news published without the owner (owner, 21–22.10.2026: «он должен автоматом публиковать, ибо я спать буду»).
+ * Off until the owner switches it on and picks the channel; at most `dailyLimit` such posts in 24 h, the rest wait for
+ * the owner as drafts. Switching it off is the stop button.
+ */
+export const autopublishSettingsSchema = z.object({
+  enabled: z.boolean().default(false),
+  destinationId: z.uuid().nullable().default(null),
+  dailyLimit: z.number().int().min(1).max(10).default(3)
+});
+export type AutopublishSettings = z.infer<typeof autopublishSettingsSchema>;
+export const AUTOPUBLISH_DEFAULTS: AutopublishSettings = { enabled: false, destinationId: null, dailyLimit: 3 };
+
 export const ownerOperationsSettingsSchema = z.object({
   timezone: ownerTimeZoneSchema,
   notifications: notificationPreferencesSchema,
+  // A document saved before 22.10.2026 has none: off.
+  autopublish: autopublishSettingsSchema.default(AUTOPUBLISH_DEFAULTS),
   revision: z.number().int().nonnegative(),
   updatedAt: z.iso.datetime().nullable()
 });
@@ -48,7 +63,9 @@ export type OwnerOperationsSettingsDto = z.infer<typeof ownerOperationsSettingsS
 export const updateOwnerOperationsSettingsInputSchema = z.strictObject({
   revision: z.number().int().nonnegative(),
   timezone: ownerTimeZoneSchema,
-  notifications: notificationPreferencesSchema
+  notifications: notificationPreferencesSchema,
+  /** Absent: kept as saved (a client from before 22.10.2026). */
+  autopublish: autopublishSettingsSchema.optional()
 });
 export type UpdateOwnerOperationsSettingsInput = z.infer<typeof updateOwnerOperationsSettingsInputSchema>;
 

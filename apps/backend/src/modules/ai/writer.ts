@@ -100,6 +100,11 @@ export interface WriterResult {
   budgetEvents: BudgetEvent[];
   /** A version fixed by the owner's remark: what changed and the reasons the remark names (plan P2). */
   fix?: { changes: string; reasons: FeedbackKind[] };
+  /**
+   * An automatic draft's fact check: `clean` — it found nothing unsupported; `fixed` — it found claims and the text was
+   * rewritten (not checked again); `unchecked` — the check failed. Only a clean one may go out without the owner.
+   */
+  factCheck?: 'clean' | 'fixed' | 'unchecked';
 }
 
 export interface Approval {

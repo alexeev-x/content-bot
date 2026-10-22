@@ -119,6 +119,8 @@ describe('GET and PUT /api/v1/settings/operations', () => {
         dailyReport: false,
         dailyReportHour: 9
       },
+      // Off until the owner picks a channel and switches it on (owner, 22.10.2026).
+      autopublish: { enabled: false, destinationId: null, dailyLimit: 3 },
       revision: 0,
       updatedAt: null
     });

@@ -523,6 +523,17 @@ export function createD1PublicationRepository(db: D1Database): PublicationReposi
       return row?.live === 1;
     },
 
+    async countCreatedBy(actor, since) {
+      const row = await db
+        .prepare(
+          `SELECT count(*) AS n FROM audit_log
+           WHERE action = 'publication.create' AND actor_telegram_id = ?1 AND created_at > ?2`
+        )
+        .bind(actor, since)
+        .first<{ n: number }>();
+      return row?.n ?? 0;
+    },
+
     async create(input) {
       const claim = [
         input.idempotency.scope,

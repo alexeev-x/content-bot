@@ -5,12 +5,15 @@ import { createWriterDeps } from './bot/writer-deps';
 import { runDailyReview } from './workflows/daily-review';
 import { runHypothesesReview } from './workflows/hypotheses';
 import { sourceEventWriter } from './workflows/source-event-ai-draft';
-import { attachSourceEventImages } from './workflows/source-event-media';
+import { attachSourceEventImages, type SourceMediaDeps } from './workflows/source-event-media';
 import { planEventSeries, writeSeriesPost } from './workflows/source-event-series';
 import { PHOTO_MEDIA_MAX_BYTES } from '@alexeev/contracts';
 import { uploadPostMedia } from '../modules/content';
 import { AppError } from '../shared/app-error';
 import { runStyleLessons } from './workflows/style-lessons';
+import { autopublishSourceEvent } from './workflows/autopublish-source-event';
+import { getOwnerOperationsSettings } from '../modules/settings';
+import { escapeHtml } from './notifications/notice-template';
 import type { AiJob, WriterJob } from './bot/ai-job';
 import type { Container } from './container';
 
@@ -47,10 +50,47 @@ async function fetchViaTelegram(token: string, chatId: number, url: string): Pro
   return bytes.byteLength > PHOTO_MEDIA_MAX_BYTES ? null : bytes;
 }
 
+/** The automatic publishing is on with a channel picked. */
+async function autopublishOn(container: Container, requestId: string): Promise<boolean> {
+  const { autopublish } = await getOwnerOperationsSettings({
+    repo: container.settings,
+    logger: container.logger,
+    requestId
+  });
+  return autopublish.enabled && autopublish.destinationId !== null;
+}
+
 const EVENT_LABEL = { treasure: 'Сокровищница', news: 'Новость', patch: 'Патч' } as const;
 const eventWritingText = (type: keyof typeof EVENT_LABEL, title: string) =>
   `${EVENT_LABEL[type]} в Steam: ${title}
 Пишу пост…`;
+
+/** How an event post's images are fetched and attached: as the bot's own files (out of «Медиа»). */
+function sourceMediaDeps(container: Container, token: string, chatId: number): SourceMediaDeps {
+  const storage = container.mediaStorage;
+  if (storage === undefined) throw new AppError('UNAVAILABLE', 'Media storage is not configured');
+  return {
+    repo: container.dotaRepository,
+    postState: async (id) => {
+      const state = await container.postMedia.findPostState(id);
+      return state === null ? null : { revision: state.revision, mediaCount: state.media.length };
+    },
+    upload: (command) =>
+      uploadPostMedia(
+        { repo: container.postMedia, storage, now: container.clock.now(), newId: container.newId },
+        { ...command, actor: container.ownerChatId ?? 'system', hidden: true }
+      ),
+    // Only a stable code with the CDN host and status, never a URL.
+    onSkip: (reason) =>
+      container.logger.warn({
+        component: 'source_media',
+        operation: 'attach',
+        status: 'skipped',
+        errorCode: reason
+      }),
+    ...(token === '' ? {} : { viaTelegram: (url: string) => fetchViaTelegram(token, chatId, url) })
+  };
+}
 
 /** Attaches an approved event post's images once, then tells the owner how many arrived. Never throws. */
 async function runSourceMediaJob(
@@ -62,32 +102,7 @@ async function runSourceMediaJob(
   let text: string;
   try {
     if (!(await container.aiWriter.claimJob(job.id, container.clock.now()))) return;
-    const storage = container.mediaStorage;
-    if (storage === undefined) throw new AppError('UNAVAILABLE', 'Media storage is not configured');
-    const { attached, found } = await attachSourceEventImages(
-      {
-        repo: container.dotaRepository,
-        postState: async (id) => {
-          const state = await container.postMedia.findPostState(id);
-          return state === null ? null : { revision: state.revision, mediaCount: state.media.length };
-        },
-        upload: (command) =>
-          uploadPostMedia(
-            { repo: container.postMedia, storage, now: container.clock.now(), newId: container.newId },
-            { ...command, actor: container.ownerChatId ?? 'system', hidden: true }
-          ),
-        // Only a stable code with the CDN host and status, never a URL.
-        onSkip: (reason) =>
-          container.logger.warn({
-            component: 'source_media',
-            operation: 'attach',
-            status: 'skipped',
-            errorCode: reason
-          }),
-        ...(token === '' ? {} : { viaTelegram: (url: string) => fetchViaTelegram(token, job.chatId, url) })
-      },
-      job
-    );
+    const { attached, found } = await attachSourceEventImages(sourceMediaDeps(container, token, job.chatId), job);
     await container.aiWriter.finishJob(job.id, container.clock.now());
     // Only what needs the owner's hand reaches the bot (owner, 22.10.2026: «эту инфу не надо мне в тг»).
     if (attached === found) return;
@@ -215,7 +230,13 @@ export async function handleAiQueue(batch: MessageBatch<unknown>, container: Con
           message.ack();
           continue;
         }
-        messageId = (await api.sendMessage(job.chatId, eventWritingText(source.eventType, source.title))).message_id;
+        // With the automatic publishing on, the owner may be asleep (owner, 22.10.2026): no sound for this message.
+        const quiet = job.automatic && (await autopublishOn(container, requestId).catch(() => false));
+        messageId = (
+          await api.sendMessage(job.chatId, eventWritingText(source.eventType, source.title), {
+            disable_notification: quiet
+          })
+        ).message_id;
       } catch (error) {
         onError(error);
         await release();
@@ -228,7 +249,8 @@ export async function handleAiQueue(batch: MessageBatch<unknown>, container: Con
         chatId: job.chatId,
         messageId,
         appOrigin: job.appOrigin,
-        externalId: job.externalId
+        externalId: job.externalId,
+        automatic: job.automatic
       };
     } else {
       writerJob = job;
@@ -251,6 +273,37 @@ export async function handleAiQueue(batch: MessageBatch<unknown>, container: Con
       finish: () => container.aiWriter.finishJob(job.id, container.clock.now()),
       writer: () => createWriterDeps(container, requestId),
       sourceEvents: sourceEventWriter({ repo: container.dotaRepository, onError }),
+      autopublish: async (eventJob, draft) => {
+        const outcome = await autopublishSourceEvent(
+          container,
+          await createWriterDeps(container, requestId),
+          sourceMediaDeps(container, token, eventJob.chatId),
+          { externalId: eventJob.externalId, ...draft, requestId }
+        );
+        container.logger.info({
+          component: 'autopublish',
+          operation: 'source_event',
+          requestId,
+          status: outcome.kind === 'skipped' ? outcome.reason : outcome.kind
+        });
+        if (outcome.kind === 'skipped') return null;
+        const title = escapeHtml(outcome.title);
+        if (outcome.kind === 'published') {
+          const link = escapeHtml(
+            outcome.publicationId === null
+              ? `${eventJob.appOrigin}/publications`
+              : `${eventJob.appOrigin}/publications?id=${encodeURIComponent(outcome.publicationId)}`
+          );
+          return `Опубликовано без вас: «${title}». <a href="${link}">Открыть</a>`;
+        }
+        const link = escapeHtml(
+          outcome.postId === null
+            ? `${eventJob.appOrigin}/sources?open=${encodeURIComponent(`steam_news:${eventJob.externalId}`)}`
+            : `${eventJob.appOrigin}/posts/${encodeURIComponent(outcome.postId)}`
+        );
+        const why = outcome.reason === 'no_images' ? 'картинки из анонса не загрузились' : 'не получилось опубликовать';
+        return `Не опубликовано без вас (${why})${title === '' ? '' : `: «${title}»`}. Пост ждёт в студии. <a href="${link}">Открыть</a>`;
+      },
       onError
     });
     message.ack();

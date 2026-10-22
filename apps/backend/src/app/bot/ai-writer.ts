@@ -336,6 +336,11 @@ export interface AiJobRuntime {
     generated: (job: EventWriterJob, generationId: string) => Promise<void>;
     finished: (job: EventWriterJob) => Promise<void>;
   };
+  /**
+   * Publishes a fact-checked event draft without the owner when the settings allow it (owner, 21.10.2026); the short
+   * note it returns replaces the draft in the chat. Null: the draft goes to the owner as before.
+   */
+  autopublish?: (job: EventWriterJob, draft: { rootId: string; versionId: string }) => Promise<string | null>;
 }
 
 const retryKeyboard = (generationId: string) =>
@@ -535,6 +540,25 @@ async function runClaimed(job: WriterJob, runtime: AiJobRuntime): Promise<boolea
     if (result.text === null) {
       await edit(api, chatId, messageId, failedText(generation.errorCode), failureMarkup);
       return true;
+    }
+    if (
+      job.kind === 'event' &&
+      job.automatic === true &&
+      result.factCheck === 'clean' &&
+      runtime.autopublish !== undefined
+    ) {
+      const note = await runtime
+        .autopublish(job, { rootId: generation.parentGenerationId ?? generation.id, versionId: generation.id })
+        .catch((error: unknown) => {
+          // Whatever failed, the owner still gets the draft to approve by hand.
+          runtime.onError(error);
+          return null;
+        });
+      if (note !== null) {
+        // The post is out (or waits in the studio) whatever this edit does: never overwritten by a failure text.
+        await edit(api, chatId, messageId, note).catch((error: unknown) => runtime.onError(error));
+        return true;
+      }
     }
     await deps.writer.setChatMessage(generation.id, messageId, clock.now());
     const revisionId = (await deps.writer.revisions(generation.id)).at(-1)?.id;

@@ -18,6 +18,9 @@ export type SettingsPatch = Partial<{
   sentNotices: boolean;
   dailyReport: boolean;
   dailyReportHour: number;
+  autopublishEnabled: boolean;
+  autopublishDestinationId: string | null;
+  autopublishDailyLimit: number;
 }>;
 
 export type SettingsProblem = { kind: 'conflict' | 'failed'; requestId?: string | undefined };
@@ -42,6 +45,12 @@ function toInput(base: OwnerOperationsSettingsDto, patch: SettingsPatch) {
       sentNotices: patch.sentNotices ?? base.notifications.sentNotices,
       dailyReport: patch.dailyReport ?? base.notifications.dailyReport,
       dailyReportHour: patch.dailyReportHour ?? base.notifications.dailyReportHour
+    },
+    autopublish: {
+      enabled: patch.autopublishEnabled ?? base.autopublish.enabled,
+      destinationId:
+        patch.autopublishDestinationId === undefined ? base.autopublish.destinationId : patch.autopublishDestinationId,
+      dailyLimit: patch.autopublishDailyLimit ?? base.autopublish.dailyLimit
     }
   };
 }
@@ -138,7 +147,13 @@ export function useGeneralSettings() {
         scheduleNotices: pending.scheduleNotices ?? data.notifications.scheduleNotices,
         sentNotices: pending.sentNotices ?? data.notifications.sentNotices,
         dailyReport: pending.dailyReport ?? data.notifications.dailyReport,
-        dailyReportHour: pending.dailyReportHour ?? data.notifications.dailyReportHour
+        dailyReportHour: pending.dailyReportHour ?? data.notifications.dailyReportHour,
+        autopublishEnabled: pending.autopublishEnabled ?? data.autopublish.enabled,
+        autopublishDestinationId:
+          pending.autopublishDestinationId === undefined
+            ? data.autopublish.destinationId
+            : pending.autopublishDestinationId,
+        autopublishDailyLimit: pending.autopublishDailyLimit ?? data.autopublish.dailyLimit
       }
     : null;
 

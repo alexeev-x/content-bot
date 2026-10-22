@@ -32,7 +32,8 @@ export async function requestSourceEventDraft(
       kind: 'source_event',
       chatId: input.chatId,
       appOrigin: input.appOrigin,
-      externalId: input.externalId
+      externalId: input.externalId,
+      automatic: !input.replay
     });
   } catch (error) {
     // Nothing was queued. Cron's claim goes back for the next tick. A replay's job stays (given back, the row would

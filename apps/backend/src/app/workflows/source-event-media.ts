@@ -49,7 +49,7 @@ type File = { bytes: Uint8Array; contentType: string; fileName: string };
 export async function attachSourceEventImages(
   deps: SourceMediaDeps,
   /** `urls`: a series post's own media (Valve's CDN); without them, the announcement's images. */
-  input: { postId: string; externalId: string; urls?: readonly string[] | undefined }
+  input: { postId: string; externalId: string; urls?: readonly string[] | undefined; max?: number }
 ): Promise<{ attached: number; found: number }> {
   let files: readonly string[];
   if (input.urls !== undefined) {
@@ -63,7 +63,7 @@ export async function attachSourceEventImages(
     });
     files = announcement?.images ?? [];
   }
-  files = files.slice(0, POST_MEDIA_MAX_ITEMS);
+  files = files.slice(0, Math.min(input.max ?? POST_MEDIA_MAX_ITEMS, POST_MEDIA_MAX_ITEMS));
   const onSkip = deps.onSkip ?? (() => {});
   let attached = 0;
   for (const [index, url] of files.entries()) {

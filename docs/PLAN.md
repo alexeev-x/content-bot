@@ -71,7 +71,7 @@ The AI makes the Telegram channel's content itself: news and rubric posts drafte
   publishing) and the treasure's price and drop rates (the watch above).
 - Sources come in two kinds (owner, 21.10.2026): important ones, whose news the studio writes and publishes by itself
   as soon as it appears, and scheduled rubrics (e.g. a weekly «worst heroes» from a stats API). Publishing without the
-  owner is decided (`docs/DECISIONS.md`, 21.10.2026: Valve posts at the owner's night); its safeguards come with it.
+  owner is decided (`docs/DECISIONS.md`, 21.10.2026: Valve posts at the owner's night). Built 22.10.2026 for single news posts (`docs/backend/sources.md` «Automatic publishing»); still to do: an event series published by itself, 10 minutes apart.
 - Liquipedia Dota 2 as an on-demand source (owner, 22.10.2026): no Cron polling; the server fetches a page when a
   post or rubric needs it. Only the MediaWiki `api.php` (wikitext and image URLs; HTML pages are forbidden by its
   terms): at most 1 request per 2 s (`action=parse` 1 per 30 s), a `User-Agent` naming the project with a contact,

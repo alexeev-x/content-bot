@@ -36,7 +36,12 @@ export const aiJobSchema = z.discriminatedUnion('kind', [
     kind: z.literal('source_event'),
     chatId: z.number().int(),
     appOrigin: z.string().max(200),
-    externalId: z.string().min(1).max(100)
+    externalId: z.string().min(1).max(100),
+    /**
+     * Cron's first draft of a new event: the only one the automatic publishing may send (QA 22.10.2026: the owner's
+     * «Написать через ИИ» replay of an old announcement must never go to the channel by itself).
+     */
+    automatic: z.boolean().default(false)
   }),
   /**
    * The approved post of a Dota event announcement gets the announcement's images (owner, 21.10.2026: an event post
@@ -101,7 +106,7 @@ export const aiJobSchema = z.discriminatedUnion('kind', [
 export type AiJob = z.infer<typeof aiJobSchema>;
 export type AiJobBase = z.infer<z.ZodObject<typeof base>>;
 /** A `source_event` job once the consumer has sent its «Пишу…» message. */
-export type EventWriterJob = AiJobBase & { kind: 'event'; externalId: string };
+export type EventWriterJob = AiJobBase & { kind: 'event'; externalId: string; automatic?: boolean };
 /** The jobs of the bot's AI writer: each has the chat message it ends in. */
 export type WriterJob =
   | Exclude<

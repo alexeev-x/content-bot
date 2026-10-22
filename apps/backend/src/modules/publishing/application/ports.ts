@@ -448,6 +448,8 @@ export interface PublicationRepository {
   createSeries(input: NewPublicationSeries): Promise<boolean>;
   /** A publication of this post to this channel is scheduled, queued, sending or unknown (no duplicate in flight). */
   hasLivePublication(postId: string, destinationId: string): Promise<boolean>;
+  /** Publications this actor created since `since` (UTC ms), from the audit log: the automatic publishing's daily limit. */
+  countCreatedBy(actor: string, since: number): Promise<number>;
   findById(id: string): Promise<PublicationRecord | null>;
   /** Owner actions and send attempts of one publication, oldest first; null when it does not exist. */
   history(id: string, limit: number): Promise<PublicationHistoryRows | null>;
