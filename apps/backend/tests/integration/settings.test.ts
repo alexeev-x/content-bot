@@ -113,8 +113,9 @@ describe('GET and PUT /api/v1/settings/operations', () => {
         automationAlerts: true,
         recoveryAlerts: true,
         dotaWatchlistAlerts: true,
-        scheduleNotices: true,
-        sentNotices: true,
+        // Only errors reach the bot unless the owner switches these on (owner, 22.10.2026).
+        scheduleNotices: false,
+        sentNotices: false,
         dailyReport: false,
         dailyReportHour: 9
       },

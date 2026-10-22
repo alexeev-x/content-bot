@@ -5,6 +5,7 @@ import { ARCHIVE_RETENTION_MS } from '../../src/shared/archive-retention';
 import { CLEANUP_LIMIT } from '../../src/app/scheduled';
 import { createD1SystemState } from '../../src/app/system-state';
 import { testDb } from '../helpers/db';
+import { enableOwnerNotices } from '../helpers/notices';
 import { fakeTransport, HOURLY_TICK, makeTick, MINUTE_TICK, SENT, seedDueJob } from '../helpers/dispatch';
 import { fakeOwnerMessenger } from '../helpers/fake-owner-messenger';
 import { createApi, fakeClock, type FakeClock, OWNER_TOKEN, resetDb, seedSession, START } from '../helpers/harness';
@@ -181,8 +182,9 @@ describe('the budget of a busy tick (Free plan: 50 D1 queries, 50 subrequests)',
     expect(statuses.filter((status) => status === 'pending')).toHaveLength(2);
 
     clock.advance(60_000);
+    await enableOwnerNotices(api);
     await makeTick({ clock, transport: fakeTransport(SENT), ownerMessenger }).run();
-    // The two sends of this tick are announced as «Опубликовано»; the incident alerts are counted apart.
+    // The two sends of this tick are announced as «Опубликовано» (switched on); the incident alerts are counted apart.
     const sentNotices = tick.ownerMessages.filter((message) => message.html.includes('Опубликовано'));
     expect(sentNotices).toHaveLength(2);
     expect(tick.ownerMessages.length - sentNotices.length).toBe(3);

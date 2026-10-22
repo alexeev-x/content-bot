@@ -8,6 +8,7 @@ import {
 import { beforeEach, describe, expect, it } from 'vitest';
 import { sha256Hex } from '../../src/platform/security/sha256';
 import { testDb } from '../helpers/db';
+import { enableOwnerNotices } from '../helpers/notices';
 import { fakeOwnerMessenger } from '../helpers/fake-owner-messenger';
 import { expectError } from '../helpers/expect-error';
 import { type Api, createApi, fakeClock, OWNER_ID, OWNER_TOKEN, resetDb, seedSession, START } from '../helpers/harness';
@@ -1042,6 +1043,7 @@ describe('seedPublication helper', () => {
 
 describe('owner notice when a publication is scheduled or moved', () => {
   const ORIGIN = 'http://localhost';
+  beforeEach(() => enableOwnerNotices(api));
 
   it('sends exactly one message with the post, the channel, the time and the deep link button', async () => {
     const scheduledAt = START + 3 * 60 * MINUTE;

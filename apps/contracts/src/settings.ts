@@ -21,11 +21,11 @@ export const notificationPreferencesSchema = z.object({
   automationAlerts: z.boolean(),
   recoveryAlerts: z.boolean(),
   dotaWatchlistAlerts: z.boolean(),
-  // Added 14.10.2026; a document saved before has neither, so both default to on.
+  // Added 14.10.2026; off unless the owner switches them on (owner, 22.10.2026: only errors reach the bot).
   /** «Запланировано», «Перенесено» and «Отменено» notices for the owner's own planning. */
-  scheduleNotices: z.boolean().default(true),
+  scheduleNotices: z.boolean().default(false),
   /** «Опубликовано» after a confirmed send. */
-  sentNotices: z.boolean().default(true),
+  sentNotices: z.boolean().default(false),
   // Added 19.10.2026 (AI plan P6): the daily analytics report is off until the owner switches it on.
   /** The daily report of the six latest videos per platform, in the owner's private chat. */
   dailyReport: z.boolean().default(false),

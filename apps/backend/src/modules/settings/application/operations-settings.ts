@@ -17,8 +17,9 @@ const DEFAULTS = {
     automationAlerts: true,
     recoveryAlerts: true,
     dotaWatchlistAlerts: true,
-    scheduleNotices: true,
-    sentNotices: true,
+    // Off unless the owner switches them on (owner, 22.10.2026: only errors reach the bot).
+    scheduleNotices: false,
+    sentNotices: false,
     dailyReport: false,
     dailyReportHour: 9
   }
