@@ -32,6 +32,7 @@ type Props = {
 };
 
 const INTERVALS = [
+  { id: '10', label: '10 минут' },
   { id: '30', label: '30 минут' },
   { id: '60', label: '1 час' },
   { id: '120', label: '2 часа' },
@@ -67,7 +68,8 @@ export function PublishSeriesDialog({ isOpen, onOpenChange, timezone, initialPos
   const [scheduledAt, setScheduledAt] = useState<ZonedDateTime>(() =>
     now(zone).add({ hours: 1 }).set({ second: 0, millisecond: 0 })
   );
-  const [interval, setInterval] = useState('60');
+  // Owner, 22.10.2026: posts of one series go 10 minutes apart by default.
+  const [interval, setInterval] = useState('10');
   const [failure, setFailure] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 

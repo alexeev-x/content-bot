@@ -162,7 +162,8 @@ describe('an event series', () => {
     });
     expect(task.length).toBeLessThanOrEqual(4_000);
     expect(task).toContain('Ссылка на источник: https://www.dota2.com/darkcarnival');
-    expect(task).toContain('Это не первый пост серии');
+    expect(task).toContain('Пост самостоятельный');
+    expect(task).not.toMatch(/серия|из 4|следующ/i);
     expect(task.endsWith('>>>')).toBe(true);
   });
 

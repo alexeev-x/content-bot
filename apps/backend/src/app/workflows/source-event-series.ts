@@ -75,7 +75,11 @@ export function postImages(
   return [input.topReward, ...planned.filter((url) => url !== input.topReward)].slice(0, input.max);
 }
 
-/** The writer's task for one post: its topic and brief, the link, and only its own facts (Valve's texts). */
+/**
+ * The writer's task for one post: its topic and brief, the link, and only its own facts (Valve's texts). Each post
+ * reads on its own: that the posts belong together is ours to know, never the reader's (owner, 22.10.2026: no
+ * «продолжение во 2 части»), so the task never says «серия», a post number or what comes next.
+ */
 export function seriesPostTask(input: {
   title: string;
   pageUrl: string;
@@ -86,13 +90,14 @@ export function seriesPostTask(input: {
   facts: readonly string[];
 }): string {
   const head = [
-    `Повод: серия постов о событии Dota 2 «${input.title}», пост ${input.position} из ${input.total} — ${input.topic}.`,
+    `Повод: событие Dota 2 «${input.title}». Тема поста — ${input.topic}.`,
     `${SOURCE_LINK_LABEL}${input.pageUrl}`,
     `Что рассказать: ${input.brief}`,
     'Пиши живо, не сухую сводку: возьми самое интересное из фактов, не перечисляй всё. Шутка — не обязательно.',
     input.position > 1
-      ? 'Это не первый пост серии: о событии в целом уже рассказано, пиши только эту тему.'
-      : 'Это первый пост серии: что вышло и самое цепляющее, подробности будут в следующих постах.',
+      ? 'Пиши только эту тему: о событии в целом не пересказывай, хватит его названия.'
+      : 'Что вышло и самое цепляющее для игрока.',
+    'Пост самостоятельный: о других постах ни слова.',
     'Факты (официальные тексты Valve; бери только отсюда):'
   ].join('\n');
   const facts = input.facts.join('\n').replaceAll('>>>', '> > >').replaceAll('<<<', '< < <');
