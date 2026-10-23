@@ -36,6 +36,7 @@ export function toPostDto(record: PostRecord, summary: PostPublicationSummary = 
     kind: record.kind,
     poll: record.poll,
     sendOptions: record.sendOptions,
+    richHtml: record.richHtml,
     revision: record.revision,
     status: record.status,
     media: record.media ?? [],

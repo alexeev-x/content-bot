@@ -478,6 +478,7 @@ export function createContainer(env: ContainerEnv, overrides: ContainerOverrides
             kind: snapshot.kind,
             poll: snapshot.poll,
             sendOptions: snapshot.sendOptions,
+            richHtml: snapshot.richHtml,
             media
           };
         }

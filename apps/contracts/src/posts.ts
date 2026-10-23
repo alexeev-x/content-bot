@@ -12,8 +12,10 @@ import { publicationStatusSchema } from './publications';
 import { cleanText } from './text';
 import { postMediaSchema } from './media';
 import { DEFAULT_SEND_OPTIONS, postKindSchema, postPollSchema, postSendOptionsSchema } from './post-poll';
+import { postRichHtmlSchema } from './post-rich';
 
 export * from './post-poll';
+export * from './post-rich';
 
 // Editorial state only; scheduling and delivery live in publications.
 export const postStatusSchema = z.enum(['draft', 'approved']);
@@ -80,6 +82,11 @@ export const postSchema = z.object({
   /** The poll of a `kind: 'poll'` post (a draft may be incomplete, see `pollIssue`); null for a text post. */
   poll: postPollSchema.nullable().default(null),
   sendOptions: postSendOptionsSchema.default(DEFAULT_SEND_OPTIONS),
+  /**
+   * The approved rich format (post-rich.ts): what Telegram receives instead of `body` and `entities`, which keep the
+   * plain text for the studio. Null for a classic post. Made by the server; the studio does not edit it yet.
+   */
+  richHtml: postRichHtmlSchema.nullable().default(null),
   createdAt: z.iso.datetime(),
   updatedAt: z.iso.datetime()
 });

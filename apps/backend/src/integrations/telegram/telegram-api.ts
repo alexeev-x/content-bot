@@ -36,6 +36,13 @@ export interface TelegramSendApi {
     signal: AbortSignal
   ): Promise<unknown>;
   sendPoll(chatId: string, poll: TelegramPollParams, signal: AbortSignal): Promise<unknown>;
+  /** A rich message (Bot API 10.1): HTML, its uploads named by id, no parse_mode and no entities. */
+  sendRichMessage(
+    chatId: string,
+    message: { html: string; media: { id: string; kind: 'photo' | 'video' | 'animation'; file: InputFile }[] },
+    other: TelegramSendFlags,
+    signal: AbortSignal
+  ): Promise<unknown>;
 }
 
 // Per-post send options (disable_notification: no sound; protect_content: no forwarding or saving).
@@ -66,6 +73,20 @@ export function createTelegramApi(token: string): TelegramSendApi {
     sendVideo: (chatId, video, other, signal) => api.sendVideo(chatId, video, other, signal as never),
     sendAnimation: (chatId, animation, other, signal) => api.sendAnimation(chatId, animation, other, signal as never),
     sendMediaGroup: (chatId, media, other, signal) => api.sendMediaGroup(chatId, media, other, signal as never),
+    sendRichMessage: (chatId, { html, media }, other, signal) =>
+      api.raw.sendRichMessage(
+        {
+          chat_id: chatId,
+          rich_message: {
+            html,
+            ...(media.length === 0
+              ? {}
+              : { media: media.map(({ id, kind, file }) => ({ id, media: { type: kind, media: file } })) })
+          },
+          ...other
+        },
+        signal as never
+      ),
     // The question and options go as plain strings (no parse_mode, no entities): nothing in them is read as markup.
     sendPoll: (chatId, { question, options, ...rest }, signal) =>
       api.sendPoll(

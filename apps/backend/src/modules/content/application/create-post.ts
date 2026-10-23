@@ -1,4 +1,12 @@
-import { type CreatePostInput, DEFAULT_SEND_OPTIONS, EMPTY_POLL, type PostDto, postSchema } from '@alexeev/contracts';
+import {
+  type CreatePostInput,
+  DEFAULT_SEND_OPTIONS,
+  EMPTY_POLL,
+  type PostDto,
+  postSchema,
+  richHtmlIssue,
+  RICH_MEDIA_MAX
+} from '@alexeev/contracts';
 import { z } from 'zod';
 import { sha256Hex } from '../../../platform/security/sha256';
 import { AppError } from '../../../shared/app-error';
@@ -17,10 +25,19 @@ export interface CreatePostCommand {
   actor: string;
   idempotencyKey: string;
   input: CreatePostInput;
+  /**
+   * The approved rich format (contracts post-rich.ts), made by the server's writers, never by the studio's request; its
+   * media are attached afterwards, so the media it names are checked at approval.
+   */
+  richHtml?: string;
 }
 
 export async function createPost(deps: CreatePostDeps, command: CreatePostCommand): Promise<PostDto> {
   const { actor, idempotencyKey, input } = command;
+  const richHtml = command.richHtml ?? null;
+  const richIssue = richHtml === null ? null : richHtmlIssue(richHtml, RICH_MEDIA_MAX);
+  if (richIssue !== null || (richHtml !== null && input.kind !== 'text'))
+    throw new AppError('VALIDATION_ERROR', 'Invalid rich post', { reason: richIssue ?? 'KIND_MISMATCH' });
   // Field order is fixed here, so equal payloads always hash equally.
   // Entities join the hash only when there are some, so a key claimed before they existed still replays.
   // Kind, poll and send options join it only when set, for the same reason.
@@ -30,7 +47,8 @@ export async function createPost(deps: CreatePostDeps, command: CreatePostComman
       body: input.body,
       ...(input.entities.length === 0 ? {} : { entities: input.entities }),
       ...(input.kind === 'poll' ? { kind: input.kind, poll: input.poll } : {}),
-      ...(input.sendOptions === undefined ? {} : { sendOptions: input.sendOptions })
+      ...(input.sendOptions === undefined ? {} : { sendOptions: input.sendOptions }),
+      ...(richHtml === null ? {} : { richHtml })
     })
   );
   const ref = { scope: actor, key: idempotencyKey, requestHash, claimedAt: deps.now };
@@ -69,6 +87,7 @@ export async function createPost(deps: CreatePostDeps, command: CreatePostComman
     kind: input.kind,
     poll,
     sendOptions: input.sendOptions ?? DEFAULT_SEND_OPTIONS,
+    richHtml,
     status: 'draft',
     archivedAt: null,
     revision: 0,

@@ -10,6 +10,7 @@ const draft: Post = {
   kind: 'text',
   poll: null,
   sendOptions: { silent: false, protectContent: false, linkPreview: false },
+  richHtml: null,
   revision: 3,
   status: 'draft',
   archivedAt: null,

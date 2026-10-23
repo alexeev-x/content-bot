@@ -33,6 +33,8 @@ interface PostRow {
   send_silent: number;
   send_protected: number;
   link_preview_disabled: number;
+  /** Migration 0103. */
+  rich_html: string | null;
 }
 
 // A post without a title in its message is named after its body (?8) and ignores a client title; a post with one
@@ -44,7 +46,7 @@ const NEW_FIELDS =
   'COALESCE(?10, poll_json), COALESCE(?11, send_silent), COALESCE(?12, send_protected), COALESCE(?13, link_preview_disabled)';
 
 const POST_COLUMNS = `id, title, body, entities, status, revision, archived_at, created_at, updated_at,
-  title_in_message, kind, poll_json, send_silent, send_protected, link_preview_disabled`;
+  title_in_message, kind, poll_json, send_silent, send_protected, link_preview_disabled, rich_html`;
 
 // Every write goes through the contract schemas, so a stored list that does not parse is damaged data:
 // it fails loudly instead of being sent or shown with other offsets.
@@ -78,6 +80,7 @@ function toRecord(row: PostRow): PostRecord {
     kind: row.kind,
     poll: parsePoll(row.poll_json),
     sendOptions: toSendOptions(row),
+    richHtml: row.rich_html,
     status: row.status,
     revision: row.revision,
     archivedAt: row.archived_at,
@@ -204,9 +207,10 @@ export function createD1PostRepository(db: D1Database): PostRepository {
         db
           .prepare(
             `INSERT INTO posts (id, title, title_sort_key, body, entities, status, revision, created_at, updated_at,
-               title_in_message, kind, poll_json, send_silent, send_protected, link_preview_disabled)
+               title_in_message, kind, poll_json, send_silent, send_protected, link_preview_disabled, rich_html)
              SELECT ?1, ?2, ?3, ?4, ?5, 'draft', 0, ?6, ?6, ?${7 + claim.length}, ?${8 + claim.length},
-               ?${9 + claim.length}, ?${10 + claim.length}, ?${11 + claim.length}, ?${12 + claim.length}
+               ?${9 + claim.length}, ?${10 + claim.length}, ?${11 + claim.length}, ?${12 + claim.length},
+               ?${13 + claim.length}
              WHERE ${ownsClaimSql(7)}`
           )
           .bind(
@@ -220,14 +224,15 @@ export function createD1PostRepository(db: D1Database): PostRepository {
             record.titleInMessage ? 1 : 0,
             record.kind,
             poll,
-            ...options
+            ...options,
+            record.richHtml
           ),
         db
           .prepare(
             `INSERT INTO post_revisions (post_id, revision, title, body, entities, status, created_at, kind, poll_json,
-               send_silent, send_protected, link_preview_disabled)
+               send_silent, send_protected, link_preview_disabled, rich_html)
              SELECT ?1, 0, ?2, ?3, ?4, 'draft', ?5, ?${6 + claim.length}, ?${7 + claim.length}, ?${8 + claim.length},
-               ?${9 + claim.length}, ?${10 + claim.length}
+               ?${9 + claim.length}, ?${10 + claim.length}, ?${11 + claim.length}
              WHERE ${ownsClaimSql(6)}`
           )
           .bind(
@@ -239,7 +244,8 @@ export function createD1PostRepository(db: D1Database): PostRepository {
             ...claim,
             record.kind,
             poll,
-            ...options
+            ...options,
+            record.richHtml
           ),
         db
           .prepare(
@@ -284,7 +290,7 @@ export function createD1PostRepository(db: D1Database): PostRepository {
           // The title flag is per post and fixed at creation, so the post row holds it for every revision.
           `SELECT r.title, COALESCE(p.title_in_message, 1) AS title_in_message, r.body, r.entities,
                   r.kind AS rev_kind, r.poll_json, r.send_silent, r.send_protected, r.link_preview_disabled,
-                  m.id, m.kind, m.file_name, m.content_type, m.object_key
+                  r.rich_html, m.id, m.kind, m.file_name, m.content_type, m.object_key
              FROM post_revisions r LEFT JOIN posts p ON p.id = r.post_id
              LEFT JOIN json_each(r.media_json) j
              LEFT JOIN media_assets m ON m.id = j.value
@@ -301,6 +307,7 @@ export function createD1PostRepository(db: D1Database): PostRepository {
           send_silent: number;
           send_protected: number;
           link_preview_disabled: number;
+          rich_html: string | null;
           id: string | null;
           kind: PostMediaDto['kind'] | null;
           file_name: string | null;
@@ -317,6 +324,7 @@ export function createD1PostRepository(db: D1Database): PostRepository {
         kind: row.rev_kind,
         poll: parsePoll(row.poll_json),
         sendOptions: toSendOptions(row),
+        richHtml: row.rich_html,
         media: results.flatMap((item) =>
           item.id === null ||
           item.kind === null ||
@@ -393,9 +401,9 @@ export function createD1PostRepository(db: D1Database): PostRepository {
         db
           .prepare(
             `INSERT INTO post_revisions (post_id, revision, title, body, entities, status, created_at, media_json,
-               kind, poll_json, send_silent, send_protected, link_preview_disabled)
+               kind, poll_json, send_silent, send_protected, link_preview_disabled, rich_html)
              SELECT id, revision + 1, ${NEW_TITLE}, COALESCE(?4, body), COALESCE(?5, entities), status, ?6, '[]',
-               kind, ${NEW_FIELDS}
+               kind, ${NEW_FIELDS}, rich_html
              FROM posts WHERE ${GUARD}`
           )
           .bind(
@@ -450,11 +458,11 @@ export function createD1PostRepository(db: D1Database): PostRepository {
       const results = await db.batch<PostRow | MediaRow>([
         db
           .prepare(
-            `INSERT INTO post_revisions (post_id, revision, title, body, entities, status, created_at, media_json, kind, poll_json, send_silent, send_protected, link_preview_disabled)
+            `INSERT INTO post_revisions (post_id, revision, title, body, entities, status, created_at, media_json, kind, poll_json, send_silent, send_protected, link_preview_disabled, rich_html)
              SELECT id, revision + 1, title, body, entities, 'approved', ?3,
                     COALESCE((SELECT json_group_array(media_id) FROM
                       (SELECT media_id FROM post_media WHERE post_id = posts.id ORDER BY position)), '[]')
-              , kind, poll_json, send_silent, send_protected, link_preview_disabled FROM posts WHERE ${GUARD}`
+              , kind, poll_json, send_silent, send_protected, link_preview_disabled, rich_html FROM posts WHERE ${GUARD}`
           )
           .bind(change.id, change.expectedRevision, change.now),
         db

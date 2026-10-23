@@ -37,6 +37,11 @@ export interface PublicationTransport {
     options: PostSendOptions;
     /** When set the message is a native poll and `text`, `entities` and `media` are not used. */
     poll: PostPoll | null;
+    /**
+     * When set the message is a rich message (Bot API 10.1) with this HTML; `text` and `entities` are not used and
+     * `media` are its uploads, named `tg://photo?id=p1`… by position (contracts post-rich.ts).
+     */
+    richHtml: string | null;
   }): Promise<SendOutcome>;
 }
 
@@ -74,6 +79,8 @@ export interface PostRevisionSource {
     kind: PostKind;
     poll: PostPoll | null;
     sendOptions: PostSendOptions;
+    /** The approved rich format, sent with sendRichMessage instead of `body` (migration 0103); null for a classic post. */
+    richHtml: string | null;
     media: readonly PublicationMedia[];
   } | null>;
 }

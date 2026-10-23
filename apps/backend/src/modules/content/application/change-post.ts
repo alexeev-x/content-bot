@@ -27,6 +27,10 @@ export async function updatePost(
   if (current !== null) {
     if (current.kind === 'poll' && touchesText) throw kindMismatch('A poll post has no title, body or entities');
     if (current.kind === 'text' && input.poll !== undefined) throw kindMismatch('A text post has no poll');
+    // A rich post sends its rich HTML, not `body`: a text edit here would never reach the channel (the studio has no
+    // rich editor yet, owner 23.10.2026), so it is refused rather than silently ignored.
+    if (current.richHtml !== null && touchesText)
+      throw new AppError('VALIDATION_ERROR', 'A rich post is not edited as text yet', { reason: 'RICH_NOT_EDITABLE' });
   }
   // Formatting without a new body is checked against the stored one. The write below is guarded by the
   // revision, and a body only changes with a revision bump, so the body read here is the body it applies to.
@@ -67,6 +71,11 @@ export async function approvePost(
   const decision = approve(current, deps.now);
   if (!decision.ok && decision.reason === 'ALREADY_APPROVED') throw conflict('ALREADY_APPROVED');
   if (current.revision !== input.revision) throw conflict('STALE_REVISION');
+  if (!decision.ok && decision.reason === 'RICH_INVALID')
+    throw new AppError('VALIDATION_ERROR', 'The rich post is not ready to be approved', {
+      reason: decision.reason,
+      issue: decision.issue
+    });
   if (!decision.ok && decision.reason === 'POLL_INVALID')
     throw new AppError('VALIDATION_ERROR', 'The poll is not ready to be approved', {
       reason: decision.reason,

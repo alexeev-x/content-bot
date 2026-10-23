@@ -1,6 +1,6 @@
 import { InputFile } from 'grammy';
 import type { InputMediaPhoto, InputMediaVideo } from '@grammyjs/types';
-import type { PostEntity, PostPoll } from '@alexeev/contracts';
+import { type PostEntity, type PostPoll, richMediaId, richMediaPositions } from '@alexeev/contracts';
 import type { PublicationTransport } from '../application/ports';
 import { sendTimeoutMs } from '../domain/dispatch-policy';
 import { classifySendResult, classifyTelegramError } from './classify-telegram-result';
@@ -37,6 +37,13 @@ export interface TelegramSender {
     other: SendFlags,
     signal: AbortSignal
   ): Promise<unknown>;
+  /** A rich message (Bot API 10.1); `media` are the uploads its HTML names as `tg://photo?id=…`. */
+  sendRichMessage(
+    chatId: string,
+    message: { html: string; media: { id: string; kind: 'photo' | 'video' | 'animation'; file: InputFile }[] },
+    other: SendFlags,
+    signal: AbortSignal
+  ): Promise<unknown>;
   sendPoll(
     chatId: string,
     poll: SendFlags & {
@@ -64,13 +71,31 @@ interface SendFlags {
 // check used); `timeoutMs` fixes it for tests.
 export function createTelegramPublicationTransport(sender: TelegramSender, timeoutMs?: number): PublicationTransport {
   return {
-    async send({ chatId, text, entities, media, options, poll }) {
+    async send({ chatId, text, entities, media, options, poll, richHtml }) {
       const mediaBytes = media.reduce((total, item) => total + item.sizeBytes, 0);
       const signal = AbortSignal.timeout(timeoutMs ?? sendTimeoutMs(mediaBytes));
       const flags: SendFlags = { disable_notification: options.silent, protect_content: options.protectContent };
       try {
         if (poll !== null) {
           return classifySendResult(await sender.sendPoll(chatId, pollParams(poll, flags), signal));
+        }
+        if (richHtml !== null) {
+          // Only the media the HTML names are uploaded, each under its position's id (contracts post-rich.ts).
+          const uploads = richMediaPositions(richHtml).flatMap((position) => {
+            const item = media[position];
+            return item === undefined
+              ? []
+              : [
+                  {
+                    id: richMediaId(position),
+                    kind: item.kind,
+                    file: new InputFile(streamChunks(item.body), item.fileName)
+                  }
+                ];
+          });
+          return classifySendResult(
+            await sender.sendRichMessage(chatId, { html: richHtml, media: uploads }, flags, signal)
+          );
         }
         if (media.length === 0) {
           const message = await sender.sendMessage(

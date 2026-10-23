@@ -19,6 +19,8 @@ export interface MediaPostState {
   revision: number;
   status: 'draft' | 'approved';
   kind: 'text' | 'poll';
+  /** A rich post names its media by position: removing or reordering them would send other pictures. */
+  rich: boolean;
   media: PostMediaDto[];
 }
 

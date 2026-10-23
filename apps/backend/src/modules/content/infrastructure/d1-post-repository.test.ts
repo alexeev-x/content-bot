@@ -66,6 +66,7 @@ describe('create guard', () => {
         kind: 'text',
         poll: null,
         sendOptions: { silent: false, protectContent: false, linkPreview: false },
+        richHtml: null,
         status: 'draft',
         archivedAt: null,
         revision: 0,
@@ -116,6 +117,7 @@ describe('findRevision', () => {
       kind: 'text',
       poll: null,
       sendOptions: { silent: false, protectContent: false, linkPreview: false },
+      richHtml: null,
       media: []
     });
     expect(await repo.findRevision(id, 1)).toEqual({
@@ -126,6 +128,7 @@ describe('findRevision', () => {
       kind: 'text',
       poll: null,
       sendOptions: { silent: false, protectContent: false, linkPreview: false },
+      richHtml: null,
       media: []
     });
     expect(await repo.findRevision(id, 2)).toBeNull();

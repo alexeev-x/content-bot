@@ -31,12 +31,16 @@ function senderOf(step: (signal: AbortSignal) => Promise<unknown>): TelegramSend
     sendPoll(chatId, poll, signal) {
       requests.push(['poll', chatId, poll]);
       return step(signal);
+    },
+    sendRichMessage(chatId, message, other, signal) {
+      requests.push(['rich', chatId, message, other]);
+      return step(signal);
     }
   };
 }
 
 const options = DEFAULT_SEND_OPTIONS;
-const text = { options, poll: null };
+const text = { options, poll: null, richHtml: null };
 
 const apiError = (code: number, description: string, parameters: Record<string, number> = {}) =>
   new GrammyError(description, { ok: false, error_code: code, description, parameters }, 'sendMessage', {
@@ -76,7 +80,8 @@ describe('the Telegram transport adapter', () => {
       entities: [],
       media: [],
       options: flags,
-      poll: null
+      poll: null,
+      richHtml: null
     });
     expect(sender.requests).toEqual([
       [
@@ -101,7 +106,8 @@ describe('the Telegram transport adapter', () => {
       entities: [],
       media: [],
       options: { silent: true, protectContent: true, linkPreview: true },
-      poll
+      poll,
+      richHtml: null
     });
     expect(outcome).toEqual({ kind: 'sent', externalMessageIds: ['30'] });
     expect(sender.requests).toEqual([
@@ -130,7 +136,8 @@ describe('the Telegram transport adapter', () => {
       entities: [],
       media: [],
       options,
-      poll: { question: 'Q', options: ['a', 'b'], allowsMultipleAnswers: true, quiz: null }
+      poll: { question: 'Q', options: ['a', 'b'], allowsMultipleAnswers: true, quiz: null },
+      richHtml: null
     });
     expect(sender.requests).toEqual([
       [

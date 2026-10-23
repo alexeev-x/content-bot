@@ -1,4 +1,11 @@
-import { type PostEntity, type PostPoll, type PostSendOptions, pollIssue } from '@alexeev/contracts';
+import {
+  type PostEntity,
+  type PostPoll,
+  type PostSendOptions,
+  pollIssue,
+  RICH_MEDIA_MAX,
+  richHtmlIssue
+} from '@alexeev/contracts';
 import type { Clock } from '../../../platform/clock';
 import type { Logger } from '../../../platform/logging/logger';
 import {
@@ -155,13 +162,30 @@ async function dispatchJob(deps: DispatchDeps, jobId: string, budget: TickBudget
     }
     poll = revision.poll;
   }
-  const message = poll === null ? formatPublicationText(revision) : { ok: true as const, text: '', entities: [] };
+  // A rich post (migration 0103) is checked the same way: the approved snapshot passed richHtmlIssue, but a damaged row
+  // is refused before the mark. Telegram checks the markup itself; its refusal is a definite 400, never unknown.
+  let richHtml: string | null = null;
+  if (revision.richHtml !== null) {
+    if (revision.kind !== 'text') return refuse('CONTENT_INVALID', 'rich_kind_mismatch');
+    const issue = richHtmlIssue(revision.richHtml, revision.media.length);
+    if (issue !== null) return refuse('CONTENT_INVALID', `rich_${issue.toLowerCase()}`);
+    if (revision.media.length > RICH_MEDIA_MAX) return refuse('TELEGRAM_MEDIA_UNSUPPORTED', 'rich_media_over_limit');
+    richHtml = revision.richHtml;
+  }
+  const message =
+    poll === null && richHtml === null
+      ? formatPublicationText(revision)
+      : { ok: true as const, text: '', entities: [] };
   if (!message.ok) return refuse('CONTENT_INVALID', message.reason.toLowerCase());
   const media = revision.media;
-  if (media.length > 10 || (media.length > 1 && media.some(({ kind }) => kind === 'animation'))) {
+  // An album and a caption have Telegram's classic limits; a rich message carries up to 50 media in its own blocks.
+  if (
+    richHtml === null &&
+    (media.length > 10 || (media.length > 1 && media.some(({ kind }) => kind === 'animation')))
+  ) {
     return refuse('TELEGRAM_MEDIA_UNSUPPORTED', 'unsupported_media_combination');
   }
-  if (media.length > 0 && message.text.length > 1024) {
+  if (richHtml === null && media.length > 0 && message.text.length > 1024) {
     return refuse('CONTENT_INVALID', 'caption_too_long');
   }
   const mediaBytes = media.reduce((total, item) => total + item.sizeBytes, 0);
@@ -182,7 +206,13 @@ async function dispatchJob(deps: DispatchDeps, jobId: string, budget: TickBudget
     return 'not_sent';
   }
 
-  const outcome = await sendOnce(deps, target.chatId, { ...message, media, options: revision.sendOptions, poll });
+  const outcome = await sendOnce(deps, target.chatId, {
+    ...message,
+    media,
+    options: revision.sendOptions,
+    poll,
+    richHtml
+  });
   return resolveSent(deps, budget, claimed, startedAt, context, outcome);
 }
 
@@ -196,6 +226,7 @@ async function sendOnce(
     media: readonly import('./ports').PublicationMedia[];
     options: PostSendOptions;
     poll: PostPoll | null;
+    richHtml: string | null;
   }
 ): Promise<SendOutcome> {
   try {

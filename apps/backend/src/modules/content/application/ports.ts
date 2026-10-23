@@ -82,6 +82,8 @@ export interface PostRepository {
     kind: PostKind;
     poll: PostPoll | null;
     sendOptions: PostSendOptions;
+    /** The approved rich format sent instead of `body` (migration 0103); null for a classic post. */
+    richHtml: string | null;
     media: PostRevisionMedia[];
   } | null>;
   list(query: ListPostsQuery): Promise<PostRecord[]>;

@@ -430,6 +430,9 @@ export async function removePostMedia(
   if (state === null) throw new AppError('NOT_FOUND', 'Post not found');
   if (state.status !== 'draft') throw conflict('NOT_EDITABLE');
   if (state.revision !== command.revision) throw conflict('STALE_REVISION');
+  // A rich post names its media by position (contracts post-rich.ts): another order would send other pictures.
+  if (state.rich)
+    throw new AppError('VALIDATION_ERROR', 'A rich post keeps its media order', { reason: 'RICH_NOT_EDITABLE' });
   if (!state.media.some(({ id }) => id === command.mediaId))
     throw new AppError('NOT_FOUND', 'Media attachment not found');
   const mediaIds = state.media.filter(({ id }) => id !== command.mediaId).map(({ id }) => id);
@@ -457,6 +460,9 @@ export async function reorderPostMedia(
   if (state === null) throw new AppError('NOT_FOUND', 'Post not found');
   if (state.status !== 'draft') throw conflict('NOT_EDITABLE');
   if (state.revision !== command.revision) throw conflict('STALE_REVISION');
+  // A rich post names its media by position (contracts post-rich.ts): another order would send other pictures.
+  if (state.rich)
+    throw new AppError('VALIDATION_ERROR', 'A rich post keeps its media order', { reason: 'RICH_NOT_EDITABLE' });
   const current = state.media.map(({ id }) => id);
   if (
     command.mediaIds.length !== current.length ||

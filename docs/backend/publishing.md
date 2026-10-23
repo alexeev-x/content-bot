@@ -18,6 +18,16 @@ jobs:    pending ──(Cron: run_at ≤ now, conditional claim)──→ claime
 - `UNIQUE(dedupe_key)` protects against re-creating a job; a repeated client request is caught by `Idempotency-Key` (see `API_CONTRACTS.md`). If the owner deliberately publishes a post again, that is a new intent and a new `publicationId`.
 - **If Queue appears later:** the message carries only `{jobId, schemaVersion}`, state stays in D1, the claim is the same; Queue merely speeds up delivery but does not own state.
 
+### Rich posts (as built, migration 0103)
+
+A post with `rich_html` (owner, 23.10.2026: every post in the approved rich format) is sent with `sendRichMessage`
+(Bot API 10.1) instead of `sendMessage`/`sendPhoto`/`sendMediaGroup`; `body` keeps its plain text for the studio. The
+HTML names the post's media by position (`tg://photo?id=p1`…, contracts `post-rich.ts`) and only the named ones are
+uploaded. Nothing else changes: the same claim, `send_started_at` mark and outcome classification. The dispatcher re-checks
+the approved snapshot before the mark (`richHtmlIssue`: a missing picture or `<mark>` → `failed` `CONTENT_INVALID`, over
+50 media → `TELEGRAM_MEDIA_UNSUPPORTED`), and Telegram refusing the markup is a definite 400 → `CONTENT_INVALID`, never
+`unknown`. The classic album (10 media) and caption (1024) limits do not apply.
+
 ### Conditional job claim
 
 ```sql

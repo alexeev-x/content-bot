@@ -65,6 +65,7 @@ export const post = (overrides: Partial<PostDto> = {}): PostDto => ({
   kind: 'text',
   poll: null,
   sendOptions: DEFAULT_SEND_OPTIONS,
+  richHtml: null,
   revision: 0,
   status: 'draft',
   media: [],

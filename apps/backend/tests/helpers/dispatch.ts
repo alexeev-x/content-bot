@@ -121,6 +121,15 @@ function fakeSender(step: SenderStep): FakeSender {
           signal.addEventListener('abort', () => reject(signal.reason as Error), { once: true })
         )
       ]);
+    },
+    sendRichMessage(chatId, message, _other, signal) {
+      requests.push({ chatId, text: 'rich', other: message });
+      return Promise.race([
+        step(),
+        new Promise<never>((_resolve, reject) =>
+          signal.addEventListener('abort', () => reject(signal.reason as Error), { once: true })
+        )
+      ]);
     }
   };
 }
