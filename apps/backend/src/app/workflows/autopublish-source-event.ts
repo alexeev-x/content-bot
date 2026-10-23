@@ -197,6 +197,8 @@ async function publishApprovedEventPost(
             })
           : { found: 0, remaining: 0, pictureFailed: undefined };
     if (remaining > 0) return { kind: 'continue', postId, from: from + PICTURES_PER_RUN };
+    // The pictures are done: the post may be published now (its own publication below included).
+    await container.posts.setMediaPending(postId, null);
     // Posts deferred over several messages may all have passed the first count: the limit is counted again here.
     if (
       input.dailyLimit !== undefined &&

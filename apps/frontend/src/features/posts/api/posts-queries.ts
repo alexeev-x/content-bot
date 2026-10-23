@@ -10,6 +10,7 @@ import { useEffect, useRef, useState } from 'react';
 import { createIdempotencyTracker } from '../../../shared/api/idempotency';
 import { keepPreviousRows } from '../../../shared/api/page-query';
 import { nextCursor } from '../../../shared/api/query-string';
+import { PICTURES_POLL_MS, picturesPending } from '../model/pictures-pending';
 import { attachLibraryMedia } from './post-media-api';
 import {
   approvePost,
@@ -73,7 +74,9 @@ export function postQueryOptions(id: string) {
   return queryOptions({
     queryKey: postKeys.detail(id),
     queryFn: ({ signal }) => getPost(id, signal),
-    staleTime: 30_000
+    staleTime: 30_000,
+    // While the bot attaches its pictures the post is read again, so it unlocks soon after they arrive.
+    refetchInterval: (query) => (picturesPending(query.state.data) ? PICTURES_POLL_MS : false)
   });
 }
 

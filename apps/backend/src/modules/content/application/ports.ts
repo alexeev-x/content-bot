@@ -12,6 +12,11 @@ import type { Post, PostStatus } from '../domain/post';
 export interface PostRecord extends Post {
   /** UTC epoch milliseconds. */
   createdAt: number;
+  /**
+   * Until when the bot is still attaching the post's pictures (migration 0106; UTC epoch ms), or null. Nothing is
+   * published before it passes or is cleared.
+   */
+  mediaPendingUntil: number | null;
   media?: PostMediaDto[];
 }
 
@@ -67,6 +72,8 @@ export interface PostRepository {
    */
   create(input: NewPost): Promise<boolean>;
   findById(id: string): Promise<PostRecord | null>;
+  /** Marks the post's pictures as being attached until `until`, or clears it (null). Not a revision. */
+  setMediaPending(postId: string, until: number | null): Promise<void>;
   findManyByIds(ids: readonly string[]): Promise<PostRecord[]>;
   /** The stored snapshot of one revision, or null when it does not exist. */
   findRevision(

@@ -250,6 +250,22 @@ describe('tapping «publish now»', () => {
     expect(lastEditText()).toBe('Кнопка устарела, откройте в Студии');
   });
 
+  it('refuses a tap while the bot attaches the post pictures, then works once they are in (owner, 23.10.2026)', async () => {
+    const data = await prepared();
+    const post = await postRow();
+    await testDb()
+      .prepare('UPDATE posts SET media_pending_until = ?2 WHERE id = ?1')
+      .bind(post?.id ?? '', clock.now() + 60_000)
+      .run();
+    await tap(data);
+    expect(await publications()).toBe(0);
+    expect(await postRow()).toMatchObject({ status: 'draft', revision: 0 });
+    expect(lastEditText()).toBe('Файлы или картинка ещё готовятся — нажмите чуть позже или откройте в Студии');
+    await testDb().prepare('UPDATE posts SET media_pending_until = NULL').run();
+    await tap(data);
+    expect(await publications()).toBe(1);
+  });
+
   it('refuses a tap while the post files are still being imported, then works after the report', async () => {
     const data = await prepared();
     const post = await postRow();
@@ -266,7 +282,7 @@ describe('tapping «publish now»', () => {
     await tap(data);
     expect(await publications()).toBe(0);
     expect(await postRow()).toMatchObject({ status: 'draft', revision: 0 });
-    expect(lastEditText()).toBe('Файлы ещё загружаются — дождитесь отчёта или откройте в Студии');
+    expect(lastEditText()).toBe('Файлы или картинка ещё готовятся — нажмите чуть позже или откройте в Студии');
     expect(
       edits()
         .at(-1)

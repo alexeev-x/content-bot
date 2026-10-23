@@ -93,7 +93,8 @@ export async function createPost(deps: CreatePostDeps, command: CreatePostComman
     archivedAt: null,
     revision: 0,
     createdAt: deps.now,
-    updatedAt: deps.now
+    updatedAt: deps.now,
+    mediaPendingUntil: null
   };
   const post = toPostDto(record);
   let written: boolean;

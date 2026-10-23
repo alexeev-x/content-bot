@@ -113,7 +113,7 @@ export async function createPublicationSeries(
 async function checkAll(deps: CreatePublicationDeps, input: CreatePublicationSeriesInput): Promise<void> {
   const destination = await deps.destinations.findById(input.destinationId);
   for (const item of input.items) {
-    const refusal = checkSchedulable(await deps.posts.findState(item.postId), destination, item.revision);
+    const refusal = checkSchedulable(await deps.posts.findState(item.postId), destination, item.revision, deps.now);
     const error =
       refusal !== null
         ? scheduleRefusal(refusal)

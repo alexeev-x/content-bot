@@ -37,6 +37,7 @@ export function toPostDto(record: PostRecord, summary: PostPublicationSummary = 
     poll: record.poll,
     sendOptions: record.sendOptions,
     richHtml: record.richHtml,
+    mediaPendingUntil: record.mediaPendingUntil === null ? null : iso(record.mediaPendingUntil),
     revision: record.revision,
     status: record.status,
     media: record.media ?? [],

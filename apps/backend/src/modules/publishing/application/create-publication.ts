@@ -110,5 +110,5 @@ async function findRefusal(deps: CreatePublicationDeps, input: CreatePublication
     deps.posts.findState(input.postId),
     deps.destinations.findById(input.destinationId)
   ]);
-  return checkSchedulable(post, destination, input.revision);
+  return checkSchedulable(post, destination, input.revision, deps.now);
 }

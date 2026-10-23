@@ -35,6 +35,8 @@ interface PostRow {
   link_preview_disabled: number;
   /** Migration 0103. */
   rich_html: string | null;
+  /** Migration 0106. */
+  media_pending_until: number | null;
 }
 
 // A post without a title in its message is named after its body (?8) and ignores a client title; a post with one
@@ -46,7 +48,7 @@ const NEW_FIELDS =
   'COALESCE(?10, poll_json), COALESCE(?11, send_silent), COALESCE(?12, send_protected), COALESCE(?13, link_preview_disabled)';
 
 const POST_COLUMNS = `id, title, body, entities, status, revision, archived_at, created_at, updated_at,
-  title_in_message, kind, poll_json, send_silent, send_protected, link_preview_disabled, rich_html`;
+  title_in_message, kind, poll_json, send_silent, send_protected, link_preview_disabled, rich_html, media_pending_until`;
 
 // Every write goes through the contract schemas, so a stored list that does not parse is damaged data:
 // it fails loudly instead of being sent or shown with other offsets.
@@ -85,7 +87,8 @@ function toRecord(row: PostRow): PostRecord {
     revision: row.revision,
     archivedAt: row.archived_at,
     createdAt: row.created_at,
-    updatedAt: row.updated_at
+    updatedAt: row.updated_at,
+    mediaPendingUntil: row.media_pending_until
   };
 }
 
@@ -266,6 +269,10 @@ export function createD1PostRepository(db: D1Database): PostRepository {
         .bind(id)
         .first<PostRow>();
       return row === null ? null : ((await attachMedia(db, [toRecord(row)]))[0] ?? null);
+    },
+
+    async setMediaPending(postId, until) {
+      await db.prepare('UPDATE posts SET media_pending_until = ?2 WHERE id = ?1').bind(postId, until).run();
     },
 
     async findManyByIds(ids) {

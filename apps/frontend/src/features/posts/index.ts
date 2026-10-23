@@ -14,3 +14,4 @@ export { useRestoreActions } from './model/use-restore';
 export type { LifecycleNotice } from './model/lifecycle-notices';
 export { deleteBlockOf } from './model/post-state';
 export { SendOptionsPanel } from './ui/SendOptionsPanel';
+export { picturesPending } from './model/pictures-pending';

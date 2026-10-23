@@ -138,6 +138,12 @@ describe('create', () => {
     expect(screen.queryByRole('textbox', { name: /Заголовок/ })).toBeNull();
   });
 
+  it('locks «К публикации» and says so while the bot attaches the post pictures (owner, 23.10.2026)', async () => {
+    await openExisting({ mediaPendingUntil: new Date(Date.now() + 5 * 60_000).toISOString() });
+    expect(await screen.findByText('Создаётся изображение')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'К публикации' }).hasAttribute('disabled')).toBe(true);
+  });
+
   it('saves and continues to publication settings without approving', async () => {
     const user = userEvent.setup();
     const calls: string[] = [];

@@ -71,7 +71,8 @@ describe('create guard', () => {
         archivedAt: null,
         revision: 0,
         createdAt: START,
-        updatedAt: START
+        updatedAt: START,
+        mediaPendingUntil: null
       },
       actor: '4242',
       idempotency: { scope: '4242', key: 'never-claimed', requestHash: 'a'.repeat(64), claimedAt: START },

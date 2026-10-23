@@ -1,4 +1,5 @@
 import type { PostDto } from '@alexeev/contracts';
+import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
 import { useCallback, useRef, useState, type ReactNode } from 'react';
 import {
@@ -27,6 +28,8 @@ import { PollEditor } from './PollEditor';
 import { PostKindNote } from './PostKindNote';
 import { ConflictBanner } from './ConflictBanner';
 import { postsCopy } from './copy';
+import { postQueryOptions } from '../api/posts-queries';
+import { picturesPending } from '../model/pictures-pending';
 import { PostFields } from './PostFields';
 import { PostMediaEditor } from './PostMediaEditor';
 import { PostPreview } from './PostPreview';
@@ -138,7 +141,12 @@ export function PostEditor({
     (editor.hasTitle && editor.title.trim().length === 0) ||
     editor.mixed ||
     editor.overflow > 0;
-  const canContinue = !editor.readOnly && !hasConflict && !editor.isSaving && !editor.mediaPending;
+  // The editor keeps its own copy of the post; the mark is read from the server copy, which polls while it is set
+  // (QA 23.10.2026: from the copy the lock never lifted without a reload).
+  const live = useQuery({ ...postQueryOptions(baseline?.id ?? ''), enabled: picturesPending(baseline) });
+  const waitingForPictures = picturesPending(live.data ?? baseline);
+  const canContinue =
+    !editor.readOnly && !hasConflict && !editor.isSaving && !editor.mediaPending && !waitingForPictures;
 
   async function saveAndExit() {
     if (editor.dirty) {
@@ -366,6 +374,11 @@ export function PostEditor({
               {copy.errors.requestId}: <code>{notice.requestId}</code>
             </>
           ) : null}
+        </Banner>
+      ) : null}
+      {waitingForPictures ? (
+        <Banner tone="warning" title={copy.pictures.title}>
+          {copy.pictures.body}
         </Banner>
       ) : null}
       {baseline?.richHtml != null ? (

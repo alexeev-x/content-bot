@@ -19,6 +19,7 @@ const richOf = (text: string): { richHtml?: string } => {
   return richHtml === null ? {} : { richHtml };
 };
 import type { Container } from '../container';
+import { queuePictureJob } from './picture-jobs';
 
 // An event's AI draft seen and approved in the studio (owner, 21.10.2026: «почему в админке не видно черновик»), the
 // same approval as the bot's: the approved revision becomes a studio post, linked to its event, with its images.
@@ -47,7 +48,7 @@ export async function linkApprovedSourcePost(
   const externalId = await container.dotaRepository.linkAiPost({ generationIds, postId, now: container.clock.now() });
   const chatId = Number(container.ownerChatId);
   if (!queueMedia || externalId === null || container.ownerChatId === null || !Number.isSafeInteger(chatId)) return;
-  await container.aiJobs.send({ id: container.newId(), kind: 'source_media', chatId, postId, externalId });
+  await queuePictureJob(container, { id: container.newId(), kind: 'source_media', chatId, postId, externalId });
 }
 
 /** The newest version of the event's AI draft: its text, a question instead, or the failure. */

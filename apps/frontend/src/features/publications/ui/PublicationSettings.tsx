@@ -69,6 +69,8 @@ type Props = {
   ensureApproved?: EnsureApproved;
   /** The server accepted the request; the page leaves this screen, so the button stays locked until then. */
   onPublished?: (publication: PublicationDto) => void;
+  /** Publishing is locked for now (the post's pictures are still being attached); the page says why. */
+  isBlocked?: boolean;
 };
 
 /** In-page settings for the second editor screen: «Опубликовать» here is the final action and sends at once. */
@@ -79,7 +81,8 @@ export function PublicationSettings({
   settings,
   timezone,
   ensureApproved,
-  onPublished
+  onPublished,
+  isBlocked = false
 }: Props) {
   const timeZone = timezone ?? browserTimeZone();
   const narrow = useMediaQuery('(max-width: 859px)');
@@ -226,7 +229,7 @@ export function PublicationSettings({
         <div className={styles.publishPrimary}>
           <Button
             icon={mode === 'now' ? 'send' : 'calendar'}
-            isDisabled={!selectedDestinationId || !validSchedule || done}
+            isDisabled={!selectedDestinationId || !validSchedule || done || isBlocked}
             isLoading={publishing.isPending || approving}
             onPress={() => void publish()}
           >

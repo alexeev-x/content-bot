@@ -10,6 +10,7 @@ import { attachSourceEventImages, type SourceMediaDeps } from './workflows/sourc
 import { planEventSeries, writeSeriesPost } from './workflows/source-event-series';
 import { skipDullHotfix } from './workflows/source-event-hotfix';
 import { patchPictureFor } from './workflows/patch-picture';
+import { picturesDone, queuePictureJob } from './workflows/picture-jobs';
 import { pictureImproverFor } from './workflows/picture-quality';
 import { PHOTO_MEDIA_MAX_BYTES } from '@alexeev/contracts';
 import { uploadPostMedia } from '../modules/content';
@@ -136,6 +137,8 @@ async function runSourceMediaJob(
   onError: (error: unknown) => void
 ): Promise<void> {
   let text: string;
+  // A continuation queued keeps its own fresh mark: a later failure here must not clear it (QA 23.10.2026).
+  let continued = false;
   try {
     if (!(await container.aiWriter.claimJob(job.id, container.clock.now()))) return;
     const from = job.from ?? 0;
@@ -144,7 +147,10 @@ async function runSourceMediaJob(
       { ...job, from, count: PICTURES_PER_RUN }
     );
     // Two pictures per message keep it inside the Free plan's 50 D1 statements; the rest go on in the next one.
-    if (remaining > 0) await container.aiJobs.send({ ...job, id: container.newId(), from: from + PICTURES_PER_RUN });
+    if (remaining > 0) {
+      await queuePictureJob(container, { ...job, id: container.newId(), from: from + PICTURES_PER_RUN });
+      continued = true;
+    } else await picturesDone(container, job.postId, onError);
     await container.aiWriter.finishJob(job.id, container.clock.now());
     if (remaining > 0) return;
     const attached = (await container.posts.findById(job.postId))?.media?.length ?? 0;
@@ -154,6 +160,7 @@ async function runSourceMediaJob(
     else text = `Прикреплено картинок из анонса: ${attached} из ${found}. Остальные добавьте в студии.`;
   } catch (error) {
     onError(error);
+    if (!continued) await picturesDone(container, job.postId, onError);
     text = 'Не удалось прикрепить картинки из анонса. Добавьте их в студии.';
   }
   if (token === '') return;
@@ -209,6 +216,7 @@ async function runPatchPublishJob(
   onError: (error: unknown) => void
 ): Promise<void> {
   let text: string | null;
+  let continued = false;
   try {
     if (!(await container.aiWriter.claimJob(job.id, container.clock.now()))) return;
     const outcome = await publishQueuedPatchPost(
@@ -226,11 +234,15 @@ async function runPatchPublishJob(
     );
     container.logger.info({ component: 'autopublish', operation: 'patch_publish', requestId, status: outcome.kind });
     // More pictures: the next part in a message of its own, under a new claim; this one is done.
-    if (outcome.kind === 'continue') await container.aiJobs.send({ ...job, id: container.newId(), from: outcome.from });
+    if (outcome.kind === 'continue') {
+      await queuePictureJob(container, { ...job, id: container.newId(), from: outcome.from });
+      continued = true;
+    } else await picturesDone(container, job.postId, onError);
     await container.aiWriter.finishJob(job.id, container.clock.now());
     text = autopublishNote(outcome, job.appOrigin, job.externalId);
   } catch (error) {
     onError(error);
+    if (!continued) await picturesDone(container, job.postId, onError);
     const link = escapeHtml(`${job.appOrigin}/posts/${encodeURIComponent(job.postId)}`);
     text = `Не опубликовано без вас (не получилось опубликовать). Пост ждёт в студии. <a href="${link}">Открыть</a>`;
   }
@@ -492,7 +504,7 @@ export async function handleAiQueue(batch: MessageBatch<unknown>, container: Con
             // Every post's pictures and publication in a job of its own (QA 23.10.2026: the Free plan's 50 D1
             // statements do not hold the writer, the pictures and their improvement together).
             queuePicture: (postId: string) =>
-              container.aiJobs.send({
+              queuePictureJob(container, {
                 id: container.newId(),
                 kind: 'patch_publish',
                 chatId: eventJob.chatId,

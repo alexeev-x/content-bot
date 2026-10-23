@@ -5,6 +5,7 @@ import { PublicationSettings, type EnsureApproved } from '../../features/publica
 import { useOwnerTimezone } from '../../features/owner-settings';
 import {
   messageLength,
+  picturesPending,
   PostPreview,
   postQueryOptions,
   postsCopy,
@@ -82,6 +83,7 @@ export function PostPublishPage({ id }: Props) {
   // A rich post goes out as one rich message: Telegram's caption and album limits do not apply to it.
   const isRich = post.richHtml !== null;
   const unsupported = !isRich && post.media.length > 1 && post.media.some((item) => item.kind === 'animation');
+  const waitingForPictures = picturesPending(post);
 
   return (
     <>
@@ -96,6 +98,11 @@ export function PostPublishPage({ id }: Props) {
           />
         }
       />
+      {waitingForPictures ? (
+        <Banner tone="warning" title={postsCopy.editor.pictures.title}>
+          {postsCopy.editor.pictures.body}
+        </Banner>
+      ) : null}
       {issue !== null ? (
         <Banner tone="error" title={postsCopy.poll.issueIntro}>
           {postsCopy.poll.issues[issue]} Вернитесь в редактор и исправьте опрос.
@@ -119,6 +126,7 @@ export function PostPublishPage({ id }: Props) {
           post={post}
           onBack={() => void navigate({ to: '/posts/$id', params: { id } })}
           ensureApproved={ensureApproved}
+          isBlocked={waitingForPictures}
           settings={<SendOptionsPanel post={post} />}
           onPublished={(publication) => void navigate({ to: '/publications', search: { id: publication.id } })}
         >

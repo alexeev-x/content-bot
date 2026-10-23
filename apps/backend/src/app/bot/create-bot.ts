@@ -199,7 +199,7 @@ const POLL_DRAFT_CREATED_TEXT = 'Черновик-опрос создан';
 const MEDIA_DRAFT_CREATED_TEXT = 'Черновик создан, файлы загружаются…';
 const DRAFT_TOO_LONG_TEXT = `Текст длиннее ${POST_BODY_MAX} символов, черновик не создан.`;
 const CHANGED_TEXT = 'Пост изменился — откройте в Студии';
-const IMPORTING_TEXT = 'Файлы ещё загружаются — дождитесь отчёта или откройте в Студии';
+const IMPORTING_TEXT = 'Файлы или картинка ещё готовятся — нажмите чуть позже или откройте в Студии';
 const DUPLICATE_TEXT = 'Уже в очереди или опубликовано в этом канале — откройте в Студии';
 const EXPIRED_TEXT = 'Кнопка устарела, откройте в Студии';
 const ASK_TIME_TEXT = (timezone: string) =>

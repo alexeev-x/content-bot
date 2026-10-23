@@ -23,6 +23,7 @@ import { rateLimit } from './rate-limit';
 import { createWriterDeps } from './bot/writer-deps';
 import { approveSourceAiDraft, readSourceAiDraft } from './workflows/approve-source-ai-draft';
 import { createSourceEventDraft } from './workflows/create-source-event-draft';
+import { queuePictureJob } from './workflows/picture-jobs';
 import { latestPatchCover, latestReports, sendRichSamples } from './workflows/rich-samples';
 import { readSourceEventContent, requestSourceEventDraft } from './workflows/source-event-ai-draft';
 
@@ -230,7 +231,7 @@ export const sourcesRoutes = new Hono<AppBindings>()
       // Its own images and videos, once per file (a repeated approval queues nothing new to attach).
       const chatId = Number(container.ownerChatId);
       if (result.created && post.media.length > 0 && container.ownerChatId !== null && Number.isSafeInteger(chatId))
-        await container.aiJobs.send({
+        await queuePictureJob(container, {
           id: container.newId(),
           kind: 'source_media',
           chatId,
@@ -279,7 +280,7 @@ export const sourcesRoutes = new Hono<AppBindings>()
     const chatId = Number(container.ownerChatId);
     if (container.ownerChatId === null || !Number.isSafeInteger(chatId))
       throw new AppError('UNAVAILABLE', 'The owner chat is not configured', { reason: 'NO_OWNER_CHAT' });
-    await container.aiJobs.send({
+    await queuePictureJob(container, {
       id: container.newId(),
       kind: 'source_media',
       chatId,

@@ -47,7 +47,9 @@ const posts: PostSource = {
       .prepare('SELECT status, revision, archived_at IS NOT NULL AS archived FROM posts WHERE id = ?1')
       .bind(postId)
       .first<{ status: 'draft' | 'approved'; revision: number; archived: number }>();
-    return row === null ? null : { status: row.status, revision: row.revision, archived: row.archived === 1 };
+    return row === null
+      ? null
+      : { status: row.status, revision: row.revision, archived: row.archived === 1, mediaPendingUntil: null };
   }
 };
 

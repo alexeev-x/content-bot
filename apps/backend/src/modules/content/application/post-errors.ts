@@ -4,11 +4,12 @@ export function notFound(): AppError {
   return new AppError('NOT_FOUND', 'Post not found');
 }
 
-export function conflict(reason: 'STALE_REVISION' | 'NOT_EDITABLE' | 'ALREADY_APPROVED'): AppError {
+export function conflict(reason: 'STALE_REVISION' | 'NOT_EDITABLE' | 'ALREADY_APPROVED' | 'MEDIA_PENDING'): AppError {
   const message = {
     STALE_REVISION: 'The post changed since this revision was read',
     NOT_EDITABLE: 'Only drafts can be edited',
-    ALREADY_APPROVED: 'The post is already approved'
+    ALREADY_APPROVED: 'The post is already approved',
+    MEDIA_PENDING: 'The post pictures are still being attached'
   }[reason];
   return new AppError('CONFLICT', message, { reason });
 }

@@ -87,6 +87,11 @@ export const postSchema = z.object({
    * plain text for the studio. Null for a classic post. Made by the server; the studio does not edit it yet.
    */
   richHtml: postRichHtmlSchema.nullable().default(null),
+  /**
+   * Until when the bot is still attaching the post's pictures (the patch cover is drawn after approval), or null.
+   * Before it passes nothing is published (409 MEDIA_PENDING) and the studio shows the post as waiting for them.
+   */
+  mediaPendingUntil: z.iso.datetime().nullable().default(null),
   createdAt: z.iso.datetime(),
   updatedAt: z.iso.datetime()
 });

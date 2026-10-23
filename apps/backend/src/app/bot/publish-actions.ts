@@ -105,6 +105,14 @@ export function createPublishActions(
   };
   const { actor } = config;
 
+  // Files still arriving: an import, or the bot attaching a source post's pictures (the patch cover is drawn after
+  // approval, owner 23.10.2026). Nothing is refused: the same button works once they are in.
+  const waitingForFiles = async (postId: string): Promise<boolean> => {
+    if (await container.mediaImports.hasOpenImport(postId)) return true;
+    const until = (await container.postSource.findState(postId))?.mediaPendingUntil ?? null;
+    return until !== null && until > clock.now();
+  };
+
   const approve = async (postId: string, revision: number): Promise<void> => {
     try {
       await approvePost({ repo: container.posts, now: clock.now() }, { actor, id: postId, input: { revision } });
@@ -143,7 +151,7 @@ export function createPublishActions(
     }
     // Files still arriving: the post would go out without them, and the snapshot is taken at approval.
     // Nothing is refused: the same button works once the import report is out.
-    if (await container.mediaImports.hasOpenImport(action.postId)) return { kind: 'importing', postId: action.postId };
+    if (await waitingForFiles(action.postId)) return { kind: 'importing', postId: action.postId };
     let post = await container.postSource.findState(action.postId);
     if (post === null || post.archived) {
       await store.refuse(action.id);
@@ -261,8 +269,7 @@ export function createPublishActions(
       if (clock.now() - action.createdAt > ACTION_TTL_MS) return { kind: 'expired', postId: action.postId };
       // Refusals that consume nothing come first: a tap during the import must not fix `used_at`, or the
       // same button would be dead once the 5-minute schedule window has passed.
-      if (await container.mediaImports.hasOpenImport(action.postId))
-        return { kind: 'importing', postId: action.postId };
+      if (await waitingForFiles(action.postId)) return { kind: 'importing', postId: action.postId };
       // The loser of a race reads the winner's instant, so both build the same publication request.
       await store.claim(action.id, clock.now(), at ?? null);
       const claimed = await store.find(action.id);

@@ -735,6 +735,18 @@ describe('an AI draft approved in the studio', () => {
     });
     expect(api.aiJobs.sent).toMatchObject([{ kind: 'source_media', postId, externalId: '1001' }]);
 
+    // While its pictures are attached the post waits for them: the studio sees it, nothing is published (owner,
+    // 23.10.2026); once the job clears the mark, it may be.
+    const post = postSchema.parse(await (await api.request(`/api/v1/posts/${postId}`)).json());
+    expect(post.mediaPendingUntil).not.toBeNull();
+    const approveInStudio = () =>
+      api.request(`/api/v1/posts/${postId}/approve`, { method: 'POST', json: { revision: post.revision } });
+    const early = await approveInStudio();
+    expect(early.status).toBe(409);
+    expect(await early.json()).toMatchObject({ error: { details: { reason: 'MEDIA_PENDING' } } });
+    await sql('UPDATE posts SET media_pending_until = NULL WHERE id = ?1', postId);
+    expect((await approveInStudio()).status).toBe(200);
+
     const foreign = await api.request(`/api/v1/sources/events/${TREASURE}/ai-draft/approve`, {
       method: 'POST',
       json: { versionId: crypto.randomUUID() }

@@ -71,6 +71,8 @@ export async function approvePost(
   const decision = approve(current, deps.now);
   if (!decision.ok && decision.reason === 'ALREADY_APPROVED') throw conflict('ALREADY_APPROVED');
   if (current.revision !== input.revision) throw conflict('STALE_REVISION');
+  // Its pictures are still being attached, and an approved post takes no files (owner, 23.10.2026).
+  if (current.mediaPendingUntil !== null && current.mediaPendingUntil > deps.now) throw conflict('MEDIA_PENDING');
   if (!decision.ok && decision.reason === 'RICH_INVALID')
     throw new AppError('VALIDATION_ERROR', 'The rich post is not ready to be approved', {
       reason: decision.reason,

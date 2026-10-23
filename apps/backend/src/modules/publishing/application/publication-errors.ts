@@ -38,6 +38,8 @@ export function scheduleRefusal(reason: ScheduleRefusal): AppError {
       return new AppError('CONFLICT', 'Only an approved post can be scheduled', { reason });
     case 'POST_ARCHIVED':
       return new AppError('CONFLICT', 'An archived post must be restored before it is scheduled', { reason });
+    case 'MEDIA_PENDING':
+      return new AppError('CONFLICT', 'The post pictures are still being attached', { reason });
     case 'STALE_REVISION':
       return new AppError('CONFLICT', 'The post is not at this revision', { reason });
     case 'DESTINATION_DISABLED':

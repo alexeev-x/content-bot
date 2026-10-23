@@ -436,7 +436,12 @@ export function createContainer(env: ContainerEnv, overrides: ContainerOverrides
           const post = await posts.findById(postId);
           return post === null
             ? null
-            : { status: post.status, revision: post.revision, archived: post.archivedAt !== null };
+            : {
+                status: post.status,
+                revision: post.revision,
+                archived: post.archivedAt !== null,
+                mediaPendingUntil: post.mediaPendingUntil
+              };
         }
       };
     },
