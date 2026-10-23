@@ -22,13 +22,13 @@ import { rateLimit } from './rate-limit';
 import { createWriterDeps } from './bot/writer-deps';
 import { approveSourceAiDraft, readSourceAiDraft } from './workflows/approve-source-ai-draft';
 import { createSourceEventDraft } from './workflows/create-source-event-draft';
-import { latestDailyReport, latestPatchCover, sendRichSamples } from './workflows/rich-samples';
+import { latestPatchCover, latestReports, sendRichSamples } from './workflows/rich-samples';
 import { readSourceEventContent, requestSourceEventDraft } from './workflows/source-event-ai-draft';
 
 // Every «Написать через ИИ» is a paid model call.
 const AI_DRAFT_LIMIT = 10;
 const AI_DRAFT_WINDOW_MS = 10 * 60 * 1000;
-// Each press sends about a dozen messages to Telegram.
+// Each press sends about two dozen messages to Telegram.
 const RICH_SAMPLES_LIMIT = 6;
 const RICH_SAMPLES_WINDOW_MS = 10 * 60 * 1000;
 // A reasoning model at its default effort took over 25 s on DEV; the studio waits for it.
@@ -69,9 +69,8 @@ export const sourcesRoutes = new Hono<AppBindings>()
         throw new AppError('CONFLICT', 'No enabled test channel', { reason: 'NO_TEST_CHANNEL' });
       const result = await sendRichSamples({
         api,
-        fetch: container.contentFetch,
         patchCover: () => latestPatchCover(container),
-        dailyReport: () => latestDailyReport(container),
+        reports: () => latestReports(container),
         channelChatId: channel.chatId,
         ownerChatId,
         logger: container.logger,

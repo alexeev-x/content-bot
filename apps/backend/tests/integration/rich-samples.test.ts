@@ -58,20 +58,24 @@ describe('POST /api/v1/sources/rich-samples', () => {
     const response = await api.request('/api/v1/sources/rich-samples', { method: 'POST' });
     expect(response.status).toBe(200);
     const { results } = sendRichSamplesResponseSchema.parse(await response.json());
-    expect(results.every((each) => each.status === 'sent')).toBe(true);
+    // DEV's reports are not in the test database: only they fail.
+    expect(results.filter((each) => each.status === 'failed').map((each) => each.sample)).toEqual([
+      'Отчёт за день',
+      'Отчёт за неделю'
+    ]);
     expect(new Set(sent.map((each) => each.chatId))).toEqual(new Set(['-1001', OWNER_ID]));
-    // Without Valve's CDN the uploaded picture falls back to its URL.
+    // Without a patch picture in the library the patch goes without one.
     expect(sent.some((each) => each.html.includes('tg://photo'))).toBe(false);
   });
 
   it('reports a refused sample with Telegram’s text and goes on with the rest', async () => {
-    const { api: rich } = recordingApi('<blockquote expandable>');
+    const { api: rich } = recordingApi('шансы и бонусы');
     const api = createApi({ clock: fakeClock(), richMessages: rich, contentFetch: noNetwork, env: DEV });
     await seedDestination(api, { title: 'Тест канал', chatId: '-1001' });
     const { results } = sendRichSamplesResponseSchema.parse(
       await (await api.request('/api/v1/sources/rich-samples', { method: 'POST' })).json()
     );
-    const failed = results.filter((each) => each.status === 'failed');
+    const failed = results.filter((each) => each.error?.startsWith('Bad Request') === true);
     expect(failed.map((each) => each.error)).toEqual(['Bad Request: unsupported tag', 'Bad Request: unsupported tag']);
     expect(results.filter((each) => each.status === 'sent').length).toBeGreaterThan(0);
   });

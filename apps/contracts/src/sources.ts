@@ -100,7 +100,7 @@ export const richSampleResultSchema = z.object({
   status: z.enum(['sent', 'failed']),
   error: z.string().max(300).nullable()
 });
-export const sendRichSamplesResponseSchema = z.object({ results: z.array(richSampleResultSchema).max(20) });
+export const sendRichSamplesResponseSchema = z.object({ results: z.array(richSampleResultSchema).max(40) });
 export type SendRichSamplesResponse = z.infer<typeof sendRichSamplesResponseSchema>;
 
 /** The newest version of an event's AI draft, for the side panel. */

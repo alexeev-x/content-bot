@@ -101,9 +101,9 @@ The AI makes the Telegram channel's content itself: news and rubric posts drafte
   published, pictures from ones already made or from the sources (Valve's CDN). The owner looks on phone and desktop;
   then we pick what posts and the report use. Open: the `<mark>` colour, red/green in `diff`, how old clients and
   channels show rich messages, scheduling (sendRichMessage has no schedule field), editing in the studio.
-  Built 23.10.2026: «Rich-образцы (DEV)» on «Источники» (`POST /api/v1/sources/rich-samples`, `RICH_SAMPLES`); the
-  patch, the Dark Carnival post and its treasure sets, the 7.41e news, the Primal Beast file find (rich and classic
-  `pre`) and the report (owner's chat only, numbers only for the layout). `<mark>` has no colour attribute in the API.
+  Built 23.10.2026: «Rich-образцы (DEV)» on «Источники» (`POST /api/v1/sources/rich-samples`, `RICH_SAMPLES`): every
+  post kind (a patch, a hotfix, the three event series posts, a treasure's news, sets and details, a news post, a file
+  find as rich and classic `pre`) and DEV's newest daily and weekly reports as tables (owner's chat only). `<mark>` has no colour attribute in the API.
   Owner on the first look (23.10.2026): one picture per post (a collage of hero portraits looked awful); a treasure
   lists every set in the table; no English text but names; no «Источник» line and no links but «Подробнее» to dota2.com.
 - Next: changes in the game's files (owner, 23.10.2026: «это очень интересное»). Source: the GitHub repo
