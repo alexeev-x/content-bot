@@ -26,6 +26,8 @@ export interface PatchDigest {
   heroes: PatchEntityNotes[];
   items: PatchEntityNotes[];
   neutralItems: PatchEntityNotes[];
+  /** Talent notes among the heroes' (the patch picture's «Таланты героев»). */
+  talentNotes?: number;
   /** Every note of the patch, the size that tells a small patch from a big one. */
   noteCount: number;
 }
@@ -101,7 +103,9 @@ const MODE_SECTION = /\b(?:mode|turbo|ranked|matchmaking)\b/i;
 
 /**
  * The patch picture's points (owner, 22.10.2026): the heaviest 3–4 of heroes, items, the map, mechanics and modes, by
- * how many heroes or items changed and how many notes the general sections have. Russian captions of two words.
+ * how many heroes or items changed and how many notes the general sections have. A patch with fewer than three of them
+ * (7.41f: heroes and items only) adds talents and neutral items (owner, 23.10.2026: at least three). Russian captions
+ * of two words.
  */
 export function patchPicturePoints(digest: PatchDigest): string[] {
   const sectionNotes = (match: (title: string) => boolean) =>
@@ -113,11 +117,18 @@ export function patchPicturePoints(digest: PatchDigest): string[] {
     ['Правки механик', sectionNotes((title) => !MAP_SECTION.test(title) && !MODE_SECTION.test(title))],
     ['Режимы игры', sectionNotes((title) => MODE_SECTION.test(title))]
   ];
-  return weights
-    .filter(([, weight]) => weight > 0)
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 4)
-    .map(([caption]) => caption);
+  const heaviest = (list: [string, number][]) =>
+    list
+      .filter(([, weight]) => weight > 0)
+      .sort((a, b) => b[1] - a[1])
+      .map(([caption]) => caption);
+  const points = heaviest(weights).slice(0, 4);
+  if (points.length >= 3) return points;
+  const extras = heaviest([
+    ['Таланты героев', digest.talentNotes ?? 0],
+    ['Нейтральные предметы', digest.neutralItems.length]
+  ]);
+  return [...points, ...extras].slice(0, 4);
 }
 
 /** A hotfix's only point: Valve lists fixes in it. */

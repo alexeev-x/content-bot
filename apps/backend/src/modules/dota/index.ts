@@ -357,7 +357,8 @@ export async function digestOfficialPatch(fetcher: DotaSourceFetcher, version: s
     heroes: entities(parsed.data.heroes, names.heroes, 'hero_id'),
     items: entities(parsed.data.items, names.items, 'ability_id'),
     neutralItems: entities(parsed.data.neutral_items, names.items, 'ability_id'),
-    noteCount: 0
+    noteCount: 0,
+    talentNotes: (parsed.data.heroes ?? []).reduce((sum, hero) => sum + texts(hero.talent_notes).length, 0)
   };
   digest.noteCount =
     digest.general.reduce((sum, group) => sum + group.notes.length, 0) +

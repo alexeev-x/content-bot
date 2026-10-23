@@ -300,7 +300,12 @@ export const copy = {
       title: 'Деньги',
       today: (spent: string, cap: string | null) => (cap === null ? `сегодня ${spent}` : `сегодня ${spent} из ${cap}`),
       sourcesLabel: 'Куда ушли деньги',
-      source: { bot: 'Черновики из бота', studio: 'Контрольные прогоны', other: 'Разборы, отчёты, проверки' },
+      source: {
+        bot: 'Черновики из бота',
+        studio: 'Контрольные прогоны',
+        images: 'Картинки к патчам',
+        other: 'Разборы, отчёты, проверки'
+      },
       requests: (count: number) => `${count} ${pluralRu(count, 'запрос', 'запроса', 'запросов')}`
     },
     drafts: {

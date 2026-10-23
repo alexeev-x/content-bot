@@ -11,6 +11,9 @@ import { assertAiReady, costMicroUsd, effectivePrices, priceFor, readAiSettings 
 // caption that differs means another try. After three tries the post goes without a picture.
 
 const IMAGE_MODEL = 'gpt-image-2.5-sunburst';
+// OpenAI's price (model page, read 23.10.2026): image input $8, text input $5, image output $30 per 1M tokens. Its
+// usage does not split our input, so all of it is priced as the image input (the references are most of it).
+const IMAGE_PRICE = { model: IMAGE_MODEL, inputPerMillion: 8, cachedInputPerMillion: 2, outputPerMillion: 30 };
 /** Reads pictures; the owner named it for the read-back (plan 22.10.2026). */
 const READ_MODEL = 'gpt-6.1-sol';
 const SIZE = '1536x768';
@@ -63,7 +66,7 @@ export function patchPicturePrompt(input: { number: string; points: readonly str
     'Below it a thin glowing horizontal line, then a row of columns separated by thin vertical lines; each column has a small glowing icon above a caption in white uppercase letters (two lines when the caption has two words).',
     `Exactly ${input.points.length} column${input.points.length === 1 ? '' : 's'}, captions exactly as written, left to right:`,
     captions,
-    'Each icon fits its caption (heroes: a helmet or swords; items: a leaf or a box; map: a map; mechanics: a gear or a target; modes: a dice; bug fixes: a wrench; a new hero: a star).',
+    'Each icon fits its caption (heroes: a helmet or swords; items: a leaf or a box; map: a map; mechanics: a gear or a target; modes: a dice; bug fixes: a wrench; talents: a branching tree; neutral items: a gem).',
     `Color theme: ${input.theme}.`,
     'No other text anywhere. Spell the number and the Russian captions letter by letter as given.'
   ].join('\n');
@@ -101,7 +104,7 @@ export async function drawPatchPicture(
   if (deps.images === null || points.length === 0) return { kind: 'failed', reason: 'unavailable' };
   const references = PATCH_COVER_REFERENCES.map(decodeReference);
   // One ledger row per call and nothing more: the spend was checked above, and three tries must stay inside the
-  // Free plan's 50 subrequests of the job (QA 23.10.2026). The picture's model has no price yet (null cost).
+  // Free plan's 50 subrequests of the job (QA 23.10.2026).
   const prices = effectivePrices(settings);
   const record = (kind: 'other' | 'check', provider: string, model: string, usage: AiUsage) =>
     deps.repo.recordUsage({
@@ -111,7 +114,7 @@ export async function drawPatchPicture(
       provider,
       model: model.slice(0, 80),
       usage,
-      costMicroUsd: costMicroUsd(usage, priceFor(prices, model))
+      costMicroUsd: costMicroUsd(usage, kind === 'other' ? IMAGE_PRICE : priceFor(prices, model))
     });
   let reason: 'mismatch' | 'provider' = 'mismatch';
   const started = deps.clock.now();

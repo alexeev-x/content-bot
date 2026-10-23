@@ -87,6 +87,10 @@ describe('a patch picture', () => {
     expect(result).toEqual({ kind: 'drawn', bytes: new Uint8Array([0xff, 0xd8, 2]), contentType: 'image/jpeg' });
     expect(draws).toBe(2);
     expect(reads).toEqual([{ images: 1 }, { images: 1 }]);
+    // Each picture is priced and shows as its own line of the month's spend.
+    const spend = await createD1AiRepository(testDb()).readSpend({ monthStart: 0, dayStart: 0, bySource: true });
+    expect(spend.images.requests).toBe(2);
+    expect(spend.images.pricedMicroUsd).toBe(2 * (100 * 8 + 10 * 30));
   });
 
   it('gives up after three wrong pictures', async () => {
@@ -134,5 +138,17 @@ describe('the points of a patch picture', () => {
         noteCount: 3
       })
     ).toEqual(['Баланс героев']);
+    // 7.41f: 35 heroes, 16 items, 12 talent notes, 2 neutral items and no general notes: at least three points.
+    expect(
+      patchPicturePoints({
+        version: '7.41f',
+        general: [],
+        heroes: entities(35),
+        items: entities(16),
+        neutralItems: entities(2),
+        talentNotes: 12,
+        noteCount: 0
+      })
+    ).toEqual(['Баланс героев', 'Изменения предметов', 'Таланты героев', 'Нейтральные предметы']);
   });
 });

@@ -159,16 +159,17 @@ export async function updateAiSettings(
 
 /**
  * The month's money by where it went (owner, 20.10.2026: on DEV $1.27 of $1.50 were studio control runs, not the bot):
- * the bot's drafts, the studio's runs, and the rest (video reviews, reports, lessons, checks).
+ * the bot's drafts, the studio's runs, the patch pictures, and the rest (video reviews, reports, lessons, checks).
  */
 function spendBySource(rows: SpendRows, requests: number, spentMicro: number): AiSpendDto['bySource'] {
   const bot = rows.bySource.find((row) => row.source === 'bot');
   const studio = rows.bySource.find((row) => row.source === 'studio');
-  const known = (bot?.requests ?? 0) + (studio?.requests ?? 0);
-  const knownMicro = (bot?.costMicroUsd ?? 0) + (studio?.costMicroUsd ?? 0);
+  const known = (bot?.requests ?? 0) + (studio?.requests ?? 0) + rows.images.requests;
+  const knownMicro = (bot?.costMicroUsd ?? 0) + (studio?.costMicroUsd ?? 0) + rows.images.pricedMicroUsd;
   return [
     { source: 'bot', requests: bot?.requests ?? 0, spentUsd: toUsd(bot?.costMicroUsd ?? 0) },
     { source: 'studio', requests: studio?.requests ?? 0, spentUsd: toUsd(studio?.costMicroUsd ?? 0) },
+    { source: 'images', requests: rows.images.requests, spentUsd: toUsd(rows.images.costMicroUsd) },
     { source: 'other', requests: Math.max(0, requests - known), spentUsd: toUsd(Math.max(0, spentMicro - knownMicro)) }
   ];
 }

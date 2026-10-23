@@ -13,6 +13,11 @@ export interface SpendRows {
   todayMicroUsd: number;
   /** Writer requests this month by where the draft was asked: the bot or the studio's control runs. */
   bySource: { source: 'bot' | 'studio'; requests: number; costMicroUsd: number }[];
+  /**
+   * Pictures drawn this month (the image model's rows); only with `bySource`. `pricedMicroUsd` is what the ledger
+   * counted; `costMicroUsd` also prices the pictures of 23.10.2026 written before their price was known.
+   */
+  images: { requests: number; costMicroUsd: number; pricedMicroUsd: number };
 }
 
 export interface AiRepository {
@@ -104,13 +109,26 @@ export function createD1AiRepository(db: D1Database): AiRepository {
              FROM ai_generations g JOIN ai_usage u ON u.id = g.usage_id
              WHERE g.created_at >= ?1 AND u.at >= ?1 GROUP BY g.source`
           )
+          .bind(monthStart),
+        // A picture has no generation: told apart by its model (patch pictures, owner 23.10.2026).
+        db
+          .prepare(
+            `SELECT COUNT(*) AS requests, COALESCE(SUM(cost_micro_usd), 0) AS pricedMicroUsd,
+                    COALESCE(SUM(COALESCE(cost_micro_usd, input_tokens * 8 + output_tokens * 30)), 0) AS costMicroUsd
+             FROM ai_usage WHERE at >= ? AND model LIKE 'gpt-image-%'`
+          )
           .bind(monthStart)
       ];
-      const [kinds, today, sources] = await db.batch(bySource ? statements : statements.slice(0, 2));
+      const [kinds, today, sources, images] = await db.batch(bySource ? statements : statements.slice(0, 2));
       return {
         byKind: (kinds?.results ?? []) as SpendRows['byKind'],
         todayMicroUsd: ((today?.results ?? [])[0] as { total: number } | undefined)?.total ?? 0,
-        bySource: (sources?.results ?? []) as SpendRows['bySource']
+        bySource: (sources?.results ?? []) as SpendRows['bySource'],
+        images: ((images?.results ?? [])[0] as SpendRows['images'] | undefined) ?? {
+          requests: 0,
+          costMicroUsd: 0,
+          pricedMicroUsd: 0
+        }
       };
     },
 

@@ -137,6 +137,7 @@ describe('AI settings, spend and connection', () => {
     expect(overview.spend.bySource.map((row) => `${row.source}:${row.requests}`)).toEqual([
       'bot:0',
       'studio:1',
+      'images:0',
       'other:0'
     ]);
     expect(overview.spend.bySource[1]?.spentUsd).toBe(overview.spend.spentUsd);

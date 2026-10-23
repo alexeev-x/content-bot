@@ -105,10 +105,13 @@ export const aiSpendSchema = z.object({
   byKind: z.array(
     z.object({ kind: aiUsageKindSchema, requests: z.number().int().nonnegative(), spentUsd: z.number().nonnegative() })
   ),
-  /** Where the month's money went: the bot's drafts, the studio's control runs, everything else (reviews, reports). */
+  /**
+   * Where the month's money went: the bot's drafts, the studio's control runs, the patch pictures (owner, 23.10.2026),
+   * everything else (reviews, reports, checks).
+   */
   bySource: z.array(
     z.object({
-      source: z.enum(['bot', 'studio', 'other']),
+      source: z.enum(['bot', 'studio', 'images', 'other']),
       requests: z.number().int().nonnegative(),
       spentUsd: z.number().nonnegative()
     })
