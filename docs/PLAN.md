@@ -86,11 +86,9 @@ The AI makes the Telegram channel's content itself: news and rubric posts drafte
     goes without a picture and the owner gets a short note.
   - Built 22.10.2026: the patch post from Valve's notes and the hotfix check; 23.10.2026: the patch picture
     (`docs/backend/sources.md` «Patch posts», «Patch picture»; its price per picture is measured on the first DEV calls).
-    Still to do, in order:
-    1. The owner renames a video's short name in the studio (`content_video_names.source = 'owner'`, migration
-       0102); the AI never overwrites it.
-    2. A whole patch seen once more on DEV with a real announcement (the owner's check), then the AI over Dota's
-       sources is closed (owner, 22.10.2026); other sources come next.
+    Seen on DEV 23.10.2026: 7.41e went out without the owner with its picture (the DEV-only «Проверить автопубликацию»), so
+    the AI over Dota's sources is closed; other sources come next. Renaming a video's short name in the studio is dropped
+    (owner, 23.10.2026: «мелочи», the AI's names will do).
 - Find and add more that give a post a day without the owner's work; each must be free, keyless or with a free key,
   and allowed by its terms.
 
