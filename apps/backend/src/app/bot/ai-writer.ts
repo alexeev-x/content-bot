@@ -1,4 +1,4 @@
-import type { CreatePostInput } from '@alexeev/contracts';
+import { type CreatePostInput, expandRichMedia } from '@alexeev/contracts';
 import { type Api, type Bot, type Context, GrammyError, InlineKeyboard } from 'grammy';
 import type { InlineKeyboardMarkup } from 'grammy/types';
 import {
@@ -139,9 +139,12 @@ type Action =
   | 'noedit'
   | 'retry'
   | 'undo'
+  | 'view'
   | `r:${Reason}`;
 const CALLBACK =
-  /^ai:([0-9a-f-]{36}):(h[0-2]|more|short|fun|joke|ok|why|back|edit|noedit|retry|undo|r:(?:topic|hook|joke|style|long|fact|task))(?::([0-9a-f]{12}))?$/;
+  /^ai:([0-9a-f-]{36}):(h[0-2]|more|short|fun|joke|ok|why|back|edit|noedit|retry|undo|view|r:(?:topic|hook|joke|style|long|fact|task))(?::([0-9a-f]{12}))?$/;
+
+const PREVIEW_CLASSIC_TEXT = 'Этот пост уйдёт обычным текстом — так, как он выглядит в черновике.';
 
 const escapeHtml = (value: string): string =>
   value.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;');
@@ -192,6 +195,8 @@ function keyboard(
     .text('Смешнее', revisionData('fun'))
     .row();
   board.text('✏️ Изменить', data('edit')).text('Что не так?', revisionData('why')).row();
+  // The approved rich sample of a source's draft as it will go out (owner, 23.10.2026: check the posts in Telegram).
+  board.text('👁 Как в канале', data('view')).row();
   board.text('Одобрить', data('ok'));
   if (undo) board.text('↩ Вернуть прошлый', data('undo'));
   if (appOrigin !== null) board.row().webApp('Открыть студию', `${appOrigin}/`);
@@ -1125,6 +1130,11 @@ export function registerAiWriter(bot: Bot, runtime: AiWriterRuntime): void {
         await approve(ctx, deps, generationId);
         return;
       }
+      if (action === 'view') {
+        await ctx.answerCallbackQuery().catch((error: unknown) => runtime.onError(error));
+        await preview(ctx, deps, generationId);
+        return;
+      }
       const text = await chooseHook(deps, generationId, Number(action.slice(1)), revisionToken ?? '');
       await ctx.answerCallbackQuery();
       const generation = await deps.writer.findGeneration(generationId);
@@ -1148,6 +1158,26 @@ export function registerAiWriter(bot: Bot, runtime: AiWriterRuntime): void {
         .catch(() => undefined);
     }
   });
+
+  /**
+   * The current version as the channel will get it: the rich sample of a source's draft, its picture left out (it is
+   * attached at publishing), or a word that the post goes out as its text.
+   */
+  async function preview(ctx: Context, deps: WriterDeps, generationId: string) {
+    const generation = await deps.writer.findGeneration(generationId);
+    const current = (await deps.writer.revisions(generationId)).at(-1);
+    if (generation === null || current === undefined) throw new AppError('NOT_FOUND', 'The draft is gone');
+    const fromSource = await isSourceDraft((id) => deps.writer.findGeneration(id), generation);
+    const richHtml = aiRichHtml(current.text, fromSource);
+    if (richHtml === null) {
+      await ctx.reply(PREVIEW_CLASSIC_TEXT);
+      return;
+    }
+    await ctx.api.raw.sendRichMessage({
+      chat_id: ctx.chat?.id ?? 0,
+      rich_message: { html: expandRichMedia(richHtml, []) }
+    });
+  }
 
   // Approval stores the final text and its edit ratio. A Telegram text then becomes a studio draft with the
   // usual publish buttons; the post is made from the approved revision only (never from an AI_DRAFT).

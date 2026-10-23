@@ -79,7 +79,9 @@ export function PostPublishPage({ id }: Props) {
   const limit = post.media.length > 0 ? 1024 : 4096;
   const isPoll = post.kind === 'poll';
   const issue = isPoll && post.poll ? pollIssue(post.poll) : null;
-  const unsupported = post.media.length > 1 && post.media.some((item) => item.kind === 'animation');
+  // A rich post goes out as one rich message: Telegram's caption and album limits do not apply to it.
+  const isRich = post.richHtml !== null;
+  const unsupported = !isRich && post.media.length > 1 && post.media.some((item) => item.kind === 'animation');
 
   return (
     <>
@@ -99,7 +101,7 @@ export function PostPublishPage({ id }: Props) {
           {postsCopy.poll.issues[issue]} Вернитесь в редактор и исправьте опрос.
         </Banner>
       ) : null}
-      {length > limit ? (
+      {!isRich && length > limit ? (
         <Banner tone="error" title="Текст не помещается в сообщение Telegram">
           {post.media.length > 0
             ? `Подпись с медиа ограничена ${limit} символами. Сократите текст до лимита; он не будет обрезан или разделён.`
@@ -128,6 +130,7 @@ export function PostPublishPage({ id }: Props) {
             limit={limit}
             media={post.media}
             poll={isPoll ? post.poll : null}
+            richHtml={post.richHtml}
           />
         </PublicationSettings>
       </div>

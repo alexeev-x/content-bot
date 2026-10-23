@@ -121,7 +121,8 @@ export function usePostEditor({
   const mixed = baseline === null && body.trim() !== '' && !isPollBlank(poll);
   const issue: PollIssue | null = kind === 'poll' ? pollIssue(poll) : null;
   const failed = failedKey === changeKey;
-  const readOnly = baseline?.status === 'approved' || conflict?.kind === 'locked';
+  // A rich post goes out as its rich HTML, which the studio does not edit yet (owner, 23.10.2026: «Переписать» in the bot).
+  const readOnly = baseline?.status === 'approved' || baseline?.richHtml != null || conflict?.kind === 'locked';
   const isSaving = create.isPending || update.isPending;
   const isApproving = approve.isPending;
   const isBusy = isSaving || isApproving || mediaPending;

@@ -230,6 +230,7 @@ export function PostEditor({
         length={editor.length}
         media={isPoll ? [] : (baseline?.media ?? [])}
         poll={isPoll ? editor.poll : null}
+        richHtml={baseline?.richHtml ?? null}
         desktopHeader={!narrow}
         onCollapse={!narrow && !showApprovedPreview ? () => setDesktopPreviewOpen(false) : undefined}
       />
@@ -365,6 +366,11 @@ export function PostEditor({
               {copy.errors.requestId}: <code>{notice.requestId}</code>
             </>
           ) : null}
+        </Banner>
+      ) : null}
+      {baseline?.richHtml != null ? (
+        <Banner tone="info" title={copy.rich.title}>
+          {copy.rich.body}
         </Banner>
       ) : null}
       {notices}

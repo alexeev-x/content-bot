@@ -7,6 +7,7 @@ import { getPostMediaContent } from '../api/post-media-api';
 import { previewMessage } from '../model/preview-message';
 import { postsCopy } from './copy';
 import { EntityText } from './EntityText';
+import { RichText } from './RichText';
 import styles from './PostEditor.module.css';
 
 type Props = {
@@ -19,6 +20,8 @@ type Props = {
   media?: PostMediaDto[];
   /** A poll post: the preview is the empty poll as a channel shows it, never votes or percentages. */
   poll?: PostPoll | null | undefined;
+  /** A rich post: what the channel gets instead of the title and body (owner, 23.10.2026). */
+  richHtml?: string | null | undefined;
   desktopHeader?: boolean;
   onCollapse?: (() => void) | undefined;
 };
@@ -41,6 +44,7 @@ export function PostPreview({
   entities,
   media = emptyMedia,
   poll = null,
+  richHtml = null,
   desktopHeader = false,
   onCollapse
 }: Props) {
@@ -129,6 +133,8 @@ export function PostPreview({
                 kindLabel={poll.quiz ? pollCopy.preview.quiz : pollCopy.preview.anonymous}
                 emptyOption={pollCopy.optionLabel}
               />
+            ) : richHtml !== null ? (
+              <RichText html={richHtml} />
             ) : isEmpty ? (
               copy.previewEmpty
             ) : (
