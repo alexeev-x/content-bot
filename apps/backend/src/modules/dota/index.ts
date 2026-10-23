@@ -365,6 +365,19 @@ export async function digestOfficialPatch(fetcher: DotaSourceFetcher, version: s
   return digest;
 }
 
+/** The newest version in Valve's patch list: a hotfix belongs to it (its own title has only a date). */
+export async function latestPatchVersion(fetcher: DotaSourceFetcher): Promise<string | null> {
+  const items = parsePatchList(
+    await readBoundedJson(await fetcher.fetch('patch_notes'), MAX_PATCH_BYTES, 'patch_notes')
+  );
+  return (
+    items.reduce<DotaUpdateItem | null>(
+      (last, item) => (last === null || item.publishedAt > last.publishedAt ? item : last),
+      null
+    )?.externalId ?? null
+  );
+}
+
 export async function inspectOfficialPatch(fetcher: DotaSourceFetcher, version: string): Promise<DotaPatchInspection> {
   let response: Response;
   try {
@@ -1804,9 +1817,11 @@ export {
   type TreasureWatchRepository
 } from './treasure-watch-repository';
 export {
+  HOTFIX_PICTURE_POINTS,
   isHotfixTitle,
   type PatchDigest,
   patchDigestText,
   type PatchEntityNotes,
+  patchPicturePoints,
   patchVersionOf
 } from './patch-digest';

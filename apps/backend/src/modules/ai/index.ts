@@ -4,6 +4,7 @@ export { SOURCE_LINK_LABEL } from './writer';
 export { planSeries, SERIES_POSTS_MAX, type SeriesPlanPost } from './series-planner';
 export { checkFacts, generateCheckedDraft } from './fact-check';
 export { createOpenAiProvider } from './openai-provider';
+export { createOpenAiImageProvider } from './openai-image-provider';
 export { createAnthropicProvider } from './anthropic-provider';
 export { createModelRouter, providerOfModel } from './model-router';
 export {
@@ -17,6 +18,7 @@ export {
 } from './d1-rules-repository';
 export { type AnalyticsReview, writeAnalyticsReview } from './analytics-review';
 export { hotfixWorthPost } from './hotfix-check';
+export { drawPatchPicture, type PatchPictureResult } from './patch-picture';
 export {
   ACTIVE_HYPOTHESES_MAX,
   createD1HypothesesRepository,
@@ -42,7 +44,13 @@ export {
   type ConsolidationResult,
   type RuleVideo
 } from './rule-consolidation';
-export { type AiTextProvider, AiProviderError, type OwnerPost, type OwnerPostSource } from './ports';
+export {
+  type AiImageProvider,
+  type AiTextProvider,
+  AiProviderError,
+  type OwnerPost,
+  type OwnerPostSource
+} from './ports';
 export {
   AI_KEY_NAME,
   assertAiReady,

@@ -21,9 +21,11 @@ const MAX_PICTURES = 4;
 
 export type AutopublishOutcome =
   /** `publicationId` null: written, but its answer was lost. */
-  | { kind: 'published'; postId: string; publicationId: string | null; title: string }
+  | { kind: 'published'; postId: string; publicationId: string | null; title: string; pictureFailed?: true }
   /** Approved but not published: the owner publishes it from the studio (`postId` null: from the event). */
   | { kind: 'held'; postId: string | null; title: string; reason: 'no_images' | 'failed' }
+  /** Approved; its picture is drawn and the post published by its own queue job (`patch_publish`). */
+  | { kind: 'queued'; postId: string; title: string }
   /** Nothing done: the owner gets the draft as before. */
   | { kind: 'skipped'; reason: 'off' | 'channel' | 'limit' };
 
@@ -38,6 +40,11 @@ export async function autopublishSourceEvent(
     requestId: string;
     /** A treasure's follow-up (1 or 2): its own publication key, no pictures, not the event's own post. */
     followUp?: number;
+    /**
+     * A patch: its picture is drawn by a job of its own (QA 23.10.2026: three tries do not fit the Free plan's 50
+     * subrequests next to the writer's), which then publishes the approved post.
+     */
+    queuePicture?: (postId: string) => Promise<void>;
   }
 ): Promise<AutopublishOutcome> {
   const settings = await getOwnerOperationsSettings({
@@ -74,13 +81,80 @@ export async function autopublishSourceEvent(
     if (!approved) throw error;
     return { kind: 'held', postId: null, title: '', reason: 'failed' };
   }
+  if (input.queuePicture !== undefined) {
+    try {
+      await input.queuePicture(postId);
+      return { kind: 'queued', postId, title };
+    } catch (error) {
+      container.logger.warn({
+        component: 'autopublish',
+        operation: 'source_event',
+        requestId: input.requestId,
+        status: 'held',
+        errorCode: error instanceof Error ? error.name : 'unknown'
+      });
+      return { kind: 'held', postId, title, reason: 'failed' };
+    }
+  }
+  return publishApprovedEventPost(container, media, {
+    postId,
+    title,
+    externalId: input.externalId,
+    requestId: input.requestId,
+    destinationId,
+    timezone: settings.timezone,
+    ...(input.followUp === undefined ? {} : { followUp: input.followUp })
+  });
+}
+
+/**
+ * The `patch_publish` job: the approved patch post gets its picture and goes out, while the owner still keeps the
+ * automatic publishing on with a channel (off meanwhile: the post waits in the studio).
+ */
+export async function publishQueuedPatchPost(
+  container: Container,
+  media: SourceMediaDeps,
+  input: { postId: string; externalId: string; requestId: string }
+): Promise<AutopublishOutcome> {
+  const settings = await getOwnerOperationsSettings({
+    repo: container.settings,
+    logger: container.logger,
+    requestId: input.requestId
+  });
+  const title = (await container.posts.findById(input.postId))?.title ?? '';
+  const { enabled, destinationId } = settings.autopublish;
+  if (!enabled || destinationId === null) return { kind: 'held', postId: input.postId, title, reason: 'failed' };
+  return publishApprovedEventPost(container, media, {
+    ...input,
+    title,
+    destinationId,
+    timezone: settings.timezone
+  });
+}
+
+async function publishApprovedEventPost(
+  container: Container,
+  media: SourceMediaDeps,
+  input: {
+    postId: string;
+    title: string;
+    externalId: string;
+    requestId: string;
+    destinationId: string;
+    timezone: string;
+    followUp?: number;
+  }
+): Promise<AutopublishOutcome> {
+  const { postId, destinationId } = input;
+  let title = input.title;
   try {
     // An event post always carries its picture (owner, 21.10.2026): attached before approval, since an approved post
     // no longer takes files. With pictures in the announcement and none of them arriving, the owner decides.
-    const { attached, found } =
+    // A patch gets its drawn picture instead; one that could not be drawn goes without (plan 22.10.2026).
+    const { attached, found, pictureFailed } =
       input.followUp === undefined
         ? await attachSourceEventImages(media, { postId, externalId: input.externalId, max: MAX_PICTURES })
-        : { attached: 0, found: 0 };
+        : { attached: 0, found: 0, pictureFailed: undefined };
     if (found > 0 && attached === 0) return { kind: 'held', postId, title, reason: 'no_images' };
     const draft = await container.posts.findById(postId);
     if (draft === null) throw new Error('The approved post is gone');
@@ -114,11 +188,17 @@ export async function autopublishSourceEvent(
           revision: post.revision,
           destinationId,
           scheduledAt: new Date(container.clock.now()).toISOString(),
-          timezone: settings.timezone
+          timezone: input.timezone
         }
       }
     );
-    return { kind: 'published', postId, publicationId: publication.id, title: post.title };
+    return {
+      kind: 'published',
+      postId,
+      publicationId: publication.id,
+      title: post.title,
+      ...(pictureFailed === true ? { pictureFailed } : {})
+    };
   } catch (error) {
     container.logger.warn({
       component: 'autopublish',

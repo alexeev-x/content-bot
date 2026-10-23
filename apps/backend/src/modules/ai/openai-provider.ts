@@ -31,7 +31,7 @@ const responseSchema = z.object({
 });
 
 /** The body as text, read no further than `maxBytes` (an endless or huge body never fills memory). */
-async function readBounded(response: Response, maxBytes: number): Promise<string> {
+export async function readBounded(response: Response, maxBytes: number): Promise<string> {
   const reader = response.body?.getReader();
   if (reader === undefined) throw new AiProviderError('AI_RESPONSE_SHAPE', true);
   const chunks: Uint8Array[] = [];
@@ -58,7 +58,7 @@ async function readBounded(response: Response, maxBytes: number): Promise<string
 export function createOpenAiProvider(apiKey: string, fetchImpl: typeof fetch): AiTextProvider {
   return {
     provider: 'openai',
-    async complete({ model, instructions, input, maxOutputTokens, jsonSchema, signal }): Promise<AiCompletion> {
+    async complete({ model, instructions, input, maxOutputTokens, jsonSchema, images, signal }): Promise<AiCompletion> {
       let response: Response;
       try {
         // A plain call: the runtime's fetch throws «Illegal invocation» when called as a method of another object.
@@ -69,7 +69,19 @@ export function createOpenAiProvider(apiKey: string, fetchImpl: typeof fetch): A
           body: JSON.stringify({
             model,
             instructions,
-            input,
+            // With pictures the input is one user message of text and image parts.
+            input:
+              images === undefined || images.length === 0
+                ? input
+                : [
+                    {
+                      role: 'user',
+                      content: [
+                        { type: 'input_text', text: input },
+                        ...images.map((url) => ({ type: 'input_image', image_url: url }))
+                      ]
+                    }
+                  ],
             max_output_tokens: maxOutputTokens,
             store: false,
             // Structured output: the answer is JSON of this schema (Responses API `text.format`).

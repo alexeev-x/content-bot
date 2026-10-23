@@ -94,3 +94,31 @@ export function patchDigestText(digest: PatchDigest): string {
   const text = parts.join('\n\n');
   return text.length > DIGEST_MAX ? `${text.slice(0, DIGEST_MAX - 1)}…` : text;
 }
+
+/** A general section of Valve's notes by its title (7.39–7.41: «Map Objectives», «Terrain Changes», «Captains Mode»). */
+const MAP_SECTION = /\b(?:map|terrain|objectives?)\b/i;
+const MODE_SECTION = /\b(?:mode|turbo|ranked|matchmaking)\b/i;
+
+/**
+ * The patch picture's points (owner, 22.10.2026): the heaviest 3–4 of heroes, items, the map, mechanics and modes, by
+ * how many heroes or items changed and how many notes the general sections have. Russian captions of two words.
+ */
+export function patchPicturePoints(digest: PatchDigest): string[] {
+  const sectionNotes = (match: (title: string) => boolean) =>
+    digest.general.filter((group) => match(group.title)).reduce((sum, group) => sum + group.notes.length, 0);
+  const weights: [string, number][] = [
+    ['Баланс героев', digest.heroes.length],
+    ['Изменения предметов', digest.items.length + digest.neutralItems.length],
+    ['Обновления карты', sectionNotes((title) => MAP_SECTION.test(title))],
+    ['Правки механик', sectionNotes((title) => !MAP_SECTION.test(title) && !MODE_SECTION.test(title))],
+    ['Режимы игры', sectionNotes((title) => MODE_SECTION.test(title))]
+  ];
+  return weights
+    .filter(([, weight]) => weight > 0)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 4)
+    .map(([caption]) => caption);
+}
+
+/** A hotfix's only point: Valve lists fixes in it. */
+export const HOTFIX_PICTURE_POINTS: readonly string[] = ['Исправления ошибок'];

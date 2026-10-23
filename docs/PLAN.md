@@ -84,20 +84,12 @@ The AI makes the Telegram channel's content itself: news and rubric posts drafte
     changes or new items, the map, mechanics, modes; «Исправления ошибок» for a hotfix), the heaviest 3–4. A second
     call reads the picture back; a number or a caption that differs means another try (at most three), then the post
     goes without a picture and the owner gets a short note.
-  - Built 22.10.2026: the patch post from Valve's notes and the hotfix check (`docs/backend/sources.md` «Patch
-    posts»). Still to do, in order:
-    1. The patch picture as above. Research of 22.10.2026: OpenAI `POST /v1/images/edits` (multipart, repeated
-       `image[]` references, `prompt`, `model`, `size` 1536x768 is valid: multiples of 16, 2:1, `quality`,
-       `output_format: jpeg`; answer in `data[0].b64_json`; up to ~2 minutes, so a queue job with a 120 s+ timeout;
-       `moderation_blocked` is an ordinary failure). Model `gpt-image-2.5-sunburst` (editing precision) or
-       `-flare`; `gpt-image-1` shuts down 23.10.2026. No official per-image price for 2.5: measure `usage` on the
-       first calls. The read-back with `gpt-6.1-sol` (it reads images): the Responses API with an `input_image`
-       data URL and a strict JSON schema; the provider port takes text only today and must take image parts. The
-       references (2–3 of `design-refs/patch-cover/`, downscaled) ship with the Worker. The picture goes to the
-       post's media like the announcement's images and replaces them.
-    2. The owner renames a video's short name in the studio (`content_video_names.source = 'owner'`, migration
+  - Built 22.10.2026: the patch post from Valve's notes and the hotfix check; 23.10.2026: the patch picture
+    (`docs/backend/sources.md` «Patch posts», «Patch picture»; its price per picture is measured on the first DEV calls).
+    Still to do, in order:
+    1. The owner renames a video's short name in the studio (`content_video_names.source = 'owner'`, migration
        0102); the AI never overwrites it.
-    3. A whole patch seen once more on DEV with a real announcement (the owner's check), then the AI over Dota's
+    2. A whole patch seen once more on DEV with a real announcement (the owner's check), then the AI over Dota's
        sources is closed (owner, 22.10.2026); other sources come next.
 - Find and add more that give a post a day without the owner's work; each must be free, keyless or with a free key,
   and allowed by its terms.

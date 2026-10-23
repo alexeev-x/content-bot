@@ -56,6 +56,18 @@ export const aiJobSchema = z.discriminatedUnion('kind', [
     /** A series post's own media (Valve's CDN); without it, the announcement's images. */
     urls: z.array(z.url().max(500)).max(10).optional()
   }),
+  /**
+   * An automatically approved patch post (owner, 22.10.2026): its picture is drawn, attached and the post published in
+   * an invocation of its own (QA 23.10.2026: the Free plan's 50 subrequests), then the owner gets one quiet note.
+   */
+  z.object({
+    id: z.uuid(),
+    kind: z.literal('patch_publish'),
+    chatId: z.number().int(),
+    appOrigin: z.string().max(200),
+    postId: z.uuid(),
+    externalId: z.string().min(1).max(100)
+  }),
   /** One planned post of an event's series, written by the AI writer (no chat message: the studio shows it). */
   z.object({
     id: z.uuid(),
@@ -153,6 +165,7 @@ export type WriterJob =
           | 'hypotheses'
           | 'source_event'
           | 'source_media'
+          | 'patch_publish'
           | 'series_post'
           | 'series_publish'
           | 'treasure_watch'

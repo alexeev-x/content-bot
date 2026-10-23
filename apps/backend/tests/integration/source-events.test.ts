@@ -629,6 +629,21 @@ describe("an event post's images", () => {
     );
     expect(fetched).toEqual([]);
     expect(skipped).toEqual(['NOT_AN_IMAGE']);
+
+    // A patch gets its drawn picture instead of the announcement's images, or none when it could not be drawn.
+    const patch = (picture: { bytes: Uint8Array; contentType: string } | 'failed') =>
+      attachSourceEventImages(
+        {
+          ...deps,
+          upload: (command) => deps.upload({ ...command, actor: OWNER_ID }),
+          patchPicture: () => Promise.resolve(picture)
+        },
+        { postId: post.id, externalId: '1001' }
+      );
+    expect(await patch('failed')).toEqual({ attached: 0, found: 0, pictureFailed: true });
+    expect(await patch({ bytes: png, contentType: 'image/png' })).toEqual({ attached: 1, found: 1 });
+    expect(fetched).toEqual([]);
+    expect((await container.postMedia.findPostState(post.id))?.media).toHaveLength(3);
   });
 });
 

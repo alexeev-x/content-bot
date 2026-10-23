@@ -1,6 +1,6 @@
 import { PHOTO_MEDIA_MAX_BYTES, POST_MEDIA_MAX_ITEMS } from '@alexeev/contracts';
 import { HTTPException } from 'hono/http-exception';
-import { fetchSteamAnnouncement, type DotaWatcherRepository } from '../../modules/dota';
+import { type DotaDraftSource, fetchSteamAnnouncement, type DotaWatcherRepository } from '../../modules/dota';
 import { AppError } from '../../shared/app-error';
 
 // A Dota event announcement's post always carries its images (owner, 21.10.2026), and a series post the event page's
@@ -41,22 +41,40 @@ export interface SourceMediaDeps {
   fetchImpl?: typeof fetch;
   /** Why a file was left out (a stable code with the HTTP status), for the log. */
   onSkip?: (reason: string) => void;
+  /**
+   * A patch's own picture instead of the announcement's images (owner, 22.10.2026): null for an event that is no
+   * patch, `failed` when it could not be drawn (the post goes without a picture).
+   */
+  patchPicture?: (source: DotaDraftSource) => Promise<{ bytes: Uint8Array; contentType: string } | 'failed' | null>;
 }
 
 type File = { bytes: Uint8Array; contentType: string; fileName: string };
 
-/** How many of the files are on the post now (attached by this run or an earlier one). */
+/**
+ * How many of the files are on the post now (attached by this run or an earlier one); `pictureFailed`: a patch whose
+ * picture could not be drawn, so nothing was attached on purpose.
+ */
 export async function attachSourceEventImages(
   deps: SourceMediaDeps,
   /** `urls`: a series post's own media (Valve's CDN); without them, the announcement's images. */
   input: { postId: string; externalId: string; urls?: readonly string[] | undefined; max?: number }
-): Promise<{ attached: number; found: number }> {
+): Promise<{ attached: number; found: number; pictureFailed?: true }> {
   let files: readonly string[];
   if (input.urls !== undefined) {
     files = input.urls;
   } else {
     const source = await deps.repo.findSteamAnnouncement(input.externalId);
     if (source === null) throw new AppError('NOT_FOUND', 'The announcement is gone');
+    const picture = deps.patchPicture === undefined ? null : await deps.patchPicture(source);
+    if (picture === 'failed') return { attached: 0, found: 0, pictureFailed: true };
+    if (picture !== null) {
+      const file = { ...picture, fileName: `patch-${input.externalId}.jpg` };
+      const attached = await attach(deps, input.postId, file, `patch-picture:${input.externalId}`);
+      if (attached) return { attached: 1, found: 1 };
+      // Refused by the upload: the post goes without a picture, as when it could not be drawn.
+      (deps.onSkip ?? (() => {}))('ATTACH_REFUSED');
+      return { attached: 0, found: 0, pictureFailed: true };
+    }
     const announcement = await (deps.fetchAnnouncement ?? fetchSteamAnnouncement)({
       externalId: input.externalId,
       publishedAt: source.publishedAt

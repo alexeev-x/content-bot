@@ -6,7 +6,11 @@ import { writerAnswer } from '../helpers/writer-answer';
 import { ownerOperationsSettingsSchema } from '@alexeev/contracts';
 import { createContainer, type Container } from '../../src/app/container';
 import { createWriterDeps } from '../../src/app/bot/writer-deps';
-import { autopublishSourceEvent, AUTOPUBLISH_ACTOR } from '../../src/app/workflows/autopublish-source-event';
+import {
+  autopublishSourceEvent,
+  AUTOPUBLISH_ACTOR,
+  publishQueuedPatchPost
+} from '../../src/app/workflows/autopublish-source-event';
 import type { SourceMediaDeps } from '../../src/app/workflows/source-event-media';
 import { testDb } from '../helpers/db';
 import { createApi, fakeClock, type Api, OWNER_ID, OWNER_TOKEN, resetDb, seedSession, START } from '../helpers/harness';
@@ -127,6 +131,38 @@ describe('automatic publishing of an event post', () => {
     await settings({ enabled: true, destinationId: destination.id, dailyLimit: 3 });
     expect(await run('1003', 'Новая сокровищница.', media(true))).toMatchObject({ kind: 'held', reason: 'no_images' });
     expect(await count('publications')).toBe(0);
+  });
+
+  it('queues a patch post for its picture, then publishes it once with the picture or, failing it, without', async () => {
+    const destination = await seedDestination(api);
+    await settings({ enabled: true, destinationId: destination.id, dailyLimit: 3 });
+    const queued: string[] = [];
+    const id = await draft('Патч 7.41b вышел.');
+    const outcome = await autopublishSourceEvent(container, await createWriterDeps(container, 'test'), media(), {
+      externalId: '1005',
+      rootId: id,
+      versionId: id,
+      requestId: 'test',
+      queuePicture: async (postId) => {
+        queued.push(postId);
+      }
+    });
+    expect(outcome).toMatchObject({ kind: 'queued' });
+    expect(queued).toHaveLength(1);
+    expect(await count('publications')).toBe(0);
+
+    const postId = queued[0] ?? '';
+    const drawn = vi.fn(async () => 'failed' as const);
+    const job = () =>
+      publishQueuedPatchPost(
+        container,
+        { ...media(), patchPicture: drawn },
+        { postId, externalId: '1005', requestId: 'test' }
+      );
+    expect(await job()).toMatchObject({ kind: 'published', pictureFailed: true });
+    // A redelivered job never doubles the publication (the event's idempotency key).
+    expect(await job()).toMatchObject({ kind: 'published' });
+    expect(await count('publications')).toBe(1);
   });
 });
 

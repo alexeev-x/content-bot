@@ -57,7 +57,9 @@ export function createAnthropicProvider(apiKey: string): AiTextProvider {
   const client = new Anthropic({ apiKey, maxRetries: MAX_RETRIES });
   return {
     provider: 'anthropic',
-    async complete({ model, instructions, input, maxOutputTokens, jsonSchema, signal }): Promise<AiCompletion> {
+    async complete({ model, instructions, input, maxOutputTokens, jsonSchema, images, signal }): Promise<AiCompletion> {
+      // Only OpenAI reads pictures here (the patch picture's read-back); never sent without them as if read.
+      if (images !== undefined && images.length > 0) throw new AiProviderError('AI_BAD_REQUEST');
       let response;
       try {
         response = await client.beta.messages.create(

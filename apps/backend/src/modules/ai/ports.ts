@@ -33,8 +33,34 @@ export interface AiTextProvider {
     maxOutputTokens: number;
     /** A strict JSON Schema the answer must follow (structured output); the caller still validates it. */
     jsonSchema?: { name: string; schema: Record<string, unknown> };
+    /** Pictures the model reads with the input, as `data:` URLs (a patch picture read back). */
+    images?: readonly string[];
     signal: AbortSignal;
   }): Promise<AiCompletion>;
+}
+
+/** A picture drawn by an image model, with what it consumed. */
+export interface AiImage {
+  bytes: Uint8Array;
+  /** The same picture as the provider sent it, so the read-back needs no second encoding. */
+  base64: string;
+  contentType: 'image/jpeg';
+  model: string;
+  usage: AiUsage;
+}
+
+/** The only way the app asks for a picture: drawn after reference images (OpenAI's image edits). */
+export interface AiImageProvider {
+  readonly provider: AiProvider;
+  draw(input: {
+    model: string;
+    prompt: string;
+    /** JPEG references the picture follows in style. */
+    references: readonly Uint8Array[];
+    /** `<width>x<height>`, both multiples of 16. */
+    size: string;
+    signal: AbortSignal;
+  }): Promise<AiImage>;
 }
 
 /** A provider failure with a stable code (the provider's own message is never shown or logged). */

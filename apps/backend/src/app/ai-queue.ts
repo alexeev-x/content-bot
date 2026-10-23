@@ -8,11 +8,17 @@ import { sourceEventWriter } from './workflows/source-event-ai-draft';
 import { attachSourceEventImages, type SourceMediaDeps } from './workflows/source-event-media';
 import { planEventSeries, writeSeriesPost } from './workflows/source-event-series';
 import { skipDullHotfix } from './workflows/source-event-hotfix';
+import { patchPictureFor } from './workflows/patch-picture';
 import { PHOTO_MEDIA_MAX_BYTES } from '@alexeev/contracts';
 import { uploadPostMedia } from '../modules/content';
 import { AppError } from '../shared/app-error';
 import { runStyleLessons } from './workflows/style-lessons';
-import { autopublishSourceEvent } from './workflows/autopublish-source-event';
+import {
+  type AutopublishOutcome,
+  autopublishSourceEvent,
+  publishQueuedPatchPost
+} from './workflows/autopublish-source-event';
+import { isHotfixTitle, patchVersionOf } from '../modules/dota';
 import { runSeriesPublishStep } from './workflows/autopublish-series';
 import { runTreasureWatch } from './workflows/treasure-watch';
 import { getOwnerOperationsSettings } from '../modules/settings';
@@ -63,13 +69,24 @@ async function autopublishOn(container: Container, requestId: string): Promise<b
   return autopublish.enabled && autopublish.destinationId !== null;
 }
 
+/** A patch picture that three tries could not draw right (plan 22.10.2026): the post goes without it. */
+const PICTURE_FAILED_TEXT = 'Картинка к патчу не получилась, пост без неё.';
+
 const EVENT_LABEL = { treasure: 'Сокровищница', news: 'Новость', patch: 'Патч' } as const;
 const eventWritingText = (type: keyof typeof EVENT_LABEL, title: string) =>
   `${EVENT_LABEL[type]} в Steam: ${title}
 Пишу пост…`;
 
-/** How an event post's images are fetched and attached: as the bot's own files (out of «Медиа»). */
-function sourceMediaDeps(container: Container, token: string, chatId: number): SourceMediaDeps {
+/**
+ * How an event post's images are fetched and attached: as the bot's own files (out of «Медиа»). With `patch`, a patch
+ * announcement gets its drawn picture instead.
+ */
+function sourceMediaDeps(
+  container: Container,
+  token: string,
+  chatId: number,
+  patch?: { requestId: string; onError: (error: unknown) => void }
+): SourceMediaDeps {
   const storage = container.mediaStorage;
   if (storage === undefined) throw new AppError('UNAVAILABLE', 'Media storage is not configured');
   return {
@@ -91,7 +108,8 @@ function sourceMediaDeps(container: Container, token: string, chatId: number): S
         status: 'skipped',
         errorCode: reason
       }),
-    ...(token === '' ? {} : { viaTelegram: (url: string) => fetchViaTelegram(token, chatId, url) })
+    ...(token === '' ? {} : { viaTelegram: (url: string) => fetchViaTelegram(token, chatId, url) }),
+    ...(patch === undefined ? {} : { patchPicture: patchPictureFor(container, patch.requestId, patch.onError) })
   };
 }
 
@@ -100,16 +118,21 @@ async function runSourceMediaJob(
   job: Extract<AiJob, { kind: 'source_media' }>,
   container: Container,
   token: string,
+  requestId: string,
   onError: (error: unknown) => void
 ): Promise<void> {
   let text: string;
   try {
     if (!(await container.aiWriter.claimJob(job.id, container.clock.now()))) return;
-    const { attached, found } = await attachSourceEventImages(sourceMediaDeps(container, token, job.chatId), job);
+    const { attached, found, pictureFailed } = await attachSourceEventImages(
+      sourceMediaDeps(container, token, job.chatId, { requestId, onError }),
+      job
+    );
     await container.aiWriter.finishJob(job.id, container.clock.now());
     // Only what needs the owner's hand reaches the bot (owner, 22.10.2026: «эту инфу не надо мне в тг»).
-    if (attached === found) return;
-    text = `Прикреплено картинок из анонса: ${attached} из ${found}. Остальные добавьте в студии.`;
+    if (pictureFailed === true) text = PICTURE_FAILED_TEXT;
+    else if (attached === found) return;
+    else text = `Прикреплено картинок из анонса: ${attached} из ${found}. Остальные добавьте в студии.`;
   } catch (error) {
     onError(error);
     text = 'Не удалось прикрепить картинки из анонса. Добавьте их в студии.';
@@ -117,6 +140,71 @@ async function runSourceMediaJob(
   if (token === '') return;
   await new Api(token, { timeoutSeconds: TELEGRAM_TIMEOUT_SECONDS })
     .sendMessage(job.chatId, text)
+    .catch((error: unknown) => onError(error));
+}
+
+/** A patch announcement (not a treasure's follow-up): its post gets a drawn picture. */
+async function isPatchEvent(container: Container, externalId: string, followUp: boolean): Promise<boolean> {
+  if (followUp) return false;
+  const source = await container.dotaRepository.findSteamAnnouncement(externalId);
+  return source !== null && (patchVersionOf(source.title) !== null || isHotfixTitle(source.title));
+}
+
+/** The owner's short note of what the automatic publishing did; null when it did nothing. */
+function autopublishNote(outcome: AutopublishOutcome, appOrigin: string, externalId: string): string | null {
+  if (outcome.kind === 'skipped') return null;
+  const title = escapeHtml(outcome.title);
+  if (outcome.kind === 'queued')
+    return `Пост о патче одобрен${title === '' ? '' : `: «${title}»`}. Рисую картинку и опубликую без вас.`;
+  if (outcome.kind === 'published') {
+    const link = escapeHtml(
+      outcome.publicationId === null
+        ? `${appOrigin}/publications`
+        : `${appOrigin}/publications?id=${encodeURIComponent(outcome.publicationId)}`
+    );
+    return `Опубликовано без вас: «${title}».${outcome.pictureFailed === true ? ` ${PICTURE_FAILED_TEXT}` : ''} <a href="${link}">Открыть</a>`;
+  }
+  const link = escapeHtml(
+    outcome.postId === null
+      ? `${appOrigin}/sources?open=${encodeURIComponent(`steam_news:${externalId}`)}`
+      : `${appOrigin}/posts/${encodeURIComponent(outcome.postId)}`
+  );
+  const why = outcome.reason === 'no_images' ? 'картинки из анонса не загрузились' : 'не получилось опубликовать';
+  return `Не опубликовано без вас (${why})${title === '' ? '' : `: «${title}»`}. Пост ждёт в студии. <a href="${link}">Открыть</a>`;
+}
+
+/** Draws the approved patch post's picture and publishes it once, then tells the owner quietly. Never throws. */
+async function runPatchPublishJob(
+  job: Extract<AiJob, { kind: 'patch_publish' }>,
+  container: Container,
+  token: string,
+  requestId: string,
+  onError: (error: unknown) => void
+): Promise<void> {
+  let text: string | null;
+  try {
+    if (!(await container.aiWriter.claimJob(job.id, container.clock.now()))) return;
+    const outcome = await publishQueuedPatchPost(
+      container,
+      sourceMediaDeps(container, token, job.chatId, { requestId, onError }),
+      {
+        postId: job.postId,
+        externalId: job.externalId,
+        requestId
+      }
+    );
+    container.logger.info({ component: 'autopublish', operation: 'patch_publish', requestId, status: outcome.kind });
+    await container.aiWriter.finishJob(job.id, container.clock.now());
+    text = autopublishNote(outcome, job.appOrigin, job.externalId);
+  } catch (error) {
+    onError(error);
+    const link = escapeHtml(`${job.appOrigin}/posts/${encodeURIComponent(job.postId)}`);
+    text = `Не опубликовано без вас (не получилось опубликовать). Пост о патче ждёт в студии. <a href="${link}">Открыть</a>`;
+  }
+  if (token === '' || text === null) return;
+  // The owner may be asleep (owner, 22.10.2026): no sound.
+  await new Api(token, { timeoutSeconds: TELEGRAM_TIMEOUT_SECONDS })
+    .sendMessage(job.chatId, text, { parse_mode: 'HTML', disable_notification: true })
     .catch((error: unknown) => onError(error));
 }
 
@@ -174,7 +262,12 @@ export async function handleAiQueue(batch: MessageBatch<unknown>, container: Con
       continue;
     }
     if (job.kind === 'source_media') {
-      await runSourceMediaJob(job, container, token, onError);
+      await runSourceMediaJob(job, container, token, requestId, onError);
+      message.ack();
+      continue;
+    }
+    if (job.kind === 'patch_publish') {
+      await runPatchPublishJob(job, container, token, requestId, onError);
       message.ack();
       continue;
     }
@@ -336,12 +429,25 @@ export async function handleAiQueue(batch: MessageBatch<unknown>, container: Con
         const outcome = await autopublishSourceEvent(
           container,
           await createWriterDeps(container, requestId),
-          sourceMediaDeps(container, token, eventJob.chatId),
+          sourceMediaDeps(container, token, eventJob.chatId, { requestId, onError }),
           {
             externalId: eventJob.externalId,
             ...draft,
             requestId,
-            ...(eventJob.followUp === undefined ? {} : { followUp: eventJob.followUp.number })
+            ...(eventJob.followUp === undefined ? {} : { followUp: eventJob.followUp.number }),
+            ...((await isPatchEvent(container, eventJob.externalId, eventJob.followUp !== undefined))
+              ? {
+                  queuePicture: (postId: string) =>
+                    container.aiJobs.send({
+                      id: container.newId(),
+                      kind: 'patch_publish',
+                      chatId: eventJob.chatId,
+                      appOrigin: eventJob.appOrigin,
+                      postId,
+                      externalId: eventJob.externalId
+                    })
+                }
+              : {})
           }
         );
         container.logger.info({
@@ -350,23 +456,7 @@ export async function handleAiQueue(batch: MessageBatch<unknown>, container: Con
           requestId,
           status: outcome.kind === 'skipped' ? outcome.reason : outcome.kind
         });
-        if (outcome.kind === 'skipped') return null;
-        const title = escapeHtml(outcome.title);
-        if (outcome.kind === 'published') {
-          const link = escapeHtml(
-            outcome.publicationId === null
-              ? `${eventJob.appOrigin}/publications`
-              : `${eventJob.appOrigin}/publications?id=${encodeURIComponent(outcome.publicationId)}`
-          );
-          return `Опубликовано без вас: «${title}». <a href="${link}">Открыть</a>`;
-        }
-        const link = escapeHtml(
-          outcome.postId === null
-            ? `${eventJob.appOrigin}/sources?open=${encodeURIComponent(`steam_news:${eventJob.externalId}`)}`
-            : `${eventJob.appOrigin}/posts/${encodeURIComponent(outcome.postId)}`
-        );
-        const why = outcome.reason === 'no_images' ? 'картинки из анонса не загрузились' : 'не получилось опубликовать';
-        return `Не опубликовано без вас (${why})${title === '' ? '' : `: «${title}»`}. Пост ждёт в студии. <a href="${link}">Открыть</a>`;
+        return autopublishNote(outcome, eventJob.appOrigin, eventJob.externalId);
       },
       onError
     });

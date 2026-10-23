@@ -58,6 +58,7 @@ import { randomToken } from '../platform/security/random-token';
 import { createLogger, type Logger } from '../platform/logging/logger';
 import {
   type AiRepository,
+  type AiImageProvider,
   type AiTextProvider,
   type DraftHistoryRepository,
   type RulesRepository,
@@ -75,6 +76,7 @@ import {
   type AuthorProfileRepository,
   createAnthropicProvider,
   createModelRouter,
+  createOpenAiImageProvider,
   createOpenAiProvider,
   type OwnerPostSource,
   type ReviewRepository,
@@ -97,6 +99,7 @@ import {
   type SourceEventsRepository,
   createOfficialDotaFetcher,
   digestOfficialPatch,
+  latestPatchVersion,
   inspectOfficialPatch,
   summarizeOfficialPatch,
   syncDotaUpdates,
@@ -195,6 +198,8 @@ export interface Container {
     inspectPatch?(version: string): Promise<DotaPatchInspection>;
     /** A patch's notes for its post (owner, 22.10.2026); null when Valve has none for the version yet. */
     digestPatch?(version: string): Promise<PatchDigest | null>;
+    /** The newest version in Valve's patch list (a hotfix's picture shows it). */
+    latestPatchVersion?(): Promise<string | null>;
   };
   /** D1 state for draft reservation, Dota owner notices and deduped source incidents. */
   dotaRepository: DotaWatcherRepository;
@@ -239,6 +244,8 @@ export interface Container {
   aiRepository: AiRepository;
   /** The configured text-model provider; null without its key. */
   aiProvider: AiTextProvider | null;
+  /** Draws the patch pictures (OpenAI's image model); null without the OpenAI key. */
+  aiImageProvider: AiImageProvider | null;
   /** Which AI providers have a key (the settings page and the comparison). */
   aiKeys: Record<'openai' | 'anthropic', boolean>;
   /** The blind provider comparison (migration 0093). */
@@ -327,6 +334,8 @@ export interface ContainerOverrides {
   contentFetch?: typeof fetch;
   /** Replaces the AI provider (tests); null forces «no key». */
   aiProvider?: AiTextProvider | null;
+  /** Replaces the image provider (tests); null forces «no key». */
+  aiImageProvider?: AiImageProvider | null;
 }
 
 const botIdSchema = z.object({ id: z.number().int().positive() });
@@ -519,7 +528,8 @@ export function createContainer(env: ContainerEnv, overrides: ContainerOverrides
         sync: ({ detectedAt }: { detectedAt: number }) => syncDotaUpdates({ fetcher, repo, detectedAt }),
         summarizePatch: (version: string) => summarizeOfficialPatch(fetcher, version),
         inspectPatch: (version: string) => inspectOfficialPatch(fetcher, version),
-        digestPatch: (version: string) => digestOfficialPatch(fetcher, version)
+        digestPatch: (version: string) => digestOfficialPatch(fetcher, version),
+        latestPatchVersion: () => latestPatchVersion(fetcher)
       };
     },
     get dotaRepository() {
@@ -663,6 +673,11 @@ export function createContainer(env: ContainerEnv, overrides: ContainerOverrides
         openai: openaiKey ? createOpenAiProvider(openaiKey, (input, init) => fetch(input, init)) : null,
         anthropic: anthropicKey ? createAnthropicProvider(anthropicKey) : null
       });
+    },
+    get aiImageProvider() {
+      if (overrides.aiImageProvider !== undefined) return overrides.aiImageProvider;
+      const openaiKey = env.OPENAI_API_KEY?.trim();
+      return openaiKey ? createOpenAiImageProvider(openaiKey, (input, init) => fetch(input, init)) : null;
     },
     /** Which providers have a key (the settings page and the comparison need to know). */
     get aiKeys(): Record<'openai' | 'anthropic', boolean> {
