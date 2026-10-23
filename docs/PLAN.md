@@ -91,6 +91,20 @@ The AI makes the Telegram channel's content itself: news and rubric posts drafte
     (owner, 23.10.2026: «мелочи», the AI's names will do).
 - Find and add more that give a post a day without the owner's work; each must be free, keyless or with a free key,
   and allowed by its terms.
+- Next: changes in the game's files (owner, 23.10.2026: «это очень интересное»). Source: the GitHub repo
+  SteamTracking/GameTracking-Dota2 (SteamDB's tracker; one commit per game build with its file diffs), read through
+  GitHub's API with a free token (the owner sets `GITHUB_TOKEN`; never steamdb.info itself, its FAQ forbids scraping).
+  Research of 23.10.2026 over builds 6936–6966: game data is tracked only since 07.10.2026; English only (no Russian
+  strings); `items_game.txt` (store items, sets) is not tracked. Narrow scope:
+  - a Cron step polls the commit list, keeps only builds whose file list touches `scripts/npc/**` (heroes, abilities,
+    items, neutral items), `resource/localization/*_english.txt`, `patchnotes/**` or `scripts/*.vdata`, and reads only
+    those files' diffs, dropping noise (cosmetic-slot keys, braces, CRC lists);
+  - the AI writes one Russian post per build worth it: a silent balance change, new strings of upcoming content
+    (events, heroes, sets), new features; it says «в файлах игры нашли (по данным SteamDB), Valve не подтверждала,
+    может измениться», links the commit, never quotes files;
+  - the owner approves each such post at first (no automatic publishing until it proves itself).
+  Expected: about 1–2 posts a week outside patch weeks (07–22.10 gave: the Terrorblade arcana in the files, effect
+  slots for abilities of 11 heroes, persona portraits in the hero grid, a Trove gifting notice).
 
 ## 2. Rubrics the AI runs itself
 

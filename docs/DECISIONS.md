@@ -16,6 +16,7 @@ Accepted decisions that are in force. An agent does not propose an alternative t
 ## Product
 | Date | Decision | Details |
 |---|---|---|
+| 23.10.2026 | Changes in the game's files become a source: SteamTracking/GameTracking-Dota2 on GitHub (free token), narrow scope (hero/ability/item files, English strings, patch notes), posts marked as datamined and approved by the owner at first. Monetization questions are out of scope for now (owner: «забей про монетизацию… пока её нет всё равно») | `docs/PLAN.md` §1 |
 | 23.10.2026 | An automatic draft the fact check had to fix is checked once more; found clean, it is published without the owner like a clean first draft, else it goes to the owner (owner: «да», after DEV 7.41d was held for one invented phrase that the fix had already corrected). About half a cent more per fixed post | `docs/backend/sources.md` «Automatic publishing» |
 | 06.10.2026 | ALEXEEV Studio is the full product control plane, not a minimal admin MVP; backend first, then the redesign and the remaining capabilities; browser and Mini App keep feature parity | `docs/PAGE_MAP.md` |
 | 03.10.2026 | The admin UI is one SPA: website and Telegram Mini App; no third-party SDK | `docs/FRONTEND_ARCHITECTURE.md` §16 |
