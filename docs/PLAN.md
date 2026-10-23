@@ -77,7 +77,7 @@ The AI makes the Telegram channel's content itself: news and rubric posts drafte
   - a Steam «Dota 2 Update - <date>» hotfix (no datafeed row, ~20 a year): a short post, linked to the announcement,
     only when the AI finds something a player cares about (event rewards, a hidden nerf, a funny bug), else a studio
     mark only.
-  - The picture, every patch (owner, 22.10.2026: «всем чтобы была картинка, случайно»), 1000×500: drawn by GPT from
+  - The picture, every patch (owner, 22.10.2026: «всем чтобы была картинка, случайно»), 1536×768 (owner, 23.10.2026, instead of 1000×500 the model cannot draw): drawn by GPT from
     the owner's references (`design-refs/patch-cover/1–8.png`: the Dota logo, the number in cracked stone with a glow,
     a line, 3–4 points with icons) in a theme picked at random (lava, red, blue lightning, cyan, green, purple). The
     number and the points are given exactly: the points come from the patch data (hero changes or a new hero, item
