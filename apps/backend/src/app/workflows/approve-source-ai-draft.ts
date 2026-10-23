@@ -14,7 +14,8 @@ import { aiPostText, draftFromMessageText } from '../bot/draft-from-message';
 import { aiRichHtml } from '../bot/rich-post';
 
 const richOf = (text: string): { richHtml?: string } => {
-  const richHtml = aiRichHtml(text);
+  // Only a source's drafts are approved here, so the text always may take the rich sample.
+  const richHtml = aiRichHtml(text, true);
   return richHtml === null ? {} : { richHtml };
 };
 import type { Container } from '../container';

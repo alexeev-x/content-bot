@@ -1,4 +1,5 @@
 import { SOURCE_LINK_LABEL } from '../../modules/ai';
+import { SOURCE_POST_STRUCTURE } from '../bot/rich-post';
 import {
   fetchSteamAnnouncement,
   findDotaNewsEntryUrl,
@@ -168,7 +169,8 @@ export function sourceEventTask(source: DotaDraftSource, text: string, link: str
     `Заголовок: ${source.title}`,
     `Дата: ${date}`,
     `${SOURCE_LINK_LABEL}${link}`,
-    'Напиши новость для канала: что вышло и чем это важно игроку. Пиши только то, что есть в анонсе.',
+    'Напиши новость для канала: что вышло и чем это важно игроку. Пиши только то, что есть в анонсе, и всё важное из него, не короткую сводку.',
+    SOURCE_POST_STRUCTURE,
     // Last, so the writer's 4 000-character cap can only shorten the announcement, never the request.
     'Текст анонса (английский; факты бери только отсюда):',
     `<<<${text.slice(0, TASK_TEXT_MAX).replaceAll('>>>', '> > >').replaceAll('<<<', '< < <')}>>>`

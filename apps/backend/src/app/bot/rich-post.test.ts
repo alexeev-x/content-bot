@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { aiRichHtml, patchRichHtml } from './rich-post';
+import { aiRichHtml, patchRichHtml, structuredRichHtml } from './rich-post';
 
 const PATCH = `Вышел 7.41f.
 
@@ -65,11 +65,63 @@ describe('patchRichHtml', () => {
   it('gives null for text without the structure, so the post goes out as before', () => {
     expect(patchRichHtml('Вышел 7.41f.\n\nТренту порезали интеллект. Лине тоже досталось.')).toBeNull();
     expect(patchRichHtml('Габен вернул аркану на дровку.')).toBeNull();
-    expect(aiRichHtml('Обычная новость без патча.')).toBeNull();
+    expect(aiRichHtml('Обычная новость без патча.', true)).toBeNull();
+    expect(aiRichHtml(PATCH, false)).toBeNull();
   });
 
   it('links only dota2.com: another address gives no button', () => {
     const html = patchRichHtml(PATCH.replace('https://www.dota2.com/patches/7.41f', 'https://example.com/x'));
     expect(html).not.toContain('tg-button');
+  });
+});
+
+describe('structuredRichHtml', () => {
+  it('builds a hotfix post: heading, slot, paragraph, list, a folded block and «Подробнее»', () => {
+    const text = [
+      'Обновление 1 июля: карнавал щедрее',
+      '',
+      'Valve выпустила мелкий фикс, но для карнавала он важный:',
+      '',
+      '• за обычные игры дают 2 металлолома, за турбо — 1',
+      '• Seeing Stones можно получить в коопе с ботами',
+      '',
+      '▾ Остальные исправления',
+      '• Билеты снова дают за Ability Draft',
+      '• Пироги больше не выдают иллюзию',
+      '',
+      'https://www.dota2.com/newsentry/670621050832160174'
+    ].join('\n');
+    expect(structuredRichHtml(text)).toBe(
+      [
+        '<h3>Обновление 1 июля: карнавал щедрее</h3>',
+        '{{media}}',
+        '<p>Valve выпустила мелкий фикс, но для карнавала он важный:</p>',
+        '<ul><li>за обычные игры дают 2 металлолома, за турбо — 1</li><li>Seeing Stones можно получить в коопе с ботами</li></ul>',
+        '<details><summary>Остальные исправления</summary><ul><li>Билеты снова дают за Ability Draft</li><li>Пироги больше не выдают иллюзию</li></ul></details>',
+        '<tg-button-row><tg-button type="url" url="https://www.dota2.com/newsentry/670621050832160174">Подробнее</tg-button></tg-button-row>'
+      ].join('\n')
+    );
+  });
+
+  it('makes «А — Б» lines a table, with a «Колонка | Колонка» head', () => {
+    const html = structuredRichHtml(
+      [
+        'Пять личностей-автоматонов',
+        '',
+        'Морф теперь из стали.',
+        '',
+        'Герой | Какой он теперь',
+        'Axe — двигатель ярости',
+        'Oracle — заводной пророк'
+      ].join('\n')
+    );
+    expect(html).toContain(
+      '<table bordered striped compact><tr><th>Герой</th><th>Какой он теперь</th></tr><tr><td>Axe</td><td>двигатель ярости</td></tr><tr><td>Oracle</td><td>заводной пророк</td></tr></table>'
+    );
+  });
+
+  it('gives null when the first line is a sentence, not a heading', () => {
+    expect(structuredRichHtml('Габен вернул аркану на дровку.\n\nВнутри 15 сетов.')).toBeNull();
+    expect(structuredRichHtml('Габен вернул аркану на дровку и добавил новую на тайда\nВнутри 15 сетов.')).toBeNull();
   });
 });

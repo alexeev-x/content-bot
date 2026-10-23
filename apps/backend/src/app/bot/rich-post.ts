@@ -110,7 +110,121 @@ export function patchRichHtml(text: string): string | null {
     .join('\n');
 }
 
-/** The rich HTML of an approved AI text, or null when the text has no rich structure yet (it goes out as before). */
-export function aiRichHtml(text: string): string | null {
-  return patchRichHtml(text);
+const HEADING_MAX = 80;
+const DETAILS = /^▾\s*(.+)$/u;
+const TABLE_HEAD = /^([^|—–]{1,40})\s*\|\s*([^|—–]{1,60})$/u;
+
+/** A block of lines: «• » list, «А — Б» rows (a table, an optional «Колонка | Колонка» head), or paragraphs. */
+function blockHtml(lines: readonly string[]): string {
+  if (lines.every((line) => BULLET.test(line)))
+    return `<ul>${lines.map((line) => `<li>${escapeHtml(line.replace(BULLET, ''))}</li>`).join('')}</ul>`;
+  const head = TABLE_HEAD.exec(lines[0] ?? '');
+  const rows = (head === null ? lines : lines.slice(1)).map((line) => ROW.exec(line));
+  if (rows.length >= 2 && rows.every((row) => row !== null)) {
+    const header =
+      head === null
+        ? ''
+        : `<tr><th>${escapeHtml((head[1] ?? '').trim())}</th><th>${escapeHtml((head[2] ?? '').trim())}</th></tr>`;
+    const body = rows
+      .map((row) => `<tr><td>${escapeHtml(row?.[1] ?? '')}</td><td>${escapeHtml(row?.[2] ?? '')}</td></tr>`)
+      .join('');
+    return `<table bordered striped compact>${header}${body}</table>`;
+  }
+  return lines.map((line) => `<p>${escapeHtml(line)}</p>`).join('\n');
 }
+
+/**
+ * Any other post of a source (news, hotfix, an event series post, a treasure follow-up) in the structure its task asks
+ * for: a short heading line, then blocks split by empty lines — paragraphs, «• » lists, «А — Б» tables, «▾ Заголовок»
+ * opening a folded block to the end, and the link alone on a line last. A text whose first line is not a heading gives
+ * null: the post goes out as before.
+ */
+export function structuredRichHtml(text: string): string | null {
+  const blocks = text
+    .split(/\n\s*\n/u)
+    .map((block) =>
+      block
+        .split('\n')
+        .map((line) => line.trim())
+        .filter((line) => line !== '')
+    )
+    .filter((block) => block.length > 0);
+  const heading = blocks[0]?.length === 1 ? (blocks[0][0] ?? '') : '';
+  if (heading === '' || Array.from(heading).length > HEADING_MAX || /[.!?…:]$/u.test(heading)) return null;
+  let link: string | null = null;
+  const body: string[] = [];
+  const folded: string[] = [];
+  let summary: string | null = null;
+  for (const block of blocks.slice(1)) {
+    const lines = [...block];
+    const only = lines.length === 1 ? (lines[0] ?? '') : '';
+    const url = URL_IN_LINE.exec(only)?.[0] ?? null;
+    if (url !== null && only.replace(url, '').trim().length <= LINK_LABEL_MAX) {
+      link = url;
+      continue;
+    }
+    const opens = DETAILS.exec(lines[0] ?? '');
+    if (opens !== null && summary === null) {
+      summary = opens[1] ?? '';
+      lines.shift();
+    }
+    if (lines.length === 0) continue;
+    (summary === null ? body : folded).push(blockHtml(lines));
+  }
+  if (body.length === 0) return null;
+  return [
+    `<h3>${escapeHtml(heading)}</h3>`,
+    RICH_MEDIA_SLOT,
+    ...body,
+    summary === null || folded.length === 0
+      ? ''
+      : `<details><summary>${escapeHtml(summary)}</summary>${folded.join('\n')}</details>`,
+    moreButton(link)
+  ]
+    .filter((part) => part !== '')
+    .join('\n');
+}
+
+/** Every task of a source's writer opens so (patch, news, hotfix, series, treasure follow-up). */
+const SOURCE_TASK = 'Повод:';
+const LINEAGE_MAX = 20;
+
+/**
+ * Whether a draft (or a rewrite of one) was written for a source: only those take the rich sample; the owner's own
+ * posts keep their classic form.
+ */
+export async function isSourceDraft(
+  find: (id: string) => Promise<{ task: string; parentGenerationId: string | null } | null>,
+  generation: { task: string; parentGenerationId: string | null }
+): Promise<boolean> {
+  let current: { task: string; parentGenerationId: string | null } | null = generation;
+  for (let step = 0; current !== null && step < LINEAGE_MAX; step += 1) {
+    if (current.parentGenerationId === null) return current.task.startsWith(SOURCE_TASK);
+    current = await find(current.parentGenerationId);
+  }
+  return false;
+}
+
+/**
+ * The rich HTML of an approved AI text of a source (the approved samples, owner 23.10.2026), or null when it is not a
+ * source's draft or its text has no rich structure (the post goes out as before).
+ */
+export function aiRichHtml(text: string, fromSource: boolean): string | null {
+  if (!fromSource) return null;
+  return patchRichHtml(text) ?? structuredRichHtml(text);
+}
+
+/**
+ * The structure every source post's task asks for (all but the patch, which has its own): what `structuredRichHtml`
+ * turns into the approved sample. Kept beside the parser so the two never drift.
+ */
+export const SOURCE_POST_STRUCTURE = [
+  'Оформи пост строго так, блоки через пустую строку, без markdown:',
+  '— первая строка: короткий заголовок поста, до 60 знаков, без точки в конце;',
+  '— дальше абзацы обычным текстом;',
+  '— перечисление — строками, начинающимися с «• »;',
+  '— если сравниваешь несколько героев, предметов или сетов — строками «Название — что важно» подряд (это станет таблицей), можно со строкой-шапкой «Колонка | Колонка» перед ними;',
+  '— второстепенное можно свернуть в конце: строка «▾ Заголовок», под ней то, что свернуть;',
+  '— ссылку поставь последней строкой отдельно.',
+  'Героя называй, как его зовут игроки (Котл, БХ, Трент); нет такого имени — английское название. Не упоминай другие посты и не называй источники.'
+].join('\n');

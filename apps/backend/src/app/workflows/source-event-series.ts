@@ -1,6 +1,7 @@
 import { Api, InlineKeyboard } from 'grammy';
 import { POST_MEDIA_MAX_ITEMS } from '@alexeev/contracts';
 import { generateCheckedDraft, planSeries, SOURCE_LINK_LABEL } from '../../modules/ai';
+import { SOURCE_POST_STRUCTURE } from '../bot/rich-post';
 import {
   fetchEventPage,
   fetchSteamAnnouncement,
@@ -135,6 +136,7 @@ export function seriesPostTask(input: {
       ? 'Пиши только эту тему: о событии в целом не пересказывай, хватит его названия.'
       : 'Что вышло и самое цепляющее для игрока.',
     'Пост самостоятельный: о других постах ни слова.',
+    SOURCE_POST_STRUCTURE,
     'Факты (официальные тексты Valve; бери только отсюда):'
   ].join('\n');
   const facts = input.facts.join('\n').replaceAll('>>>', '> > >').replaceAll('<<<', '< < <');

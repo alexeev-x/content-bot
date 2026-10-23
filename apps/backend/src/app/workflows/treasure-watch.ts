@@ -12,6 +12,7 @@ import {
   type TreasureWatch
 } from '../../modules/dota';
 import { SOURCE_LINK_LABEL } from '../../modules/ai';
+import { SOURCE_POST_STRUCTURE } from '../bot/rich-post';
 import type { AiJob } from '../bot/ai-job';
 import type { Container } from '../container';
 
@@ -79,8 +80,10 @@ export function followUpTask(watch: TreasureWatch): string {
   return [
     `Повод: новые подробности о сокровищнице Dota 2 «${watch.pageTitle ?? watch.title}»; о самой сокровищнице уже рассказано.`,
     ...(link === '' ? [] : [`${SOURCE_LINK_LABEL}${link}`]),
-    'Расскажи только эти новые подробности, живо, не сухим списком. Назови, откуда данные: Liquipedia, цена — Valve.',
+    // No source named in the post (owner, 23.10.2026); sets, drop rates and prices fit the structure's tables.
+    'Расскажи только эти новые подробности: все сеты, шансы и бонусы, что есть в фактах, — таблицами, если их несколько.',
     'Пост самостоятельный: о других постах ни слова.',
+    SOURCE_POST_STRUCTURE,
     `Факты (бери только отсюда):\n<<<${facts.slice(0, 3_000)}>>>`
   ].join('\n');
 }
