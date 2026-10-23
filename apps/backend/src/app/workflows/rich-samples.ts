@@ -1,7 +1,8 @@
 import type { SendRichSamplesResponse } from '@alexeev/contracts';
 import { GrammyError } from 'grammy';
 import { z } from 'zod';
-import { listReports } from '../../modules/content-analytics';
+import { listReports, readLastWeekData } from '../../modules/content-analytics';
+import { getOwnerOperationsSettings } from '../../modules/settings';
 import type { TelegramRichMessageApi } from '../../integrations/telegram/telegram-api';
 import type { Logger } from '../../platform/logging/logger';
 import type { Container } from '../container';
@@ -400,9 +401,28 @@ export async function latestReports(container: Container): Promise<{ daily: stri
         : dailyHtml(daily, dayRow.timezone, parsedJson(dayRow.review, reviewSchema)),
     weekly:
       weekRow === null || weekly === null
-        ? null
+        ? await lastWeekHtml(container)
         : weeklyHtml(weekly, weekRow.timezone, parsedJson(weekRow.review, reviewSchema))
   };
+}
+
+/** Before DEV's first Monday report: the last full week read now (no review), so the layout can still be seen. */
+async function lastWeekHtml(container: Container): Promise<string | null> {
+  const { timezone } = await getOwnerOperationsSettings({
+    repo: container.settings,
+    logger: container.logger,
+    requestId: 'rich-samples'
+  });
+  const data = weeklySchema.safeParse(
+    await readLastWeekData({
+      analytics: container.contentAnalytics,
+      alerts: container.contentAlerts,
+      goals: container.contentGoals,
+      clock: container.clock,
+      timezone
+    })
+  );
+  return data.success ? weeklyHtml(data.data, timezone, null) : null;
 }
 
 /** The newest drawn patch picture (`patch-<id>.jpg`) in the studio's library, or null. */

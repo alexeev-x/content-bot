@@ -44,7 +44,7 @@ export {
   releaseOverdueReports,
   storedReportFacts
 } from './report-release';
-export { raiseWeeklyReport } from './weekly-report';
+export { raiseWeeklyReport, readLastWeekData } from './weekly-report';
 export {
   type ContentDailyReportRepository,
   createD1ContentDailyReportRepository

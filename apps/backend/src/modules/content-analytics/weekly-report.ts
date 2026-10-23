@@ -402,6 +402,13 @@ export function weeklyReportHtml(input: {
   return lines.join('\n');
 }
 
+/** The last full week (to this Monday 00:00 in the owner's zone), read and not stored: the DEV rich sample. */
+export function readLastWeekData(deps: Omit<Parameters<typeof readWeeklyData>[0], 'weekEnd'>): Promise<WeeklyData> {
+  const now = deps.clock.now();
+  const weekEnd = zonedMidnight(now - zoned(now, deps.timezone).weekday * DAY_MS, deps.timezone);
+  return readWeeklyData({ ...deps, weekEnd });
+}
+
 /** Stores the week once from Monday's hour; returns its report id for the review job, else null. */
 export async function raiseWeeklyReport(deps: {
   analytics: ContentAnalyticsRepository;

@@ -58,11 +58,8 @@ describe('POST /api/v1/sources/rich-samples', () => {
     const response = await api.request('/api/v1/sources/rich-samples', { method: 'POST' });
     expect(response.status).toBe(200);
     const { results } = sendRichSamplesResponseSchema.parse(await response.json());
-    // DEV's reports are not in the test database: only they fail.
-    expect(results.filter((each) => each.status === 'failed').map((each) => each.sample)).toEqual([
-      'Отчёт за день',
-      'Отчёт за неделю'
-    ]);
+    // No daily report is released in the test database; the week is read now, so only the day fails.
+    expect(results.filter((each) => each.status === 'failed').map((each) => each.sample)).toEqual(['Отчёт за день']);
     expect(new Set(sent.map((each) => each.chatId))).toEqual(new Set(['-1001', OWNER_ID]));
     // Without a patch picture in the library the patch goes without one.
     expect(sent.some((each) => each.html.includes('tg://photo'))).toBe(false);
