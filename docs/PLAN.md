@@ -63,7 +63,7 @@ The AI makes the Telegram channel's content itself: news and rubric posts drafte
 - Liquipedia Dota 2 as an on-demand source (owner, 22.10.2026): no Cron polling; the server fetches a page when a
   post or rubric needs it. Only the MediaWiki `api.php` (wikitext and image URLs; HTML pages are forbidden by its
   terms): at most 1 request per 2 s (`action=parse` 1 per 30 s), a `User-Agent` naming the project with a contact,
-  gzip accepted, «Источник: Liquipedia» in the post (CC-BY-SA 3.0; cosmetic images stay Valve's). It has heroes with
+  gzip accepted; posts name no source (owner, 23.10.2026), though Liquipedia's CC-BY-SA 3.0 asks for credit. It has heroes with
   per-patch changelogs, items, patches, treasures and sets with images (no prices), tournaments, matches, teams,
   rosters and transfers. LiquipediaDB (structured data) needs an approved key and is paid unless the use is
   non-commercial; not planned.
@@ -104,6 +104,8 @@ The AI makes the Telegram channel's content itself: news and rubric posts drafte
   Built 23.10.2026: «Rich-образцы (DEV)» on «Источники» (`POST /api/v1/sources/rich-samples`, `RICH_SAMPLES`); the
   patch, the Dark Carnival post and its treasure sets, the 7.41e news, the Primal Beast file find (rich and classic
   `pre`) and the report (owner's chat only, numbers only for the layout). `<mark>` has no colour attribute in the API.
+  Owner on the first look (23.10.2026): one picture per post (a collage of hero portraits looked awful); a treasure
+  lists every set in the table; no English text but names; no «Источник» line and no links but «Подробнее» to dota2.com.
 - Next: changes in the game's files (owner, 23.10.2026: «это очень интересное»). Source: the GitHub repo
   SteamTracking/GameTracking-Dota2 (SteamDB's tracker; one commit per game build with its file diffs), read through
   GitHub's API with a free token (the owner sets `GITHUB_TOKEN`; never steamdb.info itself, its FAQ forbids scraping).
@@ -113,8 +115,8 @@ The AI makes the Telegram channel's content itself: news and rubric posts drafte
     items, neutral items), `resource/localization/*_english.txt`, `patchnotes/**` or `scripts/*.vdata`, and reads only
     those files' diffs, dropping noise (cosmetic-slot keys, braces, CRC lists);
   - the AI writes one Russian post per build worth it: a silent balance change, new strings of upcoming content
-    (events, heroes, sets), new features; it says «в файлах игры нашли (по данным SteamDB), Valve не подтверждала,
-    может измениться», links the commit, never quotes files;
+    (events, heroes, sets), new features; it says «в файлах игры нашли, Valve не подтверждала, может измениться»
+    (owner, 23.10.2026: no SteamDB, no commit link), never quotes files (a diff is retold in Russian);
   - the owner approves each such post at first (no automatic publishing until it proves itself).
   Expected: about 1–2 posts a week outside patch weeks (07–22.10 gave: the Terrorblade arcana in the files, effect
   slots for abilities of 11 heroes, persona portraits in the hero grid, a Trove gifting notice).

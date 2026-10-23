@@ -65,7 +65,7 @@ describe('POST /api/v1/sources/rich-samples', () => {
   });
 
   it('reports a refused sample with Telegram’s text and goes on with the rest', async () => {
-    const { api: rich } = recordingApi('<tg-collage>');
+    const { api: rich } = recordingApi('<blockquote expandable>');
     const api = createApi({ clock: fakeClock(), richMessages: rich, contentFetch: noNetwork, env: DEV });
     await seedDestination(api, { title: 'Тест канал', chatId: '-1001' });
     const { results } = sendRichSamplesResponseSchema.parse(

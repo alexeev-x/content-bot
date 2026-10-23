@@ -22,7 +22,7 @@ import { rateLimit } from './rate-limit';
 import { createWriterDeps } from './bot/writer-deps';
 import { approveSourceAiDraft, readSourceAiDraft } from './workflows/approve-source-ai-draft';
 import { createSourceEventDraft } from './workflows/create-source-event-draft';
-import { sendRichSamples } from './workflows/rich-samples';
+import { latestDailyReport, latestPatchCover, sendRichSamples } from './workflows/rich-samples';
 import { readSourceEventContent, requestSourceEventDraft } from './workflows/source-event-ai-draft';
 
 // Every «Написать через ИИ» is a paid model call.
@@ -70,6 +70,8 @@ export const sourcesRoutes = new Hono<AppBindings>()
       const result = await sendRichSamples({
         api,
         fetch: container.contentFetch,
+        patchCover: () => latestPatchCover(container),
+        dailyReport: () => latestDailyReport(container),
         channelChatId: channel.chatId,
         ownerChatId,
         logger: container.logger,
