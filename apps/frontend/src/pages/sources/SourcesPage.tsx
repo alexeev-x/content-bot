@@ -12,7 +12,7 @@ import {
 } from '../../features/dota-intelligence';
 import { useOwnerTimezone } from '../../features/owner-settings';
 import { ru } from '../../shared/lib/ru';
-import { PageHeader } from '../../shared/ui';
+import { LinkButton, PageHeader } from '../../shared/ui';
 
 export function SourcesPage() {
   const timezone = useOwnerTimezone();
@@ -51,7 +51,16 @@ export function SourcesPage() {
       <PageHeader
         title={ru.pages.sources}
         focusHeadingOnMount
-        actions={isDev && !search.update ? <RichSamplesButton state={richSamples} /> : undefined}
+        actions={
+          isDev && !search.update ? (
+            <>
+              <LinkButton href="/dev-runs" variant="secondary">
+                Проверка автопостов
+              </LinkButton>
+              <RichSamplesButton state={richSamples} />
+            </>
+          ) : undefined
+        }
       />
       {isDev ? <RichSamplesResult state={richSamples} /> : null}
       <div hidden={Boolean(search.update)}>
