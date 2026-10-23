@@ -113,7 +113,11 @@ export async function generateCheckedDraft(
     });
     if (fixed.text === null)
       return { ...draft, budgetEvents: [...budgetEvents, ...fixed.budgetEvents], factCheck: 'unchecked' };
-    return { ...fixed, budgetEvents: [...budgetEvents, ...fixed.budgetEvents], factCheck: 'fixed' };
+    // The fixed text is checked once more (owner, 23.10.2026): found clean, it counts as clean and may go out without
+    // the owner; anything else keeps it `fixed`, for the owner to approve.
+    const recheck = await checkFacts(deps, { task: draft.generation.task, text: fixed.text, signal: input.signal });
+    const events = [...budgetEvents, ...fixed.budgetEvents, ...recheck.budgetEvents];
+    return { ...fixed, budgetEvents: events, factCheck: recheck.problems?.length === 0 ? 'clean' : 'fixed' };
   } catch {
     return { ...draft, budgetEvents, factCheck: 'unchecked' };
   }

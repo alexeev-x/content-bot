@@ -74,7 +74,8 @@ describe('generateCheckedDraft', () => {
         ...JSON.parse(draft('Оракул видит будущее, но повлиять на него не может.')),
         changes: 'Убрал выдуманную причину',
         reasons: []
-      })
+      }),
+      JSON.stringify({ problems: [] })
     ];
     const result = await run();
     expect(result.text).toBe('Оракул видит будущее, но повлиять на него не может.');
@@ -84,6 +85,19 @@ describe('generateCheckedDraft', () => {
     expect(inputs[1]).toContain(TASK);
     expect(inputs[1]).toContain(invented);
     expect(inputs[2]).toContain('потому что он всех бесит');
+    // The fixed text is checked again (owner, 23.10.2026): clean, it may go out without the owner.
+    expect(inputs[3]).toContain('повлиять на него не может');
+    expect(result.factCheck).toBe('clean');
+  });
+
+  it('keeps a fixed draft for the owner when the second check still finds something', async () => {
+    answers = [
+      draft('Оракул видит будущее и всех бесит.'),
+      JSON.stringify({ problems: [{ quote: 'всех бесит', why: 'нет в фактах' }] }),
+      JSON.stringify({ ...JSON.parse(draft('Оракул видит будущее и всех злит.')), changes: 'заменил', reasons: [] }),
+      JSON.stringify({ problems: [{ quote: 'всех злит', why: 'нет в фактах' }] })
+    ];
+    expect((await run()).factCheck).toBe('fixed');
   });
 
   it('leaves a clean draft and a draft whose check failed as they are', async () => {
