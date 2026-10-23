@@ -136,7 +136,8 @@ The AI makes the Telegram channel's content itself: news and rubric posts drafte
 - Every post in the approved rich format (owner, 23.10.2026), in steps: 1) storage and sending (built 23.10.2026,
   migration 0103, `docs/backend/publishing.md` «Rich posts»); 2) the writers keep plain text in a fixed structure that
   approval turns into the sample — patches built 23.10.2026 (`docs/backend/sources.md` «Patch posts»), then hotfixes,
-  event series, treasures, news; 3) the picture quality check before every source picture; 4) the bot's draft preview
+  event series, treasures, news; 3) the picture quality check before every source picture (built 23.10.2026, `docs/backend/sources.md` «Picture quality»;
+  a treasure's sets follow-up gets its sets' icons); 4) the bot's draft preview
   and the studio (view first, edit through «Переписать»; a block editor later); 5) the analytics reports as rich tables.
   Release (owner, 23.10.2026): steps 1–5 whole, checked live on DEV, then the owner's `develop → main` and production
   migrations; the studio shows a rich post and edits it through «Переписать» (owner's choice; a block editor later).

@@ -1,11 +1,13 @@
 // Liquipedia's Dota 2 wiki as an on-demand source (owner, 22.10.2026): its MediaWiki API only, never its HTML pages
 // (its terms forbid automated access to anything else). At most one request per 2 s, a User-Agent naming the project
-// and a contact, gzip accepted, and «Источник: Liquipedia» in the post (CC-BY-SA 3.0). Only facts are taken;
-// its pictures stay there (the files are not part of the API).
+// and a contact, gzip accepted. Posts name no source (owner, 23.10.2026), though its CC-BY-SA 3.0 asks for credit.
+// Facts are taken, and the set icons through `imageinfo` (checked 23.10.2026).
 
 const API = 'https://liquipedia.net/dota2/api.php';
 export const LIQUIPEDIA_PAGE = 'https://liquipedia.net/dota2/';
-const USER_AGENT = 'AlexeevContentBot/1.0 (https://github.com/alexeev-x/content-bot; al93wswha@gmail.com)';
+export const LIQUIPEDIA_USER_AGENT =
+  'AlexeevContentBot/1.0 (https://github.com/alexeev-x/content-bot; al93wswha@gmail.com)';
+const USER_AGENT = LIQUIPEDIA_USER_AGENT;
 const TIMEOUT_MS = 15_000;
 const MAX_TEXT_BYTES = 400_000;
 /** Liquipedia asks for no more than one request per 2 seconds. */
@@ -53,6 +55,39 @@ export async function findLiquipediaPages(
     .map((page) => page.title as string);
   return [...new Set(found)].sort((a, b) => b.length - a.length).slice(0, 3);
 }
+
+/**
+ * The set icons of `names` («Cosmetic icon <name>.png» on Liquipedia's commons, 256×170) through the API's `imageinfo`,
+ * in the order asked, one request for up to 50; a name without an icon is left out. The pictures are small: they go
+ * through the picture quality check before a post takes them (docs/DECISIONS.md, 23.10.2026).
+ */
+export async function liquipediaSetIcons(names: readonly string[], fetchImpl: typeof fetch = fetch): Promise<string[]> {
+  const titles = names.slice(0, 50).map((name) => `File:Cosmetic icon ${name}.png`);
+  if (titles.length === 0) return [];
+  const body = (await call(
+    { action: 'query', prop: 'imageinfo', iiprop: 'url', titles: titles.join('|') },
+    fetchImpl
+  )) as {
+    query?: {
+      normalized?: { from?: string; to?: string }[];
+      pages?: { title?: string; imageinfo?: { url?: string }[] }[];
+    };
+  };
+  const byTitle = new Map<string, string>();
+  for (const page of body.query?.pages ?? []) {
+    const url = page.imageinfo?.[0]?.url;
+    if (typeof page.title === 'string' && typeof url === 'string' && url.startsWith(LIQUIPEDIA_IMAGES))
+      byTitle.set(page.title, url);
+  }
+  const normalized = new Map((body.query?.normalized ?? []).map((pair) => [pair.from ?? '', pair.to ?? '']));
+  return titles.flatMap((title) => {
+    const url = byTitle.get(normalized.get(title) ?? title);
+    return url === undefined ? [] : [url];
+  });
+}
+
+/** Where Liquipedia keeps its files; the only Liquipedia address a post's picture may come from. */
+export const LIQUIPEDIA_IMAGES = 'https://liquipedia.net/commons/images/';
 
 /** The page is a treasure's: its infobox says so. */
 export const isTreasurePage = (text: string): boolean => /\|\s*prefab\s*=\s*Treasure\b/i.test(text);

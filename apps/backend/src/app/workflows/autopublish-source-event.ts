@@ -38,8 +38,10 @@ export async function autopublishSourceEvent(
     rootId: string;
     versionId: string;
     requestId: string;
-    /** A treasure's follow-up (1 or 2): its own publication key, no pictures, not the event's own post. */
+    /** A treasure's follow-up (1 or 2): its own publication key, not the event's own post. */
     followUp?: number;
+    /** The follow-up's pictures: the told sets' icons (owner, 23.10.2026), none without them. */
+    followUpUrls?: string[];
     /**
      * A patch: its picture is drawn by a job of its own (QA 23.10.2026: three tries do not fit the Free plan's 50
      * subrequests next to the writer's), which then publishes the approved post.
@@ -103,7 +105,8 @@ export async function autopublishSourceEvent(
     requestId: input.requestId,
     destinationId,
     timezone: settings.timezone,
-    ...(input.followUp === undefined ? {} : { followUp: input.followUp })
+    ...(input.followUp === undefined ? {} : { followUp: input.followUp }),
+    ...(input.followUpUrls === undefined ? {} : { followUpUrls: input.followUpUrls })
   });
 }
 
@@ -143,6 +146,7 @@ async function publishApprovedEventPost(
     destinationId: string;
     timezone: string;
     followUp?: number;
+    followUpUrls?: string[];
   }
 ): Promise<AutopublishOutcome> {
   const { postId, destinationId } = input;
@@ -154,7 +158,14 @@ async function publishApprovedEventPost(
     const { attached, found, pictureFailed } =
       input.followUp === undefined
         ? await attachSourceEventImages(media, { postId, externalId: input.externalId, max: MAX_PICTURES })
-        : { attached: 0, found: 0, pictureFailed: undefined };
+        : input.followUpUrls !== undefined && input.followUpUrls.length > 0
+          ? await attachSourceEventImages(media, {
+              postId,
+              externalId: input.externalId,
+              urls: input.followUpUrls,
+              max: input.followUpUrls.length
+            })
+          : { attached: 0, found: 0, pictureFailed: undefined };
     if (found > 0 && attached === 0) return { kind: 'held', postId, title, reason: 'no_images' };
     const draft = await container.posts.findById(postId);
     if (draft === null) throw new Error('The approved post is gone');

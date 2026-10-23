@@ -5,6 +5,7 @@ import {
   isTreasurePage,
   LIQUIPEDIA_PAGE,
   LIQUIPEDIA_SPACING_MS,
+  liquipediaSetIcons,
   parseTreasureWikitext,
   readLiquipediaPage,
   type TreasureFactKind,
@@ -27,6 +28,8 @@ import type { Container } from '../container';
 const QUIET_MS = 30 * 60 * 1000;
 const PER_RUN = 2;
 const MAX_FOLLOW_UPS = 2;
+/** A post holds at most ten pictures (contracts POST_MEDIA_MAX_ITEMS): the ten rarest sets. */
+const SET_ICONS_MAX = 10;
 /** A run talks to Liquipedia only when no other did for this long: two runs never request at the same time. */
 const RUN_GAP_MS = 3 * 60 * 1000;
 const LABEL: Record<TreasureFactKind, string> = {
@@ -185,6 +188,21 @@ async function step(
   const tell = readyToTell(watch, now);
   const task = tell ? followUpTask(watch) : '';
   const number = watch.posts + 1;
+  // The told sets' icons, the rarest first (the page lists them from common to rarest), for the post's slider; a
+  // failed request only leaves the post without them.
+  const setNames = tell
+    ? Object.keys(watch.pending)
+        .filter((key) => factKind(key) === 'sets')
+        .map((key) => key.slice('sets:'.length))
+        .reverse()
+    : [];
+  let urls: string[] = [];
+  if (setNames.length > 0) {
+    await pause(spacingMs);
+    urls = await liquipediaSetIcons(setNames, fetchImpl)
+      .then((found) => found.slice(0, SET_ICONS_MAX))
+      .catch(() => []);
+  }
   if (tell) {
     // Told once: what goes out is never told again, whatever the post's fate.
     watch.published = { ...watch.published, ...watch.pending };
@@ -208,6 +226,7 @@ async function step(
     appOrigin: (await container.systemState.readAppOrigin()) ?? '',
     externalId: watch.externalId,
     number,
-    task
+    task,
+    ...(urls.length === 0 ? {} : { urls })
   });
 }

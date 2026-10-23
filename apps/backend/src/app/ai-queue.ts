@@ -9,6 +9,7 @@ import { attachSourceEventImages, type SourceMediaDeps } from './workflows/sourc
 import { planEventSeries, writeSeriesPost } from './workflows/source-event-series';
 import { skipDullHotfix } from './workflows/source-event-hotfix';
 import { patchPictureFor } from './workflows/patch-picture';
+import { pictureImproverFor } from './workflows/picture-quality';
 import { PHOTO_MEDIA_MAX_BYTES } from '@alexeev/contracts';
 import { uploadPostMedia } from '../modules/content';
 import { AppError } from '../shared/app-error';
@@ -90,6 +91,16 @@ function sourceMediaDeps(
 ): SourceMediaDeps {
   const storage = container.mediaStorage;
   if (storage === undefined) throw new AppError('UNAVAILABLE', 'Media storage is not configured');
+  // A failed improvement keeps the original picture; only a stable code is logged.
+  const improveFailed =
+    patch?.onError ??
+    ((error: unknown) =>
+      container.logger.warn({
+        component: 'source_media',
+        operation: 'picture_improve',
+        status: 'failed',
+        errorCode: error instanceof Error ? error.name : 'unknown'
+      }));
   return {
     repo: container.dotaRepository,
     postState: async (id) => {
@@ -110,7 +121,8 @@ function sourceMediaDeps(
         errorCode: reason
       }),
     ...(token === '' ? {} : { viaTelegram: (url: string) => fetchViaTelegram(token, chatId, url) }),
-    ...(patch === undefined ? {} : { patchPicture: patchPictureFor(container, patch.requestId, patch.onError) })
+    ...(patch === undefined ? {} : { patchPicture: patchPictureFor(container, patch.requestId, patch.onError) }),
+    improve: pictureImproverFor(container, patch?.requestId ?? `source_media:${chatId}`, improveFailed)
   };
 }
 
@@ -404,7 +416,7 @@ export async function handleAiQueue(batch: MessageBatch<unknown>, container: Con
         appOrigin: job.appOrigin,
         externalId: job.externalId,
         automatic: true,
-        followUp: { number: job.number, task: job.task }
+        followUp: { number: job.number, task: job.task, ...(job.urls === undefined ? {} : { urls: job.urls }) }
       };
     } else {
       writerJob = job;
@@ -441,6 +453,7 @@ export async function handleAiQueue(batch: MessageBatch<unknown>, container: Con
             ...draft,
             requestId,
             ...(eventJob.followUp === undefined ? {} : { followUp: eventJob.followUp.number }),
+            ...(eventJob.followUp?.urls === undefined ? {} : { followUpUrls: eventJob.followUp.urls }),
             ...((await isPatchEvent(container, eventJob.externalId, eventJob.followUp !== undefined))
               ? {
                   queuePicture: (postId: string) =>

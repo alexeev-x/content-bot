@@ -103,7 +103,9 @@ export const aiJobSchema = z.discriminatedUnion('kind', [
     appOrigin: z.string().max(200),
     externalId: z.string().min(1).max(100),
     number: z.number().int().min(1).max(2),
-    task: z.string().min(1).max(TEXT_MAX)
+    task: z.string().min(1).max(TEXT_MAX),
+    /** The told sets' icons on Liquipedia's commons (owner, 23.10.2026: a slider of the sets), at most ten. */
+    urls: z.array(z.url().max(500)).max(10).optional()
   }),
   z.object({ ...base, kind: z.literal('draft'), format: formatSchema, task: z.string().min(1).max(TEXT_MAX) }),
   z.object({
@@ -157,7 +159,7 @@ export type EventWriterJob = AiJobBase & {
   externalId: string;
   automatic?: boolean;
   /** A treasure's follow-up (1 or 2): its own task, and the event's own draft is left as it is. */
-  followUp?: { number: number; task: string };
+  followUp?: { number: number; task: string; urls?: string[] };
 };
 /** The jobs of the bot's AI writer: each has the chat message it ends in. */
 export type WriterJob =

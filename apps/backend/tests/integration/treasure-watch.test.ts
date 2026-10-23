@@ -38,6 +38,19 @@ const fakeFetch = (async (input: string | URL) => {
   requests.push(url.hostname === 'www.dota2.com' ? 'valve-price' : (url.searchParams.get('prop') ?? 'titles'));
   if (url.hostname === 'www.dota2.com') return Response.json({ 34454: '$4.99' });
   const params = url.searchParams;
+  if (params.get('prop') === 'imageinfo') {
+    const titles = (params.get('titles') ?? '').split('|');
+    return Response.json({
+      query: {
+        pages: titles.map((title) => ({
+          title,
+          imageinfo: [
+            { url: `https://liquipedia.net/commons/images/${title.slice('File:'.length).replaceAll(' ', '_')}` }
+          ]
+        }))
+      }
+    });
+  }
   if (params.get('prop') === 'revisions') {
     const title = params.get('titles') ?? '';
     const text = otherPages[title] ?? wiki.text;
@@ -134,6 +147,10 @@ describe('the Liquipedia watch of a treasure', () => {
     expect(task).toContain('$4.99');
     expect(task).toContain('https://liquipedia.net/dota2/Trove_of_Terror');
     expect(task).not.toMatch(/серия|следующ/i);
+    // The told sets' icons for the post's slider, the rarest first (owner, 23.10.2026).
+    const urls = posts()[0]?.urls ?? [];
+    expect(urls[0]).toBe('https://liquipedia.net/commons/images/Cosmetic_icon_Maw_of_the_Megalodon.png');
+    expect(urls.length).toBeLessThanOrEqual(10);
 
     // The page did not change: nothing more to tell, only one light request.
     requests = [];

@@ -1,6 +1,12 @@
 import { PHOTO_MEDIA_MAX_BYTES, POST_MEDIA_MAX_ITEMS } from '@alexeev/contracts';
 import { HTTPException } from 'hono/http-exception';
-import { type DotaDraftSource, fetchSteamAnnouncement, type DotaWatcherRepository } from '../../modules/dota';
+import {
+  type DotaDraftSource,
+  fetchSteamAnnouncement,
+  type DotaWatcherRepository,
+  LIQUIPEDIA_IMAGES,
+  LIQUIPEDIA_USER_AGENT
+} from '../../modules/dota';
 import { AppError } from '../../shared/app-error';
 
 // A Dota event announcement's post always carries its images (owner, 21.10.2026), and a series post the event page's
@@ -15,6 +21,10 @@ const STEAM_CDN = '.steamstatic.com';
 const MIRRORS = ['clan.akamai.steamstatic.com', 'clan.fastly.steamstatic.com', 'clan.steamstatic.com'];
 // Some CDN edges refuse a request without a client name.
 const REQUEST_HEADERS = { 'user-agent': 'Mozilla/5.0 (compatible; alexeev-studio/1.0)' };
+// A treasure's set icons come from Liquipedia's commons (owner, 23.10.2026), with the User-Agent its terms ask for.
+const LIQUIPEDIA_HEADERS = { 'user-agent': LIQUIPEDIA_USER_AGENT, 'accept-encoding': 'gzip' };
+const allowedPicture = (url: URL) =>
+  url.protocol === 'https:' && (url.hostname.endsWith(STEAM_CDN) || url.href.startsWith(LIQUIPEDIA_IMAGES));
 const MAX_REDIRECTS = 2;
 const DOWNLOAD_TIMEOUT_MS = 60_000;
 // A stale revision means the owner edited the draft meanwhile; the next try reads the new one.
@@ -41,6 +51,8 @@ export interface SourceMediaDeps {
   fetchImpl?: typeof fetch;
   /** Why a file was left out (a stable code with the HTTP status), for the log. */
   onSkip?: (reason: string) => void;
+  /** A poor picture made sharper before it is attached (app/workflows/picture-quality.ts, the project law). */
+  improve?: (file: File) => Promise<File>;
   /**
    * A patch's own picture instead of the announcement's images (owner, 22.10.2026): null for an event that is no
    * patch, `failed` when it could not be drawn (the post goes without a picture).
@@ -86,7 +98,7 @@ export async function attachSourceEventImages(
   let attached = 0;
   for (const [index, url] of files.entries()) {
     const target = new URL(url);
-    if (target.protocol !== 'https:' || !target.hostname.endsWith(STEAM_CDN)) continue;
+    if (!allowedPicture(target)) continue;
     // A series planned before 22.10.2026 may still list a video.
     if (!IMAGE.test(target.pathname)) {
       onSkip('NOT_AN_IMAGE');
@@ -99,6 +111,7 @@ export async function attachSourceEventImages(
       else file = { bytes, contentType: 'image/jpeg', fileName: `steam-${baseName(target.pathname)}.jpg` };
     }
     if (file === null) continue;
+    if (deps.improve !== undefined) file = await deps.improve(file);
     if (await attach(deps, input.postId, file, `source-image:${input.externalId}:${index}`)) attached += 1;
     else onSkip('ATTACH_REFUSED');
   }
@@ -152,7 +165,7 @@ async function fetchFrom(fetchImpl: typeof fetch, url: string): Promise<Response
   let next = url;
   for (let hop = 0; ; hop += 1) {
     const response = await fetchImpl(next, {
-      headers: REQUEST_HEADERS,
+      headers: next.startsWith(LIQUIPEDIA_IMAGES) ? LIQUIPEDIA_HEADERS : REQUEST_HEADERS,
       redirect: 'manual',
       signal: AbortSignal.timeout(DOWNLOAD_TIMEOUT_MS)
     });

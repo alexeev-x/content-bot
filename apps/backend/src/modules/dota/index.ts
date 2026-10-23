@@ -21,8 +21,11 @@ export { fetchStorePrices } from './valve-store';
 export {
   findLiquipediaPages,
   isTreasurePage,
+  LIQUIPEDIA_IMAGES,
   LIQUIPEDIA_PAGE,
   LIQUIPEDIA_SPACING_MS,
+  LIQUIPEDIA_USER_AGENT,
+  liquipediaSetIcons,
   parseTreasureWikitext,
   readLiquipediaPage,
   type TreasureFacts
