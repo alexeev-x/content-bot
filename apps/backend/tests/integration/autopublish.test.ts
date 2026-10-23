@@ -15,6 +15,7 @@ import type { SourceMediaDeps } from '../../src/app/workflows/source-event-media
 import { testDb } from '../helpers/db';
 import { createApi, fakeClock, type Api, OWNER_ID, OWNER_TOKEN, resetDb, seedSession, START } from '../helpers/harness';
 import { testMediaBucket } from '../helpers/media-bucket';
+import { uploadPostMedia } from '../../src/modules/content';
 import { count, seedDestination } from '../helpers/publishing';
 
 // Valve's news without the owner (owner, 21–22.10.2026): only while switched on with a channel, under the daily
@@ -162,6 +163,62 @@ describe('automatic publishing of an event post', () => {
     expect(await job()).toMatchObject({ kind: 'published', pictureFailed: true });
     // A redelivered job never doubles the publication (the event's idempotency key).
     expect(await job()).toMatchObject({ kind: 'published' });
+    expect(await count('publications')).toBe(1);
+  });
+
+  it('attaches three pictures one per message and publishes only after the last (QA 23.10.2026)', async () => {
+    const destination = await seedDestination(api);
+    await settings({ enabled: true, destinationId: destination.id, dailyLimit: 3 });
+    const queued: string[] = [];
+    const id = await draft('Новая сокровищница.');
+    await autopublishSourceEvent(container, await createWriterDeps(container, 'test'), media(), {
+      externalId: '1006',
+      rootId: id,
+      versionId: id,
+      requestId: 'test',
+      queuePicture: async (postId) => {
+        queued.push(postId);
+      }
+    });
+    const postId = queued[0] ?? '';
+    const storage = container.mediaStorage;
+    if (storage === undefined) throw new Error('no storage');
+    const png = new Uint8Array([
+      0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 13, 0x49, 0x48, 0x44, 0x52, 0, 0, 0, 2, 0, 0, 0, 3, 8, 2,
+      0, 0, 0, 0, 0, 0, 0
+    ]);
+    const pictures: SourceMediaDeps = {
+      ...media(),
+      postState: async (post) => {
+        const state = await container.postMedia.findPostState(post);
+        return state === null ? null : { revision: state.revision, mediaCount: state.media.length };
+      },
+      upload: (command) =>
+        uploadPostMedia(
+          { repo: container.postMedia, storage, now: START, newId: container.newId },
+          { ...command, actor: OWNER_ID, hidden: true }
+        ),
+      fetchAnnouncement: async () => ({
+        text: 'x',
+        pages: [],
+        images: ['a', 'b', 'c'].map((name) => `https://clan.akamai.steamstatic.com/images/1/${name.repeat(40)}.png`)
+      }),
+      fetchImpl: (async () =>
+        new Response(png, { headers: { 'content-type': 'image/png' } })) as unknown as typeof fetch
+    };
+    const job = (from?: number) =>
+      publishQueuedPatchPost(container, pictures, {
+        postId,
+        externalId: '1006',
+        requestId: 'test',
+        ...(from === undefined ? {} : { from })
+      });
+
+    expect(await job()).toEqual({ kind: 'continue', postId, from: 1 });
+    expect(await job(1)).toEqual({ kind: 'continue', postId, from: 2 });
+    expect(await count('publications')).toBe(0);
+    expect(await job(2)).toMatchObject({ kind: 'published' });
+    expect((await container.postMedia.findPostState(postId))?.media).toHaveLength(3);
     expect(await count('publications')).toBe(1);
   });
 });

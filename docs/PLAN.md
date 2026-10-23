@@ -121,7 +121,7 @@ The AI makes the Telegram channel's content itself: news and rubric posts drafte
   - treasure without its own page: news, sets and details liked; Liquipedia's set icons (256×170) look blurry in a
     slider and no larger source exists (research 23.10.2026: Workshop, dota2.com, schema, market, Fandom all ruled
     out). Rule for every fetched picture (owner, 23.10.2026): its pixel size is read from the file header; below
-    the bar (about 800 px wide for a full-width picture, 600 in a slider) it goes through the AI with a strict
+    the bar (800 px wide) it goes through the AI with a strict
     instruction: «ничего не меняй, не добавляй и не дорисовывай — только улучши качество» (`docs/DECISIONS.md`,
     23.10.2026: a project law). The DEV trial on 5 Trove icons came out right (owner: «идеально»), so the Trove sets
     keep their slider of improved icons; built so far only as the DEV trial (`modules/ai/picture-enhance.ts`), the
@@ -139,7 +139,8 @@ The AI makes the Telegram channel's content itself: news and rubric posts drafte
   event series, treasures, news; 3) the picture quality check before every source picture (built 23.10.2026, `docs/backend/sources.md` «Picture quality»;
   a treasure's sets follow-up gets its sets' icons); 4) the bot's draft preview
   and the studio (built 23.10.2026: «👁 Как в канале» under a draft; the studio shows a rich post as Telegram does and
-  keeps its text read-only, edits through «Переписать»; a block editor later); 5) the analytics reports as rich tables.
+  keeps its text read-only, edits through «Переписать»; a block editor later); 5) the analytics reports as rich tables (built 23.10.2026, migration 0104: the daily and weekly reports go as
+  rich messages with every part of the classic one; a refused rich message falls back to the classic one).
   Release (owner, 23.10.2026): steps 1–5 whole, checked live on DEV, then the owner's `develop → main` and production
   migrations; the studio shows a rich post and edits it through «Переписать» (owner's choice; a block editor later).
   After the release, on DEV: the rubrics, then the game-file source and new sources.

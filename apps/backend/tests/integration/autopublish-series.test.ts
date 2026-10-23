@@ -7,6 +7,7 @@ import type { SourceMediaDeps } from '../../src/app/workflows/source-event-media
 import { testDb } from '../helpers/db';
 import { createApi, fakeClock, type Api, OWNER_ID, OWNER_TOKEN, resetDb, seedSession, START } from '../helpers/harness';
 import { testMediaBucket } from '../helpers/media-bucket';
+import { uploadPostMedia } from '../../src/modules/content';
 import { count, seedDestination } from '../helpers/publishing';
 
 // An event's series published without the owner (owner, 22.10.2026): one step per post, then the series 10 minutes
@@ -136,6 +137,55 @@ describe('publishing an event series without the owner', () => {
     expect(messages.at(-1)).toMatchObject({ silent: true, text: expect.stringContaining('Опубликовано без вас') });
     // A series counts once against the daily limit.
     expect(await container.publications.countCreatedBy('autopublish', START - 1)).toBe(1);
+  });
+
+  it('attaches the first post’s pictures one per message without stopping the series (QA 23.10.2026)', async () => {
+    const destination = await seedDestination(api);
+    await settings({ enabled: true, destinationId: destination.id, dailyLimit: 3 });
+    const CDN = 'https://cdn.steamstatic.com/apps/dota2/images/dota_react/darkcarnival';
+    await testDb()
+      .prepare('UPDATE source_series_posts SET media_json = ?1 WHERE id = ?2')
+      .bind(JSON.stringify([`${CDN}/a.png`, `${CDN}/b.png`]), POSTS[0])
+      .run();
+    const storage = container.mediaStorage;
+    if (storage === undefined) throw new Error('no storage');
+    const png = new Uint8Array([
+      0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 13, 0x49, 0x48, 0x44, 0x52, 0, 0, 0, 2, 0, 0, 0, 3, 8, 2,
+      0, 0, 0, 0, 0, 0, 0
+    ]);
+    const pictures = (): SourceMediaDeps => ({
+      ...noPictures(),
+      postState: async (post) => {
+        const state = await container.postMedia.findPostState(post);
+        return state === null ? null : { revision: state.revision, mediaCount: state.media.length };
+      },
+      upload: (command) =>
+        uploadPostMedia(
+          { repo: container.postMedia, storage, now: START, newId: container.newId },
+          { ...command, actor: OWNER_ID, hidden: true }
+        ),
+      fetchImpl: (async () =>
+        new Response(png, { headers: { 'content-type': 'image/png' } })) as unknown as typeof fetch
+    });
+    const go = (job: Extract<AiJob, { kind: 'series_publish' }>) =>
+      runSeriesPublishStep(container, job, '123456:PLACEHOLDER', pictures, 'test', () => {});
+
+    await go(step(1));
+    expect(queued.at(-1)).toMatchObject({ position: 1, from: 1 });
+    await go(queued.at(-1) as Extract<AiJob, { kind: 'series_publish' }>);
+    // The next post's step drops `from`, and the series goes on.
+    expect(queued.at(-1)).toMatchObject({ position: 2 });
+    expect(queued.at(-1)).not.toHaveProperty('from');
+    await go(queued.at(-1) as Extract<AiJob, { kind: 'series_publish' }>);
+    await go(queued.at(-1) as Extract<AiJob, { kind: 'series_publish' }>);
+
+    expect(await count('publications')).toBe(2);
+    const row = await testDb()
+      .prepare('SELECT post_id FROM source_series_posts WHERE id = ?1')
+      .bind(POSTS[0])
+      .first<{ post_id: string }>();
+    const postId = row?.post_id ?? '';
+    expect((await container.postMedia.findPostState(postId))?.media).toHaveLength(2);
   });
 
   it('while it is off, approves nothing and sends the usual note, silently', async () => {

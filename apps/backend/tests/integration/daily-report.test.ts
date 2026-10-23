@@ -3,6 +3,8 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { createD1SystemState } from '../../src/app/system-state';
 import { runDailyReview } from '../../src/app/workflows/daily-review';
 import { sendContentAlerts } from '../../src/app/workflows/send-content-alerts';
+import { GrammyError } from 'grammy';
+import { fakeOwnerMessenger } from '../helpers/fake-owner-messenger';
 import type { TelegramOwnerMessageApi } from '../../src/integrations/telegram/telegram-api';
 import { type AiTextProvider, createD1AiRepository, updateAiSettings } from '../../src/modules/ai';
 import {
@@ -238,6 +240,38 @@ describe('daily report', () => {
     expect(outcomes.results.every((row) => row.hours === 24 && row.fact !== null)).toBe(true);
   });
 
+  it('goes as a rich message; refused by Telegram (400), the classic message goes in the same tick', async () => {
+    const clock = fakeClock();
+    await collectHours(clock, 3, 0);
+    const deps = repos();
+    await raiseDailyReport({ ...deps, clock, timezone: ZONE, hour: 0 });
+    await releaseOverdueReports({ reports: deps.reports, alerts: deps.alerts, now: clock.now() + HOUR });
+    const refused = fakeOwnerMessenger({
+      rejectRich: () =>
+        new GrammyError(
+          'refused',
+          { ok: false, error_code: 400, description: 'Bad Request: rich message is invalid' },
+          'sendRichMessage',
+          {}
+        )
+    });
+    await sendContentAlerts({
+      repo: deps.alerts,
+      messenger: refused,
+      ownerChatId: '42',
+      appOrigin: 'https://studio.example.com',
+      now: () => clock.now(),
+      charge: () => {},
+      logger
+    });
+    expect(refused.sentRich).toEqual([]);
+    expect(refused.sent).toHaveLength(1);
+    expect((await alertRows())[0]?.status).toBe('sent');
+
+    const rich = await testDb().prepare('SELECT rich_html FROM content_alerts').first<{ rich_html: string | null }>();
+    expect(rich?.rich_html).toContain('<table bordered striped compact>');
+  });
+
   it('is sent once: a lost answer leaves it unknown and it is never resent', async () => {
     const clock = fakeClock();
     await collectHours(clock, 3, 0);
@@ -245,11 +279,14 @@ describe('daily report', () => {
     await raiseDailyReport({ ...deps, clock, timezone: ZONE, hour: 0 });
     await releaseOverdueReports({ reports: deps.reports, alerts: deps.alerts, now: clock.now() + HOUR });
     let calls = 0;
+    // The report goes as its rich message first; a lost answer there is as unknown as anywhere.
+    const timedOut = async () => {
+      calls += 1;
+      throw new DOMException('timed out', 'TimeoutError');
+    };
     const lost = {
-      sendMessageWithKeyboard: async () => {
-        calls += 1;
-        throw new DOMException('timed out', 'TimeoutError');
-      }
+      sendMessageWithKeyboard: timedOut,
+      sendRichMessageWithKeyboard: timedOut
     } as unknown as TelegramOwnerMessageApi;
     const send = () =>
       sendContentAlerts({
@@ -399,7 +436,9 @@ describe('daily report on the Cron tick and the review job', () => {
       (container) => ({ ...container, contentSources: sources }) as typeof container
     );
     await send.run();
-    expect(send.ownerMessages.some((message) => message.html.includes('🧠 Что нового'))).toBe(true);
+    // The report goes as a rich message (owner, 23.10.2026), its review a heading of its own.
+    expect(send.ownerRichMessages.some((message) => message.html.includes('<h4>🧠 Что нового</h4>'))).toBe(true);
+    expect(send.ownerMessages.some((message) => message.html.includes('🧠 Что нового'))).toBe(false);
     expect((await alertRows())[0]?.status).toBe('sent');
   });
 

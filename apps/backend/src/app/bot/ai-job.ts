@@ -54,7 +54,9 @@ export const aiJobSchema = z.discriminatedUnion('kind', [
     postId: z.uuid(),
     externalId: z.string().min(1).max(100),
     /** A series post's own media (Valve's CDN); without it, the announcement's images. */
-    urls: z.array(z.url().max(500)).max(10).optional()
+    urls: z.array(z.url().max(500)).max(10).optional(),
+    /** The pictures from this one on, two per message (QA 23.10.2026: the Free plan's 50 D1 statements). */
+    from: z.number().int().min(0).max(10).optional()
   }),
   /**
    * An automatically approved patch post (owner, 22.10.2026): its picture is drawn, attached and the post published in
@@ -66,7 +68,14 @@ export const aiJobSchema = z.discriminatedUnion('kind', [
     chatId: z.number().int(),
     appOrigin: z.string().max(200),
     postId: z.uuid(),
-    externalId: z.string().min(1).max(100)
+    externalId: z.string().min(1).max(100),
+    /**
+     * Since 23.10.2026 every automatically approved source post goes this way (QA: the Free plan's 50 D1 statements),
+     * a treasure's follow-up with its number and set icons, and a message per two pictures from `from`.
+     */
+    followUp: z.number().int().min(1).max(2).optional(),
+    urls: z.array(z.url().max(500)).max(10).optional(),
+    from: z.number().int().min(0).max(10).optional()
   }),
   /** One planned post of an event's series, written by the AI writer (no chat message: the studio shows it). */
   z.object({
@@ -87,7 +96,9 @@ export const aiJobSchema = z.discriminatedUnion('kind', [
     chatId: z.number().int(),
     appOrigin: z.string().max(200),
     seriesId: z.uuid(),
-    position: z.number().int().min(1).max(6)
+    position: z.number().int().min(1).max(6),
+    /** The post's pictures from this one on, two per message (QA 23.10.2026: the Free plan's 50 D1 statements). */
+    from: z.number().int().min(0).max(10).optional()
   }),
   /** One run of the Liquipedia watch of treasures (migration 0101), queued by Cron's Dota step every 5 minutes; it reads the app origin itself. */
   z.object({

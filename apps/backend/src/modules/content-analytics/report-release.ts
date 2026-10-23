@@ -1,9 +1,11 @@
+import { RICH_HTML_MAX } from '@alexeev/contracts';
 import type { ContentAlertRepository } from './d1-content-alerts-repository';
 import type { ContentDailyReportRepository, DailyReportRow } from './d1-content-daily-reports-repository';
 import {
   type DailyReportData,
   type DailyReview,
   dailyReportHtml,
+  dailyReportRichHtml,
   dailyReviewFacts,
   reportTitleKeys
 } from './daily-report';
@@ -122,6 +124,10 @@ export async function releaseDailyReport(
     html = render(null, reviewError);
   }
   html = fitMessage(html);
+  // The same report as a rich message (owner, 23.10.2026): sent first, `html` its fallback; null for an older layout.
+  const richHtml = isWeekly(data)
+    ? weeklyReportHtml({ data, timezone: report.timezone, review, reviewError, rich: true })
+    : dailyReportRichHtml({ data, timezone: report.timezone, review, reviewError, ...(names ? { names } : {}) });
   const inserted = await deps.alerts.insert(
     [
       {
@@ -130,6 +136,7 @@ export async function releaseDailyReport(
         title: isWeekly(data) ? 'Итоги недели' : 'Аналитика за день',
         body: isWeekly(data) ? 'Еженедельный отчёт.' : 'Ежедневный отчёт по YouTube и TikTok.',
         html,
+        ...(richHtml === null || richHtml.length > RICH_HTML_MAX ? {} : { richHtml }),
         buttons: [],
         linkPath: '/analytics'
       }

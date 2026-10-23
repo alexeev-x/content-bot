@@ -17,9 +17,9 @@ import { runStyleLessons } from './workflows/style-lessons';
 import {
   type AutopublishOutcome,
   autopublishSourceEvent,
+  PICTURES_PER_RUN,
   publishQueuedPatchPost
 } from './workflows/autopublish-source-event';
-import { isHotfixTitle, patchVersionOf } from '../modules/dota';
 import { runSeriesPublishStep } from './workflows/autopublish-series';
 import { runTreasureWatch } from './workflows/treasure-watch';
 import { runPictureTrial } from './workflows/picture-trial';
@@ -137,11 +137,16 @@ async function runSourceMediaJob(
   let text: string;
   try {
     if (!(await container.aiWriter.claimJob(job.id, container.clock.now()))) return;
-    const { attached, found, pictureFailed } = await attachSourceEventImages(
+    const from = job.from ?? 0;
+    const { found, remaining, pictureFailed } = await attachSourceEventImages(
       sourceMediaDeps(container, token, job.chatId, { requestId, onError }),
-      job
+      { ...job, from, count: PICTURES_PER_RUN }
     );
+    // Two pictures per message keep it inside the Free plan's 50 D1 statements; the rest go on in the next one.
+    if (remaining > 0) await container.aiJobs.send({ ...job, id: container.newId(), from: from + PICTURES_PER_RUN });
     await container.aiWriter.finishJob(job.id, container.clock.now());
+    if (remaining > 0) return;
+    const attached = (await container.posts.findById(job.postId))?.media?.length ?? 0;
     // Only what needs the owner's hand reaches the bot (owner, 22.10.2026: «эту инфу не надо мне в тг»).
     if (pictureFailed === true) text = PICTURE_FAILED_TEXT;
     else if (attached === found) return;
@@ -156,19 +161,12 @@ async function runSourceMediaJob(
     .catch((error: unknown) => onError(error));
 }
 
-/** A patch announcement (not a treasure's follow-up): its post gets a drawn picture. */
-async function isPatchEvent(container: Container, externalId: string, followUp: boolean): Promise<boolean> {
-  if (followUp) return false;
-  const source = await container.dotaRepository.findSteamAnnouncement(externalId);
-  return source !== null && (patchVersionOf(source.title) !== null || isHotfixTitle(source.title));
-}
-
 /** The owner's short note of what the automatic publishing did; null when it did nothing. */
 function autopublishNote(outcome: AutopublishOutcome, appOrigin: string, externalId: string): string | null {
-  if (outcome.kind === 'skipped') return null;
+  if (outcome.kind === 'skipped' || outcome.kind === 'continue') return null;
   const title = escapeHtml(outcome.title);
   if (outcome.kind === 'queued')
-    return `Пост о патче одобрен${title === '' ? '' : `: «${title}»`}. Рисую картинку и опубликую без вас.`;
+    return `Пост одобрен${title === '' ? '' : `: «${title}»`}. Готовлю картинки и опубликую без вас.`;
   if (outcome.kind === 'published') {
     const link = escapeHtml(
       outcome.publicationId === null
@@ -182,11 +180,19 @@ function autopublishNote(outcome: AutopublishOutcome, appOrigin: string, externa
       ? `${appOrigin}/sources?open=${encodeURIComponent(`steam_news:${externalId}`)}`
       : `${appOrigin}/posts/${encodeURIComponent(outcome.postId)}`
   );
-  const why = outcome.reason === 'no_images' ? 'картинки из анонса не загрузились' : 'не получилось опубликовать';
+  const why =
+    outcome.reason === 'no_images'
+      ? 'картинки из анонса не загрузились'
+      : outcome.reason === 'limit'
+        ? 'дневной лимит автопубликаций исчерпан'
+        : 'не получилось опубликовать';
   return `Не опубликовано без вас (${why})${title === '' ? '' : `: «${title}»`}. Пост ждёт в студии. <a href="${link}">Открыть</a>`;
 }
 
-/** Draws the approved patch post's picture and publishes it once, then tells the owner quietly. Never throws. */
+/**
+ * Attaches an automatically approved source post's pictures (a patch's drawn one, an announcement's, a follow-up's set
+ * icons) two per message, then publishes it once and tells the owner quietly. Never throws.
+ */
 async function runPatchPublishJob(
   job: Extract<AiJob, { kind: 'patch_publish' }>,
   container: Container,
@@ -203,16 +209,21 @@ async function runPatchPublishJob(
       {
         postId: job.postId,
         externalId: job.externalId,
-        requestId
+        requestId,
+        ...(job.followUp === undefined ? {} : { followUp: job.followUp }),
+        ...(job.urls === undefined ? {} : { followUpUrls: job.urls }),
+        ...(job.from === undefined ? {} : { from: job.from })
       }
     );
     container.logger.info({ component: 'autopublish', operation: 'patch_publish', requestId, status: outcome.kind });
+    // More pictures: the next part in a message of its own, under a new claim; this one is done.
+    if (outcome.kind === 'continue') await container.aiJobs.send({ ...job, id: container.newId(), from: outcome.from });
     await container.aiWriter.finishJob(job.id, container.clock.now());
     text = autopublishNote(outcome, job.appOrigin, job.externalId);
   } catch (error) {
     onError(error);
     const link = escapeHtml(`${job.appOrigin}/posts/${encodeURIComponent(job.postId)}`);
-    text = `Не опубликовано без вас (не получилось опубликовать). Пост о патче ждёт в студии. <a href="${link}">Открыть</a>`;
+    text = `Не опубликовано без вас (не получилось опубликовать). Пост ждёт в студии. <a href="${link}">Открыть</a>`;
   }
   if (token === '' || text === null) return;
   // The owner may be asleep (owner, 22.10.2026): no sound.
@@ -453,20 +464,19 @@ export async function handleAiQueue(batch: MessageBatch<unknown>, container: Con
             ...draft,
             requestId,
             ...(eventJob.followUp === undefined ? {} : { followUp: eventJob.followUp.number }),
-            ...(eventJob.followUp?.urls === undefined ? {} : { followUpUrls: eventJob.followUp.urls }),
-            ...((await isPatchEvent(container, eventJob.externalId, eventJob.followUp !== undefined))
-              ? {
-                  queuePicture: (postId: string) =>
-                    container.aiJobs.send({
-                      id: container.newId(),
-                      kind: 'patch_publish',
-                      chatId: eventJob.chatId,
-                      appOrigin: eventJob.appOrigin,
-                      postId,
-                      externalId: eventJob.externalId
-                    })
-                }
-              : {})
+            // Every post's pictures and publication in a job of its own (QA 23.10.2026: the Free plan's 50 D1
+            // statements do not hold the writer, the pictures and their improvement together).
+            queuePicture: (postId: string) =>
+              container.aiJobs.send({
+                id: container.newId(),
+                kind: 'patch_publish',
+                chatId: eventJob.chatId,
+                appOrigin: eventJob.appOrigin,
+                postId,
+                externalId: eventJob.externalId,
+                ...(eventJob.followUp === undefined ? {} : { followUp: eventJob.followUp.number }),
+                ...(eventJob.followUp?.urls === undefined ? {} : { urls: eventJob.followUp.urls })
+              })
           }
         );
         container.logger.info({

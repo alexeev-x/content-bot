@@ -8,7 +8,7 @@ import { createWriterDeps } from '../bot/writer-deps';
 import type { AiJob } from '../bot/ai-job';
 import type { Container } from '../container';
 import { approveSourceAiDraft, readSourceAiDraft } from './approve-source-ai-draft';
-import { AUTOPUBLISH_ACTOR } from './autopublish-source-event';
+import { AUTOPUBLISH_ACTOR, PICTURES_PER_RUN } from './autopublish-source-event';
 import { attachSourceEventImages, type SourceMediaDeps } from './source-event-media';
 
 // An event's series published without the owner (owner, 22.10.2026), like a single news post: only Cron's series
@@ -80,7 +80,8 @@ export async function runSeriesPublishStep(
     const on = enabled && channel !== null && channel.enabled;
     const deps = await createWriterDeps(container, requestId);
 
-    if (step.position === 1) {
+    // A later message of the same post (its next pictures) is past this check: the post is approved by now.
+    if (step.position === 1 && step.from === undefined) {
       // Checked before anything is approved: refused here, the owner simply gets the series to approve.
       const used = await container.publications.countCreatedBy(AUTOPUBLISH_ACTOR, container.clock.now() - DAY_MS);
       let pristine = true;
@@ -152,31 +153,45 @@ export async function runSeriesPublishStep(
 
     const post = posts.find((item) => item.position === step.position);
     if (post === undefined || post.generationId === null) throw new Error('The series post is gone');
-    // Nobody may have rewritten, edited or taken this post since step 1 checked it.
-    if (!on || !(await untouched(container, deps, post)))
-      return void (await tell(`Серия «${title}» не опубликована без вас. Посты ждут в студии.`, eventUrl));
-    const { postId } = await approveSourceAiDraft(container, deps, {
-      rootId: post.generationId,
-      versionId: post.generationId,
-      actor: AUTOPUBLISH_ACTOR,
-      provenance: 'OWNER_PREAPPROVED',
-      linkToEvent: false
-    });
-    await container.sourceSeries.setPost({ id: post.id, postId });
-    // An owner edit that landed between the check and the approval is approved as the text: then the owner decides.
-    const approvedRevisions = await deps.writer.revisions(post.generationId);
-    if (
-      approvedRevisions.some(
-        (revision) => revision.provenance === 'OWNER_EDITED' || revision.provenance === 'OWNER_APPROVED'
+    let postId: string;
+    if (step.from === undefined) {
+      // Nobody may have rewritten, edited or taken this post since step 1 checked it.
+      if (!on || !(await untouched(container, deps, post)))
+        return void (await tell(`Серия «${title}» не опубликована без вас. Посты ждут в студии.`, eventUrl));
+      ({ postId } = await approveSourceAiDraft(container, deps, {
+        rootId: post.generationId,
+        versionId: post.generationId,
+        actor: AUTOPUBLISH_ACTOR,
+        provenance: 'OWNER_PREAPPROVED',
+        linkToEvent: false
+      }));
+      await container.sourceSeries.setPost({ id: post.id, postId });
+      // An owner edit that landed between the check and the approval is approved as the text: then the owner decides.
+      const approvedRevisions = await deps.writer.revisions(post.generationId);
+      if (
+        approvedRevisions.some(
+          (revision) => revision.provenance === 'OWNER_EDITED' || revision.provenance === 'OWNER_APPROVED'
+        )
       )
-    )
-      return void (await tell(`Серия «${title}» не опубликована без вас. Посты ждут в студии.`, eventUrl));
-    const { attached, found } = await attachSourceEventImages(media(step.chatId), {
+        return void (await tell(`Серия «${title}» не опубликована без вас. Посты ждут в студии.`, eventUrl));
+    } else {
+      // The same post's next pictures (QA 23.10.2026): approved and checked by the message that began it.
+      if (post.postId === null) throw new Error('The series post is not approved');
+      postId = post.postId;
+    }
+    const from = step.from ?? 0;
+    const { found, remaining } = await attachSourceEventImages(media(step.chatId), {
       postId,
       externalId: post.externalId,
       urls: post.media,
-      max: MAX_PICTURES
+      max: MAX_PICTURES,
+      from,
+      count: PICTURES_PER_RUN
     });
+    // Two pictures per message keep it inside the Free plan's 50 D1 statements; the rest go on in the next one.
+    if (remaining > 0)
+      return void (await container.aiJobs.send({ ...step, id: container.newId(), from: from + PICTURES_PER_RUN }));
+    const attached = (await container.posts.findById(postId))?.media?.length ?? 0;
     if (found > 0 && attached === 0) {
       await tell(
         `Серия «${title}» не опубликована без вас: к посту ${post.position} не загрузились картинки. Посты ждут в студии.`,
@@ -191,7 +206,8 @@ export async function runSeriesPublishStep(
         { repo: container.posts, now: container.clock.now() },
         { actor: AUTOPUBLISH_ACTOR, id: postId, input: { revision: current.revision } }
       );
-    await container.aiJobs.send({ ...step, id: container.newId(), position: step.position + 1 });
+    const { from: _done, ...next } = step;
+    await container.aiJobs.send({ ...next, id: container.newId(), position: step.position + 1 });
   } catch (error) {
     onError(error);
     // The series' write may have committed and lost its answer: never «not published» about posts that go out.

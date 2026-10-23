@@ -5,6 +5,7 @@ import {
   fetchSteamAnnouncement,
   type DotaWatcherRepository,
   LIQUIPEDIA_IMAGES,
+  LIQUIPEDIA_SPACING_MS,
   LIQUIPEDIA_USER_AGENT
 } from '../../modules/dota';
 import { AppError } from '../../shared/app-error';
@@ -69,8 +70,19 @@ type File = { bytes: Uint8Array; contentType: string; fileName: string };
 export async function attachSourceEventImages(
   deps: SourceMediaDeps,
   /** `urls`: a series post's own media (Valve's CDN); without them, the announcement's images. */
-  input: { postId: string; externalId: string; urls?: readonly string[] | undefined; max?: number }
-): Promise<{ attached: number; found: number; pictureFailed?: true }> {
+  input: {
+    postId: string;
+    externalId: string;
+    urls?: readonly string[] | undefined;
+    max?: number;
+    /**
+     * A part of the files only, `count` of them from position `from` (QA 23.10.2026: one picture costs about 13 D1
+     * statements and its improvement more, so a queue invocation within the Free plan's 50 takes a few at a time).
+     */
+    from?: number;
+    count?: number;
+  }
+): Promise<{ attached: number; found: number; remaining: number; pictureFailed?: true }> {
   let files: readonly string[];
   if (input.urls !== undefined) {
     files = input.urls;
@@ -78,14 +90,14 @@ export async function attachSourceEventImages(
     const source = await deps.repo.findSteamAnnouncement(input.externalId);
     if (source === null) throw new AppError('NOT_FOUND', 'The announcement is gone');
     const picture = deps.patchPicture === undefined ? null : await deps.patchPicture(source);
-    if (picture === 'failed') return { attached: 0, found: 0, pictureFailed: true };
+    if (picture === 'failed') return { attached: 0, found: 0, remaining: 0, pictureFailed: true };
     if (picture !== null) {
       const file = { ...picture, fileName: `patch-${input.externalId}.jpg` };
       const attached = await attach(deps, input.postId, file, `patch-picture:${input.externalId}`);
-      if (attached) return { attached: 1, found: 1 };
+      if (attached) return { attached: 1, found: 1, remaining: 0 };
       // Refused by the upload: the post goes without a picture, as when it could not be drawn.
       (deps.onSkip ?? (() => {}))('ATTACH_REFUSED');
-      return { attached: 0, found: 0, pictureFailed: true };
+      return { attached: 0, found: 0, remaining: 0, pictureFailed: true };
     }
     const announcement = await (deps.fetchAnnouncement ?? fetchSteamAnnouncement)({
       externalId: input.externalId,
@@ -94,9 +106,14 @@ export async function attachSourceEventImages(
     files = announcement?.images ?? [];
   }
   files = files.slice(0, Math.min(input.max ?? POST_MEDIA_MAX_ITEMS, POST_MEDIA_MAX_ITEMS));
+  const from = input.from ?? 0;
+  const until = input.count === undefined ? files.length : Math.min(files.length, from + input.count);
   const onSkip = deps.onSkip ?? (() => {});
   let attached = 0;
   for (const [index, url] of files.entries()) {
+    if (index < from || index >= until) continue;
+    // Liquipedia asks for no more than one request per 2 s (its set icons, owner 23.10.2026).
+    if (index > from && url.startsWith(LIQUIPEDIA_IMAGES)) await pause(LIQUIPEDIA_SPACING_MS);
     const target = new URL(url);
     if (!allowedPicture(target)) continue;
     // A series planned before 22.10.2026 may still list a video.
@@ -115,8 +132,10 @@ export async function attachSourceEventImages(
     if (await attach(deps, input.postId, file, `source-image:${input.externalId}:${index}`)) attached += 1;
     else onSkip('ATTACH_REFUSED');
   }
-  return { attached, found: files.length };
+  return { attached, found: files.length, remaining: files.length - until };
 }
+
+const pause = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 const IMAGE = /\.(?:png|jpe?g|webp|gif)$/i;
 const baseName = (path: string) => (path.split('/').pop() ?? 'image').replace(/\.\w+$/, '');

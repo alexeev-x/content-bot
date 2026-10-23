@@ -188,6 +188,12 @@ export interface TelegramOwnerMessageApi {
     input: { html: string; markup: InlineKeyboardMarkup },
     signal: AbortSignal
   ): Promise<unknown>;
+  /** A rich message (Bot API 10.1) with a ready inline keyboard: the analytics reports (owner, 23.10.2026). */
+  sendRichMessageWithKeyboard(
+    chatId: string,
+    input: { html: string; markup: InlineKeyboardMarkup },
+    signal: AbortSignal
+  ): Promise<unknown>;
   sendMediaWithWebAppButton(
     chatId: string,
     input: {
@@ -249,6 +255,8 @@ export function createTelegramOwnerMessageApi(token: string): TelegramOwnerMessa
         { parse_mode: 'HTML', link_preview_options: { is_disabled: true }, reply_markup: markup },
         signal as never
       ),
+    sendRichMessageWithKeyboard: (chatId, { html, markup }, signal) =>
+      api.raw.sendRichMessage({ chat_id: chatId, rich_message: { html }, reply_markup: markup }, signal as never),
     sendMediaWithWebAppButton: (chatId, { kind, fileName, body, html, button }, signal) => {
       const file = new InputFile(readBody(body), fileName);
       const other = {

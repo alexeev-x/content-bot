@@ -65,11 +65,38 @@ export async function sendContentAlerts(deps: {
     };
     deps.charge(1);
     try {
-      await deps.messenger.sendMessageWithKeyboard(
-        deps.ownerChatId,
-        { html, markup },
-        AbortSignal.timeout(CONTENT_ALERT_TIMEOUT_MS)
-      );
+      // A report goes as its rich message first (owner, 23.10.2026). Telegram refusing it (a definite 400: nothing was
+      // sent) falls back to the classic message in the same tick; any other failure is handled as before.
+      let sentRich = false;
+      if (alert.richHtml != null) {
+        sentRich = await deps.messenger
+          .sendRichMessageWithKeyboard(
+            deps.ownerChatId,
+            { html: alert.richHtml, markup },
+            AbortSignal.timeout(CONTENT_ALERT_TIMEOUT_MS)
+          )
+          .then(() => true)
+          .catch((error: unknown) => {
+            if (error instanceof GrammyError && error.error_code === 400) {
+              deps.logger.warn({
+                component: 'content-alerts',
+                operation: 'alert_send_rich',
+                jobId: alert.id,
+                status: 'fallback',
+                errorCode: 'RICH_REJECTED'
+              });
+              return false;
+            }
+            throw error;
+          });
+        if (!sentRich) deps.charge(1);
+      }
+      if (!sentRich)
+        await deps.messenger.sendMessageWithKeyboard(
+          deps.ownerChatId,
+          { html, markup },
+          AbortSignal.timeout(CONTENT_ALERT_TIMEOUT_MS)
+        );
       await deps.repo.finish({ id: alert.id, now: deps.now(), status: 'sent' });
       summary.sent += 1;
     } catch (error) {

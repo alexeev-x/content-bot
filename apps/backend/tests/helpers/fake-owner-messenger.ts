@@ -18,15 +18,31 @@ export interface SentOwnerMediaMessage extends SentOwnerMessage {
 export interface FakeOwnerMessenger extends TelegramOwnerMessageApi {
   sent: SentOwnerMessage[];
   sentMedia: SentOwnerMediaMessage[];
+  /** The rich messages (the analytics reports, owner 23.10.2026). */
+  sentRich: { chatId: string; html: string; markup: InlineKeyboardMarkup }[];
 }
 
 // Records what would reach the owner's chat; `fail` makes Telegram refuse every send.
-export function fakeOwnerMessenger(options: { fail?: () => unknown; hang?: boolean } = {}): FakeOwnerMessenger {
+export function fakeOwnerMessenger(
+  options: { fail?: () => unknown; hang?: boolean; rejectRich?: () => unknown } = {}
+): FakeOwnerMessenger {
   const sent: SentOwnerMessage[] = [];
   const sentMedia: SentOwnerMediaMessage[] = [];
+  const sentRich: FakeOwnerMessenger['sentRich'] = [];
   return {
     sent,
     sentMedia,
+    sentRich,
+    sendRichMessageWithKeyboard(chatId, { html, markup }, signal) {
+      if (options.rejectRich !== undefined) return Promise.reject(options.rejectRich());
+      sentRich.push({ chatId, html, markup });
+      if (options.hang === true) {
+        return new Promise((_resolve, reject) => {
+          signal.addEventListener('abort', () => reject(new Error('aborted')));
+        });
+      }
+      return options.fail === undefined ? Promise.resolve(true) : Promise.reject(options.fail());
+    },
     sendMessageWithWebAppButton(chatId, { html, button }, signal) {
       sent.push({ chatId, html, button });
       if (options.hang === true) {

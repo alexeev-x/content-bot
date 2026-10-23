@@ -159,6 +159,8 @@ export interface TickOptions {
 export interface Tick {
   /** What reached the owner's chat. */
   ownerMessages: FakeOwnerMessenger['sent'];
+  /** The rich messages to the owner (the analytics reports). */
+  ownerRichMessages: FakeOwnerMessenger['sentRich'];
   container: Container;
   logs: Record<string, unknown>[];
   run(): Promise<void>;
@@ -198,7 +200,13 @@ export function makeTick(options: TickOptions): Tick {
     cron: '* * * * *',
     scheduledTime: options.scheduledTime ?? MINUTE_TICK
   } as ScheduledController;
-  return { container, logs, ownerMessages: messenger.sent, run: () => handleScheduled(controller, container) };
+  return {
+    container,
+    logs,
+    ownerMessages: messenger.sent,
+    ownerRichMessages: messenger.sentRich,
+    run: () => handleScheduled(controller, container)
+  };
 }
 
 /** One counter of the tick's summary log line (0 when the tick did not report it). */

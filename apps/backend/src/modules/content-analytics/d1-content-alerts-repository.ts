@@ -25,6 +25,8 @@ export interface NewContentAlert {
   body: string;
   /** The Telegram HTML that is sent; null only for alerts raised before migration 0049. */
   html: string | null;
+  /** A report's rich message (migration 0104), sent before `html`; absent for every other alert. */
+  richHtml?: string | null;
   /** Buttons above the main one, each to one publication in the studio (at most six). */
   buttons: AlertButton[];
   /** Studio path the alert's button opens, e.g. `/analytics?id=…`. */
@@ -64,6 +66,7 @@ interface RawAlert {
   title: string;
   body: string;
   html: string | null;
+  rich_html: string | null;
   buttons: string | null;
   link_path: string;
   created_at: number;
@@ -175,8 +178,8 @@ export function createD1ContentAlertRepository(db: D1Database): ContentAlertRepo
         alerts.map((alert) =>
           db
             .prepare(
-              `INSERT OR IGNORE INTO content_alerts (id, kind, status, title, body, html, buttons, link_path, created_at, updated_at)
-               VALUES (?, ?, 'pending', ?, ?, ?, ?, ?, ?, ?)`
+              `INSERT OR IGNORE INTO content_alerts (id, kind, status, title, body, html, buttons, link_path, created_at, updated_at, rich_html)
+               VALUES (?, ?, 'pending', ?, ?, ?, ?, ?, ?, ?, ?)`
             )
             .bind(
               alert.id,
@@ -187,7 +190,8 @@ export function createD1ContentAlertRepository(db: D1Database): ContentAlertRepo
               alert.buttons.length === 0 ? null : JSON.stringify(alert.buttons),
               alert.linkPath,
               now,
-              now
+              now,
+              alert.richHtml ?? null
             )
         )
       );
@@ -197,7 +201,7 @@ export function createD1ContentAlertRepository(db: D1Database): ContentAlertRepo
     async listPending(limit) {
       const rows = await db
         .prepare(
-          `SELECT id, kind, title, body, html, buttons, link_path, created_at FROM content_alerts
+          `SELECT id, kind, title, body, html, rich_html, buttons, link_path, created_at FROM content_alerts
            WHERE status = 'pending' ORDER BY created_at, id LIMIT ?`
         )
         .bind(limit)
@@ -208,6 +212,7 @@ export function createD1ContentAlertRepository(db: D1Database): ContentAlertRepo
         title: row.title,
         body: row.body,
         html: row.html,
+        richHtml: row.rich_html,
         buttons: parseButtons(row.buttons),
         linkPath: row.link_path,
         createdAt: row.created_at

@@ -62,7 +62,8 @@ export function pictureImproverFor(container: Container, requestId: string, onEr
   return async (file: SourcePicture): Promise<SourcePicture> => {
     if (file.contentType === 'image/gif') return file;
     const size = pictureSize(file.bytes);
-    if (size === null || size.width >= QUALITY_MIN_WIDTH) return file;
+    // A truncated header reads as 0 wide: unknown, so never a paid improvement (QA 23.10.2026).
+    if (size === null || size.width === 0 || size.width >= QUALITY_MIN_WIDTH) return file;
     if (container.clock.now() - started > IMPROVE_BUDGET_MS) return file;
     try {
       const { timezone } = await getOwnerOperationsSettings({

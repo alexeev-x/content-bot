@@ -633,8 +633,8 @@ describe("an event post's images", () => {
         { ...deps, upload: (command) => deps.upload({ ...command, actor: OWNER_ID }) },
         { postId: post.id, externalId: '1001' }
       );
-    expect(await run()).toEqual({ attached: 2, found: 3 });
-    expect(await run()).toEqual({ attached: 2, found: 3 });
+    expect(await run()).toEqual({ attached: 2, found: 3, remaining: 0 });
+    expect(await run()).toEqual({ attached: 2, found: 3, remaining: 0 });
     expect(fetched.every((url) => url.startsWith(CDN))).toBe(true);
     expect((await container.postMedia.findPostState(post.id))?.media).toHaveLength(2);
 
@@ -659,8 +659,8 @@ describe("an event post's images", () => {
         },
         { postId: post.id, externalId: '1001' }
       );
-    expect(await patch('failed')).toEqual({ attached: 0, found: 0, pictureFailed: true });
-    expect(await patch({ bytes: png, contentType: 'image/png' })).toEqual({ attached: 1, found: 1 });
+    expect(await patch('failed')).toEqual({ attached: 0, found: 0, remaining: 0, pictureFailed: true });
+    expect(await patch({ bytes: png, contentType: 'image/png' })).toEqual({ attached: 1, found: 1, remaining: 0 });
     expect(fetched).toEqual([]);
     expect((await container.postMedia.findPostState(post.id))?.media).toHaveLength(3);
   });
