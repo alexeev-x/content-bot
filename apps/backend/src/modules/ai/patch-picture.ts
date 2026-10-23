@@ -62,7 +62,7 @@ export function patchPicturePrompt(input: { number: string; points: readonly str
   return [
     'Make a new Dota 2 patch cover in exactly the style and layout of the reference images, a wide 2:1 banner.',
     'A dark background with floating rock shards and small sparks. The red Dota 2 logo at the top center.',
-    `The patch number "${input.number}" huge in the center, as thick 3D letters of cracked stone with light glowing from the cracks.`,
+    `The ${/d/.test(input.number) ? 'patch number' : 'word'} "${input.number}" huge in the center, as thick 3D letters of cracked stone with light glowing from the cracks.`,
     'Below it a thin glowing horizontal line, then a row of columns separated by thin vertical lines; each column has a small glowing icon above a caption in white uppercase letters (two lines when the caption has two words).',
     `Exactly ${input.points.length} column${input.points.length === 1 ? '' : 's'}, captions exactly as written, left to right:`,
     captions,

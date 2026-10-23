@@ -125,3 +125,24 @@ describe('structuredRichHtml', () => {
     expect(structuredRichHtml('Габен вернул аркану на дровку и добавил новую на тайда\nВнутри 15 сетов.')).toBeNull();
   });
 });
+
+describe('sections', () => {
+  it('makes a «Раздел:» line above its points a heading, so a post is never a wall of text', () => {
+    const html = structuredRichHtml(
+      [
+        'Обновление 1 июля',
+        '',
+        'Главное коротко.',
+        '',
+        'Из заметного по механикам:',
+        '• Глиф без True Strike',
+        '• Пироги без подсказки'
+      ].join('\n')
+    );
+    expect(html).toContain(
+      '<h4>Из заметного по механикам</h4>\n<ul><li>Глиф без True Strike</li><li>Пироги без подсказки</li></ul>'
+    );
+    // A sentence that only ends with a colon and has nothing under it stays a paragraph.
+    expect(structuredRichHtml('Обновление\n\nВот что вышло:')).toContain('<p>Вот что вышло:</p>');
+  });
+});

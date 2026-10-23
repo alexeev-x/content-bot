@@ -52,6 +52,8 @@ export function seriesMaterial(
   mediaNames: string[];
   /** The rarest set's image when the rarity order is known: the treasure post opens with it. */
   topReward: string | null;
+  /** Every set's image, the rarest first when the order is known: the treasure post's slider (owner, 23.10.2026). */
+  treasureImages: string[];
 } {
   const media = [...page.images];
   const mediaNames = media.map(mediaName);
@@ -66,7 +68,7 @@ export function seriesMaterial(
       ? page.texts
       : [...page.texts, { key: STORE_PRICES_KEY, text: `Цены в магазине Dota 2 (Valve): ${priced.join('; ')}` }];
   const sets = page.treasure;
-  if (sets.length === 0) return { texts: baseTexts, media, mediaNames, topReward: null };
+  if (sets.length === 0) return { texts: baseTexts, media, mediaNames, topReward: null, treasureImages: [] };
   const ordered = !page.gaps.includes('treasure_order_unknown');
   const list = sets.map((set) => (set.hero === '' ? set.set : `${set.hero} — ${set.set}`)).join('; ');
   const text = ordered
@@ -79,7 +81,9 @@ export function seriesMaterial(
     mediaNames.push(`сокровищница: ${set.hero === '' ? set.set : `${set.hero} — ${set.set}`}${rarest}`);
   });
   const topReward = ordered ? (sets.at(-1)?.image ?? null) : null;
-  return { texts: [...baseTexts, { key: TREASURE_TEXT_KEY, text }], media, mediaNames, topReward };
+  const images = sets.map((set) => set.image).filter((image): image is string => image !== null);
+  const treasureImages = ordered ? [...images].reverse() : images;
+  return { texts: [...baseTexts, { key: TREASURE_TEXT_KEY, text }], media, mediaNames, topReward, treasureImages };
 }
 
 /**
@@ -126,6 +130,8 @@ export function seriesPostTask(input: {
   topic: string;
   brief: string;
   facts: readonly string[];
+  /** The treasure's post: every set goes into one table (owner, 23.10.2026), not the writer's pick of three. */
+  treasure?: boolean;
 }): string {
   const head = [
     `Повод: событие Dota 2 «${input.title}». Тема поста — ${input.topic}.`,
@@ -137,6 +143,11 @@ export function seriesPostTask(input: {
       : 'Что вышло и самое цепляющее для игрока.',
     'Пост самостоятельный: о других постах ни слова.',
     SOURCE_POST_STRUCTURE,
+    ...(input.treasure === true
+      ? [
+          'Перечисли ВСЕ сеты сокровищницы одной таблицей: строка «Герой | Сет», под ней по строке «Герой — Сет» на каждый сет, от самого редкого к обычному, без пропусков. Самый редкий отметь словами «главная награда».'
+        ]
+      : []),
     'Факты (официальные тексты Valve; бери только отсюда):'
   ].join('\n');
   const facts = input.facts.join('\n').replaceAll('>>>', '> > >').replaceAll('<<<', '< < <');
@@ -189,7 +200,7 @@ export async function planEventSeries(
   }
 
   const prices = await fetchStorePrices(page.storeItems.map((item) => item.itemId));
-  const { texts, media, mediaNames, topReward } = seriesMaterial(page, prices);
+  const { texts, media, mediaNames, topReward, treasureImages } = seriesMaterial(page, prices);
   const deps = await createWriterDeps(container, requestId);
   const plan = await planSeries(deps, {
     title: source.title,
@@ -221,17 +232,22 @@ export async function planEventSeries(
       total: plan.posts?.length ?? 1,
       topic: post.topic,
       brief: post.brief,
-      facts: post.texts.map((key) => textOf.get(key) ?? '').filter((text) => text !== '')
+      facts: post.texts.map((key) => textOf.get(key) ?? '').filter((text) => text !== ''),
+      treasure: post.texts.includes(TREASURE_TEXT_KEY)
     }),
-    media: postImages(
-      post.media.map((number) => media[number]).filter((url): url is string => url !== undefined),
-      {
-        treasurePost: post.texts.includes(TREASURE_TEXT_KEY),
-        topReward,
-        max: POST_MEDIA_MAX_ITEMS,
-        pageImages: page.images
-      }
-    )
+    // The treasure's post shows every set in its slider, the rarest first (owner, 23.10.2026), up to a post's ten.
+    media:
+      post.texts.includes(TREASURE_TEXT_KEY) && treasureImages.length > 0
+        ? treasureImages.slice(0, POST_MEDIA_MAX_ITEMS)
+        : postImages(
+            post.media.map((number) => media[number]).filter((url): url is string => url !== undefined),
+            {
+              treasurePost: post.texts.includes(TREASURE_TEXT_KEY),
+              topReward,
+              max: POST_MEDIA_MAX_ITEMS,
+              pageImages: page.images
+            }
+          )
   }));
   await container.sourceSeries.create({
     id: job.id,

@@ -10,8 +10,11 @@ import { getOwnerOperationsSettings } from '../../modules/settings';
 import type { Container } from '../container';
 
 // Which number and points a patch announcement's picture shows (owner, 22.10.2026): a versioned patch from Valve's
-// notes of that version, a «Dota 2 Update» hotfix the current version with «Исправления ошибок». An announcement that
+// notes of that version, a «Dota 2 Update» hotfix the word «ХОТФИКС» with «Исправления ошибок». An announcement that
 // is no patch, or a patch whose notes or version cannot be read, keeps the announcement's images.
+
+/** The word a hotfix's cover shows where a patch shows its version. */
+export const HOTFIX_PICTURE_TITLE = 'ХОТФИКС';
 
 export function patchPictureFor(container: Container, requestId: string, onError: (error: unknown) => void) {
   return async (source: DotaDraftSource): Promise<{ bytes: Uint8Array; contentType: string } | 'failed' | null> => {
@@ -27,7 +30,8 @@ export function patchPictureFor(container: Container, requestId: string, onError
         number = version;
         points = patchPicturePoints(digest);
       } else {
-        number = (await container.dotaWatcher.latestPatchVersion?.()) ?? null;
+        // A hotfix says so instead of a version (owner, 23.10.2026: a version's cover on a hotfix about an event misled).
+        number = HOTFIX_PICTURE_TITLE;
         points = HOTFIX_PICTURE_POINTS;
       }
     } catch (error) {

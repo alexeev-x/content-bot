@@ -3,6 +3,7 @@ import { SOURCE_POST_STRUCTURE } from '../bot/rich-post';
 import {
   fetchSteamAnnouncement,
   findDotaNewsEntryUrl,
+  isHotfixTitle,
   type PatchDigest,
   patchDigestText,
   patchVersionOf,
@@ -171,7 +172,10 @@ export function sourceEventTask(source: DotaDraftSource, text: string, link: str
     `Заголовок: ${source.title}`,
     `Дата: ${date}`,
     `${SOURCE_LINK_LABEL}${link}`,
-    'Напиши новость для канала: что вышло и чем это важно игроку. Пиши только то, что есть в анонсе, и всё важное из него, не короткую сводку.',
+    isHotfixTitle(source.title)
+      ? // A hotfix is short (owner, 23.10.2026: the approved sample; DEV's first one listed every fix).
+        'Это мелкое обновление. Напиши коротко: заголовок, одно предложение о главном, 2–4 строки «• » о том, что важно игроку, а все остальные исправления — в свёрнутом блоке «▾ Остальные исправления». Пиши только то, что есть в анонсе.'
+      : 'Напиши новость для канала: что вышло и чем это важно игроку. Пиши только то, что есть в анонсе, и всё важное из него, не короткую сводку.',
     SOURCE_POST_STRUCTURE,
     // Last, so the writer's 4 000-character cap can only shorten the announcement, never the request.
     'Текст анонса (английский; факты бери только отсюда):',

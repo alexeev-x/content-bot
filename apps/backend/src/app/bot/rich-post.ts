@@ -111,11 +111,17 @@ export function patchRichHtml(text: string): string | null {
 }
 
 const HEADING_MAX = 80;
+const SECTION = /^([^•\-–—*:][^:]{0,58}):$/u;
 const DETAILS = /^▾\s*(.+)$/u;
 const TABLE_HEAD = /^([^|—–]{1,40})\s*\|\s*([^|—–]{1,60})$/u;
 
 /** A block of lines: «• » list, «А — Б» rows (a table, an optional «Колонка | Колонка» head), or paragraphs. */
 function blockHtml(lines: readonly string[]): string {
+  // «Раздел:» on its own line above its points is the section's heading (owner, 23.10.2026: no wall of text).
+  const section = SECTION.exec(lines[0] ?? '');
+  if (section !== null && lines.length > 1)
+    return `<h4>${escapeHtml(section[1] ?? '')}</h4>
+${blockHtml(lines.slice(1))}`;
   if (lines.every((line) => BULLET.test(line)))
     return `<ul>${lines.map((line) => `<li>${escapeHtml(line.replace(BULLET, ''))}</li>`).join('')}</ul>`;
   const head = TABLE_HEAD.exec(lines[0] ?? '');
@@ -221,7 +227,7 @@ export function aiRichHtml(text: string, fromSource: boolean): string | null {
 export const SOURCE_POST_STRUCTURE = [
   'Оформи пост строго так, блоки через пустую строку, без markdown:',
   '— первая строка: короткий заголовок поста, до 60 знаков, без точки в конце;',
-  '— дальше абзацы обычным текстом;',
+  '— дальше короткими разделами: строка-подзаголовок с двоеточием в конце («Что изменилось в карнавале:»), под ней 2–4 пункта «• » или абзац; без длинных сплошных абзацев;',
   '— перечисление — строками, начинающимися с «• »;',
   '— если сравниваешь несколько героев, предметов или сетов — строками «Название — что важно» подряд (это станет таблицей), можно со строкой-шапкой «Колонка | Колонка» перед ними;',
   '— второстепенное можно свернуть в конце: строка «▾ Заголовок», под ней то, что свернуть;',
