@@ -34,29 +34,101 @@ const picture = (url: string) => `<figure><img src="${url}"/></figure>`;
 const slideshow = (urls: readonly string[]) =>
   `<tg-slideshow>${urls.map((url) => `<img src="${url}"/>`).join('')}</tg-slideshow>`;
 
-// A big patch (owner, 23.10.2026): the main change, then the two heroes cut hardest, the two buffed most and two
-// mixed ones in one table, the items folded apart. 7.41f from Valve's Russian notes (datafeed/patchnotes).
-const PATCH = `<h3>Вышел 7.41f</h3>
-${COVER_FIGURE}<p>Главное: <b>Тренту порезали базовый интеллект</b>, инвиз после выхода из деревьев держится вдвое меньше, а Living Armor теперь стоит ману.</p>
-<table bordered striped compact>
-<tr><th>Герой</th><th>Что поменяли</th></tr>
-<tr><td colspan="2"><b>🔻 Порезали сильнее всех</b></td></tr>
-<tr><td>Трент</td><td>интеллект 20 → 17, инвиз после деревьев 2 → 1 сек, Living Armor стоит 35 маны и лечит слабее на ранних уровнях</td></tr>
-<tr><td>Кипер</td><td>базовая скорость атаки 100 → 90, слабее сокращает перезарядки, Illuminate лечит 60% вместо 70%</td></tr>
-<tr><td colspan="2"><b>🔺 Усилили</b></td></tr>
-<tr><td>Урса</td><td>урон от своего здоровья 1,25% → 1,75%</td></tr>
-<tr><td>Анти-Маг</td><td>урон от сожжённой маны 60% → 65%</td></tr>
-<tr><td colspan="2"><b>↕️ И то и другое</b></td></tr>
-<tr><td>Хускар</td><td>базовая сила −1, зато прирост силы 3,3 → 3,4</td></tr>
-<tr><td>Earth Spirit</td><td>таланты переставили: +200 урона Geomagnetic Grip от копии уже на 20-м, но заряды копий растут медленнее и их максимум 13</td></tr>
-</table>
-<details><summary>Предметы</summary><ul>
-<li>Капли дают на четверть меньше регена маны</li>
-<li>Satanic и Mask of Madness слабее вампирят</li>
-<li>У сильвера чуть дольше откат инвиза и меньше бонус скорости</li>
-<li>Battle Fury рубит деревья раз в 3 секунды вместо 4</li>
-</ul></details>
-${more('https://www.dota2.com/patches/7.41f')}`;
+// A big patch (owner, 23.10.2026): the main change, then one table of the two heroes cut hardest, the two buffed
+// most and two mixed ones, each group under a header row (no stripes: they mixed with the group rows), the items
+// folded apart. From Valve's Russian notes (datafeed/patchnotes) and the AI writer's draft.
+type HeroChange = [hero: string, change: string];
+function patchPost(input: {
+  version: string;
+  cover: boolean;
+  main: string;
+  nerfed: HeroChange[];
+  buffed: HeroChange[];
+  mixed: HeroChange[];
+  items: string[];
+}): string {
+  const group = (title: string, heroes: HeroChange[]) => [
+    `<tr><th colspan="2">${title}</th></tr>`,
+    ...heroes.map(([hero, change]) => `<tr><td>${hero}</td><td>${change}</td></tr>`)
+  ];
+  return [
+    `<h3>Вышел ${input.version}</h3>`,
+    `${input.cover ? COVER_FIGURE : ''}<p>Главное: ${input.main}</p>`,
+    '<table bordered compact>',
+    ...group('🔴 Порезали сильнее всех', input.nerfed),
+    ...group('🟢 Усилили', input.buffed),
+    ...group('🟡 И то и другое', input.mixed),
+    '</table>',
+    `<details><summary>Предметы</summary><ul>${input.items.map((item) => `<li>${item}</li>`).join('')}</ul></details>`,
+    more(`https://www.dota2.com/patches/${input.version}`)
+  ].join('\n');
+}
+
+const PATCH = patchPost({
+  version: '7.41f',
+  cover: true,
+  main: '<b>Тренту порезали базовый интеллект</b>, инвиз после выхода из деревьев держится вдвое меньше, а Living Armor теперь стоит ману.',
+  nerfed: [
+    [
+      'Трент',
+      'интеллект 20 → 17, инвиз после деревьев 2 → 1 сек, Living Armor стоит 35 маны и лечит слабее на ранних уровнях'
+    ],
+    ['Кипер', 'базовая скорость атаки 100 → 90, слабее сокращает перезарядки, Illuminate лечит 60% вместо 70%']
+  ],
+  buffed: [
+    ['Урса', 'урон от своего здоровья 1,25% → 1,75%'],
+    ['Анти-Маг', 'урон от сожжённой маны 60% → 65%']
+  ],
+  mixed: [
+    ['Хускар', 'базовая сила −1, зато прирост силы 3,3 → 3,4'],
+    [
+      'Earth Spirit',
+      'таланты переставили: +200 урона Geomagnetic Grip от копии уже на 20-м, но заряды копий растут медленнее и их максимум 13'
+    ]
+  ],
+  items: [
+    'Капли дают на четверть меньше регена маны',
+    'Satanic и Mask of Madness слабее вампирят',
+    'У сильвера чуть дольше откат инвиза и меньше бонус скорости',
+    'Battle Fury рубит деревья раз в 3 секунды вместо 4'
+  ]
+});
+
+// 7.41e: the draft's main change (Bind breaks a Twin Gate teleport) and Valve's notes for the groups.
+const PATCH_E = patchPost({
+  version: '7.41e',
+  cover: false,
+  main: '<b>Привязка теперь сбивает телепорт через парные порталы.</b> Ещё один способ никуда не уехать.',
+  nerfed: [
+    [
+      'Snapfire',
+      'урон от приземления и шаров ульты ниже, выстрел в упор +25% вместо +30%, на 25-м 6 шаров вместо 8, талант на печеньку заменили дальностью'
+    ],
+    [
+      'Clockwerk',
+      'обзор шестерней днём 1600 → 800, ночью 600 → 400, толчок шестерни короче на ранних уровнях, жжёт меньше маны'
+    ]
+  ],
+  buffed: [
+    ['Troll Warlord', 'смена стойки больше не снимает невидимость, +35% к сопротивлению замедлениям, ловкость 23 → 24'],
+    [
+      'Outworld Destroyer',
+      'барьер ставится мгновенно и не прерывает движение, прочнее на ранних уровнях, перезарядка до 27 сек'
+    ]
+  ],
+  mixed: [
+    [
+      'Legion Commander',
+      'сила 24 → 25 и скорость атаки 100 → 105, но прирост силы 3,1 → 3, а талант на 25-м вместо сброса Duel даёт −30 сек перезарядки'
+    ],
+    ['Doom', 'дальность атаки 200 → 175, зато больше базового урона от способности']
+  ],
+  items: [
+    'Mask of Madness дальникам даёт меньше скорости и вдвое меньше сопротивления замедлению',
+    'У Butterfly −5 ловкости, но +5 урона',
+    "Crella's Crozier: кража скорости длится на треть дольше, Putrefaction Aura 75% → 90%"
+  ]
+});
 
 // A hotfix worth a post: «Dota 2 Update - 7/1/2026» (event rewards a player cares about), the rest folded.
 const HOTFIX = `<h3>Обновление 1 июля: карнавал щедрее</h3>
@@ -176,7 +248,7 @@ const TROVE_DETAILS = `<h3>Trove of Terror: шансы и бонусы</h3>
 <p>Бонусы за открытия: <b>12</b> сокровищниц — Obscene Eye Ball, <b>40</b> — R'shan the Eternal и Baby R'shan the Eternal.</p>
 <table bordered striped compact>
 <caption>Шанс на N-м открытии</caption>
-<tr><th>Открытие</th><th align="right">Редкий</th><th align="right">Очень редкий</th><th align="right">Ультраредкий</th></tr>
+<tr><th>№</th><th align="right">Редкий</th><th align="right">Оч. редкий</th><th align="right">Ультра</th></tr>
 <tr><td>1-е</td><td align="right">0.05%</td><td align="right">0.005%</td><td align="right">0.001%</td></tr>
 <tr><td>10-е</td><td align="right">9.61%</td><td align="right">1.78%</td><td align="right">0.17%</td></tr>
 <tr><td>20-е</td><td align="right">38.46%</td><td align="right">7.87%</td><td align="right">0.95%</td></tr>
@@ -216,30 +288,25 @@ ${picture(`${CLAN_IMAGES}/5179a724ee3987b0b0dab399b9ef2eaba7b2abf4.png`)}
 </table>
 <p>Из забавного: свитками телепортации можно было генерировать бесконечное золото, а Bristleback навсегда оставался с Warpath, если тот срабатывал от смертельного удара.</p>
 </details>
-<p>Баланс 7.41e — в отдельном посте.</p>
 ${more('https://www.dota2.com/summerscrub2026')}`;
 
+// No table for long descriptions (owner, 23.10.2026: a one-word column stretched on a phone): name, then the text.
 // A second news post: The International's predictions, fantasy and supporter bundles (Valve's announcement).
 const TI_NEWS = `<h3>The International: прогнозы, фэнтези и наборы команд</h3>
 ${picture(`${CLAN_IMAGES}/5c825b3d35627bfc4276c013745aa6fd4de935ea.png`)}
 <p>До TI в Шанхае две недели, все 16 команд известны, и Valve открыла всё, во что можно вписаться зрителю.</p>
-<table bordered striped compact>
-<tr><th>Что</th><th>Как устроено</th></tr>
-<tr><td>Наборы поддержки</td><td>для всех 16 команд и сотни комментаторов; <b>50% продаж уходит команде или таланту, 30% — в призовой</b>. С уровня Gold — своё изваяние команды на базе до конца сентября</td></tr>
-<tr><td>Прогнозы</td><td>угадать швейцарскую стадию и сетку; полностью швейцарку ещё не угадал никто. Успеть до первого матча</td></tr>
-<tr><td>Фэнтези</td><td>теперь ты тренер со своими модификаторами на всю команду; игроков берёшь парами: обе поддержки из одной команды, лёгкая и сложная линии из одной, плюс любимый мидер</td></tr>
-<tr><td>Награды</td><td>лучшим — сокровищница Tyrian Regalia с пятью переделанными Immortal и новый жетон ландшафта: один из шести, включая Reef's Edge и Immortal Gardens</td></tr>
-</table>
+<p><b>Наборы поддержки</b><br>Для всех 16 команд и сотни комментаторов; <b>50% продаж уходит команде или таланту, 30% — в призовой</b>. С уровня Gold — своё изваяние команды на базе до конца сентября.</p>
+<p><b>Прогнозы</b><br>Угадать швейцарскую стадию и сетку; полностью швейцарку ещё не угадал никто. Успеть до первого матча.</p>
+<p><b>Фэнтези</b><br>Теперь ты тренер со своими модификаторами на всю команду; игроков берёшь парами: обе поддержки из одной команды, лёгкая и сложная линии из одной, плюс любимый мидер.</p>
+<p><b>Награды</b><br>Лучшим — сокровищница Tyrian Regalia с пятью переделанными Immortal и новый жетон ландшафта: один из шести, включая Reef's Edge и Immortal Gardens.</p>
 ${more('https://www.dota2.com/newsentry/678505520073540063')}`;
 
 // A find in the game files (build 6962: Primal Beast's new effect slots), the diff retold in Russian.
-const DIFF = `- Слот 6: облик героя
-+ Слот 6: эффекты Trample
-+ Слот 7: эффекты Uproar
-+ Слот 8: эффекты Rock Throw
-+ Слот 9: эффекты Pulverize
-+ Слот 10: эффекты Colossal
-+ Слот 11: облик героя`;
+const DIFF = `+ эффекты Trample
++ эффекты Uproar
++ эффекты Rock Throw
++ эффекты Pulverize
++ эффекты Colossal`;
 const DATAMINE_TEXT =
   'В файлах игры нашли: у Primal Beast появились отдельные слоты эффектов для Trample, Uproar, Rock Throw, Pulverize и Colossal. Похоже на кастомные эффекты способностей. Valve не подтверждала, может измениться.';
 // No heading: the text opens with «В файлах игры нашли» (owner, 23.10.2026: the heading only repeated it).
@@ -252,6 +319,7 @@ const DATAMINE_CLASSIC = `${DATAMINE_TEXT}
 const BOTH: Target[] = ['channel', 'owner'];
 const SAMPLES: Sample[] = [
   { title: 'Патч 7.41f', targets: BOTH, html: PATCH },
+  { title: 'Патч 7.41e', targets: BOTH, html: PATCH_E },
   { title: 'Хотфикс 1 июля', targets: BOTH, html: HOTFIX },
   { title: 'Серия ивента 1/3', targets: BOTH, html: SERIES_EVENT },
   { title: 'Серия ивента 2/3', targets: BOTH, html: SERIES_COSMETICS },

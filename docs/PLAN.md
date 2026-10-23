@@ -109,16 +109,26 @@ The AI makes the Telegram channel's content itself: news and rubric posts drafte
   Owner's review of the full set (23.10.2026), to carry into the real posts:
   - patch: the main change, then one table with group rows: the 2 heroes cut hardest, the 2 buffed most, 2 mixed
     (something taken, something given); the items in a folded block of their own (liked); our patch picture on top;
+    groups marked 🔴 cut / 🟢 buffed / 🟡 both as header rows of the table, no stripes (they mixed with the groups);
+  - every post stands alone for the reader: never «в отдельном посте», «дальше ещё N постов» or any reference to
+    another post;
+  - tables only for short cells (numbers, names); a long description goes as a bold name with its text below; short
+    headers so a column does not wrap (Telegram sets column widths itself, there is no width attribute);
   - hotfix: liked as is; it needs a picture too, how to make it is to be decided with the owner;
   - event series: liked; the writer must not add «Дальше ещё N постов» (the AI wrote it, no prompt asks for it);
     several pictures of a post go in one slider (`tg-slideshow`): the five automatons on their background
     (`*_automaton_gameplay_poster.jpg`), all 15 treasure sets; never a collage;
-  - treasure without its own page: news, sets and details liked; the sets get Liquipedia's set icons in a slider
-    (its `imageinfo` API gives them, 256×170);
+  - treasure without its own page: news, sets and details liked; Liquipedia's set icons (256×170) look blurry in a
+    slider and no larger source exists (research 23.10.2026: Workshop, dota2.com, schema, market, Fandom all ruled
+    out). Rule for every fetched picture (owner, 23.10.2026): its pixel size is read from the file header; below
+    the bar (about 800 px wide for a full-width picture, 600 in a slider) it goes through the AI with a strict
+    instruction: «ничего не меняй, не добавляй и не дорисовывай — только улучши качество». First a DEV trial on 5 Trove
+    icons, before/after to the owner's chat, cost per call measured; if a set comes out changed, the poster stays;
   - news: the whole content, not a short summary of the announcement: its linked page (e.g. dota2.com/summerscrub2026,
     with Valve's Russian texts) gives the new features, the changes and the fixes by section; a second announcement
     of the same day (The International's predictions, fantasy, bundles) is its own post;
-  - file find: no heading, the text opens with «В файлах игры нашли»;
+  - file find: no heading, the text opens with «В файлах игры нашли»; the diff lines are only `-`/`+` and what
+    changed, no file labels like «Слот 6»; an entry that only moved is not a change;
   - reports: the first rich report was cut down and its 5-column table broke on a phone; the rich report must keep
     every part of the classic one (followers, the day, Telegram, the review, milestones) with short video names.
 - Next: changes in the game's files (owner, 23.10.2026: «это очень интересное»). Source: the GitHub repo
