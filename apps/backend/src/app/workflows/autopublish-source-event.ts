@@ -1,3 +1,4 @@
+import { POST_BODY_MAX } from '@alexeev/contracts';
 import { approvePost } from '../../modules/content';
 import { createPublication } from '../../modules/publishing';
 import { getOwnerOperationsSettings } from '../../modules/settings';
@@ -35,7 +36,7 @@ export type AutopublishOutcome =
   /** More pictures to attach: the queue job goes on from `from` in a message of its own; nothing is published yet. */
   | { kind: 'continue'; postId: string; from: number }
   /** Nothing done: the owner gets the draft as before. */
-  | { kind: 'skipped'; reason: 'off' | 'channel' | 'limit' };
+  | { kind: 'skipped'; reason: 'off' | 'channel' | 'limit' | 'too_long' };
 
 export async function autopublishSourceEvent(
   container: Container,
@@ -74,6 +75,10 @@ export async function autopublishSourceEvent(
     (await container.publications.countCreatedBy(AUTOPUBLISH_ACTOR, now - DAY_MS)) >= dailyLimit
   )
     return { kind: 'skipped', reason: 'limit' };
+
+  // A text over a post's 4 096 characters cannot become a post: the owner gets the draft to shorten, not a «сбой».
+  const text = (await deps.writer.revisions(input.versionId)).at(-1)?.text ?? '';
+  if (text.length > POST_BODY_MAX) return { kind: 'skipped', reason: 'too_long' };
 
   let postId: string;
   let title: string;

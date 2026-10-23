@@ -145,6 +145,8 @@ export function seriesPostTask(input: {
     SOURCE_POST_STRUCTURE,
     ...(input.treasure === true
       ? [
+          // Owner, 23.10.2026: the post opened with the top set; a reader must first learn a new treasure is out.
+          'Начни с того, что вышла новая сокровищница (её название и что в ней), затем главная награда.',
           'Перечисли ВСЕ сеты сокровищницы одной таблицей: строка «Герой | Сет», под ней по строке «Герой — Сет» на каждый сет, от самого редкого к обычному, без пропусков. Самый редкий отметь словами «главная награда».'
         ]
       : []),

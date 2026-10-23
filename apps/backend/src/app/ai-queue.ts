@@ -173,7 +173,8 @@ async function runSourceMediaJob(
 const SKIPPED_TEXT: Record<Extract<AutopublishOutcome, { kind: 'skipped' }>['reason'], string> = {
   off: 'автопубликация выключена в настройках',
   channel: 'канал автопубликации не выбран или выключен',
-  limit: 'дневной лимит автопубликаций исчерпан — его можно поднять в настройках'
+  limit: 'дневной лимит автопубликаций исчерпан — его можно поднять в настройках',
+  too_long: 'текст длиннее 4 096 знаков, столько пост не вмещает — нажмите «Короче»'
 };
 
 /** The owner's short note of what the automatic publishing did; null when it did nothing. */

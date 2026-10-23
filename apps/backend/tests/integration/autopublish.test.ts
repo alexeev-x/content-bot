@@ -123,6 +123,16 @@ describe('automatic publishing of an event post', () => {
     expect(await count('publications')).toBe(2);
   });
 
+  it('leaves a draft over a post’s 4 096 characters to the owner, saying why (owner, 23.10.2026)', async () => {
+    const destination = await seedDestination(api);
+    await settings({ enabled: true, destinationId: destination.id, dailyLimit: 3 });
+    expect(await run('1001', `Хотфикс. ${'Исправили баг. '.repeat(300)}`)).toEqual({
+      kind: 'skipped',
+      reason: 'too_long'
+    });
+    expect(await count('posts')).toBe(0);
+  });
+
   it('does nothing while the chosen channel is disabled', async () => {
     const destination = await seedDestination(api);
     await settings({ enabled: true, destinationId: destination.id, dailyLimit: 3 });
