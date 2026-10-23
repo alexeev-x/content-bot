@@ -36,7 +36,8 @@ A Steam announcement whose title names a patch version («7.41f Gameplay Patch»
 
 Since 23.10.2026 (owner: every post in the approved rich format) the task asks for a fixed structure: «Вышел <version>.»,
 the main change, then «🔴 Порезали сильнее всех», «🟢 Усилили», «🟡 И то и другое» with «Герой — что поменяли» lines (usually
-two, three or four only when something really interesting happened to them, never more than four) (heroes named as players call them, «Котл»), then «Предметы» with 2–4 lines. The draft stays this plain text in the
+two, three or four only when something really interesting happened to them, never more than four; the cut and buffed
+groups always, at least two heroes each, «И то и другое» only for an even mix, owner 23.10.2026) (heroes named as players call them, «Котл»), then «Предметы» with 2–4 lines. The draft stays this plain text in the
 bot; every approval (bot, studio, automatic) turns it into rich HTML (`app/bot/rich-post.ts` `patchRichHtml`): a heading,
 the media slot `{{media}}` for the patch picture (filled at sending, contracts `expandRichMedia`), the main change, one
 table with the groups as header rows, the items in a folded block and «Подробнее» to the patch page. A text without the
