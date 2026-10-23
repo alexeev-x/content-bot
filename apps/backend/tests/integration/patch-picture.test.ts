@@ -88,7 +88,12 @@ describe('a patch picture', () => {
     expect(draws).toBe(2);
     expect(reads).toEqual([{ images: 1 }, { images: 1 }]);
     // Each picture is priced and shows as its own line of the month's spend.
-    const spend = await createD1AiRepository(testDb()).readSpend({ monthStart: 0, dayStart: 0, bySource: true });
+    const spend = await createD1AiRepository(testDb()).readSpend({
+      monthStart: 0,
+      dayStart: 0,
+      bySource: true,
+      provider: 'openai'
+    });
     expect(spend.images.requests).toBe(2);
     expect(spend.images.pricedMicroUsd).toBe(2 * (100 * 8 + 10 * 30));
   });

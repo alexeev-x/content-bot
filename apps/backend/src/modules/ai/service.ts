@@ -181,7 +181,12 @@ async function readSpend(
   bySource = false
 ): Promise<AiSpendDto> {
   const window = spendWindows(deps.clock.now(), deps.timezone);
-  const rows = await deps.repo.readSpend({ monthStart: window.monthStart, dayStart: window.dayStart, bySource });
+  const rows = await deps.repo.readSpend({
+    monthStart: window.monthStart,
+    dayStart: window.dayStart,
+    bySource,
+    provider: settings.provider
+  });
   const spentMicro = rows.byKind.reduce((sum, row) => sum + row.costMicroUsd, 0);
   const requests = rows.byKind.reduce((sum, row) => sum + row.requests, 0);
   const unpriced = rows.byKind.reduce((sum, row) => sum + row.unpriced, 0);

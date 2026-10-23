@@ -88,6 +88,22 @@ describe('AI settings, spend and connection', () => {
     await expectError(await api.request('/api/v1/ai/check', { method: 'POST' }), 503, 'UNAVAILABLE');
   });
 
+  it('counts only the chosen provider: another provider’s requests are not on its bill (owner, 23.10.2026)', async () => {
+    const api = createApi({ clock: fakeClock(), aiProvider: fakeProvider(ok) });
+    await api.request('/api/v1/ai/settings', { method: 'PUT', json: { revision: 0, ...SETTINGS } });
+    await api.request('/api/v1/ai/check', { method: 'POST' });
+    // A Claude request of the blind comparison of 21.10.2026, still in the ledger.
+    await testDb()
+      .prepare(
+        `INSERT INTO ai_usage (id, at, kind, provider, model, input_tokens, cached_input_tokens, output_tokens, cost_micro_usd)
+         VALUES (?1, ?2, 'other', 'anthropic', 'claude-opus-5-5', 1000, 0, 100, 3000000)`
+      )
+      .bind(crypto.randomUUID(), fakeClock().now())
+      .run();
+    const overview = aiOverviewSchema.parse(await (await api.request('/api/v1/ai')).json());
+    expect(overview.spend).toMatchObject({ requests: 1, spentUsd: 0.00015 });
+  });
+
   it('stores a provider failure as the check result without spending', async () => {
     const api = createApi({
       clock: fakeClock(),

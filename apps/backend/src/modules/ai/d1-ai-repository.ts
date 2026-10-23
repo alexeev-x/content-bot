@@ -28,7 +28,11 @@ export interface AiRepository {
   /** The recorded cost of these usage rows (at most 100), in micro-USD; an unpriced row maps to null. */
   costsOf(ids: readonly string[]): Promise<Map<string, number | null>>;
   /** `bySource` only for the overview: budget checks run inside Cron jobs that count every D1 query. */
-  readSpend(input: { monthStart: number; dayStart: number; bySource: boolean }): Promise<SpendRows>;
+  /**
+   * The spend of one provider (owner, 23.10.2026: the page must match that provider's own bill; Claude's comparison
+   * runs had been added to OpenAI's).
+   */
+  readSpend(input: { monthStart: number; dayStart: number; bySource: boolean; provider: string }): Promise<SpendRows>;
   /** Marks a budget alert as sent; false when it already was (one per period). */
   claimBudgetAlert(id: string, now: number): Promise<boolean>;
   readLastCheck(): Promise<{ at: number; ok: boolean; model: string | null; errorCode: string | null } | null>;
@@ -92,32 +96,34 @@ export function createD1AiRepository(db: D1Database): AiRepository {
       return new Map(rows.results.map((row) => [row.id, row.cost]));
     },
 
-    async readSpend({ monthStart, dayStart, bySource }) {
+    async readSpend({ monthStart, dayStart, bySource, provider }) {
       const statements = [
         db
           .prepare(
             `SELECT kind, COUNT(*) AS requests, COALESCE(SUM(cost_micro_usd), 0) AS costMicroUsd,
                     SUM(CASE WHEN cost_micro_usd IS NULL THEN 1 ELSE 0 END) AS unpriced
-             FROM ai_usage WHERE at >= ? GROUP BY kind`
+             FROM ai_usage WHERE at >= ? AND provider = ? GROUP BY kind`
           )
-          .bind(monthStart),
-        db.prepare('SELECT COALESCE(SUM(cost_micro_usd), 0) AS total FROM ai_usage WHERE at >= ?').bind(dayStart),
+          .bind(monthStart, provider),
+        db
+          .prepare('SELECT COALESCE(SUM(cost_micro_usd), 0) AS total FROM ai_usage WHERE at >= ? AND provider = ?')
+          .bind(dayStart, provider),
         // A request is recorded with its generation, so the month's generations bound the scan (created_at index).
         db
           .prepare(
             `SELECT g.source, COUNT(*) AS requests, COALESCE(SUM(u.cost_micro_usd), 0) AS costMicroUsd
              FROM ai_generations g JOIN ai_usage u ON u.id = g.usage_id
-             WHERE g.created_at >= ?1 AND u.at >= ?1 GROUP BY g.source`
+             WHERE g.created_at >= ?1 AND u.at >= ?1 AND u.provider = ?2 GROUP BY g.source`
           )
-          .bind(monthStart),
+          .bind(monthStart, provider),
         // A picture has no generation: told apart by its model (patch pictures, owner 23.10.2026).
         db
           .prepare(
             `SELECT COUNT(*) AS requests, COALESCE(SUM(cost_micro_usd), 0) AS pricedMicroUsd,
                     COALESCE(SUM(COALESCE(cost_micro_usd, input_tokens * 8 + output_tokens * 30)), 0) AS costMicroUsd
-             FROM ai_usage WHERE at >= ? AND model LIKE 'gpt-image-%'`
+             FROM ai_usage WHERE at >= ? AND provider = ? AND model LIKE 'gpt-image-%'`
           )
-          .bind(monthStart)
+          .bind(monthStart, provider)
       ];
       const [kinds, today, sources, images] = await db.batch(bySource ? statements : statements.slice(0, 2));
       return {

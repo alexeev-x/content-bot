@@ -144,6 +144,8 @@ The AI makes the Telegram channel's content itself: news and rubric posts drafte
   Release (owner, 23.10.2026): steps 1–5 whole, checked live on DEV, then the owner's `develop → main` and production
   migrations; the studio shows a rich post and edits it through «Переписать» (owner's choice; a block editor later).
   After the release, on DEV: the rubrics, then the game-file source and new sources.
+  The AI money page counts only the chosen provider (OpenAI); a second API in use gets a tab per provider with its own
+  spend (owner, 23.10.2026).
 - Next: changes in the game's files (owner, 23.10.2026: «это очень интересное»). Source: the GitHub repo
   SteamTracking/GameTracking-Dota2 (SteamDB's tracker; one commit per game build with its file diffs), read through
   GitHub's API with a free token (the owner sets `GITHUB_TOKEN`; never steamdb.info itself, its FAQ forbids scraping).
