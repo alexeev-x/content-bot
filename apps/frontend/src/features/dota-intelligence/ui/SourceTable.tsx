@@ -38,9 +38,14 @@ const EMPTY: Record<SourceEventView, { title: string; description: string }> = {
   past: { title: 'Прошлых анонсов нет', description: 'Все анонсы Steam уже в списке событий.' }
 };
 
-type Props = { state: SourceTableView; timezone: string; onChange: (patch: Partial<SourceTableView>) => void };
+type Props = {
+  state: SourceTableView;
+  timezone: string;
+  onChange: (patch: Partial<SourceTableView>) => void;
+  autopublishTest?: boolean;
+};
 
-export function SourceTable({ state, timezone, onChange }: Props) {
+export function SourceTable({ state, timezone, onChange, autopublishTest = false }: Props) {
   const now = useNow().getTime();
   const query = useQuery(sourceEventsQueryOptions({ view: state.view, page: state.page, limit: PAGE_SIZE }));
   const totalCount = query.data?.totalCount ?? 0;
@@ -147,6 +152,7 @@ export function SourceTable({ state, timezone, onChange }: Props) {
         event={opened}
         now={now}
         timezone={timezone}
+        autopublishTest={autopublishTest}
         onClose={() => onChange({ open: undefined })}
       />
     </Panel>

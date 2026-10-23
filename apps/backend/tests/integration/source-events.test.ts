@@ -202,6 +202,24 @@ describe('POST /api/v1/sources/events/{id}/ai-draft', () => {
     expect(sourceEventPageSchema.parse(await (await get('?view=past')).json()).totalCount).toBe(0);
   });
 
+  it('runs the automatic way only where AUTOPUBLISH_TEST allows it (DEV)', async () => {
+    const test = (target: Api) =>
+      target.request(`/api/v1/sources/events/${encodeURIComponent('steam_news:0999')}/ai-draft`, {
+        method: 'POST',
+        json: { autopublishTest: true }
+      });
+    const production = createApi({ clock: fakeClock(), botToken: null });
+    const refused = await test(production);
+    expect(refused.status).toBe(403);
+    expect(await refused.json()).toMatchObject({ error: { details: { reason: 'AUTOPUBLISH_TEST_OFF' } } });
+    expect(production.aiJobs.sent).toHaveLength(0);
+
+    const dev = createApi({ clock: fakeClock(), botToken: null, env: { AUTOPUBLISH_TEST: 'true' } });
+    expect((await test(dev)).status).toBe(202);
+    expect(dev.aiJobs.sent).toMatchObject([{ kind: 'source_event', externalId: '0999', automatic: true }]);
+    await dev.settle();
+  });
+
   it('refuses a patch and a hidden event, 404s an unknown one', async () => {
     const offline = createApi({ clock: fakeClock(), botToken: null });
     const patch = await aiDraft(offline, PATCH);

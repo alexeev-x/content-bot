@@ -1,6 +1,7 @@
 import { Link, useNavigate, useSearch } from '@tanstack/react-router';
 import { useCallback, useEffect, useRef } from 'react';
 import { useDocumentTitle } from '../../app/use-document-title';
+import { readAppEnvironment } from '../../app/environment';
 import { DotaEventDetail, SourcesBoard, type SourceTableView } from '../../features/dota-intelligence';
 import { useOwnerTimezone } from '../../features/owner-settings';
 import { ru } from '../../shared/lib/ru';
@@ -40,7 +41,12 @@ export function SourcesPage() {
     <>
       <PageHeader title={ru.pages.sources} focusHeadingOnMount />
       <div hidden={Boolean(search.update)}>
-        <SourcesBoard timezone={timezone} state={state} onChange={onChange} />
+        <SourcesBoard
+          timezone={timezone}
+          state={state}
+          onChange={onChange}
+          autopublishTest={readAppEnvironment() === 'dev'}
+        />
       </div>
       {validUpdate && validSourceKey ? (
         <DotaEventDetail sourceKey={validSourceKey} externalId={externalId} timezone={timezone} />

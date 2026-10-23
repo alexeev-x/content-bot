@@ -80,6 +80,14 @@ export const sourceEventContentSchema = z.object({
 });
 export type SourceEventContentDto = z.infer<typeof sourceEventContentSchema>;
 
+/**
+ * POST /api/v1/sources/events/{id}/ai-draft. `autopublishTest` (DEV only, owner 23.10.2026): the announcement goes the
+ * whole automatic way, as if Cron had just found it — written, fact-checked, published without the owner when the
+ * automatic publishing is on. Refused (403) where the Worker does not allow it.
+ */
+export const requestSourceEventAiDraftInputSchema = z.strictObject({ autopublishTest: z.literal(true).optional() });
+export type RequestSourceEventAiDraftInput = z.infer<typeof requestSourceEventAiDraftInputSchema>;
+
 /** The newest version of an event's AI draft, for the side panel. */
 export const sourceEventAiDraftSchema = z.object({
   // The version the owner sees; approval names it, so a newer rewrite is never approved unseen.

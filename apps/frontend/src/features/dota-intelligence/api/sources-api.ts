@@ -30,9 +30,15 @@ export function createSourceEventDraft(id: string) {
   return apiRequest(`${eventPath(id)}/draft`, createSourceEventDraftResponseSchema, { method: 'POST', body: {} });
 }
 
-/** Asks the AI writer for a post; the draft arrives in the bot for approval. Each call is a paid model call. */
-export function requestSourceEventAiDraft(id: string) {
-  return apiRequest(`${eventPath(id)}/ai-draft`, sourceEventSchema, { method: 'POST', body: {} });
+/**
+ * Asks the AI writer for a post; the draft arrives in the bot for approval. Each call is a paid model call. With
+ * `autopublishTest` (DEV only) it goes the automatic way instead and may publish without the owner.
+ */
+export function requestSourceEventAiDraft(id: string, autopublishTest = false) {
+  return apiRequest(`${eventPath(id)}/ai-draft`, sourceEventSchema, {
+    method: 'POST',
+    body: autopublishTest ? { autopublishTest: true } : {}
+  });
 }
 
 /** The newest version of the event's AI draft (the bot's draft, readable here). */

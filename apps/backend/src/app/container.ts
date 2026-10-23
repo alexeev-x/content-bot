@@ -298,6 +298,8 @@ export interface ContainerEnv {
   PUBLISHING_ENABLED?: string;
   /** Studio AI drafts per 10 minutes; dev raises it for control runs, unset means 20. */
   AI_DRAFT_LIMIT?: string;
+  /** "true" on dev only: the studio may run an old announcement through the automatic publishing (a test). */
+  AUTOPUBLISH_TEST?: string;
   OWNER_TELEGRAM_ID?: string;
   /** Public username of the owner's channel; empty means content analytics skips Telegram. */
   ANALYTICS_TELEGRAM_CHANNEL?: string;

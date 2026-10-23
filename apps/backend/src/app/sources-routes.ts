@@ -2,6 +2,7 @@ import {
   approveSourceEventAiDraftInputSchema,
   approveSourceEventAiDraftResponseSchema,
   listSourceEventsQuerySchema,
+  requestSourceEventAiDraftInputSchema,
   sourceEventAiDraftSchema,
   sourceEventContentSchema,
   rewriteSourceEventSeriesPostInputSchema,
@@ -79,6 +80,15 @@ export const sourcesRoutes = new Hono<AppBindings>()
     async (c) => {
       const container = c.get('container');
       if (c.env.DB === undefined) throw new AppError('UNAVAILABLE', 'Database is not configured');
+      // An empty body is the ordinary request; only dev lets a test go the automatic way (it may publish).
+      const raw: unknown = await c.req.json().catch(() => ({}));
+      const input = requestSourceEventAiDraftInputSchema.safeParse(raw ?? {});
+      if (!input.success) throw new AppError('VALIDATION_ERROR', 'Invalid request body');
+      const automatic = input.data.autopublishTest === true;
+      if (automatic && c.env.AUTOPUBLISH_TEST !== 'true')
+        throw new AppError('FORBIDDEN', 'The automatic publishing test is off here', {
+          reason: 'AUTOPUBLISH_TEST_OFF'
+        });
       const key = parseSourceEventId(c.req.valid('param').id);
       const event = key === null ? null : await container.sourceEvents.find(key);
       if (key === null || event === null) throw new AppError('NOT_FOUND', 'Event not found');
@@ -97,7 +107,7 @@ export const sourcesRoutes = new Hono<AppBindings>()
           newId: container.newId,
           now: () => container.clock.now()
         },
-        { externalId: key.externalId, chatId, appOrigin: appOriginOf(c.req.url), replay: true }
+        { externalId: key.externalId, chatId, appOrigin: appOriginOf(c.req.url), replay: true, automatic }
       );
       // Lost a race with another tap (or a hide): the claim decides, the read says which.
       if (!queued) {

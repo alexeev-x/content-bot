@@ -167,11 +167,13 @@ type Props = {
   event: SourceEventDto | undefined;
   now: number;
   timezone: string;
+  /** DEV only: «Проверить автопубликацию» on an announcement without a post. */
+  autopublishTest?: boolean;
   onClose: () => void;
 };
 
 /** Everything about one event without making a draft first (owner, 21.10.2026): the announcement and its actions. */
-export function SourceEventDrawer({ event, now, timezone, onClose }: Props) {
+export function SourceEventDrawer({ event, now, timezone, autopublishTest = false, onClose }: Props) {
   const navigate = useNavigate();
   const aiDraft = useRequestSourceEventAiDraft();
   const draft = useCreateSourceEventDraft();
@@ -193,6 +195,17 @@ export function SourceEventDrawer({ event, now, timezone, onClose }: Props) {
           onPress={() => aiDraft.mutate(event.id)}
         >
           {event.aiWriting ? 'ИИ пишет…' : 'Написать через ИИ'}
+        </Button>
+      ) : null}
+      {/* DEV test (owner, 23.10.2026): the whole way without the owner, as if Cron had just found it. */}
+      {autopublishTest && event.type !== 'patch' && event.draft === null ? (
+        <Button
+          variant="secondary"
+          icon="send"
+          isDisabled={busy || event.aiWriting || event.status === 'hidden'}
+          onPress={() => aiDraft.mutate({ id: event.id, autopublishTest: true })}
+        >
+          Проверить автопубликацию (DEV)
         </Button>
       ) : null}
       {event.draft ? (
@@ -307,9 +320,11 @@ export function SourceEventDrawer({ event, now, timezone, onClose }: Props) {
                 ? 'Событие пропущено: верните его, чтобы сделать пост.'
                 : reason === 'AI_WRITING'
                   ? 'ИИ уже пишет этот пост, дождитесь черновика в боте.'
-                  : error instanceof ApiError && error.code === 'RATE_LIMIT'
-                    ? 'Слишком много запросов к ИИ подряд. Подождите несколько минут.'
-                    : 'Сервер не подтвердил действие, ничего не изменилось. Повторите.'}
+                  : reason === 'AUTOPUBLISH_TEST_OFF'
+                    ? 'Проверка автопубликации здесь выключена.'
+                    : error instanceof ApiError && error.code === 'RATE_LIMIT'
+                      ? 'Слишком много запросов к ИИ подряд. Подождите несколько минут.'
+                      : 'Сервер не подтвердил действие, ничего не изменилось. Повторите.'}
               {error instanceof ApiError && error.requestId ? ` Номер запроса: ${error.requestId}` : ''}
             </Banner>
           ) : null}
