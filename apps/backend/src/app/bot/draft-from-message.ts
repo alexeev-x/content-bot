@@ -251,3 +251,18 @@ export function linkTrailingSource(text: string): { text: string; entities: Mess
       .sort((a, b) => a.offset - b.offset)
   };
 }
+
+// A patch post opens with «Вышел 7.41f.» in bold on its own line, then an empty line (owner, 23.10.2026). Done here,
+// not by the writer: its text is plain, and a bold first line in general broke posts that open with a joke.
+const PATCH_LEAD = /^(Вышел (?:патч )?\d\.\d{2}[a-z]?\.)[ \t]*(?:\n[ \t]*)*/u;
+
+/** An approved AI text as a post: the patch lead in bold, the trailing source as a link. */
+export function aiPostText(text: string): { text: string; entities: MessageEntity[] } {
+  const lead = PATCH_LEAD.exec(text);
+  if (lead === null) return linkTrailingSource(text);
+  const head = lead[1] ?? '';
+  const rest = text.slice(lead[0].length);
+  if (rest.trim() === '') return linkTrailingSource(text);
+  const linked = linkTrailingSource(`${head}\n\n${rest}`);
+  return { text: linked.text, entities: [{ type: 'bold', offset: 0, length: head.length }, ...linked.entities] };
+}

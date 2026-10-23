@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { draftFromMessageText, linkTrailingSource } from './draft-from-message';
+import { aiPostText, draftFromMessageText, linkTrailingSource } from './draft-from-message';
 
 const URL_ = 'https://www.dota2.com/newsentry/681888927386174386';
 const PAGE = 'https://www.dota2.com/darkcarnival';
@@ -56,5 +56,18 @@ describe('linkTrailingSource', () => {
   it('leaves a text without an address as it is', () => {
     const text = 'Без ссылок.\nКонец.';
     expect(linkTrailingSource(text)).toEqual({ text, entities: [] });
+  });
+});
+
+describe('a patch post from an AI text', () => {
+  it('opens with «Вышел <версия>.» in bold on its own line, then an empty line, whatever the writer did', () => {
+    for (const text of ['Вышел 7.41f. Тренту порезали интеллект.', 'Вышел 7.41f.\nТренту порезали интеллект.']) {
+      expect(aiPostText(text)).toEqual({
+        text: 'Вышел 7.41f.\n\nТренту порезали интеллект.',
+        entities: [{ type: 'bold', offset: 0, length: 12 }]
+      });
+    }
+    // Any other post keeps its first line as written (owner, 16.10.2026: no bold title).
+    expect(aiPostText('Вышел новый сет на Пуджа.\n\nКрасивый.').entities).toEqual([]);
   });
 });

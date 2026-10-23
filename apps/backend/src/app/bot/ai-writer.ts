@@ -30,7 +30,7 @@ import { formatAiBudgetAlert } from '../notifications/ai-budget-alert';
 import type { Clock } from '../../platform/clock';
 import type { PublishActions } from './publish-actions';
 import type { AiJob, AiJobBase, EventWriterJob, WriterJob } from './ai-job';
-import { draftFromMessageText, linkTrailingSource } from './draft-from-message';
+import { aiPostText, draftFromMessageText } from './draft-from-message';
 import { publishKeyboard } from './publish-keyboard';
 import { lineage } from '../workflows/approve-source-ai-draft';
 
@@ -1180,7 +1180,7 @@ export function registerAiWriter(bot: Bot, runtime: AiWriterRuntime): void {
       await ctx.reply(ALREADY_APPROVED_TEXT, markup === undefined ? {} : { reply_markup: markup });
       return;
     }
-    const linked = linkTrailingSource(approved.text);
+    const linked = aiPostText(approved.text);
     const input = draftFromMessageText(linked.text, linked.entities);
     if (!input.ok) {
       await ctx.reply(NOT_A_POST_TEXT);

@@ -10,7 +10,7 @@ import {
 } from '../../modules/ai';
 import { createPost } from '../../modules/content';
 import { AppError } from '../../shared/app-error';
-import { draftFromMessageText, linkTrailingSource } from '../bot/draft-from-message';
+import { aiPostText, draftFromMessageText } from '../bot/draft-from-message';
 import type { Container } from '../container';
 
 // An event's AI draft seen and approved in the studio (owner, 21.10.2026: «почему в админке не видно черновик»), the
@@ -94,7 +94,7 @@ export async function approveSourceAiDraft(
   await approveDraft(deps, input.versionId, input.provenance);
   const approved = await publishableText(deps, input.versionId);
   if (approved.postId !== null) return { postId: approved.postId, created: false };
-  const linked = linkTrailingSource(approved.text);
+  const linked = aiPostText(approved.text);
   const post = draftFromMessageText(linked.text, linked.entities);
   if (!post.ok) throw new AppError('CONFLICT', 'The text does not fit a post', { reason: 'NOT_A_POST' });
   // Keyed by the approved revision, as in the bot: a repeated approval anywhere returns the same post.
