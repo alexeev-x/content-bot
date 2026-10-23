@@ -11,6 +11,7 @@ import {
   getSourceEventContent,
   getSourceEvents,
   requestSourceEventAiDraft,
+  sendRichSamples,
   setSourceEventHidden,
   type SourceEventsFilters
 } from './sources-api';
@@ -147,4 +148,9 @@ export function useSetSourceEventHidden() {
     retry: false,
     onSettled: () => queryClient.invalidateQueries({ queryKey: sourceEventKeys.all })
   });
+}
+
+/** Every press sends real Telegram messages: never retried by itself. */
+export function useSendRichSamples() {
+  return useMutation({ mutationFn: sendRichSamples, retry: false });
 }

@@ -3,7 +3,8 @@ import type {
   TelegramBotAdminApi,
   TelegramInviteLinkApi,
   TelegramChatReadApi,
-  TelegramOwnerMessageApi
+  TelegramOwnerMessageApi,
+  TelegramRichMessageApi
 } from '../../src/integrations/telegram/telegram-api';
 import { handleAiQueue } from '../../src/app/ai-queue';
 import { createContainer, type ContainerOverrides } from '../../src/app/container';
@@ -203,6 +204,8 @@ export function createApi(
     botInfo?: string;
     /** Replaces the default recording fake. Without a bot token the real container path (no messenger) is used. */
     ownerMessenger?: TelegramOwnerMessageApi;
+    /** Scripts the rich message calls (the DEV samples). */
+    richMessages?: TelegramRichMessageApi;
     /** Replaces the test database, for example with a metered one. */
     db?: D1Database;
     /** Extra Worker variables and secrets (content analytics keys). */
@@ -222,6 +225,7 @@ export function createApi(
     telegramChatApi: options.chatApi,
     telegramBotAdminApi: options.botAdminApi,
     telegramInviteLinkApi: options.inviteLinkApi,
+    ...(options.richMessages === undefined ? {} : { richMessages: options.richMessages }),
     ownerMessenger: options.ownerMessenger ?? (options.botToken === null ? undefined : messenger),
     ...(options.contentFetch === undefined ? {} : { contentFetch: options.contentFetch }),
     aiProvider: options.aiProvider ?? null

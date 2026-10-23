@@ -75,6 +75,8 @@
         "AI_DRAFT_LIMIT": "200",
         // The studio's «Проверить автопубликацию» on an old announcement (owner, 23.10.2026); never in production.
         "AUTOPUBLISH_TEST": "true",
+        // The studio's rich message samples go to the test channel and the owner's chat (owner, 23.10.2026).
+        "RICH_SAMPLES": "true",
         "ANALYTICS_TELEGRAM_CHANNEL": "alexeev_x",
         "ANALYTICS_YOUTUBE_CHANNEL_ID": "UCE-VQmi1Qym7MrEzHg9ngjA"
       }

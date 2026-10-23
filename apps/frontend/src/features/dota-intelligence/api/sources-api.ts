@@ -6,6 +6,7 @@ import {
   sourceEventPageSchema,
   sourceEventSchema,
   sourceEventSeriesSchema,
+  sendRichSamplesResponseSchema,
   type RewriteSourceEventSeriesPostInput,
   type SourceEventType,
   type SourceEventView
@@ -82,4 +83,9 @@ export function rewriteSourceEventSeriesPost(id: string, postId: string, input: 
 
 export function setSourceEventHidden(id: string, hidden: boolean) {
   return apiRequest(`${eventPath(id)}/${hidden ? 'hide' : 'unhide'}`, sourceEventSchema, { method: 'POST', body: {} });
+}
+
+/** DEV only: sends the Telegram rich message samples to the test channel and the owner's chat; no AI call. */
+export function sendRichSamples() {
+  return apiRequest('/api/v1/sources/rich-samples', sendRichSamplesResponseSchema, { method: 'POST', body: {} });
 }

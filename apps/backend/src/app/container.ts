@@ -41,10 +41,12 @@ import {
   createTelegramInviteLinkApi,
   createTelegramChatReadApi,
   createTelegramOwnerMessageApi,
+  createTelegramRichMessageApi,
   type TelegramBotAdminApi,
   type TelegramInviteLinkApi,
   type TelegramChatReadApi,
-  type TelegramOwnerMessageApi
+  type TelegramOwnerMessageApi,
+  type TelegramRichMessageApi
 } from '../integrations/telegram/telegram-api';
 import type { AiJob } from './bot/ai-job';
 import { type BotIdentityStore, createD1BotIdentityStore } from './bot/bot-identity-store';
@@ -177,6 +179,8 @@ export interface Container {
   botAdminApi: TelegramBotAdminApi;
   /** Owner notices (a publication was scheduled or moved); null without a bot token, which only skips them. */
   ownerMessenger: TelegramOwnerMessageApi | null;
+  /** Telegram rich messages for the DEV samples; null without a bot token. */
+  richMessages: TelegramRichMessageApi | null;
   /** The owner's Telegram ID as a chat id (a private chat has the user's id); null when OWNER_TELEGRAM_ID is not valid. */
   ownerChatId: string | null;
   /** The bot's own identity (`getMe`), stored by connect; read by the webhook instead of calling Telegram. */
@@ -300,6 +304,8 @@ export interface ContainerEnv {
   AI_DRAFT_LIMIT?: string;
   /** "true" on dev only: the studio may run an old announcement through the automatic publishing (a test). */
   AUTOPUBLISH_TEST?: string;
+  /** "true" on dev only: the studio may send the Telegram rich message samples (a look before posts use them). */
+  RICH_SAMPLES?: string;
   OWNER_TELEGRAM_ID?: string;
   /** Public username of the owner's channel; empty means content analytics skips Telegram. */
   ANALYTICS_TELEGRAM_CHANNEL?: string;
@@ -325,6 +331,7 @@ export interface ContainerOverrides {
   telegramInviteLinkApi?: TelegramInviteLinkApi;
   /** Replaces the owner notice sender (tests record it; nothing reaches the network). */
   ownerMessenger?: TelegramOwnerMessageApi;
+  richMessages?: TelegramRichMessageApi;
   random?: () => number;
   newId?: () => string;
   /** Replaces the fixed-host feed fetcher for deterministic Cron tests. */
@@ -502,6 +509,11 @@ export function createContainer(env: ContainerEnv, overrides: ContainerOverrides
       if (overrides.ownerMessenger !== undefined) return overrides.ownerMessenger;
       const token = botToken();
       return token === '' ? null : createTelegramOwnerMessageApi(token);
+    },
+    get richMessages(): TelegramRichMessageApi | null {
+      if (overrides.richMessages !== undefined) return overrides.richMessages;
+      const token = botToken();
+      return token === '' ? null : createTelegramRichMessageApi(token);
     },
     get ownerChatId(): string | null {
       const ownerId = parseOwnerTelegramId(env.OWNER_TELEGRAM_ID);

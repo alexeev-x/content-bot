@@ -88,6 +88,21 @@ export type SourceEventContentDto = z.infer<typeof sourceEventContentSchema>;
 export const requestSourceEventAiDraftInputSchema = z.strictObject({ autopublishTest: z.literal(true).optional() });
 export type RequestSourceEventAiDraftInput = z.infer<typeof requestSourceEventAiDraftInputSchema>;
 
+/**
+ * POST /api/v1/sources/rich-samples, empty body (DEV only, owner 23.10.2026): sends Telegram rich message samples, made
+ * of posts already published, to the test channel and the owner's chat, for a look before posts use them. No AI call.
+ * One result per message; a failed one carries Telegram's «Bad Request» text. Refused (403) where the Worker does not
+ * allow it.
+ */
+export const richSampleResultSchema = z.object({
+  sample: z.string().min(1).max(100),
+  target: z.enum(['channel', 'owner']),
+  status: z.enum(['sent', 'failed']),
+  error: z.string().max(300).nullable()
+});
+export const sendRichSamplesResponseSchema = z.object({ results: z.array(richSampleResultSchema).max(20) });
+export type SendRichSamplesResponse = z.infer<typeof sendRichSamplesResponseSchema>;
+
 /** The newest version of an event's AI draft, for the side panel. */
 export const sourceEventAiDraftSchema = z.object({
   // The version the owner sees; approval names it, so a newer rewrite is never approved unseen.

@@ -101,6 +101,9 @@ The AI makes the Telegram channel's content itself: news and rubric posts drafte
   published, pictures from ones already made or from the sources (Valve's CDN). The owner looks on phone and desktop;
   then we pick what posts and the report use. Open: the `<mark>` colour, red/green in `diff`, how old clients and
   channels show rich messages, scheduling (sendRichMessage has no schedule field), editing in the studio.
+  Built 23.10.2026: «Rich-образцы (DEV)» on «Источники» (`POST /api/v1/sources/rich-samples`, `RICH_SAMPLES`); the
+  patch, the Dark Carnival post and its treasure sets, the 7.41e news, the Primal Beast file find (rich and classic
+  `pre`) and the report (owner's chat only, numbers only for the layout). `<mark>` has no colour attribute in the API.
 - Next: changes in the game's files (owner, 23.10.2026: «это очень интересное»). Source: the GitHub repo
   SteamTracking/GameTracking-Dota2 (SteamDB's tracker; one commit per game build with its file diffs), read through
   GitHub's API with a free token (the owner sets `GITHUB_TOKEN`; never steamdb.info itself, its FAQ forbids scraping).
