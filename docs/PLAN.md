@@ -103,7 +103,7 @@ The AI makes the Telegram channel's content itself: news and rubric posts drafte
   channels show rich messages, scheduling (sendRichMessage has no schedule field), editing in the studio.
   Built 23.10.2026: «Rich-образцы (DEV)» on «Источники» (`POST /api/v1/sources/rich-samples`, `RICH_SAMPLES`): every
   post kind (a patch, a hotfix, the three event series posts, a treasure's news, sets and details, a news post, a file
-  find as rich and classic `pre`) and DEV's newest daily and weekly reports as tables (owner's chat only). `<mark>` has no colour attribute in the API.
+  find as rich and classic `pre`) and DEV's newest daily and weekly reports as tables (owner's chat only). `<mark>` is never used: it has no colour attribute and on a phone in the dark theme shows white text on yellow, unreadable (owner, 23.10.2026); bold marks the key fact.
   Owner on the first look (23.10.2026): one picture per post (a collage of hero portraits looked awful); a treasure
   lists every set in the table; no English text but names; no «Источник» line and no links but «Подробнее» to dota2.com.
   Owner's review of the full set (23.10.2026), to carry into the real posts:

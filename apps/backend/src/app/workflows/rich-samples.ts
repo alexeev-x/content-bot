@@ -37,7 +37,7 @@ const slideshow = (urls: readonly string[]) =>
 // A big patch (owner, 23.10.2026): the main change, then the two heroes cut hardest, the two buffed most and two
 // mixed ones in one table, the items folded apart. 7.41f from Valve's Russian notes (datafeed/patchnotes).
 const PATCH = `<h3>Вышел 7.41f</h3>
-${COVER_FIGURE}<p>Главное: <mark>Тренту порезали базовый интеллект</mark>, инвиз после выхода из деревьев держится вдвое меньше, а Living Armor теперь стоит ману.</p>
+${COVER_FIGURE}<p>Главное: <b>Тренту порезали базовый интеллект</b>, инвиз после выхода из деревьев держится вдвое меньше, а Living Armor теперь стоит ману.</p>
 <table bordered striped compact>
 <tr><th>Герой</th><th>Что поменяли</th></tr>
 <tr><td colspan="2"><b>🔻 Порезали сильнее всех</b></td></tr>
@@ -62,7 +62,7 @@ ${more('https://www.dota2.com/patches/7.41f')}`;
 const HOTFIX = `<h3>Обновление 1 июля: карнавал щедрее</h3>
 <p>Valve выпустила мелкий фикс, но для «Тёмного карнавала» он важный:</p>
 <ul>
-<li>за обычные игры теперь дают <mark>2 металлолома, за турбо — 1</mark>, даже при поражении. 6 металлолома меняются на билет любого героя;</li>
+<li>за обычные игры теперь дают <b>2 металлолома, за турбо — 1</b>, даже при поражении. 6 металлолома меняются на билет любого героя;</li>
 <li>Seeing Stones теперь можно получить в коопе с ботами на сложности Hard и Unfair;</li>
 <li>в Candyworks видно, есть ли у тебя уже предложенный предмет.</li>
 </ul>
@@ -78,7 +78,7 @@ ${more('https://www.dota2.com/newsentry/670621050832160174')}`;
 const SERIES_EVENT = `<h3>«Тёмный карнавал»: побег из поезда и награды</h3>
 ${picture(`${CDN}/images/dota_react/darkcarnival/overworld/dark_carnival_overworld_poster.jpg`)}
 <p>В Доте вышел «Тёмный карнавал»: надо сбежать из пауконогого поезда Магистра. Основной сюжет бесплатный. Играешь в Доту, получаешь билеты в зависимости от выбранного героя и открываешь путь по вагонам.</p>
-<p>Главная приманка по дороге: <mark>четыре набора для Phantom Assassin, Crystal Maiden, Invoker и Magnus</mark>. Получить их можно только через сюжет. Ещё вернулась лавка конфет, а десять монет можно обменять на скидку в магазине события.</p>
+<p>Главная приманка по дороге: <b>четыре набора для Phantom Assassin, Crystal Maiden, Invoker и Magnus</b>. Получить их можно только через сюжет. Ещё вернулась лавка конфет, а десять монет можно обменять на скидку в магазине события.</p>
 <p>За деньги отдельно продают «Комплект тайных комнат»: он открывает побочные истории с наградами, а крипов и музыку даёт сразу. Для основного побега покупать его не надо))</p>
 ${more(CARNIVAL_PAGE)}`;
 
@@ -116,7 +116,7 @@ const CARNIVAL_SETS: [string, string, string][] = [
   ['Primal Beast', 'primal_beast', 'Mane Attraction'],
   ['Mirana', 'mirana', 'Selemene Showgirl'],
   ['Dark Willow', 'dark_willow', 'Fairy Godmummer'],
-  ['Io', 'io', '<mark>Madame Scrio</mark> — самая редкая']
+  ['Io', 'io', '<b>Madame Scrio</b> — самая редкая']
 ];
 const SERIES_TREASURE = `<h3>Treasure of Wonders: Io и карнавальные сеты</h3>
 ${slideshow(
@@ -135,7 +135,7 @@ const TROVE_NEWS = `<h3>Trove of Terror</h3>
 ${picture('https://clan.akamai.steamstatic.com/images/3703047/44e04da47da8b634dee235756e4ffa1234879b40.png')}
 <p>Габен вернул аркану на дровку и добавил новую на тайда. Обе в новой сокровищнице Trove of Terror, которая уже вышла в Доте.</p>
 <p>Внутри 15 Immortal-сетов в духе потусторонних кошмаров. У дровки есть прежний облик и новый мрачный вариант.</p>
-<p>Тайду досталась <mark>Maw of the Megalodon</mark>: новая модель, анимации, эффекты, насмешки и реплики. Всего три акульих облика, которые предстоит открыть.</p>
+<p>Тайду досталась <b>Maw of the Megalodon</b>: новая модель, анимации, эффекты, насмешки и реплики. Всего три акульих облика, которые предстоит открыть.</p>
 <p>За открытие определённого количества сокровищниц гарантированно дадут новый облик Терзателя, а за ещё большее количество — Рошана.</p>
 ${more(TROVE_PAGE)}`;
 
@@ -162,7 +162,7 @@ const TROVE_ICONS = [
 ];
 const TROVE_SETS = `<h3>Trove of Terror: все сеты и цена</h3>
 ${slideshow(TROVE_ICONS.map((path) => `${LIQUIPEDIA_IMAGES}/${path}`))}
-<p>Сокровищница стоит <mark>$4.99</mark>. Шанс на редкие растёт с каждым открытием и сбрасывается, когда предмет выпал.</p>
+<p>Сокровищница стоит <b>$4.99</b>. Шанс на редкие растёт с каждым открытием и сбрасывается, когда предмет выпал.</p>
 <table bordered striped compact>
 <tr><th>Редкость</th><th>Сеты</th></tr>
 <tr><td>Обычные</td><td>Stoneback Sovereign, Patchwork Protector, Creeping Calabash, Rictus Ripper, Clairvoyant Configuration, Slobbering Strongbox, Shattered Sanity, Arachnid Anathema, Daemon Hunter, Direstone Desecration, Greasepaint Gutbuster, Silken Sibyl</td></tr>
@@ -182,7 +182,7 @@ const TROVE_DETAILS = `<h3>Trove of Terror: шансы и бонусы</h3>
 <tr><td>20-е</td><td align="right">38.46%</td><td align="right">7.87%</td><td align="right">0.95%</td></tr>
 <tr><td>30-е</td><td align="right">71.42%</td><td align="right">16.66%</td><td align="right">2.17%</td></tr>
 <tr><td>40-е</td><td align="right">100%</td><td align="right">30.30%</td><td align="right">3.84%</td></tr>
-<tr><td>50-е</td><td align="right">100%</td><td align="right">45.45%</td><td align="right"><mark>100%</mark></td></tr>
+<tr><td>50-е</td><td align="right">100%</td><td align="right">45.45%</td><td align="right"><b>100%</b></td></tr>
 </table>
 <p>Если за 50 открытий ультраредкий не выпал, на 50-м он гарантирован.</p>
 ${more(TROVE_PAGE)}`;
@@ -193,7 +193,7 @@ const CLAN_IMAGES = 'https://clan.akamai.steamstatic.com/images/3703047';
 // «Летняя чистка 2026» page (dota2.com/summerscrub2026, Valve's Russian texts) behind the 7.41e announcement.
 const NEWS = `<h3>Летняя чистка 2026</h3>
 ${picture(`${CLAN_IMAGES}/5179a724ee3987b0b0dab399b9ef2eaba7b2abf4.png`)}
-<p>Вместе с 7.41e Valve выкатила большую чистку: <mark>две новые функции и 163 исправления</mark>.</p>
+<p>Вместе с 7.41e Valve выкатила большую чистку: <b>две новые функции и 163 исправления</b>.</p>
 <h4>Новое</h4>
 <ul>
 <li><b>Послеигровой разбор</b>: развеивания, командное снижение урона, вклад союзников в урон, какие способности добили врагов и откуда пришло лечение. Всё можно отфильтровать по времени игры.</li>
@@ -225,7 +225,7 @@ ${picture(`${CLAN_IMAGES}/5c825b3d35627bfc4276c013745aa6fd4de935ea.png`)}
 <p>До TI в Шанхае две недели, все 16 команд известны, и Valve открыла всё, во что можно вписаться зрителю.</p>
 <table bordered striped compact>
 <tr><th>Что</th><th>Как устроено</th></tr>
-<tr><td>Наборы поддержки</td><td>для всех 16 команд и сотни комментаторов; <mark>50% продаж уходит команде или таланту, 30% — в призовой</mark>. С уровня Gold — своё изваяние команды на базе до конца сентября</td></tr>
+<tr><td>Наборы поддержки</td><td>для всех 16 команд и сотни комментаторов; <b>50% продаж уходит команде или таланту, 30% — в призовой</b>. С уровня Gold — своё изваяние команды на базе до конца сентября</td></tr>
 <tr><td>Прогнозы</td><td>угадать швейцарскую стадию и сетку; полностью швейцарку ещё не угадал никто. Успеть до первого матча</td></tr>
 <tr><td>Фэнтези</td><td>теперь ты тренер со своими модификаторами на всю команду; игроков берёшь парами: обе поддержки из одной команды, лёгкая и сложная линии из одной, плюс любимый мидер</td></tr>
 <tr><td>Награды</td><td>лучшим — сокровищница Tyrian Regalia с пятью переделанными Immortal и новый жетон ландшафта: один из шести, включая Reef's Edge и Immortal Gardens</td></tr>
