@@ -61,7 +61,11 @@ function render(node: Node, key: string): ReactNode {
         </th>
       );
     case 'td':
-      return <td key={key}>{inner}</td>;
+      return (
+        <td key={key} colSpan={Number(node.getAttribute('colspan') ?? '1') || 1}>
+          {inner}
+        </td>
+      );
     case 'caption':
       return null;
     case 'details':

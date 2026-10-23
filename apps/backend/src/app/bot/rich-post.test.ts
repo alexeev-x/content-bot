@@ -29,18 +29,31 @@ describe('patchRichHtml', () => {
         '{{media}}',
         '<p><b>Главное:</b> Тренту порезали базовый интеллект, а инвиз после деревьев держится вдвое меньше.</p>',
         '<table bordered compact>',
-        '<tr><th colspan="2">🔴 Порезали сильнее всех</th></tr>',
+        '<tr><td colspan="2"><b>🔴 Порезали сильнее всех</b></td></tr>',
         '<tr><td>Трент</td><td>интеллект 20 → 17, инвиз 2 → 1 сек</td></tr>',
         '<tr><td>Котл</td><td>Illuminate лечит 60% вместо 70%</td></tr>',
-        '<tr><th colspan="2">🟢 Усилили</th></tr>',
+        '<tr><td colspan="2"><b>🟢 Усилили</b></td></tr>',
         '<tr><td>Урса</td><td>урон от здоровья 1,25% → 1,75%</td></tr>',
-        '<tr><th colspan="2">🟡 И то и другое</th></tr>',
+        '<tr><td colspan="2"><b>🟡 И то и другое</b></td></tr>',
         '<tr><td>Хускар</td><td>сила −1, зато прирост 3,3 → 3,4</td></tr>',
         '</table>',
         '<details><summary>Предметы</summary><ul><li>Капли дают на четверть меньше регена маны</li><li>Battle Fury рубит деревья раз в 3 секунды вместо 4</li></ul></details>',
         '<tg-button-row><tg-button type="url" url="https://www.dota2.com/patches/7.41f">Подробнее</tg-button></tg-button-row>'
       ].join('\n')
     );
+  });
+
+  it('marks each group by its words: buffed is always green, whatever the writer put before it', () => {
+    // DEV 23.10.2026: the writer wrote «🔺 Усилили», and the owner saw a red buff group.
+    const html = patchRichHtml(
+      PATCH.replace('🟢 Усилили', '🔺 Усилили:')
+        .replace('🔴 Порезали', '🔻 Порезали')
+        .replace('🟡 И то и другое', '⚖️ Почти не изменили')
+    );
+    expect(html).toContain('<td colspan="2"><b>🟢 Усилили</b></td>');
+    expect(html).toContain('<td colspan="2"><b>🔴 Порезали сильнее всех</b></td>');
+    expect(html).toContain('<td colspan="2"><b>🟡 Почти не изменили</b></td>');
+    expect(html).not.toContain('🔺');
   });
 
   it('escapes the text, so a «<» in a post never becomes markup', () => {

@@ -16,6 +16,25 @@ const LINK_LABEL_MAX = 30;
 const URL_IN_LINE = /https?:\/\/[^\s<>"]+/u;
 const PATCH_LEAD = /^Вышел (?:патч )?(\d\.\d{2}[a-z]?)\.?$/u;
 const GROUP = /^(🔴|🟢|🟡)\s*(.+)$/u;
+// A group is known by its words, whatever mark the writer put before it (owner, 23.10.2026: «🔺 Усилили» came out red;
+// buffed is always green).
+const GROUP_BY_TITLE: readonly [RegExp, string][] = [
+  [/^порезали/iu, '🔴'],
+  [/^усилил/iu, '🟢'],
+  [/^(?:почти не изменил|и то и другое)/iu, '🟡']
+];
+
+/** The group a header line opens, its mark set by its words: «🔺 Усилили:» → «🟢 Усилили». */
+function groupHeader(line: string): string | null {
+  const title = line
+    .replace(/^[^\p{L}]+/u, '')
+    .replace(/:$/u, '')
+    .trim();
+  const known = GROUP_BY_TITLE.find(([pattern]) => pattern.test(title));
+  if (known !== undefined && title.length <= 40) return `${known[1]} ${title}`;
+  const marked = GROUP.exec(line);
+  return marked === null ? null : `${marked[1]} ${(marked[2] ?? '').replace(/:$/u, '')}`;
+}
 const ITEMS = /^(?:🧰\s*)?Предметы:?$/iu;
 const BULLET = /^[•\-–—*]\s*/u;
 // «Герой — что поменяли»: the first dash between two words splits the row.
@@ -62,9 +81,9 @@ export function patchRichHtml(text: string): string | null {
       link = url;
       continue;
     }
-    const group = GROUP.exec(raw);
-    if (group !== null) {
-      groups.push({ title: `${group[1]} ${(group[2] ?? '').replace(/:$/u, '')}`, rows: [] });
+    const header = groupHeader(raw);
+    if (header !== null) {
+      groups.push({ title: header, rows: [] });
       section = 'group';
       continue;
     }
@@ -94,7 +113,8 @@ export function patchRichHtml(text: string): string | null {
     ...rest.map((paragraph) => `<p>${escapeHtml(paragraph)}</p>`),
     '<table bordered compact>',
     ...filled.flatMap((group) => [
-      `<tr><th colspan="2">${escapeHtml(group.title)}</th></tr>`,
+      // A plain cell, not a header: Telegram centres a header, the owner wants the group on the left like the text.
+      `<tr><td colspan="2"><b>${escapeHtml(group.title)}</b></td></tr>`,
       ...group.rows
         .slice(0, GROUP_ROWS_MAX)
         .map(([hero, change]) => `<tr><td>${escapeHtml(hero)}</td><td>${escapeHtml(change)}</td></tr>`)

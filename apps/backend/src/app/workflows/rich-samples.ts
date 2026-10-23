@@ -48,7 +48,7 @@ function patchPost(input: {
   items: string[];
 }): string {
   const group = (title: string, heroes: HeroChange[]) => [
-    `<tr><th colspan="2">${title}</th></tr>`,
+    `<tr><td colspan="2"><b>${title}</b></td></tr>`,
     ...heroes.map(([hero, change]) => `<tr><td>${hero}</td><td>${change}</td></tr>`)
   ];
   return [

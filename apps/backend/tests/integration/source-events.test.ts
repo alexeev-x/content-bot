@@ -793,7 +793,7 @@ describe('an AI draft approved in the studio', () => {
     const { postId } = approveSourceEventAiDraftResponseSchema.parse(await approved.json());
     const post = postSchema.parse(await (await api.request(`/api/v1/posts/${postId}`)).json());
     expect(post.body.startsWith('Вышел 7.41f.\n\nТренту порезали интеллект.')).toBe(true);
-    expect(post.richHtml).toContain('<tr><th colspan="2">🔴 Порезали сильнее всех</th></tr>');
+    expect(post.richHtml).toContain('<tr><td colspan="2"><b>🔴 Порезали сильнее всех</b></td></tr>');
     expect(post.richHtml).toContain('<tr><td>Трент</td><td>интеллект 20 → 17</td></tr>');
     expect(post.richHtml).toContain('{{media}}');
   });
