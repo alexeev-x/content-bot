@@ -252,11 +252,27 @@ export interface TelegramRichMessageApi {
   ): Promise<unknown>;
   /** The same content the classic way (parse_mode HTML), to compare the two side by side. */
   sendClassicHtml(chatId: string, html: string, signal: AbortSignal): Promise<unknown>;
+  /** Two photos side by side (an album), the caption under the first: the picture trial's before/after. */
+  sendPhotoPair(
+    chatId: string,
+    input: { first: Uint8Array; second: Uint8Array; caption: string },
+    signal: AbortSignal
+  ): Promise<unknown>;
 }
 
 export function createTelegramRichMessageApi(token: string): TelegramRichMessageApi {
   const api = new Api(token);
   return {
+    sendPhotoPair: (chatId, { first, second, caption }, signal) =>
+      api.sendMediaGroup(
+        chatId,
+        [
+          { type: 'photo', media: new InputFile(first, 'before.png'), caption },
+          { type: 'photo', media: new InputFile(second, 'after.jpg') }
+        ],
+        {},
+        signal as never
+      ),
     sendRichMessage: (chatId, { html, uploads }, signal) =>
       api.raw.sendRichMessage(
         {

@@ -6,6 +6,7 @@ import {
   sourceEventAiDraftSchema,
   sourceEventContentSchema,
   rewriteSourceEventSeriesPostInputSchema,
+  sendRichSamplesInputSchema,
   sendRichSamplesResponseSchema,
   sourceEventIdSchema,
   sourceEventSeriesSchema
@@ -56,10 +57,18 @@ export const sourcesRoutes = new Hono<AppBindings>()
       if (c.env.RICH_SAMPLES !== 'true')
         throw new AppError('FORBIDDEN', 'Rich message samples are off here', { reason: 'RICH_SAMPLES_OFF' });
       if (c.env.DB === undefined) throw new AppError('UNAVAILABLE', 'Database is not configured');
+      // An empty body sends every sample; a malformed one is refused.
+      const input = sendRichSamplesInputSchema.safeParse(await c.req.json().catch(() => ({})));
+      if (!input.success) throw new AppError('VALIDATION_ERROR', 'Invalid request body');
       const api = container.richMessages;
       const ownerChatId = container.ownerChatId;
       if (api === null || ownerChatId === null)
         throw new AppError('UNAVAILABLE', 'The bot or the owner chat is not configured');
+      if (input.data.pictureTrial === true) {
+        // Paid image calls of up to 150 s each: the queue's wall time, not this request's (the patch picture's way).
+        await container.aiJobs.send({ id: container.newId(), kind: 'picture_trial', chatId: Number(ownerChatId) });
+        return c.json(sendRichSamplesResponseSchema.parse({ results: [], pictureTrialQueued: true }));
+      }
       // Only a channel named «Тест…»: the samples never reach the real channel.
       const destinations = await container.destinations.list({ enabled: true, limit: 50 });
       const channel = destinations.find(
@@ -71,6 +80,7 @@ export const sourcesRoutes = new Hono<AppBindings>()
         api,
         patchCover: () => latestPatchCover(container),
         reports: () => latestReports(container),
+        ...(input.data.samples === undefined ? {} : { only: input.data.samples }),
         channelChatId: channel.chatId,
         ownerChatId,
         logger: container.logger,

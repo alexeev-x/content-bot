@@ -141,7 +141,12 @@ export const aiJobSchema = z.discriminatedUnion('kind', [
       .array(z.object({ role: z.enum(['owner', 'editor']), text: z.string().max(TEXT_MAX) }))
       .max(16)
       .nullable()
-  })
+  }),
+  /**
+   * DEV only (owner, 23.10.2026): five small set icons made sharper by the image model, each sent to the owner's
+   * chat as before/after with its cost. Paid calls; no chat message before, the pictures are the answer.
+   */
+  z.object({ id: z.uuid(), kind: z.literal('picture_trial'), chatId: z.number().int() })
 ]);
 
 export type AiJob = z.infer<typeof aiJobSchema>;
@@ -161,6 +166,7 @@ export type WriterJob =
       {
         kind:
           | 'daily_review'
+          | 'picture_trial'
           | 'style_lessons'
           | 'hypotheses'
           | 'source_event'

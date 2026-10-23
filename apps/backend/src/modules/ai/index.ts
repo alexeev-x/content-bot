@@ -19,6 +19,7 @@ export {
 export { type AnalyticsReview, writeAnalyticsReview } from './analytics-review';
 export { hotfixWorthPost } from './hotfix-check';
 export { drawPatchPicture, type PatchPictureResult } from './patch-picture';
+export { enhancePicture, type EnhanceResult } from './picture-enhance';
 export {
   ACTIVE_HYPOTHESES_MAX,
   createD1HypothesesRepository,

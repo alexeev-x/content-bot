@@ -11,7 +11,7 @@ const noNetwork: typeof fetch = () => Promise.reject(new Error('offline'));
 
 // Records every send; `refuse` makes the rich sends with that text fail as Telegram's 400 would.
 function recordingApi(refuse?: string) {
-  const sent: { chatId: string; kind: 'rich' | 'classic'; html: string }[] = [];
+  const sent: { chatId: string; kind: 'rich' | 'classic' | 'pair'; html: string }[] = [];
   const api: TelegramRichMessageApi = {
     sendRichMessage(chatId, { html }) {
       sent.push({ chatId, kind: 'rich', html });
@@ -29,6 +29,10 @@ function recordingApi(refuse?: string) {
     sendClassicHtml(chatId, html) {
       sent.push({ chatId, kind: 'classic', html });
       return Promise.resolve({ message_id: sent.length });
+    },
+    sendPhotoPair(chatId, { caption }) {
+      sent.push({ chatId, kind: 'pair', html: caption });
+      return Promise.resolve([]);
     }
   };
   return { api, sent };
@@ -73,8 +77,40 @@ describe('POST /api/v1/sources/rich-samples', () => {
       await (await api.request('/api/v1/sources/rich-samples', { method: 'POST' })).json()
     );
     const failed = results.filter((each) => each.error?.startsWith('Bad Request') === true);
-    expect(failed.map((each) => each.error)).toEqual(['Bad Request: unsupported tag', 'Bad Request: unsupported tag']);
+    expect(failed.map((each) => each.error)).toEqual(['Bad Request: unsupported tag']);
     expect(results.filter((each) => each.status === 'sent').length).toBeGreaterThan(0);
+  });
+
+  it('sends only the chosen samples: posts to the channel, a report to the owner', async () => {
+    const { api: rich, sent } = recordingApi();
+    const api = createApi({ clock: fakeClock(), richMessages: rich, contentFetch: noNetwork, env: DEV });
+    await seedDestination(api, { title: 'Тест канал', chatId: '-1001' });
+    const response = await api.request('/api/v1/sources/rich-samples', {
+      method: 'POST',
+      json: { samples: ['patch_e', 'weekly_report'] }
+    });
+    const body = sendRichSamplesResponseSchema.parse(await response.json());
+    expect(body.results.map((each) => [each.sample, each.target, each.status])).toEqual([
+      ['Патч 7.41e', 'channel', 'sent'],
+      ['Отчёт за неделю', 'owner', 'sent']
+    ]);
+    expect(sent.map((each) => each.chatId)).toEqual(['-1001', OWNER_ID]);
+  });
+
+  it('queues the picture trial (paid calls) instead of sending anything', async () => {
+    const { api: rich, sent } = recordingApi();
+    const api = createApi({ clock: fakeClock(), richMessages: rich, contentFetch: noNetwork, env: DEV });
+    await seedDestination(api, { title: 'Тест канал', chatId: '-1001' });
+    const response = await api.request('/api/v1/sources/rich-samples', {
+      method: 'POST',
+      json: { pictureTrial: true }
+    });
+    expect(sendRichSamplesResponseSchema.parse(await response.json())).toEqual({
+      results: [],
+      pictureTrialQueued: true
+    });
+    expect(api.aiJobs.sent).toMatchObject([{ kind: 'picture_trial', chatId: Number(OWNER_ID) }]);
+    expect(sent).toEqual([]);
   });
 
   it('is a conflict without an enabled test channel', async () => {

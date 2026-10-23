@@ -1,4 +1,4 @@
-import type { SendRichSamplesResponse } from '@alexeev/contracts';
+import type { RichSampleKey, SendRichSamplesResponse } from '@alexeev/contracts';
 import { GrammyError } from 'grammy';
 import { latestRichReports, readLastWeekData, weeklyRichHtml } from '../../modules/content-analytics';
 import { getOwnerOperationsSettings } from '../../modules/settings';
@@ -26,7 +26,7 @@ const DAILY = 'daily-report';
 const WEEKLY = 'weekly-report';
 
 type Target = 'channel' | 'owner';
-type Sample = { title: string; targets: Target[]; classic?: boolean; html: string };
+type Sample = { key: RichSampleKey; title: string; targets: Target[]; classic?: boolean; html: string };
 
 const more = (url: string) => `<tg-button-row><tg-button type="url" url="${url}">Подробнее</tg-button></tg-button-row>`;
 const picture = (url: string) => `<figure><img src="${url}"/></figure>`;
@@ -316,23 +316,30 @@ const DATAMINE_CLASSIC = `${DATAMINE_TEXT}
 
 <pre><code class="language-diff">${DIFF}</code></pre>`;
 
-const BOTH: Target[] = ['channel', 'owner'];
+// Posts only to the test channel, the reports only to the owner (owner, 23.10.2026: no copies in both).
+const CHANNEL: Target[] = ['channel'];
 const SAMPLES: Sample[] = [
-  { title: 'Патч 7.41f', targets: BOTH, html: PATCH },
-  { title: 'Патч 7.41e', targets: BOTH, html: PATCH_E },
-  { title: 'Хотфикс 1 июля', targets: BOTH, html: HOTFIX },
-  { title: 'Серия ивента 1/3', targets: BOTH, html: SERIES_EVENT },
-  { title: 'Серия ивента 2/3', targets: BOTH, html: SERIES_COSMETICS },
-  { title: 'Серия ивента 3/3', targets: BOTH, html: SERIES_TREASURE },
-  { title: 'Сокровище: новость', targets: BOTH, html: TROVE_NEWS },
-  { title: 'Сокровище: сеты', targets: BOTH, html: TROVE_SETS },
-  { title: 'Сокровище: детали', targets: BOTH, html: TROVE_DETAILS },
-  { title: 'Новость: Летняя чистка', targets: BOTH, html: NEWS },
-  { title: 'Новость: The International', targets: BOTH, html: TI_NEWS },
-  { title: 'Файлы игры (rich)', targets: BOTH, html: DATAMINE },
-  { title: 'Файлы игры (обычный pre)', targets: BOTH, classic: true, html: DATAMINE_CLASSIC },
-  { title: 'Отчёт за день', targets: ['owner'], html: DAILY },
-  { title: 'Отчёт за неделю', targets: ['owner'], html: WEEKLY }
+  { key: 'patch_f', title: 'Патч 7.41f', targets: CHANNEL, html: PATCH },
+  { key: 'patch_e', title: 'Патч 7.41e', targets: CHANNEL, html: PATCH_E },
+  { key: 'hotfix', title: 'Хотфикс 1 июля', targets: CHANNEL, html: HOTFIX },
+  { key: 'series_event', title: 'Серия ивента 1/3', targets: CHANNEL, html: SERIES_EVENT },
+  { key: 'series_cosmetics', title: 'Серия ивента 2/3', targets: CHANNEL, html: SERIES_COSMETICS },
+  { key: 'series_treasure', title: 'Серия ивента 3/3', targets: CHANNEL, html: SERIES_TREASURE },
+  { key: 'trove_news', title: 'Сокровище: новость', targets: CHANNEL, html: TROVE_NEWS },
+  { key: 'trove_sets', title: 'Сокровище: сеты', targets: CHANNEL, html: TROVE_SETS },
+  { key: 'trove_details', title: 'Сокровище: детали', targets: CHANNEL, html: TROVE_DETAILS },
+  { key: 'news_scrub', title: 'Новость: Летняя чистка', targets: CHANNEL, html: NEWS },
+  { key: 'news_ti', title: 'Новость: The International', targets: CHANNEL, html: TI_NEWS },
+  { key: 'datamine', title: 'Файлы игры (rich)', targets: CHANNEL, html: DATAMINE },
+  {
+    key: 'datamine_classic',
+    title: 'Файлы игры (обычный pre)',
+    targets: CHANNEL,
+    classic: true,
+    html: DATAMINE_CLASSIC
+  },
+  { key: 'daily_report', title: 'Отчёт за день', targets: ['owner'], html: DAILY },
+  { key: 'weekly_report', title: 'Отчёт за неделю', targets: ['owner'], html: WEEKLY }
 ];
 
 /** The newest released daily and weekly reports as the module renders them, all parts and the AI review kept. */
@@ -393,6 +400,8 @@ function failureText(error: unknown, signal: AbortSignal): string {
 
 export async function sendRichSamples(deps: {
   api: TelegramRichMessageApi;
+  /** The samples to send; all without it. */
+  only?: readonly RichSampleKey[];
   patchCover: () => Promise<Uint8Array | null>;
   reports: () => Promise<{ daily: string | null; weekly: string | null }>;
   channelChatId: string;
@@ -400,10 +409,17 @@ export async function sendRichSamples(deps: {
   logger: Logger;
   requestId: string;
 }): Promise<SendRichSamplesResponse> {
-  const cover = await deps.patchCover().catch(() => null);
-  const reports = await deps.reports().catch(() => ({ daily: null, weekly: null }));
+  const chosen = SAMPLES.filter((sample) => deps.only === undefined || deps.only.includes(sample.key));
+  const wants = (html: string) => chosen.some((sample) => sample.html === html);
+  const cover = chosen.some((sample) => sample.html.includes(COVER_FIGURE))
+    ? await deps.patchCover().catch(() => null)
+    : null;
+  const reports =
+    wants(DAILY) || wants(WEEKLY)
+      ? await deps.reports().catch(() => ({ daily: null, weekly: null }))
+      : { daily: null, weekly: null };
   const results: SendRichSamplesResponse['results'] = [];
-  for (const sample of SAMPLES) {
+  for (const sample of chosen) {
     const html =
       sample.html === DAILY
         ? reports.daily
@@ -441,5 +457,5 @@ export async function sendRichSamples(deps: {
       }
     }
   }
-  return { results };
+  return { results, pictureTrialQueued: false };
 }
