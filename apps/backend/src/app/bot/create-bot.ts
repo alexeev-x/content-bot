@@ -144,7 +144,12 @@ export interface BotRuntime {
   /** «Аналитика сейчас» (AI plan P6): the daily table at this moment; never a second daily report. */
   analyticsNow: () => Promise<OwnerReply>;
   /** Stores a draft post; a repeated key returns the same post. Throws `AppError` or a D1 error. */
-  createDraft: (input: CreatePostInput, idempotencyKey: string) => Promise<{ id: string; revision: number }>;
+  /** `richHtml`: the approved rich format of an AI post (app/bot/rich-post.ts), sent instead of the text. */
+  createDraft: (
+    input: CreatePostInput,
+    idempotencyKey: string,
+    richHtml?: string
+  ) => Promise<{ id: string; revision: number }>;
   /** The «publish now» buttons under a draft reply and what a tap does. */
   publish: PublishActions;
   /** The owner confirmed under an alert why a video's numbers are distorted. Throws `AppError` NOT_FOUND. */

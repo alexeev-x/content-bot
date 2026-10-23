@@ -16,6 +16,8 @@ export type ApiErrorKind =
   | 'entities_required'
   | 'kind_mismatch'
   | 'poll_invalid'
+  | 'rich_not_editable'
+  | 'rich_invalid'
   | 'schedule_out_of_range'
   | 'not_found'
   | 'post_not_found'
@@ -48,7 +50,9 @@ const REASONS: Partial<Record<ApiError['code'], Record<string, ApiErrorKind>>> =
     ENTITIES_INVALID_NESTING: 'entities_invalid_nesting',
     ENTITIES_REQUIRED: 'entities_required',
     KIND_MISMATCH: 'kind_mismatch',
-    POLL_INVALID: 'poll_invalid'
+    POLL_INVALID: 'poll_invalid',
+    RICH_NOT_EDITABLE: 'rich_not_editable',
+    RICH_INVALID: 'rich_invalid'
   },
   NOT_FOUND: { POST_NOT_FOUND: 'post_not_found', DESTINATION_NOT_FOUND: 'destination_not_found' },
   CONFLICT: {

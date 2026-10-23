@@ -73,7 +73,7 @@ async function dueRich(html: string, media = 0) {
   expect(approved.status).toBe(200);
   const post = postSchema.parse(await approved.json());
   expect(post.richHtml).toBe(html);
-  const destination = await seedDestination(api, { chatId: '-1007777' });
+  const destination = await seedDestination(api, { chatId: `-100777${keys}` });
   const publication = await seedPublication(api, {
     postId: post.id,
     revision: post.revision,
@@ -105,6 +105,21 @@ describe('a rich post is sent with sendRichMessage', () => {
     expect(await jobOf(publicationId)).toMatchObject({ status: 'succeeded', attempts: 1 });
     expect((await publicationOf(publicationId)).external_message_id).toBe('9001');
     expect(await attemptsOf(jobId)).toMatchObject([{ outcome: 'sent', external_message_id: '9001' }]);
+  });
+
+  it('fills the media slot from the approved media: one picture, or nothing without one', async () => {
+    const { transport, sender } = adapterTransport(() => Promise.resolve({ message_id: 7, chat: { id: 1 } }));
+    await dueRich('<h3>Вышел 7.41f</h3>\n{{media}}\n<p>Текст</p>', 1);
+    await tick(transport);
+    const withPicture = sender.requests[0]?.other as { html: string; media: { id: string }[] };
+    expect(withPicture.html).toBe('<h3>Вышел 7.41f</h3>\n<figure><img src="tg://photo?id=p1"/></figure>\n<p>Текст</p>');
+    expect(withPicture.media.map(({ id }) => id)).toEqual(['p1']);
+
+    await dueRich('<h3>Вышел 7.41e</h3>\n{{media}}\n<p>Текст</p>');
+    await tick(transport);
+    const without = sender.requests[1]?.other as { html: string; media: unknown[] };
+    expect(without.html).toBe('<h3>Вышел 7.41e</h3>\n\n<p>Текст</p>');
+    expect(without.media).toEqual([]);
   });
 
   it('a timeout ends as unknown and no later tick sends it again', async () => {

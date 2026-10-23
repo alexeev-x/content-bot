@@ -2,6 +2,7 @@ import {
   type PostEntity,
   type PostPoll,
   type PostSendOptions,
+  expandRichMedia,
   pollIssue,
   RICH_MEDIA_MAX,
   richHtmlIssue
@@ -167,10 +168,12 @@ async function dispatchJob(deps: DispatchDeps, jobId: string, budget: TickBudget
   let richHtml: string | null = null;
   if (revision.richHtml !== null) {
     if (revision.kind !== 'text') return refuse('CONTENT_INVALID', 'rich_kind_mismatch');
-    const issue = richHtmlIssue(revision.richHtml, revision.media.length);
+    // The media slot is filled from the approved snapshot's media, so what is checked is exactly what is sent.
+    const expanded = expandRichMedia(revision.richHtml, revision.media);
+    const issue = richHtmlIssue(expanded, revision.media.length);
     if (issue !== null) return refuse('CONTENT_INVALID', `rich_${issue.toLowerCase()}`);
     if (revision.media.length > RICH_MEDIA_MAX) return refuse('TELEGRAM_MEDIA_UNSUPPORTED', 'rich_media_over_limit');
-    richHtml = revision.richHtml;
+    richHtml = expanded;
   }
   const message =
     poll === null && richHtml === null

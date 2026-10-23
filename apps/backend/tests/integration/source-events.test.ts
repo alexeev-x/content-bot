@@ -1,5 +1,6 @@
 import {
   approveSourceEventAiDraftResponseSchema,
+  postSchema,
   sourceEventAiDraftSchema,
   sourceEventPageSchema,
   sourceEventSchema
@@ -739,5 +740,61 @@ describe('an AI draft approved in the studio', () => {
       json: { versionId: crypto.randomUUID() }
     });
     expect(foreign.status).toBe(404);
+  });
+
+  it('a patch draft in the agreed structure becomes a rich post; its text stays the post body (owner, 23.10.2026)', async () => {
+    const container = createContainer(
+      { DB: testDb(), MEDIA_BUCKET: testMediaBucket(), OWNER_TELEGRAM_ID: OWNER_ID },
+      { clock: fakeClock() }
+    );
+    const draftId = crypto.randomUUID();
+    await container.aiWriter.createGeneration({
+      id: draftId,
+      kind: 'draft',
+      format: 'telegram',
+      mode: 'automatic',
+      source: 'bot',
+      task: 'Повод: патч',
+      parentGenerationId: null,
+      preApprovedPublishAt: null,
+      createdAt: START,
+      packRevision: 'test'
+    });
+    const text = [
+      'Вышел 7.41f.',
+      '',
+      'Тренту порезали интеллект.',
+      '',
+      '🔴 Порезали сильнее всех',
+      'Трент — интеллект 20 → 17',
+      '',
+      'Предметы',
+      '• Капли: на четверть меньше регена',
+      '',
+      'Все изменения — https://www.dota2.com/patches/7.41f'
+    ].join('\n');
+    await container.aiWriter.addRevision({
+      id: crypto.randomUUID(),
+      generationId: draftId,
+      parentId: null,
+      provenance: 'AI_DRAFT',
+      text,
+      editRatio: null,
+      createdAt: START
+    });
+    await container.aiWriter.finishGeneration({ id: draftId, now: START, status: 'ready', result: 'draft' });
+    await sql("UPDATE dota_update_items SET ai_generation_id = ?1 WHERE external_id = '1001'", draftId);
+    api.aiJobs.deliver = () => Promise.resolve();
+
+    const approved = await api.request(`/api/v1/sources/events/${TREASURE}/ai-draft/approve`, {
+      method: 'POST',
+      json: { versionId: draftId }
+    });
+    const { postId } = approveSourceEventAiDraftResponseSchema.parse(await approved.json());
+    const post = postSchema.parse(await (await api.request(`/api/v1/posts/${postId}`)).json());
+    expect(post.body.startsWith('Вышел 7.41f.\n\nТренту порезали интеллект.')).toBe(true);
+    expect(post.richHtml).toContain('<tr><th colspan="2">🔴 Порезали сильнее всех</th></tr>');
+    expect(post.richHtml).toContain('<tr><td>Трент</td><td>интеллект 20 → 17</td></tr>');
+    expect(post.richHtml).toContain('{{media}}');
   });
 });

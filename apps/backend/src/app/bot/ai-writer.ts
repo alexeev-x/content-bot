@@ -31,6 +31,7 @@ import type { Clock } from '../../platform/clock';
 import type { PublishActions } from './publish-actions';
 import type { AiJob, AiJobBase, EventWriterJob, WriterJob } from './ai-job';
 import { aiPostText, draftFromMessageText } from './draft-from-message';
+import { aiRichHtml } from './rich-post';
 import { publishKeyboard } from './publish-keyboard';
 import { lineage } from '../workflows/approve-source-ai-draft';
 
@@ -311,7 +312,12 @@ export interface AiWriterRuntime {
   appOrigin: string;
   clock: Clock;
   writer: () => Promise<WriterDeps>;
-  createDraft: (input: CreatePostInput, idempotencyKey: string) => Promise<{ id: string; revision: number }>;
+  /** `richHtml`: the approved rich format of an AI post (app/bot/rich-post.ts), sent instead of the text. */
+  createDraft: (
+    input: CreatePostInput,
+    idempotencyKey: string,
+    richHtml?: string
+  ) => Promise<{ id: string; revision: number }>;
   publish: Pick<PublishActions, 'buttons' | 'awaitingTime' | 'stopAwaitingTime'>;
   /** Sends a model call to the AI_JOBS queue (app/ai-queue.ts runs it). Throws when the queue refuses it. */
   enqueueAiJob: (job: AiJob) => Promise<void>;
@@ -1187,7 +1193,8 @@ export function registerAiWriter(bot: Bot, runtime: AiWriterRuntime): void {
       return;
     }
     // Keyed by the approved revision: a repeated tap returns the same post.
-    const post = await runtime.createDraft(input.input, `ai:${approved.id}`);
+    // The approved rich sample when the text has its structure (owner, 23.10.2026); else the classic post.
+    const post = await runtime.createDraft(input.input, `ai:${approved.id}`, aiRichHtml(approved.text) ?? undefined);
     await attachPost(deps, approved.id, post.id);
     // Not the owner's concern when it fails: the post exists, only the event's status lags.
     await lineage(deps, generation)

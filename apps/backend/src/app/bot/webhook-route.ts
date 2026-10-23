@@ -152,7 +152,7 @@ export const telegramWebhook = new Hono<AppBindings>().post(
       styleLessons: () => Promise.resolve(container.aiStyleLessons),
       enqueueAiJob: (job) => container.aiJobs.send(job),
       linkSourceEventPost: (generationIds, postId) => linkApprovedSourcePost(container, generationIds, postId),
-      createDraft: async (input, idempotencyKey) =>
+      createDraft: async (input, idempotencyKey, richHtml) =>
         createPost(
           {
             repo: container.posts,
@@ -160,7 +160,7 @@ export const telegramWebhook = new Hono<AppBindings>().post(
             now: container.clock.now(),
             newId: container.newId
           },
-          { actor, idempotencyKey, input }
+          { actor, idempotencyKey, input, ...(richHtml === undefined ? {} : { richHtml }) }
         ),
       mediaImports: {
         enqueue: ({ postId, file, messageId, caption, oversized, captionTooLong }) =>

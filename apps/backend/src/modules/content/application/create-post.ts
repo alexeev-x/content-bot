@@ -40,6 +40,8 @@ export async function createPost(deps: CreatePostDeps, command: CreatePostComman
     throw new AppError('VALIDATION_ERROR', 'Invalid rich post', { reason: richIssue ?? 'KIND_MISMATCH' });
   // Field order is fixed here, so equal payloads always hash equally.
   // Entities join the hash only when there are some, so a key claimed before they existed still replays.
+  // The rich HTML never joins it: it is made from the same text, so a key claimed before (or by an earlier converter)
+  // replays the same post instead of a conflict (QA 23.10.2026).
   // Kind, poll and send options join it only when set, for the same reason.
   const requestHash = await sha256Hex(
     JSON.stringify({
@@ -47,8 +49,7 @@ export async function createPost(deps: CreatePostDeps, command: CreatePostComman
       body: input.body,
       ...(input.entities.length === 0 ? {} : { entities: input.entities }),
       ...(input.kind === 'poll' ? { kind: input.kind, poll: input.poll } : {}),
-      ...(input.sendOptions === undefined ? {} : { sendOptions: input.sendOptions }),
-      ...(richHtml === null ? {} : { richHtml })
+      ...(input.sendOptions === undefined ? {} : { sendOptions: input.sendOptions })
     })
   );
   const ref = { scope: actor, key: idempotencyKey, requestHash, claimedAt: deps.now };

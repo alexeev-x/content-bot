@@ -26,6 +26,10 @@ function messageFor(kind: ApiErrorKind): string {
       return copy.kindMismatch;
     case 'poll_invalid':
       return copy.pollInvalid;
+    case 'rich_not_editable':
+      return copy.richNotEditable;
+    case 'rich_invalid':
+      return copy.richInvalid;
     case 'payload_too_large':
       return copy.tooLarge;
     case 'unavailable':

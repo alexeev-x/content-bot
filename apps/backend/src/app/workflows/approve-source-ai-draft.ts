@@ -11,6 +11,12 @@ import {
 import { createPost } from '../../modules/content';
 import { AppError } from '../../shared/app-error';
 import { aiPostText, draftFromMessageText } from '../bot/draft-from-message';
+import { aiRichHtml } from '../bot/rich-post';
+
+const richOf = (text: string): { richHtml?: string } => {
+  const richHtml = aiRichHtml(text);
+  return richHtml === null ? {} : { richHtml };
+};
 import type { Container } from '../container';
 
 // An event's AI draft seen and approved in the studio (owner, 21.10.2026: «почему в админке не видно черновик»), the
@@ -100,7 +106,13 @@ export async function approveSourceAiDraft(
   // Keyed by the approved revision, as in the bot: a repeated approval anywhere returns the same post.
   const created = await createPost(
     { repo: container.posts, idempotency: container.idempotency, now: container.clock.now(), newId: container.newId },
-    { actor: input.actor, idempotencyKey: `ai:${approved.id}`, input: post.input }
+    {
+      actor: input.actor,
+      idempotencyKey: `ai:${approved.id}`,
+      input: post.input,
+      // The approved rich sample when the text has its structure (owner, 23.10.2026); else the classic post.
+      ...richOf(approved.text)
+    }
   );
   await attachPost(deps, approved.id, created.id);
   if (input.linkToEvent === false) return { postId: created.id, created: true };

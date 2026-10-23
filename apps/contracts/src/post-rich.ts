@@ -16,6 +16,30 @@ const MEDIA_REFERENCE = /tg:\/\/(?:photo|video)\?id=p(\d{1,2})\b/g;
 
 export const postRichHtmlSchema = z.string().min(1).max(RICH_HTML_MAX);
 
+/**
+ * Where the post's attached media go, written by the server's writers (owner, 23.10.2026: one picture per post, several
+ * in one slider). The media are attached after the text (a patch picture is drawn after approval), so the slot is
+ * filled at sending from the approved snapshot: one picture, a slider of several, or nothing.
+ */
+export const RICH_MEDIA_SLOT = '{{media}}';
+
+/** The rich HTML as it goes out: the media slot filled with the post's `media` (their kinds, in order). */
+export function expandRichMedia(html: string, media: readonly { kind: 'photo' | 'video' | 'animation' }[]): string {
+  if (!html.includes(RICH_MEDIA_SLOT)) return html;
+  const items = media.map((item, index) =>
+    item.kind === 'photo'
+      ? `<img src="tg://photo?id=${richMediaId(index)}"/>`
+      : `<video src="tg://video?id=${richMediaId(index)}"/>`
+  );
+  const block =
+    items.length === 0
+      ? ''
+      : items.length === 1
+        ? `<figure>${items[0]}</figure>`
+        : `<tg-slideshow>${items.join('')}</tg-slideshow>`;
+  return html.split(RICH_MEDIA_SLOT).join(block);
+}
+
 /** The 0-based positions of the post's media the rich HTML names, ascending; only these are uploaded. */
 export function richMediaPositions(html: string): number[] {
   const positions = new Set<number>();

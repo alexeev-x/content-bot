@@ -133,6 +133,11 @@ The AI makes the Telegram channel's content itself: news and rubric posts drafte
     changed, no file labels like «Слот 6»; an entry that only moved is not a change;
   - reports: the first rich report was cut down and its 5-column table broke on a phone; the rich report must keep
     every part of the classic one (followers, the day, Telegram, the review, milestones) with short video names.
+- Every post in the approved rich format (owner, 23.10.2026), in steps: 1) storage and sending (built 23.10.2026,
+  migration 0103, `docs/backend/publishing.md` «Rich posts»); 2) the writers keep plain text in a fixed structure that
+  approval turns into the sample — patches built 23.10.2026 (`docs/backend/sources.md` «Patch posts»), then hotfixes,
+  event series, treasures, news; 3) the picture quality check before every source picture; 4) the bot's draft preview
+  and the studio (view first, edit through «Переписать»; a block editor later); 5) the analytics reports as rich tables.
 - Next: changes in the game's files (owner, 23.10.2026: «это очень интересное»). Source: the GitHub repo
   SteamTracking/GameTracking-Dota2 (SteamDB's tracker; one commit per game build with its file diffs), read through
   GitHub's API with a free token (the owner sets `GITHUB_TOKEN`; never steamdb.info itself, its FAQ forbids scraping).

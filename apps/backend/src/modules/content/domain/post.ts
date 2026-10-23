@@ -4,6 +4,7 @@ import {
   type PostMediaDto,
   type PostPoll,
   type PostSendOptions,
+  expandRichMedia,
   pollIssue,
   richHtmlIssue
 } from '@alexeev/contracts';
@@ -54,7 +55,8 @@ export function approve(post: Post & { media?: PostMediaDto[] }, now: number): A
   }
   if (post.richHtml !== null) {
     // The media it names must be attached and the markup within the approved rules, checked again before sending.
-    const issue = richHtmlIssue(post.richHtml, post.media?.length ?? 0);
+    const media = post.media ?? [];
+    const issue = richHtmlIssue(expandRichMedia(post.richHtml, media), media.length);
     if (issue !== null) return { ok: false, reason: 'RICH_INVALID', issue };
     return { ok: true, post: { ...post, status: 'approved', updatedAt: now } };
   }

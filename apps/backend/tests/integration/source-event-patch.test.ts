@@ -54,7 +54,8 @@ describe('a patch post', () => {
     const fetched: string[] = [];
     const task = await writer('7.41 Gameplay Patch', DIGEST, fetched).task('5001');
     expect(task).toContain('https://www.dota2.com/patches/7.41');
-    expect(task).toContain('Главное изменение — первым');
+    expect(task).toContain('Затем главное изменение');
+    expect(task).toContain('«🔴 Порезали сильнее всех»');
     expect(task.indexOf('Facets removed from the game')).toBeLessThan(task.indexOf('Pudge'));
     expect(task).toContain('Black King Bar');
     // Valve's notes, not the announcement's few lines.
