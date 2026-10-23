@@ -122,8 +122,10 @@ The AI makes the Telegram channel's content itself: news and rubric posts drafte
     slider and no larger source exists (research 23.10.2026: Workshop, dota2.com, schema, market, Fandom all ruled
     out). Rule for every fetched picture (owner, 23.10.2026): its pixel size is read from the file header; below
     the bar (about 800 px wide for a full-width picture, 600 in a slider) it goes through the AI with a strict
-    instruction: «ничего не меняй, не добавляй и не дорисовывай — только улучши качество». First a DEV trial on 5 Trove
-    icons, before/after to the owner's chat, cost per call measured; if a set comes out changed, the poster stays;
+    instruction: «ничего не меняй, не добавляй и не дорисовывай — только улучши качество» (`docs/DECISIONS.md`,
+    23.10.2026: a project law). The DEV trial on 5 Trove icons came out right (owner: «идеально»), so the Trove sets
+    keep their slider of improved icons; built so far only as the DEV trial (`modules/ai/picture-enhance.ts`), the
+    check before every source picture comes with the real posts;
   - news: the whole content, not a short summary of the announcement: its linked page (e.g. dota2.com/summerscrub2026,
     with Valve's Russian texts) gives the new features, the changes and the fixes by section; a second announcement
     of the same day (The International's predictions, fantasy, bundles) is its own post;
