@@ -146,6 +146,11 @@ The AI makes the Telegram channel's content itself: news and rubric posts drafte
   After the release, on DEV: the rubrics, then the game-file source and new sources.
   The AI money page counts only the chosen provider (OpenAI); a second API in use gets a tab per provider with its own
   spend (owner, 23.10.2026).
+- Next (24.10.2026): a service channel for pictures downloaded through Telegram (owner, 23.10.2026). Steam's image
+  server refuses the Worker, so the bot sends such a picture to the owner's chat, takes the file and deletes the
+  message (`fetchViaTelegram` in `app/ai-queue.ts`); the owner sees them flicker. Instead: the owner creates a private
+  channel («Склад картинок») with the bot as admin; Settings get a «Служебный канал» field, and the download goes
+  there; without it set, the owner's chat as now.
 - Next: changes in the game's files (owner, 23.10.2026: «это очень интересное»). Source: the GitHub repo
   SteamTracking/GameTracking-Dota2 (SteamDB's tracker; one commit per game build with its file diffs), read through
   GitHub's API with a free token (the owner sets `GITHUB_TOKEN`; never steamdb.info itself, its FAQ forbids scraping).
