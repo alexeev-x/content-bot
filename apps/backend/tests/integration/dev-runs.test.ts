@@ -80,7 +80,9 @@ describe('/api/v1/dev-runs', () => {
 
     const run = await dev.request('/api/v1/dev-runs', { method: 'POST', json: { kind: 'patch' } });
     expect(run.status).toBe(202);
-    expect(dev.aiJobs.sent).toMatchObject([{ kind: 'source_event', externalId: '2001', automatic: true }]);
+    expect(dev.aiJobs.sent).toMatchObject([
+      { kind: 'source_event', externalId: '2001', automatic: true, devRun: true }
+    ]);
     expect((await keys()).map((row) => row.key)).toEqual(['autopublish:20011', 'autopublish:2003']);
 
     const none = await dev.request('/api/v1/dev-runs', { method: 'POST', json: { kind: 'event' } });

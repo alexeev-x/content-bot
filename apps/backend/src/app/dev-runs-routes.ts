@@ -112,7 +112,7 @@ export const devRunsRoutes = new Hono<AppBindings>()
             newId: container.newId,
             now: () => container.clock.now()
           },
-          { externalId: event.externalId, chatId, appOrigin, replay: true, automatic: true }
+          { externalId: event.externalId, chatId, appOrigin, replay: true, automatic: true, devRun: true }
         );
         if (!queued) throw new AppError('CONFLICT', 'The AI is writing it already', { reason: 'AI_WRITING' });
       }
@@ -185,6 +185,7 @@ async function queueFollowUp(
     externalId: event.externalId,
     number: 1,
     task: followUpTask(watch),
+    devRun: true,
     ...(urls.length === 0 ? {} : { urls })
   });
 }

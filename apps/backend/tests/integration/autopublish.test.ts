@@ -85,13 +85,14 @@ const media = (failing = false): SourceMediaDeps => ({
   fetchImpl: (async () => new Response(null, { status: 404 })) as unknown as typeof fetch
 });
 
-const run = async (externalId: string, text: string, deps = media()) => {
+const run = async (externalId: string, text: string, deps = media(), ignoreLimit = false) => {
   const id = await draft(text);
   return autopublishSourceEvent(container, await createWriterDeps(container, 'test'), deps, {
     externalId,
     rootId: id,
     versionId: id,
-    requestId: 'test'
+    requestId: 'test',
+    ...(ignoreLimit ? { ignoreLimit } : {})
   });
 };
 
@@ -117,6 +118,9 @@ describe('automatic publishing of an event post', () => {
     // Over the limit: the next event's draft goes to the owner.
     expect(await run('1002', 'Ещё одна новость.')).toEqual({ kind: 'skipped', reason: 'limit' });
     expect(await count('publications')).toBe(1);
+    // A test pressed on DEV's «Проверка автопостов» is outside the limit (owner, 23.10.2026).
+    expect(await run('1003', 'Тестовый прогон.', media(), true)).toMatchObject({ kind: 'published' });
+    expect(await count('publications')).toBe(2);
   });
 
   it('does nothing while the chosen channel is disabled', async () => {
@@ -233,7 +237,11 @@ describe('the event job in the bot', () => {
     device: 'новость',
     ending: 'патч'
   });
-  const runEvent = async (factCheck: string, automatic = true) => {
+  const runEvent = async (
+    factCheck: string,
+    automatic = true,
+    published: string | { held: string } = 'Опубликовано без вас: «Патч»'
+  ) => {
     const answers = [answer, factCheck, answer];
     const provider: AiTextProvider = {
       provider: 'openai',
@@ -294,7 +302,7 @@ describe('the event job in the bot', () => {
         },
         autopublish: async (_job, draft) => {
           asked.push(draft.versionId);
-          return 'Опубликовано без вас: «Патч»';
+          return published;
         }
       }
     );
@@ -319,5 +327,15 @@ describe('the event job in the bot', () => {
     );
     expect(asked).toHaveLength(0);
     expect(edits.at(-1)).toContain('Габен выпустил патч 7.42.');
+    expect(edits.at(-1)).toContain('Не опубликовано без вас: проверка фактов');
+  });
+
+  it('says under the draft why it did not go out alone when the publishing skipped it', async () => {
+    // Owner, 23.10.2026: «почему он автоматом дальше не идёт?» — the daily limit, said nowhere.
+    const { asked, edits } = await runEvent(JSON.stringify({ problems: [] }), true, {
+      held: 'дневной лимит автопубликаций исчерпан'
+    });
+    expect(asked).toHaveLength(1);
+    expect(edits.at(-1)).toContain('Не опубликовано без вас: дневной лимит автопубликаций исчерпан.');
   });
 });

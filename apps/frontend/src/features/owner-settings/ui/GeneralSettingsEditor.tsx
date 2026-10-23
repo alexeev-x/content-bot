@@ -16,6 +16,7 @@ import {
   VisuallyHidden
 } from '../../../shared/ui';
 import { useGeneralSettings, type SettingsPatch } from '../model/use-general-settings';
+import { AutopublishPanel } from './AutopublishPanel';
 import styles from './GeneralSettingsEditor.module.css';
 import { TimezoneField, TimezoneFieldSkeleton } from './TimezoneField';
 
@@ -132,11 +133,6 @@ export function GeneralSettingsSkeleton() {
 }
 
 const STATUS_TEXT = { idle: '', saving: ru.general.saving, saved: ru.general.saved } as const;
-
-const LIMITS = Array.from({ length: 10 }, (_, index) => index + 1).map((limit) => ({
-  id: String(limit),
-  label: `До ${limit} в сутки`
-}));
 
 type Props = {
   /** Enabled channels for the automatic publishing, composed by the page (features never import each other). */
@@ -260,42 +256,13 @@ export function GeneralSettingsEditor({ channels = [] }: Props) {
           ) : null}
         </div>
       </Panel>
-      {/* Valve's news without the owner (owner, 21–22.10.2026). Switching it off is the stop button. */}
-      <Panel
-        title="Автопубликация"
-        icon={<Icon name="send" />}
-        note="Новости Valve выходят без вас, если проверка фактов ничего не нашла. Остальное, как и раньше, приходит вам черновиком."
-      >
-        <div className={styles.report}>
-          <Switch
-            variant="row"
-            isSelected={view.autopublishEnabled}
-            isDisabled={!view.autopublishEnabled && view.autopublishDestinationId === null}
-            onChange={(value) => change({ autopublishEnabled: value })}
-            description={
-              view.autopublishDestinationId === null
-                ? 'Сначала выберите канал.'
-                : 'О каждом таком посте бот коротко напишет без звука.'
-            }
-          >
-            Публиковать новости Valve без меня
-          </Switch>
-          <Select
-            label="Канал"
-            placeholder="Выберите канал"
-            options={channels.map((channel) => ({ id: channel.id, label: channel.title }))}
-            value={view.autopublishDestinationId}
-            onChange={(id) => change({ autopublishDestinationId: id })}
-          />
-          <Select
-            label="Лимит"
-            options={LIMITS}
-            value={String(view.autopublishDailyLimit)}
-            onChange={(id) => change({ autopublishDailyLimit: Number(id) })}
-            description="Сверх лимита новости приходят вам черновиком."
-          />
-        </div>
-      </Panel>
+      <AutopublishPanel
+        enabled={view.autopublishEnabled}
+        destinationId={view.autopublishDestinationId}
+        dailyLimit={view.autopublishDailyLimit}
+        channels={channels}
+        change={change}
+      />
       <output className={styles.status}>{STATUS_TEXT[status]}</output>
     </div>
   );

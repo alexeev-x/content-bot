@@ -162,6 +162,13 @@ async function runSourceMediaJob(
     .catch((error: unknown) => onError(error));
 }
 
+/** Why the automatic publishing left a draft to the owner, said under the draft. */
+const SKIPPED_TEXT: Record<Extract<AutopublishOutcome, { kind: 'skipped' }>['reason'], string> = {
+  off: 'автопубликация выключена в настройках',
+  channel: 'канал автопубликации не выбран или выключен',
+  limit: 'дневной лимит автопубликаций исчерпан — его можно поднять в настройках'
+};
+
 /** The owner's short note of what the automatic publishing did; null when it did nothing. */
 function autopublishNote(outcome: AutopublishOutcome, appOrigin: string, externalId: string): string | null {
   if (outcome.kind === 'skipped' || outcome.kind === 'continue') return null;
@@ -213,7 +220,8 @@ async function runPatchPublishJob(
         requestId,
         ...(job.followUp === undefined ? {} : { followUp: job.followUp }),
         ...(job.urls === undefined ? {} : { followUpUrls: job.urls }),
-        ...(job.from === undefined ? {} : { from: job.from })
+        ...(job.from === undefined ? {} : { from: job.from }),
+        ...(job.devRun === true ? { ignoreLimit: true } : {})
       }
     );
     container.logger.info({ component: 'autopublish', operation: 'patch_publish', requestId, status: outcome.kind });
@@ -397,7 +405,8 @@ export async function handleAiQueue(batch: MessageBatch<unknown>, container: Con
         messageId,
         appOrigin: job.appOrigin,
         externalId: job.externalId,
-        automatic: job.automatic
+        automatic: job.automatic,
+        ...(job.devRun === true ? { devRun: true } : {})
       };
     } else if (job.kind === 'treasure_post') {
       // A treasure's follow-up: written and, when allowed, published like Cron's event draft (owner, 22.10.2026).
@@ -428,6 +437,7 @@ export async function handleAiQueue(batch: MessageBatch<unknown>, container: Con
         appOrigin: job.appOrigin,
         externalId: job.externalId,
         automatic: true,
+        ...(job.devRun === true ? { devRun: true } : {}),
         followUp: { number: job.number, task: job.task, ...(job.urls === undefined ? {} : { urls: job.urls }) }
       };
     } else {
@@ -478,6 +488,7 @@ export async function handleAiQueue(batch: MessageBatch<unknown>, container: Con
             ...draft,
             requestId,
             ...(eventJob.followUp === undefined ? {} : { followUp: eventJob.followUp.number }),
+            ...(eventJob.devRun === true ? { ignoreLimit: true } : {}),
             // Every post's pictures and publication in a job of its own (QA 23.10.2026: the Free plan's 50 D1
             // statements do not hold the writer, the pictures and their improvement together).
             queuePicture: (postId: string) =>
@@ -489,7 +500,8 @@ export async function handleAiQueue(batch: MessageBatch<unknown>, container: Con
                 postId,
                 externalId: eventJob.externalId,
                 ...(eventJob.followUp === undefined ? {} : { followUp: eventJob.followUp.number }),
-                ...(eventJob.followUp?.urls === undefined ? {} : { urls: eventJob.followUp.urls })
+                ...(eventJob.followUp?.urls === undefined ? {} : { urls: eventJob.followUp.urls }),
+                ...(eventJob.devRun === true ? { devRun: true } : {})
               })
           }
         );
@@ -499,6 +511,8 @@ export async function handleAiQueue(batch: MessageBatch<unknown>, container: Con
           requestId,
           status: outcome.kind === 'skipped' ? outcome.reason : outcome.kind
         });
+        // Skipped: the draft goes to the owner as usual, saying why it did not go out alone (owner, 23.10.2026).
+        if (outcome.kind === 'skipped') return { held: SKIPPED_TEXT[outcome.reason] };
         return autopublishNote(outcome, eventJob.appOrigin, eventJob.externalId);
       },
       onError

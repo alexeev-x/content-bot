@@ -38,10 +38,12 @@ export const notificationPreferencesSchema = z.object({
  * Off until the owner switches it on and picks the channel; at most `dailyLimit` such posts in 24 h, the rest wait for
  * the owner as drafts. Switching it off is the stop button.
  */
+export const AUTOPUBLISH_DAILY_LIMIT_MAX = 100;
 export const autopublishSettingsSchema = z.object({
   enabled: z.boolean().default(false),
   destinationId: z.uuid().nullable().default(null),
-  dailyLimit: z.number().int().min(1).max(10).default(3)
+  // Typed by the owner, not picked from ten (owner, 23.10.2026: «могу увеличить до 30»).
+  dailyLimit: z.number().int().min(1).max(AUTOPUBLISH_DAILY_LIMIT_MAX).default(3)
 });
 export type AutopublishSettings = z.infer<typeof autopublishSettingsSchema>;
 export const AUTOPUBLISH_DEFAULTS: AutopublishSettings = { enabled: false, destinationId: null, dailyLimit: 3 };

@@ -242,6 +242,8 @@ function draftHtml(result: {
   text: string;
   /** A version fixed by the owner's remark: what changed, in the model's one line. */
   changes?: string;
+  /** Why an automatic draft did not go out alone. */
+  held?: string;
 }) {
   if (result.warnings.includes(NEEDS_FACTS))
     return [
@@ -259,6 +261,7 @@ function draftHtml(result: {
   if (result.changes) lines.push('', `<i>Что изменил: ${escapeHtml(result.changes)}</i>`);
   if (result.warnings.length > 0)
     lines.push('', `<i>Проверка: ${escapeHtml(result.warnings.map(describeCheck).join('; '))}</i>`);
+  if (result.held) lines.push('', `⏸ Не опубликовано без вас: ${escapeHtml(result.held)}.`);
   lines.push('', '<i>Своя версия — кнопка «✏️ Изменить».</i>');
   return lines.join('\n');
 }
@@ -351,7 +354,10 @@ export interface AiJobRuntime {
    * Publishes a fact-checked event draft without the owner when the settings allow it (owner, 21.10.2026); the short
    * note it returns replaces the draft in the chat. Null: the draft goes to the owner as before.
    */
-  autopublish?: (job: EventWriterJob, draft: { rootId: string; versionId: string }) => Promise<string | null>;
+  autopublish?: (
+    job: EventWriterJob,
+    draft: { rootId: string; versionId: string }
+  ) => Promise<string | { held: string } | null>;
 }
 
 const retryKeyboard = (generationId: string) =>
@@ -559,19 +565,31 @@ async function runClaimed(job: WriterJob, runtime: AiJobRuntime): Promise<boolea
       await edit(api, chatId, messageId, failedText(generation.errorCode), failureMarkup);
       return true;
     }
+    // Why an automatic draft came to the owner instead of going out alone (owner, 23.10.2026: «почему он автоматом
+    // дальше не идёт?»): said under the draft.
+    let held: string | null = null;
+    if (job.kind === 'event' && job.automatic === true && runtime.autopublish !== undefined) {
+      if (result.factCheck !== 'clean')
+        held =
+          result.factCheck === 'fixed'
+            ? 'проверка фактов поправила текст — посмотрите и одобрите сами'
+            : 'проверка фактов не сработала — посмотрите и одобрите сами';
+    }
     if (
       job.kind === 'event' &&
       job.automatic === true &&
       result.factCheck === 'clean' &&
       runtime.autopublish !== undefined
     ) {
-      const note = await runtime
+      const answer = await runtime
         .autopublish(job, { rootId: generation.parentGenerationId ?? generation.id, versionId: generation.id })
         .catch((error: unknown) => {
           // Whatever failed, the owner still gets the draft to approve by hand.
           runtime.onError(error);
-          return null;
+          return { held: 'автопубликация дала сбой — проверьте студию, прежде чем одобрять' };
         });
+      const note = typeof answer === 'string' ? answer : null;
+      if (answer !== null && typeof answer !== 'string') held = answer.held;
       if (note !== null) {
         // The post is out (or waits in the studio) whatever this edit does: never overwritten by a failure text.
         await edit(api, chatId, messageId, note).catch((error: unknown) => runtime.onError(error));
@@ -586,7 +604,12 @@ async function runClaimed(job: WriterJob, runtime: AiJobRuntime): Promise<boolea
       api,
       chatId,
       messageId,
-      draftHtml({ ...generation, text: result.text, ...(fixed && result.fix ? { changes: result.fix.changes } : {}) }),
+      draftHtml({
+        ...generation,
+        text: result.text,
+        ...(fixed && result.fix ? { changes: result.fix.changes } : {}),
+        ...(held === null ? {} : { held })
+      }),
       keyboard(generation.id, generation.hooks, job.appOrigin, revisionId, fixed)
     );
     if (fixed) await recordRemark(job, result, deps, runtime);
