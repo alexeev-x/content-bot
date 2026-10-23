@@ -91,6 +91,16 @@ The AI makes the Telegram channel's content itself: news and rubric posts drafte
     (owner, 23.10.2026: «мелочи», the AI's names will do).
 - Find and add more that give a post a day without the owner's work; each must be free, keyless or with a free key,
   and allowed by its terms.
+- First: Telegram rich messages (Bot API 10.1–10.3, 11.06–24.08.2026; grammY 1.46 supports them) tried live on DEV
+  before anything is rebuilt (owner, 23.10.2026: «наши посты могут стать интереснее»). A DEV-only action sends
+  samples to «Тест канал» and the owner's chat: the channel's real recent topics (a patch post, an event series post,
+  a treasure follow-up, a news post, a datamine find) redone the new way — section heading, `<mark>`, a table of
+  nerfs and buffs, an expandable block, photos and a collage inside; a datamine diff as classic `pre` with
+  `language-diff` and as a rich `<pre><code class="language-diff">`; the daily analytics report as a rich table
+  (bordered, striped, compact). No AI generation for the samples (owner): texts are taken from posts already
+  published, pictures from ones already made or from the sources (Valve's CDN). The owner looks on phone and desktop;
+  then we pick what posts and the report use. Open: the `<mark>` colour, red/green in `diff`, how old clients and
+  channels show rich messages, scheduling (sendRichMessage has no schedule field), editing in the studio.
 - Next: changes in the game's files (owner, 23.10.2026: «это очень интересное»). Source: the GitHub repo
   SteamTracking/GameTracking-Dota2 (SteamDB's tracker; one commit per game build with its file diffs), read through
   GitHub's API with a free token (the owner sets `GITHUB_TOKEN`; never steamdb.info itself, its FAQ forbids scraping).
