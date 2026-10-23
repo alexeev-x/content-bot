@@ -170,7 +170,14 @@ type NewGeneration = Pick<
   | 'preApprovedPublishAt'
   | 'hooks'
   | 'createdAt'
->;
+> & { facts?: string | null };
+
+/** A source's whole facts beside the task (migration 0105): a patch's full notes, an announcement's whole text. */
+export const FACTS_MAX = 60_000;
+const cutFacts = (facts: string | null | undefined): string | null => {
+  const trimmed = facts?.trim() ?? '';
+  return trimmed === '' ? null : trimmed.slice(0, FACTS_MAX);
+};
 
 /** The line a task names its source with (`app/workflows/source-event-ai-draft.ts`). */
 export const SOURCE_LINK_LABEL = 'Ссылка на источник: ';
@@ -331,6 +338,8 @@ export async function generateDraft(
     mode: WriterMode;
     source: 'bot' | 'studio';
     task: string;
+    /** The source's whole facts, beside the task's instructions (a source's draft); an answer inherits its parent's. */
+    facts?: string | null;
     parentGenerationId?: string | null;
     preApprovedPublishAt?: number | null;
     /** Reels example ids kept out of the prompt (control run). */
@@ -341,7 +350,14 @@ export async function generateDraft(
   const task = input.task.trim().slice(0, MAX_TASK);
   if (task === '') throw new AppError('VALIDATION_ERROR', 'The task is empty');
   const now = deps.clock.now();
+  const facts =
+    input.facts !== undefined
+      ? cutFacts(input.facts)
+      : input.parentGenerationId
+        ? await deps.writer.findFacts(input.parentGenerationId)
+        : null;
   const row: NewGeneration = {
+    facts,
     id: deps.newId(),
     kind: 'draft',
     format: input.format,
@@ -366,6 +382,7 @@ export async function generateDraft(
       format: input.format,
       mode: input.mode,
       task,
+      facts,
       answered: row.parentGenerationId !== null,
       holdOut: input.holdOut ?? [],
       author: await author(deps),
@@ -400,7 +417,10 @@ export async function rewriteDraft(
     throw new AppError('CONFLICT', 'The button is stale', { reason: 'STALE_REVISION' });
   const instruction = input.instruction.trim().slice(0, 500);
   if (instruction === '') throw new AppError('VALIDATION_ERROR', 'The instruction is empty');
+  // The source's whole facts go with every version: «Переписать» sees what the first draft saw.
+  const facts = await deps.writer.findFacts(parent.id);
   const row: NewGeneration = {
+    facts,
     id: deps.newId(),
     kind: 'rewrite',
     format: parent.format,
@@ -417,6 +437,7 @@ export async function rewriteDraft(
     format: parent.format,
     mode: parent.mode,
     task: parent.task,
+    facts,
     rewrite: { text: current.text, instruction, ...(input.remark ? { remark: input.remark } : {}) },
     rules: await rulesFor(deps, parent.format),
     author: await author(deps),

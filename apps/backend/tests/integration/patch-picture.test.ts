@@ -16,11 +16,13 @@ import { fakeClock, resetDb } from '../helpers/harness';
 const USAGE = { inputTokens: 100, cachedInputTokens: 0, cacheWriteTokens: 0, outputTokens: 10 };
 let draws: number;
 let reads: { images: number }[];
+let prompts: string[];
 
 const images: AiImageProvider = {
   provider: 'openai',
-  draw: async ({ references }) => {
-    expect(references.length).toBeGreaterThan(0);
+  draw: async ({ references, prompt }) => {
+    expect(references.length).toBe(4);
+    prompts.push(prompt);
     draws += 1;
     return {
       bytes: new Uint8Array([0xff, 0xd8, draws]),
@@ -59,6 +61,7 @@ beforeEach(async () => {
   await resetDb();
   draws = 0;
   reads = [];
+  prompts = [];
   await updateAiSettings(
     { repo: createD1AiRepository(testDb()), clock: fakeClock() },
     {
@@ -84,7 +87,7 @@ describe('a patch picture', () => {
         { number: '7.41B', captions: ['БАЛАНС\nГЕРОЕВ', 'ИЗМЕНЕНИЯ ПРЕДМЕТОВ'] }
       ])
     );
-    expect(result).toEqual({ kind: 'drawn', bytes: new Uint8Array([0xff, 0xd8, 2]), contentType: 'image/jpeg' });
+    expect(result).toMatchObject({ kind: 'drawn', bytes: new Uint8Array([0xff, 0xd8, 2]), contentType: 'image/jpeg' });
     expect(draws).toBe(2);
     expect(reads).toEqual([{ images: 1 }, { images: 1 }]);
     // Each picture is priced and shows as its own line of the month's spend.
@@ -96,6 +99,48 @@ describe('a patch picture', () => {
     });
     expect(spend.images.requests).toBe(2);
     expect(spend.images.pricedMicroUsd).toBe(2 * (100 * 8 + 10 * 30));
+  });
+
+  it('takes the colour the cheap model picks for the patch, never the last cover colour, the same on every try', async () => {
+    const asked: string[] = [];
+    const picking = (pick: string): AiTextProvider => ({
+      provider: 'openai',
+      complete: async (request) => {
+        if (request.images === undefined) {
+          asked.push(request.input);
+          return { text: pick, model: 'gpt-6-luna', usage: USAGE };
+        }
+        reads.push({ images: request.images.length });
+        const answer =
+          reads.length === 1
+            ? { number: '7.41', captions: [] }
+            : { number: '7.41b', captions: ['БАЛАНС ГЕРОЕВ', 'ИЗМЕНЕНИЯ ПРЕДМЕТОВ'] };
+        return { text: JSON.stringify(answer), model: 'gpt-6.1-sol', usage: USAGE };
+      }
+    });
+    const run = (provider: AiTextProvider, lastTheme: string | null) =>
+      drawPatchPicture(
+        {
+          repo: createD1AiRepository(testDb()),
+          clock: fakeClock(),
+          timezone: 'UTC',
+          newId: () => crypto.randomUUID(),
+          provider,
+          images
+        },
+        { number: '7.41b', points: ['Баланс героев', 'Изменения предметов'], about: 'Facets removed', lastTheme }
+      );
+    expect(await run(picking('purple'), 'green')).toMatchObject({ kind: 'drawn', theme: 'purple' });
+    expect(prompts).toHaveLength(2);
+    expect(prompts.every((prompt) => prompt.includes('violet arcane glow'))).toBe(true);
+    expect(asked[0]).toContain('Facets removed');
+    expect(asked[0]).not.toContain('green —');
+    // The last colour is never taken, even when the model names it.
+    prompts = [];
+    reads = [];
+    const again = await run(picking('green'), 'green');
+    expect(again.kind === 'drawn' && again.theme).not.toBe('green');
+    expect(prompts.some((prompt) => prompt.includes('toxic green'))).toBe(false);
   });
 
   it('gives up after three wrong pictures', async () => {

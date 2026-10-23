@@ -129,6 +129,7 @@ export function createOpenAiProvider(apiKey: string, fetchImpl: typeof fetch): A
       return {
         text,
         model: parsed.model,
+        ...(parsed.status === 'incomplete' ? { truncated: true } : {}),
         usage: {
           inputTokens: parsed.usage.input_tokens,
           cachedInputTokens: details?.cached_tokens ?? 0,

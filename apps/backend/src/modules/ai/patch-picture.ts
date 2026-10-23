@@ -24,14 +24,38 @@ const READ_TIMEOUT_MS = 60_000;
 // A queue consumer has 15 minutes: no new try starts after this.
 const TOTAL_MS = 8 * 60_000;
 const POINTS_MAX = 4;
-const THEMES = [
-  'molten lava: orange and red fire glowing from the cracks, embers in the air',
-  'deep red: crimson glow from the cracks, red sparks',
-  'blue lightning: electric blue light and small lightning arcs from the cracks',
-  'cyan: icy cyan glow from the cracks, cyan crystal shards',
-  'green: toxic green glow from the cracks, green sparks',
-  'purple: violet arcane glow from the cracks, purple shards'
-] as const;
+/** The cover colours: `mood` is what the chooser reads, `prompt` what the image model gets. */
+export const PATCH_COVER_THEMES = {
+  lava: {
+    mood: 'огонь и ярость: большие перемены, громкие нерфы',
+    prompt: 'molten lava: orange and red fire glowing from the cracks, embers in the air'
+  },
+  red: {
+    mood: 'тревога: жёсткие ослабления, наказание сильных',
+    prompt: 'deep red: crimson glow from the cracks, red sparks'
+  },
+  blue: {
+    mood: 'энергия: скорость, ману, способности',
+    prompt: 'blue lightning: electric blue light and small lightning arcs from the cracks'
+  },
+  cyan: {
+    mood: 'холод и порядок: точечные правки, баланс',
+    prompt: 'cyan: icy cyan glow from the cracks, cyan crystal shards'
+  },
+  green: {
+    mood: 'рост: усиления, новые возможности, предметы',
+    prompt: 'green: toxic green glow from the cracks, green sparks'
+  },
+  purple: {
+    mood: 'магия и тайна: механики, таланты, необычное',
+    prompt: 'purple: violet arcane glow from the cracks, purple shards'
+  }
+} as const;
+export type PatchCoverTheme = keyof typeof PATCH_COVER_THEMES;
+const THEME_KEYS = Object.keys(PATCH_COVER_THEMES) as PatchCoverTheme[];
+
+const THEME_INSTRUCTIONS =
+  'Подбери цвет обложки патча Dota 2 по его содержанию. Ответь одним ключом из списка, без других слов.';
 
 const READ_SCHEMA = {
   name: 'patch_picture_text',
@@ -73,7 +97,7 @@ export function patchPicturePrompt(input: { number: string; points: readonly str
 }
 
 export type PatchPictureResult =
-  | { kind: 'drawn'; bytes: Uint8Array; contentType: 'image/jpeg' }
+  | { kind: 'drawn'; bytes: Uint8Array; contentType: 'image/jpeg'; theme: PatchCoverTheme }
   /** `unavailable`: AI is off, its key or the budget is missing; `mismatch`: three pictures read back wrong. */
   | { kind: 'failed'; reason: 'unavailable' | 'mismatch' | 'provider' };
 
@@ -86,11 +110,16 @@ export async function drawPatchPicture(
     newId: () => string;
     provider: AiTextProvider | null;
     images: AiImageProvider | null;
-    /** A theme index for a test; random otherwise. */
-    pickTheme?: () => number;
     onError?: (error: unknown) => void;
   },
-  input: { number: string; points: readonly string[] }
+  input: {
+    number: string;
+    points: readonly string[];
+    /** What the patch is about, for the colour (owner, 23.10.2026: «какой под новость подходит»). */
+    about?: string;
+    /** The last cover's colour: never twice in a row. */
+    lastTheme?: string | null;
+  }
 ): Promise<PatchPictureResult> {
   const points = input.points.slice(0, POINTS_MAX);
   const settings = await readAiSettings(deps.repo);
@@ -103,6 +132,7 @@ export async function drawPatchPicture(
   }
   if (deps.images === null || points.length === 0) return { kind: 'failed', reason: 'unavailable' };
   const references = PATCH_COVER_REFERENCES.map(decodeReference);
+  const allowed = THEME_KEYS.filter((key) => key !== input.lastTheme);
   // One ledger row per call and nothing more: the spend was checked above, and three tries must stay inside the
   // Free plan's 50 subrequests of the job (QA 23.10.2026).
   const prices = effectivePrices(settings);
@@ -116,15 +146,40 @@ export async function drawPatchPicture(
       usage,
       costMicroUsd: costMicroUsd(usage, kind === 'other' ? IMAGE_PRICE : priceFor(prices, model))
     });
+  // One cheap call picks the colour that fits the patch, from all but the last one; a failure picks at random. Every
+  // try keeps it, so a redraw does not change the colour.
+  let theme: PatchCoverTheme = allowed[Math.floor(Math.random() * allowed.length)] ?? 'lava';
+  const cheap = settings.cheapModel ?? settings.draftModel;
+  if (input.about !== undefined && cheap !== null) {
+    try {
+      const chosen = await reader.complete({
+        model: cheap,
+        instructions: THEME_INSTRUCTIONS,
+        input: [
+          `Патч: ${input.number}. На обложке: ${points.join(', ')}.`,
+          `Содержание: ${input.about.slice(0, 1_500)}`,
+          'Цвета (ключ — настроение):',
+          ...allowed.map((key) => `${key} — ${PATCH_COVER_THEMES[key].mood}`)
+        ].join('\n'),
+        maxOutputTokens: 1_000,
+        signal: AbortSignal.timeout(READ_TIMEOUT_MS)
+      });
+      await record('check', reader.provider, chosen.model, chosen.usage);
+      const key = chosen.text.trim().toLowerCase();
+      if ((allowed as string[]).includes(key)) theme = key as PatchCoverTheme;
+    } catch (error) {
+      if (!(error instanceof AiProviderError)) throw error;
+      deps.onError?.(error);
+    }
+  }
   let reason: 'mismatch' | 'provider' = 'mismatch';
   const started = deps.clock.now();
   for (let attempt = 0; attempt < TRIES; attempt += 1) {
     if (attempt > 0 && deps.clock.now() - started > TOTAL_MS - DRAW_TIMEOUT_MS - READ_TIMEOUT_MS) break;
-    const theme = THEMES[(deps.pickTheme ?? (() => Math.floor(Math.random() * THEMES.length)))()] ?? THEMES[0];
     try {
       const picture = await deps.images.draw({
         model: IMAGE_MODEL,
-        prompt: patchPicturePrompt({ number: input.number, points, theme }),
+        prompt: patchPicturePrompt({ number: input.number, points, theme: PATCH_COVER_THEMES[theme].prompt }),
         references,
         size: SIZE,
         signal: AbortSignal.timeout(DRAW_TIMEOUT_MS)
@@ -149,7 +204,7 @@ export async function drawPatchPicture(
         text.data.captions.length === points.length &&
         text.data.captions.every((caption, index) => same(caption, points[index] ?? ''))
       )
-        return { kind: 'drawn', bytes: picture.bytes, contentType: picture.contentType };
+        return { kind: 'drawn', bytes: picture.bytes, contentType: picture.contentType, theme };
       reason = 'mismatch';
     } catch (error) {
       // A provider failure costs the try, never the post; anything else is a bug and goes up.

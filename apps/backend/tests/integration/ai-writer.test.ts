@@ -12,6 +12,7 @@ import {
   generateDraft,
   publishableText,
   recordFeedback,
+  rewriteDraft,
   saveOwnerEdit,
   setLearningExcluded,
   updateAiSettings,
@@ -203,6 +204,36 @@ describe('AI writer', () => {
     expect(prompt).not.toContain('Телеграм-текст автора');
     // The owner's text sits right before the task: the most relevant example comes last.
     expect(prompt.indexOf('Свой текст:')).toBeGreaterThan(prompt.lastIndexOf('Пример ('));
+  });
+
+  it("gives a source's whole facts to the first draft and to every rewrite of it", async () => {
+    // 7.41f (owner, 23.10.2026): the notes cut to fit the task left the writer without the buffed heroes.
+    const inputs: string[] = [];
+    const writer = deps({
+      provider: 'openai',
+      complete: (request) => {
+        inputs.push(request.input);
+        return answering(ANSWER).complete(request);
+      }
+    });
+    const facts = `Патчноуты Valve:\n${Array.from({ length: 300 }, (_, index) => `Hero ${index}: damage +1`).join('\n')}`;
+    expect(facts.length).toBeGreaterThan(4_000);
+    const first = await generateDraft(writer, {
+      format: 'telegram',
+      mode: 'automatic',
+      source: 'bot',
+      task: 'Повод: вышел патч 7.41f.',
+      facts,
+      signal: AbortSignal.timeout(1000)
+    });
+    expect(inputs.at(-1)).toContain('Hero 299: damage +1');
+    await rewriteDraft(writer, {
+      generationId: first.generation.id,
+      instruction: 'короче',
+      signal: AbortSignal.timeout(1000)
+    });
+    expect(inputs.at(-1)).toContain('Hero 299: damage +1');
+    expect(inputs.at(-1)).toContain('ТЕКУЩИЙ ТЕКСТ');
   });
 
   it('records a reason once per draft on the text the owner judged, and counts reasons for «Качество»', async () => {

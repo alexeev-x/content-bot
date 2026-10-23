@@ -23,16 +23,27 @@ export function patchPictureFor(container: Container, requestId: string, onError
     if (version === null && !hotfix) return null;
     let number: string | null;
     let points: readonly string[];
+    let about: string;
     try {
       if (version !== null) {
         const digest = (await container.dotaWatcher.digestPatch?.(version)) ?? null;
         if (digest === null) return null;
         number = version;
         points = patchPicturePoints(digest);
+        // What the colour is chosen by: Valve's general notes and the most changed heroes and items.
+        about = [
+          ...digest.general.flatMap((group) => group.notes).slice(0, 15),
+          `Больше всего изменений: ${[...digest.heroes, ...digest.items]
+            .sort((a, b) => b.notes.length - a.notes.length)
+            .slice(0, 8)
+            .map((entity) => entity.name)
+            .join(', ')}`
+        ].join('; ');
       } else {
         // A hotfix says so instead of a version (owner, 23.10.2026: a version's cover on a hotfix about an event misled).
         number = HOTFIX_PICTURE_TITLE;
         points = HOTFIX_PICTURE_POINTS;
+        about = `Хотфикс: ${source.title}`;
       }
     } catch (error) {
       // Valve's feed failing is no reason to lose the announcement's images, as the writer falls back to its text.
@@ -55,8 +66,11 @@ export function patchPictureFor(container: Container, requestId: string, onError
         images: container.aiImageProvider,
         onError
       },
-      { number, points }
+      // Never the colour of the last cover (owner, 23.10.2026); a failed read only allows a repeat.
+      { number, points, about, lastTheme: await container.systemState.readCoverTheme().catch(() => null) }
     );
+    if (result.kind === 'drawn')
+      await container.systemState.rememberCoverTheme(result.theme, container.clock.now()).catch(onError);
     container.logger.info({
       component: 'source_media',
       operation: 'patch_picture',

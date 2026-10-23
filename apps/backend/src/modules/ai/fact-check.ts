@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { AiProviderError } from './ports';
 import { assertAiReady, type BudgetEvent, readAiSettings, recordAiUsage } from './service';
 import { generateDraft, rewriteDraft, type WriterDeps, type WriterResult } from './writer';
+import { factsPart } from './writer-prompt';
 
 // A second pass over an automatic draft (owner, 21.10.2026, after «Пророчества его игнорируют, потому что он всех
 // бесит»): one call compares the draft with its task's facts and names every claim the facts do not support; when it
@@ -50,7 +51,7 @@ const answerSchema = z.object({
 /** The claims of a draft its task does not support; empty when all hold, null when the check could not run. */
 export async function checkFacts(
   deps: WriterDeps,
-  input: { task: string; text: string; signal: AbortSignal }
+  input: { task: string; facts?: string | null; text: string; signal: AbortSignal }
 ): Promise<{ problems: { quote: string; why: string }[] | null; budgetEvents: BudgetEvent[] }> {
   const settings = await readAiSettings(deps.repo);
   const { provider, model } = await assertAiReady(deps, settings, settings.draftModel ?? settings.cheapModel);
@@ -59,7 +60,7 @@ export async function checkFacts(
     result = await provider.complete({
       model,
       instructions: INSTRUCTIONS,
-      input: `ЗАДАНИЕ С ФАКТАМИ:\n${input.task}\n\nЧЕРНОВИК:\n<<<${input.text.replaceAll('>>>', '> > >')}>>>`,
+      input: `ЗАДАНИЕ С ФАКТАМИ:\n${input.task}${input.facts ? `\n\n${factsPart(input.facts)}` : ''}\n\nЧЕРНОВИК:\n<<<${input.text.replaceAll('>>>', '> > >')}>>>`,
       maxOutputTokens: MAX_OUTPUT_TOKENS,
       jsonSchema: FACT_CHECK_JSON_SCHEMA,
       signal: input.signal
@@ -94,7 +95,8 @@ export async function generateCheckedDraft(
 ): Promise<WriterResult> {
   const draft = await generateDraft(deps, input);
   if (draft.text === null || draft.generation.result === 'needs_facts') return draft;
-  const check = await checkFacts(deps, { task: draft.generation.task, text: draft.text, signal: input.signal });
+  const facts = await deps.writer.findFacts(draft.generation.id);
+  const check = await checkFacts(deps, { task: draft.generation.task, facts, text: draft.text, signal: input.signal });
   const budgetEvents = [...draft.budgetEvents, ...check.budgetEvents];
   if (check.problems === null) return { ...draft, budgetEvents, factCheck: 'unchecked' };
   if (check.problems.length === 0) return { ...draft, budgetEvents, factCheck: 'clean' };
@@ -115,7 +117,12 @@ export async function generateCheckedDraft(
       return { ...draft, budgetEvents: [...budgetEvents, ...fixed.budgetEvents], factCheck: 'unchecked' };
     // The fixed text is checked once more (owner, 23.10.2026): found clean, it counts as clean and may go out without
     // the owner; anything else keeps it `fixed`, for the owner to approve.
-    const recheck = await checkFacts(deps, { task: draft.generation.task, text: fixed.text, signal: input.signal });
+    const recheck = await checkFacts(deps, {
+      task: draft.generation.task,
+      facts,
+      text: fixed.text,
+      signal: input.signal
+    });
     const events = [...budgetEvents, ...fixed.budgetEvents, ...recheck.budgetEvents];
     return { ...fixed, budgetEvents: events, factCheck: recheck.problems?.length === 0 ? 'clean' : 'fixed' };
   } catch {

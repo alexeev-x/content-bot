@@ -170,8 +170,12 @@ export interface WriterRepository {
       'status' | 'errorCode' | 'model' | 'hooks' | 'warnings' | 'chatMessageId' | 'result' | 'question' | 'ideas'
     > & {
       packRevision: string;
+      /** The source's whole facts beside the task (migration 0105), at most 60 000 characters. */
+      facts?: string | null;
     }
   ): Promise<void>;
+  /** The source's whole facts of a generation, or null (the task holds them all). */
+  findFacts(id: string): Promise<string | null>;
   finishGeneration(input: {
     id: string;
     now: number;
@@ -398,8 +402,8 @@ export function createD1WriterRepository(db: D1Database): WriterRepository {
       await db
         .prepare(
           `INSERT INTO ai_generations (id, kind, format, mode, source, task, parent_generation_id, status, pack_revision,
-             pre_approved_publish_at, created_at, updated_at)
-           VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, 'pending', ?8, ?9, ?10, ?10)`
+             pre_approved_publish_at, created_at, updated_at, facts)
+           VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, 'pending', ?8, ?9, ?10, ?10, ?11)`
         )
         .bind(
           row.id,
@@ -411,9 +415,18 @@ export function createD1WriterRepository(db: D1Database): WriterRepository {
           row.parentGenerationId,
           row.packRevision,
           row.preApprovedPublishAt,
-          row.createdAt
+          row.createdAt,
+          row.facts ?? null
         )
         .run();
+    },
+
+    async findFacts(id) {
+      const row = await db
+        .prepare('SELECT facts FROM ai_generations WHERE id = ?')
+        .bind(id)
+        .first<{ facts: string | null }>();
+      return row?.facts ?? null;
     },
 
     async finishGeneration(input) {

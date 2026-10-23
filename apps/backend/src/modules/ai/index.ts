@@ -18,6 +18,7 @@ export {
 } from './d1-rules-repository';
 export { type AnalyticsReview, writeAnalyticsReview } from './analytics-review';
 export { hotfixWorthPost } from './hotfix-check';
+export { condensePatchNotes } from './patch-condense';
 export { drawPatchPicture, type PatchPictureResult } from './patch-picture';
 export { enhancePicture, type EnhanceResult } from './picture-enhance';
 export {

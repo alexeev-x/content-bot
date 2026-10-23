@@ -17,6 +17,8 @@ export interface AiCompletion {
   usage: AiUsage;
   /** The provider that answered, when one provider stands for several (`createModelRouter`). */
   provider?: AiProvider;
+  /** The answer stopped at the output cap (OpenAI's `incomplete`): the text may miss its end. */
+  truncated?: boolean;
 }
 
 /**

@@ -16,11 +16,16 @@ export interface SystemStateStore {
   /** Writes only when the origin differs from the stored one, so a repeated /start changes nothing. */
   rememberAppOrigin(origin: string, now: number): Promise<void>;
   readAppOrigin(): Promise<string | null>;
+  /** The colour of the last patch cover (owner, 23.10.2026: never the same colour twice in a row). */
+  rememberCoverTheme(theme: string, now: number): Promise<void>;
+  readCoverTheme(): Promise<string | null>;
 }
 
 const LOOPBACK_HOSTS = new Set(['localhost', '127.0.0.1', '[::1]']);
 const CRON_KEY = 'cron_last_run';
 const ORIGIN_KEY = 'app_origin';
+const COVER_THEME_KEY = 'patch_cover_theme';
+const coverThemeSchema = z.object({ theme: z.string().min(1).max(40) });
 
 const cronValueSchema = z.object({
   status: z.enum(['ok', 'error']),
@@ -91,6 +96,23 @@ export function createD1SystemState(db: D1Database): SystemStateStore {
       if (row === null) return null;
       const value = originSchema.safeParse(parseJson(row.value));
       return value.success ? value.data.origin : null;
+    },
+
+    async rememberCoverTheme(theme, now) {
+      await db
+        .prepare(
+          `INSERT INTO system_state (key, value, updated_at) VALUES (?1, ?2, ?3)
+           ON CONFLICT (key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`
+        )
+        .bind(COVER_THEME_KEY, JSON.stringify({ theme }), now)
+        .run();
+    },
+
+    async readCoverTheme() {
+      const row = await read(COVER_THEME_KEY);
+      if (row === null) return null;
+      const value = coverThemeSchema.safeParse(parseJson(row.value));
+      return value.success ? value.data.theme : null;
     }
   };
 }

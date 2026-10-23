@@ -1824,7 +1824,7 @@ export {
   HOTFIX_PICTURE_POINTS,
   isHotfixTitle,
   type PatchDigest,
-  patchDigestText,
+  patchNotesText,
   type PatchEntityNotes,
   patchPicturePoints,
   patchVersionOf

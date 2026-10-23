@@ -343,7 +343,7 @@ export interface AiJobRuntime {
   onError: (error: unknown) => void;
   /** A source event's draft: its facts as the writer's task, and where the draft is recorded. */
   sourceEvents?: {
-    task: (externalId: string) => Promise<string>;
+    task: (externalId: string) => Promise<{ task: string; facts: string | null }>;
     generated: (job: EventWriterJob, generationId: string) => Promise<void>;
     finished: (job: EventWriterJob) => Promise<void>;
   };
@@ -377,13 +377,17 @@ async function jobResult(
     const events = runtime.sourceEvents;
     try {
       // A treasure's follow-up brings its own task (the watch's new facts).
-      const task = job.followUp?.task ?? (await events.task(job.externalId));
+      const { task, facts } =
+        job.followUp === undefined ? await events.task(job.externalId) : { task: job.followUp.task, facts: null };
+      // The writer's own time starts after the task: a big patch's condensing has its own (QA 23.10.2026).
+      const signal = AbortSignal.timeout(MODEL_TIMEOUT_MS);
       // Automatic: the source's facts only, checked by a second pass before the owner sees it.
       const result = await generateCheckedDraft(deps, {
         format: 'telegram',
         mode: 'automatic',
         source: 'bot',
         task,
+        facts,
         signal
       });
       // The first version of the chain: a fix by the fact check is its child. A follow-up leaves the event's own

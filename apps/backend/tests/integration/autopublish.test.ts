@@ -287,7 +287,11 @@ describe('the event job in the bot', () => {
         finish: () => Promise.resolve(),
         writer: () => createWriterDeps(withModel, 'test'),
         onError: () => {},
-        sourceEvents: { task: async () => 'Повод: патч 7.42', generated: async () => {}, finished: async () => {} },
+        sourceEvents: {
+          task: async () => ({ task: 'Повод: патч 7.42', facts: null }),
+          generated: async () => {},
+          finished: async () => {}
+        },
         autopublish: async (_job, draft) => {
           asked.push(draft.versionId);
           return 'Опубликовано без вас: «Патч»';

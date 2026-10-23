@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { isHotfixTitle, type PatchDigest, patchDigestText, patchVersionOf } from './patch-digest';
+import { isHotfixTitle, type PatchDigest, patchNotesText, patchVersionOf } from './patch-digest';
 
 // A patch post is written from Valve's notes of its version (owner, 22.10.2026): a missed version writes it from a
 // few lines of the announcement, and a digest that buries «facets removed» under hero numbers loses the main news.
@@ -35,12 +35,12 @@ describe('patch announcements and digests', () => {
       neutralItems: [],
       noteCount: 6
     };
-    const text = patchDigestText(digest);
+    const text = patchNotesText(digest, 40_000);
     expect(
       text.startsWith('ГЛАВНОЕ — общие изменения Valve (с них начинай):\n[Facets]\n- Facets removed from the game')
     ).toBe(true);
-    expect(text.indexOf('Pudge (изменений: 3)')).toBeLessThan(text.indexOf('Axe (изменений: 1)'));
-    expect(text).toContain('Black King Bar (изменений: 1): Cost increased from 4050 to 4200');
-    expect(patchDigestText({ ...digest, general: [] })).toMatch(/^Общих изменений нет\./u);
+    expect(text.indexOf('Pudge:')).toBeLessThan(text.indexOf('Axe:'));
+    expect(text).toContain('Black King Bar:\n  - Cost increased from 4050 to 4200');
+    expect(patchNotesText({ ...digest, general: [] }, 40_000)).toMatch(/^Общих изменений нет\./u);
   });
 });

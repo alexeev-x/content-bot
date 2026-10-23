@@ -145,6 +145,8 @@ export function buildWriterPrompt(input: {
   format: WriterFormat;
   mode: WriterMode;
   task: string;
+  /** The source's whole facts (migration 0105): shown right after the task, the only facts to write from. */
+  facts?: string | null;
   /** The owner already answered the model's question: the task ends with those facts. */
   answered?: boolean;
   /**
@@ -200,6 +202,7 @@ export function buildWriterPrompt(input: {
   if (input.rewrite) {
     parts.push(
       `ИСХОДНОЕ ЗАДАНИЕ И ПОДТВЕРЖДЁННЫЕ ФАКТЫ:\n${input.task}`,
+      factsPart(input.facts),
       `ТЕКУЩИЙ ТЕКСТ:\n${input.rewrite.text}`,
       ...(input.rewrite.remark
         ? [
@@ -214,13 +217,19 @@ export function buildWriterPrompt(input: {
     // «Придумай сам» is the owner's own request without a topic, not the automatic mode of a news item.
     if (input.mode === 'direct' && asksToInvent(input.task))
       parts.push('ЗАПРОС: тема на твой выбор (см. «Как отвечать»).');
-    parts.push(`ЗАДАНИЕ:\n${input.task}`);
+    parts.push(`ЗАДАНИЕ:\n${input.task}`, factsPart(input.facts));
     if (input.answered)
       parts.push(
         'Автор уже ответил на твой вопрос. Пиши черновик (kind «draft») из того, что есть; второй вопрос не задавай, недостающее не выдумывай.'
       );
   }
   return { instructions, input: parts.filter(Boolean).join('\n\n') };
+}
+
+/** The source's facts block; empty without them. */
+export function factsPart(facts: string | null | undefined): string {
+  if (facts == null || facts === '') return '';
+  return `ФАКТЫ ИСТОЧНИКА (бери факты только отсюда):\n<<<${facts.replaceAll('>>>', '> > >').replaceAll('<<<', '< < <')}>>>`;
 }
 
 const MAX_RECENT = 20;

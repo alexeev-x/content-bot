@@ -1,4 +1,5 @@
 import { Api } from 'grammy';
+import { condensePatchNotes } from '../modules/ai';
 import { aiJobSchema } from './bot/ai-job';
 import { runAiJob } from './bot/ai-writer';
 import { createWriterDeps } from './bot/writer-deps';
@@ -452,6 +453,19 @@ export async function handleAiQueue(batch: MessageBatch<unknown>, container: Con
       sourceEvents: sourceEventWriter({
         repo: container.dotaRepository,
         ...(container.dotaWatcher.digestPatch === undefined ? {} : { digestPatch: container.dotaWatcher.digestPatch }),
+        condensePatch: async (notes, signal) =>
+          condensePatchNotes(
+            {
+              repo: container.aiRepository,
+              clock: container.clock,
+              timezone: (
+                await getOwnerOperationsSettings({ repo: container.settings, logger: container.logger, requestId })
+              ).timezone,
+              newId: container.newId,
+              provider: container.aiProvider
+            },
+            { notes, signal }
+          ),
         onError
       }),
       autopublish: async (eventJob, draft) => {
