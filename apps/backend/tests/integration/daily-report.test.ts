@@ -16,7 +16,8 @@ import {
   raiseDailyReport,
   releaseDailyReport,
   releaseOverdueReports,
-  videoTitleKey
+  videoTitleKey,
+  latestRichReports
 } from '../../src/modules/content-analytics';
 import { zoned } from '../../src/modules/content-analytics/alerts';
 import type { Collection } from '../../src/modules/content-analytics/types';
@@ -153,6 +154,31 @@ describe('daily report', () => {
     expect(html).not.toMatch(/Главное|❓|🎬|♥%/u);
     expect(Array.from(html).length).toBeLessThan(4096);
     expect(await reportRows()).toMatchObject([{ status: 'reviewed', reviewError: null }]);
+  });
+
+  it('renders the released report as a rich message with the same parts and the AI review', async () => {
+    const clock = fakeClock();
+    await collectHours(clock, 26, 0);
+    const deps = repos();
+    const { reportId } = await raiseDailyReport({ ...deps, clock, timezone: ZONE, hour: 0 });
+    const names = createD1ContentVideoNameRepository(testDb());
+    await names.saveAi([{ key: videoTitleKey('Ролик <0> | Учу фидить в доту'), name: 'Оракл' }], clock.now());
+    await releaseDailyReport(
+      { reports: deps.reports, alerts: deps.alerts, names, now: clock.now() },
+      { id: reportId!, review: REVIEW, reviewError: null, model: 'gpt-6.1-sol' }
+    );
+    const { daily, weekly } = await latestRichReports({ reports: deps.reports, names });
+    expect(weekly).toBeNull();
+    expect(daily).toContain('<p>Просмотры за сутки: YouTube +7.2к</p>');
+    expect(daily).toContain('<p><b>Telegram:</b> за сутки постов не было.</p>');
+    expect(daily).toMatch(/<tr><th>Ролик<\/th><th>Дн<\/th><th>TikTok<\/th><th>YouTube<\/th><\/tr>/u);
+    expect(daily).toMatch(
+      /<tr><td>Оракл<\/td><td align="right">\d+<\/td><td align="right">—<\/td><td align="right">3\.5к <b>\+2\.4к<\/b><\/td><\/tr>/u
+    );
+    expect(daily).toMatch(
+      /<h4>🧠 Что нового<\/h4>\n<ul><li><a href="[^"]+">Оракл<\/a> \(YouTube\) растёт стабильно<\/li><li>Гипотезы без изменений\.<\/li><\/ul>/u
+    );
+    expect(daily).not.toContain('<pre>');
   });
 
   it('sends the numbers alone when the review would not fit one Telegram message (review 19.10.2026)', async () => {

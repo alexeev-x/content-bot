@@ -435,6 +435,32 @@ export function platformTable(
   return lines;
 }
 
+const RICH_TITLE_MAX = 24;
+
+/** `platformTable` as one rich table, a single line for `richBlocks`: title, views, the change, the reaction rate. */
+export function richPlatformTable(
+  platform: 'youtube' | 'tiktok',
+  changeLabel: string,
+  rows: readonly TableRow[]
+): string {
+  const wide = rows.some((row) => row.rate !== undefined);
+  const rateName = platform === 'tiktok' ? '↗%' : '♥%';
+  const head = `<tr><th>Ролик</th><th>Всего</th><th>${escapeHtml(changeLabel)}</th>${wide ? `<th>${rateName}</th>` : ''}</tr>`;
+  const body = rows.map((row) => {
+    const cells = [
+      `<td><a href="${escapeHtml(cleanUrl(row.url))}">${escapeHtml(shortTitleOf(row.title, RICH_TITLE_MAX))}</a></td>`,
+      `<td align="right">${row.views === null ? '—' : compactCount(row.views)}${row.stale ? '*' : ''}</td>`,
+      `<td align="right">${escapeHtml(`${row.change}${row.mark}`)}</td>`,
+      wide ? `<td align="right">${escapeHtml(row.rate ?? '—')}</td>` : ''
+    ];
+    return `<tr>${cells.join('')}</tr>`;
+  });
+  const caption = wide
+    ? `${PLATFORM_NAME[platform]} · ${platform === 'tiktok' ? '↗% — пересылки' : '♥% — лайки'} от просмотров`
+    : PLATFORM_NAME[platform];
+  return `<table bordered striped compact><caption>${caption}</caption>${head}${body.join('')}</table>`;
+}
+
 export function usualArrow(comparison: DailyComparison | null): '↑' | '↓' | '' {
   const ratio = usualRatio(comparison);
   if (ratio === null) return '';
@@ -764,6 +790,104 @@ function dailyReportV2(input: {
   const news = newsBlock(input.review, input.reviewError, link);
   if (news.length > 0) lines.push('', ...news);
   return lines.join('\n');
+}
+
+/**
+ * Classic report lines as rich message blocks (Bot API 10.1): a lone `<b>…</b>` line becomes a heading, a run of
+ * «• » lines a list, an empty line nothing, any other line a paragraph. The DEV rich sample (owner, 23.10.2026).
+ */
+export function richBlocks(lines: readonly string[]): string {
+  const blocks: string[] = [];
+  let items: string[] = [];
+  const flush = () => {
+    if (items.length > 0) blocks.push(`<ul>${items.map((item) => `<li>${item}</li>`).join('')}</ul>`);
+    items = [];
+  };
+  for (const line of lines) {
+    if (line.startsWith('• ')) {
+      items.push(line.slice(2));
+      continue;
+    }
+    flush();
+    if (line === '') continue;
+    // A rich table from `richPlatformTable` goes as it is.
+    if (line.startsWith('<table')) {
+      blocks.push(line);
+      continue;
+    }
+    const heading = /^<b>([^<]*)<\/b>$/.exec(line);
+    blocks.push(heading === null ? `<p>${line}</p>` : `<h4>${heading[1]}</h4>`);
+  }
+  flush();
+  return blocks.join('\n');
+}
+
+/** The month's videos as a rich table: TikTok and YouTube in their own columns, views with the day's growth. */
+function videoTableRich(daily: DailyAnalytics, names: VideoNames | undefined): string {
+  const groups = videoGroups(daily);
+  if (groups.length === 0) return richBlocks(['<b>Ролики за месяц</b>', 'Роликов за месяц нет.']);
+  const cell = (row: DailyPlatform['rows'][number] | undefined) => {
+    if (row === undefined) return '—';
+    const views = row.views === null ? '—' : compactCount(row.views);
+    return `${views} <b>${escapeHtml(growthCell(row.growth))}</b>${row.status === 'ok' ? '' : '*'}`;
+  };
+  const rows = groups.map(
+    (group) =>
+      `<tr><td>${escapeHtml(videoName(group.title, names, 12))}</td><td align="right">${Math.round(group.ageHours / 24)}</td><td align="right">${cell(group.rows.tiktok)}</td><td align="right">${cell(group.rows.youtube)}</td></tr>`
+  );
+  const notes: string[] = [];
+  for (const platform of daily.platforms)
+    if (platform.state === 'error')
+      notes.push(`<i>⚠️ ${PLATFORM_NAME[platform.platform]}: последний сбор не удался.</i>`);
+    else if (platform.state === 'pending') notes.push(`<i>${PLATFORM_NAME[platform.platform]}: данных ещё нет.</i>`);
+  if (groups.some((group) => Object.values(group.rows).some((row) => row.status !== 'ok')))
+    notes.push('<i>* цифры не обновились при последнем сборе</i>');
+  return [
+    '<table bordered striped compact><caption>Ролики за месяц: всего и за сутки</caption>',
+    '<tr><th>Ролик</th><th>Дн</th><th>TikTok</th><th>YouTube</th></tr>',
+    ...rows,
+    '</table>',
+    richBlocks(notes)
+  ]
+    .filter((part) => part !== '')
+    .join('\n');
+}
+
+/** The layout-2 report as a rich message: the same parts as `dailyReportV2`; null for an older stored layout. */
+export function dailyReportRichHtml(input: {
+  data: DailyReportData;
+  timezone: string;
+  review: DailyReview | null;
+  reviewError?: string | null;
+  names?: VideoNames;
+}): string | null {
+  const { daily } = input.data;
+  if (daily.layout !== 2) return null;
+  const day = new Intl.DateTimeFormat('ru-RU', { timeZone: input.timezone, day: 'numeric', month: 'long' }).format(
+    new Date(daily.asOf)
+  );
+  const rows = keyedRows(daily);
+  const references = keyedReferences(daily);
+  const link = (key: string) => {
+    const found = rows.find((row) => row.key === key);
+    const reference = references.find((each) => each.key === key)?.reference;
+    const target =
+      found === undefined ? reference : { url: found.row.url, title: found.row.title, platform: found.platform };
+    if (target === undefined) return key;
+    return `<a href="${escapeHtml(cleanUrl(target.url))}">${escapeHtml(videoName(target.title, input.names, 12))}</a> (${PLATFORM_NAME[target.platform]})`;
+  };
+  const milestones = milestonesOf(daily, input.names, input.timezone);
+  return [
+    `<h3>📈 ${day} · ${time(daily.asOf, input.timezone)}${daily.partial ? ' · данные частично' : ''}</h3>`,
+    richBlocks([followersLine(daily), dayViewsLine(daily)].filter((line): line is string => line !== null)),
+    richBlocks(telegramLines(daily)),
+    videoTableRich(daily, input.names),
+    richBlocks(olderLines(daily, input.names)),
+    milestones.length === 0 ? '' : richBlocks([`🏁 <b>Вехи:</b> ${milestones.join('; ')}`]),
+    richBlocks(newsBlock(input.review, input.reviewError, link))
+  ]
+    .filter((part) => part !== '')
+    .join('\n');
 }
 
 export function dailyReportHtml(input: {

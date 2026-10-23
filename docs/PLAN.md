@@ -19,7 +19,7 @@ The AI makes the Telegram channel's content itself: news and rubric posts drafte
   neither for Dota (checked with the owner's key 21.10.2026: no item schema, no asset prices for app 570); the price comes
   from Valve by the item id (below). So two posts (owner): the news at once, then the sets with images from Liquipedia or the event's
   dota2.com page (two posts when there are many).
-- Built 22.10.2026 (`docs/backend/sources.md` «Treasure follow-ups from Liquipedia»; follow-ups carry no set pictures: Liquipedia's files are outside its API). Liquipedia watch for a published event post that lacks details (owner, 22.10.2026): the sets, their images, drop
+- Built 22.10.2026 (`docs/backend/sources.md` «Treasure follow-ups from Liquipedia»; follow-ups carry no set pictures yet, though Liquipedia's `imageinfo` API gives 256×170 set icons, checked 23.10.2026). Liquipedia watch for a published event post that lacks details (owner, 22.10.2026): the sets, their images, drop
   rates or opening bonuses missing from what went out start a watch on the event's Liquipedia page (found by its
   name). Every 5 minutes one light request asks whether the page changed; the price never starts a watch (Liquipedia
   has none). Liquipedia fills a page in many small edits, so new details are collected until the page has been quiet
@@ -106,6 +106,21 @@ The AI makes the Telegram channel's content itself: news and rubric posts drafte
   find as rich and classic `pre`) and DEV's newest daily and weekly reports as tables (owner's chat only). `<mark>` has no colour attribute in the API.
   Owner on the first look (23.10.2026): one picture per post (a collage of hero portraits looked awful); a treasure
   lists every set in the table; no English text but names; no «Источник» line and no links but «Подробнее» to dota2.com.
+  Owner's review of the full set (23.10.2026), to carry into the real posts:
+  - patch: the main change, then one table with group rows: the 2 heroes cut hardest, the 2 buffed most, 2 mixed
+    (something taken, something given); the items in a folded block of their own (liked); our patch picture on top;
+  - hotfix: liked as is; it needs a picture too, how to make it is to be decided with the owner;
+  - event series: liked; the writer must not add «Дальше ещё N постов» (the AI wrote it, no prompt asks for it);
+    several pictures of a post go in one slider (`tg-slideshow`): the five automatons on their background
+    (`*_automaton_gameplay_poster.jpg`), all 15 treasure sets; never a collage;
+  - treasure without its own page: news, sets and details liked; the sets get Liquipedia's set icons in a slider
+    (its `imageinfo` API gives them, 256×170);
+  - news: the whole content, not a short summary of the announcement: its linked page (e.g. dota2.com/summerscrub2026,
+    with Valve's Russian texts) gives the new features, the changes and the fixes by section; a second announcement
+    of the same day (The International's predictions, fantasy, bundles) is its own post;
+  - file find: no heading, the text opens with «В файлах игры нашли»;
+  - reports: the first rich report was cut down and its 5-column table broke on a phone; the rich report must keep
+    every part of the classic one (followers, the day, Telegram, the review, milestones) with short video names.
 - Next: changes in the game's files (owner, 23.10.2026: «это очень интересное»). Source: the GitHub repo
   SteamTracking/GameTracking-Dota2 (SteamDB's tracker; one commit per game build with its file diffs), read through
   GitHub's API with a free token (the owner sets `GITHUB_TOKEN`; never steamdb.info itself, its FAQ forbids scraping).

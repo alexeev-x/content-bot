@@ -8,7 +8,14 @@ export {
   type TikTokConnectionRepository
 } from './tiktok-connection';
 export { raiseContentAlerts } from './alerts';
-export { listReports, readForecastAccuracy, readReport, type ReportSummary } from './report-history';
+export {
+  latestRichReports,
+  listReports,
+  readForecastAccuracy,
+  readReport,
+  type ReportSummary,
+  weeklyRichHtml
+} from './report-history';
 export { CONTAMINATION_CALLBACK, parseContaminationCallback } from './contamination-callback';
 export type { ItemFormats, VideoFormat } from './types';
 export { videoTitleKey } from './title-format';

@@ -14,6 +14,8 @@ import {
   reviewBlock,
   REVIEW_MISSING,
   platformTable,
+  richBlocks,
+  richPlatformTable,
   usualArrow,
   usualPercent
 } from './daily-report';
@@ -298,8 +300,14 @@ export function weeklyReportHtml(input: {
   timezone: string;
   review: DailyReview | null;
   reviewError?: string | null;
+  /** A rich message (Bot API 10.1) with real tables: the DEV rich sample (owner, 23.10.2026). */
+  rich?: boolean;
 }): string {
   const { data, timezone } = input;
+  const table =
+    input.rich === true
+      ? (...args: Parameters<typeof richPlatformTable>) => [richPlatformTable(...args)]
+      : platformTable;
   const lines = [
     `<b>📈 Итоги недели · ${range(data, timezone)}</b>`,
     data.published === 0
@@ -384,7 +392,7 @@ export function weeklyReportHtml(input: {
             };
           })
       );
-      if (rows.length > 0) lines.push('', ...platformTable(platform, 'обыч.', rows));
+      if (rows.length > 0) lines.push('', ...table(platform, 'обыч.', rows));
     }
   }
   if (data.posts.length > 0) {
@@ -399,7 +407,9 @@ export function weeklyReportHtml(input: {
     const conclusions = conclusionsBlock(current, link);
     if (conclusions.length > 0) lines.push('', ...conclusions);
   }
-  return lines.join('\n');
+  if (input.rich !== true) return lines.join('\n');
+  const [title = '', ...rest] = lines;
+  return `<h3>${title.replace(/^<b>|<\/b>$/g, '')}</h3>\n${richBlocks(rest)}`;
 }
 
 /** The last full week (to this Monday 00:00 in the owner's zone), read and not stored: the DEV rich sample. */
