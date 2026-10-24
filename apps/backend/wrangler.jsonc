@@ -82,8 +82,9 @@
     "production": {
       "name": "app",
       "workers_dev": true,
-      // No Cron Trigger in production yet: it is enabled with the first release that publishes.
-      "triggers": { "crons": [] },
+      // Every minute, UTC (owner, 24.10.2026: the first release that publishes). Without a bot token the dispatcher
+      // only logs BOT_TOKEN_MISSING; reconcile, the watches and cleanup run regardless.
+      "triggers": { "crons": ["* * * * *"] },
       "d1_databases": [
         {
           "binding": "DB",
@@ -100,7 +101,7 @@
       },
       "vars": {
         "OWNER_TELEGRAM_ID": "768918661",
-        "PUBLISHING_ENABLED": "false",
+        "PUBLISHING_ENABLED": "true",
         "ANALYTICS_TELEGRAM_CHANNEL": "alexeev_x",
         "ANALYTICS_YOUTUBE_CHANNEL_ID": "UCE-VQmi1Qym7MrEzHg9ngjA"
       }
