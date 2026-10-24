@@ -7,7 +7,8 @@ import type { AiJob } from '../bot/ai-job';
 import { aiPostText, draftFromMessageText } from '../bot/draft-from-message';
 import type { Container } from '../container';
 import { AUTOPUBLISH_ACTOR } from './autopublish-source-event';
-import { watchErrorCode } from './watch-error-code';
+import { recordWatchFailure } from './watch-error-code';
+import { kickDispatch } from './dispatch-now';
 
 // The early signal of a Dota update (owner, 24.10.2026: «как люди делают»; «они должны сразу постом идти без меня»):
 // Steam's own product info, read anonymously every Dota run. Dota 2 Staging (Valve's test app) changing means an update
@@ -81,28 +82,35 @@ async function publishNow(container: Container, key: string, text: string, reque
           { repo: container.posts, now: container.clock.now() },
           { actor: AUTOPUBLISH_ACTOR, id: created.id, input: { revision: created.revision } }
         );
-  await createPublication(
-    {
-      publications: container.publications,
-      destinations: container.destinations,
-      posts: container.postSource,
-      idempotency: container.idempotency,
-      notifier: { scheduled: () => undefined, rescheduled: () => undefined, cancelled: () => undefined },
-      now: container.clock.now(),
-      newId: container.newId
-    },
-    {
-      actor: AUTOPUBLISH_ACTOR,
-      idempotencyKey: `autopublish:steam:${key}`,
-      input: {
-        postId: post.id,
-        revision: post.revision,
-        destinationId,
-        scheduledAt: new Date(container.clock.now()).toISOString(),
-        timezone: settings.timezone
+  try {
+    await createPublication(
+      {
+        publications: container.publications,
+        destinations: container.destinations,
+        posts: container.postSource,
+        idempotency: container.idempotency,
+        notifier: { scheduled: () => undefined, rescheduled: () => undefined, cancelled: () => undefined },
+        now: container.clock.now(),
+        newId: container.newId
+      },
+      {
+        actor: AUTOPUBLISH_ACTOR,
+        idempotencyKey: `autopublish:steam:${key}`,
+        input: {
+          postId: post.id,
+          revision: post.revision,
+          destinationId,
+          scheduledAt: new Date(container.clock.now()).toISOString(),
+          timezone: settings.timezone
+        }
       }
-    }
-  );
+    );
+  } catch (error) {
+    // The write may have committed and lost its answer: never tell the owner «not published» about a post that goes
+    // out anyway (review 24.10.2026, as autopublish-source-event does).
+    if (!(await container.publications.hasLivePublication(post.id, destinationId).catch(() => false))) throw error;
+  }
+  await kickDispatch(container);
   return 'published';
 }
 
@@ -166,7 +174,11 @@ export async function runSteamWatch(
     }
   } catch (error) {
     onError(error);
-    await container.watchChecks.record('steam_apps', container.clock.now(), watchErrorCode(error)).catch(onError);
+    await recordWatchFailure(
+      { checks: container.watchChecks, alerts: container.contentAlerts, now: container.clock.now() },
+      'steam_apps',
+      error
+    ).catch(onError);
   } finally {
     await container.aiWriter.finishJob(job.id, container.clock.now()).catch(onError);
   }

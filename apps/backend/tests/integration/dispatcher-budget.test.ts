@@ -221,10 +221,10 @@ describe('the purge tick (minute 30, nothing due)', () => {
     // Every expired post had a sent publication, so each is a tombstone and its history stays.
     expect(await count('posts', 'deleted_at IS NOT NULL')).toBe(PURGE_BATCH);
     expect(await count('jobs')).toBe(PURGE_BATCH);
-    // Reconciliation, due/archive/expired scans, automation reconciliation and one claim, then the audit row,
+    // Reconciliation, due/archive/expired scans, automation reconciliation (no Dota claim at minute 30, review 24.10.2026), then the audit row,
     // eight child deletes, the hard delete and the soft delete of the posts, and the heartbeat.
-    expect(meter.roundTrips).toBe(11);
-    expect(meter.statements).toBe(3 + 7 + 1 + 8 + 2);
+    expect(meter.roundTrips).toBe(10);
+    expect(meter.statements).toBe(3 + 7 + 1 + 8 + 1);
   });
 
   it('an idle one costs one read more than a regular idle tick', async () => {
@@ -232,7 +232,7 @@ describe('the purge tick (minute 30, nothing due)', () => {
 
     await makeTick({ clock, transport: fakeTransport(SENT), db, scheduledTime: START + 30 * 60_000 }).run();
 
-    expect(meter.roundTrips).toBe(10);
+    expect(meter.roundTrips).toBe(9);
     // Reads only, except the heartbeat upsert at the end.
     expect(meter.sql.slice(0, 4).every((statement) => /^\s*SELECT\b/i.test(statement))).toBe(true);
     expect(meter.sql.at(-1)).toMatch(/^\s*INSERT INTO system_state\b/);

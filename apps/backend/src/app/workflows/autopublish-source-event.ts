@@ -6,6 +6,7 @@ import type { WriterDeps } from '../../modules/ai';
 import type { Container } from '../container';
 import { approveSourceAiDraft } from './approve-source-ai-draft';
 import { attachSourceEventImages, type SourceMediaDeps } from './source-event-media';
+import { kickDispatch } from './dispatch-now';
 
 // Valve's news published without the owner (owner, 21.10.2026: «он должен автоматом публиковать, ибо я спать буду»).
 // Only Cron's first draft of a new event whose fact check found nothing unsupported (the caller checks both), only
@@ -253,6 +254,7 @@ async function publishApprovedEventPost(
         }
       }
     );
+    await kickDispatch(container);
     return {
       kind: 'published',
       postId,

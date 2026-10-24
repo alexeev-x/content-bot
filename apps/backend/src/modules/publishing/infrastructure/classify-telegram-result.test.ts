@@ -16,10 +16,17 @@ describe('classifyTelegramError', () => {
     });
   });
 
-  it('429 without retry_after is unknown, not a guessed delay', () => {
+  it('429 without retry_after is still a refusal: rate_limited with a conservative wait (review 24.10.2026)', () => {
     expect(classifyTelegramError(apiError(429, 'Too Many Requests'))).toEqual({
-      kind: 'unknown',
-      reason: 'telegram_http_429'
+      kind: 'rate_limited',
+      retryAfterSec: 30
+    });
+  });
+
+  it('413 is a definite refusal of a too large upload', () => {
+    expect(classifyTelegramError(apiError(413, 'Request Entity Too Large'))).toEqual({
+      kind: 'rejected',
+      code: 'CONTENT_INVALID'
     });
   });
 

@@ -11,15 +11,15 @@ export interface WatchCheckRow {
 }
 
 export interface WatchCheckRepository {
-  /** A run's result: `errorCode` null is a successful read. */
-  record(key: WatchKey, now: number, errorCode: string | null): Promise<void>;
+  /** A run's result: `errorCode` null is a successful read. Returns the failures in a row after it. */
+  record(key: WatchKey, now: number, errorCode: string | null): Promise<number>;
   list(): Promise<WatchCheckRow[]>;
 }
 
 export function createD1WatchChecks(db: D1Database): WatchCheckRepository {
   return {
     async record(key, now, errorCode) {
-      await db
+      const row = await db
         .prepare(
           `INSERT INTO source_watch_checks (watch_key, last_attempt_at, last_success_at, error_code, consecutive_failures)
            VALUES (?1, ?2, CASE WHEN ?3 IS NULL THEN ?2 END, ?3, CASE WHEN ?3 IS NULL THEN 0 ELSE 1 END)
@@ -27,10 +27,12 @@ export function createD1WatchChecks(db: D1Database): WatchCheckRepository {
              last_attempt_at = excluded.last_attempt_at,
              last_success_at = COALESCE(excluded.last_success_at, last_success_at),
              error_code = excluded.error_code,
-             consecutive_failures = CASE WHEN excluded.error_code IS NULL THEN 0 ELSE consecutive_failures + 1 END`
+             consecutive_failures = CASE WHEN excluded.error_code IS NULL THEN 0 ELSE consecutive_failures + 1 END
+           RETURNING consecutive_failures`
         )
         .bind(key, now, errorCode === null ? null : errorCode.slice(0, 60))
-        .run();
+        .first<{ consecutive_failures: number }>();
+      return row?.consecutive_failures ?? 0;
     },
     async list() {
       const rows = await db

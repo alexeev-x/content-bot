@@ -150,3 +150,4 @@ the text with why. A change is posted at most once: a run that dies between the 
 Both watches (game files and Steam) write their last run to `source_watch_checks` (migration 0109): a successful read
 or the failure's stable code. «Источники → Состояние лент» shows them beside the two feeds (`GET /api/v1/dota`
 `watches`).
+A watch whose third run in a row fails raises one content alert «Источник … не работает» with its code (`watch-down:<key>:<time>`, review 24.10.2026), sent with the next content alerts.

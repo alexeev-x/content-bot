@@ -10,6 +10,7 @@ import type { Container } from '../container';
 import { approveSourceAiDraft, readSourceAiDraft } from './approve-source-ai-draft';
 import { AUTOPUBLISH_ACTOR, PICTURES_PER_RUN } from './autopublish-source-event';
 import { attachSourceEventImages, type SourceMediaDeps } from './source-event-media';
+import { kickDispatch } from './dispatch-now';
 
 // An event's series published without the owner (owner, 22.10.2026), like a single news post: only Cron's series
 // whose every post was written and found clean by the fact check (the caller checks it), only while the automatic
@@ -47,7 +48,7 @@ export async function runSeriesPublishStep(
   // With the chat, so a step whose Worker dies is reported by Cron's lost-job check instead of the chain stopping
   // unseen (the series' «готова» note was already claimed).
   const claimed = await container.aiWriter
-    .claimJob(step.id, container.clock.now(), { chatId: step.chatId, messageId: null })
+    .claimJob(step.id, container.clock.now(), { chatId: step.chatId, messageId: null, kind: 'series_publish' })
     .catch(() => false);
   if (!claimed) return;
   let silent = true;
@@ -97,6 +98,14 @@ export async function runSeriesPublishStep(
       studioPostIds = posts.map((post) => post.postId).filter((id): id is string => id !== null);
       if (studioPostIds.length !== posts.length || destinationId === null || !on)
         return void (await tell(`Серия «${title}» не опубликована без вас. Посты ждут в студии.`, eventUrl));
+      // Counted again: other sources may have published while the series was written (review 24.10.2026).
+      if (
+        (await container.publications.countCreatedBy(AUTOPUBLISH_ACTOR, container.clock.now() - DAY_MS)) >= dailyLimit
+      )
+        return void (await tell(
+          `Серия «${title}» не опубликована без вас: дневной лимит автопубликаций исчерпан. Посты ждут в студии.`,
+          eventUrl
+        ));
       if (await container.publications.hasAnyPublication(studioPostIds))
         return void (await tell(
           `Серия «${title}» не опубликована без вас: пост уже публиковали. Посты ждут в студии.`,
@@ -142,6 +151,7 @@ export async function runSeriesPublishStep(
                 }
               })
             ).publications[0]?.id;
+      await kickDispatch(container);
       await tell(
         only !== undefined
           ? `Опубликовано без вас: «${title}».`

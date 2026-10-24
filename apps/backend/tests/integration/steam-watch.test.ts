@@ -147,6 +147,28 @@ describe('the Steam watch', () => {
     ]);
   });
 
+  it('tells the owner once when three runs in a row failed (review 24.10.2026)', async () => {
+    const failing = () =>
+      runSteamWatch(
+        container,
+        { id: crypto.randomUUID(), kind: 'steam_watch', chatId: Number(OWNER_ID) },
+        '',
+        't',
+        () => undefined,
+        async () => {
+          throw Object.assign(new Error('timeout'), { code: 'STEAM_CM_TIMEOUT' });
+        }
+      );
+    const alerts = () => count('content_alerts', `id LIKE 'watch-down:steam_apps:%'`);
+    await failing();
+    await failing();
+    expect(await alerts()).toBe(0);
+    await failing();
+    expect(await alerts()).toBe(1);
+    await failing();
+    expect(await alerts()).toBe(1);
+  });
+
   it('publishes nothing while the automatic publishing is off', async () => {
     await autopublish(false);
     await run();

@@ -5,6 +5,8 @@ import type { SendOutcome } from '../application/ports';
 const DESTINATION_ERROR = /chat not found|not enough rights|have no rights|administrator rights/i;
 // "message is too long" carries none of the other words, yet it is the content's fault.
 
+const DEFAULT_RETRY_AFTER_SEC = 30;
+
 // Telegram has no idempotency for sendMessage/sendPhoto: unless the Bot API clearly says
 // "refused", the safe answer is `unknown` (manual reconcile), never an automatic retry.
 export function classifyTelegramError(error: unknown): SendOutcome {
@@ -20,7 +22,15 @@ function classifyApiError(error: GrammyError): SendOutcome {
   const code = error.error_code;
   const retryAfter = error.parameters.retry_after;
 
-  if (code === 429 && typeof retryAfter === 'number') return { kind: 'rate_limited', retryAfterSec: retryAfter };
+  // A 429 is a refusal with or without its wait (review 24.10.2026: without one it was `unknown`); a missing wait gets
+  // a conservative one.
+  if (code === 429)
+    return {
+      kind: 'rate_limited',
+      retryAfterSec: typeof retryAfter === 'number' ? retryAfter : DEFAULT_RETRY_AFTER_SEC
+    };
+  // 413: the upload was too large, refused before anything was posted.
+  if (code === 413) return { kind: 'rejected', code: 'CONTENT_INVALID' };
   if (code === 400) {
     if (error.parameters.migrate_to_chat_id !== undefined) return { kind: 'rejected', code: 'CHAT_MIGRATED' };
     if (DESTINATION_ERROR.test(error.description)) return { kind: 'rejected', code: 'DESTINATION_UNAVAILABLE' };

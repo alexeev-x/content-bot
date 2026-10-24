@@ -28,6 +28,8 @@ import type { Container } from '../container';
 const QUIET_MS = 30 * 60 * 1000;
 const PER_RUN = 2;
 const MAX_FOLLOW_UPS = 2;
+/** The writer keeps 4000 characters of a task (modules/ai/writer.ts). */
+const FOLLOW_UP_TASK_MAX = 4000;
 /** A post holds at most ten pictures (contracts POST_MEDIA_MAX_ITEMS): the ten rarest sets. */
 const SET_ICONS_MAX = 10;
 /** A run talks to Liquipedia only when no other did for this long: two runs never request at the same time. */
@@ -80,15 +82,25 @@ export function followUpTask(watch: TreasureWatch): string {
     .join('\n\n')
     .replaceAll('>>>', '> > >')
     .replaceAll('<<<', '< < <');
-  return [
+  const head = [
     `Повод: новые подробности о сокровищнице Dota 2 «${watch.pageTitle ?? watch.title}»; о самой сокровищнице уже рассказано.`,
     ...(link === '' ? [] : [`${SOURCE_LINK_LABEL}${link}`]),
     // No source named in the post (owner, 23.10.2026); sets, drop rates and prices fit the structure's tables.
     'Расскажи только эти новые подробности: все сеты, шансы и бонусы, что есть в фактах, — таблицами, если их несколько.',
     'Пост самостоятельный: о других постах ни слова.',
     SOURCE_POST_STRUCTURE,
-    `Факты (бери только отсюда):\n<<<${facts.slice(0, 3_000)}>>>`
+    'Факты (бери только отсюда):'
   ].join('\n');
+  // The facts get what the writer's 4000-character task leaves them, whole lines only, so the fence always closes
+  // (review 24.10.2026: a long list ran past the queue job's and the writer's bounds and was cut mid-fact).
+  const room = FOLLOW_UP_TASK_MAX - head.length - '\n<<<>>>'.length;
+  let told = '';
+  for (const line of facts.split('\n')) {
+    const next = told === '' ? line : `${told}\n${line}`;
+    if (next.length > room) break;
+    told = next;
+  }
+  return `${head}\n<<<${told}>>>`;
 }
 
 /** One run of the watch; never throws (a failure is logged and the next run tries again). */
@@ -203,6 +215,7 @@ async function step(
       .then((found) => found.slice(0, SET_ICONS_MAX))
       .catch(() => []);
   }
+  const told = tell ? watch.pending : {};
   if (tell) {
     // Told once: what goes out is never told again, whatever the post's fate.
     watch.published = { ...watch.published, ...watch.pending };
@@ -210,8 +223,9 @@ async function step(
     watch.posts += 1;
   }
   const done = now >= watch.endsAt || watch.posts >= MAX_FOLLOW_UPS;
-  // Saved before the post is queued, as of this run's claim: a run that lost the watch queues nothing.
-  const saved = await container.treasureWatches.save(watch, claimedAt, done);
+  // Saved before the post is queued, as of this run's claim: a run that lost the watch queues nothing. A watch that ends
+  // with this post is closed only once the post is queued, so a failed send can still give its facts back.
+  const saved = await container.treasureWatches.save(watch, claimedAt, done && !tell);
   container.logger.info({
     component: 'treasure_watch',
     operation: 'step',
@@ -219,14 +233,26 @@ async function step(
     status: !saved ? 'lost' : tell ? 'follow_up' : done ? 'done' : 'watching'
   });
   if (!saved || !tell) return;
-  await container.aiJobs.send({
-    id: container.newId(),
-    kind: 'treasure_post',
-    chatId: job.chatId,
-    appOrigin: (await container.systemState.readAppOrigin()) ?? '',
-    externalId: watch.externalId,
-    number,
-    task,
-    ...(urls.length === 0 ? {} : { urls })
-  });
+  try {
+    await container.aiJobs.send({
+      id: container.newId(),
+      kind: 'treasure_post',
+      chatId: job.chatId,
+      appOrigin: (await container.systemState.readAppOrigin()) ?? '',
+      externalId: watch.externalId,
+      number,
+      task,
+      ...(urls.length === 0 ? {} : { urls })
+    });
+  } catch (error) {
+    // The post never left: its facts wait again for the next run (review 24.10.2026: they were lost for good).
+    watch.pending = { ...told, ...watch.pending };
+    watch.published = Object.fromEntries(Object.entries(watch.published).filter(([key]) => !(key in told)));
+    watch.posts -= 1;
+    if (!(await container.treasureWatches.save(watch, claimedAt, false)))
+      container.logger.warn({ component: 'treasure_watch', operation: 'restore', requestId, status: 'lost' });
+    throw error;
+  }
+  // Outside the send's guard: the post is queued, so its facts must never go back.
+  if (done) await container.treasureWatches.save(watch, claimedAt, true);
 }

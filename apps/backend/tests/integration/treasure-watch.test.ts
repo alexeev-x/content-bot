@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { createContainer, type Container } from '../../src/app/container';
 import type { AiJob } from '../../src/app/bot/ai-job';
+import { aiJobSchema } from '../../src/app/bot/ai-job';
 import { followUpTask, runTreasureWatch } from '../../src/app/workflows/treasure-watch';
 import { parseTreasureWikitext } from '../../src/modules/dota';
 import trove from '../fixtures/trove-of-terror.json';
@@ -261,5 +262,37 @@ describe('the Liquipedia watch of a treasure', () => {
     expect(task).toContain('Rare: B');
     expect(task).not.toContain('Regular: A');
     expect(task.indexOf('Rare: B')).toBeLessThan(task.indexOf('$4.99'));
+  });
+
+  it('fits the queue job however many facts there are (review 24.10.2026: a long task was dropped by the consumer)', () => {
+    const many = Object.fromEntries(
+      Array.from({ length: 200 }, (_, index) => [`sets:Set ${index}`, `Rare: a long set name number ${index}`])
+    );
+    const task = followUpTask({
+      externalId: '4001',
+      title: 'Inside the Trove of Terror',
+      startedAt: START,
+      endsAt: START + 6 * 60 * MINUTE,
+      pageTitle: 'Trove of Terror',
+      lastRevision: 1,
+      lastChangeAt: START,
+      checkedAt: START,
+      published: {},
+      pending: many,
+      posts: 0,
+      hasSeries: false,
+      hidden: false,
+      mainTold: true
+    });
+    const job = {
+      id: crypto.randomUUID(),
+      kind: 'treasure_post',
+      chatId: 1,
+      appOrigin: '',
+      externalId: '4001',
+      number: 1,
+      task
+    };
+    expect(aiJobSchema.safeParse(job).success).toBe(true);
   });
 });

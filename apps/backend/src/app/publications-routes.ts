@@ -29,6 +29,7 @@ import { appOriginOf } from './bot/app-origin';
 import type { AppBindings } from './env';
 import { createScheduleNotifier } from './notifications/create-schedule-notifier';
 import { limitBody, validated } from './validation';
+import { kickDispatch } from './workflows/dispatch-now';
 
 const MAX_BODY_BYTES = 8 * 1024;
 
@@ -103,6 +104,8 @@ export const publicationsRoutes = new Hono<AppBindings>()
           input: c.req.valid('json')
         }
       );
+      // Due now: sent at once, not on the next Cron tick.
+      if (Date.parse(publication.scheduledAt) <= container.clock.now()) await kickDispatch(container);
       // 202: the intent is stored; nothing has been sent yet.
       return c.json(publication, 202);
     }
@@ -131,6 +134,8 @@ export const publicationsRoutes = new Hono<AppBindings>()
           input: c.req.valid('json')
         }
       );
+      if (series.publications.some((item) => Date.parse(item.scheduledAt) <= container.clock.now()))
+        await kickDispatch(container);
       return c.json(series, 202);
     }
   )

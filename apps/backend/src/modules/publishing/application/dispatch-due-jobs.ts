@@ -107,6 +107,15 @@ export async function dispatchDueJobs(deps: DispatchDeps): Promise<DispatchSumma
     try {
       const result = await dispatchJob(deps, jobId, budget);
       count(summary, result);
+      // One line per job, so a post's way to the channel can be followed by its job id (review 24.10.2026).
+      if (result !== 'lost')
+        deps.logger[result === 'sent' ? 'info' : 'warn']({
+          component: 'dispatcher',
+          operation: 'dispatch_job',
+          jobId,
+          status: result,
+          durationMs: deps.clock.now() - startedAt
+        });
       // The bot token is wrong: every further job would be refused the same way, so do not burn the batch.
       if (result === 'failed_halt') break;
     } catch (error) {

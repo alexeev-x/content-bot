@@ -275,8 +275,14 @@ describe('Cron ticks with everything on', () => {
     expectBudget(meter);
   });
 
-  it.each([4, 24])('minute %i: tells of lost AI writer jobs, three per tick', async (minute) => {
+  // With the content alerts that send them, in the same tick (review 24.10.2026).
+  it.each([8, 28])('minute %i: tells of lost queue jobs, three per tick', async (minute) => {
     const at = tuesday(minute);
+    await enableOwnerSettings(at);
+    await testDb()
+      .prepare('UPDATE content_sources SET last_success_at = ?1, last_error_at = ?2, last_error_code = ?3')
+      .bind(at - 3 * DAY, at - HOUR, 'SOURCE_FAILED')
+      .run();
     const writer = createD1WriterRepository(testDb());
     for (let index = 0; index < 4; index += 1)
       expect(

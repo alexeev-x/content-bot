@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { postSchema, uploadPostMediaResultSchema } from '@alexeev/contracts';
 import type { Container } from '../../src/app/container';
 import { createContainer } from '../../src/app/container';
+import { runDispatchNow } from '../../src/app/workflows/dispatch-now';
 import type { PublicationTransport } from '../../src/modules/publishing';
 import { LEASE_MS, MAX_ATTEMPTS } from '../../src/modules/publishing/domain/dispatch-policy';
 import { testDb } from '../helpers/db';
@@ -980,5 +981,43 @@ describe('logs', () => {
     expect(text).not.toContain('Secret launch title');
     expect(text).not.toContain('TEST-BOT-TOKEN');
     expect(text).not.toContain('Body text');
+  });
+});
+
+describe('the dispatch kick from the queue (review 24.10.2026)', () => {
+  it('sends a post due now at once; a Cron tick right after, and a repeated kick, send nothing more', async () => {
+    const transport = fakeTransport(SENT);
+    const tick = tickWith(transport);
+    const { publicationId } = await seedDueJob(api);
+
+    await runDispatchNow(tick.container, 'kick');
+    expect(transport.calls).toHaveLength(1);
+    expect(await jobOf(publicationId)).toMatchObject({ status: 'succeeded' });
+    expect(tick.logs).toContainEqual(
+      expect.objectContaining({ component: 'dispatch_now', counts: expect.objectContaining({ sent: 1 }) })
+    );
+
+    await tick.run();
+    await runDispatchNow(tick.container, 'kick-again');
+    expect(transport.calls).toHaveLength(1);
+  });
+
+  it('a kick racing a tick on the same job sends it once', async () => {
+    const transport = fakeTransport(SENT);
+    const tick = tickWith(transport);
+    const { publicationId } = await seedDueJob(api);
+
+    await Promise.all([runDispatchNow(tick.container, 'kick'), tick.run()]);
+    expect(transport.calls).toHaveLength(1);
+    expect(await jobOf(publicationId)).toMatchObject({ status: 'succeeded' });
+  });
+
+  it('does nothing while publishing is switched off', async () => {
+    const transport = fakeTransport(SENT);
+    const tick = tickWith(transport, { publishing: 'false' });
+    await seedDueJob(api);
+
+    await runDispatchNow(tick.container, 'kick');
+    expect(transport.calls).toHaveLength(0);
   });
 });

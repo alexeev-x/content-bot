@@ -4,6 +4,7 @@ import { aiJobSchema } from './bot/ai-job';
 import { runAiJob } from './bot/ai-writer';
 import { createWriterDeps } from './bot/writer-deps';
 import { runDailyReview } from './workflows/daily-review';
+import { runDispatchNow } from './workflows/dispatch-now';
 import { runHypothesesReview } from './workflows/hypotheses';
 import { sourceEventWriter } from './workflows/source-event-ai-draft';
 import { attachSourceEventImages, type SourceMediaDeps } from './workflows/source-event-media';
@@ -141,7 +142,15 @@ async function runSourceMediaJob(
   // A continuation queued keeps its own fresh mark: a later failure here must not clear it (QA 23.10.2026).
   let continued = false;
   try {
-    if (!(await container.aiWriter.claimJob(job.id, container.clock.now()))) return;
+    if (
+      !(await container.aiWriter.claimJob(job.id, container.clock.now(), {
+        chatId: job.chatId,
+        messageId: null,
+        kind: job.kind,
+        postId: job.postId
+      }))
+    )
+      return;
     const from = job.from ?? 0;
     const { found, remaining, pictureFailed } = await attachSourceEventImages(
       sourceMediaDeps(container, token, job.chatId, { requestId, onError }),
@@ -161,6 +170,8 @@ async function runSourceMediaJob(
     else text = `Прикреплено картинок из анонса: ${attached} из ${found}. Остальные добавьте в студии.`;
   } catch (error) {
     onError(error);
+    // The owner hears of it below: the claim ends, so the lost-job check does not report it a second time.
+    await container.aiWriter.finishJob(job.id, container.clock.now()).catch(onError);
     if (!continued) await picturesDone(container, job.postId, onError);
     text = 'Не удалось прикрепить картинки из анонса. Добавьте их в студии.';
   }
@@ -221,7 +232,15 @@ async function runPatchPublishJob(
   let text: string | null;
   let continued = false;
   try {
-    if (!(await container.aiWriter.claimJob(job.id, container.clock.now()))) return;
+    if (
+      !(await container.aiWriter.claimJob(job.id, container.clock.now(), {
+        chatId: job.chatId,
+        messageId: null,
+        kind: job.kind,
+        postId: job.postId
+      }))
+    )
+      return;
     const outcome = await publishQueuedPatchPost(
       container,
       sourceMediaDeps(container, token, job.chatId, { requestId, onError }),
@@ -245,6 +264,8 @@ async function runPatchPublishJob(
     text = autopublishNote(outcome, job.appOrigin, job.externalId);
   } catch (error) {
     onError(error);
+    // The owner hears of it below: the claim ends, so the lost-job check does not report it a second time.
+    await container.aiWriter.finishJob(job.id, container.clock.now()).catch(onError);
     if (!continued) await picturesDone(container, job.postId, onError);
     const link = escapeHtml(`${job.appOrigin}/posts/${encodeURIComponent(job.postId)}`);
     text = `Не опубликовано без вас (не получилось опубликовать). Пост ждёт в студии. <a href="${link}">Открыть</a>`;
@@ -256,7 +277,39 @@ async function runPatchPublishJob(
     .catch((error: unknown) => onError(error));
 }
 
+/**
+ * The queue's entry: one log line per message with its kind, wall time and how it ended (review 24.10.2026: the owner
+ * charts the jobs in Workers Logs — which ran, how long, which failed — and finds a cause by its request id). The
+ * job's own failures are logged by its handler with their codes; this line is the summary.
+ */
 export async function handleAiQueue(batch: MessageBatch<unknown>, container: Container, token: string) {
+  for (const message of batch.messages) {
+    const startedAt = Date.now();
+    const body: unknown = message.body;
+    const kind =
+      typeof body === 'object' && body !== null && 'kind' in body && typeof body.kind === 'string'
+        ? body.kind.slice(0, 40)
+        : 'unknown';
+    let status = 'done';
+    try {
+      await handleAiQueueMessages({ ...batch, messages: [message] }, container, token);
+    } catch (error) {
+      status = 'crashed';
+      throw error;
+    } finally {
+      container.logger.info({
+        component: 'ai_queue',
+        operation: kind,
+        requestId: `queue:${message.id}`,
+        status,
+        durationMs: Date.now() - startedAt,
+        ...(message.attempts > 1 ? { attempt: message.attempts } : {})
+      });
+    }
+  }
+}
+
+async function handleAiQueueMessages(batch: MessageBatch<unknown>, container: Container, token: string) {
   const { logger } = container;
   for (const message of batch.messages) {
     const requestId = `queue:${message.id}`;
@@ -290,6 +343,12 @@ export async function handleAiQueue(batch: MessageBatch<unknown>, container: Con
         // D1 failed: the Cron fallback releases the numbers alone after its deadline.
         onError(error);
       }
+      message.ack();
+      continue;
+    }
+    if (job.kind === 'dispatch_now') {
+      // No claim of its own: the dispatcher's conditional claim per publication is the guard.
+      await runDispatchNow(container, requestId).catch(onError);
       message.ack();
       continue;
     }
@@ -354,9 +413,18 @@ export async function handleAiQueue(batch: MessageBatch<unknown>, container: Con
     }
     if (job.kind === 'series_post') {
       try {
-        if (await container.aiWriter.claimJob(job.id, container.clock.now())) {
-          await writeSeriesPost(container, job, token, requestId, onError);
-          await container.aiWriter.finishJob(job.id, container.clock.now());
+        if (
+          await container.aiWriter.claimJob(job.id, container.clock.now(), {
+            chatId: job.chatId,
+            messageId: null,
+            kind: job.kind
+          })
+        ) {
+          try {
+            await writeSeriesPost(container, job, token, requestId, onError);
+          } finally {
+            await container.aiWriter.finishJob(job.id, container.clock.now());
+          }
         }
       } catch (error) {
         onError(error);
@@ -368,9 +436,18 @@ export async function handleAiQueue(batch: MessageBatch<unknown>, container: Con
       // An event with its own dota2.com page gets a planned series instead of one post (owner, 21.10.2026). Claimed
       // here first, so a redelivered copy plans nothing twice; without a page (or a plan) the one post follows.
       let planned = false;
+      const planId = `${job.id.slice(0, 35)}s`;
       try {
         // A second id of the same job (its last character changed): the writer's own claim below keeps the job id.
-        if (!(await container.aiWriter.claimJob(`${job.id.slice(0, 35)}s`, container.clock.now()))) {
+        // With the chat, so a Worker dying while it plans is reported (review 24.10.2026); the claim ends once the plan
+        // is decided, and the writer's own claim takes over.
+        if (
+          !(await container.aiWriter.claimJob(planId, container.clock.now(), {
+            chatId: job.chatId,
+            messageId: null,
+            kind: job.kind
+          }))
+        ) {
           message.ack();
           continue;
         }
@@ -378,6 +455,7 @@ export async function handleAiQueue(batch: MessageBatch<unknown>, container: Con
       } catch (error) {
         onError(error);
       }
+      await container.aiWriter.finishJob(planId, container.clock.now()).catch(onError);
       if (planned) {
         await container.dotaRepository.finishAiDraft({ externalId: job.externalId, jobId: job.id }).catch(onError);
         message.ack();
@@ -469,8 +547,9 @@ export async function handleAiQueue(batch: MessageBatch<unknown>, container: Con
       // is written and, when allowed, published like Cron's event draft (owner, 24.10.2026).
       // Claimed first under a second id of the job (its last character changed), as a source event's series plan: a
       // redelivered copy neither pays the check again nor says «Пишу…» twice (QA 24.10.2026).
+      const checkId = `${job.id.slice(0, 35)}g`;
       const first = await container.aiWriter
-        .claimJob(`${job.id.slice(0, 35)}g`, container.clock.now())
+        .claimJob(checkId, container.clock.now(), { chatId: job.chatId, messageId: null, kind: job.kind })
         .catch((error: unknown) => {
           onError(error);
           return false;
@@ -480,6 +559,7 @@ export async function handleAiQueue(batch: MessageBatch<unknown>, container: Con
         continue;
       }
       const prepared = await prepareGameFilesPost(container, job, requestId, onError);
+      await container.aiWriter.finishJob(checkId, container.clock.now()).catch(onError);
       if (prepared === null) {
         message.ack();
         continue;
@@ -520,7 +600,8 @@ export async function handleAiQueue(batch: MessageBatch<unknown>, container: Con
       claim: async () => {
         const claimed = await container.aiWriter.claimJob(job.id, container.clock.now(), {
           chatId: writerJob.chatId,
-          messageId: writerJob.messageId
+          messageId: writerJob.messageId,
+          kind: job.kind
         });
         if (!claimed && writerJob.kind === 'event')
           await api.deleteMessage(writerJob.chatId, writerJob.messageId).catch((error: unknown) => onError(error));

@@ -7,7 +7,7 @@ description: "Invariants, state machine and mandatory failure tests for scheduli
 Goal: no scheduled post silently disappears, and no ambiguous send repeats automatically. Telegram `sendMessage`/`sendPhoto` have no idempotency key, so after a timeout "not sent" and "sent without a reply" look identical.
 
 ## Invariants
-1. **D1 is the only state; Cron is the only dispatcher** (every minute: reconcile, then claim a small batch of due jobs; Free plan allows 50 subrequests and 50 D1 queries per invocation). Concurrent Cron ticks are expected (overlap is undocumented, so assume it happens). If a Queue is added later, its message carries `{ jobId, schemaVersion }` only.
+1. **D1 is the only state; Cron is the dispatcher** (a `dispatch_now` queue message may run the same dispatcher early for a post due now, `docs/backend/publishing.md` §1; every minute: reconcile, then claim a small batch of due jobs; Free plan allows 50 subrequests and 50 D1 queries per invocation). Concurrent Cron ticks are expected (overlap is undocumented, so assume it happens). If a Queue is added later, its message carries `{ jobId, schemaVersion }` only.
 2. **Claim with a condition** — the exact SQL is in `docs/backend/publishing.md` §5 ("Условный захват задания"); copy it from there, never retype it. Continue only if `meta.changes === 1`.
 3. **Mark before sending:** a separate statement, `UPDATE jobs SET send_started_at=? WHERE id=? AND status='claimed' AND send_started_at IS NULL`, must report `changes === 1`, and only then may you call Telegram. Never fold this into the result write: if the Worker dies after the send, this marker is the only evidence the send may have happened.
 4. **Classify the outcome:**
@@ -15,7 +15,7 @@ Goal: no scheduled post silently disappears, and no ambiguous send repeats autom
 | Telegram response | job status (`PublicationStatus` is projected from it, BACKEND §5) | Why |
 |---|---|---|
 | `ok:true` with `result.message_id` | `succeeded` + `external_message_id`, one `batch()` with the attempt row | confirmed |
-| 429, `parameters.retry_after` | `retry_wait`, `run_at = now + retry_after` + jitter, clear `send_started_at` | Telegram rejected it, nothing was posted |
+| 429 (`parameters.retry_after`, else 30 s) | `retry_wait`, `run_at = now + retry_after` + jitter, clear `send_started_at` | Telegram rejected it, nothing was posted |
 | 400 with `parameters.migrate_to_chat_id` | `failed`, code `CHAT_MIGRATED`, incident | config fix: update the channel id |
 | 400 content errors (too long, can't parse entities) | `failed`, code `CONTENT_INVALID` | fix the content; never auto-retry |
 | 403 (bot not admin or blocked), 400 chat not found | `failed`, code `DESTINATION_UNAVAILABLE` | needs a human |

@@ -25,6 +25,8 @@ export const aiJobSchema = z.discriminatedUnion('kind', [
   z.object({ id: z.uuid(), kind: z.literal('daily_review'), reportId: z.string().min(1).max(100) }),
   /** Reading the owner's new edits and remarks into style lessons (AI plan P7c): no chat message either. */
   z.object({ id: z.uuid(), kind: z.literal('style_lessons') }),
+  /** Wakes the publication dispatcher right after a publication due now was created (review 24.10.2026). */
+  z.object({ id: z.uuid(), kind: z.literal('dispatch_now') }),
   /** The Monday review of the analyst's hypotheses after the week's report (owner, 20.10.2026). */
   z.object({ id: z.uuid(), kind: z.literal('hypotheses'), reportId: z.string().min(1).max(100) }),
   /**
@@ -207,7 +209,8 @@ export type WriterJob =
           | 'treasure_post'
           | 'game_files_watch'
           | 'steam_watch'
-          | 'game_files_post';
+          | 'game_files_post'
+          | 'dispatch_now';
       }
     >
   | EventWriterJob;

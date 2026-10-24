@@ -43,4 +43,21 @@ describe('lost AI jobs', () => {
       { id: `ai-lost:${LOST}`, html: expect.stringContaining('Черновик не дописался') as string }
     ]);
   });
+
+  it('tells a lost publishing job as a post that never reached the channel, with a link to it (review 24.10.2026)', async () => {
+    const writer = createD1WriterRepository(testDb());
+    const postId = '00000000-0000-4000-8000-0000000000aa';
+    expect(await writer.claimJob(LOST, START, { chatId: 42, messageId: null, kind: 'patch_publish', postId })).toBe(
+      true
+    );
+    expect(await reportLostAiJobs(deps(START + LOST_AFTER_MS + 60_000))).toBe(1);
+    const alert = await testDb()
+      .prepare(`SELECT html, link_path FROM content_alerts WHERE id = ?1`)
+      .bind(`ai-lost:${LOST}`)
+      .first<{ html: string; link_path: string }>();
+    expect(alert).toEqual({
+      html: expect.stringContaining('Пост не ушёл в канал') as string,
+      link_path: `/posts/${postId}`
+    });
+  });
 });

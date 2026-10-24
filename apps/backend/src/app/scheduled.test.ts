@@ -251,6 +251,19 @@ describe('handleScheduled', () => {
     expect(hourly.calls).not.toContain('dota sync');
   });
 
+  it('queues the five-minute slot even on a busy tick, and runs the slot of minute 0 at minute 1 (review 24.10.2026)', async () => {
+    const tick = probe({ due: ['job-1'] });
+    await handleScheduled(controller(HOUR + 5 * 60_000), tick.container);
+    expect(tick.calls).toContain('enqueue dota-intelligence');
+    expect(tick.calls).not.toContain('dota sync');
+
+    const hourly = probe();
+    await handleScheduled(controller(HOUR), hourly.container);
+    expect(hourly.calls).not.toContain('enqueue dota-intelligence');
+    await handleScheduled(controller(HOUR + 60_000), hourly.container);
+    expect(hourly.calls).toContain('dota sync');
+  });
+
   it('a failing step is logged without its message, later steps still run, and the tick fails', async () => {
     const { container, lines, calls } = probe({ failReconcile: true });
 

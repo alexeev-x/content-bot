@@ -323,21 +323,53 @@ export async function handleScheduled(controller: ScheduledController, container
   }));
   const publicationIdle =
     failures === 0 && (counts.expired ?? 0) === 0 && (counts.due ?? 0) === 0 && raised.length === 0;
-  if (publicationIdle) {
+  // The five-minute slot is queued whatever the tick is doing (review 24.10.2026: a busy tick lost it, and the next
+  // chance was five minutes later); the first idle tick runs it. By the minute: an exact-millisecond check on
+  // scheduledTime never matched on DEV (the feeds only ran when the owner pressed «Проверить сейчас»).
+  // Minutes 0 and 30 keep their whole budget for the housekeeping: their slot is queued and run a minute later.
+  if (
+    ((minute % 5 === 0 && minute !== 0 && minute !== PURGE_MINUTE) || minute === 1 || minute === PURGE_MINUTE + 1) &&
+    // Two statements (the insert and its guard); a tick that spent its budget leaves the slot to the next one.
+    container.queryBudget.remaining() >= 2 + HEARTBEAT_RESERVE
+  ) {
+    await step('dota-enqueue', async () => {
+      await container.automations.enqueueScheduled({
+        id: 'dota-intelligence',
+        slot: controller.scheduledTime,
+        requestedAt: clock.now(),
+        newId: container.newId
+      });
+      return {};
+    });
+  }
+  if (publicationIdle && minute !== 0 && minute !== PURGE_MINUTE) {
     await step('dota-watch', async (): Promise<Record<string, number>> => {
-      // By the minute: an exact-millisecond check on scheduledTime never matched on DEV
-      // (the feeds only ran when the owner pressed «Проверить сейчас»).
-      if (minute % 5 === 0 && minute !== 0 && minute !== PURGE_MINUTE) {
-        await container.automations.enqueueScheduled({
-          id: 'dota-intelligence',
-          slot: controller.scheduledTime,
-          requestedAt: clock.now(),
-          newId: container.newId
-        });
-      }
       const run = await container.automations.claimNext({ id: 'dota-intelligence', now: clock.now() });
       if (run === null) return {};
       try {
+        // The queue's watches first and together (review 24.10.2026): the early signals never wait for the feeds, and a
+        // feed that throws no longer costs them their slot. A refused send is only logged: the next run sends again.
+        const ownerChat = Number(container.ownerChatId);
+        if (container.ownerChatId !== null && Number.isSafeInteger(ownerChat)) {
+          const watches: { kind: 'treasure_watch' | 'steam_watch' | 'game_files_watch'; component: string }[] = [
+            { kind: 'treasure_watch', component: 'treasure_watch' },
+            // Steam's product info of Dota's apps, the early signal of an update (owner, 24.10.2026); needs no key.
+            { kind: 'steam_watch', component: 'steam_watch' },
+            // Without its token the game-files source is off and costs nothing.
+            ...(container.gameFilesRepo != null ? [{ kind: 'game_files_watch' as const, component: 'game_files' }] : [])
+          ];
+          await Promise.all(
+            watches.map(({ kind, component }) =>
+              container.aiJobs.send({ id: container.newId(), kind, chatId: ownerChat }).catch((error: unknown) =>
+                logger.warn({
+                  component,
+                  operation: 'enqueue',
+                  errorCode: error instanceof Error ? error.name : 'unknown'
+                })
+              )
+            )
+          );
+        }
         const dotaWatcher = container.dotaWatcher;
         const publishActions = createPublishActions(container, {
           actor: container.ownerChatId ?? 'system',
@@ -367,42 +399,6 @@ export async function handleScheduled(controller: ScheduledController, container
           logger
         });
         if (summary.sourceFailures > 0) failures += 1;
-        // The Liquipedia watch of new treasures runs in the queue (owner, 22.10.2026): one message per Dota run and no
-        // D1 query of this tick (the consumer reads the app origin, starts and serves the watches itself). A refused
-        // send is only logged: the next run sends again.
-        const ownerChat = Number(container.ownerChatId);
-        if (container.ownerChatId !== null && Number.isSafeInteger(ownerChat)) {
-          await container.aiJobs
-            .send({ id: container.newId(), kind: 'treasure_watch', chatId: ownerChat })
-            .catch((error: unknown) =>
-              logger.warn({
-                component: 'treasure_watch',
-                operation: 'enqueue',
-                errorCode: error instanceof Error ? error.name : 'unknown'
-              })
-            );
-          // Steam's product info of Dota's apps, the early signal of an update (owner, 24.10.2026); needs no key.
-          await container.aiJobs
-            .send({ id: container.newId(), kind: 'steam_watch', chatId: ownerChat })
-            .catch((error: unknown) =>
-              logger.warn({
-                component: 'steam_watch',
-                operation: 'enqueue',
-                errorCode: error instanceof Error ? error.name : 'unknown'
-              })
-            );
-          // The game-files watch the same way (owner, 24.10.2026); without its token the source is off and costs nothing.
-          if (container.gameFilesRepo != null)
-            await container.aiJobs
-              .send({ id: container.newId(), kind: 'game_files_watch', chatId: ownerChat })
-              .catch((error: unknown) =>
-                logger.warn({
-                  component: 'game_files',
-                  operation: 'enqueue',
-                  errorCode: error instanceof Error ? error.name : 'unknown'
-                })
-              );
-        }
         const notifications = (
           await getOwnerOperationsSettings({ repo: container.settings, logger, requestId: 'scheduled' })
         ).notifications;
@@ -593,11 +589,10 @@ export async function handleScheduled(controller: ScheduledController, container
     });
   }
 
-  // 7c'''. AI writer jobs whose Worker died after the claim (review 19.10.2026): the owner is told once, so the
-  // task can be sent again. Idle ticks of minutes 4 and 24 (14, 34 and 54 are the video reviews', 44 the style
-  // lessons'); the message goes out with the content alerts at minute 8.
+  // 7c'''. Queue jobs whose Worker died after the claim (review 19.10.2026; publishing jobs too since 24.10.2026): the
+  // owner is told once. Idle ticks of minutes ending in 8, just before the content alerts that send it.
   if (
-    (minute === 4 || minute === 24) &&
+    minute % 10 === 8 &&
     (counts.due ?? 0) === 0 &&
     raised.length === 0 &&
     container.queryBudget.remaining() >= LOST_JOB_STATEMENTS + HEARTBEAT_RESERVE
@@ -617,16 +612,16 @@ export async function handleScheduled(controller: ScheduledController, container
     minute % 10 === 8 &&
     (counts.due ?? 0) === 0 &&
     raised.length === 0 &&
-    container.contentSources.collectors.length > 0 &&
     container.queryBudget.remaining() >= CONTENT_ALERTS_RESERVE + HEARTBEAT_RESERVE
   ) {
     await step('content-alerts', async () => {
       const { timezone } = await readPreferences();
-      const raisedAlerts = await raiseContentAlerts({
-        repo: container.contentAlerts,
-        clock,
-        timezone
-      });
+      // Raised from the counters only when some are collected; the alerts the rest of the app raised (a lost job, a
+      // source that stopped) are sent either way (review 24.10.2026: they waited for an analytics source).
+      const raisedAlerts =
+        container.contentSources.collectors.length > 0
+          ? await raiseContentAlerts({ repo: container.contentAlerts, clock, timezone })
+          : { raised: 0 };
       const sent = await sendContentAlerts({
         repo: container.contentAlerts,
         messenger: container.ownerMessenger,

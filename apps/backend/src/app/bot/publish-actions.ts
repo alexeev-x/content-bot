@@ -4,6 +4,7 @@ import { createPublication, getPublication, listDestinations, listPublications }
 import { AppError } from '../../shared/app-error';
 import type { Container } from '../container';
 import type { PublishActionStore } from './publish-action-store';
+import { kickDispatch } from '../workflows/dispatch-now';
 
 // One button per enabled channel up to this many; with more the owner picks the channel in the Studio.
 export const MAX_PUBLISH_BUTTONS = 3;
@@ -66,7 +67,9 @@ export type PublishActionsContainer = Pick<
   | 'idempotency'
   | 'publishActions'
   | 'mediaImports'
->;
+> &
+  // Wakes the dispatcher for a «now» tap (review 24.10.2026); without it the next Cron tick sends the post.
+  Partial<Pick<Container, 'aiJobs'>>;
 
 // callback_data is at most 64 bytes: a prefix and a short token.
 export const CALLBACK_PREFIX = 'pub:';
@@ -234,6 +237,9 @@ export function createPublishActions(
       throw error;
     }
     await store.complete(action.id, publication.id);
+    const { aiJobs } = container;
+    if (aiJobs !== undefined && instant <= clock.now())
+      await kickDispatch({ aiJobs, newId: container.newId, logger: container.logger });
     return {
       kind: 'queued',
       postId: action.postId,

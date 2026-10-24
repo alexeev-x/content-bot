@@ -4,7 +4,7 @@ import { condenseBuild, mayMatter, parseBuildMessage, splitDiff } from '../../mo
 import { getOwnerOperationsSettings } from '../../modules/settings';
 import type { AiJob } from '../bot/ai-job';
 import type { Container } from '../container';
-import { watchErrorCode } from './watch-error-code';
+import { recordWatchFailure } from './watch-error-code';
 
 // Changes in the game's files (owner, 23.10.2026: «это очень интересное»; 24.10.2026: required before the release and
 // published like every source). The SteamTracking GameTracking-Dota2 repository commits one build at a time; a run
@@ -126,7 +126,11 @@ export async function runGameFilesWatch(
     });
   } catch (error) {
     onError(error);
-    await container.watchChecks.record('game_files', container.clock.now(), watchErrorCode(error)).catch(onError);
+    await recordWatchFailure(
+      { checks: container.watchChecks, alerts: container.contentAlerts, now: container.clock.now() },
+      'game_files',
+      error
+    ).catch(onError);
   } finally {
     await container.aiWriter.finishJob(job.id, container.clock.now()).catch(onError);
   }

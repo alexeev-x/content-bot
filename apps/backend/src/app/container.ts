@@ -55,7 +55,7 @@ import {
   type SteamAppRepository,
   type WatchCheckRepository
 } from '../modules/game-files';
-import type { AiJob } from './bot/ai-job';
+import { type AiJob, aiJobSchema } from './bot/ai-job';
 import { type BotIdentityStore, createD1BotIdentityStore } from './bot/bot-identity-store';
 import { createD1MediaImportStore, type MediaImportStore } from './bot/media-import-store';
 import { createD1PublishActionStore, type PublishActionStore } from './bot/publish-action-store';
@@ -742,6 +742,11 @@ export function createContainer(env: ContainerEnv, overrides: ContainerOverrides
         send: async (job: AiJob) => {
           if (env.AI_JOBS === undefined)
             throw new AppError('UNAVAILABLE', 'The AI queue is not bound', { reason: 'NO_QUEUE' });
+          // Checked here, where the caller can still react: the consumer drops a job its schema refuses, silently
+          // for whoever queued it (review 24.10.2026: a treasure follow-up over the task's bound was lost).
+          const parsed = aiJobSchema.safeParse(job);
+          if (!parsed.success)
+            throw new AppError('VALIDATION_ERROR', 'The AI job does not fit its schema', { reason: 'AI_JOB_INVALID' });
           await env.AI_JOBS.send(job);
         }
       };
