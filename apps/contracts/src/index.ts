@@ -8,7 +8,6 @@ export * from './destinations';
 export * from './dota';
 export * from './dota-watchlists';
 export * from './errors';
-export * from './hero-assets';
 export * from './incidents';
 export * from './media';
 export * from './pagination';

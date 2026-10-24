@@ -15,7 +15,6 @@ import { dashboardRoutes } from './dashboard-routes';
 import { destinationsRoutes } from './destinations-routes';
 import { aiRoutes } from './ai-routes';
 import { dotaRoutes } from './dota-routes';
-import { heroAssetsRoutes } from './hero-assets-routes';
 import { incidentsRoutes } from './incidents-routes';
 import { mediaRoutes } from './media-routes';
 import { postsRoutes } from './posts-routes';
@@ -117,7 +116,6 @@ export function createApp(
   app.route('/api/v1/posts', postsRoutes);
   app.route('/api/v1/media', mediaRoutes);
   app.route('/api/v1/destinations', destinationsRoutes);
-  app.route('/api/v1/dota/hero-assets', heroAssetsRoutes);
   app.route('/api/v1/dota', dotaRoutes);
   app.route('/api/v1/sources', sourcesRoutes);
   app.route('/api/v1/publications', publicationsRoutes);

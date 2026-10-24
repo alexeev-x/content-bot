@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { mediaLibraryUsageFilterSchema, type MediaLibraryItemDto, type MediaLibraryKind } from '@alexeev/contracts';
 import type { z } from 'zod';
 import { classifyApiError } from '../../../shared/api/error-kind';
@@ -63,8 +63,6 @@ type Props = {
   onOpenPost: (postId: string) => void;
   /** Owner timezone for scheduled times shown in the delete dialog. */
   timezone: string;
-  /** One more tab after the file kinds (the official Dota hero files), composed by the route. */
-  extraTab?: { id: string; label: string; selected: boolean; onSelect: () => void; content: ReactNode };
 };
 const KIND_OPTIONS = [
   { id: 'all', label: 'Все файлы' },
@@ -377,15 +375,7 @@ function Details({
   );
 }
 
-export function MediaLibrary({
-  searchState,
-  onSearchState,
-  onCreatePost,
-  onLogin,
-  onOpenPost,
-  timezone,
-  extraTab
-}: Props) {
+export function MediaLibrary({ searchState, onSearchState, onCreatePost, onLogin, onOpenPost, timezone }: Props) {
   const narrow = useMediaQuery('(max-width: 859px)');
   const [searchInput, setSearchInput] = useState(searchState.search ?? '');
   const [selected, setSelected] = useState<Set<string>>(() => new Set());
@@ -581,14 +571,12 @@ export function MediaLibrary({
       />
       <div className={styles.tabs}>
         <Tabs
-          selectedKey={extraTab?.selected ? extraTab.id : filters.kind}
+          selectedKey={filters.kind}
           onSelectionChange={(key) =>
-            extraTab !== undefined && String(key) === extraTab.id
-              ? extraTab.onSelect()
-              : onSearchState({
-                  kind: String(key) === 'all' ? undefined : (String(key) as MediaLibraryKind),
-                  id: undefined
-                })
+            onSearchState({
+              kind: String(key) === 'all' ? undefined : (String(key) as MediaLibraryKind),
+              id: undefined
+            })
           }
         >
           <TabList aria-label="Тип медиа">
@@ -597,11 +585,9 @@ export function MediaLibrary({
                 {option.label}
               </Tab>
             ))}
-            {extraTab === undefined ? null : <Tab id={extraTab.id}>{extraTab.label}</Tab>}
           </TabList>
-          {extraTab?.selected ? <TabPanel id={extraTab.id}>{extraTab.content}</TabPanel> : null}
           {/* One panel for every tab: the grid stays mounted across a switch instead of blinking. */}
-          {extraTab?.selected ? null : (
+          {
             <TabPanel id={filters.kind}>
               <Panel
                 footer={
@@ -688,7 +674,7 @@ export function MediaLibrary({
                 </div>
               </Panel>
             </TabPanel>
-          )}
+          }
         </Tabs>
       </div>
       {selected.size ? (
@@ -789,7 +775,7 @@ export function MediaLibrary({
 }
 
 /** /media before the session exists: header, kind tabs, the panel with its toolbar and a page of cards, no request. */
-export function MediaPageSkeleton({ extraTabLabel }: { extraTabLabel?: string }) {
+export function MediaPageSkeleton() {
   const narrow = useMediaQuery('(max-width: 859px)');
   return (
     <div className={styles.page}>
@@ -809,7 +795,6 @@ export function MediaPageSkeleton({ extraTabLabel }: { extraTabLabel?: string })
                 {option.label}
               </Tab>
             ))}
-            {extraTabLabel === undefined ? null : <Tab id="extra">{extraTabLabel}</Tab>}
           </TabList>
           <TabPanel id="all">
             <Panel

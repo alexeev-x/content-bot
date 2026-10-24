@@ -1,7 +1,6 @@
 import { createFileRoute, useNavigate, useSearch } from '@tanstack/react-router';
 import { mediaLibraryKindSchema, mediaLibraryUsageFilterSchema } from '@alexeev/contracts';
 import { z } from 'zod';
-import { HeroGallery } from '../features/hero-assets';
 import { MediaLibrary } from '../features/media';
 import { useOwnerTimezone } from '../features/owner-settings';
 
@@ -11,8 +10,7 @@ const mediaSearchSchema = z.looseObject({
   search: z.string().trim().min(1).max(80).optional().catch(undefined),
   view: z.enum(['grid', 'list']).optional().catch(undefined),
   id: z.uuid().optional().catch(undefined),
-  page: z.number().int().min(1).max(1000).optional().catch(1),
-  section: z.enum(['heroes']).optional().catch(undefined)
+  page: z.number().int().min(1).max(1000).optional().catch(1)
 });
 
 export const Route = createFileRoute('/media')({
@@ -25,13 +23,6 @@ export const Route = createFileRoute('/media')({
       <MediaLibrary
         searchState={searchState}
         timezone={timezone}
-        extraTab={{
-          id: 'heroes',
-          label: 'Герои Dota',
-          selected: searchState.section === 'heroes',
-          onSelect: () => void navigate({ search: (previous) => ({ ...previous, section: 'heroes', id: undefined }) }),
-          content: <HeroGallery />
-        }}
         onCreatePost={() => void navigate({ to: '/posts/new' })}
         onLogin={() => void navigate({ to: '/login' })}
         onOpenPost={(id) => void navigate({ to: '/posts/$id', params: { id } })}
@@ -43,9 +34,7 @@ export const Route = createFileRoute('/media')({
               ...(Object.keys(patch).some((key) => key !== 'id' && key !== 'page' && key !== 'view')
                 ? { page: undefined }
                 : {}),
-              ...patch,
-              // A file-kind tab leaves «Герои Dota».
-              ...('kind' in patch ? { section: undefined } : {})
+              ...patch
             }),
             replace: options?.replace ?? false
           })

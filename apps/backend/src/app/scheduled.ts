@@ -29,7 +29,6 @@ import {
   releaseOverdueReports,
   SOURCE_D1_STATEMENTS
 } from '../modules/content-analytics';
-import { mirrorHeroAssets } from '../modules/hero-assets';
 import { sendContentAlerts } from './workflows/send-content-alerts';
 import { LESSON_LOOKBACK_MS } from '../modules/ai';
 import { LOST_JOB_STATEMENTS, reportLostAiJobs } from './workflows/lost-ai-jobs';
@@ -59,8 +58,8 @@ const DAILY_REPORT_STATEMENTS = 36;
 // videos handled (scripts read, the prompt with up to two links, the close: five each), the open prompts and
 // their messages read, up to two scripts and one alert batch of up to two — 22 at most.
 const SCRIPT_PROMPT_STATEMENTS = 24;
-/** A claim and one file (fetch, R2 write, update); more files when more is left. */
-const HERO_ASSETS_MIN = 6;
+/** R2 deletes up to 1000 keys in one call. */
+const HERO_FILES_PER_TICK = 1000;
 // The tick of this UTC minute purges expired archived posts (cleanup runs at minute 0).
 const PURGE_MINUTE = 30;
 // AI reviews of 72 h old videos: D1 statements of one review (claim, reading the video and its curve, the budget
@@ -120,8 +119,7 @@ type TickContainer = Pick<
   | 'aiJobs'
   | 'contentSources'
   | 'contentFetch'
-  | 'heroAssets'
-  | 'heroAssetStorage'
+  | 'purgeHeroFiles'
   | 'aiReviews'
   | 'aiReviewVideos'
   | 'aiScriptLinks'
@@ -696,32 +694,16 @@ export async function handleScheduled(controller: ScheduledController, container
     });
   }
 
-  // 9. hero media for AI posts: queued files from Valve's CDN into R2 on idle ticks of minutes ending in 1 and 6
-  // (their own slots, so other ticks keep their cost). Nothing queued: one indexed read, Valve is not asked.
-  const heroStorage = container.heroAssetStorage;
+  // 9. The removed hero files (owner, 24.10.2026: «с бд удали тоже чтобы место не трогалось»): idle ticks of minutes
+  // ending in 1 and 6 delete up to a thousand of them from R2, two R2 calls and no D1; once none is left, one list.
+  const purgeHeroFiles = container.purgeHeroFiles;
   if (
-    heroStorage !== undefined &&
+    purgeHeroFiles !== undefined &&
     (counts.due ?? 0) === 0 &&
     raised.length === 0 &&
-    (minute % 10 === 1 || minute % 10 === 6) &&
-    container.queryBudget.remaining() >= HERO_ASSETS_MIN + HEARTBEAT_RESERVE
+    (minute % 10 === 1 || minute % 10 === 6)
   ) {
-    await step('hero-assets', async () => {
-      const result = await mirrorHeroAssets({
-        repo: container.heroAssets,
-        storage: heroStorage,
-        fetchImpl: container.contentFetch,
-        clock,
-        budget: container.queryBudget,
-        reserve: HEARTBEAT_RESERVE,
-        logger
-      });
-      return {
-        heroAssetsStored: result.stored,
-        heroAssetsMissing: result.missing,
-        heroAssetsFailed: result.failed
-      };
-    });
+    await step('hero-files-purge', async () => ({ heroFilesDeleted: await purgeHeroFiles(HERO_FILES_PER_TICK) }));
   }
 
   const durationMs = clock.now() - startedAt;

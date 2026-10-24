@@ -94,8 +94,6 @@ import {
   type ScriptLinksRepository,
   type WriterRepository
 } from '../modules/ai';
-import { createD1HeroAssetRepository, type HeroAssetRepository, type HeroAssetStorage } from '../modules/hero-assets';
-import { createR2HeroAssetStorage } from './r2-hero-asset-storage';
 import { createR2MediaStorage } from './r2-media-storage';
 import { z } from 'zod';
 import { AppError } from '../shared/app-error';
@@ -150,6 +148,8 @@ import {
 
 // The only place where real implementations are wired. It grows together with the modules
 // (repositories, transports); nothing is registered here before it exists.
+/** Where the removed hero files were kept in R2 (`dota/heroes/<slug>/<kind>.<ext>`). */
+const HERO_FILES_PREFIX = 'dota/heroes/';
 export interface Container {
   clock: Clock;
   /** What this invocation has spent on D1 so far (the Free plan allows 50 subrequests per invocation). */
@@ -257,7 +257,6 @@ export interface Container {
   /** Outbound fetch of the content integrations; tests replace it. */
   contentFetch: typeof fetch;
   /** Official hero media mirrored from Valve's CDN into R2 (migration 0050). */
-  heroAssets: HeroAssetRepository;
   /** AI writer settings, spend and connection checks (migration 0053). */
   aiRepository: AiRepository;
   /** The configured text-model provider; null without its key. */
@@ -289,7 +288,11 @@ export interface Container {
   aiReviews: ReviewRepository;
   /** The videos the reviews read, through the content-analytics module (consumer-owned port). */
   aiReviewVideos: ReviewVideoSource;
-  heroAssetStorage: HeroAssetStorage | undefined;
+  /**
+   * The mirrored Dota hero files, removed 24.10.2026 (owner: «с бд удали тоже»): deletes up to `limit` of them from
+   * R2 per call and says how many it deleted. Undefined without the bucket.
+   */
+  purgeHeroFiles: ((limit: number) => Promise<number>) | undefined;
   housekeeping: {
     purgeExpired(input: { now: number; limit: number }): Promise<{ idempotencyKeys: number; rateLimits: number }>;
     purgeOperational(input: {
@@ -756,11 +759,15 @@ export function createContainer(env: ContainerEnv, overrides: ContainerOverrides
         }
       };
     },
-    get heroAssets() {
-      return createD1HeroAssetRepository(db());
-    },
-    get heroAssetStorage() {
-      return env.MEDIA_BUCKET === undefined ? undefined : createR2HeroAssetStorage(env.MEDIA_BUCKET);
+    get purgeHeroFiles() {
+      const bucket = env.MEDIA_BUCKET;
+      if (bucket === undefined) return undefined;
+      return async (limit: number) => {
+        const listed = await bucket.list({ prefix: HERO_FILES_PREFIX, limit });
+        const keys = listed.objects.map((object) => object.key);
+        if (keys.length > 0) await bucket.delete(keys);
+        return keys.length;
+      };
     },
     // Resolved per call: a BOT_INFO override never touches the database, so a Worker without one still answers.
     get botIdentity(): BotIdentityStore {

@@ -69,8 +69,7 @@ export function FeatureSkeleton({ page, title }: Props) {
       <AnalyticsSkeleton tab={tab === 'items' || tab === 'audience' ? tab : 'overview'} timezone={browserTimeZone()} />
     );
   }
-  // The route adds the heroes tab to the library (routes/media.tsx), so the skeleton draws it too.
-  if (page === '/media') return <MediaPageSkeleton extraTabLabel="Герои Dota" />;
+  if (page === '/media') return <MediaPageSkeleton />;
   if (page === '/sources') {
     return (
       <>
