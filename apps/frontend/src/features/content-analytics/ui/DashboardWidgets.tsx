@@ -76,7 +76,13 @@ export function LatestVideoSummary({ platform, onOpen }: { platform: ContentPlat
   const current = report.data ? splitPeriods(report.data, platform).current : undefined;
   const latest = [...(current ?? [])].sort((a, b) => Date.parse(b.publishedAt) - Date.parse(a.publishedAt))[0];
   if (report.isPending) return <LatestVideoSkeleton />;
-  if (!latest) return <p className={styles.empty}>За 30 дней публикаций в {PLATFORM_LABEL[platform]} нет.</p>;
+  // Inside the body, so the empty line keeps the widget's padding (owner, 24.10.2026: it sat on the card's edge).
+  if (!latest)
+    return (
+      <div className={styles.body}>
+        <p className={styles.empty}>За 30 дней публикаций в {PLATFORM_LABEL[platform]} нет.</p>
+      </div>
+    );
   const medians = mediansByPlatform(current ?? [], now);
   const verdict = verdictFor(latest, now, report.data?.baselines ?? [], medians);
   const peers = settledItems(current ?? [], now);
