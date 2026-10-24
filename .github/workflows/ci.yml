@@ -13,26 +13,25 @@ concurrency:
   cancel-in-progress: ${{ github.ref_name != 'main' }}
 
 jobs:
-  changes:
-    name: plan
+  # One job plans, checks, scans for secrets and tests (owner, 24.10.2026: the repository goes private, where GitHub
+  # bills each job in whole minutes from 2 000 a month); the deploy is the only other job.
+  checks:
+    name: verify
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      # Reads which earlier run actually deployed (below).
+      # The plan reads which earlier run actually deployed.
       actions: read
     outputs:
-      base: ${{ steps.plan.outputs.base }}
-      initial: ${{ steps.plan.outputs.initial }}
       frontend: ${{ steps.plan.outputs.frontend }}
       backend: ${{ steps.plan.outputs.backend }}
       deploy: ${{ steps.plan.outputs.deploy }}
-      needs_deps: ${{ steps.plan.outputs.needs_deps }}
-      audit: ${{ steps.plan.outputs.audit }}
     steps:
       - uses: actions/checkout@v4
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
-          fetch-depth: 1
+          # The secret scan reads the whole history.
+          fetch-depth: 0
       - id: plan
         shell: bash
         env:
@@ -147,38 +146,30 @@ jobs:
           printf '%s\n' "$FILES"
           echo "Plan: frontend=$FRONTEND backend=$BACKEND deploy=$DEPLOY deps=$NEEDS_DEPS"
 
-  checks:
-    name: verify (checks)
-    needs: changes
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
-          fetch-depth: 1
-
       - name: Setup Node and dependencies
-        if: needs.changes.outputs.needs_deps == 'true'
+        if: steps.plan.outputs.needs_deps == 'true'
         uses: ./.github/actions/setup
 
       # Docs/agent-only changes need Node for verify.mjs but no node_modules.
-      - if: needs.changes.outputs.needs_deps != 'true'
+      - if: steps.plan.outputs.needs_deps != 'true'
         uses: actions/setup-node@v4
         with:
           node-version-file: .nvmrc
 
+      - name: Secret scan
+        run: docker run --rm -v "$PWD:/repo" zricethezav/gitleaks:v8.30.1 git /repo --config /repo/.gitleaks.toml --redact --verbose --no-banner
+
       - name: Verify affected checks
         shell: bash
         env:
-          BASE: ${{ needs.changes.outputs.base }}
-          INITIAL: ${{ needs.changes.outputs.initial }}
-          DEPLOY: ${{ needs.changes.outputs.deploy }}
+          BASE: ${{ steps.plan.outputs.base }}
+          INITIAL: ${{ steps.plan.outputs.initial }}
+          DEPLOY: ${{ steps.plan.outputs.deploy }}
         run: |
           set -euo pipefail
           if [[ "$GITHUB_REF_NAME" == "main" || "$INITIAL" == "true" ]]; then
             npm run verify -- --skip backend-tests,frontend-tests
           else
-            git fetch --no-tags --depth=1 origin "$BASE" || true
             SKIP="backend-tests,frontend-tests"
             # The deploy job performs the same Vite/Worker build on develop, so do not build it twice.
             if [[ "$GITHUB_EVENT_NAME" == "push" && "$GITHUB_REF_NAME" == "develop" && "$DEPLOY" == "true" ]]; then
@@ -189,100 +180,35 @@ jobs:
 
       # This Node-only CSS policy test used to be chained after the frontend Vitest suite.
       - name: Frontend file-policy tests
-        if: needs.changes.outputs.frontend == 'true'
+        if: steps.plan.outputs.frontend == 'true'
         run: node --test apps/frontend/scripts/*.test.mjs
+
+      # A develop push ran these in the pre-push hook (verify:changed) a minute earlier; PRs and main run them here.
+      - name: Backend tests
+        if: steps.plan.outputs.backend == 'true' && (github.event_name == 'pull_request' || github.ref_name == 'main')
+        run: npm exec -w @alexeev/backend -- vitest run
+
+      - name: Frontend tests
+        if: steps.plan.outputs.frontend == 'true' && (github.event_name == 'pull_request' || github.ref_name == 'main')
+        run: npm exec -w @alexeev/frontend -- vitest run
 
       - if: failure()
         run: test -f .logs/verify.log && cat .logs/verify.log || true
 
       # Audit when dependency manifests changed and always before production.
       - name: Audit production dependencies
-        if: needs.changes.outputs.audit == 'true'
+        if: steps.plan.outputs.audit == 'true'
         run: npm audit --omit=dev --audit-level=high
-
-  frontend-shards:
-    name: frontend tests ${{ matrix.shard }}/4
-    needs: changes
-    if: needs.changes.outputs.frontend == 'true'
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: true
-      matrix:
-        shard: [1, 2, 3, 4]
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
-      - uses: ./.github/actions/setup
-      - run: npm exec -w @alexeev/frontend -- vitest run --shard=${{ matrix.shard }}/4
-
-  backend-shards:
-    name: backend tests ${{ matrix.shard }}/4
-    needs: changes
-    if: needs.changes.outputs.backend == 'true'
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: true
-      matrix:
-        shard: [1, 2, 3, 4]
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
-      - uses: ./.github/actions/setup
-      - run: npm exec -w @alexeev/backend -- vitest run --shard=${{ matrix.shard }}/4
-
-  frontend-tests:
-    name: verify (frontend-tests)
-    needs: [changes, frontend-shards]
-    if: always()
-    runs-on: ubuntu-latest
-    steps:
-      - name: Collect frontend shards
-        env:
-          NEEDED: ${{ needs.changes.outputs.frontend }}
-          RESULT: ${{ needs.frontend-shards.result }}
-        run: |
-          if [[ "$NEEDED" != "true" ]]; then exit 0; fi
-          [[ "$RESULT" == "success" ]]
-
-  backend-tests:
-    name: verify (backend-tests)
-    needs: [changes, backend-shards]
-    if: always()
-    runs-on: ubuntu-latest
-    steps:
-      - name: Collect backend shards
-        env:
-          NEEDED: ${{ needs.changes.outputs.backend }}
-          RESULT: ${{ needs.backend-shards.result }}
-        run: |
-          if [[ "$NEEDED" != "true" ]]; then exit 0; fi
-          [[ "$RESULT" == "success" ]]
-
-  secrets:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      # Keep the full-history secret gate; it runs in parallel and is not the critical path.
-      - run: docker run --rm -v "$PWD:/repo" zricethezav/gitleaks:v8.30.1 git /repo --config /repo/.gitleaks.toml --redact --verbose --no-banner
 
   deploy:
     if: >-
       ${{
         always() &&
         github.event_name == 'push' &&
-        needs.changes.outputs.deploy == 'true' &&
-        needs.checks.result == 'success' &&
-        (needs.changes.outputs.frontend != 'true' || needs.frontend-shards.result == 'success') &&
-        (needs.changes.outputs.backend != 'true' || needs.backend-shards.result == 'success') &&
-        needs.secrets.result == 'success'
+        needs.checks.outputs.deploy == 'true' &&
+        needs.checks.result == 'success'
       }}
-    # Depends on the shards directly: the verify (*-tests) collectors only name PR statuses, and waiting
-    # for them would add one more runner start to the deploy path.
-    needs: [changes, checks, frontend-shards, backend-shards, secrets]
+    needs: [checks]
     runs-on: ubuntu-latest
     environment: ${{ github.ref_name == 'main' && 'production' || 'dev' }}
     concurrency:

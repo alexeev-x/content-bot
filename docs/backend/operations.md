@@ -16,7 +16,7 @@ As built: the dispatcher logs one JSON line per job (`component: 'dispatcher'`, 
 - Architecture: `dependency-cruiser` — no-circular, no-module-to-module (modules do not import each other), no-domain-imports-infra.
 - Failure: two Crons at once, crash after `send_started_at`, timeout/5xx/ok without `message_id` → `unknown`, 429 → `retry_wait`, 400/403 → `failed`, repeated webhook `update_id`, command not from the owner, expired/forged `initData`, forged/stale/reused Login Widget data, wrong webhook secret, size limit exceeded, module removal.
 - Load: 100 and 1,000 jobs/day with peaks; record CPU per tick, D1 queries, subrequests, the number of duplicates in Telegram (zero expected with normally observed responses; `unknown` — manual check).
-- CI on every push/PR: `npm ci` → `npm run verify` (lint, types, boundaries, unit/integration, build). A `qa-security` review is mandatory for migrations, sign-in, the webhook and publications.
+- CI (`.github/workflows/ci.yml`, two jobs since the repository went private, 24.10.2026: GitHub bills each job in whole minutes from 2 000 a month): `verify` plans by the changed files, scans the history for secrets and runs the affected checks; every test runs on PRs and `main`, while a `develop` push relies on the pre-push hook's `verify:changed` with tests a minute earlier; then `deploy`. A `qa-security` review is mandatory for migrations, sign-in, the webhook and publications.
 
 # 12. External contracts for the frontend
 

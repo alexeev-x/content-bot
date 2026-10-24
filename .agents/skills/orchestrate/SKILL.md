@@ -33,7 +33,7 @@ No prototype stage: build UI directly in production code from `design-refs/<task
 | R2 | contract and consumers, shared primitives, verification tooling | — | `npm run verify` |
 | R3 | auth, sessions, webhook, migrations, publishing/Telegram, secrets, command safety | `qa-security` before commit | `npm run verify` + the relevant failure tests |
 
-The stop hook runs `verify:changed` automatically; a green hook result on the unchanged tree counts for R1. CI runs the full suite on push.
+The stop hook runs `verify:changed` automatically; a green hook result on the unchanged tree counts for R1. The pre-push hook runs `verify:changed` with the tests; CI on a `develop` push checks, scans for secrets and deploys without running the tests again, and runs every test on PRs and `main`.
 
 ## Task packet (when delegating)
 ≤ 40 lines: goal, owned paths, acceptance criteria, pointers (`path:lines`, doc §), constraints, report cap. Never paste documents, code or transcripts. Builders never edit `apps/contracts`; they answer `BLOCKED: contract`. Serialize `apps/contracts/**`, migrations, `container.ts`, the router and the token file (one task at a time). Parallel builders use worktrees: `references/parallel-worktrees.md`.

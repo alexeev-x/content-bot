@@ -4,8 +4,8 @@
 //
 // `--changed` checks only what the current changes touch (pre-push hook, agent stop hook, CI):
 // commits not yet pushed + uncommitted work locally; CI can pass `--base <sha>` for its exact push/PR range.
-// `--only a,b` / `--skip a,b` filter either the full plan or the changed-file plan. CI shards the slow test
-// suites across runners and keeps the rest of the affected verification here.
+// `--only a,b` / `--skip a,b` filter either the full plan or the changed-file plan. CI runs the slow test
+// suites in its own steps of the same job and keeps the rest of the affected verification here.
 //
 // Light steps run at once; heavy ones (tsc, test pools, build) run one after another alongside them, because
 // all of them together exhaust a 16 GB laptop's memory and macOS starts force-quitting apps.
