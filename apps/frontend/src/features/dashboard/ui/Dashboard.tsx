@@ -19,6 +19,8 @@ export type PageBindings = {
   /** «Europe/Chisinau, UTC+3», built by the page (the zone helpers live in another feature). */
   zoneNote: string;
   timezone?: string;
+  /** False until the owner's timezone is known: the day, week and activity reads wait, so none runs twice. */
+  timezoneKnown?: boolean;
   onOpenPublication: (publicationId: string) => void;
   /** Opens the publication list for one owner-zone day (the bars of «Неделя»). */
   onOpenDay: (day: { from: string; to: string }) => void;
@@ -40,6 +42,7 @@ export function Dashboard({
   query,
   zoneNote,
   timezone = 'Europe/Moscow',
+  timezoneKnown = true,
   onOpenPublication,
   onOpenDay,
   onNewPost,
@@ -53,8 +56,8 @@ export function Dashboard({
   dota
 }: PageBindings) {
   const today = useTodayRange(timezone);
-  const week = useWeekQuery(timezone, today.from);
-  const dayEvents = useQuery(dayActivityQueryOptions(today.from, today.to)).data?.items;
+  const week = useWeekQuery(timezone, today.from, undefined, timezoneKnown);
+  const dayEvents = useQuery({ ...dayActivityQueryOptions(today.from, today.to), enabled: timezoneKnown }).data?.items;
   const [activity, setActivity] = useState<readonly ActivityItemDto[] | null>(null);
   const drafts = useDraftsQuery();
   // A failed day summary replaces the widgets that read it with one error, never a block of zeros.

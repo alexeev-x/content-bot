@@ -10,13 +10,13 @@ import {
   TrendingSummary
 } from '../features/content-analytics';
 import { AiSpendSummary, AiStatusBadge } from '../features/ai-settings';
-import { sourceEventsQueryOptions } from '../features/dota-intelligence';
+import { dotaIntelligenceQueryOptions, sourceEventsQueryOptions } from '../features/dota-intelligence';
 import { DotaSummary } from '../features/dota-profile';
 import { Dashboard, DateChip, type PageBindings, type SourceRow, useDashboardQuery } from '../features/dashboard';
 import { destinationsInfiniteQueryOptions } from '../features/destinations';
 import { MediaPanel, MediaThumb } from '../features/media';
 import { PublicationDrawer, publicationQueryOptions } from '../features/publications';
-import { useOwnerTimezone } from '../features/owner-settings';
+import { useOwnerTimezoneState } from '../features/owner-settings';
 import { utcOffsetLabel } from '../shared/lib/owner-timezone';
 import { useNow } from '../shared/lib/use-now';
 import { ru } from '../shared/lib/ru';
@@ -34,9 +34,9 @@ type Props = {
 export function DashboardPage({ pollMs, openPublicationId, onOpenPublicationChange }: Props) {
   useDocumentTitle(ru.pages.dashboard);
   const navigate = useNavigate();
-  const timezone = useOwnerTimezone();
+  const { timezone, known: timezoneKnown } = useOwnerTimezoneState();
   const now = useNow();
-  const dashboard = useDashboardQuery(pollMs, timezone);
+  const dashboard = useDashboardQuery(pollMs, timezone, timezoneKnown);
   const zoneNote = `${timezone}, ${utcOffsetLabel(now, timezone)}`;
   const [openMedia, setOpenMedia] = useState<{ id: string; fileName: string } | null>(null);
   const phone = useMediaQuery('(max-width: 859px)');
@@ -53,11 +53,28 @@ export function DashboardPage({ pollMs, openPublicationId, onOpenPublicationChan
   // «Новости и источники»: the latest Dota updates, then the analytics sources that need a look.
   const events = useQuery(sourceEventsQueryOptions({ page: 1, limit: 3 }));
   const overview = useQuery(contentOverviewQueryOptions());
+  // Feed health (GET /dota): a degraded source or watch must not hide behind a list of old news.
+  const feeds = useQuery(dotaIntelligenceQueryOptions());
+  const feedsDegraded =
+    (feeds.data?.sources ?? []).some((feed) => feed.health === 'degraded') ||
+    (feeds.data?.watches ?? []).some((feed) => feed.health === 'degraded');
   const nowMs = now.getTime();
   const sourceRows: SourceRow[] | undefined =
-    events.data === undefined && overview.data === undefined
+    events.data === undefined && overview.data === undefined && feeds.data === undefined
       ? undefined
       : [
+          ...(feedsDegraded
+            ? [
+                {
+                  id: 'dota:feeds',
+                  mark: <Icon name="alert" size={18} />,
+                  title: 'Лента Dota с ошибкой',
+                  subtitle: 'Источник новостей или список слежения не отвечает',
+                  attention: true,
+                  action: { label: 'Проверить', onPress: () => void navigate({ to: '/sources' }) }
+                } satisfies SourceRow
+              ]
+            : []),
           ...(events.data?.items ?? []).map((event): SourceRow => ({
             id: event.id,
             mark: <Icon name="zap" size={18} />,
@@ -99,6 +116,7 @@ export function DashboardPage({ pollMs, openPublicationId, onOpenPublicationChan
     query: dashboard,
     zoneNote,
     timezone,
+    timezoneKnown,
     onOpenPublication: (id) => openPublication(id),
     onOpenDay: (day) => void navigate({ to: '/publications', search: { from: day.from, to: day.to } }),
     onNewPost: () => void navigate({ to: '/posts/new' }),
