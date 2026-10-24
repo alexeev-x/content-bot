@@ -545,3 +545,38 @@ describe('limits and preview', () => {
     expect(preview.querySelector('b')).toBeNull();
   });
 });
+
+describe('a rich post', () => {
+  // Owner, 24.10.2026: a rich post is fixed by a couple of words in the studio, its look rebuilt as it is typed.
+  const text = 'Карнавал стал щедрее\n\nЧто изменилось:\n• за Turbo — 1 Scrap';
+  const rich =
+    '<h3>Карнавал стал щедрее</h3>\n{{media}}\n<h4>Что изменилось</h4>\n<ul><li>за Turbo — 1 Scrap</li></ul>';
+
+  it('is edited as text with a live preview, and a text without its structure is not saved', async () => {
+    const user = userEvent.setup();
+    let patches = 0;
+    server.use(
+      http.patch('*/api/v1/posts/:id', () => {
+        patches += 1;
+        return HttpResponse.json(post({ revision: 1, body: text, richHtml: rich }));
+      })
+    );
+    await openExisting({ body: text, richHtml: rich });
+    expect(bodyBox().getAttribute('contenteditable')).toBe('true');
+
+    // A multi-line text reads back without its line breaks, so the preview is what is checked.
+    const paste = async (value: string) => {
+      bodyBox().focus();
+      await user.keyboard('{Control>}a{/Control}');
+      await user.paste(value);
+    };
+    await paste(text.replace('щедрее', 'добрее'));
+    expect(await screen.findByText('Карнавал стал добрее', { selector: 'p' })).toBeTruthy();
+
+    await paste('Одна строка без заголовка.');
+    expect(await screen.findByText('Пост потерял новый формат')).toBeTruthy();
+    const before = patches;
+    await user.keyboard('{Control>}s{/Control}');
+    expect(patches).toBe(before);
+  });
+});

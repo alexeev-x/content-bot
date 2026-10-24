@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { aiRichHtml, patchRichHtml, structuredRichHtml } from './rich-post';
+import { patchRichHtml, postRichHtml, structuredRichHtml } from '@alexeev/contracts';
+import { aiPostText } from './draft-from-message';
+import { aiRichHtml } from './rich-post';
 
 const PATCH = `Вышел 7.41f.
 
@@ -114,6 +116,36 @@ describe('structuredRichHtml', () => {
         '<tg-button-row><tg-button type="url" url="https://www.dota2.com/newsentry/670621050832160174">Подробнее</tg-button></tg-button-row>'
       ].join('\n')
     );
+  });
+
+  it('rebuilds the same rich post from the post body the bot made of the text (a studio edit, owner 24.10.2026)', () => {
+    const hotfix = [
+      'Карнавал стал щедрее',
+      '',
+      'Что изменилось:',
+      '• за Turbo — 1 Scrap',
+      '',
+      'Все остальные изменения:',
+      'https://www.dota2.com/newsentry/670621050832160174'
+    ].join('\n');
+    for (const text of [PATCH, hotfix]) {
+      const post = aiPostText(text);
+      const entities = post.entities.flatMap((entity) =>
+        entity.type === 'text_link'
+          ? [{ type: 'text_link' as const, offset: entity.offset, length: entity.length, url: entity.url }]
+          : []
+      );
+      expect(postRichHtml(post.text, entities)).toBe(aiRichHtml(text, true));
+    }
+    // A word changed by hand keeps the structure; a heading lost loses the rich form.
+    const edited = aiPostText(hotfix);
+    const links = edited.entities.flatMap((entity) =>
+      entity.type === 'text_link'
+        ? [{ type: 'text_link' as const, offset: entity.offset, length: entity.length, url: entity.url }]
+        : []
+    );
+    expect(postRichHtml(edited.text.replace('щедрее', 'добрее'), links)).toContain('<h3>Карнавал стал добрее</h3>');
+    expect(postRichHtml(`Карнавал стал щедрее.\n${edited.text}`, [])).toBeNull();
   });
 
   it('puts the link into «Подробнее» without the label over it (owner, 24.10.2026)', () => {

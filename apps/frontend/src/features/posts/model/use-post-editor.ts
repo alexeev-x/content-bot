@@ -1,4 +1,12 @@
-import { EMPTY_POLL, pollIssue, type PollIssue, type PostDto, type PostKind, type PostPoll } from '@alexeev/contracts';
+import {
+  EMPTY_POLL,
+  pollIssue,
+  type PollIssue,
+  type PostDto,
+  type PostKind,
+  type PostPoll,
+  postRichHtml
+} from '@alexeev/contracts';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef, useState, type RefObject } from 'react';
@@ -121,8 +129,12 @@ export function usePostEditor({
   const mixed = baseline === null && body.trim() !== '' && !isPollBlank(poll);
   const issue: PollIssue | null = kind === 'poll' ? pollIssue(poll) : null;
   const failed = failedKey === changeKey;
-  // A rich post goes out as its rich HTML, which the studio does not edit yet (owner, 23.10.2026: «Переписать» in the bot).
-  const readOnly = baseline?.status === 'approved' || baseline?.richHtml != null || conflict?.kind === 'locked';
+  // A rich post is edited as its text and rebuilt as it is typed, as the server rebuilds it on save (owner, 24.10.2026:
+  // «пару слов поправить»). A text that lost the structure is not saved: the old version stays until it is mended.
+  const isRich = baseline?.richHtml != null;
+  const liveRichHtml = isRich ? postRichHtml(body, entities) : null;
+  const richLost = isRich && liveRichHtml === null;
+  const readOnly = baseline?.status === 'approved' || conflict?.kind === 'locked';
   const isSaving = create.isPending || update.isPending;
   const isApproving = approve.isPending;
   const isBusy = isSaving || isApproving || mediaPending;
@@ -189,7 +201,8 @@ export function usePostEditor({
 
   /** Saves the form; resolves with the confirmed post, or null when invalid, blocked or rejected. */
   async function save(): Promise<PostDto | null> {
-    if (isBusy || readOnly || mixed || (baseline !== null && !dirty) || !mediaWriteLock.tryAcquire()) return null;
+    if (isBusy || readOnly || mixed || richLost || (baseline !== null && !dirty) || !mediaWriteLock.tryAcquire())
+      return null;
     try {
       if (!(await validate())) return null;
       const submitted = form.getValues();
@@ -383,9 +396,13 @@ export function usePostEditor({
     setPoll,
     pollIssue: issue,
     mixed,
+    /** The rich post as the typed text rebuilds it (the stored one while the text has lost the structure). */
+    richHtml: isRich ? (liveRichHtml ?? baseline?.richHtml ?? null) : null,
+    richLost,
     canAutosave:
       (baseline !== null || (kind === 'poll' ? !isPollBlank(poll) : body.trim().length > 0)) &&
       !mixed &&
+      !richLost &&
       dirty &&
       !readOnly &&
       conflict === null &&

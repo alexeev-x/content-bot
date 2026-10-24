@@ -16,6 +16,7 @@ import { postRichHtmlSchema } from './post-rich';
 
 export * from './post-poll';
 export * from './post-rich';
+export * from './post-rich-text';
 
 // Editorial state only; scheduling and delivery live in publications.
 export const postStatusSchema = z.enum(['draft', 'approved']);

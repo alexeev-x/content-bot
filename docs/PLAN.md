@@ -135,11 +135,11 @@ The AI makes the Telegram channel's content itself: news and rubric posts drafte
   approval turns into the sample — patches built 23.10.2026 (`docs/backend/sources.md` «Patch posts»), then hotfixes,
   event series, treasures, news; 3) the picture quality check before every source picture (built 23.10.2026, `docs/backend/sources.md` «Picture quality»;
   a treasure's sets follow-up gets its sets' icons); 4) the bot's draft preview
-  and the studio (built 23.10.2026: «👁 Как в канале» under a draft; the studio shows a rich post as Telegram does and
-  keeps its text read-only, edits through «Переписать»; a block editor later); 5) the analytics reports as rich tables (built 23.10.2026, migration 0104: the daily and weekly reports go as
+  and the studio (built 23.10.2026: «👁 Как в канале» under a draft; the studio shows a rich post as Telegram does; since 24.10.2026 its text is edited in the studio and the preview
+  rebuilds as it is typed, a text without the structure is not saved; desktop view «Редактор / Вместе / Превью»); 5) the analytics reports as rich tables (built 23.10.2026, migration 0104: the daily and weekly reports go as
   rich messages with every part of the classic one; a refused rich message falls back to the classic one).
   Release (owner, 23.10.2026): steps 1–5 whole, checked live on DEV, then the owner's `develop → main` and production
-  migrations; the studio shows a rich post and edits it through «Переписать» (owner's choice; a block editor later).
+  migrations; the studio shows a rich post and edits its text with a live preview (owner, 24.10.2026; a block editor later).
   After the release, on DEV: the rubrics, then the game-file source and new sources.
   The AI money page counts only the chosen provider (OpenAI); a second API in use gets a tab per provider with its own
   spend (owner, 23.10.2026).

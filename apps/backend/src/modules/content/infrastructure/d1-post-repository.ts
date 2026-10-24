@@ -410,7 +410,7 @@ export function createD1PostRepository(db: D1Database): PostRepository {
             `INSERT INTO post_revisions (post_id, revision, title, body, entities, status, created_at, media_json,
                kind, poll_json, send_silent, send_protected, link_preview_disabled, rich_html)
              SELECT id, revision + 1, ${NEW_TITLE}, COALESCE(?4, body), COALESCE(?5, entities), status, ?6, '[]',
-               kind, ${NEW_FIELDS}, rich_html
+               kind, ${NEW_FIELDS}, COALESCE(?14, rich_html)
              FROM posts WHERE ${GUARD}`
           )
           .bind(
@@ -424,7 +424,8 @@ export function createD1PostRepository(db: D1Database): PostRepository {
             nameSource,
             null,
             poll,
-            ...optionBindings
+            ...optionBindings,
+            change.richHtml ?? null
           ),
         auditStatement(db, 'post.update', change, { revision: change.expectedRevision + 1, fields }),
         db
@@ -436,6 +437,7 @@ export function createD1PostRepository(db: D1Database): PostRepository {
                poll_json = COALESCE(?10, poll_json), send_silent = COALESCE(?11, send_silent),
                send_protected = COALESCE(?12, send_protected),
                link_preview_disabled = COALESCE(?13, link_preview_disabled),
+               rich_html = COALESCE(?14, rich_html),
                revision = revision + 1, updated_at = ?6
              WHERE ${GUARD} RETURNING ${POST_COLUMNS}`
           )
@@ -450,7 +452,8 @@ export function createD1PostRepository(db: D1Database): PostRepository {
             nameSource,
             nameSource === null ? null : postTitleSortKey(nameSource),
             poll,
-            ...optionBindings
+            ...optionBindings,
+            change.richHtml ?? null
           ),
         // Read in the same batch as the write, so the media returned is the media of the revision returned.
         mediaStatement(db, [change.id])

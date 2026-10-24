@@ -105,6 +105,8 @@ export interface PostRepository {
       entities?: PostEntity[];
       poll?: PostPoll;
       sendOptions?: PostSendOptions;
+      /** A rich post's rich HTML rebuilt from its edited text (owner, 24.10.2026). */
+      richHtml?: string;
     }
   ): Promise<PostRecord | null>;
   /** Null when the guard (revision matches and the post is a draft) did not hold. */

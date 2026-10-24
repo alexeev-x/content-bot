@@ -1,5 +1,5 @@
 import { useQueryClient } from '@tanstack/react-query';
-import type { PostEntity, PostMediaDto, PostPoll } from '@alexeev/contracts';
+import { type PostEntity, type PostMediaDto, type PostPoll, RICH_MEDIA_SLOT } from '@alexeev/contracts';
 import { useEffect, useState } from 'react';
 import { ApiError } from '../../../shared/api/http-client';
 import { Icon, IconButton, Panel, TelegramPoll, TelegramPreview } from '../../../shared/ui';
@@ -112,6 +112,26 @@ export function PostPreview({
           };
         })
       : undefined;
+  // A rich post shows its pictures where its media slot is, under the heading, as Telegram does (owner, 24.10.2026);
+  // a slideshow shows its first picture. Only photos are drawn so; anything else keeps the preview's media.
+  const first = previewMedia?.[0];
+  const richMedia =
+    richHtml !== null &&
+    richHtml.includes(RICH_MEDIA_SLOT) &&
+    first !== undefined &&
+    media.every((item) => item.kind === 'photo') ? (
+      first.pending ? (
+        <span className={styles.richPicture} style={{ aspectRatio: `${first.width ?? 2} / ${first.height ?? 1}` }} />
+      ) : (
+        <img
+          className={styles.richPicture}
+          src={first.src}
+          alt={first.alt}
+          width={first.width ?? undefined}
+          height={first.height ?? undefined}
+        />
+      )
+    ) : null;
 
   return (
     <Panel
@@ -134,14 +154,14 @@ export function PostPreview({
                 emptyOption={pollCopy.optionLabel}
               />
             ) : richHtml !== null ? (
-              <RichText html={richHtml} />
+              <RichText html={richHtml} media={richMedia} />
             ) : isEmpty ? (
               copy.previewEmpty
             ) : (
               <EntityText text={message.text} entities={message.entities} />
             )
           }
-          media={previewMedia}
+          media={richMedia === null ? previewMedia : undefined}
           mediaMode={media.length > 1 ? 'album' : 'single'}
           showCounter
           mediaLabels={previewLabels}

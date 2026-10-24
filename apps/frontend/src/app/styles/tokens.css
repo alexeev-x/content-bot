@@ -90,6 +90,8 @@
   --size-rank-medal: 56px;
   /* Wide media dialogs (add media, crop). */
   --measure-dialog-media: 760px;
+  /* The studio's Telegram preview column: a 420px bubble with the chat's and the panel's padding (owner, 24.10.2026). */
+  --measure-telegram-preview: 512px;
 
   /* focus: 2px ring in --color-focus-ring */
   --focus-ring-width: 2px;

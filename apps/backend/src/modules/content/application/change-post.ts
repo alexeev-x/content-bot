@@ -1,4 +1,12 @@
-import { type ApprovePostInput, type PostDto, type UpdatePostInput, validatePostEntities } from '@alexeev/contracts';
+import {
+  type ApprovePostInput,
+  type PostDto,
+  postRichHtml,
+  RICH_MEDIA_MAX,
+  richHtmlIssue,
+  type UpdatePostInput,
+  validatePostEntities
+} from '@alexeev/contracts';
 import { AppError } from '../../../shared/app-error';
 import { approve, canEdit } from '../domain/post';
 import { toPostDto } from './post-dto';
@@ -27,10 +35,17 @@ export async function updatePost(
   if (current !== null) {
     if (current.kind === 'poll' && touchesText) throw kindMismatch('A poll post has no title, body or entities');
     if (current.kind === 'text' && input.poll !== undefined) throw kindMismatch('A text post has no poll');
-    // A rich post sends its rich HTML, not `body`: a text edit here would never reach the channel (the studio has no
-    // rich editor yet, owner 23.10.2026), so it is refused rather than silently ignored.
-    if (current.richHtml !== null && touchesText)
-      throw new AppError('VALIDATION_ERROR', 'A rich post is not edited as text yet', { reason: 'RICH_NOT_EDITABLE' });
+  }
+  // A rich post sends its rich HTML, not `body`: an edit of its text rebuilds it (owner, 24.10.2026: «пару слов
+  // поправить»). A text that lost the structure is refused, never sent half-built or silently as the old version.
+  let richHtml: string | undefined;
+  if (current !== null && current.richHtml !== null && touchesText) {
+    const rebuilt = postRichHtml(input.body ?? current.body, input.entities ?? current.entities);
+    if (rebuilt === null || richHtmlIssue(rebuilt, RICH_MEDIA_MAX) !== null)
+      throw new AppError('VALIDATION_ERROR', 'The edited text lost its rich structure', {
+        reason: 'RICH_STRUCTURE_LOST'
+      });
+    richHtml = rebuilt;
   }
   // Formatting without a new body is checked against the stored one. The write below is guarded by the
   // revision, and a body only changes with a revision bump, so the body read here is the body it applies to.
@@ -49,6 +64,7 @@ export async function updatePost(
     entities: input.entities,
     poll: input.poll,
     sendOptions: input.sendOptions,
+    ...(richHtml === undefined ? {} : { richHtml }),
     actor,
     now: deps.now
   });

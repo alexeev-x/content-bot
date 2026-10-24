@@ -213,13 +213,24 @@ describe('a rich post in the studio', () => {
     expect(after.media.map(({ id }) => id)).toEqual([first, second]);
   });
 
-  it('refuses a text edit, which would never reach the channel', async () => {
+  it('rebuilds its rich HTML from an edited text, and refuses a text that lost the structure (owner, 24.10.2026)', async () => {
     const draft = await richDraft('<p>Текст</p>');
-    const response = await api.request(`/api/v1/posts/${draft.id}`, {
+    const body = 'Карнавал стал добрее\n\nЧто изменилось:\n• за Turbo — 1 Scrap';
+    const edited = await api.request(`/api/v1/posts/${draft.id}`, {
       method: 'PATCH',
-      json: { revision: draft.revision, body: 'Другой текст', entities: [] }
+      json: { revision: draft.revision, body, entities: [] }
     });
-    expect(response.status).toBe(400);
-    expect(apiErrorSchema.parse(await response.json()).error.details).toMatchObject({ reason: 'RICH_NOT_EDITABLE' });
+    expect(edited.status).toBe(200);
+    const after = postSchema.parse(await edited.json());
+    expect(after.richHtml).toContain('<h3>Карнавал стал добрее</h3>');
+    expect(after.richHtml).toContain('<ul><li>за Turbo — 1 Scrap</li></ul>');
+    const broken = await api.request(`/api/v1/posts/${draft.id}`, {
+      method: 'PATCH',
+      json: { revision: after.revision, body: 'Одна строка без заголовка.', entities: [] }
+    });
+    expect(broken.status).toBe(400);
+    expect(apiErrorSchema.parse(await broken.json()).error.details).toMatchObject({ reason: 'RICH_STRUCTURE_LOST' });
+    const kept = postSchema.parse(await (await api.request(`/api/v1/posts/${draft.id}`)).json());
+    expect(kept.richHtml).toBe(after.richHtml);
   });
 });

@@ -10,6 +10,7 @@ import {
   Icon,
   IconButton,
   Menu,
+  SegmentedControl,
   Tab,
   TabList,
   TabPanel,
@@ -20,6 +21,7 @@ import {
 import { useClosingConfirmation } from '../../../shared/telegram/use-closing-confirmation';
 import { formatClock } from '../model/format-time';
 import { useAutosave } from '../model/use-autosave';
+import { useDesktopView } from '../model/use-desktop-view';
 import { useLeaveGuard } from '../model/use-leave-guard';
 import { usePostEditor } from '../model/use-post-editor';
 import { useSaveShortcut } from '../model/use-save-shortcut';
@@ -108,7 +110,8 @@ export function PostEditor({
   const statusRef = useRef<HTMLDivElement>(null);
   const [compareOpen, setCompareOpen] = useState(false);
   const [mobilePreviewOpen, setMobilePreviewOpen] = useState(false);
-  const [desktopPreviewOpen, setDesktopPreviewOpen] = useState(true);
+  // Desktop: the editor, both, or the preview alone, as GitHub's write/preview (owner, 24.10.2026).
+  const [desktopView, setDesktopView] = useDesktopView();
   const [overwriteOpen, setOverwriteOpen] = useState(false);
 
   useSaveShortcut(() => void editor.save());
@@ -238,9 +241,8 @@ export function PostEditor({
         length={editor.length}
         media={isPoll ? [] : (baseline?.media ?? [])}
         poll={isPoll ? editor.poll : null}
-        richHtml={baseline?.richHtml ?? null}
+        richHtml={editor.richHtml}
         desktopHeader={!narrow}
-        onCollapse={!narrow && !showApprovedPreview ? () => setDesktopPreviewOpen(false) : undefined}
       />
     </>
   );
@@ -309,7 +311,13 @@ export function PostEditor({
           <Tab id="poll">{copy.composer.poll}</Tab>
         </TabList>
         {/* The preview column sits beside whichever panel is open, so there is one live preview, not one per tab. */}
-        <div className={narrow ? undefined : `${styles.panes} ${!desktopPreviewOpen ? styles.previewCollapsed : ''}`}>
+        <div
+          className={
+            narrow
+              ? undefined
+              : `${styles.panes} ${desktopView === 'editor' ? styles.previewCollapsed : desktopView === 'preview' ? styles.previewOnly : ''}`
+          }
+        >
           <div className={styles.paneMain}>
             {/* The editor stays mounted while another tab is shown: text, selection and undo history must survive. */}
             <TabPanel id="editor" shouldForceMount>
@@ -333,7 +341,7 @@ export function PostEditor({
               )}
             </TabPanel>
           </div>
-          {!narrow && desktopPreviewOpen ? side : null}
+          {!narrow && desktopView !== 'editor' ? side : null}
         </div>
       </Tabs>
     </div>
@@ -381,9 +389,9 @@ export function PostEditor({
           {copy.pictures.body}
         </Banner>
       ) : null}
-      {baseline?.richHtml != null ? (
-        <Banner tone="info" title={copy.rich.title}>
-          {copy.rich.body}
+      {editor.richLost ? (
+        <Banner tone="warning" title={copy.rich.lostTitle}>
+          {copy.rich.lostBody}
         </Banner>
       ) : null}
       {notices}
@@ -585,10 +593,17 @@ export function PostEditor({
           />
         ) : null}
         {headerActions ? <span className={styles.headerActions}>{headerActions}</span> : null}
-        {!narrow && !showApprovedPreview && !desktopPreviewOpen ? (
-          <Button variant="secondary" size="sm" icon="eye" onPress={() => setDesktopPreviewOpen(true)}>
-            Предпросмотр
-          </Button>
+        {!narrow && !showApprovedPreview ? (
+          <SegmentedControl
+            label={copy.view.label}
+            options={[
+              { id: 'editor', label: copy.view.editor, icon: 'edit' },
+              { id: 'split', label: copy.view.split },
+              { id: 'preview', label: copy.view.preview, icon: 'eye' }
+            ]}
+            value={desktopView}
+            onChange={(id) => setDesktopView(id === 'editor' || id === 'preview' ? id : 'split')}
+          />
         ) : null}
         {editor.saveState === 'failed' && !editor.readOnly && !hasConflict ? (
           <Button variant="ghost" size="sm" icon="retry" onPress={() => void editor.save()}>
