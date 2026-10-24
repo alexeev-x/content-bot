@@ -7,6 +7,7 @@ import type { AiJob } from '../bot/ai-job';
 import { aiPostText, draftFromMessageText } from '../bot/draft-from-message';
 import type { Container } from '../container';
 import { AUTOPUBLISH_ACTOR } from './autopublish-source-event';
+import { watchErrorCode } from './watch-error-code';
 
 // The early signal of a Dota update (owner, 24.10.2026: «как люди делают»; «они должны сразу постом идти без меня»):
 // Steam's own product info, read anonymously every Dota run. Dota 2 Staging (Valve's test app) changing means an update
@@ -126,6 +127,7 @@ export async function runSteamWatch(
   try {
     const apps = await readApps([DOTA_APP_ID, DOTA_STAGING_APP_ID]);
     const now = container.clock.now();
+    await container.watchChecks.record('steam_apps', now, null).catch(onError);
     for (const app of apps) {
       if (app.changeNumber <= 0) continue;
       const row = {
@@ -164,6 +166,7 @@ export async function runSteamWatch(
     }
   } catch (error) {
     onError(error);
+    await container.watchChecks.record('steam_apps', container.clock.now(), watchErrorCode(error)).catch(onError);
   } finally {
     await container.aiWriter.finishJob(job.id, container.clock.now()).catch(onError);
   }

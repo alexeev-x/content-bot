@@ -20,6 +20,15 @@ function httpMeaning(status: number | null): string {
 
 /** Plain-language reason for the owner; the technical detail stays in the dialog and the copied text. */
 export function explainFeedError(error: DotaFeedErrorDto, provider: string): string {
+  // The watches' own codes (game files, Steam signal).
+  if (error.code === 'GITHUB_TOKEN')
+    return 'GitHub не принял токен: он отозван или истёк. Нужен новый токен в секрете GITHUB_TOKEN воркера.';
+  if (error.code === 'GITHUB_RATE')
+    return 'GitHub временно ограничил число запросов. Проверка продолжится сама, когда лимит сбросится.';
+  if (/^STEAM_CM_(CONNECT|TIMEOUT|DIRECTORY)$/.test(error.code))
+    return 'Не удалось достучаться до серверов Steam или они не ответили вовремя. Обычно проходит само со следующей проверкой.';
+  if (error.code === 'STEAM_CM_LOGON')
+    return 'Steam не пустил анонимный вход. Если ошибка повторяется, Steam мог поменять правила подключения.';
   switch (kind(error.code)) {
     case 'FETCH':
       return `Не удалось получить ответ от ${provider}: сервер не ответил вовремя или соединение оборвалось. Приложение повторит проверку само.`;

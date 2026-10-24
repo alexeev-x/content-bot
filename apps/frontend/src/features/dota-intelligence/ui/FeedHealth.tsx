@@ -1,4 +1,4 @@
-import type { AutomationId, DotaFeedErrorDto, DotaSourceDto } from '@alexeev/contracts';
+import type { AutomationId, DotaFeedErrorDto, DotaSourceDto, DotaWatchKey } from '@alexeev/contracts';
 import { useQuery } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
 import { Button as AriaButton } from 'react-aria-components';
@@ -34,6 +34,15 @@ const PROVIDERS: Record<DotaSourceDto['key'], string> = {
 const FEED_NAMES: Record<DotaSourceDto['key'], string> = {
   patch_notes: 'Патчи Dota 2',
   steam_news: 'Новости Steam'
+};
+// The watches beside the feeds (migration 0109): they post by themselves, so their state shows here too.
+const WATCH_NAMES: Record<DotaWatchKey, string> = {
+  game_files: 'Файлы игры',
+  steam_apps: 'Сигнал обновления в Steam'
+};
+const WATCH_PROVIDERS: Record<DotaWatchKey, string> = {
+  game_files: 'GitHub',
+  steam_apps: 'Steam'
 };
 
 type Feed = {
@@ -123,15 +132,26 @@ export function FeedHealth({ timezone, onChecked }: Props) {
   // Same cached queries as the controls: a collapsed panel still shows that a check is running.
   const watcher = useDotaAutomation('dota-intelligence');
   const checking = watcher.data != null && watcher.data.executionState !== 'idle';
-  const feeds: Feed[] = (sources.data?.sources ?? []).map((source) => ({
-    id: source.key,
-    name: FEED_NAMES[source.key],
-    provider: PROVIDERS[source.key],
-    error: source.lastError,
-    health: source.health,
-    lastAttemptAt: source.lastAttemptAt,
-    lastSuccessAt: source.lastSuccessAt
-  }));
+  const feeds: Feed[] = [
+    ...(sources.data?.sources ?? []).map((source) => ({
+      id: source.key,
+      name: FEED_NAMES[source.key],
+      provider: PROVIDERS[source.key],
+      error: source.lastError,
+      health: source.health,
+      lastAttemptAt: source.lastAttemptAt,
+      lastSuccessAt: source.lastSuccessAt
+    })),
+    ...(sources.data?.watches ?? []).map((watch) => ({
+      id: watch.key,
+      name: WATCH_NAMES[watch.key],
+      provider: WATCH_PROVIDERS[watch.key],
+      error: watch.lastError,
+      health: watch.health,
+      lastAttemptAt: watch.lastAttemptAt,
+      lastSuccessAt: watch.lastSuccessAt
+    }))
+  ];
   if (feeds.length === 0) return null;
   const dots = (
     <span className={styles.dots}>

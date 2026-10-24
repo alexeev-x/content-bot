@@ -60,8 +60,24 @@ export const listDotaIntelligenceQuerySchema = z.strictObject({
 });
 export type ListDotaIntelligenceQuery = z.infer<typeof listDotaIntelligenceQuerySchema>;
 
+// The watches that are not feeds of updates (migration 0109): the game files on GitHub and Steam's product info.
+// `game_files` is listed only while its token is set. `lastError` reuses the feed's shape: `httpStatus` is null,
+// `detail` empty, and the code is the watch's stable one (e.g. STEAM_CM_TIMEOUT, GITHUB_TOKEN).
+export const dotaWatchKeySchema = z.enum(['game_files', 'steam_apps']);
+export type DotaWatchKey = z.infer<typeof dotaWatchKeySchema>;
+
+export const dotaWatchSchema = z.object({
+  key: dotaWatchKeySchema,
+  lastAttemptAt: z.iso.datetime().nullable(),
+  lastSuccessAt: z.iso.datetime().nullable(),
+  health: dotaSourceHealthSchema,
+  lastError: dotaFeedErrorSchema.nullable()
+});
+export type DotaWatchDto = z.infer<typeof dotaWatchSchema>;
+
 export const dotaIntelligenceSchema = z.object({
   sources: z.array(dotaSourceSchema).length(2),
+  watches: z.array(dotaWatchSchema).max(2),
   updates: z.array(dotaUpdateSchema)
 });
 export type DotaIntelligenceDto = z.infer<typeof dotaIntelligenceSchema>;

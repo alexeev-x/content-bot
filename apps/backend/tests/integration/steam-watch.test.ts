@@ -1,4 +1,4 @@
-import { ownerOperationsSettingsSchema } from '@alexeev/contracts';
+import { dotaIntelligenceSchema, ownerOperationsSettingsSchema } from '@alexeev/contracts';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { createContainer, type Container } from '../../src/app/container';
 import { DOTA_APP_ID, DOTA_STAGING_APP_ID, runSteamWatch, steamChangePost } from '../../src/app/workflows/steam-watch';
@@ -118,6 +118,33 @@ describe('the Steam watch', () => {
     steam = [app(DOTA_APP_ID, 100, '26139613'), app(DOTA_STAGING_APP_ID, 54)];
     await run();
     expect(await count('publications')).toBe(2);
+  });
+
+  it('shows its last check in «Состояние лент»: a read is healthy, a failed one degraded with its code', async () => {
+    const watches = async () => dotaIntelligenceSchema.parse(await (await api.request('/api/v1/dota')).json()).watches;
+    expect(await watches()).toEqual([
+      { key: 'steam_apps', lastAttemptAt: null, lastSuccessAt: null, health: 'unverified', lastError: null }
+    ]);
+    await run();
+    expect(await watches()).toMatchObject([{ key: 'steam_apps', health: 'healthy', lastError: null }]);
+    await runSteamWatch(
+      container,
+      { id: crypto.randomUUID(), kind: 'steam_watch', chatId: Number(OWNER_ID) },
+      '',
+      't',
+      () => undefined,
+      async () => {
+        throw Object.assign(new Error('timeout'), { code: 'STEAM_CM_TIMEOUT' });
+      }
+    );
+    expect(await watches()).toMatchObject([
+      {
+        key: 'steam_apps',
+        health: 'degraded',
+        lastSuccessAt: new Date(START).toISOString(),
+        lastError: { code: 'STEAM_CM_TIMEOUT', consecutiveFailures: 1 }
+      }
+    ]);
   });
 
   it('publishes nothing while the automatic publishing is off', async () => {

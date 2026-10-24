@@ -1434,6 +1434,7 @@ export async function mockApi(page: Page): Promise<void> {
           health: 'healthy'
         }
       ],
+      watches: [],
       updates: [
         ['Вышло обновление 7.37d', 'patch', 'patch_notes'],
         ['Известны участники The International', 'news', 'steam_news'],

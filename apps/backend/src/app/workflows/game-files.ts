@@ -4,6 +4,7 @@ import { condenseBuild, mayMatter, parseBuildMessage, splitDiff } from '../../mo
 import { getOwnerOperationsSettings } from '../../modules/settings';
 import type { AiJob } from '../bot/ai-job';
 import type { Container } from '../container';
+import { watchErrorCode } from './watch-error-code';
 
 // Changes in the game's files (owner, 23.10.2026: «это очень интересное»; 24.10.2026: required before the release and
 // published like every source). The SteamTracking GameTracking-Dota2 repository commits one build at a time; a run
@@ -45,6 +46,7 @@ export async function runGameFilesWatch(
     const builds = container.gameFileBuilds;
     const commits = await github.listCommits(LIST_SIZE);
     const now = container.clock.now();
+    await container.watchChecks.record('game_files', now, null).catch(onError);
     const parsed = commits.map((commit) => ({ ...commit, header: parseBuildMessage(commit.message) }));
     // The first run only marks where the source starts: the builds already there never become posts.
     if (await builds.isEmpty()) {
@@ -124,6 +126,7 @@ export async function runGameFilesWatch(
     });
   } catch (error) {
     onError(error);
+    await container.watchChecks.record('game_files', container.clock.now(), watchErrorCode(error)).catch(onError);
   } finally {
     await container.aiWriter.finishJob(job.id, container.clock.now()).catch(onError);
   }

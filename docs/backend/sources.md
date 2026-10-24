@@ -146,3 +146,7 @@ text and the numbers as a red and green diff, no model call: a Staging change «
 post in 12 hours, `posted_at`), a new public build of Dota 2 «Steam уже раздаёт обновление…». The post's key is
 `steam:<app>:<change>`, its publication's `autopublish:steam:<app>:<change>`. Off or over the limit, the owner gets
 the text with why. A change is posted at most once: a run that dies between the row's claim and the publication loses\nthat post (QA 24.10.2026, as the game-files claim). The socket asks for ArrayBuffer frames (a Blob is the default at\nour compatibility date), the gzip is capped while it inflates, and one 12 s deadline covers the directory, the\nupgrade and the exchange. Unknown until DEV runs it: whether Steam's managers accept connections from Cloudflare's\negress.
+
+Both watches (game files and Steam) write their last run to `source_watch_checks` (migration 0109): a successful read
+or the failure's stable code. «Источники → Состояние лент» shows them beside the two feeds (`GET /api/v1/dota`
+`watches`).

@@ -795,7 +795,11 @@ export interface DotaWatcherRepository {
     items: DotaUpdateItem[];
     detectedAt: number;
   }): Promise<{ inserted: number }>;
-  listIntelligence(input: { source?: ContractDotaSourceKey; limit: number; now: number }): Promise<DotaIntelligenceDto>;
+  listIntelligence(input: {
+    source?: ContractDotaSourceKey;
+    limit: number;
+    now: number;
+  }): Promise<Omit<DotaIntelligenceDto, 'watches'>>;
   getUpdateDetail(input: { sourceKey: DotaSourceKey; externalId: string }): Promise<DotaEventDetailDto | null>;
   savePatchAnalysis(input: {
     externalId: string;
