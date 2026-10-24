@@ -1,14 +1,6 @@
-import { AiSpendSkeleton } from '../../features/ai-settings';
-import { DotaSummarySkeleton } from '../../features/dota-profile';
-import { AnalyticsSkeleton, LatestVideoSkeleton, TrendingSummarySkeleton } from '../../features/content-analytics';
-import { DashboardSkeleton, DateChip } from '../../features/dashboard';
-import { SourcesBoardSkeleton } from '../../features/dota-intelligence';
-import { MediaPageSkeleton } from '../../features/media';
-import { PostsSkeleton } from '../../features/posts';
-import { browserTimeZone, PublicationsSkeleton, utcOffsetLabel } from '../../features/publications';
-import { SettingsSkeleton } from '../../pages/settings/SettingsSkeleton';
+import { lazy, Suspense } from 'react';
 import { ru } from '../../shared/lib/ru';
-import { PageHeader, Skeleton, useMediaQuery, VisuallyHidden } from '../../shared/ui';
+import { PageHeader, Skeleton, VisuallyHidden } from '../../shared/ui';
 import styles from './RouteSkeleton.module.css';
 
 type Props = {
@@ -17,74 +9,16 @@ type Props = {
   title: string;
 };
 
-function zoneNote(): string {
-  const zone = browserTimeZone();
-  return `${zone}, ${utcOffsetLabel(new Date(), zone)}`;
+// Kept out of the entry chunk: the specific skeletons import eight feature barrels.
+const FeatureSkeleton = lazy(() => import('./FeatureSkeleton').then((module) => ({ default: module.FeatureSkeleton })));
+
+const FEATURE_PAGES = ['', '/posts', '/publications', '/analytics', '/media', '/sources'];
+
+function hasFeatureSkeleton(page: string): boolean {
+  return FEATURE_PAGES.includes(page) || page === '/settings' || page.startsWith('/settings/');
 }
 
-/**
- * What a signed-in reload shows while the session is restored in the background: the route's own skeleton
- * where it exists, otherwise a generic page frame. No page renders yet, so no request leaves without a token.
- */
-export function RouteSkeleton({ pathname, title }: Props) {
-  // Same breakpoint as the dashboard: a phone has no «Новый пост» in the header.
-  const phone = useMediaQuery('(max-width: 859px)');
-  if (pathname === '/') {
-    return (
-      <>
-        <PageHeader
-          title={title}
-          actions={
-            <>
-              <DateChip placement="header" zoneNote={zoneNote()} timezone={browserTimeZone()} />
-              {phone ? null : <Skeleton width={128} height="var(--size-button)" radius="var(--radius-2)" />}
-            </>
-          }
-        />
-        <DashboardSkeleton
-          zoneNote={zoneNote()}
-          analytics={{
-            latestYoutube: <LatestVideoSkeleton />,
-            latestTiktok: <LatestVideoSkeleton />,
-            trending: <TrendingSummarySkeleton />
-          }}
-          ai={<AiSpendSkeleton />}
-          dota={<DotaSummarySkeleton />}
-        />
-      </>
-    );
-  }
-  const page = pathname.replace(/\/+$/, '');
-  if (page === '/posts' || page === '/publications') {
-    return (
-      <>
-        <PageHeader
-          title={title}
-          actions={<Skeleton width={150} height="var(--size-button)" radius="var(--radius-2)" />}
-        />
-        {page === '/posts' ? <PostsSkeleton /> : <PublicationsSkeleton />}
-      </>
-    );
-  }
-  if (page === '/analytics') {
-    const tab = new URLSearchParams(window.location.search).get('tab');
-    return (
-      <AnalyticsSkeleton tab={tab === 'items' || tab === 'audience' ? tab : 'overview'} timezone={browserTimeZone()} />
-    );
-  }
-  // The route adds the heroes tab to the library (routes/media.tsx), so the skeleton draws it too.
-  if (page === '/media') return <MediaPageSkeleton extraTabLabel="Герои Dota" />;
-  if (page === '/sources') {
-    return (
-      <>
-        <PageHeader title={title} />
-        <SourcesBoardSkeleton />
-      </>
-    );
-  }
-  if (page === '/settings' || page.startsWith('/settings/')) {
-    return <SettingsSkeleton pathname={page} />;
-  }
+function GenericSkeleton({ title }: { title: string }) {
   return (
     <div aria-busy="true">
       <VisuallyHidden>
@@ -103,5 +37,20 @@ export function RouteSkeleton({ pathname, title }: Props) {
         ))}
       </div>
     </div>
+  );
+}
+
+/**
+ * What a signed-in reload shows while the session is restored in the background: the route's own skeleton
+ * where it exists (a separate chunk; the generic frame shows until it arrives), otherwise a generic page
+ * frame. No page renders yet, so no request leaves without a token.
+ */
+export function RouteSkeleton({ pathname, title }: Props) {
+  const page = pathname.replace(/\/+$/, '');
+  if (!hasFeatureSkeleton(page)) return <GenericSkeleton title={title} />;
+  return (
+    <Suspense fallback={<GenericSkeleton title={title} />}>
+      <FeatureSkeleton page={page} title={title} />
+    </Suspense>
   );
 }
