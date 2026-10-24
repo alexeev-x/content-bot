@@ -241,7 +241,49 @@ export function structuredRichHtml(text: string): string | null {
  */
 export function sourceRichHtml(text: string): string | null {
   const clean = withoutLinkLabel(text);
-  return patchRichHtml(clean) ?? structuredRichHtml(clean);
+  return patchRichHtml(clean) ?? findRichHtml(clean) ?? structuredRichHtml(clean);
+}
+
+const FIND_LEAD = /^В файлах игры нашли/u;
+// «Вампиризм Grappling Claw: 40/80/120/160 → 30/60/90/120»: one changed value.
+const CHANGE_ROW = /^(?:[•\-–—*]\s*)?([^:→]{2,60}):\s*([^→]{1,40}?)\s*→\s*(.{1,40})$/u;
+const DIFF_FENCE = /^```/u;
+
+/**
+ * A find in the game's files with numbers or dates that changed (owner, 24.10.2026: «супер с таблицами»): its text,
+ * then one table of what was and what is now — each value's name on a row of its own over its two cells, so a phone
+ * does not wrap «40/80/120/160». A find with no such lines stays a classic post with its red and green code block.
+ */
+export function findRichHtml(text: string): string | null {
+  const lines = text
+    .split('\n')
+    .map((line) => line.trim())
+    .filter((line) => line !== '');
+  if (!FIND_LEAD.test(lines[0] ?? '')) return null;
+  const rows: [string, string, string][] = [];
+  const paragraphs: string[] = [];
+  let inCode = false;
+  for (const line of lines) {
+    // A code block has no place next to the table: Telegram's phones draw it badly in a rich message (owner, 24.10.2026).
+    if (DIFF_FENCE.test(line)) {
+      inCode = !inCode;
+      continue;
+    }
+    if (inCode) continue;
+    const row = CHANGE_ROW.exec(line);
+    if (row !== null) rows.push([row[1] ?? '', row[2] ?? '', row[3] ?? '']);
+    else paragraphs.push(line);
+  }
+  if (rows.length === 0 || paragraphs.length === 0) return null;
+  return [
+    ...paragraphs.map((paragraph) => `<p>${escapeHtml(paragraph)}</p>`),
+    `<table bordered compact><tr><th>Было</th><th>Стало</th></tr>${rows
+      .map(
+        ([what, was, now]) =>
+          `<tr><td colspan="2"><b>${escapeHtml(what.trim())}</b></td></tr><tr><td>${escapeHtml(was)}</td><td>${escapeHtml(now.trim())}</td></tr>`
+      )
+      .join('')}</table>`
+  ].join('\n');
 }
 
 /**

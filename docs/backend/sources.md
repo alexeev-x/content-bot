@@ -114,9 +114,14 @@ SteamTracking/GameTracking-Dota2 (SteamDB's tracker, one commit per game build),
   says whether a player would care; a dull build becomes `skipped` (`not_worth`) and the owner hears nothing. A check
   that cannot answer lets the writer go on.
 - The writer's task (`gameFilesTask`): the text opens with «В файлах игры нашли», says Valve has not confirmed it and it
-  may change, retells the changes in Russian with numbers «было → стало», never quotes a file or names keys, no
-  heading and no link (so the post goes in the classic form). The build's changes are the source's facts, checked by the
-  fact check like any automatic draft.
+  may change, retells the changes in Russian, no heading and no link. Then, owner 24.10.2026: changed numbers or dates
+  as lines «Название: было → стало» (values joined by «/»), which `findRichHtml` (`apps/contracts/src/post-rich-text.ts`)
+  turns into a rich post: the text and one table «Было / Стало», each value's name on a row of its own so a phone does
+  not wrap; with no numbers, a «```diff» block of the real changed lines, verbatim, which `aiPostText` turns into a
+  `pre` entity in the `diff` language (red and green in Telegram) of a classic post — a rich message draws code badly
+  on phones. The build's changes are the source's facts, checked by the fact check like any automatic draft. Anything
+  a player could notice is worth a post, cosmetics included («давай всё публикуем»); a build that adds Valve's patch
+  notes (`"DOTA_Patch_…"`) is `skipped` (`official_patch`): the patch notes source tells it.
 - Publishing: the event writer's job with its own task (`own`), the key `autopublish:files:<sha>` (one publication per
   build), `standalone`: no event link and no announcement pictures, through `patch_publish` like every source post. A
   text with an address in it waits for the owner (`link`): GitHub's text is nobody's, and an address would go out as a

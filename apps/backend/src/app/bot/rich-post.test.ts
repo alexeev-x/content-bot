@@ -201,3 +201,28 @@ describe('sections', () => {
     expect(structuredRichHtml('Обновление\n\nВот что вышло:')).toContain('<p>Вот что вышло:</p>');
   });
 });
+
+describe('a find in the game files', () => {
+  // Owner, 24.10.2026: changed numbers as a «was / now» table, each value's name on its own row (no wrapping on a phone).
+  it('becomes its text and one table when it has «name: was → now» lines', () => {
+    const text = [
+      'В файлах игры нашли тихий нерф Kez. Valve не подтверждала.',
+      '',
+      'Вампиризм Grappling Claw: 40/80/120/160 → 30/60/90/120',
+      'Дальность Falcon Rush: 650 → 575'
+    ].join('\n');
+    expect(aiRichHtml(text, true)).toBe(
+      [
+        '<p>В файлах игры нашли тихий нерф Kez. Valve не подтверждала.</p>',
+        '<table bordered compact><tr><th>Было</th><th>Стало</th></tr>' +
+          '<tr><td colspan="2"><b>Вампиризм Grappling Claw</b></td></tr><tr><td>40/80/120/160</td><td>30/60/90/120</td></tr>' +
+          '<tr><td colspan="2"><b>Дальность Falcon Rush</b></td></tr><tr><td>650</td><td>575</td></tr></table>'
+      ].join('\n')
+    );
+  });
+
+  it('stays a classic post with its code block when nothing has a number', () => {
+    const text = 'В файлах игры нашли новую настройку для Rubick.\n\n```diff\n+ "dota_settings_x" "Rubick"\n```';
+    expect(aiRichHtml(text, true)).toBeNull();
+  });
+});
