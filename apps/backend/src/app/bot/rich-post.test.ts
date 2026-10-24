@@ -116,6 +116,16 @@ describe('structuredRichHtml', () => {
     );
   });
 
+  it('puts the link into «Подробнее» without the label over it (owner, 24.10.2026)', () => {
+    const url = 'https://www.dota2.com/newsentry/670621050832160174';
+    for (const tail of [`Все остальные изменения:\n${url}`, `Все остальные изменения\n\n${url}`]) {
+      const html = aiRichHtml(`Карнавал стал щедрее\n\nЧто изменилось:\n• за Turbo — 1 Scrap\n\n${tail}`, true);
+      expect(html).not.toContain('Все остальные изменения');
+      expect(html).not.toContain(`<p>${url}`);
+      expect(html).toContain(`<tg-button type="url" url="${url}">Подробнее</tg-button>`);
+    }
+  });
+
   it('makes «А — Б» lines a table, with a «Колонка | Колонка» head', () => {
     const html = structuredRichHtml(
       [

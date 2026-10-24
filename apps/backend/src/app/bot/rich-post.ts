@@ -42,6 +42,29 @@ const BULLET = /^[•\-–—*]\s*/u;
 const GROUP_ROWS_MAX = 4;
 const ROW = /^(.{1,40}?)\s+[—–-]\s+(.+)$/u;
 
+/** A short line that only points at the link below it: «Все остальные изменения:», «Подробнее —». */
+const LINK_LABEL = /^[^.!?]{0,30}(?:изменени|исправлени|подробн|ссылк|списк)[^.!?]{0,20}$|^[^.!?]{1,30}[:—–-]$/iu;
+
+/**
+ * The text without the label over its link (owner, 24.10.2026: «Все остальные изменения» stayed a heading over a bare
+ * address): the link becomes the «Подробнее» button, so the line pointing at it goes too.
+ */
+function withoutLinkLabel(text: string): string {
+  const lines = text.split('\n');
+  const isLink = (line: string) => {
+    const url = URL_IN_LINE.exec(line.trim())?.[0];
+    return url !== undefined && line.trim().replace(url, '').trim().length <= LINK_LABEL_MAX;
+  };
+  let at = lines.length - 1;
+  while (at >= 0 && !isLink(lines[at] ?? '')) at -= 1;
+  if (at <= 0) return text;
+  let before = at - 1;
+  while (before > 0 && (lines[before] ?? '').trim() === '') before -= 1;
+  // Never the first line: it is the post's heading.
+  if (before <= 0 || !LINK_LABEL.test((lines[before] ?? '').trim())) return text;
+  return [...lines.slice(0, before), ...lines.slice(at)].join('\n');
+}
+
 /** Only a dota2.com page gets the «Подробнее» button (owner, 23.10.2026: no other links, no source line). */
 function moreButton(url: string | null): string {
   if (url === null) return '';
@@ -237,7 +260,8 @@ export async function isSourceDraft(
  */
 export function aiRichHtml(text: string, fromSource: boolean): string | null {
   if (!fromSource) return null;
-  return patchRichHtml(text) ?? structuredRichHtml(text);
+  const clean = withoutLinkLabel(text);
+  return patchRichHtml(clean) ?? structuredRichHtml(clean);
 }
 
 /**
@@ -254,7 +278,8 @@ export const SOURCE_POST_STRUCTURE = [
   // Owner, 23.10.2026: five automatons each with the same 4.99 in a table.
   '— одинаковое у всех (цену, дату, условие) скажи один раз в тексте, не повторяй в каждой строке; таблица — только для того, чем они различаются;',
   '— второстепенное можно свернуть в конце: строка «▾ Заголовок», под ней то, что свернуть;',
-  '— ссылку поставь последней строкой отдельно;',
+  // The link becomes the «Подробнее» button: a label over it would stay as a bare heading (owner, 24.10.2026).
+  '— ссылку поставь последней строкой отдельно, без подписи над ней;',
   // A Telegram post holds 4 096 characters (owner, 23.10.2026: a hotfix listed every fix and could not be published).
   '— весь пост не длиннее 3 000 знаков: если фактов больше, оставь самое важное для игрока, остальное — по ссылке.',
   'Героя называй, как его зовут игроки (Котл, БХ, Трент); нет такого имени — английское название. Не упоминай другие посты и не называй источники.'
