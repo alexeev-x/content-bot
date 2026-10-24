@@ -122,6 +122,8 @@ export const aiJobSchema = z.discriminatedUnion('kind', [
   }),
   /** One run of the game-files watch (migration 0107), queued by Cron's Dota step next to the treasure watch. */
   z.object({ id: z.uuid(), kind: z.literal('game_files_watch'), chatId: z.number().int() }),
+  /** One read of Steam's product info of Dota's apps (migration 0108): the early signal of an update. */
+  z.object({ id: z.uuid(), kind: z.literal('steam_watch'), chatId: z.number().int() }),
   /**
    * A build of the game's files with changes a player may care about (owner, 24.10.2026): checked by a cheap call,
    * then written and published like Cron's event draft. `diff` is the build's condensed changes.
@@ -204,6 +206,7 @@ export type WriterJob =
           | 'treasure_watch'
           | 'treasure_post'
           | 'game_files_watch'
+          | 'steam_watch'
           | 'game_files_post';
       }
     >

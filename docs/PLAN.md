@@ -160,6 +160,8 @@ The AI makes the Telegram channel's content itself: news and rubric posts drafte
     starts once the owner sets GITHUB_TOKEN.
   Expected: about 1–2 posts a week outside patch weeks (07–22.10 gave: the Terrorblade arcana in the files, effect
   slots for abilities of 11 heroes, persona portraits in the hero grid, a Trove gifting notice).
+- The early signal of a Dota update from Steam's product info (owner, 24.10.2026: «смотри как тут лучше и сделай на
+  дев»): built on DEV (migration 0108, `docs/backend/sources.md` «Early signal…»); each change goes to the channel by itself.
 - Idea for after the release, not chosen (owner, 24.10.2026: «после, просто как идею зафиксируй»): prices of the Dota
   market as unique content — a new arcana's or treasure's price at release and a week later, weekly top movers, all
   arcanas by price with a 30-day trend, alerts (a 30/90-day low, a drop over 20% a day), store sales and Steam's ruble
@@ -180,6 +182,9 @@ The AI makes the Telegram channel's content itself: news and rubric posts drafte
 
 Many repeatable rubrics the AI drafts from the sources on its own schedule; the owner approves or edits. Their results
 show in Аналитика → «Рубрики Telegram».
+
+Idea, kept for later (owner, 24.10.2026): twice a week a new set from the Steam Workshop for the subscribers to rate
+(«вот новый сет из мастерской»), e.g. as a poll.
 
 Ideas from Liquipedia, kept for later (owner, 22.10.2026: recorded, not chosen):
 - «Чей сет?»: a treasure set's image without the hero and a poll with four heroes; the answer the next day, or a

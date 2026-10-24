@@ -25,6 +25,7 @@ import {
 import { runSeriesPublishStep } from './workflows/autopublish-series';
 import { runTreasureWatch } from './workflows/treasure-watch';
 import { gameFilesExternalId, prepareGameFilesPost, runGameFilesWatch } from './workflows/game-files';
+import { runSteamWatch } from './workflows/steam-watch';
 import { getOwnerOperationsSettings } from '../modules/settings';
 import { escapeHtml } from './notifications/notice-template';
 import type { AiJob, WriterJob } from './bot/ai-job';
@@ -331,6 +332,11 @@ export async function handleAiQueue(batch: MessageBatch<unknown>, container: Con
     }
     if (job.kind === 'game_files_watch') {
       await runGameFilesWatch(container, job, requestId, onError);
+      message.ack();
+      continue;
+    }
+    if (job.kind === 'steam_watch') {
+      await runSteamWatch(container, job, token, requestId, onError);
       message.ack();
       continue;
     }

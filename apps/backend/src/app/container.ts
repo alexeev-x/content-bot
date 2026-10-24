@@ -47,7 +47,12 @@ import {
   type TelegramOwnerMessageApi
 } from '../integrations/telegram/telegram-api';
 import { createGitHubRepoApi, type GitHubRepoApi } from '../integrations/github/github-api';
-import { createD1GameFileBuilds, type GameFileBuildRepository } from '../modules/game-files';
+import {
+  createD1GameFileBuilds,
+  createD1SteamApps,
+  type GameFileBuildRepository,
+  type SteamAppRepository
+} from '../modules/game-files';
 import type { AiJob } from './bot/ai-job';
 import { type BotIdentityStore, createD1BotIdentityStore } from './bot/bot-identity-store';
 import { createD1MediaImportStore, type MediaImportStore } from './bot/media-import-store';
@@ -212,6 +217,8 @@ export interface Container {
   treasureWatches: TreasureWatchRepository;
   /** The builds of the game's files already seen (migration 0107). */
   gameFileBuilds: GameFileBuildRepository;
+  /** What Steam last said about Dota's apps (migration 0108). */
+  steamApps: SteamAppRepository;
   /** The game-files tracker on GitHub; null without `GITHUB_TOKEN`, which only leaves the source off. */
   gameFilesRepo: GitHubRepoApi | null;
   dotaWatchlists: ReturnType<typeof createD1DotaWatchlists>;
@@ -561,6 +568,9 @@ export function createContainer(env: ContainerEnv, overrides: ContainerOverrides
     },
     get gameFileBuilds() {
       return createD1GameFileBuilds(db());
+    },
+    get steamApps() {
+      return createD1SteamApps(db());
     },
     get gameFilesRepo(): GitHubRepoApi | null {
       if (overrides.gameFilesRepo !== undefined) return overrides.gameFilesRepo;

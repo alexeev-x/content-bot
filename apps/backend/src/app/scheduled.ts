@@ -381,6 +381,16 @@ export async function handleScheduled(controller: ScheduledController, container
                 errorCode: error instanceof Error ? error.name : 'unknown'
               })
             );
+          // Steam's product info of Dota's apps, the early signal of an update (owner, 24.10.2026); needs no key.
+          await container.aiJobs
+            .send({ id: container.newId(), kind: 'steam_watch', chatId: ownerChat })
+            .catch((error: unknown) =>
+              logger.warn({
+                component: 'steam_watch',
+                operation: 'enqueue',
+                errorCode: error instanceof Error ? error.name : 'unknown'
+              })
+            );
           // The game-files watch the same way (owner, 24.10.2026); without its token the source is off and costs nothing.
           if (container.gameFilesRepo != null)
             await container.aiJobs
