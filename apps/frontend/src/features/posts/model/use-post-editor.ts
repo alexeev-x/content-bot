@@ -135,6 +135,9 @@ export function usePostEditor({
   const liveRichHtml = isRich ? postRichHtml(body, entities) : null;
   const richLost = isRich && liveRichHtml === null;
   const readOnly = baseline?.status === 'approved' || conflict?.kind === 'locked';
+  // A caption holds 1024 characters, a message 4096. A rich post goes as one message with its pictures inside, so it
+  // has no caption (owner, 24.10.2026: a rich post with a picture was called over the limit and went out fine).
+  const messageLimit = !isRich && baseline?.media.length ? 1024 : 4096;
   const isSaving = create.isPending || update.isPending;
   const isApproving = approve.isPending;
   const isBusy = isSaving || isApproving || mediaPending;
@@ -421,8 +424,8 @@ export function usePostEditor({
     setMediaPending,
     adoptMedia,
     length: messageLength(sentTitle, body),
-    messageLimit: baseline?.media.length ? 1024 : 4096,
-    overflow: messageOverflow(sentTitle, body, baseline?.media.length ? 1024 : 4096),
+    messageLimit,
+    overflow: messageOverflow(sentTitle, body, messageLimit),
     save,
     ensureDraftForMedia,
     approvePost,

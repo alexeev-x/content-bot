@@ -561,8 +561,27 @@ describe('a rich post', () => {
         return HttpResponse.json(post({ revision: 1, body: text, richHtml: rich }));
       })
     );
-    await openExisting({ body: text, richHtml: rich });
+    await openExisting({
+      body: `${text}\n${'Длинная строка. '.repeat(80)}`,
+      richHtml: rich,
+      media: [
+        {
+          id: '11111111-1111-4111-8111-111111111111',
+          sourceMediaId: null,
+          kind: 'photo' as const,
+          fileName: 'photo.jpg',
+          contentType: 'image/jpeg',
+          sizeBytes: 42,
+          width: 1,
+          height: 1,
+          durationMs: null,
+          position: 0
+        }
+      ]
+    });
     expect(bodyBox().getAttribute('contenteditable')).toBe('true');
+    // A picture inside a rich post is no caption: the 4096 message limit holds, not the caption's 1024.
+    expect(screen.queryByText(/длиннее лимита/u)).toBeNull();
 
     // A multi-line text reads back without its line breaks, so the preview is what is checked.
     const paste = async (value: string) => {
