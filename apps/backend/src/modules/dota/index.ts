@@ -1821,7 +1821,6 @@ export {
   type TreasureWatchRepository
 } from './treasure-watch-repository';
 export {
-  HOTFIX_PICTURE_POINTS,
   isHotfixTitle,
   type PatchDigest,
   patchNotesText,

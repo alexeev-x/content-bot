@@ -102,6 +102,3 @@ export function patchPicturePoints(digest: PatchDigest): string[] {
   ]);
   return [...points, ...extras].slice(0, 4);
 }
-
-/** A hotfix's only point: Valve lists fixes in it. */
-export const HOTFIX_PICTURE_POINTS: readonly string[] = ['Исправления ошибок'];

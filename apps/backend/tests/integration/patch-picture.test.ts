@@ -3,6 +3,7 @@ import {
   type AiImageProvider,
   type AiTextProvider,
   createD1AiRepository,
+  drawHotfixPicture,
   drawPatchPicture,
   updateAiSettings
 } from '../../src/modules/ai';
@@ -21,7 +22,8 @@ let prompts: string[];
 const images: AiImageProvider = {
   provider: 'openai',
   draw: async ({ references, prompt }) => {
-    expect(references.length).toBe(4);
+    // The patch cover's four references, the hotfix cover's three (owner, 24.10.2026).
+    expect(references.length).toBe(prompt.includes('update cover') ? 3 : 4);
     prompts.push(prompt);
     draws += 1;
     return {
@@ -154,6 +156,66 @@ describe('a patch picture', () => {
   it('is never drawn without a provider to read it back', async () => {
     expect(await draw(null)).toEqual({ kind: 'failed', reason: 'unavailable' });
     expect(draws).toBe(0);
+  });
+});
+
+describe('a hotfix picture', () => {
+  const hotfixDeps = (provider: AiTextProvider) => ({
+    repo: createD1AiRepository(testDb()),
+    clock: fakeClock(),
+    timezone: 'UTC',
+    newId: () => crypto.randomUUID(),
+    provider,
+    images
+  });
+  /** Answers the scene call with `scene`, then reads every picture back as `read`. */
+  const scening = (scene: string, read: { number: string; captions: string[] }, asked: string[]): AiTextProvider => ({
+    provider: 'openai',
+    complete: async (request) => {
+      if (request.images === undefined) {
+        asked.push(request.input);
+        return { text: scene, model: 'gpt-6-luna', usage: USAGE };
+      }
+      reads.push({ images: request.images.length });
+      return { text: JSON.stringify(read), model: 'gpt-6.1-sol', usage: USAGE };
+    }
+  });
+
+  it('shows «ОБНОВЛЕНИЕ» and the caption over a scene of what is current, never a character', async () => {
+    const asked: string[] = [];
+    const result = await drawHotfixPicture(
+      hotfixDeps(
+        scening(
+          JSON.stringify({ scene: 'a night forest with carnival tents and lanterns', caption: 'Тёмный карнавал' }),
+          { number: 'Обновление', captions: ['ТЕМНЫЙ КАРНАВАЛ'] },
+          asked
+        )
+      ),
+      { about: 'Dota 2 Update\nFixed The Dark Carnival rewards', recent: ['The Dark Carnival', 'Trove of Terror'] }
+    );
+    expect(result).toMatchObject({ kind: 'drawn', contentType: 'image/jpeg', theme: null });
+    expect(asked[0]).toContain('The Dark Carnival; Trove of Terror');
+    expect(prompts).toHaveLength(1);
+    expect(prompts[0]).toContain('a night forest with carnival tents and lanterns');
+    expect(prompts[0]).toContain('"ОБНОВЛЕНИЕ"');
+    expect(prompts[0]).toContain('"ТЁМНЫЙ КАРНАВАЛ"');
+    expect(prompts[0]).toContain('No characters anywhere');
+  });
+
+  it('keeps the references’ look and «Исправления ошибок» when the scene answer is unusable', async () => {
+    const result = await drawHotfixPicture(
+      hotfixDeps(
+        scening(
+          JSON.stringify({ scene: 'a valley', caption: 'Fixes!' }),
+          { number: 'ОБНОВЛЕНИЕ', captions: ['ИСПРАВЛЕНИЯ ОШИБОК'] },
+          []
+        )
+      ),
+      { about: 'Dota 2 Update', recent: [] }
+    );
+    expect(result).toMatchObject({ kind: 'drawn' });
+    expect(prompts[0]).toContain('"ИСПРАВЛЕНИЯ ОШИБОК"');
+    expect(prompts[0]).not.toContain('Background: a valley.');
   });
 });
 
