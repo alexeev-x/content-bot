@@ -1,16 +1,29 @@
 import {
+  checkDestinationInputSchema,
   createDestinationInputSchema,
   listDestinationsQuerySchema,
+  scheduledPublicationCountSchema,
   updateDestinationInputSchema
 } from '@alexeev/contracts';
 import { Hono } from 'hono';
 import { z } from 'zod';
-import { createDestination, getDestination, listDestinations, updateDestination } from '../modules/publishing';
+import {
+  checkDestination,
+  createDestination,
+  getDestination,
+  getScheduledPublicationCount,
+  listDestinations,
+  updateDestination
+} from '../modules/publishing';
 import { AppError } from '../shared/app-error';
 import type { AppBindings } from './env';
+import { rateLimit } from './rate-limit';
 import { limitBody, validated } from './validation';
 
 const MAX_BODY_BYTES = 8 * 1024;
+// Each check costs up to three Telegram requests, so it has its own, tighter bucket.
+const CHECK_LIMIT = 20;
+const CHECK_WINDOW_MS = 10 * 60 * 1000;
 
 const idempotencyHeaderSchema = z.object({ 'idempotency-key': z.string().min(1).max(255) });
 const idParamSchema = z.object({ id: z.string() });
@@ -22,6 +35,21 @@ function destinationId(raw: string): string {
 }
 
 export const destinationsRoutes = new Hono<AppBindings>()
+  .post(
+    '/check',
+    rateLimit({ name: 'destination-check', limit: CHECK_LIMIT, windowMs: CHECK_WINDOW_MS }),
+    limitBody(MAX_BODY_BYTES),
+    validated('json', checkDestinationInputSchema),
+    async (c) => {
+      const container = c.get('container');
+      return c.json(
+        await checkDestination(
+          { inspector: container.chatInspector, repo: container.destinations },
+          c.req.valid('json')
+        )
+      );
+    }
+  )
   .post(
     '/',
     limitBody(MAX_BODY_BYTES),
@@ -51,6 +79,14 @@ export const destinationsRoutes = new Hono<AppBindings>()
   .get('/:id', validated('param', idParamSchema), async (c) => {
     const id = destinationId(c.req.valid('param').id);
     return c.json(await getDestination({ repo: c.get('container').destinations }, id));
+  })
+  .get('/:id/scheduled-count', validated('param', idParamSchema), async (c) => {
+    const container = c.get('container');
+    const dto = await getScheduledPublicationCount(
+      { repo: container.destinations },
+      destinationId(c.req.valid('param').id)
+    );
+    return c.json(scheduledPublicationCountSchema.parse(dto));
   })
   .patch(
     '/:id',

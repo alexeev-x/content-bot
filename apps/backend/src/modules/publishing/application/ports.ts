@@ -1,23 +1,88 @@
-import type { DestinationKind, PublicationStatus } from '@alexeev/contracts';
+import type {
+  DestinationKind,
+  EligibleObservationPublicationDto,
+  EligibleObservationPublicationsQuery,
+  ManualObservationDto,
+  ManualObservationInput,
+  ManualObservationQuery,
+  PostEntity,
+  PostKind,
+  PostMediaDto,
+  PostPoll,
+  PostSendOptions,
+  PublicationAnalyticsQuery,
+  PublicationAnalyticsReportDto,
+  PublicationDto,
+  PublicationStatus
+} from '@alexeev/contracts';
 import type { IdempotencyClaim } from '../../../platform/idempotency/d1-idempotency-store';
+import type { PostingProblem } from '../domain/bot-posting-rights';
 import type { SchedulablePost } from '../domain/schedulable';
 import type { JobSnapshot } from '../domain/status-projection';
 
 // The interface belongs to the consumer (docs/BACKEND_ARCHITECTURE.md §4).
 export type SendOutcome =
-  | { kind: 'sent'; externalMessageId: string }
+  | { kind: 'sent'; externalMessageIds: string[] }
   | { kind: 'rate_limited'; retryAfterSec: number } // 429: Telegram refused, nothing was published
   | { kind: 'rejected'; code: 'CHAT_MIGRATED' | 'CONTENT_INVALID' | 'DESTINATION_UNAVAILABLE' | 'BOT_UNAUTHORIZED' }
   | { kind: 'unknown'; reason: string }; // timeout, network, 5xx, ok without message_id
 
 export interface PublicationTransport {
-  /** `text` is Telegram HTML (see domain/format-message.ts); the adapter owns parse mode, previews and the timeout. */
-  send(input: { chatId: string; text: string; imageKey?: string }): Promise<SendOutcome>;
+  /** `text` is plain text and `entities` its UTF-16 ranges (see domain/format-message.ts); the adapter owns previews and the timeout. */
+  send(input: {
+    chatId: string;
+    text: string;
+    entities: PostEntity[];
+    media: readonly PublicationMedia[];
+    options: PostSendOptions;
+    /** When set the message is a native poll and `text`, `entities` and `media` are not used. */
+    poll: PostPoll | null;
+    /**
+     * When set the message is a rich message (Bot API 10.1) with this HTML; `text` and `entities` are not used and
+     * `media` are its uploads, named `tg://photo?id=p1`… by position (contracts post-rich.ts).
+     */
+    richHtml: string | null;
+  }): Promise<SendOutcome>;
+}
+
+export interface PublicationMedia {
+  kind: 'photo' | 'video' | 'animation';
+  fileName: string;
+  contentType: string;
+  /** The stored file's size: the send's time bound grows with it. */
+  sizeBytes: number;
+  body: ReadableStream<Uint8Array>;
+}
+
+/**
+ * Tells the owner that a publication was scheduled or moved. It is not the publishing transport and
+ * never touches job state. Called once, after the D1 write that made the change, and never for a
+ * replay. An implementation must not throw or block: the change already happened.
+ */
+export interface ScheduleNotifier {
+  scheduled(publication: PublicationDto): void;
+  rescheduled(publication: PublicationDto): void;
+  cancelled(publication: PublicationDto): void;
 }
 
 /** The approved revision a publication sends; `app/container.ts` backs it with the content module. */
 export interface PostRevisionSource {
-  findRevision(postId: string, revision: number): Promise<{ title: string; body: string } | null>;
+  findRevision(
+    postId: string,
+    revision: number
+  ): Promise<{
+    title: string;
+    /** False for a post created without a title: only the body is sent (owner, 16.10.2026). */
+    titleInMessage: boolean;
+    body: string;
+    entities: PostEntity[];
+    kind: PostKind;
+    poll: PostPoll | null;
+    sendOptions: PostSendOptions;
+    /** The approved rich format, sent with sendRichMessage instead of `body` (migration 0103); null for a classic post. */
+    richHtml: string | null;
+    media: readonly PublicationMedia[];
+  } | null>;
 }
 
 export interface ClaimedJob {
@@ -31,6 +96,7 @@ export interface DispatchTarget {
   postId: string;
   postRevision: number;
   chatId: string;
+  destinationTitle: string;
   destinationEnabled: boolean;
 }
 
@@ -52,6 +118,34 @@ export interface JobIncident {
   details: Record<string, string | number>;
 }
 
+/**
+ * An incident whose write was applied, handed back to the caller so the owner can be told after the
+ * state change. The titles are what the dispatcher already had in hand (null when the incident came
+ * before they were loaded, or from reconcile, which loads nothing): telling the owner costs no extra read.
+ */
+export interface RaisedIncident {
+  id: string;
+  kind: JobIncident['kind'];
+  code: string;
+  publicationId: string | null;
+  postTitle: string | null;
+  channelTitle: string | null;
+}
+
+export interface OwnerIncidentAlertGroup {
+  groupKey: string;
+  kind: JobIncident['kind'];
+  code: string;
+  publicationId: string | null;
+  postTitle: string | null;
+  channelTitle: string | null;
+  firstSeenAt: number;
+  lastSeenAt: number;
+  occurrenceCount: number;
+  recovery: boolean;
+  recoveredAt: number | null;
+}
+
 /** Everything one guarded batch writes when an attempt ends. */
 export interface JobResolution {
   jobId: string;
@@ -66,6 +160,7 @@ export interface JobResolution {
   errorCode: string | null;
   retryAfterSec: number | null;
   externalMessageId: string | null;
+  externalMessageIds?: readonly string[] | null;
   incident: JobIncident | null;
   auditAction: string;
 }
@@ -94,6 +189,22 @@ export interface DispatchRepository {
   findExpiredClaims(now: number, limit: number): Promise<ExpiredClaim[]>;
   /** One batch for all of them; each is guarded by an expired lease, the same attempt and the same send mark. */
   resolveExpired(items: readonly ExpiredResolution[], now: number): Promise<boolean[]>;
+  /**
+   * The conditional claim of the owner alert: sets `owner_notified_at` where it is still NULL and
+   * returns the ids this call set. An id missing from the result was claimed by another tick (or does
+   * not exist): the caller must not alert for it. One statement for all ids.
+   */
+  claimOwnerNotices(incidentIds: readonly string[], now: number): Promise<string[]>;
+  /** Returns a small priority-ordered page of active alert groups or newly recovered groups. */
+  /** Deletes only bounded rows whose one-shot recovery claim is already durable. */
+  purgeOwnerIncidentAlertGroups(limit: number): Promise<number>;
+  listOwnerIncidentAlertGroups(now: number, limit: number): Promise<OwnerIncidentAlertGroup[]>;
+  /** Conditional, one-shot claim. `recovery` selects the recovery state transition. */
+  claimOwnerIncidentAlertGroup(groupKey: string, now: number, recovery: boolean): Promise<boolean>;
+  /** Records confirmed delivery; a crash/ambiguous send deliberately leaves the claim unconfirmed. */
+  markOwnerIncidentAlertSent(groupKey: string, sentAt: number): Promise<void>;
+  /** How many incidents are unresolved, counted up to `limit` (so the read is bounded). */
+  countOpenIncidents(limit: number): Promise<number>;
 }
 
 /** What publishing needs to know about a post; `app/container.ts` backs it with the content module. */
@@ -154,13 +265,33 @@ export interface DestinationChange {
   now: number;
 }
 
+/** What Telegram says about a chat the owner may add, and whether this bot can post there. */
+export interface ChatInspection {
+  /** Canonical numeric id. */
+  chatId: string;
+  username: string | null;
+  title: string;
+  kind: DestinationKind;
+  botCanPost: boolean;
+  problem: PostingProblem | null;
+}
+
+export interface ChatInspector {
+  /** Read-only. Throws `AppError`: NOT_FOUND CHAT_NOT_FOUND, VALIDATION_ERROR NOT_A_CHANNEL_OR_GROUP, RATE_LIMIT, UNAVAILABLE. */
+  inspect(chatId: string): Promise<ChatInspection>;
+}
+
 export interface DestinationRepository {
+  /** The destination saved under the numeric chat id or the `@username` (case-insensitive), or null. */
+  findIdByChat(chat: { chatId: string; username: string | null }): Promise<string | null>;
   /**
    * Writes the destination, the audit row and the idempotency result in one batch.
    * `claim_lost`: the idempotency claim is no longer ours and nothing was written.
    */
   create(input: NewDestination): Promise<'created' | 'claim_lost' | 'chat_id_taken'>;
   findById(id: string): Promise<DestinationRecord | null>;
+  /** Future pending publication intents for a destination, read directly from the stored schedule. */
+  countWaiting(destinationId: string): Promise<number>;
   list(query: ListDestinationsQuery): Promise<DestinationRecord[]>;
   /** `not_applied`: the revision guard did not hold (or the destination does not exist). */
   update(
@@ -178,11 +309,31 @@ export interface PublicationRecord {
   timezone: string;
   revision: number;
   externalMessageId: string | null;
+  externalMessageIds?: string[] | null;
   lastErrorCode: string | null;
   createdAt: number;
   updatedAt: number;
   /** The publication's job: delivery state has exactly one owner. */
   job: JobSnapshot;
+  /** True once the owner deleted the post; the publication stays as history. */
+  postDeleted?: boolean;
+  /** Its place in a series (migration 0098); null or absent for a single publication. */
+  series?: {
+    id: string;
+    position: number;
+    total: number;
+    /** Waits for the previous post's job: until it succeeded (`previousDoneAt`) and `gapMs` passed since. */
+    blocked: boolean;
+    previousDoneAt: number | null;
+    gapMs: number;
+  } | null;
+  /** The revision that was sent; set only with `postDeleted`, and only by the read paths that list or open it. */
+  postSnapshot?: {
+    title: string;
+    body: string;
+    entities: PostEntity[];
+    media: PostMediaDto[];
+  };
 }
 
 export interface NewPublication {
@@ -199,11 +350,35 @@ export interface NewPublication {
   response: StoredResponse;
 }
 
+/** A series written in one batch: all of its publications or none (migration 0098). */
+export interface NewPublicationSeries {
+  seriesId: string;
+  destinationId: string;
+  timezone: string;
+  /** The least time between one post going out and the next. */
+  gapMs: number;
+  /** In series order; each later one waits for the job of the one before it. */
+  items: { id: string; jobId: string; postId: string; postRevision: number; scheduledAt: number }[];
+  now: number;
+  actor: string;
+  idempotency: IdempotencyRef;
+  response: StoredResponse;
+}
+
 export interface ListPublicationsQuery {
   status?: PublicationStatus;
+  statusGroup?: 'errors';
   postId?: string;
   destinationId?: string;
+  q?: string;
+  /** Inclusive UTC lower bound for scheduledAt. */
+  from?: number;
+  /** Exclusive UTC upper bound for scheduledAt. */
+  to?: number;
+  order?: 'asc' | 'desc';
   after?: { scheduledAt: number; id: string };
+  /** Rows to skip for page-number pagination; mutually exclusive with `after`. */
+  offset?: number;
   limit: number;
   /** Separates `scheduled` from `queued` for pending jobs. */
   now: number;
@@ -216,15 +391,57 @@ export interface PublicationChange {
   now: number;
 }
 
+export interface PublicationDeleteItem {
+  id: string;
+  revision: number;
+}
+
+export type PublicationDeleteRefusal =
+  'NOT_FOUND' | 'STALE_REVISION' | 'NOT_FINAL' | 'PUBLICATION_IN_PROGRESS' | 'PUBLICATION_UNKNOWN';
+
+export type PublicationDeleteOutcome =
+  { id: string; outcome: 'deleted' } | { id: string; outcome: 'refused'; reason: PublicationDeleteRefusal };
+
 export interface PublicationRescheduleChange extends PublicationChange {
   scheduledAt: number;
   timezone: string;
 }
 
+/** What the owner found in the channel for an `unknown` send. */
+export type PublicationUnknownResolution =
+  | { outcome: 'sent'; externalMessageIds: string[] }
+  | { outcome: 'resend'; scheduledAt: number; timezone: string }
+  | { outcome: 'cancel' };
+
+export type PublicationResolveUnknownChange = PublicationChange & { resolution: PublicationUnknownResolution };
+
 /** `current` is read in the same atomic batch as the write, so it explains why `applied` is false. */
 export interface PublicationChangeOutcome {
   applied: boolean;
   current: PublicationRecord | null;
+}
+
+/** What one post's publications amount to (the read model behind the post list and the delete dialog). */
+export interface PostPublicationSummary {
+  counts: Record<PublicationStatus, number>;
+  /** The earliest `scheduledAt` among scheduled, queued and retry_wait publications, and where it goes. */
+  nextScheduled: { scheduledAt: number; destinationId: string } | null;
+  /** The latest time a publication of the post was confirmed sent. */
+  lastSentAt: number | null;
+  /** Destinations of publications that are live or went out (not failed, not cancelled), by title. */
+  destinations: { id: string; title: string }[];
+}
+
+export interface PublicationHistoryRows {
+  /** `publication.create|reschedule|cancel|resolve_unknown` rows; `details` is the stored JSON metadata. */
+  audit: { at: number; action: string; details: string | null }[];
+  attempts: {
+    attempt: number;
+    finishedAt: number;
+    outcome: string;
+    errorCode: string | null;
+    retryAfter: number | null;
+  }[];
 }
 
 export interface PublicationRepository {
@@ -234,8 +451,144 @@ export interface PublicationRepository {
    * Returns false when a guard or the idempotency claim no longer holds; nothing was written.
    */
   create(input: NewPublication): Promise<boolean>;
+  /** False when any guard refused one of its publications: then nothing was written. */
+  createSeries(input: NewPublicationSeries): Promise<boolean>;
+  /** A publication of this post to this channel is scheduled, queued, sending or unknown (no duplicate in flight). */
+  hasLivePublication(postId: string, destinationId: string): Promise<boolean>;
+  /**
+   * Publications this actor created since `since` (UTC ms), a series counted once, from the audit log: the automatic
+   * publishing's daily limit.
+   */
+  countCreatedBy(actor: string, since: number): Promise<number>;
+  /** Whether any of these posts has a publication at all, sent or not (the automatic series never doubles one). */
+  hasAnyPublication(postIds: readonly string[]): Promise<boolean>;
   findById(id: string): Promise<PublicationRecord | null>;
+  /** Owner actions and send attempts of one publication, oldest first; null when it does not exist. */
+  history(id: string, limit: number): Promise<PublicationHistoryRows | null>;
   list(query: ListPublicationsQuery): Promise<PublicationRecord[]>;
+  listPage(query: ListPublicationsQuery): Promise<{
+    items: PublicationRecord[];
+    totalCount: number;
+    statusCounts: Record<PublicationStatus, number>;
+  }>;
   reschedule(change: PublicationRescheduleChange): Promise<PublicationChangeOutcome>;
   cancel(change: PublicationChange): Promise<PublicationChangeOutcome>;
+  /**
+   * Manual reconciliation: applies only to a job in `unknown` and a publication at the expected
+   * revision, and also closes the open incidents of the job. Never sends anything.
+   */
+  resolveUnknown(change: PublicationResolveUnknownChange): Promise<PublicationChangeOutcome>;
+  /** Removes only final publication rows; attempts and incidents remain as history, with live links detached. */
+  deleteFinal(input: {
+    items: readonly PublicationDeleteItem[];
+    actor: string;
+    now: number;
+  }): Promise<PublicationDeleteOutcome[]>;
+  /**
+   * One grouped read for up to 100 posts. Posts without publications are absent from the map. `now`
+   * separates `scheduled` from `queued`.
+   */
+  summarizeByPost(postIds: readonly string[], now: number): Promise<Map<string, PostPublicationSummary>>;
+}
+
+/** Read-only report over immutable snapshots written by publication resolution batches. */
+export interface PublicationAnalyticsRepository {
+  read(query: PublicationAnalyticsQuery, observedAt: number): Promise<PublicationAnalyticsReportDto>;
+  listEligiblePublications(query: EligibleObservationPublicationsQuery): Promise<{
+    items: EligibleObservationPublicationDto[];
+    nextCursor: string | null;
+  }>;
+  listObservations(
+    query: ManualObservationQuery
+  ): Promise<{ items: ManualObservationDto[]; nextCursor: string | null }>;
+  createObservation(input: {
+    id: string;
+    actor: string;
+    now: number;
+    observation: ManualObservationInput;
+    idempotency: IdempotencyRef;
+  }): Promise<ManualObservationDto | null>;
+}
+
+/** The publication an incident is about, as one row of the incident list shows it. */
+export interface IncidentPublication {
+  id: string;
+  /** Truncated by the repository. */
+  postTitle: string;
+  destinationName: string;
+  /** UTC epoch milliseconds. */
+  scheduledAt: number;
+  job: JobSnapshot;
+}
+
+export interface IncidentRecord {
+  id: string;
+  kind: JobIncident['kind'];
+  code: string;
+  /** UTC epoch milliseconds. */
+  createdAt: number;
+  resolvedAt: number | null;
+  jobId: string | null;
+  attemptCount: number;
+  publication: IncidentPublication | null;
+}
+
+export interface ListIncidentsQuery {
+  state: 'open' | 'resolved';
+  kind?: JobIncident['kind'];
+  /** Open: after (createdAt, id); resolved: after (resolvedAt, id). */
+  after?: { at: number; id: string };
+  limit: number;
+}
+
+export interface IncidentRepository {
+  /** One batch: the page (read as `limit` rows, the caller asks for one more) and the capped open count. */
+  list(query: ListIncidentsQuery): Promise<{ items: IncidentRecord[]; openCount: number }>;
+  /**
+   * Acknowledges a `publish_failed` incident that is still open and writes one audit row, in one
+   * guarded batch; any other state changes nothing. Returns the incident as it stands after the batch
+   * (so a repeat answers with the same row), or null when it does not exist.
+   */
+  acknowledgeFailed(input: { id: string; actor: string; now: number }): Promise<IncidentRecord | null>;
+}
+
+export interface DashboardPublicationRow {
+  publicationId: string;
+  /** UTC epoch milliseconds. */
+  scheduledAt: number;
+  /** Truncated by the repository. */
+  postTitle: string;
+  destinationName: string;
+  job: JobSnapshot;
+}
+
+/** An open incident (with its publication, absent in the unreachable case of none) or a stuck publication (no incident). */
+export interface DashboardAttentionRow {
+  incident: { id: string; kind: JobIncident['kind']; code: string; createdAt: number } | null;
+  publication: DashboardPublicationRow | null;
+}
+
+export interface DashboardSentRow extends DashboardPublicationRow {
+  /** The publication's last write: the confirmation of the send. */
+  updatedAt: number;
+  externalMessageId: string | null;
+  /** The destination's chat id as saved: a numeric id or a public `@username`. */
+  chatId: string;
+}
+
+/** What the five dashboard statements return; the use case projects statuses and builds links. */
+export interface DashboardSnapshot {
+  attention: DashboardAttentionRow[];
+  /** Open incidents, counted up to a cap. */
+  openIncidents: number;
+  stuck: number;
+  today: DashboardPublicationRow[];
+  todayTotal: number;
+  upcoming: DashboardPublicationRow[];
+  recentSent: DashboardSentRow[];
+}
+
+export interface DashboardRepository {
+  /** Exactly one batch of five bounded statements. */
+  read(range: { from: number; to: number; stuckBefore: number }): Promise<DashboardSnapshot>;
 }

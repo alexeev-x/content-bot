@@ -394,7 +394,7 @@ describe('POST /auth/refresh with a Mini App Bearer token', () => {
 
   it('limits refresh attempts', async () => {
     const api = createApi();
-    for (let i = 0; i < 30; i++) expect((await refresh(api)).status).toBe(401);
+    for (let i = 0; i < 120; i++) expect((await refresh(api)).status).toBe(401);
     await expectError(await refresh(api), 429, 'RATE_LIMIT');
   });
 });

@@ -10,8 +10,9 @@ Foundation: use a native element first and ARIA only when nothing native fits (n
 - Use the `shared/ui` Dialog (React Aria `Modal` + `Dialog`): it handles the inert background, Esc and focus. Give it a heading (`slot="title"`); destructive confirmations use `role="alertdialog"`.
 - Initial focus goes to the least destructive control, or to the title when the content is long. Focus returns to the trigger on close. Never nest dialogs.
 
-## Destructive or irreversible action
-- The dialog names the object and the consequence: «Отменить публикацию "Герой дня" на 14:30?». Buttons say the verb («Отменить публикацию» / «Не отменять»), never «OK» or «Да».
+## Destructive or impactful action (owner rule 14.10.2026)
+- Every delete, sign-out, cancel, pause, close, unwatch or other action whose effect the owner may regret opens a `ConfirmDialog` first. Reversible view toggles (filters, «Пропустить» on a source event) do not.
+- The dialog names the object and states exactly what happens and what does not: «Удалить «файл»? Уберётся из 2 черновиков…». Buttons: «Да, <глагол>» / «Нет», never a bare «OK» or «Да».
 - Never focus the destructive button by default. For `unknown`, add an explicit duplicate-post warning.
 - Show the result only after the server confirms it. No optimistic success.
 
@@ -33,6 +34,7 @@ Foundation: use a native element first and ARIA only when nothing native fits (n
 
 ## Loading, empty and error
 - Loading: a skeleton that matches the final layout, with `aria-busy` on the region and no layout jump.
+- Skeleton = the page layout (real rows, heights); one for `RouteSkeleton` and query state.
 - Empty: explain why and offer one primary action. Distinguish "no data yet" from "filters hide everything" (which offers «Сбросить фильтры»).
 - Error: short text, the `requestId`, and retry only for safe reads. A 403 shows no data.
 
@@ -42,8 +44,8 @@ Foundation: use a native element first and ARIA only when nothing native fits (n
 - Announce only user-relevant changes, batched in one polite region.
 
 ## Date, time and timezone
-- Store UTC. Display in an explicit zone with its offset: «14:30, Europe/Chisinau (UTC+3)».
-- Input with the `shared/ui` DatePicker/TimeField (React Aria + `ZonedDateTime` from `@internationalized/date`, `I18nProvider locale="ru-RU"`). Show the resulting UTC as a hint. Validate that the time is in the future, and warn about DST gaps and overlaps.
+- Store UTC. Display every time in the owner's zone (Settings) WITHOUT naming the zone or offset: «14:30». The zone is shown only in Settings (owner decision 14.10.2026).
+- Input with the `shared/ui` DatePicker/TimeField (React Aria + `ZonedDateTime` from `@internationalized/date`, `I18nProvider locale="ru-RU"`). No UTC hint. Validate that the time is in the future, and warn about DST gaps and overlaps.
 - Format with `Intl.DateTimeFormat` and an explicit `timeZone`. Never write a bare "local time".
 
 ## Tabs, menus, disclosure

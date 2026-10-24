@@ -10,10 +10,12 @@ import { useState } from 'react';
 import { createIdempotencyTracker } from '../../../shared/api/idempotency';
 import { nextCursor } from '../../../shared/api/query-string';
 import {
+  checkDestination,
   createDestination,
   getDestination,
   listDestinations,
   updateDestination,
+  type CheckDestinationBody,
   type CreateDestinationBody,
   type DestinationFilters,
   type UpdateDestinationBody
@@ -77,5 +79,13 @@ export function useUpdateDestination() {
     mutationFn: ({ id, input }: { id: string; input: UpdateDestinationBody }) => updateDestination(id, input),
     retry: false,
     onSuccess: (destination) => applyServerDestination(queryClient, destination)
+  });
+}
+
+/** No cache write: a check is a point-in-time answer from Telegram, and the caller keeps it only in its own state. */
+export function useCheckDestination() {
+  return useMutation({
+    mutationFn: (input: CheckDestinationBody) => checkDestination(input),
+    retry: false
   });
 }

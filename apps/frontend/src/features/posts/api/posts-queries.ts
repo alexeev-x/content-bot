@@ -6,18 +6,31 @@ import {
   useQueryClient,
   type QueryClient
 } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { createIdempotencyTracker } from '../../../shared/api/idempotency';
+import { keepPreviousRows } from '../../../shared/api/page-query';
 import { nextCursor } from '../../../shared/api/query-string';
+import { PICTURES_POLL_MS, picturesPending } from '../model/pictures-pending';
+import { attachLibraryMedia } from './post-media-api';
 import {
   approvePost,
   createPost,
+  deletePost,
+  deletePosts,
   getPost,
   listPosts,
+  restorePost,
+  restorePosts,
+  returnPostToDraft,
   updatePost,
   type ApprovePostBody,
+  type BulkDeletePostsBody,
+  type BulkRestorePostsBody,
   type CreatePostBody,
+  type DeletePostBody,
   type PostFilters,
+  type RestorePostBody,
+  type ReturnPostToDraftBody,
   type UpdatePostBody
 } from './posts-api';
 
@@ -39,11 +52,31 @@ export function postsInfiniteQueryOptions(filters: PostFilters = {}) {
   });
 }
 
+/** One numbered page. Searching, sorting or switching a tab keeps the previous rows on screen until the new ones arrive. */
+export function postsPageQueryOptions(filters: PostFilters, page: number) {
+  return queryOptions({
+    queryKey: [...postKeys.lists(), 'page', filters, page] as const,
+    queryFn: ({ signal }) => listPosts(filters, undefined, signal, page),
+    staleTime: 30_000,
+    placeholderData: keepPreviousRows
+  });
+}
+
+/** Warms page 1 of every tab so a tab switch is served from the cache. */
+export function usePrefetchPostTabs(tabs: readonly PostFilters[]): void {
+  const queryClient = useQueryClient();
+  useEffect(() => {
+    for (const filters of tabs) void queryClient.prefetchQuery(postsPageQueryOptions(filters, 1));
+  }, [queryClient, tabs]);
+}
+
 export function postQueryOptions(id: string) {
   return queryOptions({
     queryKey: postKeys.detail(id),
     queryFn: ({ signal }) => getPost(id, signal),
-    staleTime: 30_000
+    staleTime: 30_000,
+    // While the bot attaches its pictures the post is read again, so it unlocks soon after they arrive.
+    refetchInterval: (query) => (picturesPending(query.state.data) ? PICTURES_POLL_MS : false)
   });
 }
 
@@ -71,6 +104,79 @@ export function useCreatePost() {
   });
 }
 
+type DuplicateOperation = {
+  fingerprint: string;
+  idempotencyKey: string;
+  createdId?: string;
+};
+
+/** Creates a draft copy and resumes a partially completed copy instead of creating another post. */
+export function useDuplicatePost() {
+  const queryClient = useQueryClient();
+  const [tracker] = useState(createIdempotencyTracker);
+  const operations = useRef(new Map<string, DuplicateOperation>());
+  return useMutation({
+    mutationFn: async (source: PostDto): Promise<PostDto> => {
+      const mediaIds = source.media.map((media) => media.id);
+      // An untitled post's `title` is only its studio name: sending it would give the copy a bold title line
+      // that repeats the text. Only a post that has a title passes it on.
+      const input: CreatePostBody = {
+        ...(source.titleInMessage ? { title: source.title } : {}),
+        body: source.body,
+        entities: source.entities
+      };
+      const fingerprint = JSON.stringify({ sourceId: source.id, input, mediaIds });
+      let operation = operations.current.get(source.id);
+      if (!operation || operation.fingerprint !== fingerprint) {
+        operation = { fingerprint, idempotencyKey: tracker.keyFor(fingerprint) };
+        operations.current.set(source.id, operation);
+      }
+
+      let copy = operation.createdId ? await getPost(operation.createdId) : undefined;
+      if (!copy) {
+        copy = await createPost(input, operation.idempotencyKey);
+        operation.createdId = copy.id;
+        tracker.release(operation.idempotencyKey);
+      }
+
+      if (
+        copy.status !== 'draft' ||
+        (input.title !== undefined && copy.title !== input.title) ||
+        copy.titleInMessage !== source.titleInMessage ||
+        copy.body !== input.body ||
+        JSON.stringify(copy.entities) !== JSON.stringify(input.entities)
+      ) {
+        operations.current.delete(source.id);
+        throw new Error('The copied draft changed before duplication completed');
+      }
+
+      const attachedIds = copy.media.map((media) => media.id);
+      if (!sameIds(attachedIds, mediaIds)) {
+        if (attachedIds.length !== 0 || mediaIds.length === 0) {
+          operations.current.delete(source.id);
+          throw new Error('The copied draft media changed before attachment completed');
+        }
+        const attached = await attachLibraryMedia(copy.id, copy.revision, mediaIds);
+        copy = { ...copy, media: attached.media, revision: attached.revision };
+      }
+      return copy;
+    },
+    retry: false,
+    onSuccess: (post, source) => {
+      operations.current.delete(source.id);
+      queryClient.setQueryData(postKeys.detail(post.id), post);
+      void queryClient.invalidateQueries({ queryKey: postKeys.lists() });
+    },
+    onError: (_error, _source) => {
+      void queryClient.invalidateQueries({ queryKey: postKeys.lists() });
+    }
+  });
+}
+
+function sameIds(left: readonly string[], right: readonly string[]): boolean {
+  return left.length === right.length && left.every((id, index) => id === right[index]);
+}
+
 /** 409 (STALE_REVISION, NOT_EDITABLE) rejects the mutation and touches no cache: local edits stay. */
 export function useUpdatePost() {
   const queryClient = useQueryClient();
@@ -87,5 +193,74 @@ export function useApprovePost() {
     mutationFn: ({ id, input }: { id: string; input: ApprovePostBody }) => approvePost(id, input),
     retry: false,
     onSuccess: (post) => applyServerPost(queryClient, post)
+  });
+}
+
+export function useReturnPostToDraft() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, input }: { id: string; input: ReturnPostToDraftBody }) => returnPostToDraft(id, input),
+    retry: false,
+    onSuccess: (post) => applyServerPost(queryClient, post)
+  });
+}
+
+// A deleted post takes its publication records with it, so publication lists and details go stale too. The key is
+// the publications feature's public root key; features never import each other.
+const PUBLICATIONS_KEY = ['publications'] as const;
+// «Источники» shows an event's draft; a deleted one must not stay behind as «Открыть черновик» (owner, 21.10.2026).
+const SOURCE_EVENTS_KEY = ['source-events'] as const;
+
+function forgetPosts(queryClient: QueryClient, ids: readonly string[]): void {
+  for (const id of ids) queryClient.removeQueries({ queryKey: postKeys.detail(id) });
+  void queryClient.invalidateQueries({ queryKey: postKeys.lists() });
+  void queryClient.invalidateQueries({ queryKey: PUBLICATIONS_KEY });
+  void queryClient.invalidateQueries({ queryKey: SOURCE_EVENTS_KEY });
+}
+
+/** Nothing leaves the cache before the server answers: lists are refetched, never edited. */
+export function useDeletePost() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, input }: { id: string; input: DeletePostBody }) => deletePost(id, input),
+    retry: false,
+    onSuccess: (result) => forgetPosts(queryClient, [result.id])
+  });
+}
+
+/** Per-post outcomes: only the posts the server reports as deleted are forgotten. */
+export function useBulkDeletePosts() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: BulkDeletePostsBody) => deletePosts(input),
+    retry: false,
+    onSuccess: (result) =>
+      forgetPosts(
+        queryClient,
+        result.items.filter((item) => item.outcome === 'deleted').map((item) => item.id)
+      )
+  });
+}
+
+export function useRestorePost() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, input }: { id: string; input: RestorePostBody }) => restorePost(id, input),
+    retry: false,
+    onSuccess: (post) => applyServerPost(queryClient, post)
+  });
+}
+
+export function useBulkRestorePosts() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: BulkRestorePostsBody) => restorePosts(input),
+    retry: false,
+    onSuccess: (result) => {
+      for (const item of result.items) {
+        if (item.outcome === 'restored') void queryClient.invalidateQueries({ queryKey: postKeys.detail(item.id) });
+      }
+      void queryClient.invalidateQueries({ queryKey: postKeys.lists() });
+    }
   });
 }

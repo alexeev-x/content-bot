@@ -1,0 +1,149 @@
+.timeline {
+  display: grid;
+  gap: var(--space-3);
+  min-width: 0;
+}
+.readout {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin: 0;
+  font-size: var(--font-size-sm);
+}
+.readout div {
+  display: grid;
+  gap: 2px;
+}
+.readout div:nth-child(2) {
+  text-align: center;
+}
+.readout div:last-child {
+  text-align: right;
+}
+.readout dt {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+}
+.readout dd {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-weight: var(--font-weight-medium);
+}
+.slider {
+  width: 100%;
+  /* Room for the 44 px handle hit areas so the end handles are not clipped by the dialog. */
+  padding: 0 var(--space-3);
+  box-sizing: border-box;
+}
+.track {
+  position: relative;
+  height: 64px;
+  touch-action: none;
+}
+.strip {
+  display: flex;
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  border-radius: var(--radius-2);
+  background: var(--color-surface-3);
+}
+.strip img {
+  flex: 1 1 0;
+  min-width: 0;
+  height: 100%;
+  object-fit: cover;
+  pointer-events: none;
+  user-select: none;
+}
+/* The strip is cut lazily: until then it shimmers at its final size. */
+.strip[data-loading] {
+  background: linear-gradient(90deg, var(--color-surface-3) 0%, var(--color-surface-2) 50%, var(--color-surface-3) 100%)
+    0 0 / 200% 100%;
+  animation: shimmer 1.4s linear infinite;
+}
+@keyframes shimmer {
+  to {
+    background-position: -200% 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .strip[data-loading] {
+    animation: none;
+  }
+}
+.dim {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: var(--color-scrim);
+  pointer-events: none;
+}
+.range {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  border-block: 3px solid var(--color-accent);
+  pointer-events: none;
+}
+.playhead {
+  position: absolute;
+  top: -4px;
+  bottom: -4px;
+  width: 2px;
+  margin-left: -1px;
+  background: var(--color-on-media-strong);
+  box-shadow: 0 0 0 1px var(--color-scrim);
+  pointer-events: none;
+}
+.thumb {
+  /* React Aria sets left; the handle is a bar that straddles the range edge. */
+  top: 50%;
+  width: 16px;
+  height: calc(100% + 8px);
+  transform: translate(-50%, -50%);
+  border-radius: var(--radius-1);
+  background: var(--color-accent);
+  box-shadow: 0 0 0 1px var(--color-on-accent);
+  cursor: ew-resize;
+  outline: none;
+}
+.thumb::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 2px;
+  height: 20px;
+  transform: translate(-50%, -50%);
+  border-radius: var(--radius-pill);
+  background: var(--color-on-accent);
+}
+/* 44 px wide hit area around the 16 px bar. */
+.thumb::after {
+  content: '';
+  position: absolute;
+  inset: 0 -14px;
+}
+.thumb[data-dragging] {
+  background: var(--color-accent-hover);
+}
+.thumb[data-focus-visible] {
+  outline: var(--focus-ring-width) solid var(--color-focus-ring);
+  outline-offset: var(--focus-ring-offset);
+}
+.thumb[data-disabled] {
+  background: var(--color-text-disabled);
+  cursor: not-allowed;
+}
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+.hint {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+}

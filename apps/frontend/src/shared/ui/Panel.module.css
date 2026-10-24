@@ -1,0 +1,157 @@
+.panel {
+  --panel-row: 56px;
+  --panel-pad: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-2);
+  background: var(--color-surface-1);
+}
+.panel[data-variant='plain'] {
+  overflow: visible;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+.head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  min-height: var(--size-row);
+  padding-inline: var(--panel-pad);
+  border-bottom: 1px solid var(--color-border-subtle);
+  background: var(--color-surface-2);
+}
+.heading {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+}
+.heading > svg {
+  flex: none;
+  color: var(--color-text-muted);
+}
+.title {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  line-height: var(--line-height-heading);
+}
+.note {
+  overflow: hidden;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+  text-overflow: ellipsis;
+}
+.action {
+  /* Several controls (reset, select, search) stay on one line, so the header never changes height. */
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+}
+.action a {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--size-target-min);
+  color: inherit;
+  text-decoration: none;
+}
+.action a:hover {
+  color: var(--color-accent-text);
+}
+.body {
+  display: flex;
+  flex: 1 0 auto;
+  flex-direction: column;
+  min-width: 0;
+  min-height: calc(var(--reserve-rows, 0) * var(--panel-row));
+}
+@media (max-width: 859px) {
+  .body {
+    min-height: calc(var(--reserve-phone-rows, var(--reserve-rows, 0)) * var(--panel-row));
+  }
+}
+.body:focus-visible {
+  outline: var(--focus-ring-width) solid var(--color-focus-ring);
+  outline-offset: var(--focus-ring-offset);
+}
+.panel[data-variant='plain'] .body {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+.list {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+  min-height: var(--panel-row);
+  padding: 6px var(--panel-pad);
+  border-bottom: 1px solid var(--color-border-subtle);
+}
+.row:last-child {
+  border-bottom: 0;
+}
+.footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  min-height: 40px;
+  padding: 0 var(--panel-pad);
+  border-top: 1px solid var(--color-border-subtle);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+}
+
+.panel[data-quiet] .head {
+  border-bottom: 0;
+  background: transparent;
+}
+
+/* Phones: the note drops under the title instead of being cut («Хранятся 30 дней, зат…»). */
+@media (max-width: 859px) {
+  .heading:has(.note) {
+    flex-wrap: wrap;
+    row-gap: 0;
+    padding-block: var(--space-2);
+    white-space: normal;
+  }
+  .heading .note {
+    flex-basis: 100%;
+  }
+}
+
+/* Phones: a wide action (tabs, segmented control) drops under the title instead of squeezing it to «Что зале…». */
+@media (max-width: 599px) {
+  .head {
+    flex-wrap: wrap;
+    row-gap: var(--space-2);
+    padding-block: var(--space-2);
+    /* Room for a small action button from the start: «Выбрать» appears with the rows and must not grow the header. */
+    min-height: calc(var(--size-button-sm) + 2 * var(--space-2));
+  }
+  .heading {
+    flex: 1 1 180px;
+  }
+  .action {
+    flex: 0 1 auto;
+    flex-wrap: wrap;
+    max-width: 100%;
+  }
+}

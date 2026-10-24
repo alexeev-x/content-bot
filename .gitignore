@@ -15,3 +15,13 @@ worker-configuration.d.ts
 .dev.vars
 .dev.vars.*
 !.dev.vars.example
+.tanstack/
+
+# Agent screenshots and scratch files
+.tmp-*
+
+# Playwright MCP snapshots and console logs from browser walks
+.playwright-mcp/
+
+# Playwright run output
+test-results/

@@ -1,22 +1,45 @@
 import {
+  bulkDeletePostsResultSchema,
+  bulkRestorePostsResultSchema,
+  deletePostResultSchema,
   postPageSchema,
   postSchema,
   type approvePostInputSchema,
+  type bulkDeletePostsInputSchema,
+  type bulkRestorePostsInputSchema,
   type createPostInputSchema,
+  type deletePostInputSchema,
   type listPostsQuerySchema,
+  type restorePostInputSchema,
+  type returnPostToDraftInputSchema,
   type updatePostInputSchema
 } from '@alexeev/contracts';
 import type { z } from 'zod';
 import { apiRequest } from '../../../shared/api/http-client';
+import { PAGE_SIZE } from '../../../shared/api/page-query';
 import { buildQuery, DEFAULT_PAGE_SIZE } from '../../../shared/api/query-string';
 
-export type PostFilters = Pick<z.input<typeof listPostsQuerySchema>, 'status'>;
+export type PostFilters = Pick<z.input<typeof listPostsQuerySchema>, 'status' | 'view' | 'q' | 'sort' | 'direction'>;
+export type DeletePostBody = z.input<typeof deletePostInputSchema>;
+export type RestorePostBody = z.input<typeof restorePostInputSchema>;
+export type BulkDeletePostsBody = z.input<typeof bulkDeletePostsInputSchema>;
+export type BulkRestorePostsBody = z.input<typeof bulkRestorePostsInputSchema>;
 export type CreatePostBody = z.input<typeof createPostInputSchema>;
 export type UpdatePostBody = z.input<typeof updatePostInputSchema>;
 export type ApprovePostBody = z.input<typeof approvePostInputSchema>;
+export type ReturnPostToDraftBody = z.input<typeof returnPostToDraftInputSchema>;
 
-export function listPosts(filters: PostFilters, cursor: string | undefined, signal?: AbortSignal) {
-  const query = buildQuery({ status: filters.status, cursor, limit: DEFAULT_PAGE_SIZE });
+export function listPosts(filters: PostFilters, cursor: string | undefined, signal?: AbortSignal, page?: number) {
+  const query = buildQuery({
+    status: filters.status,
+    view: filters.view,
+    q: filters.q,
+    sort: filters.sort,
+    direction: filters.direction,
+    cursor,
+    page,
+    limit: page === undefined ? DEFAULT_PAGE_SIZE : PAGE_SIZE
+  });
   return apiRequest(`/api/v1/posts${query}`, postPageSchema, { signal });
 }
 
@@ -38,4 +61,27 @@ export function updatePost(id: string, input: UpdatePostBody) {
 
 export function approvePost(id: string, input: ApprovePostBody) {
   return apiRequest(`/api/v1/posts/${encodeURIComponent(id)}/approve`, postSchema, { method: 'POST', body: input });
+}
+
+export function returnPostToDraft(id: string, input: ReturnPostToDraftBody) {
+  return apiRequest(`/api/v1/posts/${encodeURIComponent(id)}/draft`, postSchema, { method: 'POST', body: input });
+}
+
+export function deletePost(id: string, input: DeletePostBody) {
+  return apiRequest(`/api/v1/posts/${encodeURIComponent(id)}/delete`, deletePostResultSchema, {
+    method: 'POST',
+    body: input
+  });
+}
+
+export function deletePosts(input: BulkDeletePostsBody) {
+  return apiRequest('/api/v1/posts/delete', bulkDeletePostsResultSchema, { method: 'POST', body: input });
+}
+
+export function restorePost(id: string, input: RestorePostBody) {
+  return apiRequest(`/api/v1/posts/${encodeURIComponent(id)}/restore`, postSchema, { method: 'POST', body: input });
+}
+
+export function restorePosts(input: BulkRestorePostsBody) {
+  return apiRequest('/api/v1/posts/restore', bulkRestorePostsResultSchema, { method: 'POST', body: input });
 }

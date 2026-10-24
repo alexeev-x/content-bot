@@ -26,7 +26,9 @@ const MAX_SIGN_IN_BODY_BYTES = 16 * 1024;
 const MAX_WIDGET_BODY_BYTES = 8 * 1024;
 const WINDOW_MS = 10 * 60 * 1000;
 const SIGN_IN_LIMIT = 10;
-const REFRESH_LIMIT = 30;
+// One refresh per page load: the owner's browser, Mini App and phone often share one network IP, and 30 per
+// 10 min locked them out after a few reloads. A refresh needs a valid rotating cookie, so the limit only caps load.
+const REFRESH_LIMIT = 120;
 
 function toDto(issued: IssuedAccessToken): AccessTokenDto {
   return { accessToken: issued.accessToken, expiresAt: new Date(issued.expiresAt).toISOString() };

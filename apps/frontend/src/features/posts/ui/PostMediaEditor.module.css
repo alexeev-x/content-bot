@@ -1,0 +1,480 @@
+.section {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-4) 0;
+  min-width: 0;
+}
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.dropTarget {
+  outline: var(--focus-ring-width) dashed var(--color-accent);
+  outline-offset: calc(-1 * var(--space-2));
+  background: var(--color-surface-2);
+}
+.sourceSheet {
+  display: grid;
+  gap: var(--space-3);
+}
+.deviceSource,
+.queue,
+.mobileSource,
+.uploadQueue,
+.discardPrompt {
+  display: grid;
+  gap: var(--space-3);
+  min-width: 0;
+}
+.queueHeading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+.queueRow {
+  display: grid;
+  gap: var(--space-2);
+  min-width: 0;
+}
+.libraryGrid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.libraryTile {
+  display: grid;
+  min-width: 0;
+  gap: var(--space-1);
+  text-align: center;
+}
+.libraryTile > span {
+  overflow: hidden;
+  font-size: var(--font-size-xs);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.librarySkeleton {
+  aspect-ratio: 1;
+  border-radius: var(--radius-3);
+  background: var(--color-surface-3);
+}
+.mobileFooter {
+  display: grid;
+  grid-template-columns: minmax(0, 0.8fr) minmax(0, 1fr);
+  gap: var(--space-2);
+}
+.mobileFooter > * {
+  width: 100%;
+}
+.library {
+  display: grid;
+  gap: var(--space-3);
+}
+.libraryList {
+  display: grid;
+  /* Rows keep their content height and the list scrolls; auto rows would shrink to min-height to fit. */
+  grid-auto-rows: max-content;
+  gap: var(--space-2);
+  max-height: min(50vh, 28rem);
+  overflow: auto;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.libraryList label {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: var(--size-target);
+  padding-inline: var(--space-2);
+}
+.libraryList input {
+  width: var(--size-target-min);
+  height: var(--size-target-min);
+  accent-color: var(--color-accent);
+}
+.heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  padding-inline: var(--space-4);
+}
+.heading h2 {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  font-size: var(--font-size-lg);
+}
+.heading h2 > svg {
+  flex: none;
+  color: var(--color-text-muted);
+}
+.mobileCollapse {
+  display: none;
+  flex: none;
+  padding: var(--space-1);
+  border: 0;
+  border-radius: var(--radius-2);
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+}
+.mediaContent {
+  display: contents;
+}
+.section[data-collapsed] > .mediaContent {
+  display: none;
+}
+.mediaCount {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-regular);
+}
+.headingCopy {
+  min-width: 0;
+  flex: 1 1 16rem;
+}
+.heading p,
+.hint {
+  margin: var(--space-1) 0 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+/* A flat row, not a 200 px box: the big drop area shows only while dragging. */
+.emptyDropzone {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border: 1px dashed var(--color-border-strong);
+  border-radius: var(--radius-2);
+  background: var(--color-surface-2);
+}
+/* The big drop target appears only while a file is dragged over. */
+.emptyDropzone[data-active] {
+  min-height: calc(var(--size-target) * 3);
+  border-color: var(--color-accent);
+}
+.emptyDropzoneText {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+.emptyDropzoneText > strong {
+  font-size: var(--font-size-sm);
+}
+.emptyDropzoneText > span {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+}
+@media (max-width: 420px) {
+  .emptyDropzone {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+  .emptyDropzone > :last-child {
+    grid-column: 1 / -1;
+  }
+}
+.emptyDropzoneIcon {
+  display: grid;
+  width: var(--size-target);
+  height: var(--size-target);
+  place-items: center;
+  border-radius: var(--radius-2);
+  background: var(--color-accent-soft);
+  color: var(--color-accent-text);
+}
+.fileInput {
+  display: none;
+}
+.fileInput:focus-visible + * {
+  outline: 2px solid var(--color-focus-ring);
+}
+.list {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  overflow-x: auto;
+  overscroll-behavior-inline: contain;
+}
+@media (min-width: 860px) {
+  .list {
+    display: grid;
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    overflow: visible;
+  }
+  .list .item,
+  .list .addItem {
+    width: 100%;
+    height: auto;
+    aspect-ratio: 1;
+  }
+}
+.item {
+  position: relative;
+  flex: none;
+  width: var(--size-media-tile);
+  height: var(--size-media-tile);
+  min-width: 0;
+  padding: 0;
+  border-radius: var(--radius-4);
+}
+.item:focus-visible {
+  outline: var(--focus-ring-width) solid var(--color-focus-ring);
+  outline-offset: var(--focus-ring-offset);
+}
+.item[data-drop-target] {
+  outline: var(--focus-ring-width) solid var(--color-accent);
+  outline-offset: var(--focus-ring-offset);
+  background: var(--color-accent-soft);
+}
+.addItem {
+  flex: none;
+}
+.preview,
+.previewPlaceholder {
+  overflow: hidden;
+  display: grid;
+  width: 88px;
+  height: 64px;
+  place-items: center;
+  object-fit: cover;
+  border-radius: var(--radius-1);
+  background: var(--color-surface-2);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+}
+.largePreview {
+  width: 100%;
+  height: auto;
+  max-height: 360px;
+  object-fit: contain;
+}
+.previewList {
+  display: grid;
+  gap: var(--space-2);
+  padding: 0 var(--space-4) var(--space-4);
+}
+.cropPreviewHint {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+}
+.cropCover {
+  display: grid;
+  gap: var(--space-1);
+  padding: var(--space-3);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-card);
+  background: var(--color-surface-2);
+}
+.cropCover p {
+  margin: 0 0 0 calc(44px + var(--space-3));
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+}
+.cropCoverThumb {
+  width: 44px;
+  height: 44px;
+  border-radius: var(--radius-2);
+  object-fit: cover;
+}
+.details {
+  display: grid;
+  gap: var(--space-1);
+  min-width: 0;
+  padding-inline: var(--space-3);
+  overflow-wrap: anywhere;
+  font-size: var(--font-size-sm);
+}
+.tileDetails {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.details span {
+  color: var(--color-text-muted);
+}
+.details progress {
+  width: 100%;
+  accent-color: var(--color-accent);
+}
+.previewError {
+  position: absolute;
+  inset: 0;
+  z-index: var(--z-raised);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  padding: var(--space-2);
+  border-radius: inherit;
+  background: var(--color-media-scrim);
+  text-align: center;
+  overflow-wrap: anywhere;
+  color: var(--color-on-media-strong);
+  font-size: var(--font-size-sm);
+}
+.imageMonitor {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  opacity: 0;
+  pointer-events: none;
+}
+.error {
+  margin: 0;
+  color: var(--color-danger);
+  font-size: var(--font-size-sm);
+}
+@media (max-width: 600px) {
+  .mediaCount {
+    display: none;
+  }
+  .section {
+    padding-inline: 0;
+  }
+  .heading {
+    padding-inline: var(--space-1);
+  }
+  .list {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-auto-rows: auto;
+    max-width: calc(var(--size-media-tile) * 3 + var(--space-3) * 2);
+    gap: var(--space-3);
+    overflow: visible;
+    margin-inline: 0;
+  }
+  .item {
+    width: 100%;
+    height: auto;
+    aspect-ratio: 1;
+  }
+  .addItem {
+    width: 100%;
+  }
+  .addItem > button {
+    width: 100%;
+    height: auto;
+    aspect-ratio: 1;
+  }
+  .details {
+    padding-inline: var(--space-3);
+  }
+  .libraryGrid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+@media (max-width: 859px) {
+  .mobileCollapse {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    margin-left: auto;
+  }
+  .heading h2 {
+    flex: 1;
+  }
+}
+
+/* A file still on its way (uploading, failed or not sent yet): its own preview fills the square, and a dark strip
+   at the bottom carries the progress or the one action; the name lives in the accessible text only. */
+.item[data-pending] {
+  overflow: hidden;
+  background: var(--color-surface-2);
+}
+.item[data-pending] .preview {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border-radius: 0;
+}
+.item[data-pending] .details {
+  position: absolute;
+  inset: auto 0 0;
+  gap: var(--space-1);
+  padding: var(--space-2);
+  background: linear-gradient(to top, var(--color-media-scrim) 60%, transparent);
+  font-size: var(--font-size-xs);
+}
+.item[data-pending] .details span {
+  color: var(--color-on-media-strong);
+  overflow-wrap: normal;
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+}
+.item[data-pending] .details progress {
+  height: 4px;
+  accent-color: var(--color-accent-on-media);
+}
+.pendingRemove {
+  position: absolute;
+  top: var(--space-1);
+  right: var(--space-1);
+  z-index: var(--z-raised);
+  background: var(--color-media-scrim);
+  color: var(--color-on-media-strong);
+}
+
+/* Phone composer: the tiles are the top of the message bubble, as an album in Telegram; the sources fill the panel. */
+.phoneMedia {
+  display: grid;
+  gap: var(--space-2);
+  min-width: 0;
+}
+.phoneMedia:not(:has(li, p, button)) {
+  display: none;
+}
+.phoneMedia .list {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-1);
+  overflow: visible;
+}
+.phoneMedia .list:has(> .item:only-child) {
+  grid-template-columns: minmax(0, 1fr);
+}
+.phoneMedia .list:has(> .item:nth-child(2):last-child) {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.phoneMedia .list .item {
+  width: 100%;
+  height: auto;
+  aspect-ratio: 1;
+  border-radius: var(--radius-1);
+}
+.phoneMedia .list .item:only-child {
+  aspect-ratio: 4 / 3;
+}
+.phoneSources {
+  display: grid;
+  align-content: start;
+  gap: var(--space-2);
+  padding: var(--space-3);
+}

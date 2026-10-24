@@ -1,0 +1,25 @@
+.list {
+  display: grid;
+  gap: var(--space-4);
+  min-width: 0;
+}
+/* The slot is reserved before the count arrives, so the tab does not change width. */
+.count:empty {
+  background: none;
+}
+
+/* Desktop search in the panel header: always visible, wide enough for a post title. */
+.headerSearch {
+  display: block;
+  width: 280px;
+}
+
+/* Phone: the list runs to the screen edges like Telegram's chat list; titles take one line beside the time. */
+@media (max-width: 859px) {
+  .list section[data-variant='plain'] {
+    margin-inline: calc(-1 * var(--space-4));
+  }
+  .list section[data-variant='plain'] li span:has(+ [class*='time']) {
+    -webkit-line-clamp: 1;
+  }
+}

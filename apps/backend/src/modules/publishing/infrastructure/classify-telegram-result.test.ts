@@ -16,10 +16,17 @@ describe('classifyTelegramError', () => {
     });
   });
 
-  it('429 without retry_after is unknown, not a guessed delay', () => {
+  it('429 without retry_after is still a refusal: rate_limited with a conservative wait (review 24.10.2026)', () => {
     expect(classifyTelegramError(apiError(429, 'Too Many Requests'))).toEqual({
-      kind: 'unknown',
-      reason: 'telegram_http_429'
+      kind: 'rate_limited',
+      retryAfterSec: 30
+    });
+  });
+
+  it('413 is a definite refusal of a too large upload', () => {
+    expect(classifyTelegramError(apiError(413, 'Request Entity Too Large'))).toEqual({
+      kind: 'rejected',
+      code: 'CONTENT_INVALID'
     });
   });
 
@@ -70,10 +77,10 @@ describe('classifyTelegramError', () => {
     expect(classifyTelegramError(apiError(code, description))).toEqual({ kind: 'rejected', code: 'BOT_UNAUTHORIZED' });
   });
 
-  it('an unrecognised 400 stays unknown rather than being guessed', () => {
+  it('an unrecognised 400 is a definite content rejection', () => {
     expect(classifyTelegramError(apiError(400, 'Bad Request: something new'))).toEqual({
-      kind: 'unknown',
-      reason: 'telegram_http_400'
+      kind: 'rejected',
+      code: 'CONTENT_INVALID'
     });
   });
 
@@ -100,13 +107,31 @@ describe('classifyTelegramError', () => {
   it('anything else is unknown', () => {
     expect(classifyTelegramError('weird')).toEqual({ kind: 'unknown', reason: 'unexpected_error' });
   });
+
+  it('classifies a definite Telegram 400 for an unrecognized media error as a rejected content send', () => {
+    expect(
+      classifyTelegramError(
+        new GrammyError(
+          'wrong media type',
+          {
+            ok: false,
+            error_code: 400,
+            description: 'wrong media type',
+            parameters: {}
+          },
+          'sendMediaGroup',
+          { chat_id: '1' }
+        )
+      )
+    ).toEqual({ kind: 'rejected', code: 'CONTENT_INVALID' });
+  });
 });
 
 describe('classifySendResult', () => {
   it.each([1, Number.MAX_SAFE_INTEGER])('positive safe integer message_id %i is sent', (id) => {
     expect(classifySendResult({ message_id: id })).toEqual({
       kind: 'sent',
-      externalMessageId: String(id)
+      externalMessageIds: [String(id)]
     });
   });
 
@@ -117,7 +142,7 @@ describe('classifySendResult', () => {
   it('a message with message_id is sent', () => {
     expect(classifySendResult({ message_id: 55, chat: { id: 1 } })).toEqual({
       kind: 'sent',
-      externalMessageId: '55'
+      externalMessageIds: ['55']
     });
   });
 

@@ -1,0 +1,299 @@
+.tile {
+  --media-tile-corner-target: max(var(--size-target-min), var(--size-button-sm));
+  position: relative;
+  flex: none;
+  width: var(--size-media-tile);
+  height: var(--size-media-tile);
+  border-radius: var(--radius-4);
+  background: var(--color-surface-3);
+  color: var(--color-text-muted);
+}
+.tile[data-fluid] {
+  width: 100%;
+  height: auto;
+  aspect-ratio: 1;
+}
+.tile[data-fluid][data-aspect-ratio='4:3'] {
+  aspect-ratio: 4 / 3;
+}
+.surface {
+  position: absolute;
+  inset: 0;
+  display: block;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: inherit;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  outline: none;
+}
+.tile > span.surface {
+  pointer-events: none;
+}
+.previewAction {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  padding: 0;
+  border: 0;
+  border-radius: inherit;
+  background: transparent;
+  cursor: pointer;
+  outline: none;
+}
+.previewAction[data-disabled] {
+  cursor: default;
+}
+.previewAction[data-focus-visible] {
+  outline: var(--focus-ring-width) solid var(--color-focus-ring);
+  outline-offset: var(--focus-ring-offset);
+}
+.tile[data-removable] .previewAction {
+  clip-path: inset(var(--media-tile-corner-target) 0 0);
+}
+.tile[data-has-handle] .previewAction {
+  clip-path: inset(var(--media-tile-corner-target) 0 0);
+}
+.surface[data-disabled] {
+  cursor: default;
+}
+.surface img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.fallback {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+}
+.surface[data-focus-visible] {
+  outline: var(--focus-ring-width) solid var(--color-focus-ring);
+  outline-offset: var(--focus-ring-offset);
+}
+/* State borders: icon and text say the state too; the colour only supports them. */
+.tile[data-state='uploading'] .surface {
+  border-color: var(--color-accent);
+}
+.tile[data-state='done'] .surface {
+  border: 2px solid var(--color-status-done-fg);
+}
+.tile[data-state='failed'] .surface {
+  border: 2px solid var(--color-status-failed-fg);
+}
+.tile[data-selected] .surface {
+  border: 2px solid var(--color-accent);
+}
+.play {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: var(--color-media-scrim);
+  color: var(--color-on-media-strong);
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+.badge {
+  position: absolute;
+  bottom: var(--space-1);
+  left: var(--space-1);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-height: 22px;
+  padding: 0 5px;
+  border-radius: var(--radius-pill);
+  background: var(--color-media-scrim);
+  color: var(--color-on-media-strong);
+  pointer-events: none;
+}
+.duration {
+  font-size: var(--font-size-2xs);
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+.check {
+  position: absolute;
+  top: var(--space-1);
+  left: var(--space-1);
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border: 1.5px solid var(--color-on-media-strong);
+  border-radius: 50%;
+  background: var(--color-media-scrim);
+  color: var(--color-on-accent);
+  pointer-events: none;
+}
+.tile[data-selected] .check {
+  border-color: var(--color-accent);
+  background: var(--color-accent);
+}
+.state {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-1);
+  border-radius: inherit;
+  background: var(--color-media-scrim);
+  color: var(--color-on-media-strong);
+  pointer-events: none;
+}
+.state[data-tone='done'] {
+  background: transparent;
+}
+.stateIcon {
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--color-media-scrim);
+}
+.state[data-tone='done'] .stateIcon {
+  color: var(--color-done-on-media);
+}
+.state[data-tone='failed'] .stateIcon {
+  color: var(--color-failed-on-media);
+}
+.stateText {
+  padding: 0 var(--space-1);
+  font-size: var(--font-size-2xs);
+  font-weight: var(--font-weight-semibold);
+  text-align: center;
+}
+.state[data-tone='done'] .stateText {
+  padding: 1px 6px;
+  border-radius: var(--radius-pill);
+  background: var(--color-media-scrim);
+}
+.retry {
+  display: grid;
+  place-items: center;
+  width: var(--size-target-min);
+  height: var(--size-target-min);
+  padding: 0;
+  border: 1px solid var(--color-on-media-strong);
+  border-radius: 50%;
+  background: transparent;
+  color: var(--color-on-media-strong);
+  cursor: pointer;
+  outline: none;
+  pointer-events: auto;
+}
+.retry[data-hovered] {
+  background: var(--color-media-scrim);
+}
+.retry[data-focus-visible] {
+  outline: var(--focus-ring-width) solid var(--color-on-media-strong);
+  outline-offset: var(--focus-ring-offset);
+}
+.handle {
+  position: absolute;
+  z-index: 2;
+  top: 0;
+  left: 0;
+  display: grid;
+  place-items: center;
+  width: var(--media-tile-corner-target);
+  height: var(--media-tile-corner-target);
+  border-radius: var(--radius-1);
+  background: var(--color-media-scrim);
+  color: var(--color-on-media-strong);
+}
+.handle > button {
+  width: 100%;
+  min-width: 0;
+  height: 100%;
+  min-height: 0;
+  padding: 0;
+}
+.remove {
+  /* The button is the hit area (24 px, 44 px on touch); the 22 px dot is its inner span. */
+  position: absolute;
+  top: 0;
+  right: 0;
+  z-index: 2;
+  display: grid;
+  place-items: center;
+  width: var(--size-target-min);
+  height: var(--size-target-min);
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  outline: none;
+}
+.removeDot {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--color-media-scrim);
+  color: var(--color-on-media-strong);
+}
+@media (pointer: coarse), (max-width: 859px) {
+  .tile {
+    --media-tile-corner-target: var(--size-target);
+  }
+  .remove {
+    top: calc(var(--space-1) - 11px);
+    right: calc(var(--space-1) - 11px);
+    width: var(--size-target);
+    height: var(--size-target);
+  }
+}
+.remove[data-hovered] .removeDot {
+  background: var(--color-text);
+  color: var(--color-bg);
+}
+.remove[data-focus-visible] .removeDot {
+  outline: var(--focus-ring-width) solid var(--color-on-media-strong);
+  outline-offset: var(--focus-ring-offset);
+  box-shadow: 0 0 0 calc(var(--focus-ring-width) + var(--focus-ring-offset)) var(--color-focus-ring);
+}
+.add {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-1);
+  padding: var(--space-2);
+  border: 1.5px dashed var(--color-border-strong);
+  background: var(--color-surface-1);
+  color: var(--color-accent-text);
+  font: inherit;
+  cursor: pointer;
+  outline: none;
+}
+.add[data-hovered] {
+  border-color: var(--color-accent-text);
+  background: var(--color-accent-soft);
+}
+.add[data-focus-visible] {
+  outline: var(--focus-ring-width) solid var(--color-focus-ring);
+  outline-offset: var(--focus-ring-offset);
+}
+.add[data-disabled] {
+  border-color: var(--color-border-subtle);
+  color: var(--color-text-disabled);
+  cursor: not-allowed;
+}
+.addLabel {
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+  line-height: 1.2;
+  text-align: center;
+}

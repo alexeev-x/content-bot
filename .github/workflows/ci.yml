@@ -3,66 +3,249 @@ on:
   pull_request:
   push:
     branches: [main, develop]
+
 permissions:
   contents: read
+
+# A newer develop/PR commit makes the older run useless. Production is never cancelled mid-flight.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref_name != 'main' }}
+
 jobs:
-  verify:
+  # One job plans, checks, scans for secrets and tests (owner, 24.10.2026: the repository goes private, where GitHub
+  # bills each job in whole minutes from 2 000 a month); the deploy is the only other job.
+  checks:
+    name: verify
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      # The plan reads which earlier run actually deployed.
+      actions: read
+    outputs:
+      frontend: ${{ steps.plan.outputs.frontend }}
+      backend: ${{ steps.plan.outputs.backend }}
+      deploy: ${{ steps.plan.outputs.deploy }}
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          # The secret scan reads the whole history.
+          fetch-depth: 0
+      - id: plan
+        shell: bash
+        env:
+          BEFORE: ${{ github.event.before }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          INITIAL=false
+          if [[ -n "${PR_BASE:-}" ]]; then
+            BASE="$PR_BASE"
+          elif [[ -n "${BEFORE:-}" && ! "$BEFORE" =~ ^0+$ ]]; then
+            BASE="$BEFORE"
+          else
+            BASE=""
+            INITIAL=true
+          fi
+
+          # A develop push compares with the last commit that actually reached DEV, not with the previous push: a run
+          # cancelled by a newer push, followed by a docs-only one, left app changes undeployed (21.10.2026).
+          if [[ -z "${PR_BASE:-}" && "$GITHUB_REF_NAME" == "develop" ]]; then
+            DEPLOYED="$(
+              gh api "repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/runs?branch=develop&event=push&status=success&per_page=30" \
+                --jq '.workflow_runs[] | "\(.id) \(.head_sha)"' 2>/dev/null |
+                while read -r run sha; do
+                  if gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run/jobs" \
+                    --jq '.jobs[] | select(.name == "deploy" and .conclusion == "success") | .name' 2>/dev/null | grep -q deploy; then
+                    echo "$sha"
+                    break
+                  fi
+                done || true
+            )"
+            if [[ -n "$DEPLOYED" ]]; then
+              BASE="$DEPLOYED"
+              INITIAL=false
+            fi
+          fi
+
+          if [[ -n "$BASE" ]]; then
+            git fetch --no-tags --depth=1 origin "$BASE" || true
+            FILES="$(git diff --name-only --no-renames "$BASE" HEAD)"
+          else
+            FILES="$(git ls-tree -r --name-only HEAD)"
+          fi
+
+          FRONTEND=false
+          BACKEND=false
+          DEPLOY=false
+          NEEDS_DEPS=false
+          AUDIT=false
+
+          while IFS= read -r file; do
+            [[ -z "$file" ]] && continue
+            case "$file" in
+              apps/contracts/*)
+                FRONTEND=true
+                BACKEND=true
+                DEPLOY=true
+                NEEDS_DEPS=true
+                ;;
+              apps/frontend/*)
+                FRONTEND=true
+                DEPLOY=true
+                NEEDS_DEPS=true
+                ;;
+              apps/backend/*)
+                BACKEND=true
+                DEPLOY=true
+                NEEDS_DEPS=true
+                ;;
+              package.json|package-lock.json|.nvmrc)
+                FRONTEND=true
+                BACKEND=true
+                DEPLOY=true
+                NEEDS_DEPS=true
+                AUDIT=true
+                ;;
+              .github/workflows/*|.dependency-cruiser.cjs|.oxlintrc.json|.prettierrc.json|.prettierignore|.gitleaks.toml|.gitleaksignore)
+                FRONTEND=true
+                BACKEND=true
+                NEEDS_DEPS=true
+                ;;
+            esac
+            case "$file" in
+              apps/*/package.json)
+                AUDIT=true
+                ;;
+            esac
+          done <<< "$FILES"
+
+          # Keep production exactly as strict as before; only develop/PRs become path-aware.
+          if [[ "$GITHUB_REF_NAME" == "main" ]]; then
+            FRONTEND=true
+            BACKEND=true
+            DEPLOY=true
+            NEEDS_DEPS=true
+            AUDIT=true
+          fi
+
+          {
+            echo "base=$BASE"
+            echo "initial=$INITIAL"
+            echo "frontend=$FRONTEND"
+            echo "backend=$BACKEND"
+            echo "deploy=$DEPLOY"
+            echo "needs_deps=$NEEDS_DEPS"
+            echo "audit=$AUDIT"
+          } >> "$GITHUB_OUTPUT"
+
+          echo "Changed files:"
+          printf '%s\n' "$FILES"
+          echo "Plan: frontend=$FRONTEND backend=$BACKEND deploy=$DEPLOY deps=$NEEDS_DEPS"
+
+      - name: Setup Node and dependencies
+        if: steps.plan.outputs.needs_deps == 'true'
+        uses: ./.github/actions/setup
+
+      # Docs/agent-only changes need Node for verify.mjs but no node_modules.
+      - if: steps.plan.outputs.needs_deps != 'true'
+        uses: actions/setup-node@v4
         with:
           node-version-file: .nvmrc
-          cache: npm
-      - run: npm ci --ignore-scripts
-      # Full independent gate; the local pre-push hook runs only the affected checks.
-      - run: npm run verify
-      - if: failure()
-        run: cat .logs/verify.log
-      # Production dependencies only: a dev-tool advisory must not block a release.
-      - run: npm audit --omit=dev --audit-level=high
 
-  secrets:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      # The whole history: a token committed and later deleted is still leaked.
-      - run: docker run --rm -v "$PWD:/repo" zricethezav/gitleaks:v8.30.1 git /repo --config /repo/.gitleaks.toml --redact --verbose --no-banner
+      - name: Secret scan
+        run: docker run --rm -v "$PWD:/repo" zricethezav/gitleaks:v8.30.1 git /repo --config /repo/.gitleaks.toml --redact --verbose --no-banner
+
+      - name: Verify affected checks
+        shell: bash
+        env:
+          BASE: ${{ steps.plan.outputs.base }}
+          INITIAL: ${{ steps.plan.outputs.initial }}
+          DEPLOY: ${{ steps.plan.outputs.deploy }}
+        run: |
+          set -euo pipefail
+          if [[ "$GITHUB_REF_NAME" == "main" || "$INITIAL" == "true" ]]; then
+            npm run verify -- --skip backend-tests,frontend-tests
+          else
+            SKIP="backend-tests,frontend-tests"
+            # The deploy job performs the same Vite/Worker build on develop, so do not build it twice.
+            if [[ "$GITHUB_EVENT_NAME" == "push" && "$GITHUB_REF_NAME" == "develop" && "$DEPLOY" == "true" ]]; then
+              SKIP="$SKIP,build"
+            fi
+            npm run verify:changed -- --base "$BASE" --skip "$SKIP"
+          fi
+
+      # This Node-only CSS policy test used to be chained after the frontend Vitest suite.
+      - name: Frontend file-policy tests
+        if: steps.plan.outputs.frontend == 'true'
+        run: node --test apps/frontend/scripts/*.test.mjs
+
+      # A develop push ran these in the pre-push hook (verify:changed) a minute earlier; PRs and main run them here.
+      - name: Backend tests
+        if: steps.plan.outputs.backend == 'true' && (github.event_name == 'pull_request' || github.ref_name == 'main')
+        run: npm exec -w @alexeev/backend -- vitest run
+
+      - name: Frontend tests
+        if: steps.plan.outputs.frontend == 'true' && (github.event_name == 'pull_request' || github.ref_name == 'main')
+        run: npm exec -w @alexeev/frontend -- vitest run
+
+      - if: failure()
+        run: test -f .logs/verify.log && cat .logs/verify.log || true
+
+      # Audit when dependency manifests changed and always before production.
+      - name: Audit production dependencies
+        if: steps.plan.outputs.audit == 'true'
+        run: npm audit --omit=dev --audit-level=high
 
   deploy:
-    if: github.event_name == 'push'
-    needs: [verify, secrets]
+    if: >-
+      ${{
+        always() &&
+        github.event_name == 'push' &&
+        needs.checks.outputs.deploy == 'true' &&
+        needs.checks.result == 'success'
+      }}
+    needs: [checks]
     runs-on: ubuntu-latest
-    # GitHub environments scope the Cloudflare secrets and let the owner require approval for production.
     environment: ${{ github.ref_name == 'main' && 'production' || 'dev' }}
     concurrency:
       group: cloudflare-deploy-${{ github.ref_name }}
-      cancel-in-progress: false
+      cancel-in-progress: ${{ github.ref_name == 'develop' }}
     env:
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version-file: .nvmrc
-          cache: npm
-      - run: npm ci --ignore-scripts
+      - uses: ./.github/actions/setup
 
-      # The Cloudflare Vite plugin resolves the named environment at build time.
       - name: Select Cloudflare environment
         shell: bash
         run: |
           if [[ "$GITHUB_REF_NAME" == "main" ]]; then
             echo "CLOUDFLARE_ENV=production" >> "$GITHUB_ENV"
+            echo "APP_ORIGIN=https://app.alexeevs.workers.dev" >> "$GITHUB_ENV"
           else
             echo "CLOUDFLARE_ENV=dev" >> "$GITHUB_ENV"
+            echo "APP_ORIGIN=https://dev.alexeevs.workers.dev" >> "$GITHUB_ENV"
           fi
 
       - name: Build for Cloudflare
-        run: npm run build -w @alexeev/frontend
+        run: npm exec -w @alexeev/frontend -- vite build
+
+      # DEV applies pending D1 migrations itself, before the new code goes live (owner decision 14.10.2026).
+      # Migrations are expand-only (skill d1-migration), so the running old code keeps working; a failed
+      # migration stops the job before the deploy. Production stays a manual «D1 migrations» run.
+      - name: Apply D1 migrations (DEV)
+        if: github.ref_name == 'develop'
+        working-directory: apps/backend
+        run: npx wrangler d1 migrations apply content-db-dev --remote --env dev
 
       - name: Deploy Worker
         run: npm run deploy -w @alexeev/frontend
+
+      # A deploy that uploads but cannot serve requests fails here, not on the owner's first click.
+      - name: Smoke check
+        run: curl -fsS --retry 5 --retry-delay 3 --retry-all-errors --max-time 10 "$APP_ORIGIN/api/v1/health"

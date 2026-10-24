@@ -1,12 +1,20 @@
 import { beforeEach, describe, expect, it } from 'vitest';
+import { PURGE_BATCH } from '../../src/modules/lifecycle/domain/archive-policy';
 import { DISPATCH_BATCH, LEASE_MS } from '../../src/modules/publishing/domain/dispatch-policy';
+import { ARCHIVE_RETENTION_MS } from '../../src/shared/archive-retention';
 import { CLEANUP_LIMIT } from '../../src/app/scheduled';
+import { createD1SystemState } from '../../src/app/system-state';
 import { testDb } from '../helpers/db';
+import { enableOwnerNotices } from '../helpers/notices';
 import { fakeTransport, HOURLY_TICK, makeTick, MINUTE_TICK, SENT, seedDueJob } from '../helpers/dispatch';
+import { fakeOwnerMessenger } from '../helpers/fake-owner-messenger';
 import { createApi, fakeClock, type FakeClock, OWNER_TOKEN, resetDb, seedSession, START } from '../helpers/harness';
 import { meteredDb } from '../helpers/metered-db';
 import { count, jobOf } from '../helpers/publishing';
 import type { Api } from '../helpers/harness';
+
+// The origin /start or connect stored, which the tick's owner alerts read.
+const rememberOrigin = () => createD1SystemState(testDb()).rememberAppOrigin('https://studio.example.com', START);
 
 const DAY = 24 * 60 * 60_000;
 const HOUR = 60 * 60_000;
@@ -28,13 +36,14 @@ async function sql(statement: string, ...bindings: (string | number)[]): Promise
     .run();
 }
 
-// Hundreds of finished jobs without a publication: history the idle scans must never read.
+// Hundreds of finished jobs without a publication: history the idle scans must never read. They
+// finished an hour before START, outside the archive step's 15-minute window.
 async function seedJobHistory(): Promise<void> {
   await sql(
     `WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i + 1 FROM n WHERE i < 300)
      INSERT INTO jobs (id, kind, status, run_at, attempts, dedupe_key, created_at, updated_at)
      SELECT printf('%036d', i), 'publish', CASE WHEN i % 3 = 0 THEN 'cancelled' WHEN i % 3 = 1 THEN 'succeeded' ELSE 'failed' END,
-            ?1 - i, 1, 'history:' || i, ?1 - i, ?1 - i FROM n`,
+            ?1 - i, 1, 'history:' || i, ?1 - i, ?1 - 3600000 - i FROM n`,
     START
   );
 }
@@ -47,7 +56,7 @@ async function jobsDump(): Promise<string> {
 }
 
 describe('an idle tick', () => {
-  it('costs two indexed reads that read a handful of rows at most, and writes nothing', async () => {
+  it('keeps idle automation reconciliation and claims bounded alongside publishing reads', async () => {
     await seedJobHistory();
     // Waiting work that is not due, and a claim whose lease is still alive: neither may be touched.
     const future = await seedDueJob(api);
@@ -65,33 +74,54 @@ describe('an idle tick', () => {
     const transport = fakeTransport(SENT);
     await makeTick({ clock, transport, db }).run();
 
-    expect(meter.roundTrips).toBe(2);
-    expect(meter.statements).toBe(2);
-    expect(meter.sql.every((statement) => /^\s*SELECT\b/i.test(statement))).toBe(true);
+    // Publishing scans, bounded alert bookkeeping, automation lease reconciliation and one claim, the bot media import read, heartbeat.
+    expect(meter.roundTrips).toBe(9);
+    expect(meter.statements).toBe(9);
+    const writes = meter.sql.filter((statement) => !/^\s*SELECT\b/i.test(statement));
+    expect(writes).toHaveLength(3);
+    expect(writes[0]).toMatch(/^\s*DELETE FROM incident_alert_groups\b/);
+    expect(writes[1]).toMatch(/^\s*UPDATE automation_runs\b/);
+    expect(writes[2]).toMatch(/^\s*INSERT INTO system_state\b/);
     // Not zero: D1 counts a few reads even for an empty index range. The point is that it is a small
     // constant however long the finished history is (300 rows here).
-    expect(meter.rowsRead).toBeLessThanOrEqual(4);
+    expect(meter.rowsRead).toBeLessThanOrEqual(16);
     expect(transport.calls).toHaveLength(0);
     expect(await jobsDump()).toBe(before);
     expect([await count('job_attempts'), await count('incidents'), await count('audit_log')]).toEqual(writesBefore);
   });
 
-  it('with publishing off it is one read', async () => {
+  it('the archive scan reads the jobs that finished inside its window, not the history before it', async () => {
+    await seedJobHistory();
+    await sql(
+      `WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i + 1 FROM n WHERE i < 5)
+       INSERT INTO jobs (id, kind, status, run_at, attempts, dedupe_key, created_at, updated_at)
+       SELECT printf('r%035d', i), 'publish', 'succeeded', ?1, 1, 'recent:' || i, ?1, ?1 - i FROM n`,
+      START
+    );
+
+    const { db, meter } = meteredDb(testDb());
+    await makeTick({ clock, transport: fakeTransport(SENT), db }).run();
+
+    // Five recent finished jobs, none of them tied to a post, and nothing else.
+    expect(meter.rowsRead).toBeLessThanOrEqual(8 + 5 + 2);
+  });
+
+  it('with publishing off it keeps automation checks bounded and records the heartbeat', async () => {
     await seedJobHistory();
 
     const { db, meter } = meteredDb(testDb());
     await makeTick({ clock, transport: fakeTransport(SENT), db, publishing: 'false' }).run();
 
-    expect(meter.roundTrips).toBe(1);
-    expect(meter.rowsRead).toBeLessThanOrEqual(1);
+    expect(meter.roundTrips).toBe(8);
+    expect(meter.rowsRead).toBeLessThanOrEqual(12);
   });
 });
 
 describe('the budget of a busy tick (Free plan: 50 D1 queries, 50 subrequests)', () => {
-  // The true maximum of one tick: an expired claim that needs an incident, a full batch of jobs that
-  // all end with an incident (9 statements each), one outcome write that fails and is repeated, and
-  // the hourly cleanup. 1 + 5 (reconcile) + 1 (due scan) + 3 x 9 + (1 re-read + 5 retry) + 5 = 45.
-  it('the worst mix (reconcile, a full batch with incidents, a write retry, hourly cleanup) fits 50 statements and 50 round trips', async () => {
+  // The bounded worst mix: one reconciled incident, two due incident outcomes, one outcome batch retry,
+  // hourly cleanup, archive, the two-alert page, and heartbeat. A third group remains eligible next tick.
+  it('the worst mix (reconcile, a full batch with incidents, a write retry, hourly cleanup, owner alerts) fits 50 statements and 50 round trips', async () => {
+    await rememberOrigin();
     const marked = await seedDueJob(api);
     await sql(
       "UPDATE jobs SET status = 'claimed', attempts = 1, lease_until = ?1, send_started_at = ?2 WHERE id = ?3",
@@ -103,15 +133,17 @@ describe('the budget of a busy tick (Free plan: 50 D1 queries, 50 subrequests)',
     const transport = fakeTransport(
       { kind: 'unknown', reason: 'timeout' },
       { kind: 'rejected', code: 'CHAT_MIGRATED' },
-      { kind: 'unknown', reason: 'telegram_http_502' }
+      SENT
     );
     let failuresLeft = 1;
 
     const { db, meter } = meteredDb(testDb());
+    const ownerMessenger = fakeOwnerMessenger();
     const tick = makeTick({
       clock,
       transport,
       db,
+      ownerMessenger,
       scheduledTime: HOURLY_TICK,
       tweak: (container) => ({
         ...container,
@@ -132,19 +164,30 @@ describe('the budget of a busy tick (Free plan: 50 D1 queries, 50 subrequests)',
     });
     await tick.run();
 
-    const subrequests = transport.calls.length;
-    expect(subrequests).toBe(DISPATCH_BATCH);
+    // Grouping is by incident class and affected publication, so distinct publications alert separately.
+    expect(tick.ownerMessages).toHaveLength(2);
+    const subrequests = transport.calls.length + tick.ownerMessages.length;
+    expect(transport.calls).toHaveLength(DISPATCH_BATCH);
     expect(await jobOf(marked.publicationId)).toMatchObject({ status: 'unknown' });
     expect(await count('incidents')).toBe(1 + DISPATCH_BATCH);
-    // Pinned: statements 45, round trips 2 (reconcile) + 1 (due) + 5 x 3 + 2 (re-read, retry) + 2 (cleanup).
-    expect(meter.statements).toBe(45);
-    expect(meter.roundTrips).toBe(2 + 1 + 5 * DISPATCH_BATCH + 2 + 2);
+    expect(await count('posts', 'archived_at IS NOT NULL')).toBe(0);
+    // Pinned: 49 statements and 28 round trips, leaving one statement of Free-plan headroom.
+    expect(meter.statements).toBe(49);
+    expect(meter.roundTrips).toBe(28);
     // Even if D1 counted every statement of a batch on its own, and Telegram calls beside them.
     expect(meter.statements).toBeLessThanOrEqual(50);
     expect(meter.roundTrips).toBeLessThanOrEqual(50);
     expect(meter.statements + subrequests).toBeLessThanOrEqual(50 + subrequests);
     const statuses = await Promise.all(due.map(async (job) => (await jobOf(job.publicationId)).status));
     expect(statuses.filter((status) => status === 'pending')).toHaveLength(2);
+
+    clock.advance(60_000);
+    await enableOwnerNotices(api);
+    await makeTick({ clock, transport: fakeTransport(SENT), ownerMessenger }).run();
+    // The two sends of this tick are announced as «Опубликовано» (switched on); the incident alerts are counted apart.
+    const sentNotices = tick.ownerMessages.filter((message) => message.html.includes('Опубликовано'));
+    expect(sentNotices).toHaveLength(2);
+    expect(tick.ownerMessages.length - sentNotices.length).toBe(3);
   });
 
   it('three successful sends cost 5 round trips each', async () => {
@@ -153,8 +196,46 @@ describe('the budget of a busy tick (Free plan: 50 D1 queries, 50 subrequests)',
     const { db, meter } = meteredDb(testDb());
     await makeTick({ clock, transport: fakeTransport(SENT), db }).run();
 
-    expect(meter.roundTrips).toBe(2 + 5 * DISPATCH_BATCH);
-    expect(meter.statements).toBe(2 + 8 * DISPATCH_BATCH);
+    // Each sent post is archived by the same tick: one read and one batch of two for all three. The owner's
+    // «Опубликовано» notices add two reads (app origin and notification settings, shared with the alerts).
+    expect(meter.roundTrips).toBe(2 + 5 * DISPATCH_BATCH + 2 + 1 + 3 + 2);
+    expect(meter.statements).toBe(2 + 8 * DISPATCH_BATCH + 3 + 1 + 3 + 2);
+    expect(await count('posts', 'archived_at IS NOT NULL')).toBe(DISPATCH_BATCH);
+  });
+});
+
+describe('the purge tick (minute 30, nothing due)', () => {
+  it('a full batch of expired posts costs one read and one batch of seven, whatever the batch holds', async () => {
+    await Promise.all(
+      Array.from({ length: PURGE_BATCH }, async () => {
+        const seeded = await seedDueJob(api);
+        await sql('UPDATE jobs SET status = ?2, run_at = 0 WHERE id = ?1', seeded.jobId, 'succeeded');
+        await sql('UPDATE posts SET archived_at = ?2 WHERE id = ?1', seeded.postId, START);
+      })
+    );
+    clock.set(START + ARCHIVE_RETENTION_MS);
+
+    const { db, meter } = meteredDb(testDb());
+    await makeTick({ clock, transport: fakeTransport(SENT), db, scheduledTime: START + 30 * 60_000 }).run();
+
+    // Every expired post had a sent publication, so each is a tombstone and its history stays.
+    expect(await count('posts', 'deleted_at IS NOT NULL')).toBe(PURGE_BATCH);
+    expect(await count('jobs')).toBe(PURGE_BATCH);
+    // Reconciliation, due/archive/expired scans, automation reconciliation (no Dota claim at minute 30, review 24.10.2026), then the audit row,
+    // eight child deletes, the hard delete and the soft delete of the posts, and the heartbeat.
+    expect(meter.roundTrips).toBe(10);
+    expect(meter.statements).toBe(3 + 7 + 1 + 8 + 1);
+  });
+
+  it('an idle one costs one read more than a regular idle tick', async () => {
+    const { db, meter } = meteredDb(testDb());
+
+    await makeTick({ clock, transport: fakeTransport(SENT), db, scheduledTime: START + 30 * 60_000 }).run();
+
+    expect(meter.roundTrips).toBe(9);
+    // Reads only, except the heartbeat upsert at the end.
+    expect(meter.sql.slice(0, 4).every((statement) => /^\s*SELECT\b/i.test(statement))).toBe(true);
+    expect(meter.sql.at(-1)).toMatch(/^\s*INSERT INTO system_state\b/);
   });
 });
 

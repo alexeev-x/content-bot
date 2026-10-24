@@ -1,0 +1,97 @@
+.body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-width: 0;
+  padding: 0 var(--space-4) var(--space-4);
+}
+.recentText {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.recentTitle {
+  overflow: hidden;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* Sources */
+.sources {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.source {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-2);
+}
+.sourceMark {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-2);
+  background: var(--color-surface-2);
+  color: var(--color-text-muted);
+}
+/* Two lines always (clamped): a long description no longer changes the row's height, and the skeleton has the same. */
+.sourceSubtitle {
+  display: -webkit-box;
+  min-height: 2lh;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+.sourceTime {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+.attention {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  color: var(--color-status-unknown-fg);
+}
+.sourcesFooter {
+  margin: 0;
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--color-border-subtle);
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+}
+/* Phone: text keeps the full width; time and the action share the row under it. */
+@media (max-width: 599px) {
+  .source {
+    grid-template-areas:
+      'mark text text'
+      'mark time action';
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    row-gap: var(--space-2);
+  }
+  .sourceMark {
+    grid-area: mark;
+    align-self: start;
+  }
+  .source > .recentText {
+    grid-area: text;
+  }
+  .sourceTime {
+    grid-area: time;
+  }
+  .source > :last-child {
+    grid-area: action;
+  }
+}

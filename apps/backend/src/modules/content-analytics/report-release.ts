@@ -1,0 +1,184 @@
+import { RICH_HTML_MAX } from '@alexeev/contracts';
+import type { ContentAlertRepository } from './d1-content-alerts-repository';
+import type { ContentDailyReportRepository, DailyReportRow } from './d1-content-daily-reports-repository';
+import {
+  type DailyReportData,
+  type DailyReview,
+  dailyReportHtml,
+  dailyReportRichHtml,
+  dailyReviewFacts,
+  reportTitleKeys
+} from './daily-report';
+import type { ContentVideoNameRepository } from './d1-content-video-names-repository';
+import { type WeeklyData, weeklyReportHtml, weeklyReviewFacts } from './weekly-report';
+
+// Releasing a stored daily or weekly report (AI plan P6): the review job or the deadline turns it into its one
+// message, a content alert with the report's id. Both kinds share the table (migration 0077) and these rules.
+
+/** A report still without its review after this long goes out with the numbers alone. */
+export const REVIEW_DEADLINE_MS = 30 * 60 * 1000;
+/** A report still waiting after this long is about a day gone: it is closed, not sent. */
+const REPORT_STALE_MS = 20 * 60 * 60 * 1000;
+/** Telegram counts a message's characters after entity parsing; this much room is kept below its 4096. */
+const MESSAGE_MAX = 3900;
+
+/** The characters Telegram counts: the text without tags, entities decoded. */
+export function visibleLength(html: string): number {
+  return Array.from(
+    html
+      .replace(/<[^>]+>/g, '')
+      .replaceAll('&lt;', '<')
+      .replaceAll('&gt;', '>')
+      .replaceAll('&quot;', '"')
+      .replaceAll('&amp;', '&')
+  ).length;
+}
+
+const CUT_NOTE = '<i>Сообщение длинное — целиком отчёт в Студии: Аналитика → Отчёты.</i>';
+
+/**
+ * The numbers alone may still not fit (review 19.10.2026): whole blocks go from the end, never a line inside a
+ * `<pre>` table (an unclosed tag would make Telegram refuse the message), and the message says where the rest is.
+ */
+export function fitMessage(html: string): string {
+  if (visibleLength(html) <= MESSAGE_MAX) return html;
+  const blocks = html.split('\n\n');
+  while (blocks.length > 1 && visibleLength([...blocks, CUT_NOTE].join('\n\n')) > MESSAGE_MAX) blocks.pop();
+  const fitted = [...blocks, CUT_NOTE].join('\n\n');
+  // One block longer than a message on its own: plain text cut, no tags left to break.
+  return visibleLength(fitted) <= MESSAGE_MAX
+    ? fitted
+    : `${Array.from(fitted.replace(/<[^>]+>/g, ''))
+        .slice(0, MESSAGE_MAX - 1)
+        .join('')
+        .replace(/&[a-z]*$/, '')}…`;
+}
+
+type StoredReport = DailyReportData | WeeklyData;
+
+/** The stored JSON: a weekly report says so; a daily one is the older shape without `kind`. */
+function dataOf(report: DailyReportRow): StoredReport {
+  return JSON.parse(report.data) as StoredReport;
+}
+
+const isWeekly = (data: StoredReport): data is WeeklyData => 'kind' in data && data.kind === 'weekly';
+
+/** The facts for the review job of a stored report; null when it is gone or no longer waiting. */
+export async function dailyReviewInput(
+  reports: Pick<ContentDailyReportRepository, 'find'>,
+  id: string
+): Promise<(ReturnType<typeof dailyReviewFacts> & { period: 'day' | 'week' }) | null> {
+  const report = await reports.find(id);
+  if (report === null || report.status !== 'waiting') return null;
+  const data = dataOf(report);
+  return isWeekly(data)
+    ? { ...weeklyReviewFacts(data, report.timezone), titles: [], period: 'week' }
+    : { ...dailyReviewFacts(data), period: 'day' };
+}
+
+/** The facts of a stored report whatever its status: the Monday hypotheses job reads the released week. */
+export async function storedReportFacts(
+  reports: Pick<ContentDailyReportRepository, 'find'>,
+  id: string
+): Promise<string | null> {
+  const report = await reports.find(id);
+  if (report === null) return null;
+  const data = dataOf(report);
+  return isWeekly(data) ? weeklyReviewFacts(data, report.timezone).facts : dailyReviewFacts(data).facts;
+}
+
+/**
+ * Turns a waiting report into its message, with the review or the reason there is none, and raises it as the
+ * day's content alert. The alert first (its id dedups a second releaser), then the report row ends.
+ */
+export async function releaseDailyReport(
+  deps: {
+    reports: ContentDailyReportRepository;
+    alerts: Pick<ContentAlertRepository, 'insert'>;
+    /** Short names of the videos (migration 0102); without it a title is cut to the column. */
+    names?: Pick<ContentVideoNameRepository, 'read'>;
+    now: number;
+  },
+  input: {
+    id: string;
+    review: DailyReview | null;
+    reviewError: string | null;
+    model: string | null;
+    usageId?: string | null;
+  }
+): Promise<boolean> {
+  const report = await deps.reports.find(input.id);
+  if (report === null || report.status !== 'waiting') return false;
+  const data = dataOf(report);
+  const names = isWeekly(data) || deps.names === undefined ? undefined : await deps.names.read(reportTitleKeys(data));
+  const render = (review: DailyReview | null, reviewError: string | null) =>
+    isWeekly(data)
+      ? weeklyReportHtml({ data, timezone: report.timezone, review, reviewError })
+      : dailyReportHtml({ data, timezone: report.timezone, review, reviewError, ...(names ? { names } : {}) });
+  let { review, reviewError } = input;
+  let html = render(review, reviewError);
+  // A review that does not fit would make Telegram refuse the whole message: the numbers go alone instead.
+  if (review !== null && visibleLength(html) > MESSAGE_MAX) {
+    review = null;
+    reviewError = 'AI_TOO_LONG';
+    html = render(null, reviewError);
+  }
+  html = fitMessage(html);
+  // The same report as a rich message (owner, 23.10.2026): sent first, `html` its fallback; null for an older layout.
+  const richHtml = isWeekly(data)
+    ? weeklyReportHtml({ data, timezone: report.timezone, review, reviewError, rich: true })
+    : dailyReportRichHtml({ data, timezone: report.timezone, review, reviewError, ...(names ? { names } : {}) });
+  const inserted = await deps.alerts.insert(
+    [
+      {
+        id: report.id,
+        kind: 'digest',
+        title: isWeekly(data) ? 'Итоги недели' : 'Аналитика за день',
+        body: isWeekly(data) ? 'Еженедельный отчёт.' : 'Ежедневный отчёт по YouTube и TikTok.',
+        html,
+        ...(richHtml === null || richHtml.length > RICH_HTML_MAX ? {} : { richHtml }),
+        buttons: [],
+        linkPath: '/analytics'
+      }
+    ],
+    deps.now
+  );
+  // Only the releaser whose alert went in records what was sent; the other one changes nothing.
+  if (inserted === 0) return false;
+  return deps.reports.finish({
+    id: report.id,
+    status: review === null ? 'unreviewed' : 'reviewed',
+    review: review === null ? null : JSON.stringify(review),
+    reviewError,
+    model: input.model,
+    usageId: input.usageId ?? null,
+    now: deps.now
+  });
+}
+
+/** Reports whose review did not come in time go out with the numbers alone (AI off, a lost job, a slow model). */
+export async function releaseOverdueReports(deps: {
+  reports: ContentDailyReportRepository;
+  alerts: Pick<ContentAlertRepository, 'insert'>;
+  names?: Pick<ContentVideoNameRepository, 'read'>;
+  now: number;
+}): Promise<number> {
+  let released = 0;
+  for (const report of await deps.reports.listWaiting(deps.now - REVIEW_DEADLINE_MS, 2)) {
+    // A day long gone (the report was off, then on again) is closed without a message about old numbers.
+    if (report.createdAt < deps.now - REPORT_STALE_MS) {
+      await deps.reports.finish({
+        id: report.id,
+        status: 'unreviewed',
+        review: null,
+        reviewError: 'EXPIRED',
+        model: null,
+        now: deps.now
+      });
+      continue;
+    }
+    if (await releaseDailyReport(deps, { id: report.id, review: null, reviewError: 'REVIEW_TIMEOUT', model: null }))
+      released += 1;
+  }
+  return released;
+}

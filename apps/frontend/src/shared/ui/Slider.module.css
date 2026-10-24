@@ -1,0 +1,127 @@
+.slider {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: var(--space-4);
+  min-width: 0;
+}
+.label {
+  flex: none;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+}
+.hiddenLabel {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.control {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+}
+.slider[data-pill] .control {
+  padding: 0 var(--space-1);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-pill);
+  background: var(--color-surface-2);
+}
+/* The round buttons: 36 px with a fine pointer, 44 px on touch (IconButton size sm). */
+.stepper {
+  border-radius: 50%;
+}
+.plainStepper {
+  position: relative;
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--color-text);
+  cursor: pointer;
+  outline: none;
+}
+/* 24 px glyph box; the hit area grows to 44 px, staying inside the 12 px gaps so it never overlaps the thumb or the other button. */
+.plainStepper::after {
+  content: '';
+  position: absolute;
+  inset: -10px;
+}
+.plainStepper[data-hovered] {
+  background: var(--color-surface-3);
+}
+.plainStepper[data-focus-visible] {
+  outline: var(--focus-ring-width) solid var(--color-focus-ring);
+  outline-offset: var(--focus-ring-offset);
+}
+.plainStepper[data-disabled] {
+  color: var(--color-text-disabled);
+  cursor: not-allowed;
+}
+.track {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  height: var(--size-control);
+  touch-action: none;
+}
+.rail,
+.fill {
+  position: absolute;
+  top: 50%;
+  height: 4px;
+  border-radius: var(--radius-pill);
+  transform: translateY(-50%);
+}
+.rail {
+  right: 0;
+  left: 0;
+  background: var(--color-border-strong);
+}
+.fill {
+  left: 0;
+  background: var(--color-accent);
+}
+.thumb {
+  /* React Aria places the thumb horizontally (left and translateX); only the vertical centring is ours. */
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 20px;
+  height: 20px;
+  border: 2px solid var(--color-accent);
+  border-radius: 50%;
+  background: var(--color-text);
+  cursor: grab;
+  outline: none;
+}
+/* A 44 px hit area around the 20 px thumb. */
+.thumb::after {
+  content: '';
+  position: absolute;
+  inset: -12px;
+}
+.thumb[data-dragging] {
+  cursor: grabbing;
+  background: var(--color-accent);
+}
+.thumb[data-focus-visible] {
+  outline: var(--focus-ring-width) solid var(--color-focus-ring);
+  outline-offset: var(--focus-ring-offset);
+}
+.thumb[data-disabled] {
+  border-color: var(--color-border-subtle);
+  background: var(--color-text-disabled);
+  cursor: not-allowed;
+}
+.slider[data-disabled] .fill {
+  background: var(--color-text-disabled);
+}

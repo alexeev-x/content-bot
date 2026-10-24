@@ -1,0 +1,125 @@
+.body {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-2) var(--space-3);
+}
+
+.hint {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+  max-inline-size: 70ch;
+}
+
+.list {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.source {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+}
+
+.meta {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+  font-weight: 400;
+}
+
+.excerpt {
+  display: -webkit-box;
+  margin: 0;
+  overflow: hidden;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+}
+
+.error {
+  margin: 0;
+  color: var(--color-status-failed-fg);
+  font-size: var(--font-size-sm);
+}
+
+.rowSingle {
+  display: grid;
+  gap: var(--space-1);
+  min-inline-size: 0;
+  padding-block: var(--space-2);
+}
+
+.rowSingle + .rowSingle {
+  border-block-start: 1px solid var(--color-border-subtle);
+}
+
+/* The examples table (AiLearningList). */
+.tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}
+
+.tableInset {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.tableInset > .hint {
+  padding: 0 var(--space-4);
+}
+
+.textCell {
+  display: grid;
+  gap: 2px;
+  min-inline-size: 0;
+}
+
+.excerptLine {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cellMeta {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+}
+
+.nowrap {
+  white-space: nowrap;
+}
+
+.include {
+  display: inline-grid;
+  justify-items: start;
+  gap: var(--space-1);
+}
+
+/* Phone: the search takes the row, the filters follow from the left, as in «Черновики». */
+@media (max-width: 859px) {
+  .tools {
+    justify-content: flex-start;
+    width: 100%;
+  }
+
+  .tools > :first-child {
+    flex: 1 1 100%;
+  }
+}
+
+/* The open text: as written, line breaks kept. */
+.fullText {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}

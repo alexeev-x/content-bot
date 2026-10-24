@@ -1,0 +1,73 @@
+.cellMedia {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+  max-width: 60ch;
+}
+.cellTitle {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  max-width: 52ch;
+}
+.title {
+  overflow: hidden;
+  font-weight: var(--font-weight-medium);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.excerpt {
+  overflow: hidden;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.deletedBadge {
+  margin-inline-start: var(--space-2);
+  padding: 0 var(--space-2);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-2);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-regular, 400);
+  white-space: nowrap;
+}
+.channel {
+  display: block;
+  max-width: 26ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.time {
+  white-space: nowrap;
+}
+.muted {
+  color: var(--color-text-muted);
+}
+.link {
+  color: var(--color-accent-text);
+  text-decoration: none;
+}
+.link:hover {
+  text-decoration: underline;
+}
+
+@media (max-width: 859px) {
+  .cellTitle {
+    max-width: none;
+  }
+}
+
+/* A series post: its place and whether it waits for the previous one, under the status. */
+.statusCell {
+  display: grid;
+  gap: var(--space-1);
+  justify-items: start;
+}
+.seriesNote {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+}

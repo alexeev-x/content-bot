@@ -1,0 +1,54 @@
+import { classifyApiError, type ApiErrorKind } from '../../../shared/api/error-kind';
+import { ApiError } from '../../../shared/api/http-client';
+import { postsCopy } from '../ui/copy';
+
+const copy = postsCopy.editor.errors;
+
+export type EditorNotice = { title: string; message: string; requestId?: string | undefined };
+
+function messageFor(kind: ApiErrorKind): string {
+  switch (kind) {
+    case 'validation':
+      return copy.validation;
+    case 'entities_too_many':
+      return copy.entitiesTooMany;
+    case 'entities_too_large':
+      return copy.entitiesTooLarge;
+    case 'entities_out_of_range':
+      return copy.entitiesOutOfRange;
+    case 'entities_split_surrogate':
+      return copy.entitiesSplitSurrogate;
+    case 'entities_invalid_nesting':
+      return copy.entitiesInvalidNesting;
+    case 'entities_required':
+      return copy.entitiesRequired;
+    case 'kind_mismatch':
+      return copy.kindMismatch;
+    case 'poll_invalid':
+      return copy.pollInvalid;
+    case 'rich_not_editable':
+      return copy.richNotEditable;
+    case 'rich_invalid':
+      return copy.richInvalid;
+    case 'payload_too_large':
+      return copy.tooLarge;
+    case 'unavailable':
+      return copy.unavailable;
+    case 'rate_limited':
+      return copy.rate;
+    case 'forbidden':
+      return copy.forbidden;
+    default:
+      return copy.generic;
+  }
+}
+
+/** Short text plus the requestId; the typed text always stays in the editor. */
+export function toEditorNotice(error: unknown, title: string): EditorNotice {
+  const kind = classifyApiError(error);
+  return {
+    title,
+    message: `${messageFor(kind)} ${copy.keep}`,
+    requestId: error instanceof ApiError ? error.requestId : undefined
+  };
+}

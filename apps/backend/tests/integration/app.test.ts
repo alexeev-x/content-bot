@@ -86,6 +86,27 @@ describe('AppError mapping', () => {
     });
     expect(JSON.stringify(body)).not.toContain('private diagnostic');
   });
+
+  it.each([
+    ['UNIQUE constraint failed: post_media.post_id, post_media.media_id', 'D1_UNIQUE_POST_MEDIA'],
+    ['UNIQUE constraint failed: post_revisions.post_id, post_revisions.revision', 'D1_UNIQUE_POST_REVISION']
+  ])('logs a safe identifier for a %s database conflict', async (message, errorCode) => {
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    try {
+      const app = createApp();
+      app.get('/internal/unexpected-error', () => {
+        throw new Error(message);
+      });
+
+      const response = await app.request('/internal/unexpected-error');
+
+      expect(response.status).toBe(500);
+      expect(logSpy).toHaveBeenCalledWith(expect.stringContaining(`"errorCode":"${errorCode}"`));
+      expect(await response.text()).not.toContain('UNIQUE constraint failed');
+    } finally {
+      logSpy.mockRestore();
+    }
+  });
 });
 
 describe('HTTPException mapping', () => {

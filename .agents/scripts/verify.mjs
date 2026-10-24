@@ -2,15 +2,33 @@
 // The full output goes to .logs/verify.log, which agents read only when the summary is not enough.
 // Nothing is filtered from the log itself, so no error line is ever lost.
 //
-// `--changed` checks only what the current changes touch (pre-push hook, agent stop hook):
-// commits not yet pushed + uncommitted work. CI always runs the full set.
+// `--changed` checks only what the current changes touch (pre-push hook, agent stop hook, CI):
+// commits not yet pushed + uncommitted work locally; CI can pass `--base <sha>` for its exact push/PR range.
+// `--only a,b` / `--skip a,b` filter either the full plan or the changed-file plan. CI runs the slow test
+// suites in its own steps of the same job and keeps the rest of the affected verification here.
+//
+// Light steps run at once; heavy ones (tsc, test pools, build) run one after another alongside them, because
+// all of them together exhaust a 16 GB laptop's memory and macOS starts force-quitting apps.
 import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { runCommand, commandOutput } from './run-command.mjs';
+import { runCommandAsync, commandOutput } from './run-command.mjs';
 
-// Fast, cheap checks first so a failure costs the least time.
+// The frontend build bundles the Worker too, so it also proves the backend still deploys. Plain `vite build`:
+// the typecheck steps already run tsc.
+const BUILD = ['build', ['npm', 'exec', '-w', '@alexeev/frontend', '--', 'vite', 'build']];
+
+const HEAVY = new Set([
+  'typecheck',
+  'contracts-typecheck',
+  'backend-typecheck',
+  'frontend-typecheck',
+  'backend-tests',
+  'frontend-tests',
+  'build',
+]);
+
 export const STEPS = [
   ['format', ['npm', 'run', 'format:check']],
   ['lint', ['npm', 'run', 'lint']],
@@ -19,8 +37,9 @@ export const STEPS = [
   ['tooling-tests', ['npm', 'test']],
   ['typecheck', ['npm', 'run', 'typecheck']],
   ['architecture', ['npm', 'run', 'depcruise']],
-  ['app-tests', ['npm', 'run', 'test:apps']],
-  ['build', ['npm', 'run', 'build']],
+  ['backend-tests', ['npm', 'run', 'test', '-w', '@alexeev/backend']],
+  ['frontend-tests', ['npm', 'run', 'test', '-w', '@alexeev/frontend']],
+  BUILD,
 ];
 
 // Changes here can affect everything, so they trigger the full set.
@@ -42,7 +61,7 @@ export function planSteps(files, { existingFiles = files } = {}) {
   const backend = contracts || files.some((f) => f.startsWith('apps/backend/'));
   const frontend = contracts || files.some((f) => f.startsWith('apps/frontend/'));
   if (pretty.length) steps.push(['format', ['npx', 'prettier', '--check', '--ignore-unknown', ...pretty]]);
-  if (lintable.length) steps.push(['lint', ['npx', 'oxlint', ...lintable]]);
+  if (lintable.length) steps.push(['lint', ['npx', 'oxlint', '--no-error-on-unmatched-pattern', ...lintable]]);
   if (files.some((f) => INSTRUCTIONS.test(f))) {
     steps.push(
       ['docs', ['npm', 'run', 'check:docs']],
@@ -56,8 +75,7 @@ export function planSteps(files, { existingFiles = files } = {}) {
   if (backend || frontend) steps.push(['architecture', ['npm', 'run', 'depcruise']]);
   if (backend) steps.push(['backend-tests', ['npm', 'run', 'test', '-w', '@alexeev/backend']]);
   if (frontend) steps.push(['frontend-tests', ['npm', 'run', 'test', '-w', '@alexeev/frontend']]);
-  // The frontend build bundles the Worker too, so it also proves the backend still deploys.
-  if (backend || frontend) steps.push(['build', ['npm', 'run', 'build', '-w', '@alexeev/frontend']]);
+  if (backend || frontend) steps.push(BUILD);
   return steps;
 }
 
@@ -72,20 +90,31 @@ export function relevantLines(output) {
   return (hits.length ? hits : lines).slice(-MAX_LINES);
 }
 
-export function changedFiles(root) {
+export function changedFiles(root, requestedBase = null) {
   const git = (...args) => execFileSync('git', args, { cwd: root, encoding: 'utf8' });
   let base = null;
-  for (const ref of ['@{upstream}', 'origin/develop']) {
+  if (requestedBase) {
     try {
-      base = git('merge-base', 'HEAD', ref).trim();
-      break;
+      // CI passes the exact "before"/PR-base commit. Use it directly: shallow checkouts do not
+      // necessarily have enough ancestry for merge-base even after fetching that single commit.
+      git('cat-file', '-e', `${requestedBase}^{commit}`);
+      base = requestedBase;
     } catch {
-      // try the next candidate
+      // A missing CI base must fall back to the full set rather than silently under-check the commit.
+      base = null;
+    }
+  } else {
+    for (const ref of ['@{upstream}', 'origin/develop']) {
+      try {
+        base = git('merge-base', 'HEAD', ref).trim();
+        break;
+      } catch {
+        // try the next candidate
+      }
     }
   }
-  const committed = base
-    ? git('diff', '--name-only', '-z', '--no-renames', `${base}...HEAD`).replaceAll('\\', '/')
-    : '';
+  const range = requestedBase && base ? `${base}..HEAD` : base ? `${base}...HEAD` : null;
+  const committed = range ? git('diff', '--name-only', '-z', '--no-renames', range).replaceAll('\\', '/') : '';
   const working = git('status', '--porcelain', '-z', '--no-renames', '--untracked-files=all')
     .split('\0')
     .filter(Boolean)
@@ -95,32 +124,66 @@ export function changedFiles(root) {
   return { base, files, existingFiles: files.filter((f) => existsSync(join(root, f))) };
 }
 
+/** Applies `--only` / `--skip`; an unknown step name is an error, so a typo never skips a check silently. */
+export function selectSteps(steps, argv, knownSteps = STEPS) {
+  const list = (flag) => {
+    const index = argv.indexOf(flag);
+    if (index === -1) return null;
+    const names = (argv[index + 1] ?? '').split(',').filter(Boolean);
+    const unknown = names.filter((name) => !knownSteps.some(([step]) => step === name));
+    if (!names.length || unknown.length) {
+      throw new Error(`${flag} needs step names from: ${knownSteps.map(([step]) => step).join(', ')}`);
+    }
+    return names;
+  };
+  const only = list('--only');
+  const skip = list('--skip');
+  return steps.filter(([name]) => (!only || only.includes(name)) && !skip?.includes(name));
+}
+
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const root = join(fileURLToPath(import.meta.url), '../../..');
+  const baseIndex = process.argv.indexOf('--base');
+  if (baseIndex !== -1 && !process.argv[baseIndex + 1]) throw new Error('--base needs a git ref or SHA');
+  const requestedBase = baseIndex === -1 ? null : process.argv[baseIndex + 1];
   let steps = STEPS;
   if (process.argv.includes('--changed')) {
-    const { base, files, existingFiles } = changedFiles(root);
+    const { base, files, existingFiles } = changedFiles(root, requestedBase);
     steps = base === null ? STEPS : planSteps(files, { existingFiles });
     console.log(
       base === null
-        ? 'verify --changed: no upstream found, running the full set'
-        : `verify --changed: ${files.length} changed file(s), ${steps.length} step(s)`,
+        ? 'verify --changed: no usable base found, running the full set'
+        : `verify --changed: ${files.length} changed file(s), ${steps.length} planned step(s)`,
     );
   }
-  let log = '';
-  let failed = 0;
-  for (const [name, [cmd, ...args]] of steps) {
-    const run = runCommand(cmd, args, { cwd: root, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
+  steps = selectSteps(steps, process.argv, STEPS);
+  const runStep = async ([name, [cmd, ...args]]) => {
+    const started = Date.now();
+    const run = await runCommandAsync(cmd, args, { cwd: root });
+    const seconds = Math.round((Date.now() - started) / 1000);
     const out = commandOutput(run);
-    log += `\n===== ${name}: ${cmd} ${args.join(' ')} (exit ${run.status})\n${out}`;
     if (run.status === 0) {
-      console.log(`✓ ${name}`);
-      continue;
+      console.log(`✓ ${name} (${seconds}s)`);
+    } else {
+      console.log(`✗ ${name} (${seconds}s; ${cmd} ${args.slice(0, 4).join(' ')}${args.length > 4 ? ' …' : ''})`);
+      for (const line of relevantLines(out)) console.log(`  ${line.trim().slice(0, 300)}`);
     }
-    failed++;
-    console.log(`✗ ${name} (${cmd} ${args.slice(0, 4).join(' ')}${args.length > 4 ? ' …' : ''})`);
-    for (const line of relevantLines(out)) console.log(`  ${line.trim().slice(0, 300)}`);
-  }
+    return { name, cmd, args, status: run.status, out };
+  };
+  const runHeavy = async () => {
+    const results = [];
+    for (const step of steps.filter(([name]) => HEAVY.has(name))) results.push(await runStep(step));
+    return results;
+  };
+  const [light, heavy] = await Promise.all([
+    Promise.all(steps.filter(([name]) => !HEAVY.has(name)).map(runStep)),
+    runHeavy(),
+  ]);
+  const byName = new Map([...light, ...heavy].map((r) => [r.name, r]));
+  const runs = steps.map(([name]) => byName.get(name));
+  // The log keeps the plan's order, whatever order the steps finished in.
+  const log = runs.map((r) => `\n===== ${r.name}: ${r.cmd} ${r.args.join(' ')} (exit ${r.status})\n${r.out}`).join('');
+  const failed = runs.filter((r) => r.status !== 0).length;
   mkdirSync(join(root, '.logs'), { recursive: true });
   writeFileSync(join(root, '.logs/verify.log'), log);
   console.log(failed ? `verify: ${failed} step(s) failed — full log: .logs/verify.log` : 'verify: all green');

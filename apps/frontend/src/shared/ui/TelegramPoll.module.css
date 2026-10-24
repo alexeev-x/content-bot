@@ -1,0 +1,42 @@
+.poll {
+  display: grid;
+  gap: var(--space-1);
+  min-width: 0;
+}
+.question {
+  font-weight: var(--font-weight-semibold);
+  white-space: pre-wrap;
+}
+.kind {
+  color: var(--color-bubble-meta);
+  font-size: var(--font-size-xs);
+}
+.options {
+  display: grid;
+  gap: var(--space-2);
+  margin: var(--space-1) 0 0;
+  padding: 0;
+  list-style: none;
+}
+.option {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.mark {
+  flex: none;
+  width: var(--space-4);
+  height: var(--space-4);
+  border: 1px solid var(--color-bubble-meta);
+}
+.mark[data-shape='circle'] {
+  border-radius: var(--radius-pill);
+}
+.mark[data-shape='square'] {
+  border-radius: var(--radius-1);
+}
+.placeholder {
+  color: var(--color-bubble-meta);
+}

@@ -1,0 +1,142 @@
+.chart {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: var(--space-1);
+  flex: 1;
+  min-height: 128px;
+}
+.column {
+  min-width: 0;
+  border-radius: var(--radius-2);
+}
+.column[data-today] {
+  background: var(--color-accent-soft);
+}
+.hit {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+  height: 100%;
+  padding: var(--space-1) 0;
+  border: 0;
+  border-radius: var(--radius-2);
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+.hit[data-hovered] {
+  background: var(--color-surface-2);
+}
+.hit[data-focus-visible] {
+  outline: var(--focus-ring-width) solid var(--color-focus-ring);
+  outline-offset: calc(var(--focus-ring-width) * -1);
+}
+.total {
+  min-height: 18px;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+  font-variant-numeric: tabular-nums;
+}
+/* The stack fills the space between the count and the day label; the bar inside is as tall as its day is busy. */
+.stack {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  justify-content: flex-end;
+  width: 100%;
+  min-height: 0;
+  margin-block: var(--space-1);
+}
+.bar {
+  display: flex;
+  flex-direction: column;
+  width: 56%;
+  min-height: 4px;
+  margin-inline: auto;
+}
+.bar > span {
+  flex-basis: 0;
+  min-height: 4px;
+}
+.sent,
+.scheduled,
+.problem,
+.stub {
+  display: block;
+}
+.problem {
+  border-radius: var(--radius-1) var(--radius-1) 0 0;
+  background: var(--color-status-failed-fg);
+}
+.scheduled {
+  background: var(--color-status-active-bg);
+  border: 1.5px dashed var(--color-status-active-fg);
+}
+.sent {
+  border-radius: 0 0 var(--radius-1) var(--radius-1);
+  background: var(--color-status-done-fg);
+}
+.bar > .stub {
+  flex: 0 0 3px;
+  min-height: 3px;
+  border-radius: var(--radius-pill);
+  background: var(--color-border-strong);
+}
+.day {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+}
+.column[data-today] .day {
+  color: var(--color-accent-text);
+  font-weight: var(--font-weight-semibold);
+}
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-3);
+  margin: var(--space-2) 0 0;
+  padding: 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+  list-style: none;
+}
+.legend li {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+.legend li::before {
+  content: '';
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+}
+.legend [data-kind='sent']::before {
+  background: var(--color-status-done-fg);
+}
+.legend [data-kind='scheduled']::before {
+  border: 1.5px dashed var(--color-status-active-fg);
+  background: var(--color-status-active-bg);
+}
+.legend [data-kind='problem']::before {
+  background: var(--color-status-failed-fg);
+}
+.error {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: var(--space-3);
+  min-height: 128px;
+}
+/* A skeleton bar fills its whole column from the bottom, as the loaded bar will (flex-basis 0 would squash it). */
+.bar > .fill {
+  display: flex;
+  flex: 1 0 0;
+}

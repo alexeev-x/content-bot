@@ -17,5 +17,11 @@
       }
     ]
   },
-  "ignorePatterns": ["**/dist/**", "**/worker-configuration.d.ts", "**/routeTree.gen.ts", ".agents/skills/**"]
+  "ignorePatterns": [
+    "**/dist/**",
+    "**/worker-configuration.d.ts",
+    "**/routeTree.gen.ts",
+    "**/*.generated.ts",
+    ".agents/skills/**"
+  ]
 }

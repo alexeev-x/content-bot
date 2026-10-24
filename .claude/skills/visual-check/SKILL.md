@@ -1,14 +1,14 @@
 ---
 name: visual-check
-description: "Verify UI in a real browser — run the app, take Playwright screenshots at 375px and 1280px per state, keyboard pass, axe WCAG 2.2 scan, focus-not-obscured and target-size checks, screenshot baselines in Docker. Use after any UI, layout, token or primitive change. Figma is never a reference."
+description: "Verify UI in a real browser — run the app, screenshot the main state at 375 and 1280 px, keyboard pass, axe WCAG 2.2 scan, focus-not-obscured and target-size checks, screenshot baselines in Docker. Use after any UI, layout, token or primitive change. Figma is never a reference."
 ---
 # Visual check
 
-The reference is the running app plus the tokens. There is no mockup.
+References: the running app, the tokens and the owner's images in `design-refs/<task>/`. Never Figma.
 
 1. **Run the app** with deterministic data: `npm run dev -w @alexeev/frontend` with MSW fixtures for each page-spec state. Freeze the clock (`page.clock`) and mask dynamic text (timestamps, requestIds).
 2. **Reconnaissance, then action** (pattern from Anthropic's `webapp-testing` skill): open the page, wait for a stable UI with web-first assertions (`await expect(locator).toBeVisible()`, not fixed sleeps), take a screenshot and read the rendered roles, then script the interactions with role-based locators. Capture console errors and failed requests; any error is a finding. Run helper scripts as black boxes (`--help` first) rather than reading them into context.
-3. **Capture** at 375×812 and 1280×800, every applicable state. Use Playwright viewport emulation (`chromium.launch({ channel: 'chrome' })` works without downloading browsers; `isMobile: true` for 375). Never judge mobile layout from plain headless Chrome `--window-size`: desktop Chrome has a minimum window width (~500px), so it lays out wider and crops — a false overflow. Measure `document.documentElement.scrollWidth === clientWidth`. Use `@playwright/test` scripts that save screenshots to disk and open only the ones you need; don't use a Playwright MCP — its page snapshots flood the context.
+3. **Capture** the main state at 375×812 and 1280×800 (1920×1080 only for wide tables), light and dark; other states only when they changed. Use Playwright viewport emulation (`chromium.launch({ channel: 'chrome' })` works without downloading browsers; `isMobile: true` for 375). Never judge mobile layout from plain headless Chrome `--window-size`: desktop Chrome has a minimum window width (~500px), so it lays out wider and crops — a false overflow. Measure `document.documentElement.scrollWidth === clientWidth`. Use `@playwright/test` scripts that save screenshots to disk and open only downscaled copies of the ones you compare; don't use a Playwright MCP — its page snapshots flood the context.
 4. **Keyboard pass:**
    - Tab through the page and assert `toBeFocused()` in a logical order.
    - The focus ring is visible and not hidden under sticky bars (2.4.11).

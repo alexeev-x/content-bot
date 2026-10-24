@@ -1,0 +1,166 @@
+.canvas {
+  display: grid;
+  place-items: center;
+  container-type: size;
+  overflow: hidden;
+  border-radius: var(--radius-4);
+  background: var(--color-surface-3);
+}
+.stage {
+  position: relative;
+  /* The largest box of the image's shape inside the panel; the frame, the dim and the grid live in it. */
+  width: min(100cqw, calc(100cqh * var(--crop-aspect)));
+  aspect-ratio: var(--crop-aspect);
+  overflow: hidden;
+  touch-action: none;
+  user-select: none;
+}
+.zoomLayer {
+  position: absolute;
+  inset: 0;
+  transform-origin: center;
+  transition: transform var(--motion-fast);
+}
+.image {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  display: block;
+  max-width: none;
+  object-fit: fill;
+  pointer-events: none;
+}
+.frame {
+  position: absolute;
+  border: 1.5px solid var(--color-crop-frame);
+  /* The huge spread dims everything outside the frame; the stage clips it. */
+  box-shadow: 0 0 0 100vmax var(--color-crop-dim);
+  cursor: move;
+  outline: none;
+  touch-action: none;
+}
+.frame[data-focus-visible],
+.frame:focus-visible {
+  outline: var(--focus-ring-width) solid var(--color-focus-ring);
+  outline-offset: var(--focus-ring-offset);
+}
+.canvas[data-disabled] .frame {
+  cursor: default;
+}
+.grid {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.grid > span {
+  position: absolute;
+  border: 0 solid var(--color-crop-grid);
+}
+.lineV1,
+.lineV2 {
+  top: 0;
+  bottom: 0;
+  border-left-width: 1px !important;
+}
+.lineH1,
+.lineH2 {
+  right: 0;
+  left: 0;
+  border-top-width: 1px !important;
+}
+.lineV1 {
+  left: 33.333%;
+}
+.lineV2 {
+  left: 66.666%;
+}
+.lineH1 {
+  top: 33.333%;
+}
+.lineH2 {
+  top: 66.666%;
+}
+.grid[data-line='dashed'] > span {
+  border-style: dashed;
+}
+.grid[data-line='solid'] > span {
+  border-style: solid;
+}
+.handle {
+  position: absolute;
+  width: var(--size-crop-handle);
+  height: var(--size-crop-handle);
+  padding: 0;
+  border: 0;
+  background: var(--color-crop-frame);
+  cursor: nwse-resize;
+  outline: none;
+  touch-action: none;
+}
+/* Handles sit flush with the frame's outer corner, so they stay whole when the frame equals the image (the stage clips). */
+/* 44 px hit area around the visible handle. */
+.handle::after {
+  content: '';
+  position: absolute;
+  inset: calc((var(--size-crop-handle) - var(--size-target)) / 2);
+}
+.handle[data-corner='top-left'] {
+  top: -1.5px;
+  left: -1.5px;
+}
+.handle[data-corner='top-right'] {
+  top: -1.5px;
+  right: -1.5px;
+  cursor: nesw-resize;
+}
+.handle[data-corner='bottom-left'] {
+  bottom: -1.5px;
+  left: -1.5px;
+  cursor: nesw-resize;
+}
+.handle[data-corner='bottom-right'] {
+  right: -1.5px;
+  bottom: -1.5px;
+}
+.handle:focus-visible {
+  outline: var(--focus-ring-width) solid var(--color-focus-ring);
+  outline-offset: var(--focus-ring-offset);
+  box-shadow: 0 0 0 calc(var(--focus-ring-width) + var(--focus-ring-offset)) var(--color-crop-dim);
+}
+.handle:disabled {
+  cursor: default;
+}
+/* Bracket handles: an L of the frame colour on the two outer sides, drawn over the frame border. */
+.frame[data-handle='bracket'] .handle {
+  width: 20px;
+  height: 20px;
+  background: transparent;
+  border: 0 solid var(--color-crop-frame);
+}
+.frame[data-handle='bracket'] .handle::after {
+  inset: -12px;
+}
+.frame[data-handle='bracket'] .handle[data-corner='top-left'] {
+  top: -1.5px;
+  left: -1.5px;
+  border-top-width: 3px;
+  border-left-width: 3px;
+}
+.frame[data-handle='bracket'] .handle[data-corner='top-right'] {
+  top: -1.5px;
+  right: -1.5px;
+  border-top-width: 3px;
+  border-right-width: 3px;
+}
+.frame[data-handle='bracket'] .handle[data-corner='bottom-left'] {
+  bottom: -1.5px;
+  left: -1.5px;
+  border-bottom-width: 3px;
+  border-left-width: 3px;
+}
+.frame[data-handle='bracket'] .handle[data-corner='bottom-right'] {
+  right: -1.5px;
+  bottom: -1.5px;
+  border-right-width: 3px;
+  border-bottom-width: 3px;
+}

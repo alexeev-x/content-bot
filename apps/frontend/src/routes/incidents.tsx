@@ -1,7 +1,8 @@
-import { createFileRoute } from '@tanstack/react-router';
-import { InDevelopmentPage } from '../pages/InDevelopmentPage';
-import { ru } from '../shared/lib/ru';
+import { createFileRoute, redirect } from '@tanstack/react-router';
 
+// Incidents merged into «Публикации → Ошибки»; keep old bookmarks working.
 export const Route = createFileRoute('/incidents')({
-  component: () => <InDevelopmentPage title={ru.pages.incidents} />
+  beforeLoad: () => {
+    throw redirect({ to: '/publications', search: { view: 'errors' }, replace: true });
+  }
 });

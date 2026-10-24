@@ -3,7 +3,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { postSchema } from '@alexeev/contracts';
 import { errorBody, ids, post, accessToken } from '../../test/fixtures';
 import { server, setupMswServer } from '../../test/msw';
-import { ApiError, apiRequest, cancelSessionRenewal, parseRetryAfter, refreshSession } from './http-client';
+import {
+  ApiError,
+  apiRequest,
+  cancelSessionRenewal,
+  parseRetryAfter,
+  refreshSession,
+  whenRefreshIdle
+} from './http-client';
 import { clearSession, getAccessToken, setSession } from './session';
 
 setupMswServer();
@@ -98,6 +105,55 @@ describe('http client re-authentication', () => {
     await get();
     expect(refresh.credentials).toEqual(['include']);
     expect(refresh.auth).toEqual(['Bearer stale']);
+  });
+
+  it('runs a reload only after the refresh in flight has finished (a cut refresh signs the owner out)', async () => {
+    let release: (() => void) | undefined;
+    countRefresh(async () => {
+      await new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      return HttpResponse.json(accessToken('fresh'));
+    });
+    const refreshing = refreshSession();
+    await vi.waitFor(() => expect(release).toBeDefined());
+    const reload = vi.fn();
+    const waiting = whenRefreshIdle(reload);
+    await delay(20);
+    expect(reload).not.toHaveBeenCalled();
+    release?.();
+    await refreshing;
+    await vi.waitFor(() => expect(reload).toHaveBeenCalledTimes(1));
+    void waiting;
+  });
+
+  it('reloads under the refresh lock and frees it when the page stays (a cancelled leave prompt)', async () => {
+    vi.useFakeTimers();
+    let held: Promise<unknown> | undefined;
+    const request = vi.fn((_name: string, callback: () => Promise<unknown>) => {
+      held = callback();
+      return held;
+    });
+    Object.defineProperty(navigator, 'locks', { value: { request }, configurable: true });
+    try {
+      const reload = vi.fn();
+      const done = whenRefreshIdle(reload);
+      await vi.waitFor(() => expect(reload).toHaveBeenCalledTimes(1));
+      expect(request.mock.calls[0]?.[0]).toBe('alexeev-refresh');
+      let released = false;
+      void held?.then(() => {
+        released = true;
+      });
+      await vi.advanceTimersByTimeAsync(9_000);
+      expect(released).toBe(false);
+      // The page did not unload: the lock must not stay held, or every refresh would queue forever.
+      await vi.advanceTimersByTimeAsync(2_000);
+      expect(released).toBe(true);
+      await done;
+    } finally {
+      vi.useRealTimers();
+      delete (navigator as unknown as { locks?: unknown }).locks;
+    }
   });
 
   it('clears the session and reports the 401 when the refresh fails', async () => {

@@ -1,21 +1,35 @@
 import {
   cancelPublicationInputSchema,
+  bulkDeletePublicationsInputSchema,
   createPublicationInputSchema,
+  createPublicationSeriesInputSchema,
+  deletePublicationInputSchema,
   listPublicationsQuerySchema,
-  reschedulePublicationInputSchema
+  reschedulePublicationInputSchema,
+  resolveUnknownPublicationInputSchema
 } from '@alexeev/contracts';
-import { Hono } from 'hono';
+import { type Context, Hono } from 'hono';
 import { z } from 'zod';
 import {
   cancelPublication,
   createPublication,
+  createPublicationSeries,
+  deletePublication,
+  deletePublications,
   getPublication,
+  getPublicationHistory,
   listPublications,
-  reschedulePublication
+  reschedulePublication,
+  resolveUnknownPublication
 } from '../modules/publishing';
+import { readPostOrigins } from '../modules/ai';
+import { getOwnerOperationsSettings } from '../modules/settings';
 import { AppError } from '../shared/app-error';
+import { appOriginOf } from './bot/app-origin';
 import type { AppBindings } from './env';
+import { createScheduleNotifier } from './notifications/create-schedule-notifier';
 import { limitBody, validated } from './validation';
+import { kickDispatch } from './workflows/dispatch-now';
 
 const MAX_BODY_BYTES = 8 * 1024;
 
@@ -28,7 +42,45 @@ function publicationId(raw: string): string {
   return raw;
 }
 
+// Built per request: the origin comes from the request, and the messenger and stores are resolved
+// only when a notice is really sent.
+function scheduleNotifier(c: Context<AppBindings>) {
+  const container = c.get('container');
+  return createScheduleNotifier({
+    messenger: container.ownerMessenger,
+    ownerChatId: c.get('actor').telegramId,
+    appOrigin: appOriginOf(c.req.url),
+    posts: () => container.postRevisions,
+    destinations: () => container.destinations,
+    logger: container.logger,
+    requestId: c.get('requestId'),
+    readScheduleNotices: async () =>
+      (
+        await getOwnerOperationsSettings({
+          repo: container.settings,
+          logger: container.logger,
+          requestId: c.get('requestId')
+        })
+      ).notifications.scheduleNotices,
+    waitUntil: (work) => c.executionCtx.waitUntil(work)
+  });
+}
+
 export const publicationsRoutes = new Hono<AppBindings>()
+  .post(
+    '/delete',
+    limitBody(MAX_BODY_BYTES),
+    validated('json', bulkDeletePublicationsInputSchema, { reasons: ['DUPLICATE_IDS'] }),
+    async (c) => {
+      const container = c.get('container');
+      return c.json(
+        await deletePublications(
+          { repo: container.publications, now: container.clock.now() },
+          { actor: c.get('actor').telegramId, input: c.req.valid('json') }
+        )
+      );
+    }
+  )
   .post(
     '/',
     limitBody(MAX_BODY_BYTES),
@@ -42,6 +94,7 @@ export const publicationsRoutes = new Hono<AppBindings>()
           destinations: container.destinations,
           posts: container.postSource,
           idempotency: container.idempotency,
+          notifier: scheduleNotifier(c),
           now: container.clock.now(),
           newId: container.newId
         },
@@ -51,21 +104,90 @@ export const publicationsRoutes = new Hono<AppBindings>()
           input: c.req.valid('json')
         }
       );
+      // Due now: sent at once, not on the next Cron tick.
+      if (Date.parse(publication.scheduledAt) <= container.clock.now()) await kickDispatch(container);
       // 202: the intent is stored; nothing has been sent yet.
       return c.json(publication, 202);
     }
   )
+  // Posts of one event in order with a gap (owner, 22.10.2026); written whole or not at all.
+  .post(
+    '/series',
+    limitBody(MAX_BODY_BYTES),
+    validated('header', idempotencyHeaderSchema),
+    validated('json', createPublicationSeriesInputSchema),
+    async (c) => {
+      const container = c.get('container');
+      const series = await createPublicationSeries(
+        {
+          publications: container.publications,
+          destinations: container.destinations,
+          posts: container.postSource,
+          idempotency: container.idempotency,
+          notifier: scheduleNotifier(c),
+          now: container.clock.now(),
+          newId: container.newId
+        },
+        {
+          actor: c.get('actor').telegramId,
+          idempotencyKey: c.req.valid('header')['idempotency-key'],
+          input: c.req.valid('json')
+        }
+      );
+      if (series.publications.some((item) => Date.parse(item.scheduledAt) <= container.clock.now()))
+        await kickDispatch(container);
+      return c.json(series, 202);
+    }
+  )
   .get('/', validated('query', listPublicationsQuerySchema), async (c) => {
     const container = c.get('container');
-    return c.json(
-      await listPublications({ repo: container.publications, now: container.clock.now() }, c.req.valid('query'))
+    const page = await listPublications(
+      { repo: container.publications, now: container.clock.now() },
+      c.req.valid('query')
     );
+    // Which posts the AI editor wrote: «ИИ» beside the title (owner, 17.10.2026), as in the posts list.
+    const origins = await readPostOrigins(
+      { writer: container.aiWriter },
+      page.items.map((item) => item.postId)
+    );
+    return c.json({
+      ...page,
+      items: page.items.map((item) => ({ ...item, postOrigin: origins.get(item.postId) ?? null }))
+    });
   })
   .get('/:id', validated('param', idParamSchema), async (c) => {
     const container = c.get('container');
     const id = publicationId(c.req.valid('param').id);
-    return c.json(await getPublication({ repo: container.publications, now: container.clock.now() }, id));
+    const publication = await getPublication({ repo: container.publications, now: container.clock.now() }, id);
+    const origin = (await readPostOrigins({ writer: container.aiWriter }, [publication.postId])).get(
+      publication.postId
+    );
+    return c.json({ ...publication, postOrigin: origin ?? null });
   })
+  .get('/:id/history', validated('param', idParamSchema), async (c) => {
+    const container = c.get('container');
+    const id = publicationId(c.req.valid('param').id);
+    return c.json(await getPublicationHistory({ repo: container.publications }, id));
+  })
+  .post(
+    '/:id/delete',
+    limitBody(MAX_BODY_BYTES),
+    validated('param', idParamSchema),
+    validated('json', deletePublicationInputSchema),
+    async (c) => {
+      const container = c.get('container');
+      return c.json(
+        await deletePublication(
+          { repo: container.publications, now: container.clock.now() },
+          {
+            actor: c.get('actor').telegramId,
+            id: publicationId(c.req.valid('param').id),
+            input: c.req.valid('json')
+          }
+        )
+      );
+    }
+  )
   .post(
     '/:id/reschedule',
     limitBody(MAX_BODY_BYTES),
@@ -74,7 +196,7 @@ export const publicationsRoutes = new Hono<AppBindings>()
     async (c) => {
       const container = c.get('container');
       const publication = await reschedulePublication(
-        { repo: container.publications, now: container.clock.now() },
+        { repo: container.publications, notifier: scheduleNotifier(c), now: container.clock.now() },
         { actor: c.get('actor').telegramId, id: publicationId(c.req.valid('param').id), input: c.req.valid('json') }
       );
       return c.json(publication);
@@ -88,6 +210,20 @@ export const publicationsRoutes = new Hono<AppBindings>()
     async (c) => {
       const container = c.get('container');
       const publication = await cancelPublication(
+        { repo: container.publications, now: container.clock.now(), notifier: scheduleNotifier(c) },
+        { actor: c.get('actor').telegramId, id: publicationId(c.req.valid('param').id), input: c.req.valid('json') }
+      );
+      return c.json(publication);
+    }
+  )
+  .post(
+    '/:id/resolve-unknown',
+    limitBody(MAX_BODY_BYTES),
+    validated('param', idParamSchema),
+    validated('json', resolveUnknownPublicationInputSchema),
+    async (c) => {
+      const container = c.get('container');
+      const publication = await resolveUnknownPublication(
         { repo: container.publications, now: container.clock.now() },
         { actor: c.get('actor').telegramId, id: publicationId(c.req.valid('param').id), input: c.req.valid('json') }
       );

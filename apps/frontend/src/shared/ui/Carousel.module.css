@@ -1,0 +1,57 @@
+.carousel {
+  min-width: 0;
+  container-type: inline-size;
+}
+/* Wide: a grid that fits every card on one row when it can. */
+.track {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  outline: none;
+}
+.carousel[data-min='md'] .track {
+  grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr));
+}
+.track:focus-visible {
+  outline: var(--focus-ring-width) solid var(--color-focus-ring);
+  outline-offset: var(--focus-ring-offset);
+  border-radius: var(--radius-2);
+}
+/* Positioned, so an absolutely placed child (visually hidden text) is clipped by the strip instead of widening the
+   page on a phone. */
+.card {
+  position: relative;
+  display: flex;
+  min-width: 0;
+}
+.card > * {
+  flex: 1;
+  min-width: 0;
+}
+/* Narrow: one card and the edge of the next, swiped sideways and snapping to each card. */
+@container (max-width: 40rem) {
+  .track {
+    display: flex;
+    gap: var(--space-2);
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scroll-snap-type: x mandatory;
+    scroll-padding-inline: var(--space-1);
+    scrollbar-width: none;
+    padding-block-end: var(--space-1);
+  }
+  .track::-webkit-scrollbar {
+    display: none;
+  }
+  .card {
+    flex: 0 0 84%;
+    scroll-snap-align: start;
+  }
+  .card:only-child {
+    flex-basis: 100%;
+  }
+}

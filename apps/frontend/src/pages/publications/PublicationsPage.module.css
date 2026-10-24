@@ -1,0 +1,21 @@
+.page {
+  display: grid;
+  gap: var(--space-4);
+  min-width: 0;
+}
+.period {
+  width: min(100%, 240px);
+}
+.note {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+
+/* Desktop search in the panel header: always visible, wide enough for a post title. */
+.headerSearch {
+  display: block;
+  width: 280px;
+}
+
+/* The counter slot is always reserved (up to three digits and parentheses, tabular), so a tab does not change width as numbers load. */

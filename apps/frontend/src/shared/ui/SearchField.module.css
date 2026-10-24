@@ -1,0 +1,71 @@
+.field {
+  position: relative;
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+.icon {
+  position: absolute;
+  left: var(--space-3);
+  color: var(--color-text-muted);
+  pointer-events: none;
+}
+.input {
+  width: 100%;
+  min-height: var(--size-control);
+  padding: 0 var(--size-control) 0 calc(var(--space-3) + 18px + var(--space-2));
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-2);
+  background: var(--color-surface-1);
+  color: var(--color-text);
+  font: inherit;
+  outline: none;
+  /* The native cancel button would duplicate the clear Button. */
+  appearance: none;
+}
+.input::-webkit-search-cancel-button {
+  display: none;
+}
+.input::placeholder {
+  color: var(--color-text-muted);
+}
+.input[data-hovered] {
+  border-color: var(--color-text-muted);
+}
+.input[data-focused] {
+  border-color: var(--color-focus-ring);
+}
+.input[data-focus-visible] {
+  outline: var(--focus-ring-width) solid var(--color-focus-ring);
+}
+.input[data-disabled] {
+  background: var(--color-surface-2);
+  border-color: var(--color-border-subtle);
+  cursor: not-allowed;
+}
+.clear {
+  position: absolute;
+  right: 0;
+  display: grid;
+  place-items: center;
+  width: var(--size-control);
+  height: var(--size-control);
+  border: 0;
+  border-radius: var(--radius-2);
+  background: none;
+  color: var(--color-text-muted);
+  cursor: pointer;
+}
+.clear[data-hovered] {
+  color: var(--color-text);
+}
+.clear[data-focus-visible] {
+  outline: var(--focus-ring-width) solid var(--color-focus-ring);
+  outline-offset: -4px;
+}
+.field:not([data-empty]) .input {
+  padding-right: var(--size-control);
+}
+.field[data-empty] .clear {
+  display: none;
+}

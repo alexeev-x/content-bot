@@ -1,0 +1,120 @@
+.row {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  min-height: 72px;
+  border-bottom: 1px solid var(--color-border-subtle);
+}
+.row:last-child {
+  border-bottom: 0;
+}
+.row[data-active] {
+  background: var(--color-selected-bg);
+  box-shadow: inset 2px 0 0 var(--color-accent);
+}
+.row[data-dimmed] {
+  opacity: 0.6;
+}
+.leading {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 44px;
+  padding-left: var(--space-2);
+}
+.main {
+  display: grid;
+  flex: 1;
+  gap: 4px;
+  min-width: 0;
+  min-height: 56px;
+  padding: var(--space-3) var(--space-4);
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  outline: none;
+}
+.main[data-media] {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+.body {
+  display: grid;
+  flex: 1;
+  gap: 4px;
+  min-width: 0;
+}
+.leading + .main {
+  padding-left: var(--space-2);
+}
+.main:focus-visible {
+  outline: var(--focus-ring-width) solid var(--color-focus-ring);
+  outline-offset: -2px;
+}
+.top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+  min-width: 0;
+}
+.title {
+  display: -webkit-box;
+  min-width: 0;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-medium);
+  line-height: 1.35;
+}
+.second {
+  display: flex;
+  /* The date wraps under the status chip instead of being cut to «6 окт. 202…». */
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-2);
+  min-width: 0;
+}
+.status {
+  flex: none;
+}
+.meta {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.warning {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  color: var(--color-status-unknown-fg);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+}
+.menu {
+  display: grid;
+  flex: none;
+  place-items: center;
+  padding-right: var(--space-1);
+}
+
+.time {
+  flex: none;
+  padding-top: 2px;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.top:has(.time) .title {
+  flex: 1;
+}

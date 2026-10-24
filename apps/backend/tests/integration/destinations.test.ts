@@ -1,10 +1,10 @@
-import { destinationPageSchema, destinationSchema } from '@alexeev/contracts';
+import { destinationPageSchema, destinationSchema, scheduledPublicationCountSchema } from '@alexeev/contracts';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { sha256Hex } from '../../src/platform/security/sha256';
 import { testDb } from '../helpers/db';
 import { expectError } from '../helpers/expect-error';
 import { type Api, createApi, fakeClock, OWNER_ID, OWNER_TOKEN, resetDb, seedSession, START } from '../helpers/harness';
-import { count, seedDestination } from '../helpers/publishing';
+import { count, jobOf, seedApprovedPost, seedDestination, seedPublication } from '../helpers/publishing';
 
 let api: Api;
 let keyCounter = 0;
@@ -26,6 +26,56 @@ const post = (json: unknown, key: string | null = nextKey()) =>
   });
 const patch = (id: string, json: unknown) => api.request(`/api/v1/destinations/${id}`, { method: 'PATCH', json });
 const valid = { title: 'Main channel', chatId: '-1001234567890', kind: 'channel' };
+
+describe('GET /api/v1/destinations/{id}/scheduled-count', () => {
+  it('counts pending and retry-wait publications for the requested destination, excluding sends and other channels', async () => {
+    const destination = await seedDestination(api);
+    const other = await seedDestination(api, { title: 'Other', chatId: '-1002234567890' });
+    const post = await seedApprovedPost(api);
+    const later = new Date(START + 60_000).toISOString();
+    const first = await seedPublication(api, {
+      postId: post.id,
+      revision: post.revision,
+      destinationId: destination.id,
+      scheduledAt: later
+    });
+    const retry = await seedPublication(api, {
+      postId: post.id,
+      revision: post.revision,
+      destinationId: destination.id,
+      scheduledAt: later
+    });
+    await seedPublication(api, {
+      postId: post.id,
+      revision: post.revision,
+      destinationId: destination.id,
+      scheduledAt: later
+    });
+    await seedPublication(api, {
+      postId: post.id,
+      revision: post.revision,
+      destinationId: other.id,
+      scheduledAt: later
+    });
+    const sentJob = await jobOf(first.id);
+    await testDb().prepare("UPDATE jobs SET status = 'succeeded' WHERE id = ?1").bind(sentJob.id).run();
+    const retryJob = await jobOf(retry.id);
+    await testDb().prepare("UPDATE jobs SET status = 'retry_wait' WHERE id = ?1").bind(retryJob.id).run();
+
+    const response = await api.request(`/api/v1/destinations/${destination.id}/scheduled-count`);
+
+    expect(response.status).toBe(200);
+    expect(scheduledPublicationCountSchema.parse(await response.json())).toEqual({
+      destinationId: destination.id,
+      count: 2
+    });
+    await expectError(
+      await api.request('/api/v1/destinations/7d6c5b4a-3f2e-4d1c-8b0a-9f8e7d6c5b4a/scheduled-count'),
+      404,
+      'NOT_FOUND'
+    );
+  });
+});
 
 describe('POST /api/v1/destinations', () => {
   it('creates an enabled destination at revision 0 with an audit row', async () => {

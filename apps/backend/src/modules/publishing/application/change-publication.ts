@@ -2,17 +2,23 @@ import type { CancelPublicationInput, PublicationDto, ReschedulePublicationInput
 import { AppError } from '../../../shared/app-error';
 import { isBeforeSend } from '../domain/job-transitions';
 import { isInScheduleWindow } from '../domain/schedule-window';
-import type { PublicationChangeOutcome, PublicationRepository } from './ports';
+import type { PublicationChangeOutcome, PublicationRepository, ScheduleNotifier } from './ports';
 import { publicationNotFound, scheduleOutOfRange, staleRevision } from './publication-errors';
 import { toPublicationDto } from './publication-dto';
 
 export interface ChangePublicationDeps {
   repo: PublicationRepository;
   now: number;
+  /** Announces a cancel the owner made; optional so callers that only read stay free of Telegram. */
+  notifier?: ScheduleNotifier;
+}
+
+export interface ReschedulePublicationDeps extends ChangePublicationDeps {
+  notifier: ScheduleNotifier;
 }
 
 export async function reschedulePublication(
-  deps: ChangePublicationDeps,
+  deps: ReschedulePublicationDeps,
   command: { actor: string; id: string; input: ReschedulePublicationInput }
 ): Promise<PublicationDto> {
   const { actor, id, input } = command;
@@ -27,7 +33,17 @@ export async function reschedulePublication(
     actor,
     now: deps.now
   });
-  return resolve(deps, outcome, input.revision, 'NOT_RESCHEDULABLE', 'The publication can no longer be rescheduled');
+  const publication = resolve(
+    deps,
+    outcome,
+    input.revision,
+    'NOT_RESCHEDULABLE',
+    'The publication can no longer be rescheduled'
+  );
+  // `resolve` throws unless the batch applied the change, so this runs once per real move. Moving
+  // a publication to "now" sends it right away: nothing to announce.
+  if (publication.status === 'scheduled') deps.notifier.rescheduled(publication);
+  return publication;
 }
 
 export async function cancelPublication(
@@ -36,7 +52,16 @@ export async function cancelPublication(
 ): Promise<PublicationDto> {
   const { actor, id, input } = command;
   const outcome = await deps.repo.cancel({ id, expectedRevision: input.revision, actor, now: deps.now });
-  return resolve(deps, outcome, input.revision, 'NOT_CANCELLABLE', 'The publication can no longer be cancelled');
+  const publication = resolve(
+    deps,
+    outcome,
+    input.revision,
+    'NOT_CANCELLABLE',
+    'The publication can no longer be cancelled'
+  );
+  // `resolve` throws unless this request cancelled it, so a replay or a lost race announces nothing.
+  deps.notifier?.cancelled(publication);
+  return publication;
 }
 
 // The repository ran one conditional batch and read the publication inside it, so `current`

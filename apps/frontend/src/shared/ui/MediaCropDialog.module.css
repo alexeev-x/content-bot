@@ -1,0 +1,145 @@
+.marker {
+  display: none;
+}
+.mobileHeader {
+  display: none;
+}
+@media (max-width: 600px) {
+  :global([role='dialog']:has([class*='marker'])) {
+    position: fixed;
+    inset: 0;
+    z-index: var(--z-modal);
+    width: 100%;
+    max-width: none;
+    height: 100dvh;
+    max-height: none;
+    margin: 0;
+    border: 0;
+    border-radius: 0;
+    background: var(--color-surface-1);
+  }
+  :global([role='dialog']:has([class*='marker']) > [class*='header']),
+  :global([role='dialog']:has([class*='marker']) > [class*='description']),
+  :global([role='dialog']:has([class*='marker']) > [class*='footer']) {
+    display: none;
+  }
+  .mobileHeader {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-2);
+    min-height: var(--size-target);
+    margin-bottom: var(--space-2);
+  }
+  .mobileHeader strong {
+    font-size: var(--font-size-md);
+    font-weight: var(--font-weight-heading);
+  }
+}
+.error {
+  margin: 0;
+  color: var(--color-status-failed-fg);
+  font-size: var(--font-size-sm);
+}
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.workspace {
+  display: grid;
+  grid-template-columns: minmax(0, 1.45fr) minmax(12rem, 1fr);
+  align-items: stretch;
+  gap: var(--space-4);
+}
+.workspace[data-single] {
+  grid-template-columns: minmax(0, 1fr);
+}
+.stage,
+.previewPane {
+  min-width: 0;
+}
+.previewPane > section {
+  height: 100%;
+}
+.previewContent {
+  display: grid;
+  align-content: start;
+  gap: var(--space-3);
+  padding: var(--space-3);
+}
+.previewImage {
+  width: 100%;
+  max-height: 14rem;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border-radius: var(--radius-2);
+  background: var(--color-surface-2);
+}
+.previewImage canvas {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-height: 14rem;
+  object-fit: contain;
+}
+.controlRow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: var(--space-4);
+}
+.rotate {
+  display: grid;
+  min-width: 7rem;
+  gap: var(--space-1);
+}
+.rotateHeading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: var(--size-control);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+.rotateButtons {
+  display: flex;
+  gap: var(--space-2);
+}
+.progress {
+  display: grid;
+  gap: var(--space-1);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+@media (max-width: 600px) {
+  .controlRow {
+    align-items: center;
+    gap: var(--space-2);
+  }
+  .rotate {
+    min-width: auto;
+  }
+  .rotateButtons {
+    justify-content: flex-end;
+  }
+  .workspace {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+.player {
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border-radius: var(--radius-3);
+  background: var(--color-bg);
+}
+.player video {
+  max-width: 100%;
+  max-height: 100%;
+}

@@ -1,0 +1,36 @@
+.root {
+  position: relative;
+  flex: none;
+  margin: 0;
+}
+.track {
+  stroke: var(--color-surface-2);
+}
+.center {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+.center strong {
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
+  font-variant-numeric: tabular-nums;
+}
+.center span {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+}
+.slice {
+  cursor: default;
+  transition: opacity var(--motion-fast);
+}
+.slice[data-dimmed] {
+  opacity: 0.35;
+}
+.center {
+  pointer-events: none;
+}

@@ -1,0 +1,83 @@
+/* Cells of the posts table (desktop) and lines of the phone rows. Tokens only. */
+.cellMedia {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+  max-width: 60ch;
+}
+.cellTitle {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  max-width: 52ch;
+}
+/* The title and the studio-only «ИИ» mark: the mark keeps its size, the title truncates. */
+.titleLine {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+.title {
+  overflow: hidden;
+  font-weight: var(--font-weight-medium);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.excerpt {
+  overflow: hidden;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.reason {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  color: var(--color-danger);
+  font-size: var(--font-size-xs);
+}
+.muted {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+.nowrap {
+  white-space: nowrap;
+}
+.warn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  color: var(--color-status-unknown-fg);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  white-space: nowrap;
+}
+.state {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-2);
+}
+.channels {
+  display: block;
+  max-width: 28ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.selectAll {
+  padding: var(--space-2) var(--space-4);
+  border-bottom: 1px solid var(--color-border-subtle);
+}
+.reasonRow {
+  padding: 0 var(--space-4) var(--space-2);
+}
+
+@media (max-width: 859px) {
+  .cellTitle {
+    max-width: none;
+  }
+}

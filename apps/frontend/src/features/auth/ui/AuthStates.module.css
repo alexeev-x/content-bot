@@ -1,0 +1,27 @@
+.screen {
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: var(--space-3);
+  min-height: 100dvh;
+  color: var(--color-text-muted);
+}
+.label {
+  font-size: var(--font-size-sm);
+}
+.unavailableScreen {
+  --safe-top: max(env(safe-area-inset-top), var(--tg-content-safe-area-inset-top, 0px));
+  --safe-right: max(env(safe-area-inset-right), var(--tg-content-safe-area-inset-right, 0px));
+  --safe-bottom: max(env(safe-area-inset-bottom), var(--tg-content-safe-area-inset-bottom, 0px));
+  --safe-left: max(env(safe-area-inset-left), var(--tg-content-safe-area-inset-left, 0px));
+  display: grid;
+  place-items: center;
+  min-height: 100vh;
+  min-height: 100dvh;
+  box-sizing: border-box;
+  padding: calc(var(--space-4) + var(--safe-top)) calc(var(--space-4) + var(--safe-right))
+    calc(var(--space-4) + var(--safe-bottom)) calc(var(--space-4) + var(--safe-left));
+}
+.unavailableScreen > * {
+  width: min(100%, 34rem);
+}

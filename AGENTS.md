@@ -1,41 +1,50 @@
 # ALEXEEV Content Bot — agent rules
 
-Shared by Claude Code and Codex, loaded into every agent: keep it short. Talk to the owner in Russian; code, identifiers, commits and branch names are English.
+Shared Claude Code/Codex rules. Talk Russian; code, identifiers, docs, commits and branches English.
 
-**Status:** scaffold. Working today: `GET /api/v1/health`, a placeholder admin page, three Zod schemas. Auth, D1, Cron/Queue and Telegram sending are not implemented — never describe planned parts as working.
+**Status:** in development, not in production. Old plan removed 14.10.2026, a new one is being written. Judge what works from code and tests; never describe planned parts as working.
 
 ## Layout
-- `apps/frontend/` — React + Vite admin SPA. Rules: `apps/frontend/AGENTS.md`.
-- `apps/backend/` — Hono on Cloudflare Workers (`fetch` / `scheduled`); D1 is the source of truth. Rules: `apps/backend/AGENTS.md`.
-- `apps/contracts/` — Zod DTOs shared by both sides. Rules: `apps/contracts/AGENTS.md`.
-- `docs/` — canonical architecture. Open only the section you need.
+- `apps/frontend/` (React SPA), `apps/backend/` (Hono Worker, D1), `apps/contracts/` (shared Zod DTOs); each has its own `AGENTS.md`.
+- `docs/` — canonical architecture. Open only the section you need (`rg -n '^#' file` first, then read that range).
 - `.agents/` — role sources (`roles/`), skills (`skills/`), tooling (`scripts/`). `.claude/` and `.codex/` are generated from it: edit sources, then `npm run agents:sync`.
+- `design-refs/<task>/` — owner reference images.
+
+## One fact, one place
+Edit a fact at its source; elsewhere only link to it.
+- Decisions: `docs/DECISIONS.md`.
+- Screens and viewport widths: index `docs/design/UX_SPEC.md` → one file in `docs/design/ux/`; visual direction and tokens: `docs/design/README.md`.
+- API meaning: `docs/API_CONTRACTS.md`; shapes: `apps/contracts/src`.
 
 ## Load context on demand, never everything
 | When you touch | Load |
 |---|---|
-| `apps/backend/**` | `apps/backend/AGENTS.md`, then the needed section of `docs/BACKEND_ARCHITECTURE.md` |
+| `apps/backend/**` | `apps/backend/AGENTS.md`, then one topic file from the index `docs/BACKEND_ARCHITECTURE.md` |
 | `apps/frontend/**` | `apps/frontend/AGENTS.md`, then the needed section of `docs/FRONTEND_ARCHITECTURE.md` |
 | `apps/contracts/**` or any request/response shape | skill `contract-change` |
 | publications, jobs, Cron, Queue, Telegram send | skill `publishing-reliability` |
 | SQL or migrations | skill `d1-migration` |
 | auth, sessions, Mini App, webhook, uploads | skill `api-security` |
-| writing or fixing tests | skill `testing` |
+| writing or deleting tests | skill `testing` |
 | a bug, failing test or CI failure | skill `debugging` |
-| Worker runtime, bindings, config, Wrangler commands | skills `workers-best-practices`, `wrangler` (official Cloudflare) |
+| Worker runtime, bindings, Wrangler | skills `workers-best-practices`, `wrangler` |
 | a page, its states, accessibility | skills `page-spec`, `ui-patterns`, `react-aria` |
-| tokens, primitives, look and feel, UI copy | skill `visual-design` |
-| visual verification in a browser | skill `visual-check` |
+| tokens, primitives, look and feel | skill `visual-design`; browser check: skill `visual-check` |
 
-Codex doesn't auto-load area AGENTS.md files: open them yourself (Claude Code loads them on read). Search with `rg`; read the lines you need, not whole files. Don't reread files. `npm run verify` prints only failures; open `.logs/verify.log` only if the summary is not enough.
-
-Write tersely: no preamble, no restating the task, no recap of a visible diff. Code, commands and error text stay exact.
+Search with `rg`; read only needed lines. `npm run verify` prints failures; open `.logs/verify.log` if needed.
 
 ## Working with the owner
-- Main session only (not subagents): you orchestrate every owner request; the owner never types a command. Small single-area edits: do yourself; larger: follow skill `orchestrate`.
-- Decide, don't quiz: pick the conventional default, state it with the reason, proceed. Escalate only owner-level choices (publishing, access, money, a recorded decision), batched, with your recommended default.
+- The main session does the work itself. Delegate only per skill `orchestrate` (parallel independent areas, noisy research, R3 review). The owner never types a command.
+- Decide defaults; escalate only owner-level publishing, access, money or recorded decisions, with a recommendation.
 - Recorded decisions live in `docs/DECISIONS.md`; don't relitigate them unprompted.
-- Do only what the task asks: no unrequested features, refactors or abstractions. Never claim 1 000 jobs/day before a load test.
+- Do only what the task asks: no unrequested features, refactors or abstractions.
+
+## Token economy (owner priority)
+- Write tersely: no preamble, no restating the task, no recap of a visible diff.
+- Read line ranges, not whole files; pipe noisy commands through `tail`/`grep`.
+- Images cost ~`⌈w/28⌉×⌈h/28⌉` tokens: view copies with the long edge ≤ 1100 px (`sips -Z 1100`), only the ones you compare.
+- One task per session; never resume a finished subagent (start fresh with a ≤ 40-line packet and a path to `.logs/handoff/<task>.md`).
+- Don't edit instructions, skills, hooks or settings mid-task unless that is the task (it breaks the prompt cache).
 
 ## Non-negotiables
 - Modular monolith: one Worker, one D1, one Cron (plus one Queue only where the architecture says so). No microservices, generic repositories, event bus, service locator or DI container; `apps/backend/src/app/container.ts` wires adapters by hand.
@@ -45,22 +54,25 @@ Write tersely: no preamble, no restating the task, no recap of a visible diff. C
 - Secrets only in Worker secrets; never Git, logs or frontend. Tests use separate bot/channel. Use placeholders; Gitleaks exceptions: path+pattern, never commit SHA.
 - The server re-validates every input with Zod and re-checks the session token and the owner's Telegram ID. Client validation is UX only.
 - Design exists only as code: tokens, primitives and browser screenshots. Figma is excluded (owner decision 03.10.2026); never propose it.
-- Agents never deploy, run `--remote` D1 commands, or change secrets (`wrangler secret put/delete` deploys immediately). The owner runs these.
-- Hooks only inspect command text; isolate agent sessions from production credentials and access.
+- Agents never deploy, run `--remote` D1 commands, or change secrets. The owner runs these.
 - No paid AI providers, render APIs or paid cloud tiers without an explicit owner decision.
-- No empty scaffolding: ship behavior/error handling; test critical paths; sync docs/examples/setup when behavior/config changes.
+- Tests only where a bug would cost real damage (skill `testing`). Sync docs/setup when behavior/config changes.
 
 ## TypeScript style (all packages)
 - `strict`; no `any`; `!` only in bootstrap; parse external `unknown` with Zod. Named exports, kebab-case files, `PascalCase.tsx` components; one responsibility per file.
-- Errors use stable `code`s, are never swallowed, and logs omit secrets, `initData`, OIDC codes and raw payloads. Store UTC; convert timezones in the UI.
-- Comments explain why. New dependencies need a PR reason and lockfile entry; prefer platform APIs.
+- Errors use stable `code`s, are never swallowed, and logs omit secrets, `initData`, sign-in payloads and raw payloads. Store UTC; convert timezones in the UI.
+- Comments explain why. New dependencies need a reason; prefer platform APIs.
 
-## Git
-Work directly on `develop`: CI deploys it to Worker `dev`. `main` holds releases (deployed to Worker `app`) and changes only through a release PR from `develop`, opened by the owner. The owner commits and pushes: leave the task's changes ready (verified, `git status` shows only task files) and propose a commit message. Never commit or push to `main`, never force-push. A SQL change needs a migration. A contract change updates `contracts`, the backend, the frontend and the contract tests in the same PR.
+## Git (owner decision 14.10.2026)
+- Agents commit and push to `develop` or to their own branches from it (`feat/…`, `fix/…`, `chore/…`). Pushing `develop` deploys Worker `dev`.
+- `main` is forbidden for agents: no checkout-and-commit, merge, push or PR merge into it. Releases are the owner's `develop → main` PR.
+- Never force-push or rewrite pushed history. Commit only the task's files, after its checks are green; conventional commit messages.
+- Migrations: a push to `develop` applies pending migrations to DEV D1 in CI before the deploy, so they must stay expand-only (skill `d1-migration`). Production migrations stay a manual owner run.
+- A contract change updates `contracts`, the backend, the frontend and the contract tests in the same commit.
 
 ## Done means verified
-Follow the risk gate in `.agents/skills/orchestrate/SKILL.md`. Run required checks and report actual results. To the owner: short Russian summary. Subagents report:
-```json
-{"task_id":"","state":"DONE|BLOCKED|FAILED|NOT_VERIFIED","changed_paths":[],"contract_changes":[],"checks":[{"cmd":"","result":"passed|failed|not_run","evidence":"last relevant lines"}],"risks":[],"next":[]}
-```
-Claims need fresh evidence from this session: run the command, read the output, then state the result ("should work" is not a status). Before reporting, self-check: each acceptance criterion has evidence; the diff stays in your paths; no TODOs, debug logs or commented-out code; docs are updated if behavior changed. `not_run` is never success. If a critical input is missing, return `BLOCKED` naming it; do not invent requirements. After two failed attempts on the same error, stop and report. Stay inside the paths you were assigned; to read or change anything else, ask the orchestrator with a reason.
+Run `npm run verify:changed` (full `npm run verify` for R2/R3, see skill `orchestrate`) and report actual results.
+
+Main session's final message: short Russian summary of what was done and check results; the commit hash(es) and whether they were pushed; if a migration was added, its number (CI applies it to DEV; production is manual).
+
+Subagents report ≤ 20 lines: `state` (DONE|BLOCKED|FAILED|NOT_VERIFIED), changed paths, checks with the last relevant output lines, risks. Claims need fresh evidence; `not_run` is never success. Missing critical input → `BLOCKED` naming it. After two failed attempts on the same error, stop and report. Stay inside your assigned paths.

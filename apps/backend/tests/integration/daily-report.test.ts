@@ -1,0 +1,554 @@
+import { contentForecastAccuracySchema, contentReportDetailSchema, contentReportsPageSchema } from '@alexeev/contracts';
+import { beforeEach, describe, expect, it } from 'vitest';
+import { createD1SystemState } from '../../src/app/system-state';
+import { runDailyReview } from '../../src/app/workflows/daily-review';
+import { sendContentAlerts } from '../../src/app/workflows/send-content-alerts';
+import { GrammyError } from 'grammy';
+import { fakeOwnerMessenger } from '../helpers/fake-owner-messenger';
+import type { TelegramOwnerMessageApi } from '../../src/integrations/telegram/telegram-api';
+import { type AiTextProvider, createD1AiRepository, updateAiSettings } from '../../src/modules/ai';
+import {
+  collectContentAnalytics,
+  type ConfiguredSources,
+  createD1ContentAlertRepository,
+  createD1ContentAnalyticsRepository,
+  createD1ContentDailyReportRepository,
+  createD1ContentForecastRepository,
+  createD1ContentVideoNameRepository,
+  raiseDailyReport,
+  releaseDailyReport,
+  releaseOverdueReports,
+  videoTitleKey
+} from '../../src/modules/content-analytics';
+import { zoned } from '../../src/modules/content-analytics/alerts';
+import type { Collection } from '../../src/modules/content-analytics/types';
+import { createD1SettingsRepository, saveOwnerOperationsSettings } from '../../src/modules/settings';
+import { createLogger } from '../../src/platform/logging/logger';
+import { testDb } from '../helpers/db';
+import { fakeTransport, makeTick, tickCount } from '../helpers/dispatch';
+import { expectError } from '../helpers/expect-error';
+import { createApi, type FakeClock, fakeClock, OWNER_TOKEN, resetDb, seedSession, START } from '../helpers/harness';
+
+// The daily report (AI plan P6) end to end in a migrated D1: its numbers stored once per owner-zone day from its
+// hour, the AI review queued and released with the message, the numbers alone after the deadline, the
+// forecasts scored by the readings near their horizon, and the message sent once.
+
+const HOUR = 60 * 60_000;
+const ZONE = 'Europe/Moscow';
+const logger = createLogger(() => undefined);
+
+const youtube = (collect: () => Promise<Collection>): ConfiguredSources => ({
+  collectors: [{ platform: 'youtube', handle: 'a', profileUrl: 'https://youtube.com/@a', requests: 1, collect }],
+  handles: { youtube: { handle: 'a', profileUrl: 'https://youtube.com/@a' } },
+  tiktok: null
+});
+
+function repos() {
+  return {
+    analytics: createD1ContentAnalyticsRepository(testDb()),
+    alerts: createD1ContentAlertRepository(testDb()),
+    forecasts: createD1ContentForecastRepository(testDb()),
+    reports: createD1ContentDailyReportRepository(testDb())
+  };
+}
+
+/** Hourly collections of three young videos whose views grow by 100 an hour. */
+async function collectHours(clock: FakeClock, hours: number, start: number) {
+  const { analytics } = repos();
+  for (let hour = 0; hour < hours; hour += 1) {
+    const views = 1000 + 100 * (start + hour);
+    await collectContentAnalytics({
+      repo: analytics,
+      sources: youtube(async () => ({
+        followers: 10,
+        items: [0, 1, 2].map((index) => ({
+          externalId: String(index),
+          title: `Ролик <${index}> | Учу фидить в доту`,
+          url: `https://youtube.com/shorts/${index}?feature=share`,
+          thumbnailUrl: null,
+          publishedAt: START - (index + 1) * 6 * HOUR,
+          views: views + index,
+          likes: null,
+          comments: null,
+          shares: null
+        }))
+      })),
+      clock,
+      logger,
+      requestId: 't'
+    });
+    clock.advance(HOUR);
+  }
+}
+
+const alertRows = () =>
+  testDb()
+    .prepare("SELECT id, status, html FROM content_alerts WHERE id LIKE 'daily:%' ORDER BY id")
+    .all<{ id: string; status: string; html: string }>()
+    .then((rows) => rows.results);
+
+const reportRows = () =>
+  testDb()
+    .prepare('SELECT id, status, review, review_error AS reviewError FROM content_daily_reports ORDER BY id')
+    .all<{ id: string; status: string; review: string | null; reviewError: string | null }>()
+    .then((rows) => rows.results);
+
+const REVIEW = {
+  main: 'День ровный.',
+  points: [{ text: 'Y1 растёт стабильно', confidence: 'medium' as const }],
+  question: 'Почему Y1 растёт?',
+  steps: ['Начать с косяка.']
+};
+
+beforeEach(resetDb);
+
+describe('daily report', () => {
+  it('stores the day once from its hour and the forecasts it shows; nothing is sent before release', async () => {
+    const clock = fakeClock();
+    await collectHours(clock, 26, 0);
+    const deps = { ...repos(), clock, timezone: ZONE };
+    const localHour = zoned(clock.now(), ZONE).hour;
+    if (localHour < 23) expect(await raiseDailyReport({ ...deps, hour: localHour + 1 })).toEqual({ reportId: null });
+
+    // Two overlapping ticks: one report.
+    const both = await Promise.all([raiseDailyReport({ ...deps, hour: 0 }), raiseDailyReport({ ...deps, hour: 0 })]);
+    const ids = both.map((result) => result.reportId).filter((id) => id !== null);
+    expect(ids).toHaveLength(1);
+    expect(ids[0]).toMatch(/^daily:\d{4}-\d{2}-\d{2}:v1$/);
+    expect(await reportRows()).toMatchObject([{ status: 'waiting' }]);
+    expect(await alertRows()).toEqual([]);
+    const stored = await testDb()
+      .prepare('SELECT COUNT(*) AS n FROM content_forecasts WHERE report_id = ?')
+      .bind(ids[0])
+      .first<{ n: number }>();
+    expect(stored?.n).toBe(9);
+    expect(await raiseDailyReport({ ...deps, hour: 0 })).toEqual({ reportId: null });
+  });
+
+  it('releases once with the review in the layout of 22.10.2026; a late second release changes nothing', async () => {
+    const clock = fakeClock();
+    await collectHours(clock, 26, 0);
+    const deps = repos();
+    const { reportId } = await raiseDailyReport({ ...deps, clock, timezone: ZONE, hour: 0 });
+    const names = createD1ContentVideoNameRepository(testDb());
+    // The video's short name, stored once by an earlier review; the others show their title cut to the column.
+    await names.saveAi([{ key: videoTitleKey('Ролик <0> | Учу фидить в доту'), name: 'Оракл' }], clock.now());
+    const release = { reports: deps.reports, alerts: deps.alerts, names, now: clock.now() };
+    expect(
+      await releaseDailyReport(release, { id: reportId!, review: REVIEW, reviewError: null, model: 'gpt-6.1-sol' })
+    ).toBe(true);
+    expect(
+      await releaseDailyReport(release, { id: reportId!, review: null, reviewError: 'REVIEW_TIMEOUT', model: null })
+    ).toBe(false);
+    const html = (await alertRows())[0]?.html ?? '';
+    // The day first: the channel had no post, the views of the day.
+    expect(html).toContain('<b>Telegram:</b> за сутки постов не было.');
+    expect(html).toContain('Просмотры за сутки: YouTube +7.2к');
+    // Every video of the month on one line, TikTok and YouTube side by side, by its short name and age.
+    expect(html).toMatch(/<b>Ролики за месяц<\/b>\n<pre>/u);
+    expect(html).toMatch(/Оракл\s+\d+д\s+—\s+—\s+3\.5к\s+\+2\.4к/u);
+    expect(html).toContain('<i>TikTok: данных ещё нет.</i>');
+    // Only what is new: the video named by its key shows as its name and link; no main line, question or steps.
+    expect(html).toMatch(
+      /<b>🧠 Что нового<\/b>\n• <a href="[^"]+">Оракл<\/a> \(YouTube\) растёт стабильно\n• Гипотезы без изменений\./u
+    );
+    expect(html).not.toMatch(/Главное|❓|🎬|♥%/u);
+    expect(Array.from(html).length).toBeLessThan(4096);
+    expect(await reportRows()).toMatchObject([{ status: 'reviewed', reviewError: null }]);
+  });
+
+  it('renders the released report as a rich message with the same parts and the AI review', async () => {
+    const clock = fakeClock();
+    await collectHours(clock, 26, 0);
+    const deps = repos();
+    const { reportId } = await raiseDailyReport({ ...deps, clock, timezone: ZONE, hour: 0 });
+    const names = createD1ContentVideoNameRepository(testDb());
+    await names.saveAi([{ key: videoTitleKey('Ролик <0> | Учу фидить в доту'), name: 'Оракл' }], clock.now());
+    await releaseDailyReport(
+      { reports: deps.reports, alerts: deps.alerts, names, now: clock.now() },
+      { id: reportId!, review: REVIEW, reviewError: null, model: 'gpt-6.1-sol' }
+    );
+    // The rich message the release stored beside the classic one (its fallback).
+    const daily =
+      (
+        await testDb()
+          .prepare("SELECT rich_html FROM content_alerts WHERE id LIKE 'daily:%'")
+          .first<{ rich_html: string | null }>()
+      )?.rich_html ?? '';
+    expect(daily).toMatch(
+      /<tr><td>YouTube<\/td><td align="right">[^<]*<\/td><td align="right">[^<]*<\/td><td align="right">\+7\.2к<\/td><\/tr>/u
+    );
+    expect(daily).toContain('<p><b>Telegram:</b> за сутки постов не было.</p>');
+    expect(daily).toMatch(/<tr><th>Ролик<\/th><th>Дн<\/th><th>TikTok<\/th><th>YouTube<\/th><\/tr>/u);
+    expect(daily).toMatch(
+      /<tr><td>Оракл<\/td><td align="right">\d+<\/td><td align="right">—<\/td><td align="right">3\.5к <b>\+2\.4к<\/b><\/td><\/tr>/u
+    );
+    expect(daily).toMatch(
+      /<h4>🧠 Что нового<\/h4>\n<ul><li><a href="[^"]+">Оракл<\/a> \(YouTube\) растёт стабильно<\/li><li>Гипотезы без изменений\.<\/li><\/ul>/u
+    );
+    expect(daily).not.toContain('<pre>');
+  });
+
+  it('sends the numbers alone when the review would not fit one Telegram message (review 19.10.2026)', async () => {
+    const clock = fakeClock();
+    await collectHours(clock, 3, 0);
+    const deps = repos();
+    const { reportId } = await raiseDailyReport({ ...deps, clock, timezone: ZONE, hour: 0 });
+    const long = { ...REVIEW, points: [{ text: 'очень длинно '.repeat(400), confidence: 'low' as const }] };
+    expect(
+      await releaseDailyReport(
+        { reports: deps.reports, alerts: deps.alerts, now: clock.now() },
+        { id: reportId!, review: long, reviewError: null, model: 'gpt-6.1-sol' }
+      )
+    ).toBe(true);
+    expect((await alertRows())[0]?.html).toContain('Разбор недоступен: разбор не влез в сообщение.');
+    expect(await reportRows()).toMatchObject([{ status: 'unreviewed', reviewError: 'AI_TOO_LONG' }]);
+  });
+
+  it('closes a report left waiting from a day long gone without sending it', async () => {
+    const clock = fakeClock();
+    await collectHours(clock, 3, 0);
+    const deps = repos();
+    await raiseDailyReport({ ...deps, clock, timezone: ZONE, hour: 0 });
+    expect(
+      await releaseOverdueReports({ reports: deps.reports, alerts: deps.alerts, now: clock.now() + 21 * HOUR })
+    ).toBe(0);
+    expect(await alertRows()).toEqual([]);
+    expect(await reportRows()).toMatchObject([{ status: 'unreviewed', reviewError: 'EXPIRED' }]);
+  });
+
+  it('sends the numbers alone when the review does not come within 30 minutes', async () => {
+    const clock = fakeClock();
+    await collectHours(clock, 3, 0);
+    const deps = repos();
+    await raiseDailyReport({ ...deps, clock, timezone: ZONE, hour: 0 });
+    const at = (minutes: number) => ({
+      reports: deps.reports,
+      alerts: deps.alerts,
+      now: clock.now() + minutes * 60_000
+    });
+    expect(await releaseOverdueReports(at(29))).toBe(0);
+    expect(await releaseOverdueReports(at(31))).toBe(1);
+    expect((await alertRows())[0]?.html).toContain('Разбор недоступен: не успел за 30 минут.');
+    expect(await reportRows()).toMatchObject([{ status: 'unreviewed', reviewError: 'REVIEW_TIMEOUT' }]);
+  });
+
+  it('scores the forecasts by the readings near their horizon the next day', async () => {
+    const clock = fakeClock();
+    await collectHours(clock, 26, 0);
+    await raiseDailyReport({ ...repos(), clock, timezone: ZONE, hour: 0 });
+    await collectHours(clock, 31, 26);
+    await raiseDailyReport({ ...repos(), clock, timezone: ZONE, hour: 0 });
+    const outcomes = await testDb()
+      .prepare('SELECT horizon_hours AS hours, fact FROM content_forecasts WHERE scored_at IS NOT NULL')
+      .all<{ hours: number; fact: number | null }>();
+    expect(outcomes.results).toHaveLength(3);
+    expect(outcomes.results.every((row) => row.hours === 24 && row.fact !== null)).toBe(true);
+  });
+
+  it('goes as a rich message; refused by Telegram (400), the classic message goes in the same tick', async () => {
+    const clock = fakeClock();
+    await collectHours(clock, 3, 0);
+    const deps = repos();
+    await raiseDailyReport({ ...deps, clock, timezone: ZONE, hour: 0 });
+    await releaseOverdueReports({ reports: deps.reports, alerts: deps.alerts, now: clock.now() + HOUR });
+    const refused = fakeOwnerMessenger({
+      rejectRich: () =>
+        new GrammyError(
+          'refused',
+          { ok: false, error_code: 400, description: 'Bad Request: rich message is invalid' },
+          'sendRichMessage',
+          {}
+        )
+    });
+    await sendContentAlerts({
+      repo: deps.alerts,
+      messenger: refused,
+      ownerChatId: '42',
+      appOrigin: 'https://studio.example.com',
+      now: () => clock.now(),
+      charge: () => {},
+      logger
+    });
+    expect(refused.sentRich).toEqual([]);
+    expect(refused.sent).toHaveLength(1);
+    expect((await alertRows())[0]?.status).toBe('sent');
+
+    const rich = await testDb().prepare('SELECT rich_html FROM content_alerts').first<{ rich_html: string | null }>();
+    expect(rich?.rich_html).toContain('<table bordered striped compact>');
+  });
+
+  it('is sent once: a lost answer leaves it unknown and it is never resent', async () => {
+    const clock = fakeClock();
+    await collectHours(clock, 3, 0);
+    const deps = repos();
+    await raiseDailyReport({ ...deps, clock, timezone: ZONE, hour: 0 });
+    await releaseOverdueReports({ reports: deps.reports, alerts: deps.alerts, now: clock.now() + HOUR });
+    let calls = 0;
+    // The report goes as its rich message first; a lost answer there is as unknown as anywhere.
+    const timedOut = async () => {
+      calls += 1;
+      throw new DOMException('timed out', 'TimeoutError');
+    };
+    const lost = {
+      sendMessageWithKeyboard: timedOut,
+      sendRichMessageWithKeyboard: timedOut
+    } as unknown as TelegramOwnerMessageApi;
+    const send = () =>
+      sendContentAlerts({
+        repo: deps.alerts,
+        messenger: lost,
+        ownerChatId: '42',
+        appOrigin: 'https://studio.example.com',
+        now: () => clock.now(),
+        charge: () => {},
+        logger
+      });
+    await send();
+    await send();
+    expect(calls).toBe(1);
+    expect((await alertRows())[0]?.status).toBe('unknown');
+  });
+});
+
+describe('daily report on the Cron tick and the review job', () => {
+  async function enable(clock: FakeClock) {
+    await saveOwnerOperationsSettings(
+      { repo: createD1SettingsRepository(testDb()), logger, requestId: 't', now: clock.now() },
+      {
+        actor: 'owner',
+        input: {
+          revision: 0,
+          timezone: ZONE,
+          notifications: {
+            warningsEnabled: true,
+            publicationAlerts: true,
+            sourceAlerts: true,
+            automationAlerts: true,
+            recoveryAlerts: true,
+            dotaWatchlistAlerts: true,
+            scheduleNotices: true,
+            sentNotices: true,
+            dailyReport: true,
+            dailyReportHour: 0
+          }
+        }
+      }
+    );
+    await createD1SystemState(testDb()).rememberAppOrigin('https://studio.example.com', clock.now());
+  }
+
+  const tickAt = (now: number, tweak?: Parameters<typeof makeTick>[0]['tweak']) =>
+    makeTick({ clock: fakeClock(now), scheduledTime: now, transport: fakeTransport(), ...(tweak ? { tweak } : {}) });
+
+  // Regression (review 19.10.2026): the step once needed 49 of the tick's 50 statements and never ran.
+  it('stores the day on a minute-2 tick, queues the review, and the job releases it with the review', async () => {
+    const clock = fakeClock();
+    await collectHours(clock, 3, 0);
+    await enable(clock);
+    const sent: unknown[] = [];
+    const inputs: string[] = [];
+    const answer = JSON.stringify(REVIEW);
+    const provider: AiTextProvider = {
+      provider: 'openai',
+      complete: async (request) => ({
+        ...(inputs.push(request.input) ? {} : {}),
+        text: answer,
+        model: 'gpt-6.1-sol',
+        usage: { inputTokens: 1000, cachedInputTokens: 0, cacheWriteTokens: 0, outputTokens: 200 }
+      })
+    };
+    const raise = tickAt(
+      START + 3 * HOUR + 2 * 60_000,
+      (container) =>
+        ({
+          ...container,
+          aiJobs: {
+            send: async (job: unknown) => {
+              sent.push(job);
+            }
+          }
+        }) as typeof container
+    );
+    await raise.run();
+    expect(tickCount(raise, 'dailyReportRaised')).toBe(1);
+    expect(tickCount(raise, 'dailyReviewQueued')).toBe(1);
+    expect(raise.container.queryBudget.remaining()).toBeGreaterThanOrEqual(0);
+    expect(sent).toMatchObject([{ kind: 'daily_review', reportId: expect.stringMatching(/^daily:/) }]);
+
+    await updateAiSettings(
+      { repo: createD1AiRepository(testDb()), clock: fakeClock() },
+      {
+        revision: 0,
+        provider: 'openai',
+        enabled: true,
+        draftModel: 'gpt-6.1-sol',
+        cheapModel: 'gpt-6-luna',
+        videoReviews: false,
+        prices: [],
+        monthlyBudgetUsd: 5,
+        dailyCapUsd: 1,
+        warnAtPercent: 80
+      }
+    );
+    const job = sent[0] as { reportId: string };
+    const consumer = tickAt(
+      START + 3 * HOUR + 3 * 60_000,
+      (container) =>
+        ({
+          ...container,
+          aiProvider: provider,
+          // The owner confirmed in the studio that the newest video was filmed from this script.
+          aiScriptLinks: {
+            ...container.aiScriptLinks,
+            linkOf: async (itemId: string) =>
+              itemId === 'youtube:0'
+                ? {
+                    revisionId: 'r',
+                    format: 'fidit' as const,
+                    text: 'Купи БКБ и стой. Это база.',
+                    approvedAt: 0,
+                    confirmed: true
+                  }
+                : itemId === 'youtube:1'
+                  ? {
+                      revisionId: 'q',
+                      format: 'fidit' as const,
+                      text: 'Вард на руне.',
+                      approvedAt: 0,
+                      confirmed: false
+                    }
+                  : null
+          }
+        }) as typeof container
+    );
+    await runDailyReview(job.reportId, consumer.container, 't', () => {});
+    expect(await reportRows()).toMatchObject([{ status: 'reviewed' }]);
+    // The review's usage row is linked, so the studio can show what it cost (migration 0080).
+    const linked = await testDb()
+      .prepare('SELECT u.kind FROM content_daily_reports r JOIN ai_usage u ON u.id = r.usage_id WHERE r.id = ?')
+      .bind(job.reportId)
+      .first<{ kind: string }>();
+    expect(linked?.kind).toBe('other');
+    // The review sees the hook of a confirmed script (owner, 19.10.2026), and only of that one.
+    expect(inputs[0]).toContain('Сценарии:\nY1 сценарий (подтверждён автором), начало: «Купи БКБ и стой. Это база.»');
+    // An automatic match by title is said as one, never as the owner's word (review 19.10.2026).
+    expect(inputs[0]).toContain('сценарий (привязан автоматически по названию), начало: «Вард на руне.»');
+
+    // The content-alert step runs where sources are configured.
+    const sources = youtube(async () => ({ followers: 10, items: [] }));
+    const send = tickAt(
+      START + 3 * HOUR + 8 * 60_000,
+      (container) => ({ ...container, contentSources: sources }) as typeof container
+    );
+    await send.run();
+    // The report goes as a rich message (owner, 23.10.2026), its review a heading of its own.
+    expect(send.ownerRichMessages.some((message) => message.html.includes('<h4>🧠 Что нового</h4>'))).toBe(true);
+    expect(send.ownerMessages.some((message) => message.html.includes('🧠 Что нового'))).toBe(false);
+    expect((await alertRows())[0]?.status).toBe('sent');
+  });
+
+  it('releases the numbers alone with the reason when AI is off', async () => {
+    const clock = fakeClock();
+    await collectHours(clock, 3, 0);
+    await enable(clock);
+    const { reportId } = await raiseDailyReport({ ...repos(), clock, timezone: ZONE, hour: 0 });
+    const consumer = tickAt(clock.now());
+    await runDailyReview(reportId!, consumer.container, 't', () => {});
+    const [report] = await reportRows();
+    expect(report?.status).toBe('unreviewed');
+    expect(report?.reviewError).toMatch(/^AI_/);
+    expect((await alertRows())[0]?.html).toContain('Разбор недоступен');
+  });
+});
+
+describe('report history in the studio (AI plan P8; SYS-03, SYS-04)', () => {
+  it('lists released reports with the review cost, and opens one with its text and scored forecasts', async () => {
+    const clock = fakeClock();
+    await collectHours(clock, 26, 0);
+    const deps = repos();
+    const { reportId } = await raiseDailyReport({ ...deps, clock, timezone: ZONE, hour: 0 });
+    const usageId = '00000000-0000-4000-8000-00000000aa01';
+    await testDb()
+      .prepare(
+        `INSERT INTO ai_usage (id, at, kind, provider, model, input_tokens, cached_input_tokens, output_tokens, cost_micro_usd)
+         VALUES (?, ?, 'other', 'openai', 'gpt-6.1-sol', 1000, 0, 100, 12500)`
+      )
+      .bind(usageId, clock.now())
+      .run();
+    await seedSession({ token: OWNER_TOKEN, expiresAt: clock.now() + 86_400_000 });
+    const api = createApi({ clock });
+    // Still waiting for its review: not in the history yet.
+    expect(
+      contentReportsPageSchema.parse(await (await api.request('/api/v1/content-analytics/reports')).json()).items
+    ).toEqual([]);
+    await expectError(await api.request(`/api/v1/content-analytics/reports/${reportId}`), 404, 'NOT_FOUND');
+
+    await releaseDailyReport(
+      { reports: deps.reports, alerts: deps.alerts, now: clock.now() },
+      { id: reportId!, review: REVIEW, reviewError: null, model: 'gpt-6.1-sol', usageId }
+    );
+    const page = contentReportsPageSchema.parse(await (await api.request('/api/v1/content-analytics/reports')).json());
+    expect(page).toMatchObject({
+      items: [
+        {
+          id: reportId,
+          kind: 'day',
+          status: 'reviewed',
+          model: 'gpt-6.1-sol',
+          costUsd: 0.0125,
+          headline: 'Ролик <0> (YouTube) растёт стабильно'
+        }
+      ],
+      nextCursor: null
+    });
+    const detail = contentReportDetailSchema.parse(
+      await (await api.request(`/api/v1/content-analytics/reports/${encodeURIComponent(reportId!)}`)).json()
+    );
+    expect(detail.text).toContain('растёт стабильно');
+    expect(detail.text).toContain('Ролики за месяц');
+    // Without their links the «Открыть: 1 · 2» rows would be bare numbers.
+    expect(detail.text).not.toContain('Открыть:');
+    expect(detail.text).not.toMatch(/<\/?[a-z]+>/);
+    expect(detail.forecasts.length).toBeGreaterThan(0);
+    expect(detail.forecasts[0]).toMatchObject({ method: expect.any(String), outcome: null, fact: null });
+    expect(detail.forecasts[0]?.title).toMatch(/^Ролик <\d>/);
+    // The platform tables come apart from the prose, so the studio sets only them in monospace.
+    const tables = detail.blocks.filter((block) => block.kind === 'table');
+    expect(tables.length).toBeGreaterThan(0);
+    expect(tables.every((block) => block.text.includes('Ролик'))).toBe(true);
+    expect(detail.blocks.some((block) => block.kind === 'text' && block.text.includes('растёт стабильно'))).toBe(true);
+
+    await expectError(await api.request('/api/v1/content-analytics/reports', { token: null }), 401, 'UNAUTHORIZED');
+    await expectError(await api.request('/api/v1/content-analytics/reports?cursor=bad'), 400, 'VALIDATION_ERROR');
+  });
+
+  it('counts the forecasts per horizon, and the ones past it waiting for the next report', async () => {
+    const clock = fakeClock();
+    await collectHours(clock, 26, 0);
+    await raiseDailyReport({ ...repos(), clock, timezone: ZONE, hour: 0 });
+    await collectHours(clock, 31, 26);
+    await raiseDailyReport({ ...repos(), clock, timezone: ZONE, hour: 0 });
+    await seedSession({ token: OWNER_TOKEN, expiresAt: clock.now() + 10 * 86_400_000 });
+    const api = createApi({ clock });
+    const read = async () =>
+      contentForecastAccuracySchema.parse(
+        await (await api.request('/api/v1/content-analytics/forecasts/accuracy')).json()
+      );
+    const first = await read();
+    const day = first.horizons.find((row) => row.horizonHours === 24)!;
+    // The three 24-hour forecasts of the first report were scored by the second one.
+    expect(day.inBand + day.below + day.above + day.noFact).toBe(3);
+    expect(first.horizons.map((row) => row.horizonHours)).toEqual([24, 72, 168]);
+    expect(first.waiting).toBe(0);
+    expect(first.nextTargetAt).not.toBeNull();
+
+    clock.advance(2 * 86_400_000);
+    expect((await read()).waiting).toBeGreaterThan(0);
+    await expectError(
+      await api.request('/api/v1/content-analytics/forecasts/accuracy', { token: null }),
+      401,
+      'UNAUTHORIZED'
+    );
+  });
+});

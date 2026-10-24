@@ -1,0 +1,182 @@
+.root {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  width: 100%;
+  min-width: 0;
+  container-type: inline-size;
+}
+.failure {
+  width: 100%;
+}
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* ===== Date chip: header on desktop, under the title on phones ===== */
+.dateChip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  height: var(--size-control);
+  padding: 0 var(--space-3);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-2);
+  background: var(--color-surface-1);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.dateBelow {
+  display: none;
+  align-self: flex-start;
+}
+
+/* ===== Layout: 12 columns, widgets in reading order; a phone stacks them in its own order ===== */
+.grid {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  gap: var(--space-4);
+  /* Widgets of one row share its height, so their frames line up. */
+  align-items: stretch;
+}
+.cell {
+  display: flex;
+  flex-direction: column;
+  grid-column: span 12;
+  min-width: 0;
+}
+.cell > * {
+  flex: 1;
+}
+@container (min-width: 760px) {
+  .cell {
+    grid-column: span var(--w);
+  }
+}
+
+/* ===== Widget frame ===== */
+.widget {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-3);
+  background: var(--color-surface-1);
+}
+.head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  min-height: var(--size-row);
+  padding: 0 var(--space-4);
+}
+.headBare {
+  display: contents;
+}
+.title {
+  margin: 0;
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-semibold);
+  line-height: var(--line-height-heading);
+}
+.head a,
+.more {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  white-space: nowrap;
+  gap: var(--space-1);
+  min-height: var(--size-target-min);
+  color: var(--color-accent-text);
+  font-size: var(--font-size-sm);
+  text-decoration: none;
+}
+button.more {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  font-size: var(--font-size-sm);
+  cursor: pointer;
+}
+.head a:hover,
+.more:hover {
+  text-decoration: underline;
+}
+.head a:focus-visible,
+.more:focus-visible {
+  outline: var(--focus-ring-width) solid var(--color-focus-ring);
+  outline-offset: var(--focus-ring-offset);
+  border-radius: var(--radius-1);
+}
+.body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+  padding: 0 var(--space-4) var(--space-4);
+}
+.quiet {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+
+/* ===== Small shared parts ===== */
+.avatar {
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-pill);
+  background: var(--color-accent-soft);
+  color: var(--color-accent-text);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+}
+.truncate {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.emptyBlock {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: var(--space-3);
+  padding: var(--space-3) 0;
+}
+.retryRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+
+@media (max-width: 859px) {
+  .grid {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .dateChip {
+    display: none;
+  }
+  .dateBelow {
+    display: inline-flex;
+  }
+}

@@ -7,8 +7,11 @@
     "apps/*"
   ],
   "scripts": {
+    "predev": "node apps/backend/scripts/merge-root-env.mjs && npm run db:migrate:local",
     "dev": "npm run dev -w @alexeev/frontend",
+    "predev:backend": "node apps/backend/scripts/merge-root-env.mjs && npm run db:migrate:local",
     "dev:backend": "npm run dev -w @alexeev/backend",
+    "explore": "npm run explore -w @alexeev/frontend",
     "preview": "npm run preview -w @alexeev/frontend",
     "build": "npm run build --workspaces --if-present",
     "typecheck": "npm run typecheck --workspaces --if-present",
@@ -23,10 +26,10 @@
     "db:migrate:prod": "npm run db:migrate:prod -w @alexeev/backend",
     "deploy:check": "npm run build -w @alexeev/frontend && npm run deploy:check -w @alexeev/frontend",
     "deploy": "npm run build -w @alexeev/frontend && npm run deploy -w @alexeev/frontend",
-    "check:docs": "node .agents/scripts/check-docs.mjs",
+    "check:docs": "node .agents/scripts/check-docs.mjs && node apps/backend/scripts/build-ai-pack.mjs --check",
+    "ai:pack": "node apps/backend/scripts/build-ai-pack.mjs",
     "agents:sync": "node .agents/scripts/sync-agents.mjs",
     "agents:check": "node .agents/scripts/sync-agents.mjs --check",
-    "metrics": "node .agents/scripts/metrics.mjs",
     "verify": "node .agents/scripts/verify.mjs",
     "prepare": "husky",
     "verify:changed": "node .agents/scripts/verify.mjs --changed"
@@ -45,7 +48,7 @@
   },
   "lint-staged": {
     "*.{ts,tsx,js,mjs,cjs}": [
-      "oxlint --fix",
+      "oxlint --fix --no-error-on-unmatched-pattern",
       "prettier --write"
     ],
     "*.{json,jsonc,css}": "prettier --write"

@@ -1,0 +1,408 @@
+.page {
+  display: grid;
+  gap: var(--space-4);
+  min-width: 0;
+}
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--color-border-subtle);
+}
+.search {
+  flex: 1 1 220px;
+  min-width: 0;
+}
+.tabs {
+  padding-inline: 0;
+}
+.content {
+  min-width: 0;
+}
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(176px, 1fr));
+  gap: var(--space-3);
+  margin: 0;
+  padding: var(--space-4);
+  list-style: none;
+}
+.card {
+  position: relative;
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-2);
+  background: var(--color-surface-2);
+}
+.card[data-selected] {
+  border-color: var(--color-border-strong);
+}
+.cardButton {
+  display: grid;
+  width: 100%;
+  gap: var(--space-2);
+  padding: var(--space-2);
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.cardButton:focus-visible {
+  outline: var(--focus-ring-width) solid var(--color-focus-ring);
+  outline-offset: -2px;
+}
+.preview {
+  position: relative;
+  display: grid;
+  width: 100%;
+  aspect-ratio: 1.25;
+  place-items: center;
+  overflow: hidden;
+  border-radius: var(--radius-1);
+  background: var(--color-surface-3);
+  color: var(--color-text-muted);
+}
+.preview img,
+.preview video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.videoMark {
+  position: absolute;
+  right: var(--space-2);
+  bottom: var(--space-2);
+  padding: 2px var(--space-1);
+  border-radius: var(--radius-1);
+  background: var(--color-surface-1);
+  color: var(--color-text);
+  font-size: var(--font-size-xs);
+}
+.previewError {
+  position: absolute;
+  inset: auto var(--space-1) var(--space-1);
+  display: grid;
+  justify-items: center;
+  gap: var(--space-1);
+  padding: var(--space-1);
+  border-radius: var(--radius-1);
+  background: var(--color-surface-1);
+  color: var(--color-text);
+  font-size: var(--font-size-xs);
+  text-align: center;
+}
+.name {
+  overflow: hidden;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.meta {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+}
+.card .meta {
+  /* Two lines always (clamped): a long size/dimensions line no longer makes some cards, and the skeleton, differ in height. */
+  display: -webkit-box;
+  min-height: 2lh;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+.check {
+  position: absolute;
+  top: var(--space-3);
+  left: var(--space-3);
+  padding: var(--space-1);
+  border-radius: var(--radius-1);
+  background: var(--color-surface-1);
+}
+.cardMenu {
+  position: absolute;
+  top: var(--space-2);
+  right: var(--space-2);
+  border-radius: var(--radius-1);
+  background: var(--color-surface-1);
+}
+/* With a mouse the «⋯» shows on hover or focus only, so a grid of files is not a grid of buttons; touch keeps it. */
+@media (hover: hover) and (pointer: fine) {
+  .cardMenu {
+    opacity: 0;
+    transition: opacity var(--motion-fast) ease;
+  }
+  .card:hover .cardMenu,
+  .card:focus-within .cardMenu {
+    opacity: 1;
+  }
+}
+.card:not(:hover):not(:focus-within):not([data-selected]) .check {
+  opacity: 0;
+}
+.list {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.listRow {
+  display: grid;
+  /* Fixed tracks: every row, and the skeleton, lines up in the same columns. */
+  grid-template-columns: var(--size-media-thumb) minmax(0, 1fr) 168px var(--size-target-min) var(--size-target);
+  align-items: center;
+  gap: var(--space-3);
+  min-height: var(--size-action-row);
+  padding: var(--space-2) var(--space-4);
+  border-bottom: 1px solid var(--color-border-subtle);
+}
+.listPreview {
+  width: var(--size-media-thumb);
+  aspect-ratio: 1;
+}
+.listText {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+.listRow button {
+  min-height: var(--size-target-min);
+}
+/* One column as wide as the panel: an auto column grew to the picture's own width (600 px) and scrolled sideways. */
+.details {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-3);
+}
+.facts {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: var(--space-3);
+  margin: 0;
+}
+.fact {
+  display: grid;
+  gap: var(--space-1);
+  min-width: 0;
+}
+.fact dt {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+}
+.fact dd {
+  overflow-wrap: anywhere;
+  margin: 0;
+  font-size: var(--font-size-sm);
+}
+.usage {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-2);
+}
+/* A long post title wraps inside the panel instead of widening it (it scrolled sideways, 22.10.2026). */
+.usage li {
+  min-width: 0;
+}
+.usage li button,
+.usage li button * {
+  max-width: 100%;
+  height: auto;
+  white-space: normal;
+  text-align: start;
+  overflow-wrap: anywhere;
+}
+.usage h3 {
+  margin: 0;
+  font-size: var(--font-size-sm);
+}
+.usage ul {
+  grid-template-columns: minmax(0, 1fr);
+  display: grid;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.usage a {
+  display: flex;
+  align-items: center;
+  min-height: var(--size-target-min);
+  color: var(--color-accent-text);
+  text-decoration: none;
+}
+.usage a:hover {
+  text-decoration: underline;
+}
+.toolbarEnd {
+  margin-left: auto;
+}
+.dialogDrafts {
+  display: grid;
+  gap: var(--space-2);
+}
+.draftList {
+  display: grid;
+  /* Rows keep their content height and the list scrolls; auto rows would shrink to min-height to fit. */
+  grid-auto-rows: max-content;
+  gap: var(--space-1);
+  max-height: min(50vh, 360px);
+  overflow-y: auto;
+  outline: none;
+}
+.draftButton {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+  min-height: var(--size-target-min);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-2);
+  background: var(--color-surface-1);
+  color: inherit;
+  cursor: pointer;
+}
+.draftButton[data-focus-visible] {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 2px;
+}
+.draftButton[data-selected] {
+  border-color: var(--color-focus-ring);
+}
+.draftTitle {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.draftMeta {
+  flex: none;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+}
+.conflict {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border-radius: var(--radius-2);
+  background: var(--color-surface-2);
+}
+@media (max-width: 859px) {
+  .toolbar {
+    flex-wrap: wrap;
+    padding: var(--space-3);
+  }
+  .search {
+    flex: 1 1 100%;
+  }
+  .tabs {
+    padding-inline: var(--space-2);
+  }
+  .grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-2);
+    padding: var(--space-3);
+  }
+  .listRow {
+    grid-template-columns: 44px minmax(0, 1fr) var(--size-target-min) var(--size-target);
+    padding-inline: var(--space-3);
+  }
+  .listUsage {
+    display: none;
+  }
+}
+.chips {
+  padding: 0 var(--space-3) var(--space-3);
+}
+
+.skeletonText {
+  width: 70%;
+  border-radius: var(--radius-1);
+  background: var(--color-surface-3);
+  color: transparent;
+  animation: skeleton-pulse 1.8s ease-in-out infinite;
+}
+.skeletonBlock {
+  animation: skeleton-pulse 1.8s ease-in-out infinite;
+}
+.listCheck {
+  display: block;
+}
+@keyframes skeleton-pulse {
+  0%,
+  100% {
+    opacity: 0.55;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .skeletonText,
+  .skeletonBlock {
+    animation: none;
+  }
+}
+.uploadStatus {
+  display: grid;
+  gap: var(--space-1);
+  min-width: 0;
+}
+.uploadStatus[data-failed] .meta {
+  color: var(--color-danger);
+}
+.uploadActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+.uploadRow {
+  display: grid;
+  grid-template-columns: var(--size-media-thumb) minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: var(--size-action-row);
+  padding: var(--space-2) var(--space-4);
+  border-bottom: 1px solid var(--color-border-subtle);
+}
+.dropOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: grid;
+  place-items: center;
+  background: var(--color-scrim);
+  color: var(--color-text);
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-medium);
+  pointer-events: none;
+}
+.dropOverlay span {
+  padding: var(--space-5) var(--space-6);
+  border: 2px dashed var(--color-border-strong);
+  border-radius: var(--radius-3);
+  background: var(--color-surface-1);
+}
+.hiddenInput {
+  display: none;
+}
+@media (max-width: 859px) {
+  .uploadRow {
+    grid-template-columns: var(--size-media-thumb) minmax(0, 1fr);
+  }
+  .uploadRow .uploadActions {
+    grid-column: 1 / -1;
+  }
+}
+
+.activeFilters:empty {
+  display: none;
+}
+.activeFilters {
+  padding: 0 var(--space-4) var(--space-3);
+}

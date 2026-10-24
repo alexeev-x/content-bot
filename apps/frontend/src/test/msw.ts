@@ -2,7 +2,17 @@ import { http, HttpResponse, type HttpHandler } from 'msw';
 import { setupServer } from 'msw/node';
 import { afterAll, afterEach, beforeAll } from 'vitest';
 import type { ApiErrorCode } from '@alexeev/contracts';
-import { accessToken, destination, errorBody, me, post, publication } from './fixtures';
+import {
+  accessToken,
+  destination,
+  errorBody,
+  me,
+  ownerOperationsSettings,
+  post,
+  postPage,
+  publication,
+  publicationPage
+} from './fixtures';
 
 const page = <T>(items: T[]) => ({ items, nextCursor: null });
 
@@ -14,7 +24,7 @@ export const handlers: HttpHandler[] = [
   http.post('*/api/v1/auth/logout', () => new HttpResponse(null, { status: 204 })),
   http.get('*/api/v1/auth/me', () => HttpResponse.json(me)),
 
-  http.get('*/api/v1/posts', () => HttpResponse.json(page([post()]))),
+  http.get('*/api/v1/posts', () => HttpResponse.json(postPage([post()]))),
   http.post('*/api/v1/posts', () => HttpResponse.json(post(), { status: 201 })),
   http.get('*/api/v1/posts/:id', () => HttpResponse.json(post())),
   http.patch('*/api/v1/posts/:id', () => HttpResponse.json(post({ revision: 1 }))),
@@ -23,15 +33,30 @@ export const handlers: HttpHandler[] = [
   http.get('*/api/v1/destinations', () => HttpResponse.json(page([destination()]))),
   http.post('*/api/v1/destinations', () => HttpResponse.json(destination(), { status: 201 })),
   http.get('*/api/v1/destinations/:id', () => HttpResponse.json(destination())),
+  http.get('*/api/v1/destinations/:id/scheduled-count', ({ params }) =>
+    HttpResponse.json({ destinationId: params['id'], count: 2 })
+  ),
   http.patch('*/api/v1/destinations/:id', () => HttpResponse.json(destination({ revision: 1 }))),
 
-  http.get('*/api/v1/publications', () => HttpResponse.json(page([publication()]))),
+  http.get('*/api/v1/publications', () => HttpResponse.json(publicationPage([publication()]))),
   http.post('*/api/v1/publications', () => HttpResponse.json(publication(), { status: 202 })),
   http.get('*/api/v1/publications/:id', () => HttpResponse.json(publication())),
   http.post('*/api/v1/publications/:id/reschedule', () => HttpResponse.json(publication({ revision: 1 }))),
   http.post('*/api/v1/publications/:id/cancel', () =>
     HttpResponse.json(publication({ revision: 1, status: 'cancelled' }))
-  )
+  ),
+
+  http.get('*/api/v1/settings/operations', () => HttpResponse.json(ownerOperationsSettings())),
+  http.get('*/api/v1/settings/autopublish/activity', () =>
+    HttpResponse.json({ enabled: false, dailyLimit: 3, usedToday: 0, items: [] })
+  ),
+  http.put('*/api/v1/settings/operations', async ({ request }) => {
+    const body = (await request.json()) as ReturnType<typeof ownerOperationsSettings>;
+    return HttpResponse.json(
+      ownerOperationsSettings({ ...body, revision: body.revision + 1, updatedAt: '2026-10-11T12:00:00.000Z' })
+    );
+  }),
+  http.get('*/api/v1/incidents', () => HttpResponse.json({ items: [], nextCursor: null, openCount: 0 }))
 ];
 
 export const server = setupServer(...handlers);

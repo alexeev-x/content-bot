@@ -1,0 +1,69 @@
+.dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: var(--radius-pill);
+  background: var(--color-status-muted-fg);
+}
+.dot[data-tone='ok'] {
+  background: var(--color-status-done-fg);
+}
+.dot[data-tone='warning'] {
+  background: var(--color-status-unknown-fg);
+}
+.dot[data-tone='danger'] {
+  background: var(--color-status-failed-fg);
+}
+.list {
+  display: grid;
+  gap: var(--space-3);
+  margin: 0 0 var(--space-3);
+  padding: 0;
+  list-style: none;
+}
+.item {
+  display: grid;
+  gap: var(--space-2);
+  min-width: 0;
+}
+.check {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+}
+.name {
+  flex: 1 1 8ch;
+  min-width: 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+.word {
+  min-width: 0;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  overflow-wrap: anywhere;
+}
+.more {
+  padding-left: var(--space-4);
+}
+.section {
+  display: grid;
+  gap: var(--space-2);
+}
+.section > :not(button) {
+  padding: 0 var(--space-3) var(--space-2) 42px;
+}
+.summary {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+}
+.summaryText {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

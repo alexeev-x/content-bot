@@ -1,8 +1,15 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "bashOutputMaxChars": 12000,
   "permissions": {
     "allow": [
       "Bash(npm run verify)",
+      "Bash(npm run verify:changed)",
+      "Bash(npx vitest run *)",
+      "Bash(npx tsc --noEmit*)",
+      "Bash(npx oxlint *)",
+      "Bash(npx prettier --check *)",
+      "Bash(git show *)",
       "Bash(npm run check:docs)",
       "Bash(npm run agents:sync)",
       "Bash(npm run agents:check)",
@@ -52,11 +59,6 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node \"${CLAUDE_PROJECT_DIR}/.agents/hooks/log-usage.mjs\"",
-            "timeout": 20
-          },
-          {
-            "type": "command",
             "command": "node \"${CLAUDE_PROJECT_DIR}/.agents/hooks/verify-on-stop.mjs\"",
             "timeout": 320
           }
@@ -66,11 +68,6 @@
     "SubagentStop": [
       {
         "hooks": [
-          {
-            "type": "command",
-            "command": "node \"${CLAUDE_PROJECT_DIR}/.agents/hooks/log-usage.mjs\"",
-            "timeout": 20
-          },
           {
             "type": "command",
             "command": "node \"${CLAUDE_PROJECT_DIR}/.agents/hooks/verify-on-stop.mjs\"",

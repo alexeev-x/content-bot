@@ -1,7 +1,21 @@
 import { describe, expect, it } from 'vitest';
 import { approve, canEdit, type Post } from './post';
 
-const draft: Post = { id: 'p1', title: 'T', body: 'Hello', revision: 3, status: 'draft', updatedAt: 1 };
+const draft: Post = {
+  id: 'p1',
+  title: 'T',
+  titleInMessage: true,
+  body: 'Hello',
+  entities: [],
+  kind: 'text',
+  poll: null,
+  sendOptions: { silent: false, protectContent: false, linkPreview: false },
+  richHtml: null,
+  revision: 3,
+  status: 'draft',
+  archivedAt: null,
+  updatedAt: 1
+};
 
 describe('post rules', () => {
   it('allows editing only drafts', () => {

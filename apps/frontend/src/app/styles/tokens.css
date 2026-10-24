@@ -1,18 +1,16 @@
 /*
-  Single token source (approved «modern» direction, docs/DESIGN_SYSTEM_NO_FIGMA.md).
+  Single token source (approved «Calm Operations» direction, docs/design/README.md).
   Three tiers: raw values live only inside the theme blocks below; components use the semantic
   `--color-*` names. Colour literals are allowed in this file only (scripts/colors-only-in-tokens.test.mjs).
 
   Theme selection is by attributes, on <html> or on any wrapper (the catalog nests themes):
     data-theme="light|dark"
-    data-accent-light="cobalt|indigo|copper|orchid|mono|custom"   (used while data-theme=light)
-    data-accent-dark="cobalt|indigo|copper|orchid|mono|custom"    (used while data-theme=dark)
-  `custom` reads --custom-{light,dark}-* injected by src/app/theme.ts from shared/lib/color.
-  No attributes = dark + cobalt, the default.
+    data-accent="blue|orange|violet|teal|green|pink|red|graphite|custom"  (a theme preset: accent plus tinted neutrals; teal and pink are legacy)
+  No attributes = dark + blue, the default.
 
-  Neutrals: the prototype carried a green tint picked for the rejected lime accent. They are retuned
-  to a faintly cool grey (hue ~265, chroma <= 0.01) that sits calmly beside cobalt, with the same
-  lightness steps, so every contrast step of the prototype is kept (checked in src/app/styles/tokens.test.ts).
+  Neutrals (owner direction 14.10.2026, Cloudflare-dashboard look): near-neutral zinc greys, panels a step
+  above the page, hairline decorative borders (--color-border-subtle) and a stronger edge only on
+  controls (--color-border-strong).
 */
 :root {
   /* type */
@@ -22,17 +20,23 @@
   --font-size-xs: 0.8125rem;
   --font-size-sm: 0.875rem;
   --font-size-md: 0.9375rem;
+  /* iOS zooms into any text field under 16 px on focus and stays zoomed; touch screens use this for fields. */
+  --font-size-field-touch: max(1rem, 16px);
   --font-size-lg: 1.125rem;
-  --font-size-xl: clamp(1.5rem, 4vw, 1.75rem);
+  /* Page title: 20 px on desktop, 18 px under the touch/narrow query below. */
+  --font-size-xl: 1.25rem;
   --font-size-display: 2.125rem;
   --font-weight-regular: 400;
-  --font-weight-medium: 550;
+  --font-weight-medium: 500;
   --font-weight-semibold: 600;
-  --font-weight-heading: 650;
-  --letter-spacing-heading: -0.02em;
+  --font-weight-heading: 600;
+  --letter-spacing-heading: -0.01em;
   --letter-spacing-display: -0.03em;
   --line-height-body: 1.5;
   --line-height-heading: 1.2;
+  /* Editor body text (TextArea textSize="lg"): 17 px on a 26 px pitch. */
+  --font-size-editor: 1.0625rem;
+  --line-height-editor: 26px;
 
   /* space, radius, size */
   --space-1: 4px;
@@ -42,14 +46,52 @@
   --space-5: 20px;
   --space-6: 24px;
   --space-8: 32px;
-  --radius-1: 8px;
-  --radius-2: 12px;
-  --radius-3: 18px;
+  --radius-1: 6px;
+  --radius-2: 6px;
+  --radius-3: 8px;
+  /* Cards, media tiles, drop zones, sheets: the larger corner of the post editor (owner reference). */
+  --radius-4: 10px;
   --radius-pill: 999px;
   --size-target: 44px;
   --size-target-min: 24px;
-  --size-sidebar: 240px;
+  --size-sidebar: 232px;
+  --size-sidebar-collapsed: 56px;
+  /* Fine pointer (desktop mouse): compact work-tool sizes. Touch and narrow screens override below. */
+  --size-control: 36px;
+  --size-control-sm: 36px;
+  /* Buttons: md for toolbars, footers and dialogs; sm inside rows and popovers. A button beside a field uses the field height. */
+  --size-button: 36px;
+  --size-button-sm: 34px;
+  --size-row: 44px;
+  --size-topbar: 52px;
+  /* Reading width a page opts into with the .reading-width class. */
+  --measure-reading: 760px;
+  --measure-dashboard: 1280px;
+  /* Widest content column of the shell (owner, 14.10.2026): centred with side margins on large monitors. */
+  --measure-content: 1200px;
   --size-nav: 64px;
+  /* Media: strip/grid tile, list thumbnail, queue thumbnail (post editor). */
+  --size-media-tile: 124px;
+  --size-media-thumb: 44px;
+  --size-media-thumb-lg: 64px;
+  /* Landscape thumbnails of the editor rows (MediaListRow 70 x 46, UploadRow 120 x 62) and their row height. */
+  --size-media-landscape-w: 70px;
+  --size-media-landscape-h: 46px;
+  --size-upload-landscape-w: 120px;
+  --size-upload-landscape-h: 62px;
+  --size-media-row-landscape: 68px;
+  --size-button-xl: 52px;
+  --size-dropzone-action-lg: 292px;
+  /* Crop: visible corner handle (its hit area is --size-target) and the ratio tile height. */
+  --size-crop-handle: 12px;
+  --size-ratio-tile: 56px;
+  --size-action-row: 64px;
+  /* «Дота» on Обзор: the rank medal beside the rank name. */
+  --size-rank-medal: 56px;
+  /* Wide media dialogs (add media, crop). */
+  --measure-dialog-media: 760px;
+  /* The studio's Telegram preview column: a 420px bubble with the chat's and the panel's padding (owner, 24.10.2026). */
+  --measure-telegram-preview: 512px;
 
   /* focus: 2px ring in --color-focus-ring */
   --focus-ring-width: 2px;
@@ -67,6 +109,22 @@
   --z-toast: 50;
 }
 
+/* Touch and the Mini App keep 44 px targets (WCAG 2.5.8 AAA / project choice). */
+@media (pointer: coarse), (max-width: 859px) {
+  :root,
+  [data-theme] {
+    --size-control: var(--size-target);
+    --size-control-sm: var(--size-target);
+    --size-button: var(--size-target);
+    --size-button-sm: var(--size-target);
+    --font-size-xl: 1.125rem;
+    --size-row: 52px;
+    --size-topbar: 56px;
+    --size-media-tile: 104px;
+    --size-ratio-tile: 68px;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   :root {
     --motion-fast: 0ms;
@@ -78,19 +136,20 @@
 :root,
 [data-theme='dark'] {
   color-scheme: dark;
-  --color-bg: #0d0e10;
-  --color-surface-1: #151619;
-  --color-surface-2: #1c1e22;
-  --color-surface-3: #25272c;
-  --color-border-subtle: #2a2d33;
-  --color-border-strong: #747a86;
-  --color-text: #eceef2;
-  --color-text-muted: #a0a4ad;
-  --color-text-disabled: #6a6e77;
+  --color-bg: #0a0a0b;
+  --color-surface-1: #111113;
+  --color-surface-2: #18181b;
+  --color-surface-3: #222226;
+  --color-border-subtle: #26272b;
+  --color-border-strong: #3f4046;
+  --color-text: #ededef;
+  --color-text-muted: #a1a1aa;
+  --color-text-disabled: #63636b;
   --color-danger: #ff7a7a;
   --color-scrim: rgba(0, 0, 0, 0.6);
-  --color-grid: rgba(255, 255, 255, 0.06);
-  --shadow-card: 0 1px 0 rgba(255, 255, 255, 0.04) inset, 0 8px 24px rgba(0, 0, 0, 0.35);
+  --color-grid: rgba(255, 255, 255, 0.05);
+  --shadow-card: none;
+  --color-selected-bg: var(--color-surface-2);
   --shadow-pop: 0 24px 60px rgba(0, 0, 0, 0.6);
 
   --color-status-pending-fg: #b9c3d6;
@@ -118,19 +177,20 @@
 /* ===== Light ===== */
 [data-theme='light'] {
   color-scheme: light;
-  --color-bg: #f3f4f6;
+  --color-bg: #f7f7f8;
   --color-surface-1: #ffffff;
-  --color-surface-2: #f7f8fa;
-  --color-surface-3: #eceef2;
-  --color-border-subtle: #e1e4ea;
-  --color-border-strong: #7e8491;
-  --color-text: #14161a;
-  --color-text-muted: #565b66;
-  --color-text-disabled: #8a8f9a;
+  --color-surface-2: #f4f4f5;
+  --color-surface-3: #e9e9ec;
+  --color-border-subtle: #e4e4e7;
+  --color-border-strong: #c8c8ce;
+  --color-text: #18181b;
+  --color-text-muted: #5f5f68;
+  --color-text-disabled: #9a9aa3;
   --color-danger: #b42323;
   --color-scrim: rgba(20, 22, 26, 0.45);
   --color-grid: rgba(20, 22, 26, 0.07);
-  --shadow-card: 0 1px 2px rgba(20, 22, 26, 0.06), 0 8px 24px rgba(20, 22, 26, 0.06);
+  --shadow-card: none;
+  --color-selected-bg: var(--color-surface-2);
   --shadow-pop: 0 24px 60px rgba(20, 22, 26, 0.22);
 
   --color-status-pending-fg: #3b4a66;
@@ -155,6 +215,41 @@
   --color-bubble-link: #1b6fc2;
 }
 
+/* Platform identity in analytics (a mark next to the name, a series in a chart; never the only signal).
+   Telegram and YouTube use their brand hues; TikTok's black/white mark follows the text colour. */
+:root,
+[data-theme] {
+  --color-platform-telegram: #26a5e4;
+  --color-platform-youtube: #ff0000;
+  --color-platform-tiktok: var(--color-text);
+  /* A previous period or a «usual» reference next to the accent series. */
+  --color-chart-muted: color-mix(in oklab, var(--color-text-muted) 55%, var(--color-surface-2));
+  --color-chart-grid: color-mix(in oklab, var(--color-border-subtle) 70%, transparent);
+  /* Series 2–4 next to the accent when several items are compared (fixed order, never cycled). */
+  --color-series-2: #8b5cf6;
+  --color-series-3: #14b8a6;
+  --color-series-4: #f59e0b;
+}
+
+/* Over media (thumbnails, image placeholders): the image decides the backdrop, so these do not follow the theme. */
+:root,
+[data-theme] {
+  --color-on-media: rgba(255, 255, 255, 0.82);
+  --color-media-ring: rgba(255, 255, 255, 0.06);
+  /* Badges, chips and round buttons drawn on photos and video posters. */
+  --color-media-scrim: rgba(8, 10, 14, 0.62);
+  --color-media-backdrop: rgba(4, 5, 8, 0.94);
+  --color-on-media-strong: #ffffff;
+  /* Crop canvas: the dimmed area outside the frame, the frame/handles, and the rule-of-thirds lines. */
+  --color-crop-dim: rgba(0, 0, 0, 0.55);
+  --color-crop-frame: #ffffff;
+  --color-crop-grid: rgba(255, 255, 255, 0.6);
+  /* Accent lifted toward white so a progress ring stays >= 3:1 on the scrim in both themes and every preset. */
+  --color-accent-on-media: color-mix(in srgb, var(--color-accent) 55%, #ffffff);
+  --color-done-on-media: color-mix(in srgb, var(--color-status-done-fg) 55%, #ffffff);
+  --color-failed-on-media: color-mix(in srgb, var(--color-status-failed-fg) 55%, #ffffff);
+}
+
 /* The 1px status ring follows each status foreground, whichever accent override applied. */
 :root,
 [data-theme] {
@@ -167,104 +262,160 @@
   --color-status-muted-ring: color-mix(in srgb, var(--color-status-muted-fg) 40%, transparent);
 }
 
-/* ===== Accents: five presets x two themes. Used only for primary buttons, selected navigation,
-   focus ring, links and sparklines. ===== */
-[data-theme='light']:not([data-accent-light]),
-[data-theme='light'][data-accent-light='cobalt'] {
-  --color-accent: #1d4ed8;
+/* ===== Accents: eight presets x two themes, one preset for both (data-accent). Used only for primary buttons,
+   selected navigation, focus ring, links and sparklines. Contrast checked: on-accent and accent text >= 4.5:1
+   on the surfaces, focus ring >= 3:1. ===== */
+[data-theme='light'][data-accent='blue'],
+[data-theme='light']:not([data-accent]) {
+  --color-accent: #0051c3;
   --color-on-accent: #ffffff;
-  --color-accent-hover: #1a43ba;
-  --color-accent-text: #1d4ed8;
-  --color-accent-soft: rgba(29, 78, 216, 0.09);
-  --color-focus-ring: #1d4ed8;
-  --color-accent-glow: rgba(29, 78, 216, 0.35);
+  --color-accent-hover: #0044a3;
+  --color-accent-text: #0051c3;
+  --color-accent-soft: rgba(0, 81, 195, 0.09);
+  --color-focus-ring: #0051c3;
+  --color-accent-glow: rgba(0, 81, 195, 0.3);
 }
-[data-theme='light'][data-accent-light='indigo'] {
-  --color-accent: #4f46c8;
-  --color-on-accent: #ffffff;
-  --color-accent-hover: #433bae;
-  --color-accent-text: #4f46c8;
-  --color-accent-soft: rgba(79, 70, 200, 0.09);
-  --color-focus-ring: #4f46c8;
-  --color-accent-glow: rgba(79, 70, 200, 0.35);
-}
-[data-theme='light'][data-accent-light='copper'] {
-  --color-accent: #b4531c;
-  --color-on-accent: #ffffff;
-  --color-accent-hover: #9c4616;
-  --color-accent-text: #a04512;
-  --color-accent-soft: rgba(180, 83, 28, 0.09);
-  --color-focus-ring: #a04512;
-  --color-accent-glow: rgba(180, 83, 28, 0.35);
-}
-[data-theme='light'][data-accent-light='orchid'] {
-  --color-accent: #b0206f;
-  --color-on-accent: #ffffff;
-  --color-accent-hover: #951a5e;
-  --color-accent-text: #b0206f;
-  --color-accent-soft: rgba(176, 32, 111, 0.09);
-  --color-focus-ring: #b0206f;
-  --color-accent-glow: rgba(176, 32, 111, 0.35);
-}
-[data-theme='light'][data-accent-light='mono'] {
-  --color-accent: #14170f;
-  --color-on-accent: #ffffff;
-  --color-accent-hover: #2e3328;
-  --color-accent-text: #14170f;
-  --color-accent-soft: rgba(20, 23, 15, 0.08);
-  --color-focus-ring: #14170f;
-  --color-accent-glow: rgba(20, 23, 15, 0.25);
-}
+[data-theme='dark'][data-accent='blue'],
 :root:not([data-theme]),
-[data-theme='dark']:not([data-accent-dark]),
-[data-theme='dark'][data-accent-dark='cobalt'] {
-  --color-accent: #6c93ff;
-  --color-on-accent: #06112e;
-  --color-accent-hover: #86a6ff;
-  --color-accent-text: #9db8ff;
-  --color-accent-soft: rgba(108, 147, 255, 0.15);
-  --color-focus-ring: #9db8ff;
-  --color-accent-glow: rgba(108, 147, 255, 0.4);
+[data-theme='dark']:not([data-accent]) {
+  --color-accent: #2563eb;
+  --color-on-accent: #ffffff;
+  --color-accent-hover: #1d4fd0;
+  --color-accent-text: #8fb0ff;
+  --color-accent-soft: rgba(37, 99, 235, 0.16);
+  --color-focus-ring: #8fb0ff;
+  --color-accent-glow: rgba(37, 99, 235, 0.4);
 }
-[data-theme='dark'][data-accent-dark='indigo'] {
-  --color-accent: #8f88f2;
-  --color-on-accent: #110f2b;
-  --color-accent-hover: #a29cf7;
-  --color-accent-text: #b0aaff;
-  --color-accent-soft: rgba(143, 136, 242, 0.15);
-  --color-focus-ring: #b0aaff;
-  --color-accent-glow: rgba(143, 136, 242, 0.4);
+[data-theme='light'][data-accent='orange'] {
+  --color-accent: #f6821f;
+  --color-on-accent: #1c1005;
+  --color-accent-hover: #e07410;
+  --color-accent-text: #a84a00;
+  --color-accent-soft: rgba(246, 130, 31, 0.09);
+  --color-focus-ring: #a84a00;
+  --color-accent-glow: rgba(246, 130, 31, 0.3);
 }
-[data-theme='dark'][data-accent-dark='copper'] {
-  --color-accent: #e58a4e;
-  --color-on-accent: #1f0e03;
-  --color-accent-hover: #ee9c66;
-  --color-accent-text: #f2a674;
-  --color-accent-soft: rgba(229, 138, 78, 0.15);
-  --color-focus-ring: #f2a674;
-  --color-accent-glow: rgba(229, 138, 78, 0.4);
+[data-theme='dark'][data-accent='orange'] {
+  --color-accent: #f6821f;
+  --color-on-accent: #1c1005;
+  --color-accent-hover: #ff963f;
+  --color-accent-text: #ff9d4d;
+  --color-accent-soft: rgba(246, 130, 31, 0.16);
+  --color-focus-ring: #ff9d4d;
+  --color-accent-glow: rgba(246, 130, 31, 0.4);
 }
-[data-theme='dark'][data-accent-dark='orchid'] {
-  --color-accent: #e879b9;
+[data-theme='light'][data-accent='violet'] {
+  --color-accent: #6d28d9;
+  --color-on-accent: #ffffff;
+  --color-accent-hover: #5b21b6;
+  --color-accent-text: #6d28d9;
+  --color-accent-soft: rgba(109, 40, 217, 0.09);
+  --color-focus-ring: #6d28d9;
+  --color-accent-glow: rgba(109, 40, 217, 0.3);
+}
+[data-theme='dark'][data-accent='violet'] {
+  --color-accent: #7c3aed;
+  --color-on-accent: #ffffff;
+  --color-accent-hover: #6d28d9;
+  --color-accent-text: #b79bff;
+  --color-accent-soft: rgba(124, 58, 237, 0.16);
+  --color-focus-ring: #b79bff;
+  --color-accent-glow: rgba(124, 58, 237, 0.4);
+}
+[data-theme='light'][data-accent='teal'] {
+  --color-accent: #0f766e;
+  --color-on-accent: #ffffff;
+  --color-accent-hover: #0b625b;
+  --color-accent-text: #0f766e;
+  --color-accent-soft: rgba(15, 118, 110, 0.09);
+  --color-focus-ring: #0f766e;
+  --color-accent-glow: rgba(15, 118, 110, 0.3);
+}
+[data-theme='dark'][data-accent='teal'] {
+  --color-accent: #14b8a6;
+  --color-on-accent: #04201d;
+  --color-accent-hover: #2dd4bf;
+  --color-accent-text: #3fd8c6;
+  --color-accent-soft: rgba(20, 184, 166, 0.16);
+  --color-focus-ring: #3fd8c6;
+  --color-accent-glow: rgba(20, 184, 166, 0.4);
+}
+[data-theme='light'][data-accent='green'] {
+  --color-accent: #127836;
+  --color-on-accent: #ffffff;
+  --color-accent-hover: #0f6a2f;
+  --color-accent-text: #127836;
+  --color-accent-soft: rgba(18, 120, 54, 0.09);
+  --color-focus-ring: #127836;
+  --color-accent-glow: rgba(18, 120, 54, 0.3);
+}
+[data-theme='dark'][data-accent='green'] {
+  --color-accent: #22c55e;
+  --color-on-accent: #04180a;
+  --color-accent-hover: #4ade80;
+  --color-accent-text: #4ade80;
+  --color-accent-soft: rgba(34, 197, 94, 0.16);
+  --color-focus-ring: #4ade80;
+  --color-accent-glow: rgba(34, 197, 94, 0.4);
+}
+[data-theme='light'][data-accent='pink'] {
+  --color-accent: #be185d;
+  --color-on-accent: #ffffff;
+  --color-accent-hover: #9d174d;
+  --color-accent-text: #be185d;
+  --color-accent-soft: rgba(190, 24, 93, 0.09);
+  --color-focus-ring: #be185d;
+  --color-accent-glow: rgba(190, 24, 93, 0.3);
+}
+[data-theme='dark'][data-accent='pink'] {
+  --color-accent: #ec4899;
   --color-on-accent: #2a0518;
-  --color-accent-hover: #ef93c8;
-  --color-accent-text: #f59ad0;
-  --color-accent-soft: rgba(232, 121, 185, 0.15);
-  --color-focus-ring: #f59ad0;
-  --color-accent-glow: rgba(232, 121, 185, 0.4);
+  --color-accent-hover: #f472b6;
+  --color-accent-text: #f78fc3;
+  --color-accent-soft: rgba(236, 72, 153, 0.16);
+  --color-focus-ring: #f78fc3;
+  --color-accent-glow: rgba(236, 72, 153, 0.4);
 }
-[data-theme='dark'][data-accent-dark='mono'] {
-  --color-accent: #edefe9;
-  --color-on-accent: #0d0e0c;
+[data-theme='light'][data-accent='red'] {
+  --color-accent: #c62828;
+  --color-on-accent: #ffffff;
+  --color-accent-hover: #a82020;
+  --color-accent-text: #c62828;
+  --color-accent-soft: rgba(198, 40, 40, 0.09);
+  --color-focus-ring: #c62828;
+  --color-accent-glow: rgba(198, 40, 40, 0.3);
+}
+[data-theme='dark'][data-accent='red'] {
+  --color-accent: #ef4444;
+  --color-on-accent: #1f0404;
+  --color-accent-hover: #f87171;
+  --color-accent-text: #ff8a8a;
+  --color-accent-soft: rgba(239, 68, 68, 0.16);
+  --color-focus-ring: #ff8a8a;
+  --color-accent-glow: rgba(239, 68, 68, 0.4);
+}
+[data-theme='light'][data-accent='graphite'] {
+  --color-accent: #27272a;
+  --color-on-accent: #ffffff;
+  --color-accent-hover: #3f3f46;
+  --color-accent-text: #27272a;
+  --color-accent-soft: rgba(39, 39, 42, 0.09);
+  --color-focus-ring: #27272a;
+  --color-accent-glow: rgba(39, 39, 42, 0.3);
+}
+[data-theme='dark'][data-accent='graphite'] {
+  --color-accent: #e4e4e7;
+  --color-on-accent: #18181b;
   --color-accent-hover: #ffffff;
-  --color-accent-text: #edefe9;
-  --color-accent-soft: rgba(237, 239, 233, 0.1);
-  --color-focus-ring: #edefe9;
-  --color-accent-glow: rgba(237, 239, 233, 0.18);
+  --color-accent-text: #e4e4e7;
+  --color-accent-soft: rgba(228, 228, 231, 0.16);
+  --color-focus-ring: #e4e4e7;
+  --color-accent-glow: rgba(228, 228, 231, 0.4);
 }
 
-/* ===== Custom presets: values derived in TS (shared/lib/color) and injected as --custom-* ===== */
-[data-theme='light'][data-accent-light='custom'] {
+/* ===== Custom colour: one colour for both themes; the per-theme values are derived in TS (shared/lib/color,
+   contrast guaranteed) and injected by src/app/theme.ts as --custom-* ===== */
+[data-theme='light'][data-accent='custom'] {
   --color-accent: var(--custom-light-accent);
   --color-on-accent: var(--custom-light-on-accent);
   --color-accent-hover: var(--custom-light-accent-hover);
@@ -273,7 +424,7 @@
   --color-focus-ring: var(--custom-light-focus-ring);
   --color-accent-glow: var(--custom-light-accent-glow);
 }
-[data-theme='dark'][data-accent-dark='custom'] {
+[data-theme='dark'][data-accent='custom'] {
   --color-accent: var(--custom-dark-accent);
   --color-on-accent: var(--custom-dark-on-accent);
   --color-accent-hover: var(--custom-dark-accent-hover);
@@ -284,41 +435,102 @@
 }
 
 /* ===== Status overrides where an accent would collide with a status hue.
-   Active (sending) turns slate next to blue/violet accents and custom ones (unknown hue);
-   unknown turns gold next to copper. ===== */
-[data-theme='dark'][data-accent-dark='cobalt'],
-[data-theme='dark'][data-accent-dark='indigo'],
-[data-theme='dark'][data-accent-dark='custom'],
+   Active (sending) turns slate next to blue, violet and a custom colour (unknown hue); unknown turns gold next to orange. ===== */
+[data-theme='dark'][data-accent='blue'],
+[data-theme='dark'][data-accent='violet'],
+[data-theme='dark'][data-accent='custom'],
 :root:not([data-theme]),
-[data-theme='dark']:not([data-accent-dark]) {
+[data-theme='dark']:not([data-accent]) {
   --color-status-active-fg: #c3cad6;
   --color-status-active-bg: rgba(190, 200, 215, 0.15);
 }
-[data-theme='light'][data-accent-light='cobalt'],
-[data-theme='light'][data-accent-light='indigo'],
-[data-theme='light'][data-accent-light='custom'],
-[data-theme='light']:not([data-accent-light]) {
+[data-theme='light'][data-accent='blue'],
+[data-theme='light'][data-accent='violet'],
+[data-theme='light'][data-accent='custom'],
+[data-theme='light']:not([data-accent]) {
   --color-status-active-fg: #3c4554;
   --color-status-active-bg: rgba(70, 80, 95, 0.12);
 }
-[data-theme='dark'][data-accent-dark='copper'] {
+[data-theme='dark'][data-accent='orange'] {
   --color-status-unknown-fg: #f2d14f;
   --color-status-unknown-bg: rgba(240, 205, 60, 0.16);
 }
-[data-theme='light'][data-accent-light='copper'] {
+[data-theme='light'][data-accent='orange'] {
   --color-status-unknown-fg: #745700;
   --color-status-unknown-bg: rgba(230, 190, 20, 0.2);
 }
 
-/* Transitional aliases for stylesheets outside shared/ui that still use the old names
-   (app/layouts, pages). Delete once they are re-pointed. */
-:root {
-  --color-surface: var(--color-surface-1);
-  --color-surface-raised: var(--color-surface-3);
-  --color-border: var(--color-border-subtle);
-  --color-action-bg: var(--color-accent);
-  --color-action-text: var(--color-on-accent);
-  --color-focus: var(--color-focus-ring);
-  --color-error: var(--color-danger);
-  --color-error-bg: var(--color-status-failed-bg);
+/* ===== Themes (owner, 14.10.2026): each preset also tints the neutrals, in both modes. «Telegram» (the default), «Графит»
+   and «Своя» keep the plain neutrals above: the dark default stays the neutral Cloudflare-like black. Text and status colours stay the same, so their contrast is unchanged. ===== */
+/* Полночь: blue-black (dark) */
+[data-theme='dark'][data-accent='violet'] {
+  --color-bg: #0b0b16;
+  --color-surface-1: #11111f;
+  --color-surface-2: #181829;
+  --color-surface-3: #222236;
+  --color-border-subtle: #26263d;
+  --color-border-strong: #3e3e5c;
+}
+/* Полночь: blue-black (light) */
+[data-theme='light'][data-accent='violet'] {
+  --color-bg: #f5f4fb;
+  --color-surface-1: #ffffff;
+  --color-surface-2: #f0eef9;
+  --color-surface-3: #e5e2f3;
+  --color-border-subtle: #e2dff0;
+  --color-border-strong: #c6c1dd;
+}
+/* Dota: warm black (dark) */
+[data-theme='dark'][data-accent='red'] {
+  --color-bg: #0f0a09;
+  --color-surface-1: #160f0d;
+  --color-surface-2: #1e1513;
+  --color-surface-3: #2a1d1a;
+  --color-border-subtle: #2e211e;
+  --color-border-strong: #4b3632;
+}
+/* Dota: warm black (light) */
+[data-theme='light'][data-accent='red'] {
+  --color-bg: #f8f4f2;
+  --color-surface-1: #ffffff;
+  --color-surface-2: #f4eeeb;
+  --color-surface-3: #ebe2de;
+  --color-border-subtle: #e7dcd7;
+  --color-border-strong: #cdbcb5;
+}
+/* Бумага: warm paper (dark) */
+[data-theme='dark'][data-accent='orange'] {
+  --color-bg: #12100c;
+  --color-surface-1: #191611;
+  --color-surface-2: #211d17;
+  --color-surface-3: #2c2720;
+  --color-border-subtle: #302a22;
+  --color-border-strong: #4d4538;
+}
+/* Бумага: warm paper (light) */
+[data-theme='light'][data-accent='orange'] {
+  --color-bg: #f6f1e7;
+  --color-surface-1: #fffdf8;
+  --color-surface-2: #f1eadc;
+  --color-surface-3: #e8dfcd;
+  --color-border-subtle: #e4dac7;
+  --color-border-strong: #cbbda4;
+}
+/* Лес: green-grey (dark) */
+[data-theme='dark'][data-accent='green'] {
+  --color-bg: #0a0f0c;
+  --color-surface-1: #0f1612;
+  --color-surface-2: #151e19;
+  --color-surface-3: #1e2a23;
+  --color-border-subtle: #212d26;
+  --color-border-strong: #364a3e;
+}
+/* Лес: green-grey (light) */
+[data-theme='light'][data-accent='green'] {
+  --color-bg: #f3f7f4;
+  --color-surface-1: #ffffff;
+  --color-surface-2: #edf3ef;
+  --color-surface-3: #e1eae4;
+  --color-border-subtle: #dce5df;
+  --color-border-strong: #bccbc1;
 }

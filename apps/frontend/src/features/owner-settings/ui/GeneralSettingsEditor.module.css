@@ -1,0 +1,93 @@
+.page {
+  display: grid;
+  align-content: start;
+  gap: var(--space-4);
+  min-width: 0;
+  container-type: inline-size;
+}
+.body {
+  padding: var(--space-4);
+}
+/* The zone list and the clock in it side by side once the list keeps a readable width. */
+.timezone {
+  display: grid;
+  gap: var(--space-4);
+  padding: var(--space-4);
+}
+@container (min-width: 560px) {
+  .timezone {
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: start;
+  }
+}
+.clock {
+  display: grid;
+  align-content: center;
+  justify-items: start;
+  gap: var(--space-1);
+  min-inline-size: 9rem;
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-2);
+  background: var(--color-surface-2);
+}
+.clockLabel {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+}
+.clockTime {
+  font-size: var(--font-size-xl);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.switches {
+  display: grid;
+  margin: 0;
+  padding: var(--space-1) var(--space-4);
+  list-style: none;
+}
+.notice {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: var(--space-3);
+}
+.notice + .notice {
+  border-top: 1px solid var(--color-border-subtle);
+}
+/* The switch row, then the hour field: the same side padding as the other panels and room under the field. */
+.report {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-4) var(--space-4);
+}
+.critical {
+  padding: 0 var(--space-4) var(--space-4);
+}
+.bannerActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+/* Reserved height: the line appearing and clearing must not move the page. */
+.status {
+  min-height: 1.25rem;
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+
+/* The typed limit and its own «Сохранить», which shows only while the number changed. */
+.limitRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--space-2);
+}
+.limitRow > :first-child {
+  flex: 1 1 12rem;
+}
+.limitRow > button {
+  margin-top: var(--space-5);
+}

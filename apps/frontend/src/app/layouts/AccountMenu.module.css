@@ -1,0 +1,171 @@
+.trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: var(--size-button);
+  max-width: 260px;
+  padding: 0 var(--space-2) 0 4px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-pill);
+  background: var(--color-surface-1);
+  color: var(--color-text);
+  font: inherit;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  cursor: pointer;
+  outline: none;
+}
+.trigger[data-hovered],
+.trigger[data-pressed] {
+  background: var(--color-surface-2);
+}
+.trigger[data-focus-visible] {
+  outline: var(--focus-ring-width) solid var(--color-focus-ring);
+  outline-offset: var(--focus-ring-offset);
+}
+.name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.avatar {
+  position: relative;
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-pill);
+  background: var(--color-accent);
+  color: var(--color-on-accent);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+}
+.avatar[data-size='lg'] {
+  width: 40px;
+  height: 40px;
+  font-size: var(--font-size-lg);
+}
+/* Problem marker on the avatar: the status left the top bar, so a problem still shows at a glance. */
+.alert {
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  width: 10px;
+  height: 10px;
+  border: 2px solid var(--color-surface-1);
+  border-radius: var(--radius-pill);
+  background: var(--color-status-unknown-fg);
+}
+.alert[data-tone='danger'] {
+  background: var(--color-status-failed-fg);
+}
+.popover {
+  z-index: var(--z-overlay);
+  width: 340px;
+  max-width: calc(100vw - 2 * var(--space-4));
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-4);
+  background: var(--color-surface-1);
+  box-shadow: var(--shadow-pop);
+  outline: none;
+}
+.panel {
+  display: grid;
+  gap: 2px;
+  padding: var(--space-2);
+  outline: none;
+}
+.head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--color-border-subtle);
+  margin-bottom: var(--space-1);
+}
+.headText {
+  display: grid;
+  min-width: 0;
+}
+.headText strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.headText small {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+}
+.row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+  min-height: 40px;
+  padding: 0 var(--space-3);
+  border: 0;
+  border-radius: var(--radius-2);
+  background: transparent;
+  color: var(--color-text);
+  font: inherit;
+  font-size: var(--font-size-sm);
+  text-align: start;
+  text-decoration: none;
+  cursor: pointer;
+  outline: none;
+}
+.row svg {
+  flex: none;
+  color: var(--color-text-muted);
+}
+.row:hover,
+.row[data-hovered],
+.row[data-pressed] {
+  background: var(--color-surface-2);
+}
+.row:focus-visible,
+.row[data-focus-visible] {
+  outline: var(--focus-ring-width) solid var(--color-focus-ring);
+  outline-offset: -2px;
+}
+.rowLabel {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.value {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+}
+.danger {
+  margin-top: var(--space-1);
+  border-top: 1px solid var(--color-border-subtle);
+  padding-top: var(--space-1);
+}
+.danger .row,
+.danger .row svg {
+  color: var(--color-danger);
+}
+@media (pointer: coarse), (max-width: 859px) {
+  .row {
+    min-height: var(--size-target);
+  }
+  /* Even 12 px sides on phones (owner, 14.10.2026): the avatar and the chevron sit balanced in the pill. */
+  .trigger {
+    padding: 0 var(--space-3);
+  }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .popover[data-entering] {
+    animation: pop var(--motion-fast) ease-out;
+  }
+}
+@keyframes pop {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}

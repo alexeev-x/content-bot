@@ -19,7 +19,9 @@ export class AppError extends Error {
   constructor(
     readonly code: ApiErrorCode,
     message: string,
-    readonly details?: Record<string, string>
+    readonly details?: Record<string, string>,
+    /** For RATE_LIMIT: how long the caller should wait; `onError` turns it into a Retry-After header. */
+    readonly retryAfterSec?: number
   ) {
     super(message);
     this.name = 'AppError';

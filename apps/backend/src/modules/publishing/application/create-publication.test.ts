@@ -7,7 +7,7 @@ import { AppError } from '../../../shared/app-error';
 import { createD1DestinationRepository } from '../infrastructure/d1-destination-repository';
 import { createD1PublicationRepository } from '../infrastructure/d1-publication-repository';
 import { createPublication, type CreatePublicationDeps } from './create-publication';
-import type { DestinationRepository, PostSource } from './ports';
+import type { DestinationRepository, PostSource, ScheduleNotifier } from './ports';
 
 beforeEach(resetDb);
 
@@ -44,16 +44,32 @@ async function seed(): Promise<void> {
 const posts: PostSource = {
   async findState(postId) {
     const row = await testDb()
-      .prepare('SELECT status, revision FROM posts WHERE id = ?1')
+      .prepare('SELECT status, revision, archived_at IS NOT NULL AS archived FROM posts WHERE id = ?1')
       .bind(postId)
-      .first<{ status: 'draft' | 'approved'; revision: number }>();
-    return row;
+      .first<{ status: 'draft' | 'approved'; revision: number; archived: number }>();
+    return row === null
+      ? null
+      : { status: row.status, revision: row.revision, archived: row.archived === 1, mediaPendingUntil: null };
   }
 };
 
-function deps(destinations: DestinationRepository): CreatePublicationDeps {
+function recordingNotifier(): ScheduleNotifier & { calls: string[] } {
+  const calls: string[] = [];
+  return {
+    calls,
+    scheduled: (publication) => calls.push(`scheduled ${publication.id}`),
+    rescheduled: (publication) => calls.push(`rescheduled ${publication.id}`),
+    cancelled: (publication) => calls.push(`cancelled ${publication.id}`)
+  };
+}
+
+function deps(
+  destinations: DestinationRepository,
+  notifier: ScheduleNotifier = recordingNotifier()
+): CreatePublicationDeps {
   const db = testDb();
   return {
+    notifier,
     publications: createD1PublicationRepository(db),
     destinations,
     posts,
@@ -117,5 +133,48 @@ describe('createPublication when the destination changes between the check and t
 
     expect(retried.status).toBe('scheduled');
     expect(await count('publications')).toBe(1);
+  });
+});
+
+describe('createPublication announcing the schedule to the owner', () => {
+  it('announces a stored future publication once, and not its replay', async () => {
+    await seed();
+    const notifier = recordingNotifier();
+    const destinations = createD1DestinationRepository(testDb());
+
+    const first = await createPublication(deps(destinations, notifier), command);
+    const replay = await createPublication(deps(destinations, notifier), command);
+
+    expect(replay).toEqual(first);
+    expect(notifier.calls).toEqual([`scheduled ${first.id}`]);
+  });
+
+  it('does not announce a refused write', async () => {
+    await seed();
+    const notifier = recordingNotifier();
+    const real = createD1DestinationRepository(testDb());
+    const racing: DestinationRepository = {
+      ...real,
+      async findById(id) {
+        const found = await real.findById(id);
+        await testDb().prepare('UPDATE destinations SET enabled = 0 WHERE id = ?1').bind(id).run();
+        return found;
+      }
+    };
+
+    await createPublication(deps(racing, notifier), command).catch(() => undefined);
+
+    expect(notifier.calls).toEqual([]);
+  });
+
+  it('does not announce a publication that is already due (send now)', async () => {
+    await seed();
+    const notifier = recordingNotifier();
+    const due = { ...command, input: { ...command.input, scheduledAt: new Date(START).toISOString() } };
+
+    const publication = await createPublication(deps(createD1DestinationRepository(testDb()), notifier), due);
+
+    expect(publication.status).toBe('queued');
+    expect(notifier.calls).toEqual([]);
   });
 });

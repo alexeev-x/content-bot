@@ -1,0 +1,86 @@
+.loading,
+.section,
+.tabContent {
+  display: grid;
+  gap: var(--space-3);
+}
+.timelineSkeleton {
+  display: grid;
+  gap: var(--space-3);
+}
+.heading {
+  margin: 0;
+  font-size: var(--font-size-md);
+}
+.postBody {
+  margin: 0;
+  padding: var(--space-3);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-2);
+  background: var(--color-surface-2);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.muted {
+  color: var(--color-text-muted);
+}
+.note,
+.hint {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+}
+.link {
+  color: var(--color-accent-text);
+  font-weight: var(--font-weight-semibold);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.link:focus-visible {
+  border-radius: var(--radius-1);
+  outline: var(--focus-ring-width) solid var(--color-focus-ring);
+  outline-offset: var(--focus-ring-offset);
+}
+.noticeText {
+  margin: 0 0 var(--space-2);
+}
+.actions {
+  display: flex;
+  flex: 1;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+.choices {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.stack {
+  display: grid;
+  gap: var(--space-4);
+}
+.facts {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+}
+.fact {
+  display: grid;
+  grid-template-columns: 96px minmax(0, 1fr);
+  gap: var(--space-3);
+  font-size: var(--font-size-sm);
+}
+.fact dt {
+  color: var(--color-text-muted);
+}
+.fact dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+@media (max-width: 859px) {
+  .actions > :is(button, span) {
+    flex: 1 1 auto;
+  }
+}

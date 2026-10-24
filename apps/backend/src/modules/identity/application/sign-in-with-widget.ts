@@ -1,14 +1,9 @@
 import { sha256Hex } from '../../../platform/security/sha256';
 import { AppError } from '../../../shared/app-error';
 import { displayName } from './display-name';
+import { issueBrowserSession } from './issue-browser-session';
 import { parseOwnerTelegramId } from './owner';
 import type { SessionStore } from './ports';
-import {
-  accessTokenExpiry,
-  BROWSER_SESSION_MAX_MS,
-  REFRESH_TOKEN_TTL_MS,
-  WIDGET_REPLAY_TTL_MS
-} from './session-policy';
 import type { IssuedBrowserTokens } from './refresh-session';
 import { verifyWidgetData, type WidgetField } from './verify-widget-data';
 
@@ -27,8 +22,7 @@ export interface WidgetSignInDeps {
 const REJECTED = 'Invalid Telegram sign-in data';
 
 // Creates a browser session from a Login Widget payload. The signature is checked first, then
-// the session, its first refresh token and the one-time claim of the signature are written in one
-// atomic batch (see SessionStore.createBrowserSessionOnce).
+// the session is issued with the signature as its one-time claim (see issueBrowserSession).
 export async function signInWithWidget(
   deps: WidgetSignInDeps,
   fields: Readonly<Record<string, WidgetField>>
@@ -46,29 +40,12 @@ export async function signInWithWidget(
     throw new AppError('UNAUTHORIZED', REJECTED);
   }
 
-  const accessToken = deps.newToken();
-  const refreshToken = deps.newToken();
-  const hardExpiresAt = deps.now + BROWSER_SESSION_MAX_MS;
-  const expiresAt = accessTokenExpiry(deps.now, hardExpiresAt);
-  const refreshExpiresAt = Math.min(deps.now + REFRESH_TOKEN_TTL_MS, hardExpiresAt);
-  const created = await deps.sessions.createBrowserSessionOnce({
-    session: {
-      id: deps.newId(),
-      tokenHash: await sha256Hex(accessToken),
-      telegramId: String(result.user.id),
-      kind: 'browser',
-      name: displayName(result.user),
-      createdAt: deps.now,
-      expiresAt,
-      hardExpiresAt
-    },
-    refreshTokenHash: await sha256Hex(refreshToken),
-    refreshExpiresAt,
+  const issued = await issueBrowserSession(deps, {
+    telegramId: String(result.user.id),
+    name: displayName(result.user),
     // The hash is a string here: verifyWidgetData accepted it as 64 hex characters.
-    signInKey: await sha256Hex(String(fields.hash)),
-    signInExpiresAt: deps.now + WIDGET_REPLAY_TTL_MS
+    signInKey: await sha256Hex(String(fields.hash))
   });
-  if (!created) throw new AppError('UNAUTHORIZED', REJECTED);
-
-  return { accessToken, expiresAt, refreshToken, refreshExpiresAt };
+  if (issued === null) throw new AppError('UNAUTHORIZED', REJECTED);
+  return issued;
 }

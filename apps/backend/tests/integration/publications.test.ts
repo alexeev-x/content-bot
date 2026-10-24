@@ -1,7 +1,15 @@
-import { type PublicationDto, publicationPageSchema, publicationSchema } from '@alexeev/contracts';
+import {
+  apiErrorSchema,
+  type PublicationDto,
+  publicationHistorySchema,
+  publicationPageSchema,
+  publicationSchema
+} from '@alexeev/contracts';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { sha256Hex } from '../../src/platform/security/sha256';
 import { testDb } from '../helpers/db';
+import { enableOwnerNotices } from '../helpers/notices';
+import { fakeOwnerMessenger } from '../helpers/fake-owner-messenger';
 import { expectError } from '../helpers/expect-error';
 import { type Api, createApi, fakeClock, OWNER_ID, OWNER_TOKEN, resetDb, seedSession, START } from '../helpers/harness';
 import {
@@ -52,8 +60,31 @@ function schedule(overrides: Record<string, unknown> = {}, key: string | null = 
   });
 }
 
+/**
+ * A publication as a fixture. A post goes to a channel once at a time (ALREADY_PUBLISHED), but list, count and
+ * race tests need several of one post in one channel: the live ones are parked as sent while this one is written,
+ * then put back. The rule itself is tested through `schedule` directly.
+ */
 async function scheduleOk(overrides: Record<string, unknown> = {}): Promise<PublicationDto> {
+  const target = { postId, destinationId, ...overrides } as { postId: string; destinationId: string };
+  const live = await testDb()
+    .prepare(
+      `SELECT j.id, j.status FROM jobs j JOIN publications p ON p.id = j.publication_id
+       WHERE p.post_id = ? AND p.destination_id = ? AND j.status IN ('pending', 'claimed', 'retry_wait', 'unknown')`
+    )
+    .bind(target.postId, target.destinationId)
+    .all<{ id: string; status: string }>();
+  const park = (status: (row: { status: string }) => string) =>
+    live.results.length === 0
+      ? Promise.resolve()
+      : testDb().batch(
+          live.results.map((row) =>
+            testDb().prepare('UPDATE jobs SET status = ? WHERE id = ?').bind(status(row), row.id)
+          )
+        );
+  await park(() => 'succeeded');
   const response = await schedule(overrides);
+  await park((row) => row.status);
   expect(response.status).toBe(202);
   return publicationSchema.parse(await response.json());
 }
@@ -120,7 +151,7 @@ describe('POST /api/v1/publications', () => {
       entity_type: 'publication',
       entity_id: publication.id
     });
-    expect(JSON.parse(audit.results[0]?.details ?? '')).toEqual({ postId, postRevision, destinationId });
+    expect(JSON.parse(audit.results[0]?.details ?? '')).toEqual({ postId, postRevision, destinationId, scheduledAt });
   });
 
   it('answers queued when the time is already due', async () => {
@@ -131,8 +162,8 @@ describe('POST /api/v1/publications', () => {
   });
 
   it('accepts the exact edges of the window and refuses one millisecond beyond', async () => {
-    expect((await schedule({ scheduledAt: iso(START - 5 * MINUTE) })).status).toBe(202);
-    expect((await schedule({ scheduledAt: iso(START + 366 * DAY) })).status).toBe(202);
+    await scheduleOk({ scheduledAt: iso(START - 5 * MINUTE) });
+    await scheduleOk({ scheduledAt: iso(START + 366 * DAY) });
     const before = await count('publications');
 
     await expectError(await schedule({ scheduledAt: iso(START - 5 * MINUTE - 1) }), 400, 'VALIDATION_ERROR', {
@@ -296,12 +327,24 @@ describe('POST /api/v1/publications', () => {
     expect(await count('publications')).toBe(1);
   });
 
-  it('allows the same post to be scheduled again as a new intent', async () => {
+  it('refuses the same post to the same channel while one is on its way; allows it once that one ended', async () => {
     const first = await scheduleOk();
-    const second = await scheduleOk();
+    const again = await schedule();
+    expect(again.status).toBe(409);
+    expect(apiErrorSchema.parse(await again.json()).error.details?.reason).toBe('ALREADY_PUBLISHED');
+    // Another channel is another publication.
+    const other = (await seedDestination(api, { title: 'Second' })).id;
+    expect((await schedule({ destinationId: other })).status).toBe(202);
 
-    expect(second.id).not.toBe(first.id);
-    expect(await count('jobs')).toBe(2);
+    // Two requests at once: one wins, the other is refused by the write's own guard.
+    const target = (await seedDestination(api, { title: 'Third' })).id;
+    const raced = await Promise.all([schedule({ destinationId: target }), schedule({ destinationId: target })]);
+    expect(raced.map((response) => response.status).sort()).toEqual([202, 409]);
+
+    // A sent one may be published again on purpose (the owner fixed and reposted it); a cancelled one too.
+    await setJob(first.id, { status: 'succeeded' });
+    expect((await schedule()).status).toBe(202);
+    expect(await count('jobs')).toBe(4);
   });
 
   it.each([
@@ -333,7 +376,7 @@ describe('GET /api/v1/publications/{id}', () => {
     const response = await api.request(`/api/v1/publications/${created.id}`);
 
     expect(response.status).toBe(200);
-    expect(publicationSchema.parse(await response.json())).toEqual(created);
+    expect(publicationSchema.parse(await response.json())).toEqual({ ...created, postOrigin: null });
     await expectError(await api.request(`/api/v1/publications/${crypto.randomUUID()}`), 404, 'NOT_FOUND');
     await expectError(await api.request('/api/v1/publications/nope'), 404, 'NOT_FOUND');
   });
@@ -439,6 +482,64 @@ describe('GET /api/v1/publications', () => {
     expect(await ids(`&postId=${postId}&status=scheduled`)).toEqual([a.id]);
   });
 
+  it('returns the filtered total and exact per-status counts while status tabs ignore the selected status', async () => {
+    const scheduled = await scheduleOk({ scheduledAt: iso(START + 4 * MINUTE) });
+    const failed = await scheduleOk({ scheduledAt: iso(START + 3 * MINUTE) });
+    const cancelled = await scheduleOk({ scheduledAt: iso(START + 2 * MINUTE) });
+    const queued = await scheduleOk({ scheduledAt: iso(START + MINUTE) });
+    const preparing = await scheduleOk({ scheduledAt: iso(START + 4 * MINUTE) });
+    const sending = await scheduleOk({ scheduledAt: iso(START + 4 * MINUTE) });
+    const sent = await scheduleOk({ scheduledAt: iso(START + 4 * MINUTE) });
+    const retryWait = await scheduleOk({ scheduledAt: iso(START + 4 * MINUTE) });
+    const unknown = await scheduleOk({ scheduledAt: iso(START + 4 * MINUTE) });
+    await setJob(failed.id, { status: 'failed' });
+    await cancel(cancelled.id, { revision: 0 });
+    await setJob(queued.id, { run_at: START - MINUTE });
+    await setJob(preparing.id, { status: 'claimed', send_started_at: null });
+    await setJob(sending.id, { status: 'claimed', send_started_at: START });
+    await setJob(sent.id, { status: 'succeeded' });
+    await setJob(retryWait.id, { status: 'retry_wait' });
+    await setJob(unknown.id, { status: 'unknown' });
+    expect(await jobOf(queued.id)).toMatchObject({ status: 'pending', run_at: START - MINUTE });
+    expect(await jobOf(sending.id)).toMatchObject({ status: 'claimed', send_started_at: START });
+
+    const response = await api.request(
+      `/api/v1/publications?status=failed&postId=${postId}&q=Patch&from=${encodeURIComponent(iso(START))}&to=${encodeURIComponent(iso(START + 5 * MINUTE))}`
+    );
+    const page = publicationPageSchema.parse(await response.json());
+
+    expect(page.items.map((item) => item.id)).toEqual([failed.id]);
+    expect(page.totalCount).toBe(1);
+    expect(page.statusCounts).toEqual({
+      scheduled: 1,
+      queued: 1,
+      preparing: 1,
+      sending: 1,
+      sent: 1,
+      retry_wait: 1,
+      failed: 1,
+      unknown: 1,
+      cancelled: 1
+    });
+    expect(page.statusCounts.scheduled).toBe(1);
+    expect(page.items).not.toContainEqual(expect.objectContaining({ id: scheduled.id }));
+  });
+
+  it('returns failed and unknown publications together through the errors group', async () => {
+    const failed = await scheduleOk({ scheduledAt: iso(START + 2 * MINUTE) });
+    const unknown = await scheduleOk({ scheduledAt: iso(START + MINUTE) });
+    await setJob(failed.id, { status: 'failed' });
+    await setJob(unknown.id, { status: 'unknown' });
+
+    const response = await api.request('/api/v1/publications?statusGroup=errors');
+    const page = publicationPageSchema.parse(await response.json());
+
+    expect(page.items.map((item) => item.id)).toEqual([failed.id, unknown.id]);
+    expect(page.totalCount).toBe(2);
+    expect(page.statusCounts.failed).toBe(1);
+    expect(page.statusCounts.unknown).toBe(1);
+  });
+
   it('pages a status filter through equal timestamps without gaps or repeats', async () => {
     const created: PublicationDto[] = [];
     for (const time of [
@@ -476,13 +577,30 @@ describe('GET /api/v1/publications', () => {
   it('returns an empty page, not an error, when nothing matches', async () => {
     const page = publicationPageSchema.parse(await (await api.request('/api/v1/publications')).json());
 
-    expect(page).toEqual({ items: [], nextCursor: null });
+    expect(page).toEqual({
+      items: [],
+      nextCursor: null,
+      page: null,
+      totalCount: 0,
+      statusCounts: {
+        scheduled: 0,
+        queued: 0,
+        preparing: 0,
+        sending: 0,
+        sent: 0,
+        retry_wait: 0,
+        failed: 0,
+        unknown: 0,
+        cancelled: 0
+      }
+    });
   });
 
   it.each([
     ['limit 0', 'limit=0'],
     ['limit 101', 'limit=101'],
     ['an unknown status', 'status=done'],
+    ['status and a status group together', 'status=failed&statusGroup=errors'],
     ['a malformed post id', 'postId=abc'],
     ['a malformed destination id', 'destinationId=abc'],
     ['an unknown parameter', 'sort=asc'],
@@ -509,6 +627,40 @@ const JOB_STATES: [string, Parameters<typeof setJob>[1], boolean][] = [
   ['unknown', { status: 'unknown', send_started_at: START }, false],
   ['cancelled', { status: 'cancelled' }, false]
 ];
+
+describe('GET /api/v1/publications/{id}/history', () => {
+  it('lists creation, every reschedule with its new time and the cancel, oldest first', async () => {
+    const created = await scheduleOk({ scheduledAt: iso(START + DAY) });
+    api.clock.advance(MINUTE);
+    expect(
+      (await reschedule(created.id, { revision: 0, scheduledAt: iso(START + 2 * DAY), timezone: 'UTC' })).status
+    ).toBe(200);
+    api.clock.advance(MINUTE);
+    expect(
+      (await reschedule(created.id, { revision: 1, scheduledAt: iso(START + 3 * DAY), timezone: 'UTC' })).status
+    ).toBe(200);
+    api.clock.advance(MINUTE);
+    expect((await cancel(created.id, { revision: 2 })).status).toBe(200);
+
+    const response = await api.request(`/api/v1/publications/${created.id}/history`);
+    expect(response.status).toBe(200);
+    const { items } = publicationHistorySchema.parse(await response.json());
+    expect(items).toEqual([
+      { kind: 'created', at: iso(START), scheduledAt: iso(START + DAY) },
+      { kind: 'rescheduled', at: iso(START + MINUTE), scheduledAt: iso(START + 2 * DAY) },
+      { kind: 'rescheduled', at: iso(START + 2 * MINUTE), scheduledAt: iso(START + 3 * DAY) },
+      { kind: 'cancelled', at: iso(START + 3 * MINUTE) }
+    ]);
+  });
+
+  it('answers 404 for an unknown publication', async () => {
+    await expectError(
+      await api.request('/api/v1/publications/00000000-0000-4000-8000-000000000000/history'),
+      404,
+      'NOT_FOUND'
+    );
+  });
+});
 
 describe('POST /api/v1/publications/{id}/cancel', () => {
   it('cancels a scheduled publication, bumps the revision and writes an audit row', async () => {
@@ -690,7 +842,9 @@ describe('POST /api/v1/publications/{id}/reschedule', () => {
     const audit = await testDb()
       .prepare("SELECT details FROM audit_log WHERE action = 'publication.reschedule'")
       .all<{ details: string }>();
-    expect(audit.results.map((row) => JSON.parse(row.details))).toEqual([{ revision: 1 }]);
+    expect(audit.results.map((row) => JSON.parse(row.details))).toEqual([
+      { revision: 1, scheduledAt: START + 3 * DAY }
+    ]);
   });
 
   it('turns a publication waiting for a retry into a scheduled one and keeps the attempt count', async () => {
@@ -856,7 +1010,8 @@ describe('publication routes are owner-only', () => {
     ['GET', '/api/v1/publications'],
     ['GET', `/api/v1/publications/${id}`],
     ['POST', `/api/v1/publications/${id}/reschedule`],
-    ['POST', `/api/v1/publications/${id}/cancel`]
+    ['POST', `/api/v1/publications/${id}/cancel`],
+    ['POST', `/api/v1/publications/${id}/resolve-unknown`]
   ];
 
   it.each(routes)('%s %s answers 401 without a token and 403 for another user', async (method, path) => {
@@ -883,5 +1038,152 @@ describe('seedPublication helper', () => {
     });
 
     expect(created.status).toBe('scheduled');
+  });
+});
+
+describe('owner notice when a publication is scheduled or moved', () => {
+  const ORIGIN = 'http://localhost';
+  beforeEach(() => enableOwnerNotices(api));
+
+  it('sends exactly one message with the post, the channel, the time and the deep link button', async () => {
+    const scheduledAt = START + 3 * 60 * MINUTE;
+    const publication = await scheduleOk({ scheduledAt: iso(scheduledAt), timezone: 'Europe/Moscow' });
+    await api.settle();
+
+    expect(api.ownerMessages).toHaveLength(1);
+    const [message] = api.ownerMessages;
+    expect(message?.chatId).toBe(OWNER_ID);
+    expect(message?.html).toContain('<b>Публикация запланирована</b>');
+    expect(message?.html).toContain('<b>Patch 7.40</b>');
+    expect(message?.html).toContain('📣 Main channel');
+    expect(message?.html).toContain(`(Europe/Moscow)`);
+    expect(message?.button).toEqual({ text: 'Подробнее', url: `${ORIGIN}/publications?id=${publication.id}` });
+  });
+
+  it('escapes a post title that looks like markup', async () => {
+    const post = await seedApprovedPost(api, '<b>Boom</b> & <a href="x">link</a>');
+    await scheduleOk({ postId: post.id, revision: post.revision });
+    await api.settle();
+
+    const html = api.ownerMessages[0]?.html ?? '';
+    expect(html).toContain('<b>&lt;b&gt;Boom&lt;/b&gt; &amp; &lt;a href=&quot;x&quot;&gt;link&lt;/a&gt;</b>');
+    // Only our own markup: the status line and the title, both bold.
+    expect(html.match(/<[^>]+>/g)).toEqual(['<b>', '</b>', '<b>', '</b>']);
+  });
+
+  it('does not send a second message for an idempotent replay', async () => {
+    const first = await schedule({}, 'same-key');
+    const replay = await schedule({}, 'same-key');
+    await api.settle();
+
+    expect(first.status).toBe(202);
+    expect(replay.status).toBe(202);
+    expect(api.ownerMessages).toHaveLength(1);
+    expect(await count('publications')).toBe(1);
+  });
+
+  it('sends nothing for a refused request', async () => {
+    const response = await schedule({ scheduledAt: iso(START + 400 * DAY) });
+    await api.settle();
+
+    expect(response.status).toBe(400);
+    expect(api.ownerMessages).toEqual([]);
+  });
+
+  it('sends nothing for a publication that is due now', async () => {
+    const publication = await scheduleOk({ scheduledAt: iso(START) });
+    await api.settle();
+
+    expect(publication.status).toBe('queued');
+    expect(api.ownerMessages).toEqual([]);
+  });
+
+  it('still answers 202 and stores everything when Telegram refuses the notice', async () => {
+    api = createApi({
+      clock: fakeClock(),
+      ownerMessenger: fakeOwnerMessenger({ fail: () => new Error('chat not found') })
+    });
+    const response = await schedule();
+    await api.settle();
+
+    expect(response.status).toBe(202);
+    const publication = publicationSchema.parse(await response.json());
+    expect(await jobOf(publication.id)).toMatchObject({ status: 'pending', attempts: 0 });
+  });
+
+  it('answers 202 without a bot token and sends nothing', async () => {
+    api = createApi({ clock: fakeClock(), botToken: null });
+    const response = await schedule();
+    await api.settle();
+
+    expect(response.status).toBe(202);
+    expect(await count('publications')).toBe(1);
+  });
+
+  it('does not touch the job state while announcing', async () => {
+    const publication = await scheduleOk();
+    const before = await jobOf(publication.id);
+    await api.settle();
+
+    expect(await jobOf(publication.id)).toEqual(before);
+    expect(await count('job_attempts')).toBe(0);
+  });
+
+  it('announces a reschedule with the new time and the same button', async () => {
+    const publication = await scheduleOk();
+    await api.settle();
+    api.ownerMessages.length = 0;
+
+    const response = await reschedule(publication.id, {
+      revision: 0,
+      scheduledAt: iso(START + 5 * 60 * MINUTE),
+      timezone: 'Asia/Tokyo'
+    });
+    await api.settle();
+
+    expect(response.status).toBe(200);
+    expect(api.ownerMessages).toHaveLength(1);
+    const [message] = api.ownerMessages;
+    expect(message?.html).toContain('<b>Публикация перенесена</b>');
+    expect(message?.html).toContain('(Asia/Tokyo)');
+    expect(message?.button.url).toBe(`${ORIGIN}/publications?id=${publication.id}`);
+  });
+
+  it('sends nothing when a reschedule is refused or moves the publication to now', async () => {
+    const publication = await scheduleOk();
+    await api.settle();
+    api.ownerMessages.length = 0;
+
+    const stale = await reschedule(publication.id, {
+      revision: 9,
+      scheduledAt: iso(START + 5 * 60 * MINUTE),
+      timezone: 'UTC'
+    });
+    const now = await reschedule(publication.id, { revision: 0, scheduledAt: iso(START), timezone: 'UTC' });
+    await api.settle();
+
+    expect(stale.status).toBe(409);
+    expect(now.status).toBe(200);
+    expect(api.ownerMessages).toEqual([]);
+  });
+});
+
+describe('GET /api/v1/publications page numbers', () => {
+  it('serves page slices in the cursor order and reports totalCount beyond the last page', async () => {
+    for (let i = 0; i < 5; i++) await scheduleOk({ scheduledAt: iso(START + (10 + i) * MINUTE) });
+    const read = async (query: string) => {
+      const response = await api.request(`/api/v1/publications?${query}`);
+      expect(response.status).toBe(200);
+      return publicationPageSchema.parse(await response.json());
+    };
+
+    const everything = await read('limit=100');
+    const second = await read('page=2&limit=2');
+    const beyond = await read('page=7&limit=2');
+
+    expect(second.items.map((item) => item.id)).toEqual(everything.items.slice(2, 4).map((item) => item.id));
+    expect(second).toMatchObject({ page: 2, nextCursor: null, totalCount: 5 });
+    expect(beyond).toMatchObject({ items: [], page: 7, totalCount: 5 });
+    expect((await api.request('/api/v1/publications?page=2&cursor=abc')).status).toBe(400);
   });
 });

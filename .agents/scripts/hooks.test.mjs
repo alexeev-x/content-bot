@@ -18,7 +18,6 @@ import {
   canReuseVerification,
 } from '../hooks/verify-on-stop.mjs';
 import { update, readRunning, record, STALE_MS } from '../hooks/track-builders.mjs';
-import { sumTranscript } from '../hooks/log-usage.mjs';
 
 test('guard blocks owner-only and destructive commands', () => {
   for (const cmd of [
@@ -44,6 +43,9 @@ test('guard blocks owner-only and destructive commands', () => {
     'Remove-Item C:\\ -Recurse -Force',
     'Remove-Item $env:USERPROFILE -Force -Recurse',
     'npm publish',
+    'gh pr merge 12 --squash',
+    'git push origin --delete develop',
+    'git push origin :main',
   ])
     assert.ok(decide(cmd), `should block: ${cmd}`);
 });
@@ -56,6 +58,8 @@ test('guard allows normal work and blocks commits only on protected branches', (
     'npx wrangler types',
     'git push origin develop',
     'git push -u origin feat/agent-system',
+    'npm run shots -- --grep "publish"',
+    'npm test && git commit -m "feat(publish): x"',
     'git status',
     'rm -rf apps/frontend/dist',
     'cat .env.example.md',
@@ -79,6 +83,8 @@ test('guard allows normal work and blocks commits only on protected branches', (
   assert.equal(decide("cat > f.jsonc <<'EOF'\n// owner runs wrangler deploy later\nEOF\nls"), null);
   assert.ok(decide("cat <<'EOF'\nx\nEOF\nnpx wrangler deploy"));
   assert.ok(decide('git commit -m x', 'main'));
+  assert.ok(decide('git cherry-pick abc', 'main'));
+  assert.equal(decide('git commit -m x', 'feat/media'), null);
   assert.equal(decide('git commit -m x', 'develop'), null);
 });
 
@@ -115,28 +121,7 @@ test('verify-on-stop blocks at most twice and respects Codex stop_hook_active', 
   assert.equal(shouldBlock({ verifyPassed: false, blocksSoFar: 1, stopHookActive: true }), false);
 });
 
-test('usage is summed once per message id', () => {
-  const line = (id, out) =>
-    JSON.stringify({
-      message: {
-        id,
-        model: 'm',
-        usage: { input_tokens: 1, output_tokens: out, cache_creation_input_tokens: 10, cache_read_input_tokens: 100 },
-      },
-    });
-  const r = sumTranscript([line('a', 5), line('a', 7), line('b', 3), 'not json "usage"'].join('\n'));
-  assert.deepEqual(r, {
-    messages: 2,
-    models: { m: 2 },
-    input_tokens: 2,
-    output_tokens: 10,
-    cache_creation_input_tokens: 20,
-    cache_read_input_tokens: 200,
-  });
-});
-
 import { relevantLines, MAX_LINES } from './verify.mjs';
-import { summarize, units } from './metrics.mjs';
 
 test('verify keeps error lines and caps output', () => {
   const out = [
@@ -150,14 +135,6 @@ test('verify keeps error lines and caps output', () => {
   assert.ok(lines.every((l) => /error/.test(l)));
   assert.deepEqual(relevantLines('a\nb\nc'), ['a', 'b', 'c']);
   assert.deepEqual(relevantLines('✔ rejects missing fields\n✖ broken: expected 1'), ['✖ broken: expected 1']);
-});
-
-test('metrics sums main and subagents into relative cost units', () => {
-  const u = { input_tokens: 10, cache_creation_input_tokens: 100, cache_read_input_tokens: 1000, output_tokens: 20 };
-  assert.equal(units(u), 10 + 125 + 100 + 100);
-  const s = summarize({ session_id: 's', branch: 'b', updated: 't', main: u, subagents: { a: u } });
-  assert.equal(s.output_tokens, 40);
-  assert.equal(s.units, 670);
 });
 
 test('verify waits while builders run and tracks only builder agents', () => {
@@ -232,7 +209,7 @@ test('stale builder registrations are ignored and a new start replaces them', ()
   }
 });
 
-import { planSteps, STEPS } from './verify.mjs';
+import { planSteps, selectSteps, STEPS } from './verify.mjs';
 const names = (files, options) => planSteps(files, options).map(([n]) => n);
 
 test('verify --changed runs only what the changes touch', () => {
@@ -267,4 +244,31 @@ test('verify --changed runs only what the changes touch', () => {
   assert.equal(planSteps(['package.json']), STEPS);
   assert.equal(planSteps(['apps/backend/wrangler.jsonc']), STEPS);
   assert.deepEqual(names([]), []);
+});
+
+test('verify runs both app test suites and builds once, the frontend way', () => {
+  // The root `build` would re-run every workspace typecheck that the typecheck step already covers.
+  assert.equal(STEPS.filter(([name]) => name === 'build').length, 1);
+  assert.ok(STEPS.some(([name]) => name === 'backend-tests') && STEPS.some(([name]) => name === 'frontend-tests'));
+});
+
+test('verify --only/--skip pick steps by name and reject unknown names', () => {
+  const pick = (...argv) => selectSteps(STEPS, ['node', 'verify.mjs', ...argv]).map(([n]) => n);
+  assert.equal(pick().length, STEPS.length);
+  assert.deepEqual(pick('--only', 'backend-tests'), ['backend-tests']);
+  const rest = pick('--skip', 'backend-tests,frontend-tests');
+  assert.ok(!rest.includes('backend-tests') && !rest.includes('frontend-tests'));
+  // CI may filter a changed-file plan while naming a globally-known step that is absent from that plan.
+  const frontendPlan = planSteps(['apps/frontend/src/pages/LoginPage.tsx']);
+  const changedRest = selectSteps(
+    frontendPlan,
+    ['node', 'verify.mjs', '--skip', 'backend-tests,frontend-tests'],
+    STEPS,
+  ).map(([name]) => name);
+  assert.ok(!changedRest.includes('frontend-tests'));
+  assert.ok(changedRest.includes('frontend-typecheck'));
+  // The CI jobs together cover the whole full set.
+  assert.equal(rest.length + 2, STEPS.length);
+  assert.throws(() => pick('--only', 'backend-test'), /needs step names/);
+  assert.throws(() => pick('--skip'), /needs step names/);
 });

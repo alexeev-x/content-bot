@@ -7,8 +7,17 @@ import type { Container } from './container';
 export type AppEnv = Env & {
   TELEGRAM_BOT_TOKEN?: string;
   TELEGRAM_WEBHOOK_SECRET?: string;
-  /** JSON of the Bot API `getMe` result, so grammY never calls getMe per request. */
+  /** Optional override: JSON of the Bot API `getMe` result. Without it the identity stored by connect is used. */
   BOT_INFO?: string;
+  /** YouTube Data API v3 key for content analytics (public counters only). */
+  YOUTUBE_API_KEY?: string;
+  /** OpenAI key for the AI writer (Worker secret the owner sets; never logged or returned). */
+  OPENAI_API_KEY?: string;
+  /** TikTok for Developers app keys (Login Kit + Display API). */
+  TIKTOK_CLIENT_KEY?: string;
+  TIKTOK_CLIENT_SECRET?: string;
+  /** A GitHub token with no scopes: the game-files tracker (owner, 24.10.2026). */
+  GITHUB_TOKEN?: string;
 };
 
 export type AppBindings = {

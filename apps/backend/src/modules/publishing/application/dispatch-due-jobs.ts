@@ -1,6 +1,23 @@
+import {
+  type PostEntity,
+  type PostPoll,
+  type PostSendOptions,
+  expandRichMedia,
+  pollIssue,
+  RICH_MEDIA_MAX,
+  richHtmlIssue
+} from '@alexeev/contracts';
 import type { Clock } from '../../../platform/clock';
 import type { Logger } from '../../../platform/logging/logger';
-import { attemptsExhausted, DISPATCH_BATCH, LEASE_MS, minLeaseForSend, retryRunAt } from '../domain/dispatch-policy';
+import {
+  attemptsExhausted,
+  DISPATCH_BATCH,
+  LEASE_MS,
+  MAX_SEND_MEDIA_BYTES,
+  minLeaseForSend,
+  retryRunAt,
+  sendTimeoutMs
+} from '../domain/dispatch-policy';
 import { formatPublicationText } from '../domain/format-message';
 import type {
   ClaimedJob,
@@ -8,6 +25,7 @@ import type {
   JobResolution,
   PostRevisionSource,
   PublicationTransport,
+  RaisedIncident,
   SendOutcome
 } from './ports';
 
@@ -31,14 +49,36 @@ export interface DispatchSummary {
   unknown: number;
   notSent: number;
   errors: number;
+  /** The incidents this tick wrote, for the owner alert; the caller sends it after the tick's state is stored. */
+  raised: RaisedIncident[];
+  /** Sends whose `succeeded` write was applied, for the owner's «Опубликовано» notice (sent after the tick). */
+  delivered: DeliveredPublication[];
+}
+
+export interface DeliveredPublication {
+  publicationId: string;
+  postTitle: string | null;
+  channelTitle: string | null;
+  chatId: string | null;
+  externalMessageId: string | null;
 }
 
 type JobResult = 'lost' | 'sent' | 'retry_wait' | 'failed' | 'unknown' | 'not_sent' | 'failed_halt';
 
 // Outcome-write retries one tick may spend. A hiccup in D1 usually affects the next write too, and
 // each retry costs queries of the invocation's budget (docs/BACKEND_ARCHITECTURE.md §5).
+// `raised` collects the incidents whose write was applied.
 interface TickBudget {
   writeRetries: number;
+  raised: RaisedIncident[];
+  delivered: DeliveredPublication[];
+}
+
+// What the owner alert can say about a job, filled in as the dispatcher loads it.
+interface AlertContext {
+  postTitle: string | null;
+  channelTitle: string | null;
+  chatId: string | null;
 }
 
 // One tick's dispatch (docs/BACKEND_ARCHITECTURE.md §5): a small batch of due jobs, each handled
@@ -54,17 +94,28 @@ export async function dispatchDueJobs(deps: DispatchDeps): Promise<DispatchSumma
     failed: 0,
     unknown: 0,
     notSent: 0,
-    errors: 0
+    errors: 0,
+    raised: [],
+    delivered: []
   };
   const jobIds = await deps.repo.findDueJobIds(deps.clock.now(), DISPATCH_BATCH);
   summary.due = jobIds.length;
-  const budget: TickBudget = { writeRetries: 1 };
+  const budget: TickBudget = { writeRetries: 1, raised: summary.raised, delivered: summary.delivered };
 
   for (const jobId of jobIds) {
     const startedAt = deps.clock.now();
     try {
       const result = await dispatchJob(deps, jobId, budget);
       count(summary, result);
+      // One line per job, so a post's way to the channel can be followed by its job id (review 24.10.2026).
+      if (result !== 'lost')
+        deps.logger[result === 'sent' ? 'info' : 'warn']({
+          component: 'dispatcher',
+          operation: 'dispatch_job',
+          jobId,
+          status: result,
+          durationMs: deps.clock.now() - startedAt
+        });
       // The bot token is wrong: every further job would be refused the same way, so do not burn the batch.
       if (result === 'failed_halt') break;
     } catch (error) {
@@ -99,17 +150,58 @@ async function dispatchJob(deps: DispatchDeps, jobId: string, budget: TickBudget
   // Another tick or the owner's cancel got there first: nothing to do and nothing to undo.
   if (claimed === null) return 'lost';
 
-  const refuse = (code: string, reason: string) => refused(deps, budget, claimed, startedAt, code, reason);
+  const context: AlertContext = { postTitle: null, channelTitle: null, chatId: null };
+  const refuse = (code: string, reason: string) => refused(deps, budget, claimed, startedAt, context, code, reason);
 
   if (claimed.publicationId === null) return refuse('PUBLICATION_MISSING', 'job_without_publication');
   const target = await repo.loadTarget(claimed.publicationId);
   if (target === null) return refuse('PUBLICATION_MISSING', 'publication_not_found');
+  context.channelTitle = target.destinationTitle;
+  context.chatId = target.chatId;
   if (!target.destinationEnabled) return refuse('DESTINATION_DISABLED', 'destination_disabled');
 
   const revision = await deps.posts.findRevision(target.postId, target.postRevision);
   if (revision === null) return refuse('CONTENT_INVALID', 'revision_missing');
-  const message = formatPublicationText(revision);
+  context.postTitle = revision.title;
+  // A poll is checked again here: the approved snapshot passed pollIssue, but a damaged row must be refused as a
+  // permanent failure before the mark, never sent and never left unknown.
+  let poll: PostPoll | null = null;
+  if (revision.kind === 'poll') {
+    if (revision.poll === null || pollIssue(revision.poll) !== null || revision.media.length > 0) {
+      return refuse('CONTENT_INVALID', 'poll_invalid');
+    }
+    poll = revision.poll;
+  }
+  // A rich post (migration 0103) is checked the same way: the approved snapshot passed richHtmlIssue, but a damaged row
+  // is refused before the mark. Telegram checks the markup itself; its refusal is a definite 400, never unknown.
+  let richHtml: string | null = null;
+  if (revision.richHtml !== null) {
+    if (revision.kind !== 'text') return refuse('CONTENT_INVALID', 'rich_kind_mismatch');
+    // The media slot is filled from the approved snapshot's media, so what is checked is exactly what is sent.
+    const expanded = expandRichMedia(revision.richHtml, revision.media);
+    const issue = richHtmlIssue(expanded, revision.media.length);
+    if (issue !== null) return refuse('CONTENT_INVALID', `rich_${issue.toLowerCase()}`);
+    if (revision.media.length > RICH_MEDIA_MAX) return refuse('TELEGRAM_MEDIA_UNSUPPORTED', 'rich_media_over_limit');
+    richHtml = expanded;
+  }
+  const message =
+    poll === null && richHtml === null
+      ? formatPublicationText(revision)
+      : { ok: true as const, text: '', entities: [] };
   if (!message.ok) return refuse('CONTENT_INVALID', message.reason.toLowerCase());
+  const media = revision.media;
+  // An album and a caption have Telegram's classic limits; a rich message carries up to 50 media in its own blocks.
+  if (
+    richHtml === null &&
+    (media.length > 10 || (media.length > 1 && media.some(({ kind }) => kind === 'animation')))
+  ) {
+    return refuse('TELEGRAM_MEDIA_UNSUPPORTED', 'unsupported_media_combination');
+  }
+  if (richHtml === null && media.length > 0 && message.text.length > 1024) {
+    return refuse('CONTENT_INVALID', 'caption_too_long');
+  }
+  const mediaBytes = media.reduce((total, item) => total + item.sizeBytes, 0);
+  if (mediaBytes > MAX_SEND_MEDIA_BYTES) return refuse('TELEGRAM_MEDIA_TOO_LARGE', 'media_upload_exceeds_bound');
 
   // The mark must be confirmed before Telegram is called: if the Worker dies after the send, it
   // is the only evidence the post may be out there. Not confirmed: nothing was sent, and reconcile
@@ -119,21 +211,38 @@ async function dispatchJob(deps: DispatchDeps, jobId: string, budget: TickBudget
     jobId,
     attempt: claimed.attempt,
     now,
-    minLeaseUntil: minLeaseForSend(now)
+    minLeaseUntil: minLeaseForSend(now, sendTimeoutMs(mediaBytes))
   });
   if (!marked) {
     log(deps, claimed, startedAt, 'send_not_started', 'LEASE_LOST', 'warn');
     return 'not_sent';
   }
 
-  const outcome = await sendOnce(deps, target.chatId, message.html);
-  return resolveSent(deps, budget, claimed, startedAt, outcome);
+  const outcome = await sendOnce(deps, target.chatId, {
+    ...message,
+    media,
+    options: revision.sendOptions,
+    poll,
+    richHtml
+  });
+  return resolveSent(deps, budget, claimed, startedAt, context, outcome);
 }
 
 // The transport must not throw, but a throw after the mark is exactly the ambiguous case.
-async function sendOnce(deps: DispatchDeps, chatId: string, text: string): Promise<SendOutcome> {
+async function sendOnce(
+  deps: DispatchDeps,
+  chatId: string,
+  message: {
+    text: string;
+    entities: PostEntity[];
+    media: readonly import('./ports').PublicationMedia[];
+    options: PostSendOptions;
+    poll: PostPoll | null;
+    richHtml: string | null;
+  }
+): Promise<SendOutcome> {
   try {
-    return await deps.transport.send({ chatId, text });
+    return await deps.transport.send({ chatId, ...message });
   } catch {
     return { kind: 'unknown', reason: 'transport_threw' };
   }
@@ -145,19 +254,27 @@ async function refused(
   budget: TickBudget,
   claimed: ClaimedJob,
   startedAt: number,
+  context: AlertContext,
   code: string,
   reason: string
 ): Promise<JobResult> {
   const finishedAt = deps.clock.now();
   const resolution = baseResolution(claimed, startedAt, finishedAt);
-  await write(deps, budget, claimed, startedAt, {
-    ...resolution,
-    status: 'failed',
-    attemptOutcome: 'skipped',
-    errorCode: code,
-    incident: failedIncident(deps, code, { attempt: claimed.attempt, reason }),
-    auditAction: 'job.failed'
-  });
+  await write(
+    deps,
+    budget,
+    claimed,
+    startedAt,
+    {
+      ...resolution,
+      status: 'failed',
+      attemptOutcome: 'skipped',
+      errorCode: code,
+      incident: failedIncident(deps, code, { attempt: claimed.attempt, reason }),
+      auditAction: 'job.failed'
+    },
+    context
+  );
   return 'failed';
 }
 
@@ -166,18 +283,21 @@ async function resolveSent(
   budget: TickBudget,
   claimed: ClaimedJob,
   startedAt: number,
+  context: AlertContext,
   outcome: SendOutcome
 ): Promise<JobResult> {
   const finishedAt = deps.clock.now();
   const base = baseResolution(claimed, startedAt, finishedAt);
+  const put = (resolution: JobResolution) => write(deps, budget, claimed, startedAt, resolution, context);
 
   switch (outcome.kind) {
     case 'sent':
-      await write(deps, budget, claimed, startedAt, {
+      await put({
         ...base,
         status: 'succeeded',
         attemptOutcome: 'sent',
-        externalMessageId: outcome.externalMessageId,
+        externalMessageId: outcome.externalMessageIds[0] ?? null,
+        externalMessageIds: outcome.externalMessageIds,
         auditAction: 'job.succeeded'
       });
       return 'sent';
@@ -185,7 +305,7 @@ async function resolveSent(
     case 'rate_limited': {
       // Telegram refused: nothing was posted, so a retry is safe, up to the attempt cap.
       if (attemptsExhausted(claimed.attempt)) {
-        await write(deps, budget, claimed, startedAt, {
+        await put({
           ...base,
           status: 'failed',
           attemptOutcome: 'rate_limited',
@@ -196,7 +316,7 @@ async function resolveSent(
         });
         return 'failed';
       }
-      await write(deps, budget, claimed, startedAt, {
+      await put({
         ...base,
         status: 'retry_wait',
         runAt: retryRunAt({
@@ -214,7 +334,7 @@ async function resolveSent(
     }
 
     case 'rejected':
-      await write(deps, budget, claimed, startedAt, {
+      await put({
         ...base,
         status: 'failed',
         attemptOutcome: 'rejected',
@@ -226,7 +346,7 @@ async function resolveSent(
 
     case 'unknown':
       // It may have been posted: a human reconciles it, it is never retried automatically.
-      await write(deps, budget, claimed, startedAt, {
+      await put({
         ...base,
         status: 'unknown',
         attemptOutcome: 'unknown',
@@ -282,7 +402,8 @@ async function write(
   budget: TickBudget,
   claimed: ClaimedJob,
   startedAt: number,
-  resolution: JobResolution
+  resolution: JobResolution,
+  context: AlertContext
 ): Promise<void> {
   let applied: boolean;
   try {
@@ -293,8 +414,29 @@ async function write(
     applied = (await deps.repo.outcomeInPlace(resolution)) || (await deps.repo.resolve(resolution));
   }
   // Not applied means reconcile resolved the job first (the lease ran out mid-send): its state stands.
-  if (applied) log(deps, claimed, startedAt, resolution.status, resolution.errorCode ?? undefined);
-  else log(deps, claimed, startedAt, resolution.status, 'OUTCOME_NOT_APPLIED', 'warn');
+  if (applied) {
+    log(deps, claimed, startedAt, resolution.status, resolution.errorCode ?? undefined);
+    // Only a write that took effect raised its incident: a lost one belongs to reconcile, which reports it.
+    if (resolution.incident !== null) {
+      budget.raised.push({
+        id: resolution.incident.id,
+        kind: resolution.incident.kind,
+        code: resolution.incident.code,
+        publicationId: resolution.publicationId,
+        postTitle: context.postTitle,
+        channelTitle: context.channelTitle
+      });
+    }
+    if (resolution.status === 'succeeded' && resolution.publicationId !== null) {
+      budget.delivered.push({
+        publicationId: resolution.publicationId,
+        postTitle: context.postTitle,
+        channelTitle: context.channelTitle,
+        chatId: context.chatId,
+        externalMessageId: resolution.externalMessageId ?? null
+      });
+    }
+  } else log(deps, claimed, startedAt, resolution.status, 'OUTCOME_NOT_APPLIED', 'warn');
 }
 
 function log(

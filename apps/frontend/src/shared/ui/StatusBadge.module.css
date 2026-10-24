@@ -1,0 +1,48 @@
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 22px;
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-1);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+  white-space: nowrap;
+  background: var(--tone-bg);
+  color: var(--tone-fg);
+}
+.badge[data-group='pending'] {
+  --tone-fg: var(--color-status-pending-fg);
+  --tone-bg: var(--color-status-pending-bg);
+  --tone-ring: var(--color-status-pending-ring);
+}
+.badge[data-group='active'] {
+  --tone-fg: var(--color-status-active-fg);
+  --tone-bg: var(--color-status-active-bg);
+  --tone-ring: var(--color-status-active-ring);
+}
+.badge[data-group='done'] {
+  --tone-fg: var(--color-status-done-fg);
+  --tone-bg: var(--color-status-done-bg);
+  --tone-ring: var(--color-status-done-ring);
+}
+.badge[data-group='retry'] {
+  --tone-fg: var(--color-status-retry-fg);
+  --tone-bg: var(--color-status-retry-bg);
+  --tone-ring: var(--color-status-retry-ring);
+}
+.badge[data-group='failed'] {
+  --tone-fg: var(--color-status-failed-fg);
+  --tone-bg: var(--color-status-failed-bg);
+  --tone-ring: var(--color-status-failed-ring);
+}
+.badge[data-group='unknown'] {
+  --tone-fg: var(--color-status-unknown-fg);
+  --tone-bg: var(--color-status-unknown-bg);
+  --tone-ring: var(--color-status-unknown-ring);
+}
+.badge[data-group='muted'] {
+  --tone-fg: var(--color-status-muted-fg);
+  --tone-bg: var(--color-status-muted-bg);
+  --tone-ring: var(--color-status-muted-ring);
+}

@@ -1,0 +1,94 @@
+.body {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-2) var(--space-3);
+}
+
+.hint {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+  max-inline-size: 70ch;
+}
+
+.list,
+.evidence {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.row,
+.evidenceRow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: var(--space-3);
+  padding-block: var(--space-2);
+}
+
+.row + .row,
+.evidenceRow + .evidenceRow {
+  border-block-start: 1px solid var(--color-border-subtle);
+}
+
+/* A closed rule stays listed for the record, quieter than the ones that act. */
+.row[data-closed] .ruleText {
+  color: var(--color-text-muted);
+}
+
+.text {
+  display: grid;
+  gap: var(--space-1);
+  min-inline-size: 0;
+}
+
+.ruleText {
+  margin: 0;
+  font-weight: var(--font-weight-medium);
+  overflow-wrap: anywhere;
+}
+
+.meta {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.polarity[data-polarity='support'] {
+  color: var(--color-status-done-fg);
+}
+
+.polarity[data-polarity='contradict'] {
+  color: var(--color-status-failed-fg);
+}
+
+.excerpt {
+  display: -webkit-box;
+  margin: 0;
+  overflow: hidden;
+  font-size: var(--font-size-sm);
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.error {
+  margin: 0;
+  color: var(--color-status-failed-fg);
+  font-size: var(--font-size-sm);
+}
+
+@media (max-width: 480px) {
+  .row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

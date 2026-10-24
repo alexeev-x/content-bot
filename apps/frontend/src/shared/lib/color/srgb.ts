@@ -24,20 +24,6 @@ export function toRgbaString({ r, g, b }: Rgb, alpha: number): string {
   return `rgba(${Math.round(r)}, ${Math.round(g)}, ${Math.round(b)}, ${Number(alpha.toFixed(3))})`;
 }
 
-/** Parses `#rrggbb` or `rgb(a)(r, g, b[, a])` as written in tokens.css. */
-export function parseCssColor(value: string): Rgba | null {
-  const hex = parseHex(value);
-  if (hex) return { ...hex, a: 1 };
-  const match = /^rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*(?:,\s*([\d.]+)\s*)?\)$/i.exec(value.trim());
-  if (!match) return null;
-  return {
-    r: Number(match[1]),
-    g: Number(match[2]),
-    b: Number(match[3]),
-    a: match[4] === undefined ? 1 : Number(match[4])
-  };
-}
-
 /** Source-over compositing of a translucent colour on an opaque backdrop. */
 export function composite(top: Rgba, backdrop: Rgb): Rgb {
   return {
@@ -53,7 +39,7 @@ const linear = (channel: number): number => {
 };
 
 /** WCAG 2.x relative luminance. */
-export function relativeLuminance({ r, g, b }: Rgb): number {
+function relativeLuminance({ r, g, b }: Rgb): number {
   return 0.2126 * linear(r) + 0.7152 * linear(g) + 0.0722 * linear(b);
 }
 

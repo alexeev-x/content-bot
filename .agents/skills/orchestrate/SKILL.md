@@ -1,64 +1,45 @@
 ---
 name: orchestrate
-description: "Orchestrator playbook for the main session: classify a request, plan the smallest task graph, write task packets, dispatch role agents, run gates, route defects, open the PR. Use for any task spanning several areas, roles or steps."
+description: "Main-session playbook: when to do the work yourself vs delegate, risk gate, task packets, repair loop, commit and push to develop. Use for any task spanning several areas or steps."
 ---
 # Orchestrate a task
 
-You are the only coordinator. Spawning an agent costs a fresh context, so delegate only when isolation or parallelism pays for it.
+Default: **do it yourself in the main session.** Every subagent re-reads its rules, skills and docs from scratch, so delegation costs a full context load. Delegate only when that cost buys something.
 
-## When not to delegate
-Handle docs-only, obvious fixes and clear single-area changes in the main session.
-
-Never spawn every role. Do not launch qa-security for R0/R1 by default.
-
-## Risk-based QA
-Classify by behavior and consequences, not line count. Follow `references/risk-qa.md`; do not launch QA for R0/R1 by default.
-
-## Owner interaction
-Follow the root owner-interaction and recorded-decision rules.
-
-## Token hygiene
-- One task per session; start a fresh session for an unrelated task. Before a long continuation, compact with a focus line ("keep: task packet, failing check, decisions").
-- Never edit AGENTS.md, skills, settings, hooks or MCP config in the middle of a working session: they sit in the cached prefix, and changing them re-bills the whole context.
-- Push noisy work (wide searches, long logs) into the owning role agent or `researcher` so only its summary returns.
-- For Plus comparisons, record allowance as in `references/metrics.md`; do not infer it from `npm run metrics`.
-
-## 1. Classify
-| Change | Route |
+## When to delegate
+| Situation | Who |
 |---|---|
-| docs only | yourself → `npm run check:docs` |
-| one area, clear spec | one role (or yourself) → checks |
-| UI with new visuals | design-system (only for missing tokens/primitives) → frontend |
-| API or data change | contract step → backend ∥ frontend |
-| contract, integration, verification infrastructure (R2) | one owner per path; qa-security reviews the integrated diff |
-| publishing / auth / migration / security / secrets (R3) | as above, plus mandatory qa-security before acceptance |
-| unclear requirements | product-analyst first |
-| research, comparison, "is this true" | researcher (read-only; give the question, constraints, word limit) |
+| docs, single-area change, UI screen, bug fix | yourself |
+| backend and frontend both large and independent (after the contract) | `backend` ∥ `frontend` (max two at once, 16 GB laptop) |
+| broad shared token/primitive restyle | `design-system` |
+| "which is best / is this true" research | `researcher` (question, constraints, word limit) |
+| R3 change finished | `qa-security` review |
+| noisy search across many files | `Explore`, take only the conclusion |
 
-Code, docs and reviews go only through the project roles above. Built-in helpers (`Explore`, `Plan`) are fine for read-only support; global agents are denied. Do mechanical edits yourself.
+No prototype stage: build UI directly in production code from `design-refs/<task>/` images and our tokens/primitives. A throwaway prototype is only for a brand-new complex flow the owner wants to see before the API exists, and only when the owner asks.
 
-## 2. Plan
-- Work on develop and check `git status`. Preserve pre-existing changes; never stash, reset or overwrite another task's work.
-- Cut the smallest vertical slices. Each task has one owner role and a set of `owned_paths` that no other task shares.
-- Order: contract → (backend ∥ frontend) → review. Run tasks in parallel only when their paths don't overlap and the contract is fixed. Serialize these files: `apps/contracts/**`, migrations, `container.ts`, the router, the token file.
+## Flow
+1. `git status`; work on `develop` (or `feat/<slug>` for multi-commit work). Preserve others' uncommitted changes.
+2. Contract first (yourself, skill `contract-change`) if any shape changes.
+3. Build the smallest vertical slice. Backend: tests only for critical paths (skill `testing`). Frontend: compose `shared/ui`; a missing primitive is added in `shared/ui`, never styled locally.
+4. UI: check in a browser at 375 and 1280 px (skill `visual-check`), light and dark. Compare with the reference image side by side once, not per state.
+5. Gate (below), then commit and push (root `AGENTS.md` § Git).
 
-## 3. Task packet
-Send only the goal, owned paths, needed context links, acceptance criteria and constraints. Do not paste documents, the transcript or other roles' code.
+## Risk gate
+| Risk | Typical change | Review | Check |
+|---|---|---|---|
+| R0 | docs, copy, formatting | — | `npm run check:docs` or format check |
+| R1 | single-area behavior, UI, refactor with tests green | — | `npm run verify:changed` |
+| R2 | contract and consumers, shared primitives, verification tooling | — | `npm run verify` |
+| R3 | auth, sessions, webhook, migrations, publishing/Telegram, secrets, command safety | `qa-security` before commit | `npm run verify` + the relevant failure tests |
 
-## 4. Parallel work
-See `references/parallel-worktrees.md`. Parallelize only independent paths, using worktrees based on `develop`.
+The stop hook runs `verify:changed` automatically; a green hook result on the unchanged tree counts for R1. The pre-push hook runs `verify:changed` with the tests; CI on a `develop` push checks, scans for secrets and deploys without running the tests again, and runs every test on PRs and `main`.
 
-## 5. Gates
-1. Scope: `git status --porcelain` must show only files within the packets' `owned_paths`. Any file outside them goes back to its role.
-2. Follow `references/risk-qa.md`. The assigned verification owner runs one final gate and reads failures; other agents run focused tests while developing, not another full suite.
-3. For R2/R3, send qa-security the acceptance criteria, risk category, diff range, changed paths and actual check output. QA independently reviews the changes and owns the one full local suite.
+## Task packet (when delegating)
+≤ 40 lines: goal, owned paths, acceptance criteria, pointers (`path:lines`, doc §), constraints, report cap. Never paste documents, code or transcripts. Builders never edit `apps/contracts`; they answer `BLOCKED: contract`. Serialize `apps/contracts/**`, migrations, `container.ts`, the router and the token file (one task at a time). Parallel builders use worktrees: `references/parallel-worktrees.md`.
 
-## 6. Repair loop (bounded)
-- A defect goes back to its single owning role with the defect line, only the relevant lines of the failing output, and the file. The other roles are not re-run.
-- Fingerprint = check name + first error line. If the same fingerprint survives 2 repair rounds, or a round makes no progress, stop and give the owner options plus your recommended default.
-- Re-review covers only the listed defect ids.
+## Repair loop
+A failure goes back to its owner with only the failing lines and file. Same first error after 2 rounds, or no progress → stop and give the owner options with a recommended default. Never resume a finished agent; start fresh with the packet plus `.logs/handoff/<task>.md`.
 
-## 7. Deliver
-- Don't commit or push: the owner does. Hand over a conventional commit message and a short Russian summary: the goal, each acceptance criterion with pass/fail, the commands run with results, risks, and `not_run` items.
-- A release is a PR `develop → main` opened by the owner (body per `.github/pull_request_template.md`). Never touch `main`.
-- Log task outcome and available Plus allowance observations as described in `references/metrics.md`; never convert token counts or API prices into Plus usage.
+## Deliver
+Commit (conventional message), push `develop`/branch (CI applies DEV migrations before deploying), then the final message from root `AGENTS.md`. Never touch `main`.

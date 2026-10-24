@@ -1,0 +1,70 @@
+/*
+ * Same visual language as Tabs: a compact bordered group, the selected item lifted to surface-3. The whole group,
+ * frame included, is one control tall, so it lines up with a Select or an IconButton in the same row.
+ */
+.group {
+  position: relative;
+  display: inline-flex;
+  box-sizing: border-box;
+  block-size: var(--size-control);
+  gap: 2px;
+  max-width: 100%;
+  padding: 2px;
+  overflow-x: auto;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-2);
+  background: var(--color-surface-1);
+}
+.group[data-full] {
+  display: flex;
+}
+.group[data-full] > * {
+  flex: 1 1 0;
+}
+.segment {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  padding: 0 var(--space-3);
+  border: 1px solid transparent;
+  border-radius: var(--radius-1);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    background-color var(--motion-fast),
+    color var(--motion-fast);
+}
+/* Three labels such as «Системная / Светлая / Тёмная» must fit a 320px screen without a hidden sideways scroll. */
+@media (max-width: 400px) {
+  .segment {
+    padding: 0 var(--space-2);
+  }
+}
+/* At 320px three labels with icons still overflow («Авт…»): the words stay, the icons go. */
+@media (max-width: 359px) {
+  .segment > svg {
+    display: none;
+  }
+}
+.segment[data-hovered] {
+  background: var(--color-surface-2);
+  color: var(--color-text);
+}
+.segment[data-selected] {
+  border-color: var(--color-border-strong);
+  background: var(--color-surface-3);
+  color: var(--color-text);
+}
+.segment[data-focus-visible] {
+  outline: var(--focus-ring-width) solid var(--color-focus-ring);
+  outline-offset: -2px;
+}
+.segment[data-disabled] {
+  background: none;
+  color: var(--color-text-disabled);
+  cursor: not-allowed;
+}

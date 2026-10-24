@@ -1,7 +1,13 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { testDb } from '../../../../tests/helpers/db';
 import { resetDb, START } from '../../../../tests/helpers/harness';
-import { DUE_JOBS_SQL, EXPIRED_CLAIMS_SQL } from './d1-dispatch-repository';
+import {
+  DUE_JOBS_SQL,
+  EXPIRED_CLAIMS_SQL,
+  OWNER_INCIDENT_ALERT_GROUPS_SQL,
+  PURGE_OWNER_INCIDENT_ALERT_GROUPS_SQL
+} from './d1-dispatch-repository';
+import { createD1DispatchRepository } from './d1-dispatch-repository';
 
 beforeEach(resetDb);
 
@@ -106,6 +112,48 @@ describe('reconcile scan', () => {
 });
 
 describe('queries of the new tables and cleanup', () => {
+  it('uses the due-group index and bounds the owner alert scan', async () => {
+    const detail = await plan(OWNER_INCIDENT_ALERT_GROUPS_SQL, START, 8);
+
+    expect(detail).toContain('incident_alert_groups_due_idx');
+    expect(detail).toContain('incidents_alert_group_open_idx');
+    expect(detail).not.toContain('SCAN incident_alert_groups');
+  });
+
+  it('purges only a bounded page of one-shot recovered groups through their partial index', async () => {
+    const detail = await plan(PURGE_OWNER_INCIDENT_ALERT_GROUPS_SQL, 25);
+
+    expect(detail).toContain('incident_alert_groups_recovery_idx');
+    expect(detail).not.toContain('SCAN incident_alert_groups');
+  });
+
+  it('deletes only already-claimed recovery groups and leaves open groups available for deduplication', async () => {
+    const db = testDb();
+    await db.batch(
+      [
+        ['publish_failed:recovered', START],
+        ['publish_failed:open', null]
+      ].map(([groupKey, recoveryClaim]) =>
+        db
+          .prepare(
+            `INSERT INTO incident_alert_groups
+             (group_key, kind, affected_id, first_seen_at, last_seen_at, occurrence_count,
+              last_alert_claimed_at, alert_succeeded_at, recovery_claimed_at)
+             VALUES (?1, 'publish_failed', '00000000-0000-0000-0000-000000000001', ?2, ?2, 1, ?2, ?2, ?3)`
+          )
+          .bind(groupKey, START, recoveryClaim)
+      )
+    );
+
+    const purged = await createD1DispatchRepository(db).purgeOwnerIncidentAlertGroups(1);
+    const rows = await db
+      .prepare('SELECT group_key FROM incident_alert_groups ORDER BY group_key')
+      .all<{ group_key: string }>();
+
+    expect(purged).toBe(1);
+    expect(rows.results.map((row) => row.group_key)).toEqual(['publish_failed:open']);
+  });
+
   it('lists open incidents newest first from the partial index, without sorting', async () => {
     const detail = await plan(
       'SELECT id FROM incidents WHERE resolved_at IS NULL ORDER BY created_at DESC, id DESC LIMIT ?1',

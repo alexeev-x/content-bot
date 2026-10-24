@@ -85,6 +85,8 @@ export async function mapApiError(response: Response): Promise<ApiError> {
 type RequestOptions = {
   method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
   body?: unknown;
+  /** A file sent as the raw request body (its own type becomes Content-Type; the browser sets Content-Length). */
+  rawBody?: Blob;
   signal?: AbortSignal | undefined;
   headers?: Record<string, string>;
   /** Sign-in endpoints: no Bearer and no silent re-auth. */
@@ -100,7 +102,10 @@ async function send(path: string, options: RequestOptions, token: string | null)
   // The refresh cookie travels only on /auth/* (its cookie path).
   if (path.startsWith('/api/v1/auth/')) init.credentials = 'include';
   if (options.signal) init.signal = options.signal;
-  if (options.body !== undefined) {
+  if (options.rawBody !== undefined) {
+    headers['Content-Type'] = options.rawBody.type;
+    init.body = options.rawBody;
+  } else if (options.body !== undefined) {
     headers['Content-Type'] = 'application/json';
     init.body = JSON.stringify(options.body);
   }
@@ -194,8 +199,28 @@ async function performRefresh(startGeneration: number, startEpoch: number): Prom
 // one just rotated. Without the API (old browsers, tests) behaviour is per-tab single-flight only.
 function withRefreshLock<T>(task: () => Promise<T>): Promise<T> {
   const locks = typeof navigator === 'undefined' ? undefined : navigator.locks;
-  return locks ? locks.request('alexeev-refresh', task) : task();
+  return locks ? locks.request(REFRESH_LOCK, task) : task();
 }
+const REFRESH_LOCK = 'alexeev-refresh';
+
+/**
+ * Runs `task` (a reload) once no refresh is in flight in this tab or any other, holding the refresh lock so none
+ * starts before the page goes. A reload that cuts a refresh short loses the rotated cookie: the server already
+ * spent the old one, so the next refresh looks like reuse and revokes the session (owner signed out after a
+ * deploy reload, 16.10.2026).
+ */
+export async function whenRefreshIdle(task: () => void): Promise<void> {
+  await refreshInFlight?.catch(() => undefined);
+  const locks = typeof navigator === 'undefined' ? undefined : navigator.locks;
+  if (!locks) return task();
+  // Held until the page unloads, so no refresh begins meanwhile, but bounded: a reload the owner cancels
+  // («Остаться» on a dirty draft) leaves the page alive, and a lock held forever would hang every refresh.
+  await locks.request(REFRESH_LOCK, async () => {
+    task();
+    await new Promise<void>((resolve) => setTimeout(resolve, RELOAD_HOLD_MS));
+  });
+}
+const RELOAD_HOLD_MS = 10_000;
 
 /** Renews the access token; concurrent callers share one request. A 401/403 ends the session. */
 export function refreshSession(): Promise<AccessTokenDto> {
@@ -324,6 +349,13 @@ export async function apiRequest<T>(path: string, schema: ZodType<T>, options: R
     throw new ApiError({ code: 'UNAVAILABLE', status: response.status, message: 'Unexpected response shape' });
   }
   return parsed.data;
+}
+
+/** Authenticated binary response. The caller owns the Blob and must keep it out of query/local storage. */
+export async function apiRequestBlob(path: string, options: RequestOptions = {}): Promise<Blob> {
+  const response = await execute(path, options);
+  if (!response.ok) throw await mapApiError(response);
+  return response.blob();
 }
 
 /** For 204 endpoints (logout). */

@@ -1,0 +1,150 @@
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-modal);
+  background: var(--color-scrim);
+}
+.overlay[data-entering] {
+  animation: fade var(--motion-base) ease-out;
+}
+.overlay[data-exiting] {
+  animation: fade var(--motion-fast) ease-in reverse;
+}
+.modal {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  width: min(480px, 100%);
+  border-left: 1px solid var(--color-border-strong);
+  background: var(--color-surface-1);
+  box-shadow: var(--shadow-pop);
+}
+.modal[data-size='wide'] {
+  width: min(760px, 100%);
+}
+.modal[data-entering] {
+  animation: slide-in var(--motion-base) cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.modal[data-exiting] {
+  animation: slide-in var(--motion-fast) ease-in reverse;
+}
+.dialog {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+  outline: none;
+  /* The Mini App and notched phones: keep controls out of the system areas. */
+  padding-top: max(env(safe-area-inset-top), var(--tg-content-safe-area-inset-top, 0px));
+  padding-right: max(env(safe-area-inset-right), var(--tg-content-safe-area-inset-right, 0px));
+  padding-bottom: max(env(safe-area-inset-bottom), var(--tg-content-safe-area-inset-bottom, 0px));
+  padding-left: max(env(safe-area-inset-left), var(--tg-content-safe-area-inset-left, 0px));
+}
+.header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-4) var(--space-5);
+  border-bottom: 1px solid var(--color-border-subtle);
+}
+.heading {
+  display: grid;
+  gap: var(--space-2);
+  min-width: 0;
+}
+.title {
+  margin: 0;
+  font-size: var(--font-size-lg);
+  line-height: var(--line-height-heading);
+  overflow-wrap: anywhere;
+}
+.meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+.body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--space-5);
+  min-height: 0;
+  padding: var(--space-5);
+  overflow: auto;
+}
+.footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  padding: var(--space-4) var(--space-5);
+  border-top: 1px solid var(--color-border-subtle);
+}
+
+/* Bottom sheet */
+.overlay[data-variant='bottom'] .modal {
+  top: auto;
+  left: 0;
+  width: 100%;
+  /* Telegram's stable height does not jump while the sheet or the keyboard moves the viewport. */
+  max-height: min(85dvh, calc(var(--tg-viewport-stable-height, 100dvh) * 0.85));
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-3) var(--radius-3) 0 0;
+}
+.overlay[data-variant='bottom'] .modal[data-entering] {
+  animation: slide-up var(--motion-base) cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.overlay[data-variant='bottom'] .modal[data-exiting] {
+  animation: slide-up var(--motion-fast) ease-in reverse;
+}
+
+/* Side panel becomes a full-screen sheet on narrow screens. */
+@media (max-width: 859px) {
+  .modal {
+    width: 100%;
+    border-left: 0;
+  }
+  .header,
+  .body,
+  .footer {
+    padding-right: var(--space-4);
+    padding-left: var(--space-4);
+  }
+  .footer > * {
+    flex: 1 1 auto;
+  }
+}
+@keyframes fade {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes slide-in {
+  from {
+    transform: translateX(100%);
+  }
+}
+@keyframes slide-up {
+  from {
+    transform: translateY(100%);
+  }
+}
+
+/* Bottom sheet grabber: a visual cue only, the close button stays the keyboard way out. */
+.overlay[data-variant='bottom'] .header {
+  position: relative;
+  padding-top: calc(var(--space-4) + 6px);
+}
+.overlay[data-variant='bottom'] .header::before {
+  content: '';
+  position: absolute;
+  top: 8px;
+  left: 50%;
+  width: 36px;
+  height: 4px;
+  border-radius: var(--radius-pill);
+  background: var(--color-border-strong);
+  transform: translateX(-50%);
+}

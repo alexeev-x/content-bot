@@ -2,13 +2,11 @@
 
 /**
  * Jobs claimed per tick. A job costs 5 D1 round trips (claim, target, revision, send mark, outcome
- * batch), at most 9 statements (5 in the outcome batch when it has an incident), and 1 subrequest
- * (the Telegram call). The true worst tick, counted per statement: reconcile 1 + 5, due scan 1,
- * 3 jobs x 9, one outcome-write retry 1 + 5 (re-read, rewrite), hourly cleanup 5 = 45 statements
- * (22 round trips): under the Free plan's 50 queries per invocation even if every statement of a
- * batch were counted on its own. Pinned in tests/integration/dispatcher-budget.test.ts.
+ * batch), at most 8 statements (the incident aggregate is maintained by the D1 insert trigger), and
+ * 1 Telegram subrequest. The measured worst mix is pinned below the Free-plan query ceiling in
+ * tests/integration/dispatcher-budget.test.ts; incident alert groups are paged separately.
  */
-export const DISPATCH_BATCH = 3;
+export const DISPATCH_BATCH = 2;
 
 /** Expired claims turned into a new state per tick; each needs up to 5 statements in one batch. */
 export const RECONCILE_BATCH = 1;
@@ -16,11 +14,26 @@ export const RECONCILE_BATCH = 1;
 /** How long a claim belongs to its dispatcher. A claim is made right before the job is processed. */
 export const LEASE_MS = 2 * 60 * 1000;
 
-/** Upper bound of the Telegram call; also what the lease must outlive. */
+/** Upper bound of a Telegram call without media; also what the lease must outlive. */
 export const SEND_TIMEOUT_MS = 10_000;
+
+// A post's files are uploaded within the same call, so its bound grows with their size (DEV 22.10.2026: a 40+ MB
+// video was cut off at 10 s and the post went unknown without reaching the channel). 1 MB/s is a pessimistic upload
+// rate from a Worker to Telegram; the cap keeps the call, the outcome write and the claim's first steps in the lease.
+// Decimal megabytes, so the 90 MB limit the owner reads is the one applied.
+const UPLOAD_BYTES_PER_SECOND = 1_000_000;
+export const MAX_SEND_TIMEOUT_MS = 100_000;
+/** Files that cannot be uploaded within the cap are refused before the send, never left unknown. */
+export const MAX_SEND_MEDIA_BYTES = ((MAX_SEND_TIMEOUT_MS - SEND_TIMEOUT_MS) / 1000) * UPLOAD_BYTES_PER_SECOND;
 
 /** Slack on top of the send timeout so the outcome write still happens inside the lease. */
 const OUTCOME_WRITE_MARGIN_MS = 5_000;
+
+/** The bound of one send: the base plus the upload time of its files at the pessimistic rate, capped. */
+export function sendTimeoutMs(mediaBytes: number): number {
+  const upload = Math.ceil((Math.max(0, mediaBytes) / UPLOAD_BYTES_PER_SECOND) * 1000);
+  return Math.min(SEND_TIMEOUT_MS + upload, MAX_SEND_TIMEOUT_MS);
+}
 
 export const MAX_ATTEMPTS = 5;
 
@@ -30,8 +43,8 @@ const MAX_RETRY_AFTER_SEC = 24 * 60 * 60;
 const MAX_JITTER_MS = 5_000;
 
 /** The send is allowed only if the lease still covers the call and the outcome write. */
-export function minLeaseForSend(now: number): number {
-  return now + SEND_TIMEOUT_MS + OUTCOME_WRITE_MARGIN_MS;
+export function minLeaseForSend(now: number, timeoutMs: number = SEND_TIMEOUT_MS): number {
+  return now + timeoutMs + OUTCOME_WRITE_MARGIN_MS;
 }
 
 export function attemptsExhausted(attempt: number): boolean {

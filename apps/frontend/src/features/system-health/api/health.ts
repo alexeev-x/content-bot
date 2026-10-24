@@ -2,7 +2,7 @@ import { healthSchema } from '@alexeev/contracts';
 import { queryOptions } from '@tanstack/react-query';
 import { apiRequest } from '../../../shared/api/http-client';
 
-export const healthKeys = {
+const healthKeys = {
   all: ['health'] as const,
   detail: () => [...healthKeys.all, 'detail'] as const
 };

@@ -1,4 +1,9 @@
-import type { DestinationDto, DestinationPageDto, ListDestinationsQuery } from '@alexeev/contracts';
+import type {
+  DestinationDto,
+  DestinationPageDto,
+  ListDestinationsQuery,
+  ScheduledPublicationCountDto
+} from '@alexeev/contracts';
 import { z } from 'zod';
 import { decodeKeysetCursor, encodeKeysetCursor } from '../../../platform/pagination/keyset-cursor';
 import { AppError } from '../../../shared/app-error';
@@ -33,4 +38,12 @@ export async function getDestination(deps: { repo: DestinationRepository }, id: 
   const record = await deps.repo.findById(id);
   if (record === null) throw destinationNotFound();
   return toDestinationDto(record);
+}
+
+export async function getScheduledPublicationCount(
+  deps: { repo: DestinationRepository },
+  destinationId: string
+): Promise<ScheduledPublicationCountDto> {
+  if ((await deps.repo.findById(destinationId)) === null) throw destinationNotFound();
+  return { destinationId, count: await deps.repo.countWaiting(destinationId) };
 }

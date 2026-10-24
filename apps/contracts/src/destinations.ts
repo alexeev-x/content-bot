@@ -71,3 +71,42 @@ export type ListDestinationsQuery = z.infer<typeof listDestinationsQuerySchema>;
 
 export const destinationPageSchema = pageSchema(destinationSchema);
 export type DestinationPageDto = z.infer<typeof destinationPageSchema>;
+
+export const scheduledPublicationCountSchema = z.object({
+  destinationId: z.uuid(),
+  count: z.number().int().nonnegative()
+});
+export type ScheduledPublicationCountDto = z.infer<typeof scheduledPublicationCountSchema>;
+
+// GET /api/v1/destinations/{id}/scheduled-count → 200 ScheduledPublicationCountDto. Counts all
+// waiting publications (scheduled, queued and retry_wait) from D1 immediately before confirmation;
+// excludes in-flight and terminal work. The client must not cache this value for disable confirmation.
+// Errors: NOT_FOUND 404, UNAUTHORIZED 401, FORBIDDEN 403.
+
+// POST /api/v1/destinations/check — asks Telegram about a chat before it is saved: its title and
+// type, and whether this environment's bot can post there. Nothing is stored; the dialog uses it
+// to prefill the form and to refuse a channel the bot cannot publish to.
+// → 200 DestinationCheckDto. Errors: VALIDATION_ERROR 400 (details.reason NOT_A_CHANNEL_OR_GROUP for a
+// private chat) or 413, NOT_FOUND 404 (details.reason
+// CHAT_NOT_FOUND: Telegram does not know the chat or the bot cannot see it), UNAVAILABLE 503 (bot
+// token missing or rejected by Telegram, or Telegram unreachable), RATE_LIMIT 429 with Retry-After
+// (20 checks per 10 minutes, or Telegram's own retry_after), UNAUTHORIZED 401, FORBIDDEN 403.
+export const checkDestinationInputSchema = z.strictObject({
+  chatId: chatIdSchema
+});
+export type CheckDestinationInput = z.infer<typeof checkDestinationInputSchema>;
+
+export const destinationCheckSchema = z.object({
+  /** Canonical numeric id from Telegram, safer to store than a @username that can change. */
+  chatId: z.string(),
+  username: z.string().nullable(),
+  title: z.string(),
+  kind: destinationKindSchema,
+  /** The bot is an administrator (channel) or a member allowed to send messages (group). */
+  botCanPost: z.boolean(),
+  /** Why the bot cannot post, when botCanPost is false. */
+  problem: z.enum(['BOT_NOT_MEMBER', 'BOT_NOT_ADMIN', 'BOT_CANNOT_POST']).nullable(),
+  /** Already saved as a destination (same Telegram chat), so creating it again would be a conflict. */
+  alreadyAddedId: z.uuid().nullable()
+});
+export type DestinationCheckDto = z.infer<typeof destinationCheckSchema>;

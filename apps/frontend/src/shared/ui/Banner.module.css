@@ -1,0 +1,68 @@
+.banner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-3);
+  /* A faint wash of the tone over the panel surface: the icon and title carry the signal, not a coloured slab. */
+  background: color-mix(in srgb, var(--tone-fg) 7%, var(--color-surface-1));
+}
+.banner[data-size='sm'] {
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--font-size-sm);
+}
+.banner[data-tone='info'] {
+  --tone-fg: var(--color-status-pending-fg);
+  --tone-bg: var(--color-status-pending-bg);
+  --tone-ring: var(--color-status-pending-ring);
+}
+.banner[data-tone='warning'] {
+  --tone-fg: var(--color-status-unknown-fg);
+  --tone-bg: var(--color-status-unknown-bg);
+  --tone-ring: var(--color-status-unknown-ring);
+}
+.banner[data-tone='error'] {
+  --tone-fg: var(--color-status-failed-fg);
+  --tone-bg: var(--color-status-failed-bg);
+  --tone-ring: var(--color-status-failed-ring);
+}
+.banner[data-tone='conflict'] {
+  --tone-fg: var(--color-status-retry-fg);
+  --tone-bg: var(--color-status-retry-bg);
+  --tone-ring: var(--color-status-retry-ring);
+}
+.icon {
+  flex: none;
+  margin-top: 1px;
+  color: var(--tone-fg);
+}
+.content {
+  display: grid;
+  flex: 1 1 10rem;
+  gap: var(--space-1);
+  min-width: 0;
+}
+.title {
+  color: var(--tone-fg);
+  font-weight: var(--font-weight-semibold);
+}
+.body {
+  overflow-wrap: anywhere;
+}
+.action {
+  display: flex;
+  flex: none;
+  align-items: center;
+  align-self: center;
+  margin-left: auto;
+}
+@media (max-width: 859px) {
+  .action {
+    flex-basis: 100%;
+    margin-left: 0;
+    padding-left: calc(20px + var(--space-3));
+  }
+}

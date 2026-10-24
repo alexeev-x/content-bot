@@ -1,6 +1,7 @@
 name: D1 migrations
 # Owner-run only: Actions → "D1 migrations" → Run workflow. Applies pending SQL migrations from
-# apps/backend/migrations to the chosen environment's D1. Agents never trigger it.
+# apps/backend/migrations to the chosen environment's D1. Agents never trigger it. Needed for production;
+# DEV also gets them automatically in ci.yml before each develop deploy.
 on:
   workflow_dispatch:
     inputs:

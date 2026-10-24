@@ -7,7 +7,7 @@ let receivedAt = 0;
 let ttlMs = 0;
 let renewable = true;
 /** Access-token lifetime per docs/FRONTEND_ARCHITECTURE.md §6, used when the server time is unknown. */
-export const ACCESS_TOKEN_TTL_MS = 60 * 60_000;
+const ACCESS_TOKEN_TTL_MS = 60 * 60_000;
 // Bumped on every change: lets in-flight work tell whether the session it started from is still current.
 let generation = 0;
 const listeners = new Set<() => void>();

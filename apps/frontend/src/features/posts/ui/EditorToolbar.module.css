@@ -1,0 +1,201 @@
+/* One thin line under the tools, no box of its own. */
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-2);
+  padding: var(--space-1) 0;
+  border-bottom: 1px solid var(--color-border-subtle);
+  background: transparent;
+}
+.group {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+.separator {
+  align-self: stretch;
+  width: 1px;
+  margin: var(--space-1) var(--space-1) var(--space-1) 0;
+  background: var(--color-border-subtle);
+}
+.button {
+  display: inline-grid;
+  place-items: center;
+  min-width: var(--size-target-min);
+  width: var(--size-control-sm);
+  height: var(--size-control-sm);
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: var(--radius-1);
+  background: transparent;
+  color: var(--color-text);
+  font: inherit;
+  font-size: var(--font-size-sm);
+  cursor: pointer;
+  transition:
+    background-color var(--motion-fast),
+    color var(--motion-fast);
+}
+.button[data-hovered] {
+  background: var(--color-surface-3);
+}
+.button[data-pressed] {
+  background: var(--color-surface-3);
+}
+/* Pressed state: tinted fill plus a border, so it is not colour alone. */
+.button[data-selected] {
+  border-color: var(--color-accent);
+  background: var(--color-accent-soft);
+  color: var(--color-accent-text);
+}
+.button[data-focus-visible] {
+  outline: var(--focus-ring-width) solid var(--color-focus-ring);
+  outline-offset: var(--focus-ring-offset);
+}
+.button[data-disabled] {
+  color: var(--color-text-disabled);
+  cursor: not-allowed;
+  background: transparent;
+}
+.mono {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-xs);
+}
+.spoilerGlyph {
+  font-size: var(--font-size-sm);
+}
+.compactToolbar {
+  flex-wrap: nowrap;
+  overflow: visible;
+  padding: var(--space-1);
+}
+.mobileRow {
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+  gap: 0;
+  overflow: visible;
+}
+.moreButton {
+  flex: none;
+  background: var(--color-surface-2);
+}
+.moreList {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-2);
+}
+.moreAction {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+  min-height: var(--size-target);
+  padding: var(--space-3);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-2);
+  background: var(--color-surface-2);
+  color: var(--color-text);
+  font: inherit;
+  text-align: left;
+}
+.numberedListAction {
+  min-width: var(--size-target);
+  min-height: var(--size-target);
+}
+.moreAction[data-hovered],
+.moreAction[data-pressed] {
+  background: var(--color-surface-3);
+}
+.moreAction[data-selected] {
+  border-color: var(--color-accent);
+  background: var(--color-accent-soft);
+  color: var(--color-accent-text);
+}
+.moreAction[data-focus-visible] {
+  outline: var(--focus-ring-width) solid var(--color-focus-ring);
+  outline-offset: var(--focus-ring-offset);
+}
+.moreAction[data-disabled] {
+  color: var(--color-text-disabled);
+}
+.moreGlyph {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  width: var(--size-control-sm);
+  height: var(--size-control-sm);
+}
+
+/* Mobile: one compact writing toolbar. Secondary formatting moves to the bottom sheet instead of wrapping. */
+@media (pointer: coarse), (max-width: 859px) {
+  .toolbar {
+    flex-wrap: nowrap;
+    gap: var(--space-1);
+  }
+  .button {
+    flex: none;
+    min-width: var(--size-target);
+    min-height: var(--size-target);
+    width: var(--size-target);
+    height: var(--size-target);
+  }
+  .compactToolbar {
+    gap: 0;
+    padding-inline: 0;
+  }
+  .separator {
+    display: none;
+  }
+}
+
+/* Phone panel in place of the keyboard: every action is a labelled tile, three to a row. */
+.panelGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-2);
+  padding: var(--space-3);
+}
+.panelAction {
+  display: grid;
+  justify-items: center;
+  align-content: center;
+  gap: var(--space-1);
+  min-height: calc(var(--size-target) + var(--space-6));
+  padding: var(--space-2) var(--space-1);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-2);
+  background: var(--color-surface-2);
+  color: var(--color-text);
+  font: inherit;
+  touch-action: manipulation;
+}
+.panelAction[data-pressed] {
+  background: var(--color-surface-3);
+}
+.panelAction[data-selected] {
+  border-color: var(--color-accent);
+  background: var(--color-accent-soft);
+  color: var(--color-accent-text);
+}
+.panelAction[data-focus-visible] {
+  outline: var(--focus-ring-width) solid var(--color-focus-ring);
+  outline-offset: var(--focus-ring-offset);
+}
+.panelAction[data-disabled] {
+  color: var(--color-text-disabled);
+}
+.panelGlyph {
+  display: inline-grid;
+  place-items: center;
+  height: var(--space-6);
+  font-size: var(--font-size-lg);
+}
+.panelLabel {
+  max-width: 100%;
+  font-size: var(--font-size-xs);
+  line-height: var(--line-height-heading);
+  text-align: center;
+  hyphens: auto;
+}

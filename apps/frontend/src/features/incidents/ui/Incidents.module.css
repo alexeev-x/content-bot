@@ -1,0 +1,161 @@
+.page {
+  display: grid;
+  gap: var(--space-4);
+  min-width: 0;
+}
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 56px;
+  padding: var(--space-2) var(--space-4);
+  border-bottom: 1px solid var(--color-border-subtle);
+}
+
+/* One row: text column grows, the single safe action sits at the right (under the text on a phone). */
+.incident {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-4);
+  width: 100%;
+  min-width: 0;
+  padding: var(--space-2) 0;
+}
+.main {
+  display: grid;
+  flex: 1;
+  gap: var(--space-1);
+  min-width: 0;
+}
+.head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-3);
+}
+.title {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-weight: var(--font-weight-medium);
+}
+.reason,
+.warning,
+.notice {
+  margin: 0;
+  font-size: var(--font-size-sm);
+}
+.warning {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  color: var(--color-status-unknown-fg);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+}
+.meta {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+.actions {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--space-2);
+}
+.notice {
+  padding: var(--space-1) 0;
+  color: var(--color-status-failed-fg);
+}
+.details {
+  margin: 0;
+}
+.link {
+  color: var(--color-accent-text);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.link:focus-visible,
+.summary:focus-visible {
+  border-radius: var(--radius-1);
+  outline: var(--focus-ring-width) solid var(--color-focus-ring);
+  outline-offset: var(--focus-ring-offset);
+}
+.summary {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-height: var(--size-target-min);
+  color: var(--color-accent-text);
+  font-size: var(--font-size-sm);
+  cursor: pointer;
+}
+/* `display: inline-flex` drops the native marker, so the open/closed state is drawn here. */
+.summary::before {
+  content: '';
+  width: 0.4em;
+  height: 0.4em;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  transform: rotate(-45deg);
+  transition: transform var(--motion-fast);
+}
+.details[open] > .summary::before {
+  transform: rotate(45deg);
+}
+.detailLine {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+.detailLine code {
+  font-family: var(--font-mono);
+  overflow-wrap: anywhere;
+}
+
+/* Skeleton = the loaded row geometry. */
+.skeletonRow {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-4);
+  width: 100%;
+  padding: var(--space-2) 0;
+}
+.skeletonMain {
+  display: grid;
+  flex: 1;
+  gap: var(--space-2);
+  min-width: 0;
+}
+.skeletonHead {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+.skeletonHead > :last-child {
+  flex: 1;
+}
+
+@media (max-width: 859px) {
+  .incident,
+  .skeletonRow {
+    flex-direction: column;
+    padding: var(--space-3) 0;
+  }
+  .actions {
+    width: 100%;
+  }
+  .actions > * {
+    flex: 1 1 0;
+  }
+  .toolbar {
+    padding-inline: var(--space-3);
+  }
+}

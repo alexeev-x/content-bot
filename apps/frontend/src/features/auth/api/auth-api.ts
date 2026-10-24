@@ -36,6 +36,17 @@ export async function signInWithWidget(user: TelegramWidgetSignInInput, signal?:
   return token;
 }
 
+/** `npm run dev` only: owner session without Telegram (the server mounts this route only on the dev server). */
+export async function signInLocally(signal?: AbortSignal): Promise<AccessTokenDto> {
+  const token = await apiRequest('/api/v1/auth/local', accessTokenSchema, {
+    method: 'POST',
+    anonymous: true,
+    signal
+  });
+  setSession(token);
+  return token;
+}
+
 /** Restores or renews the session (cookie in a browser, current Bearer in the Mini App). Single-flight. */
 export { refreshSession };
 

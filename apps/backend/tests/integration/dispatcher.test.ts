@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, it } from 'vitest';
+import { postSchema, uploadPostMediaResultSchema } from '@alexeev/contracts';
 import type { Container } from '../../src/app/container';
 import { createContainer } from '../../src/app/container';
+import { runDispatchNow } from '../../src/app/workflows/dispatch-now';
 import type { PublicationTransport } from '../../src/modules/publishing';
 import { LEASE_MS, MAX_ATTEMPTS } from '../../src/modules/publishing/domain/dispatch-policy';
 import { testDb } from '../helpers/db';
@@ -28,7 +30,7 @@ import {
   seedSession,
   START
 } from '../helpers/harness';
-import { claimJob, count, jobOf, seedApprovedPost, seedDestination } from '../helpers/publishing';
+import { claimJob, count, jobOf, seedApprovedPost, seedDestination, seedPublication } from '../helpers/publishing';
 
 let clock: FakeClock;
 let api: Api;
@@ -46,13 +48,145 @@ const tickWith = (
 ) => makeTick({ clock, transport, ...extra });
 
 describe('a due job is sent once and recorded', () => {
-  it('sends the escaped HTML message to the destination and marks everything in D1', async () => {
+  it('sends the approved media snapshot in order and persists every Telegram message id', async () => {
+    const created = await api.request('/api/v1/posts', {
+      method: 'POST',
+      headers: { 'idempotency-key': 'album-draft' },
+      json: { title: 'Album', body: '' }
+    });
+    expect(created.status).toBe(201);
+    const draft = postSchema.parse(await created.json());
+    const bytes = new Uint8Array([
+      0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 13, 0x49, 0x48, 0x44, 0x52, 0, 0, 0, 2, 0, 0, 0, 3, 8, 2,
+      0, 0, 0, 0, 0, 0, 0
+    ]);
+    let revision = draft.revision;
+    const uploadedIds: string[] = [];
+    for (const key of ['album-media-1', 'album-media-2']) {
+      const upload = await api.request(`/api/v1/posts/${draft.id}/media?revision=${revision}&fileName=image.png`, {
+        method: 'POST',
+        headers: new Headers({
+          'content-type': 'image/png',
+          'content-length': String(bytes.length),
+          'idempotency-key': key
+        }),
+        body: bytes
+      });
+      expect(upload.status).toBe(201);
+      const result = uploadPostMediaResultSchema.parse(await upload.json());
+      uploadedIds.push(result.media.id);
+      revision = result.revision;
+    }
+    const approvedResponse = await api.request(`/api/v1/posts/${draft.id}/approve`, {
+      method: 'POST',
+      json: { revision }
+    });
+    expect(approvedResponse.status).toBe(200);
+    const approved = postSchema.parse(await approvedResponse.json());
+    const destination = await seedDestination(api, { chatId: '-1009988776655' });
+    const publication = await seedPublication(api, {
+      postId: approved.id,
+      revision: approved.revision,
+      destinationId: destination.id,
+      scheduledAt: new Date(START).toISOString()
+    });
+    const transport = fakeTransport({ kind: 'sent', externalMessageIds: ['6001', '6002'] });
+
+    await tickWith(transport).run();
+
+    expect(transport.mediaCalls).toEqual([['photo', 'photo']]);
+    const stored = await testDb()
+      .prepare('SELECT external_message_id, external_message_ids FROM publications WHERE id = ?1')
+      .bind(publication.id)
+      .first<{ external_message_id: string | null; external_message_ids: string | null }>();
+    expect(stored).toEqual({ external_message_id: '6001', external_message_ids: '["6001","6002"]' });
+    const snapshot = await testDb()
+      .prepare('SELECT media_json FROM post_revisions WHERE post_id = ?1 AND revision = ?2')
+      .bind(approved.id, approved.revision)
+      .first<{ media_json: string }>();
+    expect(JSON.parse(snapshot?.media_json ?? 'null')).toEqual(uploadedIds);
+  });
+
+  it('refuses media captions over Telegram’s 1024-character limit before marking or calling Telegram', async () => {
+    const created = await api.request('/api/v1/posts', {
+      method: 'POST',
+      headers: { 'idempotency-key': 'long-caption-draft' },
+      json: { title: 'Title', body: 'x'.repeat(1024) }
+    });
+    const draft = postSchema.parse(await created.json());
+    const bytes = new Uint8Array([
+      0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 13, 0x49, 0x48, 0x44, 0x52, 0, 0, 0, 2, 0, 0, 0, 3, 8, 2,
+      0, 0, 0, 0, 0, 0, 0
+    ]);
+    const upload = await api.request(`/api/v1/posts/${draft.id}/media?revision=0&fileName=image.png`, {
+      method: 'POST',
+      headers: new Headers({
+        'content-type': 'image/png',
+        'content-length': String(bytes.length),
+        'idempotency-key': 'long-caption-media'
+      }),
+      body: bytes
+    });
+    expect(upload.status).toBe(201);
+    const media = uploadPostMediaResultSchema.parse(await upload.json());
+    const approvedResponse = await api.request(`/api/v1/posts/${draft.id}/approve`, {
+      method: 'POST',
+      json: { revision: media.revision }
+    });
+    const approved = postSchema.parse(await approvedResponse.json());
+    const destination = await seedDestination(api);
+    const publication = await seedPublication(api, {
+      postId: approved.id,
+      revision: approved.revision,
+      destinationId: destination.id,
+      scheduledAt: new Date(START).toISOString()
+    });
+    const transport = fakeTransport(SENT);
+
+    await tickWith(transport).run();
+
+    expect(transport.calls).toHaveLength(0);
+    expect(await jobOf(publication.id)).toMatchObject({ status: 'failed', send_started_at: null });
+    expect((await publicationOf(publication.id)).last_error_code).toBe('CONTENT_INVALID');
+  });
+
+  // DEV 22.10.2026: a 40+ MB video was cut off by the 10 s bound and went unknown. Files that cannot be uploaded
+  // within the largest bound are refused visibly; nothing is marked or sent, so nothing is left to reconcile.
+  it('refuses files too large to upload within the send bound before marking or calling Telegram', async () => {
+    const { publicationId } = await seedDueJob(api);
+    const transport = fakeTransport(SENT);
+    const huge = { kind: 'video' as const, fileName: 'v.mp4', contentType: 'video/mp4', sizeBytes: 91_000_000 };
+
+    await tickWith(transport, {
+      tweak: (container) => ({
+        ...container,
+        postRevisions: {
+          async findRevision(postId, revision) {
+            const found = await container.postRevisions.findRevision(postId, revision);
+            return found && { ...found, media: [{ ...huge, body: new ReadableStream<Uint8Array>() }] };
+          }
+        }
+      })
+    }).run();
+
+    expect(transport.calls).toHaveLength(0);
+    expect(await jobOf(publicationId)).toMatchObject({ status: 'failed', send_started_at: null });
+    expect((await publicationOf(publicationId)).last_error_code).toBe('TELEGRAM_MEDIA_TOO_LARGE');
+  });
+
+  it('sends the plain text with a bold title entity to the destination and marks everything in D1', async () => {
     const { publicationId, jobId, chatId } = await seedDueJob(api);
     const transport = fakeTransport(SENT);
 
     await tickWith(transport).run();
 
-    expect(transport.calls).toEqual([{ chatId, text: '<b>Patch 7.40</b>\n\nBody text' }]);
+    expect(transport.calls).toEqual([
+      {
+        chatId,
+        text: 'Patch 7.40\n\nBody text',
+        entities: [{ type: 'bold', offset: 0, length: 'Patch 7.40'.length }]
+      }
+    ]);
     const job = await jobOf(publicationId);
     expect(job).toMatchObject({ status: 'succeeded', attempts: 1, lease_until: null });
     expect(job.send_started_at).toBe(START);
@@ -119,7 +253,7 @@ describe('a due job is sent once and recorded', () => {
     expect(transport.calls).toHaveLength(1);
   });
 
-  it('escapes <, > and & (and quotes) in the post, so user text can never become markup', async () => {
+  it('sends <, > and & (and quotes) as plain characters, so user text can never become markup', async () => {
     const post = await seedApprovedPost(api, 'Tom & Jerry <b>');
     await testDb()
       .prepare("UPDATE post_revisions SET body = ?1 WHERE post_id = ?2 AND status = 'approved'")
@@ -145,7 +279,8 @@ describe('a due job is sent once and recorded', () => {
     expect(transport.calls).toEqual([
       {
         chatId: '-1001',
-        text: '<b>Tom &amp; Jerry &lt;b&gt;</b>\n\n1 &lt; 2 &gt; 0 &amp;&amp; &quot;quoted&quot; &lt;script&gt;'
+        text: 'Tom & Jerry <b>\n\n1 < 2 > 0 && "quoted" <script>',
+        entities: [{ type: 'bold', offset: 0, length: 'Tom & Jerry <b>'.length }]
       }
     ]);
   });
@@ -499,7 +634,13 @@ describe('what Telegram answers', () => {
 
     expect(job.status).toBe('succeeded');
     expect((await publicationOf(publicationId)).external_message_id).toBe('321');
-    expect(sender.requests[0]?.other).toEqual({ parse_mode: 'HTML', link_preview_options: { is_disabled: true } });
+    expect(sender.requests[0]?.other).toEqual({
+      entities: [{ type: 'bold', offset: 0, length: 'Patch 7.40'.length }],
+      disable_notification: false,
+      protect_content: false,
+      link_preview_options: { is_disabled: true }
+    });
+    expect(sender.requests[0]?.other).not.toHaveProperty('parse_mode');
   });
 
   it('429: retry_wait at retry_after, send mark cleared, no incident', async () => {
@@ -840,5 +981,43 @@ describe('logs', () => {
     expect(text).not.toContain('Secret launch title');
     expect(text).not.toContain('TEST-BOT-TOKEN');
     expect(text).not.toContain('Body text');
+  });
+});
+
+describe('the dispatch kick from the queue (review 24.10.2026)', () => {
+  it('sends a post due now at once; a Cron tick right after, and a repeated kick, send nothing more', async () => {
+    const transport = fakeTransport(SENT);
+    const tick = tickWith(transport);
+    const { publicationId } = await seedDueJob(api);
+
+    await runDispatchNow(tick.container, 'kick');
+    expect(transport.calls).toHaveLength(1);
+    expect(await jobOf(publicationId)).toMatchObject({ status: 'succeeded' });
+    expect(tick.logs).toContainEqual(
+      expect.objectContaining({ component: 'dispatch_now', counts: expect.objectContaining({ sent: 1 }) })
+    );
+
+    await tick.run();
+    await runDispatchNow(tick.container, 'kick-again');
+    expect(transport.calls).toHaveLength(1);
+  });
+
+  it('a kick racing a tick on the same job sends it once', async () => {
+    const transport = fakeTransport(SENT);
+    const tick = tickWith(transport);
+    const { publicationId } = await seedDueJob(api);
+
+    await Promise.all([runDispatchNow(tick.container, 'kick'), tick.run()]);
+    expect(transport.calls).toHaveLength(1);
+    expect(await jobOf(publicationId)).toMatchObject({ status: 'succeeded' });
+  });
+
+  it('does nothing while publishing is switched off', async () => {
+    const transport = fakeTransport(SENT);
+    const tick = tickWith(transport, { publishing: 'false' });
+    await seedDueJob(api);
+
+    await runDispatchNow(tick.container, 'kick');
+    expect(transport.calls).toHaveLength(0);
   });
 });

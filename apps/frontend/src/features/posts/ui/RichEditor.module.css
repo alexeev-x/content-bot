@@ -1,0 +1,173 @@
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+.label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text);
+}
+.labelCounter {
+  display: none;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-regular);
+}
+.box {
+  min-width: 0;
+  border-radius: var(--radius-2);
+  background: transparent;
+  transition: box-shadow var(--motion-fast);
+}
+.box[data-readonly] {
+  background: var(--color-surface-2);
+}
+/* No frame of its own: the card around the editor shows focus and errors. */
+.content {
+  min-width: 0;
+}
+/* Under the text: the AI action on the left, the counter on the right. */
+.footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+.footer > .description {
+  flex: 1;
+}
+.aiHint {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+}
+.description {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin: 0;
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+}
+.description > :global(.mono) {
+  flex: none;
+  margin-left: auto;
+  white-space: nowrap;
+}
+.over {
+  color: var(--color-danger);
+  font-weight: var(--font-weight-semibold);
+}
+.error {
+  font-size: var(--font-size-xs);
+  color: var(--color-danger);
+}
+.error:empty {
+  display: none;
+}
+
+/* The editable element is created by ProseMirror, so its styles are reached through :global. */
+.content :global(.tiptap) {
+  min-height: 10rem;
+  max-height: 60vh;
+  overflow-y: auto;
+  scroll-padding-block: var(--space-3) calc(var(--size-target) * 2 + var(--space-6) + env(safe-area-inset-bottom));
+  padding: var(--space-3);
+  color: var(--color-text);
+  line-height: var(--line-height-body);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  outline: none;
+}
+.content :global(.tiptap:focus-visible) {
+  outline: none;
+}
+.content :global(.tiptap p) {
+  margin: 0;
+  min-height: 1lh;
+}
+.content :global(.tiptap a) {
+  color: var(--color-accent-text);
+  text-decoration: underline;
+  cursor: text;
+}
+.content :global(.tiptap code) {
+  padding: 0 var(--space-1);
+  border-radius: var(--radius-1);
+  background: var(--color-surface-3);
+  font-family: var(--font-mono);
+  font-size: 0.92em;
+}
+.content :global(.tiptap pre) {
+  margin: var(--space-1) 0;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-1);
+  background: var(--color-surface-3);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-sm);
+  white-space: pre-wrap;
+}
+.content :global(.tiptap pre code) {
+  padding: 0;
+  background: none;
+  font-size: inherit;
+}
+.content :global(.tiptap blockquote) {
+  margin: var(--space-1) 0;
+  padding-left: var(--space-3);
+  border-left: 3px solid var(--color-accent);
+}
+/* Spoiler text stays readable while editing; a dotted underline and tint mark it without colour alone. */
+.content :global(.tiptap [data-spoiler]) {
+  border-bottom: 2px dotted var(--color-text-muted);
+  background: var(--color-surface-3);
+}
+@media (max-width: 859px) {
+  .labelCounter {
+    display: inline;
+  }
+  .description > :global(.mono) {
+    display: none;
+  }
+}
+
+/* Phone composer: the field is the channel message bubble (the bubble's colours come from the composer). */
+.phoneField {
+  gap: 0;
+}
+.phoneBox {
+  position: relative;
+  min-width: 0;
+}
+.phoneField .content :global(.tiptap) {
+  min-height: 1lh;
+  max-height: none;
+  overflow: visible;
+  padding: 0;
+  color: inherit;
+}
+.phoneField .content :global(.tiptap a) {
+  color: var(--color-bubble-link);
+}
+.placeholder {
+  position: absolute;
+  inset: 0 auto auto 0;
+  color: var(--color-bubble-meta);
+  pointer-events: none;
+}
+.phoneDescription {
+  margin: 0;
+  font-size: var(--font-size-2xs);
+  text-align: end;
+}
+.phoneDescription:not(:has(.mono)) {
+  position: absolute;
+}
+.phoneField .error {
+  margin: var(--space-1) 0 0;
+}

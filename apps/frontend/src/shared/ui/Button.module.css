@@ -1,43 +1,128 @@
 .button {
-  min-height: var(--size-target);
-  min-width: var(--size-target);
-  padding: var(--space-2) var(--space-4);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  min-height: var(--size-button);
+  min-width: var(--size-button);
+  padding: 0 var(--space-3);
   border: 1px solid var(--color-border-strong);
-  border-radius: var(--radius-1);
+  border-radius: var(--radius-2);
+  background: var(--color-surface-1);
+  color: var(--color-text);
   font: inherit;
+  text-decoration: none;
+  font-size: var(--font-size-sm);
   font-weight: var(--font-weight-medium);
+  line-height: 1.2;
+  text-decoration: none;
+  white-space: nowrap;
   cursor: pointer;
   transition:
     background-color var(--motion-fast),
-    filter var(--motion-fast);
+    border-color var(--motion-fast),
+    transform var(--motion-fast),
+    box-shadow var(--motion-fast);
 }
-.primary {
-  background: var(--color-accent);
-  color: var(--color-on-accent);
-  border-color: var(--color-accent);
+.button[data-size='sm'] {
+  min-height: var(--size-button-sm);
+  padding: 0 var(--space-2);
+  font-size: var(--font-size-xs);
 }
-.secondary {
-  background: var(--color-surface-1);
-  color: var(--color-text);
+/* Primary CTA: 44 px on every device, wider padding, slightly larger label. */
+.button[data-size='lg'] {
+  min-height: var(--size-target);
+  padding: 0 var(--space-6);
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-semibold);
 }
-.primary[data-hovered] {
-  background: var(--color-accent-hover);
-  border-color: var(--color-accent-hover);
+/* Editor footer CTA: 52 px. */
+.button[data-size='xl'] {
+  min-height: var(--size-button-xl);
+  padding: 0 var(--space-6);
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-semibold);
 }
-.secondary[data-hovered] {
+/* Beside a text field: same height as the field. */
+.button[data-size='field'] {
+  min-height: var(--size-control);
+}
+/* Touch and narrow screens: --size-button* resolve to 44 px in tokens.css, so every size keeps the 44 px target. */
+.button[data-full] {
+  width: 100%;
+}
+.button[data-hovered] {
   background: var(--color-surface-3);
 }
 .button[data-pressed] {
-  filter: brightness(0.9);
+  transform: translateY(1px);
 }
 .button[data-focus-visible] {
   outline: var(--focus-ring-width) solid var(--color-focus-ring);
   outline-offset: var(--focus-ring-offset);
 }
+
+.button[data-variant='primary'] {
+  background: var(--color-accent);
+  border-color: var(--color-accent);
+  color: var(--color-on-accent);
+}
+.button[data-variant='primary'][data-hovered] {
+  background: var(--color-accent-hover);
+  border-color: var(--color-accent-hover);
+}
+.button[data-variant='ghost'] {
+  background: transparent;
+  border-color: transparent;
+  color: var(--color-text-muted);
+}
+.button[data-variant='ghost'][data-hovered] {
+  background: var(--color-surface-2);
+  color: var(--color-text);
+}
+/* Tonal fill: accent text on accent-soft. */
+.button[data-variant='soft'] {
+  background: var(--color-accent-soft);
+  border-color: transparent;
+  color: var(--color-accent-text);
+}
+.button[data-variant='soft'][data-hovered] {
+  background: color-mix(in srgb, var(--color-accent-soft) 80%, var(--color-accent-text) 20%);
+}
+/* Text link: no box; keeps the button's target height. */
+.button[data-variant='link'] {
+  background: transparent;
+  border-color: transparent;
+  color: var(--color-accent-text);
+  padding-inline: var(--space-1);
+}
+.button[data-variant='link'][data-hovered] {
+  background: transparent;
+  text-decoration: underline;
+}
+.button[data-variant='danger'] {
+  color: var(--color-danger);
+  border-color: color-mix(in srgb, var(--color-danger) 60%, transparent);
+}
+.button[data-variant='danger'][data-hovered] {
+  background: var(--color-status-failed-bg);
+}
+
+.button[data-pending] {
+  cursor: progress;
+  opacity: 0.85;
+}
 .button[data-disabled] {
-  background: var(--color-surface-3);
-  color: var(--color-text-disabled);
+  background: var(--color-surface-2);
   border-color: var(--color-border-subtle);
+  color: var(--color-text-disabled);
+  box-shadow: none;
   cursor: not-allowed;
-  filter: none;
+  transform: none;
+}
+.button[data-variant='ghost'][data-disabled],
+.button[data-variant='link'][data-disabled],
+.button[data-variant='soft'][data-disabled] {
+  background: transparent;
+  border-color: transparent;
 }

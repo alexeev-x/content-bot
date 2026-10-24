@@ -1,0 +1,267 @@
+.wrap {
+  min-width: 0;
+  overflow-x: auto;
+  /* The quiet panel surface; the header row and rows run flush to its edges. */
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-2);
+  background: var(--color-surface-1);
+}
+.table {
+  width: 100%;
+  /* Fixed layout: column widths come from the header cells, never from the content, so the skeleton, the data and the next page line up. */
+  table-layout: fixed;
+  border-collapse: collapse;
+  outline: none;
+}
+.head {
+  background: var(--color-surface-2);
+}
+.column,
+.selectCell {
+  height: var(--size-row);
+  padding: 0 var(--space-4);
+  border-bottom: 1px solid var(--color-border-subtle);
+  background: var(--color-surface-2);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  text-align: left;
+  white-space: nowrap;
+  outline: none;
+}
+.column[data-align='end'],
+.cell[data-align='end'] {
+  text-align: right;
+}
+.column[data-allows-sorting] {
+  cursor: pointer;
+}
+.column[data-hovered][data-allows-sorting] {
+  color: var(--color-text);
+}
+.column[data-focus-visible] {
+  outline: var(--focus-ring-width) solid var(--color-focus-ring);
+  outline-offset: -2px;
+}
+.columnInner {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  /* A header never pushes past its fixed-width column (a 5 px overflow used to add a horizontal scrollbar). */
+  max-width: 100%;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.sortActive {
+  flex: none;
+  color: var(--color-accent-text);
+}
+/* Faint at rest, so sortable columns read as such on touch screens, which have no hover. */
+.sortIdle {
+  flex: none;
+  opacity: 0.4;
+}
+.column[data-hovered] .sortIdle,
+.column[data-focus-visible] .sortIdle {
+  opacity: 0.8;
+}
+.row {
+  outline: none;
+  cursor: default;
+}
+.row[data-hovered] {
+  background: var(--color-surface-2);
+}
+.row[data-selected],
+.row[data-active] {
+  background: var(--color-accent-soft);
+  box-shadow: inset 2px 0 0 var(--color-accent);
+}
+.row[data-focus-visible] {
+  outline: var(--focus-ring-width) solid var(--color-focus-ring);
+  outline-offset: -2px;
+}
+.row[data-href],
+.row[data-pressed] {
+  cursor: pointer;
+}
+.cell,
+.selectCell {
+  height: var(--size-row);
+  padding: 0 var(--space-4);
+  overflow: hidden;
+  border-bottom: 1px solid var(--color-border-subtle);
+  vertical-align: middle;
+  outline: none;
+}
+.row:last-child .cell,
+.row:last-child .selectCell {
+  border-bottom: 0;
+}
+.selectCell {
+  padding-inline: var(--space-3);
+}
+.empty {
+  padding: var(--space-4);
+  color: var(--color-text-muted);
+}
+
+/* Narrow screens: one card per row, no hidden columns. */
+.cards {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-3);
+}
+.list {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-2);
+  background: var(--color-surface-1);
+}
+.card[data-selected],
+.card[data-active] {
+  border-color: var(--color-accent-text);
+  background: var(--color-accent-soft);
+}
+.cardHead {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.cardTitle,
+.cardAction {
+  flex: 1;
+  min-width: 0;
+  font-weight: var(--font-weight-semibold);
+  overflow-wrap: anywhere;
+}
+.cardAction {
+  min-height: var(--size-target);
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-weight: var(--font-weight-semibold);
+  text-align: left;
+  cursor: pointer;
+}
+.cardAction:focus-visible {
+  border-radius: var(--radius-1);
+  outline: var(--focus-ring-width) solid var(--color-focus-ring);
+  outline-offset: 2px;
+}
+.details {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+}
+.detail {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-3);
+  font-size: var(--font-size-sm);
+}
+.detail dt {
+  color: var(--color-text-muted);
+}
+.detail dd {
+  margin: 0;
+  min-width: 0;
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+
+/* A row that opens something is clickable as a whole. */
+.actionRow {
+  cursor: pointer;
+}
+
+/* density="compact": a list row, not a card. Title and trailing status on one line, the other cells on one muted meta line. */
+.cards[data-density='compact'] .list {
+  gap: 0;
+  border-top: 1px solid var(--color-border-subtle);
+}
+.cards[data-density='compact'] .card {
+  position: relative;
+  gap: 2px;
+  padding: var(--space-2) var(--space-1);
+  border: 0;
+  border-bottom: 1px solid var(--color-border-subtle);
+  border-radius: 0;
+  background: transparent;
+}
+.cards[data-density='compact'] .card[data-selected],
+.cards[data-density='compact'] .card[data-active] {
+  background: var(--color-accent-soft);
+}
+.cards[data-density='compact'] .cardAction {
+  min-height: var(--size-target-min);
+}
+/* The whole row is the target, not only the title text. */
+.cards[data-density='compact'] .cardAction::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+}
+.cards[data-density='compact'] .cardAction:focus-visible {
+  outline: none;
+}
+.cards[data-density='compact'] .card:has(.cardAction:focus-visible) {
+  outline: var(--focus-ring-width) solid var(--color-focus-ring);
+  outline-offset: -2px;
+}
+.cards[data-density='compact'] .cardTitle,
+.cards[data-density='compact'] .cardAction {
+  overflow: hidden;
+  font-size: var(--font-size-md);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.trailing {
+  flex: none;
+}
+.cards[data-density='compact'] .details {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 var(--space-3);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+}
+.cards[data-density='compact'] .detail {
+  justify-content: flex-start;
+  font-size: inherit;
+}
+.cards[data-density='compact'] .detail dt {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
+.cards[data-density='compact'] .detail dd {
+  text-align: left;
+}
+
+.wrap[data-flush] {
+  border: 0;
+  border-radius: 0;
+  background: none;
+}
+.wrap[data-rows='tall'] .cell,
+.wrap[data-rows='tall'] .selectCell {
+  height: 56px;
+}

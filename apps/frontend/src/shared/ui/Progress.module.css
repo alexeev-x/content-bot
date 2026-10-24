@@ -1,0 +1,101 @@
+.bar {
+  display: block;
+  height: 4px;
+  overflow: hidden;
+  border-radius: var(--radius-pill);
+  background: var(--color-surface-3);
+}
+.fill {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--color-accent);
+  transition: width var(--motion-base) linear;
+}
+.bar[data-tone='done'] .fill {
+  background: var(--color-status-done-fg);
+}
+.bar[data-tone='failed'] .fill {
+  background: var(--color-status-failed-fg);
+}
+.bar[data-indeterminate] .fill {
+  width: 40% !important;
+  animation: slide 1.2s ease-in-out infinite;
+}
+.ring {
+  position: relative;
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  color: var(--color-on-media-strong);
+}
+.ringSvg {
+  position: absolute;
+  inset: 0;
+  transform: rotate(-90deg);
+}
+.ringTrack {
+  fill: var(--color-media-scrim);
+  stroke: var(--color-on-media);
+  stroke-opacity: 0.35;
+  stroke-width: 4;
+}
+.ringFill {
+  fill: none;
+  stroke: var(--color-accent-on-media);
+  stroke-linecap: round;
+  stroke-width: 4;
+  transition: stroke-dashoffset var(--motion-base) linear;
+}
+.ring[data-tone='done'] .ringFill {
+  stroke: var(--color-done-on-media);
+}
+.ring[data-tone='failed'] .ringFill {
+  stroke: var(--color-failed-on-media);
+}
+.ring[data-indeterminate] .ringSvg {
+  animation: spin 1s linear infinite;
+}
+.ringValue {
+  position: relative;
+  font-size: var(--font-size-2xs);
+  font-weight: var(--font-weight-semibold);
+  font-variant-numeric: tabular-nums;
+}
+@keyframes slide {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(250%);
+  }
+}
+@keyframes spin {
+  to {
+    transform: rotate(270deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .bar[data-indeterminate] .fill,
+  .ring[data-indeterminate] .ringSvg {
+    animation: none;
+  }
+}
+
+.ring[data-surface='flat'] {
+  color: var(--color-text);
+}
+.ring[data-surface='flat'] .ringTrack {
+  fill: none;
+  stroke: var(--color-border-strong);
+  stroke-opacity: 1;
+}
+.ring[data-surface='flat'] .ringFill {
+  stroke: var(--color-accent-text);
+}
+.ring[data-surface='flat'][data-tone='done'] .ringFill {
+  stroke: var(--color-status-done-fg);
+}
+.ring[data-surface='flat'][data-tone='failed'] .ringFill {
+  stroke: var(--color-status-failed-fg);
+}

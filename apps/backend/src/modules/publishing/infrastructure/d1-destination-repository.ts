@@ -15,6 +15,12 @@ interface DestinationRow {
 
 const DESTINATION_COLUMNS = 'id, title, chat_id, kind, enabled, revision, created_at, updated_at';
 
+export const WAITING_PUBLICATION_COUNT_SQL = `
+  SELECT count(*) AS count
+  FROM publications p
+  CROSS JOIN jobs j ON j.publication_id = p.id AND j.kind = 'publish'
+  WHERE p.destination_id = ?1 AND j.status IN ('pending', 'retry_wait')`;
+
 function toRecord(row: DestinationRow): DestinationRecord {
   return {
     id: row.id,
@@ -83,11 +89,22 @@ export function createD1DestinationRepository(db: D1Database): DestinationReposi
             .bind(record.id, record.createdAt, actor, ...claim),
           completeIdempotencyStatement(db, idempotency, response, record.createdAt)
         ]);
-        return results[0]?.meta.changes === 1 ? 'created' : 'claim_lost';
+        // The FTS maintenance trigger can affect D1's first-statement change count; idempotency completion
+        // remains the guarded atomic outcome of the batch.
+        return results.at(-1)?.meta.changes === 1 ? 'created' : 'claim_lost';
       } catch (error) {
         if (isChatIdTaken(error)) return 'chat_id_taken';
         throw error;
       }
+    },
+
+    async findIdByChat({ chatId, username }) {
+      // chat_id is COLLATE NOCASE, so `IN` matches a @username in any letter case and uses the unique index.
+      const row = await db
+        .prepare('SELECT id FROM destinations WHERE chat_id IN (?1, ?2) ORDER BY created_at, id LIMIT 1')
+        .bind(chatId, username === null ? chatId : `@${username}`)
+        .first<{ id: string }>();
+      return row === null ? null : row.id;
     },
 
     async findById(id) {
@@ -96,6 +113,11 @@ export function createD1DestinationRepository(db: D1Database): DestinationReposi
         .bind(id)
         .first<DestinationRow>();
       return row === null ? null : toRecord(row);
+    },
+
+    async countWaiting(destinationId) {
+      const row = await db.prepare(WAITING_PUBLICATION_COUNT_SQL).bind(destinationId).first<{ count: number }>();
+      return row?.count ?? 0;
     },
 
     async list(query) {

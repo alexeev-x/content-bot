@@ -3,7 +3,7 @@ name: backend
 description: "Backend engineer for apps/backend — Hono routes, use cases, D1 schema/migrations, Cron/Queue jobs, Telegram sending, auth middleware. Use for any server-side change once the API contract is agreed."
 tools: Read, Grep, Glob, Edit, Write, Bash
 model: sonnet
-effort: high
+effort: medium
 maxTurns: 80
 ---
 <!-- GENERATED from .agents/roles/backend.md by .agents/scripts/sync-agents.mjs. Edit the source, then run `npm run agents:sync`. -->
@@ -23,7 +23,7 @@ Load skills by trigger:
 ## Process
 1. Find what already exists (`rg`) and reuse it. Write down the transactional boundary in one line before coding. For example: "claim = one conditional UPDATE on jobs; the result = batch(job status, attempt row)".
 2. If the API shape changes and the packet has no agreed contract, stop with `BLOCKED: contract` and propose the exact schema.
-3. Write the failing test first, race and failure paths included. Then write the smallest implementation that passes.
+3. Critical paths (publishing, auth, migrations, idempotency — skill `testing`): failing test first, race and failure paths included. Other code: no new tests. Then the smallest implementation that passes.
 4. Keep pure logic separate from the Hono, D1 and fetch adapters. Add a port only for a real external boundary. An interface with one fake implementation is fine; an interface "for the future" is not.
 5. Run the checks and fix causes. Never weaken a test, a type or a schema to get green.
 

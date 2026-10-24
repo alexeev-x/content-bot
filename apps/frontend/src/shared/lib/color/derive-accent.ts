@@ -1,5 +1,5 @@
 import { oklchToRgb, rgbToOklch, type Oklch } from './oklch';
-import { composite, contrastRatio, parseCssColor, parseHex, toHex, toRgbaString, type Rgb } from './srgb';
+import { composite, contrastRatio, parseHex, toHex, toRgbaString, type Rgb } from './srgb';
 
 const SOFT_ALPHA = { light: 0.09, dark: 0.15 } as const;
 
@@ -16,14 +16,14 @@ export type DerivedAccent = {
 };
 
 // Backdrops an accent must read on. They mirror --color-bg and --color-surface-1..3 in tokens.css;
-// tokens.test.ts fails if the two drift apart.
-export const THEME_SURFACES: Record<ColorTheme, readonly string[]> = {
-  light: ['#f3f4f6', '#ffffff', '#f7f8fa', '#eceef2'],
-  dark: ['#0d0e10', '#151619', '#1c1e22', '#25272c']
+// Update both together.
+const THEME_SURFACES: Record<ColorTheme, readonly string[]> = {
+  light: ['#f7f7f8', '#ffffff', '#f4f4f5', '#e9e9ec'],
+  dark: ['#0a0a0b', '#111113', '#18181b', '#222226']
 };
 
-export const TEXT_CONTRAST = 4.5; // WCAG 1.4.3: on-accent text and accent text
-export const NON_TEXT_CONTRAST = 3; // WCAG 1.4.11: focus ring, control boundaries
+const TEXT_CONTRAST = 4.5; // WCAG 1.4.3: on-accent text and accent text
+const NON_TEXT_CONTRAST = 3; // WCAG 1.4.11: focus ring, control boundaries
 const STEP = 0.005;
 
 const surfaces = (theme: ColorTheme): Rgb[] => THEME_SURFACES[theme].map((hex) => parseHex(hex)!);
@@ -107,25 +107,5 @@ export function deriveAccent(baseColor: string, theme: ColorTheme): DerivedAccen
     onAccent: toHex(onAccent),
     ring: toHex(textRgb),
     glow: toRgbaString(accentRgb, 0.4)
-  };
-}
-
-export type AccentChecks = { onAccent: number; text: number; ring: number; soft: number };
-
-/** Measured contrast of an accent set on its theme (worst surface). Inputs are the token strings. */
-export function measureAccent(tokens: DerivedAccent, theme: ColorTheme): AccentChecks {
-  const backdrops = surfaces(theme);
-  const accent = parseCssColor(tokens.accent)!;
-  const onAccent = parseCssColor(tokens.onAccent)!;
-  const text = parseCssColor(tokens.text)!;
-  const ring = parseCssColor(tokens.ring)!;
-  const soft = parseCssColor(tokens.soft)!;
-  const surface1 = backdrops[1]!;
-  return {
-    onAccent: contrastRatio(onAccent, accent),
-    text: worstContrast(text, backdrops),
-    ring: worstContrast(ring, backdrops),
-    // selected-navigation text sits on the soft tint over surface 1
-    soft: contrastRatio(text, composite(soft, surface1))
   };
 }

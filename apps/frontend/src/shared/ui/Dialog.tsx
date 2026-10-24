@@ -1,0 +1,79 @@
+import type { ReactNode } from 'react';
+import { Dialog as AriaDialog, Heading, Modal, ModalOverlay, Text } from 'react-aria-components';
+import { ru } from '../lib/ru';
+import { IconButton } from './IconButton';
+import styles from './Dialog.module.css';
+
+type Props = {
+  isOpen: boolean;
+  onOpenChange: (open: boolean) => void;
+  title: string;
+  description?: string;
+  children?: ReactNode;
+  /** Buttons row. Put the safest action first in DOM order only if it should take initial focus. */
+  footer?: ReactNode;
+  /** `alertdialog` for confirmations that need an explicit answer (no backdrop dismiss). */
+  role?: 'dialog' | 'alertdialog';
+  /**
+   * `wide` for dialogs that lay out content side by side on desktop; phones get the full width either way.
+   * `media` (760 px, 90 vh): header and footer stay, only the body scrolls (add media, crop).
+   * `search` (640 px on desktop): a full-screen sheet sliding up from the bottom on phones (⌘K search).
+   */
+  size?: 'default' | 'wide' | 'media' | 'search';
+};
+
+/** Modal dialog: inert background, focus trap, Esc, focus back to the trigger (React Aria Modal). Never nest dialogs. */
+export function Dialog({
+  isOpen,
+  onOpenChange,
+  title,
+  description,
+  children,
+  footer,
+  role = 'dialog',
+  size = 'default'
+}: Props) {
+  return (
+    <ModalOverlay
+      isOpen={isOpen}
+      onOpenChange={onOpenChange}
+      isDismissable={role === 'dialog'}
+      className={styles.overlay}
+      data-size={size}
+    >
+      <Modal className={size === 'default' ? styles.modal : `${styles.modal} ${styles[size]}`}>
+        <div
+          className={styles.frame}
+          onKeyDownCapture={(event) => {
+            if (role === 'alertdialog' && event.key === 'Escape') {
+              event.preventDefault();
+              onOpenChange(false);
+            }
+          }}
+        >
+          <AriaDialog role={role} className={styles.dialog}>
+            {({ close }) => (
+              <>
+                <header className={styles.header}>
+                  <Heading slot="title" className={styles.title}>
+                    {title}
+                  </Heading>
+                  {role === 'dialog' ? (
+                    <IconButton label={ru.ui.close} icon="x" size="sm" showTooltip={false} onPress={close} />
+                  ) : null}
+                </header>
+                {description ? (
+                  <Text slot="description" className={styles.description}>
+                    {description}
+                  </Text>
+                ) : null}
+                {children ? <div className={styles.body}>{children}</div> : null}
+                {footer ? <footer className={styles.footer}>{footer}</footer> : null}
+              </>
+            )}
+          </AriaDialog>
+        </div>
+      </Modal>
+    </ModalOverlay>
+  );
+}

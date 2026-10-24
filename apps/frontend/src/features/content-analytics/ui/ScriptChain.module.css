@@ -1,0 +1,80 @@
+/* «Путь сценария»: a thin vertical line with a dot per step; no card per step. */
+.chain {
+  display: grid;
+  gap: var(--space-3);
+  inline-size: 100%;
+  min-inline-size: 0;
+}
+
+.steps {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.step {
+  display: grid;
+  gap: var(--space-1);
+  justify-items: start;
+  min-inline-size: 0;
+  padding-block-end: var(--space-3);
+  padding-inline-start: var(--space-4);
+  border-inline-start: 2px solid var(--color-border-subtle);
+  position: relative;
+}
+
+.step:last-child {
+  padding-block-end: 0;
+}
+
+.step::before {
+  content: '';
+  position: absolute;
+  inset-block-start: 0.35em;
+  inset-inline-start: calc(var(--space-1) * -1 - 1px);
+  inline-size: var(--space-2);
+  block-size: var(--space-2);
+  border-radius: 50%;
+  background: var(--color-text-muted);
+}
+
+.stepTitle {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+}
+
+.meta {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+}
+
+.text {
+  display: -webkit-box;
+  margin: 0;
+  overflow: hidden;
+  max-inline-size: 100%;
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-body);
+  overflow-wrap: anywhere;
+  white-space: pre-line;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+}
+
+.text[data-open] {
+  display: block;
+  overflow: visible;
+}
+
+.others {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}

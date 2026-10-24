@@ -1,0 +1,166 @@
+import type { AiUsageKind } from '@alexeev/contracts';
+import type { UsageRow } from './ports';
+
+export interface StoredSettings {
+  document: string;
+  revision: number;
+  updatedAt: number;
+}
+
+export interface SpendRows {
+  /** Per kind, this month. */
+  byKind: { kind: AiUsageKind; requests: number; costMicroUsd: number; unpriced: number }[];
+  todayMicroUsd: number;
+  /** Writer requests this month by where the draft was asked: the bot or the studio's control runs. */
+  bySource: { source: 'bot' | 'studio'; requests: number; costMicroUsd: number }[];
+  /**
+   * Pictures drawn this month (the image model's rows); only with `bySource`. `pricedMicroUsd` is what the ledger
+   * counted; `costMicroUsd` also prices the pictures of 23.10.2026 written before their price was known.
+   */
+  images: { requests: number; costMicroUsd: number; pricedMicroUsd: number };
+}
+
+export interface AiRepository {
+  readSettings(): Promise<StoredSettings | null>;
+  /** Guarded by the revision: false when another save won. */
+  saveSettings(input: { document: string; expectedRevision: number; now: number }): Promise<boolean>;
+  recordUsage(row: UsageRow): Promise<void>;
+  /** The recorded cost of these usage rows (at most 100), in micro-USD; an unpriced row maps to null. */
+  costsOf(ids: readonly string[]): Promise<Map<string, number | null>>;
+  /** `bySource` only for the overview: budget checks run inside Cron jobs that count every D1 query. */
+  /**
+   * The spend of one provider (owner, 23.10.2026: the page must match that provider's own bill; Claude's comparison
+   * runs had been added to OpenAI's).
+   */
+  readSpend(input: { monthStart: number; dayStart: number; bySource: boolean; provider: string }): Promise<SpendRows>;
+  /** Marks a budget alert as sent; false when it already was (one per period). */
+  claimBudgetAlert(id: string, now: number): Promise<boolean>;
+  readLastCheck(): Promise<{ at: number; ok: boolean; model: string | null; errorCode: string | null } | null>;
+  saveCheck(input: { at: number; ok: boolean; model: string | null; errorCode: string | null }): Promise<void>;
+}
+
+export function createD1AiRepository(db: D1Database): AiRepository {
+  return {
+    async readSettings() {
+      const row = await db
+        .prepare('SELECT document, revision, updated_at AS updatedAt FROM ai_settings WHERE id = 1')
+        .first<StoredSettings>();
+      return row ?? null;
+    },
+
+    async saveSettings({ document, expectedRevision, now }) {
+      const result =
+        expectedRevision === 0
+          ? await db
+              .prepare('INSERT OR IGNORE INTO ai_settings (id, document, revision, updated_at) VALUES (1, ?, 1, ?)')
+              .bind(document, now)
+              .run()
+          : await db
+              .prepare(
+                'UPDATE ai_settings SET document = ?1, revision = revision + 1, updated_at = ?2 WHERE id = 1 AND revision = ?3'
+              )
+              .bind(document, now, expectedRevision)
+              .run();
+      return result.meta.changes === 1;
+    },
+
+    async recordUsage(row) {
+      await db
+        .prepare(
+          `INSERT INTO ai_usage (id, at, kind, provider, model, input_tokens, cached_input_tokens, cache_write_tokens, output_tokens, cost_micro_usd)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        )
+        .bind(
+          row.id,
+          row.at,
+          row.kind,
+          row.provider,
+          row.model,
+          row.usage.inputTokens,
+          row.usage.cachedInputTokens,
+          row.usage.cacheWriteTokens,
+          row.usage.outputTokens,
+          row.costMicroUsd
+        )
+        .run();
+    },
+
+    async costsOf(ids) {
+      if (ids.length === 0) return new Map();
+      const rows = await db
+        .prepare(
+          'SELECT id, cost_micro_usd AS cost FROM ai_usage WHERE id IN (SELECT value FROM json_each(?1)) LIMIT 100'
+        )
+        .bind(JSON.stringify(ids.slice(0, 100)))
+        .all<{ id: string; cost: number | null }>();
+      return new Map(rows.results.map((row) => [row.id, row.cost]));
+    },
+
+    async readSpend({ monthStart, dayStart, bySource, provider }) {
+      const statements = [
+        db
+          .prepare(
+            `SELECT kind, COUNT(*) AS requests, COALESCE(SUM(cost_micro_usd), 0) AS costMicroUsd,
+                    SUM(CASE WHEN cost_micro_usd IS NULL THEN 1 ELSE 0 END) AS unpriced
+             FROM ai_usage WHERE at >= ? AND provider = ? GROUP BY kind`
+          )
+          .bind(monthStart, provider),
+        db
+          .prepare('SELECT COALESCE(SUM(cost_micro_usd), 0) AS total FROM ai_usage WHERE at >= ? AND provider = ?')
+          .bind(dayStart, provider),
+        // A request is recorded with its generation, so the month's generations bound the scan (created_at index).
+        db
+          .prepare(
+            `SELECT g.source, COUNT(*) AS requests, COALESCE(SUM(u.cost_micro_usd), 0) AS costMicroUsd
+             FROM ai_generations g JOIN ai_usage u ON u.id = g.usage_id
+             WHERE g.created_at >= ?1 AND u.at >= ?1 AND u.provider = ?2 GROUP BY g.source`
+          )
+          .bind(monthStart, provider),
+        // A picture has no generation: told apart by its model (patch pictures, owner 23.10.2026).
+        db
+          .prepare(
+            `SELECT COUNT(*) AS requests, COALESCE(SUM(cost_micro_usd), 0) AS pricedMicroUsd,
+                    COALESCE(SUM(COALESCE(cost_micro_usd, input_tokens * 8 + output_tokens * 30)), 0) AS costMicroUsd
+             FROM ai_usage WHERE at >= ? AND provider = ? AND model LIKE 'gpt-image-%'`
+          )
+          .bind(monthStart, provider)
+      ];
+      const [kinds, today, sources, images] = await db.batch(bySource ? statements : statements.slice(0, 2));
+      return {
+        byKind: (kinds?.results ?? []) as SpendRows['byKind'],
+        todayMicroUsd: ((today?.results ?? [])[0] as { total: number } | undefined)?.total ?? 0,
+        bySource: (sources?.results ?? []) as SpendRows['bySource'],
+        images: ((images?.results ?? [])[0] as SpendRows['images'] | undefined) ?? {
+          requests: 0,
+          costMicroUsd: 0,
+          pricedMicroUsd: 0
+        }
+      };
+    },
+
+    async claimBudgetAlert(id, now) {
+      const result = await db
+        .prepare('INSERT OR IGNORE INTO ai_budget_alerts (id, sent_at) VALUES (?, ?)')
+        .bind(id, now)
+        .run();
+      return result.meta.changes === 1;
+    },
+
+    async readLastCheck() {
+      const row = await db
+        .prepare('SELECT checked_at AS at, ok, model, error_code AS errorCode FROM ai_connection_checks WHERE id = 1')
+        .first<{ at: number; ok: number; model: string | null; errorCode: string | null }>();
+      return row === null ? null : { ...row, ok: row.ok === 1 };
+    },
+
+    async saveCheck({ at, ok, model, errorCode }) {
+      await db
+        .prepare(
+          `INSERT INTO ai_connection_checks (id, checked_at, ok, model, error_code) VALUES (1, ?1, ?2, ?3, ?4)
+           ON CONFLICT (id) DO UPDATE SET checked_at = ?1, ok = ?2, model = ?3, error_code = ?4`
+        )
+        .bind(at, ok ? 1 : 0, model, errorCode)
+        .run();
+    }
+  };
+}

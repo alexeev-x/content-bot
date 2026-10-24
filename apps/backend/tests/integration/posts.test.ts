@@ -1,7 +1,17 @@
-import { apiErrorSchema, type ApiErrorDto, type PostDto, postPageSchema, postSchema } from '@alexeev/contracts';
+import {
+  apiErrorSchema,
+  type ApiErrorDto,
+  type PostDto,
+  listPostsQuerySchema,
+  postPageSchema,
+  postSchema
+} from '@alexeev/contracts';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { sha256Hex } from '../../src/platform/security/sha256';
 import { testDb } from '../helpers/db';
+import { buildPostsListSql } from '../../src/app/posts-list-query';
+import { createD1PostRepository, postTitleSortKey } from '../../src/modules/content';
+import { formatPublicationText } from '../../src/modules/publishing/domain/format-message';
 import { type Api, createApi, fakeClock, OWNER_ID, OWNER_TOKEN, resetDb, seedSession, START } from '../helpers/harness';
 
 let api: Api;
@@ -16,7 +26,7 @@ beforeEach(async () => {
 
 const nextKey = () => `key-${++keyCounter}`;
 
-async function create(input: { title: string; body?: string }, key = nextKey()): Promise<PostDto> {
+async function create(input: { title?: string; body?: string }, key = nextKey()): Promise<PostDto> {
   const response = await api.request('/api/v1/posts', {
     method: 'POST',
     headers: { 'idempotency-key': key },
@@ -184,7 +194,6 @@ describe('POST /api/v1/posts', () => {
 
   it.each([
     ['a blank title', { title: '   ' }],
-    ['a missing title', { body: 'x' }],
     ['a title over 200 characters', { title: 't'.repeat(201) }],
     ['a body over 4096 characters', { title: 'T', body: 'b'.repeat(4097) }],
     ['an unknown field', { title: 'T', status: 'approved' }]
@@ -274,6 +283,72 @@ describe('POST /api/v1/posts', () => {
   });
 });
 
+describe('a post without a title (owner, 16.10.2026)', () => {
+  it('is named after the start of its body, renamed on edit, and keeps a title only when it was given one', async () => {
+    const untitled = await create({ body: 'Если бы тиммейтов можно было денаить, я бы до врагов не доходил.\n\nP.S.' });
+    expect(untitled).toMatchObject({
+      title: 'Если бы тиммейтов можно было денаить, я бы до врагов не доходил.',
+      titleInMessage: false
+    });
+    // An edit of the body renames it; a client title is ignored for such a post.
+    const edited = postSchema.parse(
+      await (
+        await patch(untitled.id, {
+          revision: untitled.revision,
+          title: 'чужой',
+          body: 'Новая первая строка',
+          entities: []
+        })
+      ).json()
+    );
+    expect(edited).toMatchObject({ title: 'Новая первая строка', titleInMessage: false });
+
+    const titled = await create({ title: 'Старый заголовок', body: 'Текст' });
+    expect(titled).toMatchObject({ title: 'Старый заголовок', titleInMessage: true });
+
+    // What a channel receives: only the body for the untitled post, the bold title and the body for the other.
+    const repo = createD1PostRepository(testDb());
+    const sentUntitled = formatPublicationText((await repo.findRevision(edited.id, edited.revision))!);
+    expect(sentUntitled).toEqual({ ok: true, text: 'Новая первая строка', entities: [] });
+    const sentTitled = formatPublicationText((await repo.findRevision(titled.id, titled.revision))!);
+    expect(sentTitled).toMatchObject({ ok: true, text: 'Старый заголовок\n\nТекст' });
+  });
+
+  it('is named «Без текста» while the body is empty', async () => {
+    expect(await create({ body: '' })).toMatchObject({ title: 'Без текста', titleInMessage: false });
+  });
+});
+
+describe('post origin (studio only)', () => {
+  it('marks a post made from an approved AI draft and leaves an owner post unmarked, in the list and the post', async () => {
+    const own = await create({ title: 'Свой пост', body: 'Написал сам.' });
+    const fromAi = await create({ title: 'Из редактора', body: 'Текст из бота.' });
+    const generation = '00000000-0000-4000-8000-0000000000a1';
+    await testDb().batch([
+      testDb()
+        .prepare(
+          `INSERT INTO ai_generations (id, kind, format, mode, source, task, status, pack_revision, created_at, updated_at)
+           VALUES (?, 'draft', 'telegram', 'direct', 'bot', 'пост про патч', 'ready', 'pack', ?, ?)`
+        )
+        .bind(generation, START, START),
+      testDb()
+        .prepare(
+          `INSERT INTO ai_text_revisions (id, generation_id, provenance, text, edit_ratio, post_id, created_at)
+           VALUES ('00000000-0000-4000-8000-0000000000b1', ?, 'OWNER_APPROVED', 'Текст из бота.', 0.25, ?, ?)`
+        )
+        .bind(generation, fromAi.id, START)
+    ]);
+
+    const list = postPageSchema.parse(await (await api.request('/api/v1/posts?limit=20')).json());
+    const byId = new Map(list.items.map((post) => [post.id, post.origin]));
+    expect(byId.get(fromAi.id)).toEqual({ kind: 'ai', source: 'bot', editRatio: 0.25 });
+    expect(byId.get(own.id)).toBeNull();
+
+    const one = postSchema.parse(await (await api.request(`/api/v1/posts/${fromAi.id}`)).json());
+    expect(one.origin).toEqual({ kind: 'ai', source: 'bot', editRatio: 0.25 });
+  });
+});
+
 describe('GET /api/v1/posts/:id', () => {
   it('returns the post', async () => {
     const created = await create({ title: 'Read me', body: 'Body' });
@@ -281,12 +356,19 @@ describe('GET /api/v1/posts/:id', () => {
     const response = await api.request(`/api/v1/posts/${created.id}`);
 
     expect(response.status).toBe(200);
-    expect(postSchema.parse(await response.json())).toEqual(created);
+    expect(postSchema.parse(await response.json())).toEqual({ ...created, origin: null });
   });
 
   it('answers 404 for an unknown id and for a malformed one', async () => {
     await expectError(await api.request(`/api/v1/posts/${crypto.randomUUID()}`), 404, 'NOT_FOUND');
     await expectError(await api.request('/api/v1/posts/not-a-uuid'), 404, 'NOT_FOUND');
+  });
+
+  it('does not expose a post revision-history endpoint', async () => {
+    const created = await create({ title: 'Internal snapshots only', body: 'Body' });
+    const response = await api.request(`/api/v1/posts/${created.id}/revisions`);
+
+    expect(response.status).toBe(404);
   });
 });
 
@@ -305,7 +387,7 @@ describe('PATCH /api/v1/posts/:id', () => {
     expect(updated.createdAt).toBe(created.createdAt);
     expect(updated.updatedAt).toBe(new Date(START + 5_000).toISOString());
 
-    const second = await patch(created.id, { revision: 1, body: '' });
+    const second = await patch(created.id, { revision: 1, body: '', entities: [] });
     expect(postSchema.parse(await second.json())).toMatchObject({ title: 'New', body: '', revision: 2 });
 
     const revisions = await testDb()
@@ -322,7 +404,7 @@ describe('PATCH /api/v1/posts/:id', () => {
       .all();
     expect(audit.results).toEqual([
       { action: 'post.update', details: '{"revision":1,"fields":["title"]}' },
-      { action: 'post.update', details: '{"revision":2,"fields":["body"]}' }
+      { action: 'post.update', details: '{"revision":2,"fields":["body","entities"]}' }
     ]);
   });
 
@@ -343,7 +425,7 @@ describe('PATCH /api/v1/posts/:id', () => {
     expect(await count('post_revisions', `post_id = '${created.id}'`)).toBe(2);
     expect(await count('audit_log', "action = 'post.update'")).toBe(1);
     const stored = await api.request(`/api/v1/posts/${created.id}`);
-    expect(postSchema.parse(await stored.json())).toEqual(winner);
+    expect(postSchema.parse(await stored.json())).toEqual({ ...winner, origin: null });
   });
 
   it('answers 409 STALE_REVISION for an old revision and writes nothing', async () => {
@@ -379,13 +461,13 @@ describe('PATCH /api/v1/posts/:id', () => {
 
   it.each([
     ['a NUL title', { revision: 0, title: '\u0000' }],
-    ['a control character in the body', { revision: 0, body: 'a\u0007b' }],
-    ['lone surrogates in the body', { revision: 0, body: '\ud800\ud800\ud800' }],
+    ['a control character in the body', { revision: 0, body: 'a\u0007b', entities: [] }],
+    ['lone surrogates in the body', { revision: 0, body: '\ud800\ud800\ud800', entities: [] }],
     ['nothing to update', { revision: 0 }],
     ['a missing revision', { title: 'T' }],
     ['a negative revision', { revision: -1, title: 'T' }],
     ['a blank title', { revision: 0, title: ' ' }],
-    ['an oversized body', { revision: 0, body: 'b'.repeat(4097) }],
+    ['an oversized body', { revision: 0, body: 'b'.repeat(4097), entities: [] }],
     ['a status change', { revision: 0, title: 'T', status: 'approved' }]
   ])('answers 400 for %s', async (_name, json) => {
     const created = await create({ title: 'T' });
@@ -419,7 +501,7 @@ describe('POST /api/v1/posts/:id/approve', () => {
 
   it('answers 409 STALE_REVISION for an old revision', async () => {
     const created = await create({ title: 'T', body: 'x' });
-    await patch(created.id, { revision: 0, body: 'y' });
+    await patch(created.id, { revision: 0, body: 'y', entities: [] });
 
     await expectError(await approve(created.id, { revision: 0 }), 409, 'CONFLICT', { reason: 'STALE_REVISION' });
   });
@@ -449,7 +531,7 @@ describe('POST /api/v1/posts/:id/approve', () => {
     const created = await create({ title: 'T', body: 'x' });
 
     const responses = await Promise.all([
-      patch(created.id, { revision: 0, body: 'y' }),
+      patch(created.id, { revision: 0, body: 'y', entities: [] }),
       approve(created.id, { revision: 0 })
     ]);
 
@@ -513,7 +595,13 @@ describe('GET /api/v1/posts', () => {
   it('returns an empty page for an empty table', async () => {
     const response = await api.request('/api/v1/posts');
 
-    expect(postPageSchema.parse(await response.json())).toEqual({ items: [], nextCursor: null });
+    expect(postPageSchema.parse(await response.json())).toEqual({
+      items: [],
+      nextCursor: null,
+      page: null,
+      archivedCount: 0,
+      totalCount: 0
+    });
   });
 
   it('walks more items than the limit without gaps or duplicates, newest first', async () => {
@@ -545,6 +633,225 @@ describe('GET /api/v1/posts', () => {
     expect(drafts).toHaveLength(16);
     expect(approved.every((post) => post.status === 'approved')).toBe(true);
     expect(isNewestFirst(drafts)).toBe(true);
+  });
+
+  it('searches Cyrillic title and body substrings case-insensitively and reports filtered totalCount', async () => {
+    await create({ title: 'СЕКРЕТНЫЙ ЗАГОЛОВОК', body: 'Содержимое' });
+    await create({ title: 'Другое', body: 'ТЕКСТОВОЕ ТЕЛО' });
+    await create({ title: 'Не совпадает' });
+
+    const titleMatch = postPageSchema.parse(await (await api.request('/api/v1/posts?q=секретный')).json());
+    const bodyMatch = postPageSchema.parse(await (await api.request('/api/v1/posts?q=текстовое')).json());
+    const stateMatch = postPageSchema.parse(await (await api.request('/api/v1/posts?q=ЧЕРНОВИК')).json());
+
+    expect(titleMatch).toMatchObject({ totalCount: 1, items: [{ title: 'СЕКРЕТНЫЙ ЗАГОЛОВОК' }] });
+    expect(bodyMatch).toMatchObject({ totalCount: 1, items: [{ body: 'ТЕКСТОВОЕ ТЕЛО' }] });
+    expect(stateMatch.items.length).toBeGreaterThan(0);
+    expect(stateMatch.items.every((post) => post.status === 'draft')).toBe(true);
+  });
+
+  it('searches current channel titles with Unicode case folding', async () => {
+    const created = await create({ title: 'Channel post', body: 'Body' });
+    const accentedTitle = await create({ title: 'ÉCLAIR', body: 'Short search regression' });
+    const approved = postSchema.parse(await (await approve(created.id, { revision: 0 })).json());
+    const destinationId = crypto.randomUUID();
+    const publicationId = crypto.randomUUID();
+    await testDb().batch([
+      testDb()
+        .prepare(
+          "INSERT INTO destinations (id, title, chat_id, kind, enabled, revision, created_at, updated_at) VALUES (?1, 'ПУБЛИЧНЫЙ КАНАЛ', '@channel_test', 'channel', 1, 0, ?2, ?2)"
+        )
+        .bind(destinationId, START),
+      testDb()
+        .prepare(
+          "INSERT INTO publications (id, post_id, post_revision, destination_id, scheduled_at, timezone, revision, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, 'Europe/Chisinau', 0, ?5, ?5)"
+        )
+        .bind(publicationId, approved.id, approved.revision, destinationId, START),
+      testDb()
+        .prepare(
+          "INSERT INTO jobs (id, kind, publication_id, status, run_at, attempts, dedupe_key, publication_scheduled_at, created_at, updated_at) VALUES (?1, 'publish', ?2, 'succeeded', ?3, 1, ?4, ?3, ?3, ?3)"
+        )
+        .bind(crypto.randomUUID(), publicationId, START, `publish:${publicationId}`)
+    ]);
+
+    const page = postPageSchema.parse(await (await api.request('/api/v1/posts?q=публичный')).json());
+
+    expect(page.totalCount).toBe(1);
+    expect(page.items.map((post) => post.id)).toEqual([created.id]);
+
+    const accentedTitleResponse = await api.request('/api/v1/posts?q=é');
+    const accentedTitlePage = postPageSchema.parse(await accentedTitleResponse.json());
+    expect(accentedTitlePage.items.map((post) => post.id)).toContain(accentedTitle.id);
+
+    await testDb().prepare("UPDATE destinations SET title = 'ÓRBITA' WHERE id = ?1").bind(destinationId).run();
+    const accentedChannelPage = postPageSchema.parse(await (await api.request('/api/v1/posts?q=ó')).json());
+    expect(accentedChannelPage.items.map((post) => post.id)).toContain(created.id);
+  });
+
+  it('maintains trigram search indexes when post text and channel titles change', async () => {
+    const created = await create({ title: 'Обычный заголовок', body: 'Начальный текст' });
+    await patch(created.id, { revision: 0, title: 'Обновлённый заголовок', body: 'Изменённый текст', entities: [] });
+    const destinationId = crypto.randomUUID();
+    const approved = postSchema.parse(await (await approve(created.id, { revision: 1 })).json());
+    const publicationId = crypto.randomUUID();
+    await testDb().batch([
+      testDb()
+        .prepare(
+          "INSERT INTO destinations (id, title, chat_id, kind, enabled, revision, created_at, updated_at) VALUES (?1, 'Старый канал', '@updated_channel', 'channel', 1, 0, ?2, ?2)"
+        )
+        .bind(destinationId, START),
+      testDb()
+        .prepare(
+          "INSERT INTO publications (id, post_id, post_revision, destination_id, scheduled_at, timezone, revision, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, 'UTC', 0, ?5, ?5)"
+        )
+        .bind(publicationId, created.id, approved.revision, destinationId, START),
+      testDb()
+        .prepare(
+          "INSERT INTO jobs (id, kind, publication_id, status, run_at, attempts, dedupe_key, publication_scheduled_at, created_at, updated_at) VALUES (?1, 'publish', ?2, 'succeeded', ?3, 1, ?4, ?3, ?3, ?3)"
+        )
+        .bind(crypto.randomUUID(), publicationId, START, `publish:${publicationId}`)
+    ]);
+    await testDb().prepare("UPDATE destinations SET title = 'НОВЫЙ КАНАЛ' WHERE id = ?1").bind(destinationId).run();
+
+    const stalePostText = postPageSchema.parse(await (await api.request('/api/v1/posts?q=обычный')).json());
+    const updatedPostText = postPageSchema.parse(await (await api.request('/api/v1/posts?q=ОБНОВЛЁННЫЙ')).json());
+    const staleChannel = postPageSchema.parse(await (await api.request('/api/v1/posts?q=старый канал')).json());
+    const updatedChannel = postPageSchema.parse(await (await api.request('/api/v1/posts?q=новый канал')).json());
+
+    expect(stalePostText.totalCount).toBe(0);
+    expect(updatedPostText.items.map((post) => post.id)).toEqual([created.id]);
+    expect(staleChannel.totalCount).toBe(0);
+    expect(updatedChannel.items.map((post) => post.id)).toEqual([created.id]);
+  });
+
+  it('uses trigram virtual-table indexes for the post and channel substring search branches', async () => {
+    const query = listPostsQuerySchema.parse({ q: 'substring' });
+    const built = buildPostsListSql(query);
+    const { results } = await testDb()
+      .prepare(`EXPLAIN QUERY PLAN ${built.sql}`)
+      .bind(...built.bindings)
+      .all<{ detail: string }>();
+    const plan = results.map((row) => row.detail).join('\n');
+
+    expect(plan.match(/VIRTUAL TABLE INDEX/g)?.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it('uses the indexed title key for an unfiltered title sort', async () => {
+    const query = listPostsQuerySchema.parse({ sort: 'title', direction: 'ascending' });
+    const built = buildPostsListSql(query);
+    const { results } = await testDb()
+      .prepare(`EXPLAIN QUERY PLAN ${built.sql}`)
+      .bind(...built.bindings)
+      .all<{ detail: string }>();
+    const plan = results.map((row) => row.detail).join('\n');
+
+    expect(plan).toContain('posts_live_title_sort_idx');
+  });
+
+  it('sorts null sentAt after sent rows in both directions and continues with a stable cursor', async () => {
+    const sent = await create({ title: 'Sent' });
+    const noPublication = await create({ title: 'No publication' });
+    const destinationId = crypto.randomUUID();
+    const publicationId = crypto.randomUUID();
+    await testDb().batch([
+      testDb().prepare("UPDATE posts SET status = 'approved', revision = 1 WHERE id = ?1").bind(sent.id),
+      testDb()
+        .prepare(
+          "INSERT INTO post_revisions (post_id, revision, title, body, entities, status, created_at) VALUES (?1, 1, 'Sent', '', '[]', 'approved', ?2)"
+        )
+        .bind(sent.id, START),
+      testDb()
+        .prepare(
+          "INSERT INTO destinations (id, title, chat_id, kind, enabled, revision, created_at, updated_at) VALUES (?1, 'A', '@sent_test', 'channel', 1, 0, ?2, ?2)"
+        )
+        .bind(destinationId, START),
+      testDb()
+        .prepare(
+          "INSERT INTO publications (id, post_id, post_revision, destination_id, scheduled_at, timezone, revision, created_at, updated_at) VALUES (?1, ?2, 1, ?3, ?4, 'UTC', 0, ?4, ?4)"
+        )
+        .bind(publicationId, sent.id, destinationId, START),
+      testDb()
+        .prepare(
+          "INSERT INTO jobs (id, kind, publication_id, status, run_at, attempts, dedupe_key, publication_scheduled_at, created_at, updated_at) VALUES (?1, 'publish', ?2, 'succeeded', ?3, 1, ?4, ?3, ?3, ?3)"
+        )
+        .bind(crypto.randomUUID(), publicationId, START, `publish:${publicationId}`)
+    ]);
+    for (const direction of ['ascending', 'descending'] as const) {
+      const first = postPageSchema.parse(
+        await (await api.request(`/api/v1/posts?sort=sentAt&direction=${direction}&limit=1`)).json()
+      );
+      const params = new URLSearchParams({ sort: 'sentAt', direction, limit: '1', cursor: first.nextCursor ?? '' });
+      const next = postPageSchema.parse(await (await api.request(`/api/v1/posts?${params}`)).json());
+      expect(first.items[0]?.id).toBe(sent.id);
+      expect(next.items[0]?.id).toBe(noPublication.id);
+      expect(next.totalCount).toBe(2);
+    }
+  });
+
+  it('sorts titles like the previous ru-RU numeric collator and continues across title-key cursors', async () => {
+    const titles = ['Пост 10', 'Ёлка', 'Пост 2', 'Енот', 'Пост 02', 'Cafe 3', 'Café 2', 'Альфа'];
+    const posts = await Promise.all(titles.map((title) => create({ title })));
+    const collator = new Intl.Collator('ru-RU', { numeric: true, sensitivity: 'base' });
+    const expected = [...posts].sort((left, right) => {
+      const compared = collator.compare(left.title, right.title);
+      return compared || (left.id < right.id ? -1 : left.id > right.id ? 1 : 0);
+    });
+
+    for (const direction of ['ascending', 'descending'] as const) {
+      const ordered = direction === 'ascending' ? expected : [...expected].reverse();
+      const first = postPageSchema.parse(
+        await (await api.request(`/api/v1/posts?sort=title&direction=${direction}&limit=3`)).json()
+      );
+      const ids = first.items.map((post) => post.id);
+      let cursor = first.nextCursor;
+      while (cursor !== null) {
+        const page = postPageSchema.parse(
+          await (
+            await api.request(
+              `/api/v1/posts?sort=title&direction=${direction}&limit=3&cursor=${encodeURIComponent(cursor)}`
+            )
+          ).json()
+        );
+        ids.push(...page.items.map((post) => post.id));
+        cursor = page.nextCursor;
+      }
+      expect(ids).toEqual(ordered.map((post) => post.id));
+    }
+
+    const renamed = posts[0];
+    if (renamed === undefined) throw new Error('Expected a created post.');
+    await patch(renamed.id, { revision: 0, title: 'Пост 1' });
+    const storedKey = await testDb()
+      .prepare('SELECT title_sort_key FROM posts WHERE id = ?1')
+      .bind(renamed.id)
+      .first<{ title_sort_key: string }>();
+    expect(storedKey?.title_sort_key).toBe(postTitleSortKey('Пост 1'));
+    await testDb().prepare("UPDATE posts SET title = 'Пост 3' WHERE id = ?1").bind(renamed.id).run();
+    const invalidatedKey = await testDb()
+      .prepare('SELECT title_sort_key FROM posts WHERE id = ?1')
+      .bind(renamed.id)
+      .first<{ title_sort_key: string }>();
+    expect(invalidatedKey?.title_sort_key).toBe('');
+  });
+
+  it('keeps title sort cursors within the request limit for maximum-length titles', async () => {
+    const first = await create({ title: 'А'.repeat(200) });
+    const second = await create({ title: 'Я'.repeat(200) });
+    for (const direction of ['ascending', 'descending'] as const) {
+      const page = postPageSchema.parse(
+        await (await api.request(`/api/v1/posts?sort=title&direction=${direction}&limit=1`)).json()
+      );
+      const cursor = page.nextCursor;
+
+      expect(cursor).not.toBeNull();
+      expect(cursor?.length).toBeLessThanOrEqual(512);
+      const nextResponse = await api.request(
+        `/api/v1/posts?sort=title&direction=${direction}&limit=1&cursor=${encodeURIComponent(cursor ?? '')}`
+      );
+      expect(nextResponse.status).toBe(200);
+      const next = postPageSchema.parse(await nextResponse.json());
+      expect(next.items.map((post) => post.id)).toEqual([[first.id, second.id].find((id) => id !== page.items[0]?.id)]);
+    }
   });
 
   it('defaults to 20 items per page', async () => {
@@ -580,6 +887,28 @@ describe('GET /api/v1/posts', () => {
     ['an unknown parameter', 'sort=asc']
   ])('answers 400 for %s', async (_name, query) => {
     await expectError(await api.request(`/api/v1/posts?${query}`), 400, 'VALIDATION_ERROR');
+  });
+
+  it('serves page-number slices in the cursor order and reports totalCount beyond the last page', async () => {
+    await seedPosts(25);
+    const all = await walk('', 100);
+    const read = async (query: string) => {
+      const response = await api.request(`/api/v1/posts?${query}`);
+      expect(response.status).toBe(200);
+      return postPageSchema.parse(await response.json());
+    };
+
+    const second = await read('page=2&limit=10');
+    const third = await read('page=3&limit=10');
+    const beyond = await read('page=9&limit=10');
+
+    expect(second.items.map((post) => post.id)).toEqual(all.slice(10, 20).map((post) => post.id));
+    expect(third.items.map((post) => post.id)).toEqual(all.slice(20).map((post) => post.id));
+    expect(second).toMatchObject({ page: 2, nextCursor: null, totalCount: 25 });
+    expect(beyond).toMatchObject({ items: [], page: 9, totalCount: 25 });
+    expect((await api.request('/api/v1/posts?page=1&cursor=abc')).status).toBe(400);
+    expect((await api.request('/api/v1/posts?page=0')).status).toBe(400);
+    expect((await api.request('/api/v1/posts?page=1001')).status).toBe(400);
   });
 
   it('accepts the largest limit', async () => {

@@ -1,0 +1,89 @@
+.pipeline {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(min-content, 1fr));
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.step {
+  --step-fg: var(--color-text-muted);
+  --step-bg: var(--color-surface-3);
+  position: relative;
+  display: grid;
+  justify-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  text-align: center;
+}
+/* Connector to the previous stage; colour follows the finished side. */
+.step + .step::before {
+  position: absolute;
+  top: 13px;
+  right: calc(50% + 18px);
+  left: calc(-50% + 18px);
+  height: 2px;
+  border-radius: var(--radius-pill);
+  background: var(--color-border-subtle);
+  content: '';
+}
+.step[data-state='done'] + .step::before,
+.step[data-state='done'] + .step[data-state='current']::before,
+.step[data-state='done'] + .step[data-state='final']::before {
+  background: var(--color-accent);
+}
+.step[data-state='done'] {
+  --step-fg: var(--color-on-accent);
+  --step-bg: var(--color-accent);
+}
+.step[data-state='current'] {
+  --step-fg: var(--color-status-active-fg);
+  --step-bg: var(--color-status-active-bg);
+}
+.step[data-state='current'] .dot {
+  box-shadow: 0 0 0 2px var(--color-status-active-ring);
+}
+.step[data-group='done'] {
+  --step-fg: var(--color-status-done-fg);
+  --step-bg: var(--color-status-done-bg);
+}
+.step[data-group='failed'] {
+  --step-fg: var(--color-status-failed-fg);
+  --step-bg: var(--color-status-failed-bg);
+}
+.step[data-group='unknown'] {
+  --step-fg: var(--color-status-unknown-fg);
+  --step-bg: var(--color-status-unknown-bg);
+}
+.step[data-group='muted'] {
+  --step-fg: var(--color-status-muted-fg);
+  --step-bg: var(--color-status-muted-bg);
+}
+.step[data-state='skipped'] .label,
+.step[data-state='upcoming'] .label {
+  color: var(--color-text-muted);
+}
+.dot {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-pill);
+  background: var(--step-bg);
+  color: var(--step-fg);
+}
+.label {
+  max-width: 100%;
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+  line-height: 1.25;
+  overflow-wrap: normal;
+  hyphens: none;
+}
+.step[data-state='final'] .label,
+.step[data-state='current'] .label {
+  color: var(--step-fg);
+  font-weight: var(--font-weight-semibold);
+}

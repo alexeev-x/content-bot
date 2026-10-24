@@ -1,0 +1,156 @@
+.tabs {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-width: 0;
+}
+/*
+ * View tabs: a bordered group of compact items, the selected one raised (Cloudflare-dashboard style). The whole group,
+ * frame included, is one control tall, like a SegmentedControl, Select or IconButton in the same row (owner,
+ * 20.10.2026: «одну высоту»).
+ */
+.list {
+  display: inline-flex;
+  box-sizing: border-box;
+  block-size: var(--size-control);
+  align-self: flex-start;
+  gap: 2px;
+  max-width: 100%;
+  padding: 2px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-3);
+  background: var(--color-surface-1);
+  scrollbar-width: none;
+}
+.tab {
+  position: relative;
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 0 var(--space-3);
+  border-radius: var(--radius-1);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  white-space: nowrap;
+  cursor: pointer;
+  outline: none;
+  transition:
+    background-color var(--motion-fast),
+    color var(--motion-fast);
+}
+.tab[data-hovered] {
+  color: var(--color-text);
+}
+/* Selected: raised surface plus a visible edge, so selection never depends on colour alone. */
+.tab[data-selected] {
+  background: var(--color-surface-3);
+  box-shadow: inset 0 0 0 1px var(--color-border-strong);
+  color: var(--color-text);
+}
+.tab[data-focus-visible] {
+  outline: var(--focus-ring-width) solid var(--color-focus-ring);
+  outline-offset: -2px;
+}
+.tab[data-disabled] {
+  background: none;
+  color: var(--color-text-disabled);
+  cursor: not-allowed;
+}
+.panel {
+  outline: none;
+}
+.panel[data-focus-visible] {
+  outline: var(--focus-ring-width) solid var(--color-focus-ring);
+  outline-offset: 2px;
+}
+
+/* Card variant: three or more equal tiles. Selection shows by an accent border and fill, never by colour alone: the icon square also fills. */
+.tabs[data-variant='card'] .list {
+  display: grid;
+  block-size: auto;
+  align-self: stretch;
+  padding: 0;
+  border: 0;
+  background: none;
+  grid-auto-columns: minmax(0, 1fr);
+  grid-auto-flow: column;
+  gap: var(--space-2);
+  overflow: visible;
+}
+.tabs[data-variant='card'] .tab {
+  align-items: center;
+  gap: var(--space-3);
+  min-height: 64px;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-3);
+  background: var(--color-surface-2);
+  color: var(--color-text);
+  white-space: normal;
+}
+.tabs[data-variant='card'] .tab[data-hovered] {
+  background: var(--color-surface-3);
+}
+.tabs[data-variant='card'] .tab[data-selected] {
+  border-color: var(--color-accent-text);
+  color: var(--color-text);
+  background: var(--color-accent-soft);
+  box-shadow: inset 0 0 0 1px var(--color-accent-text);
+}
+.tabs[data-variant='card'] .tab[data-focus-visible] {
+  outline-offset: var(--focus-ring-offset);
+}
+.tabs[data-variant='card'] .tab[data-disabled] {
+  border-color: var(--color-border-subtle);
+  background: var(--color-surface-2);
+}
+.tabIcon {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-2);
+  background: var(--color-surface-3);
+  color: var(--color-text-muted);
+}
+.tab[data-selected] .tabIcon {
+  background: var(--color-accent-soft);
+  color: var(--color-accent-text);
+}
+.tabText {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+  text-align: left;
+}
+.tabTitle {
+  font-weight: var(--font-weight-semibold);
+}
+.tabHint {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-2xs);
+  font-weight: var(--font-weight-regular);
+  line-height: 1.3;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* Phone: the tiles stack so the hint keeps its width (each is a 64 px target). */
+@media (max-width: 859px) {
+  .tabs[data-variant='card'] .list {
+    grid-auto-flow: row;
+  }
+}
+
+/* Four tabs fit a phone without a hidden sideways scroll: «Все / Планы / Отправлено / Ошибки» at 320 px, the
+   analytics «Обзор / Публикации / Аудитория / Отчёты» from 375 px. */
+@media (max-width: 479px) {
+  .tab {
+    padding: 0 var(--space-2);
+  }
+}

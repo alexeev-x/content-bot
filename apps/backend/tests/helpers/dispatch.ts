@@ -1,3 +1,4 @@
+import type { PostEntity } from '@alexeev/contracts';
 import { GrammyError, HttpError } from 'grammy';
 import { createContainer, type Container } from '../../src/app/container';
 import { handleScheduled } from '../../src/app/scheduled';
@@ -5,7 +6,11 @@ import type { PublicationTransport, SendOutcome } from '../../src/modules/publis
 import { createTelegramPublicationTransport, type TelegramSender } from '../../src/modules/publishing';
 import { createLogger } from '../../src/platform/logging/logger';
 import { testDb } from './db';
-import { type Api, type FakeClock, START } from './harness';
+import { testMediaBucket } from './media-bucket';
+import { fakeBotAdminApi } from './fake-bot-admin-api';
+import { fakeChatApi } from './fake-chat-api';
+import { fakeOwnerMessenger, type FakeOwnerMessenger } from './fake-owner-messenger';
+import { type Api, type FakeClock, OWNER_ID, START } from './harness';
 import { seedApprovedPost, seedDestination, seedPublication } from './publishing';
 
 // START is minute 0 of an hour (the cleanup tick); this one is not.
@@ -15,28 +20,33 @@ export const HOURLY_TICK = START;
 export interface SentCall {
   chatId: string;
   text: string;
+  entities: PostEntity[];
 }
 
 // A scripted transport: answers come off the queue (the last one repeats). Records every send.
 export interface FakeTransport extends PublicationTransport {
   calls: SentCall[];
+  mediaCalls: string[][];
 }
 
 export function fakeTransport(...script: SendOutcome[]): FakeTransport {
   const calls: SentCall[] = [];
+  const mediaCalls: string[][] = [];
   let index = 0;
   return {
     calls,
+    mediaCalls,
     send(input) {
-      calls.push({ chatId: input.chatId, text: input.text });
-      const next = script[Math.min(index, script.length - 1)] ?? { kind: 'sent', externalMessageId: '1' };
+      calls.push({ chatId: input.chatId, text: input.text, entities: input.entities });
+      mediaCalls.push(input.media.map(({ kind }) => kind));
+      const next = script[Math.min(index, script.length - 1)] ?? { kind: 'sent', externalMessageIds: ['1'] };
       index += 1;
       return Promise.resolve(next);
     }
   };
 }
 
-export const SENT: SendOutcome = { kind: 'sent', externalMessageId: '4242' };
+export const SENT: SendOutcome = { kind: 'sent', externalMessageIds: ['4242'] };
 
 export function grammyError(code: number, description: string, parameters: Record<string, number> = {}): GrammyError {
   return new GrammyError(description, { ok: false, error_code: code, description, parameters }, 'sendMessage', {
@@ -54,7 +64,7 @@ export interface FakeSender extends TelegramSender {
   requests: { chatId: string; text: string; other: unknown }[];
 }
 
-export function fakeSender(step: SenderStep): FakeSender {
+function fakeSender(step: SenderStep): FakeSender {
   const requests: FakeSender['requests'] = [];
   return {
     requests,
@@ -65,6 +75,60 @@ export function fakeSender(step: SenderStep): FakeSender {
         new Promise<never>((_resolve, reject) => {
           signal.addEventListener('abort', () => reject(signal.reason as Error), { once: true });
         })
+      ]);
+    },
+    sendPhoto(chatId, photo, other, signal) {
+      requests.push({ chatId, text: 'photo', other });
+      return Promise.race([
+        step(),
+        new Promise<never>((_resolve, reject) =>
+          signal.addEventListener('abort', () => reject(signal.reason as Error), { once: true })
+        )
+      ]);
+    },
+    sendVideo(chatId, video, other, signal) {
+      requests.push({ chatId, text: 'video', other });
+      return Promise.race([
+        step(),
+        new Promise<never>((_resolve, reject) =>
+          signal.addEventListener('abort', () => reject(signal.reason as Error), { once: true })
+        )
+      ]);
+    },
+    sendAnimation(chatId, animation, other, signal) {
+      requests.push({ chatId, text: 'animation', other });
+      return Promise.race([
+        step(),
+        new Promise<never>((_resolve, reject) =>
+          signal.addEventListener('abort', () => reject(signal.reason as Error), { once: true })
+        )
+      ]);
+    },
+    sendMediaGroup(chatId, media, _other, signal) {
+      requests.push({ chatId, text: 'group', other: media });
+      return Promise.race([
+        step(),
+        new Promise<never>((_resolve, reject) =>
+          signal.addEventListener('abort', () => reject(signal.reason as Error), { once: true })
+        )
+      ]);
+    },
+    sendPoll(chatId, poll, signal) {
+      requests.push({ chatId, text: 'poll', other: poll });
+      return Promise.race([
+        step(),
+        new Promise<never>((_resolve, reject) =>
+          signal.addEventListener('abort', () => reject(signal.reason as Error), { once: true })
+        )
+      ]);
+    },
+    sendRichMessage(chatId, message, _other, signal) {
+      requests.push({ chatId, text: 'rich', other: message });
+      return Promise.race([
+        step(),
+        new Promise<never>((_resolve, reject) =>
+          signal.addEventListener('abort', () => reject(signal.reason as Error), { once: true })
+        )
       ]);
     }
   };
@@ -88,9 +152,15 @@ export interface TickOptions {
   random?: () => number;
   /** Wraps the real container, for racing, metering or failing a part of it. */
   tweak?: (container: Container) => Container;
+  /** Replaces the recording fake that stands for the owner's chat. Without a token the container has none. */
+  ownerMessenger?: FakeOwnerMessenger;
 }
 
 export interface Tick {
+  /** What reached the owner's chat. */
+  ownerMessages: FakeOwnerMessenger['sent'];
+  /** The rich messages to the owner (the analytics reports). */
+  ownerRichMessages: FakeOwnerMessenger['sentRich'];
   container: Container;
   logs: Record<string, unknown>[];
   run(): Promise<void>;
@@ -98,13 +168,30 @@ export interface Tick {
 
 export function makeTick(options: TickOptions): Tick {
   const logs: Record<string, unknown>[] = [];
+  const messenger = options.ownerMessenger ?? fakeOwnerMessenger();
   const base = createContainer(
     {
       DB: options.db ?? testDb(),
+      MEDIA_BUCKET: testMediaBucket(),
+      OWNER_TELEGRAM_ID: OWNER_ID,
       PUBLISHING_ENABLED: options.publishing ?? 'true',
       ...(options.token === null ? {} : { TELEGRAM_BOT_TOKEN: options.token ?? '123456:TEST-BOT-TOKEN-PLACEHOLDER' })
     },
-    { clock: options.clock, transport: options.transport, random: options.random ?? (() => 0) }
+    {
+      clock: options.clock,
+      transport: options.transport,
+      random: options.random ?? (() => 0),
+      // Most Cron tests exercise publishing only. Dota watcher tests opt in to its real D1 behavior.
+      dotaWatcher: {
+        sync: async () => ({ inserted: 0, fetched: 2 }),
+        summarizePatch: async () => null
+      },
+      // Without a token the real Telegram clients refuse to be built; spreading the container below
+      // reads every getter, so the ones a tick never uses are replaced by inert fakes.
+      ...(options.token === null
+        ? { telegramChatApi: fakeChatApi({ chat: {} }), telegramBotAdminApi: fakeBotAdminApi() }
+        : { ownerMessenger: messenger })
+    }
   );
   // Spreading reads every getter once: all of them are resolvable in tests.
   const logger = createLogger((line) => logs.push(JSON.parse(line) as Record<string, unknown>));
@@ -113,7 +200,13 @@ export function makeTick(options: TickOptions): Tick {
     cron: '* * * * *',
     scheduledTime: options.scheduledTime ?? MINUTE_TICK
   } as ScheduledController;
-  return { container, logs, run: () => handleScheduled(controller, container) };
+  return {
+    container,
+    logs,
+    ownerMessages: messenger.sent,
+    ownerRichMessages: messenger.sentRich,
+    run: () => handleScheduled(controller, container)
+  };
 }
 
 /** One counter of the tick's summary log line (0 when the tick did not report it). */

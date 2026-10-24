@@ -1,0 +1,131 @@
+import { z } from 'zod';
+
+export const dotaSourceKeySchema = z.enum(['steam_news', 'patch_notes']);
+export type DotaSourceKey = z.infer<typeof dotaSourceKeySchema>;
+
+export const dotaSourceHealthSchema = z.enum(['healthy', 'stale', 'unverified', 'degraded']);
+export type DotaSourceHealth = z.infer<typeof dotaSourceHealthSchema>;
+
+// The last failed check of a feed, persisted by the Worker. `code` is a stable machine code
+// (FETCH, HTTP, BODY_LIMIT, JSON, SHAPE, STORE); `detail` is short and never holds secrets.
+export const dotaFeedErrorSchema = z.object({
+  code: z.string().min(1).max(60),
+  httpStatus: z.number().int().min(100).max(599).nullable(),
+  detail: z.string().max(300),
+  at: z.iso.datetime(),
+  consecutiveFailures: z.number().int().min(1),
+  lastSuccessAt: z.iso.datetime().nullable()
+});
+export type DotaFeedErrorDto = z.infer<typeof dotaFeedErrorSchema>;
+
+export const dotaSourceSchema = z.object({
+  key: dotaSourceKeySchema,
+  name: z.string(),
+  officialUrl: z.url(),
+  lastAttemptAt: z.iso.datetime().nullable(),
+  lastSuccessAt: z.iso.datetime().nullable(),
+  health: dotaSourceHealthSchema,
+  lastError: dotaFeedErrorSchema.nullable(),
+  openIncident: z
+    .object({
+      code: z.string(),
+      occurredAt: z.iso.datetime(),
+      externalId: z.string().optional()
+    })
+    .optional()
+});
+export type DotaSourceDto = z.infer<typeof dotaSourceSchema>;
+
+export const dotaUpdateSchema = z.object({
+  id: z.string(),
+  sourceKey: dotaSourceKeySchema,
+  type: z.enum(['news', 'patch']),
+  title: z.string(),
+  sourceUrl: z.url(),
+  publishedAt: z.iso.datetime(),
+  detectedAt: z.iso.datetime(),
+  isBaseline: z.boolean(),
+  linkedDraft: z
+    .object({
+      id: z.uuid(),
+      title: z.string()
+    })
+    .optional()
+});
+export type DotaUpdateDto = z.infer<typeof dotaUpdateSchema>;
+
+export const listDotaIntelligenceQuerySchema = z.strictObject({
+  source: dotaSourceKeySchema.optional(),
+  limit: z.coerce.number().int().min(1).max(100).default(50)
+});
+export type ListDotaIntelligenceQuery = z.infer<typeof listDotaIntelligenceQuerySchema>;
+
+// The watches that are not feeds of updates (migration 0109): the game files on GitHub and Steam's product info.
+// `game_files` is listed only while its token is set. `lastError` reuses the feed's shape: `httpStatus` is null,
+// `detail` empty, and the code is the watch's stable one (e.g. STEAM_CM_TIMEOUT, GITHUB_TOKEN).
+export const dotaWatchKeySchema = z.enum(['game_files', 'steam_apps']);
+export type DotaWatchKey = z.infer<typeof dotaWatchKeySchema>;
+
+export const dotaWatchSchema = z.object({
+  key: dotaWatchKeySchema,
+  lastAttemptAt: z.iso.datetime().nullable(),
+  lastSuccessAt: z.iso.datetime().nullable(),
+  health: dotaSourceHealthSchema,
+  lastError: dotaFeedErrorSchema.nullable()
+});
+export type DotaWatchDto = z.infer<typeof dotaWatchSchema>;
+
+export const dotaIntelligenceSchema = z.object({
+  sources: z.array(dotaSourceSchema).length(2),
+  watches: z.array(dotaWatchSchema).max(2),
+  updates: z.array(dotaUpdateSchema)
+});
+export type DotaIntelligenceDto = z.infer<typeof dotaIntelligenceSchema>;
+
+export const dotaUpdateParamsSchema = z.strictObject({
+  sourceKey: dotaSourceKeySchema,
+  externalId: z
+    .string()
+    .trim()
+    .min(1)
+    .max(100)
+    .regex(/^[A-Za-z0-9._-]+$/)
+});
+export type DotaUpdateParams = z.infer<typeof dotaUpdateParamsSchema>;
+
+export const dotaPatchParseStatusSchema = z.enum([
+  'not_applicable',
+  'pending',
+  'complete',
+  'incomplete',
+  'no_recognized_facts',
+  'unavailable'
+]);
+
+export const dotaPatchFactSchema = z.object({
+  id: z.string().min(1).max(160),
+  entityType: z.enum(['general', 'hero', 'item', 'neutral_item', 'neutral_creep']),
+  entityName: z.string().min(1).max(200),
+  section: z.enum(['general', 'hero', 'ability', 'talent', 'item', 'neutral_item', 'neutral_creep']),
+  change: z.string().min(1).max(500),
+  direction: z.enum(['increase', 'decrease', 'change', 'added']).optional(),
+  before: z.string().max(40).optional(),
+  after: z.string().max(40).optional()
+});
+export type DotaPatchFactDto = z.infer<typeof dotaPatchFactSchema>;
+
+export const dotaEventDetailSchema = z.object({
+  update: dotaUpdateSchema,
+  parseStatus: dotaPatchParseStatusSchema,
+  facts: z.array(dotaPatchFactSchema).max(500)
+});
+export type DotaEventDetailDto = z.infer<typeof dotaEventDetailSchema>;
+
+// GET /api/v1/dota/updates/:sourceKey/:externalId -> 200 DotaEventDetailDto.
+// Owner-only, read-only. Reads stored parser output and never fetches an upstream feed.
+// Errors: VALIDATION_ERROR 400, UNAUTHORIZED 401, FORBIDDEN 403, NOT_FOUND 404, UNAVAILABLE 503.
+
+// GET /api/v1/dota?source&limit -> 200 DotaIntelligenceDto. Owner-only, read-only. The two
+// configured feeds remain visible even when never checked; updates are newest first and bounded.
+// `health` is based on persisted attempt/success times and open incidents, not frontend guesses.
+// Errors: VALIDATION_ERROR 400, UNAUTHORIZED 401, FORBIDDEN 403, UNAVAILABLE 503.

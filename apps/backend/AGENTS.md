@@ -1,6 +1,6 @@
 # apps/backend/ — Cloudflare Worker rules
 
-Stack (owner decision 03.10.2026): TypeScript, Hono 4 + `@hono/zod-validator`, Zod 4 schemas from `apps/contracts`, Cloudflare Workers (static assets for the SPA, D1, Cron; Queue and R2 only after measurement), grammY for the bot and sending, D1 via plain SQL (`prepare().bind()`, no ORM), Vitest 4.1 + `@cloudflare/vitest-plugin`. Canonical design: `docs/BACKEND_ARCHITECTURE.md`. Open only the section you need: §2 boundaries, §5 publishing, §6 data, §8 security, §11 tests.
+Stack (owner decision 03.10.2026): TypeScript, Hono 4 + `@hono/zod-validator`, Zod 4 schemas from `apps/contracts`, Cloudflare Workers (static assets for the SPA, D1, Cron; Queue and R2 only after measurement), grammY for the bot and sending, D1 via plain SQL (`prepare().bind()`, no ORM), Vitest 4.1 + `@cloudflare/vitest-plugin`. Canonical design: index `docs/BACKEND_ARCHITECTURE.md` → open one topic file in `docs/backend/`.
 
 ## Structure
 - `src/index.ts` exports `fetch` (SPA assets, `/api/v1/*`, `/webhooks/telegram`) and `scheduled` (Cron: reconcile → dispatch), each delegating to `src/app/*`.

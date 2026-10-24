@@ -3,17 +3,18 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "mkdir -p ../frontend/dist/client && wrangler dev --test-scheduled --assets ../frontend/dist/client --port 8790",
-    "types": "wrangler types --strict-vars=false",
+    "dev": "node -e \"require('fs').mkdirSync('../frontend/dist/client',{recursive:true})\" && wrangler dev --test-scheduled --assets ../frontend/dist/client --port 8790",
+    "types": "wrangler types --strict-vars=false --env-file types.vars",
     "typecheck": "npm run types && tsc --noEmit",
     "build": "npm run typecheck",
     "test": "vitest run",
-    "db:migrate:local": "wrangler d1 migrations apply content-bot --local",
-    "db:migrate:dev": "wrangler d1 migrations apply content-db-dev --remote --env dev",
+    "db:migrate:local": "node scripts/migrate-local.mjs",
+    "db:migrate:dev": "wrangler d1 migrations apply content-db-dev --remote --env dev && node --experimental-strip-types scripts/backfill-post-title-sort-keys.mjs --remote --env dev",
     "db:migrate:prod": "wrangler d1 migrations apply content-db-prod --remote --env production"
   },
   "dependencies": {
     "@alexeev/contracts": "*",
+    "@anthropic-ai/sdk": "^0.137.0",
     "@hono/zod-validator": "^0.9.1",
     "grammy": "^1.46.0",
     "hono": "^4.13.12",

@@ -1,7 +1,7 @@
 import type { Clock } from '../../../platform/clock';
 import type { Logger } from '../../../platform/logging/logger';
 import { attemptsExhausted, RECONCILE_BATCH, retryRunAt } from '../domain/dispatch-policy';
-import type { DispatchRepository, ExpiredClaim, ExpiredResolution, JobResolution } from './ports';
+import type { DispatchRepository, ExpiredClaim, ExpiredResolution, JobResolution, RaisedIncident } from './ports';
 
 export interface ReconcileDeps {
   repo: DispatchRepository;
@@ -18,6 +18,8 @@ export interface ReconcileSummary {
   failed: number;
   /** The job moved on (the original dispatcher finished) between the read and the write. */
   skipped: number;
+  /** The incidents this tick wrote (an unconfirmed send, exhausted attempts), for the owner alert. */
+  raised: RaisedIncident[];
 }
 
 // Cron tick step 1 (docs/BACKEND_ARCHITECTURE.md §5): a claim whose lease ran out has a dead
@@ -26,7 +28,7 @@ export interface ReconcileSummary {
 // the job becomes `unknown` with an incident and is never retried automatically.
 // An idle tick costs one indexed read that finds no rows.
 export async function reconcileExpiredJobs(deps: ReconcileDeps): Promise<ReconcileSummary> {
-  const summary: ReconcileSummary = { expired: 0, retryWait: 0, unknown: 0, failed: 0, skipped: 0 };
+  const summary: ReconcileSummary = { expired: 0, retryWait: 0, unknown: 0, failed: 0, skipped: 0, raised: [] };
   const now = deps.clock.now();
   const claims = await deps.repo.findExpiredClaims(now, RECONCILE_BATCH);
   summary.expired = claims.length;
@@ -43,6 +45,16 @@ export async function reconcileExpiredJobs(deps: ReconcileDeps): Promise<Reconci
     if (resolution.status === 'unknown') summary.unknown += 1;
     else if (resolution.status === 'failed') summary.failed += 1;
     else summary.retryWait += 1;
+    if (resolution.incident !== null) {
+      summary.raised.push({
+        id: resolution.incident.id,
+        kind: resolution.incident.kind,
+        code: resolution.incident.code,
+        publicationId: resolution.publicationId,
+        postTitle: null,
+        channelTitle: null
+      });
+    }
     deps.logger.warn({
       component: 'reconcile',
       operation: 'expired_claim',

@@ -1,0 +1,48 @@
+{
+  "appnews": {
+    "appid": 570,
+    "newsitems": [
+      {
+        "gid": "1846018067924633",
+        "title": "Inside the Trove of Terror",
+        "url": "https://steamstore-a.akamaihd.net/news/externalpost/steam_community_announcements/1846018067924633",
+        "is_external_url": true,
+        "author": "eugenep",
+        "contents": "Some time ago, a time now none of us can quite recall, we began to set our minds on matters of the monstrous. Our work has always concerned itself with the manufacture of frightening things, so there was no reason at that time for alarm.Until we began to fill a new treasure chest with item sets them",
+        "feedlabel": "Community Announcements",
+        "date": 1791332561,
+        "feedname": "steam_community_announcements",
+        "feed_type": 1,
+        "appid": 570
+      },
+      {
+        "gid": "1843481262705400",
+        "title": "7.41f Gameplay Patch",
+        "url": "https://steamstore-a.akamaihd.net/news/externalpost/steam_community_announcements/1843481262705400",
+        "is_external_url": true,
+        "author": "flynnch",
+        "contents": "Patch 7.41f is out now and you can check out the patch notes here. In addition, we've recently addressed the following issues: Fixed spot on map near the top Roshan Pit where a hero could hide within the geometry of the cave Fixed being able to mark items for sale that are normally unsellable during",
+        "feedlabel": "Community Announcements",
+        "date": 1789497865,
+        "feedname": "steam_community_announcements",
+        "feed_type": 1,
+        "appid": 570,
+        "tags": ["patchnotes"]
+      },
+      {
+        "gid": "1842212951298513",
+        "title": "The International 2026 Grand Champions",
+        "url": "https://steamstore-a.akamaihd.net/news/externalpost/steam_community_announcements/1842212951298513",
+        "is_external_url": true,
+        "author": "krAnk0r",
+        "contents": "Congratulations to Team Spirit, Grand Champions at The International 2026. After enduring a challenging year, Team Spirit regained their ultimate form just in time to take a five-game Grand Finals slugfest and claim the Aegis of Champions in Shanghai.Spirit's Group Stage started strong, with 2-0 vic",
+        "feedlabel": "Community Announcements",
+        "date": 1787792862,
+        "feedname": "steam_community_announcements",
+        "feed_type": 1,
+        "appid": 570
+      }
+    ],
+    "count": 772
+  }
+}

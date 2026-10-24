@@ -7,7 +7,7 @@ import { claimJob, count } from '../../../../tests/helpers/publishing';
 import { sha256Hex } from '../../../platform/security/sha256';
 import type { NewPublication } from '../application/ports';
 import { projectPublicationStatus } from '../domain/status-projection';
-import { createD1PublicationRepository, listPublicationsSql } from './d1-publication-repository';
+import { createD1PublicationRepository, listPublicationsSql, SUMMARY_SQL } from './d1-publication-repository';
 
 beforeEach(resetDb);
 
@@ -101,6 +101,14 @@ describe('create guards (a change after the use case read the state must write n
   it.each([
     ['the post is still a draft', () => seedPost({ status: 'draft' }), () => seedDestination()],
     ['the post is at another revision', () => seedPost({ revision: 2 }), () => seedDestination()],
+    [
+      'the post is archived',
+      async () => {
+        await seedPost();
+        await testDb().prepare('UPDATE posts SET archived_at = ?1 WHERE id = ?2').bind(NOW, POST).run();
+      },
+      () => seedDestination()
+    ],
     ['the post does not exist', async () => undefined, () => seedDestination()],
     ['the destination is disabled', () => seedPost(), () => seedDestination(0)],
     ['the destination does not exist', () => seedPost(), async () => undefined]
@@ -112,6 +120,28 @@ describe('create guards (a change after the use case read the state must write n
     expect(await createD1PublicationRepository(testDb()).create(input)).toBe(false);
 
     await nothingWritten(input.idempotency.key);
+  });
+
+  it('writes nothing while the same post is on its way to the same channel; writes after it was sent', async () => {
+    await seedPost();
+    await seedDestination();
+    const repo = createD1PublicationRepository(testDb());
+    expect(await repo.create(await newPublication())).toBe(true);
+    expect(await repo.hasLivePublication(POST, DESTINATION)).toBe(true);
+
+    // The guard in the insert itself, not only the use case's read: the second write makes nothing.
+    for (const status of ['pending', 'claimed', 'retry_wait', 'unknown']) {
+      await testDb().prepare('UPDATE jobs SET status = ?').bind(status).run();
+      const second = await newPublication();
+      expect(await repo.create(second)).toBe(false);
+      expect(await count('publications')).toBe(1);
+      expect(await count('jobs')).toBe(1);
+      expect(await count('idempotency_keys', `key = '${second.idempotency.key}' AND status = 'in_flight'`)).toBe(1);
+    }
+
+    await testDb().prepare("UPDATE jobs SET status = 'succeeded'").run();
+    expect(await repo.hasLivePublication(POST, DESTINATION)).toBe(false);
+    expect(await repo.create(await newPublication())).toBe(true);
   });
 
   it('refuses when the idempotency claim is not ours', async () => {
@@ -172,6 +202,38 @@ describe('constraints', () => {
         .bind(crypto.randomUUID(), NOW)
         .run()
     ).rejects.toThrow(/CHECK constraint failed/);
+  });
+});
+
+describe('publication text search', () => {
+  it('matches the linked post title or body and excludes non-matches', async () => {
+    await seedPost();
+    await seedDestination();
+    const repo = createD1PublicationRepository(testDb());
+    const input = await newPublication();
+    await repo.create(input);
+
+    expect((await repo.list({ q: 't', limit: 21, now: NOW })).map((row) => row.id)).toEqual([input.id]);
+    expect((await repo.list({ q: 'b', limit: 21, now: NOW })).map((row) => row.id)).toEqual([input.id]);
+    expect(await repo.list({ q: 'missing', limit: 21, now: NOW })).toEqual([]);
+  });
+
+  // SQLite lower() folds only ASCII: «ауд» used to miss «Аудит».
+  it('ignores letter case in Cyrillic as well as ASCII', async () => {
+    await seedPost();
+    await seedDestination();
+    await testDb()
+      .prepare(`UPDATE posts SET title = 'Аудит DEV', body = 'ПРОВЕРКА канала' WHERE id = ?1`)
+      .bind(POST)
+      .run();
+    const repo = createD1PublicationRepository(testDb());
+    const input = await newPublication();
+    await repo.create(input);
+
+    for (const q of ['ауд', 'АУДИТ', 'дит dev', 'проверка', 'Канала']) {
+      expect((await repo.list({ q, limit: 21, now: NOW })).map((row) => row.id)).toEqual([input.id]);
+    }
+    expect(await repo.list({ q: 'аудиты', limit: 21, now: NOW })).toEqual([]);
   });
 });
 
@@ -560,5 +622,67 @@ describe('claim races the owner actions', () => {
 
     expect(outcome.applied).toBe(true);
     expect(await claimJob(job?.id ?? '', NOW, NOW + 60_000)).toBe(0);
+  });
+});
+
+describe('summarizeByPost', () => {
+  // Every job state, with the variants the projection looks at: the same mapping as the list statuses.
+  const variants = [
+    { status: 'pending', runAt: NOW + 1_000, sendStartedAt: null },
+    { status: 'pending', runAt: NOW - 1_000, sendStartedAt: null },
+    { status: 'claimed', runAt: NOW - 1_000, sendStartedAt: null },
+    { status: 'claimed', runAt: NOW - 1_000, sendStartedAt: NOW },
+    { status: 'retry_wait', runAt: NOW + 1_000, sendStartedAt: null },
+    { status: 'succeeded', runAt: NOW - 1_000, sendStartedAt: NOW },
+    { status: 'failed', runAt: NOW - 1_000, sendStartedAt: null },
+    { status: 'unknown', runAt: NOW - 1_000, sendStartedAt: NOW },
+    { status: 'cancelled', runAt: NOW - 1_000, sendStartedAt: null }
+  ] as const;
+
+  it('counts every job state under the status the API projects for it', async () => {
+    await seedPost();
+    await seedDestination();
+    const repo = createD1PublicationRepository(testDb());
+    const expected: PublicationStatus[] = [];
+    // One post in one channel is written once at a time (ALREADY_PUBLISHED): each is written while the earlier
+    // ones read as sent, and every job gets its variant afterwards.
+    const written: string[] = [];
+    for (const variant of variants) {
+      await testDb().prepare("UPDATE jobs SET status = 'succeeded'").run();
+      const input = await newPublication();
+      expect(await repo.create(input)).toBe(true);
+      written.push(input.id);
+      expected.push(projectPublicationStatus(variant, NOW));
+    }
+    for (const [index, variant] of variants.entries()) {
+      await testDb()
+        .prepare('UPDATE jobs SET status = ?2, run_at = ?3, send_started_at = ?4 WHERE publication_id = ?1')
+        .bind(written[index], variant.status, variant.runAt, variant.sendStartedAt)
+        .run();
+    }
+    expect(new Set(expected).size).toBe(variants.length);
+
+    const summary = (await repo.summarizeByPost([POST], NOW)).get(POST);
+
+    expect(summary?.counts).toEqual(Object.fromEntries(expected.map((status) => [status, 1])));
+  });
+
+  it('is empty for no ids and omits posts without publications', async () => {
+    await seedPost();
+    const repo = createD1PublicationRepository(testDb());
+
+    expect((await repo.summarizeByPost([], NOW)).size).toBe(0);
+    expect((await repo.summarizeByPost([POST], NOW)).size).toBe(0);
+  });
+
+  it('reads publications by the post index', async () => {
+    const { results } = await testDb()
+      .prepare(`EXPLAIN QUERY PLAN ${SUMMARY_SQL}`)
+      .bind('["x"]', NOW)
+      .all<{ detail: string }>();
+
+    const plan = results.map((row) => row.detail).join('\n');
+    expect(plan).toContain('publications_post_idx');
+    expect(plan).not.toMatch(/SCAN (p|publications)\b/);
   });
 });

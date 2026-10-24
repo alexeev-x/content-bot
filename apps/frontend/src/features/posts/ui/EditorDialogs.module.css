@@ -1,0 +1,4 @@
+/* The form wraps the dialog fields only so the footer buttons can submit it; the dialog body keeps the layout. */
+.form {
+  display: contents;
+}

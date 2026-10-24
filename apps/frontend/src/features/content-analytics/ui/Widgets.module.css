@@ -1,0 +1,549 @@
+/* Shared parts of the analytics widgets (design-refs/analytics), in the studio's tokens. */
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.num {
+  font-variant-numeric: tabular-nums;
+}
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding: 0 var(--space-4) var(--space-4);
+  min-width: 0;
+}
+.muted {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-body);
+  color: var(--color-text-muted);
+}
+.small {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+}
+.up {
+  color: var(--color-status-done-fg);
+}
+.down {
+  color: var(--color-status-failed-fg);
+}
+
+/* ===== Status chip ===== */
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-height: 26px;
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-1);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+  white-space: nowrap;
+}
+.chip[data-status='rising'] {
+  background: var(--color-status-done-bg);
+  color: var(--color-status-done-fg);
+}
+.chip[data-status='normal'] {
+  background: var(--color-accent-soft);
+  color: var(--color-accent-text);
+}
+.chip[data-status='below'] {
+  background: var(--color-status-unknown-bg);
+  color: var(--color-status-unknown-fg);
+}
+.chip[data-status='collecting'] {
+  background: var(--color-surface-2);
+  color: var(--color-text-muted);
+}
+
+/* ===== Header row of a widget: title block left, controls right ===== */
+.head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+.figures {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-5);
+}
+.figure {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.figure strong {
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
+  font-variant-numeric: tabular-nums;
+}
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+}
+.legend li {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.swatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  background: var(--swatch);
+}
+
+/* ===== Paired bars: this period against the previous one ===== */
+.pairs {
+  position: relative;
+  margin: 0;
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-1);
+  height: 160px;
+  border-bottom: 1px solid var(--color-border-subtle);
+}
+.pair {
+  display: flex;
+  flex: 1 1 0;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 2px;
+  min-width: 0;
+  height: 100%;
+}
+.pair span {
+  width: 100%;
+  max-width: 14px;
+  border-radius: 3px 3px 0 0;
+}
+.barNow {
+  background: var(--color-accent);
+}
+.barBefore {
+  background: var(--color-chart-muted);
+}
+.axis {
+  display: flex;
+  justify-content: space-between;
+  font-size: var(--font-size-xs);
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text-muted);
+}
+
+/* ===== Donut with its legend ===== */
+.distribution {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-5);
+}
+.shares {
+  display: flex;
+  flex: 1 1 180px;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.share {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: var(--space-3);
+  font-size: var(--font-size-sm);
+}
+.share strong {
+  font-variant-numeric: tabular-nums;
+}
+.dot {
+  width: 10px;
+  height: 10px;
+  border-radius: var(--radius-pill);
+  background: var(--swatch);
+}
+
+/* ===== Rows of publications (trending, fresh, ranked) ===== */
+.rows {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.rows > li + li {
+  border-top: 1px solid var(--color-border-subtle);
+}
+.row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+  padding: var(--space-3) 0;
+  border: 0;
+  background: transparent;
+  color: var(--color-text);
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+.row[data-hovered] .title {
+  text-decoration: underline;
+}
+.row[data-focus-visible] {
+  outline: var(--focus-ring-width) solid var(--color-focus-ring);
+  outline-offset: var(--focus-ring-offset);
+  border-radius: var(--radius-1);
+}
+.cover {
+  position: relative;
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 96px;
+  aspect-ratio: 16 / 10;
+  overflow: hidden;
+  border-radius: var(--radius-2);
+  background: var(--color-surface-2);
+}
+.cover[data-size='sm'] {
+  width: 56px;
+}
+.cover img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.text {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+.title {
+  display: -webkit-box;
+  overflow: hidden;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  line-height: 1.35;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+.meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-2);
+  font-size: var(--font-size-xs);
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text-muted);
+}
+.side {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--space-1);
+  min-width: 0;
+}
+.side strong {
+  font-size: var(--font-size-md);
+  font-variant-numeric: tabular-nums;
+}
+.spark {
+  width: 160px;
+}
+.footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--color-border-subtle);
+}
+.link {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--color-accent-text);
+  font: inherit;
+  font-size: var(--font-size-sm);
+  cursor: pointer;
+}
+.link[data-focus-visible] {
+  outline: var(--focus-ring-width) solid var(--color-focus-ring);
+  outline-offset: var(--focus-ring-offset);
+  border-radius: var(--radius-1);
+}
+
+/* ===== Expanded fresh row ===== */
+.expand {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-4);
+  margin-bottom: var(--space-3);
+  padding: var(--space-4);
+  border-radius: var(--radius-2);
+  background: var(--color-surface-2);
+}
+@media (min-width: 900px) {
+  .expand {
+    grid-template-columns: minmax(0, 1fr) 220px;
+  }
+}
+.stats {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin: 0;
+}
+.stats dt {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+}
+.stats dd {
+  margin: 0;
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ===== Compare videos ===== */
+.picks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+.pick {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  max-width: 320px;
+  min-height: var(--size-control);
+  padding: 0 var(--space-1) 0 var(--space-3);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-2);
+  font-size: var(--font-size-sm);
+}
+.pick span:nth-child(2) {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: var(--space-3);
+}
+.card {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  background: transparent;
+  color: var(--color-text);
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-2);
+}
+.cardStats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-2);
+  margin: 0;
+}
+.cardStats dt {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+}
+.cardStats dd {
+  margin: 0;
+  font-weight: var(--font-weight-semibold);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ===== Horizontal share bars (followers) ===== */
+.hbars {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.hbar {
+  display: grid;
+  grid-template-columns: 120px 64px minmax(0, 1fr);
+  align-items: center;
+  gap: var(--space-3);
+  font-size: var(--font-size-sm);
+}
+.hbarTrack {
+  height: 8px;
+  overflow: hidden;
+  border-radius: var(--radius-pill);
+  background: var(--color-surface-2);
+}
+.hbarTrack span {
+  display: block;
+  height: 100%;
+  border-radius: var(--radius-pill);
+  background: var(--color-accent);
+}
+
+/* ===== A highlighted conclusion ===== */
+.callout {
+  display: flex;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border: 1px solid color-mix(in oklab, var(--color-accent) 35%, var(--color-border-subtle));
+  border-radius: var(--radius-2);
+  background: var(--color-accent-soft);
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-body);
+}
+.callout svg {
+  flex: none;
+  color: var(--color-accent-text);
+}
+.callout strong {
+  color: var(--color-accent-text);
+}
+
+.card:hover {
+  border-color: var(--color-border-strong);
+}
+.card:focus-visible {
+  outline: var(--focus-ring-width) solid var(--color-focus-ring);
+  outline-offset: var(--focus-ring-offset);
+}
+
+/* «Что залетает сейчас»: one line per publication (cover, title, views, status, curve), laid out by the
+   widget's own width so it fits a half-width dashboard cell too. */
+.trendList {
+  container-type: inline-size;
+}
+.trendRow {
+  display: grid;
+  grid-template-areas:
+    'cover text views'
+    'cover status status';
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+  width: 100%;
+  min-height: var(--size-row);
+  padding: var(--space-2) 0;
+  border: 0;
+  background: transparent;
+  color: var(--color-text);
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+.trendRow > :nth-child(1) {
+  grid-area: cover;
+}
+.trendRow > :nth-child(2) {
+  grid-area: text;
+}
+.trendRow > :nth-child(3) {
+  grid-area: views;
+}
+.trendRow > :nth-child(4) {
+  grid-area: status;
+}
+.trendRow > :nth-child(5) {
+  grid-area: spark;
+}
+.trendRow[data-hovered] .trendTitle {
+  text-decoration: underline;
+}
+.trendRow[data-focus-visible] {
+  outline: var(--focus-ring-width) solid var(--color-focus-ring);
+  outline-offset: var(--focus-ring-offset);
+  border-radius: var(--radius-1);
+}
+.trendTitle {
+  overflow: hidden;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.trendStatus {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px var(--space-2);
+}
+/* One line each, clipped: a long caption no longer makes some rows (and the skeleton rows) differ in height. */
+.trendRow .meta {
+  flex-wrap: nowrap;
+  overflow: hidden;
+  white-space: nowrap;
+}
+.trendStatus > .small {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.trendViews {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.trendSpark {
+  display: none;
+  width: 140px;
+}
+@container (min-width: 760px) {
+  .trendRow {
+    grid-template-areas: 'cover text views status spark';
+    grid-template-columns: auto minmax(0, 1fr) 96px 240px 140px;
+  }
+  .trendStatus {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .trendSpark {
+    display: block;
+  }
+}
+/* Narrow: a small cover and the status on one line, so each publication is two short lines, not four. */
+@container (max-width: 759px) {
+  .trendRow .cover {
+    width: 56px;
+  }
+  .trendStatus {
+    flex-wrap: nowrap;
+    min-width: 0;
+  }
+}

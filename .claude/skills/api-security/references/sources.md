@@ -7,4 +7,4 @@
 - OWASP Session Management: https://cheatsheetseries.owasp.org/cheatsheets/Session_Management_Cheat_Sheet.html
 - OWASP CSRF Prevention (Origin verification): https://cheatsheetseries.owasp.org/cheatsheets/Cross-Site_Request_Forgery_Prevention_Cheat_Sheet.html
 - Workers best practices (timingSafeEqual, no globals): https://developers.cloudflare.com/workers/best-practices/workers-best-practices/
-Unverified: exact Telegram web client origins for frame-ancestors; which id_token claim carries the numeric Telegram id.
+Unverified: exact Telegram web client origins for frame-ancestors.
