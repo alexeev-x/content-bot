@@ -88,48 +88,6 @@ export type SourceEventContentDto = z.infer<typeof sourceEventContentSchema>;
 export const requestSourceEventAiDraftInputSchema = z.strictObject({ autopublishTest: z.literal(true).optional() });
 export type RequestSourceEventAiDraftInput = z.infer<typeof requestSourceEventAiDraftInputSchema>;
 
-/**
- * POST /api/v1/sources/rich-samples (DEV only, owner 23.10.2026): sends Telegram rich message samples, made of posts
- * already published, for a look before posts use them; no AI call. `samples` picks which (owner: only the ones with
- * remarks), all without it. Posts go to the test channel, the reports to the owner's chat. One result per message; a
- * failed one carries Telegram's «Bad Request» text. `pictureTrial` instead queues the AI trial of making five small set
- * icons sharper (paid calls), which answers in the owner's chat. Refused (403) where the Worker does not allow it.
- */
-export const richSampleKeySchema = z.enum([
-  'patch_f',
-  'patch_e',
-  'hotfix',
-  'series_event',
-  'series_cosmetics',
-  'series_treasure',
-  'trove_news',
-  'trove_sets',
-  'trove_details',
-  'news_scrub',
-  'news_ti',
-  'datamine',
-  'datamine_classic',
-  'daily_report',
-  'weekly_report'
-]);
-export type RichSampleKey = z.infer<typeof richSampleKeySchema>;
-export const sendRichSamplesInputSchema = z.strictObject({
-  samples: z.array(richSampleKeySchema).min(1).max(15).optional(),
-  pictureTrial: z.literal(true).optional()
-});
-export type SendRichSamplesInput = z.infer<typeof sendRichSamplesInputSchema>;
-export const richSampleResultSchema = z.object({
-  sample: z.string().min(1).max(100),
-  target: z.enum(['channel', 'owner']),
-  status: z.enum(['sent', 'failed']),
-  error: z.string().max(300).nullable()
-});
-export const sendRichSamplesResponseSchema = z.object({
-  results: z.array(richSampleResultSchema).max(40),
-  pictureTrialQueued: z.boolean()
-});
-export type SendRichSamplesResponse = z.infer<typeof sendRichSamplesResponseSchema>;
-
 /** The newest version of an event's AI draft, for the side panel. */
 export const sourceEventAiDraftSchema = z.object({
   // The version the owner sees; approval names it, so a newer rewrite is never approved unseen.

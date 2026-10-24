@@ -6,8 +6,6 @@ import {
   sourceEventAiDraftSchema,
   sourceEventContentSchema,
   rewriteSourceEventSeriesPostInputSchema,
-  sendRichSamplesInputSchema,
-  sendRichSamplesResponseSchema,
   sourceEventIdSchema,
   sourceEventSeriesSchema
 } from '@alexeev/contracts';
@@ -24,15 +22,11 @@ import { createWriterDeps } from './bot/writer-deps';
 import { approveSourceAiDraft, readSourceAiDraft } from './workflows/approve-source-ai-draft';
 import { createSourceEventDraft } from './workflows/create-source-event-draft';
 import { queuePictureJob } from './workflows/picture-jobs';
-import { latestPatchCover, latestReports, sendRichSamples } from './workflows/rich-samples';
 import { readSourceEventContent, requestSourceEventDraft } from './workflows/source-event-ai-draft';
 
 // Every «Написать через ИИ» is a paid model call.
 const AI_DRAFT_LIMIT = 10;
 const AI_DRAFT_WINDOW_MS = 10 * 60 * 1000;
-// Each press sends about two dozen messages to Telegram.
-const RICH_SAMPLES_LIMIT = 6;
-const RICH_SAMPLES_WINDOW_MS = 10 * 60 * 1000;
 // A reasoning model at its default effort took over 25 s on DEV; the studio waits for it.
 const REWRITE_TIMEOUT_MS = 120_000;
 const REWRITES = {
@@ -49,47 +43,6 @@ export const sourcesRoutes = new Hono<AppBindings>()
     if (c.env.DB === undefined) throw new AppError('UNAVAILABLE', 'Database is not configured');
     return c.json(await container.sourceEvents.list(c.req.valid('query')));
   })
-  // DEV only: Telegram rich message samples to the test channel and the owner's chat (owner, 23.10.2026).
-  .post(
-    '/rich-samples',
-    rateLimit({ name: 'rich-samples', limit: RICH_SAMPLES_LIMIT, windowMs: RICH_SAMPLES_WINDOW_MS }),
-    async (c) => {
-      const container = c.get('container');
-      if (c.env.RICH_SAMPLES !== 'true')
-        throw new AppError('FORBIDDEN', 'Rich message samples are off here', { reason: 'RICH_SAMPLES_OFF' });
-      if (c.env.DB === undefined) throw new AppError('UNAVAILABLE', 'Database is not configured');
-      // An empty body sends every sample; a malformed one is refused.
-      const input = sendRichSamplesInputSchema.safeParse(await c.req.json().catch(() => ({})));
-      if (!input.success) throw new AppError('VALIDATION_ERROR', 'Invalid request body');
-      const api = container.richMessages;
-      const ownerChatId = container.ownerChatId;
-      if (api === null || ownerChatId === null)
-        throw new AppError('UNAVAILABLE', 'The bot or the owner chat is not configured');
-      if (input.data.pictureTrial === true) {
-        // Paid image calls of up to 150 s each: the queue's wall time, not this request's (the patch picture's way).
-        await container.aiJobs.send({ id: container.newId(), kind: 'picture_trial', chatId: Number(ownerChatId) });
-        return c.json(sendRichSamplesResponseSchema.parse({ results: [], pictureTrialQueued: true }));
-      }
-      // Only a channel named «Тест…»: the samples never reach the real channel.
-      const destinations = await container.destinations.list({ enabled: true, limit: 50 });
-      const channel = destinations.find(
-        (each) => each.kind === 'channel' && each.title.trim().toLowerCase().startsWith('тест')
-      );
-      if (channel === undefined)
-        throw new AppError('CONFLICT', 'No enabled test channel', { reason: 'NO_TEST_CHANNEL' });
-      const result = await sendRichSamples({
-        api,
-        patchCover: () => latestPatchCover(container),
-        reports: () => latestReports(container),
-        ...(input.data.samples === undefined ? {} : { only: input.data.samples }),
-        channelChatId: channel.chatId,
-        ownerChatId,
-        logger: container.logger,
-        requestId: c.get('requestId')
-      });
-      return c.json(sendRichSamplesResponseSchema.parse(result));
-    }
-  )
   .post('/events/:id/draft', validated('param', eventParamsSchema), async (c) => {
     const container = c.get('container');
     if (c.env.DB === undefined) throw new AppError('UNAVAILABLE', 'Database is not configured');

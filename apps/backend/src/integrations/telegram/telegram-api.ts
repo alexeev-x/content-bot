@@ -271,65 +271,6 @@ export function createTelegramOwnerMessageApi(token: string): TelegramOwnerMessa
   };
 }
 
-// A rich message (Bot API 10.1+): the content is Telegram's rich HTML; `uploads` are photos the HTML names as
-// `tg://photo?id=<id>`, sent in the same multipart request. Used by the DEV samples only (owner, 23.10.2026).
-export interface TelegramRichMessageApi {
-  sendRichMessage(
-    chatId: string,
-    input: { html: string; uploads: { id: string; fileName: string; bytes: Uint8Array }[] },
-    signal: AbortSignal
-  ): Promise<unknown>;
-  /** The same content the classic way (parse_mode HTML), to compare the two side by side. */
-  sendClassicHtml(chatId: string, html: string, signal: AbortSignal): Promise<unknown>;
-  /** Two photos side by side (an album), the caption under the first: the picture trial's before/after. */
-  sendPhotoPair(
-    chatId: string,
-    input: { first: Uint8Array; second: Uint8Array; caption: string },
-    signal: AbortSignal
-  ): Promise<unknown>;
-}
-
-export function createTelegramRichMessageApi(token: string): TelegramRichMessageApi {
-  const api = new Api(token);
-  return {
-    sendPhotoPair: (chatId, { first, second, caption }, signal) =>
-      api.sendMediaGroup(
-        chatId,
-        [
-          { type: 'photo', media: new InputFile(first, 'before.png'), caption },
-          { type: 'photo', media: new InputFile(second, 'after.jpg') }
-        ],
-        {},
-        signal as never
-      ),
-    sendRichMessage: (chatId, { html, uploads }, signal) =>
-      api.raw.sendRichMessage(
-        {
-          chat_id: chatId,
-          rich_message: {
-            html,
-            ...(uploads.length === 0
-              ? {}
-              : {
-                  media: uploads.map(({ id, fileName, bytes }) => ({
-                    id,
-                    media: { type: 'photo' as const, media: new InputFile(bytes, fileName) }
-                  }))
-                })
-          }
-        },
-        signal as never
-      ),
-    sendClassicHtml: (chatId, html, signal) =>
-      api.sendMessage(
-        chatId,
-        html,
-        { parse_mode: 'HTML', link_preview_options: { is_disabled: true } },
-        signal as never
-      )
-  };
-}
-
 // Named invite links of a channel (the bot must be its admin with the right to invite users). Answers stay
 // `unknown`: the caller parses what it relies on.
 export interface TelegramInviteLinkApi {

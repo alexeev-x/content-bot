@@ -18,8 +18,7 @@ import {
   raiseDailyReport,
   releaseDailyReport,
   releaseOverdueReports,
-  videoTitleKey,
-  latestRichReports
+  videoTitleKey
 } from '../../src/modules/content-analytics';
 import { zoned } from '../../src/modules/content-analytics/alerts';
 import type { Collection } from '../../src/modules/content-analytics/types';
@@ -169,8 +168,13 @@ describe('daily report', () => {
       { reports: deps.reports, alerts: deps.alerts, names, now: clock.now() },
       { id: reportId!, review: REVIEW, reviewError: null, model: 'gpt-6.1-sol' }
     );
-    const { daily, weekly } = await latestRichReports({ reports: deps.reports, names });
-    expect(weekly).toBeNull();
+    // The rich message the release stored beside the classic one (its fallback).
+    const daily =
+      (
+        await testDb()
+          .prepare("SELECT rich_html FROM content_alerts WHERE id LIKE 'daily:%'")
+          .first<{ rich_html: string | null }>()
+      )?.rich_html ?? '';
     expect(daily).toMatch(
       /<tr><td>YouTube<\/td><td align="right">[^<]*<\/td><td align="right">[^<]*<\/td><td align="right">\+7\.2к<\/td><\/tr>/u
     );

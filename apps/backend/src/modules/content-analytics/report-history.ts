@@ -7,7 +7,6 @@ import {
   type DailyReportData,
   type DailyReview,
   dailyReportHtml,
-  dailyReportRichHtml,
   reportTitleKeys,
   type VideoNames
 } from './daily-report';
@@ -229,39 +228,4 @@ export async function readForecastAccuracy(
     waiting: board.waiting,
     nextTargetAt: board.nextTargetAt
   };
-}
-
-/**
- * The newest released daily and weekly reports as rich messages (Bot API 10.1), with their stored review: the DEV
- * rich sample (owner, 23.10.2026). Null for a kind not released yet or a daily report of an older layout.
- */
-export async function latestRichReports(deps: {
-  reports: Pick<ContentDailyReportRepository, 'listReleased' | 'find'>;
-  names: Pick<ContentVideoNameRepository, 'read'>;
-}): Promise<{ daily: string | null; weekly: string | null }> {
-  const { items } = await listReports(deps.reports, undefined);
-  const richOf = async (id: string | undefined): Promise<string | null> => {
-    const row = id === undefined ? null : await deps.reports.find(id);
-    if (row === null) return null;
-    const data = JSON.parse(row.data) as StoredReport;
-    let review: DailyReview | null = null;
-    try {
-      review = row.review === null ? null : (JSON.parse(row.review) as DailyReview);
-    } catch {
-      review = null;
-    }
-    if (isWeekly(data))
-      return weeklyReportHtml({ data, timezone: row.timezone, review, reviewError: row.reviewError, rich: true });
-    const names = await deps.names.read(reportTitleKeys(data));
-    return dailyReportRichHtml({ data, timezone: row.timezone, review, reviewError: row.reviewError, names });
-  };
-  return {
-    daily: await richOf(items.find((each) => each.kind === 'day')?.id),
-    weekly: await richOf(items.find((each) => each.kind === 'week')?.id)
-  };
-}
-
-/** A week read now and never stored (`readLastWeekData`) as a rich message, without a review. */
-export function weeklyRichHtml(data: WeeklyData, timezone: string): string {
-  return weeklyReportHtml({ data, timezone, review: null, rich: true });
 }

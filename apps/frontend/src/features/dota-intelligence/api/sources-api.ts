@@ -6,8 +6,6 @@ import {
   sourceEventPageSchema,
   sourceEventSchema,
   sourceEventSeriesSchema,
-  sendRichSamplesResponseSchema,
-  type SendRichSamplesInput,
   type RewriteSourceEventSeriesPostInput,
   type SourceEventType,
   type SourceEventView
@@ -84,9 +82,4 @@ export function rewriteSourceEventSeriesPost(id: string, postId: string, input: 
 
 export function setSourceEventHidden(id: string, hidden: boolean) {
   return apiRequest(`${eventPath(id)}/${hidden ? 'hide' : 'unhide'}`, sourceEventSchema, { method: 'POST', body: {} });
-}
-
-/** DEV only: sends the chosen rich message samples (no AI call), or queues the paid picture trial. */
-export function sendRichSamples(input: SendRichSamplesInput) {
-  return apiRequest('/api/v1/sources/rich-samples', sendRichSamplesResponseSchema, { method: 'POST', body: input });
 }

@@ -101,9 +101,7 @@ The AI makes the Telegram channel's content itself: news and rubric posts drafte
   published, pictures from ones already made or from the sources (Valve's CDN). The owner looks on phone and desktop;
   then we pick what posts and the report use. Open: the `<mark>` colour, red/green in `diff`, how old clients and
   channels show rich messages, scheduling (sendRichMessage has no schedule field), editing in the studio.
-  Built 23.10.2026: «Rich-образцы (DEV)» on «Источники» (`POST /api/v1/sources/rich-samples`, `RICH_SAMPLES`): every
-  post kind (a patch, a hotfix, the three event series posts, a treasure's news, sets and details, a news post, a file
-  find as rich and classic `pre`) and DEV's newest daily and weekly reports as tables (owner's chat only). `<mark>` is never used: it has no colour attribute and on a phone in the dark theme shows white text on yellow, unreadable (owner, 23.10.2026); bold marks the key fact.
+  Built 23.10.2026 as a DEV-only «Rich-образцы (DEV)» button on «Источники» (every post kind and the reports); removed 24.10.2026 after the owner's look. `<mark>` is never used: it has no colour attribute and on a phone in the dark theme shows white text on yellow, unreadable (owner, 23.10.2026); bold marks the key fact.
   Owner on the first look (23.10.2026): one picture per post (a collage of hero portraits looked awful); a treasure
   lists every set in the table; no English text but names; no «Источник» line and no links but «Подробнее» to dota2.com.
   Owner's review of the full set (23.10.2026), to carry into the real posts:
@@ -124,8 +122,7 @@ The AI makes the Telegram channel's content itself: news and rubric posts drafte
     the bar (800 px wide) it goes through the AI with a strict
     instruction: «ничего не меняй, не добавляй и не дорисовывай — только улучши качество» (`docs/DECISIONS.md`,
     23.10.2026: a project law). The DEV trial on 5 Trove icons came out right (owner: «идеально»), so the Trove sets
-    keep their slider of improved icons; built so far only as the DEV trial (`modules/ai/picture-enhance.ts`), the
-    check before every source picture comes with the real posts;
+    keep their slider of improved icons; the DEV trial was removed 24.10.2026; the check runs before every source picture (`app/workflows/picture-quality.ts`);
   - news: the whole content, not a short summary of the announcement: its linked page (e.g. dota2.com/summerscrub2026,
     with Valve's Russian texts) gives the new features, the changes and the fixes by section; a second announcement
     of the same day (The International's predictions, fantasy, bundles) is its own post;

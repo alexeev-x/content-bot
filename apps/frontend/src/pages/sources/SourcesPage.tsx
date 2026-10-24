@@ -2,14 +2,7 @@ import { Link, useNavigate, useSearch } from '@tanstack/react-router';
 import { useCallback, useEffect, useRef } from 'react';
 import { useDocumentTitle } from '../../app/use-document-title';
 import { readAppEnvironment } from '../../app/environment';
-import {
-  DotaEventDetail,
-  RichSamplesButton,
-  RichSamplesResult,
-  SourcesBoard,
-  type SourceTableView,
-  useSendRichSamples
-} from '../../features/dota-intelligence';
+import { DotaEventDetail, SourcesBoard, type SourceTableView } from '../../features/dota-intelligence';
 import { useOwnerTimezone } from '../../features/owner-settings';
 import { ru } from '../../shared/lib/ru';
 import { PageHeader } from '../../shared/ui';
@@ -39,7 +32,6 @@ export function SourcesPage() {
   );
   const invalidHeadingRef = useRef<HTMLHeadingElement>(null);
   const isDev = readAppEnvironment() === 'dev';
-  const richSamples = useSendRichSamples();
   useDocumentTitle(search.update ? 'Разбор обновления' : ru.pages.sources);
 
   useEffect(() => {
@@ -48,12 +40,7 @@ export function SourcesPage() {
 
   return (
     <>
-      <PageHeader
-        title={ru.pages.sources}
-        focusHeadingOnMount
-        actions={isDev && !search.update ? <RichSamplesButton state={richSamples} /> : undefined}
-      />
-      {isDev ? <RichSamplesResult state={richSamples} /> : null}
+      <PageHeader title={ru.pages.sources} focusHeadingOnMount />
       <div hidden={Boolean(search.update)}>
         <SourcesBoard timezone={timezone} state={state} onChange={onChange} autopublishTest={isDev} />
       </div>

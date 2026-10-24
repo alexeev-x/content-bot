@@ -8,14 +8,7 @@ export {
   type TikTokConnectionRepository
 } from './tiktok-connection';
 export { raiseContentAlerts } from './alerts';
-export {
-  latestRichReports,
-  listReports,
-  readForecastAccuracy,
-  readReport,
-  type ReportSummary,
-  weeklyRichHtml
-} from './report-history';
+export { listReports, readForecastAccuracy, readReport, type ReportSummary } from './report-history';
 export { CONTAMINATION_CALLBACK, parseContaminationCallback } from './contamination-callback';
 export type { ItemFormats, VideoFormat } from './types';
 export { videoTitleKey } from './title-format';
@@ -51,7 +44,7 @@ export {
   releaseOverdueReports,
   storedReportFacts
 } from './report-release';
-export { raiseWeeklyReport, readLastWeekData } from './weekly-report';
+export { raiseWeeklyReport } from './weekly-report';
 export {
   type ContentDailyReportRepository,
   createD1ContentDailyReportRepository

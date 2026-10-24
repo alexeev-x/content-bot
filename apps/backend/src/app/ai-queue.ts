@@ -24,7 +24,6 @@ import {
 } from './workflows/autopublish-source-event';
 import { runSeriesPublishStep } from './workflows/autopublish-series';
 import { runTreasureWatch } from './workflows/treasure-watch';
-import { runPictureTrial } from './workflows/picture-trial';
 import { getOwnerOperationsSettings } from '../modules/settings';
 import { escapeHtml } from './notifications/notice-template';
 import type { AiJob, WriterJob } from './bot/ai-job';
@@ -313,11 +312,6 @@ export async function handleAiQueue(batch: MessageBatch<unknown>, container: Con
     }
     if (job.kind === 'patch_publish') {
       await runPatchPublishJob(job, container, token, requestId, onError);
-      message.ack();
-      continue;
-    }
-    if (job.kind === 'picture_trial') {
-      await runPictureTrial(container, job, requestId, onError).catch(onError);
       message.ack();
       continue;
     }
