@@ -1,9 +1,13 @@
-import { autopublishActivitySchema, dotaIntelligenceSchema, ownerOperationsSettingsSchema } from '@alexeev/contracts';
+import { autopublishActivitySchema, dotaIntelligenceSchema } from '@alexeev/contracts';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { createContainer, type Container } from '../../src/app/container';
-import { DOTA_APP_ID, DOTA_STAGING_APP_ID, runSteamWatch, steamChangePost } from '../../src/app/workflows/steam-watch';
+import type { AiJob } from '../../src/app/bot/ai-job';
+import { recordAutopublish } from '../../src/app/workflows/autopublish-log';
+import { DOTA_APP_ID, FILES_DUE_MS, runSteamWatch } from '../../src/app/workflows/steam-watch';
 import type { SteamAppInfo } from '../../src/integrations/steam-cm/steam-cm-client';
+import type { GitHubRepoApi } from '../../src/integrations/github/github-api';
 import { testDb } from '../helpers/db';
+import { fakeTransport, makeTick, SENT } from '../helpers/dispatch';
 import {
   createApi,
   fakeClock,
@@ -16,108 +20,65 @@ import {
   START
 } from '../helpers/harness';
 import { testMediaBucket } from '../helpers/media-bucket';
-import { count, seedDestination } from '../helpers/publishing';
+import { count } from '../helpers/publishing';
 
-// The early signal of a Dota update (owner, 24.10.2026; migration 0108): the first read is the baseline, each change
-// goes to the channel once by itself, a Staging post at most every 12 hours, and nothing goes out while the automatic
-// publishing is off.
+// The early signal of a Dota build (owner, 24.10.2026: «мне нет смысла от сборки»): the first read is the baseline; a
+// new public build posts nothing and tells nobody, it makes the game files be read every minute for an hour.
 
 const HOUR = 60 * 60_000;
 let api: Api;
 let clock: FakeClock;
 let container: Container;
 let steam: SteamAppInfo[];
-let errors: unknown[];
 
-const app = (appId: number, changeNumber: number, publicBuildId: string | null = null): SteamAppInfo => ({
-  appId,
+const app = (changeNumber: number, publicBuildId: string | null = null): SteamAppInfo => ({
+  appId: DOTA_APP_ID,
   changeNumber,
   publicBuildId,
   publicTimeUpdated: null
 });
-// No bot token: an owner's note is not sent; the rows and publications show what happened.
-const run = () =>
+const run = (read: () => Promise<SteamAppInfo[]> = async () => steam) =>
   runSteamWatch(
     container,
     { id: crypto.randomUUID(), kind: 'steam_watch', chatId: Number(OWNER_ID) },
-    '',
     't',
-    (error) => errors.push(error),
-    async () => steam
+    () => undefined,
+    read
   );
-
-async function autopublish(enabled: boolean) {
-  const destination = await seedDestination(api);
-  const current = ownerOperationsSettingsSchema.parse(await (await api.request('/api/v1/settings/operations')).json());
-  const response = await api.request('/api/v1/settings/operations', {
-    method: 'PUT',
-    json: {
-      revision: current.revision,
-      timezone: current.timezone,
-      notifications: current.notifications,
-      autopublish: { enabled, destinationId: destination.id, dailyLimit: 10 }
-    }
+const failing = () =>
+  run(async () => {
+    throw Object.assign(new Error('timeout'), { code: 'STEAM_CM_TIMEOUT' });
   });
-  expect(response.status).toBe(200);
-}
 
 beforeEach(async () => {
   await resetDb();
   await seedSession({ token: OWNER_TOKEN, expiresAt: START + 400 * 24 * HOUR });
   clock = fakeClock();
   api = createApi({ clock });
-  errors = [];
   container = createContainer({ DB: testDb(), MEDIA_BUCKET: testMediaBucket() }, { clock });
-  steam = [app(DOTA_APP_ID, 100, '26139613'), app(DOTA_STAGING_APP_ID, 50)];
+  steam = [app(100, '26139613')];
 });
 
 describe('the Steam watch', () => {
-  it('posts each change once by itself: Staging, then a new public build, never a stale or repeated read', async () => {
-    await autopublish(true);
+  it('posts nothing for a new build, and has the game files read for the next hour', async () => {
     await run();
+    expect(await container.steamApps.filesDue(DOTA_APP_ID, clock.now())).toBe(false);
+    steam = [app(101, '26185107')];
+    await run();
+    expect(await count('posts')).toBe(0);
     expect(await count('publications')).toBe(0);
-    steam = [app(DOTA_APP_ID, 100, '26139613'), app(DOTA_STAGING_APP_ID, 52)];
-    await run();
-    await run();
-    expect(await count('publications')).toBe(1);
-    expect(await count('idempotency_keys', `key = 'autopublish:steam:${DOTA_STAGING_APP_ID}:52'`)).toBe(1);
-    const body = await testDb().prepare('SELECT body, entities FROM posts').first<{ body: string; entities: string }>();
-    expect(body?.body).toContain('Valve что-то готовит');
-    expect(body?.entities).toContain('"language":"diff"');
-    steam = [app(DOTA_APP_ID, 101, '26139700'), app(DOTA_STAGING_APP_ID, 52)];
-    await run();
-    expect(await count('publications')).toBe(2);
-    // A stale read moves nothing back and posts nothing.
-    steam = [app(DOTA_APP_ID, 100, '26139613'), app(DOTA_STAGING_APP_ID, 51)];
-    await run();
-    expect(await count('publications')).toBe(2);
-    expect(errors).toEqual([]);
+    expect(await container.steamApps.filesDue(DOTA_APP_ID, clock.now())).toBe(true);
+    expect(await container.steamApps.filesDue(DOTA_APP_ID, clock.now() + FILES_DUE_MS)).toBe(false);
   });
 
-  it('never posts a «new build» for a read that missed the build (QA 24.10.2026)', async () => {
-    await autopublish(true);
+  it('a change without a new build, or a read that missed the build, starts nothing (QA 24.10.2026)', async () => {
     await run();
-    steam = [app(DOTA_APP_ID, 101, null), app(DOTA_STAGING_APP_ID, 50)];
+    steam = [app(101, null)];
     await run();
     expect(await container.steamApps.find(DOTA_APP_ID)).toMatchObject({ changeNumber: 101, buildId: '26139613' });
-    steam = [app(DOTA_APP_ID, 102, '26139613'), app(DOTA_STAGING_APP_ID, 50)];
+    steam = [app(102, '26139613')];
     await run();
-    expect(await count('publications')).toBe(0);
-  });
-
-  it('posts Staging at most once in 12 hours', async () => {
-    await autopublish(true);
-    await run();
-    steam = [app(DOTA_APP_ID, 100, '26139613'), app(DOTA_STAGING_APP_ID, 52)];
-    await run();
-    clock.advance(HOUR);
-    steam = [app(DOTA_APP_ID, 100, '26139613'), app(DOTA_STAGING_APP_ID, 53)];
-    await run();
-    expect(await count('publications')).toBe(1);
-    clock.advance(12 * HOUR);
-    steam = [app(DOTA_APP_ID, 100, '26139613'), app(DOTA_STAGING_APP_ID, 54)];
-    await run();
-    expect(await count('publications')).toBe(2);
+    expect(await container.steamApps.filesDue(DOTA_APP_ID, clock.now())).toBe(false);
   });
 
   it('shows its last check in «Состояние лент»: a read is healthy, a failed one degraded with its code', async () => {
@@ -127,16 +88,7 @@ describe('the Steam watch', () => {
     ]);
     await run();
     expect(await watches()).toMatchObject([{ key: 'steam_apps', health: 'healthy', lastError: null }]);
-    await runSteamWatch(
-      container,
-      { id: crypto.randomUUID(), kind: 'steam_watch', chatId: Number(OWNER_ID) },
-      '',
-      't',
-      () => undefined,
-      async () => {
-        throw Object.assign(new Error('timeout'), { code: 'STEAM_CM_TIMEOUT' });
-      }
-    );
+    await failing();
     expect(await watches()).toMatchObject([
       {
         key: 'steam_apps',
@@ -148,17 +100,6 @@ describe('the Steam watch', () => {
   });
 
   it('tells the owner once when three runs in a row failed (review 24.10.2026)', async () => {
-    const failing = () =>
-      runSteamWatch(
-        container,
-        { id: crypto.randomUUID(), kind: 'steam_watch', chatId: Number(OWNER_ID) },
-        '',
-        't',
-        () => undefined,
-        async () => {
-          throw Object.assign(new Error('timeout'), { code: 'STEAM_CM_TIMEOUT' });
-        }
-      );
     const alerts = () => count('content_alerts', `id LIKE 'watch-down:steam_apps:%'`);
     await failing();
     await failing();
@@ -168,46 +109,52 @@ describe('the Steam watch', () => {
     await failing();
     expect(await alerts()).toBe(1);
   });
+});
 
-  it('shows in the studio what went out by itself and what was held, with the count against the limit', async () => {
-    const activity = async () =>
-      autopublishActivitySchema.parse(await (await api.request('/api/v1/settings/autopublish/activity')).json());
-    await autopublish(true);
-    expect(await activity()).toMatchObject({ enabled: true, dailyLimit: 10, usedToday: 0, items: [] });
+describe('the game files after a new build', () => {
+  it('are queued on every idle minute while due, and not once the hour is over', async () => {
     await run();
-    steam = [app(DOTA_APP_ID, 100, '26139613'), app(DOTA_STAGING_APP_ID, 52)];
+    steam = [app(101, '26185107')];
     await run();
-    expect(await activity()).toMatchObject({
-      usedToday: 1,
-      items: [{ source: 'steam', outcome: 'published', reason: null }]
-    });
-    await autopublish(false);
-    clock.advance(60_000);
-    steam = [app(DOTA_APP_ID, 101, '26139700'), app(DOTA_STAGING_APP_ID, 52)];
-    await run();
-    const after = await activity();
-    expect(after.enabled).toBe(false);
-    expect(after.items[0]).toMatchObject({ source: 'steam', outcome: 'held', reason: 'off' });
-  });
-
-  it('publishes nothing while the automatic publishing is off', async () => {
-    await autopublish(false);
-    await run();
-    steam = [app(DOTA_APP_ID, 101, '26139700'), app(DOTA_STAGING_APP_ID, 52)];
-    await run();
-    expect(await count('publications')).toBe(0);
-    expect(await count('posts')).toBe(0);
+    const sent: AiJob[] = [];
+    const repo = {} as GitHubRepoApi;
+    const tick = (minute: number) =>
+      makeTick({
+        clock,
+        transport: fakeTransport(SENT),
+        scheduledTime: START + minute * 60_000,
+        tweak: (base) => ({
+          ...base,
+          gameFilesRepo: repo,
+          aiJobs: {
+            send: async (job) => {
+              sent.push(job);
+            }
+          }
+        })
+      }).run();
+    await tick(7);
+    await tick(8);
+    expect(sent.filter((job) => job.kind === 'game_files_watch')).toHaveLength(2);
+    clock.advance(FILES_DUE_MS);
+    await tick(9);
+    expect(sent.filter((job) => job.kind === 'game_files_watch')).toHaveLength(2);
   });
 });
 
-describe('the post of a change', () => {
-  it('tells a Staging change and a new public build of Dota 2 with the numbers as a diff, and nothing else', () => {
-    expect(steamChangePost({ changeNumber: 50, buildId: null }, app(DOTA_STAGING_APP_ID, 52))).toContain(
-      '- "Dota 2 Staging" "50"\n+ "Dota 2 Staging" "52"'
-    );
-    expect(steamChangePost({ changeNumber: 100, buildId: '1' }, app(DOTA_APP_ID, 101, '2'))).toContain(
-      '- "buildid" "1"\n+ "buildid" "2"'
-    );
-    expect(steamChangePost({ changeNumber: 100, buildId: '1' }, app(DOTA_APP_ID, 101, '1'))).toBeNull();
+describe('the studio record of the automatic publishing', () => {
+  it('gives the count against the limit and the last 24 hours, newest first', async () => {
+    const activity = async () =>
+      autopublishActivitySchema.parse(await (await api.request('/api/v1/settings/autopublish/activity')).json());
+    expect(await activity()).toMatchObject({ enabled: false, usedToday: 0, items: [] });
+    await recordAutopublish(container, { source: 'event', title: 'Патч 7.41', outcome: 'published' });
+    clock.advance(60_000);
+    await recordAutopublish(container, { source: 'game_files', title: 'Находка', outcome: 'held', reason: 'link' });
+    expect((await activity()).items).toMatchObject([
+      { source: 'game_files', outcome: 'held', reason: 'link' },
+      { source: 'event', outcome: 'published', reason: null }
+    ]);
+    clock.advance(25 * HOUR);
+    expect((await activity()).items).toEqual([]);
   });
 });

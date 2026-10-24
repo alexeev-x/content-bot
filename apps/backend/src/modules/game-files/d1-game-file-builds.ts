@@ -22,6 +22,10 @@ export interface GameFileBuildRepository {
   claim(row: Omit<GameFileBuildRow, 'status' | 'reason'>, now: number): Promise<boolean>;
   /** A claimed build whose post did not happen, and why. */
   release(sha: string, status: Exclude<GameFileBuildStatus, 'queued'>, reason: string): Promise<void>;
+  /** The highest build number seen below `build`, or null. */
+  previousBuild(build: string): Promise<string | null>;
+  /** Whether a commit of `build` had a find sent to the writer. */
+  hadFind(build: string): Promise<boolean>;
 }
 
 const SHAS_MAX = 100;
@@ -69,6 +73,23 @@ export function createD1GameFileBuilds(db: D1Database): GameFileBuildRepository 
         .prepare(`UPDATE game_file_builds SET status = ?2, reason = ?3 WHERE sha = ?1 AND status = 'queued'`)
         .bind(sha, status, reason)
         .run();
+    },
+    async previousBuild(build) {
+      const row = await db
+        .prepare(
+          `SELECT build FROM game_file_builds WHERE CAST(build AS INTEGER) BETWEEN 1 AND CAST(?1 AS INTEGER) - 1
+           ORDER BY CAST(build AS INTEGER) DESC LIMIT 1`
+        )
+        .bind(build)
+        .first<{ build: string }>();
+      return row?.build ?? null;
+    },
+    async hadFind(build) {
+      const row = await db
+        .prepare(`SELECT 1 AS found FROM game_file_builds WHERE build = ?1 AND status = 'queued' LIMIT 1`)
+        .bind(build)
+        .first<{ found: number }>();
+      return row !== null;
     }
   };
 }

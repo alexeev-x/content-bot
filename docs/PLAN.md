@@ -161,7 +161,7 @@ The AI makes the Telegram channel's content itself: news and rubric posts drafte
   Expected: about 1–2 posts a week outside patch weeks (07–22.10 gave: the Terrorblade arcana in the files, effect
   slots for abilities of 11 heroes, persona portraits in the hero grid, a Trove gifting notice).
 - The early signal of a Dota update from Steam's product info (owner, 24.10.2026: «смотри как тут лучше и сделай на
-  дев»): built on DEV (migration 0108, `docs/backend/sources.md` «Early signal…»); each change goes to the channel by itself.
+  дев»): built on DEV (migrations 0108, 0113, `docs/backend/sources.md` «Early signal…»); a new build posts nothing itself, it has the game files read every minute for an hour; a build with nothing in it gets one short joke post, a new joke each time, with its version lines (owner, 24.10.2026).
 - Idea for after the release, not chosen (owner, 24.10.2026: «после, просто как идею зафиксируй»): prices of the Dota
   market as unique content — a new arcana's or treasure's price at release and a week later, weekly top movers, all
   arcanas by price with a 30-day trend, alerts (a 30/90-day low, a drop over 20% a day), store sales and Steam's ruble

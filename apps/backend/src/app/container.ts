@@ -275,7 +275,7 @@ export interface Container {
   /** The studio's history of AI drafts (AI plan P8, read-only). */
   aiDraftHistory: DraftHistoryRepository;
   /** The bot's AI model calls go through Queue AI_JOBS (owner, 19.10.2026); UNAVAILABLE without the binding. */
-  aiJobs: { send: (job: AiJob) => Promise<void> };
+  aiJobs: { send: (job: AiJob, options?: { delaySeconds?: number }) => Promise<void> };
   /** AI drafts, their revisions with provenance and the owner's feedback (migration 0054). */
   aiWriter: WriterRepository;
   /** The owner's own Telegram posts for the writer, read through the content module (stage 2 of the AI plan). */
@@ -747,7 +747,7 @@ export function createContainer(env: ContainerEnv, overrides: ContainerOverrides
     },
     get aiJobs() {
       return {
-        send: async (job: AiJob) => {
+        send: async (job: AiJob, options?: { delaySeconds?: number }) => {
           if (env.AI_JOBS === undefined)
             throw new AppError('UNAVAILABLE', 'The AI queue is not bound', { reason: 'NO_QUEUE' });
           // Checked here, where the caller can still react: the consumer drops a job its schema refuses, silently
@@ -755,7 +755,10 @@ export function createContainer(env: ContainerEnv, overrides: ContainerOverrides
           const parsed = aiJobSchema.safeParse(job);
           if (!parsed.success)
             throw new AppError('VALIDATION_ERROR', 'The AI job does not fit its schema', { reason: 'AI_JOB_INVALID' });
-          await env.AI_JOBS.send(job);
+          await env.AI_JOBS.send(
+            job,
+            options?.delaySeconds === undefined ? undefined : { delaySeconds: options.delaySeconds }
+          );
         }
       };
     },

@@ -34,6 +34,7 @@ import { LESSON_LOOKBACK_MS } from '../modules/ai';
 import { LOST_JOB_STATEMENTS, reportLostAiJobs } from './workflows/lost-ai-jobs';
 import { raiseScriptPrompts } from './workflows/script-prompts';
 import { runAiReviews } from './workflows/run-ai-reviews';
+import { DOTA_APP_ID } from './workflows/steam-watch';
 
 // Per table and per hourly tick; leftovers wait for the next hour.
 export const CLEANUP_LIMIT = 100;
@@ -127,7 +128,7 @@ type TickContainer = Pick<
   | 'aiProvider'
 > &
   // The game-files watch is off without its token, so a tick may run without it.
-  Partial<Pick<Container, 'gameFilesRepo'>>;
+  Partial<Pick<Container, 'gameFilesRepo' | 'steamApps'>>;
 
 // Cron entry point, once a minute (docs/BACKEND_ARCHITECTURE.md §5). Ticks may overlap or repeat:
 // every write below is a conditional claim or a guarded batch, so a second tick changes nothing
@@ -457,6 +458,25 @@ export async function handleScheduled(controller: ScheduledController, container
         });
         throw error;
       }
+    });
+  }
+
+  // 7a'. For an hour after a new Dota build (steam-watch.ts), the game files are read every idle minute, not every five:
+  // the find goes out as soon as the tracker has the build. One indexed read; minutes 0 and 30 keep their budget.
+  const steamApps = container.steamApps;
+  if (
+    publicationIdle &&
+    container.gameFilesRepo != null &&
+    steamApps !== undefined &&
+    container.ownerChatId !== null &&
+    minute % 5 !== 0 &&
+    container.queryBudget.remaining() >= 1 + HEARTBEAT_RESERVE
+  ) {
+    const ownerChat = Number(container.ownerChatId);
+    await step('game-files-due', async (): Promise<Record<string, number>> => {
+      if (!Number.isSafeInteger(ownerChat) || !(await steamApps.filesDue(DOTA_APP_ID, clock.now()))) return {};
+      await container.aiJobs.send({ id: container.newId(), kind: 'game_files_watch', chatId: ownerChat });
+      return { gameFilesQueued: 1 };
     });
   }
 

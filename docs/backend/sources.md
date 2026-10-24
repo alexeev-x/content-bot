@@ -127,25 +127,33 @@ SteamTracking/GameTracking-Dota2 (SteamDB's tracker, one commit per game build),
   text with an address in it waits for the owner (`link`): GitHub's text is nobody's, and an address would go out as a
   hidden link. Off, over the daily limit or with an unclean fact check, the draft comes to the owner as any source draft.
 - Known gap: a run stopped by the platform between the claim and the queue send leaves the build `queued` with no post.
+- A build with nothing worth a post (owner, 24.10.2026: «если ничего не нашлось можно смешную добавить текст и сам
+  diff»): the newest build of a run that touches nothing a player sees, one whose diff has no changes, and one the cheap
+  check finds dull get one short post — a joke the cheap model writes on a theme drawn at random («шуточные посты
+  всегда разные», `modules/ai/quiet-build-joke.ts`; a stand-in line when it cannot, or when its joke lacks the build
+  number), asked only once the post may go out — and the version lines as a
+  ```diff block (`- ClientVersion=<previous>` / `+ ClientVersion=<build>`), key `files-quiet:<build>`, under the
+  automatic publishing's switch and limit (`app/workflows/publish-fixed-post.ts`). A build one of whose commits had a
+  find gets none; an official patch build none either (the patch notes tell it). The post is its own queue job
+  (`game_files_quiet`, its own D1 budget), sent ten minutes late so the other commits of the build are read first; it
+  claims the build once before the joke is paid for, checks again that no commit of the build had a find, and a run
+  queues at most one (QA 24.10.2026).
 
-## Early signal of a Dota update from Steam (migration 0108, owner 24.10.2026)
+## Early signal of a Dota build from Steam (migrations 0108, 0113; owner 24.10.2026)
 
 Steam's own product info (PICS), read the way a Steam client reads it: every Dota run of the Cron queues `steam_watch`
 next to the game-files watch (`app/workflows/steam-watch.ts`). The run asks `ISteamDirectory/GetCMListForConnect` for
 the WebSocket connection managers, keeps those on port 443 (a Worker reaches only some ports), opens one with the
-Worker's WebSocket upgrade, logs on anonymously and sends one product info request for Dota 2 (570) and Dota 2 Staging
-(2305270, Valve's test app), then closes (`integrations/steam-cm/steam-cm-client.ts`: the few protobuf fields by hand,
-a gzipped Multi unpacked with `DecompressionStream`; no Steam library runs in a Worker). Probe of 24.10.2026 from a home
-IP: logon OK in about 2.4 s; Dota 2 gives its public branch's build and update time; Staging gives only its change
-number (its info needs a token), so a change of it says that something changed, not what.
+Worker's WebSocket upgrade, logs on anonymously and sends one product info request for Dota 2 (570), then closes
+(`integrations/steam-cm/steam-cm-client.ts`: the few protobuf fields by hand, a gzipped Multi unpacked with
+`DecompressionStream`; no Steam library runs in a Worker). DEV reads it in about 2.4 s.
 
-`steam_app_watch` keeps the last read: the first is the baseline; a higher change number moves the row with a
-conditional update, the one claim of a change's post. The post goes to the channel by itself (owner, 24.10.2026: «они
-должны сразу постом идти без меня») under the automatic publishing's switch, channel and daily limit, with a fixed
-text and the numbers as a red and green diff, no model call: a Staging change «Valve что-то готовит…» (at most one
-post in 12 hours, `posted_at`), a new public build of Dota 2 «Steam уже раздаёт обновление…». The post's key is
-`steam:<app>:<change>`, its publication's `autopublish:steam:<app>:<change>`. Off or over the limit, the owner gets
-the text with why. A change is posted at most once: a run that dies between the row's claim and the publication loses\nthat post (QA 24.10.2026, as the game-files claim). The socket asks for ArrayBuffer frames (a Blob is the default at\nour compatibility date), the gzip is capped while it inflates, and one 12 s deadline covers the directory, the\nupgrade and the exchange. Unknown until DEV runs it: whether Steam's managers accept connections from Cloudflare's\negress.
+A new public build is no news by itself (owner, 24.10.2026: «мне нет смысла от сборки»: build 6967 changed two binaries
+and nothing a player sees, and such builds come twice a week). Nothing is posted and the owner is not told. The build
+starts the digging: `steam_app_watch.files_due_until` is set an hour ahead, and every idle Cron minute until then queues
+the game-files watch (one indexed read a tick), so a find goes out as soon as GameTracking-Dota2 has the build (about a
+quarter of an hour after Steam ships it). The first read is the baseline; a higher change number moves the row with a
+conditional update, so overlapping runs act once; a read without the build never counts as a new one.
 
 Both watches (game files and Steam) write their last run to `source_watch_checks` (migration 0109): a successful read
 or the failure's stable code. «Источники → Состояние лент» shows them beside the two feeds (`GET /api/v1/dota`

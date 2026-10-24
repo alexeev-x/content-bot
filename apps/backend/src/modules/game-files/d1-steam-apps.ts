@@ -1,13 +1,12 @@
-// What Steam last said about Dota's apps (migration 0108). `advance` is the one claim of a change: it moves the row
-// only from the change number the run read, so two overlapping runs never post the same change twice.
+// What Steam last said about Dota (migration 0108). `advance` is the one claim of a change: it moves the row only from
+// the change number the run read, so two overlapping runs never act on the same change twice. `files_due_until`
+// (migration 0113): after a new build, the game files are read every minute until then.
 
 export interface SteamAppRow {
   appId: number;
   changeNumber: number;
   buildId: string | null;
   timeUpdated: number | null;
-  /** When the app's last post went out; null before any. */
-  postedAt?: number | null;
 }
 
 export interface SteamAppRepository {
@@ -16,27 +15,23 @@ export interface SteamAppRepository {
   start(row: SteamAppRow, now: number): Promise<boolean>;
   /** Moves the row from `from` to `to`; false when another run moved it first. */
   advance(from: SteamAppRow, to: SteamAppRow, now: number): Promise<boolean>;
-  /**
-   * Claims the app's next post: true when none went out within `gapMs` of `now` (its time is then `now`), false when
-   * one did or another run claimed it first (QA 24.10.2026: two overlapping runs both posted Staging).
-   */
-  claimPost(appId: number, now: number, gapMs: number): Promise<boolean>;
+  /** The game files are read every minute until `until`. */
+  markFilesDue(appId: number, until: number): Promise<void>;
+  /** Whether a new build still has its game files read every minute at `now`. */
+  filesDue(appId: number, now: number): Promise<boolean>;
 }
 
 export function createD1SteamApps(db: D1Database): SteamAppRepository {
   return {
     async find(appId) {
       const row = await db
-        .prepare(
-          'SELECT app_id, change_number, build_id, time_updated, posted_at FROM steam_app_watch WHERE app_id = ?1'
-        )
+        .prepare('SELECT app_id, change_number, build_id, time_updated FROM steam_app_watch WHERE app_id = ?1')
         .bind(appId)
         .first<{
           app_id: number;
           change_number: number;
           build_id: string | null;
           time_updated: number | null;
-          posted_at: number | null;
         }>();
       return row === null
         ? null
@@ -44,8 +39,7 @@ export function createD1SteamApps(db: D1Database): SteamAppRepository {
             appId: row.app_id,
             changeNumber: row.change_number,
             buildId: row.build_id,
-            timeUpdated: row.time_updated,
-            postedAt: row.posted_at
+            timeUpdated: row.time_updated
           };
     },
     async start(row, now) {
@@ -71,15 +65,15 @@ export function createD1SteamApps(db: D1Database): SteamAppRepository {
         .run();
       return result.meta.changes === 1;
     },
-    async claimPost(appId, now, gapMs) {
-      const result = await db
-        .prepare(
-          `UPDATE steam_app_watch SET posted_at = ?2
-           WHERE app_id = ?1 AND (posted_at IS NULL OR posted_at <= ?2 - ?3)`
-        )
-        .bind(appId, now, gapMs)
-        .run();
-      return result.meta.changes === 1;
+    async markFilesDue(appId, until) {
+      await db.prepare('UPDATE steam_app_watch SET files_due_until = ?2 WHERE app_id = ?1').bind(appId, until).run();
+    },
+    async filesDue(appId, now) {
+      const row = await db
+        .prepare('SELECT 1 AS due FROM steam_app_watch WHERE app_id = ?1 AND files_due_until > ?2')
+        .bind(appId, now)
+        .first<{ due: number }>();
+      return row !== null;
     }
   };
 }

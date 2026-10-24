@@ -1,11 +1,18 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import type { AiJob } from '../../src/app/bot/ai-job';
 import { createContainer, type Container } from '../../src/app/container';
-import { prepareGameFilesPost, runGameFilesWatch } from '../../src/app/workflows/game-files';
+import { ownerOperationsSettingsSchema } from '@alexeev/contracts';
+import {
+  prepareGameFilesPost,
+  quietBuildPost,
+  runGameFilesWatch,
+  runQuietBuild
+} from '../../src/app/workflows/game-files';
 import { GitHubApiError, type GitHubCommitSummary, type GitHubRepoApi } from '../../src/integrations/github/github-api';
 import { type AiTextProvider, createD1AiRepository, updateAiSettings } from '../../src/modules/ai';
 import { testDb } from '../helpers/db';
-import { fakeClock, OWNER_ID, resetDb } from '../helpers/harness';
+import { createApi, fakeClock, OWNER_ID, OWNER_TOKEN, resetDb, seedSession } from '../helpers/harness';
+import { count, seedDestination } from '../helpers/publishing';
 import { testMediaBucket } from '../helpers/media-bucket';
 
 // Changes in the game's files (owner, 24.10.2026; migration 0107): the builds found first are only the baseline, a
@@ -97,7 +104,8 @@ describe('the game-files watch', () => {
     // Another run, as an overlapping or repeated tick: nothing is read or queued again.
     await watch();
     expect(reads).toEqual([sha(3), sha(4)]);
-    expect(queued).toHaveLength(1);
+    // One post job; the build without changes gets its quiet post job instead, once.
+    expect(queued.map((job) => job.kind)).toEqual(['game_files_post', 'game_files_quiet']);
   });
 
   it('passes over the build of an official patch: the patch notes source tells it (owner, 24.10.2026)', async () => {
@@ -181,5 +189,147 @@ describe('the check of a build', () => {
     expect(prepared?.own.task).toContain('не ставь ссылок');
     expect(prepared?.own.facts).toContain('+ "AbilityCooldown" "18"');
     expect(await status(3)).toEqual({ status: 'queued', reason: null });
+  });
+});
+
+describe('a build with nothing in it (owner, 24.10.2026: «смешную добавить текст и сам diff»)', () => {
+  const autopublishOn = async () => {
+    await seedSession({ token: OWNER_TOKEN, expiresAt: Date.now() + 400 * 24 * 60 * 60_000 });
+    const api = createApi({ clock: fakeClock() });
+    const destination = await seedDestination(api);
+    const current = ownerOperationsSettingsSchema.parse(
+      await (await api.request('/api/v1/settings/operations')).json()
+    );
+    const response = await api.request('/api/v1/settings/operations', {
+      method: 'PUT',
+      json: {
+        revision: current.revision,
+        timezone: current.timezone,
+        notifications: current.notifications,
+        autopublish: { enabled: true, destinationId: destination.id, dailyLimit: 10 }
+      }
+    });
+    expect(response.status).toBe(200);
+  };
+  /** A watch run, then the quiet jobs it queued (the queue's ten minutes of delay are not waited for). */
+  let ran = 0;
+  const step = async () => {
+    await watch();
+    for (const job of queued.slice(ran)) {
+      if (job.kind === 'game_files_quiet') await runQuietBuild(container, job, 't', () => {});
+    }
+    ran = queued.length;
+  };
+  beforeEach(() => {
+    ran = 0;
+  });
+
+  it('gets one short post with the version lines, once, and none when the build had a find', async () => {
+    await autopublishOn();
+    await step();
+    commits.push(commit(2, ['manifests/manifest_373301.txt']));
+    await step();
+    await step();
+    const posts = await testDb().prepare('SELECT body, entities FROM posts').all<{ body: string; entities: string }>();
+    expect(posts.results).toHaveLength(1);
+    expect(posts.results[0]?.body).toContain('6962');
+    expect(posts.results[0]?.body).toContain('- ClientVersion=6961\n+ ClientVersion=6962');
+    expect(posts.results[0]?.entities).toContain('"language":"diff"');
+    expect(await count('publications')).toBe(1);
+
+    // A build whose find went to the writer gets no joke for its other commit.
+    commits.push(commit(3, [HERO]));
+    diffs[sha(3)] = diffOf(HERO, '-\t"AbilityCooldown"\t"20"\n+\t"AbilityCooldown"\t"18"');
+    await step();
+    commits.push({ ...commit(3, ['manifests/manifest_373301.txt']), sha: sha(33) });
+    await step();
+    expect(await count('posts')).toBe(1);
+  });
+
+  it('has the joke written by the cheap model, different each time; one without the build number is not used', async () => {
+    await autopublishOn();
+    await updateAiSettings(
+      { repo: createD1AiRepository(testDb()), clock: fakeClock() },
+      {
+        revision: 0,
+        provider: 'openai',
+        enabled: true,
+        draftModel: 'gpt-6.1-sol',
+        cheapModel: 'gpt-6-luna',
+        videoReviews: false,
+        prices: [],
+        monthlyBudgetUsd: 5,
+        dailyCapUsd: 1,
+        warnAtPercent: 80
+      }
+    );
+    const jokes = [
+      'Сборка 6962 вышла, в файлах тишина — Рошан опять отдыхает.',
+      'Valve что-то сделала, но что — загадка.'
+    ];
+    const inputs: string[] = [];
+    container = make({
+      provider: 'openai',
+      complete: async (request) => {
+        inputs.push(request.input);
+        return {
+          text: JSON.stringify({ joke: jokes.shift() ?? '' }),
+          model: 'gpt-6-luna',
+          usage: { inputTokens: 50, cachedInputTokens: 0, cacheWriteTokens: 0, outputTokens: 20 }
+        };
+      }
+    });
+    await step();
+    commits.push(commit(2, ['manifests/manifest_373301.txt']));
+    await step();
+    commits.push(commit(3, ['manifests/manifest_373301.txt']));
+    await step();
+    const bodies = (await testDb().prepare('SELECT body FROM posts ORDER BY created_at').all<{ body: string }>())
+      .results;
+    expect(bodies[0]?.body).toContain('Рошан опять отдыхает');
+    // The second joke has no build number: the stand-in goes out instead.
+    expect(bodies[1]?.body).toContain('6963');
+    expect(bodies[1]?.body).not.toContain('загадка');
+    expect(inputs[0]).toContain('Тема шутки:');
+  });
+
+  it('gets no joke when another commit of the same build has a find, and one joke however often it is queued (QA 24.10.2026)', async () => {
+    await autopublishOn();
+    await step();
+    // One run: the build's find (older) and its quiet commit (newer).
+    commits.push(commit(2, [HERO]), { ...commit(2, ['manifests/manifest_373301.txt']), sha: sha(22) });
+    diffs[sha(2)] = diffOf(HERO, '-\t"AbilityCooldown"\t"20"\n+\t"AbilityCooldown"\t"18"');
+    await step();
+    expect(queued.filter((job) => job.kind === 'game_files_quiet')).toHaveLength(0);
+    // The same quiet build queued twice posts once.
+    const quietJob = {
+      id: crypto.randomUUID(),
+      kind: 'game_files_quiet' as const,
+      chatId: Number(OWNER_ID),
+      build: '6970'
+    };
+    await runQuietBuild(container, quietJob, 't', () => {});
+    await runQuietBuild(container, { ...quietJob, id: crypto.randomUUID() }, 't', () => {});
+    expect(await count('posts')).toBe(1);
+  });
+
+  it('posts nothing while the automatic publishing is off', async () => {
+    await step();
+    commits.push(commit(2, ['manifests/manifest_373301.txt']));
+    await step();
+    expect(await count('posts')).toBe(0);
+  });
+
+  it('reads like the owner asked, the joke picked by the build number', () => {
+    expect(quietBuildPost('6967', '6966')).toBe(
+      [
+        'Новая сборка 6967: перекопали файлы — героев не трогали, предметы на месте. Можно дальше спокойно фидить.',
+        '',
+        '```diff',
+        '- ClientVersion=6966',
+        '+ ClientVersion=6967',
+        '```'
+      ].join('\n')
+    );
   });
 });
