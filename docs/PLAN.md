@@ -160,6 +160,21 @@ The AI makes the Telegram channel's content itself: news and rubric posts drafte
     starts once the owner sets GITHUB_TOKEN.
   Expected: about 1–2 posts a week outside patch weeks (07–22.10 gave: the Terrorblade arcana in the files, effect
   slots for abilities of 11 heroes, persona portraits in the hero grid, a Trove gifting notice).
+- Idea for after the release, not chosen (owner, 24.10.2026: «после, просто как идею зафиксируй»): prices of the Dota
+  market as unique content — a new arcana's or treasure's price at release and a week later, weekly top movers, all
+  arcanas by price with a 30-day trend, alerts (a 30/90-day low, a drop over 20% a day), store sales and Steam's ruble
+  rate. Research of 24.10.2026 (live requests, not from a Worker):
+  - Steam Community Market `search/render` (`appid=570&norender=1`) works logged out: 10 items a call, USD only, tag
+    filters (106 arcanas, 364 treasure chests, 1 875 immortals); 80 calls in a row passed. `priceoverview` gives RUB
+    (`currency=5`) but allows about 20 calls a minute per IP; `pricehistory` needs a logged-in cookie (a grey area of the
+    Steam Subscriber Agreement). No free source has Dota price history: it is built from our own snapshots in D1.
+  - market.dota2.net `api/v2/prices/RUB.json` (23 000 items with volume, 1.9 MB) and lis-skins `dota2.json` as a
+    cross-check; parsing them may not fit the Free plan's 10 ms of CPU.
+  - Valve's store has no open catalog; `dota2.com/react/getbpprices` gives one USD price by item id; Steam Web API
+    `GetAssetPrices` (owner's `STEAM_WEB_API_KEY`) may give store prices and sales — not tested.
+  - Risks: Steam's per-IP limits from Cloudflare's shared egress (test on DEV first), noisy prices of thin items.
+  First step when chosen: snapshot arcanas, new treasure items and the most traded immortals on DEV for a week, then pick
+  the posts by the measured volatility.
 
 ## 2. Rubrics the AI runs itself
 
