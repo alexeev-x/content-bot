@@ -592,22 +592,52 @@ function followersLine(daily: DailyAnalytics): string | null {
     .join(' · ')}`;
 }
 
-/** «Просмотры за сутки: TikTok +4.7к · YouTube +78 · Telegram +89»; «≈» when some growth is not a 24-hour pair. */
-function dayViewsLine(daily: DailyAnalytics): string | null {
+/** The day's views per platform, «+4.7к» or «≈+4.7к» when some growth is not a 24-hour pair; TikTok first. */
+function dayViews(daily: DailyAnalytics): Map<(typeof PLATFORM_ORDER)[number], string> {
   // TikTok first: it brings most of the day's views.
   const ordered = [...daily.platforms].sort(
     (a, b) => PLATFORM_ORDER.indexOf(a.platform) - PLATFORM_ORDER.indexOf(b.platform)
   );
-  const parts = ordered.flatMap((platform) => {
+  const views = new Map<(typeof PLATFORM_ORDER)[number], string>();
+  for (const platform of ordered) {
     const counted = platform.rows.filter((row) => row.growth.kind === 'day' || row.growth.kind === 'window');
-    if (counted.length === 0) return [];
+    if (counted.length === 0) continue;
     const total = counted.reduce((sum, row) => sum + (row.growth.views ?? 0), 0);
     const approximate = counted.some((row) => row.growth.kind === 'window');
-    return [`${PLATFORM_NAME[platform.platform]} ${approximate ? '≈' : ''}+${compactCount(total)}`];
-  });
+    views.set(platform.platform, `${approximate ? '≈' : ''}+${compactCount(total)}`);
+  }
   const channel = daily.telegram?.dayViews;
-  if (channel !== undefined && channel !== null) parts.push(`Telegram +${compactCount(channel)}`);
+  if (channel !== undefined && channel !== null) views.set('telegram', `+${compactCount(channel)}`);
+  return views;
+}
+
+/** «Просмотры за сутки: TikTok +4.7к · YouTube +78 · Telegram +89». */
+function dayViewsLine(daily: DailyAnalytics): string | null {
+  const parts = [...dayViews(daily)].map(([platform, views]) => `${ALL_PLATFORM_NAME[platform]} ${views}`);
   return parts.length === 0 ? null : `Просмотры за сутки: ${parts.join(' · ')}`;
+}
+
+/** The followers and the day's views as one rich table, a row per platform (owner, 24.10.2026: «наглядно»). */
+function followersTableRich(daily: DailyAnalytics): string {
+  const followers = new Map((daily.followers ?? []).map((row) => [row.platform, row]));
+  const views = dayViews(daily);
+  const platforms = PLATFORM_ORDER.filter((platform) => followers.has(platform) || views.has(platform));
+  if (platforms.length === 0) return '';
+  const rows = platforms.map((platform) => {
+    const row = followers.get(platform);
+    const cells = [
+      row === undefined ? '—' : grouped(row.count),
+      row === undefined || row.change === null ? '—' : signed(row.change),
+      views.get(platform) ?? '—'
+    ];
+    return `<tr><td>${ALL_PLATFORM_NAME[platform]}</td>${cells.map((cell) => `<td align="right">${escapeHtml(cell)}</td>`).join('')}</tr>`;
+  });
+  return [
+    '<table bordered striped compact><caption>Подписчики и просмотры за сутки</caption>',
+    '<tr><th></th><th>Подписчики</th><th>За сутки</th><th>Просмотры</th></tr>',
+    ...rows,
+    '</table>'
+  ].join('\n');
 }
 
 /** The channel's posts of the day, or that there were none: no post, no views (owner, 22.10.2026). */
@@ -879,7 +909,7 @@ export function dailyReportRichHtml(input: {
   const milestones = milestonesOf(daily, input.names, input.timezone);
   return [
     `<h3>📈 ${day} · ${time(daily.asOf, input.timezone)}${daily.partial ? ' · данные частично' : ''}</h3>`,
-    richBlocks([followersLine(daily), dayViewsLine(daily)].filter((line): line is string => line !== null)),
+    followersTableRich(daily),
     richBlocks(telegramLines(daily)),
     videoTableRich(daily, input.names),
     richBlocks(olderLines(daily, input.names)),

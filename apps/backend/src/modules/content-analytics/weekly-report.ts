@@ -314,7 +314,17 @@ export function weeklyReportHtml(input: {
       ? 'За неделю публикаций не было.'
       : `Публикаций: ${data.published} (неделей раньше ${data.publishedBefore})`
   ];
-  if (data.followers.length > 0)
+  // A rich report shows the followers as a table, as the daily one does (owner, 24.10.2026: «наглядно»).
+  if (data.followers.length > 0 && input.rich === true)
+    lines.push(
+      `<table bordered striped compact><caption>Подписчики</caption><tr><th></th><th>Всего</th><th>За неделю</th></tr>${data.followers
+        .map(
+          (row) =>
+            `<tr><td>${PLATFORM_NAME[row.platform]}</td><td align="right">${exact.format(row.followers)}</td><td align="right">${row.change === null ? '—' : signedCount(row.change)}</td></tr>`
+        )
+        .join('')}</table>`
+    );
+  else if (data.followers.length > 0)
     lines.push(
       `Подписчики: ${data.followers
         .map(

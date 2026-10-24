@@ -171,7 +171,9 @@ describe('daily report', () => {
     );
     const { daily, weekly } = await latestRichReports({ reports: deps.reports, names });
     expect(weekly).toBeNull();
-    expect(daily).toContain('<p>Просмотры за сутки: YouTube +7.2к</p>');
+    expect(daily).toMatch(
+      /<tr><td>YouTube<\/td><td align="right">[^<]*<\/td><td align="right">[^<]*<\/td><td align="right">\+7\.2к<\/td><\/tr>/u
+    );
     expect(daily).toContain('<p><b>Telegram:</b> за сутки постов не было.</p>');
     expect(daily).toMatch(/<tr><th>Ролик<\/th><th>Дн<\/th><th>TikTok<\/th><th>YouTube<\/th><\/tr>/u);
     expect(daily).toMatch(
