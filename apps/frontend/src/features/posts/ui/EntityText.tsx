@@ -46,7 +46,7 @@ function render(nodes: EntityNode[], keyPrefix: string): ReactNode[] {
       case 'pre':
         return (
           <pre key={key} className={styles.pre} data-language={entity.language}>
-            <code>{children}</code>
+            <code>{entity.language === 'diff' ? diffLines(plainText(node.children), key) : children}</code>
           </pre>
         );
       case 'blockquote':
@@ -73,5 +73,26 @@ function render(nodes: EntityNode[], keyPrefix: string): ReactNode[] {
         );
       }
     }
+  });
+}
+
+/** The text of a subtree, without its formatting. */
+function plainText(nodes: EntityNode[]): string {
+  return nodes.map((node) => (node.kind === 'text' ? node.text : plainText(node.children))).join('');
+}
+
+/** A `diff` block as Telegram shows it: removed lines red, added lines green (owner, 24.10.2026). */
+function diffLines(text: string, keyPrefix: string): ReactNode[] {
+  let start = 0;
+  return text.split('\n').map((line, index, lines) => {
+    const key = `${keyPrefix}.l${start}`;
+    start += line.length + 1;
+    const sign = line.startsWith('+') ? 'added' : line.startsWith('-') ? 'removed' : undefined;
+    return (
+      <span key={key} className={styles.diffLine} data-sign={sign}>
+        {line}
+        {index < lines.length - 1 ? '\n' : null}
+      </span>
+    );
   });
 }

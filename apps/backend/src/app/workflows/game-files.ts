@@ -25,6 +25,8 @@ const READS_PER_RUN = 1;
  */
 const FINAL_FAILURES: Partial<Record<string, string>> = { GITHUB_TOO_BIG: 'too_big', GITHUB_SHAPE: 'unreadable' };
 const CHECK_TIMEOUT_MS = 60_000;
+/** A new patch-notes string of Valve's (`"DOTA_Patch_7_41f_…"`) added by the build. */
+const OFFICIAL_PATCH = /^\+\s*"DOTA_Patch_\d/mu;
 
 /** The automatic publishing's key of a build's post: one publication per build. */
 export const gameFilesExternalId = (sha: string) => `files:${sha}`;
@@ -74,7 +76,17 @@ export async function runGameFilesWatch(
     for (const commit of fresh.filter((each) => !quiet.includes(each)).slice(0, READS_PER_RUN)) {
       const build = commit.header?.build ?? '0';
       try {
-        const diff = condenseBuild(splitDiff(await github.getCommitDiff(commit.sha)));
+        const whole = await github.getCommitDiff(commit.sha);
+        // A build that brings Valve's patch notes is the patch itself, told by the patch notes source: no second post
+        // of the same news (history of 2024–2026: the numbers and the notes always land in the same build).
+        if (OFFICIAL_PATCH.test(whole)) {
+          await builds.skip(
+            [{ sha: commit.sha, build, committedAt: commit.committedAt, reason: 'official_patch' }],
+            now
+          );
+          continue;
+        }
+        const diff = condenseBuild(splitDiff(whole));
         if (diff === null) {
           await builds.skip([{ sha: commit.sha, build, committedAt: commit.committedAt, reason: 'no_changes' }], now);
           continue;
@@ -171,8 +183,11 @@ export function gameFilesTask(job: { build: string; committedAt: number; diff: s
       `Дата: ${date}`,
       'Напиши короткий пост о самом интересном для игрока. Первая строка начинается со слов «В файлах игры нашли» — отдельного заголовка нет.',
       'Скажи, что Valve это не подтверждала и до выхода всё может измениться.',
-      'Перескажи по-русски, что поменялось и что это значит для игрока: числа «было → стало», новые предметы, события, герои, косметика, функции. Строки файлов не цитируй, названия файлов и ключей не пиши. Строка, которая просто переехала, — не изменение.',
-      'Не упоминай SteamDB, GitHub, трекеры и сборки, не ставь ссылок. Обычно 400–900 знаков.',
+      'В тексте перескажи по-русски, что поменялось и что это значит для игрока: числа, новые предметы, события, герои, косметика, функции. В самом тексте строки файлов не цитируй, названия файлов и ключей не пиши. Строка, которая просто переехала, — не изменение.',
+      // Owner, 24.10.2026: the removed and added lines in red and green, «как в программировании» — a piece of the code
+      // itself, as it is (the text above tells it in Russian).
+      'После текста покажи кусочек самого кода: строка «```diff», затем 2–8 самых показательных строк из фактов ровно как они там есть, со своими «- » и «+ », без названий файлов, — и строка «```». Строки не переводи и не меняй. Блок один, другого markdown нет.',
+      'Не упоминай SteamDB, GitHub, трекеры и сборки, не ставь ссылок. Текст до блока — обычно 300–700 знаков.',
       // The same naming rules as every source post (app/bot/rich-post.ts SOURCE_POST_STRUCTURE), without its heading:
       // a find has none (owner, 23.10.2026).
       'Героя называй, как его зовут игроки (Котл, БХ, Трент); нет такого имени — английское название. Не упоминай другие посты.'

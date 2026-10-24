@@ -100,6 +100,17 @@ describe('the game-files watch', () => {
     expect(queued).toHaveLength(1);
   });
 
+  it('passes over the build of an official patch: the patch notes source tells it (owner, 24.10.2026)', async () => {
+    await watch();
+    const STRINGS = 'game/dota/pak01_dir/resource/localization/dota_english.txt';
+    commits.push(commit(2, [HERO, STRINGS]));
+    diffs[sha(2)] =
+      `${diffOf(HERO, '-\t"AbilityCooldown"\t"20"\n+\t"AbilityCooldown"\t"18"')}\n${diffOf(STRINGS, '+\t\t"DOTA_Patch_7_41g_General_1"\t"Some change"')}`;
+    await watch();
+    expect(await status(2)).toEqual({ status: 'skipped', reason: 'official_patch' });
+    expect(queued).toEqual([]);
+  });
+
   it('reads a build whose message was cut short, and ends one too big to read (QA 24.10.2026)', async () => {
     await watch();
     commits.push(commit(2, ['DumpSource2/convars.txt', 'game/bin/win'], 334), commit(3, [HERO]));

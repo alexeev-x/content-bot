@@ -71,3 +71,36 @@ describe('a patch post from an AI text', () => {
     expect(aiPostText('Вышел новый сет на Пуджа.\n\nКрасивый.').entities).toEqual([]);
   });
 });
+
+describe('a find in the game files from an AI text', () => {
+  // Owner, 24.10.2026: what was removed and added shows red and green, as a diff in Telegram.
+  it('turns the «```diff» block into Telegram code in the diff language and drops its fences', () => {
+    const post = aiPostText(
+      [
+        'В файлах игры нашли тихий нерф Kez.',
+        '',
+        '```diff',
+        '- Вампиризм: 40/80/120/160',
+        '+ Вампиризм: 30/60/90/120',
+        '```',
+        'Подробнее: https://www.dota2.com/x'
+      ].join('\n')
+    );
+    const block = '- Вампиризм: 40/80/120/160\n+ Вампиризм: 30/60/90/120';
+    expect(post.text).toBe(`В файлах игры нашли тихий нерф Kez.\n\n${block}\nПодробнее`);
+    const offset = post.text.indexOf(block);
+    expect(post.entities).toEqual([
+      { type: 'pre', offset, length: block.length, language: 'diff' },
+      {
+        type: 'text_link',
+        offset: post.text.indexOf('Подробнее'),
+        length: 'Подробнее'.length,
+        url: 'https://www.dota2.com/x'
+      }
+    ]);
+  });
+
+  it('leaves an unclosed fence as text', () => {
+    expect(aiPostText('Текст.\n```diff\n+ строка').entities).toEqual([]);
+  });
+});

@@ -256,13 +256,72 @@ export function linkTrailingSource(text: string): { text: string; entities: Mess
 // not by the writer: its text is plain, and a bold first line in general broke posts that open with a joke.
 const PATCH_LEAD = /^(Вышел (?:патч )?\d\.\d{2}[a-z]?\.)[ \t]*(?:\n[ \t]*)*/u;
 
-/** An approved AI text as a post: the patch lead in bold, the trailing source as a link. */
+/** An approved AI text as a post: the patch lead in bold, the trailing source as a link, «```diff» blocks as code. */
 export function aiPostText(text: string): { text: string; entities: MessageEntity[] } {
   const lead = PATCH_LEAD.exec(text);
-  if (lead === null) return linkTrailingSource(text);
+  if (lead === null) return withDiffBlocks(linkTrailingSource(text));
   const head = lead[1] ?? '';
   const rest = text.slice(lead[0].length);
-  if (rest.trim() === '') return linkTrailingSource(text);
+  if (rest.trim() === '') return withDiffBlocks(linkTrailingSource(text));
   const linked = linkTrailingSource(`${head}\n\n${rest}`);
-  return { text: linked.text, entities: [{ type: 'bold', offset: 0, length: head.length }, ...linked.entities] };
+  return withDiffBlocks({
+    text: linked.text,
+    entities: [{ type: 'bold', offset: 0, length: head.length }, ...linked.entities]
+  });
+}
+
+const FENCE_OPEN = /^```diff[ \t]*$/u;
+const FENCE_CLOSE = /^```[ \t]*$/u;
+
+/**
+ * A find in the game's files shows what was removed and added as a diff, red and green in Telegram (owner,
+ * 24.10.2026: «красным и зелёным как в программировании»): the writer's «```diff … ```» block becomes a `pre` entity in
+ * the `diff` language and its fence lines go. An unclosed fence is left as text. Offsets are UTF-16 units.
+ */
+function withDiffBlocks(post: { text: string; entities: MessageEntity[] }): {
+  text: string;
+  entities: MessageEntity[];
+} {
+  const lines = post.text.split('\n');
+  if (!lines.some((line) => FENCE_OPEN.test(line))) return post;
+  const out: string[] = [];
+  const blocks: { offset: number; length: number }[] = [];
+  /** Where each removed fence line was (in the old text) and how long it was with its line break. */
+  const removed: { at: number; length: number }[] = [];
+  let oldOffset = 0;
+  let newOffset = 0;
+  for (let index = 0; index < lines.length; index += 1) {
+    const line = lines[index] ?? '';
+    const close = FENCE_OPEN.test(line) ? lines.findIndex((each, at) => at > index && FENCE_CLOSE.test(each)) : -1;
+    if (close === -1) {
+      out.push(line);
+      oldOffset += line.length + 1;
+      newOffset += line.length + 1;
+      continue;
+    }
+    const body = lines.slice(index + 1, close);
+    removed.push({ at: oldOffset, length: line.length + 1 });
+    oldOffset += line.length + 1;
+    const content = body.join('\n');
+    if (content.trim() !== '') blocks.push({ offset: newOffset, length: content.length });
+    for (const each of body) {
+      out.push(each);
+      oldOffset += each.length + 1;
+      newOffset += each.length + 1;
+    }
+    const fence = lines[close] ?? '';
+    removed.push({ at: oldOffset, length: fence.length + 1 });
+    oldOffset += fence.length + 1;
+    index = close;
+  }
+  const shift = (offset: number) =>
+    removed.reduce((sum, cut) => (cut.at < offset ? sum + Math.min(cut.length, offset - cut.at) : sum), 0);
+  const text = out.join('\n').replace(/\n+$/u, '');
+  return {
+    text,
+    entities: [
+      ...post.entities.map((entity) => ({ ...entity, offset: entity.offset - shift(entity.offset) })),
+      ...blocks.map((block) => ({ type: 'pre' as const, offset: block.offset, length: block.length, language: 'diff' }))
+    ].sort((a, b) => a.offset - b.offset)
+  };
 }

@@ -56,3 +56,13 @@
   outline: var(--focus-ring-width) solid var(--color-focus-ring);
   outline-offset: var(--focus-ring-offset);
 }
+
+/* A `diff` block's lines, red and green as Telegram colours them. */
+.diffLine[data-sign='added'] {
+  background: var(--color-status-done-bg);
+  color: var(--color-status-done-fg);
+}
+.diffLine[data-sign='removed'] {
+  background: var(--color-status-failed-bg);
+  color: var(--color-status-failed-fg);
+}
