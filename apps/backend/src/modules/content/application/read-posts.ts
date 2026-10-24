@@ -17,10 +17,10 @@ export async function getPost(deps: ReadPostsDeps, id: string): Promise<PostDto>
 }
 
 export async function getPostsByIds(deps: ReadPostsDeps, ids: readonly string[]): Promise<PostDto[]> {
-  const records = await deps.repo.findManyByIds(ids);
-  const summaries = await deps.summaries.summarize(
-    records.map((record) => record.id),
-    deps.now
-  );
+  // Summaries only need the ids, so both reads run together; a deleted post has no record, so its summary is dropped.
+  const [records, summaries] = await Promise.all([
+    deps.repo.findManyByIds(ids),
+    deps.summaries.summarize(ids, deps.now)
+  ]);
   return records.map((record) => toPostDto(record, summaries.get(record.id) ?? emptySummary()));
 }

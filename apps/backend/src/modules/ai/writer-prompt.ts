@@ -303,8 +303,18 @@ export function rankOwnerTexts(task: string, newestFirst: readonly string[], cou
     .map((entry) => entry.text);
 }
 
-/** The pack the prompt was built from, as a short stable hash (FNV-1a). */
+let cachedPackRevision: string | null = null;
+
+/**
+ * The pack the prompt was built from, as a short stable hash (FNV-1a). The pack is constant per deploy, so the hash of
+ * its 240 KB is computed once per isolate; the cache holds no user, request or job data.
+ */
 export function packRevision(): string {
+  cachedPackRevision ??= hashPack();
+  return cachedPackRevision;
+}
+
+function hashPack(): string {
   const text = JSON.stringify(AI_PACK);
   let hash = 0x811c9dc5;
   for (let index = 0; index < text.length; index += 1) {

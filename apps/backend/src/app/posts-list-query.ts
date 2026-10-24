@@ -25,7 +25,8 @@ interface ListRow {
 const SORT_SQL: Record<PostSort, string> = {
   title: 'p.title_sort_key',
   updated: 'p.updated_at',
-  sentAt: 'pf.last_sent_at',
+  sentAt: `(SELECT MAX(CASE WHEN j.status = 'succeeded' THEN j.updated_at END)
+    FROM publications pu JOIN jobs j ON j.publication_id = pu.id AND j.kind = 'publish' WHERE pu.post_id = p.id)`,
   left: `p.archived_at + ${ARCHIVE_RETENTION_MS}`
 };
 
@@ -86,7 +87,6 @@ export function buildPostsListSql(
   const shortSearch = [...q].length < 3;
   const sortExpr = SORT_SQL[sort];
   const stateExpr = publicationStateSql();
-  const autoDelete = `CASE WHEN p.archived_at IS NULL THEN NULL ELSE p.archived_at + ${ARCHIVE_RETENTION_MS} END`;
   const filters = [live ? 'p.archived_at IS NULL' : 'p.archived_at IS NOT NULL', 'p.deleted_at IS NULL'];
   const bindings: (string | number)[] = [];
   if (query.status !== undefined) {
@@ -124,29 +124,29 @@ export function buildPostsListSql(
   bindings.push(query.limit + 1);
   const offsetSql = query.page === undefined ? '' : ' OFFSET ?';
   if (query.page !== undefined) bindings.push((query.page - 1) * query.limit);
-  const sql = `WITH publication_facts AS (
-      SELECT pu.post_id, MAX(CASE WHEN j.status = 'succeeded' THEN j.updated_at END) AS last_sent_at
-      FROM publications pu JOIN jobs j ON j.publication_id = pu.id AND j.kind = 'publish'
-      GROUP BY pu.post_id
-    ), selected AS (
-      SELECT p.id, p.title, p.body, p.status, p.updated_at, p.archived_at,
-             ${autoDelete} AS auto_delete_at, pf.last_sent_at, ${stateExpr} AS display_state,
-             ${sortExpr} AS sort_key, CASE WHEN ${sortExpr} IS NULL THEN 1 ELSE 0 END AS sort_null
-      FROM posts p LEFT JOIN publication_facts pf ON pf.post_id = p.id
+  // The page only needs ids and sort keys (full rows are re-read by id), so `selected` carries no
+  // body or display state; the state expression runs only inside the `q` filter. With no `q` the
+  // total is a plain count over `posts`, which skips building the whole set.
+  const countSql =
+    q === '' ? `(SELECT count(*) FROM posts p WHERE ${filters.join(' AND ')})` : '(SELECT count(*) FROM selected)';
+  if (q === '' && query.status !== undefined) bindings.push(query.status);
+  const sql = `WITH selected AS (
+      SELECT p.id, ${sortExpr} AS sort_key, CASE WHEN ${sortExpr} IS NULL THEN 1 ELSE 0 END AS sort_null
+      FROM posts p
       WHERE ${filters.join(' AND ')}
     )${
       cursor === null
         ? ''
         : `, cursor_position AS (
       SELECT ${sortExpr} AS sort_key, CASE WHEN ${sortExpr} IS NULL THEN 1 ELSE 0 END AS sort_null
-      FROM posts p LEFT JOIN publication_facts pf ON pf.post_id = p.id
+      FROM posts p
       WHERE p.id = ?
     )`
     }, page AS (
       SELECT selected.* FROM selected${cursor === null ? '' : ' CROSS JOIN cursor_position'} WHERE 1 = 1${cursorSql}
       ORDER BY sort_null ASC, sort_key ${order}, id ${order} LIMIT ?${offsetSql}
     )
-    SELECT page.id, page.sort_key, (SELECT count(*) FROM selected) AS total_count,
+    SELECT page.id, page.sort_key, ${countSql} AS total_count,
            (SELECT count(*) FROM posts WHERE archived_at IS NOT NULL AND deleted_at IS NULL) AS archived_count
     FROM (SELECT 1) AS anchor LEFT JOIN page ON 1 = 1 ORDER BY page.sort_null ASC, page.sort_key ${order}, page.id ${order}`;
   return { sql, bindings };

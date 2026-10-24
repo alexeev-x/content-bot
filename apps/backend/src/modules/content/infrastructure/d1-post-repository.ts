@@ -106,7 +106,7 @@ interface MediaRow {
   position: number;
 }
 
-function mediaStatement(db: D1Database, postIds: string[]): D1PreparedStatement {
+function mediaStatement(db: D1Database, postIds: readonly string[]): D1PreparedStatement {
   return db
     .prepare(
       `SELECT p.id AS post_id, m.id, m.kind, m.file_name, m.content_type, m.size_bytes, m.width, m.height,
@@ -277,13 +277,19 @@ export function createD1PostRepository(db: D1Database): PostRepository {
 
     async findManyByIds(ids) {
       if (ids.length === 0) return [];
-      const { results } = await db
-        .prepare(
-          `SELECT ${POST_COLUMNS} FROM posts WHERE id IN (SELECT value FROM json_each(?1)) AND deleted_at IS NULL`
-        )
-        .bind(JSON.stringify(ids))
-        .all<PostRow>();
-      const byId = new Map((await attachMedia(db, results.map(toRecord))).map((post) => [post.id, post]));
+      // The ids are known up front, so posts and their media go in one round trip; media of a
+      // deleted post is simply never matched by withMedia.
+      const [postsResult, mediaResult] = await db.batch([
+        db
+          .prepare(
+            `SELECT ${POST_COLUMNS} FROM posts WHERE id IN (SELECT value FROM json_each(?1)) AND deleted_at IS NULL`
+          )
+          .bind(JSON.stringify(ids)),
+        mediaStatement(db, ids)
+      ]);
+      const records = (postsResult?.results ?? []) as PostRow[];
+      const media = (mediaResult?.results ?? []) as MediaRow[];
+      const byId = new Map(withMedia(records.map(toRecord), media).map((post) => [post.id, post]));
       return ids.flatMap((id) => {
         const post = byId.get(id);
         return post === undefined ? [] : [post];
