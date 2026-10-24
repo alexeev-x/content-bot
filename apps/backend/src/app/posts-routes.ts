@@ -117,12 +117,13 @@ export const postsRoutes = new Hono<AppBindings>()
   .get('/:id', validated('param', idParamSchema), async (c) => {
     const container = c.get('container');
     const id = postId(c.req.valid('param').id);
-    const post = await getPost(
-      { repo: container.posts, summaries: container.postSummaries, now: container.clock.now() },
-      id
-    );
     // Studio-only: who wrote the post. The channel gets only the text and media (sending never reads it).
-    const origin = (await readPostOrigins({ writer: container.aiWriter }, [post.id])).get(post.id) ?? null;
+    // The origin needs only the id from the URL, so it is read together with the post.
+    const [post, origins] = await Promise.all([
+      getPost({ repo: container.posts, summaries: container.postSummaries, now: container.clock.now() }, id),
+      readPostOrigins({ writer: container.aiWriter }, [id])
+    ]);
+    const origin = origins.get(post.id) ?? null;
     return c.json({ ...post, origin });
   })
   .post(

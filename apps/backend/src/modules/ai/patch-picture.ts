@@ -2,8 +2,6 @@ import { Buffer } from 'node:buffer';
 import { z } from 'zod';
 import type { Clock } from '../../platform/clock';
 import type { AiRepository } from './d1-ai-repository';
-import { HOTFIX_COVER_REFERENCES } from './hotfix-cover-refs.generated';
-import { PATCH_COVER_REFERENCES } from './patch-cover-refs.generated';
 import { type AiImageProvider, AiProviderError, type AiTextProvider, type AiUsage } from './ports';
 import { assertAiReady, costMicroUsd, effectivePrices, priceFor, readAiSettings } from './service';
 
@@ -296,7 +294,8 @@ export async function drawPatchPicture(
   }
   const drawn = await drawChecked(deps, ready, {
     prompt: patchPicturePrompt({ number: input.number, points, theme: PATCH_COVER_THEMES[theme].prompt }),
-    references: PATCH_COVER_REFERENCES.map(decodeReference),
+    // Loaded on first use: ~440 KB of base64 would otherwise be parsed on every cold start of every entry point.
+    references: (await import('./patch-cover-refs.generated')).PATCH_COVER_REFERENCES.map(decodeReference),
     readInstructions: READ_INSTRUCTIONS,
     number: input.number,
     captions: points
@@ -345,7 +344,7 @@ export async function drawHotfixPicture(
   }
   const drawn = await drawChecked(deps, ready, {
     prompt: hotfixPicturePrompt({ scene, caption }),
-    references: HOTFIX_COVER_REFERENCES.map(decodeReference),
+    references: (await import('./hotfix-cover-refs.generated')).HOTFIX_COVER_REFERENCES.map(decodeReference),
     readInstructions: HOTFIX_READ_INSTRUCTIONS,
     number: HOTFIX_PICTURE_TITLE,
     captions: [caption]
