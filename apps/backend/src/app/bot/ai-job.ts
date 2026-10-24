@@ -41,9 +41,7 @@ export const aiJobSchema = z.discriminatedUnion('kind', [
      * Cron's first draft of a new event: the only one the automatic publishing may send (QA 22.10.2026: the owner's
      * «Написать через ИИ» replay of an old announcement must never go to the channel by itself).
      */
-    automatic: z.boolean().default(false),
-    /** Pressed on DEV's «Проверка автопостов» (owner, 23.10.2026): a test, outside the daily limit. */
-    devRun: z.boolean().optional()
+    automatic: z.boolean().default(false)
   }),
   /**
    * The approved post of a Dota event announcement gets the announcement's images (owner, 21.10.2026: an event post
@@ -77,9 +75,7 @@ export const aiJobSchema = z.discriminatedUnion('kind', [
      */
     followUp: z.number().int().min(1).max(2).optional(),
     urls: z.array(z.url().max(500)).max(10).optional(),
-    from: z.number().int().min(0).max(10).optional(),
-    /** Pressed on DEV's «Проверка автопостов» (owner, 23.10.2026): a test, outside the daily limit. */
-    devRun: z.boolean().optional()
+    from: z.number().int().min(0).max(10).optional()
   }),
   /** One planned post of an event's series, written by the AI writer (no chat message: the studio shows it). */
   z.object({
@@ -120,9 +116,7 @@ export const aiJobSchema = z.discriminatedUnion('kind', [
     number: z.number().int().min(1).max(2),
     task: z.string().min(1).max(TEXT_MAX),
     /** The told sets' icons on Liquipedia's commons (owner, 23.10.2026: a slider of the sets), at most ten. */
-    urls: z.array(z.url().max(500)).max(10).optional(),
-    /** Pressed on DEV's «Проверка автопостов» (owner, 23.10.2026): a test, outside the daily limit. */
-    devRun: z.boolean().optional()
+    urls: z.array(z.url().max(500)).max(10).optional()
   }),
   z.object({ ...base, kind: z.literal('draft'), format: formatSchema, task: z.string().min(1).max(TEXT_MAX) }),
   z.object({
@@ -175,8 +169,6 @@ export type EventWriterJob = AiJobBase & {
   kind: 'event';
   externalId: string;
   automatic?: boolean;
-  /** A test pressed on DEV: published outside the daily limit. */
-  devRun?: boolean;
   /** A treasure's follow-up (1 or 2): its own task, and the event's own draft is left as it is. */
   followUp?: { number: number; task: string; urls?: string[] };
 };

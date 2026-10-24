@@ -20,7 +20,6 @@ import { incidentsRoutes } from './incidents-routes';
 import { mediaRoutes } from './media-routes';
 import { postsRoutes } from './posts-routes';
 import { sourcesRoutes } from './sources-routes';
-import { devRunsRoutes } from './dev-runs-routes';
 import { publicationsRoutes } from './publications-routes';
 import { requireOwner } from './require-owner';
 import { settingsRoutes } from './settings-routes';
@@ -121,7 +120,6 @@ export function createApp(
   app.route('/api/v1/dota/hero-assets', heroAssetsRoutes);
   app.route('/api/v1/dota', dotaRoutes);
   app.route('/api/v1/sources', sourcesRoutes);
-  app.route('/api/v1/dev-runs', devRunsRoutes);
   app.route('/api/v1/publications', publicationsRoutes);
   app.route('/api/v1/dashboard', dashboardRoutes);
   app.route('/api/v1/activity', activityRoutes);

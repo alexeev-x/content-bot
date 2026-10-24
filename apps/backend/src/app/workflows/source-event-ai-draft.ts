@@ -33,8 +33,6 @@ export async function requestSourceEventDraft(
     appOrigin: string;
     replay: boolean;
     automatic?: boolean;
-    /** DEV's «Проверка автопостов»: outside the daily limit. */
-    devRun?: boolean;
   }
 ): Promise<boolean> {
   const jobId = deps.newId();
@@ -47,8 +45,7 @@ export async function requestSourceEventDraft(
       chatId: input.chatId,
       appOrigin: input.appOrigin,
       externalId: input.externalId,
-      automatic: input.automatic ?? !input.replay,
-      ...(input.devRun === true ? { devRun: true } : {})
+      automatic: input.automatic ?? !input.replay
     });
   } catch (error) {
     // Nothing was queued. Cron's claim goes back for the next tick. A replay's job stays (given back, the row would

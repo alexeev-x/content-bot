@@ -56,8 +56,6 @@ export async function autopublishSourceEvent(
      * subrequests next to the writer's), which then publishes the approved post.
      */
     queuePicture?: (postId: string) => Promise<void>;
-    /** A test from DEV's «Проверка автопостов» (owner, 23.10.2026: «тесты вне лимита»). */
-    ignoreLimit?: boolean;
   }
 ): Promise<AutopublishOutcome> {
   const settings = await getOwnerOperationsSettings({
@@ -70,10 +68,7 @@ export async function autopublishSourceEvent(
   const channel = await container.destinations.findById(destinationId);
   if (channel === null || !channel.enabled) return { kind: 'skipped', reason: 'channel' };
   const now = container.clock.now();
-  if (
-    input.ignoreLimit !== true &&
-    (await container.publications.countCreatedBy(AUTOPUBLISH_ACTOR, now - DAY_MS)) >= dailyLimit
-  )
+  if ((await container.publications.countCreatedBy(AUTOPUBLISH_ACTOR, now - DAY_MS)) >= dailyLimit)
     return { kind: 'skipped', reason: 'limit' };
 
   // A text over a post's 4 096 characters cannot become a post: the owner gets the draft to shorten, not a «сбой».
@@ -143,8 +138,6 @@ export async function publishQueuedPatchPost(
     followUpUrls?: string[];
     /** The picture to start from: a later message of the same job goes on where the last one stopped. */
     from?: number;
-    /** A test from DEV's «Проверка автопостов»: outside the daily limit. */
-    ignoreLimit?: boolean;
   }
 ): Promise<AutopublishOutcome> {
   const settings = await getOwnerOperationsSettings({
@@ -160,7 +153,7 @@ export async function publishQueuedPatchPost(
     title,
     destinationId,
     timezone: settings.timezone,
-    ...(input.ignoreLimit === true ? {} : { dailyLimit: settings.autopublish.dailyLimit })
+    dailyLimit: settings.autopublish.dailyLimit
   });
 }
 

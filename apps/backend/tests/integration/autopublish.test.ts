@@ -85,14 +85,13 @@ const media = (failing = false): SourceMediaDeps => ({
   fetchImpl: (async () => new Response(null, { status: 404 })) as unknown as typeof fetch
 });
 
-const run = async (externalId: string, text: string, deps = media(), ignoreLimit = false) => {
+const run = async (externalId: string, text: string, deps = media()) => {
   const id = await draft(text);
   return autopublishSourceEvent(container, await createWriterDeps(container, 'test'), deps, {
     externalId,
     rootId: id,
     versionId: id,
-    requestId: 'test',
-    ...(ignoreLimit ? { ignoreLimit } : {})
+    requestId: 'test'
   });
 };
 
@@ -118,9 +117,6 @@ describe('automatic publishing of an event post', () => {
     // Over the limit: the next event's draft goes to the owner.
     expect(await run('1002', 'Ещё одна новость.')).toEqual({ kind: 'skipped', reason: 'limit' });
     expect(await count('publications')).toBe(1);
-    // A test pressed on DEV's «Проверка автопостов» is outside the limit (owner, 23.10.2026).
-    expect(await run('1003', 'Тестовый прогон.', media(), true)).toMatchObject({ kind: 'published' });
-    expect(await count('publications')).toBe(2);
   });
 
   it('leaves a draft over a post’s 4 096 characters to the owner, saying why (owner, 23.10.2026)', async () => {
